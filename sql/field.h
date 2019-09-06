@@ -1681,9 +1681,8 @@ public:
   }
   virtual bool sp_prepare_and_store_item(THD *thd, Item **value);
   bool is_outer_select_field(st_select_lex *sl);
-  bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                        bool in_where,
-                                        Item **err_item);
+  bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
+                             Item **err_item);
   bool check_usage_in_fd_field_extraction(THD *thd,
                                           List<Item> *fields,
                                           Item **err_item);

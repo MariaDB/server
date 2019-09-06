@@ -1325,9 +1325,8 @@ public:
 
  Item *get_copy(THD *thd) { return 0; }
 
- bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                       bool in_where,
-                                       Item **item)
+ bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
+                            Item **err_item)
  { return true; }
 };
 

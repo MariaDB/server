@@ -5,7 +5,7 @@
 /**
   @file
     Create a set of fields that are functionally dependent on some
-    initial set.
+    initial set fields.
 
     Consider some table T and subsets of its columns: A and B.
     A and B can be empty and can intersect.
@@ -29,90 +29,73 @@
 
     1. PRIMARY and/or UNIQUE keys
 
-       If initial set fields determines some PRIMARY or UNIQUE key all of
-       their table fields are added to FD.
+       If IS fields determines some PRIMARY or UNIQUE key all of
+       their table fields are added to FD fields set (FDFS).
        Note: if UNIQUE key is used it shouldn't contain NULL columns.
 
-    2. From Virtual column definition.
+    2. Equality predicates
 
-       If some virtual column is defined by IS fields then this virtual column
-       is added to FD.
+       FD fields can be extracted from the equality predicates of the form:
 
-    3. Materialized derived tables/views
+       F2 = g(H1,...,Hn), (1)
 
+       where F2          - FD field candidate,
+             (H1,...,Hn) - IS fields and/or FD fields and/or constants,
+             g()         - some deterministic function (can be identity
+                           function).
+
+       Definition of the deterministic function can be found in
+       Is_deterministic_cache class.
+
+       If no conversion is applied to F2 then F2 is FD field.
+
+      2.1.  WHERE clause equality predicates.
+
+        FD fields can be extracted from the top AND level WHERE clause
+        equality predicates of the form (1).
+
+      2.2.  ON expressions equality predicates
+
+        FD fields can be extracted from the top AND level ON expression clauses
+        equality predicates of the form (1).
+
+        FDFS is created after all possible JOINs are simplified in
+        simplify_joins(). On this step ON expressions are used with LEFT JOINs
+        only and contains fields from the left (strong side) and right
+        (weak side) LEFT join tables only (including outer references).
+
+        F2 in (1) can't be LEFT JOIN strong side (SS) tables field. So, only weak
+        side (WS) tables fields can expand FD fields list.
+
+        Lemma 1.
+        It is forbidden to expand FDFS using weak side tables fields if ON
+        expression:
+        1. Contain non-deterministic functions.
+        2. Contain non IS or FD fields from the left LEFT JOIN tables.
+        3. Contain no IS or FD fields from the left LEFT JOIN tables if the
+           considered LEFT JOIN is not the most outer LEFT JOIN.
+
+    3. From Virtual column definition.
+
+       If some virtual column is defined with IS fields then this virtual column
+       is added to FDFS.
+       Note: it's forbidden to use virtual columns of some table if this
+             table is on the weak side of the LEFT JOIN (Lemma 1).
+
+    4. Materialized derived tables and views
        Materialized derived tables and views are checked before the query where
        they are used. So if a UNION that defines materialized derived table
-       or view contains a SELECT for which 'Rule 1' doesn't apply the SELECT
+       or view contains some SELECT for which 'Rule 1' doesn't apply the SELECT
        where this derived table or view is used will never be entered.
        So, it can be said that materialized derived table or view SELECT list
        uses IS or FD columns only.
        Therefore, if the materialized derived table or view field is in IS of
        the SELECT where it is used then all of this derived table or view
-       fields can be added to FD.
-       Note: doesn't apply to the inner LEFT JOIN tables.
+       fields can be added to FDFS.
 
-    4. Equality predicates
+       Note: Lemma 1 should also work for this case.
 
-       FD fields can be extracted from the equality predicates of the form:
-
-       F2 = g(F1,...,Fn), (1)
-
-       where F2          - FD candidate,
-             (F1,...,Fn) - IS fields and constants,
-             g()         - some deterministic function.
-
-       If no conversion is applied to F2 then F2 is FD field.
-       (F1,...Fn) can include functionally dependent fields also.
-
-       Deterministic function is a function that returns the same result set
-       every time it is called with the same input set. Function can be called
-       non-deterministic if at least one of its function arguments is
-       non-deterministic.
-       Deterministic expression is an expression that uses only deterministic
-       functions.
-
-       E.g.
-         Non-deterministic expression:
-         1 + rand(),
-
-         where rand() - non-deterministic function.
-
-      4.1.  WHERE clause equality predicates.
-
-      FD fields can be extracted from the top AND level WHERE clause
-      equality predicates of the form (1).
-
-      4.2.  ON expressions equality predicates
-
-      FD fields can be extracted from the top AND level ON expression clauses
-      equality predicates of the form (1).
-
-      FD fields set is created after all possible JOINs are simplified in
-      simplify_joins(). On this step ON expressions are used with LEFT JOINs
-      only and contains fields from the left and right LEFT join tables only
-      (including outer SELECT fields).
-
-      When ON expression is checked following conditions should be met:
-      1. LEFT JOIN left table fields can't be extracted.
-         So F2 in (1) is always some inner table field of the considered
-         LEFT JOIN.
-      2. If in (1) more than one field is used in the right part of the
-         equality all of these fields should be inner tables fields.
-      3. If at least one top AND level conjunct is non-deterministic than
-         it is forbidden to new functionally dependent fields at the considered
-         JOIN level.
-         E.g.
-         rand() function
-
-      4. If at least one top AND level conjunct contains non GROUP BY field
-         from the left LEFT JOIN table then it is forbidden to extract new
-         functionally dependent fields at the considered JOIN level.
-      5. If there are no conjuncts that depend on this level LEFT JOIN left
-         table then it is forbidden to extract new functionally dependent
-         fields at the considered JOIN level.
-         Note: doesn't apply to the most outer ON expression.
-
-    II. Functionally dependent fields extraction algorithm for I.
+    II. How FDFS is created : algorithm
 
     a. All fields used in GROUP BY are marked.
 
@@ -121,37 +104,46 @@
        down to the most inner LEFT JOIN ON expressions):
 
     1.1 Go through the top AND level equality predicates and check if they meet
-        the conditions above. Take appropriate actions if conditions are
-        not met for the equality predicate, otherwise save as usable.
+        the conditions from 4.2.
+        Take appropriate actions if conditions are not met for the equality
+        predicate, otherwise save as usable.
 
-        Note: Saved equality predicate can not depend on GROUP BY fields
-              or constants. New functionally dependent fields can be extracted
-              from some other this level equality predicates and they can make
-              the considered non-dependent equality predicate usable.
+        Note: Saved equality predicate can not depend on IS fields
+              or constants.
+              New functionally dependent fields can be extracted
+              from some other equality predicates. They can make
+              the considered equality predicate usable.
 
         Special case of (3):
           F2 = I(F1) (3')
 
         Conversion is not applied to both F1 and F2 (F1 and F2 are of the
-        same type as the equality), F1 is neither 'gb' or 'fd' field or
+        same type as the equality), F1 is neither IS or FD field or
         constant.
         Then (3') equality can be considered as two equalities:
 
         F2 = I(F1) and F1 = I(F2)
 
     1* If ON expression is considered all of its top AND level conjuncts are
-       checked if all restrictions are performed.
+       checked if they meet the conditions from 4.2.
     2. Expand the set of functionally dependent fields with saved equality
        predicates until it is possible.
-    2.1 Go through usable equality predicates and try to extract new
-        functionally dependent fields. Delete from this list no longer
-        necessary equality predicates.
-    2.2 If any functionally dependent fields were extracted and usable
+    2.1 Go through usable equality predicates list and try to extract new
+        functionally dependent fields. Delete from this list equality
+        predicates from which no new FD fields can be extracted.
+    2.1.1 If new FD field is materialized derived table/view field try
+          to add this table fields to FDFS (check Lemma 1).
+    2.2 If any functionally dependent field was extracted and usable
         equality predicates list is not empty repeat 2.1.
 
     By the end of this algorithm all fields that are used in GROUP BY
     and fields functionally dependent on them are marked. These fields
     are allowed to be used in SELECT list, HAVING and ORDER BY clauses.
+
+    Note: Virtual columns and mergable views and derived tables columns are
+          checked after FDFS is gathered. So it's important to remember tables
+          for which Lemma 1 doesn't apply and which virtual columns/fields
+          that are not from the IS can't be used.
 
     Work if 'only_full_group_by' mode is set only.
 */
@@ -160,19 +152,22 @@
 /**
   This class is used to store the equality information
   that can be used in the extraction of a new functionally
-  dependent field.
-  It contains a field that can be extracted from the equality (one
-  part of the equality) and a set of fields used in the other part
-  of the same equality.
+  dependent field from some equality predicate.
+  It contains a field that can be extracted from the equality predicate
+  (one part of the equality) and a set of items (Item_field and Item_ref
+  items) used in the other part of the same equality predicate.
 */
 
 class Item_equal_fd_info :public Sql_alloc
 {
 public:
-  Field *nd_field; // Field that can be extracted
+  /*
+    Field that can be extracted from the equality predicate.
+  */
+  Field *nd_field;
   /*
     Set of fields (Item_field and Item_ref items) from the other part
-    of the equality. Needs to be IS or FD fields.
+    of the equality predicate. Needs to be IS or FD fields.
   */
   List<Item> dp_items;
   Item_equal_fd_info(Field *nd_f, List<Item> dp_i) :
@@ -182,7 +177,7 @@ public:
 
 /**
   This class is used to store the information about the current JOIN
-  level. It is used in the extraction of a new functionally dependent field.
+  level. It is used to help to expand FD fields list.
   Is updated every time when a new nested JOIN is entered.
 */
 
@@ -193,16 +188,24 @@ public:
   bool top_level; // TRUE if the most outer LEFT JOIN is considered.
   /*
     If the current JOIN level is the most outer JOIN store WHERE clause
-    equality predicates information that can be used in extraction of new
-    functionally dependent fields.
+    equality predicates information that can be used to expand FD fields
+    list.
     If the current JOIN is nested JOIN store its ON expression
     equality predicates information.
   */
   List<Item_equal_fd_info> *eq_info;
-  table_map cur_level_tabs; // Map of current JOIN level tables.
-  FD_select_info(st_select_lex *sel, List<Item_equal_fd_info> *eq_inf)
+  table_map cur_level_tabs; // Map of the current JOIN level tables.
+  /*
+    If the current JOIN level is the most outer JOIN 'where' is set to
+    'WHERE clause'. Otherwise, set to 'ON expression'.
+  */
+  const char *where;
+  table_map forbid_fd_expansion;
+  FD_select_info(st_select_lex *sel, List<Item_equal_fd_info> *eq_inf,
+                 const char *wh)
     : sl(sel), top_level(true),
-      eq_info(eq_inf), cur_level_tabs(0) {}
+      eq_info(eq_inf), cur_level_tabs(0),
+      where(wh), forbid_fd_expansion(0) {}
 };
 
 
@@ -215,13 +218,14 @@ public:
 static bool are_all_key_fields_allowed(KEY *key)
 {
   Item *err_item= 0;
+  table_map map= 0;
   for (uint i= 0; i < key->user_defined_key_parts; i++)
   {
-    /* Check if column can take NULL values. */
+    /* Check if a column can take NULL values. */
     if (key->key_part[i].field->null_ptr)
       return false;
     if (!key->key_part[i].field->
-         excl_func_dep_on_grouping_fields(0, false, &err_item))
+         excl_dep_on_fd_fields(0, map, &err_item))
       return false;
   }
   return true;
@@ -236,9 +240,9 @@ static bool are_all_key_fields_allowed(KEY *key)
     sl  current select
 
   @details
-    For each table used in the FROM list of SELECT sl check
+    For each table used in the FROM list of the SELECT sl check
     its PRIMARY and UNIQUE keys.
-    If some table key consists of IS or FD fields only then
+    If some table key contains IS or FD fields only then
     all fields of this table are FD fields.
 
   @retval
@@ -259,7 +263,7 @@ bool find_allowed_unique_keys(st_select_lex *sl)
     /* Check if all fields of this table are already marked as FD. */
     if (bitmap_is_set_all(&tbl->table->tmp_set))
       continue;
-    /* Check if PRIMARY key can expand FD fields list. */
+    /* Check if PRIMARY key fields can expand FD fields list. */
     if (tbl->table->s->primary_key < MAX_KEY)
     {
       KEY *pk= &tbl->table->key_info[tbl->table->s->primary_key];
@@ -270,7 +274,7 @@ bool find_allowed_unique_keys(st_select_lex *sl)
         continue;
       }
     }
-    /* Check if UNIQUE keys can expand FD fields list. */
+    /* Check if UNIQUE keys fields can expand FD fields list. */
     KEY *end= tbl->table->key_info + tbl->table->s->keys;
     for (KEY *k= tbl->table->key_info; k < end; k++)
       if ((k->flags & HA_NOSAME) && are_all_key_fields_allowed(k))
@@ -286,21 +290,21 @@ bool find_allowed_unique_keys(st_select_lex *sl)
 
 /**
   @brief
-    Expand FD list with materialized derived table or view fields if possible.
+    Expand FDFS with materialized derived table or view fields if possible
 
   @param
     tbl  TABLE_LIST to check
 
   @details
-    First check that tbl can be used for expansion of FD fields list.
+    Firstly, check if tbl can be used for expansion of FD fields list.
     tbl should be a materialized derived table or view that is defined with a
-    single SELECT and GROUP BY. If so that means that all fields of this
+    single SELECT and GROUP BY. If so this means that all fields of this
     materialized derived table or view are uniquely identified (materialized
     derived tables are checked before they are used).
     If some field of such tbl is functionally dependent on IS fields or
     is IS field (in SELECT where this tbl is used) then all fields
     of this materialized derived table or view are marked as FD as they
-    are uniquely identified in this SELECT.
+    are uniquely identified in the SELECT where they are used.
 */
 
 inline void expand_fd_fields_with_mat_der(TABLE_LIST *tbl)
@@ -361,22 +365,23 @@ bool collect_gb_items(st_select_lex *sl, List<Item> &gb_items)
 
 /**
   @brief
-    Get equality information so it can be used in extraction of FD field
+    Get equality predicate info from which FD field can be extracted
 
   @param
     sl_info            information about the current JOIN level
                        and SELECT
-    eq                 the considered equality
-    curr_dep_part_idx  index of the equality part which is a field of some
-                       current JOIN level table
+    eq                 the considered equality predicate
+    curr_dep_part_idx  index of the equality predicate part which
+                       is a field of some current JOIN level table
 
   @details
-    Check equality if it can be used in functionally dependent field extraction
-    and if so collect its internal information.
-    Equality should satisfy the restrictions from @file description.
+    Check the equality predicate 'eq' if any functionally dependent field can
+    be deduced from it. FD field candidate can't be from the strong side
+    of the LEFT JOIN table and it can't depend on IS or FD fields only.
+    If so, collect this equality predicate internal information.
 
   @note
-    Also check if the equality use forbidden outer SELECTs fields.
+    Also check if the equality use forbidden outer references.
 
   @retval
     true   if an error occurs
@@ -406,7 +411,8 @@ bool get_eq_info_for_fd_field_extraction(FD_select_info *sl_info,
   if (!dep_curr && err_item)
   {
     /*
-      If the equality use forbidden outer SELECT field through error.
+      Equality predicate uses a forbidden outer reference.
+      Through error.
     */
     my_error(ER_NON_GROUPING_FIELD_USED, MYF(0),
              err_item->real_item()->full_name(), "WHERE clause");
@@ -417,20 +423,15 @@ bool get_eq_info_for_fd_field_extraction(FD_select_info *sl_info,
                                                       &op_part_flds,
                                                       &err_item);
   if ((!dep_op && err_item) ||                            // (1)
-      (dep_curr && dep_op) ||                             // (2)
-      (!dep_op && op_part_flds.is_empty()) ||             // (3)
-      ((op_equal_part->type() == Item::FUNC_ITEM ||       // (4)
-       op_equal_part->type() == Item::COND_ITEM) &&
-       !((Item_func *)op_equal_part)->is_deterministic))
+      (dep_curr && dep_op))                               // (2)
   {
     /*
-      (1) Equality use a forbidden outer SELECT field.
-      (2) Equality depend on 'allowed' fields only.
-      (3) op_eq_part contains expression that can't forbids FD
-          field extraction.
-      (4) op_eq_part is non-deterministic expression.
+      (1) Equality predicate uses a forbidden outer reference.
+      (2) Equality predicate depends on FD and IS fields only.
 
-      In these cases the equality can't be used in FD field extraction.
+      In these cases the equality can't be used in FD fields list
+      expansion.
+      If (1) through error.
     */
     if (err_item)
     {
@@ -440,15 +441,6 @@ bool get_eq_info_for_fd_field_extraction(FD_select_info *sl_info,
     }
     return false;
   }
-  bool dep_on_outer= op_equal_part->used_tables() & (~sl_info->cur_level_tabs);
-  /*
-    Don't use equality with a special case in (1): when there are at least two
-    F11 and F12 fields and at least one of them is not a current JOIN level
-    table field.
-  */
-  if (dep_on_outer &&
-      op_equal_part->real_item()->type() != Item::FIELD_ITEM)
-    return false;
 
   if (!dep_curr)
   {
@@ -462,14 +454,14 @@ bool get_eq_info_for_fd_field_extraction(FD_select_info *sl_info,
       if (sl_info->eq_info->push_back(new_eq, thd->mem_root))
         return true;
     }
-    if (!dep_op && !dep_on_outer &&
+    if (!dep_op &&
         (op_equal_part->real_item()->type() == Item::FIELD_ITEM) &&
         (op_equal_part->used_tables() & sl_info->cur_level_tabs) &&
         (eq->compare_type_handler() ==
            op_equal_part->type_handler_for_comparison()))
     {
       /*
-        The other part of the equality can also be extracted as FD field.
+        The other part of the equality predicate can also expand FDFS.
       */
       Item_equal_fd_info *new_eq=
         new (thd->mem_root) Item_equal_fd_info(
@@ -479,14 +471,13 @@ bool get_eq_info_for_fd_field_extraction(FD_select_info *sl_info,
         return true;
     }
   }
-  else if (!dep_on_outer &&
-           (op_equal_part->real_item()->type() == Item::FIELD_ITEM) &&
+  else if ((op_equal_part->real_item()->type() == Item::FIELD_ITEM) &&
            (op_equal_part->used_tables() & sl_info->cur_level_tabs) &&
            (eq->compare_type_handler() ==
               op_equal_part->type_handler_for_comparison()))
   {
     /*
-      The other part of the equality can also be extracted as FD field.
+      The other part of the equality predicate can expand FDFS.
     */
     Item_equal_fd_info *new_eq=
       new (thd->mem_root) Item_equal_fd_info(
@@ -501,18 +492,17 @@ bool get_eq_info_for_fd_field_extraction(FD_select_info *sl_info,
 
 /**
   @brief
-    Check if the equality can be used in FD field extraction
+    Check if from the equality predicaty some FD fields can be deduced
 
   @param
     sl_info  information about the current JOIN level and SELECT
-    eq       the considered equality
-    checked  IN/OUT TRUE if eq is checked on forbidden outer SELECT
-             fields in get_eq_info_for_fd_field_extraction() method.
+    eq       the considered equality predicate
+    checked  IN/OUT TRUE if eq is checked on forbidden outer references
+             in get_eq_info_for_fd_field_extraction() method.
 
   @details
-    Check if at least one part of the equality has the same type
-    as the equality. If so and at least one part of the equality
-    is a current JOIN level table field call
+    Call for a field which has the same type as the equality and
+    is the considered JOIN level tables field
     get_eq_info_for_fd_field_extraction() method.
 
   @retval
@@ -531,20 +521,18 @@ bool check_equality_usage_in_fd_field_extraction(FD_select_info *sl_info,
   Item *item_l= eq->arguments()[0];
   Item *item_r= eq->arguments()[1];
 
-  if ((item_l->type_handler_for_comparison() !=
-       eq->compare_type_handler()) &&
-      (item_r->type_handler_for_comparison() !=
-       eq->compare_type_handler()))
-    return false;
-
-  if ((item_l->used_tables() & sl_info->cur_level_tabs) &&
+  if ((item_l->type_handler_for_comparison() ==
+      eq->compare_type_handler()) &&
+      (item_l->used_tables() & sl_info->cur_level_tabs) &&
       (item_l->real_item()->type() == Item::FIELD_ITEM))
   {
     *checked= true;
     if (get_eq_info_for_fd_field_extraction(sl_info, eq, 0))
       return true;
   }
-  else if ((item_r->used_tables() & sl_info->cur_level_tabs) &&
+  else if ((item_r->type_handler_for_comparison() ==
+            eq->compare_type_handler()) &&
+           (item_r->used_tables() & sl_info->cur_level_tabs) &&
            (item_r->real_item()->type() == Item::FIELD_ITEM))
   {
     *checked= true;
@@ -556,23 +544,21 @@ bool check_equality_usage_in_fd_field_extraction(FD_select_info *sl_info,
 
 
 /**
-  Check if item contains some forbidden outer SELECT field.
+  Check if item contains some forbidden outer references.
 */
 
 static
-bool check_on_forbidden_outer_fields(st_select_lex *sl,
-                                     Item *item,
-                                     const char *where)
+bool check_on_forbidden_outer_references(FD_select_info *sl_info,
+                                         Item *item)
 {
-  if (!sl->master_unit()->outer_select())
-    return false;
-
   Item *err_item= 0;
-  if (!item->excl_func_dep_on_grouping_fields(0, true, &err_item) &&
+  if ((item->used_tables() & OUTER_REF_TABLE_BIT) &&
+      !item->check_usage_in_fd_field_extraction(sl_info->sl->join->thd,
+                                                0, &err_item) &&
       err_item)
   {
     my_error(ER_NON_GROUPING_FIELD_USED, MYF(0),
-             err_item->real_item()->full_name(), where);
+             err_item->real_item()->full_name(), sl_info->where);
     return true;
   }
   return false;
@@ -581,21 +567,19 @@ bool check_on_forbidden_outer_fields(st_select_lex *sl,
 
 /**
   @brief
-    Check if there are equality predicates usable in FD fields extraction.
+    Check if from the considered expression FD fields can be deduced.
 
   @param
-    sl_info  information about the current JOIN level
-             and SELECT
+    sl_info  information about the current JOIN level and SELECT
     expr     the considered expression
-    where    the context of the expression
 
   @details
-    Check upper AND level expr equality predicates if they can
-    be used in extraction of a new functionally dependent field of the
-    current JOIN level table.
+    Check upper AND level expr equality predicates if it is possible to
+    deduce new FD fields from them. New FD fields can be deduced only
+    if the equality predicate is deterministic.
     For this purpose call check_equality_usage_in_fd_field_extraction().
     If needed check top AND level expr conjuncts on usage of forbidden
-    outer SELECT fields.
+    outer references.
 
   @retval
     true   if an error occurs
@@ -603,8 +587,7 @@ bool check_on_forbidden_outer_fields(st_select_lex *sl,
 */
 
 bool check_expr_and_get_equalities_info(FD_select_info *sl_info,
-                                        Item *expr,
-                                        const char *where)
+                                        Item *expr)
 {
   if (!expr)
     return false;
@@ -619,25 +602,27 @@ bool check_expr_and_get_equalities_info(FD_select_info *sl_info,
     {
       checked= false;
       if (item->type() == Item::FUNC_ITEM &&
-          ((Item_func_eq *) item)->functype() == Item_func::EQ_FUNC &&
+          ((Item_func *) item)->functype() == Item_func::EQ_FUNC &&
+          item->is_deterministic() &&
           check_equality_usage_in_fd_field_extraction(sl_info,
                                                       (Item_func_eq *)item,
                                                       &checked))
           return true;
       else if (!checked &&
-               check_on_forbidden_outer_fields(sl_info->sl,
-                                               item, where))
+               check_on_forbidden_outer_references(sl_info, item))
         return true;
     }
+    return false;
   }
   else if (expr->type() == Item::FUNC_ITEM &&
            ((Item_func*) expr)->functype() == Item_func::EQ_FUNC &&
+           expr->is_deterministic() &&
            check_equality_usage_in_fd_field_extraction(sl_info,
                                                        (Item_func_eq *)expr,
                                                        &checked))
     return true;
   if (!checked &&
-      check_on_forbidden_outer_fields(sl_info->sl, expr, where))
+      check_on_forbidden_outer_references(sl_info, expr))
     return true;
   return false;
 }
@@ -645,23 +630,20 @@ bool check_expr_and_get_equalities_info(FD_select_info *sl_info,
 
 /**
   @brief
-    Check if the considered ON expression can be used in FD fields extraction.
+    Check if ON expression equality predicates can expand FD fields list.
 
   @param
-    sl_info  information about the current JOIN level
-             and SELECT
-    expr     the considered ON expression
+    sl_info  information about the current JOIN level and SELECT
+    on_expr  the considered ON expression
 
   @details
     Check if ON expression:
-    1. Contains non-deterministic functions.
-       E.g. rand()
+    1. Is deterministic
     2. Is not the most outer ON expression and doesn't contain
        LEFT JOIN left tables fields.
-    3. Contains LEFT JOIN left tables fields that are not used in
-       GROUP BY.
-    In these cases from this ON expression no new FD fields can be
-    extracted.
+    3. Contains LEFT JOIN left tables fields that are not used in the
+       IS or FD lists.
+    In these cases on_expr can't be used for FD fields list expansion.
 
   @retval
     true   if an error occurs
@@ -671,43 +653,48 @@ bool check_expr_and_get_equalities_info(FD_select_info *sl_info,
 bool check_on_expr_and_get_equalities_info(FD_select_info *sl_info,
                                            Item *on_expr)
 {
-  if (!on_expr || on_expr->const_item())
+  if (!on_expr)
     return false;
 
-  if (((on_expr->type() == Item::COND_ITEM ||                              // 1
-        on_expr->type() == Item::FUNC_ITEM) &&
-        ((Item_func *)on_expr)->has_rand_bit()) ||
-        (!sl_info->top_level &&                                            // 2
+  if (!on_expr->is_deterministic())
+  {
+    sl_info->forbid_fd_expansion|= sl_info->cur_level_tabs;
+    return false;
+  }
+  if ((!sl_info->top_level &&                                            // 2
          !(on_expr->used_tables() & (~sl_info->cur_level_tabs))) ||
           ((on_expr->used_tables() & (~sl_info->cur_level_tabs)) &&        // 3
             on_expr->walk(&Item::check_reject_fd_extraction_processor, 0,
                         &sl_info->cur_level_tabs)))
   {
-    /* Check if this ON expression doesn't contain FD fields. */
-    if (check_on_forbidden_outer_fields(sl_info->sl, on_expr, "ON expression"))
+    /*
+      Check that this ON expression doesn't contain
+      forbidden outer references.
+    */
+    if (check_on_forbidden_outer_references(sl_info, on_expr))
       return true;
+    sl_info->forbid_fd_expansion|= sl_info->cur_level_tabs;
     return false;
   }
 
-  if (check_expr_and_get_equalities_info(sl_info, on_expr, "ON expression"))
+  if (check_expr_and_get_equalities_info(sl_info, on_expr))
     return true;
-
   return false;
 }
 
 
 /**
   @brief
-    Try to extract new functionally dependent fields
+    Deduce equality predicates and get new FD fields.
 
   @param
     sl_info  information about the current JOIN level and SELECT
 
   @details
-    Go through the equalities information gathered before and try to
-    extract new functionally dependent fields of current JOIN level
-    tables. Stop if no fields were extracted on the previous step
-    or all fields are already extracted.
+    Go through the equality predicates information gathered before
+    and try to recieve new FD fields.
+    Stop if no fields were recieved on the previous step
+    or no new fields can be recieved anymore.
 */
 
 static
@@ -721,6 +708,7 @@ void get_new_dependencies_from_eq_info(FD_select_info *sl_info)
   List_iterator<Item_equal_fd_info> li(*eq_info);
   Item_equal_fd_info *info;
   Item *err_item= 0;
+  table_map map= 0;
   bool extracted= true;
 
   while (extracted && !eq_info->is_empty())
@@ -732,7 +720,7 @@ void get_new_dependencies_from_eq_info(FD_select_info *sl_info)
       if (bitmap_is_set(&info->nd_field->table->tmp_set,
                         info->nd_field->field_index))
       {
-        /* Field is already found as 'allowed'. */
+        /* Field is already found as FD. */
         li.remove();
         continue;
       }
@@ -741,7 +729,7 @@ void get_new_dependencies_from_eq_info(FD_select_info *sl_info)
       bool dep= true;
 
       while ((item= it++))
-        dep&= item->excl_func_dep_on_grouping_fields(0, false, &err_item);
+        dep&= item->excl_dep_on_fd_fields(0, map, &err_item);
       if (!dep)
         continue;
 
@@ -750,7 +738,7 @@ void get_new_dependencies_from_eq_info(FD_select_info *sl_info)
       bitmap_set_bit(&fld->table->tmp_set, fld->field_index);
       /*
         Check if nd_field is in materialized derived table or view
-        and all fields of this table becomes FD.
+        and all fields of this table can become FD fields.
       */
       expand_fd_fields_with_mat_der(fld->table->pos_in_table_list);
       extracted= true;
@@ -758,7 +746,7 @@ void get_new_dependencies_from_eq_info(FD_select_info *sl_info)
     }
     if (!extracted || eq_info->is_empty())
     {
-      /* Check if any nd_field table key becomes usable for FD expansion. */
+      /* Check if any nd_field table keys becomes usable for FDFS expansion. */
       if (find_allowed_unique_keys(sl_info->sl))
         extracted= true;
     }
@@ -768,22 +756,37 @@ void get_new_dependencies_from_eq_info(FD_select_info *sl_info)
 
 /**
   @brief
-    Recursively extract FD fields of nested JOINs tables.
+    Recursively expand FDFS with JOIN level tables fields.
 
   @param
     sl_info    information about the current JOIN level and SELECT
-    nest_tab   the considered nested join
+    nest_tab   current JOIN level tables and nested joins
 
   @details
-    Collect this JOIN level (nest_tab) tables and try to expand FD fields
-    sets of these tables using nest_tab ON expression (ON expression of
-    the parent JOIN) equality predicates and IS fields.
+    Consider:
 
-    If there is a table on the right part of this LEFT JOIN try to extract
-    its fields using ON expression of the considered LEFT JOIN.
-    Otherwise, if the right part of this JOIN contains nested join recursively
-    call this method for this nested join.
+    ( ... LEFT JOIN (                                 
+                     weak_side_out LEFT JOIN          | (1)
+                       weak_side_in ON (on_expr_in)   |
+                    ) ON (on_expr_out)) ON (...)
 
+    where
+    (1)           - is current JOIN level
+    weak_side_out - current JOIN level strong side and parent JOIN
+                    level weak side
+    on_expr_out   - parent JOIN level ON expression
+    weak_side_in  - current JOIN level weak side
+    on_expr_in    - current JOIN level ON expression
+
+    nest_tab consists of weak_side_out and weak_side_in tables and nested
+    joins.
+
+    Firstly, weak_side_out table fields are tried to be used to expand
+    FDFS using on_expr_out equality predicates.
+    Secondly, either this method is recursively called for weak_side_in
+              TABLE_LIST if it contains nested JOIN,
+              or weak_side_in table fields are tried to be used for FDFS
+              expansion using on_expr_in equality predicates.
   @note
     Information about the considered JOIN level is stored in sl_info
     fields.
@@ -793,7 +796,8 @@ void get_new_dependencies_from_eq_info(FD_select_info *sl_info)
     false  otherwise
 */
 
-bool expand_table_list_fd_set(FD_select_info *sl_info, TABLE_LIST *nest_tab)
+bool expand_fdfs_with_join_tables_fields(FD_select_info *sl_info,
+                                         TABLE_LIST *nest_tab)
 {
   List<TABLE_LIST> dep_tabs;
   table_map cur_level_tabs= 0;
@@ -821,7 +825,9 @@ bool expand_table_list_fd_set(FD_select_info *sl_info, TABLE_LIST *nest_tab)
     TABLE_LIST *tbl= dep_tabs.elem(i);
     if (!tbl->on_expr)
       continue;
-    if (tbl->table)
+    if (tbl->nested_join && expand_fdfs_with_join_tables_fields(sl_info, tbl))
+      return true;
+    else if (tbl->table)
     {
       sl_info->eq_info->empty();
       sl_info->cur_level_tabs= tbl->table->map;
@@ -833,8 +839,6 @@ bool expand_table_list_fd_set(FD_select_info *sl_info, TABLE_LIST *nest_tab)
         return true;
       get_new_dependencies_from_eq_info(sl_info);
     }
-    else if (expand_table_list_fd_set(sl_info, tbl))
-      return true;
   }
   return false;
 }
@@ -842,28 +846,28 @@ bool expand_table_list_fd_set(FD_select_info *sl_info, TABLE_LIST *nest_tab)
 
 /**
   @brief
-    Expand FD fields set of the most outer JOIN tables.
+    Expand FD fields using the most outer JOIN tables fields
 
   @param
     sl_info  information about the current JOIN level and SELECT
 
   @details
     Consider the most outer JOIN.
-    Collect this JOIN level tables and try to extract new functionally
-    dependent fields of these tables using WHERE clause equality predicates
+    Collect this JOIN level tables and try to expand FDFS with
+    FD fields of these tables using WHERE clause equality predicates
     and IS fields.
-    If there is a table in the right part of this LEFT JOIN try to extract
-    its fields using ON expression of the considered JOIN.
+    If the LEFT JOIN is considered and there is a table on the weak side
+    of this LEFT JOIN try to expand FDFS with this table fields
+    using ON expression equality predicates of the considered LEFT JOIN.
     Otherwise, if the right part of this JOIN contains nested join call
-    expand_table_list_fd_set() for this nested join to extract
-    FD fields.
+    expand_fdfs_with_join_tables_fields() for this nested join.
 
   @retval
     true   if an error occurs
     false  otherwise
 */
 
-bool expand_top_table_list_fd_set(FD_select_info *sl_info)
+bool expand_fdfs_with_top_join_tables_fields(FD_select_info *sl_info)
 {
   List<TABLE_LIST> dep_tabs;
   table_map cur_level_tabs= 0;
@@ -886,33 +890,36 @@ bool expand_top_table_list_fd_set(FD_select_info *sl_info)
 
   sl_info->cur_level_tabs= cur_level_tabs;
   sl_info->eq_info->empty();
-  if (check_expr_and_get_equalities_info(sl_info, sl_info->sl->join->conds,
-                                         "WHERE clause"))
+
+  if (check_expr_and_get_equalities_info(sl_info, sl_info->sl->join->conds))
     return true;
+  sl_info->forbid_fd_expansion= 0;
   get_new_dependencies_from_eq_info(sl_info);
 
+  sl_info->where= "ON expression";
   for (int i= dep_tabs.elements - 1; i >= 0; i--)
   {
     TABLE_LIST *tbl= dep_tabs.elem(i);
     if (!tbl->on_expr)
       continue;
-    if (tbl->table)
+    if (tbl->nested_join)
+    {
+      if (tbl->outer_join & JOIN_TYPE_LEFT)
+        sl_info->top_level= false;
+      if (expand_fdfs_with_join_tables_fields(sl_info, tbl))
+        return true;
+    }
+    else if (tbl->table)
     {
       sl_info->eq_info->empty();
       sl_info->cur_level_tabs= tbl->table->map;
+
       List<TABLE_LIST> left_tab;
       if (left_tab.push_back(tbl, sl_info->sl->join->thd->mem_root))
         return true;
       if (check_on_expr_and_get_equalities_info(sl_info, tbl->on_expr))
         return true;
       get_new_dependencies_from_eq_info(sl_info);
-    }
-    else
-    {
-      if (tbl->outer_join & JOIN_TYPE_LEFT)
-        sl_info->top_level= false;
-      if (expand_table_list_fd_set(sl_info, tbl))
-        return true;
     }
   }
   return false;
@@ -936,18 +943,21 @@ void set_update_table_fields(st_select_lex *sl)
 
 
 /**
-  Check if SELECT list items contain IS and FD fields only.
+  Check if SELECT list items contain IS, FD fields and deterministic
+  functions only.
 */
 
-bool are_select_list_fields_allowed(st_select_lex *sl,
-                                    List<Item> *gb_items)
+bool are_select_list_fields_fd(st_select_lex *sl,
+                               List<Item> *gb_items,
+                               table_map forbid_fd_expansion)
 {
   List_iterator<Item> li(sl->item_list);
   Item *item;
   Item *err_item= 0;
   while ((item=li++))
   {
-    if (item->excl_func_dep_on_grouping_fields(gb_items, false, &err_item))
+    if (item->excl_dep_on_fd_fields(gb_items, forbid_fd_expansion,
+                                    &err_item))
       continue;
     my_error(ER_NON_GROUPING_FIELD_USED, MYF(0),
              err_item->real_item()->full_name(), "SELECT list");
@@ -958,19 +968,22 @@ bool are_select_list_fields_allowed(st_select_lex *sl,
 
 
 /**
-  Check if HAVING clause contains IS and FD fields only.
+  Check if HAVING clause contains IS, FD fields and deterministic
+  functions only.
 */
 
 static
-bool are_having_fields_allowed(st_select_lex *sl,
-                               Item *having,
-                               List<Item> *gb_items)
+bool are_having_fields_fd(st_select_lex *sl,
+                          Item *having,
+                          List<Item> *gb_items,
+                          table_map forbid_fd_expansion)
 {
-  if (!having || !sl->master_unit()->outer_select())
+  if (!having)
     return true;
 
   Item *err_item= 0;
-  if (having->excl_func_dep_on_grouping_fields(gb_items, false, &err_item))
+  if (having->excl_dep_on_fd_fields(gb_items, forbid_fd_expansion,
+                                    &err_item))
     return true;
   my_error(ER_NON_GROUPING_FIELD_USED, MYF(0),
            err_item->real_item()->full_name(), "HAVING clause");
@@ -979,12 +992,14 @@ bool are_having_fields_allowed(st_select_lex *sl,
 
 
 /**
-  Check if ORDER BY items contain IS and FD fields only.
+  Check if ORDER BY items contain IS, FD fields and
+  deterministic functions only.
 */
 
 static
-bool are_order_by_fields_allowed(st_select_lex *sl,
-                                 List<Item> *gb_items)
+bool are_order_by_fields_fd(st_select_lex *sl,
+                            List<Item> *gb_items,
+                            table_map forbid_fd_expansion)
 {
   if (sl->order_list.elements == 0)
     return true;
@@ -993,7 +1008,8 @@ bool are_order_by_fields_allowed(st_select_lex *sl,
   for (ORDER *order= sl->order_list.first; order; order=order->next)
   {
     Item *ord_item= *order->item;
-    if (ord_item->excl_func_dep_on_grouping_fields(gb_items, false, &err_item))
+    if (ord_item->excl_dep_on_fd_fields(gb_items, forbid_fd_expansion,
+                                        &err_item))
       continue;
     my_error(ER_NON_GROUPING_FIELD_USED, MYF(0),
              err_item->real_item()->full_name(), "ORDER BY clause");
@@ -1005,14 +1021,16 @@ bool are_order_by_fields_allowed(st_select_lex *sl,
 
 /**
   Check if this SELECT fields list, HAVING clause and ORDER BY
-  items contains IS and FD fields only.
+  clause contain IS, FD fields and deterministic functions only.
 */
 
-bool are_select_fields_allowed(st_select_lex *sl, List<Item> *gb_items)
+bool are_select_fields_fd(st_select_lex *sl, List<Item> *gb_items,
+                          table_map forbid_fd_expansion)
 {
-  if (!are_select_list_fields_allowed(sl, gb_items) ||
-      !are_having_fields_allowed(sl, sl->join->having, gb_items) ||
-      !are_order_by_fields_allowed(sl, gb_items))
+  if (!are_select_list_fields_fd(sl, gb_items, forbid_fd_expansion) ||
+      !are_having_fields_fd(sl, sl->join->having, gb_items,
+                            forbid_fd_expansion) ||
+      !are_order_by_fields_fd(sl, gb_items, forbid_fd_expansion))
     return false;
   return true;
 }
@@ -1029,12 +1047,13 @@ bool are_select_fields_allowed(st_select_lex *sl, List<Item> *gb_items)
     FD fields are fields that are functionally dependent on IS fields.
 
     Functionally dependent fields can be extracted from the WHERE
-    clause equalities (the most outer JOIN tables) and ON expressions
-    (nested JOIN tables or tables from the right part of some LEFT JOIN).
-    It is done recursively starting from the top level LEFT JOIN tables
-    (WHERE condition) down through ON expressions of outer joins.
-    Also FD fields can be received from materialized derived tables or views,
-    UNIQUE and PRIMARY keys, virtual columns definitions.
+    clause equality predicates (for the most outer JOIN tables) and ON
+    expressions equality predicates (from the nested JOIN tables or tables
+    from the right part of some LEFT JOIN).
+    It is done recursively starting from the most outer LEFT JOIN tables
+    (WHERE condition) down through ON expressions of inner joins.
+    Also FD fields can be received from the materialized derived tables
+    or views, UNIQUE and PRIMARY keys, virtual columns definitions.
 
   @note
     If this SELECT is a subquery and it contains outer references
@@ -1092,25 +1111,26 @@ bool st_select_lex::check_func_dep()
   }
 
   List<Item> gb_items;
-  /* Collect fields from GROUP BY. */
+  /* Collect fields from the GROUP BY of this SELECT. */
   if (collect_gb_items(this, gb_items))
     return true;
 
   if (olap != UNSPECIFIED_OLAP_TYPE)
   {
+    table_map map= 0;
     /* If ROLLUP is used don't expand FD fields set. */
-    if (!are_select_fields_allowed(this, &gb_items))
+    if (!are_select_fields_fd(this, &gb_items, map))
       return true;
     return false;
   }
 
   List<Item_equal_fd_info> eq_info;
   FD_select_info *sl_info=
-    new (join->thd->mem_root) FD_select_info(this, &eq_info);
-  if (expand_top_table_list_fd_set(sl_info))
+    new (join->thd->mem_root) FD_select_info(this, &eq_info, "WHERE clause");
+  if (expand_fdfs_with_top_join_tables_fields(sl_info))
     return true;
 
-  if (!are_select_fields_allowed(this, &gb_items))
+  if (!are_select_fields_fd(this, &gb_items, sl_info->forbid_fd_expansion))
     return true;
 
   return false;

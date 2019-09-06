@@ -59,7 +59,6 @@ protected:
 public:
 
   table_map not_null_tables_cache;
-  bool is_deterministic; /* Function returns deterministic result */
 
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,
 		  GE_FUNC,GT_FUNC,FT_FUNC,
@@ -101,28 +100,24 @@ public:
   {
     with_field= 0;
     with_param= 0;
-    is_deterministic= false;
   }
   Item_func(THD *thd, Item *a)
    :Item_func_or_sum(thd, a), With_sum_func_cache(a)
   {
     with_param= a->with_param;
     with_field= a->with_field;
-    is_deterministic= false;
   }
   Item_func(THD *thd, Item *a, Item *b)
    :Item_func_or_sum(thd, a, b), With_sum_func_cache(a, b)
   {
     with_param= a->with_param || b->with_param;
     with_field= a->with_field || b->with_field;
-    is_deterministic= false;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c)
    :Item_func_or_sum(thd, a, b, c), With_sum_func_cache(a, b, c)
   {
     with_field= a->with_field || b->with_field || c->with_field;
     with_param= a->with_param || b->with_param || c->with_param;
-    is_deterministic= false;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d)
    :Item_func_or_sum(thd, a, b, c, d), With_sum_func_cache(a, b, c, d)
@@ -131,7 +126,6 @@ public:
                 c->with_field || d->with_field;
     with_param= a->with_param || b->with_param ||
                 c->with_param || d->with_param;
-    is_deterministic= false;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e)
    :Item_func_or_sum(thd, a, b, c, d, e), With_sum_func_cache(a, b, c, d, e)
@@ -140,21 +134,16 @@ public:
                 c->with_field || d->with_field || e->with_field;
     with_param= a->with_param || b->with_param ||
                 c->with_param || d->with_param || e->with_param;
-    is_deterministic= false;
   }
   Item_func(THD *thd, List<Item> &list):
     Item_func_or_sum(thd, list)
   {
     set_arguments(thd, list);
-    is_deterministic= false;
   }
   // Constructor used for Item_cond_and/or (see Item comment)
   Item_func(THD *thd, Item_func *item)
    :Item_func_or_sum(thd, item), With_sum_func_cache(item),
-    not_null_tables_cache(item->not_null_tables_cache)
-  {
-    is_deterministic= false;
-  }
+    not_null_tables_cache(item->not_null_tables_cache) {}
   bool fix_fields(THD *, Item **ref);
   void cleanup()
   {
@@ -362,27 +351,41 @@ public:
     return Item_args::excl_dep_on_in_subq_left_part(subq_pred);
   }
 
-  bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                        bool in_where,
-                                        Item **err_item)
+  void update_is_deterministic()
   {
-    if (Item_args::excl_func_dep_on_grouping_fields(gb_items,
-                                                    in_where, err_item))
-      return true;
+    is_deterministic_init();
+    is_deterministic_update_and_join(arg_count, args);
+  }
+
+  bool excl_dep_on_fd_fields(List<Item> *gb_items,  table_map forbid_fd,
+                             Item **err_item)
+  {
+    if (is_deterministic())
+    {
+      if (Item_args::excl_dep_on_fd_fields(gb_items, forbid_fd, err_item))
+        return true;
+    }
+    else
+      *err_item= this;
     if (!gb_items || gb_items->is_empty())
       return false;
     List_iterator<Item> it(*gb_items);
     Item *item_arg;
     while ((item_arg= it++))
       if (this->eq(item_arg, 0))
+      {
+        *err_item= 0;
         return true;
+      }
     return false;
   }
   bool check_usage_in_fd_field_extraction(THD *thd,
                                           List<Item> *fields,
                                           Item **err_item)
   {
-    return Item_args::check_usage_in_fd_field_extraction(thd, fields, err_item);
+    return
+      Item_args::check_usage_in_fd_field_extraction(thd, fields,
+                                                    err_item);
   }
 
   /*
@@ -433,45 +436,6 @@ public:
   Item_func *get_item_func() { return this; }
   bool is_simplified_cond_processor(void *arg)
   { return const_item() && !val_int(); }
-  /*
-    Check if all function arguments return deterministic result.
-  */
-  bool are_args_deterministic()
-  {
-    for (uint i= 0; i < arg_count; i++)
-    {
-      if (args[i]->type() == Item::FUNC_ITEM &&
-          !((Item_func *)args[i])->is_deterministic)
-        return false;
-    }
-    return true;
-  }
-  /*
-    Set that function returns deterministic result if all of its
-    arguments return deterministic result.
-  */
-  virtual void set_deterministic()
-  { is_deterministic= are_args_deterministic(); }
-  bool check_args_same_type(uint start, uint end);
-  /*
-    Check if function arguments are of the same type or are comparable.
-  */
-  bool check_all_args_same_type()
-  { return check_args_same_type(0, arg_count); }
-  /*
-    Set that function returns deterministic result if all
-    of its arguments are of the DATE or DATETIME type.
-  */
-  void set_deterministic_date()
-  {
-    if (!are_args_deterministic())
-      return;
-    if (args[0]->cmp_type() != TIME_RESULT ||
-        args[0]->type_handler_for_comparison()->mysql_timestamp_type()
-        == MYSQL_TIMESTAMP_TIME)
-      return;
-    is_deterministic= true;
-  }
 };
 
 
@@ -998,18 +962,6 @@ public:
     DBUG_ASSERT(0);
     return true;
   }
-  void set_deterministic()
-  {
-    if (!are_args_deterministic())
-      return;
-    for (uint i= 0; i < arg_count; i++)
-    {
-      Item_result r0= arguments()[i]->cmp_type();
-      if(!(r0 == REAL_RESULT || r0 == INT_RESULT || r0 == DECIMAL_RESULT))
-        return;
-    }
-    is_deterministic= true;
-  }
 };
 
 
@@ -1391,8 +1343,6 @@ public:
   void result_precision();
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
-  void set_deterministic()
-  { is_deterministic= check_all_args_same_type(); }
 };
 
 
@@ -1832,7 +1782,8 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_rand>(thd, this); }
-  void set_deterministic() {}
+  bool is_deterministic()
+  { return false; }
 private:
   void seed_random (Item * val);  
 };
@@ -1962,8 +1913,6 @@ public:
     fix_attributes(args, arg_count);
     return false;
   }
-  void set_deterministic()
-  { is_deterministic= check_all_args_same_type(); }
 };
 
 class Item_func_min :public Item_func_min_max
@@ -2028,6 +1977,8 @@ class Item_long_func_length: public Item_long_func
 public:
   Item_long_func_length(THD *thd, Item *a): Item_long_func(thd, a) {}
   bool fix_length_and_dec() { max_length=10; return FALSE; }
+  bool is_deterministic()
+  { return deterministic_args_cache; }
 };
 
 
@@ -2056,6 +2007,8 @@ public:
   const char *func_name() const { return "bit_length"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_bit_length>(thd, this); }
+  bool is_deterministic()
+  { return deterministic_args_cache; }
 };
 
 class Item_func_char_length :public Item_long_func_length
@@ -2088,8 +2041,6 @@ public:
   bool const_item() const { return true; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_coercibility>(thd, this); }
-  void set_deterministic()
-  { return; }
 };
 
 
@@ -2123,6 +2074,8 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_locate>(thd, this); }
+  bool is_deterministic()
+  { return deterministic_args_cache; }
 };
 
 
@@ -2153,6 +2106,8 @@ public:
   bool fix_length_and_dec() { max_length=3; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_ascii>(thd, this); }
+  bool is_deterministic()
+  { return deterministic_args_cache; }
 };
 
 class Item_func_ord :public Item_long_func
@@ -2167,6 +2122,8 @@ public:
   const char *func_name() const { return "ord"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_ord>(thd, this); }
+  bool is_deterministic()
+  { return deterministic_args_cache; }
 };
 
 class Item_func_find_in_set :public Item_long_func
@@ -2185,6 +2142,8 @@ public:
   bool fix_length_and_dec();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_find_in_set>(thd, this); }
+  bool is_deterministic()
+  { return deterministic_args_cache; }
 };
 
 /* Base class for all bit functions: '~', '|', '^', '&', '>>', '<<' */
@@ -3366,6 +3325,8 @@ public:
     not_null_tables_cache= 0;
     return 0;
   }
+  bool is_deterministic()
+  { return false; }
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   { return false; }
 };

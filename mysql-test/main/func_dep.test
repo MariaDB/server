@@ -1,11 +1,10 @@
 SET SQL_MODE='only_full_group_by';
 
 CREATE TABLE t1(a INT, b INT, c INT, d INT);
-CREATE TABLE t2 (x INT, y BLOB, z BLOB, w BLOB);
+CREATE TABLE t2 (x INT, y BLOB, z INT, w INT);
 
 INSERT INTO t1 VALUES (1,2,1,1),(1,3,0,4),(2,4,2,2);
-INSERT INTO t2 VALUES (2,'aab','aab','x'),(1,'aa','b',' '),
-                      (1,'ddd','n ','s'), (1,'ddd','ddd ','d');
+INSERT INTO t2 VALUES (2,'x',1,1),(1,'x ',1,0),(2,'x',0,0);
 
 --echo #
 --echo # Simple cases
@@ -194,7 +193,6 @@ GROUP BY t1.b,t1.c;
 CREATE TABLE t5 (a DOUBLE, b BLOB);
 INSERT INTO t5 VALUES (1.001, 'ax');
 
---error ER_NON_GROUPING_FIELD_USED
 SELECT a,b FROM t5 WHERE a = b + 1 GROUP BY b;
 
 SELECT a,b FROM t5 WHERE a = b GROUP BY b;
@@ -330,7 +328,7 @@ GROUP BY t3.a;
 
 DROP TABLE t3;
 
---echo # Virtual column
+--echo # Virtual column check
 
 CREATE TABLE t3 (a INT, b INT, c INT AS (a*b) VIRTUAL,
                  d INT AS (b*b*2) VIRTUAL, e INT AS (1*2));
@@ -379,40 +377,10 @@ GROUP BY t3.d + 1;
 
 DROP TABLE t3;
 
---echo # LIKE
-
-CREATE TABLE t3 (a INT, x BLOB, y BLOB, z char(3));
-INSERT INTO t3 VALUES (1,'aab', 'dds', 'ASa'),
-                      (2,'aab', 'aab', 'dd'),
-                      (4,'cs ','dds', 'lkd');
-
-SELECT t3.x LIKE 'aab' AS like_col FROM t3 GROUP BY t3.x;
-
-SELECT t3.x LIKE t3.y AS like_col FROM t3 GROUP BY t3.x,t3.y;
-
-SELECT t3.x LIKE 'aab' AS like_col
-FROM t3
-WHERE t3.x = t3.y
-GROUP BY t3.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.x
-FROM t3
-WHERE t3.x LIKE 'aab' = t3.y
-GROUP BY t3.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.x LIKE t3.y AS like_col
-FROM t3
-GROUP BY t3.x;
-
-DROP TABLE t3;
-
 --echo # COERCIBILITY
 
 SELECT COERCIBILITY(t1.a) FROM t1 GROUP BY t1.a;
 
---error ER_NON_GROUPING_FIELD_USED
 SELECT t1.b
 FROM t1
 WHERE COERCIBILITY(t1.a) = t1.b
@@ -512,666 +480,43 @@ SELECT @a:= @a + t1.a FROM t1 GROUP BY t1.a;
 
 SET @b= 1;
 
-SELECT @b:= CASE
-            WHEN @a = t1.a THEN @b + 1
-            ELSE 1
-    END AS num,
-    @a:= 1
-FROM t1
-GROUP BY t1.a;
-
 --error ER_NON_GROUPING_FIELD_USED
 SELECT t1.a FROM t1 GROUP BY t1.a + @a;
 
 --error ER_NON_GROUPING_FIELD_USED
 SELECT t1.a FROM t1 GROUP BY @a;
 
+DROP TABLE t3;
+
 --echo #
 --echo # CONTROL FLOW functions
 --echo #
 
---echo # CASE
-
-SELECT CASE t2.y
-       WHEN 'aa' THEN 'ddd'
-       ELSE 'aab' END AS cASe_col, t2.y, MAX(t2.x)
-FROM t2 GROUP BY t2.y;
-
-SELECT CASE t2.y
-       WHEN 'aa' THEN 'ddd'
-       ELSE 'aab' END AS cASe_col
-FROM t2 GROUP BY cASe_col;
-
-SELECT CASE t2.y
-       WHEN 'aa' THEN 'ddd'
-       WHEN 'ddd' THEN 'aa'
-       ELSE 'aab' END AS cASe_col, t2.y, MAX(t2.x)
-FROM t2 GROUP BY t2.y;
-
-SELECT CASE t2.y
-       WHEN 'aa' THEN 'ddd'
-       WHEN 'ddd' THEN t2.z
-       ELSE 'aab' END AS cASe_col, t2.y
-FROM t2 GROUP BY t2.y,t2.z;
-
-SELECT t2.y
-FROM t2
-WHERE CASE t2.y
-      WHEN 'aa' THEN 'ddd'
-      ELSE 'aab' END = 'ddd'
-GROUP BY t2.y;
-
-SELECT t2.y
-FROM t2
-WHERE CASE t2.y
-      WHEN 'aa' THEN 'ddd'
-      ELSE 'aab' END = t2.z
-GROUP BY t2.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y
-FROM t2
-WHERE CASE t2.y
-      WHEN 'aa' THEN 'ddd'
-      ELSE 'aab' END = t2.z
-GROUP BY t2.z;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y
-FROM t2
-WHERE CASE t2.y
-      WHEN 'aa' THEN 1
-      ELSE 'aab' END = t2.z
-GROUP BY t2.z;
-
-SELECT CASE t2.y
-       WHEN 'aa' THEN 'ddd'
-       WHEN t2.x THEN 'aa'
-       ELSE 'aab' END AS cASe_col, t2.y
-FROM t2 GROUP BY t2.x,t2.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT CASE t2.y
-       WHEN 'aa' THEN 'ddd'
-       WHEN t2.z THEN 'aa'
-       ELSE 'aab' END AS cASe_col, t2.y, MAX(t2.x)
-FROM t2 GROUP BY t2.y;
-
-SELECT CASE t2.y
-       WHEN 'aa' THEN 'ddd'
-       WHEN 1 THEN 'aa'
-       ELSE 'aab' END AS cASe_col, t2.y, MAX(t2.x)
-FROM t2 GROUP BY y;
-
-SELECT CASE t2.y
-       WHEN 'aa' THEN 'ddd'
-       WHEN 'ddd' THEN t2.x
-       ELSE 'aab' END AS cASe_col, t2.y
-FROM t2 GROUP BY t2.x,t2.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT CASE t2.y
-       WHEN 'aa' THEN t2.z
-       ELSE 'ddd' END AS cASe_col, t2.y, MAX(t2.x)
-FROM t2 GROUP BY t2.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT CASE 'aa'
-       WHEN 'aa' THEN 'ddd'
-       WHEN 'ddd' THEN t2.z
-       ELSE 'aab' END AS cASe_col, t2.y
-FROM t2 GROUP BY t2.x,t2.y;
-
---echo # NULLIF
-
-SELECT NULLIF(t1.b,t1.c) AS nif_col,t1.b,t1.c
+SELECT IFNULL(t1.a,3)
 FROM t1
-GROUP BY t1.b,t1.c;
+GROUP BY t1.a;
 
-SELECT t1.a
+SELECT CASE t1.a
+       WHEN 1 THEN 2
+       ELSE NULL END
 FROM t1
-WHERE t1.a = NULLIF(t1.b,t1.c)
-GROUP BY t1.b,t1.c;
+GROUP BY t1.a;
 
---error ER_NON_GROUPING_FIELD_USED
-SELECT t1.a
+SELECT COALESCE(t1.a,3)
 FROM t1
-WHERE t1.a BETWEEN 1 AND 3 = NULLIF(t1.b,t1.c)
-GROUP BY t1.b,t1.c;
+GROUP BY t1.a;
 
-SELECT t1.a
-FROM t1,t2
-WHERE t1.a = NULLIF(t2.x,t2.y)
-GROUP BY t2.x,t2.y;
-
---echo # IFNULL
-
-SELECT IFNULL(t1.b,t1.c),t1.b,t1.c
+SELECT NULLIF(t1.a,3)
 FROM t1
-GROUP BY t1.b,t1.c;
-
-SELECT t1.b,t1.c,t1.d
-FROM t1
-WHERE IFNULL(t1.c,t1.b) = t1.d
-GROUP BY t1.b,t1.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t1.b,t1.c,t1.d
-FROM t1
-WHERE IFNULL(t1.c,t1.d) = t1.b
-GROUP BY t1.b,t1.c;
-
---echo # IF
-
-SELECT IF(t1.b > t1.c,t1.b,t1.c),t1.b,t1.c
-FROM t1
-GROUP BY t1.b,t1.c;
-
-SELECT IF(t1.a = t1.c,t1.b,t1.c),t1.a,t1.b,t1.c
-FROM t1
-WHERE t1.a = t1.b - 2
-GROUP BY t1.b,t1.c;
-
-SELECT t1.a,t1.b,t1.c,t1.d
-FROM t1
-WHERE IF(t1.a = t1.c,t1.b,t1.c) = t1.d
-GROUP BY t1.a,t1.b,t1.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t1.a,t1.b,t1.c,t1.d
-FROM t1
-WHERE IF(t1.a = t1.c,t1.b,'aa') = t1.d
-GROUP BY t1.a,t1.b,t1.c;
-
-DROP TABLE t3;
+GROUP BY t1.a;
 
 --echo #
 --echo # STRING functions
 --echo #
 
---echo # INSERT
-
-SELECT t2.y
-FROM t2
-WHERE t2.y = INSERT('abb', t2.x, 3, 'a')
-GROUP BY t2.x;
-
-SELECT t2.y
-FROM t2
-WHERE t2.y = INSERT(t2.z, t2.x, 3, 'a') AND t2.x = 1
-GROUP BY t2.z;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y
-FROM t2
-WHERE t2.y = INSERT('aaa', t2.z, 3, 'a')
-GROUP BY t2.z;
-
---echo # LENGTH
-
-SELECT t2.x,t2.y
-FROM t2
-WHERE t2.x = LENGTH(t2.y)
-GROUP BY t2.y;
-
-SELECT t2.x,t2.y
-FROM t2
-WHERE t2.x = LENGTH(t2.y)+1
-GROUP BY t2.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.x,t2.y
-FROM t2
-WHERE t2.x/2 = LENGTH(t2.y) + 1/2
-GROUP BY t2.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.z,t2.y
-FROM t2
-WHERE t2.z + 2=LENGTH(t2.y) + 1/2
-GROUP BY t2.z;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.x,t2.y
-FROM t2
-WHERE t2.x = LENGTH(t2.y) + 'aa'/2
-GROUP BY t2.x;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.x,t2.y
-FROM t2
-WHERE t2.x = LENGTH(t2.y) + 'aa'
-GROUP BY t2.x;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y,t2.z
-FROM t2
-WHERE t2.z = LENGTH(t2.y)
-GROUP BY t2.z;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.x,t2.y
-FROM t2
-WHERE t2.y = LENGTH(t2.x)
-GROUP BY t2.x;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.x,t2.y
-FROM t2
-WHERE t2.x = LENGTH('aaa')
-GROUP BY t2.x;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.x,t2.y
-FROM t2
-WHERE t2.y = LENGTH('aaa')
-GROUP BY t2.x;
-
---echo # CONCAT
-
-SELECT t2.y,t2.z
-FROM t2
-WHERE t2.y = CONCAT(t2.z,t2.w)
-GROUP BY t2.z,t2.w;
-
-SELECT t2.y,t2.z,t2.w
-FROM t2
-WHERE t2.y = CONCAT(t2.z,SUBSTR(t2.w, length(t2.z)))
-GROUP BY t2.z,t2.w;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y,t2.z
-FROM t2
-WHERE t2.y = CONCAT(t2.z,t2.w)
-GROUP BY t2.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y,t2.z,t2.w
-FROM t2
-WHERE t2.y = CONCAT(t2.z,t2.w)
-GROUP BY t2.y,t2.z;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.x,t2.y
-FROM t2
-WHERE t2.x = LENGTH(CONCAT(t2.y,t2.z))
-GROUP BY t2.x;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.x,t2.y,t2.z
-FROM t2
-WHERE t2.y = CONCAT(t2.x,t2.z)
-GROUP BY t2.x,t2.z;
-
---echo # LEFT
-
-SELECT LEFT(t2.y,1)
-FROM t2
-GROUP BY t2.y;
-
-SELECT LEFT(t2.y,t2.x)
-FROM t2
-GROUP BY t2.y,t2.x;
-
-SELECT LEFT(t2.y,t2.z)
-FROM t2
-GROUP BY t2.y,t2.z;
-
-SELECT t2.w
-FROM t2
-WHERE t2.w = LEFT(t2.y,1)
-GROUP BY t2.y;
-
-SELECT t2.w
-FROM t2
-WHERE t2.w = LEFT(t2.y,t2.x)
-GROUP BY t2.y,t2.x;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT LEFT(t2.y,t2.x)
-FROM t2
-GROUP BY t2.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.w
-FROM t2
-WHERE t2.y = LEFT(t2.w,t2.x)
-GROUP BY t2.y,t2.x;
-
---echo # ELT
-
-SELECT t2.y
-FROM t2
-WHERE t2.y = ELT(1,t2.z,'aa','bb')
-GROUP BY t2.z;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y
-FROM t2
-WHERE t2.y = ELT(1,t2.z,1,'bb')
-GROUP BY t2.z;
-
---echo # MAKE_SET
-
-SELECT t2.y
-FROM t2
-WHERE t2.y = MAKE_SET(1,t2.z,'aa','bb')
-GROUP BY t2.z;
-
-SELECT t2.y
-FROM t2
-WHERE t2.y = MAKE_SET(1 | 4,t2.z,'aa','bb')
-GROUP BY t2.z;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y
-FROM t2
-WHERE t2.y = MAKE_SET(1 | 4,t2.z,1,'bb')
-GROUP BY t2.z;
-
---echo # FORMAT
-
-SELECT t2.y
-FROM t1,t2
-WHERE t2.y = FORMAT(t1.b,0)
-GROUP BY t1.b;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y
-FROM t2
-WHERE t2.y = FORMAT(t2.z,0)
-GROUP BY t2.z;
-
---echo # CHAR
-
-SELECT t2.y
-FROM t2
-WHERE t2.y = CHAR(t2.x,1,2,3)
-GROUP BY t2.x;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y
-FROM t2
-WHERE t2.y = CHAR(t2.z,1,2,3)
-GROUP BY t2.z;
-
---echo # REPEAT
-
-SELECT t2.y
-FROM t2
-WHERE t2.y = REPEAT(t2.w,3)
-GROUP BY t2.w;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y
-FROM t2
-WHERE t2.y = REPEAT(3,3)
-GROUP BY t2.z;
-
---echo # REPLACE
-
-SELECT t2.y,REPLACE(t2.y,'a','b')
-FROM t2
-GROUP BY t2.y;
-
-SELECT t2.y,REPLACE(t2.y,t2.w,'b')
-FROM t2
-GROUP BY t2.y,t2.w;
-
-SELECT t2.w
-FROM t2
-WHERE t2.w = REPLACE(t2.y,t2.z,'b')
-GROUP BY t2.y,t2.z;
-
-SELECT t2.y
-FROM t2
-WHERE t2.y = REPLACE('aaa','a',t2.w)
-GROUP BY t2.w;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y,REPLACE(t2.y,t2.w,'b')
-FROM t2
-GROUP BY t2.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.w
-FROM t2
-WHERE t2.y = REPLACE(t2.y,t2.w,'b')
-GROUP BY t2.y;
-
---echo # SPACE
-
-SELECT t2.w
-FROM t2
-WHERE t2.w = SPACE(t2.x)
-GROUP BY t2.x;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y
-FROM t2
-WHERE t2.y = SPACE(t2.z)
-GROUP BY t2.z;
-
---echo # SUBSTRING
-
-SELECT SUBSTRING(t2.y,1)
-FROM t2
-GROUP BY t2.y;
-
-SELECT t2.w
-FROM t2
-WHERE SUBSTRING(t2.y,3) = t2.w
-GROUP BY t2.y;
-
-SELECT t2.x
-FROM t2
-WHERE LENGTH(SUBSTRING(t2.y,3)) = t2.x
-GROUP BY t2.x;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.w
-FROM t2
-WHERE SUBSTRING(t2.y,'aa') = t2.w
-GROUP BY t2.y;
-
---echo # SUBSTRING_INDEX
-
-SELECT t2.w
-FROM t2
-WHERE SUBSTRING_INDEX(t2.y,'b',1) = t2.w
-GROUP BY t2.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.w
-FROM t2
-WHERE SUBSTRING_INDEX(t2.y,2,1) = t2.w
-GROUP BY t2.y;
-
---echo # LPAD
-
-SELECT t2.z
-FROM t2
-WHERE t2.z = LPAD(t2.y,1)
-GROUP BY t2.y;
-
-SELECT t2.z
-FROM t2
-WHERE t2.z = LPAD(t2.y,1,'.')
-GROUP BY t2.y;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.z
-FROM t2
-WHERE t2.z = LPAD(t2.x,1)
-GROUP BY t2.x;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.z
-FROM t2
-WHERE t2.z = LPAD(t2.y,1,2)
-GROUP BY t2.y;
-
---echo # HEX and UNHEX
-
-SELECT t2.y,t2.z
-FROM t2
-WHERE t2.y = UNHEX(HEX('ddd'))
-GROUP BY t2.z;
-
-SELECT t2.y,t2.z
-FROM t2
-WHERE t2.y = UNHEX('646464')
-GROUP BY t2.z;
-
---echo STRCMP
-
-SELECT t2.x,t2.y,t2.z
-FROM t2
-WHERE t2.x = STRCMP(t2.y,t2.z)
-GROUP BY t2.y,t2.z;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.x,t2.y
-FROM t2
-WHERE t2.x = STRCMP(t2.y,1)
-GROUP BY t2.y;
-
---echo # EXPORT_SET
-
-SELECT t2.y,t2.z
-FROM t2
-WHERE t2.y = EXPORT_SET(5,'a','b',',',2)
-GROUP BY t2.z;
-
-SELECT t2.y,t2.z
-FROM t2
-WHERE t2.y = EXPORT_SET(5,'a','b',',')
-GROUP BY t2.z;
-
-SELECT t2.y,t2.z
-FROM t2
-WHERE t2.y = EXPORT_SET(5,'a','b')
-GROUP BY t2.z;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y,t2.z
-FROM t2
-WHERE t2.y = EXPORT_SET('a','a','b')
-GROUP BY t2.z;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y,t2.z
-FROM t2
-WHERE t2.y = EXPORT_SET(5,'a','b',2)
-GROUP BY t2.z;
-
---echo # TRIM
-
-CREATE TABLE t3 (a INT, b BLOB, c BLOB);
-INSERT INTO t3 VALUES (1,'aa  ',' aa '), (2,'  aa ','aa ');
-
-SELECT TRIM(t3.b)
-FROM t3
-GROUP BY t3.b;
-
-SELECT TRIM(LEADING FROM t3.b)
-FROM t3
-GROUP BY t3.b;
-
-SELECT LTRIM(t3.b)
-FROM t3
-GROUP BY t3.b;
-
-SELECT t3.b
-FROM t3
-WHERE t3.b = TRIM(t3.c)
-GROUP BY t3.c;
-
-SELECT t3.c
-FROM t3
-WHERE t3.c = LTRIM(t3.b)
-GROUP BY t3.b;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t3
-WHERE t3.a = TRIM(t3.b)
-GROUP BY t3.b;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t3
-WHERE t3.a = TRIM(123)
-GROUP BY t3.b;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.b
-FROM t3
-WHERE t3.b = TRIM(t3.a)
-GROUP BY t3.a;
-
-DROP TABLE t3;
-
---echo # FIND_IN_SET
-
-SELECT FIND_IN_SET(t2.w,'.,b,d')
-FROM t2
-GROUP BY t2.w;
-
-SELECT FIND_IN_SET(t2.y,t2.z)
-FROM t2
-GROUP BY t2.y,t2.z;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.y
-FROM t2
-WHERE t2.z BETWEEN 'a' AND 'e' = FIND_IN_SET(t2.z,t2.y)
-GROUP BY t2.z;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT FIND_IN_SET(t2.y,t2.z)
-FROM t2
-GROUP BY t2.y;
-
---echo # FORMAT
-
-CREATE TABLE t3(a INT, b DECIMAL, c DECIMAL);
-INSERT INTO t3 VALUES (1,13.12,13.122), (2,13.12,13.12);
-
-SELECT FORMAT(t3.b,1)
-FROM t3
-GROUP BY t3.b;
-
-SELECT FORMAT(t3.b,t3.a)
-FROM t3
-GROUP BY t3.a,t3.b;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a,t3.b
-FROM t3
-WHERE t3.b = FORMAT(t3.c,t3.a)
-GROUP BY t3.a,t3.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a,t3.b
-FROM t3
-WHERE t3.b = FORMAT(t3.a,t3.c)
-GROUP BY t3.a,t3.c;
-
---echo # WEIGHT STRING
-
-SELECT HEX(WEIGHT_STRING(t2.y)) from t2 group by t2.y;
-
-DROP TABLE t3;
-
---echo #
---echo # STRING types
---echo #
-
 CREATE TABLE t3 (a VARCHAR(5), b VARCHAR(5));
 INSERT INTO t3 VALUES ('x', 'x '), (' x', 'x');
 
---error ER_NON_GROUPING_FIELD_USED
 SELECT t3.a
 FROM t3
 WHERE t3.a = t3.b
@@ -1200,7 +545,6 @@ DROP TABLE t3;
 CREATE TABLE t3 (a CHAR(5), b CHAR(5));
 INSERT INTO t3 VALUES ('x', 'x'), ('x', 'y');
 
---error ER_NON_GROUPING_FIELD_USED
 SELECT t3.a
 FROM t3
 WHERE t3.a = t3.b
@@ -1220,362 +564,159 @@ GROUP BY t3.b;
 
 DROP TABLE t3;
 
-CREATE TABLE t3(a BLOB, b BLOB);
-INSERT INTO t3 VALUES ('aA', 'aa');
+CREATE TABLE t3(a BLOB, b varchar(5), c double, d varchar(5));
+INSERT INTO t3 VALUES ('aa', 'aa', 23.01, 'aa'), ('aa ','aa ', NULL, 'aa ');
 
 SELECT t3.a
 FROM t3
-WHERE t3.a = t3.b
-GROUP BY t3.b;
-
-DROP TABLE t3;
-
---echo #
---echo # DATE functions
---echo #
-
-CREATE TABLE t3 (a INT, b DATE, c DATETIME, d TIME);
-INSERT INTO t3 VALUES (1, '2019-02-01', '2019-02-01 15:31:00', '00:01:00'),
-                      (2, '2019-02-01', '2019-02-01 15:00:00', '00:02:00'),
-                      (1, '2019-02-02', '2019-02-01 15:10:00', '00:01:00');
-
-
---echo # DATEDIFF
-
-SELECT DATEDIFF('2019-01-01',t3.b)
-FROM t3
-GROUP BY t3.b;
-
-SELECT DATEDIFF(t3.c,t3.b)
-FROM t3
-GROUP BY t3.b,t3.c;
-
-SELECT t3.a
-FROM t3
-WHERE DATEDIFF(t3.b,t3.c) = t3.a
-GROUP BY t3.b,t3.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a,t3.b,t3.c
-FROM t3
-WHERE DATEDIFF(t3.b,t3.c) = t3.a
-GROUP BY t3.a,t3.c;
-
---echo # DAY
-
-SELECT DAY(t3.b)
-FROM t3
-GROUP BY t3.b;
-
-SELECT t3.a
-FROM t3
-WHERE t3.a = DAY(t3.b)
-GROUP BY t3.b;
-
---echo # DATE_ADD
-
-SELECT DATE_ADD(t3.b, INTERVAL 1 DAY)
-FROM t3
-GROUP BY t3.b;
-
---echo # new date type for DATE_ADD, equality hAS DATETIME type
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.c
-FROM t3
-WHERE t3.b = DATE_ADD(t3.c, INTERVAL 1 DAY)
+WHERE t3.a = ELT(1,t3.b)
 GROUP BY t3.b;
 
 SELECT t3.c
 FROM t3
-WHERE t3.c = DATE_ADD(t3.b, INTERVAL 1 DAY)
+WHERE t3.c = ELT(1,t3.b)
 GROUP BY t3.b;
 
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.c
-FROM t3
-WHERE t3.c = DATE_ADD(t3.d, INTERVAL 1 DAY)
-GROUP BY t3.d;
-
---echo # ADDTIME
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.b
-FROM t3
-WHERE t3.b = ADDTIME(t3.c, t3.d)
-GROUP BY t3.c,t3.d;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.b
-FROM t3
-WHERE t3.b = ADDTIME(t3.d, t3.c)
-GROUP BY t3.c,t3.d;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.c
-FROM t3
-WHERE t3.c = ADDTIME(t3.b, t3.d)
-GROUP BY t3.b,t3.d;
-
---echo # CONVERT_TZ
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.b
-FROM t3
-WHERE t3.b = CONVERT_TZ(t3.c,'GMT','Africa/Johannesburg')
-GROUP BY t3.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.b
-FROM t3
-WHERE t3.b = CONVERT_TZ(t3.d,'GMT','Africa/Johannesburg')
-GROUP BY t3.d;
-
---echo # MAKETIME
-
---error ER_NON_GROUPING_FIELD_USED
 SELECT t3.d
 FROM t3
-WHERE t3.d = MAKETIME(t3.a, t3.b, 13)
-GROUP BY t3.a,t3.b;
+WHERE t3.d = ELT(1,t3.b)
+GROUP BY t3.b;
 
---echo # MAKEDATE
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = FIELD('aa',t3.b)
+GROUP BY t3.b;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = FIELD('aa',t3.b)
+GROUP BY t3.b;
+
+SELECT t3.a
+FROM t3
+WHERE t3.a = FORMAT(t3.b,4)
+GROUP BY t3.b;
+
+SELECT t3.a
+FROM t3
+WHERE t3.a = LCASE(t3.b)
+GROUP BY t3.b;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = UCASE(t3.b)
+GROUP BY t3.b;
+
+SELECT t3.a
+FROM t3
+WHERE t3.a = TRIM(t3.b)
+GROUP BY t3.b;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = LTRIM(t3.b)
+GROUP BY t3.b;
+
+SELECT t3.a
+FROM t3
+WHERE t3.a = SOUNDEX(t3.b)
+GROUP BY t3.b;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = SPACE(t3.b)
+GROUP BY t3.b;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = STRCMP(t3.b+'aa',t3.b)
+GROUP BY t3.b;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = STRCMP(t3.b+'aa',0)
+GROUP BY t3.b;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = 'aa'
+GROUP BY t3.b;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = 'aa' + t3.b
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t3
+WHERE t3.a = 'aa' + t3.b
+GROUP BY t3.b;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = t3.b
+GROUP BY t3.b;
+
+SELECT t3.d
+FROM t3
+WHERE t3.d = 'aa'
+GROUP BY t3.b;
+
+SELECT t3.d
+FROM t3
+WHERE t3.d = 'aa'
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT LENGTH(t3.b)
+FROM t3
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT CONCAT(t3.b,t3.b)
+FROM t3
+GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT QUOTE(t3.b)
+FROM t3
+GROUP BY t3.b;
+
+SELECT TRIM(t3.b)
+FROM t3
+GROUP BY t3.b;
+
+SELECT ELT(1,t3.b)
+FROM t3
+GROUP BY t3.b;
+
+SELECT FIELD(t3.b,t3.b)
+FROM t3
+GROUP BY t3.b;
+
+--echo # LIKE
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b LIKE 'aa' AS like_col FROM t3 GROUP BY t3.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b LIKE t3.a AS like_col FROM t3 GROUP BY t3.b,t3.a;
 
 --error ER_NON_GROUPING_FIELD_USED
 SELECT t3.b
 FROM t3
-WHERE t3.b = MAKEDATE(t3.a, 0)
+WHERE t3.b = t3.d LIKE 'aa'
+GROUP BY t3.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.b
+FROM t3
+WHERE t3.b = t3.a LIKE 'aa'
 GROUP BY t3.a;
 
---echo # TO_DAYS
-SELECT t3.a
-FROM t3
-WHERE t3.a = TO_DAYS(t3.c)
-GROUP BY t3.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t3
-WHERE t3.a = TO_DAYS(t3.d)
-GROUP BY t3.c;
-
---echo # DAYOFMONTH
-SELECT t3.a
-FROM t3
-WHERE t3.a = TO_DAYS(t3.c)
-GROUP BY t3.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t3
-WHERE t3.a = DAYOFMONTH(t3.d)
-GROUP BY t3.c;
-
---echo # DATE function
-SELECT t3.b
-FROM t3
-WHERE t3.b = DATE(t3.c)
-GROUP BY t3.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.b
-FROM t3
-WHERE t3.b = DATE(t3.d)
-GROUP BY t3.d;
-
---echo # TIME function
-SELECT t3.d
-FROM t3
-WHERE t3.d = TIME(t3.c)
-GROUP BY t3.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.d
-FROM t3
-WHERE t3.d = TIME(t3.b)
-GROUP BY t3.b;
-
---echo # DAYNAME
-
-SELECT DAYNAME(t3.b)
-FROM t3
-GROUP BY t3.b;
-
-SELECT t3.c
-FROM t3
-WHERE DAYNAME(t3.b) = t3.c
-GROUP BY t3.b;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.c
-FROM t3
-WHERE DAYNAME(t3.d) = t3.c
-GROUP BY t3.d;
-
---echo # EXTRACT
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t3
-WHERE t3.a = EXTRACT(DAY FROM t3.d)
-GROUP BY t3.b;
-
---echo # FROM_DAYS
-SELECT t3.b
-FROM t3
-WHERE t3.b = FROM_DAYS(t3.a)
-GROUP BY t3.a;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.b
-FROM t3
-WHERE t3.b = FROM_DAYS(t3.d)
-GROUP BY t3.d;
-
---echo # HOUR
-SELECT t3.a
-FROM t3
-WHERE t3.a = HOUR(t3.d)
-GROUP BY t3.d;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t3
-WHERE t3.a = HOUR(t3.b)
-GROUP BY t3.b;
-
---echo # TIMEDIFF
-SELECT TIMEDIFF(t3.c, '2019-02-01 15:30:00')
-FROM t3
-GROUP BY t3.c;
-
-SELECT t3.d
-FROM t3
-WHERE t3.d = TIMEDIFF(t3.c, t3.c)
-GROUP BY t3.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.d
-FROM t3
-WHERE t3.b = TIMEDIFF(t3.c, '2019-02-01 15:30:00')
-GROUP BY t3.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.d
-FROM t3
-WHERE t3.d = TIMEDIFF(t3.d, '2019-02-01 15:30:00')
-GROUP BY t3.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.d
-FROM t3
-WHERE t3.d = TIMEDIFF(t3.b, '2019-02-01 15:30:00')
-GROUP BY t3.b;
-
---echo # TIMESTAMP
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.b
-FROM t3
-WHERE t3.b = TIMESTAMP(t3.c)
-GROUP BY t3.c;
-
-SELECT t3.c
-FROM t3
-WHERE t3.c = TIMESTAMP(t3.b)
-GROUP BY t3.b;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.b
-FROM t3
-WHERE t3.b = TIMESTAMP(t3.c,t3.d)
-GROUP BY t3.c,t3.d;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.c
-FROM t3
-WHERE t3.c = TIMESTAMP(t3.d)
-GROUP BY t3.d;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.d
-FROM t3
-WHERE t3.d = TIMESTAMP(t3.c,t3.b)
-GROUP BY t3.c,t3.b;
-
---echo # TIME_TO_SEC
-SELECT t3.a
-FROM t3
-WHERE t3.a = TIME_TO_SEC(t3.d)
-GROUP BY t3.d;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t3
-WHERE t3.a = TIME_TO_SEC(t3.c)
-GROUP BY t3.c;
-
---echo # WEEK
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t3
-WHERE t3.a = WEEK(t3.b, 9)
-GROUP BY t3.b;
-
---echo # WEEKDAY
-SELECT t3.a
-FROM t3
-WHERE t3.a = WEEKDAY(t3.b)
-GROUP BY t3.b;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t3
-WHERE t3.a = WEEKDAY(t3.d)
-GROUP BY t3.d;
-
---echo # YEARWEEK
-SELECT t3.a
-FROM t3
-WHERE t3.a = YEARWEEK(t3.b)
-GROUP BY t3.b;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t3
-WHERE t3.a = YEARWEEK(t3.d)
-GROUP BY t3.d;
-
 DROP TABLE t3;
-
---echo # GREATEST and LEAST
-
-SELECT GREATEST(t1.a,t1.b,t1.c),t1.a,t1.b,t1.c
-FROM t1
-GROUP BY t1.a,t1.b,t1.c;
-
-SELECT LEAST(t1.a,t1.b),t1.a,t1.b
-FROM t1
-WHERE t1.a=t1.c AND t1.c-1=t1.b
-GROUP BY t1.a;
-
---echo # GEOMETRIC functions
-
-CREATE TABLE gt (a INT, g1 POINT, g2 LINESTRING);
-INSERT INTO gt VALUES
-  (1, PointFromText('POINT(1 1)'), LineFromText('LINESTRING(0 0,0 1,1 1)')),
-  (1, PointFromText('POINT(1 1)'), LineFromText('LINESTRING(1 2,2 1,1 1)'));
-
-SELECT ASTEXT(g1),ASTEXT(g2)
-FROM gt
-GROUP BY g1,g2;
-
-SELECT MBREQUALS(gt1.g1,gt2.g1)
-FROM gt AS gt1, gt AS gt2
-GROUP BY gt1.g1,gt2.g1;
-
-SELECT a,ASTEXT(g1),ASTEXT(g2)
-FROM gt
-WHERE CONTAINS(g2,g1) = a
-GROUP BY g1,g2;
-
-DROP TABLE gt;
 
 --echo #
 --echo #
@@ -4096,10 +3237,6 @@ LEFT OUTER JOIN t2 ON t1.a = t2.c
   RIGHT OUTER JOIN t3 ON t1.a = t3.x
 GROUP BY t1.a;
 
---echo #
---echo # Special cases in ON expression
---echo #
-
 SELECT t1.a,t2.c
 FROM t1 LEFT JOIN t2 ON t1.a = 12 AND t1.b = t2.d;
 
@@ -4707,47 +3844,35 @@ FROM t1 LEFT JOIN (
                   ) ON (t1.a = t2.c)
 GROUP BY t1.a;
 
---echo # Non-determenistic functions used
+--echo # Using non-deterministic functions
+
+CREATE TABLE t3 (x INT, y VARCHAR(3), z VARCHAR(5));
+INSERT INTO t3 VALUES (1, 'aa','a'),(2, 'aa ','a ');
+
 --error ER_NON_GROUPING_FIELD_USED
-SELECT t2.c
-FROM t1 LEFT JOIN (
-                   t2
-                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a)
-                  ) ON (t1.a + 'aa' = t2.c)
+SELECT t3.x
+FROM t1
+  LEFT JOIN t3 ON (t1.b = LENGTH(t3.y) AND t3.x = t1.a)
+GROUP BY t1.a,t1.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.x
+FROM t1
+  LEFT JOIN t3 ON (CONCAT(t3.y,t3.z) > 'a' AND t3.x = t1.a)
 GROUP BY t1.a;
 
 --error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t1 LEFT JOIN (
-                   t2
-                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a)
-                  ) ON (t1.a + 'aaa' = t2.c)
-GROUP BY t1.a;
+SELECT t1.a
+FROM t1, t3
+WHERE t1.a = LENGTH(t3.y)
+GROUP BY t3.y;
 
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t1 LEFT JOIN (
-                   t2
-                   LEFT JOIN t1 AS t3 ON (t2.c + 'bbb' = t3.a)
-                  ) ON (t1.a = t2.c)
-GROUP BY t1.a;
+SELECT t1.b
+FROM t1, t3
+WHERE t1.a = LENGTH(t3.y) AND t1.b = t3.x
+GROUP BY t3.x;
 
-SELECT t3.a
-FROM t1 LEFT JOIN (
-                   t2
-                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a)
-                  ) ON (t1.a = t2.c)
-WHERE (t1.a + 'aaa' = t1.b)
-GROUP BY t1.a;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a,t1.b
-FROM t1 LEFT JOIN (
-                   t2
-                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a)
-                  ) ON (t1.a = t2.c)
-WHERE (t1.a + 'aaa' = t1.b)
-GROUP BY t1.a;
+DROP TABLE t3;
 
 --error ER_NON_GROUPING_FIELD_USED
 SELECT t1.b
@@ -4765,6 +3890,101 @@ SELECT t1.b
 FROM t1
 WHERE (t1.b = 'aaa') AND (t1.a + 'aa' = t1.b)
 GROUP BY t1.a;
+
+--echo # is transformed into
+--echo # "select t1.b AS b from t1 join t2 where t1.a = t2.c
+--echo #  and t1.b = t2.c and t2.d = t2.c group by t1.a"
+SELECT t1.b
+FROM t1 LEFT JOIN t2 ON (t2.d = t2.c)
+WHERE t1.a = t2.c AND t1.b = t2.c
+GROUP BY t1.a;
+
+--echo # is transformed into
+--echo # "select t1.b AS b from t1 join t2 where t1.a = t2.c
+--echo #  and t2.d = t2.c and t1.b = t2.d group by t1.a"
+SELECT t1.b
+FROM t1 LEFT JOIN t2 ON (t2.d = t2.c AND t1.b = t2.d)
+WHERE t1.a = t2.c
+GROUP BY t1.a;
+
+SELECT d.c
+FROM t1 LEFT JOIN (
+  SELECT t2.c FROM t2) AS d ON (t1.a > 0)
+GROUP BY d.c;
+
+SELECT d.c,d.x
+FROM t1 LEFT JOIN (
+  SELECT t2.c,COALESCE(t2.c,2) as x FROM t2) AS d
+ON (t1.a > 0);
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT d.c,d.x
+FROM t1 LEFT JOIN (
+  SELECT t2.c,COALESCE(t2.c,2) as x FROM t2) AS d
+ON (t1.a > 0)
+GROUP BY d.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT d.c,d.x
+FROM t1 LEFT JOIN (
+  SELECT t2.c,COALESCE(t2.c,2) as x FROM t2) AS d
+ON 1
+GROUP BY d.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT d.c,d.x
+FROM t1 LEFT JOIN (
+  SELECT t2.c,COALESCE(t2.c,2) as x FROM t2) AS d
+ON 0
+GROUP BY d.c;
+
+SELECT t1.a,d.c,d.x
+FROM t1 LEFT JOIN (
+  SELECT t2.c,COALESCE(t2.c,2) as x FROM t2) AS d
+ON t1.a > 0
+GROUP BY d.c,t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT d.c,d.x
+FROM t1 LEFT JOIN (
+  SELECT t2.c,COALESCE(t2.c,2) as x FROM t2) AS d
+ON t1.b > 0
+GROUP BY d.c,t1.a;
+
+CREATE VIEW v1 AS (
+  SELECT t1.a,IFNULL(t1.a,3) as x FROM t1
+);
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT v1.a,v1.x
+FROM t1 LEFT JOIN v1 ON (t1.a > 0)
+GROUP BY v1.a;
+
+SELECT t1.a,v1.a,v1.x
+FROM t1 LEFT JOIN v1 ON t1.a > 0
+GROUP BY v1.a,t1.a;
+
+DROP VIEW v1;
+
+--echo # User-defined variable with LEFT JOIN
+
+PREPARE stat FROM
+  'SELECT t2.c
+   FROM t1 LEFT JOIN t2 ON (t1.a = t2.c) AND (t1.b > ?)
+   GROUP BY t1.a;';
+
+--error ER_NON_GROUPING_FIELD_USED
+EXECUTE stat USING @dummy;
+--error ER_NON_GROUPING_FIELD_USED
+EXECUTE stat USING @dummy;
+
+PREPARE stat FROM
+  'SELECT t2.c
+   FROM t1 LEFT JOIN t2 ON (t1.a = t2.c) AND (t1.a > ?)
+   GROUP BY t1.a;';
+
+EXECUTE stat USING @dummy;
+EXECUTE stat USING @dummy;
 
 DROP TABLE t1,t2;
 

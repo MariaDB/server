@@ -1559,8 +1559,11 @@ int JOIN::optimize()
     if (optimization_state != JOIN::NOT_OPTIMIZED &&
         optimization_state != JOIN::OPTIMIZATION_PHASE_1_DONE)
       return FALSE;
-    optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
-    res= optimize_inner1();
+    if (optimization_state == JOIN::NOT_OPTIMIZED)
+    {
+      optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
+      res= optimize_inner1();
+    }
     if (!res)
       res= optimize_inner2();
   }
@@ -1884,29 +1887,41 @@ JOIN::optimize_inner1()
 
     sel->where= conds;
 
-    if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY)
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+  }
+  if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY)
+  {
+    Query_arena *arena, backup;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+
+    TABLE_LIST *tbl;
+    List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
+    while ((tbl= li++))
     {
-      TABLE_LIST *tbl;
-      List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
-      while ((tbl= li++))
+      if (tbl->is_materialized_derived())
       {
-        if (tbl->is_materialized_derived())
+        for (st_select_lex *sl= tbl->get_unit()->first_select();
+             sl;
+             sl= sl->next_select())
         {
-          for (st_select_lex *sl= tbl->get_unit()->first_select();
-               sl;
-               sl= sl->next_select())
+          if (!sl->join)
+            continue;
+          if (sl->join->optimize_inner1())
           {
-            if (!sl->join)
-              continue;
-            if (sl->join->optimize_inner1())
-              DBUG_RETURN(1);
+            if (arena)
+              thd->restore_active_arena(arena, &backup);
+            DBUG_RETURN(1);
           }
         }
       }
-      if (sel->check_func_dep())
-        DBUG_RETURN(1);
     }
-
+    if (sel->check_func_dep())
+    {
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      DBUG_RETURN(1);
+    }
     if (arena)
       thd->restore_active_arena(arena, &backup);
   }

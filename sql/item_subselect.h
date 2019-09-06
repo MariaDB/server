@@ -274,17 +274,13 @@ public:
   Item* get_copy(THD *thd) { return 0; }
 
   bool wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl);
-  bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                        bool in_where,
-                                        Item **err_item)
+  bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
+                             Item **err_item)
   { return true; }
   bool check_usage_in_fd_field_extraction(THD *thd,
                                           List<Item> *fields,
                                           Item **err_item)
-  {
-    fields->empty();
-    return false;
-  }
+  { return false; }
 
   friend class select_result_interceptor;
   friend class Item_in_optimizer;
@@ -295,8 +291,7 @@ public:
                                              st_select_lex*, st_select_lex*,
                                              Field*, Item*, Item_ident*);
   friend bool convert_join_subqueries_to_semijoins(JOIN *join);
-  friend bool Item_ident::item_subquery_is_in_where();
-  friend bool Item_ident::is_in_outer_select();
+  friend bool Item_ident::outer_ref_is_in_where_or_on_subquery();
 };
 
 /* single value subselect */

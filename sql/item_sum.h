@@ -587,17 +587,13 @@ public:
   virtual void setup_caches(THD *thd) {};
 
   bool with_sum_func() const { return true; }
-  bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                        bool in_where,
-                                        Item **err_item)
+  bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
+                             Item **err_item)
   { return true; }
   bool check_usage_in_fd_field_extraction(THD *thd,
                                           List<Item> *fields,
                                           Item **err_item)
-  {
-    fields->empty();
-    return false;
-  }
+  { return false; }
 };
 
 

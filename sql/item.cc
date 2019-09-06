@@ -9111,10 +9111,17 @@ bool Item_field::check_reject_fd_extraction_processor(void *arg)
 }
 
 
-bool Item_ident::item_subquery_is_in_where()
+/**
+  Check if this item is an outer reference and is used in the
+  subquery that is used in the WHERE clause or ON expression
+  of the SELECT where this item is defined (its table).
+*/
+
+bool Item_ident::outer_ref_is_in_where_or_on_subquery()
 {
   DBUG_ASSERT(type() == Item::FIELD_ITEM || type() == Item::REF_ITEM);
   if (real_item()->type() != Item::FIELD_ITEM ||
+      !(used_tables() & OUTER_REF_TABLE_BIT) ||
       !context || !context->outer_context)
     return false;
 
@@ -9143,27 +9150,58 @@ bool Item_ident::item_subquery_is_in_where()
 }
 
 
-bool Item_field::excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                                  bool in_where,
-                                                  Item **err_item)
+bool Item_field::excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
+                                       Item **err_item)
 {
-  if (item_subquery_is_in_where() ||
-      (in_where && (!context || !context->outer_context)))
+  if (outer_ref_is_in_where_or_on_subquery())
     return true;
-  if (field->excl_func_dep_on_grouping_fields(gb_items, in_where,
-                                              err_item))
+  if (field->excl_dep_on_fd_fields(gb_items, forbid_fd, err_item))
     return true;
   *err_item= this;
   return false;
 }
 
 
-bool Item_ident::is_in_outer_select()
+bool Item_direct_view_ref::excl_dep_on_fd_fields(List<Item> *gb_items,
+                                                 table_map forbid_fd,
+                                                 Item **err_item)
 {
-  DBUG_ASSERT(real_item()->type() == Item::FIELD_ITEM);
-  return (context && context->outer_context &&
-          (context->select_lex !=
-     ((Item_field *) real_item())->field->table->pos_in_table_list->select_lex));
+  if ((!(used_tables() & forbid_fd) ||
+      real_item()->type() == Item::FIELD_ITEM) &&
+      (*ref)->excl_dep_on_fd_fields(gb_items, forbid_fd, err_item))
+    return true;
+  if (outer_ref_is_in_where_or_on_subquery())
+    return true;
+  *err_item= this;
+  if (!gb_items || gb_items->is_empty())
+    return false;
+  List_iterator<Item> it(*gb_items);
+  Item *item_arg;
+  while ((item_arg= it++))
+    if (this->eq(item_arg, 0))
+    {
+      *err_item= 0;
+      return true;
+    }
+  return false;
+}
+
+
+bool Item_ref::excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
+                                     Item **err_item)
+{
+  if ((*ref)->excl_dep_on_fd_fields(gb_items, forbid_fd, err_item))
+    return true;
+  if (outer_ref_is_in_where_or_on_subquery())
+    return true;
+  if (!gb_items || gb_items->is_empty())
+    return false;
+  List_iterator<Item> it(*gb_items);
+  Item *item_arg;
+  while ((item_arg= it++))
+    if (this->eq(item_arg, 0))
+      return true;
+  return false;
 }
 
 
@@ -9171,24 +9209,15 @@ bool Item_field::check_usage_in_fd_field_extraction(THD *thd,
                                                     List<Item> *fields,
                                                     Item **err_item)
 {
-  if (field->cmp_type() == STRING_RESULT &&
-      (!((field->charset()->state & MY_CS_BINSORT) &&
-      (field->charset()->state & MY_CS_NOPAD))))
-  {
-    fields->empty();
-    return false;
-  }
-  if (fields->push_back(this, thd->mem_root))
+  if (fields && fields->push_back(this, thd->mem_root))
     return false;
 
-  if (item_subquery_is_in_where() ||
-      field->check_usage_in_fd_field_extraction(thd, fields, err_item))
+  if (outer_ref_is_in_where_or_on_subquery() ||
+      field->check_usage_in_fd_field_extraction(thd, fields,
+                                                err_item))
     return true;
-  if (is_in_outer_select())
-  {
+  if (used_tables() & OUTER_REF_TABLE_BIT)
     *err_item= this;
-    fields->empty();
-  }
   return false;
 }
 
@@ -9199,52 +9228,21 @@ bool Item_ref::check_usage_in_fd_field_extraction(THD *thd,
 {
   if (real_item()->type() != Item::FIELD_ITEM)
   {
-    if ((*ref)->check_usage_in_fd_field_extraction(thd, fields, err_item))
+    if ((*ref)->check_usage_in_fd_field_extraction(thd, fields,
+                                                   err_item))
       return true;
     return false;
   }
 
+  if (fields && fields->push_back(this, thd->mem_root))
+    return false;
   Item_field *real_it= (Item_field *)real_item();
-  if (real_it->field->cmp_type() == STRING_RESULT &&
-      (!((real_it->field->charset()->state & MY_CS_BINSORT) &&
-      (real_it->field->charset()->state & MY_CS_NOPAD))))
-  {
-    fields->empty();
-    return false;
-  }
-  if (fields->push_back(this, thd->mem_root))
-    return false;
-  if (item_subquery_is_in_where() ||
+  if (outer_ref_is_in_where_or_on_subquery() ||
       real_it->field->check_usage_in_fd_field_extraction(thd, fields,
                                                          err_item))
     return true;
-  if (is_in_outer_select())
-  {
+  if (used_tables() & OUTER_REF_TABLE_BIT)
     *err_item= this;
-    fields->empty();
-  }
-  return false;
-}
-
-
-
-bool Item_ref::excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                                bool in_where,
-                                                Item **err_item)
-{
-  if (item_subquery_is_in_where() ||
-      (in_where && (!context || !context->outer_context)))
-    return true;
-  if ((*ref)->excl_func_dep_on_grouping_fields(gb_items, in_where,
-                                               err_item))
-    return true;
-  if (!gb_items || gb_items->is_empty())
-    return false;
-  List_iterator<Item> it(*gb_items);
-  Item *item_arg;
-  while ((item_arg= it++))
-    if (this->eq(item_arg, 0))
-      return true;
   return false;
 }
 

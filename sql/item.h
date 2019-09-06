@@ -1840,6 +1840,9 @@ public:
    {
      (*traverser)(this, arg);
    }
+   virtual void update_is_deterministic() {}
+   virtual bool is_deterministic() { return true; }
+   virtual bool deterministic_args() { return true; }
 
   /*========= Item processors, to be used with Item::walk() ========*/
   virtual bool remove_dependence_processor(void *arg) { return 0; }
@@ -2006,15 +2009,18 @@ public:
   */
   virtual bool check_index_dependence(void *arg) { return 0; }
   /*
-    TRUE if the expression is the item used in the GROUP BY of sl, constant
-    or item that is functionally dependent on GROUP BY fields.
-    Otherwise, store in 'item' argument item that is forbidden to be used
-    in the processing expression.
-    in_where flag is set if WHERE clause item is processed.
+    TRUE if the expression depends on initial set fields and fields
+    that are functionally dependent on them only. Also check
+    that this expression is deterministic expression.
+    forbid_fd contains tables which fields can't be used in FDFS.
+    So, virtual columns and view/derived tables columns from forbid_fd
+    tables can't be from FDFS.
+    Otherwise, store in 'err_item' argument item that is not allowed to
+    be used in the processing expression.
   */
-  virtual bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                                bool in_where,
-                                                Item **err_item)
+  virtual bool excl_dep_on_fd_fields(List<Item> *gb_items,
+                                     table_map forbid_fd,
+                                     Item **err_item)
   {
     if (const_item())
       return true;
@@ -2022,18 +2028,18 @@ public:
     return false;
   }
   /*
-    TRUE if the expression depends on GROUP BY fields, constants or
-    fields that are functionally dependent on GROUP BY fields (1).
+    TRUE if the expression depends on initial set fields and fields
+    that are functionally dependent on them only (1).
     Also another condition should be met: all functions used in
-    this expression return deterministic result (2).
-    Collect in 'fields' argument fields used in this expression.
+    this expression are deterministic.
+    Collect in 'fields' argument items (Item_field or Item_ref
+    items) used in this expression.
 
-    Store in 'item' argument Item_field that doesn't meet (1).
+    Store in 'err_item' argument item that doesn't meet (1).
     This special case can be met when sl is a subquery and forbidden
-    outer reference is used in the WHERE clause of sl.
+    outer reference is used in the WHERE clause of this sl.
 
-    If (2) is not met FALSE result is returned along with the empty
-    fields list.
+    Note: used in WHERE clause and ON expression processing.
   */
   virtual bool check_usage_in_fd_field_extraction(THD *thd,
                                                   List<Item> *fields,
@@ -2041,12 +2047,12 @@ public:
   {
     if (const_item())
       return true;
-    fields->empty();
     return false;
   }
   /*
-    TRUE if item depends on field of the table that is not in
-    table_map arg and isn't IS or FD field.
+    TRUE if some expression field isn't from the considered JOIN level
+    tables and isn't initial set field or functionally dependent
+    field.
   */
   virtual bool check_reject_fd_extraction_processor(void *arg)
   { return false; }
@@ -2583,14 +2589,12 @@ protected:
     }
     return true;
   }
-  bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                        bool in_where,
-                                        Item **err_item)
+  bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
+                             Item **err_item)
   {
     for (uint i= 0; i < arg_count; i++)
     {
-      if (!args[i]->excl_func_dep_on_grouping_fields(gb_items,
-                                                     in_where, err_item))
+      if (!args[i]->excl_dep_on_fd_fields(gb_items, forbid_fd, err_item))
         return false;
     }
     return true;
@@ -2603,8 +2607,9 @@ protected:
     for (uint i= 0; i < arg_count; i++)
     {
       bool dep_arg=
-        args[i]->check_usage_in_fd_field_extraction(thd, fields, err_item);
-      if (!dep_arg && fields->is_empty())
+        args[i]->check_usage_in_fd_field_extraction(thd, fields,
+                                                    err_item);
+      if (!dep_arg && *err_item)
         return false;
       dep&= dep_arg;
     }
@@ -3310,8 +3315,7 @@ public:
   void cleanup();
   st_select_lex *get_depended_from() const;
   bool remove_dependence_processor(void * arg);
-  bool item_subquery_is_in_where();
-  bool is_in_outer_select();
+  bool outer_ref_is_in_where_or_on_subquery();
   virtual void print(String *str, enum_query_type query_type);
   virtual bool change_context_processor(void *cntx)
     { context= (Name_resolution_context *)cntx; return FALSE; }
@@ -3537,9 +3541,16 @@ public:
   { return field ? 0 : cleanup_processor(arg); }
   bool cleanup_excluding_const_fields_processor(void *arg)
   { return field && const_item() ? 0 : cleanup_processor(arg); }
-  bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                        bool in_where,
-                                        Item **err_item);
+  bool deterministic_args()
+  {
+    if (field->cmp_type() == STRING_RESULT &&
+        (!((field->charset()->state & MY_CS_BINSORT) &&
+         (field->charset()->state & MY_CS_NOPAD))))
+      return false;
+    return true;
+  }
+  bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
+                             Item **err_item);
   bool check_usage_in_fd_field_extraction(THD *thd,
                                           List<Item> *fields,
                                           Item **err_item);
@@ -5024,13 +5035,78 @@ public:
 
 
 /**
+  Deterministic function here is a function that returns the same
+  result for equal input sets.
+
+  E.g.
+  Consider two varchar values: a = 'x' and b = 'x '.
+  It can be said that a is equal to b: a = b.
+
+  Consider function LENGTH(x):
+  LENGTH(a) = 1 != 2 = LENGTH(b)
+
+  So, LENGTH function here is non-deterministic function.
+
+  The considered deterministic function definition is a special case
+  of the classic deterministic function definition (function that
+  returns the same result every time it is ran with the same input
+  set).
+*/
+
+class Is_deterministic_cache
+{
+public:
+  /* FALSE if the function is non-deterministic. */
+  bool is_deterministic_cache;
+  /* FALSE if function arguments can lead to non-deterministic result. */
+  bool deterministic_args_cache;
+
+  Is_deterministic_cache()
+   :is_deterministic_cache(true), deterministic_args_cache(true)
+  { }
+  Is_deterministic_cache(const Is_deterministic_cache *other)
+   :is_deterministic_cache(other->is_deterministic_cache),
+    deterministic_args_cache(other->deterministic_args_cache)
+  { }
+  void is_deterministic_init()
+  {
+    is_deterministic_cache= true;
+    deterministic_args_cache= true;
+  }
+  void is_deterministic_join(Item *item)
+  {
+    is_deterministic_cache&= item->is_deterministic();
+    deterministic_args_cache&= item->deterministic_args();
+  }
+  void is_deterministic_update_and_join(Item *item)
+  {
+    item->update_is_deterministic();
+    is_deterministic_join(item);
+  }
+  void is_deterministic_update_and_join(uint argc, Item **argv)
+  {
+    for (uint i=0 ; i < argc ; i++)
+      is_deterministic_update_and_join(argv[i]);
+  }
+  void is_deterministic_update_and_join(List<Item> &list)
+  {
+    List_iterator_fast<Item> li(list);
+    Item *item;
+    while ((item=li++))
+      is_deterministic_update_and_join(item);
+  }
+};
+
+
+/**
   An abstract class representing common features of
   regular functions and aggregate functions.
 */
 class Item_func_or_sum: public Item_result_field,
                         public Item_args,
                         public Used_tables_and_const_cache,
-                        public With_subquery_cache
+                        public With_subquery_cache,
+                        public Is_deterministic_cache
 {
 protected:
   bool agg_arg_charsets(DTCollation &c, Item **items, uint nitems,
@@ -5110,7 +5186,8 @@ public:
     Item_result_field(thd), Item_args(thd, a, b, c, d, e) { }
   Item_func_or_sum(THD *thd, Item_func_or_sum *item):
     Item_result_field(thd, item), Item_args(thd, item),
-    Used_tables_and_const_cache(item) { }
+    Used_tables_and_const_cache(item),
+    Is_deterministic_cache(item) { }
   Item_func_or_sum(THD *thd, List<Item> &list):
     Item_result_field(thd), Item_args(thd, list) { }
   bool with_subquery() const { DBUG_ASSERT(fixed); return m_with_subquery; }
@@ -5140,6 +5217,8 @@ public:
   virtual bool fix_length_and_dec()= 0;
   bool const_item() const { return const_item_cache; }
   table_map used_tables() const { return used_tables_cache; }
+  bool is_deterministic() { return is_deterministic_cache; }
+  bool deterministic_args() { return deterministic_args_cache; }
   Item* build_clone(THD *thd);
 };
 
@@ -5422,9 +5501,10 @@ public:
     *ref= (*ref)->remove_item_direct_ref();
     return this;
   }
-  bool excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                        bool in_where,
-                                        Item **err_item);
+  bool is_deterministic()
+  { return (*ref)->is_deterministic(); }
+  bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
+                             Item **err_item);
   bool check_usage_in_fd_field_extraction(THD *thd,
                                           List<Item> *fields,
                                           Item **err_item);
@@ -5824,6 +5904,8 @@ public:
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
   { return this; }
   Item *remove_item_direct_ref() { return this; }
+  bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
+                             Item **err_item);
 };
 
 

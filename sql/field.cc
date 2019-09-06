@@ -11242,14 +11242,13 @@ bool Field::val_str_nopad(MEM_ROOT *mem_root, LEX_CSTRING *to)
 }
 
 
-bool Field::excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                             bool in_where,
-                                             Item **err_item)
+bool Field::excl_dep_on_fd_fields(List<Item> *gb_items,
+                                  table_map forbid_fd,
+                                  Item **err_item)
 {
   if (vcol_info &&
-      vcol_info->expr->excl_func_dep_on_grouping_fields(gb_items,
-                                                        in_where,
-                                                        err_item))
+      !(table->map & forbid_fd) &&
+      vcol_info->expr->excl_dep_on_fd_fields(gb_items, forbid_fd, err_item))
     return true;
   return bitmap_is_set(&table->tmp_set, field_index);
 }
@@ -11259,12 +11258,8 @@ bool Field::check_usage_in_fd_field_extraction(THD *thd,
                                                List<Item> *fields,
                                                Item **err_item)
 {
-  if (vcol_info)
-  {
-    List<Item> vcol_fields;
-    if (vcol_info->expr->check_usage_in_fd_field_extraction(thd, &vcol_fields,
-                                                            err_item))
-      return true;
-  }
+  if (vcol_info &&
+      vcol_info->expr->check_usage_in_fd_field_extraction(thd, 0, err_item))
+    return true;
   return bitmap_is_set(&table->tmp_set, field_index);
 }

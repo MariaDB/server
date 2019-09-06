@@ -3367,23 +3367,6 @@ void Item_func_case_simple::print(String *str, enum_query_type query_type)
 }
 
 
-bool
-Item_func_case_simple::check_usage_in_fd_field_extraction(THD *thd,
-                                                          List<Item> *fields,
-                                                          Item **err_item)
-{
-  const Type_handler *first_expr_cmp_handler;
-
-  first_expr_cmp_handler= args[0]->type_handler_for_comparison();
-  if (m_found_types != (1UL << first_expr_cmp_handler->cmp_type()))
-  {
-    fields->empty();
-    return false;
-  }
-  return Item_args::check_usage_in_fd_field_extraction(thd, fields, err_item);
-}
-
-
 void Item_func_decode_oracle::print(String *str, enum_query_type query_type)
 {
   str->append(func_name());
@@ -4848,6 +4831,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       return TRUE; /* purecov: inspected */
     item= *li.ref(); // item can be substituted in fix_fields
     used_tables_cache|=     item->used_tables();
+    is_deterministic_join(item);
     if (item->const_item() && !item->with_param &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
     {
@@ -4894,7 +4878,6 @@ Item_cond::fix_fields(THD *thd, Item **ref)
   }
   if (fix_length_and_dec())
     return TRUE;
-  set_deterministic();
   fixed= 1;
   return FALSE;
 }
@@ -5259,16 +5242,14 @@ bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
-bool Item_cond::excl_func_dep_on_grouping_fields(List<Item> *gb_items,
-                                                 bool in_where,
-                                                 Item **err_item)
+bool Item_cond::excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
+                                      Item **err_item)
 {
   List_iterator_fast<Item> li(list);
   Item *item_it;
   while ((item_it= li++))
   {
-    if (item_it->excl_func_dep_on_grouping_fields(gb_items,
-                                                  in_where, err_item))
+    if (item_it->excl_dep_on_fd_fields(gb_items, forbid_fd, err_item))
       continue;
 
     if (!gb_items || gb_items->is_empty())
@@ -5284,17 +5265,22 @@ bool Item_cond::excl_func_dep_on_grouping_fields(List<Item> *gb_items,
 }
 
 
-bool Item_cond::are_args_deterministic()
+bool Item_cond::check_usage_in_fd_field_extraction(THD *thd,
+                                                   List<Item> *fields,
+                                                   Item **err_item)
 {
-  List_iterator_fast<Item> li(*argument_list());
+  bool dep= true;
+  List_iterator_fast<Item> li(list);
   Item *item;
-  while ((item=li++))
+  while ((item= li++))
   {
-    if (item->type() == Item::FUNC_ITEM &&
-        !((Item_func *)item)->is_deterministic)
+    bool dep_arg= !item->check_usage_in_fd_field_extraction(thd, fields,
+                                                            err_item);
+    if (!dep_arg && *err_item)
       return false;
+    dep&= dep_arg;
   }
-  return true;
+  return dep;
 }
 
 
