@@ -3366,6 +3366,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       outparam->check_constraints= check_constraint_ptr;
 
     vcol_init_mode mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING;
+#if MYSQL_VERSION_ID > 100500
     switch (thd->lex->sql_command)
     {
     case SQLCOM_CREATE_TABLE:
@@ -3380,9 +3381,10 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     default:
       break;
     }
+#endif
 
-    if (unlikely(parse_vcol_defs(thd, &outparam->mem_root, outparam,
-                                 &error_reported, mode)))
+    if (parse_vcol_defs(thd, &outparam->mem_root, outparam,
+                        &error_reported, mode))
     {
       error= OPEN_FRM_CORRUPTED;
       goto err;

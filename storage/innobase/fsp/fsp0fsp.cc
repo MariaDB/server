@@ -2817,7 +2817,6 @@ fseg_free_page_low(
 	ulint	state;
 	ib_id_t	descr_id;
 	ib_id_t	seg_id;
-	ulint	i;
 
 	ut_ad(seg_inode != NULL);
 	ut_ad(mtr != NULL);
@@ -2853,7 +2852,7 @@ fseg_free_page_low(
 	if (state != XDES_FSEG) {
 		/* The page is in the fragment pages of the segment */
 
-		for (i = 0;; i++) {
+		for (ulint i = 0;; i++) {
 			if (fseg_get_nth_frag_page_no(seg_inode, i, mtr)
 			    == offset) {
 
@@ -3014,7 +3013,6 @@ fseg_free_extent(
 	xdes_t*	descr;
 	ulint	not_full_n_used;
 	ulint	descr_n_used;
-	ulint	i;
 
 	ut_ad(mtr != NULL);
 
@@ -3030,7 +3028,7 @@ fseg_free_extent(
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (ahi) {
-		for (i = 0; i < FSP_EXTENT_SIZE; i++) {
+		for (ulint i = 0; i < FSP_EXTENT_SIZE; i++) {
 			if (!xdes_mtr_get_bit(descr, XDES_FREE_BIT, i, mtr)) {
 
 				/* Drop search system page hash index
@@ -3068,7 +3066,7 @@ fseg_free_extent(
 	fsp_free_extent(space, page, page_size, mtr);
 
 #ifdef UNIV_DEBUG
-	for (i = 0; i < FSP_EXTENT_SIZE; i++) {
+	for (ulint i = 0; i < FSP_EXTENT_SIZE; i++) {
 
 		buf_page_set_file_page_was_freed(
 			page_id_t(space->id, first_page_in_extent + i));

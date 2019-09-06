@@ -76,6 +76,7 @@ rmdir $targetdir;
 
 perl;
 use lib "lib";
+use My::Handles { suppress_init_messages => 1 };
 use My::File::Path;
 my $install_db_dir = ($ENV{MTR_PARALLEL} == 1) ?
   "$ENV{'MYSQLTEST_VARDIR'}/install.db" :
