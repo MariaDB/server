@@ -1,34 +1,23 @@
 SET @start_global_value = @@global.myisam_sort_buffer_size ;
-SELECT @start_global_value;
-@start_global_value
-134216704
-SET @start_session_value = @@session.myisam_sort_buffer_size ;
-SELECT @start_session_value;
-@start_session_value
-134216704
+SELECT @@session.myisam_sort_buffer_size = @@global.myisam_sort_buffer_size;
+@@session.myisam_sort_buffer_size = @@global.myisam_sort_buffer_size
+1
+SET @@global.myisam_sort_buffer_size= default;
+SET @default_myisam_sort_buffer_size= @@global.myisam_sort_buffer_size;
 '#--------------------FN_DYNVARS_005_01-------------------------#'
 SET @@global.myisam_sort_buffer_size   = 100;
 Warnings:
 Warning	1292	Truncated incorrect myisam_sort_buffer_size value: '100'
 SET @@global.myisam_sort_buffer_size   = DEFAULT;
-SELECT @@global.myisam_sort_buffer_size  ;
-@@global.myisam_sort_buffer_size
-134216704
+SELECT @@global.myisam_sort_buffer_size = @default_myisam_sort_buffer_size;
+@@global.myisam_sort_buffer_size = @default_myisam_sort_buffer_size
+1
 SET @@session.myisam_sort_buffer_size   = 200;
 Warnings:
 Warning	1292	Truncated incorrect myisam_sort_buffer_size value: '200'
 SET @@session.myisam_sort_buffer_size   = DEFAULT;
-SELECT @@session.myisam_sort_buffer_size  ;
-@@session.myisam_sort_buffer_size
-134216704
-'#--------------------FN_DYNVARS_005_02-------------------------#'
-SET @@global.myisam_sort_buffer_size   = DEFAULT;
-SELECT @@global.myisam_sort_buffer_size   = 134216704;
-@@global.myisam_sort_buffer_size   = 134216704
-1
-SET @@session.myisam_sort_buffer_size   = DEFAULT;
-SELECT @@session.myisam_sort_buffer_size   = 134216704;
-@@session.myisam_sort_buffer_size   = 134216704
+SELECT @@session.myisam_sort_buffer_size = @default_myisam_sort_buffer_size;
+@@session.myisam_sort_buffer_size = @default_myisam_sort_buffer_size
 1
 '#--------------------FN_DYNVARS_005_03-------------------------#'
 SET @@global.myisam_sort_buffer_size   = 4;
@@ -185,10 +174,3 @@ ERROR 42S02: Unknown table 'session' in field list
 SELECT myisam_sort_buffer_size   = @@session.myisam_sort_buffer_size  ;
 ERROR 42S22: Unknown column 'myisam_sort_buffer_size' in 'field list'
 SET @@global.myisam_sort_buffer_size   = @start_global_value;
-SELECT @@global.myisam_sort_buffer_size  ;
-@@global.myisam_sort_buffer_size
-134216704
-SET @@session.myisam_sort_buffer_size   = @start_session_value;
-SELECT @@session.myisam_sort_buffer_size  ;
-@@session.myisam_sort_buffer_size
-134216704

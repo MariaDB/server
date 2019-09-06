@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
+--source suite/versioning/common.inc
 
 --echo # MDEV-15951 system versioning by trx id doesn't work with partitioning
 --echo # currently trx_id does not support partitioning by system_time
@@ -74,6 +75,4 @@ partition by range columns (a, row_start) (
   partition p1 values less than (100, 100)
 );
 
---echo # Test cleanup
-drop database test;
-create database test;
+--source suite/versioning/common_finish.inc

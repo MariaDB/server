@@ -1,18 +1,16 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
 connection master;
 create table t1 (a int) engine=innodb;
 create table t2 (a int);
 create table t3 (a int) engine=innodb;
-include/save_master_gtid.inc
 connection slave;
-include/wait_for_slave_sql_error.inc [errno=1286]
-Last_Error = 'Error 'Unknown storage engine 'innodb'' on query. Default database: 'test'. Query: 'create table t1 (a int) engine=innodb''
-STOP SLAVE IO_THREAD;
-include/wait_for_slave_to_stop.inc
-SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
-include/start_slave.inc
-include/sync_with_master_gtid.inc
+include/wait_for_slave_sql_error_and_skip.inc [errno=1286]
+# Asserted this: Status should be 'Slave has read all relay log...'
 show tables;
 Tables_in_test
 t2

@@ -4,6 +4,7 @@
 -- source include/not_embedded.inc
 
 set sql_mode="";
+--source include/default_charset.inc
 
 --disable_warnings
 drop database if exists events_test;

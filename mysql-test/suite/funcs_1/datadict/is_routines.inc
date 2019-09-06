@@ -18,6 +18,8 @@
 # 2008-06-11 mleich Move t/is_routines.test to this file and
 #                   create variants for embedded/non embedded server.
 #
+
+--source include/default_charset.inc
 set sql_mode="";
 
 let $engine_type       = MEMORY;

@@ -3,6 +3,7 @@
 
 call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
 
+let $collation_server=`select @@collation_server`;
 #
 # Test that when the server is restarted, it checks mysql.event table,
 # and disables the scheduler if it's not up to date.
@@ -92,6 +93,7 @@ set global event_scheduler=on;
 select @@global.event_scheduler;
 --sorted_result
 --replace_column 6 # 9 # 10 #
+--replace_result $collation_server latin1_swedish_ci
 show events;
 
 --echo Now let's restart the server again

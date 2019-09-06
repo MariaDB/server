@@ -1382,6 +1382,46 @@ error:
 }
 
 
+void Field::error_generated_column_function_is_not_allowed(THD *thd,
+                                                           bool error) const
+{
+  StringBuffer<64> tmp;
+  vcol_info->expr->print(&tmp, (enum_query_type)
+                               (QT_TO_SYSTEM_CHARSET |
+                                QT_ITEM_IDENT_SKIP_DB_NAMES |
+                                QT_ITEM_IDENT_SKIP_TABLE_NAMES));
+  my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED,
+           MYF(error ? 0 : ME_WARNING),
+           tmp.c_ptr(), vcol_info->get_vcol_type_name(),
+           const_cast<const char*>(field_name.str));
+}
+
+
+/*
+  Check if an indexed or a persistent virtual column depends on sql_mode flags
+  that it cannot handle.
+  See sql_mode.h for details.
+*/
+bool Field::check_vcol_sql_mode_dependency(THD *thd, vcol_init_mode mode) const
+{
+  DBUG_ASSERT(vcol_info);
+  if ((flags & PART_KEY_FLAG) != 0 || stored_in_db())
+  {
+    Sql_mode_dependency dep=
+        vcol_info->expr->value_depends_on_sql_mode() &
+        Sql_mode_dependency(~0, ~can_handle_sql_mode_dependency_on_store());
+    if (dep)
+    {
+      bool error= (mode & VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR) != 0;
+      error_generated_column_function_is_not_allowed(thd, error);
+      dep.push_dependency_warnings(thd);
+      return error;
+    }
+  }
+  return false;
+}
+
+
 bool Field::make_empty_rec_store_default_value(THD *thd, Item *item)
 {
   DBUG_ASSERT(!(flags & BLOB_FLAG));
@@ -1423,6 +1463,12 @@ void Field_num::prepend_zeros(String *value) const
       value->length(field_length);
     }
   }
+}
+
+
+sql_mode_t Field_num::can_handle_sql_mode_dependency_on_store() const
+{
+  return MODE_PAD_CHAR_TO_FULL_LENGTH;
 }
 
 
@@ -5583,6 +5629,12 @@ bool Field_timestampf::val_native(Native *to)
 
 
 /*************************************************************/
+sql_mode_t Field_temporal::can_handle_sql_mode_dependency_on_store() const
+{
+  return MODE_PAD_CHAR_TO_FULL_LENGTH;
+}
+
+
 bool Field_temporal::is_equal(const Column_definition &new_field) const
 {
   return new_field.type_handler() == type_handler() &&
@@ -7186,6 +7238,18 @@ longlong Field_string::val_int(void)
                                       Field_string::charset(),
                                       (const char *) ptr,
                                       field_length).result();
+}
+
+
+sql_mode_t Field_string::value_depends_on_sql_mode() const
+{
+  return has_charset() ? MODE_PAD_CHAR_TO_FULL_LENGTH : sql_mode_t(0);
+};
+
+
+sql_mode_t Field_string::can_handle_sql_mode_dependency_on_store() const
+{
+  return has_charset() ? MODE_PAD_CHAR_TO_FULL_LENGTH : sql_mode_t(0);
 }
 
 
@@ -8816,6 +8880,12 @@ longlong Field_blob_compressed::val_int(void)
 ** This is a string which only can have a selection of different values.
 ** If one uses this string in a number context one gets the type number.
 ****************************************************************************/
+
+sql_mode_t Field_enum::can_handle_sql_mode_dependency_on_store() const
+{
+  return MODE_PAD_CHAR_TO_FULL_LENGTH;
+}
+
 
 enum ha_base_keytype Field_enum::key_type() const
 {
@@ -10874,33 +10944,6 @@ key_map Field::get_possible_keys()
   DBUG_ASSERT(table->pos_in_table_list);
   return (table->pos_in_table_list->is_materialized_derived() ?
           part_of_key : key_start);
-}
-
-
-/**
-  Mark the field as having an explicit default value.
-
-  @param value  if available, the value that the field is being set to
-
-  @note
-    Fields that have an explicit default value should not be updated
-    automatically via the DEFAULT or ON UPDATE functions. The functions
-    that deal with data change functionality (INSERT/UPDATE/LOAD),
-    determine if there is an explicit value for each field before performing
-    the data change, and call this method to mark the field.
-
-    If the 'value' parameter is NULL, then the field is marked unconditionally
-    as having an explicit value. If 'value' is not NULL, then it can be further
-    analyzed to check if it really should count as a value.
-*/
-
-bool Field::set_explicit_default(Item *value)
-{
-  if (value->type() == Item::DEFAULT_VALUE_ITEM &&
-      !((Item_default_value*)value)->arg)
-    return false;
-  set_has_explicit_value();
-  return true;
 }
 
 

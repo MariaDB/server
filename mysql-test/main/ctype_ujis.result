@@ -2504,6 +2504,8 @@ Warning	1977	Cannot convert 'ujis' character 0x8FABF8 to 'ucs2'
 DROP TABLE IF EXISTS t1, t2;
 DROP PROCEDURE IF EXISTS sp1;
 set names ujis;
+SET @save_character_set_server= @@character_set_server;
+SET @save_character_set_database= @@character_set_database;
 set character_set_database = ujis;
 set character_set_server = ujis;
 CREATE TABLE t1(c1 char(2)) default charset = ujis;
@@ -2539,8 +2541,8 @@ Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'a'
 Warning	1292	Truncated incorrect INTEGER value: 'a'
 set names default;
-set character_set_database=default;
-set character_set_server=default;
+set character_set_database=@save_character_set_server;
+set character_set_server=@save_character_set_database;
 End of 5.1 tests
 #
 # Start of 5.5 tests

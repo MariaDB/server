@@ -48,17 +48,12 @@ trx_state_eq(
 	switch (trx->state) {
 	case TRX_STATE_PREPARED:
 	case TRX_STATE_PREPARED_RECOVERED:
+	case TRX_STATE_COMMITTED_IN_MEMORY:
 		ut_ad(!trx_is_autocommit_non_locking(trx));
 		return(trx->state == state);
 
 	case TRX_STATE_ACTIVE:
-
 		assert_trx_nonlocking_or_in_list(trx);
-		return(state == trx->state);
-
-	case TRX_STATE_COMMITTED_IN_MEMORY:
-
-		check_trx_state(trx);
 		return(state == trx->state);
 
 	case TRX_STATE_NOT_STARTED:

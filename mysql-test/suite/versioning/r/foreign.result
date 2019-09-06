@@ -16,13 +16,13 @@ on update restrict
 insert into parent values(1);
 insert into child values(1);
 delete from parent where id = 1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 delete from child where parent_id = 1;
 delete from parent where id = 1;
 insert into parent values(1);
 insert into child values(1);
 update parent set id=id+1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 delete from child;
 update parent set id=id+1;
 select * from child for system_time all;
@@ -47,7 +47,7 @@ foreign key(parent_id) references parent(id)
 insert into parent values(1);
 insert into child values(1);
 delete from parent where id = 1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 drop table child;
 drop table parent;
 ################
@@ -195,19 +195,19 @@ foreign key(parent_id) references parent(id)
 insert into parent values(1);
 insert into child values(1);
 delete from parent;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 update parent set id=2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 delete from child;
 delete from parent;
 insert into child values(1);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 insert into parent values(1);
 insert into child values(1);
 delete from parent;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 update parent set id=2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 drop table child;
 drop table parent;
 ###################
@@ -233,7 +233,7 @@ foreign key (v_cola) references a (v_cola);
 insert into a(cola) values (12);
 insert into b(cola, v_cola) values (10,2);
 delete from a;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`b`, CONSTRAINT `v_cola_fk` FOREIGN KEY (`v_cola`) REFERENCES `a` (`v_cola`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`b`, CONSTRAINT `v_cola_fk` FOREIGN KEY (`v_cola`) REFERENCES `a` (`v_cola`))
 drop table b, a;
 ###############################################
 # CASCADE UPDATE foreign not system versioned #
@@ -298,7 +298,7 @@ SET FOREIGN_KEY_CHECKS= OFF;
 INSERT IGNORE INTO t2 VALUES (1);
 SET FOREIGN_KEY_CHECKS= ON;
 UPDATE t2 SET f2= 2;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test2`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
 DELETE FROM t2;
 DROP TABLE t2, t1;
 #

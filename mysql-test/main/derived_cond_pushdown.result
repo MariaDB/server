@@ -1,3 +1,4 @@
+set @@join_buffer_size=256*1024;
 create table t1 (a int, b int, c int);
 create table t2 (a int, b int, c int, d decimal);
 insert into t1 values

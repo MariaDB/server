@@ -21,9 +21,6 @@ SELECT COUNT(@@GLOBAL.innodb_log_optimize_ddl);
 SELECT COUNT(@@SESSION.innodb_log_optimize_ddl);
 --echo Expected error 'Variable is a GLOBAL variable'
 
-#### Display the default value
-SELECT @@GLOBAL.innodb_log_optimize_ddl;
-
 SELECT @@GLOBAL.innodb_log_optimize_ddl INTO @innodb_log_optimize_ddl_save;
 #### Check if the value can be set
 SET @@GLOBAL.innodb_log_optimize_ddl = ON;

@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/big_test.inc
+--source include/have_64bit.inc
 let $restart_noprint=2;
 
 --echo #

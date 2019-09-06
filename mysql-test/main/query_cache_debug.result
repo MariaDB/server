@@ -1,4 +1,6 @@
 set global query_cache_type= ON;
+set @save_query_cache_size=@@global.query_cache_size;
+SET @save_concurrent_insert= @@GLOBAL.concurrent_insert;
 flush status;
 set query_cache_type=DEMAND;
 set global query_cache_size= 1024*768;
@@ -37,8 +39,6 @@ set debug_sync= 'RESET';
 set global query_cache_size= 0;
 use test;
 drop table t1;
-SET @old_concurrent_insert= @@GLOBAL.concurrent_insert;
-SET @old_query_cache_size= @@GLOBAL.query_cache_size;
 DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
@@ -214,7 +214,6 @@ SET GLOBAL query_cache_type= DEFAULT;
 #
 # Bug#56822: Add a thread state for sessions waiting on the query cache lock
 #
-SET @old_query_cache_size= @@GLOBAL.query_cache_size;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2),(3);
@@ -246,7 +245,7 @@ connection default;
 SET DEBUG_SYNC= 'RESET';
 RESET QUERY CACHE;
 DROP TABLE t1;
-SET GLOBAL query_cache_size= DEFAULT;
+SET GLOBAL query_cache_size= @save_query_cache_size;
 SET GLOBAL query_cache_type= DEFAULT;
 #
 # MDEV-14526: MariaDB keeps crashing under load when
@@ -270,7 +269,7 @@ SELECT DISTINCT id FROM t1 WHERE id BETWEEN 5603 AND 16218 ORDER BY k;
 connection default;
 set debug_sync="now WAIT_FOR parked";
 connection con2;
-SET GLOBAL query_cache_type= 0;
+SET GLOBAL query_cache_type= 0;;
 connection default;
 set debug_sync="now SIGNAL go";
 connection con1;
@@ -281,6 +280,7 @@ disconnect con2;
 connection default;
 set debug_sync= 'RESET';
 DROP TABLE t1;
-SEt GLOBAL query_cache_size= DEFAULT;
-SEt GLOBAL query_cache_type= DEFAULT;
+SET GLOBAL query_cache_size=@save_query_cache_size;
+SET GLOBAL query_cache_type= DEFAULT;
+SET @@GLOBAL.concurrent_insert=@save_concurrent_insert;
 # End of 5.5 tests

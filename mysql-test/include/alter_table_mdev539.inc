@@ -2,6 +2,8 @@
 --echo # mdev-539: fast build of unique/primary indexes for MyISAM/Aria
 --echo #
 
+--source include/default_charset.inc
+
 call mtr.add_suppression("Can't find record in '.*'");
 
 --disable_warnings
@@ -62,6 +64,6 @@ insert into customer values
 alter ignore table customer add primary key (c_custkey);
 show create table customer;
 select * from customer where c_custkey=3; 
-
+--source include/restore_charset.inc
 DROP DATABASE dbt3_s001;
  

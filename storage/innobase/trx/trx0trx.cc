@@ -465,6 +465,48 @@ void trx_free(trx_t*& trx)
 	trx = NULL;
 }
 
+/** Transition to committed state, to release implicit locks. */
+inline void trx_t::commit_state()
+{
+  ut_ad(state == TRX_STATE_PREPARED
+	|| state == TRX_STATE_PREPARED_RECOVERED
+	|| state == TRX_STATE_ACTIVE);
+  /* This makes the transaction committed in memory and makes its
+  changes to data visible to other transactions. NOTE that there is a
+  small discrepancy from the strict formal visibility rules here: a
+  user of the database can see modifications made by another
+  transaction T even before the necessary redo log segment has been
+  flushed to the disk. If the database happens to crash before the
+  flush, the user has seen modifications from T which will never be a
+  committed transaction. However, any transaction T2 which sees the
+  modifications of the committing transaction T, and which also itself
+  makes modifications to the database, will get an lsn larger than the
+  committing transaction T. In the case where the log flush fails, and
+  T never gets committed, also T2 will never get committed. */
+  trx_mutex_enter(this);
+  state= TRX_STATE_COMMITTED_IN_MEMORY;
+  trx_mutex_exit(this);
+  ut_ad(id || !is_referenced());
+}
+
+/** Release any explicit locks of a committing transaction. */
+inline void trx_t::release_locks()
+{
+  DBUG_ASSERT(state == TRX_STATE_COMMITTED_IN_MEMORY);
+  DBUG_ASSERT(!is_referenced());
+
+  if (UT_LIST_GET_LEN(lock.trx_locks))
+  {
+    lock_release(this);
+    lock.n_rec_locks = 0;
+    ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
+    ut_ad(ib_vector_is_empty(autoinc_locks));
+    mem_heap_empty(lock.lock_heap);
+  }
+
+  lock.table_locks.clear(); /* outside "if" to work around MDEV-20483 */
+}
+
 /** At shutdown, frees a transaction object. */
 void
 trx_free_at_shutdown(trx_t *trx)
@@ -482,21 +524,15 @@ trx_free_at_shutdown(trx_t *trx)
 		         && !srv_undo_sources && srv_fast_shutdown))));
 	ut_a(trx->magic_n == TRX_MAGIC_N);
 
-	lock_trx_release_locks(trx);
+	trx->commit_state();
+	trx->release_locks();
 	trx_undo_free_at_shutdown(trx);
 
 	ut_a(!trx->read_only);
 
 	DBUG_LOG("trx", "Free prepared: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
-
-	/* Undo trx_resurrect_table_locks(). */
-	lock_trx_lock_list_init(&trx->lock.trx_locks);
-
-	/* Note: This vector is not guaranteed to be empty because the
-	transaction was never committed and therefore lock_trx_release()
-	was not called. */
-	trx->lock.table_locks.clear();
+	ut_ad(!UT_LIST_GET_LEN(trx->lock.trx_locks));
 	trx->id = 0;
 
 	trx_free(trx);
@@ -1348,8 +1384,8 @@ trx_commit_in_memory(
 
 		/* Note: We are asserting without holding the lock mutex. But
 		that is OK because this transaction is not waiting and cannot
-		be rolled back and no new locks can (or should not) be added
-		becuase it is flagged as a non-locking read-only transaction. */
+		be rolled back and no new locks can (or should) be added
+		because it is flagged as a non-locking read-only transaction. */
 
 		ut_a(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
 
@@ -1367,27 +1403,33 @@ trx_commit_in_memory(
 		DBUG_LOG("trx", "Autocommit in memory: " << trx);
 		trx->state = TRX_STATE_NOT_STARTED;
 	} else {
-		if (trx->id > 0) {
-			/* For consistent snapshot, we need to remove current
-			transaction from rw_trx_hash before doing commit and
-			releasing locks. */
+		trx->commit_state();
+
+		if (trx->id) {
 			trx_sys.deregister_rw(trx);
+
+			/* Wait for any implicit-to-explicit lock
+			conversions to cease, so that there will be no
+			race condition in lock_release(). */
+			while (UNIV_UNLIKELY(trx->is_referenced())) {
+				ut_delay(srv_spin_wait_delay);
+			}
+
+			trx->release_locks();
+			trx->id = 0;
+		} else {
+			ut_ad(trx->read_only || !trx->rsegs.m_redo.rseg);
+			trx->release_locks();
 		}
 
-		lock_trx_release_locks(trx);
-		ut_ad(trx->read_only || !trx->rsegs.m_redo.rseg || trx->id);
-
-		/* Remove the transaction from the list of active
-		transactions now that it no longer holds any user locks. */
-
-		ut_ad(trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
 		DEBUG_SYNC_C("after_trx_committed_in_memory");
 
-		if (trx->read_only || trx->rsegs.m_redo.rseg == NULL) {
+		if (trx->read_only || !trx->rsegs.m_redo.rseg) {
 			MONITOR_INC(MONITOR_TRX_RO_COMMIT);
 		} else {
 			trx_update_mod_tables_timestamp(trx);
 			MONITOR_INC(MONITOR_TRX_RW_COMMIT);
+			trx->is_recovered = false;
 		}
 
 		while (dict_table_t* table = UT_LIST_GET_FIRST(
@@ -1395,8 +1437,6 @@ trx_commit_in_memory(
 			UT_LIST_REMOVE(trx->lock.evicted_tables, table);
 			dict_mem_table_free(table);
 		}
-
-		trx->id = 0;
 	}
 
 	ut_ad(!trx->rsegs.m_redo.undo);
@@ -2222,7 +2262,7 @@ int trx_recover_for_mysql(XID *xid_list, uint len)
 
 struct trx_get_trx_by_xid_callback_arg
 {
-  XID *xid;
+  const XID *xid;
   trx_t *trx;
 };
 
@@ -2234,6 +2274,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)
   {
+    trx_mutex_enter(trx);
     if (trx->is_recovered &&
 	(trx_state_eq(trx, TRX_STATE_PREPARED) ||
 	 trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)) &&
@@ -2250,23 +2291,19 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
       arg->trx= trx;
       found= 1;
     }
+    trx_mutex_exit(trx);
   }
   mutex_exit(&element->mutex);
   return found;
 }
 
-
-/**
-  Finds PREPARED XA transaction by xid.
-
-  trx may have been committed, unless the caller is holding lock_sys.mutex.
-
-  @param[in]  xid  X/Open XA transaction identifier
-
-  @return trx or NULL; on match, the trx->xid will be invalidated;
-*/
-
-trx_t *trx_get_trx_by_xid(XID *xid)
+/** Look up an X/Open distributed transaction in XA PREPARE state.
+@param[in]	xid	X/Open XA transaction identifier
+@return	transaction on match (the trx_t::xid will be invalidated);
+note that the trx may have been committed before the caller acquires
+trx_t::mutex
+@retval	NULL if no match */
+trx_t* trx_get_trx_by_xid(const XID* xid)
 {
   trx_get_trx_by_xid_callback_arg arg= { xid, 0 };
 

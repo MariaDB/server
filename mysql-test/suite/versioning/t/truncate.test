@@ -169,5 +169,4 @@ insert into t1 values (1);
 select * from t1;
 drop table t1;
 
-drop database test;
-create database test;
+--source suite/versioning/common_finish.inc

@@ -3,6 +3,7 @@
 # prune, so the test is EXPLAINs.
 #
 -- source include/have_partition.inc
+--source include/default_optimizer_switch.inc
 
 --disable_warnings
 drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;

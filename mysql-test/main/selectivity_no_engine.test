@@ -1,4 +1,5 @@
 --source include/have_stat_tables.inc
+--source include/default_optimizer_switch.inc
 
 --echo #
 --echo #  Engine-agnostic tests for statistics-based selectivity calculations.

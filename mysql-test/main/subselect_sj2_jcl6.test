@@ -110,10 +110,6 @@ set join_cache_level=default;
 
 DROP TABLE t1,t2;
 
-
-set join_cache_level=default;
-show variables like 'join_cache_level';
-
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
              @innodb_stats_persistent_sample_pages_save;

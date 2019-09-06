@@ -1,3 +1,4 @@
+set @save_max_allowed_packet=@@max_allowed_packet;
 set global max_allowed_packet=1048576;
 connect  conn1,localhost,root,,;
 connection conn1;
@@ -81,7 +82,7 @@ Warning	1292	Truncated incorrect DOUBLE value: XXX
 Warning	1292	Truncated incorrect DOUBLE value: XXX
 disconnect newconn;
 connection default;
-set @@global.max_allowed_packet=default;
+set @@global.max_allowed_packet=@save_max_allowed_packet;
 create table t1(a blob);
 insert into t1 values(NULL), (compress('a'));
 select uncompress(a), uncompressed_length(a) from t1;
@@ -163,7 +164,7 @@ Warnings:
 Warning	1259	ZLIB: Input data corrupted
 disconnect conn1;
 connection default;
-set global max_allowed_packet=default;
+set global max_allowed_packet=@save_max_allowed_packet;
 #
 # End of 5.5 tests
 #

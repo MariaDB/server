@@ -69,17 +69,20 @@ bool compare_record(const TABLE *table)
 {
   DBUG_ASSERT(records_are_comparable(table));
 
-  if ((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) != 0)
+  if (table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ ||
+      table->s->has_update_default_function)
   {
     /*
       Storage engine may not have read all columns of the record.  Fields
       (including NULL bits) not in the write_set may not have been read and
       can therefore not be compared.
+      Or ON UPDATE DEFAULT NOW() could've changed field values, including
+      NULL bits.
     */ 
     for (Field **ptr= table->field ; *ptr != NULL; ptr++)
     {
       Field *field= *ptr;
-      if (bitmap_is_set(table->write_set, field->field_index))
+      if (field->has_explicit_value() && !field->vcol_info)
       {
         if (field->real_maybe_null())
         {
@@ -111,8 +114,9 @@ bool compare_record(const TABLE *table)
   /* Compare updated fields */
   for (Field **ptr= table->field ; *ptr ; ptr++)
   {
-    if (bitmap_is_set(table->write_set, (*ptr)->field_index) &&
-	(*ptr)->cmp_binary_offset(table->s->rec_buff_length))
+    Field *field= *ptr;
+    if (field->has_explicit_value() && !field->vcol_info &&
+	field->cmp_binary_offset(table->s->rec_buff_length))
       return TRUE;
   }
   return FALSE;
@@ -309,15 +313,18 @@ int cut_fields_for_portion_of_time(THD *thd, TABLE *table,
   Field *start_field= table->field[table->s->period.start_fieldno];
   Field *end_field= table->field[table->s->period.end_fieldno];
 
-  DBUG_ASSERT(!start_field->has_explicit_value()
-              && !end_field->has_explicit_value());
-
   int res= 0;
   if (lcond)
+  {
     res= period_conds.start.item->save_in_field(start_field, true);
+    start_field->set_has_explicit_value();
+  }
 
   if (likely(!res) && rcond)
+  {
     res= period_conds.end.item->save_in_field(end_field, true);
+    end_field->set_has_explicit_value();
+  }
 
   return res;
 }
@@ -987,11 +994,6 @@ update_begin:
             thd->lex->sql_command == SQLCOM_DELETE)
           table->vers_update_end();
 
-        if (table->default_field && table->update_default_fields(1, ignore))
-        {
-          error= 1;
-          break;
-        }
         if ((res= table_list->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
         {
@@ -2490,10 +2492,6 @@ int multi_update::send_data(List<Item> &not_used_values)
       {
 	int error;
 
-        if (table->default_field &&
-            unlikely(table->update_default_fields(1, ignore)))
-          DBUG_RETURN(1);
-
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
         {
@@ -2803,6 +2801,10 @@ int multi_update::do_updates()
         copy_field_ptr->to_field->set_has_explicit_value();
       }
 
+      table->evaluate_update_default_function();
+      if (table->vfield &&
+          table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
+        goto err2;
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                             TRG_ACTION_BEFORE, TRUE))
@@ -2811,12 +2813,6 @@ int multi_update::do_updates()
       if (!can_compare_record || compare_record(table))
       {
         int error;
-        if (table->default_field &&
-            (error= table->update_default_fields(1, ignore)))
-          goto err2;
-        if (table->vfield &&
-            table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
-          goto err2;
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
         {

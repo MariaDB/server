@@ -8,7 +8,7 @@
 drop table if exists t0,t1,t2,t3,t4,t5;
 --enable_warnings
 
-SET @save_optimizer_switch=@@optimizer_switch;
+SET @org_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch=ifnull(@optimizer_switch_for_join_outer_test,'outer_join_with_cache=off');
 if (`select @join_cache_level_for_join_outer_test is null`)
 {
@@ -2251,4 +2251,4 @@ WHERE t3.pk IN (2);
 drop view v4;
 drop table t1,t2,t3,t4;
 
-SET optimizer_switch=@save_optimizer_switch;
+SET optimizer_switch=@org_optimizer_switch;

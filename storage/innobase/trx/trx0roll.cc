@@ -766,7 +766,7 @@ static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
   if (trx_t *trx= element->trx)
   {
     mutex_enter(&trx->mutex);
-    if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE))
+    if (trx_state_eq(trx, TRX_STATE_ACTIVE) && trx->is_recovered)
       trx_list->push_back(trx);
     mutex_exit(&trx->mutex);
   }
@@ -812,7 +812,8 @@ void trx_rollback_recovered(bool all)
 
     ut_ad(trx);
     ut_d(trx_mutex_enter(trx));
-    ut_ad(trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE));
+    ut_ad(trx->is_recovered);
+    ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
     ut_d(trx_mutex_exit(trx));
 
     if (!srv_is_being_started && !srv_undo_sources && srv_fast_shutdown)
@@ -828,6 +829,22 @@ void trx_rollback_recovered(bool all)
         ut_ad(!srv_undo_sources);
         ut_ad(srv_fast_shutdown);
 discard:
+        /* Note: before kill_server() invoked innobase_end() via
+        unireg_end(), it invoked close_connections(), which should initiate
+        the rollback of any user transactions via THD::cleanup() in the
+        connection threads, and wait for all THD::cleanup() to complete.
+        So, no active user transactions should exist at this point.
+
+        srv_undo_sources=false was cleared early in innobase_end().
+
+        Generally, the server guarantees that all connections using
+        InnoDB must be disconnected by the time we are reaching this code,
+        be it during shutdown or UNINSTALL PLUGIN.
+
+        Because there is no possible race condition with any
+        concurrent user transaction, we do not have to invoke
+        trx->commit_state() or wait for !trx->is_referenced()
+        before trx_sys.deregister_rw(trx). */
         trx_sys.deregister_rw(trx);
         trx_free_at_shutdown(trx);
       }

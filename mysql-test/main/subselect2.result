@@ -383,7 +383,7 @@ key_code	value_string
 DEALLOCATE PREPARE stmt;
 DROP VIEW v1;
 DROP TABLE t1,t2,t3;
-set optimizer_switch=@subselect2_test_tmp;
+set optimizer_switch=@save_optimizer_switch;
 create table t1 (a int);
 create table t2 (a int);
 create table t3(a int);

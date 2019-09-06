@@ -2,6 +2,7 @@
 # Problem with range optimizer
 #
 --source include/have_innodb.inc
+SET optimizer_use_condition_selectivity=4;
 
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
 set @innodb_stats_persistent_sample_pages_save=

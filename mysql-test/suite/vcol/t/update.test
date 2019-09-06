@@ -14,7 +14,7 @@ drop table t1;
 # one keypart is virtual, the other keypart is updated
 # this tests TABLE::mark_columns_needed_for_update()
 #
-create table t1 (a int, c int as(a), p varchar(20) as(y), y char(20), index (p,c));
+create table t1 (a int, c int as(a), p varchar(20) as(rtrim(y)), y char(20), index (p,c));
 show create table t1;
 insert into t1 (a,y) values(1, "yyy");
 update t1 set a = 100 where a = 1;

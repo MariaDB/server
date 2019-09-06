@@ -1,3 +1,6 @@
+--source include/default_charset.inc
+--source suite/versioning/common.inc
+
 select @@system_versioning_alter_history;
 
 create table t(
@@ -156,7 +159,6 @@ alter table t modify a int with system versioning;
 show create table t;
 
 # TODO: move TRX_ID cases to separate test
--- source suite/versioning/common.inc
 create or replace table t(
   a int
 ) engine=innodb;
@@ -468,6 +470,7 @@ alter table t add check (a > 0);
 --error ER_CONSTRAINT_FAILED
 insert into t values (0);
 insert into t values (2);
+drop table t;
 
 --echo #
 --echo # MDEV-18869 Assertion `!((field)->vcol_info && (field)->stored_in_db())' failed in innodb_col_no upon altering table with system versioning
@@ -538,5 +541,5 @@ create or replace table t1 (f1 int) with system versioning;
 --error ER_VERS_NOT_VERSIONED
 alter table t1 drop system versioning, add f2 int with system versioning;
 
-drop database test;
-create database test;
+drop table t1;
+--source suite/versioning/common_finish.inc

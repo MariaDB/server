@@ -18,6 +18,7 @@
 #define MYSQLD_INCLUDED
 
 #include "sql_basic_types.h"			/* query_id_t */
+#include "sql_mode.h"                           /* Sql_mode_dependency */
 #include "sql_plugin.h"
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */

@@ -1,4 +1,5 @@
-source include/not_embedded.inc;
+--source include/not_embedded.inc
+--source include/default_charset.inc
 
 drop database if exists db;
 

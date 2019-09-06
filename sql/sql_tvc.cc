@@ -972,7 +972,8 @@ bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
   if (args[1]->type() == Item::ROW_ITEM)
     values_count*= ((Item_row *)(args[1]))->cols();
 
-  if (values_count < thd->variables.in_subquery_conversion_threshold)
+  if (thd->variables.in_subquery_conversion_threshold == 0 ||
+      thd->variables.in_subquery_conversion_threshold > values_count)
     return false;
 
   return true;

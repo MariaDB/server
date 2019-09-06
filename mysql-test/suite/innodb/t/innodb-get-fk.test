@@ -1,6 +1,7 @@
--- source include/have_innodb.inc
+--source include/have_innodb.inc
+--source include/default_charset.inc
 # need to restart server
--- source include/not_embedded.inc
+--source include/not_embedded.inc
 CREATE SCHEMA `repro`;
 
 CREATE TABLE `repro`.`crew` (

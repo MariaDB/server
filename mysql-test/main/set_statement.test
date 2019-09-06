@@ -991,11 +991,17 @@ set @save_long_query_time= @@long_query_time;
 set @save_slow_query_log= @@slow_query_log;
 set @save_log_output= @@log_output;
 
+let $long_query_time=`select @@long_query_time`;
+--replace_result $long_query_time DEFAULT
 set statement long_query_time=default for select @@long_query_time;
+
+# Disable result log as the results depends on the values of the variables
+--disable_result_log
 set statement log_slow_filter=default for select @@log_slow_filter;
 set statement log_slow_verbosity=default for select @@log_slow_verbosity;
 set statement log_slow_rate_limit=default for select @@log_slow_rate_limit;
 set statement slow_query_log=default for select @@slow_query_log;
+--enable_result_log
 
 truncate table mysql.slow_log;
 set slow_query_log= 1;

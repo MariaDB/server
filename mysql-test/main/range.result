@@ -1,3 +1,4 @@
+SET optimizer_use_condition_selectivity=4;
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
 set @innodb_stats_persistent_sample_pages_save=
 @@innodb_stats_persistent_sample_pages;

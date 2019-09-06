@@ -1,5 +1,6 @@
 --source include/have_stat_tables.inc
 --source include/have_sequence.inc
+--source include/default_charset.inc
 
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
@@ -9,13 +10,14 @@ select @@global.use_stat_tables;
 select @@session.use_stat_tables;
 
 set @save_use_stat_tables=@@use_stat_tables;
-
 set use_stat_tables='preferably';
 
+--source include/default_optimizer_switch.inc
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
 set @save_histogram_size=@@histogram_size;
 set @save_histogram_type=@@histogram_type;
-set histogram_size=0;
+set join_cache_level=2;
+set @@global.histogram_size=0,@@local.histogram_size=0;
 set histogram_type='single_prec_hb';
 
 # check that statistics on nulls is used
@@ -1108,8 +1110,6 @@ drop function f1;
 --echo #
 --echo # MDEV-19834 Selectivity of an equality condition discounted twice
 --echo #
-set @@optimizer_use_condition_selectivity=4;
-set @@use_stat_tables='preferably';
 create table t1 (a int, b int, key (b), key (a));
 insert into t1
 select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
@@ -1125,6 +1125,12 @@ explain extended select * from t1 where a in (17,51,5) and b=2;
 drop table t1;
 
 set use_stat_tables= @save_use_stat_tables;
+set @@histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 --echo # End of 10.1 tests
 
+#
+# Clean up
+#
+--source include/restore_charset.inc
+set @@global.histogram_size=@save_histogram_size;

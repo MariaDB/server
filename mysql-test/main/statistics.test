@@ -5,8 +5,11 @@ drop table if exists t1,t2;
 --enable_warnings
 
 set @save_use_stat_tables=@@use_stat_tables;
-set @save_hist_size=@@histogram_size, @save_hist_type=@@histogram_type;
-set histogram_size=0, histogram_type='single_prec_hb';
+set @save_histogram_size=@@global.histogram_size;
+set @@global.histogram_size=0,@@local.histogram_size=0;
+set @save_hist_type=@@histogram_type;
+set histogram_type='single_prec_hb';
+
 DELETE FROM mysql.table_stats;
 --sorted_result
 DELETE FROM mysql.column_stats;
@@ -914,7 +917,7 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
-set histogram_size=@save_hist_size, histogram_type=@save_hist_type;
+set histogram_size=@save_histogram_size, histogram_type=@save_hist_type;
 
 
 
@@ -927,7 +930,6 @@ set histogram_size=@save_hist_size, histogram_type=@save_hist_type;
 --echo #
 set @save_use_stat_tables=@@use_stat_tables;
 set @save_analyze_sample_percentage=@@analyze_sample_percentage;
-set @save_hist_size=@@histogram_size;
 
 set session rand_seed1=42;
 set session rand_seed2=62;
@@ -1005,5 +1007,6 @@ explain select * from t1;
 
 drop table t1;
 set analyze_sample_percentage=@save_analyze_sample_percentage;
-set histogram_size=@save_hist_size;
+set histogram_size=@save_histogram_size;
 set use_stat_tables=@save_use_stat_tables;
+set @@global.histogram_size=@save_histogram_size;
