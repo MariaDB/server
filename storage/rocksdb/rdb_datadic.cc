@@ -3517,6 +3517,27 @@ Rdb_tbl_def::~Rdb_tbl_def() {
   }
 }
 
+void Rdb_tbl_def::put_creation_time(Rdb_dict_manager *dict_manager,
+                                    rocksdb::WriteBatchBase *batch,
+                                    time_t timeval) {
+  dict_manager->put_creation_time(batch,
+                                  m_key_descr_arr[0]->get_gl_index_id(),
+                                  timeval);
+  create_time = timeval;
+}
+
+time_t Rdb_tbl_def::get_creation_time(Rdb_dict_manager *dict_manager) {
+  time_t tm;
+  if (create_time == CREATE_TIME_UNKNOWN) {
+    if (dict_manager->get_creation_time(m_key_descr_arr[0]->get_gl_index_id(),
+                                        &tm))
+      create_time = tm;
+    else
+      create_time = 0; // Not available
+  }
+  return create_time;
+}
+
 /*
   Put table definition DDL entry. Actual write is done at
   Rdb_dict_manager::commit.
@@ -5343,6 +5364,7 @@ rocksdb::Status Rdb_dict_manager::put_auto_incr_val(
                       value_writer.to_slice());
 }
 
+
 bool Rdb_dict_manager::get_auto_incr_val(const GL_INDEX_ID &gl_index_id,
                                          ulonglong *new_val) const {
   Rdb_buf_writer<Rdb_key_def::INDEX_NUMBER_SIZE * 3> key_writer;
@@ -5356,6 +5378,51 @@ bool Rdb_dict_manager::get_auto_incr_val(const GL_INDEX_ID &gl_index_id,
 
     if (rdb_netbuf_to_uint16(val) <= Rdb_key_def::AUTO_INCREMENT_VERSION) {
       *new_val = rdb_netbuf_to_uint64(val + RDB_SIZEOF_AUTO_INCREMENT_VERSION);
+      return true;
+    }
+  }
+  return false;
+}
+
+
+rocksdb::Status
+Rdb_dict_manager::put_creation_time(rocksdb::WriteBatchBase *batch,
+                                    const GL_INDEX_ID &gl_index_id,
+                                    time_t timeval) const {
+  uchar key_buf[Rdb_key_def::INDEX_NUMBER_SIZE * 3] = {0};
+  dump_index_id(key_buf, Rdb_key_def::TABLE_CREATION_TS, gl_index_id);
+  const rocksdb::Slice key =
+      rocksdb::Slice(reinterpret_cast<char *>(key_buf), sizeof(key_buf));
+
+  // Value is constructed by storing the version and the value.
+  uchar value_buf[RDB_SIZEOF_TABLE_CREATION_TS_VERSION +
+                  ROCKSDB_SIZEOF_TABLE_CREATION_TS] = {0};
+  uchar *ptr = value_buf;
+  rdb_netbuf_store_uint16(ptr, Rdb_key_def::TABLE_CREATION_TS_VERSION);
+  ptr += RDB_SIZEOF_TABLE_CREATION_TS_VERSION;
+  rdb_netbuf_store_uint64(ptr, timeval);
+  ptr += ROCKSDB_SIZEOF_TABLE_CREATION_TS;
+  const rocksdb::Slice value =
+      rocksdb::Slice(reinterpret_cast<char *>(value_buf), ptr - value_buf);
+
+  return batch->Put(m_system_cfh, key, value);
+}
+
+bool Rdb_dict_manager::get_creation_time(const GL_INDEX_ID &gl_index_id,
+                                         time_t *new_val) const {
+  uchar key_buf[Rdb_key_def::INDEX_NUMBER_SIZE * 3] = {0};
+  dump_index_id(key_buf, Rdb_key_def::TABLE_CREATION_TS, gl_index_id);
+
+  std::string value;
+  const rocksdb::Status status = get_value(
+      rocksdb::Slice(reinterpret_cast<char *>(key_buf), sizeof(key_buf)),
+      &value);
+
+  if (status.ok() && value.size() >= RDB_SIZEOF_TABLE_CREATION_TS_VERSION) {
+    const uchar *const val = reinterpret_cast<const uchar *>(value.data());
+
+    if (rdb_netbuf_to_uint16(val) <= Rdb_key_def::TABLE_CREATION_TS_VERSION) {
+      *new_val = rdb_netbuf_to_uint64(val + RDB_SIZEOF_TABLE_CREATION_TS_VERSION);
       return true;
     }
   }

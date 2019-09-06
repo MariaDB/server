@@ -1207,7 +1207,7 @@ drop table t1;
 create table t1 (i int primary key auto_increment) engine=RocksDB;
 
 insert into t1 values (null),(null);
---replace_column 7 #
+--replace_column 7 # 12 # 13 #
 show table status like 't1';
 drop table t1;
 
@@ -1914,11 +1914,13 @@ DROP TABLE t1;
 # value is 4 while MyRocks will show it as 3.
 CREATE TABLE t1(a INT AUTO_INCREMENT KEY);
 INSERT INTO t1 VALUES(0),(-1),(0);
+--replace_column 12 # 13 #
 SHOW TABLE STATUS LIKE 't1';
 SELECT * FROM t1;
 DROP TABLE t1;
 CREATE TABLE t1(a INT AUTO_INCREMENT KEY);
 INSERT INTO t1 VALUES(0),(10),(0);
+--replace_column 12 # 13 #
 SHOW TABLE STATUS LIKE 't1';
 SELECT * FROM t1;
 DROP TABLE t1;
