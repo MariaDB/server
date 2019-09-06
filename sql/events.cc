@@ -1198,6 +1198,46 @@ Events::load_events_from_db(THD *thd)
       delete et;
       goto end;
     }
+
+#ifdef WITH_WSREP
+    /**
+      IF SST is done from a galera node that is also acting as MASTER
+      newly synced node in galera eco-system will also copy-over the event state
+      enabling duplicate event in galera eco-system.
+      DISABLE such events if the current node is not event orginator.
+      (Also, make sure you skip disabling it if is already disabled to avoid
+       creation of redundant action)
+      NOTE:
+      This complete system relies on server-id. Ideally server-id should be
+      same for all nodes of galera eco-system but they aren't same.
+      Infact, based on galera use-case it seems like it recommends to have each
+      node with different server-id.
+    */
+    if (et->originator != thd->variables.server_id)
+    {
+        if (et->status == Event_parse_data::SLAVESIDE_DISABLED)
+          continue;
+
+        store_record(table, record[1]);
+        table->field[ET_FIELD_STATUS]->
+                store((longlong) Event_parse_data::SLAVESIDE_DISABLED,
+                      TRUE);
+
+	/* All the dmls to mysql.events tables are stmt bin-logged. */
+        bool save_binlog_row_based;
+        if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
+	  thd->set_current_stmt_binlog_format_stmt();
+
+        (void) table->file->ha_update_row(table->record[1], table->record[0]);
+
+        if (save_binlog_row_based)
+          thd->set_current_stmt_binlog_format_row();
+
+        delete et;
+        continue;
+    }
+#endif /* WITH_WSREP */
+
     /**
       Since the Event_queue_element object could be deleted inside
       Event_queue::create_event we should save the value of dropped flag
