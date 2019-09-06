@@ -2,7 +2,8 @@
 # supported in embedded server. So, this test should not be run on embedded
 # server.
 
--- source include/not_embedded.inc
+--source include/not_embedded.inc
+--source include/default_charset.inc
 
 ###########################################################################
 #

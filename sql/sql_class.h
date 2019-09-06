@@ -3434,6 +3434,7 @@ private:
     {
       system_time.sec= sec;
       system_time.sec_part= sec_part;
+      system_time.start= hrtime;
     }
     else
     {

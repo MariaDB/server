@@ -406,8 +406,8 @@ REPLACE INTO t2 SELECT * FROM t2;
 # Cleanup
 DROP TABLE t1, t2;
 --let $datadir= `select @@datadir`
---remove_file $datadir/test/t1.data
---remove_file $datadir/test/t1.data.2
---remove_file $datadir/test/t2.data
+--remove_file $datadir/test2/t1.data
+--remove_file $datadir/test2/t1.data.2
+--remove_file $datadir/test2/t2.data
 
 --source suite/versioning/common_finish.inc

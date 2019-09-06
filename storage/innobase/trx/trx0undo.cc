@@ -1644,7 +1644,7 @@ trx_undo_free_at_shutdown(trx_t *trx)
 					   TRX_STATE_COMMITTED_IN_MEMORY));
 			/* fall through */
 		case TRX_UNDO_ACTIVE:
-			/* lock_trx_release_locks() assigns
+			/* trx_t::commit_state() assigns
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY. */
 			ut_a(!srv_was_started
 			     || srv_read_only_mode
@@ -1671,7 +1671,7 @@ trx_undo_free_at_shutdown(trx_t *trx)
 					   TRX_STATE_COMMITTED_IN_MEMORY));
 			/* fall through */
 		case TRX_UNDO_ACTIVE:
-			/* lock_trx_release_locks() assigns
+			/* trx_t::commit_state() assigns
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY. */
 			ut_a(!srv_was_started
 			     || srv_read_only_mode

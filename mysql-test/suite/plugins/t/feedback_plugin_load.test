@@ -1,4 +1,4 @@
-if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'feedback' and plugin_status='active'`)
+if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'feedback' and plugin_status='active' and @@feedback_url <> ""`)
 {
   --skip Feedback plugin is not active
 }

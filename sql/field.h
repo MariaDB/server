@@ -606,6 +606,8 @@ protected:
     val_str(&result);
     return to->store(result.ptr(), result.length(), charset());
   }
+  void error_generated_column_function_is_not_allowed(THD *thd, bool error)
+                                                      const;
   static void do_field_int(Copy_field *copy);
   static void do_field_real(Copy_field *copy);
   static void do_field_string(Copy_field *copy);
@@ -1006,7 +1008,6 @@ public:
   {
     bitmap_clear_bit(&table->has_value_set, field_index);
   }
-  bool set_explicit_default(Item *value);
 
   virtual my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const
   { DBUG_ASSERT(0); return 0; }
@@ -1014,14 +1015,6 @@ public:
   {
     return get_timestamp(ptr, sec_part);
   }
-
-  /**
-     Evaluates the @c UPDATE default function, if one exists, and stores the
-     result in the record buffer. If no such function exists for the column,
-     or the function is not valid for the column's data type, invoking this
-     function has no effect.
-  */
-  virtual int evaluate_update_default_function() { return 0; }
 
   virtual bool binary() const { return 1; }
   virtual bool zero_pack() const { return 1; }
@@ -1216,6 +1209,16 @@ public:
   }
 
   bool stored_in_db() const { return !vcol_info || vcol_info->stored_in_db; }
+  bool check_vcol_sql_mode_dependency(THD *, vcol_init_mode mode) const;
+
+  virtual sql_mode_t value_depends_on_sql_mode() const
+  {
+    return 0;
+  }
+  virtual sql_mode_t can_handle_sql_mode_dependency_on_store() const
+  {
+    return 0;
+  }
 
   inline THD *get_thd() const
   { return likely(table) ? table->in_use : current_thd; }
@@ -1785,6 +1788,7 @@ public:
   enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
   uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
   CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
+  sql_mode_t can_handle_sql_mode_dependency_on_store() const;
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
   {
     return (flags & ZEROFILL_FLAG) ?
@@ -2719,6 +2723,7 @@ public:
   {
     return store(str, length, &my_charset_bin);
   }
+  sql_mode_t can_handle_sql_mode_dependency_on_store() const;
   Copy_func *get_copy_func(const Field *from) const;
   int save_in_field(Field *to)
   {
@@ -2839,13 +2844,6 @@ public:
   void sql_type(String &str) const;
   bool zero_pack() const { return 0; }
   int set_time();
-  int evaluate_update_default_function()
-  {
-    int res= 0;
-    if (has_update_default_function())
-      res= set_time();
-    return res;
-  }
   /* Get TIMESTAMP field value as seconds since begging of Unix Epoch */
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   my_time_t get_timestamp(ulong *sec_part) const
@@ -3347,13 +3345,6 @@ public:
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_datetime::get_TIME(ltime, ptr, fuzzydate); }
   int set_time();
-  int evaluate_update_default_function()
-  {
-    int res= 0;
-    if (has_update_default_function())
-      res= set_time();
-    return res;
-  }
   uchar *pack(uchar* to, const uchar *from,
               uint max_length __attribute__((unused)))
   {
@@ -3608,6 +3599,8 @@ public:
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   virtual uint get_key_image(uchar *buff,uint length, imagetype type);
+  sql_mode_t value_depends_on_sql_mode() const;
+  sql_mode_t can_handle_sql_mode_dependency_on_store() const;
   void print_key_value(String *out, uint32 length);
 private:
   int save_field_metadata(uchar *first_byte);
@@ -4241,6 +4234,7 @@ public:
   Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   const Type_handler *type_handler() const { return &type_handler_enum; }
   enum ha_base_keytype key_type() const;
+  sql_mode_t can_handle_sql_mode_dependency_on_store() const;
   Copy_func *get_copy_func(const Field *from) const
   {
     if (eq_def(from))

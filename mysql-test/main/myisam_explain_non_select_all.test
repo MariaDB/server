@@ -2,6 +2,8 @@
 # Run explain_non_select.inc on MyISAM with all of the so-called 6.0 features.
 #
 
+--source include/default_optimizer_switch.inc
+
 #--source include/have_semijoin.inc
 #--source include/have_materialization.inc
 #--source include/have_firstmatch.inc

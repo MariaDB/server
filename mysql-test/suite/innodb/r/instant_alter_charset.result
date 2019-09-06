@@ -50,7 +50,7 @@ drop table supported_types;
 create table various_cases (
 a char(150) charset ascii,
 b varchar(150) as (a) virtual,
-c varchar(150) as (a) persistent
+c char(150) as (a) persistent
 ) engine=innodb;
 alter table various_cases
 change a a char(150) charset ascii collate ascii_bin,
@@ -63,7 +63,7 @@ alter table various_cases
 change b b varchar(150) as (a) virtual,
 algorithm=inplace;
 alter table various_cases
-change c c varchar(150) as (a) persistent,
+change c c char(150) as (a) persistent,
 algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 alter table various_cases

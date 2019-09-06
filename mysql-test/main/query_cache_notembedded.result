@@ -409,9 +409,7 @@ disconnect bug30269;
 DROP USER 'bug30269'@'localhost';
 set GLOBAL query_cache_type=ON;
 set LOCAL query_cache_type=ON;
-set GLOBAL query_cache_limit=default;
-set GLOBAL query_cache_min_res_unit=default;
-set GLOBAL query_cache_size=default;
+set GLOBAL query_cache_size=@query_cache_size_save;
 drop table if exists t1|
 create table t1 (
 id   char(16) not null default '',

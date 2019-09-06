@@ -1,3 +1,4 @@
+set join_cache_level=2;
 drop table if exists t0,t1,t2,t3;
 create table t0 (a int) engine=myisam;
 INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);

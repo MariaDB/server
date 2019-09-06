@@ -12,13 +12,14 @@
 --source include/have_debug.inc
 --source include/check_ipv6.inc
 --source include/have_perfschema.inc
+--source include/have_hostname_cache.inc
 
 # Enforce a clean state
 --source ../include/wait_for_pfs_thread_count.inc
 --source ../include/hostcache_set_state.inc
 
-select @@global.max_connections into @saved_max_connections;
-select @@global.max_user_connections into @saved_max_user_connections;
+SET @saved_max_connections=@@global.max_connections;
+SET @saved_max_user_connections=@@global.max_user_connections;
 
 create user 'quota'@'santa.claus.ipv6.example.com';
 grant select on test.* to 'quota'@'santa.claus.ipv6.example.com';

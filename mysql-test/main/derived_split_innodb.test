@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
 
 --echo #
 --echo # MDEV-16917: do not use splitting for derived with join cache

@@ -9299,8 +9299,6 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
     return Item_field::save_in_field(field_arg, no_conversions);
   }
 
-  if (field_arg->default_value && field_arg->default_value->flags)
-    return 0; // defaut fields will be set later, no need to do it twice
   return field_arg->save_in_field_default_value(context->error_processor ==
                                                 &view_error_processor);
 }
@@ -9547,7 +9545,7 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
   int err_code= item->save_in_field(field, 0);
 
   field->table->copy_blobs= copy_blobs_saved;
-  field->set_explicit_default(item);
+  field->set_has_explicit_value();
 
   return err_code < 0;
 }

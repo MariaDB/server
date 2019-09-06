@@ -2,6 +2,7 @@
 # Tests for LIMIT ROWS EXAMINED, MDEV-28
 #
 
+--source include/default_optimizer_switch.inc
 call mtr.add_suppression("Sort aborted.*");
 
 set @save_join_cache_level = @@join_cache_level;

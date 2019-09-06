@@ -2,6 +2,8 @@
 # Testing of slow log query options
 #
 
+set @@log_slow_verbosity="";
+
 select @@log_slow_filter;
 select @@log_slow_rate_limit;
 select @@log_slow_verbosity;

@@ -252,7 +252,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	/* After the purge thread has been given permission to exit,
 	we may roll back transactions (trx->undo_no==0)
 	in THD::cleanup() invoked from unlink_thd() in fast shutdown,
-	or in trx_rollback_resurrected() in slow shutdown.
+	or in trx_rollback_recovered() in slow shutdown.
 
 	Before any transaction-generating background threads or the
 	purge have been started, recv_recovery_rollback_active() can

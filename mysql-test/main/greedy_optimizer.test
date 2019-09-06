@@ -138,11 +138,6 @@ insert into t7 values (21,2,3,4,5,6);
 # The actual test begins here
 #
 
-# Check the default values for the optimizer parameters
-
-select @@optimizer_search_depth;
-select @@optimizer_prune_level;
-
 # This value swithes back to the old implementation of 'find_best()'
 # set optimizer_search_depth=63; - old (independent of the optimizer_prune_level)
 #
@@ -170,7 +165,7 @@ select @@optimizer_prune_level;
 # procedure 'find_best'. Notice that 'find_best' does not depend on the
 # choice of heuristic.
 
-set optimizer_search_depth=63;
+set optimizer_search_depth=63, optimizer_prune_level=1;
 select @@optimizer_search_depth;
 
 # 6-table join, chain

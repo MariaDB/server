@@ -7,6 +7,8 @@ let collation=utf8_unicode_ci;
 SET TIME_ZONE='+03:00';
 
 --source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
+--source include/default_charset.inc
 
 --disable_warnings
 drop table if exists t1,t2,t3,t4;

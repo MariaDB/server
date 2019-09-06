@@ -7,6 +7,7 @@
 --disable_warnings
 drop table if exists t1, t2, t3, t4;
 --enable_warnings
+--source include/default_optimizer_switch.inc
 
 set @subselect2_test_tmp=@@optimizer_switch;
 set optimizer_switch='semijoin=on,firstmatch=on,mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
@@ -396,7 +397,7 @@ DEALLOCATE PREPARE stmt;
 DROP VIEW v1;
 DROP TABLE t1,t2,t3;
 
-set optimizer_switch=@subselect2_test_tmp;
+set optimizer_switch=@save_optimizer_switch;
 
 #
 # Bug #23303485 : HANDLE_FATAL_SIGNAL (SIG=11) IN SUBSELECT_UNION_ENGINE::NO_ROWS

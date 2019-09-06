@@ -742,6 +742,7 @@ count(*)	sum(table1.col_int_key*table2.pk)
 drop table t1,t2;
 set join_cache_level=@my_save_join_cache_level;
 set join_buffer_size=@my_save_join_buffer_size;
+set optimizer_switch=@save_optimizer_switch;
 #
 # BUG#665669: Result differences on query re-execution
 #

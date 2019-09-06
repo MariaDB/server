@@ -11,6 +11,8 @@
 #          Add checking of prerequisites + minor cleanup                        #
 #################################################################################
 
+set @save_character_set_database= @@character_set_database;
+
 #
 #
 #
@@ -695,5 +697,9 @@ let $coll= utf8_unicode_ci;
 
 }
 
+--echo # Cleanup
+--disable_query_log
 DROP database test;
-CREATE database test;
+let $tmp=`select @save_character_set_database`;
+eval CREATE database test character set $tmp;
+--enable_query_log

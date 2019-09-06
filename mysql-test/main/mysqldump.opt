@@ -1,0 +1,1 @@
+--character_set_server=latin1 --collation_server=latin1_swedish_ci --sql_mode=STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION

@@ -1,6 +1,7 @@
 set @mrr_icp_extra_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set optimizer_switch='rowid_filter=off';
+SET optimizer_use_condition_selectivity=4;
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
 set @innodb_stats_persistent_sample_pages_save=
 @@innodb_stats_persistent_sample_pages;

@@ -1068,7 +1068,7 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
     expression
 */
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
-                     bool *error_reported)
+                     bool *error_reported, vcol_init_mode mode)
 {
   CHARSET_INFO *save_character_set_client= thd->variables.character_set_client;
   CHARSET_INFO *save_collation= thd->variables.collation_connection;
@@ -1152,6 +1152,12 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
                                     &((*field_ptr)->vcol_info), error_reported);
       *(vfield_ptr++)= *field_ptr;
+      if (vcol && field_ptr[0]->check_vcol_sql_mode_dependency(thd, mode))
+      {
+        DBUG_ASSERT(thd->is_error());
+        *error_reported= true;
+        goto end;
+      }
       break;
     case VCOL_DEFAULT:
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
@@ -3771,8 +3777,24 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (share->table_check_constraints || share->field_check_constraints)
       outparam->check_constraints= check_constraint_ptr;
 
+    vcol_init_mode mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING;
+    switch (thd->lex->sql_command)
+    {
+    case SQLCOM_CREATE_TABLE:
+      mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR;
+      break;
+    case SQLCOM_ALTER_TABLE:
+    case SQLCOM_CREATE_INDEX:
+    case SQLCOM_DROP_INDEX:
+      if ((ha_open_flags & HA_OPEN_FOR_ALTER) == 0)
+        mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR;
+      break;
+    default:
+      break;
+    }
+
     if (unlikely(parse_vcol_defs(thd, &outparam->mem_root, outparam,
-                                 &error_reported)))
+                                 &error_reported, mode)))
     {
       error= OPEN_FRM_CORRUPTED;
       goto err;
@@ -8293,7 +8315,7 @@ int TABLE::update_virtual_field(Field *vf)
          ignore_errors == 0. If set then an error was generated.
 */
 
-int TABLE::update_default_fields(bool update_command, bool ignore_errors)
+int TABLE::update_default_fields(bool ignore_errors)
 {
   Query_arena backup_arena;
   Field **field_ptr;
@@ -8313,14 +8335,9 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
     */
     if (!field->has_explicit_value())
     {
-      if (!update_command)
-      {
-        if (field->default_value &&
-            (field->default_value->flags || field->flags & BLOB_FLAG))
-          res|= (field->default_value->expr->save_in_field(field, 0) < 0);
-      }
-      else
-        res|= field->evaluate_update_default_function();
+      if (field->default_value &&
+          (field->default_value->flags || field->flags & BLOB_FLAG))
+        res|= (field->default_value->expr->save_in_field(field, 0) < 0);
       if (!ignore_errors && res)
       {
         my_error(ER_CALCULATING_DEFAULT_VALUE, MYF(0), field->field_name.str);
@@ -8405,6 +8422,21 @@ int TABLE::insert_portion_of_time(THD *thd,
 
   return res;
 }
+
+void TABLE::evaluate_update_default_function()
+{
+  DBUG_ENTER("TABLE::evaluate_update_default_function");
+
+  if (s->has_update_default_function)
+    for (Field **field_ptr= default_field; *field_ptr ; field_ptr++)
+    {
+      Field *field= (*field_ptr);
+      if (!field->has_explicit_value() && field->has_update_default_function())
+        field->set_time();
+    }
+  DBUG_VOID_RETURN;
+}
+
 
 void TABLE::vers_update_fields()
 {

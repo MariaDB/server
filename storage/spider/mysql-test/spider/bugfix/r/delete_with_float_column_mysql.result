@@ -55,7 +55,7 @@ connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%delete %';
 argument
 delete from `auto_test_remote`.`tbl_a` where `pkey` = 0 and `f` is null limit 1
-delete from `auto_test_remote`.`tbl_a` where `pkey` = 1 and `f` = /* create function to_float(a decimal(20,6)) returns float return cast(a as double) */ to_float(0.671437) limit 1
+delete from `auto_test_remote`.`tbl_a` where `pkey` = 1 and `f` = /* create function to_float(a decimal(20,6)) returns float return a */ to_float(0.671437) limit 1
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%delete %'
 SELECT pkey, f FROM tbl_a ORDER BY pkey;
 pkey	f

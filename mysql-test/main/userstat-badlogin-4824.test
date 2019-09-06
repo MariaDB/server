@@ -2,6 +2,7 @@
 # MDEV-4824 userstats - wrong user statistics
 #
 --source include/not_embedded.inc
+set @save_userstat=@@global.userstat;
 
 create user foo@localhost identified by 'foo';
 flush user_statistics;
@@ -30,4 +31,4 @@ connection default;
 select user, bytes_received from information_schema.user_statistics where user = 'foo';
 
 drop user foo@localhost;
-set global userstat=0;
+set global userstat=@save_userstat;

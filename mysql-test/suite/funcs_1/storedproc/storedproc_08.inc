@@ -1,5 +1,6 @@
 #### suite/funcs_1/storedproc/storedproc_08.inc
 #
+--source include/default_charset.inc
 --source suite/funcs_1/storedproc/load_sp_tb.inc
 
 # ==============================================================================

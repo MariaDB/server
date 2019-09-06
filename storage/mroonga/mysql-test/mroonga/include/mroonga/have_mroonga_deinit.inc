@@ -33,4 +33,10 @@ if (!$have_mroonga_storage_engine) {
   UNINSTALL PLUGIN mroonga;
 }
 
+# Some test re-creates the test database. Put it back in the
+# original character set
+--source include/default_charset.inc
+disable_query_log;
+drop database test;
+create database test;
 enable_query_log;

@@ -93,7 +93,7 @@ drop view v;
 create or replace table t (i int);
 create or replace view v as select * from t;
 drop table v;
-ERROR 42S02: 'test.v' is a view
+ERROR 42S02: 'test2.v' is a view
 lock table v write;
 delete history from v before system_time now(6);
 ERROR 42S02: 'v' is a view
@@ -153,5 +153,3 @@ select * from t1;
 a
 1
 drop table t1;
-drop database test;
-create database test;

@@ -2,6 +2,7 @@
 # MDEV-12176 Transform [NOT] IN predicate with long list of values INTO [NOT] IN subquery
 #
 source include/have_debug.inc;
+source include/default_optimizer_switch.inc;
 
 create table t1 (a int, b int);
 

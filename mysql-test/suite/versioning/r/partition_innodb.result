@@ -64,6 +64,3 @@ partition by range columns (a, row_start) (
 partition p1 values less than (100, 100)
 );
 ERROR HY000: Transaction-precise system-versioned tables do not support partitioning by ROW START or ROW END
-# Test cleanup
-drop database test;
-create database test;

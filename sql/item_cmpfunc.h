@@ -515,6 +515,7 @@ public:
   Item_bool_rowready_func2(THD *thd, Item *a, Item *b):
     Item_bool_func2_with_rev(thd, a, b), cmp(tmp_arg, tmp_arg + 1)
   { }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   void print(String *str, enum_query_type query_type)
   {
     Item_func::print_op(str, query_type);
@@ -2691,6 +2692,7 @@ public:
 
   bool get_negated() const { return negated; } // Used by ColumnStore
 
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   longlong val_int();
   enum Functype functype() const { return LIKE_FUNC; }
   void print(String *str, enum_query_type query_type);

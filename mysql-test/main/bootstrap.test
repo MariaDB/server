@@ -38,7 +38,7 @@ drop table t1;
 remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_error.sql;
 
 #
-# Bootstrap with a query larger than 2*thd->net.max_packet
+# Bootstrap with a large thd->net.max_packet
 #
 --disable_query_log
 create table t1 select 2 as a, concat(repeat('MySQL', @@max_allowed_packet/10), ';') as b;
