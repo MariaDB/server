@@ -5391,6 +5391,7 @@ public:
   virtual ~Type_handler_bit() {}
   const Name name() const override { return m_name_bit; }
   enum_field_types field_type() const override { return MYSQL_TYPE_BIT; }
+  uint flags() const override { return UNSIGNED_FLAG; }
   protocol_send_type_t protocol_send_type() const override
   {
     return PROTOCOL_SEND_STRING;

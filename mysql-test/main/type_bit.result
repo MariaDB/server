@@ -878,3 +878,26 @@ DROP TABLE t1;
 #
 # End of 10.4 tests
 #
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-20496 Assertion `field.is_sane()' failed in Protocol_text::store_field_metadata
+#
+CREATE TABLE t1 (b BIT(1));
+SELECT MIN(CASE WHEN 0 THEN b END) FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					MIN(CASE WHEN 0 THEN b END)	8	1	0	Y	32928	0	63
+MIN(CASE WHEN 0 THEN b END)
+NULL
+CREATE TABLE t2 AS SELECT MIN(CASE WHEN 0 THEN b END) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `MIN(CASE WHEN 0 THEN b END)` bigint(1) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#
