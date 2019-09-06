@@ -9,7 +9,7 @@ use My::Find;
 use File::Basename;
 use strict;
 
-sub is_default { not $::opt_embedded_server }
+#sub is_default { not $::opt_embedded_server }
 
 my $sst_dump=
 ::mtr_exe_maybe_exists(
