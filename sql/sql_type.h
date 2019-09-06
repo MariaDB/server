@@ -2524,7 +2524,7 @@ public:
   Datetime to_datetime(THD *thd) const
   {
     if (is_zero_datetime())
-      return Datetime();
+      return Datetime::zero();
     return Timestamp::to_datetime(thd);
   }
   bool is_zero_datetime() const { return m_is_zero_datetime; }
@@ -2572,7 +2572,7 @@ public:
   Datetime to_datetime(THD *thd) const
   {
     return is_zero_datetime() ?
-           Datetime() :
+           Datetime::zero() :
            Datetime(thd, Timestamp(*this).tv());
   }
   bool is_zero_datetime() const
@@ -3344,6 +3344,16 @@ public:
   {
     return MYSQL_TIMESTAMP_ERROR;
   }
+  /*
+    Return true if the native format is fully implemented for a data type:
+    - Field_xxx::val_native()
+    - Item_xxx::val_native() for all classes supporting this data type
+    - Type_handler_xxx::cmp_native()
+  */
+  virtual bool is_val_native_ready() const
+  {
+    return false;
+  }
   virtual bool is_timestamp_type() const
   {
     return false;
@@ -3495,7 +3505,8 @@ public:
                                              TABLE *table,
                                              uint metadata,
                                              const Field *target) const= 0;
-  virtual void show_binlog_type(const Conv_source &src, String *str) const;
+  virtual void show_binlog_type(const Conv_source &src, const Field &dst,
+                                String *str) const;
   virtual uint32 max_display_length_for_field(const Conv_source &src) const= 0;
   /*
     Performs the final data type validation for a UNION element,
@@ -4746,13 +4757,14 @@ public:
 class Type_handler_general_purpose_int: public Type_handler_int_result
 {
 public:
-  bool type_can_have_auto_increment_attribute() const { return true; }
+  bool type_can_have_auto_increment_attribute() const override { return true; }
   virtual const Type_limits_int *type_limits_int() const= 0;
-  uint32 max_display_length(const Item *item) const
+  uint32 max_display_length(const Item *item) const override
   {
     return type_limits_int()->char_length();
   }
-  bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p) const;
+  bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p)
+    const override;
 };
 
 
@@ -4762,68 +4774,71 @@ protected:
   uint Item_decimal_scale_with_seconds(const Item *item) const;
   uint Item_divisor_precision_increment_with_seconds(const Item *) const;
 public:
-  Item_result result_type() const { return STRING_RESULT; }
-  Item_result cmp_type() const { return TIME_RESULT; }
+  Item_result result_type() const override { return STRING_RESULT; }
+  Item_result cmp_type() const override { return TIME_RESULT; }
   virtual ~Type_handler_temporal_result() {}
   void make_sort_key(uchar *to, Item *item,  const SORT_FIELD_ATTR *sort_field,
-                     Sort_param *param) const;
+                     Sort_param *param) const override;
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
-                  SORT_FIELD_ATTR *attr) const;
+                  SORT_FIELD_ATTR *attr) const override;
   bool Item_const_eq(const Item_const *a, const Item_const *b,
-                     bool binary_cmp) const;
+                     bool binary_cmp) const override;
   bool Item_param_set_from_value(THD *thd,
                                  Item_param *param,
                                  const Type_all_attributes *attr,
-                                 const st_value *value) const;
-  uint32 max_display_length(const Item *item) const;
+                                 const st_value *value) const override;
+  uint32 max_display_length(const Item *item) const override;
   bool can_change_cond_ref_to_const(Item_bool_func2 *target,
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
-                                   Item *source_expr, Item *source_const) const;
+                                   Item *source_expr, Item *source_const)
+    const override;
   bool subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const;
+                                            const Item *outer) const override;
   bool Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
-                                        Item **items, uint nitems) const;
-  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const;
-  bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
-  bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
-  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
-  bool Item_val_bool(Item *item) const;
+                                        Item **items, uint nitems)
+    const override;
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const override;
+  bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const override;
+  bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const override;
+  bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *)const override;
+  bool Item_val_bool(Item *item) const override;
   void Item_get_date(THD *thd, Item *item, Temporal::Warn *warn,
-                     MYSQL_TIME *ltime,  date_mode_t fuzzydate) const;
-  longlong Item_val_int_signed_typecast(Item *item) const;
-  longlong Item_val_int_unsigned_typecast(Item *item) const;
-  String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
+                     MYSQL_TIME *ltime,  date_mode_t fuzzydate) const override;
+  longlong Item_val_int_signed_typecast(Item *item) const override;
+  longlong Item_val_int_unsigned_typecast(Item *item) const override;
+  String *Item_func_hex_val_str_ascii(Item_func_hex *, String *)const override;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
-                                              String *) const;
+                                              String *) const override;
   double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
-                                              const;
+                                              const override;
   longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
-                                               const;
+                                               const override;
   my_decimal *Item_func_hybrid_field_type_val_decimal(
                                               Item_func_hybrid_field_type *,
-                                              my_decimal *) const;
+                                              my_decimal *) const override;
   void Item_func_hybrid_field_type_get_date(THD *,
                                             Item_func_hybrid_field_type *,
                                             Temporal::Warn *,
                                             MYSQL_TIME *,
-                                            date_mode_t fuzzydate) const;
+                                            date_mode_t) const override;
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
-                                  MYSQL_TIME *, date_mode_t fuzzydate) const;
-  bool Item_func_between_fix_length_and_dec(Item_func_between *func) const;
-  bool Item_func_in_fix_comparator_compatible_types(THD *thd,
-                                                    Item_func_in *) const;
-  bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
-  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *) const;
-  bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const;
-  bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const;
-  bool Item_func_plus_fix_length_and_dec(Item_func_plus *) const;
-  bool Item_func_minus_fix_length_and_dec(Item_func_minus *) const;
-  bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const;
-  bool Item_func_div_fix_length_and_dec(Item_func_div *) const;
-  bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const;
-  bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p) const;
+                                  MYSQL_TIME *, date_mode_t) const override;
+  bool Item_func_between_fix_length_and_dec(Item_func_between *)const override;
+  bool Item_func_in_fix_comparator_compatible_types(THD *, Item_func_in *)
+    const override;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
+  bool Item_func_int_val_fix_length_and_dec(Item_func_int_val *)const override;
+  bool Item_func_abs_fix_length_and_dec(Item_func_abs *) const override;
+  bool Item_func_neg_fix_length_and_dec(Item_func_neg *) const override;
+  bool Item_func_plus_fix_length_and_dec(Item_func_plus *) const override;
+  bool Item_func_minus_fix_length_and_dec(Item_func_minus *) const override;
+  bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
+  bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
+  bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
+  bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p)
+    const override;
 };
 
 
@@ -4981,8 +4996,9 @@ public:
 class Type_handler_general_purpose_string: public Type_handler_string_result
 {
 public:
-  bool is_general_purpose_string_type() const { return true; }
-  bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p) const;
+  bool is_general_purpose_string_type() const override { return true; }
+  bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p)
+    const override;
 };
 
 
@@ -5407,7 +5423,8 @@ public:
   {
     return print_item_value_csstr(thd, item, str);
   }
-  void show_binlog_type(const Conv_source &src, String *str) const override;
+  void show_binlog_type(const Conv_source &src, const Field &, String *str)
+    const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
@@ -5652,6 +5669,7 @@ public:
                                   MYSQL_TIME *, date_mode_t fuzzydate)
                                   const override;
   longlong Item_func_between_val_int(Item_func_between *func) const override;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp)
                                        const override;
   bool set_comparator_func(Arg_comparator *cmp) const override;
@@ -5935,6 +5953,7 @@ public:
   longlong Item_func_min_max_val_int(Item_func_min_max *) const override;
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *, my_decimal *)
                                             const override;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -6037,6 +6056,10 @@ public:
   {
     return MYSQL_TIMESTAMP_DATETIME;
   }
+  bool is_val_native_ready() const override
+  {
+    return true;
+  }
   bool is_timestamp_type() const override
   {
     return true;
@@ -6052,6 +6075,7 @@ public:
                              const override;
   int cmp_native(const Native &a, const Native &b) const override;
   longlong Item_func_between_val_int(Item_func_between *func) const override;
+  bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const override;
   in_vector *make_in_vector(THD *thd, const Item_func_in *f, uint nargs)
                             const override;
@@ -6178,7 +6202,8 @@ public:
   uint32 calc_pack_length(uint32 length) const override { return length; }
   const Type_handler *type_handler_for_tmp_table(const Item *item) const override;
   const Type_handler *type_handler_for_union(const Item *item) const override;
-  void show_binlog_type(const Conv_source &src, String *str) const override;
+  void show_binlog_type(const Conv_source &src, const Field &, String *str)
+    const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
@@ -6211,7 +6236,8 @@ public:
   enum_field_types field_type() const override { return MYSQL_TYPE_NEWDECIMAL; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override;
-  void show_binlog_type(const Conv_source &src, String *str) const override;
+  void show_binlog_type(const Conv_source &src, const Field &, String *str)
+    const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
@@ -6326,7 +6352,8 @@ public:
   {
     return varstring_type_handler(item);
   }
-  void show_binlog_type(const Conv_source &src, String *str) const override;
+  void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
+    const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
@@ -6369,7 +6396,8 @@ public:
     return varstring_type_handler(item);
   }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
-  void show_binlog_type(const Conv_source &src, String *str) const override;
+  void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
+    const override;
   void Column_definition_implicit_upgrade(Column_definition *c) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
@@ -6408,7 +6436,8 @@ public:
     return varstring_type_handler(item);
   }
   bool is_param_long_data_type() const override { return true; }
-  void show_binlog_type(const Conv_source &src, String *str) const override;
+  void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
+    const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
@@ -6458,7 +6487,8 @@ public:
     return MYSQL_TYPE_VARCHAR_COMPRESSED;
   }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
-  void show_binlog_type(const Conv_source &src, String *str) const override;
+  void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
+    const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
@@ -6626,7 +6656,8 @@ public:
     return MYSQL_TYPE_BLOB_COMPRESSED;
   }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
-  void show_binlog_type(const Conv_source &src, String *str) const override;
+  void show_binlog_type(const Conv_source &src, const Field &, String *str)
+    const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;

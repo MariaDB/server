@@ -2171,6 +2171,19 @@ files_checked:
 			is at most one data dictionary transaction
 			active at a time. */
 			if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+				/* If the following call is ever
+				removed, the first-time
+				ha_innobase::open() must hold (or
+				acquire and release) a table lock that
+				conflicts with
+				trx_resurrect_table_locks(), to ensure
+				that any recovered incomplete ALTER
+				TABLE will have been rolled
+				back. Otherwise, dict_table_t::instant
+				could be cleared by rollback invoking
+				dict_index_t::clear_instant_alter()
+				while open table handles exist in
+				client connections. */
 				trx_rollback_recovered(false);
 			}
 		}

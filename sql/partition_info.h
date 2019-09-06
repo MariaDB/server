@@ -55,11 +55,11 @@ struct Vers_part_info : public Sql_alloc
     if (now_part)
     {
       DBUG_ASSERT(now_part->id != UINT_MAX32);
-      DBUG_ASSERT(now_part->type() == partition_element::CURRENT);
+      DBUG_ASSERT(now_part->type == partition_element::CURRENT);
       if (hist_part)
       {
         DBUG_ASSERT(hist_part->id != UINT_MAX32);
-        DBUG_ASSERT(hist_part->type() == partition_element::HISTORY);
+        DBUG_ASSERT(hist_part->type == partition_element::HISTORY);
       }
       return true;
     }
@@ -366,8 +366,7 @@ public:
   void init_col_val(part_column_list_val *col_val, Item *item);
   int reorganize_into_single_field_col_val(THD *thd);
   part_column_list_val *add_column_value(THD *thd);
-  bool set_part_expr(THD *thd, char *start_token, Item *item_ptr,
-                     char *end_token, bool is_subpart);
+  bool set_part_expr(THD *thd, Item *item_ptr, bool is_subpart);
   bool set_up_charset_field_preps(THD *thd);
   bool check_partition_field_length();
   bool init_column_part(THD *thd);

@@ -64,7 +64,7 @@ const char *primary_key_name="PRIMARY";
 
 static int check_if_keyname_exists(const char *name,KEY *start, KEY *end);
 static char *make_unique_key_name(THD *, const char *, KEY *, KEY *);
-static void make_unique_constraint_name(THD *, LEX_CSTRING *, const char *,
+static bool make_unique_constraint_name(THD *, LEX_CSTRING *, const char *,
                                         List<Virtual_column_info> *, uint *);
 static const char *make_unique_invisible_field_name(THD *, const char *,
                                                     List<Create_field> *);
@@ -76,6 +76,9 @@ static int copy_data_between_tables(THD *, TABLE *,TABLE *,
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int);
 static uint blob_length_by_type(enum_field_types type);
+static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
+                                  *check_constraint_list,
+                                  const HA_CREATE_INFO *create_info);
 
 /**
   @brief Helper function for explain_filename
@@ -4326,20 +4329,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   /* Check table level constraints */
   create_info->check_constraint_list= &alter_info->check_constraint_list;
   {
-    uint nr= 1;
     List_iterator_fast<Virtual_column_info> c_it(alter_info->check_constraint_list);
     Virtual_column_info *check;
     while ((check= c_it++))
     {
-      if (!check->name.length)
-      {
-        const char *own_name_base= create_info->period_info.constr == check
-                                   ? create_info->period_info.name.str : NULL;
+      if (!check->name.length || check->automatic_name)
+        continue;
 
-        make_unique_constraint_name(thd, &check->name, own_name_base,
-                                    &alter_info->check_constraint_list,
-                                    &nr);
-      }
       {
         /* Check that there's no repeating constraint names. */
         List_iterator_fast<Virtual_column_info>
@@ -4884,6 +4880,10 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d  path: %s",
                        db.str, table_name.str, internal_tmp_table, path));
 
+  if (fix_constraints_names(thd, &alter_info->check_constraint_list,
+                            create_info))
+    DBUG_RETURN(1);
+
   if (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE)
   {
     if (create_info->data_file_name)
@@ -5382,7 +5382,7 @@ make_unique_key_name(THD *thd, const char *field_name,KEY *start,KEY *end)
    Make an unique name for constraints without a name
 */
 
-static void make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
+static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
                                         const char *own_name_base,
                                         List<Virtual_column_info> *vcol,
                                         uint *nr)
@@ -5410,9 +5410,10 @@ static void make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
     {
       name->length= (size_t) (real_end - buff);
       name->str= thd->strmake(buff, name->length);
-      return;
+      return (name->str == NULL);
     }
   }
+  return FALSE;
 }
 
 /**
@@ -6035,10 +6036,11 @@ static bool is_candidate_key(KEY *key)
      from the list if existing found.
 
    RETURN VALUES
-     NONE
+     TRUE error
+     FALSE OK
 */
 
-static void
+static bool
 handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info,
                          Table_period_info *period_info)
 {
@@ -6484,6 +6486,7 @@ remove_key:
     Virtual_column_info *check;
     TABLE_SHARE *share= table->s;
     uint c;
+
     while ((check=it++))
     {
       if (!(check->flags & Alter_info::CHECK_CONSTRAINT_IF_NOT_EXISTS) &&
@@ -6531,7 +6534,48 @@ remove_key:
     *period_info= {};
   }
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(false);
+}
+
+
+static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
+                                  *check_constraint_list,
+                                  const HA_CREATE_INFO *create_info)
+{
+  List_iterator<Virtual_column_info> it((*check_constraint_list));
+  Virtual_column_info *check;
+  uint nr= 1;
+  DBUG_ENTER("fix_constraints_names");
+  if (!check_constraint_list)
+    DBUG_RETURN(FALSE);
+  // Prevent accessing freed memory during generating unique names
+  while ((check=it++))
+  {
+    if (check->automatic_name)
+    {
+      check->name.str= NULL;
+      check->name.length= 0;
+    }
+  }
+  it.rewind();
+  // Generate unique names if needed
+  while ((check=it++))
+  {
+    if (!check->name.length)
+    {
+      check->automatic_name= TRUE;
+
+      const char *own_name_base= create_info->period_info.constr == check
+        ? create_info->period_info.name.str : NULL;
+
+      if (make_unique_constraint_name(thd, &check->name,
+                                      own_name_base,
+                                      check_constraint_list,
+                                      &nr))
+        DBUG_RETURN(TRUE);
+    }
+  }
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -7959,7 +8003,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   Create_field *def;
   Field **f_ptr,*field;
   MY_BITMAP *dropped_fields= NULL; // if it's NULL - no dropped fields
-  bool save_reopen= table->m_needs_reopen;
   bool drop_period= false;
   DBUG_ENTER("mysql_prepare_alter_table");
 
@@ -8707,9 +8750,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   alter_info->create_list.swap(new_create_list);
   alter_info->key_list.swap(new_key_list);
   alter_info->check_constraint_list.swap(new_constraint_list);
-  DBUG_RETURN(rc);
 err:
-  table->m_needs_reopen= save_reopen;
   DBUG_RETURN(rc);
 }
 
@@ -9675,7 +9716,11 @@ do_continue:;
     }
   }
 
-  handle_if_exists_options(thd, table, alter_info, &create_info->period_info);
+  if (handle_if_exists_options(thd, table, alter_info,
+                               &create_info->period_info) ||
+      fix_constraints_names(thd, &alter_info->check_constraint_list,
+                            create_info))
+    DBUG_RETURN(true);
 
   /*
     Look if we have to do anything at all.
@@ -11153,10 +11198,9 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 {
   DBUG_ENTER("Sql_cmd_create_table::execute");
   LEX *lex= thd->lex;
-  TABLE_LIST *all_tables= lex->query_tables;
   SELECT_LEX *select_lex= lex->first_select_lex();
   TABLE_LIST *first_table= select_lex->table_list.first;
-  DBUG_ASSERT(first_table == all_tables && first_table != 0);
+  DBUG_ASSERT(first_table == lex->query_tables && first_table != 0);
   bool link_to_local;
   TABLE_LIST *create_table= first_table;
   TABLE_LIST *select_tables= lex->create_last_non_select_table->next_global;

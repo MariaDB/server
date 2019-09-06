@@ -3181,7 +3181,7 @@ innobase_col_to_mysql(
 	case DATA_SYS:
 		/* These column types should never be shipped to MySQL. */
 		ut_ad(0);
-
+		/* fall through */
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
 	case DATA_DECIMAL:
@@ -9935,8 +9935,7 @@ commit_cache_rebuild(
 /** Set of column numbers */
 typedef std::set<ulint, std::less<ulint>, ut_allocator<ulint> >	col_set;
 
-/** Store the column number of the columns in a list belonging
-to indexes which are not being dropped.
+/** Collect (not instantly dropped) columns from dropped indexes
 @param[in]	ctx		In-place ALTER TABLE context
 @param[in, out]	drop_col_list	list which will be set, containing columns
 				which is part of index being dropped
@@ -9945,7 +9944,7 @@ to indexes which are not being dropped.
 				being dropped */
 static
 void
-get_col_list_to_be_dropped(
+collect_columns_from_dropped_indexes(
 	const ha_innobase_inplace_ctx*	ctx,
 	col_set&			drop_col_list,
 	col_set&			drop_v_col_list)
@@ -9966,6 +9965,12 @@ get_col_list_to_be_dropped(
 
 			} else {
 				ulint	col_no = dict_col_get_no(idx_col);
+				if (ctx->col_map
+				    && ctx->col_map[col_no]
+					   == ULINT_UNDEFINED) {
+					// this column was instantly dropped
+					continue;
+				}
 				drop_col_list.insert(col_no);
 			}
 		}
@@ -10282,25 +10287,21 @@ commit_cache_norebuild(
 
 	col_set			drop_list;
 	col_set			v_drop_list;
-	col_set::const_iterator col_it;
 
 	/* Check if the column, part of an index to be dropped is part of any
 	other index which is not being dropped. If it so, then set the ord_part
 	of the column to 0. */
-	get_col_list_to_be_dropped(ctx, drop_list, v_drop_list);
+	collect_columns_from_dropped_indexes(ctx, drop_list, v_drop_list);
 
-	for (col_it = drop_list.begin(); col_it != drop_list.end(); ++col_it) {
-		if (!check_col_exists_in_indexes(ctx->new_table,
-						 *col_it, false)) {
-			ctx->new_table->cols[*col_it].ord_part = 0;
+	for (ulint col : drop_list) {
+		if (!check_col_exists_in_indexes(ctx->new_table, col, false)) {
+			ctx->new_table->cols[col].ord_part = 0;
 		}
 	}
 
-	for (col_it = v_drop_list.begin();
-	     col_it != v_drop_list.end(); ++col_it) {
-		if (!check_col_exists_in_indexes(ctx->new_table,
-						 *col_it, true)) {
-			ctx->new_table->v_cols[*col_it].m_col.ord_part = 0;
+	for (ulint col : v_drop_list) {
+		if (!check_col_exists_in_indexes(ctx->new_table, col, true)) {
+			ctx->new_table->v_cols[col].m_col.ord_part = 0;
 		}
 	}
 

@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2018, MariaDB Corporation
+# Copyright (c) 2008, 2019, MariaDB Corporation.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -150,9 +150,6 @@ INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
 INCLUDE(submodules)
-INCLUDE(wsrep)
-INCLUDE(cpack_rpm)
-INCLUDE(cpack_deb)
 
 # Add macros
 INCLUDE(character_sets)
@@ -225,9 +222,6 @@ ENDIF()
 
 OPTION(WITH_TSAN "Enable thread sanitizer" OFF)
 IF (WITH_TSAN)
-  IF(SECURITY_HARDENED)
-    MESSAGE(FATAL_ERROR "WITH_TSAN and SECURITY_HARDENED are mutually exclusive")
-  ENDIF()
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=thread" DEBUG RELWITHDEBINFO)
 ENDIF()
 
@@ -236,26 +230,25 @@ IF (WITH_UBSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=undefined -fno-sanitize=alignment -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
 ENDIF()
 
-IF(NOT WITH_TSAN)
-  # enable security hardening features, like most distributions do
-  # in our benchmarks that costs about ~1% of performance, depending on the load
-  IF(CMAKE_C_COMPILER_VERSION VERSION_LESS "4.6" OR WITH_ASAN OR WITH_UBSAN)
-    SET(security_default OFF)
-  ELSE()
-    SET(security_default ON)
-  ENDIF()
-  OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ${security_default})
-  IF(SECURITY_HARDENED)
-    IF(WITH_ASAN OR WITH_UBSAN)
-      MESSAGE(FATAL_ERROR "WITH_ASAN/WITH_UBSAN and SECURITY_HARDENED are mutually exclusive")
-    ENDIF()
-    # security-enhancing flags
-    MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wl,-z,relro,-z,now")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-fstack-protector --param=ssp-buffer-size=4")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-D_FORTIFY_SOURCE=2" RELEASE RELWITHDEBINFO)
-  ENDIF()
+OPTION(WITH_MSAN "Enable memory sanitizer" OFF)
+IF (WITH_MSAN)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
 ENDIF()
+
+# enable security hardening features, like most distributions do
+# in our benchmarks that costs about ~1% of performance, depending on the load
+OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
+IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN)
+  # security-enhancing flags
+  MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wl,-z,relro,-z,now")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fstack-protector --param=ssp-buffer-size=4")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-D_FORTIFY_SOURCE=2" RELEASE RELWITHDEBINFO)
+ENDIF()
+
+INCLUDE(wsrep)
+INCLUDE(cpack_rpm)
+INCLUDE(cpack_deb)
 
 # Always enable debug sync for debug builds.
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
@@ -437,10 +430,6 @@ IF(NOT WITHOUT_SERVER)
    ADD_SUBDIRECTORY(libmysqld/examples)
    ADD_SUBDIRECTORY(unittest/embedded)
   ENDIF(WITH_EMBEDDED_SERVER)
-
-  IF(WITH_WSREP)
-    ADD_SUBDIRECTORY(wsrep-lib)
-  ENDIF()
 
   ADD_SUBDIRECTORY(mysql-test)
   ADD_SUBDIRECTORY(mysql-test/lib/My/SafeProcess)

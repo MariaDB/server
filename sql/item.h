@@ -767,7 +767,7 @@ public:
   /* Cache of the result of is_expensive(). */
   int8 is_expensive_cache;
   
-  /* Reuse size, only used by SP local variable assignment, otherwize 0 */
+  /* Reuse size, only used by SP local variable assignment, otherwise 0 */
   uint rsize;
 
 protected:
@@ -3556,6 +3556,8 @@ public:
   String *val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  longlong val_datetime_packed(THD *);
+  longlong val_time_packed(THD *);
   int save_in_field(Field *field, bool no_conversions);
   int save_safe_in_field(Field *field);
   bool send(Protocol *protocol, st_value *buffer);
@@ -5140,6 +5142,8 @@ public:
   bool val_native(THD *thd, Native *to);
   bool is_null();
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  longlong val_datetime_packed(THD *);
+  longlong val_time_packed(THD *);
   double val_result();
   longlong val_int_result();
   String *str_result(String* tmp);

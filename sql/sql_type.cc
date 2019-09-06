@@ -1029,10 +1029,21 @@ bool Temporal::datetime_add_nanoseconds_or_invalidate(THD *thd, int *warn, ulong
   INTERVAL interval;
   memset(&interval, 0, sizeof(interval));
   interval.hour= 1;
-  /* date_add_interval cannot handle bad dates */
-  if (check_date(TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE, warn) ||
-      date_add_interval(thd, this, INTERVAL_HOUR, interval))
+  /*
+    date_add_interval cannot handle bad dates with zero YYYY or MM.
+    Note, check_date(NO_ZERO_XX) does not check YYYY against zero,
+    so let's additionally check it.
+  */
+  if (year == 0 ||
+      check_date(TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE, warn) ||
+      date_add_interval(thd, this, INTERVAL_HOUR, interval, false/*no warn*/))
   {
+    char buf[MAX_DATE_STRING_REP_LENGTH];
+    my_date_to_str(this, buf);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_VALUE_FOR_TYPE,
+                        ER_THD(thd, ER_WRONG_VALUE_FOR_TYPE),
+                        "date", buf, "round(datetime)");
     make_from_out_of_range(warn);
     return true;
   }
@@ -6069,6 +6080,30 @@ bool Type_handler_temporal_result::
        Item_func_round_fix_length_and_dec(Item_func_round *item) const
 {
   item->fix_arg_double();
+  return false;
+}
+
+
+bool Type_handler_time_common::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  item->fix_arg_time();
+  return false;
+}
+
+
+bool Type_handler_datetime_common::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  item->fix_arg_datetime();
+  return false;
+}
+
+
+bool Type_handler_timestamp_common::
+       Item_func_round_fix_length_and_dec(Item_func_round *item) const
+{
+  item->fix_arg_datetime();
   return false;
 }
 

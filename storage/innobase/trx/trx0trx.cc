@@ -497,6 +497,7 @@ trx_free_at_shutdown(trx_t *trx)
 	transaction was never committed and therefore lock_trx_release()
 	was not called. */
 	trx->lock.table_locks.clear();
+	trx->id = 0;
 
 	trx_free(trx);
 }
@@ -1239,6 +1240,22 @@ trx_update_mod_tables_timestamp(
 	const time_t now = time(NULL);
 
 	trx_mod_tables_t::const_iterator	end = trx->mod_tables.end();
+#ifdef UNIV_DEBUG
+# if MYSQL_VERSION_ID >= 100405
+#  define dict_sys_mutex dict_sys.mutex
+# else
+#  define dict_sys_mutex dict_sys->mutex
+# endif
+
+	const bool preserve_tables = !innodb_evict_tables_on_commit_debug
+		|| trx->is_recovered /* avoid trouble with XA recovery */
+# if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
+		|| mutex_own(&dict_sys_mutex)
+# else /* this would be more proper way to do it */
+		|| trx->dict_operation_lock_mode || trx->dict_operation
+# endif
+		;
+#endif
 
 	for (trx_mod_tables_t::const_iterator it = trx->mod_tables.begin();
 	     it != end;
@@ -1252,7 +1269,27 @@ trx_update_mod_tables_timestamp(
 		"garbage" in table->update_time is justified because
 		protecting it with a latch here would be too performance
 		intrusive. */
-		it->first->update_time = now;
+		dict_table_t* table = it->first;
+		table->update_time = now;
+#ifdef UNIV_DEBUG
+		if (preserve_tables || table->get_ref_count()) {
+			/* do not evict when committing DDL operations
+			or if some other transaction is holding the
+			table handle */
+			continue;
+		}
+		/* recheck while holding the mutex that blocks
+		table->acquire() */
+		mutex_enter(&dict_sys_mutex);
+		if (!table->get_ref_count()) {
+# if MYSQL_VERSION_ID >= 100405
+			dict_sys.remove(table, true);
+# else
+			dict_table_remove_from_cache_low(table, true);
+# endif
+		}
+		mutex_exit(&dict_sys_mutex);
+#endif
 	}
 
 	trx->mod_tables.clear();
@@ -1337,10 +1374,8 @@ trx_commit_in_memory(
 			trx_sys.deregister_rw(trx);
 		}
 
-		/* trx->id will be cleared in lock_trx_release_locks(trx). */
-		ut_ad(trx->read_only || !trx->rsegs.m_redo.rseg || trx->id);
 		lock_trx_release_locks(trx);
-		ut_ad(trx->id == 0);
+		ut_ad(trx->read_only || !trx->rsegs.m_redo.rseg || trx->id);
 
 		/* Remove the transaction from the list of active
 		transactions now that it no longer holds any user locks. */
@@ -1360,6 +1395,8 @@ trx_commit_in_memory(
 			UT_LIST_REMOVE(trx->lock.evicted_tables, table);
 			dict_mem_table_free(table);
 		}
+
+		trx->id = 0;
 	}
 
 	ut_ad(!trx->rsegs.m_redo.undo);

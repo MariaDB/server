@@ -29,6 +29,7 @@
 #include "wsrep_binlog.h"
 #include "wsrep_high_priority_service.h"
 #include "wsrep_storage_service.h"
+#include "wsrep_thd.h"
 
 #include <string>
 #include <sstream>
@@ -145,13 +146,13 @@ public:
     : m_orig_thd(orig_thd)
     , m_cur_thd(cur_thd)
   {
-    m_orig_thd->reset_globals();
-    m_cur_thd->store_globals();
+    wsrep_reset_threadvars(m_orig_thd);
+    wsrep_store_threadvars(m_cur_thd);
   }
   ~thd_context_switch()
   {
-    m_cur_thd->reset_globals();
-    m_orig_thd->store_globals();
+    wsrep_reset_threadvars(m_cur_thd);
+    wsrep_store_threadvars(m_orig_thd);
   }
 private:
   THD *m_orig_thd;
@@ -474,7 +475,9 @@ static int scan(TABLE* table, uint field, char* strbuf, uint strbuf_len)
 {
   String str;
   (void)table->field[field]->val_str(&str);
-  strncpy(strbuf, str.ptr(), std::min(str.length(), strbuf_len));
+  LEX_CSTRING tmp= str.lex_cstring();
+  uint len = tmp.length;
+  strncpy(strbuf, tmp.str, std::min(len, strbuf_len));
   strbuf[strbuf_len - 1]= '\0';
   return 0;
 }
@@ -593,7 +596,8 @@ static void wsrep_init_thd_for_schema(THD *thd)
   thd->variables.option_bits |= OPTION_LOG_OFF;
   /* Read committed isolation to avoid gap locking */
   thd->variables.tx_isolation= ISO_READ_COMMITTED;
-  thd->store_globals();
+  wsrep_assign_from_threadvars(thd);
+  wsrep_store_threadvars(thd);
 }
 
 int Wsrep_schema::init()
@@ -1121,6 +1125,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
   THD thd(next_thread_id(), true);
   thd.thread_stack= (orig_thd ? orig_thd->thread_stack :
                      (char*) &thd);
+  wsrep_assign_from_threadvars(&thd);
 
   Wsrep_schema_impl::wsrep_off  wsrep_off(&thd);
   Wsrep_schema_impl::binlog_off binlog_off(&thd);
@@ -1226,6 +1231,7 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
   THD storage_thd(next_thread_id(), true);
   storage_thd.thread_stack= (orig_thd ? orig_thd->thread_stack :
                              (char*) &storage_thd);
+  wsrep_assign_from_threadvars(&storage_thd);
   TABLE* frag_table= 0;
   TABLE* cluster_table= 0;
   Wsrep_storage_service storage_service(&storage_thd);
@@ -1331,12 +1337,7 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
                                                          transaction_id)))
       {
         DBUG_ASSERT(wsrep::starts_transaction(flags));
-        THD* thd= new THD(next_thread_id(), true);
-        thd->thread_stack= (char*)&storage_thd;
-
-        thd->real_id= pthread_self();
-
-        applier= new Wsrep_applier_service(thd);
+        applier = wsrep_create_streaming_applier(&storage_thd, "recovery");
         server_state.start_streaming_applier(server_id, transaction_id,
                                              applier);
         applier->start_transaction(wsrep::ws_handle(transaction_id, 0),
@@ -1366,6 +1367,7 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
   Wsrep_schema_impl::end_scan(frag_table);
   Wsrep_schema_impl::finish_stmt(&storage_thd);
   trans_commit(&storage_thd);
+  storage_thd.set_mysys_var(0);
 out:
   DBUG_RETURN(ret);
 }

@@ -1462,4 +1462,19 @@ t1	CREATE TABLE `t1` (
   KEY `pk` (`pk`,`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+#
+# MDEV-19705: Assertion `tmp >= 0' failed in best_access_path
+#
+CREATE TABLE t1 (d varchar(10)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('a'),('q');
+CREATE TABLE t2 (f varchar(10), a2 datetime, b int, a1 varchar(1024), pk int NOT NULL, PRIMARY KEY (pk), UNIQUE KEY (f,a1,a2), KEY f2 (f(4),a2)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('aaa','1985-09-06',-163,'s',1),('bbb','1995-01-05',3,'pucaz',2),('ccc','0000-00-00',NULL,'help',3),('ddd',NULL,618,'v',4),('eee','1995-12-20',410,'m',5),('ffq','1976-06-12 20:02:56',NULL,'POKNC',6),('dddd','0000-00-00',-328,'hgsu',7);
+explain
+SELECT t2.b FROM t1 JOIN t2 ON t1.d = t2.f WHERE t2.pk >= 20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	PRIMARY,f,f2	PRIMARY	4	NULL	1	Using index condition
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+SELECT t2.b FROM t1 JOIN t2 ON t1.d = t2.f WHERE t2.pk >= 20;
+b
+drop table t1,t2;
 set @@GLOBAL.max_allowed_packet= @allowed_packet;

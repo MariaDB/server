@@ -460,6 +460,8 @@ uint Explain_union::make_union_table_name(char *buf)
       break;
     default:
       DBUG_ASSERT(0);
+      type.str= NULL;
+      type.length= 0;
   }
   memcpy(buf, type.str, (len= (uint)type.length));
 

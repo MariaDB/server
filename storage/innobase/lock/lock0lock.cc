@@ -1217,9 +1217,7 @@ lock_sec_rec_some_has_impl(
 
 	/* Some transaction may have an implicit x-lock on the record only
 	if the max trx id for the page >= min trx id for the trx list, or
-	database recovery is running. We do not write the changes of a page
-	max trx id to the log, and therefore during recovery, this value
-	for a page may be incorrect. */
+	database recovery is running. */
 
 	if (max_trx_id < trx_sys.get_min_trx_id()) {
 
@@ -6192,9 +6190,6 @@ lock_trx_release_locks(
 	/*--------------------------------------*/
 	trx_mutex_enter(trx);
 	trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
-	/* Ensure that rw_trx_hash_t::find() will no longer find
-	this transaction. */
-	trx->id = 0;
 	trx_mutex_exit(trx);
 	/*--------------------------------------*/
 

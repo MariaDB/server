@@ -82,13 +82,8 @@ private:
   mysql_cond_t     COND_wsrep_thd_queue;
 };
 
-void wsrep_prepare_bf_thd(THD*, struct wsrep_thd_shadow*);
-void wsrep_return_from_bf_mode(THD*, struct wsrep_thd_shadow*);
-
 int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
                           enum enum_var_type scope);
-void wsrep_client_rollback(THD *thd, bool rollbacker = false);
-void wsrep_replay_transaction(THD *thd);
 void wsrep_create_appliers(long threads);
 void wsrep_create_rollbacker();
 
@@ -96,8 +91,83 @@ bool wsrep_bf_abort(const THD*, THD*);
 int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,
                                 my_bool signal);
 extern void  wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe);
-THD* wsrep_start_SR_THD(char *thread_stack);
-void wsrep_end_SR_THD(THD* thd);
+
+/*
+  Helper methods to deal with thread local storage.
+  The purpose of these methods is to hide the details of thread
+  local storage handling when operating with wsrep storage access
+  and streaming applier THDs
+
+  With one-thread-per-connection thread handling thread specific
+  variables are allocated when the thread is started and deallocated
+  before thread exits (my_thread_init(), my_thread_end()). However,
+  with pool-of-threads thread handling new thread specific variables
+  are allocated for each THD separately (see threadpool_add_connection()),
+  and the variables in thread local storage are assigned from
+  currently active thread (see thread_attach()). This must be taken into
+  account when storing/resetting thread local storage and when creating
+  streaming applier THDs.
+*/
+
+/**
+   Create new variables for thread local storage. With
+   one-thread-per-connection thread handling this is a no op,
+   with pool-of-threads new variables are created via my_thread_init().
+   It is assumed that the caller has called wsrep_reset_threadvars() to clear
+   the thread local storage before this call.
+
+   @return Zero in case of success, non-zero otherwise.
+*/
+int wsrep_create_threadvars();
+
+/**
+   Delete variables which were created by wsrep_create_threadvars().
+   The caller must store variables into thread local storage before
+   this call via wsrep_store_threadvars().
+*/
+void wsrep_delete_threadvars();
+
+/**
+   Assign variables from current thread local storage into THD.
+   This should be called for THDs whose lifetime is limited to single
+   thread execution or which may share the operation context with some
+   parent THD (e.g. storage access) and thus don't require separately
+   allocated globals.
+
+   With one-thread-per-connection thread handling this is a no-op,
+   with pool-of-threads the variables which are currently stored into
+   thread local storage are assigned to THD.
+*/
+void wsrep_assign_from_threadvars(THD *);
+
+/**
+   Helper struct to save variables from thread local storage.
+ */
+struct Wsrep_threadvars
+{
+  THD* cur_thd;
+  st_my_thread_var* mysys_var;
+};
+
+/**
+   Save variables from thread local storage into Wsrep_threadvars struct.
+ */
+Wsrep_threadvars wsrep_save_threadvars();
+
+/**
+   Restore variables into thread local storage from Wsrep_threadvars struct.
+*/
+void wsrep_restore_threadvars(const Wsrep_threadvars&);
+
+/**
+   Store variables into thread local storage.
+*/
+int wsrep_store_threadvars(THD *);
+
+/**
+   Reset thread local storage.
+*/
+void wsrep_reset_threadvars(THD *);
 
 /**
    Helper functions to override error status

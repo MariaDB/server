@@ -7314,6 +7314,28 @@ void Field_string::sql_type(String &res) const
     res.append(STRING_WITH_LEN(" binary"));
 }
 
+/**
+   For fields which are associated with character sets their length is provided
+   in octets and their character set information is also provided as part of
+   type information.
+
+   @param   res       String which contains filed type and length.
+*/
+void Field_string::sql_rpl_type(String *res) const
+{
+  CHARSET_INFO *cs=charset();
+  if (Field_string::has_charset())
+  {
+    size_t length= cs->cset->snprintf(cs, (char*) res->ptr(),
+                                      res->alloced_length(),
+                                      "char(%u octets) character set %s",
+                                      field_length,
+                                      charset()->csname);
+    res->length(length);
+  }
+  else
+    Field_string::sql_type(*res);
+ }
 
 uchar *Field_string::pack(uchar *to, const uchar *from, uint max_length)
 {
@@ -7752,6 +7774,29 @@ void Field_varstring::sql_type(String &res) const
   if ((thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)) &&
       has_charset() && (charset()->state & MY_CS_BINSORT))
     res.append(STRING_WITH_LEN(" binary"));
+}
+
+/**
+   For fields which are associated with character sets their length is provided
+   in octets and their character set information is also provided as part of
+   type information.
+
+   @param   res       String which contains filed type and length.
+*/
+void Field_varstring::sql_rpl_type(String *res) const
+{
+  CHARSET_INFO *cs=charset();
+  if (Field_varstring::has_charset())
+  {
+    size_t length= cs->cset->snprintf(cs, (char*) res->ptr(),
+                                      res->alloced_length(),
+                                      "varchar(%u octets) character set %s",
+                                      field_length,
+                                      charset()->csname);
+    res->length(length);
+  }
+  else
+    Field_varstring::sql_type(*res);
 }
 
 

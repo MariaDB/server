@@ -539,6 +539,7 @@ extern my_bool	srv_ibuf_disable_background_merge;
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
 #ifdef UNIV_DEBUG
+extern my_bool	innodb_evict_tables_on_commit_debug;
 extern my_bool	srv_sync_debug;
 extern my_bool	srv_purge_view_update_only_debug;
 

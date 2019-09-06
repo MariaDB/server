@@ -2998,6 +2998,7 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
       {
       default:
         DBUG_ASSERT(0);
+        /* fall through */
       case UNION_TYPE:
         str->append(STRING_WITH_LEN(" union "));
         break;
@@ -8770,11 +8771,9 @@ bool LEX::part_values_current(THD *thd)
              create_last_non_select_table->table_name.str);
     return true;
   }
-  elem->type(partition_element::CURRENT);
+  elem->type= partition_element::CURRENT;
   DBUG_ASSERT(part_info->vers_info);
   part_info->vers_info->now_part= elem;
-  if (unlikely(part_info->init_column_part(thd)))
-    return true;
   return false;
 }
 
@@ -8804,9 +8803,7 @@ bool LEX::part_values_history(THD *thd)
              create_last_non_select_table->table_name.str);
     return true;
   }
-  elem->type(partition_element::HISTORY);
-  if (unlikely(part_info->init_column_part(thd)))
-    return true;
+  elem->type= partition_element::HISTORY;
   return false;
 }
 

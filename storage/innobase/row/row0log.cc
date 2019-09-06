@@ -1795,6 +1795,7 @@ row_log_table_apply_insert(
 		break;
 	default:
 		ut_ad(0);
+		/* fall through */
 	case DB_INVALID_NULL:
 		ut_ad(row == NULL);
 		return(error);
@@ -2082,6 +2083,7 @@ row_log_table_apply_update(
 		break;
 	default:
 		ut_ad(0);
+		/* fall through */
 	case DB_INVALID_NULL:
 		ut_ad(row == NULL);
 		return(error);

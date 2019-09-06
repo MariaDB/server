@@ -1,4 +1,3 @@
-
 # Copyright (c) 2006, 2018, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -145,3 +144,6 @@ elseif(UNIX)
     # On unix-like platforms the library is almost always called libz
    set_target_properties(zlib PROPERTIES OUTPUT_NAME z)
 endif()
+
+
+RESTRICT_SYMBOL_EXPORTS(zlib)

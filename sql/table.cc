@@ -801,7 +801,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     {
       if (strpos + (new_frm_ver >= 1 ? 9 : 7) >= frm_image_end)
         return 1;
-      *rec_per_key++=0;
+      if (!(keyinfo->algorithm == HA_KEY_ALG_LONG_HASH))
+        *rec_per_key++=0;
       key_part->fieldnr=	(uint16) (uint2korr(strpos) & FIELD_NR_MASK);
       key_part->offset= (uint) uint2korr(strpos+2)-1;
       key_part->key_type=	(uint) uint2korr(strpos+5);
@@ -829,6 +830,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     {
       keyinfo->key_length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
       key_part++; // reserved for the hash value
+      *rec_per_key++=0;
     }
 
     /*
@@ -9523,8 +9525,7 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
   case SYSTEM_TIME_ALL:
     return true;
   case SYSTEM_TIME_BEFORE:
-    DBUG_ASSERT(0);
-    return false;
+    break;
   case SYSTEM_TIME_AS_OF:
     return start.eq(conds.start);
   case SYSTEM_TIME_FROM_TO:

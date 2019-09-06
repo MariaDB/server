@@ -27,7 +27,7 @@
 
 C_MODE_START
 
-extern ulonglong log_10_int[20];
+extern MYSQL_PLUGIN_IMPORT ulonglong log_10_int[20];
 extern uchar days_in_month[];
 
 #define MY_TIME_T_MAX LONG_MAX

@@ -1117,6 +1117,7 @@ public:
   void min_max_update_real_field();
   void min_max_update_int_field();
   void min_max_update_decimal_field();
+  void min_max_update_native_field();
   void cleanup();
   bool any_value() { return was_values; }
   void no_rows_in_result();

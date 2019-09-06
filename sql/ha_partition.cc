@@ -8303,6 +8303,7 @@ int ha_partition::info(uint flag)
     ulonglong max_records= 0;
     uint32 i= 0;
     uint32 handler_instance= 0;
+    bool handler_instance_set= 0;
 
     file_array= m_file;
     do
@@ -8315,8 +8316,9 @@ int ha_partition::info(uint flag)
             !bitmap_is_set(&(m_part_info->read_partitions),
                            (uint) (file_array - m_file)))
           file->info(HA_STATUS_VARIABLE | no_lock_flag | extra_var_flag);
-        if (file->stats.records > max_records)
+        if (file->stats.records > max_records || !handler_instance_set)
         {
+          handler_instance_set= 1;
           max_records= file->stats.records;
           handler_instance= i;
         }

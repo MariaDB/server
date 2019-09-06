@@ -1590,7 +1590,7 @@ static my_bool kill_thread_phase_2(THD *thd, void *)
 /* associated with the kill thread phase 1 */
 static my_bool warn_threads_active_after_phase_1(THD *thd, void *)
 {
-  if (!thd->is_binlog_dump_thread())
+  if (!thd->is_binlog_dump_thread() && thd->vio_ok())
     sql_print_warning("%s: Thread %llu (user : '%s') did not exit\n", my_progname,
                       (ulonglong) thd->thread_id,
                       (thd->main_security_ctx.user ?
@@ -6493,6 +6493,10 @@ struct my_option my_long_options[]=
    0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
 #ifndef DBUG_OFF
+  {"debug-assert", 0,
+   "Allow DBUG_ASSERT() to invoke assert()",
+   &my_assert, &my_assert,
+   0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
   {"debug-assert-on-error", 0,
    "Do an assert in various functions if we get a fatal error",
    &my_assert_on_error, &my_assert_on_error,

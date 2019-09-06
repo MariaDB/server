@@ -2158,6 +2158,10 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
         packet->append(STRING_WITH_LEN(" STORED"));
       else
         packet->append(STRING_WITH_LEN(" VIRTUAL"));
+      if (field->invisible == INVISIBLE_USER)
+      {
+        packet->append(STRING_WITH_LEN(" INVISIBLE"));
+      }
     }
     else
     {
@@ -2478,6 +2482,7 @@ static const LEX_CSTRING *view_algorithm(TABLE_LIST *table)
     return &merge;
   default:
     DBUG_ASSERT(0); // never should happen
+    /* fall through */
   case VIEW_ALGORITHM_UNDEFINED:
     return &undefined;
   }

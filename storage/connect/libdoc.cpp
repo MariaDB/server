@@ -1035,7 +1035,7 @@ PXNODE XML2NODE::AddChildNode(PGLOBAL g, PCSZ name, PXNODE np)
 
   // If name has the format m[n] only m is taken as node name
   if ((p = strchr(pn, '[')))
-    p = BufAlloc(g, pn, p - pn);
+    p = BufAlloc(g, pn, int(p - pn));
   else
     p = pn;
 

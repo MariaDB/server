@@ -68,6 +68,10 @@ set autocommit=1;
 
 -- disable_query_log
 -- disable_result_log
+if ($engine_type == RocksDB)
+{
+    set global rocksdb_force_flush_memtable_now=1;
+}
 analyze table t1;
 -- enable_result_log
 -- enable_query_log
@@ -159,6 +163,10 @@ WHERE (SELECT COUNT(*) FROM t2 WHERE t2.f3 = 'h' AND t2.f2 = t1.f1) = 0 AND t1.f
 
 -- disable_query_log
 -- disable_result_log
+if ($engine_type == RocksDB)
+{
+    set global rocksdb_force_flush_memtable_now=1;
+}
 analyze table t1;
 analyze table t2;
 -- enable_result_log

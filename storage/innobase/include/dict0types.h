@@ -66,11 +66,11 @@ Note: please define the IGNORE_ERR_* as bits, so their value can
 be or-ed together */
 enum dict_err_ignore_t {
 	DICT_ERR_IGNORE_NONE = 0,	/*!< no error to ignore */
-	DICT_ERR_IGNORE_INDEX_ROOT = 1,	/*!< ignore error if index root
-					page is FIL_NULL or incorrect value */
-	DICT_ERR_IGNORE_CORRUPT = 2,	/*!< skip corrupted indexes */
-	DICT_ERR_IGNORE_FK_NOKEY = 4,	/*!< ignore error if any foreign
+	DICT_ERR_IGNORE_FK_NOKEY = 1,	/*!< ignore error if any foreign
 					key is missing */
+	DICT_ERR_IGNORE_INDEX_ROOT = 2,	/*!< ignore error if index root
+					page is FIL_NULL or incorrect value */
+	DICT_ERR_IGNORE_CORRUPT = 4,	/*!< skip corrupted indexes */
 	DICT_ERR_IGNORE_RECOVER_LOCK = 8,
 					/*!< Used when recovering table locks
 					for resurrected transactions.

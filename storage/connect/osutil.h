@@ -3,7 +3,11 @@
 #define __OSUTIL_H__
 
 #if defined(UNIX) || defined(UNIV_LINUX)
+#if defined(MARIADB)
 #include "my_global.h"
+#else
+#include "mini-global.h"
+#endif
 #include <errno.h>
 #include <stddef.h>
 #include "os.h"

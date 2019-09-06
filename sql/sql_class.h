@@ -6162,7 +6162,10 @@ public:
 
   uint tables; /* Number of tables in the sj-nest */
 
-  /* Expected #rows in the materialized table */
+  /* Number of rows in the materialized table, before the de-duplication */
+  double rows_with_duplicates;
+
+  /* Expected #rows in the materialized table, after de-duplication */
   double rows;
 
   /* 

@@ -588,5 +588,53 @@ ts	cts	uts	ucts
 DROP TABLE t1,t2;
 SET time_zone=DEFAULT;
 #
+# MDEV-19961 MIN(timestamp_column) returns a wrong result in a GROUP BY query
+#
+SET time_zone='Europe/Moscow';
+CREATE OR REPLACE TABLE t1 (i INT, d TIMESTAMP);
+SET timestamp=1288477526  /* this is summer time */ ;
+INSERT INTO t1 VALUES (3,NULL);
+SET timestamp=1288477526+3599 /* this is winter time*/ ;
+INSERT INTO t1 VALUES (3,NULL);
+SELECT i, d, UNIX_TIMESTAMP(d) FROM t1 ORDER BY d;
+i	d	UNIX_TIMESTAMP(d)
+3	2010-10-31 02:25:26	1288477526
+3	2010-10-31 02:25:25	1288481125
+SELECT i, MIN(d) FROM t1 GROUP BY i;
+i	MIN(d)
+3	2010-10-31 02:25:26
+SELECT i, MAX(d) FROM t1 GROUP BY i;
+i	MAX(d)
+3	2010-10-31 02:25:25
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+#
+# MDEV-20397 Support TIMESTAMP, DATETIME, TIME in ROUND() and TRUNCATE()
+#
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (i INT, d TIMESTAMP(6));
+SET timestamp=1288479599.999999  /* this is the last second in summer time */ ;
+INSERT INTO t1 VALUES (1,NULL);
+SET timestamp=1288479600.000000 /* this is the first second in winter time */ ;
+INSERT INTO t1 VALUES (2,NULL);
+SELECT i, d, UNIX_TIMESTAMP(d) FROM t1 ORDER BY d;
+i	d	UNIX_TIMESTAMP(d)
+1	2010-10-31 02:59:59.999999	1288479599.999999
+2	2010-10-31 02:00:00.000000	1288479600.000000
+CREATE TABLE t2 (i INT, d TIMESTAMP, expected_unix_timestamp INT UNSIGNED);
+INSERT INTO t2 SELECT i, ROUND(d) AS d, ROUND(UNIX_TIMESTAMP(d)) FROM t1;
+# UNIX_TIMESTAMP(d) and expected_unix_timestamp should return the same value.
+# Currently they do not, because ROUND(timestamp) is performed as DATETIME.
+# We should fix this eventually.
+SELECT i, d, UNIX_TIMESTAMP(d), expected_unix_timestamp FROM t2 ORDER BY i;
+i	d	UNIX_TIMESTAMP(d)	expected_unix_timestamp
+1	2010-10-31 03:00:00	1288483200	1288479600
+2	2010-10-31 02:00:00	1288476000	1288479600
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+#
 # End of 10.4 tests
 #

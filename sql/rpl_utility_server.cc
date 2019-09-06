@@ -266,48 +266,55 @@ Type_handler_olddecimal::max_display_length_for_field(const Conv_source &src)
 }
 
 
-void Type_handler::show_binlog_type(const Conv_source &src, String *str) const
+void Type_handler::show_binlog_type(const Conv_source &src, const Field &,
+                                    String *str) const
 {
   str->set_ascii(name().ptr(), name().length());
 }
 
 
 void Type_handler_var_string::show_binlog_type(const Conv_source &src,
+                                               const Field &dst,
                                                String *str) const
 {
   CHARSET_INFO *cs= str->charset();
+  const char* fmt= dst.cmp_type() != STRING_RESULT || dst.has_charset()
+    ? "char(%u octets)" : "binary(%u)";
   size_t length= cs->cset->snprintf(cs, (char*) str->ptr(),
                                     str->alloced_length(),
-                                    "varchar(%u)",
-                                    src.metadata() / src.mbmaxlen());
+                                    fmt, src.metadata());
   str->length(length);
 }
 
 
 void Type_handler_varchar::show_binlog_type(const Conv_source &src,
+                                            const Field &dst,
                                             String *str) const
 {
   CHARSET_INFO *cs= str->charset();
+  const char* fmt= dst.cmp_type() != STRING_RESULT || dst.has_charset()
+    ? "varchar(%u octets)" : "varbinary(%u)";
   size_t length= cs->cset->snprintf(cs, (char*) str->ptr(),
                                     str->alloced_length(),
-                                    "varchar(%u)",
-                                    src.metadata() / src.mbmaxlen());
+                                    fmt, src.metadata());
   str->length(length);
 }
 
 
 void Type_handler_varchar_compressed::show_binlog_type(const Conv_source &src,
+                                                       const Field &dst,
                                                        String *str) const
 {
   CHARSET_INFO *cs= str->charset();
+  const char* fmt= dst.cmp_type() != STRING_RESULT || dst.has_charset()
+    ? "varchar(%u octets) compressed" : "varbinary(%u) compressed";
   size_t length= cs->cset->snprintf(cs, (char*) str->ptr(),
                                     str->alloced_length(),
-                                    "varchar(%u) compressed",
-                                    src.metadata() / src.mbmaxlen());
+                                    fmt, src.metadata());
   str->length(length);
 }
 
-void Type_handler_bit::show_binlog_type(const Conv_source &src,
+void Type_handler_bit::show_binlog_type(const Conv_source &src, const Field &,
                                         String *str) const
 {
   CHARSET_INFO *cs= str->charset();
@@ -320,6 +327,7 @@ void Type_handler_bit::show_binlog_type(const Conv_source &src,
 
 
 void Type_handler_olddecimal::show_binlog_type(const Conv_source &src,
+                                               const Field &,
                                                String *str) const
 {
   CHARSET_INFO *cs= str->charset();
@@ -332,6 +340,7 @@ void Type_handler_olddecimal::show_binlog_type(const Conv_source &src,
 
 
 void Type_handler_newdecimal::show_binlog_type(const Conv_source &src,
+                                               const Field &,
                                                String *str) const
 {
   CHARSET_INFO *cs= str->charset();
@@ -344,6 +353,7 @@ void Type_handler_newdecimal::show_binlog_type(const Conv_source &src,
 
 
 void Type_handler_blob_compressed::show_binlog_type(const Conv_source &src,
+                                                    const Field &,
                                                     String *str) const
 {
   /*
@@ -371,6 +381,7 @@ void Type_handler_blob_compressed::show_binlog_type(const Conv_source &src,
 
 
 void Type_handler_string::show_binlog_type(const Conv_source &src,
+                                           const Field &dst,
                                            String *str) const
 {
   /*
@@ -379,9 +390,11 @@ void Type_handler_string::show_binlog_type(const Conv_source &src,
   CHARSET_INFO *cs= str->charset();
   uint bytes= (((src.metadata() >> 4) & 0x300) ^ 0x300) +
               (src.metadata() & 0x00ff);
+  const char* fmt= dst.cmp_type() != STRING_RESULT || dst.has_charset()
+    ? "char(%u octets)" : "binary(%u)";
   size_t length= cs->cset->snprintf(cs, (char*) str->ptr(),
                                     str->alloced_length(),
-                                    "char(%d)", bytes / src.mbmaxlen());
+                                    fmt, bytes);
   str->length(length);
 }
 
@@ -743,13 +756,14 @@ Field_null::rpl_conv_type_from(const Conv_source &source,
 
 /**
  */
-void show_sql_type(const Conv_source &src, String *str)
+static void show_sql_type(const Conv_source &src, const Field &dst,
+                          String *str)
 {
   DBUG_ENTER("show_sql_type");
   DBUG_ASSERT(src.type_handler() != NULL);
   DBUG_PRINT("enter", ("type: %s, metadata: 0x%x",
                        src.type_handler()->name().ptr(), src.metadata()));
-  src.type_handler()->show_binlog_type(src, str);
+  src.type_handler()->show_binlog_type(src, dst, str);
   DBUG_VOID_RETURN;
 }
 
@@ -979,8 +993,8 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
       StringBuffer<MAX_FIELD_WIDTH> target_type(&my_charset_latin1);
       THD *thd= table->in_use;
 
-      show_sql_type(source, &source_type);
-      field->sql_type(target_type);
+      show_sql_type(source, *field, &source_type);
+      field->sql_rpl_type(&target_type);
       DBUG_ASSERT(source_type.length() > 0);
       DBUG_ASSERT(target_type.length() > 0);
       rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED, rgi->gtid_info(),

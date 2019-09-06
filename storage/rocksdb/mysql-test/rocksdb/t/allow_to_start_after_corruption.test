@@ -1,6 +1,8 @@
 --source include/have_rocksdb.inc
 --source include/not_valgrind.inc
 
+--let $restart_noprint=2
+
 --echo #
 --echo #  Test how MyRocks behaves when RocksDB reports corrupted data.
 --echo #

@@ -644,11 +644,8 @@ public:
     {
       mutex_enter(&element->mutex);
       lf_hash_search_unpin(pins);
-      trx= element->trx;
-      if (!trx);
-      else if (UNIV_UNLIKELY(trx_id != trx->id))
-        trx= NULL;
-      else {
+      if ((trx= element->trx)) {
+        DBUG_ASSERT(trx_id == trx->id);
         if (do_ref_count)
           trx->reference();
         ut_d(validate_element(trx));

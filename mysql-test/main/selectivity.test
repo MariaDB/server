@@ -1,4 +1,5 @@
 --source include/have_stat_tables.inc
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
@@ -1103,4 +1104,27 @@ set @@use_stat_tables= @save_use_stat_tables;
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 drop table t1;
 drop function f1;
+
+--echo #
+--echo # MDEV-19834 Selectivity of an equality condition discounted twice
+--echo #
+set @@optimizer_use_condition_selectivity=4;
+set @@use_stat_tables='preferably';
+create table t1 (a int, b int, key (b), key (a));
+insert into t1
+select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+analyze table t1 ;
+
+--echo # Check what info the optimizer has about selectivities
+explain extended select * from t1 use index () where a in (17,51,5);
+explain extended select * from t1 use index () where b=2;
+
+--echo # Now, the equality is used for ref access, while the range condition
+--echo # gives selectivity data
+explain extended select * from t1 where a in (17,51,5) and b=2;
+drop table t1;
+
+set use_stat_tables= @save_use_stat_tables;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+--echo # End of 10.1 tests
 

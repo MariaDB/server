@@ -1820,16 +1820,13 @@ public:
   bool is_partial_fields_present;
 
   Index_prefix_calc(THD *thd, TABLE *table, KEY *key_info)
-    : index_table(table), index_info(key_info)
+    : index_table(table), index_info(key_info), prefixes(0), empty(true),
+    calc_state(NULL), is_single_comp_pk(false), is_partial_fields_present(false)
   {
     uint i;
     Prefix_calc_state *state;
     uint key_parts= table->actual_n_key_parts(key_info);
-    empty= TRUE;
-    prefixes= 0;
-    LINT_INIT_STRUCT(calc_state);
 
-    is_partial_fields_present= is_single_comp_pk= FALSE;
     uint pk= table->s->primary_key;
     if ((uint) (table->key_info - key_info) == pk &&
         table->key_info[pk].user_defined_key_parts == 1)
@@ -2133,6 +2130,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
     if ((histogram= (uchar *) alloc_root(&table->mem_root,
                                          hist_size * columns)))
       bzero(histogram, hist_size * columns);
+
   }
 
   if (!table_stats || !column_stats || !index_stats || !idx_avg_frequency ||

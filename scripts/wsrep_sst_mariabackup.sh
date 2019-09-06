@@ -60,7 +60,7 @@ rebuild=0
 rebuildcmd=""
 payload=0
 pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p' "
-pvopts="-f  -i 10 -N $WSREP_SST_OPT_ROLE "
+pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE "
 STATDIR=""
 uextra=0
 disver=""
@@ -130,7 +130,7 @@ get_keys()
 
     if [[ $encrypt -eq 0 ]];then 
         if $MY_PRINT_DEFAULTS xtrabackup | grep -q encrypt;then
-            wsrep_log_error "Unexpected option combination. SST may fail. Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html "
+            wsrep_log_error "Unexpected option combination. SST may fail. Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html"
         fi
         return
     fi
@@ -464,7 +464,7 @@ cleanup_donor()
     if [[ -n ${XTRABACKUP_PID:-} ]];then 
         if check_pid $XTRABACKUP_PID
         then
-            wsrep_log_error "xtrabackup process is still running. Killing... "
+            wsrep_log_error "xtrabackup process is still running. Killing..."
             kill_xtrabackup
         fi
 
@@ -566,7 +566,7 @@ check_extra()
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
                 wsrep_log_info "SST through extra_port $eport"
-                INNOEXTRA+=" --host=127.0.0.1 --port=$eport "
+                INNOEXTRA+=" --host=127.0.0.1 --port=$eport"
                 use_socket=0
             else 
                 wsrep_log_error "Extra port $eport null, failing"
@@ -576,8 +576,8 @@ check_extra()
             wsrep_log_info "Thread pool not set, ignore the option use_extra"
         fi
     fi
-    if [[ $use_socket -eq 1 ]] && [[ -n "${WSREP_SST_OPT_SOCKET}" ]];then
-        INNOEXTRA+=" --socket=${WSREP_SST_OPT_SOCKET}"
+    if [[ $use_socket -eq 1 ]] && [[ -n "$WSREP_SST_OPT_SOCKET" ]];then
+        INNOEXTRA+=" --socket=$WSREP_SST_OPT_SOCKET"
     fi
 }
 
@@ -697,8 +697,7 @@ if [[ ${FORCE_FTWRL:-0} -eq 1 ]];then
     iopts+=" --no-backup-locks "
 fi
 
-
-INNOEXTRA=""
+INNOEXTRA=$WSREP_SST_OPT_MYSQLD
 
 INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
 # Try to set INNODB_DATA_HOME_DIR from the command line:
@@ -706,6 +705,9 @@ if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
     INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
 fi
 # if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
+fi
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir '')
 fi
@@ -741,8 +743,8 @@ if [[ $ssyslog -eq 1 ]];then
             logger  -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@" 
         }
 
-        INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} 2>&1  | logger -p daemon.err -t ${ssystag}innobackupex-apply "
-        INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move "
+        INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-apply"
+        INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move"
         INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
     fi
 
@@ -826,9 +828,11 @@ then
             exit 93
         fi
 
-        if [[ -z $(parse_cnf --mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
+        if [[ -z $(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE tmpdir "") && \
+              -z $(parse_cnf --mysqld tmpdir "") && \
+              -z $(parse_cnf xtrabackup tmpdir "") ]]; then
             xtmpdir=$(mktemp -d)
-            tmpopts=" --tmpdir=$xtmpdir "
+            tmpopts=" --tmpdir=$xtmpdir"
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
         fi
 
@@ -850,12 +854,11 @@ then
         get_keys
         if [[ $encrypt -eq 1 ]];then
             if [[ -n $ekey ]];then
-                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key=$ekey "
+                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key=$ekey"
             else 
-                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key-file=$ekeyfile "
+                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key-file=$ekeyfile"
             fi
         fi
-
 
         check_extra
 
@@ -876,7 +879,6 @@ then
         elif [[ -n $scomp ]];then 
             tcmd=" $scomp | $tcmd "
         fi
-
 
         send_donor $DATA "${stagemsg}-gtid"
 
@@ -949,8 +951,24 @@ then
     [[ -n $SST_PROGRESS_FILE ]] && touch $SST_PROGRESS_FILE
 
     ib_home_dir=$INNODB_DATA_HOME_DIR
-    ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
-    ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
+
+    # Try to set ib_log_dir from the command line:
+    ib_log_dir=$INNODB_LOG_GROUP_HOME_ARG
+    if [ -z "$ib_log_dir" ]; then
+        ib_log_dir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-log-group-home-dir "")
+    fi
+    if [ -z "$ib_log_dir" ]; then
+        ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
+    fi
+
+    # Try to set ib_undo_dir from the command line:
+    ib_undo_dir=$INNODB_UNDO_DIR_ARG
+    if [ -z "$ib_undo_dir" ]; then
+        ib_undo_dir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-undo-directory "")
+    fi
+    if [ -z "$ib_undo_dir" ]; then
+        ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
+    fi
 
     stagemsg="Joiner-Recv"
 
@@ -1027,7 +1045,13 @@ then
             find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
 	fi
 
-        tempdir=$(parse_cnf --mysqld log-bin "")
+        tempdir=$LOG_BIN_ARG
+        if [ -z "$tempdir" ]; then
+            tempdir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE log-bin "")
+        fi
+        if [ -z "$tempdir" ]; then
+            tempdir=$(parse_cnf --mysqld log-bin "")
+        fi
         if [[ -n ${tempdir:-} ]];then
             binlog_dir=$(dirname $tempdir)
             binlog_file=$(basename $tempdir)

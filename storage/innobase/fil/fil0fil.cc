@@ -725,6 +725,7 @@ static void fil_flush_low(fil_space_t* space, bool metadata = false)
 		switch (space->purpose) {
 		case FIL_TYPE_TEMPORARY:
 			ut_ad(0); // we already checked for this
+			/* fall through */
 		case FIL_TYPE_TABLESPACE:
 		case FIL_TYPE_IMPORT:
 			fil_n_pending_tablespace_flushes++;
@@ -2927,8 +2928,6 @@ fil_ibd_create(
 	byte*		page;
 	bool		success;
 	bool		has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags) != 0;
-	fil_space_t*	space = NULL;
-	fil_space_crypt_t *crypt_data = NULL;
 
 	ut_ad(!is_system_tablespace(space_id));
 	ut_ad(!srv_read_only_mode);
@@ -3019,6 +3018,19 @@ err_exit:
 	fsp_header_init_fields(page, space_id, flags);
 	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
 
+	/* Create crypt data if the tablespace is either encrypted or user has
+	requested it to remain unencrypted. */
+	fil_space_crypt_t *crypt_data = (mode != FIL_ENCRYPTION_DEFAULT
+					 || srv_encrypt_tables)
+		? fil_space_create_crypt_data(mode, key_id)
+		: NULL;
+
+	if (crypt_data) {
+		/* Write crypt data information in page0 while creating
+		ibd file. */
+		crypt_data->fill_page0(flags, page);
+	}
+
 	if (ulint zip_size = fil_space_t::zip_size(flags)) {
 		page_zip_des_t	page_zip;
 		page_zip_set_size(&page_zip, zip_size);
@@ -3066,15 +3078,9 @@ err_exit:
 		}
 	}
 
-	/* Create crypt data if the tablespace is either encrypted or user has
-	requested it to remain unencrypted. */
-	if (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF ||
-	    srv_encrypt_tables) {
-		crypt_data = fil_space_create_crypt_data(mode, key_id);
-	}
-
-	space = fil_space_create(name, space_id, flags, FIL_TYPE_TABLESPACE,
-				 crypt_data, mode);
+	fil_space_t* space = fil_space_create(name, space_id, flags,
+					      FIL_TYPE_TABLESPACE,
+					      crypt_data, mode);
 	if (!space) {
 		free(crypt_data);
 		*err = DB_ERROR;

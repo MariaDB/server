@@ -1068,14 +1068,8 @@ buf_page_is_corrupted(
 	size_t		checksum_field2 = 0;
 	uint32_t	crc32 = 0;
 	bool		crc32_inited = false;
-	ulint		zip_size = 0;
 	bool		crc32_chksum = false;
-
-	zip_size = FSP_FLAGS_GET_ZIP_SSIZE(fsp_flags);
-	if (zip_size) {
-		zip_size = (UNIV_ZIP_SIZE_MIN >> 1) << zip_size;
-	}
-
+	const ulint zip_size = fil_space_t::zip_size(fsp_flags);
 	ulint page_type = mach_read_from_2(read_buf + FIL_PAGE_TYPE);
 
 	/* We can trust page type if page compression is set on tablespace

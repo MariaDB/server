@@ -3782,6 +3782,20 @@ my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 }
 
 
+longlong Item_null::val_datetime_packed(THD *)
+{
+  null_value= true;
+  return 0;
+}
+
+
+longlong Item_null::val_time_packed(THD *)
+{
+  null_value= true;
+  return 0;
+}
+
+
 bool Item_null::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   set_zero_time(ltime, MYSQL_TIMESTAMP_NONE);
@@ -8220,6 +8234,24 @@ bool Item_ref::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 bool Item_ref::val_native(THD *thd, Native *to)
 {
   return val_native_from_item(thd, *ref, to);
+}
+
+
+longlong Item_ref::val_datetime_packed(THD *thd)
+{
+  DBUG_ASSERT(fixed);
+  longlong tmp= (*ref)->val_datetime_packed(thd);
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
+longlong Item_ref::val_time_packed(THD *thd)
+{
+  DBUG_ASSERT(fixed);
+  longlong tmp= (*ref)->val_time_packed(thd);
+  null_value= (*ref)->null_value;
+  return tmp;
 }
 
 

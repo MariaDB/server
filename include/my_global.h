@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1037,6 +1037,19 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 #define reg16 register
 #endif
 
+/*
+  MYSQL_PLUGIN_IMPORT macro is used to export mysqld data
+  (i.e variables) for usage in storage engine loadable plugins.
+  Outside of Windows, it is dummy.
+*/
+#ifndef MYSQL_PLUGIN_IMPORT
+#if (defined(_WIN32) && defined(MYSQL_DYNAMIC_PLUGIN))
+#define MYSQL_PLUGIN_IMPORT __declspec(dllimport)
+#else
+#define MYSQL_PLUGIN_IMPORT
+#endif
+#endif
+
 #include <my_dbug.h>
 
 /* Some helper macros */
@@ -1162,19 +1175,6 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 #  define __func__ "<unknown>"
 #endif
 #endif /* !defined(__func__) */
-
-/* 
-  MYSQL_PLUGIN_IMPORT macro is used to export mysqld data
-  (i.e variables) for usage in storage engine loadable plugins.
-  Outside of Windows, it is dummy.
-*/
-#ifndef MYSQL_PLUGIN_IMPORT
-#if (defined(_WIN32) && defined(MYSQL_DYNAMIC_PLUGIN))
-#define MYSQL_PLUGIN_IMPORT __declspec(dllimport)
-#else
-#define MYSQL_PLUGIN_IMPORT
-#endif
-#endif
 
 /* Defines that are unique to the embedded version of MySQL */
 

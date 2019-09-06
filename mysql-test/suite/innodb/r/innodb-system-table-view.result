@@ -1,3 +1,5 @@
+SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SELECT table_id INTO @table_stats_id FROM information_schema.innodb_sys_tables
 WHERE name = 'mysql/innodb_table_stats';
 SELECT table_id INTO @index_stats_id FROM information_schema.innodb_sys_tables
@@ -108,6 +110,7 @@ SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS;
 ID	FOR_COL_NAME	REF_COL_NAME	POS
 test/constraint_test	parent_id	id	0
 INSERT INTO parent VALUES(1);
+InnoDB		0 transactions not purged
 SELECT name, num_rows, ref_count
 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name LIKE "%parent";
@@ -169,6 +172,7 @@ INSERT INTO parent VALUES(1, 9);
 SELECT * FROM parent WHERE id IN (SELECT id FROM parent);
 id	newid
 1	9
+InnoDB		0 transactions not purged
 SELECT name, num_rows, ref_count
 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name LIKE "%parent";
@@ -176,3 +180,4 @@ name	num_rows	ref_count
 test/parent	1	2
 DROP TABLE child;
 DROP TABLE parent;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

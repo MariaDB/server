@@ -266,7 +266,7 @@ dict_table_try_drop_aborted(
 
 	if (table == NULL) {
 		table = dict_table_open_on_id_low(
-			table_id, DICT_ERR_IGNORE_NONE, FALSE);
+			table_id, DICT_ERR_IGNORE_FK_NOKEY, FALSE);
 	} else {
 		ut_ad(table->id == table_id);
 	}
@@ -750,7 +750,7 @@ dict_table_open_on_id(
 		table_id,
 		table_op == DICT_TABLE_OP_LOAD_TABLESPACE
 		? DICT_ERR_IGNORE_RECOVER_LOCK
-		: DICT_ERR_IGNORE_NONE,
+		: DICT_ERR_IGNORE_FK_NOKEY,
 		table_op == DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
 
 	if (table != NULL) {
@@ -896,7 +896,7 @@ dict_table_open_on_name(
 	if (table != NULL) {
 
 		/* If table is encrypted or corrupted */
-		if (ignore_err == DICT_ERR_IGNORE_NONE
+		if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY)
 		    && !table->is_readable()) {
 			/* Make life easy for drop table. */
 			dict_sys.prevent_eviction(table);
@@ -2764,11 +2764,6 @@ dict_index_build_internal_fts(
 }
 /*====================== FOREIGN KEY PROCESSING ========================*/
 
-#define  DB_FOREIGN_KEY_IS_PREFIX_INDEX 200
-#define  DB_FOREIGN_KEY_COL_NOT_NULL    201
-#define  DB_FOREIGN_KEY_COLS_NOT_EQUAL  202
-#define  DB_FOREIGN_KEY_INDEX_NOT_FOUND 203
-
 /** Check whether the dict_table_t is a partition.
 A partitioned table on the SQL level is composed of InnoDB tables,
 where each InnoDB table is a [sub]partition including its secondary indexes
@@ -2875,7 +2870,7 @@ dict_foreign_find_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
-	ulint*			error,	/*!< out: error code */
+	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
 					error happened */
@@ -2883,17 +2878,15 @@ dict_foreign_find_index(
 					/*!< out: index where error
 					happened */
 {
-	dict_index_t*	index;
-
 	ut_ad(mutex_own(&dict_sys.mutex));
 
 	if (error) {
-		*error = DB_FOREIGN_KEY_INDEX_NOT_FOUND;
+		*error = FK_INDEX_NOT_FOUND;
 	}
 
-	index = dict_table_get_first_index(table);
-
-	while (index != NULL) {
+	for (dict_index_t* index = dict_table_get_first_index(table);
+	     index;
+	     index = dict_table_get_next_index(index)) {
 		if (types_idx != index
 		    && !index->to_be_dropped
 		    && !dict_index_is_online_ddl(index)
@@ -2901,42 +2894,17 @@ dict_foreign_find_index(
 			    table, col_names, columns, n_cols,
 			    index, types_idx,
 			    check_charsets, check_null,
-			    error, err_col_no,err_index)) {
+			    error, err_col_no, err_index)) {
 			if (error) {
-				*error = DB_SUCCESS;
+				*error = FK_SUCCESS;
 			}
 
 			return(index);
 		}
-
-		index = dict_table_get_next_index(index);
 	}
 
 	return(NULL);
 }
-#ifdef WITH_WSREP
-dict_index_t*
-wsrep_dict_foreign_find_index(
-/*====================*/
-	dict_table_t*	table,	/*!< in: table */
-	const char**	col_names, /*!< in: column names, or NULL
-					to use table->col_names */
-	const char**	columns,/*!< in: array of column names */
-	ulint		n_cols,	/*!< in: number of columns */
-	dict_index_t*	types_idx, /*!< in: NULL or an index to whose types the
-				   column types must match */
-	ibool		check_charsets,
-				/*!< in: whether to check charsets.
-				only has an effect if types_idx != NULL */
-	ulint		check_null)
-				/*!< in: nonzero if none of the columns must
-				be declared NOT NULL */
-{
-	return dict_foreign_find_index(
-		table, col_names, columns, n_cols, types_idx, check_charsets,
-		check_null, NULL, NULL, NULL);
-}
-#endif /* WITH_WSREP */
 /**********************************************************************//**
 Report an error in a foreign key definition. */
 static
@@ -3033,15 +3001,11 @@ dict_foreign_add_to_cache(
 	}
 
 	if (ref_table && !for_in_cache->referenced_table) {
-		ulint index_error;
-		ulint err_col;
-		dict_index_t *err_index=NULL;
-
 		index = dict_foreign_find_index(
 			ref_table, NULL,
 			for_in_cache->referenced_col_names,
 			for_in_cache->n_fields, for_in_cache->foreign_index,
-			check_charsets, false, &index_error, &err_col, &err_index);
+			check_charsets, false);
 
 		if (index == NULL
 		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
@@ -3073,10 +3037,6 @@ dict_foreign_add_to_cache(
 	}
 
 	if (for_table && !for_in_cache->foreign_table) {
-		ulint index_error;
-		ulint err_col;
-		dict_index_t *err_index=NULL;
-
 		index = dict_foreign_find_index(
 			for_table, col_names,
 			for_in_cache->foreign_col_names,
@@ -3084,8 +3044,7 @@ dict_foreign_add_to_cache(
 			for_in_cache->referenced_index, check_charsets,
 			for_in_cache->type
 			& (DICT_FOREIGN_ON_DELETE_SET_NULL
-				| DICT_FOREIGN_ON_UPDATE_SET_NULL),
-			&index_error, &err_col, &err_index);
+			   | DICT_FOREIGN_ON_UPDATE_SET_NULL));
 
 		if (index == NULL
 		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
@@ -3797,7 +3756,7 @@ dict_foreign_push_index_error(
 	const char*	latest_foreign,	/*!< in: start of latest foreign key
 					constraint name */
 	const char**	columns,	/*!< in: foreign key columns */
-	ulint		index_error,	/*!< in: error code */
+	fkerr_t		index_error,	/*!< in: error code */
 	ulint		err_col,	/*!< in: column where error happened
 					*/
 	dict_index_t*	err_index,	/*!< in: index where error happened
@@ -3806,37 +3765,37 @@ dict_foreign_push_index_error(
 	FILE*		ef)		/*!< in: output stream */
 {
 	switch (index_error) {
-	case DB_FOREIGN_KEY_INDEX_NOT_FOUND: {
+	case FK_SUCCESS:
+		break;
+	case FK_INDEX_NOT_FOUND:
 		fprintf(ef,
-			"%s table '%s' with foreign key constraint"
+			"%s table %s with foreign key constraint"
 			" failed. There is no index in the referenced"
 			" table where the referenced columns appear"
 			" as the first columns near '%s'.\n",
 			operation, create_name, latest_foreign);
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
-			"%s table '%s' with foreign key constraint"
+			"%s table %s with foreign key constraint"
 			" failed. There is no index in the referenced"
 			" table where the referenced columns appear"
 			" as the first columns near '%s'.",
 			operation, create_name, latest_foreign);
-		break;
-	}
-	case DB_FOREIGN_KEY_IS_PREFIX_INDEX: {
+		return;
+	case FK_IS_PREFIX_INDEX:
 		fprintf(ef,
-			"%s table '%s' with foreign key constraint"
+			"%s table %s with foreign key constraint"
 			" failed. There is only prefix index in the referenced"
 			" table where the referenced columns appear"
 			" as the first columns near '%s'.\n",
 			operation, create_name, latest_foreign);
 		ib_push_warning(trx, DB_CANNOT_ADD_CONSTRAINT,
-			"%s table '%s' with foreign key constraint"
+			"%s table %s with foreign key constraint"
 			" failed. There is only prefix index in the referenced"
 			" table where the referenced columns appear"
 			" as the first columns near '%s'.",
 			operation, create_name, latest_foreign);
-		break;
-	}
-	case DB_FOREIGN_KEY_COL_NOT_NULL: {
+		return;
+	case FK_COL_NOT_NULL:
 		fprintf(ef,
 			"%s table %s with foreign key constraint"
 			" failed. You have defined a SET NULL condition but "
@@ -3847,9 +3806,8 @@ dict_foreign_push_index_error(
 			" failed. You have defined a SET NULL condition but "
 			"column '%s' on index is defined as NOT NULL near '%s'.",
 			operation, create_name, columns[err_col], latest_foreign);
-		break;
-	}
-	case DB_FOREIGN_KEY_COLS_NOT_EQUAL: {
+		return;
+	case FK_COLS_NOT_EQUAL:
 		dict_field_t*	field;
 		const char*	col_name;
 		field = dict_index_get_nth_field(err_index, err_col);
@@ -3868,11 +3826,9 @@ dict_foreign_push_index_error(
 			" failed. Field type or character set for column '%s' "
 			"does not mach referenced column '%s' near '%s'.",
 			operation, create_name, columns[err_col], col_name, latest_foreign);
-		break;
+		return;
 	}
-	default:
-		ut_error;
-	}
+	DBUG_ASSERT(!"unknown error");
 }
 
 /*********************************************************************//**
@@ -3904,7 +3860,7 @@ dict_create_foreign_constraints_low(
 	const char*	start_of_latest_foreign	= sql_string;
 	const char*	start_of_latest_set     = NULL;
 	FILE*		ef			= dict_foreign_err_file;
-	ulint		index_error		= DB_SUCCESS;
+	fkerr_t		index_error		= FK_SUCCESS;
 	dict_index_t*	err_index		= NULL;
 	ulint		err_col;
 	const char*	constraint_name;
@@ -6247,7 +6203,7 @@ dict_foreign_qualify_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
-	ulint*			error,	/*!< out: error code */
+	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
 					error happened */
@@ -6275,7 +6231,7 @@ dict_foreign_qualify_index(
 			/* We do not accept column prefix
 			indexes here */
 			if (error && err_col_no && err_index) {
-				*error = DB_FOREIGN_KEY_IS_PREFIX_INDEX;
+				*error = FK_IS_PREFIX_INDEX;
 				*err_col_no = i;
 				*err_index = (dict_index_t*)index;
 			}
@@ -6285,7 +6241,7 @@ dict_foreign_qualify_index(
 		if (check_null
 		    && (field->col->prtype & DATA_NOT_NULL)) {
 			if (error && err_col_no && err_index) {
-				*error = DB_FOREIGN_KEY_COL_NOT_NULL;
+				*error = FK_COL_NOT_NULL;
 				*err_col_no = i;
 				*err_index = (dict_index_t*)index;
 			}
@@ -6315,7 +6271,7 @@ dict_foreign_qualify_index(
 			    dict_index_get_nth_col(types_idx, i),
 			    check_charsets)) {
 			if (error && err_col_no && err_index) {
-				*error = DB_FOREIGN_KEY_COLS_NOT_EQUAL;
+				*error = FK_COLS_NOT_EQUAL;
 				*err_col_no = i;
 				*err_index = (dict_index_t*)index;
 			}

@@ -73,6 +73,10 @@ ELSE(NOT UNIX)
   tabwmi.cpp tabwmi.h tabmac.cpp tabmac.h macutil.cpp macutil.h)
   # Add exception handling to the CONNECT project)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+  SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
+  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
+  SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MD")
+  SET(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /MD")
   SET(IPHLPAPI_LIBRARY iphlpapi.lib)
   IF(MSVC AND (CMAKE_CXX_COMPILER_ID MATCHES Clang))
     # Connect does not work with clang-cl
@@ -308,6 +312,30 @@ ENDIF(CONNECT_WITH_MONGO)
 
 
 #
+# REST
+#
+
+OPTION(CONNECT_WITH_REST "Compile CONNECT storage engine with REST support" ON)
+
+IF(CONNECT_WITH_REST)
+  MESSAGE(STATUS "=====> REST support is ON")
+  FIND_PACKAGE(cpprestsdk)
+  IF (cpprestsdk_FOUND)
+    MESSAGE(STATUS "=====> cpprestsdk found")
+	IF(UNIX)
+#     INCLUDE_DIRECTORIES(${CPPRESTSDK_INCLUDE_DIR})
+#     If needed edit next line to set the path to libcpprest.so
+      SET(REST_LIBRARY -lcpprest)
+      MESSAGE (STATUS ${REST_LIBRARY})
+	ENDIF(UNIX)
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp restget.cpp tabrest.h)
+    add_definitions(-DREST_SUPPORT)
+  ELSE(NOT cpprestsdk_FOUND)
+    MESSAGE(STATUS "=====> cpprestsdk package not found")
+  ENDIF (cpprestsdk_FOUND)
+ENDIF(CONNECT_WITH_REST)
+
+#
 # XMAP
 #
 
@@ -326,7 +354,7 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   COMPONENT connect-engine
   RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
-    ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY})
+    ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY} ${REST_LIBRARY})
 
 IF(NOT TARGET connect)
   RETURN()
@@ -334,7 +362,7 @@ ENDIF()
 
 IF(MSVC AND (CMAKE_CXX_FLAGS MATCHES "/MP"))
   # domdoc.cpp uses compiler directive #import which is not compatible
-  # with the /MP option, resulting in  compiler error C2813.´
+  # with the /MP option, resulting in  compiler error C2813.
   # Remove /MP for this file.
   SET(src_list ${CONNECT_SOURCES})
   LIST(FIND src_list  domdoc.cpp idx)
@@ -347,8 +375,8 @@ ENDIF()
 
 IF(WIN32)
   IF (libmongoc-1.0_FOUND)
-	  SET_TARGET_PROPERTIES(connect PROPERTIES LINK_FLAGS
-	    "/DELAYLOAD:libbson-1.0.dll /DELAYLOAD:libmongoc-1.0.dll")
+    SET_TARGET_PROPERTIES(connect PROPERTIES LINK_FLAGS
+      "/DELAYLOAD:libbson-1.0.dll /DELAYLOAD:libmongoc-1.0.dll")
   ENDIF(libmongoc-1.0_FOUND)
 
 # Install some extra files that belong to connect engine
@@ -377,3 +405,4 @@ IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
     ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
     DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
 ENDIF()
+

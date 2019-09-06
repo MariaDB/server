@@ -3089,24 +3089,72 @@ void Item_sum_min_max::update_field()
     tmp_item= args[0];
     args[0]= direct_item;
   }
-  switch (result_type()) {
-  case STRING_RESULT:
-    min_max_update_str_field();
-    break;
-  case INT_RESULT:
-    min_max_update_int_field();
-    break;
-  case DECIMAL_RESULT:
-    min_max_update_decimal_field();
-    break;
-  default:
-    min_max_update_real_field();
+  if (Item_sum_min_max::type_handler()->is_val_native_ready())
+  {
+    /*
+      TODO-10.5: change Item_sum_min_max to use val_native() for all data types
+      - make all type handlers val_native() ready
+      - use min_max_update_native_field() for all data types
+      - remove Item_sum_min_max::min_max_update_{str|real|int|decimal}_field()
+    */
+    min_max_update_native_field();
+  }
+  else
+  {
+    switch (Item_sum_min_max::type_handler()->cmp_type()) {
+    case STRING_RESULT:
+    case TIME_RESULT:
+      min_max_update_str_field();
+      break;
+    case INT_RESULT:
+      min_max_update_int_field();
+      break;
+    case DECIMAL_RESULT:
+      min_max_update_decimal_field();
+      break;
+    default:
+      min_max_update_real_field();
+    }
   }
   if (unlikely(direct_added))
   {
     direct_added= FALSE;
     args[0]= tmp_item;
   }
+  DBUG_VOID_RETURN;
+}
+
+
+void Arg_comparator::min_max_update_field_native(THD *thd,
+                                                 Field *field,
+                                                 Item *item,
+                                                 int cmp_sign)
+{
+  DBUG_ENTER("Arg_comparator::min_max_update_field_native");
+  if (!item->val_native(current_thd, &m_native2))
+  {
+    if (field->is_null())
+      field->store_native(m_native2); // The first non-null value
+    else
+    {
+      field->val_native(&m_native1);
+      if ((cmp_sign * m_compare_handler->cmp_native(m_native2, m_native1)) < 0)
+        field->store_native(m_native2);
+    }
+    field->set_notnull();
+  }
+  DBUG_VOID_RETURN;
+}
+
+
+void
+Item_sum_min_max::min_max_update_native_field()
+{
+  DBUG_ENTER("Item_sum_min_max::min_max_update_native_field");
+  DBUG_ASSERT(cmp);
+  DBUG_ASSERT(type_handler_for_comparison() == cmp->compare_type_handler());
+  THD *thd= current_thd;
+  cmp->min_max_update_field_native(thd, result_field, args[0], cmp_sign);
   DBUG_VOID_RETURN;
 }
 

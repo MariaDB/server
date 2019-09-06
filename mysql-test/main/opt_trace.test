@@ -536,4 +536,35 @@ explain select * from t0 A, one_k B where A.a=B.b and B.a<800;
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 drop table t0, one_k;
 
+--echo #
+--echo # Assertion `to_len >= 8' failed in convert_to_printable
+--echo #
+
+CREATE TABLE t1 ( a blob, KEY (a(255)));
+insert into t1 values ('foo'), ('bar');
+
+EXPLAIN SELECT * FROM t1 WHERE a= REPEAT('a', 0);
+SELECT * FROM t1 WHERE a= REPEAT('a', 0);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test for Semi-Join table pullout element
+--echo #
+create table t1 (a int primary key, b int);
+insert into t1 (a) values (1),(2),(3),(4),(5);
+
+create table t2 (a int primary key, b int);
+insert into t2 (a) values (1),(2),(3),(4),(5);
+
+create table t3 (a int);
+insert into t3 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+explain 
+select * from t3 where (a,a) in (select t1.a, t2.a from t1, t2 where t1.b=t2.b);
+
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.semijoin_table_pullout')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+drop table t1,t2,t3;
 set optimizer_trace='enabled=off';

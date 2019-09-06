@@ -2251,6 +2251,7 @@ static void wsrep_close_thread(THD *thd)
 {
   thd->set_killed(KILL_CONNECTION);
   MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
   if (thd->mysys_var)
   {
     thd->mysys_var->abort=1;
@@ -2263,6 +2264,7 @@ static void wsrep_close_thread(THD *thd)
     }
     mysql_mutex_unlock(&thd->mysys_var->mutex);
   }
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
 static my_bool have_committing_connections(THD *thd, void *)
@@ -2659,7 +2661,8 @@ void* start_wsrep_THD(void *arg)
   /* now that we've called my_thread_init(), it is safe to call DBUG_* */
 
   thd->thread_stack= (char*) &thd;
-  if (thd->store_globals())
+  wsrep_assign_from_threadvars(thd);
+  if (wsrep_store_threadvars(thd))
   {
     close_connection(thd, ER_OUT_OF_RESOURCES);
     statistic_increment(aborted_connects,&LOCK_status);
@@ -2697,18 +2700,16 @@ void* start_wsrep_THD(void *arg)
 
   WSREP_DEBUG("wsrep system thread %llu, %p starting",
               thd->thread_id, thd);
-  thd_args->fun()(thd, thd_args->args());
+  thd_args->fun()(thd, static_cast<void *>(thd_args));
 
   WSREP_DEBUG("wsrep system thread: %llu, %p closing",
               thd->thread_id, thd);
 
   /* Wsrep may reset globals during thread context switches, store globals
      before cleanup. */
-  thd->store_globals();
+  wsrep_store_threadvars(thd);
 
   close_connection(thd, 0);
-
-  delete thd_args;
 
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
   DBUG_ASSERT(wsrep_running_threads > 0);
@@ -2728,6 +2729,7 @@ void* start_wsrep_THD(void *arg)
       break;
   }
 
+  delete thd_args;
   WSREP_DEBUG("wsrep running threads now: %lu", wsrep_running_threads);
   mysql_cond_broadcast(&COND_wsrep_slave_threads);
   mysql_mutex_unlock(&LOCK_wsrep_slave_threads);

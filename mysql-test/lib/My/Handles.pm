@@ -32,8 +32,8 @@ if (IS_WINDOWS){
   my $list= `handle.exe -? -accepteula 2>&1`;
   foreach my $line (split('\n', $list))
   {
-    $handle_exe= "$1.$2"
-      if ($line =~ /Handle v([0-9]*)\.([0-9]*)/);
+    $handle_exe= "$2.$3"
+      if ($line =~ /(Nth|H)andle v([0-9]*)\.([0-9]*)/);
   }
   if ($handle_exe){
     print "Found handle.exe version $handle_exe\n";

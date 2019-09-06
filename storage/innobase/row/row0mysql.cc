@@ -1419,11 +1419,13 @@ row_insert_for_mysql(
 					  &blob_heap);
 
 	if (ins_mode != ROW_INS_NORMAL) {
+#ifndef DBUG_OFF
 		ut_ad(table->vers_start != table->vers_end);
 		const mysql_row_templ_t* t
 		    = prebuilt->get_template_by_col(table->vers_end);
 		ut_ad(t);
 		ut_ad(t->mysql_col_len == 8);
+#endif
 
 		if (ins_mode == ROW_INS_HISTORICAL) {
 			set_tuple_col_8(node->row, table->vers_end, trx->id,
@@ -1431,9 +1433,11 @@ row_insert_for_mysql(
 		} else /* ROW_INS_VERSIONED */ {
 			set_tuple_col_8(node->row, table->vers_end, TRX_ID_MAX,
 					node->vers_end_buf);
+#ifndef DBUG_OFF
 			t = prebuilt->get_template_by_col(table->vers_start);
 			ut_ad(t);
 			ut_ad(t->mysql_col_len == 8);
+#endif
 			set_tuple_col_8(node->row, table->vers_start, trx->id,
 					node->vers_start_buf);
 		}
@@ -2878,7 +2882,7 @@ row_discard_tablespace_begin(
 	dict_table_t*	table;
 
 	table = dict_table_open_on_name(
-		name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
+		name, TRUE, FALSE, DICT_ERR_IGNORE_FK_NOKEY);
 
 	if (table) {
 		dict_stats_wait_bg_to_stop_using_table(table, trx);
@@ -3262,7 +3266,7 @@ row_drop_table_from_cache(
 
 	dict_sys.remove(table);
 
-	if (dict_load_table(tablename, true, DICT_ERR_IGNORE_NONE)) {
+	if (dict_load_table(tablename, true, DICT_ERR_IGNORE_FK_NOKEY)) {
 		ib::error() << "Not able to remove table "
 			<< ut_get_name(trx, tablename)
 			<< " from the dictionary cache!";
@@ -4174,7 +4178,7 @@ row_rename_table_for_mysql(
 	dict_locked = trx->dict_operation_lock_mode == RW_X_LATCH;
 
 	table = dict_table_open_on_name(old_name, dict_locked, FALSE,
-					DICT_ERR_IGNORE_NONE);
+					DICT_ERR_IGNORE_FK_NOKEY);
 
 	/* We look for pattern #P# to see if the table is partitioned
 	MySQL table. */
@@ -4222,7 +4226,7 @@ row_rename_table_for_mysql(
 			par_case_name, old_name, FALSE);
 #endif
 		table = dict_table_open_on_name(par_case_name, dict_locked, FALSE,
-					DICT_ERR_IGNORE_NONE);
+						DICT_ERR_IGNORE_FK_NOKEY);
 	}
 
 	if (!table) {
