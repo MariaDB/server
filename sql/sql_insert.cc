@@ -1082,11 +1082,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
       }
       thd->decide_logging_format_low(table);
 
-	  if (result  &&  result->send_data(thd->lex->returning_list) < 0)
-	  {
-		  error = 1;
-		  break;
-	  }
 #ifndef EMBEDDED_LIBRARY
       if (lock_type == TL_WRITE_DELAYED)
       {
