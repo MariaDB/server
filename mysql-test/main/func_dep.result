@@ -4395,13 +4395,16 @@ FROM t1 LEFT JOIN (
 SELECT t2.c,COALESCE(t2.c,2) as x FROM t2) AS d
 ON 1
 GROUP BY d.c;
-ERROR 42000: Non-grouping field 'x' is used in SELECT list
+c	x
+NULL	2
+2	2
 SELECT d.c,d.x
 FROM t1 LEFT JOIN (
 SELECT t2.c,COALESCE(t2.c,2) as x FROM t2) AS d
 ON 0
 GROUP BY d.c;
-ERROR 42000: Non-grouping field 'x' is used in SELECT list
+c	x
+NULL	NULL
 SELECT t1.a,d.c,d.x
 FROM t1 LEFT JOIN (
 SELECT t2.c,COALESCE(t2.c,2) as x FROM t2) AS d

@@ -825,7 +825,9 @@ bool expand_fdfs_with_join_tables_fields(FD_select_info *sl_info,
     TABLE_LIST *tbl= dep_tabs.elem(i);
     if (!tbl->on_expr)
       continue;
-    if (tbl->nested_join && expand_fdfs_with_join_tables_fields(sl_info, tbl))
+    if (tbl->nested_join &&
+        (tbl->nested_join->join_list.elements > 1) &&
+        expand_fdfs_with_join_tables_fields(sl_info, tbl))
       return true;
     else if (tbl->table)
     {
@@ -902,7 +904,7 @@ bool expand_fdfs_with_top_join_tables_fields(FD_select_info *sl_info)
     TABLE_LIST *tbl= dep_tabs.elem(i);
     if (!tbl->on_expr)
       continue;
-    if (tbl->nested_join)
+    if (tbl->nested_join && (tbl->nested_join->join_list.elements > 1))
     {
       if (tbl->outer_join & JOIN_TYPE_LEFT)
         sl_info->top_level= false;
