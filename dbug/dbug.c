@@ -2258,6 +2258,11 @@ static int default_my_dbug_sanity(void)
   return 0;
 }
 
+extern my_bool my_assert;
+my_bool _db_my_assert(void)
+{
+  return my_assert;
+}
 #else
 
 /*

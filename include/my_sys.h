@@ -266,7 +266,7 @@ extern ulong    my_sync_count;
 extern uint	mysys_usage_id;
 extern int32    my_file_opened;
 extern my_bool	my_init_done, my_thr_key_mysys_exists;
-extern MYSQL_PLUGIN_IMPORT my_bool my_assert;
+extern my_bool my_assert;
 extern my_bool  my_assert_on_error;
 extern myf      my_global_flags;        /* Set to MY_WME for more error messages */
 					/* Point to current my_message() */
