@@ -308,6 +308,7 @@ TP_connection_win::~TP_connection_win()
 
   if (timer)
   {
+    SetThreadpoolTimer(timer, 0, 0, 0);
     WaitForThreadpoolTimerCallbacks(timer, TRUE);
     CloseThreadpoolTimer(timer);
   }
