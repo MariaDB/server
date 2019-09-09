@@ -4241,23 +4241,6 @@ ibuf_delete_rec(
 	ut_ad(ibuf_rec_get_page_no(mtr, btr_pcur_get_rec(pcur)) == page_no);
 	ut_ad(ibuf_rec_get_space(mtr, btr_pcur_get_rec(pcur)) == space);
 
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-	if (ibuf_debug == 2) {
-		/* Inject a fault (crash). We do this before trying
-		optimistic delete, because a pessimistic delete in the
-		change buffer would require a larger test case. */
-
-		/* Flag the buffered record as processed, to avoid
-		an assertion failure after crash recovery. */
-		btr_cur_set_deleted_flag_for_ibuf(
-			btr_pcur_get_rec(pcur), NULL, TRUE, mtr);
-
-		ibuf_mtr_commit(mtr);
-		log_write_up_to(LSN_MAX, true);
-		DBUG_SUICIDE();
-	}
-#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
-
 	success = btr_cur_optimistic_delete(btr_pcur_get_btr_cur(pcur),
 					    0, mtr);
 
