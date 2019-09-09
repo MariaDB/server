@@ -109,7 +109,7 @@ ENDIF()
 # Enable InnoDB's UNIV_DEBUG in debug builds
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DUNIV_DEBUG")
 
-OPTION(WITH_INNODB_AHI "Include innodb_adaptive_hash_index" ON)
+OPTION(WITH_INNODB_AHI "Include innodb_adaptive_hash_index" OFF)
 OPTION(WITH_INNODB_ROOT_GUESS "Cache index root block descriptors" ON)
 IF(WITH_INNODB_AHI)
   ADD_DEFINITIONS(-DBTR_CUR_HASH_ADAPT -DBTR_CUR_ADAPT)

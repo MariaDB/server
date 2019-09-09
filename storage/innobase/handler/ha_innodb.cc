@@ -193,6 +193,12 @@ static ulong	innodb_flush_method;
 static char* innodb_file_format;
 /** Deprecated; no effect other than issuing a deprecation warning. */
 static char* innodb_large_prefix;
+#ifndef BTR_CUR_HASH_ADAPT
+/** Deprecated; no effect other than issuing a deprecation warning. */
+static char* innodb_ahi;
+/** Deprecated; no effect other than issuing a deprecation warning. */
+static char* innodb_ahi_parts;
+#endif /* !BTR_CUR_HASH_ADAPT */
 
 /* This variable can be set in the server configure file, specifying
 stopword table to be used */
@@ -3576,6 +3582,16 @@ static int innodb_init_params()
 				  " See https://mariadb.com/kb/en/library/"
 				  "xtradbinnodb-file-format/", p);
 	}
+
+#ifndef BTR_CUR_HASH_ADAPT
+	if (innodb_ahi || innodb_ahi_parts) {
+		const char* p = innodb_ahi ? "adaptive_hash_index"
+			: "adaptive_hash_index_parts";
+		sql_print_warning("The parameter innodb_%s is deprecated"
+				  " and has no effect."
+				  " It may be removed in future releases.", p);
+	}
+#endif
 
 	/* Check that values don't overflow on 32-bit systems. */
 	if (sizeof(ulint) == 4) {
@@ -18582,6 +18598,14 @@ static MYSQL_SYSVAR_STR(file_format, innodb_file_format,
 static MYSQL_SYSVAR_STR(large_prefix, innodb_large_prefix,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   innodb_deprecated_ignored, NULL, NULL, NULL);
+#ifndef BTR_CUR_HASH_ADAPT
+static MYSQL_SYSVAR_STR(adaptive_hash_index, innodb_ahi,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  innodb_deprecated_ignored, NULL, NULL, NULL);
+static MYSQL_SYSVAR_STR(adaptive_hash_index_parts, innodb_ahi_parts,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  innodb_deprecated_ignored, NULL, NULL, NULL);
+#endif /* !BTR_CUR_HASH_ADAPT */
 
 static MYSQL_SYSVAR_BOOL(force_load_corrupted, srv_load_corrupted,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
@@ -19666,10 +19690,10 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(stats_auto_recalc),
   MYSQL_SYSVAR(stats_modified_counter),
   MYSQL_SYSVAR(stats_traditional),
-#ifdef BTR_CUR_HASH_ADAPT
+#if 1 /* defined BTR_CUR_HASH_ADAPT */
   MYSQL_SYSVAR(adaptive_hash_index),
   MYSQL_SYSVAR(adaptive_hash_index_parts),
-#endif /* BTR_CUR_HASH_ADAPT */
+#endif
   MYSQL_SYSVAR(stats_method),
   MYSQL_SYSVAR(replication_delay),
   MYSQL_SYSVAR(status_file),

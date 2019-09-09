@@ -1,4 +1,3 @@
-set global innodb_adaptive_hash_index=ON;
 select @@innodb_buffer_pool_size;
 @@innodb_buffer_pool_size
 8388608
@@ -22,7 +21,6 @@ select @@innodb_buffer_pool_size;
 select count(val) from t1;
 count(val)
 262144
-set global innodb_adaptive_hash_index=OFF;
 set global innodb_buffer_pool_size = 25165824;
 select @@innodb_buffer_pool_size;
 @@innodb_buffer_pool_size

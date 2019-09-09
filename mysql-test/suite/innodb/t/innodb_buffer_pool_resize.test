@@ -13,15 +13,12 @@ let $wait_condition =
 
 --disable_query_log
 set @old_innodb_buffer_pool_size = @@innodb_buffer_pool_size;
-set @old_innodb_adaptive_hash_index = @@innodb_adaptive_hash_index;
 if (`select (version() like '%debug%') > 0`)
 {
     set @old_innodb_disable_resize = @@innodb_disable_resize_buffer_pool_debug;
     set global innodb_disable_resize_buffer_pool_debug = OFF;
 }
 --enable_query_log
-
-set global innodb_adaptive_hash_index=ON;
 
 select @@innodb_buffer_pool_size;
 
@@ -50,8 +47,6 @@ select @@innodb_buffer_pool_size;
 
 select count(val) from t1;
 
-set global innodb_adaptive_hash_index=OFF;
-
 # Expand buffer pool to 24MB
 set global innodb_buffer_pool_size = 25165824;
 --source include/wait_condition.inc
@@ -64,7 +59,6 @@ drop table t1;
 drop view view0;
 
 --disable_query_log
-set global innodb_adaptive_hash_index = @old_innodb_adaptive_hash_index;
 set global innodb_buffer_pool_size = @old_innodb_buffer_pool_size;
 if (`select (version() like '%debug%') > 0`)
 {

@@ -26,6 +26,11 @@
 --source include/have_binlog_format_statement.inc
 --source include/master-slave.inc
 
+if (!`select @@GLOBAL.innodb_adaptive_hash_index`)
+{
+  --skip Need innodb_adaptive_hash_index
+}
+
 create table t1 (a int) engine=innodb;
 create table t2 (b longblob) engine=innodb;
 create table t3 (c int) engine=innodb;

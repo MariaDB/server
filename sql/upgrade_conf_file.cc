@@ -41,6 +41,8 @@ static const char *removed_variables[] =
 "have_ndbcluster",
 "have_partitioning",
 "innodb_adaptive_flushing_method",
+"innodb_adaptive_hash_index",
+"innodb_adaptive_hash_index_parts",
 "innodb_adaptive_hash_index_partitions",
 "innodb_additional_mem_pool_size",
 "innodb_api_bk_commit_interval",
