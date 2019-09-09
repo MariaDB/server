@@ -1842,7 +1842,14 @@ public:
    }
    virtual void update_is_deterministic() {}
    virtual bool is_deterministic() { return true; }
-   virtual bool deterministic_args() { return true; }
+   /*
+     TRUE if item argument is deterministic or doesn't make this
+     expression non-deterministic.
+   */
+   virtual bool is_arg_deterministic(Item **item)
+   { return (*item)->is_deterministic(); }
+   virtual bool lead_to_deterministic_result()
+   { return is_deterministic(); }
 
   /*========= Item processors, to be used with Item::walk() ========*/
   virtual bool remove_dependence_processor(void *arg) { return 0; }
@@ -3541,7 +3548,12 @@ public:
   { return field ? 0 : cleanup_processor(arg); }
   bool cleanup_excluding_const_fields_processor(void *arg)
   { return field && const_item() ? 0 : cleanup_processor(arg); }
-  bool deterministic_args()
+  /*
+    FALSE if the considered Item_field is of STRING type that
+    makes function where this Item_field is used (if there
+    is any) non-deterministic.
+  */
+  bool lead_to_deterministic_result()
   {
     if (field->cmp_type() == STRING_RESULT &&
         (!((field->charset()->state & MY_CS_BINSORT) &&
@@ -5035,17 +5047,35 @@ public:
 
 
 /**
-  Deterministic function here is a function that returns the same
-  result for equal input sets.
+  This class is used to store is_deterministic cache. This
+  cache is used to show if the expression is deterministic.
+
+  Deterministic expression is an expression that uses deterministic
+  functions only. If an expression doesn't use any functions it
+  is said that the expression is deterministic by default.
+  Deterministic function is a function that returns the same result
+  for equal input sets.
 
   E.g.
+  Consider the expression: 1 + LENGTH(a)
+  Let's 'a' be a VARCHAR column.
+
+  1. Consider LENGTH() function.
   Consider two varchar values: a = 'x' and b = 'x '.
   It can be said that a is equal to b: a = b.
 
-  Consider function LENGTH(x):
-  LENGTH(a) = 1 != 2 = LENGTH(b)
+  But LENGTH(a) = 1 != 2 = LENGTH(b).
 
-  So, LENGTH function here is non-deterministic function.
+  So, LENGTH() function is a non-deterministic function (by definition
+  above).
+
+  2. 1 + LENGTH(a) uses non-deterministic function LENGTH().
+     So, this expression is non-deterministic.
+
+  The information about the deterministic expression is used
+  in finding functionally dependent fields (sql_func_dep.cc).
+  Non-deterministic expression of some field (or set of fields)
+  is not functionally dependent on this field (set of fields).
 
   The considered deterministic function definition is a special case
   of the classic deterministic function definition (function that
@@ -5056,44 +5086,37 @@ public:
 class Is_deterministic_cache
 {
 public:
-  /* FALSE if the function is non-deterministic. */
+  /* TRUE if the expression is deterministic. */
   bool is_deterministic_cache;
-  /* FALSE if function arguments can lead to non-deterministic result. */
-  bool deterministic_args_cache;
 
   Is_deterministic_cache()
-   :is_deterministic_cache(true), deterministic_args_cache(true)
-  { }
+   :is_deterministic_cache(true) { }
   Is_deterministic_cache(const Is_deterministic_cache *other)
-   :is_deterministic_cache(other->is_deterministic_cache),
-    deterministic_args_cache(other->deterministic_args_cache)
-  { }
+   :is_deterministic_cache(other->is_deterministic_cache) { }
   void is_deterministic_init()
   {
     is_deterministic_cache= true;
-    deterministic_args_cache= true;
   }
-  void is_deterministic_join(Item *item)
+  void is_deterministic_join(Item *func_item, Item *item)
   {
-    is_deterministic_cache&= item->is_deterministic();
-    deterministic_args_cache&= item->deterministic_args();
+    is_deterministic_cache&= func_item->is_arg_deterministic(&item);
   }
-  void is_deterministic_update_and_join(Item *item)
+  void is_deterministic_update_and_join(Item *func_item, Item *item)
   {
     item->update_is_deterministic();
-    is_deterministic_join(item);
+    is_deterministic_join(func_item, item);
   }
-  void is_deterministic_update_and_join(uint argc, Item **argv)
+  void is_deterministic_update_and_join(Item *func_item, uint argc, Item **argv)
   {
     for (uint i=0 ; i < argc ; i++)
-      is_deterministic_update_and_join(argv[i]);
+      is_deterministic_update_and_join(func_item, argv[i]);
   }
-  void is_deterministic_update_and_join(List<Item> &list)
+  void is_deterministic_update_and_join(Item *func_item, List<Item> &list)
   {
     List_iterator_fast<Item> li(list);
     Item *item;
     while ((item=li++))
-      is_deterministic_update_and_join(item);
+      is_deterministic_update_and_join(func_item, item);
   }
 };
 
@@ -5218,7 +5241,6 @@ public:
   bool const_item() const { return const_item_cache; }
   table_map used_tables() const { return used_tables_cache; }
   bool is_deterministic() { return is_deterministic_cache; }
-  bool deterministic_args() { return deterministic_args_cache; }
   Item* build_clone(THD *thd);
 };
 
@@ -5501,8 +5523,8 @@ public:
     *ref= (*ref)->remove_item_direct_ref();
     return this;
   }
-  bool is_deterministic()
-  { return (*ref)->is_deterministic(); }
+  bool lead_to_deterministic_result()
+  { return (*ref)->lead_to_deterministic_result(); }
   bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
                              Item **err_item);
   bool check_usage_in_fd_field_extraction(THD *thd,

@@ -354,7 +354,7 @@ public:
   void update_is_deterministic()
   {
     is_deterministic_init();
-    is_deterministic_update_and_join(arg_count, args);
+    is_deterministic_update_and_join(this, arg_count, args);
   }
 
   bool excl_dep_on_fd_fields(List<Item> *gb_items,  table_map forbid_fd,
@@ -1977,8 +1977,8 @@ class Item_long_func_length: public Item_long_func
 public:
   Item_long_func_length(THD *thd, Item *a): Item_long_func(thd, a) {}
   bool fix_length_and_dec() { max_length=10; return FALSE; }
-  bool is_deterministic()
-  { return deterministic_args_cache; }
+  bool is_arg_deterministic(Item **item)
+  { return (*item)->lead_to_deterministic_result(); }
 };
 
 
@@ -2007,8 +2007,6 @@ public:
   const char *func_name() const { return "bit_length"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_bit_length>(thd, this); }
-  bool is_deterministic()
-  { return deterministic_args_cache; }
 };
 
 class Item_func_char_length :public Item_long_func_length
@@ -2074,8 +2072,8 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_locate>(thd, this); }
-  bool is_deterministic()
-  { return deterministic_args_cache; }
+  bool is_arg_deterministic(Item **item)
+  { return (*item)->lead_to_deterministic_result(); }
 };
 
 
@@ -2106,8 +2104,8 @@ public:
   bool fix_length_and_dec() { max_length=3; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_ascii>(thd, this); }
-  bool is_deterministic()
-  { return deterministic_args_cache; }
+  bool is_arg_deterministic(Item **item)
+  { return (*item)->lead_to_deterministic_result(); }
 };
 
 class Item_func_ord :public Item_long_func
@@ -2122,8 +2120,8 @@ public:
   const char *func_name() const { return "ord"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_ord>(thd, this); }
-  bool is_deterministic()
-  { return deterministic_args_cache; }
+  bool is_arg_deterministic(Item **item)
+  { return (*item)->lead_to_deterministic_result(); }
 };
 
 class Item_func_find_in_set :public Item_long_func
@@ -2142,8 +2140,8 @@ public:
   bool fix_length_and_dec();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_find_in_set>(thd, this); }
-  bool is_deterministic()
-  { return deterministic_args_cache; }
+  bool is_arg_deterministic(Item **item)
+  { return (*item)->lead_to_deterministic_result(); }
 };
 
 /* Base class for all bit functions: '~', '|', '^', '&', '>>', '<<' */

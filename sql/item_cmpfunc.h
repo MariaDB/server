@@ -2783,8 +2783,8 @@ public:
   
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_like>(thd, this); }
-  bool is_deterministic()
-  { return deterministic_args_cache; }
+  bool is_arg_deterministic(Item **item)
+  { return (*item)->lead_to_deterministic_result(); }
 };
 
 
@@ -3018,7 +3018,7 @@ public:
   void update_is_deterministic()
   {
     is_deterministic_init();
-    is_deterministic_update_and_join(list);
+    is_deterministic_update_and_join(this, list);
   }
   bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
                              Item **err_item);

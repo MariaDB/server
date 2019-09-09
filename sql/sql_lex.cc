@@ -4618,6 +4618,58 @@ void SELECT_LEX::update_used_tables()
 
 /**
   @brief
+    Update is_deterministic cache for this select
+
+  @details
+    Update is_deterministic of this SELECT ON expressions, WHERE, HAVING,
+    GROUP BY and ORDER BY clauses expressions.
+*/
+
+void SELECT_LEX::update_is_deterministic()
+{
+  TABLE_LIST *tl;
+  List_iterator<TABLE_LIST> ti(leaf_tables);
+
+  while ((tl= ti++))
+  {
+    if (tl->on_expr)
+      tl->on_expr->update_is_deterministic();
+
+    TABLE_LIST *embedding= tl->embedding;
+    while (embedding)
+    {
+      if (embedding->on_expr &&
+          embedding->nested_join->join_list.head() == tl)
+        embedding->on_expr->update_is_deterministic();
+      tl= embedding;
+      embedding= tl->embedding;
+    }
+  }
+
+  if (join->conds)
+    join->conds->update_is_deterministic();
+  if (join->having)
+    join->having->update_is_deterministic();
+
+  Item *item;
+  List_iterator_fast<Item> it(join->fields_list);
+  while ((item= it++))
+    item->update_is_deterministic();
+
+  Item_outer_ref *ref;
+  List_iterator_fast<Item_outer_ref> ref_it(inner_refs_list);
+  while ((ref= ref_it++))
+    ref->outer_ref->update_is_deterministic();
+
+  for (ORDER *order= group_list.first; order; order= order->next)
+    (*order->item)->update_is_deterministic();
+  for (ORDER *order= order_list.first; order; order= order->next)
+    (*order->item)->update_is_deterministic();
+}
+
+
+/**
+  @brief
   Update is_correlated cache for this select
 
   @details

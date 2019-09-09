@@ -1916,6 +1916,7 @@ JOIN::optimize_inner1()
         }
       }
     }
+    sel->update_is_deterministic();
     if (sel->check_func_dep())
     {
       if (arena)
