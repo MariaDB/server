@@ -7142,3 +7142,5 @@ ER_NO_EIS_FOR_FIELD
 ER_WARN_AGGFUNC_DEPENDENCE
         eng "Aggregate function '%-.192s)' of SELECT #%d belongs to SELECT #%d"
         ukr "Агрегатна функція '%-.192s)' з SELECTу #%d належить до SELECTу #%d"
+WARN_INNODB_PARTITION_OPTION_IGNORED
+        eng "<%-.64s> option ignored for InnoDB partition"
