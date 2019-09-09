@@ -7252,8 +7252,11 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
     return false;
 
-  return vers_info.check_sys_fields(table_name, db, alter_info,
-      ha_check_storage_engine_flag(db_type, HTON_NATIVE_SYS_VERSIONING));
+  bool can_native= ha_check_storage_engine_flag(db_type,
+                                                HTON_NATIVE_SYS_VERSIONING)
+                   || db_type->db_type == DB_TYPE_PARTITION_DB;
+
+  return vers_info.check_sys_fields(table_name, db, alter_info, can_native);
 }
 
 
