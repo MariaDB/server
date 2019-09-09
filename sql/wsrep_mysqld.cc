@@ -1669,7 +1669,6 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
 
   case SQLCOM_CREATE_TRIGGER:
 
-    DBUG_ASSERT(!table_list);
     DBUG_ASSERT(first_table);
 
     if (thd->find_temporary_table(first_table))
