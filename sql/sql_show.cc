@@ -8429,6 +8429,7 @@ bool get_schema_tables_result(JOIN *join,
         cond= tab->cache_select->cond;
       }
 
+      Switch_to_definer_security_ctx backup_ctx(thd, table_list);
       if (table_list->schema_table->fill_table(thd, table_list, cond))
       {
         result= 1;
