@@ -31,7 +31,7 @@
 
 
 /* PMAC0\0\0\0 */
-static const uint64_t pmem_append_cache_magic= 0x0000003043414d50;
+static const uint64_t pmem_append_cache_magic= 0x00000000010dfefe;
 
 
 /**
