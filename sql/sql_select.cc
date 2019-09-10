@@ -121,7 +121,6 @@ static bool best_extension_by_limited_search(JOIN *join,
                                              double read_time, uint depth,
                                              uint prune_level,
                                              uint use_cond_selectivity);
-void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables);
 static uint determine_search_depth(JOIN* join);
 C_MODE_START
 static int join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2);
@@ -9190,18 +9189,6 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   return sel;
 }
 
-
-void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables)
-{
-  THD *const thd= join->thd;
-  Json_writer_array plan_prefix(thd, "plan_prefix");
-  for (uint i= 0; i < idx; i++)
-  {
-    TABLE_LIST *const tr= join->positions[i].table->tab_list;
-    if (!(tr->map & remaining_tables))
-      plan_prefix.add_table_name(join->positions[i].table);
-  }
-}
 
 /**
   Find a good, possibly optimal, query execution plan (QEP) by a possibly
