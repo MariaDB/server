@@ -127,3 +127,51 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 InnoDB		0 transactions not purged
 DROP TABLE t1;
+SET @save_algo = @@GLOBAL.innodb_compression_algorithm;
+SET GLOBAL innodb_compression_algorithm=2;
+CREATE TABLE t1(a SERIAL) PAGE_COMPRESSED=1 ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+FLUSH TABLE t1 FOR EXPORT;
+# List before copying files
+db.opt
+t1.cfg
+t1.frm
+t1.ibd
+backup: t1
+UNLOCK TABLES;
+SET GLOBAL innodb_compression_algorithm=0;
+ALTER TABLE t1 FORCE;
+ALTER TABLE t1 DISCARD TABLESPACE;
+db.opt
+t1.frm
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+INSERT INTO t1 VALUES(2);
+SELECT * FROM t1;
+a
+1
+2
+SET GLOBAL innodb_compression_algorithm=3;
+FLUSH TABLE t1 FOR EXPORT;
+# List before copying files
+db.opt
+t1.cfg
+t1.frm
+t1.ibd
+backup: t1
+UNLOCK TABLES;
+SET GLOBAL innodb_compression_algorithm=0;
+ALTER TABLE t1 FORCE;
+ALTER TABLE t1 DISCARD TABLESPACE;
+db.opt
+t1.frm
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+INSERT INTO t1 VALUES(3);
+SELECT * FROM t1;
+a
+1
+2
+3
+DROP TABLE t1;
+SET GLOBAL innodb_compression_algorithm=@save_algo;
