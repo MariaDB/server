@@ -80,7 +80,6 @@ typedef struct st_pmem_append_cache_directory
   PMEM_APPEND_CACHE_DIRECTORY_HEADER *header;
   uint64_t *start_offsets;
   size_t mapped_length;
-  bool dummy;
 } PMEM_APPEND_CACHE_DIRECTORY;
 
 

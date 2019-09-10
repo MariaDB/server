@@ -80,11 +80,15 @@ static int create_directory(PMEM_APPEND_CACHE_DIRECTORY *dir,
   uint64_t cache_size;
 
   if (size < header_size || !n_caches)
-    return -1;
+    goto err;
 
   cache_size= ((size - header_size) / n_caches) & ~(uint64_t) 7;
   if (cache_size < sizeof(PMEM_APPEND_CACHE_HEADER))
+  {
+err:
+    dir->header= 0;
     return -1;
+  }
 
   if (!(dir->header= pmem_map_file(path, size,
                                    PMEM_FILE_CREATE | PMEM_FILE_EXCL,
@@ -92,7 +96,6 @@ static int create_directory(PMEM_APPEND_CACHE_DIRECTORY *dir,
     return -1;
 
   dir->start_offsets= (void*) (dir->header + 1);
-  dir->dummy= false;
   for (uint64_t i= 0; i < n_caches; i++)
   {
     dir->start_offsets[i]= start_offset;
@@ -394,7 +397,6 @@ int pmem_append_cache_open(PMEM_APPEND_CACHE_DIRECTORY *dir, const char *path)
   }
 
   dir->start_offsets= (void*) (dir->header + 1);
-  dir->dummy= false;
   return 0;
 }
 
@@ -413,7 +415,13 @@ int pmem_append_cache_open(PMEM_APPEND_CACHE_DIRECTORY *dir, const char *path)
 
 int pmem_append_cache_close(PMEM_APPEND_CACHE_DIRECTORY *dir)
 {
-  return dir->dummy ? 0 : pmem_unmap(dir->header, dir->mapped_length);
+  if (dir->header)
+  {
+    int res= pmem_unmap(dir->header, dir->mapped_length);
+    dir->header= 0;
+    return res;
+  }
+  return 0;
 }
 
 
@@ -489,7 +497,7 @@ int pmem_append_cache_init(PMEM_APPEND_CACHE_DIRECTORY *dir, const char *path,
 {
   if (!path)
   {
-    dir->dummy= true;
+    dir->header= 0;
     return 0;
   }
   if (!my_access(path, F_OK))
@@ -541,7 +549,7 @@ int pmem_append_cache_attach(PMEM_APPEND_CACHE *cache,
 
   cache->file_fd= file_fd;
 
-  if (!dir || dir->dummy)
+  if (!dir || !dir->header)
   {
     cache->write= no_cache_write;
     cache->flush= no_cache_flush;
