@@ -23,7 +23,7 @@
 #
 ##############################################################################
 #
-# Based on 10.4 c1a2778e689030fcbb6cdc93d8c1f1d85024ed28
+# Based on bb-10.4-release 8885e7ba7814b5721bcf1a6c5241aea815a80eb9
 
 main.alter_table                      : Modified in 10.4.8
 main.alter_table_mdev539_maria        : Include file modified in 10.4.8
@@ -800,7 +800,7 @@ perfschema_stress.* : MDEV-10996 - Not maintained
 
 #-----------------------------------------------------------------------
 
-period.versioning : MDEV-20159 - Assertion failure; include file modified in 10.4.8
+period.versioning : MDEV-20159 - Assertion failure; modified in 10.4.8
 
 #-----------------------------------------------------------------------
 
