@@ -34,7 +34,7 @@ sec	val
 DROP VIEW v1;
 DROP TABLE t1;
 CREATE TABLE t1 (sec CHAR(10) NOT NULL FLAG=1, val CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='t1.EXT';
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 connection default;
 SELECT user();
 user()
@@ -46,21 +46,21 @@ SELECT user();
 user()
 user@localhost
 INSERT INTO t1 VALUES ('sec2','val2');
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 SELECT * FROM t1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 UPDATE t1 SET val='val11';
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 DELETE FROM t1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 TRUNCATE TABLE t1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 ALTER TABLE t1 READONLY=1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 DROP TABLE t1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 CREATE VIEW v1 AS SELECT * FROM t1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 # Testing a VIEW created with FILE privileges but accessed with no FILE
 connection default;
 SELECT user();
@@ -72,13 +72,13 @@ SELECT user();
 user()
 user@localhost
 SELECT * FROM v1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 INSERT INTO v1 VALUES ('sec3','val3');
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 UPDATE v1 SET val='val11';
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 DELETE FROM v1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 disconnect user;
 connection default;
 DROP VIEW v1;
