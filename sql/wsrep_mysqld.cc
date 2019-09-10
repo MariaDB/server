@@ -38,7 +38,6 @@
 #include <cstdlib>
 #include "log_event.h"
 #include <slave.h>
-#include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 
 wsrep_t *wsrep                  = NULL;
 /*

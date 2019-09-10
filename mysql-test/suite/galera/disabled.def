@@ -25,12 +25,7 @@ galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
 galera_ist_mariabackup : MDEV-18829 test leaves port open
 galera_ist_progress : MDEV-15236 fails when trying to read transfer status
 galera_migrate : MariaDB does not support START SLAVE USER
-galera_pc_ignore_sb : MDEV-15811/MDEV-17357 Test failure
-galera_ssl_upgrade : MDEV-13549 Galera test failures
-galera_sst_mysqldump_with_key : MDEV-16890 Galera test failure
-galera_var_node_address : MDEV-17151 Galera test failure
-galera_var_notify_cmd : MDEV-13549 Galera test failures
-galera_var_slave_threads : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
+galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
 galera_var_node_address : MDEV-20485 Galera test failure on galera.galera_var_node_address
 galera_wan : MDEV-17259 Test failure on galera.galera_wan
 partition : MDEV-19958 Galera test failure on galera.partition
