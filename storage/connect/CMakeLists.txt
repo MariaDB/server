@@ -68,10 +68,6 @@ ELSE(NOT UNIX)
   tabwmi.cpp tabwmi.h tabmac.cpp tabmac.h macutil.cpp macutil.h)
   # Add exception handling to the CONNECT project)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
-  SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
-  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
-  SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MD")
-  SET(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /MD")
   SET(IPHLPAPI_LIBRARY iphlpapi.lib)
   IF(MSVC AND (CMAKE_CXX_COMPILER_ID MATCHES Clang))
     # Connect does not work with clang-cl
@@ -324,6 +320,11 @@ IF(CONNECT_WITH_REST)
 #     If needed edit next line to set the path to libcpprest.so
       SET(REST_LIBRARY -lcpprest)
       MESSAGE (STATUS ${REST_LIBRARY})
+	ELSE(NOT UNIX)
+#     Next line sets debug compile mode matching cpprest_2_10d.dll
+#     when it was binary installed (can be change later in Visual Studio)
+#     Comment it out if not needed depending on your cpprestsdk installation.
+	  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
 	ENDIF(UNIX)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp restget.cpp tabrest.h)
     add_definitions(-DREST_SUPPORT)
