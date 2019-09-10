@@ -792,6 +792,7 @@ public:
   friend void best_access_path(JOIN      *join,
                                JOIN_TAB  *s,
                                table_map remaining_tables,
+                               const struct st_position *join_positions,
                                uint      idx,
                                bool      disable_jbuf,
                                double    record_count,
@@ -1960,6 +1961,11 @@ protected:
   }
 };
 
+void best_access_path(JOIN *join, JOIN_TAB *s,
+                      table_map remaining_tables,
+                      const POSITION *join_positions, uint idx,
+                      bool disable_jbuf, double record_count,
+                      POSITION *pos, POSITION *loose_scan_pos);
 bool cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref);
 bool error_if_full_join(JOIN *join);
 int report_error(TABLE *table, int error);
@@ -2277,7 +2283,7 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
                            ulonglong options);
 bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
-double prev_record_reads(POSITION *positions, uint idx, table_map found_ref);
+double prev_record_reads(const POSITION *positions, uint idx, table_map found_ref);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
 
 struct st_cond_statistic
