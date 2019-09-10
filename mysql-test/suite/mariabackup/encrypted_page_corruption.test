@@ -19,27 +19,36 @@ use warnings;
 use Fcntl qw(:DEFAULT :seek);
 do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
 
-my $page_size = $ENV{INNODB_PAGE_SIZE};
+my $ps = $ENV{INNODB_PAGE_SIZE};
 
 sysopen IBD_FILE, "$ENV{MYSQLD_DATADIR}/test/t1.ibd", O_RDWR
 || die "Cannot open t1.ibd\n";
-sysread(IBD_FILE, $_, 38) || die "Cannot read t1.ibd\n";
+sysread(IBD_FILE, $_, 58) || die "Cannot read t1.ibd\n";
 my $space = unpack("x[34]N", $_);
-sysseek(IBD_FILE, $page_size * 3, SEEK_SET) || die "Cannot seek t1.ibd\n";
+my $full_crc32 = unpack("N",substr($_,54,4)) & 0x10; # FIL_SPACE_FLAGS
+sysseek(IBD_FILE, $ps * 3, SEEK_SET) || die "Cannot seek t1.ibd\n";
 
-my $head = pack("Nx[18]", 3); # better to have a valid page number
-my $body = chr(0) x ($page_size - 38 - 8);
+# better to have a valid page number (3)
+my $page = pack("x[4]Nx[18]Nx[4]N", 3, 1, $space) . chr(0) x ($ps - 38);
 
-# Calculate innodb_checksum_algorithm=crc32 for the unencrypted page.
-# The following bytes are excluded:
-# bytes 0..3 (the checksum is stored there)
-# bytes 26..37 (encryption key version, post-encryption checksum, tablespace id)
-# bytes $page_size-8..$page_size-1 (checksum, LSB of FIL_PAGE_LSN)
 my $polynomial = 0x82f63b78; # CRC-32C
-my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+if ($full_crc32)
+{
+    # no possibility of bug here
+    my $ck = mycrc32(substr($page, 0, $ps - 4), 0, $polynomial);
+    substr($page, $ps - 4, 4) = pack("N", $ck);
+}
+else
+{
+    my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+    substr($page,0,4)=$ck;
+    substr($page,$ps-8,4)=$ck;
+    # trigger the bug by having the same "post-encryption" checksum!
+    substr($page,30,4)=$ck;
+}
 
-my $page= pack("N",$ck).$head.pack("NNN",1,$ck,$space).$body.pack("Nx[4]",$ck);
-die unless syswrite(IBD_FILE, $page, $page_size) == $page_size;
+die unless syswrite(IBD_FILE, $page, $ps) == $ps;
 close IBD_FILE;
 EOF
 
@@ -49,8 +58,13 @@ echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 let $backuplog=$MYSQLTEST_VARDIR/tmp/backup.log;
 
+let $expect_error= 1;
+if (`select @@innodb_checksum_algorithm LIKE '%full_crc32'`)
+{
+  let $expect_error= 0;
+}
 --disable_result_log
---error 1
+--error $expect_error
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --extended-validation --target-dir=$targetdir --core-file > $backuplog;
 --enable_result_log
 
