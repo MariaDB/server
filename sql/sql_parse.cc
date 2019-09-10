@@ -6617,11 +6617,7 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
 bool check_single_table_access(THD *thd, ulong privilege, 
                                TABLE_LIST *all_tables, bool no_errors)
 {
-  Security_context * backup_ctx= thd->security_ctx;
-
-  /* we need to switch to the saved context (if any) */
-  if (all_tables->security_ctx)
-    thd->security_ctx= all_tables->security_ctx;
+  Switch_to_definer_security_ctx backup_sctx(thd, all_tables);
 
   const char *db_name;
   if ((all_tables->view || all_tables->field_translation) &&
@@ -6634,20 +6630,15 @@ bool check_single_table_access(THD *thd, ulong privilege,
                    &all_tables->grant.privilege,
                    &all_tables->grant.m_internal,
                    0, no_errors))
-    goto deny;
+    return 1;
 
   /* Show only 1 table for check_grant */
   if (!(all_tables->belong_to_view &&
         (thd->lex->sql_command == SQLCOM_SHOW_FIELDS)) &&
       check_grant(thd, privilege, all_tables, FALSE, 1, no_errors))
-    goto deny;
+    return 1;
 
-  thd->security_ctx= backup_ctx;
   return 0;
-
-deny:
-  thd->security_ctx= backup_ctx;
-  return 1;
 }
 
 /**
@@ -6822,7 +6813,6 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
 {
   TABLE_LIST *org_tables= tables;
   TABLE_LIST *first_not_own_table= thd->lex->first_not_own_table();
-  Security_context *sctx= thd->security_ctx, *backup_ctx= thd->security_ctx;
   uint i= 0;
   /*
     The check that first_not_own_table is not reached is for the case when
@@ -6834,12 +6824,9 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
   {
     TABLE_LIST *const table_ref= tables->correspondent_table ?
       tables->correspondent_table : tables;
+    Switch_to_definer_security_ctx backup_ctx(thd, table_ref);
 
     ulong want_access= requirements;
-    if (table_ref->security_ctx)
-      sctx= table_ref->security_ctx;
-    else
-      sctx= backup_ctx;
 
     /*
        Register access for view underlying table.
@@ -6850,7 +6837,7 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
     if (table_ref->schema_table_reformed)
     {
       if (check_show_access(thd, table_ref))
-        goto deny;
+        return 1;
       continue;
     }
 
@@ -6860,21 +6847,15 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
     if (table_ref->is_anonymous_derived_table())
       continue;
 
-    thd->security_ctx= sctx;
-
     if (check_access(thd, want_access, table_ref->get_db_name(),
                      &table_ref->grant.privilege,
                      &table_ref->grant.m_internal,
                      0, no_errors))
-      goto deny;
+      return 1;
   }
-  thd->security_ctx= backup_ctx;
   return check_grant(thd,requirements,org_tables,
                      any_combination_of_privileges_will_do,
                      number, no_errors);
-deny:
-  thd->security_ctx= backup_ctx;
-  return TRUE;
 }
 
 
