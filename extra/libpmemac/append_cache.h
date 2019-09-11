@@ -34,8 +34,8 @@ extern "C"
   caches.
 
   Directory header:
-  magic            (8 bytes)                file signature
-  n_caches         (8 bytes)                number of caches in directory
+  magic            (4 bytes)                file signature
+  n_caches         (4 bytes)                number of caches in directory
   start_offsets    (8 bytes * n_caches)     array of cache start offsets from
                                             the beginning of the cache file
 
@@ -69,8 +69,8 @@ extern "C"
 /** Fixed-size directory header. */
 typedef struct st_pmem_append_cache_directory_header
 {
-  uint64_t magic;
-  uint64_t n_caches;
+  uint32_t magic;
+  uint32_t n_caches;
 } PMEM_APPEND_CACHE_DIRECTORY_HEADER;
 
 
@@ -119,15 +119,15 @@ typedef struct st_pmem_append_cache
 
 
 int pmem_append_cache_create(const char *path, uint64_t size,
-                             uint64_t n_caches);
+                             uint32_t n_caches);
 int pmem_append_cache_open(PMEM_APPEND_CACHE_DIRECTORY *dir, const char *path);
 int pmem_append_cache_close(PMEM_APPEND_CACHE_DIRECTORY *dir);
 int pmem_append_cache_flush(PMEM_APPEND_CACHE_DIRECTORY *dir);
 int pmem_append_cache_init(PMEM_APPEND_CACHE_DIRECTORY *dir, const char *path,
-                           uint64_t size, uint64_t n_caches);
+                           uint64_t size, uint32_t n_caches);
 int pmem_append_cache_attach(PMEM_APPEND_CACHE *cache,
                              PMEM_APPEND_CACHE_DIRECTORY *dir,
-                             uint64_t n,
+                             uint32_t cache_slot,
                              File file_fd,
                              const char *file_name);
 int pmem_append_cache_detach(PMEM_APPEND_CACHE *cache);

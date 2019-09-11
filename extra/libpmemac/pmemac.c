@@ -55,13 +55,13 @@ static int info(int argc, char *argv[])
     perror("Failed to open cache");
     return 1;
   }
-  printf("Number of slots in directory: %" PRIu64 ", mapped size: %zu\n",
+  printf("Number of slots in directory: %" PRIu32 ", mapped size: %zu\n",
          dir.header->n_caches,
          dir.mapped_length);
-  for (uint64_t i= 0; i < dir.header->n_caches; i++)
+  for (uint32_t i= 0; i < dir.header->n_caches; i++)
   {
     PMEM_APPEND_CACHE cache;
-    printf("  cache %" PRIu64 " at offset %" PRIu64 ": ", i,
+    printf("  cache %" PRIu32 " at offset %" PRIu64 ": ", i,
            dir.start_offsets[i]);
     if (open_cache(&cache, &dir, i))
       printf("failed to open\n");
@@ -92,7 +92,7 @@ static int create(int argc, char *argv[])
     return 1;
   }
   if (pmem_append_cache_create(argv[2], strtoull(argv[3], 0, 0),
-                               strtoull(argv[4], 0, 0)))
+                               strtoul(argv[4], 0, 0)))
   {
     perror("Failed to create cache");
     return 1;

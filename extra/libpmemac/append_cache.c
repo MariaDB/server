@@ -31,7 +31,7 @@
 
 
 /* PMAC0\0\0\0 */
-static const uint64_t pmem_append_cache_magic= 0x00000000010dfefe;
+static const uint32_t pmem_append_cache_magic= 0x010dfefe;
 
 
 /**
@@ -42,7 +42,7 @@ static const uint64_t pmem_append_cache_magic= 0x00000000010dfefe;
   @return full directory header size
 */
 
-static uint64_t directory_header_size(uint64_t n_caches)
+static uint64_t directory_header_size(uint32_t n_caches)
 {
   return sizeof(PMEM_APPEND_CACHE_DIRECTORY_HEADER) +
          sizeof(uint64_t) * n_caches;
@@ -73,7 +73,7 @@ static uint64_t directory_header_size(uint64_t n_caches)
 */
 
 static int create_directory(PMEM_APPEND_CACHE_DIRECTORY *dir,
-                            const char *path, uint64_t size, uint64_t n_caches)
+                            const char *path, uint64_t size, uint32_t n_caches)
 {
   const uint64_t header_size= directory_header_size(n_caches);
   uint64_t start_offset= header_size;
@@ -96,7 +96,7 @@ err:
     return -1;
 
   dir->start_offsets= (void*) (dir->header + 1);
-  for (uint64_t i= 0; i < n_caches; i++)
+  for (uint32_t i= 0; i < n_caches; i++)
   {
     dir->start_offsets[i]= start_offset;
     start_offset+= cache_size;
@@ -114,9 +114,9 @@ err:
 /**
   Initialises append cache basing on n-th directory slot.
 
-  @param dir    cache directory
-  @param cache  cache descriptor
-  @param n      cache slot
+  @param dir         cache directory
+  @param cache       cache descriptor
+  @param cache_slot  cache slot
 
   @return
     @retval 0 success
@@ -124,17 +124,15 @@ err:
 */
 
 int open_cache(PMEM_APPEND_CACHE *cache, PMEM_APPEND_CACHE_DIRECTORY *dir,
-               uint64_t n)
+               uint32_t cache_slot)
 {
   uint64_t cache_start;
   uint64_t cache_end;
 
-  if (n >= dir->header->n_caches)
-    return -1;
-
-  cache_start= dir->start_offsets[n];
-  cache_end= n == dir->header->n_caches - 1 ? dir->mapped_length :
-                                              dir->start_offsets[n + 1];
+  DBUG_ASSERT(cache_slot < dir->header->n_caches);
+  cache_start= dir->start_offsets[cache_slot];
+  cache_end= cache_slot == dir->header->n_caches - 1 ?
+             dir->mapped_length : dir->start_offsets[cache_slot + 1];
 
   if (cache_start < directory_header_size(dir->header->n_caches) ||
       cache_start > cache_end ||
@@ -358,7 +356,7 @@ static int no_cache_sync(PMEM_APPEND_CACHE *cache, myf flags)
 */
 
 int pmem_append_cache_create(const char *path, uint64_t size,
-                             uint64_t n_caches)
+                             uint32_t n_caches)
 {
   PMEM_APPEND_CACHE_DIRECTORY dir;
   int res= create_directory(&dir, path, size, n_caches);
@@ -437,7 +435,7 @@ int pmem_append_cache_close(PMEM_APPEND_CACHE_DIRECTORY *dir)
 
 int pmem_append_cache_flush(PMEM_APPEND_CACHE_DIRECTORY *dir)
 {
-  for (uint64_t i= 0; i < dir->header->n_caches; i++)
+  for (uint32_t i= 0; i < dir->header->n_caches; i++)
   {
     PMEM_APPEND_CACHE cache;
     MY_STAT sb;
@@ -493,7 +491,7 @@ int pmem_append_cache_flush(PMEM_APPEND_CACHE_DIRECTORY *dir)
 */
 
 int pmem_append_cache_init(PMEM_APPEND_CACHE_DIRECTORY *dir, const char *path,
-                           uint64_t size, uint64_t n_caches)
+                           uint64_t size, uint32_t n_caches)
 {
   if (!path)
   {
@@ -522,7 +520,7 @@ int pmem_append_cache_init(PMEM_APPEND_CACHE_DIRECTORY *dir, const char *path,
 
   @param cache      cache descriptor
   @param dir        cache directory
-  @param n          cache slot
+  @param cache_slot cache slot
   @param file_fd    file descriptor
   @param file_name  name of file
 
@@ -539,7 +537,7 @@ int pmem_append_cache_init(PMEM_APPEND_CACHE_DIRECTORY *dir, const char *path,
 
 int pmem_append_cache_attach(PMEM_APPEND_CACHE *cache,
                              PMEM_APPEND_CACHE_DIRECTORY *dir,
-                             uint64_t n,
+                             uint32_t cache_slot,
                              File file_fd,
                              const char *file_name)
 {
@@ -566,7 +564,7 @@ int pmem_append_cache_attach(PMEM_APPEND_CACHE *cache,
   if (my_fstat(file_fd, &sb, MYF(MY_WME)))
     return -1;
 
-  if ((res= open_cache(cache, dir, n)))
+  if ((res= open_cache(cache, dir, cache_slot)))
     return res;
 
   file_name_length= strlen(file_name) + 1;
