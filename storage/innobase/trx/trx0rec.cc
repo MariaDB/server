@@ -1953,7 +1953,7 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 		ut_ad((err == DB_SUCCESS) == !!block);
 
 		for (ut_d(int loop_count = 0); block;) {
-			ut_ad(++loop_count < 2);
+			ut_ad(loop_count++ < 2);
 			buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 			ut_ad(undo->last_page_no == block->page.id.page_no());
 
