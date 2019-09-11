@@ -2881,7 +2881,7 @@ btr_cur_open_at_rnd_pos_func(
 				index->table->file_unreadable = true;
 			}
 
-			goto exit_loop;
+			break;
 		}
 
 		page = buf_block_get_frame(block);
@@ -3038,12 +3038,11 @@ btr_cur_open_at_rnd_pos_func(
 		n_blocks++;
 	}
 
- exit_loop:
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
 
-	return(true);
+	return err == DB_SUCCESS;
 }
 
 /*==================== B-TREE INSERT =========================*/
