@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* sql_yacc.yy */
 
@@ -3734,6 +3734,7 @@ statement_information_item:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        ;
 
 simple_target_specification:
           ident_cli
@@ -3790,6 +3791,7 @@ condition_information_item:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        ;
 
 condition_information_item_name:
           CLASS_ORIGIN_SYM
@@ -7133,15 +7135,18 @@ field_length:
           '(' LONG_NUM ')'      { $$= $2.str; }
         | '(' ULONGLONG_NUM ')' { $$= $2.str; }
         | '(' DECIMAL_NUM ')'   { $$= $2.str; }
-        | '(' NUM ')'           { $$= $2.str; };
+        | '(' NUM ')'           { $$= $2.str; }
+        ;
 
 opt_field_length:
           /* empty */  { $$= (char*) 0; /* use default length */ }
         | field_length { $$= $1; }
+        ;
 
 opt_field_length_default_1:
           /* empty */  { $$= (char*) "1"; }
         | field_length { $$= $1; }
+        ;
 
 
 /*
@@ -7164,10 +7169,12 @@ opt_field_length_default_1:
 opt_field_length_default_sp_param_varchar:
           /* empty */  { $$.set("4000", "4000"); }
         | field_length { $$.set($1, NULL); }
+        ;
 
 opt_field_length_default_sp_param_char:
           /* empty */  { $$.set("2000", "2000"); }
         | field_length { $$.set($1, NULL); }
+        ;
 
 opt_precision:
           /* empty */    { $$.set(0, 0); }
@@ -7671,12 +7678,14 @@ fulltext_key_opts:
 opt_USING_key_algorithm:
           /* Empty*/              { $$= HA_KEY_ALG_UNDEF; }
         | USING    btree_or_rtree { $$= $2; }
+        ;
 
 /* TYPE is a valid identifier, so it's handled differently than USING */
 opt_key_algorithm_clause:
           /* Empty*/              { $$= HA_KEY_ALG_UNDEF; }
         | USING    btree_or_rtree { $$= $2; }
         | TYPE_SYM btree_or_rtree { $$= $2; }
+        ;
 
 key_using_alg:
           USING btree_or_rtree
@@ -7787,7 +7796,8 @@ string_list:
           text_string
           { Lex->last_field->interval_list.push_back($1, thd->mem_root); }
         | string_list ',' text_string
-          { Lex->last_field->interval_list.push_back($3, thd->mem_root); };
+          { Lex->last_field->interval_list.push_back($3, thd->mem_root); }
+        ;
 
 /*
 ** Alter table
@@ -8454,6 +8464,7 @@ opt_index_lock_algorithm:
         | alter_algorithm_option
         | alter_lock_option alter_algorithm_option
         | alter_algorithm_option alter_lock_option
+        ;
 
 alter_algorithm_option:
           ALGORITHM_SYM opt_equal DEFAULT
@@ -8512,6 +8523,7 @@ alter_option:
             Lex->alter_info.requested_lock=
               Alter_info::ALTER_TABLE_LOCK_NONE;
           }
+        ;
 
 
 opt_restrict:
@@ -8779,6 +8791,7 @@ persistent_stat_spec:
           {}
         | COLUMNS persistent_column_stat_spec INDEXES persistent_index_stat_spec
           {}
+        ;
 
 persistent_column_stat_spec:
           ALL {}
@@ -9597,13 +9610,13 @@ select_alias:
 opt_default_time_precision:
           /* empty */             { $$= NOT_FIXED_DEC;  }
         | '(' ')'                 { $$= NOT_FIXED_DEC;  }
-        | '(' real_ulong_num ')'  { $$= $2; };
+        | '(' real_ulong_num ')'  { $$= $2; }
         ;
 
 opt_time_precision:
           /* empty */             { $$= 0;  }
         | '(' ')'                 { $$= 0;  }
-        | '(' real_ulong_num ')'  { $$= $2; };
+        | '(' real_ulong_num ')'  { $$= $2; }
         ;
 
 optional_braces:
@@ -10108,6 +10121,7 @@ dyncall_create_element:
      else
        $$->len= 0;
    }
+   ;
 
 dyncall_create_list:
      dyncall_create_element
@@ -11588,7 +11602,7 @@ opt_gconcat_separator:
 
 opt_gorder_clause:
           /* empty */
-        | ORDER_SYM BY gorder_list;
+        | ORDER_SYM BY gorder_list
         ;
 
 gorder_list:
@@ -12605,6 +12619,7 @@ opt_window_ref:
             if (unlikely(thd->lex->win_ref == NULL))
               MYSQL_YYABORT;
           }
+        ;
 
 opt_window_partition_clause:
           /* empty */ { }
@@ -12913,6 +12928,7 @@ limit_rows_option:
             LEX *lex=Lex;
             lex->limit_rows_examined= $1;
           }
+        ;
 
 delete_limit_clause:
           /* empty */
@@ -12939,6 +12955,7 @@ opt_plus:
 int_num:
           opt_plus NUM           { int error; $$= (int) my_strtoll10($2.str, (char**) 0, &error); }
         | '-' NUM       { int error; $$= -(int) my_strtoll10($2.str, (char**) 0, &error); }
+        ;
 
 ulong_num:
           opt_plus NUM           { int error; $$= (ulong) my_strtoll10($2.str, (char**) 0, &error); }
@@ -12962,7 +12979,7 @@ longlong_num:
         | LONG_NUM      { int error; $$= (longlong) my_strtoll10($1.str, (char**) 0, &error); }
         | '-' NUM         { int error; $$= -(longlong) my_strtoll10($2.str, (char**) 0, &error); }
         | '-' LONG_NUM  { int error; $$= -(longlong) my_strtoll10($2.str, (char**) 0, &error); }
-
+        ;
 
 ulonglong_num:
           opt_plus NUM           { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
@@ -12999,7 +13016,7 @@ bool:
         ulong_num   { $$= $1 != 0; }
         | TRUE_SYM  { $$= 1; }
         | FALSE_SYM { $$= 0; }
-
+        ;
 
 procedure_clause:
           PROCEDURE_SYM ident /* Procedure name */
@@ -13468,7 +13485,8 @@ insert_table:
             lex->field_list.empty();
             lex->many_values.empty();
             lex->insert_list=0;
-          };
+          }
+        ;
 
 insert_field_spec:
           insert_values {}
@@ -14633,6 +14651,7 @@ delete_domain_id:
 optional_flush_tables_arguments:
           /* empty */        {$$= 0;}
         | AND_SYM DISABLE_SYM CHECKPOINT_SYM {$$= REFRESH_CHECKPOINT; } 
+        ;
 
 reset:
           RESET_SYM
@@ -14725,6 +14744,7 @@ kill_type:
         /* Empty */    { $$= (int) KILL_HARD_BIT; }
         | HARD_SYM     { $$= (int) KILL_HARD_BIT; }
         | SOFT_SYM     { $$= 0; }
+        ;
 
 kill_option:
           /* empty */    { $$= (int) KILL_CONNECTION; }
@@ -14901,7 +14921,8 @@ line_term:
 opt_xml_rows_identified_by:
         /* empty */ { }
         | ROWS_SYM IDENTIFIED_SYM BY text_string
-          { Lex->exchange->line_term = $4; };
+          { Lex->exchange->line_term = $4; }
+        ;
 
 opt_ignore_lines:
           /* empty */
@@ -17026,12 +17047,14 @@ grant_command:
         ;
 
 opt_with_admin:
-           /* nothing */               { Lex->definer = 0; }
-         | WITH ADMIN_SYM user_or_role { Lex->definer = $3; }
+          /* nothing */               { Lex->definer = 0; }
+        | WITH ADMIN_SYM user_or_role { Lex->definer = $3; }
+        ;
 
 opt_with_admin_option:
-           /* nothing */               { Lex->with_admin_option= false; }
-         | WITH ADMIN_SYM OPTION       { Lex->with_admin_option= true; }
+          /* nothing */               { Lex->with_admin_option= false; }
+        | WITH ADMIN_SYM OPTION       { Lex->with_admin_option= true; }
+        ;
 
 role_list:
           grant_role
@@ -17459,7 +17482,7 @@ opt_release:
           { $$= TVL_UNKNOWN; }
         | RELEASE_SYM        { $$= TVL_YES; }
         | NO_SYM RELEASE_SYM { $$= TVL_NO; }
-;
+        ;
 
 commit:
           COMMIT_SYM opt_work opt_chain opt_release
@@ -17526,7 +17549,7 @@ unit_type_decl:
           { $$= INTERSECT_TYPE; }
         | EXCEPT_SYM
           { $$= EXCEPT_TYPE; }
-
+        ;
 
 union_clause:
           /* empty */ {}
@@ -18232,10 +18255,11 @@ uninstall:
 
 /* Avoid compiler warning from sql_yacc.cc where yyerrlab1 is not used */
 keep_gcc_happy:
-	IMPOSSIBLE_ACTION
-	{
-	  YYERROR;
-	}
+          IMPOSSIBLE_ACTION
+          {
+            YYERROR;
+          }
+        ;
 
 /**
   @} (end of group Parser)
