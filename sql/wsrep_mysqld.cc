@@ -1493,7 +1493,10 @@ int wsrep_to_buf_helper(
       if (!ret && writer.write(&gtid_ev)) ret= 1;
   }
 #endif /* GTID_SUPPORT */
-  if (thd->variables.gtid_seq_no)
+  /*
+    Check if this is applier thread or slave_thread. Add GTID event.
+   */
+  if (thd->slave_thread || wsrep_thd_is_applying(thd))
   {
     Gtid_log_event gtid_event(thd, thd->variables.gtid_seq_no,
                           thd->variables.gtid_domain_id,
@@ -1502,6 +1505,14 @@ int wsrep_to_buf_helper(
     gtid_event.server_id= thd->variables.server_id;
     if (!gtid_event.is_valid()) ret= 0;
     ret= writer.write(&gtid_event);
+  }
+  /*
+    It's local DDL so in case of possible gtid seqno (SET gtid_seq_no=X)
+    manipulation, seqno value will be ignored.
+   */
+  else
+  {
+    thd->variables.gtid_seq_no= 0;
   }
 
   /* if there is prepare query, add event for it */

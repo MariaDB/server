@@ -282,12 +282,14 @@ extern "C" int wsrep_thd_append_key(THD *thd,
     ret= client_state.append_key(wsrep_key);
   }
   /*
-    In case of `wsrep_gtid_mode` we need to set cluster server_id when setting
-    events before commit happens. We know, at this point, that WS will be replicated.
+    In case of `wsrep_gtid_mode` when WS will be replicated, we need to set
+    `server_id` for events that are going to be written in IO, and in case of
+    manual SET gtid_seq_no=X we are ignoring value.
    */
-  if (!ret && wsrep_gtid_mode && !thd->slave_thread && !thd->variables.gtid_seq_no)
+  if (!ret && wsrep_gtid_mode && !thd->slave_thread && !wsrep_thd_is_applying(thd))
   {
     thd->variables.server_id= wsrep_gtid_server.server_id;
+    thd->variables.gtid_seq_no= 0;
   }
   return ret;
 }
