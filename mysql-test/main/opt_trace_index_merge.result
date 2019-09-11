@@ -207,17 +207,28 @@ explain select * from t1 where a=1 or b=1	{
                 "best_access_path": {
                   "considered_access_paths": [
                     {
-                      "access_type": "range",
+                      "access_type": "index_merge",
                       "resulting_rows": 2,
                       "cost": 4.1484,
                       "chosen": true
                     }
-                  ]
+                  ],
+                  "chosen_access_method": {
+                    "type": "index_merge",
+                    "records": 2,
+                    "cost": 4.1484,
+                    "uses_join_buffering": false,
+                    "filter_used": false
+                  }
                 },
                 "rows_for_plan": 2,
-                "cost_for_plan": 4.5484
+                "cost_for_plan": 4.5484,
+                "estimated_join_cardinality": 2
               }
             ]
+          },
+          {
+            "best_join_order": ["t1"]
           },
           {
             "attaching_conditions_to_tables": {

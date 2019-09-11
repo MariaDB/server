@@ -2306,6 +2306,8 @@ class Rdb_transaction {
   bool m_is_delayed_snapshot = false;
   bool m_is_two_phase = false;
 
+  std::unordered_set<Rdb_tbl_def*> modified_tables;
+
  private:
   /*
     Number of write operations this transaction had when we took the last
@@ -3001,6 +3003,25 @@ protected:
   virtual void start_tx() = 0;
   virtual void start_stmt() = 0;
 
+ protected:
+  // Non-virtual functions with actions to be done on transaction start and
+  // commit.
+  void on_commit() {
+    time_t tm;
+    tm = time(nullptr);
+    for (auto &it : modified_tables) {
+      it->update_time = tm;
+    }
+    modified_tables.clear();
+  }
+  void on_rollback() {
+    modified_tables.clear();
+  }
+ public:
+  void log_table_write_op(Rdb_tbl_def *tbl) {
+    modified_tables.insert(tbl);
+  }
+
   void set_initial_savepoint() {
     /*
       Set the initial savepoint. If the first statement in the transaction
@@ -3185,7 +3206,9 @@ class Rdb_transaction_impl : public Rdb_transaction {
       goto error;
     }
 
+    on_commit();
   error:
+    on_rollback();
     /* Save the transaction object to be reused */
     release_tx();
 
@@ -3201,6 +3224,7 @@ class Rdb_transaction_impl : public Rdb_transaction {
 
  public:
   void rollback() override {
+    on_rollback();
     m_write_count = 0;
     m_insert_count = 0;
     m_update_count = 0;
@@ -3522,7 +3546,9 @@ class Rdb_writebatch_impl : public Rdb_transaction {
       res = true;
       goto error;
     }
+    on_commit();
   error:
+    on_rollback();
     reset();
 
     m_write_count = 0;
@@ -3555,6 +3581,7 @@ class Rdb_writebatch_impl : public Rdb_transaction {
   }
 
   void rollback() override {
+    on_rollback();
     m_write_count = 0;
     m_insert_count = 0;
     m_update_count = 0;
@@ -7698,6 +7725,8 @@ int ha_rocksdb::create_table(const std::string &table_name,
     goto error;
   }
 
+  m_tbl_def->put_creation_time(&dict_manager, batch, time(nullptr));
+
   err = dict_manager.commit(batch);
   if (err != HA_EXIT_SUCCESS) {
     dict_manager.unlock();
@@ -10334,6 +10363,8 @@ int ha_rocksdb::update_write_row(const uchar *const old_data,
     row_info.tx->incr_insert_count();
   }
 
+  row_info.tx->log_table_write_op(m_tbl_def);
+
   if (do_bulk_commit(row_info.tx)) {
     DBUG_RETURN(HA_ERR_ROCKSDB_BULK_LOAD);
   }
@@ -10813,6 +10844,7 @@ int ha_rocksdb::delete_row(const uchar *const buf) {
   }
 
   tx->incr_delete_count();
+  tx->log_table_write_op(m_tbl_def);
 
   if (do_bulk_commit(tx)) {
     DBUG_RETURN(HA_ERR_ROCKSDB_BULK_LOAD);
@@ -11011,6 +11043,12 @@ int ha_rocksdb::info(uint flag) {
         k->rec_per_key[j] = x;
       }
     }
+
+    stats.create_time = m_tbl_def->get_creation_time(&dict_manager);
+  }
+
+  if (flag & HA_STATUS_TIME) {
+    stats.update_time = m_tbl_def->update_time;
   }
 
   if (flag & HA_STATUS_ERRKEY) {

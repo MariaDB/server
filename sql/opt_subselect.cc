@@ -457,7 +457,6 @@ void best_access_path(JOIN *join, JOIN_TAB *s,
                              table_map remaining_tables, uint idx, 
                              bool disable_jbuf, double record_count,
                              POSITION *pos, POSITION *loose_scan_pos);
-void trace_plan_prefix(JOIN *join, uint idx, table_map remaining_tables);
 
 static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm, 
                                 Item_in_subselect *subq_pred);
@@ -3859,7 +3858,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       join->cur_sj_inner_tables= 0;
       Json_writer_object semijoin_strategy(thd);
       semijoin_strategy.add("semi_join_strategy","LooseScan");
-      Json_writer_array semijoin_plan(thd, "join_order");      
+      Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
         if (unlikely(thd->trace_started()))

@@ -1,0 +1,9 @@
+--- encrypted_page_corruption,crc32.result
++++ encrypted_page_corruption,full_crc32.result
+@@ -5,5 +5,5 @@
+ # Corrupt the table
+ # restart
+ # xtrabackup backup
+-FOUND 1 /Database page corruption detected.*/ in backup.log
++NOT FOUND /Database page corruption detected.*/ in backup.log
+ drop table t1;

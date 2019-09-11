@@ -25,7 +25,7 @@ set global rocksdb_force_flush_memtable_now = true;
 
 CREATE TABLE t3 (a INT, b CHAR(8), pk INT PRIMARY KEY) ENGINE=rocksdb CHARACTER SET utf8;
 
---replace_column 6 # 7 #
+--replace_column 6 # 7 # 12 # 13 #
 SHOW TABLE STATUS WHERE name IN ( 't1', 't2', 't3' );
 
 # Some statistics don't get updated as quickly.  The Data_length and
@@ -49,7 +49,7 @@ set global rocksdb_force_flush_memtable_now = true;
 
 # We expect the number of rows to be 10000. Data_len and Avg_row_len
 # may vary, depending on built-in compression library.
---replace_column 6 # 7 #
+--replace_column 6 # 7 # 12 # 13 #
 SHOW TABLE STATUS WHERE name LIKE 't2';
 DROP TABLE t1, t2, t3;
 
@@ -63,3 +63,36 @@ CREATE TABLE `t1_new..............................................end`(a int) en
 INSERT INTO `t1_new..............................................end` VALUES (1);
 --query_vertical SELECT TABLE_SCHEMA, TABLE_NAME FROM information_schema.table_statistics WHERE TABLE_NAME = 't1_new..............................................end'
 DROP DATABASE `db_new..............................................end`;
+--echo #
+--echo # MDEV-17171: Bug: RocksDB Tables do not have "Creation Date"
+--echo #
+use test;
+create table t1 (a int) engine=rocksdb;
+
+select create_time is not null, update_time, check_time 
+from information_schema.tables where table_schema=database() and table_name='t1';
+
+insert into t1 values (1);
+select create_time is not null, update_time is not null, check_time 
+from information_schema.tables where table_schema=database() and table_name='t1';
+
+flush tables;
+select create_time is not null, update_time is not null, check_time 
+from information_schema.tables where table_schema=database() and table_name='t1';
+
+select create_time, update_time into @create_tm, @update_tm
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+
+select sleep(3);
+insert into t1 values (2);
+
+--vertical_results
+select 
+  create_time=@create_tm /* should not change */ , 
+  timestampdiff(second, @update_tm, update_time) > 2,
+  check_time
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+
+drop table t1;

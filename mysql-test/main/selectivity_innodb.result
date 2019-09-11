@@ -1644,8 +1644,6 @@ SELECT @cnt;
 @cnt
 2
 alter table  t1 force;
-set @@use_stat_tables= @save_use_stat_tables;
-set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 drop table t1;
 drop function f1;
 #
@@ -1661,19 +1659,19 @@ test.t1	analyze	status	OK
 # Check what info the optimizer has about selectivities
 explain extended select * from t1 use index () where a in (17,51,5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1091	3.83	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	3.90	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` USE INDEX () where `test`.`t1`.`a` in (17,51,5)
 explain extended select * from t1 use index () where b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1091	5.47	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	5.47	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` USE INDEX () where `test`.`t1`.`b` = 2
 # Now, the equality is used for ref access, while the range condition
 # gives selectivity data
 explain extended select * from t1 where a in (17,51,5) and b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	59 (3%)	2.66	Using where; Using rowid filter
+1	SIMPLE	t1	ref|filter	b,a	b|a	5|5	const	59 (3%)	2.90	Using where; Using rowid filter
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` = 2 and `test`.`t1`.`a` in (17,51,5)
 drop table t1;

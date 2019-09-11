@@ -98,12 +98,23 @@ select * from db1.t1	{
                       "cost": 2.0051,
                       "chosen": true
                     }
-                  ]
+                  ],
+                  "chosen_access_method": {
+                    "type": "scan",
+                    "records": 3,
+                    "cost": 2.0051,
+                    "uses_join_buffering": false,
+                    "filter_used": false
+                  }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051
+                "cost_for_plan": 2.6051,
+                "estimated_join_cardinality": 3
               }
             ]
+          },
+          {
+            "best_join_order": ["t1"]
           },
           {
             "attaching_conditions_to_tables": {
@@ -211,12 +222,23 @@ select * from db1.v1	{
                       "cost": 2.0051,
                       "chosen": true
                     }
-                  ]
+                  ],
+                  "chosen_access_method": {
+                    "type": "scan",
+                    "records": 3,
+                    "cost": 2.0051,
+                    "uses_join_buffering": false,
+                    "filter_used": false
+                  }
                 },
                 "rows_for_plan": 3,
-                "cost_for_plan": 2.6051
+                "cost_for_plan": 2.6051,
+                "estimated_join_cardinality": 3
               }
             ]
+          },
+          {
+            "best_join_order": ["t1"]
           },
           {
             "attaching_conditions_to_tables": {

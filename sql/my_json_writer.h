@@ -562,6 +562,9 @@ public:
 
 /*
   RAII-based class to disable writing into the JSON document
+  The tracing is disabled as soon as the object is created.
+  The destuctor is called as soon as we exit the scope of the object
+  and the tracing is enabled back.
 */
 
 class Json_writer_temp_disable

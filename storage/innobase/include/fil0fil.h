@@ -398,13 +398,16 @@ struct fil_space_t {
 	static bool is_flags_full_crc32_equal(ulint flags, ulint expected)
 	{
 		ut_ad(full_crc32(flags));
+		ulint page_ssize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags);
 
 		if (full_crc32(expected)) {
-			return get_compression_algo(flags)
-				== get_compression_algo(expected);
+			/* The data file may have been created with a
+			different innodb_compression_algorithm. But
+			we only support one innodb_page_size for all files. */
+			return page_ssize
+				== FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(expected);
 		}
 
-		ulint page_ssize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags);
 		ulint space_page_ssize = FSP_FLAGS_GET_PAGE_SSIZE(expected);
 
 		if (page_ssize == 5) {
@@ -415,7 +418,7 @@ struct fil_space_t {
 			return false;
 		}
 
-		return is_compressed(expected) == is_compressed(flags);
+		return true;
 	}
 	/** Whether old tablespace flags match full_crc32 flags.
 	@param[in]	flags		flags present
@@ -441,7 +444,7 @@ struct fil_space_t {
 			return false;
 		}
 
-		return is_compressed(expected) == is_compressed(flags);
+		return true;
 	}
 	/** Whether both fsp flags are equivalent */
 	static bool is_flags_equal(ulint flags, ulint expected)

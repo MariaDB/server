@@ -76,6 +76,7 @@ select variable_value-@a from information_schema.global_status where variable_na
 variable_value-@a
 4
 DROP TABLE t1;
+set global ROCKSDB_COMPACT_CF= 'default';
 CREATE TABLE t1 (
 a int,
 b int,
