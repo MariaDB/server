@@ -10612,3 +10612,18 @@ void Item::register_in(THD *thd)
   next= thd->free_list;
   thd->free_list= this;
 }
+
+
+bool Item::is_deterministic_arg()
+{
+  if (cmp_type() == STRING_RESULT)
+  {
+    if (!((collation.collation == &my_charset_bin) ||
+        ((collation.collation->state & MY_CS_BINSORT) &&
+         (collation.collation->state & MY_CS_NOPAD))))
+      return false;
+  }
+  if (field_type() == MYSQL_TYPE_FLOAT)
+    return false;
+  return true;
+}

@@ -390,6 +390,8 @@ public:
   { return args[1]; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_in_optimizer>(thd, this); }
+  bool is_deterministic_func()
+  { return true; }
 };
 
 
@@ -732,6 +734,8 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_eq>(thd, this); }
   bool field_eq_const();
+  bool is_deterministic_func()
+  { return is_deterministic_cache; }
 };
 
 class Item_func_equal :public Item_bool_rowready_func2
@@ -2783,8 +2787,8 @@ public:
   
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_like>(thd, this); }
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->lead_to_deterministic_result(); }
+  bool is_deterministic_func()
+  { return Item_args::has_deterministic_args(); }
 };
 
 
@@ -3017,8 +3021,8 @@ public:
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
   void update_is_deterministic()
   {
-    is_deterministic_init();
-    is_deterministic_update_and_join(this, list);
+    is_deterministic_cache_init();
+    is_deterministic_update_and_join(list);
   }
   bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
                              Item **err_item);

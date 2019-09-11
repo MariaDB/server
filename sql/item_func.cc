@@ -329,6 +329,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
   DBUG_ASSERT(const_item_cache == true);
 
   not_null_tables_cache= 0;
+  is_deterministic_cache_init();
 
   /*
     Use stack limit of STACK_MIN_SIZE * 2 since
@@ -360,7 +361,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
       with_window_func= with_window_func || item->with_window_func;
       with_field= with_field || item->with_field;
       used_tables_and_const_cache_join(item);
-      is_deterministic_join(this, item);
+      is_deterministic_cache_join(item);
       m_with_subquery|= item->with_subquery();
     }
   }
@@ -368,6 +369,10 @@ Item_func::fix_fields(THD *thd, Item **ref)
     return true;
   if (fix_length_and_dec())
     return TRUE;
+
+  if (is_deterministic())
+    is_deterministic_cache_set(is_deterministic_func());
+
   fixed= 1;
   return FALSE;
 }

@@ -515,7 +515,9 @@ bool check_equality_usage_in_fd_field_extraction(FD_select_info *sl_info,
                                                  Item_func_eq *eq,
                                                  bool *checked)
 {
-  if (eq->const_item())
+  if (eq->const_item() ||
+      !eq->is_deterministic() ||
+      (eq->used_tables() & RAND_TABLE_BIT))
     return false;
 
   Item *item_l= eq->arguments()[0];
@@ -603,7 +605,6 @@ bool check_expr_and_get_equalities_info(FD_select_info *sl_info,
       checked= false;
       if (item->type() == Item::FUNC_ITEM &&
           ((Item_func *) item)->functype() == Item_func::EQ_FUNC &&
-          item->is_deterministic() &&
           check_equality_usage_in_fd_field_extraction(sl_info,
                                                       (Item_func_eq *)item,
                                                       &checked))
@@ -656,7 +657,8 @@ bool check_on_expr_and_get_equalities_info(FD_select_info *sl_info,
   if (!on_expr)
     return false;
 
-  if (!on_expr->is_deterministic())
+  if (!on_expr->is_deterministic() ||
+      (on_expr->used_tables() & RAND_TABLE_BIT))
   {
     sl_info->forbid_fd_expansion|= sl_info->cur_level_tabs;
     return false;

@@ -67,8 +67,8 @@ public:
   const Type_handler *type_handler() const { return string_type_handler(); }
   void left_right_max_length();
   bool fix_fields(THD *thd, Item **ref);
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->lead_to_deterministic_result(); }
+  bool is_deterministic_func()
+  { return Item_args::has_deterministic_args(); }
 };
 
 
@@ -429,8 +429,8 @@ protected:
 public:
   Item_str_conv(THD *thd, Item *item): Item_str_func(thd, item) {}
   String *val_str(String *);
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->is_deterministic(); }
+  bool is_deterministic_func()
+  { return Item_func::is_deterministic_func(); }
 };
 
 
@@ -568,8 +568,8 @@ public:
   virtual const char *mode_name() const { return "both"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_trim>(thd, this); }
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->is_deterministic(); }
+  bool is_deterministic_func()
+  { return Item_func::is_deterministic_func(); }
 };
 
 
@@ -980,8 +980,8 @@ public:
   const char *func_name() const { return "soundex"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_soundex>(thd, this); }
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->is_deterministic(); }
+  bool is_deterministic_func()
+  { return Item_func::is_deterministic_func(); }
 };
 
 
@@ -996,8 +996,8 @@ public:
   const char *func_name() const { return "elt"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_elt>(thd, this); }
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->is_deterministic(); }
+  bool is_deterministic_func()
+  { return Item_func::is_deterministic_func(); }
 };
 
 
@@ -1029,8 +1029,8 @@ public:
   const char *func_name() const { return "format"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_format>(thd, this); }
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->is_deterministic(); }
+  bool is_deterministic_func()
+  { return Item_func::is_deterministic_func(); }
 };
 
 
@@ -1097,8 +1097,8 @@ public:
   const char *func_name() const { return "space"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_space>(thd, this); }
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->is_deterministic(); }
+  bool is_deterministic_func()
+  { return Item_func::is_deterministic_func(); }
 };
 
 
@@ -1685,7 +1685,7 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_uuid>(thd, this); }
-  bool is_deterministic() { return false; }
+  bool is_deterministic() const { return false; }
 };
 
 

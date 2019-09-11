@@ -351,10 +351,23 @@ public:
     return Item_args::excl_dep_on_in_subq_left_part(subq_pred);
   }
 
+  virtual bool is_deterministic_func()
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->cmp_type() == REAL_RESULT &&
+          args[i]->field_type() == MYSQL_TYPE_FLOAT)
+        return false;
+    }
+    return is_deterministic_cache;
+  }
+
   void update_is_deterministic()
   {
-    is_deterministic_init();
-    is_deterministic_update_and_join(this, arg_count, args);
+    is_deterministic_cache_init();
+    is_deterministic_update_and_join(arg_count, args);
+    if (is_deterministic())
+      is_deterministic_cache_set(is_deterministic_func());
   }
 
   bool excl_dep_on_fd_fields(List<Item> *gb_items,  table_map forbid_fd,
@@ -1014,6 +1027,22 @@ class Item_num_op :public Item_func_numhybrid
       set_handler(type_handler_long_or_longlong());
   }
   bool need_parentheses_in_default() { return true; }
+  bool is_deterministic_func()
+  {
+    Item *args0= args[0];
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->field_type() == MYSQL_TYPE_FLOAT ||
+          args[i]->field_type() == MYSQL_TYPE_GEOMETRY ||
+          (args0->field_type() != MYSQL_TYPE_BIT &&
+           i != 0 &&
+           args[i]->field_type() == MYSQL_TYPE_BIT) ||
+          (args[i]->cmp_type() != args0->cmp_type() &&
+           (!args0->is_number() || !args[i]->is_number())))
+        return false;
+    }
+    return true;
+  }
 };
 
 
@@ -1782,8 +1811,6 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_rand>(thd, this); }
-  bool is_deterministic()
-  { return false; }
 private:
   void seed_random (Item * val);  
 };
@@ -1977,8 +2004,8 @@ class Item_long_func_length: public Item_long_func
 public:
   Item_long_func_length(THD *thd, Item *a): Item_long_func(thd, a) {}
   bool fix_length_and_dec() { max_length=10; return FALSE; }
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->lead_to_deterministic_result(); }
+  bool is_deterministic_func()
+  { return Item_args::has_deterministic_args(); }
 };
 
 
@@ -2072,8 +2099,8 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_locate>(thd, this); }
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->lead_to_deterministic_result(); }
+  bool is_deterministic_func()
+  { return Item_args::has_deterministic_args(); }
 };
 
 
@@ -2104,8 +2131,8 @@ public:
   bool fix_length_and_dec() { max_length=3; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_ascii>(thd, this); }
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->lead_to_deterministic_result(); }
+  bool is_deterministic_func()
+  { return Item_args::has_deterministic_args(); }
 };
 
 class Item_func_ord :public Item_long_func
@@ -2120,8 +2147,8 @@ public:
   const char *func_name() const { return "ord"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_ord>(thd, this); }
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->lead_to_deterministic_result(); }
+  bool is_deterministic_func()
+  { return Item_args::has_deterministic_args(); }
 };
 
 class Item_func_find_in_set :public Item_long_func
@@ -2140,8 +2167,8 @@ public:
   bool fix_length_and_dec();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_find_in_set>(thd, this); }
-  bool is_arg_deterministic(Item **item)
-  { return (*item)->lead_to_deterministic_result(); }
+  bool is_deterministic_func()
+  { return Item_args::has_deterministic_args(); }
 };
 
 /* Base class for all bit functions: '~', '|', '^', '&', '>>', '<<' */
@@ -3323,8 +3350,7 @@ public:
     not_null_tables_cache= 0;
     return 0;
   }
-  bool is_deterministic()
-  { return false; }
+  bool is_deterministic() const { return false; }
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   { return false; }
 };

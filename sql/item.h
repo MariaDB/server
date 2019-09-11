@@ -1840,17 +1840,14 @@ public:
    {
      (*traverser)(this, arg);
    }
-   virtual void update_is_deterministic() {}
-   virtual bool is_deterministic() { return true; }
    /*
-     TRUE if item argument is deterministic or doesn't make this
-     expression non-deterministic.
+     Return TRUE if an expression depends on determinstic functions only.
+     Deterministic function is a function that returns the same result
+     for equal input sets.
+     All non-functional items are deterministic by default;
    */
-   virtual bool is_arg_deterministic(Item **item)
-   { return (*item)->is_deterministic(); }
-   virtual bool lead_to_deterministic_result()
-   { return is_deterministic(); }
-
+   virtual bool is_deterministic() const { return true; }
+   virtual void update_is_deterministic() {}
   /*========= Item processors, to be used with Item::walk() ========*/
   virtual bool remove_dependence_processor(void *arg) { return 0; }
   virtual bool cleanup_processor(void *arg);
@@ -2398,6 +2395,7 @@ public:
             cmp_type() == DECIMAL_RESULT ||
             cmp_type() == REAL_RESULT);
   }
+  bool is_deterministic_arg();
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -2700,6 +2698,15 @@ public:
   inline Item **arguments() const { return args; }
   inline uint argument_count() const { return arg_count; }
   inline void remove_arguments() { arg_count=0; }
+  bool has_deterministic_args()
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (!args[i]->is_deterministic_arg())
+        return false;
+    }
+    return true;
+  }
 };
 
 
@@ -3548,19 +3555,6 @@ public:
   { return field ? 0 : cleanup_processor(arg); }
   bool cleanup_excluding_const_fields_processor(void *arg)
   { return field && const_item() ? 0 : cleanup_processor(arg); }
-  /*
-    FALSE if the considered Item_field is of STRING type that
-    makes function where this Item_field is used (if there
-    is any) non-deterministic.
-  */
-  bool lead_to_deterministic_result()
-  {
-    if (field->cmp_type() == STRING_RESULT &&
-        (!((field->charset()->state & MY_CS_BINSORT) &&
-         (field->charset()->state & MY_CS_NOPAD))))
-      return false;
-    return true;
-  }
   bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
                              Item **err_item);
   bool check_usage_in_fd_field_extraction(THD *thd,
@@ -5093,30 +5087,34 @@ public:
    :is_deterministic_cache(true) { }
   Is_deterministic_cache(const Is_deterministic_cache *other)
    :is_deterministic_cache(other->is_deterministic_cache) { }
-  void is_deterministic_init()
+  void is_deterministic_cache_init()
   {
     is_deterministic_cache= true;
   }
-  void is_deterministic_join(Item *func_item, Item *item)
+  void is_deterministic_cache_set(bool init_val)
   {
-    is_deterministic_cache&= func_item->is_arg_deterministic(&item);
+    is_deterministic_cache= init_val;
   }
-  void is_deterministic_update_and_join(Item *func_item, Item *item)
+  void is_deterministic_cache_join(const Item *item)
+  {
+    is_deterministic_cache&= item->is_deterministic();
+  }
+  void is_deterministic_update_and_join(Item *item)
   {
     item->update_is_deterministic();
-    is_deterministic_join(func_item, item);
+    is_deterministic_cache_join(item);
   }
-  void is_deterministic_update_and_join(Item *func_item, uint argc, Item **argv)
+  void is_deterministic_update_and_join(uint argc, Item **argv)
   {
     for (uint i=0 ; i < argc ; i++)
-      is_deterministic_update_and_join(func_item, argv[i]);
+      is_deterministic_update_and_join(argv[i]);
   }
-  void is_deterministic_update_and_join(Item *func_item, List<Item> &list)
+  void is_deterministic_update_and_join(List<Item> &list)
   {
     List_iterator_fast<Item> li(list);
     Item *item;
     while ((item=li++))
-      is_deterministic_update_and_join(func_item, item);
+      is_deterministic_update_and_join(item);
   }
 };
 
@@ -5240,7 +5238,7 @@ public:
   virtual bool fix_length_and_dec()= 0;
   bool const_item() const { return const_item_cache; }
   table_map used_tables() const { return used_tables_cache; }
-  bool is_deterministic() { return is_deterministic_cache; }
+  bool is_deterministic() const { return is_deterministic_cache; }
   Item* build_clone(THD *thd);
 };
 
@@ -5523,8 +5521,6 @@ public:
     *ref= (*ref)->remove_item_direct_ref();
     return this;
   }
-  bool lead_to_deterministic_result()
-  { return (*ref)->lead_to_deterministic_result(); }
   bool excl_dep_on_fd_fields(List<Item> *gb_items, table_map forbid_fd,
                              Item **err_item);
   bool check_usage_in_fd_field_extraction(THD *thd,

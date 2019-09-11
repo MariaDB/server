@@ -4773,6 +4773,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
   bool is_and_cond= functype() == Item_func::COND_AND_FUNC;
   not_null_tables_cache= 0;
   used_tables_and_const_cache_init();
+  is_deterministic_cache_init();
 
   /*
     and_table_cache is the value that Item_cond_or() returns for
@@ -4831,7 +4832,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       return TRUE; /* purecov: inspected */
     item= *li.ref(); // item can be substituted in fix_fields
     used_tables_cache|=     item->used_tables();
-    is_deterministic_join(this, item);
+    is_deterministic_cache_join(item);
     if (item->const_item() && !item->with_param &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
     {
