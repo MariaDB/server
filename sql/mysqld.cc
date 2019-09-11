@@ -1879,6 +1879,7 @@ extern "C" void unireg_abort(int exit_code)
 
 #ifdef WITH_WSREP
   if (WSREP_ON &&
+      Wsrep_server_state::is_inited() &&
       Wsrep_server_state::instance().state() != wsrep::server_state::s_disconnected)
   {
     /*
@@ -5108,6 +5109,7 @@ static int init_server_components()
 
 #ifdef WITH_WSREP
   if (wsrep_init_server()) unireg_abort(1);
+
   if (WSREP_ON && !wsrep_recovery && !opt_abort)
   {
     if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
