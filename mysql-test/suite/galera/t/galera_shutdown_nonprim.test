@@ -1,0 +1,36 @@
+#
+# Check that server can be shut down in non-primary configuration.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $node_1 = node_1
+--let $node_2 = node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+# Set higher weight for node_1 to keep it in primary
+# while node_2 is isolated.
+SET GLOBAL wsrep_provider_options = 'pc.weight=2';
+
+--connection node_2
+# Isolate node_2 from the group and wait until wsrep_ready becomes OFF.
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'OFF' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+
+# Verify that graceful shutdown succeeds.
+--source include/shutdown_mysqld.inc
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_1
+--source include/wait_condition.inc
+
+# Restore original settings.
+SET GLOBAL wsrep_provider_options = 'pc.weight = 1';
+--source include/auto_increment_offset_restore.inc
