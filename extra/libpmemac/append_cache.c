@@ -30,6 +30,9 @@
 #include "mysql/psi/mysql_file.h"
 
 
+#define PMEM_APPEND_CACHE_MIN_SIZE 8192
+
+
 /* PMAC0\0\0\0 */
 static const uint32_t pmem_append_cache_magic= 0x010dfefe;
 
@@ -83,7 +86,7 @@ static int create_directory(PMEM_APPEND_CACHE_DIRECTORY *dir,
     goto err;
 
   cache_size= ((size - header_size) / n_caches) & ~(uint64_t) 7;
-  if (cache_size < sizeof(PMEM_APPEND_CACHE_HEADER))
+  if (cache_size < PMEM_APPEND_CACHE_MIN_SIZE)
   {
 err:
     dir->header= 0;
@@ -137,7 +140,7 @@ int open_cache(PMEM_APPEND_CACHE *cache, PMEM_APPEND_CACHE_DIRECTORY *dir,
   if (cache_start < directory_header_size(dir->header->n_caches) ||
       cache_start > cache_end ||
       cache_start & 7 ||
-      cache_end - cache_start < sizeof(PMEM_APPEND_CACHE_HEADER) ||
+      cache_end - cache_start < PMEM_APPEND_CACHE_MIN_SIZE ||
       cache_end > dir->mapped_length)
     return -1;
 
@@ -242,8 +245,8 @@ static void *flusher_thread(void *arg)
   @return number of bytes written
 */
 
-size_t cache_write(PMEM_APPEND_CACHE *cache, const void *data, size_t length,
-                   myf flags)
+static size_t cache_write(PMEM_APPEND_CACHE *cache, const void *data,
+                          size_t length, myf flags)
 {
   if (length)
   {
@@ -297,8 +300,8 @@ size_t cache_write(PMEM_APPEND_CACHE *cache, const void *data, size_t length,
 }
 
 
-size_t no_cache_write(PMEM_APPEND_CACHE *cache, const void *data, size_t length,
-                myf flags)
+static size_t no_cache_write(PMEM_APPEND_CACHE *cache, const void *data,
+                             size_t length, myf flags)
 {
   return mysql_file_write(cache->file_fd, data, length, flags);
 }
