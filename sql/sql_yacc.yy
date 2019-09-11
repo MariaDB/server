@@ -2901,24 +2901,26 @@ create:
         ;
 
 sf_tail_not_aggregate:
-        sf_tail
-        {
-          if (unlikely(Lex->sphead->m_flags & sp_head::HAS_AGGREGATE_INSTR))
+          sf_tail
           {
-            my_yyabort_error((ER_NOT_AGGREGATE_FUNCTION, MYF(0)));
+            if (unlikely(Lex->sphead->m_flags & sp_head::HAS_AGGREGATE_INSTR))
+            {
+              my_yyabort_error((ER_NOT_AGGREGATE_FUNCTION, MYF(0)));
+            }
+            Lex->sphead->set_chistics_agg_type(NOT_AGGREGATE);
           }
-          Lex->sphead->set_chistics_agg_type(NOT_AGGREGATE);
-        }
+        ;
 
 sf_tail_aggregate:
-        sf_tail
-        {
-          if (unlikely(!(Lex->sphead->m_flags & sp_head::HAS_AGGREGATE_INSTR)))
+          sf_tail
           {
-            my_yyabort_error((ER_INVALID_AGGREGATE_FUNCTION, MYF(0)));
+            if (unlikely(!(Lex->sphead->m_flags & sp_head::HAS_AGGREGATE_INSTR)))
+            {
+              my_yyabort_error((ER_INVALID_AGGREGATE_FUNCTION, MYF(0)));
+            }
+            Lex->sphead->set_chistics_agg_type(GROUP_AGGREGATE);
           }
-          Lex->sphead->set_chistics_agg_type(GROUP_AGGREGATE);
-        }
+        ;
 
 create_function_tail:
           sf_tail_not_aggregate { }
@@ -13008,6 +13010,7 @@ opt_plus:
 int_num:
           opt_plus NUM           { int error; $$= (int) my_strtoll10($2.str, (char**) 0, &error); }
         | '-' NUM       { int error; $$= -(int) my_strtoll10($2.str, (char**) 0, &error); }
+        ;
 
 ulong_num:
           opt_plus NUM           { int error; $$= (ulong) my_strtoll10($2.str, (char**) 0, &error); }
@@ -13031,7 +13034,7 @@ longlong_num:
         | LONG_NUM      { int error; $$= (longlong) my_strtoll10($1.str, (char**) 0, &error); }
         | '-' NUM         { int error; $$= -(longlong) my_strtoll10($2.str, (char**) 0, &error); }
         | '-' LONG_NUM  { int error; $$= -(longlong) my_strtoll10($2.str, (char**) 0, &error); }
-
+        ;
 
 ulonglong_num:
           opt_plus NUM           { int error; $$= (ulonglong) my_strtoll10($2.str, (char**) 0, &error); }
@@ -13068,7 +13071,7 @@ bool:
         ulong_num   { $$= $1 != 0; }
         | TRUE_SYM  { $$= 1; }
         | FALSE_SYM { $$= 0; }
-
+        ;
 
 procedure_clause:
           PROCEDURE_SYM ident /* Procedure name */
@@ -17492,7 +17495,7 @@ unit_type_decl:
           { $$= INTERSECT_TYPE; }
         | EXCEPT_SYM
           { $$= EXCEPT_TYPE; }
-
+        ;
 
 union_clause:
           /* empty */ {}
