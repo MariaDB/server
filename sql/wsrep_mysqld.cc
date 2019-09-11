@@ -789,6 +789,14 @@ int wsrep_init()
     return 1;
   }
 
+  if (wsrep_gtid_mode &&
+      (wsrep_gtid_server.domain_id == global_system_variables.gtid_domain_id))
+  {
+    WSREP_ERROR("With wsrep-gtid-mode enabled, wsrep-gtid-domain-id needs to "
+                "have different value set than gtid-domain-id.");
+    return 1;
+  }
+
   if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
     wsrep_data_home_dir= mysql_real_data_home;
 

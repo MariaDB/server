@@ -4,6 +4,12 @@
 --echo # wsrep_gtid_mode
 --echo #
 
+# gtid-domain-id and wsrep-gtid-domain-id needs to be different
+# to execute this test.
+--echo # save the initial value for wsrep_gtid_domain_id
+SET @wsrep_gtid_domain_id_global_saved = @@global.wsrep_gtid_domain_id;
+SET @@global.wsrep_gtid_domain_id=100;
+
 --echo # save the initial value
 SET @wsrep_gtid_mode_global_saved = @@global.wsrep_gtid_mode;
 
@@ -29,5 +35,8 @@ SET @@global.wsrep_gtid_mode='junk';
 --echo
 --echo # restore the initial value
 SET @@global.wsrep_gtid_mode = @wsrep_gtid_mode_global_saved;
+
+--echo # restore the initial value for wsrep_gtid_domain_id
+SET @@global.wsrep_gtid_domain_id = @wsrep_gtid_domain_id_global_saved;
 
 --echo # End of test

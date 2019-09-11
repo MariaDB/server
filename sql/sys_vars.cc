@@ -1670,6 +1670,19 @@ static Sys_var_ulonglong Sys_pseudo_thread_id(
 static bool
 check_gtid_domain_id(sys_var *self, THD *thd, set_var *var)
 {
+#ifdef WITH_WSREP
+  /*
+    Don't allow chaning gtid-domain-id to same value as
+    wsrep-gtid-domain-id if wsrep-gtid-mode is ON.
+   */
+  if (wsrep_gtid_mode &&
+      (wsrep_gtid_server.domain_id == var->save_result.ulonglong_value))
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), "gtid-domain-id because "
+             "it is set to value as wsrep-gtid-domain-id");
+    return true;
+  }
+#endif
   if (check_has_super(self, thd, var))
     return true;
   if (var->type != OPT_GLOBAL &&
@@ -5776,7 +5789,8 @@ static Sys_var_uint Sys_wsrep_gtid_domain_id(
        "used as gtid_domain_id for galera transactions and also copied to the "
        "joiner nodes during state transfer. It is ignored, otherwise.",
        GLOBAL_VAR(wsrep_gtid_server.domain_id), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(wsrep_gtid_domain_id_check));
 
 static Sys_var_mybool Sys_wsrep_gtid_mode(
        "wsrep_gtid_mode", "Automatically update the (joiner) node's "
@@ -5784,7 +5798,8 @@ static Sys_var_mybool Sys_wsrep_gtid_mode(
        "state transfer) and use it in place of gtid_domain_id for all galera "
        "transactions. When OFF (default), wsrep_gtid_domain_id is simply "
        "ignored (backward compatibility).",
-       GLOBAL_VAR(wsrep_gtid_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+       GLOBAL_VAR(wsrep_gtid_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(wsrep_gtid_mode_check));
 
 static char *wsrep_patch_version_ptr;
 static Sys_var_charptr Sys_wsrep_patch_version(

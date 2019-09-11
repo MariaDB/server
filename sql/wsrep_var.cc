@@ -476,6 +476,32 @@ bool wsrep_debug_update(sys_var *self, THD* thd, enum_var_type type)
     return false;
 }
 
+bool wsrep_gtid_mode_check(sys_var *self, THD* thd, set_var* var)
+{
+  bool new_wsrep_gtid_mode= (bool) var->save_result.ulonglong_value;
+  if (new_wsrep_gtid_mode &&
+      (wsrep_gtid_server.domain_id == global_system_variables.gtid_domain_id))
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "wsrep_gtid_mode",
+             "true, wsrep-gtid-domain-id and gtid-domain-id contain same value");
+    return true;
+  }
+  return false;
+}
+
+bool wsrep_gtid_domain_id_check(sys_var *self, THD* thd, set_var* var)
+{
+  ulonglong new_wsrep_gtid_domain_id= var->save_result.ulonglong_value;
+  if (wsrep_gtid_mode &&
+      (new_wsrep_gtid_domain_id == global_system_variables.gtid_domain_id))
+  { 
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), "wsrep_gtid_domain_id because "
+             "it is set to value as gtid-domain-id");
+    return true;
+  }
+  return false;
+}
+
 static int wsrep_cluster_address_verify (const char* cluster_address_str)
 {
   /* There is no predefined address format, it depends on provider. */

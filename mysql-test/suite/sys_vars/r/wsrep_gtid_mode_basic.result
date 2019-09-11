@@ -1,6 +1,9 @@
 #
 # wsrep_gtid_mode
 #
+# save the initial value for wsrep_gtid_domain_id
+SET @wsrep_gtid_domain_id_global_saved = @@global.wsrep_gtid_domain_id;
+SET @@global.wsrep_gtid_domain_id=100;
 # save the initial value
 SET @wsrep_gtid_mode_global_saved = @@global.wsrep_gtid_mode;
 # default
@@ -28,4 +31,6 @@ ERROR 42000: Variable 'wsrep_gtid_mode' can't be set to the value of 'junk'
 
 # restore the initial value
 SET @@global.wsrep_gtid_mode = @wsrep_gtid_mode_global_saved;
+# restore the initial value for wsrep_gtid_domain_id
+SET @@global.wsrep_gtid_domain_id = @wsrep_gtid_domain_id_global_saved;
 # End of test
