@@ -355,14 +355,155 @@ int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
   return 0;
 }
 
+class clustrix_connection_cursor {
+  struct rowdata {
+    ulong length;
+    uchar *data;
+  };
+
+  ulong current_row;
+  ulong last_row;
+  struct rowdata *rows;
+  uchar *outstanding_row; // to be freed on next request.
+  MYSQL *clustrix_net;
+
+public:
+  ulong buffer_size;
+  ulonglong scan_refid;
+  bool eof_reached;
+
+private:
+  int cache_row(uchar *rowdata, ulong rowdata_length)
+  {
+    DBUG_ENTER("clustrix_connection_cursor::cache_row");
+    rows[last_row].length = rowdata_length;
+    rows[last_row].data = (uchar *)my_malloc(rowdata_length, MYF(MY_WME));
+    if (!rows[last_row].data)
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    memcpy(rows[last_row].data, rowdata, rowdata_length);
+    last_row++;
+    DBUG_RETURN(0);
+  }
+
+  int load_rows_impl()
+  {
+    DBUG_ENTER("clustrix_connection_cursor::load_rows_impl");
+    int error_code = 0;
+    ulong packet_length = cli_safe_read(clustrix_net);
+    if (packet_length == packet_error) {
+      error_code = mysql_errno(clustrix_net);
+      if (error_code == HA_ERR_END_OF_FILE) {
+        // We have read all rows for query.
+        eof_reached = TRUE;
+        DBUG_RETURN(0);
+      }
+      DBUG_RETURN(error_code);
+    }
+
+    uchar *rowdata = clustrix_net->net.read_pos;
+    ulong rowdata_length = safe_net_field_length_ll(&rowdata, packet_length);
+    if (!rowdata_length) {
+      // We have read all rows in this batch.
+      DBUG_RETURN(0);
+    }
+
+    if ((error_code = cache_row(rowdata, rowdata_length)))
+      DBUG_RETURN(error_code);
+
+    DBUG_RETURN(load_rows_impl());
+  }
+
+public:
+  clustrix_connection_cursor(MYSQL *clustrix_net_, ulong bufsize)
+  {
+    DBUG_ENTER("clustrix_connection_cursor::clustrix_connection_cursor");
+    clustrix_net = clustrix_net_;
+    eof_reached = FALSE;
+    current_row = 0;
+    last_row = 0;
+    outstanding_row = NULL;
+    buffer_size = bufsize;
+    rows = NULL;
+    DBUG_VOID_RETURN;
+  }
+
+  ~clustrix_connection_cursor()
+  {
+    DBUG_ENTER("clustrix_connection_cursor::~clustrix_connection_cursor");
+    if (outstanding_row)
+      my_free(outstanding_row);
+    while (current_row < last_row)
+      my_free(rows[current_row++].data);
+    if (rows)
+      my_free(rows);
+    DBUG_VOID_RETURN;
+  }
+
+  int load_rows()
+  {
+    DBUG_ENTER("clustrix_connection_cursor::load_rows");
+    current_row = 0;
+    last_row = 0;
+    DBUG_RETURN(load_rows_impl());
+  }
+
+  int initialize()
+  {
+    DBUG_ENTER("clustrix_connection_cursor::initialize");
+    ulong packet_length = cli_safe_read(clustrix_net);
+    if (packet_length == packet_error)
+      DBUG_RETURN(mysql_errno(clustrix_net));
+
+    unsigned char *pos = clustrix_net->net.read_pos;
+    scan_refid = safe_net_field_length_ll(&pos, packet_length);
+
+    rows = (struct rowdata *)my_malloc(buffer_size * sizeof(struct rowdata),
+                                       MYF(MY_WME));
+    if (!rows)
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+    DBUG_RETURN(load_rows());
+  }
+
+  uchar *retrieve_row(ulong *rowdata_length)
+  {
+    DBUG_ENTER("clustrix_connection_cursor::retrieve_row");
+    if (outstanding_row) {
+      my_free(outstanding_row);
+      outstanding_row = NULL;
+    }
+    if (current_row == last_row)
+      DBUG_RETURN(NULL);
+    *rowdata_length = rows[current_row].length;
+    outstanding_row = rows[current_row].data;
+    current_row++;
+    DBUG_RETURN(outstanding_row);
+  }
+};
+
+int allocate_clustrix_connection_cursor(MYSQL *clustrix_net, ulong buffer_size,
+                                        clustrix_connection_cursor **scan)
+{
+  DBUG_ENTER("allocate_clustrix_connection_cursor");
+  *scan = new clustrix_connection_cursor(clustrix_net, buffer_size);
+  if (!*scan)
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+  DBUG_RETURN((*scan)->initialize());
+}
+
 int clustrix_connection::scan_table(ulonglong clustrix_table_oid, uint index,
                                     enum sort_order sort, MY_BITMAP *read_set,
-                                    ulonglong *scan_refid)
+                                    ushort row_req,
+                                    clustrix_connection_cursor **scan)
 {
   int error_code;
   command_length = 0;
 
   if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_TABLE)))
+    return error_code;
+
+  if ((error_code = add_command_operand_ushort(row_req)))
     return error_code;
 
   if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
@@ -380,13 +521,7 @@ int clustrix_connection::scan_table(ulonglong clustrix_table_oid, uint index,
   if ((error_code = send_command()))
     return error_code;
 
-  ulong packet_length = cli_safe_read(&clustrix_net);
-  if (packet_length == packet_error)
-    return mysql_errno(&clustrix_net);
-
-  unsigned char *pos = clustrix_net.net.read_pos;
-  *scan_refid = safe_net_field_length_ll(&pos, packet_length);
-  return error_code;
+  return allocate_clustrix_connection_cursor(&clustrix_net, row_req, scan);
 }
 
 /**
@@ -410,12 +545,16 @@ int clustrix_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
                                     uchar *null_bits, uint null_bits_size,
                                     uchar *field_metadata,
                                     uint field_metadata_size,
-                                    ulonglong *scan_refid)
+                                    ushort row_req,
+                                    clustrix_connection_cursor **scan)
 {
   int error_code;
   command_length = 0;
 
   if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_QUERY)))
+    return error_code;
+
+  if ((error_code = add_command_operand_ushort(row_req)))
     return error_code;
 
   if ((error_code = add_command_operand_str((uchar*)stmt.ptr(), stmt.length())))
@@ -434,13 +573,7 @@ int clustrix_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
   if ((error_code = send_command()))
     return error_code;
 
-  ulong packet_length = cli_safe_read(&clustrix_net);
-  if (packet_length == packet_error)
-    return mysql_errno(&clustrix_net);
-
-  unsigned char *pos = clustrix_net.net.read_pos;
-  *scan_refid = safe_net_field_length_ll(&pos, packet_length);
-  return error_code;
+  return allocate_clustrix_connection_cursor(&clustrix_net, row_req, scan);
 }
 
 int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
@@ -448,12 +581,16 @@ int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
                                        bool sorted_scan, MY_BITMAP *read_set,
                                        uchar *packed_key,
                                        ulong packed_key_length,
-                                       ulonglong *scan_refid)
+                                       ushort row_req,
+                                       clustrix_connection_cursor **scan)
 {
   int error_code;
   command_length = 0;
 
   if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_FROM_KEY)))
+    return error_code;
+
+  if ((error_code = add_command_operand_ushort(row_req)))
     return error_code;
 
   if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
@@ -477,44 +614,54 @@ int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
   if ((error_code = send_command()))
     return error_code;
 
-  ulong packet_length = cli_safe_read(&clustrix_net);
-  if (packet_length == packet_error)
-    return mysql_errno(&clustrix_net);
-
-  unsigned char *pos = clustrix_net.net.read_pos;
-  *scan_refid = safe_net_field_length_ll(&pos, packet_length);
-  return error_code;
+  return allocate_clustrix_connection_cursor(&clustrix_net, row_req, scan);
 }
 
-int clustrix_connection::scan_next(ulonglong scan_refid, uchar **rowdata,
-                                   ulong *rowdata_length)
+int clustrix_connection::scan_next(clustrix_connection_cursor *scan,
+                                   uchar **rowdata, ulong *rowdata_length)
 {
+  *rowdata = scan->retrieve_row(rowdata_length);
+  if (*rowdata)
+    return 0;
+
+  if (scan->eof_reached)
+    return HA_ERR_END_OF_FILE;
+
   int error_code;
   command_length = 0;
 
   if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_NEXT)))
     return error_code;
 
-  if ((error_code = add_command_operand_lcb(scan_refid)))
+  if ((error_code = add_command_operand_ushort(scan->buffer_size)))
+    return error_code;
+
+  if ((error_code = add_command_operand_lcb(scan->scan_refid)))
     return error_code;
 
   if ((error_code = send_command()))
     return error_code;
 
-  ulong packet_length = cli_safe_read(&clustrix_net);
-  if (packet_length == packet_error)
-    return mysql_errno(&clustrix_net);
+  if ((error_code = scan->load_rows()))
+    return error_code;
 
-  *rowdata = clustrix_net.net.read_pos;
-  *rowdata_length =  safe_net_field_length_ll(rowdata, packet_length);
+  *rowdata = scan->retrieve_row(rowdata_length);
+  if (!*rowdata)
+    return HA_ERR_END_OF_FILE;
 
   return 0;
 }
 
-int clustrix_connection::scan_end(ulonglong scan_refid)
+int clustrix_connection::scan_end(clustrix_connection_cursor *scan)
 {
   int error_code;
   command_length = 0;
+  ulonglong scan_refid = scan->scan_refid;
+  bool eof_reached = scan->eof_reached;
+  delete scan;
+
+  if (eof_reached)
+      return 0;
 
   if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_STOP)))
     return error_code;
@@ -693,6 +840,18 @@ int clustrix_connection::add_command_operand_uchar(uchar value)
   memcpy(command_buffer + command_length, &value, sizeof(value));
   command_length += sizeof(value);
 
+  return 0;
+}
+
+int clustrix_connection::add_command_operand_ushort(ushort value)
+{
+  ushort be_value = htobe16(value);
+  int error_code = expand_command_buffer(sizeof(be_value));
+  if (error_code)
+    return error_code;
+
+  memcpy(command_buffer + command_length, &be_value, sizeof(be_value));
+  command_length += sizeof(be_value);
   return 0;
 }
 

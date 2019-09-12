@@ -90,6 +90,14 @@ static MYSQL_SYSVAR_STR
   NULL, NULL, ""
 );
 
+static MYSQL_THDVAR_UINT
+(
+  row_buffer,
+  PLUGIN_VAR_RQCMDARG,
+  "Clustrix rowstore row buffer size",
+  NULL, NULL, 20, 1, 65535, 0
+);
+
 // Per thread select handler knob
 static MYSQL_THDVAR_BOOL(
     select_handler,
@@ -117,6 +125,11 @@ bool select_handler_setting(THD* thd)
 bool derived_handler_setting(THD* thd)
 {
     return ( thd == NULL ) ? false : THDVAR(thd, derived_handler);
+}
+
+uint row_buffer_setting(THD* thd)
+{
+    return THDVAR(thd, row_buffer);
 }
 
 /****************************************************************************
@@ -183,7 +196,7 @@ ha_clustrixdb::ha_clustrixdb(handlerton *hton, TABLE_SHARE *table_arg)
   DBUG_ENTER("ha_clustrixdb::ha_clustrixdb");
   rli = NULL;
   rgi = NULL;
-  scan_refid = 0;
+  scan_cur = NULL;
   clustrix_table_oid = 0;
   DBUG_VOID_RETURN;
 }
@@ -526,7 +539,7 @@ int ha_clustrixdb::index_init(uint idx, bool sorted)
 
   active_index = idx;
   add_current_table_to_rpl_table_list();
-  scan_refid = 0;
+  scan_cur = NULL;
 
   /* Return all columns until there is a better understanding of
      requirements. */
@@ -562,9 +575,9 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
   switch (find_flag) {
     case HA_READ_KEY_EXACT:
       //exact = true;
-      /* fall through */    
+      /* fall through */
       //DBUG_RETURN(ER_NOT_SUPPORTED_YET);
-    case HA_READ_KEY_OR_NEXT:           
+    case HA_READ_KEY_OR_NEXT:
       st = clustrix_connection::READ_KEY_OR_NEXT;
       break;
     case HA_READ_KEY_OR_PREV:
@@ -589,7 +602,8 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
 
   error_code = trx->scan_from_key(clustrix_table_oid, active_index, st,
                                   sorted_scan, &scan_fields, packed_key,
-                                  packed_key_len, &scan_refid);
+                                  packed_key_len, THDVAR(thd, row_buffer),
+                                  &scan_cur);
   if (packed_key)
     my_afree(packed_key);
 
@@ -601,7 +615,7 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
 
 int ha_clustrixdb::index_first(uchar *buf)
 {
-  DBUG_ENTER("ha_clustrixdb::index_read");
+  DBUG_ENTER("ha_clustrixdb::index_first");
   int error_code = 0;
   THD *thd = ha_thd();
   clustrix_connection *trx = get_trx(thd, &error_code);
@@ -609,9 +623,9 @@ int ha_clustrixdb::index_first(uchar *buf)
     DBUG_RETURN(error_code);
 
   if ((error_code = trx->scan_from_key(clustrix_table_oid, active_index,
-                                       clustrix_connection::READ_FROM_START, 
+                                       clustrix_connection::READ_FROM_START,
                                        sorted_scan, &scan_fields, NULL, 0,
-                                       &scan_refid)))
+                                       THDVAR(thd, row_buffer), &scan_cur)))
     DBUG_RETURN(error_code);
 
   DBUG_RETURN(rnd_next(buf));
@@ -619,7 +633,7 @@ int ha_clustrixdb::index_first(uchar *buf)
 
 int ha_clustrixdb::index_last(uchar *buf)
 {
-  DBUG_ENTER("ha_clustrixdb::index_read");
+  DBUG_ENTER("ha_clustrixdb::index_last");
   int error_code = 0;
   THD *thd = ha_thd();
   clustrix_connection *trx = get_trx(thd, &error_code);
@@ -627,9 +641,9 @@ int ha_clustrixdb::index_last(uchar *buf)
     DBUG_RETURN(error_code);
 
   if ((error_code = trx->scan_from_key(clustrix_table_oid, active_index,
-                                       clustrix_connection::READ_FROM_LAST, 
+                                       clustrix_connection::READ_FROM_LAST,
                                        sorted_scan, &scan_fields, NULL, 0,
-                                       &scan_refid)))
+                                       THDVAR(thd, row_buffer), &scan_cur)))
     DBUG_RETURN(error_code);
 
   DBUG_RETURN(rnd_next(buf));
@@ -658,7 +672,7 @@ int ha_clustrixdb::index_prev(uchar *buf)
 int ha_clustrixdb::index_end()
 {
   DBUG_ENTER("index_prev");
-  if (scan_refid)
+  if (scan_cur)
     DBUG_RETURN(rnd_end());
   else
     DBUG_RETURN(0);
@@ -675,7 +689,7 @@ int ha_clustrixdb::rnd_init(bool scan)
 
   add_current_table_to_rpl_table_list();
   is_scan = scan;
-  scan_refid = 0;
+  scan_cur = NULL;
 
   if (my_bitmap_init(&scan_fields, NULL, table->read_set->n_bits, false))
     return ER_OUTOFMEMORY;
@@ -694,7 +708,8 @@ int ha_clustrixdb::rnd_init(bool scan)
 
   if ((error_code = trx->scan_table(clustrix_table_oid, 0,
                                     clustrix_connection::SORT_NONE,
-                                    &scan_fields, &scan_refid)))
+                                    &scan_fields, THDVAR(thd, row_buffer),
+                                    &scan_cur)))
     return error_code;
 
   return 0;
@@ -709,11 +724,11 @@ int ha_clustrixdb::rnd_next(uchar *buf)
     return error_code;
 
   assert(is_scan);
-  assert(scan_refid);
+  assert(scan_cur);
 
   uchar *rowdata;
   ulong rowdata_length;
-  if ((error_code = trx->scan_next(scan_refid, &rowdata, &rowdata_length)))
+  if ((error_code = trx->scan_next(scan_cur, &rowdata, &rowdata_length)))
     return error_code;
 
   if (has_hidden_key) {
@@ -793,9 +808,9 @@ int ha_clustrixdb::rnd_end()
     return error_code;
 
   my_bitmap_free(&scan_fields);
-  if (scan_refid && (error_code = trx->scan_end(scan_refid)))
+  if (scan_cur && (error_code = trx->scan_end(scan_cur)))
     return error_code;
-  scan_refid = 0;
+  scan_cur = NULL;
 
   return 0;
 }
@@ -1063,6 +1078,7 @@ static struct st_mysql_sys_var* clustrixdb_system_variables[] =
   MYSQL_SYSVAR(password),
   MYSQL_SYSVAR(port),
   MYSQL_SYSVAR(socket),
+  MYSQL_SYSVAR(row_buffer),
   MYSQL_SYSVAR(select_handler),
   MYSQL_SYSVAR(derived_handler),
   NULL

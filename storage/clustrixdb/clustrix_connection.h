@@ -21,6 +21,7 @@ Copyright (c) 2019, MariaDB Corporation.
 
 #define CLUSTRIX_SERVER_REQUEST 30
 
+class clustrix_connection_cursor;
 class clustrix_connection
 {
 private:
@@ -28,7 +29,6 @@ private:
 # define COMMAND_BUFFER_SIZE_INCREMENT_BITS 10
 
   MYSQL clustrix_net;
-  MYSQL_RES *results;
   uchar *command_buffer;
   size_t command_buffer_length;
   size_t command_length;
@@ -111,24 +111,29 @@ public:
   };
 
   int scan_table(ulonglong clustrix_table_oid, uint index,
-                 enum sort_order sort, MY_BITMAP *read_set,
-                 ulonglong *scan_refid);
-  int scan_next(ulonglong scan_refid, uchar **rowdata, ulong *rowdata_length);
-  int scan_end(ulonglong scan_refid);
+                 enum sort_order sort, MY_BITMAP *read_set, ushort row_req,
+                 clustrix_connection_cursor **scan);
   int scan_query(String &stmt, uchar *fieldtype, uint fields, uchar *null_bits,
                  uint null_bits_size, uchar *field_metadata,
-                 uint field_metadata_size, ulonglong *scan_refid);
-  int scan_from_key(ulonglong clustrix_table_oid, uint index, 
+                 uint field_metadata_size, ushort row_req,
+                 clustrix_connection_cursor **scan);
+  int scan_from_key(ulonglong clustrix_table_oid, uint index,
                     enum scan_type scan_dir, bool sorted_scan,
                     MY_BITMAP *read_set, uchar *packed_key,
-                    ulong packed_key_length, ulonglong *scan_refid);
+                    ulong packed_key_length, ushort row_req,
+                    clustrix_connection_cursor **scan);
+  int scan_next(clustrix_connection_cursor *scan, uchar **rowdata,
+                ulong *rowdata_length);
+  int scan_end(clustrix_connection_cursor *scan);
 
   int populate_table_list(LEX_CSTRING *db, handlerton::discovered_list *result);
   int discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name, THD *thd,
                              TABLE_SHARE *share);
+
 private:
   int expand_command_buffer(size_t add_length);
   int add_command_operand_uchar(uchar value);
+  int add_command_operand_ushort(ushort value);
   int add_command_operand_uint(uint value);
   int add_command_operand_ulonglong(ulonglong value);
   int add_command_operand_lcb(ulonglong value);

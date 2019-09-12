@@ -38,7 +38,7 @@ private:
 
   bool has_hidden_key;
   ulonglong last_hidden_key;
-  ulonglong scan_refid;
+  clustrix_connection_cursor *scan_cur;
   bool is_scan;
   MY_BITMAP scan_fields;
   bool sorted_scan;
@@ -110,4 +110,5 @@ private:
 
 bool select_handler_setting(THD* thd);
 bool derived_handler_setting(THD* thd);
+uint row_buffer_setting(THD* thd);
 #endif  // _ha_clustrixdb_h
