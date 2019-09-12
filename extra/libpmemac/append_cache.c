@@ -263,15 +263,16 @@ static size_t cache_write(PMEM_APPEND_CACHE *cache, const void *data,
     do
     {
       uint64_t chunk_offset= write_pos % cache->buffer_size;
-      uint64_t avail;
+      uint64_t used, avail;
 
       /* Wait for flusher thread to release some space */
-      while ((avail=
+      while ((used= write_pos -
               (uint64_t) my_atomic_load64_explicit((int64*) &cache->flushed_eof,
-                                                   MY_MEMORY_ORDER_RELAXED) +
-                     cache->buffer_size - write_pos) <= 0)
+                                                   MY_MEMORY_ORDER_RELAXED)) >=
+             cache->buffer_size)
         LF_BACKOFF();
 
+      avail= cache->buffer_size - used;
       if (avail > left)
         avail= left;
 
