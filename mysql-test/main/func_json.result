@@ -942,5 +942,14 @@ def					json_depnth	3	10	1	N	32897	0	63
 json_length	json_depnth
 2	3
 #
+# MDEV-19670 json escaped unicode parse error
+#
+SELECT json_valid('{"value":"\\ud83d\\ude0a"}');
+json_valid('{"value":"\\ud83d\\ude0a"}')
+1
+SELECT json_valid('{"test": "\\ud83d\\ude0b"}');
+json_valid('{"test": "\\ud83d\\ude0b"}')
+1
+#
 # End of 10.3 tests
 #
