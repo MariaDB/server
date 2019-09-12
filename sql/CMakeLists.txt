@@ -210,9 +210,9 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   # without necessity.E.g source modifications, that do not
   # change list of exported symbols, will not result in a relink for plugins.
 
-  SET(MYSQLD_DEF ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.def)
-  SET(MYSQLD_EXP ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.exp)
-  SET(MYSQLD_LIB ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.lib)
+  SET(MYSQLD_DEF ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib${CMAKE_CFG_INTDIR}.def)
+  SET(MYSQLD_EXP ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib${CMAKE_CFG_INTDIR}.exp)
+  SET(MYSQLD_LIB ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib${CMAKE_CFG_INTDIR}.lib)
   SET(MYSQLD_CORELIBS sql mysys dbug strings)
   FOREACH (CORELIB ${MYSQLD_CORELIBS})
     SET (LIB_LOCATIONS ${LIB_LOCATIONS} $<TARGET_FILE:${CORELIB}>)
@@ -225,12 +225,12 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   # Create a cmake script to generate import and export libs
   # from a .def file
   SET(CMAKE_CONFIGURABLE_FILE_CONTENT "
-    IF ((mysqld_lib.def IS_NEWER_THAN mysqld_lib.lib) OR
-        (mysqld_lib.def IS_NEWER_THAN mysqld_lib.exp))
-      FILE(REMOVE mysqld_lib.lib mysqld_lib.exp)
+    IF ((mysqld_lib\${CFG}.def IS_NEWER_THAN mysqld_lib\${CFG}.lib) OR
+        (mysqld_lib\${CFG}.def IS_NEWER_THAN mysqld_lib\${CFG}.exp))
+      FILE(REMOVE mysqld_lib\${CFG}.lib mysqld_lib\${CFG}.exp)
       SET(ENV{VS_UNICODE_OUTPUT})
       EXECUTE_PROCESS (
-        COMMAND \"${CMAKE_LINKER}\" /lib /NAME:mysqld.exe \"/DEF:${MYSQLD_DEF}\" /MACHINE:${_PLATFORM}
+        COMMAND \"${CMAKE_LINKER}\" /lib /NAME:mysqld.exe \"/DEF:${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib\${CFG}.def\" /MACHINE:${_PLATFORM}
         RESULT_VARIABLE ret)
       IF(NOT ret EQUAL 0)
         MESSAGE(FATAL_ERROR \"process failed ret=\${ret}\")
@@ -240,41 +240,22 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
 
   CONFIGURE_FILE(
     ${PROJECT_SOURCE_DIR}/cmake/configurable_file_content.in
-    make_mysqld_lib.cmake)
+    make_mysqld_lib.cmake
+    @ONLY)
 
   IF(CMAKE_VERSION VERSION_GREATER "3.2.0")
     SET(MYSQLD_LIB_BYPRODUCTS  BYPRODUCTS ${MYSQLD_DEF} ${MYSQLD_LIB} ${MYSQLD_EXP})
   ENDIF()
 
-  # Create a cmake script to generate import and export libs
-  # from a .def file
-  SET(CMAKE_CONFIGURABLE_FILE_CONTENT "
-    IF ((mysqld_lib.def IS_NEWER_THAN mysqld_lib.lib) OR
-        (mysqld_lib.def IS_NEWER_THAN mysqld_lib.exp))
-      FILE(REMOVE mysqld_lib.lib mysqld_lib.exp)
-      SET(ENV{VS_UNICODE_OUTPUT})
-      EXECUTE_PROCESS (
-        COMMAND \"${CMAKE_LINKER}\" /lib /NAME:mysqld.exe \"/DEF:${MYSQLD_DEF}\" /MACHINE:${_PLATFORM}
-        RESULT_VARIABLE ret)
-      IF(NOT ret EQUAL 0)
-        MESSAGE(FATAL_ERROR \"process failed ret=\${ret}\")
-      ENDIF()
-    ENDIF()
-  ")
-
-  CONFIGURE_FILE(
-    ${PROJECT_SOURCE_DIR}/cmake/configurable_file_content.in
-    make_mysqld_lib.cmake)
-
   ADD_CUSTOM_COMMAND(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/mysqld_lib.stamp
     ${MYSQLD_LIB_BYPRODUCTS}
-    COMMENT "Generating mysqld_lib.def, mysqld_lib.lib, mysqld_lib.exp"
+    COMMENT "Generating ${MYSQLD_DEF}, ${MYSQLD_LIB}, ${MYSQLD_EXP}"
     COMMAND cscript //nologo ${PROJECT_SOURCE_DIR}/win/create_def_file.js
-            ${_PLATFORM} /forLib ${LIB_LOCATIONS} > mysqld_lib.def.tmp
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different mysqld_lib.def.tmp mysqld_lib.def
-    COMMAND ${CMAKE_COMMAND} -E remove mysqld_lib.def.tmp
-    COMMAND ${CMAKE_COMMAND} -P make_mysqld_lib.cmake
+            ${_PLATFORM} /forLib ${LIB_LOCATIONS} > ${MYSQLD_DEF}.tmp
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MYSQLD_DEF}.tmp ${MYSQLD_DEF}
+    COMMAND ${CMAKE_COMMAND} -E remove ${MYSQLD_DEF}.tmp
+    COMMAND ${CMAKE_COMMAND}  "-DCFG=${CMAKE_CFG_INTDIR}" -P make_mysqld_lib.cmake
     COMMAND ${CMAKE_COMMAND} -E touch mysqld_lib.stamp
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     DEPENDS ${MYSQLD_CORELIBS}

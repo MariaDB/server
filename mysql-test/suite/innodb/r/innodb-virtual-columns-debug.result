@@ -6,11 +6,11 @@ SET debug_sync= "ib_open_after_dict_open SIGNAL delete_open WAIT_FOR another_ope
 DELETE FROM t1;
 connection default;
 SET debug_sync= "now WAIT_FOR delete_open";
-SET debug_sync= "ib_open_after_dict_open SIGNAL another_open";
 SELECT a FROM t1;
 a
 NULL
 NULL
+SET debug_sync= "now SIGNAL another_open";
 connection con1;
 disconnect con1;
 connection default;
