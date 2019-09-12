@@ -810,7 +810,7 @@ static void (*get_unpack_function(MI_COLUMNDEF *rec))
     return &uf_varchar2;
   case FIELD_LAST:
   default:
-    return 0;			/* This should never happend */
+    return 0;			/* This should never happen */
   }
 }
 

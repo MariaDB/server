@@ -610,7 +610,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     klinkname_ptr= klinkname;
     /*
       Don't create the table if the link or file exists to ensure that one
-      doesn't accidently destroy another table.
+      doesn't accidentally destroy another table.
     */
     create_flag=0;
   }

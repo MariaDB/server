@@ -741,8 +741,8 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
     growing files. Using an open_flag instead of calling mi_extra(...
     HA_EXTRA_MMAP ...) after mi_open() has the advantage that the
     mapping is not repeated for every open, but just done on the initial
-    open, when the MyISAM share is created. Everytime the server
-    requires to open a new instance of a table it calls this method. We
+    open, when the MyISAM share is created. Every time the server
+    requires opening a new instance of a table it calls this method. We
     will always supply HA_OPEN_MMAP for a permanent table. However, the
     MyISAM storage engine will ignore this flag if this is a secondary
     open of a table that is in use by other threads already (if the
