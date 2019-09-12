@@ -8711,13 +8711,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
   }
 
-  if (table->versioned() && !(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING) &&
-      new_create_list.elements == VERSIONING_FIELDS)
-  {
-    my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), table->s->table_name.str);
-    goto err;
-  }
-
   if (!create_info->comment.str)
   {
     create_info->comment.str= table->s->comment.str;
@@ -9802,8 +9795,9 @@ do_continue:;
 
   set_table_default_charset(thd, create_info, alter_ctx.db);
 
-  if (create_info->check_period_fields(thd, alter_info)
-      || create_info->fix_period_fields(thd, alter_info))
+  if (create_info->check_fields(thd, alter_info,
+                                table_list->table_name, table_list->db) ||
+      create_info->fix_period_fields(thd, alter_info))
     DBUG_RETURN(true);
 
   if (!opt_explicit_defaults_for_timestamp)
@@ -10319,7 +10313,7 @@ do_continue:;
 
   close_all_tables_for_name(thd, table->s,
                             alter_ctx.is_table_renamed() ?
-                            HA_EXTRA_PREPARE_FOR_RENAME: 
+                            HA_EXTRA_PREPARE_FOR_RENAME:
                             HA_EXTRA_NOT_USED,
                             NULL);
   table_list->table= table= NULL;                  /* Safety */
@@ -10533,7 +10527,7 @@ bool mysql_trans_prepare_alter_copy_data(THD *thd)
   /*
     Turn off recovery logging since rollback of an alter table is to
     delete the new table so there is no need to log the changes to it.
-    
+
     This needs to be done before external_lock.
   */
   DBUG_RETURN(ha_enable_transaction(thd, FALSE) != 0);
@@ -10690,7 +10684,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     {
       char warn_buff[MYSQL_ERRMSG_SIZE];
       Abort_on_warning_instant_set aws(thd, false);
-      my_snprintf(warn_buff, sizeof(warn_buff), 
+      my_snprintf(warn_buff, sizeof(warn_buff),
                   "ORDER BY ignored as there is a user-defined clustered index"
                   " in the table '%-.192s'", from->s->table_name.str);
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
@@ -11458,7 +11452,8 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
     else
     {
       if (create_info.fix_create_fields(thd, &alter_info, *create_table) ||
-          create_info.check_fields(thd, &alter_info, *create_table))
+          create_info.check_fields(thd, &alter_info,
+                                   create_table->table_name, create_table->db))
 	goto end_with_restore_list;
 
       /*

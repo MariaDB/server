@@ -562,6 +562,13 @@ SELECT
 --disable_metadata
 
 --echo #
+--echo # MDEV-19670 json escaped unicode parse error
+--echo #
+
+SELECT json_valid('{"value":"\\ud83d\\ude0a"}');
+SELECT json_valid('{"test": "\\ud83d\\ude0b"}');
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 

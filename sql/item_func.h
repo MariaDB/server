@@ -1342,16 +1342,15 @@ public:
 
 class Item_func_minus :public Item_func_additive_op
 {
-  Sql_mode_dependency m_sql_mode_dependency;
+  bool m_depends_on_sql_mode_no_unsigned_subtraction;
 public:
   Item_func_minus(THD *thd, Item *a, Item *b):
-    Item_func_additive_op(thd, a, b) {}
+    Item_func_additive_op(thd, a, b),
+    m_depends_on_sql_mode_no_unsigned_subtraction(false)
+  { }
   const char *func_name() const { return "-"; }
   enum precedence precedence() const { return ADD_PRECEDENCE; }
-  Sql_mode_dependency value_depends_on_sql_mode() const
-  {
-    return m_sql_mode_dependency;
-  }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);

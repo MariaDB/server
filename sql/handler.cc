@@ -7331,8 +7331,7 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
 
 
 bool Table_scope_and_contents_source_st::vers_fix_system_fields(
-  THD *thd, Alter_info *alter_info, const TABLE_LIST &create_table,
-  bool create_select)
+  THD *thd, Alter_info *alter_info, const TABLE_LIST &create_table)
 {
   DBUG_ASSERT(!(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING));
 
@@ -7372,41 +7371,59 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   if (vers_info.fix_implicit(thd, alter_info))
     return true;
 
-  int plain_cols= 0; // columns don't have WITH or WITHOUT SYSTEM VERSIONING
-  int vers_cols= 0; // columns have WITH SYSTEM VERSIONING
-  it.rewind();
-  while (const Create_field *f= it++)
-  {
-    if (vers_info.is_start(*f) || vers_info.is_end(*f))
-      continue;
-
-    if (f->versioning == Column_definition::VERSIONING_NOT_SET)
-      plain_cols++;
-    else if (f->versioning == Column_definition::WITH_VERSIONING)
-      vers_cols++;
-  }
-
-  if (!thd->lex->tmp_table() &&
-    // CREATE from SELECT (Create_fields are not yet added)
-    !create_select && vers_cols == 0 && (plain_cols == 0 || !vers_info))
-  {
-    my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0),
-             create_table.table_name.str);
-    return true;
-  }
-
   return false;
 }
 
 
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
-       THD *thd, Alter_info *alter_info, const TABLE_LIST &create_table)
+        THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
+        const Lex_table_name &db, int select_count)
 {
   if (!(options & HA_VERSIONED_TABLE))
     return false;
-  return vers_info.check_sys_fields(
-      create_table.table_name, create_table.db, alter_info,
-      ha_check_storage_engine_flag(db_type, HTON_NATIVE_SYS_VERSIONING));
+
+  if (!(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING))
+  {
+    uint versioned_fields= 0;
+    uint fieldnr= 0;
+    List_iterator<Create_field> field_it(alter_info->create_list);
+    while (Create_field *f= field_it++)
+    {
+      /*
+         The field from the CREATE part can be duplicated in the SELECT part of
+         CREATE...SELECT. In that case double counts should be avoided.
+         select_create::create_table_from_items just pushes the fields back into
+         the create_list, without additional manipulations, so the fields from
+         SELECT go last there.
+       */
+      bool is_dup= false;
+      if (fieldnr >= alter_info->create_list.elements - select_count)
+      {
+        List_iterator<Create_field> dup_it(alter_info->create_list);
+        for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)
+          is_dup= my_strcasecmp(default_charset_info,
+                                dup->field_name.str, f->field_name.str) == 0;
+      }
+
+      if (!(f->flags & VERS_UPDATE_UNVERSIONED_FLAG) && !is_dup)
+        versioned_fields++;
+      fieldnr++;
+    }
+    if (versioned_fields == VERSIONING_FIELDS)
+    {
+      my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), table_name.str);
+      return true;
+    }
+  }
+
+  if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
+    return false;
+
+  bool can_native= ha_check_storage_engine_flag(db_type,
+                                                HTON_NATIVE_SYS_VERSIONING)
+                   || db_type->db_type == DB_TYPE_PARTITION_DB;
+
+  return vers_info.check_sys_fields(table_name, db, alter_info, can_native);
 }
 
 
@@ -7510,20 +7527,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     return false;
   }
 
-  if (fix_implicit(thd, alter_info))
-    return true;
-
-  if (alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)
-  {
-    const bool can_native=
-        ha_check_storage_engine_flag(create_info->db_type,
-                                     HTON_NATIVE_SYS_VERSIONING) ||
-        create_info->db_type->db_type == DB_TYPE_PARTITION_DB;
-    if (check_sys_fields(table_name, share->db, alter_info, can_native))
-      return true;
-  }
-
-  return false;
+  return fix_implicit(thd, alter_info);
 }
 
 bool
@@ -7731,10 +7735,12 @@ bool Table_period_info::check_field(const Create_field* f,
 }
 
 bool Table_scope_and_contents_source_st::check_fields(
-  THD *thd, Alter_info *alter_info, TABLE_LIST &create_table)
+  THD *thd, Alter_info *alter_info,
+  const Lex_table_name &table_name, const Lex_table_name &db, int select_count)
 {
-  return vers_check_system_fields(thd, alter_info, create_table)
-         || check_period_fields(thd, alter_info);
+  return vers_check_system_fields(thd, alter_info,
+                                  table_name, db, select_count) ||
+    check_period_fields(thd, alter_info);
 }
 
 bool Table_scope_and_contents_source_st::check_period_fields(
@@ -7783,10 +7789,9 @@ bool Table_scope_and_contents_source_st::check_period_fields(
 bool
 Table_scope_and_contents_source_st::fix_create_fields(THD *thd,
                                                       Alter_info *alter_info,
-                                                      const TABLE_LIST &create_table,
-                                                      bool create_select)
+                                                      const TABLE_LIST &create_table)
 {
-  return vers_fix_system_fields(thd, alter_info, create_table, create_select)
+  return vers_fix_system_fields(thd, alter_info, create_table)
          || fix_period_fields(thd, alter_info);
 }
 

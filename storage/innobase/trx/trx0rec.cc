@@ -2005,7 +2005,7 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 		ut_ad(err == DB_SUCCESS);
 		ut_ad(undo);
 		for (ut_d(int loop_count = 0);;) {
-			ut_ad(++loop_count < 2);
+			ut_ad(loop_count++ < 2);
 			ut_ad(undo->last_page_no == block->page.id.page_no());
 
 			if (ulint offset = trx_undo_page_report_rename(

@@ -188,11 +188,18 @@ IF(MSVC)
   IF(MYSQL_MAINTAINER_MODE MATCHES "ERR")
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX")
+    FOREACH(type EXE SHARED MODULE)
+      FOREACH(cfg RELEASE DEBUG RELWITHDEBINFO)
+        SET(CMAKE_${type}_LINKER_FLAGS_${cfg} "${CMAKE_${type}_LINKER_FLAGS_${cfg}} /WX")
+      ENDFOREACH()
+    ENDFOREACH()
   ENDIF()
   IF(MSVC_VERSION LESS 1910)
     # Noisy warning C4800: 'type': forcing value to bool 'true' or 'false' (performance warning),
     # removed in VS2017
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4800")
+  ELSE()
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /d2OptimizeHugeFunctions")
   ENDIF()
 ENDIF()
 

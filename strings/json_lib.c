@@ -320,15 +320,17 @@ static int json_handle_esc(json_string_t *s)
     if (s->c_next != '\\')
       return s->error= JE_SYN;
 
+    s->c_str+= c_len;
     if ((c_len= json_next_char(s)) <= 0)
       return s->error= json_eos(s) ? JE_EOS : JE_BAD_CHR;
     if (s->c_next != 'u')
       return s->error= JE_SYN;
+    s->c_str+= c_len;
 
     if (read_4_hexdigits(s, code+2))
       return 1;
 
-    if ((c_len= my_utf16_uni(0, &s->c_next, code, code+4)) == 2)
+    if ((c_len= my_utf16_uni(0, &s->c_next, code, code+4)) == 4)
       return 0;
   }
   return s->error= JE_BAD_CHR;

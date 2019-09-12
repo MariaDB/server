@@ -21,7 +21,6 @@ galera_as_master_gtid_change_master : Requires MySQL GTID
 galera_as_slave_gtid_replicate_do_db_cc : Requires MySQL GTID
 galera_as_slave_preordered : wsrep-preordered feature not merged to MariaDB
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
-galera_autoinc_sst_mariabackup : MDEV-19926 Galera SST tests fail
 galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_bf_abort_group_commit
 galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_log_events
 galera_binlog_stmt_autoinc: MDEV-19959 Galera test failure on galera_binlog_stmt_autoinc
@@ -35,15 +34,10 @@ galera_kill_largechanges : MDEV-18179 Galera test failure on galera.galera_kill_
 galera_kill_nochanges : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
 galera_many_tables_nopk : MDEV-18182 Galera test failure on galera.galera_many_tables_nopk
 galera_migrate : MariaDB does not support START SLAVE USER
-galera_pc_ignore_sb : MDEV-15811/MDEV-17357 Test failure
 galera_split_brain : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
-galera_ssl_upgrade : MDEV-13549 Galera test failures
-galera_sst_mysqldump_with_key : MDEV-16890 Galera test failure
-galera_var_node_address : MDEV-17151 Galera test failure
-galera_var_notify_cmd : MDEV-13549 Galera test failures
+galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
 galera_var_reject_queries : assertion in inline_mysql_socket_send
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
-galera_sst_mariabackup_encrypt_with_key : MDEV-19926 Galera SST tests fail
 galera_var_node_address : MDEV-20485 Galera test failure on galera.galera_var_node_address
 galera_wan : MDEV-17259 Test failure on galera.galera_wan
 mysql-wsrep#198 : MDEV-18935 Galera test mysql-wsrep#198 sporaric assertion transaction.cpp:362: int wsrep::transaction::before_commit(): Assertion `state() == s_executing || state() == s_committing || state() == s_must_abort || state() == s_replaying' failed.

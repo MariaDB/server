@@ -7139,7 +7139,8 @@ field_length:
           '(' LONG_NUM ')'      { $$= $2.str; }
         | '(' ULONGLONG_NUM ')' { $$= $2.str; }
         | '(' DECIMAL_NUM ')'   { $$= $2.str; }
-        | '(' NUM ')'           { $$= $2.str; };
+        | '(' NUM ')'           { $$= $2.str; }
+        ;
 
 opt_field_length:
           /* empty */  { $$= (char*) 0; /* use default length */ }
@@ -7758,7 +7759,8 @@ string_list:
           text_string
           { Lex->last_field->interval_list.push_back($1, thd->mem_root); }
         | string_list ',' text_string
-          { Lex->last_field->interval_list.push_back($3, thd->mem_root); };
+          { Lex->last_field->interval_list.push_back($3, thd->mem_root); }
+        ;
 
 /*
 ** Alter table
@@ -14905,7 +14907,8 @@ line_term:
 opt_xml_rows_identified_by:
         /* empty */ { }
         | ROWS_SYM IDENTIFIED_SYM BY text_string
-          { Lex->exchange->line_term = $4; };
+          { Lex->exchange->line_term = $4; }
+        ;
 
 opt_ignore_lines:
           /* empty */
@@ -17514,7 +17517,7 @@ opt_release:
           { $$= TVL_UNKNOWN; }
         | RELEASE_SYM        { $$= TVL_YES; }
         | NO_SYM RELEASE_SYM { $$= TVL_NO; }
-;
+        ;
 
 commit:
           COMMIT_SYM opt_work opt_chain opt_release
@@ -17989,9 +17992,9 @@ uninstall:
 /* Avoid compiler warning from sql_yacc.cc where yyerrlab1 is not used */
 keep_gcc_happy:
           IMPOSSIBLE_ACTION
-        {
-          YYERROR;
-        }
+          {
+            YYERROR;
+          }
         ;
 
 /**
