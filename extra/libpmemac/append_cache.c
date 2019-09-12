@@ -440,40 +440,39 @@ int pmem_append_cache_close(PMEM_APPEND_CACHE_DIRECTORY *dir)
 
 int pmem_append_cache_flush(PMEM_APPEND_CACHE_DIRECTORY *dir)
 {
+  int res= 0;
   for (uint32_t i= 0; i < dir->header->n_caches; i++)
   {
     PMEM_APPEND_CACHE cache;
     MY_STAT sb;
-    int res;
 
     if (open_cache(&cache, dir, i))
-      return -1;
-    if (!cache.header->file_name_length)
-      continue;
-    if (cache.header->flushed_eof == cache.header->cached_eof)
+      res= -1;
+    else if (!cache.header->file_name_length)
+    {
+    }
+    else if (cache.header->flushed_eof == cache.header->cached_eof)
     {
       cache.header->file_name_length= 0;
       pmem_persist(&cache.header->file_name_length,
                    sizeof(cache.header->file_name_length));
-      continue;
     }
-    if (cache.file_name[cache.header->file_name_length])
-      return -1;
-    if ((cache.file_fd= my_open(cache.file_name, O_WRONLY, MYF(MY_WME))) < 0)
-      return -1;
-    if (!(res= my_fstat(cache.file_fd, &sb, MYF(MY_WME))))
+    else if (cache.file_name[cache.header->file_name_length])
+      res= -1;
+    else if ((cache.file_fd= my_open(cache.file_name, O_WRONLY,
+                                     MYF(MY_WME))) < 0)
+      res= -1;
+    else
     {
-      if (cache.header->flushed_eof > (uint64_t) sb.st_size)
+      if (my_fstat(cache.file_fd, &sb, MYF(MY_WME)) ||
+          cache.header->flushed_eof > (uint64_t) sb.st_size ||
+          flush_cache(&cache))
         res= -1;
-      else
-        res= flush_cache(&cache);
+      if (my_close(cache.file_fd, MYF(MY_WME)))
+        res= -1;
     }
-    if (my_close(cache.file_fd, MYF(MY_WME)))
-      return -1;
-    if (res)
-      return res;
   }
-  return 0;
+  return res;
 }
 
 
