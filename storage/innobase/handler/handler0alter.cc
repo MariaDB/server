@@ -9139,7 +9139,7 @@ innobase_rename_or_enlarge_column_try(
 	case DATA_BLOB:
 		break;
 	default:
-		ut_ad(col->prtype == prtype);
+		ut_ad(!((col->prtype ^ prtype) & ~DATA_VERSIONED));
 		ut_ad(col->mtype == mtype);
 		ut_ad(col->len == len);
 	}
