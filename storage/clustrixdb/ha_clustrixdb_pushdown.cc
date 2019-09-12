@@ -6,6 +6,7 @@ Copyright (c) 2019, MariaDB Corporation.
 #include "ha_clustrixdb_pushdown.h"
 
 extern handlerton *clustrixdb_hton;
+extern uint clustrix_row_buffer;
 
 /*@brief  Fills up array data types, metadata and nullability*/
 /************************************************************
@@ -111,7 +112,7 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
   select_lex->print(thd, &query, QT_ORDINARY);
   int error_code = 0;
   int field_metadata_size = 0;
-  ulonglong scan_refid = 0;
+  clustrix_connection_cursor *scan = NULL;
   clustrix_connection *trx = NULL;
 
   // We presume this number is equal to types.elements in get_field_types
@@ -138,12 +139,14 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
   if (!trx)
     goto err;
 
-  if ((error_code = trx->scan_query(query, fieldtype, items_number,
-        null_bits, num_null_bytes, field_metadata, field_metadata_size, &scan_refid))) {
+  if ((error_code = trx->scan_query(query, fieldtype, items_number, null_bits,
+                                    num_null_bytes, field_metadata,
+                                    field_metadata_size,
+                                    row_buffer_setting(thd), &scan))) {
     goto err;
   }
 
-  sh = new ha_clustrixdb_select_handler(thd, select_lex, scan_refid);
+  sh = new ha_clustrixdb_select_handler(thd, select_lex, scan);
 
 err:
   // deallocate buffers
@@ -163,11 +166,11 @@ err:
 ha_clustrixdb_select_handler::ha_clustrixdb_select_handler(
       THD *thd,
       SELECT_LEX* select_lex,
-      ulonglong scan_refid_)
+      clustrix_connection_cursor *scan_)
   : select_handler(thd, clustrixdb_hton)
 {
   thd__ = thd;
-  scan_refid = scan_refid_;
+  scan = scan_;
   select = select_lex;
   rli = NULL;
   rgi = NULL;
@@ -186,8 +189,8 @@ ha_clustrixdb_select_handler::~ha_clustrixdb_select_handler()
     if (!trx) {
       // TBD Log this
     }
-    if (trx && scan_refid)
-      trx->scan_end(scan_refid);
+    if (trx && scan)
+      trx->scan_end(scan);
 
     // If the ::init_scan has been executed
     if (table__)
@@ -234,11 +237,11 @@ int ha_clustrixdb_select_handler::next_row()
   if (!trx)
     return error_code;
 
-  assert(scan_refid);
+  assert(scan);
 
   uchar *rowdata;
   ulong rowdata_length;
-  if ((error_code = trx->scan_next(scan_refid, &rowdata, &rowdata_length)))
+  if ((error_code = trx->scan_next(scan, &rowdata, &rowdata_length)))
     return error_code;
 
   uchar const *current_row_end;
@@ -290,9 +293,8 @@ create_clustrixdb_derived_handler(THD* thd, TABLE_LIST *derived)
   SELECT_LEX_UNIT *unit= derived->derived;
   SELECT_LEX *select_lex = unit->first_select();
   String query;
-  ulonglong scan_refid = 0;
-  
-  dh = new ha_clustrixdb_derived_handler(thd, select_lex, scan_refid);
+
+  dh = new ha_clustrixdb_derived_handler(thd, select_lex, NULL);
 
   return dh;
 }
@@ -307,11 +309,11 @@ create_clustrixdb_derived_handler(THD* thd, TABLE_LIST *derived)
 ha_clustrixdb_derived_handler::ha_clustrixdb_derived_handler(
       THD *thd,
       SELECT_LEX* select_lex,
-      ulonglong scan_refid_)
+      clustrix_connection_cursor *scan_)
   : derived_handler(thd, clustrixdb_hton)
 {
   thd__ = thd;
-  scan_refid = scan_refid_;
+  scan = scan_;
   select = select_lex;
   rli = NULL;
   rgi = NULL;
@@ -333,8 +335,8 @@ ha_clustrixdb_derived_handler::~ha_clustrixdb_derived_handler()
     if (!trx) {
       // TBD Log this.
     }
-    if (trx && scan_refid)
-      trx->scan_end(scan_refid);
+    if (trx && scan)
+      trx->scan_end(scan);
 
     // If the ::init_scan has been executed
     if (table__)
@@ -387,8 +389,10 @@ int ha_clustrixdb_derived_handler::init_scan()
   if (!trx)
     goto err;
 
-  if ((error_code = trx->scan_query(query, fieldtype, items_number,
-        null_bits, num_null_bytes, field_metadata, field_metadata_size, &scan_refid))) {
+  if ((error_code = trx->scan_query(query, fieldtype, items_number, null_bits,
+                                    num_null_bytes, field_metadata,
+                                    field_metadata_size,
+                                    row_buffer_setting(thd), &scan))) {
     goto err;
   }
 
@@ -422,11 +426,11 @@ int ha_clustrixdb_derived_handler::next_row()
   if (!trx)
     return error_code;
 
-  assert(scan_refid);
+  assert(scan);
 
   uchar *rowdata;
   ulong rowdata_length;
-  if ((error_code = trx->scan_next(scan_refid, &rowdata, &rowdata_length)))
+  if ((error_code = trx->scan_next(scan, &rowdata, &rowdata_length)))
     return error_code;
 
   uchar const *current_row_end;
@@ -502,7 +506,7 @@ void ha_clustrixdb_base_handler::add_current_table_to_rpl_table_list()
 /*@brief clone of ha_clustrixdb method                    */
 /***********************************************************
  * DESCRIPTION:
- * Deletes structures that are used to unpack RBR rows 
+ * Deletes structures that are used to unpack RBR rows
  * in ::next_row(). Called from dtor
  * PARAMETERS:
  * RETURN:

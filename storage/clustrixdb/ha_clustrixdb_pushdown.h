@@ -30,7 +30,7 @@ class ha_clustrixdb_base_handler
     rpl_group_info *rgi;
     Relay_log_info *rli;
     // CLX BE scan operation reference
-    ulonglong scan_refid;
+    clustrix_connection_cursor *scan;
     // To unpack rows from CLX BE
     void add_current_table_to_rpl_table_list();
     void remove_current_table_from_rpl_table_list();
@@ -50,7 +50,7 @@ class ha_clustrixdb_select_handler:
 {
   public:
     ha_clustrixdb_select_handler(THD* thd_arg, SELECT_LEX* sel,
-      ulonglong scan_refid);
+                                 clustrix_connection_cursor *scan);
     ~ha_clustrixdb_select_handler();
 
     int init_scan();
@@ -73,7 +73,7 @@ class ha_clustrixdb_derived_handler:
 {
   public:
     ha_clustrixdb_derived_handler(THD* thd_arg, SELECT_LEX* sel,
-      ulonglong scan_refid);
+                                  clustrix_connection_cursor *scan);
     ~ha_clustrixdb_derived_handler();
 
     int init_scan();
