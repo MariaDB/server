@@ -3366,10 +3366,7 @@ class Field_time :public Field_temporal {
   long curdays;
 protected:
   virtual void store_TIME(const MYSQL_TIME *ltime);
-  virtual void store_TIME(const Time &t)
-  {
-    return store_TIME(t.get_mysql_time());
-  }
+  void store_TIME(const Time &t) { return store_TIME(t.get_mysql_time()); }
   int store_TIME_with_warning(const Time *ltime, const ErrConv *str, int warn);
   bool check_zero_in_date_with_warn(date_mode_t fuzzydate);
   static void do_field_time(Copy_field *copy);
