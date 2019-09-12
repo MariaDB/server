@@ -415,7 +415,7 @@ static int examine_log(char * file_name, char **table_names)
 		     left_root_right);
       file_info.id=open_param.max_id+1;
       /*
-       * In the line below +10 is added to accomodate '<' and '>' chars
+       * In the line below +10 is added to accommodate '<' and '>' chars
        * plus '\0' at the end, so that there is place for 7 digits.
        * It is  improbable that same table can have that many entries in 
        * the table cache.
