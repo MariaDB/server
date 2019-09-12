@@ -189,17 +189,19 @@ static int flush_cache(PMEM_APPEND_CACHE *cache)
                       (int64*) &cache->cached_eof, MY_MEMORY_ORDER_RELAXED)))
   {
     uint64_t write_size;
-    ssize_t written;
+    size_t written;
 
     if (cached_eof / cache->buffer_size == flushed_eof / cache->buffer_size)
       write_size= cached_eof - flushed_eof;
     else
       write_size= cache->buffer_size - flushed_eof % cache->buffer_size;
-    if ((written= my_pwrite(cache->file_fd,
-                            cache->buffer + flushed_eof % cache->buffer_size,
-                            write_size, flushed_eof, MYF(MY_WME))) < 0)
+    if ((written= mysql_file_pwrite(cache->file_fd,
+                                    cache->buffer + flushed_eof %
+                                    cache->buffer_size,
+                                    write_size, flushed_eof,
+                                    MYF(MY_WME))) == MY_FILE_ERROR)
       return -1;
-    if (my_sync(cache->file_fd, MYF(MY_WME)))
+    if (mysql_file_sync(cache->file_fd, MYF(MY_WME)))
       return -1;
     flushed_eof+= written;
     my_atomic_store64_explicit((int64*) &cache->header->flushed_eof,
