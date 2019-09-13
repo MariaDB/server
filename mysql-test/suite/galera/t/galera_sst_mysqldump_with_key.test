@@ -20,7 +20,7 @@ GRANT USAGE ON *.* TO sslsst REQUIRE SSL;
 SET GLOBAL wsrep_sst_auth = 'sslsst:';
 
 # We set the required mysqldump SST options here so that they are used every time the server is restarted during the test
---let $start_mysqld_params = --wsrep_sst_auth=sst:'sslsst:' --wsrep_sst_method=mysqldump --wsrep-sst-receive-address=127.0.0.1:$NODE_MYPORT_2 --skip-grant-tables
+--let $start_mysqld_params = --wsrep_sst_auth=sst:'sslsst:' --wsrep_sst_method=mysqldump --wsrep-sst-receive-address=127.0.0.1:$NODE_MYPORT_2
 
 --source suite/galera/include/galera_st_shutdown_slave.inc
 --source suite/galera/include/galera_st_kill_slave.inc
