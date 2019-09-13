@@ -3500,7 +3500,7 @@ Binlog_type_info Field_new_decimal::binlog_type_info() const
 {
   DBUG_ASSERT(Field_new_decimal::type() == binlog_type());
   return Binlog_type_info(Field_new_decimal::type(), precision +
-                          (decimals() << 8), 2, binlog_signess());
+                          (decimals() << 8), 2, binlog_signedness());
 }
 
 
@@ -4672,7 +4672,7 @@ Binlog_type_info Field_float::binlog_type_info() const
 {
   DBUG_ASSERT(Field_float::type() == binlog_type());
   return Binlog_type_info(Field_float::type(), pack_length(), 1,
-                          binlog_signess());
+                          binlog_signedness());
 }
 
 
@@ -4984,7 +4984,7 @@ Binlog_type_info Field_double::binlog_type_info() const
 {
   DBUG_ASSERT(Field_double::type() == binlog_type());
   return Binlog_type_info(Field_double::type(), pack_length(), 1,
-                          binlog_signess());
+                          binlog_signedness());
 }
 
 

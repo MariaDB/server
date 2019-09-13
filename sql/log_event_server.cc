@@ -6447,9 +6447,9 @@ bool Table_map_log_event::init_signedness_field()
   for (unsigned int i= 0 ; i < m_table->s->fields ; ++i)
   {
     info= binlog_type_info_array + i;
-    if (info->m_signess != Binlog_type_info::SIGNESS_NOT_RELEVANT)
+    if (info->m_signedness != Binlog_type_info::SIGN_NOT_APPLICABLE)
     {
-      if (info->m_signess == Binlog_type_info::UNSIGNED)
+      if (info->m_signedness == Binlog_type_info::SIGN_UNSIGNED)
         flag|= mask;
       mask >>= 1;
 

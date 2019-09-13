@@ -637,11 +637,11 @@ public:
 class Binlog_type_info
 {
 public:
-   enum binlog_signess_t
+   enum binlog_sign_t
    {
-     SIGNED,
-     UNSIGNED,
-     SIGNESS_NOT_RELEVANT // for non-numeric types
+     SIGN_SIGNED,
+     SIGN_UNSIGNED,
+     SIGN_NOT_APPLICABLE // for non-numeric types
    };
    uchar m_type_code;     // according to Field::binlog_type()
   /**
@@ -649,7 +649,7 @@ public:
   */
    uint16 m_metadata;
    uint8 m_metadata_size;
-   binlog_signess_t m_signess;
+   binlog_sign_t m_signedness;
    CHARSET_INFO *m_cs; // NULL if not relevant
    TYPELIB *m_enum_typelib; // NULL if not relevant
    TYPELIB *m_set_typelib; // NULL if not relevant
@@ -660,7 +660,7 @@ public:
     :m_type_code(type_code),
      m_metadata(metadata),
      m_metadata_size(metadata_size),
-     m_signess(SIGNESS_NOT_RELEVANT),
+     m_signedness(SIGN_NOT_APPLICABLE),
      m_cs(NULL),
      m_enum_typelib(NULL),
      m_set_typelib(NULL),
@@ -668,11 +668,11 @@ public:
     {};
    Binlog_type_info(uchar type_code, uint16 metadata,
                    uint8 metadata_size,
-                   binlog_signess_t signess)
+                   binlog_sign_t signedness)
     :m_type_code(type_code),
      m_metadata(metadata),
      m_metadata_size(metadata_size),
-     m_signess(signess),
+     m_signedness(signedness),
      m_cs(NULL),
      m_enum_typelib(NULL),
      m_set_typelib(NULL),
@@ -684,7 +684,7 @@ public:
     :m_type_code(type_code),
      m_metadata(metadata),
      m_metadata_size(metadata_size),
-     m_signess(SIGNESS_NOT_RELEVANT),
+     m_signedness(SIGN_NOT_APPLICABLE),
      m_cs(cs),
      m_enum_typelib(NULL),
      m_set_typelib(NULL),
@@ -697,7 +697,7 @@ public:
     :m_type_code(type_code),
      m_metadata(metadata),
      m_metadata_size(metadata_size),
-     m_signess(SIGNESS_NOT_RELEVANT),
+     m_signedness(SIGN_NOT_APPLICABLE),
      m_cs(cs),
      m_enum_typelib(t_enum),
      m_set_typelib(t_set),
@@ -709,7 +709,7 @@ public:
     :m_type_code(type_code),
      m_metadata(metadata),
      m_metadata_size(metadata_size),
-     m_signess(SIGNESS_NOT_RELEVANT),
+     m_signedness(SIGN_NOT_APPLICABLE),
      m_cs(cs),
      m_enum_typelib(NULL),
      m_set_typelib(NULL),
@@ -1900,10 +1900,10 @@ protected:
   void prepend_zeros(String *value) const;
   Item *get_equal_zerofill_const_item(THD *thd, const Context &ctx,
                                       Item *const_item);
-  Binlog_type_info::binlog_signess_t binlog_signess() const
+  Binlog_type_info::binlog_sign_t binlog_signedness() const
   {
-    return (flags & UNSIGNED_FLAG) ? Binlog_type_info::UNSIGNED :
-                                     Binlog_type_info::SIGNED;
+    return (flags & UNSIGNED_FLAG) ? Binlog_type_info::SIGN_UNSIGNED :
+                                     Binlog_type_info::SIGN_SIGNED;
   }
 public:
   const uint8 dec;
@@ -1963,7 +1963,7 @@ public:
   Binlog_type_info binlog_type_info() const override
   {
     DBUG_ASSERT(Field_num::type() == binlog_type());
-    return Binlog_type_info(Field_num::type(), 0, 0, binlog_signess());
+    return Binlog_type_info(Field_num::type(), 0, 0, binlog_signedness());
   }
 };
 
