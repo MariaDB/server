@@ -1726,7 +1726,7 @@ b INT NOT NULL,
 c char(100),
 KEY (b, c),
 KEY (b, a, c)
-)
+) ENGINE=MyISAM
 DEFAULT CHARSET = utf8;
 INSERT INTO t1 VALUES
 (1,  1, 1),
@@ -1749,18 +1749,18 @@ INSERT INTO t1 SELECT a + 1280, b, c FROM t1 LIMIT 80;
 EXPLAIN
 SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	b,b_2	b_2	4	const	207	Using where; Using index; Using filesort
+1	SIMPLE	t1	range	b,b_2	b	4	NULL	226	Using where
 SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
 a
 2071
-81
-71
-61
-51
-41
-31
-21
-11
+2061
+2051
+2041
+2031
+2021
+2011
+2001
+1991
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 DROP TABLE t1;
 # End of 10.1 tests

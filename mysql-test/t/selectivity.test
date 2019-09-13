@@ -1174,7 +1174,7 @@ CREATE TABLE t1 (
   c char(100),
   KEY (b, c),
   KEY (b, a, c)
-)
+) ENGINE=MyISAM
 DEFAULT CHARSET = utf8;
 
 INSERT INTO t1 VALUES
