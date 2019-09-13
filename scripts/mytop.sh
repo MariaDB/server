@@ -1881,7 +1881,7 @@ Help for mytop version $main::VERSION by Jeremy D. Zawodny <${YELLOW}Jeremy\@Zaw
  with updates by Mark Grennan <${YELLOW}mark\@grennan.com${RESET}> and Jean Weisbuch <${YELLOW}jean\@phpnet.org${RESET}>
 
   ? - display this screen
-  # - toggle short/long numbers (not yet implemented)
+  # - debug mode (toggle)
   c - command summary view (based on Com_* counters)
   C - turn color on and off
   d - show only a specific database
