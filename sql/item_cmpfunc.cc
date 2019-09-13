@@ -2096,7 +2096,7 @@ bool Item_func_between::find_not_null_fields(table_map allowed)
     return false;
   return args[0]->find_not_null_fields(allowed) ||
          args[1]->find_not_null_fields(allowed) ||
-         args[3]->find_not_null_fields(allowed);
+         args[2]->find_not_null_fields(allowed);
 }
 
 
