@@ -70,7 +70,6 @@ sub GetShowStatus();
 sub cmd_s;
 sub cmd_S;
 sub cmd_q;
-sub FindProg($);
 
 ## Default Config Values
 
@@ -1531,9 +1530,9 @@ sub GetInnoDBStatus()
 {
     if (not $config{pager})
     {
-        if (not $config{pager} = FindProg('less'))
+        if (not $config{pager} = my_which('less'))
         {
-            $config{pager} = FindProg('more');
+            $config{pager} = my_which('more');
         }
     }
 
@@ -1632,9 +1631,9 @@ sub GetShowVariables()
 {
     if (not $config{pager})
     {
-        if (not $config{pager} = FindProg('less'))
+        if (not $config{pager} = my_which('less'))
         {
-            $config{pager} = FindProg('more');
+            $config{pager} = my_which('more');
         }
     }
 
@@ -1994,28 +1993,9 @@ sub Execute($)
     return $sth;
 }
 
-sub FindProg($)
-{
-    my $prog  = shift;
-    my $found = undef;
-    my @search_dirs = ("/bin", "/usr/bin", "/usr/sbin",
-                       "/usr/local/bin", "/usr/local/sbin");
-
-    for (@search_dirs)
-    {
-        my $loc = "$_/$prog";
-        if (-e $loc)
-        {
-            $found = $loc;
-            last;
-        }
-    }
-    return $found;
-}
-
 ####
 #### my_which is used, because we can't assume that every system has the
-#### which -command. my_which can take only one argument at a time.
+#### which command. my_which can take only one argument at a time.
 #### Return values: requested system command with the first found path,
 #### or undefined, if not found.
 ####
