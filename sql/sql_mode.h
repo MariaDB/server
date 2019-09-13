@@ -155,7 +155,7 @@ public:
     m_soft= 0;
     return *this;
   }
-  void push_dependency_warnings(THD *thd);
+  void push_dependency_warnings(THD *thd) const;
 };
 
 

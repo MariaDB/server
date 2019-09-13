@@ -26,6 +26,9 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v TIME AS (a) VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
 DROP TABLE t1;
 CREATE TABLE t1 (c CHAR(8), v BINARY(8) AS (c), KEY(v));
 Warnings:

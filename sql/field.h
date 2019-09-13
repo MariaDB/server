@@ -1215,6 +1215,11 @@ public:
   {
     return 0;
   }
+  virtual sql_mode_t conversion_depends_on_sql_mode(THD *thd,
+                                                    Item *expr) const
+  {
+    return (sql_mode_t) 0;
+  }
   virtual sql_mode_t can_handle_sql_mode_dependency_on_store() const
   {
     return 0;
@@ -2827,6 +2832,7 @@ public:
   const Type_handler *type_handler() const { return &type_handler_timestamp; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
   Copy_func *get_copy_func(const Field *from) const;
+  sql_mode_t conversion_depends_on_sql_mode(THD *, Item *) const;
   int  store(const char *to,size_t length,CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);
@@ -3185,6 +3191,7 @@ public:
     return real_type() == from->real_type() &&
            decimals() == from->decimals();
   }
+  sql_mode_t conversion_depends_on_sql_mode(THD *, Item *) const;
   int store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int store(const char *to,size_t length,CHARSET_INFO *charset);
   int store(double nr);
@@ -3329,6 +3336,7 @@ public:
     }
   const Type_handler *type_handler() const { return &type_handler_datetime; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONGLONG; }
+  sql_mode_t conversion_depends_on_sql_mode(THD *, Item *) const;
   int  store(const char *to, size_t length, CHARSET_INFO *charset);
   int  store(double nr);
   int  store(longlong nr, bool unsigned_val);

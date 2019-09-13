@@ -1407,8 +1407,10 @@ bool Field::check_vcol_sql_mode_dependency(THD *thd, vcol_init_mode mode) const
   DBUG_ASSERT(vcol_info);
   if ((flags & PART_KEY_FLAG) != 0 || stored_in_db())
   {
+    Sql_mode_dependency valdep= vcol_info->expr->value_depends_on_sql_mode();
+    sql_mode_t cnvdep= conversion_depends_on_sql_mode(thd, vcol_info->expr);
     Sql_mode_dependency dep=
-        vcol_info->expr->value_depends_on_sql_mode() &
+        (valdep | Sql_mode_dependency(0, cnvdep)) &
         Sql_mode_dependency(~0, ~can_handle_sql_mode_dependency_on_store());
     if (dep)
     {
@@ -5062,6 +5064,14 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
 }
 
 
+sql_mode_t
+Field_timestamp::conversion_depends_on_sql_mode(THD *thd, Item *expr) const
+{
+  return expr->datetime_precision(thd) > decimals() ?
+         MODE_TIME_ROUND_FRACTIONAL : 0;
+}
+
+
 int Field_timestamp::save_in_field(Field *to)
 {
   ulong sec_part;
@@ -5823,6 +5833,14 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
 ** In number context: HHMMSS
 ** Stored as a 3 byte unsigned int
 ****************************************************************************/
+sql_mode_t
+Field_time::conversion_depends_on_sql_mode(THD *thd, Item *expr) const
+{
+  return expr->time_precision(thd) > decimals() ?
+         MODE_TIME_ROUND_FRACTIONAL : 0;
+}
+
+
 int Field_time::store_TIME_with_warning(const Time *t,
                                         const ErrConv *str, int warn)
 {
@@ -6726,6 +6744,15 @@ void Field_datetime::store_TIME(const MYSQL_TIME *ltime)
   ulonglong tmp= TIME_to_ulonglong_datetime(ltime);
   int8store(ptr,tmp);
 }
+
+
+sql_mode_t
+Field_datetime::conversion_depends_on_sql_mode(THD *thd, Item *expr) const
+{
+  return expr->datetime_precision(thd) > decimals() ?
+         MODE_TIME_ROUND_FRACTIONAL : 0;
+}
+
 
 bool Field_datetime::send_binary(Protocol *protocol)
 {
