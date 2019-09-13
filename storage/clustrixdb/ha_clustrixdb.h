@@ -52,7 +52,7 @@ public:
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
   int reset();
-  int write_row(uchar *buf);
+  int write_row(const uchar *buf);
   // start_bulk_update exec_bulk_update
   int update_row(const uchar *old_data, const uchar *new_data);
   // start_bulk_delete exec_bulk_delete

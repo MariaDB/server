@@ -55,7 +55,13 @@ int get_field_types(THD *thd, SELECT_LEX *sl, uchar *fieldtype,
   bzero(field_metadata, (tmp_table_param.field_count * 2));
   for (unsigned int i= 0 ; i < tmp_table_param.field_count ; i++)
   {
-    metadata_index+= tmp_table->field[i]->save_field_metadata(&field_metadata[metadata_index]);
+    Binlog_type_info bti= tmp_table->field[i]->binlog_type_info();
+    uchar *ptr = reinterpret_cast<uchar*>(&bti.m_metadata);
+    // Binlog_type_info::m_metadata is u16
+    if (bti.m_metadata_size == 1)
+        field_metadata[metadata_index++]= *ptr++;
+    if (bti.m_metadata_size == 2)
+        field_metadata[metadata_index++]= *ptr++;
   }
 
   if (metadata_index < 251)

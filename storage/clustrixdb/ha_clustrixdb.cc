@@ -341,7 +341,7 @@ int ha_clustrixdb::reset()
   return 0;
 }
 
-int ha_clustrixdb::write_row(uchar *buf)
+int ha_clustrixdb::write_row(const uchar *buf)
 {
   int error_code = 0;
   THD *thd = ha_thd();
