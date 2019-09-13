@@ -34,7 +34,7 @@ ALTER TABLE user add File_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N'
 
 # Detect whether or not we had the Grant_priv column
 SET @hadGrantPriv:=0;
-SELECT @hadGrantPriv:=1 FROM user WHERE Grant_priv LIKE '%';
+SELECT @hadGrantPriv:=1 FROM user WHERE Grant_priv IS NOT NULL;
 
 ALTER TABLE user add Grant_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
                  add References_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
@@ -119,7 +119,7 @@ ALTER TABLE func add type enum ('function','aggregate') COLLATE utf8_general_ci 
 
 # Detect whether we had Show_db_priv
 SET @hadShowDbPriv:=0;
-SELECT @hadShowDbPriv:=1 FROM user WHERE Show_db_priv LIKE '%';
+SELECT @hadShowDbPriv:=1 FROM user WHERE Show_db_priv IS NOT NULL;
 
 ALTER TABLE user
 ADD Show_db_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Alter_priv,
@@ -267,7 +267,7 @@ ALTER TABLE plugin
 # Detect whether we had Create_view_priv
 #
 SET @hadCreateViewPriv:=0;
-SELECT @hadCreateViewPriv:=1 FROM user WHERE Create_view_priv LIKE '%';
+SELECT @hadCreateViewPriv:=1 FROM user WHERE Create_view_priv IS NOT NULL;
 
 #
 # Create VIEWs privileges (v5.0)
@@ -297,7 +297,7 @@ UPDATE user SET Create_view_priv=Create_priv, Show_view_priv=Create_priv where u
 #
 #
 SET @hadCreateRoutinePriv:=0;
-SELECT @hadCreateRoutinePriv:=1 FROM user WHERE Create_routine_priv LIKE '%';
+SELECT @hadCreateRoutinePriv:=1 FROM user WHERE Create_routine_priv IS NOT NULL;
 
 #
 # Create PROCEDUREs privileges (v5.0)
@@ -339,7 +339,7 @@ ALTER TABLE user MODIFY max_user_connections int(11) DEFAULT '0' NOT NULL AFTER 
 #
 
 SET @hadCreateUserPriv:=0;
-SELECT @hadCreateUserPriv:=1 FROM user WHERE Create_user_priv LIKE '%';
+SELECT @hadCreateUserPriv:=1 FROM user WHERE Create_user_priv IS NOT NULL;
 
 ALTER TABLE user ADD Create_user_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Alter_routine_priv;
 ALTER TABLE user MODIFY Create_user_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Alter_routine_priv;
@@ -505,7 +505,7 @@ ALTER TABLE proc ADD aggregate enum('NONE', 'GROUP') DEFAULT 'NONE' NOT NULL
 # EVENT privilege
 #
 SET @hadEventPriv := 0;
-SELECT @hadEventPriv :=1 FROM user WHERE Event_priv LIKE '%';
+SELECT @hadEventPriv :=1 FROM user WHERE Event_priv IS NOT NULL;
 
 ALTER TABLE user ADD Event_priv enum('N','Y') character set utf8 DEFAULT 'N' NOT NULL AFTER Create_user_priv;
 ALTER TABLE user MODIFY Event_priv enum('N','Y') character set utf8 DEFAULT 'N' NOT NULL AFTER Create_user_priv;
@@ -599,7 +599,7 @@ set global event_scheduler=original;
 #
 
 SET @hadTriggerPriv := 0;
-SELECT @hadTriggerPriv :=1 FROM user WHERE Trigger_priv LIKE '%';
+SELECT @hadTriggerPriv :=1 FROM user WHERE Trigger_priv IS NOT NULL;
 
 ALTER TABLE user ADD Trigger_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Event_priv;
 ALTER TABLE user MODIFY Trigger_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Event_priv;
@@ -614,7 +614,7 @@ UPDATE user SET Trigger_priv=Super_priv WHERE @hadTriggerPriv = 0;
 #
 
 SET @hadCreateTablespacePriv := 0;
-SELECT @hadCreateTablespacePriv :=1 FROM user WHERE Create_tablespace_priv LIKE '%';
+SELECT @hadCreateTablespacePriv :=1 FROM user WHERE Create_tablespace_priv IS NOT NULL;
 
 ALTER TABLE user ADD Create_tablespace_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Trigger_priv;
 ALTER TABLE user MODIFY Create_tablespace_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Trigger_priv;
@@ -629,7 +629,7 @@ ALTER TABLE user change Truncate_versioning_priv Delete_history_priv enum('N','Y
 ALTER TABLE db change Truncate_versioning_priv Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
 
 SET @had_user_delete_history_priv := 0;
-SELECT @had_user_delete_history_priv :=1 FROM user WHERE Delete_history_priv LIKE '%';
+SELECT @had_user_delete_history_priv :=1 FROM user WHERE Delete_history_priv IS NOT NULL;
 
 ALTER TABLE user add Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Create_tablespace_priv;
 ALTER TABLE user modify Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
