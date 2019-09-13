@@ -120,27 +120,6 @@ INSERT INTO t1 VALUES(1);
 DROP TABLE t1;
 RESET MASTER;
 #
-# Charsets can be printed correctly
-#
-CREATE TABLE t1(c_char_utf8 CHAR(10) CHARSET utf8,
-c_varchar_utf8 VARCHAR(10) CHARSET utf8,
-c_text_utf8 TEXT CHARSET utf8);
-INSERT INTO t1 VALUES("1", "2", "3");
-# Columns(`c_char_utf8` CHAR(10) CHARSET utf8 COLLATE utf8_general_ci,
-#         `c_varchar_utf8` VARCHAR(10) CHARSET utf8 COLLATE utf8_general_ci,
-#         `c_text_utf8` TEXT CHARSET utf8 COLLATE utf8_general_ci)
-DROP TABLE t1;
-RESET MASTER;
-CREATE TABLE t1(c_utf8mb4_520 CHAR(10) CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci,
-c_utf8mb4_0900 VARCHAR(10) CHARSET utf8mb4 COLLATE utf8mb4_polish_ci,
-c_utf8mb4_def TEXT CHARSET utf8mb4);
-INSERT INTO t1 VALUES("1", "2", "3");
-# Columns(`c_utf8mb4_520` CHAR(10) CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci,
-#         `c_utf8mb4_0900` VARCHAR(10) CHARSET utf8mb4 COLLATE utf8mb4_polish_ci,
-#         `c_utf8mb4_def` TEXT CHARSET utf8mb4 COLLATE utf8mb4_general_ci)
-DROP TABLE t1;
-RESET MASTER;
-#
 # Blob and binary columns can be printed correctly
 #
 CREATE TABLE t1(c_binary BINARY(10), c_varbinary VARBINARY(10),
