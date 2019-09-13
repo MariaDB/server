@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 #
-# $Id: mytop,v 1.99-maria3 2015/02/13 02:12:27 jweisbuch Exp $
+# $Id: mytop,v 1.99-maria4 2019/09/13 18:04:24 jweisbuch Exp $
 
 =pod
 
@@ -20,7 +20,7 @@ use Socket;
 use List::Util qw(min max);
 use File::Basename;
 
-$main::VERSION = "1.99-maria3";
+$main::VERSION = "1.99-maria4";
 my $path_for_script = dirname($0);
 
 $| = 1;
@@ -335,11 +335,11 @@ $has_is_processlist = $has_time_ms = $has_progress = 0;
 ## Check if the server has the INFORMATION_SCHEMA.PROCESSLIST table for backward compatibility
 $has_is_processlist = Execute("SELECT /*mytop*/ 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'PROCESSLIST';")->rows;
 if ($has_is_processlist == 1)
-    {
+{
     ## Check if the server has the TIME_MS column on the INFORMATION_SCHEMA.PROCESSLIST table (MariaDB and Percona Server), if it is the case it will fetch the query time with decimal precision for queries that has been running for less than 10k seconds
     $has_time_ms = Execute("SELECT /*mytop*/ 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'PROCESSLIST' AND COLUMN_NAME = 'TIME_MS';")->rows;
     if ($has_time_ms == 1)
-        {
+    {
         ## Check if the server has the STAGE column on the INFORMATION_SCHEMA.PROCESSLIST table (MariaDB) to retreive query completion informations
         $has_progress = Execute("SELECT /*mytop*/ 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'information_schema' AND TABLE_NAME = 'PROCESSLIST' AND COLUMN_NAME = 'STAGE';")->rows;
     }
@@ -1004,10 +1004,10 @@ sub GetData()
         if (-e "/proc/loadavg")
         {
             ## To avoid warnings if the OS is not Linux
-            open L, "</proc/loadavg";
+            open (my $fh, "</proc/loadavg");
             ## Only the first 3 values are interresting
-            $l = join(" ", (split /\s+/, <L>)[0..2]);
-            close L;
+            $l = join(" ", (split /\s+/, <$fh>)[0..2]);
+            close $fh;
         }
 
         $last_time = $now_time;
@@ -1241,9 +1241,9 @@ sub GetData()
     my $time_format = "6d";
 
     if ($has_is_processlist == 1)
-        {
+    {
         if ($has_time_ms == 1)
-            {
+        {
             $time_format = "6.6s";
             if ($has_progress == 1)
             {
@@ -1472,7 +1472,8 @@ sub GetData()
         }
 
         $lines_left--;
-	if ($lines_left < 0) {
+	if ($lines_left < 0)
+	{
 		print WHITE(), "-- Truncated query list --  ";
 		last;
 	}
@@ -1536,7 +1537,7 @@ sub GetInnoDBStatus()
         }
     }
 
-    my @data = Hashes("SHOW /*mytop*/ INNODB STATUS");
+    my @data = Hashes("SHOW /*mytop*/ ENGINE INNODB STATUS");
 
     open P, "|$config{pager}" or die "$!";
     print keys %{$data[0]};
@@ -1909,10 +1910,10 @@ Help for mytop version $main::VERSION by Jeremy D. Zawodny <${YELLOW}Jeremy\@Zaw
   : - enter a command (not yet implemented)
   ! - Skip an error that has stopped replications (at your own risk)
   L - show full queries (do not strip to terminal width)
-  w - ajust the User and DB columns width
+  w - adjust the User and DB columns width
   a - toggle the progress column
 
-Base version from ${GREEN}http://www.mysqlfanboy.com/mytop${RESET}
+Base version from ${GREEN}http://www.mysqlfanboy.com/mytop-3${RESET}
 This version comes as part of the ${GREEN}MariaDB${RESET} distribution.
 ];
 
@@ -2048,12 +2049,12 @@ B<mytop> [options]
 
 =head1 AVAILABILITY
 
-Base version from B<http://www.mysqlfanboy.com/mytop>.
+Base version from B<http://www.mysqlfanboy.com/mytop-3>.
 
 This version comes as part of the B<MariaDB> distribution. See B<http://mariadb.org/>.
 
 And older (the original) version B<mytop> is available from
-http://www.mysqlfanboy.com/mytop/ it B<might> also be on CPAN as
+http://www.mysqlfanboy.com/mytop-3/ it B<might> also be on CPAN as
 well.
 
 =head1 REQUIREMENTS
@@ -2139,10 +2140,11 @@ The B<mytop> display screen is really broken into two parts. The top 4
 lines (header) contain summary information about your MySQL
 server. For example, you might see something like:
 
-MySQL on localhost (4.0.13-log)                        up 1+11:13:00 [23:29:11]
- Queries: 19.3M  qps:  160 Slow:     1.0         Se/In/Up/De(%):    00/80/03/17
-             qps now:  219 Slow qps: 0.0  Threads:    1 (   1/  16) 00/74/00/25
- Key Efficiency: 99.3%  Bps in/out: 30.5k/162.8   Now in/out: 32.7k/ 3.3k
+MariaDB 10.1.41 on localhost     load (3.89 3.86 3.91) up 7+23:56:31 [16:33:01]
+ Queries: 353.4M   qps:  531 Slow:    4.5k         Se/In/Up/De(%):    87/02/02/00
+ Sorts:   2390 qps now:  651 Slow qps: 0.0  Threads:   11 (   1/  13) 88/01/03/00
+ Handler: (R/W/U/D) 82138/ 5884/   20/    1        Tmp: R/W/U: 13623/29501/   79
+ MyISAM Key Cache Efficiency: 99.9%  Bps in/out: 157.4k/ 2.2M   Now in/out: 554.8k/ 2.6M
 
 The first line identifies the hostname of the server (localhost) and
 the version of MySQL it is running. The right had side shows the
@@ -2416,7 +2418,7 @@ running queries appear at the top of the list.
 
 =item B<I>
 
-Switch to InnoDB Status mode.  The output of "SHOW INNODB STATUS" will
+Switch to InnoDB Status mode.  The output of "SHOW ENGINE INNODB STATUS" will
 be displayed every cycle.  In a future version, this may actually
 summarize that data rather than producing raw output.
 
