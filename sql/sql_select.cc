@@ -7643,7 +7643,19 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           }
           keyparts++;
         }
+        /*
+          Here we discount selectivity of the constant range CR. To calculate
+          this selectivity we use elements from the quick_rows[] array.
+          If we have indexes i1,...,ik with the same prefix compatible
+          with CR any of the estimate quick_rows[i1], ... quick_rows[ik] could
+          be used for this calculation but here we don't know which one was
+          actually used. So sel could be greater than 1 and we have to cap it.
+          However if sel becomes greater than 2 then with high probability
+          something went wrong.
+	*/
         sel /= (double)table->quick_rows[key] / (double) table->stat_records();
+        DBUG_ASSERT(0 < sel && sel <= 2.0);
+        set_if_smaller(sel, 1.0);
         used_range_selectivity= true;
       }
     }
@@ -7691,6 +7703,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
               if (table->field[fldno]->cond_selectivity > 0)
 	      {            
                 sel /= table->field[fldno]->cond_selectivity;
+                DBUG_ASSERT(0 < sel && sel <= 2.0);
                 set_if_smaller(sel, 1.0);
               }
               /* 
@@ -7748,6 +7761,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           if (field->cond_selectivity > 0)
 	  {
             sel/= field->cond_selectivity;
+            DBUG_ASSERT(0 < sel && sel <= 2.0);  
             set_if_smaller(sel, 1.0);
           }
           break;
@@ -7759,6 +7773,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   sel*= table_multi_eq_cond_selectivity(join, idx, s, rem_tables,
                                         keyparts, ref_keyuse_steps);
 
+  DBUG_ASSERT(0.0 < sel && sel <= 1.0);
   return sel;
 }
 
