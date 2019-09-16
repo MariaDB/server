@@ -507,15 +507,19 @@ int pmem_append_cache_init(PMEM_APPEND_CACHE_DIRECTORY *dir, const char *path,
   {
     if (!pmem_append_cache_open(dir, path))
     {
-      if (dir->header->n_caches >= n_caches)
+      if (!pmem_append_cache_flush(dir))
       {
-        if (!pmem_append_cache_flush(dir))
+        if (dir->header->n_caches == n_caches && dir->mapped_length == size)
           return 0;
+        pmem_append_cache_close(dir);
+        my_delete(path, MYF(0));
+        goto create;
       }
       pmem_append_cache_close(dir);
     }
     return -1;
   }
+create:
   return create_directory(dir, path, size, n_caches);
 }
 
