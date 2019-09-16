@@ -22,6 +22,7 @@ flush_caches=0
 numa_interleave=0
 wsrep_on=0
 dry_run=0
+defaults_group_suffix=
 
 # Initial logging status: error log is not open, and not using syslog
 logging=init
@@ -356,6 +357,9 @@ parse_arguments() {
           wsrep_restart=1
         fi
         append_arg_to_args "$arg"
+        ;;
+      --defaults-group-suffix=*)
+        defaults_group_suffix="$arg"
         ;;
 
       --help) usage ;;
@@ -932,7 +936,7 @@ then
   exit 1
 fi
 
-for i in  "$ledir/$MYSQLD" "$defaults" "--basedir=$MY_BASEDIR_VERSION" \
+for i in  "$ledir/$MYSQLD" "$defaults_group_suffix" "$defaults" "--basedir=$MY_BASEDIR_VERSION" \
   "--datadir=$DATADIR" "--plugin-dir=$plugin_dir" "$USER_OPTION"
 do
   cmd="$cmd "`shell_quote_string "$i"`
