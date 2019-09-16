@@ -8383,6 +8383,7 @@ best_extension_by_limited_search(JOIN      *join,
       restore_prev_nj_state(s);
       restore_prev_sj_state(remaining_tables, s, idx);
     }
+    /* TODO: Take into account condition selectivities here */
   }
   DBUG_RETURN(FALSE);
 }
@@ -15572,6 +15573,18 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
     reopt_remaining_tables &= ~rs->table->map;
     rec_count *= pos.records_read;
     cost += pos.read_time;
+
+    cost += rec_count / (double) TIME_FOR_COMPARE;
+    //TODO: take into account join condition selectivity here
+    double pushdown_cond_selectivity= 1.0;
+    table_map real_table_bit= rs->table->map;
+    if (join->thd->variables.optimizer_use_condition_selectivity > 1)
+    {
+      pushdown_cond_selectivity= table_cond_selectivity(join, i, rs,
+                                                        reopt_remaining_tables &
+                                                        ~real_table_bit);
+    }
+    (*outer_rec_count) *= pushdown_cond_selectivity;
 
     if (!rs->emb_sj_nest)
       *outer_rec_count *= pos.records_read;
