@@ -2867,7 +2867,7 @@ insert into t4 select floor(rand()*1000) from t2 limit 500;
 --echo #
 --echo # Instead, it should use eq_ref on the materialized table.
 
-explain select * from t3 where a in (select a from t4 group by a);
+explain select * from t3 where a in (select a from t4);
 
 drop table t1, t2, t3, t4;
 
