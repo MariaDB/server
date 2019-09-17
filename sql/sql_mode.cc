@@ -17,7 +17,7 @@
 #include "mariadb.h"
 #include "set_var.h"
 
-void Sql_mode_dependency::push_dependency_warnings(THD *thd)
+void Sql_mode_dependency::push_dependency_warnings(THD *thd) const
 {
   sql_mode_t all= m_hard | m_soft;
   for (uint i= 0; all ; i++, all >>= 1)

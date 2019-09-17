@@ -26,7 +26,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 CREATE TABLE t1 (a CHAR(5), v TIME AS (a) VIRTUAL, KEY(v));
-DROP TABLE t1;
+ERROR HY000: Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
 CREATE TABLE t1 (c CHAR(8), v BINARY(8) AS (c), KEY(v));
 ERROR HY000: Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
 SHOW WARNINGS;

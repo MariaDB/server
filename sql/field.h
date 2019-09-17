@@ -1340,6 +1340,11 @@ public:
   {
     return 0;
   }
+  virtual sql_mode_t conversion_depends_on_sql_mode(THD *thd,
+                                                    Item *expr) const
+  {
+    return (sql_mode_t) 0;
+  }
   virtual sql_mode_t can_handle_sql_mode_dependency_on_store() const
   {
     return 0;
@@ -3024,6 +3029,7 @@ public:
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const override;
   Copy_func *get_copy_func(const Field *from) const override;
+  sql_mode_t conversion_depends_on_sql_mode(THD *, Item *) const override;
   int  store(const char *to,size_t length,CHARSET_INFO *charset) override;
   int  store(double nr) override;
   int  store(longlong nr, bool unsigned_val) override;
@@ -3398,6 +3404,7 @@ public:
     return real_type() == from->real_type() &&
            decimals() == from->decimals();
   }
+  sql_mode_t conversion_depends_on_sql_mode(THD *, Item *) const override;
   int store_time_dec(const MYSQL_TIME *ltime, uint dec) override;
   int store(const char *to,size_t length,CHARSET_INFO *charset) override;
   int store(double nr) override;
@@ -3547,6 +3554,7 @@ public:
   { return &type_handler_datetime; }
   enum ha_base_keytype key_type() const override
   { return HA_KEYTYPE_ULONGLONG; }
+  sql_mode_t conversion_depends_on_sql_mode(THD *, Item *) const override;
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const override;

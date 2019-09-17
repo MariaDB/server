@@ -2970,7 +2970,7 @@ explain extended select * from t1 where a in (select pk from t10)	{
                         "read_time": 27.129
                       },
                       {
-                        "chosen_strategy": "SJ-Materialize"
+                        "chosen_strategy": "SJ-Materialization"
                       }
                     ],
                     "estimated_join_cardinality": 3
@@ -4609,7 +4609,7 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                             "read_time": 18.315
                           },
                           {
-                            "chosen_strategy": "SJ-Materialize"
+                            "chosen_strategy": "SJ-Materialization"
                           }
                         ],
                         "estimated_join_cardinality": 3
@@ -6309,7 +6309,14 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             ]
           },
           {
-            "fix_semijoin_strategies_for_picked_join_order": []
+            "fix_semijoin_strategies_for_picked_join_order": [
+              {
+                "semi_join_strategy": "DuplicateWeedout"
+              },
+              {
+                "semi_join_strategy": "DuplicateWeedout"
+              }
+            ]
           },
           {
             "best_join_order": [
@@ -6833,7 +6840,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                             "read_time": 37.226
                           },
                           {
-                            "chosen_strategy": "SJ-Materialize"
+                            "chosen_strategy": "SJ-Materialization"
                           }
                         ],
                         "rest_of_plan": [
@@ -6935,7 +6942,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                         "read_time": 294.96
                                       },
                                       {
-                                        "chosen_strategy": "SJ-Materialize"
+                                        "chosen_strategy": "SJ-Materialization"
                                       }
                                     ],
                                     "estimated_join_cardinality": 27

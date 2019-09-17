@@ -455,8 +455,8 @@ void wsrep_delete_threadvars()
     DBUG_ASSERT(pthread_getspecific(THR_KEY_mysys));
     /* Reset psi state to avoid deallocating applier thread
        psi_thread. */
-    PSI_thread *psi_thread= PSI_CALL_get_thread();
 #ifdef HAVE_PSI_INTERFACE
+    PSI_thread *psi_thread= PSI_CALL_get_thread();
     if (PSI_server)
     {
       PSI_server->set_thread(0);
