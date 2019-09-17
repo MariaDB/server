@@ -3241,9 +3241,8 @@ public:
 class Type_handler
 {
 protected:
-  static const Name m_version_default;
-  static const Name m_version_mysql56;
-  static const Name m_version_mariadb53;
+  const Name version_mysql56() const;
+  const Name version_mariadb53() const;
   String *print_item_value_csstr(THD *thd, Item *item, String *str) const;
   String *print_item_value_temporal(THD *thd, Item *item, String *str,
                                      const Name &type_name, String *buf) const;
@@ -3303,7 +3302,7 @@ public:
                                                  const Type_handler *h2);
 
   virtual const Name name() const= 0;
-  virtual const Name version() const { return m_version_default; }
+  virtual const Name version() const;
   virtual const Name &default_value() const= 0;
   virtual uint32 flags() const { return 0; }
   bool is_unsigned() const { return flags() & UNSIGNED_FLAG; }
@@ -5688,7 +5687,7 @@ class Type_handler_time: public Type_handler_time_common
 public:
   static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
   virtual ~Type_handler_time() {}
-  const Name version() const override { return m_version_mariadb53; }
+  const Name version() const override { return version_mariadb53(); }
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return MIN_TIME_WIDTH; }
   uint32 calc_pack_length(uint32 length) const override;
@@ -5718,7 +5717,7 @@ class Type_handler_time2: public Type_handler_time_common
 {
 public:
   virtual ~Type_handler_time2() {}
-  const Name version() const override { return m_version_mysql56; }
+  const Name version() const override { return version_mysql56(); }
   enum_field_types real_field_type() const override { return MYSQL_TYPE_TIME2; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override;
@@ -5972,7 +5971,7 @@ class Type_handler_datetime: public Type_handler_datetime_common
 public:
   static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
   virtual ~Type_handler_datetime() {}
-  const Name version() const override { return m_version_mariadb53; }
+  const Name version() const override { return version_mariadb53(); }
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return MAX_DATETIME_WIDTH; }
   uint32 calc_pack_length(uint32 length) const override;
@@ -6002,7 +6001,7 @@ class Type_handler_datetime2: public Type_handler_datetime_common
 {
 public:
   virtual ~Type_handler_datetime2() {}
-  const Name version() const override { return m_version_mysql56; }
+  const Name version() const override { return version_mysql56(); }
   enum_field_types real_field_type() const override
   {
     return MYSQL_TYPE_DATETIME2;
@@ -6130,7 +6129,7 @@ class Type_handler_timestamp: public Type_handler_timestamp_common
 public:
   static uint sec_part_bytes(uint dec) { return m_sec_part_bytes[dec]; }
   virtual ~Type_handler_timestamp() {}
-  const Name version() const override { return m_version_mariadb53; }
+  const Name version() const override { return version_mariadb53(); }
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return MAX_DATETIME_WIDTH; }
   uint32 calc_pack_length(uint32 length) const override;
@@ -6160,7 +6159,7 @@ class Type_handler_timestamp2: public Type_handler_timestamp_common
 {
 public:
   virtual ~Type_handler_timestamp2() {}
-  const Name version() const override { return m_version_mysql56; }
+  const Name version() const override { return version_mysql56(); }
   enum_field_types real_field_type() const override
   {
     return MYSQL_TYPE_TIMESTAMP2;

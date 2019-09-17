@@ -1475,10 +1475,23 @@ const Name Type_handler_ulonglong::name() const
 
 /***************************************************************************/
 
-const Name
-  Type_handler::m_version_default(STRING_WITH_LEN("")),
-  Type_handler::m_version_mariadb53(STRING_WITH_LEN("mariadb-5.3")),
-  Type_handler::m_version_mysql56(STRING_WITH_LEN("mysql-5.6"));
+const Name Type_handler::version() const
+{
+  static const Name ver(STRING_WITH_LEN(""));
+  return ver;
+}
+
+const Name Type_handler::version_mariadb53() const
+{
+  static const Name ver(STRING_WITH_LEN("mariadb-5.3"));
+  return ver;
+}
+
+const Name Type_handler::version_mysql56() const
+{
+  static const Name ver(STRING_WITH_LEN("mysql-5.6"));
+  return ver;
+}
 
 
 /***************************************************************************/
