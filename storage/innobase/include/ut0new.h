@@ -128,14 +128,16 @@ InnoDB:
 #include <stdlib.h> /* malloc() */
 #include <string.h> /* strlen(), strrchr(), strncmp() */
 
+#include <my_sys.h> /* my_large_free/malloc() */
+
 #include "my_global.h" /* needed for headers from mysql/psi/ */
 
 #include "mysql/psi/mysql_memory.h" /* PSI_MEMORY_CALL() */
 
 #include "mysql/psi/psi_memory.h" /* PSI_memory_key, PSI_memory_info */
 
-#include "os0proc.h" /* os_mem_alloc_large() */
 #include "os0thread.h" /* os_thread_sleep() */
+#include "os0proc.h" /* os_total_large_mem_allocated */
 #include "ut0ut.h" /* ut_strcmp_functor, ut_basename_noext() */
 
 #define	OUT_OF_MEMORY_MSG \
@@ -622,7 +624,7 @@ public:
 		ulint	n_bytes = n_elements * sizeof(T);
 
 		pointer	ptr = reinterpret_cast<pointer>(
-			os_mem_alloc_large(&n_bytes));
+			my_large_malloc(&n_bytes, MYF(0)));
 
 		if (ptr == NULL) {
 			return NULL;
@@ -636,6 +638,8 @@ public:
 #endif /* UNIV_PFS_MEMORY */
 			pfx->m_size = n_bytes;
 		}
+
+		os_total_large_mem_allocated += n_bytes;
 
 		return(ptr);
 	}
@@ -667,8 +671,9 @@ public:
 			deallocate_trace(pfx);
 		}
 #endif /* UNIV_PFS_MEMORY */
+		os_total_large_mem_allocated -= size;
 
-		os_mem_free_large(ptr, size);
+		my_large_free(ptr, size);
 	}
 
 	void
@@ -968,9 +973,13 @@ ut_delete_array(
 
 static inline void *ut_malloc_dontdump(size_t n_bytes, ...)
 {
-	void *ptr = os_mem_alloc_large(&n_bytes);
+	void *ptr = my_large_malloc(&n_bytes, MYF(0));
 
 	ut_dontdump(ptr, n_bytes, true);
+
+	if (ptr) {
+		os_total_large_mem_allocated += n_bytes;
+	}
 	return ptr;
 }
 
@@ -985,7 +994,8 @@ static inline void *ut_malloc_dontdump(size_t n_bytes, ...)
 static inline void ut_free_dodump(void *ptr, size_t size)
 {
 	ut_dodump(ptr, size);
-	os_mem_free_large(ptr, size);
+	os_total_large_mem_allocated -= size;
+	my_large_free(ptr, size);
 }
 
 #endif /* UNIV_PFS_MEMORY */
