@@ -20,14 +20,14 @@ CREATE TABLE intandtext(i bigint, t text)ENGINE=clustrixdb;
 INSERT INTO intandtext VALUES(10, 'someqwqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
 
 SELECT i,t FROM intandtext;
-
 EXPLAIN SELECT i,t FROM intandtext;
-SET clustrixdb_select_handler=OFF;
 
+SET @@optimizer_switch='derived_merge=OFF';
+SET clustrixdb_select_handler=OFF;
 SELECT i,t FROM (SELECT i,t FROM intandtext) t;
 EXPLAIN SELECT i,t FROM (SELECT i,t FROM intandtext) t;
-SET clustrixdb_select_handler=OFF;
 
+SET clustrixdb_derived_handler=OFF;
 SELECT i,t FROM intandtext;
 SELECT i,t FROM (SELECT i,t FROM intandtext) t;
 EXPLAIN SELECT i,t FROM (SELECT i,t FROM intandtext) t;
