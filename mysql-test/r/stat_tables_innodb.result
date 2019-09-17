@@ -829,6 +829,29 @@ set use_stat_tables=@save_use_stat_tables;
 set @@histogram_size= @save_histogram_size;
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 drop table t1;
+#
+# MDEV-20589: Server still crashes in Field::set_warning_truncated_wrong_value
+#
+set names utf8;
+create table t1 ( a varchar(255) character set utf8);
+insert into t1 values (REPEAT('ӥ',255)), (REPEAT('ç',255));
+set use_stat_tables='preferably';
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+set @save_sql_mode= @@sql_mode;
+set sql_mode='ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
+update mysql.column_stats set min_value= REPEAT('ӥ',256) where db_name='test' and table_name='t1';
+Warnings:
+Warning	1265	Data truncated for column 'min_value' at row 1
+set @@sql_mode= @save_sql_mode;
+select length(a) from t1 where a=REPEAT('ӥ',255);
+length(a)
+510
+set names latin1;
+set @@use_stat_tables=@save_use_stat_tables;
+drop table t1;
 # please keep this at the last
 set @@global.histogram_size=@save_histogram_size;
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;

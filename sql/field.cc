@@ -2436,30 +2436,20 @@ Field *Field::clone(MEM_ROOT *root, TABLE *new_table)
 }
 
 
-
 Field *Field::clone(MEM_ROOT *root, TABLE *new_table, my_ptrdiff_t diff,
                     bool stat_flag)
 {
   Field *tmp;
   if ((tmp= (Field*) memdup_root(root,(char*) this,size_of())))
   {
-    tmp->init(new_table);
+    if (new_table)
+      tmp->init(new_table);
     tmp->move_field_offset(diff);
   }
   tmp->is_stat_field= stat_flag;
   return tmp;
 }
 
-
-Field *Field::clone(MEM_ROOT *root, my_ptrdiff_t diff)
-{
-  Field *tmp;
-  if ((tmp= (Field*) memdup_root(root,(char*) this,size_of())))
-  {
-    tmp->move_field_offset(diff);
-  }
-  return tmp;
-}
 
 int Field::set_default()
 {
