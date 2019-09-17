@@ -1829,8 +1829,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       {
         WSREP_DEBUG("Deadlock error for: %s", thd->query());
         mysql_mutex_lock(&thd->LOCK_thd_data);
-        thd->killed               = NOT_KILLED;
-        thd->mysys_var->abort     = 0;
+        thd->reset_kill_query();
         thd->wsrep_retry_counter  = 0;
         mysql_mutex_unlock(&thd->LOCK_thd_data);
         goto dispatch_end;
@@ -1933,8 +1932,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         {
           WSREP_DEBUG("Deadlock error for: %s", thd->query());
           mysql_mutex_lock(&thd->LOCK_thd_data);
-          thd->killed               = NOT_KILLED;
-          thd->mysys_var->abort     = 0;
+          thd->reset_kill_query();
           thd->wsrep_retry_counter  = 0;
           mysql_mutex_unlock(&thd->LOCK_thd_data);
 
@@ -2410,13 +2408,11 @@ dispatch_end:
     */
     DBUG_ASSERT((command != COM_QUIT && command != COM_STMT_CLOSE)
                   || thd->get_stmt_da()->is_disabled());
+    DBUG_ASSERT(thd->wsrep_trx().state() != wsrep::transaction::s_replaying);
     /* wsrep BF abort in query exec phase */
-    mysql_mutex_lock(&thd->LOCK_thd_data);
-    do_end_of_statement=
-      thd->wsrep_trx().state() != wsrep::transaction::s_replaying
-      && !thd->killed;
-
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
+    do_end_of_statement= thd_is_connection_alive(thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
   }
   else
     do_end_of_statement= true;
@@ -7737,14 +7733,22 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                   (thd->get_stmt_da()->is_error()) ?
                    thd->get_stmt_da()->sql_errno() : 0);
 
-      thd->killed = NOT_KILLED;
+      thd->reset_kill_query();
       wsrep_override_error(thd, ER_LOCK_DEADLOCK);
     }
 
-    if (wsrep_after_statement(thd) && is_autocommit)
+#ifdef ENABLED_DEBUG_SYNC
+    /* we need the test otherwise we get stuck in the "SET DEBUG_SYNC" itself */
+    if (thd->lex->sql_command != SQLCOM_SET_OPTION)
+      DEBUG_SYNC(thd, "wsrep_after_statement_enter");
+#endif
+
+    if (wsrep_after_statement(thd) &&
+        is_autocommit              &&
+        thd_is_connection_alive(thd))
     {
       thd->reset_for_next_command();
-      thd->killed= NOT_KILLED;
+      thd->reset_kill_query();
       if (is_autocommit                           &&
           thd->lex->sql_command != SQLCOM_SELECT  &&
           thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit)
@@ -7774,7 +7778,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                     thd->variables.wsrep_retry_autocommit,
                     WSREP_QUERY(thd));
         my_error(ER_LOCK_DEADLOCK, MYF(0));
-        thd->killed= NOT_KILLED;
+        thd->reset_kill_query();
         thd->wsrep_retry_counter= 0;             //  reset
       }
     }
