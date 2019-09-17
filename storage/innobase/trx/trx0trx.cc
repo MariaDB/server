@@ -561,8 +561,6 @@ inline void trx_t::release_locks()
 
   if (UT_LIST_GET_LEN(lock.trx_locks))
     lock_trx_release_locks(this);
-  else
-    lock.table_locks.clear(); /* Work around MDEV-20483 */
 }
 
 /********************************************************************//**
