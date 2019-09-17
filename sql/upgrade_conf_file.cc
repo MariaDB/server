@@ -115,6 +115,7 @@ static const char *removed_variables[] =
 "innodb_use_trim",
 "log",
 "log_slow_queries",
+"max_long_data_size",
 "rpl_recovery_rank",
 "sql_big_tables",
 "sql_low_priority_updates",

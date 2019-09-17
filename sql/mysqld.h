@@ -157,7 +157,6 @@ extern plugin_ref *opt_gtid_pos_auto_plugins;
 extern bool opt_endinfo, using_udf_functions;
 extern my_bool locked_in_memory;
 extern bool opt_using_transactions;
-extern ulong max_long_data_size;
 extern ulong current_pid;
 extern ulong expire_logs_days;
 extern my_bool relay_log_recovery;
@@ -668,7 +667,6 @@ enum options_mysqld
   OPT_LOG_BASENAME,
   OPT_LOG_ERROR,
   OPT_LOWER_CASE_TABLE_NAMES,
-  OPT_MAX_LONG_DATA_SIZE,
   OPT_PLUGIN_LOAD,
   OPT_PLUGIN_LOAD_ADD,
   OPT_PFS_INSTRUMENT,

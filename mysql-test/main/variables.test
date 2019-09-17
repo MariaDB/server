@@ -1264,11 +1264,6 @@ SET @@global.max_join_size=DEFAULT;
 SET @@global.key_buffer_size=@kbs;
 SET @@global.key_cache_block_size=@kcbs;
 
-#
-# Bug#56976: added new start-up parameter
-#
-select @@max_long_data_size > 0;
-
 --echo #
 --echo # Bug#11766424  59527:
 --echo # Assert in DECIMAL_BIN_SIZE: 

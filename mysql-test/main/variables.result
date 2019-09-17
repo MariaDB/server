@@ -1532,9 +1532,6 @@ SET @@global.max_binlog_cache_size=DEFAULT;
 SET @@global.max_join_size=DEFAULT;
 SET @@global.key_buffer_size=@kbs;
 SET @@global.key_cache_block_size=@kcbs;
-select @@max_long_data_size > 0;
-@@max_long_data_size > 0
-1
 #
 # Bug#11766424  59527:
 # Assert in DECIMAL_BIN_SIZE: 
