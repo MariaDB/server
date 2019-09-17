@@ -24,8 +24,8 @@
 #endif
 
 static uint my_get_large_page_size_int(void);
-static uchar* my_large_malloc_int(size_t size, myf my_flags);
-static my_bool my_large_free_int(uchar* ptr);
+static uchar* my_large_malloc_int(size_t *size, myf my_flags);
+static my_bool my_large_free_int(void *ptr, size_t size);
 
 #ifdef HAVE_LARGE_PAGE_OPTION
 
@@ -48,7 +48,7 @@ uint my_get_large_page_size(void)
   my_malloc_lock() in case of failure
 */
 
-uchar* my_large_malloc(size_t size, myf my_flags)
+uchar* my_large_malloc(size_t *size, myf my_flags)
 {
   uchar* ptr;
   DBUG_ENTER("my_large_malloc");
@@ -61,7 +61,7 @@ uchar* my_large_malloc(size_t size, myf my_flags)
       fprintf(stderr, "Warning: Using conventional memory pool\n");
   }
       
-  DBUG_RETURN(my_malloc_lock(size, my_flags));
+  DBUG_RETURN(my_malloc_lock(*size, my_flags));
 }
 
 /*
@@ -70,7 +70,7 @@ uchar* my_large_malloc(size_t size, myf my_flags)
   to my_free_lock() in case of failure
  */
 
-void my_large_free(uchar* ptr)
+void my_large_free(void *ptr, size_t size)
 {
   DBUG_ENTER("my_large_free");
   
@@ -79,7 +79,7 @@ void my_large_free(uchar* ptr)
     my_large_malloc_int(), i.e. my_malloc_lock() was used so we should free it
     with my_free_lock()
   */
-  if (!my_use_large_pages || !my_large_page_size || !my_large_free_int(ptr))
+  if (!my_use_large_pages || !my_large_page_size || !my_large_free_int(ptr, size))
     my_free_lock(ptr);
 
   DBUG_VOID_RETURN;
@@ -115,7 +115,7 @@ finish:
 #if HAVE_DECL_SHM_HUGETLB
 /* Linux-specific large pages allocator  */
     
-uchar* my_large_malloc_int(size_t size, myf my_flags)
+uchar* my_large_malloc_int(size_t *size, myf my_flags)
 {
   int shmid;
   uchar* ptr;
@@ -123,15 +123,15 @@ uchar* my_large_malloc_int(size_t size, myf my_flags)
   DBUG_ENTER("my_large_malloc_int");
 
   /* Align block size to my_large_page_size */
-  size= MY_ALIGN(size, (size_t) my_large_page_size);
+  *size= MY_ALIGN(*size, (size_t) my_large_page_size);
   
-  shmid = shmget(IPC_PRIVATE, size, SHM_HUGETLB | SHM_R | SHM_W);
+  shmid = shmget(IPC_PRIVATE, *size, SHM_HUGETLB | SHM_R | SHM_W);
   if (shmid < 0)
   {
     if (my_flags & MY_WME)
       fprintf(stderr,
-              "Warning: Failed to allocate %lu bytes from HugeTLB memory."
-              " errno %d\n", (ulong) size, errno);
+              "Warning: Failed to allocate %zu bytes from HugeTLB memory."
+              " errno %d\n", *size, errno);
 
     DBUG_RETURN(NULL);
   }
@@ -158,7 +158,7 @@ uchar* my_large_malloc_int(size_t size, myf my_flags)
 
 /* Linux-specific large pages deallocator */
 
-my_bool my_large_free_int(uchar *ptr)
+my_bool my_large_free_int(void *ptr, size_t size)
 {
   DBUG_ENTER("my_large_free_int");
   DBUG_RETURN(shmdt(ptr) == 0);
@@ -182,19 +182,19 @@ uint my_get_large_page_size_int(void)
 
 /* Windows-specific large pages allocator */
 
-uchar* my_large_malloc_int(size_t size, myf my_flags)
+uchar* my_large_malloc_int(size_t *size, myf my_flags)
 {
   DBUG_ENTER("my_large_malloc_int");
 
   /* Align block size to my_large_page_size */
-  size= MY_ALIGN(size, (size_t) my_large_page_size);
-  ptr= VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+  *size= MY_ALIGN(*size, (size_t) my_large_page_size);
+  ptr= VirtualAlloc(NULL, *size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
   if (!ptr)
   {
     if (my_flags & MY_WME)
     {
       fprintf(stderr,
-              "Warning: VirtualAlloc(%zu bytes) failed; Windows error %lu\n", size, GetLastError());
+              "Warning: VirtualAlloc(%zu bytes) failed; Windows error %lu\n", *size, GetLastError());
     }
   }
 
@@ -203,7 +203,7 @@ uchar* my_large_malloc_int(size_t size, myf my_flags)
 
 /* Windows-specific large pages deallocator */
 
-my_bool my_large_free_int(uchar *ptr)
+my_bool my_large_free_int(void *ptr, size_t size)
 {
   DBUG_ENTER("my_large_free_int");
   /* 
@@ -213,7 +213,7 @@ my_bool my_large_free_int(uchar *ptr)
   if (ptr && !VirtualFree(ptr, 0, MEM_RELEASE))
   {
     fprintf(stderr,
-            "Error: VirtualFree(%p) failed; Windows error %lu\n", ptr, GetLastError());
+            "Error: VirtualFree(%p, %zu) failed; Windows error %lu\n", ptr, size, GetLastError());
     DBUG_RETURN(0);
   }
 

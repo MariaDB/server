@@ -849,9 +849,9 @@ size_t init_pagecache(PAGECACHE *pagecache, size_t use_mem,
            (blocks << pagecache->shift) > use_mem && blocks > 8)
       blocks--;
     /* Allocate memory for cache page buffers */
+    pagecache->mem_size= blocks * pagecache->block_size;
     if ((pagecache->block_mem=
-      my_large_malloc(blocks * pagecache->block_size,
-                         MYF(MY_WME))))
+      my_large_malloc(&pagecache->mem_size, MYF(MY_WME))))
     {
       /*
         Allocate memory for blocks, hash_links and hash entries;
@@ -875,7 +875,7 @@ size_t init_pagecache(PAGECACHE *pagecache, size_t use_mem,
                                              changed_blocks_hash_size),
                                 NullS))
         break;
-      my_large_free(pagecache->block_mem);
+      my_large_free(pagecache->block_mem, pagecache->mem_size);
       pagecache->block_mem= 0;
     }
     blocks= blocks / 4*3;
@@ -926,7 +926,7 @@ err:
   pagecache->blocks=  0;
   if (pagecache->block_mem)
   {
-    my_large_free(pagecache->block_mem);
+    my_large_free(pagecache->block_mem, pagecache->mem_size);
     pagecache->block_mem= NULL;
   }
   if (pagecache->block_root)
@@ -1200,7 +1200,7 @@ void end_pagecache(PAGECACHE *pagecache, my_bool cleanup)
 
     if (pagecache->block_mem)
     {
-      my_large_free(pagecache->block_mem);
+      my_large_free(pagecache->block_mem, pagecache->mem_size);
       pagecache->block_mem= NULL;
       my_free(pagecache->block_root);
       pagecache->block_root= NULL;
