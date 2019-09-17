@@ -15,8 +15,6 @@
 
 #include "mysys_priv.h"
 
-#ifdef HAVE_LINUX_LARGE_PAGES
-
 #ifdef HAVE_SYS_IPC_H
 #include <sys/ipc.h>
 #endif
@@ -28,6 +26,8 @@
 static uint my_get_large_page_size_int(void);
 static uchar* my_large_malloc_int(size_t size, myf my_flags);
 static my_bool my_large_free_int(uchar* ptr);
+
+#ifdef HAVE_LARGE_PAGE_OPTION
 
 /* Gets the size of large pages from the OS */
 
@@ -84,6 +84,8 @@ void my_large_free(uchar* ptr)
 
   DBUG_VOID_RETURN;
 }
+
+#endif /* HAVE_LARGE_PAGE_OPTION */
 
 #ifdef HUGETLB_USE_PROC_MEMINFO
 /* Linux-specific function to determine the size of large pages */
@@ -161,6 +163,61 @@ my_bool my_large_free_int(uchar *ptr)
   DBUG_ENTER("my_large_free_int");
   DBUG_RETURN(shmdt(ptr) == 0);
 }
+
 #endif /* HAVE_DECL_SHM_HUGETLB */
 
-#endif /* HAVE_LINUX_LARGE_PAGES */
+#ifdef _WIN32
+
+/* Windows-specific function to determine the size of large pages */
+
+uint my_get_large_page_size_int(void)
+{
+  SYSTEM_INFO	system_info;
+  DBUG_ENTER("my_get_large_page_size_int");
+
+  GetSystemInfo(&system_info);
+
+  DBUG_RETURN(system_info.dwPageSize);
+}
+
+/* Windows-specific large pages allocator */
+
+uchar* my_large_malloc_int(size_t size, myf my_flags)
+{
+  DBUG_ENTER("my_large_malloc_int");
+
+  /* Align block size to my_large_page_size */
+  size= MY_ALIGN(size, (size_t) my_large_page_size);
+  ptr= VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+  if (!ptr)
+  {
+    if (my_flags & MY_WME)
+    {
+      fprintf(stderr,
+              "Warning: VirtualAlloc(%zu bytes) failed; Windows error %lu\n", size, GetLastError());
+    }
+  }
+
+  DBUG_RETURN(ptr);
+}
+
+/* Windows-specific large pages deallocator */
+
+my_bool my_large_free_int(uchar *ptr)
+{
+  DBUG_ENTER("my_large_free_int");
+  /* 
+     When RELEASE memory, the size parameter must be 0.
+     Do not use MEM_RELEASE with MEM_DECOMMIT.
+  */
+  if (ptr && !VirtualFree(ptr, 0, MEM_RELEASE))
+  {
+    fprintf(stderr,
+            "Error: VirtualFree(%p) failed; Windows error %lu\n", ptr, GetLastError());
+    DBUG_RETURN(0);
+  }
+
+  DBUG_RETURN(1);
+}
+#endif /* _WIN32 */
+

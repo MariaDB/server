@@ -176,7 +176,7 @@ extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf My
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
 
-#ifdef HAVE_LINUX_LARGE_PAGES
+#ifdef HAVE_LARGE_PAGE_OPTION
 extern uint my_get_large_page_size(void);
 extern uchar * my_large_malloc(size_t size, myf my_flags);
 extern void my_large_free(uchar *ptr);
@@ -184,7 +184,7 @@ extern void my_large_free(uchar *ptr);
 #define my_get_large_page_size() (0)
 #define my_large_malloc(A,B) my_malloc_lock((A),(B))
 #define my_large_free(A) my_free_lock((A))
-#endif /* HAVE_LINUX_LARGE_PAGES */
+#endif /* HAVE_LARGE_PAGE_OPTION */
 
 void my_init_atomic_write(void);
 #ifdef __linux__
