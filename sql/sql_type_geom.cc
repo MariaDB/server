@@ -23,23 +23,53 @@
 #include "sql_type_geom.h"
 #include "item_geofunc.h"
 
-const Name
-  Type_handler_geometry::
-    m_name_geometry(STRING_WITH_LEN("geometry")),
-  Type_handler_point::
-    m_name_point(STRING_WITH_LEN("point")),
-  Type_handler_linestring::
-    m_name_linestring(STRING_WITH_LEN("linestring")),
-  Type_handler_polygon::
-    m_name_polygon(STRING_WITH_LEN("polygon")),
-  Type_handler_multipoint::
-    m_name_multipoint(STRING_WITH_LEN("multipoint")),
-  Type_handler_multilinestring::
-    m_name_multilinestring(STRING_WITH_LEN("multilinestring")),
-  Type_handler_multipolygon::
-    m_name_multipolygon(STRING_WITH_LEN("multipolygon")),
-  Type_handler_geometrycollection::
-    m_name_geometrycollection(STRING_WITH_LEN("geometrycollection"));
+const Name Type_handler_geometry::name() const
+{
+  static const Name tmp(STRING_WITH_LEN("geometry"));
+  return tmp;
+}
+
+const Name Type_handler_point::name() const
+{
+  static const Name tmp(STRING_WITH_LEN("point"));
+  return tmp;
+}
+
+const Name Type_handler_linestring::name() const
+{
+  static const Name tmp(STRING_WITH_LEN("linestring"));
+  return tmp;
+}
+
+const Name Type_handler_polygon::name() const
+{
+  static const Name tmp(STRING_WITH_LEN("polygon"));
+  return tmp;
+}
+
+const Name Type_handler_multipoint::name() const
+{
+  static const Name tmp(STRING_WITH_LEN("multipoint"));
+  return tmp;
+}
+
+const Name Type_handler_multilinestring::name() const
+{
+  static const Name tmp(STRING_WITH_LEN("multilinestring"));
+  return tmp;
+}
+
+const Name Type_handler_multipolygon::name() const
+{
+  static const Name tmp(STRING_WITH_LEN("multipolygon"));
+  return tmp;
+}
+
+const Name Type_handler_geometrycollection::name() const
+{
+  static const Name tmp(STRING_WITH_LEN("geometrycollection"));
+  return tmp;
+}
 
 
 Type_handler_geometry           type_handler_geometry;

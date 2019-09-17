@@ -27,7 +27,6 @@
 #ifdef HAVE_SPATIAL
 class Type_handler_geometry: public Type_handler_string_result
 {
-  static const Name m_name_geometry;
 public:
   enum geometry_types
   {
@@ -42,7 +41,7 @@ public:
   static const Type_handler_geometry *type_handler_geom_by_type(uint type);
 public:
   virtual ~Type_handler_geometry() {}
-  const Name name() const override { return m_name_geometry; }
+  const Name name() const override;
   enum_field_types field_type() const override { return MYSQL_TYPE_GEOMETRY; }
   bool is_param_long_data_type() const override { return true; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
@@ -172,12 +171,11 @@ public:
 
 class Type_handler_point: public Type_handler_geometry
 {
-  static const Name m_name_point;
   // Binary length of a POINT value: 4 byte SRID + 21 byte WKB POINT
   static uint octet_length() { return 25; }
 public:
   geometry_types geometry_type() const override { return GEOM_POINT; }
-  const Name name() const override { return m_name_point; }
+  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
   bool Key_part_spec_init_primary(Key_part_spec *part,
                                   const Column_definition &def,
@@ -197,60 +195,54 @@ public:
 
 class Type_handler_linestring: public Type_handler_geometry
 {
-  static const Name m_name_linestring;
 public:
   geometry_types geometry_type() const override { return GEOM_LINESTRING; }
-  const Name name() const override { return m_name_linestring; }
+  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
 
 class Type_handler_polygon: public Type_handler_geometry
 {
-  static const Name m_name_polygon;
 public:
   geometry_types geometry_type() const override { return GEOM_POLYGON; }
-  const Name name() const override { return m_name_polygon; }
+  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
 
 class Type_handler_multipoint: public Type_handler_geometry
 {
-  static const Name m_name_multipoint;
 public:
   geometry_types geometry_type() const override { return GEOM_MULTIPOINT; }
-  const Name name() const override { return m_name_multipoint; }
+  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
 
 class Type_handler_multilinestring: public Type_handler_geometry
 {
-  static const Name m_name_multilinestring;
 public:
   geometry_types geometry_type() const override { return GEOM_MULTILINESTRING; }
-  const Name name() const override { return m_name_multilinestring; }
+  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
 
 class Type_handler_multipolygon: public Type_handler_geometry
 {
-  static const Name m_name_multipolygon;
 public:
   geometry_types geometry_type() const override { return GEOM_MULTIPOLYGON; }
-  const Name name() const override { return m_name_multipolygon; }
+  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
 
 class Type_handler_geometrycollection: public Type_handler_geometry
 {
-  static const Name m_name_geometrycollection;
 public:
   geometry_types geometry_type() const override { return GEOM_GEOMETRYCOLLECTION; }
-  const Name name() const override { return m_name_geometrycollection; }
+  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 

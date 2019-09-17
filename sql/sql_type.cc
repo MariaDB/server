@@ -1395,48 +1395,173 @@ uint Type_handler_time::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
      { 3, 4, 4, 5, 5, 5, 6 };
 
 /***************************************************************************/
-const Name Type_handler_row::m_name_row(STRING_WITH_LEN("row"));
+const Name Type_handler_row::name() const
+{
+  static Name tmp(STRING_WITH_LEN("row"));
+  return tmp;
+}
 
-const Name Type_handler_null::m_name_null(STRING_WITH_LEN("null"));
+const Name Type_handler_null::name() const
+{
+  static Name tmp(STRING_WITH_LEN("null"));
+  return tmp;
+}
 
-const Name
-  Type_handler_string::m_name_char(STRING_WITH_LEN("char")),
-  Type_handler_var_string::m_name_var_string(STRING_WITH_LEN("varchar")),
-  Type_handler_varchar::m_name_varchar(STRING_WITH_LEN("varchar")),
-  Type_handler_hex_hybrid::m_name_hex_hybrid(STRING_WITH_LEN("hex_hybrid")),
-  Type_handler_tiny_blob::m_name_tinyblob(STRING_WITH_LEN("tinyblob")),
-  Type_handler_medium_blob::m_name_mediumblob(STRING_WITH_LEN("mediumblob")),
-  Type_handler_long_blob::m_name_longblob(STRING_WITH_LEN("longblob")),
-  Type_handler_blob::m_name_blob(STRING_WITH_LEN("blob"));
+const Name Type_handler_string::name() const
+{
+  static Name tmp(STRING_WITH_LEN("char"));
+  return tmp;
+}
 
-const Name
-  Type_handler_enum::m_name_enum(STRING_WITH_LEN("enum")),
-  Type_handler_set::m_name_set(STRING_WITH_LEN("set"));
+const Name Type_handler_var_string::name() const
+{
+  static Name tmp(STRING_WITH_LEN("varchar"));
+  return tmp;
+}
 
-const Name
-  Type_handler_bool::m_name_bool(STRING_WITH_LEN("boolean")),
-  Type_handler_tiny::m_name_tiny(STRING_WITH_LEN("tinyint")),
-  Type_handler_short::m_name_short(STRING_WITH_LEN("smallint")),
-  Type_handler_long::m_name_int(STRING_WITH_LEN("int")),
-  Type_handler_longlong::m_name_longlong(STRING_WITH_LEN("bigint")),
-  Type_handler_int24::m_name_mediumint(STRING_WITH_LEN("mediumint")),
-  Type_handler_year::m_name_year(STRING_WITH_LEN("year")),
-  Type_handler_bit::m_name_bit(STRING_WITH_LEN("bit"));
+const Name Type_handler_varchar::name() const
+{
+  static Name tmp(STRING_WITH_LEN("varchar"));
+  return tmp;
+}
 
-const Name
-  Type_handler_float::m_name_float(STRING_WITH_LEN("float")),
-  Type_handler_double::m_name_double(STRING_WITH_LEN("double"));
+const Name Type_handler_hex_hybrid::name() const
+{
+  static Name tmp(STRING_WITH_LEN("hex_hybrid"));
+  return tmp;
+}
 
-const Name
-  Type_handler_olddecimal::m_name_decimal(STRING_WITH_LEN("decimal")),
-  Type_handler_newdecimal::m_name_decimal(STRING_WITH_LEN("decimal"));
+const Name Type_handler_tiny_blob::name() const
+{
+  static Name tmp(STRING_WITH_LEN("tinyblob"));
+  return tmp;
+}
 
-const Name
-  Type_handler_time_common::m_name_time(STRING_WITH_LEN("time")),
-  Type_handler_date_common::m_name_date(STRING_WITH_LEN("date")),
-  Type_handler_datetime_common::m_name_datetime(STRING_WITH_LEN("datetime")),
-  Type_handler_timestamp_common::m_name_timestamp(STRING_WITH_LEN("timestamp"));
+const Name Type_handler_medium_blob::name() const
+{
+  static Name tmp(STRING_WITH_LEN("mediumblob"));
+  return tmp;
+}
 
+const Name Type_handler_long_blob::name() const
+{
+  static Name tmp(STRING_WITH_LEN("longblob"));
+  return tmp;
+}
+
+const Name Type_handler_blob::name() const
+{
+  static Name tmp(STRING_WITH_LEN("blob"));
+  return tmp;
+}
+
+const Name Type_handler_enum::name() const
+{
+  static Name tmp(STRING_WITH_LEN("enum"));
+  return tmp;
+}
+
+const Name Type_handler_set::name() const
+{
+  static Name tmp(STRING_WITH_LEN("set"));
+  return tmp;
+}
+
+const Name Type_handler_bool::name() const
+{
+  static Name tmp(STRING_WITH_LEN("boolean"));
+  return tmp;
+}
+
+const Name Type_handler_tiny::name() const
+{
+  static Name tmp(STRING_WITH_LEN("tinyint"));
+  return tmp;
+}
+
+const Name Type_handler_short::name() const
+{
+  static Name tmp(STRING_WITH_LEN("smallint"));
+  return tmp;
+}
+
+const Name Type_handler_long::name() const
+{
+  static Name tmp(STRING_WITH_LEN("int"));
+  return tmp;
+}
+
+const Name Type_handler_longlong::name() const
+{
+  static Name tmp(STRING_WITH_LEN("bigint"));
+  return tmp;
+}
+
+const Name Type_handler_int24::name() const
+{
+  static Name tmp(STRING_WITH_LEN("mediumint"));
+  return tmp;
+}
+
+const Name Type_handler_year::name() const
+{
+  static Name tmp(STRING_WITH_LEN("year"));
+  return tmp;
+}
+
+const Name Type_handler_bit::name() const
+{
+  static Name tmp(STRING_WITH_LEN("bit"));
+  return tmp;
+}
+
+const Name Type_handler_float::name() const
+{
+  static Name tmp(STRING_WITH_LEN("float"));
+  return tmp;
+}
+
+const Name Type_handler_double::name() const
+{
+  static Name tmp(STRING_WITH_LEN("double"));
+  return tmp;
+}
+
+const Name Type_handler_olddecimal::name() const
+{
+  static Name tmp(STRING_WITH_LEN("decimal"));
+  return tmp;
+}
+
+const Name Type_handler_newdecimal::name() const
+{
+  static Name tmp(STRING_WITH_LEN("decimal"));
+  return tmp;
+}
+
+const Name Type_handler_time_common::name() const
+{
+  static Name tmp(STRING_WITH_LEN("time"));
+  return tmp;
+}
+
+const Name Type_handler_date_common::name() const
+{
+  static Name tmp(STRING_WITH_LEN("date"));
+  return tmp;
+}
+
+const Name Type_handler_datetime_common::name() const
+{
+  static Name tmp(STRING_WITH_LEN("datetime"));
+  return tmp;
+}
+
+const Name Type_handler_timestamp_common::name() const
+{
+  static Name tmp(STRING_WITH_LEN("timestamp"));
+  return tmp;
+}
 
 const Name Type_handler_utiny::name() const
 {
