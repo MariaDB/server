@@ -540,10 +540,11 @@ analyze table t1;
 update mysql.column_stats set min_value='2004-0-31123' where db_name='test' and table_name='t1';
 select min_value from mysql.column_stats where db_name='test' and table_name='t1';
 select * from t1;
-drop table t1;
-
 set @@sql_mode= @save_sql_mode;
 set use_stat_tables=@save_use_stat_tables;
 set @@histogram_size= @save_histogram_size;
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+drop table t1;
+
+--echo # please keep this at the last
 set @@global.histogram_size=@save_histogram_size;
