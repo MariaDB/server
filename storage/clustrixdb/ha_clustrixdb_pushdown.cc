@@ -13,55 +13,58 @@ extern handlerton *clustrixdb_hton;
  * Fills up three arrays with: field binlog data types, field
  * metadata and nullability bitmask as in Table_map_log_event
  * ctor. Internally creates a temporary table as does
- * Pushdown_select.
+ * Pushdown_select. DH uses the actual temp table w/o
+ * b/c create_DH is called later compared to create_SH.
  * More details in server/sql/log_event_server.cc
  * PARAMETERS:
  *  thd - THD*
+ *  table__ - TABLE* temp table for the results
  *  sl - SELECT_LEX*
  *  fieldtype - uchar*
  *  field_metadata - uchar*
  *  null_bits   - uchar*
  *  num_null_bytes - null bit size
+ *  fields_count   - a number of fields
  * RETURN:
  *  metadata_size int or -1 in case of error
  ************************************************************/
-int get_field_types(THD *thd, SELECT_LEX *sl, uchar *fieldtype,
-    uchar *field_metadata, uchar *null_bits, const int num_null_bytes)
+int get_field_types(THD *thd, TABLE *table__, SELECT_LEX *sl, uchar *fieldtype,
+    uchar *field_metadata, uchar *null_bits, const int num_null_bytes, const uint fields_count)
 {
   int field_metadata_size = 0;
   int metadata_index = 0;
+  TABLE *tmp_table= table__;
 
-  // Construct a tmp table with fields to find out result DTs.
-  // This should be reconsidered if it worths the effort.
-  List<Item> types;
-  TMP_TABLE_PARAM tmp_table_param;
-  sl->master_unit()->join_union_item_types(thd, types, 1);
-  tmp_table_param.init();
-  tmp_table_param.field_count= types.elements;
-
-  TABLE *tmp_table = create_tmp_table(thd, &tmp_table_param, types,
-                                   (ORDER *) 0, false, 0,
-                                   TMP_TABLE_ALL_COLUMNS, 1,
-                                   &empty_clex_str, true, false);
   if (!tmp_table) {
-    field_metadata_size = -1;
-    goto err;
+      // Construct a tmp table with fields to find out result DTs.
+      // This should be reconsidered if it worths the effort.
+      List<Item> types;
+      TMP_TABLE_PARAM tmp_table_param;
+      sl->master_unit()->join_union_item_types(thd, types, 1);
+      tmp_table_param.init();
+      tmp_table_param.field_count= types.elements;
+
+      tmp_table = create_tmp_table(thd, &tmp_table_param, types,
+                                       (ORDER *) 0, false, 0,
+                                       TMP_TABLE_ALL_COLUMNS, 1,
+                                       &empty_clex_str, true, false);
+      if (!tmp_table) {
+        field_metadata_size = -1;
+        goto err;
+      }
   }
 
-  for (unsigned int i = 0 ; i < tmp_table_param.field_count; ++i) {
+  for (unsigned int i = 0 ; i < fields_count; ++i) {
     fieldtype[i]= tmp_table->field[i]->binlog_type();
   }
 
-  bzero(field_metadata, (tmp_table_param.field_count * 2));
-  for (unsigned int i= 0 ; i < tmp_table_param.field_count ; i++)
+  bzero(field_metadata, (fields_count * 2));
+  for (unsigned int i= 0 ; i < fields_count ; i++)
   {
     Binlog_type_info bti= tmp_table->field[i]->binlog_type_info();
     uchar *ptr = reinterpret_cast<uchar*>(&bti.m_metadata);
-    // Binlog_type_info::m_metadata is u16
-    if (bti.m_metadata_size == 1)
-        field_metadata[metadata_index++]= *ptr++;
-    if (bti.m_metadata_size == 2)
-        field_metadata[metadata_index++]= *ptr++;
+    memcpy(&field_metadata[metadata_index], ptr, bti.m_metadata_size);
+    metadata_index+= bti.m_metadata_size;
   }
 
   if (metadata_index < 251)
@@ -70,13 +73,14 @@ int get_field_types(THD *thd, SELECT_LEX *sl, uchar *fieldtype,
     field_metadata_size += metadata_index + 3;
 
   bzero(null_bits, num_null_bytes);
-  for (unsigned int i= 0 ; i < tmp_table_param.field_count ; ++i) {
+  for (unsigned int i= 0 ; i < fields_count ; ++i) {
     if (tmp_table->field[i]->maybe_null()) {
       null_bits[(i / 8)]+= 1 << (i % 8);
     }
   }
 
-  free_tmp_table(thd, tmp_table);
+  if (!table__)
+    free_tmp_table(thd, tmp_table);
 err:
   return field_metadata_size;
 }
@@ -126,7 +130,7 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
   }
 
   if((field_metadata_size =
-    get_field_types(thd, select_lex, fieldtype, field_metadata, null_bits, num_null_bytes)) < 0) {
+    get_field_types(thd, NULL, select_lex, fieldtype, field_metadata, null_bits, num_null_bytes, items_number)) < 0) {
      goto err;
   }
 
@@ -284,51 +288,11 @@ create_clustrixdb_derived_handler(THD* thd, TABLE_LIST *derived)
   }
 
   SELECT_LEX_UNIT *unit= derived->derived;
-  // *DRRTUY Check for potential UNIONS in derived
   SELECT_LEX *select_lex = unit->first_select();
   String query;
-  // Print the query into a string provided
-  select_lex->print(thd, &query, QT_ORDINARY);
-  int error_code = 0;
-  int field_metadata_size = 0;
   ulonglong scan_refid = 0;
-  clustrix_connection *trx = NULL;
-
-  // We presume this number is equal to types.elements in get_field_types
-  uint items_number = select_lex->get_item_list()->elements;
-  uint num_null_bytes = (items_number + 7) / 8;
-  uchar *fieldtype = NULL;
-  uchar *null_bits = NULL;
-  uchar *field_metadata = NULL;
-  uchar *meta_memory= (uchar *)my_multi_malloc(MYF(MY_WME), &fieldtype, items_number,
-    &null_bits, num_null_bytes, &field_metadata, (items_number * 2), NULL);
-
-  if (!meta_memory) {
-     // The only way to say something here is to raise warning
-     // b/c we will fallback to other access methods: derived handler or rowstore.
-     goto err;
-  }
-
-  if((field_metadata_size =
-    get_field_types(thd, select_lex, fieldtype, field_metadata, null_bits, num_null_bytes)) < 0) {
-     goto err;
-  }
-
-  trx = get_trx(thd, &error_code);
-  if (!trx)
-    goto err;
-
-  if ((error_code = trx->scan_query(query, fieldtype, items_number,
-        null_bits, num_null_bytes, field_metadata, field_metadata_size, &scan_refid))) {
-    goto err;
-  }
-
+  
   dh = new ha_clustrixdb_derived_handler(thd, select_lex, scan_refid);
-
-err:
-  // deallocate buffers
-  if (meta_memory)
-    my_free(meta_memory);
 
   return dh;
 }
@@ -362,6 +326,9 @@ ha_clustrixdb_derived_handler::ha_clustrixdb_derived_handler(
 ha_clustrixdb_derived_handler::~ha_clustrixdb_derived_handler()
 {
     int error_code;
+
+
+
     clustrix_connection *trx = get_trx(thd, &error_code);
     if (!trx) {
       // TBD Log this.
@@ -389,6 +356,42 @@ int ha_clustrixdb_derived_handler::init_scan()
 {
   // Save this into the base handler class attribute
   table__ = table;
+  String query;
+  // Print the query into a string provided
+  select->print(thd__, &query, QT_ORDINARY);
+  int error_code = 0;
+  int field_metadata_size = 0;
+  clustrix_connection *trx = NULL;
+
+  // We presume this number is equal to types.elements in get_field_types
+  uint items_number= select->get_item_list()->elements;
+  uint num_null_bytes = (items_number + 7) / 8;
+  uchar *fieldtype = NULL;
+  uchar *null_bits = NULL;
+  uchar *field_metadata = NULL;
+  uchar *meta_memory= (uchar *)my_multi_malloc(MYF(MY_WME), &fieldtype, items_number,
+    &null_bits, num_null_bytes, &field_metadata, (items_number * 2), NULL);
+
+  if (!meta_memory) {
+     // The only way to say something here is to raise warning
+     // b/c we will fallback to other access methods: derived handler or rowstore.
+     goto err;
+  }
+
+  if((field_metadata_size=
+    get_field_types(thd__, table__, select, fieldtype, field_metadata, null_bits, num_null_bytes, items_number)) < 0) {
+     goto err;
+  }
+
+  trx = get_trx(thd__, &error_code);
+  if (!trx)
+    goto err;
+
+  if ((error_code = trx->scan_query(query, fieldtype, items_number,
+        null_bits, num_null_bytes, field_metadata, field_metadata_size, &scan_refid))) {
+    goto err;
+  }
+
   // need this bitmap future in next_row()
   if (my_bitmap_init(&scan_fields, NULL, table->read_set->n_bits, false))
     return ER_OUTOFMEMORY;
@@ -396,7 +399,12 @@ int ha_clustrixdb_derived_handler::init_scan()
 
   add_current_table_to_rpl_table_list();
 
-  return 0;
+err:
+  // deallocate buffers
+  if (meta_memory)
+    my_free(meta_memory);
+
+  return error_code;
 }
 
 /*@brief  Fetch next row for derived_handler           */
