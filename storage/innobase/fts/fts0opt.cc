@@ -2614,6 +2614,12 @@ UNIV_INTERN void fts_optimize_add_table(dict_table_t* table)
 		return;
 	}
 
+	/* If there is no fts index present then don't add to
+	optimize queue. */
+	if (!ib_vector_size(table->fts->indexes)) {
+		return;
+	}
+
 	/* Make sure table with FTS index cannot be evicted */
 	if (table->can_be_evicted) {
 		dict_table_move_from_lru_to_non_lru(table);

@@ -667,15 +667,18 @@ DROP TABLE t1;
 --echo "----------Test27---------"
 #27 Crash after server restart
 CREATE TABLE t1 (id INT,char_column VARCHAR(60));
+CREATE TABLE t2 (FTS_DOC_ID BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, a TEXT)ENGINE=InnoDB;
+ALTER TABLE t2 DROP a;
 SET @@autocommit=0;
 CREATE FULLTEXT INDEX i ON t1 (char_column);
 INSERT INTO t1 values (1,'aaa');
-echo "restart server..."
+echo "restart server...";
 # Restart the server
 --source include/restart_mysqld.inc
+SHOW CREATE TABLE t2;
 DELETE FROM t1 WHERE MATCH(char_column) AGAINST ('bbb');
 SET @@autocommit=1;
-DROP TABLE t1;
+DROP TABLE t1, t2;
 
 --echo "----------Test28---------"
 drop table if exists `fts_test`;
