@@ -279,40 +279,21 @@ struct fts_table_t {
 					index auxiliary table */
 };
 
-enum	fts_status {
-	BG_THREAD_STOP = 1,	 	/*!< TRUE if the FTS background thread
-					has finished reading the ADDED table,
-					meaning more items can be added to
-					the table. */
-
-	BG_THREAD_READY = 2,		/*!< TRUE if the FTS background thread
-					is ready */
-
-	ADD_THREAD_STARTED = 4,		/*!< TRUE if the FTS add thread
-					has started */
-
-	ADDED_TABLE_SYNCED = 8,		/*!< TRUE if the ADDED table record is
-					sync-ed after crash recovery */
-
-	TABLE_DICT_LOCKED = 16		/*!< Set if the table has
-					dict_sys->mutex */
-};
-
-typedef	enum fts_status	fts_status_t;
-
 /** The state of the FTS sub system. */
 struct fts_t {
 					/*!< mutex protecting bg_threads* and
 					fts_add_wq. */
 	ib_mutex_t		bg_threads_mutex;
 
-	ulint		bg_threads;	/*!< number of background threads
-					accessing this table */
-
-					/*!< TRUE if background threads running
-					should stop themselves */
-	ulint		fts_status;	/*!< Status bit regarding fts
-					running state */
+	/* Wheter the table was added to fts_optimize_wq();
+	protected by bg_threads mutex */
+	unsigned	in_queue:1;
+	/* Whether the ADDED table record sync-ed after
+	crash recovery; protected by bg_threads mutex */
+	unsigned	added_synced:1;
+	/* Whether the table hold dict_sys->mutex;
+	protected by bg_threads mutex */
+	unsigned	dict_locked:1;
 
 	ib_wqueue_t*	add_wq;		/*!< Work queue for scheduling jobs
 					for the FTS 'Add' thread, or NULL
@@ -613,28 +594,6 @@ UNIV_INTERN
 void
 fts_startup(void);
 /*==============*/
-
-/******************************************************************//**
-Signal FTS threads to initiate shutdown. */
-UNIV_INTERN
-void
-fts_start_shutdown(
-/*===============*/
-	dict_table_t*	table,			/*!< in: table with FTS
-						indexes */
-	fts_t*		fts);			/*!< in: fts instance to
-						shutdown */
-
-/******************************************************************//**
-Wait for FTS threads to shutdown. */
-UNIV_INTERN
-void
-fts_shutdown(
-/*=========*/
-	dict_table_t*	table,			/*!< in: table with FTS
-						indexes */
-	fts_t*		fts);			/*!< in: fts instance to
-						shutdown */
 
 /******************************************************************//**
 Create an instance of fts_t.

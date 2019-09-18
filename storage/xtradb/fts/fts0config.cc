@@ -224,8 +224,7 @@ fts_config_set_value(
 	pars_info_bind_varchar_literal(info, "value",
 				       value->f_str, value->f_len);
 
-	const bool dict_locked = fts_table->table->fts->fts_status
-		& TABLE_DICT_LOCKED;
+	const bool dict_locked = fts_table->table->fts->dict_locked;
 
 	fts_table->suffix = "CONFIG";
 	fts_get_table_name(fts_table, table_name, dict_locked);

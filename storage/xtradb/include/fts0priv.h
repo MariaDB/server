@@ -521,20 +521,6 @@ fts_cache_append_deleted_doc_ids(
 	const fts_cache_t*
 			cache,		/*!< in: cache to use */
 	ib_vector_t*	vector);	/*!< in: append to this vector */
-/******************************************************************//**
-Wait for the background thread to start. We poll to detect change
-of state, which is acceptable, since the wait should happen only
-once during startup.
-@return true if the thread started else FALSE (i.e timed out) */
-UNIV_INTERN
-ibool
-fts_wait_for_background_thread_to_start(
-/*====================================*/
-	dict_table_t*	table,		/*!< in: table to which the thread
-					is attached */
-	ulint		max_wait);	/*!< in: time in microseconds, if set
-					to 0 then it disables timeout
-					checking */
 #ifdef FTS_DOC_STATS_DEBUG
 /******************************************************************//**
 Get the total number of words in the FTS for a particular FTS index.
