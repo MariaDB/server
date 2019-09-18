@@ -42,8 +42,9 @@
 
 size_t Item_sum::ram_limitation(THD *thd)
 {
-  return (size_t)MY_MIN(thd->variables.tmp_memory_table_size,
-                thd->variables.max_heap_table_size);
+  return MY_MAX(1024,
+           (size_t)MY_MIN(thd->variables.tmp_memory_table_size,
+                          thd->variables.max_heap_table_size));
 }
 
 

@@ -3110,7 +3110,7 @@ SELECT * FROM cte;
 #
 # MDEV-15575: using recursive cte with big_tables enabled
 #
-set big_tables=1;
+set tmp_memory_table_size=0;
 with recursive qn as
 (select 123 as a union all select 1+a from qn where a<130)
 select * from qn;
@@ -3123,13 +3123,13 @@ a
 128
 129
 130
-set big_tables=default;
+set tmp_memory_table_size=default;
 #
 # MDEV-15571: using recursive cte with big_tables enabled
 #
 create table t1 (a bigint);
 insert into t1 values(1);
-set big_tables=1;
+set tmp_memory_table_size=0;
 with recursive qn as
 (
 select  a from t1
@@ -3138,13 +3138,13 @@ select a*2000 from qn where a<10000000000000000000
 )
 select * from qn;
 ERROR 22003: BIGINT value is out of range in '`qn`.`a` * 2000'
-set big_tables=default;
+set tmp_memory_table_size=default;
 drop table t1;
 #
 # MDEV-15556: using recursive cte with big_tables enabled
 #             when recursive tables are accessed by key
 #
-SET big_tables=1;
+set tmp_memory_table_size=0;
 CREATE TABLE t1 (id int, name char(10), leftpar int, rightpar int);
 INSERT INTO t1 VALUES
 (1, "A", 2, 3), (2, "LA", 4, 5), (4, "LLA", 6, 7),
@@ -3195,7 +3195,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 4	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.t2.id	2	
 NULL	UNION RESULT	<union2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
 DROP TABLE t1,t2;
-SET big_tables=0;
+set tmp_memory_table_size=default;
 #
 # MDEV-15840: recursive tables are accessed by key
 #             (the same problem as for MDEV-15556)

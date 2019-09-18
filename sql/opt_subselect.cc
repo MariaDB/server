@@ -4522,7 +4522,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   }
 
   uint reclength= field->pack_length();
-  if (using_unique_constraint)
+  if (using_unique_constraint || thd->variables.tmp_memory_table_size == 0)
   { 
     share->db_plugin= ha_lock_engine(0, TMP_ENGINE_HTON);
     table->file= get_new_handler(share, &table->mem_root,

@@ -3869,7 +3869,7 @@ static Sys_var_ulonglong Sys_tmp_table_size(
        "If an internal in-memory temporary table exceeds this size, MariaDB "
        "will automatically convert it to an on-disk MyISAM or Aria table.",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
+       VALID_RANGE(0, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
        BLOCK_SIZE(1));
 
 static Sys_var_ulonglong Sys_tmp_memory_table_size(
@@ -3878,7 +3878,7 @@ static Sys_var_ulonglong Sys_tmp_memory_table_size(
        "will automatically convert it to an on-disk MyISAM or Aria table. "
        "Same as tmp_table_size.",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
+       VALID_RANGE(0, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
        BLOCK_SIZE(1));
 
 static Sys_var_ulonglong Sys_tmp_disk_table_size(
@@ -4161,7 +4161,9 @@ static Sys_var_mybool Sys_big_tables(
        "big_tables", "Old variable, which if set to 1, allows large result sets "
        "by saving all temporary sets to disk, avoiding 'table full' errors. No "
        "longer needed, as the server now handles this automatically.",
-       SESSION_VAR(big_tables), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+       SESSION_VAR(big_tables), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED(""));
 
 static Sys_var_bit Sys_big_selects(
        "sql_big_selects", "If set to 0, MariaDB will not perform large SELECTs."

@@ -5628,8 +5628,7 @@ drop view v60;
 --echo # MDEV-15572: view.test, server crash with --big-tables=1
 --echo #
 
-set @save_big_tables=@@big_tables;
-set big_tables=ON;
+set tmp_memory_table_size=0; # force on-disk tmp table
 CREATE TABLE t1 ( f1 int , f2 int , f3 int , f4 int);
 CREATE TABLE t2 ( f1 int , f2 int , f3 int , f4 int);
 
@@ -5642,7 +5641,7 @@ REPLACE INTO v1 (f1, f2, f3, f4)
 
 drop view v1;
 drop table t1, t2;
-set big_tables=@save_big_tables;
+set tmp_memory_table_size=default;
 
 --echo # -----------------------------------------------------------------
 --echo # -- End of 5.5 tests.
