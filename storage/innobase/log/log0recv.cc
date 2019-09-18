@@ -941,6 +941,11 @@ loop:
 
 	const ulint	page_no = ulint(source_offset >> srv_page_size_shift);
 
+	DBUG_PRINT("ib_log",
+			("read_log_seg: start_lsn: " UINT64PF ", source_offset: " UINT64PF
+			", at_eof: %d, len: " ULINTPF ", page_no: " ULINTPF,
+			*start_lsn, source_offset, at_eof, len, page_no));
+
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
@@ -951,8 +956,15 @@ loop:
 		     buf += OS_FILE_LOG_BLOCK_SIZE,
 		     (*start_lsn) += OS_FILE_LOG_BLOCK_SIZE) {
 		const ulint block_number = log_block_get_hdr_no(buf);
+		const ulint calculated_block_number =
+			log_block_convert_lsn_to_no(*start_lsn);
 
-		if (block_number != log_block_convert_lsn_to_no(*start_lsn)) {
+		DBUG_PRINT("ib_log",
+				("read_log_seg: iterate " ULINTPF ", block_number: " ULINTPF
+				 ", calculated_block_number: " ULINTPF,
+				 l, block_number, calculated_block_number));
+
+		if (block_number != calculated_block_number) {
 			/* Garbage or an incompletely written log block.
 			We will not report any error, because this can
 			happen when InnoDB was killed while it was
@@ -995,13 +1007,15 @@ fail:
 		if (dl < LOG_BLOCK_HDR_SIZE
 		    || (dl > OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE
 			&& dl != OS_FILE_LOG_BLOCK_SIZE)) {
+			DBUG_PRINT("ib_log",
+					("read_log_seg: fail, dl: " ULINTPF, dl));
 			recv_sys->found_corrupt_log = true;
 			goto fail;
 		}
 	}
 
+	ib::info() << "Read redo log up to LSN=" << *start_lsn;
 	if (recv_sys->report(ut_time())) {
-		ib::info() << "Read redo log up to LSN=" << *start_lsn;
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 			"Read redo log up to LSN=" LSN_PF,
 			*start_lsn);
@@ -1322,9 +1336,11 @@ recv_find_max_checkpoint(ulint* max_field)
 			buf + LOG_CHECKPOINT_NO);
 
 		DBUG_PRINT("ib_log",
-			   ("checkpoint " UINT64PF " at " LSN_PF " found",
-			    checkpoint_no, mach_read_from_8(
-				    buf + LOG_CHECKPOINT_LSN)));
+			("checkpoint " UINT64PF " at " LSN_PF " found, "
+			"checkpoint offset " UINT64PF,
+			checkpoint_no,
+			mach_read_from_8(buf + LOG_CHECKPOINT_LSN),
+			mach_read_from_8(buf + LOG_CHECKPOINT_OFFSET)));
 
 		if (checkpoint_no >= max_no) {
 			*max_field = field;

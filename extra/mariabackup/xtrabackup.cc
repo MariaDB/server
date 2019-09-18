@@ -2728,7 +2728,11 @@ static bool xtrabackup_copy_logfile(bool last = false)
 	do {
 		end_lsn = start_lsn + RECV_SCAN_SIZE;
 
+		DBUG_EXECUTE_IF("ib_log",
+			msg("xtrabackup_copy_logfile: start throttling"););
 		xtrabackup_io_throttling();
+		DBUG_EXECUTE_IF("ib_log",
+			msg("xtrabackup_copy_logfile: stop throttling"););
 
 		log_mutex_enter();
 		lsn_t lsn= start_lsn;
