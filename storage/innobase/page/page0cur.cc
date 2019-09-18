@@ -1243,6 +1243,118 @@ page_direction_increment(
 		1U + page_header_get_field(page, PAGE_N_DIRECTION));
 }
 
+/** Split a directory slot which owns too many records.
+@param[in,out]	page		index page
+@param[in,out]	page_zip	ROW_FORMAT=COMPRESSED page, or NULL
+@param[in]	s		the slot that needs to be split */
+static void page_dir_split_slot(page_t* page, page_zip_des_t* page_zip,
+				ulint s)
+{
+	ut_ad(!page_zip || page_is_comp(page));
+	ut_ad(s);
+
+	page_dir_slot_t* slot = page_dir_get_nth_slot(page, s);
+	const ulint n_owned = PAGE_DIR_SLOT_MAX_N_OWNED + 1;
+
+	ut_ad(page_dir_slot_get_n_owned(slot) == n_owned);
+	compile_time_assert((PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2
+			    >= PAGE_DIR_SLOT_MIN_N_OWNED);
+
+	/* 1. We loop to find a record approximately in the middle of the
+	records owned by the slot. */
+
+	const rec_t* rec = page_dir_slot_get_rec(slot + PAGE_DIR_SLOT_SIZE);
+
+	for (ulint i = n_owned / 2; i--; ) {
+		rec = page_rec_get_next_const(rec);
+	}
+
+	/* 2. Add a directory slot immediately below this one. */
+	const ulint n_slots = page_dir_get_n_slots(page);
+	page_dir_set_n_slots(page, page_zip, n_slots + 1);
+	page_dir_slot_t* last_slot = page_dir_get_nth_slot(page, n_slots);
+	memmove(last_slot, last_slot + PAGE_DIR_SLOT_SIZE, slot - last_slot);
+
+	/* 3. We store the appropriate values to the new slot. */
+
+	page_dir_slot_set_rec(slot, rec);
+	page_dir_slot_set_n_owned(slot, page_zip, n_owned / 2);
+
+	/* 4. Finally, we update the number of records field of the
+	original slot */
+
+	page_dir_slot_set_n_owned(slot - PAGE_DIR_SLOT_SIZE,
+				  page_zip, n_owned - (n_owned / 2));
+}
+
+/** Try to balance an underfilled directory slot with an adjacent one,
+so that there are at least the minimum number of records owned by the slot;
+this may result in merging the two slots.
+@param[in,out]	page		index page
+@param[in,out]	page_zip	ROW_FORMAT=COMPRESSED page, or NULL
+@param[in]	s		the slot to be balanced */
+static void page_dir_balance_slot(page_t* page, page_zip_des_t* page_zip,
+				  ulint s)
+{
+	ut_ad(!page_zip || page_is_comp(page));
+	ut_ad(s > 0);
+
+	const ulint n_slots = page_dir_get_n_slots(page);
+
+	if (UNIV_UNLIKELY(s + 1 == n_slots)) {
+		/* The last directory slot cannot be balanced. */
+		return;
+	}
+
+	ut_ad(s < n_slots);
+
+	page_dir_slot_t* slot = page_dir_get_nth_slot(page, s);
+	page_dir_slot_t* up_slot = slot - PAGE_DIR_SLOT_SIZE;
+	const ulint up_n_owned = page_dir_slot_get_n_owned(up_slot);
+
+	ut_ad(page_dir_slot_get_n_owned(slot)
+	      == PAGE_DIR_SLOT_MIN_N_OWNED - 1);
+
+	if (up_n_owned <= PAGE_DIR_SLOT_MIN_N_OWNED) {
+		compile_time_assert(2 * PAGE_DIR_SLOT_MIN_N_OWNED - 1
+				    <= PAGE_DIR_SLOT_MAX_N_OWNED);
+		/* Merge the slots. */
+		ulint n_owned = page_dir_slot_get_n_owned(slot);
+		page_dir_slot_set_n_owned(slot, page_zip, 0);
+		page_dir_slot_set_n_owned(up_slot, page_zip,
+					  n_owned
+					  + page_dir_slot_get_n_owned(up_slot));
+		/* Shift the slots */
+		page_dir_slot_t* last_slot = page_dir_get_nth_slot(
+			page, n_slots - 1);
+		memmove(last_slot + PAGE_DIR_SLOT_SIZE, last_slot,
+			slot - last_slot);
+		mach_write_to_2(last_slot, 0);
+		page_dir_set_n_slots(page, page_zip, n_slots - 1);
+		return;
+	}
+
+	/* Transfer one record to the underfilled slot */
+	rec_t* old_rec = const_cast<rec_t*>(page_dir_slot_get_rec(slot));
+	rec_t* new_rec;
+
+	if (page_is_comp(page)) {
+		new_rec = rec_get_next_ptr(old_rec, TRUE);
+
+		rec_set_n_owned_new(old_rec, page_zip, 0);
+		rec_set_n_owned_new(new_rec, page_zip,
+				    PAGE_DIR_SLOT_MIN_N_OWNED);
+	} else {
+		new_rec = rec_get_next_ptr(old_rec, FALSE);
+
+		rec_set_n_owned_old(old_rec, 0);
+		rec_set_n_owned_old(new_rec, PAGE_DIR_SLOT_MIN_N_OWNED);
+	}
+
+	page_dir_slot_set_rec(slot, new_rec);
+	page_dir_slot_set_n_owned(up_slot, page_zip, up_n_owned - 1);
+}
+
 /***********************************************************//**
 Inserts a record next to page cursor on an uncompressed page.
 Returns pointer to inserted record if succeed, i.e., enough
@@ -2280,6 +2392,36 @@ page_cur_parse_delete_rec(
 	return(ptr);
 }
 
+/** Prepend a record to the PAGE_FREE list.
+@param[in,out]	page		index page
+@param[in,out]	page_zip	ROW_FORMAT=COMPRESSED page, or NULL
+@param[in,out]	rec		record being deleted
+@param[in]	index		the index that the page belongs to
+@param[in]	offsets		rec_get_offsets(rec, index) */
+static void page_mem_free(page_t* page, page_zip_des_t* page_zip, rec_t* rec,
+			  const dict_index_t* index, const ulint* offsets)
+{
+	ut_ad(rec_offs_validate(rec, index, offsets));
+	const rec_t* free = page_header_get_ptr(page, PAGE_FREE);
+
+	if (srv_immediate_scrub_data_uncompressed) {
+		/* scrub record */
+		memset(rec, 0, rec_offs_data_size(offsets));
+	}
+
+	page_rec_set_next(rec, free);
+	page_header_set_ptr(page, page_zip, PAGE_FREE, rec);
+	page_header_set_field(page, page_zip, PAGE_GARBAGE,
+			      rec_offs_size(offsets)
+			      + page_header_get_field(page, PAGE_GARBAGE));
+	if (page_zip) {
+		page_zip_dir_delete(page_zip, rec, index, offsets, free);
+	} else {
+		page_header_set_field(page, page_zip, PAGE_N_RECS,
+				      ulint(page_get_n_recs(page)) - 1);
+	}
+}
+
 /***********************************************************//**
 Deletes a record at the page cursor. The cursor is moved to the next
 record after the deleted one. */
@@ -2351,11 +2493,6 @@ page_cur_delete_rec(
 	cur_dir_slot = page_dir_get_nth_slot(page, cur_slot_no);
 	cur_n_owned = page_dir_slot_get_n_owned(cur_dir_slot);
 
-	/* 0. Write the log record */
-	if (mtr != 0) {
-		page_cur_delete_rec_write_log(current_rec, index, mtr);
-	}
-
 	/* 1. Reset the last insert info in the page header and increment
 	the modify clock for the frame */
 
@@ -2368,6 +2505,7 @@ page_cur_delete_rec(
 
 	if (mtr != 0) {
 		buf_block_modify_clock_inc(page_cur_get_block(cursor));
+		page_cur_delete_rec_write_log(current_rec, index, mtr);
 	}
 
 	/* 2. Find the next and the previous record. Note that the cursor is
