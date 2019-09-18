@@ -561,6 +561,8 @@ inline void trx_t::release_locks()
 
   if (UT_LIST_GET_LEN(lock.trx_locks))
     lock_trx_release_locks(this);
+  else
+    lock.table_locks.clear();
 }
 
 /********************************************************************//**
@@ -1681,6 +1683,16 @@ trx_commit_in_memory(
 		DBUG_LOG("trx", "Autocommit in memory: " << trx);
 		trx->state = TRX_STATE_NOT_STARTED;
 	} else {
+#ifdef UNIV_DEBUG
+		if (!UT_LIST_GET_LEN(trx->lock.trx_locks)) {
+			for (lock_list::iterator it
+				= trx->lock.table_locks.begin();
+			     it != trx->lock.table_locks.end();
+			     it++) {
+				ut_ad(!*it);
+			}
+		}
+#endif /* UNIV_DEBUG */
 		trx_mutex_enter(trx);
 		trx->commit_state();
 		trx_mutex_exit(trx);
