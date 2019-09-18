@@ -40,6 +40,7 @@ static MYSQL_SYSVAR_INT
   NULL, NULL, -1, -1, 2147483647, 0
 );
 
+
 char *clustrix_host;
 static MYSQL_SYSVAR_STR
 (
@@ -49,6 +50,53 @@ static MYSQL_SYSVAR_STR
   "Clustrix host",
   NULL, NULL, "127.0.0.1"
 );
+
+int host_list_cnt;
+char **host_list;
+static void update_host_list(char *clustrix_host)
+{
+  if (host_list) {
+    for (int i = 0; host_list[i]; i++)
+      my_free(host_list[i]);
+    my_free(host_list);
+  }
+
+  int cnt = 0;
+  for (char *p = clustrix_host, *s = clustrix_host; ; p++) {
+    if (*p == ',' || *p == '\0') {
+      if (p > s) {
+        cnt++;
+      }
+      if (!*p)
+        break;
+      s = p + 1;
+    }
+  }
+
+  DBUG_PRINT("host_cnt", ("%d", cnt));
+  host_list = (char **)my_malloc(sizeof(char *) * cnt+1, MYF(MY_WME));
+  host_list[cnt] = 0;
+  host_list_cnt = cnt;
+
+  int i = 0;
+  for (char *p = clustrix_host, *s = clustrix_host; ; p++) {
+    if (*p == ',' || *p == '\0') {
+      if (p > s) {
+        char *host = (char *)my_malloc(p - s + 1, MYF(MY_WME));
+        host[p-s] = '\0';
+        memcpy(host, s, p-s);
+        DBUG_PRINT("host", ("%s", host));
+        host_list[i++] = host;
+      }
+      if (!*p)
+        break;
+      s = p + 1;
+    }
+  }
+
+  DBUG_PRINT("clustrix_host", ("%s", clustrix_host));
+}
+
 
 char *clustrix_username;
 static MYSQL_SYSVAR_STR
@@ -1047,6 +1095,7 @@ int clustrixdb_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 
 static int clustrixdb_init(void *p)
 {
+  DBUG_ENTER("clustrixdb_init");
   clustrixdb_hton = (handlerton *) p;
   clustrixdb_hton->flags = HTON_NO_FLAGS;
   clustrixdb_hton->panic = clustrixdb_panic;
@@ -1060,7 +1109,9 @@ static int clustrixdb_init(void *p)
   clustrixdb_hton->create_select = create_clustrixdb_select_handler;
   clustrixdb_hton->create_derived = create_clustrixdb_derived_handler;
 
-  return 0;
+  update_host_list(clustrix_host);
+
+  DBUG_RETURN(0);
 }
 
 struct st_mysql_show_var clustrixdb_status_vars[] =

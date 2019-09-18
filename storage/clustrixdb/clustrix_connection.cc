@@ -53,15 +53,26 @@ void clustrix_connection::disconnect(bool is_destructor)
   DBUG_VOID_RETURN;
 }
 
+int host_list_next;
+extern int host_list_cnt;
+extern char **host_list;
+
 int clustrix_connection::connect()
 {
   int error_code = 0;
   my_bool my_true = 1;
   DBUG_ENTER("clustrix_connection::connect");
 
+  // cpu concurrency by damned!
+  int host_num = host_list_next;
+  host_num = host_num % host_list_cnt;
+  char *host = host_list[host_num];
+  host_list_next = host_num + 1;
+  DBUG_PRINT("host", ("%s", host));
+
   /* Validate the connection parameters */
   if (!strcmp(clustrix_socket, ""))
-    if (!strcmp(clustrix_host, "127.0.0.1"))
+    if (!strcmp(host, "127.0.0.1"))
       if (clustrix_port == MYSQL_PORT_DEFAULT)
         DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
 
@@ -98,7 +109,7 @@ int clustrix_connection::connect()
   }
 #endif
 
-  if (!mysql_real_connect(&clustrix_net, clustrix_host,
+  if (!mysql_real_connect(&clustrix_net, host,
                           clustrix_username, clustrix_password,
                           NULL, clustrix_port, clustrix_socket,
                           CLIENT_MULTI_STATEMENTS))
@@ -114,7 +125,7 @@ int clustrix_connection::connect()
         my_error(ER_CON_COUNT_ERROR, MYF(0));
         DBUG_RETURN(ER_CON_COUNT_ERROR);
       }
-      my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), clustrix_host);
+      my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), host);
       DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
     }
   }
