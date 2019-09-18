@@ -29,7 +29,7 @@ connection default;
 # DELETE must not affect statistics before COMMIT.
 EXPLAIN SELECT * FROM t1 WHERE val=4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	val	val	4	const	16	Using index
+1	SIMPLE	t1	ref	val	val	4	const	1	Using index
 connection con1;
 COUNT(*)
 0

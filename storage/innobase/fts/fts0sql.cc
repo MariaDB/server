@@ -154,8 +154,7 @@ fts_parse_sql(
 	str = ut_str3cat(fts_sql_begin, sql, fts_sql_end);
 
 	dict_locked = (fts_table && fts_table->table->fts
-		       && (fts_table->table->fts->fts_status
-			   & TABLE_DICT_LOCKED));
+		       && fts_table->table->fts->dict_locked);
 
 	if (!dict_locked) {
 		ut_ad(!mutex_own(&dict_sys->mutex));

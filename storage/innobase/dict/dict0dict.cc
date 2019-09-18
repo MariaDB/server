@@ -2878,30 +2878,6 @@ dict_table_copy_types(
 	dict_table_copy_v_types(tuple, table);
 }
 
-/********************************************************************
-Wait until all the background threads of the given table have exited, i.e.,
-bg_threads == 0. Note: bg_threads_mutex must be reserved when
-calling this. */
-void
-dict_table_wait_for_bg_threads_to_exit(
-/*===================================*/
-	dict_table_t*	table,	/*< in: table */
-	ulint		delay)	/*< in: time in microseconds to wait between
-				checks of bg_threads. */
-{
-	fts_t*		fts = table->fts;
-
-	ut_ad(mutex_own(&fts->bg_threads_mutex));
-
-	while (fts->bg_threads > 0) {
-		mutex_exit(&fts->bg_threads_mutex);
-
-		os_thread_sleep(delay);
-
-		mutex_enter(&fts->bg_threads_mutex);
-	}
-}
-
 /*******************************************************************//**
 Builds the internal dictionary cache representation for a clustered
 index, containing also system fields not defined by the user.

@@ -3839,11 +3839,11 @@ next_rec:
 			DBUG_EXECUTE_IF("ib_trunc_sleep_before_fts_cache_clear",
 					os_thread_sleep(10000000););
 
-			table->fts->fts_status |= TABLE_DICT_LOCKED;
+			table->fts->dict_locked = true;
 			fts_update_next_doc_id(trx, table, 0);
 			fts_cache_clear(table->fts->cache);
 			fts_cache_init(table->fts->cache);
-			table->fts->fts_status &= ~TABLE_DICT_LOCKED;
+			table->fts->dict_locked = false;
 		}
 	}
 
@@ -4444,8 +4444,7 @@ do_drop:
 			/* Need to set TABLE_DICT_LOCKED bit, since
 			fts_que_graph_free_check_lock would try to acquire
 			dict mutex lock */
-			table->fts->fts_status |= TABLE_DICT_LOCKED;
-
+			table->fts->dict_locked = true;
 			fts_free(table);
 		}
 

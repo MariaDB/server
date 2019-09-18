@@ -443,19 +443,6 @@ fts_cache_append_deleted_doc_ids(
 			cache,		/*!< in: cache to use */
 	ib_vector_t*	vector);	/*!< in: append to this vector */
 /******************************************************************//**
-Wait for the background thread to start. We poll to detect change
-of state, which is acceptable, since the wait should happen only
-once during startup.
-@return true if the thread started else FALSE (i.e timed out) */
-ibool
-fts_wait_for_background_thread_to_start(
-/*====================================*/
-	dict_table_t*	table,		/*!< in: table to which the thread
-					is attached */
-	ulint		max_wait);	/*!< in: time in microseconds, if set
-					to 0 then it disables timeout
-					checking */
-/******************************************************************//**
 Search the index specific cache for a particular FTS index.
 @return the index specific cache else NULL */
 fts_index_cache_t*

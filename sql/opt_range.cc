@@ -10383,6 +10383,16 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
                                             bufsize, mrr_flags, cost);
   if (rows != HA_POS_ERROR)
   {
+    ha_rows table_records= param->table->stat_records();
+    if (rows > table_records)
+    {
+      /*
+        For any index the total number of records within all ranges
+        cannot be be bigger than the number of records in the table
+      */
+      rows= table_records;
+      set_if_bigger(rows, 1);
+    }
     param->quick_rows[keynr]= rows;
     param->possible_keys.set_bit(keynr);
     if (update_tbl_stats)

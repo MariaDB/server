@@ -3166,10 +3166,9 @@ row_drop_ancillary_fts_tables(
 	DICT_TF2_FTS flag set. So keep this out of above
 	dict_table_has_fts_index condition */
 	if (table->fts != NULL) {
-		/* Need to set TABLE_DICT_LOCKED bit, since
-		fts_que_graph_free_check_lock would try to acquire
+		/* fts_que_graph_free_check_lock would try to acquire
 		dict mutex lock */
-		table->fts->fts_status |= TABLE_DICT_LOCKED;
+		table->fts->dict_locked = true;
 
 		fts_free(table);
 	}

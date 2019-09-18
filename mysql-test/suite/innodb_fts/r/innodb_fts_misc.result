@@ -734,15 +734,21 @@ count(*)
 DROP TABLE t1;
 "----------Test27---------"
 CREATE TABLE t1 (id INT,char_column VARCHAR(60));
+CREATE TABLE t2 (FTS_DOC_ID BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, a TEXT)ENGINE=InnoDB;
+ALTER TABLE t2 DROP a;
 SET @@autocommit=0;
 CREATE FULLTEXT INDEX i ON t1 (char_column);
 INSERT INTO t1 values (1,'aaa');
 "restart server..."
-# Restart the server
---source include/restart_mysqld.inc
-DELETE FROM t1 WHERE MATCH(char_column) AGAINST ('bbb')
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `FTS_DOC_ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`FTS_DOC_ID`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DELETE FROM t1 WHERE MATCH(char_column) AGAINST ('bbb');
 SET @@autocommit=1;
-DROP TABLE t1;
+DROP TABLE t1, t2;
 "----------Test28---------"
 drop table if exists `fts_test`;
 Warnings:

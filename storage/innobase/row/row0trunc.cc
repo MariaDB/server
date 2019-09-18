@@ -1530,11 +1530,11 @@ row_truncate_update_system_tables(
 			DBUG_EXECUTE_IF("ib_trunc_sleep_before_fts_cache_clear",
 					os_thread_sleep(10000000););
 
-			table->fts->fts_status |= TABLE_DICT_LOCKED;
+			table->fts->dict_locked = true;
 			fts_update_next_doc_id(trx, table, 0);
 			fts_cache_clear(table->fts->cache);
 			fts_cache_init(table->fts->cache);
-			table->fts->fts_status &= uint(~TABLE_DICT_LOCKED);
+			table->fts->dict_locked = false;
 		}
 	}
 
