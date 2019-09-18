@@ -15,12 +15,8 @@
 
 #include "mysys_priv.h"
 
-#ifdef HAVE_SYS_IPC_H
-#include <sys/ipc.h>
-#endif
-
-#ifdef HAVE_SYS_SHM_H
-#include <sys/shm.h>
+#ifdef HAVE_LINUX_LARGE_PAGES
+#include <linux/mman.h>
 #endif
 
 static uint my_get_large_page_size_int(void);
@@ -53,13 +49,10 @@ uchar* my_large_malloc(size_t *size, myf my_flags)
   uchar* ptr;
   DBUG_ENTER("my_large_malloc");
   
-  if (my_use_large_pages && my_large_page_size)
-  {
-    if ((ptr = my_large_malloc_int(size, my_flags)) != NULL)
-        DBUG_RETURN(ptr);
-    if (my_flags & MY_WME)
-      fprintf(stderr, "Warning: Using conventional memory pool\n");
-  }
+  if ((ptr= my_large_malloc_int(size, my_flags)) != NULL)
+    DBUG_RETURN(ptr);
+  if (my_flags & MY_WME)
+    fprintf(stderr, "Warning: Using conventional memory pool\n");
       
   DBUG_RETURN(my_malloc_lock(*size, my_flags));
 }
@@ -79,15 +72,15 @@ void my_large_free(void *ptr, size_t size)
     my_large_malloc_int(), i.e. my_malloc_lock() was used so we should free it
     with my_free_lock()
   */
-  if (!my_use_large_pages || !my_large_page_size || !my_large_free_int(ptr, size))
+  if (!my_large_free_int(ptr, size))
     my_free_lock(ptr);
 
   DBUG_VOID_RETURN;
 }
-
 #endif /* HAVE_LARGE_PAGE_OPTION */
 
-#ifdef HUGETLB_USE_PROC_MEMINFO
+#ifdef HAVE_LINUX_LARGE_PAGES
+
 /* Linux-specific function to determine the size of large pages */
 
 uint my_get_large_page_size_int(void)
@@ -110,49 +103,33 @@ uint my_get_large_page_size_int(void)
 finish:
   DBUG_RETURN(size * 1024);
 }
-#endif /* HUGETLB_USE_PROC_MEMINFO */
 
-#if HAVE_DECL_SHM_HUGETLB
 /* Linux-specific large pages allocator  */
     
 uchar* my_large_malloc_int(size_t *size, myf my_flags)
 {
-  int shmid;
   uchar* ptr;
-  struct shmid_ds buf;
+  int mapflag;
   DBUG_ENTER("my_large_malloc_int");
 
-  /* Align block size to my_large_page_size */
-  *size= MY_ALIGN(*size, (size_t) my_large_page_size);
-  
-  shmid = shmget(IPC_PRIVATE, *size, SHM_HUGETLB | SHM_R | SHM_W);
-  if (shmid < 0)
+  mapflag = MAP_PRIVATE | MAP_ANONYMOUS;
+
+  if (my_use_large_pages && my_large_page_size)
   {
-    if (my_flags & MY_WME)
+    mapflag|= MAP_HUGETLB;
+    /* Align block size to my_large_page_size */
+    *size= MY_ALIGN(*size, (size_t) my_large_page_size);
+  }
+  /* mmap adjusts the size to the hugetlb page size so no adjustment is needed */
+  ptr = mmap(NULL, *size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
+  if (ptr == (void*) -1) {
+    ptr= NULL;
+    if (my_flags & MY_WME) {
       fprintf(stderr,
-              "Warning: Failed to allocate %zu bytes from HugeTLB memory."
-              " errno %d\n", *size, errno);
-
-    DBUG_RETURN(NULL);
+              "Warning: Failed to allocate %zu bytes from %smemory."
+              " errno %d\n", *size, my_use_large_pages ? "HugeTLB " : "", errno);
+    }
   }
-
-  ptr = (uchar*) shmat(shmid, NULL, 0);
-  if (ptr == (uchar *) -1)
-  {
-    if (my_flags& MY_WME)
-      fprintf(stderr, "Warning: Failed to attach shared memory segment,"
-              " errno %d\n", errno);
-    shmctl(shmid, IPC_RMID, &buf);
-
-    DBUG_RETURN(NULL);
-  }
-
-  /*
-    Remove the shared memory segment so that it will be automatically freed
-    after memory is detached or process exits
-  */
-  shmctl(shmid, IPC_RMID, &buf);
-
   DBUG_RETURN(ptr);
 }
 
@@ -161,10 +138,19 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
 my_bool my_large_free_int(void *ptr, size_t size)
 {
   DBUG_ENTER("my_large_free_int");
-  DBUG_RETURN(shmdt(ptr) == 0);
+  if (munmap(ptr, size))
+  {
+    /* This occurs when the original allocation fell back to conventional memory so ignore the EINVAL error */
+    if (errno != EINVAL)
+    {
+      fprintf(stderr, "Warning: Failed to unmap %zu bytes, errno %d\n", size, errno);
+    }
+    DBUG_RETURN(0);
+  }
+  DBUG_RETURN(1);
 }
 
-#endif /* HAVE_DECL_SHM_HUGETLB */
+#endif /* HAVE_LINUX_LARGE_PAGES */
 
 #ifdef _WIN32
 
