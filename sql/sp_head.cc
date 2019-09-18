@@ -1349,9 +1349,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     if (WSREP(thd))
     {
       if (((thd->wsrep_trx().state() == wsrep::transaction::s_executing) &&
-           (thd->is_fatal_error || thd->killed)) ||
-          thd->wsrep_trx().state() == wsrep::transaction::s_must_abort ||
-          thd->wsrep_trx().state() == wsrep::transaction::s_must_replay)
+           (thd->is_fatal_error || thd->killed)))
       {
         WSREP_DEBUG("SP abort err status %d in sub %d trx state %d",
                     err_status, thd->in_sub_stmt, thd->wsrep_trx().state());
@@ -1380,9 +1378,10 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
           Reset the return code to zero if the transaction was
           replayed succesfully.
         */
-	if (err_status && must_replay && !wsrep_current_error(thd))
+        if (must_replay && !wsrep_current_error(thd))
         {
           err_status= 0;
+          thd->get_stmt_da()->reset_diagnostics_area();
         }
         /*
           Final wsrep error status for statement is known only after

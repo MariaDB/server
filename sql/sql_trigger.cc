@@ -34,6 +34,7 @@
 #include "sql_handler.h"                        // mysql_ha_rm_tables
 #include "sp_cache.h"                     // sp_invalidate_cache
 #include <mysys_err.h>
+#include "debug_sync.h"
 
 /*************************************************************************/
 
@@ -568,6 +569,17 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     if (!(table->triggers= new (&table->mem_root) Table_triggers_list(table)))
       goto end;
   }
+
+#ifdef WITH_WSREP
+  DBUG_EXECUTE_IF("sync.mdev_20225",
+                  {
+                    const char act[]=
+                      "now "
+                      "wait_for signal.mdev_20225_continue";
+                    DBUG_ASSERT(!debug_sync_set_action(thd,
+                                                       STRING_WITH_LEN(act)));
+                  };);
+#endif /* WITH_WSREP */
 
   result= (create ?
            table->triggers->create_trigger(thd, tables, &stmt_query):
