@@ -2335,7 +2335,7 @@ loop_end:
     tmp_param->field_count= temp_fields.elements;
     tmp_param->func_count=  temp_fields.elements - 1;
     calc_group_buffer(tmp_param, &group);
-    /* small table, ignore SQL_BIG_TABLES */
+    /* small table, ignore @@big_tables */
     my_bool save_big_tables= thd->variables.big_tables; 
     thd->variables.big_tables= FALSE;
     tmp_tables[cnt]=create_tmp_table(thd, tmp_param, temp_fields,

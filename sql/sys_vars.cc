@@ -4160,8 +4160,7 @@ export sys_var *Sys_autocommit_ptr= &Sys_autocommit; // for sql_yacc.yy
 static Sys_var_mybool Sys_big_tables(
        "big_tables", "Old variable, which if set to 1, allows large result sets "
        "by saving all temporary sets to disk, avoiding 'table full' errors. No "
-       "longer needed, as the server now handles this automatically. "
-       "sql_big_tables is a synonym.",
+       "longer needed, as the server now handles this automatically.",
        SESSION_VAR(big_tables), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_bit Sys_big_selects(

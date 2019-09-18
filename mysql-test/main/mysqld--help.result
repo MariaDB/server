@@ -40,7 +40,7 @@ The following specify which files/extra groups are read (specified before remain
  --big-tables        Old variable, which if set to 1, allows large result sets
  by saving all temporary sets to disk, avoiding 'table
  full' errors. No longer needed, as the server now handles
- this automatically. sql_big_tables is a synonym.
+ this automatically.
  --bind-address=name IP address to bind to.
  --binlog-annotate-row-events 
  Tells the master to annotate RBR events with the
