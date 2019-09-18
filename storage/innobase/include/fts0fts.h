@@ -247,13 +247,6 @@ struct fts_doc_ids_t {
 					doc_ids vector */
 };
 
-// FIXME: Get rid of this if possible.
-/** Since MySQL's character set support for Unicode is woefully inadequate
-(it supports basic operations like isalpha etc. only for 8-bit characters),
-we have to implement our own. We use UTF-16 without surrogate processing
-as our in-memory format. This typedef is a single such character. */
-typedef unsigned short ib_uc_t;
-
 /** An UTF-16 ro UTF-8 string. */
 struct fts_string_t {
 	byte*		f_str;		/*!< string, not necessary terminated in
