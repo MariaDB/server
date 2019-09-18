@@ -5,12 +5,11 @@
 #  Separate the test case name and the comment with ':'.
 #
 #    <testcasename> : MDEV-<xxxx> <comment>
-#
+# 
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
 
-MW-286 : MDEV-19992 Galera test failure on MW-286
 MW-329 : MDEV-19962 Galera test failure on MW-329
 MW-388: MDEV-19803 Long semaphore wait error on galera.MW-388	
 galera_account_management : MariaDB 10.0 does not support ALTER USER
