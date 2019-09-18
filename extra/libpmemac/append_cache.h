@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <my_global.h>
+#include <my_list.h>
 
 
 #ifdef __cplusplus
@@ -77,9 +78,13 @@ typedef struct st_pmem_append_cache_directory_header
 /** In-memory cache directory descriptor. */
 typedef struct st_pmem_append_cache_directory
 {
+  LIST *caches;
+  pthread_t flusher_thread;
+  pthread_mutex_t mutex;
   PMEM_APPEND_CACHE_DIRECTORY_HEADER *header;
   uint64_t *start_offsets;
   size_t mapped_length;
+  bool stop_flusher;
 } PMEM_APPEND_CACHE_DIRECTORY;
 
 
@@ -95,13 +100,13 @@ typedef struct st_pmem_append_cache_header
 /** In-memory append cache descriptor. */
 typedef struct st_pmem_append_cache
 {
-  pthread_t flusher_thread;
+  LIST element;
+  PMEM_APPEND_CACHE_DIRECTORY *dir;
   PMEM_APPEND_CACHE_HEADER *header;
   char *file_name;
   void *buffer;
   uint64_t buffer_size;
   File file_fd;
-  int32 stop_flusher;
 
   size_t (*write)(struct st_pmem_append_cache *cache, const void *data,
                   size_t length, myf flags);
