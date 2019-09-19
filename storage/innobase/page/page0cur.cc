@@ -1355,6 +1355,27 @@ static void page_dir_balance_slot(page_t* page, page_zip_des_t* page_zip,
 	page_dir_slot_set_n_owned(up_slot, page_zip, up_n_owned - 1);
 }
 
+/** Allocate space for inserting an index record.
+@param[in,out]	page		index page
+@param[in,out]	page_zip	ROW_FORMAT=COMPRESSED page, or NULL
+@param[in]	need		number of bytes needed
+@param[out]	heap_no		record heap number
+@return	pointer to the start of the allocated buffer
+@retval	NULL	if allocation fails */
+static byte* page_mem_alloc_heap(page_t* page, page_zip_des_t* page_zip,
+				 ulint need, ulint* heap_no)
+{
+	if (need > page_get_max_insert_size(page, 1)) {
+		return NULL;
+	}
+
+	byte* top = page_header_get_ptr(page, PAGE_HEAP_TOP);
+	page_header_set_ptr(page, page_zip, PAGE_HEAP_TOP, top + need);
+	*heap_no = page_dir_get_n_heap(page);
+	page_dir_set_n_heap(page, page_zip, 1 + *heap_no);
+	return top;
+}
+
 /***********************************************************//**
 Inserts a record next to page cursor on an uncompressed page.
 Returns pointer to inserted record if succeed, i.e., enough
