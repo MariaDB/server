@@ -659,13 +659,9 @@ public:
 	void
 	deallocate_large(
 		pointer			ptr,
-		const ut_new_pfx_t*
-#ifdef UNIV_PFS_MEMORY
-		pfx
-#endif
-		,
-		size_t			size)
+		const ut_new_pfx_t*	pfx)
 	{
+		size_t size = pfx->m_size;
 #ifdef UNIV_PFS_MEMORY
 		if (pfx) {
 			deallocate_trace(pfx);
@@ -679,21 +675,10 @@ public:
 	void
 	deallocate_large_dodump(
 		pointer			ptr,
-		const ut_new_pfx_t*
-#ifdef UNIV_PFS_MEMORY
-		pfx
-#endif
-		,
-		size_t			size)
+		const ut_new_pfx_t*	pfx)
 	{
-		ut_dodump(ptr, size);
-		deallocate_large(ptr,
-#ifdef UNIV_PFS_MEMORY
-		pfx,
-#else
-		NULL,
-#endif
-		size);
+		ut_dodump(ptr, pfx->m_size);
+		deallocate_large(ptr, pfx);
 	}
 
 #ifdef UNIV_PFS_MEMORY
@@ -946,9 +931,6 @@ ut_delete_array(
 #define ut_free(ptr)	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).deallocate( \
 	reinterpret_cast<byte*>(ptr))
 
-#define ut_free_dodump(ptr, size) ut_allocator<byte>(PSI_NOT_INSTRUMENTED).deallocate_large_dodump( \
-	reinterpret_cast<byte*>(ptr), NULL, size)
-
 #else /* UNIV_PFS_MEMORY */
 
 /* Fallbacks when memory tracing is disabled at compile time. */
@@ -991,13 +973,13 @@ static inline void *ut_malloc_dontdump(size_t n_bytes, ...)
 
 #define ut_free(ptr)			::free(ptr)
 
+#endif /* UNIV_PFS_MEMORY */
+
 static inline void ut_free_dodump(void *ptr, size_t size)
 {
 	ut_dodump(ptr, size);
 	os_total_large_mem_allocated -= size;
 	my_large_free(ptr, size);
 }
-
-#endif /* UNIV_PFS_MEMORY */
 
 #endif /* ut0new_h */

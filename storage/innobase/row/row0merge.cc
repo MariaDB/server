@@ -4745,11 +4745,10 @@ func_exit:
 
 	ut_free(merge_files);
 
-	alloc.deallocate_large(block, &block_pfx, block_size);
+	alloc.deallocate_large(block, &block_pfx);
 
 	if (crypt_block) {
-		alloc.deallocate_large(crypt_block, &crypt_pfx,
-				       block_size);
+		alloc.deallocate_large(crypt_block, &crypt_pfx);
 	}
 
 	DICT_TF2_FLAG_UNSET(new_table, DICT_TF2_FTS_ADD_DOC_ID);
