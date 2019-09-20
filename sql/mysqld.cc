@@ -3953,6 +3953,12 @@ static int init_common_variables()
     DBUG_PRINT("info", ("Large page set"));
     my_use_large_pages= 1;
     my_get_large_page_sizes(my_large_page_sizes);
+    if (!my_obtain_privilege(SE_LOCK_MEMORY_NAME))
+    {
+      sql_print_error("mysqld: Lock Pages in memory access rights required for use with large-pages, "
+        "see https://mariadb.com/kb/en/library/mariadb-memory-allocation/#huge-pages");
+      return 1;
+    }
   }
   /*
     my_get_large_page_size results used by large allocations even if not large pages.

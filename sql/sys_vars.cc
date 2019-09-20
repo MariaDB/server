@@ -1377,7 +1377,7 @@ static Sys_var_uint Sys_large_page_size(
 static Sys_var_mybool Sys_large_pages(
        "large_pages", "Enable support for large pages",
        READ_ONLY GLOBAL_VAR(opt_large_pages),
-       IF_WIN(NO_CMD_LINE, CMD_LINE(OPT_ARG)), DEFAULT(FALSE));
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_charptr_fscs Sys_language(
        "lc_messages_dir", "Directory where error messages are",

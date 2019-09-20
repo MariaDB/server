@@ -50,6 +50,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 IF (WIN32)
   SET (MYSYS_SOURCES ${MYSYS_SOURCES}
     my_winthread.c
+    my_wintoken.c
     my_wincond.c
     my_winerr.c
     my_winfile.c

@@ -201,6 +201,13 @@ extern void my_large_free(void *ptr, size_t size);
 #define my_large_free(A,B) my_free_lock((A))
 #endif /* HAVE_LARGE_PAGE_OPTION */
 
+#ifdef _WIN32
+extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
+#else
+#define my_obtain_privilege(A) (1)
+#define SE_LOCK_MEMORY_NAME "SeLockMemoryPrivilege"
+#endif
+
 void my_init_atomic_write(void);
 #ifdef __linux__
 my_bool my_test_if_atomic_write(File handle, int pagesize);

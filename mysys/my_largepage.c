@@ -333,12 +333,10 @@ static size_t my_large_page_size= 0;
 
 void my_get_large_page_size(void)
 {
-  SYSTEM_INFO	system_info;
   DBUG_ENTER("my_get_large_page_size_int");
 
-  GetSystemInfo(&system_info);
-
-  my_large_page_size= system_info.dwPageSize;
+  my_large_page_size= my_use_large_pages ? GetLargePageMinimum()
+                      : my_getpagesize();
   DBUG_VOID_RETURN;
 }
 
@@ -348,16 +346,33 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
 {
   DBUG_ENTER("my_large_malloc_int");
   void* ptr;
+  DWORD alloc_type= MEM_COMMIT | MEM_RESERVE;
+  size_t orig_size= *size;
 
-  /* Align block size to my_large_page_size */
-  *size= MY_ALIGN(*size, (size_t) my_large_page_size);
-  ptr= VirtualAlloc(NULL, *size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+  if (my_use_large_pages)
+  {
+    alloc_type|= MEM_LARGE_PAGES;
+    /* Align block size to my_large_page_size */
+    *size= MY_ALIGN(*size, (size_t) my_large_page_size);
+  }
+  ptr= VirtualAlloc(NULL, *size, alloc_type, PAGE_READWRITE);
   if (!ptr)
   {
     if (my_flags & MY_WME)
     {
       fprintf(stderr,
-              "Warning: VirtualAlloc(%zu bytes) failed; Windows error %lu\n", *size, GetLastError());
+              "Warning: VirtualAlloc(%zu bytes%s) failed; Windows error %lu\n",
+              *size,
+              my_use_large_pages ? ", MEM_LARGE_PAGES" : "",
+              GetLastError());
+    }
+    *size= orig_size;
+    ptr= VirtualAlloc(NULL, *size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (!ptr && my_flags & MY_WME)
+    {
+      fprintf(stderr,
+              "Warning: VirtualAlloc(%zu bytes) failed; Windows error %lu\n",
+              *size, GetLastError());
     }
   }
 
@@ -369,7 +384,7 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
 my_bool my_large_free_int(void *ptr, size_t size)
 {
   DBUG_ENTER("my_large_free_int");
-  /* 
+  /*
      When RELEASE memory, the size parameter must be 0.
      Do not use MEM_RELEASE with MEM_DECOMMIT.
   */
