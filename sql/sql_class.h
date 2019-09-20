@@ -4685,9 +4685,7 @@ private:
   AUTHID invoker;
 
 public:
-#ifndef EMBEDDED_LIBRARY
   Session_tracker session_tracker;
-#endif //EMBEDDED_LIBRARY
   /*
     Flag, mutex and condition for a thread to wait for a signal from another
     thread.

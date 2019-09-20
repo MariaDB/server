@@ -66,6 +66,8 @@ protected:
   */
   bool m_enabled;
 
+  void set_changed(THD *thd);
+
 private:
   /** Has the session state type changed ? */
   bool m_changed;
@@ -102,7 +104,7 @@ public:
   virtual bool store(THD *thd, String *buf)= 0;
 
   /** Mark the entity as changed. */
-  virtual void mark_as_changed(THD *thd, LEX_CSTRING *name);
+  void mark_as_changed(THD *thd) { if (is_enabled()) set_changed(thd); }
 };
 
 
@@ -207,7 +209,7 @@ public:
   bool enable(THD *thd);
   bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
-  void mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name);
+  void mark_as_changed(THD *thd, const sys_var *var);
   void deinit() { orig_list.deinit(); }
   /* callback */
   static uchar *sysvars_get_key(const char *entry, size_t *length,
@@ -376,15 +378,13 @@ private:
     tx_changed &= uint(~TX_CHG_STATE);
     tx_changed |= (tx_curr_state != tx_reported_state) ? TX_CHG_STATE : 0;
     if (tx_changed != TX_CHG_NONE)
-      mark_as_changed(thd, NULL);
+      set_changed(thd);
   }
 };
 
 #define TRANSACT_TRACKER(X) \
  do { if (thd->variables.session_track_transaction_info > TX_TRACK_NONE) \
         thd->session_tracker.transaction_info.X; } while(0)
-#define SESSION_TRACKER_CHANGED(A,B,C) \
-  thd->session_tracker.mark_as_changed(A,B,C)
 
 
 /**
@@ -430,14 +430,6 @@ public:
       m_trackers[i]->enable(thd);
   }
 
-  inline void mark_as_changed(THD *thd, enum enum_session_tracker tracker,
-                              LEX_CSTRING *data)
-  {
-    if (m_trackers[tracker]->is_enabled())
-      m_trackers[tracker]->mark_as_changed(thd, data);
-  }
-
-
   void store(THD *thd, String *main_buf);
 };
 
@@ -446,7 +438,20 @@ int session_tracker_init();
 #else
 
 #define TRANSACT_TRACKER(X) do{}while(0)
-#define SESSION_TRACKER_CHANGED(A,B,C) do{}while(0)
+
+class Session_tracker
+{
+  class Dummy_tracker
+  {
+  public:
+    void mark_as_changed(THD *thd) {}
+    void mark_as_changed(THD *thd, const sys_var *var) {}
+  };
+public:
+  Dummy_tracker current_schema;
+  Dummy_tracker state_change;
+  Dummy_tracker sysvars;
+};
 
 #endif //EMBEDDED_LIBRARY
 

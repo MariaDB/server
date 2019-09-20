@@ -4814,7 +4814,7 @@ mysql_execute_command(THD *thd)
     */
     if(!res && (lex->create_info.options & HA_LEX_CREATE_TMP_TABLE))
     {
-      SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+      thd->session_tracker.state_change.mark_as_changed(thd);
     }
     break;
   }

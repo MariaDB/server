@@ -24,7 +24,7 @@
 #include "sql_plugin.h"
 #include "set_var.h"
 
-void State_tracker::mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name)
+void State_tracker::set_changed(THD *thd)
 {
   m_changed= true;
   thd->lex->safe_to_cache_query= 0;
@@ -506,11 +506,12 @@ bool Session_sysvars_tracker::store(THD *thd, String *buf)
   @param               [IN] pointer on a variable
 */
 
-void Session_sysvars_tracker::mark_as_changed(THD *thd,
-                                              LEX_CSTRING *var)
+void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
 {
   sysvar_node_st *node;
-  sys_var *svar= (sys_var *)var;
+
+  if (!is_enabled())
+    return;
 
   if (!m_parsed)
   {
@@ -529,10 +530,10 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd,
     Check if the specified system variable is being tracked, if so
     mark it as changed and also set the class's m_changed flag.
   */
-  if (orig_list.is_enabled() && (node= orig_list.insert_or_search(svar)))
+  if (orig_list.is_enabled() && (node= orig_list.insert_or_search(var)))
   {
     node->m_changed= true;
-    State_tracker::mark_as_changed(thd, var);
+    set_changed(thd);
   }
 }
 
@@ -679,7 +680,7 @@ bool Transaction_state_tracker::update(THD *thd, set_var *)
     }
     if (thd->variables.session_track_transaction_info == TX_TRACK_CHISTICS)
       tx_changed       |= TX_CHG_CHISTICS;
-    mark_as_changed(thd, NULL);
+    set_changed(thd);
   }
   else
     m_enabled= false;
@@ -1112,7 +1113,7 @@ void Transaction_state_tracker::set_read_flags(THD *thd,
   {
     tx_read_flags = flags;
     tx_changed   |= TX_CHG_CHISTICS;
-    mark_as_changed(thd, NULL);
+    set_changed(thd);
   }
 }
 
@@ -1131,7 +1132,7 @@ void Transaction_state_tracker::set_isol_level(THD *thd,
   {
     tx_isol_level = level;
     tx_changed   |= TX_CHG_CHISTICS;
-    mark_as_changed(thd, NULL);
+    set_changed(thd);
   }
 }
 
