@@ -15,6 +15,9 @@
 
 #include "mysys_priv.h"
 
+#ifdef HAVE_SYS_MMAN_H
+#include <sys/mman.h>
+#endif
 #ifdef HAVE_LINUX_LARGE_PAGES
 #include <linux/mman.h>
 #endif
@@ -147,11 +150,16 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
   DBUG_RETURN(ptr);
 }
 
-/* Linux-specific large pages deallocator */
+#endif /* HAVE_LINUX_LARGE_PAGES */
+
+#if defined(HAVE_MMAP) && !defined(_WIN32)
+
+/* mmap and Linux-specific large pages deallocator */
 
 my_bool my_large_free_int(void *ptr, size_t size)
 {
   DBUG_ENTER("my_large_free_int");
+
   if (munmap(ptr, size))
   {
     /* This occurs when the original allocation fell back to conventional memory so ignore the EINVAL error */
@@ -163,8 +171,61 @@ my_bool my_large_free_int(void *ptr, size_t size)
   }
   DBUG_RETURN(1);
 }
+#endif /* HAVE_MMAP */
 
-#endif /* HAVE_LINUX_LARGE_PAGES */
+#if defined(HAVE_MMAP) && !defined(HAVE_LINUX_LARGE_PAGES) && !defined(_WIN32)
+
+/* Solaris for example has only MAP_ANON, FreeBSD has MAP_ANONYMOUS and
+MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
+#if defined(MAP_ANONYMOUS)
+#define OS_MAP_ANON     MAP_ANONYMOUS
+#elif defined(MAP_ANON)
+#define OS_MAP_ANON     MAP_ANON
+#else
+#error unsupported mmap - no MAP_ANON{YMOUS}
+#endif
+
+/* mmap-specific function to determine the size of large pages
+
+This is a fudge as we only use this to ensure that mmap allocations
+are of this size.
+*/
+
+uint my_get_large_page_size_int(void)
+{
+  return my_getpagesize();
+}
+
+/* mmap(non-Linux) pages allocator  */
+
+uchar* my_large_malloc_int(size_t *size, myf my_flags)
+{
+  uchar* ptr;
+  int mapflag;
+  DBUG_ENTER("my_large_malloc_int");
+
+  mapflag= MAP_PRIVATE | OS_MAP_ANON;
+
+  if (my_use_large_pages && my_large_page_size)
+  {
+    /* Align block size to my_large_page_size */
+    *size= MY_ALIGN(*size, (size_t) my_large_page_size);
+  }
+  ptr= mmap(NULL, *size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
+  if (ptr == (void*) -1)
+  {
+    ptr= NULL;
+    if (my_flags & MY_WME)
+    {
+      fprintf(stderr,
+              "Warning: Failed to allocate %zu bytes from memory."
+              " errno %d\n", *size, errno);
+    }
+  }
+  DBUG_RETURN(ptr);
+}
+
+#endif /* HAVE_MMAP && !HAVE_LINUX_LARGE_PAGES*/
 
 #ifdef _WIN32
 
