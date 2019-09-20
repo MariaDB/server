@@ -733,7 +733,7 @@ void LEX::start(THD *thd_arg)
   default_used= FALSE;
   query_tables= 0;
   reset_query_tables_list(FALSE);
-  expr_allows_subselect= TRUE;
+  clause_that_disallows_subselect= NULL;
   selects_allow_into= FALSE;
   selects_allow_procedure= FALSE;
   use_only_table_context= FALSE;
@@ -9049,12 +9049,12 @@ bool LEX::insert_select_hack(SELECT_LEX *sel)
   Create an Item_singlerow_subselect for a query expression.
 */
 Item *LEX::create_item_query_expression(THD *thd,
-                                        const char *tok_start,
                                         st_select_lex_unit *unit)
 {
-  if (!expr_allows_subselect)
+  if (clause_that_disallows_subselect)
   {
-    thd->parse_error(ER_SYNTAX_ERROR, tok_start);
+    my_error(ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+             clause_that_disallows_subselect);
     return NULL;
   }
 
@@ -9323,11 +9323,12 @@ SELECT_LEX_UNIT *LEX::parsed_body_unit_tail(SELECT_LEX_UNIT *unit,
   Process subselect parsing
 */
 
-SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit, char *place)
+SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit)
 {
-  if (!expr_allows_subselect)
+  if (clause_that_disallows_subselect)
   {
-    thd->parse_error(ER_SYNTAX_ERROR, place);
+    my_error(ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+             clause_that_disallows_subselect);
     return NULL;
   }
 

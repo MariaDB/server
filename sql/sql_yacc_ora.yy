@@ -1358,7 +1358,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <item>
         literal insert_ident order_ident temporal_literal
-        simple_ident expr expr_no_subselect sum_expr in_sum_expr
+        simple_ident expr sum_expr in_sum_expr
         variable variable_aux bool_pri
         predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
@@ -1844,19 +1844,13 @@ deallocate_or_drop:
         ;
 
 prepare:
-          PREPARE_SYM ident FROM expr_no_subselect
-          {
-            if (Lex->stmt_prepare($2, $4))
-              MYSQL_YYABORT;
-          }
-        ;
-
-expr_no_subselect:
-          { Lex->expr_allows_subselect= false; }
+          PREPARE_SYM ident FROM
+          { Lex->clause_that_disallows_subselect= "PREPARE..FROM"; }
           expr
           {
-            Lex->expr_allows_subselect= true;
-            $$= $2;
+            Lex->clause_that_disallows_subselect= NULL;
+            if (Lex->stmt_prepare($2, $5))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -1866,20 +1860,25 @@ execute:
             if (Lex->stmt_execute($2, $3))
               MYSQL_YYABORT;
           }
-        | EXECUTE_SYM IMMEDIATE_SYM expr_no_subselect execute_using
+        | EXECUTE_SYM IMMEDIATE_SYM
+          { Lex->clause_that_disallows_subselect= "EXECUTE IMMEDIATE"; }
+          expr
+          { Lex->clause_that_disallows_subselect= NULL; }
+          execute_using
           {
-            if (Lex->stmt_execute_immediate($3, $4))
+            if (Lex->stmt_execute_immediate($4, $6))
               MYSQL_YYABORT;
           }
         ;
 
 execute_using:
           /* nothing */    { $$= NULL; }
-        | USING            { Lex->expr_allows_subselect= false; }
+        | USING
+          { Lex->clause_that_disallows_subselect= "EXECUTE..USING"; }
           execute_params
           {
             $$= $3;
-            Lex->expr_allows_subselect= true;
+            Lex->clause_that_disallows_subselect= NULL;
           }
         ;
 
@@ -6785,10 +6784,9 @@ parse_vcol_expr:
         ;
 
 parenthesized_expr:
-          remember_tok_start
           query_expression
           {
-            if (!($$= Lex->create_item_query_expression(thd, $1, $2)))
+            if (!($$= Lex->create_item_query_expression(thd, $1)))
               MYSQL_YYABORT;
           }
         | expr
@@ -9459,10 +9457,9 @@ query_expression:
         ;
 
 subselect:
-          remember_tok_start
           query_expression
           {
-            if (!($$= Lex->parsed_subselect($2, $1)))
+            if (!($$= Lex->parsed_subselect($1)))
               YYABORT;
           }
         ;
@@ -13054,17 +13051,16 @@ procedure_clause:
 
             /*
               PROCEDURE CLAUSE cannot handle subquery as one of its parameter,
-              so set expr_allows_subselect as false to disallow any subqueries
-              further. Reset expr_allows_subselect back to true once the
-              parameters are reduced.
+              so disallow any subqueries further.
+              Alow subqueries back once the parameters are reduced.
             */
-            Lex->expr_allows_subselect= false;
+            Lex->clause_that_disallows_subselect= "PROCEDURE";
             Select->options|= OPTION_PROCEDURE_CLAUSE;
           }
           '(' procedure_list ')'
           {
             /* Subqueries are allowed from now.*/
-            Lex->expr_allows_subselect= true;
+            Lex->clause_that_disallows_subselect= NULL;
           }
         ;
 
@@ -14834,9 +14830,12 @@ purge:
           {
             Lex->stmt_purge_to($5);
           }
-        | PURGE master_or_binary LOGS_SYM BEFORE_SYM expr_no_subselect
+        | PURGE master_or_binary LOGS_SYM BEFORE_SYM
+          { Lex->clause_that_disallows_subselect= "PURGE..BEFORE"; }
+          expr
           {
-            if (Lex->stmt_purge_before($5))
+            Lex->clause_that_disallows_subselect= NULL;
+            if (Lex->stmt_purge_before($6))
               MYSQL_YYABORT;
           }
         ;
@@ -17016,7 +17015,7 @@ handler_tail:
             LEX *lex=Lex;
             if (unlikely(lex->sphead))
               my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "HANDLER"));
-            lex->expr_allows_subselect= FALSE;
+            lex->clause_that_disallows_subselect= "HANDLER..READ";
             lex->sql_command = SQLCOM_HA_READ;
             lex->ha_rkey_mode= HA_READ_KEY_EXACT; /* Avoid purify warnings */
             Item *one= new (thd->mem_root) Item_int(thd, (int32) 1);
@@ -17031,7 +17030,7 @@ handler_tail:
           handler_read_or_scan opt_where_clause opt_global_limit_clause
           {
             LEX *lex=Lex;
-            lex->expr_allows_subselect= TRUE;
+            lex->clause_that_disallows_subselect= NULL;
             if (!lex->current_select->explicit_limit)
             {
               Item *one= new (thd->mem_root) Item_int(thd, (int32) 1);
