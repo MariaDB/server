@@ -21,6 +21,7 @@
 #ifdef HAVE_LINUX_LARGE_PAGES
 #include <linux/mman.h>
 #include <dirent.h>
+#include "my_bit.h"
 #endif
 
 
@@ -222,24 +223,64 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
 {
   uchar* ptr;
   int mapflag;
+  int page_i= 0;
+  size_t large_page_size= 0;
   DBUG_ENTER("my_large_malloc_int");
 
-  mapflag = MAP_PRIVATE | MAP_ANONYMOUS;
-
-  if (my_use_large_pages && my_large_page_size)
+  while (1)
   {
-    mapflag|= MAP_HUGETLB;
-    /* Align block size to my_large_page_size */
-    *size= MY_ALIGN(*size, (size_t) my_large_page_size);
-  }
-  /* mmap adjusts the size to the hugetlb page size so no adjustment is needed */
-  ptr = mmap(NULL, *size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
-  if (ptr == (void*) -1) {
-    ptr= NULL;
-    if (my_flags & MY_WME) {
-      fprintf(stderr,
-              "Warning: Failed to allocate %zu bytes from %smemory."
-              " errno %d\n", *size, my_use_large_pages ? "HugeTLB " : "", errno);
+    mapflag= MAP_PRIVATE | MAP_ANONYMOUS;
+    if (my_use_large_pages)
+    {
+      large_page_size= my_next_large_page_size(*size, &page_i);
+      if (large_page_size)
+      {
+        mapflag|= MAP_HUGETLB | my_bit_log2_size_t(large_page_size) << MAP_HUGE_SHIFT;
+      }
+    }
+    /* mmap adjusts the size to the hugetlb page size so no adjustment is needed */
+    ptr= mmap(NULL, *size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
+    if (ptr == (void*) -1)
+    {
+      ptr= NULL;
+      if (my_flags & MY_WME)
+      {
+        if (large_page_size)
+        {
+          fprintf(stderr,
+                  "Warning: Failed to allocate %zu bytes from HugeTLB memory"
+                  "(page size %zu). errno %d\n", *size, large_page_size, errno);
+        }
+        else
+        {
+          fprintf(stderr,
+                  "Warning: Failed to allocate %zu bytes from memory."
+                  " errno %d\n", *size, errno);
+        }
+      }
+      /* try next smaller memory size */
+      if (large_page_size && errno == ENOMEM)
+        continue;
+
+      /* other errors are more serious */
+      DBUG_RETURN(NULL);
+    }
+    else /* success */
+    {
+      if (large_page_size)
+      {
+         /*
+            we do need to record the adjustment so that munmap gets called with
+            the right size. This is only the case for HUGETLB pages.
+            Align block size to large_page_size.
+         */
+         *size = MY_ALIGN(*size, (size_t) large_page_size);
+      }
+      DBUG_RETURN(ptr);
+    }
+    if (large_page_size == 0)
+    {
+      break; /* no more options to try */
     }
   }
   DBUG_RETURN(ptr);
