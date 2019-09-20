@@ -1776,7 +1776,7 @@ End of 10.3 tests
 #
 create table t1 (a int);
 (select * from t1) for update;
-ERROR HY000: Incorrect usage of lock options and SELECT in brackets
+a
 (select * from t1) union (select * from t1) for update;
 ERROR HY000: Incorrect usage of lock options and SELECT in brackets
 (select * from t1 for update);
