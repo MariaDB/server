@@ -173,6 +173,9 @@ int open_cache(PMEM_APPEND_CACHE *cache, PMEM_APPEND_CACHE_DIRECTORY *dir,
   This function cannot be called concurrently with itself and is intended to be
   used by flusher_thread().
 
+  Other threads can update cache->cached_eof concurrently.
+  No other thread can change cache->flushed_eof.
+
   @return
     @retval 0 success
     @retval -1 write failed
@@ -183,30 +186,44 @@ static int flush_cache(PMEM_APPEND_CACHE *cache)
   uint64_t cached_eof;
   uint64_t flushed_eof= cache->flushed_eof;
 
+  /*
+    Check if we have anything to flush. The atomic operation is only to ensure
+    that the compiler doesn't try to optimize the read away.
+  */
   while (flushed_eof <
          (cached_eof= (uint64_t) my_atomic_load64_explicit(
                       (int64*) &cache->cached_eof, MY_MEMORY_ORDER_RELAXED)))
   {
     uint64_t write_size;
     size_t written;
+    ssize_t flush_offset= flushed_eof % cache->buffer_size;
 
     if (cached_eof / cache->buffer_size == flushed_eof / cache->buffer_size)
+    {
+      /* Flush everything that not aleady flushed in the cache */
       write_size= cached_eof - flushed_eof;
+    }
     else
-      write_size= cache->buffer_size - flushed_eof % cache->buffer_size;
+    {
+      /* Nothing in the cache is flushed. Flush everything */
+      write_size= cache->buffer_size - flush_offset;
+    }
     if ((written= mysql_file_pwrite(cache->file_fd,
-                                    cache->buffer + flushed_eof %
-                                    cache->buffer_size,
+                                    cache->buffer + flush_offset,
                                     write_size, flushed_eof,
                                     MYF(MY_WME))) == MY_FILE_ERROR)
       return -1;
     if (mysql_file_sync(cache->file_fd, MYF(MY_WME)))
       return -1;
     flushed_eof+= written;
+
+    /* Store the new flushed position in the directory */
     my_atomic_store64_explicit((int64*) &cache->header->flushed_eof,
                                (int64) flushed_eof, MY_MEMORY_ORDER_RELAXED);
     pmem_persist(&cache->header->flushed_eof,
                  sizeof(cache->header->flushed_eof));
+
+    /* Store the new flushed position in the cache */
     my_atomic_store64_explicit((int64*) &cache->flushed_eof,
                                (int64) flushed_eof, MY_MEMORY_ORDER_RELAXED);
   }
@@ -304,7 +321,11 @@ static size_t cache_write(PMEM_APPEND_CACHE *cache, const void *data,
       data+= avail;
       write_pos+= avail;
 
-      /* Wait for preceding concurrent writes completion */
+      /*
+        Wait for preceding concurrent writes completion. This is required to ensure
+        we don't have a hole of not written data in the middle of the cache when
+        we update cached_eof
+      */
       while ((uint64_t) my_atomic_load64_explicit((int64*) &cache->cached_eof,
                                                   MY_MEMORY_ORDER_RELAXED) <
              start)
@@ -414,9 +435,9 @@ int pmem_append_cache_open(PMEM_APPEND_CACHE_DIRECTORY *dir, const char *path)
   if (dir->mapped_length < sizeof(PMEM_APPEND_CACHE_DIRECTORY_HEADER) ||
       dir->header->magic != pmem_append_cache_magic ||
       !dir->header->n_caches ||
-      dir->header->n_caches > (dir->mapped_length -
-                               sizeof(PMEM_APPEND_CACHE_DIRECTORY_HEADER)) /
-                              sizeof(uint64_t))
+      dir->header->n_caches > ((dir->mapped_length -
+                                sizeof(PMEM_APPEND_CACHE_DIRECTORY_HEADER)) /
+                               sizeof(uint64_t)))
   {
     pmem_append_cache_close(dir);
     return -1;
@@ -470,6 +491,7 @@ int pmem_append_cache_close(PMEM_APPEND_CACHE_DIRECTORY *dir)
 int pmem_append_cache_flush(PMEM_APPEND_CACHE_DIRECTORY *dir)
 {
   int res= 0;
+
   for (uint32_t i= 0; i < dir->header->n_caches; i++)
   {
     PMEM_APPEND_CACHE cache;
@@ -480,19 +502,24 @@ int pmem_append_cache_flush(PMEM_APPEND_CACHE_DIRECTORY *dir)
     else if (!cache.header->file_name_length)
     {
     }
+    else if (cache.file_name[cache.header->file_name_length])
+      res= -1;
     else if (cache.header->flushed_eof == cache.header->cached_eof)
     {
+      /* Nothing to do. Remove cached file from append_cache */
       cache.header->file_name_length= 0;
       pmem_persist(&cache.header->file_name_length,
                    sizeof(cache.header->file_name_length));
     }
-    else if (cache.file_name[cache.header->file_name_length])
-      res= -1;
     else if ((cache.file_fd= my_open(cache.file_name, O_WRONLY,
                                      MYF(MY_WME))) < 0)
       res= -1;
     else
     {
+      /*
+        Something is wrong with the file as our directory tells us that
+        we have flushed more data than what is in the file.
+      */
       if (my_fstat(cache.file_fd, &sb, MYF(MY_WME)) ||
           cache.header->flushed_eof > (uint64_t) sb.st_size ||
           flush_cache(&cache))
@@ -615,7 +642,8 @@ int pmem_append_cache_attach(PMEM_APPEND_CACHE *cache,
   cache->flushed_eof= cache->cached_eof= cache->reserved_eof= sb.st_size;
 
   memcpy(cache->file_name, file_name, file_name_length);
-  pmem_persist(cache->header, sizeof(PMEM_APPEND_CACHE) + file_name_length);
+  /* file name is guaranteed to always be after the header */
+  pmem_persist(cache->header, sizeof(cache->header) + file_name_length);
 
   cache->header->file_name_length= file_name_length;
   pmem_persist(&cache->header->file_name_length,
