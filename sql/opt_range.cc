@@ -2420,12 +2420,16 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   records= head->stat_records();
   if (!records)
     records++;					/* purecov: inspected */
-  scan_time= (double) records / TIME_FOR_COMPARE + 1;
-  read_time= (double) head->file->scan_time() + scan_time + 1.1;
-  if (head->force_index)
+
+  if (head->force_index || force_quick_range)
     scan_time= read_time= DBL_MAX;
-  if (limit < records)
-    read_time= (double) records + scan_time + 1; // Force to use index
+  else
+  {
+    scan_time= (double) records / TIME_FOR_COMPARE + 1;
+    read_time= (double) head->file->scan_time() + scan_time + 1.1;
+    if (limit < records)
+      read_time= (double) records + scan_time + 1; // Force to use index
+  }
   
   possible_keys.clear_all();
 
