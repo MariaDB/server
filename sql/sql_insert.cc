@@ -823,10 +823,10 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     switch_to_nullable_trigger_fields(*values, table);
   }
   its.rewind ();
- 
+
   /* Restore the current context. */
   ctx_state.restore_state(context, table_list);
-  
+
   if (thd->lex->unit.first_select()->optimize_unflattened_subqueries(false))
   {
     goto abort;
@@ -1267,14 +1267,16 @@ values_loop_end:
 
   if (unlikely(error))
     goto abort;
+
   if (thd->lex->analyze_stmt)
   {
-    retval= thd->lex->explain->send_explain(thd);
+    if (!result)
+      retval= thd->lex->explain->send_explain(thd);
     goto abort;
   }
-
-  if ((iteration * values_list.elements) == 1 && (!(thd->variables.option_bits & OPTION_WARNINGS) ||
-				    !thd->cuted_fields))
+  if ((iteration * values_list.elements) == 1 && (!(thd->variables.option_bits 
+                                                    & OPTION_WARNINGS) ||
+                                                    !thd->cuted_fields))
   { 
     /*
       Client expects an EOF/Ok packet if result set metadata was sent. If
@@ -1283,9 +1285,9 @@ values_loop_end:
       Else we send Ok packet i.e when the statement returns only the status
       information
     */
-   if (result)
+    if (result)
       result->send_eof();
-   else
+    else
       my_ok(thd, info.copied + info.deleted +
                ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
                 info.touched : info.updated),id);
@@ -3926,7 +3928,7 @@ int select_insert::prepare2(JOIN *)
     DBUG_RETURN(1);
 
   /* Same as the other variants of INSERT */
-  if (sel_result)
+  if (sel_result && !thd->lex->describe)
   {
     if (unlikely(sel_result->send_result_set_metadata(thd->lex->returning_list,
                                                       Protocol::SEND_NUM_ROWS |

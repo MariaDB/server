@@ -4546,6 +4546,12 @@ mysql_execute_command(THD *thd)
     delete thd->protocol;
     thd->protocol= save_protocol;
   }
+  if (thd->lex->analyze_stmt || thd->lex->describe)
+  {
+    if (res)
+      res = thd->lex->explain->send_explain(thd);
+  }
+
   delete sel_result;
     MYSQL_INSERT_DONE(res, (ulong) thd->get_row_count_func());
     /*
@@ -4722,12 +4728,12 @@ mysql_execute_command(THD *thd)
         }
         if (explain)
         {
-          /*
-            sel_result needs to be cleaned up properly.
-            INSERT... SELECT statement will call either send_eof() or
-            abort_result_set(). EXPLAIN doesn't call either, so we need
-            to cleanup manually.
-          */
+            /*
+             sel_result needs to be cleaned up properly.
+             INSERT... SELECT statement will call either send_eof() or
+             abort_result_set(). EXPLAIN doesn't call either, so we need
+             to cleanup manually.
+            */
           sel_result->abort_result_set();
         }
         delete sel_result;
