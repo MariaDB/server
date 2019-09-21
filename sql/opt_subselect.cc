@@ -4055,6 +4055,39 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
 
 
 /*
+  Return the number of tables at the top-level of the JOIN
+
+  SYNOPSIS
+    get_number_of_tables_at_top_level()
+      join  The join with the picked join order
+
+  DESCRIPTION
+    The number of tables in the JOIN currently include all the inner tables of the
+    mergeable semi-joins. The function would make sure that we only count the semi-join
+    nest and not the inner tables of teh semi-join nest.
+*/
+
+uint get_number_of_tables_at_top_level(JOIN *join)
+{
+  uint j= 0, tables= 0;
+  while(j < join->table_count)
+  {
+    POSITION *cur_pos= &join->best_positions[j];
+    tables++;
+    if (cur_pos->sj_strategy == SJ_OPT_MATERIALIZE ||
+        cur_pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
+    {
+      SJ_MATERIALIZATION_INFO *sjm= cur_pos->table->emb_sj_nest->sj_mat_info;
+      j= j + sjm->tables;
+    }
+    else
+      j++;
+  }
+  return tables;
+}
+
+
+/*
   Setup semi-join materialization strategy for one semi-join nest
   
   SYNOPSIS
