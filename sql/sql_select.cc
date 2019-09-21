@@ -3600,7 +3600,7 @@ bool JOIN::make_aggr_tables_info()
         unit->select_limit_cnt == 1 (we only need one row in the result set)
       */
       sort_tab->filesort->limit=
-        (has_group_by || (join_tab + table_count > curr_tab + 1)) ?
+        (has_group_by || (join_tab + top_join_tab_count > curr_tab + 1)) ?
          select_limit : unit->select_limit_cnt;
     }
     if (!only_const_tables() &&
@@ -10204,14 +10204,16 @@ bool JOIN::get_best_combination()
 
   if (aggr_tables > 2)
     aggr_tables= 2;
-  if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*
-                                        (top_join_tab_count + aggr_tables))))
-    DBUG_RETURN(TRUE);
 
   full_join=0;
   hash_join= FALSE;
 
   fix_semijoin_strategies_for_picked_join_order(this);
+  top_join_tab_count= get_number_of_tables_at_top_level(this);
+
+  if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*
+                                        (top_join_tab_count + aggr_tables))))
+    DBUG_RETURN(TRUE);
    
   JOIN_TAB_RANGE *root_range;
   if (!(root_range= new (thd->mem_root) JOIN_TAB_RANGE))
@@ -13923,7 +13925,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
       ORDER BY and GROUP BY
     */
     for (JOIN_TAB *tab= join->join_tab + join->const_tables;
-         tab < join->join_tab + join->table_count;
+         tab < join->join_tab + join->top_join_tab_count;
          tab++)
       tab->cached_eq_ref_table= FALSE;
 
@@ -19772,8 +19774,7 @@ do_select(JOIN *join, Procedure *procedure)
 
     if (join->pushdown_query->store_data_in_temp_table)
     {
-      JOIN_TAB *last_tab= join->join_tab + join->table_count -
-                          join->exec_join_tab_cnt();      
+      JOIN_TAB *last_tab= join->join_tab + join->exec_join_tab_cnt();
       last_tab->next_select= end_send;
 
       enum_nested_loop_state state= last_tab->aggr->end_send();
