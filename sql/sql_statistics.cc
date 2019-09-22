@@ -1042,7 +1042,9 @@ public:
   {
     char buff[MAX_FIELD_WIDTH];
     String val(buff, sizeof(buff), &my_charset_bin);
+    my_bitmap_map *old_map;
 
+    old_map= dbug_tmp_use_all_columns(stat_table, stat_table->read_set);
     for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HISTOGRAM; i++)
     {  
       Field *stat_field= stat_table->field[i];
@@ -1100,6 +1102,7 @@ public:
         }
       }
     }
+    dbug_tmp_restore_column_map(stat_table->read_set, old_map);
   }
 
 
@@ -1973,7 +1976,7 @@ void create_min_max_statistical_fields_for_table(TABLE *table)
         my_ptrdiff_t diff= record-table->record[0];
         if (!bitmap_is_set(table->read_set, table_field->field_index))
           continue; 
-        if (!(fld= table_field->clone(&table->mem_root, table, diff, TRUE)))
+        if (!(fld= table_field->clone(&table->mem_root, table, diff)))
           continue;
         if (i == 0)
           table_field->collected_stats->min_value= fld;
@@ -2984,8 +2987,11 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   KEY *key_info, *key_info_end;
   TABLE_SHARE *table_share= table->s;
   Table_statistics *read_stats= table_share->stats_cb.table_stats;
-
+  enum_check_fields old_check_level= thd->count_cuted_fields;
   DBUG_ENTER("read_statistics_for_table");
+
+  /* Don't write warnings for internal field conversions */
+  thd->count_cuted_fields= CHECK_FIELD_IGNORE;
 
   /* Read statistics from the statistical table table_stats */
   stat_table= stat_tables[TABLE_STAT].table;
@@ -3067,6 +3073,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   }
 
   table->stats_is_read= TRUE;
+  thd->count_cuted_fields= old_check_level;
 
   DBUG_RETURN(0);
 }
