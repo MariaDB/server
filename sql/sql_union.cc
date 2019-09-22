@@ -1089,7 +1089,6 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
   can_skip_order_by= is_union_select && !(sl->braces && sl->explicit_limit);
 
   saved_error= join->prepare(sl->table_list.first,
-                             sl->with_wild,
                              (derived && derived->merged ? NULL : sl->where),
                              (can_skip_order_by ? 0 :
                               sl->order_list.elements) +
@@ -1103,8 +1102,6 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
                               thd_arg->lex->proc_list.first),
                              sl, this);
 
-  /* There are no * in the statement anymore (for PS) */
-  sl->with_wild= 0;
   last_procedure= join->procedure;
 
   if (unlikely(saved_error || (saved_error= thd_arg->is_fatal_error)))
@@ -1803,7 +1800,7 @@ cont:
          DBUG_RETURN(TRUE);
       }
       saved_error= fake_select_lex->join->
-        prepare(fake_select_lex->table_list.first, 0, 0,
+        prepare(fake_select_lex->table_list.first, 0,
                 global_parameters()->order_list.elements, // og_num
                 global_parameters()->order_list.first,    // order
                 false, NULL, NULL, NULL, fake_select_lex, this);
@@ -2307,14 +2304,13 @@ bool st_select_lex_unit::exec()
         if (!was_executed)
           save_union_explain_part2(thd->lex->explain);
 
-        saved_error= mysql_select(thd,
-                              &result_table_list,
-                              0, item_list, NULL,
+        saved_error= mysql_select(thd, &result_table_list,
+                                  item_list, NULL,
 				  global_parameters()->order_list.elements,
 				  global_parameters()->order_list.first,
-                              NULL, NULL, NULL,
-                              fake_select_lex->options | SELECT_NO_UNLOCK,
-                              result, this, fake_select_lex);
+                                  NULL, NULL, NULL,
+                                  fake_select_lex->options | SELECT_NO_UNLOCK,
+                                  result, this, fake_select_lex);
       }
       else
       {
@@ -2330,14 +2326,12 @@ bool st_select_lex_unit::exec()
             to reset them back, we re-do all of the actions (yes it is ugly):
           */ // psergey-todo: is the above really necessary anymore?? 
 	  join->init(thd, item_list, fake_select_lex->options, result);
-          saved_error= mysql_select(thd,
-                                &result_table_list,
-                                0, item_list, NULL,
+          saved_error= mysql_select(thd, &result_table_list, item_list, NULL,
 				    global_parameters()->order_list.elements,
 				    global_parameters()->order_list.first,
-                                NULL, NULL, NULL,
-                                fake_select_lex->options | SELECT_NO_UNLOCK,
-                                result, this, fake_select_lex);
+                                    NULL, NULL, NULL,
+                                    fake_select_lex->options | SELECT_NO_UNLOCK,
+                                    result, this, fake_select_lex);
         }
         else
         {

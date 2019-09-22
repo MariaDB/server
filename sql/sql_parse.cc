@@ -4727,7 +4727,6 @@ mysql_execute_command(THD *thd)
       {
         res= mysql_select(thd,
                           select_lex->get_table_list(),
-                          select_lex->with_wild,
                           select_lex->item_list,
                           select_lex->where,
                           0, (ORDER *)NULL, (ORDER *)NULL, (Item *)NULL,

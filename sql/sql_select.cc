@@ -415,7 +415,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
     */
     res= mysql_select(thd,
 		      select_lex->table_list.first,
-		      select_lex->with_wild, select_lex->item_list,
+		      select_lex->item_list,
 		      select_lex->where,
 		      select_lex->order_list.elements +
 		      select_lex->group_list.elements,
@@ -1064,8 +1064,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     0   on success
 */
 int
-JOIN::prepare(TABLE_LIST *tables_init,
-	      uint wild_num, COND *conds_init, uint og_num,
+JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
 	      ORDER *order_init, bool skip_order_by,
               ORDER *group_init, Item *having_init,
 	      ORDER *proc_param_init, SELECT_LEX *select_lex_arg,
@@ -1187,8 +1186,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
     real_og_num+= select_lex->order_list.elements;
 
   DBUG_ASSERT(select_lex->hidden_bit_fields == 0);
-  if (setup_wild(thd, tables_list, fields_list, &all_fields, wild_num,
-                 &select_lex->hidden_bit_fields))
+  if (setup_wild(thd, tables_list, fields_list, &all_fields, select_lex))
     DBUG_RETURN(-1);
   if (select_lex->setup_ref_array(thd, real_og_num))
     DBUG_RETURN(-1);
@@ -4472,11 +4470,6 @@ void JOIN::cleanup_item_list(List<Item> &items) const
                               the top-level select_lex for this query
   @param tables               list of all tables used in this query.
                               The tables have been pre-opened.
-  @param wild_num             number of wildcards used in the top level 
-                              select of this query.
-                              For example statement
-                              SELECT *, t1.*, catalog.t2.* FROM t0, t1, t2;
-                              has 3 wildcards.
   @param fields               list of items in SELECT list of the top-level
                               select
                               e.g. SELECT a, b, c FROM t1 will have Item_field
@@ -4509,12 +4502,10 @@ void JOIN::cleanup_item_list(List<Item> &items) const
 */
 
 bool
-mysql_select(THD *thd,
-	     TABLE_LIST *tables, uint wild_num, List<Item> &fields,
-	     COND *conds, uint og_num,  ORDER *order, ORDER *group,
-	     Item *having, ORDER *proc_param, ulonglong select_options,
-	     select_result *result, SELECT_LEX_UNIT *unit,
-	     SELECT_LEX *select_lex)
+mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
+             uint og_num, ORDER *order, ORDER *group, Item *having,
+             ORDER *proc_param, ulonglong select_options, select_result *result,
+             SELECT_LEX_UNIT *unit, SELECT_LEX *select_lex)
 {
   int err= 0;
   bool free_join= 1;
@@ -4544,9 +4535,8 @@ mysql_select(THD *thd,
       }
       else
       {
-        if ((err= join->prepare( tables, wild_num,
-                                conds, og_num, order, false, group, having,
-                                proc_param, select_lex, unit)))
+        if ((err= join->prepare(tables, conds, og_num, order, false, group,
+                                having, proc_param, select_lex, unit)))
 	{
 	  goto err;
 	}
@@ -4568,9 +4558,8 @@ mysql_select(THD *thd,
 	DBUG_RETURN(TRUE);
     THD_STAGE_INFO(thd, stage_init);
     thd->lex->used_tables=0;
-    if ((err= join->prepare(tables, wild_num,
-                            conds, og_num, order, false, group, having, proc_param,
-                            select_lex, unit)))
+    if ((err= join->prepare(tables, conds, og_num, order, false, group, having,
+                            proc_param, select_lex, unit)))
     {
       goto err;
     }
@@ -26876,15 +26865,11 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
   {
     thd->lex->current_select= first;
     unit->set_limit(unit->global_parameters());
-    res= mysql_select(thd, 
-                      first->table_list.first,
-                      first->with_wild, first->item_list,
+    res= mysql_select(thd, first->table_list.first, first->item_list,
                       first->where,
                       first->order_list.elements + first->group_list.elements,
-                      first->order_list.first,
-                      first->group_list.first,
-                      first->having,
-                      thd->lex->proc_list.first,
+                      first->order_list.first, first->group_list.first,
+                      first->having, thd->lex->proc_list.first,
                       first->options | thd->variables.option_bits | SELECT_DESCRIBE,
                       result, unit, first);
   }

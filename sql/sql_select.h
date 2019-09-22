@@ -1619,10 +1619,9 @@ public:
     return exec_join_tab_cnt() + aggr_tables - 1;
   }
 
-  int prepare(TABLE_LIST *tables, uint wind_num,
-	      COND *conds, uint og_num, ORDER *order, bool skip_order_by,
-              ORDER *group, Item *having, ORDER *proc_param, SELECT_LEX *select,
-	      SELECT_LEX_UNIT *unit);
+  int prepare(TABLE_LIST *tables, COND *conds, uint og_num, ORDER *order,
+              bool skip_order_by, ORDER *group, Item *having,
+              ORDER *proc_param, SELECT_LEX *select, SELECT_LEX_UNIT *unit);
   bool prepare_stage2();
   int optimize();
   int optimize_inner();
@@ -2096,8 +2095,7 @@ int join_read_key2(THD *thd, struct st_join_table *tab, TABLE *table,
 
 bool handle_select(THD *thd, LEX *lex, select_result *result,
                    ulong setup_tables_done_option);
-bool mysql_select(THD *thd,
-                  TABLE_LIST *tables, uint wild_num,  List<Item> &list,
+bool mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &list,
                   COND *conds, uint og_num, ORDER *order, ORDER *group,
                   Item *having, ORDER *proc_param, ulonglong select_type, 
                   select_result *result, SELECT_LEX_UNIT *unit, 

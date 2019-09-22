@@ -3720,7 +3720,6 @@ int subselect_single_select_engine::prepare(THD *thd)
   SELECT_LEX *save_select= thd->lex->current_select;
   thd->lex->current_select= select_lex;
   if (join->prepare(select_lex->table_list.first,
-		    select_lex->with_wild,
 		    select_lex->where,
 		    select_lex->order_list.elements +
 		    select_lex->group_list.elements,

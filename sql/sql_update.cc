@@ -1901,7 +1901,7 @@ bool mysql_multi_update(THD *thd, TABLE_LIST *table_list, List<Item> *fields,
   List<Item> total_list;
 
   res= mysql_select(thd,
-                    table_list, select_lex->with_wild, total_list, conds,
+                    table_list, total_list, conds,
                     select_lex->order_list.elements,
                     select_lex->order_list.first, NULL, NULL, NULL,
                     options | SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
