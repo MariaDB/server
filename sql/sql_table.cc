@@ -7123,10 +7123,10 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
 
       --ha_alter_info->index_add_count;
       --ha_alter_info->index_drop_count;
-      memcpy(add_buffer + i, add_buffer + i + 1,
-             sizeof(add_buffer[0]) * (ha_alter_info->index_add_count - i));
-      memcpy(drop_buffer + j, drop_buffer + j + 1,
-             sizeof(drop_buffer[0]) * (ha_alter_info->index_drop_count - j));
+      memmove(add_buffer + i, add_buffer + i + 1,
+              sizeof(add_buffer[0]) * (ha_alter_info->index_add_count - i));
+      memmove(drop_buffer + j, drop_buffer + j + 1,
+              sizeof(drop_buffer[0]) * (ha_alter_info->index_drop_count - j));
       --i; // this index once again
       break;
     }
