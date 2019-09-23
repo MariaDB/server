@@ -187,7 +187,8 @@ extern size_t my_next_large_page_size(size_t sz, int *start);
 #define my_next_large_page_size(A,B) (0)
 #endif
 
-#if defined(_WIN32) || (defined(HAVE_MMAP) && !defined(__linux__))
+#if defined(_WIN32) || (defined(HAVE_MMAP) && !defined(__linux__) \
+                        && !defined(HAVE_MMAP_ALIGNED))
 extern void my_get_large_page_size(void);
 #else
 #define my_get_large_page_size() do {} while(0)

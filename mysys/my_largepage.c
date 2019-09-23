@@ -21,6 +21,8 @@
 #ifdef __linux__
 #include <linux/mman.h>
 #include <dirent.h>
+#endif
+#if defined(__linux__) || defined(HAVE_MMAP_ALIGNED)
 #include "my_bit.h"
 #endif
 
@@ -181,15 +183,18 @@ void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
   }
   DBUG_VOID_RETURN;
 }
+#endif
 
-/* Linux-specific large pages allocator  */
-    
+/* Multisized (Linux/FreeBSD) large pages allocator  */
+
+#if defined(__linux__) || defined(HAVE_MMAP_ALIGNED)
 uchar* my_large_malloc_int(size_t *size, myf my_flags)
 {
   uchar* ptr;
   int mapflag;
   int page_i= 0;
   size_t large_page_size= 0;
+  size_t aligned_size= *size;
   DBUG_ENTER("my_large_malloc_int");
 
   while (1)
@@ -200,11 +205,19 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
       large_page_size= my_next_large_page_size(*size, &page_i);
       if (large_page_size)
       {
+#ifdef __linux__
         mapflag|= MAP_HUGETLB | my_bit_log2_size_t(large_page_size) << MAP_HUGE_SHIFT;
+#else
+        mapflag|= MAP_ALIGNED_SUPER | MAP_ALIGNED(my_bit_log2_size_t(large_page_size));
+#endif
+        aligned_size= MY_ALIGN(*size, (size_t) large_page_size);
+      }
+      else
+      {
+        aligned_size= *size;
       }
     }
-    /* mmap adjusts the size to the hugetlb page size so no adjustment is needed */
-    ptr= mmap(NULL, *size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
+    ptr= mmap(NULL, aligned_size, PROT_READ | PROT_WRITE, mapflag, -1, 0);
     if (ptr == (void*) -1)
     {
       ptr= NULL;
@@ -214,13 +227,13 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
         {
           fprintf(stderr,
                   "Warning: Failed to allocate %zu bytes from HugeTLB memory"
-                  "(page size %zu). errno %d\n", *size, large_page_size, errno);
+                  "(page size %zu). errno %d\n", aligned_size, large_page_size, errno);
         }
         else
         {
           fprintf(stderr,
                   "Warning: Failed to allocate %zu bytes from memory."
-                  " errno %d\n", *size, errno);
+                  " errno %d\n", aligned_size, errno);
         }
       }
       /* try next smaller memory size */
@@ -237,9 +250,8 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
          /*
             we do need to record the adjustment so that munmap gets called with
             the right size. This is only the case for HUGETLB pages.
-            Align block size to large_page_size.
          */
-         *size = MY_ALIGN(*size, (size_t) large_page_size);
+         *size= aligned_size;
       }
       DBUG_RETURN(ptr);
     }
@@ -251,7 +263,7 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
   DBUG_RETURN(ptr);
 }
 
-#endif /* __linux__ */
+#endif /* defined(__linux__) || defined(HAVE_MMAP_ALIGNED) */
 
 #if defined(HAVE_GETPAGESIZES) && !defined(__linux__)
 void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
@@ -291,7 +303,8 @@ my_bool my_large_free_int(void *ptr, size_t size)
 }
 #endif /* HAVE_MMAP */
 
-#if defined(HAVE_MMAP) && !defined(__linux__) && !defined(_WIN32)
+#if defined(HAVE_MMAP) && !defined(__linux__) && !defined(HAVE_MMAP_ALIGNED) \
+    && !defined(_WIN32)
 
 /* Solaris for example has only MAP_ANON, FreeBSD has MAP_ANONYMOUS and
 MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
@@ -316,7 +329,7 @@ void my_get_large_page_size(void)
   my_large_page_size= my_getpagesize();
 }
 
-/* mmap(non-Linux) pages allocator  */
+/* mmap(non-Linux,non-FreeBSD) pages allocator  */
 
 uchar* my_large_malloc_int(size_t *size, myf my_flags)
 {
