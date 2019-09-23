@@ -938,7 +938,13 @@ do
   cmd="$cmd "`shell_quote_string "$i"`
 done
 cmd="$cmd $args"
-[ $dry_run -eq 1 ] && return
+
+if [ $dry_run -eq 1 ]
+then
+  # RETURN or EXIT depending if the script is being sourced or not.
+  (return 2> /dev/null) && return || exit
+fi
+
 
 # Avoid 'nohup: ignoring input' warning
 test -n "$NOHUP_NICENESS" && cmd="$cmd < /dev/null"

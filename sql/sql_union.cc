@@ -1875,6 +1875,7 @@ bool st_select_lex_unit::cleanup()
       DBUG_RETURN(FALSE);
     }
   }
+  columns_are_renamed= false;
   cleaned= 1;
 
   for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())

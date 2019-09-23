@@ -1607,7 +1607,8 @@ bool backup_finish()
 		return(false);
 	}
 
-	if (!write_xtrabackup_info(mysql_connection, XTRABACKUP_INFO, opt_history != 0)) {
+	if (!write_xtrabackup_info(mysql_connection, XTRABACKUP_INFO,
+				    opt_history != 0, true)) {
 		return(false);
 	}
 

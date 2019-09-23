@@ -504,7 +504,7 @@ inline void trx_t::release_locks()
     mem_heap_empty(lock.lock_heap);
   }
 
-  lock.table_locks.clear(); /* outside "if" to work around MDEV-20483 */
+  lock.table_locks.clear();
 }
 
 /** At shutdown, frees a transaction object. */
@@ -1152,26 +1152,14 @@ trx_finalize_for_fts_table(
 	fts_t*		  fts = ftt->table->fts;
 	fts_doc_ids_t*	  doc_ids = ftt->added_doc_ids;
 
-	mutex_enter(&fts->bg_threads_mutex);
+	ut_a(fts->add_wq);
 
-	if (fts->fts_status & BG_THREAD_STOP) {
-		/* The table is about to be dropped, no use
-		adding anything to its work queue. */
+	mem_heap_t* heap = static_cast<mem_heap_t*>(doc_ids->self_heap->arg);
 
-		mutex_exit(&fts->bg_threads_mutex);
-	} else {
-		mem_heap_t*     heap;
-		mutex_exit(&fts->bg_threads_mutex);
+	ib_wqueue_add(fts->add_wq, doc_ids, heap);
 
-		ut_a(fts->add_wq);
-
-		heap = static_cast<mem_heap_t*>(doc_ids->self_heap->arg);
-
-		ib_wqueue_add(fts->add_wq, doc_ids, heap);
-
-		/* fts_trx_table_t no longer owns the list. */
-		ftt->added_doc_ids = NULL;
-	}
+	/* fts_trx_table_t no longer owns the list. */
+	ftt->added_doc_ids = NULL;
 }
 
 /******************************************************************//**
@@ -1389,6 +1377,16 @@ trx_commit_in_memory(
 		DBUG_LOG("trx", "Autocommit in memory: " << trx);
 		trx->state = TRX_STATE_NOT_STARTED;
 	} else {
+#ifdef UNIV_DEBUG
+		if (!UT_LIST_GET_LEN(trx->lock.trx_locks)) {
+			for (lock_list::iterator it
+				= trx->lock.table_locks.begin();
+			     it != trx->lock.table_locks.end();
+			     it++) {
+				ut_ad(!*it);
+			}
+		}
+#endif /* UNIV_DEBUG */
 		trx->commit_state();
 
 		if (trx->id) {

@@ -2577,10 +2577,7 @@ row_ins_clust_index_entry_low(
 	ulint		n_uniq,	/*!< in: 0 or index->n_uniq */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	que_thr_t*	thr)	/*!< in: query thread */
 {
 	btr_pcur_t	pcur;
 	btr_cur_t*	cursor;
@@ -2676,7 +2673,6 @@ row_ins_clust_index_entry_low(
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
 		ut_ad(!dict_index_is_online_ddl(index));
-		ut_ad(!dup_chk_only);
 
 		const rec_t* rec = btr_cur_get_rec(cursor);
 
@@ -2730,11 +2726,6 @@ err_exit:
 			mtr_commit(&mtr);
 			goto func_exit;
 		}
-	}
-
-	if (dup_chk_only) {
-		mtr_commit(&mtr);
-		goto func_exit;
 	}
 
 	/* Note: Allowing duplicates would qualify for modification of
@@ -2898,10 +2889,7 @@ row_ins_sec_index_entry_low(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	trx_id_t	trx_id,	/*!< in: PAGE_MAX_TRX_ID during
 				row_log_table_apply(), or 0 */
-	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	que_thr_t*	thr)	/*!< in: query thread */
 {
 	DBUG_ENTER("row_ins_sec_index_entry_low");
 
@@ -3098,10 +3086,6 @@ row_ins_sec_index_entry_low(
 			&cursor, 0, __FILE__, __LINE__, &mtr);
 	}
 
-	if (dup_chk_only) {
-		goto func_exit;
-	}
-
 	if (row_ins_must_modify_rec(&cursor)) {
 		/* There is already an index entry with a long enough common
 		prefix, we must convert the insert into a modify of an
@@ -3190,10 +3174,7 @@ row_ins_clust_index_entry(
 	dict_index_t*	index,	/*!< in: clustered index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr,	/*!< in: query thread */
-	ulint		n_ext,	/*!< in: number of externally stored columns */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	ulint		n_ext)	/*!< in: number of externally stored columns */
 {
 	dberr_t	err;
 	ulint	n_uniq;
@@ -3250,7 +3231,7 @@ row_ins_clust_index_entry(
 
 	err = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_LEAF, index, n_uniq, entry,
-		n_ext, thr, dup_chk_only);
+		n_ext, thr);
 
 	entry->n_fields = orig_n_fields;
 
@@ -3267,7 +3248,7 @@ row_ins_clust_index_entry(
 
 	err = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_TREE, index, n_uniq, entry,
-		n_ext, thr, dup_chk_only);
+		n_ext, thr);
 
 	entry->n_fields = orig_n_fields;
 
@@ -3285,10 +3266,7 @@ row_ins_sec_index_entry(
 /*====================*/
 	dict_index_t*	index,	/*!< in: secondary index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
-	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dberr_t		err;
 	mem_heap_t*	offsets_heap;
@@ -3331,7 +3309,7 @@ row_ins_sec_index_entry(
 
 	err = row_ins_sec_index_entry_low(
 		flags, BTR_MODIFY_LEAF, index, offsets_heap, heap, entry,
-		trx_id, thr, dup_chk_only);
+		trx_id, thr);
 	if (err == DB_FAIL) {
 		mem_heap_empty(heap);
 
@@ -3345,8 +3323,7 @@ row_ins_sec_index_entry(
 
 		err = row_ins_sec_index_entry_low(
 			flags, BTR_MODIFY_TREE, index,
-			offsets_heap, heap, entry, 0, thr,
-			dup_chk_only);
+			offsets_heap, heap, entry, 0, thr);
 	}
 
 	mem_heap_free(heap);
@@ -3375,9 +3352,9 @@ row_ins_index_entry(
 			return(DB_LOCK_WAIT);});
 
 	if (index->is_primary()) {
-		return(row_ins_clust_index_entry(index, entry, thr, 0, false));
+		return row_ins_clust_index_entry(index, entry, thr, 0);
 	} else {
-		return(row_ins_sec_index_entry(index, entry, thr, false));
+		return row_ins_sec_index_entry(index, entry, thr);
 	}
 }
 

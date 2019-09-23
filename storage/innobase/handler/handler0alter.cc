@@ -5933,7 +5933,7 @@ empty_table:
 		index->set_modified(mtr);
 		err = row_ins_clust_index_entry_low(
 			BTR_NO_LOCKING_FLAG, BTR_MODIFY_TREE, index,
-			index->n_uniq, entry, 0, thr, false);
+			index->n_uniq, entry, 0, thr);
 	} else {
 err_exit:
 		err = DB_CORRUPTION;
@@ -6997,15 +6997,13 @@ op_ok:
 				goto error_handling;
 			}
 
-			ctx->new_table->fts->fts_status
-				|= TABLE_DICT_LOCKED;
+			ctx->new_table->fts->dict_locked = true;
 
 			error = innobase_fts_load_stopword(
 				ctx->new_table, ctx->trx,
 				ctx->prebuilt->trx->mysql_thd)
 				? DB_SUCCESS : DB_ERROR;
-			ctx->new_table->fts->fts_status
-				&= ulint(~TABLE_DICT_LOCKED);
+			ctx->new_table->fts->dict_locked = false;
 
 			if (error != DB_SUCCESS) {
 				goto error_handling;
@@ -10357,6 +10355,7 @@ commit_cache_norebuild(
 					    || (index->type
 						& DICT_CORRUPT));
 				DBUG_ASSERT(index->table->fts);
+				DEBUG_SYNC_C("norebuild_fts_drop");
 				fts_drop_index(index->table, index, trx);
 			}
 

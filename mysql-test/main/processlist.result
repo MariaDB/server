@@ -36,10 +36,6 @@ SELECT INFO, INFO_BINARY, 'xxx😎yyy' AS utf8mb4_string FROM INFORMATION_SCHEMA
 INFO	SELECT INFO, INFO_BINARY, 'xxx????yyy' AS utf8mb4_string FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE '%xxx%yyy%'
 INFO_BINARY	SELECT INFO, INFO_BINARY, 'xxx😎yyy' AS utf8mb4_string FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE '%xxx%yyy%'
 utf8mb4_string	xxx😎yyy
-Warnings:
-Level	Warning
-Code	1366
-Message	Incorrect string value: '\xF0\x9F\x98\x8Eyy...' for column `information_schema`.`(temporary)`.`INFO` at row 1
 #
 # End of 10.1 tests
 #
