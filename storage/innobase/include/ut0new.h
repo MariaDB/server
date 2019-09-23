@@ -252,7 +252,7 @@ static inline void ut_allocate_trace_dontdump(void *ptr, size_t	bytes,
 
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DONTDUMP)
 	if (dontdump && madvise(ptr, bytes, MADV_DONTDUMP)) {
-		ib::warn() << "Failed to set memory to DONTDUMP: "
+		ib::warn() << "Failed to set memory to " DONTDUMP_STR ": "
 			   << strerror(errno)
 			   << " ptr " << ptr
 			   << " size " << bytes;
@@ -270,7 +270,7 @@ static inline void ut_allocate_trace_dontdump(void *ptr, size_t	bytes,
 static inline void ut_dodump(void* ptr, size_t m_size)
 {
 	if (ptr && madvise(ptr, m_size, MADV_DODUMP)) {
-		ib::warn() << "Failed to set memory to DODUMP: "
+		ib::warn() << "Failed to set memory to " DODUMP_STR ": "
 			   << strerror(errno)
 			   << " ptr " << ptr
 			   << " size " << m_size;
