@@ -729,9 +729,6 @@ public:
    */
   bool is_created_from_null_item;
 
-  /* TRUE in Field objects created for column min/max values */
-  bool is_stat_field; 
-
   /* 
     Selectivity of the range condition over this field.
     When calculating this selectivity a range predicate
