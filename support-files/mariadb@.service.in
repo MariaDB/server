@@ -26,7 +26,7 @@
 # (at your option) any later version.
 
 [Unit]
-Description=MariaDB @VERSION@ database server (multi-instance)
+Description=MariaDB @VERSION@ database server (multi-instance %I)
 Documentation=man:mysqld(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target

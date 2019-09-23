@@ -2,8 +2,8 @@
 
 . /usr/share/debconf/confmodule
 
-# assume the filename is /path/to/mariadb-server-##.#.postinst
-VER=${0: -13:4}
+# Automatically set version to ease maintenance of this file
+MAJOR_VER="${DPKG_MAINTSCRIPT_PACKAGE#mariadb-server-}"
 
 if [ -n "$DEBIAN_SCRIPT_DEBUG" ]; then set -v -x; DEBIAN_SCRIPT_TRACE=1; fi
 ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
@@ -11,7 +11,7 @@ ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
 export PATH=$PATH:/sbin:/usr/sbin:/bin:/usr/bin
 
 # This command can be used as pipe to syslog. With "-s" it also logs to stderr.
-ERR_LOGGER="logger -p daemon.err -t mariadb-server-$VER.postinst -i"
+ERR_LOGGER="logger -p daemon.err -t mariadb-server-$MAJOR_VER.postinst -i"
 # This will make an error in a logged command immediately apparent by aborting
 # the install, rather than failing silently and leaving a broken install.
 set -o pipefail
@@ -149,8 +149,8 @@ EOF
 
 
     # To avoid downgrades.
-    touch $mysql_statedir/debian-$VER.flag
-    
+    touch $mysql_statedir/debian-$MAJOR_VER.flag
+
     ## On every reconfiguration the maintenance user is recreated.
     #
     # - It is easier to regenerate the password every time but as people
