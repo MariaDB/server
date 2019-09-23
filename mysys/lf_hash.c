@@ -73,6 +73,16 @@ typedef struct {
     @param pins         see lf_alloc-pin.c
     @param callback     callback action, invoked for every element
 
+  Pin protocol:
+    1. atomically unpin old current node and pin new current node in pin[1]
+    2. atomically unpin old next node and pin new next node in pin[0]
+    3. payload
+    4. atomically unpin old prev node and pin new prev node in pin[2], being
+       pinned new prev node is effectively current node pinned in pin[1]
+
+    Dummy nodes are never pinned in pin[2], and normally not pinned in pin[1]
+    (except for potential pinning at the beginning of the iteration).
+
   @note
     cursor is positioned in either case
     pins[0..2] are used, they are NOT removed on return
@@ -90,9 +100,8 @@ static int l_find(LF_SLIST * volatile *head, CHARSET_INFO *cs, uint32 hashnr,
                  my_hash_walk_action callback)
 {
   uint32       cur_hashnr;
-  const uchar  *cur_key;
-  size_t       cur_keylen;
   intptr       link;
+  uint32 is_normal_node; /* damn In_C_you_should_use_my_bool_instead() */
 
   DBUG_ASSERT(!cs || !callback);        /* should not be set both */
   DBUG_ASSERT(!keylen || !callback);    /* should not be set both */
@@ -101,18 +110,15 @@ retry:
   cursor->prev= (intptr *)head;
   do { /* PTR() isn't necessary below, head is a dummy node */
     cursor->curr= (LF_SLIST *)(*cursor->prev);
+    if (!cursor->curr)
+      return 0;
     lf_pin(pins, 1, cursor->curr);
   } while (my_atomic_loadptr((void**)cursor->prev) != cursor->curr &&
            LF_BACKOFF());
+  cur_hashnr= cursor->curr->hashnr;
+  is_normal_node= cur_hashnr & 1;
   for (;;)
   {
-    if (unlikely(!cursor->curr))
-      return 0; /* end of the list */
-
-    cur_hashnr= cursor->curr->hashnr;
-    cur_keylen= cursor->curr->keylen;
-    cur_key= cursor->curr->key;
-
     do {
       link= cursor->curr->link;
       cursor->next= PTR(link);
@@ -123,20 +129,22 @@ retry:
     {
       if (unlikely(callback))
       {
-        if (cur_hashnr & 1 && callback(cursor->curr + 1, (void*)key))
+        if (is_normal_node && callback(cursor->curr + 1, (void*) key))
           return 1;
       }
       else if (cur_hashnr >= hashnr)
       {
         int r= 1;
         if (cur_hashnr > hashnr ||
-            (r= my_strnncoll(cs, cur_key, cur_keylen, key, keylen)) >= 0)
+            (r= my_strnncoll(cs, cursor->curr->key, cursor->curr->keylen,
+                             key, keylen)) >= 0)
           return !r;
       }
       cursor->prev= &(cursor->curr->link);
-      if (!(cur_hashnr & 1)) /* dummy node */
+      if (is_normal_node)
+        lf_pin(pins, 2, cursor->curr);
+      else /* dummy node */
         head= (LF_SLIST **)cursor->prev;
-      lf_pin(pins, 2, cursor->curr);
     }
     else
     {
@@ -150,8 +158,15 @@ retry:
       else
         goto retry;
     }
+
+    /* switching to the next node */
     cursor->curr= cursor->next;
-    lf_pin(pins, 1, cursor->curr);
+    if (unlikely(!cursor->curr))
+      return 0; /* end of the list */
+    cur_hashnr= cursor->curr->hashnr;
+    is_normal_node= cur_hashnr & 1;
+    if (is_normal_node)
+      lf_pin(pins, 1, cursor->curr);
   }
 }
 
