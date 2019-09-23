@@ -1273,16 +1273,10 @@ trx_update_mod_tables_timestamp(
 
 	trx_mod_tables_t::const_iterator	end = trx->mod_tables.end();
 #ifdef UNIV_DEBUG
-# if MYSQL_VERSION_ID >= 100405
-#  define dict_sys_mutex dict_sys.mutex
-# else
-#  define dict_sys_mutex dict_sys->mutex
-# endif
-
 	const bool preserve_tables = !innodb_evict_tables_on_commit_debug
 		|| trx->is_recovered /* avoid trouble with XA recovery */
 # if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-		|| mutex_own(&dict_sys_mutex)
+		|| mutex_own(&dict_sys.mutex)
 # else /* this would be more proper way to do it */
 		|| trx->dict_operation_lock_mode || trx->dict_operation
 # endif
@@ -1312,15 +1306,11 @@ trx_update_mod_tables_timestamp(
 		}
 		/* recheck while holding the mutex that blocks
 		table->acquire() */
-		mutex_enter(&dict_sys_mutex);
+		mutex_enter(&dict_sys.mutex);
 		if (!table->get_ref_count()) {
-# if MYSQL_VERSION_ID >= 100405
 			dict_sys.remove(table, true);
-# else
-			dict_table_remove_from_cache_low(table, true);
-# endif
 		}
-		mutex_exit(&dict_sys_mutex);
+		mutex_exit(&dict_sys.mutex);
 #endif
 	}
 
