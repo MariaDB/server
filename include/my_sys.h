@@ -176,7 +176,7 @@ extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf My
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
 
-#ifdef __linux__
+#if defined(__linux__) || defined(HAVE_GETPAGESIZES)
 #define my_large_page_sizes_length 8
 extern size_t my_large_page_sizes[my_large_page_sizes_length];
 extern void my_get_large_page_sizes(size_t sizes[]);

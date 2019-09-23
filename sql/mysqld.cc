@@ -3983,37 +3983,32 @@ static int init_common_variables()
     We use as big pages as possible which isn't bigger than the above
     desired page sizes.
   */
-   int nelem;
+   int nelem= 0;
    size_t max_desired_page_size;
+   size_t max_page_size= 0;
    if (opt_super_large_pages)
      max_desired_page_size= SUPER_LARGE_PAGESIZE;
    else
      max_desired_page_size= LARGE_PAGESIZE;
-   nelem = getpagesizes(NULL, 0);
-   if (nelem > 0)
-   {
-     size_t *pagesize = (size_t *) malloc(sizeof(size_t) * nelem);
-     if (pagesize != NULL && getpagesizes(pagesize, nelem) > 0)
-     {
-       size_t max_page_size= 0;
-       for (int i= 0; i < nelem; i++)
-       {
-         if (pagesize[i] > max_page_size &&
-             pagesize[i] <= max_desired_page_size)
-            max_page_size= pagesize[i];
-       }
-       free(pagesize);
-       if (max_page_size > 0)
-       {
-         struct memcntl_mha mpss;
 
-         mpss.mha_cmd= MHA_MAPSIZE_BSSBRK;
-         mpss.mha_pagesize= max_page_size;
-         mpss.mha_flags= 0;
-         memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t)&mpss, 0, 0);
-         mpss.mha_cmd= MHA_MAPSIZE_STACK;
-         memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t)&mpss, 0, 0);
-       }
+   max_page_size= my_next_large_page_size(max_desired_page_size, &nelem);
+   if (max_page_size > 0)
+   {
+     struct memcntl_mha mpss;
+
+     mpss.mha_cmd= MHA_MAPSIZE_BSSBRK;
+     mpss.mha_pagesize= max_page_size;
+     mpss.mha_flags= 0;
+     if (memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t)&mpss, 0, 0))
+     {
+       sql_print_warning("memcntl MC_HAT_ADVISE cmd MHA_MAPSIZE_BSSBRK error %s (continuing)",
+         strerror(errno));
+     }
+     mpss.mha_cmd= MHA_MAPSIZE_STACK;
+     if (memcntl(NULL, 0, MC_HAT_ADVISE, (caddr_t)&mpss, 0, 0))
+     {
+       sql_print_warning("memcntl MC_HAT_ADVISE cmd MHA_MAPSIZE_STACK error %s (continuing)",
+         strerror(errno));
      }
    }
   }

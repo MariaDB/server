@@ -95,7 +95,7 @@ uint	  my_once_extra=ONCE_ALLOC_INIT;	/* Memory to alloc / block */
 #ifdef HAVE_LARGE_PAGE_OPTION
 my_bool my_use_large_pages= 0;
 #endif
-#ifdef __linux__
+#if defined(__linux__) || defined(HAVE_GETPAGESIZES)
 size_t  my_large_page_sizes[my_large_page_sizes_length];
 #endif
 

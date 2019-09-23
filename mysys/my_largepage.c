@@ -86,7 +86,7 @@ void my_large_free(void *ptr, size_t size)
 }
 #endif /* HAVE_LARGE_PAGE_OPTION */
 
-#ifdef __linux__
+#if defined(HAVE_GETPAGESIZES) || defined(__linux__)
 
 /* Descending sort */
 
@@ -139,6 +139,9 @@ size_t my_next_large_page_size(size_t sz, int *start)
   DBUG_RETURN(0);
 }
 
+#endif /* defined(HAVE_GETPAGESIZES) || defined(__linux__) */
+
+#ifdef __linux__
 /* Linux-specific function to determine the sizes of large pages */
 
 void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
@@ -249,6 +252,23 @@ uchar* my_large_malloc_int(size_t *size, myf my_flags)
 }
 
 #endif /* __linux__ */
+
+#if defined(HAVE_GETPAGESIZES) && !defined(__linux__)
+void my_get_large_page_sizes(size_t sizes[my_large_page_sizes_length])
+{
+  int nelem;
+
+  nelem= getpagesizes(NULL, 0);
+
+  assert(nelem <= my_large_page_sizes_length);
+  getpagesizes(sizes, my_large_page_sizes_length);
+  qsort(sizes, nelem, sizeof(size_t), size_t_cmp);
+  if (nelem < my_large_page_sizes_length)
+  {
+    sizes[nelem]= 0;
+  }
+}
+#endif
 
 #if defined(HAVE_MMAP) && !defined(_WIN32)
 
