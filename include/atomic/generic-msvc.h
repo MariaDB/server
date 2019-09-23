@@ -137,4 +137,6 @@ static inline void my_atomic_storeptr(void * volatile *a, void *v)
   *a= v;
 }
 
+#define my_atomic_thread_fence(O) MemoryBarrier()
+
 #endif /* ATOMIC_MSC_INCLUDED */

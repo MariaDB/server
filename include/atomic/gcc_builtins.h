@@ -75,4 +75,6 @@
 #define my_atomic_casptr(P, E, D) \
   __atomic_compare_exchange_n((P), (E), (D), 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
 
+#define my_atomic_thread_fence(O) __atomic_thread_fence((O))
+
 #endif /* ATOMIC_GCC_BUILTINS_INCLUDED */

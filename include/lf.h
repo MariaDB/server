@@ -80,13 +80,14 @@ typedef struct {
     my_atomic_storeptr(&(PINS)->pin[PIN], (ADDR));              \
   } while(0)
 
-#define lf_unpin(PINS, PIN)        lf_pin(PINS, PIN, NULL)
+static inline void lf_unpin(LF_PINS *pins, uint slot)
+{
+  DBUG_ASSERT(slot < LF_PINBOX_PINS);
+  my_atomic_storeptr_explicit(&pins->pin[slot], 0, MY_MEMORY_ORDER_RELEASE);
+}
+
 #define lf_assert_pin(PINS, PIN)   assert((PINS)->pin[PIN] != 0)
 #define lf_assert_unpin(PINS, PIN) assert((PINS)->pin[PIN] == 0)
-
-void lf_pinbox_init(LF_PINBOX *pinbox, uint free_ptr_offset,
-                    lf_pinbox_free_func *free_func, void * free_func_arg);
-void lf_pinbox_destroy(LF_PINBOX *pinbox);
 
 LF_PINS *lf_pinbox_get_pins(LF_PINBOX *pinbox);
 void lf_pinbox_put_pins(LF_PINS *pins);

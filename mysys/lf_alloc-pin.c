@@ -117,8 +117,8 @@ static void lf_pinbox_real_free(LF_PINS *pins);
   Initialize a pinbox. Normally called from lf_alloc_init.
   See the latter for details.
 */
-void lf_pinbox_init(LF_PINBOX *pinbox, uint free_ptr_offset,
-                    lf_pinbox_free_func *free_func, void *free_func_arg)
+static void lf_pinbox_init(LF_PINBOX *pinbox, uint free_ptr_offset,
+                           lf_pinbox_free_func *free_func, void *free_func_arg)
 {
   DBUG_ASSERT(free_ptr_offset % sizeof(void *) == 0);
   lf_dynarray_init(&pinbox->pinarray, sizeof(LF_PINS));
@@ -129,7 +129,7 @@ void lf_pinbox_init(LF_PINBOX *pinbox, uint free_ptr_offset,
   pinbox->free_func_arg= free_func_arg;
 }
 
-void lf_pinbox_destroy(LF_PINBOX *pinbox)
+static void lf_pinbox_destroy(LF_PINBOX *pinbox)
 {
   lf_dynarray_destroy(&pinbox->pinarray);
 }
@@ -293,7 +293,7 @@ static int harvest_pins(LF_PINS *el, struct st_harvester *hv)
   {
     for (i= 0; i < LF_PINBOX_PINS; i++)
     {
-      void *p= el->pin[i];
+      void *p= my_atomic_loadptr_explicit(&el->pin[i], MY_MEMORY_ORDER_RELAXED);
       if (p)
         *hv->granary++= p;
     }
@@ -318,7 +318,8 @@ static int match_pins(LF_PINS *el, void *addr)
   LF_PINS *el_end= el+LF_DYNARRAY_LEVEL_LENGTH;
   for (; el < el_end; el++)
     for (i= 0; i < LF_PINBOX_PINS; i++)
-      if (el->pin[i] == addr)
+      if (my_atomic_loadptr_explicit(&el->pin[i], MY_MEMORY_ORDER_RELAXED) ==
+          addr)
         return 1;
   return 0;
 }
@@ -403,7 +404,10 @@ found:
     add_to_purgatory(pins, cur);
   }
   if (last)
+  {
+    my_atomic_thread_fence(MY_MEMORY_ORDER_ACQUIRE);
     pinbox->free_func(first, last, pinbox->free_func_arg);
+  }
 }
 
 /* lock-free memory allocator for fixed-size objects */
