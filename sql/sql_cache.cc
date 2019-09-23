@@ -2662,7 +2662,7 @@ size_t Query_cache::init_cache()
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DONTDUMP)
   if (madvise(cache, query_cache_size+additional_data_size, MADV_DONTDUMP))
   {
-    DBUG_PRINT("warning", ("coudn't mark query cache memory as MADV_DONTDUMP: %s",
+    DBUG_PRINT("warning", ("coudn't mark query cache memory as " DONTDUMP_STR ": %s",
 			 strerror(errno)));
   }
 #endif
@@ -2831,7 +2831,7 @@ void Query_cache::free_cache()
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DODUMP)
   if (madvise(cache, query_cache_size+additional_data_size, MADV_DODUMP))
   {
-    DBUG_PRINT("warning", ("coudn't mark query cache memory as MADV_DODUMP: %s",
+    DBUG_PRINT("warning", ("coudn't mark query cache memory as " DODUMP_STR ": %s",
 			 strerror(errno)));
   }
 #endif
