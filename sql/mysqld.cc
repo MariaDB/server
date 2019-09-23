@@ -168,10 +168,12 @@ extern "C" {					// Because of SCO 3.2V4.2
 #endif
 
 #ifdef HAVE_SOLARIS_LARGE_PAGES
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
 #if defined(__sun__) && defined(__GNUC__) && defined(__cplusplus) \
     && defined(_XOPEN_SOURCE)
-extern int getpagesizes(size_t *, int);
-extern int getpagesizes2(size_t *, int);
+/* memcntl exist within sys/mman.h, but under-defines what is need to use it */
 extern int memcntl(caddr_t, size_t, int, caddr_t, int, int);
 #endif /* __sun__ ... */
 #endif /* HAVE_SOLARIS_LARGE_PAGES */
