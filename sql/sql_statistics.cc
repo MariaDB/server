@@ -1,4 +1,5 @@
 /* Copyright (C) 2009 MySQL AB
+   Copyright (c) 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1154,12 +1155,18 @@ public:
           case COLUMN_STAT_MIN_VALUE:
 	    table_field->read_stats->min_value->set_notnull();
             stat_field->val_str(&val);
+#if 0 /* MDEV-20589 FIXME: This fails! */
+            DBUG_ASSERT(table_field->read_stats->min_value->is_stat_field);
+#endif
             table_field->read_stats->min_value->store(val.ptr(), val.length(),
                                                       &my_charset_bin);
             break;
           case COLUMN_STAT_MAX_VALUE:
 	    table_field->read_stats->max_value->set_notnull();
             stat_field->val_str(&val);
+#if 0 /* MDEV-20589 FIXME: This fails! */
+            DBUG_ASSERT(table_field->read_stats->min_value->is_stat_field);
+#endif
             table_field->read_stats->max_value->store(val.ptr(), val.length(),
                                                       &my_charset_bin);
             break;
@@ -2043,7 +2050,7 @@ void create_min_max_statistical_fields_for_table_share(THD *thd,
         Field *fld;
         Field *table_field= *field_ptr;
         my_ptrdiff_t diff= record - table_share->default_values;
-        if (!(fld= table_field->clone(&stats_cb->mem_root, diff)))
+        if (!(fld= table_field->clone(&stats_cb->mem_root, NULL, diff)))
           continue;
         if (i == 0)
           table_field->read_stats->min_value= fld;

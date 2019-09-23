@@ -1254,7 +1254,6 @@ public:
                                uchar *new_null_ptr, uint new_null_bit);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table, my_ptrdiff_t diff);
-  Field *clone(MEM_ROOT *mem_root, my_ptrdiff_t diff);
   inline void move_field(uchar *ptr_arg,uchar *null_ptr_arg,uchar null_bit_arg)
   {
     ptr=ptr_arg; null_ptr=null_ptr_arg; null_bit=null_bit_arg;

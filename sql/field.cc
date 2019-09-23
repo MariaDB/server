@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB
+   Copyright (c) 2008, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2405,28 +2405,18 @@ Field *Field::clone(MEM_ROOT *root, TABLE *new_table)
 }
 
 
-
 Field *Field::clone(MEM_ROOT *root, TABLE *new_table, my_ptrdiff_t diff)
 {
   Field *tmp;
   if ((tmp= (Field*) memdup_root(root,(char*) this,size_of())))
   {
-    tmp->init(new_table);
+    if (new_table)
+      tmp->init(new_table);
     tmp->move_field_offset(diff);
   }
   return tmp;
 }
 
-
-Field *Field::clone(MEM_ROOT *root, my_ptrdiff_t diff)
-{
-  Field *tmp;
-  if ((tmp= (Field*) memdup_root(root,(char*) this,size_of())))
-  {
-    tmp->move_field_offset(diff);
-  }
-  return tmp;
-}
 
 int Field::set_default()
 {

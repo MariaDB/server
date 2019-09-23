@@ -88,6 +88,7 @@ class Loose_scan_opt
   KEYUSE *best_loose_scan_start_key;
 
   uint best_max_loose_keypart;
+  table_map best_ref_depend_map;
 
 public:
   Loose_scan_opt():
@@ -249,13 +250,14 @@ public:
           best_loose_scan_records= records;
           best_max_loose_keypart= max_loose_keypart;
           best_loose_scan_start_key= start_key;
+          best_ref_depend_map= 0;
         }
       }
     }
   }
   
   void check_ref_access_part2(uint key, KEYUSE *start_key, double records, 
-                              double read_time)
+                              double read_time, table_map ref_depend_map_arg)
   {
     if (part1_conds_met && read_time < best_loose_scan_cost)
     {
@@ -265,6 +267,7 @@ public:
       best_loose_scan_records= records;
       best_max_loose_keypart= max_loose_keypart;
       best_loose_scan_start_key= start_key;
+      best_ref_depend_map= ref_depend_map_arg;
     }
   }
 
@@ -280,6 +283,7 @@ public:
       best_loose_scan_records= rows2double(quick->records);
       best_max_loose_keypart= quick_max_loose_keypart;
       best_loose_scan_start_key= NULL;
+      best_ref_depend_map= 0;
     }
   }
 
@@ -295,7 +299,7 @@ public:
       pos->loosescan_picker.loosescan_parts= best_max_loose_keypart + 1;
       pos->use_join_buffer= FALSE;
       pos->table=           tab;
-      // todo need ref_depend_map ?
+      pos->ref_depend_map=  best_ref_depend_map;
       DBUG_PRINT("info", ("Produced a LooseScan plan, key %s, %s",
                           tab->table->key_info[best_loose_scan_key].name.str,
                           best_loose_scan_start_key? "(ref access)":

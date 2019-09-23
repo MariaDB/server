@@ -13,7 +13,7 @@ SET GLOBAL wsrep_slave_threads = 10;
 
 # ensure that the threads have actually started running
 --echo # Set slave threads to 10 step 1
---let $wait_condition = SELECT COUNT(*) = 10 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle';
+--let $wait_condition = SELECT VARIABLE_VALUE = 10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 --let $wait_condition_on_error_output = SELECT COUNT(*), 10 as EXPECTED_VALUE FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle'; show processlist
 --source include/wait_condition_with_debug.inc
 
@@ -23,20 +23,18 @@ SET GLOBAL wsrep_slave_threads = 1;
 INSERT INTO t1 VALUES (1);
 
 --connection node_1
-SET SESSION wsrep_sync_wait=15;
-SELECT COUNT(*) FROM t1;
-
 SET GLOBAL wsrep_slave_threads = 10;
 
+# Note that above insert could be handled by one of the slave threads
 --echo # Set slave threads to 10 step 2
---let $wait_condition = SELECT COUNT(*) = 10 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle';
---let $wait_condition_on_error_output = SELECT COUNT(*), 10 as EXPECTED_VALUE FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle'; show processlist
+--let $wait_condition = SELECT VARIABLE_VALUE >= 9 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+--let $wait_condition_on_error_output = SELECT COUNT(*), 9 as EXPECTED_VALUE FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle'; show processlist
 --source include/wait_condition_with_debug.inc
 
 SET GLOBAL wsrep_slave_threads = 20;
 
 --echo # Set slave threads to 20
---let $wait_condition = SELECT COUNT(*) = 20 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle';
+--let $wait_condition = SELECT VARIABLE_VALUE = 20 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 --let $wait_condition_on_error_output = SELECT COUNT(*), 20 as EXPECTED_VALUE FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle'; show processlist
 --source include/wait_condition_with_debug.inc
 
@@ -58,7 +56,7 @@ INSERT INTO t1 VALUES (10);
 SET GLOBAL wsrep_slave_threads = 10;
 SELECT COUNT(*) FROM t1;
 --echo # Set slave threads to 10 step 3
---let $wait_condition = SELECT COUNT(*) = 10 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle';
+--let $wait_condition = SELECT VARIABLE_VALUE = 10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 --let $wait_condition_on_error_output = SELECT COUNT(*), 10 as EXPECTED_VALUE FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle'; show processlist
 --source include/wait_condition_with_debug.inc
 
@@ -73,6 +71,8 @@ INSERT INTO t1 VALUES (17);
 INSERT INTO t1 VALUES (18);
 INSERT INTO t1 VALUES (19);
 INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (21);
+INSERT INTO t1 VALUES (22);
 
 --connection node_1
 SELECT COUNT(*) FROM t1;

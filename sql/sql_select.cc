@@ -100,10 +100,6 @@ static int sort_keyuse(KEYUSE *a,KEYUSE *b);
 static bool are_tables_local(JOIN_TAB *jtab, table_map used_tables);
 static bool create_ref_for_key(JOIN *join, JOIN_TAB *j, KEYUSE *org_keyuse,
 			       bool allow_full_scan, table_map used_tables);
-void best_access_path(JOIN *join, JOIN_TAB *s, 
-                             table_map remaining_tables, uint idx, 
-                             bool disable_jbuf, double record_count,
-                             POSITION *pos, POSITION *loose_scan_pos);
 static void optimize_straight_join(JOIN *join, table_map join_tables);
 static bool greedy_search(JOIN *join, table_map remaining_tables,
                           uint depth, uint prune_level,
@@ -5088,6 +5084,13 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     {
       if (choose_plan(join, all_table_map & ~join->const_table_map))
         goto error;
+
+#ifdef HAVE_valgrind
+      // JOIN::positions holds the current query plan. We've already
+      // made the plan choice, so we should only use JOIN::best_positions
+      for (uint k=join->const_tables; k < join->table_count; k++)
+        MEM_UNDEFINED(&join->positions[k], sizeof(join->positions[k]));
+#endif
     }
     else
     {
@@ -6785,6 +6788,7 @@ void
 best_access_path(JOIN      *join,
                  JOIN_TAB  *s,
                  table_map remaining_tables,
+                 const POSITION *join_positions,
                  uint      idx,
                  bool      disable_jbuf,
                  double    record_count,
@@ -6897,7 +6901,7 @@ best_access_path(JOIN      *join,
             if (!keyuse->val->maybe_null || keyuse->null_rejecting)
               notnull_part|=keyuse->keypart_map;
 
-            double tmp2= prev_record_reads(join->positions, idx,
+            double tmp2= prev_record_reads(join_positions, idx,
                                            (found_ref | keyuse->used_tables));
             if (tmp2 < best_prev_record_reads)
             {
@@ -6938,7 +6942,7 @@ best_access_path(JOIN      *join,
           Really, there should be records=0.0 (yes!)
           but 1.0 would be probably safer
         */
-        tmp= prev_record_reads(join->positions, idx, found_ref);
+        tmp= prev_record_reads(join_positions, idx, found_ref);
         records= 1.0;
       }
       else
@@ -6961,7 +6965,7 @@ best_access_path(JOIN      *join,
               (!(key_flags & HA_NULL_PART_KEY) ||            //  (2)
                all_key_parts == notnull_part))               //  (3)
           {
-            tmp = prev_record_reads(join->positions, idx, found_ref);
+            tmp = prev_record_reads(join_positions, idx, found_ref);
             records=1.0;
           }
           else
@@ -7205,7 +7209,8 @@ best_access_path(JOIN      *join,
         }
 
         tmp= COST_ADD(tmp, s->startup_cost);
-        loose_scan_opt.check_ref_access_part2(key, start_key, records, tmp);
+        loose_scan_opt.check_ref_access_part2(key, start_key, records, tmp,
+                                              found_ref);
       } /* not ft_key */
 
       if (tmp + 0.0001 < best_time - records/(double) TIME_FOR_COMPARE)
@@ -7890,7 +7895,8 @@ optimize_straight_join(JOIN *join, table_map join_tables)
   for (JOIN_TAB **pos= join->best_ref + idx ; (s= *pos) ; pos++)
   {
     /* Find the best access method from 's' to the current partial plan */
-    best_access_path(join, s, join_tables, idx, disable_jbuf, record_count,
+    best_access_path(join, s, join_tables, join->positions, idx,
+                     disable_jbuf, record_count,
                      join->positions + idx, &loose_scan_pos);
 
     /* compute the cost of the new plan extended with 's' */
@@ -8510,7 +8516,19 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           }
           keyparts++;
         }
+        /*
+          Here we discount selectivity of the constant range CR. To calculate
+          this selectivity we use elements from the quick_rows[] array.
+          If we have indexes i1,...,ik with the same prefix compatible
+          with CR any of the estimate quick_rows[i1], ... quick_rows[ik] could
+          be used for this calculation but here we don't know which one was
+          actually used. So sel could be greater than 1 and we have to cap it.
+          However if sel becomes greater than 2 then with high probability
+          something went wrong.
+	*/
         sel /= (double)table->quick_rows[key] / (double) table->stat_records();
+        DBUG_ASSERT(0 < sel && sel <= 2.0);
+        set_if_smaller(sel, 1.0);
         used_range_selectivity= true;
       }
     }
@@ -8558,6 +8576,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
               if (table->field[fldno]->cond_selectivity > 0)
 	      {            
                 sel /= table->field[fldno]->cond_selectivity;
+                DBUG_ASSERT(0 < sel && sel <= 2.0);
                 set_if_smaller(sel, 1.0);
               }
               /* 
@@ -8615,6 +8634,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           if (field->cond_selectivity > 0)
 	  {
             sel/= field->cond_selectivity;
+            DBUG_ASSERT(0 < sel && sel <= 2.0);  
             set_if_smaller(sel, 1.0);
           }
           break;
@@ -8626,6 +8646,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   sel*= table_multi_eq_cond_selectivity(join, idx, s, rem_tables,
                                         keyparts, ref_keyuse_steps);
 
+  DBUG_ASSERT(0.0 < sel && sel <= 1.0);
   return sel;
 }
 
@@ -8809,8 +8830,8 @@ best_extension_by_limited_search(JOIN      *join,
 
       /* Find the best access method from 's' to the current partial plan */
       POSITION loose_scan_pos;
-      best_access_path(join, s, remaining_tables, idx, disable_jbuf,
-                       record_count, position, &loose_scan_pos);
+      best_access_path(join, s, remaining_tables, join->positions, idx,
+                       disable_jbuf, record_count, position, &loose_scan_pos);
 
       /* Compute the cost of extending the plan with 's' */
       current_record_count= COST_MULT(record_count, position->records_read);
@@ -9196,11 +9217,11 @@ cache_record_length(JOIN *join,uint idx)
 */
 
 double
-prev_record_reads(POSITION *positions, uint idx, table_map found_ref)
+prev_record_reads(const POSITION *positions, uint idx, table_map found_ref)
 {
   double found=1.0;
-  POSITION *pos_end= positions - 1;
-  for (POSITION *pos= positions + idx - 1; pos != pos_end; pos--)
+  const POSITION *pos_end= positions - 1;
+  for (const POSITION *pos= positions + idx - 1; pos != pos_end; pos--)
   {
     if (pos->table->table->map & found_ref)
     {
@@ -15963,7 +15984,8 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
     if ((i == first_tab && first_alt) || join->positions[i].use_join_buffer)
     {
       /* Find the best access method that would not use join buffering */
-      best_access_path(join, rs, reopt_remaining_tables, i, 
+      best_access_path(join, rs, reopt_remaining_tables,
+                       join->positions, i,
                        TRUE, rec_count,
                        &pos, &loose_scan_pos);
     }

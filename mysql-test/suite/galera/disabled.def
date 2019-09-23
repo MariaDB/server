@@ -10,7 +10,6 @@
 #
 ##############################################################################
 
-MW-286 : MDEV-19992 Galera test failure on MW-286
 MW-329 : MDEV-19962 Galera test failure on MW-329
 MW-388: MDEV-19803 Long semaphore wait error on galera.MW-388	
 galera_account_management : MariaDB 10.0 does not support ALTER USER
@@ -26,7 +25,7 @@ galera_ist_mariabackup : MDEV-18829 test leaves port open
 galera_ist_progress : MDEV-15236 fails when trying to read transfer status
 galera_migrate : MariaDB does not support START SLAVE USER
 galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
-galera_var_node_address : MDEV-20485 Galera test failure on galera.galera_var_node_address
+galera_var_node_address : MDEV-20485 Galera test failure
 galera_wan : MDEV-17259 Test failure on galera.galera_wan
 partition : MDEV-19958 Galera test failure on galera.partition
 query_cache: MDEV-15805 Test failure on galera.query_cache
