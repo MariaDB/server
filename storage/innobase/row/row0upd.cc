@@ -2524,7 +2524,7 @@ row_upd_sec_index_entry(
 	ut_a(entry);
 
 	/* Insert new index entry */
-	err = row_ins_sec_index_entry(index, entry, thr, false);
+	err = row_ins_sec_index_entry(index, entry, thr);
 
 func_exit:
 	mem_heap_free(heap);
@@ -2795,7 +2795,7 @@ check_fk:
 
 	err = row_ins_clust_index_entry(
 		index, entry, thr,
-		node->upd_ext ? node->upd_ext->n_ext : 0, false);
+		node->upd_ext ? node->upd_ext->n_ext : 0);
 	node->state = UPD_NODE_INSERT_CLUSTERED;
 
 	mem_heap_free(heap);
