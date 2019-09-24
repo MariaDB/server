@@ -1512,25 +1512,6 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE); 
   if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
     DBUG_RETURN(TRUE); 
-  /*
-    For subqueries in VALUES() we should not see the table in which we are
-    inserting (for INSERT ... SELECT this is done by changing table_list,
-    because INSERT ... SELECT share SELECT_LEX it with SELECT.
-  */
-  if (!select_insert)
-  {
-    for (SELECT_LEX_UNIT *un= select_lex->first_inner_unit();
-         un;
-         un= un->next_unit())
-    {
-      for (SELECT_LEX *sl= un->first_select();
-           sl;
-           sl= sl->next_select())
-      {
-        sl->context.outer_context= 0;
-      }
-    }
-  }
 
   if (duplic == DUP_UPDATE)
   {
