@@ -71,7 +71,7 @@ const char field_separator=',';
                   ptr < table->record[0] + table->s->reclength))))
 
 #define ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED                   \
-  DBUG_ASSERT(!table ||                             \
+  DBUG_ASSERT(!table ||                                              \
               (!table->write_set ||                                  \
                bitmap_is_set(table->write_set, field_index) ||       \
                (!(ptr >= table->record[0] &&                         \
@@ -1766,7 +1766,7 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   flags=null_ptr ? 0: NOT_NULL_FLAG;
   comment.str= (char*) "";
   comment.length=0;
-  field_index= 0;   
+  field_index= 0;
   cond_selectivity= 1.0;
   next_equal_field= NULL;
 }
@@ -11380,8 +11380,8 @@ void Field::set_warning_truncated_wrong_value(const char *type_arg,
   DBUG_ASSERT(table);
 
   db_name= (table && table->s->db.str) ? table->s->db.str : "";
-  table_name= ((table && table->s->table_name.str) ? table->s->table_name.str :
-	       "");
+  table_name= (table && table->s->table_name.str) ?
+              table->s->table_name.str : "";
 
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
