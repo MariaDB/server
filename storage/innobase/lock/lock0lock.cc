@@ -6083,6 +6083,8 @@ lock_cancel_waiting_and_release(
 		}
 
 		lock_table_dequeue(lock);
+		/* Remove the lock from table lock vector too. */
+		lock_trx_table_locks_remove(lock);
 	}
 
 	/* Reset the wait flag and the back pointer to lock in trx. */

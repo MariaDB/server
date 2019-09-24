@@ -1678,6 +1678,91 @@ drop table t1;
 set use_stat_tables= @save_use_stat_tables;
 set @@histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+#
+# MDEV-20576: failing assertion DBUG_ASSERT(0.0 < sel && sel <= 1)
+#
+set @@optimizer_use_condition_selectivity=2;
+set names utf8;
+CREATE DATABASE world;
+use world;
+CREATE TABLE Country (
+Code char(3) NOT NULL default '',
+Name char(52) NOT NULL default '',
+SurfaceArea float(10,2) NOT NULL default '0.00',
+Population int(11) NOT NULL default '0',
+Capital int(11) default NULL,
+PRIMARY KEY  (Code),
+UNIQUE INDEX (Name)
+);
+CREATE TABLE City (
+ID int(11) NOT NULL auto_increment,
+Name char(35) NOT NULL default '',
+Country char(3) NOT NULL default '',
+Population int(11) NOT NULL default '0',
+PRIMARY KEY  (ID),
+INDEX (Population),
+INDEX (Country) 
+);
+CREATE TABLE CountryLanguage (
+Country char(3) NOT NULL default '',
+Language char(30) NOT NULL default '',
+Percentage float(3,1) NOT NULL default '0.0',
+PRIMARY KEY  (Country, Language),
+INDEX (Percentage)
+);
+CREATE INDEX Name ON City(Name);
+CREATE INDEX CountryPopulation ON City(Country,Population);
+CREATE INDEX CountryName ON City(Country,Name);
+set @@optimizer_use_condition_selectivity=2;
+EXPLAIN
+SELECT * FROM City WHERE Country='FIN';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	City	ref	Country,CountryPopulation,CountryName	Country	3	const	7	Using index condition
+DROP DATABASE world;
+use test;
+CREATE TABLE t1 (
+a INT,
+b INT NOT NULL,
+c char(100),
+KEY (b, c),
+KEY (b, a, c)
+) ENGINE=MyISAM
+DEFAULT CHARSET = utf8;
+INSERT INTO t1 VALUES
+(1,  1, 1),
+(2,  2, 2),
+(3,  3, 3),
+(4,  4, 4),
+(5,  5, 5),
+(6,  6, 6),
+(7,  7, 7),
+(8,  8, 8),
+(9,  9, 9);
+INSERT INTO t1 SELECT a + 10,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 20,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 40,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 80,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 160, b, c FROM t1;
+INSERT INTO t1 SELECT a + 320, b, c FROM t1;
+INSERT INTO t1 SELECT a + 640, b, c FROM t1;
+INSERT INTO t1 SELECT a + 1280, b, c FROM t1 LIMIT 80;
+EXPLAIN
+SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b,b_2	b	4	NULL	226	Using where
+SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
+a
+2071
+2061
+2051
+2041
+2031
+2021
+2011
+2001
+1991
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+DROP TABLE t1;
 # End of 10.1 tests
 set @@global.histogram_size=@save_histogram_size;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;

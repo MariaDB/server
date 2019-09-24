@@ -2586,3 +2586,16 @@ create view v1 as
 union
 ( values (5), (7), (1), (3), (4) order by 2 limit 2 );
 ERROR 42S22: Unknown column '2' in 'order clause'
+#
+# MDEV-20229: view defined as select using
+#             CTE with named columns defined as TVC
+#
+create view v1 as with t(a) as (values (2), (1)) select a from t;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t(a) as (values (2),(1))select `t`.`a` AS `a` from `t`	latin1	latin1_swedish_ci
+select * from v1;
+a
+2
+1
+drop view v1;

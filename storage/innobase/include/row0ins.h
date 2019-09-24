@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -92,10 +92,7 @@ row_ins_clust_index_entry_low(
 	ulint		n_uniq,	/*!< in: 0 or index->n_uniq */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	que_thr_t*	thr,	/*!< in: query thread or NULL */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	que_thr_t*	thr)	/*!< in: query thread or NULL */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /***************************************************************//**
@@ -120,10 +117,7 @@ row_ins_sec_index_entry_low(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	trx_id_t	trx_id,	/*!< in: PAGE_MAX_TRX_ID during
 				row_log_table_apply(), or 0 */
-	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	que_thr_t*	thr)	/*!< in: query thread */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /***************************************************************//**
@@ -138,10 +132,7 @@ row_ins_clust_index_entry(
 	dict_index_t*	index,	/*!< in: clustered index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr,	/*!< in: query thread */
-	ulint		n_ext,	/*!< in: number of externally stored columns */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	ulint		n_ext)	/*!< in: number of externally stored columns */
 	MY_ATTRIBUTE((warn_unused_result));
 /***************************************************************//**
 Inserts an entry into a secondary index. Tries first optimistic,
@@ -154,10 +145,7 @@ row_ins_sec_index_entry(
 /*====================*/
 	dict_index_t*	index,	/*!< in: secondary index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
-	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	que_thr_t*	thr)	/*!< in: query thread */
 	MY_ATTRIBUTE((warn_unused_result));
 /***********************************************************//**
 Inserts a row to a table. This is a high-level function used in

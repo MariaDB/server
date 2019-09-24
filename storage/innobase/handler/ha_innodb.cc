@@ -9767,10 +9767,10 @@ ha_innobase::ft_init_ext(
 		return(NULL);
 	}
 
-	if (!(ft_table->fts->fts_status & ADDED_TABLE_SYNCED)) {
+	if (!(ft_table->fts->added_synced)) {
 		fts_init_index(ft_table, FALSE);
 
-		ft_table->fts->fts_status |= ADDED_TABLE_SYNCED;
+		ft_table->fts->added_synced = true;
 	}
 
 	const byte*	q = reinterpret_cast<const byte*>(

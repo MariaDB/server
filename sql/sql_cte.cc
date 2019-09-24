@@ -1440,6 +1440,22 @@ void With_clause::print(String *str, enum_query_type query_type)
 void With_element::print(String *str, enum_query_type query_type)
 {
   str->append(query_name);
+  if (column_list.elements)
+  {
+    List_iterator_fast<LEX_CSTRING> li(column_list);
+    str->append('(');
+    for (LEX_CSTRING *col_name= li++; ; )
+    {
+      str->append(col_name);
+      col_name= li++;
+      if (!col_name)
+      {
+        str->append(')');
+        break;
+      }
+      str->append(',');
+    }
+  }
   str->append(STRING_WITH_LEN(" as "));
   str->append('(');
   spec->print(str, query_type);

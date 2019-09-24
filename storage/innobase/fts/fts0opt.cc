@@ -2553,12 +2553,22 @@ void fts_optimize_add_table(dict_table_t* table)
 		return;
 	}
 
+	/* If there is no fts index present then don't add to
+	optimize queue. */
+	if (!ib_vector_size(table->fts->indexes)) {
+		return;
+	}
+
 	/* Make sure table with FTS index cannot be evicted */
 	dict_table_prevent_eviction(table);
 
 	msg = fts_optimize_create_msg(FTS_MSG_ADD_TABLE, table);
 
 	ib_wqueue_add(fts_optimize_wq, msg, msg->heap);
+
+	mutex_enter(&table->fts->bg_threads_mutex);
+	table->fts->in_queue = true;
+	mutex_exit(&table->fts->bg_threads_mutex);
 }
 
 /**********************************************************************//**
@@ -2585,6 +2595,15 @@ fts_optimize_remove_table(
 		return;
 	}
 
+	fts_t*	fts = table->fts;
+	mutex_enter(&fts->bg_threads_mutex);
+	bool is_in_optimize_queue = fts->in_queue;
+	mutex_exit(&fts->bg_threads_mutex);
+
+	if (!is_in_optimize_queue) {
+		return;
+	}
+
 	msg = fts_optimize_create_msg(FTS_MSG_DEL_TABLE, NULL);
 
 	/* We will wait on this event until signalled by the consumer. */
@@ -2602,6 +2621,10 @@ fts_optimize_remove_table(
 	os_event_wait(event);
 
 	os_event_destroy(event);
+
+	mutex_enter(&fts->bg_threads_mutex);
+	fts->in_queue = false;
+	mutex_exit(&fts->bg_threads_mutex);
 }
 
 /** Send sync fts cache for the table.
@@ -2633,6 +2656,10 @@ fts_optimize_request_sync_table(
 	msg->ptr = table_id;
 
 	ib_wqueue_add(fts_optimize_wq, msg, msg->heap);
+
+	mutex_enter(&table->fts->bg_threads_mutex);
+	table->fts->in_queue = true;
+	mutex_exit(&table->fts->bg_threads_mutex);
 }
 
 /** Add a table to fts_slots if it doesn't already exist. */
@@ -2775,6 +2802,10 @@ static void fts_optimize_sync_table(table_id_t table_id)
 		    && table->fts && table->fts->cache) {
 			fts_sync_table(table, false);
 		}
+
+		DBUG_EXECUTE_IF(
+			"ib_optimize_wq_hang",
+			os_thread_sleep(6000000););
 
 		dict_table_close(table, FALSE, FALSE);
 	}

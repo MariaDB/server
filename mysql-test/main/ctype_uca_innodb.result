@@ -23,14 +23,13 @@ t1	CREATE TABLE `t1` (
 INSERT INTO t1 (ch) VALUES ('admin'),('admin1');
 SELECT ch FROM t1 WHERE ch='admin𝌆';
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
+EXPLAIN SELECT ch FROM t1 WHERE ch='admin𝌆';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='admin𝌆';
 ch
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='admin𝌆';
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 DELETE FROM t1;
 INSERT INTO t1 (ch) VALUES ('a'), ('a?'), ('a??'), ('a???'), ('a????');
 INSERT INTO t1 (ch) VALUES ('ab'),('a?b'),('a??b'),('a???b'),('a????b');
@@ -46,22 +45,14 @@ EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -104,8 +95,6 @@ EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -125,14 +114,10 @@ ab
 az
 aЀ
 aր
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 ch
 a
@@ -152,8 +137,6 @@ ab
 az
 aЀ
 aր
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
@@ -164,24 +147,16 @@ EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86' for column `test`.`t1`.`ch` at row 1
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 ch
 z
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9D\x8C\x86b' for column `test`.`t1`.`ch` at row 1
 ALTER TABLE t1 DROP KEY ch;
 # 0xD18F would be a good 2-byte character, 0xD1 is an incomplete sequence
 SET @query=CONCAT('SELECT ch FROM t1 WHERE ch=''a', 0xD1,'''');

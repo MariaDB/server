@@ -2449,6 +2449,14 @@ bool Item_time_typecast::get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
 }
 
 
+Sql_mode_dependency Item_time_typecast::value_depends_on_sql_mode() const
+{
+  return Item_timefunc::value_depends_on_sql_mode() |
+         Sql_mode_dependency(decimals < args[0]->decimals ?
+                             MODE_TIME_ROUND_FRACTIONAL : 0, 0);
+}
+
+
 bool Item_date_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   date_mode_t tmp= (fuzzydate | sql_mode_for_dates(thd)) & ~TIME_TIME_ONLY;
@@ -2466,6 +2474,14 @@ bool Item_datetime_typecast::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t f
   Datetime *dt= new(ltime) Datetime(thd, args[0], opt,
                                     MY_MIN(decimals, TIME_SECOND_PART_DIGITS));
   return (null_value= !dt->is_valid_datetime());
+}
+
+
+Sql_mode_dependency Item_datetime_typecast::value_depends_on_sql_mode() const
+{
+  return Item_datetimefunc::value_depends_on_sql_mode() |
+         Sql_mode_dependency(decimals < args[0]->decimals ?
+                             MODE_TIME_ROUND_FRACTIONAL : 0, 0);
 }
 
 

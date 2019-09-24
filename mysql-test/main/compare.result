@@ -100,3 +100,23 @@ CREATE TABLE t1(a INT ZEROFILL);
 SELECT 1 FROM t1 WHERE t1.a IN (1, t1.a) AND t1.a=2;
 1
 DROP TABLE t1;
+CREATE TABLE t1 (a char(2), index (a));
+insert into t1 values ("aa"),("bb");
+select * from t1 where a="aa";
+a
+aa
+select * from t1 where a="aaa";
+a
+select * from t1 where a="aa ";
+a
+aa
+select * from t1 where a>="aaa";
+a
+bb
+explain select * from t1 where a="aaa";
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	3	const	1	Using where; Using index
+explain select * from t1 where a="aa ";
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	3	const	1	Using where; Using index
+drop table t1;

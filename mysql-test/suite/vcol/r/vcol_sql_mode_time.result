@@ -88,5 +88,26 @@ UPDATE IGNORE t1 SET d = CURRENT_TIME;
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
+# MDEV-20423 Assertion `0' failed or `btr_validate_index(index, 0, false)' in row_upd_sec_index_entry or error code 126: Index is corrupted upon DELETE with TIME_ROUND_FRACTIONAL
+#
+CREATE TABLE t1 (
+a TIME(6),
+v VARCHAR(30) GENERATED ALWAYS AS (CAST(a AS TIME(3))) VIRTUAL,
+KEY (v)
+);
+ERROR HY000: Function or expression 'cast(`a` as time(3))' cannot be used in the GENERATED ALWAYS AS clause of `v`
+CREATE TABLE t1 (
+a TIME(6),
+v VARCHAR(30) GENERATED ALWAYS AS (TRUNCATE(a,3)) VIRTUAL,
+KEY (v)
+);
+DROP TABLE t1;
+CREATE TABLE t1 (
+a TIME(6),
+v VARCHAR(30) GENERATED ALWAYS AS (ROUND(a,3)) VIRTUAL,
+KEY (v)
+);
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #

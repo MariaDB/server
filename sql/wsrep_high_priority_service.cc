@@ -616,7 +616,7 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
   if (m_replay_status == wsrep::provider::success)
   {
     DBUG_ASSERT(replayer_thd->wsrep_cs().current_error() == wsrep::e_success);
-    orig_thd->killed= NOT_KILLED;
+    orig_thd->reset_kill_query();
     my_ok(orig_thd, m_da_shadow.affected_rows, m_da_shadow.last_insert_id);
   }
   else if (m_replay_status == wsrep::provider::error_certification_failed)

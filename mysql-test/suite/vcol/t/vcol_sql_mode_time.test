@@ -105,5 +105,31 @@ SET sql_mode=DEFAULT;
 
 
 --echo #
+--echo # MDEV-20423 Assertion `0' failed or `btr_validate_index(index, 0, false)' in row_upd_sec_index_entry or error code 126: Index is corrupted upon DELETE with TIME_ROUND_FRACTIONAL
+--echo #
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (
+  a TIME(6),
+  v VARCHAR(30) GENERATED ALWAYS AS (CAST(a AS TIME(3))) VIRTUAL,
+  KEY (v)
+);
+
+CREATE TABLE t1 (
+  a TIME(6),
+  v VARCHAR(30) GENERATED ALWAYS AS (TRUNCATE(a,3)) VIRTUAL,
+  KEY (v)
+);
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  a TIME(6),
+  v VARCHAR(30) GENERATED ALWAYS AS (ROUND(a,3)) VIRTUAL,
+  KEY (v)
+);
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

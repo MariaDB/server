@@ -5016,13 +5016,14 @@ Stopping slave I/O thread due to out-of-memory error from master");
         goto err;
       }
 
-      if (rpl_semi_sync_slave_status && (mi->semi_ack & SEMI_SYNC_NEED_ACK) &&
-          repl_semisync_slave.slave_reply(mi))
+      if (rpl_semi_sync_slave_status && (mi->semi_ack & SEMI_SYNC_NEED_ACK))
       {
-        mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
-                   ER_THD(thd, ER_SLAVE_FATAL_ERROR),
-                   "Failed to run 'after_queue_event' hook");
-        goto err;
+        /*
+          We deliberately ignore the error in slave_reply, such error should
+          not cause the slave IO thread to stop, and the error messages are
+          already reported.
+        */
+        (void)repl_semisync_slave.slave_reply(mi);
       }
 
       if (mi->using_gtid == Master_info::USE_GTID_NO &&

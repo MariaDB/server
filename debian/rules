@@ -163,9 +163,6 @@ override_dh_installinit-arch:
 override_dh_installcron-arch:
 	dh_installcron --name mysql-server
 
-get-orig-source:
-	uscan --force-download --verbose
-
 # If a file is not supposed to be included anywhere, add it to the not-installed
 # file and document the reason. Note that dh_install supports the above mentioned
 # white list file only starting from Debian Stretch and Ubuntu Xenial.

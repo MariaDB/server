@@ -160,8 +160,20 @@ MACRO (MYSQL_FIND_SYSTEM_LIBEDIT)
       int res= (*rl_completion_entry_function)(0,0);
       completion_matches(0,0);
     }"
-    LIBEDIT_INTERFACE)
-    SET(USE_LIBEDIT_INTERFACE ${LIBEDIT_INTERFACE})
+    LIBEDIT_HAVE_COMPLETION_INT)
+
+    CHECK_CXX_SOURCE_COMPILES("
+    #include <stdio.h>
+    #include <readline.h>
+    int main(int argc, char **argv)
+    {
+      char res= *(*rl_completion_entry_function)(0,0);
+      completion_matches(0,0);
+    }"
+    LIBEDIT_HAVE_COMPLETION_CHAR)
+    IF(LIBEDIT_HAVE_COMPLETION_INT OR LIBEDIT_HAVE_COMPLETION_CHAR)
+      SET(USE_LIBEDIT_INTERFACE 1)
+    ENDIF()
   ENDIF()
 ENDMACRO()
 
@@ -187,6 +199,7 @@ MACRO (MYSQL_CHECK_READLINE)
         IF(USE_LIBEDIT_INTERFACE)
           SET(MY_READLINE_INCLUDE_DIR ${LIBEDIT_INCLUDE_DIR})
           SET(MY_READLINE_LIBRARY ${LIBEDIT_LIBRARY} ${CURSES_LIBRARY})
+          SET(USE_NEW_READLINE_INTERFACE ${LIBEDIT_HAVE_COMPLETION_CHAR})
         ELSE()
           MYSQL_USE_BUNDLED_READLINE()
         ENDIF()

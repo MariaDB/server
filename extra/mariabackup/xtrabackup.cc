@@ -3970,7 +3970,7 @@ static bool xtrabackup_backup_low()
 		}
 		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
 			XTRABACKUP_INFO);
-		if (!write_xtrabackup_info(mysql_connection, filename, false)) {
+		if (!write_xtrabackup_info(mysql_connection, filename, false, false)) {
 			msg("Error: failed to write info "
 			 "to '%s'.", filename);
 			return false;

@@ -1170,6 +1170,7 @@ public:
     return args[0]->type_handler()->
            Item_time_typecast_fix_length_and_dec(this);
   }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_time_typecast>(thd, this); }
 };
@@ -1191,6 +1192,7 @@ public:
     return args[0]->type_handler()->
            Item_datetime_typecast_fix_length_and_dec(this);
   }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_datetime_typecast>(thd, this); }
 };

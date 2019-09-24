@@ -3283,10 +3283,10 @@ public:
   /*
     Usually `expr` rule of yacc is quite reused but some commands better
     not support subqueries which comes standard with this rule, like
-    KILL, HA_READ, CREATE/ALTER EVENT etc. Set this to `false` to get
-    syntax error back.
+    KILL, HA_READ, CREATE/ALTER EVENT etc. Set this to a non-NULL
+    clause name to get an error.
   */
-  bool expr_allows_subselect;
+  const char *clause_that_disallows_subselect;
   bool selects_allow_into;
   bool selects_allow_procedure;
   /*
@@ -4006,9 +4006,7 @@ public:
                           const Lex_ident_cli_st *var_name,
                           const Lex_ident_cli_st *field_name);
 
-  Item *create_item_query_expression(THD *thd,
-                                     const char *tok_start,
-                                     st_select_lex_unit *unit);
+  Item *create_item_query_expression(THD *thd, st_select_lex_unit *unit);
 
   Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
   Item *make_item_func_substr(THD *thd, Item *a, Item *b, Item *c);
@@ -4487,7 +4485,7 @@ public:
   bool parsed_body_unit(SELECT_LEX_UNIT *unit);
   SELECT_LEX_UNIT *parsed_body_unit_tail(SELECT_LEX_UNIT *unit,
                                          Lex_order_limit_lock * l);
-  SELECT_LEX *parsed_subselect(SELECT_LEX_UNIT *unit, char *place);
+  SELECT_LEX *parsed_subselect(SELECT_LEX_UNIT *unit);
   bool parsed_insert_select(SELECT_LEX *firs_select);
   bool parsed_TVC_start();
   SELECT_LEX *parsed_TVC_end();

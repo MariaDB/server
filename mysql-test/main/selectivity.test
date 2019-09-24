@@ -1125,6 +1125,87 @@ drop table t1;
 set use_stat_tables= @save_use_stat_tables;
 set @@histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+--echo #
+--echo # MDEV-20576: failing assertion DBUG_ASSERT(0.0 < sel && sel <= 1)
+--echo #
+
+set @@optimizer_use_condition_selectivity=2;
+
+set names utf8;
+
+CREATE DATABASE world;
+
+use world;
+
+--source include/world_schema.inc
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/world.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+CREATE INDEX Name ON City(Name);
+CREATE INDEX CountryPopulation ON City(Country,Population);
+CREATE INDEX CountryName ON City(Country,Name);
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+ANALYZE TABLE City;
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+set @@optimizer_use_condition_selectivity=2;
+
+EXPLAIN
+SELECT * FROM City WHERE Country='FIN';
+
+DROP DATABASE world;
+
+use test;
+
+CREATE TABLE t1 (
+  a INT,
+  b INT NOT NULL,
+  c char(100),
+  KEY (b, c),
+  KEY (b, a, c)
+) ENGINE=MyISAM
+DEFAULT CHARSET = utf8;
+
+INSERT INTO t1 VALUES
+(1,  1, 1),
+(2,  2, 2),
+(3,  3, 3),
+(4,  4, 4),
+(5,  5, 5),
+(6,  6, 6),
+(7,  7, 7),
+(8,  8, 8),
+(9,  9, 9);
+
+INSERT INTO t1 SELECT a + 10,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 20,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 40,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 80,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 160, b, c FROM t1;
+INSERT INTO t1 SELECT a + 320, b, c FROM t1;
+INSERT INTO t1 SELECT a + 640, b, c FROM t1;
+INSERT INTO t1 SELECT a + 1280, b, c FROM t1 LIMIT 80;
+
+EXPLAIN
+SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
+SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1;
+
 --echo # End of 10.1 tests
 
 #

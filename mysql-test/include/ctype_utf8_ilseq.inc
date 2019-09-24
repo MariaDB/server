@@ -14,6 +14,7 @@ SHOW CREATE TABLE t1;
 
 INSERT INTO t1 (ch) VALUES ('admin'),('admin1');
 SELECT ch FROM t1 WHERE ch='admin𝌆';
+EXPLAIN SELECT ch FROM t1 WHERE ch='admin𝌆';
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='admin𝌆';
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='admin𝌆';
 DELETE FROM t1;

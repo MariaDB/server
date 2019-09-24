@@ -6,6 +6,19 @@
 # scripts are needed.
 #
 #
+# It's not recommended to modify this file in-place, because it will be
+# overwritten during package upgrades.  If you want to customize, the
+# best way is to create a file "/etc/systemd/system/mariadb@.service",
+# containing
+#	.include /usr/lib/systemd/system/mariadb@.service
+#	...make your changes here...
+# or create a file "/etc/systemd/system/mariadb@.service.d/foo.conf",
+# which doesn't need to include ".include" call and which will be parsed
+# after the file mariadb@.service itself is parsed.
+#
+# For more info about custom unit files, see systemd.unit(5) or
+# https://mariadb.com/kb/en/mariadb/systemd/
+#
 # Copyright notice:
 #
 # This file is free software; you can redistribute it and/or modify it
@@ -131,7 +144,7 @@
 # systemd.service(5)
 
 [Unit]
-Description=MariaDB @VERSION@ database server (multi-instance)
+Description=MariaDB @VERSION@ database server (multi-instance %I)
 Documentation=man:mysqld(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
@@ -194,6 +207,8 @@ ExecStartPre=@scriptdir@/mysql_install_db $MYSQLD_MULTI_INSTANCE
 #
 # Note 1: Place $MYSQLD_OPTS at the very end for its options to take precedence.
 ExecStart=@sbindir@/mysqld $MYSQLD_MULTI_INSTANCE $MYSQLD_OPTS
+
+@SYSTEMD_EXECSTARTPOST@
 
 KillSignal=SIGTERM
 

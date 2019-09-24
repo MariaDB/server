@@ -2663,16 +2663,20 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   notnull_cond= head->notnull_cond;
   if (!records)
     records++;					/* purecov: inspected */
-  scan_time= (double) records / TIME_FOR_COMPARE + 1;
-  read_time= (double) head->file->scan_time() + scan_time + 1.1;
-  if (head->force_index)
+
+  if (head->force_index || force_quick_range)
     scan_time= read_time= DBL_MAX;
-  if (limit < records)
+  else
   {
-    read_time= (double) records + scan_time + 1; // Force to use index
-    notnull_cond= NULL;
+    scan_time= (double) records / TIME_FOR_COMPARE + 1;
+    read_time= (double) head->file->scan_time() + scan_time + 1.1;
+    if (limit < records)
+    {
+      read_time= (double) records + scan_time + 1; // Force to use index
+      notnull_cond= NULL;
+    }
   }
-  
+
   possible_keys.clear_all();
 
   DBUG_PRINT("info",("Time to scan table: %g", read_time));
@@ -11063,6 +11067,16 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
                                             bufsize, mrr_flags, cost);
   if (rows != HA_POS_ERROR)
   {
+    ha_rows table_records= param->table->stat_records();
+    if (rows > table_records)
+    {
+      /*
+        For any index the total number of records within all ranges
+        cannot be be bigger than the number of records in the table
+      */
+      rows= table_records;
+      set_if_bigger(rows, 1);
+    }
     param->quick_rows[keynr]= rows;
     param->possible_keys.set_bit(keynr);
     if (update_tbl_stats)
