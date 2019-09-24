@@ -196,7 +196,7 @@ typedef struct st_mi_isam_share
   ulong last_process;                   /* For table-change-check */
   ulong last_version;                   /* Version on start */
   ulong options;                        /* Options used */
-  ulong min_pack_length;                /* Theese are used by packed data */
+  ulong min_pack_length;                /* These are used by packed data */
   ulong max_pack_length;
   ulong state_diff_length;
   uint	rec_reflength;			/* rec_reflength in use now */
