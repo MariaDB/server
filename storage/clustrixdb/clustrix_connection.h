@@ -38,6 +38,7 @@ private:
 
   bool has_transaction;
   bool has_statement_trans;
+  int commit_flag_next;
 
 public:
   clustrix_connection()
@@ -47,6 +48,7 @@ public:
     memset(&clustrix_net, 0, sizeof(MYSQL));
     has_statement_trans = FALSE;
     has_transaction = FALSE;
+    commit_flag_next = 0;
     DBUG_VOID_RETURN;
   }
 
@@ -69,17 +71,19 @@ public:
   int connect();
 
   void disconnect(bool is_destructor = FALSE);
-  int begin_trans();
-  int commit_trans();
-  int rollback_trans();
+
+  int send_transaction_cmd();
+  bool begin_trans();
+  bool commit_trans();
+  bool rollback_trans();
   inline bool has_trans()
   {
     return has_transaction;
   }
 
-  int begin_stmt_trans();
-  int commit_stmt_trans();
-  int rollback_stmt_trans();
+  bool begin_stmt_trans();
+  bool commit_stmt_trans();
+  bool rollback_stmt_trans();
   inline bool has_stmt_trans()
   {
     return has_statement_trans;
@@ -142,6 +146,7 @@ private:
   int add_command_operand_vlstr(const uchar *str, size_t length);
   int add_command_operand_lex_string(LEX_CSTRING str);
   int add_command_operand_bitmap(MY_BITMAP *bitmap);
+  int begin_command(uchar command);
   int send_command();
   int read_query_response();
 };

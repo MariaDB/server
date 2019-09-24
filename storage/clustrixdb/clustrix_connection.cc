@@ -31,7 +31,16 @@ enum clustrix_commands {
   CLUSTRIX_SCAN_QUERY,
   CLUSTRIX_KEY_UPDATE,
   CLUSTRIX_SCAN_FROM_KEY,
-  CLUSTRIX_UPDATE_QUERY
+  CLUSTRIX_UPDATE_QUERY,
+  CLUSTRIX_TRANSACTION_CMD
+};
+
+enum clustrix_transaction_flags {
+    CLUSTRIX_TRANS_BEGIN = 1,
+    CLUSTRIX_TRANS_COMMIT = 2,
+    CLUSTRIX_TRANS_ROLLBACK = 4,
+    CLUSTRIX_STMT_NEW = 8,
+    CLUSTRIX_STMT_ROLLBACK = 16
 };
 
 /****************************************************************************
@@ -136,6 +145,20 @@ int clustrix_connection::connect()
   DBUG_RETURN(0);
 }
 
+int clustrix_connection::begin_command(uchar command)
+{
+  command_length = 0;
+  int error_code = 0;
+  if ((error_code = add_command_operand_uchar(command)))
+    return error_code;
+
+  if ((error_code = add_command_operand_uchar(commit_flag_next)))
+    return error_code;
+
+  commit_flag_next = 0;
+  return error_code;
+}
+
 int clustrix_connection::send_command()
 {
   my_bool com_error;
@@ -170,75 +193,104 @@ int clustrix_connection::read_query_response()
   return 0;
 }
 
-int clustrix_connection::begin_trans()
+int clustrix_connection::send_transaction_cmd()
 {
-  if (has_transaction)
-      return 0;
+  DBUG_ENTER("clustrix_connection::send_transaction_cmd");
+  if (!commit_flag_next)
+      DBUG_RETURN(0);
 
-  const char *stmt = "BEGIN TRANSACTION";
-  int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
-  if (error_code)
-    return mysql_errno(&clustrix_net);
+  int error_code;
+  if ((error_code = begin_command(CLUSTRIX_TRANSACTION_CMD)))
+    DBUG_RETURN(error_code);
+  if ((error_code = send_command()))
+    DBUG_RETURN(error_code);
+  if ((error_code = read_query_response()))
+    DBUG_RETURN(mysql_errno(&clustrix_net));
+  
+  DBUG_RETURN(error_code);
+}
+
+bool clustrix_connection::begin_trans()
+{
+  DBUG_ENTER("clustrix_connection::begin_trans");
+  assert(!has_transaction);
+  commit_flag_next |= CLUSTRIX_TRANS_BEGIN;
   has_transaction = TRUE;
-  return error_code;
+  DBUG_RETURN(TRUE);
 }
 
-int clustrix_connection::commit_trans()
+bool clustrix_connection::commit_trans()
 {
-  const char *stmt = "COMMIT TRANSACTION";
-  int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
-  if (error_code)
-    return mysql_errno(&clustrix_net);
-  has_transaction = FALSE;
-  has_statement_trans = FALSE;
-  return error_code;
-}
-
-int clustrix_connection::rollback_trans()
-{
-  const char *stmt = "ROLLBACK TRANSACTION";
-  int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
-  if (error_code)
-    return mysql_errno(&clustrix_net);
-  has_transaction = FALSE;
-  has_statement_trans = FALSE;
-  return error_code;
-}
-
-int clustrix_connection::begin_stmt_trans()
-{
+  DBUG_ENTER("clustrix_connection::commit_trans");
   assert(has_transaction);
-  if (has_statement_trans)
-    return 0;
 
-  const char *stmt = "SAVEPOINT STMT_TRANS";
-  int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
-  if (error_code)
-    return mysql_errno(&clustrix_net);
+  if (commit_flag_next & CLUSTRIX_TRANS_BEGIN) {
+    commit_flag_next &= ~CLUSTRIX_TRANS_BEGIN;
+    DBUG_RETURN(FALSE);
+  }
+
+  commit_flag_next |= CLUSTRIX_TRANS_COMMIT;
+  has_transaction = FALSE;
+  has_statement_trans = FALSE;
+  DBUG_RETURN(TRUE);
+}
+
+bool clustrix_connection::rollback_trans()
+{
+  DBUG_ENTER("clustrix_connection::rollback_trans");
+  assert(has_transaction);
+
+  if (commit_flag_next & CLUSTRIX_TRANS_BEGIN) {
+    commit_flag_next &= ~CLUSTRIX_TRANS_BEGIN;
+    DBUG_RETURN(FALSE);
+  }
+
+  commit_flag_next |= CLUSTRIX_TRANS_ROLLBACK;
+  has_transaction = FALSE;
+  has_statement_trans = FALSE;
+  DBUG_RETURN(TRUE);
+}
+
+bool clustrix_connection::begin_stmt_trans()
+{
+  DBUG_ENTER("clustrix_connection::begin_stmt_trans");
+  assert(has_transaction);
+  assert(!has_statement_trans);
+
+  commit_flag_next |= CLUSTRIX_STMT_NEW;
   has_statement_trans = TRUE;
-  return error_code;
+  DBUG_RETURN(TRUE);
 }
 
-int clustrix_connection::commit_stmt_trans()
+bool clustrix_connection::commit_stmt_trans()
 {
+  DBUG_ENTER("clustrix_connection::commit_stmt_trans");
   assert(has_transaction);
-  const char *stmt = "RELEASE SAVEPOINT STMT_TRANS";
-  int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
-  if (error_code)
-    return mysql_errno(&clustrix_net);
+  assert(has_statement_trans);
+
+  if (commit_flag_next & CLUSTRIX_STMT_NEW) {
+      commit_flag_next &= ~CLUSTRIX_STMT_NEW;
+      DBUG_RETURN(FALSE);
+  }
+
   has_statement_trans = FALSE;
-  return error_code;
+  DBUG_RETURN(TRUE);
 }
 
-int clustrix_connection::rollback_stmt_trans()
+bool clustrix_connection::rollback_stmt_trans()
 {
+  DBUG_ENTER("clustrix_connection::rollback_stmt_trans");
   assert(has_transaction);
-  const char *stmt = "ROLLBACK TO STMT_TRANS";
-  int error_code = mysql_real_query(&clustrix_net, stmt, strlen(stmt));
-  if (error_code)
-    return mysql_errno(&clustrix_net);
+  assert(has_statement_trans);
+
+  if (commit_flag_next & CLUSTRIX_STMT_NEW) {
+      commit_flag_next &= ~CLUSTRIX_STMT_NEW;
+      DBUG_RETURN(FALSE);
+  }
+
+  commit_flag_next |= CLUSTRIX_STMT_ROLLBACK;
   has_statement_trans = FALSE;
-  return error_code;
+  DBUG_RETURN(TRUE);
 }
 
 int clustrix_connection::run_query(String &stmt)
@@ -261,7 +313,7 @@ int clustrix_connection::write_row(ulonglong clustrix_table_oid,
   int error_code;
   command_length = 0;
 
-  if ((error_code = add_command_operand_uchar(CLUSTRIX_WRITE_ROW)))
+  if ((error_code = begin_command(CLUSTRIX_WRITE_ROW)))
     return error_code;
 
   if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
@@ -289,7 +341,7 @@ int clustrix_connection::key_update(ulonglong clustrix_table_oid,
   int error_code;
   command_length = 0;
 
-  if ((error_code = add_command_operand_uchar(CLUSTRIX_KEY_UPDATE)))
+  if ((error_code = begin_command(CLUSTRIX_KEY_UPDATE)))
     return error_code;
 
   if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
@@ -321,7 +373,7 @@ int clustrix_connection::key_delete(ulonglong clustrix_table_oid,
   int error_code;
   command_length = 0;
 
-  if ((error_code = add_command_operand_uchar(CLUSTRIX_KEY_DELETE)))
+  if ((error_code = begin_command(CLUSTRIX_KEY_DELETE)))
     return error_code;
 
   if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
@@ -347,7 +399,7 @@ int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
   int error_code;
   command_length = 0;
 
-  if ((error_code = add_command_operand_uchar(CLUSTRIX_KEY_READ)))
+  if ((error_code = begin_command(CLUSTRIX_KEY_READ)))
     return error_code;
 
   if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
@@ -530,7 +582,7 @@ int clustrix_connection::scan_table(ulonglong clustrix_table_oid, uint index,
   int error_code;
   command_length = 0;
 
-  if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_TABLE)))
+  if ((error_code = begin_command(CLUSTRIX_SCAN_TABLE)))
     return error_code;
 
   if ((error_code = add_command_operand_ushort(row_req)))
@@ -581,7 +633,7 @@ int clustrix_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
   int error_code;
   command_length = 0;
 
-  if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_QUERY)))
+  if ((error_code = begin_command(CLUSTRIX_SCAN_QUERY)))
     return error_code;
 
   if ((error_code = add_command_operand_ushort(row_req)))
@@ -655,7 +707,7 @@ int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
   int error_code;
   command_length = 0;
 
-  if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_FROM_KEY)))
+  if ((error_code = begin_command(CLUSTRIX_SCAN_FROM_KEY)))
     return error_code;
 
   if ((error_code = add_command_operand_ushort(row_req)))
@@ -698,7 +750,7 @@ int clustrix_connection::scan_next(clustrix_connection_cursor *scan,
   int error_code;
   command_length = 0;
 
-  if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_NEXT)))
+  if ((error_code = begin_command(CLUSTRIX_SCAN_NEXT)))
     return error_code;
 
   if ((error_code = add_command_operand_ushort(scan->buffer_size)))
@@ -731,7 +783,7 @@ int clustrix_connection::scan_end(clustrix_connection_cursor *scan)
   if (eof_reached)
       return 0;
 
-  if ((error_code = add_command_operand_uchar(CLUSTRIX_SCAN_STOP)))
+  if ((error_code = begin_command(CLUSTRIX_SCAN_STOP)))
     return error_code;
 
   if ((error_code = add_command_operand_lcb(scan_refid)))
