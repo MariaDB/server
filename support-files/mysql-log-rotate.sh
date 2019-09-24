@@ -1,25 +1,12 @@
 # This logname can be set in /etc/my.cnf
-# by setting the variable "err-log"
-# in the [safe_mysqld] section as follows:
+# by setting the variable "log_error"
+# in the [mysqld] section as follows:
 #
-# [safe_mysqld]
-# err-log=@localstatedir@/mysqld.log
-#
-# If the root user has a password you have to create a
-# /root/.my.cnf configuration file with the following
-# content:
-#
-# [mysqladmin]
-# password = <secret> 
-# user= root
-#
-# where "<secret>" is the password. 
-#
-# ATTENTION: This /root/.my.cnf should be readable ONLY
-# for root !
+# [mysqld]
+# log_error=@LOG_LOCATION@
 
-@localstatedir@/mysqld.log {
-        # create 600 mysql mysql
+@LOG_LOCATION@ {
+        create 600 mysql mysql
         notifempty
 	daily
         rotate 3
@@ -27,11 +14,10 @@
         compress
     postrotate
 	# just if mysqld is really running
-	if test -x @bindir@/mysqladmin && \
-	   @bindir@/mysqladmin ping &>/dev/null
-	then
-	   @bindir@/mysqladmin --local flush-error-log \
-              flush-engine-log flush-general-log flush-slow-log
-	fi
+        if [ -e @PID_FILE_DIR@/@DAEMON_NO_PREFIX@.pid ]
+        then
+           # mysqld will flush the logs after recieving a SIGHUP
+           kill -1 $(<@PID_FILE_DIR@/@DAEMON_NO_PREFIX@.pid)
+        fi
     endscript
 }
