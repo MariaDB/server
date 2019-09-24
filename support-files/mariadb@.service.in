@@ -103,12 +103,9 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
 # This isn't a replacement for my.cnf.
 # _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
 
-# Note: we set --basedir to prevent probes that might trigger SELinux alarms,
-# per bug https://bugzilla.redhat.com/show_bug.cgi?id=547485
-#
 # Note: Place $MYSQLD_OPTS at the very end for its options to take precedence.
 
-ExecStart=@sbindir@/mysqld --defaults-file=@sysconf2dir@/my%I.cnf --basedir=@prefix@ \
+ExecStart=@sbindir@/mysqld --defaults-file=@sysconf2dir@/my%I.cnf \
   $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION%I $MYSQLD_OPTS
 # Alternate: (remove ConditionPathExists above)
 # use [mysqld.INSTANCENAME] as sections in my.cnf

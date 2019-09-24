@@ -86,9 +86,7 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
 # Use the [Service] section and Environment="MYSQLD_OPTS=...".
 # This isn't a replacement for my.cnf.
 # _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
-# Note: we set --basedir to prevent probes that might trigger SELinux alarms,
-# per bug https://bugzilla.redhat.com/show_bug.cgi?id=547485
-ExecStart=@sbindir@/mysqld $MYSQLD_OPTS --basedir=@prefix@ $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
+ExecStart=@sbindir@/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
 
 # Unset _WSREP_START_POSITION environment variable.
 ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
