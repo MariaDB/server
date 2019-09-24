@@ -932,11 +932,8 @@ int ha_clustrixdb::external_lock(THD *thd, int lock_type)
   int error_code;
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (lock_type != F_UNLCK) {
-    if ((error_code = trx->begin_trans()))
-        return error_code;
-
-    if ((error_code = trx->begin_stmt_trans()))
-        return error_code;
+    trx->begin_trans();
+    trx->begin_stmt_trans();
 
     trans_register_ha(thd, FALSE, clustrixdb_hton);
     if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
@@ -1036,36 +1033,42 @@ void ha_clustrixdb::build_key_packed_row(uint index, const uchar *buf,
 
 static int clustrixdb_commit(handlerton *hton, THD *thd, bool all)
 {
-  int error_code = 0;
   clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
   assert(trx);
 
+  bool send_cmd;
   if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
     if (trx->has_trans())
-      error_code = trx->commit_trans();
+      send_cmd = trx->commit_trans();
   } else {
     if (trx->has_stmt_trans())
-      error_code = trx->commit_stmt_trans();
+      send_cmd = trx->commit_stmt_trans();
   }
 
-  return error_code;
+  if (send_cmd)
+    return trx->send_transaction_cmd();
+
+  return 0;
 }
 
 static int clustrixdb_rollback(handlerton *hton, THD *thd, bool all)
 {
-  int error_code = 0;
   clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
   assert(trx);
 
+  bool send_cmd;
   if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
     if (trx->has_trans())
-      error_code = trx->rollback_trans();
+      send_cmd = trx->rollback_trans();
   } else {
     if (trx->has_stmt_trans())
-      error_code = trx->rollback_stmt_trans();
+      send_cmd = trx->rollback_stmt_trans();
   }
 
-  return error_code;
+  if (send_cmd)
+    return trx->send_transaction_cmd();
+
+  return 0;
 }
 
 static handler* clustrixdb_create_handler(handlerton *hton, TABLE_SHARE *table,
@@ -1080,12 +1083,11 @@ static int clustrixdb_close_connection(handlerton* hton, THD* thd)
   if (!trx)
     return 0; /* Transaction is not started */
 
-  if (trx->has_stmt_trans())
-    clustrixdb_rollback(clustrixdb_hton, thd, TRUE);
+  int error_code = clustrixdb_rollback(clustrixdb_hton, thd, TRUE);
 
   delete trx;
 
-  return 0;
+  return error_code;
 }
 
 static int clustrixdb_panic(handlerton *hton, ha_panic_function type)
