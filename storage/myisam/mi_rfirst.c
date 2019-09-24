@@ -16,7 +16,7 @@
 
 #include "myisamdef.h"
 
-	/*  Read first row through  a specfic key */
+	/*  Read first row through a specific key */
 
 int mi_rfirst(MI_INFO *info, uchar *buf, int inx)
 {

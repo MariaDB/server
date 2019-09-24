@@ -1951,8 +1951,11 @@ my_decimal *Item_func_mod::decimal_op(my_decimal *decimal_value)
 
 void Item_func_mod::result_precision()
 {
+  unsigned_flag= args[0]->unsigned_flag;
   decimals= MY_MAX(args[0]->decimal_scale(), args[1]->decimal_scale());
-  max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
+  uint prec= MY_MAX(args[0]->decimal_precision(), args[1]->decimal_precision());
+  fix_char_length(my_decimal_precision_to_length_no_truncation(prec, decimals,
+                                                               unsigned_flag));
 }
 
 
@@ -1960,6 +1963,10 @@ void Item_func_mod::fix_length_and_dec()
 {
   Item_num_op::fix_length_and_dec();
   maybe_null= 1;
+  /*
+    result_precision() sets unsigned_flag for INT_RESULT and DECIMAL_RESULT.
+    Here we need to set it in case of REAL_RESULT.
+  */
   unsigned_flag= args[0]->unsigned_flag;
 }
 

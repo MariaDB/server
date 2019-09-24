@@ -796,6 +796,64 @@ STDDEV_SAMP(ROUND('0', 309))
 0
 DROP TABLE t1;
 #
+# MDEV-20495 Assertion `precision > 0' failed in decimal_bin_size upon CREATE .. SELECT with zerofilled decimal
+#
+# Testing that dyadic arithmetic operations are symmetric
+# for (+1) and (-1) and produce the same length in CONCAT(),
+# because (+1) and (-1) have the same data type: signed int.
+CREATE TABLE t1 AS SELECT
+CONCAT(+1%2.0),
+CONCAT(-1%2.0),
+CONCAT(+1/2.0),
+CONCAT(-1/2.0),
+CONCAT(+1*2.0),
+CONCAT(-1*2.0),
+CONCAT(+1+2.0),
+CONCAT(-1+2.0),
+CONCAT(+1-2.0),
+CONCAT(-1-2.0);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CONCAT(+1%2.0)` varchar(4) DEFAULT NULL,
+  `CONCAT(-1%2.0)` varchar(4) DEFAULT NULL,
+  `CONCAT(+1/2.0)` varchar(8) DEFAULT NULL,
+  `CONCAT(-1/2.0)` varchar(8) DEFAULT NULL,
+  `CONCAT(+1*2.0)` varchar(5) NOT NULL,
+  `CONCAT(-1*2.0)` varchar(5) NOT NULL,
+  `CONCAT(+1+2.0)` varchar(5) NOT NULL,
+  `CONCAT(-1+2.0)` varchar(5) NOT NULL,
+  `CONCAT(+1-2.0)` varchar(5) NOT NULL,
+  `CONCAT(-1-2.0)` varchar(5) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+CONCAT(+1%2),
+CONCAT(-1%2),
+CONCAT(+1/2),
+CONCAT(-1/2),
+CONCAT(+1*2),
+CONCAT(-1*2),
+CONCAT(+1+2),
+CONCAT(-1+2),
+CONCAT(+1-2),
+CONCAT(-1-2);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CONCAT(+1%2)` varchar(2) DEFAULT NULL,
+  `CONCAT(-1%2)` varchar(2) DEFAULT NULL,
+  `CONCAT(+1/2)` varchar(7) DEFAULT NULL,
+  `CONCAT(-1/2)` varchar(7) DEFAULT NULL,
+  `CONCAT(+1*2)` varchar(3) NOT NULL,
+  `CONCAT(-1*2)` varchar(3) NOT NULL,
+  `CONCAT(+1+2)` varchar(3) NOT NULL,
+  `CONCAT(-1+2)` varchar(3) NOT NULL,
+  `CONCAT(+1-2)` varchar(3) NOT NULL,
+  `CONCAT(-1-2)` varchar(3) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
 # End of 5.5 tests
 #
 #
