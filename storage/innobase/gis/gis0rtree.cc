@@ -761,7 +761,7 @@ rtr_adjust_upper_level(
 
 		buf_block_t*	prev_block = btr_block_get(
 			prev_page_id, block->zip_size(), RW_X_LATCH,
-			index, mtr);
+			*index, mtr);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(prev_block->frame) == page_is_comp(page));
 		ut_a(btr_page_get_next(prev_block->frame, mtr)
@@ -778,7 +778,7 @@ rtr_adjust_upper_level(
 
 		buf_block_t*	next_block = btr_block_get(
 			next_page_id, block->zip_size(), RW_X_LATCH,
-			index, mtr);
+			*index, mtr);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(next_block->frame) == page_is_comp(page));
 		ut_a(btr_page_get_prev(next_block->frame, mtr)
@@ -1882,7 +1882,7 @@ rtr_estimate_n_rows_in_range(
 	buf_block_t* block = btr_block_get(
 		page_id_t(index->table->space_id, index->page),
 		index->table->space->zip_size(),
-		RW_S_LATCH, index, &mtr);
+		RW_S_LATCH, *index, &mtr);
 	const page_t* page = buf_block_get_frame(block);
 	const unsigned n_recs = page_header_get_field(page, PAGE_N_RECS);
 

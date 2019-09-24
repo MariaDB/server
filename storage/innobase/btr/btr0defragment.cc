@@ -166,7 +166,7 @@ btr_defragment_add_index(
 	buf_block_t* block = btr_block_get(
 		page_id_t(index->table->space_id, index->page),
 		index->table->space->zip_size(),
-		RW_NO_LATCH, index, &mtr);
+		RW_NO_LATCH, *index, &mtr);
 	page_t* page = NULL;
 
 	if (block) {
@@ -487,9 +487,7 @@ btr_defragment_merge_pages(
 		lock_update_merge_left(to_block, orig_pred,
 				       from_block);
 		btr_search_drop_page_hash_index(from_block);
-		btr_level_list_remove(
-			index->table->space_id,
-			zip_size, from_page, index, mtr);
+		btr_level_list_remove(*from_block, *index, mtr);
 		btr_page_get_father(index, from_block, mtr, &parent);
 		btr_cur_node_ptr_delete(&parent, mtr);
 		/* btr_blob_dbg_remove(from_page, index,
@@ -593,7 +591,7 @@ btr_defragment_n_pages(
 
 		blocks[i] = btr_block_get(page_id_t(index->table->space_id,
 						    page_no), zip_size,
-					  RW_X_LATCH, index, mtr);
+					  RW_X_LATCH, *index, mtr);
 	}
 
 	if (n_pages == 1) {

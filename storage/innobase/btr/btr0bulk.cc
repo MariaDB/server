@@ -122,7 +122,7 @@ PageBulk::init()
 		new_block = btr_block_get(
 			page_id_t(m_index->table->space_id, m_page_no),
 			m_index->table->space->zip_size(),
-			RW_X_LATCH, m_index, &m_mtr);
+			RW_X_LATCH, *m_index, &m_mtr);
 
 		new_page = buf_block_get_frame(new_block);
 		new_page_zip = buf_block_get_page_zip(new_block);
@@ -1018,7 +1018,7 @@ BtrBulk::finish(dberr_t	err)
 		last_block = btr_block_get(
 			page_id_t(m_index->table->space_id, last_page_no),
 			m_index->table->space->zip_size(),
-			RW_X_LATCH, m_index, &mtr);
+			RW_X_LATCH, *m_index, &mtr);
 		first_rec = page_rec_get_next(
 			page_get_infimum_rec(last_block->frame));
 		ut_ad(page_rec_is_user_rec(first_rec));

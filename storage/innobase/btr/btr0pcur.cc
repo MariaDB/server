@@ -475,7 +475,7 @@ btr_pcur_move_to_next_page(
 	next_block = btr_block_get(
 		page_id_t(block->page.id.space(), next_page_no),
 		block->zip_size(), mode,
-		btr_pcur_get_btr_cur(cursor)->index, mtr);
+		*btr_pcur_get_btr_cur(cursor)->index, mtr);
 
 	if (UNIV_UNLIKELY(!next_block)) {
 		return;

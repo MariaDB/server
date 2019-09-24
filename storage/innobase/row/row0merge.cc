@@ -2032,7 +2032,7 @@ end_of_index:
 						  next_page_no),
 					block->zip_size(),
 					BTR_SEARCH_LEAF,
-					clust_index, &mtr);
+					*clust_index, &mtr);
 
 				btr_leaf_page_release(page_cur_get_block(cur),
 						      BTR_SEARCH_LEAF, &mtr);

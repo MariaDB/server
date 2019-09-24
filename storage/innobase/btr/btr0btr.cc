@@ -226,7 +226,7 @@ btr_root_block_get(
 	buf_block_t*	block = btr_block_get(
 		page_id_t(index->table->space_id, index->page),
 		index->table->space->zip_size(), mode,
-		index, mtr);
+		*index, mtr);
 
 	if (!block) {
 		index->table->file_unreadable = true;
@@ -367,7 +367,7 @@ btr_root_adjust_on_import(
 
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
 
-	block = btr_block_get(page_id, zip_size, RW_X_LATCH, index, &mtr);
+	block = btr_block_get(page_id, zip_size, RW_X_LATCH, *index, &mtr);
 
 	page = buf_block_get_frame(block);
 	page_zip = buf_block_get_page_zip(block);
@@ -830,7 +830,7 @@ btr_node_ptr_get_child(
 		page_id_t(index->table->space_id,
 			  btr_node_ptr_get_child_page_no(node_ptr, offsets)),
 		index->table->space->zip_size(),
-		RW_SX_LATCH, index, mtr);
+		RW_SX_LATCH, *index, mtr);
 }
 
 /************************************************************//**
@@ -2570,12 +2570,12 @@ btr_attach_half_pages(
 	if (prev_page_no != FIL_NULL && direction == FSP_DOWN) {
 		prev_block = btr_block_get(
 			page_id_t(space, prev_page_no), block->zip_size(),
-			RW_X_LATCH, index, mtr);
+			RW_X_LATCH, *index, mtr);
 	}
 	if (next_page_no != FIL_NULL && direction != FSP_DOWN) {
 		next_block = btr_block_get(
 			page_id_t(space, next_page_no), block->zip_size(),
-			RW_X_LATCH, index, mtr);
+			RW_X_LATCH, *index, mtr);
 	}
 
 	/* Get the level of the split pages */
@@ -2725,7 +2725,7 @@ btr_insert_into_right_sibling(
 
 	next_block = btr_block_get(
 		page_id_t(space, next_page_no), block->zip_size(),
-		RW_X_LATCH, cursor->index, mtr);
+		RW_X_LATCH, *cursor->index, mtr);
 	next_page = buf_block_get_frame(next_block);
 
 	bool	is_leaf = page_is_leaf(next_page);
@@ -3244,25 +3244,18 @@ func_exit:
 }
 
 /** Remove a page from the level list of pages.
-@param[in]	space		space where removed
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in,out]	page		page to remove
+@param[in]	block		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void
-btr_level_list_remove_func(
-	ulint			space,
-	ulint			zip_size,
-	page_t*			page,
-	dict_index_t*		index,
-	mtr_t*			mtr)
+void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
+			   mtr_t* mtr)
 {
-	ut_ad(page != NULL);
-	ut_ad(mtr != NULL);
-	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX));
-	ut_ad(space == page_get_space_id(page));
+	ut_ad(mtr_memo_contains(mtr, &block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(block.zip_size() == index.table->space->zip_size());
+	ut_ad(index.table->space->id == block.page.id.space());
 	/* Get the previous and next page numbers of page */
 
+	const page_t* page = block.frame;
 	const ulint	prev_page_no = btr_page_get_prev(page, mtr);
 	const ulint	next_page_no = btr_page_get_next(page, mtr);
 
@@ -3270,8 +3263,10 @@ btr_level_list_remove_func(
 
 	if (prev_page_no != FIL_NULL) {
 		buf_block_t*	prev_block
-			= btr_block_get(page_id_t(space, prev_page_no),
-					zip_size, RW_X_LATCH, index, mtr);
+			= btr_block_get(page_id_t(index.table->space->id,
+						  prev_page_no),
+					block.zip_size(), RW_X_LATCH,
+					index, mtr);
 
 		page_t*		prev_page
 			= buf_block_get_frame(prev_block);
@@ -3287,10 +3282,9 @@ btr_level_list_remove_func(
 	}
 
 	if (next_page_no != FIL_NULL) {
-		buf_block_t*	next_block
-			= btr_block_get(
-				page_id_t(space, next_page_no), zip_size,
-				RW_X_LATCH, index, mtr);
+		buf_block_t*	next_block = btr_block_get(
+			page_id_t(index.table->space->id, next_page_no),
+			block.zip_size(), RW_X_LATCH, index, mtr);
 
 		page_t*		next_page
 			= buf_block_get_frame(next_block);
@@ -3631,8 +3625,6 @@ btr_compress(
 
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 
-	const ulint zip_size = index->table->space->zip_size();
-
 	MONITOR_INC(MONITOR_INDEX_MERGE_ATTEMPTS);
 
 	left_page_no = btr_page_get_prev(page, mtr);
@@ -3788,8 +3780,7 @@ retry:
 		btr_search_drop_page_hash_index(block);
 
 		/* Remove the page from the level list */
-		btr_level_list_remove(index->table->space_id,
-				      zip_size, page, index, mtr);
+		btr_level_list_remove(*block, *index, mtr);
 
 		if (dict_index_is_spatial(index)) {
 			rec_t*  my_rec = father_cursor.page_cur.rec;
@@ -3918,8 +3909,7 @@ retry:
 #endif /* UNIV_BTR_DEBUG */
 
 		/* Remove the page from the level list */
-		btr_level_list_remove(index->table->space_id,
-				      zip_size, page, index, mtr);
+		btr_level_list_remove(*block, *index, mtr);
 
 		ut_ad(btr_node_ptr_get_child_page_no(
 			btr_cur_get_rec(&father_cursor), offsets)
@@ -4027,7 +4017,7 @@ retry:
 		committed mini-transaction, because in crash recovery,
 		the free bits could momentarily be set too high. */
 
-		if (zip_size) {
+		if (merge_block->zip_size()) {
 			/* Because the free bits may be incremented
 			and we cannot update the insert buffer bitmap
 			in the same mini-transaction, the only safe
@@ -4087,9 +4077,8 @@ func_exit:
 
 err_exit:
 	/* We play it safe and reset the free bits. */
-	if (zip_size
-	    && merge_page
-	    && page_is_leaf(merge_page)
+	if (merge_block && merge_block->zip_size()
+	    && page_is_leaf(merge_block->frame)
 	    && !dict_index_is_clust(index)) {
 
 		ibuf_reset_free_bits(merge_block);
@@ -4266,7 +4255,7 @@ btr_discard_page(
 	if (left_page_no != FIL_NULL) {
 		merge_block = btr_block_get(
 			page_id_t(index->table->space_id, left_page_no),
-			zip_size, RW_X_LATCH, index, mtr);
+			zip_size, RW_X_LATCH, *index, mtr);
 
 		merge_page = buf_block_get_frame(merge_block);
 #ifdef UNIV_BTR_DEBUG
@@ -4282,7 +4271,7 @@ btr_discard_page(
 	} else if (right_page_no != FIL_NULL) {
 		merge_block = btr_block_get(
 			page_id_t(index->table->space_id, right_page_no),
-			zip_size, RW_X_LATCH, index, mtr);
+			zip_size, RW_X_LATCH, *index, mtr);
 
 		merge_page = buf_block_get_frame(merge_block);
 #ifdef UNIV_BTR_DEBUG
@@ -4324,8 +4313,7 @@ btr_discard_page(
 	}
 
 	/* Remove the page from the level list */
-	btr_level_list_remove(index->table->space_id, zip_size,
-			      page, index, mtr);
+	btr_level_list_remove(*block, *index, mtr);
 
 #ifdef UNIV_ZIP_DEBUG
 	{
@@ -4941,7 +4929,7 @@ btr_validate_level(
 					page_id_t(index->table->space_id,
 						  left_page_no),
 					zip_size,
-					RW_SX_LATCH, index, &mtr);
+					RW_SX_LATCH, *index, &mtr);
 				page = buf_block_get_frame(block);
 				left_page_no = btr_page_get_prev(page, &mtr);
 			}
@@ -5012,7 +5000,7 @@ loop:
 		right_block = btr_block_get(
 			page_id_t(index->table->space_id, right_page_no),
 			zip_size,
-			RW_SX_LATCH, index, &mtr);
+			RW_SX_LATCH, *index, &mtr);
 
 		right_page = buf_block_get_frame(right_block);
 
@@ -5190,13 +5178,13 @@ loop:
 					page_id_t(index->table->space_id,
 						  parent_right_page_no),
 					zip_size,
-					RW_SX_LATCH, index, &mtr);
+					RW_SX_LATCH, *index, &mtr);
 
 				right_block = btr_block_get(
 					page_id_t(index->table->space_id,
 						  right_page_no),
 					zip_size,
-					RW_SX_LATCH, index, &mtr);
+					RW_SX_LATCH, *index, &mtr);
 			}
 
 			btr_cur_position(
@@ -5274,21 +5262,21 @@ node_ptr_fails:
 							index->table->space_id,
 							parent_right_page_no),
 						zip_size,
-						RW_SX_LATCH, index, &mtr);
+						RW_SX_LATCH, *index, &mtr);
 				}
 			} else if (parent_page_no != FIL_NULL) {
 				btr_block_get(
 					page_id_t(index->table->space_id,
 						  parent_page_no),
 					zip_size,
-					RW_SX_LATCH, index, &mtr);
+					RW_SX_LATCH, *index, &mtr);
 			}
 		}
 
 		block = btr_block_get(
 			page_id_t(index->table->space_id, right_page_no),
 			zip_size,
-			RW_SX_LATCH, index, &mtr);
+			RW_SX_LATCH, *index, &mtr);
 
 		page = buf_block_get_frame(block);
 
@@ -5395,7 +5383,7 @@ btr_can_merge_with_page(
 	const page_id_t		page_id(index->table->space_id, page_no);
 	const ulint zip_size = index->table->space->zip_size();
 
-	mblock = btr_block_get(page_id, zip_size, RW_X_LATCH, index, mtr);
+	mblock = btr_block_get(page_id, zip_size, RW_X_LATCH, *index, mtr);
 	mpage = buf_block_get_frame(mblock);
 
 	n_recs = page_get_n_recs(page);

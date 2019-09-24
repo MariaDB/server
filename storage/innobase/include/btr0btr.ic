@@ -47,7 +47,7 @@ btr_block_get_func(
 	ulint			mode,
 	const char*		file,
 	unsigned		line,
-	dict_index_t*		index,
+	const dict_index_t&	index,
 	mtr_t*			mtr)
 {
 	buf_block_t*	block;
@@ -57,21 +57,18 @@ btr_block_get_func(
 		page_id, zip_size, mode, NULL, BUF_GET, file, line, mtr, &err);
 
 	if (err == DB_DECRYPTION_FAILED) {
-		if (index && index->table) {
-			index->table->file_unreadable = true;
+		if (index.table) {
+			index.table->file_unreadable = true;
 		}
 	}
 
-	if (block) {
-		if (mode != RW_NO_LATCH) {
-
-			buf_block_dbg_add_level(
-				block, index != NULL && dict_index_is_ibuf(index)
-				? SYNC_IBUF_TREE_NODE : SYNC_TREE_NODE);
-		}
+	if (block && mode != RW_NO_LATCH) {
+		buf_block_dbg_add_level(block, index.is_ibuf()
+					? SYNC_IBUF_TREE_NODE
+					: SYNC_TREE_NODE);
 	}
 
-	return(block);
+	return block;
 }
 
 /**************************************************************//**

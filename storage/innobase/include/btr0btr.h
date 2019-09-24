@@ -223,8 +223,7 @@ btr_height_get(
 @param[in]	mode	latch mode
 @param[in]	file	file name
 @param[in]	line	line where called
-@param[in]	index	index tree, may be NULL if it is not an insert buffer
-tree
+@param[in]	index	index tree
 @param[in,out]	mtr	mini-transaction
 @return block */
 UNIV_INLINE
@@ -235,19 +234,19 @@ btr_block_get_func(
 	ulint			mode,
 	const char*		file,
 	unsigned		line,
-	dict_index_t*		index,
+	const dict_index_t&	index,
 	mtr_t*			mtr);
 
 /** Gets a buffer page and declares its latching order level.
 @param page_id tablespace/page identifier
 @param zip_size ROW_FORMAT=COMPRESSED page size, or 0
 @param mode latch mode
-@param index index tree, may be NULL if not the insert buffer tree
+@param index index tree
 @param mtr mini-transaction handle
 @return the block descriptor */
 # define btr_block_get(page_id, zip_size, mode, index, mtr)	\
 	btr_block_get_func(page_id, zip_size, mode,		\
-		__FILE__, __LINE__, (dict_index_t*)index, mtr)
+			   __FILE__, __LINE__, index, mtr)
 /**************************************************************//**
 Gets the index id field of a page.
 @return index id */
@@ -763,28 +762,11 @@ btr_validate_index(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Remove a page from the level list of pages.
-@param[in]	space		space where removed
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in,out]	page		page to remove
+@param[in]	block		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void
-btr_level_list_remove_func(
-	ulint			space,
-	ulint			zip_size,
-	page_t*			page,
-	dict_index_t*		index,
-	mtr_t*			mtr);
-
-/*************************************************************//**
-Removes a page from the level list of pages.
-@param space	in: space where removed
-@param zip_size	in: compressed page size in bytes, or 0 for uncompressed
-@param page	in/out: page to remove
-@param index	in: index tree
-@param mtr	in/out: mini-transaction */
-# define btr_level_list_remove(space,zip_size,page,index,mtr)		\
-	btr_level_list_remove_func(space,zip_size,page,index,mtr)
+void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
+			   mtr_t* mtr);
 
 /*************************************************************//**
 If page is the only on its level, this function moves its records to the

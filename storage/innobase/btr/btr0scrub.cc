@@ -451,14 +451,14 @@ btr_pessimistic_scrub(
 
 		btr_block_get(
 			page_id_t(index->table->space_id, left_page_no),
-			zip_size, RW_X_LATCH, index, mtr);
+			zip_size, RW_X_LATCH, *index, mtr);
 
 		/**
 		* Refetch block and re-initialize page
 		*/
 		block = btr_block_get(
 			page_id_t(index->table->space_id, page_no),
-			zip_size, RW_X_LATCH, index, mtr);
+			zip_size, RW_X_LATCH, *index, mtr);
 
 		page = buf_block_get_frame(block);
 
@@ -472,7 +472,7 @@ btr_pessimistic_scrub(
 	if (right_page_no != FIL_NULL) {
 		btr_block_get(
 			page_id_t(index->table->space_id, right_page_no),
-			zip_size, RW_X_LATCH, index, mtr);
+			zip_size, RW_X_LATCH, *index, mtr);
 	}
 
 	/* arguments to btr_page_split_and_insert */
