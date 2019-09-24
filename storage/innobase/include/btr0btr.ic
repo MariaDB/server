@@ -101,36 +101,6 @@ btr_page_set_index_id(
 	}
 }
 
-/** Gets a buffer page and declares its latching order level.
-@param space	tablespace identifier
-@param zip_size	compressed page size in bytes or 0 for uncompressed pages
-@param page_no	page number
-@param mode	latch mode
-@param idx	index tree, may be NULL if not the insert buffer tree
-@param mtr	mini-transaction handle
-@return the uncompressed page frame */
-UNIV_INLINE
-page_t*
-btr_page_get(
-/*=========*/
-	const page_id_t		page_id,
-	const page_size_t&	page_size,
-	ulint			mode,
-	dict_index_t*		index,
-	mtr_t*			mtr)
-{
-	buf_block_t* block=NULL;
-	buf_frame_t* frame=NULL;
-
-	block = btr_block_get(page_id, page_size, mode, index, mtr);
-
-	if (block) {
-		frame = buf_block_get_frame(block);
-	}
-
-	return ((page_t*)frame);
-}
-
 /**************************************************************//**
 Gets the index id field of a page.
 @return index id */
