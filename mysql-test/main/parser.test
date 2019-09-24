@@ -1544,7 +1544,6 @@ SELECT @@GLOBAL.role;
 --echo #
 
 create table t1 (a int);
---error ER_WRONG_USAGE
 (select * from t1) for update;
 --error ER_WRONG_USAGE
 (select * from t1) union (select * from t1) for update;
