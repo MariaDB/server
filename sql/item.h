@@ -2389,12 +2389,6 @@ public:
     Checks if this item consists in the left part of arg IN subquery predicate
   */
   bool pushable_equality_checker_for_subquery(uchar *arg);
-  bool is_number()
-  {
-    return (cmp_type() == INT_RESULT ||
-            cmp_type() == DECIMAL_RESULT ||
-            cmp_type() == REAL_RESULT);
-  }
   bool is_deterministic_arg();
 };
 

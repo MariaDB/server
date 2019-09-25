@@ -1027,22 +1027,6 @@ class Item_num_op :public Item_func_numhybrid
       set_handler(type_handler_long_or_longlong());
   }
   bool need_parentheses_in_default() { return true; }
-  bool is_deterministic_func()
-  {
-    Item *args0= args[0];
-    for (uint i= 0; i < arg_count; i++)
-    {
-      if (args[i]->field_type() == MYSQL_TYPE_FLOAT ||
-          args[i]->field_type() == MYSQL_TYPE_GEOMETRY ||
-          (args0->field_type() != MYSQL_TYPE_BIT &&
-           i != 0 &&
-           args[i]->field_type() == MYSQL_TYPE_BIT) ||
-          (args[i]->cmp_type() != args0->cmp_type() &&
-           (!args0->is_number() || !args[i]->is_number())))
-        return false;
-    }
-    return true;
-  }
 };
 
 

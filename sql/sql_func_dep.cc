@@ -74,6 +74,7 @@
         2. Contain non IS or FD fields from the left LEFT JOIN tables.
         3. Contain no IS or FD fields from the left LEFT JOIN tables if the
            considered LEFT JOIN is not the most outer LEFT JOIN.
+        4. Contain subquery.
 
     3. From Virtual column definition.
 
@@ -664,10 +665,11 @@ bool check_on_expr_and_get_equalities_info(FD_select_info *sl_info,
     return false;
   }
   if ((!sl_info->top_level &&                                            // 2
-         !(on_expr->used_tables() & (~sl_info->cur_level_tabs))) ||
-          ((on_expr->used_tables() & (~sl_info->cur_level_tabs)) &&        // 3
-            on_expr->walk(&Item::check_reject_fd_extraction_processor, 0,
-                        &sl_info->cur_level_tabs)))
+       !(on_expr->used_tables() & (~sl_info->cur_level_tabs))) ||
+      ((on_expr->used_tables() & (~sl_info->cur_level_tabs)) &&        // 3
+        on_expr->walk(&Item::check_reject_fd_extraction_processor, 0,
+                      &sl_info->cur_level_tabs)) ||
+       on_expr->with_subquery())
   {
     /*
       Check that this ON expression doesn't contain
@@ -1075,11 +1077,12 @@ bool are_select_fields_fd(st_select_lex *sl, List<Item> *gb_items,
 
 bool st_select_lex::check_func_dep()
 {
+  DBUG_ENTER("st_select_lex::check_func_dep");
   /* Stop if no tables are used or fake SELECT is processed. */
   if (leaf_tables.is_empty() ||
       select_number == UINT_MAX ||
       select_number == INT_MAX)
-    return false;
+    DBUG_RETURN(0);
 
   bool need_check= (group_list.elements > 0) ||
                     (master_unit()->outer_select() &&
@@ -1097,7 +1100,8 @@ bool st_select_lex::check_func_dep()
   }
   set_update_table_fields(this); /* UPDATE query processing. */
 
-  if (group_list.elements == 0 && !having)
+  if (group_list.elements == 0 &&
+      !having && !agg_func_used())
   {
     /*
       This SELECT has no GROUP BY clause and HAVING.
@@ -1111,31 +1115,29 @@ bool st_select_lex::check_func_dep()
       bitmap_set_all(&tbl->table->tmp_set);
     }
     if (!need_check)
-      return false;
+      DBUG_RETURN(0);
   }
 
   List<Item> gb_items;
   /* Collect fields from the GROUP BY of this SELECT. */
   if (collect_gb_items(this, gb_items))
-    return true;
+    DBUG_RETURN(1);
 
   if (olap != UNSPECIFIED_OLAP_TYPE)
   {
     table_map map= 0;
     /* If ROLLUP is used don't expand FD fields set. */
     if (!are_select_fields_fd(this, &gb_items, map))
-      return true;
-    return false;
+      DBUG_RETURN(1);
+    DBUG_RETURN(0);
   }
 
   List<Item_equal_fd_info> eq_info;
   FD_select_info *sl_info=
     new (join->thd->mem_root) FD_select_info(this, &eq_info, "WHERE clause");
-  if (expand_fdfs_with_top_join_tables_fields(sl_info))
-    return true;
+  if (expand_fdfs_with_top_join_tables_fields(sl_info) ||
+      !are_select_fields_fd(this, &gb_items, sl_info->forbid_fd_expansion))
+    DBUG_RETURN(1);
 
-  if (!are_select_fields_fd(this, &gb_items, sl_info->forbid_fd_expansion))
-    return true;
-
-  return false;
+  DBUG_RETURN(0);
 }

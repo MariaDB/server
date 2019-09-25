@@ -208,6 +208,46 @@ SELECT ORD(t3.y)=ORD(t3.z),t3.y,t3.z
 FROM t3
 GROUP BY t3.y,t3.z;
 
+SELECT LENGTH(LTRIM(t3.y)) = LENGTH(LTRIM(t3.z)),t3.y,t3.z
+FROM t3;
+--error ER_NON_GROUPING_FIELD_USED
+SELECT LENGTH(LTRIM(t3.y)) = LENGTH(LTRIM(t3.z)),t3.y,t3.z
+FROM t3
+GROUP BY t3.y,t3.z;
+
+SELECT LENGTH(RTRIM(t3.y)) = LENGTH(RTRIM(t3.z)),t3.y,t3.z
+FROM t3;
+--error ER_NON_GROUPING_FIELD_USED
+SELECT LENGTH(RTRIM(t3.y)) = LENGTH(RTRIM(t3.z)),t3.y,t3.z
+FROM t3
+GROUP BY t3.y,t3.z;
+
+SELECT RTRIM(LTRIM(t3.y)) = RTRIM(LTRIM(t3.z)),t3.y,t3.z
+FROM t3;
+--error ER_NON_GROUPING_FIELD_USED
+SELECT RTRIM(LTRIM(t3.y)) = RTRIM(LTRIM(t3.z)),t3.y,t3.z
+FROM t3
+GROUP BY t3.y,t3.z;
+
+SELECT QUOTE(TRIM(t3.y)) = QUOTE(TRIM(t3.z)),t3.y,t3.z
+FROM t3;
+--error ER_NON_GROUPING_FIELD_USED
+SELECT QUOTE(TRIM(t3.y)) = QUOTE(TRIM(t3.z)),t3.y,t3.z
+FROM t3
+GROUP BY t3.y,t3.z;
+
+SELECT RTRIM(TRIM(t3.y)) = RTRIM(TRIM(t3.z)),t3.y,t3.z
+FROM t3;
+SELECT RTRIM(TRIM(t3.y)) = RTRIM(TRIM(t3.z)),t3.y,t3.z
+FROM t3
+GROUP BY t3.y,t3.z;
+
+SELECT LCASE(TRIM(t3.y)) = LCASE(TRIM(t3.z)),t3.y,t3.z
+FROM t3;
+SELECT LCASE(TRIM(t3.y)) = LCASE(TRIM(t3.z)),t3.y,t3.z
+FROM t3
+GROUP BY t3.y,t3.z;
+
 EXPLAIN EXTENDED SELECT RAND()
 FROM t3
 GROUP BY t3.x;
@@ -216,7 +256,6 @@ EXPLAIN EXTENDED SELECT t3.x + RAND()
 FROM t3
 GROUP BY t3.x;
 
---error ER_NON_GROUPING_FIELD_USED
 EXPLAIN EXTENDED SELECT LENGTH(t3.y + RAND())
 FROM t3
 GROUP BY t3.y;
@@ -251,11 +290,10 @@ GROUP BY t3.a,t3.b,t3.c;
 
 DROP TABLE t3;
 
---echo # Forbid mixing INT and BIT
+--echo # Mixing INT and BIT
 CREATE TABLE t3(a INT, b BIT(8));
 INSERT INTO t3 VALUES(2, '11111111');
 
---error ER_NON_GROUPING_FIELD_USED
 SELECT a + b
 FROM t3
 GROUP BY a,b;
@@ -266,7 +304,7 @@ GROUP BY a,b;
 
 DROP TABLE t3;
 
---echo # Forbid using FLOAT
+--echo # Using FLOAT
 CREATE TABLE t3(a INT, b FLOAT);
 INSERT INTO t3 VALUES(2, 2.22);
 
@@ -275,7 +313,6 @@ SELECT a + b
 FROM t3
 GROUP BY a,b;
 
---error ER_NON_GROUPING_FIELD_USED
 SELECT a,LENGTH(b)
 FROM t3
 GROUP BY a,b;
@@ -382,6 +419,30 @@ GROUP BY t1.a;
 SELECT t1.b
 FROM t1
 WHERE t1.b = 1.01 AND t1.a = t1.b
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.b,t1.c
+FROM t1
+WHERE (t1.c,t1.c) = (1,1)
+GROUP BY t1.a,t1.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.b,t1.c
+FROM t1
+WHERE (t1.a,t1.c) = (1,1)
+GROUP BY t1.a,t1.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.b,t1.c
+FROM t1
+WHERE (t1.a,t1.b,t1.c) = (1,2,1)
+GROUP BY t1.a,t1.b;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t1.c
+FROM t1
+WHERE (t1.a,t1.b,t1.c) = (1,2,1)
 GROUP BY t1.a;
 
 --echo # Non-deterministic function in WHERE
@@ -809,9 +870,15 @@ FROM t3
 WHERE t3.a = TRIM(t3.b)
 GROUP BY t3.b;
 
+--error ER_NON_GROUPING_FIELD_USED
 SELECT t3.c
 FROM t3
 WHERE t3.c = LTRIM(t3.b)
+GROUP BY t3.b;
+
+SELECT t3.c
+FROM t3
+WHERE t3.c = RTRIM(t3.b)
 GROUP BY t3.b;
 
 SELECT t3.a
@@ -939,6 +1006,49 @@ SELECT 1
 FROM t3
 GROUP BY LENGTH(t3.y)
 ORDER BY LENGTH(t3.y);
+
+--echo #
+--echo #
+--echo # HAVING clause checking
+--echo #
+--echo #
+
+SELECT 1
+FROM t1
+GROUP BY t1.a
+HAVING t1.a > 1;
+
+--error 1054
+SELECT t1.a
+FROM t1
+WHERE t1.a = t1.b
+GROUP BY t1.a
+HAVING t1.b > 1;
+
+--error 1054
+SELECT t1.a
+FROM t1
+WHERE t1.a = t1.b
+GROUP BY t1.a
+HAVING t1.a + t1.b > 1;
+
+--error 1054
+SELECT t1.a
+FROM t1
+WHERE t1.a + 1 = t1.b
+GROUP BY t1.a
+HAVING t1.a + t1.b > 1;
+
+SELECT t3.y
+FROM t3
+GROUP BY t3.y
+HAVING TRIM(t3.y) > 1;
+
+--error 1054
+SELECT t1.a
+FROM t1
+GROUP BY t1.a
+HAVING t1.b > 1;
 
 DROP TABLE t3;
 
@@ -2150,52 +2260,11 @@ SELECT t2.c
 FROM t1 LEFT JOIN t2 ON (t2.c = 2) AND (t1.a = 2)
 GROUP BY t1.a;
 
---echo # Non-grouping left table LEFT JOIN field t1.b is used
---echo # in ON expression
-SELECT t1.a,t2.c
-FROM t1 LEFT JOIN t2 ON t1.a = 12 AND t1.b = t2.d;
---error ER_NON_GROUPING_FIELD_USED
-SELECT t1.a
-FROM t1 LEFT JOIN t2 ON t1.a = 12 AND t1.b = t2.d
-GROUP BY t2.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t1.b
-FROM t1 LEFT JOIN t2 ON t1.a = t1.b
-GROUP BY t1.a;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t1.b
-FROM t1 LEFT JOIN t2 ON t1.b = t2.c
-GROUP BY t1.a;
-
 SELECT t3.c
 FROM t1 LEFT JOIN (
                    t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND (t2.c = 1)
                   ) ON (t1.a = t2.d)
 GROUP BY t2.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.c
-FROM t1 LEFT JOIN t2 ON (t2.c = 2) AND (t1.b = 2)
-GROUP BY t1.a;
-
---echo # ON expression equality predicate can't be used to state
---echo # that left LEFT JOIN field t1.a is functionally dependent field
---error ER_NON_GROUPING_FIELD_USED
-SELECT t1.a
-FROM t1 LEFT JOIN t2 ON t1.a = 12
-GROUP BY t2.c;
-
---echo # No left table field (t2 field) is used in the ON expression
---echo # of the most inner LEFT JOIN
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.c
-FROM t1
-LEFT JOIN (
-           t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
-          ) ON (t1.a = 2)
-GROUP BY t1.a;
 
 SELECT t3.c
 FROM t1 LEFT JOIN (
@@ -2217,83 +2286,11 @@ FROM t1 LEFT JOIN (
                   ) ON (t1.a = t2.d)
 GROUP BY t1.a;
 
---error ER_NON_GROUPING_FIELD_USED
-SELECT t1.a,t2.d,t3.c
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
-                                            (t2.c = t2.d)
-                  ) ON (t1.a = t2.d)
-GROUP BY t1.a;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.d,t3.c
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
-                                            (t2.c = t2.d)
-                  ) ON 1 > 0
-GROUP BY t2.d;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.d,t3.c
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
-                  ) ON 1 > 0
-GROUP BY t2.d;
-
 SELECT t3.c
 FROM t1 JOIN (
               t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
              ) ON (t1.a = 1)
 GROUP BY "";
-
---echo # Is transformed into:
---echo # "select t3.c AS c from t1 join t2 left join t2 t3 on
---echo #  (t3.c = 2) where t1.a = 1 group by t2.c"
-SELECT t3.c
-FROM t1 JOIN (
-              t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
-             ) ON (t1.a = 1)
-GROUP BY t2.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t4.a
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN (
-                                 t2 AS t3
-                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
-                                ) ON (t2.c = 1)
-                  ) ON (t1.a = 1)
-GROUP BY t1.a;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.c
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN (
-                                 t2 AS t3
-                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
-                                ) ON (t3.c = 1)
-                  ) ON (t1.a = 1)
-GROUP BY t1.a;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t4.a
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN (
-                                 t2 AS t3
-                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
-                                ) ON (t3.c = 1)
-                  ) ON (t1.a = 1)
-GROUP BY t3.c;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t4.a
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN (
-                                 t2 AS t3
-                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
-                                ) ON (t2.c = t2.d)
-                  ) ON (t1.a = t2.d)
-GROUP BY t3.c;
 
 SELECT t4.a
 FROM t1 LEFT JOIN (
@@ -2321,90 +2318,21 @@ FROM t1 LEFT JOIN (
                   ) ON (t1.a = 1)
 GROUP BY t1.a;
 
---error ER_NON_GROUPING_FIELD_USED
+--echo # Is transformed into:
+--echo # "select t3.c AS c from t1 join t2 left join t2 t3 on
+--echo #  (t3.c = 2) where t1.a = 1 group by t2.c"
 SELECT t3.c
-FROM t1 LEFT JOIN (
-                   t2 JOIN
-                   t2 AS t3 ON (t3.c = 2)
-                  ) ON (t1.a = 1)
-GROUP BY "";
+FROM t1 JOIN (
+              t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+             ) ON (t1.a = 1)
+GROUP BY t2.c;
 
-SELECT t3.c
-FROM t1 LEFT JOIN (
-                   t2 JOIN
-                   t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
-                  ) ON (t1.a = 1)
-GROUP BY t1.a;
-
---error ER_NON_GROUPING_FIELD_USED
 SELECT t3.c
 FROM t1 LEFT JOIN (
                    t2 JOIN
                    t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
                   ) ON (t1.a = 1)
-GROUP BY "";
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.c
-FROM t1 LEFT JOIN (
-                   t2 JOIN
-                   t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
-                  ) ON 1 > 0
-GROUP BY "";
-
-SELECT t4.c
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN (
-                                 t1 AS t3
-                                 LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
-                                                       (t3.a > 0)
-                                ) ON (t2.d = t3.a) AND (t2.d > 1)
-                  ) ON t2.d = t1.a
 GROUP BY t1.a;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t4.c
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN (
-                                 t1 AS t3
-                                 LEFT JOIN t2 AS t4 ON t4.c = 2
-                                ) ON (t2.d = t3.a) AND (t2.d > 1)
-                  ) ON t2.d = t1.a
-GROUP BY t1.a;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t4.c
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN (
-                                 t1 AS t3
-                                 LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
-                                                       (t3.a > 1)
-                                ) ON t2.d = t3.a AND t2.c > 1
-                  ) ON t2.d = t1.a
-GROUP BY t1.a;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t4.c
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN (
-                                 t1 AS t3
-                                 LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
-                                                       (t3.a > 1)
-                                ) ON (t2.d = t3.a)
-                  ) ON (t2.d = t1.a) AND (t1.b > 2)
-GROUP BY t1.a;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t4.c
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN (
-                                 t1 AS t3
-                                 LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
-                                                       (t3.a > 1)
-                                ) ON t2.d = t3.a
-                  ) ON t2.d = t1.a AND t1.b > 2
-GROUP BY t1.a;
-
 SELECT t4.c
 FROM t1 LEFT JOIN (
                    t2 LEFT JOIN (
@@ -2462,20 +2390,14 @@ FROM t1 LEFT JOIN (
                   ) ON (t2.d = t1.a) AND (t2.c > 1)
 GROUP BY t1.a;
 
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
+SELECT t4.c
 FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN
-                   t1 AS t3 ON (t3.a = 1) AND (t2.d > 1)
-                  ) ON (t2.d = t1.a) AND (t1.b > 1)
-GROUP BY t1.a;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t1 LEFT JOIN (
-                   t2 LEFT JOIN
-                   t1 AS t3 ON (t2.d = t3.a) AND (t2.d > 1)
-                  ) ON (t2.d = t1.a) AND (t1.b > 1)
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
+                                                       (t3.a > 0)
+                                ) ON (t2.d = t3.a) AND (t2.d > 1)
+                  ) ON t2.d = t1.a
 GROUP BY t1.a;
 
 SELECT t4.c
@@ -2508,34 +2430,10 @@ FROM t1 LEFT JOIN (
                   ) ON 1 > 0
 GROUP BY t3.a;
 
---error ER_NON_GROUPING_FIELD_USED
 SELECT t3.a
 FROM t1 LEFT JOIN (
                    t2
                    JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
-                  ) ON (t1.a > 2)
-GROUP BY t2.c;
-
-SELECT t3.a
-FROM t1 LEFT JOIN (
-                   t2
-                   JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
-                  ) ON (t1.a = t2.c)
-GROUP BY t1.a;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t2.c
-FROM t1 LEFT JOIN (
-                   t2
-                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
-                  ) ON (t1.b > 2) and (t1.a = t2.c)
-GROUP BY t2.d;
-
---error ER_NON_GROUPING_FIELD_USED
-SELECT t3.a
-FROM t1 LEFT JOIN (
-                   t2
-                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
                   ) ON (t1.a = t2.c)
 GROUP BY t1.a;
 
@@ -2553,6 +2451,217 @@ GROUP BY t1.a;
 SELECT t1.b
 FROM t1 LEFT JOIN t2 ON (t2.d = t2.c AND t1.b = t2.d)
 WHERE t1.a = t2.c
+GROUP BY t1.a;
+
+--echo # Non-grouping left table LEFT JOIN field t1.b is used
+--echo # in ON expression
+SELECT t1.a,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = 12 AND t1.b = t2.d;
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a
+FROM t1 LEFT JOIN t2 ON t1.a = 12 AND t1.b = t2.d
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.b
+FROM t1 LEFT JOIN t2 ON t1.a = t1.b
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.b
+FROM t1 LEFT JOIN t2 ON t1.b = t2.c
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON (t2.c = 2) AND (t1.b = 2)
+GROUP BY t1.a;
+
+--echo # ON expression equality predicate can't be used to state
+--echo # that left LEFT JOIN field t1.a is functionally dependent field
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a
+FROM t1 LEFT JOIN t2 ON t1.a = 12
+GROUP BY t2.c;
+
+--echo # No left table field (t2 field) is used in the ON expression
+--echo # of the most inner LEFT JOIN
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t1
+LEFT JOIN (
+           t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+          ) ON (t1.a = 2)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t1.a,t2.d,t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+                                            (t2.c = t2.d)
+                  ) ON (t1.a = t2.d)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.d,t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+                                            (t2.c = t2.d)
+                  ) ON 1 > 0
+GROUP BY t2.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.d,t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+                  ) ON 1 > 0
+GROUP BY t2.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t2 AS t3
+                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
+                                ) ON (t2.c = 1)
+                  ) ON (t1.a = 1)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t2 AS t3
+                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
+                                ) ON (t3.c = 1)
+                  ) ON (t1.a = 1)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t2 AS t3
+                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
+                                ) ON (t3.c = 1)
+                  ) ON (t1.a = 1)
+GROUP BY t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t2 AS t3
+                                 LEFT JOIN t1 AS t4 ON (t4.a = 1)
+                                ) ON (t2.c = t2.d)
+                  ) ON (t1.a = t2.d)
+GROUP BY t3.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 JOIN
+                   t2 AS t3 ON (t3.c = 2)
+                  ) ON (t1.a = 1)
+GROUP BY "";
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 JOIN
+                   t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
+                  ) ON (t1.a = 1)
+GROUP BY "";
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.c
+FROM t1 LEFT JOIN (
+                   t2 JOIN
+                   t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
+                  ) ON 1 > 0
+GROUP BY "";
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON t4.c = 2
+                                ) ON (t2.d = t3.a) AND (t2.d > 1)
+                  ) ON t2.d = t1.a
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
+                                                       (t3.a > 1)
+                                ) ON t2.d = t3.a AND t2.c > 1
+                  ) ON t2.d = t1.a
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
+                                                       (t3.a > 1)
+                                ) ON (t2.d = t3.a)
+                  ) ON (t2.d = t1.a) AND (t1.b > 2)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t4.c
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN (
+                                 t1 AS t3
+                                 LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
+                                                       (t3.a > 1)
+                                ) ON t2.d = t3.a
+                  ) ON t2.d = t1.a AND t1.b > 2
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN
+                   t1 AS t3 ON (t3.a = 1) AND (t2.d > 1)
+                  ) ON (t2.d = t1.a) AND (t1.b > 1)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2 LEFT JOIN
+                   t1 AS t3 ON (t2.d = t3.a) AND (t2.d > 1)
+                  ) ON (t2.d = t1.a) AND (t1.b > 1)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2
+                   JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
+                  ) ON (t1.a > 2)
+GROUP BY t2.c;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.c
+FROM t1 LEFT JOIN (
+                   t2
+                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
+                  ) ON (t1.b > 2) and (t1.a = t2.c)
+GROUP BY t2.d;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t3.a
+FROM t1 LEFT JOIN (
+                   t2
+                   LEFT JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
+                  ) ON (t1.a = t2.c)
 GROUP BY t1.a;
 
 --echo #
@@ -2614,6 +2723,24 @@ GROUP BY t1.a;
 SELECT t1.a,t2.c
 FROM t1 LEFT JOIN t2 ON t1.a = t2.c
 WHERE t1.a = rand()
+GROUP BY t1.a;
+
+SELECT t1.a
+FROM t1 LEFT JOIN t2 ON (t1.a = t2.c) AND (SELECT t1.b)
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON (t1.a = t2.c) AND (SELECT t1.b)
+GROUP BY t1.a;
+
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON (t1.a = t2.c) AND t1.a
+GROUP BY t1.a;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON (t1.a = t2.c) AND (SELECT t1.a)
 GROUP BY t1.a;
 
 DROP TABLE t3;
@@ -2737,6 +2864,27 @@ FROM t1
 LEFT OUTER JOIN t2 ON t1.a = t2.c
   LEFT OUTER JOIN t1 AS t3 ON t1.a = t3.b
 GROUP BY t3.b;
+
+--echo # Aggregated functions used if no GROUP BY is used
+
+CREATE VIEW v1 AS (SELECT * FROM t1);
+
+SELECT MAX(v1.a)
+FROM v1;
+
+SELECT MAX(v1.a),SUM(v1.a)
+FROM v1;
+
+--echo # different error messages, should be the same
+--error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
+SELECT MAX(t1.a),t1.a
+FROM t1;
+
+--error ER_NON_GROUPING_FIELD_USED
+SELECT MAX(v1.a),v1.b
+FROM v1;
+
+DROP VIEW v1;
 
 DROP TABLE t1,t2;
 

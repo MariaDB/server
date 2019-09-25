@@ -10623,7 +10623,5 @@ bool Item::is_deterministic_arg()
          (collation.collation->state & MY_CS_NOPAD))))
       return false;
   }
-  if (field_type() == MYSQL_TYPE_FLOAT)
-    return false;
   return true;
 }

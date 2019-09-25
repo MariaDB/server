@@ -299,6 +299,62 @@ SELECT ORD(t3.y)=ORD(t3.z),t3.y,t3.z
 FROM t3
 GROUP BY t3.y,t3.z;
 ERROR 42000: Non-grouping field 'ORD(t3.y)=ORD(t3.z)' is used in SELECT list
+SELECT LENGTH(LTRIM(t3.y)) = LENGTH(LTRIM(t3.z)),t3.y,t3.z
+FROM t3;
+LENGTH(LTRIM(t3.y)) = LENGTH(LTRIM(t3.z))	y	z
+0	aa	aa 
+1	Aa 	aa 
+SELECT LENGTH(LTRIM(t3.y)) = LENGTH(LTRIM(t3.z)),t3.y,t3.z
+FROM t3
+GROUP BY t3.y,t3.z;
+ERROR 42000: Non-grouping field 'LENGTH(LTRIM(t3.y)) = LENGTH(LTRIM(t3.z))' is used in SELECT list
+SELECT LENGTH(RTRIM(t3.y)) = LENGTH(RTRIM(t3.z)),t3.y,t3.z
+FROM t3;
+LENGTH(RTRIM(t3.y)) = LENGTH(RTRIM(t3.z))	y	z
+1	aa	aa 
+1	Aa 	aa 
+SELECT LENGTH(RTRIM(t3.y)) = LENGTH(RTRIM(t3.z)),t3.y,t3.z
+FROM t3
+GROUP BY t3.y,t3.z;
+ERROR 42000: Non-grouping field 'LENGTH(RTRIM(t3.y)) = LENGTH(RTRIM(t3.z))' is used in SELECT list
+SELECT RTRIM(LTRIM(t3.y)) = RTRIM(LTRIM(t3.z)),t3.y,t3.z
+FROM t3;
+RTRIM(LTRIM(t3.y)) = RTRIM(LTRIM(t3.z))	y	z
+1	aa	aa 
+1	Aa 	aa 
+SELECT RTRIM(LTRIM(t3.y)) = RTRIM(LTRIM(t3.z)),t3.y,t3.z
+FROM t3
+GROUP BY t3.y,t3.z;
+ERROR 42000: Non-grouping field 'RTRIM(LTRIM(t3.y)) = RTRIM(LTRIM(t3.z))' is used in SELECT list
+SELECT QUOTE(TRIM(t3.y)) = QUOTE(TRIM(t3.z)),t3.y,t3.z
+FROM t3;
+QUOTE(TRIM(t3.y)) = QUOTE(TRIM(t3.z))	y	z
+1	aa	aa 
+1	Aa 	aa 
+SELECT QUOTE(TRIM(t3.y)) = QUOTE(TRIM(t3.z)),t3.y,t3.z
+FROM t3
+GROUP BY t3.y,t3.z;
+ERROR 42000: Non-grouping field 'QUOTE(TRIM(t3.y)) = QUOTE(TRIM(t3.z))' is used in SELECT list
+SELECT RTRIM(TRIM(t3.y)) = RTRIM(TRIM(t3.z)),t3.y,t3.z
+FROM t3;
+RTRIM(TRIM(t3.y)) = RTRIM(TRIM(t3.z))	y	z
+1	aa	aa 
+1	Aa 	aa 
+SELECT RTRIM(TRIM(t3.y)) = RTRIM(TRIM(t3.z)),t3.y,t3.z
+FROM t3
+GROUP BY t3.y,t3.z;
+RTRIM(TRIM(t3.y)) = RTRIM(TRIM(t3.z))	y	z
+1	aa	aa 
+SELECT LCASE(TRIM(t3.y)) = LCASE(TRIM(t3.z)),t3.y,t3.z
+FROM t3;
+LCASE(TRIM(t3.y)) = LCASE(TRIM(t3.z))	y	z
+1	aa	aa 
+1	Aa 	aa 
+SELECT LCASE(TRIM(t3.y)) = LCASE(TRIM(t3.z)),t3.y,t3.z
+FROM t3
+GROUP BY t3.y,t3.z;
+LCASE(TRIM(t3.y)) = LCASE(TRIM(t3.z))	y	z
+1	aa	aa 
 EXPLAIN EXTENDED SELECT RAND()
 FROM t3
 GROUP BY t3.x;
@@ -316,7 +372,10 @@ Note	1003	select `test`.`t3`.`x` + rand() AS `t3.x + RAND()` from `test`.`t3` gr
 EXPLAIN EXTENDED SELECT LENGTH(t3.y + RAND())
 FROM t3
 GROUP BY t3.y;
-ERROR 42000: Non-grouping field 'LENGTH(t3.y + RAND())' is used in SELECT list
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
+Warnings:
+Note	1003	select octet_length(`test`.`t3`.`y` + rand()) AS `LENGTH(t3.y + RAND())` from `test`.`t3` group by `test`.`t3`.`y`
 DROP TABLE t3;
 # Forbid using functions that use FLOAT type
 CREATE TABLE t3(a INT, b DOUBLE, c FLOAT);
@@ -347,7 +406,7 @@ a	b	c
 2	2.2	2.2
 2	2.21	2.211
 DROP TABLE t3;
-# Forbid mixing INT and BIT
+# Mixing INT and BIT
 CREATE TABLE t3(a INT, b BIT(8));
 INSERT INTO t3 VALUES(2, '11111111');
 Warnings:
@@ -355,14 +414,15 @@ Warning	1264	Out of range value for column 'b' at row 1
 SELECT a + b
 FROM t3
 GROUP BY a,b;
-ERROR 42000: Non-grouping field 'a + b' is used in SELECT list
+a + b
+257
 SELECT a,b
 FROM t3
 GROUP BY a,b;
 a	b
 2	ÿ
 DROP TABLE t3;
-# Forbid using FLOAT
+# Using FLOAT
 CREATE TABLE t3(a INT, b FLOAT);
 INSERT INTO t3 VALUES(2, 2.22);
 SELECT a + b
@@ -372,7 +432,8 @@ ERROR 42000: Non-grouping field 'a + b' is used in SELECT list
 SELECT a,LENGTH(b)
 FROM t3
 GROUP BY a,b;
-ERROR 42000: Non-grouping field 'LENGTH(b)' is used in SELECT list
+a	LENGTH(b)
+2	4
 SELECT a,b
 FROM t3
 GROUP BY a,b;
@@ -483,6 +544,26 @@ FROM t1
 WHERE t1.b = 1.01 AND t1.a = t1.b
 GROUP BY t1.a;
 b
+SELECT t1.a,t1.b,t1.c
+FROM t1
+WHERE (t1.c,t1.c) = (1,1)
+GROUP BY t1.a,t1.b;
+ERROR 42000: Non-grouping field 'test.t1.c' is used in SELECT list
+SELECT t1.a,t1.b,t1.c
+FROM t1
+WHERE (t1.a,t1.c) = (1,1)
+GROUP BY t1.a,t1.b;
+ERROR 42000: Non-grouping field 'test.t1.c' is used in SELECT list
+SELECT t1.a,t1.b,t1.c
+FROM t1
+WHERE (t1.a,t1.b,t1.c) = (1,2,1)
+GROUP BY t1.a,t1.b;
+ERROR 42000: Non-grouping field 'test.t1.c' is used in SELECT list
+SELECT t1.a,t1.c
+FROM t1
+WHERE (t1.a,t1.b,t1.c) = (1,2,1)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t1.c' is used in SELECT list
 # Non-deterministic function in WHERE
 CREATE TABLE t3 (x INT, y VARCHAR(3), z VARCHAR(5));
 INSERT INTO t3 VALUES (1, 'aa','a'),(2, 'aa ','a ');
@@ -948,6 +1029,11 @@ SELECT t3.c
 FROM t3
 WHERE t3.c = LTRIM(t3.b)
 GROUP BY t3.b;
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
+SELECT t3.c
+FROM t3
+WHERE t3.c = RTRIM(t3.b)
+GROUP BY t3.b;
 c
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'aa'
@@ -1090,6 +1176,48 @@ ORDER BY LENGTH(t3.y);
 1
 1
 1
+#
+#
+# HAVING clause checking
+#
+#
+SELECT 1
+FROM t1
+GROUP BY t1.a
+HAVING t1.a > 1;
+1
+1
+SELECT t1.a
+FROM t1
+WHERE t1.a = t1.b
+GROUP BY t1.a
+HAVING t1.b > 1;
+ERROR 42S22: Unknown column 't1.b' in 'having clause'
+SELECT t1.a
+FROM t1
+WHERE t1.a = t1.b
+GROUP BY t1.a
+HAVING t1.a + t1.b > 1;
+ERROR 42S22: Unknown column 't1.b' in 'having clause'
+SELECT t1.a
+FROM t1
+WHERE t1.a + 1 = t1.b
+GROUP BY t1.a
+HAVING t1.a + t1.b > 1;
+ERROR 42S22: Unknown column 't1.b' in 'having clause'
+SELECT t3.y
+FROM t3
+GROUP BY t3.y
+HAVING TRIM(t3.y) > 1;
+y
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'aa'
+Warning	1292	Truncated incorrect DOUBLE value: 'Aa'
+SELECT t1.a
+FROM t1
+GROUP BY t1.a
+HAVING t1.b > 1;
+ERROR 42S22: Unknown column 't1.b' in 'having clause'
 DROP TABLE t3;
 #
 # Materialized derived tables/views
@@ -2438,26 +2566,6 @@ c
 NULL
 NULL
 2
-# Non-grouping left table LEFT JOIN field t1.b is used
-# in ON expression
-SELECT t1.a,t2.c
-FROM t1 LEFT JOIN t2 ON t1.a = 12 AND t1.b = t2.d;
-a	c
-1	NULL
-2	NULL
-NULL	NULL
-SELECT t1.a
-FROM t1 LEFT JOIN t2 ON t1.a = 12 AND t1.b = t2.d
-GROUP BY t2.c;
-ERROR 42000: Non-grouping field 'test.t1.a' is used in SELECT list
-SELECT t1.b
-FROM t1 LEFT JOIN t2 ON t1.a = t1.b
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t1.b' is used in SELECT list
-SELECT t1.b
-FROM t1 LEFT JOIN t2 ON t1.b = t2.c
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t1.b' is used in SELECT list
 SELECT t3.c
 FROM t1 LEFT JOIN (
 t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND (t2.c = 1)
@@ -2466,25 +2574,6 @@ GROUP BY t2.c;
 c
 NULL
 NULL
-SELECT t2.c
-FROM t1 LEFT JOIN t2 ON (t2.c = 2) AND (t1.b = 2)
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t2.c' is used in SELECT list
-# ON expression equality predicate can't be used to state
-# that left LEFT JOIN field t1.a is functionally dependent field
-SELECT t1.a
-FROM t1 LEFT JOIN t2 ON t1.a = 12
-GROUP BY t2.c;
-ERROR 42000: Non-grouping field 'test.t1.a' is used in SELECT list
-# No left table field (t2 field) is used in the ON expression
-# of the most inner LEFT JOIN
-SELECT t3.c
-FROM t1
-LEFT JOIN (
-t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
-) ON (t1.a = 2)
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
 SELECT t3.c
 FROM t1 LEFT JOIN (
 t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND (t2.c = 1)
@@ -2514,26 +2603,6 @@ a	d	c	d
 NULL	NULL	NULL	NULL
 1	1	2	1
 2	NULL	NULL	NULL
-SELECT t1.a,t2.d,t3.c
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
-(t2.c = t2.d)
-) ON (t1.a = t2.d)
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
-SELECT t2.d,t3.c
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
-(t2.c = t2.d)
-) ON 1 > 0
-GROUP BY t2.d;
-ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
-SELECT t2.d,t3.c
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
-) ON 1 > 0
-GROUP BY t2.d;
-ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
 SELECT t3.c
 FROM t1 JOIN (
 t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
@@ -2541,53 +2610,6 @@ t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
 GROUP BY "";
 c
 2
-# Is transformed into:
-# "select t3.c AS c from t1 join t2 left join t2 t3 on
-#  (t3.c = 2) where t1.a = 1 group by t2.c"
-SELECT t3.c
-FROM t1 JOIN (
-t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
-) ON (t1.a = 1)
-GROUP BY t2.c;
-c
-2
-2
-SELECT t4.a
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN (
-t2 AS t3
-LEFT JOIN t1 AS t4 ON (t4.a = 1)
-) ON (t2.c = 1)
-) ON (t1.a = 1)
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t4.a' is used in SELECT list
-SELECT t3.c
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN (
-t2 AS t3
-LEFT JOIN t1 AS t4 ON (t4.a = 1)
-) ON (t3.c = 1)
-) ON (t1.a = 1)
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
-SELECT t4.a
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN (
-t2 AS t3
-LEFT JOIN t1 AS t4 ON (t4.a = 1)
-) ON (t3.c = 1)
-) ON (t1.a = 1)
-GROUP BY t3.c;
-ERROR 42000: Non-grouping field 'test.t4.a' is used in SELECT list
-SELECT t4.a
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN (
-t2 AS t3
-LEFT JOIN t1 AS t4 ON (t4.a = 1)
-) ON (t2.c = t2.d)
-) ON (t1.a = t2.d)
-GROUP BY t3.c;
-ERROR 42000: Non-grouping field 'test.t4.a' is used in SELECT list
 SELECT t4.a
 FROM t1 LEFT JOIN (
 t2 LEFT JOIN (
@@ -2622,13 +2644,17 @@ c
 NULL
 2
 NULL
+# Is transformed into:
+# "select t3.c AS c from t1 join t2 left join t2 t3 on
+#  (t3.c = 2) where t1.a = 1 group by t2.c"
 SELECT t3.c
-FROM t1 LEFT JOIN (
-t2 JOIN
-t2 AS t3 ON (t3.c = 2)
+FROM t1 JOIN (
+t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
 ) ON (t1.a = 1)
-GROUP BY "";
-ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
+GROUP BY t2.c;
+c
+2
+2
 SELECT t3.c
 FROM t1 LEFT JOIN (
 t2 JOIN
@@ -2639,72 +2665,6 @@ c
 NULL
 2
 NULL
-SELECT t3.c
-FROM t1 LEFT JOIN (
-t2 JOIN
-t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
-) ON (t1.a = 1)
-GROUP BY "";
-ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
-SELECT t3.c
-FROM t1 LEFT JOIN (
-t2 JOIN
-t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
-) ON 1 > 0
-GROUP BY "";
-ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
-SELECT t4.c
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN (
-t1 AS t3
-LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
-(t3.a > 0)
-) ON (t2.d = t3.a) AND (t2.d > 1)
-) ON t2.d = t1.a
-GROUP BY t1.a;
-c
-NULL
-NULL
-NULL
-SELECT t4.c
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN (
-t1 AS t3
-LEFT JOIN t2 AS t4 ON t4.c = 2
-) ON (t2.d = t3.a) AND (t2.d > 1)
-) ON t2.d = t1.a
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t4.c' is used in SELECT list
-SELECT t4.c
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN (
-t1 AS t3
-LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
-(t3.a > 1)
-) ON t2.d = t3.a AND t2.c > 1
-) ON t2.d = t1.a
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t4.c' is used in SELECT list
-SELECT t4.c
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN (
-t1 AS t3
-LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
-(t3.a > 1)
-) ON (t2.d = t3.a)
-) ON (t2.d = t1.a) AND (t1.b > 2)
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t4.c' is used in SELECT list
-SELECT t4.c
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN (
-t1 AS t3
-LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
-(t3.a > 1)
-) ON t2.d = t3.a
-) ON t2.d = t1.a AND t1.b > 2
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t4.c' is used in SELECT list
 SELECT t4.c
 FROM t1 LEFT JOIN (
 t2 LEFT JOIN (
@@ -2780,20 +2740,19 @@ a
 NULL
 NULL
 NULL
-SELECT t3.a
+SELECT t4.c
 FROM t1 LEFT JOIN (
-t2 LEFT JOIN
-t1 AS t3 ON (t3.a = 1) AND (t2.d > 1)
-) ON (t2.d = t1.a) AND (t1.b > 1)
+t2 LEFT JOIN (
+t1 AS t3
+LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
+(t3.a > 0)
+) ON (t2.d = t3.a) AND (t2.d > 1)
+) ON t2.d = t1.a
 GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
-SELECT t3.a
-FROM t1 LEFT JOIN (
-t2 LEFT JOIN
-t1 AS t3 ON (t2.d = t3.a) AND (t2.d > 1)
-) ON (t2.d = t1.a) AND (t1.b > 1)
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
+c
+NULL
+NULL
+NULL
 SELECT t4.c
 FROM t1 LEFT JOIN (
 t2 LEFT JOIN (
@@ -2833,13 +2792,6 @@ c
 NULL
 NULL
 2
-SELECT t3.a
-FROM t1 LEFT JOIN (
-t2
-JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
-) ON (t1.a > 2)
-GROUP BY t2.c;
-ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
 SELECT t3.a
 FROM t1 LEFT JOIN (
 t2
@@ -2850,20 +2802,6 @@ a
 NULL
 NULL
 2
-SELECT t2.c
-FROM t1 LEFT JOIN (
-t2
-LEFT JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
-) ON (t1.b > 2) and (t1.a = t2.c)
-GROUP BY t2.d;
-ERROR 42000: Non-grouping field 'test.t2.c' is used in SELECT list
-SELECT t3.a
-FROM t1 LEFT JOIN (
-t2
-LEFT JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
-) ON (t1.a = t2.c)
-GROUP BY t1.a;
-ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
 # Is transformed into
 # "select t1.b AS b from t1 join t2 where t1.a = t2.c
 #  and t1.b = t2.c and t2.d = t2.c group by t1.a"
@@ -2880,6 +2818,196 @@ FROM t1 LEFT JOIN t2 ON (t2.d = t2.c AND t1.b = t2.d)
 WHERE t1.a = t2.c
 GROUP BY t1.a;
 b
+# Non-grouping left table LEFT JOIN field t1.b is used
+# in ON expression
+SELECT t1.a,t2.c
+FROM t1 LEFT JOIN t2 ON t1.a = 12 AND t1.b = t2.d;
+a	c
+1	NULL
+2	NULL
+NULL	NULL
+SELECT t1.a
+FROM t1 LEFT JOIN t2 ON t1.a = 12 AND t1.b = t2.d
+GROUP BY t2.c;
+ERROR 42000: Non-grouping field 'test.t1.a' is used in SELECT list
+SELECT t1.b
+FROM t1 LEFT JOIN t2 ON t1.a = t1.b
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t1.b' is used in SELECT list
+SELECT t1.b
+FROM t1 LEFT JOIN t2 ON t1.b = t2.c
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t1.b' is used in SELECT list
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON (t2.c = 2) AND (t1.b = 2)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t2.c' is used in SELECT list
+# ON expression equality predicate can't be used to state
+# that left LEFT JOIN field t1.a is functionally dependent field
+SELECT t1.a
+FROM t1 LEFT JOIN t2 ON t1.a = 12
+GROUP BY t2.c;
+ERROR 42000: Non-grouping field 'test.t1.a' is used in SELECT list
+# No left table field (t2 field) is used in the ON expression
+# of the most inner LEFT JOIN
+SELECT t3.c
+FROM t1
+LEFT JOIN (
+t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+) ON (t1.a = 2)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
+SELECT t1.a,t2.d,t3.c
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+(t2.c = t2.d)
+) ON (t1.a = t2.d)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
+SELECT t2.d,t3.c
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN t2 AS t3 ON (t3.c = 2) AND
+(t2.c = t2.d)
+) ON 1 > 0
+GROUP BY t2.d;
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
+SELECT t2.d,t3.c
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN t2 AS t3 ON (t3.c = 2)
+) ON 1 > 0
+GROUP BY t2.d;
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
+SELECT t4.a
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN (
+t2 AS t3
+LEFT JOIN t1 AS t4 ON (t4.a = 1)
+) ON (t2.c = 1)
+) ON (t1.a = 1)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t4.a' is used in SELECT list
+SELECT t3.c
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN (
+t2 AS t3
+LEFT JOIN t1 AS t4 ON (t4.a = 1)
+) ON (t3.c = 1)
+) ON (t1.a = 1)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
+SELECT t4.a
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN (
+t2 AS t3
+LEFT JOIN t1 AS t4 ON (t4.a = 1)
+) ON (t3.c = 1)
+) ON (t1.a = 1)
+GROUP BY t3.c;
+ERROR 42000: Non-grouping field 'test.t4.a' is used in SELECT list
+SELECT t4.a
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN (
+t2 AS t3
+LEFT JOIN t1 AS t4 ON (t4.a = 1)
+) ON (t2.c = t2.d)
+) ON (t1.a = t2.d)
+GROUP BY t3.c;
+ERROR 42000: Non-grouping field 'test.t4.a' is used in SELECT list
+SELECT t3.c
+FROM t1 LEFT JOIN (
+t2 JOIN
+t2 AS t3 ON (t3.c = 2)
+) ON (t1.a = 1)
+GROUP BY "";
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
+SELECT t3.c
+FROM t1 LEFT JOIN (
+t2 JOIN
+t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
+) ON (t1.a = 1)
+GROUP BY "";
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
+SELECT t3.c
+FROM t1 LEFT JOIN (
+t2 JOIN
+t2 AS t3 ON (t3.c = 2) AND (t2.c = t2.c)
+) ON 1 > 0
+GROUP BY "";
+ERROR 42000: Non-grouping field 'test.t3.c' is used in SELECT list
+SELECT t4.c
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN (
+t1 AS t3
+LEFT JOIN t2 AS t4 ON t4.c = 2
+) ON (t2.d = t3.a) AND (t2.d > 1)
+) ON t2.d = t1.a
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t4.c' is used in SELECT list
+SELECT t4.c
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN (
+t1 AS t3
+LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
+(t3.a > 1)
+) ON t2.d = t3.a AND t2.c > 1
+) ON t2.d = t1.a
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t4.c' is used in SELECT list
+SELECT t4.c
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN (
+t1 AS t3
+LEFT JOIN t2 AS t4 ON (t4.c = 2) AND
+(t3.a > 1)
+) ON (t2.d = t3.a)
+) ON (t2.d = t1.a) AND (t1.b > 2)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t4.c' is used in SELECT list
+SELECT t4.c
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN (
+t1 AS t3
+LEFT JOIN t2 AS t4 ON (t4.c = t3.a) AND
+(t3.a > 1)
+) ON t2.d = t3.a
+) ON t2.d = t1.a AND t1.b > 2
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t4.c' is used in SELECT list
+SELECT t3.a
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN
+t1 AS t3 ON (t3.a = 1) AND (t2.d > 1)
+) ON (t2.d = t1.a) AND (t1.b > 1)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
+SELECT t3.a
+FROM t1 LEFT JOIN (
+t2 LEFT JOIN
+t1 AS t3 ON (t2.d = t3.a) AND (t2.d > 1)
+) ON (t2.d = t1.a) AND (t1.b > 1)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
+SELECT t3.a
+FROM t1 LEFT JOIN (
+t2
+JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
+) ON (t1.a > 2)
+GROUP BY t2.c;
+ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
+SELECT t2.c
+FROM t1 LEFT JOIN (
+t2
+LEFT JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
+) ON (t1.b > 2) and (t1.a = t2.c)
+GROUP BY t2.d;
+ERROR 42000: Non-grouping field 'test.t2.c' is used in SELECT list
+SELECT t3.a
+FROM t1 LEFT JOIN (
+t2
+LEFT JOIN t1 AS t3 ON (t2.c = t3.a) AND (t2.d > 1)
+) ON (t1.a = t2.c)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t3.a' is used in SELECT list
 #
 # Usage of non-deterministic functions
 #
@@ -2937,6 +3065,28 @@ FROM t1 LEFT JOIN t2 ON t1.a = t2.c
 WHERE t1.a = rand()
 GROUP BY t1.a;
 a	c
+SELECT t1.a
+FROM t1 LEFT JOIN t2 ON (t1.a = t2.c) AND (SELECT t1.b)
+GROUP BY t1.a;
+a
+NULL
+1
+2
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON (t1.a = t2.c) AND (SELECT t1.b)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t2.c' is used in SELECT list
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON (t1.a = t2.c) AND t1.a
+GROUP BY t1.a;
+c
+NULL
+NULL
+2
+SELECT t2.c
+FROM t1 LEFT JOIN t2 ON (t1.a = t2.c) AND (SELECT t1.a)
+GROUP BY t1.a;
+ERROR 42000: Non-grouping field 'test.t2.c' is used in SELECT list
 DROP TABLE t3;
 #
 #  Mergeable derived table or view on the right side
@@ -3085,5 +3235,23 @@ LEFT OUTER JOIN t2 ON t1.a = t2.c
 LEFT OUTER JOIN t1 AS t3 ON t1.a = t3.b
 GROUP BY t3.b;
 ERROR 42000: Non-grouping field 'test.t2.c' is used in SELECT list
+# Aggregated functions used if no GROUP BY is used
+CREATE VIEW v1 AS (SELECT * FROM t1);
+SELECT MAX(v1.a)
+FROM v1;
+MAX(v1.a)
+2
+SELECT MAX(v1.a),SUM(v1.a)
+FROM v1;
+MAX(v1.a)	SUM(v1.a)
+2	3
+# different error messages, should be the same
+SELECT MAX(t1.a),t1.a
+FROM t1;
+ERROR 42000: Mixing of GROUP columns (MIN(),MAX(),COUNT(),...) with no GROUP columns is illegal if there is no GROUP BY clause
+SELECT MAX(v1.a),v1.b
+FROM v1;
+ERROR 42000: Non-grouping field 'test.t1.b' is used in SELECT list
+DROP VIEW v1;
 DROP TABLE t1,t2;
 SET SQL_MODE=' ';

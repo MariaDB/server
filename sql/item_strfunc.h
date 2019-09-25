@@ -605,6 +605,8 @@ public:
   const char *mode_name() const { return "leading"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_ltrim>(thd, this); }
+  bool is_deterministic_func()
+  { return Item_args::has_deterministic_args(); }
 };
 
 
