@@ -238,7 +238,6 @@ btr_block_get_func(
 	dict_index_t*		index,
 	mtr_t*			mtr);
 
-# ifdef UNIV_DEBUG
 /** Gets a buffer page and declares its latching order level.
 @param page_id tablespace/page identifier
 @param zip_size ROW_FORMAT=COMPRESSED page size, or 0
@@ -246,36 +245,9 @@ btr_block_get_func(
 @param index index tree, may be NULL if not the insert buffer tree
 @param mtr mini-transaction handle
 @return the block descriptor */
-#  define btr_block_get(page_id, zip_size, mode, index, mtr)	\
+# define btr_block_get(page_id, zip_size, mode, index, mtr)	\
 	btr_block_get_func(page_id, zip_size, mode,		\
 		__FILE__, __LINE__, (dict_index_t*)index, mtr)
-# else /* UNIV_DEBUG */
-/** Gets a buffer page and declares its latching order level.
-@param page_id tablespace/page identifier
-@param zip_size ROW_FORMAT=COMPRESSED page size, or 0
-@param mode latch mode
-@param index index tree, may be NULL if not the insert buffer tree
-@param mtr mini-transaction handle
-@return the block descriptor */
-#  define btr_block_get(page_id, zip_size, mode, index, mtr)	\
-	btr_block_get_func(page_id, zip_size, mode, __FILE__, __LINE__, (dict_index_t*)index, mtr)
-# endif /* UNIV_DEBUG */
-/** Gets a buffer page and declares its latching order level.
-@param page_id tablespace/page identifier
-@param zip_size	compressed page size in bytes or 0 for uncompressed pages
-@param mode latch mode
-@param index index tree, may be NULL if not the insert buffer tree
-@param mtr mini-transaction handle
-@return the uncompressed page frame */
-UNIV_INLINE
-page_t*
-btr_page_get(
-	const page_id_t		page_id,
-	ulint			zip_size,
-	ulint			mode,
-	dict_index_t*		index,
-	mtr_t*			mtr)
-	MY_ATTRIBUTE((warn_unused_result));
 /**************************************************************//**
 Gets the index id field of a page.
 @return index id */

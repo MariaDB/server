@@ -244,12 +244,10 @@ UMask=007
 PrivateTmp=false
 
 # Controlling how multiple instances are separated. See top of this file.
-# Note 1: This service isn't User=mysql by default so we need to be explicit.
-# Note 2: we set --basedir to prevent probes that might trigger SELinux alarms,
-# per bug https://bugzilla.redhat.com/show_bug.cgi?id=547485. Its as an option
-# here as a user may want to use the MYSQLD_MULTI_INSTANCE to run multiple
-# versions.
-Environment='MYSQLD_MULTI_INSTANCE=--defaults-group-suffix=.%I --basedir=@prefix@'
+# Note: This service isn't User=mysql by default so we need to be explicit.
+# It is as an option here as a user may want to use the MYSQLD_MULTI_INSTANCE
+# to run multiple versions.
+Environment='MYSQLD_MULTI_INSTANCE=--defaults-group-suffix=.%I'
 
 # While you can override these, you shouldn't leave them empty as that
 # will default to root.

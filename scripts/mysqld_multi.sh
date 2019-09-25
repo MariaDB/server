@@ -349,7 +349,7 @@ sub start_mysqlds()
         $options[$j]= quote_shell_word($options[$j]);
         $tmp.= " $options[$j]";
       }
-      elseif ("--defaults-group-suffix=" eq substr($options[$j], 0, 24))
+      elsif ("--defaults-group-suffix=" eq substr($options[$j], 0, 24))
       {
         $suffix_found= 1;
       }
