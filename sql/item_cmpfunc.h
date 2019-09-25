@@ -783,6 +783,8 @@ public:
   Item *negated_item(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_ge>(thd, this); }
+  bool linear_checker_processor(void *arg) { return false; }
+  bool ineq_normalization_processor(void *arg);
 };
 
 
@@ -799,6 +801,8 @@ public:
   Item *negated_item(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_gt>(thd, this); }
+  bool linear_checker_processor(void *arg) { return false; }
+  bool ineq_normalization_processor(void *arg);
 };
 
 
@@ -815,6 +819,8 @@ public:
   Item *negated_item(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_le>(thd, this); }
+  bool linear_checker_processor(void *arg) { return false; }
+  bool ineq_normalization_processor(void *arg);
 };
 
 
@@ -831,6 +837,8 @@ public:
   Item *negated_item(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_lt>(thd, this); }
+  bool linear_checker_processor(void *arg) { return false; }
+  bool ineq_normalization_processor(void *arg);
 };
 
 

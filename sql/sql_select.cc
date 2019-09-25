@@ -68,6 +68,7 @@
 #include "select_handler.h"
 #include "my_json_writer.h"
 #include "opt_trace.h"
+#include "opt_cmpfunc.cc"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -1944,6 +1945,9 @@ JOIN::optimize_inner()
       select_lex->having_fix_field_for_pushed_cond= 0;
     }
   }
+
+  if (add_constraints(this, &conds))
+    DBUG_RETURN(1);
 
   conds= optimize_cond(this, conds, join_list, FALSE,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
@@ -5246,6 +5250,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
     conds->update_used_tables();
     conds= conds->remove_eq_conds(join->thd, &join->cond_value, true);
+    if (conds)
+    {
+      int prec_increment= thd->variables.div_precincrement;
+      conds= infer_inequalities(join, &conds, &join->cond_value, prec_increment);
+    }
     if (conds && conds->type() == Item::COND_ITEM &&
         ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
       join->cond_equal= &((Item_cond_and*) conds)->m_cond_equal;

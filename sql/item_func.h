@@ -1338,6 +1338,8 @@ public:
   my_decimal *decimal_op(my_decimal *);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_plus>(thd, this); }
+  bool linear_checker_processor(void *arg) { return false; }
+  bool ineq_normalization_processor(void *arg);
 };
 
 class Item_func_minus :public Item_func_additive_op
@@ -1373,6 +1375,8 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_minus>(thd, this); }
+  bool linear_checker_processor(void *arg) { return false; }
+  bool ineq_normalization_processor(void *arg);
 };
 
 
@@ -1392,6 +1396,8 @@ public:
   bool check_vcol_func_processor(void *arg) { return FALSE;}
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_mul>(thd, this); }
+  bool linear_checker_processor(void *arg);
+  bool ineq_normalization_processor(void *arg);
 };
 
 
@@ -1411,6 +1417,8 @@ public:
   void result_precision();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_div>(thd, this); }
+  bool linear_checker_processor(void *arg);
+  bool ineq_normalization_processor(void *arg);
 };
 
 
@@ -1496,6 +1504,7 @@ public:
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_neg>(thd, this); }
+  bool ineq_normalization_processor(void *arg);
 };
 
 

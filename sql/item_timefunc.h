@@ -969,6 +969,7 @@ public:
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_date_add_interval>(thd, this); }
+  bool ineq_normalization_processor(void *arg);
 };
 
 
@@ -1271,6 +1272,7 @@ public:
   const char *func_name() const { return sign > 0 ? "addtime" : "subtime"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_add_time>(thd, this); }
+  bool ineq_normalization_processor(void *arg);
 };
 
 

@@ -147,6 +147,7 @@ SET (SQL_SOURCE
                opt_trace.cc
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc backup.cc xa.cc
+               opt_cmpfunc.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h

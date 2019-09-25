@@ -2035,6 +2035,10 @@ public:
     If there is some, sets a bit for this key in the proper key map.
   */
   virtual bool check_index_dependence(void *arg) { return 0; }
+  virtual bool linear_checker_processor(void *arg)
+  { return true; }
+  virtual bool ineq_normalization_processor(void *arg)
+  { return true; }
   /*============== End of Item processor list ======================*/
 
   /*
@@ -2762,6 +2766,8 @@ public:
     DBUG_ASSERT(0);
     return this;
   }
+  bool linear_checker_processor(void *arg) { return false; }
+  bool ineq_normalization_processor(void *arg);
 };
 
 
@@ -3492,6 +3498,8 @@ public:
     return field->table->pos_in_table_list->outer_join;
   }
   bool check_index_dependence(void *arg);
+  bool linear_checker_processor(void *arg);
+  bool ineq_normalization_processor(void *arg);
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;
@@ -5760,6 +5768,8 @@ public:
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
   { return this; }
   Item *remove_item_direct_ref() { return this; }
+  bool linear_checker_processor(void *arg);
+  bool ineq_normalization_processor(void *arg);
 };
 
 
