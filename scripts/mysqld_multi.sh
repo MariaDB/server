@@ -349,7 +349,7 @@ sub start_mysqlds()
         $options[$j]= quote_shell_word($options[$j]);
         $tmp.= " $options[$j]";
       }
-      elseif ("--defaults-group-suffix=" eq substr($options[$j], 0, 24))
+      elsif ("--defaults-group-suffix=" eq substr($options[$j], 0, 24))
       {
         $suffix_found= 1;
       }
@@ -368,13 +368,14 @@ sub start_mysqlds()
       print "wanted mysqld binary.\n\n";
       $info_sent= 1;
     }
-    $com.= $tmp;
 
     if (!$suffix_found)
     {
       $com.= " --defaults-group-suffix=";
       $com.= $groups[$i];
     }
+
+    $com.= $tmp;
 
     if ($opt_wsrep_new_cluster) {
       $com.= " --wsrep-new-cluster";
