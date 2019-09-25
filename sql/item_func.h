@@ -1441,14 +1441,13 @@ public:
   }
   void fix_length_and_dec_decimal()
   {
-    Item_num_op::fix_length_and_dec_decimal();
-    unsigned_flag= args[0]->unsigned_flag;
+    result_precision();
+    fix_decimals();
   }
   void fix_length_and_dec_int()
   {
-    max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
-    decimals= 0;
-    unsigned_flag= args[0]->unsigned_flag;
+    result_precision();
+    DBUG_ASSERT(decimals == 0);
     set_handler(type_handler_long_or_longlong());
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}

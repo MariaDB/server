@@ -1136,18 +1136,12 @@ public:
           case COLUMN_STAT_MIN_VALUE:
 	    table_field->read_stats->min_value->set_notnull();
             stat_field->val_str(&val);
-#if 0 /* MDEV-20589 FIXME: This fails! */
-            DBUG_ASSERT(table_field->read_stats->min_value->is_stat_field);
-#endif
             table_field->read_stats->min_value->store(val.ptr(), val.length(),
                                                       &my_charset_bin);
             break;
           case COLUMN_STAT_MAX_VALUE:
 	    table_field->read_stats->max_value->set_notnull();
             stat_field->val_str(&val);
-#if 0 /* MDEV-20589 FIXME: This fails! */
-            DBUG_ASSERT(table_field->read_stats->min_value->is_stat_field);
-#endif
             table_field->read_stats->max_value->store(val.ptr(), val.length(),
                                                       &my_charset_bin);
             break;
@@ -3057,6 +3051,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   TABLE_SHARE *table_share= table->s;
   Table_statistics *read_stats= table_share->stats_cb.table_stats;
   enum_check_fields old_check_level= thd->count_cuted_fields;
+
   DBUG_ENTER("read_statistics_for_table");
 
   /* Don't write warnings for internal field conversions */
