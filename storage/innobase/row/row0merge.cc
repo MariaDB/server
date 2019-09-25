@@ -2028,11 +2028,8 @@ end_of_index:
 
 				block = page_cur_get_block(cur);
 				block = btr_block_get(
-					page_id_t(block->page.id.space(),
-						  next_page_no),
-					block->zip_size(),
-					BTR_SEARCH_LEAF,
-					*clust_index, &mtr);
+					*clust_index, next_page_no,
+					RW_S_LATCH, &mtr);
 
 				btr_leaf_page_release(page_cur_get_block(cur),
 						      BTR_SEARCH_LEAF, &mtr);

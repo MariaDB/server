@@ -422,9 +422,7 @@ rtr_pcur_getnext_from_path(
 
 					btr_cur_latch_leaves(
 						block,
-						page_id_t(index->table->space_id,
-							  block->page.id.page_no()),
-						zip_size, BTR_MODIFY_TREE,
+						BTR_MODIFY_TREE,
 						btr_cur, mtr);
 				}
 

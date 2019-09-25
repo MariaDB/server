@@ -648,7 +648,6 @@ rtr_adjust_upper_level(
 	dtuple_t*	node_ptr_upper;
 	ulint		prev_page_no;
 	ulint		next_page_no;
-	ulint		space;
 	page_cur_t*	page_cursor;
 	lock_prdt_t	prdt;
 	lock_prdt_t	new_prdt;
@@ -752,16 +751,12 @@ rtr_adjust_upper_level(
 	/* Get the previous and next pages of page */
 	prev_page_no = btr_page_get_prev(page, mtr);
 	next_page_no = btr_page_get_next(page, mtr);
-	space = block->page.id.space();
 	ut_ad(block->zip_size() == index->table->space->zip_size());
 
 	/* Update page links of the level */
 	if (prev_page_no != FIL_NULL) {
-		page_id_t	prev_page_id(space, prev_page_no);
-
 		buf_block_t*	prev_block = btr_block_get(
-			prev_page_id, block->zip_size(), RW_X_LATCH,
-			*index, mtr);
+			*index, prev_page_no, RW_X_LATCH, mtr);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(prev_block->frame) == page_is_comp(page));
 		ut_a(btr_page_get_next(prev_block->frame, mtr)
@@ -774,11 +769,8 @@ rtr_adjust_upper_level(
 	}
 
 	if (next_page_no != FIL_NULL) {
-		page_id_t	next_page_id(space, next_page_no);
-
 		buf_block_t*	next_block = btr_block_get(
-			next_page_id, block->zip_size(), RW_X_LATCH,
-			*index, mtr);
+			*index, next_page_no, RW_X_LATCH, mtr);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(next_block->frame) == page_is_comp(page));
 		ut_a(btr_page_get_prev(next_block->frame, mtr)
@@ -1879,16 +1871,17 @@ rtr_estimate_n_rows_in_range(
 	index->set_modified(mtr);
 	mtr_s_lock(&index->lock, &mtr);
 
-	buf_block_t* block = btr_block_get(
-		page_id_t(index->table->space_id, index->page),
-		index->table->space->zip_size(),
-		RW_S_LATCH, *index, &mtr);
+	buf_block_t* block = btr_root_block_get(index, RW_S_LATCH, &mtr);
+	if (!block) {
+err_exit:
+		mtr.commit();
+		return HA_POS_ERROR;
+	}
 	const page_t* page = buf_block_get_frame(block);
 	const unsigned n_recs = page_header_get_field(page, PAGE_N_RECS);
 
 	if (n_recs == 0) {
-		mtr.commit();
-		return(HA_POS_ERROR);
+		goto err_exit;
 	}
 
 	/* Scan records in root page and calculate area. */

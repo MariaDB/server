@@ -526,7 +526,8 @@ struct btr_pcur_t{
 	ulint		buf_size;
 
 	btr_pcur_t() :
-		btr_cur(), latch_mode(0), old_stored(false), old_rec(NULL),
+		btr_cur(), latch_mode(RW_NO_LATCH),
+		old_stored(false), old_rec(NULL),
 		old_n_fields(0), rel_pos(btr_pcur_pos_t(0)),
 		block_when_stored(NULL),
 		modify_clock(0), withdraw_clock(0),
