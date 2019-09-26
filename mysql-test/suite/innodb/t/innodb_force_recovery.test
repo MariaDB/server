@@ -19,6 +19,7 @@ SET GLOBAL innodb_fast_shutdown = 0;
 --echo # Restart the server with innodb_force_recovery as 4.
 --let $restart_parameters= --innodb-force-recovery=4
 --source include/restart_mysqld.inc
+let $status=`SHOW ENGINE INNODB STATUS`;
 
 select * from t1;
 
@@ -58,6 +59,7 @@ show tables;
 --echo # Restart the server with innodb_force_recovery as 5.
 --let $restart_parameters= --innodb-force-recovery=5
 --source include/restart_mysqld.inc
+let $status=`SHOW ENGINE INNODB STATUS`;
 
 select * from t2;
 
@@ -98,6 +100,7 @@ show tables;
 --echo # Restart the server with innodb_force_recovery as 6.
 --let $restart_parameters= --innodb-force-recovery=6
 --source include/restart_mysqld.inc
+let $status=`SHOW ENGINE INNODB STATUS`;
 
 select * from t2;
 
@@ -135,6 +138,7 @@ show tables;
 --echo # Restart the server with innodb_force_recovery=2
 --let $restart_parameters= --innodb-force-recovery=2
 --source include/restart_mysqld.inc
+let $status=`SHOW ENGINE INNODB STATUS`;
 
 select * from t2;
 begin;
@@ -152,6 +156,7 @@ connection default;
 --echo # Restart the server with innodb_force_recovery=3
 --let $restart_parameters= --innodb-force-recovery=3
 --source include/start_mysqld.inc
+let $status=`SHOW ENGINE INNODB STATUS`;
 
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 select * from t2;
