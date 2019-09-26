@@ -87,6 +87,7 @@ public:
   }
 
   int run_query(String &stmt);
+  my_ulonglong rows_affected();
 
   int write_row(ulonglong clustrix_table_oid,
                 uchar *packed_row, size_t packed_size);
@@ -117,6 +118,7 @@ public:
                  uint null_bits_size, uchar *field_metadata,
                  uint field_metadata_size, ushort row_req,
                  clustrix_connection_cursor **scan);
+  int update_query(String &stmt, LEX_CSTRING &dbname, ulonglong *affected_rows);
   int scan_from_key(ulonglong clustrix_table_oid, uint index,
                     enum scan_type scan_dir, bool sorted_scan,
                     MY_BITMAP *read_set, uchar *packed_key,

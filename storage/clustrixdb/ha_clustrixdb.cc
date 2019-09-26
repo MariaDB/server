@@ -310,7 +310,7 @@ int ha_clustrixdb::delete_table(const char *path)
   if (!trx)
     return error_code;
 
-  // The format contains './' in the beginning of a path.
+  // The format cont ains './' in the beginning of a path.
   char *dbname_end = (char*) path + 2;
   while (*dbname_end != '/')
     dbname_end++;
@@ -324,7 +324,6 @@ int ha_clustrixdb::delete_table(const char *path)
   delete_cmd.append("`.`");
   delete_cmd.append(decoded_tbname);
   delete_cmd.append("`");
-
 
   return trx->run_query(delete_cmd);
 }
@@ -467,6 +466,32 @@ int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
   DBUG_RETURN(error_code);
 }
 
+int ha_clustrixdb::direct_update_rows_init(List<Item> *update_fields)
+{
+  DBUG_ENTER("ha_clustrixdb::direct_update_rows_init");
+  int error_code= 0;
+  DBUG_RETURN(error_code);
+}
+
+int ha_clustrixdb::direct_update_rows(ha_rows *update_rows)
+{
+  DBUG_ENTER("ha_clustrixdb::direct_update_rows");
+  int error_code= 0;
+  THD *thd= ha_thd();
+  clustrix_connection *trx= get_trx(thd, &error_code);
+  if (!trx)
+    return error_code;
+
+  String update_stmt;
+  update_stmt.append(thd->query_string.str());
+
+  trx->update_query(update_stmt, table->s->db, update_rows);
+
+  thd->get_stmt_da()->set_overwrite_status(true);
+
+  DBUG_RETURN(error_code);
+}
+
 int ha_clustrixdb::delete_row(const uchar *buf)
 {
   int error_code;
@@ -503,9 +528,10 @@ ha_clustrixdb::Table_flags ha_clustrixdb::table_flags(void) const
                       HA_CAN_INDEX_BLOBS |
                       HA_AUTO_PART_KEY |
                       HA_CAN_SQL_HANDLER |
-                      HA_BINLOG_ROW_CAPABLE |
                       HA_BINLOG_STMT_CAPABLE |
-                      HA_CAN_TABLE_CONDITION_PUSHDOWN;
+                      HA_CAN_TABLE_CONDITION_PUSHDOWN |
+                      HA_CAN_DIRECT_UPDATE_AND_DELETE;
+
 
   return flags;
 }
@@ -729,18 +755,21 @@ int ha_clustrixdb::index_end()
 
 int ha_clustrixdb::rnd_init(bool scan)
 {
+  DBUG_ENTER("ha_clustrixdb::rnd_init");
   int error_code = 0;
   THD *thd = ha_thd();
+  if (thd->lex->sql_command == SQLCOM_UPDATE)
+    DBUG_RETURN(error_code);
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
-    return error_code;
+    DBUG_RETURN(error_code);
 
   add_current_table_to_rpl_table_list();
   is_scan = scan;
   scan_cur = NULL;
 
   if (my_bitmap_init(&scan_fields, NULL, table->read_set->n_bits, false))
-    return ER_OUTOFMEMORY;
+    DBUG_RETURN(ER_OUTOFMEMORY);
 
 #if 0
   if (table->s->keys)
@@ -758,9 +787,9 @@ int ha_clustrixdb::rnd_init(bool scan)
                                     clustrix_connection::SORT_NONE,
                                     &scan_fields, THDVAR(thd, row_buffer),
                                     &scan_cur)))
-    return error_code;
+    DBUG_RETURN(error_code);
 
-  return 0;
+  DBUG_RETURN(0);
 }
 
 int ha_clustrixdb::rnd_next(uchar *buf)
@@ -849,18 +878,22 @@ err:
 
 int ha_clustrixdb::rnd_end()
 {
+  DBUG_ENTER("ha_clustrixdb::rnd_end()");
   int error_code = 0;
   THD *thd = ha_thd();
+  if (thd->lex->sql_command == SQLCOM_UPDATE)
+    DBUG_RETURN(error_code);
+ 
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
-    return error_code;
+    DBUG_RETURN(error_code);
 
   my_bitmap_free(&scan_fields);
   if (scan_cur && (error_code = trx->scan_end(scan_cur)))
-    return error_code;
+    DBUG_RETURN(error_code);
   scan_cur = NULL;
 
-  return 0;
+  DBUG_RETURN(0);
 }
 
 void ha_clustrixdb::position(const uchar *record)
