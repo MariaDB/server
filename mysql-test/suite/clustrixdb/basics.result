@@ -14,6 +14,8 @@ DROP TABLE cx1;
 SHOW CREATE TABLE cx1;
 ERROR 42S02: Table 'clx.cx1' doesn't exist
 DROP TABLE IF EXISTS intandtext;
+Warnings:
+Note	1051	Unknown table 'clx.intandtext'
 CREATE TABLE intandtext(i bigint, t text)ENGINE=clustrixdb;
 INSERT INTO intandtext VALUES(10, 'someqwqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
 SELECT i,t FROM intandtext;

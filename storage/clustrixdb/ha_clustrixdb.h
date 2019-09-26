@@ -27,8 +27,6 @@ bool get_enable_sh(THD* thd);
 class ha_clustrixdb : public handler
 {
 private:
-# define CLUSTRIXDB_ROW_LIMIT 1024
-
   ulonglong clustrix_table_oid;
   rpl_group_info *rgi;
   Relay_log_info *rli;
@@ -57,6 +55,8 @@ public:
   int update_row(const uchar *old_data, const uchar *new_data);
   // start_bulk_delete exec_bulk_delete
   int delete_row(const uchar *buf);
+  int direct_update_rows_init(List<Item> *update_fields);
+  int direct_update_rows(ha_rows *update_rows);
 
   Table_flags table_flags(void) const;
   ulong index_flags(uint idx, uint part, bool all_parts) const;

@@ -30,7 +30,8 @@ enum clustrix_commands {
   CLUSTRIX_KEY_DELETE,
   CLUSTRIX_SCAN_QUERY,
   CLUSTRIX_KEY_UPDATE,
-  CLUSTRIX_SCAN_FROM_KEY
+  CLUSTRIX_SCAN_FROM_KEY,
+  CLUSTRIX_UPDATE_QUERY
 };
 
 /****************************************************************************
@@ -244,6 +245,11 @@ int clustrix_connection::run_query(String &stmt)
   if (error_code)
     return mysql_errno(&clustrix_net);
   return error_code;
+}
+
+my_ulonglong clustrix_connection::rows_affected()
+{
+    return clustrix_net.affected_rows;
 }
 
 int clustrix_connection::write_row(ulonglong clustrix_table_oid,
@@ -586,6 +592,44 @@ int clustrix_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
 
   return allocate_clustrix_connection_cursor(&clustrix_net, row_req, scan);
 }
+
+/**
+ * @brief
+ *   Sends a command to initiate UPDATE.
+ * @details
+ *   Sends a command over mysql protocol connection to initiate an
+ *   UPDATE query using a query text.
+ * @args
+ *   stmt& Query text to send
+ *   dbname current working database
+ *   dbname &current database name
+ **/
+int clustrix_connection::update_query(String &stmt, LEX_CSTRING &dbname,
+                                      ulonglong *affected_rows)
+{
+  int error_code;
+  command_length = 0;
+
+  if ((error_code = add_command_operand_uchar(CLUSTRIX_UPDATE_QUERY)))
+    return error_code;
+
+  if ((error_code = add_command_operand_str((uchar*)dbname.str, dbname.length)))
+    return error_code;
+
+  if ((error_code = add_command_operand_str((uchar*)stmt.ptr(), stmt.length())))
+    return error_code;
+
+  if ((error_code = send_command()))
+    return error_code;
+  if ((error_code = read_query_response()))
+    return mysql_errno(&clustrix_net);
+
+  *affected_rows = clustrix_net.affected_rows;
+
+  return 0;
+}
+
+
 
 int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
                                        enum scan_type scan_dir,

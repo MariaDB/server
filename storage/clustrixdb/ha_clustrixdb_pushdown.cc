@@ -107,6 +107,12 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
     return sh;
   }
 
+  // Multi-update runs an implicit query to collect constraints.
+  // SH couldn't be used for this.
+  if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI) {
+    return sh;
+  }
+
   String query;
   // Print the query into a string provided
   select_lex->print(thd, &query, QT_ORDINARY);
