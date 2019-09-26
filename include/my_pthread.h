@@ -199,7 +199,9 @@ static inline int my_sigwait(sigset_t *set, int *sig, int *code)
   *code= siginfo.si_code;
   return *sig < 0 ?  errno : 0;
 #else
-#define SI_KERNEL 128
+#ifndef SI_USER
+#define SI_USER 0
+#endif
   *code= 0;
   return sigwait(set, sig);
 #endif

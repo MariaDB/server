@@ -3282,7 +3282,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       }
       break;
     case SIGHUP:
-      if (!abort_loop && origin != SI_KERNEL)
+      if (!abort_loop && origin <= SI_USER)
       {
         int not_used;
 	mysql_print_status();		// Print some debug info
