@@ -293,3 +293,23 @@ ALTER TABLE t CHANGE COLUMN alpha a INT WITHOUT SYSTEM VERSIONING,
 ALGORITHM=INSTANT;
 DROP TABLE t;
 set @@system_versioning_alter_history = error;
+
+--echo #
+--echo # MDEV-20117 Assertion 0 failed in row_sel_get_clust_rec_for_mysql
+--echo #
+
+# This is not repeating the bug itself, but demonstrating that both
+# parts of the fix are needed.
+# To repeat the original bug, we should be somehow able to empty
+# the table of user records while purgeable undo log records exist.
+CREATE TABLE t (b INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t SET b=1;
+ALTER TABLE t ADD COLUMN a INT FIRST, ALGORITHM=INSTANT;
+DELETE FROM t;
+ALTER TABLE t ADD COLUMN c INT, ALGORITHM=INSTANT;
+# If page_cur_delete_rec() emptied the page (and wrongly reset the
+# page type) during the previous ALTER TABLE, the following would hit
+# an assertion failure because of root page type mismatch.
+ALTER TABLE t DROP COLUMN c, ALGORITHM=INSTANT;
+SELECT * FROM t;
+DROP TABLE t;
