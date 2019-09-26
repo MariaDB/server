@@ -2077,6 +2077,19 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
          alg != BINLOG_CHECKSUM_ALG_OFF))
       event_len= event_len - BINLOG_CHECKSUM_LEN;
 
+    /*
+      Create an object of Ignorable_log_event for unrecognized sub-class.
+      So that SLAVE SQL THREAD will only update the position and continue.
+      We should look for this flag first instead of judging by event_type
+      Any event can be Ignorable_log_event if it has this flag on.
+      look into @note of Ignorable_log_event
+    */
+    if (uint2korr(buf + FLAGS_OFFSET) & LOG_EVENT_IGNORABLE_F)
+    {
+      ev= new Ignorable_log_event(buf, fdle,
+                                  get_type_str((Log_event_type) event_type));
+      goto exit;
+    }
     switch(event_type) {
     case QUERY_EVENT:
       ev  = new Query_log_event(buf, event_len, fdle, QUERY_EVENT);
@@ -2203,24 +2216,13 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       ev = new Start_encryption_log_event(buf, event_len, fdle);
       break;
     default:
-      /*
-        Create an object of Ignorable_log_event for unrecognized sub-class.
-        So that SLAVE SQL THREAD will only update the position and continue.
-      */
-      if (uint2korr(buf + FLAGS_OFFSET) & LOG_EVENT_IGNORABLE_F)
-      {
-        ev= new Ignorable_log_event(buf, fdle,
-                                    get_type_str((Log_event_type) event_type));
-      }
-      else
-      {
-        DBUG_PRINT("error",("Unknown event code: %d",
-                            (uchar) buf[EVENT_TYPE_OFFSET]));
-        ev= NULL;
-        break;
-      }
+      DBUG_PRINT("error",("Unknown event code: %d",
+                          (uchar) buf[EVENT_TYPE_OFFSET]));
+      ev= NULL;
+      break;
     }
   }
+exit:
 
   if (ev)
   {
