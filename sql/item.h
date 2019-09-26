@@ -1467,7 +1467,6 @@ public:
   {
     return type_handler()->Item_val_bool(this);
   }
-  virtual String *val_raw(String*) { return 0; }
 
   bool eval_const_cond()
   {
