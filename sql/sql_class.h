@@ -5196,9 +5196,9 @@ public:
   /* this method is called just before the first row of the table can be read */
   virtual void prepare_to_read_rows() {}
 
-  void reset_offset_limit()
+  void remove_offset_limit()
   {
-    unit->offset_limit_cnt= 0;
+    unit->lim.remove_offset();
   }
 
   /*
@@ -6009,7 +6009,7 @@ public:
     */
     DBUG_ASSERT(false); /* purecov: inspected */
   }
-  void reset_offset_limit_cnt()
+  void remove_offset_limit()
   {
     // EXPLAIN should never output to a select_union_direct
     DBUG_ASSERT(false); /* purecov: inspected */

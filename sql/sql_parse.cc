@@ -4350,7 +4350,7 @@ mysql_execute_command(THD *thd)
                                   select_lex->where,
                                   select_lex->order_list.elements,
                                   select_lex->order_list.first,
-                                  unit->select_limit_cnt,
+                                  unit->lim.get_select_limit(),
                                   lex->ignore, &found, &updated);
     MYSQL_UPDATE_DONE(res, found, updated);
     /* mysql_update return 2 if we need to switch to multi-update */
@@ -4672,7 +4672,7 @@ mysql_execute_command(THD *thd)
 
     res = mysql_delete(thd, all_tables, 
                        select_lex->where, &select_lex->order_list,
-                       unit->select_limit_cnt, select_lex->options,
+                       unit->lim.get_select_limit(), select_lex->options,
                        lex->result ? lex->result : sel_result);
 
     if (replaced_protocol)
@@ -5518,7 +5518,8 @@ mysql_execute_command(THD *thd)
 
     res= mysql_ha_read(thd, first_table, lex->ha_read_mode, lex->ident.str,
                        lex->insert_list, lex->ha_rkey_mode, select_lex->where,
-                       unit->select_limit_cnt, unit->offset_limit_cnt);
+                       unit->lim.get_select_limit(),
+                       unit->lim.get_offset_limit());
     break;
 
   case SQLCOM_BEGIN:
@@ -6095,8 +6096,8 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         /* 
           Do like the original select_describe did: remove OFFSET from the
           top-level LIMIT
-        */        
-        result->reset_offset_limit(); 
+        */
+        result->remove_offset_limit();
         if (lex->explain_json)
         {
           lex->explain->print_explain_json(result, lex->analyze_stmt);
@@ -7668,7 +7669,7 @@ void mysql_init_multi_delete(LEX *lex)
   lex->sql_command=  SQLCOM_DELETE_MULTI;
   mysql_init_select(lex);
   lex->first_select_lex()->select_limit= 0;
-  lex->unit.select_limit_cnt= HA_POS_ERROR;
+  lex->unit.lim.set_unlimited();
   lex->first_select_lex()->table_list.
     save_and_clear(&lex->auxiliary_table_list);
   lex->query_tables= 0;

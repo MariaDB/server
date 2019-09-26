@@ -2350,8 +2350,7 @@ void st_select_lex_unit::init_query()
 {
   init_query_common();
   set_linkage(GLOBAL_OPTIONS_TYPE);
-  select_limit_cnt= HA_POS_ERROR;
-  offset_limit_cnt= 0;
+  lim.set_unlimited();
   union_distinct= 0;
   prepared= optimized= optimized_2= executed= 0;
   bag_set_op_optimized= 0;
@@ -3494,12 +3493,7 @@ void st_select_lex_unit::set_limit(st_select_lex *sl)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
-  offset_limit_cnt= sl->get_offset();
-  select_limit_cnt= sl->get_limit();
-  if (select_limit_cnt + offset_limit_cnt >= select_limit_cnt)
-    select_limit_cnt+= offset_limit_cnt;
-  else
-    select_limit_cnt= HA_POS_ERROR;
+  lim.set_limit(sl->get_limit(), sl->get_offset());
 }
 
 

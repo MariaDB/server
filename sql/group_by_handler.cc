@@ -40,7 +40,7 @@ int Pushdown_query::execute(JOIN *join)
 {
   int err;
   ha_rows max_limit;
-  ha_rows *reset_limit= 0;
+  bool reset_limit= FALSE;
   Item **reset_item= 0;
   THD *thd= handler->thd;
   TABLE *table= handler->table;
@@ -52,11 +52,11 @@ int Pushdown_query::execute(JOIN *join)
   if (store_data_in_temp_table)
   {
     max_limit= join->tmp_table_param.end_write_records;
-    reset_limit= &join->unit->select_limit_cnt;
+    reset_limit= TRUE;
   }
   else
   {
-    max_limit= join->unit->select_limit_cnt;
+    max_limit= join->unit->lim.get_select_limit();
     if (join->unit->fake_select_lex)
       reset_item= &join->unit->fake_select_lex->select_limit;
   }
@@ -112,7 +112,7 @@ int Pushdown_query::execute(JOIN *join)
           break;                              // LIMIT reached
         join->do_send_rows= 0;                // Calculate FOUND_ROWS()
         if (reset_limit)
-          *reset_limit= HA_POS_ERROR;
+          join->unit->lim.set_unlimited();
         if (reset_item)
           *reset_item= 0;
       }

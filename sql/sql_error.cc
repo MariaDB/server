@@ -783,7 +783,7 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
   const Sql_condition *err;
   SELECT_LEX *sel= thd->lex->first_select_lex();
   SELECT_LEX_UNIT *unit= &thd->lex->unit;
-  ulonglong idx= 0;
+  ha_rows idx;
   Protocol *protocol=thd->protocol;
   DBUG_ENTER("mysqld_show_warnings");
 
@@ -808,14 +808,14 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
 
   Diagnostics_area::Sql_condition_iterator it=
     thd->get_stmt_da()->sql_conditions();
-  while ((err= it++))
+  for (idx= 1; (err= it++) ; idx++)
   {
     /* Skip levels that the user is not interested in */
     if (!(levels_to_show & ((ulong) 1 << err->get_level())))
       continue;
-    if (++idx <= unit->offset_limit_cnt)
-      continue;
-    if (idx > unit->select_limit_cnt)
+    if (unit->lim.check_and_move_offset())
+      continue;                             // using limit offset,count
+    if (idx > unit->lim.get_select_limit())
       break;
     protocol->prepare_for_resend();
     protocol->store(warning_level_names[err->get_level()].str,

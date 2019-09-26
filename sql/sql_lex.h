@@ -32,6 +32,7 @@
 #include "sp.h"                       // enum stored_procedure_type
 #include "sql_tvc.h"
 #include "item.h"
+#include "sql_limit.h"                // Select_limit_counters
 
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
@@ -829,6 +830,8 @@ void create_explain_query(LEX *lex, MEM_ROOT *mem_root);
 void create_explain_query_if_not_exists(LEX *lex, MEM_ROOT *mem_root);
 bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str);
 
+
+
 class st_select_lex_unit: public st_select_lex_node {
 protected:
   TABLE_LIST result_table_list;
@@ -908,7 +911,7 @@ public:
   //node on which we should return current_select pointer after parsing subquery
   st_select_lex *return_to;
   /* LIMIT clause runtime counters */
-  ha_rows select_limit_cnt, offset_limit_cnt;
+  Select_limit_counters lim;
   /* not NULL if unit used in subselect, point to subselect item */
   Item_subselect *item;
   /*

@@ -4013,7 +4013,7 @@ bool mysql_show_binlog_events(THD* thd)
   if (binary_log->is_open())
   {
     SELECT_LEX_UNIT *unit= &thd->lex->unit;
-    ha_rows event_count, limit_start, limit_end;
+    ha_rows event_count;
     my_off_t pos = MY_MAX(BIN_LOG_HEADER_SIZE, lex_mi->pos); // user-friendly
     char search_file_name[FN_REFLEN], *name;
     const char *log_file_name = lex_mi->log_file_name;
@@ -4028,8 +4028,6 @@ bool mysql_show_binlog_events(THD* thd)
     }
 
     unit->set_limit(thd->lex->current_select);
-    limit_start= unit->offset_limit_cnt;
-    limit_end= unit->select_limit_cnt;
 
     name= search_file_name;
     if (log_file_name)
@@ -4108,7 +4106,7 @@ bool mysql_show_binlog_events(THD* thd)
                                          description_event,
                                          opt_master_verify_checksum)); )
     {
-      if (event_count >= limit_start &&
+      if (!unit->lim.check_and_move_offset() &&
 	  ev->net_send(protocol, linfo.log_file_name, pos))
       {
 	errmsg = "Net error";
@@ -4142,11 +4140,11 @@ bool mysql_show_binlog_events(THD* thd)
 
       pos = my_b_tell(&log);
 
-      if (++event_count >= limit_end)
+      if (++event_count >= unit->lim.get_select_limit())
 	break;
     }
 
-    if (unlikely(event_count < limit_end && log.error))
+    if (unlikely(event_count < unit->lim.get_select_limit() && log.error))
     {
       errmsg = "Wrong offset or I/O error";
       mysql_mutex_unlock(log_lock);

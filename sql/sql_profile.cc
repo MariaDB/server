@@ -402,7 +402,7 @@ bool PROFILING::show_profiles()
   MEM_ROOT *mem_root= thd->mem_root;
   SELECT_LEX *sel= thd->lex->first_select_lex();
   SELECT_LEX_UNIT *unit= &thd->lex->unit;
-  ha_rows idx= 0;
+  ha_rows idx;
   Protocol *protocol= thd->protocol;
   void *iterator;
   DBUG_ENTER("PROFILING::show_profiles");
@@ -426,9 +426,9 @@ bool PROFILING::show_profiles()
 
   unit->set_limit(sel);
 
-  for (iterator= history.new_iterator();
+  for (iterator= history.new_iterator(), idx= 1;
        iterator != NULL;
-       iterator= history.iterator_next(iterator))
+       iterator= history.iterator_next(iterator), idx++)
   {
     prof= history.iterator_value(iterator);
 
@@ -436,9 +436,9 @@ bool PROFILING::show_profiles()
 
     double query_time_usecs= prof->m_end_time_usecs - prof->m_start_time_usecs;
 
-    if (++idx <= unit->offset_limit_cnt)
+    if (unit->lim.check_and_move_offset())
       continue;
-    if (idx > unit->select_limit_cnt)
+    if (idx > unit->lim.get_select_limit())
       break;
 
     protocol->prepare_for_resend();

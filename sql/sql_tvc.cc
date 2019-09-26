@@ -386,7 +386,7 @@ bool table_value_constr::exec(SELECT_LEX *sl)
 
   while ((elem= li++))
   {
-    if (send_records >= sl->master_unit()->select_limit_cnt)
+    if (send_records >= sl->master_unit()->lim.get_select_limit())
       break;
     int rc= result->send_data(*elem);
     if (!rc)

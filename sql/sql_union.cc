@@ -111,11 +111,8 @@ int select_unit::send_data(List<Item> &values)
 {
   int rc= 0;
   int not_reported_error= 0;
-  if (unit->offset_limit_cnt)
-  {						// using limit offset,count
-    unit->offset_limit_cnt--;
-    return 0;
-  }
+  if (unit->lim.check_and_move_offset())
+    return 0;                                   // using limit offset,count
   if (thd->killed == ABORT_QUERY)
     return 0;
   if (table->no_rows_with_nulls)
@@ -607,12 +604,8 @@ int select_unit_ext::send_data(List<Item> &values)
   int rc= 0;
   int not_reported_error= 0;
   int find_res;
-  if (unit->offset_limit_cnt)
-  {
-    /* using limit offset,count */
-    unit->offset_limit_cnt--;
+  if (unit->lim.check_and_move_offset())
     return 0;
-  }
   if (thd->killed == ABORT_QUERY)
     return 0;
   if (table->no_rows_with_nulls)
@@ -1358,8 +1351,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
 	else
 	{
 	  sl->join->result= result;
-	  select_limit_cnt= HA_POS_ERROR;
-	  offset_limit_cnt= 0;
+          lim.set_unlimited();
 	  if (!sl->join->procedure &&
 	      result->prepare(sl->join->fields_list, this))
 	  {
@@ -2046,7 +2038,7 @@ bool st_select_lex_unit::optimize()
       if (sl->tvc)
       {
 	sl->tvc->select_options=
-          (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
+          (lim.is_unlimited() || sl->braces) ?
           sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
 	if (sl->tvc->optimize(thd))
         {
@@ -2066,13 +2058,13 @@ bool st_select_lex_unit::optimize()
         set_limit(sl);
 	if (sl == global_parameters() || describe)
 	{
-	  offset_limit_cnt= 0;
+          lim.remove_offset();
 	  /*
 	    We can't use LIMIT at this stage if we are using ORDER BY for the
 	    whole query
 	  */
 	  if (sl->order_list.first || describe)
-	    select_limit_cnt= HA_POS_ERROR;
+            lim.set_unlimited();
         }
 
         /*
@@ -2081,7 +2073,7 @@ bool st_select_lex_unit::optimize()
           Otherwise, SQL_CALC_FOUND_ROWS should be done on all sub parts.
         */
         sl->join->select_options=
-          (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
+          (lim.is_unlimited() || sl->braces) ?
           sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
 
 	saved_error= sl->join->optimize();
@@ -2161,13 +2153,13 @@ bool st_select_lex_unit::exec()
         set_limit(sl);
 	if (sl == global_parameters() || describe)
 	{
-	  offset_limit_cnt= 0;
+	  lim.remove_offset();
 	  /*
 	    We can't use LIMIT at this stage if we are using ORDER BY for the
 	    whole query
 	  */
 	  if (sl->order_list.first || describe)
-	    select_limit_cnt= HA_POS_ERROR;
+	    lim.set_unlimited();
         }
 
         /*
@@ -2178,14 +2170,14 @@ bool st_select_lex_unit::exec()
 	if (sl->tvc)
 	{
 	  sl->tvc->select_options=
-             (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
+             (lim.is_unlimited() || sl->braces) ?
              sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
 	  saved_error= sl->tvc->optimize(thd);
 	}
 	else
 	{
           sl->join->select_options=
-            (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
+            (lim.is_unlimited() || sl->braces) ?
             sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
 	  saved_error= sl->join->optimize();
 	}
@@ -2208,9 +2200,7 @@ bool st_select_lex_unit::exec()
 	}
 	if (!sl->tvc)
 	  saved_error= sl->join->error;
-	offset_limit_cnt= (ha_rows)(sl->offset_limit ?
-                                    sl->offset_limit->val_uint() :
-                                    0);
+        lim.reset();
 	if (likely(!saved_error))
 	{
 	  examined_rows+= thd->get_examined_row_count();
@@ -2237,8 +2227,8 @@ bool st_select_lex_unit::exec()
           DBUG_RETURN(1);
         }
       }
-      if (found_rows_for_union && !sl->braces && 
-          select_limit_cnt != HA_POS_ERROR)
+      if (found_rows_for_union && !sl->braces &&
+          !lim.is_unlimited())
       {
 	/*
 	  This is a union without braces. Remember the number of rows that

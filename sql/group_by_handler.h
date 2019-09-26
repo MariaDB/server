@@ -56,6 +56,7 @@ struct Query
   ORDER      *order_by;
   Item       *having;
   // LIMIT
+  //ha_rows select_limit_cnt, offset_limit_cnt;
 };
 
 class group_by_handler

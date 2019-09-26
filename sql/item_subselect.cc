@@ -2744,7 +2744,7 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
   join_arg->thd->change_item_tree(&unit->global_parameters()->select_limit,
                                   new (thd->mem_root)
                                   Item_int(thd, (int32) 1));
-  unit->select_limit_cnt= 1;
+  unit->lim.set_single_row();
 
   DBUG_RETURN(false);
 }

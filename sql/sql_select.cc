@@ -1749,7 +1749,7 @@ JOIN::optimize_inner()
 {
   DBUG_ENTER("JOIN::optimize");
   subq_exit_fl= false;
-  do_send_rows = (unit->select_limit_cnt) ? 1 : 0;
+  do_send_rows = (unit->lim.get_select_limit()) ? 1 : 0;
 
   DEBUG_SYNC(thd, "before_join_optimize");
 
@@ -1824,9 +1824,9 @@ JOIN::optimize_inner()
     DBUG_RETURN(-1);
 
   row_limit= ((select_distinct || order || group_list) ? HA_POS_ERROR :
-	      unit->select_limit_cnt);
+	      unit->lim.get_select_limit());
   /* select_limit is used to decide if we are likely to scan the whole table */
-  select_limit= unit->select_limit_cnt;
+  select_limit= unit->lim.get_select_limit();
   if (having || (select_options & OPTION_FOUND_ROWS))
     select_limit= HA_POS_ERROR;
 #ifdef HAVE_REF_TO_FIELDS			// Not done yet
@@ -2054,9 +2054,10 @@ JOIN::optimize_inner()
         thd->change_item_tree(&sel->having, having);
     }
     if (cond_value == Item::COND_FALSE || having_value == Item::COND_FALSE ||
-        (!unit->select_limit_cnt && !(select_options & OPTION_FOUND_ROWS)))
+        (!unit->lim.get_select_limit() &&
+          !(select_options & OPTION_FOUND_ROWS)))
     {                                          /* Impossible cond */
-      if (unit->select_limit_cnt)
+      if (unit->lim.get_select_limit())
       {
         DBUG_PRINT("info", (having_value == Item::COND_FALSE ?
                               "Impossible HAVING" : "Impossible WHERE"));
@@ -3601,7 +3602,7 @@ bool JOIN::make_aggr_tables_info()
       */
       sort_tab->filesort->limit=
         (has_group_by || (join_tab + top_join_tab_count > curr_tab + 1)) ?
-         select_limit : unit->select_limit_cnt;
+         select_limit : unit->lim.get_select_limit();
     }
     if (!only_const_tables() &&
         !join_tab[const_tables].filesort &&
@@ -3986,8 +3987,7 @@ JOIN::reinit()
 {
   DBUG_ENTER("JOIN::reinit");
 
-  unit->offset_limit_cnt= (ha_rows)(select_lex->offset_limit ?
-                                    select_lex->offset_limit->val_uint() : 0);
+  unit->lim.reset();
 
   first_record= false;
   group_sent= false;
@@ -5513,7 +5513,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         if (double rr= join->best_positions[i].records_read)
           records= COST_MULT(records, rr);
       ha_rows rows= records > HA_ROWS_MAX ? HA_ROWS_MAX : (ha_rows) records;
-      set_if_smaller(rows, unit->select_limit_cnt);
+      set_if_smaller(rows, unit->lim.get_select_limit());
       join->select_lex->increase_derived_records(rows);
     }
   }
@@ -7970,7 +7970,7 @@ best_access_path(JOIN      *join,
   if (!best_key &&
       idx == join->const_tables &&
       s->table == join->sort_by_table &&
-      join->unit->select_limit_cnt >= records)
+      join->unit->lim.get_select_limit() >= records)
   {
     trace_access_scan.add("use_tmp_table", true);
     join->sort_by_table= (TABLE*) 1;  // Must use temporary table
@@ -11465,7 +11465,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               !tab->loosescan_match_tab &&              // (1)
               ((cond && (!tab->keys.is_subset(tab->const_keys) && i > 0)) ||
                (!tab->const_keys.is_clear_all() && i == join->const_tables &&
-                join->unit->select_limit_cnt <
+                join->unit->lim.get_select_limit() <
                 join->best_positions[i].records_read &&
                 !(join->select_options & OPTION_FOUND_ROWS))))
 	  {
@@ -11489,7 +11489,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 				       (join->select_options &
 					OPTION_FOUND_ROWS ?
 					HA_POS_ERROR :
-					join->unit->select_limit_cnt), 0,
+					join->unit->lim.get_select_limit()), 0,
                                        FALSE, FALSE, FALSE) < 0)
             {
 	      /*
@@ -11503,7 +11503,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                          (join->select_options &
                                           OPTION_FOUND_ROWS ?
                                           HA_POS_ERROR :
-                                          join->unit->select_limit_cnt),0,
+                                          join->unit->lim.get_select_limit()),0,
                                          FALSE, FALSE, FALSE) < 0)
 		DBUG_RETURN(1);			// Impossible WHERE
             }
@@ -19791,31 +19791,31 @@ do_select(JOIN *join, Procedure *procedure)
       HAVING will be checked after processing aggregate functions,
       But WHERE should checked here (we alredy have read tables).
       Notice that make_join_select() splits all conditions in this case
-      into two groups exec_const_cond and outer_ref_cond.
-      If join->table_count == join->const_tables then it is
-      sufficient to check only the condition pseudo_bits_cond.
-    */
-    DBUG_ASSERT(join->outer_ref_cond == NULL);
-    if (!join->pseudo_bits_cond || join->pseudo_bits_cond->val_int())
-    {
-      // HAVING will be checked by end_select
-      error= (*end_select)(join, 0, 0);
-      if (error >= NESTED_LOOP_OK)
-	error= (*end_select)(join, 0, 1);
+    into two groups exec_const_cond and outer_ref_cond.
+    If join->table_count == join->const_tables then it is
+    sufficient to check only the condition pseudo_bits_cond.
+  */
+  DBUG_ASSERT(join->outer_ref_cond == NULL);
+  if (!join->pseudo_bits_cond || join->pseudo_bits_cond->val_int())
+  {
+    // HAVING will be checked by end_select
+    error= (*end_select)(join, 0, 0);
+    if (error >= NESTED_LOOP_OK)
+      error= (*end_select)(join, 0, 1);
 
-      /*
-        If we don't go through evaluate_join_record(), do the counting
-        here.  join->send_records is increased on success in end_send(),
-        so we don't touch it here.
-      */
-      join->join_examined_rows++;
-      DBUG_ASSERT(join->join_examined_rows <= 1);
-    }
-    else if (join->send_row_on_empty_set())
+    /*
+      If we don't go through evaluate_join_record(), do the counting
+      here.  join->send_records is increased on success in end_send(),
+      so we don't touch it here.
+    */
+    join->join_examined_rows++;
+    DBUG_ASSERT(join->join_examined_rows <= 1);
+  }
+  else if (join->send_row_on_empty_set())
+  {
+    if (!join->having || join->having->val_int())
     {
-      if (!join->having || join->having->val_int())
-      {
-        List<Item> *columns_list= (procedure ? &join->procedure_fields_list :
+      List<Item> *columns_list= (procedure ? &join->procedure_fields_list :
                                    join->fields);
         rc= join->result->send_data(*columns_list) > 0;
       }
@@ -21499,7 +21499,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     }
 
     ++join->send_records;
-    if (join->send_records >= join->unit->select_limit_cnt &&
+    if (join->send_records >= join->unit->lim.get_select_limit() &&
         !join->do_send_rows)
     {
       /*
@@ -21517,7 +21517,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
         DBUG_RETURN(NESTED_LOOP_QUERY_LIMIT);
       }
     }
-    if (join->send_records >= join->unit->select_limit_cnt &&
+    if (join->send_records >= join->unit->lim.get_select_limit() &&
 	join->do_send_rows)
     {
       if (join->select_options & OPTION_FOUND_ROWS)
@@ -21658,13 +21658,13 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
           DBUG_RETURN(NESTED_LOOP_ERROR);        /* purecov: inspected */
 	if (end_of_records)
 	  DBUG_RETURN(NESTED_LOOP_OK);
-	if (join->send_records >= join->unit->select_limit_cnt &&
+	if (join->send_records >= join->unit->lim.get_select_limit() &&
 	    join->do_send_rows)
 	{
 	  if (!(join->select_options & OPTION_FOUND_ROWS))
 	    DBUG_RETURN(NESTED_LOOP_QUERY_LIMIT); // Abort nicely
 	  join->do_send_rows=0;
-	  join->unit->select_limit_cnt = HA_POS_ERROR;
+	  join->unit->lim.set_unlimited();
         }
         else if (join->send_records >= join->fetch_limit)
         {
@@ -21749,7 +21749,7 @@ end_write(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	if (!(join->select_options & OPTION_FOUND_ROWS))
 	  DBUG_RETURN(NESTED_LOOP_QUERY_LIMIT);
 	join->do_send_rows=0;
-	join->unit->select_limit_cnt = HA_POS_ERROR;
+	join->unit->lim.set_unlimited();
       }
     }
   }
@@ -23111,8 +23111,9 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
                                          (tab->join->select_options &
                                           OPTION_FOUND_ROWS) ?
                                           HA_POS_ERROR :
-                                          tab->join->unit->select_limit_cnt,TRUE,
-                                         TRUE, FALSE, FALSE) <= 0;
+                                          tab->join->unit->
+                                            lim.get_select_limit(),
+                                          TRUE, TRUE, FALSE, FALSE) <= 0;
           if (res)
           {
             select->cond= save_cond;
@@ -23213,7 +23214,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
       select->test_quick_select(join->thd, tmp_map, 0,
                                 join->select_options & OPTION_FOUND_ROWS ?
                                 HA_POS_ERROR :
-                                join->unit->select_limit_cnt,
+                                join->unit->lim.get_select_limit(),
                                 TRUE, FALSE, FALSE, FALSE);
 
       if (cond_saved)
@@ -23646,7 +23647,7 @@ JOIN_TAB::remove_duplicates()
 
   if (!field_count && !(join->select_options & OPTION_FOUND_ROWS) && !having) 
   {                    // only const items with no OPTION_FOUND_ROWS
-    join->unit->select_limit_cnt= 1;		// Only send first row
+    join->unit->lim.set_single_row();		// Only send first row
     DBUG_RETURN(false);
   }
 
@@ -25845,7 +25846,7 @@ int JOIN::rollup_send_data(uint idx)
     copy_ref_ptr_array(ref_ptrs, rollup.ref_pointer_arrays[i]);
     if ((!having || having->val_int()))
     {
-      if (send_records < unit->select_limit_cnt && do_send_rows &&
+      if (send_records < unit->lim.get_select_limit() && do_send_rows &&
 	  (res= result->send_data(rollup.fields[i])) > 0)
 	return 1;
       if (!res)
