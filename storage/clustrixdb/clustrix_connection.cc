@@ -145,10 +145,11 @@ int clustrix_connection::send_command()
 
   if (com_error)
   {
-    my_printf_error(mysql_errno(&clustrix_net),
+    int error_code = mysql_errno(&clustrix_net);
+    my_printf_error(error_code,
                     "Clustrix error: %s", MYF(0),
                     mysql_error(&clustrix_net));
-    return ER_QUERY_ON_FOREIGN_DATA_SOURCE;
+    return error_code;
   }
 
   return 0;
@@ -159,10 +160,11 @@ int clustrix_connection::read_query_response()
   my_bool comerr = clustrix_net.methods->read_query_result(&clustrix_net);
   if (comerr)
   {
-    my_printf_error(mysql_errno(&clustrix_net),
+    int error_code = mysql_errno(&clustrix_net);
+    my_printf_error(error_code,
                     "Clustrix error: %s", MYF(0),
                     mysql_error(&clustrix_net));
-    return ER_QUERY_ON_FOREIGN_DATA_SOURCE;
+    return error_code;
   }
 
   return 0;
@@ -306,7 +308,7 @@ int clustrix_connection::key_update(ulonglong clustrix_table_oid,
     return error_code;
 
   if ((error_code = read_query_response()))
-    return mysql_errno(&clustrix_net);
+    return error_code;
 
   return error_code;
 
@@ -331,7 +333,7 @@ int clustrix_connection::key_delete(ulonglong clustrix_table_oid,
     return error_code;
 
   if ((error_code = read_query_response()))
-    return mysql_errno(&clustrix_net);
+    return error_code;
 
   return error_code;
 }
@@ -622,7 +624,7 @@ int clustrix_connection::update_query(String &stmt, LEX_CSTRING &dbname,
   if ((error_code = send_command()))
     return error_code;
   if ((error_code = read_query_response()))
-    return mysql_errno(&clustrix_net);
+    return error_code;
 
   *affected_rows = clustrix_net.affected_rows;
 
