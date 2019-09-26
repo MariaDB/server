@@ -4614,15 +4614,10 @@ reset_bit:
 	ibuf_add_ops(ibuf->n_discarded_ops, dops);
 }
 
-/*********************************************************************//**
-Deletes all entries in the insert buffer for a given space id. This is used
-in DISCARD TABLESPACE, IMPORT TABLESPACE, and 5.7 TRUNCATE TABLE recovery.
-NOTE: this does not update the page free bitmaps in the space. The space will
-become CORRUPT when you call this function! */
-void
-ibuf_delete_for_discarded_space(
-/*============================*/
-	ulint	space)	/*!< in: space id */
+/** Delete all change buffer entries for a tablespace,
+in DISCARD TABLESPACE, IMPORT TABLESPACE, or crash recovery.
+@param[in]	space		missing or to-be-discarded tablespace */
+void ibuf_delete_for_discarded_space(ulint space)
 {
 	mem_heap_t*	heap;
 	btr_pcur_t	pcur;
