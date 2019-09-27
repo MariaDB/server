@@ -12299,7 +12299,7 @@ int create_table_info_t::create_table(bool create_fk)
 						 DICT_ERR_IGNORE_NONE,
 						 fk_tables);
 			while (err == DB_SUCCESS && !fk_tables.empty()) {
-				dict_load_table(fk_tables.front(), true,
+				dict_load_table(fk_tables.front(),
 						DICT_ERR_IGNORE_NONE);
 				fk_tables.pop_front();
 			}

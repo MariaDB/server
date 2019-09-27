@@ -321,10 +321,8 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
     TABLE *table= field->table;
     sql_mode_t orig_sql_mode= thd->variables.sql_mode;
     enum_check_fields orig_count_cuted_fields= thd->count_cuted_fields;
-    my_bitmap_map *old_maps[2];
+    my_bitmap_map *old_maps[2] = { NULL, NULL };
     ulonglong UNINIT_VAR(orig_field_val); /* original field value if valid */
-
-    LINT_INIT_STRUCT(old_maps);
 
     /* table->read_set may not be set if we come here from a CREATE TABLE */
     if (table && table->read_set)

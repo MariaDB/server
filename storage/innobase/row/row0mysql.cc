@@ -2754,7 +2754,7 @@ row_mysql_drop_garbage_tables()
 			btr_pcur_store_position(&pcur, &mtr);
 			btr_pcur_commit_specify_mtr(&pcur, &mtr);
 
-			if (dict_load_table(table_name, true,
+			if (dict_load_table(table_name,
 					    DICT_ERR_IGNORE_DROP)) {
 				row_drop_table_for_mysql(table_name, trx,
 							 SQLCOM_DROP_TABLE);
@@ -3265,7 +3265,7 @@ row_drop_table_from_cache(
 
 	dict_sys.remove(table);
 
-	if (dict_load_table(tablename, true, DICT_ERR_IGNORE_FK_NOKEY)) {
+	if (dict_load_table(tablename, DICT_ERR_IGNORE_FK_NOKEY)) {
 		ib::error() << "Not able to remove table "
 			<< ut_get_name(trx, tablename)
 			<< " from the dictionary cache!";
@@ -4584,7 +4584,7 @@ end:
 		dict_mem_table_fill_foreign_vcol_set(table);
 
 		while (!fk_tables.empty()) {
-			dict_load_table(fk_tables.front(), true,
+			dict_load_table(fk_tables.front(),
 					DICT_ERR_IGNORE_NONE);
 			fk_tables.pop_front();
 		}

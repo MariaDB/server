@@ -5630,7 +5630,7 @@ static bool innobase_instant_try(
 	dict_index_t* index = dict_table_get_first_index(user_table);
 	mtr_t mtr;
 	mtr.start();
-	/* Prevent purge from calling dict_index_t::clear_instant_alter(),
+	/* Prevent purge from calling dict_index_t::clear_instant_add(),
 	to protect index->n_core_fields, index->table->instant and others
 	from changing during ctx->instant_column(). */
 	instant_metadata_lock(*index, mtr);
@@ -5821,6 +5821,7 @@ add_all_virtual:
 	if (rec_is_metadata(rec, *index)) {
 		ut_ad(page_rec_is_user_rec(rec));
 		if (!rec_is_alter_metadata(rec, *index)
+		    && !index->table->instant
 		    && !page_has_next(block->frame)
 		    && page_rec_is_last(rec, block->frame)) {
 			goto empty_table;
@@ -5902,7 +5903,7 @@ add_all_virtual:
 		}
 		btr_pcur_close(&pcur);
 		goto func_exit;
-	} else if (page_rec_is_supremum(rec)) {
+	} else if (page_rec_is_supremum(rec) && !index->table->instant) {
 empty_table:
 		/* The table is empty. */
 		ut_ad(fil_page_index_page_check(block->frame));
@@ -5910,7 +5911,9 @@ empty_table:
 		ut_ad(block->page.id.page_no() == index->page);
 		/* MDEV-17383: free metadata BLOBs! */
 		btr_page_empty(block, NULL, index, 0, &mtr);
-		index->clear_instant_alter();
+		if (index->is_instant()) {
+			index->clear_instant_add();
+		}
 		goto func_exit;
 	} else if (!user_table->is_instant()) {
 		ut_ad(!user_table->not_redundant());
@@ -9590,7 +9593,7 @@ innobase_update_foreign_cache(
 	also be loaded. */
 	while (err == DB_SUCCESS && !fk_tables.empty()) {
 		dict_table_t*	table = dict_load_table(
-			fk_tables.front(), true, DICT_ERR_IGNORE_NONE);
+			fk_tables.front(), DICT_ERR_IGNORE_NONE);
 
 		if (table == NULL) {
 			err = DB_TABLE_NOT_FOUND;
