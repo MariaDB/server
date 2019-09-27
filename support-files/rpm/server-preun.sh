@@ -9,7 +9,7 @@ if [ $1 = 0 ] ; then
                 %{_sysconfdir}/init.d/mysql stop > /dev/null
         fi
         if [ -x /sbin/chkconfig ] ; then
-                /sbin/chkconfig --del mysql > /dev/null 2>&1
+                /sbin/chkconfig --del mysql > /dev/null 2>&1 || :
         fi
 fi
 
