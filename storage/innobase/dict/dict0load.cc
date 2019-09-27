@@ -69,7 +69,6 @@ NULL.  These tables must be subsequently loaded so that all the foreign
 key constraints are loaded into memory.
 
 @param[in]	name		Table name in the db/tablename format
-@param[in]	cached		true=add to cache, false=do not
 @param[in]	ignore_err	Error to be ignored when loading table
 				and its index definition
 @param[out]	fk_tables	Related table names that must also be
@@ -82,7 +81,6 @@ static
 dict_table_t*
 dict_load_table_one(
 	const table_name_t&	name,
-	bool			cached,
 	dict_err_ignore_t	ignore_err,
 	dict_names_t&		fk_tables);
 
@@ -2777,17 +2775,12 @@ the cluster definition if the table is a member in a cluster. Also loads
 all foreign key constraints where the foreign key is in the table or where
 a foreign key references columns in this table.
 @param[in]	name		Table name in the dbname/tablename format
-@param[in]	cached		true=add to cache, false=do not
 @param[in]	ignore_err	Error to be ignored when loading
 				table and its index definition
 @return table, NULL if does not exist; if the table is stored in an
 .ibd file, but the file does not exist, then we set the file_unreadable
 flag in the table object we return. */
-dict_table_t*
-dict_load_table(
-	const char*	name,
-	bool		cached,
-	dict_err_ignore_t ignore_err)
+dict_table_t* dict_load_table(const char* name, dict_err_ignore_t ignore_err)
 {
 	dict_names_t			fk_list;
 	dict_table_t*			result;
@@ -2802,12 +2795,12 @@ dict_load_table(
 
 	if (!result) {
 		result = dict_load_table_one(const_cast<char*>(name),
-					     cached, ignore_err, fk_list);
+					     ignore_err, fk_list);
 		while (!fk_list.empty()) {
 			if (!dict_table_check_if_in_cache_low(fk_list.front()))
 				dict_load_table_one(
 					const_cast<char*>(fk_list.front()),
-					cached, ignore_err, fk_list);
+					ignore_err, fk_list);
 			fk_list.pop_front();
 		}
 	}
@@ -2898,7 +2891,6 @@ NULL.  These tables must be subsequently loaded so that all the foreign
 key constraints are loaded into memory.
 
 @param[in]	name		Table name in the db/tablename format
-@param[in]	cached		true=add to cache, false=do not
 @param[in]	ignore_err	Error to be ignored when loading table
 				and its index definition
 @param[out]	fk_tables	Related table names that must also be
@@ -2911,7 +2903,6 @@ static
 dict_table_t*
 dict_load_table_one(
 	const table_name_t&	name,
-	bool			cached,
 	dict_err_ignore_t	ignore_err,
 	dict_names_t&		fk_tables)
 {
@@ -2998,11 +2989,7 @@ err_exit:
 
 	dict_load_virtual(table, heap);
 
-	if (cached) {
-		dict_table_add_to_cache(table, TRUE, heap);
-	} else {
-		dict_table_add_system_columns(table, heap);
-	}
+	dict_table_add_to_cache(table, TRUE, heap);
 
 	mem_heap_empty(heap);
 
@@ -3048,7 +3035,7 @@ err_exit:
 	of the error condition, since the user may want to dump data from the
 	clustered index. However we load the foreign key information only if
 	all indexes were loaded. */
-	if (!cached || !table->is_readable()) {
+	if (!table->is_readable()) {
 		/* Don't attempt to load the indexes from disk. */
 	} else if (err == DB_SUCCESS) {
 		err = dict_load_foreigns(table->name.m_name, NULL,
@@ -3229,7 +3216,7 @@ check_rec:
 				/* Load the table definition to memory */
 				char*	table_name = mem_heap_strdupl(
 					heap, (char*) field, len);
-				table = dict_load_table(table_name, true, ignore_err);
+				table = dict_load_table(table_name, ignore_err);
 			}
 		}
 	}
