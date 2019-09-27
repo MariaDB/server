@@ -1,3 +1,5 @@
+SET @save_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 #
 # MDEV-17821 Assertion `!page_rec_is_supremum(rec)' failed
 # in btr_pcur_store_position
@@ -295,3 +297,16 @@ ALTER TABLE t DROP COLUMN c, ALGORITHM=INSTANT;
 SELECT * FROM t;
 a	b
 DROP TABLE t;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT, d INT, e INT) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1;
+INSERT INTO t1 SET a=2;
+BEGIN;
+UPDATE t1 SET b=1;
+DELETE FROM t1;
+COMMIT;
+ALTER TABLE t1 DROP b, DROP c, DROP d, DROP e;
+InnoDB		0 transactions not purged
+SELECT * FROM t1;
+a
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

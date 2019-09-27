@@ -1,5 +1,8 @@
 --source include/have_innodb.inc
 
+SET @save_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
 --echo #
 --echo # MDEV-17821 Assertion `!page_rec_is_supremum(rec)' failed
 --echo # in btr_pcur_store_position
@@ -313,3 +316,21 @@ ALTER TABLE t ADD COLUMN c INT, ALGORITHM=INSTANT;
 ALTER TABLE t DROP COLUMN c, ALGORITHM=INSTANT;
 SELECT * FROM t;
 DROP TABLE t;
+
+# The following is nondeterministically repeating the bug in a
+# different scenario: the table is empty at the time the ALTER TABLE
+# is invoked, apparently because purge already processed the records
+# for the DELETE, but not the record for the UPDATE.
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT, d INT, e INT) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1;
+INSERT INTO t1 SET a=2;
+BEGIN;
+UPDATE t1 SET b=1;
+DELETE FROM t1;
+COMMIT;
+
+ALTER TABLE t1 DROP b, DROP c, DROP d, DROP e;
+--source include/wait_all_purged.inc
+SELECT * FROM t1;
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
