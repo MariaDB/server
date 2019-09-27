@@ -2109,18 +2109,20 @@ void recv_recover_corrupt_page(page_id_t page_id)
 	mutex_enter(&recv_sys.mutex);
 
 	if (!recv_sys.apply_log_recs) {
-		mutex_exit(&recv_sys.mutex);
-		return;
-	}
-
-	recv_addr_t* recv_addr = recv_get_fil_addr_struct(
-		page_id.space(), page_id.page_no());
-
-	ut_ad(recv_addr->state != RECV_WILL_NOT_READ);
-
-	if (recv_addr->state != RECV_BEING_PROCESSED
-	    && recv_addr->state != RECV_PROCESSED) {
-		recv_sys.n_addrs--;
+	} else if (recv_addr_t* recv_addr = recv_get_fil_addr_struct(
+			   page_id.space(), page_id.page_no())) {
+		switch (recv_addr->state) {
+		case RECV_WILL_NOT_READ:
+			ut_ad(!"wrong state");
+			break;
+		case RECV_BEING_PROCESSED:
+		case RECV_PROCESSED:
+			break;
+		default:
+			recv_addr->state = RECV_PROCESSED;
+			ut_ad(recv_sys.n_addrs);
+			recv_sys.n_addrs--;
+		}
 	}
 
 	mutex_exit(&recv_sys.mutex);

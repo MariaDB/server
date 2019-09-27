@@ -623,7 +623,6 @@ innodb.xa_recovery                           : MDEV-15279 - mysqld got exception
 #-----------------------------------------------------------------------
 
 innodb_fts.fulltext2                   : Modified in 10.4.7
-innodb_fts.fulltext_table_evict        : Modified in 10.4.8
 innodb_fts.innodb_fts_misc             : Modified in 10.4.8
 innodb_fts.innodb_fts_misc_debug       : MDEV-14156 - Unexpected warning
 innodb_fts.innodb_fts_plugin           : MDEV-13888 - Errors in server log

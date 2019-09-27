@@ -9593,7 +9593,7 @@ innobase_update_foreign_cache(
 	also be loaded. */
 	while (err == DB_SUCCESS && !fk_tables.empty()) {
 		dict_table_t*	table = dict_load_table(
-			fk_tables.front(), true, DICT_ERR_IGNORE_NONE);
+			fk_tables.front(), DICT_ERR_IGNORE_NONE);
 
 		if (table == NULL) {
 			err = DB_TABLE_NOT_FOUND;

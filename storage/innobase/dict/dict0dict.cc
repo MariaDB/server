@@ -888,7 +888,7 @@ dict_table_open_on_name(
 	table = dict_table_check_if_in_cache_low(table_name);
 
 	if (table == NULL) {
-		table = dict_load_table(table_name, true, ignore_err);
+		table = dict_load_table(table_name, ignore_err);
 	}
 
 	ut_ad(!table || table->cached);
@@ -1137,14 +1137,7 @@ dict_make_room_in_cache(
 	        prev_table = UT_LIST_GET_PREV(table_LRU, table);
 
 		if (dict_table_can_be_evicted(table)) {
-
-			DBUG_EXECUTE_IF("crash_if_fts_table_is_evicted",
-			{
-				  if (table->fts &&
-				      dict_table_has_fts_index(table)) {
-					ut_ad(0);
-				  }
-			};);
+			ut_ad(!table->fts);
 			dict_sys.remove(table, true);
 
 			++n_evicted;
