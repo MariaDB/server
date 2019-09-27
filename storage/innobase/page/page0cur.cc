@@ -2490,7 +2490,8 @@ page_cur_delete_rec(
 	/* The record must not be the supremum or infimum record. */
 	ut_ad(page_rec_is_user_rec(current_rec));
 
-	if (page_get_n_recs(page) == 1 && !recv_recovery_is_on()) {
+	if (page_get_n_recs(page) == 1 && !recv_recovery_is_on()
+	    && !rec_is_alter_metadata(current_rec, *index)) {
 		/* Empty the page, unless we are applying the redo log
 		during crash recovery. During normal operation, the
 		page_create_empty() gets logged as one of MLOG_PAGE_CREATE,

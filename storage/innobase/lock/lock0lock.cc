@@ -4678,12 +4678,15 @@ lock_trx_print_locks(
 /** Functor to display all transactions */
 struct lock_print_info
 {
-  lock_print_info(FILE* file, time_t now) : file(file), now(now) {}
+  lock_print_info(FILE* file, time_t now) :
+    file(file), now(now),
+    purge_trx(purge_sys.query ? purge_sys.query->trx : NULL)
+  {}
 
   void operator()(const trx_t* trx) const
   {
     ut_ad(mutex_own(&trx_sys.mutex));
-    if (trx == purge_sys.query->trx)
+    if (UNIV_UNLIKELY(trx == purge_trx))
       return;
     lock_trx_print_wait_and_mvcc_state(file, trx, now);
 
@@ -4693,6 +4696,7 @@ struct lock_print_info
 
   FILE* const file;
   const time_t now;
+  const trx_t* const purge_trx;
 };
 
 /*********************************************************************//**

@@ -6209,8 +6209,6 @@ database_corrupted:
 			recv_recover_page(bpage);
 		}
 
-		/* If space is being truncated then avoid ibuf operation.
-		During re-init we have already freed ibuf entries. */
 		if (uncompressed
 		    && !recv_no_ibuf_operations
 		    && (bpage->id.space() == 0

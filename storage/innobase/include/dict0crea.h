@@ -96,22 +96,6 @@ dict_create_index_tree(
 	dict_index_t*	index,	/*!< in/out: index */
 	const trx_t*	trx);	/*!< in: InnoDB transaction handle */
 
-/*******************************************************************//**
-Recreate the index tree associated with a row in SYS_INDEXES table.
-@return	new root page number, or FIL_NULL on failure */
-ulint
-dict_recreate_index_tree(
-/*======================*/
-	const dict_table_t*	table,	/*!< in: the table the index
-					belongs to */
-	btr_pcur_t*		pcur,	/*!< in/out: persistent cursor pointing
-					to record in the clustered index of
-					SYS_INDEXES table. The cursor may be
-					repositioned in this call. */
-	mtr_t*			mtr);	/*!< in: mtr having the latch
-					on the record page. The mtr may be
-					committed and restarted in this call. */
-
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	rec	SYS_INDEXES record
 @param[in,out]	pcur	persistent cursor on rec
