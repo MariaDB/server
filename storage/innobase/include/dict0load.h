@@ -101,17 +101,12 @@ the cluster definition if the table is a member in a cluster. Also loads
 all foreign key constraints where the foreign key is in the table or where
 a foreign key references columns in this table.
 @param[in]	name		Table name in the dbname/tablename format
-@param[in]	cached		true=add to cache, false=do not
 @param[in]	ignore_err	Error to be ignored when loading
 				table and its index definition
 @return table, NULL if does not exist; if the table is stored in an
 .ibd file, but the file does not exist, then we set the file_unreadable
 flag in the table object we return. */
-dict_table_t*
-dict_load_table(
-	const char*	name,
-	bool		cached,
-	dict_err_ignore_t ignore_err);
+dict_table_t* dict_load_table(const char* name, dict_err_ignore_t ignore_err);
 
 /***********************************************************************//**
 Loads a table object based on the table id.
