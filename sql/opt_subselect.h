@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -92,19 +92,15 @@ class Loose_scan_opt
 
 public:
   Loose_scan_opt():
-    try_loosescan(FALSE),
+    try_loosescan(false),
     bound_sj_equalities(0),
-    quick_uses_applicable_index(FALSE)
+    quick_uses_applicable_index(FALSE), quick_max_loose_keypart(0),
+    best_loose_scan_key(0), best_loose_scan_records(0.0),
+    best_loose_scan_start_key(NULL),
+    best_max_loose_keypart(0), best_ref_depend_map(0)
   {
-    /* Protected by quick_uses_applicable_index */
-    LINT_INIT(quick_max_loose_keypart);
-    /* The following are protected by best_loose_scan_cost!= DBL_MAX */
-    LINT_INIT(best_loose_scan_key);
-    LINT_INIT(best_loose_scan_records);
-    LINT_INIT(best_max_loose_keypart);
-    LINT_INIT(best_loose_scan_start_key);
   }
-  
+
   void init(JOIN *join, JOIN_TAB *s, table_map remaining_tables)
   {
     /*
