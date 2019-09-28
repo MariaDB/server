@@ -103,15 +103,6 @@ static const char *f_extensions[]= { ".cnf", 0 };
 #define NEWLINE "\n"
 #endif
 
-static int handle_default_option(void *, const char *, const char *);
-
-/*
-   This structure defines the context that we pass to callback
-   function 'handle_default_option' used in search_default_file
-   to process each option. This context is used if search_default_file
-   was called from load_defaults.
-*/
-
 struct handle_option_ctx
 {
    MEM_ROOT *alloc;
@@ -119,10 +110,9 @@ struct handle_option_ctx
    TYPELIB *group;
 };
 
-static int search_default_file(Process_option_func func, void *func_ctx,
+static int search_default_file(struct handle_option_ctx *ctx,
 			       const char *dir, const char *config_file);
-static int search_default_file_with_ext(Process_option_func func,
-                                        void *func_ctx,
+static int search_default_file_with_ext(struct handle_option_ctx *ctx,
 					const char *dir, const char *ext,
 					const char *config_file, int recursion_level);
 
@@ -219,9 +209,10 @@ fn_expand(const char *filename, char *result_buf)
     --defaults_group_suffix
 */
 
-int my_search_option_files(const char *conf_file, int *argc, char ***argv,
-                           uint *args_used, Process_option_func func,
-                           void *func_ctx, const char **default_directories)
+static int my_search_option_files(const char *conf_file, int *argc,
+                                  char ***argv, uint *args_used,
+                                  struct handle_option_ctx *ctx,
+                                  const char **default_directories)
 {
   const char **dirs, *forced_default_file, *forced_extra_defaults;
   int error= 0;
@@ -254,18 +245,12 @@ int my_search_option_files(const char *conf_file, int *argc, char ***argv,
 
   defaults_already_read= TRUE;
 
-  /*
-    We can only handle 'defaults-group-suffix' if we are called from
-    load_defaults() as otherwise we can't know the type of 'func_ctx'
-  */
-
-  if (my_defaults_group_suffix && func == handle_default_option)
+  if (my_defaults_group_suffix)
   {
     /* Handle --defaults-group-suffix= */
     uint i;
     const char **extra_groups;
     const size_t instance_len= strlen(my_defaults_group_suffix); 
-    struct handle_option_ctx *ctx= (struct handle_option_ctx*) func_ctx;
     char *ptr;
     TYPELIB *group= ctx->group;
     
@@ -297,7 +282,7 @@ int my_search_option_files(const char *conf_file, int *argc, char ***argv,
   
   if (my_defaults_file)
   {
-    if ((error= search_default_file_with_ext(func, func_ctx, "", "",
+    if ((error= search_default_file_with_ext(ctx, "", "",
                                              my_defaults_file, 0)) < 0)
       goto err;
     if (error > 0)
@@ -309,7 +294,7 @@ int my_search_option_files(const char *conf_file, int *argc, char ***argv,
   }
   else if (dirname_length(conf_file))
   {
-    if ((error= search_default_file(func, func_ctx, NullS, conf_file)) < 0)
+    if ((error= search_default_file(ctx, NullS, conf_file)) < 0)
       goto err;
   }
   else
@@ -318,12 +303,12 @@ int my_search_option_files(const char *conf_file, int *argc, char ***argv,
     {
       if (**dirs)
       {
-	if (search_default_file(func, func_ctx, *dirs, conf_file) < 0)
+	if (search_default_file(ctx, *dirs, conf_file) < 0)
 	  goto err;
       }
       else if (my_defaults_extra_file)
       {
-        if ((error= search_default_file_with_ext(func, func_ctx, "", "",
+        if ((error= search_default_file_with_ext(ctx, "", "",
                                                 my_defaults_extra_file, 0)) < 0)
 	  goto err;				/* Fatal error */
         if (error > 0)
@@ -345,47 +330,23 @@ err:
 
 
 /*
-  The option handler for load_defaults.
+  adds an option to the array of options
 
   SYNOPSIS
-    handle_deault_option()
-    in_ctx                  Handler context. In this case it is a
-                            handle_option_ctx structure.
-    group_name              The name of the group the option belongs to.
+    add_option()
+    in_ctx                  Handler context.
     option                  The very option to be processed. It is already
-                            prepared to be used in argv (has -- prefix). If it
-                            is NULL, we are handling a new group (section).
-
-  DESCRIPTION
-    This handler checks whether a group is one of the listed and adds an option
-    to the array if yes. Some other handler can record, for instance, all
-    groups and their options, not knowing in advance the names and amount of
-    groups.
+                            prepared to be used in argv (has -- prefix).
 
   RETURN
     0 - ok
     1 - error occurred
 */
 
-static int handle_default_option(void *in_ctx, const char *group_name,
-                                 const char *option)
+static int add_option(struct handle_option_ctx *ctx, const char *option)
 {
-  char *tmp;
-  struct handle_option_ctx *ctx= (struct handle_option_ctx *) in_ctx;
-
-  if (!option)
-    return 0;
-
-  if (find_type((char *)group_name, ctx->group, FIND_TYPE_NO_PREFIX))
-  {
-    if (!(tmp= alloc_root(ctx->alloc, strlen(option) + 1)))
-      return 1;
-    if (insert_dynamic(ctx->args, (uchar*) &tmp))
-      return 1;
-    strmov(tmp, option);
-  }
-
-  return 0;
+  char *tmp= strdup_root(ctx->alloc, option);
+  return !tmp || insert_dynamic(ctx->args, (uchar*) &tmp);
 }
 
 
@@ -504,8 +465,8 @@ int load_defaults(const char *conf_file, const char **groups,
 */
 
 
-int my_load_defaults(const char *conf_file, const char **groups,
-                  int *argc, char ***argv, const char ***default_directories)
+int my_load_defaults(const char *conf_file, const char **groups, int *argc,
+                     char ***argv, const char ***default_directories)
 {
   DYNAMIC_ARRAY args;
   TYPELIB group;
@@ -572,8 +533,7 @@ int my_load_defaults(const char *conf_file, const char **groups,
   ctx.args= &args;
   ctx.group= &group;
 
-  if ((error= my_search_option_files(conf_file, argc, argv, &args_used,
-                                     handle_default_option, (void *) &ctx,
+  if ((error= my_search_option_files(conf_file, argc, argv, &args_used, &ctx,
                                      dirs)))
   {
     delete_dynamic(&args);
@@ -653,9 +613,7 @@ void free_defaults(char **argv)
 }
 
 
-static int search_default_file(Process_option_func opt_handler,
-                               void *handler_ctx,
-			       const char *dir,
+static int search_default_file(struct handle_option_ctx *ctx, const char *dir,
 			       const char *config_file)
 {
   char **ext;
@@ -666,9 +624,7 @@ static int search_default_file(Process_option_func opt_handler,
   for (ext= (char**) exts_to_use; *ext; ext++)
   {
     int error;
-    if ((error= search_default_file_with_ext(opt_handler, handler_ctx,
-                                             dir, *ext,
-					     config_file, 0)) < 0)
+    if ((error= search_default_file_with_ext(ctx, dir, *ext, config_file, 0)) < 0)
       return error;
   }
   return 0;
@@ -730,9 +686,7 @@ static char *get_argument(const char *keyword, size_t kwlen,
 
   SYNOPSIS
     search_default_file_with_ext()
-    opt_handler                 Option handler function. It is used to process
-                                every separate option.
-    handler_ctx                 Pointer to the structure to store actual 
+    ctx                         Pointer to the structure to store actual 
                                 parameters of the function.
     dir				directory to read
     ext				Extension for configuration file
@@ -747,10 +701,8 @@ static char *get_argument(const char *keyword, size_t kwlen,
      1	File not found (Warning)
 */
 
-static int search_default_file_with_ext(Process_option_func opt_handler,
-                                        void *handler_ctx,
-                                        const char *dir,
-                                        const char *ext,
+static int search_default_file_with_ext(struct handle_option_ctx *ctx,
+                                        const char *dir, const char *ext,
                                         const char *config_file,
                                         int recursion_level)
 {
@@ -761,7 +713,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
   const int max_recursion_level= 10;
   MYSQL_FILE *fp;
   uint line=0;
-  my_bool found_group=0;
+  enum { SKIP, PARSE, NONE } found_group;
   uint i;
   MY_DIR *search_dir;
   FILEINFO *search_file;
@@ -862,8 +814,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
             fn_format(tmp, search_file->name, ptr, "",
                       MY_UNPACK_FILENAME | MY_SAFE_PATH);
 
-            search_default_file_with_ext(opt_handler, handler_ctx, "", "", tmp,
-                                         recursion_level + 1);
+            search_default_file_with_ext(ctx, "", "", tmp, recursion_level + 1);
           }
         }
 
@@ -877,8 +828,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
                                 name, line)))
 	  goto err;
 
-        search_default_file_with_ext(opt_handler, handler_ctx, "", "", ptr,
-                                     recursion_level + 1);
+        search_default_file_with_ext(ctx, "", "", ptr, recursion_level + 1);
       }
 
       continue;
@@ -886,7 +836,6 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
 
     if (*ptr == '[')				/* Group name */
     {
-      found_group=1;
       if (!(end=(char *) strchr(++ptr,']')))
       {
 	fprintf(stderr,
@@ -899,32 +848,26 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
       end[0]=0;
 
       strmake(curr_gr, ptr, MY_MIN((size_t) (end-ptr)+1, sizeof(curr_gr)-1));
-
-      /* signal that a new group is found */
-      opt_handler(handler_ctx, curr_gr, NULL);
-
+      found_group= find_type(curr_gr, ctx->group, FIND_TYPE_NO_PREFIX)
+                   ? PARSE : SKIP;
       continue;
     }
-    if (!found_group)
+    if (found_group == NONE)
     {
       fprintf(stderr,
 	      "error: Found option without preceding group in config file: %s at line: %d\n",
 	      name,line);
       goto err;
     }
+    if (found_group == SKIP)
+      continue;
     
-   
     end= remove_end_comment(ptr);
     if ((value= strchr(ptr, '=')))
       end= value;
     for ( ; my_isspace(&my_charset_latin1,end[-1]) ; end--) ;
-    if (!value)
-    {
-      strmake(strmov(option,"--"),ptr, (size_t) (end-ptr));
-      if (opt_handler(handler_ctx, curr_gr, option))
-        goto err;
-    }
-    else
+    ptr= strmake(strmov(option,"--"), ptr, (size_t) (end-ptr));
+    if (value)
     {
       /* Remove pre- and end space */
       char *value_end;
@@ -946,9 +889,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
 	value++;
 	value_end--;
       }
-      ptr=strnmov(strmov(option,"--"),ptr,(size_t) (end-ptr));
       *ptr++= '=';
-
       for ( ; value != value_end; value++)
       {
 	if (*value == '\\' && value != value_end-1)
@@ -988,9 +929,10 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
 	  *ptr++= *value;
       }
       *ptr=0;
-      if (opt_handler(handler_ctx, curr_gr, option))
-        goto err;
     }
+
+    if (add_option(ctx, option))
+      goto err;
   }
   mysql_file_fclose(fp, MYF(0));
   return(0);
