@@ -97,5 +97,22 @@ UPDATE IGNORE t1 SET d = NOW();
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
+# MDEV-20639 ASAN SEGV in get_prefix upon modifying base column type with existing indexed virtual column
+#
+CREATE TABLE t1 (
+a TIMESTAMP,
+b TIMESTAMP AS (a) VIRTUAL,
+KEY (b)
+);
+ALTER TABLE t1 MODIFY a BLOB FIRST;
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `b`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `b`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `b`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #
