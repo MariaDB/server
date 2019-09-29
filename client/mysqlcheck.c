@@ -284,13 +284,13 @@ static void usage(void)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt,
+	       char *argument, const char *filename __attribute__((unused)))
 {
   int orig_what_to_do= what_to_do;
   DBUG_ENTER("get_one_option");
 
-  switch(optid) {
+  switch(opt->id) {
   case 'a':
     what_to_do = DO_ANALYZE;
     break;

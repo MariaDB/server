@@ -1728,10 +1728,9 @@ static void usage(int version)
 
 
 my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt, char *argument, const char *)
 {
-  switch(optid) {
+  switch(opt->id) {
   case OPT_CHARSETS_DIR:
     strmake_buf(mysql_charsets_dir, argument);
     charsets_dir = mysql_charsets_dir;

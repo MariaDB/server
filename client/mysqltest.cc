@@ -96,8 +96,7 @@ static int setenv(const char *name, const char *value, int overwrite);
 
 C_MODE_START
 static sig_handler signal_handler(int sig);
-static my_bool get_one_option(int optid, const struct my_option *,
-                              char *argument);
+static my_bool get_one_option(const struct my_option *, char *, const char *);
 C_MODE_END
 
 enum {
@@ -7193,9 +7192,9 @@ void read_embedded_server_arguments(const char *name)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt, char *argument)
+get_one_option(const struct my_option *opt, char *argument, const char *)
 {
-  switch(optid) {
+  switch(opt->id) {
   case '#':
 #ifndef DBUG_OFF
     DBUG_PUSH(argument ? argument : "d:t:S:i:O,/tmp/mysqltest.trace");

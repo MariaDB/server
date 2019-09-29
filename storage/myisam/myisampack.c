@@ -316,12 +316,12 @@ static void usage(void)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt,
+	       char *argument, const char *filename __attribute__((unused)))
 {
   uint length;
 
-  switch(optid) {
+  switch(opt->id) {
   case 'f':
     force_pack= 1;
     tmpfile_createflag= O_RDWR | O_TRUNC;

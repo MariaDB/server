@@ -1332,11 +1332,11 @@ static void usage(void)
 
 extern "C" my_bool
 innochecksum_get_one_option(
-	int			optid,
-	const struct my_option	*opt MY_ATTRIBUTE((unused)),
-	char			*argument MY_ATTRIBUTE((unused)))
+	const struct my_option	*opt,
+	char			*argument MY_ATTRIBUTE((unused)),
+        const char *)
 {
-	switch (optid) {
+	switch (opt->id) {
 #ifndef DBUG_OFF
 	case '#':
 		dbug_setting = argument

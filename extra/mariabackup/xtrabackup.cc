@@ -1628,11 +1628,10 @@ check_if_param_set(const char *param)
 }
 
 my_bool
-xb_get_one_option(int optid,
-		  const struct my_option *opt __attribute__((unused)),
-		  char *argument)
+xb_get_one_option(const struct my_option *opt,
+		  char *argument, const char *)
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'h':
     strmake(mysql_real_data_home,argument, FN_REFLEN - 1);
     mysql_data_home= mysql_real_data_home;

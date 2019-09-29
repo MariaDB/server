@@ -643,10 +643,11 @@ static struct my_option my_long_options[] =
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument __attribute__((unused)))
+get_one_option(const struct my_option *opt,
+	       char *argument __attribute__((unused)),
+               const char *filename __attribute__((unused)))
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'c':
     create_flag|= HA_CREATE_CHECKSUM | HA_CREATE_PAGE_CHECKSUM;
     break;

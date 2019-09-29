@@ -2641,8 +2641,7 @@ static struct my_option my_long_options[] =
 
 
 C_MODE_START
-static my_bool get_one_option(int optid, const struct my_option *,
-                              char *argument);
+static my_bool get_one_option(const struct my_option *, char *, const char *);
 C_MODE_END
 
 static void print_version(void)
@@ -2664,9 +2663,9 @@ static void print_usage(void)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt, char *argument)
+get_one_option(const struct my_option *opt, char *argument, const char *)
 {
-  switch(optid) {
+  switch(opt->id) {
   case '#':
 #ifndef DBUG_OFF
     DBUG_PUSH(argument ? argument : "d:t:S:i:O,/tmp/mysq_tzinfo_to_sql.trace");

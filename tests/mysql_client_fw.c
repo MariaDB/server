@@ -1273,10 +1273,10 @@ static struct my_tests_st *get_my_tests();  /* To be defined in main .c file */
 static struct my_tests_st *my_testlist= 0;
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-               char *argument)
+get_one_option(const struct my_option *opt, char *argument,
+               const char *filename __attribute__((unused)))
 {
-  switch (optid) {
+  switch (opt->id) {
   case '#':
     DBUG_PUSH(argument ? argument : default_dbug_option);
     break;

@@ -3984,8 +3984,8 @@ static my_option *construct_help_options(MEM_ROOT *mem_root,
   DBUG_RETURN(opts);
 }
 
-extern "C" my_bool mark_changed(int, const struct my_option *, char *);
-my_bool mark_changed(int, const struct my_option *opt, char *)
+extern "C" my_bool mark_changed(const struct my_option *, char *, const char *);
+my_bool mark_changed(const struct my_option *opt, char *, const char *)
 {
   if (opt->app_type)
   {

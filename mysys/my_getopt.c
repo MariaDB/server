@@ -442,8 +442,9 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 				       my_progname, optp->name, optend);
 	      continue;
 	    }
-            if (get_one_option(optp->id, optp, *((my_bool*) value) ?
-                               enabled_my_option : disabled_my_option))
+            if (get_one_option(optp, *((my_bool*) value) ?
+                               enabled_my_option : disabled_my_option,
+                               filename))
               DBUG_RETURN(EXIT_ARGUMENT_INVALID);
 	    continue;
 	  }
@@ -518,7 +519,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 		  optp->arg_type == NO_ARG)
 	      {
 		*((my_bool*) optp->value)= (my_bool) 1;
-                if (get_one_option(optp->id, optp, argument))
+                if (get_one_option(optp, argument, filename))
                   DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
 		continue;
 	      }
@@ -538,7 +539,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                   {
                     if (optp->var_type == GET_BOOL)
                       *((my_bool*) optp->value)= (my_bool) 1;
-                    if (get_one_option(optp->id, optp, argument))
+                    if (get_one_option(optp, argument, filename))
                       DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
                     continue;
                   }
@@ -559,7 +560,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	      if ((error= setval(optp, optp->value, argument,
 				 set_maximum_value)))
 		DBUG_RETURN(error);
-              if (get_one_option(optp->id, optp, argument))
+              if (get_one_option(optp, argument, filename))
                 DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
 	      break;
 	    }
@@ -606,7 +607,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	  ((error= setval(optp, value, argument, set_maximum_value))) &&
           !option_is_loose)
 	DBUG_RETURN(error);
-      if (get_one_option(optp->id, optp, argument))
+      if (get_one_option(optp, argument, filename))
         DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
 
       (*argc)--; /* option handled (long), decrease argument count */

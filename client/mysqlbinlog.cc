@@ -1932,11 +1932,10 @@ static my_time_t convert_str_to_timestamp(const char* str)
 
 
 extern "C" my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt, char *argument, const char *)
 {
   bool tty_password=0;
-  switch (optid) {
+  switch (opt->id) {
 #ifndef DBUG_OFF
   case '#':
     if (!argument)

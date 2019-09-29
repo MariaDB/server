@@ -728,11 +728,10 @@ indicates an error.\n");
 
 static
 my_bool
-ibx_get_one_option(int optid,
-		const struct my_option *opt __attribute__((unused)),
-		char *argument)
+ibx_get_one_option(const struct my_option *opt,
+                   char *argument, const char *)
 {
-	switch(optid) {
+	switch(opt->id) {
 	case '?':
 		usage();
 		exit(0);

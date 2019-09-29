@@ -241,10 +241,9 @@ static const char *load_default_groups[]=
   0 };
 
 my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt, char *argument, const char *)
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'c':
     opt_count_iterations= 1;
     break;

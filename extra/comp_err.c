@@ -150,8 +150,6 @@ static uint parse_input_file(const char *file_name, struct errors **top_error,
 static int get_options(int *argc, char ***argv);
 static void print_version(void);
 static void usage(void);
-static my_bool get_one_option(int optid, const struct my_option *opt,
-			      char *argument);
 static char *parse_text_line(char *pos);
 static int copy_rows(FILE * to, char *row, int row_nr, long start_pos);
 static char *parse_default_language(char *str);
@@ -1134,11 +1132,12 @@ static void print_version(void)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__ ((unused)),
-	       char *argument __attribute__ ((unused)))
+get_one_option(const struct my_option *opt,
+	       char *argument __attribute__ ((unused)),
+	       const char *filename __attribute__ ((unused)))
 {
   DBUG_ENTER("get_one_option");
-  switch (optid) {
+  switch (opt->id) {
   case 'V':
     print_version();
     my_end(0);

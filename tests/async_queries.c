@@ -335,10 +335,10 @@ add_query(const char *q)
 
 
 static my_bool
-handle_option(int optid, const struct my_option *opt __attribute__((unused)),
-              char *arg)
+handle_option(const struct my_option *opt, char *arg,
+              const char *filename __attribute__((unused)))
 {
-  switch (optid)
+  switch (opt->id)
   {
   case '?':
     printf("Usage: async_queries [OPTIONS] query ...\n");

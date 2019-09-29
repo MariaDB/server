@@ -579,10 +579,11 @@ static void version(void)
 }
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument __attribute__((unused)))
+get_one_option(const struct my_option *opt,
+	       char *argument __attribute__((unused)),
+	       const char *filename __attribute__((unused)))
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'V':
     version();
     exit(0);

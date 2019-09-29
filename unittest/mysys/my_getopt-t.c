@@ -60,9 +60,9 @@ static struct my_option mopts_options[]=
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
-my_bool dummy_get_one_option(int optid __attribute__((unused)),
-                             const struct my_option *opt __attribute__((unused)),
-                             char *argument __attribute__((unused)))
+my_bool dummy_get_one_option(const struct my_option *opt __attribute__((unused)),
+                             char *argument __attribute__((unused)),
+                             const char *filename __attribute__((unused)))
 {
   return FALSE;
 }
@@ -234,9 +234,9 @@ static struct my_option auto_options[]=
 
 
 
-my_bool auto_get_one_option(int optid __attribute__((unused)),
-                            const struct my_option *opt,
-                            char *argument)
+my_bool auto_get_one_option(const struct my_option *opt,
+                            char *argument,
+                            const char *filename __attribute__((unused)))
 {
   if (argument == autoset_my_option)
   {

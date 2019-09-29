@@ -268,12 +268,12 @@ static void add_one_option_cnf_file(DYNAMIC_STRING *ds,
 }
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt,
-               char *argument)
+get_one_option(const struct my_option *opt, char *argument,
+               const char *filename __attribute__((unused)))
 {
   my_bool add_option= TRUE;
 
-  switch (optid) {
+  switch (opt->id) {
 
   case '?':
     printf("%s  Ver %s Distrib %s, for %s (%s)\n",
@@ -317,7 +317,7 @@ get_one_option(int optid, const struct my_option *opt,
   case 'b': /* --basedir   */
   case 'd': /* --datadir   */
     fprintf(stderr, "%s: the '--%s' option is always ignored\n",
-            my_progname, optid == 'b' ? "basedir" : "datadir");
+            my_progname, opt->id == 'b' ? "basedir" : "datadir");
     /* FALLTHROUGH */
 
   case 'k':                                     /* --version-check */
