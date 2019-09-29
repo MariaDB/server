@@ -9233,6 +9233,7 @@ ST_FIELD_INFO sysvars_fields_info[]=
   Column("ENUM_VALUE_LIST",      Longtext(65535),                  NULLABLE),
   Column("READ_ONLY",            Yesno(),                          NOT_NULL),
   Column("COMMAND_LINE_ARGUMENT",Name(),                           NULLABLE),
+  Column("GLOBAL_VALUE_PATH",    Varchar(2048),                    NULLABLE),
   CEnd()
 };
 

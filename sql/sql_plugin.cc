@@ -3985,12 +3985,18 @@ static my_option *construct_help_options(MEM_ROOT *mem_root,
 }
 
 extern "C" my_bool mark_changed(const struct my_option *, char *, const char *);
-my_bool mark_changed(const struct my_option *opt, char *, const char *)
+my_bool mark_changed(const struct my_option *opt, char *, const char *filename)
 {
   if (opt->app_type)
   {
     sys_var *var= (sys_var*) opt->app_type;
-    var->value_origin= sys_var::CONFIG;
+    if (*filename)
+    {
+      var->origin_filename= filename;
+      var->value_origin= sys_var::CONFIG;
+    }
+    else
+      var->value_origin= sys_var::COMMAND_LINE;
   }
   return 0;
 }
@@ -4163,7 +4169,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
 
   if (tmp->plugin->system_vars)
   {
-    for (opt= tmp->plugin->system_vars; *opt; opt++)
+    if (mysqld_server_started)
     {
       /*
         PLUGIN_VAR_STR command-line options without PLUGIN_VAR_MEMALLOC, point
@@ -4176,13 +4182,22 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
         Thus, for all plugins loaded after the server was started,
         we copy string values to a plugin's memroot.
       */
-      if (mysqld_server_started &&
-          (((*opt)->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_NOCMDOPT |
-                             PLUGIN_VAR_MEMALLOC)) == PLUGIN_VAR_STR))
+      for (opt= tmp->plugin->system_vars; *opt; opt++)
       {
-        sysvar_str_t* str= (sysvar_str_t *)*opt;
-        if (*str->value)
-          *str->value= strdup_root(mem_root, *str->value);
+        if ((((*opt)->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_NOCMDOPT |
+                               PLUGIN_VAR_MEMALLOC)) == PLUGIN_VAR_STR))
+        {
+          sysvar_str_t* str= (sysvar_str_t *)*opt;
+          if (*str->value)
+            *str->value= strdup_root(mem_root, *str->value);
+        }
+      }
+      /* same issue with config file names */
+      for (my_option *mo=opts; mo->name; mo++)
+      {
+        sys_var *var= (sys_var*) mo->app_type;
+        if (var && var->value_origin == sys_var::CONFIG)
+          var->origin_filename= strdup_root(mem_root, var->origin_filename);
       }
     }
 

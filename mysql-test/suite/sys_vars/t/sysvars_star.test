@@ -1,0 +1,41 @@
+#
+# MDEV-12684 Show what config file a sysvar got a value from
+#
+
+source include/not_embedded.inc;
+if (!$SQL_ERRLOG_SO) {
+  skip No sql_errlog plugin;
+}
+
+#system_versioning_alter_history
+#binlog_format
+set completion_type=CHAIN;
+set global low_priority_updates=1;
+
+install soname 'sql_errlog';
+
+vertical_results;
+replace_regex /\/.*\//var\//;
+select * from information_schema.system_variables
+  where variable_name in (
+    'completion_type',                #session!=global, origin=compile-time
+    'low_priority_updates',           #global!=default, origin=sql
+    'column_compression_threshold',   #origin=command-line
+    'plugin_maturity',                #origin=config
+    'sql_error_log_rate',             #plugin, origin=command-line
+    'sql_error_log_rotations'         #plugin, origin=config
+  )
+  order by variable_name;
+
+create user foo@localhost;
+
+connect foo,localhost,foo;
+select global_value_path from information_schema.system_variables where variable_name='plugin_maturity';
+connection default;
+replace_regex /\/.*\//var\//;
+select global_value_path from information_schema.system_variables where variable_name='plugin_maturity';
+
+drop user foo@localhost;
+set global low_priority_updates=default;
+disable_warnings;
+uninstall soname 'sql_errlog';

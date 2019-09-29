@@ -1057,6 +1057,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
   StringBuffer<STRING_BUFFER_USUAL_SIZE> strbuf(scs);
   const char *wild= thd->lex->wild ? thd->lex->wild->ptr() : 0;
   Field **fields=tables->table->field;
+  bool has_file_acl= !check_access(thd, FILE_ACL, any_db, NULL, NULL, 0, 1);
 
   DBUG_ASSERT(tables->table->in_use == thd);
 
@@ -1091,6 +1092,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     static const LEX_CSTRING origins[]=
     {
       { STRING_WITH_LEN("CONFIG") },
+      { STRING_WITH_LEN("COMMAND-LINE") },
       { STRING_WITH_LEN("AUTO") },
       { STRING_WITH_LEN("SQL") },
       { STRING_WITH_LEN("COMPILE-TIME") },
@@ -1217,6 +1219,14 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       const LEX_CSTRING *arg= args + var->option.arg_type;
       fields[13]->set_notnull();
       fields[13]->store(arg->str, arg->length, scs);
+    }
+
+    // GLOBAL_VALUE_PATH
+    if (var->value_origin == sys_var::CONFIG && has_file_acl)
+    {
+      fields[14]->set_notnull();
+      fields[14]->store(var->origin_filename, strlen(var->origin_filename),
+                        files_charset_info);
     }
 
     if (schema_table_store_record(thd, tables->table))
