@@ -4887,7 +4887,7 @@ public:
     for most of the types, or of bytes for BLOBs or numeric types.
   */
   uint32 char_length;
-  uint  decimals, flags, pack_length, key_length;
+  uint  decimals, flags, pack_length;
   List<String> interval_list;
   engine_option_value *option_list;
 
@@ -4911,7 +4911,7 @@ public:
     compression_method_ptr(0),
     comment(null_clex_str),
     on_update(NULL), invisible(VISIBLE), char_length(0), decimals(0),
-    flags(0), pack_length(0), key_length(0),
+    flags(0), pack_length(0),
     option_list(NULL),
     vcol_info(0), default_value(0), check_constraint(0),
     versioning(VERSIONING_NOT_SET), period(NULL)
@@ -4924,11 +4924,11 @@ public:
   void create_length_to_internal_length_null()
   {
     DBUG_ASSERT(length == 0);
-    key_length= pack_length= 0;
+    pack_length= 0;
   }
   void create_length_to_internal_length_simple()
   {
-    key_length= pack_length= type_handler()->calc_pack_length((uint32) length);
+    pack_length= type_handler()->calc_pack_length((uint32) length);
   }
   void create_length_to_internal_length_string()
   {
@@ -4936,14 +4936,12 @@ public:
     if (real_field_type() == MYSQL_TYPE_VARCHAR && compression_method())
       length++;
     set_if_smaller(length, UINT_MAX32);
-    key_length= (uint) length;
     pack_length= type_handler()->calc_pack_length((uint32) length);
   }
   void create_length_to_internal_length_typelib()
   {
     /* Pack_length already calculated in sql_parse.cc */
     length*= charset->mbmaxlen;
-    key_length= pack_length;
   }
   bool vers_sys_field() const
   {
@@ -5073,7 +5071,6 @@ public:
     decimals= other.decimals;
     flags= other.flags;
     pack_length= other.pack_length;
-    key_length= other.key_length;
     unireg_check= other.unireg_check;
     interval= other.interval;
     charset= other.charset;

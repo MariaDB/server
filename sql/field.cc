@@ -10205,13 +10205,11 @@ void Column_definition::create_length_to_internal_length_bit()
 {
   if (f_bit_as_char(pack_flag))
   {
-    key_length= pack_length= ((length + 7) & ~7) / 8;
+    pack_length= ((length + 7) & ~7) / 8;
   }
   else
   {
     pack_length= (uint) length / 8;
-    /* We need one extra byte to store the bits we save among the null bits */
-    key_length= pack_length + MY_TEST(length & 7);
   }
 }
 
@@ -10220,7 +10218,7 @@ void Column_definition::create_length_to_internal_length_newdecimal()
 {
   DBUG_ASSERT(length < UINT_MAX32);
   uint prec= get_decimal_precision((uint)length, decimals, flags & UNSIGNED_FLAG);
-  key_length= pack_length= my_decimal_get_binary_size(prec, decimals);
+  pack_length= my_decimal_get_binary_size(prec, decimals);
 }
 
 
@@ -10572,7 +10570,6 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   field_name= old_field->field_name;
   flags=      old_field->flags;
   pack_length=old_field->pack_length();
-  key_length= old_field->key_length();
   set_handler(old_field->type_handler());
   comment=    old_field->comment;
   decimals=   old_field->decimals();
@@ -10657,7 +10654,6 @@ Column_definition::redefine_stage1_common(const Column_definition *dup_field,
                                       schema->default_table_charset;
   length=       dup_field->char_length;
   pack_length=  dup_field->pack_length;
-  key_length=   dup_field->key_length;
   decimals=     dup_field->decimals;
   unireg_check= dup_field->unireg_check;
   flags=        dup_field->flags;

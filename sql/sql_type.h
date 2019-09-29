@@ -3645,6 +3645,7 @@ public:
 
   virtual uint32 max_display_length(const Item *item) const= 0;
   virtual uint32 calc_pack_length(uint32 length) const= 0;
+  virtual uint calc_key_length(const Column_definition &def) const;
   virtual void Item_update_null_value(Item *item) const= 0;
   virtual bool Item_save_in_value(THD *thd, Item *item, st_value *value) const= 0;
   virtual void Item_param_setup_conversion(THD *thd, Item_param *) const {}
@@ -4870,6 +4871,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const override;
   bool union_element_finalize(const Item * item) const override;
+  uint calc_key_length(const Column_definition &def) const override;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -5405,6 +5407,7 @@ public:
   uint32 max_display_length(const Item *item) const override;
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override { return length / 8; }
+  uint calc_key_length(const Column_definition &def) const override;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const override
   {
     return Item_send_str(item, protocol, buf);
@@ -6218,6 +6221,7 @@ public:
   enum_field_types field_type() const override { return MYSQL_TYPE_NEWDECIMAL; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override;
+  uint calc_key_length(const Column_definition &def) const override;
   void show_binlog_type(const Conv_source &src, const Field &, String *str)
     const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
@@ -6501,11 +6505,8 @@ public:
     return false; // Materialization does not work with BLOB columns
   }
   bool is_param_long_data_type() const override { return true; }
+  uint calc_key_length(const Column_definition &def) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
-  void Column_definition_reuse_fix_attributes(THD *thd,
-                                              Column_definition *c,
-                                              const Field *field) const
-    override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;
@@ -6690,6 +6691,7 @@ public:
     return MYSQL_TYPE_ENUM;
   }
   uint32 calc_pack_length(uint32 length) const override;
+  uint calc_key_length(const Column_definition &def) const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target)
@@ -6729,6 +6731,7 @@ public:
     return MYSQL_TYPE_SET;
   }
   uint32 calc_pack_length(uint32 length) const override;
+  uint calc_key_length(const Column_definition &def) const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target)

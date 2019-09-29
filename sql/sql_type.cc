@@ -2920,15 +2920,6 @@ bool Type_handler_bit::
 
 /*************************************************************************/
 
-void Type_handler_blob_common::
-       Column_definition_reuse_fix_attributes(THD *thd,
-                                              Column_definition *def,
-                                              const Field *field) const
-{
-  DBUG_ASSERT(def->key_length == 0);
-}
-
-
 void Type_handler_typelib::
        Column_definition_reuse_fix_attributes(THD *thd,
                                               Column_definition *def,
@@ -3406,6 +3397,49 @@ uint32 Type_handler_enum::calc_pack_length(uint32 length) const
   return 0;
 }
 
+
+/*************************************************************************/
+uint Type_handler::calc_key_length(const Column_definition &def) const
+{
+  DBUG_ASSERT(def.pack_length == calc_pack_length((uint32) def.length));
+  return def.pack_length;
+}
+
+uint Type_handler_bit::calc_key_length(const Column_definition &def) const
+{
+  if (f_bit_as_char(def.pack_flag))
+    return def.pack_length;
+  /* We need one extra byte to store the bits we save among the null bits */
+  return def.pack_length + MY_TEST(def.length & 7);
+}
+
+uint Type_handler_newdecimal::calc_key_length(const Column_definition &def) const
+{
+  return def.pack_length;
+}
+
+uint
+Type_handler_string_result::calc_key_length(const Column_definition &def) const
+{
+  return (uint) def.length;
+}
+
+uint Type_handler_enum::calc_key_length(const Column_definition &def) const
+{
+  DBUG_ASSERT(def.interval);
+  return get_enum_pack_length(def.interval->count);
+}
+
+uint Type_handler_set::calc_key_length(const Column_definition &def) const
+{
+  DBUG_ASSERT(def.interval);
+  return get_set_pack_length(def.interval->count);
+}
+
+uint Type_handler_blob_common::calc_key_length(const Column_definition &def) const
+{
+  return 0;
+}
 
 /*************************************************************************/
 Field *Type_handler::make_and_init_table_field(MEM_ROOT *root,
