@@ -43,38 +43,16 @@
 #include <winbase.h>
 #endif
 
-/**
-   arguments separator
-
-   load_defaults() loads arguments from config file and put them
-   before the arguments from command line, this separator is used to
-   separate the arguments loaded from config file and arguments user
-   provided on command line.
-
-   Options with value loaded from config file are always in the form
-   '--option=value', while for command line options, the value can be
-   given as the next argument. Thus we used a separator so that
-   handle_options() can distinguish them.
-
-   Note: any other places that does not need to distinguish them
-   should skip the separator.
-
-   The content of arguments separator does not matter, one should only
-   check the pointer, use "----args-separator----" here to ease debug
-   if someone misused it.
-
-   The args separator will only be added when
-   my_getopt_use_args_seprator is set to TRUE before calling
-   load_defaults();
-
-   See BUG#25192
+/*
+  Mark file names in argv[]. File marker is *always* followed by a file name
+  All options after it come from that file.
+  Empty file name ("") means command line.
 */
-
-static char *args_separator= (char*)"----args-separator----";
-my_bool my_getopt_use_args_separator= FALSE;
-my_bool my_getopt_is_args_separator(const char* arg)
+static char *file_marker= (char*)"----file-marker----";
+my_bool my_defaults_mark_files= FALSE;
+my_bool is_file_marker(const char* arg)
 {
-  return (arg == args_separator);
+  return arg == file_marker;
 }
 
 my_bool my_no_defaults=FALSE, my_print_defaults= FALSE;
@@ -335,7 +313,7 @@ int get_defaults_options(char **argv)
   if (*argv && !strcmp(*argv, "--print-defaults"))
   {
     my_print_defaults= 1;
-    my_getopt_use_args_separator= FALSE;
+    my_defaults_mark_files= FALSE;
     argv++;
   }
 
@@ -483,8 +461,11 @@ int my_load_defaults(const char *conf_file, const char **groups, int *argc,
   /* found arguments + command line arguments to new array */
   memcpy(res, args.buffer, args.elements * sizeof(char*));
 
-  if (my_getopt_use_args_separator)
-    res[args.elements++]= args_separator;
+  if (my_defaults_mark_files)
+  {
+    res[args.elements++]= file_marker;
+    res[args.elements++]= (char*)"";
+  }
 
   if (*argc)
     memcpy(res + args.elements, *argv, *argc * sizeof(char*));
@@ -664,6 +645,11 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
 #endif
   if (!(fp= mysql_file_fopen(key_file_cnf, name, O_RDONLY, MYF(0))))
     return 1;					/* Ignore wrong files */
+
+  if (my_defaults_mark_files)
+    if (insert_dynamic(ctx->args, (uchar*) &file_marker) ||
+        add_option(ctx, name))
+      goto err;
 
   while (mysql_file_fgets(buff, sizeof(buff) - 1, fp))
   {
