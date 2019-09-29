@@ -110,7 +110,8 @@ extern my_error_reporter my_getopt_error_reporter;
 extern my_getopt_value my_getopt_get_addr;
 
 extern int handle_options (int *argc, char ***argv, 
-			   const struct my_option *longopts, my_get_one_option);
+			   const struct my_option *longopts, my_get_one_option)
+  __attribute__((nonnull));
 extern void my_cleanup_options(const struct my_option *options);
 extern void my_print_help(const struct my_option *options);
 extern void my_print_variables(const struct my_option *options);

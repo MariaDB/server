@@ -134,7 +134,7 @@ double getopt_ulonglong2double(ulonglong v)
   or until the end of argv. Parse options, check that the given option
   matches with one of the options in struct 'my_option'.
   Check that option was given an argument if it requires one
-  Call the optional 'get_one_option()' function once for each option.
+  Call the 'get_one_option()' function once for each option.
 
   Note that handle_options() can be invoked multiple times to
   parse a command line in several steps.
@@ -181,13 +181,11 @@ double getopt_ulonglong2double(ulonglong v)
   @param [in, out] argc      command line options (count)
   @param [in, out] argv      command line options (values)
   @param [in] longopts       descriptor of all valid options
-  @param [in] get_one_option optional callback function to process each option,
-                            can be NULL.
+  @param [in] get_one_option callback function to process each option
   @return error in case of ambiguous or unknown options,
           0 on success.
 */
-int handle_options(int *argc, char ***argv, 
-		   const struct my_option *longopts,
+int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                    my_get_one_option get_one_option)
 {
   uint UNINIT_VAR(opt_found), argvpos= 0, length;
@@ -447,8 +445,7 @@ int handle_options(int *argc, char ***argv,
 				       my_progname, optp->name, optend);
 	      continue;
 	    }
-            if (get_one_option && get_one_option(optp->id, optp,
-                               *((my_bool*) value) ?
+            if (get_one_option(optp->id, optp, *((my_bool*) value) ?
                                enabled_my_option : disabled_my_option))
               DBUG_RETURN(EXIT_ARGUMENT_INVALID);
 	    continue;
@@ -466,12 +463,7 @@ int handle_options(int *argc, char ***argv,
 
 	    DBUG_RETURN(EXIT_NO_ARGUMENT_ALLOWED);
 	  }
-	  /*
-	    We support automatic setup only via get_one_option and only for
-	    marked options.
-	  */
-	  if (!get_one_option ||
-	      !(optp->var_type & GET_AUTO))
+	  if (!(optp->var_type & GET_AUTO))
 	  {
 	    my_getopt_error_reporter(option_is_loose ?
 				     WARNING_LEVEL : ERROR_LEVEL,
@@ -487,10 +479,11 @@ int handle_options(int *argc, char ***argv,
 	}
 	else if (optp->arg_type == REQUIRED_ARG && !optend)
 	{
-	  /* Check if there are more arguments after this one,
-       Note: options loaded from config file that requires value
-       should always be in the form '--option=value'.
-    */
+          /*
+            Check if there are more arguments after this one,
+            Note: options loaded from config file that requires value
+            should always be in the form '--option=value'.
+          */
 	  if (!is_cmdline_arg || !*++pos)
 	  {
 	    if (my_getopt_print_errors)
@@ -528,7 +521,7 @@ int handle_options(int *argc, char ***argv,
 		  optp->arg_type == NO_ARG)
 	      {
 		*((my_bool*) optp->value)= (my_bool) 1;
-                if (get_one_option && get_one_option(optp->id, optp, argument))
+                if (get_one_option(optp->id, optp, argument))
                   DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
 		continue;
 	      }
@@ -548,7 +541,7 @@ int handle_options(int *argc, char ***argv,
                   {
                     if (optp->var_type == GET_BOOL)
                       *((my_bool*) optp->value)= (my_bool) 1;
-                    if (get_one_option && get_one_option(optp->id, optp, argument))
+                    if (get_one_option(optp->id, optp, argument))
                       DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
                     continue;
                   }
@@ -569,7 +562,7 @@ int handle_options(int *argc, char ***argv,
 	      if ((error= setval(optp, optp->value, argument,
 				 set_maximum_value)))
 		DBUG_RETURN(error);
-              if (get_one_option && get_one_option(optp->id, optp, argument))
+              if (get_one_option(optp->id, optp, argument))
                 DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
 	      break;
 	    }
@@ -616,7 +609,7 @@ int handle_options(int *argc, char ***argv,
 	  ((error= setval(optp, value, argument, set_maximum_value))) &&
           !option_is_loose)
 	DBUG_RETURN(error);
-      if (get_one_option && get_one_option(optp->id, optp, argument))
+      if (get_one_option(optp->id, optp, argument))
         DBUG_RETURN(EXIT_UNSPECIFIED_ERROR);
 
       (*argc)--; /* option handled (long), decrease argument count */
