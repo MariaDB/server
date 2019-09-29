@@ -31,7 +31,7 @@ static void default_reporter(enum loglevel level, const char *format, ...);
 my_error_reporter my_getopt_error_reporter= &default_reporter;
 
 static int findopt(char *, uint, const struct my_option **, const char **);
-my_bool getopt_compare_strings(const char *, const char *, uint);
+static my_bool getopt_compare_strings(const char *, const char *, uint);
 static longlong getopt_ll(char *arg, const struct my_option *optp, int *err);
 static ulonglong getopt_ull(char *, const struct my_option *, int *);
 static double getopt_double(char *arg, const struct my_option *optp, int *err);
@@ -79,8 +79,9 @@ my_bool my_getopt_skip_unknown= 0;
 */
 my_bool my_getopt_prefix_matching= 1;
 
-static void default_reporter(enum loglevel level,
-                             const char *format, ...)
+my_getopt_value my_getopt_get_addr= 0;
+
+static void default_reporter(enum loglevel level, const char *format, ...)
 {
   va_list args;
   DBUG_ENTER("default_reporter");
@@ -95,13 +96,6 @@ static void default_reporter(enum loglevel level,
   fputc('\n', stderr);
   fflush(stderr);
   DBUG_VOID_RETURN;
-}
-
-static my_getopt_value getopt_get_addr;
-
-void my_getopt_register_get_addr(my_getopt_value func_addr)
-{
-  getopt_get_addr= func_addr;
 }
 
 union ull_dbl
@@ -408,9 +402,9 @@ int handle_options(int *argc, char ***argv,
 	  DBUG_RETURN(EXIT_OPTION_DISABLED);
 	}
         error= 0;
-	value= optp->var_type & GET_ASK_ADDR ?
-	  (*getopt_get_addr)(key_name, (uint) strlen(key_name), optp, &error) :
-          optp->value;
+	value= optp->var_type & GET_ASK_ADDR
+          ? (*my_getopt_get_addr)(key_name, (uint)strlen(key_name), optp, &error)
+          : optp->value;
         if (error)
           DBUG_RETURN(error);
 
@@ -1430,8 +1424,8 @@ static void init_variables(const struct my_option *options,
     */
     if (options->u_max_value)
       func_init_one_value(options, options->u_max_value, options->max_value);
-    value= (options->var_type & GET_ASK_ADDR ?
-		  (*getopt_get_addr)("", 0, options, 0) : options->value);
+    value= options->var_type & GET_ASK_ADDR ?
+		  (*my_getopt_get_addr)("", 0, options, 0) : options->value;
     if (value)
       func_init_one_value(options, value, options->def_value);
   }
@@ -1635,8 +1629,8 @@ void my_print_variables(const struct my_option *options)
   
   for (optp= options; optp->name; optp++)
   {
-    void *value= (optp->var_type & GET_ASK_ADDR ?
-		  (*getopt_get_addr)("", 0, optp, 0) : optp->value);
+    void *value= optp->var_type & GET_ASK_ADDR ?
+		  (*my_getopt_get_addr)("", 0, optp, 0) : optp->value;
     if (value)
     {
       length= print_name(optp);

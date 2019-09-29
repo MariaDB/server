@@ -6357,7 +6357,6 @@ int handle_early_options()
   int ho_error;
   DYNAMIC_ARRAY all_early_options;
 
-  my_getopt_register_get_addr(NULL);
   /* Skip unknown options so that they may be processed later */
   my_getopt_skip_unknown= TRUE;
 
@@ -8532,13 +8531,12 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 {
   int ho_error;
 
-  my_getopt_register_get_addr(mysql_getopt_value);
+  my_getopt_get_addr= mysql_getopt_value;
   my_getopt_error_reporter= option_error_reporter;
 
   /* prepare all_options array */
   my_init_dynamic_array(&all_options, sizeof(my_option),
-                        array_elements(my_long_options) +
-                        sys_var_elements(),
+                        array_elements(my_long_options) + sys_var_elements(),
                         array_elements(my_long_options)/4, MYF(0));
   add_many_options(&all_options, my_long_options, array_elements(my_long_options));
   sys_var_add_options(&all_options, 0);
