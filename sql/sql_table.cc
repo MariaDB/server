@@ -10606,10 +10606,10 @@ bool Sql_cmd_create_table::execute(THD *thd)
 {
   DBUG_ENTER("Sql_cmd_create_table::execute");
   LEX *lex= thd->lex;
-  TABLE_LIST *all_tables= lex->query_tables;
   SELECT_LEX *select_lex= &lex->select_lex;
   TABLE_LIST *first_table= select_lex->table_list.first;
-  DBUG_ASSERT(first_table == all_tables && first_table != 0);
+  DBUG_ASSERT(first_table == lex->query_tables);
+  DBUG_ASSERT(first_table != 0);
   bool link_to_local;
   TABLE_LIST *create_table= first_table;
   TABLE_LIST *select_tables= lex->create_last_non_select_table->next_global;

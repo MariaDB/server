@@ -8405,9 +8405,9 @@ bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
 
   TABLE_LIST *tbl;
   List<TABLE_LIST> *right_op_jl= right_op->join_list;
-  TABLE_LIST *r_tbl= right_op_jl->pop();
+  IF_DBUG(const TABLE_LIST *r_tbl=,) right_op_jl->pop();
   DBUG_ASSERT(right_op == r_tbl);
-  TABLE_LIST *l_tbl= right_op_jl->pop();
+  IF_DBUG(const TABLE_LIST *l_tbl=,) right_op_jl->pop();
   DBUG_ASSERT(left_op == l_tbl);
   TABLE_LIST *cj_nest;
 
