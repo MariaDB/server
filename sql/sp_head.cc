@@ -1348,7 +1348,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 #ifdef WITH_WSREP
     if (WSREP(thd))
     {
-      if (((thd->wsrep_trx().state() == wsrep::transaction::s_executing) &&
+      if (((thd->wsrep_trx().state() == wsrep::transaction::s_executing || thd->in_sub_stmt) &&
            (thd->is_fatal_error || thd->killed)))
       {
         WSREP_DEBUG("SP abort err status %d in sub %d trx state %d",
@@ -1361,6 +1361,11 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
           otherwise it clears the error, and cleans up the
           whole transaction. For now we just return and finish
           our handling once we are back to mysql_parse.
+
+          Same applies to a SP execution, which was aborted due
+          to wsrep related conflict, but which is executing as sub statement.
+          SP in sub statement level should not commit not rollback,
+          we have to call for rollback is up-most SP level.
         */
         WSREP_DEBUG("Skipping after_command hook for killed SP");
       }
