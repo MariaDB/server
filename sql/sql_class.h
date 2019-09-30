@@ -5101,6 +5101,10 @@ public:
   {
     if (u->lim.check_offset(sent))
       return 0;
+
+    if (u->thd->killed == ABORT_QUERY)
+      return 0;
+
     return send_data(items);
   }
   /*

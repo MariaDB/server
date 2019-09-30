@@ -3015,9 +3015,6 @@ int select_send::send_data(List<Item> &items)
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("select_send::send_data");
 
-  if (thd->killed == ABORT_QUERY)
-    DBUG_RETURN(FALSE);
-
   protocol->prepare_for_resend();
   if (protocol->send_result_set_row(&items))
   {
@@ -3279,8 +3276,6 @@ int select_export::send_data(List<Item> &items)
   String tmp(buff,sizeof(buff),&my_charset_bin),*res;
   tmp.length(0);
 
-  if (thd->killed == ABORT_QUERY)
-    DBUG_RETURN(0);
   row_count++;
   Item *item;
   uint used_length=0,items_left=items.elements;
@@ -3534,9 +3529,6 @@ int select_dump::send_data(List<Item> &items)
   Item *item;
   DBUG_ENTER("select_dump::send_data");
 
-  if (thd->killed == ABORT_QUERY)
-    DBUG_RETURN(0);
-
   if (row_count++ > 1) 
   {
     my_message(ER_TOO_MANY_ROWS, ER_THD(thd, ER_TOO_MANY_ROWS), MYF(0));
@@ -3572,8 +3564,6 @@ int select_singlerow_subselect::send_data(List<Item> &items)
                MYF(current_thd->lex->ignore ? ME_WARNING : 0));
     DBUG_RETURN(1);
   }
-  if (thd->killed == ABORT_QUERY)
-    DBUG_RETURN(0);
   List_iterator_fast<Item> li(items);
   Item *val_item;
   for (uint i= 0; (val_item= li++); i++)
@@ -3708,8 +3698,6 @@ int select_exists_subselect::send_data(List<Item> &items)
 {
   DBUG_ENTER("select_exists_subselect::send_data");
   Item_exists_subselect *it= (Item_exists_subselect *)item;
-  if (thd->killed == ABORT_QUERY)
-    DBUG_RETURN(0);
   it->value= 1;
   it->assigned(1);
   DBUG_RETURN(0);

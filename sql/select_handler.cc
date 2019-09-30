@@ -103,9 +103,6 @@ bool Pushdown_select::send_data()
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("Pushdown_select::send_data");
 
-  if (thd->killed == ABORT_QUERY)
-    DBUG_RETURN(false);
-
   protocol->prepare_for_resend();
   if (protocol->send_result_set_row(&result_columns))
   {

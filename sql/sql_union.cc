@@ -111,8 +111,7 @@ int select_unit::send_data(List<Item> &values)
 {
   int rc= 0;
   int not_reported_error= 0;
-  if (thd->killed == ABORT_QUERY)
-    return 0;
+
   if (table->no_rows_with_nulls)
     table->null_catch_flags= CHECK_ROW_FOR_NULLS_TO_REJECT;
 
@@ -602,8 +601,7 @@ int select_unit_ext::send_data(List<Item> &values)
   int rc= 0;
   int not_reported_error= 0;
   int find_res;
-  if (thd->killed == ABORT_QUERY)
-    return 0;
+
   if (table->no_rows_with_nulls)
     table->null_catch_flags= CHECK_ROW_FOR_NULLS_TO_REJECT;
 

@@ -3857,9 +3857,6 @@ int select_insert::send_data(List<Item> &values)
   DBUG_ENTER("select_insert::send_data");
   bool error=0;
 
-  if (unlikely(thd->killed == ABORT_QUERY))
-    DBUG_RETURN(0);
-
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
   store_values(values);
   if (table->default_field &&
