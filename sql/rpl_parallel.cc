@@ -228,6 +228,12 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
       entry->stop_on_error_sub_id == (uint64)ULONGLONG_MAX)
     entry->stop_on_error_sub_id= sub_id;
   mysql_mutex_unlock(&entry->LOCK_parallel_entry);
+  DBUG_EXECUTE_IF("hold_worker_on_schedule", {
+      if (entry->stop_on_error_sub_id < (uint64)ULONGLONG_MAX)
+      {
+        debug_sync_set_action(thd, STRING_WITH_LEN("now SIGNAL continue_worker"));
+      }
+    });
 
   if (rgi->killed_for_retry == rpl_group_info::RETRY_KILL_PENDING)
     wait_for_pending_deadlock_kill(thd, rgi);
@@ -1096,6 +1102,13 @@ handle_rpl_parallel_thread(void *arg)
         bool did_enter_cond= false;
         PSI_stage_info old_stage;
 
+        DBUG_EXECUTE_IF("hold_worker_on_schedule", {
+            if (rgi->current_gtid.domain_id == 0 &&
+                rgi->current_gtid.seq_no == 100) {
+                  debug_sync_set_action(thd,
+                STRING_WITH_LEN("now SIGNAL reached_pause WAIT_FOR continue_worker"));
+            }
+          });
         DBUG_EXECUTE_IF("rpl_parallel_scheduled_gtid_0_x_100", {
             if (rgi->current_gtid.domain_id == 0 &&
                 rgi->current_gtid.seq_no == 100) {
@@ -1137,7 +1150,10 @@ handle_rpl_parallel_thread(void *arg)
         skip_event_group= do_gco_wait(rgi, gco, &did_enter_cond, &old_stage);
 
         if (unlikely(entry->stop_on_error_sub_id <= rgi->wait_commit_sub_id))
+        {
           skip_event_group= true;
+          rgi->worker_error= 1;
+        }
         if (likely(!skip_event_group))
           do_ftwrl_wait(rgi, &did_enter_cond, &old_stage);
 
