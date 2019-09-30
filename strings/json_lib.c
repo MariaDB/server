@@ -825,6 +825,8 @@ static int skip_colon(json_engine_t *j)
 static int skip_key(json_engine_t *j)
 {
   int t_next, c_len;
+
+  j->s.c_str-= j->sav_c_len;
   while (json_read_keyname_chr(j) == 0) {}
 
   if (j->s.error)
