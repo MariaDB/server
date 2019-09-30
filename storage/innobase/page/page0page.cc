@@ -2392,6 +2392,7 @@ page_validate(
 	ulint			data_size;
 	const rec_t*		rec;
 	const rec_t*		old_rec		= NULL;
+	const rec_t*		first_rec	= NULL;
 	ulint			offs;
 	ulint			n_slots;
 	ibool			ret		= FALSE;
@@ -2486,6 +2487,21 @@ page_validate(
 
 		if (UNIV_UNLIKELY(!page_rec_validate(rec, offsets))) {
 			goto func_exit;
+		}
+
+		if (rec == first_rec) {
+			if ((rec_get_info_bits(rec, page_is_comp(page))
+			     & REC_INFO_MIN_REC_FLAG)
+			    && page_is_leaf(page)) {
+				ib::error() << "REC_INFO_MIN_REC_FLAG "
+					"is set in a leaf-page record";
+				ret = false;
+			}
+		} else if (rec_get_info_bits(rec, page_is_comp(page))
+			   & REC_INFO_MIN_REC_FLAG) {
+			ib::error() << "REC_INFO_MIN_REC_FLAG record is not "
+				       "first in page";
+			ret = false;
 		}
 
 		/* Check that the records are in the ascending order */
@@ -2598,6 +2614,11 @@ page_validate(
 		own_count++;
 		old_rec = rec;
 		rec = page_rec_get_next_const(rec);
+
+		if (page_rec_is_infimum(old_rec)
+		    && page_rec_is_user_rec(rec)) {
+			first_rec = rec;
+		}
 
 		/* set old_offsets to offsets; recycle offsets */
 		{
