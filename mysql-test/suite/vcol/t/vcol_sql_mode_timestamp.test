@@ -103,6 +103,19 @@ UPDATE IGNORE t1 SET d = NOW();
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 
+--echo #
+--echo # MDEV-20639 ASAN SEGV in get_prefix upon modifying base column type with existing indexed virtual column
+--echo #
+
+CREATE TABLE t1 (
+    a TIMESTAMP,
+    b TIMESTAMP AS (a) VIRTUAL,
+    KEY (b)
+);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+ALTER TABLE t1 MODIFY a BLOB FIRST;
+SHOW WARNINGS;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.4 tests

@@ -569,6 +569,16 @@ SELECT json_valid('{"value":"\\ud83d\\ude0a"}');
 SELECT json_valid('{"test": "\\ud83d\\ude0b"}');
 
 --echo #
+--echo # MDEV-19670 json escaped unicode parse error
+--echo #
+
+SELECT JSON_VALID('{"admin\\"": null}'), '{"admin\\"": null}'
+    UNION
+    SELECT JSON_VALID('{"\\"admin": null}'), '{"\\"admin": null}'
+      UNION
+      SELECT JSON_VALID('{"\\"": null}'), '{"\\"": null}';
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 
