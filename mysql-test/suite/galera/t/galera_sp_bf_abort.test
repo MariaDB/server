@@ -3,7 +3,7 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/galera_have_debug_sync.inc
 
 --connection node_1
 
