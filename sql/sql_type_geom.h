@@ -119,7 +119,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
 
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,

@@ -3649,7 +3649,7 @@ public:
                                   const LEX_CSTRING *name,
                                   const Record_addr &addr,
                                   const Type_all_attributes &attr,
-                                  TABLE *table) const= 0;
+                                  TABLE_SHARE *share) const= 0;
   Field *make_and_init_table_field(MEM_ROOT *root,
                                    const LEX_CSTRING *name,
                                    const Record_addr &addr,
@@ -4070,7 +4070,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override
+                          TABLE_SHARE *share) const override
   {
     DBUG_ASSERT(0);
     return NULL;
@@ -5126,7 +5126,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5185,7 +5185,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5244,7 +5244,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5319,7 +5319,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5354,7 +5354,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
 };
 
 
@@ -5390,7 +5390,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5445,7 +5445,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5515,7 +5515,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5561,7 +5561,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5621,7 +5621,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5773,7 +5773,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5803,7 +5803,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5923,7 +5923,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5954,7 +5954,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -6064,7 +6064,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -6097,7 +6097,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -6227,7 +6227,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -6262,7 +6262,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -6297,7 +6297,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -6340,7 +6340,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -6400,7 +6400,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -6449,7 +6449,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -6531,7 +6531,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -6662,7 +6662,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   uint max_octet_length() const override { return UINT_MAX8; }
 };
 
@@ -6680,7 +6680,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   uint max_octet_length() const override { return UINT_MAX24; }
 };
 
@@ -6700,7 +6700,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   uint max_octet_length() const override { return UINT_MAX32; }
 };
 
@@ -6718,7 +6718,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   uint max_octet_length() const override { return UINT_MAX16; }
 };
 
@@ -6807,7 +6807,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -6850,7 +6850,7 @@ public:
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
-                          TABLE *table) const override;
+                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,

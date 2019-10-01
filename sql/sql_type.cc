@@ -3452,7 +3452,7 @@ Field *Type_handler::make_and_init_table_field(MEM_ROOT *root,
                                                const Type_all_attributes &attr,
                                                TABLE *table) const
 {
-  Field *field= make_table_field(root, name, addr, attr, table);
+  Field *field= make_table_field(root, name, addr, attr, table->s);
   if (field)
     field->init(table);
   return field;
@@ -3463,7 +3463,7 @@ Field *Type_handler_tiny::make_table_field(MEM_ROOT *root,
                                            const LEX_CSTRING *name,
                                            const Record_addr &addr,
                                            const Type_all_attributes &attr,
-                                           TABLE *table) const
+                                           TABLE_SHARE *share) const
 {
   DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
   return new (root)
@@ -3477,7 +3477,7 @@ Field *Type_handler_short::make_table_field(MEM_ROOT *root,
                                             const LEX_CSTRING *name,
                                             const Record_addr &addr,
                                             const Type_all_attributes &attr,
-                                            TABLE *table) const
+                                            TABLE_SHARE *share) const
 
 {
   DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
@@ -3492,7 +3492,7 @@ Field *Type_handler_int24::make_table_field(MEM_ROOT *root,
                                             const LEX_CSTRING *name,
                                             const Record_addr &addr,
                                             const Type_all_attributes &attr,
-                                            TABLE *table) const
+                                            TABLE_SHARE *share) const
 {
   DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
   return new (root)
@@ -3507,7 +3507,7 @@ Field *Type_handler_long::make_table_field(MEM_ROOT *root,
                                            const LEX_CSTRING *name,
                                            const Record_addr &addr,
                                            const Type_all_attributes &attr,
-                                           TABLE *table) const
+                                           TABLE_SHARE *share) const
 {
   DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
   return new (root)
@@ -3521,7 +3521,7 @@ Field *Type_handler_longlong::make_table_field(MEM_ROOT *root,
                                                const LEX_CSTRING *name,
                                                const Record_addr &addr,
                                                const Type_all_attributes &attr,
-                                               TABLE *table) const
+                                               TABLE_SHARE *share) const
 {
   DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
   return new (root)
@@ -3536,7 +3536,7 @@ Field *Type_handler_vers_trx_id::make_table_field(MEM_ROOT *root,
                                                const LEX_CSTRING *name,
                                                const Record_addr &addr,
                                                const Type_all_attributes &attr,
-                                               TABLE *table) const
+                                               TABLE_SHARE *share) const
 {
   DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
   return new (root)
@@ -3551,7 +3551,7 @@ Field *Type_handler_float::make_table_field(MEM_ROOT *root,
                                             const LEX_CSTRING *name,
                                             const Record_addr &addr,
                                             const Type_all_attributes &attr,
-                                            TABLE *table) const
+                                            TABLE_SHARE *share) const
 {
   return new (root)
          Field_float(addr.ptr(), attr.max_char_length(),
@@ -3565,7 +3565,7 @@ Field *Type_handler_double::make_table_field(MEM_ROOT *root,
                                              const LEX_CSTRING *name,
                                              const Record_addr &addr,
                                              const Type_all_attributes &attr,
-                                             TABLE *table) const
+                                             TABLE_SHARE *share) const
 {
   return new (root)
          Field_double(addr.ptr(), attr.max_char_length(),
@@ -3580,7 +3580,7 @@ Type_handler_olddecimal::make_table_field(MEM_ROOT *root,
                                           const LEX_CSTRING *name,
                                           const Record_addr &addr,
                                           const Type_all_attributes &attr,
-                                          TABLE *table) const
+                                          TABLE_SHARE *share) const
 {
   /*
     Currently make_table_field() is used for Item purpose only.
@@ -3603,7 +3603,7 @@ Type_handler_newdecimal::make_table_field(MEM_ROOT *root,
                                           const LEX_CSTRING *name,
                                           const Record_addr &addr,
                                           const Type_all_attributes &attr,
-                                          TABLE *table) const
+                                          TABLE_SHARE *share) const
 {
   uint8 dec= (uint8) attr.decimals;
   uint8 intg= (uint8) (attr.decimal_precision() - dec);
@@ -3650,7 +3650,7 @@ Field *Type_handler_year::make_table_field(MEM_ROOT *root,
                                            const LEX_CSTRING *name,
                                            const Record_addr &addr,
                                            const Type_all_attributes &attr,
-                                           TABLE *table) const
+                                           TABLE_SHARE *share) const
 {
   return new (root)
          Field_year(addr.ptr(), attr.max_length,
@@ -3663,7 +3663,7 @@ Field *Type_handler_null::make_table_field(MEM_ROOT *root,
                                            const LEX_CSTRING *name,
                                            const Record_addr &addr,
                                            const Type_all_attributes &attr,
-                                           TABLE *table) const
+                                           TABLE_SHARE *share) const
 
 {
   return new (root)
@@ -3676,12 +3676,12 @@ Field *Type_handler_timestamp::make_table_field(MEM_ROOT *root,
                                                 const LEX_CSTRING *name,
                                                 const Record_addr &addr,
                                                 const Type_all_attributes &attr,
-                                                TABLE *table) const
+                                                TABLE_SHARE *share) const
 
 {
   return new_Field_timestamp(root,
                              addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                             Field::NONE, name, table->s, attr.decimals);
+                             Field::NONE, name, share, attr.decimals);
 }
 
 
@@ -3689,7 +3689,7 @@ Field *Type_handler_timestamp2::make_table_field(MEM_ROOT *root,
                                                  const LEX_CSTRING *name,
                                                  const Record_addr &addr,
                                                  const Type_all_attributes &attr,
-                                                 TABLE *table) const
+                                                 TABLE_SHARE *share) const
 
 {
   /*
@@ -3698,7 +3698,7 @@ Field *Type_handler_timestamp2::make_table_field(MEM_ROOT *root,
   */
   return new_Field_timestamp(root,
                              addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                             Field::NONE, name, table->s, attr.decimals);
+                             Field::NONE, name, share, attr.decimals);
 }
 
 
@@ -3706,7 +3706,7 @@ Field *Type_handler_newdate::make_table_field(MEM_ROOT *root,
                                               const LEX_CSTRING *name,
                                               const Record_addr &addr,
                                               const Type_all_attributes &attr,
-                                              TABLE *table) const
+                                              TABLE_SHARE *share) const
 
 {
   return new (root)
@@ -3719,7 +3719,7 @@ Field *Type_handler_date::make_table_field(MEM_ROOT *root,
                                            const LEX_CSTRING *name,
                                            const Record_addr &addr,
                                            const Type_all_attributes &attr,
-                                           TABLE *table) const
+                                           TABLE_SHARE *share) const
 
 {
   /*
@@ -3737,7 +3737,7 @@ Field *Type_handler_time::make_table_field(MEM_ROOT *root,
                                            const LEX_CSTRING *name,
                                            const Record_addr &addr,
                                            const Type_all_attributes &attr,
-                                           TABLE *table) const
+                                           TABLE_SHARE *share) const
 
 {
   return new_Field_time(root,
@@ -3750,7 +3750,7 @@ Field *Type_handler_time2::make_table_field(MEM_ROOT *root,
                                             const LEX_CSTRING *name,
                                             const Record_addr &addr,
                                             const Type_all_attributes &attr,
-                                            TABLE *table) const
+                                            TABLE_SHARE *share) const
 
 
 {
@@ -3768,7 +3768,7 @@ Field *Type_handler_datetime::make_table_field(MEM_ROOT *root,
                                                const LEX_CSTRING *name,
                                                const Record_addr &addr,
                                                const Type_all_attributes &attr,
-                                               TABLE *table) const
+                                               TABLE_SHARE *share) const
 
 {
   return new_Field_datetime(root,
@@ -3781,7 +3781,7 @@ Field *Type_handler_datetime2::make_table_field(MEM_ROOT *root,
                                                 const LEX_CSTRING *name,
                                                 const Record_addr &addr,
                                                 const Type_all_attributes &attr,
-                                                TABLE *table) const
+                                                TABLE_SHARE *share) const
 {
   /*
     Will be changed to "new Field_datetimef" when we reuse
@@ -3797,7 +3797,7 @@ Field *Type_handler_bit::make_table_field(MEM_ROOT *root,
                                           const LEX_CSTRING *name,
                                           const Record_addr &addr,
                                           const Type_all_attributes &attr,
-                                          TABLE *table) const
+                                          TABLE_SHARE *share) const
 
 {
   return new (root)
@@ -3811,7 +3811,7 @@ Field *Type_handler_string::make_table_field(MEM_ROOT *root,
                                              const LEX_CSTRING *name,
                                              const Record_addr &addr,
                                              const Type_all_attributes &attr,
-                                             TABLE *table) const
+                                             TABLE_SHARE *share) const
 
 {
   return new (root)
@@ -3825,7 +3825,7 @@ Field *Type_handler_varchar::make_table_field(MEM_ROOT *root,
                                               const LEX_CSTRING *name,
                                               const Record_addr &addr,
                                               const Type_all_attributes &attr,
-                                              TABLE *table) const
+                                              TABLE_SHARE *share) const
 
 {
   DBUG_ASSERT(HA_VARCHAR_PACKLENGTH(attr.max_length) <=
@@ -3835,7 +3835,7 @@ Field *Type_handler_varchar::make_table_field(MEM_ROOT *root,
                          HA_VARCHAR_PACKLENGTH(attr.max_length),
                          addr.null_ptr(), addr.null_bit(),
                          Field::NONE, name,
-                         table->s, attr.collation);
+                         share, attr.collation);
 }
 
 
@@ -3843,12 +3843,12 @@ Field *Type_handler_tiny_blob::make_table_field(MEM_ROOT *root,
                                                 const LEX_CSTRING *name,
                                                 const Record_addr &addr,
                                                 const Type_all_attributes &attr,
-                                                TABLE *table) const
+                                                TABLE_SHARE *share) const
 
 {
   return new (root)
          Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                    Field::NONE, name, table->s,
+                    Field::NONE, name, share,
                     1, attr.collation);
 }
 
@@ -3857,12 +3857,12 @@ Field *Type_handler_blob::make_table_field(MEM_ROOT *root,
                                            const LEX_CSTRING *name,
                                            const Record_addr &addr,
                                            const Type_all_attributes &attr,
-                                           TABLE *table) const
+                                           TABLE_SHARE *share) const
 
 {
   return new (root)
          Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                    Field::NONE, name, table->s,
+                    Field::NONE, name, share,
                     2, attr.collation);
 }
 
@@ -3872,12 +3872,12 @@ Type_handler_medium_blob::make_table_field(MEM_ROOT *root,
                                            const LEX_CSTRING *name,
                                            const Record_addr &addr,
                                            const Type_all_attributes &attr,
-                                           TABLE *table) const
+                                           TABLE_SHARE *share) const
 
 {
   return new (root)
          Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                    Field::NONE, name, table->s,
+                    Field::NONE, name, share,
                     3, attr.collation);
 }
 
@@ -3886,12 +3886,12 @@ Field *Type_handler_long_blob::make_table_field(MEM_ROOT *root,
                                                 const LEX_CSTRING *name,
                                                 const Record_addr &addr,
                                                 const Type_all_attributes &attr,
-                                                TABLE *table) const
+                                                TABLE_SHARE *share) const
 
 {
   return new (root)
          Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                    Field::NONE, name, table->s,
+                    Field::NONE, name, share,
                     4, attr.collation);
 }
 
@@ -3900,7 +3900,7 @@ Field *Type_handler_enum::make_table_field(MEM_ROOT *root,
                                            const LEX_CSTRING *name,
                                            const Record_addr &addr,
                                            const Type_all_attributes &attr,
-                                           TABLE *table) const
+                                           TABLE_SHARE *share) const
 {
   const TYPELIB *typelib= attr.get_typelib();
   DBUG_ASSERT(typelib);
@@ -3917,7 +3917,7 @@ Field *Type_handler_set::make_table_field(MEM_ROOT *root,
                                           const LEX_CSTRING *name,
                                           const Record_addr &addr,
                                           const Type_all_attributes &attr,
-                                          TABLE *table) const
+                                          TABLE_SHARE *share) const
 
 {
   const TYPELIB *typelib= attr.get_typelib();

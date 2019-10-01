@@ -475,11 +475,11 @@ Field *Type_handler_geometry::make_table_field(MEM_ROOT *root,
                                                const LEX_CSTRING *name,
                                                const Record_addr &addr,
                                                const Type_all_attributes &attr,
-                                               TABLE *table) const
+                                               TABLE_SHARE *share) const
 {
   return new (root)
          Field_geom(addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                    Field::NONE, name, table->s, 4, this, 0);
+                    Field::NONE, name, share, 4, this, 0);
 }
 
 
