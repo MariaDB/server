@@ -821,7 +821,7 @@ int clustrix_connection::discover_table_details(LEX_CSTRING *db,
   }
 
   /* get show create statement */
-  show.append("show create table ");
+  show.append("show simple create table ");
   show.append(db);
   show.append(".");
   show.append(name);
