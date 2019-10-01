@@ -10562,6 +10562,18 @@ Column_definition_attributes::Column_definition_attributes(const Field *field)
 {}
 
 
+Column_definition_attributes::
+  Column_definition_attributes(const Type_all_attributes &attr)
+ :length(attr.max_length),
+  decimals(attr.decimals),
+  unireg_check(Field::NONE),
+  interval(attr.get_typelib()),
+  charset(attr.collation.collation),
+  srid(0),
+  pack_flag(attr.unsigned_flag ? 0 : FIELDFLAG_DECIMAL)
+{}
+
+
 /** Create a field suitable for create of table. */
 
 Column_definition::Column_definition(THD *thd, Field *old_field,

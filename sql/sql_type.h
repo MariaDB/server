@@ -4391,6 +4391,11 @@ public:
   }
   virtual ~Type_handler_real_result() {}
   const Type_handler *type_handler_for_comparison() const override;
+  Field *make_table_field(MEM_ROOT *root,
+                          const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE_SHARE *share) const override;
   void Column_definition_reuse_fix_attributes(THD *thd,
                                               Column_definition *c,
                                               const Field *field)
@@ -4751,6 +4756,11 @@ public:
   bool subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const override;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const override;
+  Field *make_table_field(MEM_ROOT *root,
+                          const LEX_CSTRING *name,
+                          const Record_addr &addr,
+                          const Type_all_attributes &attr,
+                          TABLE_SHARE *share) const override;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const override;
   void
@@ -5122,11 +5132,6 @@ public:
                                         handler *file,
                                         ulonglong table_flags) const override
   { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_TINY); }
-  Field *make_table_field(MEM_ROOT *root,
-                          const LEX_CSTRING *name,
-                          const Record_addr &addr,
-                          const Type_all_attributes &attr,
-                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5181,11 +5186,6 @@ public:
                                         handler *file,
                                         ulonglong table_flags) const override
   { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_SHORT); }
-  Field *make_table_field(MEM_ROOT *root,
-                          const LEX_CSTRING *name,
-                          const Record_addr &addr,
-                          const Type_all_attributes &attr,
-                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5240,11 +5240,6 @@ public:
                                         handler *file,
                                         ulonglong table_flags) const override
   { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_LONG); }
-  Field *make_table_field(MEM_ROOT *root,
-                          const LEX_CSTRING *name,
-                          const Record_addr &addr,
-                          const Type_all_attributes &attr,
-                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5315,11 +5310,6 @@ public:
   {
     return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_LONGLONG);
   }
-  Field *make_table_field(MEM_ROOT *root,
-                          const LEX_CSTRING *name,
-                          const Record_addr &addr,
-                          const Type_all_attributes &attr,
-                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5386,11 +5376,6 @@ public:
                                         handler *file,
                                         ulonglong table_flags) const override
   { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_INT24); }
-  Field *make_table_field(MEM_ROOT *root,
-                          const LEX_CSTRING *name,
-                          const Record_addr &addr,
-                          const Type_all_attributes &attr,
-                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5441,11 +5426,6 @@ public:
                                         handler *file,
                                         ulonglong table_flags) const override
   { return Column_definition_prepare_stage2_legacy_num(c, MYSQL_TYPE_YEAR); }
-  Field *make_table_field(MEM_ROOT *root,
-                          const LEX_CSTRING *name,
-                          const Record_addr &addr,
-                          const Type_all_attributes &attr,
-                          TABLE_SHARE *share) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5557,11 +5537,6 @@ public:
                                         handler *file,
                                         ulonglong table_flags) const override
   { return Column_definition_prepare_stage2_legacy_real(c, MYSQL_TYPE_FLOAT); }
-  Field *make_table_field(MEM_ROOT *root,
-                          const LEX_CSTRING *name,
-                          const Record_addr &addr,
-                          const Type_all_attributes &attr,
-                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5617,11 +5592,6 @@ public:
                                         handler *file,
                                         ulonglong table_flags) const override
   { return Column_definition_prepare_stage2_legacy_real(c, MYSQL_TYPE_DOUBLE); }
-  Field *make_table_field(MEM_ROOT *root,
-                          const LEX_CSTRING *name,
-                          const Record_addr &addr,
-                          const Type_all_attributes &attr,
-                          TABLE_SHARE *share) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,

@@ -3459,76 +3459,16 @@ Field *Type_handler::make_and_init_table_field(MEM_ROOT *root,
 }
 
 
-Field *Type_handler_tiny::make_table_field(MEM_ROOT *root,
+Field *Type_handler_int_result::make_table_field(MEM_ROOT *root,
                                            const LEX_CSTRING *name,
                                            const Record_addr &addr,
                                            const Type_all_attributes &attr,
                                            TABLE_SHARE *share) const
 {
   DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
-  return new (root)
-         Field_tiny(addr.ptr(), attr.max_char_length(),
-                    addr.null_ptr(), addr.null_bit(),
-                    Field::NONE, name, 0/*zerofill*/, attr.unsigned_flag);
-}
-
-
-Field *Type_handler_short::make_table_field(MEM_ROOT *root,
-                                            const LEX_CSTRING *name,
-                                            const Record_addr &addr,
-                                            const Type_all_attributes &attr,
-                                            TABLE_SHARE *share) const
-
-{
-  DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
-  return new (root)
-         Field_short(addr.ptr(), attr.max_char_length(),
-                     addr.null_ptr(), addr.null_bit(),
-                     Field::NONE, name, 0/*zerofill*/, attr.unsigned_flag);
-}
-
-
-Field *Type_handler_int24::make_table_field(MEM_ROOT *root,
-                                            const LEX_CSTRING *name,
-                                            const Record_addr &addr,
-                                            const Type_all_attributes &attr,
-                                            TABLE_SHARE *share) const
-{
-  DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
-  return new (root)
-         Field_medium(addr.ptr(), attr.max_char_length(),
-                      addr.null_ptr(), addr.null_bit(),
-                      Field::NONE, name,
-                      0/*zerofill*/, attr.unsigned_flag);
-}
-
-
-Field *Type_handler_long::make_table_field(MEM_ROOT *root,
-                                           const LEX_CSTRING *name,
-                                           const Record_addr &addr,
-                                           const Type_all_attributes &attr,
-                                           TABLE_SHARE *share) const
-{
-  DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
-  return new (root)
-         Field_long(addr.ptr(), attr.max_char_length(),
-                    addr.null_ptr(), addr.null_bit(),
-                    Field::NONE, name, 0/*zerofill*/, attr.unsigned_flag);
-}
-
-
-Field *Type_handler_longlong::make_table_field(MEM_ROOT *root,
-                                               const LEX_CSTRING *name,
-                                               const Record_addr &addr,
-                                               const Type_all_attributes &attr,
-                                               TABLE_SHARE *share) const
-{
-  DBUG_ASSERT(is_unsigned() == attr.unsigned_flag);
-  return new (root)
-         Field_longlong(addr.ptr(), attr.max_char_length(),
-                        addr.null_ptr(), addr.null_bit(),
-                        Field::NONE, name,
-                        0/*zerofill*/, attr.unsigned_flag);
+  Column_definition_attributes dattr(attr);
+  return make_table_field_from_def(share, root, name, addr,
+                                   Bit_addr(), &dattr, 0);
 }
 
 
@@ -3547,31 +3487,16 @@ Field *Type_handler_vers_trx_id::make_table_field(MEM_ROOT *root,
 }
 
 
-Field *Type_handler_float::make_table_field(MEM_ROOT *root,
-                                            const LEX_CSTRING *name,
-                                            const Record_addr &addr,
-                                            const Type_all_attributes &attr,
-                                            TABLE_SHARE *share) const
+Field *
+Type_handler_real_result::make_table_field(MEM_ROOT *root,
+                                           const LEX_CSTRING *name,
+                                           const Record_addr &addr,
+                                           const Type_all_attributes &attr,
+                                           TABLE_SHARE *share) const
 {
-  return new (root)
-         Field_float(addr.ptr(), attr.max_char_length(),
-                     addr.null_ptr(), addr.null_bit(),
-                     Field::NONE, name,
-                     (uint8) attr.decimals, 0/*zerofill*/, attr.unsigned_flag);
-}
-
-
-Field *Type_handler_double::make_table_field(MEM_ROOT *root,
-                                             const LEX_CSTRING *name,
-                                             const Record_addr &addr,
-                                             const Type_all_attributes &attr,
-                                             TABLE_SHARE *share) const
-{
-  return new (root)
-         Field_double(addr.ptr(), attr.max_char_length(),
-                      addr.null_ptr(), addr.null_bit(),
-                      Field::NONE, name,
-                      (uint8) attr.decimals, 0/*zerofill*/, attr.unsigned_flag);
+  Column_definition_attributes dattr(attr);
+  return make_table_field_from_def(share, root, name, addr,
+                                   Bit_addr(), &dattr, 0);
 }
 
 
@@ -3590,11 +3515,9 @@ Type_handler_olddecimal::make_table_field(MEM_ROOT *root,
     in make_field() in field.cc, to open old tables with old decimal.
   */
   DBUG_ASSERT(0);
-  return new (root)
-         Field_decimal(addr.ptr(), attr.max_length,
-                       addr.null_ptr(), addr.null_bit(),
-                       Field::NONE, name, (uint8) attr.decimals,
-                       0/*zerofill*/,attr.unsigned_flag);
+  Column_definition_attributes dattr(attr);
+  return make_table_field_from_def(share, root, name, addr,
+                                   Bit_addr(), &dattr, 0);
 }
 
 
@@ -3643,19 +3566,6 @@ Type_handler_newdecimal::make_table_field(MEM_ROOT *root,
          Field_new_decimal(addr.ptr(), len, addr.null_ptr(), addr.null_bit(),
                            Field::NONE, name,
                            dec, 0/*zerofill*/, attr.unsigned_flag);
-}
-
-
-Field *Type_handler_year::make_table_field(MEM_ROOT *root,
-                                           const LEX_CSTRING *name,
-                                           const Record_addr &addr,
-                                           const Type_all_attributes &attr,
-                                           TABLE_SHARE *share) const
-{
-  return new (root)
-         Field_year(addr.ptr(), attr.max_length,
-                    addr.null_ptr(), addr.null_bit(),
-                    Field::NONE, name);
 }
 
 

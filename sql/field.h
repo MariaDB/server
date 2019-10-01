@@ -4806,6 +4806,7 @@ public:
     pack_flag(0)
   { }
   Column_definition_attributes(const Field *field);
+  Column_definition_attributes(const Type_all_attributes &attr);
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                     const Record_addr *rec,
                     const Type_handler *handler,
