@@ -4490,8 +4490,10 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
   null_item= (args[0]->type() == NULL_ITEM);
   if (!m_var_entry->charset() || !null_item)
     m_var_entry->set_charset(args[0]->collation.derivation == DERIVATION_NUMERIC ?
-                             default_charset() : args[0]->collation.collation);
-  collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
+                             &my_charset_numeric : args[0]->collation.collation);
+  collation.set(m_var_entry->charset(),
+                args[0]->collation.derivation == DERIVATION_NUMERIC ?
+                DERIVATION_NUMERIC : DERIVATION_IMPLICIT);
   switch (args[0]->result_type()) {
   case STRING_RESULT:
   case TIME_RESULT:
@@ -4544,11 +4546,14 @@ Item_func_set_user_var::fix_length_and_dec()
 {
   maybe_null=args[0]->maybe_null;
   decimals=args[0]->decimals;
-  collation.set(DERIVATION_IMPLICIT);
   if (args[0]->collation.derivation == DERIVATION_NUMERIC)
-    fix_length_and_charset(args[0]->max_char_length(), default_charset());
+  {
+    collation.set(DERIVATION_NUMERIC);
+    fix_length_and_charset(args[0]->max_char_length(), &my_charset_numeric);
+  }
   else
   {
+    collation.set(DERIVATION_IMPLICIT);
     fix_length_and_charset(args[0]->max_char_length(),
                            args[0]->collation.collation);
   }
@@ -4943,13 +4948,13 @@ Item_func_set_user_var::update()
   case REAL_RESULT:
   {
     res= update_hash((void*) &save_result.vreal,sizeof(save_result.vreal),
-		     REAL_RESULT, default_charset(), 0);
+		     REAL_RESULT, &my_charset_numeric, 0);
     break;
   }
   case INT_RESULT:
   {
     res= update_hash((void*) &save_result.vint, sizeof(save_result.vint),
-                     INT_RESULT, default_charset(), unsigned_flag);
+                     INT_RESULT, &my_charset_numeric, unsigned_flag);
     break;
   }
   case STRING_RESULT:
@@ -4969,7 +4974,7 @@ Item_func_set_user_var::update()
     else
       res= update_hash((void*) save_result.vdec,
                        sizeof(my_decimal), DECIMAL_RESULT,
-                       default_charset(), 0);
+                       &my_charset_numeric, 0);
     break;
   }
   case ROW_RESULT:
@@ -5408,23 +5413,26 @@ bool Item_func_get_user_var::fix_length_and_dec()
   {
     unsigned_flag= m_var_entry->unsigned_flag;
     max_length= (uint32)m_var_entry->length;
-    collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
     switch (m_var_entry->type) {
     case REAL_RESULT:
+      collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
       fix_char_length(DBL_DIG + 8);
       set_handler(&type_handler_double);
       break;
     case INT_RESULT:
+      collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
       fix_char_length(MAX_BIGINT_WIDTH);
       decimals=0;
       set_handler(unsigned_flag ? &type_handler_ulonglong :
                                   &type_handler_slonglong);
       break;
     case STRING_RESULT:
+      collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
       max_length= MAX_BLOB_WIDTH - 1;
       set_handler(&type_handler_long_blob);
       break;
     case DECIMAL_RESULT:
+      collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
       fix_char_length(DECIMAL_MAX_STR_LENGTH);
       decimals= DECIMAL_MAX_SCALE;
       set_handler(&type_handler_newdecimal);

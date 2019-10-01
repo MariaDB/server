@@ -11323,3 +11323,23 @@ DROP TABLE t1;
 #
 # End of 10.3 tests
 #
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-20712 Wrong data type for CAST(@a AS BINARY) for a numeric variable
+#
+SET NAMES utf8;
+SET @a=2;
+CREATE OR REPLACE TABLE t1 AS SELECT CAST(1 AS BINARY), CAST(@a AS BINARY), CAST(@b:=3 AS BINARY);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CAST(1 AS BINARY)` varbinary(1) DEFAULT NULL,
+  `CAST(@a AS BINARY)` varbinary(20) DEFAULT NULL,
+  `CAST(@b:=3 AS BINARY)` varbinary(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#
