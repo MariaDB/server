@@ -23,6 +23,8 @@ return "'indexer' binary not found" unless $exe_sphinx_indexer;
 my $exe_sphinx_searchd = &locate_sphinx_binary('searchd');
 return "'searchd' binary not found" unless $exe_sphinx_searchd;
 
+my $sphinx_config= "$::opt_vardir/my_sphinx.conf";
+
 # Check for Sphinx engine
 
 return "SphinxSE not found" unless $ENV{HA_SPHINX_SO} or $::mysqld_variables{'sphinx'} eq "ON";
@@ -95,11 +97,38 @@ sub searchd_start {
   &::mtr_verbose("Started $sphinx->{proc}");
 }
 
+sub wait_exp_backoff {
+  my $timeout= shift; # Seconds
+  my $start_wait= shift; # Seconds
+  my $scale_factor= shift;
+
+  $searchd_status= "$exe_sphinx_searchd --status" .
+                   " --config $sphinx_config > /dev/null 2>&1";
+
+  my $scale= $start_wait;
+  my $total_sleep= 0;
+  while (1) {
+    my $status = system($searchd_status);
+    if (not $status) {
+      return 0;
+    }
+    if ($total_sleep >= $timeout) {
+      last;
+    }
+
+    &::mtr_milli_sleep($scale * 1000);
+    $total_sleep+= $scale;
+    $scale*= $scale_factor;
+  }
+
+  &::mtr_warning("Getting a response from searchd timed out");
+  return 1
+}
+
 sub searchd_wait {
   my ($sphinx) = @_; # My::Config::Group
 
-  return not &::sleep_until_file_created($sphinx->value('pid_file'), 20,
-                                         $sphinx->{'proc'})
+  return wait_exp_backoff(30, 0.1, 2)
 }
 
 ############# declaration methods ######################
