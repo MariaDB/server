@@ -368,13 +368,14 @@ sub start_mysqlds()
       print "wanted mysqld binary.\n\n";
       $info_sent= 1;
     }
-    $com.= $tmp;
 
     if (!$suffix_found)
     {
       $com.= " --defaults-group-suffix=";
       $com.= $groups[$i];
     }
+
+    $com.= $tmp;
 
     if ($opt_wsrep_new_cluster) {
       $com.= " --wsrep-new-cluster";

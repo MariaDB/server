@@ -335,9 +335,9 @@ from part, lineitem, orders
 where p_retailprice > 1100 and o_orderdate='1997-01-01' 
 and o_orderkey=l_orderkey and p_partkey=l_partkey;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	part	range	PRIMARY,i_p_retailprice	i_p_retailprice	9	NULL	1	Using index condition
 1	SIMPLE	orders	ref	PRIMARY,i_o_orderdate	i_o_orderdate	4	const	1	
 1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
-1	SIMPLE	part	eq_ref|filter	PRIMARY,i_p_retailprice	PRIMARY|i_p_retailprice	4|9	dbt3_s001.lineitem.l_partkey	1 (1%)	Using where; Using rowid filter
 select o_orderkey, p_partkey
 from part, lineitem, orders
 where p_retailprice > 1100 and o_orderdate='1997-01-01' 

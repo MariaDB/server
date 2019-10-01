@@ -87,25 +87,11 @@ static void wsrep_replication_process(THD *thd,
 static bool create_wsrep_THD(Wsrep_thd_args* args)
 {
   ulong old_wsrep_running_threads= wsrep_running_threads;
-
-#ifdef HAVE_PSI_THREAD_INTERFACE
-  PSI_thread_key key;
-
-  switch (args->thread_type())
-  {
-    case WSREP_APPLIER_THREAD:
-      key= key_wsrep_applier;
-      break;
-    case WSREP_ROLLBACKER_THREAD:
-      key= key_wsrep_rollbacker;
-      break;
-    default:
-      assert(0);
-      key= 0;
-      break;
-  }
-#endif
-  bool res= mysql_thread_create(key, args->thread_id(), &connection_attrib,
+  DBUG_ASSERT(args->thread_type() == WSREP_APPLIER_THREAD ||
+              args->thread_type() == WSREP_ROLLBACKER_THREAD);
+  bool res= mysql_thread_create(args->thread_type() == WSREP_APPLIER_THREAD
+                                ? key_wsrep_applier : key_wsrep_rollbacker,
+                                args->thread_id(), &connection_attrib,
                                 start_wsrep_THD, (void*)args);
   /*
     if starting a thread on server startup, wait until the this thread's THD
