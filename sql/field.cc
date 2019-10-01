@@ -10347,7 +10347,7 @@ bool Column_definition::fix_attributes_temporal_with_time(uint int_part_length)
              MAX_DATETIME_PRECISION);
     return true;
   }
-  decimals= length;
+  decimals= (uint) length;
   length+= int_part_length + (length ? 1 : 0);
   return false;
 }
