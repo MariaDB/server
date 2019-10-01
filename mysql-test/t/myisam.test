@@ -1781,3 +1781,22 @@ drop table t1;
 #
 show variables like 'myisam_block_size';
 select @@global.myisam_block_size;
+
+
+--echo #
+--echo # MDEV-20704 An index on a double column erroneously uses prefix compression
+--echo #
+
+CREATE TABLE t1 (
+  id INT NOT NULL PRIMARY KEY,
+  d  DOUBLE,
+  KEY (d)
+) ENGINE=MyISAM;
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+--exec $MYISAMCHK -d $MYSQLD_DATADIR/test/t1
+DROP TABLE t1;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #

@@ -2560,3 +2560,26 @@ myisam_block_size	1024
 select @@global.myisam_block_size;
 @@global.myisam_block_size
 1024
+#
+# MDEV-20704 An index on a double column erroneously uses prefix compression
+#
+CREATE TABLE t1 (
+id INT NOT NULL PRIMARY KEY,
+d  DOUBLE,
+KEY (d)
+) ENGINE=MyISAM;
+
+MyISAM file:         MYSQLD_DATADIR/test/t1
+Record format:       Fixed length
+Character set:       latin1_swedish_ci (8)
+Data records:                    0  Deleted blocks:                 0
+Recordlength:                   13
+
+table description:
+Key Start Len Index   Type
+1   2     4   unique  long                 
+2   6     8   multip. double NULL          
+DROP TABLE t1;
+#
+# End of 5.5 tests
+#
