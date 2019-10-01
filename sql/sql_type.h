@@ -4395,6 +4395,15 @@ public:
                                               Column_definition *c,
                                               const Field *field)
                                               const override;
+  void
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
+                                        uchar *buff) const override;
+  bool
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const override;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
                                const override;
   bool subquery_type_allows_materialization(const Item *inner,
@@ -4507,6 +4516,15 @@ public:
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const;
+  void
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
+                                        uchar *buff) const override;
+  bool
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const override;
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
@@ -4735,6 +4753,9 @@ public:
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const override;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const override;
+  void
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
+                                        uchar *buff) const override;
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const override;
@@ -4823,6 +4844,9 @@ public:
   Item_result result_type() const override { return STRING_RESULT; }
   Item_result cmp_type() const override { return TIME_RESULT; }
   virtual ~Type_handler_temporal_result() {}
+  void
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
+                                        uchar *buff) const override;
   void make_sort_key(uchar *to, Item *item,  const SORT_FIELD_ATTR *sort_field,
                      Sort_param *param) const override;
   void sortlength(THD *thd,
@@ -4928,6 +4952,9 @@ public:
                                          const handler *file,
                                          const Schema_specification_st *schema)
                                          const override;
+  void
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
+                                        uchar *buff) const override;
   uint32 max_display_length(const Item *item) const override;
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const override;
@@ -5454,6 +5481,9 @@ public:
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override { return length / 8; }
   uint calc_key_length(const Column_definition &def) const override;
+  void
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
+                                        uchar *buff) const override;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const override
   {
     return Item_send_str(item, protocol, buf);
@@ -5662,6 +5692,12 @@ public:
                                const override;
   void Column_definition_implicit_upgrade(Column_definition *c) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const override;
   bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const override
   {
@@ -5850,6 +5886,9 @@ public:
                                        const Column_definition &def)
                                        const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
+  void
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
+                                        uchar *buff) const override;
   uint Item_decimal_precision(const Item *item) const override;
   String *print_item_value(THD *thd, Item *item, String *str) const override;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
@@ -5965,6 +6004,12 @@ public:
                                        const override;
   void Column_definition_implicit_upgrade(Column_definition *c) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
+  bool
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const override;
   uint Item_decimal_scale(const Item *item) const override
   {
     return Item_decimal_scale_with_seconds(item);
@@ -6096,6 +6141,12 @@ public:
     return true;
   }
   void Column_definition_implicit_upgrade(Column_definition *c) const override;
+  bool
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const override;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const override;
   bool Item_val_native_with_conversion(THD *thd, Item *, Native *to)
@@ -6342,6 +6393,9 @@ public:
                                         handler *file,
                                         ulonglong table_flags) const override
   { return Column_definition_prepare_stage2_legacy(c, MYSQL_TYPE_NULL); }
+  void
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
+                                        uchar *buff) const override;
   Field *make_table_field(MEM_ROOT *root,
                           const LEX_CSTRING *name,
                           const Record_addr &addr,
@@ -6553,6 +6607,9 @@ public:
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;
+  void
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
+                                        uchar *buff) const override;
   bool Key_part_spec_init_ft(Key_part_spec *part,
                              const Column_definition &def) const override;
   bool Key_part_spec_init_primary(Key_part_spec *part,
@@ -6735,6 +6792,9 @@ public:
   }
   uint32 calc_pack_length(uint32 length) const override;
   uint calc_key_length(const Column_definition &def) const override;
+  void
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
+                                        uchar *buff) const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target)
@@ -6775,6 +6835,9 @@ public:
   }
   uint32 calc_pack_length(uint32 length) const override;
   uint calc_key_length(const Column_definition &def) const override;
+  void
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
+                                        uchar *buff) const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target)

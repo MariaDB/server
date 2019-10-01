@@ -10347,6 +10347,7 @@ bool Column_definition::fix_attributes_temporal_with_time(uint int_part_length)
              MAX_DATETIME_PRECISION);
     return true;
   }
+  decimals= length;
   length+= int_part_length + (length ? 1 : 0);
   return false;
 }
@@ -10552,6 +10553,7 @@ bool Field_vers_trx_id::test_if_equality_guarantees_uniqueness(const Item* item)
 
 Column_definition_attributes::Column_definition_attributes(const Field *field)
  :length(field->character_octet_length() / field->charset()->mbmaxlen),
+  decimals(field->decimals()),
   unireg_check(field->unireg_check),
   interval(NULL),
   charset(field->charset()), // May be NULL ptr
@@ -10572,7 +10574,6 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   pack_length=old_field->pack_length();
   set_handler(old_field->type_handler());
   comment=    old_field->comment;
-  decimals=   old_field->decimals();
   vcol_info=  old_field->vcol_info;
   option_list= old_field->option_list;
   compression_method_ptr= 0;

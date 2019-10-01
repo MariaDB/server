@@ -3145,8 +3145,7 @@ bool Type_handler::
        Column_definition_prepare_stage2_legacy_num(Column_definition *def,
                                                    enum_field_types type) const
 {
-  def->pack_flag= def->pack_flag_numeric(def->decimals) |
-                  f_settype((uint) type);
+  def->pack_flag= def->pack_flag_numeric() | f_settype((uint) type);
   return false;
 }
 
@@ -3162,7 +3161,8 @@ bool Type_handler::
   */
   if (dec >= FLOATING_POINT_DECIMALS)
     dec= FLOATING_POINT_DECIMALS;
-  def->pack_flag= def->pack_flag_numeric(dec) | f_settype((uint) type);
+  def->decimals= dec;
+  def->pack_flag= def->pack_flag_numeric() | f_settype((uint) type);
   return false;
 }
 
@@ -3171,7 +3171,7 @@ bool Type_handler_newdecimal::
                                         handler *file,
                                         ulonglong table_flags) const
 {
-  def->pack_flag= def->pack_flag_numeric(def->decimals);
+  def->pack_flag= def->pack_flag_numeric();
   return false;
 }
 
@@ -7790,11 +7790,12 @@ Field *Type_handler_olddecimal::
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
+  DBUG_ASSERT(f_decimals(attr->pack_flag) == 0);
   return new (mem_root)
     Field_decimal(rec.ptr(), (uint32) attr->length,
                   rec.null_ptr(), rec.null_bit(),
                   attr->unireg_check, name,
-                  f_decimals(attr->pack_flag),
+                  (uint8) attr->decimals,
                   f_is_zerofill(attr->pack_flag) != 0,
                   f_is_dec(attr->pack_flag) == 0);
 }
@@ -7807,11 +7808,12 @@ Field *Type_handler_newdecimal::
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
+  DBUG_ASSERT(f_decimals(attr->pack_flag) == 0);
   return new (mem_root)
     Field_new_decimal(rec.ptr(), (uint32) attr->length,
                       rec.null_ptr(), rec.null_bit(),
                       attr->unireg_check, name,
-                      f_decimals(attr->pack_flag),
+                      (uint8) attr->decimals,
                       f_is_zerofill(attr->pack_flag) != 0,
                       f_is_dec(attr->pack_flag) == 0);
 }
@@ -7824,7 +7826,8 @@ Field *Type_handler_float::
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
-  int decimals= f_decimals(attr->pack_flag);
+  DBUG_ASSERT(f_decimals(attr->pack_flag) == 0);
+  uint decimals= attr->decimals;
   if (decimals == FLOATING_POINT_DECIMALS)
     decimals= NOT_FIXED_DEC;
   return new (mem_root)
@@ -7843,7 +7846,8 @@ Field *Type_handler_double::
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
-  int decimals= f_decimals(attr->pack_flag);
+  DBUG_ASSERT(f_decimals(attr->pack_flag) == 0);
+  uint decimals= attr->decimals;
   if (decimals == FLOATING_POINT_DECIMALS)
     decimals= NOT_FIXED_DEC;
   return new (mem_root)
@@ -7947,6 +7951,7 @@ Field *Type_handler_timestamp::
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
+  DBUG_ASSERT(attr->decimals == attr->temporal_dec(MAX_DATETIME_WIDTH));
   return new_Field_timestamp(mem_root,
                              rec.ptr(), rec.null_ptr(), rec.null_bit(),
                              attr->unireg_check, name, share,
@@ -7961,6 +7966,7 @@ Field *Type_handler_timestamp2::
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
+  DBUG_ASSERT(attr->decimals == attr->temporal_dec(MAX_DATETIME_WIDTH));
   return new (mem_root)
     Field_timestampf(rec.ptr(), rec.null_ptr(), rec.null_bit(),
                      attr->unireg_check,
@@ -8014,6 +8020,7 @@ Field *Type_handler_time::
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
+  DBUG_ASSERT(attr->decimals == attr->temporal_dec(MIN_TIME_WIDTH));
   return new_Field_time(mem_root, rec.ptr(), rec.null_ptr(), rec.null_bit(),
                         attr->unireg_check, name,
                         attr->temporal_dec(MIN_TIME_WIDTH));
@@ -8027,6 +8034,7 @@ Field *Type_handler_time2::
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
+  DBUG_ASSERT(attr->decimals == attr->temporal_dec(MIN_TIME_WIDTH));
   return new (mem_root)
     Field_timef(rec.ptr(), rec.null_ptr(), rec.null_bit(),
                 attr->unireg_check, name,
@@ -8041,6 +8049,7 @@ Field *Type_handler_datetime::
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
+  DBUG_ASSERT(attr->decimals == attr->temporal_dec(MAX_DATETIME_WIDTH));
   return new_Field_datetime(mem_root, rec.ptr(), rec.null_ptr(), rec.null_bit(),
                             attr->unireg_check, name,
                             attr->temporal_dec(MAX_DATETIME_WIDTH));
@@ -8054,6 +8063,7 @@ Field *Type_handler_datetime2::
                             const Column_definition_attributes *attr,
                             uint32 flags) const
 {
+  DBUG_ASSERT(attr->decimals == attr->temporal_dec(MAX_DATETIME_WIDTH));
   return new (mem_root)
     Field_datetimef(rec.ptr(), rec.null_ptr(), rec.null_bit(),
                     attr->unireg_check, name,
@@ -8188,6 +8198,110 @@ void Type_handler::
 }
 
 
+void Type_handler_real_result::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  def->frm_pack_numeric_with_dec(buff);
+}
+
+
+void Type_handler_decimal_result::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  def->frm_pack_numeric_with_dec(buff);
+}
+
+
+void Type_handler_int_result::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  DBUG_ASSERT(f_decimals(def->pack_flag) == 0);
+  DBUG_ASSERT(def->decimals == 0);
+  Type_handler::Column_definition_attributes_frm_pack(def, buff);
+}
+
+
+void Type_handler_date_common::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  DBUG_ASSERT(f_decimals(def->pack_flag) == 0);
+  DBUG_ASSERT(def->decimals == 0);
+  Type_handler::Column_definition_attributes_frm_pack(def, buff);
+}
+
+
+void Type_handler_bit::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  DBUG_ASSERT(f_decimals(def->pack_flag & ~FIELDFLAG_TREAT_BIT_AS_CHAR) == 0);
+  DBUG_ASSERT(def->decimals == 0);
+  Type_handler::Column_definition_attributes_frm_pack(def, buff);
+}
+
+
+void Type_handler_blob_common::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  DBUG_ASSERT(f_decimals(def->pack_flag & ~FIELDFLAG_BLOB) == 0);
+  DBUG_ASSERT(def->decimals == 0 ||
+              def->decimals == NOT_FIXED_DEC);
+  Type_handler::Column_definition_attributes_frm_pack(def, buff);
+}
+
+
+void Type_handler_null::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  DBUG_ASSERT(f_decimals(def->pack_flag) == 0);
+  DBUG_ASSERT(def->decimals == NOT_FIXED_DEC);
+  Type_handler::Column_definition_attributes_frm_pack(def, buff);
+}
+
+
+void Type_handler_string_result::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  DBUG_ASSERT(f_decimals(def->pack_flag) == 0);
+  DBUG_ASSERT(def->decimals == 0 || def->decimals == NOT_FIXED_DEC);
+  Type_handler::Column_definition_attributes_frm_pack(def, buff);
+}
+
+
+void Type_handler_enum::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  DBUG_ASSERT(f_decimals(def->pack_flag & ~FIELDFLAG_INTERVAL) == 0);
+  DBUG_ASSERT(def->decimals == 0);
+  Type_handler::Column_definition_attributes_frm_pack(def, buff);
+}
+
+
+void Type_handler_set::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  DBUG_ASSERT(f_decimals(def->pack_flag & ~FIELDFLAG_BITFIELD) == 0);
+  DBUG_ASSERT(def->decimals == 0);
+  Type_handler::Column_definition_attributes_frm_pack(def, buff);
+}
+
+
+void Type_handler_temporal_result::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  DBUG_ASSERT(f_decimals(def->pack_flag) == 0);
+  Type_handler::Column_definition_attributes_frm_pack(def, buff);
+}
 
 
 /***************************************************************************/
@@ -8201,6 +8315,61 @@ bool Type_handler::
 {
   attr->frm_unpack_basic(buffer);
   return attr->frm_unpack_charset(share, buffer);
+}
+
+
+bool Type_handler_real_result::
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const
+{
+  return attr->frm_unpack_numeric_with_dec(share, buffer);
+}
+
+
+bool Type_handler_decimal_result::
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const
+{
+  return attr->frm_unpack_numeric_with_dec(share, buffer);
+}
+
+
+bool Type_handler_time_common::
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const
+{
+  return attr->frm_unpack_temporal_with_dec(share, MIN_TIME_WIDTH, buffer);
+}
+
+
+bool Type_handler_datetime_common::
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const
+{
+  return attr->frm_unpack_temporal_with_dec(share, MAX_DATETIME_WIDTH, buffer);
+}
+
+
+bool Type_handler_timestamp_common::
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const
+{
+  return attr->frm_unpack_temporal_with_dec(share, MAX_DATETIME_WIDTH, buffer);
 }
 
 

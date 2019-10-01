@@ -659,6 +659,7 @@ void Type_handler_geometry::
   Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
                                         uchar *buff) const
 {
+  DBUG_ASSERT(f_decimals(def->pack_flag & ~FIELDFLAG_GEOM) == 0);
   def->frm_pack_basic(buff);
   buff[11]= 0;
   buff[14]= (uchar) geometry_type();

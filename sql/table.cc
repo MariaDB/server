@@ -967,6 +967,38 @@ void Column_definition_attributes::frm_unpack_basic(const uchar *buff)
 }
 
 
+void Column_definition_attributes::frm_pack_numeric_with_dec(uchar *buff) const
+{
+  DBUG_ASSERT(f_decimals(pack_flag) == 0);
+  uint tmp_pack_flag= pack_flag | (decimals << FIELDFLAG_DEC_SHIFT);
+  int2store(buff + 3, length);
+  int2store(buff + 8, tmp_pack_flag);
+  buff[10]= (uchar) unireg_check;
+}
+
+
+bool
+Column_definition_attributes::frm_unpack_numeric_with_dec(TABLE_SHARE *share,
+                                                          const uchar *buff)
+{
+  frm_unpack_basic(buff);
+  decimals= f_decimals(pack_flag);
+  pack_flag&= ~FIELDFLAG_DEC_MASK;
+  return frm_unpack_charset(share, buff);
+}
+
+
+bool
+Column_definition_attributes::frm_unpack_temporal_with_dec(TABLE_SHARE *share,
+                                                           uint intlen,
+                                                           const uchar *buff)
+{
+  frm_unpack_basic(buff);
+  decimals= temporal_dec(intlen);
+  return frm_unpack_charset(share, buff);
+}
+
+
 void Column_definition_attributes::frm_pack_charset(uchar *buff) const
 {
   buff[11]= (uchar) (charset->number >> 8);
@@ -2346,6 +2378,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       attr.length= (uint) strpos[3];
       recpos=	    uint2korr(strpos+4),
       attr.pack_flag=    uint2korr(strpos+6);
+      if (f_is_num(attr.pack_flag))
+      {
+        attr.decimals= f_decimals(attr.pack_flag);
+        attr.pack_flag&= ~FIELDFLAG_DEC_MASK;
+      }
       attr.pack_flag&=   ~FIELDFLAG_NO_DEFAULT;     // Safety for old files
       attr.unireg_check=  (Field::utype) MTYP_TYPENR((uint) strpos[8]);
       interval_nr=  (uint) strpos[10];

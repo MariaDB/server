@@ -2920,12 +2920,11 @@ bool Column_definition::prepare_stage2_typelib(const char *type_name,
 }
 
 
-uint Column_definition::pack_flag_numeric(uint dec) const
+uint Column_definition::pack_flag_numeric() const
 {
   return (FIELDFLAG_NUMBER |
           (flags & UNSIGNED_FLAG ? 0 : FIELDFLAG_DECIMAL)  |
-          (flags & ZEROFILL_FLAG ? FIELDFLAG_ZEROFILL : 0) |
-          (dec << FIELDFLAG_DEC_SHIFT));
+          (flags & ZEROFILL_FLAG ? FIELDFLAG_ZEROFILL : 0));
 }
 
 
