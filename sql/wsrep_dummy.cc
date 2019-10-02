@@ -144,3 +144,5 @@ my_bool wsrep_thd_has_ignored_error(const THD*)
 
 void wsrep_thd_set_ignored_error(THD*, my_bool)
 { }
+ulong wsrep_OSU_method_get(const THD*)
+{ return 0;}

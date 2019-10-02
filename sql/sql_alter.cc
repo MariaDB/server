@@ -505,9 +505,9 @@ bool Sql_cmd_alter_table::execute(THD *thd)
       (!thd->is_current_stmt_binlog_format_row() ||
        !thd->find_temporary_table(first_table)))
   {
-    WSREP_TO_ISOLATION_BEGIN_ALTER((lex->name.str ? select_lex->db.str : NULL),
-                                   (lex->name.str ? lex->name.str : NULL),
-                                   first_table, &alter_info);
+    WSREP_TO_ISOLATION_BEGIN_ALTER((lex->name.str ? select_lex->db.str : first_table->db.str),
+                                   (lex->name.str ? lex->name.str : first_table->table_name.str),
+                                   first_table, &alter_info, used_engine ? &create_info : NULL);
 
     thd->variables.auto_increment_offset = 1;
     thd->variables.auto_increment_increment = 1;

@@ -5685,11 +5685,19 @@ static Sys_var_enum Sys_wsrep_OSU_method(
 static PolyLock_mutex PLock_wsrep_desync(&LOCK_wsrep_desync);
 static Sys_var_mybool Sys_wsrep_desync (
        "wsrep_desync", "To desynchronize the node from the cluster",
-       GLOBAL_VAR(wsrep_desync), 
+       GLOBAL_VAR(wsrep_desync),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        &PLock_wsrep_desync, NOT_IN_BINLOG,
        ON_CHECK(wsrep_desync_check),
        ON_UPDATE(wsrep_desync_update));
+
+static Sys_var_mybool Sys_wsrep_strict_ddl (
+       "wsrep_strict_ddl", "Reject DDL on effected tables not supporting Galera replication",
+       GLOBAL_VAR(wsrep_strict_ddl),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0),
+       ON_UPDATE(0));
 
 static const char *wsrep_reject_queries_names[]= { "NONE", "ALL", "ALL_KILL", NullS };
 static Sys_var_enum Sys_wsrep_reject_queries(

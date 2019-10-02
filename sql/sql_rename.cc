@@ -286,6 +286,13 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
   if (ha_table_exists(thd, &ren_table->db, &old_alias, &hton) && hton)
   {
     DBUG_ASSERT(!thd->locked_tables_mode);
+
+#ifdef WITH_WSREP
+    if (WSREP(thd) && hton &&
+	!wsrep_should_replicate_ddl(thd, hton->db_type))
+      DBUG_RETURN(1);
+#endif
+
     tdc_remove_table(thd, TDC_RT_REMOVE_ALL,
                      ren_table->db.str, ren_table->table_name.str);
 
