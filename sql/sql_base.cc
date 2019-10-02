@@ -4245,32 +4245,6 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
     goto end;
   }
 
-  if (get_use_stat_tables_mode(thd) > NEVER && tables->table)
-  {
-    TABLE_SHARE *table_share= tables->table->s;
-    if (table_share && table_share->table_category == TABLE_CATEGORY_USER &&
-        table_share->tmp_table == NO_TMP_TABLE)
-    {
-      if (table_share->stats_cb.stats_can_be_read ||
-	  !alloc_statistics_for_table_share(thd, table_share, FALSE))
-      {
-        if (table_share->stats_cb.stats_can_be_read)
-        {   
-          KEY *key_info= table_share->key_info;
-          KEY *key_info_end= key_info + table_share->keys;
-          KEY *table_key_info= tables->table->key_info;
-          for ( ; key_info < key_info_end; key_info++, table_key_info++)
-            table_key_info->read_stats= key_info->read_stats;
-          Field **field_ptr= table_share->field;
-          Field **table_field_ptr= tables->table->field;
-          for ( ; *field_ptr; field_ptr++, table_field_ptr++)
-            (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
-          tables->table->stats_is_read= table_share->stats_cb.stats_is_read;
-        }
-      }	
-    }
-  }
-
 process_view_routines:
   /*
     Again we may need cache all routines used by this view and add
