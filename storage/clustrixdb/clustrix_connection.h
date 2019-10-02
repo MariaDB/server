@@ -40,7 +40,6 @@ private:
   bool has_statement_trans;
 
 public:
-  ulonglong last_insert_id;
   clustrix_connection()
     : command_buffer(NULL), command_buffer_length(0), command_length(0)
   {
@@ -89,8 +88,8 @@ public:
   int run_query(String &stmt);
   my_ulonglong rows_affected();
 
-  int write_row(ulonglong clustrix_table_oid,
-                uchar *packed_row, size_t packed_size);
+  int write_row(ulonglong clustrix_table_oid, uchar *packed_row,
+                size_t packed_size, ulonglong *last_insert_id);
   int key_update(ulonglong clustrix_table_oid,
                  uchar *packed_key, size_t packed_key_length,
                  MY_BITMAP *update_set,

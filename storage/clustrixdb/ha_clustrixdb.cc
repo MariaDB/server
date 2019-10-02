@@ -417,12 +417,14 @@ int ha_clustrixdb::write_row(const uchar *buf)
 
   /* XXX: Clustrix may needs to return HA_ERR_AUTOINC_ERANGE if we hit that
      error. */
+  ulonglong last_insert_id = 0;
   if ((error_code = trx->write_row(clustrix_table_oid,
-                                   packed_new_row, packed_size)))
+                                   packed_new_row, packed_size,
+                                   &last_insert_id)))
     goto err;
 
   if (table->next_number_field)
-    insert_id_for_cur_row = trx->last_insert_id;
+    insert_id_for_cur_row = last_insert_id;
 
 err:
     if (packed_size)
