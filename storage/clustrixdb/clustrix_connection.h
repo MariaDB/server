@@ -97,8 +97,8 @@ public:
   int key_delete(ulonglong clustrix_table_oid,
                  uchar *packed_key, size_t packed_key_length);
   int key_read(ulonglong clustrix_table_oid, uint index, MY_BITMAP *read_set,
-               uchar *packed_key, ulong packed_key_length,
-               uchar **rowdata, ulong *rowdata_length);
+               uchar *packed_key, ulong packed_key_length, uchar **rowdata,
+               ulong *rowdata_length);
 
   enum sort_order {SORT_NONE = 0, SORT_ASC = 1, SORT_DESC = 2};
   enum scan_type {

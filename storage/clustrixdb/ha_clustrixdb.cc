@@ -856,7 +856,7 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
   build_key_packed_row(table->s->primary_key, table->record[0],
                        packed_key, &packed_key_len);
 
-  uchar *rowdata;
+  uchar *rowdata = NULL;
   ulong rowdata_length;
   if ((error_code = trx->key_read(clustrix_table_oid, 0, table->read_set,
                                   packed_key, packed_key_len,
@@ -871,6 +871,8 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
     goto err;
 
 err:
+  if (rowdata);
+    my_free(rowdata);
 
   if (packed_key)
     my_afree(packed_key);
