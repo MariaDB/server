@@ -2759,7 +2759,7 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		log_mutex_exit();
 
 		if (!start_lsn) {
-			msg(recv_sys->found_corrupt_log
+			die(recv_sys->found_corrupt_log
 			    ? "xtrabackup_copy_logfile() failed: corrupt log."
 			    : "xtrabackup_copy_logfile() failed.");
 			return true;
@@ -4280,6 +4280,8 @@ fail_before_log_copying_thread_start:
 
 	if (xtrabackup_copy_logfile())
 		goto fail_before_log_copying_thread_start;
+
+	DBUG_MARIABACKUP_EVENT("before_innodb_log_copy_thread_started",0);
 
 	log_copying_stop = os_event_create(0);
 	os_thread_create(log_copying_thread, NULL, &log_copying_thread_id);
