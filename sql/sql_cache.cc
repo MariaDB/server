@@ -329,9 +329,6 @@ TODO list:
 */
 
 #include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
-#if defined(DBUG_OFF) && defined(HAVE_MADVISE)
-#include <sys/mman.h>
-#endif
 #include "sql_priv.h"
 #include "sql_basic_types.h"
 #include "sql_cache.h"

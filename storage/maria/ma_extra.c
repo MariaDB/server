@@ -14,9 +14,6 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "maria_def.h"
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 #include "ma_blockrec.h"
 
 static void maria_extra_keyflag(MARIA_HA *info,

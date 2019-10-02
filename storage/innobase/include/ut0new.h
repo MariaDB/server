@@ -129,9 +129,6 @@ InnoDB:
 #include <string.h> /* strlen(), strrchr(), strncmp() */
 
 #include "my_global.h" /* needed for headers from mysql/psi/ */
-#if !defined(DBUG_OFF) && defined(HAVE_MADVISE)
-#include <sys/mman.h>
-#endif
 
 /* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_MYSQL_MEMORY_H

@@ -15,9 +15,6 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "myisamdef.h"
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 
 static void mi_extra_keyflag(MI_INFO *info, enum ha_extra_function function);
 
