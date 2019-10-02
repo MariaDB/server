@@ -3080,6 +3080,7 @@ mysql_create_routine(THD *thd, LEX *lex)
     return true;
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
   if (!lex->sphead->m_handler->sp_create_routine(thd, lex->sphead))
   {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -4147,13 +4148,14 @@ mysql_execute_command(THD *thd)
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     if (check_one_table_access(thd, INDEX_ACL, all_tables))
       goto error; /* purecov: inspected */
-    WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
 
     bzero((char*) &create_info, sizeof(create_info));
     create_info.db_type= 0;
     create_info.row_type= ROW_TYPE_NOT_USED;
     create_info.default_table_charset= thd->variables.collation_database;
     create_info.alter_info= &alter_info;
+
+    WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
 
     res= mysql_alter_table(thd, &first_table->db, &first_table->table_name,
                            &create_info, first_table, &alter_info,
@@ -4857,6 +4859,7 @@ mysql_execute_command(THD *thd)
         slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
 
+#ifdef WITH_WSREP
     if (WSREP(thd))
     {
       for (TABLE_LIST *table= all_tables; table; table= table->next_global)
@@ -4870,7 +4873,8 @@ mysql_execute_command(THD *thd)
         }
       }
     }
-    
+#endif /* WITH_WSREP */
+
     /* DDL and binlog write order are protected by metadata locks. */
     res= mysql_rm_table(thd, first_table, lex->if_exists(), lex->tmp_table(),
                         lex->table_type == TABLE_TYPE_SEQUENCE);
@@ -5070,7 +5074,9 @@ mysql_execute_command(THD *thd)
                           (CREATE_ACL | DROP_ACL) : CREATE_ACL,
                           &lex->name))
       break;
+
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL);
+
     res= mysql_create_db(thd, &lex->name,
                          lex->create_info, &lex->create_info);
     break;
@@ -5079,7 +5085,9 @@ mysql_execute_command(THD *thd)
   {
     if (prepare_db_action(thd, DROP_ACL, &lex->name))
       break;
+
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL);
+
     res= mysql_rm_db(thd, &lex->name, lex->if_exists());
     break;
   }
@@ -5111,7 +5119,9 @@ mysql_execute_command(THD *thd)
       res= 1;
       break;
     }
+
     WSREP_TO_ISOLATION_BEGIN(db->str, NULL, NULL);
+
     res= mysql_upgrade_db(thd, db);
     if (!res)
       my_ok(thd);
@@ -5122,7 +5132,9 @@ mysql_execute_command(THD *thd)
     LEX_CSTRING *db= &lex->name;
     if (prepare_db_action(thd, ALTER_ACL, db))
       break;
+
     WSREP_TO_ISOLATION_BEGIN(db->str, NULL, NULL);
+
     res= mysql_alter_db(thd, db, &lex->create_info);
     break;
   }
@@ -5196,6 +5208,7 @@ mysql_execute_command(THD *thd)
       break;
 #ifdef HAVE_DLOPEN
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
     if (!(res = mysql_create_function(thd, &lex->udf)))
       my_ok(thd);
 #else
@@ -5213,7 +5226,9 @@ mysql_execute_command(THD *thd)
                      "mysql", NULL, NULL, 1, 1) &&
         check_global_access(thd,CREATE_USER_ACL))
       break;
+
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
     /* Conditionally writes to binlog */
     if (!(res= mysql_create_user(thd, lex->users_list,
                                  lex->sql_command == SQLCOM_CREATE_ROLE)))
@@ -5226,8 +5241,10 @@ mysql_execute_command(THD *thd)
     if (check_access(thd, DELETE_ACL, "mysql", NULL, NULL, 1, 1) &&
         check_global_access(thd,CREATE_USER_ACL))
       break;
-    /* Conditionally writes to binlog */
+
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+    /* Conditionally writes to binlog */
     if (!(res= mysql_drop_user(thd, lex->users_list,
                                lex->sql_command == SQLCOM_DROP_ROLE)))
       my_ok(thd);
@@ -5239,8 +5256,10 @@ mysql_execute_command(THD *thd)
     if (check_access(thd, UPDATE_ACL, "mysql", NULL, NULL, 1, 1) &&
         check_global_access(thd,CREATE_USER_ACL))
       break;
-    /* Conditionally writes to binlog */
+
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+    /* Conditionally writes to binlog */
     if (lex->sql_command == SQLCOM_ALTER_USER)
       res= mysql_alter_user(thd, lex->users_list);
     else
@@ -5255,8 +5274,9 @@ mysql_execute_command(THD *thd)
         check_global_access(thd,CREATE_USER_ACL))
       break;
 
-    /* Conditionally writes to binlog */
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+    /* Conditionally writes to binlog */
     if (!(res = mysql_revoke_all(thd, lex->users_list)))
       my_ok(thd);
     break;
@@ -5315,8 +5335,10 @@ mysql_execute_command(THD *thd)
 		   : lex->grant;
         if (check_grant_routine(thd, grants | GRANT_ACL, all_tables, sph, 0))
 	  goto error;
-        /* Conditionally writes to binlog */
+
         WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+        /* Conditionally writes to binlog */
         res= mysql_routine_grant(thd, all_tables, sph,
                                  lex->users_list, grants,
                                  lex->sql_command == SQLCOM_REVOKE, TRUE);
@@ -5328,8 +5350,10 @@ mysql_execute_command(THD *thd)
 	if (check_grant(thd,(lex->grant | lex->grant_tot_col | GRANT_ACL),
                         all_tables, FALSE, UINT_MAX, FALSE))
 	  goto error;
-        /* Conditionally writes to binlog */
+
         WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+        /* Conditionally writes to binlog */
         res= mysql_table_grant(thd, all_tables, lex->users_list,
 			       lex->columns, lex->grant,
 			       lex->sql_command == SQLCOM_REVOKE);
@@ -5346,6 +5370,7 @@ mysql_execute_command(THD *thd)
       else
       {
         WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
         /* Conditionally writes to binlog */
         res= mysql_grant(thd, select_lex->db.str, lex->users_list, lex->grant,
                          lex->sql_command == SQLCOM_REVOKE,
@@ -5372,6 +5397,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_GRANT_ROLE:
   {
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
     if (!(res= mysql_grant_role(thd, lex->users_list,
                                 lex->sql_command != SQLCOM_GRANT_ROLE)))
       my_ok(thd);
@@ -5718,6 +5744,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_DROP_PACKAGE:
   case SQLCOM_DROP_PACKAGE_BODY:
     if (drop_routine(thd, lex))
+
       goto error;
     break;
   case SQLCOM_SHOW_CREATE_PROC:
@@ -5783,8 +5810,10 @@ mysql_execute_command(THD *thd)
     {
       if (check_table_access(thd, DROP_ACL, all_tables, FALSE, UINT_MAX, FALSE))
         goto error;
-      /* Conditionally writes to binlog. */
+
       WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+      /* Conditionally writes to binlog. */
       res= mysql_drop_view(thd, first_table, thd->lex->drop_mode);
       break;
     }
@@ -6088,7 +6117,7 @@ finish:
 
 #ifdef WITH_WSREP
   thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
-  
+
   WSREP_TO_ISOLATION_END;
   /*
     Force release of transactional locks if not in active MST and wsrep is on.

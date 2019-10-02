@@ -37,6 +37,7 @@
 #include "sql_derived.h"
 #include "sql_cte.h"    // check_dependencies_in_with_clauses()
 #include "opt_trace.h"
+#include "wsrep_mysqld.h"
 
 #define MD5_BUFF_LENGTH 33
 
@@ -453,6 +454,14 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     res= TRUE;
     goto err;
   }
+
+#ifdef WITH_WSREP
+  if(!wsrep_should_replicate_ddl_iterate(thd, static_cast<const TABLE_LIST *>(tables)))
+  {
+    res= TRUE;
+    goto err;
+  }
+#endif
 
   view= lex->unlink_first_table(&link_to_local);
 

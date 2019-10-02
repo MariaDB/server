@@ -19,18 +19,27 @@
 #include <my_config.h>
 
 #ifdef WITH_WSREP
+
 #define IF_WSREP(A,B) A
+
 #define DBUG_ASSERT_IF_WSREP(A) DBUG_ASSERT(A)
 
 #define WSREP_MYSQL_DB (char *)"mysql"
+
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
-  if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) \
+  if (WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) \
     goto wsrep_error_label;
 
-#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_) \
+#define WSREP_TO_ISOLATION_BEGIN_CREATE(db_, table_, table_list_, create_info_)	\
+  if (WSREP(thd) &&                                                     \
+      wsrep_to_isolation_begin(thd, db_, table_,                        \
+                               table_list_, NULL, create_info_))	\
+    goto wsrep_error_label;
+
+#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, create_info_) \
   if (WSREP(thd) && wsrep_thd_is_local(thd) &&                          \
       wsrep_to_isolation_begin(thd, db_, table_,                        \
-                               table_list_, alter_info_))               \
+                               table_list_, alter_info_, create_info_))	\
     goto wsrep_error_label;
 
 #define WSREP_TO_ISOLATION_END                                          \
@@ -56,14 +65,12 @@
  * (e.g. embedded) */
 
 #define IF_WSREP(A,B) B
-//#define DBUG_ASSERT_IF_WSREP(A)
 #define WSREP_DEBUG(...)
-//#define WSREP_INFO(...)
-//#define WSREP_WARN(...)
 #define WSREP_ERROR(...)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)
-#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_)
+#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, create_info_)
 #define WSREP_TO_ISOLATION_END
+#define WSREP_TO_ISOLATION_BEGIN_CREATE(db_, table_, table_list_, create_info_)
 #define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
 #define WSREP_SYNC_WAIT(thd_, before_)
 #endif /* WITH_WSREP */

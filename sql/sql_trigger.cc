@@ -507,9 +507,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
       goto end;
   }
 
-#ifdef WITH_WSREP
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, tables);
-#endif
 
   /* We should have only one table in table list. */
   DBUG_ASSERT(tables->next_global == 0);
@@ -549,6 +547,12 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     tables->table->use_all_columns();
   }
   table= tables->table;
+
+#ifdef WITH_WSREP
+  if (WSREP(thd) &&
+      !wsrep_should_replicate_ddl(thd, table->s->db_type()->db_type))
+    goto wsrep_error_label;
+#endif
 
   /* Later on we will need it to downgrade the lock */
   mdl_ticket= table->mdl_ticket;

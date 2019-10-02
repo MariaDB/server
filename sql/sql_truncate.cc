@@ -303,6 +303,12 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
 
     versioned= table->versioned();
     hton= table->file->ht;
+#ifdef WITH_WSREP
+    if (WSREP(thd) &&
+	!wsrep_should_replicate_ddl(thd, hton->db_type))
+      DBUG_RETURN(TRUE);
+#endif
+
     table_ref->mdl_request.ticket= table->mdl_ticket;
   }
   else
@@ -320,6 +326,15 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     versioned= share->versioned;
     sequence= share->table_type == TABLE_TYPE_SEQUENCE;
     hton= share->db_type();
+#ifdef WITH_WSREP
+    if (WSREP(thd) &&
+	hton != view_pseudo_hton &&
+	!wsrep_should_replicate_ddl(thd, hton->db_type))
+    {
+      tdc_release_share(share);
+      DBUG_RETURN(TRUE);
+    }
+#endif
 
     tdc_release_share(share);
 
@@ -417,9 +432,10 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 
 #ifdef WITH_WSREP
     if (WSREP(thd) &&
-        wsrep_to_isolation_begin(thd, table_ref->db.str, table_ref->table_name.str, 0))
-        DBUG_RETURN(TRUE);
+        wsrep_to_isolation_begin(thd, table_ref->db.str, table_ref->table_name.str, NULL))
+      DBUG_RETURN(TRUE);
 #endif /* WITH_WSREP */
+
     if (lock_table(thd, table_ref, &hton_can_recreate))
       DBUG_RETURN(TRUE);
 

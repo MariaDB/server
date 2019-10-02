@@ -2443,6 +2443,16 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     {
       char *end;
       int frm_delete_error= 0;
+
+#ifdef WITH_WSREP
+      if (WSREP(thd) &&
+	  !wsrep_should_replicate_ddl(thd, table_type->db_type))
+      {
+        error= 1;
+        goto err;
+      }
+#endif
+
       /*
         It could happen that table's share in the table definition cache
         is the only thing that keeps the engine plugin loaded
@@ -9461,6 +9471,17 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                           &alter_prelocking_strategy);
   thd->open_options&= ~HA_OPEN_FOR_ALTER;
 
+#ifdef WITH_WSREP
+  if (WSREP(thd) &&
+      (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
+       thd->lex->sql_command == SQLCOM_CREATE_INDEX ||
+       thd->lex->sql_command == SQLCOM_DROP_INDEX) &&
+      !wsrep_should_replicate_ddl(thd, table_list->table->s->db_type()->db_type))
+    DBUG_RETURN(true);
+#endif
+
+  DEBUG_SYNC(thd, "alter_table_after_open_tables");
+
   TABLE *table= table_list->table;
   bool versioned= table && table->versioned();
 
@@ -11503,7 +11524,8 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
           (!thd->is_current_stmt_binlog_format_row() ||
            !create_info.tmp_table()))
       {
-        WSREP_TO_ISOLATION_BEGIN(create_table->db.str, create_table->table_name.str, NULL);
+        WSREP_TO_ISOLATION_BEGIN_CREATE(create_table->db.str, create_table->table_name.str,
+                                        create_table, &create_info);
       }
       /* Regular CREATE TABLE */
       res= mysql_create_table(thd, create_table, &create_info, &alter_info);
