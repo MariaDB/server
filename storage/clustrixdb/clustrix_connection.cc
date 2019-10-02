@@ -255,7 +255,8 @@ my_ulonglong clustrix_connection::rows_affected()
 }
 
 int clustrix_connection::write_row(ulonglong clustrix_table_oid,
-                                   uchar *packed_row, size_t packed_size)
+                                   uchar *packed_row, size_t packed_size,
+                                   ulonglong *last_insert_id)
 {
   int error_code;
   command_length = 0;
@@ -275,7 +276,7 @@ int clustrix_connection::write_row(ulonglong clustrix_table_oid,
   if ((error_code = read_query_response()))
     return error_code;
 
-  last_insert_id = clustrix_net.insert_id;
+  *last_insert_id = clustrix_net.insert_id;
   return error_code;
 }
 
