@@ -1632,7 +1632,7 @@ public:
   {
     return m_count;
   }
-  const Elem element(uint i) const
+  const Elem& element(uint i) const
   {
     DBUG_ASSERT(i < m_count);
     return m_array[i];
@@ -2340,12 +2340,31 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
         if (field_data_type_info_array.count())
         {
+          const LEX_CSTRING &info= field_data_type_info_array.
+                                     element(i).type_info();
           DBUG_EXECUTE_IF("frm_data_type_info",
             push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
             ER_UNKNOWN_ERROR, "DBUG: [%u] name='%s' type_info='%.*s'",
             i, share->fieldnames.type_names[i],
-            (uint) field_data_type_info_array.element(i).type_info().length,
-            field_data_type_info_array.element(i).type_info().str););
+            (uint) info.length, info.str););
+
+          if (info.length)
+          {
+            const Type_handler *h= Type_handler::handler_by_name_or_error(info);
+            /*
+              This code will eventually be extended here:
+              - If the handler was not found by name, we could
+                still open the table using the fallback type handler "handler",
+                at least for a limited set of commands.
+              - If the handler was found by name, we could check
+                that "h" and "handler" have the same type code
+                (and maybe some other properties) to make sure
+                that the FRM data is consistent.
+            */
+            if (!h)
+              goto err;
+            handler= h;
+          }
         }
       }
 

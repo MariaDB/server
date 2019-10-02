@@ -200,13 +200,31 @@ Type_handler::handler_by_name(const LEX_CSTRING &name)
 }
 
 
+#ifndef DBUG_OFF
+static const Type_handler *frm_data_type_info_emulate(const LEX_CSTRING &name)
+{
+  if (Name(STRING_WITH_LEN("xchar")).eq(name))
+    return &type_handler_string;
+  if (Name(STRING_WITH_LEN("xblob")).eq(name))
+     return &type_handler_blob;
+  return NULL;
+}
+#endif
+
+
 const Type_handler *
 Type_handler::handler_by_name_or_error(const LEX_CSTRING &name)
 {
   const Type_handler *h= handler_by_name(name);
   if (!h)
+  {
+    DBUG_EXECUTE_IF("frm_data_type_info_emulate",
+      if ((h= frm_data_type_info_emulate(name)))
+        return h;
+    );
     my_error(ER_UNKNOWN_DATA_TYPE, MYF(0),
              ErrConvString(name.str, name.length, system_charset_info).ptr());
+  }
   return h;
 }
 
@@ -8845,7 +8863,8 @@ bool Type_handler::Column_definition_data_type_info_image(Binary_string *to,
   // Have *some* columns write type info (let's use string fields as an example)
   DBUG_EXECUTE_IF("frm_data_type_info_emulate",
                   if (cmp_type() == STRING_RESULT)
-                    return to->append(name().lex_cstring()););
+                    return to->append("x", 1) ||
+                           to->append(name().lex_cstring()););
   return false;
 }
 
