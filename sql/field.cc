@@ -3637,6 +3637,17 @@ int Field_int::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
 }
 
 
+void Field_int::sql_type(String &res) const
+{
+  CHARSET_INFO *cs=res.charset();
+  Name name= type_handler()->type_handler_signed()->name();
+  res.length(cs->cset->snprintf(cs,(char*) res.ptr(),res.alloced_length(),
+			  "%.*s(%d)", (int) name.length(), name.ptr(),
+			  (int) field_length));
+  add_zerofill_and_unsigned(res);
+}
+
+
 /****************************************************************************
 ** tiny int
 ****************************************************************************/
@@ -3787,14 +3798,6 @@ void Field_tiny::sort_string(uchar *to,uint length __attribute__((unused)))
     *to= *ptr;
   else
     to[0] = (char) (ptr[0] ^ (uchar) 128);	/* Revers signbit */
-}
-
-void Field_tiny::sql_type(String &res) const
-{
-  CHARSET_INFO *cs=res.charset();
-  res.length(cs->cset->snprintf(cs,(char*) res.ptr(),res.alloced_length(),
-			  "tinyint(%d)",(int) field_length));
-  add_zerofill_and_unsigned(res);
 }
 
 /****************************************************************************
@@ -3961,15 +3964,6 @@ void Field_short::sort_string(uchar *to,uint length __attribute__((unused)))
     to[0] = (char) (ptr[1] ^ 128);              /* Revers signbit */
   to[1]   = ptr[0];
 }
-
-void Field_short::sql_type(String &res) const
-{
-  CHARSET_INFO *cs=res.charset();
-  res.length(cs->cset->snprintf(cs,(char*) res.ptr(),res.alloced_length(),
-			  "smallint(%d)",(int) field_length));
-  add_zerofill_and_unsigned(res);
-}
-
 
 /****************************************************************************
   Field type medium int (3 byte)
@@ -4161,14 +4155,6 @@ void Field_medium::sort_string(uchar *to,uint length __attribute__((unused)))
 }
 
 
-void Field_medium::sql_type(String &res) const
-{
-  CHARSET_INFO *cs=res.charset();
-  res.length(cs->cset->snprintf(cs,(char*) res.ptr(),res.alloced_length(), 
-			  "mediumint(%d)",(int) field_length));
-  add_zerofill_and_unsigned(res);
-}
-
 /****************************************************************************
 ** long int
 ****************************************************************************/
@@ -4334,14 +4320,6 @@ void Field_long::sort_string(uchar *to,uint length __attribute__((unused)))
 }
 
 
-void Field_long::sql_type(String &res) const
-{
-  CHARSET_INFO *cs=res.charset();
-  res.length(cs->cset->snprintf(cs,(char*) res.ptr(),res.alloced_length(),
-			  "int(%d)",(int) field_length));
-  add_zerofill_and_unsigned(res);
-}
-
 /****************************************************************************
  Field type longlong int (8 bytes)
 ****************************************************************************/
@@ -4484,14 +4462,6 @@ void Field_longlong::sort_string(uchar *to,uint length __attribute__((unused)))
   to[7]   = ptr[0];
 }
 
-
-void Field_longlong::sql_type(String &res) const
-{
-  CHARSET_INFO *cs=res.charset();
-  res.length(cs->cset->snprintf(cs,(char*) res.ptr(),res.alloced_length(),
-			  "bigint(%d)",(int) field_length));
-  add_zerofill_and_unsigned(res);
-}
 
 void Field_longlong::set_max()
 {
@@ -4660,22 +4630,6 @@ Binlog_type_info Field_float::binlog_type_info() const
   DBUG_ASSERT(Field_float::type() == binlog_type());
   return Binlog_type_info(Field_float::type(), pack_length(), 1,
                           binlog_signedness());
-}
-
-
-void Field_float::sql_type(String &res) const
-{
-  if (dec >= FLOATING_POINT_DECIMALS)
-  {
-    res.set_ascii(STRING_WITH_LEN("float"));
-  }
-  else
-  {
-    CHARSET_INFO *cs= res.charset();
-    res.length(cs->cset->snprintf(cs,(char*) res.ptr(),res.alloced_length(),
-			    "float(%d,%d)",(int) field_length,dec));
-  }
-  add_zerofill_and_unsigned(res);
 }
 
 
@@ -4900,6 +4854,24 @@ Item *Field_real::get_equal_const_item(THD *thd, const Context &ctx,
 }
 
 
+void Field_real::sql_type(String &res) const
+{
+  const Name name= type_handler()->name();
+  if (dec >= FLOATING_POINT_DECIMALS)
+  {
+    res.set_ascii(name.ptr(), name.length());
+  }
+  else
+  {
+    CHARSET_INFO *cs= res.charset();
+    res.length(cs->cset->snprintf(cs,(char*) res.ptr(),res.alloced_length(),
+			    "%.*s(%d,%d)", (int) name.length(), name.ptr(),
+			    (int) field_length,dec));
+  }
+  add_zerofill_and_unsigned(res);
+}
+
+
 String *Field_double::val_str(String *val_buffer,
 			      String *val_ptr __attribute__((unused)))
 {
@@ -4972,22 +4944,6 @@ Binlog_type_info Field_double::binlog_type_info() const
   DBUG_ASSERT(Field_double::type() == binlog_type());
   return Binlog_type_info(Field_double::type(), pack_length(), 1,
                           binlog_signedness());
-}
-
-
-void Field_double::sql_type(String &res) const
-{
-  CHARSET_INFO *cs=res.charset();
-  if (dec >= FLOATING_POINT_DECIMALS)
-  {
-    res.set_ascii(STRING_WITH_LEN("double"));
-  }
-  else
-  {
-    res.length(cs->cset->snprintf(cs,(char*) res.ptr(),res.alloced_length(),
-			    "double(%d,%d)",(int) field_length,dec));
-  }
-  add_zerofill_and_unsigned(res);
 }
 
 

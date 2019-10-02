@@ -2136,6 +2136,7 @@ public:
                   Information_schema_numeric_attributes(field_length) :
                   Information_schema_numeric_attributes(field_length, dec);
   }
+  void sql_type(String &str) const override;
   int save_in_field(Field *to) override { return to->store(val_real()); }
   bool memcpy_field_possible(const Field *from) const override
   {
@@ -2372,6 +2373,7 @@ public:
     uint32 prec= type_limits_int()->precision();
     return Information_schema_numeric_attributes(prec, 0);
   }
+  void sql_type(String &str) const override;
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
                        const Item_bool_func *cond,
                        scalar_comparison_op op, Item *value) override
@@ -2410,7 +2412,6 @@ public:
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 1; }
-  void sql_type(String &str) const override;
   const Type_limits_int *type_limits_int() const override
   {
     return type_handler_priv()->type_limits_int();
@@ -2472,7 +2473,6 @@ public:
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 2; }
-  void sql_type(String &str) const override;
   const Type_limits_int *type_limits_int() const override
   {
     return type_handler_priv()->type_limits_int();
@@ -2518,7 +2518,6 @@ public:
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 3; }
-  void sql_type(String &str) const override;
   const Type_limits_int *type_limits_int() const override
   {
     return type_handler_priv()->type_limits_int();
@@ -2569,7 +2568,6 @@ public:
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 4; }
-  void sql_type(String &str) const override;
   const Type_limits_int *type_limits_int() const override
   {
     return type_handler_priv()->type_limits_int();
@@ -2629,7 +2627,6 @@ public:
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 8; }
-  void sql_type(String &str) const override;
   const Type_limits_int *type_limits_int() const override
   {
     return type_handler_priv()->type_limits_int();
@@ -2731,7 +2728,6 @@ public:
   void sort_string(uchar *buff, uint length) override;
   uint32 pack_length() const override { return sizeof(float); }
   uint row_pack_length() const override { return pack_length(); }
-  void sql_type(String &str) const override;
   ulonglong get_max_int_value() const override
   {
     /*
@@ -2796,7 +2792,6 @@ public:
   void sort_string(uchar *buff, uint length) override;
   uint32 pack_length() const override { return sizeof(double); }
   uint row_pack_length() const override { return pack_length(); }
-  void sql_type(String &str) const override;
   ulonglong get_max_int_value() const override
   {
     /*
