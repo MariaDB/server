@@ -369,8 +369,18 @@ int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
   if (packet_length == packet_error)
     return mysql_errno(&clustrix_net);
 
-  *rowdata = clustrix_net.net.read_pos;
-  *rowdata_length = safe_net_field_length_ll(rowdata, packet_length);
+  uchar *data = clustrix_net.net.read_pos;
+  *rowdata_length = safe_net_field_length_ll(&data, packet_length);
+  *rowdata = (uchar *)my_malloc(*rowdata_length, MYF(MY_WME));
+  memcpy(*rowdata, data, *rowdata_length); 
+
+  packet_length = cli_safe_read(&clustrix_net);
+  if (packet_length == packet_error) {
+    my_free(*rowdata);
+    *rowdata = NULL;
+    *rowdata_length = 0;
+    return mysql_errno(&clustrix_net);
+  }
 
   return 0;
 }
