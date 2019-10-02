@@ -986,7 +986,6 @@ THD::THD(bool is_wsrep_applier)
   memset(&invoker_host, 0, sizeof(invoker_host));
   prepare_derived_at_open= FALSE;
   create_tmp_table_for_derived= FALSE;
-  force_read_stats= FALSE;
   save_prep_leaf_list= FALSE;
   /* Restore THR_THD */
   set_current_thd(old_THR_THD);

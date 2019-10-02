@@ -4272,7 +4272,6 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     SQLCOM_SHOW_FIELDS is used because it satisfies
     'only_view_structure()'.
   */
-  thd->force_read_stats= get_schema_table_idx(schema_table) == SCH_STATISTICS;
   lex->sql_command= SQLCOM_SHOW_FIELDS;
   result= (open_temporary_tables(thd, table_list) ||
            open_normal_and_derived_tables(thd, table_list,
@@ -4286,9 +4285,6 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     process_table() function.
   */
   lex->sql_command= old_lex->sql_command;
-
-  (void) read_statistics_for_tables_if_needed(thd, table_list);
-  thd->force_read_stats= false;
 
   DEBUG_SYNC(thd, "after_open_table_ignore_flush");
 
@@ -6165,6 +6161,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     KEY *key_info=show_table->s->key_info;
     if (show_table->file)
     {
+      (void) read_statistics_for_tables(thd, tables);
       show_table->file->info(HA_STATUS_VARIABLE |
                              HA_STATUS_NO_LOCK |
                              HA_STATUS_TIME);

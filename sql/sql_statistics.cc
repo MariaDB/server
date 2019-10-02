@@ -2161,54 +2161,6 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
 
 
 /**
-  @brief
-  Check whether any persistent statistics for the processed command is needed
-
-  @param
-  thd         The thread handle
-
-  @details
-  The function checks whether any persitent statistics for the processed
-  command is needed to be read.
-
-  @retval
-  TRUE        statistics is needed to be read 
-  @retval
-  FALSE       Otherwise
-*/
-
-static
-inline bool statistics_for_command_is_needed(THD *thd)
-{
-  if (thd->bootstrap || thd->variables.use_stat_tables == NEVER)
-    return FALSE;
-
-  if (thd->force_read_stats)
-    return TRUE;
-
-  switch(thd->lex->sql_command) {
-  case SQLCOM_SELECT:
-  case SQLCOM_INSERT:
-  case SQLCOM_INSERT_SELECT:
-  case SQLCOM_UPDATE:
-  case SQLCOM_UPDATE_MULTI:
-  case SQLCOM_DELETE:
-  case SQLCOM_DELETE_MULTI:
-  case SQLCOM_REPLACE:
-  case SQLCOM_REPLACE_SELECT:
-  case SQLCOM_CREATE_TABLE:
-  case SQLCOM_SET_OPTION:
-  case SQLCOM_DO:
-    break;
-  default: 
-    return FALSE;
-  }
-
-  return TRUE;
-} 
-
-
-/**
   @brief 
   Allocate memory for the statistical data used by a table share
 
@@ -2254,9 +2206,6 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
 
   DEBUG_SYNC(thd, "statistics_mem_alloc_start1");
   DEBUG_SYNC(thd, "statistics_mem_alloc_start2");
-
-  if (!statistics_for_command_is_needed(thd))
-    DBUG_RETURN(1);
 
   mysql_mutex_lock(&table_share->LOCK_share);
 
@@ -3110,9 +3059,6 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
 {
   if (!tables)
     return FALSE;
-  
-  if (!statistics_for_command_is_needed(thd))
-    return FALSE;
 
   /* 
     Do not read statistics for any query that explicity involves
@@ -3245,14 +3191,39 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 
 int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 {
+  switch (thd->lex->sql_command) {
+  case SQLCOM_SELECT:
+  case SQLCOM_INSERT:
+  case SQLCOM_INSERT_SELECT:
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_CREATE_TABLE:
+  case SQLCOM_SET_OPTION:
+  case SQLCOM_DO:
+    return read_statistics_for_tables(thd, tables);
+  default:
+    return 0;
+  }
+}
+
+
+int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
+{
   TABLE_LIST stat_tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
 
-  DBUG_ENTER("read_statistics_for_tables_if_needed");
+  DBUG_ENTER("read_statistics_for_tables");
+
+  if (thd->bootstrap || thd->variables.use_stat_tables == NEVER)
+    DBUG_RETURN(0);
 
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
-    if (get_use_stat_tables_mode(thd) > NEVER && tl->table)
+    if (tl->table)
     {
       TABLE_SHARE *table_share= tl->table->s;
       if (table_share && table_share->table_category == TABLE_CATEGORY_USER &&

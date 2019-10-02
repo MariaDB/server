@@ -2200,9 +2200,6 @@ public:
   */ 
   bool create_tmp_table_for_derived;
 
-  /* The flag to force reading statistics from EITS tables */
-  bool force_read_stats;
-
   bool save_prep_leaf_list;
 
   /* container for handler's private per-connection data */
