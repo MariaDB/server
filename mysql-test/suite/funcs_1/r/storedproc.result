@@ -11648,10 +11648,7 @@ set @x = 2;
 insert into t values (1);
 set @x = 3;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'handler for sqlstate '2300' set @x2 = 1;
-set @x = 1;
-insert into t values (1);
-s' at line 3
+ERROR HY000: Unknown data type: 'handler'
 DROP PROCEDURE IF EXISTS handler1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.handler1 does not exist
@@ -11664,10 +11661,7 @@ set @x = 2;
 insert into t values (1);
 set @x = 3;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'handler for sqlstate '2300' set @x2 = 1;
-set @x = 1;
-insert into t values (1);
-s' at line 3
+ERROR HY000: Unknown data type: 'handler'
 DROP PROCEDURE IF EXISTS handler1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.handler1 does not exist
@@ -11680,10 +11674,7 @@ set @x = 2;
 insert into t values (1);
 set @x = 3;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'handler for sqlstate '2300' set @x2 = 1;
-set @x = 1;
-insert into t values (1);
-s' at line 3
+ERROR HY000: Unknown data type: 'handler'
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -12934,8 +12925,7 @@ CREATE PROCEDURE sp1( )
 BEGIN
 declare option handler for sqlstate '02000' set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'handler for sqlstate '02000' set @var2 = 1;
-END' at line 3
+ERROR HY000: Unknown data type: 'handler'
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -13015,8 +13005,7 @@ CREATE PROCEDURE sp1( )
 BEGIN
 declare privileges handler for sqlstate '02000' set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'handler for sqlstate '02000' set @var2 = 1;
-END' at line 3
+ERROR HY000: Unknown data type: 'handler'
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -13069,8 +13058,7 @@ CREATE PROCEDURE sp1( )
 BEGIN
 declare read_only handler for sqlstate '02000' set @var2 = 1;
 END//
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'handler for sqlstate '02000' set @var2 = 1;
-END' at line 3
+ERROR HY000: Unknown data type: 'handler'
 DROP PROCEDURE IF EXISTS sp1;
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist

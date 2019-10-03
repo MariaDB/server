@@ -13752,7 +13752,7 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS handler1;
 
 delimiter //;
---error ER_PARSE_ERROR
+--error ER_UNKNOWN_DATA_TYPE
 CREATE PROCEDURE handler1()
 BEGIN
     declare continueinv handler for sqlstate '2300' set @x2 = 1;
@@ -13776,7 +13776,7 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS handler1;
 
 delimiter //;
---error ER_PARSE_ERROR
+--error ER_UNKNOWN_DATA_TYPE
 CREATE PROCEDURE handler1()
 BEGIN
     declare undoinv handler for sqlstate '2300' set @x2 = 1;
@@ -13800,7 +13800,7 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS handler1;
 
 delimiter //;
---error ER_PARSE_ERROR
+--error ER_UNKNOWN_DATA_TYPE
 CREATE PROCEDURE handler1 ()
 BEGIN
     declare exitinv handler for sqlstate '2300' set @x2 = 1;
@@ -15210,7 +15210,7 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
---error ER_PARSE_ERROR
+--error ER_UNKNOWN_DATA_TYPE
 CREATE PROCEDURE sp1( )
 BEGIN
     declare option handler for sqlstate '02000' set @var2 = 1;
@@ -15300,7 +15300,7 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
---error ER_PARSE_ERROR
+--error ER_UNKNOWN_DATA_TYPE
 CREATE PROCEDURE sp1( )
 BEGIN
     declare privileges handler for sqlstate '02000' set @var2 = 1;
@@ -15360,7 +15360,7 @@ delimiter ;//
 DROP PROCEDURE IF EXISTS sp1;
 
 delimiter //;
---error ER_PARSE_ERROR
+--error ER_UNKNOWN_DATA_TYPE
 CREATE PROCEDURE sp1( )
 BEGIN
     declare read_only handler for sqlstate '02000' set @var2 = 1;

@@ -1797,6 +1797,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <kwd>
         keyword_data_type
+        keyword_cast_type
         keyword_ident
         keyword_label
         keyword_set_special_case
@@ -1812,6 +1813,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         keyword_verb_clause
         charset
         reserved_keyword_udt
+        non_reserved_keyword_udt
 
 %type <table>
         table_ident table_ident_nodb references xid
@@ -6860,6 +6862,11 @@ field_type:
               MYSQL_YYABORT;
           }
         | reserved_keyword_udt float_options srid_option
+          {
+            if (Lex->set_field_type_udt(&$$, $1, $2))
+              MYSQL_YYABORT;
+          }
+        | non_reserved_keyword_udt float_options srid_option
           {
             if (Lex->set_field_type_udt(&$$, $1, $2))
               MYSQL_YYABORT;
@@ -11915,6 +11922,11 @@ cast_type:
             if (Lex->set_cast_type_udt(&$$, $1))
               MYSQL_YYABORT;
           }
+        | non_reserved_keyword_udt
+          {
+            if (Lex->set_cast_type_udt(&$$, $1))
+              MYSQL_YYABORT;
+          }
         ;
 
 cast_type_numeric:
@@ -15798,6 +15810,7 @@ user: user_maybe_role
 /* Keywords which we allow as table aliases. */
 keyword_table_alias:
           keyword_data_type
+        | keyword_cast_type
         | keyword_set_special_case
         | keyword_sp_block_section
         | keyword_sp_head
@@ -15805,11 +15818,13 @@ keyword_table_alias:
         | keyword_sp_var_not_label
         | keyword_sysvar_type
         | keyword_verb_clause
+        | EXCEPTION_ORACLE_SYM
         ;
 
 /* Keyword that we allow for identifiers (except SP labels) */
 keyword_ident:
           keyword_data_type
+        | keyword_cast_type
         | keyword_set_special_case
         | keyword_sp_block_section
         | keyword_sp_head
@@ -15818,6 +15833,7 @@ keyword_ident:
         | keyword_sysvar_type
         | keyword_verb_clause
         | WINDOW_SYM
+        | EXCEPTION_ORACLE_SYM
         ;
 
 /*
@@ -15829,10 +15845,12 @@ keyword_label:
         | keyword_set_special_case
         | keyword_sp_var_and_label
         | keyword_sysvar_type
+        | EXCEPTION_ORACLE_SYM
         ;
 
 keyword_sysvar_name:
           keyword_data_type
+        | keyword_cast_type
         | keyword_set_special_case
         | keyword_sp_block_section
         | keyword_sp_head
@@ -15840,10 +15858,12 @@ keyword_sysvar_name:
         | keyword_sp_var_not_label
         | keyword_verb_clause
         | WINDOW_SYM
+        | EXCEPTION_ORACLE_SYM
         ;
 
 keyword_sp_decl:
           keyword_data_type
+        | keyword_cast_type
         | keyword_set_special_case
         | keyword_sp_block_section
         | keyword_sp_head
@@ -15856,6 +15876,7 @@ keyword_sp_decl:
 
 keyword_set_usual_case:
           keyword_data_type
+        | keyword_cast_type
         | keyword_sp_block_section
         | keyword_sp_head
         | keyword_sp_var_and_label
@@ -15863,6 +15884,17 @@ keyword_set_usual_case:
         | keyword_sysvar_type
         | keyword_verb_clause
         | WINDOW_SYM
+        | EXCEPTION_ORACLE_SYM
+        ;
+
+non_reserved_keyword_udt:
+          keyword_sp_var_not_label
+        | keyword_sp_head
+        | keyword_verb_clause
+        | keyword_set_special_case
+        | keyword_sp_block_section
+        | keyword_sysvar_type
+        | keyword_sp_var_and_label
         ;
 
 /*
@@ -15914,7 +15946,6 @@ keyword_sp_var_not_label:
         | RESTORE_SYM
         | SECURITY_SYM
         | SERVER_SYM
-        | SIGNED_SYM
         | SOCKET_SYM
         | SLAVE
         | SLAVES
@@ -16009,7 +16040,6 @@ keyword_set_special_case:
 */
 keyword_sp_block_section:
           BEGIN_MARIADB_SYM
-        | EXCEPTION_ORACLE_SYM
         | END
         ;
 
@@ -16051,6 +16081,11 @@ keyword_data_type:
         | VARCHAR2_MARIADB_SYM
         | VARCHAR2_ORACLE_SYM
         | YEAR_SYM
+        ;
+
+
+keyword_cast_type:
+          SIGNED_SYM
         ;
 
 
