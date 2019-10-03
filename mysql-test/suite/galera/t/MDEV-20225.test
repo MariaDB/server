@@ -4,7 +4,8 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
 
 CREATE TABLE t1 (f1 INT NOT NULL PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
 CREATE TABLE t2 (f1 INT NOT NULL PRIMARY KEY AUTO_INCREMENT, f2 INT) ENGINE=InnoDB;
