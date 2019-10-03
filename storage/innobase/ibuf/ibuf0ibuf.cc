@@ -342,10 +342,8 @@ ibuf_header_page_get(
 		page_id_t(IBUF_SPACE_ID, FSP_IBUF_HEADER_PAGE_NO),
 		univ_page_size, RW_X_LATCH, mtr);
 
-
-	if (!block->page.encrypted) {
+	if (block) {
 		buf_block_dbg_add_level(block, SYNC_IBUF_HEADER);
-
 		page = buf_block_get_frame(block);
 	}
 

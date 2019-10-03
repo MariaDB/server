@@ -1468,8 +1468,6 @@ public:
 					if written again we check is TRIM
 					operation needed. */
 
-	bool            encrypted;	/*!< page is still encrypted */
-
 	ulint           real_size;	/*!< Real size of the page
 					Normal pages == UNIV_PAGE_SIZE
 					page compressed pages, payload

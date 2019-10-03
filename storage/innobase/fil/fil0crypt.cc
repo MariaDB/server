@@ -793,7 +793,6 @@ Decrypt a page.
 @param[in]	space			Tablespace
 @param[in]	tmp_frame		Temporary buffer used for decrypting
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	decrypted		true if page was decrypted
 @return decrypted page, or original not encrypted page if decryption is
 not needed.*/
 UNIV_INTERN
@@ -801,13 +800,11 @@ byte*
 fil_space_decrypt(
 	const fil_space_t* space,
 	byte*		tmp_frame,
-	byte*		src_frame,
-	bool*		decrypted)
+	byte*		src_frame)
 {
 	dberr_t err = DB_SUCCESS;
 	byte* res = NULL;
 	const page_size_t page_size(space->flags);
-	*decrypted = false;
 
 	ut_ad(space->crypt_data != NULL && space->crypt_data->is_encrypted());
 	ut_ad(space->n_pending_ios > 0);
@@ -817,7 +814,6 @@ fil_space_decrypt(
 
 	if (err == DB_SUCCESS) {
 		if (encrypted) {
-			*decrypted = true;
 			/* Copy the decrypted page back to page buffer, not
 			really any other options. */
 			memcpy(src_frame, tmp_frame, page_size.physical());
