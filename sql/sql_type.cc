@@ -1396,6 +1396,37 @@ Type_handler::get_handler_by_cmp_type(Item_result type)
 }
 
 
+/*
+  If we have a mixture of:
+  - a MariaDB standard (built-in permanent) data type, and
+  - a non-standard (optionally compiled or pluggable) data type,
+  then we ask the type collection of the non-standard type to aggregate
+  the mixture.
+  The standard type collection type_collection_std knows nothing
+  about non-standard types, while non-standard type collections
+  know everything about standard data types.
+*/
+const Type_collection *
+Type_handler::type_collection_for_aggregation(const Type_handler *h0,
+                                              const Type_handler *h1)
+{
+  const Type_collection *c0= h0->type_collection();
+  const Type_collection *c1= h1->type_collection();
+  if (c0 == c1)
+    return c0;
+  if (c0 == &type_collection_std)
+    return c1;
+  if (c1 == &type_collection_std)
+    return c0;
+  /*
+    A mixture of two non-standard collections.
+    The caller code will continue to aggregate through
+    the type aggregators in Type_handler_data.
+  */
+  return NULL;
+}
+
+
 Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
   :m_type_handler(&type_handler_double)
 {
@@ -1853,15 +1884,15 @@ const Type_handler *Type_handler_typelib::cast_to_int_type_handler() const
 bool
 Type_handler_hybrid_field_type::aggregate_for_result(const Type_handler *other)
 {
-  const Type_collection *collection0= m_type_handler->type_collection();
-  if (collection0 == other->type_collection())
-    other= collection0->aggregate_for_result(m_type_handler, other);
-  else
-    other= type_handler_data->
-             m_type_aggregator_for_result.find_handler(m_type_handler, other);
-  if (!other)
+  const Type_handler *hres;
+  const Type_collection *c;
+  if (!(c= Type_handler::type_collection_for_aggregation(m_type_handler, other)) ||
+      !(hres= c->aggregate_for_result(m_type_handler, other)))
+    hres= type_handler_data->
+            m_type_aggregator_for_result.find_handler(m_type_handler, other);
+  if (!hres)
     return true;
-  m_type_handler= other;
+  m_type_handler= hres;
   return false;
 }
 
@@ -1985,15 +2016,15 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 {
   DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
   DBUG_ASSERT(h == h->type_handler_for_comparison());
-  const Type_collection *collection0= m_type_handler->type_collection();
-  if (collection0 == h->type_collection())
-    h= collection0->aggregate_for_comparison(m_type_handler, h);
-  else
-    h= type_handler_data->
-         m_type_aggregator_for_comparison.find_handler(m_type_handler, h);
-  if (!h)
+  const Type_handler *hres;
+  const Type_collection *c;
+  if (!(c= Type_handler::type_collection_for_aggregation(m_type_handler, h)) ||
+      !(hres= c->aggregate_for_comparison(m_type_handler, h)))
+    hres= type_handler_data->
+            m_type_aggregator_for_comparison.find_handler(m_type_handler, h);
+  if (!hres)
     return true;
-  m_type_handler= h;
+  m_type_handler= hres;
   DBUG_ASSERT(m_type_handler == m_type_handler->type_handler_for_comparison());
   return false;
 }
@@ -2066,10 +2097,10 @@ Type_collection_std::aggregate_for_comparison(const Type_handler *ha,
 bool
 Type_handler_hybrid_field_type::aggregate_for_min_max(const Type_handler *h)
 {
-  const Type_collection *collection0= m_type_handler->type_collection();
-  if (collection0 == h->type_collection())
-    h= collection0->aggregate_for_min_max(m_type_handler, h);
-  else
+  const Type_handler *hres;
+  const Type_collection *c;
+  if (!(c= Type_handler::type_collection_for_aggregation(m_type_handler, h))||
+      !(hres= c->aggregate_for_min_max(m_type_handler, h)))
   {
     /*
       For now we suppose that these two expressions:
@@ -2079,12 +2110,12 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const Type_handler *h)
       if type1 and/or type2 are non-traditional.
       This may change in the future.
     */
-    h= type_handler_data->
-         m_type_aggregator_for_result.find_handler(m_type_handler, h);
+    hres= type_handler_data->
+            m_type_aggregator_for_result.find_handler(m_type_handler, h);
   }
-  if (!h)
+  if (!hres)
     return true;
-  m_type_handler= h;
+  m_type_handler= hres;
   return false;
 }
 
@@ -2225,10 +2256,9 @@ Type_handler_hybrid_field_type::aggregate_for_num_op(const Type_aggregator *agg,
                                                      const Type_handler *h1)
 {
   const Type_handler *hres;
-  const Type_collection *collection0= h0->type_collection();
-  if (collection0 == h1->type_collection())
-    hres= collection0->aggregate_for_num_op(h0, h1);
-  else
+  const Type_collection *c;
+  if (!(c= Type_handler::type_collection_for_aggregation(h0, h1)) ||
+      !(hres= c->aggregate_for_num_op(h0, h1)))
     hres= agg->find_handler(h0, h1);
   if (!hres)
     return true;

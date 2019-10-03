@@ -169,23 +169,8 @@ bool Type_collection_geometry::init_aggregators(Type_handler_data *data,
 bool Type_collection_geometry::init(Type_handler_data *data)
 {
 #ifndef DBUG_OFF
-  /*
-    The rules (geometry,geometry)->geometry and (pont,point)->geometry
-    are needed here to make sure
-    (in gis-debug.test) that they do not affect anything, and these pairs
-    returns an error in an expression like (POINT(0,0)+POINT(0,0)).
-    Both sides are from the same type collection here,
-    so aggregation goes only through Type_collection_xxx::aggregate_yyy()
-    and never reaches Type_aggregator::find_handler().
-  */
   Type_aggregator *nct= &data->m_type_aggregator_non_commutative_test;
-  if (nct->add(&type_handler_geometry,
-               &type_handler_geometry,
-               &type_handler_geometry) ||
-      nct->add(&type_handler_point,
-               &type_handler_point,
-               &type_handler_geometry) ||
-      nct->add(&type_handler_point,
+  if (nct->add(&type_handler_point,
                &type_handler_varchar,
                &type_handler_long_blob))
   return true;

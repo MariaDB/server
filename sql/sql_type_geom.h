@@ -275,9 +275,10 @@ class Type_collection_geometry: public Type_collection
   {
     if (a == b)
       return a;
-    DBUG_ASSERT(dynamic_cast<const Type_handler_geometry*>(a));
-    DBUG_ASSERT(dynamic_cast<const Type_handler_geometry*>(b));
-    return &type_handler_geometry;
+    if (dynamic_cast<const Type_handler_geometry*>(a) &&
+        dynamic_cast<const Type_handler_geometry*>(b))
+      return &type_handler_geometry;
+    return NULL;
   }
   bool init_aggregators(Type_handler_data *data, const Type_handler *geom) const;
 public:
