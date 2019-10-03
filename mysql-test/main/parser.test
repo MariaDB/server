@@ -1566,3 +1566,21 @@ SET STATEMENT max_statement_time=900 FOR unlock tables;
 drop table t1, t2;
 
 --echo # End of 10.4 tests
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-20734 Allow reserved keywords as user defined type names
+--echo #
+
+--error ER_UNKNOWN_DATA_TYPE
+CREATE TABLE t1 (a DUAL);
+--error ER_UNKNOWN_DATA_TYPE
+SELECT CAST(1 AS DUAL);
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

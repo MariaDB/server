@@ -322,315 +322,335 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token <lex_str> '@'
 
 /*
-  Reserved keywords and operators
+  Special purpose tokens
 */
-%token  ABORT_SYM                     /* INTERNAL (used in lex) */
-%token  ACCESSIBLE_SYM
-%token  ADD                           /* SQL-2003-R */
-%token  ALL                           /* SQL-2003-R */
-%token  ALTER                         /* SQL-2003-R */
-%token  ANALYZE_SYM
-%token  AND_AND_SYM                   /* OPERATOR */
-%token  AND_SYM                       /* SQL-2003-R */
-%token  AS                            /* SQL-2003-R */
-%token  ASC                           /* SQL-2003-N */
-%token  ASENSITIVE_SYM                /* FUTURE-USE */
-%token  BEFORE_SYM                    /* SQL-2003-N */
-%token  BETWEEN_SYM                   /* SQL-2003-R */
-%token  BIGINT                        /* SQL-2003-R */
-%token  BINARY                        /* SQL-2003-R */
-%token  BIN_NUM
-%token  BIT_AND                       /* MYSQL-FUNC */
-%token  BIT_OR                        /* MYSQL-FUNC */
-%token  BIT_XOR                       /* MYSQL-FUNC */
-%token  BLOB_MARIADB_SYM              /* SQL-2003-R */
-%token  BLOB_ORACLE_SYM               /* Oracle-R   */
-%token  BODY_ORACLE_SYM               /* Oracle-R   */
-%token  BOTH                          /* SQL-2003-R */
-%token  BY                            /* SQL-2003-R */
-%token  CALL_SYM                      /* SQL-2003-R */
-%token  CASCADE                       /* SQL-2003-N */
-%token  CASE_SYM                      /* SQL-2003-R */
-%token  CAST_SYM                      /* SQL-2003-R */
-%token  CHANGE
-%token  <kwd> CHAR_SYM                /* SQL-2003-R */
-%token  CHECK_SYM                     /* SQL-2003-R */
-%token  COLLATE_SYM                   /* SQL-2003-R */
-%token  CONDITION_SYM                 /* SQL-2003-R, SQL-2008-R */
-%token  CONSTRAINT                    /* SQL-2003-R */
-%token  CONTINUE_MARIADB_SYM          /* SQL-2003-R, Oracle-R */
-%token  CONTINUE_ORACLE_SYM           /* SQL-2003-R, Oracle-R */
-%token  CONVERT_SYM                   /* SQL-2003-N */
-%token  COUNT_SYM                     /* SQL-2003-N */
-%token  CREATE                        /* SQL-2003-R */
-%token  CROSS                         /* SQL-2003-R */
-%token  CUME_DIST_SYM
-%token  CURDATE                       /* MYSQL-FUNC */
-%token  CURRENT_USER                  /* SQL-2003-R */
-%token  CURRENT_ROLE                  /* SQL-2003-R */
-%token  CURSOR_SYM                    /* SQL-2003-R */
-%token  CURTIME                       /* MYSQL-FUNC */
-%token  DATABASE
-%token  DATABASES
-%token  DATE_ADD_INTERVAL             /* MYSQL-FUNC */
-%token  DATE_SUB_INTERVAL             /* MYSQL-FUNC */
-%token  DAY_HOUR_SYM
-%token  DAY_MICROSECOND_SYM
-%token  DAY_MINUTE_SYM
-%token  DAY_SECOND_SYM
-%token  DECIMAL_NUM
-%token  DECIMAL_SYM                   /* SQL-2003-R */
-%token  DECLARE_MARIADB_SYM           /* SQL-2003-R */
-%token  DECLARE_ORACLE_SYM            /* Oracle-R   */
-%token  <kwd> DEFAULT                 /* SQL-2003-R */
-%token  DELETE_DOMAIN_ID_SYM
-%token  DELETE_SYM                    /* SQL-2003-R */
-%token  DENSE_RANK_SYM
-%token  DESC                          /* SQL-2003-N */
-%token  DESCRIBE                      /* SQL-2003-R */
-%token  DETERMINISTIC_SYM             /* SQL-2003-R */
-%token  DISTINCT                      /* SQL-2003-R */
-%token  DIV_SYM
-%token  DOUBLE_SYM                    /* SQL-2003-R */
-%token  DO_DOMAIN_IDS_SYM
-%token  DOT_DOT_SYM
-%token  DROP                          /* SQL-2003-R */
-%token  DUAL_SYM
-%token  EACH_SYM                      /* SQL-2003-R */
-%token  ELSE                          /* SQL-2003-R */
-%token  ELSEIF_MARIADB_SYM
-%token  ELSIF_ORACLE_SYM              /* PLSQL-R    */
-%token  ENCLOSED
-%token  END_OF_INPUT                  /* INTERNAL */
-%token  EQUAL_SYM                     /* OPERATOR */
-%token  ESCAPED
-%token  EXCEPT_SYM                    /* SQL-2003-R */
-%token  EXISTS                        /* SQL-2003-R */
-%token  EXTRACT_SYM                   /* SQL-2003-N */
-%token  FALSE_SYM                     /* SQL-2003-R */
-%token  FETCH_SYM                     /* SQL-2003-R */
-%token  FIRST_VALUE_SYM               /* SQL-2011 */
-%token  FLOAT_NUM
-%token  FLOAT_SYM                     /* SQL-2003-R */
-%token  FOREIGN                       /* SQL-2003-R */
-%token  FOR_SYM                       /* SQL-2003-R */
-%token  FOR_SYSTEM_TIME_SYM           /* INTERNAL */
-%token  FROM
-%token  FULLTEXT_SYM
-%token  GE
-%token  GOTO_ORACLE_SYM               /* Oracle-R   */
-%token  GRANT                         /* SQL-2003-R */
-%token  GROUP_SYM                     /* SQL-2003-R */
-%token  GROUP_CONCAT_SYM
-%token  LAG_SYM                       /* SQL-2011 */
-%token  LEAD_SYM                      /* SQL-2011 */
-%token  HAVING                        /* SQL-2003-R */
-%token  HEX_NUM
-%token  HEX_STRING
-%token  HOUR_MICROSECOND_SYM
-%token  HOUR_MINUTE_SYM
-%token  HOUR_SECOND_SYM
+%token  <NONE> ABORT_SYM              /* INTERNAL (used in lex) */
+%token  <NONE> IMPOSSIBLE_ACTION      /* To avoid warning for yyerrlab1 */
+%token  <NONE> END_OF_INPUT           /* INTERNAL */
+%token  <kwd>  COLON_ORACLE_SYM       /* INTERNAL */
+%token  <kwd>  PARAM_MARKER           /* INTERNAL */
+%token  <NONE> FOR_SYSTEM_TIME_SYM    /* INTERNAL */
+%token  <NONE> LEFT_PAREN_ALT         /* INTERNAL */
+%token  <NONE> LEFT_PAREN_WITH        /* INTERNAL */
+%token  <NONE> LEFT_PAREN_LIKE        /* INTERNAL */
+%token  <NONE> ORACLE_CONCAT_SYM      /* INTERNAL */
+%token  <NONE> PERCENT_ORACLE_SYM     /* INTERNAL */
+%token  <NONE> WITH_CUBE_SYM          /* INTERNAL */
+%token  <NONE> WITH_ROLLUP_SYM        /* INTERNAL */
+%token  <NONE> WITH_SYSTEM_SYM        /* INTERNAL */
+
+
+/*
+  Identifiers
+*/
 %token  IDENT
 %token  IDENT_QUOTED
-%token  IF_SYM
-%token  IGNORE_DOMAIN_IDS_SYM
-%token  IGNORE_SYM
-%token  INDEX_SYM
-%token  INFILE
-%token  INNER_SYM                     /* SQL-2003-R */
-%token  INOUT_SYM                     /* SQL-2003-R */
-%token  INSENSITIVE_SYM               /* SQL-2003-R */
-%token  INSERT                        /* SQL-2003-R */
-%token  INTERSECT_SYM                 /* SQL-2003-R */
-%token  INTERVAL_SYM                  /* SQL-2003-R */
-%token  INTO                          /* SQL-2003-R */
-%token  INT_SYM                       /* SQL-2003-R */
-%token  IN_SYM                        /* SQL-2003-R */
-%token  IS                            /* SQL-2003-R */
-%token  ITERATE_SYM
-%token  JOIN_SYM                      /* SQL-2003-R */
-%token  KEYS
-%token  KEY_SYM                       /* SQL-2003-N */
-%token  KILL_SYM
-%token  LE                            /* OPERATOR */
-%token  LEADING                       /* SQL-2003-R */
-%token  LEAVE_SYM
-%token  LEFT                          /* SQL-2003-R */
-%token  LEFT_PAREN_ALT                /* INTERNAL */
-%token  LEFT_PAREN_WITH               /* INTERNAL */
-%token  LEFT_PAREN_LIKE               /* INTERNAL */
 %token  LEX_HOSTNAME
-%token  LIKE                          /* SQL-2003-R */
-%token  LIMIT
-%token  LINEAR_SYM
-%token  LINES
-%token  LOAD
-%token  LOCATOR_SYM                   /* SQL-2003-N */
-%token  LOCK_SYM
-%token  LONGBLOB
-%token  LONGTEXT
-%token  LONG_NUM
-%token  LONG_SYM
-%token  LOOP_SYM
-%token  LOW_PRIORITY
-%token  MASTER_SSL_VERIFY_SERVER_CERT_SYM
-%token  MATCH                         /* SQL-2003-R */
-%token  MAX_SYM                       /* SQL-2003-N */
-%token  MAXVALUE_SYM                 /* SQL-2003-N */
-%token  MEDIAN_SYM
-%token  MEDIUMBLOB
-%token  MEDIUMINT
-%token  MEDIUMTEXT
-%token  MINUTE_MICROSECOND_SYM
-%token  MINUTE_SECOND_SYM
-%token  MIN_SYM                       /* SQL-2003-N */
-%token  MODIFIES_SYM                  /* SQL-2003-R */
-%token  MOD_SYM                       /* SQL-2003-N */
-%token  MYSQL_CONCAT_SYM              /* OPERATOR */
-%token  NATURAL                       /* SQL-2003-R */
-%token  NCHAR_STRING
-%token  NE                            /* OPERATOR */
-%token  NEG
-%token  NOT2_SYM
-%token  NOT_SYM                       /* SQL-2003-R */
-%token  NOW_SYM
-%token  NO_WRITE_TO_BINLOG
-%token  NTILE_SYM
-%token  NULL_SYM                      /* SQL-2003-R */
-%token  NUM
-%token  NUMERIC_SYM                   /* SQL-2003-R */
-%token  NTH_VALUE_SYM                 /* SQL-2011 */
-%token  ON                            /* SQL-2003-R */
-%token  OPTIMIZE
-%token  OPTIONALLY
-%token  ORACLE_CONCAT_SYM             /* INTERNAL */
-%token  OR2_SYM
-%token  ORDER_SYM                     /* SQL-2003-R */
-%token  OR_SYM                        /* SQL-2003-R */
-%token  OTHERS_ORACLE_SYM             /* SQL-2011-N, PLSQL-R */
-%token  OUTER
-%token  OUTFILE
-%token  OUT_SYM                       /* SQL-2003-R */
-%token  OVER_SYM
-%token  PACKAGE_ORACLE_SYM            /* Oracle-R   */
-%token  PAGE_CHECKSUM_SYM
-%token  PARAM_MARKER
-%token  PARSE_VCOL_EXPR_SYM
-%token  PARTITION_SYM                 /* SQL-2003-R */
-%token  PERCENT_ORACLE_SYM            /* INTERNAL   */
-%token  PERCENT_RANK_SYM
-%token  PERCENTILE_CONT_SYM
-%token  PERCENTILE_DISC_SYM
-%token  PORTION_SYM                   /* SQL-2016-R */
-%token  POSITION_SYM                  /* SQL-2003-N */
-%token  PRECISION                     /* SQL-2003-R */
-%token  PRIMARY_SYM                   /* SQL-2003-R */
-%token  PROCEDURE_SYM                 /* SQL-2003-R */
-%token  PURGE
-%token  RAISE_ORACLE_SYM              /* PLSQL-R    */
-%token  RANGE_SYM                     /* SQL-2003-R */
-%token  RANK_SYM        
-%token  READS_SYM                     /* SQL-2003-R */
-%token  READ_SYM                      /* SQL-2003-N */
-%token  READ_WRITE_SYM
-%token  REAL                          /* SQL-2003-R */
-%token  RECURSIVE_SYM
-%token  REF_SYSTEM_ID_SYM
-%token  REFERENCES                    /* SQL-2003-R */
-%token  REGEXP
-%token  RELEASE_SYM                   /* SQL-2003-R */
-%token  RENAME
-%token  REPEAT_SYM                    /* MYSQL-FUNC */
-%token  REPLACE                       /* MYSQL-FUNC */
-%token  REQUIRE_SYM
-%token  RESIGNAL_SYM                  /* SQL-2003-R */
-%token  RESTRICT
-%token  RETURNING_SYM
-%token  RETURN_MARIADB_SYM            /* SQL-2003-R, PLSQL-R */
-%token  RETURN_ORACLE_SYM             /* SQL-2003-R, PLSQL-R */
-%token  REVOKE                        /* SQL-2003-R */
-%token  RIGHT                         /* SQL-2003-R */
-%token  ROWS_SYM                      /* SQL-2003-R */
-%token  ROWTYPE_ORACLE_SYM            /* PLSQL-R    */
-%token  ROW_NUMBER_SYM
-%token  SECOND_MICROSECOND_SYM
-%token  SELECT_SYM                    /* SQL-2003-R */
-%token  SENSITIVE_SYM                 /* FUTURE-USE */
-%token  SEPARATOR_SYM
-%token  SERVER_OPTIONS
-%token  SET                           /* SQL-2003-R */
-%token  SET_VAR
-%token  SHIFT_LEFT                    /* OPERATOR */
-%token  SHIFT_RIGHT                   /* OPERATOR */
-%token  SHOW
-%token  SIGNAL_SYM                    /* SQL-2003-R */
-%token  SMALLINT                      /* SQL-2003-R */
-%token  SPATIAL_SYM
-%token  SPECIFIC_SYM                  /* SQL-2003-R */
-%token  SQLEXCEPTION_SYM              /* SQL-2003-R */
-%token  SQLSTATE_SYM                  /* SQL-2003-R */
-%token  SQLWARNING_SYM                /* SQL-2003-R */
-%token  SQL_BIG_RESULT
-%token  SQL_SMALL_RESULT
-%token  SQL_SYM                       /* SQL-2003-R */
-%token  SSL_SYM
-%token  STARTING
-%token  STATS_AUTO_RECALC_SYM
-%token  STATS_PERSISTENT_SYM
-%token  STATS_SAMPLE_PAGES_SYM
-%token  STDDEV_SAMP_SYM               /* SQL-2003-N */
-%token  STD_SYM
-%token  STRAIGHT_JOIN
-%token  SUBSTRING                     /* SQL-2003-N */
-%token  SUM_SYM                       /* SQL-2003-N */
-%token  SYSDATE
-%token  TABLE_REF_PRIORITY
-%token  TABLE_SYM                     /* SQL-2003-R */
-%token  TERMINATED
-%token  TEXT_STRING
-%token  THEN_SYM                      /* SQL-2003-R */
-%token  TINYBLOB
-%token  TINYINT
-%token  TINYTEXT
-%token  TO_SYM                        /* SQL-2003-R */
-%token  TRAILING                      /* SQL-2003-R */
-%token  TRIGGER_SYM                   /* SQL-2003-R */
-%token  TRIM                          /* SQL-2003-N */
-%token  TRUE_SYM                      /* SQL-2003-R */
-%token  ULONGLONG_NUM
-%token  UNDERSCORE_CHARSET
-%token  UNDO_SYM                      /* FUTURE-USE */
-%token  UNION_SYM                     /* SQL-2003-R */
-%token  UNIQUE_SYM
-%token  UNLOCK_SYM
-%token  UNSIGNED
-%token  UPDATE_SYM                    /* SQL-2003-R */
-%token  USAGE                         /* SQL-2003-N */
-%token  USE_SYM
-%token  USING                         /* SQL-2003-R */
-%token  UTC_DATE_SYM
-%token  UTC_TIMESTAMP_SYM
-%token  UTC_TIME_SYM
-%token  VALUES                        /* SQL-2003-R */
-%token  VALUES_IN_SYM
-%token  VALUES_LESS_SYM
-%token  VARBINARY
-%token  VARCHAR                       /* SQL-2003-R */
-%token  VARIANCE_SYM
-%token  VARYING                       /* SQL-2003-R */
-%token  VAR_SAMP_SYM
-%token  WHEN_SYM                      /* SQL-2003-R */
-%token  WHERE                         /* SQL-2003-R */
-%token  WHILE_SYM
-%token  WITH                          /* SQL-2003-R */
-%token  WITH_CUBE_SYM                 /* INTERNAL */
-%token  WITH_ROLLUP_SYM               /* INTERNAL */
-%token  WITH_SYSTEM_SYM               /* INTERNAL */
-%token  XOR
-%token  YEAR_MONTH_SYM
-%token  ZEROFILL
+%token  UNDERSCORE_CHARSET            /* _latin1 */
 
-%token IMPOSSIBLE_ACTION                /* To avoid warning for yyerrlab1 */
+
+/*
+  Literals
+*/
+%token  BIN_NUM                       /* LITERAL */
+%token  DECIMAL_NUM                   /* LITERAL */
+%token  FLOAT_NUM                     /* LITERAL */
+%token  HEX_NUM                       /* LITERAL */
+%token  HEX_STRING                    /* LITERAL */
+%token  LONG_NUM                      /* LITERAL */
+%token  NCHAR_STRING                  /* LITERAL */
+%token  NUM                           /* LITERAL */
+%token  TEXT_STRING                   /* LITERAL */
+%token  ULONGLONG_NUM                 /* LITERAL */
+
+
+/*
+  Operators
+*/
+%token  <NONE> AND_AND_SYM            /* OPERATOR */
+%token  <NONE> DOT_DOT_SYM            /* OPERATOR */
+%token  <NONE> EQUAL_SYM              /* OPERATOR */
+%token  <NONE> GE                     /* OPERATOR */
+%token  <NONE> LE                     /* OPERATOR */
+%token  <NONE> MYSQL_CONCAT_SYM       /* OPERATOR */
+%token  <NONE> NE                     /* OPERATOR */
+%token  <NONE> NOT2_SYM               /* OPERATOR */
+%token  <NONE> OR2_SYM                /* OPERATOR */
+%token  <NONE> SET_VAR                /* OPERATOR */
+%token  <NONE> SHIFT_LEFT             /* OPERATOR */
+%token  <NONE> SHIFT_RIGHT            /* OPERATOR */
+
+
+/*
+  Reserved keywords
+*/
+%token  <kwd> ACCESSIBLE_SYM
+%token  <kwd> ADD                           /* SQL-2003-R */
+%token  <kwd> ALL                           /* SQL-2003-R */
+%token  <kwd> ALTER                         /* SQL-2003-R */
+%token  <kwd> ANALYZE_SYM
+%token  <kwd> AND_SYM                       /* SQL-2003-R */
+%token  <kwd> ASC                           /* SQL-2003-N */
+%token  <kwd> ASENSITIVE_SYM                /* FUTURE-USE */
+%token  <kwd> AS                            /* SQL-2003-R */
+%token  <kwd> BEFORE_SYM                    /* SQL-2003-N */
+%token  <kwd> BETWEEN_SYM                   /* SQL-2003-R */
+%token  <kwd> BIGINT                        /* SQL-2003-R */
+%token  <kwd> BINARY                        /* SQL-2003-R */
+%token  <kwd> BIT_AND                       /* MYSQL-FUNC */
+%token  <kwd> BIT_OR                        /* MYSQL-FUNC */
+%token  <kwd> BIT_XOR                       /* MYSQL-FUNC */
+%token  <kwd> BLOB_MARIADB_SYM              /* SQL-2003-R */
+%token  <kwd> BLOB_ORACLE_SYM               /* Oracle-R   */
+%token  <kwd> BODY_ORACLE_SYM               /* Oracle-R   */
+%token  <kwd> BOTH                          /* SQL-2003-R */
+%token  <kwd> BY                            /* SQL-2003-R */
+%token  <kwd> CALL_SYM                      /* SQL-2003-R */
+%token  <kwd> CASCADE                       /* SQL-2003-N */
+%token  <kwd> CASE_SYM                      /* SQL-2003-R */
+%token  <kwd> CAST_SYM                      /* SQL-2003-R */
+%token  <kwd> CHANGE
+%token  <kwd> CHAR_SYM                      /* SQL-2003-R */
+%token  <kwd> CHECK_SYM                     /* SQL-2003-R */
+%token  <kwd> COLLATE_SYM                   /* SQL-2003-R */
+%token  <kwd> CONDITION_SYM                 /* SQL-2003-R, SQL-2008-R */
+%token  <kwd> CONSTRAINT                    /* SQL-2003-R */
+%token  <kwd> CONTINUE_MARIADB_SYM          /* SQL-2003-R, Oracle-R */
+%token  <kwd> CONTINUE_ORACLE_SYM           /* SQL-2003-R, Oracle-R */
+%token  <kwd> CONVERT_SYM                   /* SQL-2003-N */
+%token  <kwd> COUNT_SYM                     /* SQL-2003-N */
+%token  <kwd> CREATE                        /* SQL-2003-R */
+%token  <kwd> CROSS                         /* SQL-2003-R */
+%token  <kwd> CUME_DIST_SYM
+%token  <kwd> CURDATE                       /* MYSQL-FUNC */
+%token  <kwd> CURRENT_ROLE                  /* SQL-2003-R */
+%token  <kwd> CURRENT_USER                  /* SQL-2003-R */
+%token  <kwd> CURSOR_SYM                    /* SQL-2003-R */
+%token  <kwd> CURTIME                       /* MYSQL-FUNC */
+%token  <kwd> DATABASE
+%token  <kwd> DATABASES
+%token  <kwd> DATE_ADD_INTERVAL             /* MYSQL-FUNC */
+%token  <kwd> DATE_SUB_INTERVAL             /* MYSQL-FUNC */
+%token  <kwd> DAY_HOUR_SYM
+%token  <kwd> DAY_MICROSECOND_SYM
+%token  <kwd> DAY_MINUTE_SYM
+%token  <kwd> DAY_SECOND_SYM
+%token  <kwd> DECIMAL_SYM                   /* SQL-2003-R */
+%token  <kwd> DECLARE_MARIADB_SYM           /* SQL-2003-R */
+%token  <kwd> DECLARE_ORACLE_SYM            /* Oracle-R   */
+%token  <kwd> DEFAULT                       /* SQL-2003-R */
+%token  <kwd> DELETE_DOMAIN_ID_SYM
+%token  <kwd> DELETE_SYM                    /* SQL-2003-R */
+%token  <kwd> DENSE_RANK_SYM
+%token  <kwd> DESCRIBE                      /* SQL-2003-R */
+%token  <kwd> DESC                          /* SQL-2003-N */
+%token  <kwd> DETERMINISTIC_SYM             /* SQL-2003-R */
+%token  <kwd> DISTINCT                      /* SQL-2003-R */
+%token  <kwd> DIV_SYM
+%token  <kwd> DO_DOMAIN_IDS_SYM
+%token  <kwd> DOUBLE_SYM                    /* SQL-2003-R */
+%token  <kwd> DROP                          /* SQL-2003-R */
+%token  <kwd> DUAL_SYM
+%token  <kwd> EACH_SYM                      /* SQL-2003-R */
+%token  <kwd> ELSEIF_MARIADB_SYM
+%token  <kwd> ELSE                          /* SQL-2003-R */
+%token  <kwd> ELSIF_ORACLE_SYM              /* PLSQL-R    */
+%token  <kwd> ENCLOSED
+%token  <kwd> ESCAPED
+%token  <kwd> EXCEPT_SYM                    /* SQL-2003-R */
+%token  <kwd> EXISTS                        /* SQL-2003-R */
+%token  <kwd> EXTRACT_SYM                   /* SQL-2003-N */
+%token  <kwd> FALSE_SYM                     /* SQL-2003-R */
+%token  <kwd> FETCH_SYM                     /* SQL-2003-R */
+%token  <kwd> FIRST_VALUE_SYM               /* SQL-2011 */
+%token  <kwd> FLOAT_SYM                     /* SQL-2003-R */
+%token  <kwd> FOREIGN                       /* SQL-2003-R */
+%token  <kwd> FOR_SYM                       /* SQL-2003-R */
+%token  <kwd> FROM
+%token  <kwd> FULLTEXT_SYM
+%token  <kwd> GOTO_ORACLE_SYM               /* Oracle-R   */
+%token  <kwd> GRANT                         /* SQL-2003-R */
+%token  <kwd> GROUP_CONCAT_SYM
+%token  <kwd> GROUP_SYM                     /* SQL-2003-R */
+%token  <kwd> HAVING                        /* SQL-2003-R */
+%token  <kwd> HOUR_MICROSECOND_SYM
+%token  <kwd> HOUR_MINUTE_SYM
+%token  <kwd> HOUR_SECOND_SYM
+%token  <kwd> IF_SYM
+%token  <kwd> IGNORE_DOMAIN_IDS_SYM
+%token  <kwd> IGNORE_SYM
+%token  <kwd> INDEX_SYM
+%token  <kwd> INFILE
+%token  <kwd> INNER_SYM                     /* SQL-2003-R */
+%token  <kwd> INOUT_SYM                     /* SQL-2003-R */
+%token  <kwd> INSENSITIVE_SYM               /* SQL-2003-R */
+%token  <kwd> INSERT                        /* SQL-2003-R */
+%token  <kwd> IN_SYM                        /* SQL-2003-R */
+%token  <kwd> INTERSECT_SYM                 /* SQL-2003-R */
+%token  <kwd> INTERVAL_SYM                  /* SQL-2003-R */
+%token  <kwd> INTO                          /* SQL-2003-R */
+%token  <kwd> INT_SYM                       /* SQL-2003-R */
+%token  <kwd> IS                            /* SQL-2003-R */
+%token  <kwd> ITERATE_SYM
+%token  <kwd> JOIN_SYM                      /* SQL-2003-R */
+%token  <kwd> KEYS
+%token  <kwd> KEY_SYM                       /* SQL-2003-N */
+%token  <kwd> KILL_SYM
+%token  <kwd> LAG_SYM                       /* SQL-2011 */
+%token  <kwd> LEADING                       /* SQL-2003-R */
+%token  <kwd> LEAD_SYM                      /* SQL-2011 */
+%token  <kwd> LEAVE_SYM
+%token  <kwd> LEFT                          /* SQL-2003-R */
+%token  <kwd> LIKE                          /* SQL-2003-R */
+%token  <kwd> LIMIT
+%token  <kwd> LINEAR_SYM
+%token  <kwd> LINES
+%token  <kwd> LOAD
+%token  <kwd> LOCATOR_SYM                   /* SQL-2003-N */
+%token  <kwd> LOCK_SYM
+%token  <kwd> LONGBLOB
+%token  <kwd> LONG_SYM
+%token  <kwd> LONGTEXT
+%token  <kwd> LOOP_SYM
+%token  <kwd> LOW_PRIORITY
+%token  <kwd> MASTER_SSL_VERIFY_SERVER_CERT_SYM
+%token  <kwd> MATCH                         /* SQL-2003-R */
+%token  <kwd> MAX_SYM                       /* SQL-2003-N */
+%token  <kwd> MAXVALUE_SYM                  /* SQL-2003-N */
+%token  <kwd> MEDIAN_SYM
+%token  <kwd> MEDIUMBLOB
+%token  <kwd> MEDIUMINT
+%token  <kwd> MEDIUMTEXT
+%token  <kwd> MIN_SYM                       /* SQL-2003-N */
+%token  <kwd> MINUTE_MICROSECOND_SYM
+%token  <kwd> MINUTE_SECOND_SYM
+%token  <kwd> MODIFIES_SYM                  /* SQL-2003-R */
+%token  <kwd> MOD_SYM                       /* SQL-2003-N */
+%token  <kwd> NATURAL                       /* SQL-2003-R */
+%token  <kwd> NEG
+%token  <kwd> NOT_SYM                       /* SQL-2003-R */
+%token  <kwd> NO_WRITE_TO_BINLOG
+%token  <kwd> NOW_SYM
+%token  <kwd> NTH_VALUE_SYM                 /* SQL-2011 */
+%token  <kwd> NTILE_SYM
+%token  <kwd> NULL_SYM                      /* SQL-2003-R */
+%token  <kwd> NUMERIC_SYM                   /* SQL-2003-R */
+%token  <kwd> ON                            /* SQL-2003-R */
+%token  <kwd> OPTIMIZE
+%token  <kwd> OPTIONALLY
+%token  <kwd> ORDER_SYM                     /* SQL-2003-R */
+%token  <kwd> OR_SYM                        /* SQL-2003-R */
+%token  <kwd> OTHERS_ORACLE_SYM             /* SQL-2011-N, PLSQL-R */
+%token  <kwd> OUTER
+%token  <kwd> OUTFILE
+%token  <kwd> OUT_SYM                       /* SQL-2003-R */
+%token  <kwd> OVER_SYM
+%token  <kwd> PACKAGE_ORACLE_SYM            /* Oracle-R   */
+%token  <kwd> PAGE_CHECKSUM_SYM
+%token  <kwd> PARSE_VCOL_EXPR_SYM
+%token  <kwd> PARTITION_SYM                 /* SQL-2003-R */
+%token  <kwd> PERCENTILE_CONT_SYM
+%token  <kwd> PERCENTILE_DISC_SYM
+%token  <kwd> PERCENT_RANK_SYM
+%token  <kwd> PORTION_SYM                   /* SQL-2016-R */
+%token  <kwd> POSITION_SYM                  /* SQL-2003-N */
+%token  <kwd> PRECISION                     /* SQL-2003-R */
+%token  <kwd> PRIMARY_SYM                   /* SQL-2003-R */
+%token  <kwd> PROCEDURE_SYM                 /* SQL-2003-R */
+%token  <kwd> PURGE
+%token  <kwd> RAISE_ORACLE_SYM              /* PLSQL-R    */
+%token  <kwd> RANGE_SYM                     /* SQL-2003-R */
+%token  <kwd> RANK_SYM
+%token  <kwd> READS_SYM                     /* SQL-2003-R */
+%token  <kwd> READ_SYM                      /* SQL-2003-N */
+%token  <kwd> READ_WRITE_SYM
+%token  <kwd> REAL                          /* SQL-2003-R */
+%token  <kwd> RECURSIVE_SYM
+%token  <kwd> REFERENCES                    /* SQL-2003-R */
+%token  <kwd> REF_SYSTEM_ID_SYM
+%token  <kwd> REGEXP
+%token  <kwd> RELEASE_SYM                   /* SQL-2003-R */
+%token  <kwd> RENAME
+%token  <kwd> REPEAT_SYM                    /* MYSQL-FUNC */
+%token  <kwd> REPLACE                       /* MYSQL-FUNC */
+%token  <kwd> REQUIRE_SYM
+%token  <kwd> RESIGNAL_SYM                  /* SQL-2003-R */
+%token  <kwd> RESTRICT
+%token  <kwd> RETURNING_SYM
+%token  <kwd> RETURN_MARIADB_SYM            /* SQL-2003-R, PLSQL-R */
+%token  <kwd> RETURN_ORACLE_SYM             /* SQL-2003-R, PLSQL-R */
+%token  <kwd> REVOKE                        /* SQL-2003-R */
+%token  <kwd> RIGHT                         /* SQL-2003-R */
+%token  <kwd> ROW_NUMBER_SYM
+%token  <kwd> ROWS_SYM                      /* SQL-2003-R */
+%token  <kwd> ROWTYPE_ORACLE_SYM            /* PLSQL-R    */
+%token  <kwd> SECOND_MICROSECOND_SYM
+%token  <kwd> SELECT_SYM                    /* SQL-2003-R */
+%token  <kwd> SENSITIVE_SYM                 /* FUTURE-USE */
+%token  <kwd> SEPARATOR_SYM
+%token  <kwd> SERVER_OPTIONS
+%token  <kwd> SET                           /* SQL-2003-R */
+%token  <kwd> SHOW
+%token  <kwd> SIGNAL_SYM                    /* SQL-2003-R */
+%token  <kwd> SMALLINT                      /* SQL-2003-R */
+%token  <kwd> SPATIAL_SYM
+%token  <kwd> SPECIFIC_SYM                  /* SQL-2003-R */
+%token  <kwd> SQL_BIG_RESULT
+%token  <kwd> SQLEXCEPTION_SYM              /* SQL-2003-R */
+%token  <kwd> SQL_SMALL_RESULT
+%token  <kwd> SQLSTATE_SYM                  /* SQL-2003-R */
+%token  <kwd> SQL_SYM                       /* SQL-2003-R */
+%token  <kwd> SQLWARNING_SYM                /* SQL-2003-R */
+%token  <kwd> SSL_SYM
+%token  <kwd> STARTING
+%token  <kwd> STATS_AUTO_RECALC_SYM
+%token  <kwd> STATS_PERSISTENT_SYM
+%token  <kwd> STATS_SAMPLE_PAGES_SYM
+%token  <kwd> STDDEV_SAMP_SYM               /* SQL-2003-N */
+%token  <kwd> STD_SYM
+%token  <kwd> STRAIGHT_JOIN
+%token  <kwd> SUBSTRING                     /* SQL-2003-N */
+%token  <kwd> SUM_SYM                       /* SQL-2003-N */
+%token  <kwd> SYSDATE
+%token  <kwd> TABLE_REF_PRIORITY
+%token  <kwd> TABLE_SYM                     /* SQL-2003-R */
+%token  <kwd> TERMINATED
+%token  <kwd> THEN_SYM                      /* SQL-2003-R */
+%token  <kwd> TINYBLOB
+%token  <kwd> TINYINT
+%token  <kwd> TINYTEXT
+%token  <kwd> TO_SYM                        /* SQL-2003-R */
+%token  <kwd> TRAILING                      /* SQL-2003-R */
+%token  <kwd> TRIGGER_SYM                   /* SQL-2003-R */
+%token  <kwd> TRIM                          /* SQL-2003-N */
+%token  <kwd> TRUE_SYM                      /* SQL-2003-R */
+%token  <kwd> UNDO_SYM                      /* FUTURE-USE */
+%token  <kwd> UNION_SYM                     /* SQL-2003-R */
+%token  <kwd> UNIQUE_SYM
+%token  <kwd> UNLOCK_SYM
+%token  <kwd> UNSIGNED
+%token  <kwd> UPDATE_SYM                    /* SQL-2003-R */
+%token  <kwd> USAGE                         /* SQL-2003-N */
+%token  <kwd> USE_SYM
+%token  <kwd> USING                         /* SQL-2003-R */
+%token  <kwd> UTC_DATE_SYM
+%token  <kwd> UTC_TIMESTAMP_SYM
+%token  <kwd> UTC_TIME_SYM
+%token  <kwd> VALUES_IN_SYM
+%token  <kwd> VALUES_LESS_SYM
+%token  <kwd> VALUES                        /* SQL-2003-R */
+%token  <kwd> VARBINARY
+%token  <kwd> VARCHAR                       /* SQL-2003-R */
+%token  <kwd> VARIANCE_SYM
+%token  <kwd> VAR_SAMP_SYM
+%token  <kwd> VARYING                       /* SQL-2003-R */
+%token  <kwd> WHEN_SYM                      /* SQL-2003-R */
+%token  <kwd> WHERE                         /* SQL-2003-R */
+%token  <kwd> WHILE_SYM
+%token  <kwd> WITH                          /* SQL-2003-R */
+%token  <kwd> XOR
+%token  <kwd> YEAR_MONTH_SYM
+%token  <kwd> ZEROFILL
 
 
 /*
@@ -696,7 +716,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  COALESCE                      /* SQL-2003-N */
 %token  <kwd>  CODE_SYM
 %token  <kwd>  COLLATION_SYM                 /* SQL-2003-N */
-%token  <kwd>  COLON_ORACLE_SYM              /* INTERNAL   */
 %token  <kwd>  COLUMNS
 %token  <kwd>  COLUMN_ADD_SYM
 %token  <kwd>  COLUMN_CHECK_SYM
@@ -1262,6 +1281,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         keyword_verb_clause
         keyword_directly_assignable
         charset
+        reserved_keyword_udt
 
 %type <table>
         table_ident table_ident_nodb references xid
@@ -1592,7 +1612,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         set_assign
         sp_tail_standalone
         opt_constraint_no_id
-END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
 %type <NONE> sp_proc_stmt_statement sp_proc_stmt_return
@@ -1676,11 +1695,6 @@ END_OF_INPUT
 %type <kwd>
         '-' '+' '*' '/' '%' '(' ')'
         ',' '!' '{' '}' '&' '|'
-
-%type <NONE>
-        AND_SYM OR_SYM BETWEEN_SYM CASE_SYM
-        THEN_SYM WHEN_SYM DIV_SYM MOD_SYM OR2_SYM AND_AND_SYM DELETE_SYM
-        MYSQL_CONCAT_SYM ORACLE_CONCAT_SYM
 
 %type <with_clause> with_clause
 
@@ -6841,11 +6855,13 @@ field_type:
         | field_type_misc
         | IDENT_sys float_options srid_option
           {
-            const Type_handler *h;
-            if (!(h= Type_handler::handler_by_name_or_error($1)))
+            if (Lex->set_field_type_udt(&$$, $1, $2))
               MYSQL_YYABORT;
-            $$.set(h, $2);
-            Lex->charset= &my_charset_bin;
+          }
+        | reserved_keyword_udt float_options srid_option
+          {
+            if (Lex->set_field_type_udt(&$$, $1, $2))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -11990,11 +12006,13 @@ cast_type:
         | cast_type_temporal { $$= $1; Lex->charset= NULL; }
         | IDENT_sys
           {
-            const Type_handler *h;
-            if (!(h= Type_handler::handler_by_name_or_error($1)))
+            if (Lex->set_cast_type_udt(&$$, $1))
               MYSQL_YYABORT;
-            $$.set(h);
-            Lex->charset= NULL;
+          }
+        | reserved_keyword_udt
+          {
+            if (Lex->set_cast_type_udt(&$$, $1))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -13934,6 +13952,7 @@ delete:
             lex->first_select_lex()->order_list.empty();
           }
           delete_part2
+          { }
           ;
 
 opt_delete_system_time:
@@ -16525,6 +16544,249 @@ keyword_sp_var_and_label:
         | X509_SYM
         | XML_SYM
         | VIA_SYM
+        ;
+
+
+reserved_keyword_udt:
+          ACCESSIBLE_SYM
+        | ADD
+        | ALL
+        | ALTER
+        | ANALYZE_SYM
+        | AND_SYM
+        | AS
+        | ASC
+        | ASENSITIVE_SYM
+        | BEFORE_SYM
+        | BETWEEN_SYM
+        | BIT_AND
+        | BIT_OR
+        | BIT_XOR
+        | BODY_ORACLE_SYM
+        | BOTH
+        | BY
+        | CALL_SYM
+        | CASCADE
+        | CASE_SYM
+        | CAST_SYM
+        | CHANGE
+        | CHECK_SYM
+        | COLLATE_SYM
+        | CONSTRAINT
+        | CONTINUE_MARIADB_SYM
+        | CONTINUE_ORACLE_SYM
+        | CONVERT_SYM
+        | COUNT_SYM
+        | CREATE
+        | CROSS
+        | CUME_DIST_SYM
+        | CURDATE
+        | CURRENT_USER
+        | CURRENT_ROLE
+        | CURTIME
+        | DATABASE
+        | DATABASES
+        | DATE_ADD_INTERVAL
+        | DATE_SUB_INTERVAL
+        | DAY_HOUR_SYM
+        | DAY_MICROSECOND_SYM
+        | DAY_MINUTE_SYM
+        | DAY_SECOND_SYM
+        | DECLARE_MARIADB_SYM
+        | DECLARE_ORACLE_SYM
+        | DEFAULT
+        | DELETE_DOMAIN_ID_SYM
+        | DELETE_SYM
+        | DENSE_RANK_SYM
+        | DESC
+        | DESCRIBE
+        | DETERMINISTIC_SYM
+        | DISTINCT
+        | DIV_SYM
+        | DO_DOMAIN_IDS_SYM
+        | DROP
+        | DUAL_SYM
+        | EACH_SYM
+        | ELSE
+        | ELSEIF_MARIADB_SYM
+        | ELSIF_ORACLE_SYM
+        | ENCLOSED
+        | ESCAPED
+        | EXCEPT_SYM
+        | EXISTS
+        | EXTRACT_SYM
+        | FALSE_SYM
+        | FETCH_SYM
+        | FIRST_VALUE_SYM
+        | FOREIGN
+        | FROM
+        | FULLTEXT_SYM
+        | GOTO_ORACLE_SYM
+        | GRANT
+        | GROUP_SYM
+        | GROUP_CONCAT_SYM
+        | LAG_SYM
+        | LEAD_SYM
+        | HAVING
+        | HOUR_MICROSECOND_SYM
+        | HOUR_MINUTE_SYM
+        | HOUR_SECOND_SYM
+        | IF_SYM
+        | IGNORE_DOMAIN_IDS_SYM
+        | IGNORE_SYM
+        | INDEX_SYM
+        | INFILE
+        | INNER_SYM
+        | INOUT_SYM
+        | INSENSITIVE_SYM
+        | INSERT
+        | INTERSECT_SYM
+        | INTERVAL_SYM
+        | INTO
+        | IN_SYM
+        | IS
+        | ITERATE_SYM
+        | JOIN_SYM
+        | KEYS
+        | KEY_SYM
+        | KILL_SYM
+        | LEADING
+        | LEAVE_SYM
+        | LEFT
+        | LIKE
+        | LIMIT
+        | LINEAR_SYM
+        | LINES
+        | LOAD
+        | LOCATOR_SYM
+        | LOCK_SYM
+        | LOOP_SYM
+        | LOW_PRIORITY
+        | MASTER_SSL_VERIFY_SERVER_CERT_SYM
+        | MATCH
+        | MAX_SYM
+        | MAXVALUE_SYM
+        | MEDIAN_SYM
+        | MINUTE_MICROSECOND_SYM
+        | MINUTE_SECOND_SYM
+        | MIN_SYM
+        | MODIFIES_SYM
+        | MOD_SYM
+        | NATURAL
+        | NEG
+        | NOT_SYM
+        | NOW_SYM
+        | NO_WRITE_TO_BINLOG
+        | NTILE_SYM
+        | NULL_SYM
+        | NTH_VALUE_SYM
+        | ON
+        | OPTIMIZE
+        | OPTIONALLY
+        | ORDER_SYM
+        | OR_SYM
+        | OTHERS_ORACLE_SYM
+        | OUTER
+        | OUTFILE
+        | OUT_SYM
+        | OVER_SYM
+        | PACKAGE_ORACLE_SYM
+        | PAGE_CHECKSUM_SYM
+        | PARSE_VCOL_EXPR_SYM
+        | PARTITION_SYM
+        | PERCENT_RANK_SYM
+        | PERCENTILE_CONT_SYM
+        | PERCENTILE_DISC_SYM
+        | PORTION_SYM
+        | POSITION_SYM
+        | PRECISION
+        | PRIMARY_SYM
+        | PROCEDURE_SYM
+        | PURGE
+        | RAISE_ORACLE_SYM
+        | RANGE_SYM
+        | RANK_SYM
+        | READS_SYM
+        | READ_SYM
+        | READ_WRITE_SYM
+        | RECURSIVE_SYM
+        | REF_SYSTEM_ID_SYM
+        | REFERENCES
+        | REGEXP
+        | RELEASE_SYM
+        | RENAME
+        | REPEAT_SYM
+        | REPLACE
+        | REQUIRE_SYM
+        | RESIGNAL_SYM
+        | RESTRICT
+        | RETURNING_SYM
+        | RETURN_MARIADB_SYM
+        | RETURN_ORACLE_SYM
+        | REVOKE
+        | RIGHT
+        | ROWS_SYM
+        | ROWTYPE_ORACLE_SYM
+        | ROW_NUMBER_SYM
+        | SECOND_MICROSECOND_SYM
+        | SELECT_SYM
+        | SENSITIVE_SYM
+        | SEPARATOR_SYM
+        | SERVER_OPTIONS
+        | SHOW
+        | SIGNAL_SYM
+        | SPATIAL_SYM
+        | SPECIFIC_SYM
+        | SQLEXCEPTION_SYM
+        | SQLSTATE_SYM
+        | SQLWARNING_SYM
+        | SQL_BIG_RESULT
+        | SQL_SMALL_RESULT
+        | SQL_SYM
+        | SSL_SYM
+        | STARTING
+        | STATS_AUTO_RECALC_SYM
+        | STATS_PERSISTENT_SYM
+        | STATS_SAMPLE_PAGES_SYM
+        | STDDEV_SAMP_SYM
+        | STD_SYM
+        | STRAIGHT_JOIN
+        | SUBSTRING
+        | SUM_SYM
+        | SYSDATE
+        | TABLE_REF_PRIORITY
+        | TABLE_SYM
+        | TERMINATED
+        | THEN_SYM
+        | TO_SYM
+        | TRAILING
+        | TRIGGER_SYM
+        | TRIM
+        | TRUE_SYM
+        | UNDO_SYM
+        | UNION_SYM
+        | UNIQUE_SYM
+        | UNLOCK_SYM
+        | UPDATE_SYM
+        | USAGE
+        | USE_SYM
+        | USING
+        | UTC_DATE_SYM
+        | UTC_TIMESTAMP_SYM
+        | UTC_TIME_SYM
+        | VALUES
+        | VALUES_IN_SYM
+        | VALUES_LESS_SYM
+        | VARIANCE_SYM
+        | VARYING
+        | VAR_SAMP_SYM
+        | WHEN_SYM
+        | WHERE
+        | WHILE_SYM
+        | WITH
+        | XOR
+        | YEAR_MONTH_SYM
+        | ZEROFILL
         ;
 
 /*

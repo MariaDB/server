@@ -1798,3 +1798,16 @@ ERROR HY000: Table 't2' was not locked with LOCK TABLES
 SET STATEMENT max_statement_time=900 FOR unlock tables;
 drop table t1, t2;
 # End of 10.4 tests
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-20734 Allow reserved keywords as user defined type names
+#
+CREATE TABLE t1 (a DUAL);
+ERROR HY000: Unknown data type: 'DUAL'
+SELECT CAST(1 AS DUAL);
+ERROR HY000: Unknown data type: 'DUAL'
+#
+# End of 10.5 tests
+#

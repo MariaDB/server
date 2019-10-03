@@ -4558,6 +4558,12 @@ public:
                                 Item_result return_type,
                                 const LEX_CSTRING &soname);
   Spvar_definition *row_field_name(THD *thd, const Lex_ident_sys_st &name);
+
+  bool set_field_type_udt(Lex_field_type_st *type,
+                          const LEX_CSTRING &name,
+                          const Lex_length_and_dec_st &attr);
+  bool set_cast_type_udt(Lex_cast_type_st *type,
+                         const LEX_CSTRING &name);
 };
 
 

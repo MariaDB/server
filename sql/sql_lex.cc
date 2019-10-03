@@ -10433,3 +10433,30 @@ void Lex_field_type_st::set_handler_length_flags(const Type_handler *handler,
     handler= handler->type_handler_unsigned();
   set(handler, length, NULL);
 }
+
+
+bool LEX::set_field_type_udt(Lex_field_type_st *type,
+                             const LEX_CSTRING &name,
+                             const Lex_length_and_dec_st &attr)
+{
+  const Type_handler *h;
+  if (!(h= Type_handler::handler_by_name_or_error(name)))
+    return true;
+  type->set(h, attr);
+  charset= &my_charset_bin;
+  return false;
+
+}
+
+
+bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
+                             const LEX_CSTRING &name)
+{
+  const Type_handler *h;
+  if (!(h= Type_handler::handler_by_name_or_error(name)))
+    return true;
+  type->set(h);
+  charset= NULL;
+  return false;
+}
+
