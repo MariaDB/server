@@ -1,0 +1,347 @@
+#
+# Test cases for stored procedure BF aborts.
+#
+
+--source include/galera_cluster.inc
+--source include/galera_have_debug_sync.inc
+
+--connection node_1
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+
+# Control connection for Galera sync point management
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_1
+#
+# Case 1a: Procedure does and UPDATE which will suffer BF abort
+# but there is no actual conflict and non-conflicting INSERT.
+# The expected outcome is that both UPDATE and INSERT will succedd
+# and no errors are reported to the client, wsrep_local_replays is
+# incremented by one.
+#
+DELIMITER |;
+CREATE PROCEDURE proc_update_insert()
+BEGIN
+  UPDATE t1 SET f2 = 'b';
+  INSERT INTO t1 VALUES (4, 'd');
+END|
+DELIMITER ;|
+
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+SET SESSION wsrep_sync_wait = 0;
+--let $wsrep_local_replays_orig = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--let $galera_sp_bf_abort_proc = proc_update_insert
+--let $galera_sp_bf_abort_conflict = INSERT INTO t1 VALUES (2, 'c')
+--source galera_sp_bf_abort.inc
+--connection node_1
+--reap
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+--let $wsrep_local_replays_curr = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_curr - $wsrep_local_replays_orig = 1 AS wsrep_local_replays;
+--enable_query_log
+
+DELETE FROM t1;
+
+--connection node_1
+#
+# Case 1b: Procedure does and UPDATE which will suffer BF abort
+# but there is no actual conflict and non-conflicting INSERT.
+# An EXIT HANDLER is declared for the procedure.
+# The expected outcome is that both UPDATE and INSERT will succedd
+# and no errors are reported to the client, wsrep_local_replays is
+# incremented by one.
+#
+DELIMITER |;
+CREATE PROCEDURE proc_update_insert_with_exit_handler()
+BEGIN
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN END;
+  UPDATE t1 SET f2 = 'b';
+  INSERT INTO t1 VALUES (4, 'd');
+END|
+DELIMITER ;|
+
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+SET SESSION wsrep_sync_wait = 0;
+--let $wsrep_local_replays_orig = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--let $galera_sp_bf_abort_proc = proc_update_insert_with_exit_handler
+--let $galera_sp_bf_abort_conflict = INSERT INTO t1 VALUES (2, 'c')
+--source galera_sp_bf_abort.inc
+--connection node_1
+--reap
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+--let $wsrep_local_replays_curr = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_curr - $wsrep_local_replays_orig = 1 AS wsrep_local_replays;
+--enable_query_log
+
+DELETE FROM t1;
+
+--connection node_1
+#
+# Case 1c: Procedure does and UPDATE which will suffer BF abort
+# but there is no actual conflict and non-conflicting INSERT.
+# A CONTINUE HANDLER is declared for the procedure.
+# The expected outcome is that both UPDATE and INSERT will succedd
+# and no errors are reported to the client, wsrep_local_replays is
+# incremented by one.
+#
+DELIMITER |;
+CREATE PROCEDURE proc_update_insert_with_continue_handler()
+BEGIN
+
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+  UPDATE t1 SET f2 = 'b';
+  INSERT INTO t1 VALUES (4, 'd');
+END|
+DELIMITER ;|
+
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+SET SESSION wsrep_sync_wait = 0;
+--let $wsrep_local_replays_orig = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--let $galera_sp_bf_abort_proc = proc_update_insert_with_continue_handler
+--let $galera_sp_bf_abort_conflict = INSERT INTO t1 VALUES (2, 'c')
+--source galera_sp_bf_abort.inc
+--connection node_1
+--reap
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+--let $wsrep_local_replays_curr = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_curr - $wsrep_local_replays_orig = 1 AS wsrep_local_replays;
+--enable_query_log
+
+DELETE FROM t1;
+
+--connection node_1
+#
+# Case 2a: UPDATE and INSERT are run inside a transaction and the transaction
+# will be BF aborted on COMMIT. The expected outcome is that the transaction
+# succeeds and no errors are reported to the client, wsrep_local_replays
+# is incremented by one.
+#
+
+DELIMITER |;
+CREATE PROCEDURE proc_update_insert_transaction()
+BEGIN
+  START TRANSACTION;
+  UPDATE t1 SET f2 = 'b';
+  INSERT INTO t1 VALUES (4, 'd');
+  COMMIT;
+END|
+DELIMITER ;|
+
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+--let $wsrep_local_replays_orig = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--let $galera_sp_bf_abort_proc = proc_update_insert_transaction
+--let $galera_sp_bf_abort_conflict = INSERT INTO t1 VALUES (2, 'c')
+SET SESSION wsrep_sync_wait = 0;
+--source galera_sp_bf_abort.inc
+--connection node_1
+--reap
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+--let $wsrep_local_replays_curr = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_curr - $wsrep_local_replays_orig = 1 AS wsrep_local_replays;
+--enable_query_log
+
+DELETE FROM t1;
+
+--connection node_1
+#
+# Case 2b: UPDATE and INSERT are run inside a transaction and the transaction
+# will be BF aborted on COMMIT. A CONTINUE HANDLER is declared for the
+# procedure. The expected outcome is that the transaction
+# succeeds and no errors are reported to the client, wsrep_local_replays
+# is incremented by one.
+#
+
+DELIMITER |;
+CREATE PROCEDURE proc_update_insert_transaction_with_continue_handler()
+BEGIN
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+  START TRANSACTION;
+  UPDATE t1 SET f2 = 'b';
+  INSERT INTO t1 VALUES (4, 'd');
+  COMMIT;
+END|
+DELIMITER ;|
+
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+--let $wsrep_local_replays_orig = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--let $galera_sp_bf_abort_proc = proc_update_insert_transaction_with_continue_handler
+--let $galera_sp_bf_abort_conflict = INSERT INTO t1 VALUES (2, 'c')
+SET SESSION wsrep_sync_wait = 0;
+--source galera_sp_bf_abort.inc
+--connection node_1
+--reap
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+--let $wsrep_local_replays_curr = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_curr - $wsrep_local_replays_orig = 1 AS wsrep_local_replays;
+--enable_query_log
+
+DELETE FROM t1;
+
+--connection node_1
+#
+# Case 2c: UPDATE and INSERT are run inside a transaction and the transaction
+# will be BF aborted on COMMIT. An EXIT HANDLE is declared for the procedure.
+# The expected outcome is that the transaction succeeds and no errors are
+# reported to the client, wsrep_local_replays is incremented by one.
+#
+
+DELIMITER |;
+CREATE PROCEDURE proc_update_insert_transaction_with_exit_handler()
+BEGIN
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN END;
+  START TRANSACTION;
+  UPDATE t1 SET f2 = 'b';
+  INSERT INTO t1 VALUES (4, 'd');
+  COMMIT;
+END|
+DELIMITER ;|
+
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+--let $wsrep_local_replays_orig = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--let $galera_sp_bf_abort_proc = proc_update_insert_transaction_with_exit_handler
+--let $galera_sp_bf_abort_conflict = INSERT INTO t1 VALUES (2, 'c')
+SET SESSION wsrep_sync_wait = 0;
+--source galera_sp_bf_abort.inc
+--connection node_1
+--reap
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+--let $wsrep_local_replays_curr = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_curr - $wsrep_local_replays_orig = 1 AS wsrep_local_replays;
+--enable_query_log
+
+DELETE FROM t1;
+
+--connection node_1
+
+#
+# Case 3a: Two INSERTs are run inside stored procedure, this time
+# the first INSERT will have a BF abort and real conflict. The expected outcome
+# is that the INSERT fails and an error is reported to the client.
+# wsrep_local_replays is not incremented.
+#
+# Notice that the resulting error code may be both
+# ER_DUP_ENTRY (procedure will exit with cert failure conflict state and
+# will be) or ER_LOCK_DEADLOCK depending on timing.
+#
+DELIMITER |;
+CREATE PROCEDURE proc_insert_insert_conflict()
+BEGIN
+  INSERT INTO t1 VALUES (2, 'd');
+  INSERT INTO t1 VALUES (4, 'd');
+END|
+DELIMITER ;|
+
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+--let $wsrep_local_replays_orig = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--let $galera_sp_bf_abort_proc = proc_insert_insert_conflict
+--let $galera_sp_bf_abort_conflict = INSERT INTO t1 VALUES (2, 'c')
+SET SESSION wsrep_sync_wait = 0;
+--source galera_sp_bf_abort.inc
+--connection node_1
+--error ER_DUP_ENTRY,ER_LOCK_DEADLOCK
+--reap
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+--let $wsrep_local_replays_curr = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_curr - $wsrep_local_replays_orig = 0 AS wsrep_local_replays;
+--enable_query_log
+
+DELETE FROM t1;
+
+--connection node_1
+
+#
+# Case 3b: Two INSERTs are run inside stored procedure, this time
+# the first INSERT will have a BF abort and real conflict.
+# An EXIT HANDLER is declared for the procedure.  The expected outcome
+# is that the INSERT fails and an error is reported to the client.
+# wsrep_local_replays is not incremented.
+#
+DELIMITER |;
+CREATE PROCEDURE proc_insert_insert_conflict_with_exit_handler()
+BEGIN
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION SELECT "Conflict exit handler";
+  INSERT INTO t1 VALUES (2, 'd');
+  INSERT INTO t1 VALUES (4, 'd');
+END|
+DELIMITER ;|
+
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+--let $wsrep_local_replays_orig = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--let $galera_sp_bf_abort_proc = proc_insert_insert_conflict_with_exit_handler
+--let $galera_sp_bf_abort_conflict = INSERT INTO t1 VALUES (2, 'c')
+SET SESSION wsrep_sync_wait = 0;
+--source galera_sp_bf_abort.inc
+--connection node_1
+--reap
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+--let $wsrep_local_replays_curr = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_curr - $wsrep_local_replays_orig = 0 AS wsrep_local_replays;
+--enable_query_log
+
+DELETE FROM t1;
+
+--connection node_1
+
+#
+# Case 3c: Two INSERTs are run inside stored procedure, this time
+# the first INSERT will have a BF abort and real conflict.
+# A CONTINUE HANDLER is declared for the procedure.  The expected outcome
+# is that the the first INSERT fails but the second is executed without
+# errors. wsrep_local_replays is not incremented.
+#
+DELIMITER |;
+CREATE PROCEDURE proc_insert_insert_conflict_with_continue_handler()
+BEGIN
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION SELECT "Conflict continue handler";
+  INSERT INTO t1 VALUES (2, 'd');
+  INSERT INTO t1 VALUES (4, 'd');
+END|
+DELIMITER ;|
+
+INSERT INTO t1 VALUES (1, 'a'), (3, 'a');
+--let $wsrep_local_replays_orig = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--let $galera_sp_bf_abort_proc = proc_insert_insert_conflict_with_continue_handler
+--let $galera_sp_bf_abort_conflict = INSERT INTO t1 VALUES (2, 'c')
+SET SESSION wsrep_sync_wait = 0;
+--source galera_sp_bf_abort.inc
+--connection node_1
+--reap
+SET SESSION wsrep_sync_wait = default;
+SELECT * FROM t1;
+--let $wsrep_local_replays_curr = `SELECT VARIABLE_VALUE FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_curr - $wsrep_local_replays_orig = 0 AS wsrep_local_replays;
+--enable_query_log
+
+DELETE FROM t1;
+
+
+DROP PROCEDURE proc_update_insert;
+DROP PROCEDURE proc_update_insert_with_continue_handler;
+DROP PROCEDURE proc_update_insert_with_exit_handler;
+DROP PROCEDURE proc_update_insert_transaction;
+DROP PROCEDURE proc_update_insert_transaction_with_continue_handler;
+DROP PROCEDURE proc_update_insert_transaction_with_exit_handler;
+DROP PROCEDURE proc_insert_insert_conflict;
+DROP PROCEDURE proc_insert_insert_conflict_with_exit_handler;
+DROP PROCEDURE proc_insert_insert_conflict_with_continue_handler;
+DROP TABLE t1;

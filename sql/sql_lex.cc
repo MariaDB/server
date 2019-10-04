@@ -9132,9 +9132,8 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
                                               enum sub_select_type unit_type,
                                               bool distinct, bool oracle)
 {
-  SELECT_LEX *sel1;
-  if (!s2->next_select())
-    sel1= s2;
+  DBUG_ASSERT(!s2->next_select());
+  SELECT_LEX *sel1= s2;
   SELECT_LEX *last= unit->pre_last_parse->next_select();
 
   int cmp= oracle? 0 : cmp_unit_op(unit_type, last->get_linkage());
