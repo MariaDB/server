@@ -11262,7 +11262,7 @@ function_call_generic:
 
               This will be revised with WL#2128 (SQL PATH)
             */
-            if ((h= Type_handler::handler_by_name($1)) &&
+            if ((h= Type_handler::handler_by_name(thd, $1)) &&
                 (item= h->make_constructor_item(thd, $4)))
             {
               // Found a constructor with a proper argument count

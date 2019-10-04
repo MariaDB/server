@@ -78,6 +78,12 @@ public:
   uint Column_definition_gis_options_image(uchar *buff,
                                            const Column_definition &def)
                                            const override;
+  bool Column_definition_data_type_info_image(Binary_string *to,
+                                              const Column_definition &def)
+                                              const override
+  {
+    return false;
+  }
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;

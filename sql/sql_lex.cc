@@ -945,7 +945,7 @@ bool is_native_function(THD *thd, const LEX_CSTRING *name)
   if (is_lex_native_function(name))
     return true;
 
-  if (Type_handler::handler_by_name(*name))
+  if (Type_handler::handler_by_name(thd, *name))
     return true;
 
   return false;
@@ -10439,12 +10439,11 @@ bool LEX::set_field_type_udt(Lex_field_type_st *type,
                              const Lex_length_and_dec_st &attr)
 {
   const Type_handler *h;
-  if (!(h= Type_handler::handler_by_name_or_error(name)))
+  if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
     return true;
   type->set(h, attr);
   charset= &my_charset_bin;
   return false;
-
 }
 
 
@@ -10452,7 +10451,7 @@ bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
                              const LEX_CSTRING &name)
 {
   const Type_handler *h;
-  if (!(h= Type_handler::handler_by_name_or_error(name)))
+  if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
     return true;
   type->set(h);
   charset= NULL;

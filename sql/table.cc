@@ -2350,7 +2350,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
           if (info.length)
           {
-            const Type_handler *h= Type_handler::handler_by_name_or_error(info);
+            const Type_handler *h= Type_handler::handler_by_name_or_error(thd,
+                                                                          info);
             /*
               This code will eventually be extended here:
               - If the handler was not found by name, we could

@@ -23,6 +23,7 @@
 #include "item.h"
 #include "log.h"
 #include "tztime.h"
+#include <mysql/plugin_data_type.h>
 
 
 const DTCollation &DTCollation_numeric::singleton()
@@ -91,10 +92,6 @@ Vers_type_trx             vers_type_trx;
 class Type_collection_std: public Type_collection
 {
 public:
-  bool init(Type_handler_data *data) override
-  {
-    return false;
-  }
   const Type_handler *handler_by_name(const LEX_CSTRING &name) const override
   {
     return NULL;
@@ -189,8 +186,23 @@ bool Type_handler_data::init()
 
 
 const Type_handler *
-Type_handler::handler_by_name(const LEX_CSTRING &name)
+Type_handler::handler_by_name(THD *thd, const LEX_CSTRING &name)
 {
+  plugin_ref plugin;
+  if ((plugin= my_plugin_lock_by_name(thd, &name, MariaDB_DATA_TYPE_PLUGIN)))
+  {
+    /*
+      Data type plugins do not maintain ref_count yet.
+      For now we have only mandatory built-in plugins
+      and dynamic plugins for test purposes.
+      It should be safe to unlock the plugin immediately.
+    */
+    const Type_handler *ph= reinterpret_cast<st_mariadb_data_type*>
+                              (plugin_decl(plugin)->info)->type_handler;
+    plugin_unlock(thd, plugin);
+    return ph;
+  }
+
 #ifdef HAVE_SPATIAL
   const Type_handler *ha= type_collection_geometry.handler_by_name(name);
   if (ha)
@@ -213,9 +225,10 @@ static const Type_handler *frm_data_type_info_emulate(const LEX_CSTRING &name)
 
 
 const Type_handler *
-Type_handler::handler_by_name_or_error(const LEX_CSTRING &name)
+Type_handler::handler_by_name_or_error(THD *thd, const LEX_CSTRING &name)
 {
-  const Type_handler *h= handler_by_name(name);
+  const Type_handler *h= handler_by_name(thd, name);
+  DBUG_EXECUTE_IF("emulate_handler_by_name_or_error_failure", h= NULL;);
   if (!h)
   {
     DBUG_EXECUTE_IF("frm_data_type_info_emulate",
@@ -8895,6 +8908,8 @@ bool Type_handler::Column_definition_data_type_info_image(Binary_string *to,
                   if (cmp_type() == STRING_RESULT)
                     return to->append("x", 1) ||
                            to->append(name().lex_cstring()););
+  if (type_collection() != &type_collection_std)
+    return to->append(name().lex_cstring());
   return false;
 }
 

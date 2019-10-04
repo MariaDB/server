@@ -1,0 +1,704 @@
+#
+# MDEV-20016 Add MariaDB_DATA_TYPE_PLUGIN
+#
+SELECT
+PLUGIN_NAME,
+PLUGIN_VERSION,
+PLUGIN_STATUS,
+PLUGIN_TYPE,
+PLUGIN_AUTHOR,
+PLUGIN_DESCRIPTION,
+PLUGIN_LICENSE,
+PLUGIN_MATURITY,
+PLUGIN_AUTH_VERSION
+FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_TYPE='DATA TYPE'
+    AND PLUGIN_NAME='test_double';
+PLUGIN_NAME	test_double
+PLUGIN_VERSION	1.0
+PLUGIN_STATUS	ACTIVE
+PLUGIN_TYPE	DATA TYPE
+PLUGIN_AUTHOR	MariaDB Corporation
+PLUGIN_DESCRIPTION	Data type TEST_DOUBLE
+PLUGIN_LICENSE	GPL
+PLUGIN_MATURITY	Experimental
+PLUGIN_AUTH_VERSION	1.0
+CREATE TABLE t1 (a TEST_DOUBLE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE(4));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` test_double(4,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE(10));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` test_double(10,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE(20));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` test_double(20,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE(4,2));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` test_double(4,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE(10,5));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` test_double(10,5) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE(20,10));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` test_double(20,10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SELECT CAST('100' AS TEST_DOUBLE) AS cast;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					cast	5	22	3	Y	32896	31	63
+cast
+100
+BEGIN NOT ATOMIC
+DECLARE a TEST_DOUBLE DEFAULT 256;
+SELECT HEX(a), a;
+END;
+$$
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					HEX(a)	253	44	3	Y	0	0	8
+def				a	a	5	22	3	Y	32768	31	63
+HEX(a)	a
+100	256
+CREATE FUNCTION f1(p TEST_DOUBLE) RETURNS TEST_DOUBLE RETURN 1;
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`(p TEST_DOUBLE) RETURNS test_double
+RETURN 1	latin1	latin1_swedish_ci	latin1_swedish_ci
+SELECT f1(10);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				f1(10)	f1(10)	5	22	1	Y	32768	31	63
+f1(10)
+1
+DROP FUNCTION f1;
+CREATE TABLE t1 (a TEST_DOUBLE);
+CREATE TABLE t2 AS SELECT a FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE);
+CREATE TABLE t2 AS SELECT COALESCE(a,a) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,a)` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE);
+CREATE TABLE t2 AS SELECT LEAST(a,a) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,a)` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 AS SELECT MIN(a), MAX(a) FROM t1;
+SELECT * FROM t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t2	t2	MIN(a)	MIN(a)	5	22	1	Y	32768	31	63
+def	test	t2	t2	MAX(a)	MAX(a)	5	22	1	Y	32768	31	63
+MIN(a)	MAX(a)
+1	2
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `MIN(a)` test_double DEFAULT NULL,
+  `MAX(a)` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (id INT, a TEST_DOUBLE);
+INSERT INTO t1 VALUES (1,1),(1,2),(2,1),(2,2);
+CREATE TABLE t2 AS SELECT id, MIN(a), MAX(a) FROM t1 GROUP BY id;
+SELECT * FROM t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t2	t2	id	id	3	11	1	Y	32768	0	63
+def	test	t2	t2	MIN(a)	MIN(a)	5	22	1	Y	32768	31	63
+def	test	t2	t2	MAX(a)	MAX(a)	5	22	1	Y	32768	31	63
+id	MIN(a)	MAX(a)
+1	1	2
+2	1	2
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `MIN(a)` test_double DEFAULT NULL,
+  `MAX(a)` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 AS SELECT DISTINCT a FROM t1;
+SELECT * FROM t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t2	t2	a	a	5	22	1	Y	32768	31	63
+a
+1
+2
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 AS SELECT (SELECT a FROM t1) AS c1;
+SELECT * FROM t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t2	t2	c1	c1	5	22	1	Y	32768	31	63
+c1
+1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE);
+CREATE TABLE t2 AS SELECT a FROM t1 UNION SELECT a FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+# Testing CREATE..LIKE
+CREATE TABLE t1 (a TEST_DOUBLE);
+CREATE TABLE t2 LIKE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+# Testing CREATE..SELECT
+CREATE TABLE t1 (a TEST_DOUBLE);
+CREATE TABLE t2 AS SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+# Testing ALTER
+CREATE TABLE t1 (a TEST_DOUBLE);
+INSERT INTO t1 VALUES (10),(20);
+SELECT * FROM t1;
+a
+10
+20
+ALTER TABLE t1 MODIFY a INT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+a
+10
+20
+ALTER TABLE t1 MODIFY a TEST_DOUBLE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+a
+10
+20
+DROP TABLE t1;
+CREATE TABLE t1 (a TEST_DOUBLE);
+INSERT INTO t1 VALUES (10),(20);
+ALTER TABLE t1 ADD b TEST_DOUBLE DEFAULT 0;
+SELECT * FROM t1;
+a	b
+10	0
+20	0
+DROP TABLE t1;
+# Testing metadata views
+CREATE TABLE t1 (a TEST_DOUBLE);
+SELECT
+TABLE_CATALOG,
+TABLE_SCHEMA,
+TABLE_NAME,
+COLUMN_NAME,
+ORDINAL_POSITION,
+COLUMN_DEFAULT,
+IS_NULLABLE,
+DATA_TYPE,
+CHARACTER_MAXIMUM_LENGTH,
+CHARACTER_OCTET_LENGTH,
+NUMERIC_PRECISION,
+NUMERIC_SCALE,
+DATETIME_PRECISION,
+CHARACTER_SET_NAME,
+COLLATION_NAME,
+COLUMN_TYPE,
+EXTRA
+FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	t1
+COLUMN_NAME	a
+ORDINAL_POSITION	1
+COLUMN_DEFAULT	NULL
+IS_NULLABLE	YES
+DATA_TYPE	test_double
+CHARACTER_MAXIMUM_LENGTH	NULL
+CHARACTER_OCTET_LENGTH	NULL
+NUMERIC_PRECISION	22
+NUMERIC_SCALE	31
+DATETIME_PRECISION	NULL
+CHARACTER_SET_NAME	NULL
+COLLATION_NAME	NULL
+COLUMN_TYPE	test_double
+EXTRA	
+SHOW COLUMNS FROM t1;
+Field	Type	Null	Key	Default	Extra
+a	test_double	YES		NULL	
+DROP TABLE t1;
+# Testing indexing
+CREATE TABLE t1 (a TEST_DOUBLE, KEY(a));
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7);
+EXPLAIN SELECT * FROM t1 WHERE a=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	9	const	1	Using index
+DROP TABLE t1;
+# Testing aggregation for result
+CREATE TABLE t1 (a TEST_DOUBLE);
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7);
+CREATE TABLE t2 AS SELECT
+COALESCE(a,1) AS c1,
+COALESCE(a,1.0) AS c2,
+COALESCE(a,1e0) AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` test_double DEFAULT NULL,
+  `c2` test_double DEFAULT NULL,
+  `c3` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2 ORDER BY c1;
+c1	c2	c3
+0	0	0
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (
+c TEST_DOUBLE,
+c_tinyint TINYINT,
+c_smallint SMALLINT,
+c_mediumint MEDIUMINT,
+c_int INT,
+c_bigint BIGINT
+);
+CREATE TABLE t2 AS SELECT
+COALESCE(c,c_tinyint),
+COALESCE(c,c_smallint),
+COALESCE(c,c_mediumint),
+COALESCE(c,c_bigint)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(c,c_tinyint)` test_double DEFAULT NULL,
+  `COALESCE(c,c_smallint)` test_double DEFAULT NULL,
+  `COALESCE(c,c_mediumint)` test_double DEFAULT NULL,
+  `COALESCE(c,c_bigint)` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (
+c TEST_DOUBLE,
+c_time TIME,
+c_date DATE,
+c_datetime DATETIME,
+c_timestamp TIMESTAMP
+);
+SELECT COALESCE(c, c_time) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and time for operation 'coalesce'
+SELECT COALESCE(c, c_date) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and date for operation 'coalesce'
+SELECT COALESCE(c, c_datetime) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and datetime for operation 'coalesce'
+SELECT COALESCE(c, c_timestamp) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and timestamp for operation 'coalesce'
+DROP TABLE t1;
+CREATE TABLE t1 (
+c TEST_DOUBLE,
+c_char CHAR(32),
+c_varchar VARCHAR(32),
+c_tinytext TINYTEXT,
+c_text TEXT,
+c_mediumtext MEDIUMTEXT,
+c_longtext LONGTEXT
+);
+SELECT COALESCE(c, c_char) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and char for operation 'coalesce'
+SELECT COALESCE(c, c_varchar) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and varchar for operation 'coalesce'
+SELECT COALESCE(c, c_tinytext) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and tinyblob for operation 'coalesce'
+SELECT COALESCE(c, c_text) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and blob for operation 'coalesce'
+SELECT COALESCE(c, c_mediumtext) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and mediumblob for operation 'coalesce'
+SELECT COALESCE(c, c_longtext) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and longblob for operation 'coalesce'
+DROP TABLE t1;
+# Testing aggregation for min/max
+CREATE TABLE t1 (a TEST_DOUBLE);
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7);
+CREATE TABLE t2 AS SELECT
+LEAST(a,1) AS c1,
+LEAST(a,1.0) AS c2,
+LEAST(a,1e0) AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` test_double DEFAULT NULL,
+  `c2` test_double DEFAULT NULL,
+  `c3` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2 ORDER BY c1;
+c1	c2	c3
+0	0	0
+1	1	1
+1	1	1
+1	1	1
+1	1	1
+1	1	1
+1	1	1
+1	1	1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (
+c TEST_DOUBLE,
+c_tinyint TINYINT,
+c_smallint SMALLINT,
+c_mediumint MEDIUMINT,
+c_int INT,
+c_bigint BIGINT
+);
+CREATE TABLE t2 AS SELECT
+LEAST(c,c_tinyint),
+LEAST(c,c_smallint),
+LEAST(c,c_mediumint),
+LEAST(c,c_bigint)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(c,c_tinyint)` test_double DEFAULT NULL,
+  `LEAST(c,c_smallint)` test_double DEFAULT NULL,
+  `LEAST(c,c_mediumint)` test_double DEFAULT NULL,
+  `LEAST(c,c_bigint)` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (
+c TEST_DOUBLE,
+c_time TIME,
+c_date DATE,
+c_datetime DATETIME,
+c_timestamp TIMESTAMP
+);
+SELECT LEAST(c, c_time) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and time for operation 'least'
+SELECT LEAST(c, c_date) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and date for operation 'least'
+SELECT LEAST(c, c_datetime) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and datetime for operation 'least'
+SELECT LEAST(c, c_timestamp) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and timestamp for operation 'least'
+DROP TABLE t1;
+CREATE TABLE t1 (
+c TEST_DOUBLE,
+c_char CHAR(32),
+c_varchar VARCHAR(32),
+c_tinytext TINYTEXT,
+c_text TEXT,
+c_mediumtext MEDIUMTEXT,
+c_longtext LONGTEXT
+);
+SELECT LEAST(c, c_char) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and char for operation 'least'
+SELECT LEAST(c, c_varchar) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and varchar for operation 'least'
+SELECT LEAST(c, c_tinytext) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and tinyblob for operation 'least'
+SELECT LEAST(c, c_text) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and blob for operation 'least'
+SELECT LEAST(c, c_mediumtext) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and mediumblob for operation 'least'
+SELECT LEAST(c, c_longtext) FROM t1;
+ERROR HY000: Illegal parameter data types test_double and longblob for operation 'least'
+DROP TABLE t1;
+# Testing aggregation for numeric operation - plus
+CREATE TABLE t1 (a TEST_DOUBLE);
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7);
+CREATE TABLE t2 AS SELECT
+a+1 AS c1,
+a+1.0 AS c2,
+a+1e0 AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` test_double DEFAULT NULL,
+  `c2` test_double DEFAULT NULL,
+  `c3` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2 ORDER BY c1;
+c1	c2	c3
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+8	8	8
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (
+c TEST_DOUBLE,
+c_tinyint TINYINT,
+c_smallint SMALLINT,
+c_mediumint MEDIUMINT,
+c_int INT,
+c_bigint BIGINT
+);
+CREATE TABLE t2 AS SELECT
+c + c_tinyint,
+c + c_smallint,
+c + c_mediumint,
+c + c_bigint
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c + c_tinyint` test_double DEFAULT NULL,
+  `c + c_smallint` test_double DEFAULT NULL,
+  `c + c_mediumint` test_double DEFAULT NULL,
+  `c + c_bigint` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (
+c TEST_DOUBLE,
+c_time TIME,
+c_date DATE,
+c_datetime DATETIME,
+c_timestamp TIMESTAMP
+);
+SELECT c + c_time FROM t1;
+ERROR HY000: Illegal parameter data types test_double and time for operation '+'
+SELECT c + c_date FROM t1;
+ERROR HY000: Illegal parameter data types test_double and date for operation '+'
+SELECT c + c_datetime FROM t1;
+ERROR HY000: Illegal parameter data types test_double and datetime for operation '+'
+SELECT c + c_timestamp FROM t1;
+ERROR HY000: Illegal parameter data types test_double and timestamp for operation '+'
+DROP TABLE t1;
+CREATE TABLE t1 (
+c TEST_DOUBLE,
+c_char CHAR(32),
+c_varchar VARCHAR(32),
+c_tinytext TINYTEXT,
+c_text TEXT,
+c_mediumtext MEDIUMTEXT,
+c_longtext LONGTEXT
+);
+SELECT c + c_char FROM t1;
+ERROR HY000: Illegal parameter data types test_double and char for operation '+'
+SELECT c + c_varchar FROM t1;
+ERROR HY000: Illegal parameter data types test_double and varchar for operation '+'
+SELECT c + c_tinytext FROM t1;
+ERROR HY000: Illegal parameter data types test_double and tinyblob for operation '+'
+SELECT c + c_text FROM t1;
+ERROR HY000: Illegal parameter data types test_double and blob for operation '+'
+SELECT c + c_mediumtext FROM t1;
+ERROR HY000: Illegal parameter data types test_double and mediumblob for operation '+'
+SELECT c + c_longtext FROM t1;
+ERROR HY000: Illegal parameter data types test_double and longblob for operation '+'
+DROP TABLE t1;
+# Testing aggregation for numeric operation - minus
+CREATE TABLE t1 (a TEST_DOUBLE);
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+CREATE TABLE t2 AS SELECT
+a-1 AS c1,
+a-1.0 AS c2,
+a-1e0 AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` test_double DEFAULT NULL,
+  `c2` test_double DEFAULT NULL,
+  `c3` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2 ORDER BY c1;
+c1	c2	c3
+0	0	0
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (
+c TEST_DOUBLE,
+c_tinyint TINYINT,
+c_smallint SMALLINT,
+c_mediumint MEDIUMINT,
+c_int INT,
+c_bigint BIGINT
+);
+CREATE TABLE t2 AS SELECT
+c - c_tinyint,
+c - c_smallint,
+c - c_mediumint,
+c - c_bigint
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c - c_tinyint` test_double DEFAULT NULL,
+  `c - c_smallint` test_double DEFAULT NULL,
+  `c - c_mediumint` test_double DEFAULT NULL,
+  `c - c_bigint` test_double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (
+c TEST_DOUBLE,
+c_time TIME,
+c_date DATE,
+c_datetime DATETIME,
+c_timestamp TIMESTAMP
+);
+SELECT c - c_time FROM t1;
+ERROR HY000: Illegal parameter data types test_double and time for operation '-'
+SELECT c - c_date FROM t1;
+ERROR HY000: Illegal parameter data types test_double and date for operation '-'
+SELECT c - c_datetime FROM t1;
+ERROR HY000: Illegal parameter data types test_double and datetime for operation '-'
+SELECT c - c_timestamp FROM t1;
+ERROR HY000: Illegal parameter data types test_double and timestamp for operation '-'
+DROP TABLE t1;
+CREATE TABLE t1 (
+c TEST_DOUBLE,
+c_char CHAR(32),
+c_varchar VARCHAR(32),
+c_tinytext TINYTEXT,
+c_text TEXT,
+c_mediumtext MEDIUMTEXT,
+c_longtext LONGTEXT
+);
+SELECT c - c_char FROM t1;
+ERROR HY000: Illegal parameter data types test_double and char for operation '-'
+SELECT c - c_varchar FROM t1;
+ERROR HY000: Illegal parameter data types test_double and varchar for operation '-'
+SELECT c - c_tinytext FROM t1;
+ERROR HY000: Illegal parameter data types test_double and tinyblob for operation '-'
+SELECT c - c_text FROM t1;
+ERROR HY000: Illegal parameter data types test_double and blob for operation '-'
+SELECT c - c_mediumtext FROM t1;
+ERROR HY000: Illegal parameter data types test_double and mediumblob for operation '-'
+SELECT c - c_longtext FROM t1;
+ERROR HY000: Illegal parameter data types test_double and longblob for operation '-'
+DROP TABLE t1;
+# Testing CAST to other data types
+CREATE TABLE t1 (a TEST_DOUBLE);
+INSERT INTO t1 VALUES (20000102);
+CREATE TABLE t2 AS SELECT
+a,
+CAST(a AS CHAR),
+CAST(a AS DECIMAL),
+CAST(a AS DOUBLE),
+CAST(a AS SIGNED),
+CAST(a AS UNSIGNED),
+CAST(a AS TIME),
+CAST(a AS DATETIME),
+CAST(a AS DATE)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` test_double DEFAULT NULL,
+  `CAST(a AS CHAR)` varchar(22) DEFAULT NULL,
+  `CAST(a AS DECIMAL)` decimal(10,0) DEFAULT NULL,
+  `CAST(a AS DOUBLE)` double DEFAULT NULL,
+  `CAST(a AS SIGNED)` bigint(20) DEFAULT NULL,
+  `CAST(a AS UNSIGNED)` bigint(20) unsigned DEFAULT NULL,
+  `CAST(a AS TIME)` time DEFAULT NULL,
+  `CAST(a AS DATETIME)` datetime DEFAULT NULL,
+  `CAST(a AS DATE)` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2;
+a	20000102
+CAST(a AS CHAR)	20000102
+CAST(a AS DECIMAL)	20000102
+CAST(a AS DOUBLE)	20000102
+CAST(a AS SIGNED)	20000102
+CAST(a AS UNSIGNED)	20000102
+CAST(a AS TIME)	00:00:00
+CAST(a AS DATETIME)	2000-01-02 00:00:00
+CAST(a AS DATE)	2000-01-02
+DROP TABLE t2;
+DROP TABLE t1;
