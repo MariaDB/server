@@ -247,6 +247,7 @@ walk_up_n_right:
   uint min_key_length= (uint)(cur->min_key - seq->param->min_key);
   
   range->ptr= (char*)(intptr)(key_tree->part);
+  uint max_key_parts;
   if (cur->min_key_flag & GEOM_FLAG)
   {
     range->range_flag= cur->min_key_flag;
@@ -256,9 +257,11 @@ walk_up_n_right:
     range->start_key.length= min_key_length;
     range->start_key.keypart_map= make_prev_keypart_map(cur->min_key_parts);
     range->start_key.flag=  (ha_rkey_function) (cur->min_key_flag ^ GEOM_FLAG);
+    max_key_parts= cur->min_key_parts;
   }
   else
   {
+    max_key_parts= MY_MAX(cur->min_key_parts, cur->max_key_parts);
     range->range_flag= cur->min_key_flag | cur->max_key_flag;
     
     range->start_key.key=    seq->param->min_key;
@@ -336,7 +339,7 @@ walk_up_n_right:
     }
   }
   seq->param->range_count++;
-  seq->param->max_key_part=MY_MAX(seq->param->max_key_part,key_tree->part);
+  seq->param->max_key_parts= MY_MAX(seq->param->max_key_parts, max_key_parts);
   return 0;
 }
 
