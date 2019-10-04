@@ -280,28 +280,37 @@ class Type_collection_geometry: public Type_collection
       return &type_handler_geometry;
     return NULL;
   }
+  const Type_handler *aggregate_if_null(const Type_handler *a,
+                                        const Type_handler *b) const
+  {
+    return a == &type_handler_null ? b :
+           b == &type_handler_null ? a :
+           NULL;
+  }
+  const Type_handler *aggregate_if_long_blob(const Type_handler *a,
+                                             const Type_handler *b) const
+  {
+    return a == &type_handler_long_blob ? &type_handler_long_blob :
+           b == &type_handler_long_blob ? &type_handler_long_blob :
+           NULL;
+  }
+  const Type_handler *aggregate_if_string(const Type_handler *a,
+                                          const Type_handler *b) const;
+#ifndef DBUG_OFF
   bool init_aggregators(Type_handler_data *data, const Type_handler *geom) const;
+#endif
 public:
   bool init(Type_handler_data *data) override;
   const Type_handler *handler_by_name(const LEX_CSTRING &name) const override;
   const Type_handler *aggregate_for_result(const Type_handler *a,
                                            const Type_handler *b)
-                                           const override
-  {
-    return aggregate_common(a, b);
-  }
+                                           const override;
   const Type_handler *aggregate_for_comparison(const Type_handler *a,
                                                const Type_handler *b)
-                                               const override
-  {
-    return aggregate_common(a, b);
-  }
+                                               const override;
   const Type_handler *aggregate_for_min_max(const Type_handler *a,
                                             const Type_handler *b)
-                                            const override
-  {
-    return aggregate_common(a, b);
-  }
+                                            const override;
   const Type_handler *aggregate_for_num_op(const Type_handler *a,
                                            const Type_handler *b)
                                            const override

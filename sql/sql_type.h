@@ -7001,6 +7001,7 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_interval_DDhhmmssff
 class Type_aggregator
 {
   bool m_is_commutative;
+public:
   class Pair
   {
   public:
@@ -7018,6 +7019,23 @@ class Type_aggregator
       return m_handler1 == handler1 && m_handler2 == handler2;
     }
   };
+  static const Type_handler *
+    find_handler_in_array(const Type_aggregator::Pair *pairs,
+                          const Type_handler *h1,
+                          const Type_handler *h2,
+                          bool commutative)
+  {
+    for (const Type_aggregator::Pair *p= pairs; p->m_result; p++)
+    {
+      if (p->eq(h1, h2))
+        return p->m_result;
+      if (commutative && p->eq(h2, h1))
+       return p->m_result;
+    }
+    return NULL;
+  }
+
+private:
   Dynamic_array<Pair> m_array;
   const Pair* find_pair(const Type_handler *handler1,
                         const Type_handler *handler2) const;
