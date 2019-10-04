@@ -2285,7 +2285,8 @@ void best_access_path(JOIN *join, JOIN_TAB *s,
                       table_map remaining_tables,
                       const POSITION *join_positions, uint idx,
                       bool disable_jbuf, double record_count,
-                      POSITION *pos, POSITION *loose_scan_pos);
+                      POSITION *pos, POSITION *loose_scan_pos,
+                      table_map sort_nest_tables, bool nest_created);
 bool cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref);
 bool error_if_full_join(JOIN *join);
 int report_error(TABLE *table, int error);

@@ -5355,8 +5355,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     }
   }
 
-  join->join_tab= stat;
-  join->make_notnull_conds_for_range_scans();
   /*
     Here a call is made to remove the constant from the order by clause,
     this call would only remove the basic constants. This is done primarily
@@ -5370,6 +5368,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     join->sort_nest_possible= TRUE;
 
   join->propagate_equal_field_for_orderby();
+
+  join->join_tab= stat;
+  join->make_notnull_conds_for_range_scans();
 
   /* Calc how many (possible) matched records in each table */
 
@@ -9715,7 +9716,6 @@ best_extension_by_limited_search(JOIN      *join,
       {
         position->sort_nest_operation_here= TRUE;
       }
->>>>>>> ORDER BY LIMIT
 
       /* Compute the cost of extending the plan with 's' */
       current_record_count= COST_MULT(record_count, position->records_read);

@@ -43,7 +43,7 @@ clause.
 
 Let's say we have tables
   t1, t2, t3, t4 .............tk,tk+1.........................tn
-  |<---------prefix------------>|<-------suffix--------------->
+  |<---------prefix------------>|<-------suffix--------------->|
 
 and lets assume the prefix can resolve the ORDER BY clause and we can push
 the LIMIT.
@@ -124,7 +124,7 @@ Preparation of Sort Nest
 Let's say we have the best join order as:
 
   t1, t2, t3, t4 .............tk,tk+1.........................tn
-  |<---------prefix------------>|<-------suffix--------------->
+  |<---------prefix------------>|<-------suffix--------------->|
 
 
 The array of join_tab structures would look like
