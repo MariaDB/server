@@ -2795,7 +2795,7 @@ bool JOIN::make_aggr_tables_info()
     distinct in the engine, so we do this for all queries, not only
     GROUP BY queries.
   */
-  if (tables_list && !procedure)
+  if (tables_list && top_join_tab_count && !procedure)
   {
     /*
       At the moment we only support push down for queries where
