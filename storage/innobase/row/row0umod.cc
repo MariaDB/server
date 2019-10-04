@@ -484,10 +484,9 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	case ROW_FOUND:
 		break;
 	case ROW_BUFFERED:
-	case ROW_NOT_DELETED_REF:
-		/* These are invalid outcomes, because the mode passed
+		/* This is invalid, because the mode passed
 		to row_search_index_entry() did not include any of the
-		flags BTR_INSERT, BTR_DELETE, or BTR_DELETE_MARK. */
+		flags BTR_INSERT or BTR_DELETE_MARK. */
 		ut_error;
 	}
 
@@ -667,10 +666,9 @@ try_again:
 		mem_heap_t*	offsets_heap;
 		ulint*		offsets;
 	case ROW_BUFFERED:
-	case ROW_NOT_DELETED_REF:
-		/* These are invalid outcomes, because the mode passed
+		/* This is invalid, because the mode passed
 		to row_search_index_entry() did not include any of the
-		flags BTR_INSERT, BTR_DELETE, or BTR_DELETE_MARK. */
+		flags BTR_INSERT or BTR_DELETE_MARK. */
 		ut_error;
 	case ROW_NOT_FOUND:
 		/* For spatial index, if first search didn't find an

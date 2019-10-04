@@ -460,8 +460,8 @@ static const char* innobase_change_buffering_values[IBUF_USE_COUNT] = {
 	"inserts",	/* IBUF_USE_INSERT */
 	"deletes",	/* IBUF_USE_DELETE_MARK */
 	"changes",	/* IBUF_USE_INSERT_DELETE_MARK */
-	"purges",	/* IBUF_USE_DELETE */
-	"all"		/* IBUF_USE_ALL */
+	"purges",	/* IBUF_USE_DELETE (same as IBUF_USE_DELETE_MARK) */
+	"all"		/* IBUF_USE_ALL (same as IBUF_USE_INSERT_DELETE_MARK) */
 };
 
 /** Retrieve the FTS Relevance Ranking result for doc with doc_id

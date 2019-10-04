@@ -2403,9 +2403,6 @@ row_upd_sec_index_entry(
 	rec = btr_cur_get_rec(btr_cur);
 
 	switch (search_result) {
-	case ROW_NOT_DELETED_REF:	/* should only occur for BTR_DELETE */
-		ut_error;
-		break;
 	case ROW_BUFFERED:
 		/* Entry was delete marked already. */
 		break;

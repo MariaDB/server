@@ -70,7 +70,7 @@ enum btr_latch_mode {
 	/** Continue searching the entire B-tree. */
 	BTR_CONT_SEARCH_TREE = 38,
 
-	/* BTR_INSERT, BTR_DELETE and BTR_DELETE_MARK are mutually
+	/* BTR_INSERT and BTR_DELETE_MARK are mutually
 	exclusive. */
 	/** The search tuple will be inserted to the secondary index
 	at the searched position.  When the leaf page is not in the
@@ -81,10 +81,6 @@ enum btr_latch_mode {
 	the searched position using the change buffer when the page is
 	not in the buffer pool. */
 	BTR_DELETE_MARK	= 4096,
-
-	/** Try to purge the record using the change buffer when the
-	secondary index leaf page is not in the buffer pool. */
-	BTR_DELETE = 8192,
 
 	/** The caller is already holding dict_index_t::lock S-latch. */
 	BTR_ALREADY_S_LATCHED = 16384,
@@ -108,11 +104,10 @@ enum btr_latch_mode {
 	BTR_DELETE_MARK_LEAF_ALREADY_S_LATCHED = BTR_DELETE_MARK_LEAF
 	| BTR_ALREADY_S_LATCHED,
 	/** Attempt to purge a secondary index record. */
-	BTR_PURGE_LEAF = BTR_MODIFY_LEAF | BTR_DELETE,
+	BTR_PURGE_LEAF = BTR_MODIFY_LEAF,
 	/** Attempt to purge a secondary index record
 	while holding the dict_index_t::lock S-latch. */
-	BTR_PURGE_LEAF_ALREADY_S_LATCHED = BTR_PURGE_LEAF
-	| BTR_ALREADY_S_LATCHED,
+	BTR_PURGE_LEAF_ALREADY_S_LATCHED = BTR_MODIFY_LEAF_ALREADY_S_LATCHED,
 
 	/** In the case of BTR_MODIFY_TREE, the caller specifies
 	the intention to delete record only. It is used to optimize
@@ -153,7 +148,6 @@ record is in spatial index */
 					 | BTR_DELETE_MARK		\
 					 | BTR_RTREE_UNDO_INS		\
 					 | BTR_RTREE_DELETE_MARK	\
-					 | BTR_DELETE			\
 					 | BTR_ESTIMATE			\
 					 | BTR_IGNORE_SEC_UNIQUE	\
 					 | BTR_ALREADY_S_LATCHED	\

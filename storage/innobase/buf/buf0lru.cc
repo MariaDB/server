@@ -1990,7 +1990,6 @@ buf_LRU_block_remove_hashed(
 					  bpage->size.physical());
 		}
 		break;
-	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
 	case BUF_BLOCK_READY_FOR_USE:
@@ -2128,7 +2127,6 @@ buf_LRU_block_remove_hashed(
 
 		return(true);
 
-	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
 	case BUF_BLOCK_READY_FOR_USE:
@@ -2362,7 +2360,6 @@ buf_LRU_validate_instance(
              bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
 
 		switch (buf_page_get_state(bpage)) {
-		case BUF_BLOCK_POOL_WATCH:
 		case BUF_BLOCK_NOT_USED:
 		case BUF_BLOCK_READY_FOR_USE:
 		case BUF_BLOCK_MEMORY:

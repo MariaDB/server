@@ -217,7 +217,6 @@ buf_page_get_state(
 
 #ifdef UNIV_DEBUG
 	switch (state) {
-	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
@@ -258,8 +257,6 @@ buf_get_state_name(
 	enum buf_page_state	state = buf_page_get_state(&block->page);
 
 	switch (state) {
-	case BUF_BLOCK_POOL_WATCH:
-		return (const char *) "BUF_BLOCK_POOL_WATCH";
 	case BUF_BLOCK_ZIP_PAGE:
 		return (const char *) "BUF_BLOCK_ZIP_PAGE";
 	case BUF_BLOCK_ZIP_DIRTY:
@@ -292,9 +289,6 @@ buf_page_set_state(
 	enum buf_page_state	old_state	= buf_page_get_state(bpage);
 
 	switch (old_state) {
-	case BUF_BLOCK_POOL_WATCH:
-		ut_error;
-		break;
 	case BUF_BLOCK_ZIP_PAGE:
 		ut_a(state == BUF_BLOCK_ZIP_DIRTY);
 		break;
@@ -362,9 +356,6 @@ buf_page_in_file(
 	const buf_page_t*	bpage)	/*!< in: pointer to control block */
 {
 	switch (buf_page_get_state(bpage)) {
-	case BUF_BLOCK_POOL_WATCH:
-		ut_error;
-		break;
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_FILE_PAGE:
@@ -406,9 +397,6 @@ buf_page_get_mutex(
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 
 	switch (buf_page_get_state(bpage)) {
-	case BUF_BLOCK_POOL_WATCH:
-		ut_error;
-		return(NULL);
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
 		return(&buf_pool->zip_mutex);
@@ -726,11 +714,9 @@ buf_block_get_frame(
 	}
 
 	switch (buf_block_get_state(block)) {
-	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_ZIP_PAGE:
 	case BUF_BLOCK_ZIP_DIRTY:
 	case BUF_BLOCK_NOT_USED:
-		ut_error;
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		ut_a(block->page.buf_fix_count > 0);
@@ -1138,17 +1124,14 @@ found, NULL otherwise. If NULL is passed then the hash_lock is released by
 this function.
 @param[in]	lock_mode	RW_LOCK_X or RW_LOCK_S. Ignored if
 lock == NULL
-@param[in]	watch		if true, return watch sentinel also.
-@return pointer to the bpage or NULL; if NULL, lock is also NULL or
-a watch sentinel. */
+@return pointer to the bpage or NULL; if NULL, lock is also NULL */
 UNIV_INLINE
 buf_page_t*
 buf_page_hash_get_locked(
 	buf_pool_t*		buf_pool,
 	const page_id_t		page_id,
 	rw_lock_t**		lock,
-	ulint			lock_mode,
-	bool			watch)
+	ulint			lock_mode)
 {
 	buf_page_t*	bpage = NULL;
 	rw_lock_t*	hash_lock;
@@ -1181,10 +1164,7 @@ buf_page_hash_get_locked(
 
 	bpage = buf_page_hash_get_low(buf_pool, page_id);
 
-	if (!bpage || buf_pool_watch_is_sentinel(buf_pool, bpage)) {
-		if (!watch) {
-			bpage = NULL;
-		}
+	if (!bpage) {
 		goto unlock_and_exit;
 	}
 
@@ -1306,7 +1286,6 @@ buf_page_release_zip(
 		buf_block_unfix(reinterpret_cast<buf_block_t*>(bpage));
 		return;
 
-	case BUF_BLOCK_POOL_WATCH:
 	case BUF_BLOCK_NOT_USED:
 	case BUF_BLOCK_READY_FOR_USE:
 	case BUF_BLOCK_MEMORY:

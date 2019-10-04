@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -334,13 +334,11 @@ row_parse_int(
 enum row_search_result {
 	ROW_FOUND = 0,		/*!< the record was found */
 	ROW_NOT_FOUND,		/*!< record not found */
-	ROW_BUFFERED,		/*!< one of BTR_INSERT, BTR_DELETE, or
+	ROW_BUFFERED		/*!< one of BTR_INSERT or
 				BTR_DELETE_MARK was specified, the
 				secondary index leaf page was not in
 				the buffer pool, and the operation was
 				enqueued in the insert/delete buffer */
-	ROW_NOT_DELETED_REF	/*!< BTR_DELETE was specified, and
-				row_purge_poss_sec() failed */
 };
 
 /***************************************************************//**

@@ -38,28 +38,31 @@ of percentage of the buffer pool. */
 
 /* Possible operations buffered in the insert/whatever buffer. See
 ibuf_insert(). DO NOT CHANGE THE VALUES OF THESE, THEY ARE STORED ON DISK. */
-typedef enum {
+enum ibuf_op_t {
 	IBUF_OP_INSERT = 0,
 	IBUF_OP_DELETE_MARK = 1,
+	/** This one could exist in the change buffer after an upgrade */
 	IBUF_OP_DELETE = 2,
 
 	/* Number of different operation types. */
 	IBUF_OP_COUNT = 3
-} ibuf_op_t;
+};
 
 /** Combinations of operations that can be buffered.  Because the enum
 values are used for indexing innobase_change_buffering_values[], they
 should start at 0 and there should not be any gaps. */
-typedef enum {
+enum ibuf_use_t {
 	IBUF_USE_NONE = 0,
 	IBUF_USE_INSERT,	/* insert */
 	IBUF_USE_DELETE_MARK,	/* delete */
 	IBUF_USE_INSERT_DELETE_MARK,	/* insert+delete */
-	IBUF_USE_DELETE,	/* delete+purge */
-	IBUF_USE_ALL,		/* insert+delete+purge */
+	/** same as IBUF_USE_DELETE_MARK */
+	IBUF_USE_DELETE,
+	/** same as IBUF_USE_INSERT_DELETE_MARK */
+	IBUF_USE_ALL,
 
 	IBUF_USE_COUNT		/* number of entries in ibuf_use_t */
-} ibuf_use_t;
+};
 
 /** Operations that can currently be buffered. */
 extern ibuf_use_t	ibuf_use;

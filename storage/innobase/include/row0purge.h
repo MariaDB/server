@@ -41,10 +41,10 @@ not delete marked version of a clustered index record where DB_TRX_ID
 is newer than the purge view.
 
 NOTE: This function should only be called by the purge thread, only
-while holding a latch on the leaf page of the secondary index entry
-(or keeping the buffer pool watch on the page).  It is possible that
-this function first returns true and then false, if a user transaction
-inserts a record that the secondary index entry would refer to.
+while holding a latch on the leaf page of the secondary index entry.
+It is possible that this function first returns true and then false,
+if a user transaction inserts a record that the secondary index entry
+would refer to.
 However, in that case, the user transaction would also re-insert the
 secondary index entry after purge has removed it and released the leaf
 page latch.

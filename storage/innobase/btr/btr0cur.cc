@@ -73,7 +73,6 @@ enum btr_op_t {
 	BTR_NO_OP = 0,			/*!< Not buffered */
 	BTR_INSERT_OP,			/*!< Insert, do not ignore UNIQUE */
 	BTR_INSERT_IGNORE_UNIQUE_OP,	/*!< Insert, ignoring UNIQUE */
-	BTR_DELETE_OP,			/*!< Purge a delete-marked record */
 	BTR_DELMARK_OP			/*!< Mark a record for deletion */
 };
 
@@ -860,7 +859,7 @@ btr_cur_search_to_nth_level(
 				PAGE_CUR_LE to search the position! */
 	ulint		latch_mode, /*!< in: BTR_SEARCH_LEAF, ..., ORed with
 				at most one of BTR_INSERT, BTR_DELETE_MARK,
-				BTR_DELETE, or BTR_ESTIMATE;
+				or BTR_ESTIMATE;
 				cursor->left_block is used to store a pointer
 				to the left neighbor page, in the cases
 				BTR_SEARCH_PREV and BTR_MODIFY_PREV;
@@ -968,7 +967,7 @@ btr_cur_search_to_nth_level(
 	with the latch mode for historical reasons. It's possible for
 	none of the flags to be set. */
 	switch (UNIV_EXPECT(latch_mode
-			    & (BTR_INSERT | BTR_DELETE | BTR_DELETE_MARK),
+			    & (BTR_INSERT | BTR_DELETE_MARK),
 			    0)) {
 	case 0:
 		btr_op = BTR_NO_OP;
@@ -978,15 +977,11 @@ btr_cur_search_to_nth_level(
 			? BTR_INSERT_IGNORE_UNIQUE_OP
 			: BTR_INSERT_OP;
 		break;
-	case BTR_DELETE:
-		btr_op = BTR_DELETE_OP;
-		ut_a(cursor->purge_node);
-		break;
 	case BTR_DELETE_MARK:
 		btr_op = BTR_DELMARK_OP;
 		break;
 	default:
-		/* only one of BTR_INSERT, BTR_DELETE, BTR_DELETE_MARK
+		/* only one of BTR_INSERT, BTR_DELETE_MARK
 		should be specified at a time */
 		ut_error;
 	}
@@ -1230,9 +1225,7 @@ search_loop:
 			/* Try to buffer the operation if the leaf
 			page is not in the buffer pool. */
 
-			buf_mode = btr_op == BTR_DELETE_OP
-				? BUF_GET_IF_IN_POOL_OR_WATCH
-				: BUF_GET_IF_IN_POOL;
+			buf_mode = BUF_GET_IF_IN_POOL;
 		}
 	}
 
@@ -1297,30 +1290,6 @@ retry_page_get:
 			}
 
 			break;
-
-		case BTR_DELETE_OP:
-			ut_ad(buf_mode == BUF_GET_IF_IN_POOL_OR_WATCH);
-			ut_ad(!dict_index_is_spatial(index));
-
-			if (!row_purge_poss_sec(cursor->purge_node,
-						index, tuple)) {
-
-				/* The record cannot be purged yet. */
-				cursor->flag = BTR_CUR_DELETE_REF;
-			} else if (ibuf_insert(IBUF_OP_DELETE, tuple,
-					       index, page_id, page_size,
-					       cursor->thr)) {
-
-				/* The purge was buffered. */
-				cursor->flag = BTR_CUR_DELETE_IBUF;
-			} else {
-				/* The purge could not be buffered. */
-				buf_pool_watch_unset(page_id);
-				break;
-			}
-
-			buf_pool_watch_unset(page_id);
-			goto func_exit;
 
 		default:
 			ut_error;

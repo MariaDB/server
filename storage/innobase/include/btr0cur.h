@@ -169,7 +169,7 @@ btr_cur_search_to_nth_level(
 				search the position! */
 	ulint		latch_mode, /*!< in: BTR_SEARCH_LEAF, ..., ORed with
 				at most one of BTR_INSERT, BTR_DELETE_MARK,
-				BTR_DELETE, or BTR_ESTIMATE;
+				or BTR_ESTIMATE;
 				cursor->left_block is used to store a pointer
 				to the left neighbor page, in the cases
 				BTR_SEARCH_PREV and BTR_MODIFY_PREV;
@@ -855,9 +855,8 @@ enum btr_cur_method {
 				the insert buffer */
 	BTR_CUR_DEL_MARK_IBUF,	/*!< performed the intended delete
 				mark in the insert/delete buffer */
-	BTR_CUR_DELETE_IBUF,	/*!< performed the intended delete in
+	BTR_CUR_DELETE_IBUF	/*!< performed the intended delete in
 				the insert/delete buffer */
-	BTR_CUR_DELETE_REF	/*!< row_purge_poss_sec() failed */
 };
 
 /** The tree cursor: the definition appears here only for the compiler
@@ -865,7 +864,6 @@ to know struct size! */
 struct btr_cur_t {
 	dict_index_t*	index;		/*!< index where positioned */
 	page_cur_t	page_cur;	/*!< page cursor */
-	purge_node_t*	purge_node;	/*!< purge node, for BTR_DELETE */
 	buf_block_t*	left_block;	/*!< this field is used to store
 					a pointer to the left neighbor
 					page, in the cases
@@ -935,7 +933,6 @@ struct btr_cur_t {
 	{
 		index = NULL;
 		memset(&page_cur, 0, sizeof page_cur);
-		purge_node = NULL;
 		left_block = NULL;
 		thr = NULL;
 		flag = btr_cur_method(0);

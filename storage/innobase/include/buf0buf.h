@@ -59,10 +59,6 @@ struct fil_addr_t;
 					it is error-prone programming
 					not to set a latch, and it
 					should be used with care */
-#define BUF_GET_IF_IN_POOL_OR_WATCH	15
-					/*!< Get the page only if it's in the
-					buffer pool, if not then set a watch
-					on the page. */
 #define BUF_GET_POSSIBLY_FREED		16
 					/*!< Like BUF_GET, but do not mind
 					if the file page has been freed. */
@@ -86,9 +82,6 @@ struct fil_addr_t;
 					/*!< The maximum number of buffer
 					pools that can be defined */
 
-#define BUF_POOL_WATCH_SIZE		(srv_n_purge_threads + 1)
-					/*!< Maximum number of concurrent
-					buffer pool watches */
 #define MAX_PAGE_HASH_LOCKS	1024	/*!< The maximum number of
 					page_hash locks */
 
@@ -112,8 +105,6 @@ extern my_bool	buf_disable_resize_buffer_pool_debug; /*!< if TRUE, resizing
 
 The enumeration values must be 0..7. */
 enum buf_page_state {
-	BUF_BLOCK_POOL_WATCH,		/*!< a sentinel for the buffer pool
-					watch, element of buf_pool->watch[] */
 	BUF_BLOCK_ZIP_PAGE,		/*!< contains a clean
 					compressed page */
 	BUF_BLOCK_ZIP_DIRTY,		/*!< contains a compressed
@@ -439,7 +430,7 @@ buf_page_get_zip(
 @param[in]	rw_latch	RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
 @param[in]	guess		guessed block or NULL
 @param[in]	mode		BUF_GET, BUF_GET_IF_IN_POOL,
-BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
+BUF_PEEK_IF_IN_POOL, or BUF_GET_NO_LATCH
 @param[in]	file		file name
 @param[in]	line		line where called
 @param[in]	mtr		mini-transaction
@@ -1220,17 +1211,14 @@ found, NULL otherwise. If NULL is passed then the hash_lock is released by
 this function.
 @param[in]	lock_mode	RW_LOCK_X or RW_LOCK_S. Ignored if
 lock == NULL
-@param[in]	watch		if true, return watch sentinel also.
-@return pointer to the bpage or NULL; if NULL, lock is also NULL or
-a watch sentinel. */
+@return pointer to the bpage or NULL; if NULL, lock is also NULL. */
 UNIV_INLINE
 buf_page_t*
 buf_page_hash_get_locked(
 	buf_pool_t*		buf_pool,
 	const page_id_t		page_id,
 	rw_lock_t**		lock,
-	ulint			lock_mode,
-	bool			watch = false);
+	ulint			lock_mode);
 
 /** Returns the control block of a file page, NULL if not found.
 If the block is found and lock is not NULL then the appropriate
@@ -1267,38 +1255,12 @@ buf_page_hash_get_low() function.
 	buf_page_hash_get_locked(b, page_id, l, RW_LOCK_X)
 #define buf_page_hash_get(b, page_id)				\
 	buf_page_hash_get_locked(b, page_id, NULL, 0)
-#define buf_page_get_also_watch(b, page_id)			\
-	buf_page_hash_get_locked(b, page_id, NULL, 0, true)
-
 #define buf_block_hash_get_s_locked(b, page_id, l)		\
 	buf_block_hash_get_locked(b, page_id, l, RW_LOCK_S)
 #define buf_block_hash_get_x_locked(b, page_id, l)		\
 	buf_block_hash_get_locked(b, page_id, l, RW_LOCK_X)
 #define buf_block_hash_get(b, page_id)				\
 	buf_block_hash_get_locked(b, page_id, NULL, 0)
-
-/********************************************************************//**
-Determine if a block is a sentinel for a buffer pool watch.
-@return TRUE if a sentinel for a buffer pool watch, FALSE if not */
-ibool
-buf_pool_watch_is_sentinel(
-/*=======================*/
-	const buf_pool_t*	buf_pool,	/*!< buffer pool instance */
-	const buf_page_t*	bpage)		/*!< in: block */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/** Stop watching if the page has been read in.
-buf_pool_watch_set(space,offset) must have returned NULL before.
-@param[in]	page_id	page id */
-void buf_pool_watch_unset(const page_id_t page_id);
-
-/** Check if the page has been read in.
-This may only be called after buf_pool_watch_set(space,offset)
-has returned NULL and before invoking buf_pool_watch_unset(space,offset).
-@param[in]	page_id	page id
-@return FALSE if the given page was not read in, TRUE if it was */
-bool buf_pool_watch_occurred(const page_id_t page_id)
-MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
 Get total buffer pool statistics. */
@@ -1458,10 +1420,7 @@ public:
 	/* @} */
 	page_zip_des_t	zip;		/*!< compressed page; zip.data
 					(but not the data it points to) is
-					also protected by buf_pool->mutex;
-					state == BUF_BLOCK_ZIP_PAGE and
-					zip.data == NULL means an active
-					buf_pool->watch */
+					also protected by buf_pool->mutex */
 
 	ulint           write_size;	/* Write size is set when this
 					page is first time written and then
@@ -2168,19 +2127,13 @@ struct buf_pool_t{
 	UT_LIST_BASE_NODE_T(buf_buddy_free_t) zip_free[BUF_BUDDY_SIZES_MAX];
 					/*!< buddy free lists */
 
-	buf_page_t*			watch;
-					/*!< Sentinel records for buffer
-					pool watches. Protected by
-					buf_pool->mutex. */
-
-	buf_tmp_array_t*		tmp_arr;
-					/*!< Array for temporal memory
-					used in compression and encryption */
-
 #if BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN
 # error "BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN"
 #endif
 	/* @} */
+
+	/** buffers for page_compressed and encrypted page I/O */
+	buf_tmp_array_t*		tmp_arr;
 };
 
 /** Print the given buf_pool_t object.
