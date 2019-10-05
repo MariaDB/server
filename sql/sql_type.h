@@ -3362,6 +3362,7 @@ public:
   virtual const Name version() const;
   virtual const Name &default_value() const= 0;
   virtual uint32 flags() const { return 0; }
+  virtual ulong KEY_pack_flags(uint column_nr) const { return 0; }
   bool is_unsigned() const { return flags() & UNSIGNED_FLAG; }
   virtual enum_field_types field_type() const= 0;
   virtual enum_field_types real_field_type() const { return field_type(); }
@@ -6410,6 +6411,10 @@ public:
   virtual ~Type_handler_string() {}
   const Name name() const override;
   enum_field_types field_type() const override { return MYSQL_TYPE_STRING; }
+  ulong KEY_pack_flags(uint column_nr) const override
+  {
+    return HA_PACK_KEY;
+  }
   bool is_param_long_data_type() const override { return true; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override { return length; }
@@ -6481,6 +6486,12 @@ public:
   virtual ~Type_handler_varchar() {}
   const Name name() const override;
   enum_field_types field_type() const override { return MYSQL_TYPE_VARCHAR; }
+  ulong KEY_pack_flags(uint column_nr) const override
+  {
+    if (column_nr == 0)
+      return HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY;
+    return HA_PACK_KEY;
+  }
   enum_field_types type_code_for_protocol() const override
   {
     return MYSQL_TYPE_VAR_STRING; // Keep things compatible for old clients
@@ -6547,6 +6558,11 @@ public:
   {
     return MYSQL_TYPE_VARCHAR_COMPRESSED;
   }
+  ulong KEY_pack_flags(uint column_nr) const override
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
     const override;
@@ -6567,6 +6583,12 @@ class Type_handler_blob_common: public Type_handler_longstr
 public:
   virtual ~Type_handler_blob_common() { }
   virtual uint length_bytes() const= 0;
+  ulong KEY_pack_flags(uint column_nr) const override
+  {
+    if (column_nr == 0)
+      return HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY;
+    return HA_PACK_KEY;
+  }
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
@@ -6712,6 +6734,11 @@ public:
   enum_field_types real_field_type() const override
   {
     return MYSQL_TYPE_BLOB_COMPRESSED;
+  }
+  ulong KEY_pack_flags(uint column_nr) const override
+  {
+    DBUG_ASSERT(0);
+    return 0;
   }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   void show_binlog_type(const Conv_source &src, const Field &, String *str)
