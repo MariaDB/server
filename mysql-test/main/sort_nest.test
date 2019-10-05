@@ -652,22 +652,8 @@ set use_sort_nest=0;
 eval $query;
 
 --echo #
---echo # Subqueries used in order by clause
+--echo # Tests with Subqueries
 --echo #
-
-let $query= SELECT t1.a, t2.b, t1.b, t1.b + t2.b
-            FROM t1,t2, t3
-            WHERE t1.a=t2.b and t2.a=t3.a
-            ORDER BY (select A.a+t1.b from t1 A limit 1)
-            LIMIT 5;
-
-set use_sort_nest=1;
-eval EXPLAIN $query;
-eval EXPLAIN FORMAT=JSON $query;
-eval $query;
-
-set use_sort_nest=0;
-eval $query;
 
 --echo #
 --echo # Dependent subqueries cannot have a sort-nest
@@ -725,6 +711,104 @@ eval EXPLAIN $query;
 eval $query;
 
 set use_sort_nest=0;
+eval $query;
+
+--echo #
+--echo # sort-nest(t2,t1) and independent subquery in the SELECT list
+--echo #
+
+let $query=
+SELECT (SELECT A.a FROM t3 A WHERE A.a > 5 limit 1) as x,
+        t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+
+set use_sort_nest=1;
+eval EXPLAIN $query;
+eval $query;
+
+--echo #
+--echo # sort-nest(t2,t1) and dependent subquery in the SELECT list
+--echo #
+
+let $query=
+SELECT (SELECT A.a FROM t3 A WHERE A.a = t1.b limit 1) as x,
+       t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+
+set use_sort_nest=1;
+eval EXPLAIN $query;
+eval $query;
+
+set use_sort_nest= 0;
+eval $query;
+
+--echo #
+--echo # Dependent Subquery attached outside the sort-nest, references inside
+--echo # subquery changed to sort-nest field items
+--echo #
+
+let $query=
+SELECT t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a AND t2.c = t3.c AND
+t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+
+set use_sort_nest=1;
+eval EXPLAIN $query;
+eval EXPLAIN FORMAT=JSON $query;
+eval $query;
+
+set use_sort_nest= 0;
+eval $query;
+
+--echo #
+--echo # sort-nest(t2,t1) and independent subquery in the ORDER BY clause
+--echo #
+
+--echo # Subquery will be a constant in ORDER BY and will be removed
+
+let $query=
+SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+         (SELECT A.a FROM t3 A WHERE A.a < 5 limit 1)
+LIMIT 5;
+
+set use_sort_nest=1;
+eval EXPLAIN $query;
+eval $query;
+
+set use_sort_nest= 0;
+eval $query;
+
+--echo #
+--echo # sort-nest(t2,t1) and dependent subquery in the ORDER BY clause
+--echo #
+
+--echo # Subquery is expensive to evaluate, so don't use a sort-nest
+
+let $query=
+SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+         (SELECT A.a FROM t3 A WHERE A.a = t1.c limit 1)
+LIMIT 5;
+
+set use_sort_nest=1;
+eval EXPLAIN $query;
+eval $query;
+
+set use_sort_nest= 0;
 eval $query;
 
 drop table t0,t1,t2,t3,t4;

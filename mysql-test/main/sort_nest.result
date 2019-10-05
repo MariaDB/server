@@ -2024,104 +2024,8 @@ a	b	b	t1.b + t2.b
 1	1	1	2
 0	0	0	0
 #
-# Subqueries used in order by clause
+# Tests with Subqueries
 #
-set use_sort_nest=1;
-EXPLAIN SELECT t1.a, t2.b, t1.b, t1.b + t2.b
-FROM t1,t2, t3
-WHERE t1.a=t2.b and t2.a=t3.a
-ORDER BY (select A.a+t1.b from t1 A limit 1)
-LIMIT 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	t3	ref	a	a	5	test.t2.a	1	Using index
-2	DEPENDENT SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	5	
-EXPLAIN FORMAT=JSON SELECT t1.a, t2.b, t1.b, t1.b + t2.b
-FROM t1,t2, t3
-WHERE t1.a=t2.b and t2.a=t3.a
-ORDER BY (select A.a+t1.b from t1 A limit 1)
-LIMIT 5;
-EXPLAIN
-{
-  "query_block": {
-    "select_id": 1,
-    "filesort": {
-      "sort_key": "(subquery#2)",
-      "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 5,
-          "filtered": 100
-        },
-        "block-nl-join": {
-          "table": {
-            "table_name": "t2",
-            "access_type": "ALL",
-            "rows": 5,
-            "filtered": 100
-          },
-          "buffer_type": "flat",
-          "buffer_size": "119",
-          "join_type": "BNL",
-          "attached_condition": "t2.b = t1.a and t2.a is not null"
-        },
-        "table": {
-          "table_name": "t3",
-          "access_type": "ref",
-          "possible_keys": ["a"],
-          "key": "a",
-          "key_length": "5",
-          "used_key_parts": ["a"],
-          "ref": ["test.t2.a"],
-          "rows": 1,
-          "filtered": 100,
-          "using_index": true
-        },
-        "subqueries": [
-          {
-            "expression_cache": {
-              "state": "uninitialized",
-              "query_block": {
-                "select_id": 2,
-                "table": {
-                  "table_name": "A",
-                  "access_type": "ALL",
-                  "rows": 5,
-                  "filtered": 100
-                }
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
-}
-SELECT t1.a, t2.b, t1.b, t1.b + t2.b
-FROM t1,t2, t3
-WHERE t1.a=t2.b and t2.a=t3.a
-ORDER BY (select A.a+t1.b from t1 A limit 1)
-LIMIT 5;
-a	b	b	t1.b + t2.b
-0	0	0	0
-1	1	1	2
-2	2	2	4
-3	3	3	6
-4	4	4	8
-set use_sort_nest=0;
-SELECT t1.a, t2.b, t1.b, t1.b + t2.b
-FROM t1,t2, t3
-WHERE t1.a=t2.b and t2.a=t3.a
-ORDER BY (select A.a+t1.b from t1 A limit 1)
-LIMIT 5;
-a	b	b	t1.b + t2.b
-0	0	0	0
-1	1	1	2
-2	2	2	4
-3	3	3	6
-4	4	4	8
 #
 # Dependent subqueries cannot have a sort-nest
 #
@@ -2236,4 +2140,256 @@ t	u	v	x
 2	2	2	2
 1	1	1	1
 0	0	0	0
+#
+# sort-nest(t2,t1) and independent subquery in the SELECT list
+#
+set use_sort_nest=1;
+EXPLAIN SELECT (SELECT A.a FROM t3 A WHERE A.a > 5 limit 1) as x,
+t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
+1	PRIMARY	t3	index	NULL	a	5	NULL	10	Using index
+2	SUBQUERY	A	range	a	a	5	NULL	4	Using where; Using index
+SELECT (SELECT A.a FROM t3 A WHERE A.a > 5 limit 1) as x,
+t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+x	b	b	a
+6	4	4	0
+6	4	4	1
+6	4	4	2
+6	4	4	3
+6	4	4	4
+#
+# sort-nest(t2,t1) and dependent subquery in the SELECT list
+#
+set use_sort_nest=1;
+EXPLAIN SELECT (SELECT A.a FROM t3 A WHERE A.a = t1.b limit 1) as x,
+t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	A	ref	a	a	5	sort-nest.b	1	Using index
+SELECT (SELECT A.a FROM t3 A WHERE A.a = t1.b limit 1) as x,
+t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+x	b	b	a
+4	4	4	4
+3	3	3	3
+2	2	2	2
+1	1	1	1
+0	0	0	0
+set use_sort_nest= 0;
+SELECT (SELECT A.a FROM t3 A WHERE A.a = t1.b limit 1) as x,
+t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+x	b	b	a
+4	4	4	4
+3	3	3	3
+2	2	2	2
+1	1	1	1
+0	0	0	0
+#
+# Dependent Subquery attached outside the sort-nest, references inside
+# subquery changed to sort-nest field items
+#
+set use_sort_nest=1;
+EXPLAIN SELECT t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a AND t2.c = t3.c AND
+t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
+EXPLAIN FORMAT=JSON SELECT t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a AND t2.c = t3.c AND
+t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 5,
+      "filtered": 100
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 5,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "119",
+      "join_type": "BNL",
+      "attached_condition": "t2.a = t1.a"
+    },
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "`sort-nest`.b desc, `sort-nest`.b desc",
+        "table": {
+          "table_name": "<sort-nest>",
+          "access_type": "ALL",
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    },
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100,
+      "attached_condition": "t3.c = `sort-nest`.c and `sort-nest`.b = (subquery#2)"
+    },
+    "subqueries": [
+      {
+        "expression_cache": {
+          "state": "uninitialized",
+          "query_block": {
+            "select_id": 2,
+            "outer_ref_condition": "t3.b = `sort-nest`.b",
+            "table": {
+              "table_name": "A",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 89.844,
+              "attached_condition": "A.b > 1"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a AND t2.c = t3.c AND
+t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+b	b	a
+2	2	2
+set use_sort_nest= 0;
+SELECT t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a AND t2.c = t3.c AND
+t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+b	b	a
+2	2	2
+#
+# sort-nest(t2,t1) and independent subquery in the ORDER BY clause
+#
+# Subquery will be a constant in ORDER BY and will be removed
+set use_sort_nest=1;
+EXPLAIN SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+(SELECT A.a FROM t3 A WHERE A.a < 5 limit 1)
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	A	range	a	a	5	NULL	5	Using where; Using index
+SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+(SELECT A.a FROM t3 A WHERE A.a < 5 limit 1)
+LIMIT 5;
+b	b	c
+0	0	0
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+set use_sort_nest= 0;
+SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+(SELECT A.a FROM t3 A WHERE A.a < 5 limit 1)
+LIMIT 5;
+b	b	c
+0	0	0
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+#
+# sort-nest(t2,t1) and dependent subquery in the ORDER BY clause
+#
+# Subquery is expensive to evaluate, so don't use a sort-nest
+set use_sort_nest=1;
+EXPLAIN SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+(SELECT A.a FROM t3 A WHERE A.a = t1.c limit 1)
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (incremental, BNL join)
+2	DEPENDENT SUBQUERY	A	ref	a	a	5	test.t1.c	1	Using index
+SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+(SELECT A.a FROM t3 A WHERE A.a = t1.c limit 1)
+LIMIT 5;
+b	b	c
+0	0	0
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+set use_sort_nest= 0;
+SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+(SELECT A.a FROM t3 A WHERE A.a = t1.c limit 1)
+LIMIT 5;
+b	b	c
+0	0	0
+1	1	1
+2	2	2
+3	3	3
+4	4	4
 drop table t0,t1,t2,t3,t4;
