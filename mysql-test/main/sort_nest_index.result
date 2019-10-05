@@ -64,48 +64,30 @@ INSERT INTO t1 VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d');
 # Should use index condition
 #
 set use_sort_nest= 1;
-SELECT * FROM t1
-WHERE a BETWEEN 1 and 2
-ORDER BY a
-LIMIT 2;
+SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a LIMIT 2;
 a	b
 1	a
 2	b
-EXPLAIN SELECT * FROM t1
-WHERE a BETWEEN 1 and 2
-ORDER BY a
-LIMIT 2;
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a LIMIT 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	Using index condition
 set use_sort_nest= 0;
-EXPLAIN SELECT * FROM t1
-WHERE a BETWEEN 1 and 2
-ORDER BY a
-LIMIT 2;
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a LIMIT 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	Using index condition
 #
 # Should not use index condition as ORDER by DESC is used
 #
 set use_sort_nest= 1;
-EXPLAIN SELECT * FROM t1
-WHERE a BETWEEN 1 and 2
-ORDER BY a DESC
-LIMIT 2;
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a DESC LIMIT 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	Using where
-SELECT * FROM t1
-WHERE a BETWEEN 1 and 2
-ORDER BY a DESC
-LIMIT 2;
+SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a DESC LIMIT 2;
 a	b
 2	b
 1	a
 set use_sort_nest= 0;
-EXPLAIN SELECT * FROM t1
-WHERE a BETWEEN 1 and 2
-ORDER BY a DESC
-LIMIT 2;
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a DESC LIMIT 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	Using where
 drop table t1;
@@ -123,9 +105,7 @@ insert into t2 select a, b, c from t1;
 #  Using range scan
 #
 set use_sort_nest= 1;
-SELECT *
-FROM
-t1,t2
+SELECT * FROM t1,t2
 WHERE
 t1.a=2 AND t2.b > 8 AND
 t1.b=t2.b
@@ -133,9 +113,7 @@ ORDER BY t1.b LIMIT 10;
 a	b	c	a	b	c
 2	9	3	2	9	3
 2	10	4	2	10	4
-EXPLAIN SELECT *
-FROM
-t1,t2
+EXPLAIN SELECT * FROM t1,t2
 WHERE
 t1.a=2 AND t2.b > 8 AND
 t1.b=t2.b
@@ -144,9 +122,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a,a_b	a_b	10	NULL	2	Using index condition
 1	SIMPLE	t2	ref	b	b	5	test.t1.b	1	
 set use_sort_nest= 0;
-EXPLAIN SELECT *
-FROM
-t1,t2
+EXPLAIN SELECT * FROM t1,t2
 WHERE
 t1.a=2 AND t2.b > 8 AND
 t1.b=t2.b
@@ -158,9 +134,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 #  Using ref access
 #
 set use_sort_nest= 1;
-SELECT *
-FROM
-t1,t2
+SELECT * FROM t1,t2
 WHERE
 t1.a=2 AND t2.c >= 1 AND
 t1.b=t2.b
@@ -169,9 +143,7 @@ a	b	c	a	b	c
 2	8	2	2	8	2
 2	9	3	2	9	3
 2	10	4	2	10	4
-EXPLAIN SELECT *
-FROM
-t1,t2
+EXPLAIN SELECT * FROM t1,t2
 WHERE
 t1.a=2 AND t2.c >= 1 AND
 t1.b=t2.b
@@ -180,9 +152,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	a,a_b	a_b	5	const	3	Using index condition; Using where
 1	SIMPLE	t2	ref	b,c	b	5	test.t1.b	1	Using where
 set use_sort_nest= 0;
-EXPLAIN SELECT *
-FROM
-t1,t2
+EXPLAIN SELECT * FROM t1,t2
 WHERE
 t1.a=2 AND t2.c >= 1 AND
 t1.b=t2.b
@@ -217,21 +187,15 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 # Index idx2 to be used for index scan(USE INDEX is used)
 #
 set use_sort_nest=1;
-SELECT * from t1 USE INDEX(idx2)
-WHERE b > 0
-ORDER BY t1.a LIMIT 2;
+SELECT * from t1 USE INDEX(idx2) WHERE b > 0 ORDER BY t1.a LIMIT 2;
 a	b	c
 1	1	1
 2	2	2
-EXPLAIN SELECT * from t1 USE INDEX(idx2)
-WHERE b > 0
-ORDER BY t1.a LIMIT 2;
+EXPLAIN SELECT * from t1 USE INDEX(idx2) WHERE b > 0 ORDER BY t1.a LIMIT 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	idx2	10	NULL	2	Using where
 set use_sort_nest=0;
-EXPLAIN SELECT * from t1 USE INDEX(idx2)
-WHERE b > 0
-ORDER BY t1.a LIMIT 2;
+EXPLAIN SELECT * from t1 USE INDEX(idx2) WHERE b > 0 ORDER BY t1.a LIMIT 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	idx2	10	NULL	2	Using where
 #

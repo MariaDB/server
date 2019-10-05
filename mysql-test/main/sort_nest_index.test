@@ -56,10 +56,7 @@ INSERT INTO t1 VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d');
 --echo # Should use index condition
 --echo #
 
-let $query= SELECT * FROM t1
-            WHERE a BETWEEN 1 and 2
-            ORDER BY a
-            LIMIT 2;
+let $query= SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a LIMIT 2;
 
 set use_sort_nest= 1;
 eval $query;
@@ -72,10 +69,7 @@ eval EXPLAIN $query;
 --echo # Should not use index condition as ORDER by DESC is used
 --echo #
 
-let $query= SELECT * FROM t1
-            WHERE a BETWEEN 1 and 2
-            ORDER BY a DESC
-            LIMIT 2;
+let $query= SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a DESC LIMIT 2;
 
 set use_sort_nest= 1;
 eval EXPLAIN $query;
@@ -102,13 +96,13 @@ insert into t2 select a, b, c from t1;
 --echo #
 --echo #  Using range scan
 --echo #
-let $query= SELECT *
-            FROM
-              t1,t2
-            WHERE
-              t1.a=2 AND t2.b > 8 AND
-              t1.b=t2.b
-            ORDER BY t1.b LIMIT 10;
+
+let $query=
+SELECT * FROM t1,t2
+WHERE
+  t1.a=2 AND t2.b > 8 AND
+  t1.b=t2.b
+ORDER BY t1.b LIMIT 10;
 
 set use_sort_nest= 1;
 eval $query;
@@ -120,13 +114,12 @@ eval EXPLAIN $query;
 --echo #
 --echo #  Using ref access
 --echo #
-let $query= SELECT *
-            FROM
-              t1,t2
-            WHERE
-              t1.a=2 AND t2.c >= 1 AND
-              t1.b=t2.b
-            ORDER BY t1.b LIMIT 10;
+let $query=
+SELECT * FROM t1,t2
+WHERE
+  t1.a=2 AND t2.c >= 1 AND
+  t1.b=t2.b
+ORDER BY t1.b LIMIT 10;
 
 set use_sort_nest= 1;
 eval $query;
@@ -165,9 +158,7 @@ eval EXPLAIN $query;
 --echo # Index idx2 to be used for index scan(USE INDEX is used)
 --echo #
 
-let $query= SELECT * from t1 USE INDEX(idx2)
-            WHERE b > 0
-            ORDER BY t1.a LIMIT 2;
+let $query= SELECT * from t1 USE INDEX(idx2) WHERE b > 0 ORDER BY t1.a LIMIT 2;
 set use_sort_nest=1;
 eval $query;
 eval EXPLAIN $query;
@@ -179,9 +170,11 @@ eval EXPLAIN $query;
 --echo # Index idx2 to be used for index scan(USE INDEX for ORDER BY  is used)
 --echo #
 
-let $query= SELECT * from t1 USE INDEX FOR ORDER BY(idx2)
-            WHERE b > 0
-            ORDER BY t1.a LIMIT 2;
+let $query=
+SELECT * from t1 USE INDEX FOR ORDER BY(idx2)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+
 set use_sort_nest=1;
 eval $query;
 eval EXPLAIN $query;
@@ -193,9 +186,11 @@ eval EXPLAIN $query;
 --echo # Use Filesort as idx3 does not resolve ORDER BY clause
 --echo #
 
-let $query= SELECT * from t1 USE INDEX FOR ORDER BY(idx3)
-            WHERE b > 0
-            ORDER BY t1.a LIMIT 2;
+let $query=
+SELECT * from t1 USE INDEX FOR ORDER BY(idx3)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+
 set use_sort_nest=1;
 eval $query;
 eval EXPLAIN $query;
@@ -207,9 +202,11 @@ eval EXPLAIN $query;
 --echo # Using index idx2 as idx1 is ignored
 --echo #
 
-let $query= SELECT * from t1 IGNORE INDEX(idx1)
-            WHERE b > 0
-            ORDER BY t1.a LIMIT 2;
+let $query=
+SELECT * from t1 IGNORE INDEX(idx1)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+
 set use_sort_nest=1;
 eval $query;
 eval EXPLAIN $query;
@@ -221,9 +218,11 @@ eval EXPLAIN $query;
 --echo # Use index idx2 for sorting, it is forced here
 --echo #
 
-let $query= SELECT * from t1 FORCE INDEX(idx2)
-            WHERE b > 0
-            ORDER BY t1.a LIMIT 2;
+let $query=
+SELECT * from t1 FORCE INDEX(idx2)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+
 set use_sort_nest=1;
 eval $query;
 eval EXPLAIN $query;
@@ -235,9 +234,10 @@ eval EXPLAIN $query;
 --echo # Use FILESORT as idx3 cannot resolve ORDER BY clause
 --echo #
 
-let $query= SELECT * from t1 FORCE INDEX FOR ORDER BY(idx3)
-            WHERE b > 0
-            ORDER BY t1.a LIMIT 2;
+let $query=
+SELECT * from t1 FORCE INDEX FOR ORDER BY(idx3)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
 
 set use_sort_nest=1;
 eval $query;

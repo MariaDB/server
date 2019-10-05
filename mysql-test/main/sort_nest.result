@@ -1617,7 +1617,7 @@ x	b	b	a
 6	4	4	4
 DROP TABLE t0,t1,t2,t3;
 #
-#  Const table should not form the sort-nest
+#  Const tables should not form the sort-nest
 #
 CREATE TABLE t1 (i1 integer NOT NULL PRIMARY KEY);
 CREATE TABLE t2 (i2 integer NOT NULL PRIMARY KEY);
@@ -1775,7 +1775,7 @@ CREATE TABLE t2 as SELECT * from t1;
 set use_sort_nest=1;
 EXPLAIN SELECT *
 FROM t1,t2
-WHERE t1.a=t2.a and t1.b= 4 
+WHERE t1.a=t2.a and t1.b= 4
 ORDER BY t1.b DESC
 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1783,7 +1783,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
 SELECT *
 FROM t1,t2
-WHERE t1.a=t2.a and t1.b= 4 
+WHERE t1.a=t2.a and t1.b= 4
 ORDER BY t1.b DESC
 LIMIT 5;
 a	b	a	b
