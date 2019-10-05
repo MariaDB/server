@@ -1422,7 +1422,8 @@ bool JOIN::sort_nest_allowed()
            select_lex->window_specs.elements > 0 ||
            select_lex->agg_func_used() ||
            select_limit == HA_POS_ERROR ||
-           thd->lex->sql_command != SQLCOM_SELECT);
+           thd->lex->sql_command != SQLCOM_SELECT ||
+           select_lex->uncacheable & UNCACHEABLE_DEPENDENT);
 }
 
 
