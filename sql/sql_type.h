@@ -3426,6 +3426,7 @@ public:
   virtual Schema *schema() const;
   virtual const Name name() const= 0;
   virtual const Name version() const { return m_version_default; }
+  virtual ulong KEY_pack_flags(uint column_nr) const { return 0; }
   virtual enum_field_types field_type() const= 0;
   virtual enum_field_types real_field_type() const { return field_type(); }
   /**
@@ -6152,6 +6153,10 @@ public:
   virtual ~Type_handler_string() {}
   const Name name() const { return m_name_char; }
   enum_field_types field_type() const { return MYSQL_TYPE_STRING; }
+  ulong KEY_pack_flags(uint column_nr) const override
+  {
+    return HA_PACK_KEY;
+  }
   bool is_param_long_data_type() const { return true; }
   uint32 calc_pack_length(uint32 length) const { return length; }
   const Type_handler *type_handler_for_tmp_table(const Item *item) const
@@ -6215,6 +6220,16 @@ public:
   virtual ~Type_handler_varchar() {}
   const Name name() const { return m_name_varchar; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
+  ulong KEY_pack_flags(uint column_nr) const override
+  {
+#if MARIADB_VERSION_ID >= 100500
+    if (column_nr == 0)
+      return HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY;
+    return HA_PACK_KEY;
+#else
+    return HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY;
+#endif
+  }
   enum_field_types type_code_for_protocol() const
   {
     return MYSQL_TYPE_VAR_STRING; // Keep things compatible for old clients
@@ -6271,6 +6286,11 @@ class Type_handler_varchar_compressed: public Type_handler_varchar
 public:
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  ulong KEY_pack_flags(uint column_nr) const override
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
 };
 
 
@@ -6280,6 +6300,12 @@ public:
   virtual ~Type_handler_blob_common() { }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  ulong KEY_pack_flags(uint column_nr) const override
+  {
+    if (column_nr == 0)
+      return HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY;
+    return HA_PACK_KEY;
+  }
   const Type_handler *type_handler_for_tmp_table(const Item *item) const
   {
     return blob_type_handler(item);
@@ -6390,6 +6416,11 @@ class Type_handler_blob_compressed: public Type_handler_blob
 public:
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  ulong KEY_pack_flags(uint column_nr) const override
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
 };
 
 

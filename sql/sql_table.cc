@@ -4143,16 +4143,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       /* Use packed keys for long strings on the first column */
       if (!((*db_options) & HA_OPTION_NO_PACK_KEYS) &&
           !((create_info->table_options & HA_OPTION_NO_PACK_KEYS)) &&
-          (key_part_length >= KEY_DEFAULT_PACK_LENGTH &&
-           (sql_field->real_field_type() == MYSQL_TYPE_STRING ||
-            sql_field->real_field_type() == MYSQL_TYPE_VARCHAR ||
-            f_is_blob(sql_field->pack_flag))) && !is_hash_field_needed)
+          (key_part_length >= KEY_DEFAULT_PACK_LENGTH) &&
+          !is_hash_field_needed)
       {
-        if ((column_nr == 0 && f_is_blob(sql_field->pack_flag)) ||
-            sql_field->real_field_type() == MYSQL_TYPE_VARCHAR)
-          key_info->flags|= HA_BINARY_PACK_KEY | HA_VAR_LENGTH_KEY;
-        else
-          key_info->flags|= HA_PACK_KEY;
+        key_info->flags|= sql_field->type_handler()->KEY_pack_flags(column_nr);
       }
       /* Check if the key segment is partial, set the key flag accordingly */
       if (key_part_length != sql_field->key_length &&
