@@ -48,26 +48,22 @@ Let's say we have tables
 and lets assume the prefix can resolve the ORDER BY clause and we can push
 the LIMIT.
 
-Mathematically speaking the fanout of the suffix in the join wrt prefix would
-help us to estimate the fraction of records of the prefix(that are sorted)
-that would be read:
+So considering the fraction of output we get in a general case with LIMIT is
 
-                    +-------------------------------------------------------+
-                    |                                                       |
-fanout(tk+1....tn)= | cardinality(t1,t2....tn) / cardinality(t1,t2....tk)   |
-                    |                                                       |
-                    +-------------------------------------------------------+
+            +-------------------------------------+
+            |                                     |
+fraction  = |  LIMIT / cardinality(t1,t2....tn)   |
+            |                                     |
+            +-------------------------------------+
 
-fanout is always >= 1
+We assume that the same fraction would be read for the prefix also, so the
+records read for the prefix that can resolve the ORDER BY clause is:
 
-So number of records that one would read for the prefix after the LIMIT is
-pushed is
-
-              +----------------------------+
-              |                            |
-records_read= | LIMIT * fanout(tk+1....tn) |
-              |                            |
-              +----------------------------+
+              +--------------------------------------+
+              |                                      |
+records_read= | fraction * (cardinality(t1,t2....tk) |
+              |                                      |
+              +--------------------------------------+
 
               +--------------------------------------------------------------+
               |                                                              |
@@ -75,11 +71,9 @@ records_read= | LIMIT * fanout(tk+1....tn) |
               |                                                              |
               +--------------------------------------------------------------+
 
-
-So the LIMIT is pushed for all partial join orders enumerated by the join
-planner that can resolve the ORDER BY clause.
-This is how we achieve a complete cost based solution for
-ORDER BY with LIMIT optimization.
+The LIMIT is pushed to all partial join orders enumerated by the join
+planner that can resolve the ORDER BY clause. This is how we achieve a complete
+cost based solution for ORDER BY with LIMIT optimization.
 
 
 IMPLEMENTATION DETAILS
@@ -164,7 +158,7 @@ EXECUTION STAGE
 Let's say we have the best join order as:
 
   t1, t2, t3, t4 .............tk,tk+1.........................tn
-  |<---------prefix------------>|<-------suffix--------------->
+  |<---------prefix------------>|<-------suffix--------------->|
 
   The prefix are the inner table of the sort nest while the suffix are the
   tables outside the sort nest.
@@ -190,7 +184,7 @@ Let's say we have the best join order as:
      execution with the tables in the suffix
 
      <sort nest>, tk+1.........................tn
-                  <-------suffix---------------->
+                  |<----------suffix----------->|
 
      The execution stops as soon as we get LIMIT records in the output.
 
