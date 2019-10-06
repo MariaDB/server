@@ -152,7 +152,7 @@ eval $query;
 
 
 --echo #
---echo # Sort-nest on table (lineitem, customer)
+--echo # Sort-nest on table (lineitem, orders)
 --echo #
 
 let $query= SELECT
@@ -167,7 +167,7 @@ let $query= SELECT
               l_orderkey between 5500 AND 6000
              AND
               l_shipDATE >= '1997-01-01' and l_shipDATE <=  '1998-08-10'
-            ORDER BY l_extendedprice DESC, c_acctbal DESC
+            ORDER BY l_extendedprice DESC, o_orderDATE DESC
             LIMIT 20;
 
 

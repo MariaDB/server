@@ -370,7 +370,7 @@ c_nationkey	c_name	o_orderDate	o_totalprice	c_acctbal	n_name
 18	Customer#000000082	1997-07-20	15082.82	9468.34	CHINA
 10	Customer#000000055	1997-07-16	46380.69	4572.11	IRAN
 #
-# Sort-nest on table (lineitem, customer)
+# Sort-nest on table (lineitem, orders)
 #
 set use_sort_nest=1;
 explain SELECT
@@ -385,12 +385,13 @@ AND
 l_orderkey between 5500 AND 6000
 AND
 l_shipDATE >= '1997-01-01' and l_shipDATE <=  '1998-08-10'
-            ORDER BY l_extendedprice DESC, c_acctbal DESC
+            ORDER BY l_extendedprice DESC, o_orderDATE DESC
 LIMIT 20;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey_quantity	4	NULL	330	Using index condition; Using where; Using temporary; Using filesort
-1	SIMPLE	orders	eq_ref	PRIMARY,i_o_custkey	PRIMARY	4	dbt3.lineitem.l_orderkey	1	Using where
-1	SIMPLE	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3.orders.o_custkey	1	
+1	SIMPLE	lineitem	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey_quantity	4	NULL	338	Using index condition; Using where
+1	SIMPLE	orders	eq_ref	PRIMARY,i_o_custkey	PRIMARY	4	dbt3.lineitem.l_orderkey	1	
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	20	Using filesort
+1	SIMPLE	customer	eq_ref	PRIMARY	PRIMARY	4	sort-nest.o_custkey	1	
 SELECT
 c_acctbal, c_name, o_orderDate, l_extendedprice, l_orderkey
 FROM
@@ -403,7 +404,7 @@ AND
 l_orderkey between 5500 AND 6000
 AND
 l_shipDATE >= '1997-01-01' and l_shipDATE <=  '1998-08-10'
-            ORDER BY l_extendedprice DESC, c_acctbal DESC
+            ORDER BY l_extendedprice DESC, o_orderDATE DESC
 LIMIT 20;
 c_acctbal	c_name	o_orderDate	l_extendedprice	l_orderkey
 1842.49	Customer#000000124	1997-11-06	54759.5	5857
@@ -439,10 +440,10 @@ AND
 l_orderkey between 5500 AND 6000
 AND
 l_shipDATE >= '1997-01-01' and l_shipDATE <=  '1998-08-10'
-            ORDER BY l_extendedprice DESC, c_acctbal DESC
+            ORDER BY l_extendedprice DESC, o_orderDATE DESC
 LIMIT 20;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey_quantity	4	NULL	330	Using index condition; Using where; Using temporary; Using filesort
+1	SIMPLE	lineitem	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey_quantity	4	NULL	338	Using index condition; Using where; Using temporary; Using filesort
 1	SIMPLE	orders	eq_ref	PRIMARY,i_o_custkey	PRIMARY	4	dbt3.lineitem.l_orderkey	1	Using where
 1	SIMPLE	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3.orders.o_custkey	1	
 SELECT
@@ -457,7 +458,7 @@ AND
 l_orderkey between 5500 AND 6000
 AND
 l_shipDATE >= '1997-01-01' and l_shipDATE <=  '1998-08-10'
-            ORDER BY l_extendedprice DESC, c_acctbal DESC
+            ORDER BY l_extendedprice DESC, o_orderDATE DESC
 LIMIT 20;
 c_acctbal	c_name	o_orderDate	l_extendedprice	l_orderkey
 1842.49	Customer#000000124	1997-11-06	54759.5	5857
