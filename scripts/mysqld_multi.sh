@@ -372,7 +372,7 @@ sub start_mysqlds()
     if (!$suffix_found)
     {
       $com.= " --defaults-group-suffix=";
-      $com.= $groups[$i];
+      $com.= substr($groups[$i],6);
     }
 
     $com.= $tmp;
