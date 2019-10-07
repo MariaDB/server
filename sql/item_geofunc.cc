@@ -39,6 +39,7 @@
 #include <m_ctype.h>
 #include "opt_range.h"
 #include "item_geofunc.h"
+#include <mysql/plugin_function_collection.h>
 
 
 bool Item_geometry_func::fix_length_and_dec()
@@ -3906,62 +3907,10 @@ static Native_func_registry func_array_geom[] =
 };
 
 
-extern "C" uchar*
-get_native_fct_hash_key_geom(const uchar *buff, size_t *length,
-                             my_bool /* unused */)
-{
-  Native_func_registry *func= (Native_func_registry*) buff;
-  *length= func->name.length;
-  return (uchar*) func->name.str;
-}
-
-
-Function_collection_geometry function_collection_geometry;
-
-static FHash hash_funcn;
-
-
-Create_func *
-Function_collection_geometry::find_native_function_builder(THD *thd,
-                                                           const LEX_CSTRING &f)
-                                                           const
-{
-  Native_func_registry *func;
-  func= (Native_func_registry*) my_hash_search(&hash_funcn,
-                                               (uchar*) f.str, f.length);
-  return func ? func->builder : NULL;
-}
-
-
-bool Function_collection_geometry::init()
-{
-  DBUG_ENTER("Type_collection_geometry::init_functions");
-  if (my_hash_init(&hash_funcn,
-                   system_charset_info,
-                   array_elements(func_array_geom),
-                   0,
-                   0,
-                   (my_hash_get_key) get_native_fct_hash_key_geom,
-                   NULL,                          /* Nothing to free */
-                   MYF(0)))
-    DBUG_RETURN(true);
-
-  for (uint i= 0; i < array_elements(func_array_geom); i++)
-  {
-    Native_func_registry *func= &func_array_geom[i];
-    DBUG_ASSERT(func->builder != NULL);
-    if (my_hash_insert(&hash_funcn, (uchar*) func))
-      DBUG_RETURN(1);
-  }
-
-  DBUG_RETURN(false);
-}
-
-
-void Function_collection_geometry::cleanup()
-{
-  my_hash_free(&hash_funcn);
-}
-
+Plugin_function_collection
+  plugin_function_collection_geometry(
+    MariaDB_FUNCTION_COLLECTION_INTERFACE_VERSION,
+    Native_func_registry_array(func_array_geom,
+                               array_elements(func_array_geom)));
 
 #endif /*HAVE_SPATIAL*/
