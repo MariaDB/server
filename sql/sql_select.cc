@@ -26745,21 +26745,8 @@ int JOIN::save_explain_data_intern(Explain_query *output,
        tmp_unit;
        tmp_unit= tmp_unit->next_unit())
   {
-    /* 
-      Display subqueries only if 
-      (1) they are not parts of ON clauses that were eliminated by table 
-          elimination.
-      (2) they are not merged derived tables
-      (3) they are not hanging CTEs (they are needed for execution)
-    */
-    if (!(tmp_unit->item && tmp_unit->item->eliminated) &&    // (1)
-        (!tmp_unit->derived ||
-         tmp_unit->derived->is_materialized_derived()) &&     // (2)
-        !(tmp_unit->with_element &&
-          (!tmp_unit->derived || !tmp_unit->derived->derived_result))) // (3)
-   {
+    if (tmp_unit->explainable())
       explain->add_child(tmp_unit->first_select()->select_number);
-    }
   }
 
   if (select_lex->is_top_level_node())
@@ -26813,16 +26800,7 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
       DBUG_ASSERT(ref == unit->item);
     }
 
-    /* 
-      Save plans for child subqueries, when
-      (1) they are not parts of eliminated WHERE/ON clauses.
-      (2) they are not VIEWs that were "merged for INSERT".
-      (3) they are not hanging CTEs (they are needed for execution)
-    */
-    if (!(unit->item && unit->item->eliminated) &&                     // (1)
-        !(unit->derived && unit->derived->merged_for_insert) &&        // (2)
-        !(unit->with_element &&
-          (!unit->derived || !unit->derived->derived_result)))         // (3)
+    if (unit->explainable())
     {
       if (mysql_explain_union(thd, unit, result))
         DBUG_VOID_RETURN;

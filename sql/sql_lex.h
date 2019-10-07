@@ -995,6 +995,19 @@ public:
   int save_union_explain_part2(Explain_query *output);
   unit_common_op common_op();
 
+  bool explainable()
+  {
+    /*
+      Save plans for child subqueries, when
+      (1) they are not parts of eliminated WHERE/ON clauses.
+      (2) they are not merged derived tables
+      (3) they are not hanging CTEs (they are needed for execution)
+    */
+    return !(item && item->eliminated) &&
+           !(derived && !derived->is_materialized_derived()) &&
+           !(with_element && (!derived || !derived->derived_result));
+  }
+
   void reset_distinct();
   void fix_distinct();
 
@@ -2942,15 +2955,6 @@ protected:
   bool impossible_where;
   bool no_partitions;
 public:
-  /*
-    When single-table UPDATE updates a VIEW, that VIEW's select is still
-    listed as the first child.  When we print EXPLAIN, it looks like a
-    subquery.
-    In order to get rid of it, updating_a_view=TRUE means that first child
-    select should not be shown when printing EXPLAIN.
-  */
-  bool updating_a_view;
-   
   /* Allocate things there */
   MEM_ROOT *mem_root;
 

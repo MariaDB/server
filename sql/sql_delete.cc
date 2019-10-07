@@ -199,23 +199,12 @@ bool Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
                             &explain->mrr_type);
   }
 
-  bool skip= updating_a_view;
-
   /* Save subquery children */
   for (SELECT_LEX_UNIT *unit= select_lex->first_inner_unit();
        unit;
        unit= unit->next_unit())
   {
-    if (skip)
-    {
-      skip= false;
-      continue;
-    }
-    /* 
-      Display subqueries only if they are not parts of eliminated WHERE/ON
-      clauses.
-    */
-    if (!(unit->item && unit->item->eliminated))
+    if (unit->explainable())
       explain->add_child(unit->first_select()->select_number);
   }
   return 0;
@@ -395,7 +384,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   table->map=1;
   query_plan.select_lex= thd->lex->first_select_lex();
   query_plan.table= table;
-  query_plan.updating_a_view= MY_TEST(table_list->view);
 
   if (mysql_prepare_delete(thd, table_list, select_lex->with_wild,
                            select_lex->item_list, &conds,

@@ -657,24 +657,12 @@ static void save_insert_query_plan(THD* thd, TABLE_LIST *table_list)
 
   thd->lex->explain->add_insert_plan(explain);
   
-  /* See Update_plan::updating_a_view for details */
-  bool skip= MY_TEST(table_list->view);
-
   /* Save subquery children */
   for (SELECT_LEX_UNIT *unit= thd->lex->first_select_lex()->first_inner_unit();
        unit;
        unit= unit->next_unit())
   {
-    if (skip)
-    {
-      skip= false;
-      continue;
-    }
-    /* 
-      Table elimination doesn't work for INSERTS, but let's still have this
-      here for consistency
-    */
-    if (!(unit->item && unit->item->eliminated))
+    if (unit->explainable())
       explain->add_child(unit->first_select()->select_number);
   }
 }
