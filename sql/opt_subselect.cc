@@ -3958,10 +3958,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
     for (uint i= first; i < i_end; i++)
     {
       if (i != first)
-      {
         join->best_positions[i].sj_strategy= SJ_OPT_NONE;
-        DBUG_ASSERT(!join->best_positions[i].sort_nest_operation_here);
-      }
+
       handled_tabs |= join->best_positions[i].table->table->map;
     }
 
@@ -5151,8 +5149,28 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
           }
         }
 
-        init_dups_weedout(join, first_table, i, i + pos->n_sj_tables - first_table);
-        i+= pos->n_sj_tables;
+        bool sort_nest_present= FALSE;
+        /*
+          Walk through the range and remember
+           - tables that need their rowids to be put into temptable
+           - the last outer table
+        */
+        if (join->sort_nest_needed())
+        {
+          for (JOIN_TAB *j= tab; j < tab + pos->n_sj_tables; j++)
+          {
+            if (j->is_sort_nest)
+            {
+              sort_nest_present= TRUE;
+              break;
+            }
+          }
+        }
+
+        init_dups_weedout(join, first_table, i,
+                          i + pos->n_sj_tables + MY_TEST(sort_nest_present)-
+                          first_table);
+        i+= pos->n_sj_tables + MY_TEST(sort_nest_present);
         pos+= pos->n_sj_tables;
         break;
       }
@@ -5306,6 +5324,8 @@ int clear_sj_tmp_tables(JOIN *join)
 static bool sj_table_is_included(JOIN *join, JOIN_TAB *join_tab)
 {
   if (join_tab->emb_sj_nest)
+    return FALSE;
+  if (join_tab->is_sort_nest)
     return FALSE;
   
   /* Check if this table is functionally dependent on the tables that
