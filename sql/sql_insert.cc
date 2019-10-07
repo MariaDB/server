@@ -744,8 +744,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     this will lead to a deadlock, since the delayed thread will
     never be able to get a lock on the table.
   */
-  if (table_list->lock_type == TL_WRITE_DELAYED &&
-      thd->locked_tables_mode &&
+  if (table_list->lock_type == TL_WRITE_DELAYED && thd->locked_tables_mode &&
       find_locked_table(thd->open_tables, table_list->db.str,
                         table_list->table_name.str))
   {
@@ -774,8 +773,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   value_count= values->elements;
 
   if (mysql_prepare_insert(thd, table_list, table, fields, values,
-			   update_fields, update_values, duplic, &unused_conds,
-                           FALSE))
+                           update_fields, update_values, duplic,
+                           &unused_conds, FALSE))
     goto abort;
 
   /* mysql_prepare_insert sets table_list->table if it was not set */
@@ -1073,7 +1072,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       }
       else
 #endif
-        error=write_record(thd, table ,&info);
+      error=write_record(thd, table ,&info);
       if (unlikely(error))
         break;
       thd->get_stmt_da()->inc_current_row_for_warning();
@@ -1087,7 +1086,7 @@ values_loop_end:
   joins_freed= TRUE;
 
   /*
-    Now all rows are inserted.  Time to update logs and sends response to
+    Now all rows are inserted. Time to update logs and sends response to
     user
   */
 #ifndef EMBEDDED_LIBRARY
@@ -1234,19 +1233,20 @@ values_loop_end:
     retval= thd->lex->explain->send_explain(thd);
     goto abort;
   }
+
   if ((iteration * values_list.elements) == 1 && (!(thd->variables.option_bits & OPTION_WARNINGS) ||
 				    !thd->cuted_fields))
   {
     my_ok(thd, info.copied + info.deleted +
                ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
-                info.touched : info.updated),
-          id);
+                info.touched : info.updated), id);
   }
   else
   {
     char buff[160];
     ha_rows updated=((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
                      info.touched : info.updated);
+
     if (ignore)
       sprintf(buff, ER_THD(thd, ER_INSERT_INFO), (ulong) info.records,
 	      (lock_type == TL_WRITE_DELAYED) ? (ulong) 0 :
@@ -1264,7 +1264,7 @@ values_loop_end:
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->first_cond_optimization= 0;
   }
-  
+
   DBUG_RETURN(FALSE);
 
 abort:
@@ -1465,12 +1465,13 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
 
   SYNOPSIS
     mysql_prepare_insert()
-    thd			Thread handler
-    table_list	        Global/local table list
-    table		Table to insert into (can be NULL if table should
-			be taken from table_list->table)    
-    where		Where clause (for insert ... select)
-    select_insert	TRUE if INSERT ... SELECT statement
+    thd                 Thread handler
+    table_list          Global/local table list
+    table               Table to insert into
+                        (can be NULL if table should
+                        be taken from table_list->table)
+    where               Where clause (for insert ... select)
+    select_insert       TRUE if INSERT ... SELECT statement
 
   TODO (in far future)
     In cases of:
@@ -1481,7 +1482,7 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
   WARNING
     You MUST set table->insert_values to 0 after calling this function
     before releasing the table object.
-  
+
   RETURN VALUE
     FALSE OK
     TRUE  error
@@ -1664,8 +1665,8 @@ int vers_insert_history_row(TABLE *table)
     then both on update triggers will work instead. Similarly both on
     delete triggers will be invoked if we will delete conflicting records.
 
-    Sets thd->transaction.stmt.modified_non_trans_table to TRUE if table which is updated didn't have
-    transactions.
+    Sets thd->transaction.stmt.modified_non_trans_table to TRUE if table which
+    is updated didn't have transactions.
 
   RETURN VALUE
     0     - success
@@ -1684,7 +1685,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
   DBUG_ENTER("write_record");
 
   info->records++;
-  save_read_set=  table->read_set;
+  save_read_set= table->read_set;
   save_write_set= table->write_set;
 
   if (info->handle_duplicates == DUP_REPLACE ||
@@ -1706,7 +1707,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         table->file->insert_id_for_cur_row= insert_id_for_cur_row;
       bool is_duplicate_key_error;
       if (table->file->is_fatal_error(error, HA_CHECK_ALL))
-	goto err;
+        goto err;
       is_duplicate_key_error=
         table->file->is_fatal_error(error, HA_CHECK_ALL & ~HA_CHECK_DUP);
       if (!is_duplicate_key_error)
@@ -3544,12 +3545,11 @@ bool mysql_insert_select_prepare(THD *thd)
   SELECT_LEX *select_lex= lex->first_select_lex();
   DBUG_ENTER("mysql_insert_select_prepare");
 
-
   /*
     SELECT_LEX do not belong to INSERT statement, so we can't add WHERE
     clause if table is VIEW
   */
-  
+
   if (mysql_prepare_insert(thd, lex->query_tables,
                            lex->query_tables->table, lex->field_list, 0,
                            lex->update_list, lex->value_list, lex->duplicates,
@@ -3794,7 +3794,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     If the result table is the same as one of the source tables
     (INSERT SELECT), the result table is not finally prepared at the
     join prepair phase.  Do the final preparation now.
-		       
+
   RETURN
     0   OK
 */
@@ -3864,7 +3864,7 @@ int select_insert::send_data(List<Item> &values)
   error= write_record(thd, table, &info);
   table->vers_write= table->versioned();
   table->auto_increment_field_not_null= FALSE;
-  
+
   if (likely(!error))
   {
     if (table->triggers || info.handle_duplicates == DUP_UPDATE)
@@ -3995,7 +3995,6 @@ bool select_insert::send_ok_packet() {
   char  message[160];                           /* status message */
   ulonglong row_count;                          /* rows affected */
   ulonglong id;                                 /* last insert-id */
-
   DBUG_ENTER("select_insert::send_ok_packet");
 
   if (info.ignore)

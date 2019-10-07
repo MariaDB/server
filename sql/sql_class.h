@@ -5142,7 +5142,7 @@ protected:
   /* Something used only by the parser: */
 public:
   ha_rows est_records;  /* estimated number of records in the result */
- select_result(THD *thd_arg): select_result_sink(thd_arg), est_records(0) {}
+  select_result(THD *thd_arg): select_result_sink(thd_arg), est_records(0) {}
   void set_unit(SELECT_LEX_UNIT *unit_arg) { unit= unit_arg; }
   virtual ~select_result() {};
   /**

@@ -4488,12 +4488,8 @@ mysql_execute_command(THD *thd)
 #ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF("after_mysql_insert",
                     {
-                      const char act1[]=
-                        "now "
-                        "wait_for signal.continue";
-                      const char act2[]=
-                        "now "
-                        "signal signal.continued";
+                      const char act1[]= "now wait_for signal.continue";
+                      const char act2[]= "now signal signal.continued";
                       DBUG_ASSERT(debug_sync_service);
                       DBUG_ASSERT(!debug_sync_set_action(thd,
                                                          STRING_WITH_LEN(act1)));
@@ -4646,8 +4642,7 @@ mysql_execute_command(THD *thd)
     unit->set_limit(select_lex);
 
     MYSQL_DELETE_START(thd->query());
-    Protocol * UNINIT_VAR(save_protocol);
-    bool replaced_protocol= false;
+    Protocol *save_protocol= NULL;
 
     if (!select_lex->item_list.is_empty())
     {
@@ -4659,7 +4654,6 @@ mysql_execute_command(THD *thd)
           output and then discard it.
         */
         sel_result= new (thd->mem_root) select_send_analyze(thd);
-        replaced_protocol= true;
         save_protocol= thd->protocol;
         thd->protocol= new Protocol_discard(thd);
       }
@@ -4675,7 +4669,7 @@ mysql_execute_command(THD *thd)
                        unit->lim.get_select_limit(), select_lex->options,
                        lex->result ? lex->result : sel_result);
 
-    if (replaced_protocol)
+    if (save_protocol)
     {
       delete thd->protocol;
       thd->protocol= save_protocol;

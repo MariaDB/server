@@ -5006,8 +5006,7 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
     resolved identifier.
 */
 
-void mark_select_range_as_dependent(THD *thd,
-                                    SELECT_LEX *last_select,
+void mark_select_range_as_dependent(THD *thd, SELECT_LEX *last_select,
                                     SELECT_LEX *current_sel,
                                     Field *found_field, Item *found_item,
                                     Item_ident *resolved_item)
@@ -5027,26 +5026,25 @@ void mark_select_range_as_dependent(THD *thd,
     prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
     prev_subselect_item->const_item_cache= 0;
   }
+
+  Item_subselect *prev_subselect_item=
+    previous_select->master_unit()->item;
+  Item_ident *dependent= resolved_item;
+  if (found_field == view_ref_found)
   {
-    Item_subselect *prev_subselect_item=
-      previous_select->master_unit()->item;
-    Item_ident *dependent= resolved_item;
-    if (found_field == view_ref_found)
-    {
-      Item::Type type= found_item->type();
-      prev_subselect_item->used_tables_cache|=
-        found_item->used_tables();
-      dependent= ((type == Item::REF_ITEM || type == Item::FIELD_ITEM) ?
-                  (Item_ident*) found_item :
-                  0);
-    }
-    else
-      prev_subselect_item->used_tables_cache|=
-        found_field->table->map;
-    prev_subselect_item->const_item_cache= 0;
-    mark_as_dependent(thd, last_select, current_sel, resolved_item,
-                      dependent);
+    Item::Type type= found_item->type();
+    prev_subselect_item->used_tables_cache|=
+      found_item->used_tables();
+    dependent= ((type == Item::REF_ITEM || type == Item::FIELD_ITEM) ?
+                (Item_ident*) found_item :
+                0);
   }
+  else
+    prev_subselect_item->used_tables_cache|=
+      found_field->table->map;
+  prev_subselect_item->const_item_cache= 0;
+  mark_as_dependent(thd, last_select, current_sel, resolved_item,
+                    dependent);
 }
 
 
