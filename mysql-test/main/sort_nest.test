@@ -1,6 +1,6 @@
 --source include/have_sequence.inc
 
-set use_sort_nest=1;
+set optimizer_switch='cost_based_order_by_limit=on';
 
 CREATE TABLE t0 (a int);
 INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
@@ -594,7 +594,6 @@ WHERE t1.a=t2.a and t1.b= 4
 ORDER BY t1.b DESC
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
 eval $query;
 
@@ -627,11 +626,7 @@ WHERE t1.a=t2.b and t2.a=t3.a
 ORDER BY abs(t3.a+t1.b) DESC
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
-eval $query;
-
-set use_sort_nest=0;
 eval $query;
 
 --echo #
@@ -654,12 +649,6 @@ WHERE t1.a=t2.b and t2.a=t3.a
 ORDER BY f1(t3.a+t1.b) DESC
 LIMIT 5;
 
-set use_sort_nest=1;
-eval EXPLAIN $query;
-eval EXPLAIN FORMAT=JSON $query;
-eval $query;
-
-set use_sort_nest=0;
 eval EXPLAIN $query;
 eval $query;
 
@@ -676,12 +665,7 @@ WHERE t1.a=t2.b AND t2.a=t3.a
 ORDER BY row_number() OVER (ORDER BY t1.a) DESC
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
-eval EXPLAIN FORMAT=JSON $query;
-eval $query;
-
-set use_sort_nest=0;
 eval $query;
 
 --echo #
@@ -700,11 +684,7 @@ t1.b = (select t2.b from t2,t3,t4
         where t2.a=t1.a and t3.b=t4.b
         ORDER BY t2.c,t3.c limit 1);
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
-eval $query;
-
-set use_sort_nest= 0;
 eval $query;
 
 --echo #
@@ -719,12 +699,7 @@ t1.b = (select t2.b from t2,t3,t4
         where t2.a=t3.a and t3.b=t4.b
         ORDER BY t2.c,t3.c limit 1);
 
-set use_sort_nest=1;
-
 eval EXPLAIN $query;
-eval $query;
-
-set use_sort_nest= 0;
 eval $query;
 
 --echo #
@@ -739,11 +714,7 @@ FROM (SELECT t1.a as t, t2.b as u, t1.b as v, t3.a as x
       ORDER BY t2.b DESC, t1.b DESC
       LIMIT 5)q;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
-eval $query;
-
-set use_sort_nest=0;
 eval $query;
 
 --echo #
@@ -758,7 +729,6 @@ WHERE t1.a = t2.a
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
 eval $query;
 
@@ -774,11 +744,7 @@ WHERE t1.a = t2.a and t2.c=t3.c
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
-eval $query;
-
-set use_sort_nest= 0;
 eval $query;
 
 --echo #
@@ -794,12 +760,8 @@ t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
 eval EXPLAIN FORMAT=JSON $query;
-eval $query;
-
-set use_sort_nest= 0;
 eval $query;
 
 --echo #
@@ -816,11 +778,7 @@ ORDER BY t2.b, t1.b,
          (SELECT A.a FROM t3 A WHERE A.a < 5 limit 1)
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
-eval $query;
-
-set use_sort_nest= 0;
 eval $query;
 
 --echo #
@@ -837,11 +795,7 @@ ORDER BY t2.b, t1.b,
          (SELECT A.a FROM t3 A WHERE A.a = t1.c limit 1)
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
-eval $query;
-
-set use_sort_nest= 0;
 eval $query;
 
 drop table t0,t1,t2,t3,t4;
@@ -858,12 +812,9 @@ insert into t1 values (1,7,2), (1,8,2), (1,9,2), (1,10,2), (1,11,2), (1,12,2);
 --echo #
 
 let $query= select a,b,c from t1 where a=1 and c=2 order by b limit 5;
-set use_sort_nest= 1;
 eval $query;
 eval explain $query;
 
-set use_sort_nest= 0;
-eval explain $query;
 drop table t1;
 
 --echo #
@@ -880,16 +831,12 @@ insert into t1 values (1,1,2);
 
 --echo #
 --echo # index key a_b, no need for filesort
---echo # Also index condition pushdown is used with use_sort_nest=1
+--echo # Also index condition pushdown is used here
 --echo #
 
 let $query= select a,b from t1 where a=1 and c=2 order by b limit 10;
 
-set use_sort_nest=1;
 eval $query;
-eval explain $query;
-
-set use_sort_nest=0;
 eval explain $query;
 
 drop table t1;
@@ -908,11 +855,7 @@ INSERT INTO t1 VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d');
 
 let $query= SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a LIMIT 2;
 
-set use_sort_nest= 1;
 eval $query;
-eval EXPLAIN $query;
-
-set use_sort_nest= 0;
 eval EXPLAIN $query;
 
 --echo #
@@ -921,12 +864,8 @@ eval EXPLAIN $query;
 
 let $query= SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a DESC LIMIT 2;
 
-set use_sort_nest= 1;
 eval EXPLAIN $query;
 eval $query;
-
-set use_sort_nest= 0;
-eval EXPLAIN $query;
 
 drop table t1;
 
@@ -954,11 +893,7 @@ WHERE
   t1.b=t2.b
 ORDER BY t1.b LIMIT 10;
 
-set use_sort_nest= 1;
 eval $query;
-eval EXPLAIN $query;
-
-set use_sort_nest= 0;
 eval EXPLAIN $query;
 
 --echo #
@@ -971,11 +906,7 @@ WHERE
   t1.b=t2.b
 ORDER BY t1.b LIMIT 10;
 
-set use_sort_nest= 1;
 eval $query;
-eval EXPLAIN $query;
-
-set use_sort_nest= 0;
 eval EXPLAIN $query;
 
 drop table t1,t2;
@@ -983,7 +914,6 @@ drop table t1,t2;
 
 --echo # TESTS with INDEX HINTS
 
-set use_sort_nest=1;
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int, b int,c int, key idx1(a), key idx2(a,b), key idx3(c));
@@ -998,11 +928,7 @@ analyze table t1 persistent for all;
 --echo #
 
 let $query= SELECT * from t1 where b > 0 order by t1.a limit 2;
-set use_sort_nest=1;
 eval $query;
-eval EXPLAIN $query;
-
-set use_sort_nest=0;
 eval EXPLAIN $query;
 
 --echo #
@@ -1010,11 +936,7 @@ eval EXPLAIN $query;
 --echo #
 
 let $query= SELECT * from t1 USE INDEX(idx2) WHERE b > 0 ORDER BY t1.a LIMIT 2;
-set use_sort_nest=1;
 eval $query;
-eval EXPLAIN $query;
-
-set use_sort_nest=0;
 eval EXPLAIN $query;
 
 --echo #
@@ -1026,11 +948,7 @@ SELECT * from t1 USE INDEX FOR ORDER BY(idx2)
 WHERE b > 0
 ORDER BY t1.a LIMIT 2;
 
-set use_sort_nest=1;
 eval $query;
-eval EXPLAIN $query;
-
-set use_sort_nest=0;
 eval EXPLAIN $query;
 
 --echo #
@@ -1042,11 +960,7 @@ SELECT * from t1 USE INDEX FOR ORDER BY(idx3)
 WHERE b > 0
 ORDER BY t1.a LIMIT 2;
 
-set use_sort_nest=1;
 eval $query;
-eval EXPLAIN $query;
-
-set use_sort_nest=0;
 eval EXPLAIN $query;
 
 --echo #
@@ -1058,11 +972,7 @@ SELECT * from t1 IGNORE INDEX(idx1)
 WHERE b > 0
 ORDER BY t1.a LIMIT 2;
 
-set use_sort_nest=1;
 eval $query;
-eval EXPLAIN $query;
-
-set use_sort_nest=0;
 eval EXPLAIN $query;
 
 --echo #
@@ -1074,11 +984,7 @@ SELECT * from t1 FORCE INDEX(idx2)
 WHERE b > 0
 ORDER BY t1.a LIMIT 2;
 
-set use_sort_nest=1;
 eval $query;
-eval EXPLAIN $query;
-
-set use_sort_nest=0;
 eval EXPLAIN $query;
 
 --echo #
@@ -1090,11 +996,7 @@ SELECT * from t1 FORCE INDEX FOR ORDER BY(idx3)
 WHERE b > 0
 ORDER BY t1.a LIMIT 2;
 
-set use_sort_nest=1;
 eval $query;
-eval EXPLAIN $query;
-
-set use_sort_nest=0;
 eval EXPLAIN $query;
 
 drop table t0,t1;
@@ -1138,12 +1040,8 @@ FROM t1, t2, t2 ot
 ORDER BY t2.b DESC ,t1.b DESC
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
 eval EXPLAIN FORMAT=JSON $query;
-eval $query;
-
-set use_sort_nest=0;
 eval $query;
 
 --echo #
@@ -1160,12 +1058,8 @@ FROM t1, t2, t2 ot
 ORDER BY t2.b DESC ,t1.b DESC
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
 eval EXPLAIN FORMAT=JSON $query;
-eval $query;
-
-set use_sort_nest=0;
 eval $query;
 
 drop table t0,t1,t2,t3,t4;
@@ -1205,14 +1099,8 @@ FROM t1, t2
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
 eval $query;
-
-set use_sort_nest=0;
-eval EXPLAIN $query;
-eval $query;
-
 
 --echo #
 --echo # Duplicate weedout
@@ -1229,11 +1117,6 @@ FROM t1, t2
 ORDER BY t2.b DESC, t1.b DESC
 LIMIT 5;
 
-set use_sort_nest=1;
-eval EXPLAIN $query;
-eval $query;
-
-set use_sort_nest=0;
 eval EXPLAIN $query;
 eval $query;
 
@@ -1262,12 +1145,8 @@ t1.a IN (SELECT max(t3.a) FROM t3 GROUP BY t3.b)
 ORDER BY t2.a DESC,t1.a DESC
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
 eval EXPLAIN FORMAT=JSON $query;
-eval $query;
-
-set use_sort_nest=0;
 eval $query;
 
 --echo <subquery2> inside the sort-nest
@@ -1279,12 +1158,8 @@ t3.a IN (SELECT max(t1.a) FROM t1 GROUP BY t1.b)
 ORDER BY t3.a DESC,t2.a DESC
 LIMIT 5;
 
-set use_sort_nest=1;
 eval EXPLAIN $query;
 eval EXPLAIN FORMAT=JSON $query;
-eval $query;
-
-set use_sort_nest=0;
 eval $query;
 
 DROP TABLE t0,t1,t2,t3;
