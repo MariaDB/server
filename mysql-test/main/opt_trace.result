@@ -2175,8 +2175,8 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "index": "a_c",
                   "can_resolve_order": true,
                   "updated_limit": 47,
+                  "index_scan_time": 47,
                   "range_scan_time": 4.324,
-                  "index_scan_time": 4.324,
                   "records": 180,
                   "chosen": true
                 },
