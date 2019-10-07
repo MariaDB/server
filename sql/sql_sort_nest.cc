@@ -1418,7 +1418,8 @@ bool JOIN::sort_nest_allowed()
            select_lex->agg_func_used() ||
            select_limit == HA_POS_ERROR ||
            thd->lex->sql_command != SQLCOM_SELECT ||
-           select_lex->uncacheable & UNCACHEABLE_DEPENDENT);
+           select_lex->uncacheable & UNCACHEABLE_DEPENDENT ||
+           MY_TEST(select_options & SELECT_STRAIGHT_JOIN));
 }
 
 
