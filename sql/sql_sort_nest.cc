@@ -1407,7 +1407,8 @@ void JOIN::set_fraction_output_for_nest()
 
 bool JOIN::sort_nest_allowed()
 {
-  return thd->variables.use_sort_nest && order &&
+  return optimizer_flag(thd, OPTIMIZER_SWITCH_COST_BASED_ORDER_BY_LIMIT) &&
+         order &&
          !(const_tables == table_count ||
            (select_distinct || group_list) ||
            having  ||

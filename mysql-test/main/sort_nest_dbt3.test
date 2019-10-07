@@ -10,9 +10,9 @@ analyze table lineitem persistent for all;
 analyze table nation   persistent for all;
 --enable_query_log
 
---echo # done to avoid filter for now
+--echo # done use filter for now
 set optimizer_switch='rowid_filter=off';
-set use_sort_nest=1;
+set optimizer_switch='cost_based_order_by_limit=on';
 
 --echo #
 --echo # USING INDEXES FOR ORDERING
@@ -32,11 +32,6 @@ let $query= SELECT
             ORDER BY o_orderDATE DESC 
             LIMIT 5;
 
-set use_sort_nest=1;
-eval explain $query;
-eval $query;
-
-set use_sort_nest=0;
 eval explain $query;
 eval $query;
 
@@ -57,17 +52,10 @@ let $query= SELECT
             ORDER BY o_orderDATE, o_custkey DESC 
             LIMIT 5;
 
-set use_sort_nest=1;
-eval explain $query;
-eval $query;
-
-set use_sort_nest=0;
 eval explain $query;
 eval $query;
 
 alter table orders drop key o_orderDate;
-
-###############################################################################
 
 --echo #
 --echo # USING FILESORT
@@ -87,11 +75,6 @@ let $query= SELECT
             ORDER BY o_totalprice DESC 
             LIMIT 10;
 
-set use_sort_nest=1;
-eval explain $query;
-eval $query;
-
-set use_sort_nest=0;
 eval explain $query;
 eval $query;
 
@@ -99,8 +82,6 @@ eval $query;
 --echo #
 --echo # Filesort on first table (lineitem)
 --echo #
-
-show create table orders;
 
 let $query= SELECT
               l_extendedprice, o_orderkey, o_totalprice, l_shipDATE
@@ -112,16 +93,8 @@ let $query= SELECT
             ORDER BY l_extendedprice DESC
             LIMIT 10;
 
-set use_sort_nest=1;
 eval explain $query;
 eval $query;
-
-set use_sort_nest=0;
-eval explain $query;
-eval $query;
-
-###############################################################################
-
 
 --echo #
 --echo # Using Filesort with Sort Nest
@@ -141,15 +114,8 @@ let $query= SELECT
             ORDER BY o_orderDATE DESC, c_acctbal DESC
             LIMIT 10;
 
-set use_sort_nest=1;
 eval explain $query;
 eval $query;
-
-set use_sort_nest=0;
-eval explain $query;
-eval $query;
-
-
 
 --echo #
 --echo # Sort-nest on table (lineitem, orders)
@@ -171,15 +137,8 @@ let $query= SELECT
             LIMIT 20;
 
 
-set use_sort_nest=1;
 eval explain $query;
 eval $query;
-
-set use_sort_nest=0;
-eval explain $query;
-eval $query;
-
---echo ########################################################################
 
 --echo #
 --echo # Sort-nest on table (customer, orders, lineitem)
@@ -204,13 +163,7 @@ let $query= SELECT
             LIMIT 20;
 
 
-set use_sort_nest=1;
 eval explain $query;
 eval $query;
-
-set use_sort_nest=0;
-eval explain $query;
-eval $query;
-
 
 drop database dbt3;
