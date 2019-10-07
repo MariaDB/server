@@ -76,6 +76,8 @@ public:
   bool begin_trans();
   bool commit_trans();
   bool rollback_trans();
+  void auto_commit_next();
+  void auto_commit_closed();
   inline bool has_trans()
   {
     return has_transaction;

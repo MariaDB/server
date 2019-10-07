@@ -933,11 +933,12 @@ int ha_clustrixdb::external_lock(THD *thd, int lock_type)
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (lock_type != F_UNLCK) {
     trx->begin_trans();
-    trx->begin_stmt_trans();
 
     trans_register_ha(thd, FALSE, clustrixdb_hton);
-    if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+    if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
+      trx->begin_stmt_trans();
       trans_register_ha(thd, TRUE, clustrixdb_hton);
+    }
   }
 
   return 0;

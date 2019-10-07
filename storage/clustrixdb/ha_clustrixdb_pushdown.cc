@@ -145,6 +145,9 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
   if (!trx)
     goto err;
 
+  if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+    trx->auto_commit_next();
+
   if ((error_code = trx->scan_query(query, fieldtype, items_number, null_bits,
                                     num_null_bytes, field_metadata,
                                     field_metadata_size,
