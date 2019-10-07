@@ -1,0 +1,27 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-20768 Turn INET functions into a function collection plugin
+--echo #
+
+--vertical_results
+SELECT
+  PLUGIN_NAME,
+  PLUGIN_VERSION,
+  PLUGIN_STATUS,
+  PLUGIN_TYPE,
+  PLUGIN_AUTHOR,
+  PLUGIN_DESCRIPTION,
+  PLUGIN_LICENSE,
+  PLUGIN_MATURITY,
+  PLUGIN_AUTH_VERSION
+FROM INFORMATION_SCHEMA.PLUGINS
+  WHERE PLUGIN_TYPE='FUNCTION COLLECTION'
+    AND PLUGIN_NAME='func_inet';
+--horizontal_results
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

@@ -119,7 +119,7 @@ SET (SQL_SOURCE
                sql_profile.cc event_parse_data.cc sql_alter.cc
                sql_signal.cc mdl.cc sql_admin.cc
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc
-               sql_reload.cc item_inetfunc.cc
+               sql_reload.cc
 
                # added in MariaDB:
                sql_explain.cc
@@ -137,7 +137,6 @@ SET (SQL_SOURCE
                semisync_master_ack_receiver.cc
                sql_type.cc sql_mode.cc sql_type_json.cc
                sql_type_geom.cc
-               sql_type_inet.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
                item_vers.cc

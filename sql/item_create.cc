@@ -33,7 +33,6 @@
 #include "set_var.h"
 #include "sp_head.h"
 #include "sp.h"
-#include "item_inetfunc.h"
 #include "sql_time.h"
 #include "sql_type_geom.h"
 #include <mysql/plugin_function_collection.h>
@@ -92,7 +91,8 @@ class Plugin_find_native_func_builder_param
   bool find_native_function_builder(THD *thd,
                                     const Plugin_function_collection *pfc)
   {
-    return ((builder= pfc->find_native_function_builder(thd, name))) == NULL;
+    // plugin_foreach() will stop iterating when this function returns TRUE
+    return ((builder= pfc->find_native_function_builder(thd, name))) != NULL;
   }
   static my_bool find_in_plugin(THD *thd, plugin_ref plugin, void *data)
   {
@@ -111,9 +111,9 @@ public:
   { }
   Create_func *find(THD *thd)
   {
-    if (plugin_foreach(thd,
-                       Plugin_find_native_func_builder_param::find_in_plugin,
-                       MariaDB_FUNCTION_COLLECTION_PLUGIN, this))
+    if (!plugin_foreach(thd,
+                        Plugin_find_native_func_builder_param::find_in_plugin,
+                        MariaDB_FUNCTION_COLLECTION_PLUGIN, this))
       return NULL;
     return builder;
   }
@@ -904,110 +904,6 @@ public:
 protected:
   Create_func_ifnull() {}
   virtual ~Create_func_ifnull() {}
-};
-
-
-class Create_func_inet_ntoa : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_inet_ntoa s_singleton;
-
-protected:
-  Create_func_inet_ntoa() {}
-  virtual ~Create_func_inet_ntoa() {}
-};
-
-
-class Create_func_inet_aton : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_inet_aton s_singleton;
-
-protected:
-  Create_func_inet_aton() {}
-  virtual ~Create_func_inet_aton() {}
-};
-
-
-class Create_func_inet6_aton : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_inet6_aton s_singleton;
-
-protected:
-  Create_func_inet6_aton() {}
-  virtual ~Create_func_inet6_aton() {}
-};
-
-
-class Create_func_inet6_ntoa : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_inet6_ntoa s_singleton;
-
-protected:
-  Create_func_inet6_ntoa() {}
-  virtual ~Create_func_inet6_ntoa() {}
-};
-
-
-class Create_func_is_ipv4 : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_is_ipv4 s_singleton;
-
-protected:
-  Create_func_is_ipv4() {}
-  virtual ~Create_func_is_ipv4() {}
-};
-
-
-class Create_func_is_ipv6 : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_is_ipv6 s_singleton;
-
-protected:
-  Create_func_is_ipv6() {}
-  virtual ~Create_func_is_ipv6() {}
-};
-
-
-class Create_func_is_ipv4_compat : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_is_ipv4_compat s_singleton;
-
-protected:
-  Create_func_is_ipv4_compat() {}
-  virtual ~Create_func_is_ipv4_compat() {}
-};
-
-
-class Create_func_is_ipv4_mapped : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_is_ipv4_mapped s_singleton;
-
-protected:
-  Create_func_is_ipv4_mapped() {}
-  virtual ~Create_func_is_ipv4_mapped() {}
 };
 
 
@@ -3685,78 +3581,6 @@ Create_func_ifnull::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 }
 
 
-Create_func_inet_ntoa Create_func_inet_ntoa::s_singleton;
-
-Item*
-Create_func_inet_ntoa::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_inet_ntoa(thd, arg1);
-}
-
-
-Create_func_inet6_aton Create_func_inet6_aton::s_singleton;
-
-Item*
-Create_func_inet6_aton::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_inet6_aton(thd, arg1);
-}
-
-
-Create_func_inet6_ntoa Create_func_inet6_ntoa::s_singleton;
-
-Item*
-Create_func_inet6_ntoa::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_inet6_ntoa(thd, arg1);
-}
-
-
-Create_func_inet_aton Create_func_inet_aton::s_singleton;
-
-Item*
-Create_func_inet_aton::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_inet_aton(thd, arg1);
-}
-
-
-Create_func_is_ipv4 Create_func_is_ipv4::s_singleton;
-
-Item*
-Create_func_is_ipv4::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_is_ipv4(thd, arg1);
-}
-
-
-Create_func_is_ipv6 Create_func_is_ipv6::s_singleton;
-
-Item*
-Create_func_is_ipv6::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_is_ipv6(thd, arg1);
-}
-
-
-Create_func_is_ipv4_compat Create_func_is_ipv4_compat::s_singleton;
-
-Item*
-Create_func_is_ipv4_compat::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_is_ipv4_compat(thd, arg1);
-}
-
-
-Create_func_is_ipv4_mapped Create_func_is_ipv4_mapped::s_singleton;
-
-Item*
-Create_func_is_ipv4_mapped::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_is_ipv4_mapped(thd, arg1);
-}
-
-
 Create_func_instr Create_func_instr::s_singleton;
 
 Item*
@@ -5681,14 +5505,6 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("GREATEST") }, BUILDER(Create_func_greatest)},
   { { STRING_WITH_LEN("HEX") }, BUILDER(Create_func_hex)},
   { { STRING_WITH_LEN("IFNULL") }, BUILDER(Create_func_ifnull)},
-  { { STRING_WITH_LEN("INET_ATON") }, BUILDER(Create_func_inet_aton)},
-  { { STRING_WITH_LEN("INET_NTOA") }, BUILDER(Create_func_inet_ntoa)},
-  { { STRING_WITH_LEN("INET6_ATON") }, BUILDER(Create_func_inet6_aton)},
-  { { STRING_WITH_LEN("INET6_NTOA") }, BUILDER(Create_func_inet6_ntoa)},
-  { { STRING_WITH_LEN("IS_IPV4") }, BUILDER(Create_func_is_ipv4)},
-  { { STRING_WITH_LEN("IS_IPV6") }, BUILDER(Create_func_is_ipv6)},
-  { { STRING_WITH_LEN("IS_IPV4_COMPAT") }, BUILDER(Create_func_is_ipv4_compat)},
-  { { STRING_WITH_LEN("IS_IPV4_MAPPED") }, BUILDER(Create_func_is_ipv4_mapped)},
   { { STRING_WITH_LEN("INSTR") }, BUILDER(Create_func_instr)},
   { { STRING_WITH_LEN("ISNULL") }, BUILDER(Create_func_isnull)},
   { { STRING_WITH_LEN("IS_FREE_LOCK") }, BUILDER(Create_func_is_free_lock)},

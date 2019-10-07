@@ -116,9 +116,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_mode.cc
            ../sql/sql_type_json.cc
            ../sql/sql_type_geom.cc
-           ../sql/sql_type_inet.cc
            ../sql/table_cache.cc ../sql/mf_iocache_encr.cc
-           ../sql/item_inetfunc.cc
            ../sql/wsrep_dummy.cc ../sql/encryption.cc
            ../sql/item_windowfunc.cc ../sql/sql_window.cc
            ../sql/sql_cte.cc
