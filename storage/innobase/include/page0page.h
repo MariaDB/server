@@ -697,6 +697,24 @@ inline bool page_has_siblings(const page_t* page)
 		!= ~uint64_t(0);
 }
 
+/** Determine whether a page has a predecessor.
+@param[in]	page	page frame
+@return true if the page has a predecessor */
+inline bool page_has_prev(const page_t* page)
+{
+	return *reinterpret_cast<const uint32_t*>(page + FIL_PAGE_PREV)
+		!= FIL_NULL;
+}
+
+/** Determine whether a page has a successor.
+@param[in]	page	page frame
+@return true if the page has a successor */
+inline bool page_has_next(const page_t* page)
+{
+	return *reinterpret_cast<const uint32_t*>(page + FIL_PAGE_NEXT)
+		!= FIL_NULL;
+}
+
 /************************************************************//**
 Gets the pointer to the next record on the page.
 @return pointer to next record */

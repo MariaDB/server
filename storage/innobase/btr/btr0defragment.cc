@@ -602,7 +602,7 @@ btr_defragment_n_pages(
 	}
 
 	if (n_pages == 1) {
-		if (btr_page_get_prev(first_page, mtr) == FIL_NULL) {
+		if (!page_has_prev(first_page)) {
 			/* last page in the index */
 			if (dict_index_get_page(index)
 			    == page_get_page_no(first_page))

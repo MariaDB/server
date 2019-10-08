@@ -1076,7 +1076,7 @@ dict_stats_analyze_index_level(
 	ut_a(btr_page_get_level(page, mtr) == level);
 
 	/* there should not be any pages on the left */
-	ut_a(btr_page_get_prev(page, mtr) == FIL_NULL);
+	ut_a(!page_has_prev(page));
 
 	/* check whether the first record on the leftmost page is marked
 	as such, if we are on a non-leaf level */
@@ -1689,7 +1689,7 @@ dict_stats_analyze_index_for_n_prefix(
 	ut_a(btr_page_get_level(page, mtr) == n_diff_data->level);
 
 	/* there should not be any pages on the left */
-	ut_a(btr_page_get_prev(page, mtr) == FIL_NULL);
+	ut_a(!page_has_prev(page));
 
 	/* check whether the first record on the leftmost page is marked
 	as such; we are on a non-leaf level */

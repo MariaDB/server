@@ -1063,7 +1063,7 @@ func_start:
 
 	page_no = block->page.id.page_no();
 
-	if (btr_page_get_prev(page, mtr) == FIL_NULL && !page_is_leaf(page)) {
+	if (!page_has_prev(page) && !page_is_leaf(page)) {
 		first_rec = page_rec_get_next(
 			page_get_infimum_rec(buf_block_get_frame(block)));
 	}
