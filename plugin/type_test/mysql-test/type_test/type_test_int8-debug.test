@@ -9,9 +9,11 @@
 
 SET @old_debug_dbug=@@debug_dbug;
 SET @@debug_dbug="+d,frm_data_type_info";
+--disable_ps_protocol
 CREATE TABLE t1 (a TEST_INT8);
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+--enable_ps_protocol
 SET @@debug_dbug=@old_debug_dbug;
 
 
