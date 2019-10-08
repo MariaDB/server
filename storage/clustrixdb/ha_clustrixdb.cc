@@ -871,7 +871,7 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
     goto err;
 
 err:
-  if (rowdata);
+  if (rowdata)
     my_free(rowdata);
 
   if (packed_key)
