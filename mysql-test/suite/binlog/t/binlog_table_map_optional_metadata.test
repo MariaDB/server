@@ -114,34 +114,33 @@ INSERT INTO t1 VALUES(1);
 --source include/print_optional_metadata.inc
 DROP TABLE t1;
 RESET MASTER;
-# Work around the memory leak of MDEV-20582
-#--echo #
-#--echo # Charsets can be printed correctly
-#--echo #
-#CREATE TABLE t1(c_char_utf8 CHAR(10) CHARSET utf8,
-#  c_varchar_utf8 VARCHAR(10) CHARSET utf8,
-#  c_text_utf8 TEXT CHARSET utf8);
-#
-#INSERT INTO t1 VALUES("1", "2", "3");
-#
-## Charset set is printed with Default charset
-#--source include/print_optional_metadata.inc
-#
-#DROP TABLE t1;
-#RESET MASTER;
-#
-## Test collation number less than 250 and collation number greater than 250
-#CREATE TABLE t1(c_utf8mb4_520 CHAR(10) CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci,
-#  c_utf8mb4_0900 VARCHAR(10) CHARSET utf8mb4 COLLATE utf8mb4_polish_ci,
-#  c_utf8mb4_def TEXT CHARSET utf8mb4);
-#
-#INSERT INTO t1 VALUES("1", "2", "3");
+--echo #
+--echo # Charsets can be printed correctly
+--echo #
+CREATE TABLE t1(c_char_utf8 CHAR(10) CHARSET utf8,
+  c_varchar_utf8 VARCHAR(10) CHARSET utf8,
+  c_text_utf8 TEXT CHARSET utf8);
 
-## Charset set is printed without default charset
-#--source include/print_optional_metadata.inc
-#
-#DROP TABLE t1;
-#RESET MASTER;
+INSERT INTO t1 VALUES("1", "2", "3");
+
+# Charset set is printed with Default charset
+--source include/print_optional_metadata.inc
+
+DROP TABLE t1;
+RESET MASTER;
+
+# Test collation number less than 250 and collation number greater than 250
+CREATE TABLE t1(c_utf8mb4_520 CHAR(10) CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  c_utf8mb4_0900 VARCHAR(10) CHARSET utf8mb4 COLLATE utf8mb4_polish_ci,
+  c_utf8mb4_def TEXT CHARSET utf8mb4);
+
+INSERT INTO t1 VALUES("1", "2", "3");
+
+# Charset set is printed without default charset
+--source include/print_optional_metadata.inc
+
+DROP TABLE t1;
+RESET MASTER;
 
 --echo #
 --echo # Blob and binary columns can be printed correctly
