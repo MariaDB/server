@@ -24,6 +24,16 @@
 #include <mysql/plugin_function_collection.h>
 
 
+Type_handler_inet6 type_handler_inet6;
+
+
+static struct st_mariadb_data_type plugin_descriptor_type_inet6=
+{
+  MariaDB_DATA_TYPE_INTERFACE_VERSION,
+  &type_handler_inet6
+};
+
+
 /*************************************************************************/
 
 class Create_func_inet_ntoa : public Create_func_arg1
@@ -178,6 +188,21 @@ maria_declare_plugin(type_inet)
   "func_inet",                  // plugin name
   "MariaDB Corporation",        // plugin author
   "Function collection test",   // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB veriosn
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_DATA_TYPE_PLUGIN,     // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_type_inet6,// pointer to type-specific plugin descriptor
+  type_handler_inet6.name().ptr(),// plugin name
+  "MariaDB Corporation",        // plugin author
+  "Data type TEST_INT8",        // the plugin description
   PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
   0,                            // Pointer to plugin initialization function
   0,                            // Pointer to plugin deinitialization function

@@ -405,7 +405,7 @@ bool get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
                     uchar *max_key,uint max_key_flag);
 static bool eq_tree(SEL_ARG* a,SEL_ARG *b);
 
-static SEL_ARG null_element(SEL_ARG::IMPOSSIBLE);
+SEL_ARG null_element(SEL_ARG::IMPOSSIBLE);
 static bool null_part_in_key(KEY_PART *key_part, const uchar *key,
                              uint length);
 static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);

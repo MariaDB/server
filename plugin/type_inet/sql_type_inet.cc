@@ -510,6 +510,17 @@ size_t Inet6::to_string(char *dst, size_t dstsize) const
 
 bool Inet6::make_from_item(Item *item)
 {
+  if (item->type_handler() == &type_handler_inet6)
+  {
+    Native tmp(m_buffer, sizeof(m_buffer));
+    bool rc= item->val_native(current_thd, &tmp);
+    if (rc)
+      return true;
+    DBUG_ASSERT(tmp.length() == sizeof(m_buffer));
+    if (tmp.ptr() != m_buffer)
+      memcpy(m_buffer, tmp.ptr(), sizeof(m_buffer));
+    return false;
+  }
   StringBufferInet6 tmp;
   String *str= item->val_str(&tmp);
   return str ? make_from_character_or_binary_string(str) : true;
@@ -518,7 +529,7 @@ bool Inet6::make_from_item(Item *item)
 
 bool Inet6::make_from_character_or_binary_string(const String *str)
 {
-  static Name name= Name(STRING_WITH_LEN("inet6"));
+  static Name name= type_handler_inet6.name();
   if (str->charset() != &my_charset_bin)
   {
     bool rc= character_string_to_ipv6(str->ptr(), str->length(),
@@ -540,3 +551,923 @@ bool Inet6::make_from_character_or_binary_string(const String *str)
   memcpy(m_buffer, str->ptr(), sizeof(m_buffer));
   return false;
 };
+
+
+/********************************************************************/
+
+
+class cmp_item_inet6: public cmp_item_scalar
+{
+  Inet6 m_native;
+public:
+  cmp_item_inet6()
+   :cmp_item_scalar(),
+    m_native(Inet6_zero())
+  { }
+  void store_value(Item *item) override
+  {
+    m_native= Inet6(item, &m_null_value);
+  }
+  int cmp_not_null(const Value *val) override
+  {
+    DBUG_ASSERT(!val->is_null());
+    DBUG_ASSERT(val->is_string());
+    Inet6_null tmp(val->m_string);
+    DBUG_ASSERT(!tmp.is_null());
+    return m_native.cmp(tmp);
+  }
+  int cmp(Item *arg) override
+  {
+    Inet6_null tmp(arg);
+    return m_null_value || tmp.is_null() ? UNKNOWN : m_native.cmp(tmp) != 0;
+  }
+  int compare(cmp_item *ci) override
+  {
+    cmp_item_inet6 *tmp= static_cast<cmp_item_inet6*>(ci);
+    DBUG_ASSERT(!m_null_value);
+    DBUG_ASSERT(!tmp->m_null_value);
+    return m_native.cmp(tmp->m_native);
+  }
+  cmp_item *make_same() override
+  {
+    return new cmp_item_inet6();
+  }
+};
+
+
+class Field_inet6: public Field
+{
+  static void set_min_value(char *ptr)
+  {
+    memset(ptr, 0, Inet6::binary_length());
+  }
+  static void set_max_value(char *ptr)
+  {
+    memset(ptr, 0xFF, Inet6::binary_length());
+  }
+  void store_warning(const ErrConv &str,
+                     Sql_condition::enum_warning_level level)
+  {
+    static const Name type_name= type_handler_inet6.name();
+    get_thd()->push_warning_truncated_value_for_field(level, type_name.ptr(),
+                                                      str.ptr(), table->s,
+                                                      field_name.str);
+  }
+  int set_null_with_warn(const ErrConv &str)
+  {
+    store_warning(str, Sql_condition::WARN_LEVEL_WARN);
+    set_null();
+    return 1;
+  }
+  int set_min_value_with_warn(const ErrConv &str)
+  {
+    store_warning(str, Sql_condition::WARN_LEVEL_WARN);
+    set_min_value((char*) ptr);
+    return 1;
+  }
+  int set_max_value_with_warn(const ErrConv &str)
+  {
+    store_warning(str, Sql_condition::WARN_LEVEL_WARN);
+    set_max_value((char*) ptr);
+    return 1;
+  }
+
+public:
+  Field_inet6(const LEX_CSTRING *field_name_arg, const Record_addr &rec)
+    :Field(rec.ptr(), Inet6::max_char_length(),
+           rec.null_ptr(), rec.null_bit(), Field::NONE, field_name_arg)
+  {
+    flags|= BINARY_FLAG | UNSIGNED_FLAG;
+  }
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_inet6;
+  }
+  uint32 max_display_length() const override { return field_length; }
+  bool str_needs_quotes() const override { return true; }
+  const DTCollation &dtcollation() const override
+  {
+    static DTCollation_numeric c;
+    return c;
+  }
+  CHARSET_INFO *charset(void) const override { return &my_charset_numeric; }
+  const CHARSET_INFO *sort_charset(void) const override { return &my_charset_bin; }
+  /**
+    This makes client-server protocol convert the value according
+    to @@character_set_client.
+  */
+  bool binary() const override { return false; }
+  enum ha_base_keytype key_type() const override { return HA_KEYTYPE_BINARY; }
+
+  bool is_equal(const Column_definition &new_field) const override
+  {
+    return new_field.type_handler() == type_handler();
+  }
+  bool eq_def(const Field *field) const override
+  {
+    return Field::eq_def(field);
+  }
+  double pos_in_interval(Field *min, Field *max) override
+  {
+    return pos_in_interval_val_str(min, max, 0);
+  }
+  int cmp(const uchar *a, const uchar *b) const override
+  { return memcmp(a, b, pack_length()); }
+
+  void sort_string(uchar *to, uint length) override
+  {
+    DBUG_ASSERT(length == pack_length());
+    memcpy(to, ptr, length);
+  }
+  uint32 pack_length() const override
+  {
+    return Inet6::binary_length();
+  }
+  uint pack_length_from_metadata(uint field_metadata) const override
+  {
+    return Inet6::binary_length();
+  }
+
+  void sql_type(String &str) const override
+  {
+    static Name name= type_handler_inet6.name();
+    str.set_ascii(name.ptr(), name.length());
+  }
+
+  bool validate_value_in_record(THD *thd, const uchar *record) const override
+  {
+    return false;
+  }
+
+  String *val_str(String *val_buffer,
+                  String *val_ptr __attribute__((unused))) override
+  {
+    DBUG_ASSERT(marked_for_read());
+    Inet6_null tmp((const char *) ptr, pack_length());
+    return tmp.to_string(val_buffer) ? NULL : val_buffer;
+  }
+
+  my_decimal *val_decimal(my_decimal *to) override
+  {
+    DBUG_ASSERT(marked_for_read());
+    my_decimal_set_zero(to);
+    return to;
+  }
+
+  longlong val_int() override
+  {
+    DBUG_ASSERT(marked_for_read());
+    return 0;
+  }
+
+  double val_real() override
+  {
+    DBUG_ASSERT(marked_for_read());
+    return 0;
+  }
+
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  {
+    DBUG_ASSERT(marked_for_read());
+    set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
+    return false;
+  }
+
+  bool val_bool(void) override
+  {
+    DBUG_ASSERT(marked_for_read());
+    return !Inet6::only_zero_bytes((const char *) ptr, Inet6::binary_length());
+  }
+
+  int store_native(const Native &value) override
+  {
+    DBUG_ASSERT(marked_for_write_or_computed());
+    DBUG_ASSERT(value.length() == Inet6::binary_length());
+    memcpy(ptr, value.ptr(), value.length());
+    return 0;
+  }
+
+  int store(const char *str, size_t length, CHARSET_INFO *cs) override
+  {
+    DBUG_ASSERT(marked_for_write_or_computed());
+    Inet6_null tmp= cs == &my_charset_bin ?
+                    Inet6_null(str, length) :
+                    Inet6_null(str, length, cs);
+    if (tmp.is_null())
+    {
+      return maybe_null() ?
+             set_null_with_warn(ErrConvString(str, length, cs)) :
+             set_min_value_with_warn(ErrConvString(str, length, cs));
+    }
+    tmp.to_binary((char *) ptr, Inet6::binary_length());
+    return 0;
+  }
+
+  int store_hex_hybrid(const char *str, size_t length) override
+  {
+    return store(str, length, &my_charset_bin);
+  }
+
+  int store_decimal(const my_decimal *num) override
+  {
+    DBUG_ASSERT(marked_for_write_or_computed());
+    return set_min_value_with_warn(ErrConvDecimal(num));
+  }
+
+  int store(longlong nr, bool unsigned_flag) override
+  {
+    DBUG_ASSERT(marked_for_write_or_computed());
+    return set_min_value_with_warn(
+            ErrConvInteger(Longlong_hybrid(nr, unsigned_flag)));
+  }
+
+  int store(double nr) override
+  {
+    DBUG_ASSERT(marked_for_write_or_computed());
+    return set_min_value_with_warn(ErrConvDouble(nr));
+  }
+
+  int store_time_dec(const MYSQL_TIME *ltime, uint dec) override
+  {
+    DBUG_ASSERT(marked_for_write_or_computed());
+    return set_min_value_with_warn(ErrConvTime(ltime));
+  }
+
+  /*** Field conversion routines ***/
+  int store_field(Field *from) override
+  {
+    // INSERT INTO t1 (inet6_field) SELECT different_field_type FROM t2;
+    return from->save_in_field(this);
+  }
+  int save_in_field(Field *to) override
+  {
+    // INSERT INTO t2 (different_field_type) SELECT inet6_field FROM t1;
+    switch (to->cmp_type()) {
+    case INT_RESULT:
+    case REAL_RESULT:
+    case DECIMAL_RESULT:
+    case TIME_RESULT:
+    {
+      my_decimal buff;
+      return to->store_decimal(val_decimal(&buff));
+    }
+    case STRING_RESULT:
+      return save_in_field_str(to);
+    case ROW_RESULT:
+      break;
+    }
+    DBUG_ASSERT(0);
+    to->reset();
+    return 0;
+  }
+  Copy_func *get_copy_func(const Field *from) const override
+  {
+    // ALTER to INET6 from another field
+    /*
+    if (eq_def(from))
+      return get_identical_copy_func();
+    switch (from->cmp_type()) {
+    case STRING_RESULT:
+      return do_field_string;
+    case TIME_RESULT:
+      return do_field_temporal;
+    case DECIMAL_RESULT:
+      return do_field_decimal;
+    case REAL_RESULT:
+      return do_field_real;
+    case INT_RESULT:
+      return do_field_int;
+    case ROW_RESULT:
+      DBUG_ASSERT(0);
+      break;
+    }
+    */
+    return do_field_string;//QQ
+  }
+
+  bool memcpy_field_possible(const Field *from) const override
+  {
+    // INSERT INTO t1 (inet6_field) SELECT field2 FROM t2;
+    return type_handler() == from->type_handler();
+  }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const
+  {
+    if (type_handler() == source.type_handler() ||
+        (source.type_handler() == &type_handler_string &&
+         source.type_handler()->max_display_length_for_field(source) ==
+         Inet6::binary_length()))
+      return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
+    return CONV_TYPE_IMPOSSIBLE;
+  }
+
+  /*** Optimizer routines ***/
+  bool test_if_equality_guarantees_uniqueness(const Item *const_item) const override
+  {
+    /*
+      This condition:
+        WHERE inet6_field=const
+      should return a single distinct value only,
+      as comparison is done according to INET6.
+    */
+    return true;
+  }
+  bool can_be_substituted_to_equal_item(const Context &ctx,
+                                        const Item_equal *item_equal)
+                                        override
+  {
+    switch (ctx.subst_constraint()) {
+    case ANY_SUBST:
+      return ctx.compare_type_handler() == item_equal->compare_type_handler();
+    case IDENTITY_SUBST:
+      return true;
+    }
+    return false;
+  }
+  Item *get_equal_const_item(THD *thd, const Context &ctx,
+                             Item *const_item) override;
+  bool can_optimize_keypart_ref(const Item_bool_func *cond,
+                                const Item *item) const override
+  {
+    /*
+      Mixing of two different non-traditional types is currently prevented.
+      This may change in the future. For example, INET4 and INET6
+      data types can be made comparable.
+    */
+    DBUG_ASSERT(item->type_handler()->is_traditional_scalar_type() ||
+                item->type_handler() == type_handler());
+    return true;
+  }
+  /**
+    Test if Field can use range optimizer for a standard comparison operation:
+      <=, <, =, <=>, >, >=
+    Note, this method does not cover spatial operations.
+  */
+  bool can_optimize_range(const Item_bool_func *cond,
+                          const Item *item,
+                          bool is_eq_func) const override
+  {
+    // See the DBUG_ASSERT comment in can_optimize_keypart_ref()
+    DBUG_ASSERT(item->type_handler()->is_traditional_scalar_type() ||
+                item->type_handler() == type_handler());
+    return true;
+  }
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *prm, KEY_PART *key_part,
+                       const Item_bool_func *cond,
+                       scalar_comparison_op op, Item *value) override
+  {
+    DBUG_ENTER("Field_inet6::get_mm_leaf");
+    if (!can_optimize_scalar_range(prm, key_part, cond, op, value))
+      DBUG_RETURN(0);
+    int err= value->save_in_field_no_warnings(this, 1);
+    if ((op != SCALAR_CMP_EQUAL && is_real_null()) || err < 0)
+      DBUG_RETURN(&null_element);
+    if (err > 0)
+    {
+      if (op == SCALAR_CMP_EQ || op == SCALAR_CMP_EQUAL)
+        DBUG_RETURN(new (prm->mem_root) SEL_ARG_IMPOSSIBLE(this));
+      DBUG_RETURN(NULL); /*  Cannot infer anything */
+    }
+    DBUG_RETURN(stored_field_make_mm_leaf(prm, key_part, op, value));
+  }
+  bool can_optimize_hash_join(const Item_bool_func *cond,
+                                      const Item *item) const override
+  {
+    return can_optimize_keypart_ref(cond, item);
+  }
+  bool can_optimize_group_min_max(const Item_bool_func *cond,
+                                  const Item *const_item) const override
+  {
+    return true;
+  }
+
+  uint row_pack_length() const override { return pack_length(); }
+
+  Binlog_type_info binlog_type_info() const
+  {
+    DBUG_ASSERT(type() == binlog_type());
+    return Binlog_type_info_fixed_string(Field_inet6::binlog_type(),
+                                         Inet6::binary_length(),
+                                         &my_charset_bin);
+  }
+
+  /**********/
+  uint size_of() const override { return sizeof(*this); }
+};
+
+
+class Item_typecast_inet6: public Item_func
+{
+public:
+  Item_typecast_inet6(THD *thd, Item *a) :Item_func(thd, a) {}
+
+  const Type_handler *type_handler() const override
+  { return &type_handler_inet6; }
+
+  enum Functype functype() const override { return CHAR_TYPECAST_FUNC; }
+  bool eq(const Item *item, bool binary_cmp) const override
+  {
+    if (this == item)
+      return true;
+    if (item->type() != FUNC_ITEM ||
+        functype() != ((Item_func*)item)->functype())
+      return false;
+    if (type_handler() != item->type_handler())
+      return false;
+    Item_typecast_inet6 *cast= (Item_typecast_inet6*) item;
+    return args[0]->eq(cast->args[0], binary_cmp);
+  }
+  const char *func_name() const override { return "cast_as_inet6"; }
+  void print(String *str, enum_query_type query_type)
+  {
+    str->append(STRING_WITH_LEN("cast("));
+    args[0]->print(str, query_type);
+    str->append(STRING_WITH_LEN(" as inet6)"));
+  }
+  bool fix_length_and_dec()
+  {
+    Type_std_attributes::operator=(Type_std_attributes_inet6());
+    return false;
+  }
+  String *val_str(String *to)
+  {
+    Inet6_null tmp(args[0]);
+    return (null_value= tmp.is_null() || tmp.to_string(to)) ? NULL : to;
+  }
+  longlong val_int()
+  {
+    return 0;
+  }
+  double val_real()
+  {
+    return 0;
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    my_decimal_set_zero(to);
+    return to;
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  {
+    set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
+    return false;
+  }
+  bool val_native(THD *thd, Native *to)
+  {
+    Inet6_null tmp(args[0]);
+    return null_value= tmp.is_null() || tmp.to_native(to);
+  }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_typecast_inet6>(thd, this); }
+};
+
+
+class Item_cache_inet6: public Item_cache
+{
+  NativeBufferInet6 m_value;
+public:
+  Item_cache_inet6(THD *thd)
+   :Item_cache(thd, &type_handler_inet6)
+  { }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_cache_inet6>(thd, this); }
+  bool cache_value()
+  {
+    if (!example)
+      return false;
+    value_cached= true;
+    null_value= example->val_native_with_conversion_result(current_thd,
+                                                           &m_value,
+                                                           type_handler());
+    return true;
+  }
+  String* val_str(String *to)
+  {
+    if (!has_value())
+      return NULL;
+    Inet6_null tmp(m_value.ptr(), m_value.length());
+    return tmp.is_null() || tmp.to_string(to) ? NULL : to;
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    if (!has_value())
+      return NULL;
+    my_decimal_set_zero(to);
+    return to;
+  }
+  longlong val_int()
+  {
+    if (!has_value())
+      return 0;
+    return 0;
+  }
+  double val_real()
+  {
+    if (!has_value())
+      return 0;
+    return 0;
+  }
+  longlong val_datetime_packed(THD *thd)
+  {
+    DBUG_ASSERT(0);
+    if (!has_value())
+      return 0;
+    return 0;
+  }
+  longlong val_time_packed(THD *thd)
+  {
+    DBUG_ASSERT(0);
+    if (!has_value())
+      return 0;
+    return 0;
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  {
+    if (!has_value())
+      return true;
+    set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
+    return false;
+  }
+  bool val_native(THD *thd, Native *to)
+  {
+    if (!has_value())
+      return true;
+    return to->copy(m_value.ptr(), m_value.length());
+  }
+};
+
+
+class Item_literal_inet6: public Item_literal
+{
+  Inet6 m_value;
+public:
+  Item_literal_inet6(THD *thd)
+   :Item_literal(thd),
+    m_value(Inet6_zero())
+  { }
+  Item_literal_inet6(THD *thd, const Inet6 &value)
+   :Item_literal(thd),
+    m_value(value)
+  { }
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_inet6;
+  }
+  longlong val_int() override
+  {
+    return 0;
+  }
+  double val_real() override
+  {
+    return 0;
+  }
+  String *val_str(String *to) override
+  {
+    return m_value.to_string(to) ? NULL : to;
+  }
+  my_decimal *val_decimal(my_decimal *to) override
+  {
+    my_decimal_set_zero(to);
+    return to;
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  {
+    set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
+    return false;
+  }
+  bool val_native(THD *thd, Native *to) override
+  {
+    return m_value.to_native(to);
+  }
+  void print(String *str, enum_query_type query_type) override
+  {
+    StringBufferInet6 tmp;
+    m_value.to_string(&tmp);
+    str->append("INET6'");
+    str->append(tmp);
+    str->append('\'');
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_literal_inet6>(thd, this); }
+
+  // Non-overriding methods
+  void set_value(const Inet6 &value)
+  {
+    m_value= value;
+  }
+};
+
+
+class in_inet6 :public in_vector
+{
+  Inet6 m_value;
+  static int cmp_inet6(void *cmp_arg, Inet6 *a, Inet6 *b)
+  {
+    return a->cmp(*b);
+  }
+public:
+  in_inet6(THD *thd, uint elements)
+   :in_vector(thd, elements, sizeof(Inet6), (qsort2_cmp) cmp_inet6, 0),
+    m_value(Inet6_zero())
+  { }
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_inet6;
+  }
+  void set(uint pos, Item *item) override
+  {
+    Inet6 *buff= &((Inet6 *) base)[pos];
+    Inet6_null value(item);
+    if (value.is_null())
+      *buff= Inet6_zero();
+    else
+      *buff= value;
+  }
+  uchar *get_value(Item *item) override
+  {
+    Inet6_null value(item);
+    if (value.is_null())
+      return 0;
+    m_value= value;
+    return (uchar *) &m_value;
+  }
+  Item* create_item(THD *thd) override
+  {
+    return new (thd->mem_root) Item_literal_inet6(thd);
+  }
+  void value_to_item(uint pos, Item *item) override
+  {
+    const Inet6 &buff= (((Inet6*) base)[pos]);
+    static_cast<Item_literal_inet6*>(item)->set_value(buff);
+  }
+};
+
+
+bool
+Type_handler_inet6::character_or_binary_string_to_native(THD *thd,
+                                                         const String *str,
+                                                         Native *to) const
+{
+  if (str->charset() == &my_charset_bin)
+  {
+    // Convert from a binary string
+    if (str->length() != Inet6::binary_length() ||
+        to->copy(str->ptr(), str->length()))
+    {
+      thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                    name().ptr(),
+                                    ErrConvString(str).ptr());
+      return true;
+    }
+    return false;
+  }
+  // Convert from a character string
+  Inet6_null tmp(*str);
+  if (tmp.is_null())
+    thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                  name().ptr(),
+                                  ErrConvString(str).ptr());
+  return tmp.is_null() || tmp.to_native(to);
+}
+
+
+bool
+Type_handler_inet6::Item_save_in_value(THD *thd,
+                                       Item *item,
+                                       st_value *value) const
+{
+  value->m_type= DYN_COL_STRING;
+  String *str= item->val_str(&value->m_string);
+  if (str != &value->m_string && !item->null_value)
+  {
+    // "item" returned a non-NULL value
+    if (Inet6_null(*str).is_null())
+    {
+      /*
+        The value was not-null, but conversion to INET6 failed:
+          SELECT a, DECODE_ORACLE(inet6col, 'garbage', '<NULL>', '::01', '01')
+          FROM t1;
+      */
+      thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                    name().ptr(),
+                                    ErrConvString(str).ptr());
+      value->m_type= DYN_COL_NULL;
+      return true;
+    }
+    // "item" returned a non-NULL value, and it was a valid INET6
+    value->m_string.set(str->ptr(), str->length(), str->charset());
+  }
+  return check_null(item, value);
+}
+
+
+void Type_handler_inet6::Item_param_setup_conversion(THD *thd,
+                                                     Item_param *param) const
+{
+  param->setup_conversion_string(thd, thd->variables.character_set_client);
+}
+
+
+void Type_handler_inet6::make_sort_key(uchar *to, Item *item,
+                                       const SORT_FIELD_ATTR *sort_field,
+                                       Sort_param *param) const
+{
+  DBUG_ASSERT(item->type_handler() == this);
+  NativeBufferInet6 tmp;
+  item->val_native_result(current_thd, &tmp);
+  if (item->maybe_null)
+  {
+    if (item->null_value)
+    {
+      memset(to, 0, Inet6::binary_length() + 1);
+      return;
+    }
+    *to++= 1;
+  }
+  DBUG_ASSERT(!item->null_value);
+  DBUG_ASSERT(Inet6::binary_length() == tmp.length());
+  DBUG_ASSERT(Inet6::binary_length() == sort_field->length);
+  memcpy(to, tmp.ptr(), tmp.length());
+}
+
+
+void Type_handler_inet6::sortlength(THD *thd,
+                                    const Type_std_attributes *item,
+                                    SORT_FIELD_ATTR *attr) const
+{
+  attr->length= Inet6::binary_length();
+  attr->suffix_length= 0;
+}
+
+
+cmp_item *Type_handler_inet6::make_cmp_item(THD *thd, CHARSET_INFO *cs) const
+{
+  return new (thd->mem_root) cmp_item_inet6;
+}
+
+
+
+in_vector *
+Type_handler_inet6::make_in_vector(THD *thd, const Item_func_in *func,
+                                   uint nargs) const
+{
+  return new (thd->mem_root) in_inet6(thd, nargs);
+}
+
+
+Item *Type_handler_inet6::create_typecast_item(THD *thd, Item *item,
+                                               const Type_cast_attributes &attr)
+                                               const
+{
+  return new (thd->mem_root) Item_typecast_inet6(thd, item);
+}
+
+
+Item_cache *Type_handler_inet6::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_inet6(thd);
+}
+
+
+Item *
+Type_handler_inet6::make_const_item_for_comparison(THD *thd,
+                                                   Item *src,
+                                                   const Item *cmp) const
+{
+  Inet6_null tmp(src);
+  if (tmp.is_null())
+    return new (thd->mem_root) Item_null(thd, src->name.str);
+  return new (thd->mem_root) Item_literal_inet6(thd, tmp);
+}
+
+
+Item *Field_inet6::get_equal_const_item(THD *thd, const Context &ctx,
+                                        Item *const_item)
+{
+  Inet6_null tmp(const_item);
+  if (tmp.is_null())
+    return NULL;
+  return new (thd->mem_root) Item_literal_inet6(thd, tmp);
+}
+
+
+Field *
+Type_handler_inet6::make_table_field_from_def(
+                                     TABLE_SHARE *share,
+                                     MEM_ROOT *mem_root,
+                                     const LEX_CSTRING *name,
+                                     const Record_addr &addr,
+                                     const Bit_addr &bit,
+                                     const Column_definition_attributes *attr,
+                                     uint32 flags) const
+{
+  return new (mem_root) Field_inet6(name, addr);
+}
+
+
+Field *Type_handler_inet6::make_table_field(MEM_ROOT *root,
+                                            const LEX_CSTRING *name,
+                                            const Record_addr &addr,
+                                            const Type_all_attributes &attr,
+                                            TABLE_SHARE *share) const
+{
+  return new (root) Field_inet6(name, addr);
+}
+
+
+Field *Type_handler_inet6::make_conversion_table_field(MEM_ROOT *root,
+                                                       TABLE *table,
+                                                       uint metadata,
+                                                       const Field *target)
+                                                       const
+{
+  const Record_addr tmp(NULL, Bit_addr(true));
+  return new (table->in_use->mem_root) Field_inet6(&empty_clex_str, tmp);
+}
+
+
+/***************************************************************/
+
+
+class Type_collection_inet: public Type_collection
+{
+  const Type_handler *aggregate_common(const Type_handler *a,
+                                       const Type_handler *b) const
+  {
+    if (a == b)
+      return a;
+    return NULL;
+  }
+  const Type_handler *aggregate_if_string(const Type_handler *a,
+                                          const Type_handler *b) const
+  {
+    static const Type_aggregator::Pair agg[]=
+    {
+      {&type_handler_inet6, &type_handler_null,        &type_handler_inet6},
+      {&type_handler_inet6, &type_handler_varchar,     &type_handler_inet6},
+      {&type_handler_inet6, &type_handler_string,      &type_handler_inet6},
+      {&type_handler_inet6, &type_handler_tiny_blob,   &type_handler_inet6},
+      {&type_handler_inet6, &type_handler_blob,        &type_handler_inet6},
+      {&type_handler_inet6, &type_handler_medium_blob, &type_handler_inet6},
+      {&type_handler_inet6, &type_handler_long_blob,   &type_handler_inet6},
+      {&type_handler_inet6, &type_handler_hex_hybrid,  &type_handler_inet6},
+      {NULL,NULL,NULL}
+    };
+    return Type_aggregator::find_handler_in_array(agg, a, b, true);
+  }
+public:
+  const Type_handler *aggregate_for_result(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    const Type_handler *h;
+    if ((h= aggregate_common(a, b)) ||
+        (h= aggregate_if_string(a, b)))
+      return h;
+    return NULL;
+  }
+
+  const Type_handler *aggregate_for_min_max(const Type_handler *a,
+                                            const Type_handler *b)
+                                            const override
+  {
+    return aggregate_for_result(a, b);
+  }
+
+  const Type_handler *aggregate_for_comparison(const Type_handler *a,
+                                               const Type_handler *b)
+                                               const override
+  {
+    if (const Type_handler *h= aggregate_common(a, b))
+      return h;
+    static const Type_aggregator::Pair agg[]=
+    {
+      {&type_handler_inet6, &type_handler_null,      &type_handler_inet6},
+      {&type_handler_inet6, &type_handler_long_blob, &type_handler_inet6},
+      {NULL,NULL,NULL}
+    };
+    return Type_aggregator::find_handler_in_array(agg, a, b, true);
+  }
+
+  const Type_handler *aggregate_for_num_op(const Type_handler *a,
+                                           const Type_handler *b)
+                                           const override
+  {
+    return NULL;
+  }
+
+  const Type_handler *handler_by_name(const LEX_CSTRING &name) const override
+  {
+    if (type_handler_inet6.name().eq(name))
+      return &type_handler_inet6;
+    return NULL;
+  }
+};
+
+
+const Type_collection *Type_handler_inet6::type_collection() const
+{
+  static Type_collection_inet type_collection_inet;
+  return &type_collection_inet;
+}

@@ -6731,7 +6731,7 @@ get_innobase_type_from_mysql_type(
 		}
 	case MYSQL_TYPE_BIT:
 	case MYSQL_TYPE_STRING:
-		if (field->binary()) {
+		if (field->binary() || field->key_type() == HA_KEYTYPE_BINARY) {
 			return(DATA_FIXBINARY);
 		} else if (field->charset() == &my_charset_latin1) {
 			return(DATA_CHAR);

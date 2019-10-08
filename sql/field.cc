@@ -7525,16 +7525,25 @@ Field_string::unpack(uchar *to, const uchar *from, const uchar *from_end,
 
    @returns number of bytes written to metadata_ptr
 */
+
+Binlog_type_info_fixed_string::Binlog_type_info_fixed_string(uchar type_code,
+                                                             uint32 octets,
+                                                             CHARSET_INFO *cs)
+ :Binlog_type_info(type_code, 0, 2, cs)
+{
+  DBUG_ASSERT(octets < 1024);
+  DBUG_ASSERT((type_code & 0xF0) == 0xF0);
+  DBUG_PRINT("debug", ("octets: %u, type_code: %u", octets, type_code));
+  m_metadata= (type_code ^ ((octets & 0x300) >> 4)) +
+              (((uint)(octets & 0xFF)) << 8);
+}
+
+
 Binlog_type_info Field_string::binlog_type_info() const
 {
-  uint16 a;
-  DBUG_ASSERT(field_length < 1024);
-  DBUG_ASSERT((real_type() & 0xF0) == 0xF0);
-  DBUG_PRINT("debug", ("field_length: %u, real_type: %u",
-                     field_length, real_type()));
-  a= (real_type() ^ ((field_length & 0x300) >> 4)) + (((uint)(field_length & 0xFF)) << 8);
   DBUG_ASSERT(Field_string::type() == binlog_type());
-  return Binlog_type_info(Field_string::type(), a, 2, charset());
+  return Binlog_type_info_fixed_string(Field_string::binlog_type(),
+                                       field_length, charset());
 }
 
 

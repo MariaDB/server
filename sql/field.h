@@ -719,6 +719,16 @@ public:
   { return alloc_root(mem_root, size); }
 };
 
+
+class Binlog_type_info_fixed_string: public Binlog_type_info
+{
+public:
+  Binlog_type_info_fixed_string(uchar type_code,
+                                uint32 octet_length,
+                                CHARSET_INFO *cs);
+};
+
+
 class Field: public Value_source
 {
   Field(const Item &);				/* Prevent use of these */
