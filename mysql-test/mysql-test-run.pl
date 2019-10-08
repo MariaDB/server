@@ -4996,18 +4996,31 @@ sub check_expected_crash_and_restart {
 	}
 
 	# Ignore any partial or unknown command
-	next unless $last_line =~ /^restart/;
+	next unless $last_line =~ /^(restart|try)/;
 	# If last line begins "restart:", the rest of the line is read as
         # extra command line options to add to the restarted mysqld.
         # Anything other than 'wait' or 'restart:' (with a colon) will
         # result in a restart with original mysqld options.
+	my $try=0;
 	if ($last_line =~ /restart:(.+)/) {
 	  my @rest_opt= split(' ', $1);
 	  $mysqld->{'restart_opts'}= \@rest_opt;
+	} elsif ($last_line =~ /try:(.+)/) {
+	  my @rest_opt= split(' ', $1);
+	  $mysqld->{'restart_opts'}= \@rest_opt;
+	  $try=1;
 	} else {
 	  delete $mysqld->{'restart_opts'};
 	}
-	unlink($expect_file);
+
+	if ($try == 1) {
+          my $handle;
+          open ($handle,'>',$expect_file) or die("Cant open expect file for write");
+          print $handle "wait";
+          close ($handle);
+	} else {
+	   unlink($expect_file);
+	}
 
 	# Start server with same settings as last time
 	mysqld_start($mysqld, $mysqld->{'started_opts'});
