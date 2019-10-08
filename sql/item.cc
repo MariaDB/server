@@ -5018,8 +5018,8 @@ void mark_select_range_as_dependent(THD *thd, SELECT_LEX *last_select,
     resolving)
   */
   SELECT_LEX *previous_select= current_sel;
-  for (; previous_select->outer_select() != last_select;
-       previous_select= previous_select->outer_select())
+  for (; previous_select->context.outer_select() != last_select;
+       previous_select= previous_select->context.outer_select())
   {
     Item_subselect *prev_subselect_item=
       previous_select->master_unit()->item;
