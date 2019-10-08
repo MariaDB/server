@@ -148,7 +148,7 @@ int clustrix_connection::connect()
 
 int clustrix_connection::begin_command(uchar command)
 {
-  assert(has_transaction);
+  assert(command == CLUSTRIX_TRANSACTION_CMD || has_transaction);
   command_length = 0;
   int error_code = 0;
   if ((error_code = add_command_operand_uchar(command)))
@@ -192,7 +192,6 @@ int clustrix_connection::read_query_response()
     return error_code;
   }
 
-  auto_commit_closed();
   return 0;
 }
 
@@ -205,8 +204,10 @@ int clustrix_connection::send_transaction_cmd()
   int error_code;
   if ((error_code = begin_command(CLUSTRIX_TRANSACTION_CMD)))
     DBUG_RETURN(error_code);
+
   if ((error_code = send_command()))
     DBUG_RETURN(error_code);
+
   if ((error_code = read_query_response()))
     DBUG_RETURN(mysql_errno(&clustrix_net));
   
@@ -346,6 +347,7 @@ int clustrix_connection::write_row(ulonglong clustrix_table_oid,
   if ((error_code = read_query_response()))
     return error_code;
 
+  auto_commit_closed();
   *last_insert_id = clustrix_net.insert_id;
   return error_code;
 }
@@ -381,6 +383,7 @@ int clustrix_connection::key_update(ulonglong clustrix_table_oid,
   if ((error_code = read_query_response()))
     return error_code;
 
+  auto_commit_closed();
   return error_code;
 
 }
@@ -406,6 +409,7 @@ int clustrix_connection::key_delete(ulonglong clustrix_table_oid,
   if ((error_code = read_query_response()))
     return error_code;
 
+  auto_commit_closed();
   return error_code;
 }
 
@@ -719,9 +723,11 @@ int clustrix_connection::update_query(String &stmt, LEX_CSTRING &dbname,
 
   if ((error_code = send_command()))
     return error_code;
+
   if ((error_code = read_query_response()))
     return error_code;
 
+  auto_commit_closed();
   *affected_rows = clustrix_net.affected_rows;
 
   return 0;
@@ -837,6 +843,7 @@ int clustrix_connection::scan_end(clustrix_connection_cursor *scan)
   if ((error_code = read_query_response()))
     return error_code;
 
+  auto_commit_closed();
   return 0;
 }
 
