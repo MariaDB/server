@@ -409,8 +409,6 @@ int ha_clustrixdb::write_row(const uchar *buf)
   if (!trx)
     return error_code;
 
-  assert(trx->has_open_transaction());
-
   /* Convert the row format to binlog (packed) format */
   uchar *packed_new_row = (uchar*) my_alloca(estimate_row_size(table));
   size_t packed_size = pack_row(table, table->write_set, packed_new_row, buf);
@@ -441,8 +439,6 @@ int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
-
-  assert(trx->has_open_transaction());
 
   size_t row_size = estimate_row_size(table);
   size_t packed_key_len;
@@ -501,8 +497,6 @@ int ha_clustrixdb::delete_row(const uchar *buf)
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
-
-  assert(trx->has_open_transaction());
 
   // The estimate should consider only key fields widths.
   size_t packed_key_len;
@@ -1037,7 +1031,7 @@ static int clustrixdb_commit(handlerton *hton, THD *thd, bool all)
   clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
   assert(trx);
 
-  bool send_cmd;
+  bool send_cmd = FALSE;
   if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
     if (trx->has_open_transaction())
       send_cmd = trx->commit_transaction();
@@ -1057,7 +1051,7 @@ static int clustrixdb_rollback(handlerton *hton, THD *thd, bool all)
   clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
   assert(trx);
 
-  bool send_cmd;
+  bool send_cmd = FALSE;
   if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
     if (trx->has_open_transaction())
       send_cmd = trx->rollback_transaction();
