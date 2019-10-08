@@ -213,18 +213,18 @@ int clustrix_connection::send_transaction_cmd()
   DBUG_RETURN(error_code);
 }
 
-bool clustrix_connection::begin_trans()
+bool clustrix_connection::begin_transaction()
 {
-  DBUG_ENTER("clustrix_connection::begin_trans");
+  DBUG_ENTER("clustrix_connection::begin_transaction");
   assert(!has_transaction);
   commit_flag_next |= CLUSTRIX_TRANS_BEGIN;
   has_transaction = TRUE;
   DBUG_RETURN(TRUE);
 }
 
-bool clustrix_connection::commit_trans()
+bool clustrix_connection::commit_transaction()
 {
-  DBUG_ENTER("clustrix_connection::commit_trans");
+  DBUG_ENTER("clustrix_connection::commit_transaction");
   assert(has_transaction);
 
   if (commit_flag_next & CLUSTRIX_TRANS_BEGIN) {
@@ -234,13 +234,13 @@ bool clustrix_connection::commit_trans()
 
   commit_flag_next |= CLUSTRIX_TRANS_COMMIT;
   has_transaction = FALSE;
-  has_statement_trans = FALSE;
+  has_anonymous_savepoint = FALSE;
   DBUG_RETURN(TRUE);
 }
 
-bool clustrix_connection::rollback_trans()
+bool clustrix_connection::rollback_transaction()
 {
-  DBUG_ENTER("clustrix_connection::rollback_trans");
+  DBUG_ENTER("clustrix_connection::rollback_transaction");
   assert(has_transaction);
 
   if (commit_flag_next & CLUSTRIX_TRANS_BEGIN) {
@@ -250,7 +250,7 @@ bool clustrix_connection::rollback_trans()
 
   commit_flag_next |= CLUSTRIX_TRANS_ROLLBACK;
   has_transaction = FALSE;
-  has_statement_trans = FALSE;
+  has_anonymous_savepoint = FALSE;
   DBUG_RETURN(TRUE);
 }
 
@@ -264,42 +264,42 @@ void clustrix_connection::auto_commit_closed()
   assert(has_transaction);
   if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH) {
     has_transaction = FALSE;
-    has_statement_trans = FALSE;
+    has_anonymous_savepoint = FALSE;
     commit_flag_next &= ~CLUSTRIX_TRANS_COMMIT_ON_FINISH;
   }
 }
 
-bool clustrix_connection::begin_stmt_trans()
+bool clustrix_connection::set_anonymous_savepoint()
 {
-  DBUG_ENTER("clustrix_connection::begin_stmt_trans");
+  DBUG_ENTER("clustrix_connection::set_anonymous_savepoint");
   assert(has_transaction);
-  assert(!has_statement_trans);
+  assert(!has_anonymous_savepoint);
 
   commit_flag_next |= CLUSTRIX_STMT_NEW;
-  has_statement_trans = TRUE;
+  has_anonymous_savepoint = TRUE;
   DBUG_RETURN(TRUE);
 }
 
-bool clustrix_connection::commit_stmt_trans()
+bool clustrix_connection::release_anonymous_savepoint()
 {
-  DBUG_ENTER("clustrix_connection::commit_stmt_trans");
+  DBUG_ENTER("clustrix_connection::release_anonymous_savepoint");
   assert(has_transaction);
-  assert(has_statement_trans);
+  assert(has_anonymous_savepoint);
 
   if (commit_flag_next & CLUSTRIX_STMT_NEW) {
       commit_flag_next &= ~CLUSTRIX_STMT_NEW;
       DBUG_RETURN(FALSE);
   }
 
-  has_statement_trans = FALSE;
+  has_anonymous_savepoint = FALSE;
   DBUG_RETURN(TRUE);
 }
 
-bool clustrix_connection::rollback_stmt_trans()
+bool clustrix_connection::rollback_to_anonymous_savepoint()
 {
-  DBUG_ENTER("clustrix_connection::rollback_stmt_trans");
+  DBUG_ENTER("clustrix_connection::rollback_to_anonymous_savepoint");
   assert(has_transaction);
-  assert(has_statement_trans);
+  assert(has_anonymous_savepoint);
 
   if (commit_flag_next & CLUSTRIX_STMT_NEW) {
       commit_flag_next &= ~CLUSTRIX_STMT_NEW;
@@ -307,7 +307,7 @@ bool clustrix_connection::rollback_stmt_trans()
   }
 
   commit_flag_next |= CLUSTRIX_STMT_ROLLBACK;
-  has_statement_trans = FALSE;
+  has_anonymous_savepoint = FALSE;
   DBUG_RETURN(TRUE);
 }
 

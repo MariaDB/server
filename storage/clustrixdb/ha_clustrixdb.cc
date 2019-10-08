@@ -409,7 +409,7 @@ int ha_clustrixdb::write_row(const uchar *buf)
   if (!trx)
     return error_code;
 
-  assert(trx->has_stmt_trans());
+  assert(trx->has_open_transaction());
 
   /* Convert the row format to binlog (packed) format */
   uchar *packed_new_row = (uchar*) my_alloca(estimate_row_size(table));
@@ -442,7 +442,7 @@ int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
   if (!trx)
     DBUG_RETURN(error_code);
 
-  assert(trx->has_stmt_trans());
+  assert(trx->has_open_transaction());
 
   size_t row_size = estimate_row_size(table);
   size_t packed_key_len;
@@ -502,7 +502,7 @@ int ha_clustrixdb::delete_row(const uchar *buf)
   if (!trx)
     return error_code;
 
-  assert(trx->has_stmt_trans());
+  assert(trx->has_open_transaction());
 
   // The estimate should consider only key fields widths.
   size_t packed_key_len;
@@ -932,11 +932,11 @@ int ha_clustrixdb::external_lock(THD *thd, int lock_type)
   int error_code;
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (lock_type != F_UNLCK) {
-    trx->begin_trans();
+    trx->begin_transaction();
 
     trans_register_ha(thd, FALSE, clustrixdb_hton);
     if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-      trx->begin_stmt_trans();
+      trx->set_anonymous_savepoint();
       trans_register_ha(thd, TRUE, clustrixdb_hton);
     }
   }
@@ -1039,11 +1039,11 @@ static int clustrixdb_commit(handlerton *hton, THD *thd, bool all)
 
   bool send_cmd;
   if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-    if (trx->has_trans())
-      send_cmd = trx->commit_trans();
+    if (trx->has_open_transaction())
+      send_cmd = trx->commit_transaction();
   } else {
-    if (trx->has_stmt_trans())
-      send_cmd = trx->commit_stmt_trans();
+    if (trx->has_open_anonymous_savepoint())
+      send_cmd = trx->release_anonymous_savepoint();
   }
 
   if (send_cmd)
@@ -1059,11 +1059,11 @@ static int clustrixdb_rollback(handlerton *hton, THD *thd, bool all)
 
   bool send_cmd;
   if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-    if (trx->has_trans())
-      send_cmd = trx->rollback_trans();
+    if (trx->has_open_transaction())
+      send_cmd = trx->rollback_transaction();
   } else {
-    if (trx->has_stmt_trans())
-      send_cmd = trx->rollback_stmt_trans();
+    if (trx->has_open_anonymous_savepoint())
+      send_cmd = trx->rollback_to_anonymous_savepoint();
   }
 
   if (send_cmd)

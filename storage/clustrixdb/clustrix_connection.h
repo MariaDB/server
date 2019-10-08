@@ -37,7 +37,7 @@ private:
   size_t reply_length;
 
   bool has_transaction;
-  bool has_statement_trans;
+  bool has_anonymous_savepoint;
   int commit_flag_next;
 
 public:
@@ -46,7 +46,7 @@ public:
   {
     DBUG_ENTER("clustrix_connection::clustrix_connection");
     memset(&clustrix_net, 0, sizeof(MYSQL));
-    has_statement_trans = FALSE;
+    has_anonymous_savepoint = FALSE;
     has_transaction = FALSE;
     commit_flag_next = 0;
     DBUG_VOID_RETURN;
@@ -73,22 +73,21 @@ public:
   void disconnect(bool is_destructor = FALSE);
 
   int send_transaction_cmd();
-  bool begin_trans();
-  bool commit_trans();
-  bool rollback_trans();
+  bool begin_transaction();
+  bool commit_transaction();
+  bool rollback_transaction();
   void auto_commit_next();
-  void auto_commit_closed();
-  inline bool has_trans()
+  inline bool has_open_transaction()
   {
     return has_transaction;
   }
 
-  bool begin_stmt_trans();
-  bool commit_stmt_trans();
-  bool rollback_stmt_trans();
-  inline bool has_stmt_trans()
+  bool set_anonymous_savepoint();
+  bool release_anonymous_savepoint();
+  bool rollback_to_anonymous_savepoint();
+  inline bool has_open_anonymous_savepoint()
   {
-    return has_statement_trans;
+    return has_anonymous_savepoint;
   }
 
   int run_query(String &stmt);
@@ -151,5 +150,6 @@ private:
   int begin_command(uchar command);
   int send_command();
   int read_query_response();
+  void auto_commit_closed();
 };
 #endif  // _clustrix_connection_h
