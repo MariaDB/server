@@ -265,3 +265,5 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 disconnect con1;
 connection default;
 DROP TABLE t1, t2;
+CREATE TABLE t1 (a TEXT, UNIQUE(a)) ENGINE=Aria;
+ERROR 42000: Specified key was too long; max key length is 1000 bytes

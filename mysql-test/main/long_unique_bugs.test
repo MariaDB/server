@@ -317,3 +317,9 @@ INSERT IGNORE INTO t1 VALUES (4, 1)/*4*/;
 --disconnect con1
 --connection default
 DROP TABLE t1, t2;
+
+#
+# MDEV-18791 Wrong error upon creating Aria table with long index on BLOB
+#
+--error ER_TOO_LONG_KEY
+CREATE TABLE t1 (a TEXT, UNIQUE(a)) ENGINE=Aria;

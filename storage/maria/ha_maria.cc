@@ -554,6 +554,11 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
       if (!table_arg->field[field->field_index]->stored_in_db())
       {
         my_free(*recinfo_out);
+        if (table_arg->s->long_unique_table)
+        {
+          my_error(ER_TOO_LONG_KEY, MYF(0), table_arg->file->max_key_length());
+          DBUG_RETURN(HA_ERR_INDEX_COL_TOO_LONG);
+        }
         my_error(ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN, MYF(0));
         DBUG_RETURN(HA_ERR_UNSUPPORTED);
       }
