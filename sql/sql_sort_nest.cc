@@ -82,94 +82,95 @@ Let us divide the implementation details in 3 stages:
 
 OPTIMIZATION STAGE
 
-- We invoke the join planner to get an estimate of the cardinality of the
-  join. This is needed for pushing the LIMIT in different partial plans
-  which can resolve the ORDER BY clause.
+- The join planner is invoked to get an estimate of the cardinality for the
+  join. This is needed to estimate the number of records that are needed to be
+  read from the result of sorting.
 
-- Join planner is invoked again to find the best join order for the tables
-  inside the join. The join planner enumerated various join orders.
-  For each partial plan we try to find out if it can resolve the ORDER BY
-  clause or not.
-  To resolve the ORDER BY clause, equalities from the WHERE clause are also
-  considered.
+- The cost of every potentially usable execution plan such that its first
+  joined tables forms a bush the result of which is sorted in accordance with
+  the ORDER BY clause. The evaluations takes into account that the LIMIT
+  operation can be pushed right after the sort operation.
 
-- After a partial plan that can resolve ORDER BY clause is found, we push
-  the LIMIT to the partial plan.
+  The recursive procedure that enumerates such execution plans considers
+  inserting a sort operation for any partial join prefix that can resolve the
+  ORDER BY clause
+
+  So for each such partial join prefix the procedure considers two options:
+    1) to insert the sort operation immediately
+    2) to add it later after expanding this partial join.
+
+  For a partial prefix that cannot resolve the required ordering the procedure
+  just extends the partial join.
 
 - Access methods that ensure pre-existing ordering are also taken into account
   inside the join planner. There can be indexes on the first non-const table
-  that can resolve the ORDER BY clause. So we push the LIMIT to the first
-  non-const table also.
+  that can resolve the ORDER BY clause. So the LIMIT is also pushed to the
+  first non-const table also in this case.
 
-- For each partial plan that can resolve the ORDER BY clause,
-  we consider 2 cases
-     1) Push the LIMIT at the current partial plan
-     2) Push the LIMIT later
-
-  This helps us to enumerate all plans where on can push LIMIT at different
+  This helps us to enumerate all plans where on can push LIMIT to different
   partial plans. Finally the plan with the lowest cost is picked by the join
-  planner
-
+  planner.
 
 COMPILATION STAGE
 
+A nest is a subset of join tables.
+A materialized nest is a nest whose tables are joined together and result
+is put inside a temporary table.
+Sort nest is a materialized nest which can be sorted.
+
 Preparation of Sort Nest
 
-Let's say we have the best join order as:
+Let's say the best join order is:
 
   t1, t2, t3, t4 .............tk,tk+1.........................tn
   |<---------prefix------------>|<-------suffix--------------->|
-
 
 The array of join_tab structures would look like
 
   t1, t2, t3, t4 .............tk, <sort nest>, tk+1.........................tn
 
-After the best execution plan is picked by the join planner which requires
-a nest for a prefix of tables that can resolve the ORDER BY clause, we want
-to prepare the temporary table that would hold the result of materialization
-of the tables in the prefix.
 
-t1, t2, t3, t4..............tk ======> inner tables of the nest
+Consider the  execution plan finally chosen by the planner.
+This is a linear plan whose first node is a temporary table that is created for
+the sort nest.
 
-To create the temporary table we need a list of Items which we want to store
-inside the temporary table of the nest. Currently this list contains all
+Join used for the sort nest is also executed by a linear plan.
+
+                                  materialize
+  t1, t2, t3, t4..............tk ============> <sort nest>
+  |<---------prefix----------->|
+
+  Here the sort nest is the first node as stated above:
+
+  <sort nest> [sort], tk+1.........................tn
+                      |<-------suffix-------------->|
+
+To create the temporary table of the nest a list of Items that are going to be
+stored inside the temporary table is needed. Currently this list contains
 fields of the inner tables of the nest that have their bitmap read_set set.
-With this list of Items we create the temporary table for the nest.
-Also we create a list of Items for all the fields of the temporary table.
-This list is needed for substitution of items that will be evaluated in the
-POST ORDER BY context.
 
+After the temporary table for the sort nest is created the conditions that can
+be pushed there are extracted from the WHERE clause. Thus the join with the
+sort nest can use only remainder of the extraction. This new condition has to
+be re-bound to refer to the columns of the temporary table  whenever references
+to inner tables of the nest were used.
 
-After the nest for the prefix is prepared, we extract a sub-condition which is
-dependent on the inner tables of the nest from the WHERE clause. This
-condition is then attached to the inner tables of the nest. This condition
-would be evaluated before the ORDER BY clause is applied to the temporary
-table of the nest.
-
-We need to make substitution for items belonging to the inner tables of the
-nest which will be evaluated in the POST ORDER BY context. These items need
-to be substituted with the corresponding items of the temporary table
-of the nest.
-
+Similarly for ON clause, SELECT list, ORDER BY clause and REF items this
+rebinding needs to be done.
 
 EXECUTION STAGE
 
-Let's say we have the best join order as:
+Let's say the best join order is:
 
   t1, t2, t3, t4 .............tk,tk+1.........................tn
   |<---------prefix------------>|<-------suffix--------------->|
 
-  The prefix are the inner table of the sort nest while the suffix are the
+  The prefix are the inner tables of the sort nest while the suffix are the
   tables outside the sort nest.
 
-  As soon as the join execution starts, we compute the partial join for the
-  tables in the prefix and store the result inside the temporary table
-  for the sort nest.
-  Then we sort the temporary table in accordance with the ORDER BY clause.
-  After the sort is performed we read the records from the temporary
-  table of the sort nest one by one and continue the join with the
-  tables in the suffix.
+  On the execution stage, the join executor computes the partial join for the
+  tables in the prefix and stores the result inside the temporary table of the
+  sort nest.
 
   The join execution for this optimization can be split in 3 parts
 
@@ -180,13 +181,13 @@ Let's say we have the best join order as:
 
   b) Sort the <sort nest> in accordance with the ORDER BY clause
 
-  c) Read records from the Filesort buffer one by one and continue join
-     execution with the tables in the suffix
+  c) Read records from the the result of sorting one by one and join
+     with the tables in the suffix with NESTED LOOP JOIN
 
      <sort nest>, tk+1.........................tn
                   |<----------suffix----------->|
 
-     The execution stops as soon as we get LIMIT records in the output.
+    The execution stops as soon as we get LIMIT records in the output.
 
 */
 
