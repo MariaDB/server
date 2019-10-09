@@ -909,6 +909,20 @@ ORDER BY t1.b LIMIT 10;
 eval $query;
 eval EXPLAIN $query;
 
+--echo #
+--echo # Using index condition should not be present
+--echo #
+
+let $query=
+SELECT * FROM t1,t2
+WHERE
+  t1.a=2 AND t2.c >= 1 AND
+  t1.b=t2.b
+ORDER BY t1.b DESC LIMIT 10;
+
+eval $query;
+eval EXPLAIN $query;
+
 drop table t1,t2;
 
 
