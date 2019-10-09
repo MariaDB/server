@@ -3423,16 +3423,18 @@ static size_t calc_field_event_length(const uchar *ptr, uint type, uint meta)
   case MYSQL_TYPE_SET:
     return meta & 0xFF;
   case MYSQL_TYPE_BLOB:
-    if (meta > 4 )
+    switch (meta) {
+    default:
       return 0;
-    if (meta == 1)
+    case 1:
       return *ptr + 1;
-    if (meta == 2)
+    case 2:
       return uint2korr(ptr) + 2;
-    if (meta == 3)
+    case 3:
       return uint3korr(ptr) + 3;
-    if (meta == 4)
+    case 4:
       return uint4korr(ptr) + 4;
+    }
   case MYSQL_TYPE_VARCHAR:
   case MYSQL_TYPE_VAR_STRING:
     length= meta;
