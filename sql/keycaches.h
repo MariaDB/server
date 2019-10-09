@@ -30,7 +30,7 @@ class NAMED_ILINK;
 class NAMED_ILIST: public I_List<NAMED_ILINK>
 {
   public:
-  void delete_elements(void (*free_element)(const char*, uchar*));
+  void delete_elements(void (*free_element)(const char*, void*));
   bool delete_element(const char *name, uint length, void (*free_element)(const char*, uchar*));
 };
 
@@ -42,7 +42,7 @@ extern NAMED_ILIST key_caches;
 KEY_CACHE *create_key_cache(const char *name, uint length);
 KEY_CACHE *get_key_cache(const LEX_STRING *cache_name);
 KEY_CACHE *get_or_create_key_cache(const char *name, uint length);
-void free_key_cache(const char *name, KEY_CACHE *key_cache);
+void free_key_cache(const char *name, void *key_cache);
 bool process_key_caches(process_key_cache_t func, void *param);
 
 /* For Rpl_filter */
@@ -52,7 +52,6 @@ extern NAMED_ILIST rpl_filters;
 Rpl_filter *create_rpl_filter(const char *name, uint length);
 Rpl_filter *get_rpl_filter(LEX_STRING *filter_name);
 Rpl_filter *get_or_create_rpl_filter(const char *name, uint length);
-void free_rpl_filter(const char *name, Rpl_filter *filter);
 void free_all_rpl_filters(void);
 
 #endif /* KEYCACHES_INCLUDED */
