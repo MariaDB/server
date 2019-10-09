@@ -786,7 +786,7 @@ Field::Copy_func *Field_string::get_copy_func(const Field *from) const
 {
   if (from->type() == MYSQL_TYPE_BIT)
     return do_field_int;
-  if (Field_string::real_type() != from->real_type() ||
+  if (Field_string::type_handler() != from->type_handler() ||
       Field_string::charset() != from->charset())
     return do_field_string;
   if (Field_string::pack_length() < from->pack_length())
