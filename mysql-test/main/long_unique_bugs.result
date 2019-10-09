@@ -267,3 +267,6 @@ connection default;
 DROP TABLE t1, t2;
 CREATE TABLE t1 (a TEXT, UNIQUE(a)) ENGINE=Aria;
 ERROR 42000: Specified key was too long; max key length is 1000 bytes
+create table t1(a int, unique(a) using hash);
+#BULK insert > 100 rows (MI_MIN_ROWS_TO_DISABLE_INDEXES)
+drop table t1;

@@ -1750,7 +1750,35 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
     else
     {
       my_bool all_keys= MY_TEST(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
-      mi_disable_indexes_for_rebuild(file, rows, all_keys);
+      MYISAM_SHARE *share=file->s;
+      MI_KEYDEF    *key=share->keyinfo;
+      uint          i;
+     /*
+      Deactivate all indexes that can be recreated fast.
+      These include packed keys on which sorting will use more temporary
+      space than the max allowed file length or for which the unpacked keys
+      will take much more space than packed keys.
+      Note that 'rows' may be zero for the case when we don't know how many
+      rows we will put into the file.
+      Long Unique Index (HA_KEY_ALG_LONG_HASH) will not be disabled because
+      there unique property is enforced at the time of ha_write_row
+      (check_duplicate_long_entries). So we need active index at the time of
+      insert.
+     */
+      DBUG_ASSERT(file->state->records == 0 &&
+                  (!rows || rows >= MI_MIN_ROWS_TO_DISABLE_INDEXES));
+      for (i=0 ; i < share->base.keys ; i++,key++)
+      {
+        if (!(key->flag & (HA_SPATIAL | HA_AUTO_KEY)) &&
+            ! mi_too_big_key_for_sort(key,rows) && file->s->base.auto_key != i+1 &&
+            (all_keys || !(key->flag & HA_NOSAME)) &&
+            table->key_info[i].algorithm != HA_KEY_ALG_LONG_HASH)
+        {
+          mi_clear_key_active(share->state.key_map, i);
+          file->update|= HA_STATE_CHANGED;
+          file->create_unique_index_by_sort= all_keys;
+        }
+      }
     }
   }
   else

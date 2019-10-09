@@ -430,6 +430,7 @@ int sort_ft_buf_flush(MI_SORT_PARAM *sort_param);
 int thr_write_keys(MI_SORT_PARAM *sort_param);
 int sort_write_record(MI_SORT_PARAM *sort_param);
 int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages, ulonglong);
+my_bool mi_too_big_key_for_sort(MI_KEYDEF *key, ha_rows rows);
 
 #ifdef	__cplusplus
 }

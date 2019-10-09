@@ -6441,7 +6441,7 @@ static ha_checksum maria_byte_checksum(const uchar *buf, uint length)
   return crc;
 }
 
-static my_bool maria_too_big_key_for_sort(MARIA_KEYDEF *key, ha_rows rows)
+my_bool maria_too_big_key_for_sort(MARIA_KEYDEF *key, ha_rows rows)
 {
   uint key_maxlength=key->maxlength;
   if (key->flag & HA_FULLTEXT)
@@ -6455,38 +6455,6 @@ static my_bool maria_too_big_key_for_sort(MARIA_KEYDEF *key, ha_rows rows)
 	  ((ulonglong) rows * key_maxlength >
 	   (ulonglong) maria_max_temp_length));
 }
-
-/*
-  Deactivate all indexes that can be recreated fast.
-  These include packed keys on which sorting will use more temporary
-  space than the max allowed file length or for which the unpacked keys
-  will take much more space than packed keys.
-  Note that 'rows' may be zero for the case when we don't know how many
-  rows we will put into the file.
- */
-
-void maria_disable_indexes_for_rebuild(MARIA_HA *info, ha_rows rows,
-                                    my_bool all_keys)
-{
-  MARIA_SHARE *share= info->s;
-  MARIA_KEYDEF    *key=share->keyinfo;
-  uint          i;
-
-  DBUG_ASSERT(share->state.state.records == 0 &&
-              (!rows || rows >= MARIA_MIN_ROWS_TO_DISABLE_INDEXES));
-  for (i=0 ; i < share->base.keys ; i++,key++)
-  {
-    if (!(key->flag & (HA_SPATIAL | HA_AUTO_KEY | HA_RTREE_INDEX)) &&
-        ! maria_too_big_key_for_sort(key,rows) && share->base.auto_key != i+1 &&
-        (all_keys || !(key->flag & HA_NOSAME))) 
-    {
-      maria_clear_key_active(share->state.key_map, i);
-      info->update|= HA_STATE_CHANGED;
-      info->create_unique_index_by_sort= all_keys;
-    }
-  }
-}
-
 
 /*
   Return TRUE if we can use repair by sorting

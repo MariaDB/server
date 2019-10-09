@@ -323,3 +323,20 @@ DROP TABLE t1, t2;
 #
 --error ER_TOO_LONG_KEY
 CREATE TABLE t1 (a TEXT, UNIQUE(a)) ENGINE=Aria;
+
+#
+# MDEV-20001 Potential dangerous regression: INSERT INTO >=100 rows fail for myisam table with HASH indexes
+#
+create table t1(a int, unique(a) using hash);
+--let $count=150
+--let insert_stmt= insert into t1 values(200)
+while ($count)
+{
+  --let $insert_stmt=$insert_stmt,($count)
+  --dec $count
+}
+--disable_query_log
+--echo #BULK insert > 100 rows (MI_MIN_ROWS_TO_DISABLE_INDEXES)
+--eval $insert_stmt
+--enable_query_log
+drop table t1;

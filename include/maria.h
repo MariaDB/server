@@ -396,6 +396,7 @@ int maria_preload(MARIA_HA *info, ulonglong key_map, my_bool ignore_leaves);
 void maria_versioning(MARIA_HA *info, my_bool versioning);
 void maria_ignore_trids(MARIA_HA *info);
 uint maria_max_key_length(void);
+my_bool maria_too_big_key_for_sort(MARIA_KEYDEF *key, ha_rows rows);
 #define maria_max_key_segments() HA_MAX_KEY_SEG
 
 /* fulltext functions */
