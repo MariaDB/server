@@ -3488,6 +3488,7 @@ public:
                           SORT_FIELD_ATTR *attr) const= 0;
 
   virtual uint32 max_display_length(const Item *item) const= 0;
+  virtual uint32 Item_decimal_notation_int_digits(const Item *item) const { return 0; }
   virtual uint32 calc_pack_length(uint32 length) const= 0;
   virtual void Item_update_null_value(Item *item) const= 0;
   virtual bool Item_save_in_value(THD *thd, Item *item, st_value *value) const= 0;
@@ -4236,6 +4237,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
   uint32 max_display_length(const Item *item) const;
+  uint32 Item_decimal_notation_int_digits(const Item *item) const;
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
   bool Item_const_eq(const Item_const *a, const Item_const *b,
@@ -4529,6 +4531,7 @@ public:
   virtual const Type_limits_int *
     type_limits_int_by_unsigned_flag(bool unsigned_flag) const= 0;
   uint32 max_display_length(const Item *item) const;
+  uint32 Item_decimal_notation_int_digits(const Item *item) const;
   bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p) const;
 };
 
@@ -4554,6 +4557,7 @@ public:
                                  const Type_all_attributes *attr,
                                  const st_value *value) const;
   uint32 max_display_length(const Item *item) const;
+  uint32 Item_decimal_notation_int_digits(const Item *item) const;
   bool can_change_cond_ref_to_const(Item_bool_func2 *target,
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
@@ -4638,6 +4642,11 @@ public:
                                          const Schema_specification_st *schema)
                                          const;
   uint32 max_display_length(const Item *item) const;
+/* 
+    The next method returns 309 for long stringified doubles in scientific
+    notation, e.g. FORMAT('1e308', 2).
+*/ 
+  uint32 Item_decimal_notation_int_digits(const Item *item) const { return 309; }
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
@@ -5024,6 +5033,7 @@ public:
     return PROTOCOL_SEND_SHORT;
   }
   uint32 max_display_length(const Item *item) const;
+  uint32 Item_decimal_notation_int_digits(const Item *item) const { return 4; };
   uint32 calc_pack_length(uint32 length) const { return 1; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
@@ -5073,6 +5083,8 @@ public:
     return PROTOCOL_SEND_STRING;
   }
   uint32 max_display_length(const Item *item) const;
+  uint32 Item_decimal_notation_int_digits(const Item *item) const;
+  static uint32 Bit_decimal_notation_int_digits(const Item *item); 
   uint32 calc_pack_length(uint32 length) const { return length / 8; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
@@ -5175,6 +5187,7 @@ public:
   }
   bool type_can_have_auto_increment_attribute() const { return true; }
   uint32 max_display_length(const Item *item) const { return 53; }
+  uint32 Item_decimal_notation_int_digits(const Item *item) const { return 309; }
   uint32 calc_pack_length(uint32 length) const { return sizeof(double); }
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
