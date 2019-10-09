@@ -4615,7 +4615,6 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
 
   DBUG_ASSERT(thd->lex == lex);
   result= open_tables_only_view_structure(thd, table_list, can_deadlock);
-  (void) read_statistics_for_tables_if_needed(thd, table_list);
 
   DEBUG_SYNC(thd, "after_open_table_ignore_flush");
 
