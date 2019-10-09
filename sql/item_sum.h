@@ -355,7 +355,7 @@ public:
     ROW_NUMBER_FUNC, RANK_FUNC, DENSE_RANK_FUNC, PERCENT_RANK_FUNC,
     CUME_DIST_FUNC, NTILE_FUNC, FIRST_VALUE_FUNC, LAST_VALUE_FUNC,
     NTH_VALUE_FUNC, LEAD_FUNC, LAG_FUNC, PERCENTILE_CONT_FUNC,
-    PERCENTILE_DISC_FUNC, SP_AGGREGATE_FUNC
+    PERCENTILE_DISC_FUNC, SP_AGGREGATE_FUNC, JSON_ARRAYAGG_FUNC
   };
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
@@ -428,6 +428,7 @@ public:
     case SUM_BIT_FUNC:
     case UDF_SUM_FUNC:
     case GROUP_CONCAT_FUNC:
+    case JSON_ARRAYAGG_FUNC:
       return true;
     default:
       return false;
@@ -1821,6 +1822,7 @@ C_MODE_END
 
 class Item_func_group_concat : public Item_sum
 {
+protected:
   TMP_TABLE_PARAM *tmp_table_param;
   String result;
   String *separator;
@@ -1866,6 +1868,12 @@ class Item_func_group_concat : public Item_sum
   */
   Item_func_group_concat *original;
 
+  /*
+    Used by Item_func_group_concat and Item_func_json_arrayagg. The latter
+    needs null values but the former doesn't.
+  */
+  bool add(bool exclude_nulls);
+
   friend int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
                                                 const void* key2);
   friend int group_concat_key_cmp_with_order(void* arg, const void* key1,
@@ -1903,7 +1911,10 @@ public:
     return &type_handler_varchar;
   }
   void clear();
-  bool add();
+  bool add()
+  {
+    return add(true);
+  }
   void reset_field() { DBUG_ASSERT(0); }        // not used
   void update_field() { DBUG_ASSERT(0); }       // not used
   bool fix_fields(THD *,Item **);

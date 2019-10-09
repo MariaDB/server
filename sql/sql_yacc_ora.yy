@@ -471,6 +471,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> GOTO_ORACLE_SYM               /* Oracle-R   */
 %token  <kwd> GRANT                         /* SQL-2003-R */
 %token  <kwd> GROUP_CONCAT_SYM
+%token  <rwd> JSON_ARRAYAGG_SYM
 %token  <kwd> GROUP_SYM                     /* SQL-2003-R */
 %token  <kwd> HAVING                        /* SQL-2003-R */
 %token  <kwd> HOUR_MICROSECOND_SYM
@@ -11615,6 +11616,31 @@ sum_expr:
                                         sel->gorder_list, $7, $8,
                                         sel->select_limit,
                                         sel->offset_limit);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+            sel->select_limit= NULL;
+            sel->offset_limit= NULL;
+            sel->explicit_limit= 0;
+            $5->empty();
+            sel->gorder_list.empty();
+          }
+        | JSON_ARRAYAGG_SYM '(' opt_distinct
+          { Select->in_sum_expr++; }
+          expr_list opt_glimit_clause
+          ')'
+          {
+            SELECT_LEX *sel= Select;
+            sel->in_sum_expr--;
+            String* s= new (thd->mem_root) String(",", 1, &my_charset_latin1);
+            if (unlikely(s == NULL))
+              MYSQL_YYABORT;
+
+            $$= new (thd->mem_root)
+                  Item_func_json_arrayagg(thd, Lex->current_context(),
+                                          $3, $5,
+                                          sel->gorder_list, s, $6,
+                                          sel->select_limit,
+                                          sel->offset_limit);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
             sel->select_limit= NULL;

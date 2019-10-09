@@ -23,6 +23,7 @@
 #include <json_lib.h>
 #include "item_cmpfunc.h"      // Item_bool_func
 #include "item_strfunc.h"      // Item_str_func
+#include "item_sum.h"
 
 
 class json_path_with_flags
@@ -520,6 +521,33 @@ public:
   String *val_json(String *str);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_format>(thd, this); }
+};
+
+
+class Item_func_json_arrayagg : public Item_func_group_concat
+{
+public:
+
+  Item_func_json_arrayagg(THD *thd, Name_resolution_context *context_arg,
+                          bool is_distinct, List<Item> *is_select,
+                          const SQL_I_List<ORDER> &is_order, String *is_separator,
+                          bool limit_clause, Item *row_limit, Item *offset_limit):
+      Item_func_group_concat(thd, context_arg, is_distinct, is_select, is_order,
+                             is_separator, limit_clause, row_limit, offset_limit)
+  {
+  }
+
+  const char *func_name() const { return "json_arrayagg("; }
+  enum Sumfunctype sum_func() const {return JSON_ARRAYAGG_FUNC;}
+
+  String* convert_to_json(Item *item, String *str);
+  String* val_str(String *str);
+
+  /* Overrides Item_func_group_concat::add() */
+  bool add()
+  {
+    return Item_func_group_concat::add(false);
+  }
 };
 
 
