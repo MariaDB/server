@@ -2172,54 +2172,6 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
 
 
 /**
-  @brief
-  Check whether any persistent statistics for the processed command is needed
-
-  @param
-  thd         The thread handle
-
-  @details
-  The function checks whether any persitent statistics for the processed
-  command is needed to be read.
-
-  @retval
-  TRUE        statistics is needed to be read 
-  @retval
-  FALSE       Otherwise
-*/
-
-static
-inline bool statistics_for_command_is_needed(THD *thd)
-{
-  if (thd->bootstrap || thd->variables.use_stat_tables == NEVER)
-    return FALSE;
-
-  if (thd->force_read_stats)
-    return TRUE;
-
-  switch(thd->lex->sql_command) {
-  case SQLCOM_SELECT:
-  case SQLCOM_INSERT:
-  case SQLCOM_INSERT_SELECT:
-  case SQLCOM_UPDATE:
-  case SQLCOM_UPDATE_MULTI:
-  case SQLCOM_DELETE:
-  case SQLCOM_DELETE_MULTI:
-  case SQLCOM_REPLACE:
-  case SQLCOM_REPLACE_SELECT:
-  case SQLCOM_CREATE_TABLE:
-  case SQLCOM_SET_OPTION:
-  case SQLCOM_DO:
-    break;
-  default: 
-    return FALSE;
-  }
-
-  return TRUE;
-} 
-
-
-/**
   @brief 
   Allocate memory for the statistical data used by a table share
 
@@ -2227,8 +2179,6 @@ inline bool statistics_for_command_is_needed(THD *thd)
   thd         Thread handler
   @param
   table_share Table share for which the memory for statistical data is allocated
-  @param
-  is_safe     TRUE <-> at any time only one thread can perform the function
 
   @note
   The function allocates the memory for the statistical data on a table in the
@@ -2237,8 +2187,6 @@ inline bool statistics_for_command_is_needed(THD *thd)
   mysql.index_stats. The memory is allocated for the statistics on the table,
   on the tables's columns, and on the table's indexes. The memory is allocated
   in the table_share's mem_root.
-  If the parameter is_safe is TRUE then it is guaranteed that at any given time
-  only one thread is executed the code of the function.
 
   @retval
   0     If the memory for all statistical data has been successfully allocated  
@@ -2257,16 +2205,10 @@ inline bool statistics_for_command_is_needed(THD *thd)
   Here the second and the third threads try to allocate the memory for
   statistical data at the same time. The precautions are taken to
   guarantee the correctness of the allocation.
-
-  @note
-  Currently the function always is called with the parameter is_safe set
-  to FALSE. 
 */      
 
-int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share, 
-                                     bool is_safe)
+static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
 {
-  
   Field **field_ptr;
   KEY *key_info, *end;
   TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
@@ -2276,16 +2218,11 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
   DEBUG_SYNC(thd, "statistics_mem_alloc_start1");
   DEBUG_SYNC(thd, "statistics_mem_alloc_start2");
 
-  if (!statistics_for_command_is_needed(thd))
-    DBUG_RETURN(1);
-
-  if (!is_safe)
-    mysql_mutex_lock(&table_share->LOCK_share);
+  mysql_mutex_lock(&table_share->LOCK_share);
 
   if (stats_cb->stats_can_be_read)
   {
-    if (!is_safe)
-      mysql_mutex_unlock(&table_share->LOCK_share);
+    mysql_mutex_unlock(&table_share->LOCK_share);
     DBUG_RETURN(0);
   }
 
@@ -2296,8 +2233,7 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
                                                   sizeof(Table_statistics));
     if (!table_stats)
     {
-      if (!is_safe)
-        mysql_mutex_unlock(&table_share->LOCK_share);
+      mysql_mutex_unlock(&table_share->LOCK_share);
       DBUG_RETURN(1);
     }
     memset(table_stats, 0, sizeof(Table_statistics));
@@ -2369,8 +2305,7 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
   if (column_stats && index_stats && idx_avg_frequency)
     stats_cb->stats_can_be_read= TRUE;
 
-  if (!is_safe)
-    mysql_mutex_unlock(&table_share->LOCK_share);
+  mysql_mutex_unlock(&table_share->LOCK_share);
 
   DBUG_RETURN(0);
 }
@@ -3144,9 +3079,6 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
 {
   if (!tables)
     return FALSE;
-  
-  if (!statistics_for_command_is_needed(thd))
-    return FALSE;
 
   /* 
     Do not read statistics for any query that explicity involves
@@ -3279,10 +3211,64 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 
 int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 {
+  switch (thd->lex->sql_command) {
+  case SQLCOM_SELECT:
+  case SQLCOM_INSERT:
+  case SQLCOM_INSERT_SELECT:
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_CREATE_TABLE:
+  case SQLCOM_SET_OPTION:
+  case SQLCOM_DO:
+    return read_statistics_for_tables(thd, tables);
+  default:
+    return 0;
+  }
+}
+
+
+int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
+{
   TABLE_LIST stat_tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
 
-  DBUG_ENTER("read_statistics_for_tables_if_needed");
+  DBUG_ENTER("read_statistics_for_tables");
+
+  if (thd->bootstrap || thd->variables.use_stat_tables == NEVER)
+    DBUG_RETURN(0);
+
+  for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
+  {
+    if (tl->table)
+    {
+      TABLE_SHARE *table_share= tl->table->s;
+      if (table_share && table_share->table_category == TABLE_CATEGORY_USER &&
+          table_share->tmp_table == NO_TMP_TABLE)
+      {
+        if (table_share->stats_cb.stats_can_be_read ||
+            !alloc_statistics_for_table_share(thd, table_share))
+        {
+          if (table_share->stats_cb.stats_can_be_read)
+          {
+            KEY *key_info= table_share->key_info;
+            KEY *key_info_end= key_info + table_share->keys;
+            KEY *table_key_info= tl->table->key_info;
+            for ( ; key_info < key_info_end; key_info++, table_key_info++)
+              table_key_info->read_stats= key_info->read_stats;
+            Field **field_ptr= table_share->field;
+            Field **table_field_ptr= tl->table->field;
+            for ( ; *field_ptr; field_ptr++, table_field_ptr++)
+              (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
+            tl->table->stats_is_read= table_share->stats_cb.stats_is_read;
+          }
+        }
+      }
+    }
+  }
 
   DEBUG_SYNC(thd, "statistics_read_start");
 
