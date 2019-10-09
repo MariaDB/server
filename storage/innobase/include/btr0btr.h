@@ -520,14 +520,10 @@ btr_insert_on_non_leaf_level_func(
 	mtr_t*		mtr);	/*!< in: mtr */
 #define btr_insert_on_non_leaf_level(f,i,l,t,m)			\
 	btr_insert_on_non_leaf_level_func(f,i,l,t,__FILE__,__LINE__,m)
-/****************************************************************//**
-Sets a record as the predefined minimum record. */
-void
-btr_set_min_rec_mark(
-/*=================*/
-	rec_t*	rec,	/*!< in/out: record */
-	mtr_t*	mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
+
+/** Sets a record as the predefined minimum record. */
+void btr_set_min_rec_mark(rec_t* rec, mtr_t* mtr) MY_ATTRIBUTE((nonnull));
+
 /** Seek to the parent page of a B-tree page.
 @param[in,out]	index	b-tree
 @param[in]	block	child page

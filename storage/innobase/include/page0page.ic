@@ -659,6 +659,10 @@ page_rec_get_next_low(
 		return(NULL);
 	}
 
+	ut_ad(page_rec_is_infimum(rec)
+	      || !(rec_get_info_bits(page + offs, comp)
+		   & REC_INFO_MIN_REC_FLAG));
+
 	return(page + offs);
 }
 

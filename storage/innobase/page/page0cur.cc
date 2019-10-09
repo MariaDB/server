@@ -2425,10 +2425,6 @@ page_cur_delete_rec(
 	if (cur_n_owned <= PAGE_DIR_SLOT_MIN_N_OWNED) {
 		page_dir_balance_slot(page, page_zip, cur_slot_no);
 	}
-
-#ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
-#endif /* UNIV_ZIP_DEBUG */
 }
 
 #ifdef UNIV_COMPILE_TEST_FUNCS

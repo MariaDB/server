@@ -4614,10 +4614,8 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
   }
 
   DBUG_ASSERT(thd->lex == lex);
-  thd->force_read_stats= get_schema_table_idx(schema_table) == SCH_STATISTICS;
   result= open_tables_only_view_structure(thd, table_list, can_deadlock);
   (void) read_statistics_for_tables_if_needed(thd, table_list);
-  thd->force_read_stats= false;
 
   DEBUG_SYNC(thd, "after_open_table_ignore_flush");
 
@@ -6607,6 +6605,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     KEY *key_info=show_table->s->key_info;
     if (show_table->file)
     {
+      (void) read_statistics_for_tables(thd, tables);
       show_table->file->info(HA_STATUS_VARIABLE |
                              HA_STATUS_NO_LOCK |
                              HA_STATUS_TIME);
