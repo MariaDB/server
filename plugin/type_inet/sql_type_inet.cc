@@ -852,7 +852,7 @@ public:
   }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const
+                                    const Conv_param &param) const override
   {
     if (type_handler() == source.type_handler() ||
         (source.type_handler() == &type_handler_string &&
@@ -944,7 +944,7 @@ public:
 
   uint row_pack_length() const override { return pack_length(); }
 
-  Binlog_type_info binlog_type_info() const
+  Binlog_type_info binlog_type_info() const override
   {
     DBUG_ASSERT(type() == binlog_type());
     return Binlog_type_info_fixed_string(Field_inet6::binlog_type(),
@@ -979,46 +979,46 @@ public:
     return args[0]->eq(cast->args[0], binary_cmp);
   }
   const char *func_name() const override { return "cast_as_inet6"; }
-  void print(String *str, enum_query_type query_type)
+  void print(String *str, enum_query_type query_type) override
   {
     str->append(STRING_WITH_LEN("cast("));
     args[0]->print(str, query_type);
     str->append(STRING_WITH_LEN(" as inet6)"));
   }
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     Type_std_attributes::operator=(Type_std_attributes_inet6());
     return false;
   }
-  String *val_str(String *to)
+  String *val_str(String *to) override
   {
     Inet6_null tmp(args[0]);
     return (null_value= tmp.is_null() || tmp.to_string(to)) ? NULL : to;
   }
-  longlong val_int()
+  longlong val_int() override
   {
     return 0;
   }
-  double val_real()
+  double val_real() override
   {
     return 0;
   }
-  my_decimal *val_decimal(my_decimal *to)
+  my_decimal *val_decimal(my_decimal *to) override
   {
     my_decimal_set_zero(to);
     return to;
   }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
     return false;
   }
-  bool val_native(THD *thd, Native *to)
+  bool val_native(THD *thd, Native *to) override
   {
     Inet6_null tmp(args[0]);
     return null_value= tmp.is_null() || tmp.to_native(to);
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_typecast_inet6>(thd, this); }
 };
 

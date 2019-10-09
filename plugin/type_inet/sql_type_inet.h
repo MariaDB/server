@@ -355,7 +355,7 @@ public:
     return DYN_COL_STRING;
   }
 
-  uint32 max_display_length_for_field(const Conv_source &src) const
+  uint32 max_display_length_for_field(const Conv_source &src) const override
   {
     return Inet6::max_char_length();
   }
