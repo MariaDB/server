@@ -260,6 +260,7 @@ int update_portion_of_time(THD *thd, TABLE *table,
   uint dst_fieldno= lcond ? table->s->period.end_fieldno
                           : table->s->period.start_fieldno;
 
+  table->file->store_auto_increment();
   store_record(table, record[1]);
   if (likely(!res))
     res= src->save_in_field(table->field[dst_fieldno], true);
@@ -274,6 +275,8 @@ int update_portion_of_time(THD *thd, TABLE *table,
     res= table->triggers->process_triggers(thd, TRG_EVENT_INSERT,
                                            TRG_ACTION_AFTER, true);
   restore_record(table, record[1]);
+  if (res)
+    table->file->restore_auto_increment();
 
   if (likely(!res) && lcond && rcond)
     res= table->period_make_insert(period_conds.end.item,
