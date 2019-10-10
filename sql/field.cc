@@ -58,7 +58,7 @@ const char field_separator=',';
                         ((ulong) ((1LL << MY_MIN(arg, 4) * 8) - 1))
 
 // Column marked for read or the field set to read out or record[0] or [1]
-inline bool Field::marked_for_read() const
+bool Field::marked_for_read() const
 {
   return !table ||
          (!table->read_set ||
@@ -73,7 +73,7 @@ inline bool Field::marked_for_read() const
   changed fields with DBUG_FIX_WRITE_SET() in table.cc
 */
 
-inline bool Field::marked_for_write_or_computed() const
+bool Field::marked_for_write_or_computed() const
 {
   return (!table ||
           (!table->write_set ||
