@@ -823,26 +823,38 @@ public:
   Copy_func *get_copy_func(const Field *from) const override
   {
     // ALTER to INET6 from another field
-    /*
-    if (eq_def(from))
-      return get_identical_copy_func();
-    switch (from->cmp_type()) {
-    case STRING_RESULT:
-      return do_field_string;
-    case TIME_RESULT:
-      return do_field_temporal;
-    case DECIMAL_RESULT:
-      return do_field_decimal;
-    case REAL_RESULT:
-      return do_field_real;
-    case INT_RESULT:
-      return do_field_int;
-    case ROW_RESULT:
-      DBUG_ASSERT(0);
-      break;
+    return do_field_string;
+  }
+
+  Copy_func *get_copy_func_to(const Field *to) const override
+  {
+    if (type_handler() == to->type_handler())
+    {
+      // ALTER from INET6 to INET6
+      DBUG_ASSERT(pack_length() == to->pack_length());
+      DBUG_ASSERT(charset() == to->charset());
+      DBUG_ASSERT(sort_charset() == to->sort_charset());
+      return Field::do_field_eq;
     }
-    */
-    return do_field_string;//QQ
+    // ALTER from INET6 to another data type
+    if (to->charset() == &my_charset_bin &&
+        dynamic_cast<const Type_handler_general_purpose_string*>
+          (to->type_handler()))
+    {
+      /*
+        ALTER from INET6 to a binary string type, e.g.:
+          BINARY, TINYBLOB, BLOB, MEDIUMBLOB, LONGBLOB
+      */
+      return do_field_inet6_native_to_binary;
+    }
+    return do_field_string;
+  }
+
+  static void do_field_inet6_native_to_binary(Copy_field *copy)
+  {
+    NativeBufferInet6 res;
+    copy->from_field->val_native(&res);
+    copy->to_field->store(res.ptr(), res.length(), &my_charset_bin);
   }
 
   bool memcpy_field_possible(const Field *from) const override

@@ -742,6 +742,7 @@ protected:
   }
   void error_generated_column_function_is_not_allowed(THD *thd, bool error)
                                                       const;
+  static void do_field_eq(Copy_field *copy);
   static void do_field_int(Copy_field *copy);
   static void do_field_real(Copy_field *copy);
   static void do_field_string(Copy_field *copy);
@@ -893,6 +894,10 @@ public:
   */
   typedef void Copy_func(Copy_field*);
   virtual Copy_func *get_copy_func(const Field *from) const= 0;
+  virtual Copy_func *get_copy_func_to(const Field *to) const
+  {
+    return to->get_copy_func(this);
+  }
   /* Store functions returns 1 on overflow and -1 on fatal error */
   virtual int  store_field(Field *from) { return from->save_in_field(this); }
   virtual int  save_in_field(Field *to)= 0;
