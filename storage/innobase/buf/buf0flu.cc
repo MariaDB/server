@@ -835,7 +835,7 @@ buf_flush_init_for_writing(
 
 	if (use_full_checksum) {
 		mach_write_to_4(page + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
-				(ulint) newest_lsn);
+				static_cast<uint32_t>(newest_lsn));
 	} else {
 		mach_write_to_8(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
 				newest_lsn);

@@ -17,5 +17,8 @@ let outfile=$MYSQLTEST_VARDIR/tmp/binlog_enc.sql;
 exec $MYSQL_BINLOG $local > $outfile;
 exec $MYSQL_BINLOG $local --force-read >> $outfile;
 exec $MYSQL_BINLOG $remote >> $outfile;
+--let SEARCH_FILE= $outfile
+--let SEARCH_PATTERN= Ignorable event type 164.*
+--source include/search_pattern_in_file.inc
 remove_file $outfile;
 

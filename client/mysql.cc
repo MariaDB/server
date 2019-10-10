@@ -2668,7 +2668,7 @@ static int fake_magic_space(const char *, int)
 static void initialize_readline ()
 {
   /* Allow conditional parsing of the ~/.inputrc file. */
-  rl_readline_name= "mysql";
+  rl_readline_name= (char *) "mysql";
   rl_terminal_name= getenv("TERM");
 
   /* Tell the completer that we want a crack first. */

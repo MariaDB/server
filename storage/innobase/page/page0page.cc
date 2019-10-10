@@ -2353,19 +2353,16 @@ func_exit:
 	return(ret);
 }
 
-/***************************************************************//**
-This function checks the consistency of an index page.
-@return TRUE if ok */
-ibool
-page_validate(
-/*==========*/
-	const page_t*	page,	/*!< in: index page */
-	dict_index_t*	index)	/*!< in: data dictionary index containing
-				the page record type definition */
+/** Check the consistency of an index page.
+@param[in]	page	index page
+@param[in]	index	B-tree or R-tree index
+@return	whether the page is valid */
+bool page_validate(const page_t* page, const dict_index_t* index)
 {
 	const page_dir_slot_t*	slot;
 	const rec_t*		rec;
 	const rec_t*		old_rec		= NULL;
+	const rec_t*		first_rec	= NULL;
 	ulint			offs;
 	ulint			n_slots;
 	ibool			ret		= TRUE;
@@ -2489,6 +2486,41 @@ wrong_page_type:
 			goto next_rec;
 		}
 
+		if (rec == first_rec) {
+			if ((rec_get_info_bits(rec, page_is_comp(page))
+			     & REC_INFO_MIN_REC_FLAG)) {
+				if (page_has_prev(page)) {
+					ib::error() << "REC_INFO_MIN_REC_FLAG "
+						"is set in on non-left page";
+					ret = false;
+				} else if (!page_is_leaf(page)) {
+					/* leftmost node pointer page */
+				} else if (!index->is_instant()) {
+					ib::error() << "REC_INFO_MIN_REC_FLAG "
+						"is set in a leaf-page record";
+					ret = false;
+				} else if (!rec_get_deleted_flag(
+						   rec, page_is_comp(page))
+					   != !index->table->instant) {
+					ib::error() << (index->table->instant
+							? "Metadata record "
+							"is not delete-marked"
+							: "Metadata record "
+							"is delete-marked");
+					ret = false;
+				}
+			} else if (!page_has_prev(page)
+				   && index->is_instant()) {
+				ib::error() << "Metadata record is missing";
+				ret = false;
+			}
+		} else if (rec_get_info_bits(rec, page_is_comp(page))
+			   & REC_INFO_MIN_REC_FLAG) {
+			ib::error() << "REC_INFO_MIN_REC_FLAG record is not "
+				       "first in page";
+			ret = false;
+		}
+
 		/* Check that the records are in the ascending order */
 		if (count >= PAGE_HEAP_NO_USER_LOW
 		    && !page_rec_is_supremum(rec)) {
@@ -2594,6 +2626,11 @@ next_rec:
 		own_count++;
 		old_rec = rec;
 		rec = page_rec_get_next_const(rec);
+
+		if (page_rec_is_infimum(old_rec)
+		    && page_rec_is_user_rec(rec)) {
+			first_rec = rec;
+		}
 
 		/* set old_offsets to offsets; recycle offsets */
 		{

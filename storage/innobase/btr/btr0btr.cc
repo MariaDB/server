@@ -3355,25 +3355,22 @@ btr_parse_set_min_rec_mark(
 	return(ptr + 2);
 }
 
-/****************************************************************//**
-Sets a record as the predefined minimum record. */
-void
-btr_set_min_rec_mark(
-/*=================*/
-	rec_t*	rec,	/*!< in: record */
-	mtr_t*	mtr)	/*!< in: mtr */
+/** Sets a record as the predefined minimum record. */
+void btr_set_min_rec_mark(rec_t* rec, mtr_t* mtr)
 {
-	ulint	info_bits;
+	const bool comp = page_rec_is_comp(rec);
 
-	if (page_rec_is_comp(rec)) {
-		info_bits = rec_get_info_bits(rec, TRUE);
+	ut_ad(rec == page_rec_get_next_const(page_get_infimum_rec(
+						     page_align(rec))));
+	ut_ad(!(rec_get_info_bits(page_rec_get_next(rec), comp)
+		& REC_INFO_MIN_REC_FLAG));
 
+	size_t info_bits = rec_get_info_bits(rec, comp);
+	if (comp) {
 		rec_set_info_bits_new(rec, info_bits | REC_INFO_MIN_REC_FLAG);
 
 		btr_set_min_rec_mark_log(rec, MLOG_COMP_REC_MIN_MARK, mtr);
 	} else {
-		info_bits = rec_get_info_bits(rec, FALSE);
-
 		rec_set_info_bits_old(rec, info_bits | REC_INFO_MIN_REC_FLAG);
 
 		btr_set_min_rec_mark_log(rec, MLOG_REC_MIN_MARK, mtr);

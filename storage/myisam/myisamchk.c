@@ -21,9 +21,6 @@
 #include <stdarg.h>
 #include <my_getopt.h>
 #include <my_bit.h>
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 
 static uint decode_bits;
 static char **default_argv;

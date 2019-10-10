@@ -174,16 +174,6 @@ void
 buf_flush_wait_flushed(
 	lsn_t		new_oldest);
 
-/******************************************************************//**
-Waits until a flush batch of the given type ends. This is called by
-a thread that only wants to wait for a flush to end but doesn't do
-any flushing itself. */
-void
-buf_flush_wait_batch_end_wait_only(
-/*===============================*/
-	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	buf_flush_t	type);		/*!< in: BUF_FLUSH_LRU
-					or BUF_FLUSH_LIST */
 /********************************************************************//**
 This function should be called at a mini-transaction commit, if a page was
 modified in it. Puts the block to the list of modified blocks, if it not
