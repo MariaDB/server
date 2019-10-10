@@ -2062,6 +2062,14 @@ rec_t* btr_page_get_split_rec_to_left(const btr_cur_t* cursor)
 		return NULL;
 	}
 
+	/* The metadata record must be present in the leftmost leaf page
+	of the clustered index, if and only if index->is_instant(). */
+	ut_ad(!page_is_leaf(page) || page_has_prev(page)
+	      || cursor->index->is_instant()
+	      == rec_is_metadata(page_rec_get_next_const(
+					 page_get_infimum_rec(page)),
+				 cursor->index));
+
 	const rec_t* infimum = page_get_infimum_rec(page);
 
 	/* If the convergence is in the middle of a page, include also
@@ -2783,7 +2791,7 @@ btr_page_split_and_insert(
 	ulint		n_iterations = 0;
 	ulint		n_uniq;
 
-	if (dict_index_is_spatial(cursor->index)) {
+	if (cursor->index->is_spatial()) {
 		/* Split rtree page and update parent */
 		return(rtr_page_split_and_insert(flags, cursor, offsets, heap,
 						 tuple, n_ext, mtr));

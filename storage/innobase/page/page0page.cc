@@ -839,7 +839,8 @@ page_copy_rec_list_start(
 	const bool is_leaf = page_rec_is_leaf(rec);
 
 	/* Copy records from the original page to the new page */
-	if (dict_index_is_spatial(index)) {
+	if (index->is_spatial()) {
+		ut_ad(!index->is_instant());
 		ulint		max_to_move = page_get_n_recs(
 						buf_block_get_frame(block));
 		heap = mem_heap_create(256);
@@ -2535,7 +2536,7 @@ wrong_page_type:
 			     & REC_INFO_MIN_REC_FLAG)) {
 				if (page_has_prev(page)) {
 					ib::error() << "REC_INFO_MIN_REC_FLAG "
-						"is set in on non-left page";
+						"is set on non-left page";
 					ret = false;
 				} else if (!page_is_leaf(page)) {
 					/* leftmost node pointer page */

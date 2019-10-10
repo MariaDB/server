@@ -600,6 +600,7 @@ rec_init_offsets(
 			break;
 		case REC_STATUS_COLUMNS_ADDED:
 			ut_ad(leaf);
+			ut_ad(index->is_instant());
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
 						       index->n_core_fields,
 						       NULL,
@@ -741,6 +742,8 @@ resolved:
 		}
 
 		if (i < rec_offs_n_fields(offsets)) {
+			ut_ad(index->is_instant());
+
 			offs = (rec_offs_base(offsets)[i] & REC_OFFS_MASK)
 				| REC_OFFS_DEFAULT;
 
