@@ -17740,9 +17740,13 @@ void Item_result_field::get_tmp_field_src(Tmp_field_src *src,
 }
 
 
-Field *Item_result_field::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
-                                              Tmp_field_src *src,
-                                              const Tmp_field_param *param)
+Field *
+Item_result_field::create_tmp_field_ex_from_handler(
+                                          MEM_ROOT *root,
+                                          TABLE *table,
+                                          Tmp_field_src *src,
+                                          const Tmp_field_param *param,
+                                          const Type_handler *h)
 {
   /*
     Possible Item types:
@@ -17750,26 +17754,14 @@ Field *Item_result_field::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
     - Item_func
     - Item_subselect
   */
+  DBUG_ASSERT(fixed);
   DBUG_ASSERT(is_result_field());
   DBUG_ASSERT(type() != NULL_ITEM);
   get_tmp_field_src(src, param);
   Field *result;
-  if ((result= tmp_table_field_from_field_type(root, table)) &&
-      param->modify_item())
-    result_field= result;
-  return result;
-}
-
-
-Field *Item_func_user_var::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
-                                               Tmp_field_src *src,
-                                               const Tmp_field_param *param)
-{
-  DBUG_ASSERT(is_result_field());
-  DBUG_ASSERT(type() != NULL_ITEM);
-  get_tmp_field_src(src, param);
-  Field *result;
-  if ((result= create_table_field_from_handler(root, table)) &&
+  if ((result= h->make_and_init_table_field(root, &name,
+                                            Record_addr(maybe_null),
+                                            *this, table)) &&
       param->modify_item())
     result_field= result;
   return result;

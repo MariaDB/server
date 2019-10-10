@@ -2732,7 +2732,12 @@ public:
     :Item_hybrid_func(thd, item),
     m_var_entry(item->m_var_entry), name(item->name) { }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param);
+                             const Tmp_field_param *param)
+  {
+    DBUG_ASSERT(fixed);
+    return create_tmp_field_ex_from_handler(root, table, src, param,
+                                            type_handler());
+  }
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
   { return create_table_field_from_handler(root, table); }
   bool check_vcol_func_processor(void *arg);

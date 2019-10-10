@@ -3169,6 +3169,11 @@ class st_select_lex;
 
 class Item_result_field :public Item_fixed_hybrid /* Item with result field */
 {
+protected:
+  Field *create_tmp_field_ex_from_handler(MEM_ROOT *root, TABLE *table,
+                                          Tmp_field_src *src,
+                                          const Tmp_field_param *param,
+                                          const Type_handler *h);
 public:
   Field *result_field;				/* Save result here */
   Item_result_field(THD *thd): Item_fixed_hybrid(thd), result_field(0) {}
@@ -3179,7 +3184,12 @@ public:
   ~Item_result_field() {}			/* Required with gcc 2.95 */
   Field *get_tmp_table_field() { return result_field; }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param);
+                             const Tmp_field_param *param)
+  {
+    DBUG_ASSERT(fixed);
+    const Type_handler *h= type_handler()->type_handler_for_tmp_table(this);
+    return create_tmp_field_ex_from_handler(root, table, src, param, h);
+  }
   void get_tmp_field_src(Tmp_field_src *src, const Tmp_field_param *param);
   /*
     This implementation of used_tables() used by Item_avg_field and
