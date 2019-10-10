@@ -3688,7 +3688,7 @@ public:
     DBUG_PRINT("info",("auto_increment: next value %lu", (ulong)id));
     next_insert_id= id;
   }
-  void restore_auto_increment(ulonglong prev_insert_id)
+  virtual void restore_auto_increment(ulonglong prev_insert_id)
   {
     /*
       Insertion of a row failed, re-use the lastly generated auto_increment
