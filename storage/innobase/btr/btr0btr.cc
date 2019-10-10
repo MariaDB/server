@@ -2063,12 +2063,18 @@ rec_t* btr_page_get_split_rec_to_left(const btr_cur_t* cursor)
 	}
 
 	/* The metadata record must be present in the leftmost leaf page
-	of the clustered index, if and only if index->is_instant(). */
+	of the clustered index, if and only if index->is_instant().
+	However, during innobase_instant_try(), index->is_instant()
+	would already hold when row_ins_clust_index_entry_low()
+	is being invoked to insert the the metadata record.
+	So, we can only assert that when the metadata record exists,
+	index->is_instant() must hold. */
 	ut_ad(!page_is_leaf(page) || page_has_prev(page)
 	      || cursor->index->is_instant()
-	      == rec_is_metadata(page_rec_get_next_const(
-					 page_get_infimum_rec(page)),
-				 cursor->index));
+	      || !(rec_get_info_bits(page_rec_get_next_const(
+					     page_get_infimum_rec(page)),
+				     dict_table_is_comp(cursor->index->table))
+		   & REC_INFO_MIN_REC_FLAG));
 
 	const rec_t* infimum = page_get_infimum_rec(page);
 
