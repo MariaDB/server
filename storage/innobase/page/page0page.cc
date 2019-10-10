@@ -603,20 +603,20 @@ page_copy_rec_list_end_no_locks(
 	/* Copy records from the original page to the new page */
 
 	while (!page_cur_is_after_last(&cur1)) {
-		rec_t*	cur1_rec = page_cur_get_rec(&cur1);
 		rec_t*	ins_rec;
-		offsets = rec_get_offsets(cur1_rec, index, offsets, is_leaf,
+		offsets = rec_get_offsets(cur1.rec, index, offsets, is_leaf,
 					  ULINT_UNDEFINED, &heap);
 		ins_rec = page_cur_insert_rec_low(cur2, index,
-						  cur1_rec, offsets, mtr);
+						  cur1.rec, offsets, mtr);
 		if (UNIV_UNLIKELY(!ins_rec)) {
 			ib::fatal() << "Rec offset " << page_offset(rec)
-				<< ", cur1 offset "
-				<< page_offset(page_cur_get_rec(&cur1))
+				<< ", cur1 offset " << page_offset(cur1.rec)
 				<< ", cur2 offset " << page_offset(cur2);
 		}
 
 		page_cur_move_to_next(&cur1);
+		ut_ad(!(rec_get_info_bits(cur1.rec, page_is_comp(new_page))
+			& REC_INFO_MIN_REC_FLAG));
 		cur2 = ins_rec;
 	}
 
@@ -803,6 +803,8 @@ page_copy_rec_list_start(
 	dict_index_t*	index,		/*!< in: record descriptor */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
+	ut_ad(page_align(rec) == block->frame);
+
 	page_t*		new_page	= buf_block_get_frame(new_block);
 	page_zip_des_t*	new_page_zip	= buf_block_get_page_zip(new_block);
 	page_cur_t	cur1;
@@ -820,7 +822,6 @@ page_copy_rec_list_start(
 	predefined infimum record. */
 
 	if (page_rec_is_infimum(rec)) {
-
 		return(ret);
 	}
 
@@ -854,17 +855,18 @@ page_copy_rec_list_start(
 						      rec_move, max_to_move,
 						      &num_moved, mtr);
 	} else {
-
 		while (page_cur_get_rec(&cur1) != rec) {
-			rec_t*	cur1_rec = page_cur_get_rec(&cur1);
-			offsets = rec_get_offsets(cur1_rec, index, offsets,
+			offsets = rec_get_offsets(cur1.rec, index, offsets,
 						  is_leaf,
 						  ULINT_UNDEFINED, &heap);
 			cur2 = page_cur_insert_rec_low(cur2, index,
-						       cur1_rec, offsets, mtr);
+						       cur1.rec, offsets, mtr);
 			ut_a(cur2);
 
 			page_cur_move_to_next(&cur1);
+			ut_ad(!(rec_get_info_bits(cur1.rec,
+						  page_is_comp(new_page))
+				& REC_INFO_MIN_REC_FLAG));
 		}
 	}
 
@@ -1256,6 +1258,7 @@ page_delete_rec_list_start(
 
 	rec_offs_init(offsets_);
 
+	ut_ad(page_align(rec) == block->frame);
 	ut_ad((ibool) !!page_rec_is_comp(rec)
 	      == dict_table_is_comp(index->table));
 #ifdef UNIV_ZIP_DEBUG
@@ -2165,7 +2168,17 @@ page_simple_validate_old(
 			goto func_exit;
 		}
 
-		rec = page_rec_get_next_const(rec);
+		ulint offs = rec_get_next_offs(rec, FALSE);
+		if (!offs) {
+			break;
+		}
+		if (UNIV_UNLIKELY(offs < PAGE_OLD_INFIMUM
+				  || offs >= srv_page_size)) {
+			ib::error() << "Page free list is corrupted " << count;
+			goto func_exit;
+		}
+
+		rec = page + offs;
 	}
 
 	if (UNIV_UNLIKELY(page_dir_get_n_heap(page) != count + 1)) {
@@ -2357,7 +2370,17 @@ page_simple_validate_new(
 			goto func_exit;
 		}
 
-		rec = page_rec_get_next_const(rec);
+		const ulint offs = rec_get_next_offs(rec, TRUE);
+		if (!offs) {
+			break;
+		}
+		if (UNIV_UNLIKELY(offs < PAGE_OLD_INFIMUM
+				  || offs >= srv_page_size)) {
+			ib::error() << "Page free list is corrupted " << count;
+			goto func_exit;
+		}
+
+		rec = page + offs;
 	}
 
 	if (UNIV_UNLIKELY(page_dir_get_n_heap(page) != count + 1)) {
@@ -2696,14 +2719,28 @@ n_owned_zero:
 	}
 
 	/* Check then the free list */
-	for (rec = page_header_get_ptr(page, PAGE_FREE);
-	     rec;
-	     rec = page_rec_get_next_const(rec)) {
+	rec = page_header_get_ptr(page, PAGE_FREE);
+
+	while (rec != NULL) {
 		offsets = rec_get_offsets(rec, index, offsets,
 					  page_is_leaf(page),
 					  ULINT_UNDEFINED, &heap);
 		if (UNIV_UNLIKELY(!page_rec_validate(rec, offsets))) {
 			ret = FALSE;
+next_free:
+			const ulint offs = rec_get_next_offs(
+				rec, page_is_comp(page));
+			if (!offs) {
+				break;
+			}
+			if (UNIV_UNLIKELY(offs < PAGE_OLD_INFIMUM
+					  || offs >= srv_page_size)) {
+				ib::error() << "Page free list is corrupted";
+				ret = FALSE;
+				break;
+			}
+
+			rec = page + offs;
 			continue;
 		}
 
@@ -2714,7 +2751,7 @@ n_owned_zero:
 			ib::error() << "Free record offset out of bounds: "
 				    << offs << '+' << i;
 			ret = FALSE;
-			continue;
+			goto next_free;
 		}
 		while (i--) {
 			if (UNIV_UNLIKELY(buf[offs + i])) {
@@ -2725,6 +2762,8 @@ n_owned_zero:
 			}
 			buf[offs + i] = 1;
 		}
+
+		goto next_free;
 	}
 
 	if (UNIV_UNLIKELY(page_dir_get_n_heap(page) != count + 1)) {

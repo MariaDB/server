@@ -2047,104 +2047,78 @@ btr_root_raise_and_insert(
 	}
 }
 
-/*************************************************************//**
-Decides if the page should be split at the convergence point of inserts
+/** Decide if the page should be split at the convergence point of inserts
 converging to the left.
-@return TRUE if split recommended */
-ibool
-btr_page_get_split_rec_to_left(
-/*===========================*/
-	btr_cur_t*	cursor,	/*!< in: cursor at which to insert */
-	rec_t**		split_rec) /*!< out: if split recommended,
-				the first record on upper half page,
-				or NULL if tuple to be inserted should
-				be first */
+@param[in]	cursor	insert position
+@return the first record to be moved to the right half page
+@retval	NULL if no split is recommended */
+rec_t* btr_page_get_split_rec_to_left(const btr_cur_t* cursor)
 {
-	page_t*	page;
-	rec_t*	insert_point;
-	rec_t*	infimum;
-
-	page = btr_cur_get_page(cursor);
-	insert_point = btr_cur_get_rec(cursor);
+	rec_t* split_rec = btr_cur_get_rec(cursor);
+	const page_t* page = page_align(split_rec);
 
 	if (page_header_get_ptr(page, PAGE_LAST_INSERT)
-	    == page_rec_get_next(insert_point)) {
-
-		infimum = page_get_infimum_rec(page);
-
-		/* If the convergence is in the middle of a page, include also
-		the record immediately before the new insert to the upper
-		page. Otherwise, we could repeatedly move from page to page
-		lots of records smaller than the convergence point. */
-
-		if (infimum != insert_point
-		    && page_rec_get_next(infimum) != insert_point) {
-
-			*split_rec = insert_point;
-		} else {
-			*split_rec = page_rec_get_next(insert_point);
-		}
-
-		return(TRUE);
+	    != page_rec_get_next(split_rec)) {
+		return NULL;
 	}
 
-	return(FALSE);
+	const rec_t* infimum = page_get_infimum_rec(page);
+
+	/* If the convergence is in the middle of a page, include also
+	the record immediately before the new insert to the upper
+	page. Otherwise, we could repeatedly move from page to page
+	lots of records smaller than the convergence point. */
+
+	if (split_rec == infimum
+	    || split_rec == page_rec_get_next_const(infimum)) {
+		split_rec = page_rec_get_next(split_rec);
+	}
+
+	return split_rec;
 }
 
-/*************************************************************//**
-Decides if the page should be split at the convergence point of inserts
+/** Decide if the page should be split at the convergence point of inserts
 converging to the right.
-@return TRUE if split recommended */
-ibool
-btr_page_get_split_rec_to_right(
-/*============================*/
-	btr_cur_t*	cursor,	/*!< in: cursor at which to insert */
-	rec_t**		split_rec) /*!< out: if split recommended,
-				the first record on upper half page,
-				or NULL if tuple to be inserted should
-				be first */
+@param[in]	cursor		insert position
+@param[out]	split_rec	if split recommended, the first record
+				on the right half page, or
+				NULL if the to-be-inserted record
+				should be first
+@return whether split is recommended */
+bool
+btr_page_get_split_rec_to_right(const btr_cur_t* cursor, rec_t** split_rec)
 {
-	page_t*	page;
-	rec_t*	insert_point;
-
-	page = btr_cur_get_page(cursor);
-	insert_point = btr_cur_get_rec(cursor);
+	rec_t* insert_point = btr_cur_get_rec(cursor);
+	const page_t* page = page_align(insert_point);
 
 	/* We use eager heuristics: if the new insert would be right after
 	the previous insert on the same page, we assume that there is a
 	pattern of sequential inserts here. */
 
-	if (page_header_get_ptr(page, PAGE_LAST_INSERT) == insert_point) {
-
-		rec_t*	next_rec;
-
-		next_rec = page_rec_get_next(insert_point);
-
-		if (page_rec_is_supremum(next_rec)) {
-split_at_new:
-			/* Split at the new record to insert */
-			*split_rec = NULL;
-		} else {
-			rec_t*	next_next_rec = page_rec_get_next(next_rec);
-			if (page_rec_is_supremum(next_next_rec)) {
-
-				goto split_at_new;
-			}
-
-			/* If there are >= 2 user records up from the insert
-			point, split all but 1 off. We want to keep one because
-			then sequential inserts can use the adaptive hash
-			index, as they can do the necessary checks of the right
-			search position just by looking at the records on this
-			page. */
-
-			*split_rec = next_next_rec;
-		}
-
-		return(TRUE);
+	if (page_header_get_ptr(page, PAGE_LAST_INSERT) != insert_point) {
+		return false;
 	}
 
-	return(FALSE);
+	insert_point = page_rec_get_next(insert_point);
+
+	if (page_rec_is_supremum(insert_point)) {
+		insert_point = NULL;
+	} else {
+		insert_point = page_rec_get_next(insert_point);
+		if (page_rec_is_supremum(insert_point)) {
+			insert_point = NULL;
+		}
+
+		/* If there are >= 2 user records up from the insert
+		point, split all but 1 off. We want to keep one because
+		then sequential inserts can use the adaptive hash
+		index, as they can do the necessary checks of the right
+		search position just by looking at the records on this
+		page. */
+	}
+
+	*split_rec = insert_point;
+	return true;
 }
 
 /*************************************************************//**
@@ -2796,30 +2770,20 @@ btr_page_split_and_insert(
 	buf_block_t*	block;
 	page_t*		page;
 	page_zip_des_t*	page_zip;
-	ulint		page_no;
-	byte		direction;
-	ulint		hint_page_no;
 	buf_block_t*	new_block;
 	page_t*		new_page;
 	page_zip_des_t*	new_page_zip;
 	rec_t*		split_rec;
 	buf_block_t*	left_block;
 	buf_block_t*	right_block;
-	buf_block_t*	insert_block;
 	page_cur_t*	page_cursor;
 	rec_t*		first_rec;
 	byte*		buf = 0; /* remove warning */
 	rec_t*		move_limit;
-	ibool		insert_will_fit;
-	ibool		insert_left;
 	ulint		n_iterations = 0;
-	rec_t*		rec;
 	ulint		n_uniq;
-	dict_index_t*	index;
 
-	index = btr_cur_get_index(cursor);
-
-	if (dict_index_is_spatial(index)) {
+	if (dict_index_is_spatial(cursor->index)) {
 		/* Split rtree page and update parent */
 		return(rtr_page_split_and_insert(flags, cursor, offsets, heap,
 						 tuple, n_ext, mtr));
@@ -2850,23 +2814,19 @@ func_start:
 	ut_ad(!page_is_empty(page));
 
 	/* try to insert to the next page if possible before split */
-	rec = btr_insert_into_right_sibling(
-		flags, cursor, offsets, *heap, tuple, n_ext, mtr);
-
-	if (rec != NULL) {
+	if (rec_t* rec = btr_insert_into_right_sibling(
+		    flags, cursor, offsets, *heap, tuple, n_ext, mtr)) {
 		return(rec);
 	}
-
-	page_no = block->page.id.page_no();
 
 	/* 1. Decide the split record; split_rec == NULL means that the
 	tuple to be inserted should be the first record on the upper
 	half-page */
-	insert_left = FALSE;
+	bool insert_left = false;
+	ulint hint_page_no = block->page.id.page_no() + 1;
+	byte direction = FSP_UP;
 
-	if (tuple != NULL && n_iterations > 0) {
-		direction = FSP_UP;
-		hint_page_no = page_no + 1;
+	if (tuple && n_iterations > 0) {
 		split_rec = btr_page_get_split_rec(cursor, tuple, n_ext);
 
 		if (split_rec == NULL) {
@@ -2874,17 +2834,10 @@ func_start:
 				cursor, tuple, offsets, n_uniq, heap);
 		}
 	} else if (btr_page_get_split_rec_to_right(cursor, &split_rec)) {
-		direction = FSP_UP;
-		hint_page_no = page_no + 1;
-
-	} else if (btr_page_get_split_rec_to_left(cursor, &split_rec)) {
+	} else if ((split_rec = btr_page_get_split_rec_to_left(cursor))) {
 		direction = FSP_DOWN;
-		hint_page_no = page_no - 1;
-		ut_ad(split_rec);
+		hint_page_no -= 2;
 	} else {
-		direction = FSP_UP;
-		hint_page_no = page_no + 1;
-
 		/* If there is only one record in the index page, we
 		can't split the node in the middle by default. We need
 		to determine whether the new record will be inserted
@@ -2909,7 +2862,7 @@ func_start:
 	new_block = btr_page_alloc(cursor->index, hint_page_no, direction,
 				   btr_page_get_level(page), mtr, mtr);
 
-	if (new_block == NULL && os_has_said_disk_full) {
+	if (!new_block) {
 		return(NULL);
 	}
 
@@ -2934,12 +2887,8 @@ func_start:
 		*offsets = rec_get_offsets(split_rec, cursor->index, *offsets,
 					   page_is_leaf(page), n_uniq, heap);
 
-		if (tuple != NULL) {
-			insert_left = cmp_dtuple_rec(
-				tuple, split_rec, *offsets) < 0;
-		} else {
-			insert_left = 1;
-		}
+		insert_left = !tuple
+			|| cmp_dtuple_rec(tuple, split_rec, *offsets) < 0;
 
 		if (!insert_left && new_page_zip && n_iterations > 0) {
 			/* If a compressed page has already been split,
@@ -2974,10 +2923,10 @@ insert_empty:
 	on the appropriate half-page, we may release the tree x-latch.
 	We can then move the records after releasing the tree latch,
 	thus reducing the tree latch contention. */
+	bool insert_will_fit;
 	if (tuple == NULL) {
-		insert_will_fit = 1;
-	}
-	else if (split_rec) {
+		insert_will_fit = true;
+	} else if (split_rec) {
 		insert_will_fit = !new_page_zip
 			&& btr_page_insert_fits(cursor, split_rec,
 						offsets, tuple, n_ext, heap);
@@ -3074,8 +3023,6 @@ insert_empty:
 			/* Update the lock table and possible hash index. */
 			lock_move_rec_list_end(new_block, block, move_limit);
 
-			ut_ad(!dict_index_is_spatial(index));
-
 			btr_search_move_or_delete_hash_entries(
 				new_block, block);
 
@@ -3107,16 +3054,13 @@ insert_empty:
 
 	/* 6. The split and the tree modification is now completed. Decide the
 	page where the tuple should be inserted */
+	rec_t* rec;
+	buf_block_t* const insert_block = insert_left
+		? left_block : right_block;
 
-	if (tuple == NULL) {
+	if (UNIV_UNLIKELY(!tuple)) {
 		rec = NULL;
 		goto func_exit;
-	}
-
-	if (insert_left) {
-		insert_block = left_block;
-	} else {
-		insert_block = right_block;
 	}
 
 	/* 7. Reposition the cursor for insert and try insertion */
@@ -3195,9 +3139,7 @@ func_exit:
 	ut_ad(page_validate(buf_block_get_frame(left_block), cursor->index));
 	ut_ad(page_validate(buf_block_get_frame(right_block), cursor->index));
 
-	if (tuple == NULL) {
-		ut_ad(rec == NULL);
-	}
+	ut_ad(tuple || !rec);
 	ut_ad(!rec || rec_offs_validate(rec, cursor->index, *offsets));
 	return(rec);
 }

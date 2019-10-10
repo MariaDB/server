@@ -195,15 +195,13 @@ log_buffer_sync_in_background(
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
-log files. Use log_make_checkpoint_at() to flush also the pool.
+log files. Use log_make_checkpoint() to flush also the pool.
 @param[in]	sync		whether to wait for the write to complete
 @return true if success, false if a checkpoint write was already running */
 bool log_checkpoint(bool sync);
 
-/** Make a checkpoint at or after a specified LSN.
-@param[in]	lsn		the log sequence number, or LSN_MAX
-for the latest LSN */
-void log_make_checkpoint_at(lsn_t lsn);
+/** Make a checkpoint */
+void log_make_checkpoint();
 
 /****************************************************************//**
 Makes a checkpoint at the latest lsn and writes it to first page of each

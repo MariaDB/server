@@ -510,7 +510,7 @@ create_log_files(
 		    (log_sys.lsn - log_sys.last_checkpoint_lsn));
 	log_mutex_exit();
 
-	log_make_checkpoint_at(LSN_MAX);
+	log_make_checkpoint();
 
 	return(DB_SUCCESS);
 }

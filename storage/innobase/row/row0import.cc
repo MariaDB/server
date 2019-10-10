@@ -2094,7 +2094,7 @@ row_import_cleanup(
 
 	DBUG_EXECUTE_IF("ib_import_before_checkpoint_crash", DBUG_SUICIDE(););
 
-	log_make_checkpoint_at(LSN_MAX);
+	log_make_checkpoint();
 
 	return(err);
 }
