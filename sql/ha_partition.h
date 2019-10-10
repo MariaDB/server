@@ -373,6 +373,11 @@ private:
   MY_BITMAP m_locked_partitions;
   /** Stores shared auto_increment etc. */
   Partition_share *part_share;
+  /** Fix spurious -Werror=overloaded-virtual in GCC 9 */
+  virtual void restore_auto_increment(ulonglong prev_insert_id)
+  {
+    handler::restore_auto_increment(prev_insert_id);
+  }
   /** Store and restore next_auto_inc_val over duplicate key errors. */
   virtual void store_auto_increment()
   {
