@@ -53,13 +53,20 @@ static MYSQL_SYSVAR_STR
 
 int host_list_cnt;
 char **host_list;
-static void update_host_list(char *clustrix_host)
+
+static void free_host_list()
 {
   if (host_list) {
     for (int i = 0; host_list[i]; i++)
       my_free(host_list[i]);
     my_free(host_list);
+    host_list = NULL;
   }
+}
+
+static void update_host_list(char *clustrix_host)
+{
+  free_host_list();
 
   int cnt = 0;
   for (char *p = clustrix_host, *s = clustrix_host; ; p++) {
@@ -1153,6 +1160,13 @@ static int clustrixdb_init(void *p)
   DBUG_RETURN(0);
 }
 
+static int clustrixdb_deinit(void *p)
+{
+  DBUG_ENTER("clustrixdb_deinit");
+  free_host_list();
+  DBUG_RETURN(0);
+}
+
 struct st_mysql_show_var clustrixdb_status_vars[] =
 {
   {NullS, NullS, SHOW_LONG}
@@ -1186,7 +1200,7 @@ maria_declare_plugin(clustrixdb)
     "ClustrixDB storage engine",                /* Plugin Description */
     PLUGIN_LICENSE_GPL,                         /* Plugin Licence */
     clustrixdb_init,                            /* Plugin Entry Point */
-    NULL,                                       /* Plugin Deinitializer */
+    clustrixdb_deinit,                          /* Plugin Deinitializer */
     0x0001,                                     /* Hex Version Number (0.1) */
     NULL /* clustrixdb_status_vars */,          /* Status Variables */
     clustrixdb_system_variables,                /* System Variables */
