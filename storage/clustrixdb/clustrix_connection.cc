@@ -712,7 +712,7 @@ int clustrix_connection::update_query(String &stmt, LEX_CSTRING &dbname,
   int error_code;
   command_length = 0;
 
-  if ((error_code = add_command_operand_uchar(CLUSTRIX_UPDATE_QUERY)))
+  if ((error_code = begin_command(CLUSTRIX_UPDATE_QUERY)))
     return error_code;
 
   if ((error_code = add_command_operand_str((uchar*)dbname.str, dbname.length)))

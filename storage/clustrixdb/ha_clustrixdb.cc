@@ -483,6 +483,9 @@ int ha_clustrixdb::direct_update_rows(ha_rows *update_rows)
   String update_stmt;
   update_stmt.append(thd->query_string.str());
 
+  if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+    trx->auto_commit_next();
+
   trx->update_query(update_stmt, table->s->db, update_rows);
 
   thd->get_stmt_da()->set_overwrite_status(true);
@@ -926,11 +929,13 @@ int ha_clustrixdb::external_lock(THD *thd, int lock_type)
   int error_code;
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (lock_type != F_UNLCK) {
-    trx->begin_transaction();
+    if (!trx->has_open_transaction())
+      trx->begin_transaction();
 
     trans_register_ha(thd, FALSE, clustrixdb_hton);
     if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-      trx->set_anonymous_savepoint();
+      if (!trx->has_open_anonymous_savepoint())
+        trx->set_anonymous_savepoint();
       trans_register_ha(thd, TRUE, clustrixdb_hton);
     }
   }
