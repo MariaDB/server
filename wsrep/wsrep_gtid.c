@@ -42,7 +42,7 @@ wsrep_gtid_scan(const char* str, size_t str_len, wsrep_gtid_t* gtid)
             gtid->seqno = strtoll(str + offset, &endptr, 0);
 
             if (errno == 0) {
-                offset = endptr - str;
+                offset = (unsigned int)(endptr - str);
                 return offset;
             }
         }
