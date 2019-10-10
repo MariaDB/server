@@ -230,7 +230,7 @@ maria_declare_plugin(type_geom)
   PLUGIN_LICENSE_GPL,                // the plugin license (see include/mysql/plugin.h)
   Show::plugin_init_spatial_ref_sys, // Pointer to plugin initialization function
   0,                                 // Pointer to plugin deinitialization function
-  0x0100,                            // Numeric version 0xAABB means AA.BB veriosn
+  0x0100,                            // Numeric version 0xAABB means AA.BB version
   NULL,                              // Status variables
   NULL,                              // System variables
   "1.0",                             // String version representation
@@ -245,7 +245,7 @@ maria_declare_plugin(type_geom)
   PLUGIN_LICENSE_GPL,                // the plugin license (see include/mysql/plugin.h)
   Show::plugin_init_geometry_columns,// Pointer to plugin initialization function
   0,                                 // Pointer to plugin deinitialization function
-  0x0100,                            // Numeric version 0xAABB means AA.BB veriosn
+  0x0100,                            // Numeric version 0xAABB means AA.BB version
   NULL,                              // Status variables
   NULL,                              // System variables
   "1.0",                             // String version representation

@@ -203,7 +203,6 @@ my @DEFAULT_SUITES= qw(
     rpl-
     sys_vars-
     sql_sequence-
-    type_inet-
     unit-
     vcol-
     versioning-
