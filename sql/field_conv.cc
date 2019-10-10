@@ -30,7 +30,7 @@
 #include "sql_class.h"                          // THD
 #include <m_ctype.h>
 
-static void do_field_eq(Copy_field *copy)
+void Field::do_field_eq(Copy_field *copy)
 {
   memcpy(copy->to_ptr,copy->from_ptr,copy->from_length);
 }
@@ -638,7 +638,7 @@ void Copy_field::set(uchar *to,Field *from)
   else
   { 
     to_null_ptr=  0;				// For easy debugging
-    do_copy= do_field_eq;
+    do_copy= Field::do_field_eq;
   }
 }
 
@@ -719,7 +719,7 @@ void Copy_field::set(Field *to,Field *from,bool save)
   if ((to->flags & BLOB_FLAG) && save)
     do_copy2= do_save_blob;
   else
-    do_copy2= to->get_copy_func(from);
+    do_copy2= from->get_copy_func_to(to);
   if (!do_copy)					// Not null
     do_copy=do_copy2;
 }
