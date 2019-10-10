@@ -5955,7 +5955,7 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 	not decrypted and it could be either encrypted and corrupted
 	or corrupted or good page. If we decrypted, there page could
 	still be corrupted if used key does not match. */
-	const bool seems_encrypted = (!space->full_crc32() && key_version)
+	const bool seems_encrypted = !space->full_crc32() && key_version
 		&& space->crypt_data
 		&& space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED;
 	ut_ad(space->purpose != FIL_TYPE_TEMPORARY || space->full_crc32());
@@ -5970,7 +5970,6 @@ static dberr_t buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 			    space->id, dst_frame, space->is_compressed())) {
 			err = DB_PAGE_CORRUPTED;
 		}
-
 	} else if (buf_page_is_corrupted(true, dst_frame, space->flags)) {
 		err = DB_PAGE_CORRUPTED;
 	}
@@ -6085,13 +6084,26 @@ buf_page_io_complete(buf_page_t* bpage, bool dblwr, bool evict)
 
 		} else if (read_space_id == 0 && read_page_no == 0) {
 			/* This is likely an uninitialized page. */
-		} else if ((bpage->id.space() != TRX_SYS_SPACE
+		} else if (((!space->full_crc32()
+			     || bpage->id.space() != TRX_SYS_SPACE)
 			    && bpage->id.space() != read_space_id)
 			   || bpage->id.page_no() != read_page_no) {
-			/* We did not compare space_id to read_space_id
-			in the system tablespace, because the field
-			was written as garbage before MySQL 4.1.1,
-			which did not support innodb_file_per_table. */
+			/* We do not compare space_id to read_space_id
+			in the system tablespace unless space->full_crc32(),
+			because the field was written as garbage before
+			MySQL 4.1.1, which introduced support for
+			innodb_file_per_table. */
+
+			if (space->full_crc32()
+			    && *reinterpret_cast<uint32_t*>
+			    (&frame[FIL_PAGE_FCRC32_KEY_VERSION])
+			    && space->crypt_data
+			    && space->crypt_data->type
+			    != CRYPT_SCHEME_UNENCRYPTED) {
+				ib::error() << "Cannot decrypt " << bpage->id;
+				err = DB_DECRYPTION_FAILED;
+				goto release_page;
+			}
 
 			ib::error() << "Space id and page no stored in "
 				"the page, read in are "
@@ -6165,6 +6177,7 @@ database_corrupted:
 
 		if (err == DB_PAGE_CORRUPTED
 		    || err == DB_DECRYPTION_FAILED) {
+release_page:
 			const page_id_t corrupt_page_id = bpage->id;
 
 			buf_corrupt_page_release(bpage, space);

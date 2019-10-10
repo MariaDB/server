@@ -17,6 +17,8 @@ call mtr.add_suppression("InnoDB: Tablespace for table \`test\`.\`t1\` is set as
 call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted");
 call mtr.add_suppression("InnoDB: Cannot delete tablespace .* because it is not found in the tablespace memory cache");
 call mtr.add_suppression("InnoDB: ALTER TABLE `test`\\.`t1` DISCARD TABLESPACE failed to find tablespace");
+# for innodb_checksum_algorithm=full_crc32 only
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
 
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
