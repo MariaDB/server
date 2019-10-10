@@ -405,5 +405,4 @@ create or replace table t1 (x int without system versioning)
 with system versioning
 select 1 as x;
 
-drop database test;
-create database test;
+drop tables t0, t1, t2, t3;

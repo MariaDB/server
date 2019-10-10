@@ -6931,15 +6931,16 @@ void TABLE::mark_columns_needed_for_delete()
     }
   }
 
-  if (need_signal)
-    file->column_bitmaps_signal();
-
   if (s->versioned)
   {
     bitmap_set_bit(read_set, s->vers.start_fieldno);
     bitmap_set_bit(read_set, s->vers.end_fieldno);
     bitmap_set_bit(write_set, s->vers.end_fieldno);
+    need_signal= true;
   }
+
+  if (need_signal)
+    file->column_bitmaps_signal();
 }
 
 
@@ -6952,7 +6953,7 @@ void TABLE::mark_columns_needed_for_delete()
     updated columns to be read.
 
     If this is no the case, we do like in the delete case and mark
-    if neeed, either the primary key column or all columns to be read.
+    if needed, either the primary key column or all columns to be read.
     (see mark_columns_needed_for_delete() for details)
 
     If the engine has HA_REQUIRES_KEY_COLUMNS_FOR_DELETE, we will
@@ -7010,14 +7011,18 @@ void TABLE::mark_columns_needed_for_update()
       need_signal= true;
     }
   }
-  /*
-     For System Versioning we have to read all columns since we will store
-     a copy of previous row with modified Sys_end column back to a table.
-  */
   if (s->versioned)
   {
-    // We will copy old columns to a new row.
-    use_all_columns();
+    /*
+      For System Versioning we have to read all columns since we store
+      a copy of previous row with modified row_end back to a table.
+
+      Without write_set versioning.rpl,row is unstable until MDEV-16370 is
+      applied.
+    */
+    bitmap_union(read_set, &s->all_set);
+    bitmap_union(write_set, &s->all_set);
+    need_signal= true;
   }
   if (check_constraints)
   {
@@ -8457,7 +8462,10 @@ void TABLE::vers_update_fields()
   if (versioned(VERS_TIMESTAMP))
   {
     if (!vers_write)
+    {
+      file->column_bitmaps_signal();
       return;
+    }
     if (vers_start_field()->store_timestamp(in_use->query_start(),
                                             in_use->query_start_sec_part()))
       DBUG_ASSERT(0);
@@ -8465,11 +8473,15 @@ void TABLE::vers_update_fields()
   else
   {
     if (!vers_write)
+    {
+      file->column_bitmaps_signal();
       return;
+    }
   }
 
   vers_end_field()->set_max();
   bitmap_set_bit(read_set, vers_end_field()->field_index);
+  file->column_bitmaps_signal();
 }
 
 

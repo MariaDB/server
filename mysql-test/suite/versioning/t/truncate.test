@@ -144,6 +144,7 @@ truncate t1;
 truncate t2;
 
 unlock tables;
+drop table t2;
 
 --echo #
 --echo # MDEV-19814 Assertion `update->n_fields < ulint(table->n_cols + table->n_v_cols)' on DELETE HISTORY

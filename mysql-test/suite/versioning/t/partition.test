@@ -393,17 +393,17 @@ partition by system_time interval 1 hour (
     partition p0 history, partition pn current);
 
 set @ts=(select partition_description from information_schema.partitions
-  where table_schema='test2' and table_name='t1' and partition_name='p0');
+  where table_schema='test' and table_name='t1' and partition_name='p0');
 
 alter table t1 add column b int;
-select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test2' and table_name='t1';
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 alter table t1 add partition (partition p1 history, partition p2 history);
-select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test2' and table_name='t1';
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 alter table t1 drop partition p0;
-select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test2' and table_name='t1';
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 --error ER_VERS_DROP_PARTITION_INTERVAL
 alter table t1 drop partition p2;
-select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test2' and table_name='t1';
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 
 --echo #
 --echo # MDEV-15103 Assertion in ha_partition::part_records() for updating VIEW
@@ -504,6 +504,8 @@ unlock tables;
 --echo #
 create or replace table t1 (pk int primary key) with system versioning partition by system_time limit 100 (partition p1 history, partition pn current);
 execute immediate 'select * from t1 for update';
-drop table t1;
+
+drop view v1;
+drop tables t, t1, t2, t3, t4;
 
 --source suite/versioning/common_finish.inc

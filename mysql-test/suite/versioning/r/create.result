@@ -15,7 +15,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select table_catalog,table_schema,table_name,table_type,version,table_rows,data_free,auto_increment,check_time,table_collation,checksum,create_options,table_comment from information_schema.tables where table_name='t1';
 table_catalog	def
-table_schema	test2
+table_schema	test
 table_name	t1
 table_type	SYSTEM VERSIONED
 version	10
@@ -29,7 +29,7 @@ create_options
 table_comment	
 select table_catalog,table_schema,table_name,column_name,ordinal_position,column_default,character_maximum_length,character_octet_length,character_set_name,collation_name,column_key,extra,column_comment,is_generated,generation_expression from information_schema.columns where table_name='t1';
 table_catalog	def
-table_schema	test2
+table_schema	test
 table_name	t1
 column_name	x1
 ordinal_position	1
@@ -44,7 +44,7 @@ column_comment
 is_generated	NEVER
 generation_expression	NULL
 table_catalog	def
-table_schema	test2
+table_schema	test
 table_name	t1
 column_name	Sys_start
 ordinal_position	2
@@ -59,7 +59,7 @@ column_comment	start
 is_generated	ALWAYS
 generation_expression	ROW START
 table_catalog	def
-table_schema	test2
+table_schema	test
 table_name	t1
 column_name	Sys_end
 ordinal_position	3
@@ -235,7 +235,7 @@ tt1	CREATE TABLE `tt1` (
 drop table tt1;
 create temporary table tt1 like t1;
 Warnings:
-Warning	1105	System versioning is stripped from temporary `test2.tt1`
+Warning	1105	System versioning is stripped from temporary `test.tt1`
 # Temporary is stripped from versioning
 show create table tt1;
 Table	Create Table
@@ -535,5 +535,4 @@ create or replace table t1 (x int without system versioning)
 with system versioning
 select 1 as x;
 ERROR HY000: Table `t1` must have at least one versioned column
-drop database test;
-create database test;
+drop tables t0, t1, t2, t3;

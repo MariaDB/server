@@ -571,7 +571,12 @@ public:
   void set_next_insert_id(ulonglong id);
   void get_auto_increment(ulonglong offset, ulonglong increment, ulonglong nb_desired_values,
                           ulonglong *first_value, ulonglong *nb_reserved_values) mrn_override;
-  void restore_auto_increment(ulonglong prev_insert_id);
+  /** Fix spurious -Werror=overloaded-virtual in GCC 9 */
+  void restore_auto_increment() mrn_override
+  {
+    handler::restore_auto_increment();
+  }
+  void restore_auto_increment(ulonglong prev_insert_id) mrn_override;
   void release_auto_increment() mrn_override;
   int check_for_upgrade(HA_CHECK_OPT *check_opt) mrn_override;
 #ifdef MRN_HANDLER_HAVE_RESET_AUTO_INCREMENT

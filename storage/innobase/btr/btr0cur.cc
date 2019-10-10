@@ -3460,7 +3460,7 @@ fail_err:
 	    && page_get_n_recs(page) >= 2
 	    && dict_index_get_space_reserve() + rec_size > max_size
 	    && (btr_page_get_split_rec_to_right(cursor, &dummy)
-		|| btr_page_get_split_rec_to_left(cursor, &dummy))) {
+		|| btr_page_get_split_rec_to_left(cursor))) {
 		goto fail;
 	}
 
