@@ -3411,6 +3411,16 @@ public:
   {
     return false;
   }
+  /*
+    If operations such as:
+      UPDATE t1 SET binary_string_field=this_type_field;
+    should store this_type_field->val_native() rather than
+    this_type_field->val_str().
+  */
+  virtual bool convert_to_binary_using_val_native() const
+  {
+    return false;
+  }
   virtual bool is_timestamp_type() const
   {
     return false;

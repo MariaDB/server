@@ -4168,6 +4168,14 @@ public:
   }
   int  store_field(Field *from) override
   {                                             // Be sure the value is stored
+    if (field_charset() == &my_charset_bin &&
+        from->type_handler()->convert_to_binary_using_val_native())
+    {
+      NativeBuffer<64> tmp;
+      from->val_native(&tmp);
+      value.copy(tmp.ptr(), tmp.length(), &my_charset_bin);
+      return store(value.ptr(), value.length(), &my_charset_bin);
+    }
     from->val_str(&value);
     if (table->copy_blobs ||
         (!value.is_alloced() && from->is_varchar_and_in_write_set()))

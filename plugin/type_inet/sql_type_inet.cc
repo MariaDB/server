@@ -802,23 +802,15 @@ public:
   int save_in_field(Field *to) override
   {
     // INSERT INTO t2 (different_field_type) SELECT inet6_field FROM t1;
-    switch (to->cmp_type()) {
-    case INT_RESULT:
-    case REAL_RESULT:
-    case DECIMAL_RESULT:
-    case TIME_RESULT:
+    if (to->charset() == &my_charset_bin &&
+        dynamic_cast<const Type_handler_general_purpose_string*>
+          (to->type_handler()))
     {
-      my_decimal buff;
-      return to->store_decimal(val_decimal(&buff));
+      NativeBufferInet6 res;
+      val_native(&res);
+      return to->store(res.ptr(), res.length(), &my_charset_bin);
     }
-    case STRING_RESULT:
-      return save_in_field_str(to);
-    case ROW_RESULT:
-      break;
-    }
-    DBUG_ASSERT(0);
-    to->reset();
-    return 0;
+    return save_in_field_str(to);
   }
   Copy_func *get_copy_func(const Field *from) const override
   {

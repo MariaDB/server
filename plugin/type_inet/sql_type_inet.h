@@ -393,6 +393,7 @@ public:
   bool can_return_text() const override { return true; }
   bool can_return_date() const override { return false; }
   bool can_return_time() const override { return false; }
+  bool convert_to_binary_using_val_native() const override { return true; }
 
   uint Item_time_precision(THD *thd, Item *item) const override
   {
