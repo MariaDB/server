@@ -1,4 +1,5 @@
-[crc32]
-loose-innodb-checksum-algorithm=crc32
-[full_crc32]
-loose-innodb-checksum-algorithm=full_crc32
+[strict_crc32]
+--innodb-checksum-algorithm=strict_crc32
+
+[strict_full_crc32]
+--innodb-checksum-algorithm=strict_full_crc32
