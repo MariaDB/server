@@ -68,11 +68,16 @@ select row_start from t;
 alter table t drop system versioning;
 show create table t;
 
---error ER_VERS_NOT_VERSIONED
+--error ER_VERS_DUPLICATE_ROW_START_END
 alter table t add column trx_start timestamp(6) as row start;
 
 alter table t add system versioning;
 show create table t;
+
+--error ER_VERS_DUPLICATE_ROW_START_END
+alter table t add column trx_start timestamp(6) as row start;
+--error ER_VERS_DUPLICATE_ROW_START_END
+alter table t modify a int as row start;
 
 alter table t add column b int;
 show create table t;
@@ -457,7 +462,7 @@ use test;
 
 --echo # MDEV-15956 Strange ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN upon ALTER on versioning column
 create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
---error ER_VERS_ALTER_SYSTEM_FIELD
+--error ER_VERS_DUPLICATE_ROW_START_END
 alter table t1 modify s timestamp(6) as row start;
 
 --echo # ignore CHECK for historical rows
@@ -575,5 +580,4 @@ alter table t
   change column c c int,
   change column b b int without system versioning;
 
-drop database test;
-create database test;
+drop table t;

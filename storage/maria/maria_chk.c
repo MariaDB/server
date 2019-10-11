@@ -22,9 +22,6 @@
 #include <my_getopt.h>
 #include <my_check_opt.h>
 #include <my_handler_errors.h>
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 /* Remove next line if you want aria_chk to produce a stack trace */
 #undef HAVE_BACKTRACE
 #include <my_stacktrace.h>

@@ -1493,8 +1493,6 @@ public:
 					if written again we check is TRIM
 					operation needed. */
 
-	bool            encrypted;	/*!< page is still encrypted */
-
 	/** whether the page will be (re)initialized at the time it will
 	be written to the file, that is, whether the doublewrite buffer
 	can be safely skipped. Protected under similar conditions as

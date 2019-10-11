@@ -5835,7 +5835,6 @@ add_all_virtual:
 		buf_block_t* root = btr_root_block_get(index, RW_X_LATCH,
 						       &mtr);
 		DBUG_ASSERT(root);
-		DBUG_ASSERT(!root->page.encrypted);
 		if (fil_page_get_type(root->frame) != FIL_PAGE_TYPE_INSTANT) {
 			DBUG_ASSERT(!"wrong page type");
 			err = DB_CORRUPTION;
@@ -5925,8 +5924,7 @@ empty_table:
 	mtr.start();
 	index->set_modified(mtr);
 	if (buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, &mtr)) {
-		if (root->page.encrypted
-		    || fil_page_get_type(root->frame) != FIL_PAGE_INDEX) {
+		if (fil_page_get_type(root->frame) != FIL_PAGE_INDEX) {
 			DBUG_ASSERT(!"wrong page type");
 			goto err_exit;
 		}

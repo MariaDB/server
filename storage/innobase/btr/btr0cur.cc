@@ -3437,7 +3437,7 @@ fail_err:
 	    && page_get_n_recs(page) >= 2
 	    && dict_index_get_space_reserve() + rec_size > max_size
 	    && (btr_page_get_split_rec_to_right(cursor, &dummy)
-		|| btr_page_get_split_rec_to_left(cursor, &dummy))) {
+		|| btr_page_get_split_rec_to_left(cursor))) {
 		goto fail;
 	}
 
@@ -5888,6 +5888,9 @@ btr_cur_pessimistic_delete(
 #endif /* UNIV_ZIP_DEBUG */
 	}
 
+	rec_t* next_rec = NULL;
+	bool min_mark_next_rec = false;
+
 	if (page_is_leaf(page)) {
 		const bool is_metadata = rec_is_metadata(
 			rec, page_rec_is_comp(rec));
@@ -5965,20 +5968,14 @@ discard_page:
 			goto return_after_reservations;
 		}
 
-		rec_t*	next_rec = page_rec_get_next(rec);
+		next_rec = page_rec_get_next(rec);
 
 		if (!page_has_prev(page)) {
-
 			/* If we delete the leftmost node pointer on a
 			non-leaf level, we must mark the new leftmost node
 			pointer as the predefined minimum record */
 
-			/* This will make page_zip_validate() fail until
-			page_cur_delete_rec() completes.  This is harmless,
-			because everything will take place within a single
-			mini-transaction and because writing to the redo log
-			is an atomic operation (performed by mtr_commit()). */
-			btr_set_min_rec_mark(next_rec, mtr);
+			min_mark_next_rec = true;
 		} else if (dict_index_is_spatial(index)) {
 			/* For rtree, if delete the leftmost node pointer,
 			we need to update parent page. */
@@ -6046,6 +6043,11 @@ discard_page:
 				block->zip_size(), mtr);
 		page_cur_delete_rec(btr_cur_get_page_cur(cursor), index,
 				    offsets, mtr);
+
+		if (min_mark_next_rec) {
+			btr_set_min_rec_mark(next_rec, mtr);
+		}
+
 #ifdef UNIV_ZIP_DEBUG
 		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */

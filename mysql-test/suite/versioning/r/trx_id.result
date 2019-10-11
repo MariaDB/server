@@ -197,9 +197,7 @@ Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be
 select trt_begin_ts(@trx_id) <= @ts1 as BEGIN_TS_GOOD;
 BEGIN_TS_GOOD
 1
-drop database test;
-create database test;
-use test;
+drop table t1;
 #
 # MDEV-16100 FOR SYSTEM_TIME erroneously resolves string user variables as transaction IDs
 #

@@ -163,16 +163,11 @@ extern "C" {					// Because of SCO 3.2V4.2
 
 #include <my_libwrap.h>
 
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
-
 #ifdef __WIN__ 
 #include <crtdbg.h>
 #endif
 
 #ifdef HAVE_SOLARIS_LARGE_PAGES
-#include <sys/mman.h>
 #if defined(__sun__) && defined(__GNUC__) && defined(__cplusplus) \
     && defined(_XOPEN_SOURCE)
 extern int getpagesizes(size_t *, int);

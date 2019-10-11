@@ -46,9 +46,6 @@
 #ifdef HAVE_SYS_VADVISE_H
 #include <sys/vadvise.h>
 #endif
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 #include "rt_index.h"
 #include <mysqld_error.h>
 

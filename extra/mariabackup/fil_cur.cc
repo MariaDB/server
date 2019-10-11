@@ -341,11 +341,9 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 
 		memcpy(tmp_page, page, page_size);
 
-		bool decrypted = false;
 		if (!space->crypt_data
 		    || space->crypt_data->type == CRYPT_SCHEME_UNENCRYPTED
-		    || !fil_space_decrypt(space, tmp_frame, tmp_page,
-					  &decrypted)) {
+		    || !fil_space_decrypt(space, tmp_frame, tmp_page)) {
 			return true;
 		}
 

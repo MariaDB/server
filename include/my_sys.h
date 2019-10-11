@@ -965,8 +965,6 @@ extern ulonglong my_getcputime(void);
 #endif
 
 #ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-
 #ifndef MAP_NOSYNC
 #define MAP_NOSYNC      0
 #endif

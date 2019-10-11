@@ -13,6 +13,8 @@ call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]
 # Suppression for builds where file_key_management plugin is linked statically
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
 call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted");
+# for innodb_checksum_algorithm=full_crc32 only
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
 
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc

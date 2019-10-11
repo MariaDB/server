@@ -93,7 +93,7 @@ drop view v;
 create or replace table t (i int);
 create or replace view v as select * from t;
 drop table v;
-ERROR 42S02: 'test2.v' is a view
+ERROR 42S02: 'test.v' is a view
 lock table v write;
 delete history from v before system_time now(6);
 ERROR 42S02: 'v' is a view
@@ -130,6 +130,7 @@ truncate t1;
 truncate t2;
 ERROR HY000: System-versioned tables do not support TRUNCATE TABLE
 unlock tables;
+drop table t2;
 #
 # MDEV-19814 Assertion `update->n_fields < ulint(table->n_cols + table->n_v_cols)' on DELETE HISTORY
 #

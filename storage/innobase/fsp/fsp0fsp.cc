@@ -1644,12 +1644,10 @@ fsp_alloc_seg_inode(
 /** Frees a file segment inode.
 @param[in,out]	space		tablespace
 @param[in,out]	inode		segment inode
-@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
 @param[in,out]	mtr		mini-transaction */
 static void fsp_free_seg_inode(
 	fil_space_t*		space,
 	fseg_inode_t*		inode,
-	bool			log,
 	mtr_t*			mtr)
 {
 	page_t*		page;
@@ -1688,7 +1686,7 @@ static void fsp_free_seg_inode(
 		flst_remove(space_header + FSP_SEG_INODES_FREE,
 			    page + FSEG_INODE_PAGE_NODE, mtr);
 
-		fsp_free_page(space, page_get_page_no(page), log, mtr);
+		fsp_free_page(space, page_get_page_no(page), true, mtr);
 	}
 }
 
@@ -1971,7 +1969,7 @@ fseg_create(
 		ut_ad(!has_done_reservation || block != NULL);
 
 		if (block == NULL) {
-			fsp_free_seg_inode(space, inode, true, mtr);
+			fsp_free_seg_inode(space, inode, mtr);
 			goto funct_exit;
 		}
 
@@ -3083,7 +3081,7 @@ fseg_free_step_func(
 
 	if (n == ULINT_UNDEFINED) {
 		/* Freeing completed: free the segment inode */
-		fsp_free_seg_inode(space, inode, true, mtr);
+		fsp_free_seg_inode(space, inode, mtr);
 
 		DBUG_RETURN(TRUE);
 	}
@@ -3097,7 +3095,7 @@ fseg_free_step_func(
 
 	if (n == ULINT_UNDEFINED) {
 		/* Freeing completed: free the segment inode */
-		fsp_free_seg_inode(space, inode, true, mtr);
+		fsp_free_seg_inode(space, inode, mtr);
 
 		DBUG_RETURN(TRUE);
 	}

@@ -115,3 +115,4 @@ select x from t1 for system_time all;
 x
 2
 1
+drop table t1;

@@ -28,6 +28,8 @@ alter table t1  partition by system_time (
   partition pn current
 );
 
+drop table t1;
+
 --error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
 create or replace table t (
   a int primary key,

@@ -1697,7 +1697,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
   int error, trg_error= 0;
   char *key=0;
   MY_BITMAP *save_read_set, *save_write_set;
-  ulonglong prev_insert_id= table->file->next_insert_id;
+  table->file->store_auto_increment();
   ulonglong insert_id_for_cur_row= 0;
   ulonglong prev_insert_id_for_cur_row= 0;
   DBUG_ENTER("write_record");
@@ -1848,7 +1848,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         if (res == VIEW_CHECK_ERROR)
           goto before_trg_err;
 
-        table->file->restore_auto_increment(prev_insert_id);
+        table->file->restore_auto_increment();
         info->touched++;
         if (different_records)
         {
@@ -1949,6 +1949,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (table->versioned(VERS_TRX_ID))
           {
             bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
+            table->file->column_bitmaps_signal();
             table->vers_start_field()->store(0, false);
           }
           if (unlikely(error= table->file->ha_update_row(table->record[1],
@@ -2041,7 +2042,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
     if (!(thd->variables.old_behavior &
           OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
       table->file->print_error(error, MYF(ME_WARNING));
-    table->file->restore_auto_increment(prev_insert_id);
+    table->file->restore_auto_increment();
     goto ok_or_after_trg_err;
   }
 
@@ -2064,7 +2065,7 @@ err:
   table->file->print_error(error,MYF(0));
   
 before_trg_err:
-  table->file->restore_auto_increment(prev_insert_id);
+  table->file->restore_auto_increment();
   if (key)
     my_safe_afree(key, table->s->max_unique_length);
   table->column_bitmaps_set(save_read_set, save_write_set);
