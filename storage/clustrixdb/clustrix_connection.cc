@@ -538,10 +538,11 @@ public:
     DBUG_ENTER("clustrix_connection_cursor::~clustrix_connection_cursor");
     if (outstanding_row)
       my_free(outstanding_row);
-    while (current_row < last_row)
-      my_free(rows[current_row++].data);
-    if (rows)
+    if (rows) {
+      while (current_row < last_row)
+        my_free(rows[current_row++].data);
       my_free(rows);
+    }
     DBUG_VOID_RETURN;
   }
 
@@ -598,7 +599,13 @@ int allocate_clustrix_connection_cursor(MYSQL *clustrix_net, ulong buffer_size,
   if (!*scan)
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-  DBUG_RETURN((*scan)->initialize(stmt_completed));
+  int error_code = (*scan)->initialize(stmt_completed);
+  if (error_code) {
+      delete *scan;
+      *scan = NULL;
+  }
+
+  DBUG_RETURN(error_code);
 }
 
 int clustrix_connection::scan_table(ulonglong clustrix_table_oid, uint index,
