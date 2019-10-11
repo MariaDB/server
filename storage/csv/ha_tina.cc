@@ -821,16 +821,6 @@ int ha_tina::find_current_row(uchar *buf)
     {
       bool is_enum= ((*field)->real_type() ==  MYSQL_TYPE_ENUM);
       /*
-        If "field" distinguishes between text and binary formats (e.g. INET6),
-        we cannot pass buffer.char() (which is &my_charset_bin) to store(),
-        to avoid "field" mis-interpreting the data format as binary.
-        Let's pass my_charset_latin1 to tell the field that we're storing
-        in text format.
-      */
-      CHARSET_INFO *storecs=
-        (*field)->type_handler()->convert_to_binary_using_val_native() ?
-        &my_charset_latin1 : buffer.charset();
-      /*
         Here CHECK_FIELD_WARN checks that all values in the csv file are valid
         which is normally the case, if they were written  by
         INSERT -> ha_tina::write_row. '0' values on ENUM fields are considered
@@ -838,8 +828,8 @@ int ha_tina::find_current_row(uchar *buf)
         Thus, for enums we silence the warning, as it doesn't really mean
         an invalid value.
       */
-      if ((*field)->store(buffer.ptr(), buffer.length(), storecs,
-                          is_enum ? CHECK_FIELD_IGNORE : CHECK_FIELD_WARN))
+      if ((*field)->store_text(buffer.ptr(), buffer.length(), buffer.charset(),
+                               is_enum ? CHECK_FIELD_IGNORE : CHECK_FIELD_WARN))
       {
         if (!is_enum)
           goto err;

@@ -631,6 +631,16 @@ class Field_inet6: public Field
     set_max_value((char*) ptr);
     return 1;
   }
+  int store_inet6_null_with_warn(const Inet6_null &inet6,
+                                 const ErrConvString &err)
+  {
+    DBUG_ASSERT(marked_for_write_or_computed());
+    if (inet6.is_null())
+      return maybe_null() ? set_null_with_warn(err) :
+                            set_min_value_with_warn(err);
+    inet6.to_binary((char *) ptr, Inet6::binary_length());
+    return 0;
+  }
 
 public:
   Field_inet6(const LEX_CSTRING *field_name_arg, const Record_addr &rec)
@@ -749,23 +759,26 @@ public:
 
   int store(const char *str, size_t length, CHARSET_INFO *cs) override
   {
-    DBUG_ASSERT(marked_for_write_or_computed());
-    Inet6_null tmp= cs == &my_charset_bin ?
-                    Inet6_null(str, length) :
-                    Inet6_null(str, length, cs);
-    if (tmp.is_null())
-    {
-      return maybe_null() ?
-             set_null_with_warn(ErrConvString(str, length, cs)) :
-             set_min_value_with_warn(ErrConvString(str, length, cs));
-    }
-    tmp.to_binary((char *) ptr, Inet6::binary_length());
-    return 0;
+    return cs == &my_charset_bin ? store_binary(str, length) :
+                                   store_text(str, length, cs);
+  }
+
+  int store_text(const char *str, size_t length, CHARSET_INFO *cs) override
+  {
+    return store_inet6_null_with_warn(Inet6_null(str, length, cs),
+                                      ErrConvString(str, length, cs));
+  }
+
+  int store_binary(const char *str, size_t length) override
+  {
+    return store_inet6_null_with_warn(Inet6_null(str, length),
+                                      ErrConvString(str, length,
+                                                    &my_charset_bin));
   }
 
   int store_hex_hybrid(const char *str, size_t length) override
   {
-    return store(str, length, &my_charset_bin);
+    return Field_inet6::store_binary(str, length);
   }
 
   int store_decimal(const my_decimal *num) override

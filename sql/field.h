@@ -916,6 +916,23 @@ public:
     reset();
   }
   virtual int  store(const char *to, size_t length,CHARSET_INFO *cs)=0;
+  /*
+    This is used by engines like CSV and Federated to signal the field
+    that the data is going to be in text (rather than binary) representation,
+    even if cs points to &my_charset_bin.
+
+    If a Field distinguishes between text and binary formats (e.g. INET6),
+    we cannot call store(str,length,&my_charset_bin),
+    to avoid "field" mis-interpreting the data format as binary.
+  */
+  virtual int  store_text(const char *to, size_t length, CHARSET_INFO *cs)
+  {
+    return store(to, length, cs);
+  }
+  virtual int  store_binary(const char *to, size_t length)
+  {
+    return store(to, length, &my_charset_bin);
+  }
   virtual int  store_hex_hybrid(const char *str, size_t length);
   virtual int  store(double nr)=0;
   virtual int  store(longlong nr, bool unsigned_val)=0;
@@ -940,6 +957,8 @@ public:
   { return store_time_dec(ltime, TIME_SECOND_PART_DIGITS); }
   int store(const char *to, size_t length, CHARSET_INFO *cs,
             enum_check_fields check_level);
+  int store_text(const char *to, size_t length, CHARSET_INFO *cs,
+                 enum_check_fields check_level);
   int store(const LEX_STRING *ls, CHARSET_INFO *cs)
   {
     DBUG_ASSERT(ls->length < UINT_MAX32);

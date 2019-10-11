@@ -959,7 +959,7 @@ uint ha_federated::convert_row_to_internal_format(uchar *record,
       if (bitmap_is_set(table->read_set, (*field)->field_index))
       {
         (*field)->set_notnull();
-        (*field)->store(*row, *lengths, &my_charset_bin);
+        (*field)->store_text(*row, *lengths, &my_charset_bin);
       }
     }
     (*field)->move_field_offset(-old_ptr);
