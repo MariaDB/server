@@ -1,4 +1,3 @@
-DROP TABLE IF EXISTS t1;
 # Test crash and failure recovery in fast_alter_partition_table.
 #
 # Bug#53676: Unexpected errors and possible table corruption on
@@ -9,6 +8,7 @@ DROP TABLE IF EXISTS t1;
 call mtr.add_suppression("Attempting backtrace. You can use the following information to find out");
 flush tables;
 # Crash testing ADD PARTITION
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_1";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -79,7 +79,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_2";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -152,7 +152,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_3";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -225,7 +225,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_4";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -298,7 +298,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_5";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -373,7 +373,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_6";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -448,7 +448,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_7";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -523,7 +523,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_8";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -601,7 +601,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_9";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -677,7 +677,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_9";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_10";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -753,8 +753,9 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_10";
+SET SESSION debug_dbug=@save_dbug;
 # Error recovery testing ADD PARTITION
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_1";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -883,7 +884,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_2";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -1012,7 +1013,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_3";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -1141,7 +1142,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_4";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -1270,7 +1271,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_5";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -1399,7 +1400,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_6";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -1528,7 +1529,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_7";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -1657,7 +1658,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_8";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -1792,7 +1793,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_9";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -1927,7 +1928,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_9";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_10";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -2062,8 +2063,9 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_10";
+SET SESSION debug_dbug=@save_dbug;
 # Test DROP PARTITION
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_1";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -2133,7 +2135,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_2";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -2205,7 +2207,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_3";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -2277,7 +2279,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_4";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -2342,7 +2344,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_5";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -2407,7 +2409,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_6";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -2472,7 +2474,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_7";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -2535,7 +2537,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_8";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -2596,7 +2598,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_9";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -2657,8 +2659,9 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_9";
+SET SESSION debug_dbug=@save_dbug;
 # Error recovery DROP PARTITION
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_1";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -2785,7 +2788,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_2";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -2912,7 +2915,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_3";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -3039,7 +3042,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_4";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -3152,7 +3155,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_5";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -3265,7 +3268,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_6";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -3378,7 +3381,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_7";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -3491,7 +3494,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_8";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -3604,7 +3607,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_9";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -3717,9 +3720,10 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_9";
+SET SESSION debug_dbug=@save_dbug;
 # Test change partition (REORGANIZE/REBUILD/COALESCE
 # or ADD HASH PARTITION).
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_1";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -3791,7 +3795,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_2";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -3865,7 +3869,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_3";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -3939,7 +3943,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_4";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -4017,7 +4021,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_5";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -4095,7 +4099,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_6";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -4173,7 +4177,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_7";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -4254,7 +4258,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_8";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -4335,7 +4339,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_9";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -4414,7 +4418,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_9";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_10";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -4493,7 +4497,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_10";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_11";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -4570,7 +4574,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_11";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_12";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -4647,9 +4651,10 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_12";
+SET SESSION debug_dbug=@save_dbug;
 # Error recovery change partition (REORGANIZE/REBUILD/COALESCE
 # or ADD HASH PARTITION).
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_1";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -4780,7 +4785,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_2";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -4911,7 +4916,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_3";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -5042,7 +5047,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_4";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -5173,7 +5178,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_5";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -5304,7 +5309,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_6";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -5435,7 +5440,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_7";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -5572,7 +5577,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_8";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -5709,7 +5714,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_9";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -5846,7 +5851,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_9";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_10";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -5983,7 +5988,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_10";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_11";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -6120,7 +6125,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_11";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_12";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'MyISAM'
@@ -6257,4 +6262,4 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_12";
+SET SESSION debug_dbug=@save_dbug;
