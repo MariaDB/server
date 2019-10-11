@@ -3133,27 +3133,6 @@ void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
 static
 bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
 {
-  if (!tables)
-    return FALSE;
-
-  /* 
-    Do not read statistics for any query that explicity involves
-    statistical tables, failure to to do so we may end up
-    in a deadlock.
-  */
-
-  for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
-  {
-    if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
-    {
-      TABLE_SHARE *table_share= tl->table->s;
-      if (table_share && 
-          table_share->table_category != TABLE_CATEGORY_USER
-          && is_stat_table(&tl->db, &tl->alias))
-        return FALSE;
-    }
-  }
-
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
     if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
@@ -3295,13 +3274,15 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
   if (thd->bootstrap || thd->variables.use_stat_tables == NEVER)
     DBUG_RETURN(0);
 
+  bool found_stat_table= false;
+
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
-    if (tl->table)
+    TABLE_SHARE *table_share;
+    if (!tl->is_view_or_derived() && tl->table && (table_share= tl->table->s) &&
+        table_share->tmp_table == NO_TMP_TABLE)
     {
-      TABLE_SHARE *table_share= tl->table->s;
-      if (table_share && table_share->table_category == TABLE_CATEGORY_USER &&
-          table_share->tmp_table == NO_TMP_TABLE)
+      if (table_share->table_category == TABLE_CATEGORY_USER)
       {
         if (table_share->stats_cb.stats_can_be_read ||
             !alloc_statistics_for_table_share(thd, table_share))
@@ -3321,12 +3302,19 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
           }
         }
       }
+      else if (is_stat_table(&tl->db, &tl->alias))
+        found_stat_table= true;
     }
   }
 
   DEBUG_SYNC(thd, "statistics_read_start");
 
-  if (!statistics_for_tables_is_needed(thd, tables))
+  /*
+    Do not read statistics for any query that explicity involves
+    statistical tables, failure to to do so we may end up
+    in a deadlock.
+  */
+  if (found_stat_table || !statistics_for_tables_is_needed(thd, tables))
     DBUG_RETURN(0);
 
   if (open_stat_tables(thd, stat_tables, &open_tables_backup, FALSE))
