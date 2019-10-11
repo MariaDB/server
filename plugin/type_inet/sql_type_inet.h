@@ -923,6 +923,12 @@ public:
     return Item_func_or_sum_illegal_param(item);
   }
   bool
+  Item_float_typecast_fix_length_and_dec(Item_float_typecast *item)
+                                         const override
+  {
+    return Item_func_or_sum_illegal_param(item);
+  }
+  bool
   Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *item)
                                            const override
   {

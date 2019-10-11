@@ -698,6 +698,8 @@ DROP TABLE t1,t2;
 #
 SELECT CAST(CAST('::' AS INET6) AS DOUBLE);
 ERROR HY000: Illegal parameter data type inet6 for operation 'double_typecast'
+SELECT CAST(CAST('::' AS INET6) AS FLOAT);
+ERROR HY000: Illegal parameter data type inet6 for operation 'float_typecast'
 SELECT CAST(CAST('::' AS INET6) AS DECIMAL);
 ERROR HY000: Illegal parameter data type inet6 for operation 'decimal_typecast'
 SELECT CAST(CAST('::' AS INET6) AS SIGNED);
@@ -1620,4 +1622,12 @@ HEX(CAST(a AS BINARY))
 SELECT HEX(CAST(a AS BINARY(16))) FROM t1;
 HEX(CAST(a AS BINARY(16)))
 20010DB8000000000000FF0000428329
+DROP TABLE t1;
+#
+# MDEV-20808 CAST from INET6 to FLOAT does not produce an error
+#
+CREATE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES ('::');
+SELECT CAST(a AS FLOAT) FROM t1;
+ERROR HY000: Illegal parameter data type inet6 for operation 'float_typecast'
 DROP TABLE t1;
