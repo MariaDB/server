@@ -1216,6 +1216,54 @@ public:
 };
 
 
+class Item_char_typecast_func_handler_inet6_to_binary:
+                                       public Item_handled_func::Handler_str
+{
+public:
+  const Type_handler *return_type_handler() const override
+  {
+    return &type_handler_string;
+  }
+  const Type_handler *
+      type_handler_for_create_select(const Item_handled_func *item) const
+  {
+    if (item->max_length > MAX_FIELD_VARCHARLENGTH)
+      return Type_handler::blob_type_handler(item->max_length);
+    if (item->max_length > 255)
+      return &type_handler_varchar;
+    return &type_handler_string;
+  }
+  bool fix_length_and_dec(Item_handled_func *xitem) const override
+  {
+    return false;
+  }
+  String *val_str(Item_handled_func *item, String *to) const override
+  {
+    DBUG_ASSERT(dynamic_cast<const Item_char_typecast*>(item));
+    return static_cast<Item_char_typecast*>(item)->
+             val_str_binary_from_native(to);
+  }
+};
+
+
+static const Item_char_typecast_func_handler_inet6_to_binary
+               item_char_typecast_func_handler_inet6_to_binary;
+
+
+bool Type_handler_inet6::
+  Item_char_typecast_fix_length_and_dec(Item_char_typecast *item) const
+{
+  if (item->cast_charset() == &my_charset_bin)
+  {
+    item->fix_length_and_dec_native_to_binary(Inet6::binary_length());
+    item->set_func_handler(&item_char_typecast_func_handler_inet6_to_binary);
+    return false;
+  }
+  item->fix_length_and_dec_str();
+  return false;
+}
+
+
 bool
 Type_handler_inet6::character_or_binary_string_to_native(THD *thd,
                                                          const String *str,

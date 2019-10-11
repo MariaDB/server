@@ -467,7 +467,44 @@ public:
     virtual my_decimal *val_decimal(Item_handled_func *, my_decimal *) const= 0;
     virtual bool get_date(THD *thd, Item_handled_func *, MYSQL_TIME *, date_mode_t fuzzydate) const= 0;
     virtual const Type_handler *return_type_handler() const= 0;
+    virtual const Type_handler *
+      type_handler_for_create_select(const Item_handled_func *item) const
+    {
+      return return_type_handler();
+    }
     virtual bool fix_length_and_dec(Item_handled_func *) const= 0;
+  };
+
+  class Handler_str: public Handler
+  {
+  public:
+    String *val_str_ascii(Item_handled_func *item, String *str) const
+    {
+      return item->Item::val_str_ascii(str);
+    }
+    double val_real(Item_handled_func *item) const
+    {
+      DBUG_ASSERT(item->is_fixed());
+      StringBuffer<64> tmp;
+      String *res= item->val_str(&tmp);
+      return res ? item->double_from_string_with_check(res) : 0.0;
+    }
+    longlong val_int(Item_handled_func *item) const
+    {
+      DBUG_ASSERT(item->is_fixed());
+      StringBuffer<22> tmp;
+      String *res= item->val_str(&tmp);
+      return res ? item->longlong_from_string_with_check(res) : 0;
+    }
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    {
+      return item->val_decimal_from_string(to);
+    }
+    bool get_date(THD *thd, Item_handled_func *item, MYSQL_TIME *to,
+                  date_mode_t fuzzydate) const
+    {
+      return item->get_date_from_string(thd, to, fuzzydate);
+    }
   };
 
   /**
@@ -495,6 +532,11 @@ public:
     const Type_handler *return_type_handler() const
     {
       return &type_handler_string;
+    }
+    const Type_handler *
+      type_handler_for_create_select(const Item_handled_func *item) const
+    {
+      return return_type_handler()->type_handler_for_tmp_table(item);
     }
     double val_real(Item_handled_func *item) const
     {
@@ -612,6 +654,14 @@ public:
   const Type_handler *type_handler() const
   {
     return m_func_handler->return_type_handler();
+  }
+  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
+  {
+    DBUG_ASSERT(fixed);
+    const Type_handler *h= m_func_handler->type_handler_for_create_select(this);
+    return h->make_and_init_table_field(root, &name,
+                                        Record_addr(maybe_null),
+                                        *this, table);
   }
   String *val_str(String *to)
   {

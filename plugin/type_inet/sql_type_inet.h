@@ -930,11 +930,7 @@ public:
   }
   bool
   Item_char_typecast_fix_length_and_dec(Item_char_typecast *item)
-                                        const override
-  {
-    item->fix_length_and_dec_str();
-    return false;
-  }
+                                        const override;
   bool
   Item_time_typecast_fix_length_and_dec(Item_time_typecast *item) const override
   {

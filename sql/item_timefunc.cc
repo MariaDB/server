@@ -2326,7 +2326,7 @@ uint Item_char_typecast::adjusted_length_with_warn(uint length)
 }
 
 
-String *Item_char_typecast::val_str(String *str)
+String *Item_char_typecast::val_str_generic(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   String *res;
@@ -2382,11 +2382,75 @@ end:
 }
 
 
+String *Item_char_typecast::val_str_binary_from_native(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(cast_cs == &my_charset_bin);
+  NativeBuffer<STRING_BUFFER_USUAL_SIZE> native;
+
+  if (args[0]->val_native(current_thd, &native))
+  {
+    null_value= 1;
+    return 0;
+  }
+
+  if (has_explicit_length())
+  {
+    cast_length= adjusted_length_with_warn(cast_length);
+    if (cast_length > native.length())
+    {
+      // add trailing 0x00s
+      DBUG_ASSERT(cast_length <= current_thd->variables.max_allowed_packet);
+      str->alloc(cast_length);
+      str->copy(native.ptr(), native.length(), &my_charset_bin);
+      bzero((char*) str->end(), cast_length - str->length());
+      str->length(cast_length);
+    }
+    else
+      str->copy(native.ptr(), cast_length, &my_charset_bin);
+  }
+  else
+    str->copy(native.ptr(), native.length(), &my_charset_bin);
+
+  return ((null_value= (str->length() >
+                        adjusted_length_with_warn(str->length())))) ? 0 : str;
+}
+
+
+class Item_char_typecast_func_handler: public Item_handled_func::Handler_str
+{
+public:
+  const Type_handler *return_type_handler() const
+  {
+    return &type_handler_varchar;
+  }
+  const Type_handler *
+    type_handler_for_create_select(const Item_handled_func *item) const
+  {
+    return return_type_handler()->type_handler_for_tmp_table(item);
+  }
+
+  bool fix_length_and_dec(Item_handled_func *item) const
+  {
+    return false;
+  }
+  String *val_str(Item_handled_func *item, String *to) const
+  {
+    DBUG_ASSERT(dynamic_cast<const Item_char_typecast*>(item));
+    return static_cast<Item_char_typecast*>(item)->val_str_generic(to);
+  }
+};
+
+
+static const Item_char_typecast_func_handler item_char_typecast_func_handler;
+
+
 void Item_char_typecast::fix_length_and_dec_numeric()
 {
   fix_length_and_dec_internal(from_cs= cast_cs->mbminlen == 1 ?
                                        cast_cs :
                                        &my_charset_latin1);
+  set_func_handler(&item_char_typecast_func_handler);
 }
 
 
@@ -2395,6 +2459,24 @@ void Item_char_typecast::fix_length_and_dec_generic()
   fix_length_and_dec_internal(from_cs= args[0]->dynamic_result() ?
                                        0 :
                                        args[0]->collation.collation);
+  set_func_handler(&item_char_typecast_func_handler);
+}
+
+
+void Item_char_typecast::fix_length_and_dec_str()
+{
+  fix_length_and_dec_generic();
+  m_suppress_warning_to_error_escalation= true;
+  set_func_handler(&item_char_typecast_func_handler);
+}
+
+
+void
+Item_char_typecast::fix_length_and_dec_native_to_binary(uint32 octet_length)
+{
+  collation.set(&my_charset_bin, DERIVATION_IMPLICIT);
+  max_length= has_explicit_length() ? (uint32) cast_length : octet_length;
+  maybe_null|= current_thd->is_strict_mode();
 }
 
 
@@ -2438,6 +2520,8 @@ void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
                 (cast_cs == &my_charset_bin ? 1 :
                  args[0]->collation.collation->mbmaxlen));
   max_length= char_length * cast_cs->mbmaxlen;
+  // Add NULL-ability in strict mode. See Item_str_func::fix_fields()
+  maybe_null= maybe_null || current_thd->is_strict_mode();
 }
 
 

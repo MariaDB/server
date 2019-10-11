@@ -1074,14 +1074,16 @@ class Item_extract :public Item_int_func,
 };
 
 
-class Item_char_typecast :public Item_str_func
+class Item_char_typecast :public Item_handled_func
 {
   uint cast_length;
   CHARSET_INFO *cast_cs, *from_cs;
   bool charset_conversion;
   String tmp_value;
   bool m_suppress_warning_to_error_escalation;
+public:
   bool has_explicit_length() const { return cast_length != ~0U; }
+private:
   String *reuse(String *src, size_t length);
   String *copy(String *src, CHARSET_INFO *cs);
   uint adjusted_length_with_warn(uint length);
@@ -1092,20 +1094,18 @@ public:
   uint get_cast_length() const { return cast_length; }
 public:
   Item_char_typecast(THD *thd, Item *a, uint length_arg, CHARSET_INFO *cs_arg):
-    Item_str_func(thd, a), cast_length(length_arg), cast_cs(cs_arg),
+    Item_handled_func(thd, a), cast_length(length_arg), cast_cs(cs_arg),
     m_suppress_warning_to_error_escalation(false) {}
   enum Functype functype() const { return CHAR_TYPECAST_FUNC; }
   bool eq(const Item *item, bool binary_cmp) const;
   const char *func_name() const { return "cast_as_char"; }
   CHARSET_INFO *cast_charset() const { return cast_cs; }
-  String *val_str(String *a);
+  String *val_str_generic(String *a);
+  String *val_str_binary_from_native(String *a);
   void fix_length_and_dec_generic();
   void fix_length_and_dec_numeric();
-  void fix_length_and_dec_str()
-  {
-    fix_length_and_dec_generic();
-    m_suppress_warning_to_error_escalation= true;
-  }
+  void fix_length_and_dec_str();
+  void fix_length_and_dec_native_to_binary(uint32 octet_length);
   bool fix_length_and_dec()
   {
     return args[0]->type_handler()->Item_char_typecast_fix_length_and_dec(this);
