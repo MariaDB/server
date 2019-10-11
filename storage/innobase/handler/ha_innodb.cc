@@ -21015,9 +21015,9 @@ char *innobase_debug_sync;
 static MYSQL_SYSVAR_STR(debug_sync, innobase_debug_sync,
 			PLUGIN_VAR_NOCMDARG,
 			"debug_sync for innodb purge threads. "
-			"Use it t oset up sync points for all purge threads "
+			"Use it to set up sync points for all purge threads "
 			"at once. The commands will be applied sequentially at "
-			"the beginning of purging the next node ",
+			"the beginning of purging the next undo record.",
 			NULL,
 			innobase_debug_sync_set, NULL);
 #endif /* UNIV_DEBUG */

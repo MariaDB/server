@@ -3047,18 +3047,18 @@ srv_was_tablespace_truncated(const fil_space_t* space)
 }
 
 #ifdef UNIV_DEBUG
-static uint get_first_slot(srv_thread_type type)
+static ulint get_first_slot(srv_thread_type type)
 {
 	switch (type) {
-		case SRV_MASTER:
-			return SRV_MASTER_SLOT;
-		case SRV_PURGE:
-			return SRV_PURGE_SLOT;
-		case SRV_WORKER:
-			/* Find an empty slot, skip the master and purge slots. */
-			return SRV_WORKER_SLOTS_START;
-		default:
-			ut_error;
+	case SRV_MASTER:
+		return SRV_MASTER_SLOT;
+	case SRV_PURGE:
+		return SRV_PURGE_SLOT;
+	case SRV_WORKER:
+		/* Find an empty slot, skip the master and purge slots. */
+		return SRV_WORKER_SLOTS_START;
+	default:
+		ut_error;
 	}
 }
 
@@ -3066,14 +3066,12 @@ void srv_for_each_thread(srv_thread_type type,
 			 srv_slot_callback_t callback,
 			 const void *arg)
 {
-	int slot_idx= get_first_slot(type);
-	while(slot_idx < srv_sys.n_sys_threads
-	      && srv_sys.sys_threads[slot_idx].in_use
-	      && srv_sys.sys_threads[slot_idx].type == type)
-	{
-		srv_slot_t *slot= &srv_sys.sys_threads[slot_idx];
-		callback(slot, arg);
-		slot_idx++;
+	for (ulint slot_idx= get_first_slot(type);
+	     slot_idx < srv_sys.n_sys_threads
+		     && srv_sys.sys_threads[slot_idx].in_use
+		     && srv_sys.sys_threads[slot_idx].type == type;
+	     slot_idx++) {
+		callback(&srv_sys.sys_threads[slot_idx], arg);
 	}
 }
 #endif
