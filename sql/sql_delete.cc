@@ -815,6 +815,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
         break;
       }
 
+      // no LIMIT / OFFSET
       if (with_select && result->send_data(select_lex->item_list) < 0)
       {
         error=1;

@@ -3987,8 +3987,6 @@ JOIN::reinit()
 {
   DBUG_ENTER("JOIN::reinit");
 
-  unit->lim.reset();
-
   first_record= false;
   group_sent= false;
   cleaned= false;
@@ -4259,7 +4257,8 @@ void JOIN::exec_inner()
       {
 	if (do_send_rows &&
             (procedure ? (procedure->send_row(procedure_fields_list) ||
-             procedure->end_of_records()) : result->send_data(fields_list)> 0))
+             procedure->end_of_records()):
+             result->send_data_with_check(fields_list, unit, 0)> 0))
 	  error= 1;
 	else
 	  send_records= ((select_options & OPTION_FOUND_ROWS) ? 1 :
@@ -14210,7 +14209,7 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
   {
     bool send_error= FALSE;
     if (send_row)
-      send_error= result->send_data(fields) > 0;
+      send_error= result->send_data_with_check(fields, join->unit, 0) > 0;
     if (likely(!send_error))
       result->send_eof();				// Should be safe
   }
@@ -19791,33 +19790,34 @@ do_select(JOIN *join, Procedure *procedure)
       HAVING will be checked after processing aggregate functions,
       But WHERE should checked here (we alredy have read tables).
       Notice that make_join_select() splits all conditions in this case
-    into two groups exec_const_cond and outer_ref_cond.
-    If join->table_count == join->const_tables then it is
-    sufficient to check only the condition pseudo_bits_cond.
-  */
-  DBUG_ASSERT(join->outer_ref_cond == NULL);
-  if (!join->pseudo_bits_cond || join->pseudo_bits_cond->val_int())
-  {
-    // HAVING will be checked by end_select
-    error= (*end_select)(join, 0, 0);
-    if (error >= NESTED_LOOP_OK)
-      error= (*end_select)(join, 0, 1);
-
-    /*
-      If we don't go through evaluate_join_record(), do the counting
-      here.  join->send_records is increased on success in end_send(),
-      so we don't touch it here.
+      into two groups exec_const_cond and outer_ref_cond.
+      If join->table_count == join->const_tables then it is
+      sufficient to check only the condition pseudo_bits_cond.
     */
-    join->join_examined_rows++;
-    DBUG_ASSERT(join->join_examined_rows <= 1);
-  }
-  else if (join->send_row_on_empty_set())
-  {
-    if (!join->having || join->having->val_int())
+    DBUG_ASSERT(join->outer_ref_cond == NULL);
+    if (!join->pseudo_bits_cond || join->pseudo_bits_cond->val_int())
     {
-      List<Item> *columns_list= (procedure ? &join->procedure_fields_list :
+      // HAVING will be checked by end_select
+      error= (*end_select)(join, 0, 0);
+      if (error >= NESTED_LOOP_OK)
+        error= (*end_select)(join, 0, 1);
+
+      /*
+        If we don't go through evaluate_join_record(), do the counting
+        here.  join->send_records is increased on success in end_send(),
+        so we don't touch it here.
+      */
+      join->join_examined_rows++;
+      DBUG_ASSERT(join->join_examined_rows <= 1);
+    }
+    else if (join->send_row_on_empty_set())
+    {
+      if (!join->having || join->having->val_int())
+      {
+        List<Item> *columns_list= (procedure ? &join->procedure_fields_list :
                                    join->fields);
-        rc= join->result->send_data(*columns_list) > 0;
+        rc= join->result->send_data_with_check(*columns_list,
+                                               join->unit, 0) > 0;
       }
     }
     /*
@@ -21489,7 +21489,9 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     {
       int error;
       /* result < 0 if row was not accepted and should not be counted */
-      if (unlikely((error= join->result->send_data(*fields))))
+      if (unlikely((error= join->result->send_data_with_check(*fields,
+                                                              join->unit,
+                                                              join->send_records))))
       {
         if (error > 0)
           DBUG_RETURN(NESTED_LOOP_ERROR);
@@ -21637,7 +21639,9 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	  {
 	    if (join->do_send_rows)
             {
-	      error=join->result->send_data(*fields);
+	      error= join->result->send_data_with_check(*fields,
+                                                        join->unit,
+                                                        join->send_records);
               if (unlikely(error < 0))
               {
                 /* Duplicate row, don't count */
@@ -25847,7 +25851,8 @@ int JOIN::rollup_send_data(uint idx)
     if ((!having || having->val_int()))
     {
       if (send_records < unit->lim.get_select_limit() && do_send_rows &&
-	  (res= result->send_data(rollup.fields[i])) > 0)
+	  (res= result->send_data_with_check(rollup.fields[i],
+                                             unit, send_records)) > 0)
 	return 1;
       if (!res)
         send_records++;

@@ -4106,7 +4106,7 @@ bool mysql_show_binlog_events(THD* thd)
                                          description_event,
                                          opt_master_verify_checksum)); )
     {
-      if (!unit->lim.check_and_move_offset() &&
+      if (!unit->lim.check_offset(event_count) &&
 	  ev->net_send(protocol, linfo.log_file_name, pos))
       {
 	errmsg = "Net error";

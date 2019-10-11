@@ -436,7 +436,7 @@ bool PROFILING::show_profiles()
 
     double query_time_usecs= prof->m_end_time_usecs - prof->m_start_time_usecs;
 
-    if (unit->lim.check_and_move_offset())
+    if (unit->lim.check_offset(idx))
       continue;
     if (idx > unit->lim.get_select_limit())
       break;

@@ -5095,6 +5095,14 @@ class select_result_sink: public Sql_alloc
 public:
   THD *thd;
   select_result_sink(THD *thd_arg): thd(thd_arg) {}
+  inline int send_data_with_check(List<Item> &items,
+                              SELECT_LEX_UNIT *u,
+                              ha_rows sent)
+  {
+    if (u->lim.check_offset(sent))
+      return 0;
+    return send_data(items);
+  }
   /*
     send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
     example for a duplicate row entry written to a temp table.

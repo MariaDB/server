@@ -111,8 +111,6 @@ int select_unit::send_data(List<Item> &values)
 {
   int rc= 0;
   int not_reported_error= 0;
-  if (unit->lim.check_and_move_offset())
-    return 0;                                   // using limit offset,count
   if (thd->killed == ABORT_QUERY)
     return 0;
   if (table->no_rows_with_nulls)
@@ -604,8 +602,6 @@ int select_unit_ext::send_data(List<Item> &values)
   int rc= 0;
   int not_reported_error= 0;
   int find_res;
-  if (unit->lim.check_and_move_offset())
-    return 0;
   if (thd->killed == ABORT_QUERY)
     return 0;
   if (table->no_rows_with_nulls)
@@ -2200,7 +2196,6 @@ bool st_select_lex_unit::exec()
 	}
 	if (!sl->tvc)
 	  saved_error= sl->join->error;
-        lim.reset();
 	if (likely(!saved_error))
 	{
 	  examined_rows+= thd->get_examined_row_count();

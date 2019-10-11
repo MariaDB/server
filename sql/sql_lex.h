@@ -831,7 +831,6 @@ void create_explain_query_if_not_exists(LEX *lex, MEM_ROOT *mem_root);
 bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str);
 
 
-
 class st_select_lex_unit: public st_select_lex_node {
 protected:
   TABLE_LIST result_table_list;

@@ -3015,9 +3015,6 @@ int select_send::send_data(List<Item> &items)
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("select_send::send_data");
 
-  /* unit is not set when using 'delete ... returning' */
-  if (unit && unit->lim.check_and_move_offset())
-    DBUG_RETURN(FALSE);                         // using limit offset,count
   if (thd->killed == ABORT_QUERY)
     DBUG_RETURN(FALSE);
 
@@ -3282,8 +3279,6 @@ int select_export::send_data(List<Item> &items)
   String tmp(buff,sizeof(buff),&my_charset_bin),*res;
   tmp.length(0);
 
-  if (unit->lim.check_and_move_offset())
-    DBUG_RETURN(0);                             // using limit offset,count
   if (thd->killed == ABORT_QUERY)
     DBUG_RETURN(0);
   row_count++;
@@ -3539,8 +3534,6 @@ int select_dump::send_data(List<Item> &items)
   Item *item;
   DBUG_ENTER("select_dump::send_data");
 
-  if (unit->lim.check_and_move_offset())
-    DBUG_RETURN(0);                             // using limit offset,count
   if (thd->killed == ABORT_QUERY)
     DBUG_RETURN(0);
 
@@ -3579,8 +3572,6 @@ int select_singlerow_subselect::send_data(List<Item> &items)
                MYF(current_thd->lex->ignore ? ME_WARNING : 0));
     DBUG_RETURN(1);
   }
-  if (unit->lim.check_and_move_offset())
-    DBUG_RETURN(0);                       // Using limit offset,count
   if (thd->killed == ABORT_QUERY)
     DBUG_RETURN(0);
   List_iterator_fast<Item> li(items);
@@ -3717,8 +3708,6 @@ int select_exists_subselect::send_data(List<Item> &items)
 {
   DBUG_ENTER("select_exists_subselect::send_data");
   Item_exists_subselect *it= (Item_exists_subselect *)item;
-  if (unit->lim.check_and_move_offset())
-    DBUG_RETURN(0);                       // Using limit offset,count
   if (thd->killed == ABORT_QUERY)
     DBUG_RETURN(0);
   it->value= 1;
@@ -4123,8 +4112,6 @@ int select_dumpvar::send_data(List<Item> &items)
 {
   DBUG_ENTER("select_dumpvar::send_data");
 
-  if (unit->lim.check_and_move_offset())
-    DBUG_RETURN(0);                             // using limit offset,count
   if (row_count++)
   {
     my_message(ER_TOO_MANY_ROWS, ER_THD(thd, ER_TOO_MANY_ROWS), MYF(0));

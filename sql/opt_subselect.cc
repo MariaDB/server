@@ -5714,9 +5714,6 @@ int select_value_catcher::send_data(List<Item> &items)
   DBUG_ASSERT(!assigned);
   DBUG_ASSERT(items.elements == n_elements);
 
-  if (unit->lim.check_and_move_offset())
-    DBUG_RETURN(0);                       // Using limit offset,count
-
   Item *val_item;
   List_iterator_fast<Item> li(items);
   for (uint i= 0; (val_item= li++); i++)

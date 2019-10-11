@@ -97,7 +97,10 @@ int Pushdown_query::execute(JOIN *join)
         {
           int error;
           /* result < 0 if row was not accepted and should not be counted */
-          if (unlikely((error= join->result->send_data(*join->fields))))
+          if (unlikely((error=
+                        join->result->send_data_with_check(*join->fields,
+                                                          join->unit,
+                                                          join->send_records))))
           {
             handler->end_scan();
             DBUG_RETURN(error < 0 ? 0 : -1);

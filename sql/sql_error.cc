@@ -808,14 +808,14 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
 
   Diagnostics_area::Sql_condition_iterator it=
     thd->get_stmt_da()->sql_conditions();
-  for (idx= 1; (err= it++) ; idx++)
+  for (idx= 0; (err= it++) ; idx++)
   {
     /* Skip levels that the user is not interested in */
     if (!(levels_to_show & ((ulong) 1 << err->get_level())))
       continue;
-    if (unit->lim.check_and_move_offset())
+    if (unit->lim.check_offset(idx))
       continue;                             // using limit offset,count
-    if (idx > unit->lim.get_select_limit())
+    if (idx >= unit->lim.get_select_limit())
       break;
     protocol->prepare_for_resend();
     protocol->store(warning_level_names[err->get_level()].str,
