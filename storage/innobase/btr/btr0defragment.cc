@@ -585,7 +585,8 @@ btr_defragment_n_pages(
 			break;
 		}
 
-		blocks[i] = btr_block_get(*index, page_no, RW_X_LATCH, mtr);
+		blocks[i] = btr_block_get(*index, page_no, RW_X_LATCH, true,
+					  mtr);
 	}
 
 	if (n_pages == 1) {

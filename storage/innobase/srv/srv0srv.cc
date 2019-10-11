@@ -2172,13 +2172,6 @@ srv_master_do_active_tasks(void)
 	srv_main_thread_op_info = "checking free log space";
 	log_free_check();
 
-	/* Do an ibuf merge */
-	srv_main_thread_op_info = "doing insert buffer merge";
-	counter_time = microsecond_interval_timer();
-	ibuf_merge_in_background(false);
-	MONITOR_INC_TIME_IN_MICRO_SECS(
-		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
-
 	/* Flush logs if needed */
 	srv_main_thread_op_info = "flushing log";
 	srv_sync_log_buffer_in_background();
@@ -2265,13 +2258,6 @@ srv_master_do_idle_tasks(void)
 	srv_main_thread_op_info = "checking free log space";
 	log_free_check();
 
-	/* Do an ibuf merge */
-	counter_time = microsecond_interval_timer();
-	srv_main_thread_op_info = "doing insert buffer merge";
-	ibuf_merge_in_background(true);
-	MONITOR_INC_TIME_IN_MICRO_SECS(
-		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
-
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		return;
 	}
@@ -2335,7 +2321,7 @@ srv_shutdown(bool ibuf_merge)
 			srv_main_thread_op_info = "checking free log space";
 			log_free_check();
 			srv_main_thread_op_info = "doing insert buffer merge";
-			n_bytes_merged = ibuf_merge_in_background(true);
+			n_bytes_merged = ibuf_merge_all();
 
 			/* Flush logs if needed */
 			srv_sync_log_buffer_in_background();

@@ -21,7 +21,6 @@ INSERT INTO t1 SELECT 0,b,c FROM t1;
 # restart: --innodb-force-recovery=6
 check table t1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Warning	InnoDB: Index 'b' contains #### entries, should be 4096.
-test.t1	check	error	Corrupt
+test.t1	check	status	OK
 # restart
 DROP TABLE t1;

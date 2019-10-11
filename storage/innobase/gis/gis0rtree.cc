@@ -756,7 +756,7 @@ rtr_adjust_upper_level(
 	/* Update page links of the level */
 	if (prev_page_no != FIL_NULL) {
 		buf_block_t*	prev_block = btr_block_get(
-			*index, prev_page_no, RW_X_LATCH, mtr);
+			*index, prev_page_no, RW_X_LATCH, false, mtr);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(prev_block->frame) == page_is_comp(page));
 		ut_a(btr_page_get_next(prev_block->frame, mtr)
@@ -770,7 +770,7 @@ rtr_adjust_upper_level(
 
 	if (next_page_no != FIL_NULL) {
 		buf_block_t*	next_block = btr_block_get(
-			*index, next_page_no, RW_X_LATCH, mtr);
+			*index, next_page_no, RW_X_LATCH, false, mtr);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(next_block->frame) == page_is_comp(page));
 		ut_a(btr_page_get_prev(next_block->frame, mtr)

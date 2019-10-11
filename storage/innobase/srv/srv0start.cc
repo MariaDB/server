@@ -1311,7 +1311,7 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	high_level_read_only = srv_read_only_mode
-		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO
+		|| srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE
 		|| srv_sys_space.created_new_raw();
 
 	/* Reset the start state. */
@@ -2135,7 +2135,7 @@ files_checked:
 		/* Validate a few system page types that were left
 		uninitialized before MySQL or MariaDB 5.5. */
 		if (!high_level_read_only) {
-			ut_ad(srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE);
+			ut_ad(srv_force_recovery <= SRV_FORCE_NO_IBUF_MERGE);
 			buf_block_t*	block;
 			mtr.start();
 			/* Bitmap page types will be reset in
@@ -2190,7 +2190,7 @@ files_checked:
 
 		/* FIXME: Skip the following if srv_read_only_mode,
 		while avoiding "Allocated tablespace ID" warnings. */
-		if (srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE) {
+		if (srv_force_recovery <= SRV_FORCE_NO_IBUF_MERGE) {
 			/* Open or Create SYS_TABLESPACES and SYS_DATAFILES
 			so that tablespace names and other metadata can be
 			found. */

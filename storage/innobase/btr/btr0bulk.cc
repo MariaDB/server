@@ -120,7 +120,7 @@ PageBulk::init()
 		}
 	} else {
 		new_block = btr_block_get(*m_index, m_page_no, RW_X_LATCH,
-					  &m_mtr);
+					  false, &m_mtr);
 
 		new_page = buf_block_get_frame(new_block);
 		new_page_zip = buf_block_get_page_zip(new_block);
@@ -1014,7 +1014,7 @@ BtrBulk::finish(dberr_t	err)
 
 		ut_ad(last_page_no != FIL_NULL);
 		last_block = btr_block_get(*m_index, last_page_no, RW_X_LATCH,
-					   &mtr);
+					   false, &mtr);
 		first_rec = page_rec_get_next(
 			page_get_infimum_rec(last_block->frame));
 		ut_ad(page_rec_is_user_rec(first_rec));

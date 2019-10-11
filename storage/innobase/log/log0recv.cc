@@ -254,42 +254,37 @@ public:
 	{
 		ut_ad(mutex_own(&recv_sys.mutex));
 		ut_ad(recv_no_ibuf_operations);
-		for (map::iterator i= inits.begin(); i != inits.end(); i++) {
-			i->second.created = false;
+		for (auto &i : inits) {
+			i.second.created = false;
 		}
 	}
 
-	/** On the last recovery batch, merge buffered changes to those
-	pages that were initialized by buf_page_create() and still reside
-	in the buffer pool. Stale pages are not allowed in the buffer pool.
+	/** On the last recovery batch, mark whether the page contains
+	change buffered changes for the list of pages that were initialized
+	by buf_page_create() and still reside in the buffer pool.
 
 	Note: When MDEV-14481 implements redo log apply in the
 	background, we will have to ensure that buf_page_get_gen()
 	will not deliver stale pages to users (pages on which the
-	change buffer was not merged yet).  Normally, the change
-	buffer merge is performed on I/O completion. Maybe, add a
-	flag to buf_page_t and perform the change buffer merge on
-	the first actual access?
+	change buffer was not merged yet).
 	@param[in,out]	mtr	dummy mini-transaction */
-	void ibuf_merge(mtr_t& mtr)
+	void mark_ibuf_exist(mtr_t& mtr)
 	{
 		ut_ad(mutex_own(&recv_sys.mutex));
 		ut_ad(!recv_no_ibuf_operations);
 		mtr.start();
 
-		for (map::const_iterator i= inits.begin(); i != inits.end();
-		     i++) {
-			if (!i->second.created) {
+		for (const auto& i : inits) {
+			if (!i.second.created) {
 				continue;
 			}
 			if (buf_block_t* block = buf_page_get_gen(
-				    i->first, 0, RW_X_LATCH, NULL,
+				    i.first, 0, RW_X_LATCH, NULL,
 				    BUF_GET_IF_IN_POOL, __FILE__, __LINE__,
-				    &mtr, NULL)) {
+				    &mtr)) {
 				mutex_exit(&recv_sys.mutex);
-				ibuf_merge_or_delete_for_page(
-					block, i->first,
-					block->zip_size(), true);
+				block->page.ibuf_exist = ibuf_page_exists(
+					block->page);
 				mtr.commit();
 				mtr.start();
 				mutex_enter(&recv_sys.mutex);
@@ -1995,11 +1990,9 @@ void recv_recover_page(buf_page_t* bpage)
 	x-latch on it.  This is needed for the operations to
 	the page to pass the debug checks. */
 	rw_lock_x_lock_move_ownership(&block->lock);
-	buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
-	ibool	success = buf_page_get_known_nowait(
-		RW_X_LATCH, block, BUF_KEEP_OLD,
-		__FILE__, __LINE__, &mtr);
-	ut_a(success);
+	buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+	rw_lock_x_lock(&block->lock);
+	mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
 
 	mutex_enter(&recv_sys.mutex);
 	if (recv_sys.apply_log_recs) {
@@ -2275,7 +2268,7 @@ done:
 		mlog_init.reset();
 	} else if (!recv_no_ibuf_operations) {
 		/* We skipped this in buf_page_create(). */
-		mlog_init.ibuf_merge(mtr);
+		mlog_init.mark_ibuf_exist(mtr);
 	}
 
 	recv_sys.apply_log_recs = false;

@@ -882,10 +882,8 @@ btr_search_guess_on_hash(
 	const rec_t*	rec;
 	ulint		fold;
 	index_id_t	index_id;
-#ifdef notdefined
-	btr_cur_t	cursor2;
-	btr_pcur_t	pcur;
-#endif
+
+	ut_ad(mtr->is_active());
 	ut_ad(!ahi_latch || rw_lock_own_flagged(
 		      ahi_latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
@@ -893,11 +891,12 @@ btr_search_guess_on_hash(
 		return(FALSE);
 	}
 
-	ut_ad(index && info && tuple && cursor && mtr);
-	ut_ad(!dict_index_is_ibuf(index));
+	ut_ad(!index->is_ibuf());
 	ut_ad(!ahi_latch || ahi_latch == btr_get_search_latch(index));
 	ut_ad((latch_mode == BTR_SEARCH_LEAF)
 	      || (latch_mode == BTR_MODIFY_LEAF));
+	compile_time_assert(ulint{BTR_SEARCH_LEAF} == ulint{RW_S_LATCH});
+	compile_time_assert(ulint{BTR_MODIFY_LEAF} == ulint{RW_X_LATCH});
 
 	/* Not supported for spatial index */
 	ut_ad(!dict_index_is_spatial(index));
@@ -955,15 +954,46 @@ fail:
 		return(FALSE);
 	}
 
-	buf_block_t*	block = buf_block_from_ahi(rec);
+	buf_block_t* block = buf_block_from_ahi(rec);
+	buf_pool_t* buf_pool = buf_pool_from_block(block);
 
 	if (use_latch) {
+		mutex_enter(&block->mutex);
 
-		if (!buf_page_get_known_nowait(
-			latch_mode, block, BUF_MAKE_YOUNG,
-			__FILE__, __LINE__, mtr)) {
+		if (buf_block_get_state(block) == BUF_BLOCK_REMOVE_HASH) {
+			/* Another thread is just freeing the block
+			from the LRU list of the buffer pool: do not
+			try to access this page. */
+			mutex_exit(&block->mutex);
 			goto fail;
 		}
+
+		ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
+		ut_ad(!block->page.file_page_was_freed);
+		buf_page_set_accessed(&block->page);
+		buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+		mutex_exit(&block->mutex);
+
+		buf_page_make_young_if_needed(buf_pool, &block->page);
+		mtr_memo_type_t	fix_type;
+		if (latch_mode == BTR_SEARCH_LEAF) {
+			if (!rw_lock_s_lock_nowait(&block->lock,
+						   __FILE__, __LINE__)) {
+got_no_latch:
+				buf_block_buf_fix_dec(block);
+				goto fail;
+			}
+			fix_type = MTR_MEMO_PAGE_S_FIX;
+		} else {
+			if (!rw_lock_x_lock_func_nowait_inline(
+				    &block->lock, __FILE__, __LINE__)) {
+				goto got_no_latch;
+			}
+			fix_type = MTR_MEMO_PAGE_X_FIX;
+		}
+		mtr->memo_push(block, fix_type);
+
+		buf_pool->stat.n_page_gets++;
 
 		rw_lock_s_unlock(use_latch);
 
@@ -1052,20 +1082,15 @@ fail:
 #ifdef UNIV_SEARCH_PERF_STAT
 	btr_search_n_succ++;
 #endif
-	if (!ahi_latch && buf_page_peek_if_too_old(&block->page)) {
-
-		buf_page_make_young(&block->page);
-	}
-
 	/* Increment the page get statistics though we did not really
 	fix the page: for user info only */
-	{
-		buf_pool_t*	buf_pool = buf_pool_from_bpage(&block->page);
+	++buf_pool->stat.n_page_gets;
 
-		++buf_pool->stat.n_page_gets;
+	if (!ahi_latch) {
+		buf_page_make_young_if_needed(buf_pool, &block->page);
 	}
 
-	return(TRUE);
+	return true;
 }
 
 /** Drop any adaptive hash index entries that point to an index page.

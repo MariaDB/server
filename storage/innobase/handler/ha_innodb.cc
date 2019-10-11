@@ -5901,7 +5901,7 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 		table->persistent_autoinc without
 		autoinc_mutex protection, and there might be multiple
 		ha_innobase::open() executing concurrently. */
-	} else if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
+	} else if (srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE) {
 		/* If the recovery level is set so high that writes
 		are disabled we force the AUTOINC counter to 0
 		value effectively disabling writes to the table.
@@ -14037,7 +14037,7 @@ ha_innobase::info_low(
 		}
 	}
 
-	if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
+	if (srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE) {
 
 		goto func_exit;
 
@@ -16683,6 +16683,9 @@ innobase_commit_by_xid(
 {
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
+	DBUG_EXECUTE_IF("innobase_xa_fail",
+			return XAER_RMFAIL;);
+
 	if (high_level_read_only) {
 		return(XAER_RMFAIL);
 	}
@@ -16714,6 +16717,9 @@ innobase_rollback_by_xid(
 				identification */
 {
 	DBUG_ASSERT(hton == innodb_hton_ptr);
+
+	DBUG_EXECUTE_IF("innobase_xa_fail",
+			return XAER_RMFAIL;);
 
 	if (high_level_read_only) {
 		return(XAER_RMFAIL);
@@ -19039,7 +19045,7 @@ static MYSQL_SYSVAR_ULONG(write_io_threads, srv_n_write_io_threads,
 
 static MYSQL_SYSVAR_ULONG(force_recovery, srv_force_recovery,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Helps to save your data in case the disk image of the database becomes corrupt.",
+  "Helps to save your data in case the disk image of the database becomes corrupt. Value 5 can return bogus data, and 6 can permanently corrupt data.",
   NULL, NULL, 0, 0, 6, 0);
 
 static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
@@ -19227,12 +19233,6 @@ static MYSQL_SYSVAR_UINT(change_buffering_debug, ibuf_debug,
   PLUGIN_VAR_RQCMDARG,
   "Debug flags for InnoDB change buffering (0=none, 1=try to buffer)",
   NULL, NULL, 0, 0, 1, 0);
-
-static MYSQL_SYSVAR_BOOL(disable_background_merge,
-  srv_ibuf_disable_background_merge,
-  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_RQCMDARG,
-  "Disable change buffering merges by the master thread",
-  NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
 static MYSQL_SYSVAR_ULONG(buf_dump_status_frequency, srv_buf_dump_status_frequency,
@@ -19694,7 +19694,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(change_buffer_max_size),
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
   MYSQL_SYSVAR(change_buffering_debug),
-  MYSQL_SYSVAR(disable_background_merge),
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 #ifdef WITH_INNODB_DISALLOW_WRITES
   MYSQL_SYSVAR(disallow_writes),

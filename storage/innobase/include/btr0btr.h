@@ -221,12 +221,13 @@ btr_height_get(
 @param[in]	index	index tree
 @param[in]	page	page number
 @param[in]	mode	latch mode
+@param[in]	merge	whether change buffer merge should be attempted
 @param[in]	file	file name
 @param[in]	line	line where called
 @param[in,out]	mtr	mini-transaction
 @return block */
 inline buf_block_t* btr_block_get_func(const dict_index_t& index, ulint page,
-				       ulint mode,
+				       ulint mode, bool merge,
 				       const char* file, unsigned line,
 				       mtr_t* mtr)
 {
@@ -235,7 +236,7 @@ inline buf_block_t* btr_block_get_func(const dict_index_t& index, ulint page,
 	if (buf_block_t* block = buf_page_get_gen(
 		    page_id_t(index.table->space->id, page),
 		    index.table->space->zip_size(), mode, NULL, BUF_GET,
-		    file, line, mtr, &err)) {
+		    file, line, mtr, &err, merge && !index.is_clust())) {
 		ut_ad(err == DB_SUCCESS);
 		if (mode != RW_NO_LATCH) {
 			buf_block_dbg_add_level(block, index.is_ibuf()
@@ -260,10 +261,11 @@ inline buf_block_t* btr_block_get_func(const dict_index_t& index, ulint page,
 @param index index tree
 @param page page number
 @param mode latch mode
+@param merge whether change buffer merge should be attempted
 @param mtr mini-transaction handle
 @return the block descriptor */
-# define btr_block_get(index, page, mode, mtr)			\
-	btr_block_get_func(index, page, mode, __FILE__, __LINE__, mtr)
+# define btr_block_get(index, page, mode, merge, mtr)		\
+	btr_block_get_func(index, page, mode, merge, __FILE__, __LINE__, mtr)
 /**************************************************************//**
 Gets the index id field of a page.
 @return index id */

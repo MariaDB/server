@@ -465,7 +465,8 @@ btr_pcur_move_to_next_page(
 	}
 
 	buf_block_t* next_block = btr_block_get(
-		*btr_pcur_get_btr_cur(cursor)->index, next_page_no, mode, mtr);
+		*btr_pcur_get_btr_cur(cursor)->index, next_page_no, mode,
+		page_is_leaf(page), mtr);
 
 	if (UNIV_UNLIKELY(!next_block)) {
 		return;

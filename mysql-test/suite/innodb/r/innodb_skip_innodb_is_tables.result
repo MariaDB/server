@@ -248,7 +248,6 @@ innodb_activity_count	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NU
 innodb_master_active_loops	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of times master thread performs its tasks when server is active
 innodb_master_idle_loops	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of times master thread performs its tasks when server is idle
 innodb_background_drop_table_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Time (in microseconds) spent to process drop table list
-innodb_ibuf_merge_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Time (in microseconds) spent to process change buffer merge
 innodb_log_flush_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Time (in microseconds) spent to flush log records
 innodb_mem_validate_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Time (in microseconds) spent to do memory validation
 innodb_master_purge_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Time (in microseconds) spent by master thread to purge records

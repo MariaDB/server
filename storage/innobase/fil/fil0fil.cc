@@ -4783,15 +4783,7 @@ fil_space_validate_for_mtr_commit(
 	/* We are serving mtr_commit(). While there is an active
 	mini-transaction, we should have !space->stop_new_ops. This is
 	guaranteed by meta-data locks or transactional locks, or
-	dict_sys.latch (X-lock in DROP, S-lock in purge).
-
-	However, a file I/O thread can invoke change buffer merge
-	while fil_check_pending_operations() is waiting for operations
-	to quiesce. This is not a problem, because
-	ibuf_merge_or_delete_for_page() would call
-	fil_space_acquire() before mtr_start() and
-	fil_space_t::release() after mtr_commit(). This is why
-	n_pending_ops should not be zero if stop_new_ops is set. */
+	dict_sys.latch (X-lock in DROP, S-lock in purge). */
 	ut_ad(!space->stop_new_ops
 	      || space->is_being_truncated /* fil_truncate_prepare() */
 	      || space->referenced());

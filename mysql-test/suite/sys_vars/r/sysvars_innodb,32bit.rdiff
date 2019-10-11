@@ -176,7 +176,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Helps to save your data in case the disk image of the database becomes corrupt.
+ VARIABLE_COMMENT	Helps to save your data in case the disk image of the database becomes corrupt. Value 5 can return bogus data, and 6 can permanently corrupt data.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	6
 @@ -949,7 +949,7 @@

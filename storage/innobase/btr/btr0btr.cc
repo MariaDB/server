@@ -223,7 +223,8 @@ btr_root_block_get(
 		return NULL;
 	}
 
-	buf_block_t* block = btr_block_get(*index, index->page, mode, mtr);
+	buf_block_t* block = btr_block_get(*index, index->page, mode, false,
+					   mtr);
 
 	if (!block) {
 		index->table->file_unreadable = true;
@@ -833,7 +834,8 @@ btr_node_ptr_get_child(
 
 	return btr_block_get(
 		*index, btr_node_ptr_get_child_page_no(node_ptr, offsets),
-		RW_SX_LATCH, mtr);
+		RW_SX_LATCH, btr_page_get_level(page_align(node_ptr)) == 1,
+		mtr);
 }
 
 /************************************************************//**
@@ -2498,7 +2500,6 @@ btr_attach_half_pages(
 {
 	ulint		prev_page_no;
 	ulint		next_page_no;
-	ulint		level;
 	page_t*		page		= buf_block_get_frame(block);
 	page_t*		lower_page;
 	page_t*		upper_page;
@@ -2551,6 +2552,10 @@ btr_attach_half_pages(
 		upper_page_zip = buf_block_get_page_zip(new_block);
 	}
 
+	/* Get the level of the split pages */
+	const ulint level = btr_page_get_level(buf_block_get_frame(block));
+	ut_ad(level == btr_page_get_level(buf_block_get_frame(new_block)));
+
 	/* Get the previous and next pages of page */
 	prev_page_no = btr_page_get_prev(page, mtr);
 	next_page_no = btr_page_get_next(page, mtr);
@@ -2558,16 +2563,12 @@ btr_attach_half_pages(
 	/* for consistency, both blocks should be locked, before change */
 	if (prev_page_no != FIL_NULL && direction == FSP_DOWN) {
 		prev_block = btr_block_get(*index, prev_page_no, RW_X_LATCH,
-					   mtr);
+					   !level, mtr);
 	}
 	if (next_page_no != FIL_NULL && direction != FSP_DOWN) {
 		next_block = btr_block_get(*index, next_page_no, RW_X_LATCH,
-					   mtr);
+					   !level, mtr);
 	}
-
-	/* Get the level of the split pages */
-	level = btr_page_get_level(buf_block_get_frame(block));
-	ut_ad(level == btr_page_get_level(buf_block_get_frame(new_block)));
 
 	/* Build the node pointer (= node key and page address) for the upper
 	half */
@@ -2709,7 +2710,7 @@ btr_insert_into_right_sibling(
 	ulint		max_size;
 
 	next_block = btr_block_get(*cursor->index, next_page_no, RW_X_LATCH,
-				   mtr);
+				   page_is_leaf(page), mtr);
 	if (UNIV_UNLIKELY(!next_block)) {
 		return NULL;
 	}
@@ -3218,7 +3219,8 @@ void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
 
 	if (prev_page_no != FIL_NULL) {
 		buf_block_t*	prev_block = btr_block_get(
-			index, prev_page_no, RW_X_LATCH, mtr);
+			index, prev_page_no, RW_X_LATCH, page_is_leaf(page),
+			mtr);
 		page_t*		prev_page
 			= buf_block_get_frame(prev_block);
 #ifdef UNIV_BTR_DEBUG
@@ -3234,7 +3236,8 @@ void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
 
 	if (next_page_no != FIL_NULL) {
 		buf_block_t*	next_block = btr_block_get(
-			index, next_page_no, RW_X_LATCH, mtr);
+			index, next_page_no, RW_X_LATCH, page_is_leaf(page),
+			mtr);
 		page_t*		next_page
 			= buf_block_get_frame(next_block);
 #ifdef UNIV_BTR_DEBUG
@@ -4199,7 +4202,7 @@ btr_discard_page(
 	ut_d(bool parent_is_different = false);
 	if (left_page_no != FIL_NULL) {
 		merge_block = btr_block_get(*index, left_page_no, RW_X_LATCH,
-					    mtr);
+					    true, mtr);
 		merge_page = buf_block_get_frame(merge_block);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(btr_page_get_next(merge_page, mtr)
@@ -4213,7 +4216,7 @@ btr_discard_page(
 			 == btr_cur_get_rec(&parent_cursor)));
 	} else if (right_page_no != FIL_NULL) {
 		merge_block = btr_block_get(*index, right_page_no, RW_X_LATCH,
-					    mtr);
+					    true, mtr);
 		merge_page = buf_block_get_frame(merge_block);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(btr_page_get_prev(merge_page, mtr)
@@ -4866,7 +4869,8 @@ btr_validate_level(
 
 				savepoint2 = mtr_set_savepoint(&mtr);
 				block = btr_block_get(*index, left_page_no,
-						      RW_SX_LATCH, &mtr);
+						      RW_SX_LATCH, false,
+						      &mtr);
 				page = buf_block_get_frame(block);
 				left_page_no = btr_page_get_prev(page, &mtr);
 			}
@@ -4935,7 +4939,7 @@ loop:
 		savepoint = mtr_set_savepoint(&mtr);
 
 		right_block = btr_block_get(*index, right_page_no, RW_SX_LATCH,
-					    &mtr);
+					    !level, &mtr);
 		right_page = buf_block_get_frame(right_block);
 
 		if (btr_page_get_prev(right_page, &mtr)
@@ -5109,10 +5113,11 @@ loop:
 					&mtr, savepoint, right_block);
 
 				btr_block_get(*index, parent_right_page_no,
-					      RW_SX_LATCH, &mtr);
+					      RW_SX_LATCH, false, &mtr);
 				right_block = btr_block_get(*index,
 							    right_page_no,
-							    RW_SX_LATCH, &mtr);
+							    RW_SX_LATCH,
+							    !level, &mtr);
 			}
 
 			btr_cur_position(
@@ -5187,16 +5192,17 @@ node_ptr_fails:
 				if (parent_right_page_no != FIL_NULL) {
 					btr_block_get(*index,
 						      parent_right_page_no,
-						      RW_SX_LATCH, &mtr);
+						      RW_SX_LATCH, false,
+						      &mtr);
 				}
 			} else if (parent_page_no != FIL_NULL) {
 				btr_block_get(*index, parent_page_no,
-					      RW_SX_LATCH, &mtr);
+					      RW_SX_LATCH, false, &mtr);
 			}
 		}
 
 		block = btr_block_get(*index, right_page_no, RW_SX_LATCH,
-				      &mtr);
+				      !level, &mtr);
 		page = buf_block_get_frame(block);
 
 		goto loop;
@@ -5299,7 +5305,8 @@ btr_can_merge_with_page(
 	index = btr_cur_get_index(cursor);
 	page = btr_cur_get_page(cursor);
 
-	mblock = btr_block_get(*index, page_no, RW_X_LATCH, mtr);
+	mblock = btr_block_get(*index, page_no, RW_X_LATCH, page_is_leaf(page),
+			       mtr);
 	mpage = buf_block_get_frame(mblock);
 
 	n_recs = page_get_n_recs(page);

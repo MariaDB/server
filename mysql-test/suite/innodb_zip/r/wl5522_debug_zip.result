@@ -120,7 +120,6 @@ ROW_FORMAT=COMPRESSED;
 connect  purge_control,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
-SET GLOBAL innodb_disable_background_merge=ON;
 SET GLOBAL innodb_monitor_reset = ibuf_merges;
 SET GLOBAL innodb_monitor_reset = ibuf_merges_insert;
 INSERT INTO test_wl5522.t1(c2, c3, c4) VALUES
@@ -271,6 +270,7 @@ SELECT name
 FROM information_schema.innodb_metrics
 WHERE name = 'ibuf_merges_insert' AND count = 0;
 name
+ibuf_merges_insert
 FLUSH TABLES test_wl5522.t1 FOR EXPORT;
 backup: t1
 UNLOCK TABLES;
@@ -278,12 +278,10 @@ SELECT name
 FROM information_schema.innodb_metrics
 WHERE name = 'ibuf_merges' AND count > 0;
 name
-ibuf_merges
 SELECT name
 FROM information_schema.innodb_metrics
 WHERE name = 'ibuf_merges_inserts' AND count > 0;
 name
-SET GLOBAL innodb_disable_background_merge=OFF;
 connection purge_control;
 COMMIT;
 disconnect purge_control;

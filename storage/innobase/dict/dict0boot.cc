@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -450,36 +450,15 @@ dict_boot(void)
 
 	/* Initialize the insert buffer table and index for each tablespace */
 
-	dberr_t	err = DB_SUCCESS;
-
-	err = ibuf_init_at_db_start();
+	dberr_t	err = ibuf_init_at_db_start();
 
 	if (err == DB_SUCCESS) {
-		if (srv_read_only_mode
-		    && srv_force_recovery != SRV_FORCE_NO_LOG_REDO
-		    && !ibuf_is_empty()) {
+		/* Load definitions of other indexes on system tables */
 
-			if (srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE) {
-				ib::error() << "Change buffer must be empty when"
-					" --innodb-read-only is set!"
-					"You can try to recover the database with innodb_force_recovery=5";
-
-				err = DB_ERROR;
-			} else {
-				ib::warn() << "Change buffer not empty when --innodb-read-only "
-					"is set! but srv_force_recovery = " << srv_force_recovery
-					   << " , ignoring.";
-			}
-		}
-
-		if (err == DB_SUCCESS) {
-			/* Load definitions of other indexes on system tables */
-
-			dict_load_sys_table(dict_sys.sys_tables);
-			dict_load_sys_table(dict_sys.sys_columns);
-			dict_load_sys_table(dict_sys.sys_indexes);
-			dict_load_sys_table(dict_sys.sys_fields);
-		}
+		dict_load_sys_table(dict_sys.sys_tables);
+		dict_load_sys_table(dict_sys.sys_columns);
+		dict_load_sys_table(dict_sys.sys_indexes);
+		dict_load_sys_table(dict_sys.sys_fields);
 	}
 
 	mutex_exit(&dict_sys.mutex);
