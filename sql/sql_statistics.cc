@@ -3286,14 +3286,12 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
 
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
-    if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
-    { 
-      TABLE_SHARE *table_share= tl->table->s;
-      if (table_share && !(table_share->table_category == TABLE_CATEGORY_USER))
-        continue;
-
-      if (table_share && 
-          table_share->stats_cb.stats_can_be_read &&
+    TABLE_SHARE *table_share;
+    if (!tl->is_view_or_derived() && tl->table && (table_share= tl->table->s) &&
+        table_share->tmp_table == NO_TMP_TABLE &&
+        table_share->table_category == TABLE_CATEGORY_USER)
+    {
+      if (table_share->stats_cb.stats_can_be_read &&
 	  !table_share->stats_cb.stats_is_read)
       {
         (void) read_statistics_for_table(thd, tl->table, stat_tables);
@@ -3301,15 +3299,15 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
       }
       if (table_share->stats_cb.stats_is_read)
         tl->table->stats_is_read= TRUE;
-      if (thd->variables.optimizer_use_condition_selectivity > 3 && 
-          table_share && table_share->stats_cb.stats_can_be_read &&
+      if (thd->variables.optimizer_use_condition_selectivity > 3 &&
+          table_share->stats_cb.stats_can_be_read &&
           !table_share->stats_cb.histograms_are_read)
       {
         (void) read_histograms_for_table(thd, tl->table, stat_tables);
         table_share->stats_cb.histograms_are_read= TRUE;
       }
     }
-  }  
+  }
 
   close_system_tables(thd, &open_tables_backup);
 
