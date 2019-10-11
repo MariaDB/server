@@ -1076,21 +1076,9 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
       }
       else
 #endif
-      error=write_record(thd, table ,&info);
+      error= write_record(thd, table, &info, result);
       if (unlikely(error))
         break;
-      /*
-        We send the row after writing it to the table so that the
-        correct values are sent to the client. Otherwise it won't show
-        autoinc values (generated inside the handler::ha_write()) and
-        values updated in ON DUPLICATE KEY UPDATE (handled inside
-        write_record()).
-      */
-      if (returning && result->send_data(returning->item_list) < 0)
-      {
-        error= 1;
-        break;
-      }
       thd->get_stmt_da()->inc_current_row_for_warning();
     }
     its.rewind();
@@ -1688,6 +1676,7 @@ int vers_insert_history_row(TABLE *table)
       info  - COPY_INFO structure describing handling of duplicates
               and which is used for counting number of records inserted
               and deleted.
+      sink  - result sink for the RETURNING clause
 
   NOTE
     Once this record will be written to table after insert trigger will
@@ -1704,7 +1693,7 @@ int vers_insert_history_row(TABLE *table)
 */
 
 
-int write_record(THD *thd, TABLE *table,COPY_INFO *info)
+int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
 {
   int error, trg_error= 0;
   char *key=0;
@@ -1750,7 +1739,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         if (info->ignore)
         {
           table->file->print_error(error, MYF(ME_WARNING));
-          goto ok_or_after_trg_err; /* Ignoring a not fatal error, return 0 */
+          goto after_trg_or_ignored_err; /* Ignoring a not fatal error */
         }
         goto err;
       }
@@ -1856,7 +1845,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         /* CHECK OPTION for VIEW ... ON DUPLICATE KEY UPDATE ... */
         res= info->table_list->view_check_option(table->in_use, info->ignore);
         if (res == VIEW_CHECK_SKIP)
-          goto ok_or_after_trg_err;
+          goto after_trg_or_ignored_err;
         if (res == VIEW_CHECK_ERROR)
           goto before_trg_err;
 
@@ -1874,7 +1863,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
               if (!(thd->variables.old_behavior &
                     OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
                 table->file->print_error(error, MYF(ME_WARNING));
-              goto ok_or_after_trg_err;
+              goto after_trg_or_ignored_err;
             }
             goto err;
           }
@@ -1893,7 +1882,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
                   table->file->print_error(error, MYF(0));
                   trg_error= 1;
                   restore_record(table, record[2]);
-                  goto ok_or_after_trg_err;
+                  goto after_trg_or_ignored_err;
                 }
                 restore_record(table, record[2]);
               }
@@ -1934,7 +1923,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         {
           table->file->restore_auto_increment(prev_insert_id_for_cur_row);
         }
-        goto ok_or_after_trg_err;
+        goto ok;
       }
       else /* DUP_REPLACE */
       {
@@ -2019,7 +2008,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
                                                 TRG_ACTION_AFTER, TRUE))
           {
             trg_error= 1;
-            goto ok_or_after_trg_err;
+            goto after_trg_or_ignored_err;
           }
           /* Let us attempt do write_row() once more */
         }
@@ -2055,7 +2044,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
       table->file->print_error(error, MYF(ME_WARNING));
     table->file->restore_auto_increment();
-    goto ok_or_after_trg_err;
+    goto after_trg_or_ignored_err;
   }
 
 after_trg_n_copied_inc:
@@ -2065,7 +2054,17 @@ after_trg_n_copied_inc:
               table->triggers->process_triggers(thd, TRG_EVENT_INSERT,
                                                 TRG_ACTION_AFTER, TRUE));
 
-ok_or_after_trg_err:
+ok:
+  /*
+    We send the row after writing it to the table so that the
+    correct values are sent to the client. Otherwise it won't show
+    autoinc values (generated inside the handler::ha_write()) and
+    values updated in ON DUPLICATE KEY UPDATE.
+  */
+  if (sink && sink->send_data(thd->lex->returning()->item_list) < 0)
+    trg_error= 1;
+
+after_trg_or_ignored_err:
   if (key)
     my_safe_afree(key,table->s->max_unique_length);
   if (!table->file->has_transactions())
@@ -3413,7 +3412,7 @@ bool Delayed_insert::handle_inserts(void)
                                               VCOL_UPDATE_FOR_WRITE);
     }
 
-    if (unlikely(tmp_error) || unlikely(write_record(&thd, table, &info)))
+    if (unlikely(tmp_error || write_record(&thd, table, &info, NULL)))
     {
       info.error_count++;				// Ignore errors
       thread_safe_increment(delayed_insert_errors,&LOCK_delayed_status);
@@ -3908,16 +3907,7 @@ int select_insert::send_data(List<Item> &values)
     }
   }
 
-  error= write_record(thd, table, &info);
-  /*
-    Sending the result set to the cliet after writing record. The reason is
-    same as other variants of insert.
-  */
-  if (sel_result && sel_result->send_data(thd->lex->returning()->item_list) < 0)
-  {
-    error= 1;
-    DBUG_RETURN(1);
-  }
+  error= write_record(thd, table, &info, sel_result);
   table->vers_write= table->versioned();
   table->auto_increment_field_not_null= FALSE;
 

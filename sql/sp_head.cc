@@ -290,6 +290,10 @@ sp_get_flags_for_command(LEX *lex)
     break;
   case SQLCOM_DELETE:
   case SQLCOM_DELETE_MULTI:
+  case SQLCOM_INSERT:
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_INSERT_SELECT:
   {
     /* 
       DELETE normally doesn't return resultset, but there are 3 exceptions:
@@ -297,8 +301,7 @@ sp_get_flags_for_command(LEX *lex)
        - EXPLAIN DELETE ...
        - ANALYZE DELETE ...
     */
-    if (lex->first_select_lex()->item_list.is_empty() &&
-        !lex->describe && !lex->analyze_stmt)
+    if (!lex->has_returning() && !lex->describe && !lex->analyze_stmt)
       flags= 0;
     else
       flags= sp_head::MULTI_RESULTS; 
@@ -306,10 +309,6 @@ sp_get_flags_for_command(LEX *lex)
   }
   case SQLCOM_UPDATE:
   case SQLCOM_UPDATE_MULTI:
-  case SQLCOM_INSERT:
-  case SQLCOM_REPLACE:
-  case SQLCOM_REPLACE_SELECT:
-  case SQLCOM_INSERT_SELECT:
   {
     if (!lex->describe && !lex->analyze_stmt)
       flags= 0;

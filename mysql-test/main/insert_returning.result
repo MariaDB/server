@@ -25,10 +25,10 @@ FROM t2 WHERE id2=1);
 FROM t2 WHERE id2=1)
 a
 INSERT INTO t1(id1,val1) VALUES(5,'e') RETURNING(SELECT GROUP_CONCAT(val2)
-FROM t2 GROUP BY id2 HAVING id2=id2+1);
+FROM t2 GROUP BY id2 HAVING id2=id1-2);
 (SELECT GROUP_CONCAT(val2)
-FROM t2 GROUP BY id2 HAVING id2=id2+1)
-NULL
+FROM t2 GROUP BY id2 HAVING id2=id1-2)
+c
 PREPARE stmt FROM "INSERT INTO t1 (id1,val1) VALUES (6,'f') RETURNING (SELECT id2 FROM  t2 WHERE val2='b')";
 EXECUTE stmt;
 (SELECT id2 FROM  t2 WHERE val2='b')
@@ -110,11 +110,11 @@ FROM t2 WHERE id2=1)
 a
 a
 INSERT INTO t1 VALUES (9,'i'),(10,'j') RETURNING(SELECT GROUP_CONCAT(val2)
-FROM t2 GROUP BY id2 HAVING id2=id2+1);
+FROM t2 GROUP BY id2 HAVING id2=id1-8);
 (SELECT GROUP_CONCAT(val2)
-FROM t2 GROUP BY id2 HAVING id2=id2+1)
-NULL
-NULL
+FROM t2 GROUP BY id2 HAVING id2=id1-8)
+a
+b
 PREPARE stmt FROM "INSERT INTO t1 VALUES (11,'k'),(12,'l') RETURNING (SELECT id2 FROM t2 WHERE val2='b')";
 EXECUTE stmt;
 (SELECT id2 FROM t2 WHERE val2='b')
@@ -200,9 +200,9 @@ RETURNING (SELECT GROUP_CONCAT(val2) FROM t2 WHERE id2=1);
 (SELECT GROUP_CONCAT(val2) FROM t2 WHERE id2=1)
 a
 INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE KEY UPDATE val='e'
-RETURNING (SELECT GROUP_CONCAT(val2) FROM t2 GROUP BY id2 HAVING id2=id2+1);
-(SELECT GROUP_CONCAT(val2) FROM t2 GROUP BY id2 HAVING id2=id2+1)
-NULL
+RETURNING (SELECT GROUP_CONCAT(val2) FROM t2 GROUP BY id2 HAVING id2=id);
+(SELECT GROUP_CONCAT(val2) FROM t2 GROUP BY id2 HAVING id2=id)
+b
 PREPARE stmt FROM "INSERT INTO ins_duplicate VALUES (2,'b') ON DUPLICATE
 KEY UPDATE val='f' RETURNING (SELECT id2 FROM  t2 WHERE val2='b')";
 EXECUTE stmt;
@@ -274,10 +274,10 @@ FROM t2 WHERE id2=1);
 FROM t2 WHERE id2=1)
 a
 INSERT INTO t1 SET id1= 5, val1='e' RETURNING (SELECT GROUP_CONCAT(val2)
-FROM t2 GROUP BY id2 HAVING id2=id2+1);
+FROM t2 GROUP BY id2 HAVING id2=id1-3);
 (SELECT GROUP_CONCAT(val2)
-FROM t2 GROUP BY id2 HAVING id2=id2+1)
-NULL
+FROM t2 GROUP BY id2 HAVING id2=id1-3)
+b
 PREPARE stmt FROM "INSERT INTO t1 SET id1= 6, val1='f' RETURNING (SELECT id2 FROM  t2 WHERE val2='b')";
 EXECUTE stmt;
 (SELECT id2 FROM  t2 WHERE val2='b')
@@ -302,7 +302,6 @@ id1	val1
 8	n
 INSERT IGNORE INTO t1 SET id1= 8, val1= 'h' RETURNING *;
 id1	val1
-8	h
 Warnings:
 Warning	1062	Duplicate entry '8' for key 'PRIMARY'
 EXPLAIN INSERT INTO t1 SET id1=9, val1='i' RETURNING id1;
@@ -405,14 +404,7 @@ id2	val2
 8	n
 INSERT IGNORE INTO v2 SELECT * FROM v1 RETURNING *;
 id2	val2
-1	a
-2	b
-3	c
-4	d
 5	e
-6	f
-7	g
-8	n
 26	Z
 12	l
 Warnings:
@@ -552,6 +544,32 @@ ERROR 21000: Operand should contain 1 column(s)
 INSERT INTO t2(id2,val2) SELECT * FROM t1 WHERE id1=2 RETURNING (SELECT
 id2 FROM t2);
 ERROR 21000: Subquery returns more than 1 row
+#
+# TRIGGER
+#
+CREATE TRIGGER bi1 before insert on t1 for each row set NEW.val1= 'z';
+INSERT INTO t1 VALUES (4, 'd'), (5, 'e') RETURNING *;
+id1	val1
+4	z
+5	z
+CREATE TRIGGER bi2 before insert on t2 for each row
+INSERT INTO t1 VALUES (NEW.id2, NEW.val2) RETURNING *;
+ERROR 0A000: Not allowed to return a result set from a trigger
+#
+# SP
+#
+CREATE FUNCTION f1(arg INT) RETURNS TEXT
+BEGIN
+INSERT INTO t1 VALUES (arg, arg) RETURNING *;
+RETURN arg;
+END|
+ERROR 0A000: Not allowed to return a result set from a function
+CREATE PROCEDURE sp1(arg INT)
+INSERT INTO t1 VALUES (arg, arg) RETURNING *;
+CALL sp1(0);
+id1	val1
+0	z
+DROP PROCEDURE sp1;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE ins_duplicate;
