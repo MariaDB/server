@@ -1218,9 +1218,10 @@ row_purge_step(
 	while (UT_LIST_GET_LEN(slot->debug_sync)) {
 		srv_slot_t::debug_sync_t *sync =
 					UT_LIST_GET_FIRST(slot->debug_sync);
+		const char* sync_str = reinterpret_cast<char*>(&sync[1]);
 		bool result = debug_sync_set_action(current_thd,
-						    sync->str,
-						    strlen(sync->str));
+						    sync_str,
+						    strlen(sync_str));
 		ut_a(!result);
 
 		UT_LIST_REMOVE(slot->debug_sync, sync);

@@ -615,7 +615,7 @@ extern ulong	srv_fatal_semaphore_wait_threshold;
 /** Buffer pool dump status frequence in percentages */
 extern ulong srv_buf_dump_status_frequency;
 
-constexpr uint srv_max_purge_threads = 32;
+#define srv_max_purge_threads 32
 
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
@@ -1132,12 +1132,9 @@ struct srv_slot_t{
 						(only used for user threads) */
 #ifdef UNIV_DEBUG
 	struct debug_sync_t {
-		UT_LIST_NODE_T(debug_sync_t)
-			debug_sync_list;
-		char str[0];
+		UT_LIST_NODE_T(debug_sync_t) debug_sync_list;
 	};
-	UT_LIST_BASE_NODE_T(debug_sync_t)
-		debug_sync;
+	UT_LIST_BASE_NODE_T(debug_sync_t) debug_sync;
 	rw_lock_t debug_sync_lock;
 #endif
 };

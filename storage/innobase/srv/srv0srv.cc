@@ -663,14 +663,14 @@ char	srv_buffer_pool_dump_at_shutdown = TRUE;
 char	srv_buffer_pool_load_at_startup = TRUE;
 
 /** Slot index in the srv_sys.sys_threads array for the master thread. */
-constexpr ulint	SRV_MASTER_SLOT = 0;
+#define SRV_MASTER_SLOT 0
 
 /** Slot index in the srv_sys.sys_threads array for the purge thread. */
-constexpr ulint	SRV_PURGE_SLOT	= 1;
+#define SRV_PURGE_SLOT 1
 
 /** Slot index in the srv_sys.sys_threads array from which purge workers start.
   */
-constexpr ulint	SRV_WORKER_SLOTS_START = 2;
+#define SRV_WORKER_SLOTS_START 2
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Performance schema stage event for monitoring ALTER TABLE progress

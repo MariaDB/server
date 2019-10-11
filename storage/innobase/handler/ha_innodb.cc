@@ -19388,7 +19388,7 @@ innobase_debug_sync_callback(srv_slot_t *slot, const void *value)
 	// One allocatoin for list node object and value.
 	void *buf = ut_malloc_nokey(sizeof(srv_slot_t::debug_sync_t) + len);
 	srv_slot_t::debug_sync_t *sync = new(buf) srv_slot_t::debug_sync_t();
-	strcpy(sync->str, value_str);
+	strcpy(reinterpret_cast<char*>(&sync[1]), value_str);
 
 	rw_lock_x_lock(&slot->debug_sync_lock);
 	UT_LIST_ADD_LAST(slot->debug_sync, sync);
