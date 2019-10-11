@@ -176,7 +176,7 @@ maria_declare_plugin(type_inet)
 {
   MariaDB_DATA_TYPE_PLUGIN,     // the plugin type (see include/mysql/plugin.h)
   &plugin_descriptor_type_inet6,// pointer to type-specific plugin descriptor
-  type_handler_inet6.name().ptr(),// plugin name
+  "inet6",                      // plugin name
   "MariaDB Corporation",        // plugin author
   "Data type INET6",            // the plugin description
   PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)

@@ -2421,7 +2421,9 @@ class Field_tiny :public Field_int
 {
   const Type_handler_general_purpose_int *type_handler_priv() const
   {
-    return is_unsigned() ? &type_handler_utiny : &type_handler_stiny;
+    if (is_unsigned())
+      return &type_handler_utiny;
+    return &type_handler_stiny;
   }
 public:
   Field_tiny(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
@@ -2476,7 +2478,9 @@ class Field_short :public Field_int
 {
   const Type_handler_general_purpose_int *type_handler_priv() const
   {
-    return is_unsigned() ? &type_handler_ushort : &type_handler_sshort;
+    if (is_unsigned())
+      return &type_handler_ushort;
+    return &type_handler_sshort;
   }
 public:
   Field_short(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
@@ -2527,7 +2531,9 @@ class Field_medium :public Field_int
 {
   const Type_handler_general_purpose_int *type_handler_priv() const
   {
-    return is_unsigned() ? &type_handler_uint24 : &type_handler_sint24;
+    if (is_unsigned())
+      return &type_handler_uint24;
+    return &type_handler_sint24;
   }
 public:
   Field_medium(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
@@ -2571,7 +2577,9 @@ class Field_long :public Field_int
 {
   const Type_handler_general_purpose_int *type_handler_priv() const
   {
-    return is_unsigned() ? &type_handler_ulong : &type_handler_slong;
+    if (is_unsigned())
+      return &type_handler_ulong;
+    return &type_handler_slong;
   }
 public:
   Field_long(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
@@ -2626,7 +2634,9 @@ class Field_longlong :public Field_int
 {
   const Type_handler_general_purpose_int *type_handler_priv() const
   {
-    return is_unsigned() ? &type_handler_ulonglong : &type_handler_slonglong;
+    if (is_unsigned())
+      return &type_handler_ulonglong;
+    return &type_handler_slonglong;
   }
 public:
   Field_longlong(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,

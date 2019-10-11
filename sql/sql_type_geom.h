@@ -41,7 +41,6 @@ public:
   static const Type_handler_geometry *type_handler_geom_by_type(uint type);
 public:
   virtual ~Type_handler_geometry() {}
-  const Name name() const override;
   enum_field_types field_type() const override { return MYSQL_TYPE_GEOMETRY; }
   bool is_param_long_data_type() const override { return true; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
@@ -181,7 +180,6 @@ class Type_handler_point: public Type_handler_geometry
   static uint octet_length() { return 25; }
 public:
   geometry_types geometry_type() const override { return GEOM_POINT; }
-  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
   bool Key_part_spec_init_primary(Key_part_spec *part,
                                   const Column_definition &def,
@@ -203,7 +201,6 @@ class Type_handler_linestring: public Type_handler_geometry
 {
 public:
   geometry_types geometry_type() const override { return GEOM_LINESTRING; }
-  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
@@ -212,7 +209,6 @@ class Type_handler_polygon: public Type_handler_geometry
 {
 public:
   geometry_types geometry_type() const override { return GEOM_POLYGON; }
-  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
@@ -221,7 +217,6 @@ class Type_handler_multipoint: public Type_handler_geometry
 {
 public:
   geometry_types geometry_type() const override { return GEOM_MULTIPOINT; }
-  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
@@ -230,7 +225,6 @@ class Type_handler_multilinestring: public Type_handler_geometry
 {
 public:
   geometry_types geometry_type() const override { return GEOM_MULTILINESTRING; }
-  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
@@ -239,7 +233,6 @@ class Type_handler_multipolygon: public Type_handler_geometry
 {
 public:
   geometry_types geometry_type() const override { return GEOM_MULTIPOLYGON; }
-  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
@@ -248,20 +241,17 @@ class Type_handler_geometrycollection: public Type_handler_geometry
 {
 public:
   geometry_types geometry_type() const override { return GEOM_GEOMETRYCOLLECTION; }
-  const Name name() const override;
   Item *make_constructor_item(THD *thd, List<Item> *args) const override;
 };
 
-
-extern MYSQL_PLUGIN_IMPORT Type_handler_geometry   type_handler_geometry;
-extern MYSQL_PLUGIN_IMPORT Type_handler_point      type_handler_point;
-extern MYSQL_PLUGIN_IMPORT Type_handler_linestring type_handler_linestring;
-extern MYSQL_PLUGIN_IMPORT Type_handler_polygon    type_handler_polygon;
-extern MYSQL_PLUGIN_IMPORT Type_handler_multipoint      type_handler_multipoint;
-extern MYSQL_PLUGIN_IMPORT Type_handler_multilinestring type_handler_multilinestring;
-extern MYSQL_PLUGIN_IMPORT Type_handler_multipolygon    type_handler_multipolygon;
-extern MYSQL_PLUGIN_IMPORT Type_handler_geometrycollection type_handler_geometrycollection;
-
+extern Named_type_handler<Type_handler_geometry> type_handler_geometry;
+extern Named_type_handler<Type_handler_point> type_handler_point;
+extern Named_type_handler<Type_handler_linestring> type_handler_linestring;
+extern Named_type_handler<Type_handler_polygon> type_handler_polygon;
+extern Named_type_handler<Type_handler_multipoint> type_handler_multipoint;
+extern Named_type_handler<Type_handler_multilinestring> type_handler_multilinestring;
+extern Named_type_handler<Type_handler_multipolygon> type_handler_multipolygon;
+extern Named_type_handler<Type_handler_geometrycollection> type_handler_geometrycollection;
 
 class Type_collection_geometry: public Type_collection
 {
@@ -314,9 +304,7 @@ public:
   }
 };
 
-
-extern MYSQL_PLUGIN_IMPORT Type_collection_geometry type_collection_geometry;
-
+extern Type_collection_geometry type_collection_geometry;
 
 #include "field.h"
 

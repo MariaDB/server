@@ -318,11 +318,6 @@ class Type_handler_inet6: public Type_handler
 public:
   ~Type_handler_inet6() override {}
 
-  const Name name() const override
-  {
-    static const Name name(STRING_WITH_LEN("inet6"));
-    return name;
-  }
   const Type_collection *type_collection() const override;
   const Name &default_value() const override
   {

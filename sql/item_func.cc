@@ -5423,8 +5423,10 @@ bool Item_func_get_user_var::fix_length_and_dec()
       collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
       fix_char_length(MAX_BIGINT_WIDTH);
       decimals=0;
-      set_handler(unsigned_flag ? &type_handler_ulonglong :
-                                  &type_handler_slonglong);
+      if (unsigned_flag)
+        set_handler(&type_handler_ulonglong);
+      else
+        set_handler(&type_handler_slonglong);
       break;
     case STRING_RESULT:
       collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);

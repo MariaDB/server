@@ -106,6 +106,8 @@ extern int finalize_audit_plugin(st_plugin_int *plugin);
 extern int initialize_encryption_plugin(st_plugin_int *plugin);
 extern int finalize_encryption_plugin(st_plugin_int *plugin);
 
+extern int initialize_data_type_plugin(st_plugin_int *plugin);
+
 /*
   The number of elements in both plugin_type_initialize and
   plugin_type_deinitialize should equal to the number of plugins
@@ -114,8 +116,8 @@ extern int finalize_encryption_plugin(st_plugin_int *plugin);
 plugin_type_init plugin_type_initialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   0, ha_initialize_handlerton, 0, 0,initialize_schema_table,
-  initialize_audit_plugin, 0, 0, 0, initialize_encryption_plugin, 0,
-  0 // FUNCTION
+  initialize_audit_plugin, 0, 0, 0, initialize_encryption_plugin,
+  initialize_data_type_plugin, 0
 };
 
 plugin_type_init plugin_type_deinitialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=

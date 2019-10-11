@@ -109,8 +109,9 @@ public:
   { max_length=11; }
   const Type_handler *type_handler() const
   {
-    return unsigned_flag ? &type_handler_ulonglong :
-                           &type_handler_slonglong;
+    if (unsigned_flag)
+      return &type_handler_ulonglong;
+    return &type_handler_slonglong;
   }
   void set(double nr) { value=(longlong) nr; }
   void set(longlong nr) { value=nr; }
