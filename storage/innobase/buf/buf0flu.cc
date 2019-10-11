@@ -854,7 +854,9 @@ buf_flush_init_for_writing(
 	ut_ad(block == NULL || block->frame == page);
 	ut_ad(block == NULL || page_zip_ == NULL
 	      || &block->page.zip == page_zip_);
+	ut_ad(!srv_safe_truncate || !block == !newest_lsn);
 	ut_ad(page);
+	ut_ad(!srv_safe_truncate || !newest_lsn || fil_page_get_type(page));
 
 	if (page_zip_) {
 		page_zip_des_t*	page_zip;

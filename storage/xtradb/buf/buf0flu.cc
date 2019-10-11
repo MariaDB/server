@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -787,6 +787,7 @@ buf_flush_init_for_writing(
 	ib_uint32_t	checksum = 0 /* silence bogus gcc warning */;
 
 	ut_ad(page);
+	ut_ad(!newest_lsn || fil_page_get_type(page));
 
 	if (page_zip_) {
 		page_zip_des_t*	page_zip;

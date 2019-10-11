@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -291,6 +291,13 @@ too_small:
 
 		ut_ad(rw_lock_get_x_lock_count(&new_block->lock) == 1);
 		page_no = buf_block_get_page_no(new_block);
+		/* We only do this in the debug build, to ensure that
+		both the check in buf_flush_init_for_writing() and
+		recv_parse_or_apply_log_rec_body() will see a valid
+		page type. The flushes of new_block are actually
+		unnecessary here.  */
+		ut_d(mlog_write_ulint(FIL_PAGE_TYPE + new_block->frame,
+				      FIL_PAGE_TYPE_SYS, MLOG_2BYTES, &mtr));
 
 		if (i == FSP_EXTENT_SIZE / 2) {
 			ut_a(page_no == FSP_EXTENT_SIZE);
@@ -353,6 +360,7 @@ too_small:
 
 	/* Flush the modified pages to disk and make a checkpoint */
 	log_make_checkpoint_at(LSN_MAX, TRUE);
+	buf_dblwr_being_created = FALSE;
 
 	/* Remove doublewrite pages from LRU */
 	buf_pool_invalidate();
