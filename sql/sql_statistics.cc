@@ -3113,48 +3113,6 @@ void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
 
 /**
   @brief
-  Check whether any statistics is to be read for tables from a table list
-
-  @param
-  thd         The thread handle
-  @param
-  tables      The tables list for whose tables the check is to be done
-
-  @details
-  The function checks whether for any of the tables opened and locked for
-  a statement statistics from statistical tables is needed to be read.
-
-  @retval
-  TRUE        statistics for any of the tables is needed to be read 
-  @retval
-  FALSE       Otherwise
-*/
-
-static
-bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
-{
-  for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
-  {
-    if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
-    {
-      TABLE_SHARE *table_share= tl->table->s;
-      if (table_share && 
-          table_share->stats_cb.stats_can_be_read &&
-          (!table_share->stats_cb.stats_is_read ||
-           (!table_share->stats_cb.histograms_are_read &&
-            thd->variables.optimizer_use_condition_selectivity > 3)))
-        return TRUE;
-      if (table_share->stats_cb.stats_is_read)
-        tl->table->stats_is_read= TRUE;
-    } 
-  }
-
-  return FALSE;
-}
-
-
-/**
-  @brief
   Read histogram for a table from the persistent statistical tables
 
   @param
@@ -3275,6 +3233,7 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
     DBUG_RETURN(0);
 
   bool found_stat_table= false;
+  bool statistics_for_tables_is_needed= false;
 
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
@@ -3299,6 +3258,11 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
             for ( ; *field_ptr; field_ptr++, table_field_ptr++)
               (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
             tl->table->stats_is_read= table_share->stats_cb.stats_is_read;
+
+            if (!tl->table->stats_is_read ||
+                (!table_share->stats_cb.histograms_are_read &&
+                 thd->variables.optimizer_use_condition_selectivity > 3))
+              statistics_for_tables_is_needed= true;
           }
         }
       }
@@ -3314,7 +3278,7 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
     statistical tables, failure to to do so we may end up
     in a deadlock.
   */
-  if (found_stat_table || !statistics_for_tables_is_needed(thd, tables))
+  if (found_stat_table || !statistics_for_tables_is_needed)
     DBUG_RETURN(0);
 
   if (open_stat_tables(thd, stat_tables, &open_tables_backup, FALSE))
