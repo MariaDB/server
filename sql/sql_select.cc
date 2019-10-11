@@ -3146,7 +3146,8 @@ bool JOIN::make_aggr_tables_info()
     {
       /* Check if the storage engine can intercept the query */
       Query query= {&all_fields, select_distinct, tables_list, conds,
-                    group_list, order ? order : group_list, having};
+                    group_list, order ? order : group_list, having,
+                    &select_lex->master_unit()->lim};
       group_by_handler *gbh= ht->create_group_by(thd, &query);
 
       if (gbh)

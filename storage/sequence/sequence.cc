@@ -28,6 +28,7 @@
 #include <handler.h>
 #include <table.h>
 #include <field.h>
+#include <sql_limit.h>
 
 static handlerton *sequence_hton;
 
@@ -361,15 +362,21 @@ static int dummy_savepoint(handlerton *, THD *, void *) { return 0; }
 
 class ha_seq_group_by_handler: public group_by_handler
 {
+  Select_limit_counters limit;
   List<Item> *fields;
   TABLE_LIST *table_list;
   bool first_row;
 
 public:
   ha_seq_group_by_handler(THD *thd_arg, List<Item> *fields_arg,
-                          TABLE_LIST *table_list_arg)
-    : group_by_handler(thd_arg, sequence_hton), fields(fields_arg),
-      table_list(table_list_arg) {}
+                          TABLE_LIST *table_list_arg,
+                          Select_limit_counters *orig_lim)
+    : group_by_handler(thd_arg, sequence_hton),  limit(orig_lim[0]),
+      fields(fields_arg), table_list(table_list_arg)
+    {
+      // Reset limit because we are handling it now
+      orig_lim->set_unlimited();
+    }
   ~ha_seq_group_by_handler() {}
   int init_scan() { first_row= 1 ; return 0; }
   int next_row();
@@ -425,7 +432,8 @@ create_group_by_handler(THD *thd, Query *query)
   }
 
   /* Create handler and return it */
-  handler= new ha_seq_group_by_handler(thd, query->select, query->from);
+  handler= new ha_seq_group_by_handler(thd, query->select, query->from,
+                                       query->limit);
   return handler;
 }
 
@@ -440,7 +448,9 @@ int ha_seq_group_by_handler::next_row()
     Check if this is the first call to the function. If not, we have already
     returned all data.
   */
-  if (!first_row)
+  if (!first_row ||
+      limit.get_offset_limit() > 0 ||
+      limit.get_select_limit() == 0)
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   first_row= 0;
 

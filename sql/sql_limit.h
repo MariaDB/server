@@ -28,6 +28,10 @@ class Select_limit_counters
     Select_limit_counters():
        select_limit_cnt(0), offset_limit_cnt(0)
        {};
+    Select_limit_counters(Select_limit_counters &orig):
+       select_limit_cnt(orig.select_limit_cnt),
+       offset_limit_cnt(orig.offset_limit_cnt)
+       {};
 
    void set_limit(ha_rows limit, ha_rows offset)
    {
@@ -48,6 +52,8 @@ class Select_limit_counters
 
    bool is_unlimited()
    { return select_limit_cnt == HA_POS_ERROR; }
+   bool is_unrestricted()
+   { return select_limit_cnt == HA_POS_ERROR && offset_limit_cnt == 0; }
    void set_unlimited()
    { select_limit_cnt= HA_POS_ERROR; offset_limit_cnt= 0; }
 
