@@ -1939,13 +1939,13 @@ ibuf_add_free_page(void)
 	buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
 	page = buf_block_get_frame(block);
 
+	mlog_write_ulint(page + FIL_PAGE_TYPE, FIL_PAGE_IBUF_FREE_LIST,
+			 MLOG_2BYTES, &mtr);
+
 	/* Add the page to the free list and update the ibuf size data */
 
 	flst_add_last(root + PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
 		      page + PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE, &mtr);
-
-	mlog_write_ulint(page + FIL_PAGE_TYPE, FIL_PAGE_IBUF_FREE_LIST,
-			 MLOG_2BYTES, &mtr);
 
 	ibuf->seg_size++;
 	ibuf->free_list_len++;
