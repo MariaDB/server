@@ -213,10 +213,30 @@ size_t estimate_row_size(TABLE *table)
  *
  *   Used in delete and rename DDL processing.
  **/
-void decode_objectname(char *buf, const char *path, size_t buf_size)
+static void decode_objectname(char *buf, const char *path, size_t buf_size)
 {
     size_t new_path_len = filename_to_tablename(path, buf, buf_size);
     buf[new_path_len] = '\0';
+}
+
+static void decode_file_path(const char *path, char *decoded_dbname,
+                             char *decoded_tbname)
+{
+  // The format cont ains './' in the beginning of a path.
+  char *dbname_start = (char*) path + 2;
+  char *dbname_end = dbname_start;
+  while (*dbname_end != '/')
+    dbname_end++;
+
+  int cnt = dbname_end - dbname_start;
+  char *dbname = (char *)my_alloca(cnt + 1);
+  memcpy(dbname, dbname_start, cnt);
+  dbname[cnt] = '\0';
+  decode_objectname(decoded_dbname, dbname, FN_REFLEN);
+  my_afree(dbname);
+
+  char *tbname_start = dbname_end + 1;
+  decode_objectname(decoded_tbname, tbname_start, FN_REFLEN);
 }
 
 clustrix_connection *get_trx(THD *thd, int *error_code)
@@ -317,17 +337,13 @@ int ha_clustrixdb::delete_table(const char *path)
   if (!trx)
     return error_code;
 
-  // The format cont ains './' in the beginning of a path.
-  char *dbname_end = (char*) path + 2;
-  while (*dbname_end != '/')
-    dbname_end++;
-
+  char decoded_dbname[FN_REFLEN];
   char decoded_tbname[FN_REFLEN];
-  decode_objectname(decoded_tbname, dbname_end + 1, FN_REFLEN);
+  decode_file_path(path, decoded_dbname, decoded_tbname);
 
   String delete_cmd;
   delete_cmd.append("DROP TABLE `");
-  delete_cmd.append(path + 2, dbname_end - path - 2);
+  delete_cmd.append(decoded_dbname);
   delete_cmd.append("`.`");
   delete_cmd.append(decoded_tbname);
   delete_cmd.append("`");
@@ -343,28 +359,21 @@ int ha_clustrixdb::rename_table(const char* from, const char* to)
   if (!trx)
     return error_code;
 
-  // The format contains './' in the beginning of a path.
-  char *from_dbname_end = (char*) from + 2;
-  while (*from_dbname_end != '/')
-    from_dbname_end++;
-
+  char decoded_from_dbname[FN_REFLEN];
   char decoded_from_tbname[FN_REFLEN];
-  decode_objectname(decoded_from_tbname, from_dbname_end + 1, FN_REFLEN);
+  decode_file_path(from, decoded_from_dbname, decoded_from_tbname);
 
-  char *to_dbname_end = (char*) to + 2;
-  while (*to_dbname_end != '/')
-    to_dbname_end++;
-
+  char decoded_to_dbname[FN_REFLEN];
   char decoded_to_tbname[FN_REFLEN];
-  decode_objectname(decoded_to_tbname, to_dbname_end + 1, FN_REFLEN);
+  decode_file_path(to, decoded_to_dbname, decoded_to_tbname);
 
   String rename_cmd;
   rename_cmd.append("RENAME TABLE `");
-  rename_cmd.append(from + 2, from_dbname_end - from - 2);
+  rename_cmd.append(decoded_from_dbname);
   rename_cmd.append("`.`");
   rename_cmd.append(decoded_from_tbname);
   rename_cmd.append("` TO `");
-  rename_cmd.append(to + 2, to_dbname_end - to - 2);
+  rename_cmd.append(decoded_to_dbname);
   rename_cmd.append("`.`");
   rename_cmd.append(decoded_to_tbname);
   rename_cmd.append("`;");
