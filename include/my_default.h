@@ -26,9 +26,7 @@ extern const char *my_defaults_file;
 extern my_bool my_getopt_use_args_separator;
 extern my_bool my_getopt_is_args_separator(const char* arg);
 
-extern int get_defaults_options(int argc, char **argv,
-                                char **defaults, char **extra_defaults,
-                                char **group_suffix);
+extern int get_defaults_options(char **argv);
 extern int my_load_defaults(const char *conf_file, const char **groups,
                             int *argc, char ***argv, const char ***);
 extern int load_defaults(const char *conf_file, const char **groups,

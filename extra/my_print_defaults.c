@@ -146,16 +146,14 @@ int main(int argc, char **argv)
   int count, error, args_used;
   char **load_default_groups= 0, *tmp_arguments[6];
   char **argument, **arguments, **org_argv;
-  char *defaults, *extra_defaults, *group_suffix;
   int nargs, i= 0;
   MY_INIT(argv[0]);
 
   org_argv= argv;
-  args_used= get_defaults_options(argc, argv, &defaults, &extra_defaults,
-                                  &group_suffix);
+  args_used= get_defaults_options(argv);
 
   /* Copy defaults-xxx arguments & program name */
-  count=args_used+1;
+  count=args_used;
   arguments= tmp_arguments;
   memcpy((char*) arguments, (char*) org_argv, count * sizeof(*org_argv));
   arguments[count]= 0;
