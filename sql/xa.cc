@@ -142,8 +142,8 @@ public:
   }
   static void lf_alloc_destructor(uchar *ptr)
   {
-    XID_cache_element *element= (XID_cache_element*) (ptr + LF_HASH_OVERHEAD);
-    DBUG_ASSERT(!element->is_set(ACQUIRED));
+    DBUG_ASSERT(!reinterpret_cast<XID_cache_element*>(ptr + LF_HASH_OVERHEAD)
+		->is_set(ACQUIRED));
   }
   static uchar *key(const XID_cache_element *element, size_t *length,
                     my_bool not_used __attribute__((unused)))
