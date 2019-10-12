@@ -1251,8 +1251,8 @@ public:
 };
 
 
-static const Item_char_typecast_func_handler_inet6_to_binary
-               item_char_typecast_func_handler_inet6_to_binary;
+static Item_char_typecast_func_handler_inet6_to_binary
+         item_char_typecast_func_handler_inet6_to_binary;
 
 
 bool Type_handler_inet6::

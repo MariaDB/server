@@ -2442,7 +2442,7 @@ public:
 };
 
 
-static const Item_char_typecast_func_handler item_char_typecast_func_handler;
+static Item_char_typecast_func_handler item_char_typecast_func_handler;
 
 
 void Item_char_typecast::fix_length_and_dec_numeric()
