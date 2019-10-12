@@ -2,10 +2,6 @@
 #
 # Clustered PK ROR-index_merge tests
 #
-# The variable
-#     $engine_type       -- storage engine to be tested
-# has to be set before sourcing this script.
-#
 # Note: The comments/expectations refer to InnoDB.
 #       They might be not valid for other storage engines.
 #
@@ -15,13 +11,9 @@
 #               main code went into include/index_merge_ror_cpk.inc
 #
 
+--source include/have_sequence.inc
+
 --echo #---------------- Clustered PK ROR-index_merge tests -----------------------------
-
-eval SET SESSION STORAGE_ENGINE = $engine_type;
-
---disable_warnings
-drop table if exists  t1;
---enable_warnings
 
 create table t1
 (
