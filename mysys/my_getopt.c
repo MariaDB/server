@@ -24,6 +24,7 @@
 #include <my_getopt.h>
 #include <errno.h>
 
+my_bool my_getopt_is_args_separator(const char* arg);
 typedef void (*init_func_p)(const struct my_option *option, void *variable,
                             longlong value);
 

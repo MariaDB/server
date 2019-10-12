@@ -335,6 +335,7 @@ int get_defaults_options(char **argv)
   if (*argv && !strcmp(*argv, "--print-defaults"))
   {
     my_print_defaults= 1;
+    my_getopt_use_args_separator= FALSE;
     argv++;
   }
 
@@ -499,8 +500,7 @@ int my_load_defaults(const char *conf_file, const char **groups, int *argc,
     printf("%s would have been started with the following arguments:\n",
 	   **argv);
     for (i=1 ; i < *argc ; i++)
-      if (!my_getopt_is_args_separator((*argv)[i])) /* skip arguments separator */
-        printf("%s ", (*argv)[i]);
+      printf("%s ", (*argv)[i]);
     puts("");
     DBUG_RETURN(4);
   }
