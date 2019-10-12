@@ -788,7 +788,9 @@ resolved:
 		}
 
 		if (i < rec_offs_n_fields(offsets)) {
-			ut_ad(index->is_instant());
+			ut_ad(index->is_instant()
+			      || i + (index->id == DICT_INDEXES_ID)
+			      == rec_offs_n_fields(offsets));
 
 			offs = (rec_offs_base(offsets)[i] & REC_OFFS_MASK)
 				| REC_OFFS_DEFAULT;
