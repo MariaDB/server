@@ -759,9 +759,11 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 
 	if (srv_immediate_scrub_data_uncompressed) {
-		/* In MDEV-15528 this call must be removed, and we should
-		zero out the page after the redo log for this mini-transaction
-		has been durably written. */
+		/* In MDEV-15528 this code must be removed and the
+		check in buf_flush_init_for_writing() re-enabled.  We
+		should zero out the page after the redo log for this
+		mini-transaction has been durably written. The log
+		would include the 10.4 MLOG_INIT_FREE_PAGE record. */
 		fsp_init_file_page(index->table->space, block, mtr);
 	}
 }
