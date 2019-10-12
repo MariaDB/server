@@ -594,7 +594,8 @@ struct srv_sys_t{
 	ulint		n_sys_threads;		/*!< size of the sys_threads
 						array */
 
-	srv_slot_t	sys_threads[32 + 1];	/*!< server thread table;
+	srv_slot_t
+	sys_threads[srv_max_purge_threads + 1];	/*!< server thread table;
 						os_event_set() and
 						os_event_reset() on
 						sys_threads[]->event are
@@ -642,11 +643,15 @@ and/or load it during startup. */
 char	srv_buffer_pool_dump_at_shutdown = TRUE;
 char	srv_buffer_pool_load_at_startup = TRUE;
 
-/** Slot index in the srv_sys.sys_threads array for the purge thread. */
-static const ulint	SRV_PURGE_SLOT	= 1;
-
 /** Slot index in the srv_sys.sys_threads array for the master thread. */
-static const ulint	SRV_MASTER_SLOT = 0;
+#define SRV_MASTER_SLOT 0
+
+/** Slot index in the srv_sys.sys_threads array for the purge thread. */
+#define SRV_PURGE_SLOT 1
+
+/** Slot index in the srv_sys.sys_threads array from which purge workers start.
+  */
+#define SRV_WORKER_SLOTS_START 2
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Performance schema stage event for monitoring ALTER TABLE progress
@@ -794,7 +799,7 @@ srv_reserve_slot(
 
 	case SRV_WORKER:
 		/* Find an empty slot, skip the master and purge slots. */
-		for (slot = &srv_sys.sys_threads[2];
+		for (slot = &srv_sys.sys_threads[SRV_WORKER_SLOTS_START];
 		     slot->in_use;
 		     ++slot) {
 
@@ -2458,8 +2463,9 @@ static bool srv_purge_should_exit()
 
 /*********************************************************************//**
 Fetch and execute a task from the work queue.
+@param [in,out]	slot	purge worker thread slot
 @return true if a task was executed */
-static bool srv_task_execute()
+static bool srv_task_execute(ut_d(srv_slot_t *slot))
 {
 	ut_ad(!srv_read_only_mode);
 	ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
@@ -2470,6 +2476,7 @@ static bool srv_task_execute()
 		ut_a(que_node_get_type(thr->child) == QUE_NODE_PURGE);
 		UT_LIST_REMOVE(srv_sys.tasks, thr);
 		mutex_exit(&srv_sys.tasks_mutex);
+		ut_d(thr->thread_slot = slot);
 		que_run_threads(thr);
 		my_atomic_addlint(&purge_sys.n_completed, 1);
 		return true;
@@ -2506,6 +2513,13 @@ DECLARE_THREAD(srv_worker_thread)(
 
 	slot = srv_reserve_slot(SRV_WORKER);
 
+#ifdef UNIV_DEBUG
+	UT_LIST_INIT(slot->debug_sync,
+		     &srv_slot_t::debug_sync_t::debug_sync_list);
+	rw_lock_create(PFS_NOT_INSTRUMENTED, &slot->debug_sync_lock,
+		       SYNC_NO_ORDER_CHECK);
+#endif
+
 	ut_a(srv_n_purge_threads > 1);
 	ut_a(ulong(my_atomic_loadlint(&srv_sys.n_threads_active[SRV_WORKER]))
 	     < srv_n_purge_threads);
@@ -2518,7 +2532,7 @@ DECLARE_THREAD(srv_worker_thread)(
 		srv_suspend_thread(slot);
 		srv_resume_thread(slot);
 
-		if (srv_task_execute()) {
+		if (srv_task_execute(ut_d(slot))) {
 
 			/* If there are tasks in the queue, wakeup
 			the purge coordinator thread. */
@@ -2548,9 +2562,11 @@ DECLARE_THREAD(srv_worker_thread)(
 /** Do the actual purge operation.
 @param[in,out]	n_total_purged	total number of purged pages
 @return length of history list before the last purge batch. */
-static
-ulint
-srv_do_purge(ulint* n_total_purged)
+static ulint srv_do_purge(ulint* n_total_purged
+#ifdef UNIV_DEBUG
+			  , srv_slot_t* slot /*!< purge coordinator */
+#endif
+			  )
 {
 	ulint		n_pages_purged;
 
@@ -2616,7 +2632,11 @@ srv_do_purge(ulint* n_total_purged)
 
 		n_pages_purged = trx_purge(
 			n_use_threads,
-			(++count % rseg_truncate_frequency) == 0);
+			(++count % rseg_truncate_frequency) == 0
+#ifdef UNIV_DEBUG
+			, slot
+#endif
+					   );
 
 		*n_total_purged += n_pages_purged;
 	} while (n_pages_purged > 0 && !purge_sys.paused()
@@ -2624,6 +2644,9 @@ srv_do_purge(ulint* n_total_purged)
 
 	return(rseg_history_len);
 }
+#ifndef UNIV_DEBUG
+# define srv_do_purge(n_total_purged, slot) srv_do_purge(n_total_purged)
+#endif
 
 /*********************************************************************//**
 Suspend the purge coordinator thread. */
@@ -2718,6 +2741,12 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	slot = srv_reserve_slot(SRV_PURGE);
 
+#ifdef UNIV_DEBUG
+	UT_LIST_INIT(slot->debug_sync,
+		     &srv_slot_t::debug_sync_t::debug_sync_list);
+	rw_lock_create(PFS_NOT_INSTRUMENTED, &slot->debug_sync_lock,
+		       SYNC_NO_ORDER_CHECK);
+#endif
 	ulint	rseg_history_len = trx_sys.history_size();
 
 	do {
@@ -2739,7 +2768,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 		n_total_purged = 0;
 
-		rseg_history_len = srv_do_purge(&n_total_purged);
+		rseg_history_len = srv_do_purge(&n_total_purged, slot);
 	} while (!srv_purge_should_exit());
 
 	/* The task queue should always be empty, independent of fast
@@ -2897,3 +2926,33 @@ srv_was_tablespace_truncated(const fil_space_t* space)
 	return (!is_system_tablespace(space->id)
 		&& truncate_t::was_tablespace_truncated(space->id));
 }
+
+#ifdef UNIV_DEBUG
+static ulint get_first_slot(srv_thread_type type)
+{
+	switch (type) {
+	case SRV_MASTER:
+		return SRV_MASTER_SLOT;
+	case SRV_PURGE:
+		return SRV_PURGE_SLOT;
+	case SRV_WORKER:
+		/* Find an empty slot, skip the master and purge slots. */
+		return SRV_WORKER_SLOTS_START;
+	default:
+		ut_error;
+	}
+}
+
+void srv_for_each_thread(srv_thread_type type,
+			 srv_slot_callback_t callback,
+			 const void *arg)
+{
+	for (ulint slot_idx= get_first_slot(type);
+	     slot_idx < srv_sys.n_sys_threads
+		     && srv_sys.sys_threads[slot_idx].in_use
+		     && srv_sys.sys_threads[slot_idx].type == type;
+	     slot_idx++) {
+		callback(&srv_sys.sys_threads[slot_idx], arg);
+	}
+}
+#endif
