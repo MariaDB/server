@@ -1117,11 +1117,13 @@ static int clustrixdb_discover_table_names(handlerton *hton, LEX_CSTRING *db,
   clustrix_connection *clustrix_net = new clustrix_connection();
   int error_code = clustrix_net->connect();
   if (error_code)
-    return error_code;
+    goto err;
 
-  error_code = clustrix_net->populate_table_list(db, result);
+  clustrix_net->populate_table_list(db, result);
+
+err:
   delete clustrix_net;
-  return 0; // error_code;
+  return error_code;
 }
 
 int clustrixdb_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
@@ -1129,12 +1131,13 @@ int clustrixdb_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
   clustrix_connection *clustrix_net = new clustrix_connection();
   int error_code = clustrix_net->connect();
   if (error_code)
-      return error_code;
+    goto err;
 
   error_code = clustrix_net->discover_table_details(&share->db,
                                                     &share->table_name,
                                                     thd, share);
 
+err:
   delete clustrix_net;
   return error_code;
 }
