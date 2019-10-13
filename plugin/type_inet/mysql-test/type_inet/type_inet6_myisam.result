@@ -30,13 +30,11 @@ SELECT * FROM t1 WHERE a='garbage';
 a
 Warnings:
 Warning	1292	Incorrect inet6 value: 'garbage'
-Warning	1292	Incorrect inet6 value: 'garbage' for column `test`.`t1`.`a` at row 1
 EXPLAIN SELECT * FROM t1 WHERE a='garbage';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Warning	1292	Incorrect inet6 value: 'garbage'
-Warning	1292	Incorrect inet6 value: 'garbage' for column `test`.`t1`.`a` at row 1
 SELECT * FROM t1 WHERE a>='::fe';
 a
 ::fe
@@ -46,13 +44,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	17	NULL	2	Using where; Using index
 SELECT * FROM t1 WHERE a>='garbage';
 a
-Warnings:
-Warning	1292	Incorrect inet6 value: 'garbage' for column `test`.`t1`.`a` at row 1
 EXPLAIN SELECT * FROM t1 WHERE a>='garbage';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-Warnings:
-Warning	1292	Incorrect inet6 value: 'garbage' for column `test`.`t1`.`a` at row 1
 SELECT * FROM t1 WHERE a IN ('::80','::a0','::f0');
 a
 ::80
@@ -67,13 +61,11 @@ a
 ::a0
 Warnings:
 Warning	1292	Incorrect inet6 value: 'garbage'
-Warning	1292	Incorrect inet6 value: 'garbage' for column `test`.`t1`.`a` at row 1
 EXPLAIN SELECT * FROM t1 WHERE a IN ('::80','::a0','garbage');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	17	NULL	2	Using where; Using index
 Warnings:
 Warning	1292	Incorrect inet6 value: 'garbage'
-Warning	1292	Incorrect inet6 value: 'garbage' for column `test`.`t1`.`a` at row 1
 SELECT * FROM t1 WHERE a BETWEEN '::80' AND '::81';
 a
 ::80
@@ -83,13 +75,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	17	NULL	2	Using where; Using index
 SELECT * FROM t1 WHERE a BETWEEN '::80' AND 'garbage';
 a
-Warnings:
-Warning	1292	Incorrect inet6 value: 'garbage' for column `test`.`t1`.`a` at row 1
 EXPLAIN SELECT * FROM t1 WHERE a BETWEEN '::80' AND 'garbage';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-Warnings:
-Warning	1292	Incorrect inet6 value: 'garbage' for column `test`.`t1`.`a` at row 1
 SELECT * FROM t1 WHERE a=CAST('::ff' AS INET6);
 a
 ::ff
