@@ -63,8 +63,10 @@ bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
 
 // set that from field length in acl_load?
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
 const uint max_hostname_length= 60;
 const uint max_dbname_length= 64;
+#endif
 
 #include "sql_acl_getsort.ic"
 
