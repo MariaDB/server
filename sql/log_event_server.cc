@@ -6562,12 +6562,12 @@ bool Table_map_log_event::init_charset_field(
     {
       if (include_type(binlog_type_info_array, m_table->field[i]))
       {
-        Field_str *field= dynamic_cast<Field_str *>(m_table->field[i]);
-
-        if (field->charset()->number != default_collation)
+        CHARSET_INFO *cs= binlog_type_info_array[i].m_cs;
+        DBUG_ASSERT(cs);
+        if (cs->number != default_collation)
         {
           store_compressed_length(buf, char_column_index);
-          store_compressed_length(buf, field->charset()->number);
+          store_compressed_length(buf, cs->number);
         }
         char_column_index++;
       }
