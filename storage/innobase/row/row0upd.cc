@@ -2529,8 +2529,7 @@ row_upd_sec_index_entry(
 	ut_a(entry);
 
 	/* Insert new index entry */
-	err = row_ins_sec_index_entry(index, entry, thr,
-				      node->is_delete != VERSIONED_DELETE);
+	err = row_ins_sec_index_entry(index, entry, thr, !node->is_delete);
 
 func_exit:
 	mem_heap_free(heap);
