@@ -1436,3 +1436,12 @@ SELECT
 FROM t1;
 --disable_metadata
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20826 Wrong result of MIN(inet6) with GROUP BY
+--echo #
+
+CREATE TABLE t1 (id INT, a INET6) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, 'fff::'),(1, '8888::');
+SELECT MIN(a), MAX(a) FROM t1 GROUP BY id;
+DROP TABLE t1;
