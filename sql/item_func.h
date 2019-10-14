@@ -466,11 +466,12 @@ public:
     virtual longlong val_int(Item_handled_func *) const= 0;
     virtual my_decimal *val_decimal(Item_handled_func *, my_decimal *) const= 0;
     virtual bool get_date(THD *thd, Item_handled_func *, MYSQL_TIME *, date_mode_t fuzzydate) const= 0;
-    virtual const Type_handler *return_type_handler() const= 0;
+    virtual const Type_handler *
+      return_type_handler(const Item_handled_func *item) const= 0;
     virtual const Type_handler *
       type_handler_for_create_select(const Item_handled_func *item) const
     {
-      return return_type_handler();
+      return return_type_handler(item);
     }
     virtual bool fix_length_and_dec(Item_handled_func *) const= 0;
   };
@@ -529,14 +530,14 @@ public:
   class Handler_temporal_string: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler() const
+    const Type_handler *return_type_handler(const Item_handled_func *) const
     {
       return &type_handler_string;
     }
     const Type_handler *
       type_handler_for_create_select(const Item_handled_func *item) const
     {
-      return return_type_handler()->type_handler_for_tmp_table(item);
+      return return_type_handler(item)->type_handler_for_tmp_table(item);
     }
     double val_real(Item_handled_func *item) const
     {
@@ -560,7 +561,7 @@ public:
   class Handler_date: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler() const
+    const Type_handler *return_type_handler(const Item_handled_func *) const
     {
       return &type_handler_newdate;
     }
@@ -591,7 +592,7 @@ public:
   class Handler_time: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler() const
+    const Type_handler *return_type_handler(const Item_handled_func *) const
     {
       return &type_handler_time2;
     }
@@ -617,7 +618,7 @@ public:
   class Handler_datetime: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler() const
+    const Type_handler *return_type_handler(const Item_handled_func *) const
     {
       return &type_handler_datetime2;
     }
@@ -653,7 +654,7 @@ public:
   }
   const Type_handler *type_handler() const
   {
-    return m_func_handler->return_type_handler();
+    return m_func_handler->return_type_handler(this);
   }
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
   {

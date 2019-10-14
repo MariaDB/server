@@ -1226,13 +1226,8 @@ class Item_char_typecast_func_handler_inet6_to_binary:
                                        public Item_handled_func::Handler_str
 {
 public:
-  const Type_handler *return_type_handler() const override
-  {
-    return &type_handler_string;
-  }
-  const Type_handler *
-      type_handler_for_create_select(const Item_handled_func *item)
-                                     const override
+  const Type_handler *return_type_handler(const Item_handled_func *item)
+                                          const override
   {
     if (item->max_length > MAX_FIELD_VARCHARLENGTH)
       return Type_handler::blob_type_handler(item->max_length);

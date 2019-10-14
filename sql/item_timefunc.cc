@@ -2420,14 +2420,14 @@ String *Item_char_typecast::val_str_binary_from_native(String *str)
 class Item_char_typecast_func_handler: public Item_handled_func::Handler_str
 {
 public:
-  const Type_handler *return_type_handler() const
+  const Type_handler *return_type_handler(const Item_handled_func *item) const
   {
-    return &type_handler_varchar;
+    return Type_handler::string_type_handler(item->max_length);
   }
   const Type_handler *
     type_handler_for_create_select(const Item_handled_func *item) const
   {
-    return return_type_handler()->type_handler_for_tmp_table(item);
+    return return_type_handler(item)->type_handler_for_tmp_table(item);
   }
 
   bool fix_length_and_dec(Item_handled_func *item) const
