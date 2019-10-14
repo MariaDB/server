@@ -787,7 +787,6 @@ buf_flush_init_for_writing(
 	ib_uint32_t	checksum = 0 /* silence bogus gcc warning */;
 
 	ut_ad(page);
-	ut_ad(!newest_lsn || fil_page_get_type(page));
 
 	if (page_zip_) {
 		page_zip_des_t*	page_zip;
