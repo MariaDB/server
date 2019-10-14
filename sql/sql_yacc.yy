@@ -1007,6 +1007,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> GRANT                         /* SQL-2003-R */
 %token  <kwd> GROUP_CONCAT_SYM
 %token  <rwd> JSON_ARRAYAGG_SYM
+%token  <rwd> JSON_OBJECTAGG_SYM
 %token  <kwd> GROUP_SYM                     /* SQL-2003-R */
 %token  <kwd> HAVING                        /* SQL-2003-R */
 %token  <kwd> HOUR_MICROSECOND_SYM
@@ -11508,19 +11509,26 @@ sum_expr:
           }
         | JSON_ARRAYAGG_SYM '(' opt_distinct
           { Select->in_sum_expr++; }
-          expr_list opt_glimit_clause
+          expr_list opt_gorder_clause opt_glimit_clause
           ')'
           {
             SELECT_LEX *sel= Select;
+            List<Item> *args= $5;
             sel->in_sum_expr--;
+            if (args && args->elements > 1)
+            {
+              /* JSON_ARRAYAGG supports only one parameter */
+              my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), "JSON_ARRAYAGG");
+              MYSQL_YYABORT;
+            }
             String* s= new (thd->mem_root) String(",", 1, &my_charset_latin1);
             if (unlikely(s == NULL))
               MYSQL_YYABORT;
 
             $$= new (thd->mem_root)
                   Item_func_json_arrayagg(thd, Lex->current_context(),
-                                          $3, $5,
-                                          sel->gorder_list, s, $6,
+                                          $3, args,
+                                          sel->gorder_list, s, $7,
                                           sel->select_limit,
                                           sel->offset_limit);
             if (unlikely($$ == NULL))
@@ -11530,6 +11538,17 @@ sum_expr:
             sel->explicit_limit= 0;
             $5->empty();
             sel->gorder_list.empty();
+          }
+        | JSON_OBJECTAGG_SYM '('
+          { Select->in_sum_expr++; }
+          expr ',' expr ')'
+          {
+            SELECT_LEX *sel= Select;
+            sel->in_sum_expr--;
+
+            $$= new (thd->mem_root) Item_func_json_objectagg(thd, $4, $6);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
           }
         ;
 

@@ -3652,14 +3652,6 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   if (item->limit_clause && !(*row_limit))
     return 1;
 
-  if (item->sum_func() == Item_sum::JSON_ARRAYAGG_FUNC &&
-      item->arg_count_field > 1)
-  {
-      /* JSON_ARRAYAGG supports only one parameter */
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), "JSON_ARRAYAGG");
-    return 1;
-  }
-
   if (item->no_appended)
     item->no_appended= FALSE;
   else

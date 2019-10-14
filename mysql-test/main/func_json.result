@@ -1198,7 +1198,17 @@ JSON_ARRAYAGG(JSON_OBJECT('a', a, 'b', b))
 SELECT JSON_ARRAYAGG(a, b) FROM t1;
 ERROR 42000: Incorrect parameter count in the call to native function 'JSON_ARRAYAGG'
 SELECT JSON_ARRAYAGG(JSON_ARRAYAGG(a, b)) FROM t1;
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_ARRAYAGG'
+SELECT JSON_ARRAYAGG(JSON_ARRAYAGG(a)) FROM t1;
 ERROR HY000: Invalid use of group function
+#
+# MDEV-16620 JSON_OBJECTAGG
+#
+SELECT JSON_OBJECTAGG(a, b) FROM t1;
+JSON_OBJECTAGG(a, b)
+{"1":"Hello", "1":"World", "2":"This", "2":"Will", "2":"Work", "2":"!", "3":null, "1":"Hello", "1":"World", "2":"This", "2":"Will", "2":"Work", "2":"!", "3":null}
+SELECT JSON_OBJECTAGG(a) FROM t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') FROM t1' at line 1
 DROP TABLE t1;
 #
 # End of 10.4 tests

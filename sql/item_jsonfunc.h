@@ -527,7 +527,6 @@ public:
 class Item_func_json_arrayagg : public Item_func_group_concat
 {
 public:
-
   Item_func_json_arrayagg(THD *thd, Name_resolution_context *context_arg,
                           bool is_distinct, List<Item> *is_select,
                           const SQL_I_List<ORDER> &is_order, String *is_separator,
@@ -536,6 +535,8 @@ public:
                              is_separator, limit_clause, row_limit, offset_limit)
   {
   }
+  Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item);
+  bool is_json_type() { return true; }
 
   const char *func_name() const { return "json_arrayagg("; }
   enum Sumfunctype sum_func() const {return JSON_ARRAYAGG_FUNC;}
@@ -548,6 +549,58 @@ public:
   {
     return Item_func_group_concat::add(false);
   }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_arrayagg>(thd, this); }
+};
+
+
+class Item_func_json_objectagg : public Item_sum
+{
+  String result;
+public:
+  Item_func_json_objectagg(THD *thd, Item *key, Item *value) :
+    Item_sum(thd, key, value)
+  {
+    result.append("{");
+  }
+
+  Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item);
+  bool is_json_type() { return true; }
+  void cleanup();
+
+  enum Sumfunctype sum_func () const {return GROUP_CONCAT_FUNC;}
+  const char *func_name() const { return "json_objectagg("; }
+  const Type_handler *type_handler() const
+  {
+    if (too_big_for_varchar())
+      return &type_handler_blob;
+    return &type_handler_varchar;
+  }
+  void clear();
+  bool add();
+  void reset_field() { DBUG_ASSERT(0); }        // not used
+  void update_field() { DBUG_ASSERT(0); }       // not used
+  bool fix_fields(THD *,Item **);
+
+  double val_real()
+  { return 0.0; }
+  longlong val_int()
+  { return 0; }
+  my_decimal *val_decimal(my_decimal *decimal_value)
+  {
+    my_decimal_set_zero(decimal_value);
+    return decimal_value;
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  {
+    return get_date_from_string(thd, ltime, fuzzydate);
+  }
+  String* val_str(String* str);
+  Item *copy_or_same(THD* thd);
+  void no_rows_in_result() {}
+  void print(String *str, enum_query_type query_type);
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_objectagg>(thd, this); }
 };
 
 

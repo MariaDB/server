@@ -742,6 +742,7 @@ static SYMBOL sql_functions[] = {
   { "FIRST_VALUE",      SYM(FIRST_VALUE_SYM)},
   { "GROUP_CONCAT",	SYM(GROUP_CONCAT_SYM)},
   { "JSON_ARRAYAGG",	SYM(JSON_ARRAYAGG_SYM)},
+  { "JSON_OBJECTAGG",	SYM(JSON_OBJECTAGG_SYM)},
   { "LAG",              SYM(LAG_SYM)},
   { "LEAD",             SYM(LEAD_SYM)},
   { "MAX",		SYM(MAX_SYM)},
