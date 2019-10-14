@@ -1,0 +1,35 @@
+--echo #  This test has a result that includes \0 byte.
+--echo #  Such a byte makes diff to treat the whole file as binary,
+--echo #  and to refuse to diff it.
+--echo #  That's why this test is put in a separate file,
+--echo #  so that diff would still work on results of other tests.
+
+source include/have_debug.inc;
+source include/have_debug_sync.inc;
+
+--echo #
+--echo # MDEV-20466: SHOW PROCESSLIST truncates query text on \0 bytes
+--echo #
+
+connect (con1,localhost,root,,);
+
+#select * from information_schema.processlist;
+connection con1;
+
+let $q= `select CONCAT("SELECT user FROM mysql.user WHERE user ='some", CHAR(0), "' or sleep (3)")`;
+
+SET DEBUG_SYNC= 'before_join_optimize SIGNAL in_sync';
+--send_eval $q;
+
+connection default;
+
+SET DEBUG_SYNC= 'now WAIT_FOR in_sync';
+
+--replace_column 1 ID 3 HOST_NAME 6 TIME 9 TIME_MS
+SHOW PROCESSLIST;
+
+disconnect con1;
+
+SET DEBUG_SYNC = 'RESET';
+
+--echo End of 5.5 tests
