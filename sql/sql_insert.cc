@@ -4357,8 +4357,11 @@ TABLE *select_create::create_table_from_items(THD *thd,
     /*
       This can happen in innodb when you get a deadlock when using same table
       in insert and select or when you run out of memory.
+      It can also happen if there was a conflict in
+      THD::decide_logging_format()
     */
-    my_error(ER_CANT_LOCK, MYF(0), my_errno);
+    if (!thd->is_error())
+      my_error(ER_CANT_LOCK, MYF(0), my_errno);
     if (*lock)
     {
       mysql_unlock_tables(thd, *lock);

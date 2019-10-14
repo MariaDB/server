@@ -49,7 +49,7 @@
 #include <m_ctype.h>
 #include <sys/stat.h>
 #include <thr_alarm.h>
-#ifdef	__WIN__
+#ifdef	__WIN__0
 #include <io.h>
 #endif
 #include <mysys_err.h>
@@ -6021,26 +6021,31 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       Get the capabilities vector for all involved storage engines and
       mask out the flags for the binary log.
     */
-    for (TABLE_LIST *table= tables; table; table= table->next_global)
+    for (TABLE_LIST *tbl= tables; tbl; tbl= tbl->next_global)
     {
-      if (table->placeholder())
+      TABLE *table;
+      TABLE_SHARE *share;
+      handler::Table_flags flags;
+      if (tbl->placeholder())
         continue;
 
-      handler::Table_flags flags= table->table->file->ha_table_flags();
-      if (!table->table->s->table_creation_was_logged)
+      table= tbl->table;
+      share= table->s;
+      flags= table->file->ha_table_flags();
+      if (!share->table_creation_was_logged)
       {
         /*
           This is a temporary table which was not logged in the binary log.
           Disable statement logging to enforce row level logging.
         */
-        DBUG_ASSERT(table->table->s->tmp_table);
+        DBUG_ASSERT(share->tmp_table);
         flags&= ~HA_BINLOG_STMT_CAPABLE;
       }
 
       DBUG_PRINT("info", ("table: %s; ha_table_flags: 0x%llx",
-                          table->table_name.str, flags));
+                          tbl->table_name.str, flags));
 
-      if (table->table->s->no_replicate)
+      if (share->no_replicate)
       {
         /*
           The statement uses a table that is not replicated.
@@ -6058,44 +6063,44 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         */
         lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_TABLE);
 
-        if (table->lock_type >= TL_WRITE_ALLOW_WRITE)
+        if (tbl->lock_type >= TL_WRITE_ALLOW_WRITE)
         {
           non_replicated_tables_count++;
           continue;
         }
       }
-      if (table == lex->first_not_own_table())
+      if (tbl == lex->first_not_own_table())
         found_first_not_own_table= true;
 
       replicated_tables_count++;
 
-      if (table->prelocking_placeholder != TABLE_LIST::PRELOCK_FK)
+      if (tbl->prelocking_placeholder != TABLE_LIST::PRELOCK_FK)
       {
-        if (table->lock_type <= TL_READ_NO_INSERT)
+        if (tbl->lock_type <= TL_READ_NO_INSERT)
           has_read_tables= true;
-        else if (table->table->found_next_number_field &&
-                 (table->lock_type >= TL_WRITE_ALLOW_WRITE))
+        else if (table->found_next_number_field &&
+                 (tbl->lock_type >= TL_WRITE_ALLOW_WRITE))
         {
           has_auto_increment_write_tables= true;
           has_auto_increment_write_tables_not_first= found_first_not_own_table;
-          if (table->table->s->next_number_keypart != 0)
+          if (share->next_number_keypart != 0)
             has_write_table_auto_increment_not_first_in_pk= true;
         }
       }
 
-      if (table->lock_type >= TL_WRITE_ALLOW_WRITE)
+      if (tbl->lock_type >= TL_WRITE_ALLOW_WRITE)
       {
         bool trans;
         if (prev_write_table && prev_write_table->file->ht !=
-            table->table->file->ht)
+            table->file->ht)
           multi_write_engine= TRUE;
-        if (table->table->s->non_determinstic_insert &&
+        if (share->non_determinstic_insert &&
             !(sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE))
           has_write_tables_with_unsafe_statements= true;
 
-        trans= table->table->file->has_transactions();
+        trans= table->file->has_transactions();
 
-        if (table->table->s->tmp_table)
+        if (share->tmp_table)
           lex->set_stmt_accessed_table(trans ? LEX::STMT_WRITES_TEMP_TRANS_TABLE :
                                                LEX::STMT_WRITES_TEMP_NON_TRANS_TABLE);
         else
@@ -6106,17 +6111,16 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         flags_write_some_set |= flags;
         is_write= TRUE;
 
-        prev_write_table= table->table;
+        prev_write_table= table;
 
       }
       flags_access_some_set |= flags;
 
-      if (lex->sql_command != SQLCOM_CREATE_TABLE ||
-          (lex->sql_command == SQLCOM_CREATE_TABLE && lex->tmp_table()))
+      if (lex->sql_command != SQLCOM_CREATE_TABLE || lex->tmp_table())
       {
-        my_bool trans= table->table->file->has_transactions();
+        my_bool trans= table->file->has_transactions();
 
-        if (table->table->s->tmp_table)
+        if (share->tmp_table)
           lex->set_stmt_accessed_table(trans ? LEX::STMT_READS_TEMP_TRANS_TABLE :
                                                LEX::STMT_READS_TEMP_NON_TRANS_TABLE);
         else
@@ -6125,10 +6129,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       }
 
       if (prev_access_table && prev_access_table->file->ht !=
-          table->table->file->ht)
+          table->file->ht)
         multi_access_engine= TRUE;
 
-      prev_access_table= table->table;
+      prev_access_table= table;
     }
 
     if (wsrep_binlog_format() != BINLOG_FORMAT_ROW)
@@ -6335,10 +6339,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                         "ROW" : "STATEMENT"));
 
     if (variables.binlog_format == BINLOG_FORMAT_ROW &&
-        (lex->sql_command == SQLCOM_UPDATE ||
-         lex->sql_command == SQLCOM_UPDATE_MULTI ||
-         lex->sql_command == SQLCOM_DELETE ||
-         lex->sql_command == SQLCOM_DELETE_MULTI))
+        (sql_command_flags[lex->sql_command] &
+         (CF_UPDATES_DATA | CF_DELETES_DATA)))
     {
       String table_names;
       /*
@@ -6358,8 +6360,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       }
       if (!table_names.is_empty())
       {
-        bool is_update= (lex->sql_command == SQLCOM_UPDATE ||
-                         lex->sql_command == SQLCOM_UPDATE_MULTI);
+        bool is_update= MY_TEST(sql_command_flags[lex->sql_command] &
+                                CF_UPDATES_DATA);
         /*
           Replace the last ',' with '.' for table_names
         */
