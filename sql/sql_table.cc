@@ -1993,7 +1993,7 @@ int write_bin_log(THD *thd, bool clear_error,
       errcode= query_error_code(thd, TRUE);
     error= thd->binlog_query(THD::STMT_QUERY_TYPE,
                              query, query_length, is_trans, FALSE, FALSE,
-                             errcode);
+                             errcode) > 0;
     thd_proc_info(thd, 0);
   }
   return error;
@@ -2616,12 +2616,12 @@ err:
 #ifdef WITH_WSREP
           thd->wsrep_skip_wsrep_GTID = true;
 #endif /* WITH_WSREP */
-          error |= thd->binlog_query(THD::STMT_QUERY_TYPE,
-                                     built_non_trans_tmp_query.ptr(),
-                                     built_non_trans_tmp_query.length(),
-                                     FALSE, FALSE,
-                                     is_drop_tmp_if_exists_added,
-                                     0);
+          error |= (thd->binlog_query(THD::STMT_QUERY_TYPE,
+                                      built_non_trans_tmp_query.ptr(),
+                                      built_non_trans_tmp_query.length(),
+                                      FALSE, FALSE,
+                                      is_drop_tmp_if_exists_added,
+                                      0) > 0);
       }
       if (trans_tmp_table_deleted)
       {
@@ -2631,12 +2631,12 @@ err:
 #ifdef WITH_WSREP
           thd->wsrep_skip_wsrep_GTID = true;
 #endif /* WITH_WSREP */
-          error |= thd->binlog_query(THD::STMT_QUERY_TYPE,
-                                     built_trans_tmp_query.ptr(),
-                                     built_trans_tmp_query.length(),
-                                     TRUE, FALSE,
-                                     is_drop_tmp_if_exists_added,
-                                     0);
+          error |= (thd->binlog_query(THD::STMT_QUERY_TYPE,
+                                      built_trans_tmp_query.ptr(),
+                                      built_trans_tmp_query.length(),
+                                      TRUE, FALSE,
+                                      is_drop_tmp_if_exists_added,
+                                      0) > 0);
       }
       if (non_tmp_table_deleted)
       {
@@ -2648,11 +2648,11 @@ err:
 #ifdef WITH_WSREP
           thd->wsrep_skip_wsrep_GTID = false;
 #endif /* WITH_WSREP */
-          error |= thd->binlog_query(THD::STMT_QUERY_TYPE,
-                                     built_query.ptr(),
-                                     built_query.length(),
-                                     TRUE, FALSE, FALSE,
-                                     error_code);
+          error |= (thd->binlog_query(THD::STMT_QUERY_TYPE,
+                                      built_query.ptr(),
+                                      built_query.length(),
+                                      TRUE, FALSE, FALSE,
+                                      error_code) > 0);
       }
     }
   }
@@ -2738,7 +2738,7 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
                                "failed CREATE OR REPLACE */"));
   error= thd->binlog_query(THD::STMT_QUERY_TYPE,
                            query.ptr(), query.length(),
-                           FALSE, FALSE, temporary_table, 0);
+                           FALSE, FALSE, temporary_table, 0) > 0;
   DBUG_RETURN(error);
 }
 
@@ -5215,9 +5215,13 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   }
 
 err:
-  /* In RBR we don't need to log CREATE TEMPORARY TABLE */
-  if (!result && thd->is_current_stmt_binlog_format_row() && create_info->tmp_table())
+  /* In RBR or readonly server we don't need to log CREATE TEMPORARY TABLE */
+  if (!result && create_info->tmp_table() &&
+      (thd->is_current_stmt_binlog_format_row() || opt_readonly))
+  {
+    /* Note that table->s->table_creation_was_logged is not set! */
     DBUG_RETURN(result);
+  }
 
   if (create_info->tmp_table())
     thd->transaction.stmt.mark_created_temp_table();
@@ -5234,11 +5238,13 @@ err:
       */
       thd->locked_tables_list.unlock_locked_table(thd, mdl_ticket);
     }
-    else if (likely(!result) && create_info->tmp_table() && create_info->table)
+    else if (likely(!result) && create_info->table)
     {
       /*
-        Remember that tmp table creation was logged so that we know if
+        Remember that table creation was logged so that we know if
         we should log a delete of it.
+        If create_info->table was not set, it's a normal table and
+        table_creation_was_logged will be set when the share is created.
       */
       create_info->table->s->table_creation_was_logged= 1;
     }

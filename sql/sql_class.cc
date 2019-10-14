@@ -6026,7 +6026,16 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       if (table->placeholder())
         continue;
 
-      handler::Table_flags const flags= table->table->file->ha_table_flags();
+      handler::Table_flags flags= table->table->file->ha_table_flags();
+      if (!table->table->s->table_creation_was_logged)
+      {
+        /*
+          This is a temporary table which was not logged in the binary log.
+          Disable statement logging to enforce row level logging.
+        */
+        DBUG_ASSERT(table->table->s->tmp_table);
+        flags&= ~HA_BINLOG_STMT_CAPABLE;
+      }
 
       DBUG_PRINT("info", ("table: %s; ha_table_flags: 0x%llx",
                           table->table_name.str, flags));
@@ -6248,9 +6257,16 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         {
           /*
             5. Error: Cannot modify table that uses a storage engine
-               limited to row-logging when binlog_format = STATEMENT
+               limited to row-logging when binlog_format = STATEMENT, except
+               if all tables that are updated are temporary tables
           */
-	  if (IF_WSREP((!WSREP(this) || wsrep_exec_mode == LOCAL_STATE),1))
+          if (!lex->stmt_writes_to_non_temp_table())
+          {
+            /* As all updated tables are temporary, nothing will be logged */
+            set_current_stmt_binlog_format_row();
+          }
+          else if (IF_WSREP((!WSREP(this) ||
+                             wsrep_exec_mode == LOCAL_STATE),1))
 	  {
             my_error((error= ER_BINLOG_STMT_MODE_AND_ROW_ENGINE), MYF(0), "");
 	  }
@@ -7177,11 +7193,12 @@ void THD::issue_unsafe_warnings()
 
   @see decide_logging_format
 
+  @retval < 0 No logging of query (ok)
   @retval 0 Success
-
-  @retval nonzero If there is a failure when writing the query (e.g.,
-  write failure), then the error code is returned.
+  @retval > 0  If there is a failure when writing the query (e.g.,
+               write failure), then the error code is returned.
 */
+
 int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
                       ulong query_len, bool is_trans, bool direct, 
                       bool suppress_use, int errcode)
@@ -7207,7 +7224,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
       The current statement is to be ignored, and not written to
       the binlog. Do not call issue_unsafe_warnings().
     */
-    DBUG_RETURN(0);
+    DBUG_RETURN(-1);
   }
 
   /*
@@ -7223,7 +7240,10 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   {
     int error;
     if (unlikely(error= binlog_flush_pending_rows_event(TRUE, is_trans)))
+    {
+      DBUG_ASSERT(error > 0);
       DBUG_RETURN(error);
+    }
   }
 
   /*
@@ -7266,7 +7286,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
                ("is_current_stmt_binlog_format_row: %d",
                 is_current_stmt_binlog_format_row()));
     if (is_current_stmt_binlog_format_row())
-      DBUG_RETURN(0);
+      DBUG_RETURN(-1);
     /* Fall through */
 
     /*
@@ -7307,7 +7327,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
       }
 
       binlog_table_maps= 0;
-      DBUG_RETURN(error);
+      DBUG_RETURN(error >= 0 ? error : 1);
     }
 
   case THD::QUERY_TYPE_COUNT:

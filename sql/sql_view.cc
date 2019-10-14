@@ -698,7 +698,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     thd->reset_unsafe_warnings();
     if (thd->binlog_query(THD::STMT_QUERY_TYPE,
                           buff.ptr(), buff.length(), FALSE, FALSE, FALSE,
-                          errcode))
+                          errcode) > 0)
       res= TRUE;
   }
 

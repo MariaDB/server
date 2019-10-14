@@ -732,16 +732,20 @@ struct TABLE_SHARE
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
   bool not_usable_by_query_cache;
+  /*
+    This is used by log tables, for tables that have their own internal
+    binary logging or for tables that doesn't support statement or row logging
+   */
   bool no_replicate;
   bool crashed;
   bool is_view;
   bool can_cmp_whole_record;
+  /* This is set for temporary tables where CREATE was binary logged */
   bool table_creation_was_logged;
   bool non_determinstic_insert;
   bool vcols_need_refixing;
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
-
   ulong table_map_id;                   /* for row-based replication */
 
   /*
