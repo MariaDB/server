@@ -21138,6 +21138,38 @@ ha_innobase::can_convert_blob(const Field_blob* field,
 	return true;
 }
 
+Compare_keys ha_innobase::compare_key_parts(
+    const Field &old_field, const Column_definition &new_field,
+    const KEY_PART_INFO &old_part, const KEY_PART_INFO &new_part) const
+{
+  const bool is_equal= old_field.is_equal(new_field);
+
+  if (!is_equal)
+  {
+    if (!old_field.can_be_converted_by_engine(new_field))
+      return Compare_keys::NotEqual;
+
+    if (!Charset(old_field.charset())
+             .eq_collation_specific_names(new_field.charset))
+    {
+      return Compare_keys::NotEqual;
+    }
+  }
+
+  if (old_part.length != new_part.length)
+  {
+    if (old_part.length != old_field.field_length ||
+        old_part.length >= new_part.length || is_equal)
+    {
+      return Compare_keys::NotEqual;
+    }
+
+    return Compare_keys::EqualButKeyPartLength;
+  }
+
+  return Compare_keys::Equal;
+}
+
 /******************************************************************//**
 Use this when the args are passed to the format string from
 errmsg-utf8.txt directly as is.

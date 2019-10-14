@@ -6579,38 +6579,68 @@ static int compare_uint(const uint *s, const uint *t)
   return (*s < *t) ? -1 : ((*s > *t) ? 1 : 0);
 }
 
-enum class Compare_keys : uint32_t
-{
-  Equal,
-  EqualButKeyPartLength,
-  EqualButComment,
-  NotEqual
-};
+static Compare_keys merge(Compare_keys current, Compare_keys add) {
+  if (current == Compare_keys::Equal)
+    return add;
+
+  if (add == Compare_keys::Equal)
+    return current;
+
+  if (current == add)
+    return current;
+
+  if (current == Compare_keys::EqualButComment) {
+    return Compare_keys::NotEqual;
+  }
+
+  if (current == Compare_keys::EqualButKeyPartLength) {
+    if (add == Compare_keys::EqualButComment)
+      return Compare_keys::NotEqual;
+    DBUG_ASSERT(add == Compare_keys::NotEqual);
+    return Compare_keys::NotEqual;
+  }
+
+  DBUG_ASSERT(current == Compare_keys::NotEqual);
+  return current;
+}
 
 Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
                                    Alter_info *alter_info, const TABLE *table,
                                    const KEY *const new_pk,
                                    const KEY *const old_pk)
 {
-  Compare_keys result= Compare_keys::Equal;
+  if (table_key->algorithm != new_key->algorithm)
+    return Compare_keys::NotEqual;
 
-  if ((table_key->algorithm != new_key->algorithm) ||
-      ((table_key->flags & HA_KEYFLAG_MASK) !=
-       (new_key->flags & HA_KEYFLAG_MASK)) ||
-      (table_key->user_defined_key_parts != new_key->user_defined_key_parts))
+  if ((table_key->flags & HA_KEYFLAG_MASK) !=
+      (new_key->flags & HA_KEYFLAG_MASK))
+    return Compare_keys::NotEqual;
+
+  if (table_key->user_defined_key_parts != new_key->user_defined_key_parts)
     return Compare_keys::NotEqual;
 
   if (table_key->block_size != new_key->block_size)
+    return Compare_keys::NotEqual;
+
+  /*
+  Rebuild the index if following condition get satisfied:
+
+  (i) Old table doesn't have primary key, new table has it and vice-versa
+  (ii) Primary key changed to another existing index
+  */
+  if ((new_key == new_pk) != (table_key == old_pk))
     return Compare_keys::NotEqual;
 
   if (engine_options_differ(table_key->option_struct, new_key->option_struct,
                             table->file->ht->index_options))
     return Compare_keys::NotEqual;
 
-  const KEY_PART_INFO *end=
-      table_key->key_part + table_key->user_defined_key_parts;
-  for (const KEY_PART_INFO *key_part= table_key->key_part,
-                           *new_part= new_key->key_part;
+  Compare_keys result= Compare_keys::Equal;
+
+  for (const KEY_PART_INFO *
+           key_part= table_key->key_part,
+          *new_part= new_key->key_part,
+          *end= table_key->key_part + table_key->user_defined_key_parts;
        key_part < end; key_part++, new_part++)
   {
     /*
@@ -6618,61 +6648,23 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
       object with adjusted length. So below we have to check field
       indexes instead of simply comparing pointers to Field objects.
     */
-    Create_field *new_field= alter_info->create_list.elem(new_part->fieldnr);
-    if (!new_field->field ||
-        new_field->field->field_index != key_part->fieldnr - 1)
+    const Create_field &new_field=
+        *alter_info->create_list.elem(new_part->fieldnr);
+
+    if (!new_field.field ||
+        new_field.field->field_index != key_part->fieldnr - 1)
+    {
       return Compare_keys::NotEqual;
-
-    /*
-      If there is a change in index length due to column expansion
-      like varchar(X) changed to varchar(X + N) and has a compatible
-      packed data representation, we mark it for fast/INPLACE change
-      in index definition. InnoDB supports INPLACE for this cases
-
-      Key definition has changed if we are using a different field or
-      if the user key part length is different.
-    */
-    const Field *old_field= table->field[key_part->fieldnr - 1];
-
-    bool is_equal= old_field->is_equal(*new_field);
-    /* TODO: below is an InnoDB specific code which should be moved to InnoDB */
-    if (!is_equal)
-    {
-      if (!key_part->field->can_be_converted_by_engine(*new_field))
-        return Compare_keys::NotEqual;
-
-      if (!Charset(old_field->charset())
-               .eq_collation_specific_names(new_field->charset))
-        return Compare_keys::NotEqual;
     }
 
-    if (key_part->length != new_part->length)
-    {
-      if (key_part->length != old_field->field_length ||
-          key_part->length >= new_part->length || is_equal)
-      {
-        return Compare_keys::NotEqual;
-      }
-      result= Compare_keys::EqualButKeyPartLength;
-    }
+    auto compare= table->file->compare_key_parts(
+        *table->field[key_part->fieldnr - 1], new_field, *key_part, *new_part);
+    result= merge(result, compare);
   }
-
-  /*
-  Rebuild the index if following condition get satisfied:
-
-  (i) Old table doesn't have primary key, new table has it and vice-versa
-  (ii) Primary key changed to another existing index
-*/
-  if ((new_key == new_pk) != (table_key == old_pk))
-    return Compare_keys::NotEqual;
 
   /* Check that key comment is not changed. */
   if (cmp(table_key->comment, new_key->comment) != 0)
-  {
-    if (result != Compare_keys::Equal)
-      return Compare_keys::NotEqual;
-    result= Compare_keys::EqualButComment;
-  }
+    result= merge(result, Compare_keys::EqualButComment);
 
   return result;
 }

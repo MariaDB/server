@@ -2936,6 +2936,13 @@ public:
   virtual ~Handler_share() {}
 };
 
+enum class Compare_keys : uint32_t
+{
+  Equal,
+  EqualButKeyPartLength,
+  EqualButComment,
+  NotEqual
+};
 
 /**
   The handler class is the interface for dynamically loadable
@@ -4876,6 +4883,13 @@ public:
   {
     return false;
   }
+
+  /* Used for ALTER TABLE.
+  Some engines can handle some differences in indexes by themself. */
+  virtual Compare_keys compare_key_parts(const Field &old_field,
+                                         const Column_definition &new_field,
+                                         const KEY_PART_INFO &old_part,
+                                         const KEY_PART_INFO &new_part) const;
 
 protected:
   Handler_share *get_ha_share_ptr();
