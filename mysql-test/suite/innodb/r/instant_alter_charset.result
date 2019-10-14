@@ -1918,3 +1918,14 @@ check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 drop table t;
+#
+# MDEV-20726: InnoDB: Assertion failure in file data0type.cc line 67
+#
+CREATE TABLE t (
+id int(10) unsigned NOT NULL PRIMARY KEY,
+a text CHARSET utf8mb3,
+KEY a_idx(a(1))
+) ENGINE=InnoDB;
+INSERT INTO t VALUES (1, 'something in the air');
+ALTER TABLE t MODIFY a text CHARSET utf8mb4;
+DROP TABLE t;

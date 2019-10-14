@@ -1839,6 +1839,7 @@ dict_index_add_to_cache(
 			   > field->col->max_prefix) {
 			/* Set the max_prefix value based on the
 			prefix_len. */
+			ut_ad(field->prefix_len % field->col->mbmaxlen == 0);
 			field->col->max_prefix = field->prefix_len;
 		}
 		ut_ad(field->col->ord_part == 1);
