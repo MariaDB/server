@@ -109,4 +109,16 @@ ALTER TABLE t1 ADD UNIQUE KEY (f1);
 ERROR 23000: Duplicate entry 'foo' for key 'f1'
 ALTER TABLE t1 ADD KEY (f2);
 DROP TABLE t1;
+#
+# MDEV-10748 Server crashes in ha_maria::implicit_commit upon ALTER TABLE
+#
+CREATE TABLE t1 (a INT, b INT) ENGINE=Aria;
+SELECT * FROM t1;
+a	b
+CREATE TABLE t2 (c INT) ENGINE=Aria;
+LOCK TABLE t2 READ, t1 WRITE;
+ALTER TABLE t1 CHANGE b a INT;
+ERROR 42S21: Duplicate column name 'a'
+UNLOCK TABLES;
+DROP TABLE t1, t2;
 # End of 10.2 tests
