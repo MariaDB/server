@@ -478,6 +478,15 @@ public:
     return false;
   }
 
+  bool partition_field_check(const LEX_CSTRING &field_name,
+                             Item *item_expr) const override;
+
+  bool partition_field_append_value(String *to,
+                                    Item *item_expr,
+                                    CHARSET_INFO *field_cs,
+                                    partition_value_print_mode_t mode)
+                                    const override;
+
   Field *make_table_field(MEM_ROOT *root,
                           const LEX_CSTRING *name,
                           const Record_addr &addr,

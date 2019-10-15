@@ -119,6 +119,13 @@ enum scalar_comparison_op
 };
 
 
+enum partition_value_print_mode_t
+{
+  PARTITION_VALUE_PRINT_MODE_SHOW= 0,
+  PARTITION_VALUE_PRINT_MODE_FRM= 1
+};
+
+
 class Data_type_statistics
 {
 public:
@@ -3357,7 +3364,9 @@ public:
   static const
   Type_handler *aggregate_for_result_traditional(const Type_handler *h1,
                                                  const Type_handler *h2);
-
+  static void partition_field_type_not_allowed(const LEX_CSTRING &field_name);
+  static bool partition_field_check_result_type(Item *item,
+                                                Item_result expected_type);
   virtual const Name name() const= 0;
   virtual const Name version() const;
   virtual const Name &default_value() const= 0;
@@ -3495,6 +3504,17 @@ public:
   {
     return this;
   }
+  virtual bool partition_field_check(const LEX_CSTRING &field_name,
+                                     Item *item_expr) const
+  {
+    partition_field_type_not_allowed(field_name);
+    return true;
+  }
+  virtual bool partition_field_append_value(String *str,
+                                            Item *item_expr,
+                                            CHARSET_INFO *field_cs,
+                                            partition_value_print_mode_t mode)
+                                            const;
   virtual int
   stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const= 0;
   virtual CHARSET_INFO *charset_for_protocol(const Item *item) const;
@@ -4865,6 +4885,16 @@ public:
   {
     return type_limits_int()->char_length();
   }
+  bool partition_field_check(const LEX_CSTRING &field_name,
+                             Item *item_expr) const override
+  {
+    return partition_field_check_result_type(item_expr, INT_RESULT);
+  }
+  bool partition_field_append_value(String *str,
+                                    Item *item_expr,
+                                    CHARSET_INFO *field_cs,
+                                    partition_value_print_mode_t)
+                                    const override;
   const Vers_type_handler *vers() const override { return &vers_type_trx; }
 };
 
@@ -5659,6 +5689,11 @@ public:
   {
     return MYSQL_TIMESTAMP_TIME;
   }
+  bool partition_field_check(const LEX_CSTRING &field_name,
+                             Item *item_expr) const override
+  {
+    return partition_field_check_result_type(item_expr, STRING_RESULT);
+  }
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5865,6 +5900,11 @@ public:
   {
     return true;
   }
+  bool partition_field_check(const LEX_CSTRING &field_name,
+                             Item *item_expr) const override
+  {
+    return partition_field_check_result_type(item_expr, STRING_RESULT);
+  }
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
@@ -5986,6 +6026,11 @@ public:
   bool cond_notnull_field_isnull_to_field_eq_zero() const override
   {
     return true;
+  }
+  bool partition_field_check(const LEX_CSTRING &field_name,
+                             Item *item_expr) const override
+  {
+    return partition_field_check_result_type(item_expr, STRING_RESULT);
   }
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
@@ -6432,6 +6477,11 @@ public:
   {
     return varstring_type_handler(item);
   }
+  bool partition_field_check(const LEX_CSTRING &field_name,
+                             Item *item_expr) const override
+  {
+    return partition_field_check_result_type(item_expr, STRING_RESULT);
+  }
   void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
     const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
@@ -6520,6 +6570,11 @@ public:
     return varstring_type_handler(item);
   }
   bool is_param_long_data_type() const override { return true; }
+  bool partition_field_check(const LEX_CSTRING &field_name,
+                             Item *item_expr) const override
+  {
+    return partition_field_check_result_type(item_expr, STRING_RESULT);
+  }
   void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
     const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
@@ -6574,6 +6629,12 @@ public:
     return 0;
   }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
+  bool partition_field_check(const LEX_CSTRING &field_name,
+                             Item *item_expr) const override
+  {
+    partition_field_type_not_allowed(field_name);
+    return true;
+  }
   void show_binlog_type(const Conv_source &src, const Field &dst, String *str)
     const override;
   Field *make_conversion_table_field(MEM_ROOT *root,
@@ -6648,6 +6709,8 @@ public:
     override;
   void Item_param_setup_conversion(THD *thd, Item_param *) const override;
 
+  bool partition_field_check(const LEX_CSTRING &field_name,
+                        Item *item_expr) const override;
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,

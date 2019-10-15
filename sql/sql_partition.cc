@@ -2240,77 +2240,33 @@ static int add_partition_options(String *str, partition_element *p_elem)
 }
 
 
-/*
-  Check partition fields for result type and if they need
-  to check the character set.
-
-  SYNOPSIS
-    check_part_field()
-    sql_type              Type provided by user
-    field_name            Name of field, used for error handling
-    result_type           Out value: Result type of field
-    need_cs_check         Out value: Do we need character set check
-
-  RETURN VALUES
-    TRUE                  Error
-    FALSE                 Ok
-*/
-
-static int check_part_field(enum_field_types sql_type,
-                            const char *field_name,
-                            Item_result *result_type,
-                            bool *need_cs_check)
+void
+Type_handler::partition_field_type_not_allowed(const LEX_CSTRING &field_name)
 {
-  if (sql_type >= MYSQL_TYPE_TINY_BLOB &&
-      sql_type <= MYSQL_TYPE_BLOB)
+  my_error(ER_FIELD_TYPE_NOT_ALLOWED_AS_PARTITION_FIELD, MYF(0),
+           field_name.str);
+}
+
+
+bool
+Type_handler::partition_field_check_result_type(Item *item,
+                                                Item_result expected_type)
+{
+  if (item->result_type() != expected_type)
   {
-    my_error(ER_BLOB_FIELD_IN_PART_FUNC_ERROR, MYF(0));
+    my_error(ER_WRONG_TYPE_COLUMN_VALUE_ERROR, MYF(0));
     return TRUE;
   }
-  switch (sql_type)
-  {
-    case MYSQL_TYPE_TINY:
-    case MYSQL_TYPE_SHORT:
-    case MYSQL_TYPE_LONG:
-    case MYSQL_TYPE_LONGLONG:
-    case MYSQL_TYPE_INT24:
-      *result_type= INT_RESULT;
-      *need_cs_check= FALSE;
-      return FALSE;
-    case MYSQL_TYPE_NEWDATE:
-    case MYSQL_TYPE_DATE:
-    case MYSQL_TYPE_TIME:
-    case MYSQL_TYPE_DATETIME:
-    case MYSQL_TYPE_TIME2:
-    case MYSQL_TYPE_DATETIME2:
-      *result_type= STRING_RESULT;
-      *need_cs_check= TRUE;
-      return FALSE;
-    case MYSQL_TYPE_VARCHAR:
-    case MYSQL_TYPE_STRING:
-    case MYSQL_TYPE_VAR_STRING:
-      *result_type= STRING_RESULT;
-      *need_cs_check= TRUE;
-      return FALSE;
-    case MYSQL_TYPE_NEWDECIMAL:
-    case MYSQL_TYPE_DECIMAL:
-    case MYSQL_TYPE_TIMESTAMP:
-    case MYSQL_TYPE_TIMESTAMP2:
-    case MYSQL_TYPE_NULL:
-    case MYSQL_TYPE_FLOAT:
-    case MYSQL_TYPE_DOUBLE:
-    case MYSQL_TYPE_BIT:
-    case MYSQL_TYPE_ENUM:
-    case MYSQL_TYPE_SET:
-    case MYSQL_TYPE_GEOMETRY:
-      goto error;
-    default:
-      goto error;
-  }
-error:
-  my_error(ER_FIELD_TYPE_NOT_ALLOWED_AS_PARTITION_FIELD, MYF(0),
-           field_name);
-  return TRUE;
+  return false;
+}
+
+
+bool
+Type_handler_blob_common::partition_field_check(const LEX_CSTRING &field_name,
+                                                Item *item_expr) const
+{
+  my_error(ER_BLOB_FIELD_IN_PART_FUNC_ERROR, MYF(0));
+  return true;
 }
 
 
@@ -2347,6 +2303,58 @@ static Create_field* get_sql_field(const char *field_name,
 }
 
 
+bool
+Type_handler_general_purpose_int::partition_field_append_value(
+                                            String *str,
+                                            Item *item_expr,
+                                            CHARSET_INFO *field_cs,
+                                            partition_value_print_mode_t mode)
+                                            const
+{
+  DBUG_ASSERT(item_expr->cmp_type() == INT_RESULT);
+  StringBuffer<21> tmp;
+  longlong value= item_expr->val_int();
+  tmp.set(value, system_charset_info);
+  return str->append(tmp);
+}
+
+
+bool Type_handler::partition_field_append_value(
+                                            String *str,
+                                            Item *item_expr,
+                                            CHARSET_INFO *field_cs,
+                                            partition_value_print_mode_t mode)
+                                            const
+{
+  DBUG_ASSERT(cmp_type() != INT_RESULT);
+
+  if (field_cs && field_cs != item_expr->collation.collation)
+  {
+    if (!(item_expr= convert_charset_partition_constant(item_expr,
+                                                        field_cs)))
+    {
+      my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
+      return true;
+    }
+  }
+  StringBuffer<MAX_KEY_LENGTH> buf;
+  String val_conv, *res;
+  val_conv.set_charset(system_charset_info);
+  if (!(res= item_expr->val_str(&buf)))
+  {
+    my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
+    return true;
+  }
+  if (get_cs_converted_part_value_from_string(current_thd,
+                                              item_expr, res,
+                                              &val_conv, field_cs,
+                                              mode ==
+                                              PARTITION_VALUE_PRINT_MODE_FRM))
+    return true;
+  return str->append(val_conv);
+}
+
+
 static int add_column_list_values(String *str, partition_info *part_info,
                                   part_elem_value *list_value,
                                   HA_CREATE_INFO *create_info,
@@ -2377,8 +2385,7 @@ static int add_column_list_values(String *str, partition_info *part_info,
       else
       {
         CHARSET_INFO *field_cs;
-        bool need_cs_check= FALSE;
-        Item_result result_type= STRING_RESULT;
+        const Type_handler *th= NULL;
 
         /*
           This function is called at a very early stage, even before
@@ -2396,57 +2403,24 @@ static int add_column_list_values(String *str, partition_info *part_info,
             my_error(ER_FIELD_NOT_FOUND_PART_ERROR, MYF(0));
             return 1;
           }
-          if (check_part_field(sql_field->real_field_type(),
-                               sql_field->field_name.str,
-                               &result_type,
-                               &need_cs_check))
+          th= sql_field->type_handler();
+          if (th->partition_field_check(sql_field->field_name, item_expr))
             return 1;
-          if (need_cs_check)
-            field_cs= get_sql_field_charset(sql_field, create_info);
-          else
-            field_cs= NULL;
+          field_cs= get_sql_field_charset(sql_field, create_info);
         }
         else
         {
           Field *field= part_info->part_field_array[i];
-          result_type= field->result_type();
-          if (check_part_field(field->real_type(),
-                               field->field_name.str,
-                               &result_type,
-                               &need_cs_check))
+          th= field->type_handler();
+          if (th->partition_field_check(field->field_name, item_expr))
             return 1;
-          DBUG_ASSERT(result_type == field->result_type());
-          if (need_cs_check)
-            field_cs= field->charset();
-          else
-            field_cs= NULL;
+          field_cs= field->charset();
         }
-        if (result_type != item_expr->result_type())
-        {
-          my_error(ER_WRONG_TYPE_COLUMN_VALUE_ERROR, MYF(0));
+        if (th->partition_field_append_value(str, item_expr, field_cs,
+                                             alter_info == NULL ?
+                                             PARTITION_VALUE_PRINT_MODE_SHOW:
+                                             PARTITION_VALUE_PRINT_MODE_FRM))
           return 1;
-        }
-        if (field_cs && field_cs != item_expr->collation.collation)
-        {
-          if (!(item_expr= convert_charset_partition_constant(item_expr,
-                                                              field_cs)))
-          {
-            my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
-            return 1;
-          }
-        }
-        {
-          StringBuffer<MAX_KEY_LENGTH> buf;
-          String val_conv, *res;
-          val_conv.set_charset(system_charset_info);
-          res= item_expr->val_str(&buf);
-          if (get_cs_converted_part_value_from_string(current_thd,
-                                                      item_expr, res,
-                                                      &val_conv, field_cs,
-                                                   (bool)(alter_info != NULL)))
-            return 1;
-          err+= str->append(val_conv);
-        }
       }
     }
     if (i != (num_elements - 1))

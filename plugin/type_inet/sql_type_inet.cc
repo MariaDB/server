@@ -1449,6 +1449,40 @@ Field *Type_handler_inet6::make_conversion_table_field(MEM_ROOT *root,
 }
 
 
+bool Type_handler_inet6::partition_field_check(const LEX_CSTRING &field_name,
+                                               Item *item_expr) const
+{
+  if (item_expr->cmp_type() != STRING_RESULT)
+  {
+    my_error(ER_WRONG_TYPE_COLUMN_VALUE_ERROR, MYF(0));
+    return true;
+  }
+  return false;
+}
+
+
+bool
+Type_handler_inet6::partition_field_append_value(
+                                          String *to,
+                                          Item *item_expr,
+                                          CHARSET_INFO *field_cs,
+                                          partition_value_print_mode_t mode)
+                                          const
+{
+  StringBufferInet6 inet6str;
+  Inet6_null inet6(item_expr);
+  if (inet6.is_null())
+  {
+    my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
+    return true;
+  }
+  return inet6.to_string(&inet6str) ||
+         to->append('\'') ||
+         to->append(inet6str) ||
+         to->append('\'');
+}
+
+
 /***************************************************************/
 
 
