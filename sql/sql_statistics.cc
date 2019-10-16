@@ -2204,27 +2204,13 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
 
   DBUG_ENTER("alloc_statistics_for_table_share");
 
-  DEBUG_SYNC(thd, "statistics_mem_alloc_start1");
-  DEBUG_SYNC(thd, "statistics_mem_alloc_start2");
-
-  mysql_mutex_lock(&table_share->LOCK_share);
-
-  if (stats_cb->stats_can_be_read)
-  {
-    mysql_mutex_unlock(&table_share->LOCK_share);
-    DBUG_RETURN(0);
-  }
-
   Table_statistics *table_stats= stats_cb->table_stats;
   if (!table_stats)
   {
     table_stats=  (Table_statistics *) alloc_root(&stats_cb->mem_root,
                                                   sizeof(Table_statistics));
     if (!table_stats)
-    {
-      mysql_mutex_unlock(&table_share->LOCK_share);
       DBUG_RETURN(1);
-    }
     memset(table_stats, 0, sizeof(Table_statistics));
     stats_cb->table_stats= table_stats;
   }
@@ -2290,13 +2276,7 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
       }
     }   
   }
-
-  if (column_stats && index_stats && idx_avg_frequency)
-    stats_cb->stats_can_be_read= TRUE;
-
-  mysql_mutex_unlock(&table_share->LOCK_share);
-
-  DBUG_RETURN(0);
+  DBUG_RETURN(column_stats && index_stats && idx_avg_frequency ? 0 : 1);
 }
 
 
@@ -2913,11 +2893,22 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   Field **field_ptr;
   KEY *key_info, *key_info_end;
   TABLE_SHARE *table_share= table->s;
-  Table_statistics *read_stats= table_share->stats_cb.table_stats;
 
   DBUG_ENTER("read_statistics_for_table");
+  DEBUG_SYNC(thd, "statistics_mem_alloc_start1");
+  DEBUG_SYNC(thd, "statistics_mem_alloc_start2");
+
+  if (!table_share->stats_cb.start_stats_load())
+    DBUG_RETURN(table_share->stats_cb.stats_are_ready() ? 0 : 1);
+
+  if (alloc_statistics_for_table_share(thd, table_share))
+  {
+    table_share->stats_cb.abort_stats_load();
+    DBUG_RETURN(1);
+  }
 
   /* Read statistics from the statistical table table_stats */
+  Table_statistics *read_stats= table_share->stats_cb.table_stats;
   stat_table= stat_tables[TABLE_STAT].table;
   Table_stat table_stat(stat_table, table);
   table_stat.set_key_fields();
@@ -2995,9 +2986,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
       }
     }
   }
-      
-  table->stats_is_read= TRUE;
-
+  table_share->stats_cb.end_stats_load();
   DBUG_RETURN(0);
 }
 
@@ -3146,6 +3135,23 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 }
 
 
+static void dump_stats_from_share_to_table(TABLE *table)
+{
+  TABLE_SHARE *table_share= table->s;
+  KEY *key_info= table_share->key_info;
+  KEY *key_info_end= key_info + table_share->keys;
+  KEY *table_key_info= table->key_info;
+  for ( ; key_info < key_info_end; key_info++, table_key_info++)
+    table_key_info->read_stats= key_info->read_stats;
+
+  Field **field_ptr= table_share->field;
+  Field **table_field_ptr= table->field;
+  for ( ; *field_ptr; field_ptr++, table_field_ptr++)
+    (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
+  table->stats_is_read= true;
+}
+
+
 int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
 {
   TABLE_LIST stat_tables[STATISTICS_TABLES];
@@ -3167,30 +3173,17 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
     {
       if (table_share->table_category == TABLE_CATEGORY_USER)
       {
-        if (table_share->stats_cb.stats_can_be_read ||
-            !alloc_statistics_for_table_share(thd, table_share))
+        if (table_share->stats_cb.stats_are_ready())
         {
-          if (table_share->stats_cb.stats_can_be_read)
-          {
-            KEY *key_info= table_share->key_info;
-            KEY *key_info_end= key_info + table_share->keys;
-            KEY *table_key_info= tl->table->key_info;
-            for ( ; key_info < key_info_end; key_info++, table_key_info++)
-              table_key_info->read_stats= key_info->read_stats;
-            Field **field_ptr= table_share->field;
-            Field **table_field_ptr= tl->table->field;
-            for ( ; *field_ptr; field_ptr++, table_field_ptr++)
-              (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
-            tl->table->stats_is_read= table_share->stats_cb.stats_is_read;
-            tl->table->histograms_are_read=
-              table_share->stats_cb.histograms_are_read;
-
-            if (!tl->table->stats_is_read ||
-                (!table_share->stats_cb.histograms_are_read &&
-                 thd->variables.optimizer_use_condition_selectivity > 3))
-              statistics_for_tables_is_needed= true;
-          }
+          if (!tl->table->stats_is_read)
+            dump_stats_from_share_to_table(tl->table);
+          tl->table->histograms_are_read=
+            table_share->stats_cb.histograms_are_read;
+          if (table_share->stats_cb.histograms_are_read ||
+              thd->variables.optimizer_use_condition_selectivity <= 3)
+            continue;
         }
+        statistics_for_tables_is_needed= true;
       }
       else if (is_stat_table(tl->db, tl->alias))
         found_stat_table= true;
@@ -3217,16 +3210,14 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
         table_share->tmp_table == NO_TMP_TABLE &&
         table_share->table_category == TABLE_CATEGORY_USER)
     {
-      if (table_share->stats_cb.stats_can_be_read &&
-	  !table_share->stats_cb.stats_is_read)
+      if (!tl->table->stats_is_read)
       {
-        (void) read_statistics_for_table(thd, tl->table, stat_tables);
-        table_share->stats_cb.stats_is_read= TRUE;
+        if (!read_statistics_for_table(thd, tl->table, stat_tables))
+          dump_stats_from_share_to_table(tl->table);
+        else
+          continue;
       }
-      if (table_share->stats_cb.stats_is_read)
-        tl->table->stats_is_read= TRUE;
       if (thd->variables.optimizer_use_condition_selectivity > 3 &&
-          table_share->stats_cb.stats_can_be_read &&
           !table_share->stats_cb.histograms_are_read)
       {
         (void) read_histograms_for_table(thd, tl->table, stat_tables);
