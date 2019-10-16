@@ -607,15 +607,64 @@ enum open_frm_error {
   from persistent statistical tables
 */
 
-struct TABLE_STATISTICS_CB
+class TABLE_STATISTICS_CB
 {
+  class Statistics_state
+  {
+    enum state_codes
+    {
+      EMPTY,   /** data is not loaded */
+      LOADING, /** data is being loaded in some connection */
+      READY    /** data is loaded and available for use */
+    };
+    std::atomic<state_codes> state;
+
+  public:
+    /** No state copy */
+    Statistics_state &operator=(const Statistics_state &) { return *this; }
+
+    /** Checks if data loading have been completed */
+    bool is_ready() const
+    {
+      return state.load(std::memory_order_acquire) == READY;
+    }
+
+    /** Sets mutual exclusion for data loading */
+    bool start_load()
+    {
+      state_codes expected= EMPTY;
+      return state.compare_exchange_weak(expected, LOADING,
+                                         std::memory_order_relaxed,
+                                         std::memory_order_relaxed);
+    }
+
+    /** Marks data available for subsequent use */
+    void end_load()
+    {
+      DBUG_ASSERT(state.load(std::memory_order_relaxed) == LOADING);
+      state.store(READY, std::memory_order_release);
+    }
+
+    /** Restores empty state on error (e.g. OOM) */
+    void abort_load()
+    {
+      DBUG_ASSERT(state.load(std::memory_order_relaxed) == LOADING);
+      state.store(EMPTY, std::memory_order_relaxed);
+    }
+  };
+
+  class Statistics_state stats_state;
+
+public:
   MEM_ROOT  mem_root; /* MEM_ROOT to allocate statistical data for the table */
   Table_statistics *table_stats; /* Structure to access the statistical data */
-  bool stats_can_be_read;        /* Memory for statistical data is allocated */
-  bool stats_is_read;            /* Statistical data for table has been read
-                                    from statistical tables */
   bool histograms_can_be_read;
   bool histograms_are_read;   
+
+  bool stats_are_ready() const { return stats_state.is_ready(); }
+  bool start_stats_load() { return stats_state.start_load(); }
+  void end_stats_load() { stats_state.end_load(); }
+  void abort_stats_load() { stats_state.abort_load(); }
 };
 
 /**
