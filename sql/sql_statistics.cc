@@ -2072,7 +2072,6 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
     DBUG_RETURN(1);
 
   table->collected_stats= table_stats;
-  table_stats->idx_avg_frequency= idx_avg_frequency;
   table_stats->histograms= histogram;
   
   memset(column_stats, 0, sizeof(Column_statistics) * (fields+1));
@@ -2162,20 +2161,24 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
     DBUG_RETURN(0);
   }
 
-  uint keys= table_share->keys;
   Table_statistics *table_stats= stats_cb->table_stats;
   if (!table_stats)
   {
     uint fields= table_share->fields;
+    uint keys= table_share->keys;
+    uint key_parts= table_share->ext_key_parts;
     Column_statistics *column_stats;
     uchar *record;
     Index_statistics *index_stats;
+    ulong *idx_avg_frequency;
 
     if (!multi_alloc_root(&stats_cb->mem_root,
                           &table_stats, sizeof(*table_stats),
                           &column_stats, sizeof(*column_stats) * (fields + 1),
                           &record, table_share->rec_buff_length * 2,
                           &index_stats, sizeof(*index_stats) * keys,
+                          &idx_avg_frequency,
+                          sizeof(*idx_avg_frequency) * key_parts,
                           NullS))
     {
       mysql_mutex_unlock(&table_share->LOCK_share);
@@ -2207,34 +2210,13 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
          key_info++, index_stats++)
     {
       key_info->read_stats= index_stats;
+      key_info->read_stats->init_avg_frequency(idx_avg_frequency);
+      idx_avg_frequency+= key_info->ext_key_parts;
     }
 
     stats_cb->table_stats= table_stats;
-  }
-
-  uint key_parts= table_share->ext_key_parts;
-  ulong *idx_avg_frequency=  table_stats->idx_avg_frequency;
-  if (!idx_avg_frequency)
-  {
-    idx_avg_frequency= (ulong*) alloc_root(&stats_cb->mem_root,
-                                           sizeof(ulong) * key_parts);
-    if (idx_avg_frequency)
-    {
-      memset(idx_avg_frequency, 0, sizeof(ulong) * key_parts);
-      table_stats->idx_avg_frequency= idx_avg_frequency;
-      for (KEY *key_info= table_share->key_info, *end= key_info + keys;
-           key_info < end; 
-           key_info++)
-      {
-        key_info->read_stats->init_avg_frequency(idx_avg_frequency);
-        idx_avg_frequency+= key_info->ext_key_parts;
-      }
-    }   
-  }
-
-  if (idx_avg_frequency)
     stats_cb->stats_can_be_read= TRUE;
-
+  }
   mysql_mutex_unlock(&table_share->LOCK_share);
 
   DBUG_RETURN(0);

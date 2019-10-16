@@ -291,7 +291,6 @@ class Table_statistics
 public:
   my_bool cardinality_is_null;      /* TRUE if the cardinality is unknown */
   ha_rows cardinality;              /* Number of rows in the table        */
-  ulong *idx_avg_frequency;   /* Array of records per key for index prefixes */
   ulong total_hist_size;            /* Total size of all histograms */
   uchar *histograms;                /* Sequence of histograms       */                    
 };
