@@ -280,7 +280,6 @@ public:
   Column_statistics *column_stats;  /* Array of statistical data for columns */
   Index_statistics *index_stats;    /* Array of statistical data for indexes */
   ulong *idx_avg_frequency;   /* Array of records per key for index prefixes */
-  ulong total_hist_size;            /* Total size of all histograms */
   uchar *histograms;                /* Sequence of histograms       */                    
 };
 

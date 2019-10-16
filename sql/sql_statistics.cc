@@ -2281,78 +2281,6 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
 
 
 /**
-  @brief 
-  Allocate memory for the histogram used by a table share
-
-  @param
-  thd         Thread handler
-  @param
-  table_share Table share for which the memory for histogram data is allocated
-  @param
-  is_safe     TRUE <-> at any time only one thread can perform the function
-
-  @note
-  The function allocates the memory for the histogram built for a table in the
-  table's share memory with the intention to read the data there from the
-  system persistent statistical table mysql.column_stats,
-  The memory is allocated in the table_share's mem_root.
-  If the parameter is_safe is TRUE then it is guaranteed that at any given time
-  only one thread is executed the code of the function.
-
-  @retval
-  0     If the memory for all statistical data has been successfully allocated  
-  @retval
-  1     Otherwise
-
-  @note
-  Currently the function always is called with the parameter is_safe set
-  to FALSE. 
-*/      
-
-static
-int alloc_histograms_for_table_share(THD* thd, TABLE_SHARE *table_share, 
-                                     bool is_safe)
-{
-  TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
-
-  DBUG_ENTER("alloc_histograms_for_table_share");
-
-  if (!is_safe)
-    mysql_mutex_lock(&table_share->LOCK_share);
-
-  if (stats_cb->histograms_can_be_read)
-  {
-    if (!is_safe)
-      mysql_mutex_unlock(&table_share->LOCK_share);
-    DBUG_RETURN(0);
-  }
-
-  Table_statistics *table_stats= stats_cb->table_stats;
-  ulong total_hist_size= table_stats->total_hist_size;
-
-  if (total_hist_size && !table_stats->histograms)
-  {
-    uchar *histograms= (uchar *) alloc_root(&stats_cb->mem_root,
-                                            total_hist_size);
-    if (!histograms)
-    {
-      if (!is_safe)
-        mysql_mutex_unlock(&table_share->LOCK_share);
-      DBUG_RETURN(1);
-    }
-    memset(histograms, 0, total_hist_size);
-    table_stats->histograms= histograms;
-    stats_cb->histograms_can_be_read= TRUE;
-  }
-
-  if (!is_safe)
-    mysql_mutex_unlock(&table_share->LOCK_share);
-
-  DBUG_RETURN(0);
-
-}
-
-/**
   @brief
   Initialize the aggregation fields to collect statistics on a column
 
@@ -2925,7 +2853,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
     column_stat.get_stat_values();
     total_hist_size+= table_field->read_stats->histogram.get_size();
   }
-  read_stats->total_hist_size= total_hist_size;
+  table_share->stats_cb.total_hist_size= total_hist_size;
 
   /* Read statistics from the statistical table index_stats */
   stat_table= stat_tables[INDEX_STAT].table;
@@ -3059,26 +2987,25 @@ void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
 static
 int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 {
-  TABLE_SHARE *table_share= table->s;
-  
+  TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
   DBUG_ENTER("read_histograms_for_table");
 
-  if (!table_share->stats_cb.histograms_can_be_read)
+  if (stats_cb->start_histograms_load())
   {
-    (void) alloc_histograms_for_table_share(thd, table_share, FALSE);
-  }
-  if (table_share->stats_cb.histograms_can_be_read &&
-      !table_share->stats_cb.histograms_are_read)
-  {
-    Field **field_ptr;
-    uchar *histogram= table_share->stats_cb.table_stats->histograms;
-    TABLE *stat_table= stat_tables[COLUMN_STAT].table;
-    Column_stat column_stat(stat_table, table);
-    for (field_ptr= table_share->field; *field_ptr; field_ptr++)
+    uchar *histogram= (uchar *) alloc_root(&stats_cb->mem_root,
+                                           stats_cb->total_hist_size);
+    if (!histogram)
+    {
+      stats_cb->abort_histograms_load();
+      DBUG_RETURN(1);
+    }
+    memset(histogram, 0, stats_cb->total_hist_size);
+
+    Column_stat column_stat(stat_tables[COLUMN_STAT].table, table);
+    for (Field **field_ptr= table->s->field; *field_ptr; field_ptr++)
     {
       Field *table_field= *field_ptr;
-      uint hist_size= table_field->read_stats->histogram.get_size();
-      if (hist_size)
+      if (uint hist_size= table_field->read_stats->histogram.get_size())
       {
         column_stat.set_key_fields(table_field);
         table_field->read_stats->histogram.set_values(histogram);
@@ -3086,8 +3013,9 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
         histogram+= hist_size;
       }
     }
+    stats_cb->end_histograms_load();
   }
- 
+  table->histograms_are_read= true;
   DBUG_RETURN(0);
 }
 
@@ -3178,8 +3106,8 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
           if (!tl->table->stats_is_read)
             dump_stats_from_share_to_table(tl->table);
           tl->table->histograms_are_read=
-            table_share->stats_cb.histograms_are_read;
-          if (table_share->stats_cb.histograms_are_read ||
+            table_share->stats_cb.histograms_are_ready();
+          if (table_share->stats_cb.histograms_are_ready() ||
               thd->variables.optimizer_use_condition_selectivity <= 3)
             continue;
         }
@@ -3217,14 +3145,8 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
         else
           continue;
       }
-      if (thd->variables.optimizer_use_condition_selectivity > 3 &&
-          !table_share->stats_cb.histograms_are_read)
-      {
+      if (thd->variables.optimizer_use_condition_selectivity > 3)
         (void) read_histograms_for_table(thd, tl->table, stat_tables);
-        table_share->stats_cb.histograms_are_read= TRUE;
-      }
-      if (table_share->stats_cb.histograms_are_read)
-        tl->table->histograms_are_read= TRUE;
     }
   }
 

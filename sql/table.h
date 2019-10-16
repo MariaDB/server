@@ -659,13 +659,25 @@ class TABLE_STATISTICS_CB
   };
 
   class Statistics_state stats_state;
+  class Statistics_state hist_state;
 
 public:
   MEM_ROOT  mem_root; /* MEM_ROOT to allocate statistical data for the table */
   Table_statistics *table_stats; /* Structure to access the statistical data */
-  bool histograms_can_be_read;
-  bool histograms_are_read;   
+  ulong total_hist_size;         /* Total size of all histograms */
 
+  bool histograms_are_ready() const
+  {
+    return !total_hist_size || hist_state.is_ready();
+  }
+
+  bool start_histograms_load()
+  {
+    return total_hist_size && hist_state.start_load();
+  }
+
+  void end_histograms_load() { hist_state.end_load(); }
+  void abort_histograms_load() { hist_state.abort_load(); }
   bool stats_are_ready() const { return stats_state.is_ready(); }
   bool start_stats_load() { return stats_state.start_load(); }
   void end_stats_load() { stats_state.end_load(); }
