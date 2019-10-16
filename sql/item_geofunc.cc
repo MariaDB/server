@@ -39,7 +39,7 @@
 #include <m_ctype.h>
 #include "opt_range.h"
 #include "item_geofunc.h"
-#include <mysql/plugin_function_collection.h>
+#include "item_create.h"
 
 
 bool Item_geometry_func::fix_length_and_dec()
@@ -3733,16 +3733,6 @@ Create_func_y Create_func_y::s_singleton;
 /*************************************************************************/
 
 
-class FHash: public HASH
-{
-public:
-  FHash()
-  {
-    bzero((HASH *) this, sizeof(HASH));
-  }
-};
-
-
 #define GEOM_BUILDER(F) & F::s_singleton
 
 
@@ -3907,10 +3897,8 @@ static Native_func_registry func_array_geom[] =
 };
 
 
-Plugin_function_collection
-  plugin_function_collection_geometry(
-    MariaDB_FUNCTION_COLLECTION_INTERFACE_VERSION,
-    Native_func_registry_array(func_array_geom,
-                               array_elements(func_array_geom)));
+Native_func_registry_array
+  native_func_registry_array_geom(func_array_geom,
+                                  array_elements(func_array_geom));
 
 #endif /*HAVE_SPATIAL*/

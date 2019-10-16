@@ -40,7 +40,6 @@
 #include <mysql/plugin_encryption.h>
 #include <mysql/plugin_data_type.h>
 #include <mysql/plugin_function.h>
-#include <mysql/plugin_function_collection.h>
 #include "sql_plugin_compat.h"
 
 #ifdef HAVE_LINK_H
@@ -95,8 +94,7 @@ const LEX_CSTRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   { STRING_WITH_LEN("PASSWORD VALIDATION") },
   { STRING_WITH_LEN("ENCRYPTION") },
   { STRING_WITH_LEN("DATA TYPE") },
-  { STRING_WITH_LEN("FUNCTION") },
-  { STRING_WITH_LEN("FUNCTION COLLECTION") }
+  { STRING_WITH_LEN("FUNCTION") }
 };
 
 extern int initialize_schema_table(st_plugin_int *plugin);
@@ -117,16 +115,14 @@ plugin_type_init plugin_type_initialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   0, ha_initialize_handlerton, 0, 0,initialize_schema_table,
   initialize_audit_plugin, 0, 0, 0, initialize_encryption_plugin, 0,
-  0, // FUNCTION
-  Plugin_function_collection::init_plugin
+  0 // FUNCTION
 };
 
 plugin_type_init plugin_type_deinitialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   0, ha_finalize_handlerton, 0, 0, finalize_schema_table,
   finalize_audit_plugin, 0, 0, 0, finalize_encryption_plugin, 0,
-  0, // FUNCTION
-  Plugin_function_collection::deinit_plugin
+  0 // FUNCTION
 };
 
 /*
@@ -140,7 +136,6 @@ static int plugin_type_initialization_order[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MariaDB_ENCRYPTION_PLUGIN,
   MariaDB_DATA_TYPE_PLUGIN,
   MariaDB_FUNCTION_PLUGIN,
-  MariaDB_FUNCTION_COLLECTION_PLUGIN,
   MYSQL_STORAGE_ENGINE_PLUGIN,
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   MYSQL_FTPARSER_PLUGIN,
@@ -184,8 +179,7 @@ static int min_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
   MariaDB_DATA_TYPE_INTERFACE_VERSION,
-  MariaDB_FUNCTION_INTERFACE_VERSION,
-  MariaDB_FUNCTION_COLLECTION_INTERFACE_VERSION
+  MariaDB_FUNCTION_INTERFACE_VERSION
 };
 static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
@@ -200,8 +194,7 @@ static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
   MariaDB_DATA_TYPE_INTERFACE_VERSION,
-  MariaDB_FUNCTION_INTERFACE_VERSION,
-  MariaDB_FUNCTION_COLLECTION_INTERFACE_VERSION
+  MariaDB_FUNCTION_INTERFACE_VERSION
 };
 
 static struct

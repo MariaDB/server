@@ -36,7 +36,6 @@
 #include "sql_time.h"
 #include "sql_type_geom.h"
 #include <mysql/plugin_function.h>
-#include <mysql/plugin_function_collection.h>
 
 
 extern "C" uchar*
@@ -49,80 +48,22 @@ get_native_fct_hash_key(const uchar *buff, size_t *length,
 }
 
 
-bool Plugin_function_collection::init()
+bool Native_func_registry_array::append_to_hash(HASH *hash) const
 {
-  DBUG_ENTER("Plugin_function_collection::init");
-  if (my_hash_init(&m_hash,
-                   system_charset_info,
-                   (ulong) m_native_func_registry_array.count(),
-                   0,
-                   0,
-                   (my_hash_get_key) get_native_fct_hash_key,
-                   NULL,  /* Nothing to free */
-                   MYF(0)))
-    DBUG_RETURN(true);
-
-  for (size_t i= 0; i < m_native_func_registry_array.count(); i++)
+  DBUG_ENTER("Native_func_registry_array::append_to_hash");
+  for (size_t i= 0; i < count(); i++)
   {
-    const Native_func_registry &func= m_native_func_registry_array.element(i);
+    const Native_func_registry &func= element(i);
     DBUG_ASSERT(func.builder != NULL);
-    if (my_hash_insert(&m_hash, (uchar*) &func))
+    if (my_hash_insert(hash, (uchar*) &func))
       DBUG_RETURN(true);
   }
-
   DBUG_RETURN(false);
 }
 
 
-Create_func *
-Plugin_function_collection::find_native_function_builder(THD *thd,
-                                                         const LEX_CSTRING &name)
-                                                         const
-{
-  const Native_func_registry *func;
-  func= (const Native_func_registry*) my_hash_search(&m_hash,
-                                                     (uchar*) name.str,
-                                                     name.length);
-  return func ? func->builder : NULL;
-}
-
-
-class Plugin_find_native_func_builder_param
-{
-  bool find_native_function_builder(THD *thd,
-                                    const Plugin_function_collection *pfc)
-  {
-    // plugin_foreach() will stop iterating when this function returns TRUE
-    return ((builder= pfc->find_native_function_builder(thd, name))) != NULL;
-  }
-  static my_bool find_in_plugin(THD *thd, plugin_ref plugin, void *data)
-  {
-    Plugin_find_native_func_builder_param *param=
-      reinterpret_cast<Plugin_find_native_func_builder_param*>(data);
-    const Plugin_function_collection *fc=
-      reinterpret_cast<Plugin_function_collection*>
-        (plugin_decl(plugin)->info);
-    return param->find_native_function_builder(thd, fc);
-  }
-public:
-  LEX_CSTRING name;
-  Create_func *builder;
-  Plugin_find_native_func_builder_param(const LEX_CSTRING &name_arg)
-   :name(name_arg), builder(NULL)
-  { }
-  Create_func *find(THD *thd)
-  {
-    if (!plugin_foreach(thd,
-                        Plugin_find_native_func_builder_param::find_in_plugin,
-                        MariaDB_FUNCTION_COLLECTION_PLUGIN, this))
-      return NULL;
-    return builder;
-  }
-};
-
-
 #ifdef HAVE_SPATIAL
-extern Plugin_function_collection plugin_function_collection_geometry;
+extern Native_func_registry_array native_func_registry_array_geom;
 #endif
 
 
@@ -5633,10 +5574,11 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("WSREP_LAST_SEEN_GTID") }, BUILDER(Create_func_wsrep_last_seen_gtid)},
   { { STRING_WITH_LEN("WSREP_SYNC_WAIT_UPTO_GTID") }, BUILDER(Create_func_wsrep_sync_wait_upto)},
 #endif /* WITH_WSREP */
-  { { STRING_WITH_LEN("YEARWEEK") }, BUILDER(Create_func_year_week)},
-
-  { {0, 0}, NULL}
+  { { STRING_WITH_LEN("YEARWEEK") }, BUILDER(Create_func_year_week)}
 };
+
+Native_func_registry_array
+  native_func_registry_array(func_array, array_elements(func_array));
 
 static HASH native_functions_hash;
 
@@ -5649,10 +5591,13 @@ static HASH native_functions_hash;
 int item_create_init()
 {
   DBUG_ENTER("item_create_init");
-
+  size_t count= native_func_registry_array.count();
+#ifdef HAVE_SPATIAL
+  count+= native_func_registry_array_geom.count();
+#endif
   if (my_hash_init(& native_functions_hash,
                    system_charset_info,
-                   array_elements(func_array),
+                   (ulong) count,
                    0,
                    0,
                    (my_hash_get_key) get_native_fct_hash_key,
@@ -5660,17 +5605,33 @@ int item_create_init()
                    MYF(0)))
     DBUG_RETURN(1);
 
-  if (item_create_append(func_array))
+  if (native_func_registry_array.append_to_hash(&native_functions_hash))
     DBUG_RETURN(1);
 
 #ifdef HAVE_SPATIAL
-  if (plugin_function_collection_geometry.init())
+  if (native_func_registry_array_geom.append_to_hash(&native_functions_hash))
     DBUG_RETURN(1);
+#endif
+
+#ifndef DBUG_OFF
+  for (uint i=0 ; i < native_functions_hash.records ; i++)
+  {
+    Native_func_registry *func;
+    func= (Native_func_registry*) my_hash_element(& native_functions_hash, i);
+    DBUG_PRINT("info", ("native function: %s  length: %u",
+                        func->name.str, (uint) func->name.length));
+  }
 #endif
 
   DBUG_RETURN(0);
 }
 
+
+/*
+  This function is used (dangerously) by plugin/versioning/versioning.cc
+  TODO: MDEV-20842 Wrap SQL functions defined in
+        plugin/versioning/versioning.cc into MariaDB_FUNCTION_PLUGIN
+*/
 int item_create_append(Native_func_registry array[])
 {
   Native_func_registry *func;
@@ -5682,15 +5643,6 @@ int item_create_append(Native_func_registry array[])
     if (my_hash_insert(& native_functions_hash, (uchar*) func))
       DBUG_RETURN(1);
   }
-
-#ifndef DBUG_OFF
-  for (uint i=0 ; i < native_functions_hash.records ; i++)
-  {
-    func= (Native_func_registry*) my_hash_element(& native_functions_hash, i);
-    DBUG_PRINT("info", ("native function: %s  length: %u",
-                        func->name.str, (uint) func->name.length));
-  }
-#endif
 
   DBUG_RETURN(0);
 }
@@ -5705,9 +5657,6 @@ void item_create_cleanup()
 {
   DBUG_ENTER("item_create_cleanup");
   my_hash_free(& native_functions_hash);
-#ifdef HAVE_SPATIAL
-  plugin_function_collection_geometry.deinit();
-#endif
   DBUG_VOID_RETURN;
 }
 
@@ -5746,16 +5695,7 @@ find_native_function_builder(THD *thd, const LEX_CSTRING *name)
   if ((builder= function_plugin_find_native_function_builder(thd, *name)))
     return builder;
 
-  if ((builder= Plugin_find_native_func_builder_param(*name).find(thd)))
-    return builder;
-
-#ifdef HAVE_SPATIAL
-  if (!builder)
-    builder= plugin_function_collection_geometry.
-               find_native_function_builder(thd, *name);
-#endif
-
-  return builder;
+  return NULL;
 }
 
 Create_qfunc *

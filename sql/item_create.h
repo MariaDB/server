@@ -315,5 +315,30 @@ Item *create_func_dyncol_get(THD *thd, Item *num, Item *str,
                              const char *c_len, const char *c_dec,
                              CHARSET_INFO *cs);
 Item *create_func_dyncol_json(THD *thd, Item *str);
+
+
+class Native_func_registry_array
+{
+  const Native_func_registry *m_elements;
+  size_t m_count;
+public:
+  Native_func_registry_array()
+   :m_elements(NULL),
+    m_count(0)
+  { }
+  Native_func_registry_array(const Native_func_registry *elements, size_t count)
+   :m_elements(elements),
+    m_count(count)
+  { }
+  const Native_func_registry& element(size_t i) const
+  {
+    DBUG_ASSERT(i < m_count);
+    return m_elements[i];
+  }
+  size_t count() const { return m_count; }
+  bool append_to_hash(HASH *hash) const;
+};
+
+
 #endif
 
