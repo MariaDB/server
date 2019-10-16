@@ -605,8 +605,10 @@ bool TDBODBC::OpenDB(PGLOBAL g)
         Cnp->InitValue(g);
 
         if ((n = Ocp->GetResultSize(Query->GetStr(), Cnp)) < 0) {
-          strcpy(g->Message, "Cannot get result size");
-          return true;
+					char* msg = PlugDup(g, g->Message);
+
+					sprintf(g->Message, "Get result size: %s (rc=%d)", msg, n);
+					return true;
 				} else if (n) {
 					Ocp->m_Rows = n;
 
