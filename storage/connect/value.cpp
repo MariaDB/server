@@ -884,14 +884,14 @@ bool TYPVAL<TYPE>::GetBinValue(void *buf, int buflen, bool go)
 template <class TYPE>
 int TYPVAL<TYPE>::ShowValue(char *buf, int len)
 {
-  return snprintf(buf, len, Xfmt, len, Tval);
+  return snprintf(buf, len + 1, Xfmt, len, Tval);
 } // end of ShowValue
 
 template <>
 int TYPVAL<double>::ShowValue(char *buf, int len)
 {
   // TODO: use a more appropriate format to avoid possible truncation
-  return snprintf(buf, len, Xfmt, len, Prec, Tval);
+  return snprintf(buf, len + 1, Xfmt, len, Prec, Tval);
 } // end of ShowValue
 
 /***********************************************************************/
