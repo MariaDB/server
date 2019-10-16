@@ -412,7 +412,6 @@ LOCK TABLES v1 READ, t2 WRITE, t1 WRITE;
 ALTER TABLE t1 CHANGE f1 f2 DOUBLE;
 Got one of the listed errors
 ALTER TABLE t2 DROP c;
-ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 UNLOCK TABLES;
 DROP VIEW v1;
 DROP TABLE t1, t2;

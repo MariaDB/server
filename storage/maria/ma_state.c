@@ -455,7 +455,7 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
   MARIA_USED_TABLES *tables, *next;
   DBUG_ENTER("_ma_trnman_end_trans_hook");
   DBUG_PRINT("enter", ("trn: %p  used_tables: %p", trn, trn->used_tables));
-  
+
   for (tables= (MARIA_USED_TABLES*) trn->used_tables;
        tables;
        tables= next)
@@ -572,6 +572,7 @@ void _ma_remove_table_from_trnman(MARIA_HA *info)
   TRN *trn= info->trn;
   MARIA_USED_TABLES *tables, **prev;
   MARIA_HA *handler, **prev_file;
+  uint unlinked= 0;
   DBUG_ENTER("_ma_remove_table_from_trnman");
   DBUG_PRINT("enter", ("trn: %p  used_tables: %p  share: %p  in_trans: %d",
                        trn, trn->used_tables, share, share->in_trans));
@@ -580,7 +581,7 @@ void _ma_remove_table_from_trnman(MARIA_HA *info)
 
   if (trn == &dummy_transaction_object)
     DBUG_VOID_RETURN;
-  
+
   /* First remove share from used_tables */
   for (prev= (MARIA_USED_TABLES**) (char*) &trn->used_tables;
        (tables= *prev);
@@ -594,7 +595,7 @@ void _ma_remove_table_from_trnman(MARIA_HA *info)
       break;
     }
   }
-  if (tables != 0)
+  if (!tables)
   {
     /*
       This can only happens in case of rename of intermediate table as
@@ -603,18 +604,21 @@ void _ma_remove_table_from_trnman(MARIA_HA *info)
     DBUG_PRINT("warning", ("share: %p where not in used_tables_list", share));
   }
 
-  /* unlink table from used_instances */
-  for (prev_file= (MARIA_HA**) &trn->used_instances;
-       (handler= *prev_file);
-       prev_file= &handler->trn_next)
+  /* unlink all instances of the table from used_instances */
+  prev_file= (MARIA_HA**) &trn->used_instances;
+  while ((handler= *prev_file))
   {
-    if (handler == info)
+    if (handler->s == share)
     {
-      *prev_file= info->trn_next;
-      break;
+      unlinked++;
+      *prev_file= handler->trn_next;  /* Remove instance */
     }
+    else
+      prev_file= &handler->trn_next;  /* Continue with next instance */
   }
-  if (handler != 0)
+
+  DBUG_PRINT("note", ("unlinked tables: %u", unlinked));
+  if (!unlinked)
   {
     /*
       This can only happens in case of rename of intermediate table as
