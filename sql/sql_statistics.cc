@@ -1974,10 +1974,8 @@ void create_min_max_statistical_fields_for_table(TABLE *table)
 {
   uint rec_buff_length= table->s->rec_buff_length;
 
-  if ((table->collected_stats->min_max_record_buffers=
-       (uchar *) alloc_root(&table->mem_root, 2*rec_buff_length)))
+  if (uchar *record= (uchar *) alloc_root(&table->mem_root, 2*rec_buff_length))
   {
-    uchar *record= table->collected_stats->min_max_record_buffers;
     memset(record, 0,  2*rec_buff_length);
 
     for (uint i=0; i < 2; i++, record+= rec_buff_length)
@@ -1998,74 +1996,6 @@ void create_min_max_statistical_fields_for_table(TABLE *table)
       }
     }
   }
-}
-
-
-/**
-  @brief 
-  Create fields for min/max values to read column statistics
-
-  @param
-  thd          Thread handler
-  @param
-  table_share  Table share the fields are created for
-  @param
-  is_safe      TRUE <-> at any time only one thread can perform the function
-
-  @details
-  The function first allocates record buffers to store min/max values
-  for 'table_share's fields. Then for each field f it creates Field structures
-  that points to these buffers rather that to the record buffer as the
-  Field object for f does. The pointers of the created fields are placed
-  in the read_stats structure of the Field object for f.
-  The function allocates the buffers for min/max values in the table share
-  memory. 
-  If the parameter is_safe is TRUE then it is guaranteed that at any given time
-  only one thread is executed the code of the function.
-
-  @note 
-  The buffers allocated when min/max values are used to collect statistics
-  from the persistent statistical tables differ from those buffers that
-  are used when statistics on min/max values for column is read as they
-  are allocated in different mem_roots.
-  The same is true for the fields created for min/max values.  
-*/      
-
-static
-void create_min_max_statistical_fields_for_table_share(THD *thd,
-                                                       TABLE_SHARE *table_share)
-{
-  TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
-  Table_statistics *stats= stats_cb->table_stats; 
-
-  if (stats->min_max_record_buffers)
-    return;
-   
-  uint rec_buff_length= table_share->rec_buff_length;
-
-  if ((stats->min_max_record_buffers=
-         (uchar *) alloc_root(&stats_cb->mem_root, 2*rec_buff_length)))
-  {
-    uchar *record= stats->min_max_record_buffers;
-    memset(record, 0,  2*rec_buff_length);
-
-    for (uint i=0; i < 2; i++, record+= rec_buff_length)
-    {
-      for (Field **field_ptr= table_share->field; *field_ptr; field_ptr++)
-      {
-        Field *fld;
-        Field *table_field= *field_ptr;
-        my_ptrdiff_t diff= record - table_share->default_values;
-        if (!(fld= table_field->clone(&stats_cb->mem_root, NULL, diff)))
-          continue;
-        if (i == 0)
-          table_field->read_stats->min_value= fld;
-        else
-          table_field->read_stats->max_value= fld;
-      }
-    }
-  }
-
 }
 
 
@@ -2239,10 +2169,12 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
   {
     uint fields= table_share->fields;
     Column_statistics *column_stats;
+    uchar *record;
 
     if (!multi_alloc_root(&stats_cb->mem_root,
                           &table_stats, sizeof(*table_stats),
                           &column_stats, sizeof(*column_stats) * (fields + 1),
+                          &record, table_share->rec_buff_length * 2,
                           NullS))
     {
       mysql_mutex_unlock(&table_share->LOCK_share);
@@ -2254,17 +2186,21 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
 
     /* Column_statistics */
     memset(column_stats, 0, sizeof(Column_statistics) * (fields + 1));
+    memset(record, 0, table_share->rec_buff_length * 2);
     for (Field **field_ptr= table_share->field;
          *field_ptr;
          field_ptr++, column_stats++)
     {
+      my_ptrdiff_t diff= record - table_share->default_values;
+      column_stats->min_value=
+        (*field_ptr)->clone(&stats_cb->mem_root, NULL, diff);
+      column_stats->max_value=
+        (*field_ptr)->clone(&stats_cb->mem_root, NULL,
+                            diff + table_share->rec_buff_length);
       (*field_ptr)->read_stats= column_stats;
-      (*field_ptr)->read_stats->min_value= NULL;
-      (*field_ptr)->read_stats->max_value= NULL;
     }
 
     stats_cb->table_stats= table_stats;
-    create_min_max_statistical_fields_for_table_share(thd, table_share);
   }
 
   uint keys= table_share->keys;
