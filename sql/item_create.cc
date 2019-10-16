@@ -35,6 +35,7 @@
 #include "sp.h"
 #include "sql_time.h"
 #include "sql_type_geom.h"
+#include <mysql/plugin_function.h>
 #include <mysql/plugin_function_collection.h>
 
 
@@ -5710,6 +5711,24 @@ void item_create_cleanup()
   DBUG_VOID_RETURN;
 }
 
+
+static Create_func *
+function_plugin_find_native_function_builder(THD *thd, const LEX_CSTRING &name)
+{
+  plugin_ref plugin;
+  if ((plugin= my_plugin_lock_by_name(thd, &name, MariaDB_FUNCTION_PLUGIN)))
+  {
+    Create_func *builder=
+      reinterpret_cast<Plugin_function*>(plugin_decl(plugin)->info)->
+        create_func();
+    // TODO: MDEV-20846 Add proper unlocking for MariaDB_FUNCTION_PLUGIN
+    plugin_unlock(thd, plugin);
+    return builder;
+  }
+  return NULL;
+}
+
+
 Create_func *
 find_native_function_builder(THD *thd, const LEX_CSTRING *name)
 {
@@ -5722,6 +5741,9 @@ find_native_function_builder(THD *thd, const LEX_CSTRING *name)
                                                name->length);
 
   if (func && (builder= func->builder))
+    return builder;
+
+  if ((builder= function_plugin_find_native_function_builder(thd, *name)))
     return builder;
 
   if ((builder= Plugin_find_native_func_builder_param(*name).find(thd)))

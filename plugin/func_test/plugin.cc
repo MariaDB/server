@@ -19,7 +19,7 @@
 
 #include <my_global.h>
 #include <sql_class.h>
-#include <mysql/plugin_function_collection.h>
+#include <mysql/plugin_function.h>
 
 class Item_func_sysconst_test :public Item_func_sysconst
 {
@@ -64,26 +64,18 @@ Item* Create_func_sysconst_test::create_builder(THD *thd)
 #define BUILDER(F) & F::s_singleton
 
 
-static Native_func_registry func_array[] =
-{
-  {{STRING_WITH_LEN("SYSCONST_TEST")}, BUILDER(Create_func_sysconst_test)}
-};
-
-
-static Plugin_function_collection
-  plugin_descriptor_function_collection_test(
-    MariaDB_FUNCTION_COLLECTION_INTERFACE_VERSION,
-    Native_func_registry_array(func_array, array_elements(func_array)));
+static Plugin_function
+  plugin_descriptor_function_sysconst_test(BUILDER(Create_func_sysconst_test));
 
 /*************************************************************************/
 
 maria_declare_plugin(type_test)
 {
-  MariaDB_FUNCTION_COLLECTION_PLUGIN, // the plugin type (see include/mysql/plugin.h)
-  &plugin_descriptor_function_collection_test, // pointer to type-specific plugin descriptor
-  "func_test",                  // plugin name
+  MariaDB_FUNCTION_PLUGIN,       // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_sysconst_test, // pointer to type-specific plugin descriptor
+  "sysconst_test",              // plugin name
   "MariaDB Corporation",        // plugin author
-  "Function collection test",   // the plugin description
+  "Function SYSCONST_TEST()",   // the plugin description
   PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
   0,                            // Pointer to plugin initialization function
   0,                            // Pointer to plugin deinitialization function

@@ -46,6 +46,7 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" AND RUN_ABI_CHECK)
     ${CMAKE_SOURCE_DIR}/include/mysql/plugin_password_validation.h
     ${CMAKE_SOURCE_DIR}/include/mysql/plugin_encryption.h
     ${CMAKE_SOURCE_DIR}/include/mysql/plugin_data_type.h
+    ${CMAKE_SOURCE_DIR}/include/mysql/plugin_function.h
     ${CMAKE_SOURCE_DIR}/include/mysql/plugin_function_collection.h
   )
 

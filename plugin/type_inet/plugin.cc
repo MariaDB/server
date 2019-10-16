@@ -21,7 +21,7 @@
 #include "sql_type_inet.h"
 #include "item_inetfunc.h"
 #include <mysql/plugin_data_type.h>
-#include <mysql/plugin_function_collection.h>
+#include <mysql/plugin_function.h>
 
 
 Type_handler_inet6 type_handler_inet6;
@@ -161,55 +161,153 @@ Create_func_is_ipv4_mapped Create_func_is_ipv4_mapped::s_singleton;
 #define BUILDER(F) & F::s_singleton
 
 
-static Native_func_registry func_array[] =
-{
-  {{STRING_WITH_LEN("INET_ATON")}, BUILDER(Create_func_inet_aton)},
-  {{STRING_WITH_LEN("INET_NTOA")}, BUILDER(Create_func_inet_ntoa)},
-  {{STRING_WITH_LEN("INET6_ATON")}, BUILDER(Create_func_inet6_aton)},
-  {{STRING_WITH_LEN("INET6_NTOA")}, BUILDER(Create_func_inet6_ntoa)},
-  {{STRING_WITH_LEN("IS_IPV4")}, BUILDER(Create_func_is_ipv4)},
-  {{STRING_WITH_LEN("IS_IPV6")}, BUILDER(Create_func_is_ipv6)},
-  {{STRING_WITH_LEN("IS_IPV4_COMPAT")}, BUILDER(Create_func_is_ipv4_compat)},
-  {{STRING_WITH_LEN("IS_IPV4_MAPPED")}, BUILDER(Create_func_is_ipv4_mapped)}
-};
+static Plugin_function
+  plugin_descriptor_function_inet_aton(BUILDER(Create_func_inet_aton)),
+  plugin_descriptor_function_inet_ntoa(BUILDER(Create_func_inet_ntoa)),
+  plugin_descriptor_function_inet6_aton(BUILDER(Create_func_inet6_aton)),
+  plugin_descriptor_function_inet6_ntoa(BUILDER(Create_func_inet6_ntoa)),
+  plugin_descriptor_function_is_ipv4(BUILDER(Create_func_is_ipv4)),
+  plugin_descriptor_function_is_ipv6(BUILDER(Create_func_is_ipv6)),
+  plugin_descriptor_function_is_ipv4_compat(BUILDER(Create_func_is_ipv4_compat)),
+  plugin_descriptor_function_is_ipv4_mapped(BUILDER(Create_func_is_ipv4_mapped));
 
-
-static Plugin_function_collection
-  plugin_descriptor_function_collection_inet(
-    MariaDB_FUNCTION_COLLECTION_INTERFACE_VERSION,
-    Native_func_registry_array(func_array, array_elements(func_array)));
 
 /*************************************************************************/
 
 maria_declare_plugin(type_inet)
 {
-  MariaDB_FUNCTION_COLLECTION_PLUGIN, // the plugin type (see include/mysql/plugin.h)
-  &plugin_descriptor_function_collection_inet, // pointer to type-specific plugin descriptor
-  "func_inet",                  // plugin name
-  "MariaDB Corporation",        // plugin author
-  "Function collection test",   // the plugin description
-  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
-  0,                            // Pointer to plugin initialization function
-  0,                            // Pointer to plugin deinitialization function
-  0x0100,                       // Numeric version 0xAABB means AA.BB veriosn
-  NULL,                         // Status variables
-  NULL,                         // System variables
-  "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity(see include/mysql/plugin.h)*/
-},
-{
   MariaDB_DATA_TYPE_PLUGIN,     // the plugin type (see include/mysql/plugin.h)
   &plugin_descriptor_type_inet6,// pointer to type-specific plugin descriptor
   type_handler_inet6.name().ptr(),// plugin name
   "MariaDB Corporation",        // plugin author
-  "Data type TEST_INT8",        // the plugin description
+  "Data type INET6",            // the plugin description
   PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
   0,                            // Pointer to plugin initialization function
   0,                            // Pointer to plugin deinitialization function
-  0x0100,                       // Numeric version 0xAABB means AA.BB veriosn
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL // Maturity(see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_inet_aton, // pointer to type-specific plugin descriptor
+  "inet_aton",                  // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Function INET_ATON()",       // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_inet_ntoa, // pointer to type-specific plugin descriptor
+  "inet_ntoa",                  // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Function INET_NTOA()",       // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_inet6_aton, // pointer to type-specific plugin descriptor
+  "inet6_aton",                 // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Function INET6_ATON()",      // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_inet6_ntoa, // pointer to type-specific plugin descriptor
+  "inet6_ntoa",                 // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Function INET6_NTOA()",      // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_is_ipv4, // pointer to type-specific plugin descriptor
+  "is_ipv4",                    // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Function IS_IPV4()",         // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_is_ipv6, // pointer to type-specific plugin descriptor
+  "is_ipv6",                    // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Function IS_IPV6()",         // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_is_ipv4_compat, // pointer to type-specific plugin descriptor
+  "is_ipv4_compat",             // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Function IS_IPV4_COMPAT()",  // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_is_ipv4_mapped, // pointer to type-specific plugin descriptor
+  "is_ipv4_mapped",             // plugin name
+  "MariaDB Corporation",        // plugin author
+  "Function IS_IPV4_MAPPED()",// the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
+  MariaDB_PLUGIN_MATURITY_ALPHA // Maturity(see include/mysql/plugin.h)*/
 }
 maria_declare_plugin_end;
