@@ -3167,8 +3167,6 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
         return TRUE;
       if (table_share->stats_cb.stats_is_read)
         tl->table->stats_is_read= TRUE;
-      if (table_share->stats_cb.histograms_are_read)
-        tl->table->histograms_are_read= TRUE;
     } 
   }
 
@@ -3358,8 +3356,6 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
         (void) read_histograms_for_table(thd, tl->table, stat_tables);
         table_share->stats_cb.histograms_are_read= TRUE;
       }
-      if (table_share->stats_cb.histograms_are_read)
-        tl->table->histograms_are_read= TRUE;
     }
   }  
 

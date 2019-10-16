@@ -1424,7 +1424,6 @@ public:
 #endif
   uint max_keys; /* Size of allocated key_info array. */
   bool stats_is_read;     /* Persistent statistics is read for the table */
-  bool histograms_are_read;
   MDL_ticket *mdl_ticket;
 
   /*
