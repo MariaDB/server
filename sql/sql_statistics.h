@@ -292,7 +292,6 @@ public:
   my_bool cardinality_is_null;      /* TRUE if the cardinality is unknown */
   ha_rows cardinality;              /* Number of rows in the table        */
   uchar *min_max_record_buffers;    /* Record buffers for min/max values  */
-  Column_statistics *column_stats;  /* Array of statistical data for columns */
   Index_statistics *index_stats;    /* Array of statistical data for indexes */
   ulong *idx_avg_frequency;   /* Array of records per key for index prefixes */
   ulong total_hist_size;            /* Total size of all histograms */

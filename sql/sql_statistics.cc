@@ -2142,7 +2142,6 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
     DBUG_RETURN(1);
 
   table->collected_stats= table_stats;
-  table_stats->column_stats= column_stats;
   table_stats->index_stats= index_stats;
   table_stats->idx_avg_frequency= idx_avg_frequency;
   table_stats->histograms= histogram;
@@ -2219,7 +2218,6 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
 
 static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
 {
-  Field **field_ptr;
   KEY *key_info, *end;
   TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
 
@@ -2239,38 +2237,34 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
   Table_statistics *table_stats= stats_cb->table_stats;
   if (!table_stats)
   {
-    table_stats=  (Table_statistics *) alloc_root(&stats_cb->mem_root,
-                                                  sizeof(Table_statistics));
-    if (!table_stats)
+    uint fields= table_share->fields;
+    Column_statistics *column_stats;
+
+    if (!multi_alloc_root(&stats_cb->mem_root,
+                          &table_stats, sizeof(*table_stats),
+                          &column_stats, sizeof(*column_stats) * (fields + 1),
+                          NullS))
     {
       mysql_mutex_unlock(&table_share->LOCK_share);
       DBUG_RETURN(1);
     }
-    memset(table_stats, 0, sizeof(Table_statistics));
-    stats_cb->table_stats= table_stats;
-  }
 
-  uint fields= table_share->fields;
-  Column_statistics *column_stats= table_stats->column_stats;
-  if (!column_stats)
-  {
-    column_stats= (Column_statistics *) alloc_root(&stats_cb->mem_root,
-                                                   sizeof(Column_statistics) *
-				                   (fields+1));  
-    if (column_stats)
-    { 
-      memset(column_stats, 0, sizeof(Column_statistics) * (fields+1));
-      table_stats->column_stats= column_stats;
-      for (field_ptr= table_share->field;
-           *field_ptr;
-           field_ptr++, column_stats++)
-      {
-        (*field_ptr)->read_stats= column_stats;
-        (*field_ptr)->read_stats->min_value= NULL;
-        (*field_ptr)->read_stats->max_value= NULL;
-      }
-      create_min_max_statistical_fields_for_table_share(thd, table_share);
+    /* Table_statistics */
+    memset(table_stats, 0, sizeof(Table_statistics));
+
+    /* Column_statistics */
+    memset(column_stats, 0, sizeof(Column_statistics) * (fields + 1));
+    for (Field **field_ptr= table_share->field;
+         *field_ptr;
+         field_ptr++, column_stats++)
+    {
+      (*field_ptr)->read_stats= column_stats;
+      (*field_ptr)->read_stats->min_value= NULL;
+      (*field_ptr)->read_stats->max_value= NULL;
     }
+
+    stats_cb->table_stats= table_stats;
+    create_min_max_statistical_fields_for_table_share(thd, table_share);
   }
 
   uint keys= table_share->keys;
@@ -2312,7 +2306,7 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
     }   
   }
 
-  if (column_stats && index_stats && idx_avg_frequency)
+  if (index_stats && idx_avg_frequency)
     stats_cb->stats_can_be_read= TRUE;
 
   mysql_mutex_unlock(&table_share->LOCK_share);
@@ -3085,27 +3079,14 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 
 void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
 {
-  TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
-  Table_statistics *table_stats= stats_cb->table_stats;
-  if (!table_stats)
+  if (!table_share->stats_cb.table_stats)
     return;
-  Column_statistics *column_stats= table_stats->column_stats;
-  if (!column_stats)
-    return;
-
-  for (Field **field_ptr= table_share->field;
-       *field_ptr;
-       field_ptr++, column_stats++)
+  for (Field **field_ptr= table_share->field; *field_ptr; field_ptr++)
   {
-    if (column_stats->min_value)
+    if (auto column_stats= (*field_ptr)->read_stats)
     {
       delete column_stats->min_value;
-      column_stats->min_value= NULL;
-    }
-    if (column_stats->max_value)
-    {
       delete column_stats->max_value;
-      column_stats->max_value= NULL;
     }
   }
 }
