@@ -9213,6 +9213,24 @@ select_into:
             if (Lex->select_finalize(unit))
               MYSQL_YYABORT;
           }
+        | with_clause
+          select_into_query_specification
+          {
+            if (Lex->push_select($2))
+              MYSQL_YYABORT;
+          }
+          opt_order_limit_lock
+          {
+            SELECT_LEX_UNIT *unit;
+            if (!(unit  = Lex->create_unit($2)))
+              MYSQL_YYABORT;
+            if ($4)
+              unit= Lex->add_tail_to_query_expression_body(unit, $4);
+            unit->set_with_clause($1);
+            $1->attach_to($2);
+            if (Lex->select_finalize(unit))
+              MYSQL_YYABORT;
+          }
         ;
 
 simple_table:
