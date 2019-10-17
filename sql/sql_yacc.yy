@@ -7888,6 +7888,7 @@ alter:
               MYSQL_YYABORT;
             Lex->select_lex.db= (Lex->select_lex.table_list.first)->db;
             Lex->create_last_non_select_table= Lex->last_table();
+            Lex->mark_first_table_as_inserting();
           }
           alter_commands
           {
@@ -13459,7 +13460,9 @@ insert:
             Lex->current_select= &Lex->select_lex;
           }
           insert_field_spec opt_insert_update
-          {}
+          {
+            Lex->mark_first_table_as_inserting();
+          }
         ;
 
 replace:
@@ -13476,7 +13479,9 @@ replace:
             Lex->current_select= &Lex->select_lex;
           }
           insert_field_spec
-          {}
+          {
+            Lex->mark_first_table_as_inserting();
+          }
         ;
 
 insert_lock_option:
@@ -14859,7 +14864,9 @@ load:
           opt_xml_rows_identified_by
           opt_field_term opt_line_term opt_ignore_lines opt_field_or_var_spec
           opt_load_data_set_spec
-          {}
+          {
+            Lex->mark_first_table_as_inserting();
+          }
           ;
 
 data_or_xml:

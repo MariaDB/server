@@ -3282,6 +3282,10 @@ mysql_execute_command(THD *thd)
 #endif
   DBUG_ENTER("mysql_execute_command");
 
+  // check that we correctly marked first table for data insertion
+  DBUG_ASSERT(!(sql_command_flags[lex->sql_command] & CF_INSERTS_DATA) ||
+              first_table->for_insert_data);
+
   DBUG_ASSERT(thd->transaction.stmt.is_empty() || thd->in_sub_stmt);
   /*
     Each statement or replication event which might produce deadlock
@@ -10199,4 +10203,15 @@ CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs)
     my_error(ER_UNKNOWN_COLLATION, MYF(0), tmp);
   }
   return cs;
+}
+
+void LEX::mark_first_table_as_inserting()
+{
+  TABLE_LIST *t= select_lex.table_list.first;
+  DBUG_ENTER("Query_tables_list::mark_tables_with_important_flags");
+  DBUG_ASSERT(sql_command_flags[sql_command] & CF_INSERTS_DATA);
+  t->for_insert_data= TRUE;
+  DBUG_PRINT("info", ("table_list: %p  name: %s  db: %s  command: %u",
+                      t, t->table_name.str,t->db.str, sql_command));
+  DBUG_VOID_RETURN;
 }

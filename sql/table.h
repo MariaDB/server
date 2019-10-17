@@ -1985,7 +1985,8 @@ struct TABLE_LIST
                                             prelocking_types prelocking_type,
                                             TABLE_LIST *belong_to_view_arg,
                                             uint8 trg_event_map_arg,
-                                            TABLE_LIST ***last_ptr)
+                                            TABLE_LIST ***last_ptr,
+                                            my_bool insert_data)
 
   {
     init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
@@ -2000,6 +2001,7 @@ struct TABLE_LIST
     **last_ptr= this;
     prev_global= *last_ptr;
     *last_ptr= &next_global;
+    for_insert_data= insert_data;
   }
 
 
@@ -2410,6 +2412,8 @@ struct TABLE_LIST
 
   /* System Versioning */
   vers_select_conds_t vers_conditions;
+
+  my_bool for_insert_data;
 
   /**
      @brief

@@ -4060,6 +4060,8 @@ public:
   }
   bool tvc_finalize();
   bool tvc_finalize_derived();
+
+  void mark_first_table_as_inserting();
 };
 
 
