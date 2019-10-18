@@ -1,0 +1,19 @@
+--source include/have_partition.inc
+--source include/have_ucs2.inc
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-20855 Crash with PARTITION BY LIST and extended characters
+--echo #
+
+SET NAMES utf8;
+--error ER_PARTITION_FUNCTION_IS_NOT_ALLOWED
+CREATE OR REPLACE TABLE t1 (a TIME)
+  PARTITION BY LIST COLUMNS (a) (PARTITION p0 VALUES IN (_ucs2 0x0411));
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

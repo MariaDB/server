@@ -146,7 +146,7 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
   item= item->safe_charset_converter(thd, cs);
   context->table_list= NULL;
   thd->where= "convert character set partition constant";
-  if (item->fix_fields_if_needed(thd, (Item**)NULL))
+  if (item && item->fix_fields_if_needed(thd, (Item**)NULL))
     item= NULL;
   thd->where= save_where;
   context->table_list= save_list;
