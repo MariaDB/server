@@ -7395,39 +7395,8 @@ void Field_string::sql_rpl_type(String *res) const
 
 uchar *Field_string::pack(uchar *to, const uchar *from, uint max_length)
 {
-  size_t length=      MY_MIN(field_length,max_length);
-  size_t local_char_length= Field_string::char_length();
-  DBUG_PRINT("debug", ("Packing field '%s' - length: %zu ", field_name.str,
-                       length));
-
-  if (length > local_char_length)
-    local_char_length= my_charpos(field_charset(), from, from + length,
-                                  local_char_length);
-  set_if_smaller(length, local_char_length);
- 
-  /*
-     TODO: change charset interface to add a new function that does 
-           the following or add a flag to lengthsp to do it itself 
-           (this is for not packing padding adding bytes in BINARY 
-           fields).
-  */
-  if (mbmaxlen() == 1)
-  {
-    while (length && from[length-1] == field_charset()->pad_char)
-      length --;
-  }
-  else
-    length= field_charset()->cset->lengthsp(field_charset(),
-                                            (const char*) from, length);
-
-  // Length always stored little-endian
-  *to++= (uchar) length;
-  if (field_length > 255)
-    *to++= (uchar) (length >> 8);
-
-  // Store the actual bytes of the string
-  memcpy(to, from, length);
-  return to+length;
+  DBUG_PRINT("debug", ("Packing field '%s'", field_name.str));
+  return StringPack(field_charset(), field_length).pack(to, from, max_length);
 }
 
 
@@ -7454,47 +7423,8 @@ const uchar *
 Field_string::unpack(uchar *to, const uchar *from, const uchar *from_end,
                      uint param_data)
 {
-  uint from_length, length;
-
-  /*
-    Compute the declared length of the field on the master. This is
-    used to decide if one or two bytes should be read as length.
-   */
-  if (param_data)
-    from_length= (((param_data >> 4) & 0x300) ^ 0x300) + (param_data & 0x00ff);
-  else
-    from_length= field_length;
-
-  DBUG_PRINT("debug",
-             ("param_data: 0x%x, field_length: %u, from_length: %u",
-              param_data, field_length, from_length));
-  /*
-    Compute the actual length of the data by reading one or two bits
-    (depending on the declared field length on the master).
-   */
-  if (from_length > 255)
-  {
-    if (from + 2 > from_end)
-      return 0;
-    length= uint2korr(from);
-    from+= 2;
-  }
-  else
-  {
-    if (from + 1 > from_end)
-      return 0;
-    length= (uint) *from++;
-  }
-  if (from + length > from_end || length > field_length)
-    return 0;
-
-  memcpy(to, from, length);
-  // Pad the string with the pad character of the fields charset
-  field_charset()->cset->fill(field_charset(),
-                              (char*) to + length,
-                              field_length - length,
-                              field_charset()->pad_char);
-  return from+length;
+  return StringPack(field_charset(), field_length).unpack(to, from, from_end,
+                                                          param_data);
 }
 
 
@@ -7552,15 +7482,13 @@ Binlog_type_info Field_string::binlog_type_info() const
 
 uint Field_string::packed_col_length(const uchar *data_ptr, uint length)
 {
-  if (length > 255)
-    return uint2korr(data_ptr)+2;
-  return (uint) *data_ptr + 1;
+  return StringPack::packed_col_length(data_ptr, length);
 }
 
 
 uint Field_string::max_packed_col_length(uint max_length)
 {
-  return (max_length > 255 ? 2 : 1)+max_length;
+  return StringPack::max_packed_col_length(max_length);
 }
 
 

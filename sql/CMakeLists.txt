@@ -136,6 +136,7 @@ SET (SQL_SOURCE
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc
                sql_type.cc sql_mode.cc sql_type_json.cc
+               sql_type_string.cc
                sql_type_geom.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc

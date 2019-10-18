@@ -970,6 +970,30 @@ public:
                                          &my_charset_bin);
   }
 
+  uchar *pack(uchar *to, const uchar *from, uint max_length) override
+  {
+    DBUG_PRINT("debug", ("Packing field '%s'", field_name.str));
+    return StringPack(&my_charset_bin, Inet6::binary_length()).
+             pack(to, from, max_length);
+  }
+
+  const uchar *unpack(uchar *to, const uchar *from, const uchar *from_end,
+                      uint param_data) override
+  {
+    return StringPack(&my_charset_bin, Inet6::binary_length()).
+             unpack(to, from, from_end, param_data);
+  }
+
+  uint max_packed_col_length(uint max_length)
+  {
+    return StringPack::max_packed_col_length(max_length);
+  }
+
+  uint packed_col_length(const uchar *data_ptr, uint length)
+  {
+    return StringPack::packed_col_length(data_ptr, length);
+  }
+
   /**********/
   uint size_of() const override { return sizeof(*this); }
 };

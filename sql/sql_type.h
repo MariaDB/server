@@ -25,6 +25,7 @@
 #include "sql_array.h"
 #include "sql_const.h"
 #include "sql_time.h"
+#include "sql_type_string.h"
 #include "sql_type_real.h"
 #include "compat56.h"
 C_MODE_START

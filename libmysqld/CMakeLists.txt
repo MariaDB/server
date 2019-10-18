@@ -114,6 +114,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/compat56.cc
            ../sql/sql_type.cc ../sql/sql_type.h
            ../sql/sql_mode.cc
+           ../sql/sql_type_string.cc
            ../sql/sql_type_json.cc
            ../sql/sql_type_geom.cc
            ../sql/table_cache.cc ../sql/mf_iocache_encr.cc
