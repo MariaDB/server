@@ -2254,7 +2254,7 @@ void clean_up(bool print_message)
   tdc_deinit();
   mdl_destroy();
   dflt_key_cache= 0;
-  key_caches.delete_elements((void (*)(const char*, uchar*)) free_key_cache);
+  key_caches.delete_elements(free_key_cache);
   wt_end();
   multi_keycache_free();
   sp_cache_end();

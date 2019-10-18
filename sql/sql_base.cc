@@ -2494,6 +2494,7 @@ Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
         {
           thd->locked_tables_list.unlink_from_list(thd, table_list, false);
           mysql_lock_remove(thd, thd->lock, *prev);
+          (*prev)->file->extra(HA_EXTRA_PREPARE_FOR_FORCED_CLOSE);
           close_thread_table(thd, prev);
           break;
         }
