@@ -8916,6 +8916,145 @@ bool Type_handler::Column_definition_data_type_info_image(Binary_string *to,
 
 /***************************************************************************/
 
+void
+Type_handler::partition_field_type_not_allowed(const LEX_CSTRING &field_name)
+{
+  my_error(ER_FIELD_TYPE_NOT_ALLOWED_AS_PARTITION_FIELD, MYF(0),
+           field_name.str);
+}
+
+
+bool
+Type_handler::partition_field_check_result_type(Item *item,
+                                                Item_result expected_type)
+{
+  if (item->result_type() != expected_type)
+  {
+    my_error(ER_WRONG_TYPE_COLUMN_VALUE_ERROR, MYF(0));
+    return TRUE;
+  }
+  return false;
+}
+
+
+bool
+Type_handler_blob_common::partition_field_check(const LEX_CSTRING &field_name,
+                                                Item *item_expr) const
+{
+  my_error(ER_BLOB_FIELD_IN_PART_FUNC_ERROR, MYF(0));
+  return true;
+}
+
+
+bool
+Type_handler_general_purpose_int::partition_field_append_value(
+                                            String *str,
+                                            Item *item_expr,
+                                            CHARSET_INFO *field_cs,
+                                            partition_value_print_mode_t mode)
+                                            const
+{
+  DBUG_ASSERT(item_expr->cmp_type() == INT_RESULT);
+  StringBuffer<21> tmp;
+  longlong value= item_expr->val_int();
+  tmp.set(value, system_charset_info);
+  return str->append(tmp);
+}
+
+
+/*
+  Append an Item value to a String using a desired mode.
+
+  @param [OUT] str          The string to append the value to.
+  @param       item_expr    The item to get the value from
+  @param       field_cs     The character set of the value owner field.
+  @param       mode         The mode.
+  @retval      true         on error
+  @retval      false        on success
+
+  The value is added using system_charset_info (no matter what mode is).
+
+ (1) If mode is equal to PARTITION_VALUE_PRINT_MODE_FRM,
+     the value is appended as a pure ASCII string in the format '_latin1 0xdf',
+     i.e. a character set introducer followed by a hex hybrid.
+
+     Before appending, we value is first converted to field_cs.
+     a) If the conversion succeeds, the value is printed in its field_cs
+        represenation.
+     b) If the conversion fails, the value is printed without conversion,
+        using the original character set introducer followed by the original
+        string hex representation.
+        In this case, open_table_from_share() will later notice that
+        the value cannot be actually stored to the field, and report
+        the error. So here we don't need to report errors such as
+        ER_PARTITION_FUNCTION_IS_NOT_ALLOWED.
+
+ (2) If the mode is equal to PARTITION_VALUE_PRINT_SHOW,
+     then the value is needed for:
+     - SHOW CREATE TABLE, or
+     - the PARTITION_DESCRIPTION column in a
+       INFORMATION_SCHEMA.PARTITION query.
+
+     The value generated here will be later sent to the client and
+     therefore will be converted to the client character set in the protocol.
+
+     We try to generate the value as a simple quoted utf8 string without
+     introducers (e.g. 'utf8-string') when possible, to make it:
+     - as human readable as possible
+     - but still safe for mysqldump purposes.
+
+     Simple quoted utf8 string is generated when these two conditions are true
+     at the same time:
+       a) The value can be safely converted to utf8,
+          so we can return it without data loss from this function.
+       b) The value can be safely converted to the client character set,
+          so we can convert it later without data loss to the client character
+          set in the protocol.
+
+     If one of the conditions fail, the value is returned using
+     PARTITION_VALUE_PRINT_MODE_FRM representation. See (1).
+*/
+bool Type_handler::partition_field_append_value(
+                                            String *str,
+                                            Item *item_expr,
+                                            CHARSET_INFO *field_cs,
+                                            partition_value_print_mode_t mode)
+                                            const
+{
+  DBUG_ASSERT(cmp_type() != INT_RESULT);
+  StringBuffer<MAX_KEY_LENGTH> buf;
+  String *res;
+
+  if (!(res= item_expr->val_str(&buf)))
+    return str->append(STRING_WITH_LEN("NULL"), system_charset_info);
+
+  if (!res->length())
+    return str->append(STRING_WITH_LEN("''"), system_charset_info);
+
+  if (mode == PARTITION_VALUE_PRINT_MODE_FRM ||
+      !res->can_be_safely_converted_to(current_thd->
+                                         variables.character_set_client) ||
+      !res->can_be_safely_converted_to(system_charset_info))
+  {
+    StringBuffer<64> buf2;
+    uint cnverr2= 0;
+    buf2.copy(res->ptr(), res->length(), res->charset(), field_cs, &cnverr2);
+    if (!cnverr2)
+      return str->append_introducer_and_hex(buf2.charset(), buf2.lex_cstring());
+    return str->append_introducer_and_hex(res->charset(), res->lex_cstring());
+  }
+
+  StringBuffer<64> val(system_charset_info);
+  uint cnverr= 0;
+  val.copy(res->ptr(), res->length(), res->charset(),
+           system_charset_info, &cnverr);
+  append_unescaped(str, val.ptr(), val.length());
+  return false;
+}
+
+
+/***************************************************************************/
+
 LEX_CSTRING Charset::collation_specific_name() const
 {
   /*

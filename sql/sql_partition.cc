@@ -146,7 +146,7 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
   item= item->safe_charset_converter(thd, cs);
   context->table_list= NULL;
   thd->where= "convert character set partition constant";
-  if (item->fix_fields_if_needed(thd, (Item**)NULL))
+  if (item && item->fix_fields_if_needed(thd, (Item**)NULL))
     item= NULL;
   thd->where= save_where;
   context->table_list= save_list;
@@ -2240,36 +2240,6 @@ static int add_partition_options(String *str, partition_element *p_elem)
 }
 
 
-void
-Type_handler::partition_field_type_not_allowed(const LEX_CSTRING &field_name)
-{
-  my_error(ER_FIELD_TYPE_NOT_ALLOWED_AS_PARTITION_FIELD, MYF(0),
-           field_name.str);
-}
-
-
-bool
-Type_handler::partition_field_check_result_type(Item *item,
-                                                Item_result expected_type)
-{
-  if (item->result_type() != expected_type)
-  {
-    my_error(ER_WRONG_TYPE_COLUMN_VALUE_ERROR, MYF(0));
-    return TRUE;
-  }
-  return false;
-}
-
-
-bool
-Type_handler_blob_common::partition_field_check(const LEX_CSTRING &field_name,
-                                                Item *item_expr) const
-{
-  my_error(ER_BLOB_FIELD_IN_PART_FUNC_ERROR, MYF(0));
-  return true;
-}
-
-
 /*
   Find the given field's Create_field object using name of field
 
@@ -2300,58 +2270,6 @@ static Create_field* get_sql_field(const char *field_name,
     }
   }
   DBUG_RETURN(NULL);
-}
-
-
-bool
-Type_handler_general_purpose_int::partition_field_append_value(
-                                            String *str,
-                                            Item *item_expr,
-                                            CHARSET_INFO *field_cs,
-                                            partition_value_print_mode_t mode)
-                                            const
-{
-  DBUG_ASSERT(item_expr->cmp_type() == INT_RESULT);
-  StringBuffer<21> tmp;
-  longlong value= item_expr->val_int();
-  tmp.set(value, system_charset_info);
-  return str->append(tmp);
-}
-
-
-bool Type_handler::partition_field_append_value(
-                                            String *str,
-                                            Item *item_expr,
-                                            CHARSET_INFO *field_cs,
-                                            partition_value_print_mode_t mode)
-                                            const
-{
-  DBUG_ASSERT(cmp_type() != INT_RESULT);
-
-  if (field_cs && field_cs != item_expr->collation.collation)
-  {
-    if (!(item_expr= convert_charset_partition_constant(item_expr,
-                                                        field_cs)))
-    {
-      my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
-      return true;
-    }
-  }
-  StringBuffer<MAX_KEY_LENGTH> buf;
-  String val_conv, *res;
-  val_conv.set_charset(system_charset_info);
-  if (!(res= item_expr->val_str(&buf)))
-  {
-    my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
-    return true;
-  }
-  if (get_cs_converted_part_value_from_string(current_thd,
-                                              item_expr, res,
-                                              &val_conv, field_cs,
-                                              mode ==
-                                              PARTITION_VALUE_PRINT_MODE_FRM))
-    return true;
-  return str->append(val_conv);
 }
 
 
@@ -2564,6 +2482,10 @@ char *generate_partition_syntax_for_frm(THD *thd, partition_info *part_info,
   Sql_mode_instant_remove sms(thd, MODE_ANSI_QUOTES);
   char *res= generate_partition_syntax(thd, part_info, buf_length,
                                              true, create_info, alter_info);
+  DBUG_EXECUTE_IF("generate_partition_syntax_for_frm",
+                  push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_YES,
+                               ErrConvString(res, (uint32) *buf_length,
+                                             system_charset_info).ptr()););
   return res;
 }
 

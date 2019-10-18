@@ -840,6 +840,15 @@ public:
   bool copy_aligned(const char *s, size_t arg_length, size_t offset,
 		    CHARSET_INFO *cs);
   bool set_or_copy_aligned(const char *s, size_t arg_length, CHARSET_INFO *cs);
+  bool can_be_safely_converted_to(CHARSET_INFO *tocs) const
+  {
+    if (charset() == &my_charset_bin)
+      return Well_formed_prefix(tocs, ptr(), length()).length() == length();
+    String try_val;
+    uint try_conv_error= 0;
+    try_val.copy(ptr(), length(), charset(), tocs, &try_conv_error);
+    return try_conv_error == 0;
+  }
   bool copy(const char*s, size_t arg_length, CHARSET_INFO *csfrom,
 	    CHARSET_INFO *csto, uint *errors);
   bool copy(const String *str, CHARSET_INFO *tocs, uint *errors)
@@ -873,6 +882,14 @@ public:
   bool append_hex(const uchar *src, uint32 srclen)
   {
     return Binary_string::append_hex((const char*)src, srclen);
+  }
+  bool append_introducer_and_hex(CHARSET_INFO *cs, const LEX_CSTRING &str)
+  {
+    return
+      append(STRING_WITH_LEN("_"))   ||
+      append(cs->csname)             ||
+      append(STRING_WITH_LEN(" 0x")) ||
+      append_hex(str.str, (uint32) str.length);
   }
   bool append(IO_CACHE* file, uint32 arg_length)
   {
