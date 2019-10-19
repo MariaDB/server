@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -96,6 +96,8 @@ typedef ib_mutex_t DictSysMutex;
 #define TEMP_TABLE_PATH_PREFIX           "/" TEMP_TABLE_PREFIX
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+/** Dump the change buffer at startup */
+extern my_bool		ibuf_dump;
 /** Flag to control insert buffer debugging. */
 extern uint		ibuf_debug;
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
