@@ -17,10 +17,4 @@ select command, time < 5 from information_schema.processlist where id != connect
 command	time < 5
 Sleep	1
 set debug_sync='reset';
-#
-# MDEV-20466: SHOW PROCESSLIST truncates query text on \0 bytes
-#
-SET DEBUG_SYNC= 'before_join_optimize SIGNAL in_sync';
-SET DEBUG_SYNC= 'now WAIT_FOR in_sync';
-SET DEBUG_SYNC = 'RESET';
 End of 5.5 tests
