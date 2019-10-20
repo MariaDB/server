@@ -678,7 +678,10 @@ static int ha_s3_init(void *p)
 {
   bool res;
   static const char *no_exts[]= { 0 };
-  DBUG_ASSERT(maria_hton);
+
+  /* This can happen if Aria fails to start */
+  if (!maria_hton)
+    return HA_ERR_INITIALIZATION;
 
   s3_hton= (handlerton *)p;
 
