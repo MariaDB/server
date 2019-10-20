@@ -54,7 +54,8 @@ ENDIF()
 
 ADD_DEFINITIONS(-DPCRE_STATIC=1)
 ADD_DEFINITIONS(${SSL_DEFINES})
-MYSQL_ADD_EXECUTABLE(mariabackup
+
+SET (MARIABACKUP_SOURCES
   xtrabackup.cc
   innobackupex.cc
   changed_page_bitmap.cc
@@ -78,10 +79,34 @@ MYSQL_ADD_EXECUTABLE(mariabackup
   ${PROJECT_SOURCE_DIR}/sql/net_serv.cc
   ${NT_SERVICE_SOURCE}
   ${PROJECT_SOURCE_DIR}/libmysqld/libmysql.c
-  COMPONENT backup
+)
+SET (MBSTREAM_SOURCES
+  ds_buffer.cc
+  ds_local.cc
+  ds_stdout.cc
+  datasink.cc
+  xbstream.cc
+  xbstream_read.cc
+  xbstream_write.cc
+)
+SET (MARIABACKUP_LIBS sql sql_builtins crc)
+SET (MBSTREAM_LIBS mysys crc)
+
+IF(PLUGIN_S3 STREQUAL YES)
+  ADD_DEFINITIONS(-DWITH_S3_STORAGE_ENGINE)
+  INCLUDE_DIRECTORIES(
+    ${CMAKE_SOURCE_DIR}/storage/maria
+    ${CMAKE_SOURCE_DIR}/storage/maria/libmarias3
   )
+  LIST(APPEND MARIABACKUP_SOURCES ds_s3.cc)
+  LIST(APPEND MARIABACKUP_LIBS s3)
+  LIST(APPEND MBSTREAM_SOURCES
+    ds_s3.cc ${PROJECT_SOURCE_DIR}/libmysqld/libmysql.c)
+  LIST(APPEND MBSTREAM_LIBS s3 sql sql_builtins)
+ENDIF()
 
 
+MYSQL_ADD_EXECUTABLE(mariabackup ${MARIABACKUP_SOURCES} COMPONENT backup)
 
 
 # Export all symbols on Unix, for better crash callstacks
@@ -89,7 +114,7 @@ SET_TARGET_PROPERTIES(mariabackup PROPERTIES ENABLE_EXPORTS TRUE)
 ADD_SUBDIRECTORY(crc)
 
 
-TARGET_LINK_LIBRARIES(mariabackup sql sql_builtins crc)
+TARGET_LINK_LIBRARIES(mariabackup ${MARIABACKUP_LIBS})
 IF(NOT HAVE_SYSTEM_REGEX)
   TARGET_LINK_LIBRARIES(mariabackup pcreposix)
 ENDIF()
@@ -98,22 +123,9 @@ ENDIF()
 ########################################################################
 # xbstream binary
 ########################################################################
-MYSQL_ADD_EXECUTABLE(mbstream
-  ds_buffer.cc
-  ds_local.cc
-  ds_stdout.cc
-  datasink.cc
-  xbstream.cc
-  xbstream_read.cc
-  xbstream_write.cc
-  COMPONENT backup
-  )
+MYSQL_ADD_EXECUTABLE(mbstream ${MBSTREAM_SOURCES} COMPONENT backup)
 
-
-TARGET_LINK_LIBRARIES(mbstream
-  mysys
-  crc
-)
+TARGET_LINK_LIBRARIES(mbstream ${MBSTREAM_LIBS})
 ADD_DEPENDENCIES(mbstream GenError)
 
 IF(MSVC)

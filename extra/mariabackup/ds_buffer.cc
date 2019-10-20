@@ -42,7 +42,7 @@ typedef struct {
 	size_t	buffer_size;
 } ds_buffer_ctxt_t;
 
-static ds_ctxt_t *buffer_init(const char *root);
+static ds_ctxt_t *buffer_init(const void *ds_data);
 static ds_file_t *buffer_open(ds_ctxt_t *ctxt, const char *path,
 			      MY_STAT *mystat);
 static int buffer_write(ds_file_t *file, const uchar *buf, size_t len);
@@ -66,7 +66,7 @@ void ds_buffer_set_size(ds_ctxt_t *ctxt, size_t size)
 }
 
 static ds_ctxt_t *
-buffer_init(const char *root)
+buffer_init(const void *ds_data)
 {
 	ds_ctxt_t		*ctxt;
 	ds_buffer_ctxt_t	*buffer_ctxt;
@@ -77,7 +77,7 @@ buffer_init(const char *root)
 	buffer_ctxt->buffer_size = DS_DEFAULT_BUFFER_SIZE;
 
 	ctxt->ptr = buffer_ctxt;
-	ctxt->root = my_strdup(root, MYF(MY_FAE));
+	ctxt->root = my_strdup(static_cast<const char *>(ds_data), MYF(MY_FAE));
 
 	return ctxt;
 }

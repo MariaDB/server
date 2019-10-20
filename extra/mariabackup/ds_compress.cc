@@ -63,7 +63,7 @@ extern char		*xtrabackup_compress_alg;
 extern uint		xtrabackup_compress_threads;
 extern ulonglong	xtrabackup_compress_chunk_size;
 
-static ds_ctxt_t *compress_init(const char *root);
+static ds_ctxt_t *compress_init(const void *ds_data);
 static ds_file_t *compress_open(ds_ctxt_t *ctxt, const char *path,
 				MY_STAT *mystat);
 static int compress_write(ds_file_t *file, const uchar *buf, size_t len);
@@ -87,7 +87,7 @@ static void *compress_worker_thread_func(void *arg);
 
 static
 ds_ctxt_t *
-compress_init(const char *root)
+compress_init(const void *ds_data)
 {
 	ds_ctxt_t		*ctxt;
 	ds_compress_ctxt_t	*compress_ctxt;
@@ -109,7 +109,7 @@ compress_init(const char *root)
 	compress_ctxt->nthreads = xtrabackup_compress_threads;
 
 	ctxt->ptr = compress_ctxt;
-	ctxt->root = my_strdup(root, MYF(MY_FAE));
+	ctxt->root = my_strdup(static_cast<const char *>(ds_data), MYF(MY_FAE));
 
 	return ctxt;
 }

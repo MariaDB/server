@@ -27,6 +27,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "xbstream.h"
 #include "datasink.h"
 #include "crc_glue.h"
+#ifdef WITH_S3_STORAGE_ENGINE
+#include "maria_def.h"
+#include "s3_func.h"
+#endif // WITH_S3_STORAGE_ENGINE
 
 #define XBSTREAM_VERSION "1.0"
 #define XBSTREAM_BUFFER_SIZE (10 * 1024 * 1024UL)
@@ -51,6 +55,29 @@ static char *		opt_directory = NULL;
 static my_bool		opt_verbose = 0;
 static int		opt_parallel = 1;
 
+#ifdef WITH_S3_STORAGE_ENGINE
+static const char *opt_s3_access_key;
+static const char *opt_s3_secret_key;
+static const char *opt_s3_region = "eu-north-1";
+static const char *opt_s3_host_name = "s3.amazonaws.com";
+static const char *opt_s3_bucket = "MariaDB";
+static const char *opt_s3_path = "/backup.xbstream";
+static ulong opt_s3_protocol_version;
+
+#include <../../client/client_priv.h>
+
+enum options_xtrabackup
+{
+	OPT_S3_ACCESS_KEY = OPT_MAX_CLIENT_OPTION + 1000,
+	OPT_S3_SECRET_KEY,
+	OPT_S3_REGION,
+	OPT_S3_HOST_NAME,
+	OPT_S3_BUCKET,
+	OPT_S3_PATH,
+	OPT_S3_PROTOCOL_VERSION
+};
+#endif // WITH_S3_STORAGE_ENGINE
+
 static struct my_option my_long_options[] =
 {
 	{"help", '?', "Display this help and exit.",
@@ -69,12 +96,39 @@ static struct my_option my_long_options[] =
 	 &opt_parallel, &opt_parallel, 0, GET_INT, REQUIRED_ARG,
 	 1, 1, INT_MAX, 0, 0, 0},
 
+#ifdef WITH_S3_STORAGE_ENGINE
+	{"s3_access_key", OPT_S3_ACCESS_KEY, "AWS access key ID",
+	 (char**) &opt_s3_access_key, (char**) &opt_s3_access_key, 0,
+		GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+	{"s3_region", OPT_S3_REGION, "AWS region",
+	 (char**) &opt_s3_region, (char**) &opt_s3_region, 0,
+		GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+	{"s3_secret_key", OPT_S3_SECRET_KEY, "AWS secret access key ID",
+	 (char**) &opt_s3_secret_key, (char**) &opt_s3_secret_key, 0,
+		GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+	{"s3_bucket", OPT_S3_BUCKET, "AWS prefix for backup",
+	 (char**) &opt_s3_bucket, (char**) &opt_s3_bucket, 0,
+		GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+	{"s3_path", OPT_S3_PATH, "AWS path for backup",
+	 (char**) &opt_s3_path, (char**) &opt_s3_path, 0,
+		GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+	{"s3_host_name", OPT_S3_HOST_NAME, "Host name to S3 provider",
+	 (char**) &opt_s3_host_name, (char**) &opt_s3_host_name, 0,
+		GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+	{"S3 protocol version", OPT_S3_PROTOCOL_VERSION,
+		"Protocol used to communication with S3. One of "
+		"\"Auto\", \"Amazon\" or \"Original\".",
+		(uchar*) &opt_s3_protocol_version,
+		(uchar*) &opt_s3_protocol_version, &s3_protocol_typelib,
+		GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#endif // WITH_S3_STORAGE_ENGINE
+
 	{0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
 typedef struct {
 	HASH			*filehash;
-	xb_rstream_t		*stream;
+	xb_rstream		*stream;
 	ds_ctxt_t		*ds_ctxt;
 	pthread_mutex_t		*mutex;
 } extract_ctxt_t;
@@ -86,6 +140,15 @@ typedef struct {
 	ds_file_t	*file;
 	pthread_mutex_t	mutex;
 } file_entry_t;
+
+void * operator new(decltype(sizeof(0)) n) noexcept(false)
+{
+	return my_malloc(n, MYF(MY_FAE));
+}
+void operator delete(void * p) throw()
+{
+	my_free(p);
+}
 
 static int get_options(int *argc, char ***argv);
 static int mode_create(int argc, char **argv);
@@ -486,7 +549,7 @@ int
 mode_extract(int n_threads, int argc __attribute__((unused)),
 	     char **argv __attribute__((unused)))
 {
-	xb_rstream_t		*stream = NULL;
+	std::unique_ptr<xb_rstream> stream;
 	HASH			filehash;
 	ds_ctxt_t		*ds_ctxt = NULL;
 	extract_ctxt_t		ctxt;
@@ -516,16 +579,33 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 		goto exit;
 	}
 
+#ifdef WITH_S3_STORAGE_ENGINE
+	if (opt_s3_access_key)
+		s3_init_library();
+#endif // WITH_S3_STORAGE_ENGINE
 
-	stream = xb_stream_read_new();
-	if (stream == NULL) {
+	stream =
+#ifdef WITH_S3_STORAGE_ENGINE
+		opt_s3_access_key ?
+		xb_stream_s3_new(
+				opt_s3_access_key,
+				opt_s3_secret_key,
+				opt_s3_region,
+				opt_s3_host_name,
+				opt_s3_bucket,
+				opt_s3_path,
+				opt_s3_protocol_version) :
+#endif // WITH_S3_STORAGE_ENGINE
+		xb_stream_stdin_new();
+
+	if (!stream) {
 		msg("%s: xb_stream_read_new() failed.", my_progname);
 		pthread_mutex_destroy(&mutex);
 		ret = 1;
 		goto exit;
 	}
 
-	ctxt.stream = stream;
+	ctxt.stream = stream.get();
 	ctxt.filehash = &filehash;
 	ctxt.ds_ctxt = ds_ctxt;
 	ctxt.mutex = &mutex;
@@ -557,7 +637,11 @@ exit:
 	if (ds_ctxt != NULL) {
 		ds_destroy(ds_ctxt);
 	}
-	xb_stream_read_done(stream);
+
+#ifdef WITH_S3_STORAGE_ENGINE
+	if (opt_s3_access_key)
+		s3_deinit_library();
+#endif // WITH_S3_STORAGE_ENGINE
 
 	return ret;
 }

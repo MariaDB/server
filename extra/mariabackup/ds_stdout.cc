@@ -28,7 +28,7 @@ typedef struct {
 	File fd;
 } ds_stdout_file_t;
 
-static ds_ctxt_t *stdout_init(const char *root);
+static ds_ctxt_t *stdout_init(const void *ds_data);
 static ds_file_t *stdout_open(ds_ctxt_t *ctxt, const char *path,
 			     MY_STAT *mystat);
 static int stdout_write(ds_file_t *file, const uchar *buf, size_t len);
@@ -45,13 +45,13 @@ datasink_t datasink_stdout = {
 
 static
 ds_ctxt_t *
-stdout_init(const char *root)
+stdout_init(const void *ds_data)
 {
 	ds_ctxt_t *ctxt;
 
 	ctxt = (ds_ctxt_t *)my_malloc(sizeof(ds_ctxt_t), MYF(MY_FAE));
 
-	ctxt->root = my_strdup(root, MYF(MY_FAE));
+	ctxt->root = my_strdup(static_cast<const char *>(ds_data), MYF(MY_FAE));
 
 	return ctxt;
 }

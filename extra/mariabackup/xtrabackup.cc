@@ -102,6 +102,12 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <srv0srv.h>
 #include <crc_glue.h>
 #include <log.h>
+#ifdef WITH_S3_STORAGE_ENGINE
+#include "ds_s3.h"
+#undef LSN_MAX
+#include "maria_def.h"
+#include "s3_func.h"
+#endif //WITH_S3_STORAGE_ENGINE
 
 int sys_var_init();
 
@@ -203,6 +209,17 @@ extern char *opt_tls_version;
 my_bool opt_ssl_verify_server_cert;
 my_bool opt_extended_validation;
 my_bool opt_encrypted_backup;
+
+#ifdef WITH_S3_STORAGE_ENGINE
+static const char *opt_s3_access_key;
+static const char *opt_s3_secret_key;
+static const char *opt_s3_region = "eu-north-1";
+static const char *opt_s3_host_name = "s3.amazonaws.com";
+static const char *opt_s3_bucket = "MariaDB";
+static const char *opt_s3_path = "/backup.xbstream";
+static ulong opt_s3_block_size;
+static ulong opt_s3_protocol_version;
+#endif // WITH_S3_STORAGE_ENGINE
 
 /* === metadata of backup === */
 #define XTRABACKUP_METADATA_FILENAME "xtrabackup_checkpoints"
@@ -733,8 +750,8 @@ typedef struct {
 
 enum options_xtrabackup
 {
-  OPT_XTRA_TARGET_DIR = 1000,     /* make sure it is larger
-                                     than OPT_MAX_CLIENT_OPTION */
+/* make sure it is larger than OPT_MAX_CLIENT_OPTION */
+  OPT_XTRA_TARGET_DIR = OPT_MAX_CLIENT_OPTION + 1000,
   OPT_XTRA_BACKUP,
   OPT_XTRA_PREPARE,
   OPT_XTRA_EXPORT,
@@ -827,7 +844,17 @@ enum options_xtrabackup
   OPT_LOCK_DDL_PER_TABLE,
   OPT_ROCKSDB_DATADIR,
   OPT_BACKUP_ROCKSDB,
-  OPT_XTRA_CHECK_PRIVILEGES
+  OPT_XTRA_CHECK_PRIVILEGES,
+#ifdef WITH_S3_STORAGE_ENGINE
+  OPT_S3_ACCESS_KEY,
+  OPT_S3_SECRET_KEY,
+  OPT_S3_REGION,
+  OPT_S3_HOST_NAME,
+  OPT_S3_BUCKET,
+  OPT_S3_PATH,
+  OPT_S3_BLOCK_SIZE,
+  OPT_S3_PROTOCOL_VERSION
+#endif //WITH_S3_STORAGE_ENGINE
 };
 
 
@@ -1392,6 +1419,37 @@ struct my_option xb_server_options[] =
    "privileges fro the backup user",
    &opt_check_privileges, &opt_check_privileges,
    0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
+
+#ifdef WITH_S3_STORAGE_ENGINE
+  {"s3_access_key", OPT_S3_ACCESS_KEY, "AWS access key ID",
+   (char**) &opt_s3_access_key, (char**) &opt_s3_access_key, 0,
+    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_region", OPT_S3_REGION, "AWS region",
+   (char**) &opt_s3_region, (char**) &opt_s3_region, 0,
+    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_secret_key", OPT_S3_SECRET_KEY, "AWS secret access key ID",
+   (char**) &opt_s3_secret_key, (char**) &opt_s3_secret_key, 0,
+    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_bucket", OPT_S3_BUCKET, "AWS prefix for backup",
+   (char**) &opt_s3_bucket, (char**) &opt_s3_bucket, 0,
+    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_path", OPT_S3_PATH, "AWS path for backup",
+   (char**) &opt_s3_path, (char**) &opt_s3_path, 0,
+    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_host_name", OPT_S3_HOST_NAME, "Host name to S3 provider",
+   (char**) &opt_s3_host_name, (char**) &opt_s3_host_name, 0,
+    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_block_size", OPT_S3_BLOCK_SIZE,
+   "S3 block size.",
+   (G_PTR*)&opt_s3_block_size, (G_PTR*)&opt_s3_block_size,
+   0, GET_ULONG, REQUIRED_ARG, 10*1024*1024, 1024*1024, 100*1024*1024, 0, 0, 0},
+  {"S3 protocol version", OPT_S3_PROTOCOL_VERSION,
+   "Protocol used to communication with S3. One of "
+   "\"Auto\", \"Amazon\" or \"Original\".",
+   (uchar*) &opt_s3_protocol_version,
+   (uchar*) &opt_s3_protocol_version, &s3_protocol_typelib,
+   GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#endif // WITH_S3_STORAGE_ENGINE
 
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -2931,7 +2989,29 @@ xtrabackup_init_datasinks(void)
 		/* All streaming goes to stdout */
 		ds_data = ds_meta = ds_redo = ds_create(xtrabackup_target_dir,
 						        DS_TYPE_STDOUT);
-	} else {
+	}
+#ifdef WITH_S3_STORAGE_ENGINE
+	else if (opt_s3_access_key) {
+		xtrabackup_stream = TRUE;
+		xtrabackup_stream_fmt = XB_STREAM_FMT_XBSTREAM;
+		ds_s3_args s3_args = {
+			opt_s3_access_key,
+			opt_s3_secret_key,
+			opt_s3_region,
+			opt_s3_host_name,
+			opt_s3_bucket,
+			opt_s3_path,
+			opt_s3_protocol_version
+		};
+		ds_data = ds_create(&s3_args, DS_TYPE_S3);
+		xtrabackup_add_datasink(ds_data);
+		ds_ctxt_t	*ds = ds_create(xtrabackup_target_dir, DS_TYPE_BUFFER);
+		ds_buffer_set_size(ds, opt_s3_block_size);
+		ds_set_pipe(ds, ds_data);
+		ds_data = ds;
+	}
+#endif // WITH_S3_STORAGE_ENGINE
+	else {
 		/* Local filesystem */
 		ds_data = ds_meta = ds_redo = ds_create(xtrabackup_target_dir,
 						        DS_TYPE_LOCAL);

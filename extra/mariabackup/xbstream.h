@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #define XBSTREAM_H
 
 #include <my_base.h>
+#include <memory>
 
 /* Magic value in a chunk header */
 #define XB_STREAM_CHUNK_MAGIC "XBSTCK01"
@@ -79,7 +80,12 @@ typedef enum {
 	XB_CHUNK_TYPE_EOF = 'E'
 } xb_chunk_type_t;
 
-typedef struct xb_rstream_struct xb_rstream_t;
+class xb_rstream {
+public:
+	virtual size_t read(uchar *buf, size_t len) = 0;
+	virtual my_off_t offset() = 0;
+	virtual ~xb_rstream() {};
+};
 
 typedef struct {
 	uchar           flags;
@@ -94,12 +100,19 @@ typedef struct {
 	size_t		buflen;
 } xb_rstream_chunk_t;
 
-xb_rstream_t *xb_stream_read_new(void);
-
-xb_rstream_result_t xb_stream_read_chunk(xb_rstream_t *stream,
+std::unique_ptr<xb_rstream> xb_stream_stdin_new(void);
+#ifdef WITH_S3_STORAGE_ENGINE
+std::unique_ptr<xb_rstream> xb_stream_s3_new(
+	const char *access_key,
+	const char *secret_key,
+	const char *region,
+	const char *host_name,
+	const char *bucket,
+	const char *path,
+	ulong protocol_version);
+#endif // WITH_S3_STORAGE_ENGINE
+xb_rstream_result_t xb_stream_read_chunk(xb_rstream *stream,
 					 xb_rstream_chunk_t *chunk);
-
-int xb_stream_read_done(xb_rstream_t *stream);
 
 xb_rstream_result_t xb_stream_validate_checksum(xb_rstream_chunk_t *chunk);
 

@@ -38,7 +38,7 @@ typedef struct {
 /***********************************************************************
 General streaming interface */
 
-static ds_ctxt_t *xbstream_init(const char *root);
+static ds_ctxt_t *xbstream_init(const void *ds_data);
 static ds_file_t *xbstream_open(ds_ctxt_t *ctxt, const char *path,
 			      MY_STAT *mystat);
 static int xbstream_write(ds_file_t *file, const uchar *buf, size_t len);
@@ -73,7 +73,7 @@ my_xbstream_write_callback(xb_wstream_file_t *f __attribute__((unused)),
 
 static
 ds_ctxt_t *
-xbstream_init(const char *root __attribute__((unused)))
+xbstream_init(const void *ds_data __attribute__((unused)))
 {
 	ds_ctxt_t		*ctxt;
 	ds_stream_ctxt_t	*stream_ctxt;

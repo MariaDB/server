@@ -39,7 +39,7 @@ typedef struct {
 	ds_file_t	*file;
 } ds_tmp_file_t;
 
-static ds_ctxt_t *tmpfile_init(const char *root);
+static ds_ctxt_t *tmpfile_init(const void *ds_data);
 static ds_file_t *tmpfile_open(ds_ctxt_t *ctxt, const char *path,
 			       MY_STAT *mystat);
 static int tmpfile_write(ds_file_t *file, const uchar *buf, size_t len);
@@ -56,7 +56,7 @@ datasink_t datasink_tmpfile = {
 
 
 static ds_ctxt_t *
-tmpfile_init(const char *root)
+tmpfile_init(const void *ds_data)
 {
 	ds_ctxt_t		*ctxt;
 	ds_tmpfile_ctxt_t	*tmpfile_ctxt;
@@ -72,7 +72,7 @@ tmpfile_init(const char *root)
 	}
 
 	ctxt->ptr = tmpfile_ctxt;
-	ctxt->root = my_strdup(root, MYF(MY_FAE));
+	ctxt->root = my_strdup(static_cast<const char *>(ds_data), MYF(MY_FAE));
 
 	return ctxt;
 }

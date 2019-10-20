@@ -45,7 +45,7 @@ typedef struct {
 /***********************************************************************
 General archive interface */
 
-static ds_ctxt_t *archive_init(const char *root);
+static ds_ctxt_t *archive_init(const void *ds_data);
 static ds_file_t *archive_open(ds_ctxt_t *ctxt, const char *path,
 			      MY_STAT *mystat);
 static int archive_write(ds_file_t *file, const void *buf, size_t len);
@@ -96,7 +96,7 @@ my_archive_close_callback(struct archive *a __attribute__((unused)),
 
 static
 ds_ctxt_t *
-archive_init(const char *root __attribute__((unused)))
+archive_init(const void *ds_data __attribute__((unused)))
 {
 	ds_ctxt_t		*ctxt;
 	ds_archive_ctxt_t	*archive_ctxt;

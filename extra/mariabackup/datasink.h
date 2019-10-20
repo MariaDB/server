@@ -46,7 +46,7 @@ typedef struct {
 } ds_file_t;
 
 struct datasink_struct {
-	ds_ctxt_t *(*init)(const char *root);
+	ds_ctxt_t *(*init)(const void *ds_data);
 	ds_file_t *(*open)(ds_ctxt_t *ctxt, const char *path, MY_STAT *stat);
 	int (*write)(ds_file_t *file, const unsigned char *buf, size_t len);
 	int (*close)(ds_file_t *file);
@@ -63,12 +63,15 @@ typedef enum {
 	DS_TYPE_ENCRYPT,
 	DS_TYPE_DECRYPT,
 	DS_TYPE_TMPFILE,
-	DS_TYPE_BUFFER
+	DS_TYPE_BUFFER,
+#ifdef WITH_S3_STORAGE_ENGINE
+	DS_TYPE_S3
+#endif // WITH_S3_STORAGE_ENGINE
 } ds_type_t;
 
 /************************************************************************
 Create a datasink of the specified type */
-ds_ctxt_t *ds_create(const char *root, ds_type_t type);
+ds_ctxt_t *ds_create(const void *ds_data, ds_type_t type);
 
 /************************************************************************
 Open a datasink file */

@@ -29,11 +29,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "ds_stdout.h"
 #include "ds_tmpfile.h"
 #include "ds_buffer.h"
+#ifdef WITH_S3_STORAGE_ENGINE
+#include "ds_s3.h"
+#endif // WITH_S3_STORAGE_ENGINE
 
 /************************************************************************
 Create a datasink of the specified type */
 ds_ctxt_t *
-ds_create(const char *root, ds_type_t type)
+ds_create(const void *ds_data, ds_type_t type)
 {
 	datasink_t	*ds;
 	ds_ctxt_t	*ctxt;
@@ -69,13 +72,18 @@ ds_create(const char *root, ds_type_t type)
 	case DS_TYPE_BUFFER:
 		ds = &datasink_buffer;
 		break;
+#ifdef WITH_S3_STORAGE_ENGINE
+	case DS_TYPE_S3:
+		ds = &datasink_s3;
+		break;
+#endif // WITH_S3_STORAGE_ENGINE
 	default:
 		msg("Unknown datasink type: %d", type);
 		xb_ad(0);
 		return NULL;
 	}
 
-	ctxt = ds->init(root);
+	ctxt = ds->init(ds_data);
 	if (ctxt != NULL) {
 		ctxt->datasink = ds;
 	} else {

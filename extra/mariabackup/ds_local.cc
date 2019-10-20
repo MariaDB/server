@@ -36,7 +36,7 @@ typedef struct {
 	size_t pagesize;
 } ds_local_file_t;
 
-static ds_ctxt_t *local_init(const char *root);
+static ds_ctxt_t *local_init(const void *ds_data);
 static ds_file_t *local_open(ds_ctxt_t *ctxt, const char *path,
 			     MY_STAT *mystat);
 static int local_write(ds_file_t *file, const uchar *buf, size_t len);
@@ -55,23 +55,23 @@ datasink_t datasink_local = {
 
 static
 ds_ctxt_t *
-local_init(const char *root)
+local_init(const void *ds_data)
 {
 	ds_ctxt_t *ctxt;
 
-	if (my_mkdir(root, 0777, MYF(0)) < 0
+	if (my_mkdir(static_cast<const char *>(ds_data), 0777, MYF(0)) < 0
 	    && my_errno != EEXIST && my_errno != EISDIR)
 	{
 		char errbuf[MYSYS_STRERROR_SIZE];
 		my_strerror(errbuf, sizeof(errbuf),my_errno);
 		my_error(EE_CANT_MKDIR, MYF(ME_BELL),
-			 root, my_errno,errbuf, my_errno);
+				ds_data, my_errno,errbuf, my_errno);
 		return NULL;
 	}
 
 	ctxt = (ds_ctxt_t *)my_malloc(sizeof(ds_ctxt_t), MYF(MY_FAE));
 
-	ctxt->root = my_strdup(root, MYF(MY_FAE));
+	ctxt->root = my_strdup(static_cast<const char *>(ds_data), MYF(MY_FAE));
 
 	return ctxt;
 }
