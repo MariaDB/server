@@ -33,4 +33,6 @@ int maria_apply_log(LSN lsn, LSN lsn_end, enum maria_apply_log_way apply,
 /* Table of tables to recover */
 extern HASH tables_to_redo;
 extern ulong maria_recovery_force_crash_counter;
+extern ulong recovery_found_crashed_tables;
+extern uint skipped_lsn_err_count;
 C_MODE_END
