@@ -34,6 +34,8 @@ create temporary table tmp3 like t1;
 create or replace temporary table tmp3 like t1;
 alter table tmp2 add column (b int);
 select * from tmp2;
+--error ER_OPTION_PREVENTS_STATEMENT
+insert into t1 select a+100 from tmp2;
 drop table tmp1,tmp2,tmp3;
 
 --echo # Clean up test connection
@@ -64,9 +66,12 @@ create table t2 select * from tmp4;
 alter table tmp5 add column (c int);
 insert into tmp5 values (20,5,1),(21,5,2);
 select * from tmp5;
+insert into t1 select a+200 from tmp5;
+select * from t1;
 drop table tmp4,tmp5;
 
---echo # Check what is logged. Only the last create select should be row-logged
+--echo # Check what is logged. Only last create select and the insert...select's should be
+--echo # row-logged
 source include/show_binlog_events.inc;
 
 --echo # Clean up

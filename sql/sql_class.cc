@@ -6040,6 +6040,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         */
         DBUG_ASSERT(share->tmp_table);
         flags&= ~HA_BINLOG_STMT_CAPABLE;
+        /* We can only use row logging */
+        set_current_stmt_binlog_format_row();
       }
 
       DBUG_PRINT("info", ("table: %s; ha_table_flags: 0x%llx",

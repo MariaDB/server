@@ -5217,7 +5217,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 err:
   /* In RBR or readonly server we don't need to log CREATE TEMPORARY TABLE */
   if (!result && create_info->tmp_table() &&
-      (thd->is_current_stmt_binlog_format_row() || opt_readonly))
+      (thd->is_current_stmt_binlog_format_row() || (opt_readonly && !thd->slave_thread)))
   {
     /* Note that table->s->table_creation_was_logged is not set! */
     DBUG_RETURN(result);
