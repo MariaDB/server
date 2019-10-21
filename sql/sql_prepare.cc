@@ -3274,7 +3274,7 @@ void mysql_sql_stmt_execute(THD *thd)
   /* Query text for binary, general or slow log, if any of them is open */
   String expanded_query;
   DBUG_ENTER("mysql_sql_stmt_execute");
-  DBUG_PRINT("info", ("EXECUTE: %.*s\n", (int) name->length, name->str));
+  DBUG_PRINT("info", ("EXECUTE: %.*s", (int) name->length, name->str));
 
   if (!(stmt= (Prepared_statement*) thd->stmt_map.find_by_name(name)))
   {
@@ -3512,7 +3512,7 @@ void mysql_sql_stmt_close(THD *thd)
 {
   Prepared_statement* stmt;
   LEX_CSTRING *name= &thd->lex->prepared_stmt_name;
-  DBUG_PRINT("info", ("DEALLOCATE PREPARE: %.*s\n", (int) name->length,
+  DBUG_PRINT("info", ("DEALLOCATE PREPARE: %.*s", (int) name->length,
                       name->str));
 
   if (! (stmt= (Prepared_statement*) thd->stmt_map.find_by_name(name)))

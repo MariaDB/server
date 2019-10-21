@@ -2091,7 +2091,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
     need to know the start of the stack so that we could check for
     stack overruns.
   */
-  DBUG_PRINT("wsrep", ("handle_one_connection called by thread %lld\n",
+  DBUG_PRINT("wsrep", ("handle_one_connection called by thread %lld",
                        (long long)thd->thread_id));
   /* now that we've called my_thread_init(), it is safe to call DBUG_* */
 
