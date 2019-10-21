@@ -17,6 +17,7 @@ select command, time < 5 from information_schema.processlist where id != connect
 command	time < 5
 Sleep	1
 set debug_sync='reset';
+End of 5.5 tests
 #
 # 10.1 tests
 #

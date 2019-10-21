@@ -2646,8 +2646,12 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
     else
       protocol->store_null();
     protocol->store(thd_info->state_info, system_charset_info);
-    protocol->store(thd_info->query_string.str(),
-                    thd_info->query_string.charset());
+    if (thd_info->query_string.length())
+      protocol->store(thd_info->query_string.str(),
+                      thd_info->query_string.length(),
+                      thd_info->query_string.charset());
+    else
+      protocol->store_null();
     if (!thd->variables.old_mode &&
         !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
       protocol->store(thd_info->progress, 3, &store_buffer);
