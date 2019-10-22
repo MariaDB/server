@@ -984,7 +984,7 @@ recv_synchronize_groups()
 	checkpoint info on disk certain */
 
 	if (!srv_read_only_mode) {
-		log_write_checkpoint_info(true, 0);
+		log_write_checkpoint_info(0);
 		log_mutex_enter();
 	}
 }

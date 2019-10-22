@@ -4376,77 +4376,47 @@ fil_aio_wait(
 
 	ut_ad(fil_validate_skip());
 
+	ut_ad(purpose != FIL_TYPE_LOG);
+
 	/* Do the i/o handling */
 	/* IMPORTANT: since i/o handling for reads will read also the insert
 	buffer in tablespace 0, you have to be very careful not to introduce
 	deadlocks in the i/o system. We keep tablespace 0 data files always
 	open, and use a special i/o thread to serve insert buffer requests. */
 
-	switch (purpose) {
-	case FIL_TYPE_LOG:
-		srv_set_io_thread_op_info(segment, "complete io for log");
-		/* We use synchronous writing of the logs
-		and can only end up here when writing a log checkpoint! */
-		ut_a(ptrdiff_t(message) == 1);
-		/* It was a checkpoint write */
-		switch (srv_flush_t(srv_file_flush_method)) {
-		case SRV_O_DSYNC:
-		case SRV_NOSYNC:
-			break;
-		case SRV_FSYNC:
-		case SRV_LITTLESYNC:
-		case SRV_O_DIRECT:
-		case SRV_O_DIRECT_NO_FSYNC:
-#ifdef _WIN32
-		case SRV_ALL_O_DIRECT_FSYNC:
-#endif
-			fil_flush(SRV_LOG_SPACE_FIRST_ID);
-		}
+	srv_set_io_thread_op_info(segment, "complete io for buf page");
 
-		DBUG_PRINT("ib_log", ("checkpoint info written"));
-		log_sys.complete_checkpoint();
-		return;
-	case FIL_TYPE_TABLESPACE:
-	case FIL_TYPE_TEMPORARY:
-	case FIL_TYPE_IMPORT:
-		srv_set_io_thread_op_info(segment, "complete io for buf page");
-
-		/* async single page writes from the dblwr buffer don't have
-		access to the page */
-		buf_page_t* bpage = static_cast<buf_page_t*>(message);
-		if (!bpage) {
-			return;
-		}
-
-		ulint offset = bpage->id.page_no();
-		if (dblwr && bpage->init_on_flush) {
-			bpage->init_on_flush = false;
-			dblwr = false;
-		}
-		dberr_t err = buf_page_io_complete(bpage, dblwr);
-		if (err == DB_SUCCESS) {
-			return;
-		}
-
-		ut_ad(type.is_read());
-		if (recv_recovery_is_on() && !srv_force_recovery) {
-			recv_sys.found_corrupt_fs = true;
-		}
-
-		if (fil_space_t* space = fil_space_acquire_for_io(space_id)) {
-			if (space == node->space) {
-				ib::error() << "Failed to read file '"
-					    << node->name
-					    << "' at offset " << offset
-					    << ": " << ut_strerr(err);
-			}
-
-			space->release_for_io();
-		}
+	/* async single page writes from the dblwr buffer don't have
+	access to the page */
+	buf_page_t* bpage = static_cast<buf_page_t*>(message);
+	if (!bpage) {
 		return;
 	}
 
-	ut_ad(0);
+	ulint offset = bpage->id.page_no();
+	if (dblwr && bpage->init_on_flush) {
+		bpage->init_on_flush = false;
+		dblwr = false;
+	}
+	err = buf_page_io_complete(bpage, dblwr);
+	if (err == DB_SUCCESS) {
+		return;
+	}
+
+	ut_ad(type.is_read());
+	if (recv_recovery_is_on() && !srv_force_recovery) {
+		recv_sys.found_corrupt_fs = true;
+	}
+
+	if (fil_space_t* space = fil_space_acquire_for_io(space_id)) {
+		if (space == node->space) {
+			ib::error() << "Failed to read file '" << node->name
+				    << "' at offset " << offset << ": "
+				    << ut_strerr(err);
+		}
+
+		space->release_for_io();
+	}
 }
 
 /**********************************************************************//**

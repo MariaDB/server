@@ -635,7 +635,6 @@ static PSI_rwlock_info all_innodb_rwlocks[] = {
 #  endif /* UNIV_DEBUG */
 	PSI_RWLOCK_KEY(dict_operation_lock),
 	PSI_RWLOCK_KEY(fil_space_latch),
-	PSI_RWLOCK_KEY(checkpoint_lock),
 	PSI_RWLOCK_KEY(fts_cache_rw_lock),
 	PSI_RWLOCK_KEY(fts_cache_init_rw_lock),
 	PSI_RWLOCK_KEY(trx_i_s_cache_lock),
