@@ -285,9 +285,6 @@ struct fts_t {
 					fts_add_wq. */
 	ib_mutex_t		bg_threads_mutex;
 
-	/* Wheter the table was added to fts_optimize_wq();
-	protected by bg_threads mutex */
-	unsigned	in_queue:1;
 	/* Whether the ADDED table record sync-ed after
 	crash recovery; protected by bg_threads mutex */
 	unsigned	added_synced:1;
@@ -310,6 +307,11 @@ struct fts_t {
 
 	ib_vector_t*	indexes;	/*!< Vector of FTS indexes, this is
 					mainly for caching purposes. */
+
+	/* Whether the table was added to fts_optimize_wq();
+	protected by fts_optimize_wq mutex */
+	bool		in_queue;
+
 	mem_heap_t*	fts_heap;	/*!< heap for fts_t allocation */
 };
 
@@ -630,14 +632,6 @@ UNIV_INTERN
 void
 fts_optimize_init(void);
 /*====================*/
-
-/**********************************************************************//**
-Check whether the work queue is initialized.
-@return TRUE if optimze queue is initialized. */
-UNIV_INTERN
-ibool
-fts_optimize_is_init(void);
-/*======================*/
 
 /****************************************************************//**
 Drops index ancillary tables for a FTS index
