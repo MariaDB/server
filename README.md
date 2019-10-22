@@ -1,4 +1,5 @@
 Code status:
+FORCE Rebuild
 ------------
 
 * [![Travis CI status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.4)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.4 branch)
