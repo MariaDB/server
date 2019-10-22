@@ -595,8 +595,7 @@ row_merge_buf_add(
 					= dict_table_get_first_index(new_table);
 
                                 if (!vcol_storage &&
-                                    innobase_allocate_row_for_vcol(trx->mysql_thd, clust_index, v_heap, &my_table, &record, &vcol_storage)) {
-					*err = DB_OUT_OF_MEMORY;
+                                    (*err = innobase_allocate_row_for_vcol(trx->mysql_thd, clust_index, *v_heap, &my_table, &record, &vcol_storage))) {
 					goto error;
 				}
 

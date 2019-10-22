@@ -470,7 +470,7 @@ row_vers_build_clust_v_col(
 	}
 
 	innobase_allocate_row_for_vcol(thd, index,
-				       &local_heap,
+				       local_heap,
 				       &maria_table,
 				       &record,
 				       &vcol_storage);
@@ -887,6 +887,7 @@ row_vers_old_has_index_entry(
 	const dtuple_t*		ientry,
 	roll_ptr_t		roll_ptr,
 	trx_id_t		trx_id,
+	dberr_t&		err,
 	purge_vcol_info_t*	vcol_info)
 {
 	const rec_t*	version;

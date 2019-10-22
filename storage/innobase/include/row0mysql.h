@@ -827,14 +827,13 @@ struct VCOL_STORAGE
 @param[out]	rec		Pointer to allocated MariaDB record
 @param[out]	storage		Internal storage for blobs etc
 
-@return		FALSE ok
-@return		TRUE  malloc failure
+@return		error code
 */
 
-bool innobase_allocate_row_for_vcol(
+dberr_t innobase_allocate_row_for_vcol(
 				    THD *	  thd,
 				    dict_index_t* index,
-				    mem_heap_t**  heap,
+				    mem_heap_t*&  heap,
 				    TABLE**	  table,
 				    byte**	  record,
 				    VCOL_STORAGE** storage);

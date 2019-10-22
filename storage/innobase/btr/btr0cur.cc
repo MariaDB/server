@@ -1322,8 +1322,11 @@ retry_page_get:
 			ut_ad(!dict_index_is_spatial(index));
 
 			if (!row_purge_poss_sec(cursor->purge_node,
-						index, tuple)) {
+						index, tuple, err)) {
 
+				if (err) {
+					goto func_exit;
+				}
 				/* The record cannot be purged yet. */
 				cursor->flag = BTR_CUR_DELETE_REF;
 			} else if (ibuf_insert(IBUF_OP_DELETE, tuple,

@@ -65,6 +65,7 @@ row_purge_poss_sec(
 	purge_node_t*	node,
 	dict_index_t*	index,
 	const dtuple_t*	entry,
+	dberr_t&	err,
 	btr_pcur_t*	sec_pcur=NULL,
 	mtr_t*		sec_mtr=NULL,
 	bool		is_tree=false);

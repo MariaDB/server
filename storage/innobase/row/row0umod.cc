@@ -511,11 +511,11 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	if (dict_table_is_temporary(node->table)
 	    || row_vers_old_has_index_entry(
 			false, btr_pcur_get_rec(&(node->pcur)),
-			&mtr_vers, index, entry, 0, 0)) {
+			&mtr_vers, index, entry, 0, 0, err)) {
 		err = btr_cur_del_mark_set_sec_rec(BTR_NO_LOCKING_FLAG,
 						   btr_cur, TRUE, thr, &mtr);
 		ut_ad(err == DB_SUCCESS);
-	} else {
+	} else if (!err) {
 		/* Remove the index record */
 
 		if (dict_index_is_spatial(index)) {

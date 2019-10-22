@@ -164,6 +164,7 @@ row_sel_sec_rec_is_for_clust_rec(
 	dict_index_t*	sec_index,
 	const rec_t*	clust_rec,
 	dict_index_t*	clust_index,
+	dberr_t&	err,
 	que_thr_t*	thr)
 {
 	const byte*	sec_field;
@@ -179,6 +180,7 @@ row_sel_sec_rec_is_for_clust_rec(
 	ibool		is_equal	= TRUE;
 	VCOL_STORAGE*	vcol_storage= 0;
 	byte*		record;
+	err 				= DB_SUCCESS;
 
 	rec_offs_init(clust_offsets_);
 	rec_offs_init(sec_offsets_);
@@ -228,12 +230,15 @@ row_sel_sec_rec_is_for_clust_rec(
 			if (!vcol_storage)
 			{
 				TABLE *mysql_table= thr->prebuilt->m_mysql_table;
-				innobase_allocate_row_for_vcol(thr_get_trx(thr)->mysql_thd,
+				err = innobase_allocate_row_for_vcol(thr_get_trx(thr)->mysql_thd,
 							       clust_index,
-							       &heap,
+							       heap,
 							       &mysql_table,
 							       &record,
 							       &vcol_storage);
+				if (err) {
+					return false;
+				}
 			}
 
 			v_col = reinterpret_cast<const dict_v_col_t*>(col);
@@ -1035,8 +1040,12 @@ row_sel_get_clust_rec(
 						     plan->table)))
 		    && !row_sel_sec_rec_is_for_clust_rec(rec, plan->index,
 							 clust_rec, index,
-							 thr)) {
-			goto func_exit;
+							 err, thr)) {
+			if (!err) {
+				goto func_exit;
+			} else {
+				goto err_exit;
+			}
 		}
 	}
 
@@ -3581,8 +3590,12 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 			|| rec_get_deleted_flag(rec, dict_table_is_comp(
 							sec_index->table)))
 		    && !row_sel_sec_rec_is_for_clust_rec(
-			    rec, sec_index, clust_rec, clust_index, thr)) {
+			    rec, sec_index, clust_rec, clust_index, err, thr)) {
 			clust_rec = NULL;
+			if (err) {
+				goto err_exit;
+			}
+
 		}
 
 		err = DB_SUCCESS;

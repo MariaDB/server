@@ -970,11 +970,9 @@ row_ins_foreign_fill_virtual(
 		innobase_init_vc_templ(index->table);
 	}
 
-	if (innobase_allocate_row_for_vcol(thd, index, &v_heap,
-                                           &mysql_table,
-                                           &record, &vcol_storage)) {
-		if (v_heap) mem_heap_free(v_heap);
-		*err = DB_OUT_OF_MEMORY;
+	if ((*err = innobase_allocate_row_for_vcol(thd, index, v_heap,
+						   &mysql_table,
+						   &record, &vcol_storage))) {
 		goto func_exit;
 	}
 

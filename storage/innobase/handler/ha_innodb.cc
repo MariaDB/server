@@ -21843,10 +21843,10 @@ innobase_get_field_from_update_vector(
 		for purge thread.
 */
 
-bool innobase_allocate_row_for_vcol(
+dberr_t innobase_allocate_row_for_vcol(
 				    THD *	  thd,
 				    dict_index_t* index,
-				    mem_heap_t**  heap,
+				    mem_heap_t*&  heap,
 				    TABLE**	  table,
 				    byte**	  record,
 				    VCOL_STORAGE** storage)
@@ -21859,25 +21859,26 @@ bool innobase_allocate_row_for_vcol(
 	/* For purge thread, there is a possiblity that table could have
 	dropped, corrupted or unaccessible. */
 	if (!*table)
-		return true;
+		return DB_TABLE_NOT_FOUND;
 	maria_table= *table;
-	if (!*heap && !(*heap= mem_heap_create(srv_page_size)))
+	if (!heap && !(heap= mem_heap_create(srv_page_size)))
 	{
 		*storage= 0;
-		return TRUE;
+		return DB_OUT_OF_MEMORY;
 	}
-	*record= static_cast<byte*>(mem_heap_alloc(*heap,
+	*record= static_cast<byte*>(mem_heap_alloc(heap,
                                                    maria_table->s->reclength));
 	*storage= static_cast<VCOL_STORAGE*>
-          (mem_heap_alloc(*heap, sizeof(**storage)));
+          (mem_heap_alloc(heap, sizeof(**storage)));
 	blob_value_storage= static_cast<String*>
-          (mem_heap_alloc(*heap,
+          (mem_heap_alloc(heap,
                           maria_table->s->virtual_not_stored_blob_fields *
                           sizeof(String)));
 	if (!*record || !*storage || !blob_value_storage)
 	{
+		mem_heap_free(heap);
 		*storage= 0;
-		return TRUE;
+		return DB_OUT_OF_MEMORY;
 	}
 	(*storage)->maria_table= maria_table;
 	(*storage)->innobase_record= *record;
@@ -21888,7 +21889,7 @@ bool innobase_allocate_row_for_vcol(
 				 (*storage)->maria_record);
 	maria_table->remember_blob_values(blob_value_storage);
 
-	return FALSE;
+	return DB_SUCCESS;
 }
 
 

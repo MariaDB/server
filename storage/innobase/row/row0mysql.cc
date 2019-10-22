@@ -781,6 +781,9 @@ handle_new_error:
 			<< FK_MAX_CASCADE_DEL << ". Please drop excessive"
 			" foreign constraints and try again";
 		goto rollback_to_savept;
+	case DB_OUT_OF_MEMORY:
+		ib::fatal() << "Out of memory";
+		break;
 	default:
 		ib::fatal() << "Unknown error code " << err << ": "
 			<< ut_strerr(err);

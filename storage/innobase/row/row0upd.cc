@@ -1130,9 +1130,9 @@ row_upd_build_difference_binary(
 
 		ut_ad(!update->old_vrow);
 
-		innobase_allocate_row_for_vcol(thd, index, &v_heap,
-					       &mysql_table,
-					       &record, &vcol_storage);
+		*error = innobase_allocate_row_for_vcol(thd, index, v_heap,
+							&mysql_table,
+							&record, &vcol_storage);
 
 		for (i = 0; i < n_v_fld; i++) {
 			const dict_v_col_t*     col
@@ -2117,7 +2117,7 @@ row_upd_eval_new_vals(
 @param[in]	thd		mysql thread handle
 @param[in,out]	mysql_table	mysql table object */
 static
-void
+dberr_t
 row_upd_store_v_row(
 	upd_node_t*	node,
 	const upd_t*	update,
@@ -2129,9 +2129,13 @@ row_upd_store_v_row(
         byte*           record= 0;
 	VCOL_STORAGE	*vcol_storage= 0;
 
-	if (!update)
-	  innobase_allocate_row_for_vcol(thd, index, &heap, &mysql_table,
+	if (!update) {
+		dberr_t err = innobase_allocate_row_for_vcol(thd, index, heap, &mysql_table,
 					 &record, &vcol_storage);
+		if (err) {
+			return err;
+		}
+	}
 
 	for (ulint col_no = 0; col_no < dict_table_get_n_v_cols(node->table);
 	     col_no++) {
@@ -2198,7 +2202,7 @@ row_upd_store_v_row(
 			innobase_free_row_for_vcol(vcol_storage);
 		mem_heap_free(heap);
 	}
-
+	return DB_SUCCESS;
 }
 
 /** Stores to the heap the row on which the node->pcur is positioned.
@@ -2207,7 +2211,7 @@ row_upd_store_v_row(
 @param[in,out]	mysql_table	NULL, or mysql table object when
 				user thread invokes dml */
 static
-void
+dberr_t
 row_upd_store_row(
 	upd_node_t*	node,
 	THD*		thd,
@@ -2219,6 +2223,7 @@ row_upd_store_row(
 	row_ext_t**	ext;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	const rec_offs*	offsets;
+	dberr_t		err		= DB_SUCCESS;
 	rec_offs_init(offsets_);
 
 	ut_ad(node->pcur->latch_mode != BTR_NO_LATCHES);
@@ -2251,8 +2256,11 @@ row_upd_store_row(
 			      NULL, NULL, NULL, ext, node->heap);
 
 	if (node->table->n_v_cols) {
-		row_upd_store_v_row(node, node->is_delete ? NULL : node->update,
+		err = row_upd_store_v_row(node, node->is_delete ? NULL : node->update,
 				    thd, mysql_table);
+		if (err) {
+			goto err_exit;
+		}
 	}
 
 	if (node->is_delete) {
@@ -2264,9 +2272,12 @@ row_upd_store_row(
 				clust_index, node->update, node->heap);
 	}
 
+
+err_exit:
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
+	return err;
 }
 
 /***********************************************************//**
@@ -2982,7 +2993,7 @@ row_upd_del_mark_clust_rec(
 	/* Store row because we have to build also the secondary index
 	entries */
 
-	row_upd_store_row(node, trx->mysql_thd,
+	err = row_upd_store_row(node, trx->mysql_thd,
 			  thr->prebuilt  && thr->prebuilt->table == node->table
 			  ? thr->prebuilt->m_mysql_table : NULL);
 

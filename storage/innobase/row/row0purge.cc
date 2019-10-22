@@ -284,6 +284,7 @@ row_purge_poss_sec(
 	purge_node_t*	node,
 	dict_index_t*	index,
 	const dtuple_t*	entry,
+	dberr_t&	err,
 	btr_pcur_t*	sec_pcur,
 	mtr_t*		sec_mtr,
 	bool		is_tree)
@@ -318,7 +319,10 @@ retry_purge_sec:
 						 btr_pcur_get_rec(&node->pcur),
 						 &mtr, index, entry,
 						 node->roll_ptr, node->trx_id,
-						 &node->vcol_info);
+						 err, &node->vcol_info);
+	if (err) {
+		return false;
+	}
 
 	if (node->vcol_info.is_first_fetch()) {
 		ut_ad(store_cur);
@@ -375,11 +379,11 @@ row_purge_remove_sec_if_poss_tree(
 /*==============================*/
 	purge_node_t*	node,	/*!< in: row purge node */
 	dict_index_t*	index,	/*!< in: index */
-	const dtuple_t*	entry)	/*!< in: index entry */
+	const dtuple_t*	entry,	/*!< in: index entry */
+	dberr_t&	err)
 {
 	btr_pcur_t		pcur;
 	ibool			success	= TRUE;
-	dberr_t			err;
 	mtr_t			mtr;
 	enum row_search_result	search_result;
 
@@ -442,7 +446,7 @@ row_purge_remove_sec_if_poss_tree(
 	which cannot be purged yet, requires its existence. If some requires,
 	we should do nothing. */
 
-	if (row_purge_poss_sec(node, index, entry, &pcur, &mtr, true)) {
+	if (row_purge_poss_sec(node, index, entry, err, &pcur, &mtr, true)) {
 
 		/* Remove the index record, which should have been
 		marked for deletion. */
@@ -476,6 +480,8 @@ row_purge_remove_sec_if_poss_tree(
 		default:
 			ut_error;
 		}
+	} else {
+		success = false;
 	}
 
 	if (node->vcol_op_failed()) {
@@ -510,6 +516,7 @@ row_purge_remove_sec_if_poss_leaf(
 	btr_pcur_t		pcur;
 	enum btr_latch_mode	mode;
 	enum row_search_result	search_result;
+	dberr_t			err = DB_SUCCESS;
 	bool			success	= true;
 
 	log_free_check();
@@ -576,7 +583,7 @@ row_purge_remove_sec_if_poss_leaf(
 	case ROW_FOUND:
 		/* Before attempting to purge a record, check
 		if it is safe to do so. */
-		if (row_purge_poss_sec(node, index, entry, &pcur, &mtr, false)) {
+		if (row_purge_poss_sec(node, index, entry, err, &pcur, &mtr, false)) {
 			btr_cur_t* btr_cur = btr_pcur_get_btr_cur(&pcur);
 
 			/* Only delete-marked records should be purged. */
@@ -643,7 +650,7 @@ row_purge_remove_sec_if_poss_leaf(
 			}
 		}
 
-		if (node->vcol_op_failed()) {
+		if (err || node->vcol_op_failed()) {
 			btr_pcur_close(&pcur);
 			return false;
 		}
@@ -670,7 +677,7 @@ func_exit_no_pcur:
 /***********************************************************//**
 Removes a secondary index entry if possible. */
 UNIV_INLINE MY_ATTRIBUTE((nonnull(1,2)))
-void
+dberr_t
 row_purge_remove_sec_if_poss(
 /*=========================*/
 	purge_node_t*	node,	/*!< in: row purge node */
@@ -678,6 +685,7 @@ row_purge_remove_sec_if_poss(
 	const dtuple_t*	entry)	/*!< in: index entry */
 {
 	ibool	success;
+	dberr_t err		= DB_SUCCESS;
 	ulint	n_tries		= 0;
 
 	/*	fputs("Purge: Removing secondary record\n", stderr); */
@@ -686,19 +694,19 @@ row_purge_remove_sec_if_poss(
 		/* The node->row must have lacked some fields of this
 		index. This is possible when the undo log record was
 		written before this index was created. */
-		return;
+		return err;
 	}
 
 	if (row_purge_remove_sec_if_poss_leaf(node, index, entry)) {
 
-		return;
+		return err;
 	}
 retry:
 	if (node->vcol_op_failed()) {
-		return;
+		return err;
 	}
 
-	success = row_purge_remove_sec_if_poss_tree(node, index, entry);
+	success = row_purge_remove_sec_if_poss_tree(node, index, entry, err);
 	/* The delete operation may fail if we have little
 	file space left: TODO: easiest to crash the database
 	and restart with more file space */
@@ -712,7 +720,8 @@ retry:
 		goto retry;
 	}
 
-	ut_a(success);
+	ut_a(success || err);
+	return err;
 }
 
 /** Skip uncommitted virtual indexes on newly added virtual column.
@@ -763,9 +772,10 @@ row_purge_del_mark(
 			dtuple_t*	entry = row_build_index_entry_low(
 				node->row, NULL, node->index,
 				heap, ROW_BUILD_FOR_PURGE);
-			row_purge_remove_sec_if_poss(node, node->index, entry);
 
-			if (node->vcol_op_failed()) {
+
+			if (row_purge_remove_sec_if_poss(node, node->index, entry)
+			    || node->vcol_op_failed()) {
 				mem_heap_free(heap);
 				return false;
 			}
@@ -823,9 +833,9 @@ row_purge_upd_exist_or_extern_func(
 			dtuple_t*	entry = row_build_index_entry_low(
 				node->row, NULL, node->index,
 				heap, ROW_BUILD_FOR_PURGE);
-			row_purge_remove_sec_if_poss(node, node->index, entry);
 
-			if (node->vcol_op_failed()) {
+			if (row_purge_remove_sec_if_poss(node, node->index, entry)
+			    || node->vcol_op_failed()) {
 				ut_ad(!node->table);
 				mem_heap_free(heap);
 				return;
