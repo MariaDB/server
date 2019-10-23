@@ -18744,9 +18744,8 @@ static MYSQL_SYSVAR_BOOL(stats_traditional, srv_stats_sample_traditional,
 #ifdef BTR_CUR_HASH_ADAPT
 static MYSQL_SYSVAR_BOOL(adaptive_hash_index, btr_search_enabled,
   PLUGIN_VAR_OPCMDARG,
-  "Enable InnoDB adaptive hash index (enabled by default). "
-  " Disable with --skip-innodb-adaptive-hash-index.",
-  NULL, innodb_adaptive_hash_index_update, true);
+  "Enable InnoDB adaptive hash index (disabled by default).",
+  NULL, innodb_adaptive_hash_index_update, false);
 
 /** Number of distinct partitions of AHI.
 Each partition is protected by its own latch and so we have parts number
