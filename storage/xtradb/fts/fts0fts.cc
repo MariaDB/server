@@ -2739,6 +2739,10 @@ retry:
 	}
 
 	if (read_only) {
+		/* InnoDB stores actual synced_doc_id value + 1 in
+		FTS_CONFIG table. Reduce the value by 1 while reading
+		after startup. */
+		if (*doc_id) *doc_id -= 1;
 		goto func_exit;
 	}
 
