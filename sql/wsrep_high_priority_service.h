@@ -35,13 +35,15 @@ public:
   ~Wsrep_high_priority_service();
   int start_transaction(const wsrep::ws_handle&,
                         const wsrep::ws_meta&);
+  int next_fragment(const wsrep::ws_meta&);
   const wsrep::transaction& transaction() const;
   int adopt_transaction(const wsrep::transaction&);
   int apply_write_set(const wsrep::ws_meta&, const wsrep::const_buffer&,
                       wsrep::mutable_buffer&) = 0;
   int append_fragment_and_commit(const wsrep::ws_handle&,
                                  const wsrep::ws_meta&,
-                                 const wsrep::const_buffer&);
+                                 const wsrep::const_buffer&,
+                                 const wsrep::xid&);
   int remove_fragments(const wsrep::ws_meta&);
   int commit(const wsrep::ws_handle&, const wsrep::ws_meta&);
   int rollback(const wsrep::ws_handle&, const wsrep::ws_meta&);

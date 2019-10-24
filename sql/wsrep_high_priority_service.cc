@@ -205,6 +205,12 @@ const wsrep::transaction& Wsrep_high_priority_service::transaction() const
   DBUG_RETURN(m_thd->wsrep_trx());
 }
 
+int Wsrep_high_priority_service::next_fragment(const wsrep::ws_meta& ws_meta)
+{
+  DBUG_ENTER(" Wsrep_high_priority_service::next_fragment");
+  DBUG_RETURN(m_thd->wsrep_cs().next_fragment(ws_meta));
+}
+
 int Wsrep_high_priority_service::adopt_transaction(
   const wsrep::transaction& transaction)
 {
@@ -225,7 +231,8 @@ int Wsrep_high_priority_service::adopt_transaction(
 int Wsrep_high_priority_service::append_fragment_and_commit(
   const wsrep::ws_handle& ws_handle,
   const wsrep::ws_meta& ws_meta,
-  const wsrep::const_buffer& data)
+  const wsrep::const_buffer& data,
+  const wsrep::xid& xid WSREP_UNUSED)
 {
   DBUG_ENTER("Wsrep_high_priority_service::append_fragment_and_commit");
   int ret= start_transaction(ws_handle, ws_meta);
