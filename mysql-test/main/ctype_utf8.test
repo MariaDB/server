@@ -2277,5 +2277,12 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-20890 Illegal mix of collations with UUID()
+--echo #
+
+SET NAMES utf8 COLLATE utf8_unicode_ci;
+SELECT uuid()>'';
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
