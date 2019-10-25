@@ -482,14 +482,10 @@ lock_rec_unlock(
 	const buf_block_t*	block,	/*!< in: buffer block containing rec */
 	const rec_t*		rec,	/*!< in: record */
 	lock_mode		lock_mode);/*!< in: LOCK_S or LOCK_X */
-/*********************************************************************//**
-Releases a transaction's locks, and releases possible other transactions
-waiting because of these locks. Change the state of the transaction to
-TRX_STATE_COMMITTED_IN_MEMORY. */
-void
-lock_trx_release_locks(
-/*===================*/
-	trx_t*	trx);	/*!< in/out: transaction */
+
+/** Release the explicit locks of a committing transaction,
+and release possible other transactions waiting because of these locks. */
+void lock_release(trx_t* trx);
 
 /*********************************************************************//**
 Calculates the fold value of a page file address: used in inserting or
@@ -566,11 +562,10 @@ lock_print_info_summary(
 
 /** Prints transaction lock wait and MVCC state.
 @param[in,out]	file	file where to print
-@param[in]	trx	transaction */
+@param[in]	trx	transaction
+@param[in]	now	current time */
 void
-lock_trx_print_wait_and_mvcc_state(
-	FILE*		file,
-	const trx_t*	trx);
+lock_trx_print_wait_and_mvcc_state(FILE* file, const trx_t* trx, time_t now);
 
 /*********************************************************************//**
 Prints info of locks for each transaction. This function assumes that the

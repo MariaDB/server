@@ -699,7 +699,8 @@ Datafile::find_space_id()
 
 			/* For noncompressed pages, the page size must be
 			equal to srv_page_size. */
-			if (page_size == srv_page_size) {
+			if (page_size == srv_page_size
+			    && !fil_space_t::zip_size(fsp_flags)) {
 				noncompressed_ok = !buf_page_is_corrupted(
 					false, page, fsp_flags);
 			}
@@ -707,7 +708,7 @@ Datafile::find_space_id()
 			bool	compressed_ok = false;
 
 			if (srv_page_size <= UNIV_PAGE_SIZE_DEF
-			    && page_size <= srv_page_size) {
+			    && page_size == fil_space_t::zip_size(fsp_flags)) {
 				compressed_ok = !buf_page_is_corrupted(
 					false, page, fsp_flags);
 			}
@@ -930,8 +931,9 @@ RemoteDatafile::create_link_file(
 
 	prev_filepath = read_link_file(link_filepath);
 	if (prev_filepath) {
-		/* Truncate will call this with an existing
-		link file which contains the same filepath. */
+		/* Truncate (starting with MySQL 5.6, probably no
+		longer since MariaDB Server 10.2.19) used to call this
+		with an existing link file which contains the same filepath. */
 		bool same = !strcmp(prev_filepath, filepath);
 		ut_free(prev_filepath);
 		if (same) {

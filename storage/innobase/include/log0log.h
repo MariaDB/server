@@ -40,6 +40,10 @@ Created 12/9/1995 Heikki Tuuri
 #include "os0event.h"
 #include "os0file.h"
 
+#ifndef UINT32_MAX
+#define UINT32_MAX             (4294967295U)
+#endif
+
 /** Maximum number of srv_n_log_files, or innodb_log_files_in_group */
 #define SRV_N_LOG_FILES_MAX 100
 
@@ -184,15 +188,13 @@ log_buffer_sync_in_background(
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
-log files. Use log_make_checkpoint_at() to flush also the pool.
+log files. Use log_make_checkpoint() to flush also the pool.
 @param[in]	sync		whether to wait for the write to complete
 @return true if success, false if a checkpoint write was already running */
 bool log_checkpoint(bool sync);
 
-/** Make a checkpoint at or after a specified LSN.
-@param[in]	lsn		the log sequence number, or LSN_MAX
-for the latest LSN */
-void log_make_checkpoint_at(lsn_t lsn);
+/** Make a checkpoint */
+void log_make_checkpoint();
 
 /****************************************************************//**
 Makes a checkpoint at the latest lsn and writes it to first page of each
@@ -463,6 +465,12 @@ MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
 					/* second checkpoint field in the log
 					header */
 #define LOG_FILE_HDR_SIZE	(4 * OS_FILE_LOG_BLOCK_SIZE)
+
+/* As long as fil_io() is used to handle log io, log group max size is limited
+by (maximum page number) * (minimum page size). Page number type is uint32_t.
+Remove this limitation if page number is no longer used for log file io. */
+static const ulonglong log_group_max_size =
+	((ulonglong(UINT32_MAX) + 1) * UNIV_PAGE_SIZE_MIN - 1);
 
 typedef ib_mutex_t	LogSysMutex;
 typedef ib_mutex_t	FlushOrderMutex;

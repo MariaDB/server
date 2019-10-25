@@ -767,7 +767,9 @@ bool With_clause::prepare_unreferenced_elements(THD *thd)
     true    on failure
 */
   
-bool With_element::set_unparsed_spec(THD *thd, char *spec_start, char *spec_end,
+bool With_element::set_unparsed_spec(THD *thd,
+                                     const char *spec_start,
+                                     const char *spec_end,
                                      my_ptrdiff_t spec_offset)
 {
   stmt_prepare_mode= thd->m_parser_state->m_lip.stmt_prepare_mode;
@@ -1438,6 +1440,22 @@ void With_clause::print(String *str, enum_query_type query_type)
 void With_element::print(String *str, enum_query_type query_type)
 {
   str->append(query_name);
+  if (column_list.elements)
+  {
+    List_iterator_fast<LEX_CSTRING> li(column_list);
+    str->append('(');
+    for (LEX_CSTRING *col_name= li++; ; )
+    {
+      str->append(col_name);
+      col_name= li++;
+      if (!col_name)
+      {
+        str->append(')');
+        break;
+      }
+      str->append(',');
+    }
+  }
   str->append(STRING_WITH_LEN(" as "));
   str->append('(');
   spec->print(str, query_type);

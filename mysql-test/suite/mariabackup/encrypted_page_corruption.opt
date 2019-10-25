@@ -4,4 +4,3 @@
 --loose-file-key-management-filekey=FILE:$MTR_SUITE_DIR/filekeys-data.key
 --loose-file-key-management-filename=$MTR_SUITE_DIR/filekeys-data.enc
 --loose-file-key-management-encryption-algorithm=aes_cbc
---innodb-checksum-algorithm=crc32

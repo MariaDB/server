@@ -1,7 +1,9 @@
-#------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
 # Test With alter/create/drop index
-#------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+
 --source include/have_innodb.inc
+--source include/default_charset.inc
 let collation=UTF8_UNICODE_CI;
 --source include/have_collation.inc
 
@@ -668,15 +670,16 @@ DROP TABLE t1;
 --echo "----------Test27---------"
 #27 Crash after server restart
 CREATE TABLE t1 (id INT,char_column VARCHAR(60));
+CREATE TABLE t2 (FTS_DOC_ID BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, a TEXT)ENGINE=InnoDB;
+ALTER TABLE t2 DROP a;
 SET @@autocommit=0;
 CREATE FULLTEXT INDEX i ON t1 (char_column);
 INSERT INTO t1 values (1,'aaa');
-echo "restart server..."
-# Restart the server
 --source include/restart_mysqld.inc
+SHOW CREATE TABLE t2;
 DELETE FROM t1 WHERE MATCH(char_column) AGAINST ('bbb');
 SET @@autocommit=1;
-DROP TABLE t1;
+DROP TABLE t1, t2;
 
 --echo "----------Test28---------"
 drop table if exists `fts_test`;
@@ -1331,3 +1334,11 @@ INSERT INTO t1 (a) VALUES
 SELECT * FROM t1 WHERE MATCH (a) AGAINST ('+"good database"' IN BOOLEAN MODE);
 
 DROP TABLE t1;
+
+# MDEV-19974 InnoDB: Cannot load compressed BLOB
+CREATE TABLE t1(f1 TEXT, FULLTEXT KEY(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(repeat("this is the test case", 500));
+ALTER TABLE t1 KEY_BLOCK_SIZE=4;
+ALTER TABLE t1 KEY_BLOCK_SIZE=0;
+DROP TABLE t1;
+

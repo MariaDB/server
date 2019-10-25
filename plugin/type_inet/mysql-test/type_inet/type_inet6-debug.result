@@ -1,0 +1,18 @@
+#
+# MDEV-274 The data type for IPv6/IPv4 addresses in MariaDB
+#
+SET @old_debug_dbug=@@debug_dbug;
+SET debug_dbug="+d,frm_data_type_info";
+CREATE TABLE t1 (c01 INET6, c02 INET6);
+Warnings:
+Note	1105	build_frm_image: Field data type info length: 14
+Note	1105	DBUG: [0] name='c01' type_info='inet6'
+Note	1105	DBUG: [1] name='c02' type_info='inet6'
+SET debug_dbug=@old_debug_dbug;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c01` inet6 DEFAULT NULL,
+  `c02` inet6 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;

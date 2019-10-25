@@ -734,7 +734,7 @@ void LEX::start(THD *thd_arg)
   default_used= FALSE;
   query_tables= 0;
   reset_query_tables_list(FALSE);
-  expr_allows_subselect= TRUE;
+  clause_that_disallows_subselect= NULL;
   selects_allow_into= FALSE;
   selects_allow_procedure= FALSE;
   use_only_table_context= FALSE;
@@ -945,7 +945,7 @@ bool is_native_function(THD *thd, const LEX_CSTRING *name)
   if (is_lex_native_function(name))
     return true;
 
-  if (Type_handler::handler_by_name(*name))
+  if (Type_handler::handler_by_name(thd, *name))
     return true;
 
   return false;
@@ -1448,7 +1448,7 @@ int Lex_input_stream::lex_token(YYSTYPE *yylval, THD *thd)
       return LEFT_PAREN_LIKE;
     if (token == WITH)
       return LEFT_PAREN_WITH;
-    if (token != left_paren && token != SELECT_SYM)
+    if (token != left_paren && token != SELECT_SYM && token != VALUES)
       return LEFT_PAREN_ALT;
     else
       return left_paren;
@@ -1514,6 +1514,7 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
     case MY_LEX_SKIP:                          // This should not happen
       if (c != ')')
         next_state= MY_LEX_START;         // Allow signed numbers
+      yylval->kwd.set_keyword(m_tok_start, 1);
       return((int) c);
 
     case MY_LEX_MINUS_OR_COMMENT:
@@ -2349,10 +2350,10 @@ void st_select_lex_unit::init_query()
 {
   init_query_common();
   set_linkage(GLOBAL_OPTIONS_TYPE);
-  select_limit_cnt= HA_POS_ERROR;
-  offset_limit_cnt= 0;
+  lim.set_unlimited();
   union_distinct= 0;
   prepared= optimized= optimized_2= executed= 0;
+  bag_set_op_optimized= 0;
   optimize_started= 0;
   item= 0;
   union_result= 0;
@@ -2368,8 +2369,8 @@ void st_select_lex_unit::init_query()
   with_clause= 0;
   with_element= 0;
   columns_are_renamed= false;
-  intersect_mark= NULL;
   with_wrapped_tvc= false;
+  have_except_all_or_intersect_all= false;
 }
 
 void st_select_lex::init_query()
@@ -2467,6 +2468,7 @@ void st_select_lex::init_select()
   curr_tvc_name= 0;
   in_tvc= false;
   versioned_tables= 0;
+  nest_flags= 0;
 }
 
 /*
@@ -2985,7 +2987,6 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
 
 void st_select_lex_unit::print(String *str, enum_query_type query_type)
 {
-  bool union_all= !union_distinct;
   if (with_clause)
     with_clause->print(str, query_type);
   for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
@@ -2996,10 +2997,9 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
       {
       default:
         DBUG_ASSERT(0);
+        /* fall through */
       case UNION_TYPE:
         str->append(STRING_WITH_LEN(" union "));
-        if (union_all)
-          str->append(STRING_WITH_LEN("all "));
         break;
       case INTERSECT_TYPE:
         str->append(STRING_WITH_LEN(" intersect "));
@@ -3008,8 +3008,8 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
         str->append(STRING_WITH_LEN(" except "));
         break;
       }
-      if (sl == union_distinct)
-        union_all= TRUE;
+      if (!sl->distinct)
+        str->append(STRING_WITH_LEN("all "));
     }
     if (sl->braces)
       str->append('(');
@@ -3074,14 +3074,13 @@ void st_select_lex::print_limit(THD *thd,
   if (item && unit->global_parameters() == this)
   {
     Item_subselect::subs_type subs_type= item->substype();
-    if (subs_type == Item_subselect::EXISTS_SUBS ||
-        subs_type == Item_subselect::IN_SUBS ||
+    if (subs_type == Item_subselect::IN_SUBS ||
         subs_type == Item_subselect::ALL_SUBS)
     {
       return;
     }
   }
-  if (explicit_limit)
+  if (explicit_limit && select_limit)
   {
     str->append(STRING_WITH_LEN(" limit "));
     if (offset_limit)
@@ -3494,12 +3493,7 @@ void st_select_lex_unit::set_limit(st_select_lex *sl)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
-  offset_limit_cnt= sl->get_offset();
-  select_limit_cnt= sl->get_limit();
-  if (select_limit_cnt + offset_limit_cnt >= select_limit_cnt)
-    select_limit_cnt+= offset_limit_cnt;
-  else
-    select_limit_cnt= HA_POS_ERROR;
+  lim.set_limit(sl->get_limit(), sl->get_offset());
 }
 
 
@@ -3523,6 +3517,8 @@ bool st_select_lex_unit::union_needs_tmp_table()
         with_wrapped_tvc= true;
         break;
       }
+      if (sl != first_select() && sl->linkage != UNION_TYPE)
+        return true;
     }
   }
   if (with_wrapped_tvc)
@@ -5229,10 +5225,8 @@ int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
     for (SELECT_LEX_UNIT *unit= fake_select_lex->first_inner_unit(); 
          unit; unit= unit->next_unit())
     {
-      if (!(unit->item && unit->item->eliminated))
-      {
+      if (unit->explainable())
         eu->add_child(unit->first_select()->select_number);
-      }
     }
     fake_select_lex->join->explain= &eu->fake_select_lex_explain;
   }
@@ -5342,10 +5336,9 @@ LEX::create_unit(SELECT_LEX *first_sel)
   SELECT_LEX_UNIT *unit;
   DBUG_ENTER("LEX::create_unit");
 
-  if (first_sel->master_unit())
-    DBUG_RETURN(first_sel->master_unit());
+  unit = first_sel->master_unit();
 
-  if (!(unit= alloc_unit()))
+  if (!unit && !(unit= alloc_unit()))
     DBUG_RETURN(NULL);
 
   unit->register_select_chain(first_sel);
@@ -5394,7 +5387,7 @@ LEX::wrap_unit_into_derived(SELECT_LEX_UNIT *unit)
   Name_resolution_context *context= &wrapping_sel->context;
   context->init();
   wrapping_sel->automatic_brackets= FALSE;
-
+  wrapping_sel->mark_as_unit_nest();
   wrapping_sel->register_unit(unit, context);
 
   /* stuff dummy SELECT * FROM (...) */
@@ -5515,6 +5508,19 @@ bool LEX::push_context(Name_resolution_context *context)
                         0)));
   bool res= context_stack.push_front(context, thd->mem_root);
   DBUG_RETURN(res);
+}
+
+
+Name_resolution_context *LEX::pop_context()
+{
+  DBUG_ENTER("LEX::pop_context");
+  Name_resolution_context *context= context_stack.pop();
+  DBUG_PRINT("info", ("Context: %p Select: %p (%d)",
+                       context, context->select_lex,
+                       (context->select_lex ?
+                        context->select_lex->select_number:
+                        0)));
+  DBUG_RETURN(context);
 }
 
 
@@ -5966,9 +5972,9 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
   sp_variable *spvar= spcont->add_variable(thd, name);
   spcont->declare_var_boundary(1);
   spvar->field_def.field_name= spvar->name;
-  spvar->field_def.set_handler(&type_handler_longlong);
-  type_handler_longlong.Column_definition_prepare_stage2(&spvar->field_def,
-                                                         NULL, HA_CAN_GEOMETRY);
+  spvar->field_def.set_handler(&type_handler_slonglong);
+  type_handler_slonglong.Column_definition_prepare_stage2(&spvar->field_def,
+                                                          NULL, HA_CAN_GEOMETRY);
   if (!value && unlikely(!(value= new (thd->mem_root) Item_null(thd))))
     return NULL;
 
@@ -7893,8 +7899,9 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
     Item *item= *ord->item;
     if (item->type() != Item::FIELD_ITEM &&
         !(item->type() == Item::REF_ITEM &&
-        ((((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF) ||
-        (((Item_ref *) item)->ref_type() == Item_ref::REF))))
+          item->real_type() == Item::FIELD_ITEM &&
+          ((((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF) ||
+           (((Item_ref *) item)->ref_type() == Item_ref::REF))))
       continue;
 
     Field_pair *grouping_tmp_field=
@@ -8755,11 +8762,9 @@ bool LEX::part_values_current(THD *thd)
              create_last_non_select_table->table_name.str);
     return true;
   }
-  elem->type(partition_element::CURRENT);
+  elem->type= partition_element::CURRENT;
   DBUG_ASSERT(part_info->vers_info);
   part_info->vers_info->now_part= elem;
-  if (unlikely(part_info->init_column_part(thd)))
-    return true;
   return false;
 }
 
@@ -8789,9 +8794,7 @@ bool LEX::part_values_history(THD *thd)
              create_last_non_select_table->table_name.str);
     return true;
   }
-  elem->type(partition_element::HISTORY);
-  if (unlikely(part_info->init_column_part(thd)))
-    return true;
+  elem->type= partition_element::HISTORY;
   return false;
 }
 
@@ -9007,7 +9010,8 @@ bool LEX::insert_select_hack(SELECT_LEX *sel)
     builtin_select.link_prev= NULL; // indicator of removal
   }
 
-  set_main_unit(sel->master_unit());
+  if (set_main_unit(sel->master_unit()))
+    return true;
 
   DBUG_ASSERT(builtin_select.table_list.elements == 1);
   TABLE_LIST *insert_table= builtin_select.table_list.first;
@@ -9051,16 +9055,17 @@ bool LEX::insert_select_hack(SELECT_LEX *sel)
 }
 
 
-/*
+/**
   Create an Item_singlerow_subselect for a query expression.
 */
+
 Item *LEX::create_item_query_expression(THD *thd,
-                                        const char *tok_start,
                                         st_select_lex_unit *unit)
 {
-  if (!expr_allows_subselect)
+  if (clause_that_disallows_subselect)
   {
-    thd->parse_error(ER_SYNTAX_ERROR, tok_start);
+    my_error(ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+             clause_that_disallows_subselect);
     return NULL;
   }
 
@@ -9068,115 +9073,14 @@ Item *LEX::create_item_query_expression(THD *thd,
   SELECT_LEX *curr_sel= select_stack_head();
   DBUG_ASSERT(current_select == curr_sel);
   if (!curr_sel)
+  {
     curr_sel= &builtin_select;
-  curr_sel->register_unit(unit, &curr_sel->context);
-  curr_sel->add_statistics(unit);
+    curr_sel->register_unit(unit, &curr_sel->context);
+    curr_sel->add_statistics(unit);
+  }
 
   return new (thd->mem_root)
     Item_singlerow_subselect(thd, unit->first_select());
-}
-
-
-/**
-  Process unit parsed in brackets
-*/
-
-bool LEX::parsed_unit_in_brackets(SELECT_LEX_UNIT *unit)
-{
-  SELECT_LEX *first_in_nest= unit->pre_last_parse->next_select()->first_nested;
-  if (first_in_nest->first_nested != first_in_nest)
-  {
-    /* There is a priority jump starting from first_in_nest */
-    if (create_priority_nest(first_in_nest) == NULL)
-      return true;
-    unit->fix_distinct();
-  }
-  push_select(unit->fake_select_lex);
-  return false;
-}
-
-
-
-/**
-  Process tail of unit parsed in brackets
-*/
-SELECT_LEX *LEX::parsed_unit_in_brackets_tail(SELECT_LEX_UNIT *unit,
-                                              Lex_order_limit_lock * l)
-{
-  pop_select();
-  if (l)
-  {
-    (l)->set_to(unit->fake_select_lex);
-  }
-  return unit->first_select();
-}
-
-
-/**
-  Process select parsed in brackets
-*/
-
-SELECT_LEX *LEX::parsed_select(SELECT_LEX *sel, Lex_order_limit_lock * l)
-{
-  pop_select();
-  if (l)
-  {
-    if (sel->next_select())
-    {
-      SELECT_LEX_UNIT *unit= sel->master_unit();
-      if (!unit)
-        unit= create_unit(sel);
-      if (!unit)
-        return NULL;
-      if (!unit->fake_select_lex->is_set_query_expr_tail)
-        l->set_to(unit->fake_select_lex);
-      else
-      {
-        if (!l->order_list && !unit->fake_select_lex->explicit_limit)
-        {
-          sel= unit->fake_select_lex;
-          l->order_list= &sel->order_list;
-        }
-        else
-          sel= wrap_unit_into_derived(unit);
-        if (!sel)
-          return NULL;
-        l->set_to(sel);
-      }
-    }
-    else if (!sel->is_set_query_expr_tail)
-    {
-      l->set_to(sel);
-    }
-    else
-    {
-      if (!l->order_list && !sel->explicit_limit)
-        l->order_list= &sel->order_list;
-      else
-      {
-        SELECT_LEX_UNIT *unit= create_unit(sel);
-        if (!unit)
-          return NULL;
-        sel= wrap_unit_into_derived(unit);
-      }
-      if (!sel)
-        return NULL;
-      l->set_to(sel);
-    }
-  }
-  return sel;
-}
-
-
-/**
-  Process select parsed in brackets
-*/
-
-SELECT_LEX *LEX::parsed_select_in_brackets(SELECT_LEX *sel,
-                                           Lex_order_limit_lock * l)
-{
-  sel->braces= TRUE;
-  return parsed_select(sel, l);
 }
 
 
@@ -9210,6 +9114,7 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_start(SELECT_LEX *s1, SELECT_LEX *s2,
   if (res == NULL)
     return NULL;
   res->pre_last_parse= sel1;
+  push_select(res->fake_select_lex);
   return res;
 }
 
@@ -9219,15 +9124,8 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
                                               enum sub_select_type unit_type,
                                               bool distinct, bool oracle)
 {
-  SELECT_LEX *sel1;
-  if (!s2->next_select())
-    sel1= s2;
-  else
-  {
-    sel1= wrap_unit_into_derived(s2->master_unit());
-    if (!sel1)
-      return NULL;
-  }
+  DBUG_ASSERT(!s2->next_select());
+  SELECT_LEX *sel1= s2;
   SELECT_LEX *last= unit->pre_last_parse->next_select();
 
   int cmp= oracle? 0 : cmp_unit_op(unit_type, last->get_linkage());
@@ -9259,41 +9157,73 @@ SELECT_LEX_UNIT *LEX::parsed_select_expr_cont(SELECT_LEX_UNIT *unit,
   return unit;
 }
 
+
 /**
-  Process parsed select in body
+  Add primary expression as the next term in a given query expression body
+  pruducing a new query expression body
 */
 
-SELECT_LEX_UNIT *LEX::parsed_body_select(SELECT_LEX *sel,
-                                         Lex_order_limit_lock * l)
+SELECT_LEX_UNIT *
+LEX::add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
+                                          SELECT_LEX *sel,
+                                          enum sub_select_type unit_type,
+                                          bool distinct,
+                                          bool oracle)
 {
-  if (sel->braces && l && l->lock.defined_lock)
+  SELECT_LEX *sel2= sel;
+  if (sel->master_unit() && sel->master_unit()->first_select()->next_select())
   {
-    my_error(ER_WRONG_USAGE, MYF(0), "lock options",
-        "SELECT in brackets");
-    return NULL;
-  }
-  if (!(sel= parsed_select(sel, l)))
-    return NULL;
-
-  SELECT_LEX_UNIT *res= create_unit(sel);
-  if (res && sel->tvc && sel->order_list.elements)
-  {
-    if (res->add_fake_select_lex(thd))
+    sel2= wrap_unit_into_derived(sel->master_unit());
+    if (!sel2)
       return NULL;
-    SELECT_LEX *fake= res->fake_select_lex;
-    fake->order_list= sel->order_list;
-    fake->explicit_limit= sel->explicit_limit;
-    fake->select_limit= sel->select_limit;
-    fake->offset_limit= sel->offset_limit;
   }
-  return res;
+  SELECT_LEX *sel1= unit->first_select();
+  if (!sel1->next_select())
+    unit= parsed_select_expr_start(sel1, sel2, unit_type, distinct);
+  else
+    unit= parsed_select_expr_cont(unit, sel2, unit_type, distinct, oracle);
+  return unit;
 }
 
+
 /**
-  Process parsed unit in body
+  Add query primary to a parenthesized query primary
+  pruducing a new query expression body
 */
 
-bool LEX::parsed_body_unit(SELECT_LEX_UNIT *unit)
+SELECT_LEX_UNIT *
+LEX::add_primary_to_query_expression_body_ext_parens(
+                                                 SELECT_LEX_UNIT *unit,
+                                                 SELECT_LEX *sel,
+                                                 enum sub_select_type unit_type,
+                                                 bool distinct)
+{
+  SELECT_LEX *sel1= unit->first_select();
+  if (unit->first_select()->next_select())
+  {
+    sel1= wrap_unit_into_derived(unit);
+    if (!sel1)
+      return NULL;
+    if (!create_unit(sel1))
+      return NULL;
+  }
+  SELECT_LEX *sel2= sel;
+  if (sel->master_unit() && sel->master_unit()->first_select()->next_select())
+  {
+    sel2= wrap_unit_into_derived(sel->master_unit());
+    if (!sel2)
+      return NULL;
+  }
+  unit= parsed_select_expr_start(sel1, sel2, unit_type, distinct);
+  return unit;
+}
+
+
+/**
+  Process multi-operand query expression body
+*/
+
+bool LEX::parsed_multi_operand_query_expression_body(SELECT_LEX_UNIT *unit)
 {
   SELECT_LEX *first_in_nest=
     unit->pre_last_parse->next_select()->first_nested;
@@ -9304,36 +9234,70 @@ bool LEX::parsed_body_unit(SELECT_LEX_UNIT *unit)
       return true;
     unit->fix_distinct();
   }
-  push_select(unit->fake_select_lex);
   return false;
 }
 
-/**
-  Process parsed tail of unit in body
 
-  TODO: make processing for double tail case
+/**
+  Add non-empty tail to a query expression body
 */
 
-SELECT_LEX_UNIT *LEX::parsed_body_unit_tail(SELECT_LEX_UNIT *unit,
-                                            Lex_order_limit_lock * l)
+SELECT_LEX_UNIT *LEX::add_tail_to_query_expression_body(SELECT_LEX_UNIT *unit,
+                                                        Lex_order_limit_lock *l)
 {
+  DBUG_ASSERT(l != NULL);
   pop_select();
-  if (l)
-  {
-    (l)->set_to(unit->fake_select_lex);
-  }
+  SELECT_LEX *sel= unit->first_select()->next_select() ? unit->fake_select_lex :
+                                                         unit->first_select();
+  l->set_to(sel);
   return unit;
 }
+
+
+/**
+  Add non-empty tail to a parenthesized query primary
+*/
+
+SELECT_LEX_UNIT *
+LEX::add_tail_to_query_expression_body_ext_parens(SELECT_LEX_UNIT *unit,
+                                                  Lex_order_limit_lock *l)
+{
+  SELECT_LEX *sel= unit->first_select()->next_select() ? unit->fake_select_lex :
+                                                         unit->first_select();
+
+  DBUG_ASSERT(l != NULL);
+
+  pop_select();
+  if (sel->is_set_query_expr_tail)
+  {
+    if (!l->order_list && !sel->explicit_limit)
+      l->order_list= &sel->order_list;
+    else
+    {
+      if (!unit)
+        return NULL;
+      sel= wrap_unit_into_derived(unit);
+      if (!sel)
+        return NULL;
+     if (!create_unit(sel))
+      return NULL;
+   }
+  }
+  l->set_to(sel);
+  return sel->master_unit();
+}
+
 
 /**
   Process subselect parsing
 */
 
-SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit, char *place)
+SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit)
 {
-  if (!expr_allows_subselect)
+  if (clause_that_disallows_subselect)
   {
-    thd->parse_error(ER_SYNTAX_ERROR, place);
+    my_error(ER_SUBQUERIES_NOT_SUPPORTED, MYF(0),
+             clause_that_disallows_subselect);
     return NULL;
   }
 
@@ -9348,7 +9312,6 @@ SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit, char *place)
 
   return unit->first_select();
 }
-
 
 
 /**
@@ -9405,40 +9368,8 @@ SELECT_LEX *LEX::parsed_TVC_end()
 }
 
 
-TABLE_LIST *LEX::parsed_derived_select(SELECT_LEX *sel, int for_system_time,
-                                       LEX_CSTRING *alias)
-{
-  TABLE_LIST *res;
-  derived_tables|= DERIVED_SUBQUERY;
-  sel->set_linkage(DERIVED_TABLE_TYPE);
-  sel->braces= FALSE;
-  // Add the subtree of subquery to the current SELECT_LEX
-  SELECT_LEX *curr_sel= select_stack_head();
-  DBUG_ASSERT(current_select == curr_sel);
-  SELECT_LEX_UNIT *unit= sel->master_unit();
-  if (!unit)
-  {
-    unit= create_unit(sel);
-    if (!unit)
-      return NULL;
-  }
-  curr_sel->register_unit(unit, &curr_sel->context);
-  curr_sel->add_statistics(unit);
 
-  Table_ident *ti= new (thd->mem_root) Table_ident(unit);
-  if (ti == NULL)
-    return NULL;
-  if (!(res= curr_sel->add_table_to_list(thd, ti, alias, 0,
-                                         TL_READ, MDL_SHARED_READ)))
-    return NULL;
-  if (for_system_time)
-  {
-    res->vers_conditions= vers_conditions;
-  }
-  return res;
-}
-
-TABLE_LIST *LEX::parsed_derived_unit(SELECT_LEX_UNIT *unit,
+TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,
                                      int for_system_time,
                                      LEX_CSTRING *alias)
 {
@@ -9449,8 +9380,6 @@ TABLE_LIST *LEX::parsed_derived_unit(SELECT_LEX_UNIT *unit,
   // Add the subtree of subquery to the current SELECT_LEX
   SELECT_LEX *curr_sel= select_stack_head();
   DBUG_ASSERT(current_select == curr_sel);
-  curr_sel->register_unit(unit, &curr_sel->context);
-  curr_sel->add_statistics(unit);
 
   Table_ident *ti= new (thd->mem_root) Table_ident(unit);
   if (ti == NULL)
@@ -9468,7 +9397,8 @@ TABLE_LIST *LEX::parsed_derived_unit(SELECT_LEX_UNIT *unit,
 bool LEX::parsed_create_view(SELECT_LEX_UNIT *unit, int check)
 {
   SQL_I_List<TABLE_LIST> *save= &first_select_lex()->table_list;
-  set_main_unit(unit);
+  if (set_main_unit(unit))
+    return true;
   if (check_main_unit_semantics())
     return true;
   first_select_lex()->table_list.push_front(save);
@@ -9491,7 +9421,8 @@ bool LEX::select_finalize(st_select_lex_unit *expr)
   sql_command= SQLCOM_SELECT;
   selects_allow_into= TRUE;
   selects_allow_procedure= TRUE;
-  set_main_unit(expr);
+  if (set_main_unit(expr))
+    return true;
   return check_main_unit_semantics();
 }
 
@@ -9501,6 +9432,7 @@ bool LEX::select_finalize(st_select_lex_unit *expr, Lex_select_lock l)
   return expr->set_lock_to_the_last_select(l) ||
          select_finalize(expr);
 }
+
 
 /*
   "IN" and "EXISTS" subselect can appear in two statement types:
@@ -9532,7 +9464,6 @@ void LEX::relink_hack(st_select_lex *select_lex)
       builtin_select.set_slave(select_lex->get_master());
   }
 }
-
 
 
 bool SELECT_LEX_UNIT::set_lock_to_the_last_select(Lex_select_lock l)
@@ -10482,3 +10413,40 @@ Lex_cast_type_st::create_typecast_item_or_error(THD *thd, Item *item,
   }
   return tmp;
 }
+
+
+void Lex_field_type_st::set_handler_length_flags(const Type_handler *handler,
+                                                 const char *length,
+                                                 uint32 flags)
+{
+  DBUG_ASSERT(!handler->is_unsigned());
+  if (flags & UNSIGNED_FLAG)
+    handler= handler->type_handler_unsigned();
+  set(handler, length, NULL);
+}
+
+
+bool LEX::set_field_type_udt(Lex_field_type_st *type,
+                             const LEX_CSTRING &name,
+                             const Lex_length_and_dec_st &attr)
+{
+  const Type_handler *h;
+  if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
+    return true;
+  type->set(h, attr);
+  charset= &my_charset_bin;
+  return false;
+}
+
+
+bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
+                             const LEX_CSTRING &name)
+{
+  const Type_handler *h;
+  if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
+    return true;
+  type->set(h);
+  charset= NULL;
+  return false;
+}
+

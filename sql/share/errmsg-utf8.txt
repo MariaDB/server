@@ -6461,7 +6461,7 @@ ER_MESSAGE_AND_STATEMENT
   eng "%s Statement: %s"
 
 ER_SLAVE_CONVERSION_FAILED
-  eng "Column %d of table '%-.192s.%-.192s' cannot be converted from type '%-.32s' to type '%-.32s'"
+  eng "Column %d of table '%-.192s.%-.192s' cannot be converted from type '%-.50s' to type '%-.50s'"
 ER_SLAVE_CANT_CREATE_CONVERSION
   eng "Can't create conversion table for table '%-.192s.%-.192s'"
 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_FORMAT
@@ -7340,6 +7340,8 @@ ER_NO_EIS_FOR_FIELD
 ER_WARN_AGGFUNC_DEPENDENCE
         eng "Aggregate function '%-.192s)' of SELECT #%d belongs to SELECT #%d"
         ukr "Агрегатна функція '%-.192s)' з SELECTу #%d належить до SELECTу #%d"
+WARN_INNODB_PARTITION_OPTION_IGNORED
+        eng "<%-.64s> option ignored for InnoDB partition"
 
 #
 # Internal errors, not used

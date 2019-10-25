@@ -1,5 +1,5 @@
 /* Copyright (C) 2006-2008 MySQL AB, 2008-2009 Sun Microsystems, Inc.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -152,7 +152,7 @@ typedef struct st_maria_create_info
   uint compression_algorithm;
   enum data_file_type org_data_file_type;
   uint16 language;
-  my_bool with_auto_increment, transactional;
+  my_bool with_auto_increment, transactional, encrypted;
 } MARIA_CREATE_INFO;
 
 struct st_maria_share;
@@ -186,6 +186,7 @@ typedef struct st_maria_keydef          /* Key definition with open & info */
   uint16 keylength;                     /* Tot length of keyparts (auto) */
   uint16 minlength;                     /* min length of (packed) key (auto) */
   uint16 maxlength;                     /* max length of (packed) key (auto) */
+  uint16 max_store_length;              /* Size to store key + overhead */
   uint32 write_comp_flag;		/* compare flag for write key (auto) */
   uint32 version;                       /* For concurrent read/write */
   uint32 ftkey_nr;                      /* full-text index number */
@@ -308,7 +309,7 @@ extern int maria_rsame_with_pos(MARIA_HA *file, uchar *record,
 				int inx, MARIA_RECORD_POS pos);
 extern int maria_update(MARIA_HA *file, const uchar *old,
 			const uchar *new_record);
-extern int maria_write(MARIA_HA *file, uchar *buff);
+extern int maria_write(MARIA_HA *file, const uchar *buff);
 extern MARIA_RECORD_POS maria_position(MARIA_HA *file);
 extern int maria_status(MARIA_HA *info, MARIA_INFO *x, uint flag);
 extern int maria_lock_database(MARIA_HA *file, int lock_type);

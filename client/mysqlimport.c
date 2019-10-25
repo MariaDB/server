@@ -187,7 +187,8 @@ static struct my_option my_long_options[] =
 
 
 static const char *load_default_groups[]=
-{ "mysqlimport","client", "client-server", "client-mariadb", 0 };
+{ "mysqlimport", "mariadb-import", "client", "client-server", "client-mariadb",
+  0 };
 
 
 static void print_version(void)
@@ -220,10 +221,10 @@ file. The SQL command 'LOAD DATA INFILE' is used to import the rows.\n");
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt, char *argument,
+               const char *filename __attribute__((unused)))
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'p':
     if (argument == disabled_my_option)
       argument= (char*) "";			/* Don't require password */

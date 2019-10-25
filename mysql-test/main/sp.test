@@ -14,6 +14,11 @@
 # Tests that require --with-geometry go into sp_gis.test
 # Tests that require multibyte character sets, which are not always available,
 #   go into separate files (e.g. sp-ucs2.test)
+
+--source include/default_charset.inc
+set @save_character_set_client=@@character_set_client;
+set @save_userstat=@@global.userstat, @@global.userstat= 0;
+
 use test;
 
 # Test tables
@@ -4087,7 +4092,8 @@ call bug6063()|
 call bug7088_1()|
 call bug7088_2()|
 
-set character set default|
+set @@character_set_client=@save_character_set_client|
+set @@character_set_results=@save_character_set_client|
 
 show create procedure bug6063|
 show create procedure bug7088_1|
@@ -7352,7 +7358,8 @@ DELIMITER ;|
 
 CALL p1();
 
-SET NAMES default;
+set @@character_set_client=@save_character_set_client;
+set @@character_set_results=@save_character_set_client;
 DROP PROCEDURE p1;
 
 #
@@ -8228,6 +8235,7 @@ drop procedure p;
 #
 # Bug#43962 "Packets out of order" calling a SHOW TABLE STATUS
 #
+
 DELIMITER //;
 CREATE DEFINER = 'root'@'localhost' PROCEDURE p1()
 NOT DETERMINISTIC
@@ -9057,11 +9065,12 @@ DROP PROCEDURE p1;
 --echo # End of 5.5 test
 
 #MDEV-17610
+FLUSH USER_STATISTICS;
 CREATE PROCEDURE sp() ALTER TABLE non_existing_table OPTIMIZE PARTITION p0;
 CALL sp;
 SELECT 1;
 DROP PROCEDURE sp;
-CREATE PROCEDURE sp() SHOW USER_STATISTICS;
+CREATE PROCEDURE sp() SET STATEMENT SQL_SELECT_LIMIT=0 FOR SHOW USER_STATISTICS;
 CALL sp;
 SELECT 1;
 DROP PROCEDURE sp;
@@ -9823,6 +9832,26 @@ SELECT * FROM INFORMATION_SCHEMA.TABLES JOIN INFORMATION_SCHEMA.PARAMETERS;
 DROP FUNCTION f;
 DROP VIEW v;
 
+--echo #
+--echo # MDEV-17963: Assertion `field_pos < field_count' failed in Protocol_text::store,
+--echo # Assertion `field_handlers == 0 || field_pos < field_count'
+--echo #
+
+CREATE TABLE t1 (ct time);
+INSERT INTO t1 VALUES ('16:11:28');
+
+DELIMITER |;
+--error ER_SP_NO_RETSET
+CREATE FUNCTION f1 () RETURNS varchar(100)
+BEGIN
+DECLARE xxx varchar(100);
+ANALYZE SELECT sum(ct) FROM t1 INTO xxx ;
+RETURN xxx;
+END|
+
+DELIMITER ;|
+drop table t1;
+
 --echo #End of 10.1 tests
 
 --echo #
@@ -10321,6 +10350,7 @@ call p4();
 drop procedure p4;
 drop table t1;
 set @@sql_mode=@save_sql_mode;
+set @@global.userstat= @save_userstat;
 
 --echo #
 --echo # MDEV-17363 Compressed columns cannot be restored from dump

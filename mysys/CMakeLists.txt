@@ -44,7 +44,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 				my_getncpus.c my_safehash.c my_chmod.c my_rnd.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
 				my_rdtsc.c my_context.c psi_noop.c
-				my_atomic_writes.c my_likely.c
+                                my_atomic_writes.c my_cpu.c my_likely.c
                                 file_logger.c my_dlerror.c)
 
 IF (WIN32)
@@ -57,12 +57,6 @@ ENDIF()
 
 IF(HAVE_ALARM)
  SET(MYSYS_SOURCES ${MYSYS_SOURCES} my_alarm.c)
-ENDIF()
-
-IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_C_COMPILER_ID MATCHES "SunPro")
-  # Inline assembly template for rdtsc
-  SET_SOURCE_FILES_PROPERTIES(my_rdtsc.c
-   PROPERTIES COMPILE_FLAGS "${CMAKE_CURRENT_SOURCE_DIR}/my_timer_cycles.il")
 ENDIF()
 
 IF(HAVE_LINUX_LARGE_PAGES)

@@ -133,8 +133,9 @@ set join_buffer_size= @save_join_buffer_size;
 set max_heap_table_size= @save_max_heap_table_size;
 explain select * from t1 where a in (select b from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	t2	ref	b	b	5	test.t1.a	1	Using index; FirstMatch(t1)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	index	b	b	5	NULL	20	Using index
 select * from t1;
 a	b
 1	1
@@ -161,8 +162,8 @@ explain select
 a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z 
 from t1 ot where a in (select a from t2 it);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	22	
-1	PRIMARY	ot	ALL	NULL	NULL	NULL	NULL	32	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	ot	ALL	NULL	NULL	NULL	NULL	32	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	it	ALL	NULL	NULL	NULL	NULL	22	
 select 
 a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z 
@@ -229,8 +230,8 @@ explain select
 a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z 
 from t1 ot where a in (select a from t2 it);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	22	
-1	PRIMARY	ot	ALL	NULL	NULL	NULL	NULL	52	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	ot	ALL	NULL	NULL	NULL	NULL	52	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 2	MATERIALIZED	it	ALL	NULL	NULL	NULL	NULL	22	
 select 
 a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z 
@@ -633,7 +634,7 @@ set @save_join_buffer_size=@@join_buffer_size;
 set join_buffer_size=1;
 select * from t2 where filler1 in ( select a from t1);
 a	b	c	filler1
-set join_buffer_size=default;
+set join_buffer_size=@save_join_buffer_size;
 drop table t1, t2;
 create table t1 (a int not null);
 drop procedure if exists p1;
@@ -732,8 +733,9 @@ alter table t3 add primary key(id), add key(a);
 The following must use loose index scan over t3, key a:
 explain select count(a) from t2 where a in ( SELECT  a FROM t3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	index	a	a	5	NULL	1000	Using where; Using index
-1	PRIMARY	t3	ref	a	a	5	test.t2.a	30	Using index; FirstMatch(t2)
+1	PRIMARY	t2	index	a	a	5	NULL	1000	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t3	index	a	a	5	NULL	30000	Using index
 select count(a) from t2 where a in ( SELECT  a FROM t3);
 count(a)
 1000
@@ -759,9 +761,10 @@ c2 in (select 1 from t3, t2) and
 c1 in (select convert(c6,char(1)) from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; FirstMatch(t2)
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	FirstMatch(t2)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	FirstMatch((sj-nest))
+3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1	
 drop table t2, t3;
 #
 # BUG#761598: InnoDB: Error: row_search_for_mysql() is called without ha_innobase::external_lock() in maria-5.3
@@ -812,6 +815,14 @@ CREATE TABLE t2 (f14 int(11) NOT NULL, f12 varchar(1) NOT NULL, KEY (f12,f14)) E
 INSERT INTO t2 VALUES (6,'y');
 CREATE TABLE t3 (f12 varchar(1) NOT NULL) ENGINE=InnoDB;
 INSERT INTO t3 VALUES ('r'),('s'),('t'),('v'),('w'),('x'),('y');
+analyze table t1,t2,t3 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
 # The following must use LooseScan but not join buffering
 explain
 SELECT * FROM t3 
@@ -1101,6 +1112,14 @@ INSERT INTO t2 VALUES
 (9,'d','d'),(10,'s','s'),(11,'r','r'),(12,'m','m'),
 (13,'b','b'),(14,'x','x'),(15,'g','g'),(16,'p','p'),
 (17,'q','q'),(18,'w','w'),(19,'d','d');
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
 EXPLAIN
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
 WHERE alias3.d IN (
@@ -1109,11 +1128,11 @@ WHERE alias5.b = alias4.b
 AND ( alias5.b >= alias3.b OR alias5.c != alias3.c )
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias3	ALL	PRIMARY	NULL	NULL	NULL	#	
-1	PRIMARY	alias5	index	PRIMARY	c	4	NULL	#	Using where; Using index
-1	PRIMARY	alias4	eq_ref	PRIMARY,c	PRIMARY	4	test.alias5.b	#	Using where; FirstMatch(alias3)
-1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
+1	PRIMARY	alias3	ALL	PRIMARY	NULL	NULL	NULL	#	Using where
+1	PRIMARY	alias4	ref	PRIMARY,c	c	4	test.alias3.d	#	Using index
+1	PRIMARY	alias5	eq_ref	PRIMARY	PRIMARY	4	test.alias4.b	#	Using where; FirstMatch(alias3)
 1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
+1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
 WHERE alias3.d IN (
 SELECT alias4.c FROM t2 AS alias4, t2 AS alias5
@@ -1130,11 +1149,11 @@ WHERE alias5.b = alias4.b
 AND ( alias5.b >= alias3.b OR alias3.c != alias5.c )
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias3	ALL	PRIMARY	NULL	NULL	NULL	#	
-1	PRIMARY	alias5	index	PRIMARY	c	4	NULL	#	Using where; Using index
-1	PRIMARY	alias4	eq_ref	PRIMARY,c	PRIMARY	4	test.alias5.b	#	Using where; FirstMatch(alias3)
-1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
+1	PRIMARY	alias3	ALL	PRIMARY	NULL	NULL	NULL	#	Using where
+1	PRIMARY	alias4	ref	PRIMARY,c	c	4	test.alias3.d	#	Using index
+1	PRIMARY	alias5	eq_ref	PRIMARY	PRIMARY	4	test.alias4.b	#	Using where; FirstMatch(alias3)
 1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
+1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
 WHERE alias3.d IN (
 SELECT alias4.c FROM t2 AS alias4, t2 AS alias5
@@ -1638,12 +1657,12 @@ set optimizer_switch='materialization=on,semijoin=on';
 EXPLAIN EXTENDED 
 SELECT * FROM t1 WHERE i1 IN (SELECT i3 FROM t2, t3 WHERE i3 = i2 OR 1=2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	100.00	
-1	PRIMARY	t1	hash_ALL	NULL	#hash#$hj	5	test.t2.i2	5	100.00	Using where; Using join buffer (flat, BNLH join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 2	MATERIALIZED	t3	hash_ALL	NULL	#hash#$hj	5	test.t2.i2	3	100.00	Using where; Using join buffer (flat, BNLH join)
 Warnings:
-Note	1003	select `test`.`t1`.`i1` AS `i1` from `test`.`t1` semi join (`test`.`t2` join `test`.`t3`) where `test`.`t3`.`i3` = `test`.`t2`.`i2` and `test`.`t1`.`i1` = `test`.`t2`.`i2`
+Note	1003	select `test`.`t1`.`i1` AS `i1` from `test`.`t1` semi join (`test`.`t2` join `test`.`t3`) where `test`.`t3`.`i3` = `test`.`t2`.`i2`
 SELECT * FROM t1 WHERE i1 IN (SELECT i3 FROM t2, t3 WHERE i3 = i2 OR 1=2);
 i1
 7
@@ -1651,12 +1670,12 @@ EXPLAIN EXTENDED
 SELECT * FROM t1 
 WHERE i1 IN (SELECT i3 FROM t2, t3 WHERE i3 > 0 AND i3 = i2 OR 1=2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	100.00	
-1	PRIMARY	t1	hash_ALL	NULL	#hash#$hj	5	test.t2.i2	5	100.00	Using where; Using join buffer (flat, BNLH join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 2	MATERIALIZED	t3	hash_ALL	NULL	#hash#$hj	5	test.t2.i2	3	100.00	Using where; Using join buffer (flat, BNLH join)
 Warnings:
-Note	1003	select `test`.`t1`.`i1` AS `i1` from `test`.`t1` semi join (`test`.`t2` join `test`.`t3`) where `test`.`t3`.`i3` = `test`.`t2`.`i2` and `test`.`t1`.`i1` = `test`.`t2`.`i2` and `test`.`t3`.`i3` > 0
+Note	1003	select `test`.`t1`.`i1` AS `i1` from `test`.`t1` semi join (`test`.`t2` join `test`.`t3`) where `test`.`t3`.`i3` = `test`.`t2`.`i2` and `test`.`t3`.`i3` > 0
 SELECT * FROM t1 
 WHERE i1 IN (SELECT i3 FROM t2, t3 WHERE i3 > 0 AND i3 = i2 OR 1=2);
 i1
@@ -1748,8 +1767,8 @@ OR
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t	index	PRIMARY	PRIMARY	4	NULL	13	Using where; Using index
-2	MATERIALIZED	<subquery3>	ALL	distinct_key	NULL	NULL	NULL	8	
-2	MATERIALIZED	A	ALL	PRIMARY	NULL	NULL	NULL	13	Using where; Using join buffer (flat, BNL join)
+2	MATERIALIZED	A	ALL	PRIMARY	NULL	NULL	NULL	13	
+2	MATERIALIZED	<subquery3>	eq_ref	distinct_key	distinct_key	67	func	1	
 3	MATERIALIZED	B	range	PRIMARY	PRIMARY	4	NULL	8	Using where
 SELECT SQL_NO_CACHE t.id
 FROM t1 t
@@ -1914,18 +1933,16 @@ AND t3.id_product IN (SELECT id_product FROM t2 t2_5 WHERE t2_5.id_t2 = 29 OR t2
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<subquery3>	ALL	distinct_key	NULL	NULL	NULL	12	
 1	PRIMARY	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2_2.id_product	1	Using where; Using index
-1	PRIMARY	<subquery5>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
-1	PRIMARY	t5	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<subquery6>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
-1	PRIMARY	t4	eq_ref	PRIMARY	PRIMARY	8	test.t3.id_product,const	1	Using where; Using index
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
-1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	t2_3	ref	id_t2,id_product	id_product	5	test.t3.id_product	44	Using index condition; Using where; Start temporary; End temporary
+1	PRIMARY	t2_5	ref	id_t2,id_product	id_product	5	test.t3.id_product	44	Using index condition; Using where; Start temporary; End temporary
+1	PRIMARY	t5	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	eq_ref	PRIMARY	PRIMARY	8	test.t3.id_product,const	1	Using where; Using index
+1	PRIMARY	<subquery5>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
 1	PRIMARY	t1	index	NULL	PRIMARY	8	NULL	73	Using where; Using index; Using join buffer (flat, BNL join)
 3	MATERIALIZED	t2_2	ref	id_t2,id_product	id_t2	5	const	12	Using where
-5	MATERIALIZED	t2_4	range	id_t2,id_product	id_t2	5	NULL	18	Using index condition; Using where
-6	MATERIALIZED	t2_5	range	id_t2,id_product	id_t2	5	NULL	31	Using index condition; Using where
 2	MATERIALIZED	t2_1	ref	id_t2,id_product	id_t2	5	const	51	
-4	MATERIALIZED	t2_3	range	id_t2,id_product	id_t2	5	NULL	33	Using index condition; Using where
+5	MATERIALIZED	t2_4	range	id_t2,id_product	id_t2	5	NULL	18	Using index condition; Using where
 set optimizer_switch='rowid_filter=default';
 drop table t1,t2,t3,t4,t5;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;

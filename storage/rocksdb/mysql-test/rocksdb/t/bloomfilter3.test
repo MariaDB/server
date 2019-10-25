@@ -18,6 +18,7 @@ CREATE TABLE `linktable` (
 ) ENGINE=RocksDB DEFAULT COLLATE=latin1_bin;
 
 --disable_query_log
+call mtr.add_suppression("LibRocksDB");
 let $i = 1;
 while ($i <= 10000) {
   let $insert = INSERT INTO linktable VALUES($i, $i, $i, $i, 1, 1, $i, $i, $i);
@@ -33,9 +34,26 @@ select id1, id2, link_type, visibility, data, time, version from linktable FORCE
 select case when variable_value-@c > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 
 # BF len 20
+
+--echo # MariaDB: we don't have optimizer_force_index_for_range, but we can use EITS
+--echo #          to get the query plan we want.
+set @tmp_use_stat_tables= @@use_stat_tables;
+set use_stat_tables='preferably';
+analyze table linktable persistent for all;
+flush tables;
+explain select * from linktable;
+--echo # This must use range(id1_type2), key_len=24
+explain
+select id1, id2, link_type, visibility, data, time, version from linktable
+FORCE INDEX(`id1_type2`)  where id1 = 100 and link_type = 1 and time >= 0 and time <= 9223372036854775807 order by time desc;
+
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+# MariaDB: no support for optimizer_force_index_for_range:
+#set @tmp_force_index_for_range=@@optimizer_force_index_for_range;
+#set optimizer_force_index_for_range=on;
 select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type2`)  where id1 = 100 and link_type = 1 and time >= 0 and time <= 9223372036854775807 order by time desc;
 select case when variable_value-@c > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+#set global optimizer_force_index_for_range=@tmp_force_index_for_range;
 
 # BF len 13
 select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';

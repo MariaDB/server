@@ -42,14 +42,6 @@ Created 2011-05-26 Marko Makela
 #include <algorithm>
 #include <map>
 
-#ifdef HAVE_WOLFSSL
-// Workaround for MDEV-19582
-// (WolfSSL reads memory out of bounds with decryption/NOPAD)
-#define WOLFSSL_PAD_SIZE MY_AES_BLOCK_SIZE
-#else
-#define WOLFSSL_PAD_SIZE 0
-#endif
-
 Atomic_counter<ulint> onlineddl_rowlog_rows;
 ulint onlineddl_rowlog_pct_used;
 ulint onlineddl_pct_progress;
@@ -301,7 +293,7 @@ row_log_block_allocate(
 		);
 
 		log_buf.block = ut_allocator<byte>(mem_key_row_log_buf)
-			.allocate_large(srv_sort_buf_size + WOLFSSL_PAD_SIZE,
+			.allocate_large(srv_sort_buf_size,
 					&log_buf.block_pfx);
 
 		if (log_buf.block == NULL) {
@@ -323,7 +315,7 @@ row_log_block_free(
 	if (log_buf.block != NULL) {
 		ut_allocator<byte>(mem_key_row_log_buf).deallocate_large(
 			log_buf.block, &log_buf.block_pfx,
-			log_buf.size + WOLFSSL_PAD_SIZE);
+			log_buf.size);
 		log_buf.block = NULL;
 	}
 	DBUG_VOID_RETURN;
@@ -444,8 +436,7 @@ row_log_online_op(
 		if (log_tmp_is_encrypted()) {
 			if (!log_tmp_block_encrypt(
 				    buf, srv_sort_buf_size,
-				    log->crypt_tail, byte_offset,
-				    index->table->space_id)) {
+				    log->crypt_tail, byte_offset)) {
 				log->error = DB_DECRYPTION_FAILED;
 				goto write_failed;
 			}
@@ -1014,7 +1005,7 @@ row_log_table_low(
 	extra_size = rec_extra_size + is_instant;
 
 	unsigned fake_extra_size = 0;
-	byte fake_extra_buf[2];
+	byte fake_extra_buf[3];
 	if (is_instant && UNIV_UNLIKELY(!index->is_instant())) {
 		/* The source table was emptied after ALTER TABLE
 		started, and it was converted to non-instant format.
@@ -1026,9 +1017,9 @@ row_log_table_low(
 		fake_extra_size = rec_get_n_add_field_len(n_add);
 		ut_ad(fake_extra_size == 1 || fake_extra_size == 2);
 		extra_size += fake_extra_size;
-		byte* fake_extra = fake_extra_buf + fake_extra_size - 1;
+		byte* fake_extra = fake_extra_buf + fake_extra_size;
 		rec_set_n_add_field(fake_extra, n_add);
-		ut_ad(fake_extra + 1 == fake_extra_buf);
+		ut_ad(fake_extra == fake_extra_buf);
 	}
 
 	mrec_size = ROW_LOG_HEADER_SIZE
@@ -1087,7 +1078,7 @@ row_log_table_low(
 
 		memcpy(b, rec - rec_extra_size - omit_size, rec_extra_size);
 		b += rec_extra_size;
-		memcpy(b, fake_extra_buf, fake_extra_size);
+		memcpy(b, fake_extra_buf + 1, fake_extra_size);
 		b += fake_extra_size;
 		ulint len;
 		ulint trx_id_offs = rec_get_nth_field_offs(
@@ -1731,7 +1722,7 @@ row_log_table_apply_insert_low(
 
 	error = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_TREE, index, index->n_uniq,
-		entry, 0, thr, false);
+		entry, 0, thr);
 
 	switch (error) {
 	case DB_SUCCESS:
@@ -1755,7 +1746,7 @@ row_log_table_apply_insert_low(
 		error = row_ins_sec_index_entry_low(
 			flags, BTR_MODIFY_TREE,
 			index, offsets_heap, heap, entry,
-			thr_get_trx(thr)->id, thr, false);
+			thr_get_trx(thr)->id, thr);
 
 		if (error != DB_SUCCESS) {
 			if (error == DB_DUPLICATE_KEY) {
@@ -1804,6 +1795,7 @@ row_log_table_apply_insert(
 		break;
 	default:
 		ut_ad(0);
+		/* fall through */
 	case DB_INVALID_NULL:
 		ut_ad(row == NULL);
 		return(error);
@@ -2091,6 +2083,7 @@ row_log_table_apply_update(
 		break;
 	default:
 		ut_ad(0);
+		/* fall through */
 	case DB_INVALID_NULL:
 		ut_ad(row == NULL);
 		return(error);
@@ -2384,7 +2377,7 @@ func_exit_committed:
 			BTR_CREATE_FLAG | BTR_NO_LOCKING_FLAG
 			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG,
 			BTR_MODIFY_TREE, index, offsets_heap, heap,
-			entry, thr_get_trx(thr)->id, thr, false);
+			entry, thr_get_trx(thr)->id, thr);
 
 		/* Report correct index name for duplicate key error. */
 		if (error == DB_DUPLICATE_KEY) {
@@ -2886,8 +2879,7 @@ all_done:
 		if (log_tmp_is_encrypted()) {
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
-				    index->online_log->crypt_head,
-				    ofs, index->table->space_id)) {
+				    index->online_log->crypt_head, ofs)) {
 				error = DB_DECRYPTION_FAILED;
 				goto func_exit;
 			}
@@ -3241,7 +3233,7 @@ row_log_allocate(
 	index->online_log = log;
 
 	if (log_tmp_is_encrypted()) {
-		ulint size = srv_sort_buf_size + WOLFSSL_PAD_SIZE;
+		ulint size = srv_sort_buf_size;
 		log->crypt_head = static_cast<byte *>(os_mem_alloc_large(&size));
 		log->crypt_tail = static_cast<byte *>(os_mem_alloc_large(&size));
 
@@ -3275,13 +3267,11 @@ row_log_free(
 	row_merge_file_destroy_low(log->fd);
 
 	if (log->crypt_head) {
-		os_mem_free_large(log->crypt_head, srv_sort_buf_size
-				  + WOLFSSL_PAD_SIZE);
+		os_mem_free_large(log->crypt_head, srv_sort_buf_size);
 	}
 
 	if (log->crypt_tail) {
-		os_mem_free_large(log->crypt_tail, srv_sort_buf_size
-				  + WOLFSSL_PAD_SIZE);
+		os_mem_free_large(log->crypt_tail, srv_sort_buf_size);
 	}
 
 	mutex_free(&log->mutex);
@@ -3792,8 +3782,7 @@ all_done:
 		if (log_tmp_is_encrypted()) {
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
-				    index->online_log->crypt_head,
-				    ofs, index->table->space_id)) {
+				    index->online_log->crypt_head, ofs)) {
 				error = DB_DECRYPTION_FAILED;
 				goto func_exit;
 			}

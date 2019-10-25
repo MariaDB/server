@@ -250,7 +250,7 @@ int ha_perfschema::close(void)
   DBUG_RETURN(0);
 }
 
-int ha_perfschema::write_row(uchar *buf)
+int ha_perfschema::write_row(const uchar *buf)
 {
   int result;
 

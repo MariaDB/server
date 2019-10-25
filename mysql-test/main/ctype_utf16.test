@@ -765,8 +765,9 @@ DROP TABLE t1;
 --echo # DATE_ADD/DATE_SUB WITH INTERVAL CRASHES IN GET_INTERVAL_VALUE()
 --echo #
 
+let $max_packet=`select @@max_allowed_packet`;
+--replace_result $max_packet XXX
 SELECT space(date_add(101, INTERVAL CHAR('1' USING utf16) hour_second)); 
-
 
 --echo #
 --echo # Bug#11750518 41090: ORDER BY TRUNCATES GROUP_CONCAT RESULT

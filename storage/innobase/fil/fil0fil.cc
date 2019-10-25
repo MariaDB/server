@@ -725,6 +725,7 @@ static void fil_flush_low(fil_space_t* space, bool metadata = false)
 		switch (space->purpose) {
 		case FIL_TYPE_TEMPORARY:
 			ut_ad(0); // we already checked for this
+			/* fall through */
 		case FIL_TYPE_TABLESPACE:
 		case FIL_TYPE_IMPORT:
 			fil_n_pending_tablespace_flushes++;
@@ -1872,10 +1873,8 @@ for concurrency control.
 @param[in]	id	tablespace ID
 @param[in]	silent	whether to silently ignore missing tablespaces
 @return	the tablespace
-@retval	NULL if missing or being deleted or truncated */
-UNIV_INTERN
-fil_space_t*
-fil_space_acquire_low(ulint id, bool silent)
+@retval	NULL if missing or being deleted */
+fil_space_t* fil_space_acquire_low(ulint id, bool silent)
 {
 	fil_space_t*	space;
 
@@ -2202,9 +2201,7 @@ enum fil_operation_t {
 @param[in]	space	tablespace
 @param[in]	count	number of attempts so far
 @return 0 if no operations else count + 1. */
-static
-ulint
-fil_check_pending_ops(const fil_space_t* space, ulint count)
+static ulint fil_check_pending_ops(const fil_space_t* space, ulint count)
 {
 	ut_ad(mutex_own(&fil_system.mutex));
 
@@ -2215,7 +2212,7 @@ fil_check_pending_ops(const fil_space_t* space, ulint count)
 	if (ulint n_pending_ops = space->n_pending_ops) {
 
 		if (count > 5000) {
-			ib::warn() << "Trying to close/delete/truncate"
+			ib::warn() << "Trying to delete"
 				" tablespace '" << space->name
 				<< "' but there are " << n_pending_ops
 				<< " pending operations on it.";
@@ -2262,7 +2259,7 @@ fil_check_pending_io(
 		ut_a(!(*node)->being_extended);
 
 		if (count > 1000) {
-			ib::warn() << "Trying to delete/close/truncate"
+			ib::warn() << "Trying to delete"
 				" tablespace '" << space->name
 				<< "' but there are "
 				<< space->n_pending_flushes
@@ -2858,9 +2855,15 @@ fil_rename_tablespace(
 	space->n_pending_ops--;
 	ut_ad(space->name == old_space_name);
 	ut_ad(node->name == old_file_name);
-
-	bool	success = os_file_rename(
-		innodb_data_file_key, old_file_name, new_file_name);
+	bool success;
+	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
+			goto skip_second_rename; );
+	success = os_file_rename(innodb_data_file_key,
+				 old_file_name,
+				 new_file_name);
+	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
+skip_second_rename:
+                       success = false; );
 
 	ut_ad(node->name == old_file_name);
 
@@ -2921,8 +2924,6 @@ fil_ibd_create(
 	byte*		page;
 	bool		success;
 	bool		has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags) != 0;
-	fil_space_t*	space = NULL;
-	fil_space_crypt_t *crypt_data = NULL;
 
 	ut_ad(!is_system_tablespace(space_id));
 	ut_ad(!srv_read_only_mode);
@@ -3013,6 +3014,19 @@ err_exit:
 	fsp_header_init_fields(page, space_id, flags);
 	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
 
+	/* Create crypt data if the tablespace is either encrypted or user has
+	requested it to remain unencrypted. */
+	fil_space_crypt_t *crypt_data = (mode != FIL_ENCRYPTION_DEFAULT
+					 || srv_encrypt_tables)
+		? fil_space_create_crypt_data(mode, key_id)
+		: NULL;
+
+	if (crypt_data) {
+		/* Write crypt data information in page0 while creating
+		ibd file. */
+		crypt_data->fill_page0(flags, page);
+	}
+
 	if (ulint zip_size = fil_space_t::zip_size(flags)) {
 		page_zip_des_t	page_zip;
 		page_zip_set_size(&page_zip, zip_size);
@@ -3060,15 +3074,9 @@ err_exit:
 		}
 	}
 
-	/* Create crypt data if the tablespace is either encrypted or user has
-	requested it to remain unencrypted. */
-	if (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF ||
-	    srv_encrypt_tables) {
-		crypt_data = fil_space_create_crypt_data(mode, key_id);
-	}
-
-	space = fil_space_create(name, space_id, flags, FIL_TYPE_TABLESPACE,
-				 crypt_data, mode);
+	fil_space_t* space = fil_space_create(name, space_id, flags,
+					      FIL_TYPE_TABLESPACE,
+					      crypt_data, mode);
 	if (!space) {
 		free(crypt_data);
 		*err = DB_ERROR;
@@ -4295,6 +4303,11 @@ fil_io(
 
 	req_type.set_fil_node(node);
 
+	ut_ad(!req_type.is_write()
+	      || page_id.space() == SRV_LOG_SPACE_FIRST_ID
+	      || !fil_is_user_tablespace_id(page_id.space())
+	      || offset == page_id.page_no() * zip_size);
+
 	/* Queue the aio request */
 	dberr_t err = os_aio(
 		req_type,
@@ -4770,15 +4783,7 @@ fil_space_validate_for_mtr_commit(
 	/* We are serving mtr_commit(). While there is an active
 	mini-transaction, we should have !space->stop_new_ops. This is
 	guaranteed by meta-data locks or transactional locks, or
-	dict_sys.latch (X-lock in DROP, S-lock in purge).
-
-	However, a file I/O thread can invoke change buffer merge
-	while fil_check_pending_operations() is waiting for operations
-	to quiesce. This is not a problem, because
-	ibuf_merge_or_delete_for_page() would call
-	fil_space_acquire() before mtr_start() and
-	fil_space_t::release() after mtr_commit(). This is why
-	n_pending_ops should not be zero if stop_new_ops is set. */
+	dict_sys.latch (X-lock in DROP, S-lock in purge). */
 	ut_ad(!space->stop_new_ops
 	      || space->is_being_truncated /* fil_truncate_prepare() */
 	      || space->referenced());

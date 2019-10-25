@@ -1267,5 +1267,35 @@ f
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
+# MDEV-20417 Assertion `(m_ptr == __null) == item->null_value' failed in VDec::VDec(Item*)
+#
+CREATE TABLE t1 (a TIMESTAMP(4), b TIMESTAMP DEFAULT 0) ENGINE=MyISAM;
+INSERT IGNORE INTO t1 VALUES ('2001-01-01','2002-01-01'),('2003-01-01','2004-01-01');
+SELECT * FROM t1 WHERE DEFAULT(b) - a;
+a	b
+Warnings:
+Warning	1916	Got overflow when converting '-20010101000000' to UNSIGNED INT. Value truncated
+Warning	1916	Got overflow when converting '-20030101000000' to UNSIGNED INT. Value truncated
+SELECT LEFT('', DEFAULT(b)-a) FROM t1;
+LEFT('', DEFAULT(b)-a)
+
+
+Warnings:
+Warning	1916	Got overflow when converting '-20010101000000' to UNSIGNED INT. Value truncated
+Warning	1916	Got overflow when converting '-20030101000000' to UNSIGNED INT. Value truncated
+DROP TABLE t1;
+CREATE  TABLE t1 (a TIMESTAMP(4), b TIMESTAMP DEFAULT 0) ENGINE=MyISAM;
+INSERT IGNORE INTO t1 (a) VALUES ('2001-01-01'),('2003-01-01');
+SELECT * FROM t1 WHERE (SELECT MIN(b) FROM t1) - a;
+a	b
+Warnings:
+Warning	1916	Got overflow when converting '-20010101000000' to UNSIGNED INT. Value truncated
+Warning	1916	Got overflow when converting '-20030101000000' to UNSIGNED INT. Value truncated
+SELECT (SELECT MIN(b) FROM t1) - a FROM t1;
+(SELECT MIN(b) FROM t1) - a
+-20010101000000.0000
+-20030101000000.0000
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #

@@ -355,7 +355,7 @@ public:
     ROW_NUMBER_FUNC, RANK_FUNC, DENSE_RANK_FUNC, PERCENT_RANK_FUNC,
     CUME_DIST_FUNC, NTILE_FUNC, FIRST_VALUE_FUNC, LAST_VALUE_FUNC,
     NTH_VALUE_FUNC, LEAD_FUNC, LAG_FUNC, PERCENTILE_CONT_FUNC,
-    PERCENTILE_DISC_FUNC, SP_AGGREGATE_FUNC
+    PERCENTILE_DISC_FUNC, SP_AGGREGATE_FUNC, JSON_ARRAYAGG_FUNC
   };
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
@@ -428,6 +428,7 @@ public:
     case SUM_BIT_FUNC:
     case UDF_SUM_FUNC:
     case GROUP_CONCAT_FUNC:
+    case JSON_ARRAYAGG_FUNC:
       return true;
     default:
       return false;
@@ -753,7 +754,6 @@ public:
   double val_real() { DBUG_ASSERT(fixed == 1); return (double) val_int(); }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
   bool fix_length_and_dec()
   { decimals=0; max_length=21; maybe_null=null_value=0; return FALSE; }
 };
@@ -869,6 +869,7 @@ public:
     count=count_arg;
     Item_sum::make_const();
   }
+  const Type_handler *type_handler() const { return &type_handler_slonglong; }
   longlong val_int();
   void reset_field();
   void update_field();
@@ -1045,10 +1046,35 @@ class Item_sum_std :public Item_sum_variance
   { return get_item_copy<Item_sum_std>(thd, this); }
 };
 
+
+class Item_sum_hybrid: public Item_sum,
+                       public Type_handler_hybrid_field_type
+{
+public:
+  Item_sum_hybrid(THD *thd, Item *item_par):
+    Item_sum(thd, item_par),
+    Type_handler_hybrid_field_type(&type_handler_slonglong)
+  { collation.set(&my_charset_bin); }
+  Item_sum_hybrid(THD *thd, Item *a, Item *b):
+    Item_sum(thd, a, b),
+    Type_handler_hybrid_field_type(&type_handler_slonglong)
+  { collation.set(&my_charset_bin); }
+  Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
+    :Item_sum(thd, item),
+    Type_handler_hybrid_field_type(item)
+  { }
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
+  bool fix_length_and_dec_generic();
+  bool fix_length_and_dec_numeric(const Type_handler *h);
+  bool fix_length_and_dec_string();
+};
+
+
 // This class is a string or number function depending on num_func
 class Arg_comparator;
 class Item_cache;
-class Item_sum_hybrid :public Item_sum, public Type_handler_hybrid_field_type
+class Item_sum_min_max :public Item_sum_hybrid
 {
 protected:
   bool direct_added;
@@ -1059,16 +1085,14 @@ protected:
   bool was_values;  // Set if we have found at least one row (for max/min only)
   bool was_null_value;
 
-  public:
-  Item_sum_hybrid(THD *thd, Item *item_par,int sign):
-    Item_sum(thd, item_par),
-    Type_handler_hybrid_field_type(&type_handler_longlong),
+public:
+  Item_sum_min_max(THD *thd, Item *item_par,int sign):
+    Item_sum_hybrid(thd, item_par),
     direct_added(FALSE), value(0), arg_cache(0), cmp(0),
     cmp_sign(sign), was_values(TRUE)
   { collation.set(&my_charset_bin); }
-  Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
-    :Item_sum(thd, item),
-    Type_handler_hybrid_field_type(item),
+  Item_sum_min_max(THD *thd, Item_sum_min_max *item)
+    :Item_sum_hybrid(thd, item),
     direct_added(FALSE), value(item->value), arg_cache(0),
     cmp_sign(item->cmp_sign), was_values(item->was_values)
   { }
@@ -1088,14 +1112,13 @@ protected:
   {
     return get_arg(0)->real_type_handler();
   }
-  const Type_handler *type_handler() const
-  { return Type_handler_hybrid_field_type::type_handler(); }
   const TYPELIB *get_typelib() const { return args[0]->get_typelib(); }
   void update_field();
   void min_max_update_str_field();
   void min_max_update_real_field();
   void min_max_update_int_field();
   void min_max_update_decimal_field();
+  void min_max_update_native_field();
   void cleanup();
   bool any_value() { return was_values; }
   void no_rows_in_result();
@@ -1105,11 +1128,11 @@ protected:
 };
 
 
-class Item_sum_min :public Item_sum_hybrid
+class Item_sum_min :public Item_sum_min_max
 {
 public:
-  Item_sum_min(THD *thd, Item *item_par): Item_sum_hybrid(thd, item_par, 1) {}
-  Item_sum_min(THD *thd, Item_sum_min *item) :Item_sum_hybrid(thd, item) {}
+  Item_sum_min(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, 1) {}
+  Item_sum_min(THD *thd, Item_sum_min *item) :Item_sum_min_max(thd, item) {}
   enum Sumfunctype sum_func () const {return MIN_FUNC;}
 
   bool add();
@@ -1120,11 +1143,11 @@ public:
 };
 
 
-class Item_sum_max :public Item_sum_hybrid
+class Item_sum_max :public Item_sum_min_max
 {
 public:
-  Item_sum_max(THD *thd, Item *item_par): Item_sum_hybrid(thd, item_par, -1) {}
-  Item_sum_max(THD *thd, Item_sum_max *item) :Item_sum_hybrid(thd, item) {}
+  Item_sum_max(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, -1) {}
+  Item_sum_max(THD *thd, Item_sum_max *item) :Item_sum_min_max(thd, item) {}
   enum Sumfunctype sum_func () const {return MAX_FUNC;}
 
   bool add();
@@ -1154,6 +1177,7 @@ public:
   longlong val_int();
   void reset_field();
   void update_field();
+  const Type_handler *type_handler() const { return &type_handler_ulonglong; }
   bool fix_length_and_dec()
   {
     decimals= 0; max_length=21; unsigned_flag= 1; maybe_null= null_value= 0;
@@ -1623,7 +1647,11 @@ public:
     { DBUG_ASSERT(fixed == 1); return (double) Item_sum_udf_int::val_int(); }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const
+  {
+    return unsigned_flag ? &type_handler_ulonglong :
+                           &type_handler_slonglong;
+  }
   bool fix_length_and_dec() { decimals=0; max_length=21; return FALSE; }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
@@ -1794,6 +1822,7 @@ C_MODE_END
 
 class Item_func_group_concat : public Item_sum
 {
+protected:
   TMP_TABLE_PARAM *tmp_table_param;
   String result;
   String *separator;
@@ -1839,6 +1868,12 @@ class Item_func_group_concat : public Item_sum
   */
   Item_func_group_concat *original;
 
+  /*
+    Used by Item_func_group_concat and Item_func_json_arrayagg. The latter
+    needs null values but the former doesn't.
+  */
+  bool add(bool exclude_nulls);
+
   friend int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
                                                 const void* key2);
   friend int group_concat_key_cmp_with_order(void* arg, const void* key1,
@@ -1876,7 +1911,10 @@ public:
     return &type_handler_varchar;
   }
   void clear();
-  bool add();
+  bool add()
+  {
+    return add(true);
+  }
   void reset_field() { DBUG_ASSERT(0); }        // not used
   void update_field() { DBUG_ASSERT(0); }       // not used
   bool fix_fields(THD *,Item **);

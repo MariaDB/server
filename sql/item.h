@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB Corporation
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -719,7 +719,6 @@ public:
 class Item: public Value_source,
             public Type_all_attributes
 {
-  void operator=(Item &);
   /**
     The index in the JOIN::join_tab array of the JOIN_TAB this Item is attached
     to. Items are attached (or 'pushed') to JOIN_TABs during optimization by the
@@ -768,7 +767,7 @@ public:
   /* Cache of the result of is_expensive(). */
   int8 is_expensive_cache;
   
-  /* Reuse size, only used by SP local variable assignment, otherwize 0 */
+  /* Reuse size, only used by SP local variable assignment, otherwise 0 */
   uint rsize;
 
 protected:
@@ -1468,7 +1467,6 @@ public:
   {
     return type_handler()->Item_val_bool(this);
   }
-  virtual String *val_raw(String*) { return 0; }
 
   bool eval_const_cond()
   {
@@ -1499,6 +1497,32 @@ public:
     return Converter_double_to_longlong_with_warn(val_real(), false).result();
   }
   longlong val_int_from_str(int *error);
+
+  /*
+    Returns true if this item can be calculated during
+    value_depends_on_sql_mode()
+  */
+  bool value_depends_on_sql_mode_const_item()
+  {
+    /*
+      Currently we use value_depends_on_sql_mode() only for virtual
+      column expressions. They should not contain any expensive items.
+      If we ever get a crash on the assert below, it means
+      check_vcol_func_processor() is badly implemented for this item.
+    */
+    DBUG_ASSERT(!is_expensive());
+    /*
+      It should return const_item() actually.
+      But for some reasons Item_field::const_item() returns true
+      at value_depends_on_sql_mode() call time.
+      This should be checked and fixed.
+    */
+    return basic_const_item();
+  }
+  virtual Sql_mode_dependency value_depends_on_sql_mode() const
+  {
+    return Sql_mode_dependency();
+  }
 
   int save_time_in_field(Field *field, bool no_conversions);
   int save_date_in_field(Field *field, bool no_conversions);
@@ -2012,6 +2036,44 @@ public:
   virtual bool check_index_dependence(void *arg) { return 0; }
   /*============== End of Item processor list ======================*/
 
+  /*
+    Given a condition P from the WHERE clause or from an ON expression of
+    the processed SELECT S and a set of join tables from S marked in the
+    parameter 'allowed'={T} a call of P->find_not_null_fields({T}) has to
+    find the set fields {F} of the tables from 'allowed' such that:
+    - each field from {F} is declared as nullable
+    - each record of table t from {T} that contains NULL as the value for at
+      at least one field from {F} can be ignored when building the result set
+      for S
+    It is assumed here that the condition P is conjunctive and all its column
+    references belong to T.
+
+    Examples:
+      CREATE TABLE t1 (a int, b int);
+      CREATE TABLE t2 (a int, b int);
+
+      SELECT * FROM t1,t2 WHERE t1.a=t2.a and t1.b > 5;
+      A call of find_not_null_fields() for the whole WHERE condition and {t1,t2}
+      should find {t1.a,t1.b,t2.a}
+
+      SELECT * FROM t1 LEFT JOIN ON (t1.a=t2.a and t2.a > t2.b);
+      A call of find_not_null_fields() for the ON expression and {t2}
+      should find {t2.a,t2.b}
+
+    The function returns TRUE if it succeeds to prove that all records of
+    a table from {T} can be ignored. Otherwise it always returns FALSE.
+
+    Example:
+      SELECT * FROM t1,t2 WHERE t1.a=t2.a AND t2.a IS NULL;
+    A call of find_not_null_fields() for the WHERE condition and {t1,t2}
+    will return TRUE.
+
+    It is assumed that the implementation of this virtual function saves
+    the info on the found set of fields in the structures associates with
+    tables from {T}.
+  */
+  virtual bool find_not_null_fields(table_map allowed) { return false; }
+
   virtual Item *get_copy(THD *thd)=0;
 
   bool cache_const_expr_analyzer(uchar **arg);
@@ -2076,7 +2138,8 @@ public:
 
   const Type_handler *type_handler_long_or_longlong() const
   {
-    return Type_handler::type_handler_long_or_longlong(max_char_length());
+    return Type_handler::type_handler_long_or_longlong(max_char_length(),
+                                                       unsigned_flag);
   }
 
   /**
@@ -2360,6 +2423,9 @@ public:
     append(item->type_handler()->name().ptr());
     append(')');
     const_cast<Item*>(item)->print(this, QT_EXPLAIN);
+    /* Append end \0 to allow usage of c_ptr() */
+    append('\0');
+    str_length--;
   }
 };
 #endif
@@ -2558,6 +2624,7 @@ public:
   inline Item **arguments() const { return args; }
   inline uint argument_count() const { return arg_count; }
   inline void remove_arguments() { arg_count=0; }
+  Sql_mode_dependency value_depends_on_sql_mode_bit_or() const;
 };
 
 
@@ -3102,6 +3169,11 @@ class st_select_lex;
 
 class Item_result_field :public Item_fixed_hybrid /* Item with result field */
 {
+protected:
+  Field *create_tmp_field_ex_from_handler(MEM_ROOT *root, TABLE *table,
+                                          Tmp_field_src *src,
+                                          const Tmp_field_param *param,
+                                          const Type_handler *h);
 public:
   Field *result_field;				/* Save result here */
   Item_result_field(THD *thd): Item_fixed_hybrid(thd), result_field(0) {}
@@ -3112,7 +3184,12 @@ public:
   ~Item_result_field() {}			/* Required with gcc 2.95 */
   Field *get_tmp_table_field() { return result_field; }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param);
+                             const Tmp_field_param *param)
+  {
+    DBUG_ASSERT(fixed);
+    const Type_handler *h= type_handler()->type_handler_for_tmp_table(this);
+    return create_tmp_field_ex_from_handler(root, table, src, param, h);
+  }
   void get_tmp_field_src(Tmp_field_src *src, const Tmp_field_param *param);
   /*
     This implementation of used_tables() used by Item_avg_field and
@@ -3310,6 +3387,10 @@ public:
   {
     return MONOTONIC_STRICT_INCREASING;
   }
+  Sql_mode_dependency value_depends_on_sql_mode() const
+  {
+    return Sql_mode_dependency(0, field->value_depends_on_sql_mode());
+  }
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool get_date_result(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate);
@@ -3353,6 +3434,7 @@ public:
   bool is_result_field() { return false; }
   void save_in_result_field(bool no_conversions);
   Item *get_tmp_table_item(THD *thd);
+  bool find_not_null_fields(table_map allowed);
   bool collect_item_field_processor(void * arg);
   bool add_field_to_set_processor(void * arg);
   bool find_item_in_field_list_processor(void *arg);
@@ -3514,6 +3596,8 @@ public:
   String *val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  longlong val_datetime_packed(THD *);
+  longlong val_time_packed(THD *);
   int save_in_field(Field *field, bool no_conversions);
   int save_safe_in_field(Field *field);
   bool send(Protocol *protocol, st_value *buffer);
@@ -3894,7 +3978,7 @@ public:
 
   bool set_limit_clause_param(longlong nr)
   {
-    value.set_handler(&type_handler_longlong);
+    value.set_handler(&type_handler_slonglong);
     set_int(nr, MY_INT64_NUM_DECIMAL_DIGITS);
     return !unsigned_flag && value.integer < 0;
   }
@@ -4473,7 +4557,9 @@ public:
   }
   const Type_handler *type_handler() const
   {
-    return Type_handler::get_handler_by_field_type(int_field_type);
+    const Type_handler *h=
+      Type_handler::get_handler_by_field_type(int_field_type);
+    return unsigned_flag ? h->type_handler_unsigned() : h;
   }
 };
 
@@ -4995,6 +5081,10 @@ public:
   bool const_item() const { return const_item_cache; }
   table_map used_tables() const { return used_tables_cache; }
   Item* build_clone(THD *thd);
+  Sql_mode_dependency value_depends_on_sql_mode() const
+  {
+    return Item_args::value_depends_on_sql_mode_bit_or().soft_to_hard();
+  }
 };
 
 class sp_head;
@@ -5096,6 +5186,8 @@ public:
   bool val_native(THD *thd, Native *to);
   bool is_null();
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  longlong val_datetime_packed(THD *);
+  longlong val_time_packed(THD *);
   double val_result();
   longlong val_int_result();
   String *str_result(String* tmp);
@@ -5145,6 +5237,10 @@ public:
   table_map not_null_tables() const 
   { 
     return depended_from ? 0 : (*ref)->not_null_tables();
+  }
+  bool find_not_null_fields(table_map allowed)
+  {
+    return depended_from ? false : (*ref)->find_not_null_fields(allowed);
   }
   void save_in_result_field(bool no_conversions)
   {
@@ -5559,6 +5655,7 @@ public:
   void update_used_tables();
   table_map not_null_tables() const;
   bool const_item() const { return used_tables() == 0; }
+  TABLE *get_null_ref_table() const { return null_ref_table; }
   bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
     return (*ref)->walk(processor, walk_subquery, arg) ||
@@ -6498,8 +6595,6 @@ class Item_cache_int: public Item_cache
 protected:
   longlong value;
 public:
-  Item_cache_int(THD *thd): Item_cache(thd, &type_handler_longlong),
-    value(0) {}
   Item_cache_int(THD *thd, const Type_handler *handler):
     Item_cache(thd, handler), value(0) {}
 

@@ -116,12 +116,7 @@ dict_table_open_on_id(
 /**********************************************************************//**
 Returns a table object based on table id.
 @return	table, NULL if does not exist */
-UNIV_INTERN
-dict_table_t*
-dict_table_open_on_index_id(
-/*==================*/
-	table_id_t	table_id,	/*!< in: table id */
-	bool		dict_locked)	/*!< in: TRUE=data dictionary locked */
+dict_table_t* dict_table_open_on_index_id(index_id_t index_id)
 	__attribute__((warn_unused_result));
 /********************************************************************//**
 Decrements the count of open handles to a table. */
@@ -489,6 +484,21 @@ dict_table_open_on_name(
 	dict_err_ignore_t	ignore_err)
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Outcome of dict_foreign_find_index() or dict_foreign_qualify_index() */
+enum fkerr_t
+{
+  /** A backing index was found for a FOREIGN KEY constraint */
+  FK_SUCCESS = 0,
+  /** There is no index that covers the columns in the constraint. */
+  FK_INDEX_NOT_FOUND,
+  /** The index is for a prefix index, not a full column. */
+  FK_IS_PREFIX_INDEX,
+  /** A condition of SET NULL conflicts with a NOT NULL column. */
+  FK_COL_NOT_NULL,
+  /** The column types do not match */
+  FK_COLS_NOT_EQUAL
+};
+
 /*********************************************************************//**
 Tries to find an index whose first fields are the columns in the array,
 in the same order and is not marked for deletion and is not the same
@@ -515,11 +525,11 @@ dict_foreign_find_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
-	ulint*			error,	/*!< out: error code */
-	ulint*			err_col_no,
+	fkerr_t*		error = NULL,	/*!< out: error code */
+	ulint*			err_col_no = NULL,
 					/*!< out: column number where
 					error happened */
-	dict_index_t**		err_index)
+	dict_index_t**		err_index = NULL)
 					/*!< out: index where error
 					happened */
 
@@ -595,7 +605,7 @@ dict_foreign_qualify_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
-	ulint*			error,	/*!< out: error code */
+	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
 					error happened */
@@ -826,6 +836,18 @@ dict_table_has_atomic_blobs(const dict_table_t* table)
 	return(DICT_TF_HAS_ATOMIC_BLOBS(table->flags));
 }
 
+/** @return potential max length stored inline for externally stored fields */
+inline size_t dict_table_t::get_overflow_field_local_len() const
+{
+	if (dict_table_has_atomic_blobs(this)) {
+		/* ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED: do not
+		store any BLOB prefix locally */
+		return BTR_EXTERN_FIELD_REF_SIZE;
+	}
+	/* up to MySQL 5.1: store a 768-byte prefix locally */
+	return BTR_EXTERN_FIELD_REF_SIZE + DICT_ANTELOPE_MAX_INDEX_COL_LEN;
+}
+
 /** Set the various values in a dict_table_t::flags pointer.
 @param[in,out]	flags,		Pointer to a 4 byte Table Flags
 @param[in]	format,		File Format
@@ -888,24 +910,6 @@ inline ulint dict_table_extent_size(const dict_table_t* table)
 	return FSP_EXTENT_SIZE;
 }
 
-/*********************************************************************//**
-Obtain exclusive locks on all index trees of the table. This is to prevent
-accessing index trees while InnoDB is updating internal metadata for
-operations such as truncate tables. */
-UNIV_INLINE
-void
-dict_table_x_lock_indexes(
-/*======================*/
-	dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull));
-/*********************************************************************//**
-Release the exclusive locks on all index tree. */
-UNIV_INLINE
-void
-dict_table_x_unlock_indexes(
-/*========================*/
-	dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull));
 /********************************************************************//**
 Checks if a column is in the ordering columns of the clustered index of a
 table. Column prefixes are treated like whole columns.
@@ -945,17 +949,6 @@ dict_table_copy_types(
 /*==================*/
 	dtuple_t*		tuple,	/*!< in/out: data tuple */
 	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull));
-/********************************************************************
-Wait until all the background threads of the given table have exited, i.e.,
-bg_threads == 0. Note: bg_threads_mutex must be reserved when
-calling this. */
-void
-dict_table_wait_for_bg_threads_to_exit(
-/*===================================*/
-	dict_table_t*	table,	/* in: table */
-	ulint		delay)	/* in: time in microseconds to wait between
-				checks of bg_threads. */
 	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Looks for an index with the given id. NOTE that we do not reserve

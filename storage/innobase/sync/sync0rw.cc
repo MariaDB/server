@@ -986,13 +986,22 @@ rw_lock_own(
 	ut_ad(lock);
 	ut_ad(rw_lock_validate(lock));
 
+	const os_thread_id_t thread_id = os_thread_get_curr_id();
+
+	if (!os_thread_eq(lock->writer_thread, thread_id)) {
+	} else if (lock_type == RW_LOCK_X && rw_lock_get_x_lock_count(lock)) {
+		return TRUE;
+	} else if (lock_type == RW_LOCK_SX && rw_lock_get_sx_lock_count(lock)) {
+		return TRUE;
+	}
+
 	rw_lock_debug_mutex_enter();
 
 	for (const rw_lock_debug_t* info = UT_LIST_GET_FIRST(lock->debug_list);
 	     info != NULL;
 	     info = UT_LIST_GET_NEXT(list, info)) {
 
-		if (os_thread_eq(info->thread_id, os_thread_get_curr_id())
+		if (os_thread_eq(info->thread_id, thread_id)
 		    && info->pass == 0
 		    && info->lock_type == lock_type) {
 
@@ -1017,12 +1026,23 @@ bool rw_lock_own_flagged(const rw_lock_t* lock, rw_lock_flags_t flags)
 {
 	ut_ad(rw_lock_validate(lock));
 
+	const os_thread_id_t thread_id = os_thread_get_curr_id();
+
+	if (!os_thread_eq(lock->writer_thread, thread_id)) {
+	} else if ((flags & RW_LOCK_FLAG_X)
+		   && rw_lock_get_x_lock_count(lock)) {
+		return true;
+	} else if ((flags & RW_LOCK_FLAG_SX)
+		   && rw_lock_get_sx_lock_count(lock)) {
+		return true;
+	}
+
 	rw_lock_debug_mutex_enter();
 
 	for (rw_lock_debug_t* info = UT_LIST_GET_FIRST(lock->debug_list);
 	     info != NULL;
 	     info = UT_LIST_GET_NEXT(list, info)) {
-		if (!os_thread_eq(info->thread_id, os_thread_get_curr_id())
+		if (!os_thread_eq(info->thread_id, thread_id)
 		    || info->pass) {
 			continue;
 		}

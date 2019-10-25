@@ -197,7 +197,7 @@ typedef struct st_mi_isam_share
   ulong last_process;                   /* For table-change-check */
   ulong last_version;                   /* Version on start */
   ulong options;                        /* Options used */
-  ulong min_pack_length;                /* Theese are used by packed data */
+  ulong min_pack_length;                /* These are used by packed data */
   ulong max_pack_length;
   ulong state_diff_length;
   uint	rec_reflength;			/* rec_reflength in use now */
@@ -612,7 +612,24 @@ typedef struct st_mi_block_info         /* Parameter to _mi_get_block_info */
   uint offset;
 } MI_BLOCK_INFO;
 
-        /* bits in return from _mi_get_block_info */
+
+typedef struct st_sort_key_blocks		/* Used when sorting */
+{
+  uchar *buff, *end_pos;
+  uchar lastkey[HA_MAX_POSSIBLE_KEY_BUFF];
+  uint last_length;
+  int inited;
+} SORT_KEY_BLOCKS;
+
+
+typedef struct st_sort_ftbuf
+{
+  uchar *buf, *end;
+  int count;
+  uchar lastkey[HA_MAX_KEY_BUFF];
+} SORT_FT_BUF;
+
+/* bits in return from _mi_get_block_info */
 
 #define BLOCK_FIRST     1U
 #define BLOCK_LAST      2U

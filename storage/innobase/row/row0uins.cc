@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -566,6 +566,7 @@ row_undo_ins(
 	switch (node->rec_type) {
 	default:
 		ut_ad(!"wrong undo record type");
+		/* fall through */
 	case TRX_UNDO_INSERT_REC:
 		/* Skip the clustered index (the first index) */
 		node->index = dict_table_get_next_index(node->index);

@@ -124,6 +124,7 @@ ENDIF()
 
 IF(UNIX)
   SET(WITH_EXTRA_CHARSETS all CACHE STRING "")
+  SET(PLUGIN_AUTH_PAM YES)
 
   IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     IF(NOT IGNORE_AIO_CHECK)
@@ -222,12 +223,12 @@ IF(UNIX)
 
   # Default Clang flags
   IF(CMAKE_C_COMPILER_ID MATCHES "Clang")
-    SET(COMMON_C_FLAGS               "-g -fno-omit-frame-pointer -fno-strict-aliasing")
+    SET(COMMON_C_FLAGS               "-g -fno-omit-frame-pointer -fno-strict-aliasing -Wno-parentheses-equality -Wno-string-plus-int")
     SET(CMAKE_C_FLAGS_DEBUG          "${COMMON_C_FLAGS}")
     SET(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 ${COMMON_C_FLAGS}")
   ENDIF()
   IF(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    SET(COMMON_CXX_FLAGS               "-g -fno-omit-frame-pointer -fno-strict-aliasing")
+    SET(COMMON_CXX_FLAGS               "-g -fno-omit-frame-pointer -fno-strict-aliasing -Wno-parentheses-equality -Wno-string-plus-int")
     SET(CMAKE_CXX_FLAGS_DEBUG          "${COMMON_CXX_FLAGS}")
     SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 ${COMMON_CXX_FLAGS}")
   ENDIF()

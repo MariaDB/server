@@ -7,8 +7,10 @@
 
 drop table if exists t1,t2;
 
-create table t1 (id int(10) unsigned not null auto_increment primary key, v varchar(1000), b blob) row_format=page max_rows=2 engine=aria;
-create table t2 (id int(10) unsigned not null auto_increment primary key, v varchar(1000), b blob) row_format=page max_rows=20000000 engine=aria;
+create table t1 (id int(10) unsigned not null auto_increment primary key, v varchar(2000), b blob) row_format=page max_rows=2 engine=aria;
+create table t2 (id int(10) unsigned not null auto_increment primary key, v varchar(2000), b blob, key(v)) row_format=page max_rows=20000000 engine=aria;
+show create table t1;
+show create table t2;
 lock tables t1 write,t2 write;
 --replace_column 12 # 13 # 14 #
 show table status like "t_";

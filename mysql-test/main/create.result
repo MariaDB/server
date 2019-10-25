@@ -2008,3 +2008,7 @@ create table t1 (i int, j int, key(i), key(i)) as select 1 as i, 2 as j;
 Warnings:
 Note	1831	Duplicate index `i_2`. This is deprecated and will be disallowed in a future release
 drop table t1;
+CREATE TABLE t1 ( id1 INT, id2 INT, CONSTRAINT `foo` PRIMARY KEY (id1), CONSTRAINT `bar` UNIQUE KEY(id2));
+Warnings:
+Warning	1280	Name 'foo' ignored for PRIMARY key.
+DROP TABLE t1;

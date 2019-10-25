@@ -1,18 +1,18 @@
-################################################################################
-# t/vcol_select.test                                                           #
-#                                                                              #
-# Purpose:                                                                     #
-#  Testing different SELECTs.                                                  #
-#                                                                              #
-#        MyISAM branch                                                         #
-#                                                                              #
-#------------------------------------------------------------------------------#
-# Original Author: Andrey Zhakov                                               #
-# Original Date: 2008-09-18                                                    #
-# Change Author:                                                               #
-# Change Date:                                                                 #
-# Change:                                                                      #
-################################################################################
+###############################################################################
+# t/vcol_select.test                                                          #
+#                                                                             #
+# Purpose:                                                                    #
+#  Testing different SELECTs.                                                 #
+#                                                                             #
+#        MyISAM branch                                                        #
+#                                                                             #
+#-----------------------------------------------------------------------------#
+# Original Author: Andrey Zhakov                                              #
+# Original Date: 2008-09-18                                                   #
+# Change Author:                                                              #
+# Change Date:                                                                #
+# Change:                                                                     #
+###############################################################################
 
 #
 # NOTE: PLEASE DO NOT ADD NOT MYISAM SPECIFIC TESTCASES HERE !
@@ -20,15 +20,16 @@
 #       THE SOURCED FILES ONLY.
 #
 
-#------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------#
 # Cleanup
+--source include/default_optimizer_switch.inc
 --source suite/vcol/inc/vcol_cleanup.inc
 
-#------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------#
 # General not engine specific settings and requirements
 --source suite/vcol/inc/vcol_init_vars.pre
 
-#------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------#
 # Engine specific settings and requirements
 
 ##### Storage engine to be tested
@@ -38,14 +39,14 @@ eval SET @@session.storage_engine = 'MyISAM';
 ##### Workarounds for known open engine specific bugs
 #     none
 
-#------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------#
 # Execute the tests to be applied to all storage engines
 --source suite/vcol/inc/vcol_select.inc
 
-#------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------#
 # Execute storage engine specific tests
 
-#------------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------#
 # Cleanup
 --source suite/vcol/inc/vcol_cleanup.inc
 

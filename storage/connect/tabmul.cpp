@@ -671,8 +671,8 @@ TDBDIR::TDBDIR(PSZ fpat) : TDBASE((PTABDEF)NULL)
 /***********************************************************************/
 char* TDBDIR::Path(PGLOBAL g)
   {
-  PCATLG cat = PlgGetCatalog(g);
-	PTABDEF defp = (PTABDEF)To_Def;
+    (void) PlgGetCatalog(g);                    // XXX Should be removed?
+    PTABDEF defp = (PTABDEF)To_Def;
 
 #if defined(__WIN__)
   if (!*Drive) {
@@ -708,9 +708,9 @@ PCOL TDBDIR::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 int TDBDIR::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
-    int rc, n = -1;
+    int n = -1;
 #if defined(__WIN__)
-
+    int rc;
     // Start searching files in the target directory.
 		hSearch = FindFirstFile(Path(g), &FileData);
 

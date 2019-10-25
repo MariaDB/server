@@ -3,6 +3,7 @@
 #
 
 --source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
 
 #
 # Test for bug #17164: ORed FALSE blocked conversion of outer join into join
@@ -358,7 +359,7 @@ drop table t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14,t15,t16;
 drop table if exists t1,t2,t3;
 create table t2(a int,unique key (a)) engine=innodb;
 create table t3(b int) engine=innodb;
-create table t1(a int,b int)engine=innodb;
+create table t1(c int,b int)engine=innodb;
 
 set @mdev4270_opl= @@optimizer_prune_level;
 set @mdev4270_osd= @@optimizer_search_depth;

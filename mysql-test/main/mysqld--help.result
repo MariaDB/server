@@ -1,4 +1,4 @@
-Windows bug: happens when a new line is exactly at the right offset.
+Windows bug: new line disappears when it is exactly at the right offset.
 The following options may be given as the first argument:
 --print-defaults Print the program argument list and exit.
 --no-defaults Don't read default options from any option file.
@@ -40,7 +40,7 @@ The following specify which files/extra groups are read (specified before remain
  --big-tables        Old variable, which if set to 1, allows large result sets
  by saving all temporary sets to disk, avoiding 'table
  full' errors. No longer needed, as the server now handles
- this automatically. sql_big_tables is a synonym.
+ this automatically.
  --bind-address=name IP address to bind to.
  --binlog-annotate-row-events 
  Tells the master to annotate RBR events with the
@@ -114,6 +114,12 @@ The following specify which files/extra groups are read (specified before remain
  the table) is logged in the before image, and only
  changed columns are logged in the after image. (Default:
  FULL).
+ --binlog-row-metadata=name 
+ Controls whether metadata is logged using FULL , MINIMAL
+ format and NO_LOG.FULL causes all metadata to be logged;
+ MINIMAL means that only metadata actually required by
+ slave is logged; NO_LOG NO metadata will be
+ logged.Default: NO_LOG.
  --binlog-stmt-cache-size=# 
  The size of the statement cache for updates to
  non-transactional engines for the binary log. If you
@@ -370,6 +376,10 @@ The following specify which files/extra groups are read (specified before remain
  Specifies a directory to add to the ignore list when
  collecting database names from the datadir. Put a blank
  argument to reset the list accumulated so far.
+ --in-predicate-conversion-threshold=# 
+ The minimum number of scalar elements in the value list
+ of IN predicate that triggers its conversion to IN
+ subquery. Set to 0 to disable the conversion.
  --init-connect=name Command(s) that are executed for each new connection
  (unless the user has SUPER privilege)
  --init-file=name    Read SQL commands from this file at startup
@@ -557,10 +567,6 @@ The following specify which files/extra groups are read (specified before remain
  max_join_size records return an error
  --max-length-for-sort-data=# 
  Max number of bytes in sorted records
- --max-long-data-size=# 
- The maximum BLOB length to send to server from
- mysql_send_long_data API. Deprecated option; use
- max_allowed_packet instead.
  --max-password-errors=# 
  If there is more than this number of failed connect
  attempts due to invalid password, user will be blocked
@@ -710,7 +716,7 @@ The following specify which files/extra groups are read (specified before remain
  extended_keys, exists_to_in, orderby_uses_equalities, 
  condition_pushdown_for_derived, split_materialized, 
  condition_pushdown_for_subquery, rowid_filter, 
- condition_pushdown_from_having
+ condition_pushdown_from_having, not_null_range_scan
  --optimizer-trace=name 
  Controls tracing of the Optimizer:
  optimizer_trace=option=val[,option=val...], where option
@@ -1107,6 +1113,8 @@ The following specify which files/extra groups are read (specified before remain
  characteristics (isolation level, read only/read
  write,snapshot - but not any work done / data modified
  within the transaction).
+ --session-track-user-variables 
+ Track changes to user variables.
  --show-slave-auth-info 
  Show user and password in SHOW SLAVE HOSTS on this
  master.
@@ -1429,6 +1437,7 @@ binlog-format MIXED
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192
 binlog-row-image FULL
+binlog-row-metadata NO_LOG
 binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
 character-set-client-handshake TRUE
@@ -1498,6 +1507,7 @@ idle-transaction-timeout 0
 idle-write-transaction-timeout 0
 ignore-builtin-innodb FALSE
 ignore-db-dirs 
+in-predicate-conversion-threshold 1000
 init-connect 
 init-file (No default value)
 init-rpl-role MASTER
@@ -1557,7 +1567,6 @@ max-error-count 64
 max-heap-table-size 16777216
 max-join-size 18446744073709551615
 max-length-for-sort-data 1024
-max-long-data-size 16777216
 max-password-errors 18446744073709551615
 max-prepared-stmt-count 16382
 max-recursive-iterations 18446744073709551615
@@ -1700,6 +1709,7 @@ session-track-schema TRUE
 session-track-state-change FALSE
 session-track-system-variables autocommit,character_set_client,character_set_connection,character_set_results,time_zone
 session-track-transaction-info OFF
+session-track-user-variables FALSE
 show-slave-auth-info FALSE
 silent-startup FALSE
 skip-grant-tables TRUE

@@ -239,7 +239,7 @@ void ha_s3::register_handler(MARIA_HA *file)
    When table is moved to S3, writes are not allowed.
 */
 
-int ha_s3::write_row(uchar *buf)
+int ha_s3::write_row(const uchar *buf)
 {
   if (in_alter_table)
     return ha_maria::write_row(buf);
@@ -678,7 +678,10 @@ static int ha_s3_init(void *p)
 {
   bool res;
   static const char *no_exts[]= { 0 };
-  DBUG_ASSERT(maria_hton);
+
+  /* This can happen if Aria fails to start */
+  if (!maria_hton)
+    return HA_ERR_INITIALIZATION;
 
   s3_hton= (handlerton *)p;
 

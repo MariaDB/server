@@ -215,7 +215,7 @@ buf_block_t*
 btr_root_block_get(
 /*===============*/
 	const dict_index_t*	index,	/*!< in: index tree */
-	ulint			mode,	/*!< in: either RW_S_LATCH
+	rw_lock_type_t		mode,	/*!< in: either RW_S_LATCH
 					or RW_X_LATCH */
 	mtr_t*			mtr)	/*!< in: mtr */
 {
@@ -223,10 +223,8 @@ btr_root_block_get(
 		return NULL;
 	}
 
-	buf_block_t*	block = btr_block_get(
-		page_id_t(index->table->space_id, index->page),
-		index->table->space->zip_size(), mode,
-		index, mtr);
+	buf_block_t* block = btr_block_get(*index, index->page, mode, false,
+					   mtr);
 
 	if (!block) {
 		index->table->file_unreadable = true;
@@ -354,11 +352,8 @@ btr_root_adjust_on_import(
 	dberr_t			err;
 	mtr_t			mtr;
 	page_t*			page;
-	buf_block_t*		block;
 	page_zip_des_t*		page_zip;
 	dict_table_t*		table = index->table;
-	const page_id_t		page_id(table->space_id, index->page);
-	const ulint		zip_size = table->space->zip_size();
 
 	DBUG_EXECUTE_IF("ib_import_trigger_corruption_3",
 			return(DB_CORRUPTION););
@@ -367,7 +362,17 @@ btr_root_adjust_on_import(
 
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
 
-	block = btr_block_get(page_id, zip_size, RW_X_LATCH, index, &mtr);
+	buf_block_t* block = buf_page_get_gen(
+		page_id_t(table->space->id, index->page),
+		table->space->zip_size(), RW_X_LATCH, NULL, BUF_GET,
+		__FILE__, __LINE__,
+		&mtr, &err);
+	if (!block) {
+		ut_ad(err != DB_SUCCESS);
+		goto func_exit;
+	}
+
+	buf_block_dbg_add_level(block, SYNC_TREE_NODE);
 
 	page = buf_block_get_frame(block);
 	page_zip = buf_block_get_page_zip(block);
@@ -418,6 +423,7 @@ btr_root_adjust_on_import(
 		err = DB_CORRUPTION;
 	}
 
+func_exit:
 	mtr_commit(&mtr);
 
 	return(err);
@@ -827,10 +833,9 @@ btr_node_ptr_get_child(
 	      == page_get_space_id(page_align(node_ptr)));
 
 	return btr_block_get(
-		page_id_t(index->table->space_id,
-			  btr_node_ptr_get_child_page_no(node_ptr, offsets)),
-		index->table->space->zip_size(),
-		RW_SX_LATCH, index, mtr);
+		*index, btr_node_ptr_get_child_page_no(node_ptr, offsets),
+		RW_SX_LATCH, btr_page_get_level(page_align(node_ptr)) == 1,
+		mtr);
 }
 
 /************************************************************//**
@@ -2088,104 +2093,92 @@ btr_root_raise_and_insert(
 	}
 }
 
-/*************************************************************//**
-Decides if the page should be split at the convergence point of inserts
+/** Decide if the page should be split at the convergence point of inserts
 converging to the left.
-@return TRUE if split recommended */
-ibool
-btr_page_get_split_rec_to_left(
-/*===========================*/
-	btr_cur_t*	cursor,	/*!< in: cursor at which to insert */
-	rec_t**		split_rec) /*!< out: if split recommended,
-				the first record on upper half page,
-				or NULL if tuple to be inserted should
-				be first */
+@param[in]	cursor	insert position
+@return the first record to be moved to the right half page
+@retval	NULL if no split is recommended */
+rec_t* btr_page_get_split_rec_to_left(const btr_cur_t* cursor)
 {
-	page_t*	page;
-	rec_t*	insert_point;
-	rec_t*	infimum;
-
-	page = btr_cur_get_page(cursor);
-	insert_point = btr_cur_get_rec(cursor);
+	rec_t* split_rec = btr_cur_get_rec(cursor);
+	const page_t* page = page_align(split_rec);
 
 	if (page_header_get_ptr(page, PAGE_LAST_INSERT)
-	    == page_rec_get_next(insert_point)) {
-
-		infimum = page_get_infimum_rec(page);
-
-		/* If the convergence is in the middle of a page, include also
-		the record immediately before the new insert to the upper
-		page. Otherwise, we could repeatedly move from page to page
-		lots of records smaller than the convergence point. */
-
-		if (infimum != insert_point
-		    && page_rec_get_next(infimum) != insert_point) {
-
-			*split_rec = insert_point;
-		} else {
-			*split_rec = page_rec_get_next(insert_point);
-		}
-
-		return(TRUE);
+	    != page_rec_get_next(split_rec)) {
+		return NULL;
 	}
 
-	return(FALSE);
+	/* The metadata record must be present in the leftmost leaf page
+	of the clustered index, if and only if index->is_instant().
+	However, during innobase_instant_try(), index->is_instant()
+	would already hold when row_ins_clust_index_entry_low()
+	is being invoked to insert the the metadata record.
+	So, we can only assert that when the metadata record exists,
+	index->is_instant() must hold. */
+	ut_ad(!page_is_leaf(page) || page_has_prev(page)
+	      || cursor->index->is_instant()
+	      || !(rec_get_info_bits(page_rec_get_next_const(
+					     page_get_infimum_rec(page)),
+				     cursor->index->table->not_redundant())
+		   & REC_INFO_MIN_REC_FLAG));
+
+	const rec_t* infimum = page_get_infimum_rec(page);
+
+	/* If the convergence is in the middle of a page, include also
+	the record immediately before the new insert to the upper
+	page. Otherwise, we could repeatedly move from page to page
+	lots of records smaller than the convergence point. */
+
+	if (split_rec == infimum
+	    || split_rec == page_rec_get_next_const(infimum)) {
+		split_rec = page_rec_get_next(split_rec);
+	}
+
+	return split_rec;
 }
 
-/*************************************************************//**
-Decides if the page should be split at the convergence point of inserts
+/** Decide if the page should be split at the convergence point of inserts
 converging to the right.
-@return TRUE if split recommended */
-ibool
-btr_page_get_split_rec_to_right(
-/*============================*/
-	btr_cur_t*	cursor,	/*!< in: cursor at which to insert */
-	rec_t**		split_rec) /*!< out: if split recommended,
-				the first record on upper half page,
-				or NULL if tuple to be inserted should
-				be first */
+@param[in]	cursor		insert position
+@param[out]	split_rec	if split recommended, the first record
+				on the right half page, or
+				NULL if the to-be-inserted record
+				should be first
+@return whether split is recommended */
+bool
+btr_page_get_split_rec_to_right(const btr_cur_t* cursor, rec_t** split_rec)
 {
-	page_t*	page;
-	rec_t*	insert_point;
-
-	page = btr_cur_get_page(cursor);
-	insert_point = btr_cur_get_rec(cursor);
+	rec_t* insert_point = btr_cur_get_rec(cursor);
+	const page_t* page = page_align(insert_point);
 
 	/* We use eager heuristics: if the new insert would be right after
 	the previous insert on the same page, we assume that there is a
 	pattern of sequential inserts here. */
 
-	if (page_header_get_ptr(page, PAGE_LAST_INSERT) == insert_point) {
-
-		rec_t*	next_rec;
-
-		next_rec = page_rec_get_next(insert_point);
-
-		if (page_rec_is_supremum(next_rec)) {
-split_at_new:
-			/* Split at the new record to insert */
-			*split_rec = NULL;
-		} else {
-			rec_t*	next_next_rec = page_rec_get_next(next_rec);
-			if (page_rec_is_supremum(next_next_rec)) {
-
-				goto split_at_new;
-			}
-
-			/* If there are >= 2 user records up from the insert
-			point, split all but 1 off. We want to keep one because
-			then sequential inserts can use the adaptive hash
-			index, as they can do the necessary checks of the right
-			search position just by looking at the records on this
-			page. */
-
-			*split_rec = next_next_rec;
-		}
-
-		return(TRUE);
+	if (page_header_get_ptr(page, PAGE_LAST_INSERT) != insert_point) {
+		return false;
 	}
 
-	return(FALSE);
+	insert_point = page_rec_get_next(insert_point);
+
+	if (page_rec_is_supremum(insert_point)) {
+		insert_point = NULL;
+	} else {
+		insert_point = page_rec_get_next(insert_point);
+		if (page_rec_is_supremum(insert_point)) {
+			insert_point = NULL;
+		}
+
+		/* If there are >= 2 user records up from the insert
+		point, split all but 1 off. We want to keep one because
+		then sequential inserts can use the adaptive hash
+		index, as they can do the necessary checks of the right
+		search position just by looking at the records on this
+		page. */
+	}
+
+	*split_rec = insert_point;
+	return true;
 }
 
 /*************************************************************//**
@@ -2507,7 +2500,6 @@ btr_attach_half_pages(
 {
 	ulint		prev_page_no;
 	ulint		next_page_no;
-	ulint		level;
 	page_t*		page		= buf_block_get_frame(block);
 	page_t*		lower_page;
 	page_t*		upper_page;
@@ -2560,27 +2552,23 @@ btr_attach_half_pages(
 		upper_page_zip = buf_block_get_page_zip(new_block);
 	}
 
+	/* Get the level of the split pages */
+	const ulint level = btr_page_get_level(buf_block_get_frame(block));
+	ut_ad(level == btr_page_get_level(buf_block_get_frame(new_block)));
+
 	/* Get the previous and next pages of page */
 	prev_page_no = btr_page_get_prev(page, mtr);
 	next_page_no = btr_page_get_next(page, mtr);
 
-	const ulint	space = block->page.id.space();
-
 	/* for consistency, both blocks should be locked, before change */
 	if (prev_page_no != FIL_NULL && direction == FSP_DOWN) {
-		prev_block = btr_block_get(
-			page_id_t(space, prev_page_no), block->zip_size(),
-			RW_X_LATCH, index, mtr);
+		prev_block = btr_block_get(*index, prev_page_no, RW_X_LATCH,
+					   !level, mtr);
 	}
 	if (next_page_no != FIL_NULL && direction != FSP_DOWN) {
-		next_block = btr_block_get(
-			page_id_t(space, next_page_no), block->zip_size(),
-			RW_X_LATCH, index, mtr);
+		next_block = btr_block_get(*index, next_page_no, RW_X_LATCH,
+					   !level, mtr);
 	}
-
-	/* Get the level of the split pages */
-	level = btr_page_get_level(buf_block_get_frame(block));
-	ut_ad(level == btr_page_get_level(buf_block_get_frame(new_block)));
 
 	/* Build the node pointer (= node key and page address) for the upper
 	half */
@@ -2721,11 +2709,11 @@ btr_insert_into_right_sibling(
 	rec_t*		rec = NULL;
 	ulint		max_size;
 
-	const ulint	space = block->page.id.space();
-
-	next_block = btr_block_get(
-		page_id_t(space, next_page_no), block->zip_size(),
-		RW_X_LATCH, cursor->index, mtr);
+	next_block = btr_block_get(*cursor->index, next_page_no, RW_X_LATCH,
+				   page_is_leaf(page), mtr);
+	if (UNIV_UNLIKELY(!next_block)) {
+		return NULL;
+	}
 	next_page = buf_block_get_frame(next_block);
 
 	bool	is_leaf = page_is_leaf(next_page);
@@ -2837,30 +2825,20 @@ btr_page_split_and_insert(
 	buf_block_t*	block;
 	page_t*		page;
 	page_zip_des_t*	page_zip;
-	ulint		page_no;
-	byte		direction;
-	ulint		hint_page_no;
 	buf_block_t*	new_block;
 	page_t*		new_page;
 	page_zip_des_t*	new_page_zip;
 	rec_t*		split_rec;
 	buf_block_t*	left_block;
 	buf_block_t*	right_block;
-	buf_block_t*	insert_block;
 	page_cur_t*	page_cursor;
 	rec_t*		first_rec;
 	byte*		buf = 0; /* remove warning */
 	rec_t*		move_limit;
-	ibool		insert_will_fit;
-	ibool		insert_left;
 	ulint		n_iterations = 0;
-	rec_t*		rec;
 	ulint		n_uniq;
-	dict_index_t*	index;
 
-	index = btr_cur_get_index(cursor);
-
-	if (dict_index_is_spatial(index)) {
+	if (cursor->index->is_spatial()) {
 		/* Split rtree page and update parent */
 		return(rtr_page_split_and_insert(flags, cursor, offsets, heap,
 						 tuple, n_ext, mtr));
@@ -2891,23 +2869,19 @@ func_start:
 	ut_ad(!page_is_empty(page));
 
 	/* try to insert to the next page if possible before split */
-	rec = btr_insert_into_right_sibling(
-		flags, cursor, offsets, *heap, tuple, n_ext, mtr);
-
-	if (rec != NULL) {
+	if (rec_t* rec = btr_insert_into_right_sibling(
+		    flags, cursor, offsets, *heap, tuple, n_ext, mtr)) {
 		return(rec);
 	}
-
-	page_no = block->page.id.page_no();
 
 	/* 1. Decide the split record; split_rec == NULL means that the
 	tuple to be inserted should be the first record on the upper
 	half-page */
-	insert_left = FALSE;
+	bool insert_left = false;
+	ulint hint_page_no = block->page.id.page_no() + 1;
+	byte direction = FSP_UP;
 
-	if (tuple != NULL && n_iterations > 0) {
-		direction = FSP_UP;
-		hint_page_no = page_no + 1;
+	if (tuple && n_iterations > 0) {
 		split_rec = btr_page_get_split_rec(cursor, tuple, n_ext);
 
 		if (split_rec == NULL) {
@@ -2915,17 +2889,10 @@ func_start:
 				cursor, tuple, offsets, n_uniq, heap);
 		}
 	} else if (btr_page_get_split_rec_to_right(cursor, &split_rec)) {
-		direction = FSP_UP;
-		hint_page_no = page_no + 1;
-
-	} else if (btr_page_get_split_rec_to_left(cursor, &split_rec)) {
+	} else if ((split_rec = btr_page_get_split_rec_to_left(cursor))) {
 		direction = FSP_DOWN;
-		hint_page_no = page_no - 1;
-		ut_ad(split_rec);
+		hint_page_no -= 2;
 	} else {
-		direction = FSP_UP;
-		hint_page_no = page_no + 1;
-
 		/* If there is only one record in the index page, we
 		can't split the node in the middle by default. We need
 		to determine whether the new record will be inserted
@@ -2950,7 +2917,7 @@ func_start:
 	new_block = btr_page_alloc(cursor->index, hint_page_no, direction,
 				   btr_page_get_level(page), mtr, mtr);
 
-	if (new_block == NULL && os_has_said_disk_full) {
+	if (!new_block) {
 		return(NULL);
 	}
 
@@ -2975,12 +2942,8 @@ func_start:
 		*offsets = rec_get_offsets(split_rec, cursor->index, *offsets,
 					   page_is_leaf(page), n_uniq, heap);
 
-		if (tuple != NULL) {
-			insert_left = cmp_dtuple_rec(
-				tuple, split_rec, *offsets) < 0;
-		} else {
-			insert_left = 1;
-		}
+		insert_left = !tuple
+			|| cmp_dtuple_rec(tuple, split_rec, *offsets) < 0;
 
 		if (!insert_left && new_page_zip && n_iterations > 0) {
 			/* If a compressed page has already been split,
@@ -3015,10 +2978,10 @@ insert_empty:
 	on the appropriate half-page, we may release the tree x-latch.
 	We can then move the records after releasing the tree latch,
 	thus reducing the tree latch contention. */
+	bool insert_will_fit;
 	if (tuple == NULL) {
-		insert_will_fit = 1;
-	}
-	else if (split_rec) {
+		insert_will_fit = true;
+	} else if (split_rec) {
 		insert_will_fit = !new_page_zip
 			&& btr_page_insert_fits(cursor, split_rec,
 						offsets, tuple, n_ext, heap);
@@ -3115,8 +3078,6 @@ insert_empty:
 			/* Update the lock table and possible hash index. */
 			lock_move_rec_list_end(new_block, block, move_limit);
 
-			ut_ad(!dict_index_is_spatial(index));
-
 			btr_search_move_or_delete_hash_entries(
 				new_block, block);
 
@@ -3148,16 +3109,13 @@ insert_empty:
 
 	/* 6. The split and the tree modification is now completed. Decide the
 	page where the tuple should be inserted */
+	rec_t* rec;
+	buf_block_t* const insert_block = insert_left
+		? left_block : right_block;
 
-	if (tuple == NULL) {
+	if (UNIV_UNLIKELY(!tuple)) {
 		rec = NULL;
 		goto func_exit;
-	}
-
-	if (insert_left) {
-		insert_block = left_block;
-	} else {
-		insert_block = right_block;
 	}
 
 	/* 7. Reposition the cursor for insert and try insertion */
@@ -3236,43 +3194,33 @@ func_exit:
 	ut_ad(page_validate(buf_block_get_frame(left_block), cursor->index));
 	ut_ad(page_validate(buf_block_get_frame(right_block), cursor->index));
 
-	if (tuple == NULL) {
-		ut_ad(rec == NULL);
-	}
+	ut_ad(tuple || !rec);
 	ut_ad(!rec || rec_offs_validate(rec, cursor->index, *offsets));
 	return(rec);
 }
 
 /** Remove a page from the level list of pages.
-@param[in]	space		space where removed
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in,out]	page		page to remove
+@param[in]	block		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void
-btr_level_list_remove_func(
-	ulint			space,
-	ulint			zip_size,
-	page_t*			page,
-	dict_index_t*		index,
-	mtr_t*			mtr)
+void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
+			   mtr_t* mtr)
 {
-	ut_ad(page != NULL);
-	ut_ad(mtr != NULL);
-	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX));
-	ut_ad(space == page_get_space_id(page));
+	ut_ad(mtr_memo_contains(mtr, &block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(block.zip_size() == index.table->space->zip_size());
+	ut_ad(index.table->space->id == block.page.id.space());
 	/* Get the previous and next page numbers of page */
 
+	const page_t* page = block.frame;
 	const ulint	prev_page_no = btr_page_get_prev(page, mtr);
 	const ulint	next_page_no = btr_page_get_next(page, mtr);
 
 	/* Update page links of the level */
 
 	if (prev_page_no != FIL_NULL) {
-		buf_block_t*	prev_block
-			= btr_block_get(page_id_t(space, prev_page_no),
-					zip_size, RW_X_LATCH, index, mtr);
-
+		buf_block_t*	prev_block = btr_block_get(
+			index, prev_page_no, RW_X_LATCH, page_is_leaf(page),
+			mtr);
 		page_t*		prev_page
 			= buf_block_get_frame(prev_block);
 #ifdef UNIV_BTR_DEBUG
@@ -3287,11 +3235,9 @@ btr_level_list_remove_func(
 	}
 
 	if (next_page_no != FIL_NULL) {
-		buf_block_t*	next_block
-			= btr_block_get(
-				page_id_t(space, next_page_no), zip_size,
-				RW_X_LATCH, index, mtr);
-
+		buf_block_t*	next_block = btr_block_get(
+			index, next_page_no, RW_X_LATCH, page_is_leaf(page),
+			mtr);
 		page_t*		next_page
 			= buf_block_get_frame(next_block);
 #ifdef UNIV_BTR_DEBUG
@@ -3355,25 +3301,22 @@ btr_parse_set_min_rec_mark(
 	return(ptr + 2);
 }
 
-/****************************************************************//**
-Sets a record as the predefined minimum record. */
-void
-btr_set_min_rec_mark(
-/*=================*/
-	rec_t*	rec,	/*!< in: record */
-	mtr_t*	mtr)	/*!< in: mtr */
+/** Sets a record as the predefined minimum record. */
+void btr_set_min_rec_mark(rec_t* rec, mtr_t* mtr)
 {
-	ulint	info_bits;
+	const bool comp = page_rec_is_comp(rec);
 
-	if (page_rec_is_comp(rec)) {
-		info_bits = rec_get_info_bits(rec, TRUE);
+	ut_ad(rec == page_rec_get_next_const(page_get_infimum_rec(
+						     page_align(rec))));
+	ut_ad(!(rec_get_info_bits(page_rec_get_next(rec), comp)
+		& REC_INFO_MIN_REC_FLAG));
 
+	size_t info_bits = rec_get_info_bits(rec, comp);
+	if (comp) {
 		rec_set_info_bits_new(rec, info_bits | REC_INFO_MIN_REC_FLAG);
 
 		btr_set_min_rec_mark_log(rec, MLOG_COMP_REC_MIN_MARK, mtr);
 	} else {
-		info_bits = rec_get_info_bits(rec, FALSE);
-
 		rec_set_info_bits_old(rec, info_bits | REC_INFO_MIN_REC_FLAG);
 
 		btr_set_min_rec_mark_log(rec, MLOG_REC_MIN_MARK, mtr);
@@ -3491,7 +3434,8 @@ btr_lift_page_up(
 	/* btr_page_empty() is supposed to zero-initialize the field. */
 	ut_ad(!page_get_instant(father_block->frame));
 
-	if (page_level == 0 && index->is_instant()) {
+	if (index->is_instant()
+	    && father_block->page.id.page_no() == root_page_no) {
 		ut_ad(!father_page_zip);
 		btr_set_instant(father_block, *index, mtr);
 	}
@@ -3629,8 +3573,6 @@ btr_compress(
 #endif /* UNIV_DEBUG */
 
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
-
-	const ulint zip_size = index->table->space->zip_size();
 
 	MONITOR_INC(MONITOR_INDEX_MERGE_ATTEMPTS);
 
@@ -3787,8 +3729,7 @@ retry:
 		btr_search_drop_page_hash_index(block);
 
 		/* Remove the page from the level list */
-		btr_level_list_remove(index->table->space_id,
-				      zip_size, page, index, mtr);
+		btr_level_list_remove(*block, *index, mtr);
 
 		if (dict_index_is_spatial(index)) {
 			rec_t*  my_rec = father_cursor.page_cur.rec;
@@ -3917,8 +3858,7 @@ retry:
 #endif /* UNIV_BTR_DEBUG */
 
 		/* Remove the page from the level list */
-		btr_level_list_remove(index->table->space_id,
-				      zip_size, page, index, mtr);
+		btr_level_list_remove(*block, *index, mtr);
 
 		ut_ad(btr_node_ptr_get_child_page_no(
 			btr_cur_get_rec(&father_cursor), offsets)
@@ -4026,7 +3966,7 @@ retry:
 		committed mini-transaction, because in crash recovery,
 		the free bits could momentarily be set too high. */
 
-		if (zip_size) {
+		if (merge_block->zip_size()) {
 			/* Because the free bits may be incremented
 			and we cannot update the insert buffer bitmap
 			in the same mini-transaction, the only safe
@@ -4086,9 +4026,8 @@ func_exit:
 
 err_exit:
 	/* We play it safe and reset the free bits. */
-	if (zip_size
-	    && merge_page
-	    && page_is_leaf(merge_page)
+	if (merge_block && merge_block->zip_size()
+	    && page_is_leaf(merge_block->frame)
 	    && !dict_index_is_clust(index)) {
 
 		ibuf_reset_free_bits(merge_block);
@@ -4260,13 +4199,10 @@ btr_discard_page(
 	left_page_no = btr_page_get_prev(buf_block_get_frame(block), mtr);
 	right_page_no = btr_page_get_next(buf_block_get_frame(block), mtr);
 
-	const ulint zip_size = index->table->space->zip_size();
 	ut_d(bool parent_is_different = false);
 	if (left_page_no != FIL_NULL) {
-		merge_block = btr_block_get(
-			page_id_t(index->table->space_id, left_page_no),
-			zip_size, RW_X_LATCH, index, mtr);
-
+		merge_block = btr_block_get(*index, left_page_no, RW_X_LATCH,
+					    true, mtr);
 		merge_page = buf_block_get_frame(merge_block);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(btr_page_get_next(merge_page, mtr)
@@ -4279,10 +4215,8 @@ btr_discard_page(
 						&parent_cursor)))
 			 == btr_cur_get_rec(&parent_cursor)));
 	} else if (right_page_no != FIL_NULL) {
-		merge_block = btr_block_get(
-			page_id_t(index->table->space_id, right_page_no),
-			zip_size, RW_X_LATCH, index, mtr);
-
+		merge_block = btr_block_get(*index, right_page_no, RW_X_LATCH,
+					    true, mtr);
 		merge_page = buf_block_get_frame(merge_block);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(btr_page_get_prev(merge_page, mtr)
@@ -4323,8 +4257,7 @@ btr_discard_page(
 	}
 
 	/* Remove the page from the level list */
-	btr_level_list_remove(index->table->space_id, zip_size,
-			      page, index, mtr);
+	btr_level_list_remove(*block, *index, mtr);
 
 #ifdef UNIV_ZIP_DEBUG
 	{
@@ -4886,7 +4819,6 @@ btr_validate_level(
 	page = buf_block_get_frame(block);
 
 	fil_space_t*		space	= index->table->space;
-	const ulint		zip_size = space->zip_size();
 
 	while (level != btr_page_get_level(page)) {
 		const rec_t*	node_ptr;
@@ -4936,11 +4868,9 @@ btr_validate_level(
 					&mtr, savepoint2, block);
 
 				savepoint2 = mtr_set_savepoint(&mtr);
-				block = btr_block_get(
-					page_id_t(index->table->space_id,
-						  left_page_no),
-					zip_size,
-					RW_SX_LATCH, index, &mtr);
+				block = btr_block_get(*index, left_page_no,
+						      RW_SX_LATCH, false,
+						      &mtr);
 				page = buf_block_get_frame(block);
 				left_page_no = btr_page_get_prev(page, &mtr);
 			}
@@ -5008,11 +4938,8 @@ loop:
 		const rec_t*	right_rec;
 		savepoint = mtr_set_savepoint(&mtr);
 
-		right_block = btr_block_get(
-			page_id_t(index->table->space_id, right_page_no),
-			zip_size,
-			RW_SX_LATCH, index, &mtr);
-
+		right_block = btr_block_get(*index, right_page_no, RW_SX_LATCH,
+					    !level, &mtr);
 		right_page = buf_block_get_frame(right_block);
 
 		if (btr_page_get_prev(right_page, &mtr)
@@ -5185,17 +5112,12 @@ loop:
 				mtr_release_block_at_savepoint(
 					&mtr, savepoint, right_block);
 
-				btr_block_get(
-					page_id_t(index->table->space_id,
-						  parent_right_page_no),
-					zip_size,
-					RW_SX_LATCH, index, &mtr);
-
-				right_block = btr_block_get(
-					page_id_t(index->table->space_id,
-						  right_page_no),
-					zip_size,
-					RW_SX_LATCH, index, &mtr);
+				btr_block_get(*index, parent_right_page_no,
+					      RW_SX_LATCH, false, &mtr);
+				right_block = btr_block_get(*index,
+							    right_page_no,
+							    RW_SX_LATCH,
+							    !level, &mtr);
 			}
 
 			btr_cur_position(
@@ -5268,27 +5190,19 @@ node_ptr_fails:
 		if (!lockout) {
 			if (rightmost_child) {
 				if (parent_right_page_no != FIL_NULL) {
-					btr_block_get(
-						page_id_t(
-							index->table->space_id,
-							parent_right_page_no),
-						zip_size,
-						RW_SX_LATCH, index, &mtr);
+					btr_block_get(*index,
+						      parent_right_page_no,
+						      RW_SX_LATCH, false,
+						      &mtr);
 				}
 			} else if (parent_page_no != FIL_NULL) {
-				btr_block_get(
-					page_id_t(index->table->space_id,
-						  parent_page_no),
-					zip_size,
-					RW_SX_LATCH, index, &mtr);
+				btr_block_get(*index, parent_page_no,
+					      RW_SX_LATCH, false, &mtr);
 			}
 		}
 
-		block = btr_block_get(
-			page_id_t(index->table->space_id, right_page_no),
-			zip_size,
-			RW_SX_LATCH, index, &mtr);
-
+		block = btr_block_get(*index, right_page_no, RW_SX_LATCH,
+				      !level, &mtr);
 		page = buf_block_get_frame(block);
 
 		goto loop;
@@ -5391,10 +5305,8 @@ btr_can_merge_with_page(
 	index = btr_cur_get_index(cursor);
 	page = btr_cur_get_page(cursor);
 
-	const page_id_t		page_id(index->table->space_id, page_no);
-	const ulint zip_size = index->table->space->zip_size();
-
-	mblock = btr_block_get(page_id, zip_size, RW_X_LATCH, index, mtr);
+	mblock = btr_block_get(*index, page_no, RW_X_LATCH, page_is_leaf(page),
+			       mtr);
 	mpage = buf_block_get_frame(mblock);
 
 	n_recs = page_get_n_recs(page);
@@ -5410,7 +5322,7 @@ btr_can_merge_with_page(
 	/* If compression padding tells us that merging will result in
 	too packed up page i.e.: which is likely to cause compression
 	failure then don't merge the pages. */
-	if (zip_size && page_is_leaf(mpage)
+	if (mblock->page.zip.data && page_is_leaf(mpage)
 	    && (page_get_data_size(mpage) + data_size
 		>= dict_index_zip_pad_optimal_page_size(index))) {
 

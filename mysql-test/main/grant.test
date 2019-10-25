@@ -2248,6 +2248,35 @@ DROP USER dummy@localhost;
 --echo #
 
 --echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-19948 'show grants' return privileges individually
+--echo #
+
+# Let's cheat server that we are using `10.2` user table
+# which doesn't have `Delete_history_priv` column
+
+source include/switch_to_mysql_user.inc;
+CREATE USER ten2;
+GRANT ALL ON *.* TO ten2;
+
+# Without any patching, this should show a lot of privileges,
+# but without delete history. With patch it is showing `all privileges`
+SHOW GRANTS FOR ten2;
+FLUSH PRIVILEGES;
+
+# Now should show `all privileges` with/without patch
+SHOW GRANTS FOR ten2;
+DROP USER ten2;
+source include/switch_to_mysql_global_priv.inc;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
 --echo # MDEV-17932 : Assertion upon double RENAME USER
 --echo #
 CREATE USER foo@localhost;

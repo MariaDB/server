@@ -41,12 +41,6 @@ my_bool srv_encrypt_log;
 
 struct aes_block_t {
 	byte		bytes[MY_AES_BLOCK_SIZE];
-#ifdef HAVE_WOLFSSL
-	// Workaround for  MDEV-19582.
-	// WolfSSL reads memory out of bounds with decrypt/NOPAD
-	// Pad the structure to workaround
-	byte		pad[MY_AES_BLOCK_SIZE];
-#endif
 };
 
 struct crypt_info_t {
@@ -65,6 +59,9 @@ struct crypt_info_t {
 
 /** The crypt info */
 static crypt_info_t info;
+
+/** Initialization vector used for temporary files/tablespace */
+static byte tmp_iv[MY_AES_BLOCK_SIZE];
 
 /** Crypt info when upgrading from 10.1 */
 static crypt_info_t infos[5 * 2];
@@ -243,9 +240,6 @@ UNIV_INTERN
 bool
 log_crypt_init()
 {
-	ut_ad(log_mutex_own());
-	ut_ad(log_sys.is_encrypted());
-
 	info.key_version = encryption_key_get_latest_version(
 		LOG_DEFAULT_ENCRYPTION_KEY);
 
@@ -255,7 +249,8 @@ log_crypt_init()
 		return false;
 	}
 
-	if (my_random_bytes(info.crypt_msg.bytes, MY_AES_BLOCK_SIZE)
+	if (my_random_bytes(tmp_iv, MY_AES_BLOCK_SIZE) != MY_AES_OK
+	    || my_random_bytes(info.crypt_msg.bytes, sizeof info.crypt_msg)
 	    != MY_AES_OK
 	    || my_random_bytes(info.crypt_nonce.bytes, sizeof info.crypt_nonce)
 	    != MY_AES_OK) {
@@ -422,7 +417,6 @@ log_crypt_read_checkpoint_buf(const byte* buf)
 @param[in]	size		size of the block
 @param[out]	dst		destination block
 @param[in]	offs		offset to block
-@param[in]	space_id	tablespace id
 @param[in]	encrypt		true=encrypt; false=decrypt
 @return whether the operation succeeded */
 UNIV_INTERN
@@ -432,19 +426,17 @@ log_tmp_block_encrypt(
 	ulint		size,
 	byte*		dst,
 	uint64_t	offs,
-	ulint		space_id,
 	bool		encrypt)
 {
 	uint dst_len;
-	uint64_t aes_ctr_iv[MY_AES_BLOCK_SIZE / sizeof(uint64_t)];
-	bzero(aes_ctr_iv, sizeof aes_ctr_iv);
-	aes_ctr_iv[0] = space_id;
-	aes_ctr_iv[1] = offs;
+	uint64_t iv[MY_AES_BLOCK_SIZE / sizeof(uint64_t)];
+	iv[0] = offs;
+	memcpy(iv + 1, tmp_iv, sizeof iv - sizeof *iv);
 
 	int rc = encryption_crypt(
-		src, (uint)size, dst, &dst_len,
-		info.crypt_key.bytes, MY_AES_BLOCK_SIZE,
-		reinterpret_cast<byte*>(aes_ctr_iv), (uint)(sizeof aes_ctr_iv),
+		src, uint(size), dst, &dst_len,
+		const_cast<byte*>(info.crypt_key.bytes), MY_AES_BLOCK_SIZE,
+		reinterpret_cast<byte*>(iv), uint(sizeof iv),
 		encrypt
 		? ENCRYPTION_FLAG_ENCRYPT|ENCRYPTION_FLAG_NOPAD
 		: ENCRYPTION_FLAG_DECRYPT|ENCRYPTION_FLAG_NOPAD,

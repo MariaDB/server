@@ -422,9 +422,7 @@ rtr_pcur_getnext_from_path(
 
 					btr_cur_latch_leaves(
 						block,
-						page_id_t(index->table->space_id,
-							  block->page.id.page_no()),
-						zip_size, BTR_MODIFY_TREE,
+						BTR_MODIFY_TREE,
 						btr_cur, mtr);
 				}
 
@@ -1694,7 +1692,7 @@ rtr_cur_search_with_match(
 		and the table is a compressed table, try to avoid
 		first page as much as possible, as there will be problem
 		when update MIN_REC rec in compress table */
-		if (buf_block_get_page_zip(block)
+		if (is_buf_block_get_page_zip(block)
 		    && !page_has_prev(page)
 		    && page_get_n_recs(page) >= 2) {
 

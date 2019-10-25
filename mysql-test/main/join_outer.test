@@ -8,7 +8,7 @@
 drop table if exists t0,t1,t2,t3,t4,t5;
 --enable_warnings
 
-SET @save_optimizer_switch=@@optimizer_switch;
+SET @org_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch=ifnull(@optimizer_switch_for_join_outer_test,'outer_join_with_cache=off');
 if (`select @join_cache_level_for_join_outer_test is null`)
 {
@@ -2041,6 +2041,29 @@ ORDER BY tb1.i1;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-19790 : IS NOT TRUE / IS NOT FALSE predicates over
+--echo #              inner tables of outer joins
+--echo #
+
+create table t1 (a int);
+create table t2 (b int);
+insert into t1 values (3), (7), (1);
+insert into t2 values (7), (4), (3);
+select * from t1 left join t2 on a=b;
+
+let $q=
+select * from t1 left join t2 on a=b where (b > 3) is not true;
+eval $q;
+eval explain extended $q;
+
+let $q=
+select * from t1 left join t2 on a=b where (b > 3) is not false;
+eval $q;
+eval explain extended $q;
+
+drop table t1,t2;
+
 --echo # end of 5.5 tests
 
 --echo #
@@ -2228,4 +2251,4 @@ WHERE t3.pk IN (2);
 drop view v4;
 drop table t1,t2,t3,t4;
 
-SET optimizer_switch=@save_optimizer_switch;
+SET optimizer_switch=@org_optimizer_switch;

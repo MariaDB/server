@@ -1,0 +1,328 @@
+create table t1 (a int, b int) engine=MyISAM;
+create table t2 (c int, d int) engine=MyISAM;
+insert into t1 values (1,1),(2,2),(3,3),(2,2);
+insert into t2 values (2,2),(2,2),(5,5);
+
+select * from t1 intersect all select * from t2;
+(select a,b from t1) intersect all (select c,d from t2);
+select * from ((select a,b from t1) intersect all (select c,d from t2)) t;
+select * from ((select a from t1) intersect all (select c from t2)) t;
+
+drop tables t1,t2;
+
+create table t1 (a int, b int) engine=MyISAM;
+create table t2 (c int, d int) engine=MyISAM;
+create table t3 (e int, f int) engine=MyISAM;
+insert into t1 values (1,1),(2,2),(3,3),(2,2);
+insert into t2 values (2,2),(3,3),(4,4),(2,2);
+insert into t3 values (1,1),(2,2),(5,5),(2,2);
+
+(select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3);
+
+EXPLAIN (select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3);
+EXPLAIN extended (select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3);
+EXPLAIN extended select * from ((select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3)) a;
+EXPLAIN format=json (select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3);
+--source include/analyze-format.inc
+ANALYZE format=json (select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3);
+--source include/analyze-format.inc
+ANALYZE format=json select * from ((select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3)) a;
+select * from ((select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3)) a;
+
+prepare stmt from "(select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3);";
+execute stmt;
+execute stmt;
+
+prepare stmt from "select * from ((select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3)) a";
+execute stmt;
+execute stmt;
+
+insert into t1 values (2,2),(3,3);
+insert into t2 values (2,2),(2,2),(2,2);
+(select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3);
+(select a,b from t1) intersect (select c,d from t2) intersect all (select e,f from t3);
+
+insert into t3 values (2,2);
+(select a,b from t1) intersect all (select c,d from t2) intersect (select e,f from t3);
+
+(select a,b from t1) intersect all (select c,e from t2,t3);
+
+EXPLAIN (select a,b from t1) intersect all (select c,e from t2,t3);
+EXPLAIN extended (select a,b from t1) intersect all (select c,e from t2,t3);
+EXPLAIN extended select * from ((select a,b from t1) intersect all (select c,e from t2,t3)) a;
+EXPLAIN format=json (select a,b from t1) intersect all (select c,e from t2,t3);
+--source include/analyze-format.inc
+ANALYZE format=json (select a,b from t1) intersect all (select c,e from t2,t3);
+--source include/analyze-format.inc
+ANALYZE format=json select * from ((select a,b from t1) intersect all (select c,e from t2,t3)) a;
+select * from ((select a,b from t1) intersect all (select c,e from t2,t3)) a;
+
+prepare stmt from "(select a,b from t1) intersect all (select c,e from t2,t3);";
+execute stmt;
+execute stmt;
+
+prepare stmt from "select * from ((select a,b from t1) intersect all (select c,e from t2,t3)) a";
+execute stmt;
+execute stmt;
+
+drop tables t1,t2,t3;
+
+select 1 as a from dual intersect all select 1 from dual;
+(select 1 from dual) intersect all (select 1 from dual);
+--error ER_PARSE_ERROR
+(select 1 from dual into @v) intersect all (select 1 from dual);
+--error ER_PARSE_ERROR
+select 1 from dual ORDER BY 1 intersect all select 1 from dual;
+select 1 as a from dual union all select 1 from dual;
+
+create table t1 (a int, b blob, a1 int, b1 blob);
+create table t2 (c int, d blob, c1 int, d1 blob);
+insert into t1 values (1,"ddd", 1, "sdfrrwwww"),(2, "fgh", 2, "dffggtt"),(2, "fgh", 2, "dffggtt");
+insert into t2 values (2, "fgh", 2, "dffggtt"),(3, "ffggddd", 3, "dfgg"),(2, "fgh", 2, "dffggtt");
+
+(select a,b,b1 from t1) intersect all (select c,d,d1 from t2);
+
+drop tables t1,t2;
+
+create table t1 (a int, b blob) engine=MyISAM;
+create table t2 (c int, d blob) engine=MyISAM;
+create table t3 (e int, f blob) engine=MyISAM;
+insert into t1 values (1,1),(2,2),(3,3),(2,2),(3,3);
+insert into t2 values (2,2),(3,3),(4,4),(2,2),(2,2),(2,2);
+insert into t3 values (1,1),(2,2),(5,5),(2,2),(5,5);
+
+(select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3);
+select * from ((select a,b from t1) intersect all (select c,d from t2) intersect (select e,f from t3)) a;
+
+prepare stmt from "(select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3);";
+execute stmt;
+execute stmt;
+
+prepare stmt from "select * from ((select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3)) a";
+execute stmt;
+execute stmt;
+
+# make sure that blob is used
+create table t4  (select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3);
+show create table t4;
+drop tables t4;
+
+
+(select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4);
+
+(select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4) except all (select 2,2);
+
+drop tables t1,t2,t3;
+
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+create table t3 (e int, f int);
+insert into t1 values (1,1),(2,2),(3,3),(2,2),(3,3);
+insert into t2 values (2,2),(3,3),(4,4),(2,2),(2,2),(2,2);
+insert into t3 values (1,1),(2,2),(5,5),(2,2),(5,5);
+
+
+(select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4);
+
+(select a,b from t1) intersect all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4) except all (select 2,2);
+
+drop tables t1,t2,t3;
+
+--echo #
+--echo # INTERSECT precedence
+--echo #
+create table t1 (a int, b blob) engine=MyISAM;
+create table t2 (c int, d blob) engine=MyISAM;
+create table t3 (e int, f blob) engine=MyISAM;
+insert into t1 values (5,5),(6,6);
+insert into t2 values (2,2),(3,3);
+insert into t3 values (1,1),(3,3);
+
+
+
+(select a,b from t1) union all (select c,d from t2) intersect (select e,f from t3) union all (select 4,4);
+
+(select a,b from t1) union all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4);
+explain extended (select a,b from t1) union all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4);
+
+# test result of linear mix operation
+insert into t2 values (3,3);
+insert into t3 values (3,3);
+
+(select e,f from t3) intersect all (select c,d from t2) union all (select a,b from t1) union all (select 4,4);
+explain extended (select e,f from t3) intersect all (select c,d from t2) union all (select a,b from t1) union all (select 4,4);
+
+
+(/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) union /* select#3 */ select `__3`.`c` AS `c`,`__3`.`d` AS `d` from ((/* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2`) intersect all (/* select#4 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3`)) `__3` union (/* select#5 */ select 4 AS `4`,4 AS `4`);
+
+prepare stmt from "(select a,b from t1) union all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4)";
+
+execute stmt;
+
+execute stmt;
+
+create view v1 as (select a,b from t1) union all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4);
+
+
+select b,a,b+1 from v1;
+
+select b,a,b+1 from v1 where a > 3;
+
+create procedure p1()
+  select * from v1;
+
+call p1();
+
+call p1();
+drop procedure p1;
+
+create procedure p1()
+  (select a,b from t1) union all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4);
+
+call p1();
+
+call p1();
+drop procedure p1;
+
+show create view v1;
+
+drop view v1;
+drop tables t1,t2,t3;
+
+CREATE TABLE t (i INT);
+INSERT INTO t VALUES (1),(2);
+SELECT * FROM t WHERE i != ANY ( SELECT 6 INTERSECT ALL SELECT 3 );
+
+select i from t where
+   exists ((select 6 as r from dual having t.i <> 6)
+           intersect all
+           (select 3 from dual having t.i <> 3));
+
+drop table t;
+
+CREATE TABLE t1 (a varchar(32)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+('Jakarta'),('Lisbon'),('Honolulu'),('Lusaka'),('Barcelona'),('Taipei'),
+('Brussels'),('Orlando'),('Osaka'),('Quito'),('Lima'),('Tunis'),
+('Unalaska'),('Rotterdam'),('Zagreb'),('Ufa'),('Ryazan'),('Xiamen'),
+('London'),('Izmir'),('Samara'),('Bern'),('Zhengzhou'),('Vladivostok'),
+('Yangon'),('Victoria'),('Warsaw'),('Luanda'),('Leon'),('Bangkok'),
+('Wellington'),('Zibo'),('Qiqihar'),('Delhi'),('Hamburg'),('Ottawa'),
+('Vaduz');
+
+CREATE TABLE t2 (b varchar(32)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+('Gaza'),('Jeddah'),('Beirut'),('Incheon'),('Tbilisi'),('Izmir'),
+('Quito'),('Riga'),('Freetown'),('Zagreb'),('Caracas'),('Orlando'),
+('Kingston'),('Turin'),('Xinyang'),('Osaka'),('Albany'),('Geneva'),
+('Omsk'),('Kazan'),('Quezon'),('Indore'),('Odessa'),('Xiamen'),
+('Winnipeg'),('Yakutsk'),('Nairobi'),('Ufa'),('Helsinki'),('Vilnius'),
+('Aden'),('Liverpool'),('Honolulu'),('Frankfurt'),('Glasgow'),
+('Vienna'),('Jackson'),('Jakarta'),('Sydney'),('Oslo'),('Novgorod'),
+('Norilsk'),('Izhevsk'),('Istanbul'),('Nice');
+
+CREATE TABLE t3 (c varchar(32)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES
+('Nicosia'),('Istanbul'),('Richmond'),('Stockholm'),('Dublin'),
+('Wichita'),('Warsaw'),('Glasgow'),('Winnipeg'),('Irkutsk'),('Quito'),
+('Xiamen'),('Berlin'),('Rome'),('Denver'),('Dallas'),('Kabul'),
+('Prague'),('Izhevsk'),('Tirana'),('Sofia'),('Detroit'),('Sorbonne');
+
+select count(*) from (
+  SELECT * FROM t1 LEFT OUTER JOIN t2 LEFT OUTER JOIN t3 ON b < c ON a > b
+  INTERSECT
+  SELECT * FROM t1 LEFT OUTER JOIN t2 LEFT OUTER JOIN t3 ON b < c ON a > b
+) a;
+
+select count(*) from (
+  SELECT * FROM t1 LEFT OUTER JOIN t2 LEFT OUTER JOIN t3 ON b < c ON a > b
+  INTERSECT ALL
+  SELECT * FROM t1 LEFT OUTER JOIN t2 LEFT OUTER JOIN t3 ON b < c ON a > b
+) a;
+
+insert into t1 values ('Xiamen');
+insert into t2 values ('Xiamen'),('Xiamen');
+insert into t3 values ('Xiamen');
+select count(*) from (
+  SELECT * FROM t1 LEFT OUTER JOIN t2 LEFT OUTER JOIN t3 ON b < c ON a > b
+  INTERSECT ALL
+  SELECT * FROM t1 LEFT OUTER JOIN t2 LEFT OUTER JOIN t3 ON b < c ON a > b
+) a;
+
+drop table t1,t2,t3;
+
+CREATE TABLE t1 (a varchar(32) not null) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+('Jakarta'),('Lisbon'),('Honolulu'),('Lusaka'),('Barcelona'),('Taipei'),
+('Brussels'),('Orlando'),('Osaka'),('Quito'),('Lima'),('Tunis'),
+('Unalaska'),('Rotterdam'),('Zagreb'),('Ufa'),('Ryazan'),('Xiamen'),
+('London'),('Izmir'),('Samara'),('Bern'),('Zhengzhou'),('Vladivostok'),
+('Yangon'),('Victoria'),('Warsaw'),('Luanda'),('Leon'),('Bangkok'),
+('Wellington'),('Zibo'),('Qiqihar'),('Delhi'),('Hamburg'),('Ottawa'),
+('Vaduz'),('Detroit'),('Detroit');
+
+CREATE TABLE t2 (b varchar(32) not null) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+('Gaza'),('Jeddah'),('Beirut'),('Incheon'),('Tbilisi'),('Izmir'),
+('Quito'),('Riga'),('Freetown'),('Zagreb'),('Caracas'),('Orlando'),
+('Kingston'),('Turin'),('Xinyang'),('Osaka'),('Albany'),('Geneva'),
+('Omsk'),('Kazan'),('Quezon'),('Indore'),('Odessa'),('Xiamen'),
+('Winnipeg'),('Yakutsk'),('Nairobi'),('Ufa'),('Helsinki'),('Vilnius'),
+('Aden'),('Liverpool'),('Honolulu'),('Frankfurt'),('Glasgow'),
+('Vienna'),('Jackson'),('Jakarta'),('Sydney'),('Oslo'),('Novgorod'),
+('Norilsk'),('Izhevsk'),('Istanbul'),('Nice'),('Detroit'),('Detroit');
+
+CREATE TABLE t3 (c varchar(32) not null) ENGINE=MyISAM;
+INSERT INTO t3 VALUES
+('Nicosia'),('Istanbul'),('Richmond'),('Stockholm'),('Dublin'),
+('Wichita'),('Warsaw'),('Glasgow'),('Winnipeg'),('Irkutsk'),('Quito'),
+('Xiamen'),('Berlin'),('Rome'),('Denver'),('Dallas'),('Kabul'),
+('Prague'),('Izhevsk'),('Tirana'),('Sofia'),('Detroit'),('Sorbonne'),
+('Detroit');
+
+select count(*) from (
+  SELECT * FROM t1 LEFT OUTER JOIN t2 LEFT OUTER JOIN t3 ON b < c ON a > b
+  INTERSECT
+  SELECT * FROM t1 LEFT OUTER JOIN t2 LEFT OUTER JOIN t3 ON b < c ON a > b
+) a;
+
+drop table t1,t2,t3;
+
+create table t12(c1 int);
+insert into t12 values(1);
+insert into t12 values(2);
+create table t13(c1 int);
+insert into t13 values(1);
+insert into t13 values(3);
+create table t234(c1 int);
+insert into t234 values(2);
+insert into t234 values(3);
+insert into t234 values(4);
+
+
+select * from t13 union select * from t234 intersect all select * from t12;
+
+drop table t12,t13,t234;
+
+create table t1 (a int);
+insert into t1 values (3), (1), (7), (3), (2), (7), (4);
+create table t2 (a int);
+insert into t2 values (4), (5), (9), (1), (8), (9), (2), (2);
+create table t3 (a int);
+insert into t3 values (8), (1), (8), (2), (3), (7), (2);
+
+
+select * from t1 where a > 4
+union all
+select * from t2 where a < 5
+intersect all
+select * from t3 where a < 5;
+
+explain extended
+select * from t1 where a > 4
+union all
+select * from t2 where a < 5
+intersect all
+select * from t3 where a < 5;
+
+drop table t1,t2,t3;

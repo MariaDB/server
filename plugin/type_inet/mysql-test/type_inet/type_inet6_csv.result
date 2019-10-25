@@ -1,0 +1,70 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-274 The data type for IPv6/IPv4 addresses in MariaDB
+#
+SET default_storage_engine=CSV;
+CREATE TABLE t1 (a INET6 NOT NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` inet6 NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=latin1
+FOR i IN 0..255
+DO
+INSERT INTO t1 VALUES (CONCAT('::', HEX(i)));
+END FOR
+$$
+SELECT * FROM t1 WHERE a='::ff';
+a
+::ff
+SELECT * FROM t1 WHERE a>='::fe' ORDER BY a;
+a
+::fe
+::ff
+SELECT * FROM t1 WHERE a IN ('::80','::a0','::f0') ORDER BY a;
+a
+::80
+::a0
+::f0
+SELECT * FROM t1 WHERE a BETWEEN '::80' AND '::81' ORDER BY a;
+a
+::80
+::81
+SELECT * FROM t1 WHERE a=CAST('::ff' AS INET6);
+a
+::ff
+UPDATE t1 SET a=CONCAT('ffff', a) WHERE a LIKE '::a%';
+SELECT * FROM t1 WHERE a LIKE 'ffff::%' ORDER BY a;
+a
+ffff::a
+ffff::a0
+ffff::a1
+ffff::a2
+ffff::a3
+ffff::a4
+ffff::a5
+ffff::a6
+ffff::a7
+ffff::a8
+ffff::a9
+ffff::aa
+ffff::ab
+ffff::ac
+ffff::ad
+ffff::ae
+ffff::af
+DROP TABLE t1;
+#
+# MDEV-20790 CSV table with INET6 can be created and inserted into, but cannot be read from
+#
+CREATE TABLE t1 (a INET6 NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES ('2001:db8::ff00:42:8329');
+SELECT * FROM t1;
+a
+2001:db8::ff00:42:8329
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#

@@ -153,7 +153,11 @@ mysql_mutex_t LOCK_wsrep_SR_pool;
 mysql_mutex_t LOCK_wsrep_SR_store;
 
 int wsrep_replaying= 0;
-ulong  wsrep_running_threads= 0; // # of currently running wsrep threads
+ulong  wsrep_running_threads = 0; // # of currently running wsrep
+				  // # threads
+ulong  wsrep_running_applier_threads = 0; // # of running applier threads
+ulong  wsrep_running_rollbacker_threads = 0; // # of running
+					     // # rollbacker threads
 ulong  my_bind_addr;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -207,7 +211,19 @@ static PSI_file_info wsrep_files[]=
 {
   { &key_file_wsrep_gra_log, "wsrep_gra_log", 0}
 };
-#endif
+
+PSI_thread_key key_wsrep_sst_joiner, key_wsrep_sst_donor,
+  key_wsrep_rollbacker, key_wsrep_applier;
+
+static PSI_thread_info wsrep_threads[]=
+{
+ {&key_wsrep_sst_joiner, "wsrep_sst_joiner_thread", PSI_FLAG_GLOBAL},
+ {&key_wsrep_sst_donor, "wsrep_sst_donor_thread", PSI_FLAG_GLOBAL},
+ {&key_wsrep_rollbacker, "wsrep_rollbacker_thread", PSI_FLAG_GLOBAL},
+ {&key_wsrep_applier, "wsrep_applier_thread", PSI_FLAG_GLOBAL}
+};
+
+#endif /* HAVE_PSI_INTERFACE */
 
 my_bool wsrep_inited= 0; // initialized ?
 
@@ -264,7 +280,7 @@ static void wsrep_log_cb(wsrep::log::level level, const char *msg)
       sql_print_warning("WSREP: %s", msg);
       break;
     case wsrep::log::error:
-    sql_print_error("WSREP: %s", msg);
+      sql_print_error("WSREP: %s", msg);
     break;
     case wsrep::log::debug:
       if (wsrep_debug) sql_print_information ("[Debug] WSREP: %s", msg);
@@ -754,6 +770,7 @@ void wsrep_thr_init()
   mysql_mutex_register("sql", wsrep_mutexes, array_elements(wsrep_mutexes));
   mysql_cond_register("sql", wsrep_conds, array_elements(wsrep_conds));
   mysql_file_register("sql", wsrep_files, array_elements(wsrep_files));
+  mysql_thread_register("sql", wsrep_threads, array_elements(wsrep_threads));
 #endif
 
   mysql_mutex_init(key_LOCK_wsrep_ready, &LOCK_wsrep_ready, MY_MUTEX_INIT_FAST);
@@ -1652,10 +1669,17 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
 
   case SQLCOM_CREATE_TRIGGER:
 
-    DBUG_ASSERT(!table_list);
     DBUG_ASSERT(first_table);
 
     if (thd->find_temporary_table(first_table))
+    {
+      return false;
+    }
+    return true;
+
+  case SQLCOM_DROP_TRIGGER:
+    DBUG_ASSERT(table_list);
+    if (thd->find_temporary_table(table_list))
     {
       return false;
     }
@@ -1782,13 +1806,16 @@ static void wsrep_TOI_begin_failed(THD* thd, const wsrep_buf_t* /* const err */)
     if (wsrep_emulate_bin_log) wsrep_thd_binlog_trx_reset(thd);
     if (wsrep_write_dummy_event(thd, "TOI begin failed")) { goto fail; }
     wsrep::client_state& cs(thd->wsrep_cs());
-    int const ret= cs.leave_toi();
+    std::string const err(wsrep::to_c_string(cs.current_error()));
+    wsrep::mutable_buffer err_buf;
+    err_buf.push_back(err);
+    int const ret= cs.leave_toi_local(err_buf);
     if (ret)
     {
       WSREP_ERROR("Leaving critical section for failed TOI failed: thd: %lld, "
                   "schema: %s, SQL: %s, rcode: %d wsrep_error: %s",
                   (long long)thd->real_id, thd->db.str,
-                  thd->query(), ret, wsrep::to_c_string(cs.current_error()));
+                  thd->query(), ret, err.c_str());
       goto fail;
     }
   }
@@ -1850,10 +1877,10 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   thd_proc_info(thd, "acquiring total order isolation");
 
   wsrep::client_state& cs(thd->wsrep_cs());
-  int ret= cs.enter_toi(key_array,
-                        wsrep::const_buffer(buff.ptr, buff.len),
-                        wsrep::provider::flag::start_transaction |
-                        wsrep::provider::flag::commit);
+  int ret= cs.enter_toi_local(key_array,
+                              wsrep::const_buffer(buff.ptr, buff.len),
+                              wsrep::provider::flag::start_transaction |
+                              wsrep::provider::flag::commit);
 
   if (ret)
   {
@@ -1909,7 +1936,12 @@ static void wsrep_TOI_end(THD *thd) {
   if (wsrep_thd_is_local_toi(thd))
   {
     wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
-    int ret= client_state.leave_toi();
+    wsrep::mutable_buffer err;
+    if (thd->is_error() && !wsrep_must_ignore_error(thd))
+    {
+        wsrep_store_error(thd, err);
+    }
+    int const ret= client_state.leave_toi_local(err);
     if (!ret)
     {
       WSREP_DEBUG("TO END: %lld", client_state.toi_meta().seqno().get());
@@ -2225,6 +2257,7 @@ static void wsrep_close_thread(THD *thd)
 {
   thd->set_killed(KILL_CONNECTION);
   MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
   if (thd->mysys_var)
   {
     thd->mysys_var->abort=1;
@@ -2237,6 +2270,7 @@ static void wsrep_close_thread(THD *thd)
     }
     mysql_mutex_unlock(&thd->mysys_var->mutex);
   }
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
 static my_bool have_committing_connections(THD *thd, void *)
@@ -2400,8 +2434,7 @@ int wsrep_must_ignore_error(THD* thd)
   const uint flags= sql_command_flags[thd->lex->sql_command];
 
   DBUG_ASSERT(error);
-  DBUG_ASSERT((wsrep_thd_is_toi(thd)) ||
-              (wsrep_thd_is_applying(thd) && thd->wsrep_apply_toi));
+  DBUG_ASSERT(wsrep_thd_is_toi(thd));
 
   if ((wsrep_ignore_apply_errors & WSREP_IGNORE_ERRORS_ON_DDL))
     goto ignore_error;
@@ -2634,7 +2667,8 @@ void* start_wsrep_THD(void *arg)
   /* now that we've called my_thread_init(), it is safe to call DBUG_* */
 
   thd->thread_stack= (char*) &thd;
-  if (thd->store_globals())
+  wsrep_assign_from_threadvars(thd);
+  if (wsrep_store_threadvars(thd))
   {
     close_connection(thd, ER_OUT_OF_RESOURCES);
     statistic_increment(aborted_connects,&LOCK_status);
@@ -2652,27 +2686,56 @@ void* start_wsrep_THD(void *arg)
   thd->set_command(COM_SLEEP);
   thd->init_for_queries();
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
+
   wsrep_running_threads++;
+
+  switch (thd_args->thread_type()) {
+    case WSREP_APPLIER_THREAD:
+      wsrep_running_applier_threads++;
+      break;
+    case WSREP_ROLLBACKER_THREAD:
+      wsrep_running_rollbacker_threads++;
+      break;
+    default:
+      WSREP_ERROR("Incorrect wsrep thread type: %d", thd_args->thread_type());
+      break;
+  }
+
   mysql_cond_broadcast(&COND_wsrep_slave_threads);
   mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
 
   WSREP_DEBUG("wsrep system thread %llu, %p starting",
               thd->thread_id, thd);
-  thd_args->fun()(thd, thd_args->args());
+  thd_args->fun()(thd, static_cast<void *>(thd_args));
 
   WSREP_DEBUG("wsrep system thread: %llu, %p closing",
               thd->thread_id, thd);
 
   /* Wsrep may reset globals during thread context switches, store globals
      before cleanup. */
-  thd->store_globals();
+  wsrep_store_threadvars(thd);
 
   close_connection(thd, 0);
 
-  delete thd_args;
-
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
+  DBUG_ASSERT(wsrep_running_threads > 0);
   wsrep_running_threads--;
+
+  switch (thd_args->thread_type()) {
+    case WSREP_APPLIER_THREAD:
+      DBUG_ASSERT(wsrep_running_applier_threads > 0);
+      wsrep_running_applier_threads--;
+      break;
+    case WSREP_ROLLBACKER_THREAD:
+      DBUG_ASSERT(wsrep_running_rollbacker_threads > 0);
+      wsrep_running_rollbacker_threads--;
+      break;
+    default:
+      WSREP_ERROR("Incorrect wsrep thread type: %d", thd_args->thread_type());
+      break;
+  }
+
+  delete thd_args;
   WSREP_DEBUG("wsrep running threads now: %lu", wsrep_running_threads);
   mysql_cond_broadcast(&COND_wsrep_slave_threads);
   mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
@@ -2734,4 +2797,55 @@ my_bool get_wsrep_recovery()
 bool wsrep_consistency_check(THD *thd)
 {
   return thd->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING;
+}
+
+
+/*
+  Commit an empty transaction.
+
+  If the transaction is real and the wsrep transaction is still active,
+  the transaction did not generate any rows or keys and is committed
+  as empty. Here the wsrep transaction is rolled back and after statement
+  step is performed to leave the wsrep transaction in the state as it
+  never existed.
+
+  This should not be an inline functions as it requires a lot of stack space
+  because of WSREP_DBUG() usage.  It's also not a function that is
+  frequently called.
+*/
+
+void wsrep_commit_empty(THD* thd, bool all)
+{
+  DBUG_ENTER("wsrep_commit_empty");
+  WSREP_DEBUG("wsrep_commit_empty(%llu)", thd->thread_id);
+  if (wsrep_is_real(thd, all) &&
+      wsrep_thd_is_local(thd) &&
+      thd->wsrep_trx().active() &&
+      thd->wsrep_trx().state() != wsrep::transaction::s_committed)
+  {
+    /* @todo CTAS with STATEMENT binlog format and empty result set
+       seems to be committing empty. Figure out why and try to fix
+       elsewhere. */
+    DBUG_ASSERT(!wsrep_has_changes(thd) ||
+                (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+                 !thd->is_current_stmt_binlog_format_row()));
+    bool have_error= wsrep_current_error(thd);
+    int ret= wsrep_before_rollback(thd, all) ||
+      wsrep_after_rollback(thd, all) ||
+      wsrep_after_statement(thd);
+    /* The committing transaction was empty but it held some locks and
+       got BF aborted. As there were no certified changes in the
+       data, we ignore the deadlock error and rely on error reporting
+       by storage engine/server. */
+    if (!ret && !have_error && wsrep_current_error(thd))
+    {
+      DBUG_ASSERT(wsrep_current_error(thd) == wsrep::e_deadlock_error);
+      thd->wsrep_cs().reset_error();
+    }
+    if (ret)
+    {
+      WSREP_DEBUG("wsrep_commit_empty failed: %d", wsrep_current_error(thd));
+    }
+  }
+  DBUG_VOID_RETURN;
 }

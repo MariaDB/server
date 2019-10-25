@@ -511,7 +511,7 @@ void TYPBLK<TYPE>::SetValues(PVBLK pv, int k, int n)
   CheckType(pv)
   TYPE *lp = ((TYPBLK*)pv)->Typp;
 
-  for (register int i = k; i < n; i++)          // TODO
+  for (int i = k; i < n; i++)          // TODO
     Typp[i] = lp[i];
 
   } // end of SetValues
@@ -805,7 +805,7 @@ void CHRBLK::SetValue(const char *sp, uint len, int n)
 
   if (Blanks) {
     // Suppress eventual ending zero and right fill with blanks
-    for (register int i = len; i < Long; i++)
+    for (int i = len; i < Long; i++)
       p[i] = ' ';
 
   } else if ((signed)len < Long)
@@ -1129,7 +1129,7 @@ void STRBLK::SetValues(PVBLK pv, int k, int n)
   CheckType(pv)
   PSZ *sp = ((STRBLK*)pv)->Strp;
 
-  for (register int i = k; i < n; i++)
+  for (int i = k; i < n; i++)
     Strp[i] = (!pv->IsNull(i)) ? sp[i] : NULL;
 
   } // end of SetValues

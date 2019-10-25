@@ -133,6 +133,10 @@ static void sql_kill_user(THD *thd, LEX_USER *user, killed_state state);
 static bool lock_tables_precheck(THD *thd, TABLE_LIST *tables);
 static bool execute_show_status(THD *, TABLE_LIST *);
 static bool check_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
+static bool generate_incident_event(THD *thd);
+static int  show_create_db(THD *thd, LEX *lex);
+static bool alter_routine(THD *thd, LEX *lex);
+static bool drop_routine(THD *thd, LEX *lex);
 
 const char *any_db="*any*";	// Special symbol for check_access
 
@@ -523,7 +527,6 @@ void init_update_queries(void)
   server_command_flags[COM_STMT_SEND_LONG_DATA]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_REGISTER_SLAVE]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_MULTI]= CF_SKIP_WSREP_CHECK | CF_NO_COM_MULTI;
-  server_command_flags[CF_NO_COM_MULTI]= CF_NO_COM_MULTI;
 
   /* Initialize the sql command flags array. */
   memset(sql_command_flags, 0, sizeof(sql_command_flags));
@@ -1660,8 +1663,16 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   case COM_RESET_CONNECTION:
   {
     thd->status_var.com_other++;
+#ifdef WITH_WSREP
+    wsrep_after_command_ignore_result(thd);
+    wsrep_close(thd);
+#endif /* WITH_WSREP */
     thd->change_user();
     thd->clear_error();                         // if errors from rollback
+#ifdef WITH_WSREP
+    wsrep_open(thd);
+    wsrep_before_command(thd);
+#endif /* WITH_WSREP */
     /* Restore original charset from client authentication packet.*/
     if(thd->org_charset)
       thd->update_charset(thd->org_charset,thd->org_charset,thd->org_charset);
@@ -1673,7 +1684,15 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     int auth_rc;
     status_var_increment(thd->status_var.com_other);
 
+#ifdef WITH_WSREP
+    wsrep_after_command_ignore_result(thd);
+    wsrep_close(thd);
+#endif /* WITH_WSREP */
     thd->change_user();
+#ifdef WITH_WSREP
+    wsrep_open(thd);
+    wsrep_before_command(thd);
+#endif /* WITH_WSREP */
     thd->clear_error();                         // if errors from rollback
 
     /* acl_authenticate() takes the data from net->read_pos */
@@ -1814,8 +1833,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       {
         WSREP_DEBUG("Deadlock error for: %s", thd->query());
         mysql_mutex_lock(&thd->LOCK_thd_data);
-        thd->killed               = NOT_KILLED;
-        thd->mysys_var->abort     = 0;
+        thd->reset_kill_query();
         thd->wsrep_retry_counter  = 0;
         mysql_mutex_unlock(&thd->LOCK_thd_data);
         goto dispatch_end;
@@ -1918,8 +1936,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         {
           WSREP_DEBUG("Deadlock error for: %s", thd->query());
           mysql_mutex_lock(&thd->LOCK_thd_data);
-          thd->killed               = NOT_KILLED;
-          thd->mysys_var->abort     = 0;
+          thd->reset_kill_query();
           thd->wsrep_retry_counter  = 0;
           mysql_mutex_unlock(&thd->LOCK_thd_data);
 
@@ -2395,13 +2412,11 @@ dispatch_end:
     */
     DBUG_ASSERT((command != COM_QUIT && command != COM_STMT_CLOSE)
                   || thd->get_stmt_da()->is_disabled());
+    DBUG_ASSERT(thd->wsrep_trx().state() != wsrep::transaction::s_replaying);
     /* wsrep BF abort in query exec phase */
-    mysql_mutex_lock(&thd->LOCK_thd_data);
-    do_end_of_statement=
-      thd->wsrep_trx().state() != wsrep::transaction::s_replaying
-      && !thd->killed;
-
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
+    do_end_of_statement= thd_is_connection_alive(thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
   }
   else
     do_end_of_statement= true;
@@ -2857,7 +2872,8 @@ bool sp_process_definer(THD *thd)
   @return FALSE in case of success, TRUE in case of error.
 */
 
-static bool lock_tables_open_and_lock_tables(THD *thd, TABLE_LIST *tables)
+static bool __attribute__ ((noinline))
+lock_tables_open_and_lock_tables(THD *thd, TABLE_LIST *tables)
 {
   Lock_tables_prelocking_strategy lock_tables_prelocking_strategy;
   MDL_deadlock_and_lock_abort_error_handler deadlock_handler;
@@ -3018,7 +3034,8 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
 }
 
 
-static int mysql_create_routine(THD *thd, LEX *lex)
+static int __attribute__ ((noinline))
+mysql_create_routine(THD *thd, LEX *lex)
 {
   DBUG_ASSERT(lex->sphead != 0);
   DBUG_ASSERT(lex->sphead->m_db.str); /* Must be initialized in the parser */
@@ -3607,6 +3624,7 @@ mysql_execute_command(THD *thd)
         case GET_NO_ARG:
         case GET_DISABLED:
           DBUG_ASSERT(0);
+          /* fall through */
         case 0:
         case GET_FLAGSET:
         case GET_ENUM:
@@ -4332,7 +4350,7 @@ mysql_execute_command(THD *thd)
                                   select_lex->where,
                                   select_lex->order_list.elements,
                                   select_lex->order_list.first,
-                                  unit->select_limit_cnt,
+                                  unit->lim.get_select_limit(),
                                   lex->ignore, &found, &updated);
     MYSQL_UPDATE_DONE(res, found, updated);
     /* mysql_update return 2 if we need to switch to multi-update */
@@ -4427,44 +4445,13 @@ mysql_execute_command(THD *thd)
     break;
   }
   case SQLCOM_REPLACE:
-#ifndef DBUG_OFF
-    if (mysql_bin_log.is_open())
-    {
-      /*
-        Generate an incident log event before writing the real event
-        to the binary log.  We put this event is before the statement
-        since that makes it simpler to check that the statement was
-        not executed on the slave (since incidents usually stop the
-        slave).
-
-        Observe that any row events that are generated will be
-        generated before.
-
-        This is only for testing purposes and will not be present in a
-        release build.
-      */
-
-      Incident incident= INCIDENT_NONE;
-      DBUG_PRINT("debug", ("Just before generate_incident()"));
-      DBUG_EXECUTE_IF("incident_database_resync_on_replace",
-                      incident= INCIDENT_LOST_EVENTS;);
-      if (incident)
-      {
-        Incident_log_event ev(thd, incident);
-        (void) mysql_bin_log.write(&ev);        /* error is ignored */
-        if (mysql_bin_log.rotate_and_purge(true))
-        {
-          res= 1;
-          break;
-        }
-      }
-      DBUG_PRINT("debug", ("Just after generate_incident()"));
-    }
-#endif
+    if ((res= generate_incident_event(thd)))
+      break;
     /* fall through */
   case SQLCOM_INSERT:
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
+    select_result *sel_result= NULL;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
 
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
@@ -4485,9 +4472,41 @@ mysql_execute_command(THD *thd)
       break;
 
     MYSQL_INSERT_START(thd->query());
+    Protocol* save_protocol=NULL;
+
+    if (lex->has_returning())
+    {
+      status_var_increment(thd->status_var.feature_insert_returning);
+
+      /* This is INSERT ... RETURNING. It will return output to the client */
+      if (thd->lex->analyze_stmt)
+      {
+        /*
+          Actually, it is ANALYZE .. INSERT .. RETURNING. We need to produce
+          output and then discard it.
+        */
+        sel_result= new (thd->mem_root) select_send_analyze(thd);
+        save_protocol= thd->protocol;
+        thd->protocol= new Protocol_discard(thd);
+      }
+      else
+      {
+        if (!(sel_result= new (thd->mem_root) select_send(thd)))
+          goto error;
+      }
+    }
+
     res= mysql_insert(thd, all_tables, lex->field_list, lex->many_values,
-		      lex->update_list, lex->value_list,
-                      lex->duplicates, lex->ignore);
+                      lex->update_list, lex->value_list,
+                      lex->duplicates, lex->ignore, sel_result);
+    if (save_protocol)
+    {
+      delete thd->protocol;
+      thd->protocol= save_protocol;
+    }
+    if (!res && thd->lex->analyze_stmt)
+      res= thd->lex->explain->send_explain(thd);
+    delete sel_result;
     MYSQL_INSERT_DONE(res, (ulong) thd->get_row_count_func());
     /*
       If we have inserted into a VIEW, and the base table has
@@ -4502,12 +4521,8 @@ mysql_execute_command(THD *thd)
 #ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF("after_mysql_insert",
                     {
-                      const char act1[]=
-                        "now "
-                        "wait_for signal.continue";
-                      const char act2[]=
-                        "now "
-                        "signal signal.continued";
+                      const char act1[]= "now wait_for signal.continue";
+                      const char act2[]= "now signal signal.continued";
                       DBUG_ASSERT(debug_sync_service);
                       DBUG_ASSERT(!debug_sync_set_action(thd,
                                                          STRING_WITH_LEN(act1)));
@@ -4523,6 +4538,7 @@ mysql_execute_command(THD *thd)
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
     select_insert *sel_result;
+    select_result *result= NULL;
     bool explain= MY_TEST(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE);
@@ -4571,6 +4587,31 @@ mysql_execute_command(THD *thd)
         Only the INSERT table should be merged. Other will be handled by
         select.
       */
+
+      Protocol* save_protocol=NULL;
+
+      if (lex->has_returning())
+      {
+        status_var_increment(thd->status_var.feature_insert_returning);
+
+        /* This is INSERT ... RETURNING. It will return output to the client */
+        if (thd->lex->analyze_stmt)
+        {
+          /*
+            Actually, it is ANALYZE .. INSERT .. RETURNING. We need to produce
+            output and then discard it.
+          */
+          result= new (thd->mem_root) select_send_analyze(thd);
+          save_protocol= thd->protocol;
+          thd->protocol= new Protocol_discard(thd);
+        }
+        else
+        {
+          if (!(result= new (thd->mem_root) select_send(thd)))
+            goto error;
+        }
+      }
+
       /* Skip first table, which is the table we are inserting in */
       TABLE_LIST *second_table= first_table->next_local;
       /*
@@ -4581,17 +4622,19 @@ mysql_execute_command(THD *thd)
         be done properly as well)
       */
       select_lex->table_list.first= second_table;
-      select_lex->context.table_list= 
+      select_lex->context.table_list=
         select_lex->context.first_name_resolution_table= second_table;
-      res= mysql_insert_select_prepare(thd);
-      if (!res && (sel_result= new (thd->mem_root) select_insert(thd,
-                                                             first_table,
-                                                             first_table->table,
-                                                             &lex->field_list,
-                                                             &lex->update_list,
-                                                             &lex->value_list,
-                                                             lex->duplicates,
-                                                             lex->ignore)))
+      res= mysql_insert_select_prepare(thd, result);
+      if (!res &&
+          (sel_result= new (thd->mem_root)
+                       select_insert(thd, first_table,
+                                    first_table->table,
+                                    &lex->field_list,
+                                    &lex->update_list,
+                                    &lex->value_list,
+                                    lex->duplicates,
+                                    lex->ignore,
+                                    result)))
       {
         if (lex->analyze_stmt)
           ((select_result_interceptor*)sel_result)->disable_my_ok_calls();
@@ -4627,7 +4670,12 @@ mysql_execute_command(THD *thd)
         }
         delete sel_result;
       }
-
+      delete result;
+      if (save_protocol)
+      {
+        delete thd->protocol;
+        thd->protocol= save_protocol;
+      }
       if (!res && (explain || lex->analyze_stmt))
         res= thd->lex->explain->send_explain(thd);
 
@@ -4660,10 +4708,9 @@ mysql_execute_command(THD *thd)
     unit->set_limit(select_lex);
 
     MYSQL_DELETE_START(thd->query());
-    Protocol * UNINIT_VAR(save_protocol);
-    bool replaced_protocol= false;
+    Protocol *save_protocol= NULL;
 
-    if (!select_lex->item_list.is_empty())
+    if (lex->has_returning())
     {
       /* This is DELETE ... RETURNING.  It will return output to the client */
       if (thd->lex->analyze_stmt)
@@ -4673,7 +4720,6 @@ mysql_execute_command(THD *thd)
           output and then discard it.
         */
         sel_result= new (thd->mem_root) select_send_analyze(thd);
-        replaced_protocol= true;
         save_protocol= thd->protocol;
         thd->protocol= new Protocol_discard(thd);
       }
@@ -4686,10 +4732,10 @@ mysql_execute_command(THD *thd)
 
     res = mysql_delete(thd, all_tables, 
                        select_lex->where, &select_lex->order_list,
-                       unit->select_limit_cnt, select_lex->options,
+                       unit->lim.get_select_limit(), select_lex->options,
                        lex->result ? lex->result : sel_result);
 
-    if (replaced_protocol)
+    if (save_protocol)
     {
       delete thd->protocol;
       thd->protocol= save_protocol;
@@ -4741,7 +4787,6 @@ mysql_execute_command(THD *thd)
       {
         res= mysql_select(thd,
                           select_lex->get_table_list(),
-                          select_lex->with_wild,
                           select_lex->item_list,
                           select_lex->where,
                           0, (ORDER *)NULL, (ORDER *)NULL, (Item *)NULL,
@@ -4828,7 +4873,7 @@ mysql_execute_command(THD *thd)
     */
     if(!res && (lex->create_info.options & HA_LEX_CREATE_TMP_TABLE))
     {
-      SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+      thd->session_tracker.state_change.mark_as_changed(thd);
     }
     break;
   }
@@ -5074,26 +5119,9 @@ mysql_execute_command(THD *thd)
     break;
   }
   case SQLCOM_SHOW_CREATE_DB:
-  {
-    char db_name_buff[NAME_LEN+1];
-    LEX_CSTRING db_name;
-    DBUG_EXECUTE_IF("4x_server_emul",
-                    my_error(ER_UNKNOWN_ERROR, MYF(0)); goto error;);
-
-    db_name.str= db_name_buff;
-    db_name.length= lex->name.length;
-    strmov(db_name_buff, lex->name.str);
-
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
-
-    if (check_db_name((LEX_STRING*) &db_name))
-    {
-      my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
-      break;
-    }
-    res= mysqld_show_create_db(thd, &db_name, &lex->name, lex->create_info);
+    res= show_create_db(thd, lex);
     break;
-  }
   case SQLCOM_CREATE_EVENT:
   case SQLCOM_ALTER_EVENT:
   #ifdef HAVE_EVENT_SCHEDULER
@@ -5549,7 +5577,8 @@ mysql_execute_command(THD *thd)
 
     res= mysql_ha_read(thd, first_table, lex->ha_read_mode, lex->ident.str,
                        lex->insert_list, lex->ha_rkey_mode, select_lex->where,
-                       unit->select_limit_cnt, unit->offset_limit_cnt);
+                       unit->lim.get_select_limit(),
+                       unit->lim.get_offset_limit());
     break;
 
   case SQLCOM_BEGIN:
@@ -5673,153 +5702,16 @@ mysql_execute_command(THD *thd)
 
   case SQLCOM_ALTER_PROCEDURE:
   case SQLCOM_ALTER_FUNCTION:
-    {
-      int sp_result;
-      const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
-      if (check_routine_access(thd, ALTER_PROC_ACL, &lex->spname->m_db,
-                               &lex->spname->m_name, sph, 0))
-        goto error;
-
-      /*
-        Note that if you implement the capability of ALTER FUNCTION to
-        alter the body of the function, this command should be made to
-        follow the restrictions that log-bin-trust-function-creators=0
-        already puts on CREATE FUNCTION.
-      */
-      /* Conditionally writes to binlog */
-      sp_result= sph->sp_update_routine(thd, lex->spname, &lex->sp_chistics);
-      switch (sp_result)
-      {
-      case SP_OK:
-	my_ok(thd);
-	break;
-      case SP_KEY_NOT_FOUND:
-	my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-                 sph->type_str(), ErrConvDQName(lex->spname).ptr());
-	goto error;
-      default:
-	my_error(ER_SP_CANT_ALTER, MYF(0),
-                 sph->type_str(), ErrConvDQName(lex->spname).ptr());
-	goto error;
-      }
-      break;
-    }
+    if (alter_routine(thd, lex))
+      goto error;
+    break;
   case SQLCOM_DROP_PROCEDURE:
   case SQLCOM_DROP_FUNCTION:
   case SQLCOM_DROP_PACKAGE:
   case SQLCOM_DROP_PACKAGE_BODY:
-    {
-#ifdef HAVE_DLOPEN
-      if (lex->sql_command == SQLCOM_DROP_FUNCTION &&
-          ! lex->spname->m_explicit_name)
-      {
-        /* DROP FUNCTION <non qualified name> */
-        udf_func *udf = find_udf(lex->spname->m_name.str,
-                                 lex->spname->m_name.length);
-        if (udf)
-        {
-          if (check_access(thd, DELETE_ACL, "mysql", NULL, NULL, 1, 0))
-            goto error;
-
-          if (!(res = mysql_drop_function(thd, &lex->spname->m_name)))
-          {
-            my_ok(thd);
-            break;
-          }
-          my_error(ER_SP_DROP_FAILED, MYF(0),
-                   "FUNCTION (UDF)", lex->spname->m_name.str);
-          goto error;
-        }
-
-        if (lex->spname->m_db.str == NULL)
-        {
-          if (lex->if_exists())
-          {
-            push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                                ER_SP_DOES_NOT_EXIST, ER_THD(thd, ER_SP_DOES_NOT_EXIST),
-                                "FUNCTION (UDF)", lex->spname->m_name.str);
-            res= FALSE;
-            my_ok(thd);
-            break;
-          }
-          my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-                   "FUNCTION (UDF)", lex->spname->m_name.str);
-          goto error;
-        }
-        /* Fall thought to test for a stored function */
-      }
-#endif
-
-      int sp_result;
-      const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
-
-      if (check_routine_access(thd, ALTER_PROC_ACL, &lex->spname->m_db, &lex->spname->m_name,
-                               Sp_handler::handler(lex->sql_command), 0))
-        goto error;
-      WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
-
-      /* Conditionally writes to binlog */
-      sp_result= sph->sp_drop_routine(thd, lex->spname);
-
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-      /*
-        We're going to issue an implicit REVOKE statement so we close all
-        open tables. We have to keep metadata locks as this ensures that
-        this statement is atomic against concurent FLUSH TABLES WITH READ
-        LOCK. Deadlocks which can arise due to fact that this implicit
-        statement takes metadata locks should be detected by a deadlock
-        detector in MDL subsystem and reported as errors.
-
-        No need to commit/rollback statement transaction, it's not started.
-
-        TODO: Long-term we should either ensure that implicit REVOKE statement
-              is written into binary log as a separate statement or make both
-              dropping of routine and implicit REVOKE parts of one fully atomic
-              statement.
-      */
-      DBUG_ASSERT(thd->transaction.stmt.is_empty());
-      close_thread_tables(thd);
-
-      if (sp_result != SP_KEY_NOT_FOUND &&
-          sp_automatic_privileges && !opt_noacl &&
-          sp_revoke_privileges(thd, lex->spname->m_db.str, lex->spname->m_name.str,
-                               Sp_handler::handler(lex->sql_command)))
-      {
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                     ER_PROC_AUTO_REVOKE_FAIL,
-                     ER_THD(thd, ER_PROC_AUTO_REVOKE_FAIL));
-        /* If this happens, an error should have been reported. */
-        goto error;
-      }
-#endif
-
-      res= sp_result;
-      switch (sp_result) {
-      case SP_OK:
-	my_ok(thd);
-	break;
-      case SP_KEY_NOT_FOUND:
-	if (lex->if_exists())
-	{
-          res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-			      ER_SP_DOES_NOT_EXIST, ER_THD(thd, ER_SP_DOES_NOT_EXIST),
-                              sph->type_str(),
-                              ErrConvDQName(lex->spname).ptr());
-          if (!res)
-            my_ok(thd);
-	  break;
-	}
-	my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-                 sph->type_str(), ErrConvDQName(lex->spname).ptr());
-	goto error;
-      default:
-	my_error(ER_SP_DROP_FAILED, MYF(0),
-                 sph->type_str(), ErrConvDQName(lex->spname).ptr());
-	goto error;
-      }
-      break;
-    }
+    if (drop_routine(thd, lex))
+      goto error;
+    break;
   case SQLCOM_SHOW_CREATE_PROC:
   case SQLCOM_SHOW_CREATE_FUNC:
   case SQLCOM_SHOW_CREATE_PACKAGE:
@@ -6263,8 +6155,8 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         /* 
           Do like the original select_describe did: remove OFFSET from the
           top-level LIMIT
-        */        
-        result->reset_offset_limit(); 
+        */
+        result->remove_offset_limit();
         if (lex->explain_json)
         {
           lex->explain->print_explain_json(result, lex->analyze_stmt);
@@ -6342,7 +6234,15 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
 }
 
 
-static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
+/**
+   SHOW STATUS
+
+   Notes: This is noinline as we don't want to have system_status_var (> 3K)
+   to be on the stack of mysql_execute_command()
+*/
+
+static bool __attribute__ ((noinline))
+execute_show_status(THD *thd, TABLE_LIST *all_tables)
 {
   bool res;
   system_status_var old_status_var= thd->status_var;
@@ -6427,8 +6327,9 @@ static TABLE *find_temporary_table_for_rename(THD *thd,
 }
 
 
-static bool check_rename_table(THD *thd, TABLE_LIST *first_table,
-                               TABLE_LIST *all_tables)
+static bool __attribute__ ((noinline))
+check_rename_table(THD *thd, TABLE_LIST *first_table,
+                   TABLE_LIST *all_tables)
 {
   DBUG_ASSERT(first_table == all_tables && first_table != 0);
   TABLE_LIST *table;
@@ -6467,6 +6368,227 @@ static bool check_rename_table(THD *thd, TABLE_LIST *first_table,
   return 0;
 }
 
+/*
+  Generate an incident log event before writing the real event
+  to the binary log.  We put this event is before the statement
+  since that makes it simpler to check that the statement was
+  not executed on the slave (since incidents usually stop the
+  slave).
+
+  Observe that any row events that are generated will be generated before.
+
+  This is only for testing purposes and will not be present in a release build.
+*/
+
+#ifndef DBUG_OFF
+static bool __attribute__ ((noinline)) generate_incident_event(THD *thd)
+{
+  if (mysql_bin_log.is_open())
+  {
+
+    Incident incident= INCIDENT_NONE;
+    DBUG_PRINT("debug", ("Just before generate_incident()"));
+    DBUG_EXECUTE_IF("incident_database_resync_on_replace",
+                    incident= INCIDENT_LOST_EVENTS;);
+    if (incident)
+    {
+      Incident_log_event ev(thd, incident);
+      (void) mysql_bin_log.write(&ev);        /* error is ignored */
+      if (mysql_bin_log.rotate_and_purge(true))
+        return 1;
+    }
+    DBUG_PRINT("debug", ("Just after generate_incident()"));
+  }
+  return 0;
+}
+#else
+static bool generate_incident_event(THD *thd)
+{
+  return 0;
+}
+#endif
+
+
+static int __attribute__ ((noinline))
+show_create_db(THD *thd, LEX *lex)
+{
+  char db_name_buff[NAME_LEN+1];
+  LEX_CSTRING db_name;
+  DBUG_EXECUTE_IF("4x_server_emul",
+                  my_error(ER_UNKNOWN_ERROR, MYF(0)); return 1;);
+
+  db_name.str= db_name_buff;
+  db_name.length= lex->name.length;
+  strmov(db_name_buff, lex->name.str);
+
+  if (check_db_name((LEX_STRING*) &db_name))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
+    return 1;
+  }
+  return mysqld_show_create_db(thd, &db_name, &lex->name, lex->create_info);
+}
+
+
+/**
+   Called on SQLCOM_ALTER_PROCEDURE and SQLCOM_ALTER_FUNCTION
+*/
+
+static bool __attribute__ ((noinline))
+alter_routine(THD *thd, LEX *lex)
+{
+  int sp_result;
+  const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
+  if (check_routine_access(thd, ALTER_PROC_ACL, &lex->spname->m_db,
+                           &lex->spname->m_name, sph, 0))
+    return 1;
+  /*
+    Note that if you implement the capability of ALTER FUNCTION to
+    alter the body of the function, this command should be made to
+    follow the restrictions that log-bin-trust-function-creators=0
+    already puts on CREATE FUNCTION.
+  */
+  /* Conditionally writes to binlog */
+  sp_result= sph->sp_update_routine(thd, lex->spname, &lex->sp_chistics);
+  switch (sp_result) {
+  case SP_OK:
+    my_ok(thd);
+    return 0;
+  case SP_KEY_NOT_FOUND:
+    my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
+             sph->type_str(), ErrConvDQName(lex->spname).ptr());
+    return 1;
+  default:
+    my_error(ER_SP_CANT_ALTER, MYF(0),
+             sph->type_str(), ErrConvDQName(lex->spname).ptr());
+    return 1;
+  }
+  return 0;                                     /* purecov: deadcode */
+}
+
+
+static bool __attribute__ ((noinline))
+drop_routine(THD *thd, LEX *lex)
+{
+  int sp_result;
+#ifdef HAVE_DLOPEN
+  if (lex->sql_command == SQLCOM_DROP_FUNCTION &&
+      ! lex->spname->m_explicit_name)
+  {
+    /* DROP FUNCTION <non qualified name> */
+    udf_func *udf = find_udf(lex->spname->m_name.str,
+                             lex->spname->m_name.length);
+    if (udf)
+    {
+      if (check_access(thd, DELETE_ACL, "mysql", NULL, NULL, 1, 0))
+        return 1;
+
+      if (!mysql_drop_function(thd, &lex->spname->m_name))
+      {
+        my_ok(thd);
+        return 0;
+      }
+      my_error(ER_SP_DROP_FAILED, MYF(0),
+               "FUNCTION (UDF)", lex->spname->m_name.str);
+      return 1;
+    }
+
+    if (lex->spname->m_db.str == NULL)
+    {
+      if (lex->if_exists())
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_SP_DOES_NOT_EXIST,
+                            ER_THD(thd, ER_SP_DOES_NOT_EXIST),
+                            "FUNCTION (UDF)", lex->spname->m_name.str);
+        my_ok(thd);
+        return 0;
+      }
+      my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
+               "FUNCTION (UDF)", lex->spname->m_name.str);
+      return 1;
+    }
+    /* Fall trough to test for a stored function */
+  }
+#endif /* HAVE_DLOPEN */
+
+  const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
+
+  if (check_routine_access(thd, ALTER_PROC_ACL, &lex->spname->m_db,
+                           &lex->spname->m_name,
+                           Sp_handler::handler(lex->sql_command), 0))
+    return 1;
+
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+  /* Conditionally writes to binlog */
+  sp_result= sph->sp_drop_routine(thd, lex->spname);
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  /*
+    We're going to issue an implicit REVOKE statement so we close all
+    open tables. We have to keep metadata locks as this ensures that
+    this statement is atomic against concurent FLUSH TABLES WITH READ
+    LOCK. Deadlocks which can arise due to fact that this implicit
+    statement takes metadata locks should be detected by a deadlock
+    detector in MDL subsystem and reported as errors.
+
+    No need to commit/rollback statement transaction, it's not started.
+
+    TODO: Long-term we should either ensure that implicit REVOKE statement
+    is written into binary log as a separate statement or make both
+    dropping of routine and implicit REVOKE parts of one fully atomic
+    statement.
+  */
+  DBUG_ASSERT(thd->transaction.stmt.is_empty());
+  close_thread_tables(thd);
+
+  if (sp_result != SP_KEY_NOT_FOUND &&
+      sp_automatic_privileges && !opt_noacl &&
+      sp_revoke_privileges(thd, lex->spname->m_db.str, lex->spname->m_name.str,
+                           Sp_handler::handler(lex->sql_command)))
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_PROC_AUTO_REVOKE_FAIL,
+                 ER_THD(thd, ER_PROC_AUTO_REVOKE_FAIL));
+    /* If this happens, an error should have been reported. */
+    return 1;
+  }
+#endif /* NO_EMBEDDED_ACCESS_CHECKS */
+
+  switch (sp_result) {
+  case SP_OK:
+    my_ok(thd);
+    return 0;
+  case SP_KEY_NOT_FOUND:
+    int res;
+    if (lex->if_exists())
+    {
+      res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_SP_DOES_NOT_EXIST,
+                          ER_THD(thd, ER_SP_DOES_NOT_EXIST),
+                          sph->type_str(),
+                          ErrConvDQName(lex->spname).ptr());
+      if (res)
+        return 1;
+      my_ok(thd);
+      return 0;
+    }
+    my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
+             sph->type_str(), ErrConvDQName(lex->spname).ptr());
+    return 1;
+  default:
+    my_error(ER_SP_DROP_FAILED, MYF(0),
+             sph->type_str(), ErrConvDQName(lex->spname).ptr());
+    return 1;
+  }
+
+#ifdef WITH_WSREP
+wsrep_error_label:
+  return 1;
+#endif
+}
 
 /**
   @brief Compare requested privileges with the privileges acquired from the
@@ -7606,7 +7728,7 @@ void mysql_init_multi_delete(LEX *lex)
   lex->sql_command=  SQLCOM_DELETE_MULTI;
   mysql_init_select(lex);
   lex->first_select_lex()->select_limit= 0;
-  lex->unit.select_limit_cnt= HA_POS_ERROR;
+  lex->unit.lim.set_unlimited();
   lex->first_select_lex()->table_list.
     save_and_clear(&lex->auxiliary_table_list);
   lex->query_tables= 0;
@@ -7697,14 +7819,22 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                   (thd->get_stmt_da()->is_error()) ?
                    thd->get_stmt_da()->sql_errno() : 0);
 
-      thd->killed = NOT_KILLED;
+      thd->reset_kill_query();
       wsrep_override_error(thd, ER_LOCK_DEADLOCK);
     }
 
-    if (wsrep_after_statement(thd) && is_autocommit)
+#ifdef ENABLED_DEBUG_SYNC
+    /* we need the test otherwise we get stuck in the "SET DEBUG_SYNC" itself */
+    if (thd->lex->sql_command != SQLCOM_SET_OPTION)
+      DEBUG_SYNC(thd, "wsrep_after_statement_enter");
+#endif
+
+    if (wsrep_after_statement(thd) &&
+        is_autocommit              &&
+        thd_is_connection_alive(thd))
     {
       thd->reset_for_next_command();
-      thd->killed= NOT_KILLED;
+      thd->reset_kill_query();
       if (is_autocommit                           &&
           thd->lex->sql_command != SQLCOM_SELECT  &&
           thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit)
@@ -7734,7 +7864,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                     thd->variables.wsrep_retry_autocommit,
                     WSREP_QUERY(thd));
         my_error(ER_LOCK_DEADLOCK, MYF(0));
-        thd->killed= NOT_KILLED;
+        thd->reset_kill_query();
         thd->wsrep_retry_counter= 0;             //  reset
       }
     }
@@ -8283,6 +8413,13 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
   List<TABLE_LIST> *embedded_list;
   DBUG_ENTER("nest_last_join");
 
+  TABLE_LIST *head= join_list->head();
+  if (head->nested_join && (head->nested_join->nest_type & REBALANCED_NEST))
+  {
+    head= join_list->pop();
+    DBUG_RETURN(head);
+  }
+
   if (unlikely(!(ptr= (TABLE_LIST*) thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST))+
                                                 sizeof(NESTED_JOIN)))))
     DBUG_RETURN(0);
@@ -8295,6 +8432,7 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
   ptr->alias.length= sizeof("(nest_last_join)")-1;
   embedded_list= &nested_join->join_list;
   embedded_list->empty();
+  nested_join->nest_type= JOIN_OP_NEST;
 
   for (uint i=0; i < 2; i++)
   {
@@ -8341,6 +8479,277 @@ void st_select_lex::add_joined_table(TABLE_LIST *table)
   table->join_list= join_list;
   table->embedding= embedding;
   DBUG_VOID_RETURN;
+}
+
+
+/**
+  @brief
+    Create a node for JOIN/INNER JOIN/CROSS JOIN/STRAIGHT_JOIN operation
+
+  @param left_op     the node for the left operand constructed by the parser
+  @param right_op    the node for the right operand constructed by the parser
+  @param straight_fl TRUE if STRAIGHT_JOIN is used
+
+  @retval
+    false on success
+    true  otherwise
+
+  @details
+
+    JOIN operator can be left-associative with other join operators in one
+    context and right-associative in another context.
+
+    In this query
+      SELECT * FROM t1 JOIN t2 LEFT JOIN t3 ON t2.a=t3.a  (Q1)
+    JOIN is left-associative and the query Q1 is interpreted as
+      SELECT * FROM (t1 JOIN t2) LEFT JOIN t3 ON t2.a=t3.a.
+    While in this query
+      SELECT * FROM t1 JOIN t2 LEFT JOIN t3 ON t2.a=t3.a ON t1.b=t2.b (Q2)
+    JOIN is right-associative and the query Q2 is interpreted as
+      SELECT * FROM t1 JOIN (t2 LEFT JOIN t3 ON t2.a=t3.a) ON t1.b=t2.b
+
+    JOIN is right-associative if it is used with ON clause or with USING clause.
+    Otherwise it is left-associative.
+    When parsing a join expression with JOIN operator we can't determine
+    whether this operation left or right associative until either we read the
+    corresponding ON clause or we reach the end of the expression. This creates
+    a problem for the parser to build a proper internal representation of the
+    used join expression.
+
+    For Q1 and Q2 the trees representing the used join expressions look like
+
+            LJ - ON                   J - ON
+           /  \                      / \
+          J    t3   (TQ1)          t1   LJ - ON      (TQ2)
+         / \                           /  \
+       t1   t2                       t2    t3
+
+    To build TQ1 the parser has to reduce the expression for JOIN right after
+    it has read the reference to t2. To build TQ2 the parser reduces JOIN
+    when he has read the whole join expression. There is no way to determine
+    whether an early reduction is needed until the whole join expression is
+    read.
+    A solution here is always to do a late reduction. In this case the parser
+    first builds an incorrect tree TQ1* that has to be rebalanced right after
+    it has been constructed.
+
+             J                               LJ - ON
+            / \                             /  \
+          t1   LJ - ON    (TQ1*)    =>     J    t3
+              /  \                        / \
+            t2    t3                    t1   t2
+
+    Actually the transformation is performed over the nodes t1 and LJ before the
+    node for J is created in the function st_select_lex::add_cross_joined_table.
+    The function creates a node for J which replaces the node t2. Then it
+    attaches the nodes t1 and t2 to this newly created node. The node LJ becomes
+    the top node of the tree.
+
+    For the query
+      SELECT * FROM t1 JOIN t2 RIGHT JOIN t3 ON t2.a=t3.a  (Q3)
+    the transformation looks slightly differently because the parser
+    replaces the RIGHT JOIN tree for an equivalent LEFT JOIN tree.
+
+             J                               LJ - ON
+            / \                             /  \
+          t1   LJ - ON    (TQ3*)    =>    t3    J
+              /  \                             / \
+            t3    t2                         t1   t2
+
+    With several left associative JOINs
+      SELECT * FROM t1 JOIN t2 JOIN t3 LEFT JOIN t4 ON t3.a=t4.a (Q4)
+    the newly created node for JOIN replaces the left most node of the tree:
+
+          J1                         LJ - ON
+         /  \                       /  \
+       t1    J2                    J2   t4
+            /  \          =>      /  \
+           t2  LJ - ON          J1    t3
+              /  \             /  \
+            t3   t4          t1    t2
+
+    Here's another example:
+      SELECT *
+      FROM t1 JOIN t2 LEFT JOIN t3 JOIN t4 ON t3.a=t4.a ON t2.b=t3.b (Q5)
+
+          J                       LJ - ON
+         / \                     /   \
+       t1   LJ - ON             J     J - ON
+           /  \          =>    / \   / \
+         t2    J - ON         t1 t2 t3 t4
+              / \
+            t3   t4
+
+    If the transformed nested join node node is a natural join node like in
+    the following query
+      SELECT * FROM t1 JOIN t2 LEFT JOIN t3 USING(a)  (Q6)
+    the transformation additionally has to take care about setting proper
+    references in the field natural_join for both operands of the natural
+    join operation.
+
+    The queries that combine comma syntax for join operation with
+    JOIN expression require a special care. Consider the query
+      SELECT * FROM t1, t2 JOIN t3 LEFT JOIN t4 ON t3.a=t4.a (Q7)
+    This query is equivalent to the query
+      SELECT * FROM (t1, t2) JOIN t3 LEFT JOIN t4 ON t3.a=t4.a
+    The latter is transformed in the same way as query Q1
+
+             J                               LJ - ON
+            / \                             /  \
+      (t1,t2)  LJ - ON      =>             J    t4
+              /  \                        / \
+            t3    t4                (t1,t2)   t3
+
+    A transformation similar to the transformation for Q3 is done for
+    the following query with RIGHT JOIN
+      SELECT * FROM t1, t2 JOIN t3 RIGHT JOIN t4 ON t3.a=t4.a (Q8)
+
+             J                               LJ - ON
+            / \                             /  \
+          t3   LJ - ON      =>            t4    J
+              /  \                             / \
+            t4   (t1,t2)                 (t1,t2)  t3
+
+    The function also has to change the name resolution context for ON
+    expressions used in the transformed join expression to take into
+    account the tables of the left_op node.
+
+  TODO:
+    A more elegant solution would be to implement the transformation that
+    eliminates nests for cross join operations. For Q7 it would work like this:
+
+             J                               LJ - ON
+            / \                             /  \
+      (t1,t2)  LJ - ON      =>     (t1,t2,t3)   t4
+              /  \
+            t3    t4
+
+    For Q8 with RIGHT JOIN the transformation would work similarly:
+
+             J                               LJ - ON
+            / \                             /  \
+          t3   LJ - ON      =>            t4   (t1,t2,t3)
+              /  \
+            t4   (t1,t2)
+
+*/
+
+bool st_select_lex::add_cross_joined_table(TABLE_LIST *left_op,
+                                           TABLE_LIST *right_op,
+                                           bool straight_fl)
+{
+  DBUG_ENTER("add_cross_joined_table");
+  THD *thd= parent_lex->thd;
+  if (!(right_op->nested_join &&
+	(right_op->nested_join->nest_type & JOIN_OP_NEST)))
+  {
+    /*
+      This handles the cases when the right operand is not a nested join.
+      like in queries
+        SELECT * FROM t1 JOIN t2;
+        SELECT * FROM t1 LEFT JOIN t2 ON t1.a=t2.a JOIN t3
+    */
+    add_joined_table(left_op);
+    add_joined_table(right_op);
+    right_op->straight= straight_fl;
+    DBUG_RETURN(false);
+  }
+
+  TABLE_LIST *tbl;
+  List<TABLE_LIST> *right_op_jl= right_op->join_list;
+  TABLE_LIST *cj_nest;
+
+  /*
+    Create the node NJ for a new nested join for the future inclusion
+    of left_op in it. Initially the nest is empty.
+  */
+  if (unlikely(!(cj_nest=
+                 (TABLE_LIST*) thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST))+
+                                           sizeof(NESTED_JOIN)))))
+    DBUG_RETURN(true);
+  cj_nest->nested_join=
+    ((NESTED_JOIN*) ((uchar*) cj_nest + ALIGN_SIZE(sizeof(TABLE_LIST))));
+  cj_nest->nested_join->nest_type= JOIN_OP_NEST;
+  List<TABLE_LIST> *cjl=  &cj_nest->nested_join->join_list;
+  cjl->empty();
+
+  List<TABLE_LIST> *jl= &right_op->nested_join->join_list;
+  DBUG_ASSERT(jl->elements == 2);
+  /* Look for the left most node tbl of the right_op tree */
+  for ( ; ; )
+  {
+    TABLE_LIST *pair_tbl= 0;  /* useful only for operands of natural joins */
+
+    List_iterator<TABLE_LIST> li(*jl);
+    tbl= li++;
+
+    /* Expand name resolution context */
+    Name_resolution_context *on_context;
+    if ((on_context= tbl->on_context))
+    {
+      on_context->first_name_resolution_table=
+        left_op->first_leaf_for_name_resolution();
+    }
+
+    if (!(tbl->outer_join & JOIN_TYPE_RIGHT))
+    {
+      pair_tbl= tbl;
+      tbl= li++;
+    }
+    if (tbl->nested_join &&
+        tbl->nested_join->nest_type & JOIN_OP_NEST)
+    {
+      jl= &tbl->nested_join->join_list;
+      continue;
+    }
+
+    /* Replace the tbl node in the tree for the newly created NJ node */
+    cj_nest->outer_join= tbl->outer_join;
+    cj_nest->on_expr= tbl->on_expr;
+    cj_nest->embedding= tbl->embedding;
+    cj_nest->join_list= jl;
+    cj_nest->alias.str= "(nest_last_join)";
+    cj_nest->alias.length= sizeof("(nest_last_join)")-1;
+    li.replace(cj_nest);
+
+    /*
+      If tbl is an operand of a natural join set properly the references
+      in the fields natural_join for both operands of the operation.
+    */
+    if(tbl->embedding && tbl->embedding->is_natural_join)
+    {
+      if (!pair_tbl)
+        pair_tbl= li++;
+      pair_tbl->natural_join= cj_nest;
+      cj_nest->natural_join= pair_tbl;
+    }
+    break;
+  }
+
+  /* Attach tbl as the right operand of NJ */
+  if (unlikely(cjl->push_back(tbl, thd->mem_root)))
+    DBUG_RETURN(true);
+  tbl->outer_join= 0;
+  tbl->on_expr= 0;
+  tbl->straight= straight_fl;
+  tbl->natural_join= 0;
+  tbl->embedding= cj_nest;
+  tbl->join_list= cjl;
+
+  /* Add left_op as the left operand of NJ */
+  if (unlikely(cjl->push_back(left_op, thd->mem_root)))
+    DBUG_RETURN(true);
+  left_op->embedding= cj_nest;
+  left_op->join_list= cjl;
+
+  /*
+    Mark right_op as a rebalanced nested join in order not to
+    create a new top level nested join node.
+  */
+  right_op->nested_join->nest_type|= REBALANCED_NEST;
+  if (unlikely(right_op_jl->push_front(right_op)))
+    DBUG_RETURN(true);
+  DBUG_RETURN(false);
 }
 
 
@@ -8665,7 +9074,7 @@ void add_join_on(THD *thd, TABLE_LIST *b, Item *expr)
     SELECT * FROM t1, t2 WHERE (t1.j=t2.j and <some_cond>)
    @endverbatim
 
-  @param a		  Left join argument
+  @param a		  Left join argumentex
   @param b		  Right join argument
   @param using_fields    Field names from USING clause
 */
@@ -8900,8 +9309,8 @@ void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
 }
 
 
-static
-void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
+static void __attribute__ ((noinline))
+sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;

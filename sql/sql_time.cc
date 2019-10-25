@@ -914,7 +914,7 @@ void make_truncated_value_warning(THD *thd,
 #define GET_PART(X, N) X % N ## LL; X/= N ## LL
 
 bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
-                       const INTERVAL &interval)
+                       const INTERVAL &interval, bool push_warn)
 {
   long period, sign;
 
@@ -1027,6 +1027,7 @@ bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
     return 0;                                   // Ok
 
 invalid_date:
+  if (push_warn)
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_DATETIME_FUNCTION_OVERFLOW,

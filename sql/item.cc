@@ -3336,6 +3336,16 @@ table_map Item_field::all_used_tables() const
 }
 
 
+bool Item_field::find_not_null_fields(table_map allowed)
+{
+  if (field->table->const_table)
+    return false;
+  if (!get_depended_from() && field->real_maybe_null())
+    bitmap_set_bit(&field->table->tmp_set, field->field_index);
+  return false;
+}
+
+
 /*
   @Note  thd->fatal_error can be set in case of OOM
 */
@@ -3772,6 +3782,20 @@ my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 }
 
 
+longlong Item_null::val_datetime_packed(THD *)
+{
+  null_value= true;
+  return 0;
+}
+
+
+longlong Item_null::val_time_packed(THD *)
+{
+  null_value= true;
+  return 0;
+}
+
+
 bool Item_null::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   set_zero_time(ltime, MYSQL_TIMESTAMP_NONE);
@@ -4104,12 +4128,12 @@ bool Item_param::set_longdata(const char *str, ulong length)
     (here), and first have to concatenate all pieces together,
     write query to the binary log and only then perform conversion.
   */
-  if (value.m_string.length() + length > max_long_data_size)
+  if (value.m_string.length() + length > current_thd->variables.max_allowed_packet)
   {
     my_message(ER_UNKNOWN_ERROR,
                "Parameter of prepared statement which is set through "
                "mysql_send_long_data() is longer than "
-               "'max_long_data_size' bytes",
+               "'max_allowed_packet' bytes",
                MYF(0));
     DBUG_RETURN(true);
   }
@@ -4982,8 +5006,7 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
     resolved identifier.
 */
 
-void mark_select_range_as_dependent(THD *thd,
-                                    SELECT_LEX *last_select,
+void mark_select_range_as_dependent(THD *thd, SELECT_LEX *last_select,
                                     SELECT_LEX *current_sel,
                                     Field *found_field, Item *found_item,
                                     Item_ident *resolved_item)
@@ -4995,34 +5018,33 @@ void mark_select_range_as_dependent(THD *thd,
     resolving)
   */
   SELECT_LEX *previous_select= current_sel;
-  for (; previous_select->outer_select() != last_select;
-       previous_select= previous_select->outer_select())
+  for (; previous_select->context.outer_select() != last_select;
+       previous_select= previous_select->context.outer_select())
   {
     Item_subselect *prev_subselect_item=
       previous_select->master_unit()->item;
     prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
     prev_subselect_item->const_item_cache= 0;
   }
+
+  Item_subselect *prev_subselect_item=
+    previous_select->master_unit()->item;
+  Item_ident *dependent= resolved_item;
+  if (found_field == view_ref_found)
   {
-    Item_subselect *prev_subselect_item=
-      previous_select->master_unit()->item;
-    Item_ident *dependent= resolved_item;
-    if (found_field == view_ref_found)
-    {
-      Item::Type type= found_item->type();
-      prev_subselect_item->used_tables_cache|=
-        found_item->used_tables();
-      dependent= ((type == Item::REF_ITEM || type == Item::FIELD_ITEM) ?
-                  (Item_ident*) found_item :
-                  0);
-    }
-    else
-      prev_subselect_item->used_tables_cache|=
-        found_field->table->map;
-    prev_subselect_item->const_item_cache= 0;
-    mark_as_dependent(thd, last_select, current_sel, resolved_item,
-                      dependent);
+    Item::Type type= found_item->type();
+    prev_subselect_item->used_tables_cache|=
+      found_item->used_tables();
+    dependent= ((type == Item::REF_ITEM || type == Item::FIELD_ITEM) ?
+                (Item_ident*) found_item :
+                0);
   }
+  else
+    prev_subselect_item->used_tables_cache|=
+      found_field->table->map;
+  prev_subselect_item->const_item_cache= 0;
+  mark_as_dependent(thd, last_select, current_sel, resolved_item,
+                    dependent);
 }
 
 
@@ -8213,6 +8235,24 @@ bool Item_ref::val_native(THD *thd, Native *to)
 }
 
 
+longlong Item_ref::val_datetime_packed(THD *thd)
+{
+  DBUG_ASSERT(fixed);
+  longlong tmp= (*ref)->val_datetime_packed(thd);
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
+longlong Item_ref::val_time_packed(THD *thd)
+{
+  DBUG_ASSERT(fixed);
+  longlong tmp= (*ref)->val_time_packed(thd);
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
 my_decimal *Item_ref::val_decimal(my_decimal *decimal_value)
 {
   my_decimal *val= (*ref)->val_decimal_result(decimal_value);
@@ -9268,8 +9308,6 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
     return Item_field::save_in_field(field_arg, no_conversions);
   }
 
-  if (field_arg->default_value && field_arg->default_value->flags)
-    return 0; // defaut fields will be set later, no need to do it twice
   return field_arg->save_in_field_default_value(context->error_processor ==
                                                 &view_error_processor);
 }
@@ -9516,7 +9554,7 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
   int err_code= item->save_in_field(field, 0);
 
   field->table->copy_blobs= copy_blobs_saved;
-  field->set_explicit_default(item);
+  field->set_has_explicit_value();
 
   return err_code < 0;
 }
@@ -9910,7 +9948,7 @@ Datetime Item_cache_timestamp::to_datetime(THD *thd)
     null_value= true;
     return Datetime();
   }
-  return Datetime(thd, Timestamp_or_zero_datetime(m_native).tv());
+  return m_native.to_datetime(thd);
 }
 
 
@@ -10378,11 +10416,14 @@ table_map Item_direct_view_ref::used_tables() const
 
 table_map Item_direct_view_ref::not_null_tables() const
 {
-  return get_depended_from() ?
-         0 :
-         ((view->is_merged_derived() || view->merged || !view->table) ?
-          (*ref)->not_null_tables() :
-          view->table->map);
+  if (get_depended_from())
+    return 0;
+  if  (!( view->merged || !view->table))
+    return view->table->map;
+  TABLE *tab= get_null_ref_table();
+  if (tab == NO_NULL_TABLE || (*ref)->used_tables())
+    return (*ref)->not_null_tables();
+   return get_null_ref_table()->map;
 }
 
 /*

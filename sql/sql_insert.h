@@ -31,14 +31,15 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list, TABLE *table,
 bool mysql_insert(THD *thd,TABLE_LIST *table,List<Item> &fields,
                   List<List_item> &values, List<Item> &update_fields,
                   List<Item> &update_values, enum_duplicates flag,
-                  bool ignore);
+                  bool ignore, select_result* result);
 void upgrade_lock_type_for_insert(THD *thd, thr_lock_type *lock_type,
                                   enum_duplicates duplic,
                                   bool is_multi_insert);
 int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
                                            TABLE_LIST *table_list);
 int vers_insert_history_row(TABLE *table);
-int write_record(THD *thd, TABLE *table, COPY_INFO *info);
+int write_record(THD *thd, TABLE *table, COPY_INFO *info,
+                 select_result *returning= NULL);
 void kill_delayed_threads(void);
 
 #ifdef EMBEDDED_LIBRARY

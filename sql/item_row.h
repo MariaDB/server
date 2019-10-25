@@ -121,6 +121,7 @@ public:
   }
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
   bool eval_not_null_tables(void *opt_arg);
+  bool find_not_null_fields(table_map allowed);
 
   uint cols() const { return arg_count; }
   Item* element_index(uint i) { return args[i]; }

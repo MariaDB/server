@@ -1188,11 +1188,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_SRV_BACKGROUND_DROP_TABLE_MICROSECOND},
 
-	{"innodb_ibuf_merge_usec", "server",
-	 "Time (in microseconds) spent to process change buffer merge",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_SRV_IBUF_MERGE_MICROSECOND},
-
 	{"innodb_log_flush_usec", "server",
 	 "Time (in microseconds) spent to flush log records",
 	 MONITOR_NONE,

@@ -439,29 +439,23 @@ btr_pcur_move_to_next_page(
 				last record of the current page */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	ulint		next_page_no;
-	page_t*		page;
-	buf_block_t*	next_block;
-	page_t*		next_page;
-	ulint		mode;
-
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 	ut_ad(btr_pcur_is_after_last_on_page(cursor));
 
 	cursor->old_stored = false;
 
-	page = btr_pcur_get_page(cursor);
+	const page_t* page = btr_pcur_get_page(cursor);
 
 	if (UNIV_UNLIKELY(!page)) {
 		return;
 	}
 
-	next_page_no = btr_page_get_next(page, mtr);
+	const ulint next_page_no = mach_read_from_4(page + FIL_PAGE_NEXT);
 
 	ut_ad(next_page_no != FIL_NULL);
 
-	mode = cursor->latch_mode;
+	ulint mode = cursor->latch_mode;
 	switch (mode) {
 	case BTR_SEARCH_TREE:
 		mode = BTR_SEARCH_LEAF;
@@ -470,18 +464,15 @@ btr_pcur_move_to_next_page(
 		mode = BTR_MODIFY_LEAF;
 	}
 
-	buf_block_t*	block = btr_pcur_get_block(cursor);
-
-	next_block = btr_block_get(
-		page_id_t(block->page.id.space(), next_page_no),
-		block->zip_size(), mode,
-		btr_pcur_get_btr_cur(cursor)->index, mtr);
+	buf_block_t* next_block = btr_block_get(
+		*btr_pcur_get_btr_cur(cursor)->index, next_page_no, mode,
+		page_is_leaf(page), mtr);
 
 	if (UNIV_UNLIKELY(!next_block)) {
 		return;
 	}
 
-	next_page = buf_block_get_frame(next_block);
+	const page_t* next_page = buf_block_get_frame(next_block);
 #ifdef UNIV_BTR_DEBUG
 	ut_a(page_is_comp(next_page) == page_is_comp(page));
 	ut_a(btr_page_get_prev(next_page, mtr)

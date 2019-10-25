@@ -5,6 +5,7 @@
 -- source include/not_embedded.inc
 
 set sql_mode="";
+--source include/default_charset.inc
 
 call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
 

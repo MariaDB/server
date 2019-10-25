@@ -1,0 +1,64 @@
+#
+# Verify that SET string values and character sets can be printed correctly
+#
+SET NAMES utf8;
+CREATE TABLE t1(
+c_set_1 SET("set1_v1_å", "set1_v2_ä", "set1_v3_ö"),
+c_set_2 SET("set2_v1_å", "set2_v2_ä", "set2_v3_ö") CHARACTER SET binary);
+SET GLOBAL binlog_row_metadata = MINIMAL;
+INSERT INTO t1 VALUES("set1_v1_å", "set2_v2_ä");
+# Columns(SET,
+#         SET)
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = FULL;
+INSERT INTO t1 VALUES("set1_v1_å", "set2_v2_ä");
+# Columns(`c_set_1` SET('set1_v1_�','set1_v2_�','set1_v3_�') CHARSET latin1 COLLATE latin1_swedish_ci,
+#         `c_set_2` SET('set2_v1_å','set2_v2_ä','set2_v3_ö') CHARSET binary COLLATE binary)
+INSERT INTO t1 VALUES("set1_v3_ö", "set2_v3_ö");
+INSERT INTO t1 VALUES("set1_v1_å", "set2_v1_å");
+SELECT c_set_1, HEX(c_set_1) FROM t1;
+c_set_1	HEX(c_set_1)
+set1_v1_å	736574315F76315FE5
+set1_v1_å	736574315F76315FE5
+set1_v3_ö	736574315F76335FF6
+set1_v1_å	736574315F76315FE5
+SELECT c_set_2, HEX(c_set_2) FROM t1;
+c_set_2	HEX(c_set_2)
+set2_v2_ä	736574325F76325FC3A4
+set2_v2_ä	736574325F76325FC3A4
+set2_v3_ö	736574325F76335FC3B6
+set2_v1_å	736574325F76315FC3A5
+DROP TABLE t1;
+RESET MASTER;
+#
+# Verify that ENUM string values and character sets can be printed correctly
+#
+CREATE TABLE t1(
+c_enum_1 ENUM("enum1_v1_å", "enum1_v2_ä", "enum1_v3_ö"),
+c_enum_2 ENUM("enum2_v1_å", "enum2_v2_ä", "enum2_v3_ö") CHARACTER SET binary);
+SET GLOBAL binlog_row_metadata = MINIMAL;
+INSERT INTO t1 VALUES("enum1_v1_å", "enum2_v2_ä");
+# Columns(ENUM,
+#         ENUM)
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = FULL;
+INSERT INTO t1 VALUES("enum1_v1_å", "enum2_v2_ä");
+# Columns(`c_enum_1` ENUM('enum1_v1_�','enum1_v2_�','enum1_v3_�') CHARSET latin1 COLLATE latin1_swedish_ci,
+#         `c_enum_2` ENUM('enum2_v1_å','enum2_v2_ä','enum2_v3_ö') CHARSET binary COLLATE binary)
+INSERT INTO t1 VALUES("enum1_v3_ö", "enum2_v3_ö");
+INSERT INTO t1 VALUES("enum1_v1_å", "enum2_v1_å");
+SELECT c_enum_1, HEX(c_enum_1) FROM t1;
+c_enum_1	HEX(c_enum_1)
+enum1_v1_å	656E756D315F76315FE5
+enum1_v1_å	656E756D315F76315FE5
+enum1_v3_ö	656E756D315F76335FF6
+enum1_v1_å	656E756D315F76315FE5
+SELECT c_enum_2, HEX(c_enum_2) FROM t1;
+c_enum_2	HEX(c_enum_2)
+enum2_v2_ä	656E756D325F76325FC3A4
+enum2_v2_ä	656E756D325F76325FC3A4
+enum2_v3_ö	656E756D325F76335FC3B6
+enum2_v1_å	656E756D325F76315FC3A5
+DROP TABLE t1;
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = NO_LOG;

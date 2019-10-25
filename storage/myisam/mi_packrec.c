@@ -810,7 +810,7 @@ static void (*get_unpack_function(MI_COLUMNDEF *rec))
     return &uf_varchar2;
   case FIELD_LAST:
   default:
-    return 0;			/* This should never happend */
+    return 0;			/* This should never happen */
   }
 }
 
@@ -1479,9 +1479,6 @@ static uint max_bit(register uint value)
 /*****************************************************************************
 	Some redefined functions to handle files when we are using memmap
 *****************************************************************************/
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 
 #ifdef HAVE_MMAP
 

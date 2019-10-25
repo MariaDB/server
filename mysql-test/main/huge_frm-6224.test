@@ -4,6 +4,7 @@
 # verify that huge frms are rejected during creation, not on opening
 #
 --source include/have_partition.inc
+set @save_max_allowed_packet=@@max_allowed_packet;
 set global max_allowed_packet=1024*1024*10;
 connect con1,localhost,root;
 
@@ -23,5 +24,4 @@ eval $a partition foo);
 
 connection default;
 disconnect con1;
-set global max_allowed_packet=default;
-
+set global max_allowed_packet=@save_max_allowed_packet;

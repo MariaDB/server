@@ -535,5 +535,49 @@ DROP TABLE t1,t2;
 SET time_zone=DEFAULT;
 
 --echo #
+--echo # MDEV-19961 MIN(timestamp_column) returns a wrong result in a GROUP BY query
+--echo #
+
+SET time_zone='Europe/Moscow';
+CREATE OR REPLACE TABLE t1 (i INT, d TIMESTAMP);
+SET timestamp=1288477526  /* this is summer time */ ;
+INSERT INTO t1 VALUES (3,NULL);
+SET timestamp=1288477526+3599 /* this is winter time*/ ;
+INSERT INTO t1 VALUES (3,NULL);
+SELECT i, d, UNIX_TIMESTAMP(d) FROM t1 ORDER BY d;
+SELECT i, MIN(d) FROM t1 GROUP BY i;
+SELECT i, MAX(d) FROM t1 GROUP BY i;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # MDEV-20397 Support TIMESTAMP, DATETIME, TIME in ROUND() and TRUNCATE()
+--echo #
+
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (i INT, d TIMESTAMP(6));
+SET timestamp=1288479599.999999  /* this is the last second in summer time */ ;
+INSERT INTO t1 VALUES (1,NULL);
+SET timestamp=1288479600.000000 /* this is the first second in winter time */ ;
+INSERT INTO t1 VALUES (2,NULL);
+SELECT i, d, UNIX_TIMESTAMP(d) FROM t1 ORDER BY d;
+
+CREATE TABLE t2 (i INT, d TIMESTAMP, expected_unix_timestamp INT UNSIGNED);
+INSERT INTO t2 SELECT i, ROUND(d) AS d, ROUND(UNIX_TIMESTAMP(d)) FROM t1;
+
+--echo # UNIX_TIMESTAMP(d) and expected_unix_timestamp should return the same value.
+--echo # Currently they do not, because ROUND(timestamp) is performed as DATETIME.
+--echo # We should fix this eventually.
+
+SELECT i, d, UNIX_TIMESTAMP(d), expected_unix_timestamp FROM t2 ORDER BY i;
+DROP TABLE t2;
+
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #

@@ -740,11 +740,14 @@ loop:
 	the trailer fields of the log blocks */
 
 	for (i = 0; i < write_len / OS_FILE_LOG_BLOCK_SIZE; i++) {
+#ifdef UNIV_DEBUG
+		ulint hdr_no_2 = log_block_get_hdr_no(buf) + i;
+		DBUG_EXECUTE_IF("innodb_small_log_block_no_limit",
+				hdr_no_2 = ((hdr_no_2 - 1) & 0xFUL) + 1;);
+#endif
 		ut_ad(pad_len >= len
-		      || i * OS_FILE_LOG_BLOCK_SIZE >= len - pad_len
-		      || log_block_get_hdr_no(
-			      buf + i * OS_FILE_LOG_BLOCK_SIZE)
-			 == log_block_get_hdr_no(buf) + i);
+			|| i * OS_FILE_LOG_BLOCK_SIZE >= len - pad_len
+			|| log_block_get_hdr_no(buf + i * OS_FILE_LOG_BLOCK_SIZE) == hdr_no_2);
 		log_block_store_checksum(buf + i * OS_FILE_LOG_BLOCK_SIZE);
 	}
 
@@ -1324,7 +1327,7 @@ log_append_on_checkpoint(
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
-log files. Use log_make_checkpoint_at() to flush also the pool.
+log files. Use log_make_checkpoint() to flush also the pool.
 @param[in]	sync		whether to wait for the write to complete
 @return true if success, false if a checkpoint write was already running */
 bool log_checkpoint(bool sync)
@@ -1440,14 +1443,12 @@ bool log_checkpoint(bool sync)
 	return(true);
 }
 
-/** Make a checkpoint at or after a specified LSN.
-@param[in]	lsn		the log sequence number, or LSN_MAX
-for the latest LSN */
-void log_make_checkpoint_at(lsn_t lsn)
+/** Make a checkpoint */
+void log_make_checkpoint()
 {
 	/* Preflush pages synchronously */
 
-	while (!log_preflush_pool_modified_pages(lsn)) {
+	while (!log_preflush_pool_modified_pages(LSN_MAX)) {
 		/* Flush as much as we can */
 	}
 
@@ -1780,7 +1781,7 @@ wait_suspend_loop:
 	if (!srv_read_only_mode) {
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 			"ensuring dirty buffer pool are written to log");
-		log_make_checkpoint_at(LSN_MAX);
+		log_make_checkpoint();
 
 		log_mutex_enter();
 

@@ -24,18 +24,20 @@ use My::Platform;
 
 my $handle_exe;
 
-
-if (IS_WINDOWS){
+sub import {
+  my $self = shift;
+  my $params = shift;
+  return if (!IS_WINDOWS || $handle_exe);
   # Check if handle.exe is available
   # Pass switch to accept the EULA to avoid hanging
   # if the program hasn't been run before.
   my $list= `handle.exe -? -accepteula 2>&1`;
   foreach my $line (split('\n', $list))
   {
-    $handle_exe= "$1.$2"
-      if ($line =~ /Handle v([0-9]*)\.([0-9]*)/);
+    $handle_exe= "$2.$3"
+      if ($line =~ /(Nth|H)andle v([0-9]*)\.([0-9]*)/);
   }
-  if ($handle_exe){
+  if ($handle_exe && (!$params || !$params->{suppress_init_messages})){
     print "Found handle.exe version $handle_exe\n";
   }
 }

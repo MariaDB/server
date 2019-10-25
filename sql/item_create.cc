@@ -33,9 +33,39 @@
 #include "set_var.h"
 #include "sp_head.h"
 #include "sp.h"
-#include "item_inetfunc.h"
 #include "sql_time.h"
 #include "sql_type_geom.h"
+#include <mysql/plugin_function.h>
+
+
+extern "C" uchar*
+get_native_fct_hash_key(const uchar *buff, size_t *length,
+                        my_bool /* unused */)
+{
+  Native_func_registry *func= (Native_func_registry*) buff;
+  *length= func->name.length;
+  return (uchar*) func->name.str;
+}
+
+
+bool Native_func_registry_array::append_to_hash(HASH *hash) const
+{
+  DBUG_ENTER("Native_func_registry_array::append_to_hash");
+  for (size_t i= 0; i < count(); i++)
+  {
+    const Native_func_registry &func= element(i);
+    DBUG_ASSERT(func.builder != NULL);
+    if (my_hash_insert(hash, (uchar*) &func))
+      DBUG_RETURN(true);
+  }
+  DBUG_RETURN(false);
+}
+
+
+#ifdef HAVE_SPATIAL
+extern Native_func_registry_array native_func_registry_array_geom;
+#endif
+
 
 /*
 =============================================================================
@@ -816,110 +846,6 @@ public:
 protected:
   Create_func_ifnull() {}
   virtual ~Create_func_ifnull() {}
-};
-
-
-class Create_func_inet_ntoa : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_inet_ntoa s_singleton;
-
-protected:
-  Create_func_inet_ntoa() {}
-  virtual ~Create_func_inet_ntoa() {}
-};
-
-
-class Create_func_inet_aton : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_inet_aton s_singleton;
-
-protected:
-  Create_func_inet_aton() {}
-  virtual ~Create_func_inet_aton() {}
-};
-
-
-class Create_func_inet6_aton : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_inet6_aton s_singleton;
-
-protected:
-  Create_func_inet6_aton() {}
-  virtual ~Create_func_inet6_aton() {}
-};
-
-
-class Create_func_inet6_ntoa : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_inet6_ntoa s_singleton;
-
-protected:
-  Create_func_inet6_ntoa() {}
-  virtual ~Create_func_inet6_ntoa() {}
-};
-
-
-class Create_func_is_ipv4 : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_is_ipv4 s_singleton;
-
-protected:
-  Create_func_is_ipv4() {}
-  virtual ~Create_func_is_ipv4() {}
-};
-
-
-class Create_func_is_ipv6 : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_is_ipv6 s_singleton;
-
-protected:
-  Create_func_is_ipv6() {}
-  virtual ~Create_func_is_ipv6() {}
-};
-
-
-class Create_func_is_ipv4_compat : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_is_ipv4_compat s_singleton;
-
-protected:
-  Create_func_is_ipv4_compat() {}
-  virtual ~Create_func_is_ipv4_compat() {}
-};
-
-
-class Create_func_is_ipv4_mapped : public Create_func_arg1
-{
-public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
-  static Create_func_is_ipv4_mapped s_singleton;
-
-protected:
-  Create_func_is_ipv4_mapped() {}
-  virtual ~Create_func_is_ipv4_mapped() {}
 };
 
 
@@ -3597,78 +3523,6 @@ Create_func_ifnull::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 }
 
 
-Create_func_inet_ntoa Create_func_inet_ntoa::s_singleton;
-
-Item*
-Create_func_inet_ntoa::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_inet_ntoa(thd, arg1);
-}
-
-
-Create_func_inet6_aton Create_func_inet6_aton::s_singleton;
-
-Item*
-Create_func_inet6_aton::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_inet6_aton(thd, arg1);
-}
-
-
-Create_func_inet6_ntoa Create_func_inet6_ntoa::s_singleton;
-
-Item*
-Create_func_inet6_ntoa::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_inet6_ntoa(thd, arg1);
-}
-
-
-Create_func_inet_aton Create_func_inet_aton::s_singleton;
-
-Item*
-Create_func_inet_aton::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_inet_aton(thd, arg1);
-}
-
-
-Create_func_is_ipv4 Create_func_is_ipv4::s_singleton;
-
-Item*
-Create_func_is_ipv4::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_is_ipv4(thd, arg1);
-}
-
-
-Create_func_is_ipv6 Create_func_is_ipv6::s_singleton;
-
-Item*
-Create_func_is_ipv6::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_is_ipv6(thd, arg1);
-}
-
-
-Create_func_is_ipv4_compat Create_func_is_ipv4_compat::s_singleton;
-
-Item*
-Create_func_is_ipv4_compat::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_is_ipv4_compat(thd, arg1);
-}
-
-
-Create_func_is_ipv4_mapped Create_func_is_ipv4_mapped::s_singleton;
-
-Item*
-Create_func_is_ipv4_mapped::create_1_arg(THD *thd, Item *arg1)
-{
-  return new (thd->mem_root) Item_func_is_ipv4_mapped(thd, arg1);
-}
-
-
 Create_func_instr Create_func_instr::s_singleton;
 
 Item*
@@ -5593,14 +5447,6 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("GREATEST") }, BUILDER(Create_func_greatest)},
   { { STRING_WITH_LEN("HEX") }, BUILDER(Create_func_hex)},
   { { STRING_WITH_LEN("IFNULL") }, BUILDER(Create_func_ifnull)},
-  { { STRING_WITH_LEN("INET_ATON") }, BUILDER(Create_func_inet_aton)},
-  { { STRING_WITH_LEN("INET_NTOA") }, BUILDER(Create_func_inet_ntoa)},
-  { { STRING_WITH_LEN("INET6_ATON") }, BUILDER(Create_func_inet6_aton)},
-  { { STRING_WITH_LEN("INET6_NTOA") }, BUILDER(Create_func_inet6_ntoa)},
-  { { STRING_WITH_LEN("IS_IPV4") }, BUILDER(Create_func_is_ipv4)},
-  { { STRING_WITH_LEN("IS_IPV6") }, BUILDER(Create_func_is_ipv6)},
-  { { STRING_WITH_LEN("IS_IPV4_COMPAT") }, BUILDER(Create_func_is_ipv4_compat)},
-  { { STRING_WITH_LEN("IS_IPV4_MAPPED") }, BUILDER(Create_func_is_ipv4_mapped)},
   { { STRING_WITH_LEN("INSTR") }, BUILDER(Create_func_instr)},
   { { STRING_WITH_LEN("ISNULL") }, BUILDER(Create_func_isnull)},
   { { STRING_WITH_LEN("IS_FREE_LOCK") }, BUILDER(Create_func_is_free_lock)},
@@ -5728,21 +5574,13 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("WSREP_LAST_SEEN_GTID") }, BUILDER(Create_func_wsrep_last_seen_gtid)},
   { { STRING_WITH_LEN("WSREP_SYNC_WAIT_UPTO_GTID") }, BUILDER(Create_func_wsrep_sync_wait_upto)},
 #endif /* WITH_WSREP */
-  { { STRING_WITH_LEN("YEARWEEK") }, BUILDER(Create_func_year_week)},
-
-  { {0, 0}, NULL}
+  { { STRING_WITH_LEN("YEARWEEK") }, BUILDER(Create_func_year_week)}
 };
 
-static HASH native_functions_hash;
+Native_func_registry_array
+  native_func_registry_array(func_array, array_elements(func_array));
 
-extern "C" uchar*
-get_native_fct_hash_key(const uchar *buff, size_t *length,
-                        my_bool /* unused */)
-{
-  Native_func_registry *func= (Native_func_registry*) buff;
-  *length= func->name.length;
-  return (uchar*) func->name.str;
-}
+static HASH native_functions_hash;
 
 /*
   Load the hash table for native functions.
@@ -5753,10 +5591,13 @@ get_native_fct_hash_key(const uchar *buff, size_t *length,
 int item_create_init()
 {
   DBUG_ENTER("item_create_init");
-
+  size_t count= native_func_registry_array.count();
+#ifdef HAVE_SPATIAL
+  count+= native_func_registry_array_geom.count();
+#endif
   if (my_hash_init(& native_functions_hash,
                    system_charset_info,
-                   array_elements(func_array),
+                   (ulong) count,
                    0,
                    0,
                    (my_hash_get_key) get_native_fct_hash_key,
@@ -5764,17 +5605,33 @@ int item_create_init()
                    MYF(0)))
     DBUG_RETURN(1);
 
-  if (item_create_append(func_array))
+  if (native_func_registry_array.append_to_hash(&native_functions_hash))
     DBUG_RETURN(1);
 
 #ifdef HAVE_SPATIAL
-  if (function_collection_geometry.init())
+  if (native_func_registry_array_geom.append_to_hash(&native_functions_hash))
     DBUG_RETURN(1);
+#endif
+
+#ifndef DBUG_OFF
+  for (uint i=0 ; i < native_functions_hash.records ; i++)
+  {
+    Native_func_registry *func;
+    func= (Native_func_registry*) my_hash_element(& native_functions_hash, i);
+    DBUG_PRINT("info", ("native function: %s  length: %u",
+                        func->name.str, (uint) func->name.length));
+  }
 #endif
 
   DBUG_RETURN(0);
 }
 
+
+/*
+  This function is used (dangerously) by plugin/versioning/versioning.cc
+  TODO: MDEV-20842 Wrap SQL functions defined in
+        plugin/versioning/versioning.cc into MariaDB_FUNCTION_PLUGIN
+*/
 int item_create_append(Native_func_registry array[])
 {
   Native_func_registry *func;
@@ -5786,15 +5643,6 @@ int item_create_append(Native_func_registry array[])
     if (my_hash_insert(& native_functions_hash, (uchar*) func))
       DBUG_RETURN(1);
   }
-
-#ifndef DBUG_OFF
-  for (uint i=0 ; i < native_functions_hash.records ; i++)
-  {
-    func= (Native_func_registry*) my_hash_element(& native_functions_hash, i);
-    DBUG_PRINT("info", ("native function: %s  length: %u",
-                        func->name.str, (uint) func->name.length));
-  }
-#endif
 
   DBUG_RETURN(0);
 }
@@ -5809,11 +5657,26 @@ void item_create_cleanup()
 {
   DBUG_ENTER("item_create_cleanup");
   my_hash_free(& native_functions_hash);
-#ifdef HAVE_SPATIAL
-  function_collection_geometry.cleanup();
-#endif
   DBUG_VOID_RETURN;
 }
+
+
+static Create_func *
+function_plugin_find_native_function_builder(THD *thd, const LEX_CSTRING &name)
+{
+  plugin_ref plugin;
+  if ((plugin= my_plugin_lock_by_name(thd, &name, MariaDB_FUNCTION_PLUGIN)))
+  {
+    Create_func *builder=
+      reinterpret_cast<Plugin_function*>(plugin_decl(plugin)->info)->
+        create_func();
+    // TODO: MDEV-20846 Add proper unlocking for MariaDB_FUNCTION_PLUGIN
+    plugin_unlock(thd, plugin);
+    return builder;
+  }
+  return NULL;
+}
+
 
 Create_func *
 find_native_function_builder(THD *thd, const LEX_CSTRING *name)
@@ -5826,18 +5689,13 @@ find_native_function_builder(THD *thd, const LEX_CSTRING *name)
                                                (uchar*) name->str,
                                                name->length);
 
-  if (func)
-  {
-    builder= func->builder;
-  }
+  if (func && (builder= func->builder))
+    return builder;
 
-#ifdef HAVE_SPATIAL
-  if (!builder)
-    builder= function_collection_geometry.find_native_function_builder(thd,
-                                                                       *name);
-#endif
+  if ((builder= function_plugin_find_native_function_builder(thd, *name)))
+    return builder;
 
-  return builder;
+  return NULL;
 }
 
 Create_qfunc *

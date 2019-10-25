@@ -18,6 +18,7 @@
 #define MYSQLD_INCLUDED
 
 #include "sql_basic_types.h"			/* query_id_t */
+#include "sql_mode.h"                           /* Sql_mode_dependency */
 #include "sql_plugin.h"
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */
@@ -156,7 +157,6 @@ extern plugin_ref *opt_gtid_pos_auto_plugins;
 extern bool opt_endinfo, using_udf_functions;
 extern my_bool locked_in_memory;
 extern bool opt_using_transactions;
-extern ulong max_long_data_size;
 extern ulong current_pid;
 extern ulong expire_logs_days;
 extern my_bool relay_log_recovery;
@@ -244,6 +244,7 @@ extern ulonglong max_binlog_cache_size, max_binlog_stmt_cache_size;
 extern ulong max_binlog_size;
 extern ulong slave_max_allowed_packet;
 extern ulong opt_binlog_rows_event_max_size;
+extern ulong binlog_row_metadata;
 extern ulong thread_cache_size;
 extern ulong stored_program_cache_size;
 extern ulong opt_slave_parallel_threads;
@@ -666,7 +667,6 @@ enum options_mysqld
   OPT_LOG_BASENAME,
   OPT_LOG_ERROR,
   OPT_LOWER_CASE_TABLE_NAMES,
-  OPT_MAX_LONG_DATA_SIZE,
   OPT_PLUGIN_LOAD,
   OPT_PLUGIN_LOAD_ADD,
   OPT_PFS_INSTRUMENT,

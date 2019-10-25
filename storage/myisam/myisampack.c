@@ -110,7 +110,7 @@ typedef struct st_isam_mrg {
   MI_INFO **file,**current,**end;
   uint free_file;
   uint count;
-  uint	min_pack_length;		/* Theese is used by packed data */
+  uint	min_pack_length;		/* These are used by packed data */
   uint	max_pack_length;
   uint	ref_length;
   uint	max_blob_length;
@@ -316,12 +316,12 @@ static void usage(void)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt,
+	       char *argument, const char *filename __attribute__((unused)))
 {
   uint length;
 
-  switch(optid) {
+  switch(opt->id) {
   case 'f':
     force_pack= 1;
     tmpfile_createflag= O_RDWR | O_TRUNC;
@@ -1237,7 +1237,7 @@ static void check_counts(HUFF_COUNTS *huff_counts, uint trees,
 	huff_counts->counts[0]=0;
 	goto found_pack;
       }
-      /* Remeber the number of significant spaces. */
+      /* Remember the number of significant spaces. */
       old_space_count=huff_counts->counts[' '];
       /* Add all leading and trailing spaces. */
       huff_counts->counts[' ']+= (huff_counts->tot_end_space +

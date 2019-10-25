@@ -1412,9 +1412,9 @@ drop table tmp;
 
 # big table done
 
-SET BIG_TABLES=1;
+set tmp_memory_table_size=0;
 select distinct concat(fld3," ",fld3) as namn from t2,t3 where t2.fld1=t3.t2nr order by namn limit 10;
-SET BIG_TABLES=0;
+set tmp_memory_table_size=default;
 select distinct concat(fld3," ",fld3) from t2,t3 where t2.fld1=t3.t2nr order by fld3 limit 10;
 select distinct fld5 from t2 limit 10;
 
@@ -1423,9 +1423,9 @@ select distinct fld5 from t2 limit 10;
 #
 
 select distinct fld3,count(*) from t2 group by companynr,fld3 limit 10;
-SET BIG_TABLES=1; # Force use of MyISAM
+set tmp_memory_table_size=0;
 select distinct fld3,count(*) from t2 group by companynr,fld3 limit 10;
-SET BIG_TABLES=0;
+set tmp_memory_table_size=default;
 select distinct fld3,repeat("a",length(fld3)),count(*) from t2 group by companynr,fld3 limit 100,10;
 
 #
@@ -1537,8 +1537,10 @@ select t2.fld1,t22.fld1 from t2,t2 t22 where t2.fld1 >= 250501 and t2.fld1 <= 25
 # Test of left join.
 #
 
-SET @save_optimizer_switch=@@optimizer_switch;
-SET optimizer_switch='outer_join_with_cache=off';
+SET @local_optimizer_switch=@@optimizer_switch;
+set @local_join_cache_level=@@join_cache_level;
+set @@join_cache_level=2;
+set optimizer_switch='outer_join_with_cache=off,join_cache_hashed=off';
 
 insert into t2 (fld1, companynr) values (999999,99);
 
@@ -1572,7 +1574,7 @@ explain select companynr,companyname from t4 left join t2 using (companynr) wher
 explain select companynr,companyname from t4 left join t2 using (companynr) where companynr > 0 or companynr < 0 or companynr > 0;
 explain select companynr,companyname from t4 left join t2 using (companynr) where ifnull(companynr,1)>0;
 
-SET optimizer_switch=@save_optimizer_switch;
+SET @@optimizer_switch=@local_optimizer_switch;
 
 #
 # Joins with forms.
@@ -1580,6 +1582,8 @@ SET optimizer_switch=@save_optimizer_switch;
 
 select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=t4.companynr+1;
 explain select distinct t2.companynr,t4.companynr from t2,t4 where t2.companynr=t4.companynr+1;
+
+SET @@join_cache_level=@local_join_cache_level;
 
 #
 # Search using 'or' with the same referens group.

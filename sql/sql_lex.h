@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
    Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
@@ -32,6 +32,7 @@
 #include "sp.h"                       // enum stored_procedure_type
 #include "sql_tvc.h"
 #include "item.h"
+#include "sql_limit.h"                // Select_limit_counters
 
 /* Used for flags of nesting constructs */
 #define SELECT_NESTING_MAP_SIZE 64
@@ -205,6 +206,14 @@ enum sub_select_type
   /* following 3 enums should be as they are*/
   UNION_TYPE, INTERSECT_TYPE, EXCEPT_TYPE,
   GLOBAL_OPTIONS_TYPE, DERIVED_TABLE_TYPE, OLAP_TYPE
+};
+
+enum set_op_type
+{
+  UNSPECIFIED,
+  UNION_DISTINCT, UNION_ALL,
+  EXCEPT_DISTINCT, EXCEPT_ALL,
+  INTERSECT_DISTINCT, INTERSECT_ALL
 };
 
 inline int cmp_unit_op(enum sub_select_type op1, enum sub_select_type op2)
@@ -821,6 +830,7 @@ void create_explain_query(LEX *lex, MEM_ROOT *mem_root);
 void create_explain_query_if_not_exists(LEX *lex, MEM_ROOT *mem_root);
 bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str);
 
+
 class st_select_lex_unit: public st_select_lex_node {
 protected:
   TABLE_LIST result_table_list;
@@ -841,8 +851,8 @@ public:
   // Ensures that at least all members used during cleanup() are initialized.
   st_select_lex_unit()
     : union_result(NULL), table(NULL), result(NULL),
-      cleaned(false),
-      fake_select_lex(NULL)
+      cleaned(false), bag_set_op_optimized(false),
+      have_except_all_or_intersect_all(false), fake_select_lex(NULL)
   {
   }
 
@@ -853,9 +863,11 @@ public:
     optimized, // optimize phase already performed for UNION (unit)
     optimized_2,
     executed, // already executed
-    cleaned;
+    cleaned,
+    bag_set_op_optimized;
 
   bool optimize_started;
+  bool have_except_all_or_intersect_all;
 
   // list of fields which points to temporary table for union
   List<Item> item_list;
@@ -867,11 +879,6 @@ public:
     any SELECT of this unit execution
   */
   List<Item> types;
-  /**
-    There is INTERSECT and it is item used in creating temporary
-    table for it
-  */
-  Item_int *intersect_mark;
   /**
      TRUE if the unit contained TVC at the top level that has been wrapped
      into SELECT:
@@ -903,7 +910,7 @@ public:
   //node on which we should return current_select pointer after parsing subquery
   st_select_lex *return_to;
   /* LIMIT clause runtime counters */
-  ha_rows select_limit_cnt, offset_limit_cnt;
+  Select_limit_counters lim;
   /* not NULL if unit used in subselect, point to subselect item */
   Item_subselect *item;
   /*
@@ -928,8 +935,9 @@ public:
     fake_select_lex is used.
   */
   st_select_lex *saved_fake_select_lex;
-
-  st_select_lex *union_distinct; /* pointer to the last UNION DISTINCT */
+  
+  /* pointer to the last node before last subsequence of UNION ALL */
+  st_select_lex *union_distinct;
   bool describe; /* union exec() called for EXPLAIN */
   Procedure *last_procedure;     /* Pointer to procedure, if such exists */
 
@@ -955,6 +963,7 @@ public:
   bool prepare(TABLE_LIST *derived_arg, select_result *sel_result,
                ulong additional_options);
   bool optimize();
+  void optimize_bag_operation(bool is_outer_distinct);
   bool exec();
   bool exec_recursive();
   bool cleanup();
@@ -985,6 +994,21 @@ public:
   int save_union_explain(Explain_query *output);
   int save_union_explain_part2(Explain_query *output);
   unit_common_op common_op();
+
+  bool explainable()
+  {
+    /*
+      EXPLAIN/ANALYZE unit, when:
+      (1) if it's a subquery - it's not part of eliminated WHERE/ON clause.
+      (2) if it's a CTE - it's not hanging (needed for execution)
+      (3) if it's a derived - it's not merged
+      if it's not 1/2/3 - it's some weird internal thing, ignore it
+    */
+    return item ? !item->eliminated :                           // (1)
+           with_element ? derived && derived->derived_result :  // (2)
+           derived ? derived->is_materialized_derived() :       // (3)
+           false;
+  }
 
   void reset_distinct();
   void fix_distinct();
@@ -1025,7 +1049,7 @@ Field_pair *find_matching_field_pair(Item *item, List<Field_pair> pair_list);
 #define TOUCHED_SEL_COND 1/* WHERE/HAVING/ON should be reinited before use */
 #define TOUCHED_SEL_DERIVED (1<<1)/* derived should be reinited before use */
 
-
+#define UNIT_NEST_FL        1
 /*
   SELECT_LEX - store information of parsed SELECT statment
 */
@@ -1048,7 +1072,7 @@ public:
     select1->first_nested points to select1.
   */
   st_select_lex *first_nested;
-
+  uint8 nest_flags; 
   Name_resolution_context context;
   LEX_CSTRING db;
   Item *where, *having;                         /* WHERE & HAVING clauses */
@@ -1350,6 +1374,8 @@ public:
   TABLE_LIST *end_nested_join(THD *thd);
   TABLE_LIST *nest_last_join(THD *thd);
   void add_joined_table(TABLE_LIST *table);
+  bool add_cross_joined_table(TABLE_LIST *left_op, TABLE_LIST *right_op,
+                              bool straight_fl);
   TABLE_LIST *convert_right_join();
   List<Item>* get_item_list();
   ulong get_table_join_options();
@@ -1522,6 +1548,13 @@ public:
 
   select_handler *find_select_handler(THD *thd);
 
+  bool is_set_op()
+  {
+    return linkage == UNION_TYPE || 
+           linkage == EXCEPT_TYPE || 
+           linkage == INTERSECT_TYPE;
+  }
+
 private:
   bool m_non_agg_field_used;
   bool m_agg_func_used;
@@ -1568,6 +1601,8 @@ public:
   void add_statistics(SELECT_LEX_UNIT *unit);
   bool make_unique_derived_name(THD *thd, LEX_CSTRING *alias);
   void lex_start(LEX *plex);
+  bool is_unit_nest() { return (nest_flags & UNIT_NEST_FL); }
+  void mark_as_unit_nest() { nest_flags= UNIT_NEST_FL; }
 };
 typedef class st_select_lex SELECT_LEX;
 
@@ -2922,15 +2957,6 @@ protected:
   bool impossible_where;
   bool no_partitions;
 public:
-  /*
-    When single-table UPDATE updates a VIEW, that VIEW's select is still
-    listed as the first child.  When we print EXPLAIN, it looks like a
-    subquery.
-    In order to get rid of it, updating_a_view=TRUE means that first child
-    select should not be shown when printing EXPLAIN.
-  */
-  bool updating_a_view;
-   
   /* Allocate things there */
   MEM_ROOT *mem_root;
 
@@ -3085,14 +3111,14 @@ struct LEX: public Query_tables_list
 
 private:
   SELECT_LEX builtin_select;
-  /* current SELECT_LEX in parsing */
 
 public:
+  /* current SELECT_LEX in parsing */
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
   SELECT_LEX *all_selects_list;
   /* current with clause in parsing if any, otherwise 0*/
-  With_clause *curr_with_clause;  
+  With_clause *curr_with_clause;
   /* pointer to the first with clause in the current statement */
   With_clause *with_clauses_list;
   /*
@@ -3265,10 +3291,10 @@ public:
   /*
     Usually `expr` rule of yacc is quite reused but some commands better
     not support subqueries which comes standard with this rule, like
-    KILL, HA_READ, CREATE/ALTER EVENT etc. Set this to `false` to get
-    syntax error back.
+    KILL, HA_READ, CREATE/ALTER EVENT etc. Set this to a non-NULL
+    clause name to get an error.
   */
-  bool expr_allows_subselect;
+  const char *clause_that_disallows_subselect;
   bool selects_allow_into;
   bool selects_allow_procedure;
   /*
@@ -3586,22 +3612,7 @@ public:
 
   bool push_context(Name_resolution_context *context);
 
-  void pop_context()
-  {
-    DBUG_ENTER("LEX::pop_context");
-#ifndef DBUG_OFF
-    Name_resolution_context *context=
-#endif
-    context_stack.pop();
-
-    DBUG_PRINT("info", ("Pop context %p Select: %p (%d)",
-                         context, context->select_lex,
-                         (context->select_lex ?
-                          context->select_lex->select_number:
-                          0)));
-
-    DBUG_VOID_RETURN;
-  }
+  Name_resolution_context *pop_context();
 
   SELECT_LEX *select_stack_head()
   {
@@ -4003,9 +4014,7 @@ public:
                           const Lex_ident_cli_st *var_name,
                           const Lex_ident_cli_st *field_name);
 
-  Item *create_item_query_expression(THD *thd,
-                                     const char *tok_start,
-                                     st_select_lex_unit *unit);
+  Item *create_item_query_expression(THD *thd, st_select_lex_unit *unit);
 
   Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
   Item *make_item_func_substr(THD *thd, Item *a, Item *b, Item *c);
@@ -4434,9 +4443,6 @@ public:
     insert_list= 0;
   }
 
-  bool make_select_in_brackets(SELECT_LEX* dummy_select,
-                               SELECT_LEX *nselect, bool automatic);
-
   SELECT_LEX_UNIT *alloc_unit();
   SELECT_LEX *alloc_select(bool is_select);
   SELECT_LEX_UNIT *create_unit(SELECT_LEX*);
@@ -4452,7 +4458,7 @@ public:
   bool insert_select_hack(SELECT_LEX *sel);
   SELECT_LEX *create_priority_nest(SELECT_LEX *first_in_nest);
 
-  void set_main_unit(st_select_lex_unit *u)
+  bool set_main_unit(st_select_lex_unit *u)
   {
     unit.options= u->options;
     unit.uncacheable= u->uncacheable;
@@ -4462,16 +4468,10 @@ public:
     unit.union_distinct= u->union_distinct;
     unit.set_with_clause(u->with_clause);
     builtin_select.exclude_from_global();
+    return false;
   }
   bool check_main_unit_semantics();
 
-  // reaction on different parsed parts (bodies are in sql_yacc.yy)
-  bool parsed_unit_in_brackets(SELECT_LEX_UNIT *unit);
-  SELECT_LEX *parsed_select(SELECT_LEX *sel, Lex_order_limit_lock * l);
-  SELECT_LEX *parsed_unit_in_brackets_tail(SELECT_LEX_UNIT *unit,
-                                           Lex_order_limit_lock * l);
-  SELECT_LEX *parsed_select_in_brackets(SELECT_LEX *sel,
-                                             Lex_order_limit_lock * l);
   SELECT_LEX_UNIT *parsed_select_expr_start(SELECT_LEX *s1, SELECT_LEX *s2,
                                             enum sub_select_type unit_type,
                                             bool distinct);
@@ -4479,20 +4479,35 @@ public:
                                            SELECT_LEX *s2,
                                            enum sub_select_type unit_type,
                                            bool distinct, bool oracle);
-  SELECT_LEX_UNIT *parsed_body_select(SELECT_LEX *sel,
-                                      Lex_order_limit_lock * l);
-  bool parsed_body_unit(SELECT_LEX_UNIT *unit);
-  SELECT_LEX_UNIT *parsed_body_unit_tail(SELECT_LEX_UNIT *unit,
-                                         Lex_order_limit_lock * l);
-  SELECT_LEX *parsed_subselect(SELECT_LEX_UNIT *unit, char *place);
+  bool parsed_multi_operand_query_expression_body(SELECT_LEX_UNIT *unit);
+  SELECT_LEX_UNIT *add_tail_to_query_expression_body(SELECT_LEX_UNIT *unit,
+						     Lex_order_limit_lock *l);
+  SELECT_LEX_UNIT *
+  add_tail_to_query_expression_body_ext_parens(SELECT_LEX_UNIT *unit,
+					       Lex_order_limit_lock *l);
+  SELECT_LEX_UNIT *parsed_body_ext_parens_primary(SELECT_LEX_UNIT *unit,
+                                                  SELECT_LEX *primary,
+                                              enum sub_select_type unit_type,
+                                              bool distinct);
+  SELECT_LEX_UNIT *
+  add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
+                                       SELECT_LEX *sel,
+                                       enum sub_select_type unit_type,
+                                       bool distinct,
+                                       bool oracle);
+  SELECT_LEX_UNIT *
+  add_primary_to_query_expression_body_ext_parens(
+                                       SELECT_LEX_UNIT *unit,
+                                       SELECT_LEX *sel,
+                                       enum sub_select_type unit_type,
+                                       bool distinct);
+  SELECT_LEX *parsed_subselect(SELECT_LEX_UNIT *unit);
   bool parsed_insert_select(SELECT_LEX *firs_select);
   bool parsed_TVC_start();
   SELECT_LEX *parsed_TVC_end();
-  TABLE_LIST *parsed_derived_select(SELECT_LEX *sel, int for_system_time,
-                                    LEX_CSTRING *alias);
-  TABLE_LIST *parsed_derived_unit(SELECT_LEX_UNIT *unit,
-                                  int for_system_time,
-                                  LEX_CSTRING *alias);
+  TABLE_LIST *parsed_derived_table(SELECT_LEX_UNIT *unit,
+                                   int for_system_time,
+                                   LEX_CSTRING *alias);
   bool parsed_create_view(SELECT_LEX_UNIT *unit, int check);
   bool select_finalize(st_select_lex_unit *expr);
   bool select_finalize(st_select_lex_unit *expr, Lex_select_lock l);
@@ -4517,6 +4532,11 @@ public:
 
   void stmt_purge_to(const LEX_CSTRING &to);
   bool stmt_purge_before(Item *item);
+
+  SELECT_LEX *returning()
+  { return &builtin_select; }
+  bool has_returning()
+  { return !builtin_select.item_list.is_empty(); }
 
 private:
   bool stmt_create_routine_start(const DDL_options_st &options)
@@ -4551,6 +4571,12 @@ public:
                                 Item_result return_type,
                                 const LEX_CSTRING &soname);
   Spvar_definition *row_field_name(THD *thd, const Lex_ident_sys_st &name);
+
+  bool set_field_type_udt(Lex_field_type_st *type,
+                          const LEX_CSTRING &name,
+                          const Lex_length_and_dec_st &attr);
+  bool set_cast_type_udt(Lex_cast_type_st *type,
+                         const LEX_CSTRING &name);
 };
 
 
@@ -4592,15 +4618,18 @@ public:
 class Yacc_state
 {
 public:
-  Yacc_state()
-  {
-    reset();
-  }
+  Yacc_state() : yacc_yyss(NULL), yacc_yyvs(NULL) { reset(); }
 
   void reset()
   {
-    yacc_yyss= NULL;
-    yacc_yyvs= NULL;
+    if (yacc_yyss != NULL) {
+      my_free(yacc_yyss);
+      yacc_yyss = NULL;
+    }
+    if (yacc_yyvs != NULL) {
+      my_free(yacc_yyvs);
+      yacc_yyvs = NULL;
+    }
     m_set_signal_info.clear();
     m_lock_type= TL_READ_DEFAULT;
     m_mdl_type= MDL_SHARED_READ;

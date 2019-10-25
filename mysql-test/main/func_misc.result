@@ -1345,6 +1345,9 @@ SELECT IS_IPV4_MAPPED(INET6_ATON('1.2.3.4')),
 IS_IPV4_COMPAT(INET6_ATON('1.2.3.4'));
 IS_IPV4_MAPPED(INET6_ATON('1.2.3.4'))	IS_IPV4_COMPAT(INET6_ATON('1.2.3.4'))
 0	0
+Warnings:
+Warning	1292	Incorrect inet6 value: '\x01\x02\x03\x04'
+Warning	1292	Incorrect inet6 value: '\x01\x02\x03\x04'
 SELECT IS_IPV4_MAPPED(INET6_ATON('::1.2.3.4')),
 IS_IPV4_COMPAT(INET6_ATON('::1.2.3.4'));
 IS_IPV4_MAPPED(INET6_ATON('::1.2.3.4'))	IS_IPV4_COMPAT(INET6_ATON('::1.2.3.4'))
@@ -1556,6 +1559,15 @@ SELECT * FROM v1 WHERE numgtfmt =  NAME_CONST('wnumgtfmt',_utf8'QEDITIONS' COLLA
 numgtfmt
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-20517 Assertion `!is_expensive()' failed in Item::value_depends_on_sql_mode_const_item
+#
+SELECT ( 1 LIKE GET_LOCK( 'foo', 0 ) ) - 2;
+( 1 LIKE GET_LOCK( 'foo', 0 ) ) - 2
+-1
+SELECT RELEASE_LOCK('foo');
+RELEASE_LOCK('foo')
+1
 #
 # End of 10.2 tests
 #

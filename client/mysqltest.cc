@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -96,8 +96,7 @@ static int setenv(const char *name, const char *value, int overwrite);
 
 C_MODE_START
 static sig_handler signal_handler(int sig);
-static my_bool get_one_option(int optid, const struct my_option *,
-                              char *argument);
+static my_bool get_one_option(const struct my_option *, char *, const char *);
 C_MODE_END
 
 enum {
@@ -136,7 +135,8 @@ static my_bool server_initialized= 0;
 static my_bool is_windows= 0;
 static char **default_argv;
 static const char *load_default_groups[]=
-{ "mysqltest", "client", "client-server", "client-mariadb", 0 };
+{ "mysqltest", "mariadb-test", "client", "client-server", "client-mariadb",
+  0 };
 static char line_buffer[MAX_DELIMITER_LENGTH], *line_buffer_pos= line_buffer;
 
 /* Info on properties that can be set with --enable_X and --disable_X */
@@ -1686,6 +1686,7 @@ void abort_not_supported_test(const char *fmt, ...)
           cur_file->file_name, cur_file->lineno);
 
   char buff[DIE_BUFF_SIZE];
+  buff[0] = '\0';
   print_file_stack(buff, buff + sizeof(buff));
   fprintf(stderr, "%s", buff);
 
@@ -4636,8 +4637,16 @@ void do_perl(struct st_command *command)
 
     str_to_file(temp_file_path, ds_script.str, ds_script.length);
 
+    /* Use the same perl executable as the one that runs mysql-test-run.pl */
+    const char *mtr_perl=getenv("MTR_PERL");
+    if (!mtr_perl)
+      mtr_perl="perl";
+
     /* Format the "perl <filename>" command */
-    my_snprintf(buf, sizeof(buf), "perl %s", temp_file_path);
+    if (strchr(mtr_perl, ' '))
+      my_snprintf(buf, sizeof(buf), "\"%s\" %s", mtr_perl, temp_file_path);
+    else
+      my_snprintf(buf, sizeof(buf), "%s %s", mtr_perl, temp_file_path);
 
     if (!(res_file= my_popen(buf, "r")))
     {
@@ -7183,9 +7192,9 @@ void read_embedded_server_arguments(const char *name)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt, char *argument)
+get_one_option(const struct my_option *opt, char *argument, const char *)
 {
-  switch(optid) {
+  switch(opt->id) {
   case '#':
 #ifndef DBUG_OFF
     DBUG_PUSH(argument ? argument : "d:t:S:i:O,/tmp/mysqltest.trace");
@@ -10191,7 +10200,7 @@ void append_replace_regex(char* expr, char *expr_end, struct st_replace_regex* r
     /* Allow variable for the *entire* list of replacements */
     if (*p == '$')
     {
-      const char *v_end;
+      const char *v_end= 0;
       VAR *val= var_get(p, &v_end, 0, 1);
 
       if (val)

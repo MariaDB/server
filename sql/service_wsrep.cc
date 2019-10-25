@@ -146,11 +146,10 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
               victim_thd->wsrep_trx_id(),
               victim_thd->wsrep_sr().fragments_certified(),
               wsrep_thd_transaction_state_str(victim_thd));
-  if (bf_thd && bf_thd != victim_thd)
-  {
-    victim_thd->store_globals();
-  }
-  else
+
+  /* Note: do not store/reset globals before wsrep_bf_abort() call
+     to avoid losing BF thd context. */
+  if (!(bf_thd && bf_thd != victim_thd))
   {
     DEBUG_SYNC(victim_thd, "wsrep_before_SR_rollback");
   }
@@ -162,21 +161,24 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
   {
     wsrep_thd_self_abort(victim_thd);
   }
-  if (bf_thd && bf_thd != victim_thd)
+  if (bf_thd)
   {
-    bf_thd->store_globals();
+    wsrep_store_threadvars(bf_thd);
   }
 }
 
 extern "C" my_bool wsrep_thd_bf_abort(const THD *bf_thd, THD *victim_thd,
                                       my_bool signal)
 {
+  /* Note: do not store/reset globals before wsrep_bf_abort() call
+     to avoid losing BF thd context. */
   if (WSREP(victim_thd) && !victim_thd->wsrep_trx().active())
   {
     WSREP_DEBUG("BF abort for non active transaction");
     wsrep_start_transaction(victim_thd, victim_thd->wsrep_next_trx_id());
   }
   my_bool ret= wsrep_bf_abort(bf_thd, victim_thd);
+  wsrep_store_threadvars((THD*)bf_thd);
   /*
     Send awake signal if victim was BF aborted or does not
     have wsrep on. Note that this should never interrupt RSU
@@ -269,4 +271,14 @@ extern "C" void wsrep_commit_ordered(THD *thd)
   {
     thd->wsrep_cs().ordered_commit();
   }
+}
+
+extern "C" my_bool wsrep_thd_has_ignored_error(const THD *thd)
+{
+  return thd->wsrep_has_ignored_error;
+}
+
+extern "C" void wsrep_thd_set_ignored_error(THD *thd, my_bool val)
+{
+  thd->wsrep_has_ignored_error= val;
 }

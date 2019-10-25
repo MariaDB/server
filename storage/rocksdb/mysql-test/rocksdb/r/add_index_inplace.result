@@ -482,6 +482,8 @@ DROP TABLE t1;
 SET @prior_rocksdb_table_stats_sampling_pct = @@rocksdb_table_stats_sampling_pct;
 set global rocksdb_table_stats_sampling_pct = 100;
 CREATE TABLE t1 (a INT, b INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
+Warnings:
+Warning	1280	Name 'ka' ignored for PRIMARY key.
 INSERT INTO t1 (a, b) VALUES (1, 10);
 INSERT INTO t1 (a, b) VALUES (2, 10);
 INSERT INTO t1 (a, b) VALUES (3, 20);

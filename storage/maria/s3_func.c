@@ -356,7 +356,8 @@ int aria_copy_to_s3(ms3_st *s3_client, const char *aws_bucket,
             error, path);
     goto err;
   }
-  if (cap.transactional || cap.data_file_type != BLOCK_RECORD)
+  if (cap.transactional || cap.data_file_type != BLOCK_RECORD ||
+      cap.encrypted)
   {
     fprintf(stderr,
             "Aria table %s doesn't match criteria to be copied to S3.\n"
@@ -533,7 +534,7 @@ int aria_copy_from_s3(ms3_st *s3_client, const char *aws_bucket,
   char table_name[FN_REFLEN], aws_path[FN_REFLEN+100];
   char filename[FN_REFLEN];
   char *aws_path_end, *end;
-  File file;
+  File file= -1;
   S3_BLOCK block;
   my_off_t index_file_size, data_file_size;
   uint offset;

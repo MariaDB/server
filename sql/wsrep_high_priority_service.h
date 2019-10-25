@@ -17,7 +17,6 @@
 #define WSREP_HIGH_PRIORITY_SERVICE_H
 
 #include "wsrep/high_priority_service.hpp"
-#include "wsrep/client_state.hpp"
 #include "my_global.h"
 #include "sql_error.h" /* Diagnostics area */
 #include "sql_class.h" /* rpl_group_info */
@@ -37,19 +36,23 @@ public:
                         const wsrep::ws_meta&);
   const wsrep::transaction& transaction() const;
   int adopt_transaction(const wsrep::transaction&);
-  int apply_write_set(const wsrep::ws_meta&, const wsrep::const_buffer&) = 0;
+  int apply_write_set(const wsrep::ws_meta&, const wsrep::const_buffer&,
+                      wsrep::mutable_buffer&) = 0;
   int append_fragment_and_commit(const wsrep::ws_handle&,
                                  const wsrep::ws_meta&,
                                  const wsrep::const_buffer&);
   int remove_fragments(const wsrep::ws_meta&);
   int commit(const wsrep::ws_handle&, const wsrep::ws_meta&);
   int rollback(const wsrep::ws_handle&, const wsrep::ws_meta&);
-  int apply_toi(const wsrep::ws_meta&, const wsrep::const_buffer&);
+  int apply_toi(const wsrep::ws_meta&, const wsrep::const_buffer&,
+                wsrep::mutable_buffer&);
   void store_globals();
   void reset_globals();
   void switch_execution_context(wsrep::high_priority_service&);
   int log_dummy_write_set(const wsrep::ws_handle&,
-                          const wsrep::ws_meta&);
+                          const wsrep::ws_meta&,
+                          wsrep::mutable_buffer&);
+  void adopt_apply_error(wsrep::mutable_buffer&);
 
   virtual bool check_exit_status() const = 0;
   void debug_crash(const char*);
@@ -70,7 +73,7 @@ protected:
     my_hrtime_t user_time;
     longlong       row_count_func;
     bool           wsrep_applier;
-} m_shadow;
+  } m_shadow;
 };
 
 class Wsrep_applier_service : public Wsrep_high_priority_service
@@ -78,7 +81,8 @@ class Wsrep_applier_service : public Wsrep_high_priority_service
 public:
   Wsrep_applier_service(THD*);
   ~Wsrep_applier_service();
-  int apply_write_set(const wsrep::ws_meta&, const wsrep::const_buffer&);
+  int apply_write_set(const wsrep::ws_meta&, const wsrep::const_buffer&,
+                      wsrep::mutable_buffer&);
   void after_apply();
   bool is_replaying() const { return false; }
   bool check_exit_status() const;
@@ -89,7 +93,8 @@ class Wsrep_replayer_service : public Wsrep_high_priority_service
 public:
   Wsrep_replayer_service(THD* replayer_thd, THD* orig_thd);
   ~Wsrep_replayer_service();
-  int apply_write_set(const wsrep::ws_meta&, const wsrep::const_buffer&);
+  int apply_write_set(const wsrep::ws_meta&, const wsrep::const_buffer&,
+                      wsrep::mutable_buffer&);
   void after_apply() { }
   bool is_replaying() const { return true; }
   void replay_status(enum wsrep::provider::status status)

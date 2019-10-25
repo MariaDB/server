@@ -354,6 +354,34 @@ fil_space_destroy_crypt_data(
 	}
 }
 
+/** Fill crypt data information to the give page.
+It should be called during ibd file creation.
+@param[in]	flags	tablespace flags
+@param[in,out]	page	first page of the tablespace */
+void
+fil_space_crypt_t::fill_page0(
+	ulint	flags,
+	byte*	page)
+{
+	const uint len = sizeof(iv);
+	const ulint offset = FSP_HEADER_OFFSET
+		+ fsp_header_get_encryption_offset(
+			fil_space_t::zip_size(flags));
+	page0_offset = offset;
+
+	memcpy(page + offset, CRYPT_MAGIC, MAGIC_SZ);
+	mach_write_to_1(page + offset + MAGIC_SZ, type);
+	mach_write_to_1(page + offset + MAGIC_SZ + 1, len);
+	memcpy(page + offset + MAGIC_SZ + 2, &iv, len);
+
+	mach_write_to_4(page + offset + MAGIC_SZ + 2 + len,
+			min_key_version);
+	mach_write_to_4(page + offset + MAGIC_SZ + 2 + len + 4,
+			key_id);
+	mach_write_to_1(page + offset + MAGIC_SZ + 2  + len + 8,
+			encryption);
+}
+
 /******************************************************************
 Write crypt data to a page (0)
 @param[in]	space	tablespace
@@ -986,7 +1014,6 @@ Decrypt a page.
 @param[in]	space			Tablespace
 @param[in]	tmp_frame		Temporary buffer used for decrypting
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	decrypted		true if page was decrypted
 @return decrypted page, or original not encrypted page if decryption is
 not needed.*/
 UNIV_INTERN
@@ -994,13 +1021,11 @@ byte*
 fil_space_decrypt(
 	const fil_space_t* space,
 	byte*		tmp_frame,
-	byte*		src_frame,
-	bool*		decrypted)
+	byte*		src_frame)
 {
 	dberr_t err = DB_SUCCESS;
 	byte* res = NULL;
 	const ulint physical_size = space->physical_size();
-	*decrypted = false;
 
 	ut_ad(space->crypt_data != NULL && space->crypt_data->is_encrypted());
 	ut_ad(space->pending_io());
@@ -1012,7 +1037,6 @@ fil_space_decrypt(
 
 	if (err == DB_SUCCESS) {
 		if (encrypted) {
-			*decrypted = true;
 			/* Copy the decrypted page back to page buffer, not
 			really any other options. */
 			memcpy(src_frame, tmp_frame, physical_size);
@@ -1838,19 +1862,18 @@ fil_crypt_get_page_throttle_func(
 
 	state->crypt_stat.pages_read_from_disk++;
 
-	uintmax_t start = ut_time_us(NULL);
+	const ulonglong start = my_interval_timer();
 	block = buf_page_get_gen(page_id, zip_size,
 				 RW_X_LATCH,
 				 NULL, BUF_GET_POSSIBLY_FREED,
 				file, line, mtr, &err);
-	uintmax_t end = ut_time_us(NULL);
-
-	if (end < start) {
-		end = start; // safety...
-	}
+	const ulonglong end = my_interval_timer();
 
 	state->cnt_waited++;
-	state->sum_waited_us += (end - start);
+
+	if (end > start) {
+		state->sum_waited_us += (end - start) / 1000;
+	}
 
 	/* average page load */
 	ulint add_sleeptime_ms = 0;
@@ -2174,7 +2197,7 @@ fil_crypt_flush_space(
 		bool success = false;
 		ulint n_pages = 0;
 		ulint sum_pages = 0;
-		uintmax_t start = ut_time_us(NULL);
+		const ulonglong start = my_interval_timer();
 
 		do {
 			success = buf_flush_lists(ULINT_MAX, end_lsn, &n_pages);
@@ -2182,11 +2205,11 @@ fil_crypt_flush_space(
 			sum_pages += n_pages;
 		} while (!success && !space->is_stopping());
 
-		uintmax_t end = ut_time_us(NULL);
+		const ulonglong end = my_interval_timer();
 
 		if (sum_pages && end > start) {
 			state->cnt_waited += sum_pages;
-			state->sum_waited_us += (end - start);
+			state->sum_waited_us += (end - start) / 1000;
 
 			/* statistics */
 			state->crypt_stat.pages_flushed += sum_pages;
@@ -2489,9 +2512,11 @@ static void fil_crypt_rotation_list_fill()
 			/* Protect the tablespace while we may
 			release fil_system.mutex. */
 			space->n_pending_ops++;
-			fil_space_t* s= fil_system.read_page0(
-				space->id);
+#ifndef DBUG_OFF
+			ut_d(const fil_space_t* s=)
+			        fil_system.read_page0(space->id);
 			ut_ad(!s || s == space);
+#endif
 			space->n_pending_ops--;
 			if (!space->size) {
 				/* Page 0 was not loaded.
@@ -2621,7 +2646,8 @@ fil_space_crypt_close_tablespace(
 {
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 
-	if (!crypt_data || srv_n_fil_crypt_threads == 0) {
+	if (!crypt_data || srv_n_fil_crypt_threads == 0
+	    || !fil_crypt_threads_inited) {
 		return;
 	}
 

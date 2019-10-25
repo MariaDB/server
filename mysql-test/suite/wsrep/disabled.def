@@ -11,6 +11,5 @@
 ##############################################################################
 
 foreign_key : Sporadic failure "WSREP has not yet prepared node for application use"
-variables : MDEV-19746 Galera test failures because of wsrep_slave_threads identification
 wsrep.pool_of_threads : Sporadic failure "WSREP has not yet prepared node for application use"
-wsrep.variables : Global wsrep_on manipulation causes debug asserts
+variables : MDEV-20581 Crash on wsrep.variables test case

@@ -1,0 +1,88 @@
+# The general reason why innodb redo log file is limited by 512G is that
+# log_block_convert_lsn_to_no() returns value limited by 1G. But there is no
+# need to have unique log block numbers in log group. This test forces innodb
+# to generate redo log files with non-unique log block numbers and tests
+# recovery process with such numbers.
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+--let MYSQLD_DATADIR= `select @@datadir`
+let $MYSQLD_BOOTSTRAP_CMD= $MYSQLD_BOOTSTRAP_CMD --datadir=$MYSQLD_DATADIR --debug-dbug=+d,innodb_small_log_block_no_limit;
+
+--source include/kill_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+--mkdir $MYSQLD_DATADIR
+--mkdir $MYSQLD_DATADIR/mysql
+--mkdir $MYSQLD_DATADIR/test
+--exec $MYSQLD_BOOTSTRAP_CMD < $MYSQL_BOOTSTRAP_SQL_FILE >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+let $old_restart_parameters=$restart_parameters;
+let $restart_parameters= $old_restart_parameters --debug-dbug=+d,innodb_small_log_block_no_limit;
+--source include/start_mysqld.inc
+
+CREATE TABLE t(i INT) ENGINE InnoDB;
+INSERT INTO t VALUES
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+
+--let after_copy_test_t=BEGIN NOT ATOMIC INSERT INTO test.t SELECT * FROM test.t; UPDATE test.t SET i = 10 WHERE i = 0; DELETE FROM test.t WHERE i = 1; END
+
+--echo # xtrabackup backup, execute the following query after test.t is copied:
+--echo # $after_copy_test_t
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=10 --target-dir=$targetdir --dbug=+d,mariabackup_events,innodb_small_log_block_no_limit;
+--enable_result_log
+
+--let $total_before=`SELECT count(*) FROM t`
+SELECT count(*) FROM t WHERE i = 0;
+--let $updated_before=`SELECT count(*) FROM t WHERE i = 10`
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir --dbug=+d,innodb_small_log_block_no_limit;
+--source include/restart_and_restore.inc
+--enable_result_log
+
+--let $total_after=`SELECT count(*) FROM t`
+SELECT count(*) FROM t WHERE i = 0;
+--let $updated_after=`SELECT count(*) FROM t WHERE i = 10`
+
+if ($total_before == $total_after) {
+--echo Ok
+}
+if ($total_before != $total_after) {
+--echo Failed
+}
+if ($updated_before == $updated_after) {
+--echo Ok
+}
+if ($updated_before != $updated_after) {
+--echo Failed
+}
+
+DROP TABLE t;
+rmdir $targetdir;
+--source include/kill_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+
+perl;
+use lib "lib";
+use My::Handles { suppress_init_messages => 1 };
+use My::File::Path;
+my $install_db_dir = ($ENV{MTR_PARALLEL} == 1) ?
+  "$ENV{'MYSQLTEST_VARDIR'}/install.db" :
+  "$ENV{'MYSQLTEST_VARDIR'}/../install.db";
+copytree($install_db_dir, $ENV{'MYSQLD_DATADIR'});
+EOF
+
+--let $restart_parameters= $old_restart_parameters
+--source include/start_mysqld.inc

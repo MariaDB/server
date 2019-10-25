@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
+--source suite/versioning/common.inc
 
 --echo # MDEV-15951 system versioning by trx id doesn't work with partitioning
 --echo # currently trx_id does not support partitioning by system_time
@@ -26,6 +27,8 @@ alter table t1  partition by system_time (
   partition p0 history,
   partition pn current
 );
+
+drop table t1;
 
 --error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
 create or replace table t (
@@ -74,6 +77,4 @@ partition by range columns (a, row_start) (
   partition p1 values less than (100, 100)
 );
 
---echo # Test cleanup
-drop database test;
-create database test;
+--source suite/versioning/common_finish.inc

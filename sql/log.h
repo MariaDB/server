@@ -305,13 +305,6 @@ public:
             enum_log_type log_type,
             const char *new_name, ulong next_file_number,
             enum cache_type io_cache_type_arg);
-  bool init_and_set_log_file_name(const char *log_name,
-                                  const char *new_name,
-                                  ulong next_log_number,
-                                  enum_log_type log_type_arg,
-                                  enum cache_type io_cache_type_arg);
-  void init(enum_log_type log_type_arg,
-            enum cache_type io_cache_type_arg);
   void close(uint exiting);
   inline bool is_open() { return log_state != LOG_CLOSED; }
   const char *generate_name(const char *log_name,
@@ -335,7 +328,12 @@ public:
   /** Instrumentation key to use for file io in @c log_file */
   PSI_file_key m_log_file_key;
 #endif
-  /* for documentation of mutexes held in various places in code */
+
+  bool init_and_set_log_file_name(const char *log_name,
+                                  const char *new_name,
+                                  ulong next_log_number,
+                                  enum_log_type log_type_arg,
+                                  enum cache_type io_cache_type_arg);
 };
 
 /* Tell the io thread if we can delay the master info sync. */
@@ -414,7 +412,6 @@ struct wait_for_commit;
 
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
- private:
 #ifdef HAVE_PSI_INTERFACE
   /** The instrumentation key to use for @ LOCK_index. */
   PSI_mutex_key m_key_LOCK_index;
@@ -776,7 +773,6 @@ public:
   void init_pthread_objects();
   void cleanup();
   bool open(const char *log_name,
-            enum_log_type log_type,
             const char *new_name,
             ulong next_log_number,
 	    enum cache_type io_cache_type_arg,

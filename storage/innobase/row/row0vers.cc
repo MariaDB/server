@@ -76,7 +76,8 @@ index record.
 @param[in]	index		secondary index
 @param[in]	offsets		rec_get_offsets(rec, index)
 @param[in,out]	mtr		mini-transaction
-@return	the active transaction; trx->release_reference() must be invoked
+@return	the active transaction; state must be rechecked after
+trx_mutex_enter(), and trx->release_reference() must be invoked
 @retval	NULL if the record was committed */
 UNIV_INLINE
 trx_t*
@@ -90,9 +91,6 @@ row_vers_impl_x_locked_low(
 	mtr_t*		mtr)
 {
 	trx_id_t	trx_id;
-	ulint		comp;
-	ulint		rec_del;
-	const rec_t*	version;
 	rec_t*		prev_version = NULL;
 	ulint*		clust_offsets;
 	mem_heap_t*	heap;
@@ -144,12 +142,12 @@ row_vers_impl_x_locked_low(
 		}
 	}
 
-	comp = page_rec_is_comp(rec);
+	const ulint comp = page_rec_is_comp(rec);
 	ut_ad(index->table == clust_index->table);
 	ut_ad(!!comp == dict_table_is_comp(index->table));
 	ut_ad(!comp == !page_rec_is_comp(clust_rec));
 
-	rec_del = rec_get_deleted_flag(rec, comp);
+	const ulint rec_del = rec_get_deleted_flag(rec, comp);
 
 	if (dict_index_has_virtual(index)) {
 		ulint	n_ext;
@@ -174,7 +172,7 @@ row_vers_impl_x_locked_low(
 	modify rec, and does not necessarily have an implicit x-lock
 	on rec. */
 
-	for (version = clust_rec;; version = prev_version) {
+	for (const rec_t* version = clust_rec;; version = prev_version) {
 		row_ext_t*	ext;
 		dtuple_t*	row;
 		dtuple_t*	entry;
@@ -194,15 +192,23 @@ row_vers_impl_x_locked_low(
 			heap, &prev_version, NULL,
 			dict_index_has_virtual(index) ? &vrow : NULL, 0);
 
+		trx_mutex_enter(trx);
+		const bool committed = trx_state_eq(
+			trx, TRX_STATE_COMMITTED_IN_MEMORY);
+		trx_mutex_exit(trx);
+
 		/* The oldest visible clustered index version must not be
 		delete-marked, because we never start a transaction by
 		inserting a delete-marked record. */
-		ut_ad(prev_version
-		      || !rec_get_deleted_flag(version, comp)
-		      || !trx_sys.is_registered(caller_trx, trx_id));
+		ut_ad(committed || prev_version
+		      || !rec_get_deleted_flag(version, comp));
 
 		/* Free version and clust_offsets. */
 		mem_heap_free(old_heap);
+
+		if (committed) {
+			goto not_locked;
+		}
 
 		if (prev_version == NULL) {
 
@@ -223,6 +229,7 @@ row_vers_impl_x_locked_low(
 				or updated, the leaf page record always is
 				created with a clear delete-mark flag.
 				(We never insert a delete-marked record.) */
+not_locked:
 				trx->release_reference();
 				trx = 0;
 			}
@@ -349,14 +356,14 @@ result_check:
 		if (trx->id != prev_trx_id) {
 			/* prev_version was the first version modified by
 			the trx_id transaction: no implicit x-lock */
-
-			trx->release_reference();
-			trx = 0;
-			break;
+			goto not_locked;
 		}
 	}
 
-	DBUG_PRINT("info", ("Implicit lock is held by trx:" TRX_ID_FMT, trx_id));
+	if (trx) {
+		DBUG_PRINT("info", ("Implicit lock is held by trx:" TRX_ID_FMT,
+				    trx_id));
+	}
 
 	if (v_heap != NULL) {
 		mem_heap_free(v_heap);
@@ -372,7 +379,8 @@ index record.
 @param[in]	rec	secondary index record
 @param[in]	index	secondary index
 @param[in]	offsets	rec_get_offsets(rec, index)
-@return	the active transaction; trx->release_reference() must be invoked
+@return	the active transaction; state must be rechecked after
+trx_mutex_enter(), and trx->release_reference() must be invoked
 @retval	NULL if the record was committed */
 trx_t*
 row_vers_impl_x_locked(
@@ -456,6 +464,7 @@ row_vers_build_clust_v_col(
 		vcol_info->set_used();
 		maria_table = vcol_info->table();
 	}
+	DEBUG_SYNC(current_thd, "ib_clust_v_col_before_row_allocated");
 
 	innobase_allocate_row_for_vcol(thd, index,
 				       &local_heap,
@@ -897,7 +906,8 @@ row_vers_old_has_index_entry(
 
 	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_S_FIX));
-	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
+	ut_ad(!rw_lock_own(&purge_sys.latch, RW_LOCK_S));
+	ut_ad(also_curr || !vcol_info);
 
 	clust_index = dict_table_get_first_index(index->table);
 
@@ -964,7 +974,7 @@ row_vers_old_has_index_entry(
 				entry = row_build_index_entry(
 					row, ext, index, heap);
 				if (entry && !dtuple_coll_cmp(ientry, entry)) {
-					goto safe_to_purge;
+					goto unsafe_to_purge;
 				}
 			} else {
 				/* Build index entry out of row */
@@ -985,7 +995,7 @@ row_vers_old_has_index_entry(
 					    clust_index, clust_offsets,
 					    index, ientry, roll_ptr,
 					    trx_id, NULL, &vrow, mtr)) {
-					goto safe_to_purge;
+					goto unsafe_to_purge;
 				}
 			}
 			clust_offsets = rec_get_offsets(rec, clust_index, NULL,
@@ -1018,7 +1028,7 @@ row_vers_old_has_index_entry(
 			a different binary value in a char field, but the
 			collation identifies the old and new value anyway! */
 			if (entry && !dtuple_coll_cmp(ientry, entry)) {
-safe_to_purge:
+unsafe_to_purge:
 				mem_heap_free(heap);
 
 				if (v_heap) {
@@ -1058,7 +1068,6 @@ safe_to_purge:
 
 		if (!prev_version) {
 			/* Versions end here */
-unsafe_to_purge:
 			mem_heap_free(heap);
 
 			if (v_heap) {
@@ -1120,7 +1129,7 @@ unsafe_to_purge:
 			and new value anyway! */
 
 			if (entry && !dtuple_coll_cmp(ientry, entry)) {
-				goto safe_to_purge;
+				goto unsafe_to_purge;
 			}
 		}
 

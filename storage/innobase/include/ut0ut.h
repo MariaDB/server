@@ -50,33 +50,6 @@ Created 1/20/1994 Heikki Tuuri
 /** Index name prefix in fast index creation, as a string constant */
 #define TEMP_INDEX_PREFIX_STR	"\377"
 
-/** Time stamp */
-typedef time_t	ib_time_t;
-
-#if defined (__GNUC__)
-# define UT_COMPILER_BARRIER() __asm__ __volatile__ ("":::"memory")
-#elif defined (_MSC_VER)
-# define UT_COMPILER_BARRIER() _ReadWriteBarrier()
-#else
-# define UT_COMPILER_BARRIER()
-#endif
-
-/*********************************************************************//**
-Delays execution for at most max_wait_us microseconds or returns earlier
-if cond becomes true.
-@param cond in: condition to wait for; evaluated every 2 ms
-@param max_wait_us in: maximum delay to wait, in microseconds */
-# define UT_WAIT_FOR(cond, max_wait_us)				\
-do {								\
-	uintmax_t	start_us;					\
-	start_us = ut_time_us(NULL);				\
-	while (!(cond)						\
-	       && ut_time_us(NULL) - start_us < (max_wait_us)) {\
-								\
-		os_thread_sleep(2000 /* 2 ms */);		\
-	}							\
-} while (0)
-
 #define ut_max	std::max
 #define ut_min	std::min
 
@@ -173,35 +146,6 @@ ut_2_power_up(
 	MY_ATTRIBUTE((const));
 
 /**********************************************************//**
-Returns system time. We do not specify the format of the time returned:
-the only way to manipulate it is to use the function ut_difftime.
-@return system time */
-ib_time_t
-ut_time(void);
-/*=========*/
-
-/**********************************************************//**
-Returns system time.
-Upon successful completion, the value 0 is returned; otherwise the
-value -1 is returned and the global variable errno is set to indicate the
-error.
-@return 0 on success, -1 otherwise */
-int
-ut_usectime(
-/*========*/
-	ulint*	sec,	/*!< out: seconds since the Epoch */
-	ulint*	ms);	/*!< out: microseconds since the Epoch+*sec */
-
-/**********************************************************//**
-Returns the number of microseconds since epoch. Similar to
-time(3), the return value is also stored in *tloc, provided
-that tloc is non-NULL.
-@return us since epoch */
-uintmax_t
-ut_time_us(
-/*=======*/
-	uintmax_t*	tloc);	/*!< out: us since epoch, if non-NULL */
-/**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
 value may wrap around.  It should only be used for heuristic
 purposes.
@@ -209,25 +153,6 @@ purposes.
 ulint
 ut_time_ms(void);
 /*============*/
-
-/**********************************************************//**
-Returns the number of milliseconds since some epoch.  The
-value may wrap around.  It should only be used for heuristic
-purposes.
-@return ms since epoch */
-ulint
-ut_time_ms(void);
-/*============*/
-
-/**********************************************************//**
-Returns the difference of two times in seconds.
-@return time2 - time1 expressed in seconds */
-double
-ut_difftime(
-/*========*/
-	ib_time_t	time2,	/*!< in: time */
-	ib_time_t	time1);	/*!< in: time */
-
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Determine how many bytes (groups of 8 bits) are needed to
@@ -269,14 +194,7 @@ void
 ut_sprintf_timestamp(
 /*=================*/
 	char*	buf); /*!< in: buffer where to sprintf */
-/*************************************************************//**
-Runs an idle loop on CPU. The argument gives the desired delay
-in microseconds on 100 MHz Pentium + Visual C++.
-@return dummy value */
-void
-ut_delay(
-/*=====*/
-	ulint	delay);	/*!< in: delay in microseconds on 100 MHz Pentium */
+
 /*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */
 void

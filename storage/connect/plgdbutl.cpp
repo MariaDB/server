@@ -425,6 +425,8 @@ char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
   return pBuff;
   } // end of PlgExtractFromPath
 
+
+#ifdef NOT_USED
 /***********************************************************************/
 /*  Check the occurence and matching of a pattern against a string.    */
 /*  Because this function is only used for catalog name checking,      */
@@ -443,6 +445,7 @@ static bool PlugCheckPattern(PGLOBAL g, LPCSTR string, LPCSTR pat)
     return true;
 
   } // end of PlugCheckPattern
+#endif /* NOT_USED */
 
 /***********************************************************************/
 /*  PlugEvalLike: evaluates a LIKE clause.                             */

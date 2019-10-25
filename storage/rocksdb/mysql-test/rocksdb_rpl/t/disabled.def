@@ -11,6 +11,8 @@ rpl_gtid_rocksdb_sys_header : MariaDB doesn't support printing "RocksDB: Last My
 singledelete_idempotent_recovery: MariaDB doesn't support --slave-use-idempotent-for-recovery
 rpl_mts_dependency_unique_key_conflicts: MariaDB doesn't support --slave-use-idempotent-for-recovery
 rpl_missing_columns_sk_update : Uses log_column_names=ON feature which is only present in FB/MySQL
+optimize_myrocks_replace_into: requires @@enable_blind_replace support.
+rpl_gtid_crash_safe_optimized: requires slave_gtid_info=optimized
 
 ##
 ##  Tests that do not fit MariaDB's test environment (Functional tests only,
@@ -28,4 +30,5 @@ rpl_gtid_crash_safe : Didn't try with MariaDB, yet
 rpl_gtid_crash_safe_wal_corrupt : Didn't try with MariaDB, yet
 rpl_rocksdb_snapshot : Didn't try with MariaDB, yet
 rpl_rocksdb_snapshot_without_gtid : Didn't try with MariaDB, yet
-
+rpl_rocksdb_slave_gtid_info_optimized: requires slave-gtid-info=optimized which is an FB/MySQL-only feature
+rocksdb_slave_check_before_image_consistency: requires slave_check_before_image_consistency feature

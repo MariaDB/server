@@ -1,0 +1,113 @@
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-18153 Assertion `0' or Assertion `btr_validate_index(index, 0)' failed in row_upd_sec_index_entry or error code 126: Index is corrupted upon UPDATE with TIME_ROUND_FRACTIONAL
+#
+SET sql_mode=DEFAULT;
+# OK: same FSP + virtual index
+CREATE TABLE t1 (
+t DATETIME(4),
+d DATETIME,
+v DATETIME(4) AS (t) VIRTUAL,
+KEY(v,d)
+);
+DROP TABLE t1;
+CREATE TABLE t1 (
+t DATETIME(4),
+d DATETIME,
+v DATETIME(4) AS ('2001-01-01 10:20:30.1234') VIRTUAL,
+KEY(v,d)
+);
+DROP TABLE t1;
+# OK: lower FSP + no virtual index
+CREATE TABLE t1 (
+t DATETIME(4),
+d DATETIME,
+v DATETIME(3) AS (t) VIRTUAL
+);
+DROP TABLE t1;
+CREATE TABLE t1 (
+t DATETIME(4),
+d DATETIME,
+v DATETIME(3) AS ('2001-01-01 10:20:30.1234') VIRTUAL
+);
+DROP TABLE t1;
+# NOT OK: lower FSP + virtual index
+CREATE TABLE t1 (
+t DATETIME(4),
+d DATETIME,
+v DATETIME(3) AS (t) VIRTUAL,
+KEY(v,d)
+);
+ERROR HY000: Function or expression '`t`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+CREATE TABLE t1 (
+t DATETIME(4),
+d DATETIME,
+v DATETIME(3) AS (COALESCE(t)) VIRTUAL,
+KEY(v,d)
+);
+ERROR HY000: Function or expression 'coalesce(`t`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+CREATE TABLE t1 (
+t DATETIME(4),
+d DATETIME,
+v DATETIME(3) AS ('2001-01-01 10:20:30.1234') VIRTUAL,
+KEY(v,d)
+);
+ERROR HY000: Function or expression ''2001-01-01 10:20:30.1234'' cannot be used in the GENERATED ALWAYS AS clause of `v`
+# OK: lower FSP + ROUND + virtual index
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (
+t DATETIME(4),
+d DATETIME,
+v DATETIME(3) AS (ROUND(t,3)) VIRTUAL,
+KEY(v,d)
+);
+INSERT IGNORE INTO t1 (t,d) VALUES ('2006-03-01 12:44:34.0496','2029-10-10 21:27:53');
+SELECT * FROM t1;
+t	d	v
+2006-03-01 12:44:34.0496	2029-10-10 21:27:53	2006-03-01 12:44:34.050
+SET SQL_MODE= 'TIME_ROUND_FRACTIONAL';
+UPDATE IGNORE t1 SET d = NOW();
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+# OK: lower FSP + TRUNCATE + virtual index
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (
+t DATETIME(4),
+d DATETIME,
+v DATETIME(3) AS (TRUNCATE(t,3)) VIRTUAL,
+KEY(v,d)
+);
+INSERT IGNORE INTO t1 (t,d) VALUES ('2006-03-01 12:44:34.0496','2029-10-10 21:27:53');
+SELECT * FROM t1;
+t	d	v
+2006-03-01 12:44:34.0496	2029-10-10 21:27:53	2006-03-01 12:44:34.049
+SET SQL_MODE= 'TIME_ROUND_FRACTIONAL';
+UPDATE IGNORE t1 SET d = NOW();
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-20423 Assertion `0' failed or `btr_validate_index(index, 0, false)' in row_upd_sec_index_entry or error code 126: Index is corrupted upon DELETE with TIME_ROUND_FRACTIONAL
+#
+CREATE TABLE t1 (
+a DATETIME(6),
+v VARCHAR(30) GENERATED ALWAYS AS (CAST(a AS DATETIME(3))) VIRTUAL,
+KEY (v)
+);
+ERROR HY000: Function or expression 'cast(`a` as datetime(3))' cannot be used in the GENERATED ALWAYS AS clause of `v`
+CREATE TABLE t1 (
+a DATETIME(6),
+v VARCHAR(30) GENERATED ALWAYS AS (TRUNCATE(a,3)) VIRTUAL,
+KEY (v)
+);
+DROP TABLE t1;
+CREATE TABLE t1 (
+a DATETIME(6),
+v VARCHAR(30) GENERATED ALWAYS AS (ROUND(a,3)) VIRTUAL,
+KEY (v)
+);
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

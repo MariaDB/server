@@ -13,7 +13,8 @@
 # Avoid CrashReporter popup on Mac
 --source include/not_crashrep.inc
 
--- source include/have_innodb.inc
+--source include/have_innodb.inc
+--source include/default_charset.inc
 
 let $restart_noprint=2;
 call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation.");
@@ -1046,9 +1047,6 @@ connect (purge_control,localhost,root);
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 
-# Disable change buffer merge from the master thread, additionally
-# enable aggressive flushing so that more changes are buffered.
-SET GLOBAL innodb_disable_background_merge=ON;
 SET GLOBAL innodb_monitor_reset = ibuf_merges;
 SET GLOBAL innodb_monitor_reset = ibuf_merges_insert;
 
@@ -1110,8 +1108,6 @@ SELECT name
 SELECT name
   FROM information_schema.innodb_metrics
   WHERE name = 'ibuf_merges_inserts' AND count > 0;
-
-SET GLOBAL innodb_disable_background_merge=OFF;
 
 # Enable normal operation
 connection purge_control;

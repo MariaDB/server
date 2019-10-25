@@ -766,6 +766,7 @@ typedef struct system_variables
   ulong session_track_transaction_info;
   my_bool session_track_schema;
   my_bool session_track_state_change;
+  my_bool session_track_user_variables;
   my_bool tcp_nodelay;
 
   ulong threadpool_priority;
@@ -877,6 +878,7 @@ typedef struct system_status_var
   ulong feature_system_versioning;  /* +1 opening a table WITH SYSTEM VERSIONING */
   ulong feature_application_time_periods;
                                     /* +1 opening a table with application-time period */
+  ulong feature_insert_returning;  /* +1 when INSERT...RETURNING is used */
   ulong feature_timezone;	    /* +1 when XPATH is used */
   ulong feature_trigger;	    /* +1 opening a table with triggers */
   ulong feature_xml;		    /* +1 when XPATH is used */
@@ -2440,13 +2442,24 @@ public:
   */ 
   bool create_tmp_table_for_derived;
 
-  /* The flag to force reading statistics from EITS tables */
-  bool force_read_stats;
-
   bool save_prep_leaf_list;
 
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];
+
+  /**
+    Bit field for the state of binlog warnings.
+
+    The first Lex::BINLOG_STMT_UNSAFE_COUNT bits list all types of
+    unsafeness that the current statement has.
+
+    This must be a member of THD and not of LEX, because warnings are
+    detected and issued in different places (@c
+    decide_logging_format() and @c binlog_query(), respectively).
+    Between these calls, the THD->lex object may change; e.g., if a
+    stored routine is invoked.  Only THD persists between the calls.
+  */
+  uint32 binlog_unsafe_warning_flags;
 
 #ifndef MYSQL_CLIENT
   binlog_cache_mngr *  binlog_setup_trx_data();
@@ -2556,20 +2569,6 @@ private:
     logged.  This can only be set from @c decide_logging_format().
   */
   enum_binlog_format current_stmt_binlog_format;
-
-  /**
-    Bit field for the state of binlog warnings.
-
-    The first Lex::BINLOG_STMT_UNSAFE_COUNT bits list all types of
-    unsafeness that the current statement has.
-
-    This must be a member of THD and not of LEX, because warnings are
-    detected and issued in different places (@c
-    decide_logging_format() and @c binlog_query(), respectively).
-    Between these calls, the THD->lex object may change; e.g., if a
-    stored routine is invoked.  Only THD persists between the calls.
-  */
-  uint32 binlog_unsafe_warning_flags;
 
   /*
     Number of outstanding table maps, i.e., table maps in the
@@ -3241,6 +3240,7 @@ public:
     added to the list of audit plugins which are currently in use.
   */
   unsigned long audit_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE];
+  int audit_plugin_version;
 #endif
 
 #if defined(ENABLED_DEBUG_SYNC)
@@ -3443,6 +3443,7 @@ private:
     {
       system_time.sec= sec;
       system_time.sec_part= sec_part;
+      system_time.start= hrtime;
     }
     else
     {
@@ -4557,6 +4558,18 @@ public:
   }
   void leave_locked_tables_mode();
   int decide_logging_format(TABLE_LIST *tables);
+  /*
+   In Some cases when decide_logging_format is called it does not have all
+   information to decide the logging format. So that cases we call decide_logging_format_2
+   at later stages in execution.
+   One example would be binlog format for IODKU but column with unique key is not inserted.
+   We dont have inserted columns info when we call decide_logging_format so on later stage we call
+   decide_logging_format_low
+
+   @returns 0 if no format is changed
+            1 if there is change in binlog format
+  */
+  int decide_logging_format_low(TABLE *table);
 
   enum need_invoker { INVOKER_NONE=0, INVOKER_USER, INVOKER_ROLE};
   void binlog_invoker(bool role) { m_binlog_invoker= role ? INVOKER_ROLE : INVOKER_USER; }
@@ -4671,9 +4684,7 @@ private:
   AUTHID invoker;
 
 public:
-#ifndef EMBEDDED_LIBRARY
   Session_tracker session_tracker;
-#endif //EMBEDDED_LIBRARY
   /*
     Flag, mutex and condition for a thread to wait for a signal from another
     thread.
@@ -4838,7 +4849,6 @@ public:
   rpl_sid                   wsrep_po_sid;
 #endif /* GTID_SUPPORT */
   void                      *wsrep_apply_format;
-  bool                      wsrep_apply_toi; /* applier processing in TOI */
   uchar*                    wsrep_rbr_buf;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
   //  wsrep_gtid_t              wsrep_last_written_gtid;
@@ -5086,6 +5096,18 @@ class select_result_sink: public Sql_alloc
 public:
   THD *thd;
   select_result_sink(THD *thd_arg): thd(thd_arg) {}
+  inline int send_data_with_check(List<Item> &items,
+                              SELECT_LEX_UNIT *u,
+                              ha_rows sent)
+  {
+    if (u->lim.check_offset(sent))
+      return 0;
+
+    if (u->thd->killed == ABORT_QUERY)
+      return 0;
+
+    return send_data(items);
+  }
   /*
     send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
     example for a duplicate row entry written to a temp table.
@@ -5121,7 +5143,7 @@ protected:
   /* Something used only by the parser: */
 public:
   ha_rows est_records;  /* estimated number of records in the result */
- select_result(THD *thd_arg): select_result_sink(thd_arg), est_records(0) {}
+  select_result(THD *thd_arg): select_result_sink(thd_arg), est_records(0) {}
   void set_unit(SELECT_LEX_UNIT *unit_arg) { unit= unit_arg; }
   virtual ~select_result() {};
   /**
@@ -5187,9 +5209,9 @@ public:
   /* this method is called just before the first row of the table can be read */
   virtual void prepare_to_read_rows() {}
 
-  void reset_offset_limit()
+  void remove_offset_limit()
   {
-    unit->offset_limit_cnt= 0;
+    unit->lim.remove_offset();
   }
 
   /*
@@ -5496,16 +5518,17 @@ public:
 
 class select_insert :public select_result_interceptor {
  public:
+  select_result *sel_result;
   TABLE_LIST *table_list;
   TABLE *table;
   List<Item> *fields;
   ulonglong autoinc_value_of_last_inserted_row; // autogenerated or not
   COPY_INFO info;
   bool insert_into_view;
-  select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
-		TABLE *table_par, List<Item> *fields_par,
-		List<Item> *update_fields, List<Item> *update_values,
-		enum_duplicates duplic, bool ignore);
+  select_insert(THD *thd_arg, TABLE_LIST *table_list_par, TABLE *table_par,
+                List<Item> *fields_par, List<Item> *update_fields,
+                List<Item> *update_values, enum_duplicates duplic,
+                bool ignore, select_result *sel_ret_list);
   ~select_insert();
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   virtual int prepare2(JOIN *join);
@@ -5541,7 +5564,7 @@ public:
                 List<Item> &select_fields,enum_duplicates duplic, bool ignore,
                 TABLE_LIST *select_tables_arg):
     select_insert(thd_arg, table_arg, NULL, &select_fields, 0, 0, duplic,
-                  ignore),
+                  ignore, NULL),
     create_table(table_arg),
     create_info(create_info_par),
     select_tables(select_tables_arg),
@@ -5696,17 +5719,18 @@ public:
 
 class select_unit :public select_result_interceptor
 {
+protected:
   uint curr_step, prev_step, curr_sel;
   enum sub_select_type step;
 public:
-  Item_int *intersect_mark;
   TMP_TABLE_PARAM tmp_table_param;
+  /* Number of additional (hidden) field of the used temporary table */
+  int addon_cnt;
   int write_err; /* Error code from the last send_data->ha_write_row call. */
   TABLE *table;
 
   select_unit(THD *thd_arg):
-    select_result_interceptor(thd_arg),
-    intersect_mark(0), table(0)
+    select_result_interceptor(thd_arg), addon_cnt(0), table(0)
   {
     init();
     tmp_table_param.init();
@@ -5723,6 +5747,9 @@ public:
   virtual bool postponed_prepare(List<Item> &types)
   { return false; }
   int send_data(List<Item> &items);
+  int write_record();
+  int update_counter(Field *counter, longlong value);
+  int delete_record();
   bool send_eof();
   virtual bool flush();
   void cleanup();
@@ -5741,7 +5768,148 @@ public:
     step= UNION_TYPE;
     write_err= 0;
   }
+  virtual void change_select();
+  virtual bool force_enable_index_if_needed() { return false; }
+};
+
+
+/**
+  @class select_unit_ext
+
+  The class used when processing rows produced by operands of query expressions
+  containing INTERSECT ALL and/or EXCEPT all operations. One or two extra fields
+  of the temporary to store the rows of the partial and final result can be employed.
+  Both of them contain counters. The second additional field is used only when
+  the processed query expression contains INTERSECT ALL.
+
+  Consider how these extra fields are used.
+
+  Let
+    table t1 (f char(8))
+    table t2 (f char(8))
+    table t3 (f char(8))
+  contain the following sets:
+    ("b"),("a"),("d"),("c"),("b"),("a"),("c"),("a")
+    ("c"),("b"),("c"),("c"),("a"),("b"),("g")
+    ("c"),("a"),("b"),("d"),("b"),("e")
+
+  - Let's demonstrate how the the set operation INTERSECT ALL is proceesed
+    for the query
+              SELECT f FROM t1 INTERSECT ALL SELECT f FROM t2
+
+    When send_data() is called for the rows of the first operand we put
+    the processed record into the temporary table if there was no such record
+    setting dup_cnt field to 1 and add_cnt field to 0 and increment the
+    counter in the dup_cnt field by one otherwise. We get
+
+      |add_cnt|dup_cnt| f |
+      |0      |2      |b  |
+      |0      |3      |a  |
+      |0      |1      |d  |
+      |0      |2      |c  |
+
+    The call of send_eof() for the first operand swaps the values stored in
+    dup_cnt and add_cnt. After this, we'll see the following rows in the
+    temporary table
+
+      |add_cnt|dup_cnt| f |
+      |2      |0      |b  |
+      |3      |0      |a  |
+      |1      |0      |d  |
+      |2      |0      |c  |
+
+    When send_data() is called for the rows of the second operand we increment
+    the counter in dup_cnt if the processed row is found in the table and do
+    nothing otherwise. As a result we get
+
+      |add_cnt|dup_cnt| f |
+      |2      |2      |b  |
+      |3      |1      |a  |
+      |1      |0      |d  |
+      |2      |3      |c  |
+
+    At the call of send_eof() for the second operand first we disable index.
+    Then for each record, the minimum of counters from dup_cnt and add_cnt m is
+    taken. If m == 0 then the record is deleted. Otherwise record is replaced
+    with m copies of it. Yet the counter in this copies are set to 1 for
+    dup_cnt and to 0 for add_cnt
+
+      |add_cnt|dup_cnt| f |
+      |0      |1      |b  |
+      |0      |1      |b  |
+      |0      |1      |a  |
+      |0      |1      |c  |
+      |0      |1      |c  |
+
+  - Let's demonstrate how the the set operation EXCEPT ALL is proceesed
+    for the query
+              SELECT f FROM t1 EXCEPT ALL SELECT f FROM t3
+
+    Only one additional counter field dup_cnt is used for EXCEPT ALL.
+    After the first operand has been processed we have in the temporary table
+
+      |dup_cnt| f |
+      |2      |b  |
+      |3      |a  |
+      |1      |d  |
+      |2      |c  |
+
+    When send_data() is called for the rows of the second operand we decrement
+    the counter in dup_cnt if the processed row is found in the table and do
+    nothing otherwise. If the counter becomes 0 we delete the record
+
+      |dup_cnt| f |
+      |2      |a  |
+      |1      |c  |
+
+    Finally at the call of send_eof() for the second operand we disable index
+    unfold rows adding duplicates
+
+      |dup_cnt| f |
+      |1      |a  |
+      |1      |a  |
+      |1      |c  |
+ */
+
+class select_unit_ext :public select_unit
+{
+public:
+  select_unit_ext(THD *thd_arg):
+    select_unit(thd_arg), increment(0), is_index_enabled(TRUE), 
+    curr_op_type(UNSPECIFIED)
+  {
+  };
+  int send_data(List<Item> &items);
   void change_select();
+  int unfold_record(ha_rows cnt);
+  bool send_eof();
+  bool force_enable_index_if_needed()
+  {
+    is_index_enabled= true;
+    return true;
+  }
+  bool disable_index_if_needed(SELECT_LEX *curr_sl);
+  
+  /* 
+    How to change increment/decrement the counter in duplicate_cnt field 
+    when processing a record produced by the current operand in send_data().
+    The value can be 1 or -1
+  */
+  int increment;
+  /* TRUE <=> the index of the result temporary table is enabled */
+  bool is_index_enabled;
+  /* The type of the set operation currently executed */
+  enum set_op_type curr_op_type;
+  /* 
+    Points to the extra field of the temporary table where
+    duplicate counters are stored
+  */ 
+  Field *duplicate_cnt;
+  /* 
+    Points to the extra field of the temporary table where additional
+    counters used only for INTERSECT ALL operations are stored
+  */
+  Field *additional_cnt;
 };
 
 class select_union_recursive :public select_unit
@@ -5855,7 +6023,7 @@ public:
     */
     DBUG_ASSERT(false); /* purecov: inspected */
   }
-  void reset_offset_limit_cnt()
+  void remove_offset_limit()
   {
     // EXPLAIN should never output to a select_union_direct
     DBUG_ASSERT(false); /* purecov: inspected */
@@ -6005,7 +6173,10 @@ public:
 
   uint tables; /* Number of tables in the sj-nest */
 
-  /* Expected #rows in the materialized table */
+  /* Number of rows in the materialized table, before the de-duplication */
+  double rows_with_duplicates;
+
+  /* Expected #rows in the materialized table, after de-duplication */
   double rows;
 
   /* 
@@ -6160,7 +6331,7 @@ class user_var_entry
 
   double val_real(bool *null_value);
   longlong val_int(bool *null_value) const;
-  String *val_str(bool *null_value, String *str, uint decimals);
+  String *val_str(bool *null_value, String *str, uint decimals) const;
   my_decimal *val_decimal(bool *null_value, my_decimal *result);
   CHARSET_INFO *charset() const { return m_charset; }
   void set_charset(CHARSET_INFO *cs) { m_charset= cs; }
@@ -6727,6 +6898,23 @@ public:
 };
 
 
+class Check_level_instant_set
+{
+  THD *m_thd;
+  enum_check_fields m_check_level;
+public:
+  Check_level_instant_set(THD *thd, enum_check_fields temporary_value)
+   :m_thd(thd), m_check_level(thd->count_cuted_fields)
+  {
+    thd->count_cuted_fields= temporary_value;
+  }
+  ~Check_level_instant_set()
+  {
+    m_thd->count_cuted_fields= m_check_level;
+  }
+};
+
+
 /**
   This class resembles the SQL Standard schema qualified object name:
   <schema qualified name> ::= [ <schema name> <period> ] <qualified identifier>
@@ -6935,11 +7123,12 @@ void dbug_serve_apcs(THD *thd, int n_calls);
 class ScopedStatementReplication
 {
 public:
-  ScopedStatementReplication(THD *thd) : thd(thd)
-  {
-    if (thd)
-      saved_binlog_format= thd->set_current_stmt_binlog_format_stmt();
-  }
+  ScopedStatementReplication(THD *thd) :
+    saved_binlog_format(thd
+                        ? thd->set_current_stmt_binlog_format_stmt()
+                        : BINLOG_FORMAT_MIXED),
+    thd(thd)
+  {}
   ~ScopedStatementReplication()
   {
     if (thd)
@@ -6947,8 +7136,8 @@ public:
   }
 
 private:
-  enum_binlog_format saved_binlog_format;
-  THD *thd;
+  const enum_binlog_format saved_binlog_format;
+  THD *const thd;
 };
 
 

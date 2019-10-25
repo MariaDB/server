@@ -1,0 +1,28 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+CREATE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES ('::');
+INSERT INTO t1 VALUES ('ffff::ffff');
+
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (?)';
+EXECUTE stmt USING CAST('::1' AS INET6);
+EXECUTE stmt USING CAST(CONCAT(REPEAT(0x00,15), 0x02) AS INET6);
+DEALLOCATE PREPARE stmt;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a INET6 DEFAULT '::3';
+  INSERT INTO t1 VALUES (a);
+END;
+$$
+DELIMITER ;$$
+
+DROP TABLE t1;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

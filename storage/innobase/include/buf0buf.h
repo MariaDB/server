@@ -67,16 +67,6 @@ struct fil_addr_t;
 					if the file page has been freed. */
 #define BUF_EVICT_IF_IN_POOL	20	/*!< evict a clean block if found */
 /* @} */
-/** @name Modes for buf_page_get_known_nowait */
-/* @{ */
-#define BUF_MAKE_YOUNG	51		/*!< Move the block to the
-					start of the LRU list if there
-					is a danger that the block
-					would drift out of the buffer
-					pool*/
-#define BUF_KEEP_OLD	52		/*!< Preserve the current LRU
-					position of the block. */
-/* @} */
 
 #define MAX_BUFFER_POOLS_BITS	6	/*!< Number of bits to representing
 					a buffer pool ID */
@@ -131,7 +121,6 @@ enum buf_page_state {
 	BUF_BLOCK_REMOVE_HASH		/*!< hash index should be removed
 					before putting to the free list */
 };
-
 
 /** This structure defines information we will fetch from each buffer pool. It
 will be used to print table IO stats */
@@ -357,7 +346,8 @@ NOTE! The following macros should be used instead of buf_page_get_gen,
 to improve debugging. Only values RW_S_LATCH and RW_X_LATCH are allowed
 in LA! */
 #define buf_page_get(ID, SIZE, LA, MTR)					\
-	buf_page_get_gen(ID, SIZE, LA, NULL, BUF_GET, __FILE__, __LINE__, MTR, NULL)
+	buf_page_get_gen(ID, SIZE, LA, NULL, BUF_GET, __FILE__, __LINE__, MTR)
+
 /**************************************************************//**
 Use these macros to bufferfix a page with no latching. Remember not to
 read the contents of the page unless you know it is safe. Do not modify
@@ -366,7 +356,7 @@ error-prone programming not to set a latch, and it should be used
 with care. */
 #define buf_page_get_with_no_latch(ID, SIZE, MTR)	\
 	buf_page_get_gen(ID, SIZE, RW_NO_LATCH, NULL, BUF_GET_NO_LATCH, \
-			 __FILE__, __LINE__, MTR, NULL)
+			 __FILE__, __LINE__, MTR)
 /********************************************************************//**
 This is the general function used to get optimistic access to a database
 page.
@@ -377,19 +367,6 @@ buf_page_optimistic_get(
 	ulint		rw_latch,/*!< in: RW_S_LATCH, RW_X_LATCH */
 	buf_block_t*	block,	/*!< in: guessed block */
 	ib_uint64_t	modify_clock,/*!< in: modify clock value */
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line where called */
-	mtr_t*		mtr);	/*!< in: mini-transaction */
-/********************************************************************//**
-This is used to get access to a known database page, when no waiting can be
-done.
-@return TRUE if success */
-ibool
-buf_page_get_known_nowait(
-/*======================*/
-	ulint		rw_latch,/*!< in: RW_S_LATCH, RW_X_LATCH */
-	buf_block_t*	block,	/*!< in: the known page */
-	ulint		mode,	/*!< in: BUF_MAKE_YOUNG or BUF_KEEP_OLD */
 	const char*	file,	/*!< in: file name */
 	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mini-transaction */
@@ -431,16 +408,18 @@ the same set of mutexes or latches.
 buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size);
 
 /** This is the general function used to get access to a database page.
-@param[in]	page_id		page id
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	rw_latch	RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
-@param[in]	guess		guessed block or NULL
-@param[in]	mode		BUF_GET, BUF_GET_IF_IN_POOL,
+@param[in]	page_id			page id
+@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
+@param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
+@param[in]	guess			guessed block or NULL
+@param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
 BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
-@param[in]	file		file name
-@param[in]	line		line where called
-@param[in]	mtr		mini-transaction
-@param[out]	err		DB_SUCCESS or error code
+@param[in]	file			file name
+@param[in]	line			line where called
+@param[in]	mtr			mini-transaction
+@param[out]	err			DB_SUCCESS or error code
+@param[in]	allow_ibuf_merge	Allow change buffer merge while
+reading the pages from file.
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_gen(
@@ -452,7 +431,8 @@ buf_page_get_gen(
 	const char*		file,
 	unsigned		line,
 	mtr_t*			mtr,
-	dberr_t*		err);
+	dberr_t*		err = NULL,
+	bool			allow_ibuf_merge = false);
 
 /** Initialize a page in the buffer pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one
@@ -538,28 +518,36 @@ buf_block_get_freed_page_clock(
 	const buf_block_t*	block)	/*!< in: block */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/********************************************************************//**
-Tells if a block is still close enough to the MRU end of the LRU list
+/** Determine if a block is still close enough to the MRU end of the LRU list
 meaning that it is not in danger of getting evicted and also implying
 that it has been accessed recently.
 Note that this is for heuristics only and does not reserve buffer pool
 mutex.
-@return TRUE if block is close to MRU end of LRU */
-UNIV_INLINE
-ibool
-buf_page_peek_if_young(
-/*===================*/
-	const buf_page_t*	bpage);	/*!< in: block */
-/********************************************************************//**
-Recommends a move of a block to the start of the LRU list if there is danger
-of dropping from the buffer pool. NOTE: does not reserve the buffer pool
-mutex.
-@return TRUE if should be made younger */
-UNIV_INLINE
-ibool
-buf_page_peek_if_too_old(
-/*=====================*/
-	const buf_page_t*	bpage);	/*!< in: block to make younger */
+@param[in]	buf_pool	buffer pool
+@param[in]	bpage		buffer pool page
+@return whether bpage is close to MRU end of LRU */
+inline bool buf_page_peek_if_young(const buf_pool_t* buf_pool,
+				   const buf_page_t* bpage);
+
+/** Determine if a block should be moved to the start of the LRU list if
+there is danger of dropping from the buffer pool.
+@param[in,out]	buf_pool	buffer pool
+@param[in]	bpage		buffer pool page
+@return true if bpage should be made younger */
+inline bool buf_page_peek_if_too_old(buf_pool_t* buf_pool,
+				     const buf_page_t* bpage);
+
+/** Move a page to the start of the buffer pool LRU list if it is too old.
+@param[in,out]	buf_pool	buffer pool
+@param[in,out]	bpage		buffer pool page */
+inline void buf_page_make_young_if_needed(buf_pool_t* buf_pool,
+					  buf_page_t* bpage)
+{
+	if (UNIV_UNLIKELY(buf_page_peek_if_too_old(buf_pool, bpage))) {
+		buf_page_make_young(bpage);
+	}
+}
+
 /********************************************************************//**
 Gets the youngest modification log sequence number for a frame.
 Returns zero if not file page or no modification occurred yet.
@@ -1107,6 +1095,8 @@ Gets the compressed page descriptor corresponding to an uncompressed page
 if applicable. */
 #define buf_block_get_page_zip(block) \
 	((block)->page.zip.data ? &(block)->page.zip : NULL)
+#define is_buf_block_get_page_zip(block) \
+        ((block)->page.zip.data != 0)
 
 #ifdef BTR_CUR_HASH_ADAPT
 /** Get a buffer block from an adaptive hash index pointer.
@@ -1173,7 +1163,10 @@ buf_page_init_for_read(
 				not match */
 UNIV_INTERN
 dberr_t
-buf_page_io_complete(buf_page_t* bpage, bool dblwr = false, bool evict = false)
+buf_page_io_complete(
+	buf_page_t*	bpage,
+	bool		dblwr = false,
+	bool		evict = false)
 	MY_ATTRIBUTE((nonnull));
 
 /********************************************************************//**
@@ -1491,8 +1484,6 @@ public:
 					if written again we check is TRIM
 					operation needed. */
 
-	bool            encrypted;	/*!< page is still encrypted */
-
 	/** whether the page will be (re)initialized at the time it will
 	be written to the file, that is, whether the doublewrite buffer
 	can be safely skipped. Protected under similar conditions as
@@ -1619,6 +1610,9 @@ public:
 					protected by buf_pool->zip_mutex
 					or buf_block_t::mutex. */
 # endif /* UNIV_DEBUG */
+  /** Change buffer entries for the page exist.
+  Protected by io_fix==BUF_IO_READ or by buf_block_t::lock. */
+  bool ibuf_exist;
 
   void fix() { buf_fix_count++; }
   uint32_t unfix()
@@ -1904,13 +1898,13 @@ public:
 		HazardPointer(buf_pool, mutex) {}
 
 	/** Destructor */
-	virtual ~FlushHp() {}
+	~FlushHp() override {}
 
 	/** Adjust the value of hp. This happens when some
 	other thread working on the same list attempts to
 	remove the hp from the list.
 	@param bpage	buffer block to be compared */
-	void adjust(const buf_page_t* bpage);
+	void adjust(const buf_page_t* bpage) override;
 };
 
 /** Class implementing buf_pool->LRU hazard pointer */
@@ -1925,13 +1919,13 @@ public:
 		HazardPointer(buf_pool, mutex) {}
 
 	/** Destructor */
-	virtual ~LRUHp() {}
+	~LRUHp() override {}
 
 	/** Adjust the value of hp. This happens when some
 	other thread working on the same list attempts to
 	remove the hp from the list.
 	@param bpage	buffer block to be compared */
-	void adjust(const buf_page_t* bpage);
+	void adjust(const buf_page_t* bpage) override;
 };
 
 /** Special purpose iterators to be used when scanning the LRU list.
@@ -1949,7 +1943,7 @@ public:
 		LRUHp(buf_pool, mutex) {}
 
 	/** Destructor */
-	virtual ~LRUItr() {}
+	~LRUItr() override {}
 
 	/** Selects from where to start a scan. If we have scanned
 	too deep into the LRU list it resets the value to the tail

@@ -1,3 +1,5 @@
+--source include/default_optimizer_switch.inc
+
 create table emp
 (
   emp_id int,

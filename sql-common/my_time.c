@@ -201,7 +201,7 @@ static int get_date_time_separator(uint *number_of_fields,
   do
   {
     s++;
-  } while (my_isspace(&my_charset_latin1, *s));
+  } while (s < end && my_isspace(&my_charset_latin1, *s));
   *str= s;
   return 0;
 }
@@ -1728,7 +1728,11 @@ longlong number_to_datetime_or_date(longlong nr, ulong sec_part,
       !check_date(time_res, nr || sec_part, flags, was_cut))
   {
     if (time_res->time_type == MYSQL_TIMESTAMP_DATE && sec_part != 0)
-       *was_cut= MYSQL_TIME_NOTE_TRUNCATED;
+    {
+      /* Date format, but with fractional digits, e.g. 20010203.5 */
+      *was_cut= MYSQL_TIME_NOTE_TRUNCATED;
+      time_res->second_part= 0;
+    }
     return nr;
   }
 

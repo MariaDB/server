@@ -1,0 +1,31 @@
+# ==== Purpose ====
+#
+# Test verifies that no ASAN issues are reported at the time of writing DROP
+# TEMPORARY TABLE statements to binary log as part of session cleanup.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    1 - Create a new connection named 'con1'.
+#    2 - Create a temporary table named 'tmp' as part of connection 'con1'.
+#    3 - Try to disconnect the current session when a CREATE .. SELECT
+#        statement is in the middle of execution.
+#    4 - Observe that no ASAN issue is reported.
+#
+# ==== References ====
+#
+# MDEV-19716: ASAN use-after-poison in Query_log_event::Query_log_event /
+# THD::log_events_and_free_tmp_shares
+
+--source include/master-slave.inc
+
+--connect (con1,localhost,root,,)
+
+CREATE TEMPORARY TABLE tmp (a INT);
+
+--send CREATE TABLE non_existing_db.t SELECT 1 AS b
+--disconnect con1
+
+--connection default
+
+--source include/rpl_end.inc

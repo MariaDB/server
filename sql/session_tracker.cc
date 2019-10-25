@@ -16,7 +16,6 @@
 
 
 #include "sql_plugin.h"
-#include "hash.h"
 #include "table.h"
 #include "rpl_gtid.h"
 #include "sql_class.h"
@@ -24,7 +23,7 @@
 #include "sql_plugin.h"
 #include "set_var.h"
 
-void State_tracker::mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name)
+void State_tracker::set_changed(THD *thd)
 {
   m_changed= true;
   thd->lex->safe_to_cache_query= 0;
@@ -380,11 +379,15 @@ bool Session_sysvars_tracker::enable(THD *thd)
 bool Session_sysvars_tracker::update(THD *thd, set_var *var)
 {
   vars_list tool_list;
-  void *copy= var->save_result.string_value.str ?
-              my_memdup(var->save_result.string_value.str,
-                        var->save_result.string_value.length + 1,
-                        MYF(MY_WME | MY_THREAD_SPECIFIC)) :
-              my_strdup("", MYF(MY_WME | MY_THREAD_SPECIFIC));
+  void *copy;
+  size_t length= 1;
+
+  if (var->save_result.string_value.str)
+    copy= my_memdup(var->save_result.string_value.str,
+                    (length= var->save_result.string_value.length + 1),
+                    MYF(MY_WME | MY_THREAD_SPECIFIC));
+    else
+      copy= my_strdup("", MYF(MY_WME | MY_THREAD_SPECIFIC));
 
   if (!copy)
     return true;
@@ -402,7 +405,7 @@ bool Session_sysvars_tracker::update(THD *thd, set_var *var)
   m_parsed= true;
   orig_list.copy(&tool_list, thd);
   orig_list.construct_var_list(thd->variables.session_track_system_variables,
-                               var->save_result.string_value.length + 1);
+                               length);
   return false;
 }
 
@@ -502,11 +505,12 @@ bool Session_sysvars_tracker::store(THD *thd, String *buf)
   @param               [IN] pointer on a variable
 */
 
-void Session_sysvars_tracker::mark_as_changed(THD *thd,
-                                              LEX_CSTRING *var)
+void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
 {
   sysvar_node_st *node;
-  sys_var *svar= (sys_var *)var;
+
+  if (!is_enabled())
+    return;
 
   if (!m_parsed)
   {
@@ -525,10 +529,10 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd,
     Check if the specified system variable is being tracked, if so
     mark it as changed and also set the class's m_changed flag.
   */
-  if (orig_list.is_enabled() && (node= orig_list.insert_or_search(svar)))
+  if (orig_list.is_enabled() && (node= orig_list.insert_or_search(var)))
   {
     node->m_changed= true;
-    State_tracker::mark_as_changed(thd, var);
+    set_changed(thd);
   }
 }
 
@@ -675,7 +679,7 @@ bool Transaction_state_tracker::update(THD *thd, set_var *)
     }
     if (thd->variables.session_track_transaction_info == TX_TRACK_CHISTICS)
       tx_changed       |= TX_CHG_CHISTICS;
-    mark_as_changed(thd, NULL);
+    set_changed(thd);
   }
   else
     m_enabled= false;
@@ -1108,7 +1112,7 @@ void Transaction_state_tracker::set_read_flags(THD *thd,
   {
     tx_read_flags = flags;
     tx_changed   |= TX_CHG_CHISTICS;
-    mark_as_changed(thd, NULL);
+    set_changed(thd);
   }
 }
 
@@ -1127,7 +1131,7 @@ void Transaction_state_tracker::set_isol_level(THD *thd,
   {
     tx_isol_level = level;
     tx_changed   |= TX_CHG_CHISTICS;
-    mark_as_changed(thd, NULL);
+    set_changed(thd);
   }
 }
 
@@ -1174,6 +1178,38 @@ bool Session_state_change_tracker::store(THD *thd, String *buf)
   DBUG_ASSERT(is_changed());
   buf->q_append('1');
 
+  return false;
+}
+
+
+bool User_variables_tracker::update(THD *thd, set_var *)
+{
+  m_enabled= thd->variables.session_track_user_variables;
+  return false;
+}
+
+
+bool User_variables_tracker::store(THD *thd, String *buf)
+{
+  for (ulong i= 0; i < m_changed_user_variables.size(); i++)
+  {
+    auto var= m_changed_user_variables.at(i);
+    String value_str;
+    bool null_value;
+
+    var->val_str(&null_value, &value_str, DECIMAL_MAX_SCALE);
+    buf->q_append(static_cast<char>(SESSION_TRACK_USER_VARIABLES));
+    ulonglong length= net_length_size(var->name.length) + var->name.length;
+    if (!null_value)
+      length+= net_length_size(value_str.length()) + value_str.length();
+    buf->q_net_store_length(length);
+    buf->q_net_store_data(reinterpret_cast<const uchar*>(var->name.str),
+                          var->name.length);
+    if (!null_value)
+      buf->q_net_store_data(reinterpret_cast<const uchar*>(value_str.ptr()),
+                            value_str.length());
+  }
+  m_changed_user_variables.clear();
   return false;
 }
 

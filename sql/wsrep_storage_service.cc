@@ -196,18 +196,10 @@ int Wsrep_storage_service::rollback(const wsrep::ws_handle& ws_handle,
 
 void Wsrep_storage_service::store_globals()
 {
-  DBUG_ENTER("Wsrep_storage_service::store_globals");
-  DBUG_PRINT("info", ("Wsrep_storage_service::store_globals(%llu, %p)",
-                      m_thd->thread_id, m_thd));
-  m_thd->store_globals();
-  DBUG_VOID_RETURN;
+  wsrep_store_threadvars(m_thd);
 }
 
 void Wsrep_storage_service::reset_globals()
 {
-  DBUG_ENTER("Wsrep_storage_service::reset_globals");
-  DBUG_PRINT("info", ("Wsrep_storage_service::reset_globals(%llu, %p)",
-                      m_thd->thread_id, m_thd));
-  m_thd->reset_globals();
-  DBUG_VOID_RETURN;
+  wsrep_reset_threadvars(m_thd);
 }

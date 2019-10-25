@@ -3621,3 +3621,141 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
 
   return MY_TEST(sortcmp(res1, res2, compare_collation()) == 0);
 }
+
+
+String* Item_func_json_arrayagg::convert_to_json(Item *item, String *res)
+{
+  String tmp;
+  res->length(0);
+  append_json_value(res, item, &tmp);
+  return res;
+}
+
+
+String* Item_func_json_arrayagg::val_str(String *str)
+{
+  str= Item_func_group_concat::val_str(str);
+  String s;
+  s.append('[');
+  s.swap(*str);
+  str->append(s);
+  str->append(']');
+
+  return str;
+}
+
+
+Item_func_json_objectagg::
+Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item)
+  :Item_sum(thd, item)
+{
+  result.set_charset(collation.collation);
+  result.append("{");
+}
+
+
+bool
+Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
+{
+  uint i;                       /* for loop variable */
+  DBUG_ASSERT(fixed == 0);
+
+  if (init_sum_func_check(thd))
+    return TRUE;
+
+  maybe_null= 1;
+
+  /*
+    Fix fields for select list and ORDER clause
+  */
+
+  for (i=0 ; i < arg_count ; i++)
+  {
+    if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
+      return TRUE;
+    m_with_subquery|= args[i]->with_subquery();
+    with_param|= args[i]->with_param;
+    with_window_func|= args[i]->with_window_func;
+  }
+
+  /* skip charset aggregation for order columns */
+  if (agg_arg_charsets_for_string_result(collation, args, arg_count))
+    return 1;
+
+  result.set_charset(collation.collation);
+  result_field= 0;
+  null_value= 1;
+  max_length= (uint32)(thd->variables.group_concat_max_len
+              / collation.collation->mbminlen
+              * collation.collation->mbmaxlen);
+
+  if (check_sum_func(thd, ref))
+    return TRUE;
+
+  fixed= 1;
+  return FALSE;
+}
+
+
+void Item_func_json_objectagg::cleanup()
+{
+  DBUG_ENTER("Item_func_json_objectagg::cleanup");
+  Item_sum::cleanup();
+
+  result.length(1);
+  DBUG_VOID_RETURN;
+}
+
+
+Item *Item_func_json_objectagg::copy_or_same(THD* thd)
+{
+  return new (thd->mem_root) Item_func_json_objectagg(thd, this);
+}
+
+
+void Item_func_json_objectagg::clear()
+{
+  result.length(1);
+  null_value= 1;
+}
+
+
+bool Item_func_json_objectagg::add()
+{
+  StringBuffer<MAX_FIELD_WIDTH> buf;
+  String *key;
+
+  key= args[0]->val_str(&buf);
+  if (args[0]->is_null())
+    return 0;
+
+  null_value= 0;
+  if (result.length() > 1)
+    result.append(", ");
+
+  result.append("\"");
+  result.append(*key);
+  result.append("\":");
+
+  buf.length(0);
+  append_json_value(&result, args[1], &buf);
+
+  return 0;
+}
+
+
+String* Item_func_json_objectagg::val_str(String* str)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return 0;
+
+  result.append("}");
+  return &result;
+}
+
+
+void Item_func_json_objectagg::print(String *str, enum_query_type query_type)
+{
+}
+

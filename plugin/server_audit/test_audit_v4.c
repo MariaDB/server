@@ -16,7 +16,7 @@ enum enum_server_command{ SERVCOM_A, SERVCOM_B };
 #include "plugin_audit_v4.h"
 
 extern void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev);
-extern int get_db_mysql57(MYSQL_THD thd, char **name, int *len);
+extern int get_db_mysql57(MYSQL_THD thd, char **name, size_t *len);
 
 
 struct mysql_event_general_302
@@ -35,7 +35,7 @@ struct mysql_event_general_302
   unsigned long long general_rows;
   unsigned long long query_id;
   char *database;
-  int database_length;
+  size_t database_length;
 };
 
 

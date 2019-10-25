@@ -1,0 +1,23 @@
+#
+# MDEV-20306
+# Assertion `!(end_of_data > info->scan.dir_end)' failed in
+# _ma_scan_block_record upon converting table from S3 to Aria
+# with encryption enabled
+#
+drop table if exists t1;
+CREATE TABLE t1 (a INT) ENGINE=Aria;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 ENGINE=S3;
+select * from t1;
+a
+1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=S3 DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+ALTER TABLE t1 ENGINE=Aria;
+select * from t1;
+a
+1
+DROP TABLE t1;

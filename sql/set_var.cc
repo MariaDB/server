@@ -220,13 +220,12 @@ bool sys_var::update(THD *thd, set_var *var)
     */
     if ((var->type == OPT_SESSION) && (!ret))
     {
-      SESSION_TRACKER_CHANGED(thd, SESSION_SYSVARS_TRACKER,
-                              (LEX_CSTRING*)var->var);
+      thd->session_tracker.sysvars.mark_as_changed(thd, var->var);
       /*
         Here MySQL sends variable name to avoid reporting change of
         the tracker itself, but we decided that it is not needed
       */
-      SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+      thd->session_tracker.state_change.mark_as_changed(thd);
     }
 
     return ret;
@@ -907,7 +906,7 @@ int set_var_user::update(THD *thd)
     return -1;
   }
 
-  SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+  thd->session_tracker.state_change.mark_as_changed(thd);
   return 0;
 }
 
@@ -957,8 +956,7 @@ int set_var_role::update(THD *thd)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   int res= acl_setrole(thd, role.str, access);
   if (!res)
-    thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER,
-                                         NULL);
+    thd->session_tracker.state_change.mark_as_changed(thd);
   return res;
 #else
   return 0;
@@ -1015,18 +1013,13 @@ int set_var_collation_client::update(THD *thd)
                       character_set_results);
 
   /* Mark client collation variables as changed */
-#ifndef EMBEDDED_LIBRARY
-  if (thd->session_tracker.sysvars.is_enabled())
-  {
-    thd->session_tracker.sysvars.
-      mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_client_ptr);
-    thd->session_tracker.sysvars.
-      mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_results_ptr);
-    thd->session_tracker.sysvars.
-      mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_connection_ptr);
-  }
-  thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
-#endif //EMBEDDED_LIBRARY
+  thd->session_tracker.sysvars.mark_as_changed(thd,
+                                               Sys_character_set_client_ptr);
+  thd->session_tracker.sysvars.mark_as_changed(thd,
+                                               Sys_character_set_results_ptr);
+  thd->session_tracker.sysvars.mark_as_changed(thd,
+                                               Sys_character_set_connection_ptr);
+  thd->session_tracker.state_change.mark_as_changed(thd);
 
   thd->protocol_text.init(thd);
   thd->protocol_binary.init(thd);
@@ -1064,6 +1057,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
   StringBuffer<STRING_BUFFER_USUAL_SIZE> strbuf(scs);
   const char *wild= thd->lex->wild ? thd->lex->wild->ptr() : 0;
   Field **fields=tables->table->field;
+  bool has_file_acl= !check_access(thd, FILE_ACL, any_db, NULL, NULL, 0, 1);
 
   DBUG_ASSERT(tables->table->in_use == thd);
 
@@ -1098,6 +1092,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     static const LEX_CSTRING origins[]=
     {
       { STRING_WITH_LEN("CONFIG") },
+      { STRING_WITH_LEN("COMMAND-LINE") },
       { STRING_WITH_LEN("AUTO") },
       { STRING_WITH_LEN("SQL") },
       { STRING_WITH_LEN("COMPILE-TIME") },
@@ -1224,6 +1219,14 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       const LEX_CSTRING *arg= args + var->option.arg_type;
       fields[13]->set_notnull();
       fields[13]->store(arg->str, arg->length, scs);
+    }
+
+    // GLOBAL_VALUE_PATH
+    if (var->value_origin == sys_var::CONFIG && has_file_acl)
+    {
+      fields[14]->set_notnull();
+      fields[14]->store(var->origin_filename, strlen(var->origin_filename),
+                        files_charset_info);
     }
 
     if (schema_table_store_record(thd, tables->table))

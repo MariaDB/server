@@ -212,7 +212,8 @@ enum enum_alter_inplace_result {
 #define HA_HAS_NEW_CHECKSUM    (1ULL << 38)
 #define HA_CAN_VIRTUAL_COLUMNS (1ULL << 39)
 #define HA_MRR_CANT_SORT       (1ULL << 40)
-#define HA_RECORD_MUST_BE_CLEAN_ON_WRITE (1ULL << 41) /* unused */
+/* All of VARCHAR is stored, including bytes after real varchar data */
+#define HA_RECORD_MUST_BE_CLEAN_ON_WRITE (1ULL << 41)
 
 /*
   This storage engine supports condition pushdown
@@ -649,6 +650,7 @@ typedef ulonglong alter_table_operations;
 #define ALTER_ADD_FOREIGN_KEY       (1ULL << 21)
 // Set for DROP FOREIGN KEY
 #define ALTER_DROP_FOREIGN_KEY      (1ULL << 22)
+#define ALTER_CHANGE_INDEX_COMMENT  (1ULL << 23)
 // Set for ADD [COLUMN] FIRST | AFTER
 #define ALTER_COLUMN_ORDER          (1ULL << 25)
 #define ALTER_ADD_CHECK_CONSTRAINT  (1ULL << 27)
@@ -837,9 +839,9 @@ struct xid_t {
   char data[XIDDATASIZE];  // not \0-terminated !
 
   xid_t() {}                                /* Remove gcc warning */
-  bool eq(struct xid_t *xid)
+  bool eq(struct xid_t *xid) const
   { return !xid->is_null() && eq(xid->gtrid_length, xid->bqual_length, xid->data); }
-  bool eq(long g, long b, const char *d)
+  bool eq(long g, long b, const char *d) const
   { return !is_null() && g == gtrid_length && b == bqual_length && !memcmp(d, data, g+b); }
   void set(struct xid_t *xid)
   { memcpy(this, xid, xid->length()); }
@@ -1964,13 +1966,6 @@ struct Schema_specification_st
 
 class Create_field;
 
-enum vers_sys_type_t
-{
-  VERS_UNDEFINED= 0,
-  VERS_TIMESTAMP,
-  VERS_TRX_ID
-};
-
 struct Table_period_info: Sql_alloc
 {
   Table_period_info() :
@@ -2053,8 +2048,7 @@ public:
   bool fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_info,
                        TABLE_LIST &src_table, TABLE_LIST &table);
   bool check_sys_fields(const Lex_table_name &table_name,
-                        const Lex_table_name &db, Alter_info *alter_info,
-                        bool can_native) const;
+                        const Lex_table_name &db, Alter_info *alter_info) const;
 
   /**
      At least one field was specified 'WITH/WITHOUT SYSTEM VERSIONING'.
@@ -2170,18 +2164,22 @@ struct Table_scope_and_contents_source_st:
   }
 
   bool fix_create_fields(THD *thd, Alter_info *alter_info,
-                         const TABLE_LIST &create_table,
-                         bool create_select= false);
+                         const TABLE_LIST &create_table);
   bool fix_period_fields(THD *thd, Alter_info *alter_info);
-  bool check_fields(THD *thd, Alter_info *alter_info, TABLE_LIST &create_table);
+  bool check_fields(THD *thd, Alter_info *alter_info,
+                    const Lex_table_name &table_name,
+                    const Lex_table_name &db,
+                    int select_count= 0);
   bool check_period_fields(THD *thd, Alter_info *alter_info);
 
   bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
-                              const TABLE_LIST &create_table,
-                              bool create_select= false);
+                              const TABLE_LIST &create_table);
 
   bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
-                                const TABLE_LIST &create_table);
+                                const Lex_table_name &table_name,
+                                const Lex_table_name &db,
+                                int select_count= 0);
+
 };
 
 
@@ -3125,6 +3123,10 @@ private:
   */
   Handler_share **ha_share;
 
+  /** Stores next_insert_id for handling duplicate key errors. */
+  ulonglong m_prev_insert_id;
+
+
 public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
@@ -3149,7 +3151,7 @@ public:
     auto_inc_intervals_count(0),
     m_psi(NULL), set_top_table_fields(FALSE), top_table(0),
     top_table_field(0), top_table_fields(0),
-    m_lock_type(F_UNLCK), ha_share(NULL)
+    m_lock_type(F_UNLCK), ha_share(NULL), m_prev_insert_id(0)
   {
     DBUG_PRINT("info",
                ("handler created F_UNLCK %d F_RDLCK %d F_WRLCK %d",
@@ -3246,7 +3248,7 @@ public:
     and delete_row() below.
   */
   int ha_external_lock(THD *thd, int lock_type);
-  int ha_write_row(uchar * buf);
+  int ha_write_row(const uchar * buf);
   int ha_update_row(const uchar * old_data, const uchar * new_data);
   int ha_delete_row(const uchar * buf);
   void ha_release_auto_increment();
@@ -3812,7 +3814,7 @@ public:
     DBUG_PRINT("info",("auto_increment: next value %lu", (ulong)id));
     next_insert_id= id;
   }
-  void restore_auto_increment(ulonglong prev_insert_id)
+  virtual void restore_auto_increment(ulonglong prev_insert_id)
   {
     /*
       Insertion of a row failed, re-use the lastly generated auto_increment
@@ -3826,6 +3828,16 @@ public:
     */
     next_insert_id= (prev_insert_id > 0) ? prev_insert_id :
       insert_id_for_cur_row;
+  }
+
+  /** Store and restore next_insert_id over duplicate key errors. */
+  virtual void store_auto_increment()
+  {
+    m_prev_insert_id= next_insert_id;
+  }
+  virtual void restore_auto_increment()
+  {
+    restore_auto_increment(m_prev_insert_id);
   }
 
   virtual void update_create_info(HA_CREATE_INFO *create_info) {}
@@ -4537,7 +4549,7 @@ private:
   */
   virtual int rnd_init(bool scan)= 0;
   virtual int rnd_end() { return 0; }
-  virtual int write_row(uchar *buf __attribute__((unused)))
+  virtual int write_row(const uchar *buf __attribute__((unused)))
   {
     return HA_ERR_WRONG_COMMAND;
   }
@@ -4560,7 +4572,7 @@ private:
     Optimized function for updating the first row. Only used by sequence
     tables
   */
-  virtual int update_first_row(uchar *new_data);
+  virtual int update_first_row(const uchar *new_data);
 
   virtual int delete_row(const uchar *buf __attribute__((unused)))
   {

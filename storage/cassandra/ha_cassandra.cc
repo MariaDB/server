@@ -1930,7 +1930,7 @@ void ha_cassandra::free_dynamic_row(DYNAMIC_COLUMN_VALUE **vals,
   *names= 0;
 }
 
-int ha_cassandra::write_row(uchar *buf)
+int ha_cassandra::write_row(const uchar *buf)
 {
   my_bitmap_map *old_map;
   int ires;

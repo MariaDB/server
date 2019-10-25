@@ -265,6 +265,9 @@ SELECT JSON_search( '{"x": "\\""}', "one", '\\"');
 #
 # MDEV-11833 JSON functions don't seem to respect max_allowed_packet.
 #
+set @save_max_allowed_packet=@@max_allowed_packet;
+set @save_net_buffer_length=@@net_buffer_length;
+
 set @@global.net_buffer_length=1024;
 set @@global.max_allowed_packet=2048;
 --connect (newconn, localhost, root,,)
@@ -275,8 +278,8 @@ select json_array(repeat('a',1024),repeat('a',1024));
 select json_object("a", repeat('a',1024),"b", repeat('a',1024));
 --connection default
 
-set @@global.max_allowed_packet = default;
-set @@global.net_buffer_length = default;
+set @@global.max_allowed_packet = @save_max_allowed_packet;
+set @@global.net_buffer_length = @save_net_buffer_length;
 --disconnect newconn
 
 
@@ -559,6 +562,23 @@ SELECT
 --disable_metadata
 
 --echo #
+--echo # MDEV-19670 json escaped unicode parse error
+--echo #
+
+SELECT json_valid('{"value":"\\ud83d\\ude0a"}');
+SELECT json_valid('{"test": "\\ud83d\\ude0b"}');
+
+--echo #
+--echo # MDEV-19670 json escaped unicode parse error
+--echo #
+
+SELECT JSON_VALID('{"admin\\"": null}'), '{"admin\\"": null}'
+    UNION
+    SELECT JSON_VALID('{"\\"admin": null}'), '{"\\"admin": null}'
+      UNION
+      SELECT JSON_VALID('{"\\"": null}'), '{"\\"": null}';
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 
@@ -605,6 +625,107 @@ SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=3) FROM t1))='{"
 SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=2) FROM t1))='{"x": true}' THEN a END;
 SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=2) FROM t1))='{"x": false}' THEN a END;
 
+
+DROP TABLE t1;
+
+-- echo #
+-- echo # MDEV-16620 JSON_ARRAYAGG
+-- echo #
+
+-- echo #
+-- echo # Integer aggregation
+-- echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1, 1),(2, 1), (1, 1),(2, 1), (3, 2),(2, 2),(2, 2),(2, 2);
+SELECT JSON_VALID(JSON_ARRAYAGG(a)) FROM t1;
+SELECT JSON_ARRAYAGG(a), JSON_ARRAYAGG(b) FROM t1;
+SELECT JSON_ARRAYAGG(a), JSON_ARRAYAGG(b) FROM t1 GROUP BY b;
+DROP TABLE t1;
+
+-- echo #
+-- echo # Real aggregation
+-- echo #
+CREATE TABLE t1 (a FLOAT, b DOUBLE, c DECIMAL(10, 2));
+INSERT INTO t1 VALUES (1.0, 2.0, 3.0),(1.0, 3.0, 9.0),(1.0, 4.0, 16.0),(1.0, 5.0, 25.0);
+SELECT JSON_VALID(JSON_ARRAYAGG(a)) FROM t1;
+SELECT JSON_ARRAYAGG(a), JSON_ARRAYAGG(b), JSON_ARRAYAGG(c) FROM t1;
+DROP TABLE t1;
+
+-- echo #
+-- echo # Boolean aggregation
+-- echo #
+CREATE TABLE t1 (a BOOLEAN, b BOOLEAN);
+INSERT INTO t1 VALUES (TRUE, TRUE), (TRUE, FALSE), (FALSE, TRUE), (FALSE, FALSE);
+SELECT JSON_VALID(JSON_ARRAYAGG(a)) FROM t1;
+SELECT JSON_ARRAYAGG(a), JSON_ARRAYAGG(b) FROM t1;
+SELECT JSON_ARRAYAGG(a), JSON_ARRAYAGG(b) FROM t1 GROUP BY b;
+SELECT JSON_ARRAYAGG(TRUE), JSON_ARRAYAGG(FALSE) FROM t1;
+DROP TABLE t1;
+
+-- echo #
+-- echo # Aggregation of strings with quoted
+-- echo #
+CREATE TABLE t1 (a VARCHAR(80));
+INSERT INTO t1 VALUES
+       ('"double_quoted_value"'), ("'single_quoted_value'"),
+       ('"double_quoted_value"'), ("'single_quoted_value'");
+SELECT JSON_VALID(JSON_ARRAYAGG(a)) FROM t1;
+SELECT JSON_ARRAYAGG(a) FROM t1;
+DROP TABLE t1;
+
+-- echo #
+-- echo # Strings and NULLs
+-- echo #
+CREATE TABLE t1 (a INT, b VARCHAR(80));
+INSERT INTO t1 VALUES
+       (1, "Hello"),(1, "World"), (2, "This"),(2, "Will"), (2, "Work"),(2, "!"), (3, NULL),
+       (1, "Hello"),(1, "World"), (2, "This"),(2, "Will"), (2, "Work"),(2, "!"), (3, NULL);
+SELECT JSON_VALID(JSON_ARRAYAGG(b)) FROM t1;
+SELECT JSON_ARRAYAGG(a), JSON_ARRAYAGG(b) FROM t1;
+SELECT JSON_ARRAYAGG(a), JSON_ARRAYAGG(b) FROM t1 GROUP BY a;
+
+-- echo #
+-- echo # DISTINCT and LIMIT
+-- echo #
+SELECT JSON_ARRAYAGG(b LIMIT 1) FROM t1;
+SELECT JSON_ARRAYAGG(b LIMIT 2) FROM t1;
+SELECT JSON_ARRAYAGG(b LIMIT 1) FROM t1 GROUP BY b;
+SELECT JSON_ARRAYAGG(b LIMIT 2) FROM t1 GROUP BY a;
+SELECT JSON_ARRAYAGG(DISTINCT a) FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT b) FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT a LIMIT 2) FROM t1;
+SELECT JSON_ARRAYAGG(DISTINCT b LIMIT 2) FROM t1;
+
+-- echo #
+-- echo # JSON aggregation
+-- echo #
+SELECT JSON_VALID(JSON_ARRAYAGG(JSON_ARRAY(a, b))) FROM t1;
+SELECT JSON_ARRAYAGG(JSON_ARRAY(a, b)) FROM t1;
+SELECT JSON_ARRAYAGG(JSON_ARRAY(a, b)) FROM t1 GROUP BY a;
+
+SELECT JSON_VALID(JSON_ARRAYAGG(JSON_OBJECT('a', a, 'b', b))) FROM t1;
+SELECT JSON_ARRAYAGG(JSON_OBJECT('a', a, 'b', b)) FROM t1;
+SELECT JSON_ARRAYAGG(JSON_OBJECT('a', a, 'b', b)) FROM t1 GROUP BY a;
+
+-- echo #
+-- echo # Error checks
+-- echo #
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_ARRAYAGG(a, b) FROM t1;
+
+--error  ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_ARRAYAGG(JSON_ARRAYAGG(a, b)) FROM t1;
+
+--error ER_INVALID_GROUP_FUNC_USE
+SELECT JSON_ARRAYAGG(JSON_ARRAYAGG(a)) FROM t1;
+
+-- echo #
+-- echo # MDEV-16620 JSON_OBJECTAGG
+-- echo #
+
+SELECT JSON_OBJECTAGG(a, b) FROM t1;
+--error ER_PARSE_ERROR
+SELECT JSON_OBJECTAGG(a) FROM t1;
 
 DROP TABLE t1;
 

@@ -89,32 +89,44 @@ EOF
 # Make sure a snapshot held by another user doesn't block the bulk load
 connect (other,localhost,root,,);
 set session transaction isolation level repeatable read;
-select * from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
 start transaction with consistent snapshot;
-select * from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
+
+# Assert that there is a pending snapshot
+select VALUE > 0 as 'Has opened snapshots' from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
 
 connection default;
+
+# Update CF to smaller value to create multiple SST in ingestion
+eval SET @@GLOBAL.ROCKSDB_UPDATE_CF_OPTIONS=
+    '$pk_cf_name={write_buffer_size=8m;target_file_size_base=1m};';
+
 set rocksdb_bulk_load=1;
 set rocksdb_bulk_load_size=100000;
 --disable_query_log
 --echo LOAD DATA INFILE <input_file> INTO TABLE t1;
 eval LOAD DATA INFILE '$file' INTO TABLE t1;
+# There should be no SST being ingested
+select * from t1;
 --echo LOAD DATA INFILE <input_file> INTO TABLE t2;
 eval LOAD DATA INFILE '$file' INTO TABLE t2;
+# There should be no SST being ingested
+select * from t2;
 --echo LOAD DATA INFILE <input_file> INTO TABLE t3;
 eval LOAD DATA INFILE '$file' INTO TABLE t3;
+# There should be no SST being ingested
+select * from t3;
 --enable_query_log
 set rocksdb_bulk_load=0;
 
 --remove_file $file
 
 # Make sure row count index stats are correct
---replace_column 6 # 7 # 8 # 9 #
+--replace_column 6 # 7 # 8 # 9 # 12 # 13 #
 SHOW TABLE STATUS WHERE name LIKE 't%';
 
 ANALYZE TABLE t1, t2, t3;
 
---replace_column 6 # 7 # 8 # 9 #
+--replace_column 6 # 7 # 8 # 9 # 12 # 13 #
 SHOW TABLE STATUS WHERE name LIKE 't%';
 
 # Make sure all the data is there.

@@ -2,6 +2,7 @@
 # Test cases for bugs related to the implementation of
 # MWL#89 cost-based choice between the materialization and in-to-exists
 #
+--source include/default_optimizer_switch.inc
 
 --echo #
 --echo # LP BUG#643424 valgrind warning in choose_subquery_plan()

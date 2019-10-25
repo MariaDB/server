@@ -5,6 +5,10 @@
 --echo # UNINSTALL IF EXISTS PLUGIN|SONAME name
 --echo #
 
+if (!$HA_EXAMPLE_SO) {
+  skip Needs ha_example plugin;
+}
+
 select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
 INSTALL PLUGIN IF NOT EXISTS example SONAME 'ha_example';
 select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';

@@ -436,7 +436,9 @@ new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
 
 void free_vio_ssl_acceptor_fd(struct st_VioSSLFd *fd)
 {
+  DBUG_ENTER("free_vio_ssl_acceptor_fd");
   SSL_CTX_free(fd->ssl_context);
   my_free(fd);
+  DBUG_VOID_RETURN;
 }
 #endif /* HAVE_OPENSSL */

@@ -1,0 +1,4 @@
+--plugin-load-add=$FILE_KEY_MANAGEMENT_SO
+--aria-encrypt-tables=1
+--loose-file-key-management
+--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt

@@ -3714,7 +3714,7 @@ static bool do_unique_checks_fn(THD *thd) {
 
 #endif // defined(TOKU_INCLUDE_RFR) && TOKU_INCLUDE_RFR
 
-int ha_tokudb::do_uniqueness_checks(uchar* record, DB_TXN* txn, THD* thd) {
+int ha_tokudb::do_uniqueness_checks(const uchar* record, DB_TXN* txn, THD* thd) {
     int error = 0;
     //
     // first do uniqueness checks
@@ -3757,7 +3757,7 @@ cleanup:
     return error;
 }
 
-void ha_tokudb::test_row_packing(uchar* record, DBT* pk_key, DBT* pk_val) {
+void ha_tokudb::test_row_packing(const uchar* record, DBT* pk_key, DBT* pk_val) {
     int error;
     DBT row, key;
     //
@@ -3998,7 +3998,7 @@ out:
 //      0 on success
 //      error otherwise
 //
-int ha_tokudb::write_row(uchar * record) {
+int ha_tokudb::write_row(const uchar * record) {
     TOKUDB_HANDLER_DBUG_ENTER("%p", record);
 
     DBT row, prim_key;

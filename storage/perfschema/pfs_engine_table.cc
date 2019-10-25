@@ -178,7 +178,7 @@ ha_rows PFS_engine_table_share::get_row_count(void) const
   return m_records;
 }
 
-int PFS_engine_table_share::write_row(TABLE *table, unsigned char *buf,
+int PFS_engine_table_share::write_row(TABLE *table, const unsigned char *buf,
                                       Field **fields) const
 {
   my_bitmap_map *org_bitmap;

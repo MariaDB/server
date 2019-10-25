@@ -214,7 +214,6 @@ innodb_activity_count	disabled
 innodb_master_active_loops	disabled
 innodb_master_idle_loops	disabled
 innodb_background_drop_table_usec	disabled
-innodb_ibuf_merge_usec	disabled
 innodb_log_flush_usec	disabled
 innodb_mem_validate_usec	disabled
 innodb_master_purge_usec	disabled

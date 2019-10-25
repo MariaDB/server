@@ -397,7 +397,7 @@ int ha_example::close(void)
   sql_insert.cc, sql_select.cc, sql_table.cc, sql_udf.cc and sql_update.cc
 */
 
-int ha_example::write_row(uchar *buf)
+int ha_example::write_row(const uchar *buf)
 {
   DBUG_ENTER("ha_example::write_row");
   /*

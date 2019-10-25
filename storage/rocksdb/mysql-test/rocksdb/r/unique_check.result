@@ -66,13 +66,14 @@ id	id2	value
 2	1	2
 truncate table t2;
 connection con1;
-set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked1 WAIT_FOR go1';
+set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked1 WAIT_FOR go';
 insert into t1 values (1,1);
-connection con2;
-set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked2 WAIT_FOR go2';
-insert into t2 values (1,1,1);
 connection default;
 set debug_sync='now WAIT_FOR parked1';
+connection con2;
+set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked2 WAIT_FOR go';
+insert into t2 values (1,1,1);
+connection default;
 set debug_sync='now WAIT_FOR parked2';
 connection con3;
 set session rocksdb_lock_wait_timeout=1;
@@ -81,8 +82,7 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into t2 values (2,1,2);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection default;
-set debug_sync='now SIGNAL go1';
-set debug_sync='now SIGNAL go2';
+set debug_sync='now SIGNAL go';
 connection con1;
 connection con2;
 connection default;

@@ -598,6 +598,7 @@ public:
   SEL_ARG *clone_tree(RANGE_OPT_PARAM *param);
 };
 
+extern MYSQL_PLUGIN_IMPORT SEL_ARG null_element;
 
 class SEL_ARG_IMPOSSIBLE: public SEL_ARG
 {

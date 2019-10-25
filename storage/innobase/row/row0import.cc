@@ -634,12 +634,12 @@ struct FetchIndexRootPages : public AbstractCallback {
 		m_table(table) UNIV_NOTHROW { }
 
 	/** Destructor */
-	virtual ~FetchIndexRootPages() UNIV_NOTHROW { }
+	~FetchIndexRootPages() UNIV_NOTHROW override { }
 
 	/** Called for each block as it is read from the file.
 	@param block block to convert, it is not from the buffer pool.
 	@retval DB_SUCCESS or error code. */
-	dberr_t operator()(buf_block_t* block) UNIV_NOTHROW;
+	dberr_t operator()(buf_block_t* block) UNIV_NOTHROW override;
 
 	/** Update the import configuration that will be used to import
 	the tablespace. */
@@ -812,7 +812,7 @@ public:
 		rec_offs_init(m_offsets_);
 	}
 
-	virtual ~PageConverter() UNIV_NOTHROW
+	~PageConverter() UNIV_NOTHROW override
 	{
 		if (m_heap != 0) {
 			mem_heap_free(m_heap);
@@ -822,7 +822,7 @@ public:
 	/** Called for each block as it is read from the file.
 	@param block block to convert, it is not from the buffer pool.
 	@retval DB_SUCCESS or error code. */
-	dberr_t operator()(buf_block_t* block) UNIV_NOTHROW;
+	dberr_t operator()(buf_block_t* block) UNIV_NOTHROW override;
 
 private:
 	/** Update the page, set the space id, max trx id and index id.
@@ -2022,29 +2022,13 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 
 	ulint		page_type;
 
-	dberr_t err = update_page(block, page_type);
-	if (err != DB_SUCCESS) return err;
+	if (dberr_t err = update_page(block, page_type)) {
+		return err;
+	}
 
 	const bool full_crc32 = fil_space_t::full_crc32(get_space_flags());
-	const bool page_compressed = fil_space_t::is_compressed(get_space_flags());
 
 	if (!block->page.zip.data) {
-		if (full_crc32
-		    && (block->page.encrypted || page_compressed)
-		    && block->page.id.page_no() > 0) {
-			byte* page = block->frame;
-			mach_write_to_8(page + FIL_PAGE_LSN, m_current_lsn);
-
-			if (!page_compressed) {
-				mach_write_to_4(
-					page + (srv_page_size
-						- FIL_PAGE_FCRC32_END_LSN),
-					(ulint) m_current_lsn);
-			}
-
-			return err;
-		}
-
 		buf_flush_init_for_writing(
 			NULL, block->frame, NULL, m_current_lsn, full_crc32);
 	} else if (fil_page_type_is_index(page_type)) {
@@ -2140,7 +2124,7 @@ row_import_cleanup(
 
 	DBUG_EXECUTE_IF("ib_import_before_checkpoint_crash", DBUG_SUICIDE(););
 
-	log_make_checkpoint_at(LSN_MAX);
+	log_make_checkpoint();
 
 	return(err);
 }
@@ -3482,10 +3466,6 @@ not_encrypted:
 					   ? dst : src,
 					   callback.get_space_flags())) {
 				goto page_corrupted;
-			}
-
-			if (encrypted) {
-				block->page.encrypted = true;
 			}
 
 			if ((err = callback(block)) != DB_SUCCESS) {

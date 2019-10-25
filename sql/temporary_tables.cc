@@ -1339,6 +1339,7 @@ bool THD::log_events_and_free_tmp_shares()
       my_thread_id save_pseudo_thread_id= variables.pseudo_thread_id;
       char db_buf[FN_REFLEN];
       String db(db_buf, sizeof(db_buf), system_charset_info);
+      bool at_least_one_create_logged;
 
       /*
         Set pseudo_thread_id to be that of the processed table.
@@ -1356,7 +1357,7 @@ bool THD::log_events_and_free_tmp_shares()
         within the sublist of common pseudo_thread_id to create single
         DROP query.
       */
-      for (;
+      for (at_least_one_create_logged= false;
            share && IS_USER_TABLE(share) &&
            tmpkeyval(share) == variables.pseudo_thread_id &&
            share->db.length == db.length() &&
@@ -1364,51 +1365,58 @@ bool THD::log_events_and_free_tmp_shares()
            /* Get the next TABLE_SHARE in the list. */
            share= temporary_tables->pop_front())
       {
-        /*
-          We are going to add ` around the table names and possible more
-          due to special characters.
-        */
-        append_identifier(this, &s_query, &share->table_name);
-        s_query.append(',');
+        if (share->table_creation_was_logged)
+        {
+          at_least_one_create_logged= true;
+          /*
+             We are going to add ` around the table names and possible more
+             due to special characters.
+          */
+          append_identifier(this, &s_query, &share->table_name);
+          s_query.append(',');
+        }
         rm_temporary_table(share->db_type(), share->path.str);
         free_table_share(share);
         my_free(share);
       }
 
-      clear_error();
-      CHARSET_INFO *cs_save= variables.character_set_client;
-      variables.character_set_client= system_charset_info;
-      thread_specific_used= true;
-
-      Query_log_event qinfo(this, s_query.ptr(),
-                            s_query.length() - 1 /* to remove trailing ',' */,
-                            false, true, false, 0);
-      qinfo.db= db.ptr();
-      qinfo.db_len= db.length();
-      variables.character_set_client= cs_save;
-
-      get_stmt_da()->set_overwrite_status(true);
-      transaction.stmt.mark_dropped_temp_table();
-      bool error2= mysql_bin_log.write(&qinfo);
-      if (unlikely(error|= error2))
+      if (at_least_one_create_logged)
       {
-        /*
-          If we're here following THD::cleanup, thence the connection
-          has been closed already. So lets print a message to the
-          error log instead of pushing yet another error into the
-          stmt_da.
+        clear_error();
+        CHARSET_INFO *cs_save= variables.character_set_client;
+        variables.character_set_client= system_charset_info;
+        thread_specific_used= true;
 
-          Also, we keep the error flag so that we propagate the error
-          up in the stack. This way, if we're the SQL thread we notice
-          that THD::close_tables failed. (Actually, the SQL
-          thread only calls THD::close_tables while applying
-          old Start_log_event_v3 events.)
-        */
-        sql_print_error("Failed to write the DROP statement for "
-                        "temporary tables to binary log");
+        Query_log_event qinfo(this, s_query.ptr(),
+            s_query.length() - 1 /* to remove trailing ',' */,
+            false, true, false, 0);
+        qinfo.db= db.ptr();
+        qinfo.db_len= db.length();
+        variables.character_set_client= cs_save;
+
+        get_stmt_da()->set_overwrite_status(true);
+        transaction.stmt.mark_dropped_temp_table();
+        bool error2= mysql_bin_log.write(&qinfo);
+        if (unlikely(error|= error2))
+        {
+          /*
+             If we're here following THD::cleanup, thence the connection
+             has been closed already. So lets print a message to the
+             error log instead of pushing yet another error into the
+             stmt_da.
+
+             Also, we keep the error flag so that we propagate the error
+             up in the stack. This way, if we're the SQL thread we notice
+             that THD::close_tables failed. (Actually, the SQL
+             thread only calls THD::close_tables while applying
+             old Start_log_event_v3 events.)
+          */
+          sql_print_error("Failed to write the DROP statement for "
+              "temporary tables to binary log");
+        }
+
+        get_stmt_da()->set_overwrite_status(false);
       }
-
-      get_stmt_da()->set_overwrite_status(false);
       variables.pseudo_thread_id= save_pseudo_thread_id;
       thread_specific_used= save_thread_specific_used;
     }

@@ -1,4 +1,28 @@
 #
+# Start of 5.5 tests
+#
+#
+# MDEV-15955 Assertion `field_types == 0 || field_types[field_pos] == MYSQL_TYPE_LONGLONG' failed in Protocol_text::store_longlong
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT @a := 1 FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+@a := 1
+1
+SELECT COALESCE(1) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+COALESCE(1)
+1
+SELECT COALESCE(@a:=1) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+COALESCE(@a:=1)
+1
+SELECT COALESCE(@a) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+COALESCE(@a)
+1
+DROP TABLE t1;
+#
+# End of 5.5 tests
+#
+#
 # Start of 10.1 tests
 #
 #
@@ -236,6 +260,19 @@ DROP FUNCTION sint32;
 DROP FUNCTION uint64;
 DROP FUNCTION sint64;
 #
+# MDEV-20285 Wrong result on INSERT..SELECT when converting from SIGNED to UNSIGNED
+#
+CREATE TABLE t1 (a TINYINT UNSIGNED);
+CREATE TABLE t2 (a TINYINT);
+INSERT INTO t1 VALUES (255);
+INSERT IGNORE INTO t2 SELECT a FROM t1;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+SELECT * FROM t2;
+a
+127
+DROP TABLE t1, t2;
+#
 # End of 10.3 tests
 #
 #
@@ -363,4 +400,19 @@ COUNT(*)
 DROP TABLE t1;
 #
 # End of 10.4 tests
+#
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-20363 Assertion `is_unsigned() == attr.unsigned_flag' failed in Type_handler_longlong::make_table_field
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT 1 FROM t1 GROUP BY 0 >> NULL WITH ROLLUP;
+1
+1
+DROP TABLE t1;
+#
+# End of 10.5 tests
 #

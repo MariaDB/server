@@ -90,8 +90,8 @@ typedef struct {
 static int get_options(int *argc, char ***argv);
 static int mode_create(int argc, char **argv);
 static int mode_extract(int n_threads, int argc, char **argv);
-static my_bool get_one_option(int optid, const struct my_option *opt,
-			      char *argument);
+static my_bool get_one_option(const struct my_option *opt,
+			      char *argument, const char *filename);
 
 int
 main(int argc, char **argv)
@@ -194,10 +194,9 @@ set_run_mode(run_mode_t mode)
 
 static
 my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument __attribute__((unused)))
+get_one_option(const struct my_option *opt, char *, const char *)
 {
-	switch (optid) {
+	switch (opt->id) {
 	case 'c':
 		if (set_run_mode(RUN_MODE_CREATE)) {
 			return TRUE;

@@ -9805,7 +9805,7 @@ int ha_spider::end_bulk_insert()
 }
 
 int ha_spider::write_row(
-  uchar *buf
+  const uchar *buf
 ) {
   int error_num;
   THD *thd = ha_thd();

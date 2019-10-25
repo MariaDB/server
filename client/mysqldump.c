@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -562,7 +562,8 @@ static struct my_option my_long_options[] =
 };
 
 static const char *load_default_groups[]=
-{ "mysqldump", "client", "client-server", "client-mariadb", 0 };
+{ "mysqldump", "mariadb-dump", "client", "client-server", "client-mariadb",
+  0 };
 
 static void maybe_exit(int error);
 static void die(int error, const char* reason, ...);
@@ -814,10 +815,10 @@ uchar* get_table_key(const char *entry, size_t *length,
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-               char *argument)
+get_one_option(const struct my_option *opt,
+               char *argument, const char *filename __attribute__((unused)))
 {
-  switch (optid) {
+  switch (opt->id) {
   case 'p':
     if (argument == disabled_my_option)
       argument= (char*) "";                     /* Don't require password */
@@ -1080,7 +1081,7 @@ static int get_options(int *argc, char ***argv)
 	    my_progname_short);
     return(EX_USAGE);
   }
-  if (strcmp(default_charset, charset_info->csname) &&
+  if (strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME) &&
       !(charset_info= get_charset_by_csname(default_charset,
                                             MY_CS_PRIMARY, MYF(MY_WME))))
     exit(1);
@@ -1544,6 +1545,9 @@ static int switch_character_set_results(MYSQL *mysql, const char *cs_name)
 {
   char query_buffer[QUERY_LENGTH];
   size_t query_length;
+
+  if (!strcmp(cs_name, MYSQL_AUTODETECT_CHARSET_NAME))
+    cs_name= (char *)my_default_csname();
 
   /* Server lacks facility.  This is not an error, by arbitrary decision . */
   if (!server_supports_switching_charsets)
@@ -2525,7 +2529,9 @@ static uint dump_routines_for_db(char *db)
 
   char       db_cl_name[MY_CS_NAME_SIZE];
   int        db_cl_altered= FALSE;
-
+  // before 10.3 packages are not supported
+  uint upper_bound= mysql_get_server_version(mysql) >= 100300 ?
+                    array_elements(routine_type) : 2;
   DBUG_ENTER("dump_routines_for_db");
   DBUG_PRINT("enter", ("db: '%s'", db));
 
@@ -2555,7 +2561,7 @@ static uint dump_routines_for_db(char *db)
     fputs("\t<routines>\n", sql_file);
 
   /* 0, retrieve and dump functions, 1, procedures, etc. */
-  for (i= 0; i < array_elements(routine_type); i++)
+  for (i= 0; i < upper_bound; i++)
   {
     my_snprintf(query_buff, sizeof(query_buff),
                 "SHOW %s STATUS WHERE Db = '%s'",

@@ -1,0 +1,83 @@
+# Embedded server doesn't support external clients
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-17429 mysqldump uses 10.3 options with pre-10.3 servers and breaks
+--echo #
+
+# Make sure the server reports itself as 10.2.1-MariaDB
+SELECT @@version;
+
+SET sql_mode=ORACLE;
+CREATE DATABASE db1_mdev17429;
+USE db1_mdev17429;
+
+DELIMITER $$;
+
+CREATE PROCEDURE p1(a INT)
+AS BEGIN
+  NULL;
+END;
+$$
+
+CREATE OR REPLACE PACKAGE employee_tools AS
+  FUNCTION getSalary(eid INT) RETURN DECIMAL(10,2);
+  PROCEDURE raiseSalary(eid INT, amount DECIMAL(10,2));
+  PROCEDURE raiseSalaryStd(eid INT);
+  PROCEDURE hire(ename TEXT, esalary DECIMAL(10,2));
+END;
+$$
+CREATE PACKAGE BODY employee_tools AS
+  -- package body variables
+  stdRaiseAmount DECIMAL(10,2):=500;
+
+  -- private routines
+  PROCEDURE log (eid INT, ecmnt TEXT) AS
+  BEGIN
+    INSERT INTO employee_log (id, cmnt) VALUES (eid, ecmnt);
+  END;
+
+  -- public routines
+  PROCEDURE hire(ename TEXT, esalary DECIMAL(10,2)) AS
+    eid INT;
+  BEGIN
+    INSERT INTO employee (name, salary) VALUES (ename, esalary);
+    eid:= last_insert_id();
+    log(eid, 'hire ' || ename);
+  END;
+
+  FUNCTION getSalary(eid INT) RETURN DECIMAL(10,2) AS
+    nSalary DECIMAL(10,2);
+  BEGIN
+    SELECT salary INTO nSalary FROM employee WHERE id=eid;
+    log(eid, 'getSalary id=' || eid || ' salary=' || nSalary);
+    RETURN nSalary;
+  END;
+
+  PROCEDURE raiseSalary(eid INT, amount DECIMAL(10,2)) AS
+  BEGIN
+    UPDATE employee SET salary=salary+amount WHERE id=eid;
+    log(eid, 'raiseSalary id=' || eid || ' amount=' || amount);
+  END;
+
+  PROCEDURE raiseSalaryStd(eid INT) AS
+  BEGIN
+    raiseSalary(eid, stdRaiseAmount);
+    log(eid, 'raiseSalaryStd id=' || eid);
+  END;
+
+BEGIN
+  -- This code is executed when the current session
+  -- accesses any of the package routines for the first time
+  log(0, 'Session ' || connection_id() || ' ' || current_user || ' started');
+END;
+$$
+DELIMITER ;$$
+
+# mysqldump output is expected to have standalone PROCEDURE/FUNCTION, but not PACKAGE/PACKAGE BODY.
+
+--replace_regex  /-- MariaDB dump.*[^\n]/-- MariaDB dump DUMPVERSION  Distrib DISTVERSION, for OS/ / on [0-9 :-]+/ on TIMESTAMP/
+--exec $MYSQL_DUMP --quick --routines --triggers --no-create-info --skip-lock-tables --no-data --compress --default-character-set=utf8mb4 -uroot db1_mdev17429
+
+DROP DATABASE db1_mdev17429;
+SET sql_mode=DEFAULT;

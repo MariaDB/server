@@ -48,20 +48,20 @@ struct Field_definition
 
 static Field_definition sequence_structure[]=
 {
-  {"next_not_cached_value", 21, &type_handler_longlong,
+  {"next_not_cached_value", 21, &type_handler_slonglong,
    {STRING_WITH_LEN("")}, FL},
-  {"minimum_value", 21, &type_handler_longlong, {STRING_WITH_LEN("")}, FL},
-  {"maximum_value", 21, &type_handler_longlong, {STRING_WITH_LEN("")}, FL},
-  {"start_value", 21, &type_handler_longlong, {STRING_WITH_LEN("start value when sequences is created or value if RESTART is used")},  FL},
-  {"increment", 21, &type_handler_longlong,
+  {"minimum_value", 21, &type_handler_slonglong, {STRING_WITH_LEN("")}, FL},
+  {"maximum_value", 21, &type_handler_slonglong, {STRING_WITH_LEN("")}, FL},
+  {"start_value", 21, &type_handler_slonglong, {STRING_WITH_LEN("start value when sequences is created or value if RESTART is used")},  FL},
+  {"increment", 21, &type_handler_slonglong,
    {STRING_WITH_LEN("increment value")}, FL},
-  {"cache_size", 21, &type_handler_longlong, {STRING_WITH_LEN("")},
+  {"cache_size", 21, &type_handler_ulonglong, {STRING_WITH_LEN("")},
    FL | UNSIGNED_FLAG},
-  {"cycle_option", 1, &type_handler_tiny, {STRING_WITH_LEN("0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed")},
+  {"cycle_option", 1, &type_handler_utiny, {STRING_WITH_LEN("0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed")},
    FL | UNSIGNED_FLAG },
-  {"cycle_count", 21, &type_handler_longlong,
+  {"cycle_count", 21, &type_handler_slonglong,
    {STRING_WITH_LEN("How many cycles have been done")}, FL},
-  {NULL, 0, &type_handler_longlong, {STRING_WITH_LEN("")}, 0}
+  {NULL, 0, &type_handler_slonglong, {STRING_WITH_LEN("")}, 0}
 };
 
 #undef FL
@@ -176,7 +176,7 @@ void sequence_definition::store_fields(TABLE *table)
 
 
 /*
-  Check the sequence fields through seq_fields when createing a sequence.
+  Check the sequence fields through seq_fields when creating a sequence.
 
   RETURN VALUES
     false       Success

@@ -1,3 +1,5 @@
+set @save_character_set_client=@@character_set_client;
+set @save_userstat=@@global.userstat, @@global.userstat= 0;
 use test;
 drop table if exists t1,t2,t3,t4;
 drop view if exists v1;
@@ -3346,7 +3348,8 @@ l√§bel1: begin end|
 call bug6063()|
 call bug7088_1()|
 call bug7088_2()|
-set character set default|
+set @@character_set_client=@save_character_set_client|
+set @@character_set_results=@save_character_set_client|
 show create procedure bug6063|
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
 bug6063		CREATE DEFINER=`root`@`localhost` PROCEDURE `bug6063`()
@@ -6229,7 +6232,8 @@ END|
 CALL p1();
 ·‚‰
 NULL
-SET NAMES default;
+set @@character_set_client=@save_character_set_client;
+set @@character_set_results=@save_character_set_client;
 DROP PROCEDURE p1;
 drop procedure if exists proc_25411_a;
 drop procedure if exists proc_25411_b;
@@ -7622,6 +7626,7 @@ c1	c2	count(c3)
 2012-03-01 02:00:00	3	1
 DROP PROCEDURE p1;
 # End of 5.5 test
+FLUSH USER_STATISTICS;
 CREATE PROCEDURE sp() ALTER TABLE non_existing_table OPTIMIZE PARTITION p0;
 CALL sp;
 Table	Op	Msg_type	Msg_text
@@ -7631,7 +7636,7 @@ SELECT 1;
 1
 1
 DROP PROCEDURE sp;
-CREATE PROCEDURE sp() SHOW USER_STATISTICS;
+CREATE PROCEDURE sp() SET STATEMENT SQL_SELECT_LIMIT=0 FOR SHOW USER_STATISTICS;
 CALL sp;
 User	Total_connections	Concurrent_connections	Connected_time	Busy_time	Cpu_time	Bytes_received	Bytes_sent	Binlog_bytes_written	Rows_read	Rows_sent	Rows_deleted	Rows_inserted	Rows_updated	Select_commands	Update_commands	Other_commands	Commit_transactions	Rollback_transactions	Denied_connections	Lost_connections	Access_denied	Empty_queries	Total_ssl_connections	Max_statement_time_exceeded
 SELECT 1;
@@ -8307,6 +8312,20 @@ UNION
 SELECT * FROM INFORMATION_SCHEMA.TABLES JOIN INFORMATION_SCHEMA.PARAMETERS;
 DROP FUNCTION f;
 DROP VIEW v;
+#
+# MDEV-17963: Assertion `field_pos < field_count' failed in Protocol_text::store,
+# Assertion `field_handlers == 0 || field_pos < field_count'
+#
+CREATE TABLE t1 (ct time);
+INSERT INTO t1 VALUES ('16:11:28');
+CREATE FUNCTION f1 () RETURNS varchar(100)
+BEGIN
+DECLARE xxx varchar(100);
+ANALYZE SELECT sum(ct) FROM t1 INTO xxx ;
+RETURN xxx;
+END|
+ERROR 0A000: Not allowed to return a result set from a function
+drop table t1;
 #End of 10.1 tests
 #
 # MDEV-11081: CURSOR for query with GROUP BY
@@ -8791,6 +8810,7 @@ Note	1050	Table 't1' already exists
 drop procedure p4;
 drop table t1;
 set @@sql_mode=@save_sql_mode;
+set @@global.userstat= @save_userstat;
 #
 # MDEV-17363 Compressed columns cannot be restored from dump
 # COMPRESSED conflicted between data type and SP label,

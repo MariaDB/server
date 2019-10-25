@@ -8,6 +8,11 @@ if (!$wait_all_purged)
 let $remaining_expect= `select concat('InnoDB		',$wait_all_purged)`;
 
 let $wait_counter= 600;
+if ($VALGRIND_TEST)
+{
+  let $wait_counter= 2000;
+}
+
 while ($wait_counter)
 {
     --replace_regex /.*History list length ([0-9]+).*/\1/

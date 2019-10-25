@@ -587,14 +587,14 @@ inline bool is_system_table_name(const char *name, size_t length)
   
   SYNOPSIS
   open_table_def()
-  thd		Thread handler
+  thd		  Thread handler
   share		Fill this with table definition
-  db_flags	Bit mask of the following flags: OPEN_VIEW
+  flags	  Bit mask of the following flags: OPEN_VIEW
 
   NOTES
     This function is called when the table definition is not cached in
     table definition cache
-    The data is returned in 'share', which is alloced by
+    The data is returned in 'share', which is allocated by
     alloc_table_share().. The code assumes that share is initialized.
 */
 
@@ -801,7 +801,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     {
       if (strpos + (new_frm_ver >= 1 ? 9 : 7) >= frm_image_end)
         return 1;
-      *rec_per_key++=0;
+      if (!(keyinfo->algorithm == HA_KEY_ALG_LONG_HASH))
+        *rec_per_key++=0;
       key_part->fieldnr=	(uint16) (uint2korr(strpos) & FIELD_NR_MASK);
       key_part->offset= (uint) uint2korr(strpos+2)-1;
       key_part->key_type=	(uint) uint2korr(strpos+5);
@@ -829,6 +830,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     {
       keyinfo->key_length= HA_HASH_KEY_LENGTH_WITHOUT_NULL;
       key_part++; // reserved for the hash value
+      *rec_per_key++=0;
     }
 
     /*
@@ -965,6 +967,38 @@ void Column_definition_attributes::frm_unpack_basic(const uchar *buff)
 }
 
 
+void Column_definition_attributes::frm_pack_numeric_with_dec(uchar *buff) const
+{
+  DBUG_ASSERT(f_decimals(pack_flag) == 0);
+  uint tmp_pack_flag= pack_flag | (decimals << FIELDFLAG_DEC_SHIFT);
+  int2store(buff + 3, length);
+  int2store(buff + 8, tmp_pack_flag);
+  buff[10]= (uchar) unireg_check;
+}
+
+
+bool
+Column_definition_attributes::frm_unpack_numeric_with_dec(TABLE_SHARE *share,
+                                                          const uchar *buff)
+{
+  frm_unpack_basic(buff);
+  decimals= f_decimals(pack_flag);
+  pack_flag&= ~FIELDFLAG_DEC_MASK;
+  return frm_unpack_charset(share, buff);
+}
+
+
+bool
+Column_definition_attributes::frm_unpack_temporal_with_dec(TABLE_SHARE *share,
+                                                           uint intlen,
+                                                           const uchar *buff)
+{
+  frm_unpack_basic(buff);
+  decimals= temporal_dec(intlen);
+  return frm_unpack_charset(share, buff);
+}
+
+
 void Column_definition_attributes::frm_pack_charset(uchar *buff) const
 {
   buff[11]= (uchar) (charset->number >> 8);
@@ -1067,7 +1101,7 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
     expression
 */
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
-                     bool *error_reported)
+                     bool *error_reported, vcol_init_mode mode)
 {
   CHARSET_INFO *save_character_set_client= thd->variables.character_set_client;
   CHARSET_INFO *save_collation= thd->variables.collation_connection;
@@ -1150,6 +1184,21 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
                                     &((*field_ptr)->vcol_info), error_reported);
       *(vfield_ptr++)= *field_ptr;
+      DBUG_ASSERT(table->map == 0);
+      /*
+        We need Item_field::const_item() to return false, so
+        datetime_precision() and time_precision() do not try to calculate
+        field values, e.g. val_str().
+        Set table->map to non-zero temporarily.
+      */
+      table->map= 1;
+      if (vcol && field_ptr[0]->check_vcol_sql_mode_dependency(thd, mode))
+      {
+        DBUG_ASSERT(thd->is_error());
+        *error_reported= true;
+        goto end;
+      }
+      table->map= 0;
       break;
     case VCOL_DEFAULT:
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
@@ -1184,8 +1233,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     {
       List<Item> *field_list= new (mem_root) List<Item>();
       Item *list_item;
-      KEY *key;
-      uint key_index, parts;
+      KEY *key= 0;
+      uint key_index, parts= 0;
       for (key_index= 0; key_index < table->s->keys; key_index++)
       {
         key=table->key_info + key_index;
@@ -1193,7 +1242,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         if (key->key_part[parts].fieldnr == field->field_index + 1)
           break;
       }
-      if (key->algorithm != HA_KEY_ALG_LONG_HASH)
+      if (!key || key->algorithm != HA_KEY_ALG_LONG_HASH)
         goto end;
       KEY_PART_INFO *keypart;
       for (uint i=0; i < parts; i++)
@@ -1583,7 +1632,7 @@ public:
   {
     return m_count;
   }
-  const Elem element(uint i) const
+  const Elem& element(uint i) const
   {
     DBUG_ASSERT(i < m_count);
     return m_array[i];
@@ -2291,12 +2340,32 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
         if (field_data_type_info_array.count())
         {
+          const LEX_CSTRING &info= field_data_type_info_array.
+                                     element(i).type_info();
           DBUG_EXECUTE_IF("frm_data_type_info",
             push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
             ER_UNKNOWN_ERROR, "DBUG: [%u] name='%s' type_info='%.*s'",
             i, share->fieldnames.type_names[i],
-            (uint) field_data_type_info_array.element(i).type_info().length,
-            field_data_type_info_array.element(i).type_info().str););
+            (uint) info.length, info.str););
+
+          if (info.length)
+          {
+            const Type_handler *h= Type_handler::handler_by_name_or_error(thd,
+                                                                          info);
+            /*
+              This code will eventually be extended here:
+              - If the handler was not found by name, we could
+                still open the table using the fallback type handler "handler",
+                at least for a limited set of commands.
+              - If the handler was found by name, we could check
+                that "h" and "handler" have the same type code
+                (and maybe some other properties) to make sure
+                that the FRM data is consistent.
+            */
+            if (!h)
+              goto err;
+            handler= h;
+          }
         }
       }
 
@@ -2329,6 +2398,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       attr.length= (uint) strpos[3];
       recpos=	    uint2korr(strpos+4),
       attr.pack_flag=    uint2korr(strpos+6);
+      if (f_is_num(attr.pack_flag))
+      {
+        attr.decimals= f_decimals(attr.pack_flag);
+        attr.pack_flag&= ~FIELDFLAG_DEC_MASK;
+      }
       attr.pack_flag&=   ~FIELDFLAG_NO_DEFAULT;     // Safety for old files
       attr.unireg_check=  (Field::utype) MTYP_TYPENR((uint) strpos[8]);
       interval_nr=  (uint) strpos[10];
@@ -3857,8 +3931,24 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (share->table_check_constraints || share->field_check_constraints)
       outparam->check_constraints= check_constraint_ptr;
 
-    if (unlikely(parse_vcol_defs(thd, &outparam->mem_root, outparam,
-                                 &error_reported)))
+    vcol_init_mode mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING;
+    switch (thd->lex->sql_command)
+    {
+    case SQLCOM_CREATE_TABLE:
+      mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR;
+      break;
+    case SQLCOM_ALTER_TABLE:
+    case SQLCOM_CREATE_INDEX:
+    case SQLCOM_DROP_INDEX:
+      if ((ha_open_flags & HA_OPEN_FOR_ALTER) == 0)
+        mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR;
+      break;
+    default:
+      break;
+    }
+
+    if (parse_vcol_defs(thd, &outparam->mem_root, outparam,
+                        &error_reported, mode))
     {
       error= OPEN_FRM_CORRUPTED;
       goto err;
@@ -5148,6 +5238,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   range_rowid_filter_cost_info= NULL;
   update_handler= NULL;
   check_unique_buf= NULL;
+  vers_write= s->versioned;
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;
@@ -5165,6 +5256,8 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
     (*f_ptr)->next_equal_field= NULL;
     (*f_ptr)->cond_selectivity= 1.0;
   }
+
+  notnull_cond= 0;
 
   DBUG_ASSERT(!file->keyread_enabled());
 
@@ -6979,15 +7072,16 @@ void TABLE::mark_columns_needed_for_delete()
     }
   }
 
-  if (need_signal)
-    file->column_bitmaps_signal();
-
   if (s->versioned)
   {
     bitmap_set_bit(read_set, s->vers.start_fieldno);
     bitmap_set_bit(read_set, s->vers.end_fieldno);
     bitmap_set_bit(write_set, s->vers.end_fieldno);
+    need_signal= true;
   }
+
+  if (need_signal)
+    file->column_bitmaps_signal();
 }
 
 
@@ -7000,7 +7094,7 @@ void TABLE::mark_columns_needed_for_delete()
     updated columns to be read.
 
     If this is no the case, we do like in the delete case and mark
-    if neeed, either the primary key column or all columns to be read.
+    if needed, either the primary key column or all columns to be read.
     (see mark_columns_needed_for_delete() for details)
 
     If the engine has HA_REQUIRES_KEY_COLUMNS_FOR_DELETE, we will
@@ -7058,14 +7152,18 @@ void TABLE::mark_columns_needed_for_update()
       need_signal= true;
     }
   }
-  /*
-     For System Versioning we have to read all columns since we will store
-     a copy of previous row with modified Sys_end column back to a table.
-  */
   if (s->versioned)
   {
-    // We will copy old columns to a new row.
-    use_all_columns();
+    /*
+      For System Versioning we have to read all columns since we store
+      a copy of previous row with modified row_end back to a table.
+
+      Without write_set versioning.rpl,row is unstable until MDEV-16370 is
+      applied.
+    */
+    bitmap_union(read_set, &s->all_set);
+    bitmap_union(write_set, &s->all_set);
+    need_signal= true;
   }
   if (check_constraints)
   {
@@ -8369,7 +8467,7 @@ int TABLE::update_virtual_field(Field *vf)
          ignore_errors == 0. If set then an error was generated.
 */
 
-int TABLE::update_default_fields(bool update_command, bool ignore_errors)
+int TABLE::update_default_fields(bool ignore_errors)
 {
   Query_arena backup_arena;
   Field **field_ptr;
@@ -8389,14 +8487,9 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
     */
     if (!field->has_explicit_value())
     {
-      if (!update_command)
-      {
-        if (field->default_value &&
-            (field->default_value->flags || field->flags & BLOB_FLAG))
-          res|= (field->default_value->expr->save_in_field(field, 0) < 0);
-      }
-      else
-        res|= field->evaluate_update_default_function();
+      if (field->default_value &&
+          (field->default_value->flags || field->flags & BLOB_FLAG))
+        res|= (field->default_value->expr->save_in_field(field, 0) < 0);
       if (!ignore_errors && res)
       {
         my_error(ER_CALCULATING_DEFAULT_VALUE, MYF(0), field->field_name.str);
@@ -8482,6 +8575,21 @@ int TABLE::insert_portion_of_time(THD *thd,
   return res;
 }
 
+void TABLE::evaluate_update_default_function()
+{
+  DBUG_ENTER("TABLE::evaluate_update_default_function");
+
+  if (s->has_update_default_function)
+    for (Field **field_ptr= default_field; *field_ptr ; field_ptr++)
+    {
+      Field *field= (*field_ptr);
+      if (!field->has_explicit_value() && field->has_update_default_function())
+        field->set_time();
+    }
+  DBUG_VOID_RETURN;
+}
+
+
 void TABLE::vers_update_fields()
 {
   bitmap_set_bit(write_set, vers_start_field()->field_index);
@@ -8490,7 +8598,10 @@ void TABLE::vers_update_fields()
   if (versioned(VERS_TIMESTAMP))
   {
     if (!vers_write)
+    {
+      file->column_bitmaps_signal();
       return;
+    }
     if (vers_start_field()->store_timestamp(in_use->query_start(),
                                             in_use->query_start_sec_part()))
       DBUG_ASSERT(0);
@@ -8498,11 +8609,15 @@ void TABLE::vers_update_fields()
   else
   {
     if (!vers_write)
+    {
+      file->column_bitmaps_signal();
       return;
+    }
   }
 
   vers_end_field()->set_max();
   bitmap_set_bit(read_set, vers_end_field()->field_index);
+  file->column_bitmaps_signal();
 }
 
 
@@ -9503,12 +9618,12 @@ bool TR_table::check(bool error)
   return false;
 }
 
-bool vers_select_conds_t::resolve_units(THD *thd)
+bool vers_select_conds_t::check_units(THD *thd)
 {
   DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
   DBUG_ASSERT(start.item);
-  return start.resolve_unit(thd) ||
-         end.resolve_unit(thd);
+  return start.check_unit(thd) ||
+         end.check_unit(thd);
 }
 
 bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
@@ -9520,8 +9635,7 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
   case SYSTEM_TIME_ALL:
     return true;
   case SYSTEM_TIME_BEFORE:
-    DBUG_ASSERT(0);
-    return false;
+    break;
   case SYSTEM_TIME_AS_OF:
     return start.eq(conds.start);
   case SYSTEM_TIME_FROM_TO:
@@ -9533,22 +9647,21 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
 }
 
 
-bool Vers_history_point::resolve_unit(THD *thd)
+bool Vers_history_point::check_unit(THD *thd)
 {
   if (!item)
     return false;
   if (item->fix_fields_if_needed(thd, &item))
     return true;
-  return item->this_item()->real_type_handler()->
-           type_handler_for_system_time()->
-           Vers_history_point_resolve_unit(thd, this);
-}
-
-
-void Vers_history_point::bad_expression_data_type_error(const char *type) const
-{
-  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           type, "FOR SYSTEM_TIME");
+  const Type_handler *t= item->this_item()->real_type_handler();
+  DBUG_ASSERT(t);
+  if (!t->vers())
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             t->name().ptr(), "FOR SYSTEM_TIME");
+    return true;
+  }
+  return false;
 }
 
 

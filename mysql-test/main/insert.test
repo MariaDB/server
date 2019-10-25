@@ -612,3 +612,16 @@ CREATE VIEW v1 AS SELECT * FROM t1 WHERE f <=> 'foo' WITH CHECK OPTION;
 REPLACE INTO v1 SET f = NULL;
 DROP VIEW v1;
 DROP TABLE t1;
+
+#
+# outer referencesin subqueries in INSERT
+#
+create table t1 (a int default 5);
+insert t1 values (1);
+insert t1 values (a);
+insert t1 values ((select a+1));
+insert t1 set a=2;
+insert t1 set a=a+2;
+insert t1 set a=(select a+3);
+select * from t1;
+drop table t1;

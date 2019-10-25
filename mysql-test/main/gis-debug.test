@@ -75,8 +75,6 @@ SET debug_dbug='+d,num_op';
 
 # (GEOMETRY,GEOMETRY) goes through
 # Type_collection_geometry::aggregate_for_num_op() which fails.
-# Type pairs from Type_handler_data::m_type_aggregator_xxx are not even tested,
-# as both sides are from the same type collection.
 
 --error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT POINT(0,0)+POINT(0,0);

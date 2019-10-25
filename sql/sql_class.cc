@@ -659,6 +659,9 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
    spcont(NULL),
    m_parser_state(NULL),
+#ifndef EMBEDDED_LIBRARY
+   audit_plugin_version(-1),
+#endif
 #if defined(ENABLED_DEBUG_SYNC)
    debug_sync_control(0),
 #endif /* defined(ENABLED_DEBUG_SYNC) */
@@ -691,7 +694,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_po_handle(WSREP_PO_INITIALIZER),
    wsrep_po_cnt(0),
    wsrep_apply_format(0),
-   wsrep_apply_toi(false),
    wsrep_rbr_buf(NULL),
    wsrep_sync_wait_gtid(WSREP_GTID_UNDEFINED),
    wsrep_affected_rows(0),
@@ -889,7 +891,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   invoker.init();
   prepare_derived_at_open= FALSE;
   create_tmp_table_for_derived= FALSE;
-  force_read_stats= FALSE;
   save_prep_leaf_list= FALSE;
   org_charset= 0;
   /* Restore THR_THD */
@@ -1748,6 +1749,7 @@ THD::~THD()
   /* trick to make happy memory accounting system */
 #ifndef EMBEDDED_LIBRARY
   session_tracker.sysvars.deinit();
+  session_tracker.user_variables.deinit();
 #endif //EMBEDDED_LIBRARY
 
   if (status_var.local_memory_used != 0)
@@ -2478,7 +2480,6 @@ bool THD::check_string_for_wellformedness(const char *str,
                                           size_t length,
                                           CHARSET_INFO *cs) const
 {
-  DBUG_ASSERT(charset_is_system_charset);
   size_t wlen= Well_formed_prefix(cs, str, length).length();
   if (wlen < length)
   {
@@ -3014,15 +3015,6 @@ int select_send::send_data(List<Item> &items)
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("select_send::send_data");
 
-  /* unit is not set when using 'delete ... returning' */
-  if (unit && unit->offset_limit_cnt)
-  {						// using limit offset,count
-    unit->offset_limit_cnt--;
-    DBUG_RETURN(FALSE);
-  }
-  if (thd->killed == ABORT_QUERY)
-    DBUG_RETURN(FALSE);
-
   protocol->prepare_for_resend();
   if (protocol->send_result_set_row(&items))
   {
@@ -3284,13 +3276,6 @@ int select_export::send_data(List<Item> &items)
   String tmp(buff,sizeof(buff),&my_charset_bin),*res;
   tmp.length(0);
 
-  if (unit->offset_limit_cnt)
-  {						// using limit offset,count
-    unit->offset_limit_cnt--;
-    DBUG_RETURN(0);
-  }
-  if (thd->killed == ABORT_QUERY)
-    DBUG_RETURN(0);
   row_count++;
   Item *item;
   uint used_length=0,items_left=items.elements;
@@ -3544,14 +3529,6 @@ int select_dump::send_data(List<Item> &items)
   Item *item;
   DBUG_ENTER("select_dump::send_data");
 
-  if (unit->offset_limit_cnt)
-  {						// using limit offset,count
-    unit->offset_limit_cnt--;
-    DBUG_RETURN(0);
-  }
-  if (thd->killed == ABORT_QUERY)
-    DBUG_RETURN(0);
-
   if (row_count++ > 1) 
   {
     my_message(ER_TOO_MANY_ROWS, ER_THD(thd, ER_TOO_MANY_ROWS), MYF(0));
@@ -3587,13 +3564,6 @@ int select_singlerow_subselect::send_data(List<Item> &items)
                MYF(current_thd->lex->ignore ? ME_WARNING : 0));
     DBUG_RETURN(1);
   }
-  if (unit->offset_limit_cnt)
-  {				          // Using limit offset,count
-    unit->offset_limit_cnt--;
-    DBUG_RETURN(0);
-  }
-  if (thd->killed == ABORT_QUERY)
-    DBUG_RETURN(0);
   List_iterator_fast<Item> li(items);
   Item *val_item;
   for (uint i= 0; (val_item= li++); i++)
@@ -3728,13 +3698,6 @@ int select_exists_subselect::send_data(List<Item> &items)
 {
   DBUG_ENTER("select_exists_subselect::send_data");
   Item_exists_subselect *it= (Item_exists_subselect *)item;
-  if (unit->offset_limit_cnt)
-  {				          // Using limit offset,count
-    unit->offset_limit_cnt--;
-    DBUG_RETURN(0);
-  }
-  if (thd->killed == ABORT_QUERY)
-    DBUG_RETURN(0);
   it->value= 1;
   it->assigned(1);
   DBUG_RETURN(0);
@@ -4137,12 +4100,7 @@ int select_dumpvar::send_data(List<Item> &items)
 {
   DBUG_ENTER("select_dumpvar::send_data");
 
-  if (unit->offset_limit_cnt)
-  {						// using limit offset,count
-    unit->offset_limit_cnt--;
-    DBUG_RETURN(0);
-  }
-  if (row_count++) 
+  if (row_count++)
   {
     my_message(ER_TOO_MANY_ROWS, ER_THD(thd, ER_TOO_MANY_ROWS), MYF(0));
     DBUG_RETURN(1);
@@ -4911,12 +4869,6 @@ extern "C" int thd_slave_thread(const MYSQL_THD thd)
 }
 
 
-extern "C" int thd_rpl_stmt_based(const MYSQL_THD thd)
-{
-  return thd &&
-    !thd->is_current_stmt_binlog_format_row() &&
-    !thd->is_current_stmt_binlog_disabled();
-}
 
 
 /* Returns high resolution timestamp for the start
@@ -6256,6 +6208,48 @@ int THD::decide_logging_format(TABLE_LIST *tables)
   DBUG_RETURN(0);
 }
 
+int THD::decide_logging_format_low(TABLE *table)
+{
+  /*
+   INSERT...ON DUPLICATE KEY UPDATE on a table with more than one unique keys
+   can be unsafe.
+   */
+  if(wsrep_binlog_format() <= BINLOG_FORMAT_STMT &&
+       !is_current_stmt_binlog_format_row() &&
+       !lex->is_stmt_unsafe() &&
+       lex->sql_command == SQLCOM_INSERT &&
+       lex->duplicates == DUP_UPDATE)
+  {
+    uint unique_keys= 0;
+    uint keys= table->s->keys, i= 0;
+    Field *field;
+    for (KEY* keyinfo= table->s->key_info;
+             i < keys && unique_keys <= 1; i++, keyinfo++)
+      if (keyinfo->flags & HA_NOSAME &&
+         !(keyinfo->key_part->field->flags & AUTO_INCREMENT_FLAG &&
+             //User given auto inc can be unsafe
+             !keyinfo->key_part->field->val_int()))
+      {
+        for (uint j= 0; j < keyinfo->user_defined_key_parts; j++)
+        {
+          field= keyinfo->key_part[j].field;
+          if(!bitmap_is_set(table->write_set,field->field_index))
+            goto exit;
+        }
+        unique_keys++;
+exit:;
+      }
+
+    if (unique_keys > 1)
+    {
+      lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS);
+      binlog_unsafe_warning_flags|= lex->get_stmt_unsafe_flags();
+      set_current_stmt_binlog_format_row_if_mixed();
+      return 1;
+    }
+  }
+  return 0;
+}
 
 /*
   Implementation of interface to write rows to the binary log through the
@@ -7185,11 +7179,10 @@ void THD::set_last_commit_gtid(rpl_gtid &gtid)
 #endif
   m_last_commit_gtid= gtid;
 #ifndef EMBEDDED_LIBRARY
-  if (changed_gtid && session_tracker.sysvars.is_enabled())
+  if (changed_gtid)
   {
     DBUG_ASSERT(current_thd == this);
-    session_tracker.sysvars.
-      mark_as_changed(this, (LEX_CSTRING*)Sys_last_gtid_ptr);
+    session_tracker.sysvars.mark_as_changed(this, Sys_last_gtid_ptr);
   }
 #endif
 }

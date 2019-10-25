@@ -146,7 +146,7 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
   item= item->safe_charset_converter(thd, cs);
   context->table_list= NULL;
   thd->where= "convert character set partition constant";
-  if (item->fix_fields_if_needed(thd, (Item**)NULL))
+  if (item && item->fix_fields_if_needed(thd, (Item**)NULL))
     item= NULL;
   thd->where= save_where;
   context->table_list= save_list;
@@ -1559,7 +1559,7 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
     return 0;
 
   part_info->range_int_array=
-    (longlong*) thd->alloc(hist_parts * sizeof(longlong));
+    (longlong*) thd->alloc(part_info->num_parts * sizeof(longlong));
 
   MYSQL_TIME ltime;
   List_iterator<partition_element> it(part_info->partitions);
@@ -1578,6 +1578,9 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
     if (vers_info->hist_part->range_value <= thd->query_start())
       vers_info->hist_part= el;
   }
+  DBUG_ASSERT(el == vers_info->now_part);
+  el->max_value= true;
+  part_info->range_int_array[el->id]= el->range_value= LONGLONG_MAX;
   return 0;
 err:
   my_error(ER_DATA_OUT_OF_RANGE, MYF(0), "TIMESTAMP", "INTERVAL");
@@ -1971,7 +1974,6 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
     }
   }
   DBUG_ASSERT(part_info->part_type != NOT_A_PARTITION);
-  DBUG_ASSERT(part_info->part_type != VERSIONING_PARTITION || part_info->column_list);
   /*
     Partition is defined. We need to verify that partitioning
     function is correct.
@@ -2004,15 +2006,15 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
   {
     if (part_info->column_list)
     {
-      if (part_info->part_type == VERSIONING_PARTITION &&
-        part_info->vers_setup_expression(thd))
-        goto end;
       List_iterator<const char> it(part_info->part_field_list);
       if (unlikely(handle_list_of_fields(thd, it, table, part_info, FALSE)))
         goto end;
     }
     else
     {
+      if (part_info->part_type == VERSIONING_PARTITION &&
+        part_info->vers_setup_expression(thd))
+        goto end;
       if (unlikely(fix_fields_part_func(thd, part_info->part_expr,
                                         table, FALSE, is_create_table_ind)))
         goto end;
@@ -2028,7 +2030,8 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
       goto end;
     }
     if (unlikely(!part_info->column_list &&
-                  part_info->part_expr->result_type() != INT_RESULT))
+                  part_info->part_expr->result_type() != INT_RESULT &&
+                  part_info->part_expr->result_type() != DECIMAL_RESULT))
     {
       part_info->report_part_expr_error(FALSE);
       goto end;
@@ -2238,80 +2241,6 @@ static int add_partition_options(String *str, partition_element *p_elem)
 
 
 /*
-  Check partition fields for result type and if they need
-  to check the character set.
-
-  SYNOPSIS
-    check_part_field()
-    sql_type              Type provided by user
-    field_name            Name of field, used for error handling
-    result_type           Out value: Result type of field
-    need_cs_check         Out value: Do we need character set check
-
-  RETURN VALUES
-    TRUE                  Error
-    FALSE                 Ok
-*/
-
-static int check_part_field(enum_field_types sql_type,
-                            const char *field_name,
-                            Item_result *result_type,
-                            bool *need_cs_check)
-{
-  if (sql_type >= MYSQL_TYPE_TINY_BLOB &&
-      sql_type <= MYSQL_TYPE_BLOB)
-  {
-    my_error(ER_BLOB_FIELD_IN_PART_FUNC_ERROR, MYF(0));
-    return TRUE;
-  }
-  switch (sql_type)
-  {
-    case MYSQL_TYPE_TINY:
-    case MYSQL_TYPE_SHORT:
-    case MYSQL_TYPE_LONG:
-    case MYSQL_TYPE_LONGLONG:
-    case MYSQL_TYPE_INT24:
-      *result_type= INT_RESULT;
-      *need_cs_check= FALSE;
-      return FALSE;
-    case MYSQL_TYPE_NEWDATE:
-    case MYSQL_TYPE_DATE:
-    case MYSQL_TYPE_TIME:
-    case MYSQL_TYPE_DATETIME:
-    case MYSQL_TYPE_TIME2:
-    case MYSQL_TYPE_DATETIME2:
-      *result_type= STRING_RESULT;
-      *need_cs_check= TRUE;
-      return FALSE;
-    case MYSQL_TYPE_VARCHAR:
-    case MYSQL_TYPE_STRING:
-    case MYSQL_TYPE_VAR_STRING:
-      *result_type= STRING_RESULT;
-      *need_cs_check= TRUE;
-      return FALSE;
-    case MYSQL_TYPE_NEWDECIMAL:
-    case MYSQL_TYPE_DECIMAL:
-    case MYSQL_TYPE_TIMESTAMP:
-    case MYSQL_TYPE_TIMESTAMP2:
-    case MYSQL_TYPE_NULL:
-    case MYSQL_TYPE_FLOAT:
-    case MYSQL_TYPE_DOUBLE:
-    case MYSQL_TYPE_BIT:
-    case MYSQL_TYPE_ENUM:
-    case MYSQL_TYPE_SET:
-    case MYSQL_TYPE_GEOMETRY:
-      goto error;
-    default:
-      goto error;
-  }
-error:
-  my_error(ER_FIELD_TYPE_NOT_ALLOWED_AS_PARTITION_FIELD, MYF(0),
-           field_name);
-  return TRUE;
-}
-
-
-/*
   Find the given field's Create_field object using name of field
 
   SYNOPSIS
@@ -2374,8 +2303,7 @@ static int add_column_list_values(String *str, partition_info *part_info,
       else
       {
         CHARSET_INFO *field_cs;
-        bool need_cs_check= FALSE;
-        Item_result result_type= STRING_RESULT;
+        const Type_handler *th= NULL;
 
         /*
           This function is called at a very early stage, even before
@@ -2393,57 +2321,24 @@ static int add_column_list_values(String *str, partition_info *part_info,
             my_error(ER_FIELD_NOT_FOUND_PART_ERROR, MYF(0));
             return 1;
           }
-          if (check_part_field(sql_field->real_field_type(),
-                               sql_field->field_name.str,
-                               &result_type,
-                               &need_cs_check))
+          th= sql_field->type_handler();
+          if (th->partition_field_check(sql_field->field_name, item_expr))
             return 1;
-          if (need_cs_check)
-            field_cs= get_sql_field_charset(sql_field, create_info);
-          else
-            field_cs= NULL;
+          field_cs= get_sql_field_charset(sql_field, create_info);
         }
         else
         {
           Field *field= part_info->part_field_array[i];
-          result_type= field->result_type();
-          if (check_part_field(field->real_type(),
-                               field->field_name.str,
-                               &result_type,
-                               &need_cs_check))
+          th= field->type_handler();
+          if (th->partition_field_check(field->field_name, item_expr))
             return 1;
-          DBUG_ASSERT(result_type == field->result_type());
-          if (need_cs_check)
-            field_cs= field->charset();
-          else
-            field_cs= NULL;
+          field_cs= field->charset();
         }
-        if (result_type != item_expr->result_type())
-        {
-          my_error(ER_WRONG_TYPE_COLUMN_VALUE_ERROR, MYF(0));
+        if (th->partition_field_append_value(str, item_expr, field_cs,
+                                             alter_info == NULL ?
+                                             PARTITION_VALUE_PRINT_MODE_SHOW:
+                                             PARTITION_VALUE_PRINT_MODE_FRM))
           return 1;
-        }
-        if (field_cs && field_cs != item_expr->collation.collation)
-        {
-          if (!(item_expr= convert_charset_partition_constant(item_expr,
-                                                              field_cs)))
-          {
-            my_error(ER_PARTITION_FUNCTION_IS_NOT_ALLOWED, MYF(0));
-            return 1;
-          }
-        }
-        {
-          StringBuffer<MAX_KEY_LENGTH> buf;
-          String val_conv, *res;
-          val_conv.set_charset(system_charset_info);
-          res= item_expr->val_str(&buf);
-          if (get_cs_converted_part_value_from_string(current_thd,
-                                                      item_expr, res,
-                                                      &val_conv, field_cs,
-                                                   (bool)(alter_info != NULL)))
-            return 1;
-          err+= str->append(val_conv);
-        }
       }
     }
     if (i != (num_elements - 1))
@@ -2537,7 +2432,7 @@ static int add_partition_values(String *str, partition_info *part_info,
   }
   else if (part_info->part_type == VERSIONING_PARTITION)
   {
-    switch (p_elem->type())
+    switch (p_elem->type)
     {
     case partition_element::CURRENT:
       err+= str->append(STRING_WITH_LEN(" CURRENT"));
@@ -2587,6 +2482,10 @@ char *generate_partition_syntax_for_frm(THD *thd, partition_info *part_info,
   Sql_mode_instant_remove sms(thd, MODE_ANSI_QUOTES);
   char *res= generate_partition_syntax(thd, part_info, buf_length,
                                              true, create_info, alter_info);
+  DBUG_EXECUTE_IF("generate_partition_syntax_for_frm",
+                  push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_YES,
+                               ErrConvString(res, (uint32) *buf_length,
+                                             system_charset_info).ptr()););
   return res;
 }
 
@@ -4785,6 +4684,69 @@ bool compare_partition_options(HA_CREATE_INFO *table_create_info,
 }
 
 
+/**
+  Check if the ALTER command tries to change DATA DIRECTORY
+  or INDEX DIRECTORY for its partitions and warn if so.
+  @param thd  THD
+  @param part_elem partition_element to check
+ */
+static void warn_if_datadir_altered(THD *thd,
+    const partition_element *part_elem)
+{
+  DBUG_ASSERT(part_elem);
+
+  if (part_elem->engine_type &&
+      part_elem->engine_type->db_type != DB_TYPE_INNODB)
+    return;
+
+  if (part_elem->data_file_name)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+        WARN_INNODB_PARTITION_OPTION_IGNORED,
+        ER(WARN_INNODB_PARTITION_OPTION_IGNORED),
+        "DATA DIRECTORY");
+  }
+  if (part_elem->index_file_name)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+        WARN_INNODB_PARTITION_OPTION_IGNORED,
+        ER(WARN_INNODB_PARTITION_OPTION_IGNORED),
+        "INDEX DIRECTORY");
+  }
+}
+
+
+/**
+  Currently changing DATA DIRECTORY and INDEX DIRECTORY for InnoDB partitions is
+  not possible. This function checks it and warns on that case.
+  @param thd THD
+  @param tab_part_info old partition info
+  @param alt_part_info new partition info
+ */
+static void check_datadir_altered_for_innodb(THD *thd,
+    partition_info *tab_part_info,
+    partition_info *alt_part_info)
+{
+  if (tab_part_info->default_engine_type->db_type != DB_TYPE_INNODB)
+    return;
+
+  for (List_iterator_fast<partition_element> it(alt_part_info->partitions);
+       partition_element *part_elem= it++;)
+  {
+    if (alt_part_info->is_sub_partitioned())
+    {
+      for (List_iterator_fast<partition_element> it2(part_elem->subpartitions);
+           const partition_element *sub_part_elem= it2++;)
+      {
+        warn_if_datadir_altered(thd, sub_part_elem);
+      }
+    }
+    else
+      warn_if_datadir_altered(thd, part_elem);
+  }
+}
+
+
 /*
   Prepare for ALTER TABLE of partition structure
 
@@ -5315,7 +5277,7 @@ that are reorganised.
           partition_element *el;
           while ((el= it++))
           {
-            if (el->type() == partition_element::CURRENT)
+            if (el->type == partition_element::CURRENT)
             {
               it.remove();
               now_part= el;
@@ -5411,7 +5373,7 @@ that are reorganised.
         {
           if (tab_part_info->part_type == VERSIONING_PARTITION)
           {
-            if (part_elem->type() == partition_element::CURRENT)
+            if (part_elem->type == partition_element::CURRENT)
             {
               my_error(ER_VERS_WRONG_PARTS, MYF(0), table->s->table_name.str);
               goto err;
@@ -5620,6 +5582,8 @@ state of p1.
       {
         goto err;
       }
+      check_datadir_altered_for_innodb(thd, tab_part_info, alt_part_info);
+
 /*
 Online handling:
 REORGANIZE PARTITION:
@@ -7665,6 +7629,10 @@ static void set_up_range_analysis_info(partition_info *part_info)
     partitioning
   */
   switch (part_info->part_type) {
+  case VERSIONING_PARTITION:
+    if (!part_info->vers_info->interval.is_set())
+      break;
+    /* Fall through */
   case RANGE_PARTITION:
   case LIST_PARTITION:
     if (!part_info->column_list)
@@ -8101,7 +8069,8 @@ static int get_part_iter_for_interval_via_mapping(partition_info *part_info,
   part_iter->ret_null_part= part_iter->ret_null_part_orig= FALSE;
   part_iter->ret_default_part= part_iter->ret_default_part_orig= FALSE;
 
-  if (part_info->part_type == RANGE_PARTITION)
+  if (part_info->part_type == RANGE_PARTITION ||
+      part_info->part_type == VERSIONING_PARTITION)
   {
     if (part_info->part_charset_field_array)
       get_endpoint=        get_partition_id_range_for_endpoint_charset;

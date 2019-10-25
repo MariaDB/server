@@ -360,6 +360,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
       with_window_func= with_window_func || item->with_window_func;
       with_field= with_field || item->with_field;
       used_tables_and_const_cache_join(item);
+      not_null_tables_cache|= item->not_null_tables();
       m_with_subquery|= item->with_subquery();
     }
   }
@@ -400,6 +401,25 @@ Item_func::eval_not_null_tables(void *opt_arg)
     }
   }
   return FALSE;
+}
+
+
+bool
+Item_func::find_not_null_fields(table_map allowed)
+{
+  if (~allowed & used_tables())
+    return false;
+
+  Item **arg,**arg_end;
+  if (arg_count)
+  {
+    for (arg=args, arg_end=args+arg_count; arg != arg_end ; arg++)
+    {
+      if (!(*arg)->find_not_null_fields(allowed))
+        continue;
+    }
+  }
+  return false;
 }
 
 
@@ -558,6 +578,15 @@ void Item_args::propagate_equal_fields(THD *thd,
   for (i= 0; i < arg_count; i++)
     args[i]->propagate_equal_fields_and_change_item_tree(thd, ctx, cond,
                                                          &args[i]);
+}
+
+
+Sql_mode_dependency Item_args::value_depends_on_sql_mode_bit_or() const
+{
+  Sql_mode_dependency res;
+  for (uint i= 0; i < arg_count; i++)
+    res|= args[i]->value_depends_on_sql_mode();
+  return res;
 }
 
 
@@ -1187,7 +1216,10 @@ void Item_func_minus::fix_unsigned_flag()
 {
   if (unsigned_flag &&
       (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION))
+  {
     unsigned_flag=0;
+    set_handler(Item_func_minus::type_handler()->type_handler_signed());
+  }
 }
 
 
@@ -1203,7 +1235,19 @@ bool Item_func_minus::fix_length_and_dec()
   if (Item_func_minus::type_handler()->Item_func_minus_fix_length_and_dec(this))
     DBUG_RETURN(TRUE);
   DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  if ((m_depends_on_sql_mode_no_unsigned_subtraction= unsigned_flag) &&
+      (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION))
+    unsigned_flag= false;
   DBUG_RETURN(FALSE);
+}
+
+
+Sql_mode_dependency Item_func_minus::value_depends_on_sql_mode() const
+{
+  Sql_mode_dependency dep= Item_func_additive_op::value_depends_on_sql_mode();
+  if (m_depends_on_sql_mode_no_unsigned_subtraction)
+    dep|= Sql_mode_dependency(0, MODE_NO_UNSIGNED_SUBTRACTION);
+  return dep;
 }
 
 
@@ -1679,8 +1723,11 @@ my_decimal *Item_func_mod::decimal_op(my_decimal *decimal_value)
 
 void Item_func_mod::result_precision()
 {
+  unsigned_flag= args[0]->unsigned_flag;
   decimals= MY_MAX(args[0]->decimal_scale(), args[1]->decimal_scale());
-  max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
+  uint prec= MY_MAX(args[0]->decimal_precision(), args[1]->decimal_precision());
+  fix_char_length(my_decimal_precision_to_length_no_truncation(prec, decimals,
+                                                               unsigned_flag));
 }
 
 
@@ -1806,7 +1853,7 @@ void Item_func_neg::fix_length_and_dec_int()
         Ensure that result is converted to DECIMAL, as longlong can't hold
         the negated number
       */
-      set_handler_by_result_type(DECIMAL_RESULT);
+      set_handler(&type_handler_newdecimal);
       DBUG_PRINT("info", ("Type changed: DECIMAL_RESULT"));
     }
   }
@@ -2327,6 +2374,42 @@ void Item_func_round::fix_arg_double()
 }
 
 
+void Item_func_round::fix_arg_temporal(const Type_handler *h,
+                                       uint int_part_length)
+{
+  set_handler(h);
+  if (args[1]->const_item() && !args[1]->is_expensive())
+  {
+    Longlong_hybrid_null dec= args[1]->to_longlong_hybrid_null();
+    fix_attributes_temporal(int_part_length,
+                            dec.is_null() ? args[0]->decimals :
+                            dec.to_uint(TIME_SECOND_PART_DIGITS));
+  }
+  else
+    fix_attributes_temporal(int_part_length, args[0]->decimals);
+}
+
+
+void Item_func_round::fix_arg_time()
+{
+  fix_arg_temporal(&type_handler_time2, MIN_TIME_WIDTH);
+}
+
+
+void Item_func_round::fix_arg_datetime()
+{
+  /*
+    Day increment operations are not supported for '0000-00-00',
+    see get_date_from_daynr() for details. Therefore, expressions like
+      ROUND('0000-00-00 23:59:59.999999')
+    return NULL.
+  */
+  if (!truncate)
+    maybe_null= true;
+  fix_arg_temporal(&type_handler_datetime2, MAX_DATETIME_WIDTH);
+}
+
+
 void Item_func_round::fix_arg_int()
 {
   if (args[1]->const_item())
@@ -2463,6 +2546,36 @@ my_decimal *Item_func_round::decimal_op(my_decimal *decimal_value)
                                     truncate ? TRUNCATE : HALF_UP) > 1)))
     return decimal_value;
   return 0;
+}
+
+
+bool Item_func_round::time_op(THD *thd, MYSQL_TIME *to)
+{
+  DBUG_ASSERT(args[0]->type_handler()->mysql_timestamp_type() ==
+              MYSQL_TIMESTAMP_TIME);
+  Time::Options opt(Time::default_flags_for_get_date(),
+                    truncate ? TIME_FRAC_TRUNCATE : TIME_FRAC_ROUND,
+                    Time::DATETIME_TO_TIME_DISALLOW);
+  Longlong_hybrid_null dec= args[1]->to_longlong_hybrid_null();
+  Time *tm= new (to) Time(thd, args[0], opt,
+                          dec.to_uint(TIME_SECOND_PART_DIGITS));
+  null_value= !tm->is_valid_time() || dec.is_null();
+  DBUG_ASSERT(maybe_null || !null_value);
+  return null_value;
+}
+
+
+bool Item_func_round::date_op(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate)
+{
+  DBUG_ASSERT(args[0]->type_handler()->mysql_timestamp_type() ==
+              MYSQL_TIMESTAMP_DATETIME);
+  Datetime::Options opt(thd, truncate ? TIME_FRAC_TRUNCATE : TIME_FRAC_ROUND);
+  Longlong_hybrid_null dec= args[1]->to_longlong_hybrid_null();
+  Datetime *tm= new (to) Datetime(thd, args[0], opt,
+                                  dec.to_uint(TIME_SECOND_PART_DIGITS));
+  null_value= !tm->is_valid_datetime() || dec.is_null();
+  DBUG_ASSERT(maybe_null || !null_value);
+  return null_value;
 }
 
 
@@ -4377,8 +4490,10 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
   null_item= (args[0]->type() == NULL_ITEM);
   if (!m_var_entry->charset() || !null_item)
     m_var_entry->set_charset(args[0]->collation.derivation == DERIVATION_NUMERIC ?
-                             default_charset() : args[0]->collation.collation);
-  collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
+                             &my_charset_numeric : args[0]->collation.collation);
+  collation.set(m_var_entry->charset(),
+                args[0]->collation.derivation == DERIVATION_NUMERIC ?
+                DERIVATION_NUMERIC : DERIVATION_IMPLICIT);
   switch (args[0]->result_type()) {
   case STRING_RESULT:
   case TIME_RESULT:
@@ -4390,7 +4505,8 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     set_handler(&type_handler_double);
     break;
   case INT_RESULT:
-    set_handler(Type_handler::type_handler_long_or_longlong(max_char_length()));
+    set_handler(Type_handler::type_handler_long_or_longlong(max_char_length(),
+                                                            unsigned_flag));
     break;
   case DECIMAL_RESULT:
     set_handler(&type_handler_newdecimal);
@@ -4430,11 +4546,14 @@ Item_func_set_user_var::fix_length_and_dec()
 {
   maybe_null=args[0]->maybe_null;
   decimals=args[0]->decimals;
-  collation.set(DERIVATION_IMPLICIT);
   if (args[0]->collation.derivation == DERIVATION_NUMERIC)
-    fix_length_and_charset(args[0]->max_char_length(), default_charset());
+  {
+    collation.set(DERIVATION_NUMERIC);
+    fix_length_and_charset(args[0]->max_char_length(), &my_charset_numeric);
+  }
   else
   {
+    collation.set(DERIVATION_IMPLICIT);
     fix_length_and_charset(args[0]->max_char_length(),
                            args[0]->collation.collation);
   }
@@ -4560,6 +4679,10 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
     entry->unsigned_flag= unsigned_arg;
   }
   entry->type=type;
+#ifndef EMBEDDED_LIBRARY
+  THD *thd= current_thd;
+  thd->session_tracker.user_variables.mark_as_changed(thd, entry);
+#endif
   return 0;
 }
 
@@ -4649,7 +4772,7 @@ longlong user_var_entry::val_int(bool *null_value) const
 /** Get the value of a variable as a string. */
 
 String *user_var_entry::val_str(bool *null_value, String *str,
-				uint decimals)
+                                uint decimals) const
 {
   if ((*null_value= (value == 0)))
     return (String*) 0;
@@ -4825,13 +4948,13 @@ Item_func_set_user_var::update()
   case REAL_RESULT:
   {
     res= update_hash((void*) &save_result.vreal,sizeof(save_result.vreal),
-		     REAL_RESULT, default_charset(), 0);
+		     REAL_RESULT, &my_charset_numeric, 0);
     break;
   }
   case INT_RESULT:
   {
     res= update_hash((void*) &save_result.vint, sizeof(save_result.vint),
-                     INT_RESULT, default_charset(), unsigned_flag);
+                     INT_RESULT, &my_charset_numeric, unsigned_flag);
     break;
   }
   case STRING_RESULT:
@@ -4851,7 +4974,7 @@ Item_func_set_user_var::update()
     else
       res= update_hash((void*) save_result.vdec,
                        sizeof(my_decimal), DECIMAL_RESULT,
-                       default_charset(), 0);
+                       &my_charset_numeric, 0);
     break;
   }
   case ROW_RESULT:
@@ -5290,22 +5413,29 @@ bool Item_func_get_user_var::fix_length_and_dec()
   {
     unsigned_flag= m_var_entry->unsigned_flag;
     max_length= (uint32)m_var_entry->length;
-    collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
-    set_handler_by_result_type(m_var_entry->type);
-    switch (result_type()) {
+    switch (m_var_entry->type) {
     case REAL_RESULT:
+      collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
       fix_char_length(DBL_DIG + 8);
+      set_handler(&type_handler_double);
       break;
     case INT_RESULT:
+      collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
       fix_char_length(MAX_BIGINT_WIDTH);
       decimals=0;
+      set_handler(unsigned_flag ? &type_handler_ulonglong :
+                                  &type_handler_slonglong);
       break;
     case STRING_RESULT:
+      collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
       max_length= MAX_BLOB_WIDTH - 1;
+      set_handler(&type_handler_long_blob);
       break;
     case DECIMAL_RESULT:
+      collation.set(&my_charset_numeric, DERIVATION_NUMERIC);
       fix_char_length(DECIMAL_MAX_STR_LENGTH);
       decimals= DECIMAL_MAX_SCALE;
+      set_handler(&type_handler_newdecimal);
       break;
     case ROW_RESULT:                            // Keep compiler happy
     case TIME_RESULT:
@@ -5588,11 +5718,12 @@ const Type_handler *Item_func_get_system_var::type_handler() const
     case SHOW_SINT:
     case SHOW_SLONG:
     case SHOW_SLONGLONG:
+      return &type_handler_slonglong;
     case SHOW_UINT:
     case SHOW_ULONG:
     case SHOW_ULONGLONG:
     case SHOW_HA_ROWS:
-      return &type_handler_longlong;
+      return &type_handler_ulonglong;
     case SHOW_CHAR: 
     case SHOW_CHAR_PTR: 
     case SHOW_LEX_STRING:
@@ -6759,9 +6890,9 @@ longlong Item_func_lastval::val_int()
 /*
   Sets next value to be returned from sequences
 
-  SELECT setval('foo', 42, 0);           Next nextval will return 43
-  SELECT setval('foo', 42, 0, true);     Same as above
-  SELECT setval('foo', 42, 0, false);    Next nextval will return 42
+  SELECT setval(foo, 42, 0);           Next nextval will return 43
+  SELECT setval(foo, 42, 0, true);     Same as above
+  SELECT setval(foo, 42, 0, false);    Next nextval will return 42
 */
 
 longlong Item_func_setval::val_int()

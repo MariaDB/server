@@ -54,14 +54,6 @@ Completed by Sunny Bains and Marko Makela
 # define posix_fadvise(fd, offset, len, advice) /* nothing */
 #endif /* _WIN32 */
 
-#ifdef HAVE_WOLFSSL
-// Workaround for MDEV-19582
-// (WolfSSL accesses memory out of bounds)
-# define WOLFSSL_PAD_SIZE MY_AES_BLOCK_SIZE
-#else
-# define WOLFSSL_PAD_SIZE 0
-#endif
-
 /* Whether to disable file system cache */
 char	srv_disable_sort_file_cache;
 
@@ -1101,7 +1093,7 @@ row_merge_read(
 	/* If encryption is enabled decrypt buffer */
 	if (success && log_tmp_is_encrypted()) {
 		if (!log_tmp_block_decrypt(buf, srv_sort_buf_size,
-					   crypt_buf, ofs, space)) {
+					   crypt_buf, ofs)) {
 			return (FALSE);
 		}
 
@@ -1150,7 +1142,7 @@ row_merge_write(
 		if (!log_tmp_block_encrypt(static_cast<const byte*>(buf),
 					   buf_len,
 					   static_cast<byte*>(crypt_buf),
-					   ofs, space)) {
+					   ofs)) {
 			return false;
 		}
 
@@ -2036,11 +2028,8 @@ end_of_index:
 
 				block = page_cur_get_block(cur);
 				block = btr_block_get(
-					page_id_t(block->page.id.space(),
-						  next_page_no),
-					block->zip_size(),
-					BTR_SEARCH_LEAF,
-					clust_index, &mtr);
+					*clust_index, next_page_no,
+					RW_S_LATCH, false, &mtr);
 
 				btr_leaf_page_release(page_cur_get_block(cur),
 						      BTR_SEARCH_LEAF, &mtr);
@@ -2567,6 +2556,7 @@ write_buffers:
 							BTR_SEARCH_LEAF, &pcur,
 							&mtr);
 						buf = row_merge_buf_empty(buf);
+						merge_buf[i] = buf;
 						/* Restart the outer loop on the
 						record. We did not insert it
 						into any index yet. */
@@ -2692,6 +2682,7 @@ write_buffers:
 				}
 			}
 			merge_buf[i] = row_merge_buf_empty(buf);
+			buf = merge_buf[i];
 
 			if (UNIV_LIKELY(row != NULL)) {
 				/* Try writing the record again, now
@@ -2869,8 +2860,7 @@ wait_again:
 	if (max_doc_id && err == DB_SUCCESS) {
 		/* Sync fts cache for other fts indexes to keep all
 		fts indexes consistent in sync_doc_id. */
-		err = fts_sync_table(const_cast<dict_table_t*>(new_table),
-				     false, true, false);
+		err = fts_sync_table(const_cast<dict_table_t*>(new_table));
 
 		if (err == DB_SUCCESS) {
 			fts_update_next_doc_id(NULL, new_table, max_doc_id);
@@ -4637,7 +4627,7 @@ row_merge_build_indexes(
 
 	if (log_tmp_is_encrypted()) {
 		crypt_block = static_cast<row_merge_block_t*>(
-			alloc.allocate_large(block_size + WOLFSSL_PAD_SIZE,
+			alloc.allocate_large(block_size,
 					     &crypt_pfx));
 
 		if (crypt_block == NULL) {
@@ -4693,6 +4683,7 @@ row_merge_build_indexes(
 			created */
 			if (!row_fts_psort_info_init(
 					trx, dup, new_table, opt_doc_id_size,
+					old_table->space->zip_size(),
 					&psort_info, &merge_info)) {
 				error = DB_CORRUPTION;
 				goto func_exit;
@@ -5008,7 +4999,7 @@ func_exit:
 
 	if (crypt_block) {
 		alloc.deallocate_large(crypt_block, &crypt_pfx,
-				       block_size + WOLFSSL_PAD_SIZE);
+				       block_size);
 	}
 
 	DICT_TF2_FLAG_UNSET(new_table, DICT_TF2_FTS_ADD_DOC_ID);

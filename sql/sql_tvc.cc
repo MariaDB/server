@@ -386,9 +386,10 @@ bool table_value_constr::exec(SELECT_LEX *sl)
 
   while ((elem= li++))
   {
-    if (send_records >= sl->master_unit()->select_limit_cnt)
+    if (send_records >= sl->master_unit()->lim.get_select_limit())
       break;
-    int rc= result->send_data(*elem);
+    int rc=
+      result->send_data_with_check(*elem, sl->master_unit(), send_records);
     if (!rc)
       send_records++;
     else if (rc > 0)
@@ -599,8 +600,8 @@ static bool create_tvc_name(THD *thd, st_select_lex *parent_select,
 
 bool table_value_constr::to_be_wrapped_as_with_tail()
 {
-  return select_lex->master_unit()->first_select()->next_select() &&
-         select_lex->order_list.elements && select_lex->explicit_limit;
+  return  select_lex->master_unit()->first_select()->next_select() &&
+          select_lex->order_list.elements && select_lex->explicit_limit;
 }
 
 
@@ -751,6 +752,7 @@ st_select_lex *wrap_tvc_with_tail(THD *thd, st_select_lex *tvc_sl)
   {
     wrapper_sl->master_unit()->union_distinct= wrapper_sl;
   }
+  wrapper_sl->distinct= tvc_sl->distinct;
   thd->lex->current_select= wrapper_sl;
   return wrapper_sl;
 }
@@ -971,7 +973,8 @@ bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
   if (args[1]->type() == Item::ROW_ITEM)
     values_count*= ((Item_row *)(args[1]))->cols();
 
-  if (values_count < thd->variables.in_subquery_conversion_threshold)
+  if (thd->variables.in_subquery_conversion_threshold == 0 ||
+      thd->variables.in_subquery_conversion_threshold > values_count)
     return false;
 
   return true;

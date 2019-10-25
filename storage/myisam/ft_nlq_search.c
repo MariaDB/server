@@ -77,13 +77,13 @@ static int walk_and_match(FT_WORD *word, uint32 count, ALL_IN_ONE *aio)
   uint         extra= HA_FT_WLEN + info->s->rec_reflength;
   float tmp_weight;
   DBUG_ENTER("walk_and_match");
-  LINT_INIT_STRUCT(subkeys);
 
   word->weight=LWS_FOR_QUERY;
 
   keylen=_ft_make_key(info,aio->keynr,keybuff,word,0);
   keylen-=HA_FT_WLEN;
   doc_cnt=0;
+  subkeys.i= 0;
 
   if (share->concurrent_insert)
     mysql_rwlock_rdlock(&share->key_root_lock[aio->keynr]);

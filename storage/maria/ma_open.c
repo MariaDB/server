@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -715,6 +716,12 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 	disk_pos=_ma_keydef_read(disk_pos, keyinfo);
         keyinfo->key_nr= i;
 
+        /* Calculate length to store a key + nod flag and transaction info */
+        keyinfo->max_store_length= (keyinfo->maxlength +
+                                    share->base.key_reflength);
+        if (share->base.born_transactional)
+          keyinfo->max_store_length+= MARIA_INDEX_OVERHEAD_SIZE;
+
         /* See ma_delete.cc::underflow() */
         if (!(keyinfo->flag & (HA_BINARY_PACK_KEY | HA_PACK_KEY)))
           keyinfo->underflow_block_length= keyinfo->block_length/3;
@@ -1169,6 +1176,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     mysql_mutex_unlock(&THR_LOCK_maria);
 
   m_info->open_flags= open_flags;
+  m_info->stack_end_ptr= &my_thread_var->stack_ends_here;
   DBUG_PRINT("exit", ("table: %p  name: %s",m_info, name));
   DBUG_RETURN(m_info);
 
@@ -1502,7 +1510,7 @@ uint _ma_state_info_write(MARIA_SHARE *share, uint pWrite)
       is too new). Recovery does it by itself.
     */
     share->state.is_of_horizon= translog_get_horizon();
-    DBUG_PRINT("info", ("is_of_horizon set to LSN " LSN_FMT,
+    DBUG_PRINT("info", ("is_of_horizon set to LSN " LSN_FMT "",
                         LSN_IN_PARTS(share->state.is_of_horizon)));
   }
   res= _ma_state_info_write_sub(share->kfile.file, &share->state, pWrite);

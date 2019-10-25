@@ -52,7 +52,7 @@ drop table supported_types;
 create table various_cases (
   a char(150) charset ascii,
   b varchar(150) as (a) virtual,
-  c varchar(150) as (a) persistent
+  c char(150) as (a) persistent
 ) engine=innodb;
 
 alter table various_cases
@@ -70,7 +70,7 @@ alter table various_cases
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table various_cases
-  change c c varchar(150) as (a) persistent,
+  change c c char(150) as (a) persistent,
   algorithm=inplace;
 
 # Can not grow storage in bytes from CHAR

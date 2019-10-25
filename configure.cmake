@@ -437,8 +437,6 @@ SET(CMAKE_REQUIRED_FLAGS)
 CHECK_INCLUDE_FILES(time.h HAVE_TIME_H)
 CHECK_INCLUDE_FILES(sys/time.h HAVE_SYS_TIME_H)
 CHECK_INCLUDE_FILES(sys/times.h HAVE_SYS_TIMES_H)
-CHECK_INCLUDE_FILES(asm/msr.h HAVE_ASM_MSR_H)
-#msr.h has rdtscll()
 
 CHECK_INCLUDE_FILES(ia64intrin.h HAVE_IA64INTRIN_H)
 
@@ -452,9 +450,6 @@ CHECK_FUNCTION_EXISTS(ftime HAVE_FTIME)
 
 CHECK_FUNCTION_EXISTS(time HAVE_TIME)
 # We can use time() on Macintosh if there is no ftime().
-
-CHECK_FUNCTION_EXISTS(rdtscll HAVE_RDTSCLL)
-# I doubt that we'll ever reach the check for this.
 
 
 #
@@ -753,32 +748,6 @@ IF(NOT C_HAS_inline)
   ENDIF()
 ENDIF()
 
-IF(NOT CMAKE_CROSSCOMPILING AND NOT MSVC)
-  STRING(TOLOWER ${CMAKE_SYSTEM_PROCESSOR}  processor)
-  IF(processor MATCHES "86" OR processor MATCHES "amd64" OR processor MATCHES "x64")
-  #Check for x86 PAUSE instruction
-  # We have to actually try running the test program, because of a bug
-  # in Solaris on x86_64, where it wrongly reports that PAUSE is not
-  # supported when trying to run an application.  See
-  # http://bugs.opensolaris.org/bugdatabase/printableBug.do?bug_id=6478684
-  CHECK_C_SOURCE_RUNS("
-  int main()
-  { 
-    __asm__ __volatile__ (\"pause\"); 
-    return 0;
-  }"  HAVE_PAUSE_INSTRUCTION)
-  ENDIF()
-  IF (NOT HAVE_PAUSE_INSTRUCTION)
-    CHECK_C_SOURCE_COMPILES("
-    int main()
-    {
-     __asm__ __volatile__ (\"rep; nop\");
-     return 0;
-    }
-   " HAVE_FAKE_PAUSE_INSTRUCTION)
-  ENDIF()
-ENDIF()
-  
 CHECK_SYMBOL_EXISTS(tcgetattr "termios.h" HAVE_TCGETATTR 1)
 
 #
@@ -890,30 +859,6 @@ SET(SIGNAL_WITH_VIO_CLOSE 1)
 MARK_AS_ADVANCED(NO_ALARM)
 
 
-CHECK_CXX_SOURCE_COMPILES("
-int main()
-{
-  int foo= -10; int bar= 10;
-  long long int foo64= -10; long long int bar64= 10;
-  if (!__sync_fetch_and_add(&foo, bar) || foo)
-    return -1;
-  bar= __sync_lock_test_and_set(&foo, bar);
-  if (bar || foo != 10)
-    return -1;
-  bar= __sync_val_compare_and_swap(&bar, foo, 15);
-  if (bar)
-    return -1;
-  if (!__sync_fetch_and_add(&foo64, bar64) || foo64)
-    return -1;
-  bar64= __sync_lock_test_and_set(&foo64, bar64);
-  if (bar64 || foo64 != 10)
-    return -1;
-  bar64= __sync_val_compare_and_swap(&bar64, foo, 15);
-  if (bar64)
-    return -1;
-  return 0;
-}"
-HAVE_GCC_ATOMIC_BUILTINS)
 CHECK_CXX_SOURCE_COMPILES("
 int main()
 {

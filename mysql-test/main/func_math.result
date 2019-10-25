@@ -296,7 +296,7 @@ format(t2.f2-t2.f1+1,0)
 10,000
 10,000
 drop table t1, t2;
-set names default;
+set names latin1;
 select cast(-2 as unsigned), 18446744073709551614, -2;
 cast(-2 as unsigned)	18446744073709551614	-2
 18446744073709551614	18446744073709551614	-2
@@ -815,6 +815,64 @@ INSERT INTO t1 VALUES (1),(2);
 SELECT STDDEV_SAMP(ROUND('0', 309)) FROM t1;
 STDDEV_SAMP(ROUND('0', 309))
 0
+DROP TABLE t1;
+#
+# MDEV-20495 Assertion `precision > 0' failed in decimal_bin_size upon CREATE .. SELECT with zerofilled decimal
+#
+# Testing that dyadic arithmetic operations are symmetric
+# for (+1) and (-1) and produce the same length in CONCAT(),
+# because (+1) and (-1) have the same data type: signed int.
+CREATE TABLE t1 AS SELECT
+CONCAT(+1%2.0),
+CONCAT(-1%2.0),
+CONCAT(+1/2.0),
+CONCAT(-1/2.0),
+CONCAT(+1*2.0),
+CONCAT(-1*2.0),
+CONCAT(+1+2.0),
+CONCAT(-1+2.0),
+CONCAT(+1-2.0),
+CONCAT(-1-2.0);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CONCAT(+1%2.0)` varchar(4) DEFAULT NULL,
+  `CONCAT(-1%2.0)` varchar(4) DEFAULT NULL,
+  `CONCAT(+1/2.0)` varchar(8) DEFAULT NULL,
+  `CONCAT(-1/2.0)` varchar(8) DEFAULT NULL,
+  `CONCAT(+1*2.0)` varchar(5) DEFAULT NULL,
+  `CONCAT(-1*2.0)` varchar(5) DEFAULT NULL,
+  `CONCAT(+1+2.0)` varchar(5) DEFAULT NULL,
+  `CONCAT(-1+2.0)` varchar(5) DEFAULT NULL,
+  `CONCAT(+1-2.0)` varchar(5) DEFAULT NULL,
+  `CONCAT(-1-2.0)` varchar(5) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+CONCAT(+1%2),
+CONCAT(-1%2),
+CONCAT(+1/2),
+CONCAT(-1/2),
+CONCAT(+1*2),
+CONCAT(-1*2),
+CONCAT(+1+2),
+CONCAT(-1+2),
+CONCAT(+1-2),
+CONCAT(-1-2);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CONCAT(+1%2)` varchar(2) DEFAULT NULL,
+  `CONCAT(-1%2)` varchar(2) DEFAULT NULL,
+  `CONCAT(+1/2)` varchar(7) DEFAULT NULL,
+  `CONCAT(-1/2)` varchar(7) DEFAULT NULL,
+  `CONCAT(+1*2)` varchar(3) DEFAULT NULL,
+  `CONCAT(-1*2)` varchar(3) DEFAULT NULL,
+  `CONCAT(+1+2)` varchar(3) DEFAULT NULL,
+  `CONCAT(-1+2)` varchar(3) DEFAULT NULL,
+  `CONCAT(+1-2)` varchar(3) DEFAULT NULL,
+  `CONCAT(-1-2)` varchar(3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
 # End of 5.5 tests

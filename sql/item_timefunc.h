@@ -191,7 +191,7 @@ public:
     return get_date_from_int(thd, ltime, fuzzydate);
   }
   const char *func_name() const { return "month"; }
-  const Type_handler *type_handler() const { return &type_handler_long; }
+  const Type_handler *type_handler() const { return &type_handler_slong; }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -467,7 +467,7 @@ public:
   {
     return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
-  const Type_handler *type_handler() const { return &type_handler_long; }
+  const Type_handler *type_handler() const { return &type_handler_slong; }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -980,8 +980,8 @@ class Item_extract :public Item_int_func,
                                                    uint32 threashold)
   {
     if (length >= threashold)
-      return &type_handler_longlong;
-    return &type_handler_long;
+      return &type_handler_slonglong;
+    return &type_handler_slong;
   }
   void set_date_length(uint32 length)
   {
@@ -1012,7 +1012,7 @@ class Item_extract :public Item_int_func,
   const interval_type int_type; // keep it public
   Item_extract(THD *thd, interval_type type_arg, Item *a):
     Item_int_func(thd, a),
-    Type_handler_hybrid_field_type(&type_handler_longlong),
+    Type_handler_hybrid_field_type(&type_handler_slonglong),
     m_date_mode(date_mode_t(0)),
     int_type(type_arg)
   { }
@@ -1074,14 +1074,16 @@ class Item_extract :public Item_int_func,
 };
 
 
-class Item_char_typecast :public Item_str_func
+class Item_char_typecast :public Item_handled_func
 {
   uint cast_length;
   CHARSET_INFO *cast_cs, *from_cs;
   bool charset_conversion;
   String tmp_value;
   bool m_suppress_warning_to_error_escalation;
+public:
   bool has_explicit_length() const { return cast_length != ~0U; }
+private:
   String *reuse(String *src, size_t length);
   String *copy(String *src, CHARSET_INFO *cs);
   uint adjusted_length_with_warn(uint length);
@@ -1092,20 +1094,18 @@ public:
   uint get_cast_length() const { return cast_length; }
 public:
   Item_char_typecast(THD *thd, Item *a, uint length_arg, CHARSET_INFO *cs_arg):
-    Item_str_func(thd, a), cast_length(length_arg), cast_cs(cs_arg),
+    Item_handled_func(thd, a), cast_length(length_arg), cast_cs(cs_arg),
     m_suppress_warning_to_error_escalation(false) {}
   enum Functype functype() const { return CHAR_TYPECAST_FUNC; }
   bool eq(const Item *item, bool binary_cmp) const;
   const char *func_name() const { return "cast_as_char"; }
   CHARSET_INFO *cast_charset() const { return cast_cs; }
-  String *val_str(String *a);
+  String *val_str_generic(String *a);
+  String *val_str_binary_from_native(String *a);
   void fix_length_and_dec_generic();
   void fix_length_and_dec_numeric();
-  void fix_length_and_dec_str()
-  {
-    fix_length_and_dec_generic();
-    m_suppress_warning_to_error_escalation= true;
-  }
+  void fix_length_and_dec_str();
+  void fix_length_and_dec_native_to_binary(uint32 octet_length);
   bool fix_length_and_dec()
   {
     return args[0]->type_handler()->Item_char_typecast_fix_length_and_dec(this);
@@ -1170,6 +1170,7 @@ public:
     return args[0]->type_handler()->
            Item_time_typecast_fix_length_and_dec(this);
   }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_time_typecast>(thd, this); }
 };
@@ -1191,6 +1192,7 @@ public:
     return args[0]->type_handler()->
            Item_datetime_typecast_fix_length_and_dec(this);
   }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_datetime_typecast>(thd, this); }
 };

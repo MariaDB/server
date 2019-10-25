@@ -828,8 +828,8 @@ int ha_tina::find_current_row(uchar *buf)
         Thus, for enums we silence the warning, as it doesn't really mean
         an invalid value.
       */
-      if ((*field)->store(buffer.ptr(), buffer.length(), buffer.charset(),
-                          is_enum ? CHECK_FIELD_IGNORE : CHECK_FIELD_WARN))
+      if ((*field)->store_text(buffer.ptr(), buffer.length(), buffer.charset(),
+                               is_enum ? CHECK_FIELD_IGNORE : CHECK_FIELD_WARN))
       {
         if (!is_enum)
           goto err;
@@ -1003,7 +1003,7 @@ int ha_tina::close(void)
   of the file and appends the data. In an error case it really should
   just truncate to the original position (this is not done yet).
 */
-int ha_tina::write_row(uchar * buf)
+int ha_tina::write_row(const uchar * buf)
 {
   int size;
   DBUG_ENTER("ha_tina::write_row");

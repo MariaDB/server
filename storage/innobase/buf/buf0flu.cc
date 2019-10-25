@@ -788,7 +788,9 @@ buf_flush_init_for_writing(
 	ut_ad(block == NULL || block->frame == page);
 	ut_ad(block == NULL || page_zip_ == NULL
 	      || &block->page.zip == page_zip_);
+	ut_ad(!block || newest_lsn);
 	ut_ad(page);
+	ut_ad(!newest_lsn || fil_page_get_type(page));
 
 	if (page_zip_) {
 		page_zip_des_t*	page_zip;
@@ -835,7 +837,7 @@ buf_flush_init_for_writing(
 
 	if (use_full_checksum) {
 		mach_write_to_4(page + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
-				(ulint) newest_lsn);
+				static_cast<uint32_t>(newest_lsn));
 	} else {
 		mach_write_to_8(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
 				newest_lsn);
@@ -2405,7 +2407,7 @@ page_cleaner_flush_pages_recommendation(
 	if (prev_lsn == 0) {
 		/* First time around. */
 		prev_lsn = cur_lsn;
-		prev_time = ut_time();
+		prev_time = time(NULL);
 		return(0);
 	}
 
@@ -2415,7 +2417,7 @@ page_cleaner_flush_pages_recommendation(
 
 	sum_pages += last_pages_in;
 
-	time_t	curr_time = ut_time();
+	time_t	curr_time = time(NULL);
 	double	time_elapsed = difftime(curr_time, prev_time);
 
 	/* We update our variables every srv_flushing_avg_loops

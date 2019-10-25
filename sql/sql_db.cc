@@ -1089,7 +1089,7 @@ exit:
   if (unlikely(thd->db.str && cmp_db_names(&thd->db, db) && !error))
   {
     mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
-    SESSION_TRACKER_CHANGED(thd, CURRENT_SCHEMA_TRACKER, NULL);
+    thd->session_tracker.current_schema.mark_as_changed(thd);
   }
   my_dirend(dirp);
   DBUG_RETURN(error);
@@ -1650,8 +1650,8 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
   mysql_change_db_impl(thd, &new_db_file_name, db_access, db_default_cl);
 
 done:
-  SESSION_TRACKER_CHANGED(thd, CURRENT_SCHEMA_TRACKER, NULL);
-  SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+  thd->session_tracker.current_schema.mark_as_changed(thd);
+  thd->session_tracker.state_change.mark_as_changed(thd);
   DBUG_RETURN(0);
 }
 

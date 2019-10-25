@@ -243,9 +243,6 @@ void yy_init_buffer YY_PROTO(( YY_BUFFER_STATE b, FILE *file ));
 static int yy_start_stack_ptr = 0;
 static int yy_start_stack_depth = 0;
 static int *yy_start_stack = 0;
-static void yy_push_state YY_PROTO(( int new_state ));
-static void yy_pop_state YY_PROTO(( void ));
-static int yy_top_state YY_PROTO(( void ));
 
 static void *yy_flex_alloc YY_PROTO(( unsigned int ));
 static void *yy_flex_realloc YY_PROTO(( void *, unsigned int ));
@@ -1266,6 +1263,7 @@ FILE *file;
   }
 
 
+#ifdef NOT_USED
 #ifdef YY_USE_PROTOS
 static void yy_push_state( int new_state )
 #else
@@ -1297,7 +1295,6 @@ int new_state;
   BEGIN(new_state);
   }
 
-
 static void yy_pop_state()
   {
   if ( --yy_start_stack_ptr < 0 )
@@ -1311,6 +1308,7 @@ static int yy_top_state()
   {
   return yy_start_stack[yy_start_stack_ptr - 1];
   }
+#endif /* NOT_USED */
 
 
 #ifdef YY_USE_PROTOS

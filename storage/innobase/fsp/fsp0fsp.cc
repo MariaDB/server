@@ -1644,12 +1644,10 @@ fsp_alloc_seg_inode(
 /** Frees a file segment inode.
 @param[in,out]	space		tablespace
 @param[in,out]	inode		segment inode
-@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
 @param[in,out]	mtr		mini-transaction */
 static void fsp_free_seg_inode(
 	fil_space_t*		space,
 	fseg_inode_t*		inode,
-	bool			log,
 	mtr_t*			mtr)
 {
 	page_t*		page;
@@ -1688,7 +1686,7 @@ static void fsp_free_seg_inode(
 		flst_remove(space_header + FSP_SEG_INODES_FREE,
 			    page + FSEG_INODE_PAGE_NODE, mtr);
 
-		fsp_free_page(space, page_get_page_no(page), log, mtr);
+		fsp_free_page(space, page_get_page_no(page), true, mtr);
 	}
 }
 
@@ -1971,7 +1969,7 @@ fseg_create(
 		ut_ad(!has_done_reservation || block != NULL);
 
 		if (block == NULL) {
-			fsp_free_seg_inode(space, inode, true, mtr);
+			fsp_free_seg_inode(space, inode, mtr);
 			goto funct_exit;
 		}
 
@@ -2758,7 +2756,6 @@ fseg_free_page_low(
 	ulint	state;
 	ib_id_t	descr_id;
 	ib_id_t	seg_id;
-	ulint	i;
 
 	ut_ad(seg_inode != NULL);
 	ut_ad(mtr != NULL);
@@ -2794,7 +2791,7 @@ fseg_free_page_low(
 	if (state != XDES_FSEG) {
 		/* The page is in the fragment pages of the segment */
 
-		for (i = 0;; i++) {
+		for (ulint i = 0;; i++) {
 			if (fseg_get_nth_frag_page_no(seg_inode, i, mtr)
 			    == offset) {
 
@@ -2954,7 +2951,6 @@ fseg_free_extent(
 	xdes_t*	descr;
 	ulint	not_full_n_used;
 	ulint	descr_n_used;
-	ulint	i;
 
 	ut_ad(mtr != NULL);
 
@@ -2970,7 +2966,7 @@ fseg_free_extent(
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (ahi) {
-		for (i = 0; i < FSP_EXTENT_SIZE; i++) {
+		for (ulint i = 0; i < FSP_EXTENT_SIZE; i++) {
 			if (!xdes_mtr_get_bit(descr, XDES_FREE_BIT, i, mtr)) {
 
 				/* Drop search system page hash index
@@ -3008,7 +3004,7 @@ fseg_free_extent(
 	fsp_free_extent(space, page, mtr);
 
 #ifdef UNIV_DEBUG
-	for (i = 0; i < FSP_EXTENT_SIZE; i++) {
+	for (ulint i = 0; i < FSP_EXTENT_SIZE; i++) {
 
 		buf_page_set_file_page_was_freed(
 			page_id_t(space->id, first_page_in_extent + i));
@@ -3085,7 +3081,7 @@ fseg_free_step_func(
 
 	if (n == ULINT_UNDEFINED) {
 		/* Freeing completed: free the segment inode */
-		fsp_free_seg_inode(space, inode, true, mtr);
+		fsp_free_seg_inode(space, inode, mtr);
 
 		DBUG_RETURN(TRUE);
 	}
@@ -3099,7 +3095,7 @@ fseg_free_step_func(
 
 	if (n == ULINT_UNDEFINED) {
 		/* Freeing completed: free the segment inode */
-		fsp_free_seg_inode(space, inode, true, mtr);
+		fsp_free_seg_inode(space, inode, mtr);
 
 		DBUG_RETURN(TRUE);
 	}

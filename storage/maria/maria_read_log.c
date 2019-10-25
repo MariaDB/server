@@ -302,11 +302,10 @@ static uchar* my_hash_get_string(const uchar *record, size_t *length,
 
 
 static my_bool
-get_one_option(int optid __attribute__((unused)),
-               const struct my_option *opt __attribute__((unused)),
-               char *argument)
+get_one_option(const struct my_option *opt,
+               char *argument, const char *filename __attribute__((unused)))
 {
-  switch (optid) {
+  switch (opt->id) {
   case '?':
     usage();
     exit(0);

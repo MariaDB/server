@@ -137,7 +137,8 @@ purge_graph_build()
 
 	trx_t* trx = trx_create();
 	ut_ad(!trx->id);
-	trx->start_time = ut_time();
+	trx->start_time = time(NULL);
+	trx->start_time_micro = microsecond_interval_timer();
 	trx->state = TRX_STATE_ACTIVE;
 	trx->op_info = "purge trx";
 
@@ -251,7 +252,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	/* After the purge thread has been given permission to exit,
 	we may roll back transactions (trx->undo_no==0)
 	in THD::cleanup() invoked from unlink_thd() in fast shutdown,
-	or in trx_rollback_resurrected() in slow shutdown.
+	or in trx_rollback_recovered() in slow shutdown.
 
 	Before any transaction-generating background threads or the
 	purge have been started, recv_recovery_rollback_active() can
@@ -1277,7 +1278,12 @@ trx_purge(
 /*======*/
 	ulint	n_purge_threads,	/*!< in: number of purge tasks
 					to submit to the work queue */
-	bool	truncate)		/*!< in: truncate history if true */
+	bool	truncate		/*!< in: truncate history if true */
+#ifdef UNIV_DEBUG
+	, srv_slot_t *slot		/*!< in/out: purge coordinator
+					thread slot */
+#endif
+)
 {
 	que_thr_t*	thr = NULL;
 	ulint		n_pages_handled;
@@ -1312,6 +1318,7 @@ trx_purge(
 
 	thr = que_fork_scheduler_round_robin(purge_sys.query, thr);
 
+	ut_d(thr->thread_slot = slot);
 	que_run_threads(thr);
 
 	trx_purge_wait_for_workers_to_complete();

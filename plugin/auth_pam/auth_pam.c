@@ -17,6 +17,8 @@
 
 #include <unistd.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <mysql/plugin_auth.h>
 #include "auth_pam_tool.h"
 #include <my_global.h>
@@ -38,7 +40,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
   int p_to_c[2], c_to_p[2]; /* Parent-to-child and child-to-parent pipes. */
   pid_t proc_id;
-  int result= CR_ERROR, pkt_len;
+  int result= CR_ERROR, pkt_len= 0;
   unsigned char field, *pkt;
 
   PAM_DEBUG((stderr, "PAM: opening pipes.\n"));
@@ -101,7 +103,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   /* no user name yet ? read the client handshake packet with the user name */
   if (info->user_name == 0)
   {
-    if ((pkt_len= vio->read_packet(vio, &pkt) < 0))
+    if ((pkt_len= vio->read_packet(vio, &pkt)) < 0)
       return CR_ERROR;
   }
   else
@@ -157,7 +159,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
         if ((buf_len= read_string(c_to_p[0], (char *) buf, sizeof(buf))) < 0)
           goto error_ret;
 
-        if (!pkt || (buf[0] >> 1) != 2)
+        if (!pkt || !*pkt || (buf[0] >> 1) != 2)
         {
           PAM_DEBUG((stderr, "PAM: sending CONV string.\n"));
           if (vio->write_packet(vio, buf, buf_len))
@@ -186,6 +188,7 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 error_ret:
   close(p_to_c[1]);
   close(c_to_p[0]);
+  waitpid(proc_id, NULL, WNOHANG);
 
   PAM_DEBUG((stderr, "PAM: auth result %d.\n", result));
   return result;
@@ -218,6 +221,6 @@ maria_declare_plugin(pam)
   NULL,
   vars,
   "2.0",
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;

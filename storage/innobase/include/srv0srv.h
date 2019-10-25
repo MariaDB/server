@@ -189,6 +189,12 @@ struct srv_stats_t
 	/** Number of spaces in keyrotation list */
 	ulint_ctr_64_t		key_rotation_list_length;
 
+	/** Number of temporary tablespace blocks encrypted */
+	ulint_ctr_64_t		n_temp_blocks_encrypted;
+
+	/** Number of temporary tablespace blocks decrypted */
+	ulint_ctr_64_t		n_temp_blocks_decrypted;
+
 	/** Number of lock deadlocks */
 	ulint_ctr_1_t		lock_deadlock_count;
 };
@@ -251,7 +257,7 @@ recovery and open all tables in RO mode instead of RW mode. We don't
 sync the max trx id to disk either. */
 extern my_bool	srv_read_only_mode;
 /** Set if InnoDB operates in read-only mode or innodb-force-recovery
-is greater than SRV_FORCE_NO_TRX_UNDO. */
+is greater than SRV_FORCE_NO_IBUF_MERGE. */
 extern my_bool	high_level_read_only;
 /** store to its own file each table created by an user; data
 dictionary tables are in the system tablespace 0 */
@@ -472,6 +478,9 @@ extern ulong	srv_max_purge_lag;
 extern ulong	srv_max_purge_lag_delay;
 
 extern ulong	srv_replication_delay;
+
+extern my_bool	innodb_encrypt_temporary_tables;
+
 /*-------------------------------------------*/
 
 /** Modes of operation */
@@ -525,11 +534,8 @@ extern ulint	srv_main_idle_loops;
 /** Log writes involving flush. */
 extern ulint	srv_log_writes_and_flush;
 
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-extern my_bool	srv_ibuf_disable_background_merge;
-#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
-
 #ifdef UNIV_DEBUG
+extern my_bool	innodb_evict_tables_on_commit_debug;
 extern my_bool	srv_sync_debug;
 extern my_bool	srv_purge_view_update_only_debug;
 
@@ -584,6 +590,8 @@ extern ulong	srv_fatal_semaphore_wait_threshold;
 /** Buffer pool dump status frequence in percentages */
 extern ulong srv_buf_dump_status_frequency;
 
+#define srv_max_purge_threads 32
+
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 extern mysql_pfs_key_t	buf_dump_thread_key;
@@ -625,11 +633,11 @@ do {								\
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Performance schema stage event for monitoring ALTER TABLE progress
-everything after flush log_make_checkpoint_at(). */
+everything after flush log_make_checkpoint(). */
 extern PSI_stage_info	srv_stage_alter_table_end;
 
 /** Performance schema stage event for monitoring ALTER TABLE progress
-log_make_checkpoint_at(). */
+log_make_checkpoint(). */
 extern PSI_stage_info	srv_stage_alter_table_flush;
 
 /** Performance schema stage event for monitoring ALTER TABLE progress
@@ -1038,6 +1046,12 @@ struct export_var_t{
 	/*!< Number of row log blocks decrypted */
 	ib_int64_t innodb_n_rowlog_blocks_decrypted;
 
+	/* Number of temporary tablespace pages encrypted */
+	ib_int64_t innodb_n_temp_blocks_encrypted;
+
+	/* Number of temporary tablespace pages decrypted */
+	ib_int64_t innodb_n_temp_blocks_decrypted;
+
 	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
 	ulint innodb_sec_rec_cluster_reads_avoided;/*!< srv_sec_rec_cluster_reads_avoided */
 
@@ -1067,10 +1081,14 @@ struct srv_slot_t{
 	ibool		suspended;		/*!< TRUE if the thread is
 						waiting for the event of this
 						slot */
-	ib_time_t	suspend_time;		/*!< time when the thread was
-						suspended. Initialized by
-						lock_wait_table_reserve_slot()
-						for lock wait */
+ 	/** time(NULL) when the thread was suspended.
+ 	FIXME: Use my_interval_timer() or similar, to avoid bogus
+ 	timeouts in lock_wait_check_and_cancel() or lock_wait_suspend_thread()
+	when the system time is adjusted to the past!
+
+	FIXME: This is duplicating trx_lock_t::wait_started,
+	which is being used for diagnostic purposes only. */
+	time_t		suspend_time;
 	ulong		wait_timeout;		/*!< wait time that if exceeded
 						the thread will be timed out.
 						Initialized by
@@ -1081,7 +1099,22 @@ struct srv_slot_t{
 						to do */
 	que_thr_t*	thr;			/*!< suspended query thread
 						(only used for user threads) */
+#ifdef UNIV_DEBUG
+	struct debug_sync_t {
+		UT_LIST_NODE_T(debug_sync_t) debug_sync_list;
+	};
+	UT_LIST_BASE_NODE_T(debug_sync_t) debug_sync;
+	rw_lock_t debug_sync_lock;
+#endif
 };
+
+#ifdef UNIV_DEBUG
+typedef void srv_slot_callback_t(srv_slot_t*, const void*);
+
+void srv_for_each_thread(srv_thread_type type,
+			 srv_slot_callback_t callback,
+			 const void *arg);
+#endif
 
 #ifdef WITH_WSREP
 UNIV_INTERN

@@ -46,7 +46,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   uint aligned_key_start, block_length, res;
   uint internal_table= flags & HA_CREATE_INTERNAL_TABLE;
   ulong reclength, real_reclength,min_pack_length;
-  char kfilename[FN_REFLEN],klinkname[FN_REFLEN], *klinkname_ptr;
+  char kfilename[FN_REFLEN],klinkname[FN_REFLEN], *klinkname_ptr= 0;
   char dfilename[FN_REFLEN],dlinkname[FN_REFLEN], *dlinkname_ptr= 0;
   ulong pack_reclength;
   ulonglong tot_length,max_rows, tmp;
@@ -611,7 +611,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     klinkname_ptr= klinkname;
     /*
       Don't create the table if the link or file exists to ensure that one
-      doesn't accidently destroy another table.
+      doesn't accidentally destroy another table.
     */
     create_flag=0;
   }

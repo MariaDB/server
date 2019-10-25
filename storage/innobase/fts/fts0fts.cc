@@ -74,8 +74,8 @@ ulong	fts_min_token_size;
 
 
 // FIXME: testing
-static ib_time_t elapsed_time = 0;
-static ulint n_nodes = 0;
+static time_t elapsed_time;
+static ulint n_nodes;
 
 #ifdef FTS_CACHE_SIZE_DEBUG
 /** The cache size permissible lower limit (1K) */
@@ -194,15 +194,13 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	sync		sync state
 @param[in]	unlock_cache	whether unlock cache lock when write node
 @param[in]	wait		whether wait when a sync is in progress
-@param[in]	has_dict	whether has dict operation lock
 @return DB_SUCCESS if all OK */
 static
 dberr_t
 fts_sync(
 	fts_sync_t*	sync,
 	bool		unlock_cache,
-	bool		wait,
-	bool		has_dict);
+	bool		wait);
 
 /****************************************************************//**
 Release all resources help by the words rb tree e.g., the node ilist. */
@@ -461,7 +459,7 @@ fts_load_user_stopword(
 	dberr_t		error = DB_SUCCESS;
 	ibool		ret = TRUE;
 	trx_t*		trx;
-	ibool		has_lock = fts->fts_status & TABLE_DICT_LOCKED;
+	ibool		has_lock = fts->dict_locked;
 
 	trx = trx_create();
 	trx->op_info = "Load user stopword table into FTS cache";
@@ -919,18 +917,16 @@ fts_que_graph_free_check_lock(
 	const fts_index_cache_t*index_cache,	/*!< in: FTS index cache */
 	que_t*			graph)		/*!< in: query graph */
 {
-	ibool	has_dict = FALSE;
+	bool	has_dict = FALSE;
 
 	if (fts_table && fts_table->table) {
 		ut_ad(fts_table->table->fts);
 
-		has_dict = fts_table->table->fts->fts_status
-			 & TABLE_DICT_LOCKED;
+		has_dict = fts_table->table->fts->dict_locked;
 	} else if (index_cache) {
 		ut_ad(index_cache->index->table->fts);
 
-		has_dict = index_cache->index->table->fts->fts_status
-			 & TABLE_DICT_LOCKED;
+		has_dict = index_cache->index->table->fts->dict_locked;
 	}
 
 	if (!has_dict) {
@@ -2782,7 +2778,7 @@ fts_update_sync_doc_id(
 	pars_info_bind_varchar_literal(info, "doc_id", id, id_len);
 
 	fts_get_table_name(&fts_table, fts_name,
-			   table->fts->fts_status & TABLE_DICT_LOCKED);
+			   table->fts->dict_locked);
 	pars_info_bind_id(info, true, "table_name", fts_name);
 
 	graph = fts_parse_sql(
@@ -2896,7 +2892,7 @@ fts_delete(
 	into cache from last crash (delete Doc will not initialize the
 	sync). Avoid any added counter accounting until the FTS cache
 	is re-established and sync-ed */
-	if (table->fts->fts_status & ADDED_TABLE_SYNCED
+	if (table->fts->added_synced
 	    && doc_id > cache->synced_doc_id) {
 		mutex_enter(&table->fts->cache->deleted_lock);
 
@@ -3349,7 +3345,7 @@ fts_add_doc_from_tuple(
 
        ut_ad(cache->get_docs);
 
-       if (!(ftt->table->fts->fts_status & ADDED_TABLE_SYNCED)) {
+       if (!ftt->table->fts->added_synced) {
                fts_init_index(ftt->table, FALSE);
        }
 
@@ -3389,7 +3385,7 @@ fts_add_doc_from_tuple(
 
                        if (cache->total_size > fts_max_cache_size / 5
                            || fts_need_sync) {
-                               fts_sync(cache->sync, true, false, false);
+                               fts_sync(cache->sync, true, false);
                        }
 
                        mtr_start(&mtr);
@@ -3434,7 +3430,7 @@ fts_add_doc_by_id(
 	/* If Doc ID has been supplied by the user, then the table
 	might not yet be sync-ed */
 
-	if (!(ftt->table->fts->fts_status & ADDED_TABLE_SYNCED)) {
+	if (!ftt->table->fts->added_synced) {
 		fts_init_index(ftt->table, FALSE);
 	}
 
@@ -3567,7 +3563,7 @@ fts_add_doc_by_id(
 
 				DBUG_EXECUTE_IF(
 					"fts_instrument_sync_debug",
-					fts_sync(cache->sync, true, true, false);
+					fts_sync(cache->sync, true, true);
 				);
 
 				DEBUG_SYNC_C("fts_instrument_sync_request");
@@ -3826,7 +3822,7 @@ fts_write_node(
 	pars_info_t*	info;
 	dberr_t		error;
 	ib_uint32_t	doc_count;
-	ib_time_t	start_time;
+	time_t		start_time;
 	doc_id_t	last_doc_id;
 	doc_id_t	first_doc_id;
 	char		table_name[MAX_FULL_NAME_LEN];
@@ -3875,9 +3871,9 @@ fts_write_node(
 			"  :last_doc_id, :doc_count, :ilist);");
 	}
 
-	start_time = ut_time();
+	start_time = time(NULL);
 	error = fts_eval_sql(trx, *graph);
-	elapsed_time += ut_time() - start_time;
+	elapsed_time += time(NULL) - start_time;
 	++n_nodes;
 
 	return(error);
@@ -4054,7 +4050,7 @@ fts_sync_begin(
 	n_nodes = 0;
 	elapsed_time = 0;
 
-	sync->start_time = ut_time();
+	sync->start_time = time(NULL);
 
 	sync->trx = trx_create();
 	trx_start_internal(sync->trx);
@@ -4193,7 +4189,7 @@ fts_sync_commit(
 	if (fts_enable_diag_print && elapsed_time) {
 		ib::info() << "SYNC for table " << sync->table->name
 			<< ": SYNC time: "
-			<< (ut_time() - sync->start_time)
+			<< (time(NULL) - sync->start_time)
 			<< " secs: elapsed "
 			<< (double) n_nodes / elapsed_time
 			<< " ins/sec";
@@ -4263,15 +4259,13 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	sync		sync state
 @param[in]	unlock_cache	whether unlock cache lock when write node
 @param[in]	wait		whether wait when a sync is in progress
-@param[in]	has_dict	whether has dict operation lock
 @return DB_SUCCESS if all OK */
 static
 dberr_t
 fts_sync(
 	fts_sync_t*	sync,
 	bool		unlock_cache,
-	bool		wait,
-	bool		has_dict)
+	bool		wait)
 {
 	if (srv_read_only_mode) {
 		return DB_READ_ONLY;
@@ -4303,12 +4297,6 @@ fts_sync(
 
 	DEBUG_SYNC_C("fts_sync_begin");
 	fts_sync_begin(sync);
-
-	/* When sync in background, we hold dict operation lock
-	to prevent DDL like DROP INDEX, etc. */
-	if (has_dict) {
-		sync->trx->dict_operation_lock_mode = RW_S_LATCH;
-	}
 
 begin_sync:
 	if (cache->total_size > fts_max_cache_size) {
@@ -4400,16 +4388,9 @@ end_sync:
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	table		fts table
-@param[in]	unlock_cache	whether unlock cache when write node
 @param[in]	wait		whether wait for existing sync to finish
-@param[in]	has_dict	whether has dict operation lock
 @return DB_SUCCESS on success, error code on failure. */
-dberr_t
-fts_sync_table(
-	dict_table_t*	table,
-	bool		unlock_cache,
-	bool		wait,
-	bool		has_dict)
+dberr_t fts_sync_table(dict_table_t* table, bool wait)
 {
 	dberr_t	err = DB_SUCCESS;
 
@@ -4417,8 +4398,7 @@ fts_sync_table(
 
 	if (table->space && table->fts->cache
 	    && !dict_table_is_corrupted(table)) {
-		err = fts_sync(table->fts->cache->sync,
-			       unlock_cache, wait, has_dict);
+		err = fts_sync(table->fts->cache->sync, !wait, wait);
 	}
 
 	return(err);
@@ -4871,7 +4851,7 @@ fts_init_doc_id(
 		fts_init_index((dict_table_t*) table, TRUE);
 	}
 
-	table->fts->fts_status |= ADDED_TABLE_SYNCED;
+	table->fts->added_synced = true;
 
 	table->fts->cache->first_doc_id = max_doc_id;
 
@@ -5255,67 +5235,6 @@ fts_cache_append_deleted_doc_ids(
 }
 
 /*********************************************************************//**
-Wait for the background thread to start. We poll to detect change
-of state, which is acceptable, since the wait should happen only
-once during startup.
-@return true if the thread started else FALSE (i.e timed out) */
-ibool
-fts_wait_for_background_thread_to_start(
-/*====================================*/
-	dict_table_t*		table,		/*!< in: table to which the thread
-						is attached */
-	ulint			max_wait)	/*!< in: time in microseconds, if
-						set to 0 then it disables
-						timeout checking */
-{
-	ulint			count = 0;
-	ibool			done = FALSE;
-
-	ut_a(max_wait == 0 || max_wait >= FTS_MAX_BACKGROUND_THREAD_WAIT);
-
-	for (;;) {
-		fts_t*		fts = table->fts;
-
-		mutex_enter(&fts->bg_threads_mutex);
-
-		if (fts->fts_status & BG_THREAD_READY) {
-
-			done = TRUE;
-		}
-
-		mutex_exit(&fts->bg_threads_mutex);
-
-		if (!done) {
-			os_thread_sleep(FTS_MAX_BACKGROUND_THREAD_WAIT);
-
-			if (max_wait > 0) {
-
-				max_wait -= FTS_MAX_BACKGROUND_THREAD_WAIT;
-
-				/* We ignore the residual value. */
-				if (max_wait < FTS_MAX_BACKGROUND_THREAD_WAIT) {
-					break;
-				}
-			}
-
-			++count;
-		} else {
-			break;
-		}
-
-		if (count >= FTS_BACKGROUND_THREAD_WAIT_COUNT) {
-			ib::error() << "The background thread for the FTS"
-				" table " << table->name
-				<< " refuses to start";
-
-			count = 0;
-		}
-	}
-
-	return(done);
-}
-
-/*********************************************************************//**
 Add the FTS document id hidden column. */
 void
 fts_add_doc_id_column(
@@ -5397,8 +5316,8 @@ fts_t::fts_t(
 	const dict_table_t*	table,
 	mem_heap_t*		heap)
 	:
+	in_queue(0), added_synced(0), dict_locked(0),
 	bg_threads(0),
-	fts_status(0),
 	add_wq(NULL),
 	cache(NULL),
 	doc_col(ULINT_UNDEFINED),
@@ -5467,42 +5386,6 @@ fts_free(
 
 	table->fts = NULL;
 }
-
-#if 0 // TODO: Enable this in WL#6608
-/*********************************************************************//**
-Signal FTS threads to initiate shutdown. */
-void
-fts_start_shutdown(
-/*===============*/
-	dict_table_t*	table,		/*!< in: table with FTS indexes */
-	fts_t*		fts)		/*!< in: fts instance that needs
-					to be informed about shutdown */
-{
-	mutex_enter(&fts->bg_threads_mutex);
-
-	fts->fts_status |= BG_THREAD_STOP;
-
-	mutex_exit(&fts->bg_threads_mutex);
-
-}
-
-/*********************************************************************//**
-Wait for FTS threads to shutdown. */
-void
-fts_shutdown(
-/*=========*/
-	dict_table_t*	table,		/*!< in: table with FTS indexes */
-	fts_t*		fts)		/*!< in: fts instance to shutdown */
-{
-	mutex_enter(&fts->bg_threads_mutex);
-
-	ut_a(fts->fts_status & BG_THREAD_STOP);
-
-	dict_table_wait_for_bg_threads_to_exit(table, 20000);
-
-	mutex_exit(&fts->bg_threads_mutex);
-}
-#endif
 
 /*********************************************************************//**
 Take a FTS savepoint. */
@@ -7485,7 +7368,7 @@ fts_init_index(
 	}
 	rw_lock_x_unlock(&cache->init_lock);
 
-	if (table->fts->fts_status & ADDED_TABLE_SYNCED) {
+	if (table->fts->added_synced) {
 		goto func_exit;
 	}
 
@@ -7527,7 +7410,7 @@ fts_init_index(
 		}
 	}
 
-	table->fts->fts_status |= ADDED_TABLE_SYNCED;
+	table->fts->added_synced = true;
 
 	fts_get_docs_clear(cache->get_docs);
 

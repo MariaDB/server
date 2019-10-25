@@ -100,26 +100,6 @@ which could result in a deadlock if the OS does not support asynchronous io.
 ulint
 buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf);
 
-/********************************************************************//**
-Issues read requests for pages which the ibuf module wants to read in, in
-order to contract the insert buffer tree. Technically, this function is like
-a read-ahead function. */
-void
-buf_read_ibuf_merge_pages(
-/*======================*/
-	bool		sync,		/*!< in: true if the caller
-					wants this function to wait
-					for the highest address page
-					to get read in, before this
-					function returns */
-	const ulint*	space_ids,	/*!< in: array of space ids */
-	const ulint*	page_nos,	/*!< in: array of page numbers
-					to read, with the highest page
-					number the last in the
-					array */
-	ulint		n_stored);	/*!< in: number of elements
-					in the arrays */
-
 /** Issues read requests for pages which recovery wants to read in.
 @param[in]	sync		true if the caller wants this function to wait
 for the highest address page to get read in, before this function returns

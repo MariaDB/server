@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
+	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /** @file ha_connect.h
 	Author Olivier Bertrand
@@ -388,7 +388,7 @@ virtual int check(THD* thd, HA_CHECK_OPT* check_opt);
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-  int write_row(uchar *buf);
+  int write_row(const uchar *buf);
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;

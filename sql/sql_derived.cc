@@ -1218,13 +1218,12 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     SELECT_LEX *first_select= unit->first_select();
     unit->set_limit(unit->global_parameters());
-    if (unit->select_limit_cnt == HA_POS_ERROR)
+    if (unit->lim.is_unlimited())
       first_select->options&= ~OPTION_FOUND_ROWS;
 
     lex->current_select= first_select;
     res= mysql_select(thd,
                       first_select->table_list.first,
-                      first_select->with_wild,
                       first_select->item_list, first_select->where,
                       (first_select->order_list.elements+
                        first_select->group_list.elements),

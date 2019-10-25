@@ -7,9 +7,9 @@ grant proxy on pam_test to test_pam;
 # note that current_user() differs from user()
 #
 Challenge input first.
-Enter: not very secret challenge
+Enter: *************************
 Now, the magic number!
-PIN: ****
+PIN: 9225
 select user(), current_user(), database();
 user()	current_user()	database()
 test_pam@localhost	pam_test@%	test
@@ -17,9 +17,22 @@ test_pam@localhost	pam_test@%	test
 # athentication is unsuccessful
 #
 Challenge input first.
-Enter: not very secret challenge
+Enter: *************************
 Now, the magic number!
-PIN: ****
+PIN: 9224
+#
+# athentication is successful
+#
+Now, the magic number!
+PIN: 9212
+select user(), current_user(), database();
+user()	current_user()	database()
+test_pam@localhost	pam_test@%	test
+#
+# athentication is unsuccessful
+#
+Now, the magic number!
+PIN: 9212
 drop user test_pam;
 drop user pam_test;
 uninstall plugin pam;

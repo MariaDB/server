@@ -112,8 +112,6 @@ static PROFILE *MRUProfile[N_CACHED_PROFILES] = {NULL};
 
 //static CRITICAL_SECTION PROFILE_CritSect = CRITICAL_SECTION_INIT("PROFILE_CritSect");
 
-static const char hex[17] = "0123456789ABCDEF";
-
 BOOL  WritePrivateProfileString(LPCSTR section, LPCSTR entry,
                                 LPCSTR string, LPCSTR filename);
 

@@ -890,6 +890,37 @@ DROP TABLE t2;
 DROP VIEW v1;
 DROP TABLE t1;
 #
+# MDEV-19699 Server crashes in Item_null_result::field_type upon SELECT with ROLLUP on constant table
+#
+CREATE TABLE t1 (d DATE) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('1999-11-04');
+SELECT d FROM t1 GROUP BY d WITH ROLLUP HAVING d > '1990-01-01';
+d
+1999-11-04
+DROP TABLE t1;
+#
+# MDEV-20431 GREATEST(int_col,date_col) returns wrong results in a view
+#
+CREATE TABLE t1 (pk INT NOT NULL, d DATE NOT NULL);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'2018-06-22'),(2,'2018-07-11');
+SELECT GREATEST(pk, d) FROM t1;
+GREATEST(pk, d)
+2018-06-22
+2018-07-11
+Warnings:
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`pk` at row 1
+Warning	1292	Incorrect datetime value: '2' for column `test`.`t1`.`pk` at row 2
+SELECT GREATEST(pk, d) FROM v1;
+GREATEST(pk, d)
+2018-06-22
+2018-07-11
+Warnings:
+Warning	1292	Incorrect datetime value: '1' for column `test`.`t1`.`pk` at row 1
+Warning	1292	Incorrect datetime value: '2' for column `test`.`t1`.`pk` at row 2
+DROP VIEW v1;
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #
 #
@@ -1024,6 +1055,21 @@ INSERT INTO t2 VALUES (0);
 INSERT INTO t1 SELECT * FROM t2;
 DROP TABLE t1,t2;
 SET sql_mode=DEFAULT;
+#
+# MDEV-19301 Assertion `!is_valid_datetime() || fraction_remainder(((item->decimals) < (6) ? (item->decimals) : (6))) == 0' failed in Datetime_truncation_not_needed::Datetime_truncation_not_needed
+#
+SELECT NULLIF(CAST(1012.5 AS DATE), 1);
+NULLIF(CAST(1012.5 AS DATE), 1)
+2000-10-12
+Warnings:
+Note	1292	Truncated incorrect date value: '1012.5'
+Warning	1292	Truncated incorrect datetime value: '1'
+Note	1292	Truncated incorrect date value: '1012.5'
+SELECT CAST(1012.5 AS DATE) * 1.0;
+CAST(1012.5 AS DATE) * 1.0
+20001012.0
+Warnings:
+Note	1292	Truncated incorrect date value: '1012.5'
 #
 # End of 10.4 tests
 #

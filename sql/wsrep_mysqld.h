@@ -93,6 +93,8 @@ extern ulong       wsrep_trx_fragment_unit;
 extern ulong       wsrep_SR_store_type;
 extern uint        wsrep_ignore_apply_errors;
 extern ulong       wsrep_running_threads;
+extern ulong       wsrep_running_applier_threads;
+extern ulong       wsrep_running_rollbacker_threads;
 extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
@@ -249,14 +251,14 @@ extern wsrep_seqno_t wsrep_locked_seqno;
     } while(0)
 
 #define WSREP_DEBUG(...)                                                \
-    if (wsrep_debug)     WSREP_LOG(sql_print_information, ##__VA_ARGS__)
-#define WSREP_INFO(...)  WSREP_LOG(sql_print_information, ##__VA_ARGS__)
-#define WSREP_WARN(...)  WSREP_LOG(sql_print_warning,     ##__VA_ARGS__)
-#define WSREP_ERROR(...) WSREP_LOG(sql_print_error,       ##__VA_ARGS__)
+    if (wsrep_debug)     sql_print_information( "WSREP: " __VA_ARGS__)
+#define WSREP_INFO(...)  sql_print_information( "WSREP: " __VA_ARGS__)
+#define WSREP_WARN(...)  sql_print_warning(     "WSREP: " __VA_ARGS__)
+#define WSREP_ERROR(...) sql_print_error(       "WSREP: " __VA_ARGS__)
 
 #define WSREP_LOG_CONFLICT_THD(thd, role)                               \
-  WSREP_LOG(sql_print_information,                                      \
-            "%s: \n "                                                   \
+  sql_print_information(                                                \
+            "WSREP: %s: \n "                                            \
             "  THD: %lu, mode: %s, state: %s, conflict: %s, seqno: %lld\n " \
             "  SQL: %s",                                                \
             role,                                                       \
@@ -271,12 +273,12 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 #define WSREP_LOG_CONFLICT(bf_thd, victim_thd, bf_abort)                \
   if (wsrep_debug || wsrep_log_conflicts)                               \
   {                                                                     \
-    WSREP_LOG(sql_print_information, "cluster conflict due to %s for threads:", \
+    sql_print_information( "WSREP: cluster conflict due to %s for threads:", \
               (bf_abort) ? "high priority abort" : "certification failure" \
               );                                                        \
     if (bf_thd)     WSREP_LOG_CONFLICT_THD(bf_thd, "Winning thread");   \
     if (victim_thd) WSREP_LOG_CONFLICT_THD(victim_thd, "Victim thread"); \
-    WSREP_LOG(sql_print_information, "context: %s:%d", __FILE__, __LINE__); \
+    sql_print_information("WSREP: context: %s:%d", __FILE__, __LINE__); \
   }
 
 #define WSREP_PROVIDER_EXISTS                                                  \
@@ -339,7 +341,14 @@ extern PSI_mutex_key key_LOCK_wsrep_thd_queue;
 extern PSI_cond_key  key_COND_wsrep_thd_queue;
 
 extern PSI_file_key key_file_wsrep_gra_log;
+
+extern PSI_thread_key key_wsrep_sst_joiner;
+extern PSI_thread_key key_wsrep_sst_donor;
+extern PSI_thread_key key_wsrep_rollbacker;
+extern PSI_thread_key key_wsrep_applier;
 #endif /* HAVE_PSI_INTERFACE */
+
+
 struct TABLE_LIST;
 class Alter_info;
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
@@ -393,19 +402,27 @@ void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end);
 void thd_binlog_rollback_stmt(THD * thd);
 void thd_binlog_trx_reset(THD * thd);
 
+enum wsrep_thread_type {
+  WSREP_APPLIER_THREAD=1,
+  WSREP_ROLLBACKER_THREAD=2
+};
+
 typedef void (*wsrep_thd_processor_fun)(THD*, void *);
 class Wsrep_thd_args
 {
  public:
- Wsrep_thd_args(wsrep_thd_processor_fun fun, void* args)
+ Wsrep_thd_args(wsrep_thd_processor_fun fun,
+                wsrep_thread_type thread_type,
+                pthread_t thread_id)
    :
   fun_ (fun),
-  args_(args)
+  thread_type_ (thread_type),
+  thread_id_ (thread_id)
   { }
 
   wsrep_thd_processor_fun fun() { return fun_; }
-
-  void* args() { return args_; }
+  pthread_t* thread_id() {return &thread_id_; }
+  enum wsrep_thread_type thread_type() {return thread_type_;}
 
  private:
 
@@ -413,7 +430,8 @@ class Wsrep_thd_args
   Wsrep_thd_args& operator=(const Wsrep_thd_args&);
 
   wsrep_thd_processor_fun fun_;
-  void*                    args_;
+  enum wsrep_thread_type  thread_type_;
+  pthread_t thread_id_;
 };
 
 void* start_wsrep_THD(void*);

@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -260,7 +261,7 @@ const char SPIDER_empty_string = "";
 #define SPIDER_TMP_SHARE_LONG_COUNT         19
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           265
+#define SPIDER_MEM_CALC_LIST_NUM           268
 #define SPIDER_CONN_META_BUF_LEN           64
 
 #define SPIDER_BACKUP_DASTATUS \
@@ -292,6 +293,8 @@ typedef struct st_spider_thread
   volatile bool         killed;
   volatile bool         thd_wait;
   volatile bool         first_free_wait;
+  volatile bool         init_command;
+  volatile int          error;
   pthread_t             thread;
   pthread_cond_t        cond;
   pthread_mutex_t       mutex;
@@ -450,6 +453,7 @@ typedef struct st_spider_conn
   int                autocommit;
   int                sql_log_off;
   int                wait_timeout;
+  sql_mode_t         sql_mode;
   THD                *thd;
   void               *another_ha_first;
   void               *another_ha_last;
@@ -559,6 +563,7 @@ typedef struct st_spider_conn
   bool               queued_wait_timeout;
   bool               queued_autocommit;
   bool               queued_sql_log_off;
+  bool               queued_sql_mode;
   bool               queued_time_zone;
   bool               queued_trx_start;
   bool               queued_xa_start;
@@ -572,6 +577,7 @@ typedef struct st_spider_conn
   int                queued_wait_timeout_val;
   bool               queued_autocommit_val;
   bool               queued_sql_log_off_val;
+  sql_mode_t         queued_sql_mode_val;
   Time_zone          *queued_time_zone_val;
   XID                *queued_xa_start_xid;
 

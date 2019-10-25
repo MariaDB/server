@@ -49,7 +49,7 @@ public:
 		/* No op */
 	}
 
-	~SysTablespace()
+	~SysTablespace() override
 	{
 		shutdown();
 	}

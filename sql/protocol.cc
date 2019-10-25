@@ -461,6 +461,17 @@ bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
   */
   if ((save_compress= net->compress))
     net->compress= 2;
+
+  /*
+    Sometimes, we send errors "out-of-band", e.g ER_CONNECTION_KILLED
+    on an idle connection. The current protocol "sequence number" is 0,
+    however some client drivers would however always   expect packets
+    coming from server to have seq_no > 0, due to missing awareness
+    of "out-of-band" operations. Make these clients happy.
+  */
+  if (!net->pkt_nr)
+   net->pkt_nr= 1;
+
   ret= net_write_command(net,(uchar) 255, (uchar*) "", 0, (uchar*) buff,
                          length);
   net->compress= save_compress;

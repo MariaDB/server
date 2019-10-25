@@ -124,7 +124,8 @@ void Item_subselect::init(st_select_lex *select_lex,
     parsing_place= (outer_select->in_sum_expr ?
                     NO_MATTER :
                     outer_select->parsing_place);
-    if (unit->is_unit_op() && unit->first_select()->next_select())
+    if (unit->is_unit_op() &&
+        (unit->first_select()->next_select() or unit->fake_select_lex))
       engine= new subselect_union_engine(unit, result, this);
     else
       engine= new subselect_single_select_engine(select_lex, result, this);
@@ -1550,16 +1551,23 @@ bool Item_exists_subselect::fix_length_and_dec()
 {
   DBUG_ENTER("Item_exists_subselect::fix_length_and_dec");
   init_length_and_dec();
-  /*
-    We need only 1 row to determine existence (i.e. any EXISTS that is not
-    an IN always requires LIMIT 1)
-  */
-  Item *item= new (thd->mem_root) Item_int(thd, (int32) 1);
-  if (!item)
-    DBUG_RETURN(TRUE);
-  thd->change_item_tree(&unit->global_parameters()->select_limit,
-                        item);
-  DBUG_PRINT("info", ("Set limit to 1"));
+  // If limit is not set or it is constant more than 1
+  if (!unit->global_parameters()->select_limit ||
+      (unit->global_parameters()->select_limit->basic_const_item() &&
+       unit->global_parameters()->select_limit->val_int() > 1))
+  {
+    /*
+       We need only 1 row to determine existence (i.e. any EXISTS that is not
+       an IN always requires LIMIT 1)
+     */
+    Item *item= new (thd->mem_root) Item_int(thd, (int32) 1);
+    if (!item)
+      DBUG_RETURN(TRUE);
+    thd->change_item_tree(&unit->global_parameters()->select_limit,
+                          item);
+    unit->global_parameters()->explicit_limit= 1; // we set the limit
+    DBUG_PRINT("info", ("Set limit to 1"));
+  }
   DBUG_RETURN(FALSE);
 }
 
@@ -1991,7 +1999,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
       (!select_lex->ref_pointer_array[0]->maybe_null ||  /*4*/
        substype() != Item_subselect::ALL_SUBS))          /*4*/
   {
-    Item_sum_hybrid *item;
+    Item_sum_min_max *item;
     nesting_map save_allow_sum_func;
     if (func->l_op())
     {
@@ -2736,7 +2744,7 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
   join_arg->thd->change_item_tree(&unit->global_parameters()->select_limit,
                                   new (thd->mem_root)
                                   Item_int(thd, (int32) 1));
-  unit->select_limit_cnt= 1;
+  unit->lim.set_single_row();
 
   DBUG_RETURN(false);
 }
@@ -3712,7 +3720,6 @@ int subselect_single_select_engine::prepare(THD *thd)
   SELECT_LEX *save_select= thd->lex->current_select;
   thd->lex->current_select= select_lex;
   if (join->prepare(select_lex->table_list.first,
-		    select_lex->with_wild,
 		    select_lex->where,
 		    select_lex->order_list.elements +
 		    select_lex->group_list.elements,

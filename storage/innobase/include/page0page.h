@@ -679,8 +679,8 @@ UNIV_INLINE
 void
 page_dir_slot_set_rec(
 /*==================*/
-	page_dir_slot_t* slot,	/*!< in: directory slot */
-	rec_t*		 rec);	/*!< in: record on the page */
+	page_dir_slot_t*slot,	/*!< in: directory slot */
+	const rec_t*	rec);	/*!< in: record on the page */
 /***************************************************************//**
 Gets the number of records owned by a directory slot.
 @return number of records */
@@ -943,34 +943,6 @@ page_mem_alloc_free(
 	rec_t*		next_rec,/*!< in: pointer to the new head of the
 				free record list */
 	ulint		need);	/*!< in: number of bytes allocated */
-/************************************************************//**
-Allocates a block of memory from the heap of an index page.
-@return pointer to start of allocated buffer, or NULL if allocation fails */
-byte*
-page_mem_alloc_heap(
-/*================*/
-	page_t*		page,	/*!< in/out: index page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page with enough
-				space available for inserting the record,
-				or NULL */
-	ulint		need,	/*!< in: total number of bytes needed */
-	ulint*		heap_no);/*!< out: this contains the heap number
-				of the allocated record
-				if allocation succeeds */
-/************************************************************//**
-Puts a record to free list. */
-UNIV_INLINE
-void
-page_mem_free(
-/*==========*/
-	page_t*			page,	/*!< in/out: index page */
-	page_zip_des_t*		page_zip,/*!< in/out: compressed page,
-					 or NULL */
-	rec_t*			rec,	/*!< in: pointer to the (origin of)
-					record */
-	const dict_index_t*	index,	/*!< in: index of rec */
-	const ulint*		offsets);/*!< in: array returned by
-					 rec_get_offsets() */
 
 /** Read the PAGE_DIRECTION field from a byte.
 @param[in]	ptr	pointer to PAGE_DIRECTION_B
@@ -1023,9 +995,7 @@ page_create_zip(
 	buf_block_t*		block,		/*!< in/out: a buffer frame
 						where the page is created */
 	dict_index_t*		index,		/*!< in: the index of the
-						page, or NULL when applying
-						TRUNCATE log
-						record during recovery */
+						page */
 	ulint			level,		/*!< in: the B-tree level of
 						the page */
 	trx_id_t		max_trx_id,	/*!< in: PAGE_MAX_TRX_ID */
@@ -1164,28 +1134,6 @@ page_move_rec_list_start(
 	dict_index_t*	index,		/*!< in: record descriptor */
 	mtr_t*		mtr)		/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull(1, 2, 4, 5)));
-/****************************************************************//**
-Splits a directory slot which owns too many records. */
-void
-page_dir_split_slot(
-/*================*/
-	page_t*		page,	/*!< in: index page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
-				uncompressed part will be written, or NULL */
-	ulint		slot_no)/*!< in: the directory slot */
-	MY_ATTRIBUTE((nonnull(1)));
-/*************************************************************//**
-Tries to balance the given directory slot with too few records
-with the upper neighbor, so that there are at least the minimum number
-of records owned by the slot; this may result in the merging of
-two slots. */
-void
-page_dir_balance_slot(
-/*==================*/
-	page_t*		page,	/*!< in/out: index page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	ulint		slot_no)/*!< in: the directory slot */
-	MY_ATTRIBUTE((nonnull(1)));
 /**********************************************************//**
 Parses a log record of a record list end or start deletion.
 @return end of log record or NULL */
@@ -1294,15 +1242,12 @@ ibool
 page_simple_validate_new(
 /*=====================*/
 	const page_t*	page);	/*!< in: index page in ROW_FORMAT!=REDUNDANT */
-/***************************************************************//**
-This function checks the consistency of an index page.
-@return TRUE if ok */
-ibool
-page_validate(
-/*==========*/
-	const page_t*	page,	/*!< in: index page */
-	dict_index_t*	index);	/*!< in: data dictionary index containing
-				the page record type definition */
+/** Check the consistency of an index page.
+@param[in]	page	index page
+@param[in]	index	B-tree or R-tree index
+@return	whether the page is valid */
+bool page_validate(const page_t* page, const dict_index_t* index)
+	MY_ATTRIBUTE((nonnull));
 /***************************************************************//**
 Looks in the page record list for a record with the given heap number.
 @return record, NULL if not found */

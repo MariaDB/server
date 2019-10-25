@@ -2258,6 +2258,16 @@ static int default_my_dbug_sanity(void)
   return 0;
 }
 
+extern my_bool my_assert;
+ATTRIBUTE_COLD
+my_bool _db_my_assert(const char *file, int line, const char *msg)
+{
+  my_bool a = my_assert;
+  _db_flush_();
+  if (!a)
+    fprintf(stderr, "%s:%d: assert: %s\n", file, line, msg);
+  return a;
+}
 #else
 
 /*

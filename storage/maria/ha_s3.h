@@ -30,7 +30,7 @@ public:
 
   int create(const char *name, TABLE *table_arg, HA_CREATE_INFO *ha_create_info);
   int open(const char *name, int mode, uint open_flags);
-  int write_row(uchar *buf);
+  int write_row(const uchar *buf);
   int update_row(const uchar * old_data, const uchar * new_data)
   {
     return HA_ERR_WRONG_COMMAND;

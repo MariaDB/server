@@ -58,6 +58,27 @@ C_MODE_END
 
 size_t username_char_length= 80;
 
+
+class Repeat_count
+{
+  ulonglong m_count;
+public:
+  Repeat_count(Item *item)
+   :m_count(0)
+  {
+    Longlong_hybrid nr= item->to_longlong_hybrid();
+    if (!item->null_value && !nr.neg())
+    {
+      // Assume that the maximum length of a String is < INT_MAX32
+      m_count= (ulonglong) nr.value();
+      if (m_count > (ulonglong) INT_MAX32)
+        m_count= (ulonglong) INT_MAX32;
+    }
+  }
+  ulonglong count() const { return m_count; }
+};
+
+
 /*
   For the Items which have only val_str_ascii() method
   and don't have their own "native" val_str(),
@@ -1633,13 +1654,10 @@ String *Item_func_left::val_str(String *str)
 void Item_str_func::left_right_max_length()
 {
   uint32 char_length= args[0]->max_char_length();
-  if (args[1]->const_item())
+  if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    int length= (int) args[1]->val_int();
-    if (args[1]->null_value || length <= 0)
-      char_length=0;
-    else
-      set_if_smaller(char_length, (uint) length);
+    Repeat_count tmp(args[1]);
+    set_if_smaller(char_length, (uint) tmp.count());
   }
   fix_char_length(char_length);
 }
@@ -2151,6 +2169,41 @@ void Item_func_trim::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN(" from "));
   args[0]->print(str, query_type);
   str->append(')');
+}
+
+
+/*
+  RTRIM(expr)
+  TRIM(TRAILING ' ' FROM expr)
+  remove argument's soft dependency on PAD_CHAR_TO_FULL_LENGTH:
+*/
+Sql_mode_dependency Item_func_trim::value_depends_on_sql_mode() const
+{
+  DBUG_ASSERT(fixed);
+  if (arg_count == 1) // RTRIM(expr)
+    return (args[0]->value_depends_on_sql_mode() &
+            Sql_mode_dependency(~0, ~MODE_PAD_CHAR_TO_FULL_LENGTH)).
+           soft_to_hard();
+  // TRIM(... FROM expr)
+  DBUG_ASSERT(arg_count == 2);
+  if (!args[1]->value_depends_on_sql_mode_const_item())
+    return Item_func::value_depends_on_sql_mode();
+  StringBuffer<64> trimstrbuf;
+  String *trimstr= args[1]->val_str(&trimstrbuf);
+  if (!trimstr)
+    return Sql_mode_dependency();                  // will return NULL
+  if (trimstr->length() == 0)
+    return Item_func::value_depends_on_sql_mode(); // will trim nothing
+  if (trimstr->lengthsp() != 0)
+    return Item_func::value_depends_on_sql_mode(); // will trim not only spaces
+  if (trimstr->length() > trimstr->charset()->mbminlen ||
+      trimstr->numchars() > 1)
+    return Item_func::value_depends_on_sql_mode(); // more than one space
+  // TRIM(TRAILING ' ' FROM expr)
+  return ((args[0]->value_depends_on_sql_mode() |
+           args[1]->value_depends_on_sql_mode()) &
+          Sql_mode_dependency(~0, ~MODE_PAD_CHAR_TO_FULL_LENGTH)).
+         soft_to_hard();
 }
 
 
@@ -2963,27 +3016,16 @@ bool Item_func_repeat::fix_length_and_dec()
   if (agg_arg_charsets_for_string_result(collation, args, 1))
     return TRUE;
   DBUG_ASSERT(collation.collation != NULL);
-  if (args[1]->const_item())
+  if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    /* must be longlong to avoid truncation */
-    longlong count= args[1]->val_int();
-
-    /* Assumes that the maximum length of a String is < INT_MAX32. */
-    /* Set here so that rest of code sees out-of-bound value as such. */
-    if (args[1]->null_value)
-      count= 0;
-    else if (count > INT_MAX32)
-      count= INT_MAX32;
-
-    ulonglong char_length= (ulonglong) args[0]->max_char_length() * count;
+    Repeat_count tmp(args[1]);
+    ulonglong char_length= (ulonglong) args[0]->max_char_length() * tmp.count();
     fix_char_length_ulonglong(char_length);
+    return false;
   }
-  else
-  {
-    max_length= MAX_BLOB_WIDTH;
-    maybe_null= 1;
-  }
-  return FALSE;
+  max_length= MAX_BLOB_WIDTH;
+  maybe_null= true;
+  return false;
 }
 
 /**
@@ -3048,26 +3090,14 @@ err:
 bool Item_func_space::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-  if (args[0]->const_item())
+  if (args[0]->const_item() && !args[0]->is_expensive())
   {
-    /* must be longlong to avoid truncation */
-    longlong count= args[0]->val_int();
-    if (args[0]->null_value)
-      goto end;
-    /*
-     Assumes that the maximum length of a String is < INT_MAX32.
-     Set here so that rest of code sees out-of-bound value as such.
-    */
-    if (count > INT_MAX32)
-      count= INT_MAX32;
-    fix_char_length_ulonglong(count);
-    return FALSE;
+    fix_char_length_ulonglong(Repeat_count(args[0]).count());
+    return false;
   }
-
-end:
   max_length= MAX_BLOB_WIDTH;
-  maybe_null= 1;
-  return FALSE;
+  maybe_null= true;
+  return false;
 }
 
 
@@ -3178,25 +3208,48 @@ bool Item_func_pad::fix_length_and_dec()
     pad_str.append(" ", 1);
   }
 
-  if (args[1]->const_item())
+  DBUG_ASSERT(collation.collation->mbmaxlen > 0);
+  if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    ulonglong char_length= (ulonglong) args[1]->val_int();
-    DBUG_ASSERT(collation.collation->mbmaxlen > 0);
-    /* Assumes that the maximum length of a String is < INT_MAX32. */
-    /* Set here so that rest of code sees out-of-bound value as such. */
-    if (args[1]->null_value)
-      char_length= 0;
-    else if (char_length > INT_MAX32)
-      char_length= INT_MAX32;
-    fix_char_length_ulonglong(char_length);
+    fix_char_length_ulonglong(Repeat_count(args[1]).count());
+    return false;
   }
-  else
-  {
-    max_length= MAX_BLOB_WIDTH;
-    maybe_null= 1;
-  }
-  return FALSE;
+  max_length= MAX_BLOB_WIDTH;
+  maybe_null= true;
+  return false;
 }
+
+
+/*
+  PAD(expr,length,' ')
+  removes argument's soft dependency on PAD_CHAR_TO_FULL_LENGTH if the result
+  is longer than the argument's maximim possible length.
+*/
+Sql_mode_dependency Item_func_rpad::value_depends_on_sql_mode() const
+{
+  DBUG_ASSERT(fixed);
+  DBUG_ASSERT(arg_count == 3);
+  if (!args[1]->value_depends_on_sql_mode_const_item() ||
+      !args[2]->value_depends_on_sql_mode_const_item())
+    return Item_func::value_depends_on_sql_mode();
+  Longlong_hybrid len= args[1]->to_longlong_hybrid();
+  if (args[1]->null_value || len.neg())
+    return Sql_mode_dependency();                  // will return NULL
+  if (len.abs() > 0 && len.abs() < args[0]->max_char_length())
+    return Item_func::value_depends_on_sql_mode();
+  StringBuffer<64> padstrbuf;
+  String *padstr= args[2]->val_str(&padstrbuf);
+  if (!padstr || !padstr->length())
+    return Sql_mode_dependency();                  // will return NULL
+  if (padstr->lengthsp() != 0)
+    return Item_func::value_depends_on_sql_mode(); // will pad not only spaces
+  // RPAD(expr, length, ' ')  -- with a long enough length
+  return ((args[0]->value_depends_on_sql_mode() |
+           args[1]->value_depends_on_sql_mode()) &
+          Sql_mode_dependency(~0, ~MODE_PAD_CHAR_TO_FULL_LENGTH)).
+         soft_to_hard();
+}
+
 
 
 String *Item_func_rpad::val_str(String *str)

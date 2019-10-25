@@ -102,5 +102,5 @@ order by y;
 id	y	check_row(row_start, row_end)
 2	2	HISTORICAL ROW
 2	22	CURRENT ROW
-drop database test;
-create database test;
+drop view vt1;
+drop tables t1, t2, t2f, tf;

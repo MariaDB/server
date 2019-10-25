@@ -1,5 +1,7 @@
 drop table if exists t1;
 CREATE TABLE t1 (a INT, b INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
+Warnings:
+Warning	1280	Name 'ka' ignored for PRIMARY key.
 INSERT INTO t1 (a, b) VALUES (1, 5);
 INSERT INTO t1 (a, b) VALUES (2, 6);
 INSERT INTO t1 (a, b) VALUES (3, 7);
@@ -15,6 +17,8 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
+Warnings:
+Warning	1280	Name 'ka' ignored for PRIMARY key.
 INSERT INTO t1 (a, b) VALUES (1, 5);
 INSERT INTO t1 (a, b) VALUES (2, 6);
 INSERT INTO t1 (a, b) VALUES (3, 7);
@@ -38,6 +42,8 @@ a	b
 5	8
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
+Warnings:
+Warning	1280	Name 'ka' ignored for PRIMARY key.
 INSERT INTO t1 (a, b) VALUES (1, 5);
 INSERT INTO t1 (a, b) VALUES (2, NULL);
 INSERT INTO t1 (a, b) VALUES (3, NULL);
@@ -56,6 +62,8 @@ COUNT(*)
 4
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
+Warnings:
+Warning	1280	Name 'ka' ignored for PRIMARY key.
 INSERT INTO t1 (a,b,c) VALUES (1,1,NULL);
 INSERT INTO t1 (a,b,c) VALUES (2,1,NULL);
 INSERT INTO t1 (a,b,c) VALUES (3,1,NULL);

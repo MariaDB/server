@@ -45,6 +45,8 @@ Pushdown_select::Pushdown_select(SELECT_LEX *sel, select_handler *h)
 
 Pushdown_select::~Pushdown_select()
 {
+  if (handler->table)
+    free_tmp_table(handler->thd, handler->table);
   delete handler;
   select->select_h= NULL;
 }
@@ -100,9 +102,6 @@ bool Pushdown_select::send_data()
   THD *thd= handler->thd;
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("Pushdown_select::send_data");
-
-  if (thd->killed == ABORT_QUERY)
-    DBUG_RETURN(false);
 
   protocol->prepare_for_resend();
   if (protocol->send_result_set_row(&result_columns))

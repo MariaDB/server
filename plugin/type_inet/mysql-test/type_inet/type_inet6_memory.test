@@ -1,0 +1,16 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-274 The data type for IPv6/IPv4 addresses in MariaDB
+--echo #
+
+
+SET default_storage_engine=MEMORY;
+--source type_inet6_engines.inc
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

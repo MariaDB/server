@@ -47,7 +47,6 @@ Created 2/16/1996 Heikki Tuuri
 
 #include "row0ftsort.h"
 #include "ut0mem.h"
-#include "ut0timer.h"
 #include "mem0mem.h"
 #include "data0data.h"
 #include "data0type.h"
@@ -484,7 +483,7 @@ create_log_files(
 	/* Create a log checkpoint. */
 	log_mutex_enter();
 	if (log_sys.is_encrypted() && !log_crypt_init()) {
-		return(DB_ERROR);
+		return DB_ERROR;
 	}
 	ut_d(recv_no_log_write = false);
 	log_sys.lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
@@ -509,7 +508,7 @@ create_log_files(
 		    (log_sys.lsn - log_sys.last_checkpoint_lsn));
 	log_mutex_exit();
 
-	log_make_checkpoint_at(LSN_MAX);
+	log_make_checkpoint();
 
 	return(DB_SUCCESS);
 }
@@ -1312,7 +1311,7 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	high_level_read_only = srv_read_only_mode
-		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO
+		|| srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE
 		|| srv_sys_space.created_new_raw();
 
 	/* Reset the start state. */
@@ -1615,6 +1614,10 @@ dberr_t srv_start(bool create_new_db)
 
 	srv_log_file_size_requested = srv_log_file_size;
 
+	if (innodb_encrypt_temporary_tables && !log_crypt_init()) {
+		return srv_init_abort(DB_ERROR);
+	}
+
 	if (create_new_db) {
 
 		buf_flush_sync_all_buf_pools();
@@ -1759,7 +1762,7 @@ dberr_t srv_start(bool create_new_db)
 		ut_a(fil_validate());
 		ut_a(log_space);
 
-		ut_a(srv_log_file_size <= 512ULL << 30);
+		ut_a(srv_log_file_size <= log_group_max_size);
 
 		const ulint size = 1 + ulint((srv_log_file_size - 1)
 					     >> srv_page_size_shift);
@@ -2132,7 +2135,7 @@ files_checked:
 		/* Validate a few system page types that were left
 		uninitialized before MySQL or MariaDB 5.5. */
 		if (!high_level_read_only) {
-			ut_ad(srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE);
+			ut_ad(srv_force_recovery <= SRV_FORCE_NO_IBUF_MERGE);
 			buf_block_t*	block;
 			mtr.start();
 			/* Bitmap page types will be reset in
@@ -2168,13 +2171,26 @@ files_checked:
 			is at most one data dictionary transaction
 			active at a time. */
 			if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+				/* If the following call is ever
+				removed, the first-time
+				ha_innobase::open() must hold (or
+				acquire and release) a table lock that
+				conflicts with
+				trx_resurrect_table_locks(), to ensure
+				that any recovered incomplete ALTER
+				TABLE will have been rolled
+				back. Otherwise, dict_table_t::instant
+				could be cleared by rollback invoking
+				dict_index_t::clear_instant_alter()
+				while open table handles exist in
+				client connections. */
 				trx_rollback_recovered(false);
 			}
 		}
 
 		/* FIXME: Skip the following if srv_read_only_mode,
 		while avoiding "Allocated tablespace ID" warnings. */
-		if (srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE) {
+		if (srv_force_recovery <= SRV_FORCE_NO_IBUF_MERGE) {
 			/* Open or Create SYS_TABLESPACES and SYS_DATAFILES
 			so that tablespace names and other metadata can be
 			found. */

@@ -92,6 +92,9 @@ extern PSI_thread_key spd_key_thd_bg_mon;
 /* UTC time zone for timestamp columns */
 extern Time_zone *UTC;
 
+extern sql_mode_t full_sql_mode;
+extern sql_mode_t pushdown_sql_mode;
+
 HASH spider_open_connections;
 uint spider_open_connections_id;
 HASH spider_ipport_conns;
@@ -150,6 +153,7 @@ int spider_reset_conn_setted_parameter(
   conn->autocommit = spider_param_remote_autocommit();
   conn->sql_log_off = spider_param_remote_sql_log_off();
   conn->wait_timeout = spider_param_remote_wait_timeout(thd);
+  conn->sql_mode = full_sql_mode + 1;
   if (thd && spider_param_remote_time_zone())
   {
     int tz_length = strlen(spider_param_remote_time_zone());
@@ -1444,6 +1448,18 @@ void spider_conn_queue_wait_timeout(
   DBUG_VOID_RETURN;
 }
 
+void spider_conn_queue_sql_mode(
+  SPIDER_CONN *conn,
+  sql_mode_t sql_mode
+) {
+  DBUG_ENTER("spider_conn_queue_sql_mode");
+  DBUG_PRINT("info", ("spider conn=%p", conn));
+  DBUG_ASSERT(!(sql_mode & ~full_sql_mode));
+  conn->queued_sql_mode = TRUE;
+  conn->queued_sql_mode_val = (sql_mode & pushdown_sql_mode);
+  DBUG_VOID_RETURN;
+}
+
 void spider_conn_queue_time_zone(
   SPIDER_CONN *conn,
   Time_zone *time_zone
@@ -1500,6 +1516,7 @@ void spider_conn_clear_queue(
   conn->queued_autocommit = FALSE;
   conn->queued_sql_log_off = FALSE;
   conn->queued_wait_timeout = FALSE;
+  conn->queued_sql_mode = FALSE;
   conn->queued_time_zone = FALSE;
   conn->queued_trx_start = FALSE;
   conn->queued_xa_start = FALSE;

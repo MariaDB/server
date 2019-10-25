@@ -956,7 +956,7 @@ dict_stats_update_transient(
 	table->stat_sum_of_other_index_sizes = sum_of_index_sizes
 		- index->stat_index_size;
 
-	table->stats_last_recalc = ut_time();
+	table->stats_last_recalc = time(NULL);
 
 	table->stat_modified_counter = 0;
 
@@ -1493,6 +1493,7 @@ dict_stats_analyze_index_below_cur(
 	rec_offs_set_n_alloc(offsets2, size);
 
 	rec = btr_cur_get_rec(cur);
+	page = page_align(rec);
 	ut_ad(!page_rec_is_leaf(rec));
 
 	offsets_rec = rec_get_offsets(rec, index, offsets1, false,
@@ -1514,9 +1515,11 @@ dict_stats_analyze_index_below_cur(
 
 		dberr_t err = DB_SUCCESS;
 
-		block = buf_page_get_gen(page_id, zip_size, RW_S_LATCH,
-					 NULL /* no guessed block */,
-					 BUF_GET, __FILE__, __LINE__, &mtr, &err);
+		block = buf_page_get_gen(page_id, zip_size,
+					 RW_S_LATCH, NULL, BUF_GET,
+					 __FILE__, __LINE__, &mtr, &err,
+					 !index->is_clust()
+					 && 1 == btr_page_get_level(page));
 
 		page = buf_block_get_frame(block);
 
@@ -2267,7 +2270,7 @@ dict_stats_update_persistent(
 			+= index->stat_index_size;
 	}
 
-	table->stats_last_recalc = ut_time();
+	table->stats_last_recalc = time(NULL);
 
 	table->stat_modified_counter = 0;
 
@@ -2296,7 +2299,7 @@ rolled back only in the case of error, but not freed.
 dberr_t
 dict_stats_save_index_stat(
 	dict_index_t*	index,
-	ib_time_t	last_update,
+	time_t		last_update,
 	const char*	stat_name,
 	ib_uint64_t	stat_value,
 	ib_uint64_t*	sample_size,
@@ -2424,7 +2427,6 @@ dict_stats_save(
 	const index_id_t*	only_for_index)
 {
 	pars_info_t*	pinfo;
-	ib_time_t	now;
 	dberr_t		ret;
 	dict_table_t*	table;
 	char		db_utf8[MAX_DB_UTF8_LEN];
@@ -2443,7 +2445,7 @@ dict_stats_save(
 	dict_fs2utf8(table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
 
-	now = ut_time();
+	const time_t now = time(NULL);
 	dict_sys_lock();
 
 	pinfo = pars_info_create();
@@ -3144,7 +3146,7 @@ dict_stats_update(
 
 	if (!table->is_readable()) {
 		return (dict_stats_report_error(table));
-	} else if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
+	} else if (srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE) {
 		/* If we have set a high innodb_force_recovery level, do
 		not calculate statistics, as a badly corrupted index can
 		cause a crash in it. */

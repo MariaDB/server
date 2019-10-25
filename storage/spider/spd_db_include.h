@@ -161,6 +161,8 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_MBR_DISJOINT_LEN (sizeof(SPIDER_SQL_MBR_DISJOINT_STR) - 1)
 #define SPIDER_SQL_NOT_BETWEEN_STR "not between"
 #define SPIDER_SQL_NOT_BETWEEN_LEN (sizeof(SPIDER_SQL_NOT_BETWEEN_STR) - 1)
+#define SPIDER_SQL_TO_FLOAT_STR "/* create function to_float(a decimal(20,6)) returns float return a */ to_float("
+#define SPIDER_SQL_TO_FLOAT_LEN (sizeof(SPIDER_SQL_TO_FLOAT_STR) - 1)
 #define SPIDER_SQL_IN_STR "in("
 #define SPIDER_SQL_IN_LEN (sizeof(SPIDER_SQL_IN_STR) - 1)
 #define SPIDER_SQL_NOT_IN_STR "not in("
@@ -185,6 +187,8 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_AS_TIME_LEN (sizeof(SPIDER_SQL_AS_TIME_STR) - 1)
 #define SPIDER_SQL_AS_BINARY_STR " as binary"
 #define SPIDER_SQL_AS_BINARY_LEN (sizeof(SPIDER_SQL_AS_BINARY_STR) - 1)
+#define SPIDER_SQL_AS_FLOAT_STR " as float"
+#define SPIDER_SQL_AS_FLOAT_LEN (sizeof(SPIDER_SQL_AS_FLOAT_STR) - 1)
 #define SPIDER_SQL_IS_TRUE_STR " is true"
 #define SPIDER_SQL_IS_TRUE_LEN (sizeof(SPIDER_SQL_IS_TRUE_STR) - 1)
 #define SPIDER_SQL_IS_NOT_TRUE_STR " is not true"
@@ -821,6 +825,17 @@ public:
     uint name_length,
     CHARSET_INFO *name_charset
   ) = 0;
+  virtual int append_escaped_name(
+    spider_string *str,
+    const char *name,
+    uint name_length
+  ) = 0;
+  virtual int append_escaped_name_with_charset(
+    spider_string *str,
+    const char *name,
+    uint name_length,
+    CHARSET_INFO *name_charset
+  ) = 0;
   virtual bool is_name_quote(
     const char head_code
   ) = 0;
@@ -849,6 +864,10 @@ public:
   virtual int append_wait_timeout(
     spider_string *str,
     int wait_timeout
+  ) = 0;
+  virtual int append_sql_mode(
+    spider_string *str,
+    sql_mode_t sql_mode
   ) = 0;
   virtual int append_time_zone(
     spider_string *str,
@@ -1149,6 +1168,11 @@ public:
   virtual bool set_wait_timeout_in_bulk_sql() = 0;
   virtual int set_wait_timeout(
     int wait_timeout,
+    int *need_mon
+  ) = 0;
+  virtual bool set_sql_mode_in_bulk_sql() = 0;
+  virtual int set_sql_mode(
+    sql_mode_t sql_mode,
     int *need_mon
   ) = 0;
   virtual bool set_time_zone_in_bulk_sql() = 0;

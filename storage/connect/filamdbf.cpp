@@ -253,7 +253,7 @@ PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, bool info)
           mainhead.Encryptflag, mainhead.Mdxflag, mainhead.Language);
     htrc("%hd records, last changed %02d/%02d/%d\n",
           mainhead.Records(), mainhead.Filedate[1], mainhead.Filedate[2],
-          mainhead.Filedate[0] + (mainhead.Filedate[0] <= 30) ? 2000 : 1900);
+         mainhead.Filedate[0] + ((mainhead.Filedate[0] <= 30) ? 2000 : 1900));
     htrc("Field    Type  Offset  Len  Dec  Set  Mdx\n");
     } // endif trace
 

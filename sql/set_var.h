@@ -66,7 +66,7 @@ public:
                    READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096,
                    NO_SET_STATEMENT=8192, AUTO_SET=16384};
   enum { NO_GETOPT=-1, GETOPT_ONLY_HELP=-2 };
-  enum where { CONFIG, AUTO, SQL, COMPILE_TIME, ENV };
+  enum where { CONFIG, COMMAND_LINE, AUTO, SQL, COMPILE_TIME, ENV };
 
   /**
     Enumeration type to indicate for a system variable whether
@@ -77,6 +77,7 @@ public:
 
   my_option option;     ///< min, max, default values are stored here
   enum where value_origin;
+  const char *origin_filename;
 
 protected:
   typedef bool (*on_check_function)(sys_var *self, THD *thd, set_var *var);
@@ -439,6 +440,7 @@ inline bool IS_SYSVAR_AUTOSIZE(void *ptr)
 bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 
 sql_mode_t expand_sql_mode(sql_mode_t sql_mode);
+const char *sql_mode_string_representation(uint bit_number);
 bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                     LEX_CSTRING *ls);
 int default_regex_flags_pcre(const THD *thd);

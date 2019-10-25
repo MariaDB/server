@@ -1239,11 +1239,10 @@ struct my_option xb_server_options[] =
    GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef BTR_CUR_HASH_ADAPT
   {"innodb_adaptive_hash_index", OPT_INNODB_ADAPTIVE_HASH_INDEX,
-   "Enable InnoDB adaptive hash index (enabled by default).  "
-   "Disable with --skip-innodb-adaptive-hash-index.",
+   "Enable InnoDB adaptive hash index (disabled by default).",
    &btr_search_enabled,
    &btr_search_enabled,
-   0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* BTR_CUR_HASH_ADAPT */
   {"innodb_autoextend_increment", OPT_INNODB_AUTOEXTEND_INCREMENT,
    "Data file autoextend increment in megabytes",
@@ -1295,7 +1294,7 @@ struct my_option xb_server_options[] =
   {"innodb_log_file_size", OPT_INNODB_LOG_FILE_SIZE,
    "Ignored for mysqld option compatibility",
    (G_PTR*) &srv_log_file_size, (G_PTR*) &srv_log_file_size, 0,
-   GET_ULL, REQUIRED_ARG, 48 << 20, 1 << 20, 512ULL << 30, 0,
+   GET_ULL, REQUIRED_ARG, 48 << 20, 1 << 20, log_group_max_size, 0,
    UNIV_PAGE_SIZE_MAX, 0},
   {"innodb_log_files_in_group", OPT_INNODB_LOG_FILES_IN_GROUP,
    "Ignored for mysqld option compatibility",
@@ -1523,7 +1522,8 @@ static int prepare_export()
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
-      " --console  --skip-log-error --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
+      " --console  --skip-log-error --skip-log-bin --bootstrap  < "
+      BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe, 
       orig_argv1, (my_defaults_group_suffix?my_defaults_group_suffix:""),
       xtrabackup_use_memory);
@@ -1535,7 +1535,8 @@ static int prepare_export()
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
-      " --console  --log-error= --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
+      " --console  --log-error= --skip-log-bin --bootstrap  < "
+      BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
       (my_defaults_group_suffix?my_defaults_group_suffix:""),
       xtrabackup_use_memory);
@@ -1626,11 +1627,10 @@ check_if_param_set(const char *param)
 }
 
 my_bool
-xb_get_one_option(int optid,
-		  const struct my_option *opt __attribute__((unused)),
-		  char *argument)
+xb_get_one_option(const struct my_option *opt,
+		  char *argument, const char *)
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'h':
     strmake(mysql_real_data_home,argument, FN_REFLEN - 1);
     mysql_data_home= mysql_real_data_home;
@@ -3798,7 +3798,7 @@ open_or_create_log_file(
 	fil_space_t* space,
 	ulint	i)			/*!< in: log file number in group */
 {
-	char	name[10000];
+	char	name[FN_REFLEN];
 	ulint	dirnamelen;
 
 	os_normalize_path(srv_log_group_home_dir);
@@ -3970,7 +3970,7 @@ static bool xtrabackup_backup_low()
 		}
 		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
 			XTRABACKUP_INFO);
-		if (!write_xtrabackup_info(mysql_connection, filename, false)) {
+		if (!write_xtrabackup_info(mysql_connection, filename, false, false)) {
 			msg("Error: failed to write info "
 			 "to '%s'.", filename);
 			return false;

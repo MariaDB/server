@@ -4,10 +4,13 @@ select @@global.use_stat_tables;
 select @@session.use_stat_tables;
 
 set @save_use_stat_tables=@@use_stat_tables;
+set @save_histogram_size=@@global.histogram_size;
+set @@global.histogram_size=0,@@local.histogram_size=0;
+set optimizer_use_condition_selectivity=4;
 
 set use_stat_tables='preferably';
-set @tmp_stt_hs=@@histogram_size, @tmp_stt_ht=@@histogram_type;
-set histogram_size=0, histogram_type='single_prec_hb';
+set @save_histogram_type=@@histogram_type;
+set histogram_type='single_prec_hb';
 
 --disable_warnings
 DROP DATABASE IF EXISTS dbt3_s001;
@@ -515,7 +518,6 @@ set names utf8;
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
 set optimizer_use_condition_selectivity=4;
 set use_stat_tables=preferably;
-set @save_histogram_size= @@histogram_size;
 set histogram_size=255;
 
 create table t1 ( a varchar(255) character set utf8);
@@ -542,12 +544,41 @@ analyze table t1;
 update mysql.column_stats set min_value='2004-0-31123' where db_name='test' and table_name='t1';
 select min_value from mysql.column_stats where db_name='test' and table_name='t1';
 select * from t1;
+set @@sql_mode= @save_sql_mode;
+set @@use_stat_tables=@save_use_stat_tables;
+set @@histogram_size= @save_histogram_size;
+set @@histogram_type=@save_histogram_type;
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 drop table t1;
 
+--echo #
+--echo # MDEV-20589: Server still crashes in Field::set_warning_truncated_wrong_value
+--echo #
+
+set names utf8;
+create table t1 ( a varchar(255) character set utf8);
+insert into t1 values (REPEAT('ӥ',255)), (REPEAT('ç',255));
+
+set use_stat_tables='preferably';
+analyze table t1 persistent for all;
+
+set @save_sql_mode= @@sql_mode;
+set sql_mode='ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
+update mysql.column_stats set min_value= REPEAT('ӥ',256) where db_name='test' and table_name='t1';
 set @@sql_mode= @save_sql_mode;
-set use_stat_tables=@save_use_stat_tables;
-set @@histogram_size= @save_histogram_size;
-set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+select length(a) from t1 where a=REPEAT('ӥ',255);
+
+set names latin1;
+set @@use_stat_tables=@save_use_stat_tables;
+drop table t1;
+
+--echo # please keep this at the last
+set @@global.histogram_size=@save_histogram_size;
+
+--echo # Start of 10.4 tests
+
+set histogram_size=0;
 
 --echo #
 --echo # MDEV-17255: New optimizer defaults and ANALYZE TABLE
@@ -590,4 +621,7 @@ select * from mysql.column_stats;
 analyze
 select * from t1 where a=1 and b=3;
 drop table t1;
-set histogram_size=@tmp_stt_hs, histogram_type=@tmp_stt_ht;
+
+set @@global.histogram_size=@save_histogram_size;
+
+--echo # End of 10.4 tests

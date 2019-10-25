@@ -687,7 +687,23 @@ DROP TABLE t1,t2;
 # End of 10.0 tests
 #
 #
-# Start of 10.4 tests
+# MDEV-17551
+# Assertion `(&(&share->intern_lock)->m_mutex)->count > 0 &&
+# pthread_equal(pthread_self(), (&(&share->intern_lock)->m_mutex)->
+# thread)' failed in _ma_state_info_write or ER_CRASHED_ON_USAGE
+# upon SELECT with UNION
+#
+CREATE TABLE t1 (b BLOB, vb BLOB AS (b) VIRTUAL);
+INSERT INTO t1 (b) VALUES ('foobar');
+SELECT 'foo' AS f1, CONVERT( 'bar' USING latin1 ) AS f2 FROM t1
+UNION
+SELECT b AS f1, CONVERT( vb USING latin1 ) AS f2 FROM t1;
+f1	f2
+foo	bar
+foobar	foobar
+DROP TABLE t1;
+#
+# End of 10.3 tests
 #
 SET sql_mode='';
 CREATE TABLE t1 (c VARCHAR(1) DEFAULT 'foo');

@@ -1419,11 +1419,13 @@ row_insert_for_mysql(
 					  &blob_heap);
 
 	if (ins_mode != ROW_INS_NORMAL) {
+#ifndef DBUG_OFF
 		ut_ad(table->vers_start != table->vers_end);
 		const mysql_row_templ_t* t
 		    = prebuilt->get_template_by_col(table->vers_end);
 		ut_ad(t);
 		ut_ad(t->mysql_col_len == 8);
+#endif
 
 		if (ins_mode == ROW_INS_HISTORICAL) {
 			set_tuple_col_8(node->row, table->vers_end, trx->id,
@@ -1431,9 +1433,11 @@ row_insert_for_mysql(
 		} else /* ROW_INS_VERSIONED */ {
 			set_tuple_col_8(node->row, table->vers_end, TRX_ID_MAX,
 					node->vers_end_buf);
+#ifndef DBUG_OFF
 			t = prebuilt->get_template_by_col(table->vers_start);
 			ut_ad(t);
 			ut_ad(t->mysql_col_len == 8);
+#endif
 			set_tuple_col_8(node->row, table->vers_start, trx->id,
 					node->vers_start_buf);
 		}
@@ -1480,7 +1484,6 @@ error_exit:
 			goto run_again;
 		}
 
-		node->duplicate = NULL;
 		trx->op_info = "";
 
 		if (blob_heap != NULL) {
@@ -1489,8 +1492,6 @@ error_exit:
 
 		return(err);
 	}
-
-	node->duplicate = NULL;
 
 	if (dict_table_has_fts_index(table)) {
 		doc_id_t	doc_id;
@@ -2145,7 +2146,9 @@ This is used in UPDATE CASCADE/SET NULL of a system versioning table.
 @return DB_SUCCESS or some error */
 static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 {
-	const trx_t* trx = thr_get_trx(thr);
+	trx_t* trx = thr_get_trx(thr);
+	dfield_t* row_end;
+	char row_end_data[8];
 	dict_table_t* table = node->table;
 	ut_ad(table->versioned());
 
@@ -2156,10 +2159,15 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 	ins_node_t* insert_node =
 		ins_node_create(INS_DIRECT, table, node->historical_heap);
 
+	if (!insert_node) {
+		trx->error_state = DB_OUT_OF_MEMORY;
+		goto exit;
+	}
+
+	insert_node->common.parent = thr;
 	ins_node_set_new_row(insert_node, row);
 
-	dfield_t* row_end = dtuple_get_nth_field(row, table->vers_end);
-	char row_end_data[8];
+	row_end = dtuple_get_nth_field(row, table->vers_end);
 	if (dict_table_get_nth_col(table, table->vers_end)->vers_native()) {
 		mach_write_to_8(row_end_data, trx->id);
 		dfield_set_data(row_end, row_end_data, 8);
@@ -2197,6 +2205,7 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 		}
 	}
 exit:
+	que_graph_free_recursive(insert_node);
 	mem_heap_free(node->historical_heap);
 	node->historical_heap = NULL;
 	return trx->error_state;
@@ -2745,7 +2754,7 @@ row_mysql_drop_garbage_tables()
 			btr_pcur_store_position(&pcur, &mtr);
 			btr_pcur_commit_specify_mtr(&pcur, &mtr);
 
-			if (dict_load_table(table_name, true,
+			if (dict_load_table(table_name,
 					    DICT_ERR_IGNORE_DROP)) {
 				row_drop_table_for_mysql(table_name, trx,
 							 SQLCOM_DROP_TABLE);
@@ -2873,7 +2882,7 @@ row_discard_tablespace_begin(
 	dict_table_t*	table;
 
 	table = dict_table_open_on_name(
-		name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
+		name, TRUE, FALSE, DICT_ERR_IGNORE_FK_NOKEY);
 
 	if (table) {
 		dict_stats_wait_bg_to_stop_using_table(table, trx);
@@ -3224,10 +3233,9 @@ row_drop_ancillary_fts_tables(
 	DICT_TF2_FTS flag set. So keep this out of above
 	dict_table_has_fts_index condition */
 	if (table->fts != NULL) {
-		/* Need to set TABLE_DICT_LOCKED bit, since
-		fts_que_graph_free_check_lock would try to acquire
+		/* fts_que_graph_free_check_lock would try to acquire
 		dict mutex lock */
-		table->fts->fts_status |= TABLE_DICT_LOCKED;
+		table->fts->dict_locked = true;
 
 		fts_free(table);
 	}
@@ -3257,7 +3265,7 @@ row_drop_table_from_cache(
 
 	dict_sys.remove(table);
 
-	if (dict_load_table(tablename, true, DICT_ERR_IGNORE_NONE)) {
+	if (dict_load_table(tablename, DICT_ERR_IGNORE_FK_NOKEY)) {
 		ib::error() << "Not able to remove table "
 			<< ut_get_name(trx, tablename)
 			<< " from the dictionary cache!";
@@ -3403,7 +3411,9 @@ row_drop_table_for_mysql(
 			calling btr_search_drop_page_hash_index() while we
 			hold the InnoDB dictionary lock, we will drop any
 			adaptive hash index entries upfront. */
-			bool immune = is_temp_name
+			const bool immune = is_temp_name
+				|| create_failed
+				|| sqlcom == SQLCOM_CREATE_TABLE
 				|| strstr(table->name.m_name, "/FTS");
 
 			while (buf_LRU_drop_page_hash_for_tablespace(table)) {
@@ -4167,7 +4177,7 @@ row_rename_table_for_mysql(
 	dict_locked = trx->dict_operation_lock_mode == RW_X_LATCH;
 
 	table = dict_table_open_on_name(old_name, dict_locked, FALSE,
-					DICT_ERR_IGNORE_NONE);
+					DICT_ERR_IGNORE_FK_NOKEY);
 
 	/* We look for pattern #P# to see if the table is partitioned
 	MySQL table. */
@@ -4215,7 +4225,7 @@ row_rename_table_for_mysql(
 			par_case_name, old_name, FALSE);
 #endif
 		table = dict_table_open_on_name(par_case_name, dict_locked, FALSE,
-					DICT_ERR_IGNORE_NONE);
+						DICT_ERR_IGNORE_FK_NOKEY);
 	}
 
 	if (!table) {
@@ -4574,7 +4584,7 @@ end:
 		dict_mem_table_fill_foreign_vcol_set(table);
 
 		while (!fk_tables.empty()) {
-			dict_load_table(fk_tables.front(), true,
+			dict_load_table(fk_tables.front(),
 					DICT_ERR_IGNORE_NONE);
 			fk_tables.pop_front();
 		}

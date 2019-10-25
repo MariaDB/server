@@ -854,6 +854,7 @@ public:
   friend void best_access_path(JOIN      *join,
                                JOIN_TAB  *s,
                                table_map remaining_tables,
+                               const struct st_position *join_positions,
                                uint      idx,
                                bool      disable_jbuf,
                                double    record_count,
@@ -882,7 +883,7 @@ public:
   void set_empty()
   {
     sjm_scan_need_tables= 0;
-    LINT_INIT_STRUCT(sjm_scan_last_inner);
+    sjm_scan_last_inner= 0;
     is_used= FALSE;
   }
   void set_from_prev(struct st_position *prev);
@@ -1618,10 +1619,9 @@ public:
     return exec_join_tab_cnt() + aggr_tables - 1;
   }
 
-  int prepare(TABLE_LIST *tables, uint wind_num,
-	      COND *conds, uint og_num, ORDER *order, bool skip_order_by,
-              ORDER *group, Item *having, ORDER *proc_param, SELECT_LEX *select,
-	      SELECT_LEX_UNIT *unit);
+  int prepare(TABLE_LIST *tables, COND *conds, uint og_num, ORDER *order,
+              bool skip_order_by, ORDER *group, Item *having,
+              ORDER *proc_param, SELECT_LEX *select, SELECT_LEX_UNIT *unit);
   bool prepare_stage2();
   int optimize();
   int optimize_inner();
@@ -1781,6 +1781,7 @@ public:
   void add_keyuses_for_splitting();
   bool inject_best_splitting_cond(table_map remaining_tables);
   bool fix_all_splittings_in_plan();
+  void make_notnull_conds_for_range_scans();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
 private:
@@ -2071,6 +2072,11 @@ protected:
   }
 };
 
+void best_access_path(JOIN *join, JOIN_TAB *s,
+                      table_map remaining_tables,
+                      const POSITION *join_positions, uint idx,
+                      bool disable_jbuf, double record_count,
+                      POSITION *pos, POSITION *loose_scan_pos);
 bool cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref);
 bool error_if_full_join(JOIN *join);
 int report_error(TABLE *table, int error);
@@ -2089,8 +2095,7 @@ int join_read_key2(THD *thd, struct st_join_table *tab, TABLE *table,
 
 bool handle_select(THD *thd, LEX *lex, select_result *result,
                    ulong setup_tables_done_option);
-bool mysql_select(THD *thd,
-                  TABLE_LIST *tables, uint wild_num,  List<Item> &list,
+bool mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &list,
                   COND *conds, uint og_num, ORDER *order, ORDER *group,
                   Item *having, ORDER *proc_param, ulonglong select_type, 
                   select_result *result, SELECT_LEX_UNIT *unit, 
@@ -2442,7 +2447,7 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
                            ulonglong options);
 bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
-double prev_record_reads(POSITION *positions, uint idx, table_map found_ref);
+double prev_record_reads(const POSITION *positions, uint idx, table_map found_ref);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
 double get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size);
 double get_tmp_table_write_cost(THD *thd, double row_count, uint row_size);

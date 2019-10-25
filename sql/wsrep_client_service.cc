@@ -15,7 +15,6 @@
 
 #include "wsrep_client_service.h"
 #include "wsrep_high_priority_service.h"
-#include "wsrep_applier.h" /* wsrep_apply_events() */
 #include "wsrep_binlog.h"  /* wsrep_dump_rbr_buf() */
 #include "wsrep_schema.h"  /* remove_fragments() */
 #include "wsrep_thd.h"
@@ -30,9 +29,9 @@
 #include "slave.h"   /* opt_log_slave_updates */
 #include "transaction.h" /* trans_commit()... */
 #include "log.h"      /* stmt_has_updated_trans_table() */
-//#include "debug_sync.h"
 #include "mysql/service_debug_sync.h"
 #include "mysql/psi/mysql_thread.h" /* mysql_mutex_assert_owner() */
+
 namespace
 {
 
@@ -57,16 +56,12 @@ Wsrep_client_service::Wsrep_client_service(THD* thd,
 
 void Wsrep_client_service::store_globals()
 {
-  DBUG_ENTER("Wsrep_client_service::store_globals");
-  m_thd->store_globals();
-  DBUG_VOID_RETURN;
+  wsrep_store_threadvars(m_thd);
 }
 
 void Wsrep_client_service::reset_globals()
 {
-  DBUG_ENTER("Wsrep_client_service::reset_globals");
-  m_thd->reset_globals();
-  DBUG_VOID_RETURN;
+  wsrep_reset_threadvars(m_thd);
 }
 
 bool Wsrep_client_service::interrupted(

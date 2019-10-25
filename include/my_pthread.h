@@ -312,6 +312,8 @@ int my_pthread_mutex_trylock(pthread_mutex_t *mutex);
 #endif
 #endif
 
+size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize);
+
 /*
   The defines set_timespec and set_timespec_nsec should be used
   for calculating an absolute time at which

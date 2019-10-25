@@ -18,12 +18,14 @@ SET GLOBAL wsrep_ignore_apply_errors = 1;
 SET GLOBAL wsrep_on = OFF;
 CREATE TABLE t1 (f1 INTEGER);
 SET GLOBAL wsrep_on = ON;
+--source include/galera_wait_ready.inc
 DROP TABLE t1;
 
 # Drop schema that does not exist
 SET GLOBAL wsrep_on = OFF;
 CREATE SCHEMA s1;
 SET GLOBAL wsrep_on = ON;
+--source include/galera_wait_ready.inc
 DROP SCHEMA s1;
 
 # Drop index that does not exist using DROP INDEX
@@ -31,6 +33,7 @@ CREATE TABLE t1 (f1 INTEGER);
 SET GLOBAL wsrep_on = OFF;
 CREATE INDEX idx1 ON t1 (f1);
 SET GLOBAL wsrep_on = ON;
+--source include/galera_wait_ready.inc
 DROP INDEX idx1 ON t1;
 DROP TABLE t1;
 
@@ -39,6 +42,7 @@ CREATE TABLE t1 (f1 INTEGER);
 SET GLOBAL wsrep_on = OFF;
 CREATE INDEX idx1 ON t1 (f1);
 SET GLOBAL wsrep_on = ON;
+--source include/galera_wait_ready.inc
 ALTER TABLE t1 DROP INDEX idx1;
 DROP TABLE t1;
 
@@ -47,6 +51,7 @@ CREATE TABLE t1 (f1 INTEGER);
 SET GLOBAL wsrep_on = OFF;
 ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 SET GLOBAL wsrep_on = ON;
+--source include/galera_wait_ready.inc
 ALTER TABLE t1 DROP COLUMN f2;
 DROP TABLE t1;
 
@@ -64,12 +69,13 @@ CREATE TABLE t1 (f1 INTEGER);
 SET GLOBAL wsrep_on = OFF;
 INSERT INTO t1 VALUES (1);
 SET GLOBAL wsrep_on = ON;
+--source include/galera_wait_ready.inc
 DELETE FROM t1 WHERE f1 = 1;
 
 --connection node_1
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) as expect_0 FROM t1;
 --connection node_2
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) as expect_0 FROM t1;
 
 DROP TABLE t1;
 
@@ -80,6 +86,7 @@ INSERT INTO t1 VALUES (2);
 SET GLOBAL wsrep_on = OFF;
 INSERT INTO t1 VALUES (1);
 SET GLOBAL wsrep_on = ON;
+--source include/galera_wait_ready.inc
 START TRANSACTION;
 INSERT INTO t1 VALUES (3);
 DELETE FROM t1 WHERE f1 = 1;
@@ -87,9 +94,9 @@ DELETE FROM t1 WHERE f1 = 2;
 COMMIT;
 
 --connection node_1
-SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) as expect_1 FROM t1;
 --connection node_2
-SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) as expect_1 FROM t1;
 
 DROP TABLE t1;
 
@@ -107,13 +114,14 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
 SET SESSION wsrep_on = OFF;
 DELETE FROM t1 WHERE f1 = 3;
 SET SESSION wsrep_on = ON;
+--source include/galera_wait_ready.inc
 --connection node_1
 DELETE FROM t1;
 
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) as expect_0 FROM t1;
 --connection node_2
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) as expect_0 FROM t1;
 DROP TABLE t1;
 
 #
@@ -130,6 +138,8 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
 SET SESSION wsrep_on = OFF;
 DELETE FROM t1 WHERE f1 = 3;
 SET SESSION wsrep_on = ON;
+--source include/galera_wait_ready.inc
+
 --connection node_1
 
 SET AUTOCOMMIT=OFF;
@@ -142,10 +152,10 @@ DELETE FROM t1 WHERE f1 = 5;
 COMMIT;
 SET AUTOCOMMIT=ON;
 
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) as expect_0 FROM t1;
 --connection node_2
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) as expect_0 FROM t1;
 DROP TABLE t1;
 
 #
@@ -166,14 +176,15 @@ SET SESSION wsrep_on = OFF;
 DELETE FROM t2 WHERE f1 = 2;
 DELETE FROM t1 WHERE f1 = 3;
 SET SESSION wsrep_on = ON;
+--source include/galera_wait_ready.inc
 
 --connection node_1
 DELETE t1, t2 FROM t1 JOIN t2 WHERE t1.f1 = t2.f1;
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) as expect_0 FROM t1;
 
 --connection node_2
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) as expect_0 FROM t1;
 DROP TABLE t1,t2;
 
 #
@@ -193,16 +204,17 @@ INSERT INTO child VALUES (1,1),(2,2),(3,3);
 SET SESSION wsrep_on = OFF;
 DELETE FROM child WHERE parent_id = 2;
 SET SESSION wsrep_on = ON;
+--source include/galera_wait_ready.inc
 
 --connection node_1
 DELETE FROM parent;
-SELECT COUNT(*) = 0 FROM parent;
-SELECT COUNT(*) = 0 FROM child;
+SELECT COUNT(*) as expect_0 FROM parent;
+SELECT COUNT(*) as expect_0 FROM child;
 
 --connection node_2
 SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
-SELECT COUNT(*) = 0 FROM parent;
-SELECT COUNT(*) = 0 FROM child;
+SELECT COUNT(*) as expect_0 FROM parent;
+SELECT COUNT(*) as expect_0 FROM child;
 DROP TABLE child, parent;
 
 #
@@ -217,6 +229,7 @@ SET GLOBAL wsrep_ignore_apply_errors = 4;
 SET GLOBAL wsrep_on = OFF;
 CREATE TABLE t1 (f1 INTEGER);
 SET GLOBAL wsrep_on = ON;
+--source include/galera_wait_ready.inc
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER, f2 INTEGER);
 DROP TABLE t1;

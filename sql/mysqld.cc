@@ -163,16 +163,11 @@ extern "C" {					// Because of SCO 3.2V4.2
 
 #include <my_libwrap.h>
 
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
-
 #ifdef __WIN__ 
 #include <crtdbg.h>
 #endif
 
 #ifdef HAVE_SOLARIS_LARGE_PAGES
-#include <sys/mman.h>
 #if defined(__sun__) && defined(__GNUC__) && defined(__cplusplus) \
     && defined(_XOPEN_SOURCE)
 extern int getpagesizes(size_t *, int);
@@ -340,7 +335,6 @@ PSI_statement_info stmt_info_rpl;
 
 /* the default log output is log tables */
 static bool lower_case_table_names_used= 0;
-static bool max_long_data_size_used= false;
 static bool volatile select_thread_in_use, signal_thread_in_use;
 static my_bool opt_debugging= 0, opt_external_locking= 0, opt_console= 0;
 static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
@@ -450,6 +444,7 @@ my_bool opt_noacl;
 my_bool sp_automatic_privileges= 1;
 
 ulong opt_binlog_rows_event_max_size;
+ulong binlog_row_metadata;
 my_bool opt_master_verify_checksum= 0;
 my_bool opt_slave_sql_verify_checksum= 1;
 const char *binlog_format_names[]= {"MIXED", "STATEMENT", "ROW", NullS};
@@ -510,12 +505,6 @@ my_decimal decimal_zero;
 long opt_secure_timestamp;
 uint default_password_lifetime;
 my_bool disconnect_on_expired_password;
-
-/*
-  Maximum length of parameter value which can be set through
-  mysql_send_long_data() call.
-*/
-ulong max_long_data_size;
 
 bool max_user_connections_checking=0;
 /**
@@ -1137,12 +1126,9 @@ PSI_statement_info stmt_info_new_packet;
 #endif
 
 #ifndef EMBEDDED_LIBRARY
-void net_before_header_psi(struct st_net *net, void *user_data, size_t /* unused: count */)
+void net_before_header_psi(struct st_net *net, void *thd, size_t /* unused: count */)
 {
-  THD *thd;
-  thd= static_cast<THD*> (user_data);
-  DBUG_ASSERT(thd != NULL);
-
+  DBUG_ASSERT(thd);
   /*
     We only come where when the server is IDLE, waiting for the next command.
     Technically, it is a wait on a socket, which may take a long time,
@@ -1151,7 +1137,8 @@ void net_before_header_psi(struct st_net *net, void *user_data, size_t /* unused
     Instead, start explicitly an IDLE event.
   */
   MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_IDLE);
-  MYSQL_START_IDLE_WAIT(thd->m_idle_psi, &thd->m_idle_state);
+  MYSQL_START_IDLE_WAIT(static_cast<THD*>(thd)->m_idle_psi,
+                        &static_cast<THD*>(thd)->m_idle_state);
 }
 
 void net_after_header_psi(struct st_net *net, void *user_data,
@@ -1485,7 +1472,7 @@ static int mysql_init_variables(void);
 static int get_options(int *argc_ptr, char ***argv_ptr);
 static bool add_terminator(DYNAMIC_ARRAY *options);
 static bool add_many_options(DYNAMIC_ARRAY *, my_option *, size_t);
-extern "C" my_bool mysqld_get_one_option(int, const struct my_option *, char *);
+extern "C" my_bool mysqld_get_one_option(const struct my_option *, char *, const char *);
 static int init_thread_environment();
 static char *get_relative_path(const char *path);
 static int fix_paths(void);
@@ -1590,7 +1577,7 @@ static my_bool kill_thread_phase_2(THD *thd, void *)
 /* associated with the kill thread phase 1 */
 static my_bool warn_threads_active_after_phase_1(THD *thd, void *)
 {
-  if (!thd->is_binlog_dump_thread())
+  if (!thd->is_binlog_dump_thread() && thd->vio_ok())
     sql_print_warning("%s: Thread %llu (user : '%s') did not exit\n", my_progname,
                       (ulonglong) thd->thread_id,
                       (thd->main_security_ctx.user ?
@@ -1877,6 +1864,7 @@ extern "C" void unireg_abort(int exit_code)
 
 #ifdef WITH_WSREP
   if (WSREP_ON &&
+      Wsrep_server_state::is_inited() &&
       Wsrep_server_state::instance().state() != wsrep::server_state::s_disconnected)
   {
     /*
@@ -2883,75 +2871,6 @@ extern "C" char *my_demangle(const char *mangled_name, int *status)
 }
 #endif
 
-
-/*
-  pthread_attr_setstacksize() without so much platform-dependency
-
-  Return: The actual stack size if possible.
-*/
-
-#ifndef EMBEDDED_LIBRARY
-static size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize)
-{
-  size_t guard_size __attribute__((unused))= 0;
-
-#if defined(__ia64__) || defined(__ia64)
-  /*
-    On IA64, half of the requested stack size is used for "normal stack"
-    and half for "register stack".  The space measured by check_stack_overrun
-    is the "normal stack", so double the request to make sure we have the
-    caller-expected amount of normal stack.
-
-    NOTE: there is no guarantee that the register stack can't grow faster
-    than normal stack, so it's very unclear that we won't dump core due to
-    stack overrun despite check_stack_overrun's efforts.  Experimentation
-    shows that in the execution_constants test, the register stack grows
-    less than half as fast as normal stack, but perhaps other scenarios are
-    less forgiving.  If it turns out that more space is needed for the
-    register stack, that could be forced (rather inefficiently) by using a
-    multiplier higher than 2 here.
-  */
-  stacksize *= 2;
-#endif
-
-  /*
-    On many machines, the "guard space" is subtracted from the requested
-    stack size, and that space is quite large on some platforms.  So add
-    it to our request, if we can find out what it is.
-  */
-#ifdef HAVE_PTHREAD_ATTR_GETGUARDSIZE
-  if (pthread_attr_getguardsize(attr, &guard_size))
-    guard_size = 0;		/* if can't find it out, treat as 0 */
-#endif
-
-  pthread_attr_setstacksize(attr, stacksize + guard_size);
-
-  /* Retrieve actual stack size if possible */
-#ifdef HAVE_PTHREAD_ATTR_GETSTACKSIZE
-  {
-    size_t real_stack_size= 0;
-    /* We must ignore real_stack_size = 0 as Solaris 2.9 can return 0 here */
-    if (pthread_attr_getstacksize(attr, &real_stack_size) == 0 &&
-	real_stack_size > guard_size)
-    {
-      real_stack_size -= guard_size;
-      if (real_stack_size < stacksize)
-      {
-	if (global_system_variables.log_warnings)
-          sql_print_warning("Asked for %zu thread stack, but got %zu",
-                            stacksize, real_stack_size);
-	stacksize= real_stack_size;
-      }
-    }
-  }
-#endif /* !EMBEDDED_LIBRARY */
-
-#if defined(__ia64__) || defined(__ia64)
-  stacksize /= 2;
-#endif
-  return stacksize;
-}
-#endif
 
 #ifdef DBUG_ASSERT_AS_PRINTF
 extern "C" void
@@ -4795,6 +4714,7 @@ static int init_server_components()
     We need to call each of these following functions to ensure that
     all things are initialized so that unireg_abort() doesn't fail
   */
+  my_cpu_init();
   mdl_init();
   if (tdc_init() || hostname_cache_init())
     unireg_abort(1);
@@ -5011,6 +4931,7 @@ static int init_server_components()
 
 #ifdef WITH_WSREP
   if (wsrep_init_server()) unireg_abort(1);
+
   if (WSREP_ON && !wsrep_recovery && !opt_abort)
   {
     if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
@@ -5277,7 +5198,7 @@ static int init_server_components()
     int error;
     mysql_mutex_t *log_lock= mysql_bin_log.get_log_lock();
     mysql_mutex_lock(log_lock);
-    error= mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0, 0,
+    error= mysql_bin_log.open(opt_bin_logname, 0, 0,
                               WRITE_CACHE, max_binlog_size, 0, TRUE);
     mysql_mutex_unlock(log_lock);
     if (unlikely(error))
@@ -5427,9 +5348,8 @@ int mysqld_main(int argc, char **argv)
 
   orig_argc= argc;
   orig_argv= argv;
-  my_getopt_use_args_separator= TRUE;
+  my_defaults_mark_files= TRUE;
   load_defaults_or_exit(MYSQL_CONFIG_NAME, load_default_groups, &argc, &argv);
-  my_getopt_use_args_separator= FALSE;
   defaults_argc= argc;
   defaults_argv= argv;
   remaining_argc= argc;
@@ -5579,7 +5499,13 @@ int mysqld_main(int argc, char **argv)
   new_thread_stack_size= my_setstacksize(&connection_attrib,
                                          (size_t)my_thread_stack_size);
   if (new_thread_stack_size != my_thread_stack_size)
+  {
+    if ((new_thread_stack_size < my_thread_stack_size) &&
+        global_system_variables.log_warnings)
+      sql_print_warning("Asked for %llu thread stack, but got %llu",
+                        my_thread_stack_size, new_thread_stack_size);
     SYSVAR_AUTOSIZE(my_thread_stack_size, new_thread_stack_size);
+  }
 
   (void) thr_setconcurrency(concurrency);	// 10 by default
 
@@ -5704,6 +5630,9 @@ int mysqld_main(int argc, char **argv)
       {
         wsrep_init_startup (false);
       }
+
+      WSREP_DEBUG("Startup creating %ld applier threads running %lu",
+	      wsrep_slave_threads - 1, wsrep_running_applier_threads);
       wsrep_create_appliers(wsrep_slave_threads - 1);
     }
   }
@@ -5782,7 +5711,7 @@ int mysqld_main(int argc, char **argv)
   /* Signal threads waiting for server to be started */
   mysql_mutex_lock(&LOCK_server_started);
   mysqld_server_started= 1;
-  mysql_cond_signal(&COND_server_started);
+  mysql_cond_broadcast(&COND_server_started);
   mysql_mutex_unlock(&LOCK_server_started);
 
   MYSQL_SET_STAGE(0 ,__FILE__, __LINE__);
@@ -6427,7 +6356,6 @@ int handle_early_options()
   int ho_error;
   DYNAMIC_ARRAY all_early_options;
 
-  my_getopt_register_get_addr(NULL);
   /* Skip unknown options so that they may be processed later */
   my_getopt_skip_unknown= TRUE;
 
@@ -6552,6 +6480,10 @@ struct my_option my_long_options[]=
    0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
 #ifndef DBUG_OFF
+  {"debug-assert", 0,
+   "Allow DBUG_ASSERT() to invoke assert()",
+   &my_assert, &my_assert,
+   0, GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, 0},
   {"debug-assert-on-error", 0,
    "Do an assert in various functions if we get a fatal error",
    &my_assert_on_error, &my_assert_on_error,
@@ -7499,6 +7431,7 @@ SHOW_VAR status_vars[]= {
   {"Feature_dynamic_columns",  (char*) offsetof(STATUS_VAR, feature_dynamic_columns), SHOW_LONG_STATUS},
   {"Feature_fulltext",         (char*) offsetof(STATUS_VAR, feature_fulltext), SHOW_LONG_STATUS},
   {"Feature_gis",              (char*) offsetof(STATUS_VAR, feature_gis), SHOW_LONG_STATUS},
+  {"Feature_insert_returning",   (char*)offsetof(STATUS_VAR, feature_insert_returning), SHOW_LONG_STATUS},
   {"Feature_invisible_columns",   (char*) offsetof(STATUS_VAR, feature_invisible_columns), SHOW_LONG_STATUS},
   {"Feature_json",             (char*) offsetof(STATUS_VAR, feature_json), SHOW_LONG_STATUS},
   {"Feature_locale",           (char*) offsetof(STATUS_VAR, feature_locale), SHOW_LONG_STATUS},
@@ -7695,6 +7628,8 @@ SHOW_VAR status_vars[]= {
   {"wsrep_provider_vendor",   (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
   {"wsrep_provider_capabilities", (char*) &wsrep_provider_capabilities, SHOW_CHAR_PTR},
   {"wsrep_thread_count",      (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH},
+  {"wsrep_applier_thread_count", (char*) &wsrep_running_applier_threads, SHOW_LONG_NOFLUSH},
+  {"wsrep_rollbacker_thread_count", (char *) &wsrep_running_rollbacker_threads, SHOW_LONG_NOFLUSH},
   {"wsrep_cluster_capabilities", (char*) &wsrep_cluster_capabilities, SHOW_CHAR_PTR},
   {"wsrep",                    (char*) &wsrep_show_status,       SHOW_FUNC},
 #endif
@@ -8047,7 +7982,8 @@ static int mysql_init_variables(void)
 }
 
 my_bool
-mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
+mysqld_get_one_option(const struct my_option *opt, char *argument,
+                      const char *filename)
 {
   if (opt->app_type)
   {
@@ -8057,10 +7993,16 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
       var->value_origin= sys_var::AUTO;
       return 0;
     }
-    var->value_origin= sys_var::CONFIG;
+    if (*filename)
+    {
+      var->origin_filename= filename;
+      var->value_origin= sys_var::CONFIG;
+    }
+    else
+      var->value_origin= sys_var::COMMAND_LINE;
   }
 
-  switch(optid) {
+  switch(opt->id) {
   case '#':
 #ifndef DBUG_OFF
     if (!argument)
@@ -8195,14 +8137,13 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
       return 1;
 #endif
 
-    SYSVAR_AUTOSIZE(pidfile_name_ptr, pidfile_name);
-    /* PID file */
-    strmake(pidfile_name, argument, sizeof(pidfile_name)-5);
-    strmov(fn_ext(pidfile_name),".pid");
-
-    /* check for errors */
-    if (!pidfile_name_ptr)
-      return 1;                                 // out of memory error
+    if (IS_SYSVAR_AUTOSIZE(&pidfile_name_ptr))
+    {
+      SYSVAR_AUTOSIZE(pidfile_name_ptr, pidfile_name);
+      /* PID file */
+      strmake(pidfile_name, argument, sizeof(pidfile_name)-5);
+      strmov(fn_ext(pidfile_name),".pid");
+    }
     break;
   }
 #ifdef HAVE_REPLICATION
@@ -8385,9 +8326,6 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     /* fall through */
   case OPT_PLUGIN_LOAD_ADD:
     opt_plugin_load_list_ptr->push_back(new i_string(argument));
-    break;
-  case OPT_MAX_LONG_DATA_SIZE:
-    max_long_data_size_used= true;
     break;
   case OPT_PFS_INSTRUMENT:
   {
@@ -8600,13 +8538,12 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 {
   int ho_error;
 
-  my_getopt_register_get_addr(mysql_getopt_value);
+  my_getopt_get_addr= mysql_getopt_value;
   my_getopt_error_reporter= option_error_reporter;
 
   /* prepare all_options array */
   my_init_dynamic_array(&all_options, sizeof(my_option),
-                        array_elements(my_long_options) +
-                        sys_var_elements(),
+                        array_elements(my_long_options) + sys_var_elements(),
                         array_elements(my_long_options)/4, MYF(0));
   add_many_options(&all_options, my_long_options, array_elements(my_long_options));
   sys_var_add_options(&all_options, 0);
@@ -8803,14 +8740,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 #endif
 
   opt_readonly= read_only;
-
-  /*
-    If max_long_data_size is not specified explicitly use
-    value of max_allowed_packet.
-  */
-  if (!max_long_data_size_used)
-    SYSVAR_AUTOSIZE(max_long_data_size,
-                    global_system_variables.max_allowed_packet);
 
   /* Remember if max_user_connections was 0 at startup */
   max_user_connections_checking= global_system_variables.max_user_connections != 0;

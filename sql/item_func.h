@@ -210,6 +210,7 @@ public:
   void traverse_cond(Cond_traverser traverser,
                      void * arg, traverse_order order);
   bool eval_not_null_tables(void *opt_arg);
+  bool find_not_null_fields(table_map allowed);
  // bool is_expensive_processor(void *arg);
  // virtual bool is_expensive() { return 0; }
   inline void raise_numeric_overflow(const char *type_name)
@@ -465,8 +466,46 @@ public:
     virtual longlong val_int(Item_handled_func *) const= 0;
     virtual my_decimal *val_decimal(Item_handled_func *, my_decimal *) const= 0;
     virtual bool get_date(THD *thd, Item_handled_func *, MYSQL_TIME *, date_mode_t fuzzydate) const= 0;
-    virtual const Type_handler *return_type_handler() const= 0;
+    virtual const Type_handler *
+      return_type_handler(const Item_handled_func *item) const= 0;
+    virtual const Type_handler *
+      type_handler_for_create_select(const Item_handled_func *item) const
+    {
+      return return_type_handler(item);
+    }
     virtual bool fix_length_and_dec(Item_handled_func *) const= 0;
+  };
+
+  class Handler_str: public Handler
+  {
+  public:
+    String *val_str_ascii(Item_handled_func *item, String *str) const
+    {
+      return item->Item::val_str_ascii(str);
+    }
+    double val_real(Item_handled_func *item) const
+    {
+      DBUG_ASSERT(item->is_fixed());
+      StringBuffer<64> tmp;
+      String *res= item->val_str(&tmp);
+      return res ? item->double_from_string_with_check(res) : 0.0;
+    }
+    longlong val_int(Item_handled_func *item) const
+    {
+      DBUG_ASSERT(item->is_fixed());
+      StringBuffer<22> tmp;
+      String *res= item->val_str(&tmp);
+      return res ? item->longlong_from_string_with_check(res) : 0;
+    }
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    {
+      return item->val_decimal_from_string(to);
+    }
+    bool get_date(THD *thd, Item_handled_func *item, MYSQL_TIME *to,
+                  date_mode_t fuzzydate) const
+    {
+      return item->get_date_from_string(thd, to, fuzzydate);
+    }
   };
 
   /**
@@ -491,9 +530,14 @@ public:
   class Handler_temporal_string: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler() const
+    const Type_handler *return_type_handler(const Item_handled_func *) const
     {
       return &type_handler_string;
+    }
+    const Type_handler *
+      type_handler_for_create_select(const Item_handled_func *item) const
+    {
+      return return_type_handler(item)->type_handler_for_tmp_table(item);
     }
     double val_real(Item_handled_func *item) const
     {
@@ -517,7 +561,7 @@ public:
   class Handler_date: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler() const
+    const Type_handler *return_type_handler(const Item_handled_func *) const
     {
       return &type_handler_newdate;
     }
@@ -548,7 +592,7 @@ public:
   class Handler_time: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler() const
+    const Type_handler *return_type_handler(const Item_handled_func *) const
     {
       return &type_handler_time2;
     }
@@ -574,7 +618,7 @@ public:
   class Handler_datetime: public Handler_temporal
   {
   public:
-    const Type_handler *return_type_handler() const
+    const Type_handler *return_type_handler(const Item_handled_func *) const
     {
       return &type_handler_datetime2;
     }
@@ -610,7 +654,15 @@ public:
   }
   const Type_handler *type_handler() const
   {
-    return m_func_handler->return_type_handler();
+    return m_func_handler->return_type_handler(this);
+  }
+  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
+  {
+    DBUG_ASSERT(fixed);
+    const Type_handler *h= m_func_handler->type_handler_for_create_select(this);
+    return h->make_and_init_table_field(root, &name,
+                                        Record_addr(maybe_null),
+                                        *this, table);
   }
   String *val_str(String *to)
   {
@@ -873,6 +925,7 @@ public:
   Item_func_case_expression(THD *thd, List<Item> &list):
     Item_func_hybrid_field_type(thd, list)
   { }
+  bool find_not_null_fields(table_map allowed) { return false; }
 };
 
 
@@ -1023,7 +1076,12 @@ public:
   Item_long_func(THD *thd, Item *a, Item *b, Item *c): Item_int_func(thd, a, b, c) {}
   Item_long_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
   Item_long_func(THD *thd, Item_long_func *item) :Item_int_func(thd, item) {}
-  const Type_handler *type_handler() const { return &type_handler_long; }
+  const Type_handler *type_handler() const
+  {
+    if (unsigned_flag)
+      return &type_handler_ulong;
+    return &type_handler_slong;
+  }
   bool fix_length_and_dec() { max_length= 11; return FALSE; }
 };
 
@@ -1035,7 +1093,7 @@ public:
   {}
   longlong val_int();
   bool fix_length_and_dec();
-  const Type_handler *type_handler() const { return &type_handler_long; }
+  const Type_handler *type_handler() const { return &type_handler_slong; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_hash>(thd, this); }
   const char *func_name() const { return "<hash>"; }
@@ -1052,7 +1110,12 @@ public:
     Item_int_func(thd, a, b, c, d) {}
   Item_longlong_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
   Item_longlong_func(THD *thd, Item_longlong_func *item) :Item_int_func(thd, item) {}
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const
+  {
+    if (unsigned_flag)
+      return &type_handler_ulonglong;
+    return &type_handler_slonglong;
+  }
 };
 
 
@@ -1120,7 +1183,10 @@ public:
   }
   const char *func_name() const { return "cast_as_signed"; }
   const Type_handler *type_handler() const
-  { return type_handler_long_or_longlong(); }
+  {
+    return Type_handler::type_handler_long_or_longlong(max_char_length(),
+                                                       false);
+  }
   longlong val_int()
   {
     longlong value= args[0]->val_int_signed_typecast();
@@ -1179,8 +1245,8 @@ public:
   const Type_handler *type_handler() const
   {
     if (max_char_length() <= MY_INT32_NUM_DECIMAL_DIGITS - 1)
-      return &type_handler_long;
-    return &type_handler_longlong;
+      return &type_handler_ulong;
+    return &type_handler_ulonglong;
   }
   longlong val_int()
   {
@@ -1327,11 +1393,15 @@ public:
 
 class Item_func_minus :public Item_func_additive_op
 {
+  bool m_depends_on_sql_mode_no_unsigned_subtraction;
 public:
   Item_func_minus(THD *thd, Item *a, Item *b):
-    Item_func_additive_op(thd, a, b) {}
+    Item_func_additive_op(thd, a, b),
+    m_depends_on_sql_mode_no_unsigned_subtraction(false)
+  { }
   const char *func_name() const { return "-"; }
   enum precedence precedence() const { return ADD_PRECEDENCE; }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
@@ -1437,14 +1507,13 @@ public:
   }
   void fix_length_and_dec_decimal()
   {
-    Item_num_op::fix_length_and_dec_decimal();
-    unsigned_flag= args[0]->unsigned_flag;
+    result_precision();
+    fix_decimals();
   }
   void fix_length_and_dec_int()
   {
-    max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
-    decimals= 0;
-    unsigned_flag= args[0]->unsigned_flag;
+    result_precision();
+    DBUG_ASSERT(decimals == 0);
     set_handler(type_handler_long_or_longlong());
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
@@ -1700,21 +1769,36 @@ public:
 
 /* This handles round and truncate */
 
-class Item_func_round :public Item_func_numhybrid
+class Item_func_round :public Item_func_hybrid_field_type
 {
   bool truncate;
   void fix_length_and_dec_decimal(uint decimals_to_set);
   void fix_length_and_dec_double(uint decimals_to_set);
 public:
   Item_func_round(THD *thd, Item *a, Item *b, bool trunc_arg)
-    :Item_func_numhybrid(thd, a, b), truncate(trunc_arg) {}
+    :Item_func_hybrid_field_type(thd, a, b), truncate(trunc_arg) {}
   const char *func_name() const { return truncate ? "truncate" : "round"; }
   double real_op();
   longlong int_op();
   my_decimal *decimal_op(my_decimal *);
+  bool date_op(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool time_op(THD *thd, MYSQL_TIME *ltime);
+  bool native_op(THD *thd, Native *to)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  String *str_op(String *str)
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
   void fix_arg_decimal();
   void fix_arg_int();
   void fix_arg_double();
+  void fix_arg_time();
+  void fix_arg_datetime();
+  void fix_arg_temporal(const Type_handler *h, uint int_part_length);
   bool fix_length_and_dec()
   {
     return args[0]->type_handler()->Item_func_round_fix_length_and_dec(this);
@@ -1926,9 +2010,7 @@ public:
   const Type_handler *type_handler() const { return args[0]->type_handler(); }
   bool fix_length_and_dec()
   {
-    collation= args[0]->collation;
-    max_length= args[0]->max_length;
-    decimals=args[0]->decimals;
+    Type_std_attributes::set(*args[0]);
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -1996,6 +2078,10 @@ public:
   bool eval_not_null_tables(void *)
   {
     not_null_tables_cache= 0;
+    return false;
+  }
+  bool find_not_null_fields(table_map allowed)
+  {
     return false;
   }
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
@@ -2370,6 +2456,10 @@ public:
     not_null_tables_cache= 0;
     return 0;
   }
+  bool find_not_null_fields(table_map allowed)
+  {
+    return false;
+  }
   bool is_expensive() { return 1; }
   virtual void print(String *str, enum_query_type query_type);
   bool check_vcol_func_processor(void *arg)
@@ -2431,7 +2521,11 @@ public:
     return val_decimal_from_int(decimal_value);
   }
   String *val_str(String *str);
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const
+  {
+    return unsigned_flag ? &type_handler_ulonglong :
+                           &type_handler_slonglong;
+  }
   bool fix_length_and_dec() { decimals= 0; max_length= 21; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_udf_int>(thd, this); }
@@ -2523,7 +2617,7 @@ public:
     Item_int_func(thd) {}
   Item_func_udf_int(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_int_func(thd, list) {}
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const { return &type_handler_slonglong; }
   longlong val_int() { DBUG_ASSERT(fixed == 1); return 0; }
 };
 
@@ -2535,7 +2629,7 @@ public:
     Item_int_func(thd) {}
   Item_func_udf_decimal(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_int_func(thd, list) {}
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const { return &type_handler_slonglong; }
   my_decimal *val_decimal(my_decimal *) { DBUG_ASSERT(fixed == 1); return 0; }
 };
 
@@ -2689,7 +2783,12 @@ public:
     :Item_hybrid_func(thd, item),
     m_var_entry(item->m_var_entry), name(item->name) { }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param);
+                             const Tmp_field_param *param)
+  {
+    DBUG_ASSERT(fixed);
+    return create_tmp_field_ex_from_handler(root, table, src, param,
+                                            type_handler());
+  }
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table)
   { return create_table_field_from_handler(root, table); }
   bool check_vcol_func_processor(void *arg);
@@ -2984,6 +3083,10 @@ public:
   {
     not_null_tables_cache= 0;
     return 0;
+  }
+  bool find_not_null_fields(table_map allowed)
+  {
+    return false;
   }
   bool fix_fields(THD *thd, Item **ref);
   bool eq(const Item *, bool binary_cmp) const;
@@ -3288,6 +3391,10 @@ public:
   }
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   { return false; }
+  bool find_not_null_fields(table_map allowed)
+  {
+    return false;
+  }
 };
 
 
@@ -3391,6 +3498,10 @@ public:
   {
     not_null_tables_cache= 0;
     return 0;
+  }
+  bool find_not_null_fields(table_map allowed)
+  {
+    return false;
   }
   bool const_item() const { return 0; }
   void evaluate_sideeffects();

@@ -803,9 +803,9 @@ set join_buffer_size=1;
 --enable_warnings
 
 select * from t2 where filler1 in ( select a from t1);
-set join_buffer_size=default;
+set join_buffer_size=@save_join_buffer_size;
 
-drop table t1, t2; 
+drop table t1, t2;
 #
 # BUG#33509: Server crashes with number of recursive subqueries=61
 #  (the query may or may not fail with an error so we're using it with SP 
@@ -994,6 +994,7 @@ INSERT INTO t2 VALUES (6,'y');
 CREATE TABLE t3 (f12 varchar(1) NOT NULL) ENGINE=InnoDB;
 INSERT INTO t3 VALUES ('r'),('s'),('t'),('v'),('w'),('x'),('y');
 
+analyze table t1,t2,t3 persistent for all;
 --echo # The following must use LooseScan but not join buffering
 
 --replace_column 9 #
@@ -1225,6 +1226,8 @@ INSERT INTO t2 VALUES
   (13,'b','b'),(14,'x','x'),(15,'g','g'),(16,'p','p'),
   (17,'q','q'),(18,'w','w'),(19,'d','d');
 
+analyze table t1 persistent for all;
+analyze table t2 persistent for all;
 --replace_column 9 #
 EXPLAIN
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3

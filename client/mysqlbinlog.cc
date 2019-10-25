@@ -94,7 +94,8 @@ static const char *default_dbug_option = "d:t:o,/tmp/mysqlbinlog.trace";
 const char *current_dbug_option= default_dbug_option;
 #endif
 static const char *load_groups[]=
-{ "mysqlbinlog", "client", "client-server", "client-mariadb", 0 };
+{ "mysqlbinlog", "mariadb-binlog", "client", "client-server", "client-mariadb",
+  0 };
 
 static void error(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 static void warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
@@ -143,6 +144,7 @@ static const char* dirname_for_local_load= 0;
 static bool opt_skip_annotate_row_events= 0;
 
 static my_bool opt_flashback;
+static bool opt_print_table_metadata;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
 static my_bool opt_flashback_review;
 static char *flashback_review_dbname, *flashback_review_tablename;
@@ -1094,6 +1096,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       print_event_info->hexdump_from= pos;
 
     print_event_info->base64_output_mode= opt_base64_output_mode;
+    print_event_info->print_table_metadata= opt_print_table_metadata;
 
     DBUG_PRINT("debug", ("event_type: %s", ev->get_type_str()));
 
@@ -1545,6 +1548,7 @@ end:
       {
         my_fwrite(result_file, (const uchar *) tmp_str.str, tmp_str.length,
                   MYF(MY_NABP));
+        fflush(result_file);
         my_free(tmp_str.str);
       }
     }
@@ -1786,6 +1790,10 @@ Example: rewrite-db='from->to'.",
    (uchar**) &opt_skip_annotate_row_events,
    (uchar**) &opt_skip_annotate_row_events,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"print-table-metadata", OPT_PRINT_TABLE_METADATA,
+   "Print metadata stored in Table_map_log_event",
+   &opt_print_table_metadata, &opt_print_table_metadata, 0,
+   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -1924,11 +1932,10 @@ static my_time_t convert_str_to_timestamp(const char* str)
 
 
 extern "C" my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt, char *argument, const char *)
 {
   bool tty_password=0;
-  switch (optid) {
+  switch (opt->id) {
 #ifndef DBUG_OFF
   case '#':
     if (!argument)

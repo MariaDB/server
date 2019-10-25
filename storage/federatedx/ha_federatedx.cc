@@ -893,7 +893,8 @@ uint ha_federatedx::convert_row_to_internal_format(uchar *record,
       if (bitmap_is_set(table->read_set, (*field)->field_index))
       {
         (*field)->set_notnull();
-        (*field)->store(io->get_column_data(row, column), lengths[column], &my_charset_bin);
+        (*field)->store_text(io->get_column_data(row, column), lengths[column],
+                             &my_charset_bin);
       }
     }
     (*field)->move_field_offset(-old_ptr);
@@ -1988,7 +1989,7 @@ bool ha_federatedx::append_stmt_insert(String *query)
   sql_insert.cc, sql_select.cc, sql_table.cc, sql_udf.cc, and sql_update.cc.
 */
 
-int ha_federatedx::write_row(uchar *buf)
+int ha_federatedx::write_row(const uchar *buf)
 {
   char values_buffer[FEDERATEDX_QUERY_BUFFER_SIZE];
   char insert_field_value_buffer[STRING_BUFFER_USUAL_SIZE];

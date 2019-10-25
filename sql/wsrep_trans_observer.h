@@ -26,6 +26,8 @@
 
 class THD;
 
+void wsrep_commit_empty(THD* thd, bool all);
+
 /*
    Return true if THD has active wsrep transaction.
  */
@@ -290,9 +292,7 @@ static inline int wsrep_before_commit(THD* thd, bool all)
 
   Return zero on succes, non-zero on failure.
  */
-static inline int wsrep_ordered_commit(THD* thd,
-                                      bool all,
-                                      const wsrep_apply_error&)
+static inline int wsrep_ordered_commit(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_ordered_commit");
   WSREP_DEBUG("wsrep_ordered_commit: %d", wsrep_is_real(thd, all));
@@ -422,6 +422,17 @@ static inline void wsrep_close(THD* thd)
   DBUG_VOID_RETURN;
 }
 
+static inline void
+wsrep_wait_rollback_complete_and_acquire_ownership(THD *thd)
+{
+  DBUG_ENTER("wsrep_wait_rollback_complete_and_acquire_ownership");
+  if (thd->wsrep_cs().state() != wsrep::client_state::s_none)
+  {
+    thd->wsrep_cs().wait_rollback_complete_and_acquire_ownership();
+  }
+  DBUG_VOID_RETURN;
+}
+
 static inline int wsrep_before_command(THD* thd)
 {
   return (thd->wsrep_cs().state() != wsrep::client_state::s_none ?
@@ -464,52 +475,6 @@ static inline enum wsrep::provider::status
 wsrep_current_error_status(THD* thd)
 {
   return thd->wsrep_cs().current_error_status();
-}
-
-
-/*
-  Commit an empty transaction.
-
-  If the transaction is real and the wsrep transaction is still active,
-  the transaction did not generate any rows or keys and is committed
-  as empty. Here the wsrep transaction is rolled back and after statement
-  step is performed to leave the wsrep transaction in the state as it
-  never existed.
-*/
-static inline void wsrep_commit_empty(THD* thd, bool all)
-{
-  DBUG_ENTER("wsrep_commit_empty");
-  WSREP_DEBUG("wsrep_commit_empty(%llu)", thd->thread_id);
-  if (wsrep_is_real(thd, all) &&
-      wsrep_thd_is_local(thd) &&
-      thd->wsrep_trx().active() &&
-      thd->wsrep_trx().state() != wsrep::transaction::s_committed)
-  {
-    /* @todo CTAS with STATEMENT binlog format and empty result set
-       seems to be committing empty. Figure out why and try to fix
-       elsewhere. */
-    DBUG_ASSERT(!wsrep_has_changes(thd) ||
-                (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
-                 !thd->is_current_stmt_binlog_format_row()));
-    bool have_error= wsrep_current_error(thd);
-    int ret= wsrep_before_rollback(thd, all) ||
-      wsrep_after_rollback(thd, all) ||
-      wsrep_after_statement(thd);
-    /* The committing transaction was empty but it held some locks and
-       got BF aborted. As there were no certified changes in the
-       data, we ignore the deadlock error and rely on error reporting
-       by storage engine/server. */
-    if (!ret && !have_error && wsrep_current_error(thd))
-    {
-      DBUG_ASSERT(wsrep_current_error(thd) == wsrep::e_deadlock_error);
-      thd->wsrep_cs().reset_error();
-    }
-    if (ret)
-    {
-      WSREP_DEBUG("wsrep_commit_empty failed: %d", wsrep_current_error(thd));
-    }
-  }
-  DBUG_VOID_RETURN;
 }
 
 #endif /* WSREP_TRANS_OBSERVER */

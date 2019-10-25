@@ -56,7 +56,8 @@ static void print_res_top(MYSQL_RES *result);
 static void print_res_row(MYSQL_RES *result,MYSQL_ROW cur);
 
 static const char *load_default_groups[]=
-{ "mysqlshow","client", "client-server", "client-mariadb", 0 };
+{ "mysqlshow", "mariadb-show", "client", "client-server", "client-mariadb",
+  0 };
 static char * opt_mysql_unix_port=0;
 
 int main(int argc, char **argv)
@@ -288,10 +289,10 @@ are shown.");
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt, char *argument,
+               const char *filename __attribute__((unused)))
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'v':
     opt_verbose++;
     break;

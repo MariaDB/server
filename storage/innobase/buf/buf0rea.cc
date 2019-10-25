@@ -312,7 +312,7 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 
 		if (bpage != NULL
 		    && buf_page_is_accessed(bpage)
-		    && buf_page_peek_if_young(bpage)) {
+		    && buf_page_peek_if_young(buf_pool, bpage)) {
 
 			recent_blocks++;
 
@@ -752,89 +752,6 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 
 	buf_pool->stat.n_ra_pages_read += count;
 	return(count);
-}
-
-/********************************************************************//**
-Issues read requests for pages which the ibuf module wants to read in, in
-order to contract the insert buffer tree. Technically, this function is like
-a read-ahead function. */
-void
-buf_read_ibuf_merge_pages(
-/*======================*/
-	bool		sync,		/*!< in: true if the caller
-					wants this function to wait
-					for the highest address page
-					to get read in, before this
-					function returns */
-	const ulint*	space_ids,	/*!< in: array of space ids */
-	const ulint*	page_nos,	/*!< in: array of page numbers
-					to read, with the highest page
-					number the last in the
-					array */
-	ulint		n_stored)	/*!< in: number of elements
-					in the arrays */
-{
-#ifdef UNIV_IBUF_DEBUG
-	ut_a(n_stored < srv_page_size);
-#endif
-
-	for (ulint i = 0; i < n_stored; i++) {
-		fil_space_t* s = fil_space_acquire_for_io(space_ids[i]);
-		if (!s) {
-tablespace_deleted:
-			/* The tablespace was not found: remove all
-			entries for it */
-			ibuf_delete_for_discarded_space(space_ids[i]);
-			while (i + 1 < n_stored
-			       && space_ids[i + 1] == space_ids[i]) {
-				i++;
-			}
-			continue;
-		}
-
-		const ulint zip_size = s->zip_size();
-		s->release_for_io();
-
-		const page_id_t	page_id(space_ids[i], page_nos[i]);
-
-		buf_pool_t*	buf_pool = buf_pool_get(page_id);
-
-		while (buf_pool->n_pend_reads
-		       > buf_pool->curr_size / BUF_READ_AHEAD_PEND_LIMIT) {
-			os_thread_sleep(500000);
-		}
-
-		dberr_t	err;
-
-		buf_read_page_low(&err,
-				  sync && (i + 1 == n_stored),
-				  0,
-				  BUF_READ_ANY_PAGE, page_id, zip_size,
-				  true, true /* ignore_missing_space */);
-
-		switch(err) {
-		case DB_SUCCESS:
-		case DB_ERROR:
-			break;
-		case DB_TABLESPACE_DELETED:
-			goto tablespace_deleted;
-		case DB_PAGE_CORRUPTED:
-		case DB_DECRYPTION_FAILED:
-			ib::error() << "Failed to read or decrypt " << page_id
-				<< " for change buffer merge";
-			break;
-		default:
-			ut_error;
-		}
-	}
-
-	os_aio_simulated_wake_handler_threads();
-
-	if (n_stored) {
-		DBUG_PRINT("ib_buf",
-			   ("ibuf merge read-ahead %u pages, space %u",
-			    unsigned(n_stored), unsigned(space_ids[0])));
-	}
 }
 
 /** Issues read requests for pages which recovery wants to read in.

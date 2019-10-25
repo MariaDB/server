@@ -79,6 +79,7 @@ order by x;
 select *, check_row(row_start, row_end) from t2 for system_time all
 order by y;
 
+drop view vt1;
+drop tables t1, t2, t2f, tf;
+
 --source suite/versioning/common_finish.inc
-drop database test;
-create database test;

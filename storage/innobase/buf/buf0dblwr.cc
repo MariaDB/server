@@ -264,6 +264,13 @@ too_small:
 
 		ut_ad(rw_lock_get_x_lock_count(&new_block->lock) == 1);
 		page_no = new_block->page.id.page_no();
+		/* We only do this in the debug build, to ensure that
+		both the check in buf_flush_init_for_writing() and
+		recv_parse_or_apply_log_rec_body() will see a valid
+		page type. The flushes of new_block are actually
+		unnecessary here.  */
+		ut_d(mlog_write_ulint(FIL_PAGE_TYPE + new_block->frame,
+				      FIL_PAGE_TYPE_SYS, MLOG_2BYTES, &mtr));
 
 		if (i == FSP_EXTENT_SIZE / 2) {
 			ut_a(page_no == FSP_EXTENT_SIZE);
@@ -325,7 +332,8 @@ too_small:
 	mtr_commit(&mtr);
 
 	/* Flush the modified pages to disk and make a checkpoint */
-	log_make_checkpoint_at(LSN_MAX);
+	log_make_checkpoint();
+	buf_dblwr_being_created = FALSE;
 
 	/* Remove doublewrite pages from LRU */
 	buf_pool_invalidate();

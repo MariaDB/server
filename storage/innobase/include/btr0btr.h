@@ -217,65 +217,55 @@ btr_height_get(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Gets a buffer page and declares its latching order level.
-@param[in]	page_id	page id
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+/** Get an index page and declare its latching order level.
+@param[in]	index	index tree
+@param[in]	page	page number
 @param[in]	mode	latch mode
+@param[in]	merge	whether change buffer merge should be attempted
 @param[in]	file	file name
 @param[in]	line	line where called
-@param[in]	index	index tree, may be NULL if it is not an insert buffer
-tree
 @param[in,out]	mtr	mini-transaction
 @return block */
-UNIV_INLINE
-buf_block_t*
-btr_block_get_func(
-	const page_id_t		page_id,
-	ulint			zip_size,
-	ulint			mode,
-	const char*		file,
-	unsigned		line,
-	dict_index_t*		index,
-	mtr_t*			mtr);
+inline buf_block_t* btr_block_get_func(const dict_index_t& index, ulint page,
+				       ulint mode, bool merge,
+				       const char* file, unsigned line,
+				       mtr_t* mtr)
+{
+	dberr_t err;
 
-# ifdef UNIV_DEBUG
+	if (buf_block_t* block = buf_page_get_gen(
+		    page_id_t(index.table->space->id, page),
+		    index.table->space->zip_size(), mode, NULL, BUF_GET,
+		    file, line, mtr, &err, merge && !index.is_clust())) {
+		ut_ad(err == DB_SUCCESS);
+		if (mode != RW_NO_LATCH) {
+			buf_block_dbg_add_level(block, index.is_ibuf()
+						? SYNC_IBUF_TREE_NODE
+						: SYNC_TREE_NODE);
+		}
+		return block;
+	} else {
+		ut_ad(err != DB_SUCCESS);
+
+		if (err == DB_DECRYPTION_FAILED) {
+			if (index.table) {
+				index.table->file_unreadable = true;
+			}
+		}
+
+		return NULL;
+	}
+}
+
 /** Gets a buffer page and declares its latching order level.
-@param page_id tablespace/page identifier
-@param zip_size ROW_FORMAT=COMPRESSED page size, or 0
+@param index index tree
+@param page page number
 @param mode latch mode
-@param index index tree, may be NULL if not the insert buffer tree
+@param merge whether change buffer merge should be attempted
 @param mtr mini-transaction handle
 @return the block descriptor */
-#  define btr_block_get(page_id, zip_size, mode, index, mtr)	\
-	btr_block_get_func(page_id, zip_size, mode,		\
-		__FILE__, __LINE__, (dict_index_t*)index, mtr)
-# else /* UNIV_DEBUG */
-/** Gets a buffer page and declares its latching order level.
-@param page_id tablespace/page identifier
-@param zip_size ROW_FORMAT=COMPRESSED page size, or 0
-@param mode latch mode
-@param index index tree, may be NULL if not the insert buffer tree
-@param mtr mini-transaction handle
-@return the block descriptor */
-#  define btr_block_get(page_id, zip_size, mode, index, mtr)	\
-	btr_block_get_func(page_id, zip_size, mode, __FILE__, __LINE__, (dict_index_t*)index, mtr)
-# endif /* UNIV_DEBUG */
-/** Gets a buffer page and declares its latching order level.
-@param page_id tablespace/page identifier
-@param zip_size	compressed page size in bytes or 0 for uncompressed pages
-@param mode latch mode
-@param index index tree, may be NULL if not the insert buffer tree
-@param mtr mini-transaction handle
-@return the uncompressed page frame */
-UNIV_INLINE
-page_t*
-btr_page_get(
-	const page_id_t		page_id,
-	ulint			zip_size,
-	ulint			mode,
-	dict_index_t*		index,
-	mtr_t*			mtr)
-	MY_ATTRIBUTE((warn_unused_result));
+# define btr_block_get(index, page, mode, merge, mtr)		\
+	btr_block_get_func(index, page, mode, merge, __FILE__, __LINE__, mtr)
 /**************************************************************//**
 Gets the index id field of a page.
 @return index id */
@@ -480,30 +470,22 @@ btr_page_reorganize(
 	dict_index_t*	index,	/*!< in: the index tree of the page */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
-/*************************************************************//**
-Decides if the page should be split at the convergence point of
-inserts converging to left.
-@return TRUE if split recommended */
-ibool
-btr_page_get_split_rec_to_left(
-/*===========================*/
-	btr_cur_t*	cursor,	/*!< in: cursor at which to insert */
-	rec_t**		split_rec)/*!< out: if split recommended,
-				the first record on upper half page,
-				or NULL if tuple should be first */
-	MY_ATTRIBUTE((warn_unused_result));
-/*************************************************************//**
-Decides if the page should be split at the convergence point of
-inserts converging to right.
-@return TRUE if split recommended */
-ibool
-btr_page_get_split_rec_to_right(
-/*============================*/
-	btr_cur_t*	cursor,	/*!< in: cursor at which to insert */
-	rec_t**		split_rec)/*!< out: if split recommended,
-				the first record on upper half page,
-				or NULL if tuple should be first */
-	MY_ATTRIBUTE((warn_unused_result));
+/** Decide if the page should be split at the convergence point of inserts
+converging to the left.
+@param[in]	cursor	insert position
+@return the first record to be moved to the right half page
+@retval	NULL if no split is recommended */
+rec_t* btr_page_get_split_rec_to_left(const btr_cur_t* cursor);
+/** Decide if the page should be split at the convergence point of inserts
+converging to the right.
+@param[in]	cursor		insert position
+@param[out]	split_rec	if split recommended, the first record
+				on the right half page, or
+				NULL if the to-be-inserted record
+				should be first
+@return whether split is recommended */
+bool
+btr_page_get_split_rec_to_right(const btr_cur_t* cursor, rec_t** split_rec);
 
 /*************************************************************//**
 Splits an index page to halves and inserts the tuple. It is assumed
@@ -543,14 +525,10 @@ btr_insert_on_non_leaf_level_func(
 	mtr_t*		mtr);	/*!< in: mtr */
 #define btr_insert_on_non_leaf_level(f,i,l,t,m)			\
 	btr_insert_on_non_leaf_level_func(f,i,l,t,__FILE__,__LINE__,m)
-/****************************************************************//**
-Sets a record as the predefined minimum record. */
-void
-btr_set_min_rec_mark(
-/*=================*/
-	rec_t*	rec,	/*!< in/out: record */
-	mtr_t*	mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
+
+/** Sets a record as the predefined minimum record. */
+void btr_set_min_rec_mark(rec_t* rec, mtr_t* mtr) MY_ATTRIBUTE((nonnull));
+
 /** Seek to the parent page of a B-tree page.
 @param[in,out]	index	b-tree
 @param[in]	block	child page
@@ -718,7 +696,7 @@ buf_block_t*
 btr_root_block_get(
 /*===============*/
 	const dict_index_t*	index,	/*!< in: index tree */
-	ulint			mode,	/*!< in: either RW_S_LATCH
+	rw_lock_type_t		mode,	/*!< in: either RW_S_LATCH
 					or RW_X_LATCH */
 	mtr_t*			mtr);	/*!< in: mtr */
 
@@ -791,28 +769,11 @@ btr_validate_index(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Remove a page from the level list of pages.
-@param[in]	space		space where removed
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in,out]	page		page to remove
+@param[in]	block		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void
-btr_level_list_remove_func(
-	ulint			space,
-	ulint			zip_size,
-	page_t*			page,
-	dict_index_t*		index,
-	mtr_t*			mtr);
-
-/*************************************************************//**
-Removes a page from the level list of pages.
-@param space	in: space where removed
-@param zip_size	in: compressed page size in bytes, or 0 for uncompressed
-@param page	in/out: page to remove
-@param index	in: index tree
-@param mtr	in/out: mini-transaction */
-# define btr_level_list_remove(space,zip_size,page,index,mtr)		\
-	btr_level_list_remove_func(space,zip_size,page,index,mtr)
+void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
+			   mtr_t* mtr);
 
 /*************************************************************//**
 If page is the only on its level, this function moves its records to the

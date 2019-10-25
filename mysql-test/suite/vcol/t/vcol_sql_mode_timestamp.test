@@ -1,0 +1,122 @@
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-18153 Assertion `0' or Assertion `btr_validate_index(index, 0)' failed in row_upd_sec_index_entry or error code 126: Index is corrupted upon UPDATE with TIME_ROUND_FRACTIONAL
+--echo #
+
+SET sql_mode=DEFAULT;
+
+--echo # OK: same FSP + virtual index
+
+CREATE TABLE t1 (
+  t TIMESTAMP(4),
+  d DATETIME,
+  v TIMESTAMP(4) AS (t) VIRTUAL,
+  KEY(v,d)
+);
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  t TIMESTAMP(4),
+  d DATETIME,
+  v TIMESTAMP(4) AS ('2001-01-01 10:20:30.1234') VIRTUAL,
+  KEY(v,d)
+);
+DROP TABLE t1;
+
+
+--echo # OK: lower FSP + no virtual index
+
+CREATE TABLE t1 (
+  t TIMESTAMP(4),
+  d DATETIME,
+  v TIMESTAMP(3) AS (t) VIRTUAL
+);
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (
+  t TIMESTAMP(4),
+  d DATETIME,
+  v TIMESTAMP(3) AS ('2001-01-01 10:20:30.1234') VIRTUAL
+);
+DROP TABLE t1;
+
+
+--echo # NOT OK: lower FSP + virtual index
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (
+  t TIMESTAMP(4),
+  d DATETIME,
+  v TIMESTAMP(3) AS (t) VIRTUAL,
+  KEY(v,d)
+);
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (
+  t TIMESTAMP(4),
+  d DATETIME,
+  v TIMESTAMP(3) AS (COALESCE(t)) VIRTUAL,
+  KEY(v,d)
+);
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (
+  t TIMESTAMP(4),
+  d DATETIME,
+  v TIMESTAMP(3) AS ('2001-01-01 10:20:30.1234') VIRTUAL,
+  KEY(v,d)
+);
+
+
+--echo # OK: lower FSP + ROUND + virtual index
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (
+  t TIMESTAMP(4),
+  d DATETIME,
+  v TIMESTAMP(3) AS (ROUND(t,3)) VIRTUAL,
+  KEY(v,d)
+);
+INSERT IGNORE INTO t1 (t,d) VALUES ('2006-03-01 12:44:34.0496','2029-10-10 21:27:53');
+SELECT * FROM t1;
+SET SQL_MODE= 'TIME_ROUND_FRACTIONAL';
+UPDATE IGNORE t1 SET d = NOW();
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
+--echo # OK: lower FSP + TRUNCATE + virtual index
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (
+  t TIMESTAMP(4),
+  d DATETIME,
+  v TIMESTAMP(3) AS (TRUNCATE(t,3)) VIRTUAL,
+  KEY(v,d)
+);
+INSERT IGNORE INTO t1 (t,d) VALUES ('2006-03-01 12:44:34.0496','2029-10-10 21:27:53');
+SELECT * FROM t1;
+SET SQL_MODE= 'TIME_ROUND_FRACTIONAL';
+UPDATE IGNORE t1 SET d = NOW();
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-20639 ASAN SEGV in get_prefix upon modifying base column type with existing indexed virtual column
+--echo #
+
+CREATE TABLE t1 (
+    a TIMESTAMP,
+    b TIMESTAMP AS (a) VIRTUAL,
+    KEY (b)
+);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+ALTER TABLE t1 MODIFY a BLOB FIRST;
+SHOW WARNINGS;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

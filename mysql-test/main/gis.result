@@ -816,11 +816,15 @@ POINT(1 1)
 drop function fn3;
 create table t1(pt POINT);
 alter table t1 add primary key pti(pt);
+Warnings:
+Warning	1280	Name 'pti' ignored for PRIMARY key.
 drop table t1;
 create table t1(pt GEOMETRY);
 alter table t1 add primary key pti(pt);
 ERROR 42000: BLOB/TEXT column 'pt' used in key specification without a key length
 alter table t1 add primary key pti(pt(20));
+Warnings:
+Warning	1280	Name 'pti' ignored for PRIMARY key.
 drop table t1;
 create table t1 select GeomFromText('point(1 1)');
 desc t1;
@@ -5008,9 +5012,9 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SELECT 0x60+POINT(1,1);
-ERROR HY000: Illegal parameter data types bigint and point for operation '+'
+ERROR HY000: Illegal parameter data types bigint unsigned and point for operation '+'
 SELECT POINT(1,1)+0x60;
-ERROR HY000: Illegal parameter data types point and bigint for operation '+'
+ERROR HY000: Illegal parameter data types point and bigint unsigned for operation '+'
 #
 # MDEV-16454 Bad results for IN with ROW
 #

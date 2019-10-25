@@ -1,0 +1,8 @@
+include/master-slave.inc
+[connection master]
+connect  con1,localhost,root,,;
+CREATE TEMPORARY TABLE tmp (a INT);
+CREATE TABLE non_existing_db.t SELECT 1 AS b;
+disconnect con1;
+connection default;
+include/rpl_end.inc

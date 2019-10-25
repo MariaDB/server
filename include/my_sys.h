@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -266,6 +266,7 @@ extern ulong    my_sync_count;
 extern uint	mysys_usage_id;
 extern int32    my_file_opened;
 extern my_bool	my_init_done, my_thr_key_mysys_exists;
+extern my_bool my_assert;
 extern my_bool  my_assert_on_error;
 extern myf      my_global_flags;        /* Set to MY_WME for more error messages */
 					/* Point to current my_message() */
@@ -964,8 +965,6 @@ extern ulonglong my_getcputime(void);
 #endif
 
 #ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-
 #ifndef MAP_NOSYNC
 #define MAP_NOSYNC      0
 #endif

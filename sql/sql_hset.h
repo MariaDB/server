@@ -38,6 +38,13 @@ public:
     m_hash.get_key= (my_hash_get_key)K;
     m_hash.charset= cs;
   }
+  Hash_set(CHARSET_INFO *charset, ulong default_array_elements,
+           size_t key_offset, size_t key_length, my_hash_get_key get_key,
+           void (*free_element)(void*), uint flags)
+  {
+    my_hash_init(&m_hash, charset, default_array_elements, key_offset,
+                 key_length, get_key, free_element, flags);
+  }
   /**
     Destroy the hash by freeing the buckets table. Does
     not call destructors for the elements.
@@ -58,13 +65,8 @@ public:
   bool insert(T *value)
   {
     my_hash_init_opt(&m_hash, m_hash.charset, START_SIZE, 0, 0,
-                     m_hash.get_key, 0, MYF(0));
-    size_t key_len;
-    uchar *v= reinterpret_cast<uchar *>(value);
-    const uchar *key= m_hash.get_key(v, &key_len, FALSE);
-    if (find(key, key_len) == NULL)
-      return my_hash_insert(&m_hash, v);
-    return FALSE;
+                     m_hash.get_key, 0, HASH_UNIQUE);
+    return my_hash_insert(&m_hash, reinterpret_cast<const uchar*>(value));
   }
   bool remove(T *value)
   {
@@ -78,6 +80,8 @@ public:
   bool is_empty() const { return m_hash.records == 0; }
   /** Returns the number of unique elements. */
   size_t size() const { return static_cast<size_t>(m_hash.records); }
+  /** Erases all elements from the container */
+  void clear() { my_hash_reset(&m_hash); }
   const T* at(size_t i) const
   {
     return reinterpret_cast<T*>(my_hash_element(const_cast<HASH*>(&m_hash), i));

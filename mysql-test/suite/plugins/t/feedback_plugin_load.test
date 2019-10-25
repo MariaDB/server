@@ -2,6 +2,10 @@ if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'fe
 {
   --skip Feedback plugin is not active
 }
+if (`select @@feedback_url = ""`)
+{
+  --skip Feedback plugin is not active
+}
 
 select plugin_status from information_schema.plugins where plugin_name='feedback';
 

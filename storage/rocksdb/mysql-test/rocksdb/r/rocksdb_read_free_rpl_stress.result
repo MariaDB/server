@@ -1,0 +1,35 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+include/stop_slave.inc
+set @@global.rocksdb_read_free_rpl = PK_SK;
+include/start_slave.inc
+include/sync_slave_sql_with_master.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+include/diff_tables.inc [master:t5, slave:t5]
+include/diff_tables.inc [master:t6, slave:t6]
+include/diff_tables.inc [master:t7, slave:t7]
+include/diff_tables.inc [master:t8, slave:t8]
+include/sync_slave_sql_with_master.inc
+include/stop_slave.inc
+set @@global.rocksdb_read_free_rpl = PK_ONLY;
+include/start_slave.inc
+include/sync_slave_sql_with_master.inc
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+include/diff_tables.inc [master:t4, slave:t4]
+include/diff_tables.inc [master:t5, slave:t5]
+include/diff_tables.inc [master:t6, slave:t6]
+include/diff_tables.inc [master:t7, slave:t7]
+include/diff_tables.inc [master:t8, slave:t8]
+include/sync_slave_sql_with_master.inc
+include/stop_slave.inc
+set @@global.rocksdb_read_free_rpl = default;
+include/start_slave.inc
+include/rpl_end.inc

@@ -26,7 +26,8 @@ if (`select @join_cache_level_for_subselect_test is not null`)
 {
   set join_cache_level=@join_cache_level_for_subselect_test;
 }
- set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+SET optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+SET optimizer_use_condition_selectivity=4;
 
 select (select 2);
 explain extended select (select 2);
@@ -55,7 +56,7 @@ SELECT 1 IN (SELECT 1);
 SELECT 1 FROM (SELECT 1 as a) b WHERE 1 IN (SELECT (SELECT a));
 -- error ER_PARSE_ERROR
 select (SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE(1));
--- error ER_PARSE_ERROR
+-- error ER_SUBQUERIES_NOT_SUPPORTED
 SELECT 1 FROM (SELECT 1) a PROCEDURE ANALYSE((SELECT 1));
 -- error ER_BAD_FIELD_ERROR
 SELECT (SELECT 1) as a FROM (SELECT 1) b WHERE (SELECT a) IS NULL;
@@ -393,8 +394,6 @@ select * from t1;
 # After this, only data based on old t1 records should have been added.
 INSERT INTO t1 (x) select (SELECT SUM(x)+2 FROM t1) FROM t2;
 select * from t1;
--- error ER_BAD_FIELD_ERROR
-INSERT DELAYED INTO t1 (x) VALUES ((SELECT SUM(x) FROM t2));
 let $row_count_before= `SELECT COUNT(*) FROM t1`;
 INSERT DELAYED INTO t1 (x) VALUES ((SELECT SUM(a) FROM t2));
 let $wait_condition= SELECT COUNT(*) <> $row_count_before FROM t1;
@@ -622,7 +621,7 @@ set @a:=(SELECT a from t1);
 
 CREATE TABLE t1 (a int, KEY(a));
 HANDLER t1 OPEN;
--- error ER_PARSE_ERROR
+-- error ER_SUBQUERIES_NOT_SUPPORTED
 HANDLER t1 READ a=((SELECT 1));
 HANDLER t1 CLOSE;
 drop table t1;
@@ -2610,8 +2609,6 @@ SELECT sql_no_cache * FROM t1 WHERE NOT EXISTS
 SELECT * FROM t1
 WHERE NOT EXISTS (((SELECT i FROM t1) UNION (SELECT i FROM t1)));
 
-#TODO:not supported
---error ER_PARSE_ERROR
 explain select ((select t11.i from t1 t11) union (select t12.i from t1 t12))
   from t1;
 
@@ -4413,11 +4410,9 @@ SELECT * FROM t1 WHERE a = ALL ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
 SELECT * FROM t1 WHERE a = ANY ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
 SELECT * FROM t1 WHERE a IN    ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
 
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a =     ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
 SELECT * FROM t1 WHERE a = ALL ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
 SELECT * FROM t1 WHERE a = ANY ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a IN    ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
 
 SELECT * FROM t1 WHERE a =     ( SELECT 1 UNION SELECT 1 UNION SELECT 1 );
@@ -5962,12 +5957,12 @@ drop table t1,t2,t3,t4;
 --echo # MDEV-7122
 --echo # Assertion `0' failed in subselect_hash_sj_engine::init
 --echo #
-SET SESSION big_tables=1;
+set tmp_memory_table_size=0; # force on-disk tmp table
 CREATE TABLE t1(a char(255) DEFAULT '', KEY(a(10))) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 INSERT INTO t1 VALUES(0),(0),(0);
 SELECT * FROM t1 WHERE a IN(SELECT MIN(a) FROM t1);
 DROP TABLE t1;
-SET SESSION big_tables=0;
+set tmp_memory_table_size=default;
 
 --echo #
 --echo # MDEV-10776: Server crash on query
@@ -6103,6 +6098,30 @@ explain select * from t1 where (select max(b) from t2) = 10;
 explain select * from t1 where (select max(b) from t2) = 10 and t1.a > 3;
 
 drop table t1,t2;
+
+
+--echo #
+--echo # MDEV-19429: Wrong query result with EXISTS and LIMIT 0
+--echo #
+create table t10 (a int);
+insert into t10 values (1),(2),(3);
+create table t12 (a int);
+insert into t12 values (1),(2),(3);
+select * from t10 where exists (select * from t12 order by a limit 0);
+explain select * from t10 where exists (select * from t12 order by a limit 0);
+
+prepare stmt1 from "select * from t10 where exists (select * from t12 order by a limit ?)";
+
+set @l=1;
+execute stmt1 using @l;
+set @l=2;
+execute stmt1 using @l;
+set @l=0;
+execute stmt1 using @l;
+
+deallocate prepare stmt1;
+
+drop table t10, t12;
 
 --echo End of 5.5 tests
 --echo # End of 10.0 tests

@@ -976,6 +976,8 @@ drop table t1, t2;
 # MDEV-14551 Can't find record in table on multi-table update with ORDER BY
 #
 
+--source include/default_optimizer_switch.inc
+
 # simple test with multi-update and Using temporary:
 create table t1 (i int) engine=memory;
 insert t1 values (1),(2);

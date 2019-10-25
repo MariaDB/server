@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/count_sessions.inc
+--source include/default_charset.inc
 
 --echo #
 --echo # Bug #19027905 ASSERT RET.SECOND DICT_CREATE_FOREIGN_CONSTRAINTS_LOW
@@ -155,7 +156,7 @@ call mtr.add_suppression("InnoDB: Cannot delete/update rows with cascading forei
 --enable_query_log
 
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
-CREATE DATABASE best;
+CREATE DATABASE best default character set latin1;
 CREATE TABLE t3 (a INT PRIMARY KEY,
 CONSTRAINT t2_ibfk_1 FOREIGN KEY (a) REFERENCES t1(a)) ENGINE=InnoDB;
 CREATE TABLE best.t2 (a INT PRIMARY KEY, b TEXT, FULLTEXT INDEX(b),

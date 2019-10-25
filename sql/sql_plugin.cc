@@ -38,6 +38,8 @@
 #include <mysql/plugin_auth.h>
 #include <mysql/plugin_password_validation.h>
 #include <mysql/plugin_encryption.h>
+#include <mysql/plugin_data_type.h>
+#include <mysql/plugin_function.h>
 #include "sql_plugin_compat.h"
 
 #ifdef HAVE_LINK_H
@@ -76,7 +78,7 @@ uint plugin_maturity_map[]=
 { 0, 1, 2, 3, 4, 5, 6 };
 
 /*
-  When you ad a new plugin type, add both a string and make sure that the
+  When you add a new plugin type, add both a string and make sure that the
   init and deinit array are correctly updated.
 */
 const LEX_CSTRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
@@ -90,7 +92,9 @@ const LEX_CSTRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   { STRING_WITH_LEN("REPLICATION") },
   { STRING_WITH_LEN("AUTHENTICATION") },
   { STRING_WITH_LEN("PASSWORD VALIDATION") },
-  { STRING_WITH_LEN("ENCRYPTION") }
+  { STRING_WITH_LEN("ENCRYPTION") },
+  { STRING_WITH_LEN("DATA TYPE") },
+  { STRING_WITH_LEN("FUNCTION") }
 };
 
 extern int initialize_schema_table(st_plugin_int *plugin);
@@ -110,13 +114,15 @@ extern int finalize_encryption_plugin(st_plugin_int *plugin);
 plugin_type_init plugin_type_initialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   0, ha_initialize_handlerton, 0, 0,initialize_schema_table,
-  initialize_audit_plugin, 0, 0, 0, initialize_encryption_plugin
+  initialize_audit_plugin, 0, 0, 0, initialize_encryption_plugin, 0,
+  0 // FUNCTION
 };
 
 plugin_type_init plugin_type_deinitialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   0, ha_finalize_handlerton, 0, 0, finalize_schema_table,
-  finalize_audit_plugin, 0, 0, 0, finalize_encryption_plugin
+  finalize_audit_plugin, 0, 0, 0, finalize_encryption_plugin, 0,
+  0 // FUNCTION
 };
 
 /*
@@ -128,6 +134,8 @@ static int plugin_type_initialization_order[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   MYSQL_DAEMON_PLUGIN,
   MariaDB_ENCRYPTION_PLUGIN,
+  MariaDB_DATA_TYPE_PLUGIN,
+  MariaDB_FUNCTION_PLUGIN,
   MYSQL_STORAGE_ENGINE_PLUGIN,
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   MYSQL_FTPARSER_PLUGIN,
@@ -169,7 +177,9 @@ static int min_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MYSQL_REPLICATION_INTERFACE_VERSION,
   MIN_AUTHENTICATION_INTERFACE_VERSION,
   MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
-  MariaDB_ENCRYPTION_INTERFACE_VERSION
+  MariaDB_ENCRYPTION_INTERFACE_VERSION,
+  MariaDB_DATA_TYPE_INTERFACE_VERSION,
+  MariaDB_FUNCTION_INTERFACE_VERSION
 };
 static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
@@ -182,7 +192,9 @@ static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MYSQL_REPLICATION_INTERFACE_VERSION,
   MYSQL_AUTHENTICATION_INTERFACE_VERSION,
   MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
-  MariaDB_ENCRYPTION_INTERFACE_VERSION
+  MariaDB_ENCRYPTION_INTERFACE_VERSION,
+  MariaDB_DATA_TYPE_INTERFACE_VERSION,
+  MariaDB_FUNCTION_INTERFACE_VERSION
 };
 
 static struct
@@ -227,6 +239,7 @@ static DYNAMIC_ARRAY plugin_array;
 static HASH plugin_hash[MYSQL_MAX_PLUGIN_TYPE_NUM];
 static MEM_ROOT plugin_mem_root;
 static bool reap_needed= false;
+volatile int global_plugin_version= 1;
 
 static bool initialized= 0;
 ulong dlopen_count;
@@ -728,9 +741,9 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
     This is done to ensure that only approved libraries from the
     plugin directory are used (to make this even remotely secure).
   */
-  if (check_valid_path(dl->str, dl->length) ||
-      check_string_char_length((LEX_CSTRING *) dl, 0, NAME_CHAR_LEN,
+  if (check_string_char_length((LEX_CSTRING *) dl, 0, NAME_CHAR_LEN,
                                system_charset_info, 1) ||
+      check_valid_path(dl->str, dl->length) ||
       plugin_dir_len + dl->length + 1 >= FN_REFLEN)
   {
     my_error(ER_UDF_NO_PATHS, MyFlags);
@@ -1845,6 +1858,9 @@ static void plugin_load(MEM_ROOT *tmp_root)
     LEX_CSTRING name= {str_name.ptr(), str_name.length()};
     LEX_CSTRING dl=   {str_dl.ptr(), str_dl.length()};
 
+    if (!name.length || !dl.length)
+      continue;
+
     /*
       there're no other threads running yet, so we don't need a mutex.
       but plugin_add() before is designed to work in multi-threaded
@@ -2225,6 +2241,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
     reap_plugins();
   }
 err:
+  global_plugin_version++;
   mysql_mutex_unlock(&LOCK_plugin);
   if (argv)
     free_defaults(argv);
@@ -2375,6 +2392,7 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
   }
   reap_plugins();
 
+  global_plugin_version++;
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(error);
 #ifdef WITH_WSREP
@@ -3693,7 +3711,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
   const LEX_CSTRING plugin_dash = { STRING_WITH_LEN("plugin-") };
   size_t plugin_name_len= strlen(plugin_name);
   size_t optnamelen;
-  const int max_comment_len= 180;
+  const int max_comment_len= 255;
   char *comment= (char *) alloc_root(mem_root, max_comment_len + 1);
   char *optname;
 
@@ -3727,8 +3745,9 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
     options[0].typelib= options[1].typelib= &global_plugin_typelib;
 
     strxnmov(comment, max_comment_len, "Enable or disable ", plugin_name,
-            " plugin. One of: ON, OFF, FORCE (don't start "
-            "if the plugin fails to load).", NullS);
+            " plugin. One of: ON, OFF, FORCE (don't start if the plugin"
+            " fails to load), FORCE_PLUS_PERMANENT (like FORCE, but the"
+            " plugin can not be uninstalled).", NullS);
     options[0].comment= comment;
     /*
       Allocate temporary space for the value of the tristate.
@@ -3965,13 +3984,19 @@ static my_option *construct_help_options(MEM_ROOT *mem_root,
   DBUG_RETURN(opts);
 }
 
-extern "C" my_bool mark_changed(int, const struct my_option *, char *);
-my_bool mark_changed(int, const struct my_option *opt, char *)
+extern "C" my_bool mark_changed(const struct my_option *, char *, const char *);
+my_bool mark_changed(const struct my_option *opt, char *, const char *filename)
 {
   if (opt->app_type)
   {
     sys_var *var= (sys_var*) opt->app_type;
-    var->value_origin= sys_var::CONFIG;
+    if (*filename)
+    {
+      var->origin_filename= filename;
+      var->value_origin= sys_var::CONFIG;
+    }
+    else
+      var->value_origin= sys_var::COMMAND_LINE;
   }
   return 0;
 }
@@ -4144,7 +4169,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
 
   if (tmp->plugin->system_vars)
   {
-    for (opt= tmp->plugin->system_vars; *opt; opt++)
+    if (mysqld_server_started)
     {
       /*
         PLUGIN_VAR_STR command-line options without PLUGIN_VAR_MEMALLOC, point
@@ -4157,13 +4182,22 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
         Thus, for all plugins loaded after the server was started,
         we copy string values to a plugin's memroot.
       */
-      if (mysqld_server_started &&
-          (((*opt)->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_NOCMDOPT |
-                             PLUGIN_VAR_MEMALLOC)) == PLUGIN_VAR_STR))
+      for (opt= tmp->plugin->system_vars; *opt; opt++)
       {
-        sysvar_str_t* str= (sysvar_str_t *)*opt;
-        if (*str->value)
-          *str->value= strdup_root(mem_root, *str->value);
+        if ((((*opt)->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_NOCMDOPT |
+                               PLUGIN_VAR_MEMALLOC)) == PLUGIN_VAR_STR))
+        {
+          sysvar_str_t* str= (sysvar_str_t *)*opt;
+          if (*str->value)
+            *str->value= strdup_root(mem_root, *str->value);
+        }
+      }
+      /* same issue with config file names */
+      for (my_option *mo=opts; mo->name; mo++)
+      {
+        sys_var *var= (sys_var*) mo->app_type;
+        if (var && var->value_origin == sys_var::CONFIG)
+          var->origin_filename= strdup_root(mem_root, var->origin_filename);
       }
     }
 

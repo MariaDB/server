@@ -1223,12 +1223,16 @@ bool FILTER::Eval(PGLOBAL g)
   PDBUSER dup = PlgGetUser(g);
 
   if (Opc <= OP_XX)
+  {
     for (i = 0; i < 2; i++)
+    {
       // Evaluate the object and eventually convert it.
       if (Arg(i)->Eval(g))
         return TRUE;
       else if (Test[i].Conv)
         Val(i)->SetValue_pval(Arg(i)->GetValue());
+    }
+  }
 
   if (trace(1))
     htrc(" Filter: op=%d type=%d %d B_T=%d %d val=%p %p\n",

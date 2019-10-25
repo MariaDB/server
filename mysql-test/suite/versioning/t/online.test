@@ -133,6 +133,7 @@ show create table t;
 select count(*) from t for system_time all;
 update t set b=11;
 select count(*) from t for system_time all;
+drop table t;
 
 --echo # Start of 10.4 tests
 
@@ -192,5 +193,6 @@ create or replace table t1 (
 ) with system versioning;
 alter table t1 drop system versioning;
 
-drop database test;
-create database test;
+drop tables t, t1;
+
+--source suite/versioning/common_finish.inc

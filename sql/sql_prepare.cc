@@ -739,6 +739,8 @@ void Item_param::setup_conversion(THD *thd, uchar param_type)
   */
   if (!h)
     h= &type_handler_string;
+  else if (unsigned_flag)
+    h= h->type_handler_unsigned();
   set_handler(h);
   h->Item_param_setup_conversion(thd, this);
 }
@@ -1480,8 +1482,6 @@ static bool mysql_test_delete(Prepared_statement *stmt,
   }
 
   DBUG_RETURN(mysql_prepare_delete(thd, table_list,
-                                   lex->first_select_lex()->with_wild,
-                                   lex->first_select_lex()->item_list,
                                    &lex->first_select_lex()->where,
                                    &delete_while_scanning));
 error:
@@ -2155,7 +2155,7 @@ static int mysql_insert_select_prepare_tester(THD *thd)
     thd->lex->first_select_lex()->context.first_name_resolution_table=
     second_table;
 
-  return mysql_insert_select_prepare(thd);
+  return mysql_insert_select_prepare(thd, NULL);
 }
 
 
@@ -2872,7 +2872,7 @@ void mysql_sql_stmt_prepare(THD *thd)
   }
   else
   {
-    SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+    thd->session_tracker.state_change.mark_as_changed(thd);
     my_ok(thd, 0L, 0L, "Statement prepared");
   }
   change_list_savepoint.rollback(thd);
@@ -3552,7 +3552,7 @@ void mysql_sql_stmt_close(THD *thd)
   else
   {
     stmt->deallocate();
-    SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+    thd->session_tracker.state_change.mark_as_changed(thd);
     my_ok(thd);
   }
 }

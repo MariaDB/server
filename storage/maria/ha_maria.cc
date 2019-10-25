@@ -356,10 +356,12 @@ static PSI_file_info all_aria_files[]=
   { &key_file_control, "control", PSI_FLAG_GLOBAL}
 };
 
+# ifdef HAVE_PSI_STAGE_INTERFACE
 static PSI_stage_info *all_aria_stages[]=
 {
   & stage_waiting_for_a_resource
 };
+# endif /* HAVE_PSI_STAGE_INTERFACE */
 
 static void init_aria_psi_keys(void)
 {
@@ -380,9 +382,10 @@ static void init_aria_psi_keys(void)
 
   count= array_elements(all_aria_files);
   mysql_file_register(category, all_aria_files, count);
-
+# ifdef HAVE_PSI_STAGE_INTERFACE
   count= array_elements(all_aria_stages);
   mysql_stage_register(category, all_aria_stages, count);
+# endif /* HAVE_PSI_STAGE_INTERFACE */
 }
 #else
 #define init_aria_psi_keys() /* no-op */
@@ -1090,11 +1093,8 @@ double ha_maria::scan_time()
   splitting algorithms depends on this. (With only one key on a page
   we also can't use any compression, which may make the index file much
   larger)
-  We use HA_MAX_KEY_LENGTH as this is a stack restriction imposed by the
-  handler interface.  If we want to increase this, we have also to
-  increase HA_MARIA_KEY_BUFF and MARIA_MAX_KEY_BUFF as the buffer needs
-  to take be able to store the extra lenght bytes that is part of the stored
-  key.
+  We use MARIA_MAX_KEY_LENGTH to limit the key size as we don't want to use
+  too much stack when searching in the b_tree.
 
   We also need to reserve place for a record pointer (8) and 3 bytes
   per key segment to store the length of the segment + possible null bytes.
@@ -1192,7 +1192,7 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
     that all bytes in the row is properly reset.
   */
   if (file->s->data_file_type == STATIC_RECORD &&
-      (file->s->has_varchar_fields | file->s->has_null_fields))
+      (file->s->has_varchar_fields || file->s->has_null_fields))
     int_table_flags|= HA_RECORD_MUST_BE_CLEAN_ON_WRITE;
 
   for (i= 0; i < table->s->keys; i++)
@@ -1228,7 +1228,7 @@ int ha_maria::close(void)
 }
 
 
-int ha_maria::write_row(uchar * buf)
+int ha_maria::write_row(const uchar * buf)
 {
   /*
      If we have an auto_increment column and we are writing a changed row
@@ -2778,7 +2778,7 @@ int ha_maria::external_lock(THD *thd, int lock_type)
             changes to commit (rollback shouldn't be tested).
           */
           DBUG_ASSERT(!thd->get_stmt_da()->is_sent() ||
-                      thd->killed == KILL_CONNECTION);
+                      thd->killed);
           /* autocommit ? rollback a transaction */
 #ifdef MARIA_CANNOT_ROLLBACK
           if (ma_commit(trn))
@@ -2802,6 +2802,9 @@ int ha_maria::external_lock(THD *thd, int lock_type)
                                                F_UNLCK : F_EXTRA_LCK));
   if (!file->s->base.born_transactional)
     file->state= &file->s->state.state;         // Restore state if clone
+
+  /* Remember stack end for this thread */
+  file->stack_end_ptr= &ha_thd()->mysys_var->stack_ends_here;
   DBUG_RETURN(result);
 }
 
@@ -2855,6 +2858,17 @@ static void reset_thd_trn(THD *thd, MARIA_HA *first_table)
   {
     next= table->trn_next;
     _ma_reset_trn_for_table(table);
+
+    /*
+      If table has changed by this statement, invalidate it from the query
+      cache
+    */
+    if (table->row_changes != table->start_row_changes)
+    {
+      table->start_row_changes= table->row_changes;
+      DBUG_ASSERT(table->s->chst_invalidator != NULL);
+      (*table->s->chst_invalidator)(table->s->data_file_name.str);
+    }
   }
   DBUG_VOID_RETURN;
 }
@@ -3162,6 +3176,7 @@ int ha_maria::create(const char *name, TABLE *table_arg,
   (void) translog_log_debug_info(0, LOGREC_DEBUG_INFO_QUERY,
                                  (uchar*) thd->query(), thd->query_length());
 
+  create_info.encrypted= maria_encrypt_tables && ht == maria_hton;
   /* TODO: Check that the following fn_format is really needed */
   error=
     maria_create(fn_format(buff, name, "", "",
@@ -3334,6 +3349,8 @@ static int maria_commit(handlerton *hton __attribute__ ((unused)),
                         THD *thd, bool all)
 {
   TRN *trn= THD_TRN;
+  int res;
+  MARIA_HA *used_instances= (MARIA_HA*) trn->used_instances;
   DBUG_ENTER("maria_commit");
 
   DBUG_ASSERT(trnman_has_locked_tables(trn) == 0);
@@ -3344,8 +3361,9 @@ static int maria_commit(handlerton *hton __attribute__ ((unused)),
   if ((thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       !all)
     DBUG_RETURN(0); // end of statement
-  reset_thd_trn(thd, (MARIA_HA*) trn->used_instances);
-  DBUG_RETURN(ma_commit(trn)); // end of transaction
+  res= ma_commit(trn);
+  reset_thd_trn(thd, used_instances);
+  DBUG_RETURN(res);
 }
 
 

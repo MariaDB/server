@@ -2320,18 +2320,6 @@ static Sys_var_ulong Sys_max_length_for_sort_data(
        SESSION_VAR(max_length_for_sort_data), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(4, 8192*1024L), DEFAULT(1024), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_max_long_data_size(
-       "max_long_data_size",
-       "The maximum BLOB length to send to server from "
-       "mysql_send_long_data API. Deprecated option; "
-       "use max_allowed_packet instead.",
-       READ_ONLY GLOBAL_VAR(max_long_data_size),
-       CMD_LINE(REQUIRED_ARG, OPT_MAX_LONG_DATA_SIZE),
-       VALID_RANGE(1024, UINT_MAX32), DEFAULT(1024*1024),
-       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("'@@max_allowed_packet'"));
-
 static PolyLock_mutex PLock_prepared_stmt_count(&LOCK_prepared_stmt_count);
 static Sys_var_uint Sys_max_prepared_stmt_count(
        "max_prepared_stmt_count",
@@ -2598,6 +2586,7 @@ export const char *optimizer_switch_names[]=
   "condition_pushdown_for_subquery",
   "rowid_filter",
   "condition_pushdown_from_having",
+  "not_null_range_scan",
   "default", 
   NullS
 };
@@ -3479,6 +3468,14 @@ static const char *sql_mode_names[]=
   0
 };
 
+
+const char *sql_mode_string_representation(uint bit_number)
+{
+  DBUG_ASSERT(bit_number < array_elements(sql_mode_names));
+  return sql_mode_names[bit_number];
+}
+
+
 export bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                            LEX_CSTRING *ls)
 {
@@ -3872,7 +3869,7 @@ static Sys_var_ulonglong Sys_tmp_table_size(
        "If an internal in-memory temporary table exceeds this size, MariaDB "
        "will automatically convert it to an on-disk MyISAM or Aria table.",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
+       VALID_RANGE(0, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
        BLOCK_SIZE(1));
 
 static Sys_var_ulonglong Sys_tmp_memory_table_size(
@@ -3881,7 +3878,7 @@ static Sys_var_ulonglong Sys_tmp_memory_table_size(
        "will automatically convert it to an on-disk MyISAM or Aria table. "
        "Same as tmp_table_size.",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
+       VALID_RANGE(0, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
        BLOCK_SIZE(1));
 
 static Sys_var_ulonglong Sys_tmp_disk_table_size(
@@ -4163,9 +4160,10 @@ export sys_var *Sys_autocommit_ptr= &Sys_autocommit; // for sql_yacc.yy
 static Sys_var_mybool Sys_big_tables(
        "big_tables", "Old variable, which if set to 1, allows large result sets "
        "by saving all temporary sets to disk, avoiding 'table full' errors. No "
-       "longer needed, as the server now handles this automatically. "
-       "sql_big_tables is a synonym.",
-       SESSION_VAR(big_tables), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+       "longer needed, as the server now handles this automatically.",
+       SESSION_VAR(big_tables), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED(""));
 
 static Sys_var_bit Sys_big_selects(
        "sql_big_selects", "If set to 0, MariaDB will not perform large SELECTs."
@@ -4822,6 +4820,16 @@ static Sys_var_have Sys_have_symlink(
        "Will be set to DISABLED if the server is started with the "
        "--skip-symbolic-links option.",
        READ_ONLY GLOBAL_VAR(have_symlink), NO_CMD_LINE);
+
+#ifdef __SANITIZE_ADDRESS__
+static char *have_sanitizer;
+static Sys_var_charptr Sys_have_santitizer(
+       "have_sanitizer",
+       "If the server is compiled with ASan (Address sanitizer) this will be "
+       "set to ASAN",
+       READ_ONLY GLOBAL_VAR(have_sanitizer), NO_CMD_LINE,
+       IN_FS_CHARSET, DEFAULT("ASAN"));
+#endif
 
 static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type);
 
@@ -6190,6 +6198,19 @@ static Sys_var_enum Sys_binlog_row_image(
        SESSION_VAR(binlog_row_image), CMD_LINE(REQUIRED_ARG),
        binlog_row_image_names, DEFAULT(BINLOG_ROW_IMAGE_FULL));
 
+static const char *binlog_row_metadata_names[]= {"NO_LOG", "MINIMAL", "FULL", NullS};
+static Sys_var_enum Sys_binlog_row_metadata(
+       "binlog_row_metadata",
+       "Controls whether metadata is logged using FULL , MINIMAL format and NO_LOG."
+       "FULL causes all metadata to be logged; MINIMAL means that only "
+       "metadata actually required by slave is logged; NO_LOG NO metadata will be logged."
+       "Default: NO_LOG.",
+       GLOBAL_VAR(binlog_row_metadata), CMD_LINE(REQUIRED_ARG),
+       binlog_row_metadata_names, DEFAULT(Table_map_log_event::BINLOG_ROW_METADATA_NO_LOG),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
+       ON_UPDATE(NULL));
+
+
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {
   longlong previous_val= thd->variables.pseudo_slave_mode;
@@ -6346,16 +6367,31 @@ static Sys_var_mybool Sys_session_track_state_change(
        ON_CHECK(0),
        ON_UPDATE(update_session_track_state_change));
 
+
+static bool update_session_track_user_variables(sys_var *self, THD *thd,
+                                                enum_var_type type)
+{
+  return thd->session_tracker.user_variables.update(thd, 0);
+}
+
+static Sys_var_mybool Sys_session_track_user_variables(
+       "session_track_user_variables",
+       "Track changes to user variables.",
+       SESSION_VAR(session_track_user_variables),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0),
+       ON_UPDATE(update_session_track_user_variables));
+
 #endif //EMBEDDED_LIBRARY
 
-#ifndef DBUG_OFF
 static Sys_var_uint Sys_in_subquery_conversion_threshold(
        "in_predicate_conversion_threshold",
        "The minimum number of scalar elements in the value list of "
-       "IN predicate that triggers its conversion to IN subquery",
-       SESSION_VAR(in_subquery_conversion_threshold), CMD_LINE(OPT_ARG),
+       "IN predicate that triggers its conversion to IN subquery. Set to "
+       "0 to disable the conversion.",
+       SESSION_VAR(in_subquery_conversion_threshold), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(IN_SUBQUERY_CONVERSION_THRESHOLD), BLOCK_SIZE(1));
-#endif
 
 static Sys_var_enum Sys_secure_timestamp(
        "secure_timestamp", "Restricts direct setting of a session "

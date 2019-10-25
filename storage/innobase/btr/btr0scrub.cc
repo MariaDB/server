@@ -431,10 +431,9 @@ btr_pessimistic_scrub(
 	}
 
 	/* read block variables */
-	const ulint page_no =  mach_read_from_4(page + FIL_PAGE_OFFSET);
+	const ulint page_no = block->page.id.page_no();
 	const ulint left_page_no = mach_read_from_4(page + FIL_PAGE_PREV);
 	const ulint right_page_no = mach_read_from_4(page + FIL_PAGE_NEXT);
-	const ulint zip_size = index->table->space->zip_size();
 
 	/**
 	* When splitting page, we need X-latches on left/right brothers
@@ -449,16 +448,14 @@ btr_pessimistic_scrub(
 		*/
 		mtr->release_block_at_savepoint(scrub_data->savepoint, block);
 
-		btr_block_get(
-			page_id_t(index->table->space_id, left_page_no),
-			zip_size, RW_X_LATCH, index, mtr);
+		btr_block_get(*index, left_page_no, RW_X_LATCH,
+			      page_is_leaf(page), mtr);
 
 		/**
 		* Refetch block and re-initialize page
 		*/
-		block = btr_block_get(
-			page_id_t(index->table->space_id, page_no),
-			zip_size, RW_X_LATCH, index, mtr);
+		block = btr_block_get(*index, page_no, RW_X_LATCH,
+				      page_is_leaf(page), mtr);
 
 		page = buf_block_get_frame(block);
 
@@ -470,9 +467,8 @@ btr_pessimistic_scrub(
 	}
 
 	if (right_page_no != FIL_NULL) {
-		btr_block_get(
-			page_id_t(index->table->space_id, right_page_no),
-			zip_size, RW_X_LATCH, index, mtr);
+		btr_block_get(*index, right_page_no, RW_X_LATCH,
+			      page_is_leaf(page), mtr);
 	}
 
 	/* arguments to btr_page_split_and_insert */
@@ -626,13 +622,8 @@ btr_scrub_get_table_and_index(
 		scrub_data->current_table = NULL;
 	}
 
-	/* argument to dict_table_open_on_index_id */
-	bool dict_locked = true;
-
 	/* open table based on index_id */
-	dict_table_t* table = dict_table_open_on_index_id(
-		index_id,
-		dict_locked);
+	dict_table_t* table = dict_table_open_on_index_id(index_id);
 
 	if (table != NULL) {
 		/* mark table as being scrubbed */

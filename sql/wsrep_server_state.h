@@ -35,9 +35,15 @@ public:
                         const wsrep::gtid& initial_position,
                         int max_protocol_version);
   static void destroy();
+
   static Wsrep_server_state& instance()
   {
     return *m_instance;
+  }
+
+  static bool is_inited()
+  {
+    return (m_instance != NULL);
   }
 
   static wsrep::provider& get_provider()

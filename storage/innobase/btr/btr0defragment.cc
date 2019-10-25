@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2014 Facebook, Inc. All Rights Reserved.
+Copyright (C) 2012, 2014 Facebook, Inc. All Rights Reserved.
 Copyright (C) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -36,7 +36,6 @@ Modified 30/07/2014 Jan Lindström jan.lindstrom@mariadb.com
 #include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "srv0start.h"
-#include "ut0timer.h"
 
 #include <list>
 
@@ -100,8 +99,7 @@ Initialize defragmentation. */
 void
 btr_defragment_init()
 {
-	srv_defragment_interval = ut_microseconds_to_timer(
-		(ulonglong) (1000000.0 / srv_defragment_frequency));
+	srv_defragment_interval = 1000000000ULL / srv_defragment_frequency;
 	mutex_create(LATCH_ID_BTR_DEFRAGMENT_MUTEX, &btr_defragment_mutex);
 }
 
@@ -164,11 +162,7 @@ btr_defragment_add_index(
 	*err = DB_SUCCESS;
 
 	mtr_start(&mtr);
-	// Load index rood page.
-	buf_block_t* block = btr_block_get(
-		page_id_t(index->table->space_id, index->page),
-		index->table->space->zip_size(),
-		RW_NO_LATCH, index, &mtr);
+	buf_block_t* block = btr_root_block_get(index, RW_NO_LATCH, &mtr);
 	page_t* page = NULL;
 
 	if (block) {
@@ -371,7 +365,7 @@ btr_defragment_calc_n_recs_for_size(
 Merge as many records from the from_block to the to_block. Delete
 the from_block if all records are successfully merged to to_block.
 @return the to_block to target for next merge operation. */
-UNIV_INTERN
+static
 buf_block_t*
 btr_defragment_merge_pages(
 	dict_index_t*	index,		/*!< in: index tree */
@@ -489,9 +483,7 @@ btr_defragment_merge_pages(
 		lock_update_merge_left(to_block, orig_pred,
 				       from_block);
 		btr_search_drop_page_hash_index(from_block);
-		btr_level_list_remove(
-			index->table->space_id,
-			zip_size, from_page, index, mtr);
+		btr_level_list_remove(*from_block, *index, mtr);
 		btr_page_get_father(index, from_block, mtr, &parent);
 		btr_cur_node_ptr_delete(&parent, mtr);
 		/* btr_blob_dbg_remove(from_page, index,
@@ -593,9 +585,8 @@ btr_defragment_n_pages(
 			break;
 		}
 
-		blocks[i] = btr_block_get(page_id_t(index->table->space_id,
-						    page_no), zip_size,
-					  RW_X_LATCH, index, mtr);
+		blocks[i] = btr_block_get(*index, page_no, RW_X_LATCH, true,
+					  mtr);
 	}
 
 	if (n_pages == 1) {
@@ -728,7 +719,7 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 		}
 
 		pcur = item->pcur;
-		ulonglong now = ut_timer_now();
+		ulonglong now = my_interval_timer();
 		ulonglong elapsed = now - item->last_processed;
 
 		if (elapsed < srv_defragment_interval) {
@@ -738,11 +729,12 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 			defragmentation of all indices queue up on a single
 			thread, it's likely other indices that follow this one
 			don't need to sleep again. */
-			os_thread_sleep(((ulint)ut_timer_to_microseconds(
-						srv_defragment_interval - elapsed)));
+			os_thread_sleep(static_cast<ulint>
+					((srv_defragment_interval - elapsed)
+					 / 1000));
 		}
 
-		now = ut_timer_now();
+		now = my_interval_timer();
 		mtr_start(&mtr);
 		cursor = btr_pcur_get_btr_cur(pcur);
 		index = btr_cur_get_index(cursor);

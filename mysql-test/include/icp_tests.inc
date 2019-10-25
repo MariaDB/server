@@ -459,6 +459,7 @@ INSERT INTO t2 VALUES (15,4);
 set @save_optimizer_switch= @@optimizer_switch;
 set optimizer_switch='semijoin=off';
 
+--replace_column 9 #
 EXPLAIN
 SELECT * FROM t1
 WHERE pk IN (SELECT it.pk FROM t2 JOIN t2 AS it ON it.i=it.i WHERE it.pk-t1.i<10);

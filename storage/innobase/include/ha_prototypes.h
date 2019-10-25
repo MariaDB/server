@@ -119,9 +119,6 @@ thd_is_replication_slave_thread(
 /*============================*/
 	THD*	thd);	/*!< in: thread handle */
 
-/** @return whether statement-based replication is active */
-extern "C" int thd_rpl_stmt_based(const THD* thd);
-
 /******************************************************************//**
 Returns true if the transaction this thread is processing has edited
 non-transactional tables. Used by the deadlock detector when deciding
@@ -358,14 +355,6 @@ implies that it is a SELECT (read-only) transaction.
 @return true if the transaction is an auto commit read-only transaction. */
 ibool
 thd_trx_is_auto_commit(
-/*===================*/
-	THD*	thd);	/*!< in: thread handle, or NULL */
-
-/******************************************************************//**
-Get the thread start time.
-@return the thread start time in seconds since the epoch. */
-ulint
-thd_start_time_in_secs(
 /*===================*/
 	THD*	thd);	/*!< in: thread handle, or NULL */
 

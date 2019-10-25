@@ -18,9 +18,7 @@ SET GLOBAL wsrep_on=ON;
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
-SET global wsrep_on=OFF;
 RESET MASTER;
-SET global wsrep_on=ON;
 
 --connection node_2
 SET global wsrep_on=OFF;

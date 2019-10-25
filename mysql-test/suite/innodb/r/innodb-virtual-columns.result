@@ -6,6 +6,8 @@ wdraw_rsn varchar(4) NOT NULL DEFAULT '',
 admit_term char(4) NOT NULL DEFAULT '',
 CONSTRAINT gso_grad_supr_pky PRIMARY KEY (uw_id, term) 
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+Warnings:
+Warning	1280	Name 'gso_grad_supr_pky' ignored for PRIMARY key.
 INSERT INTO `gso_grad_supr` VALUES ('1031',2,'CSM','','1009');
 INSERT INTO `gso_grad_supr` VALUES ('1035',2,'CSM','ACAD','1009');
 CREATE TABLE IF NOT EXISTS grad_degree (
@@ -23,6 +25,8 @@ deg_start_term char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginn
 deg_as_of_term char(4) NOT NULL COMMENT 'In most cases also end term', 
 CONSTRAINT grad_degree_stu_plan_admit_pky PRIMARY KEY (student_id, plan, admit_term)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+Warnings:
+Warning	1280	Name 'grad_degree_stu_plan_admit_pky' ignored for PRIMARY key.
 SHOW CREATE TABLE grad_degree;
 Table	Create Table
 grad_degree	CREATE TABLE `grad_degree` (
@@ -129,6 +133,8 @@ deg_start_term char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginn
 deg_as_of_term char(4) NOT NULL COMMENT 'In most cases also end term', 
 CONSTRAINT grad_degree_stu_plan_admit_pky PRIMARY KEY (student_id, plan, admit_term)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+Warnings:
+Warning	1280	Name 'grad_degree_stu_plan_admit_pky' ignored for PRIMARY key.
 SHOW CREATE TABLE grad_degree;
 Table	Create Table
 grad_degree	CREATE TABLE `grad_degree` (
@@ -263,6 +269,8 @@ deg_start_term char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginn
 deg_as_of_term char(4) NOT NULL COMMENT 'In most cases also end term', 
 CONSTRAINT grad_degree_stu_plan_admit_pky PRIMARY KEY (student_id, plan, admit_term)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+Warnings:
+Warning	1280	Name 'grad_degree_stu_plan_admit_pky' ignored for PRIMARY key.
 SHOW CREATE TABLE grad_degree;
 Table	Create Table
 grad_degree	CREATE TABLE `grad_degree` (

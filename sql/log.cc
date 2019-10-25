@@ -2590,24 +2590,14 @@ end:
 }
 
 
-void MYSQL_LOG::init(enum_log_type log_type_arg,
-                     enum cache_type io_cache_type_arg)
-{
-  DBUG_ENTER("MYSQL_LOG::init");
-  log_type= log_type_arg;
-  io_cache_type= io_cache_type_arg;
-  DBUG_PRINT("info",("log_type: %d", log_type));
-  DBUG_VOID_RETURN;
-}
-
-
 bool MYSQL_LOG::init_and_set_log_file_name(const char *log_name,
                                            const char *new_name,
                                            ulong next_log_number,
                                            enum_log_type log_type_arg,
                                            enum cache_type io_cache_type_arg)
 {
-  init(log_type_arg, io_cache_type_arg);
+  log_type= log_type_arg;
+  io_cache_type= io_cache_type_arg;
 
   if (new_name)
   {
@@ -3458,7 +3448,6 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
 */
 
 bool MYSQL_BIN_LOG::open(const char *log_name,
-                         enum_log_type log_type_arg,
                          const char *new_name,
                          ulong next_log_number,
                          enum cache_type io_cache_type_arg,
@@ -3469,7 +3458,6 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
   File file= -1;
   xid_count_per_binlog *new_xid_list_entry= NULL, *b;
   DBUG_ENTER("MYSQL_BIN_LOG::open");
-  DBUG_PRINT("enter",("log_type: %d",(int) log_type_arg));
 
   mysql_mutex_assert_owner(&LOCK_log);
 
@@ -3489,7 +3477,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
 
   /* We need to calculate new log file name for purge to delete old */
   if (init_and_set_log_file_name(log_name, new_name, next_log_number,
-                                 log_type_arg, io_cache_type_arg))
+                                 LOG_BIN, io_cache_type_arg))
   {
     sql_print_error("MYSQL_BIN_LOG::open failed to generate new file name.");
     DBUG_RETURN(1);
@@ -4323,7 +4311,7 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
     }
   }
   if (create_new_log && !open_index_file(index_file_name, 0, FALSE))
-    if (unlikely((error= open(save_name, log_type, 0, next_log_number,
+    if (unlikely((error= open(save_name, 0, next_log_number,
                               io_cache_type, max_size, 0, FALSE))))
       goto err;
   my_free((void *) save_name);
@@ -5230,34 +5218,33 @@ int MYSQL_BIN_LOG::new_file_impl()
   }
   new_name_ptr=new_name;
 
-  if (log_type == LOG_BIN)
   {
+    /*
+      We log the whole file name for log file as the user may decide
+      to change base names at some point.
+    */
+    Rotate_log_event r(new_name + dirname_length(new_name), 0, LOG_EVENT_OFFSET,
+                       is_relay_log ? Rotate_log_event::RELAY_LOG : 0);
+    /*
+      The current relay-log's closing Rotate event must have checksum
+      value computed with an algorithm of the last relay-logged FD event.
+    */
+    if (is_relay_log)
+      r.checksum_alg= relay_log_checksum_alg;
+    DBUG_ASSERT(!is_relay_log ||
+                relay_log_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
+    if (DBUG_EVALUATE_IF("fault_injection_new_file_rotate_event",
+                         (error= close_on_error= TRUE), FALSE) ||
+        (error= write_event(&r)))
     {
-      /*
-        We log the whole file name for log file as the user may decide
-        to change base names at some point.
-      */
-      Rotate_log_event r(new_name+dirname_length(new_name), 0, LOG_EVENT_OFFSET,
-                         is_relay_log ? Rotate_log_event::RELAY_LOG : 0);
-      /* 
-         The current relay-log's closing Rotate event must have checksum
-         value computed with an algorithm of the last relay-logged FD event.
-      */
-      if (is_relay_log)
-        r.checksum_alg= relay_log_checksum_alg;
-      DBUG_ASSERT(!is_relay_log || relay_log_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
-      if(DBUG_EVALUATE_IF("fault_injection_new_file_rotate_event", (error=close_on_error=TRUE), FALSE) ||
-         (error= write_event(&r)))
-      {
-        DBUG_EXECUTE_IF("fault_injection_new_file_rotate_event", errno=2;);
-        close_on_error= TRUE;
-        my_printf_error(ER_ERROR_ON_WRITE,
-                        ER_THD_OR_DEFAULT(current_thd, ER_CANT_OPEN_FILE),
-                        MYF(ME_FATAL), name, errno);
-        goto end;
-      }
-      bytes_written += r.data_written;
+      DBUG_EXECUTE_IF("fault_injection_new_file_rotate_event", errno= 2;);
+      close_on_error= TRUE;
+      my_printf_error(ER_ERROR_ON_WRITE,
+                      ER_THD_OR_DEFAULT(current_thd, ER_CANT_OPEN_FILE),
+                      MYF(ME_FATAL), name, errno);
+      goto end;
     }
+    bytes_written+= r.data_written;
   }
 
   /*
@@ -5288,7 +5275,7 @@ int MYSQL_BIN_LOG::new_file_impl()
     delay_close= true;
   }
   close(close_flag);
-  if (log_type == LOG_BIN && checksum_alg_reset != BINLOG_CHECKSUM_ALG_UNDEF)
+  if (checksum_alg_reset != BINLOG_CHECKSUM_ALG_UNDEF)
   {
     DBUG_ASSERT(!is_relay_log);
     DBUG_ASSERT(binlog_checksum_options != checksum_alg_reset);
@@ -5315,8 +5302,7 @@ int MYSQL_BIN_LOG::new_file_impl()
   {
     /* reopen the binary log file. */
     file_to_open= new_name_ptr;
-    error= open(old_name, log_type, new_name_ptr, 0, io_cache_type,
-                max_size, 1, FALSE);
+    error= open(old_name, new_name_ptr, 0, io_cache_type, max_size, 1, FALSE);
   }
 
   /* handle reopening errors */
@@ -7749,7 +7735,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
       Release commit order and if leader, wait for prior commit to
       complete. This establishes total order for group leaders.
     */
-    if (wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error()))
+    if (wsrep_ordered_commit(entry->thd, entry->all))
     {
       entry->thd->wakeup_subsequent_commits(1);
       return 1;
@@ -8500,9 +8486,9 @@ void MYSQL_BIN_LOG::close(uint exiting)
 
   if (log_state == LOG_OPENED)
   {
+    DBUG_ASSERT(log_type == LOG_BIN);
 #ifdef HAVE_REPLICATION
-    if (log_type == LOG_BIN &&
-	(exiting & LOG_CLOSE_STOP_EVENT))
+    if (exiting & LOG_CLOSE_STOP_EVENT)
     {
       Stop_log_event s;
       // the checksumming rule for relay-log case is similar to Rotate
@@ -8539,8 +8525,7 @@ void MYSQL_BIN_LOG::close(uint exiting)
 #endif /* HAVE_REPLICATION */
 
     /* don't pwrite in a file opened with O_APPEND - it doesn't work */
-    if (log_file.type == WRITE_CACHE && log_type == LOG_BIN
-        && !(exiting & LOG_CLOSE_DELAYED_CLOSE))
+    if (log_file.type == WRITE_CACHE && !(exiting & LOG_CLOSE_DELAYED_CLOSE))
     {
       my_off_t org_position= mysql_file_tell(log_file.file, MYF(0));
       if (!failed_to_save_state)
@@ -9691,7 +9676,7 @@ int TC_LOG_BINLOG::open(const char *opt_name)
   {
     mysql_mutex_lock(&LOCK_log);
     /* generate a new binlog to mask a corrupted one */
-    open(opt_name, LOG_BIN, 0, 0, WRITE_CACHE, max_binlog_size, 0, TRUE);
+    open(opt_name, 0, 0, WRITE_CACHE, max_binlog_size, 0, TRUE);
     mysql_mutex_unlock(&LOCK_log);
     cleanup();
     return 1;
@@ -10438,24 +10423,6 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
 
 
 #ifdef INNODB_COMPATIBILITY_HOOKS
-/**
-  Get the file name of the MySQL binlog.
-  @return the name of the binlog file
-*/
-extern "C"
-const char* mysql_bin_log_file_name(void)
-{
-  return mysql_bin_log.get_log_fname();
-}
-/**
-  Get the current position of the MySQL binlog.
-  @return byte offset from the beginning of the binlog
-*/
-extern "C"
-ulonglong mysql_bin_log_file_pos(void)
-{
-  return (ulonglong) mysql_bin_log.get_log_file()->pos_in_file;
-}
 /*
   Get the current position of the MySQL binlog for transaction currently being
   committed.

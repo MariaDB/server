@@ -1,0 +1,2 @@
+--column-compression-threshold=120
+--loose-sql-error-log-rate=100

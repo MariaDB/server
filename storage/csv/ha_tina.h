@@ -136,7 +136,7 @@ public:
 
   int open(const char *name, int mode, uint open_options);
   int close(void);
-  int write_row(uchar * buf);
+  int write_row(const uchar * buf);
   int update_row(const uchar * old_data, const uchar * new_data);
   int delete_row(const uchar * buf);
   int rnd_init(bool scan=1);
