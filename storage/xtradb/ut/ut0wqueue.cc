@@ -60,23 +60,25 @@ ib_wqueue_free(
 	mem_free(wq);
 }
 
-/****************************************************************//**
-Add a work item to the queue. */
+/** Add a work item to the queue.
+@param[in,out]	wq		work queue
+@param[in]	item		work item
+@param[in,out]	heap		memory heap to use for allocating list node
+@param[in]	wq_locked	work queue mutex locked */
 UNIV_INTERN
 void
-ib_wqueue_add(
-/*==========*/
-	ib_wqueue_t*	wq,	/*!< in: work queue */
-	void*		item,	/*!< in: work item */
-	mem_heap_t*	heap)	/*!< in: memory heap to use for allocating the
-				list node */
+ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap, bool wq_locked)
 {
-	mutex_enter(&wq->mutex);
+	if (!wq_locked) {
+		mutex_enter(&wq->mutex);
+	}
 
 	ib_list_add_last(wq->items, item, heap);
 	os_event_set(wq->event);
 
-	mutex_exit(&wq->mutex);
+	if (!wq_locked) {
+		mutex_exit(&wq->mutex);
+	}
 }
 
 /****************************************************************//**

@@ -6,6 +6,7 @@
 --source include/have_innodb.inc
 # The embedded server tests do not support restarting.
 --source include/not_embedded.inc
+--source include/maybe_debug.inc
 
 FLUSH TABLES;
 # Following are test for crash recovery on FTS index, the first scenario
@@ -73,10 +74,12 @@ INSERT INTO articles (title,body) VALUES
         ('MySQL vs. YourSQL','In the following database comparison ...'),
         ('MySQL Security','When configured properly, MySQL ...');
 
+connect(dml, localhost, root,,);
 BEGIN;
 
 INSERT INTO articles (title,body) VALUES
         ('MySQL Tutorial','DBMS stands for DataBase ...');
+connection default;
 
 --echo # Make durable the AUTO_INCREMENT in the above incomplete transaction.
 --connect (flush_redo_log,localhost,root,,)
@@ -88,6 +91,8 @@ ROLLBACK;
 --connection default
 
 --source include/restart_mysqld.inc
+
+disconnect dml;
 
 # This insert will re-initialize the Doc ID counter, it should not crash
 INSERT INTO articles (title,body) VALUES
@@ -121,6 +126,7 @@ INSERT INTO articles VALUES
         (5, 6, 'MySQL vs. YourSQL','In the following database comparison ...'),
         (7, 4, 'MySQL Security','When configured properly, MySQL ...');
 
+connect(dml, localhost, root,,);
 BEGIN;
 
 # Below we do not depend on the durability of the AUTO_INCREMENT sequence,
@@ -128,7 +134,49 @@ BEGIN;
 INSERT INTO articles VALUES
         (100, 200, 'MySQL Tutorial','DBMS stands for DataBase ...');
 
+connect(dml2, localhost, root,,);
+
+--echo #
+--echo # MDEV-19073 FTS row mismatch after crash recovery
+--echo #
+
+CREATE TABLE mdev19073(id SERIAL, title VARCHAR(200), body TEXT,
+                       FULLTEXT(title,body)) ENGINE=InnoDB;
+INSERT INTO mdev19073 (title, body) VALUES
+	('MySQL Tutorial', 'DBMS stands for Database...');
+CREATE FULLTEXT INDEX idx ON mdev19073(title, body);
+CREATE TABLE mdev19073_2 LIKE mdev19073;
+if ($have_debug)
+{
+--disable_query_log
+SET @saved_dbug = @@debug_dbug;
+SET DEBUG_DBUG = '+d,fts_instrument_sync_debug';
+--enable_query_log
+}
+INSERT INTO mdev19073_2 (title, body) VALUES
+	('MySQL Tutorial', 'DBMS stands for Database...');
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_DBUG = @saved_dbug;
+--enable_query_log
+}
+
+INSERT INTO mdev19073 (title, body) VALUES
+	('MariaDB Tutorial', 'DB means Database ...');
+INSERT INTO mdev19073_2 (title, body) VALUES
+	('MariaDB Tutorial', 'DB means Database ...');
+
+# Should return 2 rows
+SELECT * FROM mdev19073 WHERE MATCH (title, body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+SELECT * FROM mdev19073_2 WHERE MATCH (title, body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+
+connection default;
 --source include/restart_mysqld.inc
+disconnect dml;
+disconnect dml2;
 
 # This would re-initialize the FTS index and do the re-tokenization
 # of above records
@@ -138,3 +186,10 @@ SELECT * FROM articles WHERE MATCH (title, body)
         AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
 
 DROP TABLE articles;
+
+# Should return 2 rows
+SELECT * FROM mdev19073 WHERE MATCH (title, body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+SELECT * FROM mdev19073_2 WHERE MATCH (title, body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+DROP TABLE mdev19073, mdev19073_2;

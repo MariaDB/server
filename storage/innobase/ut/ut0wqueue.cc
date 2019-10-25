@@ -28,15 +28,6 @@ A work queue
 Created 4/26/2006 Osku Salerma
 ************************************************************************/
 
-/* Work queue. */
-struct ib_wqueue_t {
-	ib_mutex_t	mutex;	/*!< mutex protecting everything */
-	ib_list_t*	items;	/*!< work item list */
-	os_event_t	event;	/*!< event we use to signal additions to list;
-				os_event_set() and os_event_reset() are
-				protected by ib_wqueue_t::mutex */
-};
-
 /****************************************************************//**
 Create a new work queue.
 @return work queue */
@@ -72,22 +63,24 @@ ib_wqueue_free(
 	ut_free(wq);
 }
 
-/****************************************************************//**
-Add a work item to the queue. */
+/** Add a work item to the queue.
+@param[in,out]	wq		work queue
+@param[in]	item		work item
+@param[in,out]	heap		memory heap to use for allocating list node
+@param[in]	wq_locked	work queue mutex locked */
 void
-ib_wqueue_add(
-/*==========*/
-	ib_wqueue_t*	wq,	/*!< in: work queue */
-	void*		item,	/*!< in: work item */
-	mem_heap_t*	heap)	/*!< in: memory heap to use for allocating the
-				list node */
+ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap, bool wq_locked)
 {
-	mutex_enter(&wq->mutex);
+	if (!wq_locked) {
+		mutex_enter(&wq->mutex);
+	}
 
 	ib_list_add_last(wq->items, item, heap);
 	os_event_set(wq->event);
 
-	mutex_exit(&wq->mutex);
+	if (!wq_locked) {
+		mutex_exit(&wq->mutex);
+	}
 }
 
 /****************************************************************//**
