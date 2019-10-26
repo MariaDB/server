@@ -1205,5 +1205,34 @@ set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivit
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-20424: New default value for optimizer_use_condition-selectivity
+--echo # leads to bad plan
+--echo #
+
+create table t1(a int, b int, c int, d int, key(a,b));
+insert into t1 select 50,seq-1,seq-1,seq from seq_1_to_10;
+insert into t1 select seq-1,seq-1,seq-1,seq from seq_1_to_100 limit 90;
+
+create table t2(a int, b int, c int, primary key(a));
+insert into t2 select seq-1,seq-1,seq-1 from seq_1_to_100;
+
+create table t3(a int, b int, c int, primary key(a));
+insert into t3 select seq-1,seq-1,seq-1 from seq_1_to_100 limit 30;
+
+let $query= select t1.b,t2.a,t3.a,t3.b from t1,t2,t3
+where t1.c = t2.a AND t1.d = t3.a and t1.a = 50 and t1.b <= 100;
+
+set optimizer_use_condition_selectivity=1;
+eval explain extended $query;
+eval $query;
+
+set optimizer_use_condition_selectivity=2;
+eval explain extended $query;
+eval $query;
+set optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+
+drop table t1,t2,t3;
+
 --echo # End of 10.1 tests
 

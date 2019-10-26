@@ -8470,7 +8470,10 @@ prev_record_reads(POSITION *positions, uint idx, table_map found_ref)
           #max_nested_outer_joins=64-1) will not make it any more precise.
       */
       if (pos->records_read)
+      {
         found= COST_MULT(found, pos->records_read);
+        found*= pos->cond_selectivity;
+      }
      }
   }
   return found;
