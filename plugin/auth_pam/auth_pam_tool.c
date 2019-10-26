@@ -33,7 +33,7 @@ static int roundtrip(struct param *param, const unsigned char *buf,
   if (write(1, &b, 1) < 1 || write_string(1, buf, buf_len))
     return -1;
   *pkt= (unsigned char *) param->buf;
-  return read_string(0, (char *) param->buf, (int) sizeof(param->buf)) - 1;
+  return read_string(0, (char *) param->buf, (int) sizeof(param->buf));
 }
 
 typedef struct st_mysql_server_auth_info
