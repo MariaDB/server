@@ -43,7 +43,7 @@ public:
   void cleanup_transaction();
   bool statement_allowed_for_streaming() const;
   size_t bytes_generated() const;
-  int prepare_fragment_for_replication(wsrep::mutable_buffer&);
+  int prepare_fragment_for_replication(wsrep::mutable_buffer&, size_t&);
   int remove_fragments();
   void emergency_shutdown()
   { throw wsrep::not_implemented_error(); }
