@@ -988,7 +988,6 @@ inline void dict_sys_t::add(dict_table_t* table)
 	ulint fold = ut_fold_string(table->name.m_name);
 
 	mutex_create(LATCH_ID_AUTOINC, &table->autoinc_mutex);
-	mutex_create(LATCH_ID_COMMITTED_COUNT, &table->committed_count_mutex);
 
 	/* Look for a table with the same name: error if such exists */
 	{

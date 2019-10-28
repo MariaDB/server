@@ -1707,7 +1707,7 @@ struct dict_table_t {
 	and committed count.
 	@param[in,out]	heap	memory heap for allocation
 	@param[out]	field	data field with the metadata */
-	inline void serialise_mblob(mem_heap_t* heap, dfield_t* field);
+	inline void serialise_mblob(mem_heap_t* heap, dfield_t* field) const;
 
 	/** Deserialise metadata BLOB and reconstruct dropped or reordered columns,
 	and committed count.
@@ -2142,8 +2142,6 @@ public:
 	ulint					n_rec_locks;
 
 	bool                           alter_persistent_count;
-	/** Mutex for committed_count_inited accesses.*/
-	ib_mutex_t				       committed_count_mutex;
 	bool                           committed_count_inited;
 	Atomic_counter<ib_uint64_t>    committed_count;
 

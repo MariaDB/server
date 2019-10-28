@@ -6198,7 +6198,7 @@ no_such_table:
 		ut_ad(table->versioned() == m_prebuilt->table->versioned());
 	}
 
-	/* Don't need to acquire ib_table->committed_count_mutex since
+	/* Don't need to acquire ib_table->index->lock since
 	table is just being opened */
 	if (ib_table->committed_count_inited) {
 		m_int_table_flags |= HA_PERSISTENT_COUNT;
@@ -13302,10 +13302,11 @@ ha_innobase::enable_persistent_count()
 	int err;
 
 	ib_table->alter_persistent_count = true;
-	mutex_enter(&ib_table->committed_count_mutex);
+	dict_index_t* index = UT_LIST_GET_FIRST(ib_table->indexes);
+	rw_lock_x_lock(&index->lock);
 
 	if (ib_table->committed_count_inited) {
-		mutex_exit(&ib_table->committed_count_mutex);
+		rw_lock_x_unlock(&index->lock);
 		return -1;  /* Already initialized */
 	}
 
@@ -13322,7 +13323,7 @@ ha_innobase::enable_persistent_count()
 	m_int_table_flags |= HA_PERSISTENT_COUNT;
 	cached_table_flags = table_flags();
 
-	mutex_exit(&ib_table->committed_count_mutex);
+	rw_lock_x_unlock(&index->lock);
 
 	return 0;
 }
@@ -13335,12 +13336,13 @@ int
 ha_innobase::disable_persistent_count()
 {
 	dict_table_t* ib_table = m_prebuilt->table;
+	dict_index_t* index = UT_LIST_GET_FIRST(ib_table->indexes);
 
-	mutex_enter(&ib_table->committed_count_mutex);
+	rw_lock_x_lock(&index->lock);
 	ib_table->committed_count_inited = false;
 	m_int_table_flags &= ~HA_PERSISTENT_COUNT;
 	cached_table_flags = table_flags();
-	mutex_exit(&ib_table->committed_count_mutex);
+	rw_lock_x_unlock(&index->lock);
 
 	return 0;
 }
@@ -13353,20 +13355,20 @@ ha_rows
 ha_innobase::records()
 {	
     trx_t* trx = m_prebuilt->trx;
+    ha_rows num_rows = stats.records;
     if (trx->isolation_level == TRX_ISO_READ_COMMITTED) {
         dict_table_t* ib_table = m_prebuilt->table;
+        dict_index_t* index = UT_LIST_GET_FIRST(ib_table->indexes);
 
-        mutex_enter(&ib_table->committed_count_mutex);
-        bool committed_count_inited = ib_table->committed_count_inited;
-        mutex_exit(&ib_table->committed_count_mutex);
-
-        if (committed_count_inited) {
-            return ib_table->committed_count
+        rw_lock_s_lock(&index->lock);
+        if (ib_table->committed_count_inited) {
+            num_rows = ib_table->committed_count
                 + trx->uncommitted_count(ib_table);
         }
+        rw_lock_s_unlock(&index->lock);
     }
 
-    return stats.records;
+    return num_rows;
 }
 
 /*********************************************************************//**

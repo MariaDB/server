@@ -191,7 +191,7 @@ public:
 	int enable_persistent_count();
 	int disable_persistent_count();
 
-	ha_rows records();
+	ha_rows records() override;
 
 	ha_rows estimate_rows_upper_bound() override;
 

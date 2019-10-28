@@ -1543,13 +1543,13 @@ void trx_update_persistent_counts(
     trx_t* trx)		/*!< in: transaction */
 {
     dict_table_t* ib_table;
+	dict_index_t* index;
     TABLE* table;
-    bool update_persistent_count;
     for (trx_mod_tables_t::const_iterator t = trx->mod_tables.begin();
          t != trx->mod_tables.end(); t++) {
         ib_table = t->first;
 
-        table = thd_get_open_tables(current_thd);
+        table = thd_get_open_tables(trx->mysql_thd);
         for (; table; table = table->next) {
             if (ib_table == ((ha_innobase *) table->file)->m_prebuilt->table) {
                 break;
@@ -1557,14 +1557,15 @@ void trx_update_persistent_counts(
         }
 
         if (table) {
-            mutex_enter(&ib_table->committed_count_mutex);
-            update_persistent_count = ib_table->committed_count_inited 
-                && !ib_table->alter_persistent_count;
-            mutex_exit(&ib_table->committed_count_mutex);
-
-            if (update_persistent_count) {
+            index = UT_LIST_GET_FIRST(ib_table->indexes);
+            rw_lock_x_lock(&index->lock);
+            if (ib_table->committed_count_inited
+                && !ib_table->alter_persistent_count) {
                 ib_table->committed_count += trx->uncommitted_count(ib_table);
+                rw_lock_x_unlock(&index->lock);
                 innobase_update_persistent_count(ib_table, table, trx);
+            } else {
+                rw_lock_x_unlock(&index->lock);
             }
             ib_table->alter_persistent_count = false;
         }
@@ -2527,21 +2528,20 @@ ib_int64_t get_diff_from_rec(
 		return 0;
 
 	switch (type) {
-		case TRX_UNDO_INSERT_REC:
-			return 1;
-		case TRX_UNDO_UPD_DEL_REC:
-		case TRX_UNDO_DEL_MARK_REC:
-			return -1;
-		default:
-			return 0;
+	case TRX_UNDO_INSERT_REC:
+	case TRX_UNDO_UPD_DEL_REC:
+		return 1;
+	case TRX_UNDO_DEL_MARK_REC:
+		return -1;
+	default:
+		return 0;
 	}
 }
 
-/*************************************************************//**
-Return number of uncommitted records for table within transaction
-@param[in]	table 	table to count uncommitted records for
-*/
-ib_int64_t trx_t::uncommitted_count(dict_table_t* table)
+/** Determine the change to uncommitted records for a table.
+@param table     persistent table
+@return the change to uncommitted records for a table in the transaction */
+int64_t trx_t::uncommitted_count(dict_table_t* table) const
 {
 	trx_undo_t* undo;
 	trx_undo_rec_t* undo_rec;

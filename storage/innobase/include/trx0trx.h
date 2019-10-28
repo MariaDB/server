@@ -1132,9 +1132,9 @@ public:
   @param[in]	table_id	table identifier */
   void evict_table(table_id_t table_id);
 
-	/** Return number of uncommitted records for table within transaction
-	@param[in]	table 	table to count uncommitted records for */
-	ib_int64_t uncommitted_count(dict_table_t* table);
+  /** Return number of uncommitted records for table within transaction
+  @param[in]	table 	table to count uncommitted records for */
+  int64_t uncommitted_count(dict_table_t* table) const;
 
 
   bool is_referenced()

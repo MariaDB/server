@@ -1263,13 +1263,13 @@ bool dict_table_t::deserialise_mblob(const byte* metadata, ulint len)
 
 	UT_LIST_GET_FIRST(indexes)->reconstruct_fields();
 
-	mutex_enter(&committed_count_mutex);
+	rw_lock_x_lock(&index->lock);
 	committed_count_inited = (12 + num_non_pk_fields * 2 == len);
 	if (committed_count_inited) {
 		committed_count = mach_read_from_8(metadata);
 		metadata += 8;
 	}
-	mutex_exit(&committed_count_mutex);
+	rw_lock_x_unlock(&index->lock);
 
 	return false;
 }

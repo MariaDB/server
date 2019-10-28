@@ -5519,14 +5519,14 @@ committed count.
 @param[in,out]	heap	memory heap for allocation
 @param[out]	field	data field with the metadata */
 inline
-void dict_table_t::serialise_mblob(mem_heap_t* heap, dfield_t* field)
+void dict_table_t::serialise_mblob(mem_heap_t* heap, dfield_t* field) const
 {
 	DBUG_ASSERT(instant);
-	const dict_index_t& index = *UT_LIST_GET_FIRST(indexes);
-	unsigned n_fixed = index.first_user_field();
-	unsigned num_non_pk_fields = index.n_fields - n_fixed;
+	dict_index_t* index = UT_LIST_GET_FIRST(indexes);
+	unsigned n_fixed = index->first_user_field();
+	unsigned num_non_pk_fields = index->n_fields - n_fixed;
 
-	mutex_enter(&committed_count_mutex);
+	rw_lock_s_lock(&index->lock);
 
 	ulint len = committed_count_inited ? 12 + num_non_pk_fields * 2 :
 		4 + num_non_pk_fields * 2;
@@ -5539,17 +5539,17 @@ void dict_table_t::serialise_mblob(mem_heap_t* heap, dfield_t* field)
 
 	data += 4;
 
-	for (ulint i = n_fixed; i < index.n_fields; i++) {
+	for (ulint i = n_fixed; i < index->n_fields; i++) {
 		mach_write_to_2(data, instant->field_map[i - n_fixed]);
 		data += 2;
 	}
 
 	if (committed_count_inited) {
-		mach_write_to_8(data, index.table->committed_count);
+		mach_write_to_8(data, committed_count);
 		data += 8;
 	}
 
-	mutex_exit(&committed_count_mutex);
+	rw_lock_s_unlock(&index->lock);
 }
 
 /** Construct the metadata record for instant ALTER TABLE.
