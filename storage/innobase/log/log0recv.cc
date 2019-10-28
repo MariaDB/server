@@ -1157,10 +1157,10 @@ recv_find_max_checkpoint(ulint* max_field)
 	/* Check the header page checksum. There was no
 	checksum in the first redo log format (version 0). */
 	log_sys.log.format = mach_read_from_4(buf + LOG_HEADER_FORMAT);
-	log_sys.log.subformat = log_sys.log.format != LOG_HEADER_FORMAT_3_23
+	log_sys.log.subformat = log_sys.log.format != log_t::FORMAT_3_23
 		? mach_read_from_4(buf + LOG_HEADER_SUBFORMAT)
 		: 0;
-	if (log_sys.log.format != LOG_HEADER_FORMAT_3_23
+	if (log_sys.log.format != log_t::FORMAT_3_23
 	    && !recv_check_log_header_checksum(buf)) {
 		ib::error() << "Invalid redo log header checksum.";
 		return(DB_CORRUPTION);
@@ -1173,14 +1173,14 @@ recv_find_max_checkpoint(ulint* max_field)
 	creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR] = 0;
 
 	switch (log_sys.log.format) {
-	case LOG_HEADER_FORMAT_3_23:
+	case log_t::FORMAT_3_23:
 		return(recv_find_max_checkpoint_0(max_field));
-	case LOG_HEADER_FORMAT_10_2:
-	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
-	case LOG_HEADER_FORMAT_10_3:
-	case LOG_HEADER_FORMAT_10_3 | LOG_HEADER_FORMAT_ENCRYPTED:
-	case LOG_HEADER_FORMAT_10_4:
-	case LOG_HEADER_FORMAT_10_4 | LOG_HEADER_FORMAT_ENCRYPTED:
+	case log_t::FORMAT_10_2:
+	case log_t::FORMAT_10_2 | log_t::FORMAT_ENCRYPTED:
+	case log_t::FORMAT_10_3:
+	case log_t::FORMAT_10_3 | log_t::FORMAT_ENCRYPTED:
+	case log_t::FORMAT_10_4:
+	case log_t::FORMAT_10_4 | log_t::FORMAT_ENCRYPTED:
 		break;
 	default:
 		ib::error() << "Unsupported redo log format."
@@ -2180,9 +2180,8 @@ do_read:
 			The check is too broad, causing all
 			tables whose names start with FTS_ to
 			skip the optimization. */
-			if ((log_sys.log.format
-			     & ~LOG_HEADER_FORMAT_ENCRYPTED)
-			    != LOG_HEADER_FORMAT_10_4
+			if ((log_sys.log.format & ~log_t::FORMAT_ENCRYPTED)
+			    != log_t::FORMAT_10_4
 			    && strstr(space->name, "/FTS_")) {
 				goto do_read;
 			}

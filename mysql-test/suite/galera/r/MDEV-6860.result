@@ -1,0 +1,14 @@
+connection node_2;
+connection node_1;
+connection node_2;
+START SLAVE;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_3;
+CREATE TABLE t1 (f1 int, f2 int) ENGINE=InnoDB;
+connection node_2;
+connection node_1;
+connection node_3;
+DROP TABLE t1;
+connection node_2;
+STOP SLAVE;
+RESET SLAVE ALL;
