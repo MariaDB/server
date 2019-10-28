@@ -458,5 +458,4 @@ eval $check_no_innodb;
 --remove_file $bugdir/ibdata1
 --remove_file $bugdir/ibdata2
 --remove_file $bugdir/ib_logfile0
---remove_file $bugdir/ib_logfile1
 --rmdir $bugdir
