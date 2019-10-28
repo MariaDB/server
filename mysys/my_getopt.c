@@ -202,8 +202,8 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
   DBUG_ENTER("handle_options");
 
   /* handle_options() assumes arg0 (program name) always exists */
-  DBUG_ASSERT(argc && *argc >= 1);
-  DBUG_ASSERT(argv && *argv);
+  DBUG_ASSERT(*argc >= 1);
+  DBUG_ASSERT(*argv);
   (*argc)--; /* Skip the program name */
   (*argv)++; /*      --- || ----      */
   init_variables(longopts, init_one_value);
