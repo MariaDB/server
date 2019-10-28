@@ -138,8 +138,7 @@ void Wsrep_client_service::cleanup_transaction()
 }
 
 
-int Wsrep_client_service::prepare_fragment_for_replication(
-  wsrep::mutable_buffer& buffer, size_t& log_position)
+int Wsrep_client_service::prepare_fragment_for_replication(wsrep::mutable_buffer& buffer)
 {
   DBUG_ASSERT(m_thd == current_thd);
   THD* thd= m_thd;
@@ -153,7 +152,7 @@ int Wsrep_client_service::prepare_fragment_for_replication(
   }
 
   const my_off_t saved_pos(my_b_tell(cache));
-  if (reinit_io_cache(cache, READ_CACHE, thd->wsrep_sr().log_position(), 0, 0))
+  if (reinit_io_cache(cache, READ_CACHE, thd->wsrep_sr().bytes_certified(), 0, 0))
   {
     DBUG_RETURN(1);
   }
@@ -187,7 +186,6 @@ int Wsrep_client_service::prepare_fragment_for_replication(
     while (cache->file >= 0 && (length= my_b_fill(cache)));
   }
   DBUG_ASSERT(total_length == buffer.size());
-  log_position= saved_pos;
 cleanup:
   if (reinit_io_cache(cache, WRITE_CACHE, saved_pos, 0, 0))
   {

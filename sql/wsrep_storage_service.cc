@@ -100,8 +100,7 @@ void Wsrep_storage_service::adopt_transaction(const wsrep::transaction& transact
 int Wsrep_storage_service::append_fragment(const wsrep::id& server_id,
                                            wsrep::transaction_id transaction_id,
                                            int flags,
-                                           const wsrep::const_buffer& data,
-                                           const wsrep::xid& xid WSREP_UNUSED)
+                                           const wsrep::const_buffer& data)
 {
   DBUG_ENTER("Wsrep_storage_service::append_fragment");
   DBUG_ASSERT(m_thd == current_thd);
