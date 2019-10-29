@@ -1594,25 +1594,6 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
   }
 }
 
-static const char* wsrep_get_query_or_msg(const THD* thd)
-{
-  switch(thd->lex->sql_command)
-  {
-    case SQLCOM_CREATE_USER:
-      return "CREATE USER";
-    case SQLCOM_GRANT:
-      return "GRANT";
-    case SQLCOM_REVOKE:
-      return "REVOKE";
-    case SQLCOM_SET_OPTION:
-      if (thd->lex->definer)
-	return "SET PASSWORD";
-      /* fallthrough */
-    default:
-      return thd->query();
-   }
-}
-
 /*
   returns: 
    0: statement was replicated as TOI
@@ -1636,7 +1617,7 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
   }
 
   WSREP_DEBUG("TO BEGIN: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
-              thd->wsrep_exec_mode, wsrep_get_query_or_msg(thd));
+              thd->wsrep_exec_mode, wsrep_thd_query(thd));
 
   switch (thd->lex->sql_command)
   {
@@ -1716,13 +1697,13 @@ static void wsrep_TOI_end(THD *thd) {
   wsrep_to_isolation--;
 
   WSREP_DEBUG("TO END: %lld, %d: %s", (long long)wsrep_thd_trx_seqno(thd),
-              thd->wsrep_exec_mode, wsrep_get_query_or_msg(thd));
+              thd->wsrep_exec_mode, wsrep_thd_query(thd));
 
   wsrep_set_SE_checkpoint(thd->wsrep_trx_meta.gtid.uuid,
                           thd->wsrep_trx_meta.gtid.seqno);
   WSREP_DEBUG("TO END: %lld, update seqno",
               (long long)wsrep_thd_trx_seqno(thd));
-  
+
   if (WSREP_OK == (ret = wsrep->to_execute_end(wsrep, thd->thread_id))) {
     WSREP_DEBUG("TO END: %lld", (long long)wsrep_thd_trx_seqno(thd));
   }
@@ -2674,9 +2655,28 @@ extern "C" query_id_t wsrep_thd_query_id(THD *thd)
 }
 
 
-char *wsrep_thd_query(THD *thd)
+const char *wsrep_thd_query(THD *thd)
 {
-  return (thd) ? thd->query() : NULL;
+  if (thd)
+  {
+    switch(thd->lex->sql_command)
+    {
+    case SQLCOM_CREATE_USER:
+      return "CREATE USER";
+    case SQLCOM_GRANT:
+      return "GRANT";
+    case SQLCOM_REVOKE:
+      return "REVOKE";
+    case SQLCOM_SET_OPTION:
+      if (thd->lex->definer)
+	return "SET PASSWORD";
+      /* fallthrough */
+    default:
+      if (thd->query())
+        return thd->query();
+    }
+  }
+  return "NULL";
 }
 
 
