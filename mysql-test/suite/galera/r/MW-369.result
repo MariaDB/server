@@ -3,23 +3,32 @@ CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
 CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1))  ;
 INSERT INTO p VALUES (1, 0);
 INSERT INTO p VALUES (2, 0);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1;
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
 DELETE FROM p WHERE f1 = 1;
+connection node_1a;
 SET SESSION wsrep_sync_wait = 0;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
 INSERT INTO c VALUES (1, 1);
+connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+connection node_1;
 COMMIT;
+connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
 SET GLOBAL wsrep_provider_options = 'dbug=';
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+ERROR 40001: Deadlock: wsrep aborted transaction
+connection node_2;
 SELECT * FROM p;
 f1	f2
 1	0
@@ -29,6 +38,7 @@ f1	p_id
 1	1
 DROP TABLE c;
 DROP TABLE p;
+connection node_1;
 CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
 CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
 f2 INTEGER,
@@ -36,22 +46,30 @@ CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1))  ;
 INSERT INTO p VALUES (1, 0);
 INSERT INTO p VALUES (2, 0);
 INSERT INTO c VALUES (1, 1, 0);
+connection node_1;
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
 UPDATE p SET f2 = 1 WHERE f1 = 1;
+connection node_1a;
 SET SESSION wsrep_sync_wait = 0;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
 UPDATE c SET f2 = 1 WHERE f1 = 1;
+connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+connection node_1;
 COMMIT;
+connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
 SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+connection node_2;
 SELECT * FROM p;
 f1	f2
 1	1
@@ -61,28 +79,37 @@ f1	p_id	f2
 1	1	1
 DROP TABLE c;
 DROP TABLE p;
+connection node_1;
 CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
 CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
 CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f1))  ;
 INSERT INTO p VALUES (1, 0);
 INSERT INTO p VALUES (2, 0);
 INSERT INTO c VALUES (1, 1);
+connection node_1;
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
 UPDATE p SET f2 = 1 WHERE f1 = 1;
+connection node_1a;
 SET SESSION wsrep_sync_wait = 0;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
 DELETE FROM c WHERE f1 = 1;
+connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+connection node_1;
 COMMIT;
+connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
 SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+connection node_2;
 SELECT * FROM p;
 f1	f2
 1	1
@@ -95,23 +122,31 @@ CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER UNIQUE KEY) ENGINE=INNODB;
 CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER,
 CONSTRAINT fk_1 FOREIGN KEY (p_id) REFERENCES p (f2))  ;
 INSERT INTO p VALUES (1, 0);
+connection node_1;
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
 UPDATE p SET f2 = 1 WHERE f1 = 1;
+connection node_1a;
 SET SESSION wsrep_sync_wait = 0;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
 INSERT INTO c VALUES (1, 0);;
+connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+connection node_1;
 COMMIT;
+connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
 SET GLOBAL wsrep_provider_options = 'dbug=';
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+ERROR 40001: Deadlock: wsrep aborted transaction
+connection node_2;
 SELECT * FROM p;
 f1	f2
 1	0
@@ -127,23 +162,31 @@ ON DELETE CASCADE)  ;
 INSERT INTO p VALUES (1, 0);
 INSERT INTO p VALUES (2, 0);
 INSERT INTO c VALUES (1, 1, 0);
+connection node_1;
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
 DELETE FROM p WHERE f1 = 1;
+connection node_1a;
 SET SESSION wsrep_sync_wait = 0;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
 UPDATE c SET f2 = 1 WHERE f1 = 1;
+connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+connection node_1;
 COMMIT;
+connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
 SET GLOBAL wsrep_provider_options = 'dbug=';
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+ERROR 40001: Deadlock: wsrep aborted transaction
+connection node_2;
 SELECT * FROM p;
 f1	f2
 1	0
