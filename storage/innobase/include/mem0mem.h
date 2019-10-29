@@ -228,7 +228,22 @@ mem_strdupl(
 	const char*	str,	/*!< in: string to be copied */
 	ulint		len);	/*!< in: length of str, in bytes */
 
-/** Duplicates a NUL-terminated string, allocated from a memory heap.
+/** Duplicate a block of data, allocated from a memory heap.
+@param[in]	heap	memory heap where string is allocated
+@param[in]	data	block of data to be copied
+@param[in]	len	length of data, in bytes
+@return own: a copy of data */
+inline
+void*
+mem_heap_dup(mem_heap_t* heap, const void* data, size_t len)
+{
+	ut_ad(data || !len);
+	return UNIV_LIKELY(data != NULL)
+		? memcpy(mem_heap_alloc(heap, len), data, len)
+		: NULL;
+}
+
+/** Duplicate a NUL-terminated string, allocated from a memory heap.
 @param[in]	heap	memory heap where string is allocated
 @param[in]	str	string to be copied
 @return own: a copy of the string */
@@ -258,16 +273,6 @@ mem_heap_strcat(
 	mem_heap_t*	heap,	/*!< in: memory heap where string is allocated */
 	const char*	s1,	/*!< in: string 1 */
 	const char*	s2);	/*!< in: string 2 */
-
-/**********************************************************************//**
-Duplicate a block of data, allocated from a memory heap.
-@return own: a copy of the data */
-void*
-mem_heap_dup(
-/*=========*/
-	mem_heap_t*	heap,	/*!< in: memory heap where copy is allocated */
-	const void*	data,	/*!< in: data to be copied */
-	ulint		len);	/*!< in: length of data, in bytes */
 
 /****************************************************************//**
 A simple sprintf replacement that dynamically allocates the space for the

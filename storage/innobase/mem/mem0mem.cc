@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -39,19 +39,6 @@ mem_heap_strdup(
 	const char*	str)
 {
 	return(static_cast<char*>(mem_heap_dup(heap, str, strlen(str) + 1)));
-}
-
-/**********************************************************************//**
-Duplicate a block of data, allocated from a memory heap.
-@return own: a copy of the data */
-void*
-mem_heap_dup(
-/*=========*/
-	mem_heap_t*	heap,	/*!< in: memory heap where copy is allocated */
-	const void*	data,	/*!< in: data to be copied */
-	ulint		len)	/*!< in: length of data, in bytes */
-{
-	return(memcpy(mem_heap_alloc(heap, len), data, len));
 }
 
 /**********************************************************************//**
