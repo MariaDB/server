@@ -555,8 +555,9 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 		DBUG_ASSERT(c.is_added());
 		if (c.def_val.len <= sizeof field_ref_zero
-		    && !memcmp(c.def_val.data, field_ref_zero,
-			       c.def_val.len)) {
+		    && (!c.def_val.len
+			|| !memcmp(c.def_val.data, field_ref_zero,
+				   c.def_val.len))) {
 			c.def_val.data = field_ref_zero;
 		} else if (const void*& d = c.def_val.data) {
 			d = mem_heap_dup(heap, d, c.def_val.len);
