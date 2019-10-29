@@ -868,6 +868,33 @@ void ha_end_backup()
 }
 
 
+/*
+  Inform plugin of the server shutdown.
+  Called after all connections are down.
+
+  Under some circumstances, storage engine might need to
+  so some work, before deinit() can be safely called.
+  (an example is Innodb purge that might call into server
+   to calculate virtual columns, which might potentially also
+  invoke other plugins, such as audit
+*/
+static my_bool plugin_pre_shutdown(THD *, plugin_ref plugin, void *)
+{
+  handlerton *hton= plugin_hton(plugin);
+  if (hton->pre_shutdown)
+    hton->pre_shutdown();
+  return FALSE;
+}
+
+
+void ha_pre_shutdown()
+{
+  plugin_foreach_with_mask(0, plugin_pre_shutdown,
+    MYSQL_STORAGE_ENGINE_PLUGIN,
+    PLUGIN_IS_DELETED | PLUGIN_IS_READY, 0);
+}
+
+
 /* ========================================================================
  ======================= TRANSACTIONS ===================================*/
 

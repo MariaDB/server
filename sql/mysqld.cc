@@ -5743,7 +5743,7 @@ int mysqld_main(int argc, char **argv)
 #endif
 
   close_connections();
-
+  ha_pre_shutdown();
   clean_up(1);
   sd_notify(0, "STATUS=MariaDB server is down");
 

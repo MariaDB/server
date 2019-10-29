@@ -1656,6 +1656,9 @@ struct handlerton
   /* backup */
   void (*prepare_for_backup)(void);
   void (*end_backup)(void);
+
+  /* Server shutdown early notification.*/
+  void (*pre_shutdown)(void);
 };
 
 
@@ -4909,6 +4912,7 @@ int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
                     const LEX_CSTRING *db, const LEX_CSTRING *alias, bool generate_warning);
 void ha_prepare_for_backup();
 void ha_end_backup();
+void ha_pre_shutdown();
 
 /* statistics and info */
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);
