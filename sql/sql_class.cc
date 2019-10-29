@@ -4794,6 +4794,112 @@ void destroy_thd(MYSQL_THD thd)
   delete thd;
 }
 
+/**
+  Create a THD that only has auxilliary functions
+  It will never be added to the global connection list
+  server_threads. It does not represent any client connection.
+
+  It should never be counted, because it will stall the
+  shutdown. It is solely for engine's internal use,
+  like for example, evaluation of virtual function in innodb
+  purge.
+*/
+extern "C" pthread_key(struct st_my_thread_var *, THR_KEY_mysys);
+MYSQL_THD create_background_thd()
+{
+  DBUG_ASSERT(!current_thd);
+  auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
+
+  /*
+    Allocate new mysys_var specifically this THD,
+    so that e.g safemalloc, DBUG etc are happy.
+  */
+  pthread_setspecific(THR_KEY_mysys, 0);
+  my_thread_init();
+  auto thd_mysysvar= pthread_getspecific(THR_KEY_mysys);
+  auto thd= new THD(0);
+  pthread_setspecific(THR_KEY_mysys, save_mysysvar);
+
+  /*
+    Workaround the adverse effect of incrementing thread_count
+    in THD constructor. We do not want these THDs to be counted,
+    or waited for on shutdown.
+  */
+  thread_count--;
+
+  thd->mysys_var= (st_my_thread_var *) thd_mysysvar;
+  thd->set_command(COM_DAEMON);
+  thd->system_thread= SYSTEM_THREAD_GENERIC;
+  thd->security_ctx->host_or_ip= "";
+  return thd;
+}
+
+
+/*
+  Attach a background THD.
+
+  Changes current value THR_KEY_mysys TLS variable,
+  and returns the original value.
+*/
+void *thd_attach_thd(MYSQL_THD thd)
+{
+  DBUG_ASSERT(!current_thd);
+  DBUG_ASSERT(thd && thd->mysys_var);
+
+  auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
+  pthread_setspecific(THR_KEY_mysys, thd->mysys_var);
+  thd->thread_stack= (char *) &thd;
+  thd->store_globals();
+  return save_mysysvar;
+}
+
+/*
+  Restore THR_KEY_mysys TLS variable,
+  which was changed thd_attach_thd().
+*/
+void thd_detach_thd(void *mysysvar)
+{
+  /* Restore mysys_var that is changed when THD was attached.*/
+  pthread_setspecific(THR_KEY_mysys, mysysvar);
+  /* Restore the THD (we assume it was NULL during attach).*/
+  set_current_thd(0);
+}
+
+/*
+  Destroy a THD that was previously created by
+  create_background_thd()
+*/
+void destroy_background_thd(MYSQL_THD thd)
+{
+  DBUG_ASSERT(!current_thd);
+  auto thd_mysys_var= thd->mysys_var;
+  auto save_mysys_var= thd_attach_thd(thd);
+  DBUG_ASSERT(thd_mysys_var != save_mysys_var);
+  /*
+    Workaround the adverse effect decrementing thread_count on THD()
+    destructor.
+    As we decremented it in create_background_thd(), in order for it
+    not to go negative, we have to increment it before destructor.
+  */
+  thread_count++;
+  delete thd;
+
+  thd_detach_thd(save_mysys_var);
+  /*
+     Delete THD-specific my_thread_var, that was
+     allocated in create_background_thd().
+     Also preserve current PSI context, since my_thread_end()
+     would kill it, if we're not careful.
+  */
+  auto save_psi_thread= PSI_CALL_get_thread();
+  PSI_CALL_set_thread(0);
+  pthread_setspecific(THR_KEY_mysys, thd_mysys_var);
+  my_thread_end();
+  pthread_setspecific(THR_KEY_mysys, save_mysys_var);
+  PSI_CALL_set_thread(save_psi_thread);
+}
+
+
 void reset_thd(MYSQL_THD thd)
 {
   close_thread_tables(thd);
