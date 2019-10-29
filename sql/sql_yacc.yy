@@ -9527,7 +9527,7 @@ subselect:
 
   Consider the production rule of the SQL Standard
      subquery:
-        '(' query_expression')'
+        '(' query_expression ')'
 
   This rule is equivalent to the rule
      subquery:
@@ -9541,7 +9541,7 @@ subselect:
 
   The latter can be re-written into
      subquery:
-          query_expression_body_ext_parens ')'
+          query_expression_body_ext_parens
         | '(' with_clause query_expression_no_with_clause ')'
 
   The last rule allows us to resolve properly the shift/reduce conflict
@@ -12649,7 +12649,7 @@ opt_window_clause:
           {}
         | WINDOW_SYM
           window_def_list
-	  {}
+          {}
         ;
 
 window_def_list:
@@ -13917,12 +13917,12 @@ delete_single_table:
         ;
 
 delete_single_table_for_period:
-        delete_single_table opt_for_portion_of_time_clause
-        {
-          if ($2)
-            Lex->last_table()->period_conditions= Lex->period_conditions;
-        }
-      ;
+          delete_single_table opt_for_portion_of_time_clause
+          {
+            if ($2)
+              Lex->last_table()->period_conditions= Lex->period_conditions;
+          }
+        ;
 
 single_multi:
           delete_single_table_for_period
