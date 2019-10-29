@@ -1378,9 +1378,11 @@ sig_handler handle_sigint(int sig)
   if (!executing_query)
   {
     tee_fprintf(stdout, "Ctrl-C\n");
+#ifdef HAVE_READLINE
     rl_on_new_line(); // Regenerate the prompt on a newline
     rl_replace_line("", 0); // Clear the previous text
     rl_redisplay();
+#endif
     return;
   }
 
