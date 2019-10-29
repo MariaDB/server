@@ -6881,6 +6881,21 @@ sp_param_field_type:
         | sp_param_field_type_string
         | field_type_lob
         | field_type_misc
+        | IDENT_sys float_options srid_option
+          {
+            if (Lex->set_field_type_udt(&$$, $1, $2))
+              MYSQL_YYABORT;
+          }
+        | reserved_keyword_udt float_options srid_option
+          {
+            if (Lex->set_field_type_udt(&$$, $1, $2))
+              MYSQL_YYABORT;
+          }
+        | non_reserved_keyword_udt float_options srid_option
+          {
+            if (Lex->set_field_type_udt(&$$, $1, $2))
+              MYSQL_YYABORT;
+          }
         ;
 
 
@@ -16711,13 +16726,11 @@ reserved_keyword_udt:
         | INDEX_SYM
         | INFILE
         | INNER_SYM
-        | INOUT_SYM
         | INSENSITIVE_SYM
         | INSERT
         | INTERSECT_SYM
         | INTERVAL_SYM
         | INTO
-        | IN_SYM
         | IS
         | ITERATE_SYM
         | JOIN_SYM
@@ -16762,7 +16775,6 @@ reserved_keyword_udt:
         | OTHERS_ORACLE_SYM
         | OUTER
         | OUTFILE
-        | OUT_SYM
         | OVER_SYM
         | PACKAGE_ORACLE_SYM
         | PAGE_CHECKSUM_SYM
