@@ -289,8 +289,8 @@ public:
 	{
 		ut_ad(mutex_own(&recv_sys.mutex));
 		ut_ad(recv_no_ibuf_operations);
-		for (map::iterator i= inits.begin(); i != inits.end(); i++) {
-			i->second.created = false;
+		for (map::value_type& i : inits) {
+			i.second.created = false;
 		}
 	}
 
@@ -312,18 +312,17 @@ public:
 		ut_ad(!recv_no_ibuf_operations);
 		mtr.start();
 
-		for (map::const_iterator i= inits.begin(); i != inits.end();
-		     i++) {
-			if (!i->second.created) {
+		for (const map::value_type& i : inits) {
+			if (!i.second.created) {
 				continue;
 			}
 			if (buf_block_t* block = buf_page_get_gen(
-				    i->first, 0, RW_X_LATCH, NULL,
+				    i.first, 0, RW_X_LATCH, NULL,
 				    BUF_GET_IF_IN_POOL, __FILE__, __LINE__,
 				    &mtr, NULL)) {
 				mutex_exit(&recv_sys.mutex);
 				ibuf_merge_or_delete_for_page(
-					block, i->first,
+					block, i.first,
 					block->zip_size(), true);
 				mtr.commit();
 				mtr.start();
@@ -3428,21 +3427,19 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 		return(err);
 	}
 
-	/* When rescan is not needed then recv_sys.addr_hash will have
-	all space id belongs to redo log. If rescan is needed and
-	innodb_force_recovery > 0 then InnoDB can ignore missing tablespace. */
-	for (recv_spaces_t::iterator i = recv_spaces.begin();
-	     i != recv_spaces.end(); i++) {
-
-		if (i->second.status != file_name_t::MISSING) {
+	/* When rescan is not needed, recv_sys.addr_hash will contain the
+	entire redo log. If rescan is needed or innodb_force_recovery
+	is set, we can ignore missing tablespaces. */
+	for (const recv_spaces_t::value_type& rs : recv_spaces) {
+		if (rs.second.status != file_name_t::MISSING) {
 			continue;
 		}
 
 		missing_tablespace = true;
 
 		if (srv_force_recovery > 0) {
-			ib::warn() << "Tablespace " << i->first
-				<<" was not found at " << i->second.name
+			ib::warn() << "Tablespace " << rs.first
+				<<" was not found at " << rs.second.name
 				<<", and innodb_force_recovery was set."
 				<<" All redo log for this tablespace"
 				<<" will be ignored!";
@@ -3450,9 +3447,9 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 		}
 
 		if (!rescan) {
-			ib::info() << "Tablespace " << i->first
+			ib::info() << "Tablespace " << rs.first
 				<< " was not found at '"
-				<< i->second.name << "', but there"
+				<< rs.second.name << "', but there"
 				<<" were no modifications either.";
 		}
 	}
@@ -3477,33 +3474,34 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 	ut_ad(!srv_read_only_mode);
 	ut_ad(recv_needed_recovery);
 
-	for (recv_spaces_t::iterator i = recv_spaces.begin();
-	     i != recv_spaces.end(); i++) {
-		ut_ad(!is_predefined_tablespace(i->first));
-		ut_ad(i->second.status != file_name_t::DELETED || !i->second.space);
+	for (recv_spaces_t::value_type& rs : recv_spaces) {
+		ut_ad(!is_predefined_tablespace(rs.first));
+		ut_ad(rs.second.status != file_name_t::DELETED
+		      || !rs.second.space);
 
-		if (i->second.status == file_name_t::DELETED) {
+		if (rs.second.status == file_name_t::DELETED) {
 			/* The tablespace was deleted,
 			so we can ignore any redo log for it. */
 			flag_deleted = true;
-		} else if (i->second.space != NULL) {
+		} else if (rs.second.space != NULL) {
 			/* The tablespace was found, and there
 			are some redo log records for it. */
-			fil_names_dirty(i->second.space);
-			i->second.space->enable_lsn = i->second.enable_lsn;
-		} else if (i->second.name == "") {
+			fil_names_dirty(rs.second.space);
+			rs.second.space->enable_lsn = rs.second.enable_lsn;
+		} else if (rs.second.name == "") {
 			ib::error() << "Missing MLOG_FILE_NAME"
 				" or MLOG_FILE_DELETE"
 				" before MLOG_CHECKPOINT for tablespace "
-				<< i->first;
+				<< rs.first;
 			recv_sys.found_corrupt_log = true;
 			return(DB_CORRUPTION);
 		} else {
-			i->second.status = file_name_t::MISSING;
+			rs.second.status = file_name_t::MISSING;
 			flag_deleted = true;
 		}
 
-		ut_ad(i->second.status == file_name_t::DELETED || i->second.name != "");
+		ut_ad(rs.second.status == file_name_t::DELETED
+		      || rs.second.name != "");
 	}
 
 	if (flag_deleted) {
@@ -3900,36 +3898,24 @@ recv_recovery_rollback_active(void)
 const byte*
 recv_dblwr_t::find_page(ulint space_id, ulint page_no)
 {
-	typedef std::vector<const byte*, ut_allocator<const byte*> >
-		matches_t;
-
-	matches_t	matches;
+	std::vector<const byte*, ut_allocator<const byte*> > matches;
 	const byte*	result = 0;
 
-	for (list::iterator i = pages.begin(); i != pages.end(); ++i) {
-		if (page_get_space_id(*i) == space_id
-		    && page_get_page_no(*i) == page_no) {
-			matches.push_back(*i);
+	for (const byte* page : pages) {
+		if (page_get_space_id(page) == space_id
+		    && page_get_page_no(page) == page_no) {
+			matches.push_back(page);
 		}
 	}
 
-	if (matches.size() == 1) {
-		result = matches[0];
-	} else if (matches.size() > 1) {
+	lsn_t max_lsn = 0;
 
-		lsn_t max_lsn	= 0;
-		lsn_t page_lsn	= 0;
+	for (const byte* page : matches) {
+		lsn_t page_lsn = mach_read_from_8(page + FIL_PAGE_LSN);
 
-		for (matches_t::iterator i = matches.begin();
-		     i != matches.end();
-		     ++i) {
-
-			page_lsn = mach_read_from_8(*i + FIL_PAGE_LSN);
-
-			if (page_lsn > max_lsn) {
-				max_lsn = page_lsn;
-				result = *i;
-			}
+		if (page_lsn > max_lsn) {
+			max_lsn = page_lsn;
+			result = page;
 		}
 	}
 
