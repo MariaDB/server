@@ -145,19 +145,18 @@ the initialisation step. */
 enum srv_start_state_t {
 	/** No thread started */
 	SRV_START_STATE_NONE = 0,		/*!< No thread started */
-	/** lock_wait_timeout_thread started */
-	SRV_START_STATE_LOCK_SYS = 1,		/*!< Started lock-timeout
-						thread. */
+	/** lock_wait_timeout timer task started */
+	SRV_START_STATE_LOCK_SYS = 1,
 	/** buf_flush_page_cleaner_coordinator,
 	buf_flush_page_cleaner_worker started */
 	SRV_START_STATE_IO = 2,
-	/** srv_error_monitor_thread, srv_monitor_thread started */
+	/** srv_error_monitor_thread, srv_print_monitor_task started */
 	SRV_START_STATE_MONITOR = 4,
 	/** srv_master_thread started */
 	SRV_START_STATE_MASTER = 8,
 	/** srv_purge_coordinator_thread, srv_worker_thread started */
 	SRV_START_STATE_PURGE = 16,
-	/** fil_crypt_thread, btr_defragment_thread started
+	/** fil_crypt_thread,
 	(all background threads that can generate redo log but not undo log */
 	SRV_START_STATE_REDO = 32
 };
@@ -172,40 +171,16 @@ enum srv_shutdown_t	srv_shutdown_state = SRV_SHUTDOWN_NONE;
 /** Files comprising the system tablespace */
 pfs_os_file_t	files[1000];
 
-/** io_handler_thread parameters for thread identification */
-static ulint		n[SRV_MAX_N_IO_THREADS + 6];
-/** io_handler_thread identifiers, 32 is the maximum number of purge threads  */
-/** 6 is the ? */
-#define	START_OLD_THREAD_CNT	(SRV_MAX_N_IO_THREADS + 6 + 32)
-static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 6 + 32];
-
-/** Thead handles */
-static os_thread_t	thread_handles[SRV_MAX_N_IO_THREADS + 6 + 32];
-static os_thread_t	buf_dump_thread_handle;
-static os_thread_t	dict_stats_thread_handle;
-/** Status variables, is thread started ?*/
-static bool		thread_started[SRV_MAX_N_IO_THREADS + 6 + 32] = {false};
 /** Name of srv_monitor_file */
 static char*	srv_monitor_file_name;
+std::unique_ptr<tpool::timer> srv_master_timer;
 
 /** */
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
 
 #ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
-mysql_pfs_key_t	buf_dump_thread_key;
-mysql_pfs_key_t	dict_stats_thread_key;
-mysql_pfs_key_t	io_handler_thread_key;
-mysql_pfs_key_t	io_ibuf_thread_key;
-mysql_pfs_key_t	io_log_thread_key;
-mysql_pfs_key_t	io_read_thread_key;
-mysql_pfs_key_t	io_write_thread_key;
-mysql_pfs_key_t	srv_error_monitor_thread_key;
-mysql_pfs_key_t	srv_lock_timeout_thread_key;
-mysql_pfs_key_t	srv_master_thread_key;
-mysql_pfs_key_t	srv_monitor_thread_key;
-mysql_pfs_key_t	srv_purge_thread_key;
-mysql_pfs_key_t	srv_worker_thread_key;
+mysql_pfs_key_t	thread_pool_thread_key;
 #endif /* UNIV_PFS_THREAD */
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
@@ -275,64 +250,6 @@ srv_file_check_mode(
 	return(true);
 }
 
-/********************************************************************//**
-I/o-handler thread function.
-@return OS_THREAD_DUMMY_RETURN */
-extern "C"
-os_thread_ret_t
-DECLARE_THREAD(io_handler_thread)(
-/*==============================*/
-	void*	arg)	/*!< in: pointer to the number of the segment in
-			the aio array */
-{
-	ulint	segment;
-
-	segment = *((ulint*) arg);
-
-#ifdef UNIV_DEBUG_THREAD_CREATION
-	ib::info() << "Io handler thread " << segment << " starts, id "
-		<< os_thread_pf(os_thread_get_curr_id());
-#endif
-
-	/* For read only mode, we don't need ibuf and log I/O thread.
-	Please see srv_start() */
-	ulint   start = (srv_read_only_mode) ? 0 : 2;
-
-	if (segment < start) {
-		if (segment == 0) {
-			pfs_register_thread(io_ibuf_thread_key);
-		} else {
-			ut_ad(segment == 1);
-			pfs_register_thread(io_log_thread_key);
-		}
-	} else if (segment >= start
-		   && segment < (start + srv_n_read_io_threads)) {
-			pfs_register_thread(io_read_thread_key);
-
-	} else if (segment >= (start + srv_n_read_io_threads)
-		   && segment < (start + srv_n_read_io_threads
-				 + srv_n_write_io_threads)) {
-		pfs_register_thread(io_write_thread_key);
-
-	} else {
-		pfs_register_thread(io_handler_thread_key);
-	}
-
-	while (srv_shutdown_state != SRV_SHUTDOWN_EXIT_THREADS
-	       || buf_page_cleaner_is_active
-	       || !os_aio_all_slots_free()) {
-		fil_aio_wait(segment);
-	}
-
-	/* We count the number of threads in os_thread_exit(). A created
-	thread should always use that to exit and not use return() to exit.
-	The thread actually never comes here because it is exited in an
-	os_event_wait(). */
-
-	os_thread_exit();
-
-	OS_THREAD_DUMMY_RETURN;
-}
 
 /*********************************************************************//**
 Creates a log file.
@@ -1066,6 +983,13 @@ srv_shutdown_all_bg_threads()
 	ut_ad(!srv_undo_sources);
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
 
+	lock_sys.timeout_timer.reset();
+	srv_master_timer.reset();
+
+	if (purge_sys.enabled()) {
+		srv_purge_shutdown();
+	}
+
 	/* All threads end up waiting for certain events. Put those events
 	to the signaled state. Then the threads will exit themselves after
 	os_event_wait(). */
@@ -1073,26 +997,10 @@ srv_shutdown_all_bg_threads()
 		/* NOTE: IF YOU CREATE THREADS IN INNODB, YOU MUST EXIT THEM
 		HERE OR EARLIER */
 
-		if (srv_start_state_is_set(SRV_START_STATE_LOCK_SYS)) {
-			/* a. Let the lock timeout thread exit */
-			os_event_set(lock_sys.timeout_event);
-		}
 
 		if (!srv_read_only_mode) {
 			/* b. srv error monitor thread exits automatically,
 			no need to do anything here */
-
-			if (srv_start_state_is_set(SRV_START_STATE_MASTER)) {
-				/* c. We wake the master thread so that
-				it exits */
-				srv_wake_master_thread();
-			}
-
-			if (srv_start_state_is_set(SRV_START_STATE_PURGE)) {
-				/* d. Wakeup purge threads. */
-				srv_purge_wakeup();
-			}
-
 			if (srv_n_fil_crypt_threads_started) {
 				os_event_set(fil_crypt_threads_event);
 			}
@@ -1120,25 +1028,11 @@ srv_shutdown_all_bg_threads()
 			return;
 		}
 
-		switch (srv_operation) {
-		case SRV_OPERATION_BACKUP:
-		case SRV_OPERATION_RESTORE_DELTA:
-			break;
-		case SRV_OPERATION_NORMAL:
-		case SRV_OPERATION_RESTORE:
-		case SRV_OPERATION_RESTORE_EXPORT:
-			if (!buf_page_cleaner_is_active
-			    && os_aio_all_slots_free()) {
-				os_aio_wake_all_threads_at_shutdown();
-			}
-		}
-
 		os_thread_sleep(100000);
 	}
 
 	ib::warn() << os_thread_count << " threads created by InnoDB"
 		" had not exited at shutdown!";
-	ut_d(os_aio_print_pending_io(stderr));
 	ut_ad(0);
 }
 
@@ -1379,10 +1273,7 @@ dberr_t srv_start(bool create_new_db)
 
 	srv_max_n_threads = 1   /* io_ibuf_thread */
 			    + 1 /* io_log_thread */
-			    + 1 /* lock_wait_timeout_thread */
-			    + 1 /* srv_error_monitor_thread */
-			    + 1 /* srv_monitor_thread */
-			    + 1 /* srv_master_thread */
+			    + 1 /* srv_print_monitor_task */
 			    + 1 /* srv_purge_coordinator_thread */
 			    + 1 /* buf_dump_thread */
 			    + 1 /* dict_stats_thread */
@@ -1535,15 +1426,6 @@ dberr_t srv_start(bool create_new_db)
 	recv_sys.create();
 	lock_sys.create(srv_lock_table_size);
 
-	/* Create i/o-handler threads: */
-
-	for (ulint t = 0; t < srv_n_file_io_threads; ++t) {
-
-		n[t] = t;
-
-		thread_handles[t] = os_thread_create(io_handler_thread, n + t, thread_ids + t);
-		thread_started[t] = true;
-	}
 
 	if (!srv_read_only_mode) {
 		buf_flush_page_cleaner_init();
@@ -1803,7 +1685,7 @@ files_checked:
 	/* Initialize objects used by dict stats gathering thread, which
 	can also be used by recovery if it tries to drop some table */
 	if (!srv_read_only_mode) {
-		dict_stats_thread_init();
+		dict_stats_init();
 	}
 
 	trx_sys.create();
@@ -2239,28 +2121,16 @@ files_checked:
 	srv_startup_is_before_trx_rollback_phase = false;
 
 	if (!srv_read_only_mode) {
-		/* Create the thread which watches the timeouts
+		/* timer task which watches the timeouts
 		for lock waits */
-		thread_handles[2 + SRV_MAX_N_IO_THREADS] = os_thread_create(
-			lock_wait_timeout_thread,
-			NULL, thread_ids + 2 + SRV_MAX_N_IO_THREADS);
-		thread_started[2 + SRV_MAX_N_IO_THREADS] = true;
-		lock_sys.timeout_thread_active = true;
+		lock_sys.timeout_timer.reset(srv_thread_pool->create_timer(
+			lock_wait_timeout_task));
 
 		DBUG_EXECUTE_IF("innodb_skip_monitors", goto skip_monitors;);
-		/* Create the thread which warns of long semaphore waits */
-		srv_error_monitor_active = true;
-		thread_handles[3 + SRV_MAX_N_IO_THREADS] = os_thread_create(
-			srv_error_monitor_thread,
-			NULL, thread_ids + 3 + SRV_MAX_N_IO_THREADS);
-		thread_started[3 + SRV_MAX_N_IO_THREADS] = true;
+		/* Create the task which warns of long semaphore waits */
+		srv_start_periodic_timer(srv_error_monitor_timer, srv_error_monitor_task, 1000);
+		srv_start_periodic_timer(srv_monitor_timer, srv_monitor_task, 5000);
 
-		/* Create the thread which prints InnoDB monitor info */
-		srv_monitor_active = true;
-		thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
-			srv_monitor_thread,
-			NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
-		thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
 		srv_start_state |= SRV_START_STATE_LOCK_SYS
 			| SRV_START_STATE_MONITOR;
 
@@ -2272,11 +2142,8 @@ skip_monitors:
 
 		if (srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 			srv_undo_sources = true;
-			/* Create the dict stats gathering thread */
-			srv_dict_stats_thread_active = true;
-			dict_stats_thread_handle = os_thread_create(
-				dict_stats_thread, NULL, NULL);
-
+			/* Create the dict stats gathering task */
+			dict_stats_start();
 			/* Create the thread that will optimize the
 			FULLTEXT search index subsystem. */
 			fts_optimize_init();
@@ -2316,42 +2183,16 @@ skip_monitors:
 		trx_temp_rseg_create();
 
 		if (srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
-			thread_handles[1 + SRV_MAX_N_IO_THREADS]
-				= os_thread_create(srv_master_thread, NULL,
-						   (1 + SRV_MAX_N_IO_THREADS)
-						   + thread_ids);
-			thread_started[1 + SRV_MAX_N_IO_THREADS] = true;
-			srv_start_state_set(SRV_START_STATE_MASTER);
+			srv_start_periodic_timer(srv_master_timer, srv_master_callback, 1000);
 		}
 	}
 
 	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL
 	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 
-		thread_handles[5 + SRV_MAX_N_IO_THREADS] = os_thread_create(
-			srv_purge_coordinator_thread,
-			NULL, thread_ids + 5 + SRV_MAX_N_IO_THREADS);
-
-		thread_started[5 + SRV_MAX_N_IO_THREADS] = true;
-
-		ut_a(UT_ARR_SIZE(thread_ids)
-		     > 5 + srv_n_purge_threads + SRV_MAX_N_IO_THREADS);
-
-		/* We've already created the purge coordinator thread above. */
-		for (i = 1; i < srv_n_purge_threads; ++i) {
-			thread_handles[5 + i + SRV_MAX_N_IO_THREADS] = os_thread_create(
-				srv_worker_thread, NULL,
-				thread_ids + 5 + i + SRV_MAX_N_IO_THREADS);
-			thread_started[5 + i + SRV_MAX_N_IO_THREADS] = true;
-		}
-
-		while (srv_shutdown_state == SRV_SHUTDOWN_NONE
-		       && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
-		       && !purge_sys.enabled()) {
-			ib::info() << "Waiting for purge to start";
-			os_thread_sleep(50000);
-		}
-
+		srv_init_purge_tasks(srv_n_purge_threads);
+		purge_sys.coordinator_startup();
+		srv_wake_purge_thread_if_not_active();
 		srv_start_state_set(SRV_START_STATE_PURGE);
 	}
 
@@ -2396,10 +2237,8 @@ skip_monitors:
 		if (!get_wsrep_recovery()) {
 #endif /* WITH_WSREP */
 
-		/* Create the buffer pool dump/load thread */
-		srv_buf_dump_thread_active = true;
-		buf_dump_thread_handle=
-			os_thread_create(buf_dump_thread, NULL, NULL);
+		/* Start buffer pool dump/load task */
+		buf_load_at_startup();
 
 #ifdef WITH_WSREP
 		} else {
@@ -2420,15 +2259,9 @@ skip_monitors:
 
 		/* Initialize online defragmentation. */
 		btr_defragment_init();
-		btr_defragment_thread_active = true;
-		os_thread_create(btr_defragment_thread, NULL, NULL);
 
 		srv_start_state |= SRV_START_STATE_REDO;
 	}
-
-	/* Create the buffer pool resize thread */
-	srv_buf_resize_thread_active = true;
-	os_thread_create(buf_resize_thread, NULL, NULL);
 
 	return(DB_SUCCESS);
 }
@@ -2448,12 +2281,38 @@ void srv_shutdown_bg_undo_sources()
 	}
 }
 
+/**
+Perform pre-shutdown task.
+
+Since purge tasks vall into server (some MDL acqusition,
+and compute virtual functions), let them shut down right
+after use connections go down while the rest of the server
+infrasture is still intact.
+*/
+void innodb_preshutdown()
+{
+	static bool first_time = true;
+	if (!first_time)
+		return;
+	first_time = false;
+
+	if (!srv_read_only_mode) {
+		if (!srv_fast_shutdown && srv_operation == SRV_OPERATION_NORMAL) {
+			while (trx_sys.any_active_transactions()) {
+				os_thread_sleep(1000);
+			}
+		}
+		srv_shutdown_bg_undo_sources();
+		srv_purge_shutdown();
+	}
+}
+
+
 /** Shut down InnoDB. */
 void innodb_shutdown()
 {
-	ut_ad(!srv_running.load(std::memory_order_relaxed));
+	innodb_preshutdown();
 	ut_ad(!srv_undo_sources);
-
 	switch (srv_operation) {
 	case SRV_OPERATION_BACKUP:
 	case SRV_OPERATION_RESTORE:
@@ -2489,7 +2348,6 @@ void innodb_shutdown()
 		srv_misc_tmpfile = 0;
 	}
 
-	ut_ad(dict_stats_event || !srv_was_started || srv_read_only_mode);
 	ut_ad(dict_sys.is_initialised() || !srv_was_started);
 	ut_ad(trx_sys.is_initialised() || !srv_was_started);
 	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
@@ -2501,9 +2359,7 @@ void innodb_shutdown()
 #endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(ibuf.index || !srv_was_started);
 
-	if (dict_stats_event) {
-		dict_stats_thread_deinit();
-	}
+	dict_stats_deinit();
 
 	if (srv_start_state_is_set(SRV_START_STATE_REDO)) {
 		ut_ad(!srv_read_only_mode);
@@ -2565,7 +2421,7 @@ void innodb_shutdown()
 			   << srv_shutdown_lsn
 			   << "; transaction id " << trx_sys.get_max_trx_id();
 	}
-
+  srv_thread_pool_end();
 	srv_start_state = SRV_START_STATE_NONE;
 	srv_was_started = false;
 	srv_start_has_been_called = false;
@@ -2605,3 +2461,5 @@ srv_get_meta_data_filename(
 
 	ut_free(path);
 }
+
+

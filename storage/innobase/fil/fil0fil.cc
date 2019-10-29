@@ -954,7 +954,6 @@ fil_mutex_enter_and_prepare_for_io(
 					break;
 				} else {
 					mutex_exit(&fil_system.mutex);
-					os_aio_simulated_wake_handler_threads();
 					os_thread_sleep(20000);
 					/* Flush tablespaces so that we can
 					close modified files in the LRU list */
@@ -4148,13 +4147,7 @@ fil_io(
 	} else if (req_type.is_read()
 		   && !recv_no_ibuf_operations
 		   && ibuf_page(page_id, zip_size, NULL)) {
-
 		mode = OS_AIO_IBUF;
-
-		/* Reduce probability of deadlock bugs in connection with ibuf:
-		do not let the ibuf i/o handler sleep */
-
-		req_type.clear_do_not_wake();
 	} else {
 		mode = OS_AIO_NORMAL;
 	}
@@ -4199,8 +4192,6 @@ fil_io(
 
 		return(DB_TABLESPACE_DELETED);
 	}
-
-	ut_ad(mode != OS_AIO_IBUF || fil_type_is_data(space->purpose));
 
 	ulint		cur_page_no = page_id.page_no();
 	fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
@@ -4337,33 +4328,26 @@ fil_io(
 	return(err);
 }
 
-/**********************************************************************//**
-Waits for an aio operation to complete. This function is used to write the
-handler for completed requests. The aio array of pending requests is divided
-into segments (see os0file.cc for more info). The thread specifies which
-segment it wants to wait for. */
+#include <tpool.h>
+/**********************************************************************/
+
+/* Callback for AIO completion */
 void
-fil_aio_wait(
-/*=========*/
-	ulint	segment)	/*!< in: the number of the segment in the aio
-				array to wait for */
+fil_aio_callback(const tpool::aiocb *cb)
 {
-	fil_node_t*	node;
-	IORequest	type;
-	void*		message;
+	os_aio_userdata_t *data=(os_aio_userdata_t *)cb->m_userdata;
+	fil_node_t* node= data->node;
+	IORequest	type = data->type;
+	void* message = data->message;
 
 	ut_ad(fil_validate_skip());
 
-	dberr_t	err = os_aio_handler(segment, &node, &message, &type);
-
-	ut_a(err == DB_SUCCESS);
+	ut_a(cb->m_err == DB_SUCCESS);
 
 	if (node == NULL) {
 		ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
 		return;
 	}
-
-	srv_set_io_thread_op_info(segment, "complete io for fil node");
 
 	mutex_enter(&fil_system.mutex);
 
@@ -4382,7 +4366,6 @@ fil_aio_wait(
 	deadlocks in the i/o system. We keep tablespace 0 data files always
 	open, and use a special i/o thread to serve insert buffer requests. */
 
-	srv_set_io_thread_op_info(segment, "complete io for buf page");
 
 	/* async single page writes from the dblwr buffer don't have
 	access to the page */
@@ -4396,7 +4379,7 @@ fil_aio_wait(
 		bpage->init_on_flush = false;
 		dblwr = false;
 	}
-	err = buf_page_io_complete(bpage, dblwr);
+	dberr_t err = buf_page_io_complete(bpage, dblwr);
 	if (err == DB_SUCCESS) {
 		return;
 	}

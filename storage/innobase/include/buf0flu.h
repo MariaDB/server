@@ -269,9 +269,7 @@ buf_flush_free_flush_rbt(void);
 
 /********************************************************************//**
 Writes a flushable page asynchronously from the buffer pool to a file.
-NOTE: in simulated aio we must call
-os_aio_simulated_wake_handler_threads after we have posted a batch of
-writes! NOTE: buf_pool->mutex and buf_page_get_mutex(bpage) must be
+NOTE: buf_pool->mutex and buf_page_get_mutex(bpage) must be
 held upon entering this function, and they will be released by this
 function.
 @return TRUE if page was flushed */

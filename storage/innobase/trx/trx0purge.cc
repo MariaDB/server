@@ -161,9 +161,6 @@ void purge_sys_t::create()
 {
   ut_ad(this == &purge_sys);
   ut_ad(!enabled());
-  ut_ad(!event);
-  event= os_event_create(0);
-  ut_ad(event);
   m_paused= 0;
   query= purge_graph_build();
   next_stored= false;
@@ -176,16 +173,18 @@ void purge_sys_t::create()
   mutex_create(LATCH_ID_PURGE_SYS_PQ, &pq_mutex);
   truncate.current= NULL;
   truncate.last= NULL;
+  m_initialized = true;
+
 }
 
 /** Close the purge subsystem on shutdown. */
 void purge_sys_t::close()
 {
-  ut_ad(this == &purge_sys);
-  if (!event) return;
+  if (!m_initialized)
+    return;
 
+  ut_ad(this == &purge_sys);
   ut_ad(!enabled());
-  ut_ad(n_tasks.load(std::memory_order_relaxed) == 0);
   trx_t* trx = query->trx;
   que_graph_free(query);
   ut_ad(!trx->id);
@@ -194,7 +193,7 @@ void purge_sys_t::close()
   trx_free(trx);
   rw_lock_free(&latch);
   mutex_free(&pq_mutex);
-  os_event_destroy(event);
+  m_initialized = false;
 }
 
 /*================ UNDO LOG HISTORY LIST =============================*/
@@ -1250,21 +1249,14 @@ trx_purge_dml_delay(void)
 	return(delay);
 }
 
+extern tpool::waitable_task purge_worker_task;
+
 /** Wait for pending purge jobs to complete. */
 static
 void
 trx_purge_wait_for_workers_to_complete()
 {
-	/* Ensure that the work queue empties out. */
-	while (purge_sys.n_tasks.load(std::memory_order_acquire)) {
-
-		if (srv_get_task_queue_length() > 0) {
-			srv_release_threads(SRV_WORKER, 1);
-		}
-
-		os_thread_yield();
-	}
-
+	purge_worker_task.wait();
 	/* There should be no outstanding tasks as long
 	as the worker threads are active. */
 	ut_a(srv_get_task_queue_length() == 0);
@@ -1279,10 +1271,6 @@ trx_purge(
 	ulint	n_purge_threads,	/*!< in: number of purge tasks
 					to submit to the work queue */
 	bool	truncate		/*!< in: truncate history if true */
-#ifdef UNIV_DEBUG
-	, srv_slot_t *slot		/*!< in/out: purge coordinator
-					thread slot */
-#endif
 )
 {
 	que_thr_t*	thr = NULL;
@@ -1291,9 +1279,6 @@ trx_purge(
 	ut_a(n_purge_threads > 0);
 
 	srv_dml_needed_delay = trx_purge_dml_delay();
-
-	/* All submitted tasks should be completed. */
-	ut_ad(purge_sys.n_tasks.load(std::memory_order_relaxed) == 0);
 
 	rw_lock_x_lock(&purge_sys.latch);
 	trx_sys.clone_oldest_view();
@@ -1307,23 +1292,20 @@ trx_purge(
 
 	/* Fetch the UNDO recs that need to be purged. */
 	n_pages_handled = trx_purge_attach_undo_recs(n_purge_threads);
-	purge_sys.n_tasks.store(n_purge_threads - 1, std::memory_order_relaxed);
 
 	/* Submit tasks to workers queue if using multi-threaded purge. */
-	for (ulint i = n_purge_threads; --i; ) {
+	for (ulint i = 0; i < n_purge_threads-1; i++) {
 		thr = que_fork_scheduler_round_robin(purge_sys.query, thr);
 		ut_a(thr);
 		srv_que_task_enqueue_low(thr);
+		srv_thread_pool->submit_task(&purge_worker_task);
 	}
 
 	thr = que_fork_scheduler_round_robin(purge_sys.query, thr);
 
-	ut_d(thr->thread_slot = slot);
 	que_run_threads(thr);
 
 	trx_purge_wait_for_workers_to_complete();
-
-	ut_ad(purge_sys.n_tasks.load(std::memory_order_relaxed) == 0);
 
 	if (truncate) {
 		trx_purge_truncate_history();
@@ -1334,6 +1316,8 @@ trx_purge(
 
 	return(n_pages_handled);
 }
+
+extern tpool::waitable_task purge_coordinator_task;
 
 /** Stop purge during FLUSH TABLES FOR EXPORT */
 void purge_sys_t::stop()
@@ -1352,14 +1336,8 @@ void purge_sys_t::stop()
 
   if (m_paused++ == 0)
   {
-    /* We need to wakeup the purge thread in case it is suspended, so
-    that it can acknowledge the state change. */
-    const int64_t sig_count = os_event_reset(event);
     rw_lock_x_unlock(&latch);
     ib::info() << "Stopping purge";
-    srv_purge_wakeup();
-    /* Wait for purge coordinator to signal that it is suspended. */
-    os_event_wait_low(event, sig_count);
     MONITOR_ATOMIC_INC(MONITOR_PURGE_STOP_COUNT);
     return;
   }
@@ -1369,8 +1347,7 @@ void purge_sys_t::stop()
   if (running())
   {
     ib::info() << "Waiting for purge to stop";
-    while (running())
-      os_thread_sleep(10000);
+    purge_coordinator_task.wait();
   }
 }
 
@@ -1384,6 +1361,7 @@ void purge_sys_t::resume()
      return;
    }
 
+   rw_lock_x_lock(&latch);
    int32_t paused= m_paused--;
    ut_a(paused);
 
@@ -1393,4 +1371,5 @@ void purge_sys_t::resume()
      srv_purge_wakeup();
      MONITOR_ATOMIC_INC(MONITOR_PURGE_RESUME_COUNT);
    }
+   rw_lock_x_unlock(&latch);
 }

@@ -261,14 +261,6 @@ buf_frame_will_withdrawn(
 	buf_pool_t*	buf_pool,
 	const byte*	ptr);
 
-/** This is the thread for resizing buffer pool. It waits for an event and
-when waked up either performs a resizing and sleeps again.
-@return	this function does not return, calls os_thread_exit()
-*/
-extern "C"
-os_thread_ret_t
-DECLARE_THREAD(buf_resize_thread)(void*);
-
 #ifdef BTR_CUR_HASH_ADAPT
 /** Clear the adaptive hash index on all pages in the buffer pool. */
 void

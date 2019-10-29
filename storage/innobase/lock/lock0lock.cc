@@ -461,7 +461,6 @@ void lock_sys_t::create(ulint n_cells)
 
 	mutex_create(LATCH_ID_LOCK_SYS_WAIT, &wait_mutex);
 
-	timeout_event = os_event_create(0);
 
 	rec_hash = hash_create(n_cells);
 	prdt_hash = hash_create(n_cells);
@@ -471,6 +470,7 @@ void lock_sys_t::create(ulint n_cells)
 		lock_latest_err_file = os_file_create_tmpfile();
 		ut_a(lock_latest_err_file);
 	}
+	timeout_timer_active = false;
 }
 
 /** Calculates the fold value of a lock: used in migrating the hash table.
@@ -559,8 +559,6 @@ void lock_sys_t::close()
 	hash_table_free(rec_hash);
 	hash_table_free(prdt_hash);
 	hash_table_free(prdt_page_hash);
-
-	os_event_destroy(timeout_event);
 
 	mutex_destroy(&mutex);
 	mutex_destroy(&wait_mutex);
@@ -6290,14 +6288,6 @@ lock_trx_lock_list_init(
 	UT_LIST_INIT(*lock_list, &lock_t::trx_locks);
 }
 
-/*******************************************************************//**
-Set the lock system timeout event. */
-void
-lock_set_timeout_event()
-/*====================*/
-{
-	os_event_set(lock_sys.timeout_event);
-}
 
 #ifdef UNIV_DEBUG
 /*******************************************************************//**

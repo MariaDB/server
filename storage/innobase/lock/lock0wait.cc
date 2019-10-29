@@ -36,6 +36,7 @@ Created 25/5/2010 Sunny Bains
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "lock0priv.h"
+#include "srv0srv.h"
 
 /*********************************************************************//**
 Print the contents of the lock_sys_t::waiting_threads array. */
@@ -51,10 +52,9 @@ lock_wait_table_print(void)
 	for (ulint i = 0; i < srv_max_n_threads; i++, ++slot) {
 
 		fprintf(stderr,
-			"Slot %lu: thread type %lu,"
+			"Slot %lu:"
 			" in use %lu, susp %lu, timeout %lu, time %lu\n",
 			(ulong) i,
-			(ulong) slot->type,
 			(ulong) slot->in_use,
 			(ulong) slot->suspended,
 			slot->wait_timeout,
@@ -164,7 +164,10 @@ lock_wait_table_reserve_slot(
 
 			ut_ad(lock_sys.last_slot
 			      <= lock_sys.waiting_threads + srv_max_n_threads);
-
+			if (!lock_sys.timeout_timer_active) {
+				lock_sys.timeout_timer_active = true;
+				lock_sys.timeout_timer->set_time(1000, 0);
+			}
 			return(slot);
 		}
 	}
@@ -211,7 +214,7 @@ wsrep_is_BF_lock_timeout(
 
 		srv_print_innodb_monitor 	= TRUE;
 		srv_print_innodb_lock_monitor 	= TRUE;
-		os_event_set(srv_monitor_event);
+		srv_monitor_timer_schedule_now();
 		return true;
 	}
 	return false;
@@ -235,6 +238,7 @@ lock_wait_suspend_thread(
 	ibool		was_declared_inside_innodb;
 	ulong		lock_wait_timeout;
 
+	ut_a(lock_sys.timeout_timer.get());
 	trx = thr_get_trx(thr);
 
 	if (trx->mysql_thd != 0) {
@@ -497,67 +501,33 @@ lock_wait_check_and_cancel(
 	}
 }
 
-/*********************************************************************//**
-A thread which wakes up threads whose lock wait may have lasted too long.
-@return a dummy parameter */
-extern "C"
-os_thread_ret_t
-DECLARE_THREAD(lock_wait_timeout_thread)(void*)
+/** Task that is periodically runs in the thread pool*/
+void lock_wait_timeout_task(void*)
 {
-	int64_t		sig_count = 0;
-	os_event_t	event = lock_sys.timeout_event;
+	lock_wait_mutex_enter();
 
-	ut_ad(!srv_read_only_mode);
+	/* Check all slots for user threads that are waiting
+	on locks, and if they have exceeded the time limit. */
+	bool any_slot_in_use  = false;
+	for (srv_slot_t* slot = lock_sys.waiting_threads;
+		slot < lock_sys.last_slot;
+		++slot) {
 
-#ifdef UNIV_PFS_THREAD
-	pfs_register_thread(srv_lock_timeout_thread_key);
-#endif /* UNIV_PFS_THREAD */
+		/* We are doing a read without the lock mutex
+		and/or the trx mutex. This is OK because a slot
+		can't be freed or reserved without the lock wait
+		mutex. */
 
-	do {
-		srv_slot_t*	slot;
-
-		/* When someone is waiting for a lock, we wake up every second
-		and check if a timeout has passed for a lock wait */
-
-		os_event_wait_time_low(event, 1000000, sig_count);
-		sig_count = os_event_reset(event);
-
-		if (srv_shutdown_state >= SRV_SHUTDOWN_CLEANUP) {
-			break;
+		if (slot->in_use) {
+			any_slot_in_use = true;
+			lock_wait_check_and_cancel(slot);
 		}
-
-		lock_wait_mutex_enter();
-
-		/* Check all slots for user threads that are waiting
-	       	on locks, and if they have exceeded the time limit. */
-
-		for (slot = lock_sys.waiting_threads;
-		     slot < lock_sys.last_slot;
-		     ++slot) {
-
-			/* We are doing a read without the lock mutex
-			and/or the trx mutex. This is OK because a slot
-		       	can't be freed or reserved without the lock wait
-		       	mutex. */
-
-			if (slot->in_use) {
-				lock_wait_check_and_cancel(slot);
-			}
-		}
-
-		sig_count = os_event_reset(event);
-
-		lock_wait_mutex_exit();
-
-	} while (srv_shutdown_state < SRV_SHUTDOWN_CLEANUP);
-
-	lock_sys.timeout_thread_active = false;
-
-	/* We count the number of threads in os_thread_exit(). A created
-	thread should always use that to exit and not use return() to exit. */
-
-	os_thread_exit();
-
-	OS_THREAD_DUMMY_RETURN;
+	}
+	if (any_slot_in_use) {
+		lock_sys.timeout_timer->set_time(1000, 0);
+	} else {
+		lock_sys.timeout_timer_active = false;
+	}
+	lock_wait_mutex_exit();
 }
 

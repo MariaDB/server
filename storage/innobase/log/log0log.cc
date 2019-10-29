@@ -53,6 +53,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "trx0roll.h"
 #include "srv0mon.h"
 #include "sync0sync.h"
+#include "buf0dump.h"
 
 /*
 General philosophy of InnoDB redo-logs:
@@ -1495,6 +1496,7 @@ log_check_margins(void)
 	} while (check);
 }
 
+extern void buf_resize_shutdown();
 /****************************************************************//**
 Makes a checkpoint at the latest lsn and writes it to first page of each
 data file in the database, so that we know that the file spaces contain
@@ -1511,26 +1513,37 @@ logs_empty_and_mark_files_at_shutdown(void)
 
 	/* Wait until the master thread and all other operations are idle: our
 	algorithm only works if the server is idle at shutdown */
+	bool do_srv_shutdown = false;
+	if (srv_master_timer) {
+		do_srv_shutdown = srv_fast_shutdown < 2;
+		srv_master_timer.reset();
+	}
+
+	/* Wait for the end of the buffer resize task.*/
+	buf_resize_shutdown();
+	dict_stats_shutdown();
+	btr_defragment_shutdown();
 
 	srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
+
+	if (srv_buffer_pool_dump_at_shutdown &&
+		!srv_read_only_mode && srv_fast_shutdown < 2) {
+		buf_dump_start();
+	}
+	srv_error_monitor_timer.reset();
+	srv_monitor_timer.reset();
+	lock_sys.timeout_timer.reset();
+	if (do_srv_shutdown) {
+		srv_shutdown(srv_fast_shutdown == 0);
+	}
+
+
 loop:
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys.is_initialised() || !srv_was_started);
 	ut_ad(fil_system.is_initialised() || !srv_was_started);
-	os_event_set(srv_buf_resize_event);
 
 	if (!srv_read_only_mode) {
-		os_event_set(srv_error_event);
-		os_event_set(srv_monitor_event);
-		os_event_set(srv_buf_dump_event);
-		if (lock_sys.timeout_thread_active) {
-			os_event_set(lock_sys.timeout_event);
-		}
-		if (dict_stats_event) {
-			os_event_set(dict_stats_event);
-		} else {
-			ut_ad(!srv_dict_stats_thread_active);
-		}
 		if (recv_sys.flush_start) {
 			/* This is in case recv_writer_thread was never
 			started, or buf_flush_page_cleaner_coordinator
@@ -1570,23 +1583,7 @@ loop:
 	/* We need these threads to stop early in shutdown. */
 	const char* thread_name;
 
-	if (srv_error_monitor_active) {
-		thread_name = "srv_error_monitor_thread";
-	} else if (srv_monitor_active) {
-		thread_name = "srv_monitor_thread";
-	} else if (srv_buf_resize_thread_active) {
-		thread_name = "buf_resize_thread";
-		goto wait_suspend_loop;
-	} else if (srv_dict_stats_thread_active) {
-		thread_name = "dict_stats_thread";
-	} else if (lock_sys.timeout_thread_active) {
-		thread_name = "lock_wait_timeout_thread";
-	} else if (srv_buf_dump_thread_active) {
-		thread_name = "buf_dump_thread";
-		goto wait_suspend_loop;
-	} else if (btr_defragment_thread_active) {
-		thread_name = "btr_defragment_thread";
-	} else if (srv_fast_shutdown != 2 && trx_rollback_is_active) {
+   if (srv_fast_shutdown != 2 && trx_rollback_is_active) {
 		thread_name = "rollback of recovered transactions";
 	} else {
 		thread_name = NULL;
@@ -1608,25 +1605,16 @@ wait_suspend_loop:
 
 	/* Check that the background threads are suspended */
 
-	switch (srv_get_active_thread_type()) {
-	case SRV_NONE:
-		if (!srv_n_fil_crypt_threads_started) {
-			srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
-			break;
-		}
+	ut_a(!srv_any_background_activity());
+	if (srv_n_fil_crypt_threads_started) {
 		os_event_set(fil_crypt_threads_event);
 		thread_name = "fil_crypt_thread";
 		goto wait_suspend_loop;
-	case SRV_PURGE:
-	case SRV_WORKER:
-		ut_ad(!"purge was not shut down");
-		srv_purge_wakeup();
-		thread_name = "purge thread";
-		goto wait_suspend_loop;
-	case SRV_MASTER:
-		thread_name = "master thread";
-		goto wait_suspend_loop;
 	}
+
+	buf_load_dump_end();
+
+	srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
 
 	/* At this point only page_cleaner should be active. We wait
 	here to let it complete the flushing of the buffer pools
@@ -1740,7 +1728,7 @@ wait_suspend_loop:
 	srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
 
 	/* Make some checks that the server really is quiet */
-	ut_a(srv_get_active_thread_type() == SRV_NONE);
+	ut_a(!srv_any_background_activity());
 
 	service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 				       "Free innodb buffer pool");
@@ -1768,7 +1756,7 @@ wait_suspend_loop:
 	fil_close_all_files();
 
 	/* Make some checks that the server really is quiet */
-	ut_a(srv_get_active_thread_type() == SRV_NONE);
+	ut_a(!srv_any_background_activity());
 
 	ut_a(lsn == log_sys.lsn
 	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);

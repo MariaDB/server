@@ -42,24 +42,11 @@ Created Apr 25, 2012 Vasil Dimov
 
 /** Minimum time interval between stats recalc for a given table */
 #define MIN_RECALC_INTERVAL	10 /* seconds */
-
-/** Event to wake up dict_stats_thread on dict_stats_recalc_pool_add()
-or shutdown. Not protected by any mutex. */
-os_event_t			dict_stats_event;
-
-/** Variable to initiate shutdown the dict stats thread. Note we don't
-use 'srv_shutdown_state' because we want to shutdown dict stats thread
-before purge thread. */
-bool				dict_stats_start_shutdown;
-
-/** Event to wait for shutdown of the dict stats thread */
-os_event_t			dict_stats_shutdown_event;
+static void dict_stats_schedule(int ms);
 
 #ifdef UNIV_DEBUG
 /** Used by SET GLOBAL innodb_dict_stats_disabled_debug = 1; */
 my_bool				innodb_dict_stats_disabled_debug;
-
-static os_event_t		dict_stats_disabled_event;
 #endif /* UNIV_DEBUG */
 
 /** This mutex protects the "recalc_pool" variable. */
@@ -118,7 +105,9 @@ static
 void
 dict_stats_recalc_pool_add(
 /*=======================*/
-	const dict_table_t*	table)	/*!< in: table to add */
+	const dict_table_t*	table,	/*!< in: table to add */
+	bool schedule_dict_stats_task = true /*!< in: schedule dict stats task */
+)
 {
 	ut_ad(!srv_read_only_mode);
 
@@ -136,10 +125,11 @@ dict_stats_recalc_pool_add(
 	}
 
 	recalc_pool.push_back(table->id);
-
+	if (recalc_pool.size() == 1 && schedule_dict_stats_task) {
+		dict_stats_schedule_now();
+	}
 	mutex_exit(&recalc_pool_mutex);
 
-	os_event_set(dict_stats_event);
 }
 
 #ifdef WITH_WSREP
@@ -295,13 +285,10 @@ dict_stats_wait_bg_to_stop_using_table(
 Initialize global variables needed for the operation of dict_stats_thread()
 Must be called before dict_stats_thread() is started. */
 void
-dict_stats_thread_init()
+dict_stats_init()
 {
 	ut_a(!srv_read_only_mode);
 
-	dict_stats_event = os_event_create(0);
-	dict_stats_shutdown_event = os_event_create(0);
-	ut_d(dict_stats_disabled_event = os_event_create(0));
 
 	/* The recalc_pool_mutex is acquired from:
 	1) the background stats gathering thread before any other latch
@@ -324,37 +311,34 @@ dict_stats_thread_init()
 }
 
 /*****************************************************************//**
-Free resources allocated by dict_stats_thread_init(), must be called
-after dict_stats_thread() has exited. */
+Free resources allocated by dict_stats_init(), must be called
+after dict_stats task has exited. */
 void
-dict_stats_thread_deinit()
+dict_stats_deinit()
 /*======================*/
 {
-	ut_a(!srv_read_only_mode);
-	ut_ad(!srv_dict_stats_thread_active);
-
 	if (!stats_initialised) {
 		return;
 	}
 
+	ut_a(!srv_read_only_mode);
 	stats_initialised = false;
 
 	dict_stats_recalc_pool_deinit();
 	dict_defrag_pool_deinit();
 
 	mutex_free(&recalc_pool_mutex);
-
-	ut_d(os_event_destroy(dict_stats_disabled_event));
-	os_event_destroy(dict_stats_event);
-	os_event_destroy(dict_stats_shutdown_event);
-	dict_stats_start_shutdown = false;
 }
 
 /*****************************************************************//**
 Get the first table that has been added for auto recalc and eventually
-update its stats. */
+update its stats.
+@return : true if pool was non-empty and first entry does 
+not needs delay, false otherwise.
+
+*/
 static
-void
+bool
 dict_stats_process_entry_from_recalc_pool()
 /*=======================================*/
 {
@@ -362,10 +346,11 @@ dict_stats_process_entry_from_recalc_pool()
 
 	ut_ad(!srv_read_only_mode);
 
+next_table_id:
 	/* pop the first table from the auto recalc pool */
 	if (!dict_stats_recalc_pool_get(&table_id)) {
 		/* no tables for auto recalc */
-		return;
+		return false;
 	}
 
 	dict_table_t*	table;
@@ -378,7 +363,7 @@ dict_stats_process_entry_from_recalc_pool()
 		/* table does not exist, must have been DROPped
 		after its id was enqueued */
 		mutex_exit(&dict_sys.mutex);
-		return;
+		goto next_table_id;
 	}
 
 	ut_ad(!table->is_temporary());
@@ -386,7 +371,7 @@ dict_stats_process_entry_from_recalc_pool()
 	if (!fil_table_accessible(table)) {
 		dict_table_close(table, TRUE, FALSE);
 		mutex_exit(&dict_sys.mutex);
-		return;
+		goto next_table_id;
 	}
 
 	table->stats_bg_flag |= BG_STAT_IN_PROGRESS;
@@ -399,7 +384,7 @@ dict_stats_process_entry_from_recalc_pool()
 	find out that this is a problem, then the check below could eventually
 	be replaced with something else, though a time interval is the natural
 	approach. */
-
+	int ret;
 	if (difftime(time(NULL), table->stats_last_recalc)
 	    < MIN_RECALC_INTERVAL) {
 
@@ -407,11 +392,13 @@ dict_stats_process_entry_from_recalc_pool()
 		too frequent stats updates we put back the table on
 		the auto recalc list and do nothing. */
 
-		dict_stats_recalc_pool_add(table);
-
+		dict_stats_recalc_pool_add(table, false);
+		dict_stats_schedule(MIN_RECALC_INTERVAL*1000);
+		ret = false;
 	} else {
 
 		dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT);
+		ret = true;
 	}
 
 	mutex_enter(&dict_sys.mutex);
@@ -421,6 +408,7 @@ dict_stats_process_entry_from_recalc_pool()
 	dict_table_close(table, TRUE, FALSE);
 
 	mutex_exit(&dict_sys.mutex);
+	return ret;
 }
 
 #ifdef UNIV_DEBUG
@@ -430,89 +418,51 @@ dict_stats_process_entry_from_recalc_pool()
 void dict_stats_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
 				      const void* save)
 {
-	/* This method is protected by mutex, as every SET GLOBAL .. */
-	ut_ad(dict_stats_disabled_event != NULL);
-
 	const bool disable = *static_cast<const my_bool*>(save);
-
-	const int64_t sig_count = os_event_reset(dict_stats_disabled_event);
-
-	innodb_dict_stats_disabled_debug = disable;
-
-	if (disable) {
-		os_event_set(dict_stats_event);
-		os_event_wait_low(dict_stats_disabled_event, sig_count);
-	}
+	if (disable)
+		dict_stats_shutdown();
+	else
+		dict_stats_start();
 }
 #endif /* UNIV_DEBUG */
 
+static tpool::timer* dict_stats_timer;
+std::mutex dict_stats_mutex;
 
-/*****************************************************************//**
-This is the thread for background stats gathering. It pops tables, from
-the auto recalc list and proceeds them, eventually recalculating their
-statistics.
-@return this function does not return, it calls os_thread_exit() */
-extern "C"
-os_thread_ret_t
-DECLARE_THREAD(dict_stats_thread)(void*)
+static void dict_stats_func(void*)
 {
-	my_thread_init();
-	ut_a(!srv_read_only_mode);
+	while (dict_stats_process_entry_from_recalc_pool()) {}
+	dict_defrag_process_entries_from_defrag_pool();
+}
 
-#ifdef UNIV_PFS_THREAD
-	/* JAN: TODO: MySQL 5.7 PSI
-	pfs_register_thread(dict_stats_thread_key);
-	*/
-#endif /* UNIV_PFS_THREAD */
 
-	while (!dict_stats_start_shutdown) {
-
-		/* Wake up periodically even if not signaled. This is
-		because we may lose an event - if the below call to
-		dict_stats_process_entry_from_recalc_pool() puts the entry back
-		in the list, the os_event_set() will be lost by the subsequent
-		os_event_reset(). */
-		os_event_wait_time(
-			dict_stats_event, MIN_RECALC_INTERVAL * 1000000);
-
-#ifdef UNIV_DEBUG
-		while (innodb_dict_stats_disabled_debug) {
-			os_event_set(dict_stats_disabled_event);
-			if (dict_stats_start_shutdown) {
-				break;
-			}
-			os_event_wait_time(
-				dict_stats_event, 100000);
-		}
-#endif /* UNIV_DEBUG */
-
-		if (dict_stats_start_shutdown) {
-			break;
-		}
-
-		dict_stats_process_entry_from_recalc_pool();
-		dict_defrag_process_entries_from_defrag_pool();
-
-		os_event_reset(dict_stats_event);
+void dict_stats_start()
+{
+	std::lock_guard<std::mutex> lk(dict_stats_mutex);
+	if (dict_stats_timer) {
+		return;
 	}
+	dict_stats_timer = srv_thread_pool->create_timer(dict_stats_func);
+}
 
-	srv_dict_stats_thread_active = false;
 
-	os_event_set(dict_stats_shutdown_event);
-	my_thread_end();
+static void dict_stats_schedule(int ms)
+{
+	std::lock_guard<std::mutex> lk(dict_stats_mutex);
+	if(dict_stats_timer) {
+		dict_stats_timer->set_time(ms,0);
+	}
+}
 
-	/* We count the number of threads in os_thread_exit(). A created
-	thread should always use that to exit instead of return(). */
-	os_thread_exit();
-
-	OS_THREAD_DUMMY_RETURN;
+void dict_stats_schedule_now()
+{
+	dict_stats_schedule(0);
 }
 
 /** Shut down the dict_stats_thread. */
-void
-dict_stats_shutdown()
+void dict_stats_shutdown()
 {
-	dict_stats_start_shutdown = true;
-	os_event_set(dict_stats_event);
-	os_event_wait(dict_stats_shutdown_event);
+	std::lock_guard<std::mutex> lk(dict_stats_mutex);
+	delete dict_stats_timer;
+	dict_stats_timer = 0;
 }

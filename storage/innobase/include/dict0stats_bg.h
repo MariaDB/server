@@ -31,9 +31,6 @@ Created Apr 26, 2012 Vasil Dimov
 #include "os0event.h"
 #include "os0thread.h"
 
-/** Event to wake up dict_stats_thread on dict_stats_recalc_pool_add()
-or shutdown. Not protected by any mutex. */
-extern os_event_t	dict_stats_event;
 
 #ifdef HAVE_PSI_INTERFACE
 extern mysql_pfs_key_t	dict_stats_recalc_pool_mutex_key;
@@ -99,16 +96,16 @@ dict_stats_wait_bg_to_stop_using_table(
 				unlocking/locking the data dict */
 /*****************************************************************//**
 Initialize global variables needed for the operation of dict_stats_thread().
-Must be called before dict_stats_thread() is started. */
+Must be called before dict_stats task is started. */
 void
-dict_stats_thread_init();
+dict_stats_init();
 /*====================*/
 
 /*****************************************************************//**
 Free resources allocated by dict_stats_thread_init(), must be called
-after dict_stats_thread() has exited. */
+after dict_stats task has exited. */
 void
-dict_stats_thread_deinit();
+dict_stats_deinit();
 /*======================*/
 
 #ifdef UNIV_DEBUG
@@ -119,20 +116,17 @@ void dict_stats_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
 				      const void* save);
 #endif /* UNIV_DEBUG */
 
-/*****************************************************************//**
-This is the thread for background stats gathering. It pops tables, from
-the auto recalc list and proceeds them, eventually recalculating their
-statistics.
-@return this function does not return, it calls os_thread_exit() */
-extern "C"
-os_thread_ret_t
-DECLARE_THREAD(dict_stats_thread)(
-/*==============================*/
-	void*	arg);	/*!< in: a dummy parameter
-			required by os_thread_create */
 
-/** Shut down the dict_stats_thread. */
+/** Start the dict stats timer */
+void
+dict_stats_start();
+
+/** Shut down the dict_stats timer. */
 void
 dict_stats_shutdown();
+
+/** reschedule dict stats timer to run now. */
+void
+dict_stats_schedule_now();
 
 #endif /* dict0stats_bg_h */

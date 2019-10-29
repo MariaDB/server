@@ -45,6 +45,8 @@ Created April 08, 2011 Vasil Dimov
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
 #include <my_service_manager.h>
 
+static void buf_do_load_dump();
+
 enum status_severity {
 	STATUS_INFO,
 	STATUS_ERR
@@ -80,7 +82,7 @@ buf_dump_start()
 /*============*/
 {
 	buf_dump_should_start = true;
-	os_event_set(srv_buf_dump_event);
+	buf_do_load_dump();
 }
 
 /*****************************************************************//**
@@ -93,7 +95,7 @@ buf_load_start()
 /*============*/
 {
 	buf_load_should_start = true;
-	os_event_set(srv_buf_dump_event);
+	buf_do_load_dump();
 }
 
 /*****************************************************************//**
@@ -720,9 +722,6 @@ buf_load()
 			page_id_t(this_space_id, BUF_DUMP_PAGE(dump[i])),
 			zip_size, true);
 
-		if (i % 64 == 63) {
-			os_aio_simulated_wake_handler_threads();
-		}
 
 		if (buf_load_abort_flag) {
 			if (space != NULL) {
@@ -802,22 +801,13 @@ buf_load_abort()
 }
 
 /*****************************************************************//**
-This is the main thread for buffer pool dump/load. It waits for an
-event and when waked up either performs a dump or load and sleeps
-again.
-@return this function does not return, it calls os_thread_exit() */
-extern "C"
-os_thread_ret_t
-DECLARE_THREAD(buf_dump_thread)(void*)
+This is the main task for buffer pool dump/load. when scheduled
+either performs a dump or load, depending on server state, state of the variables etc- */
+static void buf_dump_load_func(void *)
 {
-	my_thread_init();
 	ut_ad(!srv_read_only_mode);
-	/* JAN: TODO: MySQL 5.7 PSI
-#ifdef UNIV_PFS_THREAD
-	pfs_register_thread(buf_dump_thread_key);
-	#endif */ /* UNIV_PFS_THREAD */
-
-	if (srv_buffer_pool_load_at_startup) {
+	static bool first_time = true;
+	if (first_time && srv_buffer_pool_load_at_startup) {
 
 #ifdef WITH_WSREP
 		if (!get_wsrep_recovery()) {
@@ -827,27 +817,24 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 		}
 #endif /* WITH_WSREP */
 	}
+	first_time = false;
 
 	while (!SHUTTING_DOWN()) {
-
-		os_event_wait(srv_buf_dump_event);
-
 		if (buf_dump_should_start) {
 			buf_dump_should_start = false;
 			buf_dump(TRUE /* quit on shutdown */);
 		}
-
 		if (buf_load_should_start) {
 			buf_load_should_start = false;
 			buf_load();
 		}
 
-		if (buf_dump_should_start || buf_load_should_start) {
-			continue;
+		if (!buf_dump_should_start && !buf_load_should_start) {
+			return;
 		}
-		os_event_reset(srv_buf_dump_event);
 	}
 
+	/* In shutdown */
 	if (srv_buffer_pool_dump_at_shutdown && srv_fast_shutdown != 2) {
 		if (export_vars.innodb_buffer_pool_load_incomplete) {
 			buf_dump_status(STATUS_INFO,
@@ -860,13 +847,33 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 			buf_dump(FALSE/* do complete dump at shutdown */);
 		}
 	}
+}
 
-	srv_buf_dump_thread_active = false;
 
-	my_thread_end();
-	/* We count the number of threads in os_thread_exit(). A created
-	thread should always use that to exit and not use return() to exit. */
-	os_thread_exit();
+/* Execute tak with max.concurrency */
+tpool::task_group tpool_group(1);
+static tpool::waitable_task buf_dump_load_task(buf_dump_load_func, &tpool_group);
+static bool load_dump_enabled;
 
-	OS_THREAD_DUMMY_RETURN;
+/** Start async buffer pool load, if srv_buffer_pool_load_at_startup was set.*/
+void buf_load_at_startup()
+{
+	load_dump_enabled = true;
+	if (srv_buffer_pool_load_at_startup) {
+		buf_do_load_dump();
+	}
+}
+
+static void buf_do_load_dump()
+{
+	if (!load_dump_enabled || buf_dump_load_task.is_running())
+		return;
+	srv_thread_pool->submit_task(&buf_dump_load_task);
+}
+
+/** Wait for currently running load/dumps to finish*/
+void buf_load_dump_end()
+{
+	ut_ad(SHUTTING_DOWN());
+	buf_dump_load_task.wait();
 }

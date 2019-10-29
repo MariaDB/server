@@ -1096,9 +1096,7 @@ sync_array_print_long_waits(
 
 		srv_print_innodb_monitor = TRUE;
 
-		lock_set_timeout_event();
-
-		os_thread_sleep(30000000);
+		lock_wait_timeout_task(nullptr);
 
 		srv_print_innodb_monitor = static_cast<my_bool>(old_val);
 		fprintf(stderr,

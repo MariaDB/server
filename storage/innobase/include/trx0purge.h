@@ -62,10 +62,6 @@ trx_purge(
 	ulint	n_purge_threads,	/*!< in: number of purge tasks to
 					submit to task queue. */
 	bool	truncate		/*!< in: truncate history if true */
-#ifdef UNIV_DEBUG
-	, srv_slot_t *slot		/*!< in/out: purge coordinator
-					thread slot */
-#endif
 );
 
 /** Rollback segements from a given transaction with trx-no
@@ -144,14 +140,11 @@ private:
 class purge_sys_t
 {
 public:
-	/** signal state changes; os_event_reset() and os_event_set()
-	are protected by rw_lock_x_lock(latch) */
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	os_event_t	event;
 	/** latch protecting view, m_enabled */
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	rw_lock_t	latch;
 private:
+	bool m_initialized;
 	/** whether purge is enabled; protected by latch and std::atomic */
 	std::atomic<bool>		m_enabled;
 	/** number of pending stop() calls without resume() */
@@ -162,9 +155,6 @@ public:
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	ReadView	view;		/*!< The purge will not remove undo logs
 					which are >= this view (purge view) */
-	/** Number of not completed tasks. Accessed by srv_purge_coordinator
-	and srv_worker_thread by std::atomic. */
-	std::atomic<ulint>	n_tasks;
 
 	/** Iterator to the undo log records of committed transactions */
 	struct iterator
@@ -234,7 +224,7 @@ public:
     uninitialised. Real initialisation happens in create().
   */
 
-  purge_sys_t() : event(NULL), m_enabled(false), n_tasks(0) {}
+  purge_sys_t():m_initialized(false),m_enabled(false) {}
 
 
   /** Create the instance */

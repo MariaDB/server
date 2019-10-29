@@ -102,6 +102,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <srv0srv.h>
 #include <crc_glue.h>
 #include <log.h>
+#include <thr_timer.h>
 
 int sys_var_init();
 
@@ -4052,7 +4053,7 @@ fail:
                                                 especially in 64-bit
                                                 computers */
         }
-
+	srv_thread_pool_init();
 	sync_check_init();
 	ut_d(sync_check_enable());
 	/* Reset the system variables in the recovery module. */
@@ -6133,9 +6134,12 @@ int main(int argc, char **argv)
 		DBUG_SET(dbug_option);
 	}
 #endif
+	/* Main functions for library */
+	init_thr_timer(5);
 
 	int status = main_low(server_defaults);
 
+	end_thr_timer();
 	backup_cleanup();
 
 	if (innobackupex_mode) {

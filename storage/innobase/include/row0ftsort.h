@@ -32,6 +32,7 @@ Created 10/13/2010 Jimmy Yang
 #include "fts0priv.h"
 #include "row0merge.h"
 #include "btr0bulk.h"
+#include "srv0srv.h"
 
 /** This structure defineds information the scan thread will fetch
 and put to the linked list for parallel tokenization/sort threads
@@ -64,7 +65,6 @@ struct fts_psort_common_t {
 	trx_t*			trx;		/*!< transaction */
 	fts_psort_t*		all_info;	/*!< all parallel sort info */
 	os_event_t		sort_event;	/*!< sort event */
-	os_event_t		merge_event;	/*!< merge event */
 	ibool			opt_doc_id_size;/*!< whether to use 4 bytes
 						instead of 8 bytes integer to
 						store Doc ID during sort, if
@@ -86,11 +86,11 @@ struct fts_psort_t {
 						/*!< buffer to crypt data */
 	row_merge_block_t*	crypt_alloc[FTS_NUM_AUX_INDEX];
 						/*!< buffer to allocated */
-	ulint			child_status;	/*!< child thread status */
-	ulint			state;		/*!< parent thread state */
+	ulint			child_status;	/*!< child task status */
+	ulint			state;		/*!< parent state */
 	fts_doc_list_t		fts_doc_list;	/*!< doc list to process */
 	fts_psort_common_t*	psort_common;	/*!< ptr to all psort info */
-	os_thread_t		thread_hdl;	/*!< thread handler */
+	tpool::waitable_task*	task;	/*!< threadpool task */
 	dberr_t			error;		/*!< db error during psort */
 	ulint			memory_used;	/*!< memory used by fts_doc_list */
 	ib_mutex_t		mutex;		/*!< mutex for fts_doc_list */

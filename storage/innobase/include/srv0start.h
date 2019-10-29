@@ -48,6 +48,12 @@ srv_undo_tablespaces_init(bool create_new_db);
 @return DB_SUCCESS or error code */
 dberr_t srv_start(bool create_new_db);
 
+/**
+  Shutdown purge to make sure that there is no possibility that we call any
+  plugin code (e.g audit) inside virtual column computation.
+*/
+void innodb_preshutdown();
+
 /** Shut down InnoDB. */
 void innodb_shutdown();
 

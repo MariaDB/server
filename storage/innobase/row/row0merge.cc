@@ -2771,10 +2771,6 @@ all_done:
 	DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Scan Table\n");
 #endif
 	if (fts_pll_sort) {
-		bool	all_exit = false;
-		ulint	trial_count = 0;
-		const ulint max_trial_count = 10000;
-
 wait_again:
                 /* Check if error occurs in child thread */
 		for (ulint j = 0; j < fts_sort_pll_degree; j++) {
@@ -2807,27 +2803,9 @@ wait_again:
 			}
 		}
 
-		/* Now all children should complete, wait a bit until
-		they all finish setting the event, before we free everything.
-		This has a 10 second timeout */
-		do {
-			all_exit = true;
-
-			for (ulint j = 0; j < fts_sort_pll_degree; j++) {
-				if (psort_info[j].child_status
-				    != FTS_CHILD_EXITING) {
-					all_exit = false;
-					os_thread_sleep(1000);
-					break;
-				}
-			}
-			trial_count++;
-		} while (!all_exit && trial_count < max_trial_count);
-
-		if (!all_exit) {
-			ib::fatal() << "Not all child sort threads exited"
-				" when creating FTS index '"
-				<< fts_sort_idx->name << "'";
+		for (ulint j = 0; j < fts_sort_pll_degree; j++) {
+			psort_info[j].task->wait();
+			delete psort_info[j].task;
 		}
 	}
 
@@ -4109,7 +4087,7 @@ row_merge_file_create_low(
 	File f = create_temp_file(filename, path, "ib",
 				  O_BINARY | O_SEQUENTIAL,
 				  MYF(MY_WME | MY_TEMPORARY));
-	pfs_os_file_t fd = IF_WIN(my_get_osfhandle(f), f);
+	pfs_os_file_t fd = IF_WIN((os_file_t)my_get_osfhandle(f), f);
 
 #ifdef UNIV_PFS_IO
 	register_pfs_file_open_end(locker, fd, 
@@ -4155,7 +4133,7 @@ row_merge_file_destroy_low(
 	const pfs_os_file_t& fd)	/*!< in: merge file descriptor */
 {
 	if (fd != OS_FILE_CLOSED) {
-		int res = mysql_file_close(IF_WIN(my_win_handle2File(fd), fd),
+		int res = mysql_file_close(IF_WIN(my_win_handle2File((os_file_t)fd), fd),
 					   MYF(MY_WME));
 		ut_a(res != -1);
 	}
@@ -4589,7 +4567,6 @@ row_merge_build_indexes(
 	dict_index_t*		fts_sort_idx = NULL;
 	fts_psort_t*		psort_info = NULL;
 	fts_psort_t*		merge_info = NULL;
-	int64_t			sig_count = 0;
 	bool			fts_psort_initiated = false;
 
 	double total_static_cost = 0;
@@ -4756,65 +4733,14 @@ row_merge_build_indexes(
 		}
 
 		if (indexes[i]->type & DICT_FTS) {
-			os_event_t	fts_parallel_merge_event;
 
 			sort_idx = fts_sort_idx;
 
-			fts_parallel_merge_event
-				= merge_info[0].psort_common->merge_event;
-
 			if (FTS_PLL_MERGE) {
-				ulint	trial_count = 0;
-				bool	all_exit = false;
-
-				os_event_reset(fts_parallel_merge_event);
 				row_fts_start_parallel_merge(merge_info);
-wait_again:
-				os_event_wait_time_low(
-					fts_parallel_merge_event, 1000000,
-					sig_count);
-
 				for (j = 0; j < FTS_NUM_AUX_INDEX; j++) {
-					if (merge_info[j].child_status
-					    != FTS_CHILD_COMPLETE
-					    && merge_info[j].child_status
-					    != FTS_CHILD_EXITING) {
-						sig_count = os_event_reset(
-						fts_parallel_merge_event);
-
-						goto wait_again;
-					}
-				}
-
-				/* Now all children should complete, wait
-				a bit until they all finish using event */
-				while (!all_exit && trial_count < 10000) {
-					all_exit = true;
-
-					for (j = 0; j < FTS_NUM_AUX_INDEX;
-					     j++) {
-						if (merge_info[j].child_status
-						    != FTS_CHILD_EXITING) {
-							all_exit = false;
-							os_thread_sleep(1000);
-							break;
-						}
-					}
-					trial_count++;
-				}
-
-				if (!all_exit) {
-					ib::error() << "Not all child merge"
-						" threads exited when creating"
-						" FTS index '"
-						<< indexes[i]->name << "'";
-				} else {
-					for (j = 0; j < FTS_NUM_AUX_INDEX;
-					     j++) {
-
-						os_thread_join(merge_info[j]
-							       .thread_hdl);
-					}
+					merge_info[j].task->wait();
+					delete merge_info[j].task;
 				}
 			} else {
 				/* This cannot report duplicates; an

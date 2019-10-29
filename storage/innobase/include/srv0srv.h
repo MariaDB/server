@@ -51,6 +51,8 @@ Created 10/10/1995 Heikki Tuuri
 
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
+#include <tpool.h>
+#include <memory>
 
 /** Global counters used inside InnoDB. */
 struct srv_stats_t
@@ -204,21 +206,6 @@ extern const char*	srv_main_thread_op_info;
 /** Prefix used by MySQL to indicate pre-5.1 table name encoding */
 extern const char	srv_mysql50_table_name_prefix[10];
 
-/** Event to signal srv_monitor_thread. Not protected by a mutex.
-Set after setting srv_print_innodb_monitor. */
-extern os_event_t	srv_monitor_event;
-
-/** Event to signal the shutdown of srv_error_monitor_thread.
-Not protected by a mutex. */
-extern os_event_t	srv_error_event;
-
-/** Event for waking up buf_dump_thread. Not protected by a mutex.
-Set on shutdown or by buf_dump_start() or buf_load_start(). */
-extern os_event_t	srv_buf_dump_event;
-
-/** The buffer pool resize thread waits on this event. */
-extern os_event_t	srv_buf_resize_event;
-
 /** The buffer pool dump/load file name */
 #define SRV_BUF_DUMP_FILENAME_DEFAULT	"ib_buffer_pool"
 extern char*		srv_buf_dump_filename;
@@ -274,7 +261,7 @@ extern unsigned long long	srv_online_max_size;
 
 /* If this flag is TRUE, then we will use the native aio of the
 OS (provided we compiled Innobase with it in), otherwise we will
-use simulated aio we build below with threads.
+use simulated aio.
 Currently we support native aio on windows and linux */
 extern my_bool	srv_use_native_aio;
 extern my_bool	srv_numa_interleave;
@@ -505,16 +492,7 @@ extern my_bool	srv_print_innodb_lock_monitor;
 extern ibool	srv_print_verbose_log;
 
 extern bool	srv_monitor_active;
-extern bool	srv_error_monitor_active;
 
-/* TRUE during the lifetime of the buffer pool dump/load thread */
-extern bool	srv_buf_dump_thread_active;
-
-/* true during the lifetime of the buffer pool resize thread */
-extern bool	srv_buf_resize_thread_active;
-
-/* TRUE during the lifetime of the stats thread */
-extern bool	srv_dict_stats_thread_active;
 
 /* TRUE if enable log scrubbing */
 extern my_bool	srv_scrub_log;
@@ -593,23 +571,10 @@ extern ulong srv_buf_dump_status_frequency;
 #define srv_max_purge_threads 32
 
 # ifdef UNIV_PFS_THREAD
-/* Keys to register InnoDB threads with performance schema */
-extern mysql_pfs_key_t	buf_dump_thread_key;
-extern mysql_pfs_key_t	dict_stats_thread_key;
-extern mysql_pfs_key_t	io_handler_thread_key;
-extern mysql_pfs_key_t	io_ibuf_thread_key;
-extern mysql_pfs_key_t	io_log_thread_key;
-extern mysql_pfs_key_t	io_read_thread_key;
-extern mysql_pfs_key_t	io_write_thread_key;
 extern mysql_pfs_key_t	page_cleaner_thread_key;
 extern mysql_pfs_key_t	recv_writer_thread_key;
-extern mysql_pfs_key_t	srv_error_monitor_thread_key;
-extern mysql_pfs_key_t	srv_lock_timeout_thread_key;
-extern mysql_pfs_key_t	srv_master_thread_key;
-extern mysql_pfs_key_t	srv_monitor_thread_key;
-extern mysql_pfs_key_t	srv_purge_thread_key;
-extern mysql_pfs_key_t	srv_worker_thread_key;
 extern mysql_pfs_key_t	trx_rollback_clean_thread_key;
+extern mysql_pfs_key_t	thread_pool_thread_key;
 
 /* This macro register the current thread and its key with performance
 schema */
@@ -732,17 +697,6 @@ enum srv_stats_method_name_enum {
 
 typedef enum srv_stats_method_name_enum		srv_stats_method_name_t;
 
-/** Types of threads existing in the system. */
-enum srv_thread_type {
-	SRV_NONE,			/*!< None */
-	SRV_WORKER,			/*!< threads serving parallelized
-					queries and queries released from
-					lock wait */
-	SRV_PURGE,			/*!< Purge coordinator thread */
-	SRV_MASTER			/*!< the master thread, (whose type
-					number must be biggest) */
-};
-
 /*********************************************************************//**
 Boots Innobase server. */
 void
@@ -766,10 +720,10 @@ Resets the info describing an i/o thread current state. */
 void
 srv_reset_io_thread_op_info();
 
-/** Wake up the purge threads if there is work to do. */
+/** Wake up the purge if there is work to do. */
 void
 srv_wake_purge_thread_if_not_active();
-/** Wake up the InnoDB master thread if it was suspended (not sleeping). */
+/** Wake up the InnoDB master thread */
 void
 srv_active_wake_master_thread_low();
 
@@ -779,7 +733,7 @@ srv_active_wake_master_thread_low();
 			srv_active_wake_master_thread_low();		\
 		}							\
 	} while (0)
-/** Wake up the master thread if it is suspended or being suspended. */
+/** Wake up the master */
 void
 srv_wake_master_thread();
 
@@ -832,61 +786,37 @@ srv_que_task_enqueue_low(
 	que_thr_t*	thr);	/*!< in: query thread */
 
 /**********************************************************************//**
-Check whether any background thread is active. If so, return the thread
-type.
-@return SRV_NONE if all are are suspended or have exited, thread
-type if any are still active. */
-enum srv_thread_type
-srv_get_active_thread_type(void);
+Check whether purge or master is active.
+@return false if all are are suspended or have exited, true
+if any are still active. */
+bool srv_any_background_activity();
+
 /*============================*/
 
 extern "C" {
 
-/*********************************************************************//**
-A thread which prints the info output by various InnoDB monitors.
-@return a dummy parameter */
-os_thread_ret_t
-DECLARE_THREAD(srv_monitor_thread)(
-/*===============================*/
-	void*	arg);	/*!< in: a dummy parameter required by
-			os_thread_create */
 
-/*********************************************************************//**
-The master thread controlling the server.
-@return a dummy parameter */
-os_thread_ret_t
-DECLARE_THREAD(srv_master_thread)(
-/*==============================*/
-	void*	arg);	/*!< in: a dummy parameter required by
-			os_thread_create */
+/** Periodic task which prints the info output by various InnoDB monitors.*/
+void srv_monitor_task(void*);
+
+
+/** The periodic master task controlling the server. */
+void srv_master_callback(void *);
+
+
+/**
+Perform shutdown tasks such as background drop,
+and optionally ibuf merge.
+*/
+void srv_shutdown(bool ibuf_merge);
+
 
 /*************************************************************************
-A thread which prints warnings about semaphore waits which have lasted
+A task which prints warnings about semaphore waits which have lasted
 too long. These can be used to track bugs which cause hangs.
-@return a dummy parameter */
-os_thread_ret_t
-DECLARE_THREAD(srv_error_monitor_thread)(
-/*=====================================*/
-	void*	arg);	/*!< in: a dummy parameter required by
-			os_thread_create */
+*/
+void srv_error_monitor_task(void*);
 
-/*********************************************************************//**
-Purge coordinator thread that schedules the purge tasks.
-@return a dummy parameter */
-os_thread_ret_t
-DECLARE_THREAD(srv_purge_coordinator_thread)(
-/*=========================================*/
-	void*	arg MY_ATTRIBUTE((unused)));	/*!< in: a dummy parameter
-						required by os_thread_create */
-
-/*********************************************************************//**
-Worker thread that reads tasks from the work queue and executes them.
-@return a dummy parameter */
-os_thread_ret_t
-DECLARE_THREAD(srv_worker_thread)(
-/*==============================*/
-	void*	arg MY_ATTRIBUTE((unused)));	/*!< in: a dummy parameter
-						required by os_thread_create */
 } /* extern "C" */
 
 /**********************************************************************//**
@@ -896,12 +826,6 @@ ulint
 srv_get_task_queue_length(void);
 /*===========================*/
 
-/** Ensure that a given number of threads of the type given are running
-(or are already terminated).
-@param[in]	type	thread type
-@param[in]	n	number of threads that have to run */
-void
-srv_release_threads(enum srv_thread_type type, ulint n);
 
 /** Wakeup the purge threads. */
 void
@@ -909,6 +833,12 @@ srv_purge_wakeup();
 
 /** Shut down the purge threads. */
 void srv_purge_shutdown();
+
+/** Init purge tasks*/
+void srv_init_purge_tasks(uint n_max);
+
+/** Shut down purge tasks*/
+void srv_shutdown_purge_tasks();
 
 #ifdef UNIV_DEBUG
 /** Disables master thread. It's used by:
@@ -1074,8 +1004,6 @@ struct export_var_t{
 
 /** Thread slot in the thread table.  */
 struct srv_slot_t{
-	srv_thread_type type;			/*!< thread type: user,
-						utility etc. */
 	ibool		in_use;			/*!< TRUE if this slot
 						is in use */
 	ibool		suspended;		/*!< TRUE if the thread is
@@ -1099,22 +1027,29 @@ struct srv_slot_t{
 						to do */
 	que_thr_t*	thr;			/*!< suspended query thread
 						(only used for user threads) */
-#ifdef UNIV_DEBUG
-	struct debug_sync_t {
-		UT_LIST_NODE_T(debug_sync_t) debug_sync_list;
-	};
-	UT_LIST_BASE_NODE_T(debug_sync_t) debug_sync;
-	rw_lock_t debug_sync_lock;
-#endif
 };
 
-#ifdef UNIV_DEBUG
-typedef void srv_slot_callback_t(srv_slot_t*, const void*);
+extern tpool::thread_pool *srv_thread_pool;
+extern std::unique_ptr<tpool::timer> srv_master_timer;
+extern std::unique_ptr<tpool::timer> srv_error_monitor_timer;
+extern std::unique_ptr<tpool::timer> srv_monitor_timer;
 
-void srv_for_each_thread(srv_thread_type type,
-			 srv_slot_callback_t callback,
-			 const void *arg);
-#endif
+#define SRV_MONITOR_TIMER_PERIOD 5000
+static inline void srv_monitor_timer_schedule_now()
+{
+	srv_monitor_timer->set_time(0, SRV_MONITOR_TIMER_PERIOD);
+}
+static inline void srv_start_periodic_timer(
+	std::unique_ptr<tpool::timer>& timer,
+	void (*func)(void*),
+	int period)
+{
+	timer.reset(srv_thread_pool->create_timer(func));
+	timer->set_time(0, period);
+}
+
+void srv_thread_pool_init();
+void srv_thread_pool_end();
 
 #ifdef WITH_WSREP
 UNIV_INTERN

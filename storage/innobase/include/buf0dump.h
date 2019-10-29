@@ -29,7 +29,7 @@ Created April 08, 2011 Vasil Dimov
 #include "univ.i"
 
 /*****************************************************************//**
-Wakes up the buffer pool dump/load thread and instructs it to start
+Starts  the buffer pool dump/load task dump/load thread and instructs it to start
 a dump. This function is called by MySQL code via buffer_pool_dump_now()
 and it should return immediately because the whole MySQL is frozen during
 its execution. */
@@ -38,7 +38,7 @@ buf_dump_start();
 /*============*/
 
 /*****************************************************************//**
-Wakes up the buffer pool dump/load thread and instructs it to start
+Starts  the buffer pool dump/load task (if not started) and instructs it to start
 a load. This function is called by MySQL code via buffer_pool_load_now()
 and it should return immediately because the whole MySQL is frozen during
 its execution. */
@@ -54,16 +54,10 @@ void
 buf_load_abort();
 /*============*/
 
-/*****************************************************************//**
-This is the main thread for buffer pool dump/load. It waits for an
-event and when waked up either performs a dump or load and sleeps
-again.
-@return this function does not return, it calls os_thread_exit() */
-extern "C"
-os_thread_ret_t
-DECLARE_THREAD(buf_dump_thread)(
-/*============================*/
-	void*	arg);				/*!< in: a dummy parameter
-						required by os_thread_create */
+/** Start async buffer pool load, if srv_buffer_pool_load_at_startup was set.*/
+void buf_load_at_startup();
+
+/** Wait for currently running load/dumps to finish*/
+void buf_load_dump_end();
 
 #endif /* buf0dump_h */

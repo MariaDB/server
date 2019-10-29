@@ -344,7 +344,7 @@ read_ahead:
 		if (!ibuf_bitmap_page(cur_page_id, zip_size)) {
 			count += buf_read_page_low(
 				&err, false,
-				IORequest::DO_NOT_WAKE,
+				0,
 				ibuf_mode,
 				cur_page_id, zip_size, false);
 
@@ -364,11 +364,6 @@ read_ahead:
 		}
 	}
 
-	/* In simulated aio we wake the aio handler threads only after
-	queuing all aio requests, in native aio the following call does
-	nothing: */
-
-	os_aio_simulated_wake_handler_threads();
 
 	if (count) {
 		DBUG_PRINT("ib_buf", ("random read-ahead %u pages, %u:%u",
@@ -440,7 +435,7 @@ buf_read_page_background(const page_id_t page_id, ulint zip_size, bool sync)
 
 	count = buf_read_page_low(
 		&err, sync,
-		IORequest::DO_NOT_WAKE | IORequest::IGNORE_MISSING,
+		IORequest::IGNORE_MISSING,
 		BUF_READ_ANY_PAGE,
 		page_id, zip_size, false);
 
@@ -712,7 +707,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 		if (!ibuf_bitmap_page(cur_page_id, zip_size)) {
 			count += buf_read_page_low(
 				&err, false,
-				IORequest::DO_NOT_WAKE,
+				0,
 				ibuf_mode, cur_page_id, zip_size, false);
 
 			switch (err) {
@@ -731,12 +726,6 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 			}
 		}
 	}
-
-	/* In simulated aio we wake the aio handler threads only after
-	queuing all aio requests, in native aio the following call does
-	nothing: */
-
-	os_aio_simulated_wake_handler_threads();
 
 	if (count) {
 		DBUG_PRINT("ib_buf", ("linear read-ahead " ULINTPF " pages, "
@@ -788,7 +777,6 @@ buf_read_recv_pages(
 		buf_pool = buf_pool_get(cur_page_id);
 		while (buf_pool->n_pend_reads >= recv_n_pool_free_frames / 2) {
 
-			os_aio_simulated_wake_handler_threads();
 			os_thread_sleep(10000);
 
 			count++;
@@ -814,7 +802,7 @@ buf_read_recv_pages(
 		} else {
 			buf_read_page_low(
 				&err, false,
-				IORequest::DO_NOT_WAKE,
+				0,
 				BUF_READ_ANY_PAGE,
 				cur_page_id, zip_size, true);
 		}
@@ -824,8 +812,6 @@ buf_read_recv_pages(
 				<< cur_page_id;
 		}
 	}
-
-	os_aio_simulated_wake_handler_threads();
 
 	DBUG_PRINT("ib_buf", ("recovery read-ahead (%u pages)",
 			      unsigned(n_stored)));

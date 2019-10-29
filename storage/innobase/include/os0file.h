@@ -38,6 +38,7 @@ Created 10/21/1995 Heikki Tuuri
 
 #include "fsp0types.h"
 #include "os0api.h"
+#include "tpool.h"
 
 #ifndef _WIN32
 #include <dirent.h>
@@ -66,7 +67,7 @@ the OS actually supports it: Win 95 does not, NT does. */
 # define UNIV_NON_BUFFERED_IO
 
 /** File handle */
-typedef HANDLE os_file_t;
+typedef native_file_handle os_file_t;
 
 
 #else /* _WIN32 */
@@ -102,6 +103,14 @@ struct pfs_os_file_t
 	/** Assignment operator.
 	@param[in]	file	file handle to be assigned */
 	void operator=(os_file_t file) { m_file = file; }
+	bool operator==(os_file_t file) const { return m_file == file; }
+	bool operator!=(os_file_t file) const { return !(*this == file); }
+#ifndef DBUG_OFF
+	friend std::ostream& operator<<(std::ostream& os, pfs_os_file_t f){
+		os << os_file_t(f);
+		return os;
+	}
+#endif
 };
 
 /** The next value should be smaller or equal to the smallest sector size used
@@ -206,14 +215,6 @@ public:
 		/** Disable partial read warnings */
 		DISABLE_PARTIAL_IO_WARNINGS = 32,
 
-		/** Do not to wake i/o-handler threads, but the caller will do
-		the waking explicitly later, in this way the caller can post
-		several requests in a batch; NOTE that the batch must not be
-		so big that it exhausts the slots in AIO arrays! NOTE that
-		a simulated batch may introduce hidden chances of deadlocks,
-		because I/Os are not actually handled until all
-		have been posted: use with great caution! */
-		DO_NOT_WAKE = 64,
 
 		/** Ignore failed reads of non-existent pages */
 		IGNORE_MISSING = 128,
@@ -296,13 +297,6 @@ public:
 		return((m_type & LOG) == LOG);
 	}
 
-	/** @return true if the simulated AIO thread should be woken up */
-	bool is_wake() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return((m_type & DO_NOT_WAKE) == 0);
-	}
-
 	/** Clear the punch hole flag */
 	void clear_punch_hole()
 	{
@@ -350,12 +344,6 @@ public:
 		if (is_punch_hole_supported()) {
 			m_type |= PUNCH_HOLE;
 		}
-	}
-
-	/** Clear the do not wake flag */
-	void clear_do_not_wake()
-	{
-		m_type &= ~DO_NOT_WAKE;
 	}
 
 	/** Set the pointer to file node for IO
@@ -438,7 +426,7 @@ struct os_file_size_t {
 };
 
 /** Win NT does not allow more than 64 */
-static const ulint OS_AIO_N_PENDING_IOS_PER_THREAD = 32;
+static const ulint OS_AIO_N_PENDING_IOS_PER_THREAD = 256;
 
 /** Modes for aio operations @{ */
 /** Normal asynchronous i/o not for ibuf pages or ibuf bitmap pages */
@@ -450,12 +438,10 @@ static const ulint OS_AIO_IBUF = 22;
 /** Asynchronous i/o for the log */
 static const ulint OS_AIO_LOG = 23;
 
-/** Asynchronous i/o where the calling thread will itself wait for
-the i/o to complete, doing also the job of the i/o-handler thread;
+/**Calling thread will wait for the i/o to complete,
+and perform IO completion routine itself;
 can be used for any pages, ibuf or non-ibuf.  This is used to save
-CPU time, as we can do with fewer thread switches. Plain synchronous
-I/O is not as good, because it must serialize the file seek and read
-or write, causing a bottleneck for parallelism. */
+CPU time, as we can do with fewer thread switches. */
 static const ulint OS_AIO_SYNC = 24;
 /* @} */
 
@@ -1396,6 +1382,12 @@ Frees the asynchronous io system. */
 void
 os_aio_free();
 
+struct os_aio_userdata_t
+{
+	fil_node_t* node;
+	IORequest	type;
+	void* message;
+};
 /**
 NOTE! Use the corresponding macro os_aio(), not directly this function!
 Requests an asynchronous i/o operation.
@@ -1428,47 +1420,12 @@ os_aio_func(
 	fil_node_t*	m1,
 	void*		m2);
 
-/** Wakes up all async i/o threads so that they know to exit themselves in
-shutdown. */
-void
-os_aio_wake_all_threads_at_shutdown();
 
 /** Waits until there are no pending writes in os_aio_write_array. There can
 be other, synchronous, pending writes. */
 void
 os_aio_wait_until_no_pending_writes();
 
-/** Wakes up simulated aio i/o-handler threads if they have something to do. */
-void
-os_aio_simulated_wake_handler_threads();
-
-/** This is the generic AIO handler interface function.
-Waits for an aio operation to complete. This function is used to wait the
-for completed requests. The AIO array of pending requests is divided
-into segments. The thread specifies which segment or slot it wants to wait
-for. NOTE: this function will also take care of freeing the aio slot,
-therefore no other thread is allowed to do the freeing!
-@param[in]	segment		the number of the segment in the aio arrays to
-				wait for; segment 0 is the ibuf I/O thread,
-				segment 1 the log I/O thread, then follow the
-				non-ibuf read threads, and as the last are the
-				non-ibuf write threads; if this is
-				ULINT_UNDEFINED, then it means that sync AIO
-				is used, and this parameter is ignored
-@param[out]	m1		the messages passed with the AIO request;
-				note that also in the case where the AIO
-				operation failed, these output parameters
-				are valid and can be used to restart the
-				operation, for example
-@param[out]	m2		callback message
-@param[out]	type		OS_FILE_WRITE or ..._READ
-@return DB_SUCCESS or error code */
-dberr_t
-os_aio_handler(
-	ulint		segment,
-	fil_node_t**	m1,
-	void**		m2,
-	IORequest*	type);
 
 /** Prints info of the aio arrays.
 @param[in/out]	file		file where to print */
@@ -1484,14 +1441,6 @@ no pending io operations. */
 bool
 os_aio_all_slots_free();
 
-#ifdef UNIV_DEBUG
-
-/** Prints all pending IO
-@param[in]	file	file where to print */
-void
-os_aio_print_pending_io(FILE* file);
-
-#endif /* UNIV_DEBUG */
 
 /** This function returns information about the specified file
 @param[in]	path		pathname of the file
