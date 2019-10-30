@@ -1543,7 +1543,7 @@ void trx_update_persistent_counts(
     trx_t* trx)		/*!< in: transaction */
 {
     dict_table_t* ib_table;
-	dict_index_t* index;
+    dict_index_t* index;
     TABLE* table;
     for (trx_mod_tables_t::const_iterator t = trx->mod_tables.begin();
          t != trx->mod_tables.end(); t++) {

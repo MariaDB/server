@@ -1089,7 +1089,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> PERCENTILE_CONT_SYM
 %token  <kwd> PERCENTILE_DISC_SYM
 %token  <kwd> PERCENT_RANK_SYM
-%token  <kwd> PERSISTENT_COUNT
 %token  <kwd> PORTION_SYM                   /* SQL-2016-R */
 %token  <kwd> POSITION_SYM                  /* SQL-2003-N */
 %token  <kwd> PRECISION                     /* SQL-2003-R */
@@ -8443,18 +8442,6 @@ alter_list_item:
             LEX *lex=Lex;
             lex->alter_info.keys_onoff= Alter_info::ENABLE;
             lex->alter_info.flags|= ALTER_KEYS_ONOFF;
-          }
-        | DISABLE_SYM PERSISTENT_COUNT
-          {
-            LEX *lex=Lex;
-            lex->alter_info.persistent_count_onoff= Alter_info::DISABLE;
-            lex->alter_info.flags|= ALTER_PERSISTENT_COUNT_ONOFF;
-          }
-        | ENABLE_SYM PERSISTENT_COUNT
-          {
-            LEX *lex=Lex;
-            lex->alter_info.persistent_count_onoff= Alter_info::ENABLE;
-            lex->alter_info.flags|= ALTER_PERSISTENT_COUNT_ONOFF;
           }
         | ALTER opt_column opt_if_exists_table_element field_ident SET DEFAULT column_default_expr
           {
@@ -16600,7 +16587,6 @@ reserved_keyword_udt:
         | PERCENT_RANK_SYM
         | PERCENTILE_CONT_SYM
         | PERCENTILE_DISC_SYM
-        | PERSISTENT_COUNT
         | PORTION_SYM
         | POSITION_SYM
         | PRECISION

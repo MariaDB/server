@@ -29,7 +29,6 @@ Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   check_constraint_list(rhs.check_constraint_list, mem_root),
   flags(rhs.flags), partition_flags(rhs.partition_flags),
   keys_onoff(rhs.keys_onoff),
-  persistent_count_onoff(rhs.persistent_count_onoff),
   partition_names(rhs.partition_names, mem_root),
   num_parts(rhs.num_parts),
   requested_algorithm(rhs.requested_algorithm),

@@ -8241,7 +8241,7 @@ int ha_partition::info(uint flag)
       }
     }
     if (stats.records && stats.records < 2 &&
-        !(m_file[0]->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT))
+        !(m_file[0]->supports_exact_count()))
       stats.records= 2;
     if (stats.records > 0)
       stats.mean_rec_length= (ulong) (stats.data_file_length / stats.records);

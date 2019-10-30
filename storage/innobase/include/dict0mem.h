@@ -144,6 +144,11 @@ ATOMIC_WRITES=ON and ATOMIC_WRITES=OFF between MariaDB 10.1.0 and 10.2.3)
 */
 #define DICT_TF_WIDTH_NO_ROLLBACK 2
 
+/**
+Width of the persistent count flag
+*/
+#define DICT_TF_WIDTH_PERSISTENT_COUNT 1
+
 /** Width of all the currently known table flags */
 #define DICT_TF_BITS	(DICT_TF_WIDTH_COMPACT			\
 			+ DICT_TF_WIDTH_ZIP_SSIZE		\
@@ -151,7 +156,8 @@ ATOMIC_WRITES=ON and ATOMIC_WRITES=OFF between MariaDB 10.1.0 and 10.2.3)
 			+ DICT_TF_WIDTH_DATA_DIR		\
 			+ DICT_TF_WIDTH_PAGE_COMPRESSION	\
 			+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL	\
-			+ DICT_TF_WIDTH_NO_ROLLBACK)
+			+ DICT_TF_WIDTH_NO_ROLLBACK	  \
+			+ DICT_TF_WIDTH_PERSISTENT_COUNT)
 
 /** Zero relative shift position of the COMPACT field */
 #define DICT_TF_POS_COMPACT		0
@@ -173,8 +179,11 @@ ATOMIC_WRITES=ON and ATOMIC_WRITES=OFF between MariaDB 10.1.0 and 10.2.3)
 /** Zero relative shift position of the NO_ROLLBACK field */
 #define DICT_TF_POS_NO_ROLLBACK		(DICT_TF_POS_PAGE_COMPRESSION_LEVEL \
 					+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)
-#define DICT_TF_POS_UNUSED		(DICT_TF_POS_NO_ROLLBACK     \
+/** Zero relative shift position of the PERSISTENT_COUNT field */
+#define DICT_TF_POS_PERSISTENT_COUNT (DICT_TF_POS_NO_ROLLBACK     \
 					+ DICT_TF_WIDTH_NO_ROLLBACK)
+#define DICT_TF_POS_UNUSED           (DICT_TF_POS_PERSISTENT_COUNT    \
+					+ DICT_TF_WIDTH_PERSISTENT_COUNT)
 
 /** Bit mask of the COMPACT field */
 #define DICT_TF_MASK_COMPACT				\
@@ -204,6 +213,11 @@ ATOMIC_WRITES=ON and ATOMIC_WRITES=OFF between MariaDB 10.1.0 and 10.2.3)
 #define DICT_TF_MASK_NO_ROLLBACK		\
 		((~(~0U << DICT_TF_WIDTH_NO_ROLLBACK)) \
 		<< DICT_TF_POS_NO_ROLLBACK)
+/** Bit mask of the PERSISTENT_COUNT field */
+#define DICT_TF_MASK_PERSISTENT_COUNT		\
+		((~(~0U << DICT_TF_WIDTH_PERSISTENT_COUNT)) \
+		<< DICT_TF_POS_PERSISTENT_COUNT)
+
 
 /** Return the value of the COMPACT field */
 #define DICT_TF_GET_COMPACT(flags)			\
@@ -229,7 +243,10 @@ ATOMIC_WRITES=ON and ATOMIC_WRITES=OFF between MariaDB 10.1.0 and 10.2.3)
 #define DICT_TF_GET_PAGE_COMPRESSION_LEVEL(flags)       \
 		((flags & DICT_TF_MASK_PAGE_COMPRESSION_LEVEL)	\
 		>> DICT_TF_POS_PAGE_COMPRESSION_LEVEL)
-
+/** Return the value of the PERSISTENT_COUNT field */
+#define DICT_TF_GET_PERSISTENT_COUNT(flags)       \
+		((flags & DICT_TF_MASK_PERSISTENT_COUNT)	\
+		>> DICT_TF_POS_PERSISTENT_COUNT)
 /* @} */
 
 /** @brief Table Flags set number 2.

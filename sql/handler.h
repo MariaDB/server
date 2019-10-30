@@ -332,9 +332,7 @@ enum enum_alter_inplace_result {
 /* Support native hash index */
 #define HA_CAN_HASH_KEYS        (1ULL << 58)
 
-/* Has persistent count enabled */
-#define HA_PERSISTENT_COUNT  (1ULL << 59)
-#define HA_LAST_TABLE_FLAG HA_PERSISTENT_COUNT
+#define HA_LAST_TABLE_FLAG HA_CAN_HASH_KEYS
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -761,8 +759,7 @@ typedef ulonglong alter_table_operations;
    Change in index length such that it doesn't require index rebuild.
 */
 #define ALTER_COLUMN_INDEX_LENGTH            (1ULL << 60)
-// Set for DISABLE PERSISTENT_COUNT | ENABLE PERSISTENT_COUNT
-#define ALTER_PERSISTENT_COUNT_ONOFF      (1ULL << 61)
+
 /*
   Flags set in partition_flags when altering partitions
 */
@@ -3436,6 +3433,11 @@ public:
   */
   virtual int pre_records() { return 0; }
   virtual ha_rows records() { return stats.records; }
+  virtual bool supports_exact_count()
+  { 
+    return ha_table_flags() & HA_STATS_RECORDS_IS_EXACT;
+  }
+
   /**
     Return upper bound of current number of records in the table
     (max. of how many records one will retrieve when doing a full table scan)

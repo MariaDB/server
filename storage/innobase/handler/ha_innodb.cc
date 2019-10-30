@@ -692,6 +692,11 @@ static MYSQL_THDVAR_BOOL(compression_default, PLUGIN_VAR_OPCMDARG,
   "Is compression the default for new tables", 
   NULL, NULL, FALSE);
 
+// should persistent count be enabled by default for new tables
+static MYSQL_THDVAR_BOOL(persistent_count_default, PLUGIN_VAR_OPCMDARG,
+  "Is persistent count enabled by default for new tables",
+  NULL, NULL, FALSE);
+
 /** Update callback for SET [SESSION] innodb_default_encryption_key_id */
 static void
 innodb_default_encryption_key_id_update(THD* thd, st_mysql_sys_var* var,
@@ -733,7 +738,7 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_ENUM("ENCRYPTED", encryption, "DEFAULT,YES,NO", 0),
   /* With this option the user defines the key identifier using for the encryption */
   HA_TOPTION_SYSVAR("ENCRYPTION_KEY_ID", encryption_key_id, default_encryption_key_id),
-
+  HA_TOPTION_SYSVAR("PERSISTENT_COUNT", persistent_count, persistent_count_default),
   HA_TOPTION_END
 };
 
@@ -6196,12 +6201,6 @@ no_such_table:
 
 	if (table && m_prebuilt->table) {
 		ut_ad(table->versioned() == m_prebuilt->table->versioned());
-	}
-
-	/* Don't need to acquire ib_table->index->lock since
-	table is just being opened */
-	if (ib_table->committed_count_inited) {
-		m_int_table_flags |= HA_PERSISTENT_COUNT;
 	}
 
 	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_OPEN);
@@ -11851,8 +11850,9 @@ index_bad:
 	dict_tf_set(&m_flags, innodb_row_format, zip_ssize,
 			m_use_data_dir,
 			options->page_compressed,
-		    	options->page_compression_level == 0 ?
-		        default_compression_level : ulint(options->page_compression_level));
+		    options->page_compression_level == 0 ? default_compression_level
+				: ulint(options->page_compression_level),
+			options->persistent_count);
 
 	if (m_form->s->table_type == TABLE_TYPE_SEQUENCE) {
 		m_flags |= DICT_TF_MASK_NO_ROLLBACK;
@@ -13303,10 +13303,10 @@ ha_innobase::enable_persistent_count()
 
 	ib_table->alter_persistent_count = true;
 	dict_index_t* index = UT_LIST_GET_FIRST(ib_table->indexes);
-	rw_lock_x_lock(&index->lock);
+	rw_lock_sx_lock(&index->lock);
 
 	if (ib_table->committed_count_inited) {
-		rw_lock_x_unlock(&index->lock);
+		rw_lock_sx_unlock(&index->lock);
 		return -1;  /* Already initialized */
 	}
 
@@ -13320,10 +13320,8 @@ ha_innobase::enable_persistent_count()
 	} while (!err);
 	ib_table->committed_count -= trx->uncommitted_count(ib_table);
 	ib_table->committed_count_inited = true;
-	m_int_table_flags |= HA_PERSISTENT_COUNT;
-	cached_table_flags = table_flags();
 
-	rw_lock_x_unlock(&index->lock);
+	rw_lock_sx_unlock(&index->lock);
 
 	return 0;
 }
@@ -13340,8 +13338,6 @@ ha_innobase::disable_persistent_count()
 
 	rw_lock_x_lock(&index->lock);
 	ib_table->committed_count_inited = false;
-	m_int_table_flags &= ~HA_PERSISTENT_COUNT;
-	cached_table_flags = table_flags();
 	rw_lock_x_unlock(&index->lock);
 
 	return 0;
@@ -13369,6 +13365,28 @@ ha_innobase::records()
     }
 
     return num_rows;
+}
+
+/*********************************************************************//**
+Whether exact count is supported for current table and isolation level
+@return true or false */
+
+bool
+ha_innobase::supports_exact_count()
+{	
+	if (ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) {
+		trx_t* trx = m_prebuilt->trx;
+		if (trx->isolation_level == TRX_ISO_READ_COMMITTED) {
+			dict_table_t* ib_table = m_prebuilt->table;
+
+			/* Potentially persistent count could be disabled between
+			supports_exact_count() and records() calls; need to hold lock for
+			in-between */
+			return ib_table->committed_count_inited;
+		}
+	}
+
+	return false;
 }
 
 /*********************************************************************//**
@@ -19902,6 +19920,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(buf_dump_status_frequency),
   MYSQL_SYSVAR(background_thread),
   MYSQL_SYSVAR(encrypt_temporary_tables),
+  MYSQL_SYSVAR(persistent_count_default),
 
   NULL
 };

@@ -295,11 +295,7 @@ int opt_sum_query(THD *thd,
       Schema tables are filled after this function is invoked, so we can't
       get row count 
     */
-    bool supports_persistent_count =
-        tl->table->file->ha_table_flags() & HA_PERSISTENT_COUNT
-        && thd->tx_isolation == ISO_READ_COMMITTED;
-    if ((!(tl->table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT)
-         && !supports_persistent_count) || tl->schema_table)
+    if (!tl->table->file->supports_exact_count() || tl->schema_table)
     {
       maybe_exact_count&= MY_TEST(!tl->schema_table &&
                                   (tl->table->file->ha_table_flags() &

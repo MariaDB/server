@@ -100,8 +100,6 @@ public:
   ulong                         partition_flags;
   // Enable or disable keys.
   enum_enable_or_disable        keys_onoff;
-  // Enable or disable persistent count.
-  enum_enable_or_disable        persistent_count_onoff;
   // List of partitions.
   List<const char>              partition_names;
   // Number of partitions.
@@ -130,7 +128,6 @@ public:
     flags= 0;
     partition_flags= 0;
     keys_onoff= LEAVE_AS_IS;
-    persistent_count_onoff= LEAVE_AS_IS;
     num_parts= 0;
     partition_names.empty();
     requested_algorithm= ALTER_TABLE_ALGORITHM_DEFAULT;

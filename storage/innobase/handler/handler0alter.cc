@@ -95,7 +95,6 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	| ALTER_STORED_COLUMN_TYPE
 	*/
 	| INNOBASE_ALTER_VERSIONED_REBUILD
-	| ALTER_PERSISTENT_COUNT_ONOFF;
 	;
 
 /** Operations that require changes to data */
@@ -954,6 +953,9 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	/** The page_compression_level attribute, or 0 */
 	const uint	page_compression_level;
 
+	/** Enable persistent count */
+	const bool persistent_count;
+
 	ha_innobase_inplace_ctx(row_prebuilt_t*& prebuilt_arg,
 				dict_index_t** drop_arg,
 				ulint num_to_drop_arg,
@@ -970,7 +972,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				ulonglong autoinc_col_max_value_arg,
 				bool allow_not_null_flag,
 				bool page_compressed,
-				ulonglong page_compression_level_arg) :
+				ulonglong page_compression_level_arg,
+				bool persistent_count) :
 		inplace_alter_handler_ctx(),
 		prebuilt (prebuilt_arg),
 		add_index (0), add_key_numbers (0), num_to_add_index (0),
@@ -1011,7 +1014,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				       ? (page_compression_level_arg
 					  ? uint(page_compression_level_arg)
 					  : page_zip_level)
-				       : 0)
+				       : 0),
+		persistent_count(persistent_count)
 	{
 		ut_ad(old_n_cols >= DATA_N_SYS_COLS);
 		ut_ad(page_compression_level <= 9);
@@ -1065,7 +1069,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	}
 
 	/** Convert table-rebuilding ALTER to instant ALTER. */
-	void prepare_instant(bool alter_persistent_count)
+	void prepare_instant()
 	{
 		DBUG_ASSERT(need_rebuild());
 		DBUG_ASSERT(!is_instant());
@@ -1074,13 +1078,12 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		instant_table = new_table;
 		new_table = old_table;
 
-		if  (!alter_persistent_count) {
+		if  (!persistent_count) {
 			export_vars.innodb_instant_alter_column++;
 		}
 
 		instant_table->prepare_instant(*old_table, col_map,
-					       first_alter_pos,
-					       alter_persistent_count);
+					       first_alter_pos, persistent_count);
 	}
 
 	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
@@ -1352,9 +1355,10 @@ static bool alter_options_need_rebuild(
 
 	/* Allow an instant change to enable page_compressed,
 	and any change of page_compression_level. */
-	if ((!alt_opt.page_compressed && opt.page_compressed)
-	    || alt_opt.encryption != opt.encryption
-	    || alt_opt.encryption_key_id != opt.encryption_key_id) {
+	if (((!alt_opt.page_compressed && opt.page_compressed)
+	     || alt_opt.encryption != opt.encryption
+	     || alt_opt.encryption_key_id != opt.encryption_key_id)
+	    || alt_opt.persistent_count != opt.persistent_count) {
 		return(true);
 	}
 
@@ -1499,7 +1503,8 @@ instant_alter_possible(
 	ut_ad(pk->is_primary());
 	ut_ad(!pk->has_virtual());
 
-	if (ha_alter_info->handler_flags & ALTER_PERSISTENT_COUNT_ONOFF) {
+	if (table->s->option_struct->persistent_count
+		!= altered_table->s->option_struct->persistent_count) {
 		return true;
 	}
 
@@ -6944,8 +6949,7 @@ new_clustered_failed:
 				= ctx->old_table->persistent_autoinc;
 		}
 
-		ctx->prepare_instant(!!(ha_alter_info->handler_flags
-                                & ALTER_PERSISTENT_COUNT_ONOFF));
+		ctx->prepare_instant();
 	}
 
 	if (ctx->need_rebuild()) {
@@ -8281,7 +8285,8 @@ err_exit:
 					(ha_alter_info->ignore
 					 || !thd_is_strict_mode(m_user_thd)),
 					alt_opt.page_compressed,
-					alt_opt.page_compression_level);
+					alt_opt.page_compression_level,
+					alt_opt.persistent_count);
 		}
 
 		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
@@ -8407,7 +8412,8 @@ found_col:
 		ha_alter_info->create_info->auto_increment_value,
 		autoinc_col_max_value,
 		ha_alter_info->ignore || !thd_is_strict_mode(m_user_thd),
-		alt_opt.page_compressed, alt_opt.page_compression_level);
+		alt_opt.page_compressed, alt_opt.page_compression_level,
+		alt_opt.persistent_count);
 
 	DBUG_RETURN(prepare_inplace_alter_table_dict(
 			    ha_alter_info, altered_table, table,
@@ -8542,20 +8548,6 @@ ok_exit:
 		DBUG_RETURN(false);
 	}
 
-	if (ha_alter_info->handler_flags & ALTER_PERSISTENT_COUNT_ONOFF) {
-		switch (ha_alter_info->alter_info->persistent_count_onoff) {
-			case Alter_info::ENABLE:
-				enable_persistent_count();
-				break;
-			case Alter_info::DISABLE:
-				disable_persistent_count();
-				break;
-			case Alter_info::LEAVE_AS_IS:
-			default:
-				break;
-		}
-	}
-
 	if ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
 					      | INNOBASE_ALTER_NOCREATE
 					      | INNOBASE_ALTER_INSTANT))
@@ -8571,6 +8563,13 @@ ok_exit:
 	DBUG_ASSERT(ctx);
 	DBUG_ASSERT(ctx->trx);
 	DBUG_ASSERT(ctx->prebuilt == m_prebuilt);
+
+	if (ctx->persistent_count && !m_prebuilt->table->committed_count_inited) {
+		enable_persistent_count();
+	} else if (!ctx->persistent_count 
+		&& m_prebuilt->table->committed_count_inited) {
+		disable_persistent_count();
+	}
 
 	if (ctx->is_instant()) goto ok_exit;
 

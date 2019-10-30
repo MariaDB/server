@@ -4852,7 +4852,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       /* s is the only inner table of an outer join */
       if (!table->is_filled_at_execution() &&
           ((!table->file->stats.records &&
-            (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT)) ||
+            (table->file->supports_exact_count())) ||
            all_partitions_pruned_away) && !embedding)
       {						// Empty table
         s->dependent= 0;                        // Ignore LEFT JOIN depend.
@@ -4896,7 +4896,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     if (!table->is_filled_at_execution() &&
         (table->s->system ||
          (table->file->stats.records <= 1 &&
-          (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT)) ||
+          (table->file->supports_exact_count())) ||
          all_partitions_pruned_away) &&
 	!s->dependent &&
         !table->fulltext_searched && !join->no_const_tables)
@@ -5085,7 +5085,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	if (s->dependent & ~(found_const_table_map))
 	  continue;
 	if (table->file->stats.records <= 1L &&
-	    (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) &&
+	    (table->file->supports_exact_count()) &&
             !table->pos_in_table_list->embedding &&
 	      !((outer_join & table->map) && 
 		(*s->on_expr_ref)->is_expensive()))
@@ -21517,8 +21517,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	if ((join->table_count == 1) && !join->sort_and_group
 	    && !join->send_group_parts && !join->having && !jt->select_cond &&
 	    !(jt->select && jt->select->quick) &&
-	    (jt->table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) &&
-            (jt->ref.key < 0))
+	    (jt->table->file->supports_exact_count()) && (jt->ref.key < 0))
 	{
 	  /* Join over all rows in table;  Return number of found rows */
 	  TABLE *table=jt->table;

@@ -50,6 +50,7 @@ struct ha_table_option_struct
 						value OFF.*/
 	uint		encryption;		/*!<  DEFAULT, ON, OFF */
 	ulonglong	encryption_key_id;	/*!< encryption key id  */
+	bool		persistent_count;	/*!< persistent count */
 };
 /* JAN: TODO: MySQL 5.7 handler.h */
 struct st_handler_tablename
@@ -192,6 +193,7 @@ public:
 	int disable_persistent_count();
 
 	ha_rows records() override;
+	bool supports_exact_count() override;
 
 	ha_rows estimate_rows_upper_bound() override;
 
