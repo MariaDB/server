@@ -5580,9 +5580,22 @@ sp_variable *LEX::sp_param_init(LEX_CSTRING *name)
 }
 
 
-bool LEX::sp_param_fill_definition(sp_variable *spvar)
+bool LEX::sp_param_fill_definition(sp_variable *spvar,
+                                   const Lex_field_type_st &def)
 {
-  return sphead->fill_spvar_definition(thd, last_field, &spvar->name);
+  return
+    last_field->set_attributes(thd, def, charset,
+                               COLUMN_DEFINITION_ROUTINE_PARAM) ||
+    sphead->fill_spvar_definition(thd, last_field, &spvar->name);
+}
+
+
+bool LEX::sf_return_fill_definition(const Lex_field_type_st &def)
+{
+  return
+    last_field->set_attributes(thd, def, charset,
+                               COLUMN_DEFINITION_FUNCTION_RETURN) ||
+    sphead->fill_field_definition(thd, last_field);
 }
 
 

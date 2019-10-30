@@ -1830,7 +1830,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         wild_and_where
 
 %type <const_simple_string>
-        field_length opt_field_length opt_field_length_default_1
+        field_length opt_field_length
         opt_compression_method
 
 %type <string>
@@ -3422,7 +3422,7 @@ sp_param_name:
 sp_param_name_and_type:
           sp_param_name type_with_opt_collate
           {
-            if (unlikely(Lex->sp_param_fill_definition($$= $1)))
+            if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
           }
         | sp_param_name TYPE_SYM OF_SYM ident '.' ident
@@ -3551,6 +3551,10 @@ row_field_name:
 
 row_field_definition:
           row_field_name type_with_opt_collate
+          {
+            Lex->last_field->set_attributes(thd, $2, Lex->charset,
+                                            COLUMN_DEFINITION_ROUTINE_LOCAL);
+          }
         ;
 
 row_field_definition_list:
@@ -3580,11 +3584,15 @@ sp_decl_idents_init_vars:
 sp_decl_variable_list:
           sp_decl_idents_init_vars
           type_with_opt_collate
+          {
+            Lex->last_field->set_attributes(thd, $2, Lex->charset,
+                                            COLUMN_DEFINITION_ROUTINE_LOCAL);
+          }
           sp_opt_default
           {
             if (unlikely(Lex->sp_variable_declarations_finalize(thd, $1,
                                                                 &Lex->last_field[0],
-                                                                $3)))
+                                                                $4)))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
@@ -6680,7 +6688,11 @@ field_spec:
         ;
 
 field_type_or_serial:
-          field_type  { Lex->last_field->set_attributes($1, Lex->charset); }
+          field_type
+          {
+             Lex->last_field->set_attributes(thd, $1, Lex->charset,
+                                             COLUMN_DEFINITION_TABLE_FIELD);
+          }
           field_def
         | SERIAL_SYM
           {
@@ -6898,7 +6910,7 @@ field_type_numeric:
                 $$.set(&type_handler_float);
             }
           }
-        | BIT_SYM opt_field_length_default_1
+        | BIT_SYM opt_field_length
           {
             $$.set(&type_handler_bit, $2);
           }
@@ -6934,39 +6946,39 @@ opt_binary_and_compression:
         ;
 
 field_type_string:
-          char opt_field_length_default_1 opt_binary
+          char opt_field_length opt_binary
           {
             $$.set(&type_handler_string, $2);
           }
-        | nchar opt_field_length_default_1 opt_bin_mod
+        | nchar opt_field_length opt_bin_mod
           {
             $$.set(&type_handler_string, $2);
             bincmp_collation(national_charset_info, $3);
           }
-        | BINARY opt_field_length_default_1
+        | BINARY opt_field_length
           {
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_string, $2);
           }
-        | varchar field_length opt_binary_and_compression
+        | varchar opt_field_length opt_binary_and_compression
           {
             $$.set(&type_handler_varchar, $2);
           }
-        | VARCHAR2_ORACLE_SYM field_length opt_binary_and_compression
+        | VARCHAR2_ORACLE_SYM opt_field_length opt_binary_and_compression
           {
             $$.set(&type_handler_varchar, $2);
           }
-        | nvarchar field_length opt_compressed opt_bin_mod
+        | nvarchar opt_field_length opt_compressed opt_bin_mod
           {
             $$.set(&type_handler_varchar, $2);
             bincmp_collation(national_charset_info, $4);
           }
-        | VARBINARY field_length opt_compressed
+        | VARBINARY opt_field_length opt_compressed
           {
             Lex->charset=&my_charset_bin;
             $$.set(&type_handler_varchar, $2);
           }
-        | RAW_ORACLE_SYM field_length opt_compressed
+        | RAW_ORACLE_SYM opt_field_length opt_compressed
           {
             Lex->charset= &my_charset_bin;
             $$.set(&type_handler_varchar, $2);
@@ -7181,11 +7193,6 @@ opt_field_length:
         | field_length { $$= $1; }
         ;
 
-opt_field_length_default_1:
-          /* empty */  { $$= (char*) "1"; }
-        | field_length { $$= $1; }
-        ;
-
 opt_precision:
           /* empty */    { $$.set(0, 0); }
         | precision      { $$= $1; }
@@ -7343,7 +7350,6 @@ type_with_opt_collate:
             if (unlikely(!(Lex->charset= merge_charset_and_collation(Lex->charset, $2))))
               MYSQL_YYABORT;
           }
-          Lex->last_field->set_attributes($1, Lex->charset);
         }
         ;
 
@@ -18299,8 +18305,7 @@ sf_return_type:
           }
           type_with_opt_collate
           {
-            if (unlikely(Lex->sphead->fill_field_definition(thd,
-                                                            Lex->last_field)))
+            if (unlikely(Lex->sf_return_fill_definition($3)))
               MYSQL_YYABORT;
           }
         ;

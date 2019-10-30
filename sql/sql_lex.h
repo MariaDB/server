@@ -3742,7 +3742,9 @@ public:
   bool sp_proc_stmt_statement_finalize(THD *, bool no_lookahead);
 
   sp_variable *sp_param_init(LEX_CSTRING *name);
-  bool sp_param_fill_definition(sp_variable *spvar);
+  bool sp_param_fill_definition(sp_variable *spvar,
+                                const Lex_field_type_st &def);
+  bool sf_return_fill_definition(const Lex_field_type_st &def);
 
   int case_stmt_action_expr(Item* expr);
   int case_stmt_action_when(Item *when, bool simple);

@@ -4862,6 +4862,7 @@ public:
   bool frm_unpack_numeric_with_dec(TABLE_SHARE *share, const uchar *buff);
   bool frm_unpack_temporal_with_dec(TABLE_SHARE *share, uint intlen,
                                     const uchar *buff);
+  void set_length_and_dec(const Lex_length_and_dec_st &attr);
 };
 
 
@@ -4964,7 +4965,10 @@ public:
   }
 
   Column_definition(THD *thd, Field *field, Field *orig_field);
-  void set_attributes(const Lex_field_type_st &type, CHARSET_INFO *cs);
+  bool set_attributes(THD *thd,
+                      const Lex_field_type_st &attr,
+                      CHARSET_INFO *cs,
+                      column_definition_type_t type);
   void create_length_to_internal_length_null()
   {
     DBUG_ASSERT(length == 0);

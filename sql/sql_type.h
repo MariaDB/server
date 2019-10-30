@@ -127,6 +127,15 @@ enum partition_value_print_mode_t
 };
 
 
+enum column_definition_type_t
+{
+  COLUMN_DEFINITION_TABLE_FIELD,
+  COLUMN_DEFINITION_ROUTINE_PARAM,
+  COLUMN_DEFINITION_ROUTINE_LOCAL,
+  COLUMN_DEFINITION_FUNCTION_RETURN
+};
+
+
 class Data_type_statistics
 {
 public:
@@ -3620,6 +3629,13 @@ public:
   virtual bool Column_definition_validate_check_constraint(THD *thd,
                                                            Column_definition *c)
                                                            const;
+  // Set attributes in the parser
+  virtual bool Column_definition_set_attributes(THD *thd,
+                                                Column_definition *def,
+                                                const Lex_field_type_st &attr,
+                                                CHARSET_INFO *cs,
+                                                column_definition_type_t type)
+                                                const;
   // Fix attributes after the parser
   virtual bool Column_definition_fix_attributes(Column_definition *c) const= 0;
   /*
@@ -6488,6 +6504,12 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        CHARSET_INFO *cs,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
@@ -6581,6 +6603,12 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
+  bool Column_definition_set_attributes(THD *thd,
+                                        Column_definition *def,
+                                        const Lex_field_type_st &attr,
+                                        CHARSET_INFO *cs,
+                                        column_definition_type_t type)
+                                        const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,

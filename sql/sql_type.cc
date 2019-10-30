@@ -2833,6 +2833,108 @@ bool Type_handler::
 
 
 /*************************************************************************/
+
+bool
+Type_handler::Column_definition_set_attributes(THD *thd,
+                                               Column_definition *def,
+                                               const Lex_field_type_st &attr,
+                                               CHARSET_INFO *cs,
+                                               column_definition_type_t type)
+                                               const
+{
+  def->charset= cs;
+  def->set_length_and_dec(attr);
+  return false;
+}
+
+
+/*
+  In sql_mode=ORACLE, real size of VARCHAR and CHAR with no length
+  in SP parameters is fixed at runtime with the length of real args.
+  Let's translate VARCHAR to VARCHAR(4000) for return value.
+
+  Since Oracle 9, maximum size for VARCHAR in PL/SQL is 32767.
+
+  In MariaDB the limit for VARCHAR is 65535 bytes.
+  We could translate VARCHAR with no length to VARCHAR(65535), but
+  it would mean that for multi-byte character sets we'd have to translate
+  VARCHAR to MEDIUMTEXT, to guarantee 65535 characters.
+
+  Also we could translate VARCHAR to VARCHAR(16383), where 16383 is
+  the maximum possible length in characters in case of mbmaxlen=4
+  (e.g. utf32, utf16, utf8mb4). However, we'll have character sets with
+  mbmaxlen=5 soon (e.g. gb18030).
+*/
+
+bool
+Type_handler_string::Column_definition_set_attributes(
+                                                 THD *thd,
+                                                 Column_definition *def,
+                                                 const Lex_field_type_st &attr,
+                                                 CHARSET_INFO *cs,
+                                                 column_definition_type_t type)
+                                                 const
+{
+  Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
+  if (attr.length())
+    return false;
+  switch (type) {
+  case COLUMN_DEFINITION_ROUTINE_PARAM:
+  case COLUMN_DEFINITION_FUNCTION_RETURN:
+    if (thd->variables.sql_mode & MODE_ORACLE)
+    {
+      // See Type_handler_varchar::Column_definition_set_attributes()
+      def->length= def->decimals= 2000;
+      def->set_handler(&type_handler_varchar);
+      return false;
+    }
+    break;
+  case COLUMN_DEFINITION_ROUTINE_LOCAL:
+  case COLUMN_DEFINITION_TABLE_FIELD:
+    break;
+  }
+  def->length= 1;
+  return false;
+}
+
+
+bool
+Type_handler_varchar::Column_definition_set_attributes(
+                                                 THD *thd,
+                                                 Column_definition *def,
+                                                 const Lex_field_type_st &attr,
+                                                 CHARSET_INFO *cs,
+                                                 column_definition_type_t type)
+                                                 const
+{
+  Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
+  if (attr.length())
+    return false;
+  switch (type) {
+  case COLUMN_DEFINITION_ROUTINE_PARAM:
+  case COLUMN_DEFINITION_FUNCTION_RETURN:
+    if (thd->variables.sql_mode & MODE_ORACLE)
+    {
+      /*
+        Type_handler_varchar::adjust_spparam_type() tests "decimals"
+        to detect if the formal parameter length needs to be adjusted to
+        the actual parameter length. Non-zero decimals means that the length
+        was set implicitly to the default value and needs to be adjusted.
+      */
+      def->length= def->decimals= 4000;
+      return false;
+    }
+    break;
+  case COLUMN_DEFINITION_ROUTINE_LOCAL:
+  case COLUMN_DEFINITION_TABLE_FIELD:
+    break;
+  }
+  thd->parse_error();
+  return true;
+}
+
+
+/*************************************************************************/
 bool Type_handler_null::
        Column_definition_fix_attributes(Column_definition *def) const
 {
