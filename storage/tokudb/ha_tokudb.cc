@@ -1075,7 +1075,8 @@ static inline int tokudb_generate_row(DB* dest_db,
         }
 
         buff = (uchar *)dest_key->data;
-        assert_always(buff != NULL && max_key_len > 0);
+        assert_always(buff != nullptr);
+        assert_always(max_key_len > 0);
     } else {
         assert_unreachable();
     }
