@@ -40,7 +40,6 @@ Created 5/11/1994 Heikki Tuuri
 #include <ctype.h>
 
 #ifndef UNIV_HOTBACKUP
-# include "btr0types.h"
 # include "trx0trx.h"
 # include "ha_prototypes.h"
 # include "mysql_com.h" /* NAME_LEN */

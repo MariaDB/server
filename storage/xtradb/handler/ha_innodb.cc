@@ -2136,12 +2136,13 @@ UNIV_INTERN
 ulong
 thd_flush_log_at_trx_commit(
 /*================================*/
-	void*	thd)
+	THD*	thd)
 {
 	/* THDVAR cannot be used in xtrabackup,
 	plugin variables  for innodb are not loaded,
 	this makes xtrabackup crash when trying to use them. */
-	return (thd || !IS_XTRABACKUP())? THDVAR((THD*)thd, flush_log_at_trx_commit) : FALSE;
+	return (thd || !IS_XTRABACKUP())
+		? THDVAR(thd, flush_log_at_trx_commit) : 0;
 }
 
 /********************************************************************//**
@@ -19003,7 +19004,7 @@ innodb_sched_priority_master_update(
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
 				    "Failed to set the master thread "
-				    "priority to %lu,  "
+				    "priority to %lu, "
 				    "the nice is %lu and the current priority is %lu", priority,
 				    nice, actual_priority);
 		}
@@ -21134,14 +21135,14 @@ static MYSQL_SYSVAR_BOOL(force_primary_key,
   "Do not allow to create table without primary key (off by default)",
   NULL, NULL, FALSE);
 
-const char *corrupt_table_action_names[]=
+static const char *corrupt_table_action_names[]=
 {
   "assert", /* 0 */
   "warn", /* 1 */
   "salvage", /* 2 */
   NullS
 };
-TYPELIB corrupt_table_action_typelib=
+static TYPELIB corrupt_table_action_typelib=
 {
   array_elements(corrupt_table_action_names) - 1, "corrupt_table_action_typelib",
   corrupt_table_action_names, NULL

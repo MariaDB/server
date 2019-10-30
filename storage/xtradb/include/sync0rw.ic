@@ -453,7 +453,8 @@ rw_lock_higher_prio_waiters_exist(
 		return(false);
 	}
 
-	ut_ad(priority_lock && !high_priority);
+	ut_ad(priority_lock);
+	ut_ad(!high_priority);
 
 	prio_rw_lock_t *prio_rw_lock = (prio_rw_lock_t *) lock;
 	return prio_rw_lock->high_priority_wait_ex_waiter > 0

@@ -207,6 +207,7 @@ functions to get some info from THD.
 @param[in]	trx	requested trx
 @param[in]	blocking	blocking info array
 @param[in]	blocking_count	blocking info array size */
+static
 void
 print_lock_wait_timeout(
 	const trx_t &trx,
