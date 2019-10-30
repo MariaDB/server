@@ -237,6 +237,11 @@ static rocksdb::CompactRangeOptions getCompactRangeOptions(
   return compact_range_options;
 }
 
+struct rocksdb_handlerton : public handlerton
+{
+  rocksdb_handlerton();
+};
+
 ///////////////////////////////////////////////////////////
 // Parameters and settings
 ///////////////////////////////////////////////////////////
@@ -247,7 +252,7 @@ static char *rocksdb_update_cf_options = nullptr;
 ///////////////////////////////////////////////////////////
 // Globals
 ///////////////////////////////////////////////////////////
-handlerton *rocksdb_hton;
+static rocksdb_handlerton hton;
 
 rocksdb::TransactionDB *rdb = nullptr;
 rocksdb::HistogramImpl *commit_latency_stats = nullptr;
@@ -3715,7 +3720,7 @@ mysql_mutex_t Rdb_transaction::s_tx_list_mutex;
 
 static Rdb_transaction *get_tx_from_thd(THD *const thd) {
   return reinterpret_cast<Rdb_transaction *>(
-      my_core::thd_get_ha_data(thd, rocksdb_hton));
+      my_core::thd_get_ha_data(thd, &hton));
 }
 
 namespace {
@@ -3775,7 +3780,7 @@ static Rdb_transaction *get_or_create_tx(THD *const thd) {
     }
     tx->set_params(THDVAR(thd, lock_wait_timeout), THDVAR(thd, max_row_locks));
     tx->start_tx();
-    my_core::thd_set_ha_data(thd, rocksdb_hton, tx);
+    my_core::thd_set_ha_data(thd, &hton, tx);
   } else {
     tx->set_params(THDVAR(thd, lock_wait_timeout), THDVAR(thd, max_row_locks));
     if (!tx->is_tx_started()) {
@@ -4784,14 +4789,14 @@ static bool rocksdb_show_status(handlerton *const hton, THD *const thd,
   return res;
 }
 
-static inline void rocksdb_register_tx(handlerton *const hton, THD *const thd,
+static inline void rocksdb_register_tx(THD *const thd,
                                        Rdb_transaction *const tx) {
   DBUG_ASSERT(tx != nullptr);
 
-  trans_register_ha(thd, FALSE, rocksdb_hton);
+  trans_register_ha(thd, FALSE, &hton);
   if (my_core::thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
     tx->start_stmt();
-    trans_register_ha(thd, TRUE, rocksdb_hton);
+    trans_register_ha(thd, TRUE, &hton);
   }
 }
 
@@ -4906,7 +4911,7 @@ static int rocksdb_start_tx_and_assign_read_view(
 
   DBUG_ASSERT(!tx->has_snapshot());
   tx->set_tx_read_only(true);
-  rocksdb_register_tx(hton, thd, tx);
+  rocksdb_register_tx(thd, tx);
   tx->acquire_snapshot(true);
 
 #ifdef MARIADB_NOT_YET
@@ -4974,7 +4979,7 @@ static int rocksdb_start_tx_with_shared_read_view(
 
     DBUG_ASSERT(!tx->has_snapshot());
     tx->set_tx_read_only(true);
-    rocksdb_register_tx(hton, thd, tx);
+    rocksdb_register_tx(thd, tx);
     tx->acquire_snapshot(true);
 
 #ifdef MARIADB_NOT_YET
@@ -5188,12 +5193,52 @@ static rocksdb::Status check_rocksdb_options_compatibility(
 
 bool prevent_myrocks_loading= false;
 
+rocksdb_handlerton::rocksdb_handlerton()
+{
+  create = rocksdb_create_handler;
+  close_connection = rocksdb_close_connection;
+
+  prepare = rocksdb_prepare;
+  prepare_ordered = NULL; // Do not need it
+
+  commit_by_xid = rocksdb_commit_by_xid;
+  rollback_by_xid = rocksdb_rollback_by_xid;
+  recover = rocksdb_recover;
+
+  commit_ordered= rocksdb_commit_ordered;
+  commit = rocksdb_commit;
+
+  commit_checkpoint_request= rocksdb_checkpoint_request;
+
+  rollback = rocksdb_rollback;
+  show_status = rocksdb_show_status;
+#ifdef MARIADB_NOT_YET
+  explicit_snapshot = rocksdb_explicit_snapshot;
+#endif
+  start_consistent_snapshot =
+      rocksdb_start_tx_and_assign_read_view;
+#ifdef MARIADB_NOT_YET
+  start_shared_snapshot = rocksdb_start_tx_with_shared_read_view;
+#endif
+  savepoint_set = rocksdb_savepoint;
+  savepoint_rollback = rocksdb_rollback_to_savepoint;
+  savepoint_rollback_can_release_mdl =
+      rocksdb_rollback_to_savepoint_can_release_mdl;
+#ifdef MARIAROCKS_NOT_YET
+  update_table_stats = rocksdb_update_table_stats;
+#endif // MARIAROCKS_NOT_YET
+
+  flags = HTON_TEMPORARY_NOT_SUPPORTED | HTON_SUPPORTS_EXTENDED_KEYS |
+          HTON_CAN_RECREATE;
+
+  tablefile_extensions= ha_rocksdb_exts;
+}
 
 /*
   Storage Engine initialization function, invoked when plugin is loaded.
 */
 
-static int rocksdb_init_func(void *const p) {
+static int rocksdb_init_func(void*) {
 
   DBUG_ENTER_FUNC();
 
@@ -5231,8 +5276,6 @@ static int rocksdb_init_func(void *const p) {
 
   init_rocksdb_psi_keys();
 
-  rocksdb_hton = (handlerton *)p;
-
   rdb_open_tables.init();
   Ensure_cleanup rdb_open_tables_cleanup([]() { rdb_open_tables.free(); });
 
@@ -5269,50 +5312,6 @@ static int rocksdb_init_func(void *const p) {
                    &rdb_block_cache_resize_mutex, MY_MUTEX_INIT_FAST);
   Rdb_transaction::init_mutex();
 
-  rocksdb_hton->create = rocksdb_create_handler;
-  rocksdb_hton->close_connection = rocksdb_close_connection;
-
-  rocksdb_hton->prepare = rocksdb_prepare;
-  rocksdb_hton->prepare_ordered = NULL; // Do not need it
-
-  rocksdb_hton->commit_by_xid = rocksdb_commit_by_xid;
-  rocksdb_hton->rollback_by_xid = rocksdb_rollback_by_xid;
-  rocksdb_hton->recover = rocksdb_recover;
-
-  rocksdb_hton->commit_ordered= rocksdb_commit_ordered;
-  rocksdb_hton->commit = rocksdb_commit;
-
-  rocksdb_hton->commit_checkpoint_request= rocksdb_checkpoint_request;
-
-  rocksdb_hton->rollback = rocksdb_rollback;
-  rocksdb_hton->show_status = rocksdb_show_status;
-#ifdef MARIADB_NOT_YET  
-  rocksdb_hton->explicit_snapshot = rocksdb_explicit_snapshot;
-#endif  
-  rocksdb_hton->start_consistent_snapshot =
-      rocksdb_start_tx_and_assign_read_view;
-#ifdef MARIADB_NOT_YET  
-  rocksdb_hton->start_shared_snapshot = rocksdb_start_tx_with_shared_read_view;
-#endif  
-  rocksdb_hton->savepoint_set = rocksdb_savepoint;
-  rocksdb_hton->savepoint_rollback = rocksdb_rollback_to_savepoint;
-  rocksdb_hton->savepoint_rollback_can_release_mdl =
-      rocksdb_rollback_to_savepoint_can_release_mdl;
-#ifdef MARIAROCKS_NOT_YET
-  rocksdb_hton->update_table_stats = rocksdb_update_table_stats;
-#endif // MARIAROCKS_NOT_YET
-  
-  /*
-  Not needed in MariaDB:
-  rocksdb_hton->flush_logs = rocksdb_flush_wal;
-  rocksdb_hton->handle_single_table_select = rocksdb_handle_single_table_select;
-
-  */
-
-  rocksdb_hton->flags = HTON_TEMPORARY_NOT_SUPPORTED |
-                        HTON_SUPPORTS_EXTENDED_KEYS | HTON_CAN_RECREATE;
-
-  rocksdb_hton->tablefile_extensions= ha_rocksdb_exts;
   DBUG_ASSERT(!mysqld_embedded);
 
   if (rocksdb_db_options->max_open_files > (long)open_files_limit) {
@@ -11457,7 +11456,7 @@ int ha_rocksdb::external_lock(THD *const thd, int lock_type) {
       }
     }
     tx->m_n_mysql_tables_in_use++;
-    rocksdb_register_tx(rocksdb_hton, thd, tx);
+    rocksdb_register_tx(thd, tx);
     tx->io_perf_start(&m_io_perf);
   }
 
@@ -11484,7 +11483,7 @@ int ha_rocksdb::start_stmt(THD *const thd, thr_lock_type lock_type) {
 
   Rdb_transaction *const tx = get_or_create_tx(thd);
   read_thd_vars(thd);
-  rocksdb_register_tx(ht, thd, tx);
+  rocksdb_register_tx(thd, tx);
   tx->io_perf_start(&m_io_perf);
 
   DBUG_RETURN(HA_EXIT_SUCCESS);
@@ -14594,8 +14593,8 @@ void print_keydup_error(TABLE *table, KEY *key, myf errflag,
 */
 
 
-struct st_mysql_storage_engine rocksdb_storage_engine = {
-    MYSQL_HANDLERTON_INTERFACE_VERSION};
+struct st_mysql_storage_engine rocksdb_storage_engine =
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &myrocks::hton};
 
 maria_declare_plugin(rocksdb_se){
     MYSQL_STORAGE_ENGINE_PLUGIN,       /* Plugin Type */

@@ -295,8 +295,14 @@ static PSI_mutex_info mrn_mutexes[] =
 };
 #endif
 
+struct mrn_handlerton : public handlerton
+{
+  mrn_handlerton();
+};
+
 /* global variables */
-handlerton *mrn_hton_ptr;
+static mrn_handlerton hton;
+handlerton *mrn_hton_ptr= &hton;
 HASH mrn_open_tables;
 mysql_mutex_t mrn_open_tables_mutex;
 HASH mrn_long_term_share;
@@ -706,7 +712,7 @@ static uchar *mrn_allocated_thds_get_key(const uchar *record,
 /* system functions */
 
 static struct st_mysql_storage_engine storage_engine_structure =
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 #if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
 #  define MRN_STATUS_VARIABLE_ENTRY(name, value, type, scope) \
@@ -1779,27 +1785,29 @@ static ha_create_table_option mrn_index_options[] =
 };
 #endif
 
-static int mrn_init(void *p)
+mrn_handlerton::mrn_handlerton()
+{
+  create = mrn_handler_create;
+  flags = HTON_NO_FLAGS;
+#ifndef MRN_SUPPORT_PARTITION
+  flags |= HTON_NO_PARTITION;
+#endif
+  drop_database = mrn_drop_database;
+  close_connection = mrn_close_connection;
+  flush_logs = mrn_flush_logs;
+#ifdef MRN_HAVE_HTON_ALTER_TABLE_FLAGS
+  alter_table_flags = mrn_alter_table_flags;
+#endif
+#ifdef MRN_SUPPORT_CUSTOM_OPTIONS
+  field_options = mrn_field_options;
+  index_options = mrn_index_options;
+#endif
+}
+
+static int mrn_init(void*)
 {
   // init handlerton
   grn_ctx *ctx = NULL;
-  handlerton *hton = static_cast<handlerton *>(p);
-  hton->create = mrn_handler_create;
-  hton->flags = HTON_NO_FLAGS;
-#ifndef MRN_SUPPORT_PARTITION
-  hton->flags |= HTON_NO_PARTITION;
-#endif
-  hton->drop_database = mrn_drop_database;
-  hton->close_connection = mrn_close_connection;
-  hton->flush_logs = mrn_flush_logs;
-#ifdef MRN_HAVE_HTON_ALTER_TABLE_FLAGS
-  hton->alter_table_flags = mrn_alter_table_flags;
-#endif
-#ifdef MRN_SUPPORT_CUSTOM_OPTIONS
-  hton->field_options = mrn_field_options;
-  hton->index_options = mrn_index_options;
-#endif
-  mrn_hton_ptr = hton;
 
 #ifdef _WIN32
   HMODULE current_module = GetModuleHandle(NULL);

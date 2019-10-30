@@ -1656,6 +1656,8 @@ struct handlerton
   /* backup */
   void (*prepare_for_backup)(void);
   void (*end_backup)(void);
+
+  handlerton();
 };
 
 

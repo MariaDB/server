@@ -40,19 +40,11 @@ int heap_panic(handlerton *hton, ha_panic_function flag)
 }
 
 
-int heap_init(void *p)
+int heap_init(void*)
 {
-  handlerton *heap_hton;
-
 #ifdef HAVE_PSI_INTERFACE
   init_heap_psi_keys();
 #endif
-
-  heap_hton= (handlerton *)p;
-  heap_hton->db_type=    DB_TYPE_HEAP;
-  heap_hton->create=     heap_create_handler;
-  heap_hton->panic=      heap_panic;
-  heap_hton->flags=      HTON_CAN_RECREATE;
 
   return 0;
 }
@@ -831,8 +823,21 @@ int ha_heap::find_unique_row(uchar *record, uint unique_idx)
   DBUG_RETURN(1); // not found
 }
 
+struct heap_handlerton : public handlerton
+{
+  heap_handlerton()
+  {
+    db_type= DB_TYPE_HEAP;
+    create= heap_create_handler;
+    panic= heap_panic;
+    flags= HTON_CAN_RECREATE;
+  }
+};
+
+static heap_handlerton hton;
+
 struct st_mysql_storage_engine heap_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 mysql_declare_plugin(heap)
 {

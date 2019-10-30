@@ -31,8 +31,6 @@
 #include "pfs_user.h"
 #include "pfs_account.h"
 
-handlerton *pfs_hton= NULL;
-
 static handler* pfs_create_handler(handlerton *hton,
                                    TABLE_SHARE *table,
                                    MEM_ROOT *mem_root)
@@ -77,36 +75,9 @@ static int pfs_discover_table_existence(handlerton *hton, const char *db,
   return MY_TEST(find_table_share(db, table_name));
 }
 
-static int pfs_init_func(void *p)
+static int pfs_init_func(void*)
 {
   DBUG_ENTER("pfs_init_func");
-
-  pfs_hton= reinterpret_cast<handlerton *> (p);
-
-  pfs_hton->create= pfs_create_handler;
-  pfs_hton->show_status= pfs_show_status;
-  pfs_hton->flags= HTON_ALTER_NOT_SUPPORTED |
-    HTON_TEMPORARY_NOT_SUPPORTED |
-    HTON_NO_PARTITION |
-    HTON_NO_BINLOG_ROW_OPT;
-
-  /*
-    As long as the server implementation keeps using legacy_db_type,
-    as for example in mysql_truncate(),
-    we can not rely on the fact that different mysqld process will assign
-    consistently the same legacy_db_type for a given storage engine name.
-    In particular, using different --loose-skip-xxx options between
-    ./mysqld --bootstrap
-    ./mysqld
-    creates bogus .frm forms when bootstrapping the performance schema,
-    if we rely on ha_initialize_handlerton to assign a really dynamic value.
-    To fix this, a dedicated DB_TYPE is officially assigned to
-    the performance schema. See Bug#43039.
-  */
-  pfs_hton->db_type= DB_TYPE_PERFORMANCE_SCHEMA;
-  pfs_hton->discover_table= pfs_discover_table;
-  pfs_hton->discover_table_existence= pfs_discover_table_existence;
-  pfs_hton->discover_table_names= pfs_discover_table_names;
 
   PFS_engine_table_share::init_all_locks();
 
@@ -116,8 +87,6 @@ static int pfs_init_func(void *p)
 static int pfs_done_func(void *p)
 {
   DBUG_ENTER("pfs_done_func");
-
-  pfs_hton= NULL;
 
   PFS_engine_table_share::delete_all_locks();
 
@@ -177,8 +146,39 @@ static struct st_mysql_show_var pfs_status_vars[]=
   {NullS, NullS, SHOW_LONG}
 };
 
+struct pfs_handlerton : public handlerton
+{
+  pfs_handlerton()
+  {
+    create= pfs_create_handler;
+    show_status= pfs_show_status;
+    flags= HTON_ALTER_NOT_SUPPORTED | HTON_TEMPORARY_NOT_SUPPORTED |
+           HTON_NO_PARTITION | HTON_NO_BINLOG_ROW_OPT;
+
+    /*
+      As long as the server implementation keeps using legacy_db_type,
+      as for example in mysql_truncate(),
+      we can not rely on the fact that different mysqld process will assign
+      consistently the same legacy_db_type for a given storage engine name.
+      In particular, using different --loose-skip-xxx options between
+      ./mysqld --bootstrap
+      ./mysqld
+      creates bogus .frm forms when bootstrapping the performance schema,
+      if we rely on ha_initialize_handlerton to assign a really dynamic value.
+      To fix this, a dedicated DB_TYPE is officially assigned to
+      the performance schema. See Bug#43039.
+    */
+    db_type= DB_TYPE_PERFORMANCE_SCHEMA;
+    discover_table= pfs_discover_table;
+    discover_table_existence= pfs_discover_table_existence;
+    discover_table_names= pfs_discover_table_names;
+  }
+};
+
+static pfs_handlerton hton;
+
 struct st_mysql_storage_engine pfs_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 const char* pfs_engine_name= "PERFORMANCE_SCHEMA";
 

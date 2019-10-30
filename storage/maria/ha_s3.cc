@@ -80,7 +80,8 @@ static char *s3_bucket, *s3_access_key=0, *s3_secret_key=0, *s3_region;
 static char *s3_host_name;
 static char *s3_tmp_access_key=0, *s3_tmp_secret_key=0;
 static my_bool s3_debug= 0;
-handlerton *s3_hton= 0;
+static const char *no_exts[]= { 0 };
+static bool s3_hton;
 
 /* Don't show access or secret keys to users if they exists */
 
@@ -514,7 +515,7 @@ static int s3_hton_panic(handlerton *hton, ha_panic_function flag)
     my_free(s3_access_key);
     my_free(s3_secret_key);
     s3_access_key= s3_secret_key= 0;
-    s3_hton= 0;
+    s3_hton= false;
   }
   return 0;
 }
@@ -677,33 +678,12 @@ err:
 static int ha_s3_init(void *p)
 {
   bool res;
-  static const char *no_exts[]= { 0 };
-
   /* This can happen if Aria fails to start */
   if (!maria_hton)
     return HA_ERR_INITIALIZATION;
 
-  s3_hton= (handlerton *)p;
+  s3_hton= true;
 
-  /* Use Aria engine as a base */
-  memcpy(s3_hton, maria_hton, sizeof(*s3_hton));
-  s3_hton->db_type= DB_TYPE_S3;
-  s3_hton->create= s3_create_handler;
-  s3_hton->panic=  s3_hton_panic;
-  s3_hton->table_options= s3_table_option_list;
-  s3_hton->discover_table= s3_discover_table;
-  s3_hton->discover_table_names= s3_discover_table_names;
-  s3_hton->discover_table_existence= s3_discover_table_existance;
-  s3_hton->notify_tabledef_changed= s3_notify_tabledef_changed;
-  s3_hton->tablefile_extensions= no_exts;
-  s3_hton->commit= 0;
-  s3_hton->rollback= 0;
-  s3_hton->checkpoint_state= 0;
-  s3_hton->flush_logs= 0;
-  s3_hton->show_status= 0;
-  s3_hton->prepare_for_backup= 0;
-  s3_hton->end_backup= 0;
-  s3_hton->flags= 0;
   /* Copy global arguments to s3_access_key and s3_secret_key */
   update_access_key(0,0,0,0);
   update_secret_key(0,0,0,0);
@@ -713,7 +693,7 @@ static int ha_s3_init(void *p)
                             s3_pagecache_division_limit,
                             s3_pagecache_age_threshold, maria_block_size,
                             s3_pagecache_file_hash_size, 0)))
-    s3_hton= 0;
+    s3_hton= false;
   s3_pagecache.big_block_read= s3_block_read;
   s3_pagecache.big_block_free= s3_free;
   s3_init_library();
@@ -754,8 +734,26 @@ static struct st_mysql_sys_var* system_variables[]= {
   NULL
 };
 
+struct s3_handlerton : public handlerton
+{
+  s3_handlerton()
+  {
+    db_type= DB_TYPE_S3;
+    create= s3_create_handler;
+    panic= s3_hton_panic;
+    table_options= s3_table_option_list;
+    discover_table= s3_discover_table;
+    discover_table_names= s3_discover_table_names;
+    discover_table_existence= s3_discover_table_existance;
+    notify_tabledef_changed= s3_notify_tabledef_changed;
+    tablefile_extensions= no_exts;
+  }
+};
+
+static s3_handlerton hton;
+
 struct st_mysql_storage_engine s3_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 maria_declare_plugin(s3)
 {

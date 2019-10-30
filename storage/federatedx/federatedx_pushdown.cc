@@ -74,7 +74,7 @@ create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
 
 ha_federatedx_derived_handler::ha_federatedx_derived_handler(THD *thd,
                                                              TABLE_LIST *dt)
-  : derived_handler(thd, federatedx_hton),
+  : derived_handler(thd, &hton),
     share(NULL), txn(NULL), iop(NULL), stored_result(NULL)
 {
   derived= dt;
@@ -194,7 +194,7 @@ create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
 
 ha_federatedx_select_handler::ha_federatedx_select_handler(THD *thd,
                                                            SELECT_LEX *sel)
-  : select_handler(thd, federatedx_hton),
+  : select_handler(thd, &hton),
     share(NULL), txn(NULL), iop(NULL), stored_result(NULL)
 {
   select= sel;

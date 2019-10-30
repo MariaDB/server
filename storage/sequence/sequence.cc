@@ -30,7 +30,12 @@
 #include <field.h>
 #include <sql_limit.h>
 
-static handlerton *sequence_hton;
+struct sequence_handlerton : public handlerton
+{
+  sequence_handlerton();
+};
+
+static sequence_handlerton hton;
 
 class Sequence_share : public Handler_share {
 public:
@@ -371,7 +376,7 @@ public:
   ha_seq_group_by_handler(THD *thd_arg, List<Item> *fields_arg,
                           TABLE_LIST *table_list_arg,
                           Select_limit_counters *orig_lim)
-    : group_by_handler(thd_arg, sequence_hton),  limit(orig_lim[0]),
+    : group_by_handler(thd_arg, &hton), limit(orig_lim[0]),
       fields(fields_arg), table_list(table_list_arg)
     {
       // Reset limit because we are handling it now
@@ -492,22 +497,18 @@ int ha_seq_group_by_handler::next_row()
   Initialize the interface between the sequence engine and MariaDB
 *****************************************************************************/
 
-static int init(void *p)
+sequence_handlerton::sequence_handlerton()
 {
-  handlerton *hton= (handlerton *)p;
-  sequence_hton= hton;
-  hton->create= create_handler;
-  hton->discover_table= discover_table;
-  hton->discover_table_existence= discover_table_existence;
-  hton->commit= hton->rollback= dummy_commit_rollback;
-  hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=
-    dummy_savepoint;
-  hton->create_group_by= create_group_by_handler;
-  return 0;
+  create= create_handler;
+  discover_table= ::discover_table;
+  discover_table_existence= ::discover_table_existence;
+  commit= rollback= dummy_commit_rollback;
+  savepoint_set= savepoint_rollback= savepoint_release= dummy_savepoint;
+  create_group_by= create_group_by_handler;
 }
 
 static struct st_mysql_storage_engine descriptor =
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 maria_declare_plugin(sequence)
 {
@@ -517,7 +518,7 @@ maria_declare_plugin(sequence)
   "Sergei Golubchik",
   "Generated tables filled with sequential values",
   PLUGIN_LICENSE_GPL,
-  init,
+  NULL,
   NULL,
   0x0100,
   NULL,

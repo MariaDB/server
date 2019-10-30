@@ -72,7 +72,13 @@ const char *zerofill_error_msg=
    corrupted.
 */
 ulonglong maria_recover_options= HA_RECOVER_NONE;
-handlerton *maria_hton;
+
+struct maria_handlerton : public handlerton
+{
+  maria_handlerton();
+};
+static maria_handlerton hton;
+handlerton *maria_hton= &hton;
 
 /* bits in maria_recover_options */
 const char *maria_recover_names[]=
@@ -3603,7 +3609,7 @@ bool ha_maria::is_changed() const
 }
 
 
-static int ha_maria_init(void *p)
+static int ha_maria_init(void*)
 {
   int res;
   const char *log_dir= maria_data_root;
@@ -3612,24 +3618,6 @@ static int ha_maria_init(void *p)
   init_aria_psi_keys();
 #endif
 
-  maria_hton= (handlerton *)p;
-  maria_hton->db_type= DB_TYPE_ARIA;
-  maria_hton->create= maria_create_handler;
-  maria_hton->panic= maria_hton_panic;
-  maria_hton->tablefile_extensions= ha_maria_exts;
-  maria_hton->commit= maria_commit;
-  maria_hton->rollback= maria_rollback;
-  maria_hton->checkpoint_state= maria_checkpoint_state;
-#ifdef MARIA_CANNOT_ROLLBACK
-  maria_hton->commit= 0;
-#endif
-  maria_hton->flush_logs= maria_flush_logs;
-  maria_hton->show_status= maria_show_status;
-  maria_hton->prepare_for_backup= maria_prepare_for_backup;
-  maria_hton->end_backup= maria_end_backup;
-
-  /* TODO: decide if we support Maria being used for log tables */
-  maria_hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
   bzero(maria_log_pagecache, sizeof(*maria_log_pagecache));
   maria_tmpdir= &mysql_tmpdir_list;             /* For REDO */
   res= maria_upgrade() || maria_init() || ma_control_file_open(TRUE, TRUE) ||
@@ -4022,8 +4010,29 @@ int ha_maria::find_unique_row(uchar *record, uint constrain_no)
   return rc;
 }
 
+maria_handlerton::maria_handlerton()
+{
+  db_type= DB_TYPE_ARIA;
+  create= maria_create_handler;
+  panic= maria_hton_panic;
+  tablefile_extensions= ha_maria_exts;
+  commit= maria_commit;
+  rollback= maria_rollback;
+  checkpoint_state= maria_checkpoint_state;
+#ifdef MARIA_CANNOT_ROLLBACK
+  commit= 0;
+#endif
+  flush_logs= maria_flush_logs;
+  show_status= maria_show_status;
+  prepare_for_backup= maria_prepare_for_backup;
+  end_backup= maria_end_backup;
+
+  /* TODO: decide if we support Maria being used for log tables */
+  flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
+}
+
 struct st_mysql_storage_engine maria_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 maria_declare_plugin(aria)
 {

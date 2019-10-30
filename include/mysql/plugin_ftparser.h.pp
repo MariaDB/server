@@ -539,11 +539,12 @@ struct st_mysql_information_schema
 {
   int interface_version;
 };
+struct handlerton;
 struct st_mysql_storage_engine
 {
   int interface_version;
+  struct handlerton *hton;
 };
-struct handlerton;
  struct Mysql_replication {
    int interface_version;
  };

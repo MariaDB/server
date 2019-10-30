@@ -593,12 +593,13 @@ struct st_mysql_information_schema
   st_mysql_plugin.
 */
 
+struct handlerton;
+
 struct st_mysql_storage_engine
 {
   int interface_version;
+  struct handlerton *hton;
 };
-
-struct handlerton;
 
 
 /*

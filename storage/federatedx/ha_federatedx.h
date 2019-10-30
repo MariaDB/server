@@ -262,7 +262,7 @@ public:
 */
 class ha_federatedx: public handler
 {
-  friend int federatedx_db_init(void *p);
+  friend struct federatedx_handlerton;
 
   THR_LOCK_DATA lock;      /* MySQL lock */
   FEDERATEDX_SHARE *share;    /* Shared lock info */

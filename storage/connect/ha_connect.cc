@@ -440,10 +440,7 @@ static MYSQL_THDVAR_ENUM(
   &language_typelib);              // typelib
 #endif   // XMSG || NEWMSG
 
-/***********************************************************************/
-/*  The CONNECT handlerton object.                                     */
-/***********************************************************************/
-handlerton *connect_hton= NULL;
+bool connect_hton;
 
 /***********************************************************************/
 /*  Function to export session variable values to other source files.  */
@@ -723,10 +720,11 @@ static const char *ha_connect_exts[]= {
   @brief
   Plugin initialization
 */
-static int connect_init_func(void *p)
+static int connect_init_func(void*)
 {
   DBUG_ENTER("connect_init_func");
 
+  connect_hton= true;
 // added from Sergei mail  
 #if 0 // (defined(LINUX))
   Dl_info dl_info;
@@ -763,18 +761,6 @@ static int connect_init_func(void *p)
 #endif   // CMGO_SUPPORT
 
   init_connect_psi_keys();
-
-  connect_hton= (handlerton *)p;
-  connect_hton->create= connect_create_handler;
-  connect_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED;
-  connect_hton->table_options= connect_table_option_list;
-  connect_hton->field_options= connect_field_option_list;
-  connect_hton->index_options= connect_index_option_list;
-  connect_hton->tablefile_extensions= ha_connect_exts;
-  connect_hton->discover_table_structure= connect_assisted_discovery;
-
-  if (trace(128))
-    sql_print_information("connect_init: hton=%p", p);
 
   DTVAL::SetTimeShift();      // Initialize time zone shift once for all
   BINCOL::SetEndian();        // Initialize host endian setting
@@ -825,7 +811,7 @@ int connect_done_func(void *)
 	pthread_mutex_destroy(&usrmut);
 	pthread_mutex_destroy(&parmut);
 	pthread_mutex_destroy(&tblmut);
-	connect_hton= NULL;
+	connect_hton= false;
   DBUG_RETURN(error);
 } // end of connect_done_func
 
@@ -7281,9 +7267,27 @@ Item *ha_connect::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
 }
 #endif // 0
 
+/***********************************************************************/
+/*  The CONNECT handlerton object.                                     */
+/***********************************************************************/
+struct connect_handlerton : public handlerton
+{
+  connect_handlerton()
+  {
+    create= connect_create_handler;
+    flags= HTON_TEMPORARY_NOT_SUPPORTED;
+    table_options= connect_table_option_list;
+    field_options= connect_field_option_list;
+    index_options= connect_index_option_list;
+    tablefile_extensions= ha_connect_exts;
+    discover_table_structure= connect_assisted_discovery;
+  }
+};
+
+static connect_handlerton hton;
 
 struct st_mysql_storage_engine connect_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 /***********************************************************************/
 /*  CONNECT global variables definitions.                              */

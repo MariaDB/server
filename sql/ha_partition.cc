@@ -121,20 +121,8 @@ static void init_partition_psi_keys(void)
 }
 #endif /* HAVE_PSI_INTERFACE */
 
-static int partition_initialize(void *p)
+static int partition_initialize(void*)
 {
-  handlerton *partition_hton;
-  partition_hton= (handlerton *)p;
-
-  partition_hton->db_type= DB_TYPE_PARTITION_DB;
-  partition_hton->create= partition_create_handler;
-  partition_hton->partition_flags= partition_flags;
-  partition_hton->alter_table_flags= alter_table_flags;
-  partition_hton->flags= HTON_NOT_USER_SELECTABLE |
-                         HTON_HIDDEN |
-                         HTON_TEMPORARY_NOT_SUPPORTED;
-  partition_hton->tablefile_extensions= ha_partition_ext;
-
 #ifdef HAVE_PSI_INTERFACE
   init_partition_psi_keys();
 #endif
@@ -11717,9 +11705,24 @@ void ha_partition::clear_top_table_fields()
   DBUG_VOID_RETURN;
 }
 
+struct partition_handlerton : public handlerton
+{
+  partition_handlerton()
+  {
+    db_type= DB_TYPE_PARTITION_DB;
+    create= partition_create_handler;
+    partition_flags= ::partition_flags;
+    alter_table_flags= ::alter_table_flags;
+    flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN |
+           HTON_TEMPORARY_NOT_SUPPORTED;
+    tablefile_extensions= ha_partition_ext;
+  }
+};
+
+static partition_handlerton hton;
 
 struct st_mysql_storage_engine partition_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 maria_declare_plugin(partition)
 {

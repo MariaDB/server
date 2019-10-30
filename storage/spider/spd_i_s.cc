@@ -41,7 +41,7 @@ extern longlong   spider_current_alloc_mem[SPIDER_MEM_CALC_LIST_NUM];
 extern ulonglong  spider_alloc_mem_count[SPIDER_MEM_CALC_LIST_NUM];
 extern ulonglong  spider_free_mem_count[SPIDER_MEM_CALC_LIST_NUM];
 
-static struct st_mysql_storage_engine spider_i_s_info =
+static struct st_mysql_information_schema spider_i_s_info =
 { MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION };
 
 namespace Show {

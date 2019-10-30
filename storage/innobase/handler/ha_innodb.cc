@@ -159,7 +159,13 @@ static mysql_mutex_t pending_checkpoint_mutex;
 
 #define EQ_CURRENT_THD(thd) ((thd) == current_thd)
 
-struct handlerton* innodb_hton_ptr;
+struct innodb_handlerton : public handlerton
+{
+  innodb_handlerton();
+};
+
+static innodb_handlerton hton;
+handlerton* innodb_hton_ptr= &hton;
 
 static const long AUTOINC_OLD_STYLE_LOCKING = 0;
 static const long AUTOINC_NEW_STYLE_LOCKING = 1;
@@ -3979,61 +3985,11 @@ static int innodb_init_params()
 }
 
 /** Initialize the InnoDB storage engine plugin.
-@param[in,out]	p	InnoDB handlerton
 @return error code
 @retval 0 on success */
-static int innodb_init(void* p)
+static int innodb_init(void*)
 {
 	DBUG_ENTER("innodb_init");
-	handlerton* innobase_hton= static_cast<handlerton*>(p);
-	innodb_hton_ptr = innobase_hton;
-
-	innobase_hton->db_type = DB_TYPE_INNODB;
-	innobase_hton->savepoint_offset = sizeof(trx_named_savept_t);
-	innobase_hton->close_connection = innobase_close_connection;
-	innobase_hton->kill_query = innobase_kill_query;
-	innobase_hton->savepoint_set = innobase_savepoint;
-	innobase_hton->savepoint_rollback = innobase_rollback_to_savepoint;
-
-	innobase_hton->savepoint_rollback_can_release_mdl =
-				innobase_rollback_to_savepoint_can_release_mdl;
-
-	innobase_hton->savepoint_release = innobase_release_savepoint;
-	innobase_hton->prepare_ordered= NULL;
-	innobase_hton->commit_ordered= innobase_commit_ordered;
-	innobase_hton->commit = innobase_commit;
-	innobase_hton->rollback = innobase_rollback;
-	innobase_hton->prepare = innobase_xa_prepare;
-	innobase_hton->recover = innobase_xa_recover;
-	innobase_hton->commit_by_xid = innobase_commit_by_xid;
-	innobase_hton->rollback_by_xid = innobase_rollback_by_xid;
-	innobase_hton->commit_checkpoint_request=innobase_checkpoint_request;
-	innobase_hton->create = innobase_create_handler;
-
-	innobase_hton->drop_database = innobase_drop_database;
-	innobase_hton->panic = innobase_end;
-
-	innobase_hton->start_consistent_snapshot =
-		innobase_start_trx_and_assign_read_view;
-
-	innobase_hton->flush_logs = innobase_flush_logs;
-	innobase_hton->show_status = innobase_show_status;
-	innobase_hton->flags =
-		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS
-		| HTON_NATIVE_SYS_VERSIONING | HTON_WSREP_REPLICATION;
-
-#ifdef WITH_WSREP
-	innobase_hton->abort_transaction=wsrep_abort_transaction;
-	innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
-	innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
-#endif /* WITH_WSREP */
-
-	innobase_hton->tablefile_extensions = ha_innobase_exts;
-	innobase_hton->table_options = innodb_table_option_list;
-
-	/* System Versioning */
-	innobase_hton->prepare_commit_versioned
-		= innodb_prepare_commit_versioned;
 
 	innodb_remember_check_sysvar_funcs();
 
@@ -4135,12 +4091,6 @@ static int innodb_init(void* p)
 	mysql_mutex_init(pending_checkpoint_mutex_key,
 			 &pending_checkpoint_mutex,
 			 MY_MUTEX_INIT_FAST);
-#ifdef MYSQL_DYNAMIC_PLUGIN
-	if (innobase_hton != p) {
-		innobase_hton = reinterpret_cast<handlerton*>(p);
-		*innobase_hton = *innodb_hton_ptr;
-	}
-#endif /* MYSQL_DYNAMIC_PLUGIN */
 
 	/* Currently, monitor counter information are not persistent. */
 	memset(monitor_set_tbl, 0, sizeof monitor_set_tbl);
@@ -18250,8 +18200,56 @@ static SHOW_VAR innodb_status_variables_export[]= {
 	{NullS, NullS, SHOW_LONG}
 };
 
+innodb_handlerton::innodb_handlerton()
+{
+  db_type= DB_TYPE_INNODB;
+  savepoint_offset= sizeof(trx_named_savept_t);
+  close_connection= innobase_close_connection;
+  kill_query= innobase_kill_query;
+  savepoint_set= innobase_savepoint;
+  savepoint_rollback= innobase_rollback_to_savepoint;
+
+  savepoint_rollback_can_release_mdl=
+        innobase_rollback_to_savepoint_can_release_mdl;
+
+  savepoint_release= innobase_release_savepoint;
+  prepare_ordered= NULL;
+  commit_ordered= innobase_commit_ordered;
+  commit= innobase_commit;
+  rollback= innobase_rollback;
+  prepare= innobase_xa_prepare;
+  recover= innobase_xa_recover;
+  commit_by_xid= innobase_commit_by_xid;
+  rollback_by_xid= innobase_rollback_by_xid;
+  commit_checkpoint_request= innobase_checkpoint_request;
+  create= innobase_create_handler;
+
+  drop_database= innobase_drop_database;
+  panic= innobase_end;
+
+  start_consistent_snapshot= innobase_start_trx_and_assign_read_view;
+
+  flush_logs= innobase_flush_logs;
+  show_status= innobase_show_status;
+  flags=
+    HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS
+    | HTON_NATIVE_SYS_VERSIONING | HTON_WSREP_REPLICATION;
+
+#ifdef WITH_WSREP
+  abort_transaction= wsrep_abort_transaction;
+  set_checkpoint= innobase_wsrep_set_checkpoint;
+  get_checkpoint= innobase_wsrep_get_checkpoint;
+#endif /* WITH_WSREP */
+
+  tablefile_extensions= ha_innobase_exts;
+  table_options= innodb_table_option_list;
+
+  /* System Versioning */
+  prepare_commit_versioned= innodb_prepare_commit_versioned;
+}
+
 static struct st_mysql_storage_engine innobase_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 #ifdef WITH_WSREP
 void

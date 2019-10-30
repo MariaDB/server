@@ -395,38 +395,22 @@ static int sequence_end(handlerton* hton,
   DBUG_RETURN(0);
 }
 
-
-/*
-  Sequence engine init.
-
-  SYNOPSIS
-    sequence_initialize()
-
-    @param p    handlerton.
-
-    retval 0    Success
-    retval !=0  Failure
-*/
-
-static int sequence_initialize(void *p)
+struct hasequence_handlerton : public handlerton
 {
-  handlerton *local_sequence_hton= (handlerton *)p;
-  DBUG_ENTER("sequence_initialize");
+  hasequence_handlerton()
+  {
+    db_type= DB_TYPE_SEQUENCE;
+    create= sequence_create_handler;
+    panic= sequence_end;
+    flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN | HTON_NO_PARTITION |
+           HTON_TEMPORARY_NOT_SUPPORTED | HTON_ALTER_NOT_SUPPORTED;
+  }
+};
 
-  local_sequence_hton->db_type= DB_TYPE_SEQUENCE;
-  local_sequence_hton->create= sequence_create_handler;
-  local_sequence_hton->panic= sequence_end;
-  local_sequence_hton->flags= (HTON_NOT_USER_SELECTABLE |
-                               HTON_HIDDEN |
-                               HTON_TEMPORARY_NOT_SUPPORTED |
-                               HTON_ALTER_NOT_SUPPORTED |
-                               HTON_NO_PARTITION);
-  DBUG_RETURN(0);
-}
-
+static hasequence_handlerton hton;
 
 static struct st_mysql_storage_engine sequence_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 maria_declare_plugin(sql_sequence)
 {
@@ -436,7 +420,7 @@ maria_declare_plugin(sql_sequence)
   "jianwei.zhao @ Aliyun & Monty @ MariaDB corp",
   "Sequence Storage Engine for CREATE SEQUENCE",
   PLUGIN_LICENSE_GPL,
-  sequence_initialize,        /* Plugin Init */
+  NULL,                       /* Plugin Init */
   NULL,                       /* Plugin Deinit */
   0x0100,                     /* 1.0 */
   NULL,                       /* status variables                */

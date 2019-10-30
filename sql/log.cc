@@ -72,7 +72,6 @@
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
-handlerton *binlog_hton;
 LOGGER logger;
 
 const char *log_bin_index= 0;
@@ -92,6 +91,26 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all);
 static int binlog_rollback(handlerton *hton, THD *thd, bool all);
 static int binlog_prepare(handlerton *hton, THD *thd, bool all);
 static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
+
+struct binlog_handlerton : public handlerton
+{
+  binlog_handlerton()
+  {
+    savepoint_offset= sizeof(my_off_t);
+    close_connection= binlog_close_connection;
+    savepoint_set= binlog_savepoint_set;
+    savepoint_rollback= binlog_savepoint_rollback;
+    savepoint_rollback_can_release_mdl=
+      binlog_savepoint_rollback_can_release_mdl;
+    commit= binlog_commit;
+    rollback= binlog_rollback;
+    flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN;
+  }
+};
+
+static binlog_handlerton hton;
+
+handlerton *binlog_hton= &hton;
 
 static const LEX_CSTRING write_error_msg=
     { STRING_WITH_LEN("error writing to the binary log") };
@@ -1677,23 +1696,13 @@ binlog_trans_log_truncate(THD *thd, my_off_t pos)
   should be moved here.
 */
 
-int binlog_init(void *p)
+int binlog_init(void*)
 {
-  binlog_hton= (handlerton *)p;
-  binlog_hton->savepoint_offset= sizeof(my_off_t);
-  binlog_hton->close_connection= binlog_close_connection;
-  binlog_hton->savepoint_set= binlog_savepoint_set;
-  binlog_hton->savepoint_rollback= binlog_savepoint_rollback;
-  binlog_hton->savepoint_rollback_can_release_mdl=
-                                     binlog_savepoint_rollback_can_release_mdl;
-  binlog_hton->commit= binlog_commit;
-  binlog_hton->rollback= binlog_rollback;
   if (WSREP_ON || opt_bin_log)
   {
-    binlog_hton->prepare= binlog_prepare;
-    binlog_hton->start_consistent_snapshot= binlog_start_consistent_snapshot;
+    hton.prepare= binlog_prepare;
+    hton.start_consistent_snapshot= binlog_start_consistent_snapshot;
   }
-  binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN;
   return 0;
 }
 
@@ -10643,9 +10652,8 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
   return errormsg;
 }
 
-
-struct st_mysql_storage_engine binlog_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+static struct st_mysql_storage_engine binlog_storage_engine=
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 maria_declare_plugin(binlog)
 {

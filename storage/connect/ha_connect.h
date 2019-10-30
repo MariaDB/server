@@ -79,8 +79,6 @@ typedef class user_connect *PCONNECT;
 typedef struct ha_field_option_struct FOS, *PFOS;
 typedef struct ha_index_option_struct XOS, *PXOS;
 
-extern handlerton *connect_hton;
-
 /**
   structure for CREATE TABLE options (table options)
 

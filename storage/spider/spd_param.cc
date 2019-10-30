@@ -38,6 +38,7 @@ extern struct st_mysql_plugin spider_i_s_alloc_mem;
 #ifdef MARIADB_BASE_VERSION
 extern struct st_maria_plugin spider_i_s_alloc_mem_maria;
 #endif
+extern handlerton *spider_hton_ptr;
 
 extern volatile ulonglong spider_mon_table_cache_version;
 extern volatile ulonglong spider_mon_table_cache_version_req;
@@ -3426,7 +3427,7 @@ bool spider_param_sync_sql_mode(
 }
 
 static struct st_mysql_storage_engine spider_storage_engine =
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, spider_hton_ptr };
 
 static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(support_xa),

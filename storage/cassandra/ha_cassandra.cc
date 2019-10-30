@@ -34,9 +34,6 @@ static handler *cassandra_create_handler(handlerton *hton,
 
 extern int dynamic_column_error_message(enum_dyncol_func_result rc);
 
-handlerton *cassandra_hton;
-
-
 /*
    Hash used to track the number of open tables; variable for example share
    methods
@@ -232,7 +229,7 @@ static void init_cassandra_psi_keys()
 }
 #endif
 
-static int cassandra_init_func(void *p)
+static int cassandra_init_func(void*)
 {
   DBUG_ENTER("cassandra_init_func");
 
@@ -240,20 +237,9 @@ static int cassandra_init_func(void *p)
   init_cassandra_psi_keys();
 #endif
 
-  cassandra_hton= (handlerton *)p;
   mysql_mutex_init(ex_key_mutex_example, &cassandra_mutex, MY_MUTEX_INIT_FAST);
   (void) my_hash_init(&cassandra_open_tables,system_charset_info,32,0,0,
                       (my_hash_get_key) cassandra_get_key,0,0);
-
-  cassandra_hton->create=  cassandra_create_handler;
-  /*
-    Don't specify HTON_CAN_RECREATE in flags. re-create is used by TRUNCATE
-    TABLE to create an *empty* table from scratch. Cassandra table won't be
-    emptied if re-created.
-  */
-  cassandra_hton->flags=   0;
-  cassandra_hton->table_options= cassandra_table_option_list;
-  cassandra_hton->field_options= cassandra_field_option_list;
 
   mysql_mutex_init(0 /* no instrumentation */,
                    &cassandra_default_host_lock, MY_MUTEX_INIT_FAST);
@@ -2564,9 +2550,26 @@ void Cassandra_se_interface::print_error(const char *format, ...)
   va_end(ap);
 }
 
+struct cassandra_handlerton : public handlerton
+{
+  cassandra_handlerton()
+  {
+    create= cassandra_create_handler;
+    /*
+      Don't specify HTON_CAN_RECREATE in flags. re-create is used by TRUNCATE
+      TABLE to create an *empty* table from scratch. Cassandra table won't be
+      emptied if re-created.
+    */
+    flags= 0;
+    table_options= cassandra_table_option_list;
+    field_options= cassandra_field_option_list;
+  }
+};
+
+static cassandra_handlerton hton;
 
 struct st_mysql_storage_engine cassandra_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 static SHOW_VAR cassandra_status_variables[]= {
   {"row_inserts",

@@ -128,8 +128,6 @@ static const ha_create_table_option oqgraph_table_option_list[]=
   HA_TOPTION_END
 };
 
-static bool oqgraph_init_done= 0;
-
 static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
                                        MEM_ROOT *mem_root)
 {
@@ -173,36 +171,6 @@ int oqgraph_discover_table_structure(handlerton *hton, THD* thd,
 }
 
 int oqgraph_close_connection(handlerton *hton, THD *thd);
-
-static int oqgraph_init(void *p)
-{
-  handlerton *hton= (handlerton *)p;
-  DBUG_PRINT( "oq-debug", ("oqgraph_init"));
-
-  hton->db_type= DB_TYPE_AUTOASSIGN;
-  hton->create= oqgraph_create_handler;
-  hton->flags= HTON_ALTER_NOT_SUPPORTED;
-  // Prevent ALTER, because the core crashes when the user provides a
-  // non-existing backing store field for ORIGID, etc
-  // 'Fixes' bug 1134355
-  // HTON_NO_FLAGS;
-
-  hton->table_options= (ha_create_table_option*)oqgraph_table_option_list;
-
-  hton->discover_table_structure= oqgraph_discover_table_structure;
-
-  hton->close_connection = oqgraph_close_connection;
-
-  oqgraph_init_done= TRUE;
-  return 0;
-}
-
-static int oqgraph_fini(void *)
-{
-  DBUG_PRINT( "oq-debug", ("oqgraph_fini"));
-  oqgraph_init_done= FALSE;
-  return 0;
-}
 
 static int error_code(int res)
 {
@@ -1324,8 +1292,28 @@ static const char oqgraph_description[]=
   "Open Query Graph Computation Engine "
   "(http://openquery.com/graph)";
 
+struct oqgraph_handlerton : public handlerton
+{
+  oqgraph_handlerton()
+  {
+    db_type= DB_TYPE_AUTOASSIGN;
+    create= oqgraph_create_handler;
+    flags= HTON_ALTER_NOT_SUPPORTED;
+    // Prevent ALTER, because the core crashes when the user provides a
+    // non-existing backing store field for ORIGID, etc
+    // 'Fixes' bug 1134355
+    // HTON_NO_FLAGS;
+
+    table_options= (ha_create_table_option*)oqgraph_table_option_list;
+    discover_table_structure= oqgraph_discover_table_structure;
+    close_connection = oqgraph_close_connection;
+  }
+};
+
+static oqgraph_handlerton hton;
+
 struct st_mysql_storage_engine oqgraph_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 extern "C" const char* const oqgraph_boost_version;
 
@@ -1373,8 +1361,8 @@ maria_declare_plugin(oqgraph)
   "Arjen Lentz & Antony T Curtis, Open Query, and Andrew McDonnell",
   oqgraph_description,
   PLUGIN_LICENSE_GPL,
-  oqgraph_init,                  /* Plugin Init                  */
-  oqgraph_fini,                  /* Plugin Deinit                */
+  NULL,                          /* Plugin Init                  */
+  NULL,                          /* Plugin Deinit                */
   0x0300,                        /* Version: 3s.0                */
   oqgraph_status,                /* status variables             */
   oqgraph_sysvars,               /* system variables             */

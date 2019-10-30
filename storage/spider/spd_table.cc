@@ -133,7 +133,6 @@ static int *spd_mysqld_server_started;
 static pthread_mutex_t *spd_LOCK_server_started;
 static pthread_cond_t *spd_COND_server_started;
 extern long spider_conn_mutex_id;
-handlerton *spider_hton_ptr;
 SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern SPIDER_DBTON spider_dbton_mysql;
 extern SPIDER_DBTON spider_dbton_mariadb;
@@ -147,6 +146,35 @@ extern SPIDER_DBTON spider_dbton_oracle;
 SPIDER_THREAD *spider_table_sts_threads;
 SPIDER_THREAD *spider_table_crd_threads;
 #endif
+
+struct spider_handlerton : public handlerton
+{
+  spider_handlerton()
+  {
+    flags = HTON_NO_FLAGS;
+#ifdef HTON_CAN_READ_CONNECT_STRING_IN_PARTITION
+    flags |= HTON_CAN_READ_CONNECT_STRING_IN_PARTITION;
+#endif
+    panic = spider_panic;
+    close_connection = spider_close_connection;
+    start_consistent_snapshot = spider_start_consistent_snapshot;
+    flush_logs = spider_flush_logs;
+    commit = spider_commit;
+    rollback = spider_rollback;
+#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
+    discover_table_structure = spider_discover_table_structure;
+#endif
+    create = spider_create_handler;
+    drop_database = spider_drop_database;
+    show_status = spider_show_status;
+#ifdef SPIDER_HAS_GROUP_BY_HANDLER
+    create_group_by = spider_create_group_by_handler;
+#endif
+  }
+};
+
+static spider_handlerton hton;
+handlerton *spider_hton_ptr= &hton;
 
 #ifdef HAVE_PSI_INTERFACE
 PSI_mutex_key spd_key_mutex_tbl;
@@ -6923,50 +6951,19 @@ int spider_panic(
 }
 
 int spider_db_init(
-  void *p
+  void*
 ) {
   int error_num = HA_ERR_OUT_OF_MEM, roop_count;
   uint dbton_id = 0;
-  handlerton *spider_hton = (handlerton *)p;
   DBUG_ENTER("spider_db_init");
-  spider_hton_ptr = spider_hton;
 
-  spider_hton->flags = HTON_NO_FLAGS;
-#ifdef HTON_CAN_READ_CONNECT_STRING_IN_PARTITION
-  spider_hton->flags |= HTON_CAN_READ_CONNECT_STRING_IN_PARTITION;
-#endif
-  /* spider_hton->db_type = DB_TYPE_SPIDER; */
-  /*
-  spider_hton->savepoint_offset;
-  spider_hton->savepoint_set = spider_savepoint_set;
-  spider_hton->savepoint_rollback = spider_savepoint_rollback;
-  spider_hton->savepoint_release = spider_savepoint_release;
-  spider_hton->create_cursor_read_view = spider_create_cursor_read_view;
-  spider_hton->set_cursor_read_view = spider_set_cursor_read_view;
-  spider_hton->close_cursor_read_view = spider_close_cursor_read_view;
-  */
-  spider_hton->panic = spider_panic;
-  spider_hton->close_connection = spider_close_connection;
-  spider_hton->start_consistent_snapshot = spider_start_consistent_snapshot;
-  spider_hton->flush_logs = spider_flush_logs;
-  spider_hton->commit = spider_commit;
-  spider_hton->rollback = spider_rollback;
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
-  spider_hton->discover_table_structure = spider_discover_table_structure;
-#endif
   if (spider_param_support_xa())
   {
-    spider_hton->prepare = spider_xa_prepare;
-    spider_hton->recover = spider_xa_recover;
-    spider_hton->commit_by_xid = spider_xa_commit_by_xid;
-    spider_hton->rollback_by_xid = spider_xa_rollback_by_xid;
+    hton.prepare = spider_xa_prepare;
+    hton.recover = spider_xa_recover;
+    hton.commit_by_xid = spider_xa_commit_by_xid;
+    hton.rollback_by_xid = spider_xa_rollback_by_xid;
   }
-  spider_hton->create = spider_create_handler;
-  spider_hton->drop_database = spider_drop_database;
-  spider_hton->show_status = spider_show_status;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
-  spider_hton->create_group_by = spider_create_group_by_handler;
-#endif
 
   memset(&spider_alloc_func_name, 0, sizeof(spider_alloc_func_name));
   memset(&spider_alloc_file_name, 0, sizeof(spider_alloc_file_name));

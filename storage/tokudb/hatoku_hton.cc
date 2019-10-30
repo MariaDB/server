@@ -122,7 +122,6 @@ static int tokudb_discover3(
     uchar** frmblob,
     size_t* frmlen);
 #endif  // defined(TOKU_INCLUDE_DISCOVER_FRM) && TOKU_INCLUDE_DISCOVER_FRM
-handlerton* tokudb_hton;
 
 const char* ha_tokudb_ext = ".tokudb";
 DB_ENV* db_env;
@@ -284,8 +283,8 @@ static int tokudb_set_product_name(void) {
     return r;
 }
 
-static int tokudb_init_func(void *p) {
-    TOKUDB_DBUG_ENTER("%p", p);
+static int tokudb_init_func(void*) {
+    TOKUDB_DBUG_ENTER("");
 
     int r = toku_ydb_init();
     assert(r==0);
@@ -307,7 +306,6 @@ static int tokudb_init_func(void *p) {
 #endif /* HAVE_PSI_INTERFACE */
 
     db_env = NULL;
-    tokudb_hton = (handlerton*)p;
 
     if (tokudb::sysvars::check_jemalloc) {
         typedef int (*mallctl_type)(
@@ -347,72 +345,6 @@ static int tokudb_init_func(void *p) {
 
     TOKUDB_SHARE::static_init();
     tokudb::background::initialize();
-
-    // tokudb_hton->flags= HTON_CAN_RECREATE;  // QQQ this came from skeleton
-    tokudb_hton->flags = HTON_CLOSE_CURSORS_AT_COMMIT | HTON_SUPPORTS_EXTENDED_KEYS;
-
-#if defined(TOKU_INCLUDE_EXTENDED_KEYS) && TOKU_INCLUDE_EXTENDED_KEYS
-#if defined(HTON_SUPPORTS_EXTENDED_KEYS)
-    tokudb_hton->flags |= HTON_SUPPORTS_EXTENDED_KEYS;
-#endif
-#if defined(HTON_EXTENDED_KEYS)
-    tokudb_hton->flags |= HTON_EXTENDED_KEYS;
-#endif
-#endif
-#if defined(HTON_SUPPORTS_CLUSTERED_KEYS)
-    tokudb_hton->flags |= HTON_SUPPORTS_CLUSTERED_KEYS;
-#endif
-
-#if defined(TOKU_USE_DB_TYPE_TOKUDB) && TOKU_USE_DB_TYPE_TOKUDB
-    tokudb_hton->db_type = DB_TYPE_TOKUDB;
-#elif defined(TOKU_USE_DB_TYPE_UNKNOWN) && TOKU_USE_DB_TYPE_UNKNOWN
-    tokudb_hton->db_type = DB_TYPE_UNKNOWN;
-#else
-#error
-#endif
-
-    tokudb_hton->create = tokudb_create_handler;
-    tokudb_hton->close_connection = tokudb_close_connection;
-    tokudb_hton->kill_query = tokudb_kill_connection;
-
-    tokudb_hton->savepoint_offset = sizeof(SP_INFO_T);
-    tokudb_hton->savepoint_set = tokudb_savepoint;
-    tokudb_hton->savepoint_rollback = tokudb_rollback_to_savepoint;
-    tokudb_hton->savepoint_release = tokudb_release_savepoint;
-
-#if 100000 <= MYSQL_VERSION_ID
-    tokudb_hton->discover_table = tokudb_discover_table;
-    tokudb_hton->discover_table_existence = tokudb_discover_table_existence;
-#else
-#if defined(TOKU_INCLUDE_DISCOVER_FRM) && TOKU_INCLUDE_DISCOVER_FRM
-    tokudb_hton->discover = tokudb_discover;
-#if defined(MYSQL_HANDLERTON_INCLUDE_DISCOVER2)
-    tokudb_hton->discover2 = tokudb_discover2;
-#endif  // MYSQL_HANDLERTON_INCLUDE_DISCOVER2
-#endif  // defined(TOKU_INCLUDE_DISCOVER_FRM) && TOKU_INCLUDE_DISCOVER_FRM
-#endif  // 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
-    tokudb_hton->commit = tokudb_commit;
-    tokudb_hton->rollback = tokudb_rollback;
-#if defined(TOKU_INCLUDE_XA) && TOKU_INCLUDE_XA
-    tokudb_hton->prepare = tokudb_xa_prepare;
-    tokudb_hton->recover = tokudb_xa_recover;
-    tokudb_hton->commit_by_xid = tokudb_commit_by_xid;
-    tokudb_hton->rollback_by_xid = tokudb_rollback_by_xid;
-#endif  // defined(TOKU_INCLUDE_XA) && TOKU_INCLUDE_XA
-
-    tokudb_hton->panic = tokudb_end;
-    tokudb_hton->flush_logs = tokudb_flush_logs;
-    tokudb_hton->show_status = tokudb_show_status;
-#if defined(TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL) && \
-    TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
-    tokudb_hton->handle_fatal_signal = tokudb_handle_fatal_signal;
-#endif  // defined(TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL) &&
-        // TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
-
-#if defined(TOKU_INCLUDE_OPTION_STRUCTS) && TOKU_INCLUDE_OPTION_STRUCTS
-    tokudb_hton->table_options = tokudb::sysvars::tokudb_table_options;
-    tokudb_hton->index_options = tokudb::sysvars::tokudb_index_options;
-#endif  // defined(TOKU_INCLUDE_OPTION_STRUCTS) && TOKU_INCLUDE_OPTION_STRUCTS
 
     if (!tokudb_home)
         tokudb_home = mysql_real_data_home;
@@ -1630,9 +1562,82 @@ void tokudb_split_dname(
     }
 }
 
-struct st_mysql_storage_engine tokudb_storage_engine = {
-    MYSQL_HANDLERTON_INTERFACE_VERSION
+struct tokudb_handlerton : handlerton
+{
+    tokudb_handlerton()
+    {
+        flags = HTON_CLOSE_CURSORS_AT_COMMIT | HTON_SUPPORTS_EXTENDED_KEYS;
+
+#if defined(TOKU_INCLUDE_EXTENDED_KEYS) && TOKU_INCLUDE_EXTENDED_KEYS
+#if defined(HTON_SUPPORTS_EXTENDED_KEYS)
+        flags |= HTON_SUPPORTS_EXTENDED_KEYS;
+#endif
+#if defined(HTON_EXTENDED_KEYS)
+        flags |= HTON_EXTENDED_KEYS;
+#endif
+#endif
+#if defined(HTON_SUPPORTS_CLUSTERED_KEYS)
+        flags |= HTON_SUPPORTS_CLUSTERED_KEYS;
+#endif
+
+#if defined(TOKU_USE_DB_TYPE_TOKUDB) && TOKU_USE_DB_TYPE_TOKUDB
+        db_type = DB_TYPE_TOKUDB;
+#elif defined(TOKU_USE_DB_TYPE_UNKNOWN) && TOKU_USE_DB_TYPE_UNKNOWN
+        db_type = DB_TYPE_UNKNOWN;
+#else
+#error
+#endif
+
+        create = tokudb_create_handler;
+        close_connection = tokudb_close_connection;
+        kill_query = tokudb_kill_connection;
+
+        savepoint_offset = sizeof(SP_INFO_T);
+        savepoint_set = tokudb_savepoint;
+        savepoint_rollback = tokudb_rollback_to_savepoint;
+        savepoint_release = tokudb_release_savepoint;
+
+#if 100000 <= MYSQL_VERSION_ID
+        discover_table = tokudb_discover_table;
+        discover_table_existence = tokudb_discover_table_existence;
+#else
+#if defined(TOKU_INCLUDE_DISCOVER_FRM) && TOKU_INCLUDE_DISCOVER_FRM
+        discover = tokudb_discover;
+#if defined(MYSQL_HANDLERTON_INCLUDE_DISCOVER2)
+        discover2 = tokudb_discover2;
+#endif  // MYSQL_HANDLERTON_INCLUDE_DISCOVER2
+#endif  // defined(TOKU_INCLUDE_DISCOVER_FRM) && TOKU_INCLUDE_DISCOVER_FRM
+#endif  // 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
+        commit = tokudb_commit;
+        rollback = tokudb_rollback;
+#if defined(TOKU_INCLUDE_XA) && TOKU_INCLUDE_XA
+        prepare = tokudb_xa_prepare;
+        recover = tokudb_xa_recover;
+        commit_by_xid = tokudb_commit_by_xid;
+        rollback_by_xid = tokudb_rollback_by_xid;
+#endif  // defined(TOKU_INCLUDE_XA) && TOKU_INCLUDE_XA
+
+        panic = tokudb_end;
+        flush_logs = tokudb_flush_logs;
+        show_status = tokudb_show_status;
+#if defined(TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL) && \
+    TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
+        handle_fatal_signal = tokudb_handle_fatal_signal;
+#endif  // defined(TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL) &&
+        // TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
+
+#if defined(TOKU_INCLUDE_OPTION_STRUCTS) && TOKU_INCLUDE_OPTION_STRUCTS
+        table_options = tokudb::sysvars::tokudb_table_options;
+        index_options = tokudb::sysvars::tokudb_index_options;
+#endif  // defined(TOKU_INCLUDE_OPTION_STRUCTS) && TOKU_INCLUDE_OPTION_STRUCTS
+    }
 };
+
+static tokudb_handlerton hton;
+handlerton* tokudb_hton = &hton;
+
+struct st_mysql_storage_engine tokudb_storage_engine =
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 #if defined(TOKU_INCLUDE_LOCK_TIMEOUT_QUERY_STRING) && \
     TOKU_INCLUDE_LOCK_TIMEOUT_QUERY_STRING

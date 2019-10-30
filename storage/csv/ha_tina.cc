@@ -156,24 +156,15 @@ static const char *ha_tina_exts[] = {
   NullS
 };
 
-static int tina_init_func(void *p)
+static int tina_init_func(void*)
 {
-  handlerton *tina_hton;
-
 #ifdef HAVE_PSI_INTERFACE
   init_tina_psi_keys();
 #endif
 
-  tina_hton= (handlerton *)p;
   mysql_mutex_init(csv_key_mutex_tina, &tina_mutex, MY_MUTEX_INIT_FAST);
   (void) my_hash_init(&tina_open_tables,system_charset_info,32,0,0,
                       (my_hash_get_key) tina_get_key,0,0);
-  tina_hton->db_type= DB_TYPE_CSV_DB;
-  tina_hton->create= tina_create_handler;
-  tina_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES | 
-                     HTON_NO_PARTITION);
-  tina_hton->tablefile_extensions= ha_tina_exts;
-  tina_hton->table_options= csv_table_option_list;
   return 0;
 }
 
@@ -1794,8 +1785,22 @@ bool ha_tina::check_if_incompatible_data(HA_CREATE_INFO *info_arg,
   return COMPATIBLE_DATA_YES;
 }
 
+struct tina_handlerton : public handlerton
+{
+  tina_handlerton()
+  {
+    db_type= DB_TYPE_CSV_DB;
+    create= tina_create_handler;
+    flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES | HTON_NO_PARTITION;
+    tablefile_extensions= ha_tina_exts;
+    table_options= csv_table_option_list;
+  }
+};
+
+static tina_handlerton hton;
+
 struct st_mysql_storage_engine csv_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 maria_declare_plugin(csv)
 {

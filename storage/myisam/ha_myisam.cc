@@ -2477,10 +2477,8 @@ int myisam_panic(handlerton *hton, ha_panic_function flag)
   return mi_panic(flag);
 }
 
-static int myisam_init(void *p)
+static int myisam_init(void*)
 {
-  handlerton *hton;
-
 #ifdef HAVE_PSI_INTERFACE
   init_myisam_psi_keys();
 #endif
@@ -2493,12 +2491,6 @@ static int myisam_init(void *p)
 
   myisam_block_size=(uint) 1 << my_bit_log2(opt_myisam_block_size);
 
-  hton= (handlerton *)p;
-  hton->db_type= DB_TYPE_MYISAM;
-  hton->create= myisam_create_handler;
-  hton->panic= myisam_panic;
-  hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
-  hton->tablefile_extensions= ha_myisam_exts;
   mi_killed= mi_killed_in_mariadb;
 
   return 0;
@@ -2606,8 +2598,22 @@ bool ha_myisam::rowid_filter_push(Rowid_filter* rowid_filter)
   return false;
 }
 
+struct myisam_handlerton : public handlerton
+{
+  myisam_handlerton()
+  {
+    db_type= DB_TYPE_MYISAM;
+    create= myisam_create_handler;
+    panic= myisam_panic;
+    flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
+    tablefile_extensions= ha_myisam_exts;
+  }
+};
+
+static myisam_handlerton hton;
+
 struct st_mysql_storage_engine myisam_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+{ MYSQL_HANDLERTON_INTERFACE_VERSION, &hton };
 
 mysql_declare_plugin(myisam)
 {

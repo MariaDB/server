@@ -52,10 +52,6 @@
 #include "ha_connect.h"
 #include "mycat.h"
 
-#if !defined(__WIN__)
-extern handlerton *connect_hton;
-#endif   // !__WIN__
-
 /***********************************************************************/
 /*  External function.                                                 */
 /***********************************************************************/

@@ -113,6 +113,8 @@ TYPELIB tx_isolation_typelib= {array_elements(tx_isolation_names)-1,"",
 static TYPELIB known_extensions= {0,"known_exts", NULL, NULL};
 uint known_extensions_id= 0;
 
+static const char *no_exts[]= { 0 };
+
 static int commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans,
                               bool is_real_trans);
 
@@ -518,36 +520,30 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
     hton2plugin[hton->slot]= NULL;
   }
 
-  my_free(hton);
-
  end:
   DBUG_RETURN(0);
 }
 
 
+handlerton::handlerton()
+{
+  tablefile_extensions= no_exts;
+  discover_table_names= hton_ext_based_table_discovery;
+  slot= HA_SLOT_UNDEF;
+}
+
+
 int ha_initialize_handlerton(st_plugin_int *plugin)
 {
-  handlerton *hton;
-  static const char *no_exts[]= { 0 };
   DBUG_ENTER("ha_initialize_handlerton");
   DBUG_PRINT("plugin", ("initialize plugin: '%s'", plugin->name.str));
 
-  hton= (handlerton *)my_malloc(sizeof(handlerton),
-                                MYF(MY_WME | MY_ZEROFILL));
-  if (hton == NULL)
-  {
-    sql_print_error("Unable to allocate memory for plugin '%s' handlerton.",
-                    plugin->name.str);
-    goto err_no_hton_memory;
-  }
+  handlerton *hton=
+    static_cast<st_mysql_storage_engine*>(plugin->plugin->info)->hton;
 
-  hton->tablefile_extensions= no_exts;
-  hton->discover_table_names= hton_ext_based_table_discovery;
-
-  hton->slot= HA_SLOT_UNDEF;
   /* Historical Requirement */
   plugin->data= hton; // shortcut for the future
-  if (plugin->plugin->init && plugin->plugin->init(hton))
+  if (plugin->plugin->init && plugin->plugin->init(0))
   {
     sql_print_error("Plugin '%s' init function returned error.",
                     plugin->name.str);
@@ -681,8 +677,6 @@ err:
   if (hton->prepare)
     failed_ha_2pc++;
 #endif
-  my_free(hton);
-err_no_hton_memory:
   plugin->data= NULL;
   DBUG_RETURN(1);
 }
