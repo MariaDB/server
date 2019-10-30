@@ -6733,7 +6733,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
           }
 
           if (field->vcol_info->is_in_partitioning_expr() ||
-              field->flags & PART_KEY_FLAG)
+              field->flags & PART_KEY_FLAG || field->stored_in_db())
           {
             if (value_changes)
               ha_alter_info->handler_flags|= ALTER_COLUMN_VCOL;
