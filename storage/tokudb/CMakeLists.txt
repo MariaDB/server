@@ -47,6 +47,7 @@ ENDIF()
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-shadow")
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla" DEBUG)
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-cpp" DEBUG)
 
 ############################################
 SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump" PARENT_SCOPE)
