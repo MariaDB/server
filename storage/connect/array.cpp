@@ -1,7 +1,7 @@
 /************* Array C++ Functions Source Code File (.CPP) *************/
 /*  Name: ARRAY.CPP  Version 2.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2019    */
 /*                                                                     */
 /*  This file contains the XOBJECT derived class ARRAY functions.      */
 /*  ARRAY is used for elaborate type of processing, such as sorting    */
@@ -67,7 +67,7 @@ PARRAY MakeValueArray(PGLOBAL g, PPARM pp);  // avoid gcc warning
 /*  MakeValueArray: Makes a value array from a value list.             */
 /***********************************************************************/
 PARRAY MakeValueArray(PGLOBAL g, PPARM pp)
-  {
+{
   int    n, valtyp = 0;
   size_t len = 0;
   PARRAY par;
@@ -82,8 +82,7 @@ PARRAY MakeValueArray(PGLOBAL g, PPARM pp)
   if ((valtyp = pp->Type) != TYPE_STRING)
     len = 1;
 
- 	if (trace(1))
- 		htrc("valtyp=%d len=%d\n", valtyp, len);
+ 	xtrc(1, "valtyp=%d len=%d\n", valtyp, len);
   		
   /*********************************************************************/
   /*  Firstly check the list and count the number of values in it.     */
@@ -127,13 +126,13 @@ PARRAY MakeValueArray(PGLOBAL g, PPARM pp)
         // Integer stored inside pp->Value
         par->AddValue(g, parmp->Intval);
         break;
-      } // endswitch valtyp
+    } // endswitch valtyp
 
   /*********************************************************************/
   /*  Send back resulting array.                                       */
   /*********************************************************************/
   return par;
-  } // end of MakeValueArray
+} // end of MakeValueArray
 
 /* -------------------------- Class ARRAY ---------------------------- */
 
@@ -151,6 +150,9 @@ ARRAY::ARRAY(PGLOBAL g, int type, int size, int length, int prec)
   Type = type;
   Xsize = -1;
   Len = 1;
+	X = 0;
+	Inf = 0;
+	Sup = 0;
 
   switch (type) {
     case TYPE_STRING:
@@ -281,130 +283,109 @@ void ARRAY::Empty(void)
 /*  Add a string element to an array.                                  */
 /***********************************************************************/
 bool ARRAY::AddValue(PGLOBAL g, PSZ strp)
-  {
+{
   if (Type != TYPE_STRING) {
     sprintf(g->Message, MSG(ADD_BAD_TYPE), GetTypeName(Type), "CHAR");
     return true;
-    } // endif Type
+  } // endif Type
 
-  if (trace(1))
-    htrc(" adding string(%d): '%s'\n", Nval, strp);
-
-//Value->SetValue_psz(strp);
-//Vblp->SetValue(valp, Nval++);
+  xtrc(1, " adding string(%d): '%s'\n", Nval, strp);
   Vblp->SetValue(strp, Nval++);
   return false;
-  } // end of AddValue
+} // end of AddValue
 
 /***********************************************************************/
 /*  Add a char pointer element to an array.                            */
 /***********************************************************************/
 bool ARRAY::AddValue(PGLOBAL g, void *p)
-  {
+{
   if (Type != TYPE_PCHAR) {
     sprintf(g->Message, MSG(ADD_BAD_TYPE), GetTypeName(Type), "PCHAR");
     return true;
-    } // endif Type
+  } // endif Type
 
-  if (trace(1))
-    htrc(" adding pointer(%d): %p\n", Nval, p);
-
+  xtrc(1, " adding pointer(%d): %p\n", Nval, p);
   Vblp->SetValue((PSZ)p, Nval++);
   return false;
-  } // end of AddValue
+} // end of AddValue
 
 /***********************************************************************/
 /*  Add a short integer element to an array.                           */
 /***********************************************************************/
 bool ARRAY::AddValue(PGLOBAL g, short n)
-  {
+{
   if (Type != TYPE_SHORT) {
     sprintf(g->Message, MSG(ADD_BAD_TYPE), GetTypeName(Type), "SHORT");
     return true;
-    } // endif Type
+  } // endif Type
 
-  if (trace(1))
-    htrc(" adding SHORT(%d): %hd\n", Nval, n);
-
-//Value->SetValue(n);
-//Vblp->SetValue(valp, Nval++);
+  xtrc(1, " adding SHORT(%d): %hd\n", Nval, n);
   Vblp->SetValue(n, Nval++);
   return false;
-  } // end of AddValue
+} // end of AddValue
 
 /***********************************************************************/
 /*  Add an integer element to an array.                                */
 /***********************************************************************/
 bool ARRAY::AddValue(PGLOBAL g, int n)
-  {
+{
   if (Type != TYPE_INT) {
     sprintf(g->Message, MSG(ADD_BAD_TYPE), GetTypeName(Type), "INTEGER");
     return true;
-    } // endif Type
+  } // endif Type
 
-  if (trace(1))
-    htrc(" adding int(%d): %d\n", Nval, n);
-
-//Value->SetValue(n);
-//Vblp->SetValue(valp, Nval++);
+  xtrc(1, " adding int(%d): %d\n", Nval, n);
   Vblp->SetValue(n, Nval++);
   return false;
-  } // end of AddValue
+} // end of AddValue
 
 /***********************************************************************/
 /*  Add a double float element to an array.                            */
 /***********************************************************************/
 bool ARRAY::AddValue(PGLOBAL g, double d)
-  {
+{
   if (Type != TYPE_DOUBLE) {
     sprintf(g->Message, MSG(ADD_BAD_TYPE), GetTypeName(Type), "DOUBLE");
     return true;
-    } // endif Type
+  } // endif Type
 
-  if (trace(1))
-    htrc(" adding float(%d): %lf\n", Nval, d);
-
+  xtrc(1, " adding float(%d): %lf\n", Nval, d);
   Value->SetValue(d);
   Vblp->SetValue(Value, Nval++);
   return false;
-  } // end of AddValue
+} // end of AddValue
 
 /***********************************************************************/
 /*  Add the value of a XOBJECT block to an array.                      */
 /***********************************************************************/
 bool ARRAY::AddValue(PGLOBAL g, PXOB xp)
-  {
-  if (Type != xp->GetResultType()) {
-    sprintf(g->Message, MSG(ADD_BAD_TYPE),
-            GetTypeName(xp->GetResultType()), GetTypeName(Type));
-    return true;
-    } // endif Type
+{
+	if (Type != xp->GetResultType()) {
+		sprintf(g->Message, MSG(ADD_BAD_TYPE),
+			GetTypeName(xp->GetResultType()), GetTypeName(Type));
+		return true;
+	} // endif Type
 
-  if (trace(1))
-    htrc(" adding (%d) from xp=%p\n", Nval, xp);
-
-//AddValue(xp->GetValue());
-  Vblp->SetValue(xp->GetValue(), Nval++);
-  return false;
-  } // end of AddValue
+	xtrc(1, " adding (%d) from xp=%p\n", Nval, xp);
+	Vblp->SetValue(xp->GetValue(), Nval++);
+	return false;
+} // end of AddValue
 
 /***********************************************************************/
 /*  Add a value to an array.                                           */
 /***********************************************************************/
 bool ARRAY::AddValue(PGLOBAL g, PVAL vp)
-  {
+{
   if (Type != vp->GetType()) {
     sprintf(g->Message, MSG(ADD_BAD_TYPE),
             GetTypeName(vp->GetType()), GetTypeName(Type));
     return true;
-    } // endif Type
+  } // endif Type
 
-  if (trace(1))
-    htrc(" adding (%d) from vp=%p\n", Nval, vp);
-
+  xtrc(1, " adding (%d) from vp=%p\n", Nval, vp);
   Vblp->SetValue(vp, Nval++);
   return false;
-  } // end of AddValue
+} // end of AddValue
 
 /***********************************************************************/
 /*  Retrieve the nth value of the array.                               */
@@ -973,7 +954,7 @@ int ARRAY::BlockTest(PGLOBAL, int opc, int opm,
 /*  MakeArrayList: Makes a value list from an SQL IN array (in work).  */
 /***********************************************************************/
 PSZ ARRAY::MakeArrayList(PGLOBAL g)
-  {
+{
   char   *p, *tp;
   int     i;
   size_t  z, len = 2;
@@ -988,11 +969,9 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
     Value->SetValue_pvblk(Vblp, i);
     Value->Prints(g, tp, z);
     len += strlen(tp);
-    } // enfor i
+  } // enfor i
 
-  if (trace(1))
-    htrc("Arraylist: len=%d\n", len);
-
+  xtrc(1, "Arraylist: len=%d\n", len);
   p = (char *)PlugSubAlloc(g, NULL, len);
   strcpy(p, "(");
 
@@ -1001,19 +980,17 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
     Value->Prints(g, tp, z);
     strcat(p, tp);
     strcat(p, (++i == Nval) ? ")" : ",");
-    } // enfor i
+  } // enfor i
 
-  if (trace(1))
-    htrc("Arraylist: newlen=%d\n", strlen(p));
-
+  xtrc(1, "Arraylist: newlen=%d\n", strlen(p));
   return p;
-  } // end of MakeArrayList
+} // end of MakeArrayList
 
 /***********************************************************************/
 /*  Make file output of ARRAY  contents.                               */
 /***********************************************************************/
 void ARRAY::Printf(PGLOBAL g, FILE *f, uint n)
-  {
+{
   char m[64];
   int  lim = MY_MIN(Nval,10);
 
@@ -1035,19 +1012,19 @@ void ARRAY::Printf(PGLOBAL g, FILE *f, uint n)
   } else
     fprintf(f, "%sVALLST: numval=%d\n", m, Nval);
 
-  } // end of Printf
+} // end of Printf
 
 /***********************************************************************/
 /*  Make string output of ARRAY  contents.                             */
 /***********************************************************************/
 void ARRAY::Prints(PGLOBAL, char *ps, uint z)
-  {
+{
   if (z < 16)
     return;
 
   sprintf(ps, "ARRAY: type=%d\n", Type);
   // More to be implemented later
-  } // end of Prints
+} // end of Prints
 
 /* -------------------------- Class MULAR ---------------------------- */
 

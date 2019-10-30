@@ -813,4 +813,3 @@ PSZ JMgoConn::GetColumnValue(PSZ path)
 
 	return fld;
 } // end of GetColumnValue
-
