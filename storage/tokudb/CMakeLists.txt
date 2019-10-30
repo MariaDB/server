@@ -90,6 +90,7 @@ CONFIGURE_FILE(tokudb.cnf.in tokudb.cnf @ONLY)
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-shadow")
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla" DEBUG)
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-cpp" DEBUG)
 
 ############################################
 MARK_AS_ADVANCED(BUILDNAME)

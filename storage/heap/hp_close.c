@@ -35,12 +35,6 @@ int hp_close(register HP_INFO *info)
 {
   int error=0;
   DBUG_ENTER("hp_close");
-#ifndef DBUG_OFF
-  if (info->s->changed && heap_check_heap(info,0))
-  {
-    error=my_errno=HA_ERR_CRASHED;
-  }
-#endif
   info->s->changed=0;
   if (info->open_list.data)
     heap_open_list=list_delete(heap_open_list,&info->open_list);

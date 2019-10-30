@@ -419,7 +419,7 @@ innobase_get_table_cache_size(void);
 ulong
 thd_flush_log_at_trx_commit(
 /*================================*/
-	void*	thd);
+	THD*	thd);
 
 /**********************************************************************//**
 Get the current setting of the lower_case_table_names global parameter from

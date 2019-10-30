@@ -32,9 +32,13 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 static void test_null() {
     tokudb::buffer b;
-    assert(b.data() == NULL && b.size() == 0 && b.limit() == 0);
+    assert(b.data() == nullptr);
+    assert(b.size() == 0);
+    assert(b.limit() == 0);
     b.append(NULL, 0);
-    assert(b.data() == NULL && b.size() == 0 && b.limit() == 0);
+    assert(b.data() == nullptr);
+    assert(b.size() == 0);
+    assert(b.limit() == 0);
 }
 
 static void append_az(tokudb::buffer &b) {
@@ -132,7 +136,8 @@ static void test_replace_grow() {
     }
     for (size_t i = 0; i < a.size()/2; i++) {
         unsigned char *cp = (unsigned char *) a.data() + 2*i;
-        assert(cp[0] == 'a'+i && cp[1] == 'a'+i);
+        assert(cp[0] == 'a'+i);
+        assert(cp[1] == 'a'+i);
     }
 }
 

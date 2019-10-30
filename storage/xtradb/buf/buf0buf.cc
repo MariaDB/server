@@ -124,7 +124,8 @@ _increment_page_get_statistics(buf_block_t* block, trx_t* trx)
 	byte            block_hash_offset;
 
 	ut_ad(block);
-	ut_ad(trx && trx->take_stats);
+	ut_ad(trx);
+	ut_ad(trx->take_stats);
 
 	if (!trx->distinct_page_access_hash) {
 		trx->distinct_page_access_hash
