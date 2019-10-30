@@ -54,7 +54,7 @@
 #include "sql_audit.h"
 #include "sql_sequence.h"
 #include "tztime.h"
-
+#include <algorithm>
 
 #ifdef __WIN__
 #include <io.h>
@@ -3022,32 +3022,35 @@ CHARSET_INFO* get_sql_field_charset(Column_definition *sql_field,
 
 void promote_first_timestamp_column(List<Create_field> *column_definitions)
 {
-  List_iterator_fast<Create_field> it(*column_definitions);
-  Create_field *column_definition;
-
-  while ((column_definition= it++) != NULL)
+  for (Create_field &column_definition : *column_definitions)
   {
-    if (column_definition->is_timestamp_type() ||    // TIMESTAMP
-        column_definition->unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
+    if (column_definition.is_timestamp_type() ||    // TIMESTAMP
+        column_definition.unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
-      DBUG_PRINT("info", ("field-ptr:%p", column_definition->field));
-      if ((column_definition->flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
-          column_definition->default_value == NULL &&   // no constant default,
-          column_definition->unireg_check == Field::NONE && // no function default
-          column_definition->vcol_info == NULL &&
-          column_definition->period == NULL &&
-          !(column_definition->flags & VERS_SYSTEM_FIELD)) // column isn't generated
+      DBUG_PRINT("info", ("field-ptr:%p", column_definition.field));
+      if ((column_definition.flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
+          column_definition.default_value == NULL &&   // no constant default,
+          column_definition.unireg_check == Field::NONE && // no function default
+          column_definition.vcol_info == NULL &&
+          column_definition.period == NULL &&
+          !(column_definition.flags & VERS_SYSTEM_FIELD)) // column isn't generated
       {
         DBUG_PRINT("info", ("First TIMESTAMP column '%s' was promoted to "
                             "DEFAULT CURRENT_TIMESTAMP ON UPDATE "
                             "CURRENT_TIMESTAMP",
-                            column_definition->field_name.str
+                            column_definition.field_name.str
                             ));
-        column_definition->unireg_check= Field::TIMESTAMP_DNUN_FIELD;
+        column_definition.unireg_check= Field::TIMESTAMP_DNUN_FIELD;
       }
       return;
     }
   }
+}
+
+static bool key_cmp(const Key_part_spec &a, const Key_part_spec &b)
+{
+  return a.length == b.length &&
+         !lex_string_cmp(system_charset_info, &a.field_name, &b.field_name);
 }
 
 /**
@@ -3058,8 +3061,8 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
   @param key_info         Key meta-data info.
   @param key_list         List of existing keys.
 */
-static void check_duplicate_key(THD *thd, Key *key, KEY *key_info,
-                                List<Key> *key_list)
+static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
+                                const List<Key> *key_list)
 {
   /*
     We only check for duplicate indexes if it is requested and the
@@ -3071,56 +3074,28 @@ static void check_duplicate_key(THD *thd, Key *key, KEY *key_info,
   if (!key->key_create_info.check_for_duplicate_indexes || key->generated)
     return;
 
-  List_iterator_fast<Key> key_list_iterator(*key_list);
-  List_iterator_fast<Key_part_spec> key_column_iterator(key->columns);
-  Key *k;
-
-  while ((k= key_list_iterator++))
+  for (const Key &k : *key_list)
   {
     // Looking for a similar key...
 
-    if (k == key)
+    if (&k == key)
       break;
 
-    if (k->generated ||
-        (key->type != k->type) ||
-        (key->key_create_info.algorithm != k->key_create_info.algorithm) ||
-        (key->columns.elements != k->columns.elements))
+    if (k.generated ||
+        (key->type != k.type) ||
+        (key->key_create_info.algorithm != k.key_create_info.algorithm) ||
+        (key->columns.elements != k.columns.elements))
     {
       // Keys are different.
       continue;
     }
 
-    /*
-      Keys 'key' and 'k' might be identical.
-      Check that the keys have identical columns in the same order.
-    */
-
-    List_iterator_fast<Key_part_spec> k_column_iterator(k->columns);
-    uint i;
-    key_column_iterator.rewind();
-
-    for (i= 0; i < key->columns.elements; ++i)
+    if (std::equal(key->columns.begin(), key->columns.end(), k.columns.begin(),
+                   key_cmp))
     {
-      Key_part_spec *c1= key_column_iterator++;
-      Key_part_spec *c2= k_column_iterator++;
-
-      DBUG_ASSERT(c1 && c2);
-
-      if (lex_string_cmp(system_charset_info,
-                         &c1->field_name, &c2->field_name) ||
-          (c1->length != c2->length))
-        break;
-    }
-
-    // Report a warning if we have two identical keys.
-
-    if (i == key->columns.elements)
-    {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_DUP_INDEX, ER_THD(thd, ER_DUP_INDEX),
-                          key_info->name.str);
-      break;
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_DUP_INDEX,
+                          ER_THD(thd, ER_DUP_INDEX), key_info->name.str);
+      return;
     }
   }
 }
