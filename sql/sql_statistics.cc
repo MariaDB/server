@@ -257,10 +257,8 @@ index_stat_def= {INDEX_STAT_N_FIELDS, index_stat_fields, 4, index_stat_pk_col};
   Open all statistical tables and lock them
 */
 
-static
-inline int open_stat_tables(THD *thd, TABLE_LIST *tables,
-                            Open_tables_backup *backup,
-                            bool for_write)
+static int open_stat_tables(THD *thd, TABLE_LIST *tables,
+                            Open_tables_backup *backup, bool for_write)
 {
   int rc;
 
@@ -275,7 +273,7 @@ inline int open_stat_tables(THD *thd, TABLE_LIST *tables,
 
 
   /* If the number of tables changes, we should revise the check below. */
-  DBUG_ASSERT(STATISTICS_TABLES == 3);
+  compile_time_assert(STATISTICS_TABLES == 3);
 
   if (!rc &&
       (stat_table_intact.check(tables[TABLE_STAT].table, &table_stat_def) ||
@@ -3258,10 +3256,7 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
     DBUG_RETURN(0);
 
   if (open_stat_tables(thd, stat_tables, &open_tables_backup, FALSE))
-  {
-    thd->clear_error();
     DBUG_RETURN(1);
-  }
 
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
