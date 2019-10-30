@@ -45,21 +45,27 @@ insert into t3 values (1,1),(3,3);
 
 set SQL_MODE=ORACLE;
 
-#(select a,b from t1) union all (select c,d from t2) intersect (select e,f from t3) union all (select 4,4);
---error ER_PARSE_ERROR
-(select a,b from t1) union all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4);
---error ER_PARSE_ERROR
-explain extended (select a,b from t1) union all (select c,d from t2) intersect all (select e,f from t3) union all (select 4,4);
+select a,b from t1 union all select c,d from t2 intersect select e,f from t3 union all select 4,'4' from dual;
+explain extended
+select a,b from t1 union all select c,d from t2 intersect select e,f from t3 union all select 4,'4' from dual;
 
---error ER_PARSE_ERROR
-(select e,f from t3) intersect all (select c,d from t2) union all (select a,b from t1) union all (select 4,4);
---error ER_PARSE_ERROR
-explain extended (select e,f from t3) intersect all (select c,d from t2) union all (select a,b from t1) union all (select 4,4);
+select a,b from t1 union all select c,d from t2 intersect all select e,f from t3 union all select 4,'4' from dual;
+explain extended
+select a,b from t1 union all select c,d from t2 intersect all select e,f from t3 union all select 4,'4' from dual;
+
+select e,f from t3 intersect select c,d from t2 union all select a,b from t1 union all select 4,'4' from dual;
+explain extended
+select e,f from t3 intersect select c,d from t2 union all select a,b from t1 union all select 4,'4' from dual;
+
+select e,f from t3 intersect all select c,d from t2 union all select a,b from t1 union all select 4,'4' from dual;
+explain extended
+select e,f from t3 intersect all select c,d from t2 union all select a,b from t1 union all select 4,'4' from dual;
+
 set SQL_MODE=default;
 
 drop table t1,t2,t3;
 
 set SQL_MODE=oracle;
---error ER_PARSE_ERROR
+--error ER_NO_SUCH_TABLE
 select * from t13 union select * from t234 intersect all select * from t12;
 set SQL_MODE=default;
