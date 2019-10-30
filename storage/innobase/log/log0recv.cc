@@ -2879,8 +2879,8 @@ bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn)
 	ut_ad(start_offset <= end_offset);
 
 	if (start_offset < end_offset) {
-		ut_memcpy(recv_sys.buf + recv_sys.len,
-			  log_block + start_offset, end_offset - start_offset);
+		memcpy(recv_sys.buf + recv_sys.len,
+		       log_block + start_offset, end_offset - start_offset);
 
 		recv_sys.len += end_offset - start_offset;
 
@@ -2893,8 +2893,8 @@ bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn)
 /** Moves the parsing buffer data left to the buffer start. */
 void recv_sys_justify_left_parsing_buf()
 {
-	ut_memmove(recv_sys.buf, recv_sys.buf + recv_sys.recovered_offset,
-		   recv_sys.len - recv_sys.recovered_offset);
+	memmove(recv_sys.buf, recv_sys.buf + recv_sys.recovered_offset,
+		recv_sys.len - recv_sys.recovered_offset);
 
 	recv_sys.len -= recv_sys.recovered_offset;
 

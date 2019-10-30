@@ -1160,8 +1160,8 @@ page_cur_parse_insert_rec(
 			<< " parsed len " << (ptr - ptr2);
 	}
 
-	ut_memcpy(buf, rec_get_start(cursor_rec, offsets), mismatch_index);
-	ut_memcpy(buf + mismatch_index, ptr, end_seg_len);
+	memcpy(buf, rec_get_start(cursor_rec, offsets), mismatch_index);
+	memcpy(buf + mismatch_index, ptr, end_seg_len);
 
 	if (page_is_comp(page)) {
 		rec_set_heap_no_new(buf + origin_offset,

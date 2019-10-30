@@ -14661,7 +14661,7 @@ get_foreign_key_info(
 	/* Referenced (parent) database name */
 	len = dict_get_db_name_len(foreign->referenced_table_name);
 	ut_a(len < sizeof(tmp_buff));
-	ut_memcpy(tmp_buff, foreign->referenced_table_name, len);
+	memcpy(tmp_buff, foreign->referenced_table_name, len);
 	tmp_buff[len] = 0;
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
@@ -14677,7 +14677,7 @@ get_foreign_key_info(
 	/* Dependent (child) database name */
 	len = dict_get_db_name_len(foreign->foreign_table_name);
 	ut_a(len < sizeof(tmp_buff));
-	ut_memcpy(tmp_buff, foreign->foreign_table_name, len);
+	memcpy(tmp_buff, foreign->foreign_table_name, len);
 	tmp_buff[len] = 0;
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));

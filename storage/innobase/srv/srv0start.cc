@@ -2598,7 +2598,7 @@ srv_get_meta_data_filename(
 	}
 
 	ut_a(path);
-	len = ut_strlen(path);
+	len = strlen(path);
 	ut_a(max_len >= len);
 
 	strcpy(filename, path);

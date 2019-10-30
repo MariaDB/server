@@ -228,7 +228,7 @@ dict_create_sys_columns_tuple(
 		col_name = dict_table_get_col_name(table, i);
 	}
 
-	dfield_set_data(dfield, col_name, ut_strlen(col_name));
+	dfield_set_data(dfield, col_name, strlen(col_name));
 
 	/* 5: MTYPE --------------------------*/
 	dfield = dtuple_get_nth_field(entry, DICT_COL__SYS_COLUMNS__MTYPE);
@@ -651,8 +651,7 @@ dict_create_sys_fields_tuple(
 	/* 4: COL_NAME -------------------------*/
 	dfield = dtuple_get_nth_field(entry, DICT_COL__SYS_FIELDS__COL_NAME);
 
-	dfield_set_data(dfield, field->name,
-			ut_strlen(field->name));
+	dfield_set_data(dfield, field->name, strlen(field->name));
 	/*---------------------------------*/
 
 	return(entry);

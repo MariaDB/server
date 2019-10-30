@@ -859,7 +859,7 @@ buf_frame_copy(
 {
 	ut_ad(buf && frame);
 
-	ut_memcpy(buf, frame, srv_page_size);
+	memcpy(buf, frame, srv_page_size);
 
 	return(buf);
 }

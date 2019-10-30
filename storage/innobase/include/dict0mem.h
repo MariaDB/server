@@ -1331,7 +1331,7 @@ struct dict_foreign_compare {
 		const dict_foreign_t*	lhs,
 		const dict_foreign_t*	rhs) const
 	{
-		return(ut_strcmp(lhs->id, rhs->id) < 0);
+		return strcmp(lhs->id, rhs->id) < 0;
 	}
 };
 

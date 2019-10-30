@@ -435,7 +435,7 @@ trx_undo_report_insert_virtual(
 				}
 				*ptr += mach_write_compressed(*ptr, flen);
 
-				ut_memcpy(*ptr, vfield->data, flen);
+				memcpy(*ptr, vfield->data, flen);
 				*ptr += flen;
 			} else {
 				if (trx_undo_left(undo_block, *ptr) < 5) {
@@ -527,7 +527,7 @@ trx_undo_page_report_insert(
 				return(0);
 			}
 
-			ut_memcpy(ptr, dfield_get_data(field), flen);
+			memcpy(ptr, dfield_get_data(field), flen);
 			ptr += flen;
 		}
 	}
@@ -991,7 +991,7 @@ trx_undo_page_report_modify(
 				return(0);
 			}
 
-			ut_memcpy(ptr, field, flen);
+			memcpy(ptr, field, flen);
 			ptr += flen;
 		}
 	}
@@ -1188,7 +1188,7 @@ store_len:
 					return(0);
 				}
 
-				ut_memcpy(ptr, field, flen);
+				memcpy(ptr, field, flen);
 				ptr += flen;
 			}
 
@@ -1213,7 +1213,7 @@ store_len:
 						return(0);
 					}
 
-					ut_memcpy(ptr, field, flen);
+					memcpy(ptr, field, flen);
 					ptr += flen;
 				}
 			}
@@ -1362,7 +1362,7 @@ store_len:
 						return(0);
 					}
 
-					ut_memcpy(ptr, field, flen);
+					memcpy(ptr, field, flen);
 					ptr += flen;
 				}
 
@@ -1453,7 +1453,7 @@ already_logged:
 						return(0);
 					}
 
-					ut_memcpy(ptr, field, flen);
+					memcpy(ptr, field, flen);
 					ptr += flen;
 				}
 			}

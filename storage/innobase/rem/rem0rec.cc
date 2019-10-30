@@ -1939,7 +1939,7 @@ rec_copy_prefix_to_buf_old(
 		*buf = static_cast<byte*>(ut_malloc_nokey(prefix_len));
 	}
 
-	ut_memcpy(*buf, rec - area_start, prefix_len);
+	memcpy(*buf, rec - area_start, prefix_len);
 
 	copy_rec = *buf + area_start;
 
@@ -2745,7 +2745,7 @@ wsrep_rec_get_foreign_key(
 					}
 					data++;
 				}
-		
+
 				if (!(col_f->prtype & DATA_UNSIGNED)) {
 					buf[len-1] = (byte) (buf[len-1] ^ 128);
 				}
@@ -2757,7 +2757,7 @@ wsrep_rec_get_foreign_key(
 			case DATA_CHAR:
 			case DATA_MYSQL:
 				/* Copy the actual data */
-				ut_memcpy(buf, data, len);
+				memcpy(buf, data, len);
 				len = wsrep_innobase_mysql_sort(
 					(int)
 					(col_f->prtype & DATA_MYSQL_TYPE_MASK),
@@ -2769,7 +2769,7 @@ wsrep_rec_get_foreign_key(
 			case DATA_BINARY:
 				memcpy(buf, data, len);
 				break;
-			default: 
+			default:
 				break;
 			}
 

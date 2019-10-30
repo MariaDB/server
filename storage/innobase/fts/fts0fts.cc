@@ -371,7 +371,7 @@ fts_load_default_stopword(
 		new_word.nodes = ib_vector_create(
 			allocator, sizeof(fts_node_t), 4);
 
-		str.f_len = ut_strlen(word);
+		str.f_len = strlen(word);
 		str.f_str = reinterpret_cast<byte*>(word);
 
 		fts_string_dup(&new_word.text, &str, heap);
@@ -5717,7 +5717,7 @@ fts_is_aux_table_name(
 	char		my_name[MAX_FULL_NAME_LEN + 1];
 
 	ut_ad(len <= MAX_FULL_NAME_LEN);
-	ut_memcpy(my_name, name, len);
+	memcpy(my_name, name, len);
 	my_name[len] = 0;
 	end = my_name + len;
 
@@ -7036,11 +7036,7 @@ fts_valid_stopword_table(
 
 		return(NULL);
 	} else {
-		const char*     col_name;
-
-		col_name = dict_table_get_col_name(table, 0);
-
-		if (ut_strcmp(col_name, "value")) {
+		if (strcmp(dict_table_get_col_name(table, 0), "value")) {
 			ib::error() << "Invalid column name for stopword"
 				" table " << stopword_table_name << ". Its"
 				" first column must be named as 'value'.";
@@ -7167,7 +7163,7 @@ fts_load_stopword(
 		if (!reload) {
 			str.f_n_char = 0;
 			str.f_str = (byte*) stopword_to_use;
-			str.f_len = ut_strlen(stopword_to_use);
+			str.f_len = strlen(stopword_to_use);
 
 			error = fts_config_set_value(
 				trx, &fts_table, FTS_STOPWORD_TABLE_NAME, &str);

@@ -366,8 +366,7 @@ trx_savepoint_find(
 	for (savep = UT_LIST_GET_FIRST(trx->trx_savepoints);
 	     savep != NULL;
 	     savep = UT_LIST_GET_NEXT(trx_savepoints, savep)) {
-
-		if (0 == ut_strcmp(savep->name, name)) {
+		if (!strcmp(savep->name, name)) {
 			return(savep);
 		}
 	}

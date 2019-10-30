@@ -1188,7 +1188,7 @@ rec_set_nth_field(
 		ut_ad(len2 == len);
 	}
 
-	ut_memcpy(data2, data, len);
+	memcpy(data2, data, len);
 }
 
 /**********************************************************//**
@@ -1331,7 +1331,7 @@ rec_copy(
 	extra_len = rec_offs_extra_size(offsets);
 	data_len = rec_offs_data_size(offsets);
 
-	ut_memcpy(buf, rec - extra_len, extra_len + data_len);
+	memcpy(buf, rec - extra_len, extra_len + data_len);
 
 	return((byte*) buf + extra_len);
 }

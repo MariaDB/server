@@ -640,9 +640,8 @@ pars_resolve_exp_variables_and_types(
 			|| (node->token_type == SYM_CURSOR)
 			|| (node->token_type == SYM_FUNCTION))
 		    && node->name
-		    && (sym_node->name_len == node->name_len)
-		    && (ut_memcmp(sym_node->name, node->name,
-				  node->name_len) == 0)) {
+		    && sym_node->name_len == node->name_len
+		    && !memcmp(sym_node->name, node->name, node->name_len)) {
 
 			/* Found a variable or a cursor declared with
 			the same name */
@@ -750,9 +749,9 @@ pars_resolve_exp_columns(
 			const char*		col_name
 				= dict_table_get_col_name(table, i);
 
-			if ((sym_node->name_len == ut_strlen(col_name))
-			    && (0 == ut_memcmp(sym_node->name, col_name,
-					       sym_node->name_len))) {
+			if (sym_node->name_len == strlen(col_name)
+			    && !memcmp(sym_node->name, col_name,
+				       sym_node->name_len)) {
 				/* Found */
 				sym_node->resolved = TRUE;
 				sym_node->token_type = SYM_COLUMN;
@@ -871,7 +870,7 @@ pars_select_all_columns(
 
 			col_node = sym_tab_add_id(pars_sym_tab_global,
 						  (byte*) col_name,
-						  ut_strlen(col_name));
+						  strlen(col_name));
 
 			select_node->select_list = que_node_list_add_last(
 				select_node->select_list, col_node);

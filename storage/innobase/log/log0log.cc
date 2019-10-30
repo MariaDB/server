@@ -832,9 +832,8 @@ log_buffer_switch()
 	}
 
 	/* Copy the last block to new buf */
-	ut_memcpy(log_sys.buf,
-		  old_buf + area_end - OS_FILE_LOG_BLOCK_SIZE,
-		  OS_FILE_LOG_BLOCK_SIZE);
+	memcpy(log_sys.buf, old_buf + area_end - OS_FILE_LOG_BLOCK_SIZE,
+	       OS_FILE_LOG_BLOCK_SIZE);
 
 	log_sys.buf_free %= OS_FILE_LOG_BLOCK_SIZE;
 	log_sys.buf_next_to_write = log_sys.buf_free;

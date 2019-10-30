@@ -1264,7 +1264,7 @@ dict_table_rename_in_cache(
 	dict_table_t*	table2;
 	HASH_SEARCH(name_hash, dict_sys.table_hash, fold,
 			dict_table_t*, table2, ut_ad(table2->cached),
-			(ut_strcmp(table2->name.m_name, new_name) == 0));
+			(strcmp(table2->name.m_name, new_name) == 0));
 	DBUG_EXECUTE_IF("dict_table_rename_in_cache_failure",
 		if (table2 == NULL) {
 			table2 = (dict_table_t*) -1;
@@ -1428,8 +1428,8 @@ dict_table_rename_in_cache(
 			foreign->referenced_table->referenced_set.erase(foreign);
 		}
 
-		if (ut_strlen(foreign->foreign_table_name)
-		    < ut_strlen(table->name.m_name)) {
+		if (strlen(foreign->foreign_table_name)
+		    < strlen(table->name.m_name)) {
 			/* Allocate a longer name buffer;
 			TODO: store buf len to save memory */
 
@@ -1505,11 +1505,11 @@ dict_table_rename_in_cache(
 
 			old_id = mem_strdup(foreign->id);
 
-			if (ut_strlen(fkid) > ut_strlen(old_name_cs_filename)
+			if (strlen(fkid) > strlen(old_name_cs_filename)
 			    + ((sizeof dict_ibfk) - 1)
 			    && !memcmp(fkid, old_name_cs_filename,
-				       ut_strlen(old_name_cs_filename))
-			    && !memcmp(fkid + ut_strlen(old_name_cs_filename),
+				       strlen(old_name_cs_filename))
+			    && !memcmp(fkid + strlen(old_name_cs_filename),
 				       dict_ibfk, (sizeof dict_ibfk) - 1)) {
 
 				/* This is a generated >= 4.0.18 format id */
@@ -1550,7 +1550,7 @@ dict_table_rename_in_cache(
 				strcpy(foreign->id, table_name);
 				if (on_tmp) {
 					strcat(foreign->id,
-					       old_id + ut_strlen(old_name));
+					       old_id + strlen(old_name));
 				} else {
 					sprintf(strchr(foreign->id, '/') + 1,
 						"%s%s",
@@ -1576,8 +1576,8 @@ dict_table_rename_in_cache(
 				/* Replace the database prefix in id with the
 				one from table->name */
 
-				ut_memcpy(foreign->id,
-					  table->name.m_name, db_len);
+				memcpy(foreign->id,
+				       table->name.m_name, db_len);
 
 				strcpy(foreign->id + db_len,
 				       dict_remove_db_name(old_id));
@@ -1603,8 +1603,8 @@ dict_table_rename_in_cache(
 
 		foreign = *it;
 
-		if (ut_strlen(foreign->referenced_table_name)
-		    < ut_strlen(table->name.m_name)) {
+		if (strlen(foreign->referenced_table_name)
+		    < strlen(table->name.m_name)) {
 			/* Allocate a longer name buffer;
 			TODO: store buf len to save memory */
 
@@ -3159,7 +3159,7 @@ dict_accept(
 
 	*success = TRUE;
 
-	return(ptr + ut_strlen(string));
+	return ptr + strlen(string);
 }
 
 /*********************************************************************//**
@@ -3644,7 +3644,7 @@ dict_table_get_highest_foreign_id(
 
 	ut_a(table);
 
-	len = ut_strlen(table->name.m_name);
+	len = strlen(table->name.m_name);
 
 	for (dict_foreign_set::iterator it = table->foreign_set.begin();
 	     it != table->foreign_set.end();
@@ -3660,10 +3660,10 @@ dict_table_get_highest_foreign_id(
 				strchr(foreign->id, '/') + 1,
 				MAX_TABLE_NAME_LEN);
 
-		if (ut_strlen(fkid) > ((sizeof dict_ibfk) - 1) + len
-		    && 0 == ut_memcmp(fkid, table->name.m_name, len)
-		    && 0 == ut_memcmp(fkid + len,
-				      dict_ibfk, (sizeof dict_ibfk) - 1)
+		if (strlen(fkid) > ((sizeof dict_ibfk) - 1) + len
+		    && 0 == memcmp(fkid, table->name.m_name, len)
+		    && 0 == memcmp(fkid + len,
+				   dict_ibfk, (sizeof dict_ibfk) - 1)
 		    && fkid[len + ((sizeof dict_ibfk) - 1)] != '0') {
 			/* It is of the >= 4.0.18 format */
 
@@ -4275,7 +4275,7 @@ col_loop1:
 		foreign->id = static_cast<char*>(mem_heap_alloc(
 			foreign->heap, db_len + strlen(constraint_name) + 2));
 
-		ut_memcpy(foreign->id, table->name.m_name, db_len);
+		memcpy(foreign->id, table->name.m_name, db_len);
 		foreign->id[db_len] = '/';
 		strcpy(foreign->id + db_len + 1, constraint_name);
 	}
@@ -6489,8 +6489,7 @@ dict_space_get_id(
 		ut_ad(len > 0);
 		ut_ad(len < OS_FILE_MAX_PATH);
 
-		if (len == name_len && ut_memcmp(name, field, len) == 0) {
-
+		if (len == name_len && !memcmp(name, field, len)) {
 			field = rec_get_nth_field_old(
 				rec, DICT_FLD__SYS_TABLESPACES__SPACE, &len);
 			ut_ad(len == 4);

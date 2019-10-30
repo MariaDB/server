@@ -2733,7 +2733,7 @@ row_sel_field_store_in_mysql_format_func(
 		}
 
 		/* Copy the actual data */
-		ut_memcpy(dest, data, len);
+		memcpy(dest, data, len);
 
 		/* Pad with trailing spaces. */
 
@@ -3618,7 +3618,7 @@ row_sel_copy_cached_field_for_mysql(
 		len = templ->mysql_col_len;
 	}
 
-	ut_memcpy(buf, cache, len);
+	memcpy(buf, cache, len);
 }
 
 /** Copy used fields from cached row.
@@ -3685,7 +3685,7 @@ row_sel_dequeue_cached_row_for_mysql(
 		UNIV_MEM_INVALID(buf, prebuilt->mysql_prefix_len);
 
 		/* First copy the NULL bits. */
-		ut_memcpy(buf, cached_rec, prebuilt->null_bitmap_len);
+		memcpy(buf, cached_rec, prebuilt->null_bitmap_len);
 		/* Then copy the requested fields. */
 
 		for (i = 0; i < prebuilt->n_template; i++) {
@@ -3702,7 +3702,7 @@ row_sel_dequeue_cached_row_for_mysql(
 				buf, cached_rec, templ);
 		}
 	} else {
-		ut_memcpy(buf, cached_rec, prebuilt->mysql_prefix_len);
+		memcpy(buf, cached_rec, prebuilt->mysql_prefix_len);
 	}
 
 	prebuilt->n_fetch_cached--;
@@ -3785,9 +3785,8 @@ row_sel_enqueue_cache_row_for_mysql(
 	next fetch cache slot. */
 
 	if (prebuilt->pk_filter || prebuilt->idx_cond) {
-		byte*	dest = row_sel_fetch_last_buf(prebuilt);
-
-		ut_memcpy(dest, mysql_rec, prebuilt->mysql_row_len);
+		memcpy(row_sel_fetch_last_buf(prebuilt), mysql_rec,
+		       prebuilt->mysql_row_len);
 	}
 
 	++prebuilt->n_fetch_cached;

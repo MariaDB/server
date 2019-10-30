@@ -1259,9 +1259,9 @@ os_file_make_data_dir_path(
 		return;
 	}
 
-	ulint	tablename_len = ut_strlen(tablename);
+	ulint	tablename_len = strlen(tablename);
 
-	ut_memmove(++ptr, tablename, tablename_len);
+	memmove(++ptr, tablename, tablename_len);
 
 	ptr[tablename_len] = '\0';
 }
@@ -2715,6 +2715,9 @@ next_file:
 
 	full_path = static_cast<char*>(
 		ut_malloc_nokey(strlen(dirname) + strlen(ent->d_name) + 10));
+	if (!full_path) {
+		return -1;
+	}
 
 	sprintf(full_path, "%s/%s", dirname, ent->d_name);
 

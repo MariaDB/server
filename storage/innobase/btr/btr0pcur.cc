@@ -216,15 +216,15 @@ btr_pcur_copy_stored_position(
 					copied */
 {
 	ut_free(pcur_receive->old_rec_buf);
-	ut_memcpy(pcur_receive, pcur_donate, sizeof(btr_pcur_t));
+	memcpy(pcur_receive, pcur_donate, sizeof(btr_pcur_t));
 
 	if (pcur_donate->old_rec_buf) {
 
 		pcur_receive->old_rec_buf = (byte*)
 			ut_malloc_nokey(pcur_donate->buf_size);
 
-		ut_memcpy(pcur_receive->old_rec_buf, pcur_donate->old_rec_buf,
-			  pcur_donate->buf_size);
+		memcpy(pcur_receive->old_rec_buf, pcur_donate->old_rec_buf,
+		       pcur_donate->buf_size);
 		pcur_receive->old_rec = pcur_receive->old_rec_buf
 			+ (pcur_donate->old_rec - pcur_donate->old_rec_buf);
 	}

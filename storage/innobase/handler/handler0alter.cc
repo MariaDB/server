@@ -555,8 +555,9 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 		DBUG_ASSERT(c.is_added());
 		if (c.def_val.len <= sizeof field_ref_zero
-		    && !memcmp(c.def_val.data, field_ref_zero,
-			       c.def_val.len)) {
+		    && (!c.def_val.len
+			|| !memcmp(c.def_val.data, field_ref_zero,
+				   c.def_val.len))) {
 			c.def_val.data = field_ref_zero;
 		} else if (const void*& d = c.def_val.data) {
 			d = mem_heap_dup(heap, d, c.def_val.len);
@@ -2553,7 +2554,7 @@ innobase_init_foreign(
                 foreign->id = static_cast<char*>(mem_heap_alloc(
                         foreign->heap, db_len + strlen(constraint_name) + 2));
 
-                ut_memcpy(foreign->id, table->name.m_name, db_len);
+                memcpy(foreign->id, table->name.m_name, db_len);
                 foreign->id[db_len] = '/';
                 strcpy(foreign->id + db_len + 1, constraint_name);
 
@@ -3600,8 +3601,8 @@ innobase_create_index_def(
 
 		if (key->flags & HA_USES_PARSER) {
 			for (ulint j = 0; j < altered_table->s->keys; j++) {
-				if (ut_strcmp(altered_table->key_info[j].name.str,
-					      key->name.str) == 0) {
+				if (!strcmp(altered_table->key_info[j].name.str,
+					    key->name.str)) {
 					ut_ad(altered_table->key_info[j].flags
 					      & HA_USES_PARSER);
 
@@ -11206,7 +11207,7 @@ foreign_fail:
 #endif /* BTR_CUR_HASH_ADAPT */
 
 		char	tb_name[FN_REFLEN];
-		ut_strcpy(tb_name, m_prebuilt->table->name.m_name);
+		strcpy(tb_name, m_prebuilt->table->name.m_name);
 
 		tb_name[strlen(m_prebuilt->table->name.m_name)] = 0;
 
