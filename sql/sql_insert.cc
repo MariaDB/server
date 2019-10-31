@@ -4473,7 +4473,6 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
       if (thd->is_current_stmt_binlog_format_row()  &&
           !table->s->tmp_table)
       {
-        int error;
         if (unlikely((error= ptr->binlog_show_create_table(tables, count))))
           return error;
       }
