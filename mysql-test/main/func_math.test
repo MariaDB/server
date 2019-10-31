@@ -628,6 +628,31 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # Bug #29723340: MYSQL SERVER CRASH AFTER SQL QUERY WITH DATA ?AST
+--echo #
+
+create table t1(a int);
+insert ignore t1 values("1e-214748364");
+insert ignore t1 values("1e-2147483648");
+insert ignore t1 values("1e-21474836480");
+insert ignore t1 values("1e+214748364");
+insert ignore t1 values("1e+2147483647");
+insert ignore t1 values("1e+21474836470");
+
+# if max max_allowed_packet will ever be increased beyond 2GB, this could
+# break again:
+set global max_allowed_packet= cast(2*1024*1024*1024+1024 as unsigned);
+connect foo,localhost,root;
+set @a=2147483647;
+insert ignore t1 values (concat('1', repeat('0', @a+18), 'e-', @a-1, '0'));
+disconnect foo;
+connection default;
+set global max_allowed_packet=default;
+
+select * from t1;
+drop table t1;
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 

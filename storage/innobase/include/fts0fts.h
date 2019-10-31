@@ -320,9 +320,6 @@ public:
 	/** Mutex protecting bg_threads* and fts_add_wq. */
 	ib_mutex_t	bg_threads_mutex;
 
-	/** Whether the table was added to fts_optimize_wq();
-	protected by bg_threads_mutex */
-	unsigned	in_queue:1;
 	/** Whether the ADDED table record sync-ed after
 	crash recovery; protected by bg_threads_mutex */
 	unsigned	added_synced:1;
@@ -347,6 +344,10 @@ public:
 
 	/** Vector of FTS indexes, this is mainly for caching purposes. */
 	ib_vector_t*	indexes;
+
+	/** Whether the table exists in fts_optimize_wq;
+	protected by fts_optimize_wq mutex */
+	bool		in_queue;
 
 	/** Heap for fts_t allocation. */
 	mem_heap_t*	fts_heap;

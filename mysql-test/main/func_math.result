@@ -875,6 +875,49 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
+# Bug #29723340: MYSQL SERVER CRASH AFTER SQL QUERY WITH DATA ?AST
+#
+create table t1(a int);
+insert ignore t1 values("1e-214748364");
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+insert ignore t1 values("1e-2147483648");
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+insert ignore t1 values("1e-21474836480");
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+insert ignore t1 values("1e+214748364");
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+insert ignore t1 values("1e+2147483647");
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+insert ignore t1 values("1e+21474836470");
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+set global max_allowed_packet= cast(2*1024*1024*1024+1024 as unsigned);
+Warnings:
+Warning	1292	Truncated incorrect max_allowed_packet value: '2147484672'
+connect foo,localhost,root;
+set @a=2147483647;
+insert ignore t1 values (concat('1', repeat('0', @a+18), 'e-', @a-1, '0'));
+Warnings:
+Warning	1301	Result of repeat() was larger than max_allowed_packet (1073741824) - truncated
+disconnect foo;
+connection default;
+set global max_allowed_packet=default;
+select * from t1;
+a
+0
+0
+0
+2147483647
+2147483647
+2147483647
+NULL
+drop table t1;
+#
 # End of 5.5 tests
 #
 #

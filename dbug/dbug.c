@@ -225,11 +225,8 @@ typedef struct _db_code_state_ {
   const char *file;             /* Name of current user file                */
   struct _db_stack_frame_ *framep; /* Pointer to current frame              */
   struct settings *stack;       /* debugging settings                       */
-  const char *jmpfunc;          /* Remember current function for setjmp     */
-  const char *jmpfile;          /* Remember current file for setjmp         */
   int lineno;                   /* Current debugger output line number      */
   uint level;                   /* Current function nesting level           */
-  int jmplevel;                 /* Remember nesting level at setjmp()       */
 
 /*
  *      The following variables are used to hold the state information

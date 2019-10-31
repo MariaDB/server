@@ -101,7 +101,7 @@ extern struct wsrep_service_st {
   enum wsrep_conflict_state   (*wsrep_thd_get_conflict_state_func)(MYSQL_THD);
   my_bool                     (*wsrep_thd_is_BF_func)(MYSQL_THD , my_bool);
   my_bool                     (*wsrep_thd_is_wsrep_func)(MYSQL_THD thd);
-  char *                      (*wsrep_thd_query_func)(THD *thd);
+  const char *                (*wsrep_thd_query_func)(THD *thd);
   enum wsrep_query_state      (*wsrep_thd_query_state_func)(THD *thd);
   const char *                (*wsrep_thd_query_state_str_func)(THD *thd);
   int                         (*wsrep_thd_retry_counter_func)(THD *thd);
@@ -186,7 +186,7 @@ extern long wsrep_protocol_version;
 
 bool wsrep_consistency_check(THD *thd);
 bool wsrep_prepare_key(const unsigned char* cache_key, size_t cache_key_len, const unsigned char* row_id, size_t row_id_len, struct wsrep_buf* key, size_t* key_len);
-char *wsrep_thd_query(THD *thd);
+const char *wsrep_thd_query(THD *thd);
 const char *wsrep_thd_conflict_state_str(THD *thd);
 const char *wsrep_thd_exec_mode_str(THD *thd);
 const char *wsrep_thd_query_state_str(THD *thd);

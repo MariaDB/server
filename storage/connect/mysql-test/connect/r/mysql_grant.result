@@ -11,7 +11,7 @@ SELECT user();
 user()
 user@localhost
 CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=MySQL OPTION_LIST='host=localhost,user=root1,port=PORT';
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 connection default;
 SELECT user();
 user()
@@ -29,19 +29,19 @@ SELECT user();
 user()
 user@localhost
 SELECT * FROM t1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 INSERT INTO t1 VALUES ('xxx');
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 DELETE FROM t1 WHERE a='xxx';
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 UPDATE t1 SET a='yyy' WHERE a='xxx';
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 TRUNCATE TABLE t1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 ALTER TABLE t1 READONLY=1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 CREATE VIEW v1 AS SELECT * FROM t1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 # Testing a VIEW created with FILE privileges but accessed with no FILE
 connection default;
 SELECT user();
@@ -53,13 +53,13 @@ SELECT user();
 user()
 user@localhost
 SELECT * FROM v1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 INSERT INTO v1 VALUES (2);
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 UPDATE v1 SET a=123;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 DELETE FROM v1;
-ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
 disconnect user;
 connection default;
 SELECT user();

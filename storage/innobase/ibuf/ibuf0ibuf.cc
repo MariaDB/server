@@ -185,6 +185,8 @@ access order rules. */
 ulong	innodb_change_buffering;
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+/** Dump the change buffer at startup */
+my_bool	ibuf_dump;
 /** Flag to control insert buffer debugging. */
 uint	ibuf_debug;
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
@@ -506,6 +508,25 @@ ibuf_init_at_db_start(void)
 #endif /* BTR_CUR_ADAPT */
 	ibuf->index->page = FSP_IBUF_TREE_ROOT_PAGE_NO;
 	ut_d(ibuf->index->cached = TRUE);
+
+#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+	if (!ibuf_dump) {
+		return error;
+	}
+	ib::info() << "Dumping the change buffer";
+	ibuf_mtr_start(&mtr);
+	btr_pcur_t pcur;
+	if (DB_SUCCESS == btr_pcur_open_at_index_side(
+		    true, ibuf->index, BTR_SEARCH_LEAF, &pcur,
+		    true, 0, &mtr)) {
+		while (btr_pcur_move_to_next_user_rec(&pcur, &mtr)) {
+			rec_print_old(stderr, btr_pcur_get_rec(&pcur));
+		}
+	}
+	ibuf_mtr_commit(&mtr);
+	ib::info() << "Dumped the change buffer";
+#endif
+
 	return (error);
 }
 

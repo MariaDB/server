@@ -430,6 +430,10 @@ int ha_heap::reset_auto_increment(ulonglong value)
 
 int ha_heap::external_lock(THD *thd, int lock_type)
 {
+#ifndef DBUG_OFF
+  if (lock_type == F_UNLCK && file->s->changed && heap_check_heap(file, 0))
+    return HA_ERR_CRASHED;
+#endif
   return 0;					// No external locking
 }
 

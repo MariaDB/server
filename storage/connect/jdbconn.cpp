@@ -1196,9 +1196,14 @@ int JDBConn::GetResultSize(PCSZ sql, PCOL colp)
 	if ((rc = ExecuteQuery(sql)) != RC_OK)
 		return -1;
 
-	if ((rc = Fetch()) > 0)
-		SetColumnValue(1, NULL, colp->GetValue());
-	else
+	if ((rc = Fetch()) > 0) {
+		try {
+			SetColumnValue(1, NULL, colp->GetValue());
+		}	catch (...) {
+			return -4;
+		} // end catch
+
+	} else
 		return -2;
 
 	if ((rc = Fetch()) != 0)

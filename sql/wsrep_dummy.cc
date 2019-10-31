@@ -110,8 +110,8 @@ enum wsrep_conflict_state wsrep_thd_get_conflict_state(THD *)
 my_bool wsrep_thd_is_wsrep(THD *)
 { return 0; }
 
-char *wsrep_thd_query(THD *)
-{ return 0; }
+const char *wsrep_thd_query(THD *)
+{ return "NULL"; }
 
 enum wsrep_query_state wsrep_thd_query_state(THD *)
 { return QUERY_IDLE; }
