@@ -1092,21 +1092,27 @@ class Rdb_tbl_def {
   Rdb_tbl_def &operator=(const Rdb_tbl_def &) = delete;
 
   explicit Rdb_tbl_def(const std::string &name)
-      : m_key_descr_arr(nullptr), m_hidden_pk_val(0), m_auto_incr_val(0) {
+      : m_key_descr_arr(nullptr), m_hidden_pk_val(0), m_auto_incr_val(0),
+        m_create_time(CREATE_TIME_UNKNOWN) {
     set_name(name);
   }
 
   Rdb_tbl_def(const char *const name, const size_t len)
-      : m_key_descr_arr(nullptr), m_hidden_pk_val(0), m_auto_incr_val(0) {
+      : m_key_descr_arr(nullptr), m_hidden_pk_val(0), m_auto_incr_val(0),
+        m_create_time(CREATE_TIME_UNKNOWN) {
     set_name(std::string(name, len));
   }
 
   explicit Rdb_tbl_def(const rocksdb::Slice &slice, const size_t pos = 0)
-      : m_key_descr_arr(nullptr), m_hidden_pk_val(0), m_auto_incr_val(0) {
+      : m_key_descr_arr(nullptr), m_hidden_pk_val(0), m_auto_incr_val(0),
+        m_create_time(CREATE_TIME_UNKNOWN) {
     set_name(std::string(slice.data() + pos, slice.size() - pos));
   }
 
   ~Rdb_tbl_def();
+
+  time_t get_creation_time();
+  time_t update_time = 0; // in-memory only value, maintained right here
 
   void check_and_set_read_free_rpl_table();
 
@@ -1133,6 +1139,11 @@ class Rdb_tbl_def {
   const std::string &base_tablename() const { return m_tablename; }
   const std::string &base_partition() const { return m_partition; }
   GL_INDEX_ID get_autoincr_gl_index_id();
+ private:
+  const time_t CREATE_TIME_UNKNOWN= 1;
+  // CREATE_TIME_UNKNOWN means "didn't try to read, yet"
+  // 0 means "no data available"
+  std::atomic<time_t> m_create_time;
 };
 
 /*

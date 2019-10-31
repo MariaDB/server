@@ -3592,6 +3592,26 @@ bool Rdb_tbl_def::put_dict(Rdb_dict_manager *const dict,
   return false;
 }
 
+time_t Rdb_tbl_def::get_creation_time() {
+  time_t create_time = m_create_time;
+
+  if (create_time == CREATE_TIME_UNKNOWN) {
+    // Read it from the .frm file. It's not a problem if several threads do this
+    // concurrently
+    char path[FN_REFLEN];
+    snprintf(path, sizeof(path), "%s/%s/%s%s", mysql_data_home,
+             m_dbname.c_str(), m_tablename.c_str(), reg_ext);
+    unpack_filename(path,path);
+    MY_STAT f_stat;
+    if (my_stat(path, &f_stat, MYF(0)))
+      create_time = f_stat.st_ctime;
+    else
+      create_time = 0; // will be shown as SQL NULL
+    m_create_time = create_time;
+  }
+  return create_time;
+}
+
 // Length that each index flag takes inside the record.
 // Each index in the array maps to the enum INDEX_FLAG
 static const std::array<uint, 1> index_flag_lengths = {
