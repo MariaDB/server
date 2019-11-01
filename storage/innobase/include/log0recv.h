@@ -133,32 +133,18 @@ extern void (*log_file_op)(ulint space_id, const byte* flags,
 			   const byte* name, ulint len,
 			   const byte* new_name, ulint new_len);
 
-/** Block of log record data */
-struct recv_data_t{
-	recv_data_t*	next;	/*!< pointer to the next block or NULL */
-				/*!< the log record data is stored physically
-				immediately after this struct, max amount
-				RECV_DATA_BLOCK_SIZE bytes of it */
-};
+/** Stored redo log record */
+struct log_rec_t
+{
+  log_rec_t(lsn_t lsn) : next(NULL), lsn(lsn) {}
+  log_rec_t()= delete;
+  log_rec_t(const log_rec_t&)= delete;
+  log_rec_t &operator=(const log_rec_t&)= delete;
 
-/** Stored log record struct */
-struct recv_t{
-	/** next record */
-	recv_t*		next;
-	/** log record body length in bytes */
-	uint32_t	len;
-	/** log record type */
-	mlog_id_t	type;
-	recv_data_t*	data;	/*!< chain of blocks containing the log record
-				body */
-	lsn_t		start_lsn;/*!< start lsn of the log segment written by
-				the mtr which generated this log record: NOTE
-				that this is not necessarily the start lsn of
-				this log record */
-	lsn_t		end_lsn;/*!< end lsn of the log segment written by
-				the mtr which generated this log record: NOTE
-				that this is not necessarily the end lsn of
-				this log record */
+  /** next record */
+  log_rec_t *next;
+  /** mtr_t::commit_lsn() of the mini-transaction */
+  const lsn_t lsn;
 };
 
 struct recv_dblwr_t {
@@ -178,6 +164,68 @@ struct recv_dblwr_t {
 
 	/** Recovered doublewrite buffer page frames */
 	list	pages;
+};
+
+/** the recovery state and buffered records for a page */
+struct page_recv_t
+{
+  /** Recovery state */
+  enum
+  {
+    /** not yet processed */
+    RECV_NOT_PROCESSED,
+    /** not processed; the page will be reinitialized */
+    RECV_WILL_NOT_READ,
+    /** page is being read */
+    RECV_BEING_READ,
+    /** log records are being applied on the page */
+    RECV_BEING_PROCESSED
+  } state= RECV_NOT_PROCESSED;
+  /** log records for a page */
+  class recs_t
+  {
+    /** The first log record */
+    log_rec_t *head= NULL;
+    /** The last log record */
+    log_rec_t *tail= NULL;
+  public:
+    /** Append a redo log snippet for the page
+    @param recs log snippet */
+    void append(log_rec_t* recs)
+    {
+      if (tail)
+        tail->next= recs;
+      else
+        head= recs;
+      tail= recs;
+    }
+
+    /** Trim old log records for a page
+    @param start_lsn oldest log sequence number to preserve
+    @return whether the entire log was trimmed */
+    inline bool trim(lsn_t start_lsn);
+    /** @return the last log snippet */
+    const log_rec_t* last() const { return tail; }
+
+    class iterator
+    {
+      log_rec_t *cur;
+    public:
+      iterator(log_rec_t* rec) : cur(rec) {}
+      log_rec_t* operator*() const { return cur; }
+      iterator &operator++() { cur= cur->next; return *this; }
+      bool operator!=(const iterator& i) const { return cur != i.cur; }
+    };
+    iterator begin() { return head; }
+    iterator end() { return NULL; }
+    bool empty() const { ut_ad(!head == !tail); return !head; }
+    inline void clear();
+  } log;
+
+  /** Ignore any earlier redo log records for this page. */
+  inline void will_not_read();
+  /** @return whether the log records for the page are being processed */
+  bool is_being_processed() const { return state == RECV_BEING_PROCESSED; }
 };
 
 /** Recovery system data structure */
@@ -236,29 +284,10 @@ struct recv_sys_t{
 	mem_heap_t*	heap;	/*!< memory heap of log records and file
 				addresses*/
 
-	/** buffered records waiting to be applied to a page */
-	struct recs_t
-	{
-		/** Recovery state */
-		enum {
-			/** not yet processed */
-			RECV_NOT_PROCESSED,
-			/** not processed; the page will be reinitialized */
-			RECV_WILL_NOT_READ,
-			/** page is being read */
-			RECV_BEING_READ,
-			/** log records are being applied on the page */
-			RECV_BEING_PROCESSED
-		} state;
-		/** First log record */
-		recv_t* log;
-		/** Last log record */
-		recv_t* last;
-	};
-
-	using map = std::map<const page_id_t, recs_t,
+	using map = std::map<const page_id_t, page_recv_t,
 			     std::less<const page_id_t>,
-			     ut_allocator<std::pair<const page_id_t,recs_t>>>;
+			     ut_allocator
+			     <std::pair<const page_id_t, page_recv_t>>>;
 	/** buffered records waiting to be applied to pages */
 	map pages;
 
