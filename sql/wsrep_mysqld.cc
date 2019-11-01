@@ -627,6 +627,7 @@ static wsrep::gtid wsrep_server_initial_position()
  */
 static void wsrep_init_provider_status_variables()
 {
+  wsrep_inited= 1;
   const wsrep::provider& provider=
     Wsrep_server_state::instance().provider();
   strncpy(provider_name,
@@ -711,9 +712,7 @@ int wsrep_init()
       WSREP_ERROR("wsrep::init() failed: %d, must shutdown", err);
     }
     else
-    {
       wsrep_init_provider_status_variables();
-    }
     return err;
   }
 
@@ -749,7 +748,6 @@ int wsrep_init()
     Wsrep_server_state::instance().unload_provider();
     return 1;
   }
-  wsrep_inited= 1;
 
   wsrep_init_provider_status_variables();
   wsrep_capabilities_export(Wsrep_server_state::instance().provider().capabilities(),
