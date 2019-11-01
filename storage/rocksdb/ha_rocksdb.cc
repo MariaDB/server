@@ -3010,7 +3010,7 @@ protected:
     time_t tm;
     tm = time(nullptr);
     for (auto &it : modified_tables) {
-      it->update_time = tm;
+      it->m_update_time = tm;
     }
     modified_tables.clear();
   }
@@ -11040,11 +11040,11 @@ int ha_rocksdb::info(uint flag) {
       }
     }
 
-    stats.create_time = m_tbl_def->get_creation_time();
+    stats.create_time = m_tbl_def->get_create_time();
   }
 
   if (flag & HA_STATUS_TIME) {
-    stats.update_time = m_tbl_def->update_time;
+    stats.update_time = m_tbl_def->m_update_time;
   }
 
   if (flag & HA_STATUS_ERRKEY) {
