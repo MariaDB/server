@@ -3592,7 +3592,7 @@ bool Rdb_tbl_def::put_dict(Rdb_dict_manager *const dict,
   return false;
 }
 
-time_t Rdb_tbl_def::get_creation_time() {
+time_t Rdb_tbl_def::get_create_time() {
   time_t create_time = m_create_time;
 
   if (create_time == CREATE_TIME_UNKNOWN) {
