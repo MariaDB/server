@@ -1476,9 +1476,9 @@ dict_create_index_step(
 
 		index_id_t	index_id = node->index->id;
 
-		err = dict_index_add_to_cache_w_vcol(
-			node->table, node->index, node->add_v, FIL_NULL,
-			trx_is_strict(trx));
+		err = dict_index_add_to_cache(
+			node->table, node->index, FIL_NULL,
+			trx_is_strict(trx), node->add_v);
 
 		node->index = dict_index_get_if_in_cache_low(index_id);
 		ut_a((node->index == NULL) == (err != DB_SUCCESS));

@@ -2306,26 +2306,6 @@ add_field_size:
 	return false;
 }
 
-/** Adds an index to the dictionary cache.
-@param[in,out]	table	table on which the index is
-@param[in,out]	index	index; NOTE! The index memory
-			object is freed in this function!
-@param[in]	page_no	root page number of the index
-@param[in]	strict	TRUE=refuse to create the index
-			if records could be too big to fit in
-			an B-tree page
-@return DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION */
-dberr_t
-dict_index_add_to_cache(
-	dict_table_t*	table,
-	dict_index_t*	index,
-	ulint		page_no,
-	ibool		strict)
-{
-	return(dict_index_add_to_cache_w_vcol(
-		table, index, NULL, page_no, strict));
-}
-
 /** Clears the virtual column's index list before index is
 being freed.
 @param[in]  index   Index being freed */
@@ -2369,20 +2349,20 @@ added column.
 @param[in,out]	table	table on which the index is
 @param[in,out]	index	index; NOTE! The index memory
 			object is freed in this function!
-@param[in]	add_v	new virtual column that being added along with
-			an add index call
 @param[in]	page_no	root page number of the index
 @param[in]	strict	TRUE=refuse to create the index
 			if records could be too big to fit in
 			an B-tree page
+@param[in]	add_v	new virtual column that being added along with
+			an add index call
 @return DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION */
 dberr_t
-dict_index_add_to_cache_w_vcol(
+dict_index_add_to_cache(
 	dict_table_t*		table,
 	dict_index_t*		index,
-	const dict_add_v_col_t* add_v,
 	ulint			page_no,
-	ibool			strict)
+	ibool			strict,
+	const dict_add_v_col_t* add_v)
 {
 	dict_index_t*	new_index;
 	ulint		n_ord;
