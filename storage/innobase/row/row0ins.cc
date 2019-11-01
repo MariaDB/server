@@ -1972,10 +1972,7 @@ row_ins_check_foreign_constraints(
 	dict_index_t*	index,	/*!< in: index */
 	bool		pk,	/*!< in: index->is_primary() */
 	dtuple_t*	entry,	/*!< in: index entry for index */
-	que_thr_t*	thr,	/*!< in: query thread */
-	bool		check_ref = true) /*!< in: TRUE if we want to check that
-				the referenced table is ok, FALSE if we
-				want to check the foreign key table */
+	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dict_foreign_t*	foreign;
 	dberr_t		err;
@@ -2024,7 +2021,7 @@ row_ins_check_foreign_constraints(
 			table from being dropped while the check is running. */
 
 			err = row_ins_check_foreign_constraint(
-				check_ref, foreign, table, entry, thr);
+				TRUE, foreign, table, entry, thr);
 
 			if (referenced_table) {
 				foreign->foreign_table->dec_fk_checks();
@@ -3270,9 +3267,8 @@ row_ins_sec_index_entry(
 	dict_index_t*	index,	/*!< in: secondary index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr,	/*!< in: query thread */
-	bool		check_ref) /*!< in: true if we want to check that
-				the referenced table is ok, false if we
-				want to check the foreign key table */
+	bool		check_foreign) /*!< in: true if check
+				foreign table is needed, false otherwise */
 {
 	dberr_t		err;
 	mem_heap_t*	offsets_heap;
@@ -3283,10 +3279,9 @@ row_ins_sec_index_entry(
 			DBUG_SET("-d,row_ins_sec_index_entry_timeout");
 			return(DB_LOCK_WAIT);});
 
-	if (!index->table->foreign_set.empty()) {
+	if (check_foreign && !index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(index->table, index,
-							false, entry, thr,
-							check_ref);
+							false, entry, thr);
 		if (err != DB_SUCCESS) {
 
 			return(err);
@@ -3361,7 +3356,7 @@ row_ins_index_entry(
 	if (index->is_primary()) {
 		return row_ins_clust_index_entry(index, entry, thr, 0);
 	} else {
-		return(row_ins_sec_index_entry(index, entry, thr, true));
+		return row_ins_sec_index_entry(index, entry, thr);
 	}
 }
 

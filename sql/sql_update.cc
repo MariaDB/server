@@ -1263,7 +1263,7 @@ update_end:
 
       if (thd->binlog_query(THD::ROW_QUERY_TYPE,
                             thd->query(), thd->query_length(),
-                            transactional_table, FALSE, FALSE, errcode))
+                            transactional_table, FALSE, FALSE, errcode) > 0)
       {
         error=1;				// Rollback update
       }
@@ -2992,7 +2992,7 @@ bool multi_update::send_eof()
 
       if (thd->binlog_query(THD::ROW_QUERY_TYPE, thd->query(),
                             thd->query_length(), transactional_tables, FALSE,
-                            FALSE, errcode))
+                            FALSE, errcode) > 0)
 	local_error= 1;				// Rollback update
       thd->set_current_stmt_binlog_format(save_binlog_format);
     }

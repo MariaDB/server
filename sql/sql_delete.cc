@@ -945,7 +945,7 @@ cleanup:
                                         transactional_table, FALSE, FALSE,
                                         errcode);
 
-      if (log_result)
+      if (log_result > 0)
       {
 	error=1;
       }
@@ -1640,7 +1640,7 @@ bool multi_delete::send_eof()
       if (unlikely(thd->binlog_query(THD::ROW_QUERY_TYPE,
                                      thd->query(), thd->query_length(),
                                      transactional_tables, FALSE, FALSE,
-                                     errcode)) &&
+                                     errcode) > 0) &&
           !normal_tables)
       {
 	local_error=1;  // Log write failed: roll back the SQL statement

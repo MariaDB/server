@@ -1617,12 +1617,16 @@ public:
 /**
   @class Sub_statement_state
   @brief Used to save context when executing a function or trigger
+
+  operations on stat tables aren't technically a sub-statement, but they are
+  similar in a sense that they cannot change the transaction status.
 */
 
 /* Defines used for Sub_statement_state::in_sub_stmt */
 
 #define SUB_STMT_TRIGGER 1
 #define SUB_STMT_FUNCTION 2
+#define SUB_STMT_STAT_TABLES 4
 
 
 class Sub_statement_state
@@ -6474,6 +6478,11 @@ public:
 /* Bits in server_command_flags */
 
 /**
+  Statement that deletes existing rows (DELETE, DELETE_MULTI)
+*/
+#define CF_DELETES_DATA (1U << 24)
+
+/**
   Skip the increase of the global query id counter. Commonly set for
   commands that are stateless (won't cause any change on the server
   internal states).
@@ -6676,6 +6685,22 @@ class Sql_mode_save
  private:
   THD *thd;
   sql_mode_t old_mode; // SQL mode saved at construction time.
+};
+
+class Switch_to_definer_security_ctx
+{
+ public:
+  Switch_to_definer_security_ctx(THD *thd, TABLE_LIST *table) :
+    m_thd(thd), m_sctx(thd->security_ctx)
+  {
+    if (table->security_ctx)
+      thd->security_ctx= table->security_ctx;
+  }
+  ~Switch_to_definer_security_ctx() { m_thd->security_ctx = m_sctx; }
+
+ private:
+  THD *m_thd;
+  Security_context *m_sctx;
 };
 
 

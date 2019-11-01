@@ -205,7 +205,7 @@ IF(MSVC)
     # Noisy warning C4800: 'type': forcing value to bool 'true' or 'false' (performance warning),
     # removed in VS2017
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4800")
-  ELSE()
+  ELSEIF (NOT (CMAKE_CXX_COMPILER_ID MATCHES Clang))
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /d2OptimizeHugeFunctions")
   ENDIF()
 ENDIF()

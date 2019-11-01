@@ -698,7 +698,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     thd->reset_unsafe_warnings();
     if (thd->binlog_query(THD::STMT_QUERY_TYPE,
                           buff.ptr(), buff.length(), FALSE, FALSE, FALSE,
-                          errcode))
+                          errcode) > 0)
       res= TRUE;
   }
 
@@ -1501,6 +1501,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         privileges of top_view
       */
       tbl->grant.want_privilege= SELECT_ACL;
+
       /*
         After unfolding the view we lose the list of tables referenced in it
         (we will have only a list of underlying tables in case of MERGE
@@ -1551,6 +1552,18 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         views with subqueries in select list.
       */
       view_main_select_tables= lex->first_select_lex()->table_list.first;
+      /*
+        Mergeable view can be used for inserting, so we move the flag down
+      */
+      if (table->for_insert_data)
+      {
+        for (TABLE_LIST *t= view_main_select_tables;
+             t;
+             t= t->next_local)
+        {
+          t->for_insert_data= TRUE;
+        }
+      }
 
       /*
         Let us set proper lock type for tables of the view's main

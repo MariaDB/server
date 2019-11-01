@@ -2669,6 +2669,7 @@ Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
         {
           thd->locked_tables_list.unlink_from_list(thd, table_list, false);
           mysql_lock_remove(thd, thd->lock, *prev);
+          (*prev)->file->extra(HA_EXTRA_PREPARE_FOR_FORCED_CLOSE);
           close_thread_table(thd, prev);
           break;
         }
@@ -4605,9 +4606,11 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
                     TABLE_LIST *tables)
 {
   TABLE_LIST *global_table_list= prelocking_ctx->query_tables;
+  DBUG_ENTER("add_internal_tables");
 
   do
   {
+    DBUG_PRINT("info", ("table name: %s", tables->table_name.str));
     /*
       Skip table if already in the list. Can happen with prepared statements
     */
@@ -4617,20 +4620,22 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
 
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
     if (!tl)
-      return TRUE;
+      DBUG_RETURN(TRUE);
     tl->init_one_table_for_prelocking(&tables->db,
                                       &tables->table_name,
                                       NULL, tables->lock_type,
                                       TABLE_LIST::PRELOCK_NONE,
                                       0, 0,
-                                      &prelocking_ctx->query_tables_last);
+                                      &prelocking_ctx->query_tables_last,
+                                      tables->for_insert_data);
     /*
       Store link to the new table_list that will be used by open so that
       Item_func_nextval() can find it
     */
     tables->next_local= tl;
+    DBUG_PRINT("info", ("table name: %s added", tables->table_name.str));
   } while ((tables= tables->next_global));
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -4661,6 +4666,7 @@ bool DML_prelocking_strategy::
 handle_table(THD *thd, Query_tables_list *prelocking_ctx,
              TABLE_LIST *table_list, bool *need_prelocking)
 {
+  DBUG_ENTER("handle_table");
   TABLE *table= table_list->table;
   /* We rely on a caller to check that table is going to be changed. */
   DBUG_ASSERT(table_list->lock_type >= TL_WRITE_ALLOW_WRITE ||
@@ -4691,7 +4697,7 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
       {
         if (arena)
           thd->restore_active_arena(arena, &backup);
-        return TRUE;
+        DBUG_RETURN(TRUE);
       }
 
       *need_prelocking= TRUE;
@@ -4719,7 +4725,8 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
                                           NULL, lock_type,
                                           TABLE_LIST::PRELOCK_FK,
                                           table_list->belong_to_view, op,
-                                          &prelocking_ctx->query_tables_last);
+                                          &prelocking_ctx->query_tables_last,
+                                          table_list->for_insert_data);
       }
       if (arena)
         thd->restore_active_arena(arena, &backup);
@@ -4727,8 +4734,11 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
   }
 
   /* Open any tables used by DEFAULT (like sequence tables) */
+  DBUG_PRINT("info", ("table: %p  name: %s  db: %s  flags: %u",
+                      table_list, table_list->table_name.str,
+                      table_list->db.str, table_list->for_insert_data));
   if (table->internal_tables &&
-      ((sql_command_flags[thd->lex->sql_command] & CF_INSERTS_DATA) ||
+      (table_list->for_insert_data ||
        thd->lex->default_used))
   {
     Query_arena *arena, backup;
@@ -4741,10 +4751,10 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
     if (unlikely(error))
     {
       *need_prelocking= TRUE;
-      return TRUE;
+      DBUG_RETURN(TRUE);
     }
   }
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -4761,7 +4771,7 @@ bool open_and_lock_internal_tables(TABLE *table, bool lock_table)
   THD *thd= table->in_use;
   TABLE_LIST *tl;
   MYSQL_LOCK *save_lock,*new_lock;
-  DBUG_ENTER("open_internal_tables");
+  DBUG_ENTER("open_and_lock_internal_tables");
 
   /* remove pointer to old select_lex which is already destroyed */
   for (tl= table->internal_tables ; tl ; tl= tl->next_global)

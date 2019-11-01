@@ -2685,6 +2685,10 @@ retry:
 	}
 
 	if (read_only) {
+		/* InnoDB stores actual synced_doc_id value + 1 in
+		FTS_CONFIG table. Reduce the value by 1 while reading
+		after startup. */
+		if (*doc_id) *doc_id -= 1;
 		goto func_exit;
 	}
 
@@ -5316,11 +5320,11 @@ fts_t::fts_t(
 	const dict_table_t*	table,
 	mem_heap_t*		heap)
 	:
-	in_queue(0), added_synced(0), dict_locked(0),
+	added_synced(0), dict_locked(0),
 	bg_threads(0),
 	add_wq(NULL),
 	cache(NULL),
-	doc_col(ULINT_UNDEFINED),
+	doc_col(ULINT_UNDEFINED), in_queue(false),
 	fts_heap(heap)
 {
 	ut_a(table->fts == NULL);

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -227,6 +227,17 @@ mem_heap_validate(
 	}
 
 	ut_ad(size == heap->total_size);
+}
+
+/** Copy the tail of a string.
+@param[in,out]	dst	destination buffer
+@param[in]	src	string whose tail to copy
+@param[in]	size	size of dst buffer, in bytes, including NUL terminator
+@return strlen(src) */
+static void ut_strlcpy_rev(char* dst, const char* src, ulint size)
+{
+	size_t src_size = strlen(src), n = std::min(src_size, size - 1);
+	memcpy(dst, src + src_size - n, n + 1);
 }
 #endif /* UNIV_DEBUG */
 

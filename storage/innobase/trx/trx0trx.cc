@@ -79,7 +79,8 @@ trx_set_detailed_error(
 	trx_t*		trx,	/*!< in: transaction struct */
 	const char*	msg)	/*!< in: detailed error message */
 {
-	ut_strlcpy(trx->detailed_error, msg, MAX_DETAILED_ERROR_LEN);
+	strncpy(trx->detailed_error, msg, MAX_DETAILED_ERROR_LEN - 1);
+	trx->detailed_error[MAX_DETAILED_ERROR_LEN - 1] = '\0';
 }
 
 /*************************************************************//**

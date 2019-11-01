@@ -4726,6 +4726,7 @@ typedef struct st_sp_table
   uint lock_count;
   uint query_lock_count;
   uint8 trg_event_map;
+  my_bool for_insert_data;
 } SP_TABLE;
 
 
@@ -4821,6 +4822,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
         if (tab->query_lock_count > tab->lock_count)
           tab->lock_count++;
         tab->trg_event_map|= table->trg_event_map;
+        tab->for_insert_data|= table->for_insert_data;
       }
       else
       {
@@ -4844,6 +4846,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
         tab->lock_type= table->lock_type;
         tab->lock_count= tab->query_lock_count= 1;
         tab->trg_event_map= table->trg_event_map;
+        tab->for_insert_data= table->for_insert_data;
         if (my_hash_insert(&m_sptabs, (uchar *)tab))
           return FALSE;
       }
@@ -4927,7 +4930,8 @@ sp_head::add_used_tables_to_table_list(THD *thd,
                                            TABLE_LIST::PRELOCK_ROUTINE,
                                            belong_to_view,
                                            stab->trg_event_map,
-                                           query_tables_last_ptr);
+                                           query_tables_last_ptr,
+                                           stab->for_insert_data);
       tab_buff+= ALIGN_SIZE(sizeof(TABLE_LIST));
       result= TRUE;
     }

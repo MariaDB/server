@@ -66,7 +66,7 @@ const char *wsrep_thd_exec_mode_str(THD *)
 { return NULL; }
 
 const char *wsrep_thd_query(const THD *)
-{ return 0; }
+{ return "NULL"; }
 
 const char *wsrep_thd_query_state_str(THD *)
 { return 0; }

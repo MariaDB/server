@@ -4580,19 +4580,23 @@ os_file_get_status_win32(
 				CloseHandle(fh);
 			}
 		}
+		stat_info->block_size = 0;
 
+		/* What follows, is calculation of FS block size, which is not important
+		(it is just shown in I_S innodb tables). The error to calculate it will be ignored.*/
 		char	volname[MAX_PATH];
 		BOOL	result = GetVolumePathName(path, volname, MAX_PATH);
-
+		static	bool warned_once = false;
 		if (!result) {
-
-			ib::error()
-				<< "os_file_get_status_win32: "
-				<< "Failed to get the volume path name for: "
-				<< path
-				<< "- OS error number " << GetLastError();
-
-			return(DB_FAIL);
+			if (!warned_once) {
+				ib::warn()
+					<< "os_file_get_status_win32: "
+					<< "Failed to get the volume path name for: "
+					<< path
+					<< "- OS error number " << GetLastError();
+				warned_once = true;
+			}
+			return(DB_SUCCESS);
 		}
 
 		DWORD	sectorsPerCluster;
@@ -4608,15 +4612,15 @@ os_file_get_status_win32(
 			&totalNumberOfClusters);
 
 		if (!result) {
-
-			ib::error()
-				<< "GetDiskFreeSpace(" << volname << ",...) "
-				<< "failed "
-				<< "- OS error number " << GetLastError();
-
-			return(DB_FAIL);
+			if (!warned_once) {
+				ib::warn()
+					<< "GetDiskFreeSpace(" << volname << ",...) "
+					<< "failed "
+					<< "- OS error number " << GetLastError();
+				warned_once = true;
+			}
+			return(DB_SUCCESS);
 		}
-
 		stat_info->block_size = bytesPerSector * sectorsPerCluster;
 	} else {
 		stat_info->type = OS_FILE_TYPE_UNKNOWN;

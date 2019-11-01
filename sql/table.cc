@@ -694,7 +694,11 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   frmlen= read_length + sizeof(head);
 
   share->init_from_binary_frm_image(thd, false, buf, frmlen);
-  error_given= true; // init_from_binary_frm_image has already called my_error()
+  /*
+    Don't give any additional errors. If there would be a problem,
+    init_from_binary_frm_image would call my_error() itself.
+  */
+  error_given= true;
   my_free(buf);
 
   goto err_not_open;
@@ -703,6 +707,9 @@ err:
   mysql_file_close(file, MYF(MY_WME));
 
 err_not_open:
+  /* Mark that table was created earlier and thus should have been logged */
+  share->table_creation_was_logged= 1;
+
   if (unlikely(share->error && !error_given))
   {
     share->open_errno= my_errno;
@@ -3179,6 +3186,8 @@ ret:
              sql_copy);
     DBUG_RETURN(HA_ERR_GENERIC);
   }
+  /* Treat the table as normal table from binary logging point of view */
+  table_creation_was_logged= 1;
   DBUG_RETURN(0);
 }
 

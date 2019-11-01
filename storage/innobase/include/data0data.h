@@ -168,7 +168,7 @@ dfield_data_is_binary_equal(
 	const dfield_t*	field,	/*!< in: field */
 	ulint		len,	/*!< in: data length or UNIV_SQL_NULL */
 	const byte*	data)	/*!< in: data */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 /*********************************************************************//**
 Gets info bits in a data tuple.

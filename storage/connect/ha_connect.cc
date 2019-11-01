@@ -4497,34 +4497,13 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool 
 		case TAB_DIR:
 		case TAB_ZIP:
 		case TAB_OEM:
-#ifdef NO_EMBEDDED_ACCESS_CHECKS
-			return false;
-			#endif
-
-			/*
-			Check FILE_ACL
-			If table or table->mdl_ticket is NULL - it's a DLL, e.g. CREATE TABLE.
-			if the table has an MDL_EXCLUSIVE lock - it's a DDL too, e.g. the
-			insert step of CREATE ... SELECT.
-			
-			Otherwise it's a DML, the table was normally opened, locked,
-			privilege were already checked, and table->grant.privilege is set.
-			With SQL SECURITY DEFINER, table->grant.privilege has definer's privileges.
-			
-			Unless we're in prelocking mode, in this case table->grant.privilege
-			is only checked in start_stmt(), not in external_lock().
-			*/
-			if (!table || !table->mdl_ticket || table->mdl_ticket->get_type() == MDL_EXCLUSIVE)
-			  return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
-
-			if ((!quick && thd->lex->requires_prelocking()) || table->grant.privilege & FILE_ACL)
-			  return false;
-
-			status_var_increment(thd->status_var.access_denied_errors);
-			my_error(access_denied_error_code(thd->password), MYF(0),
-			         thd->security_ctx->priv_user, thd->security_ctx->priv_host,
-			         (thd->password ?  ER(ER_YES) : ER(ER_NO)));
-			return true;
+      if (table && table->pos_in_table_list) // if SELECT
+      {
+        Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
+        return check_global_access(thd, FILE_ACL);
+      }
+      else
+        return check_global_access(thd, FILE_ACL);
     case TAB_ODBC:
 		case TAB_JDBC:
 		case TAB_MONGO:

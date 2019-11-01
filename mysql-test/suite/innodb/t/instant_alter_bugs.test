@@ -138,8 +138,10 @@ HANDLER h READ `PRIMARY` PREV WHERE 0;
 HANDLER h CLOSE;
 DROP TABLE t1;
 
-# MDEV-19630 ALTER TABLE ... ADD COLUMN damages foreign keys which are pointed
-#		to the table being altered
+--echo #
+--echo # MDEV-19630 ALTER TABLE ... ADD COLUMN damages foreign keys
+--echo # which are pointed to the table being altered
+--echo #
 CREATE TABLE t1(f1 int not null, primary key(f1))engine=innodb;
 CREATE TABLE t2(f1 INT AUTO_INCREMENT NOT NULL, f2 INT NOT NULL,
 		status ENUM ('a', 'b', 'c'), INDEX idx1(f2),
@@ -157,6 +159,19 @@ DROP TABLE t2, t1;
 
 --let $datadir= `select @@datadir`
 --remove_file $datadir/test/load.data
+
+--echo #
+--echo # MDEV-20938 Double free of dict_foreign_t during instant ALTER TABLE
+--echo #
+
+CREATE TABLE t1 (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT UNSIGNED PRIMARY KEY, b INT UNSIGNED UNIQUE,
+                 FOREIGN KEY fk1 (b) REFERENCES t1 (id)) ENGINE=InnoDB;
+ALTER TABLE t2
+    DROP FOREIGN KEY fk1,
+    CHANGE b d INT UNSIGNED,
+    ADD c INT;
+DROP TABLE t2, t1;
 
 
 create table t (

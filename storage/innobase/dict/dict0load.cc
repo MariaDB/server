@@ -43,8 +43,7 @@ Created 4/24/1996 Heikki Tuuri
 #include "rem0cmp.h"
 #include "srv0start.h"
 #include "srv0srv.h"
-#include <stack>
-#include <set>
+#include "fts0opt.h"
 
 /** Following are the InnoDB system tables. The positions in
 this array are referenced by enum dict_system_table_id. */
@@ -3084,8 +3083,12 @@ func_exit:
 			FTS */
 			fts_optimize_remove_table(table);
 			fts_free(table);
-		} else {
+		} else if (fts_optimize_wq) {
 			fts_optimize_add_table(table);
+		} else {
+			/* fts_optimize_thread is not started yet.
+			So make the table as non-evictable from cache. */
+			dict_sys.prevent_eviction(table);
 		}
 	}
 

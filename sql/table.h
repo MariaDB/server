@@ -750,10 +750,15 @@ struct TABLE_SHARE
   bool system;                          /* Set if system table (one record) */
   bool not_usable_by_query_cache;
   bool online_backup;                   /* Set if on-line backup supported */
+  /*
+    This is used by log tables, for tables that have their own internal
+    binary logging or for tables that doesn't support statement or row logging
+   */
   bool no_replicate;
   bool crashed;
   bool is_view;
   bool can_cmp_whole_record;
+  /* This is set for temporary tables where CREATE was binary logged */
   bool table_creation_was_logged;
   bool non_determinstic_insert;
   bool vcols_need_refixing;
@@ -2060,7 +2065,8 @@ struct TABLE_LIST
                                             prelocking_types prelocking_type,
                                             TABLE_LIST *belong_to_view_arg,
                                             uint8 trg_event_map_arg,
-                                            TABLE_LIST ***last_ptr)
+                                            TABLE_LIST ***last_ptr,
+                                            my_bool insert_data)
 
   {
     init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
@@ -2075,6 +2081,7 @@ struct TABLE_LIST
     **last_ptr= this;
     prev_global= *last_ptr;
     *last_ptr= &next_global;
+    for_insert_data= insert_data;
   }
 
 
@@ -2500,6 +2507,8 @@ struct TABLE_LIST
   {
     return period_conditions.is_set();
   }
+
+  my_bool for_insert_data;
 
   /**
      @brief

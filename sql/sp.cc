@@ -1467,7 +1467,7 @@ log:
     /* Such a statement can always go directly to binlog, no trans cache */
     if (thd->binlog_query(THD::STMT_QUERY_TYPE,
                           log_query.ptr(), log_query.length(),
-                          FALSE, FALSE, FALSE, 0))
+                          FALSE, FALSE, FALSE, 0) > 0)
     {
       my_error(ER_ERROR_ON_WRITE, MYF(0), "binary log", -1);
       goto done;

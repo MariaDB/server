@@ -209,4 +209,95 @@ delete s,t1 from t1,s;
 ERROR HY000: Storage engine SEQUENCE of the table `test`.`s` doesn't have this option
 DROP SEQUENCE s;
 DROP TABLE t1;
+#
+# MDEV-20074: Lost connection on update trigger
+#
+# INSERT & table
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+INSERT INTO t2(a_p_name, a_p_first_name) VALUES(old.p_name, old.p_first_name);
+END;
+$$
+update t1 set p_first_name='Yunxi' where p_id=1;
+drop sequence s1;
+drop table t1,t2;
+# INSERT & view
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+create view v2 as select * from t2;
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+INSERT INTO v2(a_p_name, a_p_first_name) VALUES(old.p_name, old.p_first_name);
+END;
+$$
+update t1 set p_first_name='Yunxi' where p_id=1;
+drop view v2;
+drop table t1,t2;
+drop sequence s1;
+# INSERT SELECT & view
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+create view v2 as select * from t2;
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+INSERT INTO v2(a_p_name, a_p_first_name) SELECT old.p_name, old.p_first_name;
+END;
+$$
+update t1 set p_first_name='Yunxi' where p_id=1;
+drop view v2;
+drop table t1,t2;
+drop sequence s1;
+# REPLACE & view
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+create view v2 as select * from t2;
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+REPLACE INTO v2(a_p_name, a_p_first_name) VALUES(old.p_name, old.p_first_name);
+END;
+$$
+update t1 set p_first_name='Yunxi' where p_id=1;
+drop view v2;
+drop table t1,t2;
+drop sequence s1;
+# REPLACE SELECT & view
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+create view v2 as select * from t2;
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+REPLACE INTO v2(a_p_name, a_p_first_name) SELECT old.p_name, old.p_first_name;
+END;
+$$
+update t1 set p_first_name='Yunxi' where p_id=1;
+drop view v2;
+drop table t1,t2;
+drop sequence s1;
 # End of 10.3 tests

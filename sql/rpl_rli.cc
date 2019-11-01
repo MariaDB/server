@@ -1561,7 +1561,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
     sub_id= (ulonglong)table->field[1]->val_int();
     server_id= (uint32)table->field[2]->val_int();
     seq_no= (ulonglong)table->field[3]->val_int();
-    DBUG_PRINT("info", ("Read slave state row: %u-%u-%lu sub_id=%lu\n",
+    DBUG_PRINT("info", ("Read slave state row: %u-%u-%lu sub_id=%lu",
                         (unsigned)domain_id, (unsigned)server_id,
                         (ulong)seq_no, (ulong)sub_id));
 

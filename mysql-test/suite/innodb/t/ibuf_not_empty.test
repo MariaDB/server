@@ -43,7 +43,7 @@ INSERT INTO t1 SELECT 0,b,c FROM t1;
 INSERT INTO t1 SELECT 0,b,c FROM t1;
 INSERT INTO t1 SELECT 0,b,c FROM t1;
 
---let $restart_parameters= --innodb-force-recovery=6
+--let $restart_parameters= --innodb-force-recovery=6 --innodb-change-buffer-dump
 --source include/restart_mysqld.inc
 
 --replace_regex /contains \d+ entries/contains #### entries/

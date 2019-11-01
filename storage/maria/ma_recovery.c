@@ -57,8 +57,7 @@ static my_bool trns_created;
 static ulong skipped_undo_phase;
 static ulonglong now; /**< for tracking execution time of phases */
 static void (*save_error_handler_hook)(uint, const char *,myf);
-static uint recovery_warnings; /**< count of warnings */
-static uint recovery_found_crashed_tables;
+static ulong recovery_warnings; /**< count of warnings */
 HASH tables_to_redo;                          /* For maria_read_log */
 ulong maria_recovery_force_crash_counter;
 TrID max_long_trid= 0; /**< max long trid seen by REDO phase */
@@ -291,6 +290,7 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
   DBUG_ASSERT(apply == MARIA_LOG_APPLY || !should_run_undo_phase);
   DBUG_ASSERT(!maria_multi_threaded);
   recovery_warnings= recovery_found_crashed_tables= 0;
+  skipped_lsn_err_count= 0;
   maria_recovery_changed_data= 0;
   /* checkpoints can happen only if TRNs have been built */
   DBUG_ASSERT(should_run_undo_phase || !take_checkpoints);

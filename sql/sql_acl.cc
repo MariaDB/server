@@ -3786,7 +3786,7 @@ bool change_password(THD *thd, LEX_USER *user)
     DBUG_ASSERT(query_length);
     thd->clear_error();
     result= thd->binlog_query(THD::STMT_QUERY_TYPE, buff, query_length,
-                              FALSE, FALSE, FALSE, 0);
+                              FALSE, FALSE, FALSE, 0) > 0;
   }
 end:
   if (result)
@@ -3938,7 +3938,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
       DBUG_ASSERT(query_length);
       thd->clear_error();
       result= thd->binlog_query(THD::STMT_QUERY_TYPE, buff, query_length,
-                                FALSE, FALSE, FALSE, 0);
+                                FALSE, FALSE, FALSE, 0) > 0;
     }
   end:
     close_mysql_tables(thd);

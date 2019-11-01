@@ -225,7 +225,7 @@ dfield_data_is_binary_equal(
 {
 	ut_ad(len != UNIV_SQL_DEFAULT);
 	return(len == dfield_get_len(field)
-	       && (len == UNIV_SQL_NULL
+	       && (!len || len == UNIV_SQL_NULL
 		   || !memcmp(dfield_get_data(field), data, len)));
 }
 

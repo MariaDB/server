@@ -806,7 +806,7 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
     if (!get_master_enabled() || !is_on())
       goto l_end;
 
-    DBUG_PRINT("semisync", ("%s: wait pos (%s, %lu), repl(%d)\n",
+    DBUG_PRINT("semisync", ("%s: wait pos (%s, %lu), repl(%d)",
                             "Repl_semi_sync_master::commit_trx",
                             trx_wait_binlog_name, (ulong)trx_wait_binlog_pos,
                             (int)is_on()));

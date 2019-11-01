@@ -2681,9 +2681,17 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
       {
         do  /* For all equalities on all key parts */
         {
-          /* Check if this is "t.keypart = expr(outer_tables) */
+          /*
+            Check if this is "t.keypart = expr(outer_tables)
+
+            Don't allow variants that can produce duplicates:
+            - Dont allow "ref or null"
+            - the keyuse (that is, the operation) must be null-rejecting,
+              unless the other expression is non-NULLable.
+          */
           if (!(keyuse->used_tables & sj_inner_tables) &&
-              !(keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL))
+              !(keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL) &&
+              (keyuse->null_rejecting || !keyuse->val->maybe_null))
           {
             bound_parts |= 1 << keyuse->keypart;
           }

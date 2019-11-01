@@ -7713,7 +7713,7 @@ uint binlog_unsafe_map[256];
 
 #define UNSAFE(a, b, c) \
   { \
-  DBUG_PRINT("unsafe_mixed_statement", ("SETTING BASE VALUES: %s, %s, %02X\n", \
+  DBUG_PRINT("unsafe_mixed_statement", ("SETTING BASE VALUES: %s, %s, %02X", \
     LEX::stmt_accessed_table_string(a), \
     LEX::stmt_accessed_table_string(b), \
     c)); \

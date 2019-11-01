@@ -2979,8 +2979,12 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
     else
       protocol->store_null();
     protocol->store(thd_info->state_info, system_charset_info);
-    protocol->store(thd_info->query_string.str(),
-                    thd_info->query_string.charset());
+    if (thd_info->query_string.length())
+      protocol->store(thd_info->query_string.str(),
+                      thd_info->query_string.length(),
+                      thd_info->query_string.charset());
+    else
+      protocol->store_null();
     if (!thd->variables.old_mode &&
         !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
       protocol->store(thd_info->progress, 3, &store_buffer);
@@ -8314,8 +8318,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     item->maybe_null= (fields_info->field_flags & MY_I_S_MAYBE_NULL);
     field_count++;
   }
-  TMP_TABLE_PARAM *tmp_table_param =
-    (TMP_TABLE_PARAM*) (thd->alloc(sizeof(TMP_TABLE_PARAM)));
+  TMP_TABLE_PARAM *tmp_table_param = new (thd->mem_root) TMP_TABLE_PARAM;
   tmp_table_param->init();
   tmp_table_param->table_charset= cs;
   tmp_table_param->field_count= field_count;
@@ -8894,6 +8897,7 @@ bool get_schema_tables_result(JOIN *join,
         cond= tab->cache_select->cond;
       }
 
+      Switch_to_definer_security_ctx backup_ctx(thd, table_list);
       if (table_list->schema_table->fill_table(thd, table_list, cond))
       {
         result= 1;

@@ -7896,6 +7896,7 @@ alter:
             Lex->first_select_lex()->db=
               (Lex->first_select_lex()->table_list.first)->db;
             Lex->create_last_non_select_table= Lex->last_table();
+            Lex->mark_first_table_as_inserting();
           }
           alter_commands
           {
@@ -13618,6 +13619,7 @@ insert:
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
+            Lex->mark_first_table_as_inserting();
           }
         ;
 
@@ -13642,6 +13644,7 @@ replace:
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
+            Lex->mark_first_table_as_inserting();
           }
         ;
 
@@ -15136,6 +15139,7 @@ load:
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
+            Lex->mark_first_table_as_inserting();
           }
           ;
 

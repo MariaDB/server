@@ -1703,26 +1703,6 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
   }
 }
 
-#if UNUSED /* 323f269d4099 (Jan Lindström     2018-07-19) */
-static const char* wsrep_get_query_or_msg(const THD* thd)
-{
-  switch(thd->lex->sql_command)
-  {
-    case SQLCOM_CREATE_USER:
-      return "CREATE USER";
-    case SQLCOM_GRANT:
-      return "GRANT";
-    case SQLCOM_REVOKE:
-      return "REVOKE";
-    case SQLCOM_SET_OPTION:
-      if (thd->lex->definer)
-        return "SET PASSWORD";
-      /* fallthrough */
-    default:
-      return thd->query();
-   }
-}
-#endif //UNUSED
 
 static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 {
@@ -2659,7 +2639,7 @@ void* start_wsrep_THD(void *arg)
     need to know the start of the stack so that we could check for
     stack overruns.
   */
-  DBUG_PRINT("wsrep", ("handle_one_connection called by thread %lld\n",
+  DBUG_PRINT("wsrep", ("handle_one_connection called by thread %lld",
                        (long long)thd->thread_id));
   /* now that we've called my_thread_init(), it is safe to call DBUG_* */
 

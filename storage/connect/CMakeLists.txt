@@ -324,7 +324,12 @@ IF(CONNECT_WITH_REST)
 #     INCLUDE_DIRECTORIES(${CPPRESTSDK_INCLUDE_DIR})
 #     If needed edit next line to set the path to libcpprest.so
       SET(REST_LIBRARY -lcpprest)
-#     MESSAGE (STATUS ${REST_LIBRARY})
+      MESSAGE (STATUS ${REST_LIBRARY})
+	ELSE(NOT UNIX)
+#     Next line sets debug compile mode matching cpprest_2_10d.dll
+#     when it was binary installed (can be change later in Visual Studio)
+#     Comment it out if not needed depending on your cpprestsdk installation.
+	  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
 	ENDIF(UNIX)
     IF(REST_LIBRARY)
       SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp restget.cpp tabrest.h)

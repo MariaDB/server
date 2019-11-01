@@ -7450,7 +7450,7 @@ struct btr_blob_log_check_t {
 		ulint		page_no = ULINT_UNDEFINED;
 		FlushObserver*	observer = m_mtr->get_flush_observer();
 
-		if (m_op == BTR_STORE_INSERT_BULK) {
+		if (UNIV_UNLIKELY(m_op == BTR_STORE_INSERT_BULK)) {
 			offs = page_offset(*m_rec);
 			page_no = page_get_page_no(
 				buf_block_get_frame(*m_block));
@@ -7473,8 +7473,7 @@ struct btr_blob_log_check_t {
 		index->set_modified(*m_mtr);
 		m_mtr->set_flush_observer(observer);
 
-		if (m_op == BTR_STORE_INSERT_BULK) {
-			mtr_x_lock(dict_index_get_lock(index), m_mtr);
+		if (UNIV_UNLIKELY(m_op == BTR_STORE_INSERT_BULK)) {
 			m_pcur->btr_cur.page_cur.block = btr_block_get(
 				page_id_t(index->table->space_id, page_no),
 				index->table->space->zip_size(),
@@ -7503,9 +7502,10 @@ struct btr_blob_log_check_t {
 		      *m_rec,
 		      MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
 
-		ut_ad(mtr_memo_contains_flagged(m_mtr,
-		      dict_index_get_lock(index),
-		      MTR_MEMO_SX_LOCK | MTR_MEMO_X_LOCK));
+		ut_ad((m_op == BTR_STORE_INSERT_BULK)
+		      == !mtr_memo_contains_flagged(m_mtr, &index->lock,
+						    MTR_MEMO_SX_LOCK
+						    | MTR_MEMO_X_LOCK));
 	}
 };
 
@@ -7559,8 +7559,10 @@ btr_store_big_rec_extern_fields(
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(rec_offs_any_extern(offsets));
-	ut_ad(mtr_memo_contains_flagged(btr_mtr, dict_index_get_lock(index),
-					MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
+	ut_ad(op == BTR_STORE_INSERT_BULK
+	      || mtr_memo_contains_flagged(btr_mtr, &index->lock,
+					   MTR_MEMO_X_LOCK
+					   | MTR_MEMO_SX_LOCK));
 	ut_ad(mtr_memo_contains(btr_mtr, rec_block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(buf_block_get_frame(rec_block) == page_align(rec));
 	ut_a(dict_index_is_clust(index));
@@ -7680,7 +7682,7 @@ btr_store_big_rec_extern_fields(
 
 			mtr_t	*alloc_mtr;
 
-			if (op == BTR_STORE_INSERT_BULK) {
+			if (UNIV_UNLIKELY(op == BTR_STORE_INSERT_BULK)) {
 				mtr_bulk.start();
 				mtr_bulk.set_spaces(mtr);
 				alloc_mtr = &mtr_bulk;
@@ -7703,7 +7705,7 @@ btr_store_big_rec_extern_fields(
 
 			index->table->space->release_free_extents(r_extents);
 
-			if (op == BTR_STORE_INSERT_BULK) {
+			if (UNIV_UNLIKELY(op == BTR_STORE_INSERT_BULK)) {
 				mtr_bulk.commit();
 			}
 
@@ -7863,7 +7865,7 @@ btr_store_big_rec_extern_fields(
 				}
 
 				/* We compress a page when finish bulk insert.*/
-				if (op != BTR_STORE_INSERT_BULK) {
+				if (UNIV_LIKELY(op != BTR_STORE_INSERT_BULK)) {
 					page_zip_write_blob_ptr(
 						page_zip, rec, index, offsets,
 						field_no, &mtr);

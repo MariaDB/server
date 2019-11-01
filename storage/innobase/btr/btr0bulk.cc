@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -51,7 +51,7 @@ PageBulk::init()
 	m_heap = mem_heap_create(1000);
 
 	m_mtr.start();
-	mtr_x_lock(&m_index->lock, &m_mtr);
+
 	if (m_flush_observer) {
 		m_mtr.set_log_mode(MTR_LOG_NO_REDO);
 		m_mtr.set_flush_observer(m_flush_observer);
@@ -610,22 +610,20 @@ PageBulk::storeExt(
 	btr_pcur.pos_state = BTR_PCUR_IS_POSITIONED;
 	btr_pcur.latch_mode = BTR_MODIFY_LEAF;
 	btr_pcur.btr_cur.index = m_index;
-
-	page_cur_t*	page_cur = &btr_pcur.btr_cur.page_cur;
-	page_cur->index = m_index;
-	page_cur->rec = m_cur_rec;
-	page_cur->offsets = offsets;
-	page_cur->block = m_block;
+	btr_pcur.btr_cur.page_cur.index = m_index;
+	btr_pcur.btr_cur.page_cur.rec = m_cur_rec;
+	btr_pcur.btr_cur.page_cur.offsets = offsets;
+	btr_pcur.btr_cur.page_cur.block = m_block;
 
 	dberr_t	err = btr_store_big_rec_extern_fields(
 		&btr_pcur, offsets, big_rec, &m_mtr, BTR_STORE_INSERT_BULK);
 
-	ut_ad(page_offset(m_cur_rec) == page_offset(page_cur->rec));
-
 	/* Reset m_block and m_cur_rec from page cursor, because
-	block may be changed during blob insert. */
-	m_block = page_cur->block;
-	m_cur_rec = page_cur->rec;
+	block may be changed during blob insert. (FIXME: Can it really?) */
+	ut_ad(m_block == btr_pcur.btr_cur.page_cur.block);
+
+	m_block = btr_pcur.btr_cur.page_cur.block;
+	m_cur_rec = btr_pcur.btr_cur.page_cur.rec;
 	m_page = buf_block_get_frame(m_block);
 
 	return(err);
@@ -652,7 +650,7 @@ dberr_t
 PageBulk::latch()
 {
 	m_mtr.start();
-	mtr_x_lock(&m_index->lock, &m_mtr);
+
 	if (m_flush_observer) {
 		m_mtr.set_log_mode(MTR_LOG_NO_REDO);
 		m_mtr.set_flush_observer(m_flush_observer);
@@ -756,6 +754,10 @@ BtrBulk::pageCommit(
 		mark it modified in mini-transaction.  */
 		page_bulk->setNext(FIL_NULL);
 	}
+
+	ut_ad(!rw_lock_own_flagged(&m_index->lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX
+				   | RW_LOCK_FLAG_S));
 
 	/* Compress page if it's a compressed table. */
 	if (page_bulk->getPageZip() != NULL && !page_bulk->compress()) {
