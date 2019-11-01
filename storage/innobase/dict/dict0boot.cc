@@ -127,8 +127,7 @@ dict_hdr_get_new_id(
 	}
 
 	if (space_id) {
-		*space_id = mtr_read_ulint(dict_hdr + DICT_HDR_MAX_SPACE_ID,
-					   MLOG_4BYTES, &mtr);
+		*space_id = mach_read_from_4(dict_hdr + DICT_HDR_MAX_SPACE_ID);
 		if (fil_assign_new_space_id(space_id)) {
 			mlog_write_ulint(dict_hdr + DICT_HDR_MAX_SPACE_ID,
 					 *space_id, MLOG_4BYTES, &mtr);
@@ -362,9 +361,8 @@ dict_boot(void)
 	index->id = DICT_TABLES_ID;
 
 	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_TABLES,
-						       MLOG_4BYTES, &mtr),
+					mach_read_from_4(dict_hdr
+							 + DICT_HDR_TABLES),
 					FALSE);
 	ut_a(error == DB_SUCCESS);
 
@@ -375,9 +373,8 @@ dict_boot(void)
 
 	index->id = DICT_TABLE_IDS_ID;
 	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_TABLE_IDS,
-						       MLOG_4BYTES, &mtr),
+					mach_read_from_4(dict_hdr
+							 + DICT_HDR_TABLE_IDS),
 					FALSE);
 	ut_a(error == DB_SUCCESS);
 
@@ -408,9 +405,8 @@ dict_boot(void)
 
 	index->id = DICT_COLUMNS_ID;
 	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_COLUMNS,
-						       MLOG_4BYTES, &mtr),
+					mach_read_from_4(dict_hdr
+							 + DICT_HDR_COLUMNS),
 					FALSE);
 	ut_a(error == DB_SUCCESS);
 
@@ -442,9 +438,8 @@ dict_boot(void)
 
 	index->id = DICT_INDEXES_ID;
 	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_INDEXES,
-						       MLOG_4BYTES, &mtr),
+					mach_read_from_4(dict_hdr
+							 + DICT_HDR_INDEXES),
 					FALSE);
 	ut_a(error == DB_SUCCESS);
 
@@ -470,9 +465,8 @@ dict_boot(void)
 
 	index->id = DICT_FIELDS_ID;
 	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_FIELDS,
-						       MLOG_4BYTES, &mtr),
+					mach_read_from_4(dict_hdr
+							 + DICT_HDR_FIELDS),
 					FALSE);
 	ut_a(error == DB_SUCCESS);
 
