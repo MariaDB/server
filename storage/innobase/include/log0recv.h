@@ -304,8 +304,8 @@ struct recv_sys_t{
 			byte* body, byte* rec_end, lsn_t lsn,
 			lsn_t end_lsn);
 
-	/** Empty a fully processed set of stored redo log records. */
-	inline void empty();
+	/** Clear a fully processed set of stored redo log records. */
+	inline void clear();
 
 	/** Determine whether redo log recovery progress should be reported.
 	@param[in]	time	the current time

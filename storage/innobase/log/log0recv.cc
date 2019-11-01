@@ -814,8 +814,8 @@ void recv_sys_t::create()
 	last_stored_lsn = 0;
 }
 
-/** Empty a fully processed set of stored redo log records. */
-inline void recv_sys_t::empty()
+/** Clear a fully processed set of stored redo log records. */
+inline void recv_sys_t::clear()
 {
 	ut_ad(mutex_own(&mutex));
 	pages.clear();
@@ -2273,7 +2273,7 @@ done:
 	recv_sys.apply_log_recs = false;
 	recv_sys.apply_batch_on = false;
 
-	recv_sys.empty();
+	recv_sys.clear();
 
 	mutex_exit(&recv_sys.mutex);
 }
@@ -3119,7 +3119,7 @@ recv_group_scan_log_recs(
 	mutex_enter(&recv_sys.mutex);
 	recv_sys.len = 0;
 	recv_sys.recovered_offset = 0;
-	recv_sys.empty();
+	recv_sys.clear();
 	srv_start_lsn = *contiguous_lsn;
 	recv_sys.parse_start_lsn = *contiguous_lsn;
 	recv_sys.scanned_lsn = *contiguous_lsn;
