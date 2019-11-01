@@ -1722,69 +1722,63 @@ parse_log:
 @param lsn	start LSN of the mini-transaction
 @param end_lsn	end LSN of the mini-transaction */
 inline void recv_sys_t::add(mlog_id_t type, const page_id_t page_id,
-			    byte* body, byte* rec_end, lsn_t lsn,
-			    lsn_t end_lsn)
+                            byte* body, byte* rec_end, lsn_t lsn,
+                            lsn_t end_lsn)
 {
-	ut_ad(type != MLOG_FILE_DELETE);
-	ut_ad(type != MLOG_FILE_CREATE2);
-	ut_ad(type != MLOG_FILE_RENAME2);
-	ut_ad(type != MLOG_FILE_NAME);
-	ut_ad(type != MLOG_DUMMY_RECORD);
-	ut_ad(type != MLOG_CHECKPOINT);
-	ut_ad(type != MLOG_INDEX_LOAD);
-	ut_ad(type != MLOG_TRUNCATE);
+  ut_ad(type != MLOG_FILE_DELETE);
+  ut_ad(type != MLOG_FILE_CREATE2);
+  ut_ad(type != MLOG_FILE_RENAME2);
+  ut_ad(type != MLOG_FILE_NAME);
+  ut_ad(type != MLOG_DUMMY_RECORD);
+  ut_ad(type != MLOG_CHECKPOINT);
+  ut_ad(type != MLOG_INDEX_LOAD);
+  ut_ad(type != MLOG_TRUNCATE);
 
-	std::pair<map::iterator, bool> p = pages.emplace(
-		map::value_type(page_id, page_recv_t()));
-	page_recv_t& recs = p.first->second;
-	ut_ad(p.second == recs.log.empty());
+  std::pair<map::iterator, bool> p = pages.insert(map::value_type
+                                                  (page_id, page_recv_t()));
+  page_recv_t& recs= p.first->second;
+  ut_ad(p.second == recs.log.empty());
 
-	switch (type) {
-	case MLOG_INIT_FILE_PAGE2:
-	case MLOG_ZIP_PAGE_COMPRESS:
-	case MLOG_INIT_FREE_PAGE:
-		recs.will_not_read();
-		mlog_init.add(page_id, lsn);
-	default:
-		break;
-	}
+  switch (type) {
+  case MLOG_INIT_FILE_PAGE2:
+  case MLOG_ZIP_PAGE_COMPRESS:
+  case MLOG_INIT_FREE_PAGE:
+    recs.will_not_read();
+    mlog_init.add(page_id, lsn);
+  default:
+    break;
+  }
 
-	/* Store the log record body in chunks of less than srv_page_size:
-	heap grows into the buffer pool, and bigger chunks could not
-	be allocated */
-	uint32_t len = uint32_t(rec_end - body);
-	const uint32_t chunk_limit = static_cast<uint32_t>(
-		RECV_DATA_BLOCK_SIZE);
-	uint32_t chunk_len = std::min(len, chunk_limit);
+  /* Store the log record body in limited-size chunks, because the
+  heap grows into the buffer pool. */
+  uint32_t len= uint32_t(rec_end - body);
+  const uint32_t chunk_limit= static_cast<uint32_t>(RECV_DATA_BLOCK_SIZE);
+  uint32_t chunk_len= std::min(len, chunk_limit);
 
-	recv_t* recv = new
-		(mem_heap_alloc(heap, sizeof(recv_t) + chunk_len))
-		recv_t(len, type, lsn, end_lsn);
-	memcpy(recv + 1, body, chunk_len);
-	recs.log.append(recv);
+  recv_t* recv= new (mem_heap_alloc(heap, sizeof(recv_t) + chunk_len))
+    recv_t(len, type, lsn, end_lsn);
+  memcpy(recv + 1, body, chunk_len);
+  recs.log.append(recv);
 
-	if (UNIV_LIKELY(len == chunk_len)) {
-		return;
-	}
+  if (UNIV_LIKELY(len == chunk_len))
+    return;
 
-	recv_t::data_t** prev_field = &recv->data.next;
+  recv_t::data_t** prev_field= &recv->data.next;
 
-	do {
-		body += chunk_len;
-		len -= chunk_len;
-		chunk_len = std::min(len, chunk_limit);
+  do {
+    body += chunk_len;
+    len -= chunk_len;
+    chunk_len = std::min(len, chunk_limit);
 
-		recv_t::data_t* recv_data = static_cast<recv_t::data_t*>
-			(mem_heap_alloc(heap, sizeof(recv_t::data_t)
-					+ chunk_len));
-		*prev_field = recv_data;
+    recv_t::data_t* recv_data = static_cast<recv_t::data_t*>
+      (mem_heap_alloc(heap, sizeof(recv_t::data_t) + chunk_len));
+    *prev_field = recv_data;
 
-		memcpy(recv_data + 1, body, chunk_len);
+    memcpy(recv_data + 1, body, chunk_len);
+    prev_field= &recv_data->next;
+  } while (len != chunk_len);
 
-		prev_field = &recv_data->next;
-	} while (len != chunk_len);
-
-	*prev_field = NULL;
+  *prev_field= NULL;
 }
 
 /** Trim old log records for a page
