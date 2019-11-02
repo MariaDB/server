@@ -114,6 +114,7 @@ from information_schema.tables
 where table_schema=database() and table_name='t1';
 select sleep(2);
 sleep(2)	0
+# restart
 select
 create_time=(select create_time from t2)  /* should not change */,
 update_time
