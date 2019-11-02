@@ -4400,6 +4400,10 @@ prepare_inplace_alter_table_dict(
 
 	new_clustered = DICT_CLUSTERED & index_defs[0].ind_type;
 
+	create_table_info_t info(ctx->prebuilt->trx->mysql_thd, altered_table,
+				 ha_alter_info->create_info, NULL, NULL,
+				 srv_file_per_table);
+
 	if (num_fts_index > 1) {
 		my_error(ER_INNODB_FT_LIMIT, MYF(0));
 		goto error_handled;
@@ -4837,6 +4841,11 @@ index_created:
 		if (!ctx->add_index[a]) {
 			error = ctx->trx->error_state;
 			DBUG_ASSERT(error != DB_SUCCESS);
+			goto error_handling;
+		}
+
+		if (!info.row_size_is_acceptable(*ctx->add_index[a])) {
+			error = DB_TOO_BIG_RECORD;
 			goto error_handling;
 		}
 

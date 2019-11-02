@@ -361,8 +361,7 @@ dict_boot(void)
 
 	error = dict_index_add_to_cache(table, index,
 					mach_read_from_4(dict_hdr
-							 + DICT_HDR_TABLES),
-					FALSE);
+							 + DICT_HDR_TABLES));
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
@@ -371,10 +370,8 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_TABLE_IDS_ID;
-	error = dict_index_add_to_cache(table, index,
-					mach_read_from_4(dict_hdr
-							 + DICT_HDR_TABLE_IDS),
-					FALSE);
+	error = dict_index_add_to_cache(
+		table, index, mach_read_from_4(dict_hdr + DICT_HDR_TABLE_IDS));
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
@@ -405,8 +402,7 @@ dict_boot(void)
 	index->id = DICT_COLUMNS_ID;
 	error = dict_index_add_to_cache(table, index,
 					mach_read_from_4(dict_hdr
-							 + DICT_HDR_COLUMNS),
-					FALSE);
+							 + DICT_HDR_COLUMNS));
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
@@ -438,8 +434,7 @@ dict_boot(void)
 	index->id = DICT_INDEXES_ID;
 	error = dict_index_add_to_cache(table, index,
 					mach_read_from_4(dict_hdr
-							 + DICT_HDR_INDEXES),
-					FALSE);
+							 + DICT_HDR_INDEXES));
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
@@ -465,8 +460,7 @@ dict_boot(void)
 	index->id = DICT_FIELDS_ID;
 	error = dict_index_add_to_cache(table, index,
 					mach_read_from_4(dict_hdr
-							 + DICT_HDR_FIELDS),
-					FALSE);
+							 + DICT_HDR_FIELDS));
 	ut_a(error == DB_SUCCESS);
 
 	mtr_commit(&mtr);

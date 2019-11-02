@@ -164,6 +164,9 @@ page_zip_rec_needs_ext(
 	ulint			n_fields,
 	const page_size_t&	page_size)
 {
+	/* FIXME: row size check is this function seems to be the most correct.
+	Put it in a separate function and use in more places of InnoDB */
+
 	ut_ad(rec_size
 	      > ulint(comp ? REC_N_NEW_EXTRA_BYTES : REC_N_OLD_EXTRA_BYTES));
 	ut_ad(comp || !page_size.is_compressed());
