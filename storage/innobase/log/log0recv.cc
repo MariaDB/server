@@ -1757,7 +1757,7 @@ inline void recv_sys_t::add(mlog_id_t type, const page_id_t page_id,
 
   recv_t* recv= new (mem_heap_alloc(heap, sizeof(recv_t) + chunk_len))
     recv_t(len, type, lsn, end_lsn);
-  memcpy(recv + 1, body, chunk_len);
+  memcpy((void*)(recv + 1), body, chunk_len);
   recs.log.append(recv);
 
   if (UNIV_LIKELY(len == chunk_len))
