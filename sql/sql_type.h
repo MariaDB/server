@@ -3310,7 +3310,7 @@ public:
                         const Column_definition *row_start,
                         const Column_definition *row_end) const;
 };
-extern Vers_type_trx vers_type_trx;
+extern MYSQL_PLUGIN_IMPORT Vers_type_trx vers_type_trx;
 
 
 class Type_handler
@@ -7067,14 +7067,14 @@ class Named_type_handler : public TypeHandler
 {
   public:
   Named_type_handler(const char *n) : TypeHandler()
-  { Type_handler::set_name(Name(n, strlen(n))); }
+  { Type_handler::set_name(Name(n, static_cast<uint>(strlen(n)))); }
 };
 
 extern Named_type_handler<Type_handler_row>         type_handler_row;
 extern Named_type_handler<Type_handler_null>        type_handler_null;
 
 extern Named_type_handler<Type_handler_float>       type_handler_float;
-extern Named_type_handler<Type_handler_double>      type_handler_double;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_double>      type_handler_double;
 
 extern Named_type_handler<Type_handler_bit>         type_handler_bit;
 
@@ -7083,31 +7083,31 @@ extern Named_type_handler<Type_handler_set>         type_handler_set;
 
 extern Named_type_handler<Type_handler_string>      type_handler_string;
 extern Named_type_handler<Type_handler_var_string>  type_handler_var_string;
-extern Named_type_handler<Type_handler_varchar>     type_handler_varchar;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_varchar>     type_handler_varchar;
 extern Named_type_handler<Type_handler_varchar_compressed> type_handler_varchar_compressed;
 extern Named_type_handler<Type_handler_hex_hybrid>  type_handler_hex_hybrid;
 
 extern Named_type_handler<Type_handler_tiny_blob>   type_handler_tiny_blob;
 extern Named_type_handler<Type_handler_medium_blob> type_handler_medium_blob;
-extern Named_type_handler<Type_handler_long_blob>   type_handler_long_blob;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_long_blob>   type_handler_long_blob;
 extern Named_type_handler<Type_handler_blob>        type_handler_blob;
 extern Named_type_handler<Type_handler_blob_compressed> type_handler_blob_compressed;
 
-extern Named_type_handler<Type_handler_bool>        type_handler_bool;
-extern Named_type_handler<Type_handler_tiny>        type_handler_stiny;
-extern Named_type_handler<Type_handler_short>       type_handler_sshort;
-extern Named_type_handler<Type_handler_int24>       type_handler_sint24;
-extern Named_type_handler<Type_handler_long>        type_handler_slong;
-extern Named_type_handler<Type_handler_longlong>    type_handler_slonglong;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_bool>        type_handler_bool;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_tiny>        type_handler_stiny;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_short>       type_handler_sshort;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_int24>       type_handler_sint24;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_long>        type_handler_slong;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_longlong>    type_handler_slonglong;
 
 extern Named_type_handler<Type_handler_utiny>       type_handler_utiny;
 extern Named_type_handler<Type_handler_ushort>      type_handler_ushort;
 extern Named_type_handler<Type_handler_uint24>      type_handler_uint24;
-extern Named_type_handler<Type_handler_ulong>       type_handler_ulong;
-extern Named_type_handler<Type_handler_ulonglong>   type_handler_ulonglong;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_ulong>       type_handler_ulong;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_ulonglong>   type_handler_ulonglong;
 extern Named_type_handler<Type_handler_vers_trx_id> type_handler_vers_trx_id;
 
-extern Named_type_handler<Type_handler_newdecimal>  type_handler_newdecimal;
+extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_newdecimal>  type_handler_newdecimal;
 extern Named_type_handler<Type_handler_olddecimal>  type_handler_olddecimal;
 
 extern Named_type_handler<Type_handler_year>        type_handler_year;
