@@ -125,10 +125,22 @@ bool	recv_writer_thread_active;
 /** Stored physiological log record with byte-oriented start/end LSN */
 struct recv_t : public log_rec_t
 {
-  recv_t(uint32_t len, mlog_id_t type, lsn_t start_lsn, lsn_t end_lsn) :
+  /**
+    Constructor.
+    @param len       total length of the redo log record body, in bytes
+    @param type      redo log record chunk
+    @param start_lsn start LSN of the mini-transaction
+    @param end_lsn   end LSN of the mini-transaction
+    @param body      redo log record body
+    @param body_len  redo log record length, in bytes
+  */
+  recv_t(uint32_t len, mlog_id_t type, lsn_t start_lsn, lsn_t end_lsn,
+         const void* body, size_t body_len) :
     log_rec_t(end_lsn), len(len), type(type), start_lsn(start_lsn),
-    data({NULL})
-  {}
+    data()
+  {
+    memcpy(reinterpret_cast<void*>(this + 1), body, body_len);
+  }
 
   /** log record body length in bytes */
   const uint32_t len;
@@ -142,7 +154,24 @@ struct recv_t : public log_rec_t
     /** pointer to the next chunk, or NULL for the last chunk.  The
     log record data (at most RECV_DATA_BLOCK_SIZE bytes per chunk)
     is stored immediately after this field. */
-    data_t *next;
+    data_t *next= NULL;
+
+    data_t() {}
+    /**
+      Constructor.
+      @param chunk   redo log record chunk
+      @param len     length of the chunk, in bytes
+    */
+    data_t(const void* chunk, size_t len)
+    {
+      memcpy(reinterpret_cast<void*>(this + 1), chunk, len);
+    }
+
+    /**
+      Append a log snippet.
+      @param d  log snippet
+    */
+    void append(data_t *d) { ut_ad(!next); ut_ad(!d->next); next= d; }
   } data;
 };
 
@@ -1749,32 +1778,27 @@ inline void recv_sys_t::add(mlog_id_t type, const page_id_t page_id,
   heap grows into the buffer pool. */
   uint32_t len= uint32_t(rec_end - body);
   const uint32_t chunk_limit= static_cast<uint32_t>(RECV_DATA_BLOCK_SIZE);
-  uint32_t chunk_len= std::min(len, chunk_limit);
+  uint32_t l= std::min(len, chunk_limit);
 
-  recv_t* recv= new (mem_heap_alloc(heap, sizeof(recv_t) + chunk_len))
-    recv_t(len, type, lsn, end_lsn);
-  memcpy((void*)(recv + 1), body, chunk_len);
+  recv_t* recv= new (mem_heap_alloc(heap, sizeof(recv_t) + l))
+    recv_t(len, type, lsn, end_lsn, body, l);
   recs.log.append(recv);
 
-  if (UNIV_LIKELY(len == chunk_len))
+  if (UNIV_LIKELY(len == l))
     return;
 
-  recv_t::data_t** prev_field= &recv->data.next;
+  recv_t::data_t* prev= &recv->data;
 
   do {
-    body += chunk_len;
-    len -= chunk_len;
-    chunk_len = std::min(len, chunk_limit);
+    body+= l;
+    len-= l;
+    l = std::min(len, chunk_limit);
 
-    recv_t::data_t* recv_data = static_cast<recv_t::data_t*>
-      (mem_heap_alloc(heap, sizeof(recv_t::data_t) + chunk_len));
-    *prev_field = recv_data;
-
-    memcpy(recv_data + 1, body, chunk_len);
-    prev_field= &recv_data->next;
-  } while (len != chunk_len);
-
-  *prev_field= NULL;
+    recv_t::data_t* d= new (mem_heap_alloc(heap, sizeof(recv_t::data_t) + l))
+      recv_t::data_t(body, l);
+    prev->append(d);
+    prev= d;
+  } while (len != l);
 }
 
 /** Trim old log records for a page
