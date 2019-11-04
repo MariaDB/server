@@ -467,7 +467,7 @@ struct datafile_cur_t {
 	{
 		memset(rel_path, 0, sizeof rel_path);
 		if (filename) {
-			strncpy(abs_path, filename, sizeof abs_path);
+			strncpy(abs_path, filename, sizeof abs_path - 1);
 			abs_path[(sizeof abs_path) - 1] = 0;
 		} else {
 			abs_path[0] = '\0';

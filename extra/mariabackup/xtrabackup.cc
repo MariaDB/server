@@ -2425,7 +2425,8 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n)
 		goto error;
 	}
 
-	strncpy(dst_name, cursor.rel_path, sizeof(dst_name));
+	strncpy(dst_name, cursor.rel_path, sizeof dst_name - 1);
+	dst_name[sizeof dst_name - 1] = '\0';
 
 	/* Setup the page write filter */
 	if (xtrabackup_incremental) {

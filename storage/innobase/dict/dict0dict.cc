@@ -1850,8 +1850,7 @@ dict_table_rename_in_cache(
 			/* The old table name in my_charset_filename is stored
 			in old_name_cs_filename */
 
-			strncpy(old_name_cs_filename, old_name,
-				MAX_FULL_NAME_LEN);
+			strcpy(old_name_cs_filename, old_name);
 			old_name_cs_filename[MAX_FULL_NAME_LEN] = '\0';
 			if (strstr(old_name, TEMP_TABLE_PATH_PREFIX) == NULL) {
 
@@ -1873,8 +1872,7 @@ dict_table_rename_in_cache(
 				} else {
 					/* Old name already in
 					my_charset_filename */
-					strncpy(old_name_cs_filename, old_name,
-						MAX_FULL_NAME_LEN);
+					strcpy(old_name_cs_filename, old_name);
 					old_name_cs_filename[MAX_FULL_NAME_LEN]
 						= '\0';
 				}
