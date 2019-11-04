@@ -584,23 +584,23 @@ btr_discard_page(
 Parses the redo log record for setting an index record as the predefined
 minimum record.
 @return end of log record or NULL */
-byte*
+const byte*
 btr_parse_set_min_rec_mark(
 /*=======================*/
-	byte*	ptr,	/*!< in: buffer */
-	byte*	end_ptr,/*!< in: buffer end */
-	ulint	comp,	/*!< in: nonzero=compact page format */
-	page_t*	page,	/*!< in: page or NULL */
-	mtr_t*	mtr)	/*!< in: mtr or NULL */
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
+	ulint		comp,	/*!< in: nonzero=compact page format */
+	page_t*		page,	/*!< in: page or NULL */
+	mtr_t*		mtr)	/*!< in: mtr or NULL */
 	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
 /***********************************************************//**
 Parses a redo log record of reorganizing a page.
 @return end of log record or NULL */
-byte*
+const byte*
 btr_parse_page_reorganize(
 /*======================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	bool		compressed,/*!< in: true if compressed page */
 	buf_block_t*	block,	/*!< in: page to be reorganized, or NULL */

@@ -330,7 +330,7 @@ struct recv_sys_t{
 	@param lsn	start LSN of the mini-transaction
 	@param end_lsn	end LSN of the mini-transaction */
 	inline void add(mlog_id_t type, const page_id_t page_id,
-			byte* body, byte* rec_end, lsn_t lsn,
+			const byte* body, const byte* rec_end, lsn_t lsn,
 			lsn_t end_lsn);
 
 	/** Clear a fully processed set of stored redo log records. */

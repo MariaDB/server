@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -83,7 +83,7 @@ mlog_write_initial_log_record(
 /********************************************************//**
 Parses an initial log record written by mlog_write_initial_log_record.
 @return parsed record end, NULL if not a complete record */
-byte*
+const byte*
 mlog_parse_initial_log_record(
 /*==========================*/
 	const byte*	ptr,	/*!< in: buffer */
@@ -123,7 +123,7 @@ mlog_parse_initial_log_record(
 /********************************************************//**
 Parses a log record written by mlog_write_ulint, mlog_write_ull, mlog_memset.
 @return parsed record end, NULL if not a complete record or a corrupt record */
-byte*
+const byte*
 mlog_parse_nbytes(
 /*==============*/
 	mlog_id_t	type,	/*!< in: log record type: MLOG_1BYTE, ... */
@@ -375,13 +375,14 @@ mlog_log_string(
 /********************************************************//**
 Parses a log record written by mlog_write_string.
 @return parsed record end, NULL if not a complete record */
-byte*
+const byte*
 mlog_parse_string(
 /*==============*/
-	byte*	ptr,	/*!< in: buffer */
-	byte*	end_ptr,/*!< in: buffer end */
-	byte*	page,	/*!< in: page where to apply the log record, or NULL */
-	void*	page_zip)/*!< in/out: compressed page, or NULL */
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
+	byte*		page,	/*!< in: page where to apply the log record,
+				or NULL */
+	void*		page_zip)/*!< in/out: compressed page, or NULL */
 {
 	ulint	offset;
 	ulint	len;
@@ -614,20 +615,18 @@ mlog_open_and_write_index(
 /********************************************************//**
 Parses a log record written by mlog_open_and_write_index.
 @return parsed record end, NULL if not a complete record */
-byte*
+const byte*
 mlog_parse_index(
 /*=============*/
-	byte*		ptr,	/*!< in: buffer */
+	const byte*	ptr,	/*!< in: buffer */
 	const byte*	end_ptr,/*!< in: buffer end */
-	ibool		comp,	/*!< in: TRUE=compact row format */
+	bool		comp,	/*!< in: TRUE=compact row format */
 	dict_index_t**	index)	/*!< out, own: dummy index */
 {
 	ulint		i, n, n_uniq;
 	dict_table_t*	table;
 	dict_index_t*	ind;
 	ulint		n_core_fields = 0;
-
-	ut_ad(comp == FALSE || comp == TRUE);
 
 	if (comp) {
 		if (end_ptr < ptr + 4) {

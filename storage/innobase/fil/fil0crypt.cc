@@ -451,9 +451,9 @@ Parse a MLOG_FILE_WRITE_CRYPT_DATA log entry
 @param[in]	block		buffer block
 @return position on log buffer */
 UNIV_INTERN
-byte*
+const byte*
 fil_parse_write_crypt_data(
-	byte*			ptr,
+	const byte*		ptr,
 	const byte*		end_ptr,
 	dberr_t*		err)
 {

@@ -1016,10 +1016,10 @@ need_extra_info:
 /***********************************************************//**
 Parses a log record of a record insert on a page.
 @return end of log record or NULL */
-byte*
+const byte*
 page_cur_parse_insert_rec(
 /*======================*/
-	ibool		is_short,/*!< in: TRUE if short inserts */
+	bool		is_short,/*!< in: true if short inserts */
 	const byte*	ptr,	/*!< in: buffer */
 	const byte*	end_ptr,/*!< in: buffer end */
 	buf_block_t*	block,	/*!< in: page or NULL */
@@ -2077,16 +2077,15 @@ page_copy_rec_list_to_created_page_write_log(
 /**********************************************************//**
 Parses a log record of copying a record list end to a new created page.
 @return end of log record or NULL */
-byte*
+const byte*
 page_parse_copy_rec_list_to_created_page(
 /*=====================================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
 	buf_block_t*	block,	/*!< in: page or NULL */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	mtr_t*		mtr)	/*!< in: mtr or NULL */
 {
-	byte*		rec_end;
 	ulint		log_data_len;
 	page_t*		page;
 	page_zip_des_t*	page_zip;
@@ -2101,7 +2100,7 @@ page_parse_copy_rec_list_to_created_page(
 	log_data_len = mach_read_from_4(ptr);
 	ptr += 4;
 
-	rec_end = ptr + log_data_len;
+	const byte* rec_end = ptr + log_data_len;
 
 	if (rec_end > end_ptr) {
 
@@ -2123,7 +2122,7 @@ page_parse_copy_rec_list_to_created_page(
 	      || !page_has_siblings(block->frame));
 
 	while (ptr < rec_end) {
-		ptr = page_cur_parse_insert_rec(TRUE, ptr, end_ptr,
+		ptr = page_cur_parse_insert_rec(true, ptr, end_ptr,
 						block, index, mtr);
 	}
 
@@ -2364,11 +2363,11 @@ page_cur_delete_rec_write_log(
 /***********************************************************//**
 Parses log record of a record delete on a page.
 @return pointer to record end or NULL */
-byte*
+const byte*
 page_cur_parse_delete_rec(
 /*======================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
 	buf_block_t*	block,	/*!< in: page or NULL */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	mtr_t*		mtr)	/*!< in: mtr or NULL */

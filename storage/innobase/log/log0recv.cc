@@ -362,11 +362,7 @@ inline void recv_sys_t::trim(const page_id_t page_id, lsn_t lsn)
 @param[in]	deleted		whether this is a MLOG_FILE_DELETE record */
 static
 void
-fil_name_process(
-	char*	name,
-	ulint	len,
-	ulint	space_id,
-	bool	deleted)
+fil_name_process(char* name, ulint len, ulint space_id, bool deleted)
 {
 	if (srv_operation == SRV_OPERATION_BACKUP) {
 		return;
@@ -492,7 +488,7 @@ fil_name_process(
 }
 
 /** Parse or process a MLOG_FILE_* record.
-@param[in]	ptr		redo log record
+@param[in,out]	ptr		redo log record
 @param[in]	end		end of the redo log buffer
 @param[in]	space_id	the tablespace ID
 @param[in]	first_page_no	first page number in the file
@@ -502,7 +498,7 @@ or MLOG_FILE_CREATE2 or MLOG_FILE_RENAME2
 @return pointer to next redo log record
 @retval NULL if this log record was truncated */
 static
-byte*
+const byte*
 fil_name_parse(
 	byte*		ptr,
 	const byte*	end,
@@ -1277,11 +1273,11 @@ or if it is a MLOG_FILE_ operation
 a page log record should not be applied
 @return log record end, NULL if not a complete record */
 static
-byte*
+const byte*
 recv_parse_or_apply_log_rec_body(
 	mlog_id_t	type,
-	byte*		ptr,
-	byte*		end_ptr,
+	const byte*	ptr,
+	const byte*	end_ptr,
 	ulint		space_id,
 	ulint		page_no,
 	bool		apply,
@@ -1299,8 +1295,8 @@ recv_parse_or_apply_log_rec_body(
 		ut_ad(block == NULL);
 		/* Collect the file names when parsing the log,
 		before applying any log records. */
-		return(fil_name_parse(ptr, end_ptr, space_id, page_no, type,
-				      apply));
+		return fil_name_parse(const_cast<byte*>(ptr), end_ptr,
+				      space_id, page_no, type, apply);
 	case MLOG_INDEX_LOAD:
 		if (end_ptr < ptr + 8) {
 			return(NULL);
@@ -1489,7 +1485,7 @@ parse_log:
 			ut_a(!page
 			     || (ibool)!!page_is_comp(page)
 			     == dict_table_is_comp(index->table));
-			ptr = page_cur_parse_insert_rec(FALSE, ptr, end_ptr,
+			ptr = page_cur_parse_insert_rec(false, ptr, end_ptr,
 							block, index, mtr);
 		}
 		break;
@@ -1690,7 +1686,7 @@ parse_log:
 		break;
 	case MLOG_FILE_WRITE_CRYPT_DATA:
 		dberr_t err;
-		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, &err));
+		ptr = fil_parse_write_crypt_data(ptr, end_ptr, &err);
 
 		if (err != DB_SUCCESS) {
 			recv_sys.found_corrupt_log = TRUE;
@@ -1722,7 +1718,7 @@ parse_log:
 @param lsn	start LSN of the mini-transaction
 @param end_lsn	end LSN of the mini-transaction */
 inline void recv_sys_t::add(mlog_id_t type, const page_id_t page_id,
-                            byte* body, byte* rec_end, lsn_t lsn,
+                            const byte* body, const byte* rec_end, lsn_t lsn,
                             lsn_t end_lsn)
 {
   ut_ad(type != MLOG_FILE_DELETE);
@@ -2325,14 +2321,14 @@ static
 ulint
 recv_parse_log_rec(
 	mlog_id_t*	type,
-	byte*		ptr,
-	byte*		end_ptr,
+	const byte*	ptr,
+	const byte*	end_ptr,
 	ulint*		space,
 	ulint*		page_no,
 	bool		apply,
-	byte**		body)
+	const byte**	body)
 {
-	byte*	new_ptr;
+	const byte*	new_ptr;
 
 	*body = NULL;
 
@@ -2523,8 +2519,6 @@ hash table to wait merging to file pages.
 or corruption was noticed */
 bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply)
 {
-	byte*		ptr;
-	byte*		end_ptr;
 	bool		single_rec;
 	ulint		len;
 	lsn_t		new_recovered_lsn;
@@ -2532,15 +2526,14 @@ bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply)
 	mlog_id_t	type;
 	ulint		space;
 	ulint		page_no;
-	byte*		body;
+	const byte*	body;
 
 	ut_ad(log_mutex_own());
 	ut_ad(mutex_own(&recv_sys.mutex));
 	ut_ad(recv_sys.parse_start_lsn != 0);
 loop:
-	ptr = recv_sys.buf + recv_sys.recovered_offset;
-
-	end_ptr = recv_sys.buf + recv_sys.len;
+	const byte* ptr = recv_sys.buf + recv_sys.recovered_offset;
+	const byte* end_ptr = recv_sys.buf + recv_sys.len;
 
 	if (ptr == end_ptr) {
 

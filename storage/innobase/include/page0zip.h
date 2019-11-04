@@ -264,11 +264,11 @@ page_zip_write_rec(
 /***********************************************************//**
 Parses a log record of writing a BLOB pointer of a record.
 @return end of log record or NULL */
-byte*
+const byte*
 page_zip_parse_write_blob_ptr(
 /*==========================*/
-	byte*		ptr,	/*!< in: redo log buffer */
-	byte*		end_ptr,/*!< in: redo log buffer end */
+	const byte*	ptr,	/*!< in: redo log buffer */
+	const byte*	end_ptr,/*!< in: redo log buffer end */
 	page_t*		page,	/*!< in/out: uncompressed page */
 	page_zip_des_t*	page_zip);/*!< in/out: compressed page */
 
@@ -290,11 +290,11 @@ page_zip_write_blob_ptr(
 /***********************************************************//**
 Parses a log record of writing the node pointer of a record.
 @return end of log record or NULL */
-byte*
+const byte*
 page_zip_parse_write_node_ptr(
 /*==========================*/
-	byte*		ptr,	/*!< in: redo log buffer */
-	byte*		end_ptr,/*!< in: redo log buffer end */
+	const byte*	ptr,	/*!< in: redo log buffer */
+	const byte*	end_ptr,/*!< in: redo log buffer end */
 	page_t*		page,	/*!< in/out: uncompressed page */
 	page_zip_des_t*	page_zip);/*!< in/out: compressed page */
 
@@ -335,10 +335,10 @@ page_zip_write_trx_id_and_roll_ptr(
 @param[in,out]	page_zip	compressed page
 @return end of log record
 @retval	NULL	if the log record is incomplete */
-byte*
+const byte*
 page_zip_parse_write_trx_id(
-	byte*		ptr,
-	byte*		end_ptr,
+	const byte*	ptr,
+	const byte*	end_ptr,
 	page_t*		page,
 	page_zip_des_t*	page_zip)
 	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
@@ -403,11 +403,11 @@ page_zip_dir_add_slot(
 /***********************************************************//**
 Parses a log record of writing to the header of a page.
 @return end of log record or NULL */
-byte*
+const byte*
 page_zip_parse_write_header(
 /*========================*/
-	byte*		ptr,	/*!< in: redo log buffer */
-	byte*		end_ptr,/*!< in: redo log buffer end */
+	const byte*	ptr,	/*!< in: redo log buffer */
+	const byte*	end_ptr,/*!< in: redo log buffer end */
 	page_t*		page,	/*!< in/out: uncompressed page */
 	page_zip_des_t*	page_zip);/*!< in/out: compressed page */
 
@@ -468,8 +468,8 @@ page_zip_copy_recs(
 @param[in,out]	block	ROW_FORMAT=COMPRESSED block, or NULL for parsing only
 @return	end of log record
 @retval	NULL	if the log record is incomplete */
-byte* page_zip_parse_compress(const byte* ptr, const byte* end_ptr,
-			      buf_block_t* block);
+const byte* page_zip_parse_compress(const byte* ptr, const byte* end_ptr,
+				    buf_block_t* block);
 
 #endif /* !UNIV_INNOCHECKSUM */
 
