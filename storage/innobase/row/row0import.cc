@@ -264,7 +264,7 @@ public:
 	bool remove(
 		const dict_index_t*	index,
 		page_zip_des_t*		page_zip,
-		ulint*			offsets) UNIV_NOTHROW
+		offset_t*		offsets) UNIV_NOTHROW
 	{
 		/* We can't end up with an empty page unless it is root. */
 		if (page_get_n_recs(m_cur.block->frame) <= 1) {
@@ -845,7 +845,7 @@ private:
 	@return DB_SUCCESS or error code */
 	dberr_t	adjust_cluster_index_blob_column(
 		rec_t*		rec,
-		const ulint*	offsets,
+		const offset_t*	offsets,
 		ulint		i) UNIV_NOTHROW;
 
 	/** Adjusts the BLOB reference in the clustered index row for all
@@ -855,7 +855,7 @@ private:
 	@return DB_SUCCESS or error code */
 	dberr_t	adjust_cluster_index_blob_columns(
 		rec_t*		rec,
-		const ulint*	offsets) UNIV_NOTHROW;
+		const offset_t*	offsets) UNIV_NOTHROW;
 
 	/** In the clustered index, adjist the BLOB pointers as needed.
 	Also update the BLOB reference, write the new space id.
@@ -864,13 +864,13 @@ private:
 	@return DB_SUCCESS or error code */
 	dberr_t	adjust_cluster_index_blob_ref(
 		rec_t*		rec,
-		const ulint*	offsets) UNIV_NOTHROW;
+		const offset_t*	offsets) UNIV_NOTHROW;
 
 	/** Purge delete-marked records, only if it is possible to do
 	so without re-organising the B+tree.
 	@param offsets current row offsets.
 	@retval true if purged */
-	bool	purge(const ulint* offsets) UNIV_NOTHROW;
+	bool	purge(const offset_t* offsets) UNIV_NOTHROW;
 
 	/** Adjust the BLOB references and sys fields for the current record.
 	@param index the index being converted
@@ -880,7 +880,7 @@ private:
 	dberr_t	adjust_cluster_record(
 		const dict_index_t*	index,
 		rec_t*			rec,
-		const ulint*		offsets) UNIV_NOTHROW;
+		const offset_t*		offsets) UNIV_NOTHROW;
 
 	/** Find an index with the matching id.
 	@return row_index_t* instance or 0 */
@@ -914,10 +914,10 @@ private:
 	RecIterator		m_rec_iter;
 
 	/** Record offset */
-	ulint			m_offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t		m_offsets_[REC_OFFS_NORMAL_SIZE];
 
 	/** Pointer to m_offsets_ */
-	ulint*			m_offsets;
+	offset_t*		m_offsets;
 
 	/** Memory heap for the record offsets */
 	mem_heap_t*		m_heap;
@@ -1583,7 +1583,7 @@ inline
 dberr_t
 PageConverter::adjust_cluster_index_blob_column(
 	rec_t*		rec,
-	const ulint*	offsets,
+	const offset_t*	offsets,
 	ulint		i) UNIV_NOTHROW
 {
 	ulint		len;
@@ -1627,7 +1627,7 @@ inline
 dberr_t
 PageConverter::adjust_cluster_index_blob_columns(
 	rec_t*		rec,
-	const ulint*	offsets) UNIV_NOTHROW
+	const offset_t*	offsets) UNIV_NOTHROW
 {
 	ut_ad(rec_offs_any_extern(offsets));
 
@@ -1660,7 +1660,7 @@ inline
 dberr_t
 PageConverter::adjust_cluster_index_blob_ref(
 	rec_t*		rec,
-	const ulint*	offsets) UNIV_NOTHROW
+	const offset_t*	offsets) UNIV_NOTHROW
 {
 	if (rec_offs_any_extern(offsets)) {
 		dberr_t	err;
@@ -1681,7 +1681,7 @@ re-organising the B+tree.
 @return true if purge succeeded */
 inline
 bool
-PageConverter::purge(const ulint* offsets) UNIV_NOTHROW
+PageConverter::purge(const offset_t* offsets) UNIV_NOTHROW
 {
 	const dict_index_t*	index = m_index->m_srv_index;
 
@@ -1707,7 +1707,7 @@ dberr_t
 PageConverter::adjust_cluster_record(
 	const dict_index_t*	index,
 	rec_t*			rec,
-	const ulint*		offsets) UNIV_NOTHROW
+	const offset_t*		offsets) UNIV_NOTHROW
 {
 	dberr_t	err;
 
@@ -2273,8 +2273,8 @@ row_import_set_sys_max_row_id(
 		ulint		len;
 		const byte*	field;
 		mem_heap_t*	heap = NULL;
-		ulint		offsets_[1 + REC_OFFS_HEADER_SIZE];
-		ulint*		offsets;
+		offset_t	offsets_[1 + REC_OFFS_HEADER_SIZE];
+		offset_t*	offsets;
 
 		rec_offs_init(offsets_);
 

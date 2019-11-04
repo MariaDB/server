@@ -47,6 +47,7 @@ Created June 2005 by Marko Makela
 #endif /* !UNIV_INNOCHECKSUM */
 
 #include "buf0types.h"
+#include "rem0types.h"
 
 #ifndef UNIV_INNOCHECKSUM
 #include "dict0types.h"
@@ -287,7 +288,7 @@ page_zip_write_rec(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	const byte*	rec,	/*!< in: record being written */
 	dict_index_t*	index,	/*!< in: the index the record belongs to */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		create)	/*!< in: nonzero=insert, zero=update */
 	MY_ATTRIBUTE((nonnull));
 
@@ -312,7 +313,7 @@ page_zip_write_blob_ptr(
 	const byte*	rec,	/*!< in/out: record whose data is being
 				written */
 	dict_index_t*	index,	/*!< in: index of the page */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		n,	/*!< in: column index */
 	mtr_t*		mtr);	/*!< in: mini-transaction handle,
 				or NULL if no logging is needed */
@@ -346,7 +347,7 @@ page_zip_write_trx_id_and_roll_ptr(
 /*===============================*/
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	byte*		rec,	/*!< in/out: record */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		trx_id_col,/*!< in: column number of TRX_ID in rec */
 	trx_id_t	trx_id,	/*!< in: transaction identifier */
 	roll_ptr_t	roll_ptr)/*!< in: roll_ptr */
@@ -394,7 +395,7 @@ page_zip_dir_delete(
 	page_zip_des_t*		page_zip,	/*!< in/out: compressed page */
 	byte*			rec,		/*!< in: deleted record */
 	const dict_index_t*	index,		/*!< in: index of rec */
-	const ulint*		offsets,	/*!< in: rec_get_offsets(rec) */
+	const offset_t*		offsets,	/*!< in: rec_get_offsets(rec) */
 	const byte*		free)		/*!< in: previous start of
 						the free list */
 	MY_ATTRIBUTE((nonnull(1,2,3,4)));

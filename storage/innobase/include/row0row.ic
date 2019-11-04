@@ -36,7 +36,7 @@ ulint
 row_get_trx_id_offset(
 /*==================*/
 	const dict_index_t*	index,	/*!< in: clustered index */
-	const ulint*		offsets)/*!< in: record offsets */
+	const offset_t*		offsets)/*!< in: record offsets */
 {
 	ulint	pos;
 	ulint	offset;
@@ -63,7 +63,7 @@ row_get_rec_trx_id(
 /*===============*/
 	const rec_t*		rec,	/*!< in: record */
 	const dict_index_t*	index,	/*!< in: clustered index */
-	const ulint*		offsets)/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*		offsets)/*!< in: rec_get_offsets(rec, index) */
 {
 	ulint	offset;
 
@@ -88,7 +88,7 @@ row_get_rec_roll_ptr(
 /*=================*/
 	const rec_t*		rec,	/*!< in: record */
 	const dict_index_t*	index,	/*!< in: clustered index */
-	const ulint*		offsets)/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*		offsets)/*!< in: rec_get_offsets(rec, index) */
 {
 	ulint	offset;
 
@@ -147,7 +147,7 @@ row_build_row_ref_fast(
 	const rec_t*	rec,	/*!< in: record in the index; must be
 				preserved while ref is used, as we do
 				not copy field values to heap */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	dfield_t*	dfield;
 	const byte*	field;

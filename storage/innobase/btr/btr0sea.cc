@@ -629,7 +629,7 @@ btr_search_update_hash_ref(
 	    && (block->curr_n_bytes == info->n_bytes)
 	    && (block->curr_left_side == info->left_side)) {
 		mem_heap_t*	heap		= NULL;
-		ulint		offsets_[REC_OFFS_NORMAL_SIZE];
+		offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
 		rec_offs_init(offsets_);
 
 		rec = btr_cur_get_rec(cursor);
@@ -740,8 +740,8 @@ btr_search_check_guess(
 	ulint		match;
 	int		cmp;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 	ibool		success		= FALSE;
 	rec_offs_init(offsets_);
 
@@ -1116,7 +1116,7 @@ btr_search_drop_page_hash_index(buf_block_t* block)
 	ulint			i;
 	mem_heap_t*		heap;
 	const dict_index_t*	index;
-	ulint*			offsets;
+	offset_t*		offsets;
 	rw_lock_t*		latch;
 	btr_search_t*		info;
 
@@ -1370,8 +1370,8 @@ btr_search_build_page_hash_index(
 	rec_t**		recs;
 	ulint		i;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 
 #ifdef MYSQL_INDEX_DISABLE_AHI
 	if (index->disable_ahi) return;
@@ -1619,7 +1619,7 @@ btr_search_update_hash_on_delete(btr_cur_t* cursor)
 	const rec_t*	rec;
 	ulint		fold;
 	dict_index_t*	index;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
 	mem_heap_t*	heap		= NULL;
 	rec_offs_init(offsets_);
 
@@ -1768,8 +1768,8 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor)
 	ibool		left_side;
 	ibool		locked		= FALSE;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(page_is_leaf(btr_cur_get_page(cursor)));
@@ -1930,8 +1930,8 @@ btr_search_hash_table_validate(ulint hash_table_id)
 	ulint		i;
 	ulint		cell_count;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 
 	if (!btr_search_enabled) {
 		return(TRUE);

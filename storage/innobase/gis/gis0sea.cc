@@ -527,7 +527,7 @@ rtr_compare_cursor_rec(
 	mem_heap_t**	heap)		/*!< in: memory heap */
 {
 	const rec_t*	rec;
-	ulint*		offsets;
+	offset_t*	offsets;
 
 	rec = btr_cur_get_rec(cursor);
 
@@ -669,7 +669,7 @@ rtr_page_get_father(
 {
 	mem_heap_t*	heap = mem_heap_create(100);
 #ifdef UNIV_DEBUG
-	ulint*		offsets;
+	offset_t*	offsets;
 
 	offsets = rtr_page_get_father_block(
 		NULL, heap, index, block, mtr, sea_cur, cursor);
@@ -690,9 +690,9 @@ rtr_page_get_father(
 that mtr holds an SX-latch or X-latch on the tree.
 @return	rec_get_offsets() of the node pointer record */
 static
-ulint*
+offset_t*
 rtr_page_get_father_node_ptr(
-	ulint*		offsets,/*!< in: work area for the return value */
+	offset_t*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
 	btr_cur_t*	sea_cur,/*!< in: search cursor */
 	btr_cur_t*	cursor,	/*!< in: cursor pointing to user record,
@@ -785,10 +785,10 @@ rtr_page_get_father_node_ptr(
 Returns the father block to a page. It is assumed that mtr holds
 an X or SX latch on the tree.
 @return rec_get_offsets() of the node pointer record */
-ulint*
+offset_t*
 rtr_page_get_father_block(
 /*======================*/
-	ulint*		offsets,/*!< in: work area for the return value */
+	offset_t*	offsets,/*!< in: work area for the return value */
 	mem_heap_t*	heap,	/*!< in: memory heap to use */
 	dict_index_t*	index,	/*!< in: b-tree index */
 	buf_block_t*	block,	/*!< in: child page in the index */
@@ -1303,8 +1303,8 @@ rtr_cur_restore_position(
 #ifdef UNIV_DEBUG
 		do {
 			const rec_t*	rec;
-			const ulint*	offsets1;
-			const ulint*	offsets2;
+			const offset_t*	offsets1;
+			const offset_t*	offsets2;
 			ulint		comp;
 
 			rec = btr_pcur_get_rec(r_cursor);
@@ -1377,8 +1377,8 @@ search_again:
 
 	if (low_match == r_cursor->old_n_fields) {
 		const rec_t*	rec;
-		const ulint*	offsets1;
-		const ulint*	offsets2;
+		const offset_t*	offsets1;
+		const offset_t*	offsets2;
 		ulint		comp;
 
 		rec = btr_pcur_get_rec(r_cursor);
@@ -1424,7 +1424,7 @@ rtr_leaf_push_match_rec(
 /*====================*/
 	const rec_t*	rec,		/*!< in: record to copy */
 	rtr_info_t*	rtr_info,	/*!< in/out: search stack */
-	ulint*		offsets,	/*!< in: offsets */
+	offset_t*	offsets,	/*!< in: offsets */
 	bool		is_comp)	/*!< in: is compact format */
 {
 	byte*		buf;
@@ -1610,7 +1610,7 @@ void
 rtr_get_mbr_from_rec(
 /*=================*/
 	const rec_t*	rec,	/*!< in: data tuple */
-	const ulint*	offsets,/*!< in: offsets array */
+	const offset_t*	offsets,/*!< in: offsets array */
 	rtr_mbr_t*	mbr)	/*!< out MBR */
 {
 	ulint		rec_f_len;
@@ -1657,8 +1657,8 @@ rtr_cur_search_with_match(
 	const page_t*	page;
 	const rec_t*	rec;
 	const rec_t*	last_rec;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 	mem_heap_t*	heap = NULL;
 	int		cmp = 1;
 	double		least_inc = DBL_MAX;
@@ -1941,8 +1941,8 @@ rtr_cur_search_with_match(
 
 			test_rec = match_rec->matched_recs->back();
 #ifdef UNIV_DEBUG
-			ulint		offsets_2[REC_OFFS_NORMAL_SIZE];
-			ulint*		offsets2	= offsets_2;
+			offset_t	offsets_2[REC_OFFS_NORMAL_SIZE];
+			offset_t*	offsets2	= offsets_2;
 			rec_offs_init(offsets_2);
 
 			ut_ad(found);

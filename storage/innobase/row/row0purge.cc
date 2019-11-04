@@ -108,8 +108,8 @@ row_purge_remove_clust_if_poss_low(
 	mtr_t			mtr;
 	rec_t*			rec;
 	mem_heap_t*		heap		= NULL;
-	ulint*			offsets;
-	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*		offsets;
+	offset_t		offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 
 	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_S)
@@ -1284,7 +1284,7 @@ purge_node_t::validate_pcur()
 
 	dict_index_t*	clust_index = pcur.btr_cur.index;
 
-	ulint*	offsets = rec_get_offsets(
+	offset_t* offsets = rec_get_offsets(
 		pcur.old_rec, clust_index, NULL, true,
 		pcur.old_n_fields, &heap);
 

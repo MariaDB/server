@@ -120,7 +120,7 @@ public:
 		btr_cur_t       ins_cur;
 		mtr_t           mtr;
 		rtr_info_t      rtr_info;
-		ulint*		ins_offsets = NULL;
+		offset_t*	ins_offsets = NULL;
 		dberr_t		error = DB_SUCCESS;
 		dtuple_t*	dtuple;
 		ulint		count = 0;
@@ -1046,8 +1046,8 @@ row_merge_heap_create(
 /*==================*/
 	const dict_index_t*	index,		/*!< in: record descriptor */
 	mrec_buf_t**		buf,		/*!< out: 3 buffers */
-	ulint**			offsets1,	/*!< out: offsets */
-	ulint**			offsets2)	/*!< out: offsets */
+	offset_t**		offsets1,	/*!< out: offsets */
+	offset_t**		offsets2)	/*!< out: offsets */
 {
 	ulint		i	= 1 + REC_OFFS_HEADER_SIZE
 		+ dict_index_get_n_fields(index);
@@ -1056,9 +1056,9 @@ row_merge_heap_create(
 
 	*buf = static_cast<mrec_buf_t*>(
 		mem_heap_alloc(heap, 3 * sizeof **buf));
-	*offsets1 = static_cast<ulint*>(
+	*offsets1 = static_cast<offset_t*>(
 		mem_heap_alloc(heap, i * sizeof **offsets1));
-	*offsets2 = static_cast<ulint*>(
+	*offsets2 = static_cast<offset_t*>(
 		mem_heap_alloc(heap, i * sizeof **offsets2));
 
 	(*offsets1)[0] = (*offsets2)[0] = i;
@@ -1179,7 +1179,7 @@ row_merge_read_rec(
 	const mrec_t**		mrec,	/*!< out: pointer to merge record,
 					or NULL on end of list
 					(non-NULL on I/O error) */
-	ulint*			offsets,/*!< out: offsets of mrec */
+	offset_t*		offsets,/*!< out: offsets of mrec */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
 	ulint			space) /*!< in: space id */
 {
@@ -1190,7 +1190,7 @@ row_merge_read_rec(
 	ut_ad(b >= &block[0]);
 	ut_ad(b < &block[srv_sort_buf_size]);
 
-	ut_ad(*offsets == 1 + REC_OFFS_HEADER_SIZE
+	ut_ad(rec_offs_get_n_alloc(offsets) == 1 + REC_OFFS_HEADER_SIZE
 	      + dict_index_get_n_fields(index));
 
 	DBUG_ENTER("row_merge_read_rec");
@@ -1297,12 +1297,7 @@ err_exit:
 	memcpy(*buf, b, avail_size);
 	*mrec = *buf + extra_size;
 
-	/* We cannot invoke rec_offs_make_valid() here, because there
-	are no REC_N_NEW_EXTRA_BYTES between extra_size and data_size.
-	Similarly, rec_offs_validate() would fail, because it invokes
-	rec_get_status(). */
-	ut_d(offsets[2] = (ulint) *mrec);
-	ut_d(offsets[3] = (ulint) index);
+	rec_init_offsets_temp(*mrec, index, offsets);
 
 	if (!row_merge_read(fd, ++(*foffs), block,
 			    crypt_block,
@@ -1341,7 +1336,7 @@ row_merge_write_rec_low(
 	ulint		foffs,	/*!< in: file offset */
 #endif /* !DBUG_OFF */
 	const mrec_t*	mrec,	/*!< in: record to write */
-	const ulint*	offsets)/*!< in: offsets of mrec */
+	const offset_t*	offsets)/*!< in: offsets of mrec */
 #ifdef DBUG_OFF
 # define row_merge_write_rec_low(b, e, size, fd, foffs, mrec, offsets)	\
 	row_merge_write_rec_low(b, e, mrec, offsets)
@@ -1383,7 +1378,7 @@ row_merge_write_rec(
 	int			fd,	/*!< in: file descriptor */
 	ulint*			foffs,	/*!< in/out: file offset */
 	const mrec_t*		mrec,	/*!< in: record to write */
-	const ulint*            offsets,/*!< in: offsets of mrec */
+	const offset_t*         offsets,/*!< in: offsets of mrec */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
 	ulint			space)	   /*!< in: space id */
 {
@@ -1899,7 +1894,7 @@ row_merge_read_clustered_index(
 		}
 
 		const rec_t*	rec;
-		ulint*		offsets;
+		offset_t*	offsets;
 		dtuple_t*	row;
 		row_ext_t*	ext;
 		page_cur_t*	cur	= btr_pcur_get_page_cur(&pcur);
@@ -2821,8 +2816,8 @@ row_merge_blocks(
 	const mrec_t*	mrec0;	/*!< merge rec, points to block[0] or buf[0] */
 	const mrec_t*	mrec1;	/*!< merge rec, points to
 				block[srv_sort_buf_size] or buf[1] */
-	ulint*		offsets0;/* offsets of mrec0 */
-	ulint*		offsets1;/* offsets of mrec1 */
+	offset_t*	offsets0;/* offsets of mrec0 */
+	offset_t*	offsets1;/* offsets of mrec1 */
 
 	DBUG_ENTER("row_merge_blocks");
 	DBUG_LOG("ib_merge_sort",
@@ -2939,8 +2934,8 @@ row_merge_blocks_copy(
 	const byte*	b0;	/*!< pointer to block[0] */
 	byte*		b2;	/*!< pointer to block[2 * srv_sort_buf_size] */
 	const mrec_t*	mrec0;	/*!< merge rec, points to block[0] */
-	ulint*		offsets0;/* offsets of mrec0 */
-	ulint*		offsets1;/* dummy offsets */
+	offset_t*	offsets0;/* offsets of mrec0 */
+	offset_t*	offsets1;/* dummy offsets */
 
 	DBUG_ENTER("row_merge_blocks_copy");
 	DBUG_LOG("ib_merge_sort",
@@ -3279,7 +3274,7 @@ static
 void
 row_merge_copy_blobs(
 	const mrec_t*		mrec,
-	const ulint*		offsets,
+	const offset_t*		offsets,
 	const page_size_t&	page_size,
 	dtuple_t*		tuple,
 	mem_heap_t*		heap)
@@ -3388,7 +3383,7 @@ row_merge_insert_index_tuples(
 	mem_heap_t*		tuple_heap;
 	dberr_t			error = DB_SUCCESS;
 	ulint			foffs = 0;
-	ulint*			offsets;
+	offset_t*		offsets;
 	mrec_buf_t*		buf;
 	ulint			n_rows = 0;
 	dtuple_t*		dtuple;
@@ -3416,10 +3411,10 @@ row_merge_insert_index_tuples(
 		ulint i	= 1 + REC_OFFS_HEADER_SIZE
 			+ dict_index_get_n_fields(index);
 		heap = mem_heap_create(sizeof *buf + i * sizeof *offsets);
-		offsets = static_cast<ulint*>(
+		offsets = static_cast<offset_t*>(
 			mem_heap_alloc(heap, i * sizeof *offsets));
-		offsets[0] = i;
-		offsets[1] = dict_index_get_n_fields(index);
+		rec_offs_set_n_alloc(offsets, i);
+		rec_offs_set_n_fields(offsets, dict_index_get_n_fields(index));
 	}
 
 	if (row_buf != NULL) {

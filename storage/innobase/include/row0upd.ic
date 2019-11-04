@@ -163,7 +163,7 @@ row_upd_rec_sys_fields(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
 				uncompressed part will be updated, or NULL */
 	dict_index_t*	index,	/*!< in: clustered index */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	const trx_t*	trx,	/*!< in: transaction */
 	roll_ptr_t	roll_ptr)/*!< in: DB_ROLL_PTR to the undo log */
 {

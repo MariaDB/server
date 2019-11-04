@@ -242,12 +242,12 @@ rec_init_offsets_comp_ordinary(
 					format for temporary files in
 					index creation */
 	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets)/*!< in/out: array of offsets;
+	offset_t*		offsets)/*!< in/out: array of offsets;
 					in: n=rec_offs_n_fields(offsets) */
 {
 	ulint		i		= 0;
-	ulint		offs		= 0;
-	ulint		any_ext		= 0;
+	offset_t	offs		= 0;
+	offset_t	any_ext		= 0;
 	ulint		n_null		= index->n_nullable;
 	const byte*	nulls		= temp
 		? rec - 1
@@ -259,8 +259,8 @@ rec_init_offsets_comp_ordinary(
 	/* We cannot invoke rec_offs_make_valid() here if temp=true.
 	Similarly, rec_offs_validate() will fail in that case, because
 	it invokes rec_get_status(). */
-	offsets[2] = (ulint) rec;
-	offsets[3] = (ulint) index;
+	memcpy(&offsets[RECORD_OFFSET], &rec, sizeof(rec));
+	memcpy(&offsets[INDEX_OFFSET], &index, sizeof(index));
 #endif /* UNIV_DEBUG */
 
 	ut_ad(temp || dict_table_is_comp(index->table));
@@ -277,7 +277,7 @@ rec_init_offsets_comp_ordinary(
 			= dict_index_get_nth_field(index, i);
 		const dict_col_t*	col
 			= dict_field_get_col(field);
-		ulint			len;
+		offset_t		len;
 
 		if (!(col->prtype & DATA_NOT_NULL)) {
 			/* nullable field => read the null flag */
@@ -294,7 +294,7 @@ rec_init_offsets_comp_ordinary(
 				We do not advance offs, and we set
 				the length to zero and enable the
 				SQL NULL flag in offsets[]. */
-				len = offs | REC_OFFS_SQL_NULL;
+				len = combine(offs, SQL_NULL);
 				goto resolved;
 			}
 			null_mask <<= 1;
@@ -317,14 +317,14 @@ rec_init_offsets_comp_ordinary(
 					len <<= 8;
 					len |= *lens--;
 
-					offs += len & 0x3fff;
+					offs += get_value(len);
 					if (UNIV_UNLIKELY(len
 							  & 0x4000)) {
 						ut_ad(dict_index_is_clust
 						      (index));
 						any_ext = REC_OFFS_EXTERNAL;
-						len = offs
-							| REC_OFFS_EXTERNAL;
+						len = combine(offs,
+							      STORED_OFFPAGE);
 					} else {
 						len = offs;
 					}
@@ -341,8 +341,8 @@ resolved:
 		rec_offs_base(offsets)[i + 1] = len;
 	} while (++i < rec_offs_n_fields(offsets));
 
-	*rec_offs_base(offsets)
-		= (rec - (lens + 1)) | REC_OFFS_COMPACT | any_ext;
+	*rec_offs_base(offsets) = static_cast<offset_t>(rec - (lens + 1))
+				  | REC_OFFS_COMPACT | any_ext;
 }
 
 /******************************************************//**
@@ -355,21 +355,20 @@ to the extra size (if REC_OFFS_COMPACT is set, the record is in the
 new format; if REC_OFFS_EXTERNAL is set, the record contains externally
 stored columns), and rec_offs_base(offsets)[1..n_fields] will be set to
 offsets past the end of fields 0..n_fields, or to the beginning of
-fields 1..n_fields+1.  When the high-order bit of the offset at [i+1]
-is set (REC_OFFS_SQL_NULL), the field i is NULL.  When the second
-high-order bit of the offset at [i+1] is set (REC_OFFS_EXTERNAL), the
-field i is being stored externally. */
+fields 1..n_fields+1.  When the type of the offset at [i+1]
+is (SQL_NULL), the field i is NULL. When the type of the offset at [i+1]
+is (STORED_OFFPAGE), the field i is stored externally. */
 static
 void
 rec_init_offsets(
 /*=============*/
 	const rec_t*		rec,	/*!< in: physical record */
 	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets)/*!< in/out: array of offsets;
+	offset_t*		offsets)/*!< in/out: array of offsets;
 					in: n=rec_offs_n_fields(offsets) */
 {
 	ulint	i	= 0;
-	ulint	offs;
+	offset_t	offs;
 
 	rec_offs_make_valid(rec, index, offsets);
 
@@ -407,7 +406,7 @@ rec_init_offsets(
 
 		/* read the lengths of fields 0..n */
 		do {
-			ulint	len;
+			offset_t len;
 			if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
 				len = offs += REC_NODE_PTR_SIZE;
 				goto resolved;
@@ -429,7 +428,7 @@ rec_init_offsets(
 					We do not advance offs, and we set
 					the length to zero and enable the
 					SQL NULL flag in offsets[]. */
-					len = offs | REC_OFFS_SQL_NULL;
+					len = combine(offs, SQL_NULL);
 					goto resolved;
 				}
 				null_mask <<= 1;
@@ -461,7 +460,7 @@ rec_init_offsets(
 						stored columns.  Thus
 						the "e" flag must be 0. */
 						ut_a(!(len & 0x4000));
-						offs += len & 0x3fff;
+						offs += get_value(len);
 						len = offs;
 
 						goto resolved;
@@ -476,8 +475,8 @@ resolved:
 			rec_offs_base(offsets)[i + 1] = len;
 		} while (++i < rec_offs_n_fields(offsets));
 
-		*rec_offs_base(offsets)
-			= (rec - (lens + 1)) | REC_OFFS_COMPACT;
+		*rec_offs_base(offsets) = static_cast<offset_t>(
+			(rec - (lens + 1)) | REC_OFFS_COMPACT);
 	} else {
 		/* Old-style record: determine extra size and end offsets */
 		offs = REC_N_OLD_EXTRA_BYTES;
@@ -489,23 +488,25 @@ resolved:
 				offs = rec_1_get_field_end_info(rec, i);
 				if (offs & REC_1BYTE_SQL_NULL_MASK) {
 					offs &= ~REC_1BYTE_SQL_NULL_MASK;
-					offs |= REC_OFFS_SQL_NULL;
+					set_type(offs, SQL_NULL);
 				}
 				rec_offs_base(offsets)[1 + i] = offs;
 			} while (++i < rec_offs_n_fields(offsets));
 		} else {
-			offs += 2 * rec_offs_n_fields(offsets);
+			offs += 2
+				* static_cast<offset_t>(
+					rec_offs_n_fields(offsets));
 			*rec_offs_base(offsets) = offs;
 			/* Determine offsets to fields */
 			do {
 				offs = rec_2_get_field_end_info(rec, i);
 				if (offs & REC_2BYTE_SQL_NULL_MASK) {
 					offs &= ~REC_2BYTE_SQL_NULL_MASK;
-					offs |= REC_OFFS_SQL_NULL;
+					set_type(offs, SQL_NULL);
 				}
 				if (offs & REC_2BYTE_EXTERN_MASK) {
 					offs &= ~REC_2BYTE_EXTERN_MASK;
-					offs |= REC_OFFS_EXTERNAL;
+					set_type(offs, STORED_OFFPAGE);
 					*rec_offs_base(offsets) |= REC_OFFS_EXTERNAL;
 				}
 				rec_offs_base(offsets)[1 + i] = offs;
@@ -524,11 +525,11 @@ resolved:
 				(ULINT_UNDEFINED to compute all offsets)
 @param[in,out]	heap		memory heap
 @return the new offsets */
-ulint*
+offset_t*
 rec_get_offsets_func(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	ulint*			offsets,
+	offset_t*		offsets,
 #ifdef UNIV_DEBUG
 	bool			leaf,
 #endif /* UNIV_DEBUG */
@@ -606,11 +607,11 @@ rec_get_offsets_func(
 	if (UNIV_UNLIKELY(!offsets)
 	    || UNIV_UNLIKELY(rec_offs_get_n_alloc(offsets) < size)) {
 		if (UNIV_UNLIKELY(!*heap)) {
-			*heap = mem_heap_create_at(size * sizeof(ulint),
+			*heap = mem_heap_create_at(size * sizeof(*offsets),
 						   file, line);
 		}
-		offsets = static_cast<ulint*>(
-			mem_heap_alloc(*heap, size * sizeof(ulint)));
+		offsets = static_cast<offset_t*>(
+			mem_heap_alloc(*heap, size * sizeof(*offsets)));
 
 		rec_offs_set_n_alloc(offsets, size);
 	}
@@ -633,13 +634,13 @@ rec_get_offsets_reverse(
 	const dict_index_t*	index,	/*!< in: record descriptor */
 	ulint			node_ptr,/*!< in: nonzero=node pointer,
 					0=leaf node */
-	ulint*			offsets)/*!< in/out: array consisting of
+	offset_t*		offsets)/*!< in/out: array consisting of
 					offsets[0] allocated elements */
 {
 	ulint		n;
 	ulint		i;
-	ulint		offs;
-	ulint		any_ext;
+	offset_t	offs;
+	offset_t	any_ext = 0;
 	const byte*	nulls;
 	const byte*	lens;
 	dict_field_t*	field;
@@ -664,11 +665,10 @@ rec_get_offsets_reverse(
 	lens = nulls + UT_BITS_IN_BYTES(index->n_nullable);
 	i = offs = 0;
 	null_mask = 1;
-	any_ext = 0;
 
 	/* read the lengths of fields 0..n */
 	do {
-		ulint	len;
+		offset_t len;
 		if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
 			len = offs += REC_NODE_PTR_SIZE;
 			goto resolved;
@@ -689,7 +689,7 @@ rec_get_offsets_reverse(
 				We do not advance offs, and we set
 				the length to zero and enable the
 				SQL NULL flag in offsets[]. */
-				len = offs | REC_OFFS_SQL_NULL;
+				len = combine(offs, SQL_NULL);
 				goto resolved;
 			}
 			null_mask <<= 1;
@@ -713,10 +713,11 @@ rec_get_offsets_reverse(
 					len <<= 8;
 					len |= *lens++;
 
-					offs += len & 0x3fff;
+					offs += get_value(len);
 					if (UNIV_UNLIKELY(len & 0x4000)) {
 						any_ext = REC_OFFS_EXTERNAL;
-						len = offs | REC_OFFS_EXTERNAL;
+						len = combine(offs,
+							      STORED_OFFPAGE);
 					} else {
 						len = offs;
 					}
@@ -727,15 +728,16 @@ rec_get_offsets_reverse(
 
 			len = offs += len;
 		} else {
-			len = offs += field->fixed_len;
+			len = offs += static_cast<offset_t>(field->fixed_len);
 		}
 resolved:
 		rec_offs_base(offsets)[i + 1] = len;
 	} while (++i < rec_offs_n_fields(offsets));
 
 	ut_ad(lens >= extra);
-	*rec_offs_base(offsets) = (lens - extra + REC_N_NEW_EXTRA_BYTES)
-		| REC_OFFS_COMPACT | any_ext;
+	*rec_offs_base(offsets)
+		= static_cast<offset_t>((lens - extra + REC_N_NEW_EXTRA_BYTES)
+					| REC_OFFS_COMPACT | any_ext);
 }
 
 /************************************************************//**
@@ -1397,7 +1399,7 @@ rec_init_offsets_temp(
 /*==================*/
 	const rec_t*		rec,	/*!< in: temporary file record */
 	const dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*			offsets)/*!< in/out: array of offsets;
+	offset_t*		offsets)/*!< in/out: array of offsets;
 					in: n=rec_offs_n_fields(offsets) */
 {
 	rec_init_offsets_comp_ordinary(rec, true, index, offsets);
@@ -1436,8 +1438,8 @@ rec_copy_prefix_to_dtuple_func(
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {
-	ulint	offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*	offsets	= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets	= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(is_leaf || n_fields
@@ -1697,7 +1699,7 @@ ibool
 rec_validate(
 /*=========*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ulint		len;
 	ulint		n_fields;
@@ -1799,7 +1801,7 @@ rec_print_comp(
 /*===========*/
 	FILE*		file,	/*!< in: file where to print */
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ulint	i;
 
@@ -1919,7 +1921,7 @@ rec_print_mbr_rec(
 /*==============*/
 	FILE*		file,	/*!< in: file where to print */
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 
@@ -1986,7 +1988,7 @@ rec_print_new(
 /*==========*/
 	FILE*		file,	/*!< in: file where to print */
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 
@@ -2026,7 +2028,7 @@ rec_print(
 		return;
 	} else {
 		mem_heap_t*	heap	= NULL;
-		ulint		offsets_[REC_OFFS_NORMAL_SIZE];
+		offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
 		rec_offs_init(offsets_);
 
 		rec_print_new(file, rec,
@@ -2049,7 +2051,7 @@ rec_print(
 	std::ostream&	o,
 	const rec_t*	rec,
 	ulint		info,
-	const ulint*	offsets)
+	const offset_t*	offsets)
 {
 	const ulint	comp	= rec_offs_comp(offsets);
 	const ulint	n	= rec_offs_n_fields(offsets);
@@ -2101,7 +2103,7 @@ std::ostream&
 operator<<(std::ostream& o, const rec_index_print& r)
 {
 	mem_heap_t*	heap	= NULL;
-	ulint*		offsets	= rec_get_offsets(
+	offset_t*	offsets	= rec_get_offsets(
 		r.m_rec, r.m_index, NULL, page_rec_is_leaf(r.m_rec),
 		ULINT_UNDEFINED, &heap);
 	rec_print(o, r.m_rec,
@@ -2139,9 +2141,9 @@ rec_get_trx_id(
 	const byte*	trx_id;
 	ulint		len;
 	mem_heap_t*	heap		= NULL;
-	ulint offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+	offset_t offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 	rec_offs_init(offsets_);
-	ulint* offsets = offsets_;
+	offset_t* offsets = offsets_;
 
 	ut_ad(trx_id_col <= MAX_REF_PARTS);
 	ut_ad(dict_index_is_clust(index));
@@ -2168,11 +2170,11 @@ rec_get_trx_id(
 @param[in]	n		nth field */
 void
 rec_offs_make_nth_extern(
-	ulint*		offsets,
+	offset_t*	offsets,
 	const ulint	n)
 {
 	ut_ad(!rec_offs_nth_sql_null(offsets, n));
-	rec_offs_base(offsets)[1 + n] |= REC_OFFS_EXTERNAL;
+	set_type(rec_offs_base(offsets)[1 +n ], STORED_OFFPAGE);
 }
 #ifdef WITH_WSREP
 # include "ha_prototypes.h"
@@ -2192,8 +2194,8 @@ wsrep_rec_get_foreign_key(
 	ulint		i;
 	uint            key_parts;
 	mem_heap_t*	heap	= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-        const ulint*    offsets;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	const offset_t* offsets;
 
 	ut_ad(index_for);
 	ut_ad(index_ref);

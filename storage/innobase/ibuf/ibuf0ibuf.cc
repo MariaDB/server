@@ -3319,7 +3319,7 @@ ibuf_insert_low(
 	dtuple_t*	ibuf_entry;
 	mem_heap_t*	offsets_heap	= NULL;
 	mem_heap_t*	heap;
-	ulint*		offsets		= NULL;
+	offset_t*	offsets		= NULL;
 	ulint		buffered;
 	lint		min_n_recs;
 	rec_t*		ins_rec;
@@ -3784,7 +3784,7 @@ ibuf_insert_to_index_page_low(
 	buf_block_t*	block,	/*!< in/out: index page where the buffered
 				entry should be placed */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	ulint**		offsets,/*!< out: offsets on *rec */
+	offset_t**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t*	heap,	/*!< in/out: memory heap */
 	mtr_t*		mtr,	/*!< in/out: mtr */
 	page_cur_t*	page_cur)/*!< in/out: cursor positioned on the record
@@ -3864,7 +3864,7 @@ ibuf_insert_to_index_page(
 	ulint		low_match;
 	page_t*		page		= buf_block_get_frame(block);
 	rec_t*		rec;
-	ulint*		offsets;
+	offset_t*	offsets;
 	mem_heap_t*	heap;
 
 	DBUG_ENTER("ibuf_insert_to_index_page");
@@ -4121,8 +4121,8 @@ ibuf_delete(
 		/* TODO: the below should probably be a separate function,
 		it's a bastardized version of btr_cur_optimistic_delete. */
 
-		ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-		ulint*		offsets	= offsets_;
+		offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+		offset_t*	offsets	= offsets_;
 		mem_heap_t*	heap = NULL;
 		ulint		max_ins_size = 0;
 

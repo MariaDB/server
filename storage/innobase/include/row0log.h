@@ -132,7 +132,7 @@ row_log_table_delete(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec,index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec,index) */
 	const byte*	sys)	/*!< in: DB_TRX_ID,DB_ROLL_PTR that should
 				be logged, or NULL to use those in rec */
 	ATTRIBUTE_COLD __attribute__((nonnull(1,2,3)));
@@ -147,7 +147,7 @@ row_log_table_update(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec,index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec,index) */
 	const dtuple_t*	old_pk);/*!< in: row_log_table_get_pk()
 				before the update */
 
@@ -163,7 +163,7 @@ row_log_table_get_pk(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec,index),
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec,index),
 				or NULL */
 	byte*		sys,	/*!< out: DB_TRX_ID,DB_ROLL_PTR for
 				row_log_table_delete(), or NULL */
@@ -180,7 +180,7 @@ row_log_table_insert(
 				page X-latched */
 	dict_index_t*	index,	/*!< in/out: clustered index, S-latched
 				or X-latched */
-	const ulint*	offsets);/*!< in: rec_get_offsets(rec,index) */
+	const offset_t*	offsets);/*!< in: rec_get_offsets(rec,index) */
 /******************************************************//**
 Notes that a BLOB is being freed during online ALTER TABLE. */
 void

@@ -50,7 +50,7 @@ trx_t*
 row_vers_impl_x_locked(
 	const rec_t*	rec,
 	dict_index_t*	index,
-	const ulint*	offsets);
+	const offset_t*	offsets);
 
 /*****************************************************************//**
 Finds out if we must preserve a delete marked earlier version of a clustered
@@ -112,7 +112,7 @@ row_vers_build_for_consistent_read(
 	mtr_t*		mtr,	/*!< in: mtr holding the latch on rec; it will
 				also hold the latch on purge_view */
 	dict_index_t*	index,	/*!< in: the clustered index */
-	ulint**		offsets,/*!< in/out: offsets returned by
+	offset_t**	offsets,/*!< in/out: offsets returned by
 				rec_get_offsets(rec, index) */
 	ReadView*	view,	/*!< in: the consistent read view */
 	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
@@ -139,7 +139,7 @@ row_vers_build_for_semi_consistent_read(
 				of this records */
 	mtr_t*		mtr,	/*!< in: mtr holding the latch on rec */
 	dict_index_t*	index,	/*!< in: the clustered index */
-	ulint**		offsets,/*!< in/out: offsets returned by
+	offset_t**	offsets,/*!< in/out: offsets returned by
 				rec_get_offsets(rec, index) */
 	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
 				the offsets are allocated */

@@ -28,6 +28,7 @@ Created 2/2/1994 Heikki Tuuri
 
 #include "dict0types.h"
 #include "mtr0types.h"
+#include "rem0types.h"
 
 #include <map>
 
@@ -184,7 +185,7 @@ page_zip_dir_delete(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	byte*		rec,	/*!< in: deleted record */
 	dict_index_t*	index,	/*!< in: index of rec */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec) */
 	const byte*	free)	/*!< in: previous start of the free list */
 	MY_ATTRIBUTE((nonnull(1,2,3,4)));
 
