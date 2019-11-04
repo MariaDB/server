@@ -4368,15 +4368,13 @@ fil_aio_wait(
 	mutex_enter(&fil_system.mutex);
 
 	fil_node_complete_io(node, type);
-	const fil_type_t	purpose	= node->space->purpose;
+	ut_ad(node->space->purpose != FIL_TYPE_LOG);
 	const ulint		space_id= node->space->id;
 	bool			dblwr	= node->space->use_doublewrite();
 
 	mutex_exit(&fil_system.mutex);
 
 	ut_ad(fil_validate_skip());
-
-	ut_ad(purpose != FIL_TYPE_LOG);
 
 	/* Do the i/o handling */
 	/* IMPORTANT: since i/o handling for reads will read also the insert
