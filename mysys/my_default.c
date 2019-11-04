@@ -605,7 +605,7 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
   const int max_recursion_level= 10;
   MYSQL_FILE *fp;
   uint line=0;
-  enum { SKIP, PARSE, NONE } found_group;
+  enum { NONE, PARSE, SKIP } found_group= NONE;
   uint i;
   MY_DIR *search_dir;
   FILEINFO *search_file;
@@ -749,16 +749,19 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
                    ? PARSE : SKIP;
       continue;
     }
-    if (found_group == NONE)
+    switch (found_group)
     {
+    case NONE:
       fprintf(stderr,
 	      "error: Found option without preceding group in config file: %s at line: %d\n",
 	      name,line);
       goto err;
-    }
-    if (found_group == SKIP)
+    case PARSE:
+      break;
+    case SKIP:
       continue;
-    
+    }
+
     end= remove_end_comment(ptr);
     if ((value= strchr(ptr, '=')))
       end= value;
