@@ -10394,6 +10394,89 @@ bool LEX::stmt_create_stored_function_start(const DDL_options_st &options,
 }
 
 
+bool LEX::stmt_drop_function(const DDL_options_st &options,
+                             const Lex_ident_sys_st &db,
+                             const Lex_ident_sys_st &name)
+{
+  if (unlikely(db.str && check_db_name((LEX_STRING*) &db)))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
+    return true;
+  }
+  if (unlikely(sphead))
+  {
+    my_error(ER_SP_NO_DROP_SP, MYF(0), "FUNCTION");
+    return true;
+  }
+  set_command(SQLCOM_DROP_FUNCTION, options);
+  spname= new (thd->mem_root) sp_name(&db, &name, true);
+  return spname == NULL;
+}
+
+
+bool LEX::stmt_drop_function(const DDL_options_st &options,
+                             const Lex_ident_sys_st &name)
+{
+  LEX_CSTRING db= {0, 0};
+  if (unlikely(sphead))
+  {
+    my_error(ER_SP_NO_DROP_SP, MYF(0), "FUNCTION");
+    return true;
+  }
+  if (thd->db.str && unlikely(copy_db_to(&db)))
+    return true;
+  set_command(SQLCOM_DROP_FUNCTION, options);
+  spname= new (thd->mem_root) sp_name(&db, &name, false);
+  return spname == NULL;
+}
+
+
+bool LEX::stmt_drop_procedure(const DDL_options_st &options,
+                              sp_name *name)
+{
+  if (unlikely(sphead))
+  {
+    my_error(ER_SP_NO_DROP_SP, MYF(0), "PROCEDURE");
+    return true;
+  }
+  set_command(SQLCOM_DROP_PROCEDURE, options);
+  spname= name;
+  return false;
+}
+
+
+bool LEX::stmt_alter_function_start(sp_name *name)
+{
+  if (unlikely(sphead))
+  {
+    my_error(ER_SP_NO_DROP_SP, MYF(0), "FUNCTION");
+    return true;
+  }
+  if (main_select_push())
+    return true;
+  sp_chistics.init();
+  sql_command= SQLCOM_ALTER_FUNCTION;
+  spname= name;
+  return false;
+}
+
+
+bool LEX::stmt_alter_procedure_start(sp_name *name)
+{
+  if (unlikely(sphead))
+  {
+    my_error(ER_SP_NO_DROP_SP, MYF(0), "PROCEDURE");
+    return true;
+  }
+  if (main_select_push())
+    return true;
+  sp_chistics.init();
+  sql_command= SQLCOM_ALTER_PROCEDURE;
+  spname= name;
+  return false;
+}
+
+
 Spvar_definition *LEX::row_field_name(THD *thd, const Lex_ident_sys_st &name)
 {
   Spvar_definition *res;

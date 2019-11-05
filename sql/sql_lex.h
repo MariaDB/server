@@ -4572,6 +4572,20 @@ public:
                                 const Lex_ident_sys_st &name,
                                 Item_result return_type,
                                 const LEX_CSTRING &soname);
+
+  bool stmt_drop_function(const DDL_options_st &options,
+                          const Lex_ident_sys_st &db,
+                          const Lex_ident_sys_st &name);
+
+  bool stmt_drop_function(const DDL_options_st &options,
+                          const Lex_ident_sys_st &name);
+
+  bool stmt_drop_procedure(const DDL_options_st &options,
+                           sp_name *name);
+
+  bool stmt_alter_function_start(sp_name *name);
+  bool stmt_alter_procedure_start(sp_name *name);
+
   Spvar_definition *row_field_name(THD *thd, const Lex_ident_sys_st &name);
 
   bool set_field_type_udt(Lex_field_type_st *type,

@@ -7892,38 +7892,18 @@ alter:
           }
         | ALTER PROCEDURE_SYM sp_name
           {
-            LEX *lex= Lex;
-
-            if (unlikely(lex->sphead))
-              my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "PROCEDURE"));
-            if (Lex->main_select_push())
+            if (Lex->stmt_alter_procedure_start($3))
               MYSQL_YYABORT;
-            lex->sp_chistics.init();
           }
           sp_a_chistics
-          {
-            LEX *lex=Lex;
-
-            lex->sql_command= SQLCOM_ALTER_PROCEDURE;
-            lex->spname= $3;
-          } stmt_end {}
+          stmt_end {}
         | ALTER FUNCTION_SYM sp_name
           {
-            LEX *lex= Lex;
-
-            if (unlikely(lex->sphead))
-              my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "FUNCTION"));
-            if (Lex->main_select_push())
+            if (Lex->stmt_alter_function_start($3))
               MYSQL_YYABORT;
-            lex->sp_chistics.init();
           }
           sp_a_chistics
-          {
-            LEX *lex=Lex;
-
-            lex->sql_command= SQLCOM_ALTER_FUNCTION;
-            lex->spname= $3;
-          } stmt_end {}
+          stmt_end {}
         | ALTER view_algorithm definer_opt opt_view_suid VIEW_SYM table_ident
           {
             if (Lex->main_select_push())
@@ -13343,40 +13323,18 @@ drop:
           }
         | DROP FUNCTION_SYM opt_if_exists ident '.' ident
           {
-            LEX *lex= thd->lex;
-            sp_name *spname;
-            if (unlikely($4.str && check_db_name((LEX_STRING*) &$4)))
-              my_yyabort_error((ER_WRONG_DB_NAME, MYF(0), $4.str));
-            if (unlikely(lex->sphead))
-              my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "FUNCTION"));
-            lex->set_command(SQLCOM_DROP_FUNCTION, $3);
-            spname= new (thd->mem_root) sp_name(&$4, &$6, true);
-            if (unlikely(spname == NULL))
+            if (Lex->stmt_drop_function($3, $4, $6))
               MYSQL_YYABORT;
-            lex->spname= spname;
           }
         | DROP FUNCTION_SYM opt_if_exists ident
           {
-            LEX *lex= thd->lex;
-            LEX_CSTRING db= {0, 0};
-            sp_name *spname;
-            if (unlikely(lex->sphead))
-              my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "FUNCTION"));
-            if (thd->db.str && unlikely(lex->copy_db_to(&db)))
+            if (Lex->stmt_drop_function($3, $4))
               MYSQL_YYABORT;
-            lex->set_command(SQLCOM_DROP_FUNCTION, $3);
-            spname= new (thd->mem_root) sp_name(&db, &$4, false);
-            if (unlikely(spname == NULL))
-              MYSQL_YYABORT;
-            lex->spname= spname;
           }
         | DROP PROCEDURE_SYM opt_if_exists sp_name
           {
-            LEX *lex=Lex;
-            if (unlikely(lex->sphead))
-              my_yyabort_error((ER_SP_NO_DROP_SP, MYF(0), "PROCEDURE"));
-            lex->set_command(SQLCOM_DROP_PROCEDURE, $3);
-            lex->spname= $4;
+            if (Lex->stmt_drop_procedure($3, $4))
+              MYSQL_YYABORT;
           }
         | DROP USER_SYM opt_if_exists clear_privileges user_list
           {
