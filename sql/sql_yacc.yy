@@ -2899,24 +2899,24 @@ create:
             Lex->pop_select(); //main select
           }
         | create_or_replace definer opt_aggregate FUNCTION_SYM opt_if_not_exists
-          sp_name '('
+          sp_name
           {
             if (Lex->stmt_create_stored_function_start($1 | $5, $3, $6))
               MYSQL_YYABORT;
           }
-          sp_fdparam_list ')'
+          sp_parenthesized_fdparam_list
           sf_return_type
           sf_c_chistics_and_body
           {
             Lex->stmt_create_routine_finalize();
           }
         | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
-          sp_name '('
+          sp_name
           {
             if (Lex->stmt_create_stored_function_start($1 | $5, $3, $6))
               MYSQL_YYABORT;
           }
-          sp_fdparam_list ')'
+          sp_parenthesized_fdparam_list
           sf_return_type
           sf_c_chistics_and_body
           {
@@ -3487,6 +3487,10 @@ sp_parenthesized_pdparam_list:
           {
             Lex->sphead->m_param_end= YYLIP->get_cpp_tok_start();
           }
+        ;
+
+sp_parenthesized_fdparam_list:
+        '(' sp_fdparam_list ')'
         ;
 
 sp_proc_stmts:
