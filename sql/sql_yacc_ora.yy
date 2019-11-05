@@ -2388,57 +2388,31 @@ create:
             Lex->pop_select(); //main select
           }
         | create_or_replace definer opt_aggregate FUNCTION_SYM opt_if_not_exists
-          sp_name RETURN_ORACLE_SYM
+          sp_name
           {
             if (Lex->stmt_create_stored_function_start($1 | $5, $3, $6))
               MYSQL_YYABORT;
           }
-          sf_return_type
-          sf_c_chistics_and_body_standalone
-          opt_sp_name
-          {
-            if (Lex->stmt_create_stored_function_finalize_standalone($11))
-              MYSQL_YYABORT;
-          }
-        | create_or_replace definer opt_aggregate FUNCTION_SYM opt_if_not_exists
-          sp_name '('
-          {
-            if (Lex->stmt_create_stored_function_start($1 | $5, $3, $6))
-              MYSQL_YYABORT;
-          }
-          sp_fdparam_list ')'
+          opt_sp_parenthesized_fdparam_list
           RETURN_ORACLE_SYM sf_return_type
           sf_c_chistics_and_body_standalone
           opt_sp_name
           {
-            if (Lex->stmt_create_stored_function_finalize_standalone($14))
+            if (Lex->stmt_create_stored_function_finalize_standalone($12))
               MYSQL_YYABORT;
           }
         | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
-          sp_name RETURN_ORACLE_SYM
+          sp_name
           {
             if (Lex->stmt_create_stored_function_start($1 | $5, $3, $6))
               MYSQL_YYABORT;
           }
-          sf_return_type
-          sf_c_chistics_and_body_standalone
-          opt_sp_name
-          {
-            if (Lex->stmt_create_stored_function_finalize_standalone($11))
-              MYSQL_YYABORT;
-          }
-        | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
-          sp_name '('
-          {
-            if (Lex->stmt_create_stored_function_start($1 | $5, $3, $6))
-              MYSQL_YYABORT;
-          }
-          sp_fdparam_list ')'
+          opt_sp_parenthesized_fdparam_list
           RETURN_ORACLE_SYM sf_return_type
           sf_c_chistics_and_body_standalone
           opt_sp_name
           {
-            if (Lex->stmt_create_stored_function_finalize_standalone($14))
+            if (Lex->stmt_create_stored_function_finalize_standalone($12))
               MYSQL_YYABORT;
           }
         | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
