@@ -83,7 +83,14 @@ fi
 pcmd="pv $pvopts"
 declare -a RC
 
+set +e
 INNOBACKUPEX_BIN=$(which mariabackup)
+if test -z $INNOBACKUPEX_BIN
+then
+  wsrep_log_error 'mariabackup binary not found in $PATH'
+  exit 42
+fi
+set -e
 XBSTREAM_BIN=mbstream
 XBCRYPT_BIN=xbcrypt # Not available in MariaBackup
 
