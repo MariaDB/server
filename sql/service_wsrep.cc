@@ -55,7 +55,26 @@ extern "C" const char* wsrep_thd_transaction_state_str(const THD *thd)
 
 extern "C" const char *wsrep_thd_query(const THD *thd)
 {
-  return thd ? thd->query() : NULL;
+  if (thd)
+  {
+    switch(thd->lex->sql_command)
+    {
+    case SQLCOM_CREATE_USER:
+      return "CREATE USER";
+    case SQLCOM_GRANT:
+      return "GRANT";
+    case SQLCOM_REVOKE:
+      return "REVOKE";
+    case SQLCOM_SET_OPTION:
+      if (thd->lex->definer)
+	return "SET PASSWORD";
+      /* fallthrough */
+    default:
+      if (thd->query())
+        return thd->query();
+    }
+  }
+  return "NULL";
 }
 
 extern "C" query_id_t wsrep_thd_transaction_id(const THD *thd)

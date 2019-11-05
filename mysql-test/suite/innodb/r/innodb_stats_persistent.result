@@ -1,22 +1,15 @@
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SET @saved_include_delete_marked = @@GLOBAL.innodb_stats_include_delete_marked;
 SET GLOBAL innodb_stats_include_delete_marked = ON;
 SET @saved_traditional = @@GLOBAL.innodb_stats_traditional;
 SET GLOBAL innodb_stats_traditional=false;
 SET @saved_modified_counter = @@GLOBAL.innodb_stats_modified_counter;
 SET GLOBAL innodb_stats_modified_counter=1;
-CREATE TABLE t0 (id SERIAL, val INT UNSIGNED NOT NULL, KEY(val))
+CREATE TABLE t1 (id SERIAL, val INT UNSIGNED NOT NULL, KEY(val))
 ENGINE=INNODB STATS_PERSISTENT=1,STATS_AUTO_RECALC=1;
-CREATE TABLE t1 LIKE t0;
-CREATE TABLE t2 LIKE t0;
-INSERT INTO t0 (val) VALUES (4);
-INSERT INTO t0 (val) SELECT 4 FROM t0;
-INSERT INTO t0 (val) SELECT 4 FROM t0;
-INSERT INTO t0 (val) SELECT 4 FROM t0;
-INSERT INTO t0 (val) SELECT 4 FROM t0;
-INSERT INTO t1 SELECT * FROM t0;
-SELECT COUNT(*) FROM t1;
-COUNT(*)
-16
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 (val) SELECT 4 FROM seq_1_to_16;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
@@ -49,7 +42,7 @@ COUNT(*)
 0
 connection default;
 BEGIN;
-INSERT INTO t2 SELECT * FROM t0;
+INSERT INTO t2 (val) SELECT 4 FROM seq_1_to_16;
 # The INSERT will show up before COMMIT.
 EXPLAIN SELECT * FROM t2 WHERE val=4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -66,17 +59,14 @@ connection con1;
 EXPLAIN SELECT * FROM t2 WHERE val=4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ref	val	val	4	const	1	Using index
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 InnoDB		0 transactions not purged
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 # After COMMIT and purge, the DELETE must show up.
 EXPLAIN SELECT * FROM t1 WHERE val=4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	val	val	4	const	1	Using index
 SET GLOBAL innodb_stats_include_delete_marked = OFF;
 BEGIN;
-INSERT INTO t1 SELECT * FROM t0;
+INSERT INTO t1 (val) SELECT 4 FROM seq_1_to_16;
 EXPLAIN SELECT * FROM t1 WHERE val=4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	val	val	4	const	16	Using index
@@ -85,7 +75,7 @@ EXPLAIN SELECT * FROM t1 WHERE val=4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	val	val	4	const	1	Using index
 BEGIN;
-INSERT INTO t1 SELECT * FROM t0;
+INSERT INTO t1 (val) SELECT 4 FROM seq_1_to_16;
 COMMIT;
 EXPLAIN SELECT * FROM t1 WHERE val=4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -111,7 +101,8 @@ COUNT(*)
 16
 disconnect con1;
 connection default;
-DROP TABLE t0,t1,t2;
+DROP TABLE t1,t2;
 SET GLOBAL innodb_stats_include_delete_marked = @saved_include_delete_marked;
 SET GLOBAL innodb_stats_traditional = @saved_traditional;
 SET GLOBAL innodb_stats_modified_counter = @saved_modified_counter;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

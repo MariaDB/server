@@ -1024,7 +1024,7 @@ rec_init_offsets_temp(
 	ulint			n_core,
 	const dict_col_t::def_t*def_val,
 	rec_comp_status_t	status = REC_STATUS_ORDINARY)
-	MY_ATTRIBUTE((nonnull));
+	MY_ATTRIBUTE((nonnull(1,2,3)));
 /** Determine the offset to each field in temporary file.
 @param[in]	rec	temporary file record
 @param[in]	index	index of that the record belongs to

@@ -3752,6 +3752,7 @@ public:
                           SORT_FIELD_ATTR *attr) const= 0;
 
   virtual uint32 max_display_length(const Item *item) const= 0;
+  virtual uint32 Item_decimal_notation_int_digits(const Item *item) const { return 0; }
   virtual uint32 calc_pack_length(uint32 length) const= 0;
   virtual uint calc_key_length(const Column_definition &def) const;
   virtual void Item_update_null_value(Item *item) const= 0;
@@ -4594,6 +4595,7 @@ public:
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const override;
   uint32 max_display_length(const Item *item) const override;
+  uint32 Item_decimal_notation_int_digits(const Item *item) const override;
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const override;
   bool Item_const_eq(const Item_const *a, const Item_const *b,
@@ -4908,6 +4910,7 @@ public:
   {
     return type_limits_int()->char_length();
   }
+  uint32 Item_decimal_notation_int_digits(const Item *item) const override;
   bool partition_field_check(const LEX_CSTRING &field_name,
                              Item *item_expr) const override
   {
@@ -4946,6 +4949,7 @@ public:
                                  const Type_all_attributes *attr,
                                  const st_value *value) const override;
   uint32 max_display_length(const Item *item) const override;
+  uint32 Item_decimal_notation_int_digits(const Item *item) const override;
   bool can_change_cond_ref_to_const(Item_bool_func2 *target,
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
@@ -5043,6 +5047,12 @@ public:
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
   uint32 max_display_length(const Item *item) const override;
+  /*
+    The next method returns 309 for long stringified doubles in scientific
+    notation, e.g. FORMAT('1e308', 2).
+  */
+  uint32 Item_decimal_notation_int_digits(const Item *item) const override
+  { return 309; }
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const override;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
@@ -5472,6 +5482,8 @@ public:
     return PROTOCOL_SEND_SHORT;
   }
   uint32 max_display_length(const Item *item) const override;
+  uint32 Item_decimal_notation_int_digits(const Item *item) const override
+  { return 4; };
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return 4; }
   uint32 calc_pack_length(uint32 length) const override { return 1; }
@@ -5522,6 +5534,8 @@ public:
     return PROTOCOL_SEND_STRING;
   }
   uint32 max_display_length(const Item *item) const override;
+  uint32 Item_decimal_notation_int_digits(const Item *item) const override;
+  static uint32 Bit_decimal_notation_int_digits(const Item *item); 
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   uint32 calc_pack_length(uint32 length) const override { return length / 8; }
   uint calc_key_length(const Column_definition &def) const override;
@@ -5634,6 +5648,8 @@ public:
   }
   bool type_can_have_auto_increment_attribute() const override { return true; }
   uint32 max_display_length(const Item *item) const override { return 53; }
+  uint32 Item_decimal_notation_int_digits(const Item *item) const override
+  { return 309; }
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return 22; }
   uint32 calc_pack_length(uint32 length) const override

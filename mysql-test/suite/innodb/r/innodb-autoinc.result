@@ -567,7 +567,7 @@ Variable_name	Value
 auto_increment_increment	65535
 auto_increment_offset	65535
 INSERT INTO t1 VALUES (NULL),(NULL);
-ERROR HY000: Failed to read auto-increment value from storage engine
+ERROR 22003: Out of range value for column 'c1' at row 1
 SELECT * FROM t1;
 c1
 1
@@ -677,7 +677,7 @@ SELECT a,b FROM t;
 a	b
 1	S1
 3	S2
-4	S2
+5	S2
 disconnect con1;
 connection default;
 # Client 1: Insert a record with auto_increment_increment=1
@@ -688,14 +688,14 @@ t	CREATE TABLE `t` (
   `a` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `b` varchar(200) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=latin1
 INSERT INTO t(b) VALUES('S1');
 SELECT a,b FROM t;
 a	b
 1	S1
 3	S2
-4	S2
-5	S1
+5	S2
+6	S1
 DROP TABLE t;
 # Autoincrement behaviour with mixed insert.
 CREATE TABLE t(
@@ -733,22 +733,22 @@ t	CREATE TABLE `t` (
   `a` tinyint(4) NOT NULL AUTO_INCREMENT,
   `b` varchar(200) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=32 DEFAULT CHARSET=latin1
 INSERT INTO t(b) VALUES('S4');
 SELECT * FROM t;
 a	b
 1	S0
 11	S1
-22	S3
-23	S4
 28	S2
+31	S3
+32	S4
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` tinyint(4) NOT NULL AUTO_INCREMENT,
   `b` varchar(200) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=33 DEFAULT CHARSET=latin1
 DROP TABLE t;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=5;
 DROP TABLE IF EXISTS t1;
@@ -789,7 +789,7 @@ t2	CREATE TABLE `t2` (
   `n` int(10) unsigned NOT NULL,
   `o` enum('FALSE','TRUE') DEFAULT NULL,
   PRIMARY KEY (`m`)
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=latin1
 INSERT INTO t1 (b,c) SELECT n,o FROM t2 ;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -1475,13 +1475,13 @@ SELECT * FROM t;
 i
 1
 301
-351
+601
 SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `i` int(11) NOT NULL AUTO_INCREMENT,
   KEY `i` (`i`)
-) ENGINE=InnoDB AUTO_INCREMENT=401 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=651 DEFAULT CHARSET=latin1
 DROP TABLE t;
 SET auto_increment_increment = DEFAULT;
 #

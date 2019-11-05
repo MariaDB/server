@@ -5968,7 +5968,6 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
   DBUG_ASSERT(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open());
   DBUG_PRINT("enter", ("event: %p", event));
 
-  int error= 0;
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
 
@@ -6006,7 +6005,7 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
 
   thd->binlog_set_pending_rows_event(event, is_transactional);
 
-  DBUG_RETURN(error);
+  DBUG_RETURN(0);
 }
 
 
@@ -7718,7 +7717,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   mysql_mutex_unlock(&LOCK_prepare_ordered);
   DEBUG_SYNC(orig_entry->thd, "commit_after_release_LOCK_prepare_ordered");
 
-  DBUG_PRINT("info", ("Queued for group commit as %s\n",
+  DBUG_PRINT("info", ("Queued for group commit as %s",
                       (orig_queue == NULL) ? "leader" : "participant"));
   DBUG_RETURN(orig_queue == NULL);
 }
@@ -10734,13 +10733,13 @@ bool wsrep_stmt_rollback_is_safe(THD* thd)
     binlog_cache_data * trx_cache = &cache_mngr->trx_cache;
     if (thd->wsrep_sr().fragments_certified() > 0 &&
         (trx_cache->get_prev_position() == MY_OFF_T_UNDEF ||
-         trx_cache->get_prev_position() < thd->wsrep_sr().bytes_certified()))
+         trx_cache->get_prev_position() < thd->wsrep_sr().log_position()))
     {
       WSREP_DEBUG("statement rollback is not safe for streaming replication"
                   " pre-stmt_pos: %llu, frag repl pos: %zu\n"
                   "Thread: %llu, SQL: %s",
                   trx_cache->get_prev_position(),
-                  thd->wsrep_sr().bytes_certified(),
+                  thd->wsrep_sr().log_position(),
                   thd->thread_id, thd->query());
        ret = false;
     }

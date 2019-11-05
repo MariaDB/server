@@ -17,10 +17,6 @@ info: Records: 1  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 MODIFY f2 INT;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
-# Make existing column NON-NULLABLE
-ALTER TABLE t1 MODIFY f3 INT NOT NULL;
-affected rows: 1
-info: Records: 1  Duplicates: 0  Warnings: 0
 # Drop Stored Column
 ALTER TABLE t1 DROP COLUMN f5;
 affected rows: 1

@@ -456,7 +456,7 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
   MARIA_USED_TABLES *tables, *next;
   DBUG_ENTER("_ma_trnman_end_trans_hook");
   DBUG_PRINT("enter", ("trn: %p  used_tables: %p", trn, trn->used_tables));
-  
+
   for (tables= (MARIA_USED_TABLES*) trn->used_tables;
        tables;
        tables= next)
@@ -580,7 +580,7 @@ void _ma_remove_table_from_trnman(MARIA_HA *info)
 
   if (trn == &dummy_transaction_object)
     DBUG_VOID_RETURN;
-  
+
   /* First remove share from used_tables */
   for (prev= (MARIA_USED_TABLES**) (char*) &trn->used_tables;
        (tables= *prev);
@@ -594,7 +594,7 @@ void _ma_remove_table_from_trnman(MARIA_HA *info)
       break;
     }
   }
-  if (tables != 0)
+  if (!tables)
   {
     /*
       This can only happens in case of rename of intermediate table as

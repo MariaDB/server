@@ -52,7 +52,8 @@ static void test_vlq_uint32_error(void) {
     in_s = tokudb::vlq_decode_ui<uint32_t>(&n, b, 1);
     assert(in_s == 0);
     in_s = tokudb::vlq_decode_ui<uint32_t>(&n, b, 2);
-    assert(in_s == 2 && n == 128);
+    assert(in_s == 2);
+    assert(n == 128);
 }
 
 static void test_80000000(void) {
@@ -63,7 +64,8 @@ static void test_80000000(void) {
     out_s = tokudb::vlq_encode_ui<uint64_t>(v, b, sizeof b);
     assert(out_s == 5);
     in_s = tokudb::vlq_decode_ui<uint64_t>(&n, b, out_s);
-    assert(in_s == 5 && n == v);
+    assert(in_s == 5);
+    assert(n == v);
 }
 
 static void test_100000000(void) {
@@ -74,7 +76,8 @@ static void test_100000000(void) {
     out_s = tokudb::vlq_encode_ui<uint64_t>(v, b, sizeof b);
     assert(out_s == 5);
     in_s = tokudb::vlq_decode_ui<uint64_t>(&n, b, out_s);
-    assert(in_s == 5 && n == v);
+    assert(in_s == 5);
+    assert(n == v);
 }   
 
 int main(void) {

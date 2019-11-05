@@ -8789,25 +8789,21 @@ innobase_drop_foreign_try(
 }
 
 /** Rename a column in the data dictionary tables.
-@param[in] user_table		InnoDB table that was being altered
-@param[in] trx			Data dictionary transaction
+@param[in] ctx			ALTER TABLE context
+@param[in,out] trx		Data dictionary transaction
 @param[in] table_name		Table name in MySQL
 @param[in] from			old column name
 @param[in] to			new column name
-@param[in] new_clustered	whether the table has been rebuilt
-@param[in] evict_fk_cache	Evict the fk info from cache
 @retval true Failure
 @retval false Success */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
 innobase_rename_column_try(
-	const dict_table_t*	user_table,
-	trx_t*			trx,
-	const char*		table_name,
-	const char*		from,
-	const char*		to,
-	bool			new_clustered,
-	bool			evict_fk_cache)
+	const ha_innobase_inplace_ctx&	ctx,
+	trx_t*				trx,
+	const char*			table_name,
+	const char*			from,
+	const char*			to)
 {
 	dberr_t		error;
 
@@ -8817,7 +8813,7 @@ innobase_rename_column_try(
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_d(dict_sys.assert_locked());
 
-	if (new_clustered) {
+	if (ctx.need_rebuild()) {
 		goto rename_foreign;
 	}
 
@@ -8826,7 +8822,7 @@ innobase_rename_column_try(
 	trx->op_info = "renaming column in SYS_FIELDS";
 
 	for (const dict_index_t* index = dict_table_get_first_index(
-		     user_table);
+		     ctx.old_table);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
 
@@ -8886,8 +8882,8 @@ rename_foreign:
 	std::set<dict_foreign_t*> fk_evict;
 	bool		foreign_modified;
 
-	for (dict_foreign_set::const_iterator it = user_table->foreign_set.begin();
-	     it != user_table->foreign_set.end();
+	for (dict_foreign_set::const_iterator it = ctx.old_table->foreign_set.begin();
+	     it != ctx.old_table->foreign_set.end();
 	     ++it) {
 
 		dict_foreign_t*	foreign = *it;
@@ -8897,6 +8893,14 @@ rename_foreign:
 			if (my_strcasecmp(system_charset_info,
 					  foreign->foreign_col_names[i],
 					  from)) {
+				continue;
+			}
+
+			/* Ignore the foreign key rename if fk info
+			is being dropped. */
+			if (innobase_dropping_foreign(
+				    foreign, ctx.drop_fk,
+				    ctx.num_to_drop_fk)) {
 				continue;
 			}
 
@@ -8928,8 +8932,8 @@ rename_foreign:
 	}
 
 	for (dict_foreign_set::const_iterator it
-		= user_table->referenced_set.begin();
-	     it != user_table->referenced_set.end();
+		= ctx.old_table->referenced_set.begin();
+	     it != ctx.old_table->referenced_set.end();
 	     ++it) {
 
 		foreign_modified = false;
@@ -8970,7 +8974,7 @@ rename_foreign:
 	}
 
 	/* Reload the foreign key info for instant table too. */
-	if (new_clustered || evict_fk_cache) {
+	if (ctx.need_rebuild() || ctx.is_instant()) {
 		std::for_each(fk_evict.begin(), fk_evict.end(),
 			      dict_foreign_remove_from_cache);
 	}
@@ -9017,11 +9021,9 @@ innobase_rename_columns_try(
 		while (Create_field* cf = cf_it++) {
 			if (cf->field == *fp) {
 				if (innobase_rename_column_try(
-					    ctx->old_table, trx, table_name,
+					    *ctx, trx, table_name,
 					    cf->field->field_name.str,
-					    cf->field_name.str,
-					    ctx->need_rebuild(),
-					    ctx->is_instant())) {
+					    cf->field_name.str)) {
 					return(true);
 				}
 				goto processed_field;
@@ -9150,9 +9152,8 @@ innobase_rename_or_enlarge_column_try(
 	const bool same_name = !strcmp(col_name, f.field_name.str);
 
 	if (!same_name
-	    && innobase_rename_column_try(user_table, trx, table_name,
-					  col_name, f.field_name.str,
-					  false, ctx->is_instant())) {
+	    && innobase_rename_column_try(*ctx, trx, table_name,
+					  col_name, f.field_name.str)) {
 		DBUG_RETURN(true);
 	}
 

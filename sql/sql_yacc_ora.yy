@@ -7799,6 +7799,7 @@ alter:
             Lex->first_select_lex()->db=
               (Lex->first_select_lex()->table_list.first)->db;
             Lex->create_last_non_select_table= Lex->last_table();
+            Lex->mark_first_table_as_inserting();
           }
           alter_commands
           {
@@ -13471,7 +13472,10 @@ insert:
             Select->set_lock_for_tables($4, true);
           }
           insert_field_spec opt_insert_update opt_returning
-          stmt_end {}
+          stmt_end
+          {
+            Lex->mark_first_table_as_inserting();
+          }
           ;
 
 replace:
@@ -13485,7 +13489,10 @@ replace:
             Select->set_lock_for_tables($4, true);
           }
           insert_field_spec opt_returning
-          stmt_end {}
+          stmt_end
+          {
+            Lex->mark_first_table_as_inserting();
+          }
           ;
 
 insert_start: {
@@ -15003,7 +15010,10 @@ load:
           opt_xml_rows_identified_by
           opt_field_term opt_line_term opt_ignore_lines opt_field_or_var_spec
           opt_load_data_set_spec
-          stmt_end {}
+          stmt_end
+          {
+            Lex->mark_first_table_as_inserting();
+          }
           ;
 
 data_or_xml:

@@ -237,7 +237,10 @@ inline
 void*
 mem_heap_dup(mem_heap_t* heap, const void* data, size_t len)
 {
-	return(memcpy(mem_heap_alloc(heap, len), data, len));
+	ut_ad(data || !len);
+	return UNIV_LIKELY(data != NULL)
+		? memcpy(mem_heap_alloc(heap, len), data, len)
+		: NULL;
 }
 
 /** Duplicate a NUL-terminated string, allocated from a memory heap.

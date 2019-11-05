@@ -1193,13 +1193,13 @@ values_loop_end:
           else if (thd->binlog_query(THD::ROW_QUERY_TYPE,
                                      log_query.c_ptr(), log_query.length(),
                                      transactional_table, FALSE, FALSE,
-                                     errcode))
+                                     errcode) > 0)
             error= 1;
         }
         else if (thd->binlog_query(THD::ROW_QUERY_TYPE,
 			           thd->query(), thd->query_length(),
 			           transactional_table, FALSE, FALSE,
-                                   errcode))
+                                   errcode) > 0)
 	  error= 1;
       }
     }
@@ -3964,6 +3964,7 @@ bool select_insert::prepare_eof()
   int error;
   bool const trans_table= table->file->has_transactions();
   bool changed;
+  bool binary_logged= 0;
   killed_state killed_status= thd->killed;
 
   DBUG_ENTER("select_insert::prepare_eof");
@@ -4014,18 +4015,22 @@ bool select_insert::prepare_eof()
       (likely(!error) || thd->transaction.stmt.modified_non_trans_table))
   {
     int errcode= 0;
+    int res;
     if (likely(!error))
       thd->clear_error();
     else
       errcode= query_error_code(thd, killed_status == NOT_KILLED);
-    if (thd->binlog_query(THD::ROW_QUERY_TYPE,
-                      thd->query(), thd->query_length(),
-                      trans_table, FALSE, FALSE, errcode))
+    res= thd->binlog_query(THD::ROW_QUERY_TYPE,
+                           thd->query(), thd->query_length(),
+                           trans_table, FALSE, FALSE, errcode);
+    if (res > 0)
     {
       table->file->ha_release_auto_increment();
       DBUG_RETURN(true);
     }
+    binary_logged= res == 0 || !table->s->tmp_table;
   }
+  table->s->table_creation_was_logged|= binary_logged;
   table->file->ha_release_auto_increment();
 
   if (unlikely(error))
@@ -4082,8 +4087,9 @@ bool select_insert::send_eof()
   DBUG_RETURN(res);
 }
 
-void select_insert::abort_result_set() {
-
+void select_insert::abort_result_set()
+{
+  bool binary_logged= 0;
   DBUG_ENTER("select_insert::abort_result_set");
   /*
     If the creation of the table failed (due to a syntax error, for
@@ -4135,16 +4141,20 @@ void select_insert::abort_result_set() {
         if(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
         {
           int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
+          int res;
           /* error of writing binary log is ignored */
-          (void) thd->binlog_query(THD::ROW_QUERY_TYPE, thd->query(),
-                                   thd->query_length(),
-                                   transactional_table, FALSE, FALSE, errcode);
+          res= thd->binlog_query(THD::ROW_QUERY_TYPE, thd->query(),
+                                 thd->query_length(),
+                                 transactional_table, FALSE, FALSE, errcode);
+          binary_logged= res == 0 || !table->s->tmp_table;
         }
 	if (changed)
 	  query_cache_invalidate3(thd, table, 1);
     }
     DBUG_ASSERT(transactional_table || !changed ||
 		thd->transaction.stmt.modified_non_trans_table);
+
+    table->s->table_creation_was_logged|= binary_logged;
     table->file->ha_release_auto_increment();
   }
 
@@ -4213,6 +4223,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   /* Add selected items to field list */
   List_iterator_fast<Item> it(*items);
   Item *item;
+  bool save_table_creation_was_logged;
   DBUG_ENTER("select_create::create_table_from_items");
 
   tmp_table.s= &share;
@@ -4367,6 +4378,14 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
 
   table->reginfo.lock_type=TL_WRITE;
   hooks->prelock(&table, 1);                    // Call prelock hooks
+
+  /*
+    Ensure that decide_logging_format(), called by mysql_lock_tables(), works
+    with temporary tables that will be logged later if needed.
+  */
+  save_table_creation_was_logged= table->s->table_creation_was_logged;
+  table->s->table_creation_was_logged= 1;
+
   /*
     mysql_lock_tables() below should never fail with request to reopen table
     since it won't wait for the table lock (we have exclusive metadata lock on
@@ -4379,8 +4398,11 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     /*
       This can happen in innodb when you get a deadlock when using same table
       in insert and select or when you run out of memory.
+      It can also happen if there was a conflict in
+      THD::decide_logging_format()
     */
-    my_error(ER_CANT_LOCK, MYF(0), my_errno);
+    if (!thd->is_error())
+      my_error(ER_CANT_LOCK, MYF(0), my_errno);
     if (*lock)
     {
       mysql_unlock_tables(thd, *lock);
@@ -4390,6 +4412,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     DBUG_RETURN(0);
     /* purecov: end */
   }
+  table->s->table_creation_was_logged= save_table_creation_was_logged;
   DBUG_RETURN(table);
 }
 
@@ -4593,7 +4616,7 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
                               /* is_trans */ TRUE,
                               /* direct */ FALSE,
                               /* suppress_use */ FALSE,
-                              errcode);
+                              errcode) > 0;
   }
 #ifdef WITH_WSREP
   if (thd->wsrep_trx().active())
@@ -4717,8 +4740,6 @@ bool select_create::send_eof()
     }
 #endif /* WITH_WSREP */
   }
-  else if (!thd->is_current_stmt_binlog_format_row())
-    table->s->table_creation_was_logged= 1;
 
   /*
     exit_done must only be set after last potential call to
@@ -4804,7 +4825,8 @@ void select_create::abort_result_set()
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
-
+    bool table_creation_was_logged= (!tmp_table ||
+                                     table->s->table_creation_was_logged);
     if (tmp_table)
     {
       DBUG_ASSERT(saved_tmp_table_share);
@@ -4833,7 +4855,9 @@ void select_create::abort_result_set()
       /* Remove logging of drop, create + insert rows */
       binlog_reset_cache(thd);
       /* Original table was deleted. We have to log it */
-      log_drop_table(thd, &create_table->db, &create_table->table_name, tmp_table);
+      if (table_creation_was_logged)
+        log_drop_table(thd, &create_table->db, &create_table->table_name,
+                       tmp_table);
     }
   }
   DBUG_VOID_RETURN;
