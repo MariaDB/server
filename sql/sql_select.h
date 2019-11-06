@@ -738,6 +738,7 @@ public:
                          struct st_position *loose_scan_pos) = 0;
 
   virtual void mark_used() = 0;
+  virtual bool sort_nest_allowed_for_sj(table_map prefix_tables) = 0;
 
   virtual ~Semi_join_strategy_picker() {} 
 };
@@ -779,6 +780,7 @@ public:
                  struct st_position *loose_scan_pos);
 
   void mark_used() { is_used= TRUE; }
+  bool sort_nest_allowed_for_sj(table_map remaining_tables);
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
 
@@ -824,6 +826,7 @@ public:
                  struct st_position *loose_scan_pos);
 
   void mark_used() { is_used= TRUE; }
+  bool sort_nest_allowed_for_sj(table_map remaining_tables) { return FALSE; }
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
 
@@ -866,7 +869,7 @@ public:
                  sj_strategy_enum *strategy,
                  struct st_position *loose_scan_pos);
   void mark_used() { is_used= TRUE; }
-
+  bool sort_nest_allowed_for_sj(table_map remaining_tables) { return FALSE; }
   friend class Loose_scan_opt;
   friend void best_access_path(JOIN      *join,
                                JOIN_TAB  *s,
@@ -916,6 +919,7 @@ public:
                  sj_strategy_enum *strategy,
                  struct st_position *loose_scan_pos);
   void mark_used() { is_used= TRUE; }
+  bool sort_nest_allowed_for_sj(table_map remaining_tables) { return FALSE; }
 
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
@@ -1956,7 +1960,8 @@ public:
   void setup_range_scan(JOIN_TAB *tab, uint idx, double records);
   bool is_join_buffering_allowed(JOIN_TAB *tab);
   bool check_join_prefix_resolves_ordering(table_map previous_tables);
-  bool consider_adding_sort_nest(table_map previous_tables);
+  bool consider_adding_sort_nest(table_map previous_tables, uint idx);
+  bool extend_prefix_to_ensure_duplicate_removal(table_map prefix_tables, uint idx);
   void set_fraction_output_for_nest();
   double sort_nest_oper_cost(double join_record_count, uint idx,
                              ulong rec_len);
