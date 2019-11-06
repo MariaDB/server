@@ -2580,10 +2580,10 @@ row_create_index_for_mysql(
 	} else {
 		dict_build_index_def(table, index, trx);
 
-		/* add index to dictionary cache and also free index object. */
-		index = dict_index_add_to_cache(
-			index, FIL_NULL, trx_is_strict(trx), &err);
-		if (index) {
+		err = dict_index_add_to_cache(
+			index, FIL_NULL, trx_is_strict(trx));
+		ut_ad((index == NULL) == (err != DB_SUCCESS));
+		if (UNIV_LIKELY(err == DB_SUCCESS)) {
 			ut_ad(!index->is_instant());
 			index->n_core_null_bytes = UT_BITS_IN_BYTES(
 				unsigned(index->n_nullable));

@@ -1765,8 +1765,7 @@ dict_table_rename_in_cache(
 			/* The old table name in my_charset_filename is stored
 			in old_name_cs_filename */
 
-			strncpy(old_name_cs_filename, old_name,
-				MAX_FULL_NAME_LEN);
+			strcpy(old_name_cs_filename, old_name);
 			old_name_cs_filename[MAX_FULL_NAME_LEN] = '\0';
 			if (strstr(old_name, TEMP_TABLE_PATH_PREFIX) == NULL) {
 
@@ -1788,8 +1787,7 @@ dict_table_rename_in_cache(
 				} else {
 					/* Old name already in
 					my_charset_filename */
-					strncpy(old_name_cs_filename, old_name,
-						MAX_FULL_NAME_LEN);
+					strcpy(old_name_cs_filename, old_name);
 					old_name_cs_filename[MAX_FULL_NAME_LEN]
 						= '\0';
 				}
@@ -2291,23 +2289,19 @@ void dict_index_remove_from_v_col_list(dict_index_t* index)
 
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
-@param[in]	index	index; NOTE! The index memory
+@param[in,out]	index	index; NOTE! The index memory
 			object is freed in this function!
 @param[in]	page_no	root page number of the index
-@param[in]	strict	TRUE=refuse to create the index
+@param[in]	strict	true=refuse to create the index
 			if records could be too big to fit in
 			an B-tree page
-@param[out]	err	DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION
-@param[in]	add_v	new virtual column that being added along with
-			an add index call
-@return	the added index
-@retval	NULL	on error */
-dict_index_t*
+@param[in]	add_v	virtual columns being added along with ADD INDEX
+@return DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION */
+dberr_t
 dict_index_add_to_cache(
-	dict_index_t*		index,
+	dict_index_t*&		index,
 	ulint			page_no,
 	bool			strict,
-	dberr_t*		err,
 	const dict_add_v_col_t* add_v)
 {
 	dict_index_t*	new_index;
@@ -2328,8 +2322,8 @@ dict_index_add_to_cache(
 	if (!dict_index_find_cols(index, add_v)) {
 
 		dict_mem_index_free(index);
-		if (err) *err = DB_CORRUPTION;
-		return NULL;
+		index = NULL;
+		return DB_CORRUPTION;
 	}
 
 	/* Build the cache internal representation of the index,
@@ -2361,8 +2355,8 @@ dict_index_add_to_cache(
 		if (strict) {
 			dict_mem_index_free(new_index);
 			dict_mem_index_free(index);
-			if (err) *err = DB_TOO_BIG_RECORD;
-			return NULL;
+			index = NULL;
+			return DB_TOO_BIG_RECORD;
 		} else if (current_thd != NULL) {
 			/* Avoid the warning to be printed
 			during recovery. */
@@ -2440,8 +2434,8 @@ dict_index_add_to_cache(
 	new_index->n_core_fields = new_index->n_fields;
 
 	dict_mem_index_free(index);
-	if (err) *err = DB_SUCCESS;
-	return new_index;
+	index = new_index;
+	return DB_SUCCESS;
 }
 
 /**********************************************************************//**

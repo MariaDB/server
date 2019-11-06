@@ -22,4 +22,5 @@ check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	Warning	InnoDB: Index 'b' contains #### entries, should be 4096.
 test.t1	check	error	Corrupt
+SET GLOBAL innodb_fast_shutdown=0;
 DROP TABLE t1;
