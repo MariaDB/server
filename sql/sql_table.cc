@@ -2389,6 +2389,13 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             ER_BAD_TABLE_ERROR,
                             ER_THD(thd, ER_BAD_TABLE_ERROR),
                             tbl_name.c_ptr_safe());
+
+        /*
+          Our job is done here. This statement was added to avoid executing
+          unnecessary code farther below which in some strange corner cases
+          caused the server to crash (see MDEV-17896).
+        */
+        goto log_query;
       }
       else
       {
@@ -2497,6 +2504,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       mysql_audit_drop_table(thd, table);
     }
 
+log_query:
     if (!dont_log_query && !drop_temporary)
     {
       non_tmp_table_deleted= (if_exists ? TRUE : non_tmp_table_deleted);
