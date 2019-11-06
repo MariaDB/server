@@ -2573,7 +2573,7 @@ func_exit:
 			fts_free(table);
 		} else if (fts_optimize_wq) {
 			fts_optimize_add_table(table);
-		} else {
+		} else if (table->can_be_evicted) {
 			/* fts_optimize_thread is not started yet.
 			So make the table as non-evictable from cache. */
 			dict_table_move_from_lru_to_non_lru(table);
