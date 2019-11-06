@@ -77,6 +77,12 @@ check table t1;
 
 --let $restart_parameters=
 --source include/restart_mysqld.inc
+
+# Ensure that the slow shutdown will not time out due to running purge.
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+--source include/wait_all_purged.inc
+# The change buffer merge for the injected corruption must complete
+# without exceeding the 60-second shutdown_server timeout.
 SET GLOBAL innodb_fast_shutdown=0;
 --source include/restart_mysqld.inc
 
