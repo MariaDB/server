@@ -2450,20 +2450,14 @@ row_create_index_for_mysql(
 	} else {
 		dict_build_index_def(table, index, trx);
 
-		index_id_t index_id = index->id;
-
-		/* add index to dictionary cache and also free index object. */
 		err = dict_index_add_to_cache(
 			table, index, FIL_NULL, trx_is_strict(trx));
+		ut_ad((index == NULL) == (err != DB_SUCCESS));
 
 		if (err != DB_SUCCESS) {
 			goto error_handling;
 		}
 
-		/* as above function has freed index object re-load it
-		now from dictionary cache using index_id */
-		index = dict_index_get_if_in_cache_low(index_id);
-		ut_a(index != NULL);
 		index->table = table;
 
 		err = dict_create_index_tree_in_mem(index, trx);
