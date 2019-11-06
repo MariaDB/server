@@ -1243,9 +1243,9 @@ dict_create_index_step(
 
 	if (node->state == INDEX_ADD_TO_CACHE) {
 		ut_ad(node->index->table == node->table);
-		node->index = dict_index_add_to_cache(
+		err = dict_index_add_to_cache(
 			node->index, FIL_NULL, trx_is_strict(trx),
-			&err, node->add_v);
+			node->add_v);
 
 		ut_ad((node->index == NULL) == (err != DB_SUCCESS));
 

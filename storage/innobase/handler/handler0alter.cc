@@ -6559,9 +6559,8 @@ new_clustered_failed:
 		    trx_is_strict(ctx->trx))) {
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
 			ctx->add_index[a]->table = ctx->new_table;
-			ctx->add_index[a] = dict_index_add_to_cache(
-				ctx->add_index[a], FIL_NULL, false,
-				&error, add_v);
+			error = dict_index_add_to_cache(
+				ctx->add_index[a], FIL_NULL, false, add_v);
 			ut_a(error == DB_SUCCESS);
 		}
 
