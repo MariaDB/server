@@ -4,8 +4,8 @@ CREATE USER testuser@'::1' identified by '1234';
 GRANT ALL ON test.* TO testuser@'::1';
 SHOW GRANTS FOR testuser@'::1';
 Grants for testuser@::1
-GRANT USAGE ON *.* TO 'testuser'@'::1' IDENTIFIED BY PASSWORD '*A4B6157319038724E3560894F7F932C8886EBFCF'
-GRANT ALL PRIVILEGES ON `test`.* TO 'testuser'@'::1'
+GRANT USAGE ON *.* TO `testuser`@`::1` IDENTIFIED BY PASSWORD '*A4B6157319038724E3560894F7F932C8886EBFCF'
+GRANT ALL PRIVILEGES ON `test`.* TO `testuser`@`::1`
 SET @nip= inet_aton('::1');
 SELECT @nip;
 @nip
@@ -36,8 +36,8 @@ CREATE USER testuser@'127.0.0.1' identified by '1234';
 GRANT ALL ON test.* TO testuser@'127.0.0.1';
 SHOW GRANTS FOR testuser@'127.0.0.1';
 Grants for testuser@127.0.0.1
-GRANT USAGE ON *.* TO 'testuser'@'127.0.0.1' IDENTIFIED BY PASSWORD '*A4B6157319038724E3560894F7F932C8886EBFCF'
-GRANT ALL PRIVILEGES ON `test`.* TO 'testuser'@'127.0.0.1'
+GRANT USAGE ON *.* TO `testuser`@`127.0.0.1` IDENTIFIED BY PASSWORD '*A4B6157319038724E3560894F7F932C8886EBFCF'
+GRANT ALL PRIVILEGES ON `test`.* TO `testuser`@`127.0.0.1`
 SET @nip= inet_aton('127.0.0.1');
 SELECT @nip;
 @nip

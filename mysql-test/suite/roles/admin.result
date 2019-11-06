@@ -27,22 +27,22 @@ grant select on *.* to foo@localhost with admin option;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'admin option' at line 1
 show grants for foo@localhost;
 Grants for foo@localhost
-GRANT CREATE USER ON *.* TO 'foo'@'localhost'
-GRANT role1 TO 'foo'@'localhost' WITH ADMIN OPTION
-GRANT role2 TO 'foo'@'localhost'
-GRANT role5 TO 'foo'@'localhost' WITH ADMIN OPTION
+GRANT CREATE USER ON *.* TO `foo`@`localhost`
+GRANT `role1` TO `foo`@`localhost` WITH ADMIN OPTION
+GRANT `role2` TO `foo`@`localhost`
+GRANT `role5` TO `foo`@`localhost` WITH ADMIN OPTION
 show grants for role1;
 Grants for role1
-GRANT USAGE ON *.* TO 'role1'
-GRANT USAGE ON *.* TO 'role2'
-GRANT USAGE ON *.* TO 'role3'
-GRANT USAGE ON *.* TO 'role4'
-GRANT role2 TO 'role1'
-GRANT role3 TO 'role1' WITH ADMIN OPTION
-GRANT role4 TO 'role3' WITH ADMIN OPTION
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT `role2` TO `role1`
+GRANT `role3` TO `role1` WITH ADMIN OPTION
+GRANT `role4` TO `role3` WITH ADMIN OPTION
 show grants for role4;
 Grants for role4
-GRANT USAGE ON *.* TO 'role4'
+GRANT USAGE ON *.* TO `role4`
 select * from mysql.roles_mapping;
 Host	User	Role	Admin_option
 	role1	role2	N
@@ -58,22 +58,22 @@ localhost	root	role4	Y
 flush privileges;
 show grants for foo@localhost;
 Grants for foo@localhost
-GRANT CREATE USER ON *.* TO 'foo'@'localhost'
-GRANT role1 TO 'foo'@'localhost' WITH ADMIN OPTION
-GRANT role2 TO 'foo'@'localhost'
-GRANT role5 TO 'foo'@'localhost' WITH ADMIN OPTION
+GRANT CREATE USER ON *.* TO `foo`@`localhost`
+GRANT `role1` TO `foo`@`localhost` WITH ADMIN OPTION
+GRANT `role2` TO `foo`@`localhost`
+GRANT `role5` TO `foo`@`localhost` WITH ADMIN OPTION
 show grants for role1;
 Grants for role1
-GRANT USAGE ON *.* TO 'role1'
-GRANT USAGE ON *.* TO 'role2'
-GRANT USAGE ON *.* TO 'role3'
-GRANT USAGE ON *.* TO 'role4'
-GRANT role2 TO 'role1'
-GRANT role3 TO 'role1' WITH ADMIN OPTION
-GRANT role4 TO 'role3' WITH ADMIN OPTION
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT `role2` TO `role1`
+GRANT `role3` TO `role1` WITH ADMIN OPTION
+GRANT `role4` TO `role3` WITH ADMIN OPTION
 show grants for role4;
 Grants for role4
-GRANT USAGE ON *.* TO 'role4'
+GRANT USAGE ON *.* TO `role4`
 select * from information_schema.applicable_roles;
 GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
 role1	role2	NO	NULL
@@ -89,21 +89,21 @@ revoke admin option for role2 from foo@localhost;
 revoke admin option for role1 from root@localhost;
 show grants for foo@localhost;
 Grants for foo@localhost
-GRANT CREATE USER ON *.* TO 'foo'@'localhost'
-GRANT role2 TO 'foo'@'localhost'
-GRANT role5 TO 'foo'@'localhost' WITH ADMIN OPTION
+GRANT CREATE USER ON *.* TO `foo`@`localhost`
+GRANT `role2` TO `foo`@`localhost`
+GRANT `role5` TO `foo`@`localhost` WITH ADMIN OPTION
 show grants for role1;
 Grants for role1
-GRANT USAGE ON *.* TO 'role1'
-GRANT USAGE ON *.* TO 'role2'
-GRANT USAGE ON *.* TO 'role3'
-GRANT USAGE ON *.* TO 'role4'
-GRANT role2 TO 'role1' WITH ADMIN OPTION
-GRANT role3 TO 'role1' WITH ADMIN OPTION
-GRANT role4 TO 'role3'
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT `role2` TO `role1` WITH ADMIN OPTION
+GRANT `role3` TO `role1` WITH ADMIN OPTION
+GRANT `role4` TO `role3`
 show grants for role4;
 Grants for role4
-GRANT USAGE ON *.* TO 'role4'
+GRANT USAGE ON *.* TO `role4`
 select * from mysql.roles_mapping;
 Host	User	Role	Admin_option
 	role1	role2	Y
@@ -118,21 +118,21 @@ localhost	root	role4	Y
 flush privileges;
 show grants for foo@localhost;
 Grants for foo@localhost
-GRANT CREATE USER ON *.* TO 'foo'@'localhost'
-GRANT role2 TO 'foo'@'localhost'
-GRANT role5 TO 'foo'@'localhost' WITH ADMIN OPTION
+GRANT CREATE USER ON *.* TO `foo`@`localhost`
+GRANT `role2` TO `foo`@`localhost`
+GRANT `role5` TO `foo`@`localhost` WITH ADMIN OPTION
 show grants for role1;
 Grants for role1
-GRANT USAGE ON *.* TO 'role1'
-GRANT USAGE ON *.* TO 'role2'
-GRANT USAGE ON *.* TO 'role3'
-GRANT USAGE ON *.* TO 'role4'
-GRANT role2 TO 'role1' WITH ADMIN OPTION
-GRANT role3 TO 'role1' WITH ADMIN OPTION
-GRANT role4 TO 'role3'
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT `role2` TO `role1` WITH ADMIN OPTION
+GRANT `role3` TO `role1` WITH ADMIN OPTION
+GRANT `role4` TO `role3`
 show grants for role4;
 Grants for role4
-GRANT USAGE ON *.* TO 'role4'
+GRANT USAGE ON *.* TO `role4`
 select * from information_schema.applicable_roles;
 GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
 role1	role2	YES	NULL
