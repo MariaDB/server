@@ -2919,3 +2919,76 @@ a	b	a	b
 1	1	1	1
 0	0	0	0
 DROP TABLE t0,t1,t2,t3;
+#
+# Ensure all tables in Duplicate weedout range are either inside
+# or outside the sort nest
+#
+CREATE TABLE t0(a int);
+CREATE TABLE t1 (a int, b int, c int, key(b));
+CREATE TABLE t2 (a int, b int, c int);
+CREATE TABLE t3 (a int, b int, c int, key(a));
+CREATE TABLE t4 (a int, b int, c int, key(a));
+INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
+INSERT INTO t1 SELECT seq-1, seq-1, seq-1 FROM seq_1_to_100;
+INSERT INTO t2 SELECT a,a,a FROM t0;
+INSERT INTO t2 (a,b,c) values (9,9,9);
+INSERT INTO t3 SELECT a,a,a FROM t0;
+INSERT INTO t4 SELECT a,a,a FROM t0;
+ANALYZE TABLE t0 PERSISTENT FOR ALL;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+set optimizer_switch='cost_based_order_by_limit=on';
+EXPLAIN SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2
+WHERE t1.a=t2.a AND
+t1.b IN (SELECT t3.b FROM t3,t4
+WHERE t3.c < 10 AND t4.a=t2.b)
+ORDER BY t1.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary; Using temporary; Using filesort
+1	PRIMARY	t1	ref	b	b	5	test.t3.b	1	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	11	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	ref	a	a	5	test.t2.b	1	Using index; End temporary
+SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2
+WHERE t1.a=t2.a AND
+t1.b IN (SELECT t3.b FROM t3,t4
+WHERE t3.c < 10 AND t4.a=t2.b)
+ORDER BY t1.b DESC
+LIMIT 5;
+a	a	b	b
+9	9	9	9
+9	9	9	9
+8	8	8	8
+7	7	7	7
+6	6	6	6
+set optimizer_switch='cost_based_order_by_limit=off';
+EXPLAIN SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2
+WHERE t1.a=t2.a AND
+t1.b IN (SELECT t3.b FROM t3,t4
+WHERE t3.c < 10 AND t4.a=t2.b)
+ORDER BY t1.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary; Using temporary; Using filesort
+1	PRIMARY	t1	ref	b	b	5	test.t3.b	1	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	11	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	ref	a	a	5	test.t2.b	1	Using index; End temporary
+SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2
+WHERE t1.a=t2.a AND
+t1.b IN (SELECT t3.b FROM t3,t4
+WHERE t3.c < 10 AND t4.a=t2.b)
+ORDER BY t1.b DESC
+LIMIT 5;
+a	a	b	b
+9	9	9	9
+9	9	9	9
+8	8	8	8
+7	7	7	7
+6	6	6	6
+drop table t0,t1,t2,t3,t4;

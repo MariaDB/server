@@ -1446,15 +1446,41 @@ bool JOIN::sort_nest_allowed()
     FALSE  otherwise
 */
 
-bool JOIN::consider_adding_sort_nest(table_map prefix_tables)
+bool JOIN::consider_adding_sort_nest(table_map prefix_tables, uint idx)
 {
   if (!sort_nest_possible ||                        // (1)
       get_cardinality_estimate ||                   // (2)
       cur_embedding_map ||                          // (3)
-      cur_sj_inner_tables)                          // (4)
+      cur_sj_inner_tables ||                        // (4)
+      extend_prefix_to_ensure_duplicate_removal(prefix_tables, idx))
     return FALSE;
 
   return check_join_prefix_resolves_ordering(prefix_tables);  // (5)
+}
+
+
+bool
+JOIN::extend_prefix_to_ensure_duplicate_removal(table_map prefix_tables, uint idx)
+{
+  if (!select_lex->have_merged_subqueries)
+    return FALSE;
+
+  POSITION *pos= positions + idx;
+  Semi_join_strategy_picker *pickers[]=
+  {
+    &pos->firstmatch_picker,
+    &pos->loosescan_picker,
+    &pos->sjmat_picker,
+    &pos->dups_weedout_picker,
+    NULL,
+  };
+  Semi_join_strategy_picker **strategy;
+  for (strategy= pickers; *strategy != NULL; strategy++)
+  {
+    if ((*strategy)->sort_nest_allowed_for_sj(prefix_tables))
+      return TRUE;
+  }
+  return FALSE;
 }
 
 

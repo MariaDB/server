@@ -9645,8 +9645,6 @@ best_extension_by_limited_search(JOIN      *join,
   JOIN_TAB *s;
   double best_record_count= DBL_MAX;
   double best_read_time=    DBL_MAX;
-  bool disable_jbuf= (join->thd->variables.join_cache_level == 0) ||
-                      nest_created;
   bool save_prefix_resolves_ordering= join->prefix_resolves_ordering;
 
   if (nest_created && !limit_applied_to_nest)
@@ -9661,8 +9659,16 @@ best_extension_by_limited_search(JOIN      *join,
       apply_limit.add("original_record_count", original_record_count);
       apply_limit.add("record_count_after_limit_applied", record_count);
     }
-
   }
+
+  /*
+    Join buffering should be not considered in 2 cases
+    1) if join_cache_level = 0 that is join buffering is disabled
+    2) if the limit was pushed to a prefix of the join that can resolve the
+       ORDER BY clause
+  */
+  bool disable_jbuf= (join->thd->variables.join_cache_level == 0) ||
+                      limit_applied_to_nest;
 
   DBUG_EXECUTE("opt", print_plan(join, idx, record_count, read_time, read_time,
                                 "part_plan"););
@@ -9806,15 +9812,10 @@ best_extension_by_limited_search(JOIN      *join,
             s->check_if_index_satisfies_ordering(index_used))
           limit_applied_to_nest= TRUE;
 
-        /*
-          TODO varun:
-            1) get an optimizer switch to enable or disable the sort
-               nest instead of a system variable
-        */
         if (!nest_created &&
             (join->prefix_resolves_ordering ||
              join->consider_adding_sort_nest(sort_nest_tables |
-                                             real_table_bit)))
+                                             real_table_bit, idx)))
         {
           // SORT_NEST branch
           join->positions[idx].sort_nest_operation_here= TRUE;
@@ -9840,6 +9841,8 @@ best_extension_by_limited_search(JOIN      *join,
                                                sort_nest_tables | real_table_bit,
                                                TRUE, limit_applied_to_nest))
             DBUG_RETURN(TRUE);
+          if (!(join->is_index_with_ordering_allowed(idx) &&
+              s->check_if_index_satisfies_ordering(index_used)))
           join->positions[idx].sort_nest_operation_here= FALSE;
           trace_rest.end();
         }
@@ -9859,8 +9862,11 @@ best_extension_by_limited_search(JOIN      *join,
           DBUG_RETURN(TRUE);
         trace_rest.end();
 
-        if (!idx)
+        if (idx == join->const_tables)
+        {
           limit_applied_to_nest= FALSE;
+          join->positions[idx].sort_nest_operation_here= FALSE;
+        }
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
       }
       else

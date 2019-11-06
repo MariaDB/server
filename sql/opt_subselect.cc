@@ -3541,6 +3541,13 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
 }
 
 
+bool Duplicate_weedout_picker::sort_nest_allowed_for_sj(table_map prefix_tables)
+{
+  if (!dupsweedout_tables || !(~prefix_tables & dupsweedout_tables))
+    return FALSE;
+  return TRUE;
+}
+
 /*
   Remove the last join tab from from join->cur_sj_inner_tables bitmap
   we assume remaining_tables doesnt contain @tab.
