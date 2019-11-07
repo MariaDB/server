@@ -2372,10 +2372,26 @@ ibuf_get_merge_pages(
 	return(volume);
 }
 
+/**
+Delete a change buffer record.
+@param[in]	space		tablespace identifier
+@param[in]	page_no		page number
+@param[in,out]	pcur		persistent cursor positioned on the record
+@param[in]	search_tuple	search key for (space,page_no)
+@param[in,out]	mtr		mini-transaction
+@return whether mtr was committed (due to pessimistic operation) */
+static MY_ATTRIBUTE((warn_unused_result, nonnull))
+bool ibuf_delete_rec(ulint space, ulint page_no, btr_pcur_t* pcur,
+		     const dtuple_t* search_tuple, mtr_t* mtr);
+
 /** Merge the change buffer to some pages. */
 static void ibuf_read_merge_pages(const ulint* space_ids,
 				  const ulint* page_nos, ulint n_stored)
 {
+	mem_heap_t* heap = mem_heap_create(512);
+	ulint dops[IBUF_OP_COUNT];
+	memset(dops, 0, sizeof(dops));
+
 	for (ulint i = 0; i < n_stored; i++) {
 		const ulint space_id = space_ids[i];
 		fil_space_t* s = fil_space_acquire_for_io(space_id);
@@ -2396,14 +2412,63 @@ tablespace_deleted:
 		mtr_t mtr;
 		mtr.start();
 		dberr_t err;
-		buf_page_get_gen(page_id_t(space_id, page_nos[i]),
-				 zip_size, RW_X_LATCH, NULL, BUF_GET,
+		buf_page_get_gen(page_id_t(space_id, page_nos[i]), zip_size,
+				 RW_X_LATCH, NULL, BUF_GET,
 				 __FILE__, __LINE__, &mtr, &err, true);
 		mtr.commit();
 		if (err == DB_TABLESPACE_DELETED) {
 			goto tablespace_deleted;
 		}
+		/* Prevent an infinite loop, by removing entries from
+		the change buffer also in the case the bitmap bits were
+		wrongly clear even though buffered changes exist. */
+		const dtuple_t* tuple = ibuf_search_tuple_build(
+			space_id, page_nos[i], heap);
+loop:
+		btr_pcur_t pcur;
+		ibuf_mtr_start(&mtr);
+		btr_pcur_open(ibuf.index, tuple, PAGE_CUR_GE, BTR_MODIFY_LEAF,
+			      &pcur, &mtr);
+		if (!btr_pcur_is_on_user_rec(&pcur)) {
+			ut_ad(btr_pcur_is_after_last_in_tree(&pcur));
+			goto done;
+		}
+
+		for (;;) {
+			ut_ad(btr_pcur_is_on_user_rec(&pcur));
+
+			const rec_t* ibuf_rec = btr_pcur_get_rec(&pcur);
+			if (ibuf_rec_get_space(&mtr, ibuf_rec) != space_id
+			    || ibuf_rec_get_page_no(&mtr, ibuf_rec)
+			    != page_nos[i]) {
+				break;
+			}
+
+			dops[ibuf_rec_get_op_type(&mtr, ibuf_rec)]++;
+			/* Delete the record from ibuf */
+			if (ibuf_delete_rec(space_id, page_nos[i],
+					    &pcur, tuple, &mtr)) {
+				/* Deletion was pessimistic and mtr
+				was committed: we start from the
+				beginning again */
+				ut_ad(mtr.has_committed());
+				goto loop;
+			}
+
+			if (btr_pcur_is_after_last_on_page(&pcur)) {
+				ibuf_mtr_commit(&mtr);
+				btr_pcur_close(&pcur);
+				goto loop;
+			}
+		}
+done:
+		ibuf_mtr_commit(&mtr);
+		btr_pcur_close(&pcur);
+		mem_heap_empty(heap);
 	}
+
+	ibuf_add_ops(ibuf.n_discarded_ops, dops);
+	mem_heap_free(heap);
 }
 
 /*********************************************************************//**
@@ -4125,23 +4190,17 @@ ibuf_restore_pos(
 	return(FALSE);
 }
 
-/*********************************************************************//**
-Deletes from ibuf the record on which pcur is positioned. If we have to
-resort to a pessimistic delete, this function commits mtr and closes
-the cursor.
-@return TRUE if mtr was committed and pcur closed in this operation */
-static MY_ATTRIBUTE((warn_unused_result))
-ibool
-ibuf_delete_rec(
-/*============*/
-	ulint		space,	/*!< in: space id */
-	ulint		page_no,/*!< in: index page number that the record
-				should belong to */
-	btr_pcur_t*	pcur,	/*!< in: pcur positioned on the record to
-				delete, having latch mode BTR_MODIFY_LEAF */
-	const dtuple_t*	search_tuple,
-				/*!< in: search tuple for entries of page_no */
-	mtr_t*		mtr)	/*!< in: mtr */
+/**
+Delete a change buffer record.
+@param[in]	space		tablespace identifier
+@param[in]	page_no		page number
+@param[in,out]	pcur		persistent cursor positioned on the record
+@param[in]	search_tuple	search key for (space,page_no)
+@param[in,out]	mtr		mini-transaction
+@return whether mtr was committed (due to pessimistic operation) */
+static MY_ATTRIBUTE((warn_unused_result, nonnull))
+bool ibuf_delete_rec(ulint space, ulint page_no, btr_pcur_t* pcur,
+		     const dtuple_t* search_tuple, mtr_t* mtr)
 {
 	ibool		success;
 	page_t*		root;
@@ -4278,9 +4337,7 @@ ibuf_merge_or_delete_for_page(
 	ulint			zip_size,
 	bool			update_ibuf_bitmap)
 {
-	mem_heap_t*	heap;
 	btr_pcur_t	pcur;
-	dtuple_t*	search_tuple;
 #ifdef UNIV_IBUF_DEBUG
 	ulint		volume			= 0;
 #endif /* UNIV_IBUF_DEBUG */
@@ -4336,8 +4393,7 @@ ibuf_merge_or_delete_for_page(
 			ibuf_mtr_commit(&mtr);
 
 			if (!bitmap_bits) {
-				/* No inserts buffered for this page */
-
+				/* No changes are buffered for this page. */
 				space->release();
 				return;
 			}
@@ -4351,9 +4407,9 @@ ibuf_merge_or_delete_for_page(
 		space = NULL;
 	}
 
-	heap = mem_heap_create(512);
+	mem_heap_t* heap = mem_heap_create(512);
 
-	search_tuple = ibuf_search_tuple_build(
+	const dtuple_t* search_tuple = ibuf_search_tuple_build(
 		page_id.space(), page_id.page_no(), heap);
 
 	if (block != NULL) {

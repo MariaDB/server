@@ -2566,8 +2566,9 @@ corrupted:
 			and simply did not load this index definition, the
 			.frm file would disagree with the index definitions
 			inside InnoDB. */
-			if (!dict_index_add_to_cache(
-				    index, index->page, false, &error)) {
+			if ((error = dict_index_add_to_cache(index,
+							     index->page))
+			    != DB_SUCCESS) {
 				goto func_exit;
 			}
 		}
@@ -3080,7 +3081,7 @@ func_exit:
 			fts_free(table);
 		} else if (fts_optimize_wq) {
 			fts_optimize_add_table(table);
-		} else {
+		} else if (table->can_be_evicted) {
 			/* fts_optimize_thread is not started yet.
 			So make the table as non-evictable from cache. */
 			dict_sys.prevent_eviction(table);
