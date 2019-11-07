@@ -7817,7 +7817,7 @@ ER_PARTITION_WRONG_TYPE
         eng "Wrong partitioning type, expected type: %`s"
 
 WARN_VERS_PART_FULL
-        eng "Versioned table %`s.%`s: partition %`s is full, add more HISTORY partitions"
+        eng "Versioned table %`s.%`s: last HISTORY partition (%`s) is out of %s, need more HISTORY partitions"
 
 WARN_VERS_PARAMETERS
         eng "Maybe missing parameters: %s"
@@ -7939,3 +7939,7 @@ ER_UNKNOWN_DATA_TYPE
         eng "Unknown data type: '%-.64s'"
 ER_UNKNOWN_OPERATOR
         eng "Operator does not exists: '%-.128s'"
+ER_WARN_HISTORY_ROW_START_TIME
+        eng "Table `%s.%s` history row start '%s' is later than row end '%s'"
+ER_PART_STARTS_BEYOND_INTERVAL
+        eng "%`s: STARTS is later than query time, first history partition may exceed INTERVAL value"
