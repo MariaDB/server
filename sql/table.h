@@ -1450,6 +1450,7 @@ public:
   }
 
   bool update_const_key_parts(COND *conds);
+  void initialize_quick_structures();
 
   my_ptrdiff_t default_values_offset() const
   { return (my_ptrdiff_t) (s->default_values - record[0]); }
