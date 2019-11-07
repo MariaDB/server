@@ -5695,8 +5695,10 @@ THD::binlog_start_trans_and_stmt()
     Ha_trx_info *ha_info;
     ha_info= this->ha_data[binlog_hton->slot].ha_info + (mstmt_mode ? 1 : 0);
 
-    if (!ha_info->is_started() && this->variables.gtid_seq_no && wsrep_on(this)
-        && (this->wsrep_cs().mode() == wsrep::client_state::m_local))
+    if (!ha_info->is_started() && 
+        (this->variables.gtid_seq_no || this->variables.wsrep_gtid_seq_no) &&
+        wsrep_on(this) && 
+        (this->wsrep_cs().mode() == wsrep::client_state::m_local))
     {
       uchar *buf= 0;
       size_t len= 0;
@@ -5705,11 +5707,18 @@ THD::binlog_start_trans_and_stmt()
       if(!open_cached_file(&tmp_io_cache, mysql_tmpdir, TEMP_PREFIX,
                           128, MYF(MY_WME)))
       {
-        Gtid_log_event gtid_event(this, this->variables.gtid_seq_no,
-                            this->variables.gtid_domain_id,
-                            true, LOG_EVENT_SUPPRESS_USE_F,
-                            true, 0);
-        gtid_event.server_id= this->variables.server_id;
+        uint64 seqno= this->variables.gtid_seq_no;
+        uint32 domain_id= this->variables.gtid_domain_id;
+        uint32 server_id= this->variables.server_id;
+        if (!this->variables.gtid_seq_no && this->variables.wsrep_gtid_seq_no)
+        {
+          seqno= this->variables.wsrep_gtid_seq_no;
+          domain_id= wsrep_gtid_server.domain_id;
+          server_id= wsrep_gtid_server.server_id;
+        }
+        Gtid_log_event gtid_event(this, seqno, domain_id, true,
+                                  LOG_EVENT_SUPPRESS_USE_F, true, 0);
+        gtid_event.server_id= server_id;
         writer.write(&gtid_event);
         wsrep_write_cache_buf(&tmp_io_cache, &buf, &len);
         if (len > 0) this->wsrep_cs().append_data(wsrep::const_buffer(buf, len));

@@ -175,7 +175,15 @@ int wsrep_apply_events(THD*        thd,
         Gtid_log_event *gtid_ev= (Gtid_log_event*)ev;
         thd->variables.server_id= gtid_ev->server_id;
         thd->variables.gtid_domain_id= gtid_ev->domain_id;
-        thd->variables.gtid_seq_no= gtid_ev->seq_no;
+        if ((gtid_ev->server_id == wsrep_gtid_server.server_id) &&
+            (gtid_ev->domain_id == wsrep_gtid_server.domain_id))
+        {
+          thd->variables.wsrep_gtid_seq_no= gtid_ev->seq_no;
+        }
+        else
+        {
+          thd->variables.gtid_seq_no= gtid_ev->seq_no;
+        }
         delete ev;
       }
       continue;

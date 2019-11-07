@@ -476,6 +476,15 @@ bool wsrep_debug_update(sys_var *self, THD* thd, enum_var_type type)
     return false;
 }
 
+bool
+wsrep_gtid_seq_no_check(sys_var *self, THD *thd, set_var *var)
+{
+  ulonglong new_wsrep_gtid_seq_no= var->save_result.ulonglong_value;
+  if (wsrep_gtid_mode && new_wsrep_gtid_seq_no > wsrep_gtid_server.seqno())
+    return false;
+  return true;
+}
+
 static int wsrep_cluster_address_verify (const char* cluster_address_str)
 {
   /* There is no predefined address format, it depends on provider. */

@@ -1494,15 +1494,24 @@ int wsrep_to_buf_helper(
   }
 #endif /* GTID_SUPPORT */
   /*
-    Check if this is applier thread or slave_thread. Add GTID event.
+   * Check if this is applier thread, slave_thread or
+   * we have set manually WSREP GTID seqno. Add GTID event.
    */
-  if (thd->slave_thread || wsrep_thd_is_applying(thd))
+  if (thd->slave_thread || wsrep_thd_is_applying(thd) || 
+      thd->variables.wsrep_gtid_seq_no)
   {
-    Gtid_log_event gtid_event(thd, thd->variables.gtid_seq_no,
-                          thd->variables.gtid_domain_id,
-                          true, LOG_EVENT_SUPPRESS_USE_F,
-                          true, 0);
-    gtid_event.server_id= thd->variables.server_id;
+    uint64 seqno= thd->variables.gtid_seq_no;
+    uint32 domain_id= thd->variables.gtid_domain_id;
+    uint32 server_id= thd->variables.server_id;
+    if (!thd->variables.gtid_seq_no && thd->variables.wsrep_gtid_seq_no)
+    {
+      seqno= thd->variables.wsrep_gtid_seq_no;
+      domain_id= wsrep_gtid_server.domain_id;
+      server_id= wsrep_gtid_server.server_id;
+    }
+    Gtid_log_event gtid_event(thd, seqno, domain_id, true,
+                              LOG_EVENT_SUPPRESS_USE_F, true, 0);
+    gtid_event.server_id= server_id;
     if (!gtid_event.is_valid()) ret= 0;
     ret= writer.write(&gtid_event);
   }
@@ -2008,7 +2017,18 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   else {
     if (!thd->variables.gtid_seq_no)
     {
-      uint64 seqno= wsrep_gtid_server.seqno_inc();
+    uint64 seqno= 0;
+      if (thd->variables.wsrep_gtid_seq_no &&
+          thd->variables.wsrep_gtid_seq_no > wsrep_gtid_server.seqno())
+      {
+        seqno= thd->variables.wsrep_gtid_seq_no;
+        wsrep_gtid_server.seqno(thd->variables.wsrep_gtid_seq_no);
+      }
+      else
+      {
+        seqno= wsrep_gtid_server.seqno_inc();
+      }
+      thd->variables.wsrep_gtid_seq_no= 0;
       thd->wsrep_current_gtid_seqno= seqno;
       if (mysql_bin_log.is_open() && wsrep_gtid_mode)
       {

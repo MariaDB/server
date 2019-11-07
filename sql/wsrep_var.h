@@ -103,6 +103,8 @@ extern bool wsrep_reject_queries_update      UPDATE_ARGS;
 
 extern bool wsrep_debug_update               UPDATE_ARGS;
 
+extern bool wsrep_gtid_seq_no_check          CHECK_ARGS;
+
 #else  /* WITH_WSREP */
 
 #define wsrep_provider_init(X)

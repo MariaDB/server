@@ -411,7 +411,7 @@ public:
   void seqno(const uint64 seqno) { m_seqno= seqno; }
   uint64 seqno() const { return m_seqno; }
   uint64 seqno_committed() const { return m_committed_seqno; }
-  uint64 seqno_inc() 
+  uint64 seqno_inc()
   {
     m_seqno++;
     return m_seqno;

@@ -275,7 +275,18 @@ static inline int wsrep_before_commit(THD* thd, bool all)
     if (!thd->variables.gtid_seq_no && 
         (thd->wsrep_trx().ws_meta().flags() & wsrep::provider::flag::commit))
     {
-        uint64 seqno= wsrep_gtid_server.seqno_inc();
+        uint64 seqno= 0;
+        if (thd->variables.wsrep_gtid_seq_no &&
+            thd->variables.wsrep_gtid_seq_no > wsrep_gtid_server.seqno())
+        {
+          seqno= thd->variables.wsrep_gtid_seq_no;
+          wsrep_gtid_server.seqno(thd->variables.wsrep_gtid_seq_no);
+        }
+        else
+        {
+          seqno= wsrep_gtid_server.seqno_inc();
+        }
+        thd->variables.wsrep_gtid_seq_no= 0;
         thd->wsrep_current_gtid_seqno= seqno;
         if (mysql_bin_log.is_open() && wsrep_gtid_mode)
         {
