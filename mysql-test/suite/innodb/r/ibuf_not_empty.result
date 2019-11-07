@@ -24,6 +24,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	Warning	InnoDB: Index 'b' contains #### entries, should be 4096.
 test.t1	check	error	Corrupt
 # restart
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+InnoDB		0 transactions not purged
 SET GLOBAL innodb_fast_shutdown=0;
 # restart
 DROP TABLE t1;
