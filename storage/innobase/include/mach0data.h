@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -366,17 +366,6 @@ mach_write_ulonglong(
 	bool		usign);		/*!< in: signed or unsigned flag */
 
 #endif /* !UNIV_INNOCHECKSUM */
-
-/** Read 1 to 4 bytes from a file page buffered in the buffer pool.
-@param[in]	ptr	pointer where to read
-@param[in]	type	MLOG_1BYTE, MLOG_2BYTES, or MLOG_4BYTES
-@return value read */
-UNIV_INLINE
-ulint
-mach_read_ulint(
-	const byte*	ptr,
-	mlog_id_t	type)
-	MY_ATTRIBUTE((warn_unused_result));
 
 #include "mach0data.ic"
 

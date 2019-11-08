@@ -466,17 +466,12 @@ protected:
 		UT_DELETE_ARRAY(m_xdes);
 		m_xdes = NULL;
 
-		ulint		state;
-		const xdes_t*	xdesc = page + XDES_ARR_OFFSET;
-
-		state = mach_read_ulint(xdesc + XDES_STATE, MLOG_4BYTES);
-
-		if (state != XDES_FREE) {
+		if (mach_read_from_4(XDES_ARR_OFFSET + XDES_STATE + page)
+		    != XDES_FREE) {
 			const ulint physical_size = m_zip_size
 				? m_zip_size : srv_page_size;
 
-			m_xdes = UT_NEW_ARRAY_NOKEY(xdes_t,
-						    physical_size);
+			m_xdes = UT_NEW_ARRAY_NOKEY(xdes_t, physical_size);
 
 			/* Trigger OOM */
 			DBUG_EXECUTE_IF(

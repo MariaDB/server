@@ -920,7 +920,7 @@ dict_drop_index_tree(
 
 	btr_pcur_store_position(pcur, mtr);
 
-	root_page_no = mtr_read_ulint(ptr, MLOG_4BYTES, mtr);
+	root_page_no = mach_read_from_4(ptr);
 
 	if (root_page_no == FIL_NULL) {
 		/* The tree has already been freed */
@@ -936,7 +936,7 @@ dict_drop_index_tree(
 
 	ut_ad(len == 4);
 
-	space = mtr_read_ulint(ptr, MLOG_4BYTES, mtr);
+	space = mach_read_from_4(ptr);
 
 	ptr = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__ID, &len);

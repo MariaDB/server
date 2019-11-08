@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -53,10 +53,6 @@ savepoint. */
 /** Change the logging mode of a mini-transaction.
 @return	old mode */
 #define mtr_set_log_mode(m, d)	(m)->set_log_mode((d))
-
-/** Read 1 - 4 bytes from a file page buffered in the buffer pool.
-@return	value read */
-#define mtr_read_ulint(p, t, m)	(m)->read_ulint((p), (t))
 
 /** Release an object in the memo stack.
 @return true if released */
@@ -305,13 +301,6 @@ struct mtr_t {
 	@return whether the mini-transaction is associated with the space */
 	bool is_named_space(const fil_space_t* space) const;
 #endif /* UNIV_DEBUG */
-
-	/** Read 1 - 4 bytes from a file page buffered in the buffer pool.
-	@param ptr	pointer from where to read
-	@param type)	MLOG_1BYTE, MLOG_2BYTES, MLOG_4BYTES
-	@return	value read */
-	inline ulint read_ulint(const byte* ptr, mlog_id_t type) const
-		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Locks a rw-latch in S mode.
 	NOTE: use mtr_s_lock().

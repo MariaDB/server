@@ -3625,8 +3625,7 @@ fts_read_ulint(
 	dfield_t*	dfield = que_node_get_val(exp);
 	void*		data = dfield_get_data(dfield);
 
-	*value = static_cast<ulint>(mach_read_from_4(
-		static_cast<const byte*>(data)));
+	*value = mach_read_from_4(static_cast<const byte*>(data));
 
 	return(TRUE);
 }
