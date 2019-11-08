@@ -1338,7 +1338,7 @@ recv_parse_or_apply_log_rec_body(
 	page_t*		page;
 	page_zip_des_t*	page_zip;
 #ifdef UNIV_DEBUG
-	ulint		page_type;
+	uint16_t	page_type;
 #endif /* UNIV_DEBUG */
 
 	if (block) {
