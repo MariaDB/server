@@ -159,38 +159,29 @@ inline fsp_header_t* fsp_get_space_header(const fil_space_t* space, mtr_t* mtr)
 	return(header);
 }
 
-/**********************************************************************//**
-Sets a descriptor bit of a page. */
-UNIV_INLINE
-void
-xdes_set_bit(
-/*=========*/
-	xdes_t*	descr,	/*!< in: descriptor */
-	ulint	bit,	/*!< in: XDES_FREE_BIT or XDES_CLEAN_BIT */
-	ulint	offset,	/*!< in: page offset within extent:
-			0 ... FSP_EXTENT_SIZE - 1 */
-	ibool	val,	/*!< in: bit value */
-	mtr_t*	mtr)	/*!< in/out: mini-transaction */
+/** Set the XDES_FREE_BIT of a page.
+@tparam         free    desired value of XDES_FREE_BIT
+@param[in,out]  descr   extent descriptor
+@param[in]      offset  page offset within the extent
+@param[in,out]  mtr     mini-transaction */
+template<bool free>
+inline void xdes_set_free(xdes_t *descr, ulint offset, mtr_t *mtr)
 {
-	ulint	index;
-	ulint	byte_index;
-	ulint	bit_index;
-	ulint	descr_byte;
+  ut_ad(mtr_memo_contains_page(mtr, descr, MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(offset < FSP_EXTENT_SIZE);
+  compile_time_assert(XDES_BITS_PER_PAGE == 2);
+  compile_time_assert(XDES_FREE_BIT == 0);
+  compile_time_assert(XDES_CLEAN_BIT == 1);
 
-	ut_ad(mtr_memo_contains_page(mtr, descr, MTR_MEMO_PAGE_SX_FIX));
-	ut_ad((bit == XDES_FREE_BIT) || (bit == XDES_CLEAN_BIT));
-	ut_ad(offset < FSP_EXTENT_SIZE);
-
-	index = bit + XDES_BITS_PER_PAGE * offset;
-
-	byte_index = index / 8;
-	bit_index = index % 8;
-
-	descr_byte = mach_read_from_1(descr + XDES_BITMAP + byte_index);
-	descr_byte = ut_bit_set_nth(descr_byte, bit_index, val);
-
-	mlog_write_ulint(descr + XDES_BITMAP + byte_index, descr_byte,
-			 MLOG_1BYTE, mtr);
+  ulint index= XDES_BITS_PER_PAGE * offset;
+  byte *b= &descr[XDES_BITMAP + (index >> 3)];
+  /* xdes_init() should have set all XDES_CLEAN_BIT. */
+  ut_ad(!(~*b & 0xaa));
+  /* Clear or set XDES_FREE_BIT. */
+  byte val= free
+    ? *b | 1 << (index & 7)
+    : *b & ~(1 << (index & 7));
+  mlog_write_ulint(b, val, MLOG_1BYTE, mtr);
 }
 
 /**
@@ -949,9 +940,9 @@ fsp_fill_free_list(
 			and the second is an ibuf bitmap page: mark them
 			used */
 
-			xdes_set_bit(descr, XDES_FREE_BIT, 0, FALSE, mtr);
-			xdes_set_bit(descr, XDES_FREE_BIT,
-				     FSP_IBUF_BITMAP_OFFSET, FALSE, mtr);
+			xdes_set_free<false>(descr, 0, mtr);
+			xdes_set_free<false>(descr, FSP_IBUF_BITMAP_OFFSET,
+					     mtr);
 			xdes_set_state(descr, XDES_FREE_FRAG, mtr);
 
 			flst_add_last(header + FSP_FREE_FRAG,
@@ -1040,7 +1031,7 @@ fsp_alloc_from_free_frag(
 
 	ut_ad(xdes_get_state(descr, mtr) == XDES_FREE_FRAG);
 	ut_a(xdes_is_free(descr, bit));
-	xdes_set_bit(descr, XDES_FREE_BIT, bit, FALSE, mtr);
+	xdes_set_free<false>(descr, bit, mtr);
 
 	/* Update the FRAG_N_USED field */
 	frag_n_used = mach_read_from_4(header + FSP_FRAG_N_USED);
@@ -1297,10 +1288,10 @@ static void fsp_free_page(fil_space_t* space, page_no_t offset,
 
 	const ulint	bit = offset % FSP_EXTENT_SIZE;
 
-	xdes_set_bit(descr, XDES_FREE_BIT, bit, TRUE, mtr);
-	xdes_set_bit(descr, XDES_CLEAN_BIT, bit, TRUE, mtr);
+	xdes_set_free<true>(descr, bit, mtr);
 
 	frag_n_used = mach_read_from_4(header + FSP_FRAG_N_USED);
+
 	if (state == XDES_FULL_FRAG) {
 		/* The fragment was full: move it to another list */
 		flst_remove(header + FSP_FULL_FRAG, descr + XDES_FLST_NODE,
@@ -2576,7 +2567,7 @@ fseg_mark_page_used(
 	ut_ad(xdes_is_free(descr, page % FSP_EXTENT_SIZE));
 
 	/* We mark the page as used */
-	xdes_set_bit(descr, XDES_FREE_BIT, page % FSP_EXTENT_SIZE, FALSE, mtr);
+	xdes_set_free<false>(descr, page % FSP_EXTENT_SIZE, mtr);
 
 	not_full_n_used = mach_read_from_4(seg_inode + FSEG_NOT_FULL_N_USED);
 	not_full_n_used++;
@@ -2707,8 +2698,7 @@ fseg_free_page_low(
 
 	const ulint	bit = offset % FSP_EXTENT_SIZE;
 
-	xdes_set_bit(descr, XDES_FREE_BIT, bit, TRUE, mtr);
-	xdes_set_bit(descr, XDES_CLEAN_BIT, bit, TRUE, mtr);
+	xdes_set_free<true>(descr, bit, mtr);
 
 	if (!xdes_get_n_used(descr)) {
 		/* The extent has become free: free it to space */
