@@ -1819,13 +1819,17 @@ PageConverter::update_index_page(
 
 	/* This has to be written to uncompressed index header. Set it to
 	the current index id. */
-	btr_page_set_index_id(
-		page, m_page_zip_ptr, m_index->m_srv_index->id, 0);
+	mach_write_to_8(page + (PAGE_HEADER + PAGE_INDEX_ID),
+			m_index->m_srv_index->id);
+	if (m_page_zip_ptr) {
+		memcpy(&m_page_zip_ptr->data[PAGE_HEADER + PAGE_INDEX_ID],
+		       &block->frame[PAGE_HEADER + PAGE_INDEX_ID], 8);
+	}
 
-	if (dict_index_is_clust(m_index->m_srv_index)) {
-		dict_index_t* index = const_cast<dict_index_t*>(
-			m_index->m_srv_index);
-		if (block->page.id.page_no() == index->page) {
+	if (m_index->m_srv_index->is_clust()) {
+		if (block->page.id.page_no() == m_index->m_srv_index->page) {
+			dict_index_t* index = const_cast<dict_index_t*>(
+				m_index->m_srv_index);
 			/* Preserve the PAGE_ROOT_AUTO_INC. */
 			if (index->table->supports_instant()) {
 				if (btr_cur_instant_root_init(index, page)) {
@@ -1859,18 +1863,30 @@ PageConverter::update_index_page(
 				}
 			}
 		} else {
-			/* Clear PAGE_MAX_TRX_ID so that it can be
-			used for other purposes in the future. IMPORT
-			in MySQL 5.6, 5.7 and MariaDB 10.0 and 10.1
-			would set the field to the transaction ID even
-			on clustered index pages. */
-			page_set_max_trx_id(block, m_page_zip_ptr, 0, NULL);
+			goto clear_page_max_trx_id;
+		}
+	} else if (page_is_leaf(page)) {
+		/* Set PAGE_MAX_TRX_ID on secondary index leaf pages. */
+		mach_write_to_8(&block->frame[PAGE_HEADER + PAGE_MAX_TRX_ID],
+				m_trx->id);
+		if (m_page_zip_ptr) {
+			memcpy(&m_page_zip_ptr
+			       ->data[PAGE_HEADER + PAGE_MAX_TRX_ID],
+			       &block->frame[PAGE_HEADER + PAGE_MAX_TRX_ID],
+			       8);
 		}
 	} else {
-		/* Set PAGE_MAX_TRX_ID on secondary index leaf pages,
-		and clear it on non-leaf pages. */
-		page_set_max_trx_id(block, m_page_zip_ptr,
-				    page_is_leaf(page) ? m_trx->id : 0, NULL);
+clear_page_max_trx_id:
+		/* Clear PAGE_MAX_TRX_ID so that it can be
+		used for other purposes in the future. IMPORT
+		in MySQL 5.6, 5.7 and MariaDB 10.0 and 10.1
+		would set the field to the transaction ID even
+		on clustered index pages. */
+		memset(&block->frame[PAGE_HEADER + PAGE_MAX_TRX_ID], 0, 8);
+		if (m_page_zip_ptr) {
+			memset(&m_page_zip_ptr
+			       ->data[PAGE_HEADER + PAGE_MAX_TRX_ID], 0, 8);
+		}
 	}
 
 	if (page_is_empty(page)) {
