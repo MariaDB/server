@@ -7776,12 +7776,11 @@ btr_store_big_rec_extern_fields(
 				ut_a(err == Z_STREAM_END
 				     || c_stream.avail_out == 0);
 
-				/* Write the "next BLOB page" pointer */
-				mlog_write_ulint(page + FIL_PAGE_NEXT,
-						 FIL_NULL, MLOG_4BYTES, &mtr);
-				/* Initialize the unused "prev page" pointer */
-				mlog_write_ulint(page + FIL_PAGE_PREV,
-						 FIL_NULL, MLOG_4BYTES, &mtr);
+				compile_time_assert(FIL_PAGE_NEXT
+						    == FIL_PAGE_PREV + 4);
+				compile_time_assert(FIL_NULL == 0xffffffff);
+				mlog_memset(block, FIL_PAGE_PREV, 8, 0xff,
+					    &mtr);
 				/* Write a back pointer to the record
 				into the otherwise unused area.  This
 				information could be useful in
