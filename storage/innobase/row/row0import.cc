@@ -824,9 +824,8 @@ private:
 	@param block block read from file
 	@param page_type type of the page
 	@retval DB_SUCCESS or error code */
-	dberr_t update_page(
-		buf_block_t*	block,
-		ulint&		page_type) UNIV_NOTHROW;
+	dberr_t update_page(buf_block_t* block, uint16_t& page_type)
+		UNIV_NOTHROW;
 
 	/** Update the space, index id, trx id.
 	@param block block to convert
@@ -1932,9 +1931,8 @@ PageConverter::update_header(
 @retval DB_SUCCESS or error code */
 inline
 dberr_t
-PageConverter::update_page(
-	buf_block_t*	block,
-	ulint&		page_type) UNIV_NOTHROW
+PageConverter::update_page(buf_block_t* block, uint16_t& page_type)
+	UNIV_NOTHROW
 {
 	dberr_t		err = DB_SUCCESS;
 
@@ -2015,7 +2013,7 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 			 RW_NO_LATCH, NULL, BUF_EVICT_IF_IN_POOL,
 			 __FILE__, __LINE__, NULL, NULL);
 
-	ulint		page_type;
+	uint16_t page_type;
 
 	if (dberr_t err = update_page(block, page_type)) {
 		return err;
