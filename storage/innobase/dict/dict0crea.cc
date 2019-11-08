@@ -905,10 +905,10 @@ dict_drop_index_tree(
 	btr_pcur_t*	pcur,
 	mtr_t*		mtr)
 {
-	const byte*	ptr;
-	ulint		len;
-	ulint		space;
-	ulint		root_page_no;
+	byte*	ptr;
+	ulint	len;
+	ulint	space;
+	ulint	root_page_no;
 
 	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_a(!dict_table_is_comp(dict_sys.sys_indexes));
@@ -919,7 +919,7 @@ dict_drop_index_tree(
 
 	btr_pcur_store_position(pcur, mtr);
 
-	root_page_no = mtr_read_ulint(ptr, MLOG_4BYTES, mtr);
+	root_page_no = mach_read_from_4(ptr);
 
 	if (root_page_no == FIL_NULL) {
 		/* The tree has already been freed */
@@ -927,14 +927,15 @@ dict_drop_index_tree(
 		return(false);
 	}
 
-	mlog_write_ulint(const_cast<byte*>(ptr), FIL_NULL, MLOG_4BYTES, mtr);
+	compile_time_assert(FIL_NULL == 0xffffffff);
+	mlog_memset(ptr, 4, 0xff, mtr);
 
 	ptr = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__SPACE, &len);
 
 	ut_ad(len == 4);
 
-	space = mtr_read_ulint(ptr, MLOG_4BYTES, mtr);
+	space = mach_read_from_4(ptr);
 
 	ptr = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__ID, &len);

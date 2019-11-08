@@ -1386,8 +1386,7 @@ static void fsp_free_page(fil_space_t* space, page_no_t offset,
 	xdes_set_bit(descr, XDES_FREE_BIT, bit, TRUE, mtr);
 	xdes_set_bit(descr, XDES_CLEAN_BIT, bit, TRUE, mtr);
 
-	frag_n_used = mtr_read_ulint(header + FSP_FRAG_N_USED, MLOG_4BYTES,
-				     mtr);
+	frag_n_used = mach_read_from_4(header + FSP_FRAG_N_USED);
 	if (state == XDES_FULL_FRAG) {
 		/* The fragment was full: move it to another list */
 		flst_remove(header + FSP_FULL_FRAG, descr + XDES_FLST_NODE,
@@ -2610,8 +2609,7 @@ try_again:
 	n_free_list_ext = flst_get_len(space_header + FSP_FREE);
 	ut_ad(space->free_len == n_free_list_ext);
 
-	free_limit = mtr_read_ulint(space_header + FSP_FREE_LIMIT,
-				    MLOG_4BYTES, mtr);
+	free_limit = mach_read_from_4(space_header + FSP_FREE_LIMIT);
 	ut_ad(space->free_limit == free_limit);
 
 	/* Below we play safe when counting free extents above the free limit:
@@ -2693,9 +2691,7 @@ fseg_mark_page_used(
 	ut_ad(!((page_offset(seg_inode) - FSEG_ARR_OFFSET) % FSEG_INODE_SIZE));
 	ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N)
 	      == FSEG_MAGIC_N_VALUE);
-
-	ut_ad(mtr_read_ulint(seg_inode + FSEG_ID, MLOG_4BYTES, mtr)
-	      == mtr_read_ulint(descr + XDES_ID, MLOG_4BYTES, mtr));
+	ut_ad(!memcmp(seg_inode + FSEG_ID, descr + XDES_ID, 4));
 
 	if (xdes_is_free(descr, mtr)) {
 		/* We move the extent from the free list to the
@@ -2712,8 +2708,7 @@ fseg_mark_page_used(
 	/* We mark the page as used */
 	xdes_set_bit(descr, XDES_FREE_BIT, page % FSP_EXTENT_SIZE, FALSE, mtr);
 
-	not_full_n_used = mtr_read_ulint(seg_inode + FSEG_NOT_FULL_N_USED,
-					 MLOG_4BYTES, mtr);
+	not_full_n_used = mach_read_from_4(seg_inode + FSEG_NOT_FULL_N_USED);
 	not_full_n_used++;
 	mlog_write_ulint(seg_inode + FSEG_NOT_FULL_N_USED, not_full_n_used,
 			 MLOG_4BYTES, mtr);
@@ -2825,8 +2820,7 @@ fseg_free_page_low(
 			<< FORCE_RECOVERY_MSG;
 	}
 
-	not_full_n_used = mtr_read_ulint(seg_inode + FSEG_NOT_FULL_N_USED,
-					 MLOG_4BYTES, mtr);
+	not_full_n_used = mach_read_from_4(seg_inode + FSEG_NOT_FULL_N_USED);
 	if (xdes_is_full(descr, mtr)) {
 		/* The fragment is full: move it to another list */
 		flst_remove(seg_inode + FSEG_FULL,
@@ -2991,9 +2985,8 @@ fseg_free_extent(
 		flst_remove(seg_inode + FSEG_NOT_FULL,
 			    descr + XDES_FLST_NODE, mtr);
 
-		not_full_n_used = mtr_read_ulint(
-			seg_inode + FSEG_NOT_FULL_N_USED, MLOG_4BYTES, mtr);
-
+		not_full_n_used = mach_read_from_4(FSEG_NOT_FULL_N_USED
+						   + seg_inode);
 		descr_n_used = xdes_get_n_used(descr, mtr);
 		ut_a(not_full_n_used >= descr_n_used);
 		mlog_write_ulint(seg_inode + FSEG_NOT_FULL_N_USED,
@@ -3234,9 +3227,7 @@ fseg_print_low(
 	reserved = fseg_n_reserved_pages_low(inode, &used, mtr);
 
 	seg_id = mach_read_from_8(inode + FSEG_ID);
-
-	n_used = mtr_read_ulint(inode + FSEG_NOT_FULL_N_USED,
-				MLOG_4BYTES, mtr);
+	n_used = mach_read_from_4(inode + FSEG_NOT_FULL_N_USED);
 	n_frag = fseg_get_n_frag_pages(inode, mtr);
 	n_free = flst_get_len(inode + FSEG_FREE);
 	n_not_full = flst_get_len(inode + FSEG_NOT_FULL);
@@ -3275,23 +3266,12 @@ fseg_print(
 #endif /* UNIV_BTR_PRINT */
 
 #ifdef UNIV_DEBUG
-/** Print the file segment header to the given output stream.
-@param[in]	out	the output stream into which the object is printed.
-@retval	the output stream into which the object was printed. */
-std::ostream&
-fseg_header::to_stream(std::ostream&	out) const
+std::ostream &fseg_header::to_stream(std::ostream &out) const
 {
-	const ulint	space = mtr_read_ulint(m_header + FSEG_HDR_SPACE,
-					       MLOG_4BYTES, m_mtr);
-	const ulint	page_no = mtr_read_ulint(m_header + FSEG_HDR_PAGE_NO,
-						 MLOG_4BYTES, m_mtr);
-
-	const ulint	offset = mtr_read_ulint(m_header + FSEG_HDR_OFFSET,
-						 MLOG_2BYTES, m_mtr);
-
-	out << "[fseg_header_t: space=" << space << ", page="
-		<< page_no << ", offset=" << offset << "]";
-
-	return(out);
+  out << "[fseg_header_t: space="
+      << mach_read_from_4(m_header + FSEG_HDR_SPACE)
+      << ", page=" << mach_read_from_4(m_header + FSEG_HDR_PAGE_NO)
+      << ", offset=" << mach_read_from_2(m_header + FSEG_HDR_OFFSET) << "]";
+  return out;
 }
 #endif /* UNIV_DEBUG */

@@ -3329,9 +3329,9 @@ retry:
 			       + TRX_SYS_RSEG_PAGE_NO + page)
 	      != FIL_NULL);
 
-	space = mach_read_ulint(TRX_SYS + TRX_SYS_RSEGS
-				+ TRX_SYS_RSEG_SLOT_SIZE
-				+ TRX_SYS_RSEG_SPACE + page, MLOG_4BYTES);
+	space = mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS
+				 + TRX_SYS_RSEG_SLOT_SIZE
+				 + TRX_SYS_RSEG_SPACE + page);
 
 	srv_undo_space_id_start = space;
 

@@ -107,12 +107,12 @@ PageBulk::init()
 		} else {
 			ut_ad(!dict_index_is_spatial(m_index));
 			page_create(new_block, &m_mtr,
-				    dict_table_is_comp(m_index->table),
+				    m_index->table->not_redundant(),
 				    false);
-			mlog_write_ulint(FIL_PAGE_PREV + new_page, FIL_NULL,
-					 MLOG_4BYTES, &m_mtr);
-			mlog_write_ulint(FIL_PAGE_NEXT + new_page, FIL_NULL,
-					 MLOG_4BYTES, &m_mtr);
+			compile_time_assert(FIL_PAGE_NEXT
+					    == FIL_PAGE_PREV + 4);
+			compile_time_assert(FIL_NULL == 0xffffffff);
+			mlog_memset(new_block, FIL_PAGE_PREV, 8, 0xff, &m_mtr);
 			mlog_write_ulint(PAGE_HEADER + PAGE_LEVEL + new_page,
 					 m_level, MLOG_2BYTES, &m_mtr);
 			mlog_write_ull(PAGE_HEADER + PAGE_INDEX_ID + new_page,

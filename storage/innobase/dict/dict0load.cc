@@ -1479,11 +1479,10 @@ void dict_check_tablespaces_and_store_max_id()
 	dict_sys_lock();
 
 	/* Initialize the max space_id from sys header */
-	mtr_start(&mtr);
-	ulint	max_space_id = mtr_read_ulint(
-		dict_hdr_get(&mtr) + DICT_HDR_MAX_SPACE_ID,
-		MLOG_4BYTES, &mtr);
-	mtr_commit(&mtr);
+	mtr.start();
+	ulint max_space_id = mach_read_from_4(DICT_HDR_MAX_SPACE_ID
+					      + dict_hdr_get(&mtr));
+	mtr.commit();
 
 	fil_set_max_space_id_if_bigger(max_space_id);
 
