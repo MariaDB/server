@@ -4270,6 +4270,13 @@ void ha_partition::try_semi_consistent_read(bool yes)
 
 int ha_partition::write_row(const uchar * buf)
 {
+  DBUG_ENTER("ha_partition::write_row");
+  DBUG_RETURN(write_row_ext(buf, NULL));
+}
+
+
+int ha_partition::write_row_ext(const uchar * buf, COPY_INFO *info)
+{
   uint32 part_id;
   int error;
   longlong func_value;
@@ -4278,7 +4285,7 @@ int ha_partition::write_row(const uchar * buf)
   THD *thd= ha_thd();
   sql_mode_t saved_sql_mode= thd->variables.sql_mode;
   bool saved_auto_inc_field_not_null= table->auto_increment_field_not_null;
-  DBUG_ENTER("ha_partition::write_row");
+  DBUG_ENTER("ha_partition::write_row_ext");
   DBUG_PRINT("enter", ("partition this: %p", this));
 
   /*
@@ -4336,7 +4343,8 @@ int ha_partition::write_row(const uchar * buf)
   start_part_bulk_insert(thd, part_id);
 
   tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
-  error= m_file[part_id]->ha_write_row(buf);
+  error= info ? m_file[part_id]->ha_write_row_ext(buf, info) :
+                m_file[part_id]->ha_write_row(buf);
   if (have_auto_increment && !table->s->next_number_keypart)
     set_auto_increment_if_higher(table->next_number_field);
   reenable_binlog(thd);
@@ -4839,9 +4847,16 @@ ha_rows ha_partition::guess_bulk_insert_rows()
 
 int ha_partition::end_bulk_insert()
 {
+  DBUG_ENTER("ha_partition::end_bulk_insert");
+  DBUG_RETURN(end_bulk_insert_ext(NULL));
+}
+
+
+int ha_partition::end_bulk_insert_ext(COPY_INFO *info)
+{
   int error= 0;
   uint i;
-  DBUG_ENTER("ha_partition::end_bulk_insert");
+  DBUG_ENTER("ha_partition::end_bulk_insert_ext");
 
   if (!bitmap_is_set(&m_bulk_insert_started, m_tot_parts))
     DBUG_RETURN(error);
@@ -4851,7 +4866,8 @@ int ha_partition::end_bulk_insert()
        i= bitmap_get_next_set(&m_bulk_insert_started, i))
   {
     int tmp;
-    if ((tmp= m_file[i]->ha_end_bulk_insert()))
+    if ((tmp= info ? m_file[i]->ha_end_bulk_insert_ext(info) :
+                     m_file[i]->ha_end_bulk_insert()))
       error= tmp;
   }
   bitmap_clear_all(&m_bulk_insert_started);
@@ -11420,11 +11436,13 @@ int ha_partition::pre_direct_update_rows_init(List<Item> *update_fields)
     0                         Success
 */
 
-int ha_partition::direct_update_rows(ha_rows *update_rows_result)
+int ha_partition::direct_update_rows(ha_rows *update_rows_result,
+                                     ha_rows *found_rows_result)
 {
   int error;
   bool rnd_seq= FALSE;
   ha_rows update_rows= 0;
+  ha_rows found_rows= 0;
   uint32 i;
   DBUG_ENTER("ha_partition::direct_update_rows");
 
@@ -11436,6 +11454,7 @@ int ha_partition::direct_update_rows(ha_rows *update_rows_result)
   }
 
   *update_rows_result= 0;
+  *found_rows_result= 0;
   for (i= m_part_spec.start_part; i <= m_part_spec.end_part; i++)
   {
     handler *file= m_file[i];
@@ -11451,7 +11470,8 @@ int ha_partition::direct_update_rows(ha_rows *update_rows_result)
       }
       if (unlikely((error= (m_pre_calling ?
                             (file)->pre_direct_update_rows() :
-                            (file)->ha_direct_update_rows(&update_rows)))))
+                            (file)->ha_direct_update_rows(&update_rows,
+                                                          &found_rows)))))
       {
         if (rnd_seq)
         {
@@ -11463,6 +11483,7 @@ int ha_partition::direct_update_rows(ha_rows *update_rows_result)
         DBUG_RETURN(error);
       }
       *update_rows_result+= update_rows;
+      *found_rows_result+= found_rows;
     }
     if (rnd_seq)
     {
@@ -11498,7 +11519,7 @@ int ha_partition::pre_direct_update_rows()
   DBUG_ENTER("ha_partition::pre_direct_update_rows");
   save_m_pre_calling= m_pre_calling;
   m_pre_calling= TRUE;
-  error= direct_update_rows(&not_used);
+  error= direct_update_rows(&not_used, &not_used);
   m_pre_calling= save_m_pre_calling;
   DBUG_RETURN(error);
 }

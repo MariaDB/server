@@ -1107,7 +1107,8 @@ values_loop_end:
       auto_inc values from the delayed_insert thread as they share TABLE.
     */
     table->file->ha_release_auto_increment();
-    if (using_bulk_insert && unlikely(table->file->ha_end_bulk_insert()) &&
+    if (using_bulk_insert &&
+        unlikely(table->file->ha_end_bulk_insert_ext(&info)) &&
         !error)
     {
       table->file->print_error(my_errno,MYF(0));
@@ -1234,6 +1235,9 @@ values_loop_end:
     retval= thd->lex->explain->send_explain(thd);
     goto abort;
   }
+  DBUG_PRINT("info", ("touched:%llu copied:%llu updated:%llu deleted:%llu",
+                      (ulonglong) info.touched, (ulonglong) info.copied,
+                      (ulonglong) info.updated, (ulonglong) info.deleted));
   if ((iteration * values_list.elements) == 1 && (!(thd->variables.option_bits & OPTION_WARNINGS) ||
 				    !thd->cuted_fields))
   {
@@ -1709,7 +1713,8 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
   if (info->handle_duplicates == DUP_REPLACE ||
       info->handle_duplicates == DUP_UPDATE)
   {
-    while (unlikely(error=table->file->ha_write_row(table->record[0])))
+    while (unlikely(error=table->file->ha_write_row_ext(table->record[0],
+                                                        info)))
     {
       uint key_nr;
       /*
@@ -1850,6 +1855,10 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 
         table->file->restore_auto_increment();
         info->touched++;
+        DBUG_PRINT("info",
+                   ("touched:%llu copied:%llu updated:%llu deleted:%llu",
+                    (ulonglong) info->touched, (ulonglong) info->copied,
+                    (ulonglong) info->updated, (ulonglong) info->deleted));
         if (different_records)
         {
           if (unlikely(error=table->file->ha_update_row(table->record[1],
@@ -1870,6 +1879,10 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (error != HA_ERR_RECORD_IS_THE_SAME)
           {
             info->updated++;
+            DBUG_PRINT("info",
+                       ("touched:%llu copied:%llu updated:%llu deleted:%llu",
+                        (ulonglong) info->touched, (ulonglong) info->copied,
+                        (ulonglong) info->updated, (ulonglong) info->deleted));
             if (table->versioned())
             {
               if (table->versioned(VERS_TIMESTAMP))
@@ -1886,10 +1899,18 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
                 restore_record(table, record[2]);
               }
               info->copied++;
+              DBUG_PRINT("info",
+                         ("touched:%llu copied:%llu updated:%llu deleted:%llu",
+                          (ulonglong) info->touched, (ulonglong) info->copied,
+                          (ulonglong) info->updated,
+                          (ulonglong) info->deleted));
             }
           }
           else
+          {
+            DBUG_PRINT("info", ("HA_ERR_RECORD_IS_THE_SAME"));
             error= 0;
+          }
           /*
             If ON DUP KEY UPDATE updates a row instead of inserting
             one, it's like a regular UPDATE statement: it should not
@@ -1904,6 +1925,10 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
                       table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                         TRG_ACTION_AFTER, TRUE));
           info->copied++;
+          DBUG_PRINT("info",
+                     ("touched:%llu copied:%llu updated:%llu deleted:%llu",
+                      (ulonglong) info->touched, (ulonglong) info->copied,
+                      (ulonglong) info->updated, (ulonglong) info->deleted));
         }
 
         /*
@@ -1959,6 +1984,10 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (likely(!error))
           {
             info->deleted++;
+            DBUG_PRINT("info",
+                       ("touched:%llu copied:%llu updated:%llu deleted:%llu",
+                        (ulonglong) info->touched, (ulonglong) info->copied,
+                        (ulonglong) info->updated, (ulonglong) info->deleted));
             if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
@@ -1969,7 +1998,10 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             }
           }
           else
+          {
+            DBUG_PRINT("info", ("HA_ERR_RECORD_IS_THE_SAME"));
             error= 0;   // error was HA_ERR_RECORD_IS_THE_SAME
+          }
           /*
             Since we pretend that we have done insert we should call
             its after triggers.
@@ -1997,9 +2029,21 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (unlikely(error))
             goto err;
           if (!table->versioned(VERS_TIMESTAMP))
+          {
             info->deleted++;
+            DBUG_PRINT("info",
+                       ("touched:%llu copied:%llu updated:%llu deleted:%llu",
+                        (ulonglong) info->touched, (ulonglong) info->copied,
+                        (ulonglong) info->updated, (ulonglong) info->deleted));
+          }
           else
+          {
             info->updated++;
+            DBUG_PRINT("info",
+                       ("touched:%llu copied:%llu updated:%llu deleted:%llu",
+                        (ulonglong) info->touched, (ulonglong) info->copied,
+                        (ulonglong) info->updated, (ulonglong) info->deleted));
+          }
           if (!table->file->has_transactions())
             thd->transaction.stmt.modified_non_trans_table= TRUE;
           if (table->triggers &&
@@ -2033,7 +2077,8 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         table->write_set != save_write_set)
       table->column_bitmaps_set(save_read_set, save_write_set);
   }
-  else if (unlikely((error=table->file->ha_write_row(table->record[0]))))
+  else if (unlikely((error=table->file->ha_write_row_ext(table->record[0],
+                                                         info))))
   {
     DEBUG_SYNC(thd, "write_row_noreplace");
     if (!info->ignore ||
@@ -2048,6 +2093,9 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 
 after_trg_n_copied_inc:
   info->copied++;
+  DBUG_PRINT("info", ("touched:%llu copied:%llu updated:%llu deleted:%llu",
+                      (ulonglong) info->touched, (ulonglong) info->copied,
+                      (ulonglong) info->updated, (ulonglong) info->deleted));
   thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
   trg_error= (table->triggers &&
               table->triggers->process_triggers(thd, TRG_EVENT_INSERT,

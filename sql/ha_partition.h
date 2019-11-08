@@ -649,6 +649,7 @@ public:
     number of calls to write_row.
   */
   virtual int write_row(const uchar * buf);
+  virtual int write_row_ext(const uchar * buf, COPY_INFO *info);
   virtual bool start_bulk_update();
   virtual int exec_bulk_update(ha_rows *dup_key_found);
   virtual int end_bulk_update();
@@ -657,7 +658,7 @@ public:
   virtual int update_row(const uchar * old_data, const uchar * new_data);
   virtual int direct_update_rows_init(List<Item> *update_fields);
   virtual int pre_direct_update_rows_init(List<Item> *update_fields);
-  virtual int direct_update_rows(ha_rows *update_rows);
+  virtual int direct_update_rows(ha_rows *update_rows, ha_rows *found_rows);
   virtual int pre_direct_update_rows();
   virtual bool start_bulk_delete();
   virtual int end_bulk_delete();
@@ -670,6 +671,7 @@ public:
   virtual int truncate();
   virtual void start_bulk_insert(ha_rows rows, uint flags);
   virtual int end_bulk_insert();
+  virtual int end_bulk_insert_ext(COPY_INFO *info);
 private:
   ha_rows guess_bulk_insert_rows();
   void start_part_bulk_insert(THD *thd, uint part_id);

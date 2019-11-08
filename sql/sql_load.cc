@@ -677,7 +677,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     if (likely(!error))
       thd_progress_next_stage(thd);
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-        table->file->ha_end_bulk_insert() && !error)
+        table->file->ha_end_bulk_insert_ext(&info) && !error)
     {
       table->file->print_error(my_errno, MYF(0));
       error= 1;

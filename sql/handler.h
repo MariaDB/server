@@ -2927,6 +2927,9 @@ public:
 };
 
 
+typedef struct st_copy_info COPY_INFO;
+
+
 /**
   The handler class is the interface for dynamically loadable
   storage engines. Do not add ifdefs and take care when adding or
@@ -3248,6 +3251,7 @@ public:
   */
   int ha_external_lock(THD *thd, int lock_type);
   int ha_write_row(const uchar * buf);
+  int ha_write_row_ext(const uchar * buf, COPY_INFO *info);
   int ha_update_row(const uchar * old_data, const uchar * new_data);
   int ha_delete_row(const uchar * buf);
   void ha_release_auto_increment();
@@ -3284,6 +3288,13 @@ public:
     DBUG_ENTER("handler::ha_end_bulk_insert");
     estimation_rows_to_insert= 0;
     int ret= end_bulk_insert();
+    DBUG_RETURN(ret);
+  }
+  int ha_end_bulk_insert_ext(COPY_INFO *info)
+  {
+    DBUG_ENTER("handler::ha_end_bulk_insert_ext");
+    estimation_rows_to_insert= 0;
+    int ret= end_bulk_insert_ext(info);
     DBUG_RETURN(ret);
   }
   int ha_bulk_update_row(const uchar *old_data, const uchar *new_data,
@@ -4571,6 +4582,11 @@ private:
   {
     return HA_ERR_WRONG_COMMAND;
   }
+  virtual int write_row_ext(const uchar *buf,
+                            COPY_INFO *info __attribute__((unused)))
+  {
+    return write_row(buf);
+  }
 
   /**
     Update a single row.
@@ -4599,7 +4615,7 @@ private:
 
   /* Perform initialization for a direct update request */
 public:
-  int ha_direct_update_rows(ha_rows *update_rows);
+  int ha_direct_update_rows(ha_rows *update_rows, ha_rows *found_rows);
   virtual int direct_update_rows_init(List<Item> *update_fields)
   {
     return HA_ERR_WRONG_COMMAND;
@@ -4609,7 +4625,8 @@ private:
   {
     return HA_ERR_WRONG_COMMAND;
   }
-  virtual int direct_update_rows(ha_rows *update_rows __attribute__((unused)))
+  virtual int direct_update_rows(ha_rows *update_rows __attribute__((unused)),
+                                 ha_rows *found_rows __attribute__((unused)))
   {
     return HA_ERR_WRONG_COMMAND;
   }
@@ -4692,6 +4709,10 @@ private:
   }
   virtual void start_bulk_insert(ha_rows rows, uint flags) {}
   virtual int end_bulk_insert() { return 0; }
+  virtual int end_bulk_insert_ext(COPY_INFO *info)
+  {
+    return end_bulk_insert();
+  }
 protected:
   virtual int index_read(uchar * buf, const uchar * key, uint key_len,
                          enum ha_rkey_function find_flag)
