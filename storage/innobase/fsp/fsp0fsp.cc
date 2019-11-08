@@ -357,16 +357,8 @@ xdes_init(
 	xdes_t*	descr,	/*!< in: descriptor */
 	mtr_t*	mtr)	/*!< in/out: mini-transaction */
 {
-	ulint	i;
-
-	ut_ad(descr && mtr);
 	ut_ad(mtr_memo_contains_page(mtr, descr, MTR_MEMO_PAGE_SX_FIX));
-	ut_ad((XDES_SIZE - XDES_BITMAP) % 4 == 0);
-
-	for (i = XDES_BITMAP; i < XDES_SIZE; i += 4) {
-		mlog_write_ulint(descr + i, 0xFFFFFFFFUL, MLOG_4BYTES, mtr);
-	}
-
+	mlog_memset(descr + XDES_BITMAP, XDES_SIZE - XDES_BITMAP, 0xff, mtr);
 	xdes_set_state(descr, XDES_FREE, mtr);
 }
 
