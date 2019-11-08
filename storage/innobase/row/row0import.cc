@@ -502,7 +502,7 @@ protected:
 			const xdes_t*	xdesc = xdes(page_no, m_xdes);
 			ulint		pos = page_no % FSP_EXTENT_SIZE;
 
-			return(xdes_get_bit(xdesc, XDES_FREE_BIT, pos));
+			return xdes_is_free(xdesc, pos);
 		}
 
 		/* If the current xdes was free, the page must be free. */

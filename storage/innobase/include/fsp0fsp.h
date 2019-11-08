@@ -288,6 +288,18 @@ the extent are free and which contain old tuple version to clean. */
 /** Offset of the descriptor array on a descriptor page */
 #define	XDES_ARR_OFFSET		(FSP_HEADER_OFFSET + FSP_HEADER_SIZE)
 
+/**
+Determine if a page is marked free.
+@param[in]	descr	extent descriptor
+@param[in]	offset	page offset within extent
+@return whether the page is free */
+inline bool xdes_is_free(const xdes_t *descr, ulint offset)
+{
+  ut_ad(offset < FSP_EXTENT_SIZE);
+  ulint index= XDES_FREE_BIT + XDES_BITS_PER_PAGE * offset;
+  return ut_bit_get_nth(descr[XDES_BITMAP + (index >> 3)], index & 7);
+}
+
 #ifndef UNIV_INNOCHECKSUM
 /* @} */
 
@@ -782,18 +794,6 @@ fsp_flags_match(ulint expected, ulint actual)
 	return(actual == expected);
 }
 
-/**********************************************************************//**
-Gets a descriptor bit of a page.
-@return TRUE if free */
-UNIV_INLINE
-ibool
-xdes_get_bit(
-/*=========*/
-	const xdes_t*	descr,	/*!< in: descriptor */
-	ulint		bit,	/*!< in: XDES_FREE_BIT or XDES_CLEAN_BIT */
-	ulint		offset);/*!< in: page offset within extent:
-				0 ... FSP_EXTENT_SIZE - 1 */
-
 /** Determine the descriptor index within a descriptor page.
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	offset		page offset
@@ -832,7 +832,5 @@ inline ulint xdes_calc_descriptor_page(ulint zip_size, ulint offset)
 }
 
 #endif /* UNIV_INNOCHECKSUM */
-
-#include "fsp0fsp.ic"
 
 #endif
