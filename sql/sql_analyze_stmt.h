@@ -38,6 +38,10 @@ $stmt").
 
 */
 
+class Gap_time_tracker;
+void attach_gap_time_tracker(THD *thd, Gap_time_tracker *gap_tracker, ulonglong timeval);
+void process_gap_time_tracker(THD *thd, ulonglong timeval);
+
 /*
   A class for tracking time it takes to do a certain action
 */
@@ -48,26 +52,37 @@ protected:
   ulonglong cycles;
   ulonglong last_start;
 
-  void cycles_stop_tracking()
+  void cycles_stop_tracking(THD *thd)
   {
     ulonglong end= my_timer_cycles();
     cycles += end - last_start;
     if (unlikely(end < last_start))
       cycles += ULONGLONG_MAX;
+
+    process_gap_time_tracker(thd, end);
+    if (my_gap_tracker)
+      attach_gap_time_tracker(thd, my_gap_tracker, end);
   }
 public:
-  Exec_time_tracker() : count(0), cycles(0) {}
-  
+  Exec_time_tracker() : count(0), cycles(0), my_gap_tracker(NULL) {}
+
+  /*
+    The time spent between stop_tracking() call on this object and any
+    other time measurement will be billed to this tracker.
+  */
+  Gap_time_tracker *my_gap_tracker;
+
   // interface for collecting time
-  void start_tracking()
+  void start_tracking(THD *thd)
   {
     last_start= my_timer_cycles();
+    process_gap_time_tracker(thd, last_start);
   }
 
-  void stop_tracking()
+  void stop_tracking(THD *thd)
   {
     count++;
-    cycles_stop_tracking();
+    cycles_stop_tracking(thd);
   }
 
   // interface for getting the time
@@ -78,6 +93,31 @@ public:
     return 1000 * ((double)cycles) / sys_timer_info.cycles.frequency;
   }
 };
+
+
+/*
+  Tracker for time spent between the calls to Exec_time_tracker's {start|
+  stop}_tracking().
+
+  @seealso Gap_time_tracker_data in sql_class.h
+*/
+class Gap_time_tracker
+{
+  ulonglong cycles;
+public:
+  Gap_time_tracker() : cycles(0) {}
+
+  void log_time(ulonglong start, ulonglong end) {
+    cycles += end - start;
+  }
+
+  double get_time_ms() const
+  {
+    // convert 'cycles' to milliseconds.
+    return 1000 * ((double)cycles) / sys_timer_info.cycles.frequency;
+  }
+};
+
 
 
 /*
@@ -99,22 +139,22 @@ public:
   /*
     Unlike Exec_time_tracker::stop_tracking, we don't increase loops.
   */
-  void stop_tracking()
+  void stop_tracking(THD *thd)
   {
-    cycles_stop_tracking();
+    cycles_stop_tracking(thd);
   }
 };
 
-#define ANALYZE_START_TRACKING(tracker) \
+#define ANALYZE_START_TRACKING(thd, tracker) \
   { \
     (tracker)->incr_loops(); \
     if (unlikely((tracker)->timed)) \
-    { (tracker)->start_tracking(); } \
+    { (tracker)->start_tracking(thd); } \
   }
 
-#define ANALYZE_STOP_TRACKING(tracker) \
+#define ANALYZE_STOP_TRACKING(thd, tracker) \
   if (unlikely((tracker)->timed)) \
-  { (tracker)->stop_tracking(); }
+  { (tracker)->stop_tracking(thd); }
 
 /*
   A class for collecting read statistics.
@@ -186,14 +226,14 @@ public:
   
   /* Functions that filesort uses to report various things about its execution */
 
-  inline void report_use(ha_rows r_limit_arg)
+  inline void report_use(THD *thd, ha_rows r_limit_arg)
   {
     if (!time_tracker.get_loops())
       r_limit= r_limit_arg;
     else
       r_limit= (r_limit != r_limit_arg)? 0: r_limit_arg;
 
-    ANALYZE_START_TRACKING(&time_tracker);
+    ANALYZE_START_TRACKING(thd, &time_tracker);
   }
   inline void incr_pq_used() { r_used_pq++; }
 
@@ -210,9 +250,9 @@ public:
   {
     sort_passes -= passes;
   }
-  inline void report_merge_passes_at_end(ulong passes)
+  inline void report_merge_passes_at_end(THD *thd, ulong passes)
   {
-    ANALYZE_STOP_TRACKING(&time_tracker);
+    ANALYZE_STOP_TRACKING(thd, &time_tracker);
     sort_passes += passes;
   }
 
@@ -318,14 +358,14 @@ public:
     container_elements(0), n_checks(0), n_positive_checks(0)
   {}
 
-  inline void start_tracking()
+  inline void start_tracking(THD *thd)
   {
-    ANALYZE_START_TRACKING(&time_tracker);
+    ANALYZE_START_TRACKING(thd, &time_tracker);
   }
 
-  inline void stop_tracking()
+  inline void stop_tracking(THD *thd)
   {
-    ANALYZE_STOP_TRACKING(&time_tracker);
+    ANALYZE_STOP_TRACKING(thd, &time_tracker);
   }
 
   /* Save container buffer size in bytes */

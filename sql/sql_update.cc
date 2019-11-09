@@ -666,7 +666,7 @@ int mysql_update(THD *thd,
   if (!(explain= query_plan.save_explain_update_data(query_plan.mem_root, thd)))
     goto err;
 
-  ANALYZE_START_TRACKING(&explain->command_tracker);
+  ANALYZE_START_TRACKING(thd, &explain->command_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
                   dbug_serve_apcs(thd, 1););
@@ -1168,7 +1168,7 @@ update_begin:
       break;
     }
   }
-  ANALYZE_STOP_TRACKING(&explain->command_tracker);
+  ANALYZE_STOP_TRACKING(thd, &explain->command_tracker);
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
   /*

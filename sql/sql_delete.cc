@@ -600,7 +600,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   
   if (!(explain= query_plan.save_explain_delete_data(thd->mem_root, thd)))
     goto got_error;
-  ANALYZE_START_TRACKING(&explain->command_tracker);
+  ANALYZE_START_TRACKING(thd, &explain->command_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 
                   dbug_serve_apcs(thd, 1););
@@ -878,7 +878,7 @@ terminate_delete:
     table->file->ha_release_auto_increment();
   if (options & OPTION_QUICK)
     (void) table->file->extra(HA_EXTRA_NORMAL);
-  ANALYZE_STOP_TRACKING(&explain->command_tracker);
+  ANALYZE_STOP_TRACKING(thd, &explain->command_tracker);
 
 cleanup:
   /*

@@ -1336,6 +1336,7 @@ void THD::init()
 #endif //EMBEDDED_LIBRARY
 
   apc_target.init(&LOCK_thd_kill);
+  gap_tracker_data.init();
   DBUG_VOID_RETURN;
 }
 
