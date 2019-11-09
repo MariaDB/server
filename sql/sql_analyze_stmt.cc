@@ -80,3 +80,20 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
   }
 }
 
+void attach_gap_time_tracker(THD *thd, Gap_time_tracker *gap_tracker,
+                             ulonglong timeval)
+{
+  thd->gap_tracker_data.bill_to= gap_tracker;
+  thd->gap_tracker_data.start_time= timeval;
+}
+
+void process_gap_time_tracker(THD *thd, ulonglong timeval)
+{
+  if (thd->gap_tracker_data.bill_to)
+  {
+    thd->gap_tracker_data.bill_to->log_time(thd->gap_tracker_data.start_time,
+                                            timeval);
+    thd->gap_tracker_data.bill_to= NULL;
+  }
+}
+

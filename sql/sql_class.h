@@ -2141,6 +2141,22 @@ struct wait_for_commit
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
 
+class Gap_time_tracker;
+
+/*
+  Thread context for Gap_time_tracker class.
+*/
+class Gap_time_tracker_data
+{
+public:
+  Gap_time_tracker_data(): bill_to(NULL) {}
+
+  Gap_time_tracker *bill_to;
+  ulonglong start_time;
+
+  void init() { bill_to = NULL; }
+};
+
 /**
   A wrapper around thread_count.
 
@@ -3326,6 +3342,7 @@ public:
   */
   Apc_target apc_target;
 
+  Gap_time_tracker_data gap_tracker_data;
 #ifndef MYSQL_CLIENT
   enum enum_binlog_query_type {
     /* The query can be logged in row format or in statement format. */

@@ -4168,9 +4168,9 @@ void JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
-  ANALYZE_START_TRACKING(&explain->time_tracker);
+  ANALYZE_START_TRACKING(thd, &explain->time_tracker);
   exec_inner();
-  ANALYZE_STOP_TRACKING(&explain->time_tracker);
+  ANALYZE_STOP_TRACKING(thd, &explain->time_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
                   if (dbug_user_var_equals_int(thd, 
@@ -13139,7 +13139,7 @@ void JOIN_TAB::build_range_rowid_filter_if_needed()
     Exec_time_tracker *table_tracker= table->file->get_time_tracker();
     Rowid_filter_tracker *rowid_tracker= rowid_filter->get_tracker();
     table->file->set_time_tracker(rowid_tracker->get_time_tracker());
-    rowid_tracker->start_tracking();
+    rowid_tracker->start_tracking(join->thd);
     if (!rowid_filter->build())
     {
       is_rowid_filter_built= true;
@@ -13149,7 +13149,7 @@ void JOIN_TAB::build_range_rowid_filter_if_needed()
       delete rowid_filter;
       rowid_filter= 0;
     }
-    rowid_tracker->stop_tracking();
+    rowid_tracker->stop_tracking(join->thd);
     table->file->set_time_tracker(table_tracker);
   }
 }
@@ -26076,8 +26076,10 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
 
   /* Enable the table access time tracker only for "ANALYZE stmt" */
   if (thd->lex->analyze_stmt)
+  {
     table->file->set_time_tracker(&eta->op_tracker);
-
+    eta->op_tracker.my_gap_tracker = &eta->extra_time_tracker;
+  }
   /* No need to save id and select_type here, they are kept in Explain_select */
 
   /* table */

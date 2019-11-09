@@ -5008,12 +5008,12 @@ int binlog_log_row(TABLE* table,
   { \
     Exec_time_tracker *this_tracker; \
     if (unlikely((this_tracker= tracker))) \
-      tracker->start_tracking(); \
+      tracker->start_tracking(table->in_use); \
     \
     MYSQL_TABLE_IO_WAIT(PSI, OP, INDEX, FLAGS, PAYLOAD); \
     \
     if (unlikely(this_tracker)) \
-      tracker->stop_tracking(); \
+      tracker->stop_tracking(table->in_use); \
   }
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);

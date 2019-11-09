@@ -117,7 +117,8 @@ ANALYZE
       "r_loops": 1,
       "rows": 7,
       "r_rows": 4,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "materialized": {
@@ -139,7 +140,8 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 7,
                     "r_rows": 7,
-                    "r_total_time_ms": "REPLACED",
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   }
@@ -157,7 +159,8 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 7,
                     "r_rows": 7,
-                    "r_total_time_ms": "REPLACED",
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   }
@@ -183,7 +186,8 @@ ANALYZE
       "r_loops": 1,
       "rows": 7,
       "r_rows": 4,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "materialized": {
@@ -205,7 +209,8 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 7,
                     "r_rows": 7,
-                    "r_total_time_ms": "REPLACED",
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   }
@@ -223,7 +228,8 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 7,
                     "r_rows": 7,
-                    "r_total_time_ms": "REPLACED",
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   }
@@ -427,7 +433,8 @@ ANALYZE
               "r_loops": 1,
               "rows": 3,
               "r_rows": 3,
-              "r_total_time_ms": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             },
@@ -438,7 +445,8 @@ ANALYZE
                 "r_loops": 1,
                 "rows": 3,
                 "r_rows": 3,
-                "r_total_time_ms": "REPLACED",
+                "r_table_time_ms": "REPLACED",
+                "r_other_time_ms": "REPLACED",
                 "filtered": 100,
                 "r_filtered": 100
               },
@@ -461,7 +469,8 @@ ANALYZE
               "r_loops": 1,
               "rows": 2,
               "r_rows": 2,
-              "r_total_time_ms": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 100
             },
@@ -472,7 +481,8 @@ ANALYZE
                 "r_loops": 1,
                 "rows": 3,
                 "r_rows": 3,
-                "r_total_time_ms": "REPLACED",
+                "r_table_time_ms": "REPLACED",
+                "r_other_time_ms": "REPLACED",
                 "filtered": 100,
                 "r_filtered": 100
               },
@@ -500,7 +510,8 @@ ANALYZE
       "r_loops": 1,
       "rows": 9,
       "r_rows": 7,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "materialized": {
@@ -522,7 +533,8 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 3,
                     "r_rows": 3,
-                    "r_total_time_ms": "REPLACED",
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   },
@@ -533,7 +545,8 @@ ANALYZE
                       "r_loops": 1,
                       "rows": 3,
                       "r_rows": 3,
-                      "r_total_time_ms": "REPLACED",
+                      "r_table_time_ms": "REPLACED",
+                      "r_other_time_ms": "REPLACED",
                       "filtered": 100,
                       "r_filtered": 100
                     },
@@ -556,7 +569,8 @@ ANALYZE
                     "r_loops": 1,
                     "rows": 2,
                     "r_rows": 2,
-                    "r_total_time_ms": "REPLACED",
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
                     "filtered": 100,
                     "r_filtered": 100
                   },
@@ -567,7 +581,8 @@ ANALYZE
                       "r_loops": 1,
                       "rows": 3,
                       "r_rows": 3,
-                      "r_total_time_ms": "REPLACED",
+                      "r_table_time_ms": "REPLACED",
+                      "r_other_time_ms": "REPLACED",
                       "filtered": 100,
                       "r_filtered": 100
                     },
