@@ -750,7 +750,6 @@ rtr_adjust_upper_level(
 
 	mem_heap_free(heap);
 
-	/* Get the previous and next pages of page */
 	const uint32_t next_page_no = btr_page_get_next(page);
 
 	if (next_page_no != FIL_NULL) {
