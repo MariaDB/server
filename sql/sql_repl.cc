@@ -2742,7 +2742,11 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
      run hook first when all check has been made that slave seems to
      be requesting a reasonable position. i.e when transmit actually starts
   */
-  if (RUN_HOOK(binlog_transmit, transmit_start, (thd, flags, log_ident, pos)))
+
+  DBUG_ASSERT(pos == linfo.pos);
+
+  if (RUN_HOOK(binlog_transmit, transmit_start,
+               (thd, flags, linfo.log_file_name, linfo.pos)))
   {
     info->errmsg= "Failed to run hook 'transmit_start'";
     info->error= ER_UNKNOWN_ERROR;

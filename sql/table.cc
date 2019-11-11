@@ -4571,6 +4571,8 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   created= TRUE;
   cond_selectivity= 1.0;
   cond_selectivity_sampling_explain= NULL;
+  quick_condition_rows=0;
+  initialize_quick_structures();
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;
@@ -8555,4 +8557,23 @@ bool fk_modifies_child(enum_fk_option opt)
 {
   static bool can_write[]= { false, false, true, true, false, true };
   return can_write[opt];
+}
+
+
+/*
+  @brief
+    Initialize all the quick structures that are used to stored the
+    estimates when the range optimizer is run.
+  @details
+    This is specifically needed when we read the TABLE structure from the
+    table cache. There can be some garbage data from previous queries
+    that need to be reset here.
+*/
+
+void TABLE::initialize_quick_structures()
+{
+  bzero(quick_rows, sizeof(quick_rows));
+  bzero(quick_key_parts, sizeof(quick_key_parts));
+  bzero(quick_costs, sizeof(quick_costs));
+  bzero(quick_n_ranges, sizeof(quick_n_ranges));
 }
