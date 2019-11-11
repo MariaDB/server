@@ -2777,7 +2777,10 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   /* Check if the dump thread is created by a slave with semisync enabled. */
   thd->semi_sync_slave = is_semi_sync_slave();
-  if (repl_semisync_master.dump_start(thd, log_ident, pos))
+
+  DBUG_ASSERT(pos == linfo.pos);
+
+  if (repl_semisync_master.dump_start(thd, linfo.log_file_name, linfo.pos))
   {
     info->errmsg= "Failed to run hook 'transmit_start'";
     info->error= ER_UNKNOWN_ERROR;
