@@ -1762,7 +1762,6 @@ fseg_create(
 	buf_block_t*	block	= 0; /* remove warning */
 	fseg_header_t*	header	= 0; /* remove warning */
 	ulint		n_reserved;
-	ulint		i;
 
 	DBUG_ENTER("fseg_create");
 
@@ -1808,9 +1807,8 @@ fseg_create(
 	seg_id = mach_read_from_8(space_header + FSP_SEG_ID);
 
 	mlog_write_ull(space_header + FSP_SEG_ID, seg_id + 1, mtr);
-
 	mlog_write_ull(inode + FSEG_ID, seg_id, mtr);
-	mlog_write_ulint(inode + FSEG_NOT_FULL_N_USED, 0, MLOG_4BYTES, mtr);
+	ut_ad(!mach_read_from_4(inode + FSEG_NOT_FULL_N_USED));
 
 	flst_init(inode + FSEG_FREE, mtr);
 	flst_init(inode + FSEG_NOT_FULL, mtr);
@@ -1818,9 +1816,10 @@ fseg_create(
 
 	mlog_write_ulint(inode + FSEG_MAGIC_N, FSEG_MAGIC_N_VALUE,
 			 MLOG_4BYTES, mtr);
-	for (i = 0; i < FSEG_FRAG_ARR_N_SLOTS; i++) {
-		fseg_set_nth_frag_page_no(inode, i, FIL_NULL, mtr);
-	}
+	compile_time_assert(FSEG_FRAG_SLOT_SIZE == 4);
+	compile_time_assert(FIL_NULL == 0xffffffff);
+	mlog_memset(inode + FSEG_FRAG_ARR,
+		    FSEG_FRAG_SLOT_SIZE * FSEG_FRAG_ARR_N_SLOTS, 0xff, mtr);
 
 	if (page == 0) {
 		block = fseg_alloc_free_page_low(space,
@@ -2645,15 +2644,16 @@ fseg_free_page_low(
 
 	if (state != XDES_FSEG) {
 		/* The page is in the fragment pages of the segment */
-
 		for (ulint i = 0;; i++) {
 			if (fseg_get_nth_frag_page_no(seg_inode, i, mtr)
-			    == offset) {
-
-				fseg_set_nth_frag_page_no(seg_inode, i,
-							  FIL_NULL, mtr);
-				break;
+			    != offset) {
+				continue;
 			}
+
+			compile_time_assert(FIL_NULL == 0xffffffff);
+			mlog_memset(seg_inode + FSEG_FRAG_ARR
+				    + i * FSEG_FRAG_SLOT_SIZE, 4, 0xff, mtr);
+			break;
 		}
 
 		fsp_free_page(space, offset, log, mtr);

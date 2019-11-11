@@ -851,11 +851,14 @@ dict_create_index_tree_step(
 				err = DB_OUT_OF_FILE_SPACE; );
 	}
 
-	page_rec_write_field(
-		btr_pcur_get_rec(&pcur), DICT_FLD__SYS_INDEXES__PAGE_NO,
-		node->page_no, &mtr);
-
-	btr_pcur_close(&pcur);
+	ulint   len;
+	byte*   data = rec_get_nth_field_old(btr_pcur_get_rec(&pcur),
+					     DICT_FLD__SYS_INDEXES__PAGE_NO,
+					     &len);
+	ut_ad(len == 4);
+	if (mach_read_from_4(data) != node->page_no) {
+		mlog_write_ulint(data, node->page_no, MLOG_4BYTES, &mtr);
+	}
 
 	mtr.commit();
 

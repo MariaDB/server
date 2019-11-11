@@ -603,16 +603,10 @@ update_mbr:
 		}
 	}
 
-#ifdef UNIV_DEBUG
-	ulint	left_page_no = btr_page_get_prev(page, mtr);
-
-	if (left_page_no == FIL_NULL) {
-
-		ut_a(REC_INFO_MIN_REC_FLAG & rec_get_info_bits(
-			page_rec_get_next(page_get_infimum_rec(page)),
-			page_is_comp(page)));
-	}
-#endif /* UNIV_DEBUG */
+	ut_ad(page_has_prev(page)
+	      || (REC_INFO_MIN_REC_FLAG & rec_get_info_bits(
+			  page_rec_get_next(page_get_infimum_rec(page)),
+			  page_is_comp(page))));
 
 	mem_heap_free(heap);
 
@@ -646,8 +640,6 @@ rtr_adjust_upper_level(
 	mem_heap_t*	heap;
 	ulint		level;
 	dtuple_t*	node_ptr_upper;
-	ulint		prev_page_no;
-	ulint		next_page_no;
 	page_cur_t*	page_cursor;
 	lock_prdt_t	prdt;
 	lock_prdt_t	new_prdt;
@@ -748,33 +740,17 @@ rtr_adjust_upper_level(
 
 	mem_heap_free(heap);
 
-	/* Get the previous and next pages of page */
-	prev_page_no = btr_page_get_prev(page, mtr);
-	next_page_no = btr_page_get_next(page, mtr);
 	ut_ad(block->zip_size() == index->table->space->zip_size());
 
-	/* Update page links of the level */
-	if (prev_page_no != FIL_NULL) {
-		buf_block_t*	prev_block = btr_block_get(
-			*index, prev_page_no, RW_X_LATCH, false, mtr);
-#ifdef UNIV_BTR_DEBUG
-		ut_a(page_is_comp(prev_block->frame) == page_is_comp(page));
-		ut_a(btr_page_get_next(prev_block->frame, mtr)
-		     == block->page.id.page_no());
-#endif /* UNIV_BTR_DEBUG */
-
-		btr_page_set_next(buf_block_get_frame(prev_block),
-				  buf_block_get_page_zip(prev_block),
-				  page_no, mtr);
-	}
+	const uint32_t next_page_no = btr_page_get_next(page);
 
 	if (next_page_no != FIL_NULL) {
 		buf_block_t*	next_block = btr_block_get(
 			*index, next_page_no, RW_X_LATCH, false, mtr);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(next_block->frame) == page_is_comp(page));
-		ut_a(btr_page_get_prev(next_block->frame, mtr)
-		     == page_get_page_no(page));
+		ut_a(btr_page_get_prev(next_block->frame)
+		     == block->page.id.page_no());
 #endif /* UNIV_BTR_DEBUG */
 
 		btr_page_set_prev(buf_block_get_frame(next_block),
@@ -782,7 +758,6 @@ rtr_adjust_upper_level(
 				  new_page_no, mtr);
 	}
 
-	btr_page_set_prev(page, page_zip, prev_page_no, mtr);
 	btr_page_set_next(page, page_zip, new_page_no, mtr);
 
 	btr_page_set_prev(new_page, new_page_zip, page_no, mtr);

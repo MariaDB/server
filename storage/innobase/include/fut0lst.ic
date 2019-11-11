@@ -82,7 +82,9 @@ flst_init(
 					     MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_SX_FIX));
 
-	mlog_write_ulint(base + FLST_LEN, 0, MLOG_4BYTES, mtr);
+	if (mach_read_from_4(base + FLST_LEN)) {
+		mlog_write_ulint(base + FLST_LEN, 0, MLOG_4BYTES, mtr);
+	}
 	flst_zero_addr(base + FLST_FIRST, mtr);
 	flst_zero_addr(base + FLST_LAST, mtr);
 }

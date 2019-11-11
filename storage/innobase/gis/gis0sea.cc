@@ -288,7 +288,7 @@ rtr_pcur_getnext_from_path(
 		Note that we have SX lock on index->lock, there
 		should not be any split/shrink happening here */
 		if (page_ssn > path_ssn) {
-			ulint next_page_no = btr_page_get_next(page, mtr);
+			uint32_t next_page_no = btr_page_get_next(page);
 			rtr_non_leaf_stack_push(
 				rtr_info->path, next_page_no, path_ssn,
 				level, 0, NULL, 0);
@@ -1388,7 +1388,7 @@ search_again:
 	/* Check the page SSN to see if it has been splitted, if so, search
 	the right page */
 	if (!ret && page_ssn > path_ssn) {
-		page_no = btr_page_get_next(page, mtr);
+		page_no = btr_page_get_next(page);
 		goto search_again;
 	}
 
