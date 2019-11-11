@@ -322,26 +322,24 @@ btr_root_fseg_adjust_on_import(
 	fseg_header_t*	seg_header,	/*!< in/out: segment header */
 	page_zip_des_t*	page_zip,	/*!< in/out: compressed page,
 					or NULL */
-	ulint		space,		/*!< in: tablespace identifier */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
+	ulint		space)		/*!< in: tablespace identifier */
 {
 	ulint	offset = mach_read_from_2(seg_header + FSEG_HDR_OFFSET);
 
 	if (offset < FIL_PAGE_DATA
 	    || offset > srv_page_size - FIL_PAGE_DATA_END) {
-
-		return(FALSE);
-
-	} else if (page_zip) {
-		mach_write_to_4(seg_header + FSEG_HDR_SPACE, space);
-		page_zip_write_header(page_zip, seg_header + FSEG_HDR_SPACE,
-				      4, mtr);
-	} else {
-		mlog_write_ulint(seg_header + FSEG_HDR_SPACE,
-				 space, MLOG_4BYTES, mtr);
+		return false;
 	}
 
-	return(TRUE);
+	seg_header += FSEG_HDR_SPACE;
+
+	mach_write_to_4(seg_header, space);
+	if (UNIV_LIKELY_NULL(page_zip)) {
+		memcpy(page_zip->data + page_offset(seg_header), seg_header,
+		       4);
+	}
+
+	return true;
 }
 
 /**************************************************************//**
@@ -399,10 +397,10 @@ btr_root_adjust_on_import(
 	if (err == DB_SUCCESS
 	    && (!btr_root_fseg_adjust_on_import(
 			FIL_PAGE_DATA + PAGE_BTR_SEG_LEAF
-			+ page, page_zip, table->space_id, &mtr)
+			+ page, page_zip, table->space_id)
 		|| !btr_root_fseg_adjust_on_import(
 			FIL_PAGE_DATA + PAGE_BTR_SEG_TOP
-			+ page, page_zip, table->space_id, &mtr))) {
+			+ page, page_zip, table->space_id))) {
 
 		err = DB_CORRUPTION;
 	}
@@ -2002,13 +2000,7 @@ btr_root_raise_and_insert(
 		page_set_instant(root_block->frame, index->n_core_fields, mtr);
 	}
 
-	/* Set the next node and previous node fields, although
-	they should already have been set.  The previous node field
-	must be FIL_NULL if root_page_zip != NULL, because the
-	REC_INFO_MIN_REC_FLAG (of the first user record) will be
-	set if and only if !page_has_prev(). */
-	btr_page_set_next(root, root_page_zip, FIL_NULL, mtr);
-	btr_page_set_prev(root, root_page_zip, FIL_NULL, mtr);
+	ut_ad(!page_has_siblings(root));
 
 	page_cursor = btr_cur_get_page_cur(cursor);
 
@@ -2510,8 +2502,8 @@ btr_attach_half_pages(
 	}
 
 	/* Get the previous and next pages of page */
-	prev_page_no = btr_page_get_prev(page, mtr);
-	next_page_no = btr_page_get_next(page, mtr);
+	prev_page_no = btr_page_get_prev(page);
+	next_page_no = btr_page_get_next(page);
 
 	const ulint	space = block->page.id.space();
 
@@ -2551,7 +2543,7 @@ btr_attach_half_pages(
 	if (prev_block) {
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(prev_block->frame) == page_is_comp(page));
-		ut_a(btr_page_get_next(prev_block->frame, mtr)
+		ut_a(btr_page_get_next(prev_block->frame)
 		     == block->page.id.page_no());
 #endif /* UNIV_BTR_DEBUG */
 
@@ -2563,7 +2555,7 @@ btr_attach_half_pages(
 	if (next_block) {
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(next_block->frame) == page_is_comp(page));
-		ut_a(btr_page_get_prev(next_block->frame, mtr)
+		ut_a(btr_page_get_prev(next_block->frame)
 		     == page_get_page_no(page));
 #endif /* UNIV_BTR_DEBUG */
 
@@ -2577,7 +2569,7 @@ btr_attach_half_pages(
 		btr_page_set_prev(lower_page, lower_page_zip,
 				  prev_page_no, mtr);
 	} else {
-		ut_ad(btr_page_get_prev(lower_page, mtr) == prev_page_no);
+		ut_ad(btr_page_get_prev(lower_page) == prev_page_no);
 	}
 
 	btr_page_set_next(lower_page, lower_page_zip, upper_page_no, mtr);
@@ -2588,7 +2580,7 @@ btr_attach_half_pages(
 		btr_page_set_next(upper_page, upper_page_zip,
 				  next_page_no, mtr);
 	} else {
-		ut_ad(btr_page_get_next(upper_page, mtr) == next_page_no);
+		ut_ad(btr_page_get_next(upper_page) == next_page_no);
 	}
 }
 
@@ -2649,7 +2641,7 @@ btr_insert_into_right_sibling(
 {
 	buf_block_t*	block = btr_cur_get_block(cursor);
 	page_t*		page = buf_block_get_frame(block);
-	ulint		next_page_no = btr_page_get_next(page, mtr);
+	const uint32_t	next_page_no = btr_page_get_next(page);
 
 	ut_ad(mtr_memo_contains_flagged(
 		      mtr, dict_index_get_lock(cursor->index),
@@ -3180,8 +3172,8 @@ btr_level_list_remove_func(
 	ut_ad(space == page_get_space_id(page));
 	/* Get the previous and next page numbers of page */
 
-	const ulint	prev_page_no = btr_page_get_prev(page, mtr);
-	const ulint	next_page_no = btr_page_get_next(page, mtr);
+	const uint32_t	prev_page_no = btr_page_get_prev(page);
+	const uint32_t	next_page_no = btr_page_get_next(page);
 
 	/* Update page links of the level */
 
@@ -3194,8 +3186,8 @@ btr_level_list_remove_func(
 			= buf_block_get_frame(prev_block);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(prev_page) == page_is_comp(page));
-		ut_a(btr_page_get_next(prev_page, mtr)
-		     == page_get_page_no(page));
+		ut_a(!memcmp(prev_page + FIL_PAGE_NEXT, page + FIL_PAGE_OFFSET,
+			     4));
 #endif /* UNIV_BTR_DEBUG */
 
 		btr_page_set_next(prev_page,
@@ -3213,8 +3205,8 @@ btr_level_list_remove_func(
 			= buf_block_get_frame(next_block);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(next_page) == page_is_comp(page));
-		ut_a(btr_page_get_prev(next_page, mtr)
-		     == page_get_page_no(page));
+		ut_a(!memcmp(next_page + FIL_PAGE_PREV, page + FIL_PAGE_OFFSET,
+			     4));
 #endif /* UNIV_BTR_DEBUG */
 
 		btr_page_set_prev(next_page,
@@ -3557,8 +3549,8 @@ btr_compress(
 
 	MONITOR_INC(MONITOR_INDEX_MERGE_ATTEMPTS);
 
-	left_page_no = btr_page_get_prev(page, mtr);
-	right_page_no = btr_page_get_next(page, mtr);
+	left_page_no = btr_page_get_prev(page);
+	right_page_no = btr_page_get_next(page);
 
 #ifdef UNIV_DEBUG
 	if (!page_is_leaf(page) && left_page_no == FIL_NULL) {
@@ -3632,10 +3624,10 @@ retry:
 
 #ifdef UNIV_BTR_DEBUG
 	if (is_left) {
-		ut_a(btr_page_get_next(merge_page, mtr)
+		ut_a(btr_page_get_next(merge_page)
 		     == block->page.id.page_no());
 	} else {
-		ut_a(btr_page_get_prev(merge_page, mtr)
+		ut_a(btr_page_get_prev(merge_page)
 		     == block->page.id.page_no());
 	}
 #endif /* UNIV_BTR_DEBUG */
@@ -4153,8 +4145,8 @@ btr_discard_page(
 
 	/* Decide the page which will inherit the locks */
 
-	left_page_no = btr_page_get_prev(buf_block_get_frame(block), mtr);
-	right_page_no = btr_page_get_next(buf_block_get_frame(block), mtr);
+	left_page_no = btr_page_get_prev(buf_block_get_frame(block));
+	right_page_no = btr_page_get_next(buf_block_get_frame(block));
 
 	const page_size_t	page_size(index->table->space->flags);
 	ut_d(bool parent_is_different = false);
@@ -4165,7 +4157,7 @@ btr_discard_page(
 
 		merge_page = buf_block_get_frame(merge_block);
 #ifdef UNIV_BTR_DEBUG
-		ut_a(btr_page_get_next(merge_page, mtr)
+		ut_a(btr_page_get_next(merge_page)
 		     == block->page.id.page_no());
 #endif /* UNIV_BTR_DEBUG */
 		ut_d(parent_is_different =
@@ -4181,7 +4173,7 @@ btr_discard_page(
 
 		merge_page = buf_block_get_frame(merge_block);
 #ifdef UNIV_BTR_DEBUG
-		ut_a(btr_page_get_prev(merge_page, mtr)
+		ut_a(btr_page_get_prev(merge_page)
 		     == block->page.id.page_no());
 #endif /* UNIV_BTR_DEBUG */
 		ut_d(parent_is_different = page_rec_is_supremum(
@@ -4801,7 +4793,7 @@ btr_validate_level(
 		does not use such scan for any of its DML or query
 		operations  */
 		if (dict_index_is_spatial(index)) {
-			left_page_no = btr_page_get_prev(page, &mtr);
+			left_page_no = btr_page_get_prev(page);
 
 			while (left_page_no != FIL_NULL) {
 				/* To obey latch order of tree blocks,
@@ -4817,7 +4809,7 @@ btr_validate_level(
 					table_page_size,
 					RW_SX_LATCH, index, &mtr);
 				page = buf_block_get_frame(block);
-				left_page_no = btr_page_get_prev(page, &mtr);
+				left_page_no = btr_page_get_prev(page);
 			}
 		}
 	}
@@ -4872,8 +4864,8 @@ loop:
 
 	ut_a(btr_page_get_level(page) == level);
 
-	right_page_no = btr_page_get_next(page, &mtr);
-	left_page_no = btr_page_get_prev(page, &mtr);
+	right_page_no = btr_page_get_next(page);
+	left_page_no = btr_page_get_prev(page);
 
 	ut_a(!page_is_empty(page)
 	     || (level == 0
@@ -4890,9 +4882,7 @@ loop:
 
 		right_page = buf_block_get_frame(right_block);
 
-		if (btr_page_get_prev(right_page, &mtr)
-		    != page_get_page_no(page)) {
-
+		if (btr_page_get_prev(right_page) != page_get_page_no(page)) {
 			btr_validate_report2(index, level, block, right_block);
 			fputs("InnoDB: broken FIL_PAGE_NEXT"
 			      " or FIL_PAGE_PREV links\n", stderr);
@@ -4973,7 +4963,7 @@ loop:
 		node_ptr = btr_cur_get_rec(&node_cur);
 
 		parent_page_no = page_get_page_no(father_page);
-		parent_right_page_no = btr_page_get_next(father_page, &mtr);
+		parent_right_page_no = btr_page_get_next(father_page);
 		rightmost_child = page_rec_is_supremum(
 					page_rec_get_next(node_ptr));
 
@@ -5114,7 +5104,7 @@ loop:
 				}
 
 				if (page_get_page_no(right_father_page)
-				    != btr_page_get_next(father_page, &mtr)) {
+				    != btr_page_get_next(father_page)) {
 
 					ret = false;
 					fputs("InnoDB: node pointer 3 to"

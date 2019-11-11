@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -198,8 +198,7 @@ dict_hdr_create(
 	mlog_write_ull(dict_header + DICT_HDR_INDEX_ID,
 		       DICT_HDR_FIRST_ID, mtr);
 
-	mlog_write_ulint(dict_header + DICT_HDR_MAX_SPACE_ID,
-			 0, MLOG_4BYTES, mtr);
+	ut_ad(mach_read_from_4(dict_header + DICT_HDR_MAX_SPACE_ID) == 0);
 
 	/* Obsolete, but we must initialize it anyway. */
 	mlog_write_ulint(dict_header + DICT_HDR_MIX_ID_LOW,
