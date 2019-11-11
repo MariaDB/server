@@ -1985,13 +1985,7 @@ btr_root_raise_and_insert(
 	/* Rebuild the root page to get free space */
 	btr_page_empty(root_block, root_page_zip, index, level + 1, mtr);
 
-	/* Set the next node and previous node fields, although
-	they should already have been set.  The previous node field
-	must be FIL_NULL if root_page_zip != NULL, because the
-	REC_INFO_MIN_REC_FLAG (of the first user record) will be
-	set if and only if !page_has_prev(). */
-	btr_page_set_next(root, root_page_zip, FIL_NULL, mtr);
-	btr_page_set_prev(root, root_page_zip, FIL_NULL, mtr);
+	ut_ad(!page_has_siblings(root));
 
 	page_cursor = btr_cur_get_page_cur(cursor);
 
