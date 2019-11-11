@@ -1034,12 +1034,12 @@ CreateIndex::operator()(mtr_t* mtr, btr_pcur_t* pcur) const
 			root_page_no = FIL_NULL;);
 
 	if (root_page_no != FIL_NULL) {
-
-		rec_t*	rec = btr_pcur_get_rec(pcur);
-
-		page_rec_write_field(
-			rec, DICT_FLD__SYS_INDEXES__PAGE_NO,
-			root_page_no, mtr);
+		ulint   len;
+		byte*   data = rec_get_nth_field_old(
+			btr_pcur_get_rec(pcur),
+			DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
+		ut_ad(len == 4);
+		mlog_write_ulint(data, root_page_no, MLOG_4BYTES, mtr);
 
 		/* We will need to commit and restart the
 		mini-transaction in order to avoid deadlocks.

@@ -321,26 +321,24 @@ btr_root_fseg_adjust_on_import(
 	fseg_header_t*	seg_header,	/*!< in/out: segment header */
 	page_zip_des_t*	page_zip,	/*!< in/out: compressed page,
 					or NULL */
-	ulint		space,		/*!< in: tablespace identifier */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
+	ulint		space)		/*!< in: tablespace identifier */
 {
 	ulint	offset = mach_read_from_2(seg_header + FSEG_HDR_OFFSET);
 
 	if (offset < FIL_PAGE_DATA
-	    || offset > UNIV_PAGE_SIZE - FIL_PAGE_DATA_END) {
-
-		return(FALSE);
-
-	} else if (page_zip) {
-		mach_write_to_4(seg_header + FSEG_HDR_SPACE, space);
-		page_zip_write_header(page_zip, seg_header + FSEG_HDR_SPACE,
-				      4, mtr);
-	} else {
-		mlog_write_ulint(seg_header + FSEG_HDR_SPACE,
-				 space, MLOG_4BYTES, mtr);
+	    || offset > srv_page_size - FIL_PAGE_DATA_END) {
+		return false;
 	}
 
-	return(TRUE);
+	seg_header += FSEG_HDR_SPACE;
+
+	mach_write_to_4(seg_header, space);
+	if (UNIV_LIKELY_NULL(page_zip)) {
+		memcpy(page_zip->data + page_offset(seg_header), seg_header,
+		       4);
+	}
+
+	return true;
 }
 
 /**************************************************************//**
@@ -400,10 +398,10 @@ btr_root_adjust_on_import(
 	if (err == DB_SUCCESS
 	    && (!btr_root_fseg_adjust_on_import(
 			FIL_PAGE_DATA + PAGE_BTR_SEG_LEAF
-			+ page, page_zip, space_id, &mtr)
+			+ page, page_zip, space_id)
 		|| !btr_root_fseg_adjust_on_import(
 			FIL_PAGE_DATA + PAGE_BTR_SEG_TOP
-			+ page, page_zip, space_id, &mtr))) {
+			+ page, page_zip, space_id))) {
 
 		err = DB_CORRUPTION;
 	}
