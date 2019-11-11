@@ -649,7 +649,6 @@ rtr_adjust_upper_level(
 	mem_heap_t*	heap;
 	ulint		level;
 	dtuple_t*	node_ptr_upper;
-	ulint		prev_page_no;
 	ulint		next_page_no;
 	ulint		space;
 	page_cur_t*	page_cursor;
@@ -760,27 +759,9 @@ rtr_adjust_upper_level(
 	mem_heap_free(heap);
 
 	/* Get the previous and next pages of page */
-	prev_page_no = btr_page_get_prev(page, mtr);
 	next_page_no = btr_page_get_next(page, mtr);
 	space = block->page.id.space();
 	const page_size_t&	page_size = dict_table_page_size(index->table);
-
-	/* Update page links of the level */
-	if (prev_page_no != FIL_NULL) {
-		page_id_t	prev_page_id(space, prev_page_no);
-
-		buf_block_t*	prev_block = btr_block_get(
-			prev_page_id, page_size, RW_X_LATCH, index, mtr);
-#ifdef UNIV_BTR_DEBUG
-		ut_a(page_is_comp(prev_block->frame) == page_is_comp(page));
-		ut_a(btr_page_get_next(prev_block->frame, mtr)
-		     == block->page.id.page_no());
-#endif /* UNIV_BTR_DEBUG */
-
-		btr_page_set_next(buf_block_get_frame(prev_block),
-				  buf_block_get_page_zip(prev_block),
-				  page_no, mtr);
-	}
 
 	if (next_page_no != FIL_NULL) {
 		page_id_t	next_page_id(space, next_page_no);
@@ -798,7 +779,6 @@ rtr_adjust_upper_level(
 				  new_page_no, mtr);
 	}
 
-	btr_page_set_prev(page, page_zip, prev_page_no, mtr);
 	btr_page_set_next(page, page_zip, new_page_no, mtr);
 
 	btr_page_set_prev(new_page, new_page_zip, page_no, mtr);
