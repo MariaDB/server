@@ -1429,7 +1429,7 @@ int wsrep_to_buf_helper(
     Gtid_log_event gtid_event(thd, thd->variables.gtid_seq_no,
                           thd->variables.gtid_domain_id,
                           true, LOG_EVENT_SUPPRESS_USE_F,
-                          true, 0);
+                          true, 0, 0);
     gtid_event.server_id= thd->variables.server_id;
     if (!gtid_event.is_valid()) ret= 0;
     ret= writer.write(&gtid_event);

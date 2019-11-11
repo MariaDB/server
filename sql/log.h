@@ -874,7 +874,7 @@ public:
   void set_status_variables(THD *thd);
   bool is_xidlist_idle();
   bool write_gtid_event(THD *thd, bool standalone, bool is_transactional,
-                        uint64 commit_id);
+                        uint64 commit_id, uint32 transaction_length);
   int read_state_from_file();
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);

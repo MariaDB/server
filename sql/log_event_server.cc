@@ -3196,9 +3196,11 @@ bool Binlog_checkpoint_log_event::write()
 Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                uint32 domain_id_arg, bool standalone,
                                uint16 flags_arg, bool is_transactional,
-                               uint64 commit_id_arg)
+                               uint64 commit_id_arg,
+                               uint64 transaction_size_arg = 0)
   : Log_event(thd_arg, flags_arg, is_transactional),
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
+    transaction_size(transaction_size_arg),
     flags2((standalone ? FL_STANDALONE : 0) | (commit_id_arg ? FL_GROUP_COMMIT_ID : 0))
 {
   cache_type= Log_event::EVENT_NO_CACHE;

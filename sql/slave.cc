@@ -53,6 +53,7 @@
                                                 // Create_file_log_event,
                                                 // Format_description_log_event
 #include "wsrep_mysqld.h"
+#include "rpl_circular_buffer.cpp"
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #endif

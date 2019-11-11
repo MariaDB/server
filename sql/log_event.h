@@ -3382,6 +3382,9 @@ public:
   uint64 seq_no;
   uint64 commit_id;
   uint32 domain_id;
+  uint64 transaction_size;
+  //TODO LEts keep it zero I have patch in second laptop I will use that patch
+  my_thread_id thread_id;
   uchar flags2;
 
   /* Flags2. */
@@ -3410,10 +3413,17 @@ public:
   static const uchar FL_WAITED= 16;
   /* FL_DDL is set for event group containing DDL. */
   static const uchar FL_DDL= 32;
+  /*
+    FL_EXTRA_METADATA is for fields thread id and transaction size
+    First will be transaction size of 8bytes
+    Then thread id of 4bytes
+  */
+  static const uchar FL_EXTRA_METADATA= 64;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
-                 uint16 flags, bool is_transactional, uint64 commit_id);
+                 uint16 flags, bool is_transactional, uint64 commit_id,
+                 uint64 transaction_size);
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol *protocol);
   virtual int do_apply_event(rpl_group_info *rgi);
@@ -3430,7 +3440,9 @@ public:
   enum_logged_status logged_status() { return LOGGED_NO_DATA; }
   int get_data_size()
   {
-    return GTID_HEADER_LEN + ((flags2 & FL_GROUP_COMMIT_ID) ? 2 : 0);
+      //TODO thread id and transaction size please also take that into account
+    return GTID_HEADER_LEN + ((flags2 & FL_GROUP_COMMIT_ID) ? 2 : 0) +
+        ((flags2 & FL_EXTRA_METADATA)? 4+8 : 0);
   }
   bool is_valid() const { return seq_no != 0; }
 #ifdef MYSQL_SERVER

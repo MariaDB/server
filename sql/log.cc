@@ -5740,7 +5740,7 @@ THD::binlog_start_trans_and_stmt()
         Gtid_log_event gtid_event(this, this->variables.gtid_seq_no,
                             this->variables.gtid_domain_id,
                             true, LOG_EVENT_SUPPRESS_USE_F,
-                            true, 0);
+                            true, 0, 0);
       gtid_event.server_id= this->variables.server_id;
       writer.write(&gtid_event);
     }
@@ -6014,7 +6014,8 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
 
 bool
 MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
-                                bool is_transactional, uint64 commit_id)
+                                bool is_transactional, uint64 commit_id,
+                                uint32 transaction_length)
 {
   rpl_gtid gtid;
   uint32 domain_id;
@@ -6078,7 +6079,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
 
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
-                            commit_id);
+                            commit_id, transaction_length);
 
   /* Write the event to the binary log. */
   DBUG_ASSERT(this == &mysql_bin_log);
@@ -6273,7 +6274,27 @@ MYSQL_BIN_LOG::check_strict_gtid_sequence(uint32 domain_id,
                                                             seq_no);
 }
 
-
+/*
+  Find the end_event size.
+*/
+static uint32 get_end_event_size(Log_event *ev)
+{
+  Log_event_type ev_type= ev->get_type_code();
+  if (ev_type == XID_EVENT)
+    return ev->get_data_size() + LOG_EVENT_HEADER_LEN;
+  if (ev_type == QUERY_EVENT)
+  {
+    /*
+     2 type of data in query_log event
+     ROLLBACK and COMMIT
+    */
+    //TODO NEED to find the size 
+    //it is not a constant size
+    //for the time lets return 100
+    return 100;
+  }
+  return 0;
+}
 /**
   Write an event to the binary log. If with_annotate != NULL and
   *with_annotate = TRUE write also Annotate_rows before the event
@@ -6394,7 +6415,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
                                              commit_name.length);
           commit_id= entry->val_int(&null_value);
         });
-      if (write_gtid_event(thd, true, using_trans, commit_id))
+      if (write_gtid_event(thd, true, using_trans, commit_id, 0))
         goto err;
     }
     else
@@ -8198,19 +8219,26 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                                          uint64 commit_id)
 {
   binlog_cache_mngr *mngr= entry->cache_mngr;
+  bool using_stmt_cache= entry->using_stmt_cache && !mngr->stmt_cache.empty();
+  bool using_trx_cache= entry->using_trx_cache && !mngr->trx_cache.empty();
+  uint32 trans_size= get_end_event_size(entry->end_event);
+  if (using_stmt_cache)
+    trans_size+= my_b_bytes_in_cache(mngr->get_binlog_cache_log(FALSE));
+  if (using_trx_cache)
+    trans_size+= my_b_bytes_in_cache(mngr->get_binlog_cache_log(TRUE));
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
 
-  if (write_gtid_event(entry->thd, false, entry->using_trx_cache, commit_id))
+  if (write_gtid_event(entry->thd, false, entry->using_trx_cache, commit_id, 0))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
 
-  if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
+  if (using_stmt_cache &&
       write_cache(entry->thd, mngr->get_binlog_cache_log(FALSE)))
   {
     entry->error_cache= &mngr->stmt_cache.cache_log;
     DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
 
-  if (entry->using_trx_cache && !mngr->trx_cache.empty())
+  if (using_trx_cache)
   {
     DBUG_EXECUTE_IF("crash_before_writing_xid",
                     {
