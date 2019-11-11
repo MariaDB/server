@@ -1376,7 +1376,8 @@ static void fsp_free_page(fil_space_t* space, page_no_t offset,
 	const ulint	bit = offset % FSP_EXTENT_SIZE;
 
 	xdes_set_bit(descr, XDES_FREE_BIT, bit, TRUE, mtr);
-	xdes_set_bit(descr, XDES_CLEAN_BIT, bit, TRUE, mtr);
+	/* xdes_init() should have set all XDES_CLEAN_BIT */
+	ut_ad(xdes_get_bit(descr, XDES_CLEAN_BIT, bit));
 
 	frag_n_used = mach_read_from_4(header + FSP_FRAG_N_USED);
 	if (state == XDES_FULL_FRAG) {
@@ -1531,9 +1532,7 @@ fsp_alloc_seg_inode_page(
 	fsp_header_t*	space_header,
 	mtr_t*		mtr)
 {
-	fseg_inode_t*	inode;
 	buf_block_t*	block;
-	page_t*		page;
 
 	ut_ad(page_offset(space_header) == FSP_HEADER_OFFSET);
 	ut_ad(page_get_space_id(page_align(space_header)) == space->id);
@@ -1548,24 +1547,20 @@ fsp_alloc_seg_inode_page(
 	buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 	ut_ad(rw_lock_get_sx_lock_count(&block->lock) == 1);
 
-	page = buf_block_get_frame(block);
-
-	mlog_write_ulint(page + FIL_PAGE_TYPE, FIL_PAGE_INODE,
+	mlog_write_ulint(block->frame + FIL_PAGE_TYPE, FIL_PAGE_INODE,
 			 MLOG_2BYTES, mtr);
 
-	const ulint physical_size = space->physical_size();
-
-	for (ulint i = 0; i < FSP_SEG_INODES_PER_PAGE(physical_size); i++) {
-
-		inode = fsp_seg_inode_page_get_nth_inode(
-			page, i, physical_size, mtr);
-
-		mlog_write_ull(inode + FSEG_ID, 0, mtr);
+#ifdef UNIV_DEBUG
+	const byte* inode = FSEG_ID + FSEG_ARR_OFFSET + block->frame;
+	for (ulint i = FSP_SEG_INODES_PER_PAGE(space->physical_size()); i--;
+	     inode += FSEG_INODE_SIZE) {
+		ut_ad(!mach_read_from_8(inode));
 	}
+#endif
 
 	flst_add_last(
 		space_header + FSP_SEG_INODES_FREE,
-		page + FSEG_INODE_PAGE_NODE, mtr);
+		block->frame + FSEG_INODE_PAGE_NODE, mtr);
 
 	return(true);
 }
@@ -2831,7 +2826,8 @@ fseg_free_page_low(
 	const ulint	bit = offset % FSP_EXTENT_SIZE;
 
 	xdes_set_bit(descr, XDES_FREE_BIT, bit, TRUE, mtr);
-	xdes_set_bit(descr, XDES_CLEAN_BIT, bit, TRUE, mtr);
+	/* xdes_init() should have set all XDES_CLEAN_BIT */
+	ut_ad(xdes_get_bit(descr, XDES_CLEAN_BIT, bit));
 
 	if (xdes_is_free(descr, mtr)) {
 		/* The extent has become free: free it to space */
