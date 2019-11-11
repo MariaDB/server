@@ -433,8 +433,8 @@ btr_pessimistic_scrub(
 	/* read block variables */
 	const ulint page_no =  mach_read_from_4(page + FIL_PAGE_OFFSET);
 	const page_id_t page_id(dict_index_get_space(index), page_no);
-	const ulint left_page_no = btr_page_get_prev(page, mtr);
-	const ulint right_page_no = btr_page_get_next(page, mtr);
+	const uint32_t left_page_no = btr_page_get_prev(page);
+	const uint32_t right_page_no = btr_page_get_next(page);
 	const page_id_t lpage_id(dict_index_get_space(index), left_page_no);
 	const page_id_t rpage_id(dict_index_get_space(index), right_page_no);
 	const page_size_t page_size(dict_table_page_size(index->table));
@@ -468,8 +468,8 @@ btr_pessimistic_scrub(
 		/**
 		* structure should be unchanged
 		*/
-		ut_a(left_page_no == btr_page_get_prev(page, mtr));
-		ut_a(right_page_no == btr_page_get_next(page, mtr));
+		ut_a(left_page_no == btr_page_get_prev(page));
+		ut_a(right_page_no == btr_page_get_next(page));
 	}
 
 	if (right_page_no != FIL_NULL) {

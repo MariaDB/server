@@ -775,7 +775,7 @@ up_rec_match:
 				ulint   rec_info = rec_get_info_bits(mid_rec,
                                                      rec_offs_comp(offsets));
 				ut_ad(rec_info & REC_INFO_MIN_REC_FLAG);
-				ut_ad(btr_page_get_prev(page, &mtr) == FIL_NULL);
+				ut_ad(!page_has_prev(page));
 				mtr_commit(&mtr);
 #endif
 

@@ -265,26 +265,23 @@ btr_page_get_level_low(
 	const page_t*	page)	/*!< in: index page */
 	MY_ATTRIBUTE((warn_unused_result));
 #define btr_page_get_level(page, mtr) btr_page_get_level_low(page)
-/********************************************************//**
-Gets the next index page number.
-@return next page number */
-UNIV_INLINE
-ulint
-btr_page_get_next(
-/*==============*/
-	const page_t*	page,	/*!< in: index page */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle */
-	MY_ATTRIBUTE((warn_unused_result));
-/********************************************************//**
-Gets the previous index page number.
-@return prev page number */
-UNIV_INLINE
-ulint
-btr_page_get_prev(
-/*==============*/
-	const page_t*	page,	/*!< in: index page */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle */
-	MY_ATTRIBUTE((warn_unused_result));
+
+/** Read FIL_PAGE_NEXT.
+@param page  buffer pool page
+@return previous page number */
+inline uint32_t btr_page_get_next(const page_t* page)
+{
+  return mach_read_from_4(page + FIL_PAGE_NEXT);
+}
+
+/** Read FIL_PAGE_PREV.
+@param page  buffer pool page
+@return previous page number */
+inline uint32_t btr_page_get_prev(const page_t* page)
+{
+  return mach_read_from_4(page + FIL_PAGE_PREV);
+}
+
 /**************************************************************//**
 Releases the latch on a leaf page and bufferunfixes it. */
 UNIV_INLINE

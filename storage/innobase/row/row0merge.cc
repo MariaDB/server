@@ -2011,7 +2011,7 @@ end_of_index:
 				buf_block_t*	block;
 
 				next_page_no = btr_page_get_next(
-					page_cur_get_page(cur), &mtr);
+					page_cur_get_page(cur));
 
 				if (next_page_no == FIL_NULL) {
 					goto end_of_index;

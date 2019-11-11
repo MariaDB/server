@@ -802,9 +802,7 @@ btr_search_check_guess(
 		prev_rec = page_rec_get_prev(rec);
 
 		if (page_rec_is_infimum(prev_rec)) {
-			success = btr_page_get_prev(page_align(prev_rec), mtr)
-				== FIL_NULL;
-
+			success = !page_has_prev(page_align(prev_rec));
 			goto exit_func;
 		}
 
@@ -827,9 +825,7 @@ btr_search_check_guess(
 		next_rec = page_rec_get_next(rec);
 
 		if (page_rec_is_supremum(next_rec)) {
-			if (btr_page_get_next(page_align(next_rec), mtr)
-			    == FIL_NULL) {
-
+			if (!page_has_next(page_align(next_rec))) {
 				cursor->up_match = 0;
 				success = TRUE;
 			}
