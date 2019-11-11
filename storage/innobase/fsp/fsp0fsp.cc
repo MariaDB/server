@@ -1524,7 +1524,8 @@ fsp_free_page(
 	const ulint	bit = offset % FSP_EXTENT_SIZE;
 
 	xdes_set_bit(descr, XDES_FREE_BIT, bit, TRUE, mtr);
-	xdes_set_bit(descr, XDES_CLEAN_BIT, bit, TRUE, mtr);
+	/* xdes_init() should have set all XDES_CLEAN_BIT */
+	ut_ad(xdes_get_bit(descr, XDES_CLEAN_BIT, bit));
 
 	frag_n_used = mtr_read_ulint(header + FSP_FRAG_N_USED, MLOG_4BYTES,
 				     mtr);
@@ -3085,7 +3086,8 @@ fseg_free_page_low(
 	const ulint	bit = offset % FSP_EXTENT_SIZE;
 
 	xdes_set_bit(descr, XDES_FREE_BIT, bit, TRUE, mtr);
-	xdes_set_bit(descr, XDES_CLEAN_BIT, bit, TRUE, mtr);
+	/* xdes_init() should have set all XDES_CLEAN_BIT */
+	ut_ad(xdes_get_bit(descr, XDES_CLEAN_BIT, bit));
 
 	if (xdes_is_free(descr, mtr)) {
 		/* The extent has become free: free it to space */
