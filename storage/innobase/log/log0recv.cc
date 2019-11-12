@@ -27,7 +27,6 @@ Created 9/20/1997 Heikki Tuuri
 
 #include "univ.i"
 
-#include <vector>
 #include <map>
 #include <string>
 #include <my_service_manager.h>
@@ -4044,44 +4043,26 @@ recv_recovery_rollback_active(void)
 @param[in]	page_no		page number
 @return	page frame
 @retval NULL if no page was found */
-
 const byte*
 recv_dblwr_t::find_page(ulint space_id, ulint page_no)
 {
-	typedef std::vector<const byte*, ut_allocator<const byte*> >
-		matches_t;
+  const byte *result= NULL;
+  lsn_t max_lsn= 0;
 
-	matches_t	matches;
-	const byte*	result = 0;
+  for (list::const_iterator i = pages.begin(); i != pages.end(); ++i)
+  {
+    const byte *page= *i;
+    if (page_get_page_no(page) != page_no ||
+        page_get_space_id(page) != space_id)
+      continue;
+    const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
+    if (lsn <= max_lsn)
+      continue;
+    max_lsn= lsn;
+    result= page;
+  }
 
-	for (list::iterator i = pages.begin(); i != pages.end(); ++i) {
-		if (page_get_space_id(*i) == space_id
-		    && page_get_page_no(*i) == page_no) {
-			matches.push_back(*i);
-		}
-	}
-
-	if (matches.size() == 1) {
-		result = matches[0];
-	} else if (matches.size() > 1) {
-
-		lsn_t max_lsn	= 0;
-		lsn_t page_lsn	= 0;
-
-		for (matches_t::iterator i = matches.begin();
-		     i != matches.end();
-		     ++i) {
-
-			page_lsn = mach_read_from_8(*i + FIL_PAGE_LSN);
-
-			if (page_lsn > max_lsn) {
-				max_lsn = page_lsn;
-				result = *i;
-			}
-		}
-	}
-
-	return(result);
+  return result;
 }
 
 #ifndef DBUG_OFF
