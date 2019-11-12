@@ -417,6 +417,33 @@ int ha_clustrixdb::reset()
   return 0;
 }
 
+int ha_clustrixdb::extra(enum ha_extra_function operation)
+{
+  DBUG_ENTER("ha_clustrixdb::extra");
+  int error_code = 0;
+  THD *thd = ha_thd();
+  clustrix_connection *trx = get_trx(thd, &error_code);
+  if (!trx)
+    return error_code;
+
+  if (operation == HA_EXTRA_INSERT_WITH_UPDATE) {
+    trx->set_upsert(CLUSTRIX_HAS_UPSERT);
+  }
+
+  DBUG_RETURN(0);
+}
+
+/*@brief UPSERT State Machine*/
+/*************************************************************
+ * DESCRIPTION:
+ * Fasttrack for UPSERT sends queries down to a CLX backend.
+ * UPSERT could be of two kinds: singular and bulk. The plugin
+ * re-/sets CLUSTRIX_BULK_UPSERT in end|start_bulk_insert
+ * methods. CLUSTRIX_UPSERT_SENT is used to avoid multiple
+ * execution at CLX backend.
+ * Generic CLUSTRIX_HAS_UPSERT is set for bulk UPSERT only b/c
+ * MDB calls write_row only once.
+ ************************************************************/
 int ha_clustrixdb::write_row(const uchar *buf)
 {
   int error_code = 0;
@@ -424,6 +451,26 @@ int ha_clustrixdb::write_row(const uchar *buf)
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
+
+  if (trx->check_upsert(CLUSTRIX_HAS_UPSERT)) {
+    if (!trx->check_upsert(CLUSTRIX_UPSERT_SENT)) {
+      ha_rows update_rows;
+      String update_stmt;
+      update_stmt.append(thd->query_string.str());
+
+      if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+        trx->auto_commit_next();
+
+      error_code= trx->update_query(update_stmt, table->s->db, &update_rows);
+
+      thd->get_stmt_da()->set_overwrite_status(true);
+      if (trx->check_upsert(CLUSTRIX_BULK_UPSERT))
+        trx->set_upsert(CLUSTRIX_UPSERT_SENT);
+      else
+        trx->unset_upsert(CLUSTRIX_HAS_UPSERT);
+    }
+    return error_code;
+  }
 
   /* Convert the row format to binlog (packed) format */
   uchar *packed_new_row = (uchar*) my_alloca(estimate_row_size(table));
@@ -507,6 +554,39 @@ int ha_clustrixdb::direct_update_rows(ha_rows *update_rows)
   thd->get_stmt_da()->set_overwrite_status(true);
 
   DBUG_RETURN(error_code);
+}
+
+void ha_clustrixdb::start_bulk_insert(ha_rows rows, uint flags)
+{
+  DBUG_ENTER("ha_clustrixdb::start_bulk_insert");
+  int error_code= 0;
+  THD *thd= ha_thd();
+  clustrix_connection *trx= get_trx(thd, &error_code);
+  if (!trx) {
+    // TBD log this
+    DBUG_VOID_RETURN;
+  }
+
+  trx->set_upsert(CLUSTRIX_BULK_UPSERT);
+
+  DBUG_VOID_RETURN;
+}
+
+int ha_clustrixdb::end_bulk_insert()
+{
+  DBUG_ENTER("ha_clustrixdb::end_bulk_insert");
+  int error_code= 0;
+  THD *thd= ha_thd();
+  clustrix_connection *trx= get_trx(thd, &error_code);
+  if (!trx) {
+    DBUG_RETURN(error_code);
+  }
+
+  trx->unset_upsert(CLUSTRIX_BULK_UPSERT);
+  trx->unset_upsert(CLUSTRIX_HAS_UPSERT);
+  trx->unset_upsert(CLUSTRIX_UPSERT_SENT);
+
+  DBUG_RETURN(0);
 }
 
 int ha_clustrixdb::delete_row(const uchar *buf)
@@ -942,6 +1022,7 @@ THR_LOCK_DATA **ha_clustrixdb::store_lock(THD *thd,
 
 int ha_clustrixdb::external_lock(THD *thd, int lock_type)
 {
+  DBUG_ENTER("ha_clustrixdb::external_lock()");
   int error_code;
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (lock_type != F_UNLCK) {
@@ -956,7 +1037,7 @@ int ha_clustrixdb::external_lock(THD *thd, int lock_type)
     }
   }
 
-  return 0;
+  DBUG_RETURN(0);
 }
 
 /****************************************************************************

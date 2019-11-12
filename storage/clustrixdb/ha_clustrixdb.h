@@ -57,6 +57,8 @@ public:
   int delete_row(const uchar *buf);
   int direct_update_rows_init(List<Item> *update_fields);
   int direct_update_rows(ha_rows *update_rows);
+  void start_bulk_insert(ha_rows rows, uint flags = 0);
+  int end_bulk_insert();
 
   Table_flags table_flags(void) const;
   ulong index_flags(uint idx, uint part, bool all_parts) const;
@@ -67,6 +69,7 @@ public:
                            key_range *max_key);
 
   int info(uint flag); // see my_base.h for full description
+  int extra(enum ha_extra_function operation);
 
   // multi_read_range
   // read_range
