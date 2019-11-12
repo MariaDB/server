@@ -36,18 +36,18 @@ struct mtr_t;
 /** Logging modes for a mini-transaction */
 enum mtr_log_t {
 	/** Default mode: log all operations modifying disk-based data */
-	MTR_LOG_ALL = 21,
+	MTR_LOG_ALL = 0,
 
 	/** Log no operations and dirty pages are not added to the flush list.
 	Set when applying log in crash recovery or when a modification of a
 	ROW_FORMAT=COMPRESSED page is attempted. */
-	MTR_LOG_NONE = 22,
+	MTR_LOG_NONE,
 
 	/** Don't generate REDO log but add dirty pages to flush list */
-	MTR_LOG_NO_REDO = 23,
+	MTR_LOG_NO_REDO,
 
 	/** Inserts are logged in a shorter form */
-	MTR_LOG_SHORT_INSERTS = 24
+	MTR_LOG_SHORT_INSERTS
 };
 
 /** @name Log item types
@@ -278,15 +278,10 @@ enum mtr_memo_type_t {
 };
 #endif /* !UNIV_CHECKSUM */
 
-#ifdef UNIV_DEBUG
-# define MTR_MAGIC_N		54551
-#endif /* UNIV_DEBUG */
-
 enum mtr_state_t {
 	MTR_STATE_INIT = 0,
-	MTR_STATE_ACTIVE = 12231,
-	MTR_STATE_COMMITTING = 56456,
-	MTR_STATE_COMMITTED = 34676
+	MTR_STATE_ACTIVE,
+	MTR_STATE_COMMITTED
 };
 
 #endif /* mtr0types_h */

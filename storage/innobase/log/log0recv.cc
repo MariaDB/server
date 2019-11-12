@@ -27,7 +27,6 @@ Created 9/20/1997 Heikki Tuuri
 
 #include "univ.i"
 
-#include <vector>
 #include <map>
 #include <string>
 #include <my_service_manager.h>
@@ -3894,32 +3893,25 @@ recv_recovery_rollback_active(void)
 @param[in]	page_no		page number
 @return	page frame
 @retval NULL if no page was found */
-
 const byte*
 recv_dblwr_t::find_page(ulint space_id, ulint page_no)
 {
-	std::vector<const byte*, ut_allocator<const byte*> > matches;
-	const byte*	result = 0;
+  const byte *result= NULL;
+  lsn_t max_lsn= 0;
 
-	for (const byte* page : pages) {
-		if (page_get_space_id(page) == space_id
-		    && page_get_page_no(page) == page_no) {
-			matches.push_back(page);
-		}
-	}
+  for (const byte *page : pages)
+  {
+    if (page_get_page_no(page) != page_no ||
+        page_get_space_id(page) != space_id)
+      continue;
+    const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
+    if (lsn <= max_lsn)
+      continue;
+    max_lsn= lsn;
+    result= page;
+  }
 
-	lsn_t max_lsn = 0;
-
-	for (const byte* page : matches) {
-		lsn_t page_lsn = mach_read_from_8(page + FIL_PAGE_LSN);
-
-		if (page_lsn > max_lsn) {
-			max_lsn = page_lsn;
-			result = page;
-		}
-	}
-
-	return(result);
+  return result;
 }
 
 #ifndef DBUG_OFF

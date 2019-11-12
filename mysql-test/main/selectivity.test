@@ -1235,6 +1235,38 @@ set optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
 
 drop table t1,t2,t3;
 
+
+--echo #
+--echo # MDEV-20519: Query plan regression with optimizer_use_condition_selectivity=4
+--echo #
+
+
+
+create table t1 (id int, a int, PRIMARY KEY(id), key(a));
+insert into t1 select seq,seq from seq_1_to_100;
+
+create table t2 (id int, a int, b int, PRIMARY KEY(id), key(a), key(b));
+insert into t2 select seq,seq,seq from seq_1_to_100;
+
+set optimizer_switch='exists_to_in=off';
+set optimizer_use_condition_selectivity=2;
+
+let $query= SELECT * FROM t1
+            WHERE
+              EXISTS (SELECT * FROM t1 A INNER JOIN t2 ON t2.a = A.id
+                      WHERE A.a=t1.a AND t2.b < 20);
+
+eval $query;
+eval explain $query;
+
+EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65;
+
+eval explain $query;
+
+set optimizer_switch= @save_optimizer_switch;
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1,t2;
+
 --echo # End of 10.1 tests
 
 #

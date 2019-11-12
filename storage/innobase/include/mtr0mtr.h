@@ -130,62 +130,7 @@ struct mtr_memo_slot_t {
 
 /** Mini-transaction handle and buffer */
 struct mtr_t {
-
-	/** State variables of the mtr */
-	struct Impl {
-
-		/** memo stack for locks etc. */
-		mtr_buf_t	m_memo;
-
-		/** mini-transaction log */
-		mtr_buf_t	m_log;
-
-		/** true if mtr has made at least one buffer pool page dirty */
-		bool		m_made_dirty;
-
-		/** true if inside ibuf changes */
-		bool		m_inside_ibuf;
-
-		/** true if the mini-transaction modified buffer pool pages */
-		bool		m_modifications;
-
-		/** Count of how many page initial log records have been
-		written to the mtr log */
-		ib_uint32_t	m_n_log_recs;
-
-		/** specifies which operations should be logged; default
-		value MTR_LOG_ALL */
-		mtr_log_t	m_log_mode;
-#ifdef UNIV_DEBUG
-		/** Persistent user tablespace associated with the
-		mini-transaction, or 0 (TRX_SYS_SPACE) if none yet */
-		ulint		m_user_space_id;
-#endif /* UNIV_DEBUG */
-		/** User tablespace that is being modified by the
-		mini-transaction */
-		fil_space_t*	m_user_space;
-
-		/** State of the transaction */
-		mtr_state_t	m_state;
-
-		/** Flush Observer */
-		FlushObserver*	m_flush_observer;
-
-#ifdef UNIV_DEBUG
-		/** For checking corruption. */
-		ulint		m_magic_n;
-#endif /* UNIV_DEBUG */
-
-		/** Owning mini-transaction */
-		mtr_t*		m_mtr;
-	};
-
-	mtr_t()
-	{
-		m_impl.m_state = MTR_STATE_INIT;
-	}
-
-	~mtr_t() { }
+	mtr_t() : m_state(MTR_STATE_INIT) {}
 
 	/** Start a mini-transaction. */
 	void start();
@@ -207,14 +152,7 @@ struct mtr_t {
 
 	/** Return current size of the buffer.
 	@return	savepoint */
-	ulint get_savepoint() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		ut_ad(is_active());
-		ut_ad(m_impl.m_magic_n == MTR_MAGIC_N);
-
-		return(m_impl.m_memo.size());
-	}
+	ulint get_savepoint() const {ut_ad(is_active()); return m_memo.size();}
 
 	/** Release the (index tree) s-latch stored in an mtr memo after a
 	savepoint.
@@ -251,11 +189,11 @@ struct mtr_t {
 	the same set of tablespaces as this one */
 	void set_spaces(const mtr_t& mtr)
 	{
-		ut_ad(!m_impl.m_user_space_id);
-		ut_ad(!m_impl.m_user_space);
+		ut_ad(!m_user_space_id);
+		ut_ad(!m_user_space);
 
-		ut_d(m_impl.m_user_space_id = mtr.m_impl.m_user_space_id);
-		m_impl.m_user_space = mtr.m_impl.m_user_space;
+		ut_d(m_user_space_id = mtr.m_user_space_id);
+		m_user_space = mtr.m_user_space;
 	}
 
 	/** Set the tablespace associated with the mini-transaction
@@ -264,16 +202,16 @@ struct mtr_t {
 	@return	the tablespace */
 	fil_space_t* set_named_space_id(ulint space_id)
 	{
-		ut_ad(!m_impl.m_user_space_id);
-		ut_d(m_impl.m_user_space_id = space_id);
+		ut_ad(!m_user_space_id);
+		ut_d(m_user_space_id = space_id);
 		if (!space_id) {
 			return fil_system.sys_space;
 		} else {
-			ut_ad(m_impl.m_user_space_id == space_id);
-			ut_ad(!m_impl.m_user_space);
-			m_impl.m_user_space = fil_space_get(space_id);
-			ut_ad(m_impl.m_user_space);
-			return m_impl.m_user_space;
+			ut_ad(m_user_space_id == space_id);
+			ut_ad(!m_user_space);
+			m_user_space = fil_space_get(space_id);
+			ut_ad(m_user_space);
+			return m_user_space;
 		}
 	}
 
@@ -282,10 +220,10 @@ struct mtr_t {
 	@param[in]	space	user or system tablespace */
 	void set_named_space(fil_space_t* space)
 	{
-		ut_ad(!m_impl.m_user_space_id);
-		ut_d(m_impl.m_user_space_id = space->id);
+		ut_ad(!m_user_space_id);
+		ut_d(m_user_space_id = space->id);
 		if (space->id) {
-			m_impl.m_user_space = space;
+			m_user_space = space;
 		}
 	}
 
@@ -345,18 +283,12 @@ struct mtr_t {
 	void release_page(const void* ptr, mtr_memo_type_t type);
 
 	/** Note that the mini-transaction has modified data. */
-	void set_modified()
-	{
-		m_impl.m_modifications = true;
-	}
+	void set_modified() { m_modifications = true; }
 
 	/** Set the state to not-modified. This will not log the
 	changes.  This is only used during redo log apply, to avoid
 	logging the changes. */
-	void discard_modifications()
-	{
-		m_impl.m_modifications = false;
-	}
+	void discard_modifications() { m_modifications = false; }
 
 	/** Get the LSN of commit().
 	@return the commit LSN
@@ -368,45 +300,28 @@ struct mtr_t {
 	}
 
 	/** Note that we are inside the change buffer code. */
-	void enter_ibuf()
-	{
-		m_impl.m_inside_ibuf = true;
-	}
+	void enter_ibuf() { m_inside_ibuf = true; }
 
 	/** Note that we have exited from the change buffer code. */
-	void exit_ibuf()
-	{
-		m_impl.m_inside_ibuf = false;
-	}
+	void exit_ibuf() { m_inside_ibuf = false; }
 
 	/** @return true if we are inside the change buffer code */
-	bool is_inside_ibuf() const
-	{
-		return(m_impl.m_inside_ibuf);
-	}
+	bool is_inside_ibuf() const { return m_inside_ibuf; }
 
 	/*
 	@return true if the mini-transaction is active */
-	bool is_active() const
-	{
-		return(m_impl.m_state == MTR_STATE_ACTIVE);
-	}
+	bool is_active() const { return m_state == MTR_STATE_ACTIVE; }
 
 	/** Get flush observer
 	@return flush observer */
-	FlushObserver* get_flush_observer() const
-	{
-		return(m_impl.m_flush_observer);
-	}
+	FlushObserver* get_flush_observer() const { return m_flush_observer; }
 
 	/** Set flush observer
 	@param[in]	observer	flush observer */
 	void set_flush_observer(FlushObserver*	observer)
 	{
-		ut_ad(observer == NULL
-		      || m_impl.m_log_mode == MTR_LOG_NO_REDO);
-
-		m_impl.m_flush_observer = observer;
+		ut_ad(observer == NULL || m_log_mode == MTR_LOG_NO_REDO);
+		m_flush_observer = observer;
 	}
 
 #ifdef UNIV_DEBUG
@@ -446,65 +361,31 @@ struct mtr_t {
 	void print() const;
 
 	/** @return true if the mini-transaction has committed */
-	bool has_committed() const
-	{
-		return(m_impl.m_state == MTR_STATE_COMMITTED);
-	}
-
-	/** @return true if the mini-transaction is committing */
-	bool is_committing() const
-	{
-		return(m_impl.m_state == MTR_STATE_COMMITTING);
-	}
+	bool has_committed() const { return m_state == MTR_STATE_COMMITTED; }
 
 	/** @return true if mini-transaction contains modifications. */
-	bool has_modifications() const
-	{
-		return(m_impl.m_modifications);
-	}
+	bool has_modifications() const { return m_modifications; }
 
 	/** @return the memo stack */
-	const mtr_buf_t* get_memo() const
-	{
-		return(&m_impl.m_memo);
-	}
+	const mtr_buf_t* get_memo() const { return &m_memo; }
 
 	/** @return the memo stack */
-	mtr_buf_t* get_memo()
-	{
-		return(&m_impl.m_memo);
-	}
+	mtr_buf_t* get_memo() { return &m_memo; }
 #endif /* UNIV_DEBUG */
 
 	/** @return true if a record was added to the mini-transaction */
-	bool is_dirty() const
-	{
-		return(m_impl.m_made_dirty);
-	}
+	bool is_dirty() const { return m_made_dirty; }
 
 	/** Note that a record has been added to the log */
-	void added_rec()
-	{
-		++m_impl.m_n_log_recs;
-	}
+	void added_rec() { ++m_n_log_recs; }
 
 	/** Get the buffered redo log of this mini-transaction.
 	@return	redo log */
-	const mtr_buf_t* get_log() const
-	{
-		ut_ad(m_impl.m_magic_n == MTR_MAGIC_N);
-
-		return(&m_impl.m_log);
-	}
+	const mtr_buf_t* get_log() const { return &m_log; }
 
 	/** Get the buffered redo log of this mini-transaction.
 	@return	redo log */
-	mtr_buf_t* get_log()
-	{
-		ut_ad(m_impl.m_magic_n == MTR_MAGIC_N);
-
-		return(&m_impl.m_log);
-	}
+	mtr_buf_t* get_log() { return &m_log; }
 
 	/** Push an object to an mtr memo stack.
 	@param object	object
@@ -518,15 +399,56 @@ struct mtr_t {
 		MY_ATTRIBUTE((warn_unused_result));
 
 private:
-	class Command;
+	/** Prepare to write the mini-transaction log to the redo log buffer.
+	@return number of bytes to write in finish_write() */
+	inline ulint prepare_write();
 
-	friend class Command;
+	/** Append the redo log records to the redo log buffer.
+	@param[in]	len	number of bytes to write
+	@return start_lsn */
+	inline lsn_t finish_write(ulint len);
 
-private:
-	Impl			m_impl;
+	/** Release the resources */
+	inline void release_resources();
+
+	/** memo stack for locks etc. */
+	mtr_buf_t	m_memo;
+
+	/** mini-transaction log */
+	mtr_buf_t	m_log;
+
+	/** true if mtr has made at least one buffer pool page dirty */
+	bool		m_made_dirty;
+
+	/** true if inside ibuf changes */
+	bool		m_inside_ibuf;
+
+	/** true if the mini-transaction modified buffer pool pages */
+	bool		m_modifications;
+
+	/** Count of how many page initial log records have been
+	written to the mtr log */
+	ib_uint32_t	m_n_log_recs;
+
+	/** specifies which operations should be logged; default
+	value MTR_LOG_ALL */
+	mtr_log_t	m_log_mode;
+#ifdef UNIV_DEBUG
+	/** Persistent user tablespace associated with the
+	mini-transaction, or 0 (TRX_SYS_SPACE) if none yet */
+	ulint		m_user_space_id;
+#endif /* UNIV_DEBUG */
+	/** User tablespace that is being modified by the mini-transaction */
+	fil_space_t*	m_user_space;
+
+	/** State of the transaction */
+	mtr_state_t	m_state;
+
+	/** Flush Observer */
+	FlushObserver*	m_flush_observer;
 
 	/** LSN at commit time */
-	volatile lsn_t		m_commit_lsn;
+	lsn_t		m_commit_lsn;
 };
 
 #include "mtr0mtr.ic"
