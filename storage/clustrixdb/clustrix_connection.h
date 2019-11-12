@@ -21,6 +21,12 @@ Copyright (c) 2019, MariaDB Corporation.
 
 #define CLUSTRIX_SERVER_REQUEST 30
 
+typedef enum clustrix_upsert_flags {
+    CLUSTRIX_HAS_UPSERT= 1,
+    CLUSTRIX_BULK_UPSERT= 2,
+    CLUSTRIX_UPSERT_SENT= 4
+} clx_upsert_flags_t;
+
 class clustrix_connection_cursor;
 class clustrix_connection
 {
@@ -37,6 +43,7 @@ private:
   size_t reply_length;
 
   bool has_transaction;
+  uint upsert_flag;
   bool has_anonymous_savepoint;
   int commit_flag_next;
 
@@ -48,6 +55,7 @@ public:
     memset(&clustrix_net, 0, sizeof(MYSQL));
     has_anonymous_savepoint = FALSE;
     has_transaction = FALSE;
+    upsert_flag = 0;
     commit_flag_next = 0;
     DBUG_VOID_RETURN;
   }
@@ -80,6 +88,21 @@ public:
   inline bool has_open_transaction()
   {
     return has_transaction;
+  }
+
+  inline void unset_upsert(clx_upsert_flags_t state)
+  {
+    upsert_flag &= ~state;
+  }
+
+  inline void set_upsert(clx_upsert_flags_t state)
+  {
+    upsert_flag |= state;
+  }
+
+  inline bool check_upsert(clx_upsert_flags_t state)
+  {
+    return upsert_flag & state;
   }
 
   bool set_anonymous_savepoint();
