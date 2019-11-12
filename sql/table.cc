@@ -5248,6 +5248,8 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   update_handler= NULL;
   check_unique_buf= NULL;
   vers_write= s->versioned;
+  quick_condition_rows=0;
+  initialize_quick_structures();
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;
@@ -9742,4 +9744,22 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
       return true;
   }
   return false;
+}
+
+/*
+  @brief
+    Initialize all the quick structures that are used to stored the
+    estimates when the range optimizer is run.
+  @details
+    This is specifically needed when we read the TABLE structure from the
+    table cache. There can be some garbage data from previous queries
+    that need to be reset here.
+*/
+
+void TABLE::initialize_quick_structures()
+{
+  bzero(quick_rows, sizeof(quick_rows));
+  bzero(quick_key_parts, sizeof(quick_key_parts));
+  bzero(quick_costs, sizeof(quick_costs));
+  bzero(quick_n_ranges, sizeof(quick_n_ranges));
 }

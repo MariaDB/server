@@ -9090,7 +9090,6 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           something went wrong.
 	*/
         sel /= (double)table->quick_rows[key] / (double) table->stat_records();
-        // MDEV-20595 FIXME: DBUG_ASSERT(sel > 0 && sel <= 2.0);
         set_if_smaller(sel, 1.0);
         used_range_selectivity= true;
       }
@@ -9139,7 +9138,6 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
               if (table->field[fldno]->cond_selectivity > 0)
               {
                 sel /= table->field[fldno]->cond_selectivity;
-                // MDEV-20595 FIXME: DBUG_ASSERT(sel > 0 && sel <= 2.0);
                 set_if_smaller(sel, 1.0);
               }
               /* 
@@ -9197,7 +9195,6 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           if (field->cond_selectivity > 0)
           {
             sel/= field->cond_selectivity;
-            // MDEV-20595 FIXME: DBUG_ASSERT(sel > 0 && sel <= 2.0);
             set_if_smaller(sel, 1.0);
           }
           break;
@@ -9209,7 +9206,6 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   sel*= table_multi_eq_cond_selectivity(join, idx, s, rem_tables,
                                         keyparts, ref_keyuse_steps);
 
-  DBUG_ASSERT(0.0 < sel && sel <= 1.0);
   return sel;
 }
 
