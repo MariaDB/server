@@ -152,8 +152,6 @@ void ORAerror(THD *thd, const char *s)
 }
 
 
-
-
 #define bincmp_collation(X,Y)           \
   do                                    \
   {                                     \
