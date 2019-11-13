@@ -1355,7 +1355,7 @@ dict_check_if_system_table_exists(
 	dict_table_t*	sys_table;
 	dberr_t		error = DB_SUCCESS;
 
-	ut_a(!srv_any_background_activity());
+	ut_ad(!srv_any_background_activity());
 
 	mutex_enter(&dict_sys.mutex);
 
@@ -1395,7 +1395,7 @@ dict_create_or_check_foreign_constraint_tables(void)
 	dberr_t		sys_foreign_err;
 	dberr_t		sys_foreign_cols_err;
 
-	ut_a(!srv_any_background_activity());
+	ut_ad(!srv_any_background_activity());
 
 	/* Note: The master thread has not been started at this point. */
 
@@ -1537,7 +1537,7 @@ dict_create_or_check_sys_virtual()
 	my_bool		srv_file_per_table_backup;
 	dberr_t		err;
 
-	ut_a(!srv_any_background_activity());
+	ut_ad(!srv_any_background_activity());
 
 	/* Note: The master thread has not been started at this point. */
 	err = dict_check_if_system_table_exists(
@@ -2064,7 +2064,7 @@ dict_create_or_check_sys_tablespace(void)
 	dberr_t		sys_tablespaces_err;
 	dberr_t		sys_datafiles_err;
 
-	ut_a(!srv_any_background_activity());
+	ut_ad(!srv_any_background_activity());
 
 	/* Note: The master thread has not been started at this point. */
 

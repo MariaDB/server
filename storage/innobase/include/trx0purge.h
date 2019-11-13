@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -53,16 +53,12 @@ Remove the undo log segment from the rseg slot if it is too big for reuse.
 @param[in,out]	mtr		mini-transaction */
 void
 trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr);
-/*******************************************************************//**
-This function runs a purge batch.
+/**
+Run a purge batch.
+@param n_tasks   number of purge tasks to submit to the queue
+@param truncate  whether to truncate the history at the end of the batch
 @return number of undo log pages handled in the batch */
-ulint
-trx_purge(
-/*======*/
-	ulint	n_purge_threads,	/*!< in: number of purge tasks to
-					submit to task queue. */
-	bool	truncate		/*!< in: truncate history if true */
-);
+ulint trx_purge(ulint n_tasks, bool truncate);
 
 /** Rollback segements from a given transaction with trx-no
 scheduled for purge. */
@@ -224,7 +220,7 @@ public:
     uninitialised. Real initialisation happens in create().
   */
 
-  purge_sys_t():m_initialized(false),m_enabled(false) {}
+  purge_sys_t(): m_initialized(false), m_enabled(false) {}
 
 
   /** Create the instance */

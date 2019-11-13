@@ -3274,8 +3274,8 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 
 	/* At this point all threads including the master and the purge
 	thread must have been suspended. */
-	ut_a(!srv_any_background_activity());
-	ut_a(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE);
+	ut_ad(!srv_any_background_activity());
+	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE);
 
 	/* We can now make a final sweep on flushing the buffer pool
 	and exit after we have cleaned the whole buffer pool.
@@ -3306,8 +3306,8 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 	} while (!success || n_flushed > 0);
 
 	/* Some sanity checks */
-	ut_a(!srv_any_background_activity());
-	ut_a(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE);
+	ut_ad(!srv_any_background_activity());
+	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE);
 
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
 		buf_pool_t* buf_pool = buf_pool_from_array(i);

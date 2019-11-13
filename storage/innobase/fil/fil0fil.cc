@@ -4331,13 +4331,11 @@ fil_io(
 #include <tpool.h>
 /**********************************************************************/
 
-/* Callback for AIO completion */
-void
-fil_aio_callback(const tpool::aiocb *cb)
+/** Callback for AIO completion */
+void fil_aio_callback(const tpool::aiocb *cb)
 {
 	os_aio_userdata_t *data=(os_aio_userdata_t *)cb->m_userdata;
 	fil_node_t* node= data->node;
-	IORequest	type = data->type;
 	void* message = data->message;
 
 	ut_ad(fil_validate_skip());
@@ -4351,7 +4349,7 @@ fil_aio_callback(const tpool::aiocb *cb)
 
 	mutex_enter(&fil_system.mutex);
 
-	fil_node_complete_io(node, type);
+	fil_node_complete_io(node, data->type);
 	ut_ad(node->space->purpose != FIL_TYPE_LOG);
 	const ulint		space_id= node->space->id;
 	bool			dblwr	= node->space->use_doublewrite();
@@ -4384,7 +4382,7 @@ fil_aio_callback(const tpool::aiocb *cb)
 		return;
 	}
 
-	ut_ad(type.is_read());
+	ut_ad(data->type.is_read());
 	if (recv_recovery_is_on() && !srv_force_recovery) {
 		recv_sys.found_corrupt_fs = true;
 	}

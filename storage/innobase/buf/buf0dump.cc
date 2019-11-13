@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -59,7 +59,7 @@ take after being waked up. */
 static volatile bool	buf_dump_should_start;
 static volatile bool	buf_load_should_start;
 
-static ibool	buf_load_abort_flag = FALSE;
+static bool	buf_load_abort_flag;
 
 /* Used to temporary store dump info in order to avoid IO while holding
 buffer pool mutex during dump and also to sort the contents of the dump
@@ -72,30 +72,18 @@ typedef ib_uint64_t	buf_dump_t;
 #define BUF_DUMP_SPACE(a)		((ulint) ((a) >> 32))
 #define BUF_DUMP_PAGE(a)		((ulint) ((a) & 0xFFFFFFFFUL))
 
-/*****************************************************************//**
-Wakes up the buffer pool dump/load thread and instructs it to start
-a dump. This function is called by MySQL code via buffer_pool_dump_now()
-and it should return immediately because the whole MySQL is frozen during
-its execution. */
-void
-buf_dump_start()
-/*============*/
+/** Start the buffer pool dump/load task and instructs it to start a dump. */
+void buf_dump_start()
 {
-	buf_dump_should_start = true;
-	buf_do_load_dump();
+  buf_dump_should_start= true;
+  buf_do_load_dump();
 }
 
-/*****************************************************************//**
-Wakes up the buffer pool dump/load thread and instructs it to start
-a load. This function is called by MySQL code via buffer_pool_load_now()
-and it should return immediately because the whole MySQL is frozen during
-its execution. */
-void
-buf_load_start()
-/*============*/
+/** Start the buffer pool dump/load task and instructs it to start a load. */
+void buf_load_start()
 {
-	buf_load_should_start = true;
-	buf_do_load_dump();
+  buf_load_should_start= true;
+  buf_do_load_dump();
 }
 
 /*****************************************************************//**
@@ -536,7 +524,7 @@ buf_load()
 	int		fscanf_ret;
 
 	/* Ignore any leftovers from before */
-	buf_load_abort_flag = FALSE;
+	buf_load_abort_flag = false;
 
 	buf_dump_generate_path(full_filename, sizeof(full_filename));
 
@@ -727,7 +715,7 @@ buf_load()
 			if (space != NULL) {
 				space->release();
 			}
-			buf_load_abort_flag = FALSE;
+			buf_load_abort_flag = false;
 			ut_free(dump);
 			buf_load_status(
 				STATUS_INFO,
@@ -750,7 +738,7 @@ buf_load()
 
 #ifdef UNIV_DEBUG
 		if ((i+1) >= srv_buf_pool_load_pages_abort) {
-			buf_load_abort_flag = 1;
+			buf_load_abort_flag = true;
 		}
 #endif
 	}
@@ -789,15 +777,10 @@ buf_load()
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 }
 
-/*****************************************************************//**
-Aborts a currently running buffer pool load. This function is called by
-MySQL code via buffer_pool_load_abort() and it should return immediately
-because the whole MySQL is frozen during its execution. */
-void
-buf_load_abort()
-/*============*/
+/** Abort a currently running buffer pool load. */
+void buf_load_abort()
 {
-	buf_load_abort_flag = TRUE;
+  buf_load_abort_flag= true;
 }
 
 /*****************************************************************//**
@@ -850,30 +833,28 @@ static void buf_dump_load_func(void *)
 }
 
 
-/* Execute tak with max.concurrency */
-tpool::task_group tpool_group(1);
+/* Execute task with max.concurrency */
+static tpool::task_group tpool_group(1);
 static tpool::waitable_task buf_dump_load_task(buf_dump_load_func, &tpool_group);
 static bool load_dump_enabled;
 
 /** Start async buffer pool load, if srv_buffer_pool_load_at_startup was set.*/
 void buf_load_at_startup()
 {
-	load_dump_enabled = true;
-	if (srv_buffer_pool_load_at_startup) {
-		buf_do_load_dump();
-	}
+  load_dump_enabled= true;
+  if (srv_buffer_pool_load_at_startup)
+    buf_do_load_dump();
 }
 
 static void buf_do_load_dump()
 {
-	if (!load_dump_enabled || buf_dump_load_task.is_running())
-		return;
-	srv_thread_pool->submit_task(&buf_dump_load_task);
+  if (load_dump_enabled && !buf_dump_load_task.is_running())
+    srv_thread_pool->submit_task(&buf_dump_load_task);
 }
 
 /** Wait for currently running load/dumps to finish*/
 void buf_load_dump_end()
 {
-	ut_ad(SHUTTING_DOWN());
-	buf_dump_load_task.wait();
+  ut_ad(SHUTTING_DOWN());
+  buf_dump_load_task.wait();
 }

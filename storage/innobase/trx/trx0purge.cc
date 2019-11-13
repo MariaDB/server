@@ -173,17 +173,16 @@ void purge_sys_t::create()
   mutex_create(LATCH_ID_PURGE_SYS_PQ, &pq_mutex);
   truncate.current= NULL;
   truncate.last= NULL;
-  m_initialized = true;
-
+  m_initialized= true;
 }
 
 /** Close the purge subsystem on shutdown. */
 void purge_sys_t::close()
 {
+  ut_ad(this == &purge_sys);
   if (!m_initialized)
     return;
 
-  ut_ad(this == &purge_sys);
   ut_ad(!enabled());
   trx_t* trx = query->trx;
   que_graph_free(query);
@@ -193,7 +192,7 @@ void purge_sys_t::close()
   trx_free(trx);
   rw_lock_free(&latch);
   mutex_free(&pq_mutex);
-  m_initialized = false;
+  m_initialized= false;
 }
 
 /*================ UNDO LOG HISTORY LIST =============================*/
@@ -1252,31 +1251,25 @@ trx_purge_dml_delay(void)
 extern tpool::waitable_task purge_worker_task;
 
 /** Wait for pending purge jobs to complete. */
-static
-void
-trx_purge_wait_for_workers_to_complete()
+static void trx_purge_wait_for_workers_to_complete()
 {
-	purge_worker_task.wait();
-	/* There should be no outstanding tasks as long
-	as the worker threads are active. */
-	ut_a(srv_get_task_queue_length() == 0);
+  purge_worker_task.wait();
+  /* There should be no outstanding tasks as long
+  as the worker threads are active. */
+  ut_ad(srv_get_task_queue_length() == 0);
 }
 
-/*******************************************************************//**
-This function runs a purge batch.
+/**
+Run a purge batch.
+@param n_tasks   number of purge tasks to submit to the queue
+@param truncate  whether to truncate the history at the end of the batch
 @return number of undo log pages handled in the batch */
-ulint
-trx_purge(
-/*======*/
-	ulint	n_purge_threads,	/*!< in: number of purge tasks
-					to submit to the work queue */
-	bool	truncate		/*!< in: truncate history if true */
-)
+ulint trx_purge(ulint n_tasks, bool truncate)
 {
 	que_thr_t*	thr = NULL;
 	ulint		n_pages_handled;
 
-	ut_a(n_purge_threads > 0);
+	ut_ad(n_tasks > 0);
 
 	srv_dml_needed_delay = trx_purge_dml_delay();
 
@@ -1291,10 +1284,10 @@ trx_purge(
 #endif /* UNIV_DEBUG */
 
 	/* Fetch the UNDO recs that need to be purged. */
-	n_pages_handled = trx_purge_attach_undo_recs(n_purge_threads);
+	n_pages_handled = trx_purge_attach_undo_recs(n_tasks);
 
 	/* Submit tasks to workers queue if using multi-threaded purge. */
-	for (ulint i = 0; i < n_purge_threads-1; i++) {
+	for (ulint i = n_tasks; --i; ) {
 		thr = que_fork_scheduler_round_robin(purge_sys.query, thr);
 		ut_a(thr);
 		srv_que_task_enqueue_low(thr);

@@ -390,7 +390,7 @@ dberr_t
 SysTablespace::set_size(
 	Datafile&	file)
 {
-	ut_a(!srv_read_only_mode || m_ignore_read_only);
+	ut_ad(!srv_read_only_mode || m_ignore_read_only);
 
 	/* We created the data file and now write it full of zeros */
 	ib::info() << "Setting file '" << file.filepath() << "' size to "
@@ -425,7 +425,7 @@ SysTablespace::create_file(
 	dberr_t	err = DB_SUCCESS;
 
 	ut_a(!file.m_exists);
-	ut_a(!srv_read_only_mode || m_ignore_read_only);
+	ut_ad(!srv_read_only_mode || m_ignore_read_only);
 
 	switch (file.m_type) {
 	case SRV_NEW_RAW:

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -97,16 +97,12 @@ dict_stats_wait_bg_to_stop_using_table(
 /*****************************************************************//**
 Initialize global variables needed for the operation of dict_stats_thread().
 Must be called before dict_stats task is started. */
-void
-dict_stats_init();
-/*====================*/
+void dict_stats_init();
 
 /*****************************************************************//**
 Free resources allocated by dict_stats_thread_init(), must be called
 after dict_stats task has exited. */
-void
-dict_stats_deinit();
-/*======================*/
+void dict_stats_deinit();
 
 #ifdef UNIV_DEBUG
 /** Disables dict stats thread. It's used by:
@@ -116,17 +112,13 @@ void dict_stats_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
 				      const void* save);
 #endif /* UNIV_DEBUG */
 
-
-/** Start the dict stats timer */
-void
-dict_stats_start();
+/** Start the dict stats timer. */
+void dict_stats_start();
 
 /** Shut down the dict_stats timer. */
-void
-dict_stats_shutdown();
+void dict_stats_shutdown();
 
-/** reschedule dict stats timer to run now. */
-void
-dict_stats_schedule_now();
+/** Reschedule dict stats timer to run now. */
+void dict_stats_schedule_now();
 
 #endif /* dict0stats_bg_h */

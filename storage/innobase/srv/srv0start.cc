@@ -510,11 +510,7 @@ srv_undo_tablespace_create(
 		srv_read_only_mode ? OS_FILE_OPEN : OS_FILE_CREATE,
 		OS_FILE_NORMAL, OS_DATA_FILE, srv_read_only_mode, &ret);
 
-	if (srv_read_only_mode && ret) {
-
-		ib::info() << name << " opened in read-only mode";
-
-	} else if (ret == FALSE) {
+	if (!ret) {
 		if (os_file_get_last_error(false) != OS_FILE_ALREADY_EXISTS
 #ifdef UNIV_AIX
 			/* AIX 5.1 after security patch ML7 may have
@@ -527,9 +523,9 @@ srv_undo_tablespace_create(
 				<< name;
 		}
 		err = DB_ERROR;
+	} else if (srv_read_only_mode) {
+		ib::info() << name << " opened in read-only mode";
 	} else {
-		ut_a(!srv_read_only_mode);
-
 		/* We created the data file and now write it full of zeros */
 
 		ib::info() << "Data file " << name << " did not exist: new to"
@@ -1691,7 +1687,7 @@ files_checked:
 	trx_sys.create();
 
 	if (create_new_db) {
-		ut_a(!srv_read_only_mode);
+		ut_ad(!srv_read_only_mode);
 
 		mtr_start(&mtr);
 		ut_ad(fil_system.sys_space->id == 0);
@@ -2282,29 +2278,23 @@ void srv_shutdown_bg_undo_sources()
 }
 
 /**
-Perform pre-shutdown task.
-
-Since purge tasks vall into server (some MDL acqusition,
-and compute virtual functions), let them shut down right
-after use connections go down while the rest of the server
-infrasture is still intact.
+  Shutdown purge to make sure that there is no possibility that we call any
+  plugin code (e.g., audit) inside virtual column computation.
 */
 void innodb_preshutdown()
 {
-	static bool first_time = true;
-	if (!first_time)
-		return;
-	first_time = false;
+  static bool first_time= true;
+  if (!first_time)
+    return;
+  first_time= false;
 
-	if (!srv_read_only_mode) {
-		if (!srv_fast_shutdown && srv_operation == SRV_OPERATION_NORMAL) {
-			while (trx_sys.any_active_transactions()) {
-				os_thread_sleep(1000);
-			}
-		}
-		srv_shutdown_bg_undo_sources();
-		srv_purge_shutdown();
-	}
+  if (srv_read_only_mode)
+    return;
+  if (!srv_fast_shutdown && srv_operation == SRV_OPERATION_NORMAL)
+    while (trx_sys.any_active_transactions())
+      os_thread_sleep(1000);
+  srv_shutdown_bg_undo_sources();
+  srv_purge_shutdown();
 }
 
 
@@ -2461,5 +2451,3 @@ srv_get_meta_data_filename(
 
 	ut_free(path);
 }
-
-

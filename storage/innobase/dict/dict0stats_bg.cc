@@ -284,11 +284,9 @@ dict_stats_wait_bg_to_stop_using_table(
 /*****************************************************************//**
 Initialize global variables needed for the operation of dict_stats_thread()
 Must be called before dict_stats_thread() is started. */
-void
-dict_stats_init()
+void dict_stats_init()
 {
-	ut_a(!srv_read_only_mode);
-
+	ut_ad(!srv_read_only_mode);
 
 	/* The recalc_pool_mutex is acquired from:
 	1) the background stats gathering thread before any other latch
@@ -313,15 +311,13 @@ dict_stats_init()
 /*****************************************************************//**
 Free resources allocated by dict_stats_init(), must be called
 after dict_stats task has exited. */
-void
-dict_stats_deinit()
-/*======================*/
+void dict_stats_deinit()
 {
 	if (!stats_initialised) {
 		return;
 	}
 
-	ut_a(!srv_read_only_mode);
+	ut_ad(!srv_read_only_mode);
 	stats_initialised = false;
 
 	dict_stats_recalc_pool_deinit();
@@ -427,7 +423,7 @@ void dict_stats_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
 #endif /* UNIV_DEBUG */
 
 static tpool::timer* dict_stats_timer;
-std::mutex dict_stats_mutex;
+static std::mutex dict_stats_mutex;
 
 static void dict_stats_func(void*)
 {
@@ -438,31 +434,28 @@ static void dict_stats_func(void*)
 
 void dict_stats_start()
 {
-	std::lock_guard<std::mutex> lk(dict_stats_mutex);
-	if (dict_stats_timer) {
-		return;
-	}
-	dict_stats_timer = srv_thread_pool->create_timer(dict_stats_func);
+  std::lock_guard<std::mutex> lk(dict_stats_mutex);
+  if (!dict_stats_timer)
+    dict_stats_timer= srv_thread_pool->create_timer(dict_stats_func);
 }
 
 
 static void dict_stats_schedule(int ms)
 {
-	std::lock_guard<std::mutex> lk(dict_stats_mutex);
-	if(dict_stats_timer) {
-		dict_stats_timer->set_time(ms,0);
-	}
+  std::lock_guard<std::mutex> lk(dict_stats_mutex);
+  if (dict_stats_timer)
+    dict_stats_timer->set_time(ms,0);
 }
 
 void dict_stats_schedule_now()
 {
-	dict_stats_schedule(0);
+  dict_stats_schedule(0);
 }
 
 /** Shut down the dict_stats_thread. */
 void dict_stats_shutdown()
 {
-	std::lock_guard<std::mutex> lk(dict_stats_mutex);
-	delete dict_stats_timer;
-	dict_stats_timer = 0;
+  std::lock_guard<std::mutex> lk(dict_stats_mutex);
+  delete dict_stats_timer;
+  dict_stats_timer= 0;
 }

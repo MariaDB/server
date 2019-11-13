@@ -501,33 +501,31 @@ lock_wait_check_and_cancel(
 	}
 }
 
-/** Task that is periodically runs in the thread pool*/
+/** A task which wakes up threads whose lock wait may have lasted too long */
 void lock_wait_timeout_task(void*)
 {
-	lock_wait_mutex_enter();
+  lock_wait_mutex_enter();
 
-	/* Check all slots for user threads that are waiting
-	on locks, and if they have exceeded the time limit. */
-	bool any_slot_in_use  = false;
-	for (srv_slot_t* slot = lock_sys.waiting_threads;
-		slot < lock_sys.last_slot;
-		++slot) {
+  /* Check all slots for user threads that are waiting
+  on locks, and if they have exceeded the time limit. */
+  bool any_slot_in_use= false;
+  for (srv_slot_t *slot= lock_sys.waiting_threads;
+       slot < lock_sys.last_slot; ++slot)
+  {
+    /* We are doing a read without the lock mutex and/or the trx
+    mutex. This is OK because a slot can't be freed or reserved
+    without the lock wait mutex. */
+    if (slot->in_use)
+    {
+      any_slot_in_use= true;
+      lock_wait_check_and_cancel(slot);
+    }
+  }
 
-		/* We are doing a read without the lock mutex
-		and/or the trx mutex. This is OK because a slot
-		can't be freed or reserved without the lock wait
-		mutex. */
+  if (any_slot_in_use)
+    lock_sys.timeout_timer->set_time(1000, 0);
+  else
+    lock_sys.timeout_timer_active= false;
 
-		if (slot->in_use) {
-			any_slot_in_use = true;
-			lock_wait_check_and_cancel(slot);
-		}
-	}
-	if (any_slot_in_use) {
-		lock_sys.timeout_timer->set_time(1000, 0);
-	} else {
-		lock_sys.timeout_timer_active = false;
-	}
-	lock_wait_mutex_exit();
+  lock_wait_mutex_exit();
 }
-

@@ -646,8 +646,7 @@ lock_table_has_locks(
 					held on records in this table or on the
 					table itself */
 
-/*********************************************************************//**
-A task which wakes up threads whose lock wait may have lasted too long. */
+/** A task which wakes up threads whose lock wait may have lasted too long */
 void lock_wait_timeout_task(void*);
 
 /********************************************************************//**

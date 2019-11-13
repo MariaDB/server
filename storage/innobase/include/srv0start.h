@@ -50,7 +50,7 @@ dberr_t srv_start(bool create_new_db);
 
 /**
   Shutdown purge to make sure that there is no possibility that we call any
-  plugin code (e.g audit) inside virtual column computation.
+  plugin code (e.g., audit) inside virtual column computation.
 */
 void innodb_preshutdown();
 

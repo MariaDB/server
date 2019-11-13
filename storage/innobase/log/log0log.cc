@@ -1605,7 +1605,7 @@ wait_suspend_loop:
 
 	/* Check that the background threads are suspended */
 
-	ut_a(!srv_any_background_activity());
+	ut_ad(!srv_any_background_activity());
 	if (srv_n_fil_crypt_threads_started) {
 		os_event_set(fil_crypt_threads_event);
 		thread_name = "fil_crypt_thread";
@@ -1728,7 +1728,7 @@ wait_suspend_loop:
 	srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
 
 	/* Make some checks that the server really is quiet */
-	ut_a(!srv_any_background_activity());
+	ut_ad(!srv_any_background_activity());
 
 	service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 				       "Free innodb buffer pool");
@@ -1756,7 +1756,7 @@ wait_suspend_loop:
 	fil_close_all_files();
 
 	/* Make some checks that the server really is quiet */
-	ut_a(!srv_any_background_activity());
+	ut_ad(!srv_any_background_activity());
 
 	ut_a(lsn == log_sys.lsn
 	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);

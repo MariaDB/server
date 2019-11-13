@@ -57,7 +57,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "field.h"
 #include "srv0srv.h"
 
-
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 // MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
 
@@ -104,7 +103,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "row0upd.h"
 #include "fil0crypt.h"
 #include "srv0mon.h"
-#include "srv0srv.h"
 #include "srv0start.h"
 #ifdef UNIV_DEBUG
 #include "trx0purge.h"
