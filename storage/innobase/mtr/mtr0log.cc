@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -139,6 +139,7 @@ mlog_parse_nbytes(
 
 	ut_ad(type <= MLOG_8BYTES || type == MLOG_MEMSET);
 	ut_a(!page || !page_zip
+	     || type == MLOG_MEMSET
 	     || !fil_page_index_page_check(page));
 	if (end_ptr < ptr + 2) {
 		return NULL;
@@ -164,6 +165,8 @@ mlog_parse_nbytes(
 		if (page) {
 			memset(page + offset, *ptr, val);
 			if (page_zip) {
+				ut_ad(offset + val <= PAGE_DATA
+				      || !fil_page_index_page_check(page));
 				memset(static_cast<page_zip_des_t*>(page_zip)
 				       ->data + offset, *ptr, val);
 			}

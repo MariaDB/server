@@ -1156,8 +1156,23 @@ btr_create(
 	btr_page_set_index_id(page, page_zip, index_id, mtr);
 
 	/* Set the next node and previous node fields */
-	btr_page_set_next(page, page_zip, FIL_NULL, mtr);
-	btr_page_set_prev(page, page_zip, FIL_NULL, mtr);
+	compile_time_assert(FIL_PAGE_NEXT == FIL_PAGE_PREV + 4);
+	compile_time_assert(FIL_NULL == 0xffffffff);
+#if MYSQL_VERSION_ID < 100500
+	if (UNIV_LIKELY_NULL(page_zip)) {
+		/* Avoid tripping the ut_a() in mlog_parse_nbytes()
+		when crash-downgrading to an earlier MariaDB 10.4 version. */
+		btr_page_set_next(page, page_zip, FIL_NULL, mtr);
+		btr_page_set_prev(page, page_zip, FIL_NULL, mtr);
+	} else {
+		mlog_memset(block, FIL_PAGE_PREV, 8, 0xff, mtr);
+	}
+#else
+	mlog_memset(block, FIL_PAGE_PREV, 8, 0xff, mtr);
+	if (UNIV_LIKELY_NULL(page_zip)) {
+		memset(page_zip->data + FIL_PAGE_PREV, 0xff, 8);
+	}
+#endif
 
 	/* We reset the free bits for the page in a separate
 	mini-transaction to allow creation of several trees in the
@@ -1934,8 +1949,23 @@ btr_root_raise_and_insert(
 	btr_page_create(new_block, new_page_zip, index, level, mtr);
 
 	/* Set the next node and previous node fields of new page */
-	btr_page_set_next(new_page, new_page_zip, FIL_NULL, mtr);
-	btr_page_set_prev(new_page, new_page_zip, FIL_NULL, mtr);
+	compile_time_assert(FIL_PAGE_NEXT == FIL_PAGE_PREV + 4);
+	compile_time_assert(FIL_NULL == 0xffffffff);
+#if MYSQL_VERSION_ID < 100500
+	if (UNIV_LIKELY_NULL(new_page_zip)) {
+		/* Avoid tripping the ut_a() in mlog_parse_nbytes()
+		when crash-downgrading to an earlier MariaDB 10.4 version. */
+		btr_page_set_next(new_page, new_page_zip, FIL_NULL, mtr);
+		btr_page_set_prev(new_page, new_page_zip, FIL_NULL, mtr);
+	} else {
+		mlog_memset(new_block, FIL_PAGE_PREV, 8, 0xff, mtr);
+	}
+#else
+	mlog_memset(new_block, FIL_PAGE_PREV, 8, 0xff, mtr);
+	if (UNIV_LIKELY_NULL(new_page_zip)) {
+		memset(new_page_zip->data + FIL_PAGE_PREV, 0xff, 8);
+	}
+#endif
 
 	/* Copy the records from root to the new page one by one. */
 
