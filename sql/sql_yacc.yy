@@ -1258,9 +1258,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_constraint constraint opt_ident
         sp_block_label opt_place opt_db
 
-%type <lex_str>
-        sp_label
-
 %type <ident_sys>
         IDENT_sys
         ident
@@ -1609,7 +1606,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         sp_c_chistics sp_a_chistics sp_chistic sp_c_chistic xa
         opt_field_or_var_spec fields_or_vars opt_load_data_set_spec
         view_list_opt view_list view_select
-        trigger_tail sp_tail event_tail
+        trigger_tail event_tail
         install uninstall partition_entry binlog_base64_event
         normal_key_options normal_key_opts all_key_opt 
         spatial_key_options fulltext_key_options normal_key_opt 
@@ -1632,11 +1629,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
 %type <NONE> sp_proc_stmt_statement sp_proc_stmt_return
-             sp_proc_stmt_in_returns_clause
 %type <NONE> sp_proc_stmt_compound_ok
 %type <NONE> sp_proc_stmt_if
 %type <NONE> sp_labeled_control sp_unlabeled_control
-%type <NONE> sp_labeled_block sp_unlabeled_block sp_unlabeled_block_not_atomic
+%type <NONE> sp_labeled_block sp_unlabeled_block
 %type <NONE> sp_proc_stmt_continue_oracle
 %type <NONE> sp_proc_stmt_exit_oracle
 %type <NONE> sp_proc_stmt_leave
@@ -1656,8 +1652,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <num> sp_decl_idents sp_decl_idents_init_vars
 %type <num> sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
-%type <spblock> sp_decl_handler
-%type <spblock> sp_decls sp_decl sp_decl_body sp_decl_variable_list
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <for_loop> sp_for_loop_index_and_bounds
@@ -1708,6 +1702,19 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <vers_range_unit> opt_history_unit
 %type <vers_history_point> history_point
 %type <vers_column_versioning> with_or_without_system
+
+/* Start of sql_mode=DEFAULT specific declarations */
+%type <NONE> sp_tail
+%type <NONE> sp_unlabeled_block_not_atomic
+%type <NONE> sp_proc_stmt_in_returns_clause
+%type <lex_str> sp_label
+%type <spblock> sp_decl_handler
+%type <spblock> sp_decls
+%type <spblock> sp_decl
+%type <spblock> sp_decl_body
+%type <spblock> sp_decl_variable_list
+/* End of sql_mode=DEFAULT specific declarations */
+
 %%
 
 

@@ -1233,12 +1233,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         key_cache_name
         sp_opt_label BIN_NUM TEXT_STRING_filesystem
         opt_constraint constraint opt_ident
-        opt_package_routine_end_name
         sp_block_label opt_place opt_db
-
-%type <lex_str>
-        label_declaration_oracle
-        labels_declaration_oracle
 
 %type <ident_sys>
         IDENT_sys
@@ -1248,7 +1243,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ident_or_empty
         ident_table_alias
         ident_sysvar_name
-        ident_directly_assignable
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1264,7 +1258,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         IDENT_cli
         ident_cli
         ident_cli_set_usual_case
-        ident_cli_directly_assignable
 
 %type <kwd>
         keyword_data_type
@@ -1282,7 +1275,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         keyword_sysvar_type
         keyword_table_alias
         keyword_verb_clause
-        keyword_directly_assignable
         charset
         reserved_keyword_udt
         non_reserved_keyword_udt
@@ -1295,7 +1287,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         optionally_qualified_column_ident
 
 %type <simple_string>
-        remember_name remember_end remember_end_opt
+        remember_name remember_end
         remember_tok_start
         wild_and_where
 
@@ -1610,8 +1602,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_lock_wait_timeout
         opt_delete_gtid_domain
         asrow_attribute
-        set_assign
-        sp_tail_standalone
         opt_constraint_no_id
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -1620,7 +1610,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <NONE> sp_proc_stmt_if
 %type <NONE> sp_labeled_control sp_unlabeled_control
 %type <NONE> sp_labeled_block sp_unlabeled_block
-%type <NONE> sp_labelable_stmt
 %type <NONE> sp_proc_stmt_continue_oracle
 %type <NONE> sp_proc_stmt_exit_oracle
 %type <NONE> sp_proc_stmt_leave
@@ -1640,23 +1629,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <num> sp_decl_idents sp_decl_idents_init_vars
 %type <num> sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
-%type <spblock> sp_decl_body_list opt_sp_decl_body_list
-%type <spblock> sp_decl_vars
-%type <spblock> sp_decl_non_handler sp_decl_non_handler_list
-%type <spblock> sp_decl_handler sp_decl_handler_list opt_sp_decl_handler_list
-%type <spblock> package_implementation_routine_definition
-%type <spblock> package_implementation_item_declaration
-%type <spblock> package_implementation_declare_section
-%type <spblock> package_implementation_declare_section_list1
-%type <spblock> package_implementation_declare_section_list2
-%type <spblock_handlers> sp_block_statements_and_exceptions
-%type <spblock_handlers> package_implementation_executable_section
-%type <sp_instr_addr> sp_instr_addr
-%type <num> opt_exception_clause exception_handlers
-%type <lex> remember_lex package_routine_lex
-            package_specification_function
-            package_specification_procedure
-%type <spname> sp_name opt_sp_name
+%type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <for_loop> sp_for_loop_index_and_bounds
 %type <for_loop_bounds> sp_for_loop_bounds
@@ -1706,6 +1679,42 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <vers_range_unit> opt_history_unit
 %type <vers_history_point> history_point
 %type <vers_column_versioning> with_or_without_system
+
+/* Start of sql_mode=ORACLE specific declarations */
+%type <NONE> set_assign
+%type <NONE> sp_tail_standalone
+%type <NONE> sp_labelable_stmt
+%type <simple_string> remember_end_opt
+%type <lex_str> opt_package_routine_end_name
+%type <lex_str> label_declaration_oracle
+%type <lex_str> labels_declaration_oracle
+%type <kwd> keyword_directly_assignable
+%type <ident_sys> ident_directly_assignable
+%type <ident_cli> ident_cli_directly_assignable
+%type <spname> opt_sp_name
+%type <spblock> sp_decl_body_list
+%type <spblock> opt_sp_decl_body_list
+%type <spblock> sp_decl_vars
+%type <spblock> sp_decl_non_handler
+%type <spblock> sp_decl_non_handler_list
+%type <spblock> sp_decl_handler
+%type <spblock> sp_decl_handler_list
+%type <spblock> opt_sp_decl_handler_list
+%type <spblock> package_implementation_routine_definition
+%type <spblock> package_implementation_item_declaration
+%type <spblock> package_implementation_declare_section
+%type <spblock> package_implementation_declare_section_list1
+%type <spblock> package_implementation_declare_section_list2
+%type <spblock_handlers> sp_block_statements_and_exceptions
+%type <spblock_handlers> package_implementation_executable_section
+%type <sp_instr_addr> sp_instr_addr
+%type <num> opt_exception_clause exception_handlers
+%type <lex> remember_lex
+%type <lex> package_routine_lex
+%type <lex> package_specification_function
+%type <lex> package_specification_procedure
+/* End of sql_mode=ORACLE specific declarations */
+
 %%
 
 
