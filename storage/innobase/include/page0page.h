@@ -158,12 +158,12 @@ Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
 					not necessarily collation order;
 					this record may have been deleted */
 
-/* Directions of cursor movement */
-#define	PAGE_LEFT		1
-#define	PAGE_RIGHT		2
-#define	PAGE_SAME_REC		3
-#define	PAGE_SAME_PAGE		4
-#define	PAGE_NO_DIRECTION	5
+/* Directions of cursor movement (stored in PAGE_DIRECTION field) */
+constexpr uint16_t PAGE_LEFT= 1;
+constexpr uint16_t PAGE_RIGHT= 2;
+constexpr uint16_t PAGE_SAME_REC= 3;
+constexpr uint16_t PAGE_SAME_PAGE= 4;
+constexpr uint16_t PAGE_NO_DIRECTION= 5;
 
 #ifndef UNIV_INNOCHECKSUM
 

@@ -1397,18 +1397,14 @@ check_v_col_in_order(
               & ALTER_ADD_VIRTUAL_COLUMN) {
 		bool			has_new = false;
 
-		List_iterator_fast<Create_field> cf_it(
-			ha_alter_info->alter_info->create_list);
-
-		cf_it.rewind();
-
-		while (const Create_field* new_field = cf_it++) {
-			if (new_field->stored_in_db()) {
+		for (const Create_field& new_field :
+		     ha_alter_info->alter_info->create_list) {
+			if (new_field.stored_in_db()) {
 				continue;
 			}
 
 			/* Found a new added virtual column. */
-			if (!new_field->field) {
+			if (!new_field.field) {
 				has_new = true;
 				continue;
 			}
@@ -2109,9 +2105,6 @@ ha_innobase::check_if_supported_inplace_alter(
 	bool online = true, need_rebuild = false;
 	const uint fulltext_indexes = innobase_fulltext_exist(altered_table);
 
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
-
 	/* Fix the key parts. */
 	for (KEY* new_key = ha_alter_info->key_info_buffer;
 	     new_key < ha_alter_info->key_info_buffer
@@ -2132,18 +2125,12 @@ ha_innobase::check_if_supported_inplace_alter(
 		     key_part < (new_key->key_part
 				 + new_key->user_defined_key_parts);
 		     key_part++) {
-			const Create_field*	new_field;
-
 			DBUG_ASSERT(key_part->fieldnr
 				    < altered_table->s->fields);
 
-			cf_it.rewind();
-			for (uint fieldnr = 0; (new_field = cf_it++);
-			     fieldnr++) {
-				if (fieldnr == key_part->fieldnr) {
-					break;
-				}
-			}
+			const Create_field* new_field
+				= ha_alter_info->alter_info->create_list.elem(
+					key_part->fieldnr);
 
 			DBUG_ASSERT(new_field);
 
@@ -2270,18 +2257,17 @@ ha_innobase::check_if_supported_inplace_alter(
 	DEFAULT value, ensure that the DEFAULT expression is a constant.
 	Also, in ADD COLUMN, for now we only support a
 	constant DEFAULT expression. */
-	cf_it.rewind();
 	Field **af = altered_table->field;
 	bool fts_need_rebuild = false;
 	need_rebuild = need_rebuild
 		|| innobase_need_rebuild(ha_alter_info, table);
 
-	while (Create_field* cf = cf_it++) {
-		DBUG_ASSERT(cf->field
+	for (Create_field& cf : ha_alter_info->alter_info->create_list) {
+		DBUG_ASSERT(cf.field
 			    || (ha_alter_info->handler_flags
 				& ALTER_ADD_COLUMN));
 
-		if (const Field* f = cf->field) {
+		if (const Field* f = cf.field) {
 			if (!f->real_maybe_null() || (*af)->real_maybe_null())
 				goto next_column;
 			/* We are changing an existing column
@@ -2873,8 +2859,6 @@ innobase_get_foreign_key_info(
 	const trx_t*	trx,
 	dict_s_col_list*s_cols)
 {
-	Key*		key;
-	Foreign_key*	fk_key;
 	dict_table_t*	referenced_table = NULL;
 	char*		referenced_table_name = NULL;
 	ulint		num_fk = 0;
@@ -2884,10 +2868,8 @@ innobase_get_foreign_key_info(
 
 	*n_add_fk = 0;
 
-	List_iterator<Key> key_iterator(alter_info->key_list);
-
-	while ((key=key_iterator++)) {
-		if (key->type != Key::FOREIGN_KEY) {
+	for (Key& key : alter_info->key_list) {
+		if (key.type != Key::FOREIGN_KEY) {
 			continue;
 		}
 
@@ -2905,18 +2887,15 @@ innobase_get_foreign_key_info(
 		char		db_name[MAX_DATABASE_NAME_LEN];
 		char		tbl_name[MAX_TABLE_NAME_LEN];
 
-		fk_key = static_cast<Foreign_key*>(key);
+		Foreign_key* fk_key = static_cast<Foreign_key*>(&key);
 
 		if (fk_key->columns.elements > 0) {
 			ulint	i = 0;
-			Key_part_spec* column;
-			List_iterator<Key_part_spec> key_part_iterator(
-				fk_key->columns);
 
 			/* Get all the foreign key column info for the
 			current table */
-			while ((column = key_part_iterator++)) {
-				column_names[i] = column->field_name.str;
+			for (const Key_part_spec& column : fk_key->columns) {
+				column_names[i] = column.field_name.str;
 				ut_ad(i < MAX_NUM_FK_COLUMNS);
 				i++;
 			}
@@ -3010,13 +2989,10 @@ innobase_get_foreign_key_info(
 
 		if (fk_key->ref_columns.elements > 0) {
 			ulint	i = 0;
-			Key_part_spec* column;
-			List_iterator<Key_part_spec> key_part_iterator(
-				fk_key->ref_columns);
 
-			while ((column = key_part_iterator++)) {
+			for (Key_part_spec &column : fk_key->ref_columns) {
 				referenced_column_names[i] =
-					column->field_name.str;
+					column.field_name.str;
 				ut_ad(i < MAX_NUM_FK_COLUMNS);
 				i++;
 			}
@@ -4221,26 +4197,21 @@ innobase_check_foreigns(
 	dict_foreign_t**	drop_fk,
 	ulint			n_drop_fk)
 {
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
-
 	for (Field** fp = old_table->field; *fp; fp++) {
-		cf_it.rewind();
-		const Create_field* new_field;
-
 		ut_ad(!(*fp)->real_maybe_null()
 		      == !!((*fp)->flags & NOT_NULL_FLAG));
 
-		while ((new_field = cf_it++)) {
-			if (new_field->field == *fp) {
-				break;
-			}
-		}
+		auto end = ha_alter_info->alter_info->create_list.end();
+		auto it = std::find_if(
+			ha_alter_info->alter_info->create_list.begin(), end,
+			[fp](const Create_field& field) {
+				return field.field == *fp;
+			});
 
-		if (!new_field || (new_field->flags & NOT_NULL_FLAG)) {
+		if (it == end || (it->flags & NOT_NULL_FLAG)) {
 			if (innobase_check_foreigns_low(
 				    user_table, drop_fk, n_drop_fk,
-				    (*fp)->field_name.str, !new_field)) {
+				    (*fp)->field_name.str, it == end)) {
 				return(true);
 			}
 		}
@@ -4331,8 +4302,6 @@ innobase_build_col_map(
 			heap, (size_t(old_table->n_cols) + old_n_v_cols)
 			* sizeof *col_map));
 
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
 	uint	i = 0;
 	uint	num_v = 0;
 
@@ -4348,14 +4317,15 @@ innobase_build_col_map(
 
 	const bool omits_virtual = ha_innobase::omits_virtual_cols(*table->s);
 
-	while (const Create_field* new_field = cf_it++) {
-		bool	is_v = !new_field->stored_in_db();
+	for (const Create_field& new_field :
+	     ha_alter_info->alter_info->create_list) {
+		bool	is_v = !new_field.stored_in_db();
 		ulint	num_old_v = 0;
 
 		for (uint old_i = 0; table->field[old_i]; old_i++) {
 			const Field* field = table->field[old_i];
 			if (!field->stored_in_db()) {
-				if (is_v && new_field->field == field) {
+				if (is_v && new_field.field == field) {
 					if (!omits_virtual) {
 						col_map[old_table->n_cols
 							+ num_v]
@@ -4368,7 +4338,7 @@ innobase_build_col_map(
 				continue;
 			}
 
-			if (new_field->field == field) {
+			if (new_field.field == field) {
 
 				const Field* altered_field =
 					altered_table->field[i + num_v];
@@ -4520,21 +4490,20 @@ innobase_get_col_names(
 		mem_heap_zalloc(heap, user_table->n_def * sizeof *cols));
 
 	i = 0;
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
-	while (const Create_field* new_field = cf_it++) {
+	for (const Create_field& new_field :
+	     ha_alter_info->alter_info->create_list) {
 		ulint	num_v = 0;
 		DBUG_ASSERT(i < altered_table->s->fields);
 
-		if (!new_field->stored_in_db()) {
+		if (!new_field.stored_in_db()) {
 			continue;
 		}
 
 		for (uint old_i = 0; table->field[old_i]; old_i++) {
 			num_v += !table->field[old_i]->stored_in_db();
 
-			if (new_field->field == table->field[old_i]) {
-				cols[old_i - num_v] = new_field->field_name.str;
+			if (new_field.field == table->field[old_i]) {
+				cols[old_i - num_v] = new_field.field_name.str;
 				break;
 			}
 		}
@@ -4882,13 +4851,11 @@ prepare_inplace_add_virtual(
 		 mem_heap_alloc(ctx->heap, ctx->num_to_add_vcol
 				* sizeof *ctx->add_vcol_name));
 
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
-
-	while (const Create_field* new_field = cf_it++) {
+	for (const Create_field& new_field :
+	     ha_alter_info->alter_info->create_list) {
 		const Field* field = altered_table->field[i++];
 
-		if (new_field->field || field->stored_in_db()) {
+		if (new_field.field || field->stored_in_db()) {
 			continue;
 		}
 
@@ -5971,8 +5938,6 @@ innodb_v_adjust_idx_col(
 	ulint				num_v_dropped,
 	index_def_t*			index_def)
 {
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
 	for (ulint i = 0; i < index_def->n_fields; i++) {
 #ifdef UNIV_DEBUG
 		bool	col_found = false;
@@ -5990,15 +5955,14 @@ innodb_v_adjust_idx_col(
 
 		const Field*	field = NULL;
 
-		cf_it.rewind();
-
 		/* Found the field in the new table */
-		while (const Create_field* new_field = cf_it++) {
-			if (new_field->stored_in_db()) {
+		for (const Create_field& new_field :
+		     ha_alter_info->alter_info->create_list) {
+			if (new_field.stored_in_db()) {
 				continue;
 			}
 
-			field = new_field->field;
+			field = new_field.field;
 
 			if (num_v == index_field->col_no) {
 				break;
@@ -6582,18 +6546,16 @@ new_clustered_failed:
 		uint i = 0; // index of stored columns ctx->new_table->cols[]
 		Field **af = altered_table->field;
 
-		List_iterator_fast<Create_field> cf_it(
-			ha_alter_info->alter_info->create_list);
-
-		while (const Create_field* new_field = cf_it++) {
-			DBUG_ASSERT(!new_field->field
+		for (const Create_field& new_field :
+		     ha_alter_info->alter_info->create_list) {
+			DBUG_ASSERT(!new_field.field
 				    || std::find(old_table->field,
 						 old_table->field
 						 + old_table->s->fields,
-						 new_field->field) !=
+						 new_field.field) !=
 				    old_table->field + old_table->s->fields);
-			DBUG_ASSERT(new_field->field
-				    || !strcmp(new_field->field_name.str,
+			DBUG_ASSERT(new_field.field
+				    || !strcmp(new_field.field_name.str,
 					       (*af)->field_name.str));
 
 			if (!(*af)->stored_in_db()) {
@@ -6608,7 +6570,7 @@ new_clustered_failed:
 							    i)));
 			DBUG_ASSERT(!col->is_added());
 
-			if (new_field->field) {
+			if (new_field.field) {
 				/* This is a pre-existing column,
 				possibly at a different position. */
 			} else if ((*af)->is_real_null()) {
@@ -7567,9 +7529,6 @@ err_exit_no_heap:
 	already contains. */
 	if (ha_alter_info->handler_flags
 	    & ALTER_COLUMN_NAME) {
-		List_iterator_fast<Create_field> cf_it(
-			ha_alter_info->alter_info->create_list);
-
 		for (Field** fp = table->field; *fp; fp++) {
 			if (!((*fp)->flags & FIELD_IS_RENAMED)) {
 				continue;
@@ -7577,10 +7536,10 @@ err_exit_no_heap:
 
 			const char* name = 0;
 
-			cf_it.rewind();
-			while (Create_field* cf = cf_it++) {
-				if (cf->field == *fp) {
-					name = cf->field_name.str;
+			for (const Create_field& cf :
+			     ha_alter_info->alter_info->create_list) {
+				if (cf.field == *fp) {
+					name = cf.field_name.str;
 					goto check_if_ok_to_rename;
 				}
 			}
@@ -7739,11 +7698,8 @@ check_if_ok_to_rename:
 				ha_alter_info->alter_info->drop_list.elements
 				* sizeof(dict_foreign_t*)));
 
-		List_iterator<Alter_drop> drop_it(
-			ha_alter_info->alter_info->drop_list);
-
-		while (Alter_drop* drop = drop_it++) {
-			if (drop->type != Alter_drop::FOREIGN_KEY) {
+		for (Alter_drop& drop : ha_alter_info->alter_info->drop_list) {
+			if (drop.type != Alter_drop::FOREIGN_KEY) {
 				continue;
 			}
 
@@ -7764,13 +7720,13 @@ check_if_ok_to_rename:
 				fid = fid ? fid + 1 : foreign->id;
 
 				if (!my_strcasecmp(system_charset_info,
-						   fid, drop->name)) {
+						   fid, drop.name)) {
 					goto found_fk;
 				}
 			}
 
 			my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0),
-				drop->type_name(), drop->name);
+				drop.type_name(), drop.name);
 			goto err_exit;
 found_fk:
 			for (ulint i = n_drop_fk; i--; ) {
@@ -8089,21 +8045,20 @@ err_exit:
 	/* See if an AUTO_INCREMENT column was added. */
 	uint	i = 0;
 	ulint	num_v = 0;
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
-	while (const Create_field* new_field = cf_it++) {
+	for (const Create_field& new_field :
+	     ha_alter_info->alter_info->create_list) {
 		const Field*	field;
 
 		DBUG_ASSERT(i < altered_table->s->fields);
 
 		for (uint old_i = 0; table->field[old_i]; old_i++) {
-			if (new_field->field == table->field[old_i]) {
+			if (new_field.field == table->field[old_i]) {
 				goto found_col;
 			}
 		}
 
 		/* This is an added column. */
-		DBUG_ASSERT(!new_field->field);
+		DBUG_ASSERT(!new_field.field);
 		DBUG_ASSERT(ha_alter_info->handler_flags
 			    & ALTER_ADD_COLUMN);
 
@@ -8127,7 +8082,7 @@ err_exit:
 			autoinc_col_max_value = innobase_get_int_col_max_value(field);
 		}
 found_col:
-		num_v += !new_field->stored_in_db();
+		num_v += !new_field.stored_in_db();
 		i++;
 	}
 
@@ -8200,16 +8155,14 @@ alter_templ_needs_rebuild(
 	dict_table_t*		table)
 {
         ulint	i = 0;
-        List_iterator_fast<Create_field>  cf_it(
-                ha_alter_info->alter_info->create_list);
 
 	for (Field** fp = altered_table->field; *fp; fp++, i++) {
-		cf_it.rewind();
-		while (const Create_field* cf = cf_it++) {
+		for (const Create_field& cf :
+		     ha_alter_info->alter_info->create_list) {
 			for (ulint j=0; j < table->n_cols; j++) {
 				dict_col_t* cols
                                    = dict_table_get_nth_col(table, j);
-				if (cf->length > cols->len
+				if (cf.length > cols->len
 				    && dict_col_in_v_indexes(table, cols)) {
 					return(true);
 				}
@@ -9000,8 +8953,6 @@ innobase_rename_columns_try(
 	trx_t*			trx,
 	const char*		table_name)
 {
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
 	uint	i = 0;
 	ulint	num_v = 0;
 
@@ -9015,14 +8966,13 @@ innobase_rename_columns_try(
 			goto processed_field;
 		}
 
-		cf_it.rewind();
-
-		while (Create_field* cf = cf_it++) {
-			if (cf->field == *fp) {
+		for (const Create_field& cf :
+		     ha_alter_info->alter_info->create_list) {
+			if (cf.field == *fp) {
 				if (innobase_rename_column_try(
 					    *ctx, trx, table_name,
-					    cf->field->field_name.str,
-					    cf->field_name.str)) {
+					    cf.field->field_name.str,
+					    cf.field_name.str)) {
 					return(true);
 				}
 				goto processed_field;
@@ -9196,8 +9146,6 @@ innobase_rename_or_enlarge_columns_try(
 		DBUG_RETURN(false);
 	}
 
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
 	ulint	i = 0;
 	ulint	num_v = 0;
 
@@ -9205,10 +9153,10 @@ innobase_rename_or_enlarge_columns_try(
 		const bool is_v = !(*fp)->stored_in_db();
 		ulint idx = is_v ? num_v++ : i - num_v;
 
-		cf_it.rewind();
 		Field** af = altered_table->field;
-		while (Create_field* cf = cf_it++) {
-			if (cf->field == *fp) {
+		for (const Create_field& cf :
+		     ha_alter_info->alter_info->create_list) {
+			if (cf.field == *fp) {
 				if (innobase_rename_or_enlarge_column_try(
 					    ctx, trx, table_name,
 					    idx, **af, is_v)) {
@@ -9244,18 +9192,16 @@ innobase_rename_or_enlarge_columns_cache(
 		return;
 	}
 
-	List_iterator_fast<Create_field> cf_it(
-		ha_alter_info->alter_info->create_list);
 	uint	i = 0;
 	ulint	num_v = 0;
 
 	for (Field** fp = table->field; *fp; fp++, i++) {
 		const bool is_virtual = !(*fp)->stored_in_db();
 
-		cf_it.rewind();
 		Field** af = altered_table->field;
-		while (Create_field* cf = cf_it++) {
-			if (cf->field != *fp) {
+		for (Create_field& cf :
+		     ha_alter_info->alter_info->create_list) {
+			if (cf.field != *fp) {
 				af++;
 				continue;
 			}
@@ -9282,7 +9228,7 @@ innobase_rename_or_enlarge_columns_cache(
 			if ((*fp)->flags & FIELD_IS_RENAMED) {
 				dict_mem_table_col_rename(
 					user_table, col_n,
-					cf->field->field_name.str,
+					cf.field->field_name.str,
 					(*af)->field_name.str, is_virtual);
 			}
 
@@ -9676,27 +9622,24 @@ vers_change_fields_try(
 	DBUG_ASSERT(ha_alter_info);
 	DBUG_ASSERT(ctx);
 
-	List_iterator_fast<Create_field> it(
-	    ha_alter_info->alter_info->create_list);
-
-	while (const Create_field* create_field = it++) {
-		if (!create_field->field) {
+	for (const Create_field& create_field : ha_alter_info->alter_info->create_list) {
+		if (!create_field.field) {
 			continue;
 		}
-		if (create_field->versioning
+		if (create_field.versioning
 		    == Column_definition::VERSIONING_NOT_SET) {
 			continue;
 		}
 
 		const dict_table_t* new_table = ctx->new_table;
-		const uint pos = innodb_col_no(create_field->field);
+		const uint pos = innodb_col_no(create_field.field);
 		const dict_col_t* col = dict_table_get_nth_col(new_table, pos);
 
 		DBUG_ASSERT(!col->vers_sys_start());
 		DBUG_ASSERT(!col->vers_sys_end());
 
 		ulint new_prtype
-		    = create_field->versioning
+		    = create_field.versioning
 			      == Column_definition::WITHOUT_VERSIONING
 			  ? col->prtype & ~DATA_VERSIONED
 			  : col->prtype | DATA_VERSIONED;
@@ -9729,23 +9672,21 @@ vers_change_fields_cache(
 	DBUG_ASSERT(ctx);
 	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED);
 
-	List_iterator_fast<Create_field> it(
-	    ha_alter_info->alter_info->create_list);
-
-	while (const Create_field* create_field = it++) {
-		if (!create_field->field || create_field->field->vcol_info) {
+	for (const Create_field& create_field :
+	     ha_alter_info->alter_info->create_list) {
+		if (!create_field.field || create_field.field->vcol_info) {
 			continue;
 		}
 		dict_col_t* col = dict_table_get_nth_col(
-		    ctx->new_table, innodb_col_no(create_field->field));
+		    ctx->new_table, innodb_col_no(create_field.field));
 
-		if (create_field->versioning
+		if (create_field.versioning
 		    == Column_definition::WITHOUT_VERSIONING) {
 
 			DBUG_ASSERT(!col->vers_sys_start());
 			DBUG_ASSERT(!col->vers_sys_end());
 			col->prtype &= ~DATA_VERSIONED;
-		} else if (create_field->versioning
+		} else if (create_field.versioning
 			   == Column_definition::WITH_VERSIONING) {
 
 			DBUG_ASSERT(!col->vers_sys_start());

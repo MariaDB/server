@@ -37,7 +37,7 @@ extern bool innodb_table_stats_not_found;
 extern bool innodb_index_stats_not_found;
 
 /** the first table or index ID for other than hard-coded system tables */
-#define	DICT_HDR_FIRST_ID	10
+constexpr uint8_t DICT_HDR_FIRST_ID= 10;
 
 /********************************************************************//**
 Get the database name length in a table name.

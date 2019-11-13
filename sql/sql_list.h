@@ -569,6 +569,12 @@ public:
     }
 
     T &operator*() { return *static_cast<T *>(node->info); }
+    T *operator->() { return static_cast<T *>(node->info); }
+
+    bool operator==(const typename List<T>::iterator &rhs)
+    {
+      return node == rhs.node;
+    }
 
     bool operator!=(const typename List<T>::iterator &rhs)
     {
