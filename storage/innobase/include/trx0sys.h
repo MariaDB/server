@@ -344,9 +344,9 @@ FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID. */
 
 /*-------------------------------------------------------------*/
 /** Contents of TRX_SYS_DOUBLEWRITE_MAGIC */
-#define TRX_SYS_DOUBLEWRITE_MAGIC_N	536853855
+constexpr uint32_t TRX_SYS_DOUBLEWRITE_MAGIC_N= 536853855;
 /** Contents of TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED */
-#define TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N 1783657386
+constexpr uint32_t TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N= 1783657386;
 
 /** Size of the doublewrite block in pages */
 #define TRX_SYS_DOUBLEWRITE_BLOCK_SIZE	FSP_EXTENT_SIZE
