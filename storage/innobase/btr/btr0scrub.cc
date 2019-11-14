@@ -742,7 +742,7 @@ btr_scrub_recheck_page(
 	}
 
 	mtr_start(mtr);
-	mtr_x_lock(dict_index_get_lock(scrub_data->current_index), mtr);
+	mtr_x_lock_index(scrub_data->current_index, mtr);
 	/** set savepoint for X-latch of block */
 	scrub_data->savepoint = mtr_set_savepoint(mtr);
 	return BTR_SCRUB_PAGE;

@@ -361,7 +361,7 @@ ibuf_tree_root_get(
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(mutex_own(&ibuf_mutex));
 
-	mtr_sx_lock(dict_index_get_lock(ibuf->index), mtr);
+	mtr_sx_lock_index(ibuf->index, mtr);
 
 	/* only segment list access is exclusive each other */
 	block = buf_page_get(
@@ -459,7 +459,7 @@ ibuf_init_at_db_start(void)
 
 	compile_time_assert(IBUF_SPACE_ID == TRX_SYS_SPACE);
 	compile_time_assert(IBUF_SPACE_ID == 0);
-	mtr_x_lock(&fil_system.sys_space->latch, &mtr);
+	mtr_x_lock_space(fil_system.sys_space, &mtr);
 
 	mutex_enter(&ibuf_mutex);
 
@@ -1977,7 +1977,7 @@ ibuf_add_free_page(void)
 	mtr_start(&mtr);
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
-	mtr_x_lock(&fil_system.sys_space->latch, &mtr);
+	mtr_x_lock_space(fil_system.sys_space, &mtr);
 	header_page = ibuf_header_page_get(&mtr);
 
 	/* Allocate a new page: NOTE that if the page has been a part of a
@@ -2056,7 +2056,7 @@ ibuf_remove_free_page(void)
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
 
-	mtr_x_lock(&fil_system.sys_space->latch, &mtr);
+	mtr_x_lock_space(fil_system.sys_space, &mtr);
 	header_page = ibuf_header_page_get(&mtr);
 
 	/* Prevent pessimistic inserts to insert buffer trees for a while */

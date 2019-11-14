@@ -85,17 +85,12 @@ savepoint. */
 /** Push an object to an mtr memo stack. */
 #define mtr_memo_push(m, o, t)	(m)->memo_push(o, t)
 
-/** Lock an rw-lock in s-mode. */
-#define mtr_s_lock(l, m)	(m)->s_lock((l), __FILE__, __LINE__)
-
-/** Lock an rw-lock in x-mode. */
-#define mtr_x_lock(l, m)	(m)->x_lock((l), __FILE__, __LINE__)
-
-/** Lock a tablespace in x-mode. */
+#define mtr_s_lock_space(s, m)	(m)->s_lock_space((s), __FILE__, __LINE__)
 #define mtr_x_lock_space(s, m)	(m)->x_lock_space((s), __FILE__, __LINE__)
 
-/** Lock an rw-lock in sx-mode. */
-#define mtr_sx_lock(l, m)	(m)->sx_lock((l), __FILE__, __LINE__)
+#define mtr_s_lock_index(i, m)	(m)->s_lock(&(i)->lock, __FILE__, __LINE__)
+#define mtr_x_lock_index(i, m)	(m)->x_lock(&(i)->lock, __FILE__, __LINE__)
+#define mtr_sx_lock_index(i, m)	(m)->sx_lock(&(i)->lock, __FILE__, __LINE__)
 
 #define mtr_memo_contains_flagged(m, p, l)				\
 				(m)->memo_contains_flagged((p), (l))
@@ -251,29 +246,7 @@ struct mtr_t {
 	inline ulint read_ulint(const byte* ptr, mlog_id_t type) const
 		MY_ATTRIBUTE((warn_unused_result));
 
-	/** Locks a rw-latch in S mode.
-	NOTE: use mtr_s_lock().
-	@param lock	rw-lock
-	@param file	file name from where called
-	@param line	line number in file */
-	inline void s_lock(rw_lock_t* lock, const char* file, unsigned line);
-
-	/** Locks a rw-latch in X mode.
-	NOTE: use mtr_x_lock().
-	@param lock	rw-lock
-	@param file	file name from where called
-	@param line	line number in file */
-	inline void x_lock(rw_lock_t* lock, const char*	file, unsigned line);
-
-	/** Locks a rw-latch in X mode.
-	NOTE: use mtr_sx_lock().
-	@param lock	rw-lock
-	@param file	file name from where called
-	@param line	line number in file */
-	inline void sx_lock(rw_lock_t* lock, const char* file, unsigned line);
-
 	/** Acquire a tablespace X-latch.
-	NOTE: use mtr_x_lock_space().
 	@param[in]	space_id	tablespace ID
 	@param[in]	file		file name from where called
 	@param[in]	line		line number in file
@@ -282,6 +255,60 @@ struct mtr_t {
 		ulint		space_id,
 		const char*	file,
 		unsigned	line);
+
+	/** Acquire a shared rw-latch.
+	@param[in]	lock	rw-latch
+	@param[in]	file	file name from where called
+	@param[in]	line	line number in file */
+	void s_lock(rw_lock_t* lock, const char* file, unsigned line)
+	{
+		rw_lock_s_lock_inline(lock, 0, file, line);
+		memo_push(lock, MTR_MEMO_S_LOCK);
+	}
+
+	/** Acquire an exclusive rw-latch.
+	@param[in]	lock	rw-latch
+	@param[in]	file	file name from where called
+	@param[in]	line	line number in file */
+	void x_lock(rw_lock_t* lock, const char* file, unsigned line)
+	{
+		rw_lock_x_lock_inline(lock, 0, file, line);
+		memo_push(lock, MTR_MEMO_X_LOCK);
+	}
+
+	/** Acquire an shared/exclusive rw-latch.
+	@param[in]	lock	rw-latch
+	@param[in]	file	file name from where called
+	@param[in]	line	line number in file */
+	void sx_lock(rw_lock_t* lock, const char* file, unsigned line)
+	{
+		rw_lock_sx_lock_inline(lock, 0, file, line);
+		memo_push(lock, MTR_MEMO_SX_LOCK);
+	}
+
+	/** Acquire a tablespace S-latch.
+	@param[in]	space	tablespace
+	@param[in]	file	file name from where called
+	@param[in]	line	line number in file */
+	void s_lock_space(fil_space_t* space, const char* file, unsigned line)
+	{
+		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
+		      || space->purpose == FIL_TYPE_IMPORT
+		      || space->purpose == FIL_TYPE_TABLESPACE);
+		s_lock(&space->latch, file, line);
+	}
+
+	/** Acquire a tablespace X-latch.
+	@param[in]	space	tablespace
+	@param[in]	file	file name from where called
+	@param[in]	line	line number in file */
+	void x_lock_space(fil_space_t* space, const char* file, unsigned line)
+	{
+		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
+		      || space->purpose == FIL_TYPE_IMPORT
+		      || space->purpose == FIL_TYPE_TABLESPACE);
+		x_lock(&space->latch, file, line);
+	}
 
 	/** Release an object in the memo stack.
 	@param object	object

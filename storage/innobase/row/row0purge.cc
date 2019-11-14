@@ -385,14 +385,14 @@ row_purge_remove_sec_if_poss_tree(
 	enum row_search_result	search_result;
 
 	log_free_check();
-	mtr_start(&mtr);
+	mtr.start();
 	index->set_modified(mtr);
 
 	if (!index->is_committed()) {
 		/* The index->online_status may change if the index is
 		or was being created online, but not committed yet. It
 		is protected by index->lock. */
-		mtr_sx_lock(dict_index_get_lock(index), &mtr);
+		mtr_sx_lock_index(index, &mtr);
 
 		if (dict_index_is_online_ddl(index)) {
 			/* Online secondary index creation will not
@@ -487,9 +487,9 @@ row_purge_remove_sec_if_poss_tree(
 	}
 
 func_exit:
-	btr_pcur_close(&pcur);
+	btr_pcur_close(&pcur); // FIXME: need this?
 func_exit_no_pcur:
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	return(success);
 }
@@ -516,7 +516,7 @@ row_purge_remove_sec_if_poss_leaf(
 	log_free_check();
 	ut_ad(index->table == node->table);
 	ut_ad(!index->table->is_temporary());
-	mtr_start(&mtr);
+	mtr.start();
 	index->set_modified(mtr);
 
 	if (!index->is_committed()) {
@@ -528,7 +528,7 @@ row_purge_remove_sec_if_poss_leaf(
 		/* The index->online_status may change if the the
 		index is or was being created online, but not
 		committed yet. It is protected by index->lock. */
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
+		mtr_s_lock_index(index, &mtr);
 
 		if (dict_index_is_online_ddl(index)) {
 			/* Online secondary index creation will not
@@ -632,7 +632,7 @@ row_purge_remove_sec_if_poss_leaf(
 						 ->page.id);
 
 					btr_pcur_close(&pcur);
-					mtr_commit(&mtr);
+					mtr.commit();
 					return(success);
 				}
 			}
@@ -658,9 +658,9 @@ row_purge_remove_sec_if_poss_leaf(
 		/* The deletion was buffered. */
 	case ROW_NOT_FOUND:
 		/* The index entry does not exist, nothing to do. */
-		btr_pcur_close(&pcur);
+		btr_pcur_close(&pcur); // FIXME: do we need these? when is btr_cur->rtr_info set?
 func_exit_no_pcur:
-		mtr_commit(&mtr);
+		mtr.commit();
 		return(success);
 	}
 
@@ -950,12 +950,12 @@ skip_secondaries:
 			ut_ad(rseg->id == rseg_id);
 			ut_ad(rseg->is_persistent());
 
-			mtr_start(&mtr);
+			mtr.start();
 
 			/* We have to acquire an SX-latch to the clustered
 			index tree (exclude other tree changes) */
 
-			mtr_sx_lock(dict_index_get_lock(index), &mtr);
+			mtr_sx_lock_index(index, &mtr);
 
 			index->set_modified(mtr);
 
@@ -986,7 +986,7 @@ skip_secondaries:
 				data_field + dfield_get_len(&ufield->new_val)
 				- BTR_EXTERN_FIELD_REF_SIZE,
 				NULL, NULL, NULL, 0, false, &mtr);
-			mtr_commit(&mtr);
+			mtr.commit();
 		}
 	}
 

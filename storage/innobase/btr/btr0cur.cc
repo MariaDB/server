@@ -1316,16 +1316,16 @@ btr_cur_search_to_nth_level_func(
 		if (lock_intention == BTR_INTENTION_DELETE
 		    && trx_sys.history_size() > BTR_CUR_FINE_HISTORY_LENGTH
 			&& buf_get_n_pending_read_ios()) {
-			mtr_x_lock(dict_index_get_lock(index), mtr);
-		} else if (dict_index_is_spatial(index)
+x_latch_index:
+			mtr_x_lock_index(index, mtr);
+		} else if (index->is_spatial()
 			   && lock_intention <= BTR_INTENTION_BOTH) {
 			/* X lock the if there is possibility of
 			pessimistic delete on spatial index. As we could
 			lock upward for the tree */
-
-			mtr_x_lock(dict_index_get_lock(index), mtr);
+			goto x_latch_index;
 		} else {
-			mtr_sx_lock(dict_index_get_lock(index), mtr);
+			mtr_sx_lock_index(index, mtr);
 		}
 		upper_rw_latch = RW_X_LATCH;
 		break;
@@ -1357,10 +1357,10 @@ btr_cur_search_to_nth_level_func(
 				BTR_ALREADY_S_LATCHED */
 				ut_ad(latch_mode != BTR_SEARCH_TREE);
 
-				mtr_s_lock(dict_index_get_lock(index), mtr);
+				mtr_s_lock_index(index, mtr);
 			} else {
 				/* BTR_MODIFY_EXTERNAL needs to be excluded */
-				mtr_sx_lock(dict_index_get_lock(index), mtr);
+				mtr_sx_lock_index(index, mtr);
 			}
 			upper_rw_latch = RW_S_LATCH;
 		} else {
@@ -2450,9 +2450,9 @@ btr_cur_open_at_index_side_func(
 		if (lock_intention == BTR_INTENTION_DELETE
 		    && trx_sys.history_size() > BTR_CUR_FINE_HISTORY_LENGTH
 		    && buf_get_n_pending_read_ios()) {
-			mtr_x_lock(dict_index_get_lock(index), mtr);
+			mtr_x_lock_index(index, mtr);
 		} else {
-			mtr_sx_lock(dict_index_get_lock(index), mtr);
+			mtr_sx_lock_index(index, mtr);
 		}
 		upper_rw_latch = RW_X_LATCH;
 		break;
@@ -2468,7 +2468,7 @@ btr_cur_open_at_index_side_func(
 				BTR_ALREADY_S_LATCHED */
 				ut_ad(latch_mode != BTR_SEARCH_TREE);
 
-				mtr_s_lock(dict_index_get_lock(index), mtr);
+				mtr_s_lock_index(index, mtr);
 			}
 			upper_rw_latch = RW_S_LATCH;
 		} else {
@@ -2779,7 +2779,7 @@ btr_cur_open_at_rnd_pos_func(
 	ulint*		offsets		= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_ad(!dict_index_is_spatial(index));
+	ut_ad(!index->is_spatial());
 
 	lock_intention = btr_cur_get_and_clear_intention(&latch_mode);
 
@@ -2795,9 +2795,9 @@ btr_cur_open_at_rnd_pos_func(
 		if (lock_intention == BTR_INTENTION_DELETE
 		    && trx_sys.history_size() > BTR_CUR_FINE_HISTORY_LENGTH
 		    && buf_get_n_pending_read_ios()) {
-			mtr_x_lock(dict_index_get_lock(index), mtr);
+			mtr_x_lock_index(index, mtr);
 		} else {
-			mtr_sx_lock(dict_index_get_lock(index), mtr);
+			mtr_sx_lock_index(index, mtr);
 		}
 		upper_rw_latch = RW_X_LATCH;
 		break;
@@ -2813,7 +2813,7 @@ btr_cur_open_at_rnd_pos_func(
 		/* fall through */
 	default:
 		if (!srv_read_only_mode) {
-			mtr_s_lock(dict_index_get_lock(index), mtr);
+			mtr_s_lock_index(index, mtr);
 			upper_rw_latch = RW_S_LATCH;
 		} else {
 			upper_rw_latch = RW_NO_LATCH;
@@ -4892,7 +4892,7 @@ btr_cur_pessimistic_update(
 						MTR_MEMO_X_LOCK |
 						MTR_MEMO_SX_LOCK));
 
-		mtr_sx_lock(dict_index_get_lock(index), mtr);
+		mtr_sx_lock_index(index, mtr);
 	}
 
 	/* Was the record to be updated positioned as the first user
