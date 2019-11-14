@@ -156,7 +156,7 @@ trx_sysf_create(
 	then enter the kernel: we must do it in this order to conform
 	to the latching order rules. */
 
-	mtr_x_lock(&fil_system.sys_space->latch, mtr);
+	mtr_x_lock_space(fil_system.sys_space, mtr);
 	compile_time_assert(TRX_SYS_SPACE == 0);
 
 	/* Create the trx sys file block in a new allocated file segment */

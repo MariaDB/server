@@ -227,36 +227,3 @@ mtr_t::set_log_mode(mtr_log_t mode)
 	ut_ad(0);
 	return(old_mode);
 }
-
-/**
-Locks a lock in s-mode. */
-
-void
-mtr_t::s_lock(rw_lock_t* lock, const char* file, unsigned line)
-{
-	rw_lock_s_lock_inline(lock, 0, file, line);
-
-	memo_push(lock, MTR_MEMO_S_LOCK);
-}
-
-/**
-Locks a lock in x-mode. */
-
-void
-mtr_t::x_lock(rw_lock_t* lock, const char* file, unsigned line)
-{
-	rw_lock_x_lock_inline(lock, 0, file, line);
-
-	memo_push(lock, MTR_MEMO_X_LOCK);
-}
-
-/**
-Locks a lock in sx-mode. */
-
-void
-mtr_t::sx_lock(rw_lock_t* lock, const char* file, unsigned line)
-{
-	rw_lock_sx_lock_inline(lock, 0, file, line);
-
-	memo_push(lock, MTR_MEMO_SX_LOCK);
-}

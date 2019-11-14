@@ -91,7 +91,7 @@ row_undo_ins_remove_clust_rec(
 			      != RW_X_LATCH);
 			ut_ad(node->table->id != DICT_INDEXES_ID);
 			ut_ad(node->table->id != DICT_COLUMNS_ID);
-			mtr_s_lock(dict_index_get_lock(index), &mtr);
+			mtr_s_lock_index(index, &mtr);
 		}
 	}
 
@@ -257,10 +257,10 @@ row_undo_ins_remove_sec_low(
 
 	if (modify_leaf) {
 		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
+		mtr_s_lock_index(index, &mtr);
 	} else {
 		ut_ad(mode == (BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE));
-		mtr_sx_lock(dict_index_get_lock(index), &mtr);
+		mtr_sx_lock_index(index, &mtr);
 	}
 
 	if (row_log_online_op_try(index, entry, 0)) {

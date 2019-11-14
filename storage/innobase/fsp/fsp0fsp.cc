@@ -542,7 +542,7 @@ void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
 	const page_id_t page_id(space->id, 0);
 	const ulint zip_size = space->zip_size();
 
-	mtr_x_lock(&space->latch, mtr);
+	mtr_x_lock_space(space, mtr);
 	buf_block_t* block = buf_page_create(page_id, zip_size, mtr);
 	buf_page_get(page_id, zip_size, RW_SX_LATCH, mtr);
 	buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
@@ -1769,7 +1769,7 @@ fseg_create(
 	ut_ad(byte_offset + FSEG_HEADER_SIZE
 	      <= srv_page_size - FIL_PAGE_DATA_END);
 
-	mtr_x_lock(&space->latch, mtr);
+	mtr_x_lock_space(space, mtr);
 	ut_d(space->modify_check(*mtr));
 
 	if (page != 0) {
@@ -2452,7 +2452,7 @@ fsp_reserve_free_extents(
 	ut_ad(mtr);
 	*n_reserved = n_ext;
 
-	mtr_x_lock(&space->latch, mtr);
+	mtr_x_lock_space(space, mtr);
 	const ulint physical_size = space->physical_size();
 
 	space_header = fsp_get_space_header(space, mtr);
@@ -2735,7 +2735,7 @@ fseg_free_page_func(
 	DBUG_ENTER("fseg_free_page");
 	fseg_inode_t*		seg_inode;
 	buf_block_t*		iblock;
-	mtr_x_lock(&space->latch, mtr);
+	mtr_x_lock_space(space, mtr);
 
 	DBUG_LOG("fseg_free_page", "space_id: " << space->id
 		 << ", page_no: " << offset);
@@ -2765,7 +2765,7 @@ fseg_page_is_free(fil_space_t* space, unsigned page)
 							  page);
 
 	mtr.start();
-	mtr_s_lock(&space->latch, &mtr);
+	mtr_s_lock_space(space, &mtr);
 
 	if (page >= space->free_limit || page >= space->size_in_header) {
 		is_free = true;

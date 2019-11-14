@@ -4805,13 +4805,13 @@ btr_validate_level(
 	ulint		parent_right_page_no = FIL_NULL;
 	bool		rightmost_child = false;
 
-	mtr_start(&mtr);
+	mtr.start();
 
 	if (!srv_read_only_mode) {
 		if (lockout) {
-			mtr_x_lock(dict_index_get_lock(index), &mtr);
+			mtr_x_lock_index(index, &mtr);
 		} else {
-			mtr_sx_lock(dict_index_get_lock(index), &mtr);
+			mtr_sx_lock_index(index, &mtr);
 		}
 	}
 
@@ -4885,9 +4885,9 @@ loop:
 	offsets = offsets2 = NULL;
 	if (!srv_read_only_mode) {
 		if (lockout) {
-			mtr_x_lock(dict_index_get_lock(index), &mtr);
+			mtr_x_lock_index(index, &mtr);
 		} else {
-			mtr_sx_lock(dict_index_get_lock(index), &mtr);
+			mtr_sx_lock_index(index, &mtr);
 		}
 	}
 
@@ -5177,13 +5177,13 @@ node_ptr_fails:
 	/* Commit the mini-transaction to release the latch on 'page'.
 	Re-acquire the latch on right_page, which will become 'page'
 	on the next loop.  The page has already been checked. */
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	if (trx_is_interrupted(trx)) {
 		/* On interrupt, return the current status. */
 	} else if (right_page_no != FIL_NULL) {
 
-		mtr_start(&mtr);
+		mtr.start();
 
 		if (!lockout) {
 			if (rightmost_child) {
@@ -5235,9 +5235,9 @@ btr_validate_index(
 
 	if (!srv_read_only_mode) {
 		if (lockout) {
-			mtr_x_lock(dict_index_get_lock(index), &mtr);
+			mtr_x_lock_index(index, &mtr);
 		} else {
-			mtr_sx_lock(dict_index_get_lock(index), &mtr);
+			mtr_sx_lock_index(index, &mtr);
 		}
 	}
 

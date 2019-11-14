@@ -20,6 +20,7 @@
 
 /* Classes in mysql */
 
+#include <atomic>
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
@@ -2024,7 +2025,7 @@ struct wait_for_commit
   /*
     The LOCK_wait_commit protects the fields subsequent_commits_list and
     wakeup_subsequent_commits_running (for a waitee), and the pointer
-    waiterr and associated COND_wait_commit (for a waiter).
+    waitee and associated COND_wait_commit (for a waiter).
   */
   mysql_mutex_t LOCK_wait_commit;
   mysql_cond_t COND_wait_commit;
@@ -2038,8 +2039,14 @@ struct wait_for_commit
 
     When this is cleared for wakeup, the COND_wait_commit condition is
     signalled.
+
+    This pointer is protected by LOCK_wait_commit. But there is also a "fast
+    path" where the waiter compares this to NULL without holding the lock.
+    Such read must be done with acquire semantics (and all corresponding
+    writes done with release semantics). This ensures that a wakeup with error
+    is reliably detected as (waitee==NULL && wakeup_error != 0).
   */
-  wait_for_commit *waitee;
+  std::atomic<wait_for_commit *> waitee;
   /*
     Generic pointer for use by the transaction coordinator to optimise the
     waiting for improved group commit.
@@ -2074,7 +2081,7 @@ struct wait_for_commit
       Quick inline check, to avoid function call and locking in the common case
       where no wakeup is registered, or a registered wait was already signalled.
     */
-    if (waitee)
+    if (waitee.load(std::memory_order_acquire))
       return wait_for_prior_commit2(thd);
     else
     {
@@ -2102,7 +2109,7 @@ struct wait_for_commit
   }
   void unregister_wait_for_prior_commit()
   {
-    if (waitee)
+    if (waitee.load(std::memory_order_relaxed))
       unregister_wait_for_prior_commit2();
     else
       wakeup_error= 0;
@@ -2124,7 +2131,7 @@ struct wait_for_commit
       }
       next_ptr_ptr= &cur->next_subsequent_commit;
     }
-    waitee= NULL;
+    waitee.store(NULL, std::memory_order_relaxed);
   }
 
   void wakeup(int wakeup_error);

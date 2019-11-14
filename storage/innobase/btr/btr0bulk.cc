@@ -1012,7 +1012,7 @@ BtrBulk::finish(dberr_t	err)
 
 		mtr.start();
 		m_index->set_modified(mtr);
-		mtr_x_lock(&m_index->lock, &mtr);
+		mtr_x_lock_index(m_index, &mtr);
 
 		ut_ad(last_page_no != FIL_NULL);
 		last_block = btr_block_get(*m_index, last_page_no, RW_X_LATCH,
