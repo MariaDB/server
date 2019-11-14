@@ -2321,7 +2321,7 @@ row_upd_sec_index_entry(
 		or was being created online, but not committed yet. It
 		is protected by index->lock. */
 
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
+		mtr_s_lock_index(index, &mtr);
 
 		switch (dict_index_get_online_status(index)) {
 		case ONLINE_INDEX_COMPLETE:
@@ -3100,7 +3100,7 @@ row_upd_clust_step(
 	if (dict_index_is_online_ddl(index)) {
 		ut_ad(node->table->id != DICT_INDEXES_ID);
 		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
+		mtr_s_lock_index(index, &mtr);
 	} else {
 		mode = BTR_MODIFY_LEAF;
 	}

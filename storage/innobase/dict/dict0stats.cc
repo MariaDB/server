@@ -850,10 +850,8 @@ dict_stats_update_transient_for_index(
 		mtr_t	mtr;
 		ulint	size;
 
-		mtr_start(&mtr);
-
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
-
+		mtr.start();
+		mtr_s_lock_index(index, &mtr);
 		size = btr_get_size(index, BTR_TOTAL_SIZE, &mtr);
 
 		if (size != ULINT_UNDEFINED) {
@@ -863,7 +861,7 @@ dict_stats_update_transient_for_index(
 				index, BTR_N_LEAF_PAGES, &mtr);
 		}
 
-		mtr_commit(&mtr);
+		mtr.commit();
 
 		switch (size) {
 		case ULINT_UNDEFINED:
@@ -1925,10 +1923,8 @@ dict_stats_analyze_index(
 
 	dict_stats_empty_index(index, false);
 
-	mtr_start(&mtr);
-
-	mtr_s_lock(dict_index_get_lock(index), &mtr);
-
+	mtr.start();
+	mtr_s_lock_index(index, &mtr);
 	size = btr_get_size(index, BTR_TOTAL_SIZE, &mtr);
 
 	if (size != ULINT_UNDEFINED) {
@@ -1937,7 +1933,7 @@ dict_stats_analyze_index(
 	}
 
 	/* Release the X locks on the root page taken by btr_get_size() */
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	switch (size) {
 	case ULINT_UNDEFINED:
@@ -1950,10 +1946,8 @@ dict_stats_analyze_index(
 
 	index->stat_n_leaf_pages = size;
 
-	mtr_start(&mtr);
-
-	mtr_sx_lock(dict_index_get_lock(index), &mtr);
-
+	mtr.start();
+	mtr_sx_lock_index(index, &mtr);
 	root_level = btr_height_get(index, &mtr);
 
 	n_uniq = dict_index_get_n_unique(index);
@@ -1993,7 +1987,7 @@ dict_stats_analyze_index(
 			index->stat_n_sample_sizes[i] = total_pages;
 		}
 
-		mtr_commit(&mtr);
+		mtr.commit();
 
 		dict_stats_assert_initialized_index(index);
 		DBUG_VOID_RETURN;
@@ -2039,9 +2033,9 @@ dict_stats_analyze_index(
 
 		/* Commit the mtr to release the tree S lock to allow
 		other threads to do some work too. */
-		mtr_commit(&mtr);
-		mtr_start(&mtr);
-		mtr_sx_lock(dict_index_get_lock(index), &mtr);
+		mtr.commit();
+		mtr.start();
+		mtr_sx_lock_index(index, &mtr);
 		if (root_level != btr_height_get(index, &mtr)) {
 			/* Just quit if the tree has changed beyond
 			recognition here. The old stats from previous
@@ -2179,7 +2173,7 @@ found_level:
 			data, &mtr);
 	}
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	UT_DELETE_ARRAY(n_diff_boundaries);
 

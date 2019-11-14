@@ -2622,7 +2622,7 @@ row_ins_clust_index_entry_low(
 			if (mode == BTR_MODIFY_LEAF
 			    && dict_index_is_online_ddl(index)) {
 				mode = BTR_MODIFY_LEAF_ALREADY_S_LATCHED;
-				mtr_s_lock(dict_index_get_lock(index), &mtr);
+				mtr_s_lock_index(index, &mtr);
 			}
 
 			if (unsigned ai = index->table->persistent_autoinc) {
@@ -2847,9 +2847,9 @@ row_ins_sec_mtr_start_and_check_if_aborted(
 	}
 
 	if (search_mode & BTR_ALREADY_S_LATCHED) {
-		mtr_s_lock(dict_index_get_lock(index), mtr);
+		mtr_s_lock_index(index, mtr);
 	} else {
-		mtr_sx_lock(dict_index_get_lock(index), mtr);
+		mtr_sx_lock_index(index, mtr);
 	}
 
 	switch (index->online_status) {
@@ -2935,9 +2935,9 @@ row_ins_sec_index_entry_low(
 		DEBUG_SYNC_C("row_ins_sec_index_enter");
 		if (mode == BTR_MODIFY_LEAF) {
 			search_mode |= BTR_ALREADY_S_LATCHED;
-			mtr_s_lock(dict_index_get_lock(index), &mtr);
+			mtr_s_lock_index(index, &mtr);
 		} else {
-			mtr_sx_lock(dict_index_get_lock(index), &mtr);
+			mtr_sx_lock_index(index, &mtr);
 		}
 
 		if (row_log_online_op_try(

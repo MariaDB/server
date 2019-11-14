@@ -137,7 +137,7 @@ rtr_pcur_getnext_from_path(
 	if (!index_locked) {
 		ut_ad(latch_mode & BTR_SEARCH_LEAF
 		      || latch_mode & BTR_MODIFY_LEAF);
-		mtr_s_lock(dict_index_get_lock(index), mtr);
+		mtr_s_lock_index(index, mtr);
 	} else {
 		ut_ad(mtr_memo_contains_flagged(mtr, &index->lock,
 						MTR_MEMO_SX_LOCK

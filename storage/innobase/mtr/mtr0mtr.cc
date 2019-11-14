@@ -569,10 +569,7 @@ mtr_t::x_lock_space(ulint space_id, const char* file, unsigned line)
 
 	ut_ad(space);
 	ut_ad(space->id == space_id);
-	x_lock(&space->latch, file, line);
-	ut_ad(space->purpose == FIL_TYPE_TEMPORARY
-	      || space->purpose == FIL_TYPE_IMPORT
-	      || space->purpose == FIL_TYPE_TABLESPACE);
+	x_lock_space(space, file, line);
 	return(space);
 }
 
