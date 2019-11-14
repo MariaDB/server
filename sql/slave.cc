@@ -7220,7 +7220,33 @@ err:
     sql_print_error("Error reading relay log event: %s", errmsg);
   DBUG_RETURN(0);
 }
+#ifdef WITH_WSREP
+enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size)
+{
+  mysql_mutex_lock(&rgi->rli->data_lock);
 
+  unsigned long long event_pos= rgi->event_relay_log_pos;
+  unsigned long long future_pos= rgi->future_event_relay_log_pos;
+
+  /* scan the log to read next event */
+  my_b_seek(rgi->rli->cur_log, future_pos);
+  rgi->rli->event_relay_log_pos= future_pos;
+  rgi->event_relay_log_pos= future_pos;
+
+  Log_event* ev = next_event(rgi, event_size);
+  enum Log_event_type ev_type= (ev) ? ev->get_type_code() : UNKNOWN_EVENT;
+  delete ev;
+
+  /* scan the log back and re-set the positions to original values */
+  rgi->rli->event_relay_log_pos= event_pos;
+  rgi->event_relay_log_pos= event_pos;
+  my_b_seek(rgi->rli->cur_log, future_pos);
+
+  mysql_mutex_unlock(&rgi->rli->data_lock);
+
+  return ev_type;
+}
+#endif /* WITH_WSREP */
 /*
   Rotate a relay log (this is used only by FLUSH LOGS; the automatic rotation
   because of size is simpler because when we do it we already have all relevant
