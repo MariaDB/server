@@ -1059,7 +1059,7 @@ plugin_ref plugin_lock_by_name(THD *thd, const LEX_CSTRING *name, int type)
   DBUG_ENTER("plugin_lock_by_name");
   mysql_mutex_lock(&LOCK_plugin);
   if ((plugin= plugin_find_internal(name, type)))
-    rc= intern_plugin_lock(lex, plugin_int_to_ref(plugin));
+    rc= intern_plugin_lock(lex, plugin_int_to_ref(plugin), PLUGIN_IS_READY);
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(rc);
 }

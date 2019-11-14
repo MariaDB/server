@@ -193,7 +193,7 @@ redo:
   if ((plugin= my_plugin_lock_by_name(thd, name, MYSQL_STORAGE_ENGINE_PLUGIN)))
   {
     handlerton *hton= plugin_hton(plugin);
-    if (hton && !(hton->flags & HTON_NOT_USER_SELECTABLE))
+    if (!(hton->flags & HTON_NOT_USER_SELECTABLE))
       return plugin;
       
     /*
@@ -477,11 +477,11 @@ static void update_discovery_counters(handlerton *hton, int val)
 
 int ha_finalize_handlerton(st_plugin_int *plugin)
 {
-  handlerton *hton= (handlerton *)plugin->data;
+  handlerton *hton= plugin_hton(plugin_int_to_ref(plugin));
   DBUG_ENTER("ha_finalize_handlerton");
 
-  /* hton can be NULL here, if ha_initialize_handlerton() failed. */
-  if (!hton)
+  /* data can be NULL here, if ha_initialize_handlerton() failed. */
+  if (!plugin->data)
     goto end;
 
   if (installed_htons[hton->db_type] == hton)
@@ -538,11 +538,8 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   DBUG_ENTER("ha_initialize_handlerton");
   DBUG_PRINT("plugin", ("initialize plugin: '%s'", plugin->name.str));
 
-  handlerton *hton=
-    static_cast<st_mysql_storage_engine*>(plugin->plugin->info)->hton;
+  handlerton *hton= plugin_hton(plugin_int_to_ref(plugin));
 
-  /* Historical Requirement */
-  plugin->data= hton; // shortcut for the future
   if (plugin->plugin->init && plugin->plugin->init(0))
   {
     sql_print_error("Plugin '%s' init function returned error.",
@@ -662,6 +659,8 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   resolve_sysvar_table_options(hton);
   update_discovery_counters(hton, 1);
 
+  /* Signal ha_finalize_handlerton() that init succeeded. */
+  plugin->data= (void*) 1;
   DBUG_RETURN(0);
 
 err_deinit:
@@ -677,6 +676,7 @@ err:
   if (hton->prepare)
     failed_ha_2pc++;
 #endif
+  /* Signal ha_finalize_handlerton() that init failed. */
   plugin->data= NULL;
   DBUG_RETURN(1);
 }

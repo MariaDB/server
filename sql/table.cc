@@ -1920,7 +1920,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           sql_print_warning("%s.frm is inconsistent: engine typecode %d, engine name %s (%d)",
                         share->normalized_path.str, legacy_db_type,
                         plugin_name(tmp_plugin)->str,
-                        ha_legacy_type(plugin_data(tmp_plugin, handlerton *)));
+                        ha_legacy_type(plugin_hton(tmp_plugin)));
         }
         /*
           tmp_plugin is locked with a local lock.

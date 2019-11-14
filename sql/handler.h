@@ -1668,7 +1668,8 @@ static inline LEX_CSTRING *hton_name(const handlerton *hton)
 
 static inline handlerton *plugin_hton(plugin_ref plugin)
 {
-  return plugin_data(plugin, handlerton *);
+  return
+    reinterpret_cast<st_mysql_storage_engine*>(plugin_decl(plugin)->info)->hton;
 }
 
 static inline sys_var *find_hton_sysvar(handlerton *hton, st_mysql_sys_var *var)

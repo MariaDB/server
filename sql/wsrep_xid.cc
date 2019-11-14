@@ -107,7 +107,7 @@ wsrep::seqno wsrep_xid_seqno(const XID& xid)
 static my_bool set_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
 {
   XID* xid= static_cast<XID*>(arg);
-  handlerton* hton= plugin_data(plugin, handlerton *);
+  handlerton* hton= plugin_hton(plugin);
 
   if (hton->set_checkpoint)
   {
@@ -137,7 +137,7 @@ bool wsrep_set_SE_checkpoint(const wsrep::gtid& wsgtid)
 static my_bool get_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
 {
   XID* xid= reinterpret_cast<XID*>(arg);
-  handlerton* hton= plugin_data(plugin, handlerton *);
+  handlerton* hton= plugin_hton(plugin);
 
   if (hton->get_checkpoint)
   {

@@ -6004,7 +6004,7 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
                                    void *ptable)
 {
   TABLE *table= (TABLE *) ptable;
-  handlerton *hton= plugin_hton(plugin);
+  handlerton *hton;
   const char *wild= thd->lex->wild ? thd->lex->wild->ptr() : NullS;
   CHARSET_INFO *scs= system_charset_info;
   handlerton *default_type= ha_default_handlerton(thd);
@@ -6029,6 +6029,7 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
     DBUG_RETURN(0);
   }
 
+  hton= plugin_hton(plugin);
   if (!(hton->flags & HTON_HIDDEN))
   {
     LEX_CSTRING *name= plugin_name(plugin);
