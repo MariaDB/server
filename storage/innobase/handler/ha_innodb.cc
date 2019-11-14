@@ -11850,7 +11850,7 @@ index_bad:
 	dict_tf_set(&m_flags, innodb_row_format, zip_ssize,
 			m_use_data_dir,
 			options->page_compressed,
-		    options->page_compression_level == 0 ? default_compression_level
+			options->page_compression_level == 0 ? default_compression_level
 				: ulint(options->page_compression_level),
 			options->persistent_count);
 
@@ -13301,7 +13301,6 @@ ha_innobase::enable_persistent_count()
 	trx_t* trx = m_prebuilt->trx;
 	int err;
 
-	ib_table->alter_persistent_count = true;
 	dict_index_t* index = UT_LIST_GET_FIRST(ib_table->indexes);
 	rw_lock_sx_lock(&index->lock);
 

@@ -899,7 +899,6 @@ inline ulint dict_tf_get_zip_size(ulint flags)
 		: 0;
 }
 
-
 /** Determine the extent size (in pages) for the given table
 @param[in]	table	the table whose extent size is being
 			calculated.

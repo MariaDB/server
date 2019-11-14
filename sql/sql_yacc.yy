@@ -1189,6 +1189,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> YEAR_MONTH_SYM
 %token  <kwd> ZEROFILL
 
+
 /*
   Keywords that have different reserved status in std/oracle modes.
 */

@@ -38,7 +38,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "log0log.h"
 #include "os0proc.h"
 #include "que0que.h"
-#include "row0mysql.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
 #include "srv0start.h"
@@ -1544,20 +1543,23 @@ void trx_update_persistent_counts(
 {
     dict_table_t* ib_table;
     dict_index_t* index;
+    int64_t uncommitted_count;
     for (trx_mod_tables_t::const_iterator t = trx->mod_tables.begin();
          t != trx->mod_tables.end(); t++) {
         ib_table = t->first;
         index = UT_LIST_GET_FIRST(ib_table->indexes);
         rw_lock_x_lock(&index->lock);
-        if (ib_table->committed_count_inited
-            && !ib_table->alter_persistent_count) {
-            ib_table->committed_count += trx->uncommitted_count(ib_table);
+        if (ib_table->committed_count_inited) {
+            uncommitted_count = trx->uncommitted_count(ib_table);
+            ib_table->committed_count += uncommitted_count;
             rw_lock_x_unlock(&index->lock);
-            innobase_update_persistent_count(ib_table, trx);
+
+            if (uncommitted_count != 0) {
+                innobase_update_persistent_count(ib_table, trx);
+            }
         } else {
             rw_lock_x_unlock(&index->lock);
         }
-        ib_table->alter_persistent_count = false;
     }
 }
 

@@ -2158,7 +2158,6 @@ public:
 	It is protected by lock_sys.mutex. */
 	ulint					n_rec_locks;
 
-	bool                           alter_persistent_count;
 	bool                           committed_count_inited;
 	Atomic_counter<ib_uint64_t>    committed_count;
 

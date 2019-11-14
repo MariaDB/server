@@ -197,7 +197,6 @@ public:
 
 	ha_rows estimate_rows_upper_bound() override;
 
-
 	void update_create_info(HA_CREATE_INFO* create_info) override;
 
 	inline int create(

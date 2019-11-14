@@ -5993,11 +5993,6 @@ bool innobase_update_persistent_count(
 	dict_table_t* user_table,
 	trx_t*		  trx)
 {
-	if (user_table->alter_persistent_count) {
-		/* ALTER TABLE {tbl} ENABLE|DISABLE PERSISTENT_COUNT is underway */
-		return true;
-	}
-    
 	mem_heap_t* heap = mem_heap_create(1024);
 	dict_index_t* index = dict_table_get_first_index(user_table);
 	mtr_t mtr;

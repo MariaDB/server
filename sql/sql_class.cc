@@ -4711,6 +4711,7 @@ extern "C" void thd_create_random_password(MYSQL_THD thd,
   *to= '\0';
 }
 
+
 #ifdef INNODB_COMPATIBILITY_HOOKS
 
 /** open a table and add it to thd->open_tables
