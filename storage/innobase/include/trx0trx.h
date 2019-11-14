@@ -756,6 +756,12 @@ struct trx_rsegs_t {
 	trx_temp_undo_t	m_noredo;
 };
 
+/** Uncommitted difference for an undo log rec */
+struct undo_rec_diff_t {
+	int64_t diff;
+	table_id_t table_id;
+};
+
 struct trx_t {
 private:
   /**

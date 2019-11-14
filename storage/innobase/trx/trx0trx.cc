@@ -1536,29 +1536,106 @@ trx_commit_in_memory(
 }
 
 /*************************************************************//**
+Get difference in uncommitted count for a single undo record. */
+void undo_rec_get_diff(
+/*============*/
+    trx_undo_rec_t* undo_rec,		/*!< in: undo record */
+	undo_rec_diff_t* undo_rec_diff) /*!< out: undo record difference */
+{
+	ulint type, cmpl_info;
+	bool updated_extern;
+	undo_no_t undo;
+
+	trx_undo_rec_get_pars(undo_rec, &type, &cmpl_info, &updated_extern, &undo,
+		&undo_rec_diff->table_id);
+
+	switch (type) {
+	case TRX_UNDO_INSERT_REC:
+	case TRX_UNDO_UPD_DEL_REC:
+		undo_rec_diff->diff = 1;
+		break;
+	case TRX_UNDO_DEL_MARK_REC:
+		undo_rec_diff->diff = -1;
+		break;
+	default:
+		undo_rec_diff->diff = 0;
+		break;
+	}
+}
+
+/*************************************************************//**
 Update the persistent counts of all tables modified by a transaction. */
 void trx_update_persistent_counts(
 /*============*/
     trx_t* trx)		/*!< in: transaction */
 {
+    /* Initialize uncommitted_counts and mod_tables_by_id maps.
+    uncommitted_counts maps table ID to uncommitted count.
+    mod_tables_by_id maps table ID to dict_table_t. */
     dict_table_t* ib_table;
+    std::map<table_id_t, int64_t> uncommitted_counts;
+    std::map<table_id_t, dict_table_t* const> mod_tables_by_id;
+    for (trx_mod_tables_t::const_iterator it = trx->mod_tables.begin();
+         it != trx->mod_tables.end(); it++) {
+        ib_table = it->first;
+        if (ib_table->committed_count_inited) {
+            uncommitted_counts.insert(
+                std::pair<table_id_t, int64_t>
+                    (ib_table->id, 0));
+            mod_tables_by_id.insert(
+                std::pair<table_id_t, dict_table_t* const>
+                    (ib_table->id, ib_table));
+        }
+    }
+
+    /* Loop through undo log and update uncommitted_counts map */
+    trx_undo_t* undo;
+    trx_undo_rec_t* undo_rec;
+    mtr_t mtr;
+    undo_rec_diff_t undo_rec_diff;
+    std::map<table_id_t, int64_t>::iterator it_uncommitted_counts;
+
+    undo = trx->rsegs.m_redo.undo;
+    if (undo) {
+        mtr_start(&mtr);
+
+        undo_rec = trx_undo_get_first_rec(undo->rseg->space, undo->hdr_page_no,
+                    undo->hdr_offset, RW_S_LATCH, &mtr);
+
+        while (undo_rec) {
+            undo_rec_get_diff(undo_rec, &undo_rec_diff);
+            it_uncommitted_counts =
+                uncommitted_counts.find(undo_rec_diff.table_id);
+            if (it_uncommitted_counts != uncommitted_counts.end()) {
+                it_uncommitted_counts->second += undo_rec_diff.diff;
+            }
+
+            undo_rec = trx_undo_get_next_rec(undo_rec, undo->hdr_page_no,
+                undo->hdr_offset, &mtr);
+        }
+        mtr_commit(&mtr);
+    }
+
+    /* Loop through uncommitted_counts map and update corresponding ib_table
+    in mod_tables_by_id */
+    std::map<table_id_t, dict_table_t* const>::iterator it_mod_tables_by_id;
     dict_index_t* index;
-    int64_t uncommitted_count;
-    for (trx_mod_tables_t::const_iterator t = trx->mod_tables.begin();
-         t != trx->mod_tables.end(); t++) {
-        ib_table = t->first;
+    for (it_uncommitted_counts = uncommitted_counts.begin();
+         it_uncommitted_counts != uncommitted_counts.end();
+         it_uncommitted_counts++) {
+        it_mod_tables_by_id = mod_tables_by_id.find(
+                                it_uncommitted_counts->first);
+        ut_ad(it_mod_tables_by_id != mod_tables_by_id.end());
+        ib_table = it_mod_tables_by_id->second;
+
         index = UT_LIST_GET_FIRST(ib_table->indexes);
         rw_lock_x_lock(&index->lock);
-        if (ib_table->committed_count_inited) {
-            uncommitted_count = trx->uncommitted_count(ib_table);
-            ib_table->committed_count += uncommitted_count;
-            rw_lock_x_unlock(&index->lock);
-
-            if (uncommitted_count != 0) {
-                innobase_update_persistent_count(ib_table, trx);
-            }
-        } else {
-            rw_lock_x_unlock(&index->lock);
+        /* No need to check for committed_count_inited since check is performed
+         in map initialization */
+        ib_table->committed_count += it_uncommitted_counts->second;
+        rw_lock_x_unlock(&index->lock);
+        if (it_uncommitted_counts->second != 0) {
+            innobase_update_persistent_count(ib_table, trx);
         }
     }
 }
@@ -2500,61 +2577,36 @@ trx_set_rw_mode(
 	}
 }
 
-/*************************************************************//**
-Return difference in uncommitted count for a single undo record. */
-ib_int64_t get_diff_from_rec(
-/*============*/
-    trx_undo_rec_t* undo_rec,		/*!< in: undo record */
-    table_id_t table_id)           	/*!< in: table ID */
-{
-	ulint type, cmpl_info;
-	bool updated_extern;
-	undo_no_t undo;
-	table_id_t rec_table_id;
-
-	trx_undo_rec_get_pars(undo_rec, &type, &cmpl_info, &updated_extern, &undo,
-		&rec_table_id);
-
-	if (rec_table_id != table_id)
-		return 0;
-
-	switch (type) {
-	case TRX_UNDO_INSERT_REC:
-	case TRX_UNDO_UPD_DEL_REC:
-		return 1;
-	case TRX_UNDO_DEL_MARK_REC:
-		return -1;
-	default:
-		return 0;
-	}
-}
-
 /** Determine the change to uncommitted records for a table.
 @param table     persistent table
 @return the change to uncommitted records for a table in the transaction */
-int64_t trx_t::uncommitted_count(dict_table_t* table) const
+int64_t
+trx_t::uncommitted_count(dict_table_t* table) const
 {
-	trx_undo_t* undo;
-	trx_undo_rec_t* undo_rec;
-	mtr_t mtr;
-	ib_int64_t count = 0;
+    trx_undo_t* undo;
+    trx_undo_rec_t* undo_rec;
+    mtr_t mtr;
+    undo_rec_diff_t undo_rec_diff;
+    int64_t count = 0;
 
-	undo = rsegs.m_redo.undo;
-
-	if (undo) {
+    undo = rsegs.m_redo.undo;
+    if (undo) {
 		mtr_start(&mtr);
 
-		undo_rec = trx_undo_get_first_rec(
-			undo->rseg->space, undo->hdr_page_no, undo->hdr_offset,
-			RW_S_LATCH, &mtr);
+        undo_rec = trx_undo_get_first_rec(undo->rseg->space, undo->hdr_page_no,
+            undo->hdr_offset, RW_S_LATCH, &mtr);
 
-		while (undo_rec) {
-			count += get_diff_from_rec(undo_rec, table->id);
-			undo_rec = trx_undo_get_next_rec(undo_rec, undo->hdr_page_no,
-				undo->hdr_offset, &mtr);
-		}
-		mtr_commit(&mtr);
-	}
+        while (undo_rec) {
+            undo_rec_get_diff(undo_rec, &undo_rec_diff);
+            if (undo_rec_diff.table_id == table->id) {
+                count += undo_rec_diff.diff;
+            }
 
-	return count;
+            undo_rec = trx_undo_get_next_rec(undo_rec, undo->hdr_page_no,
+                undo->hdr_offset, &mtr);
+        }
+        mtr_commit(&mtr);
+    }
+
+    return count;
 }
