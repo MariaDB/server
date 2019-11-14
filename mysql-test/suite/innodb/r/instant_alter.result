@@ -349,8 +349,6 @@ id	c2	c3	c4	c5	c6	c7	c8	phrase	b
 ALTER TABLE t3 DROP c3, DROP c7;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-SET innodb_strict_mode = OFF;
-affected rows: 0
 SELECT * FROM t3;
 id	c2	c4	c5	c6	c8	phrase	b
 1	1	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
@@ -808,8 +806,6 @@ id	c2	c3	c4	c5	c6	c7	c8	phrase	b
 ALTER TABLE t3 DROP c3, DROP c7;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-SET innodb_strict_mode = OFF;
-affected rows: 0
 SELECT * FROM t3;
 id	c2	c4	c5	c6	c8	phrase	b
 1	1	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
@@ -1267,8 +1263,6 @@ id	c2	c3	c4	c5	c6	c7	c8	phrase	b
 ALTER TABLE t3 DROP c3, DROP c7;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-SET innodb_strict_mode = OFF;
-affected rows: 0
 SELECT * FROM t3;
 id	c2	c4	c5	c6	c8	phrase	b
 1	1	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	

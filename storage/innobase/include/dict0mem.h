@@ -1121,11 +1121,65 @@ struct dict_index_t{
 	bool
 	vers_history_row(const rec_t* rec, bool &history_row);
 
-	/** If a record of this index might not fit on a single B-tree page,
-	  return true.
-	@param[in]	strict	issue error or warning
-	@return true if the index record could become too big */
-	bool rec_potentially_too_big(bool strict) const;
+	/** This ad-hoc class is used by record_size_info only.	*/
+	class record_size_info_t {
+	public:
+		record_size_info_t()
+		    : max_leaf_size(0), shortest_size(0), too_big(false),
+		      first_overrun_field_index(SIZE_T_MAX), overrun_size(0)
+		{
+		}
+
+		/** Mark row potentially too big for page and set up first
+		overflow field index. */
+		void set_too_big(size_t field_index)
+		{
+			ut_ad(field_index != SIZE_T_MAX);
+
+			too_big = true;
+			if (first_overrun_field_index > field_index) {
+				first_overrun_field_index = field_index;
+				overrun_size = shortest_size;
+			}
+		}
+
+		/** @return overrun field index or SIZE_T_MAX if nothing
+		overflowed*/
+		size_t get_first_overrun_field_index() const
+		{
+			ut_ad(row_is_too_big());
+			ut_ad(first_overrun_field_index != SIZE_T_MAX);
+			return first_overrun_field_index;
+		}
+
+		size_t get_overrun_size() const
+		{
+			ut_ad(row_is_too_big());
+			return overrun_size;
+		}
+
+		bool row_is_too_big() const { return too_big; }
+
+		size_t max_leaf_size; /** Bigger row size this index can
+				      produce */
+		size_t shortest_size; /** shortest because it counts everything
+				      as in overflow pages */
+
+	private:
+		bool too_big; /** This one is true when maximum row size this
+			      index can produce is bigger than maximum row
+			      size given page can hold. */
+		size_t first_overrun_field_index; /** After adding this field
+						  index row overflowed maximum
+						  allowed size. Useful for
+						  reporting back to user. */
+		size_t overrun_size;		  /** Just overrun row size */
+	};
+
+	/** Returns max possibly record size for that index, size of a shortest
+	everything in overflow) size of the longest possible row and index
+	of a field which made index records too big to fit on a page.*/
+	inline record_size_info_t record_size_info() const;
 };
 
 /** Detach a column from an index.

@@ -1,3 +1,4 @@
+call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
 SET GLOBAL innodb_file_per_table=on;
 SET GLOBAL innodb_strict_mode=on;
 set old_alter_table=0;

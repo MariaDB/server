@@ -4921,6 +4921,10 @@ prepare_inplace_alter_table_dict(
 
 	new_clustered = (DICT_CLUSTERED & index_defs[0].ind_type) != 0;
 
+	create_table_info_t info(ctx->prebuilt->trx->mysql_thd, altered_table,
+				 ha_alter_info->create_info, NULL, NULL,
+				 srv_file_per_table);
+
 	/* The primary index would be rebuilt if a FTS Doc ID
 	column is to be added, and the primary index definition
 	is just copied from old table and stored in indexdefs[0] */
@@ -5300,7 +5304,7 @@ new_clustered_failed:
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
 			ctx->add_index[a]->table = ctx->new_table;
 			error = dict_index_add_to_cache(
-				ctx->add_index[a], FIL_NULL, false, add_v);
+				ctx->add_index[a], FIL_NULL, add_v);
 			ut_a(error == DB_SUCCESS);
 		}
 		DBUG_ASSERT(ha_alter_info->key_count
@@ -5539,6 +5543,10 @@ new_table_failed:
 			}
 
 			ctx->add_index[a] = index;
+			if (!info.row_size_is_acceptable(*index)) {
+				error = DB_TOO_BIG_RECORD;
+				goto error_handling;
+			}
 			index->parser = index_defs[a].parser;
 			index->has_new_v_col = has_new_v_col;
 			/* Note the id of the transaction that created this
@@ -5637,6 +5645,10 @@ error_handling_drop_uncached:
 				DBUG_ASSERT(index != ctx->add_index[a]);
 			}
 			ctx->add_index[a]= index;
+			if (!info.row_size_is_acceptable(*index)) {
+				error = DB_TOO_BIG_RECORD;
+				goto error_handling_drop_uncached;
+			}
 
 			index->parser = index_defs[a].parser;
 			index->has_new_v_col = has_new_v_col;
@@ -5685,6 +5697,10 @@ error_handling_drop_uncached:
 				}
 			}
 		}
+	} else if (ctx->is_instant()
+		   && !info.row_size_is_acceptable(*user_table)) {
+		error = DB_TOO_BIG_RECORD;
+		goto error_handling;
 	}
 
 	if (ctx->online && ctx->num_to_add_index) {
