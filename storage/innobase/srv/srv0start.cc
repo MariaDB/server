@@ -2385,17 +2385,11 @@ void innodb_shutdown()
 	}
 
 	dict_sys.close();
-	btr_search_sys_free();
-
-	/* 3. Free all InnoDB's own mutexes and the os_fast_mutexes inside
-	them */
 	os_aio_free();
+	btr_search_sys_free();
 	row_mysql_close();
 	srv_free();
 	fil_system.close();
-
-	/* 4. Free all allocated memory */
-
 	pars_lexer_close();
 	recv_sys.close();
 
@@ -2411,7 +2405,7 @@ void innodb_shutdown()
 			   << srv_shutdown_lsn
 			   << "; transaction id " << trx_sys.get_max_trx_id();
 	}
-  srv_thread_pool_end();
+	srv_thread_pool_end();
 	srv_start_state = SRV_START_STATE_NONE;
 	srv_was_started = false;
 	srv_start_has_been_called = false;
