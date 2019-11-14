@@ -1702,7 +1702,7 @@ BEGIN NOT ATOMIC DECLARE overlaps INT; SET overlaps=10; SELECT overlaps; END
 SELECT overlaps FROM t1
 SELECT overlaps 'alias' FROM t1
 SELECT overlaps()
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+Error	1582	Incorrect parameter count in the call to native function 'overlaps()'
 SELECT overlaps.overlaps()
 Error	1630	FUNCTION overlaps.overlaps does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
 SELECT overlaps DATE FROM t1
