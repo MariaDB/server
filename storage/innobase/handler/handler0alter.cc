@@ -5991,7 +5991,6 @@ func_exit:
 @retval	false	success */
 bool innobase_update_persistent_count(
 	dict_table_t* user_table,
-	const TABLE*  table,
 	trx_t*		  trx)
 {
 	if (user_table->alter_persistent_count) {
@@ -6016,89 +6015,7 @@ bool innobase_update_persistent_count(
 	index->n_core_fields and index->table->instant could change,
 	but we would handle that in empty_table: below. */
 	mtr.commit();
-	/* The table may have been emptied and may have lost its
-	'instantness' during this ALTER TABLE. */
 
-	/* Construct a table row of default values for the stored columns. */
-	dtuple_t* row = dtuple_create(heap, user_table->n_cols);
-	dict_table_copy_types(row, user_table);
-	Field** af = table->field;
-	Field** const end = table->field + table->s->fields;
-
-	for (uint i = 0; af < end; af++) {
-		dfield_t* d = dtuple_get_nth_field(row, i);
-		const dict_col_t* col = dict_table_get_nth_col(user_table, i);
-		DBUG_ASSERT(!col->is_virtual());
-		DBUG_ASSERT(!col->is_dropped());
-		DBUG_ASSERT(col->mtype != DATA_SYS);
-		DBUG_ASSERT(!strcmp((*af)->field_name.str,
-				    dict_table_get_col_name(user_table, i)));
-
-		if (col->is_added()) {
-			dfield_set_data(d, col->def_val.data,
-					col->def_val.len);
-		} else if ((*af)->real_maybe_null()) {
-			/* Store NULL for nullable 'core' columns. */
-			dfield_set_null(d);
-		} else {
-			switch ((*af)->type()) {
-			case MYSQL_TYPE_VARCHAR:
-			case MYSQL_TYPE_GEOMETRY:
-			case MYSQL_TYPE_TINY_BLOB:
-			case MYSQL_TYPE_MEDIUM_BLOB:
-			case MYSQL_TYPE_BLOB:
-			case MYSQL_TYPE_LONG_BLOB:
-				/* Store the empty string for 'core'
-				variable-length NOT NULL columns. */
-				dfield_set_data(d, field_ref_zero, 0);
-				break;
-			default:
-				/* For fixed-length NOT NULL 'core' columns,
-				get a dummy default value from SQL. Note that
-				we will preserve the old values of these
-				columns when updating the metadata
-				record, to avoid unnecessary updates. */
-				ulint len = (*af)->pack_length();
-				DBUG_ASSERT(d->type.mtype != DATA_INT
-					    || len <= 8);
-				row_mysql_store_col_in_innobase_format(
-					d, d->type.mtype == DATA_INT
-					? static_cast<byte*>(
-						mem_heap_alloc(heap, len))
-					: NULL, true, (*af)->ptr, len,
-					dict_table_is_comp(user_table));
-			}
-		}
-
-		i++;
-	}
-
-	unsigned i = unsigned(user_table->n_cols) - DATA_N_SYS_COLS;
-	DBUG_ASSERT(i >= table->s->stored_fields);
-	DBUG_ASSERT(i <= table->s->stored_fields + 1);
-	if (i > table->s->fields) {
-		const dict_col_t& fts_doc_id = user_table->cols[i - 1];
-		DBUG_ASSERT(!strcmp(fts_doc_id.name(*user_table),
-				    FTS_DOC_ID_COL_NAME));
-		DBUG_ASSERT(!fts_doc_id.is_nullable());
-		DBUG_ASSERT(fts_doc_id.len == 8);
-		dfield_set_data(dtuple_get_nth_field(row, i - 1),
-				field_ref_zero, fts_doc_id.len);
-	}
-	byte trx_id[DATA_TRX_ID_LEN], roll_ptr[DATA_ROLL_PTR_LEN];
-	dfield_set_data(dtuple_get_nth_field(row, i++), field_ref_zero,
-			DATA_ROW_ID_LEN);
-	dfield_set_data(dtuple_get_nth_field(row, i++), trx_id, sizeof trx_id);
-	dfield_set_data(dtuple_get_nth_field(row, i),roll_ptr,sizeof roll_ptr);
-	DBUG_ASSERT(i + 1 == user_table->n_cols);
-
-	trx_write_trx_id(trx_id, trx->id);
-	/* The DB_ROLL_PTR will be assigned later, when allocating undo log.
-	Silence a Valgrind warning in dtuple_validate() when
-	row_ins_clust_index_entry_low() searches for the insert position. */
-	memset(roll_ptr, 0, sizeof roll_ptr);
-
-	dtuple_t* entry = index->instant_metadata(*row, heap);
 	mtr.start();
 	index->set_modified(mtr);
 	btr_pcur_t pcur;
@@ -6113,24 +6030,31 @@ bool innobase_update_persistent_count(
 	ut_ad(!buf_block_get_page_zip(block));
 	const rec_t* rec = btr_pcur_get_rec(&pcur);
 	que_thr_t* thr = pars_complete_graph_for_exec(NULL, trx, heap, NULL);
-
 	dberr_t err = DB_SUCCESS;
-	if (rec_is_metadata(rec, *index)) {
-		ut_ad(page_rec_is_user_rec(rec));
-		if (!page_has_next(block->frame)
-		    && page_rec_is_last(rec, block->frame)) {
-			goto empty_table;
-		}
 
-		/* Ensure that the root page is in the correct format. */
-		buf_block_t* root = btr_root_block_get(index, RW_X_LATCH,
-						       &mtr);
-		DBUG_ASSERT(root);
-		if (fil_page_get_type(root->frame) != FIL_PAGE_TYPE_INSTANT) {
-			DBUG_ASSERT(!"wrong page type");
-			err = DB_CORRUPTION;
-			goto func_exit;
-		}
+	ut_ad(rec_is_metadata(rec, *index));
+	ut_ad(page_rec_is_user_rec(rec));
+
+	/* Ensure that the root page is in the correct format. */
+	buf_block_t* root = btr_root_block_get(index, RW_X_LATCH,
+							&mtr);
+	DBUG_ASSERT(root);
+	if (fil_page_get_type(root->frame) != FIL_PAGE_TYPE_INSTANT) {
+		DBUG_ASSERT(!"wrong page type");
+		err = DB_CORRUPTION;
+		goto func_exit;
+	}
+	{
+		ulint n_ext;
+		mem_heap_t* offsets_heap = NULL;
+		ulint* offsets = rec_get_offsets(rec, index, NULL, true,
+							ULINT_UNDEFINED, &offsets_heap);
+		dtuple_t* entry = row_metadata_to_tuple(rec, index, offsets, &n_ext,
+							heap, REC_INFO_METADATA_ALTER, !trx->in_rollback);
+		dfield_t* dfield = dtuple_get_nth_field(entry,
+								index->first_user_field());
+		// ASSERT for mblob_init ?
+		user_table->serialise_mblob(heap, dfield);
 
 		btr_set_instant(root, *index, &mtr);
 
@@ -6139,35 +6063,31 @@ bool innobase_update_persistent_count(
 		/* Reserve room for DB_TRX_ID,DB_ROLL_PTR and any
 		non-updated off-page columns in case they are moved off
 		page as a result of the update. */
-		const unsigned f = user_table->instant != NULL;
-		upd_t* update = upd_create(index->n_fields + f, heap);
-		update->n_fields = n + f;
-		update->info_bits = f
-			? REC_INFO_METADATA_ALTER
-			: REC_INFO_METADATA_ADD;
-		if (f) {
-			upd_field_t* uf = upd_get_nth_field(update, 0);
-			uf->field_no = index->first_user_field();
-			uf->new_val = entry->fields[uf->field_no];
-			DBUG_ASSERT(!dfield_is_ext(&uf->new_val));
-			DBUG_ASSERT(!dfield_is_null(&uf->new_val));
-		}
+		ut_ad(user_table->instant);
+		upd_t* update = upd_create(index->n_fields + 1, heap);
+		update->n_fields = n + 1;
+		update->info_bits = REC_INFO_METADATA_ALTER;
+		upd_field_t* uf = upd_get_nth_field(update, 0);
+		uf->field_no = index->first_user_field();
+		uf->new_val = entry->fields[uf->field_no];
+		DBUG_ASSERT(!dfield_is_ext(&uf->new_val));
+		DBUG_ASSERT(!dfield_is_null(&uf->new_val));
 
 		/* Add the default values for instantly added columns */
-		unsigned j = f;
+		unsigned j = 1;
 
 		for (unsigned k = n_old_fields; k < index->n_fields; k++) {
 			upd_field_t* uf = upd_get_nth_field(update, j++);
-			uf->field_no = k + f;
-			uf->new_val = entry->fields[k + f];
+			uf->field_no = k + 1;
+			uf->new_val = entry->fields[k + 1];
 
-			ut_ad(j <= n + f);
+			ut_ad(j <= n + 1);
 		}
 
-		ut_ad(j == n + f);
+		ut_ad(j == n + 1);
 
-		ulint* offsets = NULL;
-		mem_heap_t* offsets_heap = NULL;
+		offsets = NULL;
+		offsets_heap = NULL;
 		big_rec_t* big_rec;
 		err = btr_cur_pessimistic_update(
 			BTR_NO_LOCKING_FLAG | BTR_KEEP_POS_FLAG,
@@ -6192,17 +6112,6 @@ bool innobase_update_persistent_count(
 			mem_heap_free(offsets_heap);
 		}
 		btr_pcur_close(&pcur);
-	} else if (page_rec_is_supremum(rec)) {
-empty_table:
-		/* The table is empty. */
-		ut_ad(fil_page_index_page_check(block->frame));
-		ut_ad(!page_has_siblings(block->frame));
-		ut_ad(block->page.id.page_no() == index->page);
-		/* MDEV-17383: free metadata BLOBs! */
-		btr_page_empty(block, NULL, index, 0, &mtr);
-		index->clear_instant_alter();
-	} else if (!user_table->is_instant()) {
-		ut_ad(!user_table->not_redundant());
 	}
 
 func_exit:
@@ -6210,13 +6119,7 @@ func_exit:
 	mtr.commit();
 	mem_heap_free(heap);
 
-	if (err != DB_SUCCESS) {
-		my_error_innodb(err, table->s->table_name.str,
-				user_table->flags);
-		return true;
-	}
-
-	return false;
+	return err != DB_SUCCESS;
 }
 
 /** Adjust the create index column number from "New table" to

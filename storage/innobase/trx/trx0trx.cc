@@ -1544,31 +1544,20 @@ void trx_update_persistent_counts(
 {
     dict_table_t* ib_table;
     dict_index_t* index;
-    TABLE* table;
     for (trx_mod_tables_t::const_iterator t = trx->mod_tables.begin();
          t != trx->mod_tables.end(); t++) {
         ib_table = t->first;
-
-        table = thd_get_open_tables(trx->mysql_thd);
-        for (; table; table = table->next) {
-            if (ib_table == ((ha_innobase *) table->file)->m_prebuilt->table) {
-                break;
-            }
+        index = UT_LIST_GET_FIRST(ib_table->indexes);
+        rw_lock_x_lock(&index->lock);
+        if (ib_table->committed_count_inited
+            && !ib_table->alter_persistent_count) {
+            ib_table->committed_count += trx->uncommitted_count(ib_table);
+            rw_lock_x_unlock(&index->lock);
+            innobase_update_persistent_count(ib_table, trx);
+        } else {
+            rw_lock_x_unlock(&index->lock);
         }
-
-        if (table) {
-            index = UT_LIST_GET_FIRST(ib_table->indexes);
-            rw_lock_x_lock(&index->lock);
-            if (ib_table->committed_count_inited
-                && !ib_table->alter_persistent_count) {
-                ib_table->committed_count += trx->uncommitted_count(ib_table);
-                rw_lock_x_unlock(&index->lock);
-                innobase_update_persistent_count(ib_table, table, trx);
-            } else {
-                rw_lock_x_unlock(&index->lock);
-            }
-            ib_table->alter_persistent_count = false;
-        }
+        ib_table->alter_persistent_count = false;
     }
 }
 

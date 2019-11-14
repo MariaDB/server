@@ -13373,20 +13373,12 @@ Whether exact count is supported for current table and isolation level
 
 bool
 ha_innobase::supports_exact_count()
-{	
-	if (ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) {
-		trx_t* trx = m_prebuilt->trx;
-		if (trx->isolation_level == TRX_ISO_READ_COMMITTED) {
-			dict_table_t* ib_table = m_prebuilt->table;
-
-			/* Potentially persistent count could be disabled between
-			supports_exact_count() and records() calls; need to hold lock for
-			in-between */
-			return ib_table->committed_count_inited;
-		}
-	}
-
-	return false;
+{
+	/* Potentially persistent count could be disabled between
+	supports_exact_count() and records() calls; need to hold lock for
+	in-between */
+	return m_prebuilt->trx->isolation_level == TRX_ISO_READ_COMMITTED
+		&& m_prebuilt->table->committed_count_inited;
 }
 
 /*********************************************************************//**

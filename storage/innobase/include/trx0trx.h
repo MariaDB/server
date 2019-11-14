@@ -1234,8 +1234,6 @@ struct commit_node_t{
 			state;	/*!< node execution state */
 };
 
-extern "C" TABLE* thd_get_open_tables(THD* thd);
-
 /** Test if trx->mutex is owned. */
 #define trx_mutex_own(t) mutex_own(&t->mutex)
 

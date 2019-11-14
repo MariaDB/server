@@ -331,7 +331,6 @@ enum enum_alter_inplace_result {
 
 /* Support native hash index */
 #define HA_CAN_HASH_KEYS        (1ULL << 58)
-
 #define HA_LAST_TABLE_FLAG HA_CAN_HASH_KEYS
 
 /* bits in index_flags(index_number) for what you can do with index */

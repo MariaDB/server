@@ -955,13 +955,11 @@ ib_push_frm_error(
 
 /** Update metadata BLOB to reflect updated persistent count.
 @param[in]  user_table  InnoDB table
-@param[in]	table		MySQL table
 @param[in,out]	trx		dictionary transaction
 @retval	true	failure
 @retval	false	success */
 bool innobase_update_persistent_count(
 	dict_table_t* user_table,
-	const TABLE*  table,
 	trx_t*		  trx);
 
 /** Check each index part length whether they not exceed the max limit
