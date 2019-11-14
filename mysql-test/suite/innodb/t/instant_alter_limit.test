@@ -7,7 +7,9 @@ WHERE variable_name = 'innodb_instant_alter_column');
 CREATE TABLE t(a INT PRIMARY KEY, b INT, c INT, d INT, e INT)
 ENGINE=InnoDB;
 INSERT INTO t VALUES(1,2,3,4,5);
+SET innodb_strict_mode = OFF;
 --disable_query_log
+call mtr.add_suppression("\\[Warning\\] InnoDB: Cannot add .* in table `test`\\.`t` because after adding it, the row size");
 let $n=253;
 while ($n) {
 dec $n;

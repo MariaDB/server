@@ -2566,8 +2566,7 @@ row_create_index_for_mysql(
 	} else {
 		dict_build_index_def(table, index, trx);
 
-		err = dict_index_add_to_cache(
-			index, FIL_NULL, trx_is_strict(trx));
+		err = dict_index_add_to_cache(index, FIL_NULL);
 		ut_ad((index == NULL) == (err != DB_SUCCESS));
 		if (UNIV_LIKELY(err == DB_SUCCESS)) {
 			ut_ad(!index->is_instant());
