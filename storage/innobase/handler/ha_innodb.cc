@@ -13288,11 +13288,10 @@ ha_innobase::rename_table(
 
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
 }
-/********************************************************************//**
-Initialize committed count within dict_table_t
-@return 0 or error code
-*/
 
+/** Initialize committed count within dict_table_t.
+@param table     persistent table
+@return  0 or error code */
 int
 ha_innobase::enable_persistent_count()
 {
@@ -13324,11 +13323,10 @@ ha_innobase::enable_persistent_count()
 
 	return 0;
 }
-/********************************************************************//**
-De-initialize committed count within dict_table_t
-@return 0 or error code
-*/
 
+/** De-initialize committed count within dict_table_t.
+@param table     persistent table
+@return  0 or error code */
 int
 ha_innobase::disable_persistent_count()
 {
@@ -13341,11 +13339,10 @@ ha_innobase::disable_persistent_count()
 
 	return 0;
 }
-/*********************************************************************//**
-If committed count is initialized and transaction is in READ COMMITTED mode,
-returns exact number of records; otherwise returns an estimate of index records
-@return number of rows */
 
+/** If committed count is initialized and transaction is in READ COMMITTED mode,
+returns exact number of records; otherwise returns an estimate of index records.
+@return number of rows */
 ha_rows
 ha_innobase::records()
 {	
@@ -13366,10 +13363,8 @@ ha_innobase::records()
     return num_rows;
 }
 
-/*********************************************************************//**
-Whether exact count is supported for current table and isolation level
+/** Whether exact count is supported for current table and isolation level.
 @return true or false */
-
 bool
 ha_innobase::supports_exact_count()
 {

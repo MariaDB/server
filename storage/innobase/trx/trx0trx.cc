@@ -1535,12 +1535,11 @@ trx_commit_in_memory(
 	}
 }
 
-/*************************************************************//**
-Get difference in uncommitted count for a single undo record. */
-void undo_rec_get_diff(
-/*============*/
-    trx_undo_rec_t* undo_rec,		/*!< in: undo record */
-	undo_rec_diff_t* undo_rec_diff) /*!< out: undo record difference */
+/** Get difference in uncommitted count for a single undo record.
+@param[in] undo_rec    undo record
+@param[out] undo_rec_diff    undo record difference */
+void undo_rec_get_diff(const trx_undo_rec_t* undo_rec,
+                       undo_rec_diff_t* undo_rec_diff)
 {
 	ulint type, cmpl_info;
 	bool updated_extern;
@@ -1563,11 +1562,9 @@ void undo_rec_get_diff(
 	}
 }
 
-/*************************************************************//**
-Update the persistent counts of all tables modified by a transaction. */
-void trx_update_persistent_counts(
-/*============*/
-    trx_t* trx)		/*!< in: transaction */
+/** Update the persistent counts of all tables modified by a transaction.
+@param[in,out] trx    transaction */
+void trx_update_persistent_counts(trx_t* trx)
 {
     /* Initialize uncommitted_counts and mod_tables_by_id maps.
     uncommitted_counts maps table ID to uncommitted count.
@@ -2578,10 +2575,10 @@ trx_set_rw_mode(
 }
 
 /** Determine the change to uncommitted records for a table.
-@param table     persistent table
+@param[in] table     persistent table
 @return the change to uncommitted records for a table in the transaction */
 int64_t
-trx_t::uncommitted_count(dict_table_t* table) const
+trx_t::uncommitted_count(const dict_table_t* table) const
 {
     trx_undo_t* undo;
     trx_undo_rec_t* undo_rec;

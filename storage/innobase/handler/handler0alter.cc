@@ -5985,13 +5985,12 @@ func_exit:
 
 /** Update metadata BLOB to reflect updated persistent count.
 @param[in]  user_table  InnoDB table
-@param[in]	table		MySQL table
-@param[in,out]	trx		dictionary transaction
+@param[in]	trx		transaction
 @retval	true	failure
 @retval	false	success */
 bool innobase_update_persistent_count(
-	dict_table_t* user_table,
-	trx_t*		  trx)
+	const dict_table_t* user_table,
+	const trx_t*		  trx)
 {
 	mem_heap_t* heap = mem_heap_create(1024);
 	dict_index_t* index = dict_table_get_first_index(user_table);

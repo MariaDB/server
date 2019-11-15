@@ -446,9 +446,6 @@ public:
 	can_convert_blob(const Field_blob* field,
 			 const Column_definition& new_field) const override;
 
-	/** Save CPU time with prebuilt/cached data structures */
-	row_prebuilt_t*		m_prebuilt;
-
 protected:
 	dberr_t innobase_get_autoinc(ulonglong* value);
 	dberr_t innobase_lock_autoinc();
@@ -486,6 +483,9 @@ protected:
 
 	/** The multi range read session object */
 	DsMrr_impl		m_ds_mrr;
+
+	/** Save CPU time with prebuilt/cached data structures */
+	row_prebuilt_t*		m_prebuilt;
 
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
@@ -954,12 +954,12 @@ ib_push_frm_error(
 
 /** Update metadata BLOB to reflect updated persistent count.
 @param[in]  user_table  InnoDB table
-@param[in,out]	trx		dictionary transaction
+@param[in]	trx		transaction
 @retval	true	failure
 @retval	false	success */
 bool innobase_update_persistent_count(
-	dict_table_t* user_table,
-	trx_t*		  trx);
+	const dict_table_t* user_table,
+	const trx_t*		trx);
 
 /** Check each index part length whether they not exceed the max limit
 @param[in]	max_field_len	maximum allowed key part length
