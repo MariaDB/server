@@ -215,12 +215,8 @@ public:
 		/** Disable partial read warnings */
 		DISABLE_PARTIAL_IO_WARNINGS = 32,
 
-
-		/** Ignore failed reads of non-existent pages */
-		IGNORE_MISSING = 128,
-
 		/** Use punch hole if available*/
-		PUNCH_HOLE = 256,
+		PUNCH_HOLE = 64,
 	};
 
 	/** Default constructor */
@@ -269,13 +265,6 @@ public:
 	/** Destructor */
 	~IORequest() { }
 
-	/** @return true if ignore missing flag is set */
-	static bool ignore_missing(ulint type)
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return((type & IGNORE_MISSING) == IGNORE_MISSING);
-	}
-
 	/** @return true if it is a read request */
 	bool is_read() const
 		MY_ATTRIBUTE((warn_unused_result))
@@ -315,13 +304,6 @@ public:
 	void disable_partial_io_warnings()
 	{
 		m_type |= DISABLE_PARTIAL_IO_WARNINGS;
-	}
-
-	/** @return true if missing files should be ignored */
-	bool ignore_missing() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return(ignore_missing(m_type));
 	}
 
 	/** @return true if punch hole should be used */

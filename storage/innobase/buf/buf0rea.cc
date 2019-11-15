@@ -100,12 +100,11 @@ flag is cleared and the x-lock released by an i/o-handler thread.
 			if we are trying
 			to read from a non-existent tablespace
 @param[in] sync		true if synchronous aio is desired
-@param[in] type		IO type, SIMULATED, IGNORE_MISSING
 @param[in] mode		BUF_READ_IBUF_PAGES_ONLY, ...,
 @param[in] page_id	page id
 @param[in] zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in] unzip	true=request uncompressed page
-@param[in] ignore_missing_space  true=ignore missing space when reading
+@param[in] ignore	whether to ignore out-of-bounds page_id
 @return 1 if a read request was queued, 0 if the page already resided
 in buf_pool, or if the page is in the doublewrite buffer blocks in
 which case it is never read into the pool, or if the tablespace does
@@ -115,12 +114,11 @@ ulint
 buf_read_page_low(
 	dberr_t*		err,
 	bool			sync,
-	ulint			type,
 	ulint			mode,
 	const page_id_t		page_id,
 	ulint			zip_size,
 	bool			unzip,
-	bool			ignore_missing_space = false)
+	bool			ignore = false)
 {
 	buf_page_t*	bpage;
 
@@ -176,20 +174,17 @@ buf_read_page_low(
 		dst = ((buf_block_t*) bpage)->frame;
 	}
 
-	IORequest	request(type | IORequest::READ);
-
 	*err = fil_io(
-		request, sync, page_id, zip_size, 0,
+		IORequestRead, sync, page_id, zip_size, 0,
 		zip_size ? zip_size : srv_page_size,
-		dst, bpage, ignore_missing_space);
+		dst, bpage, ignore);
 
 	if (sync) {
 		thd_wait_end(NULL);
 	}
 
 	if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
-		if (IORequest::ignore_missing(type)
-		    || *err == DB_TABLESPACE_DELETED) {
+		if (ignore || *err == DB_TABLESPACE_DELETED) {
 			buf_read_page_handle_error(bpage);
 			return(0);
 		}
@@ -344,7 +339,6 @@ read_ahead:
 		if (!ibuf_bitmap_page(cur_page_id, zip_size)) {
 			count += buf_read_page_low(
 				&err, false,
-				0,
 				ibuf_mode,
 				cur_page_id, zip_size, false);
 
@@ -404,8 +398,7 @@ dberr_t buf_read_page(const page_id_t page_id, ulint zip_size)
 	of the buffer pool mutex becomes an expensive bottleneck. */
 
 	count = buf_read_page_low(
-		&err, true,
-		0, BUF_READ_ANY_PAGE, page_id, zip_size, false);
+		&err, true, BUF_READ_ANY_PAGE, page_id, zip_size, false);
 
 	srv_stats.buf_pool_reads.add(count);
 
@@ -435,9 +428,8 @@ buf_read_page_background(const page_id_t page_id, ulint zip_size, bool sync)
 
 	count = buf_read_page_low(
 		&err, sync,
-		IORequest::IGNORE_MISSING,
 		BUF_READ_ANY_PAGE,
-		page_id, zip_size, false);
+		page_id, zip_size, false, true);
 
 	switch (err) {
 	case DB_SUCCESS:
@@ -707,7 +699,6 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 		if (!ibuf_bitmap_page(cur_page_id, zip_size)) {
 			count += buf_read_page_low(
 				&err, false,
-				0,
 				ibuf_mode, cur_page_id, zip_size, false);
 
 			switch (err) {
@@ -792,20 +783,9 @@ buf_read_recv_pages(
 		}
 
 		dberr_t err;
-
-		if (sync && i + 1 == n_stored) {
-			buf_read_page_low(
-				&err, true,
-				0,
-				BUF_READ_ANY_PAGE,
-				cur_page_id, zip_size, true);
-		} else {
-			buf_read_page_low(
-				&err, false,
-				0,
-				BUF_READ_ANY_PAGE,
-				cur_page_id, zip_size, true);
-		}
+		buf_read_page_low(
+			&err, sync && i + 1 == n_stored,
+			BUF_READ_ANY_PAGE, cur_page_id, zip_size, true);
 
 		if (err == DB_DECRYPTION_FAILED || err == DB_PAGE_CORRUPTED) {
 			ib::error() << "Recovery failed to read or decrypt "

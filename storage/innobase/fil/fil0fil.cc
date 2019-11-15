@@ -4097,7 +4097,7 @@ inline void IORequest::set_fil_node(fil_node_t* node)
 			aligned
 @param[in] message	message for aio handler if non-sync aio
 			used, else ignored
-@param[in] ignore_missing_space true=ignore missing space duging read
+@param[in] ignore	whether to ignore out-of-bounds page_id
 @return DB_SUCCESS, or DB_TABLESPACE_DELETED
 	if we are trying to do i/o on a tablespace which does not exist */
 dberr_t
@@ -4110,7 +4110,7 @@ fil_io(
 	ulint			len,
 	void*			buf,
 	void*			message,
-	bool			ignore_missing_space)
+	bool			ignore)
 {
 	os_offset_t		offset;
 	IORequest		req_type(type);
@@ -4181,7 +4181,7 @@ fil_io(
 
 		mutex_exit(&fil_system.mutex);
 
-		if (!req_type.ignore_missing() && !ignore_missing_space) {
+		if (!ignore) {
 			ib::error()
 				<< "Trying to do I/O to a tablespace which"
 				" does not exist. I/O type: "
@@ -4199,8 +4199,7 @@ fil_io(
 	for (;;) {
 
 		if (node == NULL) {
-
-			if (req_type.ignore_missing()) {
+			if (ignore) {
 				mutex_exit(&fil_system.mutex);
 				return(DB_ERROR);
 			}
@@ -4234,7 +4233,7 @@ fil_io(
 		    && fil_is_user_tablespace_id(space->id)) {
 			mutex_exit(&fil_system.mutex);
 
-			if (!req_type.ignore_missing()) {
+			if (!ignore) {
 				ib::error()
 					<< "Trying to do I/O to a tablespace"
 					" which exists without .ibd data file."
@@ -4262,8 +4261,7 @@ fil_io(
 	if (node->size <= cur_page_no
 	    && space->id != TRX_SYS_SPACE
 	    && fil_type_is_data(space->purpose)) {
-
-		if (req_type.ignore_missing()) {
+		if (ignore) {
 			/* If we can tolerate the non-existent pages, we
 			should return with DB_ERROR and let caller decide
 			what to do. */
