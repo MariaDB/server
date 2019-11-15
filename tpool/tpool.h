@@ -53,7 +53,7 @@ namespace tpool
 typedef void (*callback_func)(void *);
 class task;
 
-/* A class that can be used e.g for 
+/** A class that can be used e.g. for
 restricting concurrency for specific class of tasks. */
 
 class task_group

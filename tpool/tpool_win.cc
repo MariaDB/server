@@ -133,7 +133,7 @@ class thread_pool_win : public thread_pool
   class native_aio : public aio
   {
     thread_pool_win& m_pool;
-  
+
   public:
     native_aio(thread_pool_win &pool, int max_io)
       : m_pool(pool)

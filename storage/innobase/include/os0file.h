@@ -663,8 +663,7 @@ Closes a file handle. In case of error, error number can be retrieved with
 os_file_get_last_error.
 @param[in]	file		own: handle to a file
 @return true if success */
-bool
-os_file_close_func(os_file_t file);
+bool os_file_close_func(os_file_t file);
 
 #ifdef UNIV_PFS_IO
 

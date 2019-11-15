@@ -49,9 +49,6 @@ static tpool::task task(fts_optimize_callback,0, &task_group);
 /** The FTS vector to store fts_slot_t */
 static ib_vector_t*  fts_slots;
 
-/** Time to wait for a message. */
-static const ulint FTS_QUEUE_WAIT_IN_USECS = 5000000;
-
 /** Default optimize interval in secs. */
 static const ulint FTS_OPTIMIZE_INTERVAL_IN_SECS = 300;
 

@@ -27,11 +27,11 @@ namespace tpool
 
 /*
   In order to be able to execute synchronous IO even on file opened
-  with FILE_FLAG_OVERLAPPED, and to bypass  to completion port, 
-  we use valid event handle for the hEvent member of the OVERLAPPED structure, 
+  with FILE_FLAG_OVERLAPPED, and to bypass  to completion port,
+  we use valid event handle for the hEvent member of the OVERLAPPED structure,
   with its low-order bit set.
 
-  ´See MSDN docs for GetQueuedCompletionStatus() for description of this trick.
+  See MSDN docs for GetQueuedCompletionStatus() for description of this trick.
 */
 static DWORD fls_sync_io= FLS_OUT_OF_INDEXES;
 HANDLE win_get_syncio_event()

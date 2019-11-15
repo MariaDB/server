@@ -54,7 +54,7 @@ namespace tpool
   - The task queue. This queue is populated by submit()
   - Worker that execute the  work items.
   - Timer thread that takes care of pool health
- 
+
   The task queue is populated by submit() method.
   on submit(), a worker thread  can be woken, or created
   to execute tasks.
@@ -162,26 +162,26 @@ class thread_pool_generic : public thread_pool
   /** The task queue */
   circular_queue<task*> m_task_queue;
 
-  /* List of standby (idle) workers.*/
+  /** List of standby (idle) workers */
   doubly_linked_list<worker_data> m_standby_threads;
 
-  /** List of threads that are executing tasks. */
+  /** List of threads that are executing tasks */
   doubly_linked_list<worker_data> m_active_threads;
 
   /* Mutex that protects the whole struct, most importantly
-  the standby threads list, and task queue. */
+  the standby threads list, and task queue */
   std::mutex m_mtx;
 
-  /** Timeout after which idle worker shuts down.*/
+  /** Timeout after which idle worker shuts down */
   std::chrono::milliseconds m_thread_timeout;
 
   /** How often should timer wakeup.*/
   std::chrono::milliseconds m_timer_interval;
 
-  /** Another condition variable, used in pool shutdown-*/
+  /** Another condition variable, used in pool shutdown */
   std::condition_variable m_cv_no_threads;
 
-  /** Condition variable for the timer thread. Signaled on shutdown.*/
+  /** Condition variable for the timer thread. Signaled on shutdown. */
   std::condition_variable m_cv_timer;
 
   /** Overall number of enqueues*/
@@ -189,16 +189,17 @@ class thread_pool_generic : public thread_pool
   /** Overall number of dequeued tasks. */
   unsigned long long m_tasks_dequeued;
 
-  /**Statistic related, number of worker thread wakeups.*/
+  /** Statistic related, number of worker thread wakeups */
   int m_wakeups;
 
-  /** 
+  /**
   Statistic related, number of spurious thread wakeups
   (i.e thread woke up, and the task queue is empty)
   */
   int m_spurious_wakeups;
 
-  /**  The desired concurrency.  This number of workers should be actively executing.*/
+  /** The desired concurrency.  This number of workers should be
+  actively executing. */
   unsigned int m_concurrency;
 
   /** True, if threadpool is being shutdown, false otherwise */
@@ -207,7 +208,7 @@ class thread_pool_generic : public thread_pool
   /** time point when timer last ran, used as a coarse clock. */
   std::chrono::system_clock::time_point m_timestamp;
 
-  /** Number of long running tasks. The long running tasks are excluded when 
+  /** Number of long running tasks. The long running tasks are excluded when
   adjusting concurrency */
   int m_long_tasks_count;
 
@@ -387,12 +388,11 @@ void thread_pool_generic::cancel_pending(task* t)
 /**
   Register worker in standby list, and wait to be woken.
 
-  @return 
-  true  -  thread was woken
-  false -  idle wait timeout exceeded (the current thread need to shutdown)
+  @retval true  if thread was woken
+  @retval false idle wait timeout exceeded (the current thread must shutdown)
 */
 bool thread_pool_generic::wait_for_tasks(std::unique_lock<std::mutex> &lk,
-                                   worker_data *thread_data)
+                                         worker_data *thread_data)
 {
   assert(m_task_queue.empty());
   assert(!m_in_shutdown);
@@ -441,7 +441,7 @@ bool thread_pool_generic::wait_for_tasks(std::unique_lock<std::mutex> &lk,
 bool thread_pool_generic::get_task(worker_data *thread_var, task **t)
 {
   std::unique_lock<std::mutex> lk(m_mtx);
- 
+
   if (thread_var->is_long_task() && m_long_tasks_count)
     m_long_tasks_count--;
 
@@ -577,7 +577,7 @@ void thread_pool_generic::maintainence()
 /*
   Heuristic used for thread creation throttling.
   Returns interval in milliseconds between thread creation
-  (depending on number of threads already in the pool, and 
+  (depending on number of threads already in the pool, and
   desired concurrency level)
 */
 static int  throttling_interval_ms(size_t n_threads,size_t concurrency)

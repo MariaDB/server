@@ -326,17 +326,11 @@ void dict_stats_deinit()
 	mutex_free(&recalc_pool_mutex);
 }
 
-/*****************************************************************//**
+/**
 Get the first table that has been added for auto recalc and eventually
 update its stats.
-@return : true if pool was non-empty and first entry does 
-not needs delay, false otherwise.
-
-*/
-static
-bool
-dict_stats_process_entry_from_recalc_pool()
-/*=======================================*/
+@return whether the first entry can be processed immediately */
+static bool dict_stats_process_entry_from_recalc_pool()
 {
 	table_id_t	table_id;
 
