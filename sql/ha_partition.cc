@@ -5478,6 +5478,13 @@ int ha_partition::index_end()
       if ((tmp= (*file)->ha_index_end()))
         error= tmp;
     }
+    else if ((*file)->inited == RND)
+    {
+      // Possible due to MRR
+      int tmp;
+      if ((tmp= (*file)->ha_rnd_end()))
+        error= tmp;
+    }
   } while (*(++file));
   destroy_record_priority_queue();
   DBUG_RETURN(error);
@@ -6519,8 +6526,11 @@ int ha_partition::multi_range_read_next(range_id_t *range_info)
     else if (unlikely((error= handle_unordered_next(table->record[0], FALSE))))
       DBUG_RETURN(error);
 
-    *range_info=
-      ((PARTITION_KEY_MULTI_RANGE *) m_range_info[m_last_part])->ptr;
+    if (!(m_mrr_mode & HA_MRR_NO_ASSOCIATION))
+    {
+      *range_info=
+        ((PARTITION_KEY_MULTI_RANGE *) m_range_info[m_last_part])->ptr;
+    }
   }
   DBUG_RETURN(0);
 }

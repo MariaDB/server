@@ -1000,10 +1000,12 @@ can_enable_indexes(1), bulk_insert_single_undo(BULK_INSERT_NONE)
 {}
 
 
-handler *ha_maria::clone(const char *name, MEM_ROOT *mem_root)
+handler *ha_maria::clone(const char *name __attribute__((unused)),
+                         MEM_ROOT *mem_root)
 {
-  ha_maria *new_handler= static_cast <ha_maria *>(handler::clone(name,
-                                                                 mem_root));
+  ha_maria *new_handler=
+    static_cast <ha_maria *>(handler::clone(file->s->open_file_name.str,
+                                            mem_root));
   if (new_handler)
   {
     new_handler->file->state= file->state;
