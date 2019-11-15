@@ -19,6 +19,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include <condition_variable>
 #include <tpool_structs.h>
 #include <thread>
+#include <assert.h>
 namespace tpool
 {
   task_group::task_group(unsigned int max_concurrency) :
@@ -78,13 +79,6 @@ namespace tpool
 
   task_group::~task_group()
   {
-    std::unique_lock<std::mutex> lk(m_mtx);
-    m_queue.clear();
-    while (m_tasks_running)
-    {
-      lk.unlock();
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      lk.lock();
-    }
+    assert(m_queue.empty() && !m_tasks_running);
   }
 }
