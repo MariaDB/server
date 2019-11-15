@@ -119,8 +119,8 @@ struct mtr_memo_slot_t {
 	/** pointer to the object */
 	void*		object;
 
-	/** type of the stored object (MTR_MEMO_S_LOCK, ...) */
-	ulint		type;
+	/** type of the stored object */
+	mtr_memo_type_t	type;
 };
 
 /** Mini-transaction handle and buffer */
@@ -301,7 +301,7 @@ struct mtr_t {
 
 	/** Release an object in the memo stack.
 	@param object	object
-	@param type	object type: MTR_MEMO_S_LOCK, ...
+	@param type	object type
 	@return bool if lock released */
 	bool memo_release(const void* object, ulint type);
 	/** Release a page latch.
@@ -354,13 +354,13 @@ struct mtr_t {
 #ifdef UNIV_DEBUG
 	/** Check if memo contains the given item.
 	@param memo	memo stack
-	@param object,	object to search
+	@param object	object to search
 	@param type	type of object
 	@return	true if contains */
 	static bool memo_contains(
 		const mtr_buf_t*	memo,
 		const void*		object,
-		ulint			type)
+		mtr_memo_type_t		type)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Check if memo contains the given item.

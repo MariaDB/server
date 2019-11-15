@@ -255,8 +255,7 @@ mach_write_to_8(checkpoint_lsn). */
 #define SIZE_OF_MLOG_CHECKPOINT	9
 
 #ifndef UNIV_INNOCHECKSUM
-/** Types for the mlock objects to store in the mtr memo; NOTE that the
-first 3 values must be RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH */
+/** Types for the mlock objects to store in the mtr_t::m_memo */
 enum mtr_memo_type_t {
 	MTR_MEMO_PAGE_S_FIX = RW_S_LATCH,
 

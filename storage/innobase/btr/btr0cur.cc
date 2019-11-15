@@ -2345,7 +2345,9 @@ need_opposite_intention:
 				? RW_X_LATCH : RW_SX_LATCH, false, mtr);
 			btr_assert_not_corrupted(child_block, index);
 		} else {
-			ut_ad(mtr_memo_contains(mtr, block, upper_rw_latch));
+			ut_ad(mtr_memo_contains(mtr, block,
+						static_cast<mtr_memo_type_t>
+						(upper_rw_latch)));
 			btr_assert_not_corrupted(block, index);
 
 			if (s_latch_by_caller) {
@@ -2671,8 +2673,8 @@ btr_cur_open_at_index_side_func(
 			ut_ad(latch_mode == BTR_SEARCH_TREE);
 			ut_ad(s_latch_by_caller);
 			ut_ad(upper_rw_latch == RW_S_LATCH);
-
-			ut_ad(mtr_memo_contains(mtr, block, upper_rw_latch));
+			ut_ad(mtr_memo_contains(mtr, block,
+						MTR_MEMO_PAGE_S_FIX));
 
 			if (s_latch_by_caller) {
 				/* to exclude modifying tree operations

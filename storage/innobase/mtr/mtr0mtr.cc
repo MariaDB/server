@@ -126,7 +126,7 @@ struct Find {
 	mtr_memo_slot_t*m_slot;
 
 	/** Type of the object to look for */
-	ulint		m_type;
+	const ulint	m_type;
 
 	/** The object instance to look for */
 	const void*	m_object;
@@ -728,7 +728,7 @@ bool
 mtr_t::memo_contains(
 	const mtr_buf_t*	memo,
 	const void*		object,
-	ulint			type)
+	mtr_memo_type_t		type)
 {
 	Iterate<Find> iteration(Find(object, type));
 	if (memo->for_each_block_in_reverse(iteration)) {
@@ -744,6 +744,8 @@ mtr_t::memo_contains(
 		break;
 	case MTR_MEMO_S_LOCK:
 		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_S));
+		break;
+	default:
 		break;
 	}
 
