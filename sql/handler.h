@@ -3432,9 +3432,10 @@ public:
   */
   virtual int pre_records() { return 0; }
   virtual ha_rows records() { return stats.records; }
-  virtual bool supports_exact_count()
-  { 
-    return ha_table_flags() & HA_STATS_RECORDS_IS_EXACT;
+  virtual bool records2(ha_rows* num_rows)
+  {
+    *num_rows = records();
+    return 0;
   }
 
   /**

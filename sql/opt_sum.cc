@@ -295,8 +295,10 @@ int opt_sum_query(THD *thd,
       Schema tables are filled after this function is invoked, so we can't
       get row count 
     */
-    if (!tl->table->file->supports_exact_count() || tl->schema_table)
+    if (!(tl->table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) ||
+        tl->schema_table)
     {
+stats_records_inexact:
       maybe_exact_count&= MY_TEST(!tl->schema_table &&
                                   (tl->table->file->ha_table_flags() &
                                    HA_HAS_RECORDS));
@@ -320,7 +322,12 @@ int opt_sum_query(THD *thd,
         tl->table->file->print_error(error, MYF(ME_FATAL));
         DBUG_RETURN(error);
       }
-      count*= tl->table->file->records();
+
+      ha_rows num_rows;
+      if (!tl->table->file->records2(&num_rows)) {
+        goto stats_records_inexact;
+      }
+      count *= num_rows;
     }
   }
 

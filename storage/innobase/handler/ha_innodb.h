@@ -192,8 +192,7 @@ public:
 	int enable_persistent_count();
 	int disable_persistent_count();
 
-	ha_rows records() override;
-	bool supports_exact_count() override;
+	bool records2(ha_rows* num_rows) override;
 
 	ha_rows estimate_rows_upper_bound() override;
 
@@ -959,7 +958,7 @@ ib_push_frm_error(
 @retval	false	success */
 bool innobase_update_persistent_count(
 	const dict_table_t* user_table,
-	const trx_t*		trx);
+	trx_t*		trx);
 
 /** Check each index part length whether they not exceed the max limit
 @param[in]	max_field_len	maximum allowed key part length

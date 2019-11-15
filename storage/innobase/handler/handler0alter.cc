@@ -5990,7 +5990,7 @@ func_exit:
 @retval	false	success */
 bool innobase_update_persistent_count(
 	const dict_table_t* user_table,
-	const trx_t*		  trx)
+	trx_t*		  trx)
 {
 	mem_heap_t* heap = mem_heap_create(1024);
 	dict_index_t* index = dict_table_get_first_index(user_table);

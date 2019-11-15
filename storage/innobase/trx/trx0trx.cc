@@ -1538,7 +1538,7 @@ trx_commit_in_memory(
 /** Get difference in uncommitted count for a single undo record.
 @param[in] undo_rec    undo record
 @param[out] undo_rec_diff    undo record difference */
-void undo_rec_get_diff(const trx_undo_rec_t* undo_rec,
+void undo_rec_get_diff(trx_undo_rec_t* undo_rec,
                        undo_rec_diff_t* undo_rec_diff)
 {
 	ulint type, cmpl_info;
