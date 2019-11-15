@@ -13342,6 +13342,7 @@ ha_innobase::disable_persistent_count()
 
 /** If committed count is initialized and transaction is in READ COMMITTED mode,
 returns exact number of records; otherwise returns an estimate of index records.
+If thread hasn't acquired index->lock in shared mode, will acquire.
 @return number of rows */
 ha_rows
 ha_innobase::records()
@@ -13352,7 +13353,10 @@ ha_innobase::records()
         dict_table_t* ib_table = m_prebuilt->table;
         dict_index_t* index = UT_LIST_GET_FIRST(ib_table->indexes);
 
-        rw_lock_s_lock(&index->lock);
+        if (!rw_lock_own(&index->lock, RW_LOCK_S)) {
+            rw_lock_s_lock(&index->lock);
+        }
+
         if (ib_table->committed_count_inited) {
             num_rows = ib_table->committed_count
                 + trx->uncommitted_count(ib_table);
@@ -13364,13 +13368,14 @@ ha_innobase::records()
 }
 
 /** Whether exact count is supported for current table and isolation level.
+Acquires index->lock which needs to be separately release outside of this
+function.
 @return true or false */
 bool
 ha_innobase::supports_exact_count()
 {
-	/* Potentially persistent count could be disabled between
-	supports_exact_count() and records() calls; need to hold lock for
-	in-between */
+	dict_index_t* index = UT_LIST_GET_FIRST(indexes);
+	rw_lock_s_lock(&index->lock);
 	return m_prebuilt->trx->isolation_level == TRX_ISO_READ_COMMITTED
 		&& m_prebuilt->table->committed_count_inited;
 }
