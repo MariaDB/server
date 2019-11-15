@@ -1009,7 +1009,6 @@ static int fix_win_file_permissions(const char *file)
 	ACL* pOldDACL;
 	SECURITY_DESCRIPTOR* pSD = NULL;
 	EXPLICIT_ACCESS ea = { 0 };
-	BOOL isWellKnownSID = FALSE;
 	PSID pSid = NULL;
 
 	GetSecurityInfo(hFile, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL,
@@ -1029,7 +1028,7 @@ static int fix_win_file_permissions(const char *file)
 	ea.grfInheritance = CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE;
 	ea.Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
 	ACL* pNewDACL = 0;
-	DWORD err = SetEntriesInAcl(1, &ea, pOldDACL, &pNewDACL);
+	SetEntriesInAcl(1, &ea, pOldDACL, &pNewDACL);
 	if (pNewDACL)
 	{
 		SetSecurityInfo(hFile, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL,

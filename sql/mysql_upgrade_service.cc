@@ -513,7 +513,7 @@ int main(int argc, char **argv)
       die("Cannot start mysqld.exe process, last error =%u", GetLastError());
     }
     char pipe_name[64];
-    snprintf(pipe_name, sizeof(pipe_name), "\\\\.\\pipe\\mysql_upgrade_service_%u",
+    snprintf(pipe_name, sizeof(pipe_name), "\\\\.\\pipe\\mysql_upgrade_service_%lu",
       GetCurrentProcessId());
     for (;;)
     {
