@@ -123,12 +123,12 @@ public:
 	}
 };
 
-io_slots* read_slots;
-io_slots* write_slots;
-io_slots* ibuf_slots;
+static io_slots *read_slots;
+static io_slots *write_slots;
+static io_slots *ibuf_slots;
 
 /** Number of retries for partial I/O's */
-static const ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
+constexpr ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
 
 /* This specifies the file permissions InnoDB uses when it creates files in
 Unix; the value of os_innodb_umask is initialized in ha_innodb.cc to
@@ -4047,22 +4047,23 @@ bool os_aio_init(ulint n_reader_threads, ulint n_writer_threads, ulint)
 	return true;
 }
 
-void os_aio_free(void)
+void os_aio_free()
 {
-	srv_thread_pool->disable_aio();
-	delete read_slots;
-	delete write_slots;
-	delete ibuf_slots;
+  srv_thread_pool->disable_aio();
+  delete read_slots;
+  delete write_slots;
+  delete ibuf_slots;
+  read_slots= nullptr;
+  write_slots= nullptr;
+  ibuf_slots= nullptr;
 }
 
 /** Waits until there are no pending writes. There can
 be other, synchronous, pending writes. */
-void
-os_aio_wait_until_no_pending_writes()
+void os_aio_wait_until_no_pending_writes()
 {
-	write_slots->wait();
+  write_slots->wait();
 }
-
 
 
 /**

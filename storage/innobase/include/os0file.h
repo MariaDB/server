@@ -1360,14 +1360,13 @@ os_aio_init(
 
 /**
 Frees the asynchronous io system. */
-void
-os_aio_free();
+void os_aio_free();
 
 struct os_aio_userdata_t
 {
-	fil_node_t* node;
-	IORequest	type;
-	void* message;
+  fil_node_t* node;
+  IORequest type;
+  void* message;
 };
 /**
 NOTE! Use the corresponding macro os_aio(), not directly this function!
