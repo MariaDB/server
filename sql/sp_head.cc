@@ -3078,7 +3078,7 @@ bool sp_head::add_instr_freturn(THD *thd, sp_pcontext *spcont,
 {
   sp_instr_freturn *i= new (thd->mem_root)
                        sp_instr_freturn(instructions(), spcont, item,
-                       m_return_field_def.type_handler(), thd->lex);
+                       m_return_field_def.type_handler(), lex);
   if (i == NULL || add_instr(i))
     return true;
   m_flags|= sp_head::HAS_RETURN;

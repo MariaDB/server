@@ -213,6 +213,7 @@ void ORAerror(THD *thd, const char *s)
   Item_basic_constant *item_basic_constant;
   Key_part_spec *key_part;
   LEX *lex;
+  sp_expr_lex *expr_lex;
   sp_assignment_lex *assignment_lex;
   class sp_lex_cursor *sp_cursor_stmt;
   LEX_CSTRING *lex_str_ptr;
@@ -1397,7 +1398,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         signal_allowed_expr
         simple_target_specification
         condition_number
-        reset_lex_expr
         opt_versioning_interval_start
 
 %type <item_param> param_marker
@@ -1417,6 +1417,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <sp_cursor_stmt>
         sp_cursor_stmt_lex
         sp_cursor_stmt
+
+%type <expr_lex>
+        expr_lex
 
 %type <assignment_lex>
         assignment_source_lex
@@ -4080,15 +4083,11 @@ RETURN_ALLMODES_SYM:
         ;
 
 sp_proc_stmt_return:
-          RETURN_ALLMODES_SYM
-          { Lex->sphead->reset_lex(thd); }
-          expr
+          RETURN_ALLMODES_SYM expr_lex
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            if (unlikely(sp->m_handler->add_instr_freturn(thd, sp, lex->spcont,
-                                                          $3, lex)) ||
-                unlikely(sp->restore_lex(thd)))
+            sp_head *sp= $2->sphead;
+            if (unlikely(sp->m_handler->add_instr_freturn(thd, sp, $2->spcont,
+                                                          $2->get_item(), $2)))
               MYSQL_YYABORT;
           }
         | RETURN_ORACLE_SYM
@@ -4099,10 +4098,6 @@ sp_proc_stmt_return:
                                                                lex->spcont)))
               MYSQL_YYABORT;
           }
-        ;
-
-reset_lex_expr:
-          { Lex->sphead->reset_lex(thd); } expr { $$= $2; }
         ;
 
 sp_proc_stmt_exit_oracle:
@@ -4116,16 +4111,14 @@ sp_proc_stmt_exit_oracle:
             if (unlikely(Lex->sp_exit_statement(thd, &$2, NULL)))
               MYSQL_YYABORT;
           }
-        | EXIT_ORACLE_SYM WHEN_SYM reset_lex_expr
+        | EXIT_ORACLE_SYM WHEN_SYM expr_lex
           {
-            if (unlikely(Lex->sp_exit_statement(thd, $3)) ||
-                unlikely(Lex->sphead->restore_lex(thd)))
+            if (unlikely($3->sp_exit_statement(thd, $3->get_item())))
               MYSQL_YYABORT;
           }
-        | EXIT_ORACLE_SYM label_ident WHEN_SYM reset_lex_expr
+        | EXIT_ORACLE_SYM label_ident WHEN_SYM expr_lex
           {
-            if (unlikely(Lex->sp_exit_statement(thd, &$2, $4)) ||
-                unlikely(Lex->sphead->restore_lex(thd)))
+            if (unlikely($4->sp_exit_statement(thd, &$2, $4->get_item())))
               MYSQL_YYABORT;
           }
         ;
@@ -4133,24 +4126,22 @@ sp_proc_stmt_exit_oracle:
 sp_proc_stmt_continue_oracle:
           CONTINUE_ORACLE_SYM
           {
-            if (unlikely(Lex->sp_continue_statement(thd, NULL)))
+            if (unlikely(Lex->sp_continue_statement(thd)))
               MYSQL_YYABORT;
           }
         | CONTINUE_ORACLE_SYM label_ident
           {
-            if (unlikely(Lex->sp_continue_statement(thd, &$2, NULL)))
+            if (unlikely(Lex->sp_continue_statement(thd, &$2)))
               MYSQL_YYABORT;
           }
-        | CONTINUE_ORACLE_SYM WHEN_SYM reset_lex_expr
+        | CONTINUE_ORACLE_SYM WHEN_SYM expr_lex
           {
-            if (unlikely(Lex->sp_continue_statement(thd, $3)) ||
-                unlikely(Lex->sphead->restore_lex(thd)))
+            if (unlikely($3->sp_continue_when_statement(thd)))
               MYSQL_YYABORT;
           }
-        | CONTINUE_ORACLE_SYM label_ident WHEN_SYM reset_lex_expr
+        | CONTINUE_ORACLE_SYM label_ident WHEN_SYM expr_lex
           {
-            if (unlikely(Lex->sp_continue_statement(thd, &$2, $4)) ||
-                unlikely(Lex->sphead->restore_lex(thd)))
+            if (unlikely($4->sp_continue_when_statement(thd, &$2)))
               MYSQL_YYABORT;
           }
         ;
@@ -4186,6 +4177,26 @@ remember_lex:
             $$= thd->lex;
           }
         ;
+
+
+expr_lex:
+          {
+            DBUG_ASSERT(Lex->sphead);
+            if (unlikely(!($<expr_lex>$= new (thd->mem_root)
+                           sp_expr_lex(thd, thd->lex))))
+              MYSQL_YYABORT;
+            Lex->sphead->reset_lex(thd, $<expr_lex>$);
+          }
+          expr
+          {
+            $$= $<expr_lex>1;
+            $$->sp_lex_in_use= true;
+            $$->set_item($2);
+            if ($$->sphead->restore_lex(thd))
+              MYSQL_YYABORT;
+          }
+        ;
+
 
 assignment_source_lex:
           {
@@ -4336,34 +4347,15 @@ sp_fetch_list:
         ;
 
 sp_if:
-          { Lex->sphead->reset_lex(thd); }
-          expr THEN_SYM
+          expr_lex THEN_SYM
           {
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            sp_pcontext *ctx= lex->spcont;
-            uint ip= sp->instructions();
-            sp_instr_jump_if_not *i= new (thd->mem_root)
-              sp_instr_jump_if_not(ip, ctx, $2, lex);
-            if (unlikely(i == NULL) ||
-                unlikely(sp->push_backpatch(thd, i, ctx->push_label(thd, &empty_clex_str, 0))) ||
-                unlikely(sp->add_cont_backpatch(i)) ||
-                unlikely(sp->add_instr(i)))
-              MYSQL_YYABORT;
-            if (unlikely(sp->restore_lex(thd)))
+            if (unlikely($1->sp_if_expr(thd)))
               MYSQL_YYABORT;
           }
           sp_proc_stmts1_implicit_block
           {
-            sp_head *sp= Lex->sphead;
-            sp_pcontext *ctx= Lex->spcont;
-            uint ip= sp->instructions();
-            sp_instr_jump *i= new (thd->mem_root) sp_instr_jump(ip, ctx);
-            if (unlikely(i == NULL) ||
-                unlikely(sp->add_instr(i)))
+            if (unlikely($1->sp_if_after_statements(thd)))
               MYSQL_YYABORT;
-            sp->backpatch(ctx->pop_label());
-            sp->push_backpatch(thd, i, ctx->push_label(thd, &empty_clex_str, 0));
           }
           sp_elseifs
           {
@@ -4450,13 +4442,9 @@ case_stmt_specification:
         ;
 
 case_stmt_body:
-          { Lex->sphead->reset_lex(thd); /* For expr $2 */ }
-          expr
+          expr_lex
           {
-            if (unlikely(Lex->case_stmt_action_expr($2)))
-              MYSQL_YYABORT;
-
-            if (Lex->sphead->restore_lex(thd))
+            if (unlikely($1->case_stmt_action_expr()))
               MYSQL_YYABORT;
           }
           simple_when_clause_list
@@ -4476,19 +4464,10 @@ searched_when_clause_list:
         ;
 
 simple_when_clause:
-          WHEN_SYM
-          {
-            Lex->sphead->reset_lex(thd); /* For expr $3 */
-          }
-          expr
+          WHEN_SYM expr_lex
           {
             /* Simple case: <caseval> = <whenval> */
-
-            LEX *lex= Lex;
-            if (unlikely(lex->case_stmt_action_when($3, true)))
-              MYSQL_YYABORT;
-            /* For expr $3 */
-            if (unlikely(lex->sphead->restore_lex(thd)))
+            if (unlikely($2->case_stmt_action_when(true)))
               MYSQL_YYABORT;
           }
           THEN_SYM
@@ -4500,17 +4479,9 @@ simple_when_clause:
         ;
 
 searched_when_clause:
-          WHEN_SYM
+          WHEN_SYM expr_lex
           {
-            Lex->sphead->reset_lex(thd); /* For expr $3 */
-          }
-          expr
-          {
-            LEX *lex= Lex;
-            if (unlikely(lex->case_stmt_action_when($3, false)))
-              MYSQL_YYABORT;
-            /* For expr $3 */
-            if (unlikely(lex->sphead->restore_lex(thd)))
+            if (unlikely($2->case_stmt_action_when(false)))
               MYSQL_YYABORT;
           }
           THEN_SYM
@@ -4740,12 +4711,9 @@ loop_body:
         ;
 
 while_body:
-          expr LOOP_SYM
+          expr_lex LOOP_SYM
           {
-            LEX *lex= Lex;
-            if (unlikely(lex->sp_while_loop_expression(thd, $1)))
-              MYSQL_YYABORT;
-            if (lex->sphead->restore_lex(thd))
+            if (unlikely($1->sp_while_loop_expression(thd)))
               MYSQL_YYABORT;
           }
           sp_proc_stmts1 END LOOP_SYM
@@ -4756,22 +4724,10 @@ while_body:
         ;
 
 repeat_body:
-          sp_proc_stmts1 UNTIL_SYM 
-          { Lex->sphead->reset_lex(thd); }
-          expr END REPEAT_SYM
+          sp_proc_stmts1 UNTIL_SYM expr_lex END REPEAT_SYM
           {
-            LEX *lex= Lex;
-            uint ip= lex->sphead->instructions();
-            sp_label *lab= lex->spcont->last_label();  /* Jumping back */
-            sp_instr_jump_if_not *i= new (thd->mem_root)
-              sp_instr_jump_if_not(ip, lex->spcont, $4, lab->ip, lex);
-            if (unlikely(i == NULL) ||
-                unlikely(lex->sphead->add_instr(i)))
+            if ($3->sp_repeat_loop_finalize(thd))
               MYSQL_YYABORT;
-            if (lex->sphead->restore_lex(thd))
-              MYSQL_YYABORT;
-            /* We can shortcut the cont_backpatch here */
-            i->m_cont_dest= ip+1;
           }
         ;
 
@@ -4795,7 +4751,6 @@ sp_labeled_control:
           {
             if (unlikely(Lex->sp_push_loop_label(thd, &$1)))
               MYSQL_YYABORT;
-            Lex->sphead->reset_lex(thd);
           }
           while_body pop_sp_loop_label
           { }
@@ -4846,7 +4801,6 @@ sp_unlabeled_control:
           {
             if (unlikely(Lex->sp_push_loop_empty_label(thd)))
               MYSQL_YYABORT;
-            Lex->sphead->reset_lex(thd);
           }
           while_body
           {

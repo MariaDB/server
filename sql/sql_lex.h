@@ -267,6 +267,7 @@ class sp_name;
 class sp_instr;
 class sp_pcontext;
 class sp_variable;
+class sp_expr_lex;
 class sp_assignment_lex;
 class st_alter_tablespace;
 class partition_info;
@@ -3224,7 +3225,6 @@ private:
   bool sp_exit_block(THD *thd, sp_label *lab, Item *when);
 
   bool sp_continue_loop(THD *thd, sp_label *lab);
-  bool sp_continue_loop(THD *thd, sp_label *lab, Item *when);
 
   bool sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop);
   bool sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop);
@@ -3235,6 +3235,10 @@ private:
     @retval true  ERROR (fields are not allowed). Error is raised.
   */
   bool check_expr_allows_fields_or_error(THD *thd, const char *name) const;
+
+protected:
+  bool sp_continue_loop(THD *thd, sp_label *lab, Item *when);
+
 public:
   void parse_error(uint err_number= ER_SYNTAX_ERROR);
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
@@ -3754,8 +3758,6 @@ public:
                                 const Lex_field_type_st &def);
   bool sf_return_fill_definition(const Lex_field_type_st &def);
 
-  int case_stmt_action_expr(Item* expr);
-  int case_stmt_action_when(Item *when, bool simple);
   int case_stmt_action_then();
   bool setup_select_in_parentheses();
   bool set_trigger_new_row(const LEX_CSTRING *name, Item *val);
@@ -4120,8 +4122,8 @@ public:
   bool sp_leave_statement(THD *thd, const LEX_CSTRING *label_name);
   bool sp_goto_statement(THD *thd, const LEX_CSTRING *label_name);
 
-  bool sp_continue_statement(THD *thd, Item *when);
-  bool sp_continue_statement(THD *thd, const LEX_CSTRING *label_name, Item *when);
+  bool sp_continue_statement(THD *thd);
+  bool sp_continue_statement(THD *thd, const LEX_CSTRING *label_name);
   bool sp_iterate_statement(THD *thd, const LEX_CSTRING *label_name);
 
   bool maybe_start_compound_statement(THD *thd);
@@ -4131,6 +4133,7 @@ public:
   void sp_pop_loop_empty_label(THD *thd);
   bool sp_while_loop_expression(THD *thd, Item *expr);
   bool sp_while_loop_finalize(THD *thd);
+  bool sp_if_after_statements(THD *thd);
   bool sp_push_goto_label(THD *thd, const LEX_CSTRING *label_name);
 
   Item_param *add_placeholder(THD *thd, const LEX_CSTRING *name,
@@ -4824,6 +4827,35 @@ public:
     autocommit= 0;
     option_type= oldlex->option_type; // Inherit from the outer lex
   }
+};
+
+
+class sp_expr_lex: public sp_lex_local
+{
+  Item *m_item;       // The expression
+public:
+  sp_expr_lex(THD *thd, LEX *oldlex)
+   :sp_lex_local(thd, oldlex),
+    m_item(NULL)
+  { }
+  void set_item(Item *item)
+  {
+    m_item= item;
+  }
+  Item *get_item() const
+  {
+    return m_item;
+  }
+  bool sp_continue_when_statement(THD *thd);
+  bool sp_continue_when_statement(THD *thd, const LEX_CSTRING *label_name);
+  int case_stmt_action_expr();
+  int case_stmt_action_when(bool simple);
+  bool sp_while_loop_expression(THD *thd)
+  {
+    return LEX::sp_while_loop_expression(thd, get_item());
+  }
+  bool sp_repeat_loop_finalize(THD *thd);
+  bool sp_if_expr(THD *thd);
 };
 
 

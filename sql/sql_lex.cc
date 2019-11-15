@@ -61,7 +61,7 @@ const LEX_CSTRING param_clex_str= {"?", 1};
   @return 0 on success
 */
 
-int LEX::case_stmt_action_expr(Item* expr)
+int sp_expr_lex::case_stmt_action_expr()
 {
   int case_expr_id= spcont->register_case_expr();
   sp_instr_set_case_expr *i;
@@ -70,8 +70,8 @@ int LEX::case_stmt_action_expr(Item* expr)
     return 1;
 
   i= new (thd->mem_root)
-    sp_instr_set_case_expr(sphead->instructions(), spcont, case_expr_id, expr,
-                           this);
+    sp_instr_set_case_expr(sphead->instructions(), spcont, case_expr_id,
+                           get_item(), this);
 
   sphead->add_cont_backpatch(i);
   return sphead->add_instr(i);
@@ -85,7 +85,7 @@ int LEX::case_stmt_action_expr(Item* expr)
   @param simple true for simple cases, false for searched cases
 */
 
-int LEX::case_stmt_action_when(Item *when, bool simple)
+int sp_expr_lex::case_stmt_action_when(bool simple)
 {
   uint ip= sphead->instructions();
   sp_instr_jump_if_not *i;
@@ -104,11 +104,11 @@ int LEX::case_stmt_action_when(Item *when, bool simple)
     }
 #endif
 
-    expr= new (thd->mem_root) Item_func_eq(thd, var, when);
+    expr= new (thd->mem_root) Item_func_eq(thd, var, get_item());
     i= new (thd->mem_root) sp_instr_jump_if_not(ip, spcont, expr, this);
   }
   else
-    i= new (thd->mem_root) sp_instr_jump_if_not(ip, spcont, when, this);
+    i= new (thd->mem_root) sp_instr_jump_if_not(ip, spcont, get_item(), this);
 
   /*
     BACKPATCH: Registering forward jump from
@@ -7334,7 +7334,7 @@ bool LEX::sp_exit_block(THD *thd, sp_label *lab, Item *when)
   sp_instr_jump_if_not *i= new (thd->mem_root)
                            sp_instr_jump_if_not(sphead->instructions(),
                                                 spcont,
-                                                when, thd->lex);
+                                                when, this);
   if (unlikely(i == NULL) ||
       unlikely(sphead->add_instr(i)) ||
       unlikely(sp_exit_block(thd, lab)))
@@ -7397,17 +7397,40 @@ bool LEX::sp_continue_loop(THD *thd, sp_label *lab)
 }
 
 
+bool LEX::sp_continue_statement(THD *thd)
+{
+  sp_label *lab= spcont->find_label_current_loop_start();
+  if (unlikely(!lab))
+  {
+    my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", "");
+    return true;
+  }
+  DBUG_ASSERT(lab->type == sp_label::ITERATION);
+  return sp_continue_loop(thd, lab);
+}
+
+
+bool LEX::sp_continue_statement(THD *thd, const LEX_CSTRING *label_name)
+{
+  sp_label *lab= spcont->find_label(label_name);
+  if (!lab || lab->type != sp_label::ITERATION)
+  {
+    my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", label_name->str);
+    return true;
+  }
+  return sp_continue_loop(thd, lab);
+}
+
+
 bool LEX::sp_continue_loop(THD *thd, sp_label *lab, Item *when)
 {
-  if (!when)
-    return sp_continue_loop(thd, lab);
-
+  DBUG_ASSERT(when);
   DBUG_ASSERT(sphead == thd->lex->sphead);
   DBUG_ASSERT(spcont == thd->lex->spcont);
   sp_instr_jump_if_not *i= new (thd->mem_root)
                            sp_instr_jump_if_not(sphead->instructions(),
                                                 spcont,
-                                                when, thd->lex);
+                                                when, this);
   if (unlikely(i == NULL) ||
       unlikely(sphead->add_instr(i)) ||
       unlikely(sp_continue_loop(thd, lab)))
@@ -7417,7 +7440,7 @@ bool LEX::sp_continue_loop(THD *thd, sp_label *lab, Item *when)
 }
 
 
-bool LEX::sp_continue_statement(THD *thd, Item *when)
+bool sp_expr_lex::sp_continue_when_statement(THD *thd)
 {
   sp_label *lab= spcont->find_label_current_loop_start();
   if (unlikely(!lab))
@@ -7426,12 +7449,12 @@ bool LEX::sp_continue_statement(THD *thd, Item *when)
     return true;
   }
   DBUG_ASSERT(lab->type == sp_label::ITERATION);
-  return sp_continue_loop(thd, lab, when);
+  return sp_continue_loop(thd, lab, get_item());
 }
 
 
-bool LEX::sp_continue_statement(THD *thd, const LEX_CSTRING *label_name,
-                                Item *when)
+bool sp_expr_lex::sp_continue_when_statement(THD *thd,
+                                             const LEX_CSTRING *label_name)
 {
   sp_label *lab= spcont->find_label(label_name);
   if (!lab || lab->type != sp_label::ITERATION)
@@ -7439,7 +7462,7 @@ bool LEX::sp_continue_statement(THD *thd, const LEX_CSTRING *label_name,
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", label_name->str);
     return true;
   }
-  return sp_continue_loop(thd, lab, when);
+  return sp_continue_loop(thd, lab, get_item());
 }
 
 
@@ -7504,10 +7527,10 @@ void LEX::sp_pop_loop_empty_label(THD *thd)
 }
 
 
-bool LEX::sp_while_loop_expression(THD *thd, Item *expr)
+bool LEX::sp_while_loop_expression(THD *thd, Item *item)
 {
   sp_instr_jump_if_not *i= new (thd->mem_root)
-    sp_instr_jump_if_not(sphead->instructions(), spcont, expr, this);
+    sp_instr_jump_if_not(sphead->instructions(), spcont, item, this);
   return (unlikely(i == NULL) ||
           /* Jumping forward */
           unlikely(sphead->push_backpatch(thd, i, spcont->last_label())) ||
@@ -11065,3 +11088,45 @@ bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
   return false;
 }
 
+
+bool sp_expr_lex::sp_repeat_loop_finalize(THD *thd)
+{
+  uint ip= sphead->instructions();
+  sp_label *lab= spcont->last_label();  /* Jumping back */
+  sp_instr_jump_if_not *i= new (thd->mem_root)
+    sp_instr_jump_if_not(ip, spcont, get_item(), lab->ip, this);
+  if (unlikely(i == NULL) ||
+      unlikely(sphead->add_instr(i)))
+    return true;
+  /* We can shortcut the cont_backpatch here */
+  i->m_cont_dest= ip+1;
+  return false;
+}
+
+
+bool sp_expr_lex::sp_if_expr(THD *thd)
+{
+  uint ip= sphead->instructions();
+  sp_instr_jump_if_not *i= new (thd->mem_root)
+                           sp_instr_jump_if_not(ip, spcont, get_item(), this);
+  return
+    (unlikely(i == NULL) ||
+    unlikely(sphead->push_backpatch(thd, i,
+                                    spcont->push_label(thd, &empty_clex_str,
+                                                       0))) ||
+    unlikely(sphead->add_cont_backpatch(i)) ||
+    unlikely(sphead->add_instr(i)));
+}
+
+
+bool LEX::sp_if_after_statements(THD *thd)
+{
+  uint ip= sphead->instructions();
+  sp_instr_jump *i= new (thd->mem_root) sp_instr_jump(ip, spcont);
+  if (unlikely(i == NULL) ||
+      unlikely(sphead->add_instr(i)))
+    return true;
+  sphead->backpatch(spcont->pop_label());
+  sphead->push_backpatch(thd, i, spcont->push_label(thd, &empty_clex_str, 0));
+  return false;
+}
