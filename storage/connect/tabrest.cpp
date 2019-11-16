@@ -133,7 +133,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 	} // endif Hdll
 
 // Get the function returning an instance of the external DEF class
-	if (!(getRestFnc = (XGETREST)dlsym(Hdll, "restGetFile"))) {
+	if (!(getRestFnc = (XGETREST)dlsym(Hso, "restGetFile"))) {
 		error = dlerror();
 		sprintf(g->Message, MSG(GET_FUNC_ERR), "restGetFile", SVP(error));
 		dlclose(Hso);
