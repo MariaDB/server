@@ -170,9 +170,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0010 June 01, 2019";
+       char version[]= "Version 1.07.0001 November 12, 2019";
 #if defined(__WIN__)
-       char compver[]= "Version 1.06.0010 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.07.0001 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -6062,7 +6062,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				} // endif !nblin
 
 				for (i= 0; !rc && i < qrp->Nblin; i++) {
-					typ= len= prec= dec= 0;
+					typ= len= prec= dec= flg= 0;
 					tm= NOT_NULL_FLAG;
 					cnm= (char*)"noname";
 					dft= xtra= key= fmt= tn= NULL;
@@ -6102,6 +6102,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 								if (crp->Kdata->GetIntValue(i))
 									tm= 0;               // Nullable
 
+								break;
+							case FLD_FLAG:
+								flg = crp->Kdata->GetIntValue(i);
 								break;
 							case FLD_FORMAT:
 								fmt= (crp->Kdata) ? crp->Kdata->GetCharValue(i) : NULL;
@@ -6233,7 +6236,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 						// Now add the field
 						if (add_field(&sql, cnm, typ, prec, dec, key, tm, rem, dft, xtra,
-							fmt, 0, dbf, v))
+							fmt, flg, dbf, v))
 							rc= HA_ERR_OUT_OF_MEM;
 				} // endfor i
 
@@ -7379,14 +7382,14 @@ maria_declare_plugin(connect)
   &connect_storage_engine,
   "CONNECT",
   "Olivier Bertrand",
-  "Management of External Data (SQL/NOSQL/MED), including many file formats",
+  "Management of External Data (SQL/NOSQL/MED), including Rest query results",
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
-  0x0106,                                       /* version number (1.06) */
+  0x0107,                                       /* version number (1.07) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.06.0010",                                  /* string version */
+  "1.07.0001",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;
