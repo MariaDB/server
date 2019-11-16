@@ -1714,9 +1714,9 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
       Request memory to finish the scan in one pass but do not request
       more than @@mrr_buff_size.
     */
-    *buffer_size = MY_MIN(extra_mem_overhead + rows*elem_size,
-                          MY_MAX(table->in_use->variables.mrr_buff_size,
-                                 extra_mem_overhead));
+    *buffer_size= (uint) MY_MIN(extra_mem_overhead + elem_size*(ulong)rows,
+                                MY_MAX(table->in_use->variables.mrr_buff_size,
+                                       extra_mem_overhead));
   }
 
   if (elem_size + extra_mem_overhead > *buffer_size)
