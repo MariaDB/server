@@ -5,6 +5,9 @@
 --source include/not_windows.inc
 --source include/have_maria.inc
 
+# FIXME: MDEV-16417 Store Foreign Key metadata outside of InnoDB
+call mtr.add_suppression("Table './test/t[12]' is marked as crashed");
+
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 eval create table t1 (a int) engine=myisam data directory='$MYSQL_TMP_DIR';
 insert t1 values (1);

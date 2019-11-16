@@ -65,6 +65,7 @@ flush tables;
 rename table t2 to t0;
 db.opt
 t0.ARZ
+t0.frm
 t1.ARZ
 t1.frm
 #
@@ -83,6 +84,7 @@ flush tables;
 drop table t1;
 db.opt
 t0.ARZ
+t0.frm
 #
 # discover of table non-existance on drop
 #
@@ -93,7 +95,7 @@ drop table t0;
 db.opt
 show status like 'Handler_discover';
 Variable_name	Value
-Handler_discover	6
+Handler_discover	7
 #
 # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
 #

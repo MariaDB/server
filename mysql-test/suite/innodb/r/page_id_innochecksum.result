@@ -1,3 +1,4 @@
+call mtr.add_suppression("Table `test`.`t1` is corrupted. Please drop the table and recreate.");
 # Set the environmental variables
 create table t1(f1 int not null)engine=innodb;
 insert into t1 values(1), (2), (3);

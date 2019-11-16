@@ -1,6 +1,10 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 --source include/innodb_checksum_algorithm.inc
+
+# FIXME: MDEV-16417 Store Foreign Key metadata outside of InnoDB
+call mtr.add_suppression("Table `test`.`t1` is corrupted. Please drop the table and recreate.");
+
 --echo # Set the environmental variables
 let MYSQLD_BASEDIR= `SELECT @@basedir`;
 let MYSQLD_DATADIR= `SELECT @@datadir`;

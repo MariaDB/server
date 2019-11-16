@@ -7,6 +7,9 @@
 # Embedded server does not support crashing
 --source include/not_embedded.inc
 
+# FIXME: MDEV-16417 Store Foreign Key metadata outside of InnoDB
+call mtr.add_suppression("Table `test`.`u1` is corrupted. Please drop the table and recreate.");
+
 SET GLOBAL innodb_file_per_table=ON;
 FLUSH TABLES;
 

@@ -213,7 +213,9 @@ select * from t2;
 rename table t1 to xt1;
 show create table t2;
 select * from xt1;
+--disable_warnings
 flush tables t2, xt1;
+--enable_warnings
 drop tables t2, xt1;
 
 --echo # Check drop table

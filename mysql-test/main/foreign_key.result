@@ -197,8 +197,6 @@ t2	CREATE TABLE `t2` (
 select * from xt1;
 id
 flush tables t2, xt1;
-Warnings:
-Note	1105	Foreign table test.t2 is not opened
 drop tables t2, xt1;
 # Check drop table
 create or replace table t1 (id int primary key);
