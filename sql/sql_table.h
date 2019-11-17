@@ -19,6 +19,7 @@
 
 #include <my_sys.h>                             // pthread_mutex_t
 #include "m_string.h"                           // LEX_CUSTRING
+#include "mdl.h"                                // MDL_request_list
 
 class Alter_info;
 class Alter_table_ctx;
@@ -214,7 +215,8 @@ int mysql_discard_or_import_tablespace(THD *thd,
 bool mysql_prepare_alter_table(THD *thd, TABLE *table,
                                HA_CREATE_INFO *create_info,
                                Alter_info *alter_info,
-                               Alter_table_ctx *alter_ctx);
+                               Alter_table_ctx *alter_ctx,
+                               MDL_request_list *mdl_ref_tables= NULL);
 bool mysql_trans_prepare_alter_copy_data(THD *thd);
 bool mysql_trans_commit_alter_copy_data(THD *thd);
 bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *new_name,

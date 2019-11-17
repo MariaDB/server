@@ -6280,8 +6280,8 @@ typedef struct st_sort_buffer {
 class Table_ident :public Sql_alloc
 {
 public:
-  LEX_CSTRING db;
-  LEX_CSTRING table;
+  Lex_cstring db;
+  Lex_cstring table;
   SELECT_LEX_UNIT *sel;
   inline Table_ident(THD *thd, const LEX_CSTRING *db_arg,
                      const LEX_CSTRING *table_arg,
@@ -6312,6 +6312,11 @@ public:
     table.str= internal_table_name;
     table.length=1;
   }
+  Table_ident(LEX_CSTRING &db_arg, LEX_CSTRING &table_arg)
+    :db(db_arg), table(table_arg)
+  {}
+  Table_ident()
+  {}
   bool is_derived_table() const { return MY_TEST(sel); }
   inline void change_db(LEX_CSTRING *db_name)
   {
@@ -6319,7 +6324,35 @@ public:
   }
   bool resolve_table_rowtype_ref(THD *thd, Row_definition_list &defs);
   bool append_to(THD *thd, String *to) const;
+  bool lowercase(MEM_ROOT *mem_root)
+  {
+    if (db.length)
+    {
+      db.str= (const char *) memdup_root(mem_root, db.str, db.length + 1);
+      if (unlikely(!db.str))
+        return true;
+      my_casedn_str(system_charset_info, (char *)db.str);
+    }
+    if (table.length)
+    {
+      table.str= (const char *) memdup_root(mem_root, table.str, table.length + 1);
+      if (unlikely(!table.str))
+        return true;
+      my_casedn_str(system_charset_info, (char *)table.str);
+    }
+    return false;
+  }
 };
+
+struct Table_ident_lt
+{
+  bool operator() (const Table_ident &lhs, const Table_ident &rhs) const
+  {
+    return lhs.db.cmp(rhs.db) < 0 || lhs.table.cmp(rhs.table) < 0;
+  }
+};
+class Table_ident_set : public std::set<Table_ident, Table_ident_lt>
+{};
 
 
 class Qualified_column_ident: public Table_ident

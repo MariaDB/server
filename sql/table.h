@@ -643,6 +643,15 @@ struct TABLE_SHARE
   Field **field;
   Field **found_next_number_field;
   KEY  *key_info;			/* data of keys in database */
+  FK_list *foreign_keys;
+  FK_list *referenced_keys;
+  bool update_foreign_keys(THD *thd, Alter_info *alter_info);
+  bool check_foreign_keys(THD *thd);
+  bool referenced_by_foreign_key() const
+  {
+    return referenced_keys && !referenced_keys->is_empty();
+  }
+
   Virtual_column_info **check_constraints;
   uint	*blob_field;			/* Index to blobs in Field arrray*/
   LEX_CUSTRING vcol_defs;              /* definitions of generated columns */
@@ -1100,6 +1109,8 @@ public:
   }
   bool is_truncated_value() { return truncated_value; }
 };
+
+bool release_ref_shares(THD *thd, TABLE_LIST *t);
 
 
 /* Information for one open table */

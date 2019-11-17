@@ -25,4 +25,19 @@ char *sql_strmake_with_convert(THD *thd, const char *str, size_t arg_length,
 			       size_t max_res_length,
 			       CHARSET_INFO *to_cs, size_t *result_length);
 
+class Tmp_mem_root : public MEM_ROOT
+{
+public:
+  Tmp_mem_root()
+  {
+    init_sql_alloc(this, "Tmp_mem_root", 1024, 0,
+                   MYF(MY_THREAD_SPECIFIC));
+  }
+  ~Tmp_mem_root()
+  {
+    free_root(this, MYF(0));
+  }
+};
+
+
 #endif /* THR_MALLOC_INCLUDED */

@@ -6834,7 +6834,6 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
   }
   else if (!tables->view)
   {
-    List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
     KEY *key_info=show_table->s->key_info;
     uint primary_key= show_table->s->primary_key;
@@ -6875,16 +6874,18 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
         }
     }
 
-    show_table->file->get_foreign_key_list(thd, &f_key_list);
-    FOREIGN_KEY_INFO *f_key_info;
-    List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
-    while ((f_key_info=it++))
+    if (show_table->s->foreign_keys)
     {
-      if (store_constraints(thd, table, db_name, table_name,
-                            f_key_info->foreign_id->str,
-                            strlen(f_key_info->foreign_id->str),
-                            "FOREIGN KEY", 11))
-        DBUG_RETURN(1);
+      FOREIGN_KEY_INFO *f_key_info;
+      List_iterator_fast<FOREIGN_KEY_INFO> it(*show_table->s->foreign_keys);
+      while ((f_key_info=it++))
+      {
+        if (store_constraints(thd, table, db_name, table_name,
+                              f_key_info->foreign_id->str,
+                              strlen(f_key_info->foreign_id->str),
+                              "FOREIGN KEY", 11))
+          DBUG_RETURN(1);
+      }
     }
   }
   DBUG_RETURN(res);
@@ -7032,7 +7033,6 @@ static int get_schema_key_column_usage_record(THD *thd,
   }
   else if (!tables->view)
   {
-    List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
     KEY *key_info=show_table->s->key_info;
     uint primary_key= show_table->s->primary_key;
@@ -7062,41 +7062,43 @@ static int get_schema_key_column_usage_record(THD *thd,
       }
     }
 
-    show_table->file->get_foreign_key_list(thd, &f_key_list);
-    FOREIGN_KEY_INFO *f_key_info;
-    List_iterator_fast<FOREIGN_KEY_INFO> fkey_it(f_key_list);
-    while ((f_key_info= fkey_it++))
+    if (show_table->s->foreign_keys)
     {
-      LEX_CSTRING *f_info;
-      LEX_CSTRING *r_info;
-      List_iterator_fast<LEX_CSTRING> it(f_key_info->foreign_fields),
-        it1(f_key_info->referenced_fields);
-      uint f_idx= 0;
-      while ((f_info= it++))
+      FOREIGN_KEY_INFO *f_key_info;
+      List_iterator_fast<FOREIGN_KEY_INFO> fkey_it(*show_table->s->foreign_keys);
+      while ((f_key_info= fkey_it++))
       {
-        r_info= it1++;
-        f_idx++;
-        restore_record(table, s->default_values);
-        store_key_column_usage(table, db_name, table_name,
-                               f_key_info->foreign_id->str,
-                               f_key_info->foreign_id->length,
-                               f_info->str, f_info->length,
-                               (longlong) f_idx);
-        table->field[8]->store((longlong) f_idx, TRUE);
-        table->field[8]->set_notnull();
-        table->field[9]->store(f_key_info->referenced_db->str,
-                               f_key_info->referenced_db->length,
-                               system_charset_info);
-        table->field[9]->set_notnull();
-        table->field[10]->store(f_key_info->referenced_table->str,
-                                f_key_info->referenced_table->length,
+        LEX_CSTRING *f_info;
+        LEX_CSTRING *r_info;
+        List_iterator_fast<LEX_CSTRING> it(f_key_info->foreign_fields),
+          it1(f_key_info->referenced_fields);
+        uint f_idx= 0;
+        while ((f_info= it++))
+        {
+          r_info= it1++;
+          f_idx++;
+          restore_record(table, s->default_values);
+          store_key_column_usage(table, db_name, table_name,
+                                f_key_info->foreign_id->str,
+                                f_key_info->foreign_id->length,
+                                f_info->str, f_info->length,
+                                (longlong) f_idx);
+          table->field[8]->store((longlong) f_idx, TRUE);
+          table->field[8]->set_notnull();
+          table->field[9]->store(f_key_info->referenced_db->str,
+                                f_key_info->referenced_db->length,
                                 system_charset_info);
-        table->field[10]->set_notnull();
-        table->field[11]->store(r_info->str, r_info->length,
-                                system_charset_info);
-        table->field[11]->set_notnull();
-        if (schema_table_store_record(thd, table))
-          DBUG_RETURN(1);
+          table->field[9]->set_notnull();
+          table->field[10]->store(f_key_info->referenced_table->str,
+                                  f_key_info->referenced_table->length,
+                                  system_charset_info);
+          table->field[10]->set_notnull();
+          table->field[11]->store(r_info->str, r_info->length,
+                                  system_charset_info);
+          table->field[11]->set_notnull();
+          if (schema_table_store_record(thd, table))
+            DBUG_RETURN(1);
+        }
       }
     }
   }
@@ -7804,17 +7806,15 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
     thd->clear_error();
     DBUG_RETURN(0);
   }
-  if (!tables->view)
+  if (!tables->view && tables->table->s->foreign_keys)
   {
-    List<FOREIGN_KEY_INFO> f_key_list;
     TABLE *show_table= tables->table;
     show_table->file->info(HA_STATUS_VARIABLE |
                            HA_STATUS_NO_LOCK |
                            HA_STATUS_TIME);
 
-    show_table->file->get_foreign_key_list(thd, &f_key_list);
     FOREIGN_KEY_INFO *f_key_info;
-    List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
+    List_iterator_fast<FOREIGN_KEY_INFO> it(*show_table->s->foreign_keys);
     while ((f_key_info= it++))
     {
       restore_record(table, s->default_values);

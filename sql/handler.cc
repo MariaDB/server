@@ -5135,7 +5135,8 @@ int handler::calculate_checksum()
 */
 int ha_create_table(THD *thd, const char *path,
                     const char *db, const char *table_name,
-                    HA_CREATE_INFO *create_info, LEX_CUSTRING *frm)
+                    HA_CREATE_INFO *create_info, Alter_info *alter_info,
+                    LEX_CUSTRING *frm)
 {
   int error= 1;
   TABLE table;
@@ -5168,6 +5169,9 @@ int ha_create_table(THD *thd, const char *path,
     if (open_table_def(thd, &share))
       goto err;
   }
+
+  if (alter_info && share.update_foreign_keys(thd, alter_info))
+    goto err;
 
   share.m_psi= PSI_CALL_get_table_share(temp_table, &share);
 
@@ -7690,6 +7694,45 @@ static void require_trx_id_error(const char *field, const char *table)
 {
   my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), field, "BIGINT(20) UNSIGNED",
            table);
+}
+
+bool FK_list::get(THD *thd, Table_ident_set &result, LEX_CSTRING &fk_name, bool foreign)
+{
+  List_iterator_fast<FOREIGN_KEY_INFO> it(*this);
+  List_iterator_fast<LEX_CSTRING> col_it;
+  while (FOREIGN_KEY_INFO *fk= it++)
+  {
+    if (foreign)
+      col_it.init(fk->foreign_fields);
+    else
+      col_it.init(fk->referenced_fields);
+    while (LEX_CSTRING* name= col_it++)
+    {
+      if (!my_strcasecmp(system_charset_info, name->str, fk_name.str))
+      {
+        if (foreign)
+          result.insert(Table_ident(*fk->referenced_db, *fk->referenced_table));
+        else
+          result.insert(Table_ident(*fk->foreign_db, *fk->foreign_table));
+        break;
+      }
+    }
+  }
+  return false;
+}
+
+bool FK_list::get(THD *thd, Table_ident_set &result, bool foreign)
+{
+  List_iterator_fast<FOREIGN_KEY_INFO> it(*this);
+  List_iterator_fast<LEX_CSTRING> col_it;
+  while (FOREIGN_KEY_INFO *fk= it++)
+  {
+    if (foreign)
+      result.insert(Table_ident(*fk->foreign_db, *fk->foreign_table));
+    else
+      result.insert(Table_ident(*fk->referenced_db, *fk->referenced_table));
+  }
+  return false;
 }
 
 

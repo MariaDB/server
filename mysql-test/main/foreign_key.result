@@ -108,3 +108,136 @@ ALTER TABLE tfk ADD CONSTRAINT sid UNIQUE(c2);
 ERROR 42000: Duplicate key name 'sid'
 DROP TABLE tfk;
 DROP TABLE tpk;
+#
+# MDEV-16417 Store Foreign Key metadata outside of InnoDB
+#
+set default_storage_engine= innodb;
+# Check rename column, lock tables
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key);
+create or replace table t3 (id int primary key);
+create or replace table ch1 (
+id int, id2 int,
+foreign key (id) references t1 (id),
+foreign key (id2) references t2 (id),
+foreign key (id) references t3 (id));
+select * from t1, t2, t3;
+id	id	id
+connect con1, localhost, root;
+lock tables t3 read;
+connection default;
+set @saved_lock_wait_timeout= @@lock_wait_timeout;
+set lock_wait_timeout= 1;
+alter table ch1 change id2 xid2 int;
+alter table ch1 change id xid int;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set lock_wait_timeout= @saved_lock_wait_timeout;
+connection con1;
+unlock tables;
+disconnect con1;
+connection default;
+alter table ch1 change id xid int;
+select * from ch1;
+xid	xid2
+flush tables t1, t2, t3;
+drop tables ch1, t2, t1, t3;
+# Rename column on referenced table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1);
+select * from t2;
+id
+alter table t1 change id xid int;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  KEY `id` (`id`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`xid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t1;
+xid
+flush table t2;
+drop tables t2, t1;
+# Check rename table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1);
+select * from t2, t1;
+id	id
+rename table t2 to t3;
+flush tables t1;
+drop tables t3, t1;
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key);
+create or replace table t3 (id int primary key);
+select * from t1, t2, t3;
+id	id	id
+create or replace table ch1 (
+id int, id2 int,
+foreign key (id) references t1 (id),
+foreign key (id2) references t2 (id),
+foreign key (id) references t3 (id));
+select * from ch1;
+id	id2
+rename table ch1 to ch2;
+flush tables t1, t2, t3;
+drop tables ch2, t2, t1, t3;
+# Rename of referenced table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int references t1);
+select * from t2;
+id
+rename table t1 to xt1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  KEY `id` (`id`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `xt1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from xt1;
+id
+flush tables t2, xt1;
+Warnings:
+Note	1105	Foreign table test.t2 is not opened
+drop tables t2, xt1;
+# Check drop table
+create or replace table t1 (id int primary key);
+create or replace table ch1 (id int, foreign key (id) references t1 (id));
+select * from t1;
+id
+select * from ch1;
+id
+drop tables ch1, t1;
+# Check drop database
+create or replace table t1 (id int primary key);
+select * from t1;
+id
+create or replace database test2;
+use test2;
+create or replace table ch1 (
+id int, id2 int,
+foreign key (id) references test.t1 (id));
+select * from ch1;
+id	id2
+use test;
+drop database test2;
+flush tables t1;
+drop tables t1;
+# Check add foreign key
+create or replace table t1(fld1 int not null primary key);
+create or replace table t2(fld1 int not null, fld2 int as (fld1) virtual);
+insert into t1 values(1);
+insert into t2 values(1, default);
+set foreign_key_checks = 0;
+alter table t2 add index(fld2), add foreign key (fld1) references t1(fld1)
+on update cascade, algorithm=inplace;
+set foreign_key_checks = 1;
+update t1 set fld1= 2;
+select fld2 from t2;
+fld2
+2
+select * from t2;
+fld1	fld2
+2	2
+drop table t2, t1;
+set default_storage_engine= default;

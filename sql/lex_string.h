@@ -41,13 +41,52 @@ class Lex_cstring : public LEX_CSTRING
     str= start;
     length= end - start;
   }
+  Lex_cstring(const LEX_CSTRING &src)
+  {
+    str= src.str;
+    length= src.length;
+  }
   void set(const char *_str, size_t _len)
   {
     str= _str;
     length= _len;
   }
+  Lex_cstring *strdup_root(MEM_ROOT &mem_root)
+  {
+    Lex_cstring *dst=
+        (Lex_cstring *) alloc_root(&mem_root, sizeof(Lex_cstring));
+    if (!dst)
+      return NULL;
+    if (!str)
+    {
+      dst->str= NULL;
+      dst->length= 0;
+      return dst;
+    }
+    dst->str= (const char *) memdup_root(&mem_root, str, length + 1);
+    if (!dst->str)
+      return NULL;
+    dst->length= length;
+    return dst;
+  }
+  int cmp(const Lex_cstring& rhs) const
+  {
+    if (length < rhs.length)
+      return -1;
+    if (length > rhs.length)
+      return 1;
+    return memcmp(str, rhs.str, length);
+  }
 };
 
+struct Lex_cstring_lt
+{
+  bool operator() (const Lex_cstring &lhs, const Lex_cstring &rhs) const
+  {
+    return lhs.cmp(rhs) < 0;
+  }
+
+};
 
 class Lex_cstring_strlen: public Lex_cstring
 {

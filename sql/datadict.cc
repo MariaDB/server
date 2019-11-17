@@ -199,6 +199,6 @@ bool dd_recreate_table(THD *thd, const char *db, const char *table_name)
   build_table_filename(path_buf, sizeof(path_buf) - 1,
                        db, table_name, "", 0);
   /* Attempt to reconstruct the table. */
-  DBUG_RETURN(ha_create_table(thd, path_buf, db, table_name, &create_info, 0));
+  DBUG_RETURN(ha_create_table(thd, path_buf, db, table_name, &create_info, NULL, 0));
 }
 

@@ -4670,23 +4670,13 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
         return TRUE;
     }
 
-    if (table->file->referenced_by_foreign_key())
+    if (table->s->referenced_by_foreign_key())
     {
-      List <FOREIGN_KEY_INFO> fk_list;
-      List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
+      List_iterator<FOREIGN_KEY_INFO> fk_list_it(*table->s->referenced_keys);
       FOREIGN_KEY_INFO *fk;
       Query_arena *arena, backup;
 
       arena= thd->activate_stmt_arena_if_needed(&backup);
-
-      table->file->get_parent_foreign_key_list(thd, &fk_list);
-      if (unlikely(thd->is_error()))
-      {
-        if (arena)
-          thd->restore_active_arena(arena, &backup);
-        DBUG_RETURN(TRUE);
-      }
-
       *need_prelocking= TRUE;
 
       while ((fk= fk_list_it++))

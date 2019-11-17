@@ -120,14 +120,13 @@ static bool
 fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
 {
   FOREIGN_KEY_INFO *fk_info;
-  List<FOREIGN_KEY_INFO> fk_list;
   List_iterator_fast<FOREIGN_KEY_INFO> it;
 
   /*
     Bail out early if the table is not referenced by a foreign key.
     In this case, the table could only be, if at all, a child table.
   */
-  if (! table->file->referenced_by_foreign_key())
+  if (! table->s->referenced_by_foreign_key())
     return FALSE;
 
   /*
@@ -136,13 +135,8 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
     of foreign keys referencing this table in order to check the name
     of the child (dependent) tables.
   */
-  table->file->get_parent_foreign_key_list(thd, &fk_list);
-
-  /* Out of memory when building list. */
-  if (unlikely(thd->is_error()))
-    return TRUE;
-
-  it.init(fk_list);
+  DBUG_ASSERT(table->s->referenced_keys);
+  it.init(*table->s->referenced_keys);
 
   /* Loop over the set of foreign keys for which this table is a parent. */
   while ((fk_info= it++))
