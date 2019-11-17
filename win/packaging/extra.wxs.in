@@ -63,6 +63,9 @@
     <Property Id="BUFFERPOOLSIZE" Secure="yes"/>
     <!-- Innodb page size -->
     <Property Id="PAGESIZE" Secure="yes" Value="16K"/>
+    <!-- Symlinks -->
+    <Property Id="SYMLINK_TOS" Value="@MARIADB_SYMLINK_TOS@" />
+    <Property Id="SYMLINK_FROMS" Value="@MARIADB_SYMLINK_FROMS@" />
 
     <CustomAction Id="LaunchUrl" BinaryKey="WixCA" DllEntry="WixShellExec"  Execute="immediate" Return="check" Impersonate="yes" />
 
@@ -660,11 +663,24 @@
     <MergeRef Id="VCRedist"/>
    </Feature>
    <?endif?>
+   
+    <!-- Custom action, create symlinks -->
+    <CustomAction Id="CreateSymlinks.SetProperty" Return="check" Property="CreateSymlinks" Value="[INSTALLDIR]|[SYMLINK_FROMS]|[SYMLINK_TOS]" />
+    <CustomAction Id="CreateSymlinks" BinaryKey="wixca.dll" DllEntry="CreateSymlinks" Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="DeleteSymlinks.SetProperty" Return="check" Property="DeleteSymlinks" Value="[INSTALLDIR]|[SYMLINK_FROMS]|[SYMLINK_TOS]" />
+    <CustomAction Id='DeleteSymlinks' BinaryKey="wixca.dll" DllEntry="DeleteSymlinks" Execute="deferred" Impersonate="no" Return="ignore" />
 
-    <!--  Custom action, call mysql_install_db  -->
-    <SetProperty  Sequence='execute'  Before='CreateDatabaseCommand' Id="SKIPNETWORKING"  Value="--skip-networking" >SKIPNETWORKING</SetProperty>
-    <SetProperty Sequence='execute'  Before='CreateDatabaseCommand'  Id="ALLOWREMOTEROOTACCESS" Value="--allow-remote-root-access">ALLOWREMOTEROOTACCESS</SetProperty>
-    <SetProperty Sequence='execute'  Before='CreateDatabaseCommand' Id="DEFAULTUSER" Value="--default-user">DEFAULTUSER</SetProperty>
+    <InstallExecuteSequence>
+      <Custom Action="CreateSymlinks.SetProperty" Before="CreateSymlinks">NOT Installed</Custom>
+      <Custom Action="CreateSymlinks" Before="InstallFinalize">NOT Installed</Custom>
+      <Custom Action="DeleteSymlinks.SetProperty" Before="DeleteSymlinks">Installed AND NOT REINSTALL</Custom>
+      <Custom Action="DeleteSymlinks" Before="RemoveFiles">Installed AND NOT REINSTALL</Custom>
+    </InstallExecuteSequence>
+
+    <!-- Custom action, call mysql_install_db -->
+    <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="SKIPNETWORKING" Value="--skip-networking" >SKIPNETWORKING</SetProperty>
+    <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="ALLOWREMOTEROOTACCESS" Value="--allow-remote-root-access">ALLOWREMOTEROOTACCESS</SetProperty>
+    <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="DEFAULTUSER" Value="--default-user">DEFAULTUSER</SetProperty>
     <CustomAction Id='CheckDatabaseProperties' BinaryKey='wixca.dll' DllEntry='CheckDatabaseProperties' />
     <CustomAction Id='PresetDatabaseProperties' BinaryKey='wixca.dll' DllEntry='PresetDatabaseProperties' />
     <CustomAction Id="CreateDatabaseCommand" Property="CreateDatabase"
@@ -881,10 +897,10 @@
       >
       <![CDATA[ NOT(NSISINSTALLKEY << "MariaDB @MAJOR_VERSION@.@MINOR_VERSION@.") OR Installed]]>
     </Condition>
-    <Condition Message=
+    <!-- Condition Message=
        'Setting the ALLUSERS property is not allowed because [ProductName] is a per-machine application. Setup will now exit.'>
       <![CDATA[ALLUSERS = "1"]]>
-    </Condition>
+    </Condition -->
 	<Condition Message='This application is only supported on Windows Vista, Windows Server 2008, or higher.'>
       <![CDATA[Installed OR (VersionNT >= 600)]]>
     </Condition>
