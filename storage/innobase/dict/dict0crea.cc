@@ -901,13 +901,8 @@ dict_create_index_tree_in_mem(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	rec	SYS_INDEXES record
 @param[in,out]	pcur	persistent cursor on rec
-@param[in,out]	mtr	mini-transaction
-@return	whether freeing the B-tree was attempted */
-bool
-dict_drop_index_tree(
-	rec_t*		rec,
-	btr_pcur_t*	pcur,
-	mtr_t*		mtr)
+@param[in,out]	mtr	mini-transaction */
+void dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, mtr_t* mtr)
 {
 	byte*	ptr;
 	ulint	len;
@@ -927,8 +922,7 @@ dict_drop_index_tree(
 
 	if (root_page_no == FIL_NULL) {
 		/* The tree has already been freed */
-
-		return(false);
+		return;
 	}
 
 	compile_time_assert(FIL_NULL == 0xffffffff);
@@ -955,10 +949,7 @@ dict_drop_index_tree(
 					   mach_read_from_8(ptr), mtr);
 		}
 		s->release();
-		return true;
 	}
-
-	return false;
 }
 
 /*********************************************************************//**
