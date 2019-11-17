@@ -4333,7 +4333,7 @@ This prevents an infinite loop on slow shutdown
 in the case where the change buffer bitmap claims that no buffered
 changes exist, while entries exist in the change buffer tree.
 @param page_id  page number for which there should be no unbuffered changes */
-ATTRIBUTE_COLD static void ibuf_delete_recs(const page_id_t page_id)
+ATTRIBUTE_COLD void ibuf_delete_recs(const page_id_t page_id)
 {
 	ulint dops[IBUF_OP_COUNT];
 	mtr_t mtr;

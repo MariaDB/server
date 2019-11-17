@@ -3092,9 +3092,7 @@ row_upd_clust_step(
 
 	ulint	mode;
 
-	DEBUG_SYNC_C_IF_THD(
-		thr_get_trx(thr)->mysql_thd,
-		"innodb_row_upd_clust_step_enter");
+	DEBUG_SYNC_C_IF_THD(trx->mysql_thd, "innodb_row_upd_clust_step_enter");
 
 	if (dict_index_is_online_ddl(index)) {
 		ut_ad(node->table->id != DICT_INDEXES_ID);
@@ -3123,7 +3121,7 @@ row_upd_clust_step(
 		ut_ad(!dict_index_is_online_ddl(index));
 
 		dict_drop_index_tree(
-			btr_pcur_get_rec(pcur), pcur, &mtr);
+			btr_pcur_get_rec(pcur), pcur, trx, &mtr);
 
 		mtr.commit();
 
@@ -3155,7 +3153,7 @@ row_upd_clust_step(
 		}
 	}
 
-	ut_ad(lock_trx_has_rec_x_lock(thr_get_trx(thr), index->table,
+	ut_ad(lock_trx_has_rec_x_lock(trx, index->table,
 				      btr_pcur_get_block(pcur),
 				      page_rec_get_heap_no(rec)));
 

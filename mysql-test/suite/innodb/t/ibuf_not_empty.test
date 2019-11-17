@@ -73,8 +73,32 @@ EOF
 --replace_regex /contains \d+ entries/contains #### entries/
 check table t1;
 
+--source include/shutdown_mysqld.inc
+
+# Truncate the file to 5 pages, as if it were empty
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+my $ps= $ENV{PAGE_SIZE};
+my $pages=5;
+my $page;
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+substr($page,46,4)=pack("N", $pages);
+my $polynomial = 0x82f63b78; # CRC-32C
+my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+substr($page,0,4)=$ck;
+substr($page,$ps-8,4)=$ck;
+sysseek(FILE, 0, 0) || die "Unable to rewind $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+truncate(FILE, $ps * $pages);
+close(FILE) || die "Unable to close $file";
+EOF
+
 --let $restart_parameters=
---source include/restart_mysqld.inc
+--source include/start_mysqld.inc
 SET GLOBAL innodb_fast_shutdown=0;
 --source include/restart_mysqld.inc
 
