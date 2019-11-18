@@ -919,17 +919,13 @@ dict_create_index_tree_in_mem(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	rec	SYS_INDEXES record
 @param[in,out]	pcur	persistent cursor on rec
+@param[in,out]	trx	dictionary transaction
 @param[in,out]	mtr	mini-transaction
 @return	whether freeing the B-tree was attempted */
-bool
-dict_drop_index_tree(
-	rec_t*		rec,
-	btr_pcur_t*	pcur,
-	mtr_t*		mtr)
+bool dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 {
 	const byte*	ptr;
 	ulint		len;
-	ulint		space;
 	ulint		root_page_no;
 
 	ut_ad(mutex_own(&dict_sys->mutex));
@@ -956,7 +952,14 @@ dict_drop_index_tree(
 
 	ut_ad(len == 4);
 
-	space = mtr_read_ulint(ptr, MLOG_4BYTES, mtr);
+	const uint32_t space_id = mach_read_from_4(ptr);
+	ut_ad(space_id < SRV_TMP_SPACE_ID);
+	if (space_id != TRX_SYS_SPACE
+	    && trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE) {
+		/* We are about to delete the entire .ibd file;
+		do not bother to free pages inside it. */
+		return false;
+	}
 
 	ptr = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__ID, &len);
@@ -964,7 +967,7 @@ dict_drop_index_tree(
 	ut_ad(len == 8);
 
 	bool			found;
-	const page_size_t	page_size(fil_space_get_page_size(space,
+	const page_size_t	page_size(fil_space_get_page_size(space_id,
 								  &found));
 
 	if (!found) {
@@ -977,11 +980,11 @@ dict_drop_index_tree(
 	/* If tablespace is scheduled for truncate, do not try to drop
 	the indexes in that tablespace. There is a truncate fixup action
 	which will take care of it. */
-	if (srv_is_tablespace_truncated(space)) {
+	if (srv_is_tablespace_truncated(space_id)) {
 		return(false);
 	}
 
-	btr_free_if_exists(page_id_t(space, root_page_no), page_size,
+	btr_free_if_exists(page_id_t(space_id, root_page_no), page_size,
 			   mach_read_from_8(ptr), mtr);
 
 	return(true);

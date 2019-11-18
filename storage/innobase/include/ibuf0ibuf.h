@@ -323,6 +323,14 @@ ibuf_insert(
 	const page_size_t&	page_size,
 	que_thr_t*		thr);
 
+/**
+Delete any buffered entries for a page.
+This prevents an infinite loop on slow shutdown
+in the case where the change buffer bitmap claims that no buffered
+changes exist, while entries exist in the change buffer tree.
+@param page_id  page number for which there should be no unbuffered changes */
+ATTRIBUTE_COLD void ibuf_delete_recs(const page_id_t page_id);
+
 /** When an index page is read from a disk to the buffer pool, this function
 applies any buffered operations to the page and deletes the entries from the
 insert buffer. If the page is not read, but created in the buffer pool, this

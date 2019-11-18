@@ -819,11 +819,8 @@ buf_read_ibuf_merge_pages(
 #endif
 
 	for (ulint i = 0; i < n_stored; i++) {
-		bool			found;
-		const page_size_t	page_size(fil_space_get_page_size(
-			space_ids[i], &found));
-
-		if (!found) {
+		fil_space_t* space = fil_space_acquire_silent(space_ids[i]);
+		if (!space) {
 tablespace_deleted:
 			/* The tablespace was not found: remove all
 			entries for it */
@@ -832,6 +829,19 @@ tablespace_deleted:
 			       && space_ids[i + 1] == space_ids[i]) {
 				i++;
 			}
+			continue;
+		}
+
+		if (UNIV_UNLIKELY(page_nos[i] >= space->size)) {
+			do {
+				ibuf_delete_recs(page_id_t(space_ids[i],
+							   page_nos[i]));
+			} while (++i < n_stored
+				 && space_ids[i - 1] == space_ids[i]
+				 && page_nos[i] >= space->size);
+			i--;
+next:
+			space->release();
 			continue;
 		}
 
@@ -849,8 +859,8 @@ tablespace_deleted:
 		buf_read_page_low(&err,
 				  sync && (i + 1 == n_stored),
 				  0,
-				  BUF_READ_ANY_PAGE, page_id, page_size,
-				  true, true /* ignore_missing_space */);
+				  BUF_READ_ANY_PAGE, page_id,
+				  page_size_t(space->flags), true);
 
 		switch(err) {
 		case DB_SUCCESS:
@@ -858,15 +868,20 @@ tablespace_deleted:
 		case DB_ERROR:
 			break;
 		case DB_TABLESPACE_DELETED:
+			space->release();
 			goto tablespace_deleted;
 		case DB_PAGE_CORRUPTED:
 		case DB_DECRYPTION_FAILED:
-			ib::error() << "Failed to read or decrypt " << page_id
-				<< " for change buffer merge";
+			ib::error() << "Failed to read or decrypt page "
+				    << page_nos[i]
+				    << " of '" << space->chain.start->name
+				    << "' for change buffer merge";
 			break;
 		default:
 			ut_error;
 		}
+
+		goto next;
 	}
 
 	os_aio_simulated_wake_handler_threads();

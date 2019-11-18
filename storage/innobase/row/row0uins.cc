@@ -128,7 +128,8 @@ row_undo_ins_remove_clust_rec(
 		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 
 		dict_drop_index_tree(
-			btr_pcur_get_rec(&node->pcur), &(node->pcur), &mtr);
+			btr_pcur_get_rec(&node->pcur), &node->pcur, node->trx,
+			&mtr);
 
 		mtr.commit();
 

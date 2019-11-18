@@ -448,14 +448,10 @@ public:
 	Constructor
 
 	@param[in,out]	table	Table to truncate
+	@param[in,out]	trx	dictionary transaction
 	@param[in]	noredo	whether to disable redo logging */
-	DropIndex(dict_table_t* table, bool noredo)
-		:
-		Callback(table->id, noredo),
-		m_table(table)
-	{
-		/* No op */
-	}
+	DropIndex(dict_table_t* table, trx_t* trx, bool noredo)
+		: Callback(table->id, noredo), m_trx(trx), m_table(table) {}
 
 	/**
 	@param mtr	mini-transaction covering the read
@@ -464,8 +460,10 @@ public:
 	dberr_t operator()(mtr_t* mtr, btr_pcur_t* pcur) const;
 
 private:
+	/** dictionary transaction */
+	trx_t* const		m_trx;
 	/** Table to be truncated */
-	dict_table_t*		m_table;
+	dict_table_t* const	m_table;
 };
 
 /** Callback to create the indexes during TRUNCATE */
@@ -553,7 +551,7 @@ DropIndex::operator()(mtr_t* mtr, btr_pcur_t* pcur) const
 {
 	rec_t*	rec = btr_pcur_get_rec(pcur);
 
-	bool	freed = dict_drop_index_tree(rec, pcur, mtr);
+	bool	freed = dict_drop_index_tree(rec, pcur, m_trx, mtr);
 
 #ifdef UNIV_DEBUG
 	{
