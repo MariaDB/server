@@ -72,4 +72,4 @@ RESET SLAVE ALL;
 
 --connection node_1
 RESET MASTER;
---sleep 20
+
