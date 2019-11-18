@@ -343,6 +343,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
     param.max_keys_per_buffer=((param.max_keys_per_buffer *
                                 (param.rec_length + sizeof(char*))) /
                                param.rec_length - 1);
+    set_if_bigger(param.max_keys_per_buffer, 1);
     maxbuffer--;				// Offset from 0
     if (merge_many_buff(&param,
                         (uchar*) table_sort.get_sort_keys(),

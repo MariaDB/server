@@ -3207,3 +3207,33 @@ pk
 2
 3
 DROP TABLE t1;
+#
+# MDEV-21044: Wrong result when using a smaller size for sort buffer
+#
+create table t1(a varchar(765),b int);
+insert into t1 values ("a",1),("b",2),("c",3),("e",4);
+insert into t1 values ("d",5),("f",6),("g",7),("h",8);
+insert into t1 values ("k",11),("l",12),("i",9),("j",10);
+insert into t1 values ("m",13),("n",14),("o",15),("p",16);
+set @save_sort_buffer_size= @@sort_buffer_size;
+set sort_buffer_size=1024;
+select * from t1 order  by b;
+a	b
+a	1
+b	2
+c	3
+e	4
+d	5
+f	6
+g	7
+h	8
+i	9
+j	10
+k	11
+l	12
+m	13
+n	14
+o	15
+p	16
+set @@sort_buffer_size= @save_sort_buffer_size;
+drop table t1;
