@@ -9741,6 +9741,17 @@ LEX::add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
 }
 
 
+SELECT_LEX_UNIT *
+LEX::add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
+                                          SELECT_LEX *sel,
+                                          enum sub_select_type unit_type,
+                                          bool distinct)
+{
+  return
+    add_primary_to_query_expression_body(unit, sel, unit_type, distinct,
+                                         thd->variables.sql_mode & MODE_ORACLE);
+}
+
 /**
   Add query primary to a parenthesized query primary
   pruducing a new query expression body
@@ -11129,4 +11140,31 @@ bool LEX::sp_if_after_statements(THD *thd)
   sphead->backpatch(spcont->pop_label());
   sphead->push_backpatch(thd, i, spcont->push_label(thd, &empty_clex_str, 0));
   return false;
+}
+
+
+sp_condition_value *LEX::stmt_signal_value(const Lex_ident_sys_st &ident)
+{
+  sp_condition_value *cond;
+  /* SIGNAL foo cannot be used outside of stored programs */
+  if (unlikely(spcont == NULL))
+  {
+    my_error(ER_SP_COND_MISMATCH, MYF(0), ident.str);
+    return NULL;
+  }
+  cond= spcont->find_declared_or_predefined_condition(thd, &ident);
+  if (unlikely(cond == NULL))
+  {
+    my_error(ER_SP_COND_MISMATCH, MYF(0), ident.str);
+    return NULL;
+  }
+  bool bad= thd->variables.sql_mode & MODE_ORACLE ?
+            !cond->has_sql_state() :
+            cond->type != sp_condition_value::SQLSTATE;
+  if (unlikely(bad))
+  {
+    my_error(ER_SIGNAL_BAD_CONDITION_TYPE, MYF(0));
+    return NULL;
+  }
+  return cond;
 }

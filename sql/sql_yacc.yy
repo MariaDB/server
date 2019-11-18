@@ -1257,7 +1257,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         key_cache_name
         sp_opt_label BIN_NUM TEXT_STRING_filesystem
         opt_constraint constraint opt_ident
-        sp_block_label opt_place opt_db
+        sp_block_label sp_control_label opt_place opt_db
 
 %type <ident_sys>
         IDENT_sys
@@ -1267,6 +1267,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ident_or_empty
         ident_table_alias
         ident_sysvar_name
+        ident_for_loop_index
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1301,6 +1302,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         keyword_verb_clause
         charset
         reserved_keyword_udt
+        reserved_keyword_udt_not_param_type
         non_reserved_keyword_udt
 
 %type <table>
@@ -1558,9 +1560,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <select_order> opt_order_clause order_clause order_list
 
 %type <NONE>
+        directly_executable_statement
         analyze_stmt_command backup backup_statements
-        query verb_clause create change select select_into
-        do drop insert replace insert_start stmt_end
+        query verb_clause create create_routine change select select_into
+        do drop drop_routine insert replace insert_start stmt_end
         insert_values update delete truncate rename compound_statement
         show describe load alter optimize keycache preload flush
         reset purge begin_stmt_mariadb commit rollback savepoint release
@@ -1631,6 +1634,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_constraint_no_id
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
+%type <NONE> sp_if_then_statements sp_case_then_statements
 %type <NONE> sp_proc_stmt_statement sp_proc_stmt_return
 %type <NONE> sp_proc_stmt_compound_ok
 %type <NONE> sp_proc_stmt_if
@@ -1641,9 +1645,11 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <NONE> sp_proc_stmt_leave
 %type <NONE> sp_proc_stmt_iterate
 %type <NONE> sp_proc_stmt_goto_oracle
+%type <NONE> sp_proc_stmt_with_cursor
 %type <NONE> sp_proc_stmt_open sp_proc_stmt_fetch sp_proc_stmt_close
 %type <NONE> case_stmt_specification
 %type <NONE> loop_body while_body repeat_body
+%type <NONE> for_loop_statements
 
 %type <num> view_algorithm view_check_option
 %type <view_suid> view_suid opt_view_suid
@@ -1657,11 +1663,12 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_type
+%type <spvar> sp_param_name_and_type_anchored
 %type <for_loop> sp_for_loop_index_and_bounds
 %type <for_loop_bounds> sp_for_loop_bounds
 %type <trim> trim_operands
 %type <num> opt_sp_for_loop_direction
-%type <spvar_mode> sp_opt_inout
+%type <spvar_mode> sp_parameter_type
 %type <index_hint> index_hint_type
 %type <num> index_hint_clause normal_join inner_join
 %type <filetype> data_or_xml
@@ -1707,7 +1714,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <vers_column_versioning> with_or_without_system
 
 /* Start of sql_mode=DEFAULT specific declarations */
-%type <NONE> sp_tail
+%type <NONE> sp_tail_standalone
 %type <NONE> sp_unlabeled_block_not_atomic
 %type <NONE> sp_proc_stmt_in_returns_clause
 %type <lex_str> sp_label
@@ -1716,6 +1723,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <spblock> sp_decl
 %type <spblock> sp_decl_body
 %type <spblock> sp_decl_variable_list
+%type <spblock> sp_decl_variable_list_anchored
+%type <kwd> reserved_keyword_udt_param_type
+
 /* End of sql_mode=DEFAULT specific declarations */
 
 %%
@@ -1752,7 +1762,7 @@ query:
             thd->lex->sql_command= SQLCOM_EMPTY_QUERY;
             YYLIP->found_semicolon= NULL;
           }
-        | verb_clause
+        | directly_executable_statement
           {
             Lex_input_stream *lip = YYLIP;
 
@@ -1777,7 +1787,7 @@ query:
           }
           ';'
           opt_end_of_input
-        | verb_clause END_OF_INPUT
+        | directly_executable_statement END_OF_INPUT
           {
             /* Single query, not terminated. */
             YYLIP->found_semicolon= NULL;
@@ -1789,14 +1799,14 @@ opt_end_of_input:
         | END_OF_INPUT
         ;
 
-verb_clause:
+directly_executable_statement:
           statement
         | begin_stmt_mariadb
         | compound_statement
         ;
 
 /* Verb clauses, except begin and compound_statement */
-statement:
+verb_clause:
           alter
         | analyze
         | analyze_stmt_command
@@ -2378,15 +2388,6 @@ create:
           {
             Lex->pop_select(); //main select
           }
-        | create_or_replace definer_opt PROCEDURE_SYM opt_if_not_exists
-          {
-            if (Lex->stmt_create_procedure_start($1 | $4))
-              MYSQL_YYABORT;
-          }
-          sp_tail
-          {
-            Lex->stmt_create_routine_finalize();
-          }
         | create_or_replace definer_opt EVENT_SYM
           {
             if (Lex->main_select_push())
@@ -2396,37 +2397,6 @@ create:
           event_tail
           {
             Lex->pop_select(); //main select
-          }
-        | create_or_replace definer opt_aggregate FUNCTION_SYM opt_if_not_exists
-          sp_name
-          {
-            if (Lex->stmt_create_stored_function_start($1 | $5, $3, $6))
-              MYSQL_YYABORT;
-          }
-          sp_parenthesized_fdparam_list
-          sf_return_type
-          sf_c_chistics_and_body
-          {
-            Lex->stmt_create_routine_finalize();
-          }
-        | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
-          sp_name
-          {
-            if (Lex->stmt_create_stored_function_start($1 | $5, $3, $6))
-              MYSQL_YYABORT;
-          }
-          sp_parenthesized_fdparam_list
-          sf_return_type
-          sf_c_chistics_and_body
-          {
-            Lex->stmt_create_routine_finalize();
-          }
-        | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
-          ident RETURNS_SYM udf_type SONAME_SYM TEXT_STRING_sys
-          {
-            if (Lex->stmt_create_udf_function($1 | $5, $3, $6,
-                                              (Item_result) $8, $10))
-              MYSQL_YYABORT;
           }
         | create_or_replace USER_SYM opt_if_not_exists clear_privileges
           grant_list opt_require_clause opt_resource_options opt_account_locking opt_password_expiration
@@ -2453,6 +2423,7 @@ create:
         | create_or_replace { Lex->set_command(SQLCOM_CREATE_SERVER, $1); }
           server_def
           { }
+        | create_routine
         ;
 
 opt_sequence:
@@ -2924,34 +2895,12 @@ sp_param_name_and_type:
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
           }
-        | sp_param_name TYPE_SYM OF_SYM ident '.' ident
-          {
-            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd,
-                                                                $$= $1, $4,
-                                                                $6)))
-              MYSQL_YYABORT;
-          }
-        | sp_param_name TYPE_SYM OF_SYM ident '.' ident '.' ident
-          {
-            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1,
-                                                                $4, $6, $8)))
-              MYSQL_YYABORT;
-          }
-        | sp_param_name ROW_SYM TYPE_SYM OF_SYM ident
-          {
-            if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $5)))
-              MYSQL_YYABORT;
-          }
-        | sp_param_name ROW_SYM TYPE_SYM OF_SYM ident '.' ident
-          {
-            if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $5, $7)))
-              MYSQL_YYABORT;
-          }
         | sp_param_name ROW_SYM row_type_body
           {
             if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $3)))
               MYSQL_YYABORT;
           }
+        | sp_param_name_and_type_anchored
         ;
 
 /* Stored PROCEDURE parameter declaration list */
@@ -2965,13 +2914,8 @@ sp_pdparams:
         | sp_pdparam
         ;
 
-sp_pdparam:
-          sp_opt_inout sp_param_name_and_type { $2->mode=$1; }
-        ;
-
-sp_opt_inout:
-          /* Empty */ { $$= sp_variable::MODE_IN; }
-        | IN_SYM      { $$= sp_variable::MODE_IN; }
+sp_parameter_type:
+          IN_SYM      { $$= sp_variable::MODE_IN; }
         | OUT_SYM     { $$= sp_variable::MODE_OUT; }
         | INOUT_SYM   { $$= sp_variable::MODE_INOUT; }
         ;
@@ -3002,26 +2946,6 @@ sp_proc_stmts1:
         | sp_proc_stmts1  sp_proc_stmt ';'
         ;
 
-sp_decls:
-          /* Empty */
-          {
-            $$.init();
-          }
-        | sp_decls sp_decl ';'
-          {
-            /* We check for declarations out of (standard) order this way
-              because letting the grammar rules reflect it caused tricky
-               shift/reduce conflicts with the wrong result. (And we get
-               better error handling this way.) */
-            if (unlikely(Lex->sp_declarations_join(&$$, $1, $2)))
-              MYSQL_YYABORT;
-          }
-        ;
-
-sp_decl:
-          DECLARE_MARIADB_SYM sp_decl_body { $$= $2; }
-        ;
-
 
 optionally_qualified_column_ident:
           sp_decl_ident
@@ -3044,13 +2968,6 @@ optionally_qualified_column_ident:
           }
         ;
 
-row_field_name:
-          ident
-          {
-            if (!($$= Lex->row_field_name(thd, $1)))
-              MYSQL_YYABORT;
-          }
-        ;
 
 row_field_definition:
           row_field_name type_with_opt_collate
@@ -3100,22 +3017,6 @@ sp_decl_variable_list:
             $$.init_using_vars($1);
           }
         | sp_decl_idents_init_vars
-          TYPE_SYM OF_SYM optionally_qualified_column_ident
-          sp_opt_default
-          {
-            if (unlikely(Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $4, $5)))
-              MYSQL_YYABORT;
-            $$.init_using_vars($1);
-          }
-        | sp_decl_idents_init_vars
-          ROW_SYM TYPE_SYM OF_SYM optionally_qualified_column_ident
-          sp_opt_default
-          {
-            if (unlikely(Lex->sp_variable_declarations_rowtype_finalize(thd, $1, $5, $6)))
-              MYSQL_YYABORT;
-            $$.init_using_vars($1);
-          }
-        | sp_decl_idents_init_vars
           ROW_SYM row_type_body
           sp_opt_default
           {
@@ -3123,33 +3024,7 @@ sp_decl_variable_list:
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
-        ;
-
-sp_decl_body:
-          sp_decl_variable_list
-        | sp_decl_ident CONDITION_SYM FOR_SYM sp_cond
-          {
-            if (unlikely(Lex->spcont->declare_condition(thd, &$1, $4)))
-              MYSQL_YYABORT;
-            $$.vars= $$.hndlrs= $$.curs= 0;
-            $$.conds= 1;
-          }
-        | sp_decl_handler
-        | sp_decl_ident CURSOR_SYM
-          {
-            Lex->sp_block_init(thd);
-          }
-          opt_parenthesized_cursor_formal_parameters
-          FOR_SYM sp_cursor_stmt
-          {
-            sp_pcontext *param_ctx= Lex->spcont;
-            if (unlikely(Lex->sp_block_finalize(thd)))
-              MYSQL_YYABORT;
-            if (unlikely(Lex->sp_declare_cursor(thd, &$1, $6, param_ctx, true)))
-              MYSQL_YYABORT;
-            $$.vars= $$.conds= $$.hndlrs= 0;
-            $$.curs= 1;
-          }
+        | sp_decl_variable_list_anchored
         ;
 
 sp_decl_handler:
@@ -3327,18 +3202,8 @@ signal_stmt:
 signal_value:
           ident
           {
-            LEX *lex= Lex;
-            sp_condition_value *cond;
-
-            /* SIGNAL foo cannot be used outside of stored programs */
-            if (unlikely(lex->spcont == NULL))
-              my_yyabort_error((ER_SP_COND_MISMATCH, MYF(0), $1.str));
-            cond= lex->spcont->find_declared_or_predefined_condition(thd, &$1);
-            if (unlikely(cond == NULL))
-              my_yyabort_error((ER_SP_COND_MISMATCH, MYF(0), $1.str));
-            if (unlikely(cond->type != sp_condition_value::SQLSTATE))
-              my_yyabort_error((ER_SIGNAL_BAD_CONDITION_TYPE, MYF(0)));
-            $$= cond;
+            if (!($$= Lex->stmt_signal_value($1)))
+              MYSQL_YYABORT;
           }
         | sqlstate
           { $$= $1; }
@@ -3629,48 +3494,6 @@ sp_decl_idents:
           }
         ;
 
-sp_opt_default:
-          /* Empty */ { $$ = NULL; }
-        | DEFAULT expr { $$ = $2; }
-        ;
-
-/*
-  ps_proc_stmt_in_returns_clause is a statement that is allowed
-  in the RETURNS clause of a stored function definition directly,
-  without the BEGIN..END  block.
-  It should not include any syntax structures starting with '(', to avoid
-  shift/reduce conflicts with the rule "field_type" and its sub-rules
-  that scan an optional length, like CHAR(1) or YEAR(4).
-  See MDEV-9166.
-*/
-sp_proc_stmt_in_returns_clause:
-          sp_proc_stmt_return
-        | sp_labeled_block
-        | sp_unlabeled_block
-        | sp_labeled_control
-        | sp_proc_stmt_compound_ok
-        ;
-
-sp_proc_stmt:
-          sp_proc_stmt_in_returns_clause
-        | sp_proc_stmt_statement
-        | sp_proc_stmt_continue_oracle
-        | sp_proc_stmt_exit_oracle
-        | sp_proc_stmt_leave
-        | sp_proc_stmt_iterate
-        | sp_proc_stmt_goto_oracle
-        | sp_proc_stmt_open
-        | sp_proc_stmt_fetch
-        | sp_proc_stmt_close
-        ;
-
-sp_proc_stmt_compound_ok:
-          sp_proc_stmt_if
-        | case_stmt_specification
-        | sp_unlabeled_block_not_atomic
-        | sp_unlabeled_control
-        ;
-
 sp_proc_stmt_if:
           IF_SYM
           {
@@ -3681,7 +3504,7 @@ sp_proc_stmt_if:
           sp_if END IF_SYM
           { Lex->sphead->do_cont_backpatch(); }
         ;
-        
+
 sp_proc_stmt_statement:
           {
             LEX *lex= thd->lex;
@@ -3690,7 +3513,7 @@ sp_proc_stmt_statement:
             lex->sphead->reset_lex(thd);
             lex->sphead->m_tmp_query= lip->get_tok_start();
           }
-          statement
+          sp_statement
           {
             if (Lex->sp_proc_stmt_statement_finalize(thd, yychar == YYEMPTY) ||
                 Lex->sphead->restore_lex(thd))
@@ -3877,6 +3700,12 @@ opt_parenthesized_cursor_actual_parameters:
         | '(' cursor_actual_parameters ')'   { $$= $2; }
         ;
 
+sp_proc_stmt_with_cursor:
+         sp_proc_stmt_open
+       | sp_proc_stmt_fetch
+       | sp_proc_stmt_close
+       ;
+
 sp_proc_stmt_open:
           OPEN_SYM ident opt_parenthesized_cursor_actual_parameters
           {
@@ -3967,7 +3796,7 @@ sp_if:
             if (unlikely($1->sp_if_expr(thd)))
               MYSQL_YYABORT;
           }
-          sp_proc_stmts1
+          sp_if_then_statements
           {
             if (unlikely($1->sp_if_after_statements(thd)))
               MYSQL_YYABORT;
@@ -3983,7 +3812,8 @@ sp_if:
 sp_elseifs:
           /* Empty */
         | ELSEIF_MARIADB_SYM sp_if
-        | ELSE sp_proc_stmts1
+        | ELSIF_ORACLE_SYM sp_if
+        | ELSE sp_if_then_statements
         ;
 
 case_stmt_specification:
@@ -4086,7 +3916,7 @@ simple_when_clause:
               MYSQL_YYABORT;
           }
           THEN_SYM
-          sp_proc_stmts1
+          sp_case_then_statements
           {
             if (unlikely(Lex->case_stmt_action_then()))
               MYSQL_YYABORT;
@@ -4100,7 +3930,7 @@ searched_when_clause:
               MYSQL_YYABORT;
           }
           THEN_SYM
-          sp_proc_stmts1
+          sp_case_then_statements
           {
             if (unlikely(Lex->case_stmt_action_then()))
               MYSQL_YYABORT;
@@ -4119,71 +3949,12 @@ else_clause_opt:
                 unlikely(sp->add_instr(i)))
               MYSQL_YYABORT;
           }
-        | ELSE sp_proc_stmts1
-        ;
-
-sp_label:
-          label_ident ':' { $$= $1; }
+        | ELSE sp_case_then_statements
         ;
 
 sp_opt_label:
           /* Empty  */  { $$= null_clex_str; }
         | label_ident   { $$= $1; }
-        ;
-
-sp_block_label:
-          sp_label
-          {
-            if (unlikely(Lex->spcont->block_label_declare(&$1)))
-              MYSQL_YYABORT;
-            $$= $1;
-          }
-        ;
-
-sp_labeled_block:
-          sp_block_label
-          BEGIN_MARIADB_SYM
-          {
-            Lex->sp_block_init(thd, &$1);
-          }
-          sp_decls
-          sp_proc_stmts
-          END
-          sp_opt_label
-          {
-            if (unlikely(Lex->sp_block_finalize(thd, $4, &$7)))
-              MYSQL_YYABORT;
-          }
-        ;
-
-sp_unlabeled_block:
-          BEGIN_MARIADB_SYM
-          {
-            Lex->sp_block_init(thd);
-          }
-          sp_decls
-          sp_proc_stmts
-          END
-          {
-            if (unlikely(Lex->sp_block_finalize(thd, $3)))
-              MYSQL_YYABORT;
-          }
-        ;
-
-sp_unlabeled_block_not_atomic:
-          BEGIN_MARIADB_SYM not ATOMIC_SYM /* TODO: BEGIN ATOMIC (not -> opt_not) */
-          {
-            if (unlikely(Lex->maybe_start_compound_statement(thd)))
-              MYSQL_YYABORT;
-            Lex->sp_block_init(thd);
-          }
-          sp_decls
-          sp_proc_stmts
-          END
-          {
-            if (unlikely(Lex->sp_block_finalize(thd, $5)))
-              MYSQL_YYABORT;
-          }
         ;
 
 /* This adds one shift/reduce conflict */
@@ -4193,7 +3964,7 @@ opt_sp_for_loop_direction:
         ;
 
 sp_for_loop_index_and_bounds:
-          ident sp_for_loop_bounds
+          ident_for_loop_index sp_for_loop_bounds
           {
             if (unlikely(Lex->sp_for_loop_declarations(thd, &$$, &$1, $2)))
               MYSQL_YYABORT;
@@ -4235,19 +4006,6 @@ loop_body:
           }
         ;
 
-while_body:
-          expr_lex DO_SYM
-          {
-            if (unlikely($1->sp_while_loop_expression(thd)))
-              MYSQL_YYABORT;
-          }
-          sp_proc_stmts1 END WHILE_SYM
-          {
-            if (unlikely(Lex->sp_while_loop_finalize(thd)))
-              MYSQL_YYABORT;
-          }
-        ;
-
 repeat_body:
           sp_proc_stmts1 UNTIL_SYM expr_lex END REPEAT_SYM
           {
@@ -4265,21 +4023,21 @@ pop_sp_loop_label:
         ;
 
 sp_labeled_control:
-          sp_label LOOP_SYM
+          sp_control_label LOOP_SYM
           {
             if (unlikely(Lex->sp_push_loop_label(thd, &$1)))
               MYSQL_YYABORT;
           }
           loop_body pop_sp_loop_label
           { }
-        | sp_label WHILE_SYM
+        | sp_control_label WHILE_SYM
           {
             if (unlikely(Lex->sp_push_loop_label(thd, &$1)))
               MYSQL_YYABORT;
           }
           while_body pop_sp_loop_label
           { }
-        | sp_label FOR_SYM
+        | sp_control_label FOR_SYM
           {
             // See "The FOR LOOP statement" comments in sql_lex.cc
             Lex->sp_block_init(thd); // The outer DECLARE..BEGIN..END block
@@ -4291,9 +4049,7 @@ sp_labeled_control:
             if (unlikely(Lex->sp_for_loop_condition_test(thd, $4)))
               MYSQL_YYABORT;
           }
-          DO_SYM
-          sp_proc_stmts1
-          END FOR_SYM
+          for_loop_statements
           {
             if (unlikely(Lex->sp_for_loop_finalize(thd, $4)))
               MYSQL_YYABORT;
@@ -4303,7 +4059,7 @@ sp_labeled_control:
             if (unlikely(Lex->sp_for_loop_outer_block_finalize(thd, $4)))
               MYSQL_YYABORT;
           }
-        | sp_label REPEAT_SYM
+        | sp_control_label REPEAT_SYM
           {
             if (unlikely(Lex->sp_push_loop_label(thd, &$1)))
               MYSQL_YYABORT;
@@ -4345,9 +4101,7 @@ sp_unlabeled_control:
             if (unlikely(Lex->sp_for_loop_condition_test(thd, $3)))
               MYSQL_YYABORT;
           }
-          DO_SYM
-          sp_proc_stmts1
-          END FOR_SYM
+          for_loop_statements
           {
             if (unlikely(Lex->sp_for_loop_finalize(thd, $3)))
               MYSQL_YYABORT;
@@ -8912,8 +8666,7 @@ query_expression_body:
           {
             if (!($$= Lex->add_primary_to_query_expression_body($1, $4,
                                                                 $2.unit_type,
-                                                                $2.distinct,
-                                                                FALSE)))
+                                                                $2.distinct)))
               MYSQL_YYABORT;
           }
         | query_expression_body_ext_parens
@@ -12767,21 +12520,6 @@ drop:
             lex->set_command(SQLCOM_DROP_DB, $3);
             lex->name= $4;
           }
-        | DROP FUNCTION_SYM opt_if_exists ident '.' ident
-          {
-            if (Lex->stmt_drop_function($3, $4, $6))
-              MYSQL_YYABORT;
-          }
-        | DROP FUNCTION_SYM opt_if_exists ident
-          {
-            if (Lex->stmt_drop_function($3, $4))
-              MYSQL_YYABORT;
-          }
-        | DROP PROCEDURE_SYM opt_if_exists sp_name
-          {
-            if (Lex->stmt_drop_procedure($3, $4))
-              MYSQL_YYABORT;
-          }
         | DROP USER_SYM opt_if_exists clear_privileges user_list
           {
             Lex->set_command(SQLCOM_DROP_USER, $3);
@@ -12836,6 +12574,7 @@ drop:
           }
           table_list
           {}
+        | drop_routine
         ;
 
 table_list:
@@ -13477,6 +13216,7 @@ truncate:
             if (unlikely(lex->m_sql_cmd == NULL))
               MYSQL_YYABORT;
           }
+          opt_truncate_table_storage_clause { }
         ;
 
 opt_table_sym:
@@ -13840,7 +13580,19 @@ show_param:
             lex->sql_command = SQLCOM_SHOW_CREATE_PACKAGE;
             lex->spname= $3;
           }
+        | CREATE PACKAGE_ORACLE_SYM sp_name
+          {
+            LEX *lex= Lex;
+            lex->sql_command = SQLCOM_SHOW_CREATE_PACKAGE;
+            lex->spname= $3;
+          }
         | CREATE PACKAGE_MARIADB_SYM BODY_MARIADB_SYM sp_name
+          {
+            LEX *lex= Lex;
+            lex->sql_command = SQLCOM_SHOW_CREATE_PACKAGE_BODY;
+            lex->spname= $4;
+          }
+        | CREATE PACKAGE_ORACLE_SYM BODY_ORACLE_SYM sp_name
           {
             LEX *lex= Lex;
             lex->sql_command = SQLCOM_SHOW_CREATE_PACKAGE_BODY;
@@ -13886,7 +13638,21 @@ show_param:
             if (unlikely(prepare_schema_table(thd, lex, 0, SCH_PROCEDURES)))
               MYSQL_YYABORT;
           }
+        | PACKAGE_ORACLE_SYM STATUS_SYM wild_and_where
+          {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_SHOW_STATUS_PACKAGE;
+            if (unlikely(prepare_schema_table(thd, lex, 0, SCH_PROCEDURES)))
+              MYSQL_YYABORT;
+          }
         | PACKAGE_MARIADB_SYM BODY_MARIADB_SYM STATUS_SYM wild_and_where
+          {
+            LEX *lex= Lex;
+            lex->sql_command= SQLCOM_SHOW_STATUS_PACKAGE_BODY;
+            if (unlikely(prepare_schema_table(thd, lex, 0, SCH_PROCEDURES)))
+              MYSQL_YYABORT;
+          }
+        | PACKAGE_ORACLE_SYM BODY_ORACLE_SYM STATUS_SYM wild_and_where
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_STATUS_PACKAGE_BODY;
@@ -13904,6 +13670,11 @@ show_param:
             Lex->spname= $3;
           }
         | PACKAGE_MARIADB_SYM BODY_MARIADB_SYM CODE_SYM sp_name
+          {
+            Lex->sql_command= SQLCOM_SHOW_PACKAGE_BODY_CODE;
+            Lex->spname= $4;
+          }
+        | PACKAGE_ORACLE_SYM BODY_ORACLE_SYM CODE_SYM sp_name
           {
             Lex->sql_command= SQLCOM_SHOW_PACKAGE_BODY_CODE;
             Lex->spname= $4;
@@ -15280,6 +15051,7 @@ keyword_table_alias:
         | keyword_sp_var_not_label
         | keyword_sysvar_type
         | keyword_verb_clause
+        | FUNCTION_SYM
         | EXCEPTION_ORACLE_SYM
         ;
 
@@ -15294,19 +15066,8 @@ keyword_ident:
         | keyword_sp_var_not_label
         | keyword_sysvar_type
         | keyword_verb_clause
+        | FUNCTION_SYM
         | WINDOW_SYM
-        | EXCEPTION_ORACLE_SYM
-        ;
-
-/*
-  Keywords that we allow for labels in SPs.
-  Should not include keywords that start a statement or SP characteristics.
-*/
-keyword_label:
-          keyword_data_type
-        | keyword_set_special_case
-        | keyword_sp_var_and_label
-        | keyword_sysvar_type
         | EXCEPTION_ORACLE_SYM
         ;
 
@@ -15319,21 +15080,9 @@ keyword_sysvar_name:
         | keyword_sp_var_and_label
         | keyword_sp_var_not_label
         | keyword_verb_clause
+        | FUNCTION_SYM
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
-        ;
-
-keyword_sp_decl:
-          keyword_data_type
-        | keyword_cast_type
-        | keyword_set_special_case
-        | keyword_sp_block_section
-        | keyword_sp_head
-        | keyword_sp_var_and_label
-        | keyword_sp_var_not_label
-        | keyword_sysvar_type
-        | keyword_verb_clause
-        | WINDOW_SYM
         ;
 
 keyword_set_usual_case:
@@ -15345,6 +15094,7 @@ keyword_set_usual_case:
         | keyword_sp_var_not_label
         | keyword_sysvar_type
         | keyword_verb_clause
+        | FUNCTION_SYM
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
         ;
@@ -15495,14 +15245,6 @@ keyword_set_special_case:
           NAMES_SYM
         | ROLE_SYM
         | PASSWORD_SYM
-        ;
-
-/*
-  Keywords that start an SP block section.
-*/
-keyword_sp_block_section:
-          BEGIN_MARIADB_SYM
-        | END
         ;
 
 keyword_sysvar_type:
@@ -15853,7 +15595,6 @@ keyword_sp_var_and_label:
         | TYPES_SYM
         | TYPE_SYM
         | UDF_RETURNS_SYM
-        | FUNCTION_SYM
         | UNCOMMITTED_SYM
         | UNDEFINED_SYM
         | UNDO_BUFFER_SIZE_SYM
@@ -15879,7 +15620,7 @@ keyword_sp_var_and_label:
         ;
 
 
-reserved_keyword_udt:
+reserved_keyword_udt_not_param_type:
           ACCESSIBLE_SYM
         | ADD
         | ALL
@@ -15969,13 +15710,11 @@ reserved_keyword_udt:
         | INDEX_SYM
         | INFILE
         | INNER_SYM
-        | INOUT_SYM
         | INSENSITIVE_SYM
         | INSERT
         | INTERSECT_SYM
         | INTERVAL_SYM
         | INTO
-        | IN_SYM
         | IS
         | ITERATE_SYM
         | JOIN_SYM
@@ -16020,7 +15759,6 @@ reserved_keyword_udt:
         | OTHERS_ORACLE_SYM
         | OUTER
         | OUTFILE
-        | OUT_SYM
         | OVER_SYM
         | PACKAGE_ORACLE_SYM
         | PAGE_CHECKSUM_SYM
@@ -16170,7 +15908,7 @@ set_param:
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
           }
-          FOR_SYM verb_clause
+          FOR_SYM directly_executable_statement
         ;
 
 set_stmt_option_list:
@@ -17505,6 +17243,7 @@ query_expression_option:
             Select->options|= SELECT_HIGH_PRIORITY;
           }
         | DISTINCT         { Select->options|= SELECT_DISTINCT; }
+        | UNIQUE_SYM       { Select->options|= SELECT_DISTINCT; }
         | SQL_SMALL_RESULT { Select->options|= SELECT_SMALL_RESULT; }
         | SQL_BIG_RESULT   { Select->options|= SELECT_BIG_RESULT; }
         | SQL_BUFFER_RESULT { Select->options|= OPTION_BUFFER_RESULT; }
@@ -17713,7 +17452,6 @@ trigger_tail:
 
 
 sf_return_type:
-          RETURNS_SYM
           {
             LEX *lex= Lex;
             lex->init_last_field(&lex->sphead->m_return_field_def,
@@ -17722,46 +17460,11 @@ sf_return_type:
           }
           type_with_opt_collate
           {
-            if (unlikely(Lex->sf_return_fill_definition($3)))
+            if (unlikely(Lex->sf_return_fill_definition($2)))
               MYSQL_YYABORT;
           }
         ;
 
-sf_c_chistics_and_body:
-          sp_c_chistics
-          {
-            LEX *lex= thd->lex;
-            lex->sphead->set_c_chistics(lex->sp_chistics);
-            lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
-          }
-          sp_proc_stmt_in_returns_clause
-          {
-            if (unlikely(Lex->sp_body_finalize_function(thd)))
-              MYSQL_YYABORT;
-          }
-        ;
-
-
-sp_tail:
-          sp_name
-          {
-            if (unlikely(!Lex->make_sp_head_no_recursive(thd, $1,
-                                                         &sp_handler_procedure,
-                                                         DEFAULT_AGGREGATE)))
-              MYSQL_YYABORT;
-          }
-          sp_parenthesized_pdparam_list
-          sp_c_chistics
-          {
-            Lex->sphead->set_c_chistics(Lex->sp_chistics);
-            Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
-          }
-          sp_proc_stmt
-          {
-            if (unlikely(Lex->sp_body_finalize_procedure(thd)))
-              MYSQL_YYABORT;
-          }
-        ;
 
 /*************************************************************************/
 
@@ -17896,6 +17599,408 @@ keep_gcc_happy:
             YYERROR;
           }
         ;
+
+/* Start of sql_mode=DEFAULT specific rules */
+
+statement:
+          verb_clause
+        ;
+
+sp_statement:
+          statement
+        ;
+
+sp_if_then_statements:
+          sp_proc_stmts1
+        ;
+
+sp_case_then_statements:
+          sp_proc_stmts1
+        ;
+
+reserved_keyword_udt_param_type:
+          INOUT_SYM
+        | IN_SYM
+        | OUT_SYM
+        ;
+
+reserved_keyword_udt:
+          reserved_keyword_udt_not_param_type
+        | reserved_keyword_udt_param_type
+        ;
+
+/* Keywords that start an SP block section. */
+keyword_sp_block_section:
+          BEGIN_MARIADB_SYM
+        | END
+        ;
+
+/*
+  Keywords that we allow for labels in SPs.
+  Should not include keywords that start a statement or SP characteristics.
+*/
+keyword_label:
+          keyword_data_type
+        | keyword_set_special_case
+        | keyword_sp_var_and_label
+        | keyword_sysvar_type
+        | FUNCTION_SYM
+        | EXCEPTION_ORACLE_SYM
+        ;
+
+keyword_sp_decl:
+          keyword_data_type
+        | keyword_cast_type
+        | keyword_set_special_case
+        | keyword_sp_block_section
+        | keyword_sp_head
+        | keyword_sp_var_and_label
+        | keyword_sp_var_not_label
+        | keyword_sysvar_type
+        | keyword_verb_clause
+        | FUNCTION_SYM
+        | WINDOW_SYM
+        ;
+
+opt_truncate_table_storage_clause:
+          /* Empty */
+        ;
+
+
+ident_for_loop_index:
+          ident
+        ;
+
+row_field_name:
+          ident
+          {
+            if (!($$= Lex->row_field_name(thd, $1)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+while_body:
+          expr_lex DO_SYM
+          {
+            if (unlikely($1->sp_while_loop_expression(thd)))
+              MYSQL_YYABORT;
+          }
+          sp_proc_stmts1 END WHILE_SYM
+          {
+            if (unlikely(Lex->sp_while_loop_finalize(thd)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+for_loop_statements:
+          DO_SYM sp_proc_stmts1 END FOR_SYM
+          { }
+        ;
+
+sp_label:
+          label_ident ':' { $$= $1; }
+        ;
+
+sp_control_label:
+          sp_label
+        ;
+
+sp_block_label:
+          sp_label
+          {
+            if (unlikely(Lex->spcont->block_label_declare(&$1)))
+              MYSQL_YYABORT;
+            $$= $1;
+          }
+        ;
+
+sp_opt_default:
+          /* Empty */ { $$ = NULL; }
+        | DEFAULT expr { $$ = $2; }
+        ;
+
+sp_pdparam:
+          sp_parameter_type sp_param_name_and_type { $2->mode=$1; }
+        | sp_param_name_and_type { $1->mode= sp_variable::MODE_IN; }
+        ;
+
+sp_decl_variable_list_anchored:
+          sp_decl_idents_init_vars
+          TYPE_SYM OF_SYM optionally_qualified_column_ident
+          sp_opt_default
+          {
+            if (unlikely(Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $4, $5)))
+              MYSQL_YYABORT;
+            $$.init_using_vars($1);
+          }
+        | sp_decl_idents_init_vars
+          ROW_SYM TYPE_SYM OF_SYM optionally_qualified_column_ident
+          sp_opt_default
+          {
+            if (unlikely(Lex->sp_variable_declarations_rowtype_finalize(thd, $1, $5, $6)))
+              MYSQL_YYABORT;
+            $$.init_using_vars($1);
+          }
+        ;
+
+sp_param_name_and_type_anchored:
+          sp_param_name TYPE_SYM OF_SYM ident '.' ident
+          {
+            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd,
+                                                                $$= $1, $4,
+                                                                $6)))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name TYPE_SYM OF_SYM ident '.' ident '.' ident
+          {
+            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1,
+                                                                $4, $6, $8)))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name ROW_SYM TYPE_SYM OF_SYM ident
+          {
+            if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $5)))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name ROW_SYM TYPE_SYM OF_SYM ident '.' ident
+          {
+            if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $5, $7)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+
+sf_c_chistics_and_body_standalone:
+          sp_c_chistics
+          {
+            LEX *lex= thd->lex;
+            lex->sphead->set_c_chistics(lex->sp_chistics);
+            lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
+          }
+          sp_proc_stmt_in_returns_clause
+          {
+            if (unlikely(Lex->sp_body_finalize_function(thd)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+sp_tail_standalone:
+          sp_name
+          {
+            if (unlikely(!Lex->make_sp_head_no_recursive(thd, $1,
+                                                         &sp_handler_procedure,
+                                                         DEFAULT_AGGREGATE)))
+              MYSQL_YYABORT;
+          }
+          sp_parenthesized_pdparam_list
+          sp_c_chistics
+          {
+            Lex->sphead->set_c_chistics(Lex->sp_chistics);
+            Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
+          }
+          sp_proc_stmt
+          {
+            if (unlikely(Lex->sp_body_finalize_procedure(thd)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+drop_routine:
+          DROP FUNCTION_SYM opt_if_exists ident '.' ident
+          {
+            if (Lex->stmt_drop_function($3, $4, $6))
+              MYSQL_YYABORT;
+          }
+        | DROP FUNCTION_SYM opt_if_exists ident
+          {
+            if (Lex->stmt_drop_function($3, $4))
+              MYSQL_YYABORT;
+          }
+        | DROP PROCEDURE_SYM opt_if_exists sp_name
+          {
+            if (Lex->stmt_drop_procedure($3, $4))
+              MYSQL_YYABORT;
+          }
+        ;
+
+
+create_routine:
+          create_or_replace definer_opt PROCEDURE_SYM opt_if_not_exists
+          {
+            if (Lex->stmt_create_procedure_start($1 | $4))
+              MYSQL_YYABORT;
+          }
+          sp_tail_standalone
+          {
+            Lex->stmt_create_routine_finalize();
+          }
+        | create_or_replace definer opt_aggregate FUNCTION_SYM opt_if_not_exists
+          sp_name
+          {
+            if (Lex->stmt_create_stored_function_start($1 | $5, $3, $6))
+              MYSQL_YYABORT;
+          }
+          sp_parenthesized_fdparam_list
+          RETURNS_SYM sf_return_type
+          sf_c_chistics_and_body_standalone
+          {
+            Lex->stmt_create_routine_finalize();
+          }
+        | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
+          sp_name
+          {
+            if (Lex->stmt_create_stored_function_start($1 | $5, $3, $6))
+              MYSQL_YYABORT;
+          }
+          sp_parenthesized_fdparam_list
+          RETURNS_SYM sf_return_type
+          sf_c_chistics_and_body_standalone
+          {
+            Lex->stmt_create_routine_finalize();
+          }
+        | create_or_replace no_definer opt_aggregate FUNCTION_SYM opt_if_not_exists
+          ident RETURNS_SYM udf_type SONAME_SYM TEXT_STRING_sys
+          {
+            if (Lex->stmt_create_udf_function($1 | $5, $3, $6,
+                                              (Item_result) $8, $10))
+              MYSQL_YYABORT;
+          }
+        ;
+
+
+sp_decls:
+          /* Empty */
+          {
+            $$.init();
+          }
+        | sp_decls sp_decl ';'
+          {
+            /* We check for declarations out of (standard) order this way
+              because letting the grammar rules reflect it caused tricky
+               shift/reduce conflicts with the wrong result. (And we get
+               better error handling this way.) */
+            if (unlikely(Lex->sp_declarations_join(&$$, $1, $2)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+sp_decl:
+          DECLARE_MARIADB_SYM sp_decl_body { $$= $2; }
+        ;
+
+
+sp_decl_body:
+          sp_decl_variable_list
+        | sp_decl_ident CONDITION_SYM FOR_SYM sp_cond
+          {
+            if (unlikely(Lex->spcont->declare_condition(thd, &$1, $4)))
+              MYSQL_YYABORT;
+            $$.vars= $$.hndlrs= $$.curs= 0;
+            $$.conds= 1;
+          }
+        | sp_decl_handler
+        | sp_decl_ident CURSOR_SYM
+          {
+            Lex->sp_block_init(thd);
+          }
+          opt_parenthesized_cursor_formal_parameters
+          FOR_SYM sp_cursor_stmt
+          {
+            sp_pcontext *param_ctx= Lex->spcont;
+            if (unlikely(Lex->sp_block_finalize(thd)))
+              MYSQL_YYABORT;
+            if (unlikely(Lex->sp_declare_cursor(thd, &$1, $6, param_ctx, true)))
+              MYSQL_YYABORT;
+            $$.vars= $$.conds= $$.hndlrs= 0;
+            $$.curs= 1;
+          }
+        ;
+
+
+/*
+  ps_proc_stmt_in_returns_clause is a statement that is allowed
+  in the RETURNS clause of a stored function definition directly,
+  without the BEGIN..END  block.
+  It should not include any syntax structures starting with '(', to avoid
+  shift/reduce conflicts with the rule "field_type" and its sub-rules
+  that scan an optional length, like CHAR(1) or YEAR(4).
+  See MDEV-9166.
+*/
+sp_proc_stmt_in_returns_clause:
+          sp_proc_stmt_return
+        | sp_labeled_block
+        | sp_unlabeled_block
+        | sp_labeled_control
+        | sp_proc_stmt_compound_ok
+        ;
+
+sp_proc_stmt:
+          sp_proc_stmt_in_returns_clause
+        | sp_proc_stmt_statement
+        | sp_proc_stmt_continue_oracle
+        | sp_proc_stmt_exit_oracle
+        | sp_proc_stmt_leave
+        | sp_proc_stmt_iterate
+        | sp_proc_stmt_goto_oracle
+        | sp_proc_stmt_with_cursor
+        ;
+
+sp_proc_stmt_compound_ok:
+          sp_proc_stmt_if
+        | case_stmt_specification
+        | sp_unlabeled_block_not_atomic
+        | sp_unlabeled_control
+        ;
+
+
+sp_labeled_block:
+          sp_block_label
+          BEGIN_MARIADB_SYM
+          {
+            Lex->sp_block_init(thd, &$1);
+          }
+          sp_decls
+          sp_proc_stmts
+          END
+          sp_opt_label
+          {
+            if (unlikely(Lex->sp_block_finalize(thd, $4, &$7)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+sp_unlabeled_block:
+          BEGIN_MARIADB_SYM
+          {
+            Lex->sp_block_init(thd);
+          }
+          sp_decls
+          sp_proc_stmts
+          END
+          {
+            if (unlikely(Lex->sp_block_finalize(thd, $3)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+sp_unlabeled_block_not_atomic:
+          BEGIN_MARIADB_SYM not ATOMIC_SYM /* TODO: BEGIN ATOMIC (not -> opt_not) */
+          {
+            if (unlikely(Lex->maybe_start_compound_statement(thd)))
+              MYSQL_YYABORT;
+            Lex->sp_block_init(thd);
+          }
+          sp_decls
+          sp_proc_stmts
+          END
+          {
+            if (unlikely(Lex->sp_block_finalize(thd, $5)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+
+/* End of sql_mode=DEFAULT specific rules */
 
 /**
   @} (end of group Parser)

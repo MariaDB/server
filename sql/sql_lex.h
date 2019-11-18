@@ -4509,6 +4509,11 @@ public:
                                        bool distinct,
                                        bool oracle);
   SELECT_LEX_UNIT *
+  add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
+                                       SELECT_LEX *sel,
+                                       enum sub_select_type unit_type,
+                                       bool distinct);
+  SELECT_LEX_UNIT *
   add_primary_to_query_expression_body_ext_parens(
                                        SELECT_LEX_UNIT *unit,
                                        SELECT_LEX *sel,
@@ -4596,6 +4601,8 @@ public:
 
   bool stmt_alter_function_start(sp_name *name);
   bool stmt_alter_procedure_start(sp_name *name);
+
+  sp_condition_value *stmt_signal_value(const Lex_ident_sys_st &ident);
 
   Spvar_definition *row_field_name(THD *thd, const Lex_ident_sys_st &name);
 
