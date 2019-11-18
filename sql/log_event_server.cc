@@ -5918,9 +5918,8 @@ int Table_map_log_event::save_field_metadata()
   for (unsigned int i= 0 ; i < m_table->s->fields ; i++)
   {
     DBUG_PRINT("debug", ("field_type: %d", m_coltype[i]));
-    //index+= m_table->s->field[i]->save_field_metadata(&m_field_metadata[index]);
     info= binlog_type_info_array + i;
-    memcpy(&m_field_metadata[index], (uchar *)&info->m_metadata, info->m_metadata_size);
+    int2store(&m_field_metadata[index], info->m_metadata);
     index+= info->m_metadata_size;
     DBUG_EXECUTE_IF("inject_invalid_blob_size",
                     {
