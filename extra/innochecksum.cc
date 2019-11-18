@@ -895,8 +895,8 @@ parse_page(
 				const byte* des = xdes + XDES_ARR_OFFSET
 					+ XDES_SIZE * ((page_no & (physical_page_size - 1))
 						/ FSP_EXTENT_SIZE);
-				if (xdes_get_bit(des, XDES_FREE_BIT,
-						page_no % FSP_EXTENT_SIZE)) {
+				if (xdes_is_free(des,
+						 page_no % FSP_EXTENT_SIZE)) {
 					index.free_pages++;
 					return;
 				}

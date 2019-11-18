@@ -32,60 +32,61 @@ const DTCollation &DTCollation_numeric::singleton()
   return tmp;
 }
 
+Named_type_handler<Type_handler_row> type_handler_row("row");
 
-Type_handler_row         type_handler_row;
+Named_type_handler<Type_handler_null> type_handler_null("null");
 
-Type_handler_null        type_handler_null;
+Named_type_handler<Type_handler_bool> type_handler_bool("boolean");
+Named_type_handler<Type_handler_tiny> type_handler_stiny("tinyint");
+Named_type_handler<Type_handler_short> type_handler_sshort("smallint");
+Named_type_handler<Type_handler_long> type_handler_slong("int");
+Named_type_handler<Type_handler_int24> type_handler_sint24("mediumint");
+Named_type_handler<Type_handler_longlong> type_handler_slonglong("bigint");
+Named_type_handler<Type_handler_utiny> type_handler_utiny("tiny unsigned");
+Named_type_handler<Type_handler_ushort> type_handler_ushort("smallint unsigned");
+Named_type_handler<Type_handler_ulong> type_handler_ulong("int unsigned");
+Named_type_handler<Type_handler_uint24> type_handler_uint24("mediumint unsigned");
+Named_type_handler<Type_handler_ulonglong> type_handler_ulonglong("bigint unsigned");
+Named_type_handler<Type_handler_vers_trx_id> type_handler_vers_trx_id("bigint unsigned");
+Named_type_handler<Type_handler_float> type_handler_float("float");
+Named_type_handler<Type_handler_double> type_handler_double("double");
+Named_type_handler<Type_handler_bit> type_handler_bit("bit");
 
-Type_handler_bool        type_handler_bool;
-Type_handler_tiny        type_handler_stiny;
-Type_handler_short       type_handler_sshort;
-Type_handler_long        type_handler_slong;
-Type_handler_int24       type_handler_sint24;
-Type_handler_longlong    type_handler_slonglong;
-Type_handler_utiny       type_handler_utiny;
-Type_handler_ushort      type_handler_ushort;
-Type_handler_ulong       type_handler_ulong;
-Type_handler_uint24      type_handler_uint24;
-Type_handler_ulonglong   type_handler_ulonglong;
-Type_handler_vers_trx_id type_handler_vers_trx_id;
-Type_handler_float       type_handler_float;
-Type_handler_double      type_handler_double;
-Type_handler_bit         type_handler_bit;
+Named_type_handler<Type_handler_olddecimal> type_handler_olddecimal("decimal");
+Named_type_handler<Type_handler_newdecimal> type_handler_newdecimal("decimal");
 
-Type_handler_olddecimal  type_handler_olddecimal;
-Type_handler_newdecimal  type_handler_newdecimal;
+Named_type_handler<Type_handler_year> type_handler_year("year");
+Named_type_handler<Type_handler_year> type_handler_year2("year");
+Named_type_handler<Type_handler_time> type_handler_time("time");
+Named_type_handler<Type_handler_date> type_handler_date("date");
+Named_type_handler<Type_handler_timestamp> type_handler_timestamp("timestamp");
+Named_type_handler<Type_handler_timestamp2> type_handler_timestamp2("timestamp");
+Named_type_handler<Type_handler_datetime> type_handler_datetime("datetime");
+Named_type_handler<Type_handler_time2> type_handler_time2("time");
+Named_type_handler<Type_handler_newdate> type_handler_newdate("date");
+Named_type_handler<Type_handler_datetime2> type_handler_datetime2("datetime");
 
-Type_handler_year        type_handler_year;
-Type_handler_year        type_handler_year2;
-Type_handler_time        type_handler_time;
-Type_handler_date        type_handler_date;
-Type_handler_timestamp   type_handler_timestamp;
-Type_handler_timestamp2  type_handler_timestamp2;
-Type_handler_datetime    type_handler_datetime;
-Type_handler_time2       type_handler_time2;
-Type_handler_newdate     type_handler_newdate;
-Type_handler_datetime2   type_handler_datetime2;
+Named_type_handler<Type_handler_enum> type_handler_enum("enum");
+Named_type_handler<Type_handler_set> type_handler_set("set");
 
-Type_handler_enum        type_handler_enum;
-Type_handler_set         type_handler_set;
+Named_type_handler<Type_handler_string> type_handler_string("char");
+Named_type_handler<Type_handler_var_string> type_handler_var_string("varchar");
+Named_type_handler<Type_handler_varchar> type_handler_varchar("varchar");
+Named_type_handler<Type_handler_hex_hybrid> type_handler_hex_hybrid("hex_hybrid");
+Named_type_handler<Type_handler_varchar_compressed> type_handler_varchar_compressed("varchar");
 
-Type_handler_string      type_handler_string;
-Type_handler_var_string  type_handler_var_string;
-Type_handler_varchar     type_handler_varchar;
-Type_handler_hex_hybrid  type_handler_hex_hybrid;
-Type_handler_varchar_compressed type_handler_varchar_compressed;
-
-Type_handler_tiny_blob   type_handler_tiny_blob;
-Type_handler_medium_blob type_handler_medium_blob;
-Type_handler_long_blob   type_handler_long_blob;
-Type_handler_blob        type_handler_blob;
-Type_handler_blob_compressed type_handler_blob_compressed;
+Named_type_handler<Type_handler_tiny_blob> type_handler_tiny_blob("tinyblob");
+Named_type_handler<Type_handler_medium_blob> type_handler_medium_blob("mediumblob");
+Named_type_handler<Type_handler_long_blob> type_handler_long_blob("longblob");
+Named_type_handler<Type_handler_blob> type_handler_blob("blob");
+Named_type_handler<Type_handler_blob_compressed> type_handler_blob_compressed("blob");
 
 Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
 
 Vers_type_timestamp       vers_type_timestamp;
 Vers_type_trx             vers_type_trx;
+
+/***************************************************************************/
 
 
 
@@ -1461,210 +1462,6 @@ uint Type_handler_time::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
      { 3, 4, 4, 5, 5, 5, 6 };
 
 /***************************************************************************/
-const Name Type_handler_row::name() const
-{
-  static Name tmp(STRING_WITH_LEN("row"));
-  return tmp;
-}
-
-const Name Type_handler_null::name() const
-{
-  static Name tmp(STRING_WITH_LEN("null"));
-  return tmp;
-}
-
-const Name Type_handler_string::name() const
-{
-  static Name tmp(STRING_WITH_LEN("char"));
-  return tmp;
-}
-
-const Name Type_handler_var_string::name() const
-{
-  static Name tmp(STRING_WITH_LEN("varchar"));
-  return tmp;
-}
-
-const Name Type_handler_varchar::name() const
-{
-  static Name tmp(STRING_WITH_LEN("varchar"));
-  return tmp;
-}
-
-const Name Type_handler_hex_hybrid::name() const
-{
-  static Name tmp(STRING_WITH_LEN("hex_hybrid"));
-  return tmp;
-}
-
-const Name Type_handler_tiny_blob::name() const
-{
-  static Name tmp(STRING_WITH_LEN("tinyblob"));
-  return tmp;
-}
-
-const Name Type_handler_medium_blob::name() const
-{
-  static Name tmp(STRING_WITH_LEN("mediumblob"));
-  return tmp;
-}
-
-const Name Type_handler_long_blob::name() const
-{
-  static Name tmp(STRING_WITH_LEN("longblob"));
-  return tmp;
-}
-
-const Name Type_handler_blob::name() const
-{
-  static Name tmp(STRING_WITH_LEN("blob"));
-  return tmp;
-}
-
-const Name Type_handler_enum::name() const
-{
-  static Name tmp(STRING_WITH_LEN("enum"));
-  return tmp;
-}
-
-const Name Type_handler_set::name() const
-{
-  static Name tmp(STRING_WITH_LEN("set"));
-  return tmp;
-}
-
-const Name Type_handler_bool::name() const
-{
-  static Name tmp(STRING_WITH_LEN("boolean"));
-  return tmp;
-}
-
-const Name Type_handler_tiny::name() const
-{
-  static Name tmp(STRING_WITH_LEN("tinyint"));
-  return tmp;
-}
-
-const Name Type_handler_short::name() const
-{
-  static Name tmp(STRING_WITH_LEN("smallint"));
-  return tmp;
-}
-
-const Name Type_handler_long::name() const
-{
-  static Name tmp(STRING_WITH_LEN("int"));
-  return tmp;
-}
-
-const Name Type_handler_longlong::name() const
-{
-  static Name tmp(STRING_WITH_LEN("bigint"));
-  return tmp;
-}
-
-const Name Type_handler_int24::name() const
-{
-  static Name tmp(STRING_WITH_LEN("mediumint"));
-  return tmp;
-}
-
-const Name Type_handler_year::name() const
-{
-  static Name tmp(STRING_WITH_LEN("year"));
-  return tmp;
-}
-
-const Name Type_handler_bit::name() const
-{
-  static Name tmp(STRING_WITH_LEN("bit"));
-  return tmp;
-}
-
-const Name Type_handler_float::name() const
-{
-  static Name tmp(STRING_WITH_LEN("float"));
-  return tmp;
-}
-
-const Name Type_handler_double::name() const
-{
-  static Name tmp(STRING_WITH_LEN("double"));
-  return tmp;
-}
-
-const Name Type_handler_olddecimal::name() const
-{
-  static Name tmp(STRING_WITH_LEN("decimal"));
-  return tmp;
-}
-
-const Name Type_handler_newdecimal::name() const
-{
-  static Name tmp(STRING_WITH_LEN("decimal"));
-  return tmp;
-}
-
-const Name Type_handler_time_common::name() const
-{
-  static Name tmp(STRING_WITH_LEN("time"));
-  return tmp;
-}
-
-const Name Type_handler_date_common::name() const
-{
-  static Name tmp(STRING_WITH_LEN("date"));
-  return tmp;
-}
-
-const Name Type_handler_datetime_common::name() const
-{
-  static Name tmp(STRING_WITH_LEN("datetime"));
-  return tmp;
-}
-
-const Name Type_handler_timestamp_common::name() const
-{
-  static Name tmp(STRING_WITH_LEN("timestamp"));
-  return tmp;
-}
-
-const Name Type_handler_utiny::name() const
-{
-  static Name tmp(STRING_WITH_LEN("tiny unsigned"));
-  return tmp;
-}
-
-
-const Name Type_handler_ushort::name() const
-{
-  static Name tmp(STRING_WITH_LEN("smallint unsigned"));
-  return tmp;
-}
-
-
-const Name Type_handler_uint24::name() const
-{
-  static Name tmp(STRING_WITH_LEN("mediumint unsigned"));
-  return tmp;
-}
-
-
-const Name Type_handler_ulong::name() const
-{
-  static Name tmp(STRING_WITH_LEN("int unsigned"));
-  return tmp;
-}
-
-
-const Name Type_handler_ulonglong::name() const
-{
-  static Name tmp(STRING_WITH_LEN("bigint unsigned"));
-  return tmp;
-}
-
-
-/***************************************************************************/
 
 const Name Type_handler::version() const
 {
@@ -2829,6 +2626,108 @@ bool Type_handler::
                                                    Column_definition * c) const
 {
   return c->validate_check_constraint(thd);
+}
+
+
+/*************************************************************************/
+
+bool
+Type_handler::Column_definition_set_attributes(THD *thd,
+                                               Column_definition *def,
+                                               const Lex_field_type_st &attr,
+                                               CHARSET_INFO *cs,
+                                               column_definition_type_t type)
+                                               const
+{
+  def->charset= cs;
+  def->set_length_and_dec(attr);
+  return false;
+}
+
+
+/*
+  In sql_mode=ORACLE, real size of VARCHAR and CHAR with no length
+  in SP parameters is fixed at runtime with the length of real args.
+  Let's translate VARCHAR to VARCHAR(4000) for return value.
+
+  Since Oracle 9, maximum size for VARCHAR in PL/SQL is 32767.
+
+  In MariaDB the limit for VARCHAR is 65535 bytes.
+  We could translate VARCHAR with no length to VARCHAR(65535), but
+  it would mean that for multi-byte character sets we'd have to translate
+  VARCHAR to MEDIUMTEXT, to guarantee 65535 characters.
+
+  Also we could translate VARCHAR to VARCHAR(16383), where 16383 is
+  the maximum possible length in characters in case of mbmaxlen=4
+  (e.g. utf32, utf16, utf8mb4). However, we'll have character sets with
+  mbmaxlen=5 soon (e.g. gb18030).
+*/
+
+bool
+Type_handler_string::Column_definition_set_attributes(
+                                                 THD *thd,
+                                                 Column_definition *def,
+                                                 const Lex_field_type_st &attr,
+                                                 CHARSET_INFO *cs,
+                                                 column_definition_type_t type)
+                                                 const
+{
+  Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
+  if (attr.length())
+    return false;
+  switch (type) {
+  case COLUMN_DEFINITION_ROUTINE_PARAM:
+  case COLUMN_DEFINITION_FUNCTION_RETURN:
+    if (thd->variables.sql_mode & MODE_ORACLE)
+    {
+      // See Type_handler_varchar::Column_definition_set_attributes()
+      def->length= def->decimals= 2000;
+      def->set_handler(&type_handler_varchar);
+      return false;
+    }
+    break;
+  case COLUMN_DEFINITION_ROUTINE_LOCAL:
+  case COLUMN_DEFINITION_TABLE_FIELD:
+    break;
+  }
+  def->length= 1;
+  return false;
+}
+
+
+bool
+Type_handler_varchar::Column_definition_set_attributes(
+                                                 THD *thd,
+                                                 Column_definition *def,
+                                                 const Lex_field_type_st &attr,
+                                                 CHARSET_INFO *cs,
+                                                 column_definition_type_t type)
+                                                 const
+{
+  Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
+  if (attr.length())
+    return false;
+  switch (type) {
+  case COLUMN_DEFINITION_ROUTINE_PARAM:
+  case COLUMN_DEFINITION_FUNCTION_RETURN:
+    if (thd->variables.sql_mode & MODE_ORACLE)
+    {
+      /*
+        Type_handler_varchar::adjust_spparam_type() tests "decimals"
+        to detect if the formal parameter length needs to be adjusted to
+        the actual parameter length. Non-zero decimals means that the length
+        was set implicitly to the default value and needs to be adjusted.
+      */
+      def->length= def->decimals= 4000;
+      return false;
+    }
+    break;
+  case COLUMN_DEFINITION_ROUTINE_LOCAL:
+  case COLUMN_DEFINITION_TABLE_FIELD:
+    break;
+  }
+  thd->parse_error();
+  return true;
 }
 
 
@@ -4131,7 +4030,6 @@ uint32 Type_handler_temporal_result::max_display_length(const Item *item) const
   return item->max_length;
 }
 
-
 uint32 Type_handler_string_result::max_display_length(const Item *item) const
 {
   return item->max_length;
@@ -4149,6 +4047,50 @@ uint32 Type_handler_bit::max_display_length(const Item *item) const
   return item->max_length;
 }
 
+/*************************************************************************/
+
+uint32 
+Type_handler_decimal_result::Item_decimal_notation_int_digits(const Item *item)
+                                                              const
+{
+  return item->decimal_int_part();
+}
+
+
+uint32 
+Type_handler_temporal_result::Item_decimal_notation_int_digits(const Item *item)
+                                                               const
+{
+  return item->decimal_int_part();
+}
+
+
+uint32 
+Type_handler_bit::Item_decimal_notation_int_digits(const Item *item)
+                                                              const
+{
+  return Bit_decimal_notation_int_digits(item);
+}
+
+
+uint32
+Type_handler_general_purpose_int::Item_decimal_notation_int_digits(
+                                                   const Item *item) const
+{
+  return type_limits_int()->precision();
+}
+
+/*************************************************************************/
+
+/*
+    Decimal to binary digits ratio converges to log2(10) thus using 3 as
+    a divisor.
+*/
+uint32
+Type_handler_bit::Bit_decimal_notation_int_digits(const Item *item)
+{
+  return item->max_length/3+1;
+}
 
 /*************************************************************************/
 
@@ -4787,9 +4729,9 @@ bool Type_handler_int_result::
     func->unsigned_flag is not reliably set yet.
     It will be set by the call below (copied from args[0]).
   */
-  const Type_handler *h= is_unsigned() ?
-                         &type_handler_ulonglong :
-                         &type_handler_slonglong;
+  const Type_handler *h= is_unsigned()
+                           ? (Type_handler *)&type_handler_ulonglong
+                           : (Type_handler *)&type_handler_slonglong;
   return func->fix_length_and_dec_numeric(h);
 }
 
@@ -9099,4 +9041,17 @@ Charset::eq_collation_specific_names(CHARSET_INFO *cs) const
   LEX_CSTRING name0= collation_specific_name();
   LEX_CSTRING name1= Charset(cs).collation_specific_name();
   return name0.length && !cmp(&name0, &name1);
+}
+
+int initialize_data_type_plugin(st_plugin_int *plugin)
+{
+  st_mariadb_data_type *data= (st_mariadb_data_type*) plugin->plugin->info;
+  data->type_handler->set_name(Name(plugin->name));
+  if (plugin->plugin->init && plugin->plugin->init(NULL))
+  {
+    sql_print_error("Plugin '%s' init function returned error.",
+                    plugin->name.str);
+    return 1;
+  }
+  return 0;
 }

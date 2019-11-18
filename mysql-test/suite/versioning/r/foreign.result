@@ -400,3 +400,32 @@ Warning	1265	Data truncated for column 'f12' at row 7
 SET timestamp = 9;
 REPLACE INTO t2 SELECT * FROM t2;
 DROP TABLE t1, t2;
+#
+# MDEV-16210 FK constraints on versioned tables use historical rows, which may cause constraint violation
+#
+create or replace table t1 (a int, key(a)) engine innodb with system versioning;
+create or replace table t2 (b int, foreign key (b) references t1(a)) engine innodb;
+insert into t1 values (1),(2);
+insert into t2 values (1);
+# DELETE from referenced table is not allowed
+delete from t1 where a = 1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
+drop tables t2, t1;
+#
+# MDEV-20812 Unexpected ER_ROW_IS_REFERENCED_2 or server crash in row_ins_foreign_report_err upon DELETE from versioned table with FK
+#
+create or replace table t1 (x int primary key) engine innodb;
+create or replace table t2 (x int, foreign key (x) references t1(x)) engine innodb with system versioning;
+set foreign_key_checks= off;
+insert into t2 values (1), (1);
+set foreign_key_checks= on;
+# DELETE from foreign table is allowed
+delete from t2;
+drop tables t2, t1;
+create or replace table t1 (a int, key(a)) engine innodb;
+insert into t1 values (1);
+create or replace table t2 (b int, foreign key (b) references t1(a)) engine innodb with system versioning;
+insert into t2 values (1), (1);
+# DELETE from foreign table is allowed
+delete from t2;
+drop tables t2, t1;

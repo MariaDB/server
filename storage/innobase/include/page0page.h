@@ -158,12 +158,12 @@ Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
 					not necessarily collation order;
 					this record may have been deleted */
 
-/* Directions of cursor movement */
-#define	PAGE_LEFT		1
-#define	PAGE_RIGHT		2
-#define	PAGE_SAME_REC		3
-#define	PAGE_SAME_PAGE		4
-#define	PAGE_NO_DIRECTION	5
+/* Directions of cursor movement (stored in PAGE_DIRECTION field) */
+constexpr uint16_t PAGE_LEFT= 1;
+constexpr uint16_t PAGE_RIGHT= 2;
+constexpr uint16_t PAGE_SAME_REC= 3;
+constexpr uint16_t PAGE_SAME_PAGE= 4;
+constexpr uint16_t PAGE_NO_DIRECTION= 5;
 
 #ifndef UNIV_INNOCHECKSUM
 
@@ -871,17 +871,6 @@ page_rec_find_owner_rec(
 /*====================*/
 	rec_t*	rec);	/*!< in: the physical record */
 
-/***********************************************************************//**
-Write a 32-bit field in a data dictionary record. */
-UNIV_INLINE
-void
-page_rec_write_field(
-/*=================*/
-	rec_t*	rec,	/*!< in/out: record to update */
-	ulint	i,	/*!< in: index of the field to update */
-	ulint	val,	/*!< in: value to write */
-	mtr_t*	mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
 /************************************************************//**
 Returns the maximum combined size of records which can be inserted on top
 of record heap.
@@ -1137,15 +1126,15 @@ page_move_rec_list_start(
 /**********************************************************//**
 Parses a log record of a record list end or start deletion.
 @return end of log record or NULL */
-byte*
+const byte*
 page_parse_delete_rec_list(
 /*=======================*/
 	mlog_id_t	type,	/*!< in: MLOG_LIST_END_DELETE,
 				MLOG_LIST_START_DELETE,
 				MLOG_COMP_LIST_END_DELETE or
 				MLOG_COMP_LIST_START_DELETE */
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
 	buf_block_t*	block,	/*!< in/out: buffer block or NULL */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	mtr_t*		mtr);	/*!< in: mtr or NULL */

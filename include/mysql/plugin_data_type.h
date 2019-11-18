@@ -36,7 +36,7 @@
 struct st_mariadb_data_type
 {
   int interface_version;
-  const class Type_handler *type_handler;
+  class Type_handler *type_handler;
 };
 
 

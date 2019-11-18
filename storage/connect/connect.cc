@@ -16,7 +16,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /***********************************************************************/
-/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2017    */
+/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2019    */
 /*                                                                     */
 /*  WHAT THIS PROGRAM DOES:                                            */
 /*  -----------------------                                            */
@@ -389,6 +389,9 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr)
 	try {
 		for (colp = tdbp->GetColumns(); rc == RC_OK && colp;
 			colp = colp->GetNext()) {
+			xtrc(2, "Going to read column %s of table %s\n",
+				colp->GetName(), tdbp->GetName());
+
 			if (reset)
 				colp->Reset();
 

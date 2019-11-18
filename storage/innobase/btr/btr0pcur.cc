@@ -216,15 +216,15 @@ btr_pcur_copy_stored_position(
 					copied */
 {
 	ut_free(pcur_receive->old_rec_buf);
-	ut_memcpy(pcur_receive, pcur_donate, sizeof(btr_pcur_t));
+	memcpy(pcur_receive, pcur_donate, sizeof(btr_pcur_t));
 
 	if (pcur_donate->old_rec_buf) {
 
 		pcur_receive->old_rec_buf = (byte*)
 			ut_malloc_nokey(pcur_donate->buf_size);
 
-		ut_memcpy(pcur_receive->old_rec_buf, pcur_donate->old_rec_buf,
-			  pcur_donate->buf_size);
+		memcpy(pcur_receive->old_rec_buf, pcur_donate->old_rec_buf,
+		       pcur_donate->buf_size);
 		pcur_receive->old_rec = pcur_receive->old_rec_buf
 			+ (pcur_donate->old_rec - pcur_donate->old_rec_buf);
 	}
@@ -451,7 +451,7 @@ btr_pcur_move_to_next_page(
 		return;
 	}
 
-	const ulint next_page_no = mach_read_from_4(page + FIL_PAGE_NEXT);
+	const uint32_t next_page_no = btr_page_get_next(page);
 
 	ut_ad(next_page_no != FIL_NULL);
 
@@ -475,7 +475,7 @@ btr_pcur_move_to_next_page(
 	const page_t* next_page = buf_block_get_frame(next_block);
 #ifdef UNIV_BTR_DEBUG
 	ut_a(page_is_comp(next_page) == page_is_comp(page));
-	ut_a(btr_page_get_prev(next_page, mtr)
+	ut_a(btr_page_get_prev(next_page)
 	     == btr_pcur_get_block(cursor)->page.id.page_no());
 #endif /* UNIV_BTR_DEBUG */
 
@@ -537,7 +537,7 @@ btr_pcur_move_backward_from_page(
 
 	page = btr_pcur_get_page(cursor);
 
-	prev_page_no = btr_page_get_prev(page, mtr);
+	prev_page_no = btr_page_get_prev(page);
 
 	if (prev_page_no == FIL_NULL) {
 	} else if (btr_pcur_is_before_first_on_page(cursor)) {

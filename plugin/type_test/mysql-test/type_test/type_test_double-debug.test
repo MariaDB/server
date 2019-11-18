@@ -9,11 +9,11 @@
 
 SET @old_debug_dbug=@@debug_dbug;
 SET @@debug_dbug="+d,frm_data_type_info";
---disable_ps_protocol
 CREATE TABLE t1 (a TEST_DOUBLE);
+--enable_prepare_warnings
 SHOW CREATE TABLE t1;
+--disable_prepare_warnings
 DROP TABLE t1;
---enable_ps_protocol
 SET @@debug_dbug=@old_debug_dbug;
 
 

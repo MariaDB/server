@@ -99,10 +99,6 @@ void
 buf_dblwr_sync_datafiles()
 /*======================*/
 {
-	/* Wake possible simulated aio thread to actually post the
-	writes to the operating system */
-	os_aio_simulated_wake_handler_threads();
-
 	/* Wait that all async writes to tablespaces have been posted to
 	the OS */
 	os_aio_wait_until_no_pending_writes();
@@ -914,11 +910,6 @@ buf_dblwr_write_block_to_datafile(
 	ut_a(buf_page_in_file(bpage));
 
 	ulint	type = IORequest::WRITE;
-
-	if (sync) {
-		type |= IORequest::DO_NOT_WAKE;
-	}
-
 	IORequest	request(type, const_cast<buf_page_t*>(bpage));
 
 	/* We request frame here to get correct buffer in case of
@@ -950,9 +941,8 @@ buf_dblwr_write_block_to_datafile(
 }
 
 /********************************************************************//**
-Flushes possible buffered writes from the doublewrite memory buffer to disk,
-and also wakes up the aio thread if simulated aio is used. It is very
-important to call this function after a batch of writes has been posted,
+Flushes possible buffered writes from the doublewrite memory buffer to disk.
+It is very important to call this function after a batch of writes has been posted,
 and also when we may have to wait for a page latch! Otherwise a deadlock
 of threads can occur. */
 void
@@ -982,13 +972,6 @@ try_again:
 	if (buf_dblwr->first_free == 0) {
 
 		mutex_exit(&buf_dblwr->mutex);
-
-		/* Wake possible simulated aio thread as there could be
-		system temporary tablespace pages active for flushing.
-		Note: system temporary tablespace pages are not scheduled
-		for doublewrite. */
-		os_aio_simulated_wake_handler_threads();
-
 		return;
 	}
 
@@ -1090,12 +1073,6 @@ flush:
 		buf_dblwr_write_block_to_datafile(
 			buf_dblwr->buf_block_arr[i], false);
 	}
-
-	/* Wake possible simulated aio thread to actually post the
-	writes to the operating system. We don't flush the files
-	at this point. We leave it to the IO helper thread to flush
-	datafiles when the whole batch has been processed. */
-	os_aio_simulated_wake_handler_threads();
 }
 
 /********************************************************************//**

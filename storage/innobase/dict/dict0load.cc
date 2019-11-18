@@ -43,8 +43,7 @@ Created 4/24/1996 Heikki Tuuri
 #include "rem0cmp.h"
 #include "srv0start.h"
 #include "srv0srv.h"
-#include <stack>
-#include <set>
+#include "fts0opt.h"
 
 /** Following are the InnoDB system tables. The positions in
 this array are referenced by enum dict_system_table_id. */
@@ -234,7 +233,7 @@ dict_get_first_table_name_in_db(
 	tuple = dtuple_create(heap, 1);
 	dfield = dtuple_get_nth_field(tuple, 0);
 
-	dfield_set_data(dfield, name, ut_strlen(name));
+	dfield_set_data(dfield, name, strlen(name));
 	dict_index_copy_types(tuple, sys_index, 1);
 
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
@@ -256,7 +255,7 @@ loop:
 		rec, DICT_FLD__SYS_TABLES__NAME, &len);
 
 	if (len < strlen(name)
-	    || ut_memcmp(name, field, strlen(name)) != 0) {
+	    || memcmp(name, field, strlen(name))) {
 		/* Not found */
 
 		btr_pcur_close(&pcur);
@@ -1480,11 +1479,10 @@ void dict_check_tablespaces_and_store_max_id()
 	dict_sys_lock();
 
 	/* Initialize the max space_id from sys header */
-	mtr_start(&mtr);
-	ulint	max_space_id = mtr_read_ulint(
-		dict_hdr_get(&mtr) + DICT_HDR_MAX_SPACE_ID,
-		MLOG_4BYTES, &mtr);
-	mtr_commit(&mtr);
+	mtr.start();
+	ulint max_space_id = mach_read_from_4(DICT_HDR_MAX_SPACE_ID
+					      + dict_hdr_get(&mtr));
+	mtr.commit();
 
 	fil_set_max_space_id_if_bigger(max_space_id);
 
@@ -2567,8 +2565,9 @@ corrupted:
 			and simply did not load this index definition, the
 			.frm file would disagree with the index definitions
 			inside InnoDB. */
-			if (!dict_index_add_to_cache(
-				    index, index->page, false, &error)) {
+			if ((error = dict_index_add_to_cache(index,
+							     index->page))
+			    != DB_SUCCESS) {
 				goto func_exit;
 			}
 		}
@@ -2892,7 +2891,7 @@ dict_load_table_one(
 	tuple = dtuple_create(heap, 1);
 	dfield = dtuple_get_nth_field(tuple, 0);
 
-	dfield_set_data(dfield, name.m_name, ut_strlen(name.m_name));
+	dfield_set_data(dfield, name.m_name, strlen(name.m_name));
 	dict_index_copy_types(tuple, sys_index, 1);
 
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
@@ -2914,8 +2913,8 @@ err_exit:
 		rec, DICT_FLD__SYS_TABLES__NAME, &len);
 
 	/* Check if the table name in record is the searched one */
-	if (len != ut_strlen(name.m_name)
-	    || 0 != ut_memcmp(name.m_name, field, len)) {
+	if (len != strlen(name.m_name)
+	    || memcmp(name.m_name, field, len)) {
 
 		goto err_exit;
 	}
@@ -3079,8 +3078,12 @@ func_exit:
 			FTS */
 			fts_optimize_remove_table(table);
 			fts_free(table);
-		} else {
+		} else if (fts_optimize_wq) {
 			fts_optimize_add_table(table);
+		} else if (table->can_be_evicted) {
+			/* fts_optimize_thread is not started yet.
+			So make the table as non-evictable from cache. */
+			dict_sys.prevent_eviction(table);
 		}
 	}
 
@@ -3271,7 +3274,7 @@ dict_load_foreign_cols(
 		field = rec_get_nth_field_old(
 			rec, DICT_FLD__SYS_FOREIGN_COLS__ID, &len);
 
-		if (len != id_len || ut_memcmp(foreign->id, field, len) != 0) {
+		if (len != id_len || memcmp(foreign->id, field, len)) {
 			const rec_t*	pos;
 			ulint		pos_len;
 			const rec_t*	for_col_name;
@@ -3422,8 +3425,7 @@ dict_load_foreign(
 	field = rec_get_nth_field_old(rec, DICT_FLD__SYS_FOREIGN__ID, &len);
 
 	/* Check if the id in record is the searched one */
-	if (len != id_len || ut_memcmp(id, field, len) != 0) {
-
+	if (len != id_len || memcmp(id, field, len)) {
 		{
 			ib::error	err;
 			err << "Cannot load foreign constraint " << id
@@ -3582,7 +3584,7 @@ start_load:
 	tuple = dtuple_create_from_mem(tuple_buf, sizeof(tuple_buf), 1, 0);
 	dfield = dtuple_get_nth_field(tuple, 0);
 
-	dfield_set_data(dfield, table_name, ut_strlen(table_name));
+	dfield_set_data(dfield, table_name, strlen(table_name));
 	dict_index_copy_types(tuple, sec_index, 1);
 
 	btr_pcur_open_on_user_rec(sec_index, tuple, PAGE_CUR_GE,
@@ -3627,8 +3629,8 @@ loop:
 		goto next_rec;
 	}
 
-	if ((innobase_get_lower_case_table_names() != 2)
-	    && (0 != ut_memcmp(field, table_name, len))) {
+	if (innobase_get_lower_case_table_names() != 2
+	    && memcmp(field, table_name, len)) {
 		goto next_rec;
 	}
 

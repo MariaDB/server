@@ -1,6 +1,5 @@
 /*
-   Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -65,11 +64,6 @@ public:
 class Type_handler_test_int8: public Type_handler_longlong
 {
 public:
-  const Name name() const override
-  {
-    static Name name(STRING_WITH_LEN("test_int8"));
-    return name;
-  }
   const Type_collection *type_collection() const override
   {
     return &type_collection_test;
@@ -127,11 +121,6 @@ public:
 class Type_handler_test_double: public Type_handler_double
 {
 public:
-  const Name name() const override
-  {
-    static Name name(STRING_WITH_LEN("test_double"));
-    return name;
-  }
   const Type_collection *type_collection() const override
   {
     return &type_collection_test;
@@ -303,13 +292,13 @@ maria_declare_plugin(type_test)
 {
   MariaDB_DATA_TYPE_PLUGIN,     // the plugin type (see include/mysql/plugin.h)
   &plugin_descriptor_type_test_int8,   // pointer to type-specific plugin descriptor
-  type_handler_test_int8.name().ptr(), // plugin name
+  "test_int8",                  // plugin name
   "MariaDB Corporation",        // plugin author
   "Data type TEST_INT8",        // the plugin description
   PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
   0,                            // Pointer to plugin initialization function
   0,                            // Pointer to plugin deinitialization function
-  0x0100,                       // Numeric version 0xAABB means AA.BB veriosn
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation
@@ -318,13 +307,13 @@ maria_declare_plugin(type_test)
 {
   MariaDB_DATA_TYPE_PLUGIN,     // the plugin type (see include/mysql/plugin.h)
   &plugin_descriptor_type_test_double,   // pointer to type-specific plugin descriptor
-  type_handler_test_double.name().ptr(), // plugin name
+  "test_double",                // plugin name
   "MariaDB Corporation",        // plugin author
   "Data type TEST_DOUBLE",      // the plugin description
   PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
   0,                            // Pointer to plugin initialization function
   0,                            // Pointer to plugin deinitialization function
-  0x0100,                       // Numeric version 0xAABB means AA.BB veriosn
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0",                        // String version representation

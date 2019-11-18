@@ -1,5 +1,5 @@
 # Copyright (c) 2007, 2013, Oracle and/or its affiliates
-# Copyright (c) 2010, 2013, Monty Program Ab
+# Copyright (c) 2010, 2019, MariaDB Corporation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -53,8 +53,8 @@ loose-innodb_lru_scan_depth=      100
 loose-innodb_write_io_threads=    2
 loose-innodb_read_io_threads=     2
 loose-innodb_log_buffer_size=     1M
-loose-innodb_log_file_size=       5M
-loose-innodb_log_files_in_group=  2
+loose-innodb_log_file_size=       10M
+loose-innodb_log_files_in_group=  1
 loose-innodb-stats-persistent=    OFF
 
 slave-net-timeout=120

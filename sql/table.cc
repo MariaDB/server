@@ -695,7 +695,11 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   frmlen= read_length + sizeof(head);
 
   share->init_from_binary_frm_image(thd, false, buf, frmlen);
-  error_given= true; // init_from_binary_frm_image has already called my_error()
+  /*
+    Don't give any additional errors. If there would be a problem,
+    init_from_binary_frm_image would call my_error() itself.
+  */
+  error_given= true;
   my_free(buf);
 
   goto err_not_open;
@@ -704,6 +708,9 @@ err:
   mysql_file_close(file, MYF(MY_WME));
 
 err_not_open:
+  /* Mark that table was created earlier and thus should have been logged */
+  share->table_creation_was_logged= 1;
+
   if (unlikely(share->error && !error_given))
   {
     share->open_errno= my_errno;
@@ -3324,6 +3331,8 @@ ret:
              sql_copy);
     DBUG_RETURN(HA_ERR_GENERIC);
   }
+  /* Treat the table as normal table from binary logging point of view */
+  table_creation_was_logged= 1;
   DBUG_RETURN(0);
 }
 
@@ -5239,6 +5248,8 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   update_handler= NULL;
   check_unique_buf= NULL;
   vers_write= s->versioned;
+  quick_condition_rows=0;
+  initialize_quick_structures();
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;
@@ -9733,4 +9744,22 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
       return true;
   }
   return false;
+}
+
+/*
+  @brief
+    Initialize all the quick structures that are used to stored the
+    estimates when the range optimizer is run.
+  @details
+    This is specifically needed when we read the TABLE structure from the
+    table cache. There can be some garbage data from previous queries
+    that need to be reset here.
+*/
+
+void TABLE::initialize_quick_structures()
+{
+  bzero(quick_rows, sizeof(quick_rows));
+  bzero(quick_key_parts, sizeof(quick_key_parts));
+  bzero(quick_costs, sizeof(quick_costs));
+  bzero(quick_n_ranges, sizeof(quick_n_ranges));
 }

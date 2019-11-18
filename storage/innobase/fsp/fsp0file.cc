@@ -157,7 +157,7 @@ void
 Datafile::init_file_info()
 {
 #ifdef _WIN32
-	GetFileInformationByHandle(m_handle, &m_file_info);
+	GetFileInformationByHandle((os_file_t)m_handle, &m_file_info);
 #else
 	fstat(m_handle, &m_file_info);
 #endif	/* WIN32 */

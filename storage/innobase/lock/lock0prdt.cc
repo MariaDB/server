@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -775,7 +775,7 @@ lock_init_prdt_from_mbr(
 
 	if (heap != NULL) {
 		prdt->data = mem_heap_alloc(heap, sizeof(*mbr));
-		ut_memcpy(prdt->data, mbr, sizeof(*mbr));
+		memcpy(prdt->data, mbr, sizeof(*mbr));
 	} else {
 		prdt->data = static_cast<void*>(mbr);
 	}

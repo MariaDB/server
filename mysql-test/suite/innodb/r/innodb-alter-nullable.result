@@ -96,8 +96,8 @@ INSERT INTO t3 SET c=NULL;
 SET @old_sql_mode = @@sql_mode;
 SET sql_mode = '';
 ALTER TABLE t1 MODIFY c INT NOT NULL;
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 1
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
 Warnings:
 Warning	1265	Data truncated for column 'c' at row 1
 ALTER TABLE t2 MODIFY c INT NOT NULL;
@@ -111,10 +111,9 @@ info: Records: 1  Duplicates: 0  Warnings: 1
 Warnings:
 Warning	1265	Data truncated for column 'c' at row 1
 SET sql_mode = @old_sql_mode;
-# MDEV-18819 FIXME: Wrong result g=NULL
 SELECT * FROM t1;
 c	g
-0	NULL
+0	0
 SELECT * FROM t2;
 c	v
 0	0
@@ -137,8 +136,8 @@ INSERT INTO t1 SET c=NULL;
 INSERT INTO t2 SET c=NULL;
 INSERT INTO t3 SET c=NULL;
 ALTER IGNORE TABLE t1 MODIFY c INT NOT NULL;
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 1
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
 Warnings:
 Warning	1265	Data truncated for column 'c' at row 1
 ALTER IGNORE TABLE t2 MODIFY c INT NOT NULL;
@@ -151,10 +150,9 @@ affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 1
 Warnings:
 Warning	1265	Data truncated for column 'c' at row 1
-# MDEV-18819 FIXME: Wrong result g=NULL
 SELECT * FROM t1;
 c	g
-0	NULL
+0	0
 SELECT * FROM t2;
 c	v
 0	0
@@ -186,12 +184,11 @@ UPDATE t1 SET c=0;
 UPDATE t2 SET c=0;
 UPDATE t3 SET c=0;
 ALTER TABLE t1 MODIFY c INT NOT NULL;
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
 ALTER TABLE t2 MODIFY c INT NOT NULL;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
-# MDEV-18819 FIXME: This should not require ALGORITHM=COPY.
 ALTER TABLE t3 MODIFY c INT NOT NULL;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0

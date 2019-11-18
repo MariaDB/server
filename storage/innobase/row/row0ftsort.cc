@@ -216,7 +216,6 @@ row_fts_psort_info_init(
 	common_info->trx = trx;
 	common_info->all_info = psort_info;
 	common_info->sort_event = os_event_create(0);
-	common_info->merge_event = os_event_create(0);
 	common_info->opt_doc_id_size = opt_doc_id_size;
 
 	if (log_tmp_is_encrypted()) {
@@ -350,7 +349,6 @@ row_fts_psort_info_destroy(
 		}
 
 		os_event_destroy(merge_info[0].psort_common->sort_event);
-		os_event_destroy(merge_info[0].psort_common->merge_event);
 		ut_free(merge_info[0].psort_common->dup);
 		ut_free(merge_info[0].psort_common);
 		ut_free(psort_info);
@@ -754,10 +752,9 @@ row_merge_fts_get_next_doc_item(
 /*********************************************************************//**
 Function performs parallel tokenization of the incoming doc strings.
 It also performs the initial in memory sort of the parsed records.
-@return OS_THREAD_DUMMY_RETURN */
+*/
 static
-os_thread_ret_t
-DECLARE_THREAD(fts_parallel_tokenization)(
+void fts_parallel_tokenization(
 /*======================*/
 	void*		arg)	/*!< in: psort_info for the thread */
 {
@@ -1065,10 +1062,6 @@ func_exit:
 	psort_info->child_status = FTS_CHILD_COMPLETE;
 	os_event_set(psort_info->psort_common->sort_event);
 	psort_info->child_status = FTS_CHILD_EXITING;
-
-	os_thread_exit();
-
-	OS_THREAD_DUMMY_RETURN;
 }
 
 /*********************************************************************//**
@@ -1079,23 +1072,20 @@ row_fts_start_psort(
 	fts_psort_t*	psort_info)	/*!< parallel sort structure */
 {
 	ulint		i = 0;
-	os_thread_id_t	thd_id;
 
 	for (i = 0; i < fts_sort_pll_degree; i++) {
 		psort_info[i].psort_id = i;
-		psort_info[i].thread_hdl =
-			os_thread_create(fts_parallel_tokenization,
-				(void*) &psort_info[i],
-				 &thd_id);
+		psort_info[i].task =
+			new tpool::waitable_task(fts_parallel_tokenization,&psort_info[i]);
+		srv_thread_pool->submit_task(psort_info[i].task);
 	}
 }
 
 /*********************************************************************//**
-Function performs the merge and insertion of the sorted records.
-@return OS_THREAD_DUMMY_RETURN */
+Function performs the merge and insertion of the sorted records. */
 static
-os_thread_ret_t
-DECLARE_THREAD(fts_parallel_merge)(
+void
+fts_parallel_merge(
 /*===============*/
 	void*		arg)		/*!< in: parallel merge info */
 {
@@ -1109,14 +1099,6 @@ DECLARE_THREAD(fts_parallel_merge)(
 	row_fts_merge_insert(psort_info->psort_common->dup->index,
 			     psort_info->psort_common->new_table,
 			     psort_info->psort_common->all_info, id);
-
-	psort_info->child_status = FTS_CHILD_COMPLETE;
-	os_event_set(psort_info->psort_common->merge_event);
-	psort_info->child_status = FTS_CHILD_EXITING;
-
-	os_thread_exit(false);
-
-	OS_THREAD_DUMMY_RETURN;
 }
 
 /*********************************************************************//**
@@ -1128,15 +1110,15 @@ row_fts_start_parallel_merge(
 {
 	ulint		i = 0;
 
-	/* Kick off merge/insert threads */
+	/* Kick off merge/insert tasks */
 	for (i = 0; i <  FTS_NUM_AUX_INDEX; i++) {
 		merge_info[i].psort_id = i;
 		merge_info[i].child_status = 0;
 
-		merge_info[i].thread_hdl = os_thread_create(
+		merge_info[i].task = new tpool::waitable_task(
 			fts_parallel_merge,
-			(void*) &merge_info[i],
-			&merge_info[i].thread_hdl);
+			(void*) &merge_info[i]);
+		srv_thread_pool->submit_task(merge_info[i].task);
 	}
 }
 

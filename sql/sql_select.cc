@@ -4168,9 +4168,9 @@ void JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
-  ANALYZE_START_TRACKING(&explain->time_tracker);
+  ANALYZE_START_TRACKING(thd, &explain->time_tracker);
   exec_inner();
-  ANALYZE_STOP_TRACKING(&explain->time_tracker);
+  ANALYZE_STOP_TRACKING(thd, &explain->time_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
                   if (dbug_user_var_equals_int(thd, 
@@ -9090,7 +9090,6 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           something went wrong.
 	*/
         sel /= (double)table->quick_rows[key] / (double) table->stat_records();
-        // MDEV-20595 FIXME: DBUG_ASSERT(sel > 0 && sel <= 2.0);
         set_if_smaller(sel, 1.0);
         used_range_selectivity= true;
       }
@@ -9139,7 +9138,6 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
               if (table->field[fldno]->cond_selectivity > 0)
               {
                 sel /= table->field[fldno]->cond_selectivity;
-                // MDEV-20595 FIXME: DBUG_ASSERT(sel > 0 && sel <= 2.0);
                 set_if_smaller(sel, 1.0);
               }
               /* 
@@ -9197,7 +9195,6 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           if (field->cond_selectivity > 0)
           {
             sel/= field->cond_selectivity;
-            // MDEV-20595 FIXME: DBUG_ASSERT(sel > 0 && sel <= 2.0);
             set_if_smaller(sel, 1.0);
           }
           break;
@@ -9209,7 +9206,6 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   sel*= table_multi_eq_cond_selectivity(join, idx, s, rem_tables,
                                         keyparts, ref_keyuse_steps);
 
-  DBUG_ASSERT(0.0 < sel && sel <= 1.0);
   return sel;
 }
 
@@ -9831,7 +9827,10 @@ prev_record_reads(const POSITION *positions, uint idx, table_map found_ref)
           #max_nested_outer_joins=64-1) will not make it any more precise.
       */
       if (pos->records_read)
+      {
         found= COST_MULT(found, pos->records_read);
+        found*= pos->cond_selectivity;
+      }
      }
   }
   return found;
@@ -13136,7 +13135,7 @@ void JOIN_TAB::build_range_rowid_filter_if_needed()
     Exec_time_tracker *table_tracker= table->file->get_time_tracker();
     Rowid_filter_tracker *rowid_tracker= rowid_filter->get_tracker();
     table->file->set_time_tracker(rowid_tracker->get_time_tracker());
-    rowid_tracker->start_tracking();
+    rowid_tracker->start_tracking(join->thd);
     if (!rowid_filter->build())
     {
       is_rowid_filter_built= true;
@@ -13146,7 +13145,7 @@ void JOIN_TAB::build_range_rowid_filter_if_needed()
       delete rowid_filter;
       rowid_filter= 0;
     }
-    rowid_tracker->stop_tracking();
+    rowid_tracker->stop_tracking(join->thd);
     table->file->set_time_tracker(table_tracker);
   }
 }
@@ -26073,8 +26072,10 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
 
   /* Enable the table access time tracker only for "ANALYZE stmt" */
   if (thd->lex->analyze_stmt)
+  {
     table->file->set_time_tracker(&eta->op_tracker);
-
+    eta->op_tracker.my_gap_tracker = &eta->extra_time_tracker;
+  }
   /* No need to save id and select_type here, they are kept in Explain_select */
 
   /* table */

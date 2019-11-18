@@ -599,7 +599,7 @@ fts_ranking_words_add(
 
 		ranking->words = static_cast<byte*>(
 			mem_heap_zalloc(query->heap, words_len));
-		ut_memcpy(ranking->words, words, ranking->words_len);
+		memcpy(ranking->words, words, ranking->words_len);
 		ranking->words_len = words_len;
 	}
 

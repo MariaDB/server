@@ -4164,9 +4164,10 @@ i_s_innodb_set_page_type(
 /*=====================*/
 	buf_page_info_t*page_info,	/*!< in/out: structure to fill with
 					scanned info */
-	ulint		page_type,	/*!< in: page type */
 	const byte*	frame)		/*!< in: buffer frame */
 {
+	uint16_t page_type = fil_page_get_type(frame);
+
 	if (fil_page_type_is_index(page_type)) {
 		const page_t*	page = (const page_t*) frame;
 
@@ -4245,7 +4246,6 @@ i_s_innodb_buffer_page_get_info(
 	BUF_BLOCK_ZIP_DIRTY or BUF_BLOCK_FILE_PAGE */
 	if (buf_page_in_file(bpage)) {
 		const byte*	frame;
-		ulint		page_type;
 
 		page_info->space_id = bpage->id.space();
 
@@ -4296,9 +4296,7 @@ i_s_innodb_buffer_page_get_info(
 			frame = bpage->zip.data;
 		}
 
-		page_type = fil_page_get_type(frame);
-
-		i_s_innodb_set_page_type(page_info, page_type, frame);
+		i_s_innodb_set_page_type(page_info, frame);
 	} else {
 		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
 	}

@@ -35,7 +35,6 @@ Created 12/9/1995 Heikki Tuuri
 #define log0log_h
 
 #include "dyn0buf.h"
-#include "sync0rw.h"
 #include "log0types.h"
 #include "os0event.h"
 #include "os0file.h"
@@ -189,9 +188,8 @@ log_buffer_sync_in_background(
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
 log files. Use log_make_checkpoint() to flush also the pool.
-@param[in]	sync		whether to wait for the write to complete
 @return true if success, false if a checkpoint write was already running */
-bool log_checkpoint(bool sync);
+bool log_checkpoint();
 
 /** Make a checkpoint */
 void log_make_checkpoint();
@@ -208,10 +206,8 @@ logs_empty_and_mark_files_at_shutdown(void);
 @param[in]	header	0 or LOG_CHECKPOINT_1 or LOG_CHECKPOINT2 */
 void log_header_read(ulint header);
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
-@param[in]	sync	whether to wait for the write to complete
 @param[in]	end_lsn	start LSN of the MLOG_CHECKPOINT mini-transaction */
-void
-log_write_checkpoint_info(bool sync, lsn_t end_lsn);
+void log_write_checkpoint_info(lsn_t end_lsn);
 
 /** Set extra data to be written to the redo log during checkpoint.
 @param[in]	buf	data to be appended on checkpoint, or NULL
@@ -380,7 +376,7 @@ log_refresh_stats(void);
 
 #define	LOG_BLOCK_KEY		4	/* encryption key version
 					before LOG_BLOCK_CHECKSUM;
-					in LOG_HEADER_FORMAT_ENC_10_4 only */
+					in log_t::FORMAT_ENC_10_4 only */
 #define	LOG_BLOCK_CHECKSUM	4	/* 4 byte checksum of the log block
 					contents; in InnoDB versions
 					< 3.23.52 this did not contain the
@@ -436,23 +432,6 @@ or the MySQL version that created the redo log file. */
 	IB_TO_STR(MYSQL_VERSION_MINOR) "."	\
 	IB_TO_STR(MYSQL_VERSION_PATCH)
 
-/** The original (not version-tagged) InnoDB redo log format */
-#define LOG_HEADER_FORMAT_3_23		0
-/** The MySQL 5.7.9/MariaDB 10.2.2 log format */
-#define LOG_HEADER_FORMAT_10_2		1
-/** The MariaDB 10.3.2 log format.
-To prevent crash-downgrade to earlier 10.2 due to the inability to
-roll back a retroactively introduced TRX_UNDO_RENAME_TABLE undo log record,
-MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
-1 instead of 0. MariaDB 10.3 will use subformat 0 (5.7-style TRUNCATE) or 2
-(MDEV-13564 backup-friendly TRUNCATE). */
-#define LOG_HEADER_FORMAT_10_3		103
-#define LOG_HEADER_FORMAT_10_4		104
-/** The MariaDB 10.4.0 log format (only with innodb_encrypt_log=ON) */
-#define LOG_HEADER_FORMAT_ENC_10_4	(104U | 1U << 31)
-/** Encrypted MariaDB redo log */
-#define LOG_HEADER_FORMAT_ENCRYPTED	(1U<<31)
-
 /* @} */
 
 #define LOG_CHECKPOINT_1	OS_FILE_LOG_BLOCK_SIZE
@@ -477,6 +456,24 @@ typedef ib_mutex_t	FlushOrderMutex;
 
 /** Redo log buffer */
 struct log_t{
+  /** The original (not version-tagged) InnoDB redo log format */
+  static constexpr uint32_t FORMAT_3_23 = 0;
+  /** The MySQL 5.7.9/MariaDB 10.2.2 log format */
+  static constexpr uint32_t FORMAT_10_2 = 1;
+  /** The MariaDB 10.3.2 log format.
+  To prevent crash-downgrade to earlier 10.2 due to the inability to
+  roll back a retroactively introduced TRX_UNDO_RENAME_TABLE undo log record,
+  MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
+  1 instead of 0. MariaDB 10.3 will use subformat 0 (5.7-style TRUNCATE) or 2
+  (MDEV-13564 backup-friendly TRUNCATE). */
+  static constexpr uint32_t FORMAT_10_3 = 103;
+  /** The MariaDB 10.4.0 log format. */
+  static constexpr uint32_t FORMAT_10_4 = 104;
+  /** Encrypted MariaDB redo log */
+  static constexpr uint32_t FORMAT_ENCRYPTED = 1U << 31;
+  /** The MariaDB 10.4.0 log format (only with innodb_encrypt_log=ON) */
+  static constexpr uint32_t FORMAT_ENC_10_4 = FORMAT_10_4 | FORMAT_ENCRYPTED;
+
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	lsn_t		lsn;		/*!< log sequence number */
 	ulong		buf_free;	/*!< first free offset within the log
@@ -525,7 +522,7 @@ struct log_t{
   struct files {
     /** number of files */
     ulint				n_files;
-    /** format of the redo log: e.g., LOG_HEADER_FORMAT_10_4 */
+    /** format of the redo log: e.g., FORMAT_10_4 */
     uint32_t				format;
     /** redo log subformat: 0 with separately logged TRUNCATE,
     2 with fully redo-logged TRUNCATE (1 in MariaDB 10.2) */
@@ -543,7 +540,7 @@ struct log_t{
     lsn_t				scanned_lsn;
 
     /** @return whether the redo log is encrypted */
-    bool is_encrypted() const { return format & LOG_HEADER_FORMAT_ENCRYPTED; }
+    bool is_encrypted() const { return format & FORMAT_ENCRYPTED; }
     /** @return capacity in bytes */
     lsn_t capacity() const{ return (file_size - LOG_FILE_HDR_SIZE) * n_files; }
     /** Calculate the offset of a log sequence number.
@@ -654,10 +651,6 @@ struct log_t{
 	ulint		n_pending_checkpoint_writes;
 					/*!< number of currently pending
 					checkpoint writes */
-	rw_lock_t	checkpoint_lock;/*!< this latch is x-locked when a
-					checkpoint write is running; a thread
-					should wait for this without owning
-					the log mutex */
 
 	/** buffer for checkpoint header */
 	MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE)
@@ -680,20 +673,17 @@ public:
 
   bool is_initialised() const { return m_initialised; }
 
-  /** Complete an asynchronous checkpoint write. */
-  void complete_checkpoint();
-
   /** @return the log block header + trailer size */
   unsigned framing_size() const
   {
-    return log.format == LOG_HEADER_FORMAT_ENC_10_4
+    return log.format == FORMAT_ENC_10_4
       ? LOG_BLOCK_HDR_SIZE + LOG_BLOCK_KEY + LOG_BLOCK_CHECKSUM
       : LOG_BLOCK_HDR_SIZE + LOG_BLOCK_CHECKSUM;
   }
   /** @return the log block payload size */
   unsigned payload_size() const
   {
-    return log.format == LOG_HEADER_FORMAT_ENC_10_4
+    return log.format == FORMAT_ENC_10_4
       ? OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE - LOG_BLOCK_CHECKSUM -
       LOG_BLOCK_KEY
       : OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE - LOG_BLOCK_CHECKSUM;
@@ -701,7 +691,7 @@ public:
   /** @return the log block trailer offset */
   unsigned trailer_offset() const
   {
-    return log.format == LOG_HEADER_FORMAT_ENC_10_4
+    return log.format == FORMAT_ENC_10_4
       ? OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM - LOG_BLOCK_KEY
       : OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM;
   }

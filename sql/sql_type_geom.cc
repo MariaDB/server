@@ -23,67 +23,16 @@
 #include "sql_type_geom.h"
 #include "item_geofunc.h"
 
-const Name Type_handler_geometry::name() const
-{
-  static const Name tmp(STRING_WITH_LEN("geometry"));
-  return tmp;
-}
-
-const Name Type_handler_point::name() const
-{
-  static const Name tmp(STRING_WITH_LEN("point"));
-  return tmp;
-}
-
-const Name Type_handler_linestring::name() const
-{
-  static const Name tmp(STRING_WITH_LEN("linestring"));
-  return tmp;
-}
-
-const Name Type_handler_polygon::name() const
-{
-  static const Name tmp(STRING_WITH_LEN("polygon"));
-  return tmp;
-}
-
-const Name Type_handler_multipoint::name() const
-{
-  static const Name tmp(STRING_WITH_LEN("multipoint"));
-  return tmp;
-}
-
-const Name Type_handler_multilinestring::name() const
-{
-  static const Name tmp(STRING_WITH_LEN("multilinestring"));
-  return tmp;
-}
-
-const Name Type_handler_multipolygon::name() const
-{
-  static const Name tmp(STRING_WITH_LEN("multipolygon"));
-  return tmp;
-}
-
-const Name Type_handler_geometrycollection::name() const
-{
-  static const Name tmp(STRING_WITH_LEN("geometrycollection"));
-  return tmp;
-}
-
-
-Type_handler_geometry           type_handler_geometry;
-Type_handler_point              type_handler_point;
-Type_handler_linestring         type_handler_linestring;
-Type_handler_polygon            type_handler_polygon;
-Type_handler_multipoint         type_handler_multipoint;
-Type_handler_multilinestring    type_handler_multilinestring;
-Type_handler_multipolygon       type_handler_multipolygon;
-Type_handler_geometrycollection type_handler_geometrycollection;
-
+Named_type_handler<Type_handler_geometry> type_handler_geometry("geometry");
+Named_type_handler<Type_handler_point> type_handler_point("point");
+Named_type_handler<Type_handler_linestring> type_handler_linestring("linestring");
+Named_type_handler<Type_handler_polygon> type_handler_polygon("polygon");
+Named_type_handler<Type_handler_multipoint> type_handler_multipoint("multipoint");
+Named_type_handler<Type_handler_multilinestring> type_handler_multilinestring("multilinestring");
+Named_type_handler<Type_handler_multipolygon> type_handler_multipolygon("multipolygon");
+Named_type_handler<Type_handler_geometrycollection> type_handler_geometrycollection("geometrycollection");
 
 Type_collection_geometry        type_collection_geometry;
-
 
 const Type_handler_geometry *
 Type_handler_geometry::type_handler_geom_by_type(uint type)

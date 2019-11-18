@@ -1977,7 +1977,7 @@ YY_RULE_SETUP
 {
 			yylval = sym_tab_add_id(pars_sym_tab_global,
 							(byte*) yytext,
-							ut_strlen(yytext));
+							strlen(yytext));
 			return(PARS_ID_TOKEN);
 }
 	YY_BREAK
@@ -1987,7 +1987,7 @@ YY_RULE_SETUP
 {
 			yylval = sym_tab_add_id(pars_sym_tab_global,
 							(byte*) yytext,
-							ut_strlen(yytext));
+							strlen(yytext));
 			return(PARS_TABLE_NAME_TOKEN);
 }
 	YY_BREAK

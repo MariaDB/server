@@ -625,5 +625,5 @@ void thd_wakeup_subsequent_commits(THD* thd, int wakeup_error);
 struct st_mariadb_data_type
 {
   int interface_version;
-  const class Type_handler *type_handler;
+  class Type_handler *type_handler;
 };

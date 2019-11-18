@@ -20,6 +20,7 @@
 
 /* Classes in mysql */
 
+#include <atomic>
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
@@ -1630,12 +1631,16 @@ public:
 /**
   @class Sub_statement_state
   @brief Used to save context when executing a function or trigger
+
+  operations on stat tables aren't technically a sub-statement, but they are
+  similar in a sense that they cannot change the transaction status.
 */
 
 /* Defines used for Sub_statement_state::in_sub_stmt */
 
 #define SUB_STMT_TRIGGER 1
 #define SUB_STMT_FUNCTION 2
+#define SUB_STMT_STAT_TABLES 4
 
 
 class Sub_statement_state
@@ -2020,7 +2025,7 @@ struct wait_for_commit
   /*
     The LOCK_wait_commit protects the fields subsequent_commits_list and
     wakeup_subsequent_commits_running (for a waitee), and the pointer
-    waiterr and associated COND_wait_commit (for a waiter).
+    waitee and associated COND_wait_commit (for a waiter).
   */
   mysql_mutex_t LOCK_wait_commit;
   mysql_cond_t COND_wait_commit;
@@ -2034,8 +2039,14 @@ struct wait_for_commit
 
     When this is cleared for wakeup, the COND_wait_commit condition is
     signalled.
+
+    This pointer is protected by LOCK_wait_commit. But there is also a "fast
+    path" where the waiter compares this to NULL without holding the lock.
+    Such read must be done with acquire semantics (and all corresponding
+    writes done with release semantics). This ensures that a wakeup with error
+    is reliably detected as (waitee==NULL && wakeup_error != 0).
   */
-  wait_for_commit *waitee;
+  std::atomic<wait_for_commit *> waitee;
   /*
     Generic pointer for use by the transaction coordinator to optimise the
     waiting for improved group commit.
@@ -2070,7 +2081,7 @@ struct wait_for_commit
       Quick inline check, to avoid function call and locking in the common case
       where no wakeup is registered, or a registered wait was already signalled.
     */
-    if (waitee)
+    if (waitee.load(std::memory_order_acquire))
       return wait_for_prior_commit2(thd);
     else
     {
@@ -2098,7 +2109,7 @@ struct wait_for_commit
   }
   void unregister_wait_for_prior_commit()
   {
-    if (waitee)
+    if (waitee.load(std::memory_order_relaxed))
       unregister_wait_for_prior_commit2();
     else
       wakeup_error= 0;
@@ -2120,7 +2131,7 @@ struct wait_for_commit
       }
       next_ptr_ptr= &cur->next_subsequent_commit;
     }
-    waitee= NULL;
+    waitee.store(NULL, std::memory_order_relaxed);
   }
 
   void wakeup(int wakeup_error);
@@ -2136,6 +2147,22 @@ struct wait_for_commit
 
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
+
+class Gap_time_tracker;
+
+/*
+  Thread context for Gap_time_tracker class.
+*/
+class Gap_time_tracker_data
+{
+public:
+  Gap_time_tracker_data(): bill_to(NULL) {}
+
+  Gap_time_tracker *bill_to;
+  ulonglong start_time;
+
+  void init() { bill_to = NULL; }
+};
 
 /**
   A wrapper around thread_count.
@@ -3322,6 +3349,7 @@ public:
   */
   Apc_target apc_target;
 
+  Gap_time_tracker_data gap_tracker_data;
 #ifndef MYSQL_CLIENT
   enum enum_binlog_query_type {
     /* The query can be logged in row format or in statement format. */
@@ -6654,6 +6682,11 @@ public:
 /* Bits in server_command_flags */
 
 /**
+  Statement that deletes existing rows (DELETE, DELETE_MULTI)
+*/
+#define CF_DELETES_DATA (1U << 24)
+
+/**
   Skip the increase of the global query id counter. Commonly set for
   commands that are stateless (won't cause any change on the server
   internal states).
@@ -6856,6 +6889,22 @@ class Sql_mode_save
  private:
   THD *thd;
   sql_mode_t old_mode; // SQL mode saved at construction time.
+};
+
+class Switch_to_definer_security_ctx
+{
+ public:
+  Switch_to_definer_security_ctx(THD *thd, TABLE_LIST *table) :
+    m_thd(thd), m_sctx(thd->security_ctx)
+  {
+    if (table->security_ctx)
+      thd->security_ctx= table->security_ctx;
+  }
+  ~Switch_to_definer_security_ctx() { m_thd->security_ctx = m_sctx; }
+
+ private:
+  THD *m_thd;
+  Security_context *m_sctx;
 };
 
 

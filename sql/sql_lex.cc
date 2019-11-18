@@ -52,6 +52,524 @@ const LEX_CSTRING empty_clex_str= {"", 0};
 const LEX_CSTRING star_clex_str=  {"*", 1};
 const LEX_CSTRING param_clex_str= {"?", 1};
 
+
+/**
+  Helper action for a case expression statement (the expr in 'CASE expr').
+  This helper is used for 'searched' cases only.
+  @param lex the parser lex context
+  @param expr the parsed expression
+  @return 0 on success
+*/
+
+int sp_expr_lex::case_stmt_action_expr()
+{
+  int case_expr_id= spcont->register_case_expr();
+  sp_instr_set_case_expr *i;
+
+  if (spcont->push_case_expr_id(case_expr_id))
+    return 1;
+
+  i= new (thd->mem_root)
+    sp_instr_set_case_expr(sphead->instructions(), spcont, case_expr_id,
+                           get_item(), this);
+
+  sphead->add_cont_backpatch(i);
+  return sphead->add_instr(i);
+}
+
+/**
+  Helper action for a case when condition.
+  This helper is used for both 'simple' and 'searched' cases.
+  @param lex the parser lex context
+  @param when the parsed expression for the WHEN clause
+  @param simple true for simple cases, false for searched cases
+*/
+
+int sp_expr_lex::case_stmt_action_when(bool simple)
+{
+  uint ip= sphead->instructions();
+  sp_instr_jump_if_not *i;
+  Item_case_expr *var;
+  Item *expr;
+
+  if (simple)
+  {
+    var= new (thd->mem_root)
+         Item_case_expr(thd, spcont->get_current_case_expr_id());
+
+#ifdef DBUG_ASSERT_EXISTS
+    if (var)
+    {
+      var->m_sp= sphead;
+    }
+#endif
+
+    expr= new (thd->mem_root) Item_func_eq(thd, var, get_item());
+    i= new (thd->mem_root) sp_instr_jump_if_not(ip, spcont, expr, this);
+  }
+  else
+    i= new (thd->mem_root) sp_instr_jump_if_not(ip, spcont, get_item(), this);
+
+  /*
+    BACKPATCH: Registering forward jump from
+    "case_stmt_action_when" to "case_stmt_action_then"
+    (jump_if_not from instruction 2 to 5, 5 to 8 ... in the example)
+  */
+
+  return
+    !MY_TEST(i) ||
+    sphead->push_backpatch(thd, i, spcont->push_label(thd, &empty_clex_str, 0)) ||
+    sphead->add_cont_backpatch(i) ||
+    sphead->add_instr(i);
+}
+
+/**
+  Helper action for a case then statements.
+  This helper is used for both 'simple' and 'searched' cases.
+  @param lex the parser lex context
+*/
+
+int LEX::case_stmt_action_then()
+{
+  uint ip= sphead->instructions();
+  sp_instr_jump *i= new (thd->mem_root) sp_instr_jump(ip, spcont);
+  if (!MY_TEST(i) || sphead->add_instr(i))
+    return 1;
+
+  /*
+    BACKPATCH: Resolving forward jump from
+    "case_stmt_action_when" to "case_stmt_action_then"
+    (jump_if_not from instruction 2 to 5, 5 to 8 ... in the example)
+  */
+
+  sphead->backpatch(spcont->pop_label());
+
+  /*
+    BACKPATCH: Registering forward jump from
+    "case_stmt_action_then" to after END CASE
+    (jump from instruction 4 to 12, 7 to 12 ... in the example)
+  */
+
+  return sphead->push_backpatch(thd, i, spcont->last_label());
+}
+
+
+/**
+  Helper action for a SET statement.
+  Used to push a system variable into the assignment list.
+
+  @param tmp      the system variable with base name
+  @param var_type the scope of the variable
+  @param val      the value being assigned to the variable
+
+  @return TRUE if error, FALSE otherwise.
+*/
+
+bool
+LEX::set_system_variable(enum enum_var_type var_type,
+                         sys_var *sysvar, const Lex_ident_sys_st *base_name,
+                         Item *val)
+{
+  set_var *setvar;
+
+  /* No AUTOCOMMIT from a stored function or trigger. */
+  if (spcont && sysvar == Sys_autocommit_ptr)
+    sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
+
+  if (val && val->type() == Item::FIELD_ITEM &&
+      ((Item_field*)val)->table_name.str)
+  {
+    my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), sysvar->name.str);
+    return TRUE;
+  }
+
+  if (!(setvar= new (thd->mem_root) set_var(thd, var_type, sysvar,
+                                            base_name, val)))
+    return TRUE;
+
+  return var_list.push_back(setvar, thd->mem_root);
+}
+
+
+/**
+  Helper action for a SET statement.
+  Used to SET a field of NEW row.
+
+  @param name     the field name
+  @param val      the value being assigned to the row
+
+  @return TRUE if error, FALSE otherwise.
+*/
+
+bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val)
+{
+  Item_trigger_field *trg_fld;
+  sp_instr_set_trigger_field *sp_fld;
+
+  /* QQ: Shouldn't this be field's default value ? */
+  if (! val)
+    val= new (thd->mem_root) Item_null(thd);
+
+  DBUG_ASSERT(trg_chistics.action_time == TRG_ACTION_BEFORE &&
+              (trg_chistics.event == TRG_EVENT_INSERT ||
+               trg_chistics.event == TRG_EVENT_UPDATE));
+
+  trg_fld= new (thd->mem_root)
+            Item_trigger_field(thd, current_context(),
+                               Item_trigger_field::NEW_ROW,
+                               *name, UPDATE_ACL, FALSE);
+
+  if (unlikely(trg_fld == NULL))
+    return TRUE;
+
+  sp_fld= new (thd->mem_root)
+        sp_instr_set_trigger_field(sphead->instructions(),
+                                   spcont, trg_fld, val, this);
+
+  if (unlikely(sp_fld == NULL))
+    return TRUE;
+
+  /*
+    Let us add this item to list of all Item_trigger_field
+    objects in trigger.
+  */
+  trg_table_fields.link_in_list(trg_fld, &trg_fld->next_trg_field);
+
+  return sphead->add_instr(sp_fld);
+}
+
+
+/**
+  Create an object to represent a SP variable in the Item-hierarchy.
+
+  @param  name        The SP variable name.
+  @param  spvar       The SP variable (optional).
+  @param  start_in_q  Start position of the SP variable name in the query.
+  @param  end_in_q    End position of the SP variable name in the query.
+
+  @remark If spvar is not specified, the name is used to search for the
+          variable in the parse-time context. If the variable does not
+          exist, a error is set and NULL is returned to the caller.
+
+  @return An Item_splocal object representing the SP variable, or NULL on error.
+*/
+Item_splocal*
+LEX::create_item_for_sp_var(const Lex_ident_cli_st *cname, sp_variable *spvar)
+{
+  const Sp_rcontext_handler *rh;
+  Item_splocal *item;
+  const char *start_in_q= cname->pos();
+  const char *end_in_q= cname->end();
+  uint pos_in_q, len_in_q;
+  Lex_ident_sys name(thd, cname);
+
+  if (name.is_null())
+    return NULL;  // EOM
+
+  /* If necessary, look for the variable. */
+  if (spcont && !spvar)
+    spvar= find_variable(&name, &rh);
+
+  if (!spvar)
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name.str);
+    return NULL;
+  }
+
+  DBUG_ASSERT(spcont && spvar);
+
+  /* Position and length of the SP variable name in the query. */
+  pos_in_q= (uint)(start_in_q - sphead->m_tmp_query);
+  len_in_q= (uint)(end_in_q - start_in_q);
+
+  item= new (thd->mem_root)
+    Item_splocal(thd, rh, &name, spvar->offset, spvar->type_handler(),
+                 pos_in_q, len_in_q);
+
+#ifdef DBUG_ASSERT_EXISTS
+  if (item)
+    item->m_sp= sphead;
+#endif
+
+  return item;
+}
+
+
+/**
+  Helper to resolve the SQL:2003 Syntax exception 1) in <in predicate>.
+  See SQL:2003, Part 2, section 8.4 <in predicate>, Note 184, page 383.
+  This function returns the proper item for the SQL expression
+  <code>left [NOT] IN ( expr )</code>
+  @param thd the current thread
+  @param left the in predicand
+  @param equal true for IN predicates, false for NOT IN predicates
+  @param expr first and only expression of the in value list
+  @return an expression representing the IN predicate.
+*/
+Item* handle_sql2003_note184_exception(THD *thd, Item* left, bool equal,
+                                       Item *expr)
+{
+  /*
+    Relevant references for this issue:
+    - SQL:2003, Part 2, section 8.4 <in predicate>, page 383,
+    - SQL:2003, Part 2, section 7.2 <row value expression>, page 296,
+    - SQL:2003, Part 2, section 6.3 <value expression primary>, page 174,
+    - SQL:2003, Part 2, section 7.15 <subquery>, page 370,
+    - SQL:2003 Feature F561, "Full value expressions".
+
+    The exception in SQL:2003 Note 184 means:
+    Item_singlerow_subselect, which corresponds to a <scalar subquery>,
+    should be re-interpreted as an Item_in_subselect, which corresponds
+    to a <table subquery> when used inside an <in predicate>.
+
+    Our reading of Note 184 is reccursive, so that all:
+    - IN (( <subquery> ))
+    - IN ((( <subquery> )))
+    - IN '('^N <subquery> ')'^N
+    - etc
+    should be interpreted as a <table subquery>, no matter how deep in the
+    expression the <subquery> is.
+  */
+
+  Item *result;
+
+  DBUG_ENTER("handle_sql2003_note184_exception");
+
+  if (expr->type() == Item::SUBSELECT_ITEM)
+  {
+    Item_subselect *expr2 = (Item_subselect*) expr;
+
+    if (expr2->substype() == Item_subselect::SINGLEROW_SUBS)
+    {
+      Item_singlerow_subselect *expr3 = (Item_singlerow_subselect*) expr2;
+      st_select_lex *subselect;
+
+      /*
+        Implement the mandated change, by altering the semantic tree:
+          left IN Item_singlerow_subselect(subselect)
+        is modified to
+          left IN (subselect)
+        which is represented as
+          Item_in_subselect(left, subselect)
+      */
+      subselect= expr3->invalidate_and_restore_select_lex();
+      result= new (thd->mem_root) Item_in_subselect(thd, left, subselect);
+
+      if (! equal)
+        result = negate_expression(thd, result);
+
+      DBUG_RETURN(result);
+    }
+  }
+
+  if (equal)
+    result= new (thd->mem_root) Item_func_eq(thd, left, expr);
+  else
+    result= new (thd->mem_root) Item_func_ne(thd, left, expr);
+
+  DBUG_RETURN(result);
+}
+
+/**
+  Create a separate LEX for each assignment if in SP.
+
+  If we are in SP we want have own LEX for each assignment.
+  This is mostly because it is hard for several sp_instr_set
+  and sp_instr_set_trigger instructions share one LEX.
+  (Well, it is theoretically possible but adds some extra
+  overhead on preparation for execution stage and IMO less
+  robust).
+
+  QQ: May be we should simply prohibit group assignments in SP?
+
+  @see sp_create_assignment_instr
+
+  @param thd           Thread context
+  @param pos           The position in the raw SQL buffer
+*/
+
+
+bool sp_create_assignment_lex(THD *thd, const char *pos)
+{
+  if (thd->lex->sphead)
+  {
+    sp_lex_local *new_lex;
+    if (!(new_lex= new (thd->mem_root) sp_lex_set_var(thd, thd->lex)) ||
+        new_lex->main_select_push())
+      return true;
+    new_lex->sphead->m_tmp_query= pos;
+    return thd->lex->sphead->reset_lex(thd, new_lex);
+  }
+  return false;
+}
+
+
+/**
+  Create a SP instruction for a SET assignment.
+
+  @see sp_create_assignment_lex
+
+  @param thd              - Thread context
+  @param no_lookahead     - True if the parser has no lookahead
+  @param need_set_keyword - if a SET statement "SET a=10",
+                            or a direct assignment overwise "a:=10"
+  @return false if success, true otherwise.
+*/
+
+bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
+                                bool need_set_keyword)
+{
+  LEX *lex= thd->lex;
+
+  if (lex->sphead)
+  {
+    if (!lex->var_list.is_empty())
+    {
+      /*
+        - Every variable assignment from the same SET command, e.g.:
+            SET @var1=expr1, @var2=expr2;
+          produce each own sp_create_assignment_instr() call
+          lex->var_list.elements is 1 in this case.
+        - This query:
+            SET TRANSACTION READ ONLY, ISOLATION LEVEL SERIALIZABLE;
+          in translated to:
+            SET tx_read_only=1, tx_isolation=ISO_SERIALIZABLE;
+          but produces a single sp_create_assignment_instr() call
+          which includes the query fragment covering both options.
+      */
+      DBUG_ASSERT(lex->var_list.elements >= 1 && lex->var_list.elements <= 2);
+      /*
+        sql_mode=ORACLE's direct assignment of a global variable
+        is not possible by the grammar.
+      */
+      DBUG_ASSERT(lex->option_type != OPT_GLOBAL || need_set_keyword);
+      /*
+        We have assignment to user or system variable or
+        option setting, so we should construct sp_instr_stmt
+        for it.
+      */
+      Lex_input_stream *lip= &thd->m_parser_state->m_lip;
+
+      /*
+        Extract the query statement from the tokenizer.  The
+        end is either lip->ptr, if there was no lookahead,
+        lip->tok_end otherwise.
+      */
+      static const LEX_CSTRING setlc= { STRING_WITH_LEN("SET ") };
+      static const LEX_CSTRING setgl= { STRING_WITH_LEN("SET GLOBAL ") };
+      const char *qend= no_lookahead ? lip->get_ptr() : lip->get_tok_end();
+      Lex_cstring qbuf(lex->sphead->m_tmp_query, qend);
+      if (lex->new_sp_instr_stmt(thd,
+                                 lex->option_type == OPT_GLOBAL ? setgl :
+                                 need_set_keyword ?               setlc :
+                                                                  null_clex_str,
+                                 qbuf))
+        return true;
+    }
+    lex->pop_select();
+    if (lex->check_main_unit_semantics())
+    {
+      /*
+        "lex" can be referrenced by:
+        - sp_instr_set                          SET a= expr;
+        - sp_instr_set_row_field                SET r.a= expr;
+        - sp_instr_stmt (just generated above)  SET @a= expr;
+        In this case, "lex" is fully owned by sp_instr_xxx and it will
+        be deleted by the destructor ~sp_instr_xxx().
+        So we should remove "lex" from the stack sp_head::m_lex,
+        to avoid double free.
+        Note, in case "lex" is not owned by any sp_instr_xxx,
+        it's also safe to remove it from the stack right now.
+        So we can remove it unconditionally, without testing lex->sp_lex_in_use.
+      */
+      lex->sphead->restore_lex(thd);
+      return true;
+    }
+    enum_var_type inner_option_type= lex->option_type;
+    if (lex->sphead->restore_lex(thd))
+      return true;
+    /* Copy option_type to outer lex in case it has changed. */
+    thd->lex->option_type= inner_option_type;
+  }
+  return false;
+}
+
+
+void LEX::add_key_to_list(LEX_CSTRING *field_name,
+                          enum Key::Keytype type, bool check_exists)
+{
+  Key *key;
+  MEM_ROOT *mem_root= thd->mem_root;
+  key= new (mem_root)
+        Key(type, &null_clex_str, HA_KEY_ALG_UNDEF, false,
+             DDL_options(check_exists ?
+                         DDL_options::OPT_IF_NOT_EXISTS :
+                         DDL_options::OPT_NONE));
+  key->columns.push_back(new (mem_root) Key_part_spec(field_name, 0),
+                         mem_root);
+  alter_info.key_list.push_back(key, mem_root);
+}
+
+
+bool LEX::add_alter_list(const char *name, Virtual_column_info *expr,
+                         bool exists)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+  Alter_column *ac= new (mem_root) Alter_column(name, expr, exists);
+  if (unlikely(ac == NULL))
+    return true;
+  alter_info.alter_list.push_back(ac, mem_root);
+  alter_info.flags|= ALTER_CHANGE_COLUMN_DEFAULT;
+  return false;
+}
+
+
+void LEX::init_last_field(Column_definition *field,
+                          const LEX_CSTRING *field_name,
+                          const CHARSET_INFO *cs)
+{
+  last_field= field;
+
+  field->field_name= *field_name;
+
+  /* reset LEX fields that are used in Create_field::set_and_check() */
+  charset= cs;
+}
+
+
+bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
+{
+  /*
+     if charset is NULL - we're parsing a field declaration.
+     we cannot call find_bin_collation for a field here, because actual
+     field charset is determined in get_sql_field_charset() much later.
+     so we only set a flag.
+  */
+  if (!charset)
+  {
+    charset= cs;
+    last_field->flags|= bin ? BINCMP_FLAG : 0;
+    return false;
+  }
+
+  charset= bin ? find_bin_collation(cs ? cs : charset)
+               :                    cs ? cs : charset;
+  return charset == NULL;
+}
+
+
+Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
+{
+  Virtual_column_info *v= new (thd->mem_root) Virtual_column_info();
+  if (unlikely(!v))
+     return 0;
+   v->expr= expr;
+   v->utf8= 0;  /* connection charset */
+   return v;
+}
+
+
+
 /**
   @note The order of the elements of this array must correspond to
   the order of elements in enum_binlog_stmt_unsafe.
@@ -206,6 +724,7 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   table->map= 1; //To ensure correct calculation of const item
   table_list->table= table;
   table_list->cacheable_table= false;
+  lex->create_last_non_select_table= table_list;
   return FALSE;
 }
 
@@ -5580,9 +6099,22 @@ sp_variable *LEX::sp_param_init(LEX_CSTRING *name)
 }
 
 
-bool LEX::sp_param_fill_definition(sp_variable *spvar)
+bool LEX::sp_param_fill_definition(sp_variable *spvar,
+                                   const Lex_field_type_st &def)
 {
-  return sphead->fill_spvar_definition(thd, last_field, &spvar->name);
+  return
+    last_field->set_attributes(thd, def, charset,
+                               COLUMN_DEFINITION_ROUTINE_PARAM) ||
+    sphead->fill_spvar_definition(thd, last_field, &spvar->name);
+}
+
+
+bool LEX::sf_return_fill_definition(const Lex_field_type_st &def)
+{
+  return
+    last_field->set_attributes(thd, def, charset,
+                               COLUMN_DEFINITION_FUNCTION_RETURN) ||
+    sphead->fill_field_definition(thd, last_field);
 }
 
 
@@ -6802,7 +7334,7 @@ bool LEX::sp_exit_block(THD *thd, sp_label *lab, Item *when)
   sp_instr_jump_if_not *i= new (thd->mem_root)
                            sp_instr_jump_if_not(sphead->instructions(),
                                                 spcont,
-                                                when, thd->lex);
+                                                when, this);
   if (unlikely(i == NULL) ||
       unlikely(sphead->add_instr(i)) ||
       unlikely(sp_exit_block(thd, lab)))
@@ -6865,17 +7397,40 @@ bool LEX::sp_continue_loop(THD *thd, sp_label *lab)
 }
 
 
+bool LEX::sp_continue_statement(THD *thd)
+{
+  sp_label *lab= spcont->find_label_current_loop_start();
+  if (unlikely(!lab))
+  {
+    my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", "");
+    return true;
+  }
+  DBUG_ASSERT(lab->type == sp_label::ITERATION);
+  return sp_continue_loop(thd, lab);
+}
+
+
+bool LEX::sp_continue_statement(THD *thd, const LEX_CSTRING *label_name)
+{
+  sp_label *lab= spcont->find_label(label_name);
+  if (!lab || lab->type != sp_label::ITERATION)
+  {
+    my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", label_name->str);
+    return true;
+  }
+  return sp_continue_loop(thd, lab);
+}
+
+
 bool LEX::sp_continue_loop(THD *thd, sp_label *lab, Item *when)
 {
-  if (!when)
-    return sp_continue_loop(thd, lab);
-
+  DBUG_ASSERT(when);
   DBUG_ASSERT(sphead == thd->lex->sphead);
   DBUG_ASSERT(spcont == thd->lex->spcont);
   sp_instr_jump_if_not *i= new (thd->mem_root)
                            sp_instr_jump_if_not(sphead->instructions(),
                                                 spcont,
-                                                when, thd->lex);
+                                                when, this);
   if (unlikely(i == NULL) ||
       unlikely(sphead->add_instr(i)) ||
       unlikely(sp_continue_loop(thd, lab)))
@@ -6885,7 +7440,7 @@ bool LEX::sp_continue_loop(THD *thd, sp_label *lab, Item *when)
 }
 
 
-bool LEX::sp_continue_statement(THD *thd, Item *when)
+bool sp_expr_lex::sp_continue_when_statement(THD *thd)
 {
   sp_label *lab= spcont->find_label_current_loop_start();
   if (unlikely(!lab))
@@ -6894,12 +7449,12 @@ bool LEX::sp_continue_statement(THD *thd, Item *when)
     return true;
   }
   DBUG_ASSERT(lab->type == sp_label::ITERATION);
-  return sp_continue_loop(thd, lab, when);
+  return sp_continue_loop(thd, lab, get_item());
 }
 
 
-bool LEX::sp_continue_statement(THD *thd, const LEX_CSTRING *label_name,
-                                Item *when)
+bool sp_expr_lex::sp_continue_when_statement(THD *thd,
+                                             const LEX_CSTRING *label_name)
 {
   sp_label *lab= spcont->find_label(label_name);
   if (!lab || lab->type != sp_label::ITERATION)
@@ -6907,7 +7462,7 @@ bool LEX::sp_continue_statement(THD *thd, const LEX_CSTRING *label_name,
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", label_name->str);
     return true;
   }
-  return sp_continue_loop(thd, lab, when);
+  return sp_continue_loop(thd, lab, get_item());
 }
 
 
@@ -6972,10 +7527,10 @@ void LEX::sp_pop_loop_empty_label(THD *thd)
 }
 
 
-bool LEX::sp_while_loop_expression(THD *thd, Item *expr)
+bool LEX::sp_while_loop_expression(THD *thd, Item *item)
 {
   sp_instr_jump_if_not *i= new (thd->mem_root)
-    sp_instr_jump_if_not(sphead->instructions(), spcont, expr, this);
+    sp_instr_jump_if_not(sphead->instructions(), spcont, item, this);
   return (unlikely(i == NULL) ||
           /* Jumping forward */
           unlikely(sphead->push_backpatch(thd, i, spcont->last_label())) ||
@@ -7710,7 +8265,7 @@ uint binlog_unsafe_map[256];
 
 #define UNSAFE(a, b, c) \
   { \
-  DBUG_PRINT("unsafe_mixed_statement", ("SETTING BASE VALUES: %s, %s, %02X\n", \
+  DBUG_PRINT("unsafe_mixed_statement", ("SETTING BASE VALUES: %s, %s, %02X", \
     LEX::stmt_accessed_table_string(a), \
     LEX::stmt_accessed_table_string(b), \
     c)); \
@@ -10381,6 +10936,89 @@ bool LEX::stmt_create_stored_function_start(const DDL_options_st &options,
 }
 
 
+bool LEX::stmt_drop_function(const DDL_options_st &options,
+                             const Lex_ident_sys_st &db,
+                             const Lex_ident_sys_st &name)
+{
+  if (unlikely(db.str && check_db_name((LEX_STRING*) &db)))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
+    return true;
+  }
+  if (unlikely(sphead))
+  {
+    my_error(ER_SP_NO_DROP_SP, MYF(0), "FUNCTION");
+    return true;
+  }
+  set_command(SQLCOM_DROP_FUNCTION, options);
+  spname= new (thd->mem_root) sp_name(&db, &name, true);
+  return spname == NULL;
+}
+
+
+bool LEX::stmt_drop_function(const DDL_options_st &options,
+                             const Lex_ident_sys_st &name)
+{
+  LEX_CSTRING db= {0, 0};
+  if (unlikely(sphead))
+  {
+    my_error(ER_SP_NO_DROP_SP, MYF(0), "FUNCTION");
+    return true;
+  }
+  if (thd->db.str && unlikely(copy_db_to(&db)))
+    return true;
+  set_command(SQLCOM_DROP_FUNCTION, options);
+  spname= new (thd->mem_root) sp_name(&db, &name, false);
+  return spname == NULL;
+}
+
+
+bool LEX::stmt_drop_procedure(const DDL_options_st &options,
+                              sp_name *name)
+{
+  if (unlikely(sphead))
+  {
+    my_error(ER_SP_NO_DROP_SP, MYF(0), "PROCEDURE");
+    return true;
+  }
+  set_command(SQLCOM_DROP_PROCEDURE, options);
+  spname= name;
+  return false;
+}
+
+
+bool LEX::stmt_alter_function_start(sp_name *name)
+{
+  if (unlikely(sphead))
+  {
+    my_error(ER_SP_NO_DROP_SP, MYF(0), "FUNCTION");
+    return true;
+  }
+  if (main_select_push())
+    return true;
+  sp_chistics.init();
+  sql_command= SQLCOM_ALTER_FUNCTION;
+  spname= name;
+  return false;
+}
+
+
+bool LEX::stmt_alter_procedure_start(sp_name *name)
+{
+  if (unlikely(sphead))
+  {
+    my_error(ER_SP_NO_DROP_SP, MYF(0), "PROCEDURE");
+    return true;
+  }
+  if (main_select_push())
+    return true;
+  sp_chistics.init();
+  sql_command= SQLCOM_ALTER_PROCEDURE;
+  spname= name;
+  return false;
+}
+
+
 Spvar_definition *LEX::row_field_name(THD *thd, const Lex_ident_sys_st &name)
 {
   Spvar_definition *res;
@@ -10450,3 +11088,45 @@ bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
   return false;
 }
 
+
+bool sp_expr_lex::sp_repeat_loop_finalize(THD *thd)
+{
+  uint ip= sphead->instructions();
+  sp_label *lab= spcont->last_label();  /* Jumping back */
+  sp_instr_jump_if_not *i= new (thd->mem_root)
+    sp_instr_jump_if_not(ip, spcont, get_item(), lab->ip, this);
+  if (unlikely(i == NULL) ||
+      unlikely(sphead->add_instr(i)))
+    return true;
+  /* We can shortcut the cont_backpatch here */
+  i->m_cont_dest= ip+1;
+  return false;
+}
+
+
+bool sp_expr_lex::sp_if_expr(THD *thd)
+{
+  uint ip= sphead->instructions();
+  sp_instr_jump_if_not *i= new (thd->mem_root)
+                           sp_instr_jump_if_not(ip, spcont, get_item(), this);
+  return
+    (unlikely(i == NULL) ||
+    unlikely(sphead->push_backpatch(thd, i,
+                                    spcont->push_label(thd, &empty_clex_str,
+                                                       0))) ||
+    unlikely(sphead->add_cont_backpatch(i)) ||
+    unlikely(sphead->add_instr(i)));
+}
+
+
+bool LEX::sp_if_after_statements(THD *thd)
+{
+  uint ip= sphead->instructions();
+  sp_instr_jump *i= new (thd->mem_root) sp_instr_jump(ip, spcont);
+  if (unlikely(i == NULL) ||
+      unlikely(sphead->add_instr(i)))
+    return true;
+  sphead->backpatch(spcont->pop_label());
+  sphead->push_backpatch(thd, i, spcont->push_label(thd, &empty_clex_str, 0));
+  return false;
+}

@@ -228,8 +228,6 @@ const char *const RDB_TTL_COL_QUALIFIER = "ttl_col";
 
 #define ROCKSDB_SIZEOF_AUTOINC_VALUE sizeof(longlong)
 
-#define ROCKSDB_SIZEOF_TABLE_CREATION_TS sizeof(uint64_t)
-
 /*
   Maximum index prefix length in bytes.
 */

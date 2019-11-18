@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -343,10 +343,10 @@ page_cur_insert_rec_write_log(
 /***********************************************************//**
 Parses a log record of a record insert on a page.
 @return end of log record or NULL */
-byte*
+const byte*
 page_cur_parse_insert_rec(
 /*======================*/
-	ibool		is_short,/*!< in: TRUE if short inserts */
+	bool		is_short,/*!< in: true if short inserts */
 	const byte*	ptr,	/*!< in: buffer */
 	const byte*	end_ptr,/*!< in: buffer end */
 	buf_block_t*	block,	/*!< in: page or NULL */
@@ -355,22 +355,22 @@ page_cur_parse_insert_rec(
 /**********************************************************//**
 Parses a log record of copying a record list end to a new created page.
 @return end of log record or NULL */
-byte*
+const byte*
 page_parse_copy_rec_list_to_created_page(
 /*=====================================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
 	buf_block_t*	block,	/*!< in: page or NULL */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	mtr_t*		mtr);	/*!< in: mtr or NULL */
 /***********************************************************//**
 Parses log record of a record delete on a page.
 @return pointer to record end or NULL */
-byte*
+const byte*
 page_cur_parse_delete_rec(
 /*======================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
 	buf_block_t*	block,	/*!< in: page or NULL */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	mtr_t*		mtr);	/*!< in: mtr or NULL */

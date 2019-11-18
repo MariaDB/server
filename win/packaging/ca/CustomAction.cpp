@@ -717,12 +717,12 @@ LExit:
 /* 
   Sets Innodb buffer pool size (1/8 of RAM by default), if not already specified
   via command line.
-  Calculates innodb log file size as min(50, innodb buffer pool size/8)
+  Calculates innodb log file size as min(100, innodb buffer pool size/4)
 */
 extern "C" UINT __stdcall PresetDatabaseProperties(MSIHANDLE hInstall)
 {
   unsigned long long InnodbBufferPoolSize= 256;
-  unsigned long long InnodbLogFileSize= 50;
+  unsigned long long InnodbLogFileSize= 100;
   wchar_t buff[MAX_PATH];
   UINT er = ERROR_SUCCESS;
   HRESULT hr= S_OK;
@@ -765,7 +765,7 @@ extern "C" UINT __stdcall PresetDatabaseProperties(MSIHANDLE hInstall)
     swprintf_s(buff, L"%llu",InnodbBufferPoolSize);
     MsiSetPropertyW(hInstall, L"BUFFERPOOLSIZE", buff);
   }
-  InnodbLogFileSize = min(50, InnodbBufferPoolSize);
+  InnodbLogFileSize = min(100, 2 * InnodbBufferPoolSize);
   swprintf_s(buff, L"%llu",InnodbLogFileSize);
   MsiSetPropertyW(hInstall, L"LOGFILESIZE", buff);
 

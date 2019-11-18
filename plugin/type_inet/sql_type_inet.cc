@@ -984,12 +984,12 @@ public:
              unpack(to, from, from_end, param_data);
   }
 
-  uint max_packed_col_length(uint max_length)
+  uint max_packed_col_length(uint max_length) override
   {
     return StringPack::max_packed_col_length(max_length);
   }
 
-  uint packed_col_length(const uchar *data_ptr, uint length)
+  uint packed_col_length(const uchar *data_ptr, uint length) override
   {
     return StringPack::packed_col_length(data_ptr, length);
   }

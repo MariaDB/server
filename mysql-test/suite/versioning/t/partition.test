@@ -2,6 +2,8 @@
 -- source suite/versioning/common.inc
 -- source suite/versioning/engines.inc
 
+call mtr.add_suppression("need more HISTORY partitions");
+
 set system_versioning_alter_history=keep;
 --echo # Check conventional partitioning on temporal tables
 
@@ -245,14 +247,6 @@ alter table t1 partition by system_time limit 1 (
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 0 second (
-    partition p0 history,
-    partition p1 history,
-    partition pn current);
-
---error ER_PARSE_ERROR
-create or replace table t1 (x int)
-with system versioning
-partition by system_time interval 1 second starts 12345 (
     partition p0 history,
     partition p1 history,
     partition pn current);

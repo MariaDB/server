@@ -2053,7 +2053,7 @@ int READ_INFO::read_xml(THD *thd)
       chr= read_value(delim, &value);
       if (attribute.length() > 0 && value.length() > 0)
       {
-        DBUG_PRINT("read_xml", ("lev:%i att:%s val:%s\n",
+        DBUG_PRINT("read_xml", ("lev:%i att:%s val:%s",
                                 level + 1,
                                 attribute.c_ptr_safe(),
                                 value.c_ptr_safe()));

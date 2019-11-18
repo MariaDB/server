@@ -100,11 +100,10 @@ void
 buf_dblwr_sync_datafiles();
 
 /********************************************************************//**
-Flushes possible buffered writes from the doublewrite memory buffer to disk,
-and also wakes up the aio thread if simulated aio is used. It is very
-important to call this function after a batch of writes has been posted,
-and also when we may have to wait for a page latch! Otherwise a deadlock
-of threads can occur. */
+Flushes possible buffered writes from the doublewrite memory buffer to disk.
+It is very important to call this function after a batch of writes
+has been posted, and also when we may have to wait for a page latch!
+Otherwise a deadlock of threads can occur. */
 void
 buf_dblwr_flush_buffered_writes();
 

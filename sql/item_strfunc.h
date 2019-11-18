@@ -1663,8 +1663,7 @@ public:
   Item_func_uuid(THD *thd): Item_str_func(thd) {}
   bool fix_length_and_dec()
   {
-    collation.set(system_charset_info,
-                  DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
+    collation.set(DTCollation_numeric());
     fix_char_length(MY_UUID_STRING_LENGTH);
     return FALSE;
   }

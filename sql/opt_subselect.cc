@@ -2681,9 +2681,17 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
       {
         do  /* For all equalities on all key parts */
         {
-          /* Check if this is "t.keypart = expr(outer_tables) */
+          /*
+            Check if this is "t.keypart = expr(outer_tables)
+
+            Don't allow variants that can produce duplicates:
+            - Dont allow "ref or null"
+            - the keyuse (that is, the operation) must be null-rejecting,
+              unless the other expression is non-NULLable.
+          */
           if (!(keyuse->used_tables & sj_inner_tables) &&
-              !(keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL))
+              !(keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL) &&
+              (keyuse->null_rejecting || !keyuse->val->maybe_null))
           {
             bound_parts |= 1 << keyuse->keypart;
           }
@@ -3136,7 +3144,22 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
 
     *strategy= SJ_OPT_MATERIALIZE_SCAN;
     *read_time=    prefix_cost;
-    *record_count= prefix_rec_count / mat_info->rows_with_duplicates;
+    /*
+      Note: the next line means we did not remove the subquery's fanout from
+      *record_count. It needs to be removed, as the join prefix is
+
+        ntX  SJM-SCAN(it1 ... itN) | (ot1 ... otN) ...
+
+      here, the SJM-SCAN may have introduced subquery's fanout (duplicate rows,
+      rows that don't have matches in ot1_i). All this fanout is gone after
+      table otN (or earlier) but taking it into account is hard.
+
+      Some consolation here is that SJM-Scan strategy is applicable when the
+      subquery is smaller than tables otX. If the subquery has large cardinality,
+      we can greatly overestimate *record_count here, but it doesn't matter as
+      SJ-Materialization-Lookup is a better strategy anyway.
+    */
+    *record_count= prefix_rec_count;
     *handled_fanout= mat_nest->sj_inner_tables;
     if (unlikely(join->thd->trace_started()))
     {

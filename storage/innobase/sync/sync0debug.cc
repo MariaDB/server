@@ -1459,8 +1459,6 @@ sync_latch_meta_init()
 	LATCH_ADD_RWLOCK(DICT_OPERATION, SYNC_DICT_OPERATION,
 			 dict_operation_lock_key);
 
-	LATCH_ADD_RWLOCK(CHECKPOINT, SYNC_NO_ORDER_CHECK, checkpoint_lock_key);
-
 	LATCH_ADD_RWLOCK(FIL_SPACE, SYNC_FSP, fil_space_latch_key);
 
 	LATCH_ADD_RWLOCK(FTS_CACHE, SYNC_FTS_CACHE, fts_cache_rw_lock_key);

@@ -954,7 +954,6 @@ fil_mutex_enter_and_prepare_for_io(
 					break;
 				} else {
 					mutex_exit(&fil_system.mutex);
-					os_aio_simulated_wake_handler_threads();
 					os_thread_sleep(20000);
 					/* Flush tablespaces so that we can
 					close modified files in the LRU list */
@@ -4098,7 +4097,7 @@ inline void IORequest::set_fil_node(fil_node_t* node)
 			aligned
 @param[in] message	message for aio handler if non-sync aio
 			used, else ignored
-@param[in] ignore_missing_space true=ignore missing space duging read
+@param[in] ignore	whether to ignore out-of-bounds page_id
 @return DB_SUCCESS, or DB_TABLESPACE_DELETED
 	if we are trying to do i/o on a tablespace which does not exist */
 dberr_t
@@ -4111,7 +4110,7 @@ fil_io(
 	ulint			len,
 	void*			buf,
 	void*			message,
-	bool			ignore_missing_space)
+	bool			ignore)
 {
 	os_offset_t		offset;
 	IORequest		req_type(type);
@@ -4148,13 +4147,7 @@ fil_io(
 	} else if (req_type.is_read()
 		   && !recv_no_ibuf_operations
 		   && ibuf_page(page_id, zip_size, NULL)) {
-
 		mode = OS_AIO_IBUF;
-
-		/* Reduce probability of deadlock bugs in connection with ibuf:
-		do not let the ibuf i/o handler sleep */
-
-		req_type.clear_do_not_wake();
 	} else {
 		mode = OS_AIO_NORMAL;
 	}
@@ -4188,7 +4181,7 @@ fil_io(
 
 		mutex_exit(&fil_system.mutex);
 
-		if (!req_type.ignore_missing() && !ignore_missing_space) {
+		if (!ignore) {
 			ib::error()
 				<< "Trying to do I/O to a tablespace which"
 				" does not exist. I/O type: "
@@ -4200,16 +4193,13 @@ fil_io(
 		return(DB_TABLESPACE_DELETED);
 	}
 
-	ut_ad(mode != OS_AIO_IBUF || fil_type_is_data(space->purpose));
-
 	ulint		cur_page_no = page_id.page_no();
 	fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
 
 	for (;;) {
 
 		if (node == NULL) {
-
-			if (req_type.ignore_missing()) {
+			if (ignore) {
 				mutex_exit(&fil_system.mutex);
 				return(DB_ERROR);
 			}
@@ -4243,7 +4233,7 @@ fil_io(
 		    && fil_is_user_tablespace_id(space->id)) {
 			mutex_exit(&fil_system.mutex);
 
-			if (!req_type.ignore_missing()) {
+			if (!ignore) {
 				ib::error()
 					<< "Trying to do I/O to a tablespace"
 					" which exists without .ibd data file."
@@ -4271,8 +4261,7 @@ fil_io(
 	if (node->size <= cur_page_no
 	    && space->id != TRX_SYS_SPACE
 	    && fil_type_is_data(space->purpose)) {
-
-		if (req_type.ignore_missing()) {
+		if (ignore) {
 			/* If we can tolerate the non-existent pages, we
 			should return with DB_ERROR and let caller decide
 			what to do. */
@@ -4337,38 +4326,29 @@ fil_io(
 	return(err);
 }
 
-/**********************************************************************//**
-Waits for an aio operation to complete. This function is used to write the
-handler for completed requests. The aio array of pending requests is divided
-into segments (see os0file.cc for more info). The thread specifies which
-segment it wants to wait for. */
-void
-fil_aio_wait(
-/*=========*/
-	ulint	segment)	/*!< in: the number of the segment in the aio
-				array to wait for */
+#include <tpool.h>
+/**********************************************************************/
+
+/** Callback for AIO completion */
+void fil_aio_callback(const tpool::aiocb *cb)
 {
-	fil_node_t*	node;
-	IORequest	type;
-	void*		message;
+	os_aio_userdata_t *data=(os_aio_userdata_t *)cb->m_userdata;
+	fil_node_t* node= data->node;
+	void* message = data->message;
 
 	ut_ad(fil_validate_skip());
 
-	dberr_t	err = os_aio_handler(segment, &node, &message, &type);
-
-	ut_a(err == DB_SUCCESS);
+	ut_a(cb->m_err == DB_SUCCESS);
 
 	if (node == NULL) {
 		ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
 		return;
 	}
 
-	srv_set_io_thread_op_info(segment, "complete io for fil node");
-
 	mutex_enter(&fil_system.mutex);
 
-	fil_node_complete_io(node, type);
-	const fil_type_t	purpose	= node->space->purpose;
+	fil_node_complete_io(node, data->type);
+	ut_ad(node->space->purpose != FIL_TYPE_LOG);
 	const ulint		space_id= node->space->id;
 	bool			dblwr	= node->space->use_doublewrite();
 
@@ -4382,71 +4362,38 @@ fil_aio_wait(
 	deadlocks in the i/o system. We keep tablespace 0 data files always
 	open, and use a special i/o thread to serve insert buffer requests. */
 
-	switch (purpose) {
-	case FIL_TYPE_LOG:
-		srv_set_io_thread_op_info(segment, "complete io for log");
-		/* We use synchronous writing of the logs
-		and can only end up here when writing a log checkpoint! */
-		ut_a(ptrdiff_t(message) == 1);
-		/* It was a checkpoint write */
-		switch (srv_flush_t(srv_file_flush_method)) {
-		case SRV_O_DSYNC:
-		case SRV_NOSYNC:
-			break;
-		case SRV_FSYNC:
-		case SRV_LITTLESYNC:
-		case SRV_O_DIRECT:
-		case SRV_O_DIRECT_NO_FSYNC:
-#ifdef _WIN32
-		case SRV_ALL_O_DIRECT_FSYNC:
-#endif
-			fil_flush(SRV_LOG_SPACE_FIRST_ID);
-		}
 
-		DBUG_PRINT("ib_log", ("checkpoint info written"));
-		log_sys.complete_checkpoint();
-		return;
-	case FIL_TYPE_TABLESPACE:
-	case FIL_TYPE_TEMPORARY:
-	case FIL_TYPE_IMPORT:
-		srv_set_io_thread_op_info(segment, "complete io for buf page");
-
-		/* async single page writes from the dblwr buffer don't have
-		access to the page */
-		buf_page_t* bpage = static_cast<buf_page_t*>(message);
-		if (!bpage) {
-			return;
-		}
-
-		ulint offset = bpage->id.page_no();
-		if (dblwr && bpage->init_on_flush) {
-			bpage->init_on_flush = false;
-			dblwr = false;
-		}
-		dberr_t err = buf_page_io_complete(bpage, dblwr);
-		if (err == DB_SUCCESS) {
-			return;
-		}
-
-		ut_ad(type.is_read());
-		if (recv_recovery_is_on() && !srv_force_recovery) {
-			recv_sys.found_corrupt_fs = true;
-		}
-
-		if (fil_space_t* space = fil_space_acquire_for_io(space_id)) {
-			if (space == node->space) {
-				ib::error() << "Failed to read file '"
-					    << node->name
-					    << "' at offset " << offset
-					    << ": " << ut_strerr(err);
-			}
-
-			space->release_for_io();
-		}
+	/* async single page writes from the dblwr buffer don't have
+	access to the page */
+	buf_page_t* bpage = static_cast<buf_page_t*>(message);
+	if (!bpage) {
 		return;
 	}
 
-	ut_ad(0);
+	ulint offset = bpage->id.page_no();
+	if (dblwr && bpage->init_on_flush) {
+		bpage->init_on_flush = false;
+		dblwr = false;
+	}
+	dberr_t err = buf_page_io_complete(bpage, dblwr);
+	if (err == DB_SUCCESS) {
+		return;
+	}
+
+	ut_ad(data->type.is_read());
+	if (recv_recovery_is_on() && !srv_force_recovery) {
+		recv_sys.found_corrupt_fs = true;
+	}
+
+	if (fil_space_t* space = fil_space_acquire_for_io(space_id)) {
+		if (space == node->space) {
+			ib::error() << "Failed to read file '" << node->name
+				    << "' at offset " << offset << ": "
+				    << ut_strerr(err);
+		}
+
+		space->release_for_io();
+	}
 }
 
 /**********************************************************************//**

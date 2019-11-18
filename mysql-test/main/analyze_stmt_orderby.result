@@ -218,7 +218,8 @@ ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
-          "r_total_time_ms": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
           "filtered": 100,
           "r_filtered": 100,
           "attached_condition": "t0.a is not null"
@@ -234,7 +235,8 @@ ANALYZE
           "r_loops": 10,
           "rows": 1,
           "r_rows": 0.4,
-          "r_total_time_ms": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         }
@@ -304,7 +306,8 @@ ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
-          "r_total_time_ms": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
           "filtered": 100,
           "r_filtered": 100,
           "attached_condition": "t0.a is not null"
@@ -322,7 +325,8 @@ ANALYZE
       "r_loops": 10,
       "rows": 1,
       "r_rows": 0.4,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100
     }
@@ -362,7 +366,8 @@ ANALYZE
           "r_loops": 1,
           "rows": 1000,
           "r_rows": 1000,
-          "r_total_time_ms": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
           "filtered": 100,
           "r_filtered": 50,
           "attached_condition": "t2.a MOD 2 = 0"
@@ -410,7 +415,8 @@ ANALYZE
           "r_loops": 1,
           "rows": 10,
           "r_rows": 10,
-          "r_total_time_ms": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
           "filtered": 100,
           "r_filtered": 100
         },
@@ -421,7 +427,8 @@ ANALYZE
             "r_loops": 1,
             "rows": 10,
             "r_rows": 10,
-            "r_total_time_ms": "REPLACED",
+            "r_table_time_ms": "REPLACED",
+            "r_other_time_ms": "REPLACED",
             "filtered": 100,
             "r_filtered": 100
           },
@@ -480,7 +487,8 @@ ANALYZE
               "r_loops": 1,
               "rows": 5,
               "r_rows": 5,
-              "r_total_time_ms": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
               "filtered": 100,
               "r_filtered": 80,
               "attached_condition": "t6.b > 0 and t6.a <= 5"
@@ -492,7 +500,8 @@ ANALYZE
                 "r_loops": 1,
                 "rows": 7,
                 "r_rows": 7,
-                "r_total_time_ms": "REPLACED",
+                "r_table_time_ms": "REPLACED",
+                "r_other_time_ms": "REPLACED",
                 "filtered": 100,
                 "r_filtered": 100
               },
@@ -586,7 +595,8 @@ ANALYZE
       "r_loops": 1,
       "rows": 7,
       "r_rows": 20,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "using_index_for_group_by": true

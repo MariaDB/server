@@ -2321,7 +2321,7 @@ row_upd_sec_index_entry(
 		or was being created online, but not committed yet. It
 		is protected by index->lock. */
 
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
+		mtr_s_lock_index(index, &mtr);
 
 		switch (dict_index_get_online_status(index)) {
 		case ONLINE_INDEX_COMPLETE:
@@ -2457,17 +2457,27 @@ row_upd_sec_index_entry(
 				case DB_NO_REFERENCED_ROW:
 					err = DB_SUCCESS;
 					break;
+				case DB_LOCK_WAIT:
+					if (wsrep_debug) {
+						ib::warn() << "WSREP: sec index FK lock wait"
+							   << " index " << index->name
+							   << " table " << index->table->name
+							   << " query " << wsrep_thd_query(trx->mysql_thd);
+					}
+					break;
 				case DB_DEADLOCK:
 					if (wsrep_get_debug()) {
 						ib::warn() << "WSREP: sec index FK check fail for deadlock"
 							   << " index " << index->name
-							   << " table " << index->table->name;
+							   << " table " << index->table->name
+							   << " query " << wsrep_thd_query(trx->mysql_thd);
 					}
 					break;
 				default:
 					ib::error() << "WSREP: referenced FK check fail: " << ut_strerr(err)
 						    << " index " << index->name
-						    << " table " << index->table->name;
+						    << " table " << index->table->name
+						    << " query " << wsrep_thd_query(trx->mysql_thd);
 
 					break;
 				}
@@ -2509,8 +2519,7 @@ row_upd_sec_index_entry(
 	ut_a(entry);
 
 	/* Insert new index entry */
-	err = row_ins_sec_index_entry(index, entry, thr,
-				      node->is_delete != VERSIONED_DELETE);
+	err = row_ins_sec_index_entry(index, entry, thr, !node->is_delete);
 
 func_exit:
 	mem_heap_free(heap);
@@ -3091,7 +3100,7 @@ row_upd_clust_step(
 	if (dict_index_is_online_ddl(index)) {
 		ut_ad(node->table->id != DICT_INDEXES_ID);
 		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
+		mtr_s_lock_index(index, &mtr);
 	} else {
 		mode = BTR_MODIFY_LEAF;
 	}

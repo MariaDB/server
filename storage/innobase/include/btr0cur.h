@@ -566,11 +566,11 @@ void btr_cur_node_ptr_delete(btr_cur_t* parent, mtr_t* mtr)
 /***********************************************************//**
 Parses a redo log record of updating a record in-place.
 @return end of log record or NULL */
-byte*
+const byte*
 btr_cur_parse_update_in_place(
 /*==========================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< in/out: page or NULL */
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
 	dict_index_t*	index);	/*!< in: index corresponding to page */
@@ -578,11 +578,11 @@ btr_cur_parse_update_in_place(
 Parses the redo log record for delete marking or unmarking of a clustered
 index record.
 @return end of log record or NULL */
-byte*
+const byte*
 btr_cur_parse_del_mark_set_clust_rec(
 /*=================================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< in/out: page or NULL */
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
 	dict_index_t*	index);	/*!< in: index corresponding to page */
@@ -590,11 +590,11 @@ btr_cur_parse_del_mark_set_clust_rec(
 Parses the redo log record for delete marking or unmarking of a secondary
 index record.
 @return end of log record or NULL */
-byte*
+const byte*
 btr_cur_parse_del_mark_set_sec_rec(
 /*===============================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< in/out: page or NULL */
 	page_zip_des_t*	page_zip);/*!< in/out: compressed page, or NULL */
 

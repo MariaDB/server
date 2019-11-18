@@ -201,7 +201,6 @@ const size_t RDB_SIZEOF_INDEX_TYPE = sizeof(uchar);
 const size_t RDB_SIZEOF_KV_VERSION = sizeof(uint16);
 const size_t RDB_SIZEOF_INDEX_FLAGS = sizeof(uint32);
 const size_t RDB_SIZEOF_AUTO_INCREMENT_VERSION = sizeof(uint16);
-const size_t RDB_SIZEOF_TABLE_CREATION_TS_VERSION = sizeof(uint16);
 
 // Possible return values for rdb_index_field_unpack_t functions.
 enum {
@@ -505,7 +504,6 @@ class Rdb_key_def {
     MAX_INDEX_ID = 7,
     DDL_CREATE_INDEX_ONGOING = 8,
     AUTO_INC = 9,
-    TABLE_CREATION_TS = 10,
     END_DICT_INDEX_ID = 255
   };
 
@@ -519,7 +517,6 @@ class Rdb_key_def {
     MAX_INDEX_ID_VERSION = 1,
     DDL_CREATE_INDEX_ONGOING_VERSION = 1,
     AUTO_INCREMENT_VERSION = 1,
-    TABLE_CREATION_TS_VERSION = 1
     // Version for index stats is stored in IndexStats struct
   };
 
@@ -1095,28 +1092,24 @@ class Rdb_tbl_def {
   Rdb_tbl_def &operator=(const Rdb_tbl_def &) = delete;
 
   explicit Rdb_tbl_def(const std::string &name)
-      : m_key_descr_arr(nullptr), m_hidden_pk_val(0), m_auto_incr_val(0) {
+      : m_key_descr_arr(nullptr), m_hidden_pk_val(0), m_auto_incr_val(0),
+        m_update_time(0), m_create_time(CREATE_TIME_UNKNOWN) {
     set_name(name);
   }
 
   Rdb_tbl_def(const char *const name, const size_t len)
-      : m_key_descr_arr(nullptr), m_hidden_pk_val(0), m_auto_incr_val(0) {
+      : m_key_descr_arr(nullptr), m_hidden_pk_val(0), m_auto_incr_val(0),
+        m_update_time(0), m_create_time(CREATE_TIME_UNKNOWN) {
     set_name(std::string(name, len));
   }
 
   explicit Rdb_tbl_def(const rocksdb::Slice &slice, const size_t pos = 0)
-      : m_key_descr_arr(nullptr), m_hidden_pk_val(0), m_auto_incr_val(0) {
+      : m_key_descr_arr(nullptr), m_hidden_pk_val(0), m_auto_incr_val(0),
+        m_update_time(0), m_create_time(CREATE_TIME_UNKNOWN) {
     set_name(std::string(slice.data() + pos, slice.size() - pos));
   }
 
   ~Rdb_tbl_def();
-
-  // time values are shown in SHOW TABLE STATUS
-  void put_creation_time(Rdb_dict_manager *dict_manager,
-                         rocksdb::WriteBatchBase *batch, time_t timeval);
-  time_t get_creation_time(Rdb_dict_manager *dict_manager);
-
-  time_t update_time = 0; // in-memory only value, maintained right here
 
   void check_and_set_read_free_rpl_table();
 
@@ -1144,11 +1137,14 @@ class Rdb_tbl_def {
   const std::string &base_partition() const { return m_partition; }
   GL_INDEX_ID get_autoincr_gl_index_id();
 
+  time_t get_create_time();
+  std::atomic<time_t> m_update_time; // in-memory only value
+
  private:
   const time_t CREATE_TIME_UNKNOWN= 1;
   // CREATE_TIME_UNKNOWN means "didn't try to read, yet"
-  // 0 means "no data available" (and SQL layer shares this)
-  time_t create_time = CREATE_TIME_UNKNOWN;
+  // 0 means "no data available"
+  std::atomic<time_t> m_create_time;
 };
 
 /*
@@ -1363,10 +1359,6 @@ class Rdb_binlog_manager {
   value: version, {max auto_increment so far}
   max auto_increment is 8 bytes
 
-  10. Table creation timestamp
-  key: Rdb_key_def::TABLE_CREATION_TIMESTAMP + cf_id + index_id
-  value: timestamp
-
   Data dictionary operations are atomic inside RocksDB. For example,
   when creating a table with two indexes, it is necessary to call Put
   three times. They have to be atomic. Rdb_dict_manager has a wrapper function
@@ -1525,11 +1517,6 @@ class Rdb_dict_manager {
                                     bool overwrite = false) const;
   bool get_auto_incr_val(const GL_INDEX_ID &gl_index_id,
                          ulonglong *new_val) const;
-  rocksdb::Status put_creation_time(rocksdb::WriteBatchBase *batch,
-                                    const GL_INDEX_ID &gl_index_id,
-                                    time_t timeval_arg) const;
-  bool get_creation_time(const GL_INDEX_ID &gl_index_id,
-                         time_t *new_val) const;
 };
 
 struct Rdb_index_info {

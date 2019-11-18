@@ -203,7 +203,6 @@ my @DEFAULT_SUITES= qw(
     rpl-
     sys_vars-
     sql_sequence-
-    type_inet-
     unit-
     vcol-
     versioning-
@@ -3348,7 +3347,7 @@ sub mysql_install_db {
   mtr_add_arg($args, "--loose-skip-plugin-$_") for @optional_plugins;
   # starting from 10.0 bootstrap scripts require InnoDB
   mtr_add_arg($args, "--loose-innodb");
-  mtr_add_arg($args, "--loose-innodb-log-file-size=5M");
+  mtr_add_arg($args, "--loose-innodb-log-file-size=10M");
   mtr_add_arg($args, "--disable-sync-frm");
   mtr_add_arg($args, "--tmpdir=%s", "$opt_vardir/tmp/");
   mtr_add_arg($args, "--core-file");

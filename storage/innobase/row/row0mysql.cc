@@ -2557,10 +2557,9 @@ row_create_index_for_mysql(
 	} else {
 		dict_build_index_def(table, index, trx);
 
-		/* add index to dictionary cache and also free index object. */
-		index = dict_index_add_to_cache(
-			index, FIL_NULL, trx_is_strict(trx), &err);
-		if (index) {
+		err = dict_index_add_to_cache(index, FIL_NULL);
+		ut_ad((index == NULL) == (err != DB_SUCCESS));
+		if (UNIV_LIKELY(err == DB_SUCCESS)) {
 			ut_ad(!index->is_instant());
 			index->n_core_null_bytes = UT_BITS_IN_BYTES(
 				unsigned(index->n_nullable));
@@ -3436,7 +3435,7 @@ row_drop_table_for_mysql(
 
 		dict_stats_recalc_pool_del(table);
 		dict_stats_defrag_pool_del(table, NULL);
-		if (btr_defragment_thread_active) {
+		if (btr_defragment_active) {
 			/* During fts_drop_orphaned_tables() in
 			recv_recovery_rollback_active() the
 			btr_defragment_mutex has not yet been

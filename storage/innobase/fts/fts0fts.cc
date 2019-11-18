@@ -371,7 +371,7 @@ fts_load_default_stopword(
 		new_word.nodes = ib_vector_create(
 			allocator, sizeof(fts_node_t), 4);
 
-		str.f_len = ut_strlen(word);
+		str.f_len = strlen(word);
 		str.f_str = reinterpret_cast<byte*>(word);
 
 		fts_string_dup(&new_word.text, &str, heap);
@@ -2685,6 +2685,10 @@ retry:
 	}
 
 	if (read_only) {
+		/* InnoDB stores actual synced_doc_id value + 1 in
+		FTS_CONFIG table. Reduce the value by 1 while reading
+		after startup. */
+		if (*doc_id) *doc_id -= 1;
 		goto func_exit;
 	}
 
@@ -3621,8 +3625,7 @@ fts_read_ulint(
 	dfield_t*	dfield = que_node_get_val(exp);
 	void*		data = dfield_get_data(dfield);
 
-	*value = static_cast<ulint>(mach_read_from_4(
-		static_cast<const byte*>(data)));
+	*value = mach_read_from_4(static_cast<const byte*>(data));
 
 	return(TRUE);
 }
@@ -5316,11 +5319,11 @@ fts_t::fts_t(
 	const dict_table_t*	table,
 	mem_heap_t*		heap)
 	:
-	in_queue(0), added_synced(0), dict_locked(0),
+	added_synced(0), dict_locked(0),
 	bg_threads(0),
 	add_wq(NULL),
 	cache(NULL),
-	doc_col(ULINT_UNDEFINED),
+	doc_col(ULINT_UNDEFINED), in_queue(false),
 	fts_heap(heap)
 {
 	ut_a(table->fts == NULL);
@@ -5717,7 +5720,7 @@ fts_is_aux_table_name(
 	char		my_name[MAX_FULL_NAME_LEN + 1];
 
 	ut_ad(len <= MAX_FULL_NAME_LEN);
-	ut_memcpy(my_name, name, len);
+	memcpy(my_name, name, len);
 	my_name[len] = 0;
 	end = my_name + len;
 
@@ -7036,11 +7039,7 @@ fts_valid_stopword_table(
 
 		return(NULL);
 	} else {
-		const char*     col_name;
-
-		col_name = dict_table_get_col_name(table, 0);
-
-		if (ut_strcmp(col_name, "value")) {
+		if (strcmp(dict_table_get_col_name(table, 0), "value")) {
 			ib::error() << "Invalid column name for stopword"
 				" table " << stopword_table_name << ". Its"
 				" first column must be named as 'value'.";
@@ -7167,7 +7166,7 @@ fts_load_stopword(
 		if (!reload) {
 			str.f_n_char = 0;
 			str.f_str = (byte*) stopword_to_use;
-			str.f_len = ut_strlen(stopword_to_use);
+			str.f_len = strlen(stopword_to_use);
 
 			error = fts_config_set_value(
 				trx, &fts_table, FTS_STOPWORD_TABLE_NAME, &str);

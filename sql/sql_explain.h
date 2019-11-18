@@ -835,6 +835,8 @@ public:
   /* Tracker for reading the table */
   Table_access_tracker tracker;
   Exec_time_tracker op_tracker;
+  Gap_time_tracker extra_time_tracker;
+
   Table_access_tracker jbuf_tracker;
   
   Explain_rowid_filter *rowid_filter;

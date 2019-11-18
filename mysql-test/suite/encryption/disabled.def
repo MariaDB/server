@@ -12,3 +12,4 @@
 
 innodb_scrub            : MDEV-8139 scrubbing does not work reliably
 innodb_scrub_background : MDEV-8139 scrubbing does not work reliably
+innodb-redo-badkey      : MDEV-20839 fails sporadically

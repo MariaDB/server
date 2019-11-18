@@ -666,7 +666,7 @@ int mysql_update(THD *thd,
   if (!(explain= query_plan.save_explain_update_data(query_plan.mem_root, thd)))
     goto err;
 
-  ANALYZE_START_TRACKING(&explain->command_tracker);
+  ANALYZE_START_TRACKING(thd, &explain->command_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
                   dbug_serve_apcs(thd, 1););
@@ -1168,7 +1168,7 @@ update_begin:
       break;
     }
   }
-  ANALYZE_STOP_TRACKING(&explain->command_tracker);
+  ANALYZE_STOP_TRACKING(thd, &explain->command_tracker);
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
   /*
@@ -1262,7 +1262,7 @@ update_end:
 
       if (thd->binlog_query(THD::ROW_QUERY_TYPE,
                             thd->query(), thd->query_length(),
-                            transactional_table, FALSE, FALSE, errcode))
+                            transactional_table, FALSE, FALSE, errcode) > 0)
       {
         error=1;				// Rollback update
       }
@@ -2991,7 +2991,7 @@ bool multi_update::send_eof()
 
       if (thd->binlog_query(THD::ROW_QUERY_TYPE, thd->query(),
                             thd->query_length(), transactional_tables, FALSE,
-                            FALSE, errcode))
+                            FALSE, errcode) > 0)
 	local_error= 1;				// Rollback update
       thd->set_current_stmt_binlog_format(save_binlog_format);
     }

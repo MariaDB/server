@@ -668,7 +668,9 @@ SHOW_COMP_OPTION have_crypt, have_compress;
 SHOW_COMP_OPTION have_profiling;
 SHOW_COMP_OPTION have_openssl;
 
+#ifndef EMBEDDED_LIBRARY
 static std::atomic<char*> shutdown_user;
+#endif //EMBEDDED_LIBRARY
 
 /* Thread specific variables */
 
@@ -1987,15 +1989,13 @@ static void clean_up(bool print_message)
   tdc_deinit();
   mdl_destroy();
   dflt_key_cache= 0;
-  key_caches.delete_elements((void (*)(const char*, uchar*)) free_key_cache);
+  key_caches.delete_elements(free_key_cache);
   wt_end();
   multi_keycache_free();
   sp_cache_end();
   free_status_vars();
   end_thr_alarm(1);			/* Free allocated memory */
-#ifndef EMBEDDED_LIBRARY
   end_thr_timer();
-#endif
   my_free_open_file_info();
   if (defaults_argv)
     free_defaults(defaults_argv);
@@ -4303,7 +4303,6 @@ static int init_common_variables()
     return 1;
   }
 
-  global_system_variables.in_subquery_conversion_threshold= IN_SUBQUERY_CONVERSION_THRESHOLD;
 
 #ifdef WITH_WSREP
   /*
@@ -4736,13 +4735,11 @@ static int init_server_components()
   init_thr_lock();
   backup_init();
 
-#ifndef EMBEDDED_LIBRARY
   if (init_thr_timer(thread_scheduler->max_threads + extra_max_connections))
   {
     fprintf(stderr, "Can't initialize timers\n");
     unireg_abort(1);
   }
-#endif
 
   my_uuid_init((ulong) (my_rnd(&sql_rand))*12345,12345);
   wt_init();
@@ -5746,7 +5743,7 @@ int mysqld_main(int argc, char **argv)
 #endif
 
   close_connections();
-
+  ha_pre_shutdown();
   clean_up(1);
   sd_notify(0, "STATUS=MariaDB server is down");
 

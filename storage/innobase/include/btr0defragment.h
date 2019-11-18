@@ -86,12 +86,7 @@ void
 btr_defragment_save_defrag_stats_if_needed(
 	dict_index_t*	index);	/*!< in: index */
 
-/** Merge consecutive b-tree pages into fewer pages to defragment indexes */
-extern "C" UNIV_INTERN
-os_thread_ret_t
-DECLARE_THREAD(btr_defragment_thread)(void*);
-
-/** Whether btr_defragment_thread is active */
-extern bool btr_defragment_thread_active;
-
+/* Stop defragmentation.*/
+void btr_defragment_end();
+extern bool btr_defragment_active;
 #endif

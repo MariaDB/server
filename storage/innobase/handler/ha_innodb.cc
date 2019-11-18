@@ -55,6 +55,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <mysql/service_thd_alloc.h>
 #include <mysql/service_thd_wait.h>
 #include "field.h"
+#include "srv0srv.h"
 
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 // MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
@@ -69,6 +70,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "btr0sea.h"
 #include "buf0dblwr.h"
 #include "buf0dump.h"
+#include "buf0buf.h"
 #include "buf0flu.h"
 #include "buf0lru.h"
 #include "dict0boot.h"
@@ -101,7 +103,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "row0upd.h"
 #include "fil0crypt.h"
 #include "srv0mon.h"
-#include "srv0srv.h"
 #include "srv0start.h"
 #ifdef UNIV_DEBUG
 #include "trx0purge.h"
@@ -121,8 +122,8 @@ void thd_clear_error(MYSQL_THD thd);
 
 TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 			  const char *table, size_t table_len);
-MYSQL_THD create_thd();
-void destroy_thd(MYSQL_THD thd);
+MYSQL_THD create_background_thd();
+void destroy_background_thd(MYSQL_THD thd);
 void reset_thd(MYSQL_THD thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 			const char *tb, size_t tblen);
@@ -250,62 +251,7 @@ is_partition(
 	return strstr(file_name, table_name_t::part_suffix);
 }
 
-/** Signal to shut down InnoDB (NULL if shutdown was signaled, or if
-running in innodb_read_only mode, srv_read_only_mode) */
-std::atomic <st_my_thread_var *> srv_running;
-/** Service thread that waits for the server shutdown and stops purge threads.
-Purge workers have THDs that are needed to calculate virtual columns.
-This THDs must be destroyed rather early in the server shutdown sequence.
-This service thread creates a THD and idly waits for it to get a signal to
-die. Then it notifies all purge workers to shutdown.
-*/
-static pthread_t thd_destructor_thread;
 
-pthread_handler_t
-thd_destructor_proxy(void *)
-{
-	mysql_mutex_t thd_destructor_mutex;
-	mysql_cond_t thd_destructor_cond;
-
-	my_thread_init();
-	mysql_mutex_init(PSI_NOT_INSTRUMENTED, &thd_destructor_mutex, 0);
-	mysql_cond_init(PSI_NOT_INSTRUMENTED, &thd_destructor_cond, 0);
-
-	st_my_thread_var *myvar= _my_thread_var();
-	myvar->current_mutex = &thd_destructor_mutex;
-	myvar->current_cond = &thd_destructor_cond;
-
-	THD *thd= create_thd();
-	thd_proc_info(thd, "InnoDB shutdown handler");
-
-
-	mysql_mutex_lock(&thd_destructor_mutex);
-	srv_running.store(myvar, std::memory_order_relaxed);
-	/* wait until the server wakes the THD to abort and die */
-	while (!myvar->abort)
-		mysql_cond_wait(&thd_destructor_cond, &thd_destructor_mutex);
-	mysql_mutex_unlock(&thd_destructor_mutex);
-	srv_running.store(NULL, std::memory_order_relaxed);
-
-	while (srv_fast_shutdown == 0 &&
-	       (trx_sys.any_active_transactions() ||
-		(uint)thread_count > srv_n_purge_threads + 1)) {
-		thd_proc_info(thd, "InnoDB slow shutdown wait");
-		os_thread_sleep(1000);
-	}
-
-	/* Some background threads might generate undo pages that will
-	need to be purged, so they have to be shut down before purge
-	threads if slow shutdown is requested.  */
-	srv_shutdown_bg_undo_sources();
-	srv_purge_shutdown();
-
-	destroy_thd(thd);
-	mysql_cond_destroy(&thd_destructor_cond);
-	mysql_mutex_destroy(&thd_destructor_mutex);
-	my_thread_end();
-	return 0;
-}
 
 /** Return the InnoDB ROW_FORMAT enum value
 @param[in]	row_format	row_format from "innodb_default_row_format"
@@ -547,7 +493,6 @@ performance schema */
 static mysql_pfs_key_t	commit_cond_mutex_key;
 static mysql_pfs_key_t	commit_cond_key;
 static mysql_pfs_key_t	pending_checkpoint_mutex_key;
-static mysql_pfs_key_t  thd_destructor_thread_key;
 
 static PSI_mutex_info	all_pthread_mutexes[] = {
 	PSI_KEY(commit_cond_mutex),
@@ -635,7 +580,6 @@ static PSI_rwlock_info all_innodb_rwlocks[] = {
 #  endif /* UNIV_DEBUG */
 	PSI_RWLOCK_KEY(dict_operation_lock),
 	PSI_RWLOCK_KEY(fil_space_latch),
-	PSI_RWLOCK_KEY(checkpoint_lock),
 	PSI_RWLOCK_KEY(fts_cache_rw_lock),
 	PSI_RWLOCK_KEY(fts_cache_init_rw_lock),
 	PSI_RWLOCK_KEY(trx_i_s_cache_lock),
@@ -652,23 +596,10 @@ static PSI_rwlock_info all_innodb_rwlocks[] = {
 performance schema instrumented if "UNIV_PFS_THREAD"
 is defined */
 static PSI_thread_info	all_innodb_threads[] = {
-	PSI_KEY(buf_dump_thread),
-	PSI_KEY(dict_stats_thread),
-	PSI_KEY(io_handler_thread),
-	PSI_KEY(io_ibuf_thread),
-	PSI_KEY(io_log_thread),
-	PSI_KEY(io_read_thread),
-	PSI_KEY(io_write_thread),
 	PSI_KEY(page_cleaner_thread),
 	PSI_KEY(recv_writer_thread),
-	PSI_KEY(srv_error_monitor_thread),
-	PSI_KEY(srv_lock_timeout_thread),
-	PSI_KEY(srv_master_thread),
-	PSI_KEY(srv_monitor_thread),
-	PSI_KEY(srv_purge_thread),
-	PSI_KEY(srv_worker_thread),
 	PSI_KEY(trx_rollback_clean_thread),
-	PSI_KEY(thd_destructor_thread),
+	PSI_KEY(thread_pool_thread)
 };
 # endif /* UNIV_PFS_THREAD */
 
@@ -1592,7 +1523,7 @@ MYSQL_THD
 innobase_create_background_thd(const char* name)
 /*============================*/
 {
-	MYSQL_THD thd= create_thd();
+	MYSQL_THD thd= create_background_thd();
 	thd_proc_info(thd, name);
 	THDVAR(thd, background_thread) = true;
 	return thd;
@@ -1610,7 +1541,7 @@ innobase_destroy_background_thd(
 	if innodb is in the PLUGIN_IS_DYING state */
 	innobase_close_connection(innodb_hton_ptr, thd);
 	thd_set_ha_data(thd, innodb_hton_ptr, NULL);
-	destroy_thd(thd);
+	destroy_background_thd(thd);
 }
 
 /** Close opened tables, free memory, delete items for a MYSQL_THD.
@@ -2470,11 +2401,10 @@ innobase_next_autoinc(
 	if (next_value == 0) {
 		ulonglong	next;
 
-		if (current >= offset) {
+		if (current > offset) {
 			next = (current - offset) / step;
 		} else {
-			next = 0;
-			block -= step;
+			next = (offset - current) / step;
 		}
 
 		ut_a(max_value > next);
@@ -4019,6 +3949,7 @@ static int innodb_init(void* p)
 
 	innobase_hton->drop_database = innobase_drop_database;
 	innobase_hton->panic = innobase_end;
+	innobase_hton->pre_shutdown = innodb_preshutdown;
 
 	innobase_hton->start_consistent_snapshot =
 		innobase_start_trx_and_assign_read_view;
@@ -4120,12 +4051,6 @@ static int innodb_init(void* p)
 	if (err != DB_SUCCESS) {
 		innodb_shutdown();
 		DBUG_RETURN(innodb_init_abort());
-	} else if (!srv_read_only_mode) {
-		mysql_thread_create(thd_destructor_thread_key,
-				    &thd_destructor_thread,
-				    NULL, thd_destructor_proxy, NULL);
-		while (!srv_running.load(std::memory_order_relaxed))
-			os_thread_sleep(20);
 	}
 
 	srv_was_started = true;
@@ -4204,17 +4129,6 @@ innobase_end(handlerton*, ha_panic_function)
 		 	}
 		}
 
-		if (auto r = srv_running.load(std::memory_order_relaxed)) {
-			ut_ad(!srv_read_only_mode);
-			if (!abort_loop) {
-				// may be UNINSTALL PLUGIN statement
-				mysql_mutex_lock(r->current_mutex);
-				r->abort = 1;
-				mysql_cond_broadcast(r->current_cond);
-				mysql_mutex_unlock(r->current_mutex);
-			}
-			pthread_join(thd_destructor_thread, NULL);
-		}
 
 		innodb_shutdown();
 		innobase_space_shutdown();
@@ -5311,7 +5225,7 @@ normalize_table_name_c_low(
 
 create_table_info_t::create_table_info_t(
 	THD*		thd,
-	TABLE*		form,
+	const TABLE*	form,
 	HA_CREATE_INFO*	create_info,
 	char*		table_name,
 	char*		remote_path,
@@ -12353,7 +12267,244 @@ int create_table_info_t::create_table(bool create_fk)
 		}
 	}
 
+	if (!row_size_is_acceptable(*m_table)) {
+		DBUG_RETURN(convert_error_code_to_mysql(
+			    DB_TOO_BIG_RECORD, m_flags, NULL));
+	}
+
 	DBUG_RETURN(0);
+}
+
+bool create_table_info_t::row_size_is_acceptable(
+    const dict_table_t &table) const
+{
+  for (dict_index_t *index= dict_table_get_first_index(&table); index;
+       index= dict_table_get_next_index(index))
+  {
+
+    if (!row_size_is_acceptable(*index))
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/* FIXME: row size check has some flaws and should be improved */
+dict_index_t::record_size_info_t dict_index_t::record_size_info() const
+{
+  ut_ad(!(type & DICT_FTS));
+
+  /* maximum allowed size of a node pointer record */
+  ulint page_ptr_max;
+  const bool comp= table->not_redundant();
+  /* table->space == NULL after DISCARD TABLESPACE */
+  const ulint zip_size= dict_tf_get_zip_size(table->flags);
+  record_size_info_t result;
+
+  if (zip_size && zip_size < srv_page_size)
+  {
+    /* On a ROW_FORMAT=COMPRESSED page, two records must fit in the
+    uncompressed page modification log. On compressed pages
+    with size.physical() == univ_page_size.physical(),
+    this limit will never be reached. */
+    ut_ad(comp);
+    /* The maximum allowed record size is the size of
+    an empty page, minus a byte for recoding the heap
+    number in the page modification log.  The maximum
+    allowed node pointer size is half that. */
+    result.max_leaf_size= page_zip_empty_size(n_fields, zip_size);
+    if (result.max_leaf_size)
+    {
+      result.max_leaf_size--;
+    }
+    page_ptr_max= result.max_leaf_size / 2;
+    /* On a compressed page, there is a two-byte entry in
+    the dense page directory for every record.  But there
+    is no record header. */
+    result.shortest_size= 2;
+  }
+  else
+  {
+    /* The maximum allowed record size is half a B-tree
+    page(16k for 64k page size).  No additional sparse
+    page directory entry will be generated for the first
+    few user records. */
+    result.max_leaf_size= (comp || srv_page_size < UNIV_PAGE_SIZE_MAX)
+                              ? page_get_free_space_of_empty(comp) / 2
+                              : REDUNDANT_REC_MAX_DATA_SIZE;
+
+    page_ptr_max= result.max_leaf_size;
+    /* Each record has a header. */
+    result.shortest_size= comp ? REC_N_NEW_EXTRA_BYTES : REC_N_OLD_EXTRA_BYTES;
+  }
+
+  if (comp)
+  {
+    /* Include the "null" flags in the
+    maximum possible record size. */
+    result.shortest_size+= UT_BITS_IN_BYTES(n_nullable);
+  }
+  else
+  {
+    /* For each column, include a 2-byte offset and a
+    "null" flag.  The 1-byte format is only used in short
+    records that do not contain externally stored columns.
+    Such records could never exceed the page limit, even
+    when using the 2-byte format. */
+    result.shortest_size+= 2 * n_fields;
+  }
+
+  const ulint max_local_len= table->get_overflow_field_local_len();
+
+  /* Compute the maximum possible record size. */
+  for (unsigned i= 0; i < n_fields; i++)
+  {
+    const dict_field_t &f= fields[i];
+    const dict_col_t &col= *f.col;
+
+    /* In dtuple_convert_big_rec(), variable-length columns
+    that are longer than BTR_EXTERN_LOCAL_STORED_MAX_SIZE
+    may be chosen for external storage.
+
+    Fixed-length columns, and all columns of secondary
+    index records are always stored inline. */
+
+    /* Determine the maximum length of the index field.
+    The field_ext_max_size should be computed as the worst
+    case in rec_get_converted_size_comp() for
+    REC_STATUS_ORDINARY records. */
+
+    size_t field_max_size= dict_col_get_fixed_size(&col, comp);
+    if (field_max_size && f.fixed_len != 0)
+    {
+      /* dict_index_add_col() should guarantee this */
+      ut_ad(!f.prefix_len || f.fixed_len == f.prefix_len);
+      /* Fixed lengths are not encoded
+      in ROW_FORMAT=COMPACT. */
+      goto add_field_size;
+    }
+
+    field_max_size= dict_col_get_max_size(&col);
+
+    if (f.prefix_len)
+    {
+      if (f.prefix_len < field_max_size)
+      {
+        field_max_size= f.prefix_len;
+      }
+
+      /* those conditions were copied from dtuple_convert_big_rec()*/
+    }
+    else if (field_max_size > max_local_len &&
+             field_max_size > BTR_EXTERN_LOCAL_STORED_MAX_SIZE &&
+             DATA_BIG_COL(&col) && dict_index_is_clust(this))
+    {
+
+      /* In the worst case, we have a locally stored
+      column of BTR_EXTERN_LOCAL_STORED_MAX_SIZE bytes.
+      The length can be stored in one byte.  If the
+      column were stored externally, the lengths in
+      the clustered index page would be
+      BTR_EXTERN_FIELD_REF_SIZE and 2. */
+      field_max_size= max_local_len;
+    }
+
+    if (comp)
+    {
+      /* Add the extra size for ROW_FORMAT=COMPACT.
+      For ROW_FORMAT=REDUNDANT, these bytes were
+      added to result.shortest_size before this loop. */
+      result.shortest_size+= field_max_size < 256 ? 1 : 2;
+    }
+  add_field_size:
+    result.shortest_size+= field_max_size;
+
+    /* Check the size limit on leaf pages. */
+    if (result.shortest_size >= result.max_leaf_size)
+    {
+      result.set_too_big(i);
+    }
+
+    /* Check the size limit on non-leaf pages.  Records
+    stored in non-leaf B-tree pages consist of the unique
+    columns of the record (the key columns of the B-tree)
+    and a node pointer field.  When we have processed the
+    unique columns, result.shortest_size equals the size of the
+    node pointer record minus the node pointer column. */
+    if (i + 1 == dict_index_get_n_unique_in_tree(this) &&
+        result.shortest_size + REC_NODE_PTR_SIZE >= page_ptr_max)
+    {
+      result.set_too_big(i);
+    }
+  }
+
+  return result;
+}
+
+/** Issue a warning that the row is too big. */
+static void ib_warn_row_too_big(THD *thd, const dict_table_t *table)
+{
+  /* FIXME: this row size check should be improved */
+  /* If prefix is true then a 768-byte prefix is stored
+  locally for BLOB fields. Refer to dict_table_get_format() */
+  const bool prefix= !dict_table_has_atomic_blobs(table);
+
+  const ulint free_space=
+      page_get_free_space_of_empty(table->flags & DICT_TF_COMPACT) / 2;
+
+  push_warning_printf(
+      thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_TO_BIG_ROW,
+      "Row size too large (> " ULINTPF "). Changing some columns to TEXT"
+      " or BLOB %smay help. In current row format, BLOB prefix of"
+      " %d bytes is stored inline.",
+      free_space,
+      prefix ? "or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED " : "",
+      prefix ? DICT_MAX_FIXED_COL_LEN : 0);
+}
+
+bool create_table_info_t::row_size_is_acceptable(
+    const dict_index_t &index) const
+{
+  if ((index.type & DICT_FTS) || index.table->is_system_db)
+  {
+    /* Ignore system tables check because innodb_table_stats
+    maximum row size can not fit on 4k page. */
+    return true;
+  }
+
+  const bool strict= THDVAR(m_thd, strict_mode);
+  dict_index_t::record_size_info_t info= index.record_size_info();
+
+  if (info.row_is_too_big())
+  {
+    ut_ad(info.get_overrun_size() != 0);
+    ut_ad(info.max_leaf_size != 0);
+
+    const size_t idx= info.get_first_overrun_field_index();
+    const dict_field_t *field= dict_index_get_nth_field(&index, idx);
+
+    ut_ad((!field->name) == field->col->is_dropped());
+    ib::error_or_warn eow(strict);
+    if (field->name)
+      eow << "Cannot add field " << field->name << " in table ";
+    else
+      eow << "Cannot add an instantly dropped column in table ";
+    eow << index.table->name << " because after adding it, the row size is "
+        << info.get_overrun_size()
+        << " which is greater than maximum allowed size ("
+        << info.max_leaf_size << " bytes) for a record on index leaf page.";
+
+    if (strict)
+    {
+      return false;
+    }
+
+    ib_warn_row_too_big(m_thd, index.table);
+  }
+
+  return true;
 }
 
 /** Update a new table in an InnoDB database.
@@ -14743,7 +14894,7 @@ get_foreign_key_info(
 	/* Referenced (parent) database name */
 	len = dict_get_db_name_len(foreign->referenced_table_name);
 	ut_a(len < sizeof(tmp_buff));
-	ut_memcpy(tmp_buff, foreign->referenced_table_name, len);
+	memcpy(tmp_buff, foreign->referenced_table_name, len);
 	tmp_buff[len] = 0;
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
@@ -14759,7 +14910,7 @@ get_foreign_key_info(
 	/* Dependent (child) database name */
 	len = dict_get_db_name_len(foreign->foreign_table_name);
 	ut_a(len < sizeof(tmp_buff));
-	ut_memcpy(tmp_buff, foreign->foreign_table_name, len);
+	memcpy(tmp_buff, foreign->foreign_table_name, len);
 	tmp_buff[len] = 0;
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
@@ -16303,7 +16454,7 @@ ha_innobase::get_auto_increment(
 	if (increment > 1 && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE
 	    && autoinc < col_max_value) {
 
-		ulonglong	prev_auto_inc = autoinc;
+		ulonglong prev_auto_inc = autoinc;
 
 		autoinc = ((autoinc - 1) + increment - offset)/ increment;
 
@@ -16356,27 +16507,6 @@ ha_innobase::get_auto_increment(
 		ulonglong	next_value;
 
 		current = *first_value;
-
-		if (m_prebuilt->autoinc_increment != increment) {
-
-			WSREP_DEBUG("autoinc decrease: %llu -> %llu\n"
-				    "THD: %ld, current: %llu, autoinc: %llu",
-				    m_prebuilt->autoinc_increment,
-				    increment,
-				    thd_get_thread_id(m_user_thd),
-				    current, autoinc);
-			if (!wsrep_on(m_user_thd)) {
-				current = autoinc
-					- m_prebuilt->autoinc_increment;
-				current = innobase_next_autoinc(
-					current, 1, increment, offset, col_max_value);
-			}
-
-			dict_table_autoinc_initialize(
-				m_prebuilt->table, current);
-
-			*first_value = current;
-		}
 
 		/* Compute the last value in the interval */
 		next_value = innobase_next_autoinc(
@@ -17021,7 +17151,7 @@ fast_shutdown_validate(
 	uint new_val = *reinterpret_cast<uint*>(save);
 
 	if (srv_fast_shutdown && !new_val
-	    && !srv_running.load(std::memory_order_relaxed)) {
+	    && !srv_read_only_mode && abort_loop) {
 		return(1);
 	}
 
@@ -17070,6 +17200,8 @@ innodb_stopword_table_validate(
 	return(ret);
 }
 
+extern void buf_resize_start();
+
 /** Update the system variable innodb_buffer_pool_size using the "saved"
 value. This function is registered as a callback with MySQL.
 @param[in]	save	immediate result from check function */
@@ -17083,7 +17215,7 @@ innodb_buffer_pool_size_update(THD*,st_mysql_sys_var*,void*, const void* save)
 	        sizeof(export_vars.innodb_buffer_pool_resize_status),
 		"Requested to resize buffer pool.");
 
-	os_event_set(srv_buf_resize_event);
+	buf_resize_start();
 
 	ib::info() << export_vars.innodb_buffer_pool_resize_status
 		<< " (new size: " << in_val << " bytes)";
@@ -18251,8 +18383,8 @@ innodb_status_output_update(THD*,st_mysql_sys_var*,void*var,const void*save)
 {
 	*static_cast<my_bool*>(var) = *static_cast<const my_bool*>(save);
 	mysql_mutex_unlock(&LOCK_global_system_variables);
-	/* Wakeup server monitor thread. */
-	os_event_set(srv_monitor_event);
+	/* Wakeup server monitor. */
+	srv_monitor_timer_schedule_now();
 	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
@@ -18321,33 +18453,6 @@ innodb_undo_logs_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 			    HA_ERR_UNSUPPORTED,
 			    innodb_undo_logs_deprecated);
 }
-
-#ifdef UNIV_DEBUG
-static
-void
-innobase_debug_sync_callback(srv_slot_t *slot, const void *value)
-{
-	const char *value_str = *static_cast<const char* const*>(value);
-	size_t len = strlen(value_str) + 1;
-
-
-	// One allocatoin for list node object and value.
-	void *buf = ut_malloc_nokey(sizeof(srv_slot_t::debug_sync_t) + len);
-	srv_slot_t::debug_sync_t *sync = new(buf) srv_slot_t::debug_sync_t();
-	strcpy(reinterpret_cast<char*>(&sync[1]), value_str);
-
-	rw_lock_x_lock(&slot->debug_sync_lock);
-	UT_LIST_ADD_LAST(slot->debug_sync, sync);
-	rw_lock_x_unlock(&slot->debug_sync_lock);
-}
-static
-void
-innobase_debug_sync_set(THD *thd, st_mysql_sys_var*, void *, const void *value)
-{
-	srv_for_each_thread(SRV_WORKER, innobase_debug_sync_callback, value);
-	srv_for_each_thread(SRV_PURGE, innobase_debug_sync_callback, value);
-}
-#endif
 
 static SHOW_VAR innodb_status_variables_export[]= {
 	{"Innodb", (char*) &show_innodb_vars, SHOW_FUNC},
@@ -19170,14 +19275,14 @@ static MYSQL_SYSVAR_ULONG(log_buffer_size, srv_log_buffer_size,
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Size of each log file in a log group.",
-  NULL, NULL, 48 << 20, 1 << 20, log_group_max_size, UNIV_PAGE_SIZE_MAX);
+  NULL, NULL, 96 << 20, 1 << 20, log_group_max_size, UNIV_PAGE_SIZE_MAX);
 /* OS_FILE_LOG_BLOCK_SIZE would be more appropriate than UNIV_PAGE_SIZE_MAX,
 but fil_space_t is being used for the redo log, and it uses data pages. */
 
 static MYSQL_SYSVAR_ULONG(log_files_in_group, srv_n_log_files,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Number of log files in the log group. InnoDB writes to the files in a circular fashion.",
-  NULL, NULL, 2, 1, SRV_N_LOG_FILES_MAX, 0);
+  NULL, NULL, 1, 1, SRV_N_LOG_FILES_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(log_write_ahead_size, srv_log_write_ahead_size,
   PLUGIN_VAR_RQCMDARG,
@@ -19337,6 +19442,11 @@ static MYSQL_SYSVAR_ENUM(stats_method, srv_innodb_stats_method,
    NULL, NULL, SRV_STATS_NULLS_EQUAL, &innodb_stats_method_typelib);
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+static MYSQL_SYSVAR_BOOL(change_buffer_dump, ibuf_dump,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
+  "Dump the change buffer at startup.",
+  NULL, NULL, FALSE);
+
 static MYSQL_SYSVAR_UINT(change_buffering_debug, ibuf_debug,
   PLUGIN_VAR_RQCMDARG,
   "Debug flags for InnoDB change buffering (0=none, 1=try to buffer)",
@@ -19611,7 +19721,7 @@ static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
 
 static MYSQL_SYSVAR_BOOL(scrub_log, srv_scrub_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Enable background redo log (ib_logfile0, ib_logfile1...) scrubbing",
+  "Enable background redo log scrubbing",
   0, 0, 0);
 
 static MYSQL_SYSVAR_ULONGLONG(scrub_log_speed, innodb_scrub_log_speed,
@@ -19674,16 +19784,6 @@ static MYSQL_SYSVAR_BOOL(debug_force_scrubbing,
 			 0,
 			 "Perform extra scrubbing to increase test exposure",
 			 NULL, NULL, FALSE);
-
-char *innobase_debug_sync;
-static MYSQL_SYSVAR_STR(debug_sync, innobase_debug_sync,
-			PLUGIN_VAR_NOCMDARG,
-			"debug_sync for innodb purge threads. "
-			"Use it to set up sync points for all purge threads "
-			"at once. The commands will be applied sequentially at "
-			"the beginning of purging the next undo record.",
-			NULL,
-			innobase_debug_sync_set, NULL);
 #endif /* UNIV_DEBUG */
 
 static MYSQL_SYSVAR_BOOL(encrypt_temporary_tables, innodb_encrypt_temporary_tables,
@@ -19811,6 +19911,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(change_buffering),
   MYSQL_SYSVAR(change_buffer_max_size),
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+  MYSQL_SYSVAR(change_buffer_dump),
   MYSQL_SYSVAR(change_buffering_debug),
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 #ifdef WITH_INNODB_DISALLOW_WRITES
@@ -19890,7 +19991,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(background_scrub_data_check_interval),
 #ifdef UNIV_DEBUG
   MYSQL_SYSVAR(debug_force_scrubbing),
-  MYSQL_SYSVAR(debug_sync),
 #endif
   MYSQL_SYSVAR(buf_dump_status_frequency),
   MYSQL_SYSVAR(background_thread),
@@ -20962,31 +21062,6 @@ innobase_convert_to_system_charset(
 	return(static_cast<uint>(strconvert(
 				cs1, from, static_cast<uint>(strlen(from)),
 				cs2, to, static_cast<uint>(len), errors)));
-}
-
-/**********************************************************************
-Issue a warning that the row is too big. */
-void
-ib_warn_row_too_big(const dict_table_t*	table)
-{
-	/* If prefix is true then a 768-byte prefix is stored
-	locally for BLOB fields. */
-	const bool	prefix = !dict_table_has_atomic_blobs(table);
-
-	const ulint	free_space = page_get_free_space_of_empty(
-		table->flags & DICT_TF_COMPACT) / 2;
-
-	THD*	thd = current_thd;
-
-	push_warning_printf(
-		thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_TO_BIG_ROW,
-		"Row size too large (> " ULINTPF ")."
-		" Changing some columns to TEXT"
-		" or BLOB %smay help. In current row format, BLOB prefix of"
-		" %d bytes is stored inline.", free_space
-		, prefix ? "or using ROW_FORMAT=DYNAMIC or"
-		" ROW_FORMAT=COMPRESSED ": ""
-		, prefix ? DICT_MAX_FIXED_COL_LEN : 0);
 }
 
 /** Validate the requested buffer pool size.  Also, reserve the necessary

@@ -3281,7 +3281,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 select coercibility(uuid()), coercibility(cast('a' as char character set latin1));
 coercibility(uuid())	coercibility(cast('a' as char character set latin1))
-4	2
+5	2
 select charset(concat(uuid(), cast('a' as char character set latin1)));
 charset(concat(uuid(), cast('a' as char character set latin1)))
 latin1
@@ -11340,6 +11340,13 @@ t1	CREATE TABLE `t1` (
   `CAST(@b:=3 AS BINARY)` varbinary(1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-20890 Illegal mix of collations with UUID()
+#
+SET NAMES utf8 COLLATE utf8_unicode_ci;
+SELECT uuid()>'';
+uuid()>''
+1
 #
 # End of 10.5 tests
 #

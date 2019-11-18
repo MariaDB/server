@@ -773,50 +773,63 @@ not using full_crc32 */
 
 /** File page types (values of FIL_PAGE_TYPE) @{ */
 /** page_compressed, encrypted=YES (not used for full_crc32) */
-#define FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED 37401
+constexpr uint16_t FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED= 37401;
 /** page_compressed (not used for full_crc32) */
-#define FIL_PAGE_PAGE_COMPRESSED 34354  /*!< page compressed page */
-#define FIL_PAGE_INDEX		17855	/*!< B-tree node */
-#define FIL_PAGE_RTREE		17854	/*!< R-tree node (SPATIAL INDEX) */
-#define FIL_PAGE_UNDO_LOG	2	/*!< Undo log page */
-#define FIL_PAGE_INODE		3	/*!< Index node */
-#define FIL_PAGE_IBUF_FREE_LIST	4	/*!< Insert buffer free list */
-/* File page types introduced in MySQL/InnoDB 5.1.7 */
-#define FIL_PAGE_TYPE_ALLOCATED	0	/*!< Freshly allocated page */
-#define FIL_PAGE_IBUF_BITMAP	5	/*!< Insert buffer bitmap */
-#define FIL_PAGE_TYPE_SYS	6	/*!< System page */
-#define FIL_PAGE_TYPE_TRX_SYS	7	/*!< Transaction system data */
-#define FIL_PAGE_TYPE_FSP_HDR	8	/*!< File space header */
-#define FIL_PAGE_TYPE_XDES	9	/*!< Extent descriptor page */
-#define FIL_PAGE_TYPE_BLOB	10	/*!< Uncompressed BLOB page */
-#define FIL_PAGE_TYPE_ZBLOB	11	/*!< First compressed BLOB page */
-#define FIL_PAGE_TYPE_ZBLOB2	12	/*!< Subsequent compressed BLOB page */
-#define FIL_PAGE_TYPE_UNKNOWN	13	/*!< In old tablespaces, garbage
-					in FIL_PAGE_TYPE is replaced with this
-					value when flushing pages. */
+constexpr uint16_t FIL_PAGE_PAGE_COMPRESSED= 34354;
+/** B-tree index page */
+constexpr uint16_t FIL_PAGE_INDEX= 17855;
+/** R-tree index page (SPATIAL INDEX) */
+constexpr uint16_t FIL_PAGE_RTREE= 17854;
+/** Undo log page */
+constexpr uint16_t FIL_PAGE_UNDO_LOG= 2;
+/** Index node (of file-in-file metadata) */
+constexpr uint16_t FIL_PAGE_INODE= 3;
+/** Insert buffer free list */
+constexpr uint16_t FIL_PAGE_IBUF_FREE_LIST= 4;
+/** Freshly allocated page */
+constexpr uint16_t FIL_PAGE_TYPE_ALLOCATED= 0;
+/** Change buffer bitmap (pages n*innodb_page_size+1) */
+constexpr uint16_t FIL_PAGE_IBUF_BITMAP= 5;
+/** System page */
+constexpr uint16_t FIL_PAGE_TYPE_SYS= 6;
+/** Transaction system data */
+constexpr uint16_t FIL_PAGE_TYPE_TRX_SYS= 7;
+/** Tablespace header (page 0) */
+constexpr uint16_t FIL_PAGE_TYPE_FSP_HDR= 8;
+/** Extent descriptor page (pages n*innodb_page_size, except 0) */
+constexpr uint16_t FIL_PAGE_TYPE_XDES= 9;
+/** Uncompressed BLOB page */
+constexpr uint16_t FIL_PAGE_TYPE_BLOB= 10;
+/** First ROW_FORMAT=COMPRESSED BLOB page */
+constexpr uint16_t FIL_PAGE_TYPE_ZBLOB= 11;
+/** Subsequent ROW_FORMAT=COMPRESSED BLOB page */
+constexpr uint16_t FIL_PAGE_TYPE_ZBLOB2= 12;
+/** In old tablespaces, garbage in FIL_PAGE_TYPE is replaced with this
+value when flushing pages. */
+constexpr uint16_t FIL_PAGE_TYPE_UNKNOWN= 13;
 
 /* File page types introduced in MySQL 5.7, not supported in MariaDB */
-//#define FIL_PAGE_COMPRESSED	14
-//#define FIL_PAGE_ENCRYPTED	15
-//#define FIL_PAGE_COMPRESSED_AND_ENCRYPTED 16
-//#define FIL_PAGE_ENCRYPTED_RTREE 17
+//constexpr uint16_t FIL_PAGE_COMPRESSED = 14;
+//constexpr uint16_t FIL_PAGE_ENCRYPTED = 15;
+//constexpr uint16_t FIL_PAGE_COMPRESSED_AND_ENCRYPTED = 16;
+//constexpr FIL_PAGE_ENCRYPTED_RTREE = 17;
 /** Clustered index root page after instant ADD COLUMN */
-#define FIL_PAGE_TYPE_INSTANT	18
+constexpr uint16_t FIL_PAGE_TYPE_INSTANT= 18;
 
 /** Used by i_s.cc to index into the text description.
 Note: FIL_PAGE_TYPE_INSTANT maps to the same as FIL_PAGE_INDEX. */
-#define FIL_PAGE_TYPE_LAST	FIL_PAGE_TYPE_UNKNOWN
-					/*!< Last page type */
-/** Set in FIL_PAGE_TYPE if for full_crc32 pages in page_compressed format.
+constexpr uint16_t FIL_PAGE_TYPE_LAST= FIL_PAGE_TYPE_UNKNOWN;
+
+/** Set in FIL_PAGE_TYPE for full_crc32 pages in page_compressed format.
 If the flag is set, then the following holds for the remaining bits
 of FIL_PAGE_TYPE:
 Bits 0..7 will contain the compressed page size in bytes.
 Bits 8..14 are reserved and must be 0. */
-#define FIL_PAGE_COMPRESS_FCRC32_MARKER	15
+constexpr uint16_t FIL_PAGE_COMPRESS_FCRC32_MARKER= 15;
 /* @} */
 
 /** @return whether the page type is B-tree or R-tree index */
-inline bool fil_page_type_is_index(ulint page_type)
+inline bool fil_page_type_is_index(uint16_t page_type)
 {
 	switch (page_type) {
 	case FIL_PAGE_TYPE_INSTANT:
@@ -1407,7 +1420,7 @@ fil_space_extend(
 				aligned
 @param[in]	message		message for aio handler if non-sync aio
 				used, else ignored
-@param[in]	ignore_missing_space true=ignore missing space during read
+@param[in]	ignore		whether to ignore out-of-bounds page_id
 @return DB_SUCCESS, or DB_TABLESPACE_DELETED
 if we are trying to do i/o on a tablespace which does not exist */
 dberr_t
@@ -1420,7 +1433,7 @@ fil_io(
 	ulint			len,
 	void*			buf,
 	void*			message,
-	bool			ignore_missing_space = false);
+	bool			ignore = false);
 
 /**********************************************************************//**
 Waits for an aio operation to complete. This function is used to write the

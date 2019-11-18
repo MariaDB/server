@@ -90,12 +90,6 @@ print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
 print OUT chr(0) x (759 * 16384);
 close OUT or die;
 
-# Create a dummy second redo log file
-die unless open OUT, ">", "$ENV{bugdir}/ib_logfile1";
-binmode OUT;
-print OUT chr(0) x 1048576;
-close OUT or die;
-
 # Create a redo log from before MariaDB 10.2.2/MySQL 5.7.9
 die unless open OUT, ">", "$ENV{bugdir}/ib_logfile0";
 binmode OUT;
@@ -104,7 +98,7 @@ print OUT pack("x[13]nCNnxxNNx[256]", 0x1286, 12, 0x80c, 0xf0, ~0, ~0);
 print OUT pack("H*x[1240]", "590DBAACFE922582");
 print OUT pack("H*x[5]", "800009440022000c0000000138");
 print OUT pack("H*x[475]H*", "12860cb7809781e80006626f677573", "089C0ADA");
-print OUT chr(0) x 1046016;
+print OUT chr(0) x 2094592;
 close OUT or die;
 EOF
 
@@ -119,7 +113,13 @@ let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log
 
 --echo # redo log from before MariaDB 10.2.2, with corrupted log checkpoint
 --move_file $bugdir/ib_logfile0 $bugdir/ib_logfile
---copy_file $bugdir/ib_logfile1 $bugdir/ib_logfile0
+perl;
+# Create a dummy second redo log file
+die unless open OUT, ">", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+print OUT chr(0) x 1048576;
+close OUT or die;
+EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
@@ -154,7 +154,7 @@ die unless seek(OUT, 0x800, 0);
 print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 0, 0xb2a);
 close OUT or die;
 EOF
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=1m
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
@@ -415,7 +415,7 @@ print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 1, 0x46c8a2a2);
 close OUT or die;
 EOF
 
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=1m
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'

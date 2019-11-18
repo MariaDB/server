@@ -1649,8 +1649,9 @@ public:
   my_decimal *val_decimal(my_decimal *);
   const Type_handler *type_handler() const
   {
-    return unsigned_flag ? &type_handler_ulonglong :
-                           &type_handler_slonglong;
+    if (unsigned_flag)
+      return &type_handler_ulonglong;
+    return &type_handler_slonglong;
   }
   bool fix_length_and_dec() { decimals=0; max_length=21; return FALSE; }
   Item *copy_or_same(THD* thd);

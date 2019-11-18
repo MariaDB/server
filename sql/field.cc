@@ -10073,17 +10073,26 @@ bool Column_definition::prepare_interval_field(MEM_ROOT *mem_root,
 }
 
 
-void Column_definition::set_attributes(const Lex_field_type_st &type,
-                                       CHARSET_INFO *cs)
+bool Column_definition::set_attributes(THD *thd,
+                                       const Lex_field_type_st &def,
+                                       CHARSET_INFO *cs,
+                                       column_definition_type_t type)
 {
   DBUG_ASSERT(type_handler() == &type_handler_null);
   DBUG_ASSERT(charset == &my_charset_bin || charset == NULL);
   DBUG_ASSERT(length == 0);
   DBUG_ASSERT(decimals == 0);
 
-  set_handler(type.type_handler());
-  charset= cs;
+  set_handler(def.type_handler());
+  return type_handler()->Column_definition_set_attributes(thd, this,
+                                                          def, cs, type);
+}
 
+
+void
+Column_definition_attributes::set_length_and_dec(const Lex_length_and_dec_st
+                                                 &type)
+{
   if (type.length())
   {
     int err;

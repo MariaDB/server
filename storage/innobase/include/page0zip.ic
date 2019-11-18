@@ -154,6 +154,9 @@ tablespace is not compressed
 inline bool page_zip_rec_needs_ext(ulint rec_size, ulint comp, ulint n_fields,
 				   ulint zip_size)
 {
+	/* FIXME: row size check is this function seems to be the most correct.
+	Put it in a separate function and use in more places of InnoDB */
+
 	ut_ad(rec_size
 	      > ulint(comp ? REC_N_NEW_EXTRA_BYTES : REC_N_OLD_EXTRA_BYTES));
 	ut_ad(comp || !zip_size);

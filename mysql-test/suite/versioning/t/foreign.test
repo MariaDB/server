@@ -426,4 +426,36 @@ DROP TABLE t1, t2;
 --remove_file $datadir/test/t1.data.2
 --remove_file $datadir/test/t2.data
 
+--echo #
+--echo # MDEV-16210 FK constraints on versioned tables use historical rows, which may cause constraint violation
+--echo #
+create or replace table t1 (a int, key(a)) engine innodb with system versioning;
+create or replace table t2 (b int, foreign key (b) references t1(a)) engine innodb;
+insert into t1 values (1),(2);
+insert into t2 values (1);
+--echo # DELETE from referenced table is not allowed
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where a = 1;
+drop tables t2, t1;
+
+--echo #
+--echo # MDEV-20812 Unexpected ER_ROW_IS_REFERENCED_2 or server crash in row_ins_foreign_report_err upon DELETE from versioned table with FK
+--echo #
+create or replace table t1 (x int primary key) engine innodb;
+create or replace table t2 (x int, foreign key (x) references t1(x)) engine innodb with system versioning;
+set foreign_key_checks= off;
+insert into t2 values (1), (1);
+set foreign_key_checks= on;
+--echo # DELETE from foreign table is allowed
+delete from t2;
+drop tables t2, t1;
+
+create or replace table t1 (a int, key(a)) engine innodb;
+insert into t1 values (1);
+create or replace table t2 (b int, foreign key (b) references t1(a)) engine innodb with system versioning;
+insert into t2 values (1), (1);
+--echo # DELETE from foreign table is allowed
+delete from t2;
+drop tables t2, t1;
+
 --source suite/versioning/common_finish.inc

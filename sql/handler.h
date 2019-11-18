@@ -1656,6 +1656,9 @@ struct handlerton
   /* backup */
   void (*prepare_for_backup)(void);
   void (*end_backup)(void);
+
+  /* Server shutdown early notification.*/
+  void (*pre_shutdown)(void);
 };
 
 
@@ -4915,6 +4918,7 @@ int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
                     const LEX_CSTRING *db, const LEX_CSTRING *alias, bool generate_warning);
 void ha_prepare_for_backup();
 void ha_end_backup();
+void ha_pre_shutdown();
 
 /* statistics and info */
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);
@@ -5014,12 +5018,12 @@ int binlog_log_row(TABLE* table,
   { \
     Exec_time_tracker *this_tracker; \
     if (unlikely((this_tracker= tracker))) \
-      tracker->start_tracking(); \
+      tracker->start_tracking(table->in_use); \
     \
     MYSQL_TABLE_IO_WAIT(PSI, OP, INDEX, FLAGS, PAYLOAD); \
     \
     if (unlikely(this_tracker)) \
-      tracker->stop_tracking(); \
+      tracker->stop_tracking(table->in_use); \
   }
 
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);

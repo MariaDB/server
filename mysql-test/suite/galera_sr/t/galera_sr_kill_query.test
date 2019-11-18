@@ -33,16 +33,18 @@ SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 
 # Confirm that the kill caused the updates made so far to be removed
 --connection node_2
-SELECT COUNT(*) = 0 FROM t1;
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 
 # Confirm that the transaction can be reissued in its entirety on the slave without a conflict
 
 INSERT INTO t1 SELECT 1 FROM ten AS t1, ten AS t2, ten AS t3;
-SELECT COUNT(*) = 1000 FROM t1;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
 
 --connection node_1a
-SELECT COUNT(*) = 1000 FROM t1;
+SET GLOBAL wsrep_sync_wait=15;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
 
 DROP TABLE t1;
 DROP TABLE ten;

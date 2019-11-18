@@ -169,6 +169,8 @@ ALTER TABLE t1 IMPORT TABLESPACE;
 INSERT INTO t1 VALUES(2);
 SELECT * FROM t1;
 
+
+--error 0,1231
 SET GLOBAL innodb_compression_algorithm=3;
 FLUSH TABLE t1 FOR EXPORT;
 --echo # List before copying files

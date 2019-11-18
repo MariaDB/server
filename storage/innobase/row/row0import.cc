@@ -466,17 +466,12 @@ protected:
 		UT_DELETE_ARRAY(m_xdes);
 		m_xdes = NULL;
 
-		ulint		state;
-		const xdes_t*	xdesc = page + XDES_ARR_OFFSET;
-
-		state = mach_read_ulint(xdesc + XDES_STATE, MLOG_4BYTES);
-
-		if (state != XDES_FREE) {
+		if (mach_read_from_4(XDES_ARR_OFFSET + XDES_STATE + page)
+		    != XDES_FREE) {
 			const ulint physical_size = m_zip_size
 				? m_zip_size : srv_page_size;
 
-			m_xdes = UT_NEW_ARRAY_NOKEY(xdes_t,
-						    physical_size);
+			m_xdes = UT_NEW_ARRAY_NOKEY(xdes_t, physical_size);
 
 			/* Trigger OOM */
 			DBUG_EXECUTE_IF(
@@ -507,7 +502,7 @@ protected:
 			const xdes_t*	xdesc = xdes(page_no, m_xdes);
 			ulint		pos = page_no % FSP_EXTENT_SIZE;
 
-			return(xdes_get_bit(xdesc, XDES_FREE_BIT, pos));
+			return xdes_is_free(xdesc, pos);
 		}
 
 		/* If the current xdes was free, the page must be free. */
@@ -829,9 +824,8 @@ private:
 	@param block block read from file
 	@param page_type type of the page
 	@retval DB_SUCCESS or error code */
-	dberr_t update_page(
-		buf_block_t*	block,
-		ulint&		page_type) UNIV_NOTHROW;
+	dberr_t update_page(buf_block_t* block, uint16_t& page_type)
+		UNIV_NOTHROW;
 
 	/** Update the space, index id, trx id.
 	@param block block to convert
@@ -1825,13 +1819,17 @@ PageConverter::update_index_page(
 
 	/* This has to be written to uncompressed index header. Set it to
 	the current index id. */
-	btr_page_set_index_id(
-		page, m_page_zip_ptr, m_index->m_srv_index->id, 0);
+	mach_write_to_8(page + (PAGE_HEADER + PAGE_INDEX_ID),
+			m_index->m_srv_index->id);
+	if (m_page_zip_ptr) {
+		memcpy(&m_page_zip_ptr->data[PAGE_HEADER + PAGE_INDEX_ID],
+		       &block->frame[PAGE_HEADER + PAGE_INDEX_ID], 8);
+	}
 
-	if (dict_index_is_clust(m_index->m_srv_index)) {
-		dict_index_t* index = const_cast<dict_index_t*>(
-			m_index->m_srv_index);
-		if (block->page.id.page_no() == index->page) {
+	if (m_index->m_srv_index->is_clust()) {
+		if (block->page.id.page_no() == m_index->m_srv_index->page) {
+			dict_index_t* index = const_cast<dict_index_t*>(
+				m_index->m_srv_index);
 			/* Preserve the PAGE_ROOT_AUTO_INC. */
 			if (index->table->supports_instant()) {
 				if (btr_cur_instant_root_init(index, page)) {
@@ -1865,18 +1863,30 @@ PageConverter::update_index_page(
 				}
 			}
 		} else {
-			/* Clear PAGE_MAX_TRX_ID so that it can be
-			used for other purposes in the future. IMPORT
-			in MySQL 5.6, 5.7 and MariaDB 10.0 and 10.1
-			would set the field to the transaction ID even
-			on clustered index pages. */
-			page_set_max_trx_id(block, m_page_zip_ptr, 0, NULL);
+			goto clear_page_max_trx_id;
+		}
+	} else if (page_is_leaf(page)) {
+		/* Set PAGE_MAX_TRX_ID on secondary index leaf pages. */
+		mach_write_to_8(&block->frame[PAGE_HEADER + PAGE_MAX_TRX_ID],
+				m_trx->id);
+		if (m_page_zip_ptr) {
+			memcpy(&m_page_zip_ptr
+			       ->data[PAGE_HEADER + PAGE_MAX_TRX_ID],
+			       &block->frame[PAGE_HEADER + PAGE_MAX_TRX_ID],
+			       8);
 		}
 	} else {
-		/* Set PAGE_MAX_TRX_ID on secondary index leaf pages,
-		and clear it on non-leaf pages. */
-		page_set_max_trx_id(block, m_page_zip_ptr,
-				    page_is_leaf(page) ? m_trx->id : 0, NULL);
+clear_page_max_trx_id:
+		/* Clear PAGE_MAX_TRX_ID so that it can be
+		used for other purposes in the future. IMPORT
+		in MySQL 5.6, 5.7 and MariaDB 10.0 and 10.1
+		would set the field to the transaction ID even
+		on clustered index pages. */
+		memset(&block->frame[PAGE_HEADER + PAGE_MAX_TRX_ID], 0, 8);
+		if (m_page_zip_ptr) {
+			memset(&m_page_zip_ptr
+			       ->data[PAGE_HEADER + PAGE_MAX_TRX_ID], 0, 8);
+		}
 	}
 
 	if (page_is_empty(page)) {
@@ -1937,9 +1947,8 @@ PageConverter::update_header(
 @retval DB_SUCCESS or error code */
 inline
 dberr_t
-PageConverter::update_page(
-	buf_block_t*	block,
-	ulint&		page_type) UNIV_NOTHROW
+PageConverter::update_page(buf_block_t* block, uint16_t& page_type)
+	UNIV_NOTHROW
 {
 	dberr_t		err = DB_SUCCESS;
 
@@ -2020,7 +2029,7 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 			 RW_NO_LATCH, NULL, BUF_EVICT_IF_IN_POOL,
 			 __FILE__, __LINE__, NULL, NULL);
 
-	ulint		page_type;
+	uint16_t page_type;
 
 	if (dberr_t err = update_page(block, page_type)) {
 		return err;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -308,16 +308,17 @@ trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no,
 					and delete markings: in short,
 					modifys (the name 'UPDATE' is a
 					historical relic) */
-/* States of an undo log segment */
-#define TRX_UNDO_ACTIVE		1	/* contains an undo log of an active
-					transaction */
-#define	TRX_UNDO_CACHED		2	/* cached for quick reuse */
-#define	TRX_UNDO_TO_FREE	3	/* insert undo segment can be freed */
-#define	TRX_UNDO_TO_PURGE	4	/* update undo segment will not be
-					reused: it can be freed in purge when
-					all undo data in it is removed */
-#define	TRX_UNDO_PREPARED	5	/* contains an undo log of an
-					prepared transaction */
+/* TRX_UNDO_STATE values of an undo log segment */
+/** contains an undo log of an active transaction */
+constexpr uint16_t TRX_UNDO_ACTIVE = 1;
+/** cached for quick reuse */
+constexpr uint16_t TRX_UNDO_CACHED = 2;
+/** old_insert undo segment that can be freed */
+constexpr uint16_t TRX_UNDO_TO_FREE = 3;
+/** can be freed in purge when all undo data in it is removed */
+constexpr uint16_t TRX_UNDO_TO_PURGE = 4;
+/** contains an undo log of a prepared transaction */
+constexpr uint16_t TRX_UNDO_PREPARED = 5;
 
 #ifndef UNIV_INNOCHECKSUM
 

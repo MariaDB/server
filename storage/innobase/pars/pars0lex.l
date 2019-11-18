@@ -560,14 +560,14 @@ In the state 'id', only two actions are possible (defined below). */
 {ID}		{
 			yylval = sym_tab_add_id(pars_sym_tab_global,
 							(byte*) yytext,
-							ut_strlen(yytext));
+							strlen(yytext));
 			return(PARS_ID_TOKEN);
 }
 
 {TABLE_NAME}	{
 			yylval = sym_tab_add_id(pars_sym_tab_global,
 							(byte*) yytext,
-							ut_strlen(yytext));
+							strlen(yytext));
 			return(PARS_TABLE_NAME_TOKEN);
 }
 
