@@ -1594,7 +1594,7 @@ void trx_update_persistent_counts(trx_t* trx)
     std::map<table_id_t, int64_t>::iterator it_uncommitted_counts;
 
     undo = trx->rsegs.m_redo.undo;
-    if (undo) {
+    if (undo && !uncommitted_counts.empty()) {
         mtr_start(&mtr);
 
         undo_rec = trx_undo_get_first_rec(undo->rseg->space, undo->hdr_page_no,

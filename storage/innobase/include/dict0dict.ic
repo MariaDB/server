@@ -608,7 +608,7 @@ dict_tf_set(
 	}
 
 	if (persistent_count) {
-        *flags |= (1 << DICT_TF_POS_PERSISTENT_COUNT);
+		*flags |= (1 << DICT_TF_POS_PERSISTENT_COUNT);
 	}
 }
 
