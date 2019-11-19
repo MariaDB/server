@@ -136,7 +136,7 @@ int yylex(void *yylval, void *yythd);
   to abort from the parser.
 */
 
-void MYSQLerror(THD *thd, const char *s)
+static void yyerror(THD *thd, const char *s)
 {
   /*
     Restore the original LEX if it was replaced when parsing
