@@ -2407,17 +2407,21 @@ tablespace_deleted:
 			continue;
 		}
 
-		const ulint zip_size = s->zip_size();
+		const ulint zip_size = s->zip_size(), size = s->size;
 		s->release_for_io();
 		mtr_t mtr;
-		mtr.start();
-		dberr_t err;
-		buf_page_get_gen(page_id_t(space_id, page_nos[i]), zip_size,
-				 RW_X_LATCH, NULL, BUF_GET,
-				 __FILE__, __LINE__, &mtr, &err, true);
-		mtr.commit();
-		if (err == DB_TABLESPACE_DELETED) {
-			goto tablespace_deleted;
+
+		if (UNIV_LIKELY(page_nos[i] < size)) {
+			mtr.start();
+			dberr_t err;
+			buf_page_get_gen(page_id_t(space_id, page_nos[i]),
+					 zip_size,
+					 RW_X_LATCH, NULL, BUF_GET,
+					 __FILE__, __LINE__, &mtr, &err, true);
+			mtr.commit();
+			if (err == DB_TABLESPACE_DELETED) {
+				goto tablespace_deleted;
+			}
 		}
 		/* Prevent an infinite loop, by removing entries from
 		the change buffer also in the case the bitmap bits were

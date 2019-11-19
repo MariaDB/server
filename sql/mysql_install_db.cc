@@ -188,7 +188,7 @@ int main(int argc, char **argv)
       die("--datadir option not provided, and default datadir not found");
       my_print_help(my_long_options);
     }
-    strncat_s(default_datadir, sizeof(default_datadir), "\\data", _TRUNCATE);
+    strcat_s(default_datadir, "\\data");
     opt_datadir= default_datadir;
     printf("Default data directory is %s\n",opt_datadir);
   }

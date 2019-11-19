@@ -871,14 +871,6 @@ static char *my_fgets(char * s, int n, FILE * stream, int *len)
   return buf;
 }
 
-/*
-  Wrapper for popen().
-*/
-static FILE* my_popen(const char *cmd, const char *mode)
-{
-  return popen(cmd, mode);
-}
-
 #ifdef EMBEDDED_LIBRARY
 
 #define EMB_SEND_QUERY 1
@@ -1853,7 +1845,7 @@ static int run_command(char* cmd,
     }
   }
 
-  error= pclose(res_file);
+  error= my_pclose(res_file);
   DBUG_RETURN(WEXITSTATUS(error));
 }
 
@@ -3439,7 +3431,7 @@ void do_exec(struct st_command *command)
   {
     replace_dynstr_append_mem(ds_result, buf, len);
   }
-  error= pclose(res_file);
+  error= my_pclose(res_file);
 
   if (display_result_sorted)
   {
@@ -4669,7 +4661,7 @@ void do_perl(struct st_command *command)
         replace_dynstr_append_mem(&ds_res, buf, len);
       }
     }
-    error= pclose(res_file);
+    error= my_pclose(res_file);
 
     /* Remove the temporary file, but keep it if perl failed */
     if (!error)
