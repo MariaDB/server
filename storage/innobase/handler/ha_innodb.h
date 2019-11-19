@@ -722,6 +722,10 @@ public:
 	THD* thd() const
 	{ return(m_thd); }
 
+	/** Get table. */
+	dict_table_t* table() const
+	{ return(m_table); }
+
 	/** Normalizes a table name string.
 	A normalized name consists of the database name catenated to '/' and
 	table name. An example: test/mytable. On Windows normalization puts
@@ -955,6 +959,17 @@ ib_push_frm_error(
 	TABLE*		table,		/*!< in: MySQL table */
 	ulint		n_keys,		/*!< in: InnoDB #keys */
 	bool		push_warning);	/*!< in: print warning ? */
+
+/** Initialize metadata BLOB on CREATE for persistent count.
+@param[in]  user_table  InnoDB table
+@param[in]  table       MySQL table
+@param[in]  trx         transaction
+@retval true   failure
+@retval false  success */
+bool innobase_create_persistent_count(
+	dict_table_t*       user_table,
+	const TABLE*        table,
+	trx_t*              trx);
 
 /** Update metadata BLOB to reflect updated persistent count.
 @param[in]  user_table  InnoDB table

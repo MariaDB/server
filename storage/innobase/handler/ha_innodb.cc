@@ -12679,6 +12679,14 @@ ha_innobase::create(
 		DBUG_RETURN(error);
 	}
 
+	dict_table_t* ib_table = info.table();
+	ib_table->committed_count_inited =
+		!!DICT_TF_GET_PERSISTENT_COUNT(info.flags());
+	if (ib_table->committed_count_inited) {
+		ib_table->committed_count = 0;
+		innobase_create_persistent_count(ib_table, form, trx);
+	}
+
 	innobase_commit_low(trx);
 	row_mysql_unlock_data_dictionary(trx);
 
@@ -13444,13 +13452,12 @@ ha_innobase::rename_table(
 }
 
 /** Initialize committed count within dict_table_t.
-@param table     persistent table
 @return  0 or error code */
 int
 ha_innobase::enable_persistent_count()
 {
 	dict_table_t* ib_table = m_prebuilt->table;
-	uchar* buf = m_prebuilt->m_mysql_table->record[0];
+	uchar* read_buf = m_prebuilt->m_mysql_table->record[0];
 	trx_t* trx = m_prebuilt->trx;
 	int err;
 
@@ -13465,7 +13472,7 @@ ha_innobase::enable_persistent_count()
 	ib_table->committed_count = 0;
 	rnd_init(true);
 	do {
-		err = rnd_next(buf);
+		err = rnd_next(read_buf);
 		if (!err) {
 			ib_table->committed_count++;
 		}
@@ -13479,7 +13486,6 @@ ha_innobase::enable_persistent_count()
 }
 
 /** De-initialize committed count within dict_table_t.
-@param table     persistent table
 @return  0 or error code */
 int
 ha_innobase::disable_persistent_count()
