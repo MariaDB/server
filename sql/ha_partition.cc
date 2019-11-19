@@ -5773,6 +5773,7 @@ int ha_partition::index_read_idx_map(uchar *buf, uint index,
 {
   int error= HA_ERR_KEY_NOT_FOUND;
   DBUG_ENTER("ha_partition::index_read_idx_map");
+  decrement_statistics(&SSV::ha_read_key_count);
 
   if (find_flag == HA_READ_KEY_EXACT)
   {
