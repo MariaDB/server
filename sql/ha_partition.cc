@@ -5265,7 +5265,10 @@ bool ha_partition::init_record_priority_queue()
   {
     size_t alloc_len;
     uint used_parts= bitmap_bits_set(&m_part_info->read_partitions);
-    DBUG_ASSERT(used_parts > 0);
+
+    if (used_parts == 0) /* Do nothing since no records expected. */
+      DBUG_RETURN(false);
+
     /* Allocate record buffer for each used partition. */
     m_priority_queue_rec_len= m_rec_length + PARTITION_BYTES_IN_POS;
     if (!m_using_extended_keys)
