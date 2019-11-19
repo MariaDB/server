@@ -111,7 +111,6 @@ mysql_pfs_key_t	fts_cache_rw_lock_key;
 mysql_pfs_key_t	fts_cache_init_rw_lock_key;
 mysql_pfs_key_t trx_i_s_cache_lock_key;
 mysql_pfs_key_t	trx_purge_latch_key;
-mysql_pfs_key_t committed_count_mutex_key;
 #endif /* UNIV_PFS_RWLOCK */
 
 /** For monitoring active mutexes */

@@ -1503,8 +1503,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(RW_TRX_HASH_ELEMENT, SYNC_RW_TRX_HASH_ELEMENT,
 			rw_trx_hash_element_mutex_key);
 
-	LATCH_ADD_MUTEX(COMMITTED_COUNT, SYNC_ANY_LATCH, committed_count_mutex_key);
-
 	latch_id_t	id = LATCH_ID_NONE;
 
 	/* The array should be ordered on latch ID.We need to
