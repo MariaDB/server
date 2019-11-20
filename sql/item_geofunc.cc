@@ -1082,7 +1082,7 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
   uchar *str= (uchar*) alloc_root(param->mem_root, key_part->store_length + 1);
   if (!str)
     DBUG_RETURN(0);                              // out of memory
-  field->get_key_image(str, key_part->length, key_part->image_type);
+  field->get_key_image(str, key_part->length, field->ptr, key_part->image_type);
   SEL_ARG *tree;
   if (!(tree= new (param->mem_root) SEL_ARG(field, str, str)))
     DBUG_RETURN(0);                              // out of memory
