@@ -1387,14 +1387,14 @@ uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
         /* Put down the length of the blob and the pointer to the data */  
         DBUG_ASSERT(cp + copy->length + sizeof(char*) <= buff + buff_size);
 	blob_field->get_image(cp, copy->length+sizeof(char*),
-                              blob_field->charset());
+                              blob_field->ptr, blob_field->charset());
 	cp+= copy->length+sizeof(char*);
       }
       else
       {
         /* First put down the length of the blob and then copy the data */ 
 	blob_field->get_image(cp, copy->length, 
-			      blob_field->charset());
+                              blob_field->ptr, blob_field->charset());
         DBUG_ASSERT(cp + copy->length + copy->blob_length <= buff + buff_size);
 	memcpy(cp+copy->length, copy->str, copy->blob_length);               
 	cp+= copy->length+copy->blob_length;

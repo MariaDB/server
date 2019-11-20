@@ -8663,7 +8663,7 @@ uchar *Field::make_key_image(MEM_ROOT *mem_root, const KEY_PART *key_part)
     DBUG_RETURN(0);
   if (maybe_null)
     *str= (uchar) is_real_null();        // Set to 1 if null
-  get_key_image(str + maybe_null, key_part->length, key_part->image_type);
+  get_key_image(str + maybe_null, key_part->length, ptr, key_part->image_type);
   DBUG_RETURN(str);
 }
 
