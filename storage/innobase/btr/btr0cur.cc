@@ -484,14 +484,55 @@ incompatible:
 		/* This metadata record includes a BLOB that identifies
 		any dropped or reordered columns. */
 		ulint trx_id_offset = index->trx_id_offset;
-		if (!trx_id_offset) {
-			/* The PRIMARY KEY contains variable-length columns.
-			For the metadata record, variable-length columns are
-			always written with zero length. The DB_TRX_ID will
-			start right after any fixed-length columns. */
+		/* If !index->trx_id_offset, the PRIMARY KEY contains
+		variable-length columns. For the metadata record,
+		variable-length columns should be written with zero
+		length. However, before MDEV-21088 was fixed, for
+		variable-length encoded PRIMARY KEY column of type
+		CHAR, we wrote more than zero bytes. That is why we
+		must determine the actual length of each PRIMARY KEY
+		column.  The DB_TRX_ID will start right after any
+		PRIMARY KEY columns. */
+		ut_ad(index->n_uniq);
+
+		/* We cannot invoke rec_get_offsets() before
+		index->table->deserialise_columns(). Therefore,
+		we must duplicate some logic here. */
+		if (trx_id_offset) {
+		} else if (index->table->not_redundant()) {
+			/* PRIMARY KEY columns can never be NULL.
+			We can skip the null flag bitmap. */
+			const byte* lens = rec - (REC_N_NEW_EXTRA_BYTES + 1)
+				- index->n_core_null_bytes;
+			unsigned n_add = rec_get_n_add_field(lens);
+			ut_ad(index->n_core_fields + n_add >= index->n_fields);
+			lens -= n_add;
+
 			for (uint i = index->n_uniq; i--; ) {
-				trx_id_offset += index->fields[i].fixed_len;
+				const dict_field_t& f = index->fields[i];
+				unsigned len = f.fixed_len;
+				if (!len) {
+					len = *lens--;
+					if ((len & 0x80)
+					    && DATA_BIG_COL(f.col)) {
+						/* 1exxxxxxx xxxxxxxx */
+						len &= 0x3f;
+						len <<= 8;
+						len |= *lens--;
+					}
+				}
+				trx_id_offset += len;
 			}
+		} else if (rec_get_1byte_offs_flag(rec)) {
+			trx_id_offset = rec_1_get_field_end_info(
+				rec, index->n_uniq - 1);
+			ut_ad(!(trx_id_offset & REC_1BYTE_SQL_NULL_MASK));
+			trx_id_offset &= ~REC_1BYTE_SQL_NULL_MASK;
+		} else {
+			trx_id_offset = rec_2_get_field_end_info(
+				rec, index->n_uniq - 1);
+			ut_ad(!(trx_id_offset & REC_2BYTE_SQL_NULL_MASK));
+			trx_id_offset &= ~REC_2BYTE_SQL_NULL_MASK;
 		}
 
 		const byte* ptr = rec + trx_id_offset

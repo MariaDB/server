@@ -790,6 +790,15 @@ INSERT INTO t1 VALUES(2,'bah',3);
 SELECT * FROM t1;
 DROP TABLE t1;
 
+# MDEV-21088 Table cannot be loaded after instant ADD/DROP COLUMN
+eval CREATE TABLE t1(a CHAR(5) CHARACTER SET utf8 PRIMARY KEY) $engine;
+INSERT INTO t1 VALUES('barf');
+ALTER TABLE t1 ADD b INT FIRST, ALGORITHM=INSTANT;
+# this evicts and reloads the table definition until MDEV-17468 is fixed
+ALTER TABLE t1 ADD vb INT AS (b);
+SELECT * FROM t1;
+DROP TABLE t1;
+
 dec $format;
 let $redundant_4k= 0;
 }
