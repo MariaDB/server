@@ -4,14 +4,14 @@ DROP TABLE IF EXISTS `t1`;
 CREATE TABLE `t1`(i BIGINT, t TEXT)ENGINE=clustrixdb;
 INSERT INTO `t1` (i, t) VALUES (42, 'один');
 INSERT INTO `t1` (i, t) VALUES (42, 'ноль');
-SELECT * FROM `t1` ORDER BY `i`;
+SELECT * FROM `t1` ORDER BY `i` DESC, `t` DESC;
 
 UPDATE `t1` SET i=i+1,t='два' WHERE t='один';
-SELECT * FROM `t1` ORDER BY `i`;
+SELECT * FROM `t1` ORDER BY `i` DESC, `t` DESC;
 
 USE test;
 UPDATE `db1`.`t1` SET i=i+1,t='три' WHERE t='два';
-SELECT * FROM `db1`.`t1` ORDER BY `i`;
+SELECT * FROM `db1`.`t1` ORDER BY `i` DESC, `t` DESC;
 
 DROP TABLE `db1`.`t1`;
 
