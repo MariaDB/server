@@ -4892,7 +4892,9 @@ void destroy_background_thd(MYSQL_THD thd)
      Also preserve current PSI context, since my_thread_end()
      would kill it, if we're not careful.
   */
+#ifdef HAVE_PSI_THREAD_INTERFACE
   auto save_psi_thread= PSI_CALL_get_thread();
+#endif
   PSI_CALL_set_thread(0);
   pthread_setspecific(THR_KEY_mysys, thd_mysys_var);
   my_thread_end();
