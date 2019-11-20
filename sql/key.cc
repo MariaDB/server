@@ -141,12 +141,13 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
         continue;
       }
     }
+    auto *from_ptr= key_part->field->ptr_in_record(from_record);
     if (key_part->key_part_flag & HA_BLOB_PART ||
         key_part->key_part_flag & HA_VAR_LENGTH_PART)
     {
       key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
-      uint bytes= key_part->field->get_key_image(to_key, length,
+      uint bytes= key_part->field->get_key_image(to_key, length, from_ptr,
 		      key_info->flags & HA_SPATIAL ? Field::itMBR : Field::itRAW);
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
@@ -157,7 +158,7 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
       length= MY_MIN(key_length, key_part->length);
       Field *field= key_part->field;
       CHARSET_INFO *cs= field->charset();
-      uint bytes= field->get_key_image(to_key, length, Field::itRAW);
+      uint bytes= field->get_key_image(to_key, length, from_ptr, Field::itRAW);
       if (bytes < length)
         cs->cset->fill(cs, (char*) to_key + bytes, length - bytes, ' ');
     }

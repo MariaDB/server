@@ -195,7 +195,7 @@ bool Cached_item_field::cmp(void)
     becasue of value change), then copy the new value to buffer.
     */
   if (! null_value && (tmp || (tmp= (field->cmp(buff) != 0))))
-    field->get_image(buff,length,field->charset());
+    field->get_image(buff,length,field->ptr,field->charset());
   return tmp;
 }
 
