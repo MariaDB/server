@@ -5778,6 +5778,7 @@ key_def:
             Key *key= (new (thd->mem_root)
                        Foreign_key($5.str ? &$5 : &$1,
                                    &lex->last_key->columns,
+                                   $1.str ? &$1 : &$5,
                                    &$10->db,
                                    &$10->table,
                                    &lex->ref_list,

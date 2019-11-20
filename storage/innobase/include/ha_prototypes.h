@@ -518,6 +518,17 @@ ib_push_warning(
 	const char	*format,/*!< in: warning message */
 	...);
 
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_foreign_warn(
+	trx_t*		trx,	/*!< in: trx */
+	dberr_t		error,	/*!< in: error code to push as warning */
+	const char	*table_name,
+	const char	*format,/*!< in: warning message */
+	...);
+
 /*****************************************************************//**
 Normalizes a table name string. A normalized name consists of the
 database name catenated to '/' and table name. An example:

@@ -5652,6 +5652,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   local_create_info.init(create_info->create_like_options());
   local_create_info.db_type= src_table->table->s->db_type();
   local_create_info.row_type= src_table->table->s->row_type;
+  local_create_info.alter_info= &local_alter_info;
   if (mysql_prepare_alter_table(thd, src_table->table, &local_create_info,
                                 &local_alter_info, &local_alter_ctx))
     goto err;
@@ -10949,6 +10950,7 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
   bzero((char*) &create_info, sizeof(create_info));
   create_info.row_type=ROW_TYPE_NOT_USED;
   create_info.default_table_charset=default_charset_info;
+  create_info.alter_info= &alter_info;
   /* Force alter table to recreate table */
   alter_info.flags= (ALTER_CHANGE_COLUMN | ALTER_RECREATE);
 
@@ -11227,6 +11229,13 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
     res= 1;
     goto end_with_restore_list;
   }
+
+  /*
+   Since CREATE_INFO is not full without Alter_info, it is better to pass them
+   as a signle parameter. TODO: remove alter_info argument where create_info is
+   passed.
+  */
+  create_info.alter_info= &alter_info;
 
   /* Check privileges */
   if ((res= create_table_precheck(thd, select_tables, create_table)))

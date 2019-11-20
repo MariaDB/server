@@ -189,6 +189,7 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
 
 Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
   :Key(rhs,mem_root),
+  constraint_name(rhs.constraint_name),
   ref_db(rhs.ref_db),
   ref_table(rhs.ref_table),
   ref_columns(rhs.ref_columns,mem_root),

@@ -4154,6 +4154,7 @@ mysql_execute_command(THD *thd)
     create_info.db_type= 0;
     create_info.row_type= ROW_TYPE_NOT_USED;
     create_info.default_table_charset= thd->variables.collation_database;
+    create_info.alter_info= &alter_info;
 
     res= mysql_alter_table(thd, &first_table->db, &first_table->table_name,
                            &create_info, first_table, &alter_info,

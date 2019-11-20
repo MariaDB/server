@@ -262,7 +262,7 @@ ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
 ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	150	Alter  table `test`.`t1` with foreign key constraint failed. Referenced table `test`.`t2` not found in the data dictionary near 'FOREIGN KEY (a) REFERENCES t2 (b)'.
+Warning	150	Alter  table `test`.`t1` with foreign key (a) constraint failed. Referenced table `test`.`t2` not found in the data dictionary.
 Error	1005	Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `t1`
 DROP TABLE t1;

@@ -62,7 +62,8 @@ dict_get_referenced_table(
 	const char*	table_name,	/*!< in: table name */
 	ulint		table_name_len,	/*!< in: table name length */
 	dict_table_t**	table,		/*!< out: table object or NULL */
-	mem_heap_t*	heap);		/*!< in: heap memory */
+	mem_heap_t*	heap,		/*!< in: heap memory */
+	CHARSET_INFO*	from_cs);	/*!< in: table name charset */
 /*********************************************************************//**
 Frees a foreign key struct. */
 void
@@ -79,6 +80,21 @@ dict_table_get_highest_foreign_id(
 /*==============================*/
 	dict_table_t*	table);		/*!< in: table in the dictionary
 					memory cache */
+/** Check whether the dict_table_t is a partition.
+A partitioned table on the SQL level is composed of InnoDB tables,
+where each InnoDB table is a [sub]partition including its secondary indexes
+which belongs to the partition.
+@param[in]	table	Table to check.
+@return true if the dict_table_t is a partition else false. */
+UNIV_INLINE
+bool
+dict_table_is_partition(const dict_table_t* table)
+{
+	/* Check both P and p on all platforms in case it was moved to/from
+	WIN. */
+	return (strstr(table->name.m_name, "#p#")
+		|| strstr(table->name.m_name, "#P#"));
+}
 /********************************************************************//**
 Return the end of table name where we have removed dbname and '/'.
 @return table name */
@@ -421,34 +437,6 @@ dict_foreign_replace_index(
 					to use table->col_names */
 	const dict_index_t*	index)	/*!< in: index to be replaced */
 	MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
-/** Scans a table create SQL string and adds to the data dictionary
-the foreign key constraints declared in the string. This function
-should be called after the indexes for a table have been created.
-Each foreign key constraint must be accompanied with indexes in
-bot participating tables. The indexes are allowed to contain more
-fields than mentioned in the constraint.
-
-@param[in]	trx		transaction
-@param[in]	sql_string	table create statement where
-				foreign keys are declared like:
-				FOREIGN KEY (a, b) REFERENCES table2(c, d),
-				table2 can be written also with the database
-				name before it: test.table2; the default
-				database id the database of parameter name
-@param[in]	sql_length	length of sql_string
-@param[in]	name		table full name in normalized form
-@param[in]	reject_fks	if TRUE, fail with error code
-				DB_CANNOT_ADD_CONSTRAINT if any
-				foreign keys are found.
-@return error code or DB_SUCCESS */
-dberr_t
-dict_create_foreign_constraints(
-	trx_t*			trx,
-	const char*		sql_string,
-	size_t			sql_length,
-	const char*		name,
-	ibool			reject_fks)
-	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************************//**
 Parses the CONSTRAINT id's to be dropped in an ALTER TABLE statement.
 @return DB_SUCCESS or DB_CANNOT_DROP_CONSTRAINT if syntax error or the

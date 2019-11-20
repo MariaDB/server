@@ -2863,6 +2863,7 @@ innobase_get_foreign_key_info(
 	char*		referenced_table_name = NULL;
 	ulint		num_fk = 0;
 	Alter_info*	alter_info = ha_alter_info->alter_info;
+	const CHARSET_INFO*	cs = innobase_get_charset(trx->mysql_thd);
 
 	DBUG_ENTER("innobase_get_foreign_key_info");
 
@@ -2880,12 +2881,6 @@ innobase_get_foreign_key_info(
 		ulint		num_col = 0;
 		ulint		referenced_num_col = 0;
 		bool		correct_option;
-		char*		db_namep = NULL;
-		char*		tbl_namep = NULL;
-		ulint		db_name_len = 0;
-		ulint		tbl_name_len = 0;
-		char		db_name[MAX_DATABASE_NAME_LEN];
-		char		tbl_name[MAX_TABLE_NAME_LEN];
 
 		Foreign_key* fk_key = static_cast<Foreign_key*>(&key);
 
@@ -2933,45 +2928,14 @@ innobase_get_foreign_key_info(
 
 		add_fk[num_fk] = dict_mem_foreign_create();
 
-#ifndef _WIN32
-		if (fk_key->ref_db.str) {
-			tablename_to_filename(fk_key->ref_db.str, db_name,
-					      MAX_DATABASE_NAME_LEN);
-			db_namep = db_name;
-			db_name_len = strlen(db_name);
-		}
-		if (fk_key->ref_table.str) {
-			tablename_to_filename(fk_key->ref_table.str, tbl_name,
-					      MAX_TABLE_NAME_LEN);
-			tbl_namep = tbl_name;
-			tbl_name_len = strlen(tbl_name);
-		}
-#else
-		ut_ad(fk_key->ref_table.str);
-		tablename_to_filename(fk_key->ref_table.str, tbl_name,
-				      MAX_TABLE_NAME_LEN);
-		innobase_casedn_str(tbl_name);
-		tbl_name_len = strlen(tbl_name);
-		tbl_namep = &tbl_name[0];
-
-		if (fk_key->ref_db.str != NULL) {
-			tablename_to_filename(fk_key->ref_db.str, db_name,
-					      MAX_DATABASE_NAME_LEN);
-			innobase_casedn_str(db_name);
-			db_name_len = strlen(db_name);
-			db_namep = &db_name[0];
-		}
-#endif
 		mutex_enter(&dict_sys.mutex);
 
 		referenced_table_name = dict_get_referenced_table(
 			table->name.m_name,
-			db_namep,
-			db_name_len,
-			tbl_namep,
-			tbl_name_len,
+			LEX_STRING_WITH_LEN(fk_key->ref_db),
+			LEX_STRING_WITH_LEN(fk_key->ref_table),
 			&referenced_table,
-			add_fk[num_fk]->heap);
+			add_fk[num_fk]->heap, cs);
 
 		/* Test the case when referenced_table failed to
 		open, if trx->check_foreigns is not set, we should
@@ -2982,7 +2946,7 @@ innobase_get_foreign_key_info(
 		if (!referenced_table && trx->check_foreigns) {
 			mutex_exit(&dict_sys.mutex);
 			my_error(ER_FK_CANNOT_OPEN_PARENT,
-				 MYF(0), tbl_namep);
+				 MYF(0), fk_key->ref_table.str);
 
 			goto err_exit;
 		}
@@ -3017,7 +2981,7 @@ innobase_get_foreign_key_info(
 					my_error(ER_FK_NO_INDEX_PARENT, MYF(0),
 						 fk_key->name.str
 						 ? fk_key->name.str : "",
-						 tbl_namep);
+						 fk_key->ref_table.str);
 					goto err_exit;
 				}
 			} else {
@@ -3029,7 +2993,8 @@ innobase_get_foreign_key_info(
 			/* Not possible to add a foreign key without a
 			referenced column */
 			mutex_exit(&dict_sys.mutex);
-			my_error(ER_CANNOT_ADD_FOREIGN, MYF(0), tbl_namep);
+			my_error(ER_CANNOT_ADD_FOREIGN, MYF(0),
+				 fk_key->ref_table.str);
 			goto err_exit;
 		}
 

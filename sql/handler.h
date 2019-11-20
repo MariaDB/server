@@ -2190,10 +2190,14 @@ struct Table_scope_and_contents_source_st:
 struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
                        public Schema_specification_st
 {
+  /* TODO: remove after MDEV-20865 */
+  Alter_info *alter_info;
+
   void init()
   {
     Table_scope_and_contents_source_st::init();
     Schema_specification_st::init();
+    alter_info= NULL;
   }
   bool check_conflicting_charset_declarations(CHARSET_INFO *cs);
   bool add_table_option_default_charset(CHARSET_INFO *cs)

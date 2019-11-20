@@ -643,6 +643,9 @@ public:
 	/** Set m_tablespace_type. */
 	void set_tablespace_type(bool table_being_altered_is_file_per_table);
 
+	/** Create InnoDB foreign keys from MySQL alter_info. */
+	dberr_t create_foreign_keys();
+
 	/** Create the internal innodb table.
 	@param create_fk	whether to add FOREIGN KEY constraints */
 	int create_table(bool create_fk = true);

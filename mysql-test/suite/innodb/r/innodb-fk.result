@@ -52,8 +52,7 @@ CONSTRAINT fk3 FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 show warnings;
 Level	Code	Message
-Warning	150	Create  table `test`.`t2` with foreign key constraint failed. Referenced table `test`.`t3` not found in the data dictionary near ' FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE
-) ENGINE=InnoDB'.
+Warning	150	Create  table `test`.`t2` with foreign key `fk3` constraint failed. Referenced table `test`.`t3` not found in the data dictionary.
 Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `t2`
 CREATE TABLE t2 (
@@ -67,7 +66,7 @@ ALTER TABLE t2 ADD CONSTRAINT fk3 FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE 
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`t2` with foreign key constraint failed. Referenced table `test`.`t3` not found in the data dictionary near ' FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE'.
+Warning	150	Alter  table `test`.`t2` with foreign key `fk3` constraint failed. Referenced table `test`.`t3` not found in the data dictionary.
 Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `t2`
 drop table t2;
