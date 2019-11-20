@@ -4285,7 +4285,7 @@ innobase_add_instant_try(
 				break;
 			case MYSQL_TYPE_STRING:
 				if (col->mbminlen != col->mbmaxlen
-				    || !dict_table_is_comp(user_table)) {
+				    && dict_table_is_comp(user_table)) {
 					goto variable_length;
 				}
 				/* fall through */
