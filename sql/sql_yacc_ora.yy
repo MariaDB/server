@@ -5712,8 +5712,13 @@ field_list_item:
 column_def:
           field_spec
           { $$= $1; }
-        | field_spec references
-          { $$= $1; }
+        | field_spec opt_constraint references
+          {
+            if (unlikely(Lex->add_column_foreign_key(&($1->field_name), &$2,
+                                                     $3, DDL_options())))
+              MYSQL_YYABORT;
+            $$= $1;
+          }
         ;
 
 key_def:
@@ -5774,30 +5779,9 @@ key_def:
           }
           '(' key_list ')' references
           {
-            LEX *lex=Lex;
-            Key *key= (new (thd->mem_root)
-                       Foreign_key($5.str ? &$5 : &$1,
-                                   &lex->last_key->columns,
-                                   $1.str ? &$1 : &$5,
-                                   &$10->db,
-                                   &$10->table,
-                                   &lex->ref_list,
-                                   lex->fk_delete_opt,
-                                   lex->fk_update_opt,
-                                   lex->fk_match_option,
-                                    $4));
-            if (unlikely(key == NULL))
-              MYSQL_YYABORT;
-            /*
-              handle_if_exists_options() expectes the two keys in this order:
-              the Foreign_key, followed by its auto-generated Key.
-            */
-            lex->alter_info.key_list.push_back(key, thd->mem_root);
-            lex->alter_info.key_list.push_back(Lex->last_key, thd->mem_root);
-            lex->option_list= NULL;
-
-            /* Only used for ALTER TABLE. Ignored otherwise. */
-            lex->alter_info.flags|= ALTER_ADD_FOREIGN_KEY;
+            if (unlikely(Lex->add_table_foreign_key($5.str ? &$5 : &$1,
+                                                    $1.str ? &$1 : &$5, $10, $4)))
+               MYSQL_YYABORT;
           }
 	;
 

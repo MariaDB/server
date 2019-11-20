@@ -498,4 +498,27 @@ SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 
 --echo # End of 10.2 tests
 
+--echo #
+--echo # MDEV-20729 Fix REFERENCES constraint in column definition
+--echo #
+set default_storage_engine= innodb;
+create table t1 (x int primary key, y int unique);
+create table t2 (x int references t1(x), y int constraint fk references t1(y));
+show create table t2;
+create table t3 (z int);
+alter table t3 add x int references t1(x), add y int constraint fk2 references t1(y);
+show create table t3;
+drop tables t3, t2, t1;
+
+create table t1 (id int primary key);
+--error ER_CANT_CREATE_TABLE
+create table t2 (id2 int references t1);
+create table t2 (id int references t1);
+show create table t2;
+drop tables t2, t1;
+
+set default_storage_engine= default;
+
+--echo # End of 10.5 tests
+
 --source include/wait_until_count_sessions.inc
