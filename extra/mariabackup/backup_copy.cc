@@ -1669,6 +1669,9 @@ ibx_copy_incremental_over_full()
 			}
 		}
 
+		if (!(ret = backup_files_from_datadir(xtrabackup_incremental_dir)))
+			goto cleanup;
+
 		/* copy buffer pool dump */
 		if (innobase_buffer_pool_filename) {
 			const char *src_name;
@@ -2180,20 +2183,26 @@ static bool backup_files_from_datadir(const char *dir_path)
 		if (info.type != OS_FILE_TYPE_FILE)
 			continue;
 
-		const char *pname = strrchr(info.name, IF_WIN('\\', '/'));
+		const char *pname = strrchr(info.name, OS_PATH_SEPARATOR);
 		if (!pname)
 			pname = info.name;
 
-		/* Copy aria log files, and aws keys for encryption plugins.*/
-		const char *prefixes[] = { "aria_log", "aws-kms-key" };
-		for (size_t i = 0; i < array_elements(prefixes); i++) {
-			if (starts_with(pname, prefixes[i])) {
-				ret = copy_file(ds_data, info.name, info.name, 1);
-				if (!ret) {
-					break;
-				}
-			}
-		}
+		if (!starts_with(pname, "aws-kms-key") &&
+			!starts_with(pname, "aria_log"))
+			/* For ES exchange the above line with the following code:
+			(!xtrabackup_prepare || !xtrabackup_incremental_dir ||
+				!starts_with(pname, "aria_log")))
+			*/
+			continue;
+
+		if (xtrabackup_prepare && xtrabackup_incremental_dir &&
+			file_exists(info.name))
+			unlink(info.name);
+
+		std::string full_path(dir_path);
+		full_path.append(1, OS_PATH_SEPARATOR).append(info.name);
+		if (!(ret = copy_file(ds_data, full_path.c_str() , info.name, 1)))
+			break;
 	}
 	os_file_closedir(dir);
 	return ret;
