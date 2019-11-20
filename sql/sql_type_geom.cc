@@ -927,16 +927,17 @@ bool Field_geom::load_data_set_null(THD *thd)
 }
 
 
-uint Field_geom::get_key_image(uchar *buff,uint length, imagetype type_arg)
+uint Field_geom::get_key_image(uchar *buff,uint length, const uchar *ptr_arg,
+                               imagetype type_arg) const
 {
   if (type_arg == itMBR)
   {
     LEX_CSTRING tmp;
-    tmp.str= (const char *) get_ptr();
-    tmp.length= get_length(ptr);
+    tmp.str= (const char *) get_ptr(ptr_arg);
+    tmp.length= get_length(ptr_arg);
     return Geometry::get_key_image_itMBR(tmp, buff, length);
   }
-  return Field_blob::get_key_image_itRAW(buff, length);
+  return Field_blob::get_key_image_itRAW(ptr_arg, buff, length);
 }
 
 Binlog_type_info Field_geom::binlog_type_info() const

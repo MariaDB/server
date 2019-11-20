@@ -829,7 +829,8 @@ static bool matching_cond(bool max_fl, TABLE_REF *ref, KEY *keyinfo,
       value->save_in_field_no_warnings(part->field, 1);
       if (part->null_bit) 
         *key_ptr++= (uchar) MY_TEST(part->field->is_null());
-      part->field->get_key_image(key_ptr, part->length, Field::itRAW);
+      part->field->get_key_image(key_ptr, part->length, part->field->ptr,
+                                 Field::itRAW);
     }
     if (is_field_part)
     {
