@@ -5636,10 +5636,17 @@ static bool innobase_instant_try(
 			case MYSQL_TYPE_MEDIUM_BLOB:
 			case MYSQL_TYPE_BLOB:
 			case MYSQL_TYPE_LONG_BLOB:
+			variable_length:
 				/* Store the empty string for 'core'
 				variable-length NOT NULL columns. */
 				dfield_set_data(d, field_ref_zero, 0);
 				break;
+			case MYSQL_TYPE_STRING:
+				if (col->mbminlen != col->mbmaxlen
+				    && user_table->not_redundant()) {
+					goto variable_length;
+				}
+				/* fall through */
 			default:
 				/* For fixed-length NOT NULL 'core' columns,
 				get a dummy default value from SQL. Note that
@@ -5656,7 +5663,6 @@ static bool innobase_instant_try(
 					: NULL, true, (*af)->ptr, len,
 					dict_table_is_comp(user_table));
 				ut_ad(new_field->field->pack_length() == len);
-
 			}
 		}
 
