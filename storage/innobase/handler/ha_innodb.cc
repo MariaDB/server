@@ -13502,8 +13502,10 @@ ha_innobase::disable_persistent_count()
 
 /** If committed count is initialized and transaction is in READ COMMITTED mode,
 returns exact number of records; otherwise returns an estimate of index records.
-@return number of rows */
-bool
+@param[out]  num_rows  number of rows in table
+@return  0 if success
+@return  1 if failure */
+int
 ha_innobase::records2(ha_rows* num_rows)
 {	
     trx_t* trx = m_prebuilt->trx;
@@ -13513,12 +13515,12 @@ ha_innobase::records2(ha_rows* num_rows)
     rw_lock_s_lock(&index->lock);
     if (!ib_table->committed_count_inited) {
         rw_lock_s_unlock(&index->lock);
-        return false;
+        return 1;
     }
     *num_rows = ib_table->committed_count + trx->uncommitted_count(ib_table);
     rw_lock_s_unlock(&index->lock);
 
-    return true;
+    return 0;
 }
 
 /*********************************************************************//**

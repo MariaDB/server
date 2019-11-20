@@ -3435,7 +3435,7 @@ public:
   */
   virtual int pre_records() { return 0; }
   virtual ha_rows records() { return stats.records; }
-  virtual bool records2(ha_rows* num_rows)
+  virtual int records2(ha_rows* num_rows)
   {
     *num_rows = records();
     return 0;

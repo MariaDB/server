@@ -324,7 +324,7 @@ stats_records_inexact:
       }
 
       ha_rows num_rows;
-      if (!tl->table->file->records2(&num_rows)) {
+      if (tl->table->file->records2(&num_rows)) {
         goto stats_records_inexact;
       }
       count *= num_rows;

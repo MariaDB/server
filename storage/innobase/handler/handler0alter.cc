@@ -5960,14 +5960,15 @@ bool innobase_create_persistent_count(
 	mem_heap_t* heap = mem_heap_create(1024);
 	dict_index_t* index = dict_table_get_first_index(user_table);
 
-	user_table->instant = new (mem_heap_alloc(heap, sizeof(dict_instant_t)))
-							dict_instant_t();
+	user_table->instant = new (mem_heap_alloc(user_table->heap,
+	                            sizeof(dict_instant_t))) dict_instant_t();
 	user_table->instant->n_dropped = 0;
 	user_table->instant->dropped = NULL;
 
 	const unsigned u = index->first_user_field();
 	field_map_element_t* field_map_it = static_cast<field_map_element_t*>(
-		mem_heap_zalloc(heap, (index->n_fields - u) * sizeof *field_map_it));
+		mem_heap_zalloc(user_table->heap, (index->n_fields - u)
+						* sizeof *field_map_it));
 	user_table->instant->field_map = field_map_it;
 	for (unsigned i = u; i < index->n_fields; i++) {
 		dict_field_t& f = index->fields[i];
