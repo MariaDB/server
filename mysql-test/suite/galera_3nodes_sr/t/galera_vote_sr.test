@@ -31,6 +31,7 @@ CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table
 CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1; Duplicate entry '5' for key 'PRIMARY'");
 CALL mtr.add_suppression("Write_rows_v1 apply failed");
 CALL mtr.add_suppression("Inconsistent by consensus");
+CALL mtr.add_suppression("WSREP: Failed to apply write set: ");
 #CALL mtr.add_suppression("no THD for trx");
 
 # Restore original auto_increment_offset values.
