@@ -8199,6 +8199,7 @@ report_error:
 	if (!error_result
 	    && wsrep_on(m_user_thd)
 	    && wsrep_thd_is_local(m_user_thd)
+	    && !wsrep_thd_ignore_table(m_user_thd)
 	    && !wsrep_consistency_check(m_user_thd)
 	    && (thd_sql_command(m_user_thd) != SQLCOM_CREATE_TABLE)
 	    && (thd_sql_command(m_user_thd) != SQLCOM_LOAD ||
@@ -8909,7 +8910,8 @@ func_exit:
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS
 	    && wsrep_on(m_user_thd)
-	    && wsrep_thd_is_local(m_user_thd)) {
+	    && wsrep_thd_is_local(m_user_thd)
+	    && !wsrep_thd_ignore_table(m_user_thd)) {
 
 		DBUG_PRINT("wsrep", ("update row key"));
 
