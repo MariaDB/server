@@ -1045,6 +1045,8 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
 				case TAB_REST:
 					type = TAB_NIY;
 					break;
+				default:
+					break;
 			}	// endswitch type
 #endif   // REST_SUPPORT
 
@@ -5633,6 +5635,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case TAB_XML:
 				case TAB_CSV:
 					ttp = TAB_REST;
+					break;
+				default:
 					break;
 			}	// endswitch type
 #endif   // REST_SUPPORT
