@@ -107,6 +107,15 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
     return sh;
   }
 
+  // TODO Return early for EXPLAIN before we run the actual scan.
+  // We can send compile request when we separate compilation
+  // and execution.
+  clustrix_connection_cursor *scan = NULL;
+  if (thd->lex->describe) {
+    sh = new ha_clustrixdb_select_handler(thd, select_lex, scan);
+    return sh;
+  }
+
   // Multi-update runs an implicit query to collect constraints.
   // SH couldn't be used for this.
   if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI) {
@@ -118,7 +127,6 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
   select_lex->print(thd, &query, QT_ORDINARY);
   int error_code = 0;
   int field_metadata_size = 0;
-  clustrix_connection_cursor *scan = NULL;
   clustrix_connection *trx = NULL;
 
   // We presume this number is equal to types.elements in get_field_types
@@ -365,8 +373,6 @@ ha_clustrixdb_derived_handler::~ha_clustrixdb_derived_handler()
  * ********************************************************/
 int ha_clustrixdb_derived_handler::init_scan()
 {
-  // Save this into the base handler class attribute
-  table__ = table;
   String query;
   // Print the query into a string provided
   select->print(thd__, &query, QT_ORDINARY);
@@ -390,7 +396,7 @@ int ha_clustrixdb_derived_handler::init_scan()
   }
 
   if((field_metadata_size=
-    get_field_types(thd__, table__, select, fieldtype, field_metadata, null_bits, num_null_bytes, items_number)) < 0) {
+    get_field_types(thd__, table, select, fieldtype, field_metadata, null_bits, num_null_bytes, items_number)) < 0) {
      goto err;
   }
 
@@ -404,6 +410,9 @@ int ha_clustrixdb_derived_handler::init_scan()
                                     row_buffer_setting(thd), &scan))) {
     goto err;
   }
+
+  // Save this into the base handler class attribute
+  table__ = table;
 
   // need this bitmap future in next_row()
   if (my_bitmap_init(&scan_fields, NULL, table->read_set->n_bits, false))
