@@ -153,7 +153,9 @@ static void yyerror(THD *thd, const char *s)
 
 
 #ifndef DBUG_OFF
-void turn_parser_debug_on()
+#define __CONCAT_UNDERSCORED(x,y)  x ## _ ## y
+#define _CONCAT_UNDERSCORED(x,y)   __CONCAT_UNDERSCORED(x,y)
+void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
 {
   /*
      MYSQLdebug is in sql/sql_yacc.cc, in bison generated code.

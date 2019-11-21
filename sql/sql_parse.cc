@@ -7904,7 +7904,8 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
 {
   int error __attribute__((unused));
   DBUG_ENTER("mysql_parse");
-  DBUG_EXECUTE_IF("parser_debug", turn_parser_debug_on(););
+  DBUG_EXECUTE_IF("parser_debug", turn_parser_debug_on_MYSQLparse(););
+  DBUG_EXECUTE_IF("parser_debug", turn_parser_debug_on_ORAparse(););
 
   /*
     Warning.

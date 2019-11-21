@@ -152,6 +152,31 @@ static void yyerror(THD *thd, const char *s)
 }
 
 
+#ifndef DBUG_OFF
+#define __CONCAT_UNDERSCORED(x,y)  x ## _ ## y
+#define _CONCAT_UNDERSCORED(x,y)   __CONCAT_UNDERSCORED(x,y)
+void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
+{
+  /*
+     MYSQLdebug is in sql/sql_yacc.cc, in bison generated code.
+     Turning this option on is **VERY** verbose, and should be
+     used when investigating a syntax error problem only.
+
+     The syntax to run with bison traces is as follows :
+     - Starting a server manually :
+       mysqld --debug-dbug="d,parser_debug" ...
+     - Running a test :
+       mysql-test-run.pl --mysqld="--debug-dbug=d,parser_debug" ...
+
+     The result will be in the process stderr (var/log/master.err)
+   */
+
+  extern int yydebug;
+  yydebug= 1;
+}
+#endif
+
+
 #define bincmp_collation(X,Y)           \
   do                                    \
   {                                     \
