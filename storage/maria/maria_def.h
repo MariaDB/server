@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* This file is included by all internal maria files */
 
@@ -640,6 +640,7 @@ struct st_maria_handler
   invalidator_by_filename invalidator;	/* query cache invalidator */
   ulonglong last_auto_increment;        /* auto value at start of statement */
   ulonglong row_changes;                /* Incremented for each change */
+  ulonglong start_row_changes;          /* Row changes since start trans */
   ulong this_unique;			/* uniq filenumber or thread */
   ulong last_unique;			/* last unique number */
   ulong this_loop;			/* counter for this open */
@@ -778,8 +779,8 @@ struct st_maria_handler
   transid_korr((buff) + LSN_STORE_SIZE)
 #define _ma_store_keypage_flag(share,x,flag) x[(share)->keypage_header - KEYPAGE_USED_SIZE - KEYPAGE_FLAG_SIZE]= (flag)
 #define _ma_mark_page_with_transid(share, page) \
-  (page)->flag|= KEYPAGE_FLAG_HAS_TRANSID;                              \
-  (page)->buff[(share)->keypage_header - KEYPAGE_USED_SIZE - KEYPAGE_FLAG_SIZE]= (page)->flag;
+  do { (page)->flag|= KEYPAGE_FLAG_HAS_TRANSID;                        \
+    (page)->buff[(share)->keypage_header - KEYPAGE_USED_SIZE - KEYPAGE_FLAG_SIZE]= (page)->flag; } while (0)
 
 #define KEYPAGE_KEY_VERSION(share, x) ((x) + \
                                        (share)->keypage_header -        \
@@ -1431,3 +1432,11 @@ extern my_bool ma_yield_and_check_if_killed(MARIA_HA *info, int inx);
 extern my_bool ma_killed_standalone(MARIA_HA *);
 
 extern uint _ma_file_callback_to_id(void *callback_data);
+
+static inline void unmap_file(MARIA_HA *info __attribute__((unused)))
+{
+#ifdef HAVE_MMAP
+  if (info->s->file_map)
+    _ma_unmap_file(info);
+#endif
+}

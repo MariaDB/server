@@ -27,7 +27,8 @@ set @my_thread_cache_size         =@@global.thread_cache_size;
 set @my_max_allowed_packet        =@@global.max_allowed_packet;
 set @my_delay_key_write           =@@global.delay_key_write;
 set @my_join_buffer_size          =@@global.join_buffer_size;
-set @my_log_warnings               =@@global.log_warnings;
+set @my_log_warnings              =@@global.log_warnings;
+set @my_local_infile              =@@global.local_infile;
 set @`test`=1;
 select @test, @`test`, @TEST, @`TEST`, @"teSt";
 @test	@`test`	@TEST	@`TEST`	@"teSt"
@@ -522,9 +523,6 @@ Warning	1292	Truncated incorrect max_heap_table_size value: '100'
 set max_join_size=100;
 set max_sort_length=100;
 set global max_user_connections=100;
-select @@max_user_connections;
-@@max_user_connections
-100
 set global max_write_lock_count=100;
 set myisam_sort_buffer_size=100;
 Warnings:
@@ -648,13 +646,14 @@ select * from information_schema.global_variables where variable_name like 'myis
 VARIABLE_NAME	VARIABLE_VALUE
 MYISAM_MAX_SORT_FILE_SIZE	MAX_FILE_SIZE
 set global myisam_max_sort_file_size=default;
+set @@global.max_user_connections=10, @@local.max_join_size=1000;
 select @@global.max_user_connections,@@local.max_join_size;
 @@global.max_user_connections	@@local.max_join_size
-100	100
+10	1000
 set @svc=@@global.max_user_connections, @svj=@@local.max_join_size;
 select @@global.max_user_connections,@@local.max_join_size;
 @@global.max_user_connections	@@local.max_join_size
-100	100
+10	1000
 set @@global.max_user_connections=111,@@local.max_join_size=222;
 select @@global.max_user_connections,@@local.max_join_size;
 @@global.max_user_connections	@@local.max_join_size
@@ -666,12 +665,13 @@ select @@global.max_user_connections,@@local.max_join_size;
 set @@global.max_user_connections=@svc, @@local.max_join_size=@svj;
 select @@global.max_user_connections,@@local.max_join_size;
 @@global.max_user_connections	@@local.max_join_size
-100	100
+10	1000
 set @a=1, @b=2;
 set @a=@b, @b=@a;
 select @a, @b;
 @a	@b
 2	1
+set @@global.max_user_connections=@my_max_user_connections;
 set @@global.global.key_buffer_size= 1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key_buffer_size= 1' at line 1
 set GLOBAL global.key_buffer_size= 1;
@@ -1061,12 +1061,13 @@ set global net_write_timeout         =@my_net_write_timeout;
 set global net_read_timeout          =@my_net_read_timeout;
 set global server_id                 =@my_server_id;
 set global slow_launch_time          =@my_slow_launch_time;
-set global default_storage_engine            =@my_storage_engine;
+set global default_storage_engine    =@my_storage_engine;
 set global thread_cache_size         =@my_thread_cache_size;
-set global max_allowed_packet        = default;
+set global max_allowed_packet        =@my_max_allowed_packet;
 set global delay_key_write           =@my_delay_key_write;
 set global join_buffer_size          =@my_join_buffer_size;
 set global log_warnings              =@my_log_warnings;
+set global local_infile              =@my_local_infile;
 show global variables where Variable_name='table_definition_cache';
 Variable_name	Value
 table_definition_cache	#
@@ -1136,12 +1137,12 @@ ERROR HY000: Variable 'ft_stopword_file' is a read only variable
 #
 SHOW VARIABLES like 'back_log';
 Variable_name	Value
-back_log	80
+back_log	#
 SELECT @@session.back_log;
 ERROR HY000: Variable 'back_log' is a GLOBAL variable
-SELECT @@global.back_log;
-@@global.back_log
-80
+SELECT @@global.back_log > 0;
+@@global.back_log > 0
+1
 SET @@session.back_log= 7;
 ERROR HY000: Variable 'back_log' is a read only variable
 SET @@global.back_log= 7;
@@ -1492,12 +1493,12 @@ SET GLOBAL max_binlog_cache_size = @old_max_binlog_cache_size;
 #
 # Bug #37168 : Missing variable - skip_name_resolve
 #
-SELECT @@skip_name_resolve;
-@@skip_name_resolve
-0
+SELECT @@skip_name_resolve >= 0;
+@@skip_name_resolve >= 0
+1
 SHOW VARIABLES LIKE 'skip_name_resolve';
 Variable_name	Value
-skip_name_resolve	OFF
+skip_name_resolve	#
 #
 # Bug #43233 : Some server variables are clipped during "update,"
 #              not "check" stage
@@ -1531,9 +1532,9 @@ SET @@global.max_binlog_cache_size=DEFAULT;
 SET @@global.max_join_size=DEFAULT;
 SET @@global.key_buffer_size=@kbs;
 SET @@global.key_cache_block_size=@kcbs;
-select @@max_long_data_size;
-@@max_long_data_size
-16777216
+select @@max_long_data_size > 0;
+@@max_long_data_size > 0
+1
 #
 # Bug#11766424  59527:
 # Assert in DECIMAL_BIN_SIZE: 

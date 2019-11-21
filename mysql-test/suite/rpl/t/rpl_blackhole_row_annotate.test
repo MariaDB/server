@@ -1,0 +1,49 @@
+# ==== Purpose ====
+#
+# Test verifies that when "replicate_annotate_row_events" are enabled on slave
+# the DML operations on blackhole engine will be successful. It also ensures
+# that Annotate events are logged into slave's binary log.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Enable "replicate_annotate_row_events" on slave and do DML operations
+#    on master.
+#    1 - Slave server will successfully apply the DML operations and it is in
+#    sync with master.
+#    2 - Verify that the "show binlog events" prints all annotate events.
+#    3 - Stream the slave's binary log using "mysqlbinlog" tool and verify
+#    that the Annotate events are being displayed.
+#
+# ==== References ====
+#
+# MDEV-11094: Blackhole table updates on slave fail when row annotation is
+# enabled
+
+source include/have_blackhole.inc;
+source include/have_binlog_format_row.inc;
+source include/binlog_start_pos.inc;
+source include/master-slave.inc;
+
+SET timestamp=1000000000;
+RESET MASTER;
+connection slave;
+SET timestamp=1000000000;
+RESET MASTER;
+
+connection master;
+source extra/rpl_tests/rpl_blackhole_basic.test;
+
+# Verify on slave.
+connection slave;
+FLUSH LOGS;
+--replace_column 2 # 5 #
+--replace_result $binlog_start_pos <start_pos>
+--replace_regex /table_id: [0-9]+/table_id: #/ /\/\* xid=.* \*\//\/* xid= *\//
+--eval show binlog events in 'slave-bin.000001' from $binlog_start_pos
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_regex /server id [0-9]*/server id #/ /server v [^ ]*/server v #.##.##/ /exec_time=[0-9]*/exec_time=#/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /CRC32 0x[0-9a-f]*/CRC32 XXX/
+--exec $MYSQL_BINLOG --base64-output=decode-rows $MYSQLD_DATADIR/slave-bin.000001
+
+source include/rpl_end.inc;

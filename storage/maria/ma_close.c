@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* close a isam-database */
 /*
@@ -47,9 +47,7 @@ int maria_close(register MARIA_HA *info)
       a global mutex
     */
     if (flush_pagecache_blocks(share->pagecache, &share->kfile,
-                               ((share->temporary || share->deleting) ?
-                                FLUSH_IGNORE_CHANGED :
-                                FLUSH_RELEASE)))
+                       share->deleting ? FLUSH_IGNORE_CHANGED : FLUSH_RELEASE))
       error= my_errno;
   }
 
@@ -113,23 +111,11 @@ int maria_close(register MARIA_HA *info)
         since the start of the function (very unlikely)
       */
       if (flush_pagecache_blocks(share->pagecache, &share->kfile,
-                                 ((share->temporary || share->deleting) ?
-                                  FLUSH_IGNORE_CHANGED :
-                                  FLUSH_RELEASE)))
+                        share->deleting ? FLUSH_IGNORE_CHANGED : FLUSH_RELEASE))
         error= my_errno;
-#ifdef HAVE_MMAP
-      if (share->file_map)
-        _ma_unmap_file(info);
-#endif
-      /*
-        If we are crashed, we can safely flush the current state as it will
-        not change the crashed state.
-        We can NOT write the state in other cases as other threads
-        may be using the file at this point
-        IF using --external-locking, which does not apply to Maria.
-      */
+      unmap_file(info);
       if (((share->changed && share->base.born_transactional) ||
-           maria_is_crashed(info)))
+           maria_is_crashed(info) || (share->temporary && !share->deleting)))
       {
         if (save_global_changed)
         {

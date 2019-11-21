@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /**
@@ -79,7 +79,7 @@ const char field_separator=',';
                   ptr < table->record[0] + table->s->reclength))))
 
 #define ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED                   \
-  DBUG_ASSERT(is_stat_field || !table ||                             \
+  DBUG_ASSERT(!table ||                                              \
               (!table->write_set ||                                  \
                bitmap_is_set(table->write_set, field_index) ||       \
                (!(ptr >= table->record[0] &&                         \
@@ -1362,6 +1362,113 @@ warn:
 
 
 /**
+  If a field does not have a corresponding data, it's behavior can vary:
+  - In case of the fixed file format
+    it's set to the default value for the data type,
+    such as 0 for numbers or '' for strings.
+  - In case of a non-fixed format
+    it's set to NULL for nullable fields, and
+    it's set to the default value for the data type for NOT NULL fields.
+  This seems to be by design.
+*/
+bool Field::load_data_set_no_data(THD *thd, bool fixed_format)
+{
+  reset();                  // Do not use the DEFAULT value
+  if (fixed_format)
+  {
+    set_notnull();
+    /*
+      We're loading a fixed format file, e.g.:
+        LOAD DATA INFILE 't1.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+      Suppose the file ended unexpectedly and no data was provided for an
+      auto-increment column in the current row.
+      Historically, if sql_mode=NO_AUTO_VALUE_ON_ZERO, then the column value
+      is set to 0 in such case (the next auto_increment value is not used).
+      This behaviour was introduced by the fix for "bug#12053" in mysql-4.1.
+      Note, loading a delimited file works differently:
+      "no data" is not converted to 0 on NO_AUTO_VALUE_ON_ZERO:
+      it's considered as equal to setting the column to NULL,
+      which is then replaced to the next auto_increment value.
+      This difference seems to be intentional.
+    */
+    if (this == table->next_number_field)
+      table->auto_increment_field_not_null= true;
+  }
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
+
+bool Field::load_data_set_null(THD *thd)
+{
+  reset();
+  set_null();
+  if (!maybe_null())
+  {
+    if (this != table->next_number_field)
+      set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_NULL_TO_NOTNULL, 1);
+  }
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
+
+void Field::load_data_set_value(const char *pos, uint length,
+                                CHARSET_INFO *cs)
+{
+  /*
+    Mark field as not null, we should do this for each row because of
+    restore_record...
+  */
+  set_notnull();
+  if (this == table->next_number_field)
+    table->auto_increment_field_not_null= true;
+  store(pos, length, cs);
+  set_has_explicit_value(); // Do not auto-update this field
+}
+
+
+void Field::error_generated_column_function_is_not_allowed(THD *thd,
+                                                           bool error) const
+{
+  StringBuffer<64> tmp;
+  vcol_info->expr->print(&tmp, (enum_query_type)
+                               (QT_TO_SYSTEM_CHARSET |
+                                QT_ITEM_IDENT_SKIP_DB_NAMES |
+                                QT_ITEM_IDENT_SKIP_TABLE_NAMES));
+  my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED,
+           MYF(error ? 0 : ME_JUST_WARNING),
+           tmp.c_ptr(), vcol_info->get_vcol_type_name(),
+           const_cast<const char*>(field_name));
+}
+
+
+/*
+  Check if an indexed or a persistent virtual column depends on sql_mode flags
+  that it cannot handle.
+  See sql_mode.h for details.
+*/
+bool Field::check_vcol_sql_mode_dependency(THD *thd, vcol_init_mode mode) const
+{
+  DBUG_ASSERT(vcol_info);
+  if ((flags & PART_KEY_FLAG) != 0 || stored_in_db())
+  {
+    Sql_mode_dependency dep=
+        vcol_info->expr->value_depends_on_sql_mode() &
+        Sql_mode_dependency(~0, ~can_handle_sql_mode_dependency_on_store());
+    if (dep)
+    {
+      bool error= (mode & VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR) != 0;
+      error_generated_column_function_is_not_allowed(thd, error);
+      dep.push_dependency_warnings(thd);
+      return error;
+    }
+  }
+  return false;
+}
+
+
+/**
   Numeric fields base class constructor.
 */
 Field_num::Field_num(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
@@ -1394,6 +1501,12 @@ void Field_num::prepend_zeros(String *value) const
       value->length(field_length);
     }
   }
+}
+
+
+sql_mode_t Field_num::can_handle_sql_mode_dependency_on_store() const
+{
+  return MODE_PAD_CHAR_TO_FULL_LENGTH;
 }
 
 
@@ -1709,8 +1822,7 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   flags=null_ptr ? 0: NOT_NULL_FLAG;
   comment.str= (char*) "";
   comment.length=0;
-  field_index= 0;   
-  is_stat_field= FALSE;
+  field_index= 0;
   cond_selectivity= 1.0;
   next_equal_field= NULL;
 }
@@ -2323,30 +2435,18 @@ Field *Field::clone(MEM_ROOT *root, TABLE *new_table)
 }
 
 
-
-Field *Field::clone(MEM_ROOT *root, TABLE *new_table, my_ptrdiff_t diff,
-                    bool stat_flag)
+Field *Field::clone(MEM_ROOT *root, TABLE *new_table, my_ptrdiff_t diff)
 {
   Field *tmp;
   if ((tmp= (Field*) memdup_root(root,(char*) this,size_of())))
   {
-    tmp->init(new_table);
-    tmp->move_field_offset(diff);
-  }
-  tmp->is_stat_field= stat_flag;
-  return tmp;
-}
-
-
-Field *Field::clone(MEM_ROOT *root, my_ptrdiff_t diff)
-{
-  Field *tmp;
-  if ((tmp= (Field*) memdup_root(root,(char*) this,size_of())))
-  {
+    if (new_table)
+      tmp->init(new_table);
     tmp->move_field_offset(diff);
   }
   return tmp;
 }
+
 
 int Field::set_default()
 {
@@ -2361,7 +2461,7 @@ int Field::set_default()
   /* Copy constant value stored in s->default_values */
   my_ptrdiff_t l_offset= (my_ptrdiff_t) (table->s->default_values -
                                         table->record[0]);
-  memcpy(ptr, ptr + l_offset, pack_length());
+  memcpy(ptr, ptr + l_offset, pack_length_in_rec());
   if (maybe_null_in_table())
     *null_ptr= ((*null_ptr & (uchar) ~null_bit) |
                 (null_ptr[l_offset] & null_bit));
@@ -2726,7 +2826,7 @@ int Field_decimal::store(const char *from_arg, uint len, CHARSET_INFO *cs)
   
   /*
     Write digits of the frac_% parts ;
-    Depending on get_thd()->count_cutted_fields, we may also want
+    Depending on get_thd()->count_cuted_fields, we may also want
     to know if some non-zero tail of these parts will
     be truncated (for example, 0.002->0.00 will generate a warning,
     while 0.000->0.00 will not)
@@ -2804,7 +2904,7 @@ int Field_decimal::store(double nr)
     return 1;
   }
   
-  if (!isfinite(nr)) // Handle infinity as special case
+  if (!std::isfinite(nr)) // Handle infinity as special case
   {
     overflow(nr < 0.0);
     return 1;
@@ -4721,7 +4821,7 @@ int truncate_double(double *nr, uint field_length, uint dec,
   int error= 0;
   double res= *nr;
   
-  if (isnan(res))
+  if (std::isnan(res))
   {
     *nr= 0;
     return -1;
@@ -4743,7 +4843,7 @@ int truncate_double(double *nr, uint field_length, uint dec,
     max_value-= 1.0 / log_10[dec];
 
     /* Check for infinity so we don't get NaN in calculations */
-    if (!my_isinf(res))
+    if (!std::isinf(res))
     {
       double tmp= rint((res - floor(res)) * log_10[dec]) / log_10[dec];
       res= floor(res) + tmp;
@@ -5348,6 +5448,43 @@ int Field_timestamp::set_time()
   return 0;
 }
 
+
+bool Field_timestamp::load_data_set_no_data(THD *thd, bool fixed_format)
+{
+  if (!maybe_null())
+  {
+    /*
+      Timestamp fields that are NOT NULL are autoupdated if there is no
+      corresponding value in the data file.
+    */
+    set_time();
+    set_has_explicit_value();
+    return false;
+  }
+  return Field::load_data_set_no_data(thd, fixed_format);
+}
+
+
+bool Field_timestamp::load_data_set_null(THD *thd)
+{
+  if (!maybe_null())
+  {
+    /*
+      Timestamp fields that are NOT NULL are autoupdated if there is no
+      corresponding value in the data file.
+    */
+    set_time();
+  }
+  else
+  {
+    reset();
+    set_null();
+  }
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
+
 #ifdef NOT_USED
 static void store_native(ulonglong num, uchar *to, uint bytes)
 {
@@ -5550,6 +5687,12 @@ my_time_t Field_timestampf::get_timestamp(const uchar *pos,
 
 
 /*************************************************************/
+sql_mode_t Field_temporal::can_handle_sql_mode_dependency_on_store() const
+{
+  return MODE_PAD_CHAR_TO_FULL_LENGTH;
+}
+
+
 uint Field_temporal::is_equal(Create_field *new_field)
 {
   return new_field->sql_type == real_type() &&
@@ -6923,8 +7066,11 @@ Field_longstr::check_string_copy_error(const String_copier *copier,
   if (!(pos= copier->most_important_error_pos()))
     return FALSE;
 
-  convert_to_printable(tmp, sizeof(tmp), pos, (end - pos), cs, 6);
-  set_warning_truncated_wrong_value("string", tmp);
+  if (get_thd()->count_cuted_fields)
+  {
+    convert_to_printable(tmp, sizeof(tmp), pos, (end - pos), cs, 6);
+    set_warning_truncated_wrong_value("string", tmp);
+  }
   return TRUE;
 }
 
@@ -6953,8 +7099,9 @@ int
 Field_longstr::report_if_important_data(const char *pstr, const char *end,
                                         bool count_spaces)
 {
-  THD *thd= get_thd();
-  if ((pstr < end) && thd->count_cuted_fields)
+  THD *thd;
+  if ((pstr < end) &&
+      (thd=get_thd())->count_cuted_fields)
   {
     if (test_if_important_data(field_charset, pstr, end))
     {
@@ -6965,7 +7112,8 @@ Field_longstr::report_if_important_data(const char *pstr, const char *end,
       return 2;
     }
     else if (count_spaces)
-    { /* If we lost only spaces then produce a NOTE, not a WARNING */
+    {
+      /* If we lost only spaces then produce a NOTE, not a WARNING */
       set_note(WARN_DATA_TRUNCATED, 1);
       return 2;
     }
@@ -7164,6 +7312,18 @@ longlong Field_string::val_int(void)
 }
 
 
+sql_mode_t Field_string::value_depends_on_sql_mode() const
+{
+  return has_charset() ? MODE_PAD_CHAR_TO_FULL_LENGTH : sql_mode_t(0);
+};
+
+
+sql_mode_t Field_string::can_handle_sql_mode_dependency_on_store() const
+{
+  return has_charset() ? MODE_PAD_CHAR_TO_FULL_LENGTH : sql_mode_t(0);
+}
+
+
 String *Field_string::val_str(String *val_buffer __attribute__((unused)),
 			      String *val_ptr)
 {
@@ -7285,6 +7445,28 @@ void Field_string::sql_type(String &res) const
     res.append(STRING_WITH_LEN(" binary"));
 }
 
+/**
+   For fields which are associated with character sets their length is provided
+   in octets and their character set information is also provided as part of
+   type information.
+
+   @param   res       String which contains filed type and length.
+*/
+void Field_string::sql_rpl_type(String *res) const
+{
+  CHARSET_INFO *cs=charset();
+  if (Field_string::has_charset())
+  {
+    size_t length= cs->cset->snprintf(cs, (char*) res->ptr(),
+                                      res->alloced_length(),
+                                      "char(%u octets) character set %s",
+                                      field_length,
+                                      charset()->csname);
+    res->length(length);
+  }
+  else
+    Field_string::sql_type(*res);
+ }
 
 uchar *Field_string::pack(uchar *to, const uchar *from, uint max_length)
 {
@@ -7711,6 +7893,29 @@ void Field_varstring::sql_type(String &res) const
   if ((thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)) &&
       has_charset() && (charset()->state & MY_CS_BINSORT))
     res.append(STRING_WITH_LEN(" binary"));
+}
+
+/**
+   For fields which are associated with character sets their length is provided
+   in octets and their character set information is also provided as part of
+   type information.
+
+   @param   res       String which contains filed type and length.
+*/
+void Field_varstring::sql_rpl_type(String *res) const
+{
+  CHARSET_INFO *cs=charset();
+  if (Field_varstring::has_charset())
+  {
+    size_t length= cs->cset->snprintf(cs, (char*) res->ptr(),
+                                      res->alloced_length(),
+                                      "varchar(%u octets) character set %s",
+                                      field_length,
+                                      charset()->csname);
+    res->length(length);
+  }
+  else
+    Field_varstring::sql_type(*res);
 }
 
 
@@ -8699,6 +8904,28 @@ bool Field_geom::can_optimize_range(const Item_bool_func *cond,
   return item->cmp_type() == STRING_RESULT;
 }
 
+
+bool Field_geom::load_data_set_no_data(THD *thd, bool fixed_format)
+{
+  return Field_geom::load_data_set_null(thd);
+}
+
+
+bool Field_geom::load_data_set_null(THD *thd)
+{
+  Field_blob::reset();
+  if (!maybe_null())
+  {
+    my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0), field_name,
+             thd->get_stmt_da()->current_row_for_warning());
+    return true;
+  }
+  set_null();
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
+
 #endif /*HAVE_SPATIAL*/
 
 /****************************************************************************
@@ -8706,6 +8933,12 @@ bool Field_geom::can_optimize_range(const Item_bool_func *cond,
 ** This is a string which only can have a selection of different values.
 ** If one uses this string in a number context one gets the type number.
 ****************************************************************************/
+
+sql_mode_t Field_enum::can_handle_sql_mode_dependency_on_store() const
+{
+  return MODE_PAD_CHAR_TO_FULL_LENGTH;
+}
+
 
 enum ha_base_keytype Field_enum::key_type() const
 {
@@ -10820,13 +11053,17 @@ void Field::set_warning_truncated_wrong_value(const char *type_arg,
                                               const char *value)
 {
   THD *thd= get_thd();
-  const char *db_name= table->s->db.str;
-  const char *table_name= table->s->table_name.str;
+  const char *db_name;
+  const char *table_name;
+  /*
+    table has in the past been 0 in case of wrong calls when processing
+    statistics tables. Let's protect against that.
+  */
+  DBUG_ASSERT(table);
 
-  if (!db_name)
-    db_name= "";
-  if (!table_name)
-    table_name= "";
+  db_name= (table && table->s->db.str) ? table->s->db.str : "";
+  table_name= (table && table->s->table_name.str) ?
+              table->s->table_name.str : "";
 
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
@@ -10859,33 +11096,6 @@ key_map Field::get_possible_keys()
   DBUG_ASSERT(table->pos_in_table_list);
   return (table->pos_in_table_list->is_materialized_derived() ?
           part_of_key : key_start);
-}
-
-
-/**
-  Mark the field as having an explicit default value.
-
-  @param value  if available, the value that the field is being set to
-
-  @note
-    Fields that have an explicit default value should not be updated
-    automatically via the DEFAULT or ON UPDATE functions. The functions
-    that deal with data change functionality (INSERT/UPDATE/LOAD),
-    determine if there is an explicit value for each field before performing
-    the data change, and call this method to mark the field.
-
-    If the 'value' parameter is NULL, then the field is marked unconditionally
-    as having an explicit value. If 'value' is not NULL, then it can be further
-    analyzed to check if it really should count as a value.
-*/
-
-bool Field::set_explicit_default(Item *value)
-{
-  if (value->type() == Item::DEFAULT_VALUE_ITEM &&
-      !((Item_default_value*)value)->arg)
-    return false;
-  set_has_explicit_value();
-  return true;
 }
 
 

@@ -22,7 +22,8 @@ drop table t1,t2;
 
 --replace_column 1 <Id> 3 <Host> 6 <Time> 7 <State>
 # Embedded server is hardcoded to show "Writing to net" as STATE.
---replace_result "Writing to net" "NULL"
+# ps-protocol will have Execute not Query
+--replace_result "Writing to net" "NULL" "Execute" "Query"
 --replace_regex /localhost[:0-9]*/localhost/
 SHOW PROCESSLIST;
 

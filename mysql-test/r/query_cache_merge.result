@@ -1,3 +1,5 @@
+set @save_query_cache_size=@@global.query_cache_size;
+set @save_query_cache_type=@@global.query_cache_type;
 SET GLOBAL query_cache_type=ON;
 SET LOCAL query_cache_type=ON;
 SET @@global.query_cache_size=1355776;
@@ -1692,7 +1694,7 @@ DROP TABLE t4;
 DROP TABLE t3;
 DROP TABLE t2;
 DROP TABLE t1;
-SET @@global.query_cache_size = default;
+SET @@global.query_cache_size = @save_query_cache_size;
 SET @@global.table_definition_cache = @save_table_definition_cache;
-SET GLOBAL query_cache_type=default;
+SET @@global.query_cache_type = @save_query_cache_type;
 End of 5.1 tests

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -73,11 +73,11 @@ allocations of small buffers. */
 
 /** If a memory heap is allowed to grow into the buffer pool, the following
 is the maximum size for a single allocated buffer: */
-#define MEM_MAX_ALLOC_IN_BUF		(UNIV_PAGE_SIZE - 200)
+#define MEM_MAX_ALLOC_IN_BUF		(UNIV_PAGE_SIZE - 200 + REDZONE_SIZE)
 
 /** Space needed when allocating for a user a field of length N.
 The space is allocated only in multiples of UNIV_MEM_ALIGNMENT.  */
-#define MEM_SPACE_NEEDED(N) ut_calc_align((N), UNIV_MEM_ALIGNMENT)
+#define MEM_SPACE_NEEDED(N) UT_CALC_ALIGN((N), UNIV_MEM_ALIGNMENT)
 
 #ifdef UNIV_DEBUG
 /** Macro for memory heap creation.
@@ -193,70 +193,6 @@ mem_heap_get_top(
 	mem_heap_t*	heap,
 	ulint		n);
 
-/** Checks if a given chunk of memory is the topmost element stored in the
-heap. If this is the case, then calling mem_heap_free_top() would free
-that element from the heap.
-@param[in]	heap	memory heap
-@param[in]	buf	presumed topmost element
-@param[in]	buf_sz	size of buf in bytes
-@return true if topmost */
-UNIV_INLINE
-bool
-mem_heap_is_top(
-	mem_heap_t*	heap,
-	const void*	buf,
-	ulint		buf_sz)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/*****************************************************************//**
-Allocate a new chunk of memory from a memory heap, possibly discarding
-the topmost element. If the memory chunk specified with (top, top_sz)
-is the topmost element, then it will be discarded, otherwise it will
-be left untouched and this function will be equivallent to
-mem_heap_alloc().
-@return allocated storage, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
-UNIV_INLINE
-void*
-mem_heap_replace(
-/*=============*/
-	mem_heap_t*	heap,	/*!< in/out: memory heap */
-	const void*	top,	/*!< in: chunk to discard if possible */
-	ulint		top_sz,	/*!< in: size of top in bytes */
-	ulint		new_sz);/*!< in: desired size of the new chunk */
-/*****************************************************************//**
-Allocate a new chunk of memory from a memory heap, possibly discarding
-the topmost element and then copy the specified data to it. If the memory
-chunk specified with (top, top_sz) is the topmost element, then it will be
-discarded, otherwise it will be left untouched and this function will be
-equivallent to mem_heap_dup().
-@return allocated storage, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
-UNIV_INLINE
-void*
-mem_heap_dup_replace(
-/*=================*/
-	mem_heap_t*	heap,	/*!< in/out: memory heap */
-	const void*	top,	/*!< in: chunk to discard if possible */
-	ulint		top_sz,	/*!< in: size of top in bytes */
-	const void*	data,	/*!< in: new data to duplicate */
-	ulint		data_sz);/*!< in: size of data in bytes */
-/*****************************************************************//**
-Allocate a new chunk of memory from a memory heap, possibly discarding
-the topmost element and then copy the specified string to it. If the memory
-chunk specified with (top, top_sz) is the topmost element, then it will be
-discarded, otherwise it will be left untouched and this function will be
-equivallent to mem_heap_strdup().
-@return allocated string, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
-UNIV_INLINE
-char*
-mem_heap_strdup_replace(
-/*====================*/
-	mem_heap_t*	heap,	/*!< in/out: memory heap */
-	const void*	top,	/*!< in: chunk to discard if possible */
-	ulint		top_sz,	/*!< in: size of top in bytes */
-	const char*	str);	/*!< in: new data to duplicate */
 /*****************************************************************//**
 Frees the topmost element in a memory heap.
 The size of the element must be given. */
@@ -292,7 +228,22 @@ mem_strdupl(
 	const char*	str,	/*!< in: string to be copied */
 	ulint		len);	/*!< in: length of str, in bytes */
 
-/** Duplicates a NUL-terminated string, allocated from a memory heap.
+/** Duplicate a block of data, allocated from a memory heap.
+@param[in]	heap	memory heap where string is allocated
+@param[in]	data	block of data to be copied
+@param[in]	len	length of data, in bytes
+@return own: a copy of data */
+inline
+void*
+mem_heap_dup(mem_heap_t* heap, const void* data, size_t len)
+{
+	ut_ad(data || !len);
+	return UNIV_LIKELY(data != NULL)
+		? memcpy(mem_heap_alloc(heap, len), data, len)
+		: NULL;
+}
+
+/** Duplicate a NUL-terminated string, allocated from a memory heap.
 @param[in]	heap	memory heap where string is allocated
 @param[in]	str	string to be copied
 @return own: a copy of the string */
@@ -322,16 +273,6 @@ mem_heap_strcat(
 	mem_heap_t*	heap,	/*!< in: memory heap where string is allocated */
 	const char*	s1,	/*!< in: string 1 */
 	const char*	s2);	/*!< in: string 2 */
-
-/**********************************************************************//**
-Duplicate a block of data, allocated from a memory heap.
-@return own: a copy of the data */
-void*
-mem_heap_dup(
-/*=========*/
-	mem_heap_t*	heap,	/*!< in: memory heap where copy is allocated */
-	const void*	data,	/*!< in: data to be copied */
-	ulint		len);	/*!< in: length of data, in bytes */
 
 /****************************************************************//**
 A simple sprintf replacement that dynamically allocates the space for the
@@ -406,8 +347,8 @@ struct mem_block_info_t {
 #define MEM_FREED_BLOCK_MAGIC_N	547711122
 
 /* Header size for a memory heap block */
-#define MEM_BLOCK_HEADER_SIZE	ut_calc_align(sizeof(mem_block_info_t),\
-							UNIV_MEM_ALIGNMENT)
+#define MEM_BLOCK_HEADER_SIZE	UT_CALC_ALIGN(sizeof(mem_block_info_t),\
+					      UNIV_MEM_ALIGNMENT)
 
 #include "mem0mem.ic"
 #endif

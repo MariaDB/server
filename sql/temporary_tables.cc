@@ -369,6 +369,22 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
   if (!table && (share= find_tmp_table_share(tl)))
   {
     table= open_temporary_table(share, tl->get_table_name(), true);
+    /*
+       Temporary tables are not safe for parallel replication. They were
+       designed to be visible to one thread only, so have no table locking.
+       Thus there is no protection against two conflicting transactions
+       committing in parallel and things like that.
+
+       So for now, anything that uses temporary tables will be serialised
+       with anything before it, when using parallel replication.
+    */
+    if (table && rgi_slave &&
+        rgi_slave->is_parallel_exec &&
+        wait_for_prior_commit())
+      DBUG_RETURN(true);
+
+    if (!table && is_error())
+      DBUG_RETURN(true);                        // Error when opening table
   }
 
   if (!table)
@@ -491,6 +507,7 @@ bool THD::close_temporary_tables()
     /* Traverse the table list. */
     while ((table= share->all_tmp_tables.pop_front()))
     {
+      table->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
       free_temporary_table(table);
     }
   }
@@ -579,9 +596,7 @@ bool THD::rename_temporary_table(TABLE *table,
   @return false                       Table was dropped
           true                        Error
 */
-bool THD::drop_temporary_table(TABLE *table,
-                               bool *is_trans,
-                               bool delete_table)
+bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
 {
   DBUG_ENTER("THD::drop_temporary_table");
 
@@ -624,7 +639,8 @@ bool THD::drop_temporary_table(TABLE *table,
       parallel replication
     */
     tab->in_use= this;
-
+    if (delete_table)
+      tab->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
     free_temporary_table(tab);
   }
 
@@ -1090,7 +1106,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
 
   if (open_table_from_share(this, share, alias,
                             open_in_engine ? (uint)HA_OPEN_KEYFILE : 0,
-                            EXTRA_RECORD, ha_open_options, table,
+                            EXTRA_RECORD, open_options | ha_open_options, table,
                             open_in_engine ? false : true))
   {
     my_free(table);
@@ -1318,6 +1334,7 @@ bool THD::log_events_and_free_tmp_shares()
       my_thread_id save_pseudo_thread_id= variables.pseudo_thread_id;
       char db_buf[FN_REFLEN];
       String db(db_buf, sizeof(db_buf), system_charset_info);
+      bool at_least_one_create_logged;
 
       /*
         Set pseudo_thread_id to be that of the processed table.
@@ -1335,7 +1352,7 @@ bool THD::log_events_and_free_tmp_shares()
         within the sublist of common pseudo_thread_id to create single
         DROP query.
       */
-      for (;
+      for (at_least_one_create_logged= false;
            share && IS_USER_TABLE(share) &&
            tmpkeyval(share) == variables.pseudo_thread_id &&
            share->db.length == db.length() &&
@@ -1343,51 +1360,57 @@ bool THD::log_events_and_free_tmp_shares()
            /* Get the next TABLE_SHARE in the list. */
            share= temporary_tables->pop_front())
       {
-        /*
-          We are going to add ` around the table names and possible more
-          due to special characters.
-        */
-        append_identifier(this, &s_query, share->table_name.str,
-                          share->table_name.length);
-        s_query.append(',');
+        if (share->table_creation_was_logged)
+        {
+          at_least_one_create_logged= true;
+          /*
+             We are going to add ` around the table names and possible more
+             due to special characters.
+           */
+          append_identifier(this, &s_query, share->table_name.str,
+              share->table_name.length);
+          s_query.append(',');
+        }
         rm_temporary_table(share->db_type(), share->path.str);
         free_table_share(share);
         my_free(share);
       }
-
-      clear_error();
-      CHARSET_INFO *cs_save= variables.character_set_client;
-      variables.character_set_client= system_charset_info;
-      thread_specific_used= true;
-
-      Query_log_event qinfo(this, s_query.ptr(),
-                            s_query.length() - 1 /* to remove trailing ',' */,
-                            false, true, false, 0);
-      qinfo.db= db.ptr();
-      qinfo.db_len= db.length();
-      variables.character_set_client= cs_save;
-
-      get_stmt_da()->set_overwrite_status(true);
-      transaction.stmt.mark_dropped_temp_table();
-      if ((error= (mysql_bin_log.write(&qinfo) || error)))
+      if (at_least_one_create_logged)
       {
-        /*
-          If we're here following THD::cleanup, thence the connection
-          has been closed already. So lets print a message to the
-          error log instead of pushing yet another error into the
-          stmt_da.
+        clear_error();
+        CHARSET_INFO *cs_save= variables.character_set_client;
+        variables.character_set_client= system_charset_info;
+        thread_specific_used= true;
 
-          Also, we keep the error flag so that we propagate the error
-          up in the stack. This way, if we're the SQL thread we notice
-          that THD::close_tables failed. (Actually, the SQL
-          thread only calls THD::close_tables while applying
-          old Start_log_event_v3 events.)
-        */
-        sql_print_error("Failed to write the DROP statement for "
-                        "temporary tables to binary log");
+        Query_log_event qinfo(this, s_query.ptr(),
+            s_query.length() - 1 /* to remove trailing ',' */,
+            false, true, false, 0);
+        qinfo.db= db.ptr();
+        qinfo.db_len= db.length();
+        variables.character_set_client= cs_save;
+
+        get_stmt_da()->set_overwrite_status(true);
+        transaction.stmt.mark_dropped_temp_table();
+        if ((error= (mysql_bin_log.write(&qinfo) || error)))
+        {
+          /*
+             If we're here following THD::cleanup, thence the connection
+             has been closed already. So lets print a message to the
+             error log instead of pushing yet another error into the
+             stmt_da.
+
+             Also, we keep the error flag so that we propagate the error
+             up in the stack. This way, if we're the SQL thread we notice
+             that THD::close_tables failed. (Actually, the SQL
+             thread only calls THD::close_tables while applying
+             old Start_log_event_v3 events.)
+           */
+          sql_print_error("Failed to write the DROP statement for "
+              "temporary tables to binary log");
+        }
+
+        get_stmt_da()->set_overwrite_status(false);
       }
-
-      get_stmt_da()->set_overwrite_status(false);
       variables.pseudo_thread_id= save_pseudo_thread_id;
       thread_specific_used= save_thread_specific_used;
     }
@@ -1419,8 +1442,7 @@ bool THD::log_events_and_free_tmp_shares()
 
   @return void
 */
-void THD::free_tmp_table_share(TMP_TABLE_SHARE *share,
-                               bool delete_table)
+void THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
 {
   DBUG_ENTER("THD::free_tmp_table_share");
 
@@ -1512,3 +1534,33 @@ void THD::unlock_temporary_tables()
   DBUG_VOID_RETURN;
 }
 
+
+/**
+  Close unused TABLE instances for given temporary table.
+
+  @param tl [IN]                      TABLE_LIST
+
+  Initial use case was TRUNCATE, which expects only one instance (which is used
+  by TRUNCATE itself) to be open. Most probably some ALTER TABLE variants and
+  REPAIR may have similar expectations.
+*/
+
+void THD::close_unused_temporary_table_instances(const TABLE_LIST *tl)
+{
+  TMP_TABLE_SHARE *share= find_tmp_table_share(tl);
+
+  if (share)
+  {
+    All_share_tables_list::Iterator tables_it(share->all_tmp_tables);
+
+     while (TABLE *table= tables_it++)
+     {
+       if (table->query_id == 0)
+       {
+         /* Note: removing current list element doesn't invalidate iterator. */
+         share->all_tmp_tables.remove(table);
+         free_temporary_table(table);
+       }
+     }
+  }
+}

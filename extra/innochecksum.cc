@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2016, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2014, 2017, MariaDB Corporation.
+   Copyright (c) 2014, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -100,6 +100,8 @@ ulong srv_page_size;
 page_size_t			univ_page_size(0, 0, false);
 /* Current page number (0 based). */
 unsigned long long		cur_page_num;
+/* Current space. */
+unsigned long long		cur_space;
 /* Skip the checksum verification. */
 static bool			no_check;
 /* Enabled for strict checksum verification. */
@@ -451,6 +453,27 @@ ulong read_file(
 	return bytes;
 }
 
+/** Check whether the page contains all zeroes.
+@param[in]	buf	page
+@param[in]	size	physical size of the page
+@return true if the page is all zeroes; else false */
+static bool is_page_all_zeroes(
+	byte*	buf,
+	ulint	size)
+{
+	/* On pages that are not all zero, the page number
+	must match. */
+	const ulint* p = reinterpret_cast<const ulint*>(buf);
+	const ulint* const end = reinterpret_cast<const ulint*>(buf + size);
+	do {
+		if (*p++) {
+			return false;
+		}
+	} while (p != end);
+
+	return true;
+}
+
 /** Check if page is corrupted or not.
 @param[in]	buf		page frame
 @param[in]	page_size	page size
@@ -462,10 +485,10 @@ ulong read_file(
 static
 bool
 is_page_corrupted(
-	byte*		buf,
+	byte*			buf,
 	const page_size_t&	page_size,
-	bool		is_encrypted,
-	bool		is_compressed)
+	bool			is_encrypted,
+	bool			is_compressed)
 {
 
 	/* enable if page is corrupted. */
@@ -477,6 +500,24 @@ is_page_corrupted(
 	uint key_version = mach_read_from_4(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	ulint space_id = mach_read_from_4(
 		buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+
+	if (mach_read_from_4(buf + FIL_PAGE_OFFSET) != cur_page_num
+	    || space_id != cur_space) {
+		/* On pages that are not all zero, the page number
+		must match. */
+		if (is_page_all_zeroes(buf, page_size.physical())) {
+			return false;
+		}
+
+		if (is_log_enabled) {
+			fprintf(log_file,
+				"page id mismatch space::" ULINTPF
+				" page::%llu \n",
+				space_id, cur_page_num);
+		}
+
+		return true;
+	}
 
 	/* We can't trust only a page type, thus we take account
 	also fsp_flags or crypt_data on page 0 */
@@ -526,7 +567,8 @@ is_page_corrupted(
 								page_size);
 		if (is_corrupted && log_file) {
 			fprintf(log_file,
-				"Page " ULINTPF ":%llu may be corrupted;"
+				"[page id: space=" ULINTPF
+				", page_number=%llu] may be corrupted;"
 				" key_version=%u\n",
 				space_id, cur_page_num,
 				mach_read_from_4(
@@ -1231,7 +1273,7 @@ static struct my_option innochecksum_options[] = {
   {"verbose", 'v', "Verbose (prints progress every 5 seconds).",
     &verbose, &verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DBUG_OFF
-  {"debug", '#', "Output debug log. See " REFMAN "dbug-package.html",
+  {"debug", '#', "Output debug log. See https://mariadb.com/kb/en/library/creating-a-trace-file/",
     &dbug_setting, &dbug_setting, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* !DBUG_OFF */
   {"count", 'c', "Print the count of pages in the file and exits.",
@@ -1298,7 +1340,8 @@ static void usage(void)
 		"[-p <page>] [-i] [-v]  [-a <allow mismatches>] [-n] "
 		"[-C <strict-check>] [-w <write>] [-S] [-D <page type dump>] "
 		"[-l <log>] [-l] [-m <merge pages>] <filename or [-]>\n", my_progname);
-	printf("See " REFMAN "innochecksum.html for usage hints.\n");
+	printf("See https://mariadb.com/kb/en/library/innochecksum/"
+	       " for usage hints.\n");
 	my_print_help(innochecksum_options);
 	my_print_variables(innochecksum_options);
 }
@@ -1547,10 +1590,8 @@ int main(
 	byte*		xdes = NULL;
 	/* bytes read count */
 	ulint		bytes;
-	/* current time */
-	time_t		now;
 	/* last time */
-	time_t		lastt;
+	time_t		lastt = 0;
 	/* stat, to get file size. */
 #ifdef _WIN32
 	struct _stat64	st;
@@ -1575,9 +1616,6 @@ int main(
 	FILE*		fil_page_type		= NULL;
 	fpos_t		pos;
 
-	/* Use to check the space id of given file. If space_id is zero,
-	then check whether page is doublewrite buffer.*/
-	ulint		space_id = 0UL;
 	/* enable when space_id of given file is zero. */
 	bool		is_system_tablespace = false;
 
@@ -1699,9 +1737,8 @@ int main(
 		/* enable variable is_system_tablespace when space_id of given
 		file is zero. Use to skip the checksum verification and rewrite
 		for doublewrite pages. */
-		is_system_tablespace = (!memcmp(&space_id, buf +
-					FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 4))
-					? true : false;
+		cur_space = mach_read_from_4(buf + FIL_PAGE_SPACE_ID);
+		cur_page_num = mach_read_from_4(buf + FIL_PAGE_OFFSET);
 
 		/* Determine page size, zip_size and page compression
 		from fsp_flags and encryption metadata from page 0 */
@@ -1714,7 +1751,9 @@ int main(
 		srv_page_size = page_size.logical();
 		bool is_compressed = FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
 
-		if (page_size.physical() > UNIV_ZIP_SIZE_MIN) {
+		if (physical_page_size == UNIV_ZIP_SIZE_MIN) {
+			partial_page_read = false;
+		} else {
 			/* Read rest of the page 0 to determine crypt_data */
 			bytes = ulong(read_file(buf, partial_page_read, page_size.physical(), fil_in));
 
@@ -1730,6 +1769,7 @@ int main(
 			partial_page_read = false;
 		}
 
+
 		/* Now that we have full page 0 in buffer, check encryption */
 		bool is_encrypted = check_encryption(filename, page_size, buf);
 
@@ -1740,7 +1780,9 @@ int main(
 			unsigned long long tmp_allow_mismatches = allow_mismatches;
 			allow_mismatches = 0;
 
-			exit_status = verify_checksum(buf, page_size, is_encrypted, is_compressed, &mismatch_count);
+			exit_status = verify_checksum(
+				buf, page_size, is_encrypted,
+				is_compressed, &mismatch_count);
 
 			if (exit_status) {
 				fprintf(stderr, "Error: Page 0 checksum mismatch, can't continue. \n");
@@ -1801,6 +1843,36 @@ int main(
 					"pages in range::%llu to %llu\n",
 					start_page, use_end_page ?
 					end_page : (pages - 1));
+			}
+		}
+
+		off_t cur_offset = 0;
+		/* Find the first non all-zero page and fetch the
+		space id from there. */
+		while (is_page_all_zeroes(buf, physical_page_size)) {
+			bytes = ulong(read_file(
+					buf, false, physical_page_size,
+					fil_in));
+
+			if (feof(fil_in)) {
+				fprintf(stderr, "All are "
+					"zero-filled pages.");
+				goto my_exit;
+			}
+
+			cur_offset++;
+		}
+
+		cur_space = mach_read_from_4(buf + FIL_PAGE_SPACE_ID);
+		is_system_tablespace = (cur_space == 0);
+
+		if (cur_offset > 0) {
+			/* Re-read the non-zero page to check the
+			checksum. So move the file pointer to
+			previous position and reset the page number too. */
+			cur_page_num = mach_read_from_4(buf + FIL_PAGE_OFFSET);
+			if (!start_page) {
+				goto first_non_zero;
 			}
 		}
 
@@ -1872,7 +1944,6 @@ int main(
 		/* main checksumming loop */
 		cur_page_num = start_page ? start_page : cur_page_num + 1;
 
-		lastt = 0;
 		while (!feof(fil_in)) {
 
 			bytes = read_file(buf, partial_page_read,
@@ -1901,6 +1972,7 @@ int main(
 				goto my_exit;
 			}
 
+first_non_zero:
 			if (is_system_tablespace) {
 				/* enable when page is double write buffer.*/
 				skip_page = is_page_doublewritebuffer(buf);
@@ -1921,8 +1993,10 @@ int main(
 			checksum verification.*/
 			if (!no_check
 			    && !skip_page
-			    && (exit_status = verify_checksum(buf, page_size,
-					    is_encrypted, is_compressed, &mismatch_count))) {
+			    && (exit_status = verify_checksum(
+						buf, page_size,
+						is_encrypted, is_compressed,
+						&mismatch_count))) {
 				goto my_exit;
 			}
 
@@ -1949,12 +2023,10 @@ int main(
 
 			if (verbose && !read_from_stdin) {
 				if ((cur_page_num % 64) == 0) {
-					now = time(0);
+					time_t now = time(0);
 					if (!lastt) {
 						lastt= now;
-					}
-					if (now - lastt >= 1
-					    && is_log_enabled) {
+					} else if (now - lastt >= 1 && is_log_enabled) {
 						fprintf(log_file, "page::%llu "
 							"okay: %.3f%% done\n",
 							(cur_page_num - 1),

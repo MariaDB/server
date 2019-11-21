@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -28,10 +28,8 @@
   There is no reference counting and no unloading either.
 */
 
-#if _MSC_VER
 /* Silence warnings about variable 'unused' being used. */
 #define FORCE_INIT_OF_VARS 1
-#endif
 
 #include <my_global.h>
 #include "mysql.h"
@@ -362,7 +360,13 @@ mysql_load_plugin_v(MYSQL *mysql, const char *name, int type,
            mysql->options.extension && mysql->options.extension->plugin_dir ?
            mysql->options.extension->plugin_dir : PLUGINDIR, "/",
            name, SO_EXT, NullS);
-   
+
+  if (strpbrk(name, "()[]!@#$%^&/*;.,'?\\"))
+  {
+    errmsg= "invalid plugin name";
+    goto err;
+  }
+
   DBUG_PRINT ("info", ("dlopeninig %s", dlpath));
   /* Open new dll handle */
   if (!(dlhandle= dlopen(dlpath, RTLD_NOW)))

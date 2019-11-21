@@ -16,7 +16,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -148,7 +148,8 @@ xb_fil_cur_open(
 
 	cursor->space_id = node->space->id;
 
-	strncpy(cursor->abs_path, node->name, sizeof(cursor->abs_path));
+	strncpy(cursor->abs_path, node->name, (sizeof cursor->abs_path) - 1);
+	cursor->abs_path[(sizeof cursor->abs_path) - 1] = '\0';
 
 	/* Get the relative path for the destination tablespace name, i.e. the
 	one that can be appended to the backup root directory. Non-system
@@ -156,7 +157,8 @@ xb_fil_cur_open(
 	We want to make "local" copies for the backup. */
 	strncpy(cursor->rel_path,
 		xb_get_relative_path(cursor->abs_path, cursor->is_system()),
-		sizeof(cursor->rel_path));
+		(sizeof cursor->rel_path) - 1);
+	cursor->rel_path[(sizeof cursor->rel_path) - 1] = '\0';
 
 	/* In the backup mode we should already have a tablespace handle created
 	by fil_ibd_load() unless it is a system
@@ -251,7 +253,7 @@ xb_fil_cur_open(
 	if (!node->space->crypt_data
 	    && os_file_read(IORequestRead,
 			    node->handle, cursor->buf, 0,
-			    page_size.physical())) {
+			    page_size.physical()) == DB_SUCCESS) {
 		mutex_enter(&fil_system->mutex);
 		if (!node->space->crypt_data) {
 			node->space->crypt_data
@@ -337,11 +339,9 @@ static bool page_is_corrupted(const byte *page, ulint page_no,
 
 		memcpy(tmp_page, page, page_size);
 
-		bool decrypted = false;
 		if (!space->crypt_data
 		    || space->crypt_data->type == CRYPT_SCHEME_UNENCRYPTED
-		    || !fil_space_decrypt(space, tmp_frame, tmp_page,
-					  &decrypted)) {
+		    || !fil_space_decrypt(space, tmp_frame, tmp_page)) {
 			return true;
 		}
 
@@ -440,8 +440,8 @@ read_retry:
 	cursor->buf_offset = offset;
 	cursor->buf_page_no = (ulint)(offset / page_size);
 
-	if (!os_file_read(IORequestRead, cursor->file, cursor->buf, offset,
-			  (ulint) to_read)) {
+	if (os_file_read(IORequestRead, cursor->file, cursor->buf, offset,
+			  (ulint) to_read) != DB_SUCCESS) {
 		ret = XB_FIL_CUR_ERROR;
 		goto func_exit;
 	}

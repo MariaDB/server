@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Create a MyISAM table */
 
@@ -47,7 +47,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   uint internal_table= flags & HA_CREATE_INTERNAL_TABLE;
   ulong reclength, real_reclength,min_pack_length;
   char kfilename[FN_REFLEN],klinkname[FN_REFLEN], *klinkname_ptr;
-  char dfilename[FN_REFLEN],dlinkname[FN_REFLEN], *dlinkname_ptr;
+  char dfilename[FN_REFLEN],dlinkname[FN_REFLEN], *dlinkname_ptr= 0;
   ulong pack_reclength;
   ulonglong tot_length,max_rows, tmp;
   enum en_fieldtype type;
@@ -611,7 +611,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     klinkname_ptr= klinkname;
     /*
       Don't create the table if the link or file exists to ensure that one
-      doesn't accidently destroy another table.
+      doesn't accidentally destroy another table.
     */
     create_flag=0;
   }

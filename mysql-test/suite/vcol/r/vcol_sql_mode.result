@@ -1,0 +1,534 @@
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-18156 Assertion `0' failed or `btr_validate_index(index, 0, false)' in row_upd_sec_index_entry or error code 126: Index is corrupted upon DELETE with PAD_CHAR_TO_FULL_LENGTH
+#
+#
+# PAD_CHAR_TO_FULL_LENGTH + various virtual column data types
+#
+CREATE TABLE t1 (a CHAR(5), v CHAR(5) AS (a) VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` char(5) GENERATED ALWAYS AS (`a`) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v INT AS (a) VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v TIME AS (a) VIRTUAL, KEY(v));
+DROP TABLE t1;
+CREATE TABLE t1 (c CHAR(8), v BINARY(8) AS (c), KEY(v));
+Warnings:
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v BIT(64) AS (a) VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (a) VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v TEXT AS (a) VIRTUAL, KEY(v(100)));
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+# PAD_CHAR_TO_FULL_LENGTH + TRIM resolving dependency
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (RTRIM(a)) VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (rtrim(`a`)) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v TEXT AS (RTRIM(a)) VIRTUAL, KEY(v(100)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` text GENERATED ALWAYS AS (rtrim(`a`)) VIRTUAL,
+  KEY `v` (`v`(100))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(TRAILING ' ' FROM a)) VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (trim(trailing ' ' from `a`)) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v TEXT AS (TRIM(TRAILING ' ' FROM a)) VIRTUAL, KEY(v(100)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` text GENERATED ALWAYS AS (trim(trailing ' ' from `a`)) VIRTUAL,
+  KEY `v` (`v`(100))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(BOTH ' ' FROM a)) VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (trim(both ' ' from `a`)) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v TEXT AS (TRIM(BOTH ' ' FROM a)) VIRTUAL, KEY(v(100)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` text GENERATED ALWAYS AS (trim(both ' ' from `a`)) VIRTUAL,
+  KEY `v` (`v`(100))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(TRAILING NULL FROM a)) VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (trim(trailing NULL from `a`)) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(BOTH NULL FROM a)) VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (trim(both NULL from `a`)) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+# PAD_CHAR_TO_FULL_LENGTH + TRIM not resolving dependency
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(LEADING ' ' FROM a)) VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression 'trim(leading ' ' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'trim(leading ' ' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v TEXT AS (TRIM(LEADING ' ' FROM a)) VIRTUAL, KEY(v(100)));
+Warnings:
+Warning	1901	Function or expression 'trim(leading ' ' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'trim(leading ' ' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(TRAILING '' FROM a)) VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression 'trim(trailing '' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'trim(trailing '' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(BOTH '' FROM a)) VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression 'trim(both '' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'trim(both '' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(TRAILING 'x' FROM a)) VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression 'trim(trailing 'x' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'trim(trailing 'x' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (TRIM(BOTH 'x' FROM a)) VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression 'trim(both 'x' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'trim(both 'x' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (
+a CHAR(5),
+v VARCHAR(5) AS (TRIM(TRAILING '  ' FROM a)) VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression 'trim(trailing '  ' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'trim(trailing '  ' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (
+a CHAR(5),
+v VARCHAR(5) AS (TRIM(BOTH '  ' FROM a)) VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression 'trim(both '  ' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'trim(both '  ' from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+# PAD_CHAR_TO_FULL_LENGTH + TRIM(... non_constant FROM a)
+CREATE TABLE t1 (
+a CHAR(5),
+b CHAR(5),
+v TEXT AS (TRIM(TRAILING b FROM a)) VIRTUAL, KEY(v(100)));
+Warnings:
+Warning	1901	Function or expression 'trim(trailing `b` from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'trim(trailing `b` from `a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+# PAD_CHAR_TO_FULL_LENGTH + RPAD resolving dependency
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (RPAD(a,5,' ')) VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (rpad(`a`,5,' ')) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (RPAD(a,6,' ')) VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (rpad(`a`,6,' ')) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (RPAD(a,6,NULL)) VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (rpad(`a`,6,NULL)) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (RPAD(a,NULL,' ')) VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (rpad(`a`,NULL,' ')) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+# PAD_CHAR_TO_FULL_LENGTH + RPAD not resolving dependency
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (RPAD(a,4,' ')) VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression 'rpad(`a`,4,' ')' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'rpad(`a`,4,' ')' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (
+a CHAR(5),
+b CHAR(5),
+v VARCHAR(5) AS (RPAD(a,NULL,b)) VIRTUAL,
+KEY(v)
+);
+Warnings:
+Warning	1901	Function or expression 'rpad(`a`,NULL,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'rpad(`a`,NULL,`b`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+# PAD_CHAR_TO_FULL_LENGTH + comparison
+CREATE TABLE t1 (a CHAR(5), v INT AS (a='a') VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` int(11) GENERATED ALWAYS AS (`a` = 'a') VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (
+a CHAR(5) CHARACTER SET latin1 COLLATE latin1_nopad_bin,
+v INT AS (a='a') VIRTUAL, KEY(v)
+);
+Warnings:
+Warning	1901	Function or expression '`a` = 'a'' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression '`a` = 'a'' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+# PAD_CHAR_TO_FULL_LENGTH + LIKE
+CREATE TABLE t1 (a CHAR(5), v INT AS (a LIKE 'a%') VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` int(11) GENERATED ALWAYS AS (`a` like 'a%') VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v INT AS (a LIKE NULL) VIRTUAL, KEY(v));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` int(11) GENERATED ALWAYS AS (`a` like NULL) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v INT AS (a LIKE 'a') VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression '`a` like 'a'' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression '`a` like 'a'' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+# PAD_CHAR_TO_FULL_LENGTH + LENGTH(char_column) = hard dependency
+CREATE TABLE t1 (a CHAR(5), v INT AS (LENGTH(a)) VIRTUAL, KEY(v));
+Warnings:
+Warning	1901	Function or expression 'length(`a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'length(`a`)' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+#
+# Testing NO_UNSIGNED_SUBTRACTION
+#
+CREATE TABLE t1 (
+a INT UNSIGNED,
+b INT UNSIGNED,
+c INT GENERATED ALWAYS AS (a-b) VIRTUAL,
+KEY (c)
+);
+Warnings:
+Warning	1901	Function or expression '`a` - `b`' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	Expression depends on the @@sql_mode value NO_UNSIGNED_SUBTRACTION
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression '`a` - `b`' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	Expression depends on the @@sql_mode value NO_UNSIGNED_SUBTRACTION
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT UNSIGNED,
+b INT UNSIGNED,
+c INT GENERATED ALWAYS AS (CAST(a AS SIGNED)-b) VIRTUAL,
+KEY (c)
+);
+Warnings:
+Warning	1901	Function or expression 'cast(`a` as signed) - `b`' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	Expression depends on the @@sql_mode value NO_UNSIGNED_SUBTRACTION
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'cast(`a` as signed) - `b`' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	Expression depends on the @@sql_mode value NO_UNSIGNED_SUBTRACTION
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT UNSIGNED,
+b INT UNSIGNED,
+c INT GENERATED ALWAYS AS (a-CAST(b AS SIGNED)) VIRTUAL,
+KEY (c)
+);
+Warnings:
+Warning	1901	Function or expression '`a` - cast(`b` as signed)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	Expression depends on the @@sql_mode value NO_UNSIGNED_SUBTRACTION
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression '`a` - cast(`b` as signed)' cannot be used in the GENERATED ALWAYS AS clause of `c`
+Warning	1105	Expression depends on the @@sql_mode value NO_UNSIGNED_SUBTRACTION
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT UNSIGNED,
+b INT UNSIGNED,
+c INT GENERATED ALWAYS AS (CAST(a AS SIGNED)-CAST(b AS SIGNED)) VIRTUAL,
+KEY (c)
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(10) unsigned DEFAULT NULL,
+  `b` int(10) unsigned DEFAULT NULL,
+  `c` int(11) GENERATED ALWAYS AS (cast(`a` as signed) - cast(`b` as signed)) VIRTUAL,
+  KEY `c` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT UNSIGNED,
+b INT UNSIGNED,
+c INT GENERATED ALWAYS AS (CAST(a AS DECIMAL(20,0))-CAST(b AS DECIMAL(20,0))) VIRTUAL,
+KEY (c)
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(10) unsigned DEFAULT NULL,
+  `b` int(10) unsigned DEFAULT NULL,
+  `c` int(11) GENERATED ALWAYS AS (cast(`a` as decimal(20,0)) - cast(`b` as decimal(20,0))) VIRTUAL,
+  KEY `c` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# Comnination: PAD_CHAR_TO_FULL_LENGTH + NO_UNSIGNED_SUBTRACTION
+#
+CREATE TABLE t1 (
+a INT UNSIGNED,
+b INT UNSIGNED,
+c CHAR(5),
+v VARCHAR(5) GENERATED ALWAYS AS (RPAD(c,a-b,' ')) VIRTUAL,
+KEY (v)
+);
+Warnings:
+Warning	1901	Function or expression 'rpad(`c`,`a` - `b`,' ')' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value NO_UNSIGNED_SUBTRACTION
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'rpad(`c`,`a` - `b`,' ')' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value NO_UNSIGNED_SUBTRACTION
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT UNSIGNED,
+b INT UNSIGNED,
+c CHAR(5),
+v VARCHAR(5) GENERATED ALWAYS AS (RPAD(c,CAST(a AS DECIMAL(20,1))-b,' ')) VIRTUAL,
+KEY (v)
+);
+Warnings:
+Warning	1901	Function or expression 'rpad(`c`,cast(`a` as decimal(20,1)) - `b`,' ')' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression 'rpad(`c`,cast(`a` as decimal(20,1)) - `b`,' ')' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+# ALTER TABLE ADD KEY(vcol_depending_on_sql_mode) --> error
+CREATE TABLE t1 (
+a INT UNSIGNED,
+b INT UNSIGNED,
+c CHAR(5),
+v VARCHAR(5) GENERATED ALWAYS AS (c) VIRTUAL
+);
+ALTER TABLE t1 ADD KEY(v);
+Warnings:
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+ALTER TABLE t1 DROP KEY v;
+Warnings:
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+CREATE INDEX v ON t1 (v);
+Warnings:
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`c`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+# A virtual column on the second position in an index - cannot depend on sql_mode
+CREATE TABLE t1 (id int, a CHAR(5), v TEXT AS (a) VIRTUAL, KEY(id, v(100)));
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+# A persisten virtual column cannot depend on sql_mode
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (a) PERSISTENT);
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(5), v VARCHAR(5) AS (RTRIM(a)) PERSISTENT);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (rtrim(`a`)) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# End of 10.2 tests
+#

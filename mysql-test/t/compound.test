@@ -144,6 +144,8 @@ drop table t1|
 # MDEV-6606 Server crashes in String::append on selecting sql_mode inside anonymous block
 # MDEV-6609 SQL inside an anonymous block is executed with wrong SQL_MODE
 #
+
+set @@sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION";
 begin not atomic select @@sql_mode; end|
 create table t1 (a int)|
 select a from t1 having a > 1|

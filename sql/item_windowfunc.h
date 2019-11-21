@@ -28,11 +28,6 @@ public:
     first_check= true;
   }
 
-  void cleanup()
-  {
-    group_fields.empty();
-  }
-
   /*
     Check if the current row is in a different group than the previous row
     this function was called for.
@@ -69,6 +64,10 @@ public:
         return res;
     }
     return 0;
+  }
+  ~Group_bound_tracker()
+  {
+    group_fields.delete_elements();
   }
 
 private:
@@ -199,7 +198,6 @@ public:
   {
     if (peer_tracker)
     {
-      peer_tracker->cleanup();
       delete peer_tracker;
       peer_tracker= NULL;
     }
@@ -269,7 +267,6 @@ class Item_sum_dense_rank: public Item_sum_int
   {
     if (peer_tracker)
     {
-      peer_tracker->cleanup();
       delete peer_tracker;
       peer_tracker= NULL;
     }
@@ -537,7 +534,6 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
   {
     if (peer_tracker)
     {
-      peer_tracker->cleanup();
       delete peer_tracker;
       peer_tracker= NULL;
     }

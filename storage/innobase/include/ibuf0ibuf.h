@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -326,6 +326,14 @@ ibuf_insert(
 	const page_size_t&	page_size,
 	que_thr_t*		thr);
 
+/**
+Delete any buffered entries for a page.
+This prevents an infinite loop on slow shutdown
+in the case where the change buffer bitmap claims that no buffered
+changes exist, while entries exist in the change buffer tree.
+@param page_id  page number for which there should be no unbuffered changes */
+ATTRIBUTE_COLD void ibuf_delete_recs(const page_id_t page_id);
+
 /** When an index page is read from a disk to the buffer pool, this function
 applies any buffered operations to the page and deletes the entries from the
 insert buffer. If the page is not read, but created in the buffer pool, this
@@ -384,13 +392,6 @@ ibuf_parse_bitmap_init(
 	buf_block_t*	block,	/*!< in: block or NULL */
 	mtr_t*		mtr);	/*!< in: mtr or NULL */
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-/** Gets the ibuf count for a given page.
-@param[in]	page_id	page id
-@return number of entries in the insert buffer currently buffered for
-this page */
-ulint ibuf_count_get(const page_id_t page_id);
-#endif
 /******************************************************************//**
 Looks if the insert buffer is empty.
 @return true if empty */

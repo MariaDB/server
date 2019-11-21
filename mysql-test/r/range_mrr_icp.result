@@ -1,5 +1,6 @@
 set @mrr_icp_extra_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+SET optimizer_use_condition_selectivity=1;
 drop table if exists t1, t2, t3, t10, t100;
 CREATE TABLE t1 (
 event_date date DEFAULT '0000-00-00' NOT NULL,
@@ -2078,23 +2079,15 @@ explain
 SELECT * FROM t1 WHERE fd='😁';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81' for column `test`.`t1`.`fd` at row 1
 SELECT * FROM t1 WHERE fd='😁';
 id	fd
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81' for column `test`.`t1`.`fd` at row 1
 # The following must not use range access:
 explain select count(*) from t1 where fd <'😁';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	ix_fd	ix_fd	63	NULL	#	Using where; Using index
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81' for column `test`.`t1`.`fd` at row 1
 select count(*) from t1 where fd <'😁';
 count(*)
 40960
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9F\x98\x81' for column `test`.`t1`.`fd` at row 1
 select count(*) from t1 ignore index (ix_fd) where fd <'😁';
 count(*)
 40960
@@ -2315,8 +2308,6 @@ INSERT INTO t1 VALUES ('a'),('b'),('c'),('d'),('e');
 EXPLAIN SELECT * FROM t1 WHERE a<=>'😎';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9F\x98\x8E' for column `test`.`t1`.`a` at row 1
 DROP TABLE t1;
 #
 # MDEV-10185: Assertion `tree1->keys[key_no] && tree2->keys[key_no]' failed in 

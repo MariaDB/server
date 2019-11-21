@@ -1,17 +1,10 @@
-set @save_optimizer_switch=@@optimizer_switch;
 set @@optimizer_switch='optimize_join_buffer_size=on';
 set @@optimizer_switch='semijoin_with_cache=on';
 set @@optimizer_switch='outer_join_with_cache=on';
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set join_cache_level=6;
-show variables like 'join_cache_level';
-Variable_name	Value
-join_cache_level	6
-set @join_cache_level_for_subselect3_test=@@join_cache_level;
 drop table if exists t0, t1, t2, t3, t4, t5, t11, t12, t21, t22;
-set @subselect3_tmp= @@optimizer_switch;
 set optimizer_switch='semijoin=on,firstmatch=on,loosescan=on,semijoin_with_cache=on';
-set join_cache_level=@join_cache_level_for_subselect3_test;
 create table t1 (oref int, grp int, ie int) ;
 insert into t1 (oref, grp, ie) values
 (1, 1, 1),
@@ -1554,10 +1547,4 @@ Note	1276	Field or reference 'test.t2.v' of SELECT #2 was resolved in SELECT #1
 Note	1003	select `test`.`t2`.`i` AS `i`,`test`.`t2`.`v` AS `v`,<expr_cache><`test`.`t2`.`v`>((select count(distinct `test`.`t1`.`i`) from `test`.`t1` where `test`.`t1`.`v` = `test`.`t2`.`v`)) AS `subsel` from `test`.`t2`
 DROP TABLE t1,t2;
 End of 5.6 tests
-set @@optimizer_switch=@subselect3_tmp;
-set join_cache_level=default;
-show variables like 'join_cache_level';
-Variable_name	Value
-join_cache_level	2
-set @@optimizer_switch=@save_optimizer_switch;
-set @join_cache_level_for_subselect3_test=NULL;
+# end of 10.2 test

@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* Function items used by mysql */
@@ -241,7 +241,7 @@ public:
   */
   inline double check_float_overflow(double value)
   {
-    return isfinite(value) ? value : raise_float_overflow();
+    return std::isfinite(value) ? value : raise_float_overflow();
   }
   /**
     Throw an error if the input BIGINT value represented by the
@@ -773,11 +773,15 @@ public:
 
 class Item_func_minus :public Item_func_additive_op
 {
+  bool m_depends_on_sql_mode_no_unsigned_subtraction;
 public:
   Item_func_minus(THD *thd, Item *a, Item *b):
-    Item_func_additive_op(thd, a, b) {}
+    Item_func_additive_op(thd, a, b),
+    m_depends_on_sql_mode_no_unsigned_subtraction(false)
+  { }
   const char *func_name() const { return "-"; }
   enum precedence precedence() const { return ADD_PRECEDENCE; }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
@@ -1234,10 +1238,13 @@ public:
     name= a->name;
     name_length= a->name_length;
   }
-  double val_real() { return args[0]->val_real(); }
-  longlong val_int() { return args[0]->val_int(); }
-  String *val_str(String *str) { return args[0]->val_str(str); }
-  my_decimal *val_decimal(my_decimal *dec) { return args[0]->val_decimal(dec); }
+  double val_real() { return val_real_from_item(args[0]); }
+  longlong val_int() { return val_int_from_item(args[0]); }
+  String *val_str(String *str) { return val_str_from_item(args[0], str); }
+  my_decimal *val_decimal(my_decimal *dec)
+    { return val_decimal_from_item(args[0], dec); }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+    { return get_date_from_item(args[0], ltime, fuzzydate); }
   const char *func_name() const { return "rollup_const"; }
   bool const_item() const { return 0; }
   Item_result result_type() const { return args[0]->result_type(); }
@@ -1921,7 +1928,6 @@ class Item_func_set_user_var :public Item_func_user_var
        user variable it the first connection context).
   */
   my_thread_id entry_thread_id;
-  char buffer[MAX_FIELD_WIDTH];
   String value;
   my_decimal decimal_buff;
   bool null_item;
@@ -1990,6 +1996,7 @@ public:
   void cleanup();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_set_user_var>(thd, mem_root, this); }
+  bool excl_dep_on_table(table_map tab_map) { return false; }
 };
 
 
@@ -2038,13 +2045,43 @@ public:
   in List<Item> and desire to place this code somewhere near other functions
   working with user variables.
 */
-class Item_user_var_as_out_param :public Item
+class Item_user_var_as_out_param :public Item,
+                                  public Load_data_outvar
 {
   LEX_STRING name;
   user_var_entry *entry;
 public:
   Item_user_var_as_out_param(THD *thd, LEX_STRING a): Item(thd), name(a)
   { set_name(thd, a.str, 0, system_charset_info); }
+  Load_data_outvar *get_load_data_outvar()
+  {
+    return this;
+  }
+  bool load_data_set_null(THD *thd, const Load_data_param *param)
+  {
+    set_null_value(param->charset());
+    return false;
+  }
+  bool load_data_set_no_data(THD *thd, const Load_data_param *param)
+  {
+    set_null_value(param->charset());
+    return false;
+  }
+  bool load_data_set_value(THD *thd, const char *pos, uint length,
+                           const Load_data_param *param)
+  {
+    set_value(pos, length, param->charset());
+    return false;
+  }
+  void load_data_print_for_log_event(THD *thd, String *to) const;
+  bool load_data_add_outvar(THD *thd, Load_data_param *param) const
+  {
+    return param->add_outvar_user_var(thd);
+  }
+  uint load_data_fixed_length() const
+  {
+    return 0;
+  }
   /* We should return something different from FIELD_ITEM here */
   enum Type type() const { return STRING_ITEM;}
   double val_real();
@@ -2053,7 +2090,6 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_buffer);
   /* fix_fields() binds variable name with its entry structure */
   bool fix_fields(THD *thd, Item **ref);
-  void print_for_load(THD *thd, String *str);
   void set_null_value(CHARSET_INFO* cs);
   void set_value(const char *str, uint length, CHARSET_INFO* cs);
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
@@ -2527,7 +2563,6 @@ extern enum_field_types agg_field_type(Item **items, uint nitems,
                                        bool treat_bit_as_number);
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);
-bool eval_const_cond(COND *cond);
 
 extern bool volatile  mqh_used;
 

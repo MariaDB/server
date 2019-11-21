@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/default_charset.inc
 
 SET NAMES utf8mb4;
 
@@ -562,6 +563,9 @@ DROP TABLE t1, parent;
 --echo #
 let $source_db = source_db;
 let $dest_db = dest_db;
+
+--source include/default_charset.inc
+SET NAMES utf8mb4;
 
 eval CREATE DATABASE $source_db;
 eval CREATE DATABASE $dest_db;

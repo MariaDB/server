@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "wsrep_var.h"
 
@@ -27,8 +27,6 @@
 #include <cstdlib>
 
 ulong   wsrep_reject_queries;
-
-static long wsrep_prev_slave_threads = wsrep_slave_threads;
 
 int wsrep_init_vars()
 {
@@ -502,6 +500,8 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
   if (wsrep_start_replication())
   {
     wsrep_create_rollbacker();
+    WSREP_DEBUG("Cluster address update creating %ld applier threads running %lu",
+	    wsrep_slave_threads, wsrep_running_applier_threads);
     wsrep_create_appliers(wsrep_slave_threads);
   }
 
@@ -595,18 +595,20 @@ void wsrep_node_address_init (const char* value)
 
 static void wsrep_slave_count_change_update ()
 {
-  wsrep_slave_count_change = (wsrep_slave_threads - wsrep_prev_slave_threads);
-  WSREP_DEBUG("Change on slave threads: New %lu old %lu difference %d",
-	  wsrep_slave_threads, wsrep_prev_slave_threads, wsrep_slave_count_change);
-  wsrep_prev_slave_threads = wsrep_slave_threads;
+  wsrep_slave_count_change = (wsrep_slave_threads - wsrep_running_applier_threads);
+  WSREP_DEBUG("Change on slave threads: New %ld old %lu difference %d",
+	  wsrep_slave_threads, wsrep_running_applier_threads, wsrep_slave_count_change);
 }
 
 bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
 {
   wsrep_slave_count_change_update();
+
   if (wsrep_slave_count_change > 0)
   {
+    WSREP_DEBUG("Creating %d applier threads, total %ld", wsrep_slave_count_change, wsrep_slave_threads);
     wsrep_create_appliers(wsrep_slave_count_change);
+    WSREP_DEBUG("Running %lu applier threads", wsrep_running_applier_threads);
     wsrep_slave_count_change = 0;
   }
   return false;
@@ -708,7 +710,9 @@ static SHOW_VAR wsrep_status_vars[]=
   {"provider_name",     (char*) &wsrep_provider_name,     SHOW_CHAR_PTR},
   {"provider_version",  (char*) &wsrep_provider_version,  SHOW_CHAR_PTR},
   {"provider_vendor",   (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
-  {"thread_count",      (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH}
+  {"thread_count",      (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH},
+  {"applier_thread_count", (char*)&wsrep_running_applier_threads, SHOW_LONG_NOFLUSH},
+  {"rollbacker_thread_count", (char *)&wsrep_running_rollbacker_threads, SHOW_LONG_NOFLUSH},
 };
 
 static int show_var_cmp(const void *var1, const void *var2)

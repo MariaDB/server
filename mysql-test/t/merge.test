@@ -6,9 +6,12 @@
 --source include/count_sessions.inc
 
 # MERGE tables require MyISAM tables
-let $default=`select @@global.storage_engine`;
-set global storage_engine=myisam;
-set session storage_engine=myisam;
+set @save_default_storage_engine=@@global.storage_engine;
+set global default_storage_engine=myisam;
+set session default_storage_engine=myisam;
+
+# This test assumes a stable character set
+--source include/default_charset.inc
 
 # Clean up resources used in this test case.
 --disable_warnings
@@ -17,7 +20,6 @@ drop database if exists mysqltest;
 --enable_warnings
 
 let $MYSQLD_DATADIR= `select @@datadir`;
-
 create table t1 (a int not null primary key auto_increment, message char(20));
 create table t2 (a int not null primary key auto_increment, message char(20));
 INSERT INTO t1 (message) VALUES ("Testing"),("table"),("t1");
@@ -1923,13 +1925,16 @@ set @a=concat("create table t_parent (a int) union(", @a,
 prepare stmt from @a;
 execute stmt;
 prepare stmt from "select * from t_parent";
---error ER_NEED_REPREPARE
+--disable_result_log
+--error 0,ER_NEED_REPREPARE
 execute stmt;
---error ER_NEED_REPREPARE
+--error 0,ER_NEED_REPREPARE
 execute stmt;
---error ER_NEED_REPREPARE
+--error 0,ER_NEED_REPREPARE
 execute stmt;
 deallocate prepare stmt;
+--enable_result_log
+
 --echo #
 --echo # Create merge parent 
 --echo #
@@ -2974,7 +2979,7 @@ DROP TABLE m1;
 
 --disable_result_log
 --disable_query_log
-eval set global storage_engine=$default;
+set global default_storage_engine=@save_default_storage_engine;
 --enable_result_log
 --enable_query_log
 

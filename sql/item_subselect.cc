@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -1518,16 +1518,23 @@ bool Item_exists_subselect::fix_length_and_dec()
 {
   DBUG_ENTER("Item_exists_subselect::fix_length_and_dec");
   init_length_and_dec();
-  /*
-    We need only 1 row to determine existence (i.e. any EXISTS that is not
-    an IN always requires LIMIT 1)
-  */
-  Item *item= new (thd->mem_root) Item_int(thd, (int32) 1);
-  if (!item)
-    DBUG_RETURN(TRUE);
-  thd->change_item_tree(&unit->global_parameters()->select_limit,
-                        item);
-  DBUG_PRINT("info", ("Set limit to 1"));
+  // If limit is not set or it is constant more than 1
+  if (!unit->global_parameters()->select_limit ||
+      (unit->global_parameters()->select_limit->basic_const_item() &&
+       unit->global_parameters()->select_limit->val_int() > 1))
+  {
+    /*
+       We need only 1 row to determine existence (i.e. any EXISTS that is not
+       an IN always requires LIMIT 1)
+     */
+    Item *item= new (thd->mem_root) Item_int(thd, (int32) 1);
+    if (!item)
+      DBUG_RETURN(TRUE);
+    thd->change_item_tree(&unit->global_parameters()->select_limit,
+                          item);
+    unit->global_parameters()->explicit_limit= 1; // we set the limit
+    DBUG_PRINT("info", ("Set limit to 1"));
+  }
   DBUG_RETURN(FALSE);
 }
 
@@ -5855,12 +5862,16 @@ Ordered_key::cmp_keys_by_row_data_and_rownum(Ordered_key *key,
 }
 
 
-void Ordered_key::sort_keys()
+bool Ordered_key::sort_keys()
 {
+  if (tbl->file->ha_rnd_init_with_error(0))
+    return TRUE;
   my_qsort2(key_buff, (size_t) key_buff_elements, sizeof(rownum_t),
             (qsort2_cmp) &cmp_keys_by_row_data_and_rownum, (void*) this);
   /* Invalidate the current row position. */
   cur_key_idx= HA_POS_ERROR;
+  tbl->file->ha_rnd_end();
+  return FALSE;
 }
 
 
@@ -6313,7 +6324,8 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
 
   /* Sort the keys in each of the indexes. */
   for (uint i= 0; i < merge_keys_count; i++)
-    merge_keys[i]->sort_keys();
+    if (merge_keys[i]->sort_keys())
+      return TRUE;
 
   if (init_queue(&pq, merge_keys_count, 0, FALSE,
                  subselect_rowid_merge_engine::cmp_keys_by_cur_rownum, NULL,

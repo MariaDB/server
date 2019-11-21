@@ -61,7 +61,7 @@ class Rdb_index_merge {
     /* heap memory allocated for main memory sort/merge  */
     std::unique_ptr<uchar[]> m_block;
     const ulonglong
-        m_block_len;       /* amount of data bytes allocated for block above */
+        m_block_len; /* amount of data bytes allocated for block above */
     ulonglong m_curr_offset; /* offset of the record pointer for the block */
     ulonglong m_disk_start_offset; /* where the chunk starts on disk */
     ulonglong m_disk_curr_offset;  /* current offset on disk */
@@ -87,8 +87,11 @@ class Rdb_index_merge {
     }
 
     explicit merge_buf_info(const ulonglong merge_block_size)
-        : m_block(nullptr), m_block_len(merge_block_size), m_curr_offset(0),
-          m_disk_start_offset(0), m_disk_curr_offset(0),
+        : m_block(nullptr),
+          m_block_len(merge_block_size),
+          m_curr_offset(0),
+          m_disk_start_offset(0),
+          m_disk_curr_offset(0),
           m_total_size(merge_block_size) {
       /* Will throw an exception if it runs out of memory here */
       m_block = std::unique_ptr<uchar[]>(new uchar[merge_block_size]);
@@ -189,9 +192,9 @@ class Rdb_index_merge {
 
  public:
   Rdb_index_merge(const char *const tmpfile_path,
-                  const ulonglong &merge_buf_size,
-                  const ulonglong &merge_combine_read_size,
-                  const ulonglong &merge_tmp_file_removal_delay,
+                  const ulonglong merge_buf_size,
+                  const ulonglong merge_combine_read_size,
+                  const ulonglong merge_tmp_file_removal_delay,
                   rocksdb::ColumnFamilyHandle *cf);
   ~Rdb_index_merge();
 

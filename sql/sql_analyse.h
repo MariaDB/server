@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* Analyse database */
@@ -68,7 +68,7 @@ int compare_ulonglong2(void* cmp_arg __attribute__((unused)),
 int compare_decimal2(int* len, const char *s, const char *t);
 Procedure *proc_analyse_init(THD *thd, ORDER *param, select_result *result,
 			     List<Item> &field_list);
-void free_string(String*);
+void free_string(void* str, TREE_FREE, void*);
 class analyse;
 
 class field_info :public Sql_alloc
@@ -121,8 +121,7 @@ public:
     must_be_blob(0), was_zero_fill(0),
     was_maybe_zerofill(0), can_be_still_num(1)
     { init_tree(&tree, 0, 0, sizeof(String), (qsort_cmp2) sortcmp2,
-		(tree_element_free) free_string, NULL,
-                MYF(MY_THREAD_SPECIFIC)); };
+		free_string, NULL, MYF(MY_THREAD_SPECIFIC)); };
 
   void	 add();
   void	 get_opt_type(String*, ha_rows);

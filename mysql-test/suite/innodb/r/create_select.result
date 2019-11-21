@@ -1,0 +1,10 @@
+connect  con1, localhost, root,,;
+connection default;
+CREATE TABLE t1 ENGINE=InnoDB SELECT * FROM seq_1_to_100000000;
+connection con1;
+KILL QUERY @id;
+disconnect con1;
+connection default;
+ERROR 70100: Query execution was interrupted
+CREATE TABLE t1 (a SERIAL) ENGINE=InnoDB;
+DROP TABLE t1;

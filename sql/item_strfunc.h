@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* This file defines all string functions */
@@ -489,6 +489,7 @@ protected:
 public:
   Item_func_trim(THD *thd, Item *a, Item *b): Item_str_func(thd, a, b) {}
   Item_func_trim(THD *thd, Item *a): Item_str_func(thd, a) {}
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   String *val_str(String *);
   bool fix_length_and_dec();
   const char *func_name() const { return "trim"; }
@@ -504,6 +505,10 @@ class Item_func_ltrim :public Item_func_trim
 public:
   Item_func_ltrim(THD *thd, Item *a, Item *b): Item_func_trim(thd, a, b) {}
   Item_func_ltrim(THD *thd, Item *a): Item_func_trim(thd, a) {}
+  Sql_mode_dependency value_depends_on_sql_mode() const
+  {
+    return Item_func::value_depends_on_sql_mode();
+  }
   String *val_str(String *);
   const char *func_name() const { return "ltrim"; }
   const char *mode_name() const { return "leading"; }
@@ -932,28 +937,36 @@ public:
 };
 
 
-class Item_func_rpad :public Item_str_func
+class Item_func_pad: public Item_str_func
 {
-  String tmp_value, rpad_str;
+protected:
+  String tmp_value, pad_str;
+public:
+  Item_func_pad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
+    Item_str_func(thd, arg1, arg2, arg3) {}
+  bool fix_length_and_dec();
+};
+
+
+class Item_func_rpad :public Item_func_pad
+{
 public:
   Item_func_rpad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
-    Item_str_func(thd, arg1, arg2, arg3) {}
+    Item_func_pad(thd, arg1, arg2, arg3) {}
   String *val_str(String *);
-  bool fix_length_and_dec();
   const char *func_name() const { return "rpad"; }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_rpad>(thd, mem_root, this); }
 };
 
 
-class Item_func_lpad :public Item_str_func
+class Item_func_lpad :public Item_func_pad
 {
-  String tmp_value, lpad_str;
 public:
   Item_func_lpad(THD *thd, Item *arg1, Item *arg2, Item *arg3):
-    Item_str_func(thd, arg1, arg2, arg3) {}
+    Item_func_pad(thd, arg1, arg2, arg3) {}
   String *val_str(String *);
-  bool fix_length_and_dec();
   const char *func_name() const { return "lpad"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_lpad>(thd, mem_root, this); }
@@ -1192,6 +1205,7 @@ public:
              (cs->state & MY_CS_UNICODE));
     }
   }
+  bool is_json_type() { return args[0]->is_json_type(); }
   String *val_str(String *);
   longlong val_int()
   {

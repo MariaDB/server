@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -49,9 +50,9 @@ public:
 	void view_open(ReadView*& view, trx_t* trx);
 
 	/**
-	Close a view created by the above function.
-	@para view		view allocated by trx_open.
-	@param own_mutex	true if caller owns trx_sys_t::mutex */
+	Close a view created by view_open().
+	@param view		view allocated by view_open()
+	@param own_mutex	whether the caller owns trx_sys_t::mutex */
 	void view_close(ReadView*& view, bool own_mutex);
 
 	/**

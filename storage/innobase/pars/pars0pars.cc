@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc., 51 Franklin St,
-Fifth Floor, Boston, MA 02110-1301 USA
+Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -2057,18 +2058,15 @@ pars_stored_procedure_call(
 
 /*************************************************************//**
 Retrieves characters to the lexical analyzer. */
-int
+size_t
 pars_get_lex_chars(
 /*===============*/
 	char*	buf,		/*!< in/out: buffer where to copy */
-	int	max_size)	/*!< in: maximum number of characters which fit
+	size_t	max_size)	/*!< in: maximum number of characters which fit
 				in the buffer */
 {
-	int	len;
-
-	len = static_cast<int>(
-		pars_sym_tab_global->string_len
-		- pars_sym_tab_global->next_char_pos);
+	size_t len = pars_sym_tab_global->string_len
+		- pars_sym_tab_global->next_char_pos;
 	if (len == 0) {
 		return(0);
 	}
@@ -2077,8 +2075,8 @@ pars_get_lex_chars(
 		len = max_size;
 	}
 
-	ut_memcpy(buf, pars_sym_tab_global->sql_string
-		  + pars_sym_tab_global->next_char_pos, len);
+	memcpy(buf, pars_sym_tab_global->sql_string
+	       + pars_sym_tab_global->next_char_pos, len);
 
 	pars_sym_tab_global->next_char_pos += len;
 

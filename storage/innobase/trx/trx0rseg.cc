@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -40,18 +40,16 @@ the database.
 @param[in]	max_size	max size in pages
 @param[in]	rseg_slot_no	rseg id == slot number in trx sys
 @param[in,out]	mtr		mini-transaction
-@return page number of the created segment, FIL_NULL if fail */
-ulint
+@return the created rollback segment
+@retval	NULL	on failure */
+buf_block_t*
 trx_rseg_header_create(
 	ulint			space,
 	ulint			max_size,
 	ulint			rseg_slot_no,
 	mtr_t*			mtr)
 {
-	ulint		page_no;
-	trx_rsegf_t*	rsegf;
 	trx_sysf_t*	sys_header;
-	ulint		i;
 	buf_block_t*	block;
 
 	ut_ad(mtr);
@@ -63,31 +61,26 @@ trx_rseg_header_create(
 
 	if (block == NULL) {
 		/* No space left */
-
-		return(FIL_NULL);
+		return block;
 	}
 
 	buf_block_dbg_add_level(block, SYNC_RSEG_HEADER_NEW);
 
-	page_no = block->page.id.page_no();
-
-	/* Get the rollback segment file page */
-	rsegf = trx_rsegf_get_new(space, page_no, mtr);
-
 	/* Initialize max size field */
-	mlog_write_ulint(rsegf + TRX_RSEG_MAX_SIZE, max_size,
-			 MLOG_4BYTES, mtr);
+	mlog_write_ulint(TRX_RSEG + TRX_RSEG_MAX_SIZE + block->frame,
+			 max_size, MLOG_4BYTES, mtr);
 
 	/* Initialize the history list */
 
-	mlog_write_ulint(rsegf + TRX_RSEG_HISTORY_SIZE, 0, MLOG_4BYTES, mtr);
-	flst_init(rsegf + TRX_RSEG_HISTORY, mtr);
+	mlog_write_ulint(TRX_RSEG + TRX_RSEG_HISTORY_SIZE + block->frame, 0,
+			 MLOG_4BYTES, mtr);
+	flst_init(TRX_RSEG + TRX_RSEG_HISTORY + block->frame, mtr);
+	trx_rsegf_t* rsegf = TRX_RSEG + block->frame;
 
 	/* Reset the undo log slots */
-	for (i = 0; i < TRX_RSEG_N_SLOTS; i++) {
-		/* FIXME: This is generating a lot of redo log.
-		Why not just let it remain zero-initialized,
-		and adjust trx_rsegf_undo_find_free() and friends? */
+	for (ulint i = 0; i < TRX_RSEG_N_SLOTS; i++) {
+		/* This is generating a lot of redo log. MariaDB 10.4
+		introduced MLOG_MEMSET to reduce the redo log volume. */
 		trx_rsegf_set_nth_undo(rsegf, i, FIL_NULL, mtr);
 	}
 
@@ -100,10 +93,11 @@ trx_rseg_header_create(
 		trx_sysf_rseg_set_space(sys_header, rseg_slot_no, space, mtr);
 
 		trx_sysf_rseg_set_page_no(
-			sys_header, rseg_slot_no, page_no, mtr);
+			sys_header, rseg_slot_no,
+			block->page.id.page_no(), mtr);
 	}
 
-	return(page_no);
+	return block;
 }
 
 /** Free a rollback segment in memory. */
@@ -284,18 +278,17 @@ trx_rseg_create(ulint space_id)
 	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
 
 	ulint	slot_no = trx_sysf_rseg_find_free(&mtr);
-	ulint	page_no = slot_no == ULINT_UNDEFINED
-		? FIL_NULL
-		: trx_rseg_header_create(space_id, ULINT_MAX, slot_no, &mtr);
-
-	if (page_no != FIL_NULL) {
+	if (buf_block_t* block = slot_no == ULINT_UNDEFINED
+	    ? NULL
+	    : trx_rseg_header_create(space_id, ULINT_MAX, slot_no, &mtr)) {
 		trx_sysf_t*	sys_header = trx_sysf_get(&mtr);
 
 		ulint		id = trx_sysf_rseg_get_space(
 			sys_header, slot_no, &mtr);
 		ut_a(id == space_id);
 
-		rseg = trx_rseg_mem_create(slot_no, space_id, page_no);
+		rseg = trx_rseg_mem_create(slot_no, space_id,
+					   block->page.id.page_no());
 		ut_ad(rseg->is_persistent());
 		ut_ad(!trx_sys->rseg_array[rseg->id]);
 		trx_sys->rseg_array[rseg->id] = rseg;
@@ -322,10 +315,10 @@ trx_temp_rseg_create()
 			mtr_x_lock_space(SRV_TMP_SPACE_ID, &mtr);
 		ut_ad(space->purpose == FIL_TYPE_TEMPORARY);
 
-		ulint page_no = trx_rseg_header_create(
+		buf_block_t* block = trx_rseg_header_create(
 			SRV_TMP_SPACE_ID, ULINT_MAX, i, &mtr);
 		trx_rseg_t* rseg = trx_rseg_mem_create(
-			i, SRV_TMP_SPACE_ID, page_no);
+			i, SRV_TMP_SPACE_ID, block->page.id.page_no());
 		ut_ad(!rseg->is_persistent());
 		ut_ad(!trx_sys->temp_rsegs[i]);
 		trx_sys->temp_rsegs[i] = rseg;

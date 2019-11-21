@@ -669,6 +669,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf16_general_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 SET NAMES latin1;
 SET collation_connection='utf16_bin';
 create table t1 select repeat('a',4000) a;
@@ -806,6 +812,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf16_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 select hex(substr(_utf16 0x00e400e50068,1));
 hex(substr(_utf16 0x00e400e50068,1))
 00E400E50068
@@ -1555,7 +1567,7 @@ SELECT space(date_add(101, INTERVAL CHAR('1' USING utf16) hour_second));
 space(date_add(101, INTERVAL CHAR('1' USING utf16) hour_second))
 NULL
 Warnings:
-Warning	1301	Result of space() was larger than max_allowed_packet (16777216) - truncated
+Warning	1301	Result of space() was larger than max_allowed_packet (XXX) - truncated
 #
 # Bug#11750518 41090: ORDER BY TRUNCATES GROUP_CONCAT RESULT
 #

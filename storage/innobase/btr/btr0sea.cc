@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -80,7 +80,7 @@ btr_search_sys_t*	btr_search_sys;
 /** If the number of records on the page divided by this parameter
 would have been successfully accessed using a hash index, the index
 is then built on the page, assuming the global limit has been reached */
-#define BTR_SEARCH_PAGE_BUILD_LIMIT	16
+#define BTR_SEARCH_PAGE_BUILD_LIMIT	16U
 
 /** The global limit for consecutive potentially successful hash searches,
 before hash index building is started */
@@ -570,7 +570,7 @@ btr_search_update_block_hash_info(
 
 		if ((!block->index)
 		    || (block->n_hash_helps
-			> 2 * page_get_n_recs(block->frame))
+			> 2U * page_get_n_recs(block->frame))
 		    || (block->n_fields != block->curr_n_fields)
 		    || (block->n_bytes != block->curr_n_bytes)
 		    || (block->left_side != block->curr_left_side)) {
@@ -802,9 +802,7 @@ btr_search_check_guess(
 		prev_rec = page_rec_get_prev(rec);
 
 		if (page_rec_is_infimum(prev_rec)) {
-			success = btr_page_get_prev(page_align(prev_rec), mtr)
-				== FIL_NULL;
-
+			success = !page_has_prev(page_align(prev_rec));
 			goto exit_func;
 		}
 
@@ -827,9 +825,7 @@ btr_search_check_guess(
 		next_rec = page_rec_get_next(rec);
 
 		if (page_rec_is_supremum(next_rec)) {
-			if (btr_page_get_next(page_align(next_rec), mtr)
-			    == FIL_NULL) {
-
+			if (!page_has_next(page_align(next_rec))) {
 				cursor->up_match = 0;
 				success = TRUE;
 			}

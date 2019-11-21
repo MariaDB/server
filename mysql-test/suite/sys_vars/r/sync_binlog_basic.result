@@ -1,18 +1,4 @@
 SET @start_value = @@global.sync_binlog;
-SELECT @start_value;
-@start_value
-0
-'#--------------------FN_DYNVARS_168_01------------------------#'
-SET @@global.sync_binlog = 99;
-SET @@global.sync_binlog = DEFAULT;
-SELECT @@global.sync_binlog;
-@@global.sync_binlog
-0
-'#---------------------FN_DYNVARS_168_02-------------------------#'
-SET @@global.sync_binlog = @start_value;
-SELECT @@global.sync_binlog = 0;
-@@global.sync_binlog = 0
-1
 '#--------------------FN_DYNVARS_168_03------------------------#'
 SET @@global.sync_binlog = 0;
 SELECT @@global.sync_binlog;
@@ -109,6 +95,3 @@ ERROR 42S02: Unknown table 'global' in field list
 SELECT sync_binlog = @@session.sync_binlog;
 ERROR 42S22: Unknown column 'sync_binlog' in 'field list'
 SET @@global.sync_binlog = @start_value;
-SELECT @@global.sync_binlog;
-@@global.sync_binlog
-0

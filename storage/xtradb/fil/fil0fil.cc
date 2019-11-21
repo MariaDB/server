@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -2819,6 +2819,29 @@ fil_close_tablespace(
 	return(err);
 }
 
+/** Determine whether a table can be accessed in operations that are
+not (necessarily) protected by meta-data locks.
+(Rollback would generally be protected, but rollback of
+FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
+but only by InnoDB table locks, which may be broken by
+lock_remove_all_on_table().)
+@param[in]	table	persistent table
+checked @return whether the table is accessible */
+UNIV_INTERN bool fil_table_accessible(const dict_table_t* table)
+{
+	if (UNIV_UNLIKELY(!table->is_readable() || table->corrupted)) {
+		return(false);
+	}
+
+	if (fil_space_t* space = fil_space_acquire(table->space)) {
+		bool accessible = !space->is_stopping();
+		fil_space_release(space);
+		return(accessible);
+	} else {
+		return(false);
+	}
+}
+
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	drop_ahi	whether to drop the adaptive hash index
@@ -3239,8 +3262,13 @@ fil_rename_tablespace(
 		space, node, new_name, new_path);
 
 	if (success) {
+		DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
+				goto skip_second_rename; );
 		success = os_file_rename(
 			innodb_file_data_key, old_path, new_path);
+		DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
+skip_second_rename:
+				success = FALSE; );
 
 		if (!success) {
 			/* We have to revert the changes we made
@@ -4827,12 +4855,6 @@ will_not_choose:
 				srv_force_recovery);
 			return;
 		}
-
-		/* In mariabackup lets not crash. */
-		if (IS_XTRABACKUP()) {
-			return;
-		}
-
 		abort();
 	}
 
@@ -5106,7 +5128,7 @@ fil_load_single_table_tablespaces(ibool (*pred)(const char*, const char*))
 	ulint		dbpath_len	= 100;
         ulint 		files_read	= 0;
         ulint 		files_read_at_last_check	= 0;
-        ib_time_t 	prev_report_time = ut_time();
+	time_t		prev_report_time = time(NULL);
 	os_file_dir_t	dir;
 	os_file_dir_t	dbdir;
 	os_file_stat_t	dbinfo;
@@ -5206,11 +5228,10 @@ fil_load_single_table_tablespaces(ibool (*pred)(const char*, const char*))
 					files_read++;
 					if (files_read - files_read_at_last_check >
 					    CHECK_TIME_EVERY_N_FILES) {
-						ib_time_t cur_time= ut_time();
+						time_t cur_time= time(NULL);
 						files_read_at_last_check= files_read;
-						double time_elapsed= ut_difftime(cur_time, 
-						                                 prev_report_time);
-						if (time_elapsed > 15) {
+						if (cur_time - prev_report_time
+						    > 15) {
 							ib_logf(IB_LOG_LEVEL_INFO, 
 								"Processed %ld .ibd/.isl files",
 								files_read);

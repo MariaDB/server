@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -41,7 +41,7 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	7
-#define INNODB_VERSION_BUGFIX	25
+#define INNODB_VERSION_BUGFIX	28
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
@@ -56,10 +56,6 @@ component, i.e. we show M.N.P as M.N */
 	IB_TO_STR(INNODB_VERSION_MAJOR) "."	\
 	IB_TO_STR(INNODB_VERSION_MINOR) "."	\
 	IB_TO_STR(INNODB_VERSION_BUGFIX)
-
-#define REFMAN "http://dev.mysql.com/doc/refman/"	\
-	IB_TO_STR(INNODB_VERSION_MAJOR) "."		\
-	IB_TO_STR(INNODB_VERSION_MINOR) "/en/"
 
 /** How far ahead should we tell the service manager the timeout
 (time in seconds) */
@@ -212,9 +208,6 @@ command. */
 this will break redo log file compatibility, but it may be useful when
 debugging redo log application problems. */
 #define UNIV_IBUF_DEBUG				/* debug the insert buffer */
-#define UNIV_IBUF_COUNT_DEBUG			/* debug the insert buffer;
-this limits the database to IBUF_COUNT_N_SPACES and IBUF_COUNT_N_PAGES,
-and the insert buffer must be empty when the database is started */
 #define UNIV_PERF_DEBUG                         /* debug flag that enables
                                                 light weight performance
                                                 related stuff. */

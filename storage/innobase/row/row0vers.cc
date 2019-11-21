@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -76,7 +76,8 @@ index record.
 @param[in]	index		secondary index
 @param[in]	offsets		rec_get_offsets(rec, index)
 @param[in,out]	mtr		mini-transaction
-@return	the active transaction; trx_release_reference() must be invoked
+@return	the active transaction; state must be rechecked after
+trx_mutex_enter(), and trx->release_reference() must be invoked
 @retval	NULL if the record was committed */
 UNIV_INLINE
 trx_t*
@@ -88,17 +89,12 @@ row_vers_impl_x_locked_low(
 	const ulint*	offsets,
 	mtr_t*		mtr)
 {
-	trx_id_t	trx_id;
-	ibool		corrupt;
-	ulint		comp;
-	ulint		rec_del;
-	const rec_t*	version;
 	rec_t*		prev_version = NULL;
 	ulint*		clust_offsets;
 	mem_heap_t*	heap;
 	dtuple_t*	ientry = NULL;
 	mem_heap_t*	v_heap = NULL;
-	const dtuple_t*	cur_vrow = NULL;
+	dtuple_t*	cur_vrow = NULL;
 
 	DBUG_ENTER("row_vers_impl_x_locked_low");
 
@@ -109,11 +105,12 @@ row_vers_impl_x_locked_low(
 	clust_offsets = rec_get_offsets(
 		clust_rec, clust_index, NULL, true, ULINT_UNDEFINED, &heap);
 
-	trx_id = row_get_rec_trx_id(clust_rec, clust_index, clust_offsets);
-	corrupt = FALSE;
+	const trx_id_t trx_id = row_get_rec_trx_id(
+		clust_rec, clust_index, clust_offsets);
 
-	ut_ad(!dict_table_is_temporary(clust_index->table));
+	ut_ad(!clust_index->table->is_temporary());
 
+	bool corrupt = false;
 	trx_t*	trx = trx_rw_is_active(trx_id, &corrupt, true);
 
 	if (trx == 0) {
@@ -128,12 +125,12 @@ row_vers_impl_x_locked_low(
 		DBUG_RETURN(0);
 	}
 
-	comp = page_rec_is_comp(rec);
+	const ulint comp = page_rec_is_comp(rec);
 	ut_ad(index->table == clust_index->table);
 	ut_ad(!!comp == dict_table_is_comp(index->table));
 	ut_ad(!comp == !page_rec_is_comp(clust_rec));
 
-	rec_del = rec_get_deleted_flag(rec, comp);
+	const ulint rec_del = rec_get_deleted_flag(rec, comp);
 
 	if (dict_index_has_virtual(index)) {
 		ulint	n_ext;
@@ -158,14 +155,14 @@ row_vers_impl_x_locked_low(
 	modify rec, and does not necessarily have an implicit x-lock
 	on rec. */
 
-	for (version = clust_rec;; version = prev_version) {
+	for (const rec_t* version = clust_rec;; version = prev_version) {
 		row_ext_t*	ext;
 		dtuple_t*	row;
 		dtuple_t*	entry;
 		ulint		vers_del;
 		trx_id_t	prev_trx_id;
 		mem_heap_t*	old_heap = heap;
-		const dtuple_t*	vrow = NULL;
+		dtuple_t*	vrow = NULL;
 
 		/* We keep the semaphore in mtr on the clust_rec page, so
 		that no other transaction can update it and get an
@@ -178,15 +175,23 @@ row_vers_impl_x_locked_low(
 			heap, &prev_version, NULL,
 			dict_index_has_virtual(index) ? &vrow : NULL, 0);
 
+		trx_mutex_enter(trx);
+		const bool committed = trx_state_eq(
+			trx, TRX_STATE_COMMITTED_IN_MEMORY);
+		trx_mutex_exit(trx);
+
 		/* The oldest visible clustered index version must not be
 		delete-marked, because we never start a transaction by
 		inserting a delete-marked record. */
-		ut_ad(prev_version
-		      || !rec_get_deleted_flag(version, comp)
-		      || !trx_rw_is_active(trx_id, NULL, false));
+		ut_ad(committed || prev_version
+		      || !rec_get_deleted_flag(version, comp));
 
 		/* Free version and clust_offsets. */
 		mem_heap_free(old_heap);
+
+		if (committed) {
+			goto not_locked;
+		}
 
 		if (prev_version == NULL) {
 
@@ -207,7 +212,8 @@ row_vers_impl_x_locked_low(
 				or updated, the leaf page record always is
 				created with a clear delete-mark flag.
 				(We never insert a delete-marked record.) */
-				trx_release_reference(trx);
+not_locked:
+				trx->release_reference();
 				trx = 0;
 			}
 
@@ -333,14 +339,14 @@ result_check:
 		if (trx->id != prev_trx_id) {
 			/* prev_version was the first version modified by
 			the trx_id transaction: no implicit x-lock */
-
-			trx_release_reference(trx);
-			trx = 0;
-			break;
+			goto not_locked;
 		}
 	}
 
-	DBUG_PRINT("info", ("Implicit lock is held by trx:" TRX_ID_FMT, trx_id));
+	if (trx) {
+		DBUG_PRINT("info", ("Implicit lock is held by trx:" TRX_ID_FMT,
+				    trx_id));
+	}
 
 	if (v_heap != NULL) {
 		mem_heap_free(v_heap);
@@ -355,7 +361,8 @@ index record.
 @param[in]	rec	secondary index record
 @param[in]	index	secondary index
 @param[in]	offsets	rec_get_offsets(rec, index)
-@return	the active transaction; trx_release_reference() must be invoked
+@return	the active transaction; state must be rechecked after
+trx_mutex_enter(), and trx->release_reference() must be invoked
 @retval	NULL if the record was committed */
 trx_t*
 row_vers_impl_x_locked(
@@ -401,7 +408,7 @@ row_vers_impl_x_locked(
 		trx = row_vers_impl_x_locked_low(
 			clust_rec, clust_index, rec, index, offsets, &mtr);
 
-		ut_ad(trx == 0 || trx_is_referenced(trx));
+		ut_ad(trx == 0 || trx->is_referenced());
 	}
 
 	mtr_commit(&mtr);
@@ -460,6 +467,7 @@ row_vers_build_clust_v_col(
 		vcol_info->set_used();
 		maria_table = vcol_info->table();
 	}
+	DEBUG_SYNC(current_thd, "ib_clust_v_col_before_row_allocated");
 
 	innobase_allocate_row_for_vcol(thd, index,
 				       &local_heap,
@@ -519,7 +527,7 @@ row_vers_build_cur_vrow_low(
 	roll_ptr_t		roll_ptr,
 	trx_id_t		trx_id,
 	mem_heap_t*		v_heap,
-	const dtuple_t**	vrow,
+	dtuple_t**		vrow,
 	mtr_t*			mtr)
 {
 	const rec_t*	version;
@@ -636,7 +644,7 @@ row_vers_vc_matches_cluster(
 	roll_ptr_t	roll_ptr,
 	trx_id_t	trx_id,
 	mem_heap_t*	v_heap,
-	const dtuple_t**vrow,
+	dtuple_t**	vrow,
 	mtr_t*		mtr)
 {
 	const rec_t*	version;
@@ -801,7 +809,7 @@ func_exit:
 @param[in,out]	vcol_info	virtual column information for purge thread
 @return dtuple contains virtual column data */
 static
-const dtuple_t*
+dtuple_t*
 row_vers_build_cur_vrow(
 	bool			in_purge,
 	const rec_t*		rec,
@@ -816,7 +824,7 @@ row_vers_build_cur_vrow(
 	mtr_t*			mtr,
 	purge_vcol_info_t*	vcol_info)
 {
-	const dtuple_t*	cur_vrow = NULL;
+	dtuple_t* cur_vrow = NULL;
 
 	roll_ptr_t t_roll_ptr = row_get_rec_roll_ptr(
 		rec, clust_index, *clust_offsets);
@@ -897,13 +905,14 @@ row_vers_old_has_index_entry(
 	dtuple_t*	row;
 	const dtuple_t*	entry;
 	ulint		comp;
-	const dtuple_t*	vrow = NULL;
+	dtuple_t*	vrow = NULL;
 	mem_heap_t*	v_heap = NULL;
-	const dtuple_t*	cur_vrow = NULL;
+	dtuple_t*	cur_vrow = NULL;
 
 	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_S_FIX));
 	ut_ad(!rw_lock_own(&(purge_sys->latch), RW_LOCK_S));
+	ut_ad(also_curr || !vcol_info);
 
 	clust_index = dict_table_get_first_index(index->table);
 
@@ -970,7 +979,7 @@ row_vers_old_has_index_entry(
 				entry = row_build_index_entry(
 					row, ext, index, heap);
 				if (entry && !dtuple_coll_cmp(ientry, entry)) {
-					goto safe_to_purge;
+					goto unsafe_to_purge;
 				}
 			} else {
 				/* Build index entry out of row */
@@ -991,7 +1000,7 @@ row_vers_old_has_index_entry(
 					    clust_index, clust_offsets,
 					    index, ientry, roll_ptr,
 					    trx_id, NULL, &vrow, mtr)) {
-					goto safe_to_purge;
+					goto unsafe_to_purge;
 				}
 			}
 			clust_offsets = rec_get_offsets(rec, clust_index, NULL,
@@ -1024,7 +1033,7 @@ row_vers_old_has_index_entry(
 			a different binary value in a char field, but the
 			collation identifies the old and new value anyway! */
 			if (entry && !dtuple_coll_cmp(ientry, entry)) {
-safe_to_purge:
+unsafe_to_purge:
 				mem_heap_free(heap);
 
 				if (v_heap) {
@@ -1065,7 +1074,6 @@ safe_to_purge:
 
 		if (!prev_version) {
 			/* Versions end here */
-unsafe_to_purge:
 			mem_heap_free(heap);
 
 			if (v_heap) {
@@ -1127,7 +1135,7 @@ unsafe_to_purge:
 			and new value anyway! */
 
 			if (entry && !dtuple_coll_cmp(ientry, entry)) {
-				goto safe_to_purge;
+				goto unsafe_to_purge;
 			}
 		}
 
@@ -1162,7 +1170,7 @@ row_vers_build_for_consistent_read(
 				if the history is missing or the record
 				does not exist in the view, that is,
 				it was freshly inserted afterwards */
-	const dtuple_t**vrow)	/*!< out: virtual row */
+	dtuple_t**	vrow)	/*!< out: virtual row */
 {
 	const rec_t*	version;
 	rec_t*		prev_version;
@@ -1275,7 +1283,7 @@ row_vers_build_for_semi_consistent_read(
 	const rec_t**	old_vers,/*!< out: rec, old version, or NULL if the
 				record does not exist in the view, that is,
 				it was freshly inserted afterwards */
-	const dtuple_t** vrow)	/*!< out: virtual row, old version, or NULL
+	dtuple_t**	vrow)	/*!< out: virtual row, old version, or NULL
 				if it is not updated in the view */
 {
 	const rec_t*	version;

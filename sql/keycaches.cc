@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "keycaches.h"
 
@@ -84,7 +84,7 @@ bool NAMED_ILIST::delete_element(const char *name, uint length, void (*free_elem
   DBUG_RETURN(1);
 }
 
-void NAMED_ILIST::delete_elements(void (*free_element)(const char *name, uchar*))
+void NAMED_ILIST::delete_elements(void (*free_element)(const char *name, void*))
 {
   NAMED_ILINK *element;
   DBUG_ENTER("NAMED_ILIST::delete_elements");
@@ -156,9 +156,9 @@ KEY_CACHE *get_or_create_key_cache(const char *name, uint length)
 }
 
 
-void free_key_cache(const char *name, KEY_CACHE *key_cache)
+void free_key_cache(const char *name, void *key_cache)
 {
-  end_key_cache(key_cache, 1);		// Can never fail
+  end_key_cache(static_cast<KEY_CACHE *>(key_cache), 1); // Can never fail
   my_free(key_cache);
 }
 
@@ -220,13 +220,12 @@ Rpl_filter *get_or_create_rpl_filter(const char *name, uint length)
   return filter;
 }
 
-void free_rpl_filter(const char *name, Rpl_filter *filter)
+void free_rpl_filter(const char *name, void *filter)
 {
-  delete filter;
-  filter= 0;
+  delete static_cast<Rpl_filter*>(filter);
 }
 
 void free_all_rpl_filters()
 {
-  rpl_filters.delete_elements((void (*)(const char*, uchar*)) free_rpl_filter);
+  rpl_filters.delete_elements(free_rpl_filter);
 }

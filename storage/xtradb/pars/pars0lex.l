@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -64,9 +65,8 @@ Created 12/14/1997 Heikki Tuuri
 #define realloc(P, A)	ut_realloc(P, A)
 #define exit(A) 	ut_error
 
-/* Note: We cast &result to int* from yysize_t* */
 #define YY_INPUT(buf, result, max_size) \
-	pars_get_lex_chars(buf, (int*) &result, max_size)
+	result = pars_get_lex_chars(buf, max_size)
 
 /* String buffer for removing quotes */
 static ulint	stringbuf_len_alloc = 0; /* Allocated length */
@@ -697,10 +697,8 @@ void
 pars_lexer_close(void)
 /*==================*/
 {
-        if (yy_buffer_stack)
-  	  yylex_destroy();
-        if (stringbuf)
-  	  free(stringbuf);
+	yylex_destroy();
+	free(stringbuf);
 	stringbuf = NULL;
 	stringbuf_len_alloc = stringbuf_len = 0;
 }

@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* compare and test functions */
@@ -268,6 +268,8 @@ public:
   virtual const char* func_name() const { return "isnottrue"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_isnottrue>(thd, mem_root, this); }
+  bool eval_not_null_tables(void *opt_arg)
+  { not_null_tables_cache= 0; return false; }
 };
 
 
@@ -299,6 +301,8 @@ public:
   virtual const char* func_name() const { return "isnotfalse"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_isnotfalse>(thd, mem_root, this); }
+  bool eval_not_null_tables(void *opt_arg)
+  { not_null_tables_cache= 0; return false; }
 };
 
 
@@ -485,6 +489,7 @@ public:
   {
     allowed_arg_cols= 0;  // Fetch this value from first argument
   }
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   void print(String *str, enum_query_type query_type)
   {
     Item_func::print_op(str, query_type);
@@ -1916,6 +1921,7 @@ public:
     Item_bool_func2(thd, a, b), canDoTurboBM(FALSE), pattern(0), pattern_len(0),
     bmGs(0), bmBc(0), escape_item(escape_arg),
     escape_used_in_parsing(escape_used), use_sampling(0), negated(0) {}
+  Sql_mode_dependency value_depends_on_sql_mode() const;
   longlong val_int();
   enum Functype functype() const { return LIKE_FUNC; }
   void print(String *str, enum_query_type query_type);
@@ -2229,6 +2235,7 @@ public:
                 Item_transformer transformer, uchar *arg_t);
   bool eval_not_null_tables(void *opt_arg);
   Item *build_clone(THD *thd, MEM_ROOT *mem_root);
+  bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
 };
 

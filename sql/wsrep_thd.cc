@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License along
    with this program; if not, write to the Free Software Foundation, Inc.,
-   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA. */
 
 #include "wsrep_thd.h"
 
@@ -360,6 +360,7 @@ static void wsrep_replication_process(THD *thd)
   thd->variables.option_bits|= OPTION_BEGIN;
   thd->server_status|= SERVER_STATUS_IN_TRANS;
 
+  thd_proc_info(thd, "wsrep applier idle");
   rcode = wsrep->recv(wsrep, (void *)thd);
   DBUG_PRINT("wsrep",("wsrep_repl returned: %d", rcode));
 
@@ -415,13 +416,16 @@ static void wsrep_replication_process(THD *thd)
   DBUG_VOID_RETURN;
 }
 
-static bool create_wsrep_THD(wsrep_thd_processor_fun processor)
+static bool create_wsrep_THD(wsrep_thread_args* args)
 {
-  ulong old_wsrep_running_threads= wsrep_running_threads;
-  pthread_t unused;
   mysql_mutex_lock(&LOCK_thread_count);
-  bool res= pthread_create(&unused, &connection_attrib, start_wsrep_THD,
-                           (void*)processor);
+  ulong old_wsrep_running_threads= wsrep_running_threads;
+  DBUG_ASSERT(args->thread_type == WSREP_APPLIER_THREAD ||
+              args->thread_type == WSREP_ROLLBACKER_THREAD);
+  bool res= mysql_thread_create(args->thread_type == WSREP_APPLIER_THREAD
+                                ? key_wsrep_applier : key_wsrep_rollbacker,
+                                &args->thread_id, &connection_attrib,
+                                start_wsrep_THD, (void*)args);
   /*
     if starting a thread on server startup, wait until the this thread's THD
     is fully initialized (otherwise a THD initialization code might
@@ -451,8 +455,20 @@ void wsrep_create_appliers(long threads)
 
   long wsrep_threads=0;
   while (wsrep_threads++ < threads) {
-    if (create_wsrep_THD(wsrep_replication_process))
+    wsrep_thread_args* arg;
+    if((arg = (wsrep_thread_args*)my_malloc(sizeof(wsrep_thread_args), MYF(0))) == NULL) {
+      WSREP_ERROR("Can't allocate memory for wsrep replication thread %ld\n", wsrep_threads);
+      assert(0);
+    }
+
+    arg->thread_type = WSREP_APPLIER_THREAD;
+    arg->processor = wsrep_replication_process;
+
+    if (create_wsrep_THD(arg)) {
       WSREP_WARN("Can't create thread to manage wsrep replication");
+      my_free(arg);
+      return;
+    }
   }
 }
 
@@ -539,9 +555,21 @@ void wsrep_create_rollbacker()
 {
   if (wsrep_provider && strcasecmp(wsrep_provider, "none"))
   {
+    wsrep_thread_args* arg;
+    if((arg = (wsrep_thread_args*)my_malloc(sizeof(wsrep_thread_args), MYF(0))) == NULL) {
+      WSREP_ERROR("Can't allocate memory for wsrep rollbacker thread\n");
+      assert(0);
+    }
+
+    arg->thread_type = WSREP_ROLLBACKER_THREAD;
+    arg->processor = wsrep_rollback_process;
+
     /* create rollbacker */
-    if (create_wsrep_THD(wsrep_rollback_process))
+    if (create_wsrep_THD(arg)) {
       WSREP_WARN("Can't create thread to manage wsrep rollback");
+      my_free(arg);
+      return;
+    }
   }
 }
 
@@ -676,4 +704,45 @@ bool wsrep_thd_has_explicit_locks(THD *thd)
 {
   assert(thd);
   return thd->mdl_context.has_explicit_locks();
+}
+
+/*
+  Get auto increment variables for THD. Use global settings for
+  applier threads.
+ */
+void wsrep_thd_auto_increment_variables(THD* thd,
+                                        unsigned long long* offset,
+                                        unsigned long long* increment)
+{
+  if (thd->wsrep_exec_mode == REPL_RECV &&
+      thd->wsrep_conflict_state != REPLAYING)
+  {
+    *offset= global_system_variables.auto_increment_offset;
+    *increment= global_system_variables.auto_increment_increment;
+  }
+  else
+  {
+    *offset= thd->variables.auto_increment_offset;
+    *increment= thd->variables.auto_increment_increment;
+  }
+}
+
+my_bool wsrep_thd_is_applier(MYSQL_THD thd)
+{
+  my_bool is_applier= false;
+
+  if (thd && thd->wsrep_applier)
+    is_applier= true;
+
+  return (is_applier);
+}
+
+void wsrep_set_load_multi_commit(THD *thd, bool split)
+{
+   thd->wsrep_split_flag= split;
+}
+
+bool wsrep_is_load_multi_commit(THD *thd)
+{
+   return thd->wsrep_split_flag;
 }

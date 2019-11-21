@@ -1,3 +1,4 @@
+set @save_sql_mode=@@global.sql_mode;
 set global sql_mode="";
 SHOW TABLES FROM information_schema LIKE 'TRIGGERS';
 Tables_in_information_schema (TRIGGERS)
@@ -233,4 +234,4 @@ ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_
 ALTER TABLE information_schema.triggers RENAME information_schema.xtriggers;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
 DROP DATABASE db_datadict;
-set global sql_mode=default;
+set global sql_mode=@save_sql_mode;

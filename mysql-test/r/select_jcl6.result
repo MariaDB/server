@@ -12,7 +12,6 @@ set @join_cache_level_for_select_test=@@join_cache_level;
 drop table if exists t1,t2,t3,t4,t11;
 drop table if exists t1_1,t1_2,t9_1,t9_2,t1aa,t2aa;
 drop view if exists v1;
-SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch=ifnull(@optimizer_switch_for_select_test,'outer_join_with_cache=off');
 set join_cache_level=@join_cache_level_for_select_test;
 CREATE TABLE t1 (
@@ -4905,7 +4904,7 @@ CREATE TABLE t5 (f1 int) ;
 INSERT INTO t5 VALUES (20),(5);
 CREATE TABLE t6(f1 int);
 INSERT INTO t6 VALUES (9),(7);
-SET SESSION join_buffer_size = 2176;
+SET @save_join_buffer_size=@@join_buffer_size,@@join_buffer_size = 2176;
 EXPLAIN
 SELECT STRAIGHT_JOIN * FROM t2, (t1 LEFT JOIN (t3,t4) ON t1.f1 = t4.f1), t5, t6;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -4965,7 +4964,7 @@ f1	f1	f1	f1	f2	f1	f1
 3	9	NULL	NULL	NULL	5	7
 7	9	NULL	NULL	NULL	5	7
 18	9	NULL	NULL	NULL	5	7
-SET SESSION join_buffer_size = DEFAULT;
+SET SESSION join_buffer_size = @save_join_buffer_size;
 DROP TABLE t1,t2,t3,t4,t5,t6;
 #
 # Bug #698882: best equality substitution not applied to ref 
@@ -5347,7 +5346,7 @@ SELECT a, COUNT(*) FROM t1 WHERE 0;
 a	COUNT(*)
 NULL	0
 DROP TABLE t1;
-SET optimizer_switch=@save_optimizer_switch;
+SET @@optimizer_switch=@save_optimizer_switch;
 #
 # LP bug#994275 Assertion `real->type() == Item::FIELD_ITEM' failed
 # in add_not_null_conds(JOIN*) with JOIN, ZEROFILL column, PK
@@ -5562,9 +5561,6 @@ NULL
 drop table t1;
 End of 10.0 tests
 set join_cache_level=default;
-show variables like 'join_cache_level';
-Variable_name	Value
-join_cache_level	2
 set @@optimizer_switch=@save_optimizer_switch_jcl6;
 set @optimizer_switch_for_select_test=NULL;
 set @join_cache_level_for_select_test=NULL;

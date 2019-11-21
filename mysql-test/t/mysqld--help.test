@@ -42,7 +42,7 @@ perl;
   $re2=join('|', @plugins);
   $skip=0;
   open(F, '<', "$ENV{MYSQL_TMP_DIR}/mysqld--help.txt") or die;
-  print "Windows bug: happens when a new line is exactly at the right offset.\n";
+  print "Windows bug: new line disappears when it is exactly at the right offset.\n";
   while (<F>) {
     next if 1../The following groups are read/;
     # formatting, skip line consisting entirely of dashes and blanks
@@ -57,7 +57,7 @@ perl;
     # fixes for 32-bit
     s/\b4294967295\b/18446744073709551615/;
     s/\b2146435072\b/9223372036853727232/;
-    s/\b196608\b/262144/;
+    s/\b372736\b/299008/;
     s/\b4294963200\b/18446744073709547520/;
     foreach $var (@env) { s/\Q$ENV{$var}\E/$var/ }
     next if /use --skip-(use-)?symbolic-links to disable/; # for valgrind, again

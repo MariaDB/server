@@ -27,7 +27,7 @@
 --source include/have_sjis.inc
 --source include/have_utf8.inc
 --source include/have_ucs2.inc
-
+--source include/default_charset.inc
 --source include/load_sysvars.inc
 
 ###################################################
@@ -38,7 +38,8 @@
 #                 Save initial value                        #
 #############################################################
 SET @global_start_value = @@global.character_set_server;
-SELECT @global_start_value;
+SET @@global.character_set_server=@@character_set_client;
+SELECT @@global.character_set_server;
 # Save initial session value
 SET @session_start_value = @@character_set_server;
 SELECT @session_start_value;
@@ -81,11 +82,11 @@ SET @@character_set_server = null;
 ###############################################################################
 SET @@character_set_server = latin5;
 SET @@character_set_server = DEFAULT;
-SELECT @@character_set_server AS DEFAULT_VALUE;
+SELECT @@character_set_server = @@global.character_set_server;
 
 SET @@global.character_set_server = latin5;
 SET @@global.character_set_server = DEFAULT;
-SELECT @@global.character_set_server;
+SELECT @@global.character_set_server = @global_start_value;
 
 --echo '#--------------------FN_DYNVARS_009_03-------------------------#'
 ###############################################################################
@@ -260,9 +261,7 @@ SELECT @@session.character_set_server =
 #     Restore initial value        #
 ####################################
 SET @@global.character_set_server = @global_start_value;
-SELECT @@global.character_set_server;
 SET @@session.character_set_server = @session_start_value;
-SELECT @@session.character_set_server;
 
 #############################################################
 #                 END OF character_set_server TESTS         #

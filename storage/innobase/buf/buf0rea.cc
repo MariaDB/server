@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -63,13 +63,14 @@ buf_read_page_handle_error(
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	const bool	uncompressed = (buf_page_get_state(bpage)
 					== BUF_BLOCK_FILE_PAGE);
+	const page_id_t	old_page_id = bpage->id;
 
 	/* First unfix and release lock on the bpage */
 	buf_pool_mutex_enter(buf_pool);
 	mutex_enter(buf_page_get_mutex(bpage));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_READ);
-	ut_ad(bpage->buf_fix_count == 0);
 
+	bpage->id.set_corrupt_id();
 	/* Set BUF_IO_NONE before we remove the block from LRU list */
 	buf_page_set_io_fix(bpage, BUF_IO_NONE);
 
@@ -82,7 +83,7 @@ buf_read_page_handle_error(
 	mutex_exit(buf_page_get_mutex(bpage));
 
 	/* remove the block from LRU list */
-	buf_LRU_free_one_page(bpage);
+	buf_LRU_free_one_page(bpage, old_page_id);
 
 	ut_ad(buf_pool->n_pend_reads > 0);
 	buf_pool->n_pend_reads--;
@@ -186,13 +187,13 @@ buf_read_page_low(
 		thd_wait_end(NULL);
 	}
 
-	if (*err != DB_SUCCESS) {
+	if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 		if (*err == DB_TABLESPACE_TRUNCATED) {
 			/* Remove the page which is outside the
 			truncated tablespace bounds when recovering
 			from a crash happened during a truncation */
 			buf_read_page_handle_error(bpage);
-			if (recv_recovery_on) {
+			if (recv_recovery_is_on()) {
 				mutex_enter(&recv_sys->mutex);
 				ut_ad(recv_sys->n_addrs > 0);
 				recv_sys->n_addrs--;
@@ -818,11 +819,8 @@ buf_read_ibuf_merge_pages(
 #endif
 
 	for (ulint i = 0; i < n_stored; i++) {
-		bool			found;
-		const page_size_t	page_size(fil_space_get_page_size(
-			space_ids[i], &found));
-
-		if (!found) {
+		fil_space_t* space = fil_space_acquire_silent(space_ids[i]);
+		if (!space) {
 tablespace_deleted:
 			/* The tablespace was not found: remove all
 			entries for it */
@@ -831,6 +829,19 @@ tablespace_deleted:
 			       && space_ids[i + 1] == space_ids[i]) {
 				i++;
 			}
+			continue;
+		}
+
+		if (UNIV_UNLIKELY(page_nos[i] >= space->size)) {
+			do {
+				ibuf_delete_recs(page_id_t(space_ids[i],
+							   page_nos[i]));
+			} while (++i < n_stored
+				 && space_ids[i - 1] == space_ids[i]
+				 && page_nos[i] >= space->size);
+			i--;
+next:
+			fil_space_release(space);
 			continue;
 		}
 
@@ -848,8 +859,8 @@ tablespace_deleted:
 		buf_read_page_low(&err,
 				  sync && (i + 1 == n_stored),
 				  0,
-				  BUF_READ_ANY_PAGE, page_id, page_size,
-				  true, true /* ignore_missing_space */);
+				  BUF_READ_ANY_PAGE, page_id,
+				  page_size_t(space->flags), true);
 
 		switch(err) {
 		case DB_SUCCESS:
@@ -857,15 +868,20 @@ tablespace_deleted:
 		case DB_ERROR:
 			break;
 		case DB_TABLESPACE_DELETED:
+			fil_space_release(space);
 			goto tablespace_deleted;
 		case DB_PAGE_CORRUPTED:
 		case DB_DECRYPTION_FAILED:
-			ib::error() << "Failed to read or decrypt " << page_id
-				<< " for change buffer merge";
+			ib::error() << "Failed to read or decrypt page "
+				    << page_nos[i]
+				    << " of '" << space->chain.start->name
+				    << "' for change buffer merge";
 			break;
 		default:
 			ut_error;
 		}
+
+		goto next;
 	}
 
 	os_aio_simulated_wake_handler_threads();

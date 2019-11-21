@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 	/* Functions to compressed records */
 
@@ -1564,8 +1564,13 @@ my_bool _ma_memmap_file(MARIA_HA *info)
 
 void _ma_unmap_file(MARIA_HA *info)
 {
-  my_munmap((char*) info->s->file_map,
-                 (size_t) info->s->mmaped_length + MEMMAP_EXTRA_MARGIN);
+  MARIA_SHARE *share= info->s;
+  my_munmap((char*) share->file_map,
+            (size_t) share->mmaped_length + MEMMAP_EXTRA_MARGIN);
+  share->file_map= 0;
+  share->file_read= _ma_nommap_pread;
+  share->file_write= _ma_nommap_pwrite;
+  info->opt_flag&= ~MEMMAP_USED;
 }
 
 

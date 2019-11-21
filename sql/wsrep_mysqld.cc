@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <sql_plugin.h> // SHOW_MY_BOOL
 #include <mysqld.h>
@@ -39,6 +39,7 @@
 #include "log_event.h"
 #include <slave.h>
 #include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
+#include <vector>
 
 wsrep_t *wsrep                  = NULL;
 /*
@@ -135,7 +136,11 @@ mysql_mutex_t LOCK_wsrep_desync;
 mysql_mutex_t LOCK_wsrep_config_state;
 
 int wsrep_replaying= 0;
-ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
+ulong  wsrep_running_threads = 0; // # of currently running wsrep
+				  // # threads
+ulong  wsrep_running_applier_threads = 0; // # of running applier threads
+ulong  wsrep_running_rollbacker_threads = 0; // # of running
+					     // # rollbacker threads
 ulong  my_bind_addr;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -179,7 +184,19 @@ static PSI_file_info wsrep_files[]=
 {
   { &key_file_wsrep_gra_log, "wsrep_gra_log", 0}
 };
-#endif
+
+PSI_thread_key key_wsrep_sst_joiner, key_wsrep_sst_donor,
+  key_wsrep_rollbacker, key_wsrep_applier;
+
+static PSI_thread_info wsrep_threads[]=
+{
+ {&key_wsrep_sst_joiner, "wsrep_sst_joiner_thread", PSI_FLAG_GLOBAL},
+ {&key_wsrep_sst_donor, "wsrep_sst_donor_thread", PSI_FLAG_GLOBAL},
+ {&key_wsrep_rollbacker, "wsrep_rollbacker_thread", PSI_FLAG_GLOBAL},
+ {&key_wsrep_applier, "wsrep_applier_thread", PSI_FLAG_GLOBAL}
+};
+
+#endif /* HAVE_PSI_INTERFACE */
 
 my_bool wsrep_inited                   = 0; // initialized ?
 
@@ -784,6 +801,7 @@ void wsrep_thr_init()
   mysql_mutex_register("sql", wsrep_mutexes, array_elements(wsrep_mutexes));
   mysql_cond_register("sql", wsrep_conds, array_elements(wsrep_conds));
   mysql_file_register("sql", wsrep_files, array_elements(wsrep_files));
+  mysql_thread_register("sql", wsrep_threads, array_elements(wsrep_threads));
 #endif
 
   mysql_mutex_init(key_LOCK_wsrep_ready, &LOCK_wsrep_ready, MY_MUTEX_INIT_FAST);
@@ -799,6 +817,7 @@ void wsrep_thr_init()
   mysql_mutex_init(key_LOCK_wsrep_slave_threads, &LOCK_wsrep_slave_threads, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_desync, &LOCK_wsrep_desync, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_config_state, &LOCK_wsrep_config_state, MY_MUTEX_INIT_FAST);
+
   DBUG_VOID_RETURN;
 }
 
@@ -1575,25 +1594,6 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
   }
 }
 
-static const char* wsrep_get_query_or_msg(const THD* thd)
-{
-  switch(thd->lex->sql_command)
-  {
-    case SQLCOM_CREATE_USER:
-      return "CREATE USER";
-    case SQLCOM_GRANT:
-      return "GRANT";
-    case SQLCOM_REVOKE:
-      return "REVOKE";
-    case SQLCOM_SET_OPTION:
-      if (thd->lex->definer)
-	return "SET PASSWORD";
-      /* fallthrough */
-    default:
-      return thd->query();
-   }
-}
-
 /*
   returns: 
    0: statement was replicated as TOI
@@ -1617,7 +1617,7 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
   }
 
   WSREP_DEBUG("TO BEGIN: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
-              thd->wsrep_exec_mode, wsrep_get_query_or_msg(thd));
+              thd->wsrep_exec_mode, wsrep_thd_query(thd));
 
   switch (thd->lex->sql_command)
   {
@@ -1697,13 +1697,13 @@ static void wsrep_TOI_end(THD *thd) {
   wsrep_to_isolation--;
 
   WSREP_DEBUG("TO END: %lld, %d: %s", (long long)wsrep_thd_trx_seqno(thd),
-              thd->wsrep_exec_mode, wsrep_get_query_or_msg(thd));
+              thd->wsrep_exec_mode, wsrep_thd_query(thd));
 
   wsrep_set_SE_checkpoint(thd->wsrep_trx_meta.gtid.uuid,
                           thd->wsrep_trx_meta.gtid.seqno);
   WSREP_DEBUG("TO END: %lld, update seqno",
               (long long)wsrep_thd_trx_seqno(thd));
-  
+
   if (WSREP_OK == (ret = wsrep->to_execute_end(wsrep, thd->thread_id))) {
     WSREP_DEBUG("TO END: %lld", (long long)wsrep_thd_trx_seqno(thd));
   }
@@ -2021,7 +2021,8 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
 pthread_handler_t start_wsrep_THD(void *arg)
 {
   THD *thd;
-  wsrep_thd_processor_fun processor= (wsrep_thd_processor_fun)arg;
+  wsrep_thread_args* args= (wsrep_thread_args*)arg;
+  wsrep_thd_processor_fun processor= args->processor;
 
   if (my_thread_init() || (!(thd= new THD(next_thread_id(), true))))
   {
@@ -2099,6 +2100,19 @@ pthread_handler_t start_wsrep_THD(void *arg)
 
   mysql_mutex_lock(&LOCK_thread_count);
   wsrep_running_threads++;
+
+  switch (args->thread_type) {
+    case WSREP_APPLIER_THREAD:
+      wsrep_running_applier_threads++;
+      break;
+    case WSREP_ROLLBACKER_THREAD:
+      wsrep_running_rollbacker_threads++;
+      break;
+    default:
+      WSREP_ERROR("Incorrect wsrep thread type: %d", args->thread_type);
+      break;
+  }
+
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
@@ -2107,7 +2121,25 @@ pthread_handler_t start_wsrep_THD(void *arg)
   close_connection(thd, 0);
 
   mysql_mutex_lock(&LOCK_thread_count);
+  DBUG_ASSERT(wsrep_running_threads > 0);
   wsrep_running_threads--;
+
+  switch (args->thread_type) {
+    case WSREP_APPLIER_THREAD:
+      DBUG_ASSERT(wsrep_running_applier_threads > 0);
+      wsrep_running_applier_threads--;
+      break;
+    case WSREP_ROLLBACKER_THREAD:
+      DBUG_ASSERT(wsrep_running_rollbacker_threads > 0);
+      wsrep_running_rollbacker_threads--;
+      break;
+    default:
+      WSREP_ERROR("Incorrect wsrep thread type: %d", args->thread_type);
+      break;
+  }
+
+  my_free(args);
+
   WSREP_DEBUG("wsrep running threads now: %lu", wsrep_running_threads);
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
@@ -2140,6 +2172,8 @@ pthread_handler_t start_wsrep_THD(void *arg)
 
 error:
   WSREP_ERROR("Failed to create/initialize system thread");
+
+  my_free(args);
 
   /* Abort if its the first applier/rollbacker thread. */
   if (!mysqld_server_initialized)
@@ -2621,9 +2655,28 @@ extern "C" query_id_t wsrep_thd_query_id(THD *thd)
 }
 
 
-char *wsrep_thd_query(THD *thd)
+const char *wsrep_thd_query(THD *thd)
 {
-  return (thd) ? thd->query() : NULL;
+  if (thd)
+  {
+    switch(thd->lex->sql_command)
+    {
+    case SQLCOM_CREATE_USER:
+      return "CREATE USER";
+    case SQLCOM_GRANT:
+      return "GRANT";
+    case SQLCOM_REVOKE:
+      return "REVOKE";
+    case SQLCOM_SET_OPTION:
+      if (thd->lex->definer)
+	return "SET PASSWORD";
+      /* fallthrough */
+    default:
+      if (thd->query())
+        return thd->query();
+    }
+  }
+  return "NULL";
 }
 
 

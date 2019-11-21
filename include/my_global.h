@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* This is the include file that should be included 'first' in every C file. */
 
@@ -811,26 +811,8 @@ inline unsigned long long my_double2ulonglong(double d)
 #define SIZE_T_MAX      (~((size_t) 0))
 #endif
 
-#ifndef isfinite
-#ifdef HAVE_FINITE
-#define isfinite(x) finite(x)
-#else
-#define finite(x) (1.0 / fabs(x) > 0.0)
-#endif /* HAVE_FINITE */
-#elif (__cplusplus >= 201103L)
+#ifdef __cplusplus
 #include <cmath>
-static inline bool isfinite(double x) { return std::isfinite(x); }
-#endif /* isfinite */
-
-#ifndef HAVE_ISNAN
-#define isnan(x) ((x) != (x))
-#endif
-#define my_isnan(x) isnan(x)
-
-#ifdef HAVE_ISINF
-#define my_isinf(X) isinf(X)
-#else /* !HAVE_ISINF */
-#define my_isinf(X) (!finite(X) && !isnan(X))
 #endif
 
 /* Define missing math constants. */

@@ -224,6 +224,7 @@ SELECT user FROM information_schema.processlist ORDER BY id;
 
 --echo
 --echo # -- Resetting variables...
+--replace_result $saved_max_connections #max_connections#
 --eval SET GLOBAL max_connections = $saved_max_connections
 
 --echo

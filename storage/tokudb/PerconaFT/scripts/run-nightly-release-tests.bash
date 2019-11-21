@@ -25,7 +25,7 @@ if [ ! -d build ] ; then
         -D RUN_LONG_TESTS=ON \
         -D TOKUDB_DATA=$tokudbdir/../tokudb.data \
         ..
-    ninja build_jemalloc build_lzma build_snappy
+    ninja build_lzma build_snappy
     popd
 fi
 

@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -185,7 +185,9 @@ log_block_convert_lsn_to_no(
 /*========================*/
 	lsn_t	lsn)	/*!< in: lsn of a byte within the block */
 {
-	return(((ulint) (lsn / OS_FILE_LOG_BLOCK_SIZE) & 0x3FFFFFFFUL) + 1);
+	return(((ulint) (lsn / OS_FILE_LOG_BLOCK_SIZE) &
+		DBUG_EVALUATE_IF("innodb_small_log_block_no_limit",
+			0xFUL, 0x3FFFFFFFUL)) + 1);
 }
 
 /************************************************************//**

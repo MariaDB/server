@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -39,19 +39,6 @@ mem_heap_strdup(
 	const char*	str)
 {
 	return(static_cast<char*>(mem_heap_dup(heap, str, strlen(str) + 1)));
-}
-
-/**********************************************************************//**
-Duplicate a block of data, allocated from a memory heap.
-@return own: a copy of the data */
-void*
-mem_heap_dup(
-/*=========*/
-	mem_heap_t*	heap,	/*!< in: memory heap where copy is allocated */
-	const void*	data,	/*!< in: data to be copied */
-	ulint		len)	/*!< in: length of data, in bytes */
-{
-	return(memcpy(mem_heap_alloc(heap, len), data, len));
 }
 
 /**********************************************************************//**
@@ -252,6 +239,17 @@ mem_heap_validate(
 	}
 
 	ut_ad(size == heap->total_size);
+}
+
+/** Copy the tail of a string.
+@param[in,out]	dst	destination buffer
+@param[in]	src	string whose tail to copy
+@param[in]	size	size of dst buffer, in bytes, including NUL terminator
+@return strlen(src) */
+static void ut_strlcpy_rev(char* dst, const char* src, ulint size)
+{
+	size_t src_size = strlen(src), n = std::min(src_size, size - 1);
+	memcpy(dst, src + src_size - n, n + 1);
 }
 #endif /* UNIV_DEBUG */
 

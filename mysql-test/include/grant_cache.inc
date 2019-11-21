@@ -37,8 +37,13 @@
 
 --source include/add_anonymous_users.inc
 
+set @save_query_cache_size=@@global.query_cache_size;
+set @save_sql_mode=@@global.sql_mode;
+set @save_query_cache_type=@@global.query_cache_type;
+
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";
+
 #
 --disable_warnings
 drop table if exists test.t1,mysqltest.t1,mysqltest.t2;
@@ -208,10 +213,10 @@ flush privileges;
 drop table test.t1,mysqltest.t1,mysqltest.t2;
 drop database mysqltest;
 
-set GLOBAL query_cache_size=default;
 set GLOBAL query_cache_type=ON;
 set LOCAL query_cache_type=ON;
 
 --source include/delete_anonymous_users.inc
-set GLOBAL sql_mode=default;
-set GLOBAL query_cache_type=default;
+set GLOBAL query_cache_size=@save_query_cache_size;
+set GLOBAL sql_mode=@save_sql_mode;
+set GLOBAL query_cache_type=@save_query_cache_type;

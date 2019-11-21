@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -46,6 +46,7 @@ Created 4/24/1996 Heikki Tuuri
 #include "dict0priv.h"
 #include "ha_prototypes.h" /* innobase_casedn_str() */
 #include "fts0priv.h"
+#include "fts0opt.h"
 
 /** Following are the InnoDB system tables. The positions in
 this array are referenced by enum dict_system_table_id. */
@@ -2570,8 +2571,12 @@ func_exit:
 			FTS */
 			fts_optimize_remove_table(table);
 			fts_free(table);
-		} else {
+		} else if (fts_optimize_wq) {
 			fts_optimize_add_table(table);
+		} else if (table->can_be_evicted) {
+			/* fts_optimize_thread is not started yet.
+			So make the table as non-evictable from cache. */
+			dict_table_move_from_lru_to_non_lru(table);
 		}
 	}
 

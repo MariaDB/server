@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "thr_template.c"
 
@@ -90,10 +90,10 @@ pthread_handler_t test_atomic_cas(void *arg)
     y= my_atomic_load32(&bad);
     x= (x*m+0x87654321) & INT_MAX32;
     do {
-      ok= my_atomic_cas32(&bad, &y, (uint32)y+x);
+      ok= my_atomic_cas32((int32*) &bad, &y, y+x);
     } while (!ok) ;
     do {
-      ok= my_atomic_cas32(&bad, &y, y-x);
+      ok= my_atomic_cas32((int32*) &bad, &y, y-x);
     } while (!ok) ;
   }
   return 0;

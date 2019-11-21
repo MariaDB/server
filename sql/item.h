@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB Corporation
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 #ifdef USE_PRAGMA_INTERFACE
@@ -651,7 +651,6 @@ class Item: public Value_source,
             public Type_std_attributes,
             public Type_handler
 {
-  void operator=(Item &);
   /**
     The index in the JOIN::join_tab array of the JOIN_TAB this Item is attached
     to. Items are attached (or 'pushed') to JOIN_TABs during optimization by the
@@ -690,7 +689,7 @@ public:
   /* Cache of the result of is_expensive(). */
   int8 is_expensive_cache;
   
-  /* Reuse size, only used by SP local variable assignment, otherwize 0 */
+  /* Reuse size, only used by SP local variable assignment, otherwise 0 */
   uint rsize;
 
 protected:
@@ -707,6 +706,45 @@ protected:
                                          bool fixed_length,
                                          bool set_blob_packlength);
   Field *create_tmp_field(bool group, TABLE *table, uint convert_int_length);
+  /* Helper methods, to get an Item value from another Item */
+  double val_real_from_item(Item *item)
+  {
+    DBUG_ASSERT(fixed == 1);
+    double value= item->val_real();
+    null_value= item->null_value;
+    return value;
+  }
+  longlong val_int_from_item(Item *item)
+  {
+    DBUG_ASSERT(fixed == 1);
+    longlong value= item->val_int();
+    null_value= item->null_value;
+    return value;
+  }
+  String *val_str_from_item(Item *item, String *str)
+  {
+    DBUG_ASSERT(fixed == 1);
+    String *res= item->val_str(str);
+    if (res)
+      res->set_charset(collation.collation);
+    if ((null_value= item->null_value))
+      res= NULL;
+    return res;
+  }
+  my_decimal *val_decimal_from_item(Item *item, my_decimal *decimal_value)
+  {
+    DBUG_ASSERT(fixed == 1);
+    my_decimal *value= item->val_decimal(decimal_value);
+    if ((null_value= item->null_value))
+      value= NULL;
+    return value;
+  }
+  bool get_date_from_item(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    bool rc= item->get_date(ltime, fuzzydate);
+    null_value= MY_TEST(rc || item->null_value);
+    return rc;
+  }
   /*
     This method is used if the item was not null but convertion to
     TIME/DATE/DATETIME failed. We return a zero date if allowed,
@@ -1140,6 +1178,13 @@ public:
   virtual bool val_bool();
   virtual String *val_nodeset(String*) { return 0; }
 
+  bool eval_const_cond()
+  {
+    DBUG_ASSERT(const_item());
+    DBUG_ASSERT(!is_expensive());
+    return val_bool();
+  }
+
   /*
     save_val() is method of val_* family which stores value in the given
     field.
@@ -1170,6 +1215,32 @@ public:
   longlong val_int_from_str(int *error);
   double val_real_from_decimal();
   double val_real_from_date();
+
+  /*
+    Returns true if this item can be calculated during
+    value_depends_on_sql_mode()
+  */
+  bool value_depends_on_sql_mode_const_item()
+  {
+    /*
+      Currently we use value_depends_on_sql_mode() only for virtual
+      column expressions. They should not contain any expensive items.
+      If we ever get a crash on the assert below, it means
+      check_vcol_func_processor() is badly implemented for this item.
+    */
+    DBUG_ASSERT(!is_expensive());
+    /*
+      It should return const_item() actually.
+      But for some reasons Item_field::const_item() returns true
+      at value_depends_on_sql_mode() call time.
+      This should be checked and fixed.
+    */
+    return basic_const_item();
+  }
+  virtual Sql_mode_dependency value_depends_on_sql_mode() const
+  {
+    return Sql_mode_dependency();
+  }
 
   // Get TIME, DATE or DATETIME using proper sql_mode flags for the field type
   bool get_temporal_with_sql_mode(MYSQL_TIME *ltime);
@@ -1866,6 +1937,20 @@ public:
   {
     return 0;
   }
+
+  virtual Load_data_outvar *get_load_data_outvar()
+  {
+    return 0;
+  }
+  Load_data_outvar *get_load_data_outvar_or_error()
+  {
+    Load_data_outvar *dst= get_load_data_outvar();
+    if (dst)
+      return dst;
+    my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), name);
+    return NULL;
+  }
+
   /**
     Test whether an expression is expensive to compute. Used during
     optimization to avoid computing expensive expressions during this
@@ -2538,7 +2623,8 @@ public:
 };
 
 
-class Item_field :public Item_ident
+class Item_field :public Item_ident,
+                  public Load_data_outvar
 {
 protected:
   void set_field(Field *field);
@@ -2585,6 +2671,30 @@ public:
   bool val_bool_result();
   bool is_null_result();
   bool send(Protocol *protocol, String *str_arg);
+  Load_data_outvar *get_load_data_outvar()
+  {
+    return this;
+  }
+  bool load_data_set_null(THD *thd, const Load_data_param *param)
+  {
+    return field->load_data_set_null(thd);
+  }
+  bool load_data_set_value(THD *thd, const char *pos, uint length,
+                           const Load_data_param *param)
+  {
+    field->load_data_set_value(pos, length, param->charset());
+    return false;
+  }
+  bool load_data_set_no_data(THD *thd, const Load_data_param *param);
+  void load_data_print_for_log_event(THD *thd, String *to) const;
+  bool load_data_add_outvar(THD *thd, Load_data_param *param) const
+  {
+    return param->add_outvar_field(thd, field);
+  }
+  uint load_data_fixed_length() const
+  {
+    return field->field_length;
+  }
   void reset_field(Field *f);
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
@@ -2609,6 +2719,10 @@ public:
   enum_monotonicity_info get_monotonicity_info() const
   {
     return MONOTONIC_STRICT_INCREASING;
+  }
+  Sql_mode_dependency value_depends_on_sql_mode() const
+  {
+    return Sql_mode_dependency(0, field->value_depends_on_sql_mode());
   }
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
@@ -2785,6 +2899,8 @@ public:
   String *val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  longlong val_datetime_packed();
+  longlong val_time_packed();
   int save_in_field(Field *field, bool no_conversions);
   int save_safe_in_field(Field *field);
   bool send(Protocol *protocol, String *str);
@@ -2815,6 +2931,10 @@ public:
   enum_field_types field_type() const
   {
     return result_field->type();
+  }
+  CHARSET_INFO *charset_for_protocol(void) const
+  {
+    return collation.collation;
   }
 #else
   const Type_handler *type_handler() const
@@ -4012,6 +4132,7 @@ public:
   inline Item **arguments() const { return args; }
   inline uint argument_count() const { return arg_count; }
   inline void remove_arguments() { arg_count=0; }
+  Sql_mode_dependency value_depends_on_sql_mode_bit_or() const;
 };
 
 
@@ -4244,6 +4365,10 @@ public:
   bool const_item() const { return const_item_cache; }
   table_map used_tables() const { return used_tables_cache; }
   Item* build_clone(THD *thd, MEM_ROOT *mem_root);
+  Sql_mode_dependency value_depends_on_sql_mode() const
+  {
+    return Item_args::value_depends_on_sql_mode_bit_or().soft_to_hard();
+  }
 };
 
 
@@ -4301,6 +4426,8 @@ public:
   String *val_str(String* tmp);
   bool is_null();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  longlong val_datetime_packed();
+  longlong val_time_packed();
   double val_result();
   longlong val_int_result();
   String *str_result(String* tmp);
@@ -4315,6 +4442,12 @@ public:
   void save_org_in_field(Field *field, fast_field_copier optimizer_data);
   fast_field_copier setup_fast_field_copier(Field *field)
   { return (*ref)->setup_fast_field_copier(field); }
+#if MARIADB_VERSION_ID < 100300
+  CHARSET_INFO *charset_for_protocol(void) const
+  {
+    return (*ref)->charset_for_protocol();
+  }
+#endif
   enum Item_result result_type () const { return (*ref)->result_type(); }
   enum_field_types field_type() const   { return (*ref)->field_type(); }
   Field *get_tmp_table_field()
@@ -4379,6 +4512,10 @@ public:
   void cleanup();
   Item_field *field_for_view_update()
     { return (*ref)->field_for_view_update(); }
+  Load_data_outvar *get_load_data_outvar()
+  {
+    return (*ref)->get_load_data_outvar();
+  }
   virtual Ref_Type ref_type() { return REF; }
 
   // Row emulation: forwarding of ROW-related calls to ref
@@ -4733,6 +4870,7 @@ public:
   void update_used_tables();
   table_map not_null_tables() const;
   bool const_item() const { return used_tables() == 0; }
+  TABLE *get_null_ref_table() const { return null_ref_table; }
   bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
     return (*ref)->walk(processor, walk_subquery, arg) ||

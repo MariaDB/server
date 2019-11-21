@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -274,17 +274,6 @@ void
 row_unlock_for_mysql(
 	row_prebuilt_t*	prebuilt,
 	ibool		has_latches_on_recs);
-
-/*********************************************************************//**
-Checks if a table name contains the string "/#sql" which denotes temporary
-tables in MySQL.
-@return true if temporary table */
-bool
-row_is_mysql_tmp_table_name(
-/*========================*/
-	const char*	name) MY_ATTRIBUTE((warn_unused_result));
-				/*!< in: table name in the form
-				'database/tablename' */
 
 /*********************************************************************//**
 Creates an query graph node of 'update' type to be used in the MySQL
@@ -869,7 +858,7 @@ void innobase_free_row_for_vcol(VCOL_STORAGE *storage);
 @return the field filled with computed value */
 dfield_t*
 innobase_get_computed_value(
-	const dtuple_t*		row,
+	dtuple_t*		row,
 	const dict_v_col_t*	col,
 	const dict_index_t*	index,
 	mem_heap_t**		local_heap,

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /*
@@ -772,7 +772,7 @@ enum enum_acl_tables
   ROLES_MAPPING_TABLE,
   TABLES_MAX // <== always the last
 };
-// bits for open_grant_tables
+
 static const int Table_user= 1 << USER_TABLE;
 static const int Table_db= 1 << DB_TABLE;
 static const int Table_tables_priv= 1 << TABLES_PRIV_TABLE;
@@ -853,7 +853,7 @@ class Grant_table_base
 
   Grant_table_base() : start_privilege_column(0), num_privilege_cols(0)
   {
-    bzero(&tl, sizeof(tl));
+    tl.reset();
   };
 
   /* Initialization sequence common for all grant tables. This should be called
@@ -861,8 +861,7 @@ class Grant_table_base
   void init(enum thr_lock_type lock_type, bool is_optional)
   {
     tl.open_type= OT_BASE_ONLY;
-    if (lock_type >= TL_WRITE_ALLOW_WRITE)
-      tl.updating= 1;
+    tl.i_s_requested_object= OPEN_TABLE_ONLY;
     if (is_optional)
       tl.open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
   }
@@ -998,6 +997,56 @@ class User_table: public Grant_table_base
     return get_YN_as_bool(is_role());
   }
 
+  ulong get_access() const
+  {
+    ulong access= Grant_table_base::get_access();
+    if ((num_fields() <= 13) && (access & CREATE_ACL))
+      access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL;
+
+    if (num_fields() <= 18)
+    {
+      access|= LOCK_TABLES_ACL | CREATE_TMP_ACL | SHOW_DB_ACL;
+      if (access & FILE_ACL)
+        access|= REPL_CLIENT_ACL | REPL_SLAVE_ACL;
+      if (access & PROCESS_ACL)
+        access|= SUPER_ACL | EXECUTE_ACL;
+    }
+    /*
+      If it is pre 5.0.1 privilege table then map CREATE privilege on
+      CREATE VIEW & SHOW VIEW privileges.
+    */
+    if (num_fields() <= 31 && (access & CREATE_ACL))
+      access|= (CREATE_VIEW_ACL | SHOW_VIEW_ACL);
+    /*
+      If it is pre 5.0.2 privilege table then map CREATE/ALTER privilege on
+      CREATE PROCEDURE & ALTER PROCEDURE privileges.
+    */
+    if (num_fields() <= 33)
+    {
+      if (access & CREATE_ACL)
+        access|= CREATE_PROC_ACL;
+      if (access & ALTER_ACL)
+        access|= ALTER_PROC_ACL;
+    }
+    /*
+      Pre 5.0.3 did not have CREATE_USER_ACL.
+    */
+    if (num_fields() <= 36 && (access & GRANT_ACL))
+      access|= CREATE_USER_ACL;
+    /*
+      If it is pre 5.1.6 privilege table then map CREATE privilege on
+      CREATE|ALTER|DROP|EXECUTE EVENT.
+    */
+    if (num_fields() <= 37 && (access & SUPER_ACL))
+      access|= EVENT_ACL;
+    /*
+      If it is pre 5.1.6 privilege then map TRIGGER privilege on CREATE.
+    */
+    if (num_fields() <= 38 && (access & SUPER_ACL))
+      access|= TRIGGER_ACL;
+
+    return access & GLOBAL_ACLS;
+  }
 
  private:
   friend class Grant_tables;
@@ -1875,6 +1924,12 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   if (user_table.init_read_record(&read_record_info, thd))
     DBUG_RETURN(true);
 
+  if (user_table.num_fields() < 13) // number of columns in 3.21
+  {
+    sql_print_error("Fatal error: mysql.user table is damaged or in "
+                    "unsupported 3.20 format.");
+    DBUG_RETURN(true);
+  }
   username_char_length= MY_MIN(user_table.user()->char_length(),
                                USERNAME_CHAR_LENGTH);
   if (user_table.password()) // Password column might be missing. (MySQL 5.7.6+)
@@ -1969,42 +2024,6 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
     {
       user.access= user_table.get_access() & GLOBAL_ACLS;
-      /*
-        if it is pre 5.0.1 privilege table then map CREATE privilege on
-        CREATE VIEW & SHOW VIEW privileges
-      */
-      if (user_table.num_fields() <= 31 && (user.access & CREATE_ACL))
-        user.access|= (CREATE_VIEW_ACL | SHOW_VIEW_ACL);
-
-      /*
-        if it is pre 5.0.2 privilege table then map CREATE/ALTER privilege on
-        CREATE PROCEDURE & ALTER PROCEDURE privileges
-      */
-      if (user_table.num_fields() <= 33 && (user.access & CREATE_ACL))
-        user.access|= CREATE_PROC_ACL;
-      if (user_table.num_fields() <= 33 && (user.access & ALTER_ACL))
-        user.access|= ALTER_PROC_ACL;
-
-      /*
-        pre 5.0.3 did not have CREATE_USER_ACL
-      */
-      if (user_table.num_fields() <= 36 && (user.access & GRANT_ACL))
-        user.access|= CREATE_USER_ACL;
-
-
-      /*
-        if it is pre 5.1.6 privilege table then map CREATE privilege on
-        CREATE|ALTER|DROP|EXECUTE EVENT
-      */
-      if (user_table.num_fields() <= 37 && (user.access & SUPER_ACL))
-        user.access|= EVENT_ACL;
-
-      /*
-        if it is pre 5.1.6 privilege then map TRIGGER privilege on CREATE.
-      */
-      if (user_table.num_fields() <= 38 && (user.access & SUPER_ACL))
-        user.access|= TRIGGER_ACL;
-
       user.sort= get_sort(2, user.host.hostname, user.user.str);
       user.hostname_length= safe_strlen(user.host.hostname);
       user.user_resource.user_conn= 0;
@@ -5947,7 +5966,7 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
   ulong access= 0, update_flags= 0;
   for (int *p= dbs.front(); p <= dbs.back(); p++)
   {
-    if (first<0 || (!dbname && strcmp(acl_dbs.at(*p).db, acl_dbs.at(*p-1).db)))
+    if (first<0 || (!dbname && strcmp(acl_dbs.at(p[0]).db, acl_dbs.at(p[-1]).db)))
     { // new db name series
       update_flags|= update_role_db(merged, first, access, grantee->user.str);
       merged= -1;
@@ -8500,70 +8519,17 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
 
 }
 
-/** checks privileges for SHOW GRANTS and SHOW CREATE USER
-
-  @note that in case of SHOW CREATE USER the parser guarantees
-  that a role can never happen here, so *rolename will never
-  be assigned to
-*/
-static bool check_show_access(THD *thd, LEX_USER *lex_user, char **username,
-                              char **hostname, char **rolename)
-{
-  DBUG_ENTER("check_show_access");
-
-  if (lex_user->user.str == current_user.str)
-  {
-    *username= thd->security_ctx->priv_user;
-    *hostname= thd->security_ctx->priv_host;
-  }
-  else if (lex_user->user.str == current_role.str)
-  {
-    *rolename= thd->security_ctx->priv_role;
-  }
-  else if (lex_user->user.str == current_user_and_current_role.str)
-  {
-    *username= thd->security_ctx->priv_user;
-    *hostname= thd->security_ctx->priv_host;
-    *rolename= thd->security_ctx->priv_role;
-  }
-  else
-  {
-    Security_context *sctx= thd->security_ctx;
-    bool do_check_access;
-
-    lex_user= get_current_user(thd, lex_user);
-    if (!lex_user)
-      DBUG_RETURN(TRUE);
-
-    if (lex_user->is_role())
-    {
-      *rolename= lex_user->user.str;
-      do_check_access= strcmp(*rolename, sctx->priv_role);
-    }
-    else
-    {
-      *username= lex_user->user.str;
-      *hostname= lex_user->host.str;
-      do_check_access= strcmp(*username, sctx->priv_user) ||
-                       strcmp(*hostname, sctx->priv_host);
-    }
-
-    if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))
-      DBUG_RETURN(TRUE);
-  }
-  DBUG_RETURN(FALSE);
-}
 
 bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
 {
-  char *username= NULL, *hostname= NULL;
+  const char *username= NULL, *hostname= NULL;
   char buff[1024]; //Show create user should not take more than 1024 bytes.
   Protocol *protocol= thd->protocol;
   bool error= false;
   ACL_USER *acl_user;
   DBUG_ENTER("mysql_show_create_user");
 
-  if (check_show_access(thd, lex_user, &username, &hostname, NULL))
+  if (get_show_user(thd, lex_user, &username, &hostname, NULL))
     DBUG_RETURN(TRUE);
 
   List<Item> field_list;
@@ -8635,6 +8601,57 @@ void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
   fields->push_back(field, thd->mem_root);
 }
 
+/** checks privileges for SHOW GRANTS and SHOW CREATE USER
+
+  @note that in case of SHOW CREATE USER the parser guarantees
+  that a role can never happen here, so *rolename will never
+  be assigned to
+*/
+bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
+                   const char **hostname, const char **rolename)
+{
+  if (lex_user->user.str == current_user.str)
+  {
+    *username= thd->security_ctx->priv_user;
+    *hostname= thd->security_ctx->priv_host;
+    return 0;
+  }
+  if (lex_user->user.str == current_role.str)
+  {
+    *rolename= thd->security_ctx->priv_role;
+    return 0;
+  }
+  if (lex_user->user.str == current_user_and_current_role.str)
+  {
+    *username= thd->security_ctx->priv_user;
+    *hostname= thd->security_ctx->priv_host;
+    *rolename= thd->security_ctx->priv_role;
+    return 0;
+  }
+
+  Security_context *sctx= thd->security_ctx;
+  bool do_check_access;
+
+  if (!(lex_user= get_current_user(thd, lex_user)))
+    return 1;
+
+  if (lex_user->is_role())
+  {
+    *rolename= lex_user->user.str;
+    do_check_access= strcmp(*rolename, sctx->priv_role);
+  }
+  else
+  {
+    *username= lex_user->user.str;
+    *hostname= lex_user->host.str;
+    do_check_access= strcmp(*username, sctx->priv_user) ||
+                     strcmp(*hostname, sctx->priv_host);
+  }
+
+  if (do_check_access && check_access(thd, SELECT_ACL, "mysql", 0, 0, 1, 0))
+    return 1;
+  return 0;
+}
 
 /*
   SHOW GRANTS;  Send grants for a user to the client
@@ -8650,7 +8667,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   ACL_ROLE *acl_role= NULL;
   char buff[1024];
   Protocol *protocol= thd->protocol;
-  char *username= NULL, *hostname= NULL, *rolename= NULL;
+  const char *username= NULL, *hostname= NULL, *rolename= NULL;
   DBUG_ENTER("mysql_show_grants");
 
   if (!initialized)
@@ -8659,8 +8676,9 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
     DBUG_RETURN(TRUE);
   }
 
-  if (check_show_access(thd, lex_user, &username, &hostname, &rolename))
+  if (get_show_user(thd, lex_user, &username, &hostname, &rolename))
     DBUG_RETURN(TRUE);
+
   DBUG_ASSERT(rolename || username);
 
   List<Item> field_list;
@@ -10116,6 +10134,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   LEX_USER *user_name;
   List_iterator <LEX_USER> user_list(list);
   bool binlog= false;
+  bool some_users_dropped= false;
   DBUG_ENTER("mysql_create_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
@@ -10182,6 +10201,8 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
           result= true;
           continue;
         }
+        else
+          some_users_dropped= true;
         // Proceed with the creation
       }
       else if (thd->lex->create_info.if_not_exists())
@@ -10250,12 +10271,21 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
   }
 
+  if (result && some_users_dropped && !handle_as_role)
+  {
+    /* Rebuild in-memory structs, since 'acl_users' has been modified */
+    rebuild_check_host();
+    rebuild_role_grants();
+  }
+
   mysql_mutex_unlock(&acl_cache->lock);
 
   if (result)
+  {
     my_error(ER_CANNOT_USER, MYF(0),
              (handle_as_role) ? "CREATE ROLE" : "CREATE USER",
              wrong_users.c_ptr_safe());
+  }
 
   if (binlog)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
@@ -12030,7 +12060,7 @@ struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
 };
 
 /**
-  a helper function to report an access denied error in all the proper places
+  a helper function to report an access denied error in most proper places
 */
 static void login_failed_error(THD *thd)
 {
@@ -12252,6 +12282,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
     ((st_mysql_auth *) (plugin_decl(mpvio->plugin)->info))->client_auth_plugin;
 
   DBUG_EXECUTE_IF("auth_disconnect", { DBUG_RETURN(1); });
+  DBUG_EXECUTE_IF("auth_invalid_plugin", client_auth_plugin="foo/bar"; );
   DBUG_ASSERT(client_auth_plugin);
 
   /*
@@ -13464,10 +13495,26 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   /* Change a database if necessary */
   if (mpvio.db.length)
   {
-    if (mysql_change_db(thd, &mpvio.db, FALSE))
+    uint err = mysql_change_db(thd, &mpvio.db, FALSE);
+    if(err)
     {
-      /* mysql_change_db() has pushed the error message. */
-      status_var_increment(thd->status_var.access_denied_errors);
+      if (err == ER_DBACCESS_DENIED_ERROR)
+      {
+        /*
+          Got an "access denied" error, which must be handled
+          other access denied errors (see login_failed_error()).
+          mysql_change_db() already sent error to client, and
+          wrote to general log, we only need to increment the counter
+          and maybe write a warning to error log.
+        */
+        status_var_increment(thd->status_var.access_denied_errors);
+        if (global_system_variables.log_warnings > 1)
+        {
+          Security_context* sctx = thd->security_ctx;
+          sql_print_warning(ER_THD(thd, err),
+            sctx->priv_user, sctx->priv_host, mpvio.db.str);
+        }
+      }
       DBUG_RETURN(1);
     }
   }

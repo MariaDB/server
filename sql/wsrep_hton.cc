@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <mysqld.h>
 #include "sql_base.h"
@@ -45,6 +45,7 @@ void wsrep_cleanup_transaction(THD *thd)
   thd->wsrep_exec_mode= LOCAL_STATE;
   thd->wsrep_affected_rows= 0;
   thd->wsrep_skip_wsrep_GTID= false;
+  thd->wsrep_split_flag= false;
   return;
 }
 

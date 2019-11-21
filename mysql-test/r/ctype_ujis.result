@@ -2327,6 +2327,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+ujis_japanese_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
@@ -2462,6 +2468,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+ujis_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
@@ -2492,6 +2504,8 @@ Warning	1977	Cannot convert 'ujis' character 0x8FABF8 to 'ucs2'
 DROP TABLE IF EXISTS t1, t2;
 DROP PROCEDURE IF EXISTS sp1;
 set names ujis;
+SET @save_character_set_server= @@character_set_server;
+SET @save_character_set_database= @@character_set_database;
 set character_set_database = ujis;
 set character_set_server = ujis;
 CREATE TABLE t1(c1 char(2)) default charset = ujis;
@@ -2527,8 +2541,8 @@ Warnings:
 Warning	1292	Truncated incorrect INTEGER value: 'a'
 Warning	1292	Truncated incorrect INTEGER value: 'a'
 set names default;
-set character_set_database=default;
-set character_set_server=default;
+set character_set_database=@save_character_set_server;
+set character_set_server=@save_character_set_database;
 End of 5.1 tests
 #
 # Start of 5.5 tests

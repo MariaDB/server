@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -332,7 +332,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	NULL to a NOT NULL value. */
 	if ((ha_alter_info->handler_flags
 	     & Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE)
-	    && !thd_is_strict_mode(user_thd)) {
+	    && (ha_alter_info->ignore || !thd_is_strict_mode(user_thd))) {
 		ha_alter_info->unsupported_reason = innobase_get_err_msg(
 			ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -1516,8 +1516,8 @@ name_ok:
 index
 @param[in]	altered_table	MySQL table that is being altered
 @param[in]	key_part	MySQL key definition
-@param[out]	index_field	index field defition for key_part */
-static MY_ATTRIBUTE((nonnull(2,3)))
+@param[out]	index_field	index field definition for key_part */
+static MY_ATTRIBUTE((nonnull))
 void
 innobase_create_index_field_def(
 	bool			new_clustered,
@@ -1531,10 +1531,6 @@ innobase_create_index_field_def(
 	ulint		innodb_fieldnr=0;
 
 	DBUG_ENTER("innobase_create_index_field_def");
-
-	ut_ad(key_part);
-	ut_ad(index_field);
-	ut_ad(altered_table);
 
 	/* Virtual columns are not stored in InnoDB data dictionary, thus
 	if there is virtual columns we need to skip them to find the
@@ -1598,8 +1594,6 @@ innobase_create_index_def(
 
 	DBUG_ENTER("innobase_create_index_def");
 	DBUG_ASSERT(!key_clustered || new_clustered);
-
-	ut_ad(altered_table);
 
 	index->fields = static_cast<index_field_t*>(
 		mem_heap_alloc(heap, n_fields * sizeof *index->fields));
@@ -2187,6 +2181,23 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	@return whether the table will be rebuilt */
 	bool need_rebuild () const { return(old_table != new_table); }
 
+	/** Share context between partitions.
+	@param[in] ctx	context from another partition of the table */
+	void set_shared_data(const inplace_alter_handler_ctx& ctx)
+	{
+		if (add_autoinc != ULINT_UNDEFINED) {
+			const ha_innobase_inplace_ctx& ha_ctx =
+				static_cast<const ha_innobase_inplace_ctx&>
+				(ctx);
+			/* When adding an AUTO_INCREMENT column to a
+			partitioned InnoDB table, we must share the
+			sequence for all partitions. */
+			ut_ad(ha_ctx.add_autoinc == add_autoinc);
+			ut_ad(ha_ctx.sequence.last());
+			sequence = ha_ctx.sequence;
+		}
+	}
+
 private:
 	// Disable copying
 	ha_innobase_inplace_ctx(const ha_innobase_inplace_ctx&);
@@ -2733,7 +2744,7 @@ prepare_inplace_alter_table_dict(
 		(ha_alter_info->handler_ctx);
 
 	DBUG_ASSERT((ctx->add_autoinc != ULINT_UNDEFINED)
-		    == (ctx->sequence.m_max_value > 0));
+		    == (ctx->sequence.max_value() > 0));
 	DBUG_ASSERT(!ctx->num_to_drop_index == !ctx->drop_index);
 	DBUG_ASSERT(!ctx->num_to_drop_fk == !ctx->drop_fk);
 	DBUG_ASSERT(!add_fts_doc_id || add_fts_doc_id_idx);
@@ -3097,10 +3108,18 @@ prepare_inplace_alter_table_dict(
 	/* Create the indexes in SYS_INDEXES and load into dictionary. */
 
 	for (ulint a = 0; a < ctx->num_to_add_index; a++) {
-
+		DBUG_EXECUTE_IF(
+			"create_index_metadata_fail",
+			if (a + 1 == ctx->num_to_add_index) {
+				ctx->trx->error_state = DB_OUT_OF_FILE_SPACE;
+				ctx->add_index[a] = NULL;
+				goto index_created;
+			});
 		ctx->add_index[a] = row_merge_create_index(
 			ctx->trx, ctx->new_table, &index_defs[a]);
-
+#ifndef DBUG_OFF
+index_created:
+#endif
 		add_key_nums[a] = index_defs[a].key_number;
 
 		if (!ctx->add_index[a]) {
@@ -3233,15 +3252,13 @@ op_ok:
 				goto error_handling;
 			}
 
-			ctx->new_table->fts->fts_status
-				|= TABLE_DICT_LOCKED;
+			ctx->new_table->fts->dict_locked = true;
 
 			error = innobase_fts_load_stopword(
 				ctx->new_table, ctx->trx,
 				ctx->prebuilt->trx->mysql_thd)
 				? DB_SUCCESS : DB_ERROR;
-			ctx->new_table->fts->fts_status
-				&= ~TABLE_DICT_LOCKED;
+			ctx->new_table->fts->dict_locked = false;
 
 			if (error != DB_SUCCESS) {
 				goto error_handling;
@@ -4837,7 +4854,6 @@ innobase_rename_columns_try(
 		ha_alter_info->alter_info->create_list);
 	uint i = 0;
 
-	DBUG_ASSERT(ctx);
 	DBUG_ASSERT(ha_alter_info->handler_flags
 		    & Alter_inplace_info::ALTER_COLUMN_NAME);
 
@@ -5021,7 +5037,6 @@ innobase_update_foreign_try(
 	ulint	i;
 
 	DBUG_ENTER("innobase_update_foreign_try");
-	DBUG_ASSERT(ctx);
 
 	foreign_id = dict_table_get_highest_foreign_id(ctx->new_table);
 
@@ -5625,6 +5640,7 @@ commit_cache_norebuild(
 					    || (index->type
 						& DICT_CORRUPT));
 				DBUG_ASSERT(index->table->fts);
+				DEBUG_SYNC_C("norebuild_fts_drop");
 				fts_drop_index(index->table, index, trx);
 			}
 
@@ -6181,7 +6197,6 @@ foreign_fail:
 
 			if (!commit_cache_norebuild(ctx, table, trx)) {
 				fk_fail = true;
-				ut_ad(!prebuilt->trx->check_foreigns);
 			}
 
 			innobase_rename_columns_cache(ha_alter_info, table,

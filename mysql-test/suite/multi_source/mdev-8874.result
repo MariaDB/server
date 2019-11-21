@@ -1,0 +1,126 @@
+connect  server_1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connect  server_2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connect  server_3,127.0.0.1,root,,,$SERVER_MYPORT_3;
+connect  server_4,127.0.0.1,root,,,$SERVER_MYPORT_4;
+connection server_1;
+create database a;
+use a;
+create table t1(a int);
+insert into t1 values(1);
+create table t2(a int);
+insert into t2 values(1);
+connection server_2;
+create database b;
+use b;
+create table t1(a int);
+insert into t1 values(1);
+create table t2(a int);
+insert into t2 values(1);
+connection server_3;
+create database c;
+use c;
+create table t1(a int);
+insert into t1 values(1);
+create table t2(a int);
+insert into t2 values(1);
+connection server_4;
+change master 'm1' to master_port=MYPORT_1 , master_host='127.0.0.1', master_user='root';
+change master 'm2' to master_port=MYPORT_2 , master_host='127.0.0.1', master_user='root';
+change master  to master_port=MYPORT_3 , master_host='127.0.0.1', master_user='root';
+start all slaves;
+set default_master_connection = 'm1';
+include/wait_for_slave_to_start.inc
+set default_master_connection = 'm2';
+include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+include/wait_for_slave_to_start.inc
+select @@global.'m1'.replicate_ignore_table;
+@@global.'m1'.replicate_ignore_table
+a.t1
+select @@global.'m2'.replicate_ignore_table;
+@@global.'m2'.replicate_ignore_table
+b.t1
+select @@global.replicate_ignore_table;
+@@global.replicate_ignore_table
+c.t1
+use a;
+#No t1 table
+show tables;
+Tables_in_a
+t2
+use b;
+#No t1 table
+show tables;
+Tables_in_b
+t2
+use c;
+#No t1 table
+show tables;
+Tables_in_c
+t2
+#TEST
+STOP ALL SLAVES;
+Warnings:
+Note	1938	SLAVE 'm2' stopped
+Note	1938	SLAVE '' stopped
+Note	1938	SLAVE 'm1' stopped
+RESET SLAVE 'm1' ALL ;
+RESET SLAVE 'm2' ALL ;
+RESET SLAVE ALL ;
+drop database a;
+drop database b;
+drop database c;
+change master 'm1' to master_port=MYPORT_1 , master_host='127.0.0.1', master_user='root';
+change master 'm2' to master_port=MYPORT_2 , master_host='127.0.0.1', master_user='root';
+change master  to master_port=MYPORT_3 , master_host='127.0.0.1', master_user='root';
+start all slaves;
+Warnings:
+Note	1937	SLAVE 'm2' started
+Note	1937	SLAVE '' started
+Note	1937	SLAVE 'm1' started
+set default_master_connection = 'm1';
+include/wait_for_slave_to_start.inc
+set default_master_connection = 'm2';
+include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+include/wait_for_slave_to_start.inc
+#Replication Filter should be intact (t1 still not replicated)
+select @@global.'m1'.replicate_ignore_table;
+@@global.'m1'.replicate_ignore_table
+a.t1
+select @@global.'m2'.replicate_ignore_table;
+@@global.'m2'.replicate_ignore_table
+b.t1
+select @@global.replicate_ignore_table;
+@@global.replicate_ignore_table
+c.t1
+use a;
+#No t1 table
+show tables;
+Tables_in_a
+t2
+use b;
+#No t1 table
+show tables;
+Tables_in_b
+t2
+use c;
+#No t1 table
+show tables;
+Tables_in_c
+t2
+#CleanUp
+connection server_1;
+drop database a;
+connection server_2;
+drop database b;
+connection server_3;
+drop database c;
+connection server_4;
+stop all slaves;
+SET default_master_connection = "m1";
+include/wait_for_slave_to_stop.inc
+SET default_master_connection = "m2";
+include/wait_for_slave_to_stop.inc
+SET default_master_connection = "";
+include/wait_for_slave_to_stop.inc

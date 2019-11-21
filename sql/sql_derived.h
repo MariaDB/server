@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_DERIVED_INCLUDED
 #define SQL_DERIVED_INCLUDED
@@ -22,7 +22,6 @@ struct LEX;
 
 bool mysql_handle_derived(LEX *lex, uint phases);
 bool mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases);
-bool mysql_handle_list_of_derived(LEX *lex, TABLE_LIST *dt_list, uint phases);
 bool mysql_derived_reinit(THD *thd, LEX *lex, TABLE_LIST *derived);
 
 /**

@@ -1044,19 +1044,11 @@ set @save_slow_query_log= @@slow_query_log;
 set @save_log_output= @@log_output;
 set statement long_query_time=default for select @@long_query_time;
 @@long_query_time
-10.000000
+DEFAULT
 set statement log_slow_filter=default for select @@log_slow_filter;
-@@log_slow_filter
-admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 set statement log_slow_verbosity=default for select @@log_slow_verbosity;
-@@log_slow_verbosity
-
 set statement log_slow_rate_limit=default for select @@log_slow_rate_limit;
-@@log_slow_rate_limit
-1
 set statement slow_query_log=default for select @@slow_query_log;
-@@slow_query_log
-1
 truncate table mysql.slow_log;
 set slow_query_log= 1;
 set global log_output='TABLE';

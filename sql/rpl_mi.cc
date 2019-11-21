@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <my_global.h> // For HAVE_REPLICATION
 #include "sql_priv.h"
@@ -115,15 +115,6 @@ void Master_info::wait_until_free()
 Master_info::~Master_info()
 {
   wait_until_free();
-#ifdef WITH_WSREP
-  /*
-    Do not free "wsrep" rpl_filter. It will eventually be freed by
-    free_all_rpl_filters() when server terminates.
-  */
-  if (strncmp(connection_name.str, STRING_WITH_LEN("wsrep")))
-#endif
-  rpl_filters.delete_element(connection_name.str, connection_name.length,
-                             (void (*)(const char*, uchar*)) free_rpl_filter);
   my_free(connection_name.str);
   delete_dynamic(&ignore_server_ids);
   mysql_mutex_destroy(&run_lock);
@@ -1233,7 +1224,7 @@ bool Master_info_index::init_all_master_info()
   if (!err_num) // No Error on read Master_info
   {
     if (global_system_variables.log_warnings > 1)
-      sql_print_information("Reading of all Master_info entries succeded");
+      sql_print_information("Reading of all Master_info entries succeeded");
     DBUG_RETURN(0);
   }
   if (succ_num) // Have some Error and some Success

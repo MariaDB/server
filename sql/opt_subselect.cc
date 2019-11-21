@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file
@@ -28,6 +28,7 @@
 
 #include <my_global.h>
 #include "sql_base.h"
+#include "sql_const.h"
 #include "sql_select.h"
 #include "filesort.h"
 #include "opt_subselect.h"
@@ -455,11 +456,6 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables);
 static SJ_MATERIALIZATION_INFO *
 at_sjmat_pos(const JOIN *join, table_map remaining_tables, const JOIN_TAB *tab,
              uint idx, bool *loose_scan);
-void best_access_path(JOIN *join, JOIN_TAB *s, 
-                             table_map remaining_tables, uint idx, 
-                             bool disable_jbuf, double record_count,
-                             POSITION *pos, POSITION *loose_scan_pos);
-
 static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm, 
                                 Item_in_subselect *subq_pred);
 static void remove_sj_conds(THD *thd, Item **tree);
@@ -523,7 +519,7 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
   if (optimizer_flag(thd, OPTIMIZER_SWITCH_MATERIALIZATION) &&      // 0
         !child_select->is_part_of_union() &&                          // 1
         parent_unit->first_select()->leaf_tables.elements &&          // 2
-        child_select->outer_select()->leaf_tables.elements &&         // 2A
+        child_select->outer_select()->table_list.first &&             // 2A
         subquery_types_allow_materialization(in_subs) &&
         (in_subs->is_top_level_item() ||                               //3
          optimizer_flag(thd,
@@ -677,7 +673,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         select_lex->outer_select()->join &&                           // 6
         parent_unit->first_select()->leaf_tables.elements &&          // 7
         !in_subs->has_strategy() &&                                   // 8
-        select_lex->outer_select()->leaf_tables.elements &&           // 9
+        select_lex->outer_select()->table_list.first &&               // 9
         !((join->select_options |                                     // 10
            select_lex->outer_select()->join->select_options)          // 10
           & SELECT_STRAIGHT_JOIN) &&                                  // 10
@@ -1383,8 +1379,8 @@ void get_delayed_table_estimates(TABLE *table,
   *startup_cost= item->jtbm_read_time;
 
   /* Calculate cost of scanning the temptable */
-  double data_size= item->jtbm_record_count * 
-                    hash_sj_engine->tmp_table->s->reclength;
+  double data_size= COST_MULT(item->jtbm_record_count,
+                              hash_sj_engine->tmp_table->s->reclength);
   /* Do like in handler::read_time */
   *scan_time= data_size/IO_SIZE + 2;
 } 
@@ -2463,7 +2459,8 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           int tableno;
           double rows= 1.0;
           while ((tableno = tm_it.next_bit()) != Table_map_iterator::BITMAP_END)
-            rows *= join->map2table[tableno]->table->quick_condition_rows;
+            rows= COST_MULT(rows,
+			    join->map2table[tableno]->table->quick_condition_rows);
           sjm->rows= MY_MIN(sjm->rows, rows);
         }
         memcpy((uchar*) sjm->positions,
@@ -2576,7 +2573,7 @@ static uint get_tmp_table_rec_length(Ref_ptr_array p_items, uint elements)
 static double
 get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size)
 {
-  if (row_count * row_size > thd->variables.max_heap_table_size)
+  if (row_count > thd->variables.max_heap_table_size / (double) row_size)
     return (double) DISK_TEMPTABLE_LOOKUP_COST;
   else
     return (double) HEAP_TEMPTABLE_LOOKUP_COST;
@@ -2650,9 +2647,17 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
       {
         do  /* For all equalities on all key parts */
         {
-          /* Check if this is "t.keypart = expr(outer_tables) */
+          /*
+            Check if this is "t.keypart = expr(outer_tables)
+
+            Don't allow variants that can produce duplicates:
+            - Dont allow "ref or null"
+            - the keyuse (that is, the operation) must be null-rejecting,
+              unless the other expression is non-NULLable.
+          */
           if (!(keyuse->used_tables & sj_inner_tables) &&
-              !(keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL))
+              !(keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL) &&
+              (keyuse->null_rejecting || !keyuse->val->maybe_null))
           {
             bound_parts |= 1 << keyuse->keypart;
           }
@@ -2753,6 +2758,13 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
     &pos->dups_weedout_picker,
     NULL,
   };
+
+#ifdef HAVE_valgrind
+  new (&pos->firstmatch_picker) Firstmatch_picker;
+  new (&pos->loosescan_picker) LooseScan_picker;
+  new (&pos->sjmat_picker) Sj_materialization_picker;
+  new (&pos->dups_weedout_picker) Duplicate_weedout_picker;
+#endif
 
   if (join->emb_sjm_nest)
   {
@@ -2982,8 +2994,11 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
       }
 
       double mat_read_time= prefix_cost.total_cost();
-      mat_read_time += mat_info->materialization_cost.total_cost() +
-                       prefix_rec_count * mat_info->lookup_cost.total_cost();
+      mat_read_time=
+        COST_ADD(mat_read_time,
+                 COST_ADD(mat_info->materialization_cost.total_cost(),
+                          COST_MULT(prefix_rec_count,
+                                    mat_info->lookup_cost.total_cost())));
 
       /*
         NOTE: When we pick to use SJM[-Scan] we don't memcpy its POSITION
@@ -3023,9 +3038,12 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     }
 
     /* Add materialization cost */
-    prefix_cost += mat_info->materialization_cost.total_cost() +
-                   prefix_rec_count * mat_info->scan_cost.total_cost();
-    prefix_rec_count *= mat_info->rows;
+    prefix_cost=
+      COST_ADD(prefix_cost,
+               COST_ADD(mat_info->materialization_cost.total_cost(),
+                        COST_MULT(prefix_rec_count,
+                                  mat_info->scan_cost.total_cost())));
+    prefix_rec_count= COST_MULT(prefix_rec_count, mat_info->rows);
     
     uint i;
     table_map rem_tables= remaining_tables;
@@ -3037,10 +3055,11 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     bool disable_jbuf= (join->thd->variables.join_cache_level == 0);
     for (i= first_tab + mat_info->tables; i <= idx; i++)
     {
-      best_access_path(join, join->positions[i].table, rem_tables, i,
+      best_access_path(join, join->positions[i].table, rem_tables,
+                       join->positions, i,
                        disable_jbuf, prefix_rec_count, &curpos, &dummy);
-      prefix_rec_count *= curpos.records_read;
-      prefix_cost += curpos.read_time;
+      prefix_rec_count= COST_MULT(prefix_rec_count, curpos.records_read);
+      prefix_cost= COST_ADD(prefix_cost, curpos.read_time);
     }
 
     *strategy= SJ_OPT_MATERIALIZE_SCAN;
@@ -3347,16 +3366,18 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
     for (uint j= first_dupsweedout_table; j <= idx; j++)
     {
       POSITION *p= join->positions + j;
-      current_fanout *= p->records_read;
-      dups_cost += p->read_time + current_fanout / TIME_FOR_COMPARE;
+      current_fanout= COST_MULT(current_fanout, p->records_read);
+      dups_cost= COST_ADD(dups_cost,
+                          COST_ADD(p->read_time,
+                                   current_fanout / TIME_FOR_COMPARE));
       if (p->table->emb_sj_nest)
       {
-        sj_inner_fanout *= p->records_read;
+        sj_inner_fanout= COST_MULT(sj_inner_fanout, p->records_read);
         dups_removed_fanout |= p->table->table->map;
       }
       else
       {
-        sj_outer_fanout *= p->records_read;
+        sj_outer_fanout= COST_MULT(sj_outer_fanout, p->records_read);
         temptable_rec_size += p->table->table->file->ref_length;
       }
     }
@@ -3375,12 +3396,13 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
                                                     sj_outer_fanout,
                                                     temptable_rec_size);
 
-    double write_cost= join->positions[first_tab].prefix_record_count* 
-                       sj_outer_fanout * one_write_cost;
-    double full_lookup_cost= join->positions[first_tab].prefix_record_count* 
-                             sj_outer_fanout* sj_inner_fanout * 
-                             one_lookup_cost;
-    dups_cost += write_cost + full_lookup_cost;
+    double write_cost= COST_MULT(join->positions[first_tab].prefix_record_count,
+                                 sj_outer_fanout * one_write_cost);
+    double full_lookup_cost=
+             COST_MULT(join->positions[first_tab].prefix_record_count,
+                       COST_MULT(sj_outer_fanout,
+                                 sj_inner_fanout * one_lookup_cost));
+    dups_cost= COST_ADD(dups_cost, COST_ADD(write_cost, full_lookup_cost));
     
     *read_time= dups_cost;
     *record_count= prefix_rec_count * sj_outer_fanout;
@@ -3527,8 +3549,8 @@ static void recalculate_prefix_record_count(JOIN *join, uint start, uint end)
     if (j == join->const_tables)
       prefix_count= 1.0;
     else
-      prefix_count= join->best_positions[j-1].prefix_record_count *
-                    join->best_positions[j-1].records_read;
+      prefix_count= COST_MULT(join->best_positions[j-1].prefix_record_count,
+			      join->best_positions[j-1].records_read);
 
     join->best_positions[j].prefix_record_count= prefix_count;
   }
@@ -3650,7 +3672,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       join->cur_sj_inner_tables= 0;
       for (i= first + sjm->tables; i <= tablenr; i++)
       {
-        best_access_path(join, join->best_positions[i].table, rem_tables, i, 
+        best_access_path(join, join->best_positions[i].table, rem_tables,
+                         join->best_positions, i,
                          FALSE, prefix_rec_count,
                          join->best_positions + i, &dummy);
         prefix_rec_count *= join->best_positions[i].records_read;
@@ -3682,8 +3705,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       {
         if (join->best_positions[idx].use_join_buffer)
         {
-           best_access_path(join, join->best_positions[idx].table, 
-                            rem_tables, idx, TRUE /* no jbuf */,
+           best_access_path(join, join->best_positions[idx].table,
+                            rem_tables, join->best_positions, idx,
+                            TRUE /* no jbuf */,
                             record_count, join->best_positions + idx, &dummy);
         }
         record_count *= join->best_positions[idx].records_read;
@@ -3713,7 +3737,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         if (join->best_positions[idx].use_join_buffer || (idx == first))
         {
            best_access_path(join, join->best_positions[idx].table,
-                            rem_tables, idx, TRUE /* no jbuf */,
+                            rem_tables, join->best_positions, idx,
+                            TRUE /* no jbuf */,
                             record_count, join->best_positions + idx,
                             &loose_scan_pos);
            if (idx==first)
@@ -5874,14 +5899,16 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
       The cost of executing the subquery and storing its result in an indexed
       temporary table.
     */
-    double materialization_cost= inner_read_time_1 +
-                                 write_cost * inner_record_count_1;
+    double materialization_cost= COST_ADD(inner_read_time_1,
+                                          COST_MULT(write_cost,
+                                                    inner_record_count_1));
 
-    materialize_strategy_cost= materialization_cost +
-                               outer_lookup_keys * lookup_cost;
+    materialize_strategy_cost= COST_ADD(materialization_cost,
+                                        COST_MULT(outer_lookup_keys,
+                                                  lookup_cost));
 
     /* C.2 Compute the cost of the IN=>EXISTS strategy. */
-    in_exists_strategy_cost= outer_lookup_keys * inner_read_time_2;
+    in_exists_strategy_cost= COST_MULT(outer_lookup_keys, inner_read_time_2);
 
     /* C.3 Compare the costs and choose the cheaper strategy. */
     if (materialize_strategy_cost >= in_exists_strategy_cost)

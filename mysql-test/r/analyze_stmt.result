@@ -1,3 +1,4 @@
+set join_cache_level=2;
 drop table if exists t0,t1,t2,t3;
 create table t0 (a int) engine=myisam;
 INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -247,7 +248,7 @@ drop table t1;
 #
 create table t1 (i int);
 insert into t1 values (1);
-analyze select * from t1 into @var;
+analyze select * into @var from t1 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	NULL	100.00	NULL	
 drop table t1;
@@ -281,10 +282,10 @@ drop table t1;
 #
 create table t1(a int);
 insert into t1 values (1),(2);
-analyze select a from t1 where a <2 into @var;
+analyze select a into @var from t1 where a <2 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	50.00	Using where
-analyze select a from t1 into @var;
+analyze select a into @var from t1 ;
 ERROR 42000: Result consisted of more than one row
 analyze insert into t1 select * from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra

@@ -17,7 +17,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 #include "mrn_mysql.h"
@@ -2992,9 +2992,9 @@ int ha_mroonga::create_share_for_create() const
   TABLE_LIST *table_list = MRN_LEX_GET_TABLE_LIST(lex);
   MRN_DBUG_ENTER_METHOD();
   wrap_handler_for_create = NULL;
-  memset(&table_for_create, 0, sizeof(TABLE));
+  table_for_create.reset();
+  table_share_for_create.reset();
   memset(&share_for_create, 0, sizeof(MRN_SHARE));
-  memset(&table_share_for_create, 0, sizeof(TABLE_SHARE));
   if (table_share) {
     table_share_for_create.comment = table_share->comment;
     table_share_for_create.connect_string = table_share->connect_string;
@@ -4726,11 +4726,8 @@ int ha_mroonga::storage_open_columns(void)
 
   if (table_share->blob_fields)
   {
-    if (blob_buffers)
-    {
-      delete [] blob_buffers;
-    }
-    if (!(blob_buffers = new String[n_columns]))
+    DBUG_ASSERT(!blob_buffers);
+    if (!(blob_buffers = new (&table->mem_root) String[n_columns]))
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
@@ -8997,10 +8994,12 @@ bool ha_mroonga::is_foreign_key_field(const char *table_name,
 
   grn_obj *range = grn_ctx_at(ctx, grn_obj_get_range(ctx, column));
   if (!range) {
+    grn_obj_unlink(ctx, column);
     DBUG_RETURN(false);
   }
 
   if (!mrn::grn::is_table(range)) {
+    grn_obj_unlink(ctx, column);
     DBUG_RETURN(false);
   }
 
@@ -9014,6 +9013,7 @@ bool ha_mroonga::is_foreign_key_field(const char *table_name,
     DBUG_RETURN(true);
   }
 
+  grn_obj_unlink(ctx, column);
   DBUG_RETURN(false);
 }
 
@@ -14525,6 +14525,7 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
         Alter_inplace_info::ALTER_COLUMN_NULLABLE |
         Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE |
         Alter_inplace_info::ALTER_COLUMN_STORAGE_TYPE |
+        Alter_inplace_info::ADD_STORED_GENERATED_COLUMN |
         Alter_inplace_info::ALTER_COLUMN_COLUMN_FORMAT
       )
     )
@@ -14554,8 +14555,8 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
   ) {
     DBUG_RETURN(HA_ALTER_ERROR);
   }
-  memcpy(wrap_altered_table, altered_table, sizeof(TABLE));
-  memcpy(wrap_altered_table_share, altered_table->s, sizeof(TABLE_SHARE));
+  *wrap_altered_table= *altered_table;
+  *wrap_altered_table_share= *altered_table->s;
   mrn_init_sql_alloc(ha_thd(), &(wrap_altered_table_share->mem_root));
 
   n_keys = ha_alter_info->index_drop_count;
@@ -14643,7 +14644,6 @@ enum_alter_inplace_result ha_mroonga::storage_check_if_supported_inplace_alter(
     Alter_inplace_info::DROP_UNIQUE_INDEX |
     MRN_ALTER_INPLACE_INFO_ADD_VIRTUAL_COLUMN |
     MRN_ALTER_INPLACE_INFO_ADD_STORED_BASE_COLUMN |
-    MRN_ALTER_INPLACE_INFO_ADD_STORED_GENERATED_COLUMN |
     Alter_inplace_info::DROP_COLUMN |
     Alter_inplace_info::ALTER_COLUMN_NAME;
   if (ha_alter_info->handler_flags & explicitly_unsupported_flags) {

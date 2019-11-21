@@ -16,7 +16,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************
 
@@ -34,8 +34,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin St, Fifth Floor, Boston, MA 02111-1301 USA
+this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
+Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *******************************************************/
 #define MYSQL_CLIENT
@@ -55,8 +55,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "encryption_plugin.h"
 #include <sstream>
 #include <sql_error.h>
-#include <ut0ut.h>
-
+#include "page0zip.h"
 
 char *tool_name;
 char tool_args[2048];
@@ -68,7 +67,6 @@ unsigned long mysql_server_version = 0;
 /* server capabilities */
 bool have_changed_page_bitmaps = false;
 bool have_backup_locks = false;
-bool have_backup_safe_binlog_info = false;
 bool have_lock_wait_timeout = false;
 bool have_galera_enabled = false;
 bool have_flush_engine_logs = false;
@@ -336,7 +334,6 @@ get_mysql_vars(MYSQL *connection)
 	char *version_comment_var = NULL;
 	char *innodb_version_var = NULL;
 	char *have_backup_locks_var = NULL;
-	char *have_backup_safe_binlog_info_var = NULL;
 	char *log_bin_var = NULL;
 	char *lock_wait_timeout_var= NULL;
 	char *wsrep_on_var = NULL;
@@ -352,6 +349,7 @@ get_mysql_vars(MYSQL *connection)
 	char *innodb_undo_directory_var = NULL;
 	char *innodb_page_size_var = NULL;
 	char *innodb_undo_tablespaces_var = NULL;
+	char *page_zip_level_var = NULL;
 	char *endptr;
 	unsigned long server_version = mysql_get_server_version(connection);
 
@@ -359,8 +357,6 @@ get_mysql_vars(MYSQL *connection)
 
 	mysql_variable mysql_vars[] = {
 		{"have_backup_locks", &have_backup_locks_var},
-		{"have_backup_safe_binlog_info",
-		 &have_backup_safe_binlog_info_var},
 		{"log_bin", &log_bin_var},
 		{"lock_wait_timeout", &lock_wait_timeout_var},
 		{"gtid_mode", &gtid_mode_var},
@@ -381,6 +377,7 @@ get_mysql_vars(MYSQL *connection)
 		{"innodb_undo_directory", &innodb_undo_directory_var},
 		{"innodb_page_size", &innodb_page_size_var},
 		{"innodb_undo_tablespaces", &innodb_undo_tablespaces_var},
+		{"innodb_compression_level", &page_zip_level_var},
 		{NULL, NULL}
 	};
 
@@ -392,21 +389,10 @@ get_mysql_vars(MYSQL *connection)
 	}
 
 	if (opt_binlog_info == BINLOG_INFO_AUTO) {
-
-		if (have_backup_safe_binlog_info_var != NULL)
-			opt_binlog_info = BINLOG_INFO_LOCKLESS;
-		else if (log_bin_var != NULL && !strcmp(log_bin_var, "ON"))
+		if (log_bin_var != NULL && !strcmp(log_bin_var, "ON"))
 			opt_binlog_info = BINLOG_INFO_ON;
 		else
 			opt_binlog_info = BINLOG_INFO_OFF;
-	}
-
-	if (have_backup_safe_binlog_info_var == NULL &&
-	    opt_binlog_info == BINLOG_INFO_LOCKLESS) {
-
-		msg("Error: --binlog-info=LOCKLESS is not supported by the "
-		    "server");
-		return(false);
 	}
 
 	if (lock_wait_timeout_var != NULL) {
@@ -514,7 +500,13 @@ get_mysql_vars(MYSQL *connection)
 	}
 
 	if (innodb_undo_tablespaces_var) {
-		srv_undo_tablespaces = strtoul(innodb_undo_tablespaces_var, &endptr, 10);
+		srv_undo_tablespaces = strtoul(innodb_undo_tablespaces_var,
+					       &endptr, 10);
+		ut_ad(*endptr == 0);
+	}
+
+	if (page_zip_level_var != NULL) {
+		page_zip_level = strtoul(page_zip_level_var, &endptr, 10);
 		ut_ad(*endptr == 0);
 	}
 
@@ -1480,9 +1472,12 @@ PERCONA_SCHEMA.xtrabackup_history and writes a new history record to the
 table containing all the history info particular to the just completed
 backup. */
 bool
-write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
+write_xtrabackup_info(MYSQL *connection, const char * filename, bool history,
+                       bool stream)
 {
 
+	bool result = true;
+	FILE *fp = NULL;
 	char *uuid = NULL;
 	char *server_version = NULL;
 	char buf_start_time[100];
@@ -1508,7 +1503,8 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
 		|| xtrabackup_databases_exclude
 		);
 
-	backup_file_printf(filename,
+	char *buf = NULL;
+	int buf_len = asprintf(&buf,
 		"uuid = %s\n"
 		"name = %s\n"
 		"tool_name = %s\n"
@@ -1520,8 +1516,8 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
 		"end_time = %s\n"
 		"lock_time = %d\n"
 		"binlog_pos = %s\n"
-		"innodb_from_lsn = %llu\n"
-		"innodb_to_lsn = %llu\n"
+		"innodb_from_lsn = " LSN_PF "\n"
+		"innodb_to_lsn = " LSN_PF "\n"
 		"partial = %s\n"
 		"incremental = %s\n"
 		"format = %s\n"
@@ -1538,12 +1534,34 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
 		(int)history_lock_time, /* lock_time */
 		mysql_binlog_position ?
 			mysql_binlog_position : "", /* binlog_pos */
-		incremental_lsn, /* innodb_from_lsn */
-		metadata_to_lsn, /* innodb_to_lsn */
+		incremental_lsn,
+		/* innodb_from_lsn */
+		metadata_to_lsn,
+		/* innodb_to_lsn */
 		is_partial? "Y" : "N",
 		xtrabackup_incremental ? "Y" : "N", /* incremental */
 		xb_stream_name[xtrabackup_stream_fmt], /* format */
 		xtrabackup_compress ? "compressed" : "N"); /* compressed */
+	if (buf_len < 0) {
+		msg("Error: cannot generate xtrabackup_info");
+		result = false;
+		goto cleanup;
+	}
+
+	if (stream) {
+		backup_file_printf(filename, "%s", buf);
+	} else {
+		fp = fopen(filename, "w");
+		if (!fp) {
+			msg("Error: cannot open %s", filename);
+			result = false;
+			goto cleanup;
+		}
+		if (fwrite(buf, buf_len, 1, fp) < 1) {
+			result = false;
+			goto cleanup;
+		}
+	}
 
 	if (!history) {
 		goto cleanup;
@@ -1605,8 +1623,11 @@ cleanup:
 
 	free(uuid);
 	free(server_version);
+	free(buf);
+	if (fp)
+		fclose(fp);
 
-	return(true);
+	return(result);
 }
 
 extern const char *innodb_checksum_algorithm_names[];
@@ -1662,6 +1683,7 @@ bool write_backup_config_file()
 		"innodb_page_size=%lu\n"
 		"innodb_undo_directory=%s\n"
 		"innodb_undo_tablespaces=%lu\n"
+		"innodb_compression_level=%u\n"
 		"%s%s\n"
 		"%s\n",
 		innodb_checksum_algorithm_names[srv_checksum_algorithm],
@@ -1671,6 +1693,7 @@ bool write_backup_config_file()
 		srv_page_size,
 		srv_undo_dir,
 		srv_undo_tablespaces,
+		page_zip_level,
 		innobase_buffer_pool_filename ?
 			"innodb_buffer_pool_filename=" : "",
 		innobase_buffer_pool_filename ?
@@ -1812,4 +1835,3 @@ mdl_unlock_all()
   mysql_close(mdl_con);
   spaceid_to_tablename.clear();
 }
-

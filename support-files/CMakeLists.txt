@@ -12,7 +12,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 IF(WIN32)
   SET(localstatedir "C:\\\\mysql\\\\data\\\\")
@@ -77,15 +77,25 @@ IF(UNIX)
     IF(CHECKMODULE AND SEMODULE_PACKAGE)
       FOREACH(pol mariadb)
         SET(src ${CMAKE_CURRENT_SOURCE_DIR}/policy/selinux/${pol}.te)
-        SET(tmp ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${pol}-pp.dir/${pol}.mod)
+        SET(tmp ${CMAKE_CURRENT_BINARY_DIR}/${pol}.mod)
         SET(out ${CMAKE_CURRENT_BINARY_DIR}/${pol}.pp)
         ADD_CUSTOM_COMMAND(OUTPUT ${out}
           COMMAND ${CHECKMODULE} -M -m ${src} -o ${tmp}
           COMMAND ${SEMODULE_PACKAGE} -m ${tmp} -o ${out}
+          COMMAND ${CMAKE_COMMAND} -E remove ${tmp}
         DEPENDS ${src})
         ADD_CUSTOM_TARGET(${pol}-pp ALL DEPENDS ${out})
         INSTALL(FILES ${out} DESTINATION ${inst_location}/policy/selinux COMPONENT SupportFiles)
       ENDFOREACH()
+      IF(RPM)
+        EXECUTE_PROCESS(COMMAND rpm -q --qf "%{VERSION}-%{RELEASE}" libsepol
+                        OUTPUT_VARIABLE LIBSEPOL_VERSION RESULT_VARIABLE err)
+        IF (NOT err)
+          SET(CPACK_RPM_server_PACKAGE_REQUIRES
+            "${CPACK_RPM_server_PACKAGE_REQUIRES} libsepol >= ${LIBSEPOL_VERSION}"
+            PARENT_SCOPE)
+        ENDIF()
+      ENDIF()
     ENDIF()
   ENDIF()
 

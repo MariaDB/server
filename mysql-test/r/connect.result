@@ -254,7 +254,7 @@ mysqltest_u1
 root
 
 # -- Resetting variables...
-SET GLOBAL max_connections = 151;
+SET GLOBAL max_connections = #max_connections#;
 
 # -- Stopping Event Scheduler...
 SET GLOBAL event_scheduler = OFF;

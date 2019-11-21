@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 
@@ -628,6 +628,9 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
    spcont(NULL),
    m_parser_state(NULL),
+#ifndef EMBEDDED_LIBRARY
+   audit_plugin_version(-1),
+#endif
 #if defined(ENABLED_DEBUG_SYNC)
    debug_sync_control(0),
 #endif /* defined(ENABLED_DEBUG_SYNC) */
@@ -784,6 +787,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   wsrep_affected_rows     = 0;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
+  wsrep_split_flag        = false;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1218,6 +1222,7 @@ void THD::init(void)
   wsrep_affected_rows     = 0;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
+  wsrep_split_flag        = false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -2370,18 +2375,28 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, long key_length)
 }
 
 
-int THD::send_explain_fields(select_result *result, uint8 explain_flags, bool is_analyze)
+int THD::prepare_explain_fields(select_result *result, List<Item> *field_list,
+                                 uint8 explain_flags, bool is_analyze)
+{
+  if (lex->explain_json)
+    make_explain_json_field_list(*field_list, is_analyze);
+  else
+    make_explain_field_list(*field_list, explain_flags, is_analyze);
+
+  return result->prepare(*field_list, NULL);
+}
+
+
+int THD::send_explain_fields(select_result *result,
+                             uint8 explain_flags,
+                             bool is_analyze)
 {
   List<Item> field_list;
-  if (lex->explain_json)
-    make_explain_json_field_list(field_list, is_analyze);
-  else
-    make_explain_field_list(field_list, explain_flags, is_analyze);
-
-  result->prepare(field_list, NULL);
-  return (result->send_result_set_metadata(field_list,
-                                           Protocol::SEND_NUM_ROWS | 
-                                           Protocol::SEND_EOF));
+  int rc;
+  rc= prepare_explain_fields(result, &field_list, explain_flags, is_analyze) ||
+      result->send_result_set_metadata(field_list, Protocol::SEND_NUM_ROWS |
+                                                   Protocol::SEND_EOF);
+  return rc;
 }
 
 
@@ -2456,7 +2471,7 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
   if (is_analyze)
   {
     field_list.push_back(item= new (mem_root)
-                         Item_float(this, "r_rows", 0.1234, 10, 4),
+                         Item_float(this, "r_rows", 0.1234, 2, 4),
                          mem_root);
     item->maybe_null=1;
   }
@@ -4475,6 +4490,11 @@ unsigned long long thd_get_query_id(const MYSQL_THD thd)
   return((unsigned long long)thd->query_id);
 }
 
+void thd_clear_error(MYSQL_THD thd)
+{
+  thd->clear_error();
+}
+
 extern "C" const struct charset_info_st *thd_charset(MYSQL_THD thd)
 {
   return(thd->charset());
@@ -4532,12 +4552,6 @@ extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
   return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
 }
 
-extern "C" int thd_rpl_stmt_based(const MYSQL_THD thd)
-{
-  return thd &&
-    !thd->is_current_stmt_binlog_format_row() &&
-    !thd->is_current_stmt_binlog_disabled();
-}
 
 /* Returns high resolution timestamp for the start
   of the current query. */
@@ -5787,16 +5801,18 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
       replicated_tables_count++;
 
-      if (table->lock_type <= TL_READ_NO_INSERT &&
-          table->prelocking_placeholder != TABLE_LIST::FK)
-        has_read_tables= true;
-      else if (table->table->found_next_number_field &&
-                (table->lock_type >= TL_WRITE_ALLOW_WRITE))
+      if (table->prelocking_placeholder != TABLE_LIST::FK)
       {
-        has_auto_increment_write_tables= true;
-        has_auto_increment_write_tables_not_first= found_first_not_own_table;
-        if (table->table->s->next_number_keypart != 0)
-          has_write_table_auto_increment_not_first_in_pk= true;
+        if (table->lock_type <= TL_READ_NO_INSERT)
+          has_read_tables= true;
+        else if (table->table->found_next_number_field &&
+                 (table->lock_type >= TL_WRITE_ALLOW_WRITE))
+        {
+          has_auto_increment_write_tables= true;
+          has_auto_increment_write_tables_not_first= found_first_not_own_table;
+          if (table->table->s->next_number_keypart != 0)
+            has_write_table_auto_increment_not_first_in_pk= true;
+        }
       }
 
       if (table->lock_type >= TL_WRITE_ALLOW_WRITE)
@@ -6097,6 +6113,48 @@ int THD::decide_logging_format(TABLE_LIST *tables)
   DBUG_RETURN(0);
 }
 
+int THD::decide_logging_format_low(TABLE *table)
+{
+  /*
+   INSERT...ON DUPLICATE KEY UPDATE on a table with more than one unique keys
+   can be unsafe.
+   */
+  if(wsrep_binlog_format() <= BINLOG_FORMAT_STMT &&
+       !is_current_stmt_binlog_format_row() &&
+       !lex->is_stmt_unsafe() &&
+       lex->sql_command == SQLCOM_INSERT &&
+       lex->duplicates == DUP_UPDATE)
+  {
+    uint unique_keys= 0;
+    uint keys= table->s->keys, i= 0;
+    Field *field;
+    for (KEY* keyinfo= table->s->key_info;
+             i < keys && unique_keys <= 1; i++, keyinfo++)
+      if (keyinfo->flags & HA_NOSAME &&
+         !(keyinfo->key_part->field->flags & AUTO_INCREMENT_FLAG &&
+             //User given auto inc can be unsafe
+             !keyinfo->key_part->field->val_int()))
+      {
+        for (uint j= 0; j < keyinfo->user_defined_key_parts; j++)
+        {
+          field= keyinfo->key_part[j].field;
+          if(!bitmap_is_set(table->write_set,field->field_index))
+            goto exit;
+        }
+        unique_keys++;
+exit:;
+      }
+
+    if (unique_keys > 1)
+    {
+      lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS);
+      binlog_unsafe_warning_flags|= lex->get_stmt_unsafe_flags();
+      set_current_stmt_binlog_format_row_if_mixed();
+      return 1;
+    }
+  }
+  return 0;
+}
 
 /*
   Implementation of interface to write rows to the binary log through the

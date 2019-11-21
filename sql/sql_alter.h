@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef SQL_ALTER_TABLE_H
 #define SQL_ALTER_TABLE_H
@@ -392,7 +392,8 @@ protected:
   Sql_cmd_alter_table represents the generic ALTER TABLE statement.
   @todo move Alter_info and other ALTER specific structures from Lex here.
 */
-class Sql_cmd_alter_table : public Sql_cmd_common_alter_table
+class Sql_cmd_alter_table : public Sql_cmd_common_alter_table,
+                            public Storage_engine_name
 {
 public:
   /**
@@ -403,6 +404,8 @@ public:
 
   ~Sql_cmd_alter_table()
   {}
+
+  Storage_engine_name *option_storage_engine_name() { return this; }
 
   bool execute(THD *thd);
 };

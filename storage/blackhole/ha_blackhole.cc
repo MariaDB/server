@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -25,6 +25,24 @@
 #include "ha_blackhole.h"
 #include "sql_class.h"                          // THD, SYSTEM_THREAD_SLAVE_SQL
 
+/**
+  Checks if the param 'thd' is pointing to slave applier thread and row based
+  replication is in use.
+
+  A row event will have its thd->query() == NULL except in cases where
+  replicate_annotate_row_events is enabled. In the later case the thd->query()
+  will be pointing to the query, received through replicated annotate event
+  from master.
+
+  @param thd   pointer to a THD instance
+
+  @return TRUE if thread is slave applier and row based replication is in use
+*/
+static bool is_row_based_replication(THD *thd)
+{
+  return thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
+    (thd->query() == NULL || thd->variables.binlog_annotate_row_events);
+}
 /* Static declarations for handlerton */
 
 static handler *blackhole_create_handler(handlerton *hton,
@@ -109,7 +127,7 @@ int ha_blackhole::update_row(const uchar *old_data, uchar *new_data)
 {
   DBUG_ENTER("ha_blackhole::update_row");
   THD *thd= ha_thd();
-  if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL && thd->query() == NULL)
+  if (is_row_based_replication(thd))
     DBUG_RETURN(0);
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
@@ -118,7 +136,7 @@ int ha_blackhole::delete_row(const uchar *buf)
 {
   DBUG_ENTER("ha_blackhole::delete_row");
   THD *thd= ha_thd();
-  if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL && thd->query() == NULL)
+  if (is_row_based_replication(thd))
     DBUG_RETURN(0);
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
@@ -135,7 +153,7 @@ int ha_blackhole::rnd_next(uchar *buf)
   int rc;
   DBUG_ENTER("ha_blackhole::rnd_next");
   THD *thd= ha_thd();
-  if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL && thd->query() == NULL)
+  if (is_row_based_replication(thd))
     rc= 0;
   else
     rc= HA_ERR_END_OF_FILE;
@@ -220,7 +238,7 @@ int ha_blackhole::index_read_map(uchar * buf, const uchar * key,
   int rc;
   DBUG_ENTER("ha_blackhole::index_read");
   THD *thd= ha_thd();
-  if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL && thd->query() == NULL)
+  if (is_row_based_replication(thd))
     rc= 0;
   else
     rc= HA_ERR_END_OF_FILE;
@@ -235,7 +253,7 @@ int ha_blackhole::index_read_idx_map(uchar * buf, uint idx, const uchar * key,
   int rc;
   DBUG_ENTER("ha_blackhole::index_read_idx");
   THD *thd= ha_thd();
-  if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL && thd->query() == NULL)
+  if (is_row_based_replication(thd))
     rc= 0;
   else
     rc= HA_ERR_END_OF_FILE;
@@ -249,7 +267,7 @@ int ha_blackhole::index_read_last_map(uchar * buf, const uchar * key,
   int rc;
   DBUG_ENTER("ha_blackhole::index_read_last");
   THD *thd= ha_thd();
-  if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL && thd->query() == NULL)
+  if (is_row_based_replication(thd))
     rc= 0;
   else
     rc= HA_ERR_END_OF_FILE;

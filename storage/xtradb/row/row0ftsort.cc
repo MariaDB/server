@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -102,7 +102,7 @@ row_merge_create_fts_sort_index(
 	field->name = NULL;
 	field->prefix_len = 0;
 	field->col = static_cast<dict_col_t*>(
-		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
+		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->prtype = idx_field->col->prtype | DATA_NOT_NULL;
 	field->col->mtype = charset == &my_charset_latin1
 		? DATA_VARCHAR : DATA_VARMYSQL;
@@ -117,7 +117,7 @@ row_merge_create_fts_sort_index(
 	field->name = NULL;
 	field->prefix_len = 0;
 	field->col = static_cast<dict_col_t*>(
-		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
+		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
 	*opt_doc_id_size = FALSE;
 
@@ -151,21 +151,16 @@ row_merge_create_fts_sort_index(
 
 	field->col->prtype = DATA_NOT_NULL | DATA_BINARY_TYPE;
 
-	field->col->mbminlen = 0;
-	field->col->mbmaxlen = 0;
-
 	/* The third field is on the word's position in the original doc */
 	field = dict_index_get_nth_field(new_index, 2);
 	field->name = NULL;
 	field->prefix_len = 0;
 	field->col = static_cast<dict_col_t*>(
-		mem_heap_alloc(new_index->heap, sizeof(dict_col_t)));
+		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
 	field->col->len = 4 ;
 	field->fixed_len = 4;
 	field->col->prtype = DATA_NOT_NULL;
-	field->col->mbminlen = 0;
-	field->col->mbmaxlen = 0;
 
 	return(new_index);
 }
@@ -1423,9 +1418,6 @@ row_fts_merge_insert(
 	ulint			count_diag = 0;
 	ulint			space;
 
-	ut_ad(index);
-	ut_ad(table);
-
 	/* We use the insert query graph as the dummy graph
 	needed in the row module call */
 
@@ -1511,7 +1503,6 @@ row_fts_merge_insert(
 	ins_ctx.fts_table.type = FTS_INDEX_TABLE;
 	ins_ctx.fts_table.index_id = index->id;
 	ins_ctx.fts_table.table_id = table->id;
-	ins_ctx.fts_table.parent = index->table->name;
 	ins_ctx.fts_table.table = index->table;
 	space = table->space;
 

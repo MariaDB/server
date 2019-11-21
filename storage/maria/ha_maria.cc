@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -355,10 +355,12 @@ static PSI_file_info all_aria_files[]=
   { &key_file_control, "control", PSI_FLAG_GLOBAL}
 };
 
+# ifdef HAVE_PSI_STAGE_INTERFACE
 static PSI_stage_info *all_aria_stages[]=
 {
   & stage_waiting_for_a_resource
 };
+# endif /* HAVE_PSI_STAGE_INTERFACE */
 
 static void init_aria_psi_keys(void)
 {
@@ -379,9 +381,10 @@ static void init_aria_psi_keys(void)
 
   count= array_elements(all_aria_files);
   mysql_file_register(category, all_aria_files, count);
-
+# ifdef HAVE_PSI_STAGE_INTERFACE
   count= array_elements(all_aria_stages);
   mysql_stage_register(category, all_aria_stages, count);
+# endif /* HAVE_PSI_STAGE_INTERFACE */
 }
 #else
 #define init_aria_psi_keys() /* no-op */
@@ -1301,6 +1304,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
 
   if (!file || !param) return HA_ADMIN_INTERNAL_ERROR;
 
+  unmap_file(file);
   maria_chk_init(param);
   param->thd= thd;
   param->op_name= "check";
@@ -1521,6 +1525,7 @@ int ha_maria::zerofill(THD * thd, HA_CHECK_OPT *check_opt)
   if (!file || !param)
     return HA_ADMIN_INTERNAL_ERROR;
 
+  unmap_file(file);
   old_trn= file->trn;
   maria_chk_init(param);
   param->thd= thd;
@@ -1619,6 +1624,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
   param->out_flag= 0;
   share->state.dupp_key= MI_MAX_KEY;
   strmov(fixed_name, share->open_file_name.str);
+  unmap_file(file);
 
   /*
     Don't lock tables if we have used LOCK TABLE or if we come from
@@ -1797,7 +1803,6 @@ int ha_maria::assign_to_keycache(THD * thd, HA_CHECK_OPT *check_opt)
   ulonglong map;
   TABLE_LIST *table_list= table->pos_in_table_list;
   DBUG_ENTER("ha_maria::assign_to_keycache");
-
 
   table->keys_in_use_for_query.clear_all();
 
@@ -2743,7 +2748,8 @@ int ha_maria::external_lock(THD *thd, int lock_type)
     }
     else
     {
-      TRN *trn= (file->trn != &dummy_transaction_object ? file->trn : 0);
+      /* We have to test for THD_TRN to protect against implicit commits */
+      TRN *trn= (file->trn != &dummy_transaction_object && THD_TRN ? file->trn : 0);
       /* End of transaction */
 
       /*
@@ -2779,7 +2785,7 @@ int ha_maria::external_lock(THD *thd, int lock_type)
             changes to commit (rollback shouldn't be tested).
           */
           DBUG_ASSERT(!thd->get_stmt_da()->is_sent() ||
-                      thd->killed == KILL_CONNECTION);
+                      thd->killed);
           /* autocommit ? rollback a transaction */
 #ifdef MARIA_CANNOT_ROLLBACK
           if (ma_commit(trn))
@@ -2798,9 +2804,12 @@ int ha_maria::external_lock(THD *thd, int lock_type)
       }
     }
   } /* if transactional table */
-  DBUG_RETURN(maria_lock_database(file, !table->s->tmp_table ?
+  int result = maria_lock_database(file, !table->s->tmp_table ?
                                   lock_type : ((lock_type == F_UNLCK) ?
-                                               F_UNLCK : F_EXTRA_LCK)));
+                                               F_UNLCK : F_EXTRA_LCK));
+  if (!file->s->base.born_transactional)
+    file->state= &file->s->state.state;         // Restore state if clone
+  DBUG_RETURN(result);
 }
 
 int ha_maria::start_stmt(THD *thd, thr_lock_type lock_type)
@@ -2850,7 +2859,20 @@ static void reset_thd_trn(THD *thd, MARIA_HA *first_table)
   THD_TRN= NULL;
   for (MARIA_HA *table= first_table; table ;
        table= table->trn_next)
+  {
     _ma_reset_trn_for_table(table);
+
+    /*
+      If table has changed by this statement, invalidate it from the query
+      cache
+    */
+    if (table->row_changes != table->start_row_changes)
+    {
+      table->start_row_changes= table->row_changes;
+      DBUG_ASSERT(table->s->chst_invalidator != NULL);
+      (*table->s->chst_invalidator)(table->s->data_file_name.str);
+    }
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -3316,7 +3338,10 @@ static int maria_commit(handlerton *hton __attribute__ ((unused)),
                         THD *thd, bool all)
 {
   TRN *trn= THD_TRN;
+  int res;
+  MARIA_HA *used_instances= (MARIA_HA*) trn->used_instances;
   DBUG_ENTER("maria_commit");
+
   trnman_reset_locked_tables(trn, 0);
   trnman_set_flags(trn, trnman_get_flags(trn) & ~TRN_STATE_INFO_LOGGED);
 
@@ -3324,8 +3349,9 @@ static int maria_commit(handlerton *hton __attribute__ ((unused)),
   if ((thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       !all)
     DBUG_RETURN(0); // end of statement
-  reset_thd_trn(thd, (MARIA_HA*) trn->used_instances);
-  DBUG_RETURN(ma_commit(trn)); // end of transaction
+  res= ma_commit(trn);
+  reset_thd_trn(thd, used_instances);
+  DBUG_RETURN(res);
 }
 
 

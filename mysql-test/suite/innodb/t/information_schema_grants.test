@@ -1,0 +1,311 @@
+source include/have_innodb.inc;
+source include/not_embedded.inc;
+
+# make sure we've enabled everything:
+select plugin_name,plugin_status as 'Must be ACTIVE' from information_schema.plugins where plugin_name like 'inno%' and plugin_status!='ACTIVE';
+
+create user select_only@localhost;
+grant select on *.* to select_only@localhost;
+
+connect select_only,localhost,select_only;
+connection default;
+
+create sql security invoker view i_buffer_page as select * from information_schema.innodb_buffer_page;
+create sql security definer view d_buffer_page as select * from information_schema.innodb_buffer_page;
+
+create sql security invoker view i_buffer_page_lru as select * from information_schema.innodb_buffer_page_lru;
+create sql security definer view d_buffer_page_lru as select * from information_schema.innodb_buffer_page_lru;
+
+create sql security invoker view i_buffer_pool_stats as select * from information_schema.innodb_buffer_pool_stats;
+create sql security definer view d_buffer_pool_stats as select * from information_schema.innodb_buffer_pool_stats;
+
+create sql security invoker view i_cmp as select * from information_schema.innodb_cmp;
+create sql security definer view d_cmp as select * from information_schema.innodb_cmp;
+
+create sql security invoker view i_cmp_per_index as select * from information_schema.innodb_cmp_per_index;
+create sql security definer view d_cmp_per_index as select * from information_schema.innodb_cmp_per_index;
+
+create sql security invoker view i_cmp_per_index_reset as select * from information_schema.innodb_cmp_per_index_reset;
+create sql security definer view d_cmp_per_index_reset as select * from information_schema.innodb_cmp_per_index_reset;
+
+create sql security invoker view i_cmp_reset as select * from information_schema.innodb_cmp_reset;
+create sql security definer view d_cmp_reset as select * from information_schema.innodb_cmp_reset;
+
+create sql security invoker view i_cmpmem as select * from information_schema.innodb_cmpmem;
+create sql security definer view d_cmpmem as select * from information_schema.innodb_cmpmem;
+
+create sql security invoker view i_cmpmem_reset as select * from information_schema.innodb_cmpmem_reset;
+create sql security definer view d_cmpmem_reset as select * from information_schema.innodb_cmpmem_reset;
+
+create sql security invoker view i_ft_being_deleted as select * from information_schema.innodb_ft_being_deleted;
+create sql security definer view d_ft_being_deleted as select * from information_schema.innodb_ft_being_deleted;
+
+create sql security invoker view i_ft_config as select * from information_schema.innodb_ft_config;
+create sql security definer view d_ft_config as select * from information_schema.innodb_ft_config;
+
+create sql security invoker view i_ft_default_stopword as select * from information_schema.innodb_ft_default_stopword;
+create sql security definer view d_ft_default_stopword as select * from information_schema.innodb_ft_default_stopword;
+
+create sql security invoker view i_ft_deleted as select * from information_schema.innodb_ft_deleted;
+create sql security definer view d_ft_deleted as select * from information_schema.innodb_ft_deleted;
+
+create sql security invoker view i_ft_index_cache as select * from information_schema.innodb_ft_index_cache;
+create sql security definer view d_ft_index_cache as select * from information_schema.innodb_ft_index_cache;
+
+create sql security invoker view i_ft_index_table as select * from information_schema.innodb_ft_index_table;
+create sql security definer view d_ft_index_table as select * from information_schema.innodb_ft_index_table;
+
+create sql security invoker view i_lock_waits as select * from information_schema.innodb_lock_waits;
+create sql security definer view d_lock_waits as select * from information_schema.innodb_lock_waits;
+
+create sql security invoker view i_locks as select * from information_schema.innodb_locks;
+create sql security definer view d_locks as select * from information_schema.innodb_locks;
+
+create sql security invoker view i_metrics as select * from information_schema.innodb_metrics;
+create sql security definer view d_metrics as select * from information_schema.innodb_metrics;
+
+create sql security invoker view i_mutexes as select * from information_schema.innodb_mutexes;
+create sql security definer view d_mutexes as select * from information_schema.innodb_mutexes;
+
+create sql security invoker view i_sys_columns as select * from information_schema.innodb_sys_columns;
+create sql security definer view d_sys_columns as select * from information_schema.innodb_sys_columns;
+
+create sql security invoker view i_sys_datafiles as select * from information_schema.innodb_sys_datafiles;
+create sql security definer view d_sys_datafiles as select * from information_schema.innodb_sys_datafiles;
+
+create sql security invoker view i_sys_fields as select * from information_schema.innodb_sys_fields;
+create sql security definer view d_sys_fields as select * from information_schema.innodb_sys_fields;
+
+create sql security invoker view i_sys_foreign as select * from information_schema.innodb_sys_foreign;
+create sql security definer view d_sys_foreign as select * from information_schema.innodb_sys_foreign;
+
+create sql security invoker view i_sys_foreign_cols as select * from information_schema.innodb_sys_foreign_cols;
+create sql security definer view d_sys_foreign_cols as select * from information_schema.innodb_sys_foreign_cols;
+
+create sql security invoker view i_sys_indexes as select * from information_schema.innodb_sys_indexes;
+create sql security definer view d_sys_indexes as select * from information_schema.innodb_sys_indexes;
+
+create sql security invoker view i_sys_semaphore_waits as select * from information_schema.innodb_sys_semaphore_waits;
+create sql security definer view d_sys_semaphore_waits as select * from information_schema.innodb_sys_semaphore_waits;
+
+create sql security invoker view i_sys_tables as select * from information_schema.innodb_sys_tables;
+create sql security definer view d_sys_tables as select * from information_schema.innodb_sys_tables;
+
+create sql security invoker view i_sys_tablespaces as select * from information_schema.innodb_sys_tablespaces;
+create sql security definer view d_sys_tablespaces as select * from information_schema.innodb_sys_tablespaces;
+
+create sql security invoker view i_sys_tablestats as select * from information_schema.innodb_sys_tablestats;
+create sql security definer view d_sys_tablestats as select * from information_schema.innodb_sys_tablestats;
+
+create sql security invoker view i_sys_virtual as select * from information_schema.innodb_sys_virtual;
+create sql security definer view d_sys_virtual as select * from information_schema.innodb_sys_virtual;
+
+create sql security invoker view i_tablespaces_encryption as select * from information_schema.innodb_tablespaces_encryption;
+create sql security definer view d_tablespaces_encryption as select * from information_schema.innodb_tablespaces_encryption;
+
+create sql security invoker view i_tablespaces_scrubbing as select * from information_schema.innodb_tablespaces_scrubbing;
+create sql security definer view d_tablespaces_scrubbing as select * from information_schema.innodb_tablespaces_scrubbing;
+
+create sql security invoker view i_trx as select * from information_schema.innodb_trx;
+create sql security definer view d_trx as select * from information_schema.innodb_trx;
+
+connection select_only;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_buffer_page;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_buffer_page;
+select count(*) > -1 from d_buffer_page;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_buffer_page_lru;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_buffer_page_lru;
+select count(*) > -1 from d_buffer_page_lru;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_buffer_pool_stats;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_buffer_pool_stats;
+select count(*) > -1 from d_buffer_pool_stats;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_cmp;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_cmp;
+select count(*) > -1 from d_cmp;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_cmp_per_index;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_cmp_per_index;
+select count(*) > -1 from d_cmp_per_index;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_cmp_per_index_reset;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_cmp_per_index_reset;
+select count(*) > -1 from d_cmp_per_index_reset;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_cmp_reset;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_cmp_reset;
+select count(*) > -1 from d_cmp_reset;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_cmpmem;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_cmpmem;
+select count(*) > -1 from d_cmpmem;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_cmpmem_reset;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_cmpmem_reset;
+select count(*) > -1 from d_cmpmem_reset;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_ft_being_deleted;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_ft_being_deleted;
+select count(*) > -1 from d_ft_being_deleted;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_ft_config;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_ft_config;
+select count(*) > -1 from d_ft_config;
+
+# non-privileged table
+select count(*) > -1 from information_schema.innodb_ft_default_stopword;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_ft_deleted;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_ft_deleted;
+select count(*) > -1 from d_ft_deleted;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_ft_index_cache;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_ft_index_cache;
+select count(*) > -1 from d_ft_index_cache;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_ft_index_table;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_ft_index_table;
+select count(*) > -1 from d_ft_index_table;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_lock_waits;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_lock_waits;
+select count(*) > -1 from d_lock_waits;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_locks;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_locks;
+select count(*) > -1 from d_locks;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_metrics;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_metrics;
+select count(*) > -1 from d_metrics;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_mutexes;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_mutexes;
+select count(*) > -1 from d_mutexes;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_sys_columns;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_sys_columns;
+select count(*) > -1 from d_sys_columns;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_sys_datafiles;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_sys_datafiles;
+select count(*) > -1 from d_sys_datafiles;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_sys_fields;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_sys_fields;
+select count(*) > -1 from d_sys_fields;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_sys_foreign;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_sys_foreign;
+select count(*) > -1 from d_sys_foreign;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_sys_foreign_cols;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_sys_foreign_cols;
+select count(*) > -1 from d_sys_foreign_cols;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_sys_indexes;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_sys_indexes;
+select count(*) > -1 from d_sys_indexes;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_sys_semaphore_waits;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_sys_semaphore_waits;
+select count(*) > -1 from d_sys_semaphore_waits;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_sys_tables;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_sys_tables;
+select count(*) > -1 from d_sys_tables;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_sys_tablespaces;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_sys_tablespaces;
+select count(*) > -1 from d_sys_tablespaces;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_sys_tablestats;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_sys_tablestats;
+select count(*) > -1 from d_sys_tablestats;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_sys_virtual;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_sys_virtual;
+select count(*) > -1 from d_sys_virtual;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_tablespaces_encryption;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_tablespaces_encryption;
+select count(*) > -1 from d_tablespaces_encryption;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_tablespaces_scrubbing;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_tablespaces_scrubbing;
+select count(*) > -1 from d_tablespaces_scrubbing;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from information_schema.innodb_trx;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+select count(*) > -1 from i_trx;
+select count(*) > -1 from d_trx;
+
+connection default;
+drop database test;
+create database test;
+drop user select_only@localhost;

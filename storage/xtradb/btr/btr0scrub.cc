@@ -145,10 +145,10 @@ btr_scrub_lock_dict_func(ulint space_id, bool lock_to_close_table,
 		time_t now = time(0);
 		if (now >= last + 30) {
 			fprintf(stderr,
-				"WARNING: %s:%u waited " TIMETPF " seconds for"
+				"WARNING: %s:%u waited %ld seconds for"
 				" dict_sys lock, space: %lu"
 				" lock_to_close_table: %d\n",
-				file, line, now - start, space_id,
+				file, line, (long)(now - start), space_id,
 				lock_to_close_table);
 
 			last = now;

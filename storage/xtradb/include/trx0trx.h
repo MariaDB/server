@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -575,7 +575,7 @@ non-locking select */
 	ut_ad(!trx_is_autocommit_non_locking((t)));			\
 	switch ((t)->state) {						\
 	case TRX_STATE_PREPARED:					\
-		/* fall through */					\
+	case TRX_STATE_PREPARED_RECOVERED:				\
 	case TRX_STATE_ACTIVE:						\
 	case TRX_STATE_COMMITTED_IN_MEMORY:				\
 		continue;						\
@@ -765,6 +765,7 @@ struct trx_t{
 	TRX_STATE_NOT_STARTED
 	TRX_STATE_ACTIVE
 	TRX_STATE_PREPARED
+	TRX_STATE_PREPARED_RECOVERED (special case of TRX_STATE_PREPARED)
 	TRX_STATE_COMMITTED_IN_MEMORY (alias below COMMITTED)
 
 	Valid state transitions are:
@@ -913,10 +914,11 @@ struct trx_t{
 					when trx->in_rw_trx_list. Initially
 					set to TRX_ID_MAX. */
 
-	time_t		start_time;	/*!< time the trx state last time became
-					TRX_STATE_ACTIVE */
-	ib_uint64_t	start_time_micro;	/*!< start time of transaction in
-					microseconds */
+	/** wall-clock time of the latest transition to TRX_STATE_ACTIVE;
+	used for diagnostic purposes only */
+	time_t		start_time;
+	/** microsecond_interval_timer() of transaction start */
+	ulonglong	start_time_micro;
 	trx_id_t	id;		/*!< transaction id */
 	XID		xid;		/*!< X/Open XA transaction
 					identification to identify a
@@ -1098,7 +1100,7 @@ struct trx_t{
 	ulint		io_reads;
 	ib_uint64_t	io_read;
 	ulint		io_reads_wait_timer;
-	ib_uint64_t	lock_que_wait_ustarted;
+	ulonglong	lock_que_wait_nstarted;
 	ulint           lock_que_wait_timer;
 	ulint           innodb_que_wait_timer;
 	ulint           distinct_page_access;

@@ -339,7 +339,12 @@ explain extended (select * from t1 where a=1) union (select * from t2 where a=1)
 (select * from t1 where a=5 and a=6) union (select * from t2 where a=1);
 (select t1.a,t1.b from t1,t2 where t1.a=5) union (select * from t2 where a=1);
 (select * from t1 where a=1) union (select t1.a,t2.a from t1,t2 where t1.a=t2.a);
+
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity,@save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='outer_join_with_cache=off',@@optimizer_use_condition_selectivity=1;
 explain (select * from t1 where a=1 and b=10) union (select straight_join t1.a,t2.a from t1,t2 where t1.a=t2.a);
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity,@@optimizer_switch=@save_optimizer_switch;
+
 explain (select * from t1 where a=1) union (select * from t1 where b=1);
 drop table t1,t2;
 create table t1 (   id int not null auto_increment, primary key (id)   ,user_name text );
@@ -840,7 +845,7 @@ drop tables t1,t2,t3;
 # exceeds mediumtext maximum length
 #
 
-SELECT @tmp_max:= @@global.max_allowed_packet;
+SET @tmp_max= @@global.max_allowed_packet;
 SET @@global.max_allowed_packet=25000000;
 # switching connection to allow the new max_allowed_packet take effect
 --connect (newconn, localhost, root,,)

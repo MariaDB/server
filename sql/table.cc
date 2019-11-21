@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* Some general useful functions */
@@ -564,14 +564,14 @@ inline bool is_system_table_name(const char *name, uint length)
   
   SYNOPSIS
   open_table_def()
-  thd		Thread handler
+  thd		  Thread handler
   share		Fill this with table definition
-  db_flags	Bit mask of the following flags: OPEN_VIEW
+  flags	  Bit mask of the following flags: OPEN_VIEW
 
   NOTES
     This function is called when the table definition is not cached in
     table definition cache
-    The data is returned in 'share', which is alloced by
+    The data is returned in 'share', which is allocated by
     alloc_table_share().. The code assumes that share is initialized.
 */
 
@@ -989,7 +989,7 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
     expression
 */
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
-                     bool *error_reported)
+                     bool *error_reported, vcol_init_mode mode)
 {
   CHARSET_INFO *save_character_set_client= thd->variables.character_set_client;
   CHARSET_INFO *save_collation= thd->variables.collation_connection;
@@ -1073,6 +1073,12 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
                                     &((*field_ptr)->vcol_info), error_reported);
       *(vfield_ptr++)= *field_ptr;
+      if (vcol && field_ptr[0]->check_vcol_sql_mode_dependency(thd, mode))
+      {
+        DBUG_ASSERT(thd->is_error());
+        *error_reported= true;
+        goto end;
+      }
       break;
     case VCOL_DEFAULT:
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
@@ -1129,7 +1135,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   if (check_constraint_ptr)
     *check_constraint_ptr= 0;
 
-  /* Check that expressions aren't refering to not yet initialized fields */
+  /* Check that expressions aren't referring to not yet initialized fields */
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     Field *field= *field_ptr;
@@ -1357,8 +1363,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   if (!share->table_charset)
   {
+    const CHARSET_INFO *cs= thd->variables.collation_database;
     /* unknown charset in frm_image[38] or pre-3.23 frm */
-    if (use_mb(default_charset_info))
+    if (use_mb(cs))
     {
       /* Warn that we may be changing the size of character columns */
       sql_print_warning("'%s' had no or invalid character set, "
@@ -1366,7 +1373,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                         "so character column sizes may have changed",
                         share->path.str);
     }
-    share->table_charset= default_charset_info;
+    share->table_charset= cs;
   }
 
   share->db_record_offset= 1;
@@ -1839,7 +1846,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           goto err;
         vcol_info= new (&share->mem_root) Virtual_column_info();
         vcol_info_length= uint2korr(vcol_screen_pos + 1);
-        DBUG_ASSERT(vcol_info_length);
+        if (!vcol_info_length) // Expect non-empty expression
+          goto err;
         vcol_info->stored_in_db= vcol_screen_pos[3];
         vcol_info->utf8= 0;
         vcol_screen_pos+= vcol_info_length + MYSQL57_GCOL_HEADER_SIZE;;
@@ -2614,8 +2622,20 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
   if (create_info->data_file_name || create_info->index_file_name)
     return 1;
   // ... engine
-  if (create_info->db_type && create_info->db_type != engine)
-    return 1;
+  DBUG_ASSERT(lex->m_sql_cmd);
+  if (lex->create_info.used_fields & HA_CREATE_USED_ENGINE)
+  {
+    /*
+      TODO: we could just compare engine names here, without resolving.
+      But this optimization is too late for 10.1.
+    */
+    Storage_engine_name *opt= lex->m_sql_cmd->option_storage_engine_name();
+    DBUG_ASSERT(opt); // lex->m_sql_cmd must be an Sql_cmd_create_table instance
+    if (opt->resolve_storage_engine_with_error(thd, &create_info->db_type,
+                                               false) ||
+        (create_info->db_type && create_info->db_type != engine))
+      return 1;
+  }
 
   return 0;
 }
@@ -3203,7 +3223,25 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (share->table_check_constraints || share->field_check_constraints)
       outparam->check_constraints= check_constraint_ptr;
 
-    if (parse_vcol_defs(thd, &outparam->mem_root, outparam, &error_reported))
+    vcol_init_mode mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING;
+#if MYSQL_VERSION_ID > 100500
+    switch (thd->lex->sql_command)
+    {
+    case SQLCOM_CREATE_TABLE:
+      mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR;
+      break;
+    case SQLCOM_ALTER_TABLE:
+    case SQLCOM_CREATE_INDEX:
+    case SQLCOM_DROP_INDEX:
+      if ((ha_open_flags & HA_OPEN_FOR_ALTER) == 0)
+        mode= VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR;
+      break;
+    default:
+      break;
+    }
+#endif
+    if (parse_vcol_defs(thd, &outparam->mem_root, outparam,
+                        &error_reported, mode))
     {
       error= OPEN_FRM_CORRUPTED;
       goto err;
@@ -4533,6 +4571,8 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   created= TRUE;
   cond_selectivity= 1.0;
   cond_selectivity_sampling_explain= NULL;
+  quick_condition_rows=0;
+  initialize_quick_structures();
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;
@@ -5988,7 +6028,8 @@ const char *Field_iterator_table_ref::get_table_name()
     return natural_join_it.column_ref()->table_name();
 
   DBUG_ASSERT(!strcmp(table_ref->table_name,
-                      table_ref->table->s->table_name.str));
+                      table_ref->table->s->table_name.str) ||
+              table_ref->schema_table);
   return table_ref->table_name;
 }
 
@@ -7667,6 +7708,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
 
 int TABLE::update_virtual_field(Field *vf)
 {
+  DBUG_ASSERT(!in_use->is_error());
   Query_arena backup_arena;
   DBUG_ENTER("TABLE::update_virtual_field");
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
@@ -7698,7 +7740,7 @@ int TABLE::update_virtual_field(Field *vf)
          ignore_errors == 0. If set then an error was generated.
 */
 
-int TABLE::update_default_fields(bool update_command, bool ignore_errors)
+int TABLE::update_default_fields(bool ignore_errors)
 {
   Query_arena backup_arena;
   Field **field_ptr;
@@ -7718,14 +7760,9 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
     */
     if (!field->has_explicit_value())
     {
-      if (!update_command)
-      {
-        if (field->default_value &&
-            (field->default_value->flags || field->flags & BLOB_FLAG))
-          res|= (field->default_value->expr->save_in_field(field, 0) < 0);
-      }
-      else
-        res|= field->evaluate_update_default_function();
+      if (field->default_value &&
+          (field->default_value->flags || field->flags & BLOB_FLAG))
+        res|= (field->default_value->expr->save_in_field(field, 0) < 0);
       if (!ignore_errors && res)
       {
         my_error(ER_CALCULATING_DEFAULT_VALUE, MYF(0), field->field_name);
@@ -7737,6 +7774,21 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
   in_use->restore_active_arena(expr_arena, &backup_arena);
   DBUG_RETURN(res);
 }
+
+void TABLE::evaluate_update_default_function()
+{
+  DBUG_ENTER("TABLE::evaluate_update_default_function");
+
+  if (s->has_update_default_function)
+    for (Field **field_ptr= default_field; *field_ptr ; field_ptr++)
+    {
+      Field *field= (*field_ptr);
+      if (!field->has_explicit_value() && field->has_update_default_function())
+        field->set_time();
+    }
+  DBUG_VOID_RETURN;
+}
+
 
 /**
    Reset markers that fields are being updated
@@ -8505,4 +8557,23 @@ bool fk_modifies_child(enum_fk_option opt)
 {
   static bool can_write[]= { false, false, true, true, false, true };
   return can_write[opt];
+}
+
+
+/*
+  @brief
+    Initialize all the quick structures that are used to stored the
+    estimates when the range optimizer is run.
+  @details
+    This is specifically needed when we read the TABLE structure from the
+    table cache. There can be some garbage data from previous queries
+    that need to be reset here.
+*/
+
+void TABLE::initialize_quick_structures()
+{
+  bzero(quick_rows, sizeof(quick_rows));
+  bzero(quick_key_parts, sizeof(quick_key_parts));
+  bzero(quick_costs, sizeof(quick_costs));
+  bzero(quick_n_ranges, sizeof(quick_n_ranges));
 }

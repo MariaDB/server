@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   locking of isam-tables.
@@ -446,7 +446,7 @@ my_bool mi_check_status(void *param)
 
   @param  org_table
   @param  new_table that should point on org_lock.  new_table is 0
-          in case this is the first occurence of the table in the lock
+          in case this is the first occurrence of the table in the lock
           structure.
 */
 

@@ -5,8 +5,8 @@ MACRO(SKIP_ROCKSDB_PLUGIN msg)
   RETURN()
 ENDMACRO()
 
-IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile")
-  SKIP_ROCKSDB_PLUGIN("Missing Makefile in rocksdb directory. Try \"git submodule update\".")
+IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/CMakeLists.txt")
+  SKIP_ROCKSDB_PLUGIN("Missing CMakeLists.txt in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
 
 CHECK_LIBRARY_EXISTS(rt timer_delete "" HAVE_TIMER_DELETE)
@@ -100,6 +100,8 @@ SET(ROCKSDB_SE_SOURCES
   rdb_psi.cc
   rdb_sst_info.cc
   rdb_sst_info.h
+  rdb_converter.cc
+  rdb_converter.h
 )
 
 # MariaDB: the following is added in build_rocksdb.cmake, when appropriate:
@@ -124,10 +126,15 @@ CHECK_CXX_SOURCE_COMPILES("
 #endif
 int main() {
   static __thread int tls;
+  tls=0;
+  return tls;
 }
 " HAVE_THREAD_LOCAL)
 if(HAVE_THREAD_LOCAL)
   ADD_DEFINITIONS(-DROCKSDB_SUPPORT_THREAD_LOCAL)
+else()
+  MESSAGE(SEND_ERROR "The compiler failed the check for ROCKSDB_SUPPORT_THREAD_LOCAL. "
+                     "MyRocks requires that feature.")
 endif()
 
 INCLUDE(build_rocksdb.cmake)
@@ -144,6 +151,7 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
   rdb_perf_context.h
   rdb_buff.h
   rdb_mariadb_port.h
+  nosql_access.cc nosql_access.h
 )
 
 ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
@@ -153,6 +161,27 @@ TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARY})
 if (UNIX AND NOT APPLE)
   TARGET_LINK_LIBRARIES(rocksdb_aux_lib -lrt)
 endif()
+
+# IF (WITH_JEMALLOC)
+#  FIND_LIBRARY(JEMALLOC_LIBRARY
+#    NAMES libjemalloc${PIC_EXT}.a jemalloc
+#    HINTS ${WITH_JEMALLOC}/lib)
+#  SET(rocksdb_static_libs ${rocksdb_static_libs}
+#    ${JEMALLOC_LIBRARY})
+#  ADD_DEFINITIONS(-DROCKSDB_JEMALLOC)
+#  ADD_DEFINITIONS(-DROCKSDB_MALLOC_USABLE_SIZE)
+# ENDIF()
+
+# MariaDB: Q: why does the upstream add libunwind for a particular 
+# storage engine?
+#IF (WITH_UNWIND)
+#  FIND_LIBRARY(UNWIND_LIBRARY
+#    NAMES libunwind${PIC_EXT}.a unwind
+#    HINTS ${WITH_UNWIND}/lib)
+#  SET(rocksdb_static_libs ${rocksdb_static_libs}
+#    ${UNWIND_LIBRARY})
+#ENDIF()
+
 
 TARGET_LINK_LIBRARIES(rocksdb rocksdb_aux_lib)
   FIND_LIBRARY(LZ4_LIBRARY
@@ -182,6 +211,8 @@ ENDIF()
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1)
+# MariaDB: don't do this:
+#  ADD_DEFINITIONS(-DZSTD_STATIC_LINKING_ONLY)
 ENDIF()
 
 IF (WITH_TBB)

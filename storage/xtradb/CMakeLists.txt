@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 # This is the CMakeLists for XtraDB
 RETURN() # until upgraded to 5.7 XtraDB doesn't compile at all
@@ -94,6 +94,8 @@ CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU)
 ENDIF()
+
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-class-memaccess")
 
 IF(NOT MSVC)
 
@@ -499,8 +501,7 @@ SET(INNOBASE_SOURCES
 	ut/ut0rnd.cc
 	ut/ut0ut.cc
 	ut/ut0vec.cc
-	ut/ut0wqueue.cc
-	ut/ut0timer.cc)
+	ut/ut0wqueue.cc)
 
 IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le")
     enable_language(ASM)

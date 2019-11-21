@@ -22,12 +22,13 @@
 #  server-system-variables.html                                               #
 #                                                                             #
 ###############################################################################
+
 --source include/have_big5.inc
 --source include/have_ujis.inc
 --source include/have_sjis.inc
 --source include/have_utf8.inc
 --source include/have_ucs2.inc
-
+--source include/default_charset.inc
 --source include/load_sysvars.inc
 
 ###################################################
@@ -38,7 +39,8 @@
 #                 Save initial value                        #
 #############################################################
 SET @global_start_value = @@global.collation_database;
-SELECT @global_start_value;
+SET @@global.collation_database=@@collation_server;
+SELECT @@global.collation_database;
 # Save initial session value
 SET @session_start_value = @@collation_database;
 SELECT @session_start_value;
@@ -69,6 +71,7 @@ SET session collation_database=utf8_unicode_ci;
 SELECT session collation_database;
 # using another syntax for accessing dynamic variable
 SET global collation_database=utf8_unicode_ci;
+set global collation_database=@@collation_server;
 --Error ER_BAD_FIELD_ERROR
 SELECT global collation_database;
 
@@ -79,11 +82,13 @@ SELECT global collation_database;
 SET @@collation_database = latin1_bin;
 SET @@collation_database = DEFAULT;
 SELECT DEFAULT_COLLATION_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME=DATABASE();
-SELECT @@collation_database AS DEFAULT_VALUE;
+SELECT @@collation_database = @@global.collation_database;
 
 SET @@global.collation_database = latin1_bin;
 SET @@global.collation_database = DEFAULT;
-SELECT @@global.collation_database;
+# collation_database is depending on how the 'test' database was created, so
+# we can't trust it's value.
+SELECT length(@@global.collation_database) > 0;
 
 --echo '#--------------------FN_DYNVARS_016_03-------------------------#'
 ##############################################################################
@@ -256,9 +261,7 @@ SELECT @@session.collation_database =
 #     Restore initial value        #
 ####################################
 SET @@global.collation_database = @global_start_value;
-SELECT @@global.collation_database;
 SET @@session.collation_database = @session_start_value;
-SELECT @@session.collation_database;
 
 ###########################################################
 #                 END OF collation_database TESTS         #

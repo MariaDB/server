@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -563,7 +563,7 @@ TruncateLogParser::scan(
 	while (fil_file_readdir_next_file(
 			&err, dir_path, dir, &fileinfo) == 0) {
 
-		ulint nm_len = strlen(fileinfo.name);
+		const size_t nm_len = strlen(fileinfo.name);
 
 		if (fileinfo.type == OS_FILE_TYPE_FILE
 		    && nm_len > sizeof "ib_trunc.log"
@@ -586,18 +586,13 @@ TruncateLogParser::scan(
 				err = DB_OUT_OF_MEMORY;
 				break;
 			}
-			memset(log_file_name, 0, sz);
 
-			strncpy(log_file_name, dir_path, dir_len);
-			ulint	log_file_name_len = strlen(log_file_name);
-			if (log_file_name[log_file_name_len - 1]
-				!= OS_PATH_SEPARATOR) {
-
-				log_file_name[log_file_name_len]
-					= OS_PATH_SEPARATOR;
-				log_file_name_len = strlen(log_file_name);
+			memcpy(log_file_name, dir_path, dir_len);
+			char* e = log_file_name + dir_len;
+			if (e[-1] != OS_PATH_SEPARATOR) {
+				*e++ = OS_PATH_SEPARATOR;
 			}
-			strcat(log_file_name, fileinfo.name);
+			strcpy(e, fileinfo.name);
 			log_files.push_back(log_file_name);
 		}
 	}
@@ -753,14 +748,10 @@ public:
 	Constructor
 
 	@param[in,out]	table	Table to truncate
+	@param[in,out]	trx	dictionary transaction
 	@param[in]	noredo	whether to disable redo logging */
-	DropIndex(dict_table_t* table, bool noredo)
-		:
-		Callback(table->id, noredo),
-		m_table(table)
-	{
-		/* No op */
-	}
+	DropIndex(dict_table_t* table, trx_t* trx, bool noredo)
+		: Callback(table->id, noredo), m_trx(trx), m_table(table) {}
 
 	/**
 	@param mtr	mini-transaction covering the read
@@ -769,8 +760,10 @@ public:
 	dberr_t operator()(mtr_t* mtr, btr_pcur_t* pcur) const;
 
 private:
+	/** dictionary transaction */
+	trx_t* const		m_trx;
 	/** Table to be truncated */
-	dict_table_t*		m_table;
+	dict_table_t* const	m_table;
 };
 
 /** Callback to create the indexes during TRUNCATE */
@@ -912,7 +905,7 @@ DropIndex::operator()(mtr_t* mtr, btr_pcur_t* pcur) const
 {
 	rec_t*	rec = btr_pcur_get_rec(pcur);
 
-	bool	freed = dict_drop_index_tree(rec, pcur, mtr);
+	bool	freed = dict_drop_index_tree(rec, pcur, m_trx, mtr);
 
 #ifdef UNIV_DEBUG
 	{
@@ -1039,12 +1032,12 @@ CreateIndex::operator()(mtr_t* mtr, btr_pcur_t* pcur) const
 			root_page_no = FIL_NULL;);
 
 	if (root_page_no != FIL_NULL) {
-
-		rec_t*	rec = btr_pcur_get_rec(pcur);
-
-		page_rec_write_field(
-			rec, DICT_FLD__SYS_INDEXES__PAGE_NO,
-			root_page_no, mtr);
+		ulint   len;
+		byte*   data = rec_get_nth_field_old(
+			btr_pcur_get_rec(pcur),
+			DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
+		ut_ad(len == 4);
+		mlog_write_ulint(data, root_page_no, MLOG_4BYTES, mtr);
 
 		/* We will need to commit and restart the
 		mini-transaction in order to avoid deadlocks.
@@ -1127,7 +1120,7 @@ row_truncate_rollback(
 		it can be recovered using drop/create sequence. */
 		dict_table_x_lock_indexes(table);
 
-		DropIndex       dropIndex(table, no_redo);
+		DropIndex       dropIndex(table, trx, no_redo);
 
 		SysIndexIterator().for_each(dropIndex);
 
@@ -1535,11 +1528,11 @@ row_truncate_update_system_tables(
 			DBUG_EXECUTE_IF("ib_trunc_sleep_before_fts_cache_clear",
 					os_thread_sleep(10000000););
 
-			table->fts->fts_status |= TABLE_DICT_LOCKED;
-			fts_update_next_doc_id(trx, table, NULL, 0);
+			table->fts->dict_locked = true;
+			fts_update_next_doc_id(trx, table, 0);
 			fts_cache_clear(table->fts->cache);
 			fts_cache_init(table->fts->cache);
-			table->fts->fts_status &= uint(~TABLE_DICT_LOCKED);
+			table->fts->dict_locked = false;
 		}
 	}
 
@@ -1793,7 +1786,7 @@ dberr_t row_truncate_table_for_mysql(dict_table_t* table, trx_t* trx)
 	ut_a(trx->dict_operation_lock_mode == 0);
 	row_mysql_lock_data_dictionary(trx);
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 
 	/* Step-4: Stop all the background process associated with table. */
 	dict_stats_wait_bg_to_stop_using_table(table, trx);
@@ -1941,7 +1934,7 @@ dberr_t row_truncate_table_for_mysql(dict_table_t* table, trx_t* trx)
 	indexes) */
 	if (!dict_table_is_temporary(table)) {
 
-		DropIndex	dropIndex(table, no_redo);
+		DropIndex	dropIndex(table, trx, no_redo);
 
 		err = SysIndexIterator().for_each(dropIndex);
 
@@ -2001,7 +1994,7 @@ dberr_t row_truncate_table_for_mysql(dict_table_t* table, trx_t* trx)
 	DBUG_EXECUTE_IF("ib_trunc_crash_with_intermediate_log_checkpoint",
 			log_buffer_flush_to_disk();
 			os_thread_sleep(2000000);
-			log_checkpoint(TRUE, TRUE);
+			log_checkpoint(TRUE);
 			os_thread_sleep(1000000);
 			DBUG_SUICIDE(););
 
@@ -2229,7 +2222,7 @@ truncate_t::fixup_tables_in_non_system_tablespace()
 
 	if (err == DB_SUCCESS && s_tables.size() > 0) {
 
-		log_make_checkpoint_at(LSN_MAX, TRUE);
+		log_make_checkpoint();
 	}
 
 	for (ulint i = 0; i < s_tables.size(); ++i) {

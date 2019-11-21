@@ -3,6 +3,9 @@
 #
 CREATE TABLE t1(c1 INT PRIMARY KEY, c2 CHAR(1), c3 INT UNSIGNED) ENGINE=InnoDB;
 SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG='+d,create_index_metadata_fail';
+ALTER TABLE t1 ADD INDEX (c2), ADD INDEX (c3);
+ERROR HY000: The table 't1' is full
 SET DEBUG_DBUG='+d,ib_create_table_fail_too_many_trx';
 ALTER TABLE t1 ADD INDEX (c2), ADD INDEX (c3);
 ERROR HY000: Too many active concurrent transactions
@@ -48,6 +51,7 @@ SELECT * FROM information_schema.innodb_sys_tables
 WHERE table_id = ID;
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	FILE_FORMAT	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 # Files in datadir after manual recovery.
+db.opt
 t1.frm
 t1.ibd
 SHOW TABLES;
@@ -105,6 +109,7 @@ DROP TABLE t2;
 CREATE TABLE t2 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=InnoDB;
 ALTER TABLE t2 ADD PRIMARY KEY (f2, f1);
 DROP TABLE t2;
+db.opt
 # -------------------------
 # End of Testing Scenario 2
 # -------------------------
@@ -123,6 +128,7 @@ SELECT * FROM information_schema.innodb_sys_tables
 WHERE table_id = ID;
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	FILE_FORMAT	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 # Files in datadir after manual recovery.
+db.opt
 t1.frm
 t1.ibd
 SHOW TABLES;

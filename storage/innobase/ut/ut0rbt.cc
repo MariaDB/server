@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 /********************************************************************//**
@@ -89,7 +89,6 @@ rbt_check_ordering(
 
 	return(TRUE);
 }
-#endif /* UNIV_DEBUG || IB_RBT_TESTING */
 
 /**********************************************************************//**
 Check that every path from the root to the leaves has the same count.
@@ -138,6 +137,7 @@ rbt_count_black_nodes(
 
 	return(result);
 }
+#endif /* UNIV_DEBUG || IB_RBT_TESTING */
 
 /**********************************************************************//**
 Turn the node's right child's left sub-tree into node's right sub-tree.

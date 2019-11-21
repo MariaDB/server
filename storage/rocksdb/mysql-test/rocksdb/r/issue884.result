@@ -1,0 +1,79 @@
+create table test (
+a bigint(20) not null,
+b bigint(20) not null,
+c varchar(500) not null,
+d bigint(20) not null,
+e bigint(20) not null,
+f varchar(500) not null,
+g varchar(500) not null,
+h varchar(500) not null,
+i varchar(1000) not null,
+j varchar(16384) not null,
+k varchar(200) not null,
+l varchar(500) not null,
+m varchar(100) not null,
+n bigint(20) not null,
+primary key (a, b, m, c(100), l(100), d, e, f(100), g(100), h(100), n),
+key n (n),
+key d (d, a)
+) engine = rocksdb default charset = latin1;
+Table	Op	Msg_type	Msg_text
+test.test	analyze	status	OK
+explain
+select * from test where d = 10 and a = 10 and b = 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	test	index_merge	PRIMARY,d	d,PRIMARY	24,16	NULL	#	Using intersect(d,PRIMARY); Using where
+select * from test where d = 10 and a = 10 and b = 2;
+a	b	c	d	e	f	g	h	i	j	k	l	m	n
+10	2	i	10	950	f	g	h	i	j	k	l	m	950
+10	2	i	10	951	f	g	h	i	j	k	l	m	951
+10	2	i	10	952	f	g	h	i	j	k	l	m	952
+10	2	i	10	953	f	g	h	i	j	k	l	m	953
+10	2	i	10	954	f	g	h	i	j	k	l	m	954
+10	2	i	10	955	f	g	h	i	j	k	l	m	955
+10	2	i	10	956	f	g	h	i	j	k	l	m	956
+10	2	i	10	957	f	g	h	i	j	k	l	m	957
+10	2	i	10	958	f	g	h	i	j	k	l	m	958
+10	2	i	10	959	f	g	h	i	j	k	l	m	959
+10	2	i	10	960	f	g	h	i	j	k	l	m	960
+10	2	i	10	961	f	g	h	i	j	k	l	m	961
+10	2	i	10	962	f	g	h	i	j	k	l	m	962
+10	2	i	10	963	f	g	h	i	j	k	l	m	963
+10	2	i	10	964	f	g	h	i	j	k	l	m	964
+10	2	i	10	965	f	g	h	i	j	k	l	m	965
+10	2	i	10	966	f	g	h	i	j	k	l	m	966
+10	2	i	10	967	f	g	h	i	j	k	l	m	967
+10	2	i	10	968	f	g	h	i	j	k	l	m	968
+10	2	i	10	969	f	g	h	i	j	k	l	m	969
+10	2	i	10	970	f	g	h	i	j	k	l	m	970
+10	2	i	10	971	f	g	h	i	j	k	l	m	971
+10	2	i	10	972	f	g	h	i	j	k	l	m	972
+10	2	i	10	973	f	g	h	i	j	k	l	m	973
+10	2	i	10	974	f	g	h	i	j	k	l	m	974
+10	2	i	10	975	f	g	h	i	j	k	l	m	975
+10	2	i	10	976	f	g	h	i	j	k	l	m	976
+10	2	i	10	977	f	g	h	i	j	k	l	m	977
+10	2	i	10	978	f	g	h	i	j	k	l	m	978
+10	2	i	10	979	f	g	h	i	j	k	l	m	979
+10	2	i	10	980	f	g	h	i	j	k	l	m	980
+10	2	i	10	981	f	g	h	i	j	k	l	m	981
+10	2	i	10	982	f	g	h	i	j	k	l	m	982
+10	2	i	10	983	f	g	h	i	j	k	l	m	983
+10	2	i	10	984	f	g	h	i	j	k	l	m	984
+10	2	i	10	985	f	g	h	i	j	k	l	m	985
+10	2	i	10	986	f	g	h	i	j	k	l	m	986
+10	2	i	10	987	f	g	h	i	j	k	l	m	987
+10	2	i	10	988	f	g	h	i	j	k	l	m	988
+10	2	i	10	989	f	g	h	i	j	k	l	m	989
+10	2	i	10	990	f	g	h	i	j	k	l	m	990
+10	2	i	10	991	f	g	h	i	j	k	l	m	991
+10	2	i	10	992	f	g	h	i	j	k	l	m	992
+10	2	i	10	993	f	g	h	i	j	k	l	m	993
+10	2	i	10	994	f	g	h	i	j	k	l	m	994
+10	2	i	10	995	f	g	h	i	j	k	l	m	995
+10	2	i	10	996	f	g	h	i	j	k	l	m	996
+10	2	i	10	997	f	g	h	i	j	k	l	m	997
+10	2	i	10	998	f	g	h	i	j	k	l	m	998
+10	2	i	10	999	f	g	h	i	j	k	l	m	999
+10	2	i	10	1000	f	g	h	i	j	k	l	m	1000
+drop table test;

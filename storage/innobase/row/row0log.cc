@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -385,8 +385,7 @@ row_log_online_op(
 		if (log_tmp_is_encrypted()) {
 			if (!log_tmp_block_encrypt(
 				    buf, srv_sort_buf_size,
-				    log->crypt_tail, byte_offset,
-				    index->table->space)) {
+				    log->crypt_tail, byte_offset)) {
 				log->error = DB_DECRYPTION_FAILED;
 				goto write_failed;
 			}
@@ -396,7 +395,7 @@ row_log_online_op(
 		}
 
 		log->tail.blocks++;
-		if (!os_file_write_int_fd(
+		if (DB_SUCCESS != os_file_write_int_fd(
 			    request,
 			    "(modification log)",
 			    log->fd,
@@ -534,7 +533,7 @@ row_log_table_close_func(
 		}
 
 		log->tail.blocks++;
-		if (!os_file_write_int_fd(
+		if (DB_SUCCESS != os_file_write_int_fd(
 			    request,
 			    "(modification log)",
 			    log->fd,
@@ -1525,7 +1524,7 @@ row_log_table_apply_insert_low(
 
 	error = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_TREE, index, index->n_uniq,
-		entry, 0, thr, false);
+		entry, 0, thr);
 
 	switch (error) {
 	case DB_SUCCESS:
@@ -1548,8 +1547,7 @@ row_log_table_apply_insert_low(
 		entry = row_build_index_entry(row, NULL, index, heap);
 		error = row_ins_sec_index_entry_low(
 			flags, BTR_MODIFY_TREE,
-			index, offsets_heap, heap, entry, trx_id, thr,
-			false);
+			index, offsets_heap, heap, entry, trx_id, thr);
 
 		if (error != DB_SUCCESS) {
 			if (error == DB_DUPLICATE_KEY) {
@@ -2179,7 +2177,7 @@ func_exit_committed:
 			BTR_CREATE_FLAG | BTR_NO_LOCKING_FLAG
 			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG,
 			BTR_MODIFY_TREE, index, offsets_heap, heap,
-			entry, trx_id, thr, false);
+			entry, trx_id, thr);
 
 		/* Report correct index name for duplicate key error. */
 		if (error == DB_DUPLICATE_KEY) {
@@ -2658,7 +2656,7 @@ all_done:
 		IORequest		request(IORequest::READ);
 		byte*			buf = index->online_log->head.block;
 
-		if (!os_file_read_no_error_handling_int_fd(
+		if (DB_SUCCESS != os_file_read_no_error_handling_int_fd(
 			    request, index->online_log->fd,
 			    buf, ofs, srv_sort_buf_size)) {
 			ib::error()
@@ -2670,8 +2668,7 @@ all_done:
 		if (log_tmp_is_encrypted()) {
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
-				    index->online_log->crypt_head,
-				    ofs, index->table->space)) {
+				    index->online_log->crypt_head, ofs)) {
 				error = DB_DECRYPTION_FAILED;
 				goto func_exit;
 			}
@@ -2902,7 +2899,7 @@ row_log_table_apply(
 
 	stage->begin_phase_log_table();
 
-	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
+	ut_ad(!rw_lock_own(&dict_operation_lock, RW_LOCK_S));
 	clust_index = dict_table_get_first_index(old_table);
 
 	rw_lock_x_lock(dict_index_get_lock(clust_index));
@@ -3529,7 +3526,7 @@ all_done:
 
 		byte*	buf = index->online_log->head.block;
 
-		if (!os_file_read_no_error_handling_int_fd(
+		if (DB_SUCCESS != os_file_read_no_error_handling_int_fd(
 			    request, index->online_log->fd,
 			    buf, ofs, srv_sort_buf_size)) {
 			ib::error()
@@ -3541,8 +3538,7 @@ all_done:
 		if (log_tmp_is_encrypted()) {
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
-				    index->online_log->crypt_head,
-				    ofs, index->table->space)) {
+				    index->online_log->crypt_head, ofs)) {
 				error = DB_DECRYPTION_FAILED;
 				goto func_exit;
 			}

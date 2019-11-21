@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -171,7 +171,8 @@ purge_graph_build()
 
 	trx_t* trx = trx_allocate_for_background();
 	ut_ad(!trx->id);
-	trx->start_time = ut_time();
+	trx->start_time = time(NULL);
+	trx->start_time_micro = microsecond_interval_timer();
 	trx->state = TRX_STATE_ACTIVE;
 	trx->op_info = "purge trx";
 
@@ -182,7 +183,8 @@ purge_graph_build()
 
 	for (ulint i = 0; i < srv_n_purge_threads; ++i) {
 		que_thr_t*	thr = que_thr_create(fork, heap, NULL);
-		thr->child = row_purge_node_create(thr, heap);
+		thr->child = new(mem_heap_alloc(heap, sizeof(purge_node_t)))
+			purge_node_t(thr);
 	}
 
 	return(fork);
@@ -220,10 +222,6 @@ purge_sys_t::~purge_sys_t()
 	trx_free_for_background(trx);
 	view.close();
 	rw_lock_free(&latch);
-	/* rw_lock_free() already called latch.~rw_lock_t(); tame the
-	debug assertions when the destructor will be called once more. */
-	ut_ad(latch.magic_n == 0);
-	ut_d(latch.magic_n = RW_LOCK_MAGIC_N);
 	mutex_free(&pq_mutex);
 	os_event_destroy(event);
 }
@@ -1006,14 +1004,12 @@ trx_purge_initiate_truncate(
 	mutex_exit(&fil_system->mutex);
 
 	for (ulint i = 0; i < undo_trunc->rsegs_size(); ++i) {
-		trx_rsegf_t*	rseg_header;
-
 		trx_rseg_t*	rseg = undo_trunc->get_ith_rseg(i);
 
-		rseg->page_no = trx_rseg_header_create(
+		buf_block_t* rblock = trx_rseg_header_create(
 			space_id, ULINT_MAX, rseg->id, &mtr);
-
-		rseg_header = trx_rsegf_get_new(space_id, rseg->page_no, &mtr);
+		ut_ad(rblock);
+		rseg->page_no = rblock ? rblock->page.id.page_no() : FIL_NULL;
 
 		/* Before re-initialization ensure that we free the existing
 		structure. There can't be any active transactions. */
@@ -1050,9 +1046,11 @@ trx_purge_initiate_truncate(
 		UT_LIST_INIT(rseg->insert_undo_cached, &trx_undo_t::undo_list);
 
 		/* These were written by trx_rseg_header_create(). */
-		ut_ad(mach_read_from_4(rseg_header + TRX_RSEG_MAX_SIZE)
+		ut_ad(mach_read_from_4(TRX_RSEG + TRX_RSEG_MAX_SIZE
+				       + rblock->frame)
 		      == uint32_t(rseg->max_size));
-		ut_ad(!mach_read_from_4(rseg_header + TRX_RSEG_HISTORY_SIZE));
+		ut_ad(!mach_read_from_4(TRX_RSEG + TRX_RSEG_HISTORY_SIZE
+					+ rblock->frame));
 
 		rseg->max_size = ULINT_MAX;
 
@@ -1500,7 +1498,7 @@ trx_purge_attach_undo_recs(
 	ulint		batch_size)	/*!< in: no. of pages to purge */
 {
 	que_thr_t*	thr;
-	ulint		i = 0;
+	ulint		i;
 	ulint		n_pages_handled = 0;
 	ulint		n_thrs = UT_LIST_GET_LEN(purge_sys->query->thrs);
 
@@ -1508,6 +1506,8 @@ trx_purge_attach_undo_recs(
 
 	purge_sys->limit = purge_sys->iter;
 
+#ifdef UNIV_DEBUG
+	i = 0;
 	/* Debug code to validate some pre-requisites and reset done flag. */
 	for (thr = UT_LIST_GET_FIRST(purge_sys->query->thrs);
 	     thr != NULL && i < n_purge_threads;
@@ -1518,16 +1518,16 @@ trx_purge_attach_undo_recs(
 		/* Get the purge node. */
 		node = (purge_node_t*) thr->child;
 
-		ut_a(que_node_get_type(node) == QUE_NODE_PURGE);
-		ut_a(node->undo_recs == NULL);
-		ut_a(node->done);
-
-		node->done = FALSE;
+		ut_ad(que_node_get_type(node) == QUE_NODE_PURGE);
+		ut_ad(node->undo_recs == NULL);
+		ut_ad(!node->in_progress);
+		ut_d(node->in_progress = true);
 	}
 
 	/* There should never be fewer nodes than threads, the inverse
 	however is allowed because we only use purge threads as needed. */
-	ut_a(i == n_purge_threads);
+	ut_ad(i == n_purge_threads);
+#endif
 
 	/* Fetch and parse the UNDO records. The UNDO records are added
 	to a per purge node vector. */
@@ -1538,7 +1538,7 @@ trx_purge_attach_undo_recs(
 
 	i = 0;
 
-	for (;;) {
+	while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown) {
 		purge_node_t*		node;
 		trx_purge_rec_t*	purge_rec;
 
@@ -1675,7 +1675,12 @@ trx_purge(
 					to submit to the work queue */
 	ulint	batch_size,		/*!< in: the maximum number of records
 					to purge in one batch */
-	bool	truncate)		/*!< in: truncate history if true */
+	bool	truncate		/*!< in: truncate history if true */
+#ifdef UNIV_DEBUG
+	, srv_slot_t *slot		/*!< in/out: purge coordinator
+					thread slot */
+#endif
+)
 {
 	que_thr_t*	thr = NULL;
 	ulint		n_pages_handled;
@@ -1730,6 +1735,7 @@ trx_purge(
 run_synchronously:
 		++purge_sys->n_submitted;
 
+		ut_d(thr->thread_slot = slot);
 		que_run_threads(thr);
 
 		my_atomic_addlint(

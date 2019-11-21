@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* Defines to make different thread packages compatible */
 
@@ -693,7 +693,11 @@ extern void my_mutex_end(void);
   We need to have at least 256K stack to handle calls to myisamchk_init()
   with the current number of keys and key parts.
 */
+#ifdef __SANITIZE_ADDRESS__
+#define DEFAULT_THREAD_STACK	(364*1024L)
+#else
 #define DEFAULT_THREAD_STACK	(292*1024L)
+#endif
 #endif
 
 #define MY_PTHREAD_LOCK_READ 0

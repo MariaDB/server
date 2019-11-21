@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -69,6 +69,11 @@ private:
 	TABLE*	mariadb_table;
 
 public:
+	/** Default constructor */
+	purge_vcol_info_t() :
+		requested(false), used(false), first_use(false),
+		mariadb_table(NULL)
+	{}
 	/** Reset the state. */
 	void reset()
 	{

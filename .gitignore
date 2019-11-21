@@ -81,6 +81,7 @@ make_dist.cmake
 mariadb-*.*.*.tar.gz
 mariadb-*.*.*/
 mysql-test/lib/My/SafeProcess/my_safe_process
+mysql-test/lib/My/SafeProcess/wsrep_check_version
 mysql-test/mtr
 mysql-test/mysql-test-run
 mysql-test/var
@@ -189,9 +190,10 @@ storage/myisam/myisampack
 storage/myisam/rt_test
 storage/myisam/sp_test
 storage/rocksdb/ldb
+storage/rocksdb/myrocks_hotbackup
 storage/rocksdb/mysql_ldb
-storage/rocksdb/sst_dump
 storage/rocksdb/rdb_source_revision.h
+storage/rocksdb/sst_dump
 storage/tokudb/PerconaFT/buildheader/db.h
 storage/tokudb/PerconaFT/buildheader/make_tdb
 storage/tokudb/PerconaFT/buildheader/runcat.sh

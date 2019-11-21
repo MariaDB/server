@@ -142,4 +142,21 @@ CREATE TABLE t1 (a VARCHAR(30), b INT, a2 VARCHAR(30) GENERATED ALWAYS AS (a) VI
 CREATE INDEX idx ON t1(a2(10), b, a2(20));
 ERROR 42S21: Duplicate column name 'a2'
 DROP TABLE t1;
+#
+# MDEV-17540 Server crashes in row_purge after TRUNCATE TABLE
+#
+CREATE TABLE t1 (a BIT(14)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(b'01110110101011'),(b'01100111111000'),(b'00001011110100'),
+(b'01110110111010'),(b'10001010101011'),(b'01100111001111');
+CREATE TABLE t2 (
+pk INT DEFAULT 1,
+b YEAR,
+c BIT(14),
+d YEAR AS (b),
+e BIT(14) AS (c),
+UNIQUE(pk),
+KEY(e)
+) ENGINE=InnoDB;
+DROP TABLE t1, t2;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

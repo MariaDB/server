@@ -1,0 +1,43 @@
+--source include/have_rocksdb.inc
+
+create table test (
+  a bigint(20) not null,
+  b bigint(20) not null,
+  c varchar(500) not null,
+  d bigint(20) not null,
+  e bigint(20) not null,
+  f varchar(500) not null,
+  g varchar(500) not null,
+  h varchar(500) not null,
+  i varchar(1000) not null,
+  j varchar(16384) not null,
+  k varchar(200) not null,
+  l varchar(500) not null,
+  m varchar(100) not null,
+  n bigint(20) not null,
+  primary key (a, b, m, c(100), l(100), d, e, f(100), g(100), h(100), n),
+  key n (n),
+  key d (d, a)
+) engine = rocksdb default charset = latin1;
+
+--disable_query_log
+let $i = 1000;
+while ($i) {
+  --eval insert into test values (10, 1, "i", $i / 100, $i, "f", "g", "h", "i", "j", "k", "l", "m", $i);
+  --eval insert into test values (10, 2, "i", $i / 100, $i, "f", "g", "h", "i", "j", "k", "l", "m", $i);
+  --eval insert into test values (10, 3, "i", $i / 100, $i, "f", "g", "h", "i", "j", "k", "l", "m", $i);
+  --eval insert into test values (10, 4, "i", $i / 100, $i, "f", "g", "h", "i", "j", "k", "l", "m", $i);
+  --eval insert into test values (10, 5, "i", $i / 100, $i, "f", "g", "h", "i", "j", "k", "l", "m", $i);
+  dec $i;
+}
+set global rocksdb_force_flush_memtable_now = true;
+analyze table test;
+--enable_query_log
+
+--replace_column 9 #
+explain
+select * from test where d = 10 and a = 10 and b = 2;
+select * from test where d = 10 and a = 10 and b = 2;
+
+
+drop table test;

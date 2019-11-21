@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -83,8 +83,7 @@ trx_rollback_to_savepoint_low(
 	roll_node = roll_node_create(heap);
 
 	if (savept != NULL) {
-		roll_node->partial = TRUE;
-		roll_node->savept = *savept;
+		roll_node->savept = savept;
 		check_trx_state(trx);
 	} else {
 		assert_trx_nonlocking_or_in_list(trx);
@@ -198,6 +197,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 		return(trx_rollback_for_mysql_low(trx));
 
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		ut_ad(!trx_is_autocommit_non_locking(trx));
 		if (trx->has_logged_persistent()) {
 			/* Change the undo log state back from
@@ -294,6 +294,7 @@ trx_rollback_last_sql_stat_for_mysql(
 		return(err);
 
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		/* The statement rollback is only allowed on an ACTIVE
 		transaction, not a PREPARED or COMMITTED one. */
@@ -467,6 +468,7 @@ trx_rollback_to_savepoint_for_mysql(
 				trx, savep, mysql_binlog_cache_pos));
 
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		/* The savepoint rollback is only allowed on an ACTIVE
 		transaction, not a PREPARED or COMMITTED one. */
@@ -695,9 +697,9 @@ trx_rollback_resurrected(
 	ut_ad(trx_sys_mutex_own());
 
 	/* The trx->is_recovered flag and trx->state are set
-	atomically under the protection of the trx->mutex (and
-	lock_sys->mutex) in lock_trx_release_locks(). We do not want
-	to accidentally clean up a non-recovered transaction here. */
+	atomically under the protection of the trx->mutex in
+	trx_t::commit_state(). We do not want to accidentally clean up
+	a non-recovered transaction here. */
 
 	trx_mutex_enter(trx);
 	if (!trx->is_recovered) {
@@ -720,8 +722,6 @@ func_exit:
 		    && !srv_undo_sources && srv_fast_shutdown) {
 fake_prepared:
 			trx->state = TRX_STATE_PREPARED;
-			trx_sys->n_prepared_trx++;
-			trx_sys->n_prepared_recovered_trx++;
 			*all = FALSE;
 			goto func_exit;
 		}
@@ -744,6 +744,7 @@ fake_prepared:
 		}
 		return(FALSE);
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		goto func_exit;
 	case TRX_STATE_NOT_STARTED:
 		break;
@@ -768,11 +769,11 @@ trx_roll_must_shutdown()
 		return true;
 	}
 
-	ib_time_t time = ut_time();
+	time_t now = time(NULL);
 	mutex_enter(&trx_sys->mutex);
 	mutex_enter(&recv_sys->mutex);
 
-	if (recv_sys->report(time)) {
+	if (recv_sys->report(now)) {
 		ulint n_trx = 0;
 		ulonglong n_rows = 0;
 		for (const trx_t* t = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
@@ -1118,7 +1119,7 @@ que_thr_t*
 trx_rollback_start(
 /*===============*/
 	trx_t*		trx,		/*!< in: transaction */
-	ib_id_t		roll_limit)	/*!< in: rollback to undo no (for
+	undo_no_t	roll_limit)	/*!< in: rollback to undo no (for
 					partial undo), 0 if we are rolling back
 					the entire transaction */
 {
@@ -1211,7 +1212,7 @@ trx_rollback_step(
 
 		ut_a(node->undo_thr == NULL);
 
-		roll_limit = node->partial ? node->savept.least_undo_no : 0;
+		roll_limit = node->savept ? node->savept->least_undo_no : 0;
 
 		trx_commit_or_rollback_prepare(trx);
 

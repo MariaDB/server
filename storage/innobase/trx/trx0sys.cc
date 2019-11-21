@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -411,7 +411,6 @@ trx_sysf_create(
 	ulint		slot_no;
 	buf_block_t*	block;
 	page_t*		page;
-	ulint		page_no;
 	byte*		ptr;
 
 	ut_ad(mtr);
@@ -463,11 +462,11 @@ trx_sysf_create(
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sysf_rseg_find_free(mtr);
-	page_no = trx_rseg_header_create(TRX_SYS_SPACE,
-					 ULINT_MAX, slot_no, mtr);
+	buf_block_t* rblock = trx_rseg_header_create(TRX_SYS_SPACE, ULINT_MAX,
+						     slot_no, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
-	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
+	ut_a(rblock->page.id.page_no() == FSP_FIRST_RSEG_PAGE_NO);
 }
 
 /** Initialize the transaction system main-memory data structures. */
@@ -925,13 +924,7 @@ trx_sys_close(void)
 	}
 
 	/* Only prepared transactions may be left in the system. Free them. */
-	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == trx_sys->n_prepared_trx
-	     || !srv_was_started
-	     || srv_read_only_mode
-	     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
-
 	while (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list)) {
-		UT_LIST_REMOVE(trx_sys->rw_trx_list, trx);
 		trx_free_prepared(trx);
 	}
 
@@ -977,16 +970,40 @@ trx_sys_any_active_transactions(void)
 
 	trx_sys_mutex_enter();
 
-	total_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list);
+	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
+	     trx != NULL;
+	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
+		ut_ad(trx->in_rw_trx_list);
+		trx_mutex_enter(trx);
+		switch (trx->state) {
+		case TRX_STATE_NOT_STARTED:
+			DBUG_ASSERT(!"invalid state");
+			/* fall through */
+		case TRX_STATE_PREPARED:
+		case TRX_STATE_PREPARED_RECOVERED:
+			break;
+		case TRX_STATE_ACTIVE:
+		case TRX_STATE_COMMITTED_IN_MEMORY:
+			total_trx++;
+		}
+		trx_mutex_exit(trx);
+	}
 
 	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
 	     trx != NULL;
 	     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
-		total_trx += trx->state != TRX_STATE_NOT_STARTED;
+		ut_ad(trx->in_mysql_trx_list);
+		trx_mutex_enter(trx);
+		/* This may count some ACTIVE transactions twice,
+		both in rw_trx_list and mysql_trx_list. */
+		total_trx += trx->state == TRX_STATE_ACTIVE;
+		/* Any PREPARED or COMMITTED transactions must be
+		in rw_trx_list, so it suffices to count them there. */
+		ut_ad(trx->in_rw_trx_list
+		      || trx->state == TRX_STATE_NOT_STARTED
+		      || trx->state == TRX_STATE_ACTIVE);
+		trx_mutex_exit(trx);
 	}
-
-	ut_a(total_trx >= trx_sys->n_prepared_trx);
-	total_trx -= trx_sys->n_prepared_trx;
 
 	trx_sys_mutex_exit();
 

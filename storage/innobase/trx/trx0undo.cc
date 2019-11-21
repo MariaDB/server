@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -1820,7 +1820,7 @@ trx_undo_free_prepared(
 					   TRX_STATE_COMMITTED_IN_MEMORY));
 			/* fall through */
 		case TRX_UNDO_ACTIVE:
-			/* lock_trx_release_locks() assigns
+			/* trx_t::commit_state() assigns
 			trx->is_recovered=false and
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY,
 			also for transactions that we faked
@@ -1852,7 +1852,7 @@ trx_undo_free_prepared(
 					   TRX_STATE_COMMITTED_IN_MEMORY));
 			/* fall through */
 		case TRX_UNDO_ACTIVE:
-			/* lock_trx_release_locks() assigns
+			/* trx_t::commit_state() assigns
 			trx->is_recovered=false and
 			trx->state = TRX_STATE_COMMITTED_IN_MEMORY,
 			also for transactions that we faked

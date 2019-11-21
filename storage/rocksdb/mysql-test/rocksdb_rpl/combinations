@@ -5,4 +5,3 @@ rocksdb_write_policy=write_committed
 [row-write-prepared]
 binlog-format=row
 rocksdb_write_policy=write_prepared
-rocksdb_commit_time_batch_for_recovery=on

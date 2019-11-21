@@ -3488,3 +3488,151 @@ ifnull(max(n1) over (partition by n1),'aaa')
 4
 drop table t1;
 drop view v1;
+#
+# MDEV-18431: Select max + row_number giving incorrect result
+#
+create table t1 (id int, v int);
+insert into t1 values (1, 1), (1,2), (1,3), (2, 1), (2, 2);
+select e.id,
+(select max(t1.v) from t1 where t1.id=e.id) as a,
+row_number() over (partition by e.id order by e.v) as b,
+(select max(t1.v) from t1 where t1.id=e.id) + (row_number() over (partition by e.id order by e.v)) as sum_a_b
+from t1 e;
+id	a	b	sum_a_b
+1	3	1	4
+1	3	2	5
+1	3	3	6
+2	2	1	3
+2	2	2	4
+drop table t1;
+#
+# MDEV-15837: Assertion `item1->type() == Item::FIELD_ITEM && item2->type() == Item::FIELD_ITEM'
+# failed in compare_order_elements function
+#
+CREATE TABLE t1 (a1 int);
+insert into t1 values (1),(2),(3);
+SELECT  rank() OVER (ORDER BY 1), ROW_NUMBER() OVER (ORDER BY (EXPORT_SET(5,'Y','N',',',4))) FROM t1;
+rank() OVER (ORDER BY 1)	ROW_NUMBER() OVER (ORDER BY (EXPORT_SET(5,'Y','N',',',4)))
+1	1
+1	2
+1	3
+drop table t1;
+#
+# MDEV-17781: Server crashes in next_linear_tab
+#
+CREATE TABLE t1 (i1 int);
+explain
+(SELECT AVG(0) OVER (), MAX('2') FROM t1)
+UNION ALL
+(SELECT AVG(0) OVER (), MAX('2') FROM t1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+(SELECT AVG(0) OVER (), MAX('2') FROM t1)
+UNION ALL
+(SELECT AVG(0) OVER (), MAX('2') FROM t1);
+AVG(0) OVER ()	MAX('2')
+0.0000	NULL
+0.0000	NULL
+drop table t1;
+#
+# MDEV-14791: Crash with order by expression containing window functions
+#
+CREATE TABLE t1 (b1 int, b2 int);
+INSERT INTO t1 VALUES (1,1),(0,0);
+explain
+SELECT b1 from t1 order by row_number() over (ORDER BY b2) + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
+SELECT b1 from t1 order by row_number() over (ORDER BY b2) + 1;
+b1
+0
+1
+explain
+SELECT b1 from t1 order by row_number() over (ORDER BY b2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
+SELECT b1 from t1 order by row_number() over (ORDER BY b2);
+b1
+0
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a int, b int, c int);
+INSERT INTO t1 VALUES (2,3,207), (1,21,909), (7,13,312), (8,64,248);
+explain
+SELECT * FROM t1 ORDER BY max(t1.a) over (partition by c);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+SELECT * FROM t1 ORDER BY max(t1.a) over (partition by c);
+a	b	c
+1	21	909
+2	3	207
+7	13	312
+8	64	248
+explain
+SELECT max(t1.a) over (partition by c) as x, b, c from t1 order by max(t1.a) over (partition by c);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+SELECT max(t1.a) over (partition by c) as x, b, c from t1 order by max(t1.a) over (partition by c);
+x	b	c
+1	21	909
+2	3	207
+7	13	312
+8	64	248
+drop table t1;
+#
+# MDEV-18373: DENSE_RANK is not calculated correctly
+#
+create table t1 (a int, b int);
+insert into t1 values (60, 1515),(60, 2000),(70, 2000),(55, 1600);
+select b, dense_rank() over (order by sum(a)) from t1 group by  b;
+b	dense_rank() over (order by sum(a))
+1515	2
+1600	1
+2000	3
+select b, dense_rank() over (order by sum(a)+1) from t1 group by  b;
+b	dense_rank() over (order by sum(a)+1)
+1515	2
+1600	1
+2000	3
+select b, row_number() over (partition by sum(a)) from t1 group by b;
+b	row_number() over (partition by sum(a))
+1515	1
+1600	1
+2000	1
+select b, row_number() over (partition by sum(a)+1) from t1 group by b;
+b	row_number() over (partition by sum(a)+1)
+1515	1
+1600	1
+2000	1
+drop table t1;
+#
+# MDEV-18015: Assertion `global_status_var.global_memory_used == 0' failed when using UDF,
+# window functions and views
+#
+create table t1 (id int, n1 int);
+insert into t1 values (1,1),(2,1),(3,2),(4,4);
+explain
+select max(n1) over (partition by 'abc') from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary
+select max(n1) over (partition by 'abc') from t1;
+max(n1) over (partition by 'abc')
+4
+4
+4
+4
+explain
+select rank() over (partition by 'abc' order by 'xyz') from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary
+select rank() over (partition by 'abc' order by 'xyz') from t1;
+rank() over (partition by 'abc' order by 'xyz')
+1
+1
+1
+1
+drop table t1;
+#
+# End of 10.2 tests
+#

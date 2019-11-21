@@ -6,7 +6,7 @@ FUNCTION(TOKU_GET_DEPENDEND_OS_LIBS target result)
   IF(deps)
    FOREACH(lib ${deps})
     # Filter out keywords for used for debug vs optimized builds
-    IF(NOT lib MATCHES "general" AND NOT lib MATCHES "debug" AND NOT lib MATCHES "optimized")
+    IF(TARGET ${lib})
       GET_TARGET_PROPERTY(lib_location ${lib} LOCATION)
       IF(NOT lib_location)
         SET(ret ${ret} ${lib})

@@ -1,6 +1,6 @@
 /*
-  Copyright (c) 2005, 2017, Oracle and/or its affiliates.
-  Copyright (c) 2009, 2018, MariaDB
+  Copyright (c) 2005, 2019, Oracle and/or its affiliates.
+  Copyright (c) 2009, 2019, MariaDB
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -8375,7 +8375,12 @@ bool ha_partition::inplace_alter_table(TABLE *altered_table,
 
   for (index= 0; index < m_tot_parts && !error; index++)
   {
-    ha_alter_info->handler_ctx= part_inplace_ctx->handler_ctx_array[index];
+    if ((ha_alter_info->handler_ctx=
+	 part_inplace_ctx->handler_ctx_array[index]) != NULL
+	&& index != 0)
+      ha_alter_info->handler_ctx->set_shared_data
+	(*part_inplace_ctx->handler_ctx_array[index - 1]);
+
     if (m_file[index]->ha_inplace_alter_table(altered_table,
                                               ha_alter_info))
       error= true;
@@ -8739,31 +8744,37 @@ void ha_partition::release_auto_increment()
       m_file[i]->ha_release_auto_increment();
     }
   }
-  else if (next_insert_id)
+  else
   {
-    ulonglong next_auto_inc_val;
     lock_auto_increment();
-    next_auto_inc_val= part_share->next_auto_inc_val;
-    /*
-      If the current auto_increment values is lower than the reserved
-      value, and the reserved value was reserved by this thread,
-      we can lower the reserved value.
-    */
-    if (next_insert_id < next_auto_inc_val &&
-        auto_inc_interval_for_cur_row.maximum() >= next_auto_inc_val)
+    if (next_insert_id)
     {
-      THD *thd= ha_thd();
+      ulonglong next_auto_inc_val= part_share->next_auto_inc_val;
       /*
-        Check that we do not lower the value because of a failed insert
-        with SET INSERT_ID, i.e. forced/non generated values.
+        If the current auto_increment values is lower than the reserved
+        value, and the reserved value was reserved by this thread,
+        we can lower the reserved value.
       */
-      if (thd->auto_inc_intervals_forced.maximum() < next_insert_id)
-        part_share->next_auto_inc_val= next_insert_id;
+      if (next_insert_id < next_auto_inc_val &&
+          auto_inc_interval_for_cur_row.maximum() >= next_auto_inc_val)
+      {
+        THD *thd= ha_thd();
+        /*
+          Check that we do not lower the value because of a failed insert
+          with SET INSERT_ID, i.e. forced/non generated values.
+        */
+        if (thd->auto_inc_intervals_forced.maximum() < next_insert_id)
+          part_share->next_auto_inc_val= next_insert_id;
+      }
+      DBUG_PRINT("info", ("part_share->next_auto_inc_val: %lu",
+                          (ulong) part_share->next_auto_inc_val));
     }
-    DBUG_PRINT("info", ("part_share->next_auto_inc_val: %lu",
-                        (ulong) part_share->next_auto_inc_val));
-
-    /* Unlock the multi row statement lock taken in get_auto_increment */
+    /*
+      Unlock the multi-row statement lock taken in get_auto_increment.
+      These actions must be performed even if the next_insert_id field
+      contains zero, otherwise if the update_auto_increment fails then
+      an unnecessary lock will remain:
+    */
     if (auto_increment_safe_stmt_log_lock)
     {
       auto_increment_safe_stmt_log_lock= FALSE;

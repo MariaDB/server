@@ -2162,7 +2162,7 @@ int ha_sphinx::Connect ( const char * sHost, ushort uPort )
 #if MYSQL_VERSION_ID>=50515
 			struct addrinfo *hp = NULL;
 			tmp_errno = getaddrinfo ( sHost, NULL, NULL, &hp );
-			if ( !tmp_errno || !hp || !hp->ai_addr )
+			if ( tmp_errno || !hp || !hp->ai_addr )
 			{
 				bError = true;
 				if ( hp )
@@ -2189,8 +2189,9 @@ int ha_sphinx::Connect ( const char * sHost, ushort uPort )
 			}
 
 #if MYSQL_VERSION_ID>=50515
-			memcpy ( &sin.sin_addr, hp->ai_addr, Min ( sizeof(sin.sin_addr), (size_t)hp->ai_addrlen ) );
-			freeaddrinfo ( hp );
+			struct sockaddr_in *in = (sockaddr_in *)hp->ai_addr;
+			memcpy ( &sin.sin_addr, &in->sin_addr, Min ( sizeof(sin.sin_addr), sizeof(in->sin_addr) ) );
+ 			freeaddrinfo ( hp );
 #else
 			memcpy ( &sin.sin_addr, hp->h_addr, Min ( sizeof(sin.sin_addr), (size_t)hp->h_length ) );
 			my_gethostbyname_r_free();
@@ -2291,7 +2292,8 @@ int ha_sphinx::HandleMysqlError ( MYSQL * pConn, int iErrCode )
 	CSphSEThreadTable * pTable = GetTls ();
 	if ( pTable )
 	{
-		strncpy ( pTable->m_tStats.m_sLastMessage, mysql_error ( pConn ), sizeof ( pTable->m_tStats.m_sLastMessage ) );
+		strncpy ( pTable->m_tStats.m_sLastMessage, mysql_error ( pConn ), sizeof pTable->m_tStats.m_sLastMessage - 1 );
+		pTable->m_tStats.m_sLastMessage[sizeof pTable->m_tStats.m_sLastMessage - 1] = '\0';
 		pTable->m_tStats.m_bLastError = true;
 	}
 
@@ -2558,7 +2560,8 @@ bool ha_sphinx::UnpackSchema ()
 		CSphSEThreadTable * pTable = GetTls ();
 		if ( pTable )
 		{
-			strncpy ( pTable->m_tStats.m_sLastMessage, sMessage, sizeof(pTable->m_tStats.m_sLastMessage) );
+			strncpy ( pTable->m_tStats.m_sLastMessage, sMessage, sizeof pTable->m_tStats.m_sLastMessage - 1 );
+			pTable->m_tStats.m_sLastMessage[sizeof pTable->m_tStats.m_sLastMessage - 1] = '\0';
 			pTable->m_tStats.m_bLastError = ( uStatus==SEARCHD_ERROR );
 		}
 
@@ -2982,7 +2985,8 @@ int ha_sphinx::index_read ( byte * buf, const byte * key, uint key_len, enum ha_
 			SPH_RET ( HA_ERR_END_OF_FILE );
 		}
 
-		strncpy ( pTable->m_tStats.m_sLastMessage, sMessage, sizeof(pTable->m_tStats.m_sLastMessage) );
+		strncpy ( pTable->m_tStats.m_sLastMessage, sMessage, sizeof pTable->m_tStats.m_sLastMessage - 1 );
+		pTable->m_tStats.m_sLastMessage[sizeof pTable->m_tStats.m_sLastMessage - 1] = '\0';
 		SafeDeleteArray ( sMessage );
 
 		if ( uRespStatus!=SEARCHD_WARNING )

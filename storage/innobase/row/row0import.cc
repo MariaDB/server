@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -668,7 +668,7 @@ dberr_t FetchIndexRootPages::operator()(buf_block_t* block) UNIV_NOTHROW
 		return set_current_xdes(block->page.id.page_no(), page);
 	} else if (fil_page_index_page_check(page)
 		   && !is_free(block->page.id.page_no())
-		   && page_is_root(page)) {
+		   && !page_has_siblings(page)) {
 
 		index_id_t	id = btr_page_get_index_id(page);
 
@@ -1834,7 +1834,7 @@ PageConverter::update_index_page(
 		page, m_page_zip_ptr, m_index->m_srv_index->id, 0);
 
 	if (dict_index_is_clust(m_index->m_srv_index)) {
-		if (page_is_root(page)) {
+		if (block->page.id.page_no() == m_index->m_srv_index->page) {
 			/* Preserve the PAGE_ROOT_AUTO_INC. */
 		} else {
 			/* Clear PAGE_MAX_TRX_ID so that it can be
@@ -1854,7 +1854,7 @@ PageConverter::update_index_page(
 	if (page_is_empty(page)) {
 
 		/* Only a root page can be empty. */
-		if (!page_is_root(page)) {
+		if (page_has_siblings(page)) {
 			// TODO: We should relax this and skip secondary
 			// indexes. Mark them as corrupt because they can
 			// always be rebuilt.
@@ -2090,7 +2090,7 @@ row_import_cleanup(
 
 	DBUG_EXECUTE_IF("ib_import_before_checkpoint_crash", DBUG_SUICIDE(););
 
-	log_make_checkpoint_at(LSN_MAX, TRUE);
+	log_make_checkpoint();
 
 	return(err);
 }
@@ -3064,23 +3064,13 @@ row_import_read_cfg(
 	return(err);
 }
 
-/*****************************************************************//**
-Update the <space, root page> of a table's indexes from the values
-in the data dictionary.
+/** Update the root page numbers and tablespace ID of a table.
+@param[in,out]	trx	dictionary transaction
+@param[in,out]	table	persistent table
+@param[in]	reset	whether to reset the fields to FIL_NULL
 @return DB_SUCCESS or error code */
 dberr_t
-row_import_update_index_root(
-/*=========================*/
-	trx_t*			trx,		/*!< in/out: transaction that
-						covers the update */
-	const dict_table_t*	table,		/*!< in: Table for which we want
-						to set the root page_no */
-	bool			reset,		/*!< in: if true then set to
-						FIL_NUL */
-	bool			dict_locked)	/*!< in: Set to true if the
-						caller already owns the
-						dict_sys_t:: mutex. */
-
+row_import_update_index_root(trx_t* trx, dict_table_t* table, bool reset)
 {
 	const dict_index_t*	index;
 	que_t*			graph = 0;
@@ -3096,9 +3086,7 @@ row_import_update_index_root(
 		"WHERE TABLE_ID = :table_id AND ID = :index_id;\n"
 		"END;\n"};
 
-	if (!dict_locked) {
-		mutex_enter(&dict_sys->mutex);
-	}
+	table->def_trx_id = trx->id;
 
 	for (index = dict_table_get_first_index(table);
 	     index != 0;
@@ -3172,10 +3160,6 @@ row_import_update_index_root(
 	}
 
 	que_graph_free(graph);
-
-	if (!dict_locked) {
-		mutex_exit(&dict_sys->mutex);
-	}
 
 	return(err);
 }
@@ -3437,8 +3421,12 @@ page_corrupted:
 					   FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 					   + src)) {
 not_encrypted:
-				if (!page_compressed
-				    && !block->page.zip.data) {
+				if (block->page.id.page_no() == 0
+				    && block->page.zip.data) {
+					block->page.zip.data = src;
+					frame_changed = true;
+				} else if (!page_compressed
+					   && !block->page.zip.data) {
 					block->frame = src;
 					frame_changed = true;
 				} else {
@@ -3529,7 +3517,11 @@ not_encrypted:
 			}
 
 			if (frame_changed) {
-				block->frame = dst;
+				if (block->page.zip.data) {
+					block->page.zip.data = dst;
+				} else {
+					block->frame = dst;
+				}
 			}
 
 			src =  io_buffer + (i * size);
@@ -3835,7 +3827,7 @@ row_import_for_mysql(
 
 	/* Prevent DDL operations while we are checking. */
 
-	rw_lock_s_lock_func(dict_operation_lock, 0, __FILE__, __LINE__);
+	rw_lock_s_lock_func(&dict_operation_lock, 0, __FILE__, __LINE__);
 
 	row_import	cfg;
 
@@ -3860,14 +3852,14 @@ row_import_for_mysql(
 			autoinc = cfg.m_autoinc;
 		}
 
-		rw_lock_s_unlock_gen(dict_operation_lock, 0);
+		rw_lock_s_unlock_gen(&dict_operation_lock, 0);
 
 		DBUG_EXECUTE_IF("ib_import_set_index_root_failure",
 				err = DB_TOO_MANY_CONCURRENT_TRXS;);
 
 	} else if (cfg.m_missing) {
 
-		rw_lock_s_unlock_gen(dict_operation_lock, 0);
+		rw_lock_s_unlock_gen(&dict_operation_lock, 0);
 
 		/* We don't have a schema file, we will have to discover
 		the index root pages from the .ibd file and skip the schema
@@ -3899,7 +3891,7 @@ row_import_for_mysql(
 		space_flags = fetchIndexRootPages.get_space_flags();
 
 	} else {
-		rw_lock_s_unlock_gen(dict_operation_lock, 0);
+		rw_lock_s_unlock_gen(&dict_operation_lock, 0);
 	}
 
 	if (err != DB_SUCCESS) {
@@ -4118,7 +4110,7 @@ row_import_for_mysql(
 	row_mysql_lock_data_dictionary(trx);
 
 	/* Update the root pages of the table's indexes. */
-	err = row_import_update_index_root(trx, table, false, true);
+	err = row_import_update_index_root(trx, table, false);
 
 	if (err != DB_SUCCESS) {
 		return(row_import_error(prebuilt, trx, err));

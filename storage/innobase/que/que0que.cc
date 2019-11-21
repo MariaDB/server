@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -684,11 +684,6 @@ que_thr_stop(
 		trx->lock.wait_thr = thr;
 		thr->state = QUE_THR_LOCK_WAIT;
 
-	} else if (trx->duplicates && trx->error_state == DB_DUPLICATE_KEY
-		   && thd_rpl_stmt_based(trx->mysql_thd)) {
-
-		return(FALSE);
-
 	} else if (trx->error_state != DB_SUCCESS
 		   && trx->error_state != DB_LOCK_WAIT) {
 
@@ -1232,8 +1227,6 @@ que_eval_sql(
 	if (reserve_dict_mutex) {
 		mutex_exit(&dict_sys->mutex);
 	}
-
-	ut_a(trx->error_state != 0);
 
 	DBUG_RETURN(trx->error_state);
 }

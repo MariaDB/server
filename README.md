@@ -1,3 +1,9 @@
+Code status:
+------------
+
+* [![Travis CI status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.2)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.2 branch)
+* [![Appveyor CI status](https://ci.appveyor.com/api/projects/status/4u6pexmtpuf8jq66?svg=true)](https://ci.appveyor.com/project/rasmushoj/server) ci.appveyor.com
+
 ## MariaDB: drop-in replacement for MySQL
 
 MariaDB is designed as a drop-in replacement of MySQL(R) with more
@@ -39,8 +45,8 @@ https://launchpad.net/~maria-discuss
 and the #maria IRC channel on Freenode.
 
 
-License:
---------
+Licensing:
+----------
 
 ***************************************************************************
 
@@ -51,8 +57,8 @@ General Public License (GPLv2). (I.e. Without the "any later version"
 clause.) This is inherited from MySQL. Please see the README file in
 the MySQL distribution for more information.
 
-License information can be found in the COPYING, COPYING.LESSER,
-and COPYING.thirdparty files.
+License information can be found in the COPYING file. Third party
+license information can be found in the THIRDPARTY file.
 
 ***************************************************************************
 

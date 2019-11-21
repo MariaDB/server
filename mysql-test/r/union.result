@@ -560,12 +560,15 @@ a	b
 2	2
 3	3
 4	4
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity,@save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='outer_join_with_cache=off',@@optimizer_use_condition_selectivity=1;
 explain (select * from t1 where a=1 and b=10) union (select straight_join t1.a,t2.a from t1,t2 where t1.a=t2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 2	UNION	t1	index	PRIMARY	PRIMARY	4	NULL	4	Using index
 2	UNION	t2	index	PRIMARY	PRIMARY	4	NULL	4	Using where; Using index; Using join buffer (flat, BNL join)
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity,@@optimizer_switch=@save_optimizer_switch;
 explain (select * from t1 where a=1) union (select * from t1 where b=1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	
@@ -1368,9 +1371,7 @@ t3	CREATE TABLE `t3` (
   `left(a,100000000)` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop tables t1,t2,t3;
-SELECT @tmp_max:= @@global.max_allowed_packet;
-@tmp_max:= @@global.max_allowed_packet
-16777216
+SET @tmp_max= @@global.max_allowed_packet;
 SET @@global.max_allowed_packet=25000000;
 Warnings:
 Warning	1292	Truncated incorrect max_allowed_packet value: '25000000'

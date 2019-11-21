@@ -30,7 +30,7 @@
 --source include/have_utf8mb4.inc
 --source include/have_utf16.inc
 --source include/have_utf32.inc
-
+--source include/default_charset.inc
 --source include/load_sysvars.inc
 ###################################################
 ##       START OF character_set_database TESTS   ##
@@ -40,7 +40,8 @@
 #                 Save initial value                        #
 #############################################################
 SET @global_start_value = @@global.character_set_database;
-SELECT @global_start_value;
+SET @@global.character_set_database=@@character_set_client;
+SELECT @@global.character_set_database;
 # Save initial session value
 SET @session_start_value = @@character_set_database;
 SELECT @session_start_value;
@@ -265,9 +266,7 @@ SELECT @@session.character_set_database =
 #     Restore initial value        #
 ####################################
 SET @@global.character_set_database = @global_start_value;
-SELECT @@global.character_set_database;
 SET @@session.character_set_database = @session_start_value;
-SELECT @@session.character_set_database;
 
 #############################################################
 #               END OF character_set_database TESTS         #

@@ -2,6 +2,7 @@
 # Problem with range optimizer
 #
 --source include/have_innodb.inc
+SET optimizer_use_condition_selectivity=1;
 
 --disable_warnings
 drop table if exists t1, t2, t3, t10, t100;

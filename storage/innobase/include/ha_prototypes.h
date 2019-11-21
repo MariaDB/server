@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -40,7 +40,6 @@ class THD;
 // JAN: TODO missing features:
 #undef MYSQL_FT_INIT_EXT
 #undef MYSQL_PFS
-#undef MYSQL_RENAME_INDEX
 #undef MYSQL_STORE_FTS_DOC_ID
 
 /*******************************************************************//**
@@ -121,9 +120,6 @@ ibool
 thd_is_replication_slave_thread(
 /*============================*/
 	THD*	thd);	/*!< in: thread handle */
-
-/** @return whether statement-based replication is active */
-extern "C" int thd_rpl_stmt_based(const THD* thd);
 
 /******************************************************************//**
 Returns true if the transaction this thread is processing has edited
@@ -373,14 +369,6 @@ thd_trx_is_auto_commit(
 /*===================*/
 	THD*	thd);	/*!< in: thread handle, or NULL */
 
-/******************************************************************//**
-Get the thread start time.
-@return the thread start time in seconds since the epoch. */
-ulint
-thd_start_time_in_secs(
-/*===================*/
-	THD*	thd);	/*!< in: thread handle, or NULL */
-
 /*****************************************************************//**
 A wrapper function of innobase_convert_name(), convert a table name
 to the MySQL system_charset_info (UTF-8) and quote it if needed.
@@ -443,7 +431,6 @@ extern const char* 	TROUBLESHOOTING_MSG;
 extern const char* 	TROUBLESHOOT_DATADICT_MSG;
 extern const char* 	BUG_REPORT_MSG;
 extern const char* 	FORCE_RECOVERY_MSG;
-extern const char*      ERROR_CREATING_MSG;
 extern const char*      OPERATING_SYSTEM_ERROR_MSG;
 extern const char*      FOREIGN_KEY_CONSTRAINTS_MSG;
 extern const char*      SET_TRANSACTION_MSG;

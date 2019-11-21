@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -91,7 +91,8 @@ UNIV_INLINE
 ib_uint64_t
 page_get_autoinc(const page_t* page)
 {
-	ut_ad(page_is_root(page));
+	ut_ad(fil_page_index_page_check(page));
+	ut_ad(!page_has_siblings(page));
 	return(mach_read_from_8(PAGE_HEADER + PAGE_ROOT_AUTO_INC + page));
 }
 
@@ -172,8 +173,11 @@ page_header_set_field(
 {
 	ut_ad(page);
 	ut_ad(field <= PAGE_N_RECS);
-	ut_ad(field == PAGE_N_HEAP || val < UNIV_PAGE_SIZE);
-	ut_ad(field != PAGE_N_HEAP || (val & 0x7fff) < UNIV_PAGE_SIZE);
+#if 0 /* FIXME: MDEV-19344 hits this */
+	ut_ad(field != PAGE_N_RECS || val);
+#endif
+	ut_ad(field == PAGE_N_HEAP || val < srv_page_size);
+	ut_ad(field != PAGE_N_HEAP || (val & 0x7fff) < srv_page_size);
 
 	mach_write_to_2(page + PAGE_HEADER + field, val);
 	if (page_zip) {
@@ -186,19 +190,17 @@ page_header_set_field(
 Returns the offset stored in the given header field.
 @return offset from the start of the page, or 0 */
 UNIV_INLINE
-ulint
+uint16_t
 page_header_get_offs(
 /*=================*/
 	const page_t*	page,	/*!< in: page */
 	ulint		field)	/*!< in: PAGE_FREE, ... */
 {
-	ulint	offs;
-
 	ut_ad((field == PAGE_FREE)
 	      || (field == PAGE_LAST_INSERT)
 	      || (field == PAGE_HEAP_TOP));
 
-	offs = page_header_get_field(page, field);
+	uint16_t offs = page_header_get_field(page, field);
 
 	ut_ad((field != PAGE_HEAP_TOP) || offs);
 
@@ -275,31 +277,6 @@ page_rec_get_heap_no(
 	} else {
 		return(rec_get_heap_no_old(rec));
 	}
-}
-
-/** Determine whether a page is an index root page.
-@param[in]	page	page frame
-@return true if the page is a root page of an index */
-UNIV_INLINE
-bool
-page_is_root(
-	const page_t*	page)
-{
-#if FIL_PAGE_PREV % 8
-# error FIL_PAGE_PREV must be 64-bit aligned
-#endif
-#if FIL_PAGE_NEXT != FIL_PAGE_PREV + 4
-# error FIL_PAGE_NEXT must be adjacent to FIL_PAGE_PREV
-#endif
-#if FIL_NULL != 0xffffffff
-# error FIL_NULL != 0xffffffff
-#endif
-	/* Check that this is an index page and both the PREV and NEXT
-	pointers are FIL_NULL, because the root page does not have any
-	siblings. */
-	return(fil_page_index_page_check(page)
-	       && *reinterpret_cast<const ib_uint64_t*>(page + FIL_PAGE_PREV)
-	       == IB_UINT64_MAX);
 }
 
 /** Determine whether an index page record is a user record.
@@ -423,7 +400,8 @@ page_get_middle_rec(
 /*================*/
 	page_t*	page)	/*!< in: page */
 {
-	ulint	middle = (page_get_n_recs(page) + PAGE_HEAP_NO_USER_LOW) / 2;
+	ulint	middle = (ulint(page_get_n_recs(page))
+			  + PAGE_HEAP_NO_USER_LOW) / 2;
 
 	return(page_rec_get_nth(page, middle));
 }
@@ -464,7 +442,7 @@ Gets the number of user records on page (infimum and supremum records
 are not user records).
 @return number of user records */
 UNIV_INLINE
-ulint
+uint16_t
 page_get_n_recs(
 /*============*/
 	const page_t*	page)	/*!< in: index page */
@@ -477,7 +455,7 @@ page_get_n_recs(
 Gets the number of dir slots in directory.
 @return number of slots */
 UNIV_INLINE
-ulint
+uint16_t
 page_dir_get_n_slots(
 /*=================*/
 	const page_t*	page)	/*!< in: index page */
@@ -502,7 +480,7 @@ page_dir_set_n_slots(
 Gets the number of records in the heap.
 @return number of user records */
 UNIV_INLINE
-ulint
+uint16_t
 page_dir_get_n_heap(
 /*================*/
 	const page_t*	page)	/*!< in: index page */
@@ -547,7 +525,7 @@ page_dir_get_nth_slot(
 	ut_ad(page_dir_get_n_slots(page) > n);
 
 	return((page_dir_slot_t*)
-	       page + UNIV_PAGE_SIZE - PAGE_DIR
+	       page + srv_page_size - PAGE_DIR
 	       - (n + 1) * PAGE_DIR_SLOT_SIZE);
 }
 #endif /* UNIV_DEBUG */
@@ -666,7 +644,7 @@ page_rec_get_next_low(
 
 	offs = rec_get_next_offs(rec, comp);
 
-	if (offs >= UNIV_PAGE_SIZE) {
+	if (offs >= srv_page_size) {
 		fprintf(stderr,
 			"InnoDB: Next record offset is nonsensical %lu"
 			" in record at offset %lu\n"
@@ -680,6 +658,10 @@ page_rec_get_next_low(
 
 		return(NULL);
 	}
+
+	ut_ad(page_rec_is_infimum(rec)
+	      || !(rec_get_info_bits(page + offs, comp)
+		   & REC_INFO_MIN_REC_FLAG));
 
 	return(page + offs);
 }
@@ -855,9 +837,8 @@ page_rec_get_base_extra_size(
 /*=========================*/
 	const rec_t*	rec)	/*!< in: physical record */
 {
-#if REC_N_NEW_EXTRA_BYTES + 1 != REC_N_OLD_EXTRA_BYTES
-# error "REC_N_NEW_EXTRA_BYTES + 1 != REC_N_OLD_EXTRA_BYTES"
-#endif
+	compile_time_assert(REC_N_NEW_EXTRA_BYTES + 1
+			    == REC_N_OLD_EXTRA_BYTES);
 	return(REC_N_NEW_EXTRA_BYTES + (ulint) !page_rec_is_comp(rec));
 }
 
@@ -868,21 +849,17 @@ Returns the sum of the sizes of the records in the record list, excluding
 the infimum and supremum records.
 @return data in bytes */
 UNIV_INLINE
-ulint
+uint16_t
 page_get_data_size(
 /*===============*/
 	const page_t*	page)	/*!< in: index page */
 {
-	ulint	ret;
-
-	ret = (ulint)(page_header_get_field(page, PAGE_HEAP_TOP)
-		      - (page_is_comp(page)
-			 ? PAGE_NEW_SUPREMUM_END
-			 : PAGE_OLD_SUPREMUM_END)
-		      - page_header_get_field(page, PAGE_GARBAGE));
-
-	ut_ad(ret < UNIV_PAGE_SIZE);
-
+	uint16_t	ret = page_header_get_field(page, PAGE_HEAP_TOP)
+		- (page_is_comp(page)
+		   ? PAGE_NEW_SUPREMUM_END
+		   : PAGE_OLD_SUPREMUM_END)
+		- page_header_get_field(page, PAGE_GARBAGE);
+	ut_ad(ret < srv_page_size);
 	return(ret);
 }
 
@@ -930,37 +907,16 @@ page_get_free_space_of_empty(
 	ulint	comp)		/*!< in: nonzero=compact page layout */
 {
 	if (comp) {
-		return((ulint)(UNIV_PAGE_SIZE
+		return((ulint)(srv_page_size
 			       - PAGE_NEW_SUPREMUM_END
 			       - PAGE_DIR
 			       - 2 * PAGE_DIR_SLOT_SIZE));
 	}
 
-	return((ulint)(UNIV_PAGE_SIZE
+	return((ulint)(srv_page_size
 		       - PAGE_OLD_SUPREMUM_END
 		       - PAGE_DIR
 		       - 2 * PAGE_DIR_SLOT_SIZE));
-}
-
-/***********************************************************************//**
-Write a 32-bit field in a data dictionary record. */
-UNIV_INLINE
-void
-page_rec_write_field(
-/*=================*/
-	rec_t*	rec,	/*!< in/out: record to update */
-	ulint	i,	/*!< in: index of the field to update */
-	ulint	val,	/*!< in: value to write */
-	mtr_t*	mtr)	/*!< in/out: mini-transaction */
-{
-	byte*	data;
-	ulint	len;
-
-	data = rec_get_nth_field_old(rec, i, &len);
-
-	ut_ad(len == 4);
-
-	mlog_write_ulint(data, val, MLOG_4BYTES, mtr);
 }
 
 /************************************************************//**
@@ -1074,7 +1030,7 @@ page_mem_free(
 		page_zip_dir_delete(page_zip, rec, index, offsets, free);
 	} else {
 		page_header_set_field(page, page_zip, PAGE_N_RECS,
-				      page_get_n_recs(page) - 1);
+				      ulint(page_get_n_recs(page)) - 1);
 	}
 }
 

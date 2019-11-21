@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -40,7 +40,7 @@ Created 9/20/1997 Heikki Tuuri
 extern bool	recv_writer_thread_active;
 
 /** @return whether recovery is currently running. */
-#define recv_recovery_is_on() recv_recovery_on
+#define recv_recovery_is_on() UNIV_UNLIKELY(recv_recovery_on)
 
 /** Find the latest checkpoint in the log header.
 @param[out]	max_field	LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2
@@ -49,12 +49,14 @@ dberr_t
 recv_find_max_checkpoint(ulint* max_field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/** Apply the hashed log records to the page, if the page lsn is less than the
-lsn of a log record.
-@param just_read_in	whether the page recently arrived to the I/O handler
-@param block		the page in the buffer pool */
-void
-recv_recover_page(bool just_read_in, buf_block_t* block);
+/** Reduces recv_sys->n_addrs for the corrupted page.
+This function should called when srv_force_recovery > 0.
+@param[in]	page_id page id of the corrupted page */
+void recv_recover_corrupt_page(page_id_t page_id);
+
+/** Apply any buffered redo log to a page that was just read from a data file.
+@param[in,out]	bpage	buffer pool page */
+ATTRIBUTE_COLD void recv_recover_page(buf_page_t* bpage);
 
 /** Start recovering from a redo log checkpoint.
 @see recv_recovery_from_checkpoint_finish
@@ -72,16 +74,6 @@ Initiates the rollback of active transactions. */
 void
 recv_recovery_rollback_active(void);
 /*===============================*/
-/******************************************************//**
-Resets the logs. The contents of log files will be lost! */
-void
-recv_reset_logs(
-/*============*/
-	lsn_t		lsn);		/*!< in: reset to this lsn
-					rounded up to be divisible by
-					OS_FILE_LOG_BLOCK_SIZE, after
-					which we add
-					LOG_BLOCK_HDR_SIZE */
 /** Clean up after recv_sys_init() */
 void
 recv_sys_close();
@@ -271,7 +263,7 @@ struct recv_sys_t{
 				/*!< the LSN of a MLOG_CHECKPOINT
 				record, or 0 if none was parsed */
 	/** the time when progress was last reported */
-	ib_time_t	progress_time;
+	time_t		progress_time;
 	mem_heap_t*	heap;	/*!< memory heap of log records and file
 				addresses*/
 	hash_table_t*	addr_hash;/*!< hash table of file addresses of pages */
@@ -296,7 +288,7 @@ struct recv_sys_t{
 	@param[in]	time	the current time
 	@return	whether progress should be reported
 		(the last report was at least 15 seconds ago) */
-	bool report(ib_time_t time)
+	bool report(time_t time)
 	{
 		if (time - progress_time < 15) {
 			return false;

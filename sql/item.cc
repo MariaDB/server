@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -1006,7 +1006,7 @@ bool Item_field::register_field_in_write_map(void *arg)
 }
 
 /**
-  Check that we are not refering to any not yet initialized fields
+  Check that we are not referring to any not yet initialized fields
 
   Fields are initialized in this order:
   - All fields that have default value as a constant are initialized first.
@@ -1996,7 +1996,6 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
     }
 
     if (unlikely((!(used_tables() & ~PARAM_TABLE_BIT) ||
-                  type() == SUBSELECT_ITEM ||
                   (type() == REF_ITEM &&
                    ((Item_ref*)this)->ref_type() != Item_ref::VIEW_REF))))
         return;
@@ -2642,6 +2641,31 @@ void Item_field::reset_field(Field *f)
   set_field(f);
   /* 'name' is pointing at field->field_name of old field */
   name= (char*) f->field_name;
+}
+
+
+void Item_field::load_data_print_for_log_event(THD *thd, String *to) const
+{
+  append_identifier(thd, to, name, (uint) strlen(name));
+}
+
+
+bool Item_field::load_data_set_no_data(THD *thd, const Load_data_param *param)
+{
+  if (field->load_data_set_no_data(thd, param->is_fixed_length()))
+    return true;
+  /*
+    TODO: We probably should not throw warning for each field.
+    But how about intention to always have the same number
+    of warnings in THD::cuted_fields (and get rid of cuted_fields
+    in the end ?)
+  */
+  thd->cuted_fields++;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_WARN_TOO_FEW_RECORDS,
+                      ER_THD(thd, ER_WARN_TOO_FEW_RECORDS),
+                      thd->get_stmt_da()->current_row_for_warning());
+  return false;
 }
 
 
@@ -3372,6 +3396,20 @@ String *Item_null::val_str(String *str)
 
 my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 {
+  return 0;
+}
+
+
+longlong Item_null::val_datetime_packed()
+{
+  null_value= true;
+  return 0;
+}
+
+
+longlong Item_null::val_time_packed()
+{
+  null_value= true;
   return 0;
 }
 
@@ -7973,6 +8011,24 @@ bool Item_ref::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 }
 
 
+longlong Item_ref::val_datetime_packed()
+{
+  DBUG_ASSERT(fixed);
+  longlong tmp= (*ref)->val_datetime_packed();
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
+longlong Item_ref::val_time_packed()
+{
+  DBUG_ASSERT(fixed);
+  longlong tmp= (*ref)->val_time_packed();
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
 my_decimal *Item_ref::val_decimal(my_decimal *decimal_value)
 {
   my_decimal *val= (*ref)->val_decimal_result(decimal_value);
@@ -8954,8 +9010,6 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
     return Item_field::save_in_field(field_arg, no_conversions);
   }
 
-  if (field_arg->default_value && field_arg->default_value->flags)
-    return 0; // defaut fields will be set later, no need to do it twice
   return field_arg->save_in_field_default_value(context->error_processor ==
                                                 &view_error_processor);
 }
@@ -9207,7 +9261,7 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
   int err_code= item->save_in_field(field, 0);
 
   field->table->copy_blobs= copy_blobs_saved;
-  field->set_explicit_default(item);
+  field->set_has_explicit_value();
 
   return err_code < 0;
 }
@@ -10413,7 +10467,10 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
     break;
   }
   default:
-    max_length= MY_MAX(max_length, display_length(item));
+    if (real_field_type() == MYSQL_TYPE_YEAR)
+      max_length= MY_MAX(max_length, item->max_length);
+    else
+      max_length= MY_MAX(max_length, display_length(item));
   };
   maybe_null|= item->maybe_null;
   get_full_info(item);
@@ -10670,11 +10727,14 @@ table_map Item_direct_view_ref::used_tables() const
 
 table_map Item_direct_view_ref::not_null_tables() const
 {
-  return get_depended_from() ?
-         0 :
-         ((view->is_merged_derived() || view->merged || !view->table) ?
-          (*ref)->not_null_tables() :
-          view->table->map);
+  if (get_depended_from())
+    return 0;
+  if  (!( view->merged || !view->table))
+    return view->table->map;
+  TABLE *tab= get_null_ref_table();
+  if (tab == NO_NULL_TABLE || (*ref)->used_tables())
+    return (*ref)->not_null_tables();
+   return get_null_ref_table()->map;
 }
 
 /*

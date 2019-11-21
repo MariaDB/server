@@ -1,0 +1,28 @@
+
+-----------------------------------------------------------------------
+- Locking issues case 6:
+-   Changing primary key
+-   using REPEATABLE READ transaction isolation level
+-----------------------------------------------------------------------
+DROP TABLE IF EXISTS t0;
+CREATE TABLE t0(id INT AUTO_INCREMENT PRIMARY KEY, value INT);
+Inserting 200,000 rows
+UPDATE t0 SET value=100 WHERE id=190000;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+SELECT * FROM t0 WHERE value > 0 FOR UPDATE;
+connection con2;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+UPDATE t0 SET id=200001 WHERE id=190000;
+COMMIT;
+connection con1;
+ERROR: 1213
+COMMIT;
+connection default;
+disconnect con1;
+disconnect con2;
+DROP TABLE t0;

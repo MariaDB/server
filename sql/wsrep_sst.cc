@@ -11,11 +11,12 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "wsrep_sst.h"
 
 #include <inttypes.h>
+#include <ctype.h>
 #include <mysqld.h>
 #include <m_ctype.h>
 #include <my_sys.h>
@@ -226,7 +227,7 @@ bool wsrep_sst_wait ()
       total_wtime += difftime(end_time, start_time);
       WSREP_DEBUG("Waiting for SST to complete. current seqno: %" PRId64 " waited %f secs.", local_seqno, total_wtime);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
+        "WSREP state transfer ongoing, current seqno: %" PRId64 " waited %f secs", local_seqno, total_wtime);
     }
   }
 
@@ -435,7 +436,31 @@ static char* my_fgets (char* buf, size_t buf_len, FILE* stream)
 }
 
 /*
-  Generate opt_binlog_opt_val for sst_donate_other(), sst_prepare_other().
+  Generate "name 'value'" string.
+*/
+static char* generate_name_value(const char* name, const char* value)
+{
+  size_t name_len= strlen(name);
+  size_t value_len= strlen(value);
+  char* buf=
+    (char*) my_malloc((name_len + value_len + 5) * sizeof(char), MYF(0));
+  if (buf)
+  {
+    char* ref= buf;
+    *ref++ = ' ';
+    memcpy(ref, name, name_len * sizeof(char));
+    ref += name_len;
+    *ref++ = ' ';
+    *ref++ = '\'';
+    memcpy(ref, value, value_len * sizeof(char));
+    ref += value_len;
+    *ref++ = '\'';
+    *ref = 0;
+  }
+  return buf;
+}
+/*
+  Generate binlog option string for sst_donate_other(), sst_prepare_other().
 
   Returns zero on success, negative error code otherwise.
 
@@ -451,7 +476,9 @@ static int generate_binlog_opt_val(char** ret)
   {
     assert(opt_bin_logname);
     *ret= strcmp(opt_bin_logname, "0") ?
-      my_strdup(opt_bin_logname, MYF(0)) : my_strdup("", MYF(0));
+      generate_name_value(WSREP_SST_OPT_BINLOG,
+                          opt_bin_logname) :
+      my_strdup("", MYF(0));
   }
   else
   {
@@ -467,7 +494,9 @@ static int generate_binlog_index_opt_val(char** ret)
   *ret= NULL;
   if (opt_binlog_index_name) {
     *ret= strcmp(opt_binlog_index_name, "0") ?
-      my_strdup(opt_binlog_index_name, MYF(0)) : my_strdup("", MYF(0));
+      generate_name_value(WSREP_SST_OPT_BINLOG_INDEX,
+                          opt_binlog_index_name) :
+      my_strdup("", MYF(0));
   }
   else
   {
@@ -648,23 +677,320 @@ static int sst_append_data_dir(wsp::env& env, const char* data_dir)
   return -env.error();
 }
 
+static size_t estimate_cmd_len (bool* extra_args)
+{
+  /*
+    The length of the area reserved for the control parameters
+    of the SST script (excluding the copying of the original
+    mysqld arguments):
+  */
+  size_t cmd_len= 4096;
+  bool extra= false;
+  /*
+    If mysqld was started with arguments, add them all:
+  */
+  if (orig_argc > 1)
+  {
+    for (int i = 1; i < orig_argc; i++)
+    {
+      const char* arg= orig_argv[i];
+      size_t n= strlen(arg);
+      if (n == 0) continue;
+      cmd_len += n;
+      bool quotation= false;
+      char c;
+      while ((c = *arg++) != 0)
+      {
+        /* A whitespace or a single quote requires double quotation marks: */
+        if (isspace(c) || c == '\'')
+        {
+          quotation= true;
+        }
+        /*
+          If the equals symbol is encountered, then we need to separately
+          process the right side:
+        */
+        else if (c == '=')
+        {
+          /* Perhaps we need to quote the left part of the argument: */
+          if (quotation)
+          {
+            cmd_len += 2;
+            /*
+              Reset the quotation flag, since now the status for
+              the right side of the expression will be saved here:
+            */
+            quotation= false;
+          }
+          while ((c = *arg++) != 0)
+          {
+            /*
+              A whitespace or a single quote requires double
+              quotation marks:
+            */
+            if (isspace(c) || c == '\'')
+            {
+              quotation= true;
+            }
+            /*
+              Double quotation mark or backslash symbol requires backslash
+              prefixing:
+            */
+#ifdef __WIN__
+            else if (c == '"' || c == '\\')
+#else
+            /*
+              The dollar symbol is used to substitute a variable, therefore
+              it also requires escaping:
+            */
+            else if (c == '"' || c == '\\' || c == '$')
+#endif
+            {
+              cmd_len++;
+            }
+          }
+          break;
+        }
+        /*
+          Double quotation mark or backslash symbol requires backslash
+          prefixing:
+        */
+#ifdef __WIN__
+        else if (c == '"' || c == '\\')
+#else
+        /*
+          The dollar symbol is used to substitute a variable, therefore
+          it also requires escaping:
+        */
+        else if (c == '"' || c == '\\' || c == '$')
+#endif
+        {
+          cmd_len++;
+        }
+      }
+      /* Perhaps we need to quote the entire argument or its right part: */
+      if (quotation)
+      {
+        cmd_len += 2;
+      }
+    }
+    extra = true;
+    cmd_len += strlen(WSREP_SST_OPT_MYSQLD);
+    /*
+      Add the separating spaces between arguments,
+      and one additional space before "--mysqld-args":
+    */
+    cmd_len += orig_argc;
+  }
+  *extra_args= extra;
+  return cmd_len;
+}
+
+static void copy_orig_argv (char* cmd_str)
+{
+  /*
+     If mysqld was started with arguments, copy them all:
+  */
+  if (orig_argc > 1)
+  {
+    size_t n = strlen(WSREP_SST_OPT_MYSQLD);
+    *cmd_str++ = ' ';
+    memcpy(cmd_str, WSREP_SST_OPT_MYSQLD, n * sizeof(char));
+    cmd_str += n;
+    for (int i = 1; i < orig_argc; i++)
+    {
+      char* arg= orig_argv[i];
+      n = strlen(arg);
+      if (n == 0) continue;
+      *cmd_str++ = ' ';
+      bool quotation= false;
+      bool plain= true;
+      char *arg_scan= arg;
+      char c;
+      while ((c = *arg_scan++) != 0)
+      {
+        /* A whitespace or a single quote requires double quotation marks: */
+        if (isspace(c) || c == '\'')
+        {
+          quotation= true;
+        }
+        /*
+          If the equals symbol is encountered, then we need to separately
+          process the right side:
+        */
+        else if (c == '=')
+        {
+          /* Calculate length of the Left part of the argument: */
+          size_t m = (size_t) (arg_scan - arg) - 1;
+          if (m)
+          {
+            /* Perhaps we need to quote the left part of the argument: */
+            if (quotation)
+            {
+              *cmd_str++ = '"';
+            }
+            /*
+              If there were special characters inside, then we can use
+              the fast memcpy function:
+            */
+            if (plain)
+            {
+              memcpy(cmd_str, arg, m * sizeof(char));
+              cmd_str += m;
+              /* Left part of the argument has already been processed: */
+              n -= m;
+              arg += m;
+            }
+            /* Otherwise we need to prefix individual characters: */
+            else
+            {
+              n -= m;
+              while (m)
+              {
+                c = *arg++;
+#ifdef __WIN__
+                if (c == '"' || c == '\\')
+#else
+                if (c == '"' || c == '\\' || c == '$')
+#endif
+                {
+                  *cmd_str++ = '\\';
+                }
+                *cmd_str++ = c;
+                m--;
+              }
+              /*
+                Reset the plain string flag, since now the status for
+                the right side of the expression will be saved here:
+              */
+              plain= true;
+            }
+            /* Perhaps we need to quote the left part of the argument: */
+            if (quotation)
+            {
+              *cmd_str++ = '"';
+              /*
+                Reset the quotation flag, since now the status for
+                the right side of the expression will be saved here:
+              */
+              quotation= false;
+            }
+          }
+          /* Copy equals symbol: */
+          *cmd_str++ = '=';
+          arg++;
+          n--;
+          /* Let's deal with the left side of the expression: */
+          while ((c = *arg_scan++) != 0)
+          {
+            /*
+              A whitespace or a single quote requires double
+              quotation marks:
+            */
+            if (isspace(c) || c == '\'')
+            {
+              quotation= true;
+            }
+            /*
+              Double quotation mark or backslash symbol requires backslash
+              prefixing:
+            */
+#ifdef __WIN__
+            else if (c == '"' || c == '\\')
+#else
+            /*
+              The dollar symbol is used to substitute a variable, therefore
+              it also requires escaping:
+            */
+            else if (c == '"' || c == '\\' || c == '$')
+#endif
+            {
+              plain= false;
+            }
+          }
+          break;
+        }
+        /*
+          Double quotation mark or backslash symbol requires backslash
+          prefixing:
+        */
+#ifdef __WIN__
+        else if (c == '"' || c == '\\')
+#else
+        /*
+          The dollar symbol is used to substitute a variable, therefore
+          it also requires escaping:
+        */
+        else if (c == '"' || c == '\\' || c == '$')
+#endif
+        {
+          plain= false;
+        }
+      }
+      if (n)
+      {
+        /* Perhaps we need to quote the entire argument or its right part: */
+        if (quotation)
+        {
+          *cmd_str++ = '"';
+        }
+        /*
+          If there were no special characters inside, then we can use
+          the fast memcpy function:
+        */
+        if (plain)
+        {
+          memcpy(cmd_str, arg, n * sizeof(char));
+          cmd_str += n;
+        }
+        /* Otherwise we need to prefix individual characters: */
+        else
+        {
+          while ((c = *arg++) != 0)
+          {
+#ifdef __WIN__
+            if (c == '"' || c == '\\')
+#else
+            if (c == '"' || c == '\\' || c == '$')
+#endif
+            {
+              *cmd_str++ = '\\';
+            }
+            *cmd_str++ = c;
+          }
+        }
+        /* Perhaps we need to quote the entire argument or its right part: */
+        if (quotation)
+        {
+          *cmd_str++ = '"';
+        }
+      }
+    }
+    /*
+      Add a terminating null character (not counted in the length,
+      since we've overwritten the original null character which
+      was previously added by snprintf:
+    */
+    *cmd_str = 0;
+  }
+}
+
 static ssize_t sst_prepare_other (const char*  method,
                                   const char*  sst_auth,
                                   const char*  addr_in,
                                   const char** addr_out)
 {
-  int const cmd_len= 4096;
+  bool extra_args;
+  size_t const cmd_len= estimate_cmd_len(&extra_args);
   wsp::string cmd_str(cmd_len);
 
   if (!cmd_str())
   {
-    WSREP_ERROR("sst_prepare_other(): could not allocate cmd buffer of %d bytes",
+    WSREP_ERROR("sst_prepare_other(): could not allocate cmd buffer of %zd bytes",
                 cmd_len);
     return -ENOMEM;
   }
 
-  const char* binlog_opt= "";
-  const char* binlog_index_opt= "";
   char* binlog_opt_val= NULL;
   char* binlog_index_opt_val= NULL;
 
@@ -682,9 +1008,6 @@ static ssize_t sst_prepare_other (const char*  method,
                 ret);
   }
 
-  if (strlen(binlog_opt_val)) binlog_opt= WSREP_SST_OPT_BINLOG;
-  if (strlen(binlog_index_opt_val)) binlog_index_opt= WSREP_SST_OPT_BINLOG_INDEX;
-
   make_wsrep_defaults_file();
 
   ret= snprintf (cmd_str(), cmd_len,
@@ -692,22 +1015,25 @@ static ssize_t sst_prepare_other (const char*  method,
                  WSREP_SST_OPT_ROLE " 'joiner' "
                  WSREP_SST_OPT_ADDR " '%s' "
                  WSREP_SST_OPT_DATA " '%s' "
-                 " %s "
+                 "%s"
                  WSREP_SST_OPT_PARENT " '%d'"
-                 " %s '%s'"
-	         " %s '%s'",
+                 "%s"
+                 "%s",
                  method, addr_in, mysql_real_data_home,
                  wsrep_defaults_file,
-                 (int)getpid(), binlog_opt, binlog_opt_val,
-                 binlog_index_opt, binlog_index_opt_val);
+                 (int)getpid(),
+                 binlog_opt_val, binlog_index_opt_val);
   my_free(binlog_opt_val);
   my_free(binlog_index_opt_val);
 
-  if (ret < 0 || ret >= cmd_len)
+  if (ret < 0 || size_t(ret) >= cmd_len)
   {
     WSREP_ERROR("sst_prepare_other(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
   }
+
+  if (extra_args)
+    copy_orig_argv(cmd_str() + ret);
 
   wsp::env env(NULL);
   if (env.error())
@@ -735,10 +1061,10 @@ static ssize_t sst_prepare_other (const char*  method,
   pthread_t tmp;
   sst_thread_arg arg(cmd_str(), env());
   mysql_mutex_lock (&arg.lock);
-  ret = pthread_create (&tmp, NULL, sst_joiner_thread, &arg);
+  ret = mysql_thread_create (key_wsrep_sst_joiner, &tmp, NULL, sst_joiner_thread, &arg);
   if (ret)
   {
-    WSREP_ERROR("sst_prepare_other(): pthread_create() failed: %d (%s)",
+    WSREP_ERROR("sst_prepare_other(): mysql_thread_create() failed: %d (%s)",
                 ret, strerror(ret));
     return -ret;
   }
@@ -972,13 +1298,14 @@ static int sst_donate_mysqldump (const char*         addr,
   }
   memcpy(host, address.get_address(), address.get_address_len());
   int port= address.get_port();
-  int const cmd_len= 4096;
-  wsp::string  cmd_str(cmd_len);
+  bool extra_args;
+  size_t const cmd_len= estimate_cmd_len(&extra_args);
+  wsp::string cmd_str(cmd_len);
 
   if (!cmd_str())
   {
     WSREP_ERROR("sst_donate_mysqldump(): "
-                "could not allocate cmd buffer of %d bytes", cmd_len);
+                "could not allocate cmd buffer of %zd bytes", cmd_len);
     return -ENOMEM;
   }
 
@@ -992,7 +1319,7 @@ static int sst_donate_mysqldump (const char*         addr,
                      WSREP_SST_OPT_PORT " '%d' "
                      WSREP_SST_OPT_LPORT " '%u' "
                      WSREP_SST_OPT_SOCKET " '%s' "
-                     " %s "
+                     "%s"
                      WSREP_SST_OPT_GTID " '%s:%lld' "
                      WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                      "%s",
@@ -1001,11 +1328,14 @@ static int sst_donate_mysqldump (const char*         addr,
                      (long long)seqno, wsrep_gtid_domain_id,
                      bypass ? " " WSREP_SST_OPT_BYPASS : "");
 
-  if (ret < 0 || ret >= cmd_len)
+  if (ret < 0 || size_t(ret) >= cmd_len)
   {
     WSREP_ERROR("sst_donate_mysqldump(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
   }
+
+  if (extra_args)
+    copy_orig_argv(cmd_str() + ret);
 
   WSREP_DEBUG("Running: '%s'", cmd_str());
 
@@ -1326,17 +1656,17 @@ static int sst_donate_other (const char*   method,
                              bool          bypass,
                              char**        env) // carries auth info
 {
-  int const cmd_len= 4096;
-  wsp::string  cmd_str(cmd_len);
+  bool extra_args;
+  size_t const cmd_len= estimate_cmd_len(&extra_args);
+  wsp::string cmd_str(cmd_len);
 
   if (!cmd_str())
   {
     WSREP_ERROR("sst_donate_other(): "
-                "could not allocate cmd buffer of %d bytes", cmd_len);
+                "could not allocate cmd buffer of %zd bytes", cmd_len);
     return -ENOMEM;
   }
 
-  const char* binlog_opt= "";
   char* binlog_opt_val= NULL;
 
   int ret;
@@ -1345,7 +1675,6 @@ static int sst_donate_other (const char*   method,
     WSREP_ERROR("sst_donate_other(): generate_binlog_opt_val() failed: %d",ret);
     return ret;
   }
-  if (strlen(binlog_opt_val)) binlog_opt= WSREP_SST_OPT_BINLOG;
 
   make_wsrep_defaults_file();
 
@@ -1355,33 +1684,36 @@ static int sst_donate_other (const char*   method,
                  WSREP_SST_OPT_ADDR " '%s' "
                  WSREP_SST_OPT_SOCKET " '%s' "
                  WSREP_SST_OPT_DATA " '%s' "
-                 " %s "
-                 " %s '%s' "
+                 "%s"
                  WSREP_SST_OPT_GTID " '%s:%lld' "
                  WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
+                 "%s"
                  "%s",
                  method, addr, mysqld_unix_port, mysql_real_data_home,
                  wsrep_defaults_file,
-                 binlog_opt, binlog_opt_val,
                  uuid, (long long) seqno, wsrep_gtid_domain_id,
+                 binlog_opt_val,
                  bypass ? " " WSREP_SST_OPT_BYPASS : "");
   my_free(binlog_opt_val);
 
-  if (ret < 0 || ret >= cmd_len)
+  if (ret < 0 || size_t(ret) >= cmd_len)
   {
     WSREP_ERROR("sst_donate_other(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
   }
+
+  if (extra_args)
+    copy_orig_argv(cmd_str() + ret);
 
   if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(FALSE);
 
   pthread_t tmp;
   sst_thread_arg arg(cmd_str(), env);
   mysql_mutex_lock (&arg.lock);
-  ret = pthread_create (&tmp, NULL, sst_donor_thread, &arg);
+  ret = mysql_thread_create (key_wsrep_sst_donor, &tmp, NULL, sst_donor_thread, &arg);
   if (ret)
   {
-    WSREP_ERROR("sst_donate_other(): pthread_create() failed: %d (%s)",
+    WSREP_ERROR("sst_donate_other(): mysql_thread_create() failed: %d (%s)",
                 ret, strerror(ret));
     return ret;
   }
@@ -1469,7 +1801,7 @@ void wsrep_SE_init_wait()
       total_wtime += difftime(end_time, start_time);
       WSREP_DEBUG("Waiting for SST to complete. current seqno: %" PRId64 " waited %f secs.", local_seqno, total_wtime);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
+        "WSREP state transfer ongoing, current seqno: %" PRId64 " waited %f secs", local_seqno, total_wtime);
     }
   }
 

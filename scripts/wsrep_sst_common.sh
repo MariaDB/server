@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING. If not, write to the
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
-# MA  02110-1301  USA.
+# MA  02110-1335  USA.
 
 # This is a common command line parser to be sourced by other SST scripts
 
@@ -29,7 +29,11 @@ WSREP_SST_OPT_DEFAULT=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_VALUE=""
+WSREP_SST_OPT_MYSQLD=""
 INNODB_DATA_HOME_DIR_ARG=""
+INNODB_LOG_GROUP_HOME_ARG=""
+INNODB_UNDO_DIR_ARG=""
+LOG_BIN_ARG=""
 
 while [ $# -gt 0 ]; do
 case "$1" in
@@ -82,6 +86,18 @@ case "$1" in
         ;;
     '--innodb-data-home-dir')
         readonly INNODB_DATA_HOME_DIR_ARG="$2"
+        shift
+        ;;
+    '--innodb-log-group-home-dir')
+        readonly INNODB_LOG_GROUP_HOME_ARG="$2"
+        shift
+        ;;
+    '--innodb-undo-directory')
+        readonly INNODB_UNDO_DIR_ARG="$2"
+        shift
+        ;;
+    '--log-bin')
+        readonly LOG_BIN_ARG="$2"
         shift
         ;;
     '--defaults-file')
@@ -145,6 +161,50 @@ case "$1" in
         readonly WSREP_SST_OPT_GTID_DOMAIN_ID="$2"
         shift
         ;;
+    '--mysqld-args')
+        original_cmd=""
+        shift
+        while [ $# -gt 0 ]; do
+           option=${1%%=*}
+           if [[ "$option" != "--defaults-file" && \
+                 "$option" != "--defaults-extra-file" && \
+                 "$option" != "--defaults-group-suffix" && \
+                 "$option" != "--port" && \
+                 "$option" != "--socket" ]]; then
+              value=${1#*=}
+              case "$option" in
+                  '--innodb-data-home-dir')
+                      if [ -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
+                          readonly INNODB_DATA_HOME_DIR_ARG="$value"
+                      fi
+                      ;;
+                  '--innodb-log-group-home-dir')
+                      if [ -z "$INNODB_LOG_GROUP_HOME_ARG" ]; then
+                          readonly INNODB_LOG_GROUP_HOME_ARG="$value"
+                      fi
+                      ;;
+                  '--innodb-undo-directory')
+                      if [ -z "$INNODB_UNDO_DIR_ARG" ]; then
+                          readonly INNODB_UNDO_DIR_ARG="$value"
+                      fi
+                      ;;
+                  '--log-bin')
+                      if [ -z "$LOG_BIN_ARG" ]; then
+                          readonly LOG_BIN_ARG="$value"
+                      fi
+                      ;;
+              esac
+              if [ -z "$original_cmd" ]; then
+                  original_cmd="$1"
+              else
+                  original_cmd="$original_cmd $1"
+              fi
+           fi
+           shift
+        done
+        readonly WSREP_SST_OPT_MYSQLD="$original_cmd"
+        break
+        ;;
     *) # must be command
        # usage
        # exit 1
@@ -193,7 +253,15 @@ else
     MY_PRINT_DEFAULTS=$(which my_print_defaults)
 fi
 
-readonly WSREP_SST_OPT_CONF="$WSREP_SST_OPT_DEFAULT $WSREP_SST_OPT_EXTRA_DEFAULT $WSREP_SST_OPT_SUFFIX_DEFAULT"
+wsrep_defaults="$WSREP_SST_OPT_DEFAULT"
+if [ -n "$wsrep_defaults" ]; then
+   wsrep_defaults="$wsrep_defaults "
+fi
+wsrep_defaults="$wsrep_defaults$WSREP_SST_OPT_EXTRA_DEFAULT"
+if [ -n "$wsrep_defaults" ]; then
+   wsrep_defaults="$wsrep_defaults "
+fi
+readonly WSREP_SST_OPT_CONF="$wsrep_defaults$WSREP_SST_OPT_SUFFIX_DEFAULT"
 readonly MY_PRINT_DEFAULTS="$MY_PRINT_DEFAULTS $WSREP_SST_OPT_CONF"
 
 wsrep_auth_not_set()

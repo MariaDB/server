@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License along
    with this program; if not, write to the Free Software Foundation, Inc.,
-   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA. */
 
 #include "wsrep_binlog.h"
 #include "wsrep_priv.h"
@@ -505,7 +505,6 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
 
   if (init_io_cache(&cache, file, 0, WRITE_CACHE, 0, 0, MYF(MY_WME | MY_NABP)))
   {
-    mysql_file_close(file, MYF(MY_WME));
     goto cleanup2;
   }
 

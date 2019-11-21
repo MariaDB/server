@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -670,8 +670,7 @@ page_zip_dir_encode(
 		status = REC_STATUS_ORDINARY;
 	} else {
 		status = REC_STATUS_NODE_PTR;
-		if (UNIV_UNLIKELY
-		    (mach_read_from_4(page + FIL_PAGE_PREV) == FIL_NULL)) {
+		if (UNIV_UNLIKELY(!page_has_prev(page))) {
 			min_mark = REC_INFO_MIN_REC_FLAG;
 		}
 	}
@@ -1277,7 +1276,7 @@ page_zip_compress(
 	byte*			storage;	/* storage of uncompressed
 						columns */
 	index_id_t		ind_id;
-	uintmax_t		usec = ut_time_us(NULL);
+	const ulonglong		ns = my_interval_timer();
 #ifdef PAGE_ZIP_COMPRESS_DBG
 	FILE*			logfile = NULL;
 #endif
@@ -1564,7 +1563,7 @@ err_exit:
 			dict_index_zip_failure(index);
 		}
 
-		uintmax_t	time_diff = ut_time_us(NULL) - usec;
+		const uint64_t time_diff = (my_interval_timer() - ns) / 1000;
 		page_zip_stat[page_zip->ssize - 1].compressed_usec
 			+= time_diff;
 		if (cmp_per_index_enabled) {
@@ -1630,7 +1629,7 @@ err_exit:
 		fclose(logfile);
 	}
 #endif /* PAGE_ZIP_COMPRESS_DBG */
-	uintmax_t	time_diff = ut_time_us(NULL) - usec;
+	const uint64_t time_diff = (my_interval_timer() - ns) / 1000;
 	page_zip_stat[page_zip->ssize - 1].compressed_ok++;
 	page_zip_stat[page_zip->ssize - 1].compressed_usec += time_diff;
 	if (cmp_per_index_enabled) {
@@ -3187,8 +3186,7 @@ zlib_error:
 			goto err_exit;
 		}
 
-		info_bits = mach_read_from_4(page + FIL_PAGE_PREV) == FIL_NULL
-			? REC_INFO_MIN_REC_FLAG : 0;
+		info_bits = page_has_prev(page) ? 0 : REC_INFO_MIN_REC_FLAG;
 
 		if (UNIV_UNLIKELY(!page_zip_set_extra_bytes(page_zip, page,
 							    info_bits))) {
@@ -3250,13 +3248,13 @@ page_zip_decompress(
 				page header fields that should not change
 				after page creation */
 {
-	uintmax_t	usec = ut_time_us(NULL);
+	const ulonglong ns = my_interval_timer();
 
 	if (!page_zip_decompress_low(page_zip, page, all)) {
 		return(FALSE);
 	}
 
-	uintmax_t	time_diff = ut_time_us(NULL) - usec;
+	const uint64_t time_diff = (my_interval_timer() - ns) / 1000;
 	page_zip_stat[page_zip->ssize - 1].decompressed++;
 	page_zip_stat[page_zip->ssize - 1].decompressed_usec += time_diff;
 
@@ -4293,10 +4291,6 @@ page_zip_clear_rec(
 	} else {
 		ut_ad(!rec_offs_any_extern(offsets));
 	}
-
-#ifdef UNIV_ZIP_DEBUG
-	ut_a(page_zip_validate(page_zip, page, index));
-#endif /* UNIV_ZIP_DEBUG */
 }
 
 /**********************************************************************//**
@@ -4448,10 +4442,12 @@ page_zip_dir_delete(
 	slot_rec = page_zip_dir_find(page_zip, page_offset(rec));
 
 	ut_a(slot_rec);
-
+	uint16_t n_recs = page_get_n_recs(page);
+	ut_ad(n_recs);
+	ut_ad(n_recs > 1 || page_get_page_no(page) == index->page);
 	/* This could not be done before page_zip_dir_find(). */
 	page_header_set_field(page, page_zip, PAGE_N_RECS,
-			      (ulint)(page_get_n_recs(page) - 1));
+			      n_recs - 1);
 
 	if (UNIV_UNLIKELY(!free)) {
 		/* Make the last slot the start of the free list. */
@@ -4727,7 +4723,7 @@ page_zip_reorganize(
 	clustered index root pages. */
 	ut_ad(page_get_max_trx_id(page) == 0
 	      || (dict_index_is_clust(index)
-		  ? page_is_root(temp_page)
+		  ? !page_has_siblings(temp_page)
 		  : page_is_leaf(temp_page)));
 
 	/* Restore logging. */
@@ -4824,9 +4820,8 @@ page_zip_copy_recs(
 	      + page_zip->m_end < page_zip_get_size(page_zip));
 
 	if (!page_is_leaf(src)
-	    && UNIV_UNLIKELY(mach_read_from_4(src + FIL_PAGE_PREV) == FIL_NULL)
-	    && UNIV_LIKELY(mach_read_from_4(page
-					    + FIL_PAGE_PREV) != FIL_NULL)) {
+	    && UNIV_UNLIKELY(!page_has_prev(src))
+	    && UNIV_LIKELY(page_has_prev(page))) {
 		/* Clear the REC_INFO_MIN_REC_FLAG of the first user record. */
 		ulint	offs = rec_get_next_offs(page + PAGE_NEW_INFIMUM,
 						 TRUE);
@@ -4844,23 +4839,20 @@ page_zip_copy_recs(
 	page_zip_compress_write_log(page_zip, page, index, mtr);
 }
 
-/**********************************************************************//**
-Parses a log record of compressing an index page.
-@return end of log record or NULL */
-byte*
-page_zip_parse_compress(
-/*====================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr,/*!< in: buffer end */
-	page_t*		page,	/*!< out: uncompressed page */
-	page_zip_des_t*	page_zip)/*!< out: compressed page */
+/** Parse and optionally apply MLOG_ZIP_PAGE_COMPRESS.
+@param[in]	ptr	log record
+@param[in]	end_ptr	end of log
+@param[in,out]	block	ROW_FORMAT=COMPRESSED block, or NULL for parsing only
+@return	end of log record
+@retval	NULL	if the log record is incomplete */
+byte* page_zip_parse_compress(const byte* ptr, const byte* end_ptr,
+			      buf_block_t* block)
 {
 	ulint	size;
 	ulint	trailer_size;
 
 	ut_ad(ptr != NULL);
 	ut_ad(end_ptr!= NULL);
-	ut_ad(!page == !page_zip);
 
 	if (UNIV_UNLIKELY(ptr + (2 + 2) > end_ptr)) {
 
@@ -4877,14 +4869,22 @@ page_zip_parse_compress(
 		return(NULL);
 	}
 
-	if (page) {
-		if (!page_zip || page_zip_get_size(page_zip) < size) {
+	if (block) {
+		ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
+		page_zip_des_t* page_zip = buf_block_get_page_zip(block);
+		if (!page_zip || page_zip_get_size(page_zip) < size
+		    || block->page.id.page_no() < 3) {
 corrupt:
 			recv_sys->found_corrupt_log = TRUE;
 
 			return(NULL);
 		}
 
+		memset(page_zip->data, 0, page_zip_get_size(page_zip));
+		mach_write_to_4(FIL_PAGE_OFFSET
+				+ page_zip->data, block->page.id.page_no());
+		mach_write_to_4(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID
+				+ page_zip->data, block->page.id.space());
 		memcpy(page_zip->data + FIL_PAGE_PREV, ptr, 4);
 		memcpy(page_zip->data + FIL_PAGE_NEXT, ptr + 4, 4);
 		memcpy(page_zip->data + FIL_PAGE_TYPE, ptr + 8, size);
@@ -4894,14 +4894,14 @@ corrupt:
 		memcpy(page_zip->data + page_zip_get_size(page_zip)
 		       - trailer_size, ptr + 8 + size, trailer_size);
 
-		if (UNIV_UNLIKELY(!page_zip_decompress(page_zip, page,
+		if (UNIV_UNLIKELY(!page_zip_decompress(page_zip, block->frame,
 						       TRUE))) {
 
 			goto corrupt;
 		}
 	}
 
-	return(ptr + 8 + size + trailer_size);
+	return(const_cast<byte*>(ptr) + 8 + size + trailer_size);
 }
 #endif /* !UNIV_INNOCHECKSUM */
 

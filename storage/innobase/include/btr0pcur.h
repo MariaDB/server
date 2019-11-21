@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -326,14 +326,6 @@ btr_pcur_move_to_prev(
 /*==================*/
 	btr_pcur_t*	cursor,	/*!< in: persistent cursor; NOTE that the
 				function may release the page latch */
-	mtr_t*		mtr);	/*!< in: mtr */
-/*********************************************************//**
-Moves the persistent cursor to the last record on the same page. */
-UNIV_INLINE
-void
-btr_pcur_move_to_last_on_page(
-/*==========================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor */
 	mtr_t*		mtr);	/*!< in: mtr */
 /*********************************************************//**
 Moves the persistent cursor to the next user record in the tree. If no user

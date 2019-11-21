@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -115,12 +115,7 @@ dict_table_open_on_id(
 /**********************************************************************//**
 Returns a table object based on table id.
 @return	table, NULL if does not exist */
-UNIV_INTERN
-dict_table_t*
-dict_table_open_on_index_id(
-/*==================*/
-	table_id_t	table_id,	/*!< in: table id */
-	bool		dict_locked)	/*!< in: TRUE=data dictionary locked */
+dict_table_t* dict_table_open_on_index_id(index_id_t index_id)
 	__attribute__((warn_unused_result));
 /********************************************************************//**
 Decrements the count of open handles to a table. */
@@ -532,6 +527,21 @@ dict_table_open_on_name(
 	dict_err_ignore_t	ignore_err)
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Outcome of dict_foreign_find_index() or dict_foreign_qualify_index() */
+enum fkerr_t
+{
+  /** A backing index was found for a FOREIGN KEY constraint */
+  FK_SUCCESS = 0,
+  /** There is no index that covers the columns in the constraint. */
+  FK_INDEX_NOT_FOUND,
+  /** The index is for a prefix index, not a full column. */
+  FK_IS_PREFIX_INDEX,
+  /** A condition of SET NULL conflicts with a NOT NULL column. */
+  FK_COL_NOT_NULL,
+  /** The column types do not match */
+  FK_COLS_NOT_EQUAL
+};
+
 /*********************************************************************//**
 Tries to find an index whose first fields are the columns in the array,
 in the same order and is not marked for deletion and is not the same
@@ -558,11 +568,11 @@ dict_foreign_find_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
-	ulint*			error,	/*!< out: error code */
-	ulint*			err_col_no,
+	fkerr_t*		error = NULL,	/*!< out: error code */
+	ulint*			err_col_no = NULL,
 					/*!< out: column number where
 					error happened */
-	dict_index_t**		err_index)
+	dict_index_t**		err_index = NULL)
 					/*!< out: index where error
 					happened */
 
@@ -648,7 +658,7 @@ dict_foreign_qualify_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
-	ulint*			error,	/*!< out: error code */
+	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
 					error happened */
@@ -879,13 +889,11 @@ dict_table_get_sys_col(
 	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #else /* UNIV_DEBUG */
-#define dict_table_get_nth_col(table, pos)	\
-((table)->cols + (pos))
+#define dict_table_get_nth_col(table, pos)	(&(table)->cols[pos])
 #define dict_table_get_sys_col(table, sys)	\
-((table)->cols + (table)->n_cols + (sys)	\
- - (dict_table_get_n_sys_cols(table)))
+	&(table)->cols[(table)->n_cols + (sys) - DATA_N_SYS_COLS]
 /* Get nth virtual columns */
-#define dict_table_get_nth_v_col(table, pos)	((table)->v_cols + (pos))
+#define dict_table_get_nth_v_col(table, pos)	(&(table)->v_cols[pos])
 #endif /* UNIV_DEBUG */
 /********************************************************************//**
 Gets the given system column number of a table.
@@ -1056,17 +1064,6 @@ dict_table_copy_types(
 	dtuple_t*		tuple,	/*!< in/out: data tuple */
 	const dict_table_t*	table)	/*!< in: table */
 	MY_ATTRIBUTE((nonnull));
-/********************************************************************
-Wait until all the background threads of the given table have exited, i.e.,
-bg_threads == 0. Note: bg_threads_mutex must be reserved when
-calling this. */
-void
-dict_table_wait_for_bg_threads_to_exit(
-/*===================================*/
-	dict_table_t*	table,	/* in: table */
-	ulint		delay)	/* in: time in microseconds to wait between
-				checks of bg_threads. */
-	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Looks for an index with the given id. NOTE that we do not reserve
 the dictionary mutex: this function is for emergency purposes like
@@ -1090,23 +1087,6 @@ dict_make_room_in_cache(
 
 #define BIG_ROW_SIZE	1024
 
-/** Adds an index to the dictionary cache.
-@param[in]	table	table on which the index is
-@param[in]	index	index; NOTE! The index memory
-			object is freed in this function!
-@param[in]	page_no	root page number of the index
-@param[in]	strict	TRUE=refuse to create the index
-			if records could be too big to fit in
-			an B-tree page
-@return DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION */
-dberr_t
-dict_index_add_to_cache(
-	dict_table_t*	table,
-	dict_index_t*	index,
-	ulint		page_no,
-	ibool		strict)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Clears the virtual column's index list before index is being freed.
 @param[in]  index   Index being freed */
 void
@@ -1115,23 +1095,18 @@ dict_index_remove_from_v_col_list(
 
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
-@param[in]	table	table on which the index is
-@param[in]	index	index; NOTE! The index memory
+@param[in,out]	table	table on which the index is
+@param[in,out]	index	index; NOTE! The index memory
 			object is freed in this function!
-@param[in]	add_v	new virtual column that being added along with
-			an add index call
 @param[in]	page_no	root page number of the index
-@param[in]	strict	TRUE=refuse to create the index
-			if records could be too big to fit in
-			an B-tree page
-@return DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION */
+@param[in]	add_v	virtual columns being added along with ADD INDEX
+@return DB_SUCCESS, or DB_CORRUPTION */
 dberr_t
-dict_index_add_to_cache_w_vcol(
+dict_index_add_to_cache(
 	dict_table_t*		table,
-	dict_index_t*		index,
-	const dict_add_v_col_t* add_v,
+	dict_index_t*&		index,
 	ulint			page_no,
-	ibool			strict)
+	const dict_add_v_col_t* add_v = NULL)
 	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index,
@@ -1599,31 +1574,21 @@ dict_tables_have_same_db(
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 dict_index_t*
-dict_table_get_index_on_name(
-	dict_table_t*	table,
-	const char*	name,
-	bool		committed=true)
+dict_table_get_index_on_name(dict_table_t* table, const char* name)
 		MY_ATTRIBUTE((warn_unused_result));
 
 /** Get an index by name.
 @param[in]	table		the table where to look for the index
 @param[in]	name		the index name to look for
-@param[in]	committed	true=search for committed,
-false=search for uncommitted
 @return index, NULL if does not exist */
 inline
 const dict_index_t*
-dict_table_get_index_on_name(
-	const dict_table_t*	table,
-	const char*		name,
-	bool			committed=true)
+dict_table_get_index_on_name(const dict_table_t* table, const char* name)
 {
-	return(dict_table_get_index_on_name(
-		       const_cast<dict_table_t*>(table), name, committed));
+	return dict_table_get_index_on_name(const_cast<dict_table_t*>(table),
+					    name);
 }
 
 /***************************************************************
@@ -1688,7 +1653,7 @@ extern ib_mutex_t	dict_foreign_err_mutex; /* mutex protecting the
 /** the dictionary system */
 extern dict_sys_t*	dict_sys;
 /** the data dictionary rw-latch protecting dict_sys */
-extern rw_lock_t*	dict_operation_lock;
+extern rw_lock_t	dict_operation_lock;
 
 /* Dictionary system struct */
 struct dict_sys_t{

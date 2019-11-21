@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -684,15 +684,30 @@ fsp_descr_page(
 	const page_id_t		page_id,
 	const page_size_t&	page_size);
 
-/***********************************************************//**
-Parses a redo log record of a file page init.
-@return end of log record or NULL */
-byte*
-fsp_parse_init_file_page(
-/*=====================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr, /*!< in: buffer end */
-	buf_block_t*	block);	/*!< in: block or NULL */
+/** Initialize a file page whose prior contents should be ignored.
+@param[in,out]	block	buffer pool block */
+void fsp_apply_init_file_page(buf_block_t* block);
+
+/** Initialize a file page.
+@param[in]	space	tablespace
+@param[in,out]	block	file page
+@param[in,out]	mtr	mini-transaction */
+inline void fsp_init_file_page(
+#ifdef UNIV_DEBUG
+	const fil_space_t* space,
+#endif
+	buf_block_t* block, mtr_t* mtr)
+{
+	ut_d(space->modify_check(*mtr));
+	ut_ad(space->id == block->page.id.space());
+	fsp_apply_init_file_page(block);
+	mlog_write_initial_log_record(block->frame, MLOG_INIT_FILE_PAGE2, mtr);
+}
+
+#ifndef UNIV_DEBUG
+# define fsp_init_file_page(space, block, mtr) fsp_init_file_page(block, mtr)
+#endif
+
 #ifdef UNIV_BTR_PRINT
 /*******************************************************************//**
 Writes info of a segment. */

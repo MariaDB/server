@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Test av locking */
 
@@ -364,7 +364,7 @@ int test_write(MI_INFO *file,int id,int lock_type)
       mi_extra(file,HA_EXTRA_WRITE_CACHE,0);
   }
 
-  sprintf((char*) record.id,"%7ld",(long) getpid());
+  my_snprintf((char*) record.id, sizeof(record.id), "%7ld", (long) getpid());
   strnmov((char*) record.text,"Testing...", sizeof(record.text));
 
   tries=(uint) rnd(100)+10;

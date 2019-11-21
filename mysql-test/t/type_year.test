@@ -214,6 +214,17 @@ SELECT * FROM t1 WHERE a=10 AND a>=10;
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10 AND a>=10;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-16958 Assertion `field_length < 5' failed in Field_year::val_str or data corruption upon SELECT with UNION and aggregate functions
+--echo #
+
+CREATE TABLE t1 (f YEAR);
+INSERT IGNORE INTO t1 VALUES (1971),(1972);
+SELECT MAX( NULLIF( f, '1900' ) ) AS f FROM t1 UNION SELECT MAX( NULLIF( f, '1900' ) ) AS f FROM t1;
+DROP TABLE t1;
+
+
 --echo #
 --echo # End of 10.1 tests
 --echo #

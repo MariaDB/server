@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   These functions handle page caching for Maria tables.
@@ -3464,8 +3464,6 @@ restart:
         pagecache_pthread_mutex_lock(&pagecache->cache_lock);
 #endif
       }
-      if (status & PCBLOCK_ERROR)
-        my_errno= block->error;
     }
 
     remove_reader(block);
@@ -3497,6 +3495,7 @@ restart:
 
     if (status & PCBLOCK_ERROR)
     {
+      my_errno= block->error;
       DBUG_ASSERT(my_errno != 0);
       DBUG_PRINT("error", ("Got error %d when doing page read", my_errno));
       DBUG_RETURN((uchar *) 0);

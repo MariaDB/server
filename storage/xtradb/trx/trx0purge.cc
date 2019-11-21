@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -146,7 +146,8 @@ trx_purge_sys_create(
 	here only because the query threads code requires it. It is otherwise
 	quite unnecessary. We should get rid of it eventually. */
 	purge_sys->trx->id = 0;
-	purge_sys->trx->start_time = ut_time();
+	purge_sys->trx->start_time = time(NULL);
+	purge_sys->trx->start_time_micro = microsecond_interval_timer();
 	purge_sys->trx->state = TRX_STATE_ACTIVE;
 	purge_sys->trx->op_info = "purge trx";
 
@@ -989,7 +990,7 @@ trx_purge_attach_undo_recs(
 
 	i = 0;
 
-	for (;;) {
+	while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown) {
 		purge_node_t*		node;
 		trx_purge_rec_t*	purge_rec;
 

@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -164,10 +164,26 @@ void dict_stats_update_if_needed_func(dict_table_t* table)
 		    && dict_stats_auto_recalc_is_enabled(table)) {
 
 #ifdef WITH_WSREP
-			if (thd && wsrep_on(thd) && wsrep_thd_is_BF(thd, 0)) {
+			/* Do not add table to background
+			statistic calculation if this thread is not a
+			applier (as all DDL, which is replicated (i.e
+			is binlogged in master node), will be executed
+			with high priority (a.k.a BF) in slave nodes)
+			and is BF. This could again lead BF lock
+			waits in applier node but it is better than
+			no persistent index/table statistics at
+			applier nodes. TODO: allow BF threads
+			wait for these InnoDB internal SQL-parser
+			generated row locks and allow BF thread
+			lock waits to be enqueued at head of waiting
+			queue. */
+			if (thd
+			    && !wsrep_thd_is_applier(thd)
+			    && wsrep_on(thd)
+			    && wsrep_thd_is_BF(thd, 0)) {
 				WSREP_DEBUG("Avoiding background statistics"
-					    " calculation for table %s",
-					    table->name.m_name);
+					    " calculation for table %s.",
+					table->name.m_name);
 				return;
 			}
 #endif /* WITH_WSREP */
@@ -369,14 +385,14 @@ dict_stats_process_entry_from_recalc_pool()
 
 	mutex_exit(&dict_sys->mutex);
 
-	/* ut_time() could be expensive, the current function
+	/* time() could be expensive, the current function
 	is called once every time a table has been changed more than 10% and
 	on a system with lots of small tables, this could become hot. If we
 	find out that this is a problem, then the check below could eventually
 	be replaced with something else, though a time interval is the natural
 	approach. */
 
-	if (ut_difftime(ut_time(), table->stats_last_recalc)
+	if (difftime(time(NULL), table->stats_last_recalc)
 	    < MIN_RECALC_INTERVAL) {
 
 		/* Stats were (re)calculated not long ago. To avoid

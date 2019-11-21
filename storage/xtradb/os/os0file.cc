@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -22,7 +22,7 @@ Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 ***********************************************************************/
 
@@ -214,7 +214,10 @@ struct os_aio_slot_t{
 	ulint		pos;		/*!< index of the slot in the aio
 					array */
 	ibool		reserved;	/*!< TRUE if this slot is reserved */
-	time_t		reservation_time;/*!< time when reserved */
+	/** time(NULL) when reserved.
+	FIXME: os_aio_simulated_handle() may malfunction if
+	the system time is adjusted! */
+	time_t		reservation_time;
 	ulint		len;		/*!< length of the block to read or
 					write */
 	byte*		buf;		/*!< buffer used in i/o */
@@ -2968,10 +2971,6 @@ os_file_pread(
 	trx_t*		trx)
 {
 	off_t	offs;
-	ulint		sec;
-	ulint		ms;
-	ib_uint64_t	start_time;
-	ib_uint64_t	finish_time;
 
 	ut_ad(n);
 
@@ -2988,15 +2987,9 @@ os_file_pread(
 
 	os_n_file_reads++;
 
-	if (UNIV_UNLIKELY(trx && trx->take_stats))
-	{
-	        trx->io_reads++;
-		trx->io_read += n;
-		ut_usectime(&sec, &ms);
-		start_time = (ib_uint64_t)sec * 1000000 + ms;
-	} else {
-		start_time = 0;
-	}
+	const ulonglong start_time = UNIV_UNLIKELY(trx && trx->take_stats)
+		? my_interval_timer()
+		: 0;
 
 	const bool monitor = MONITOR_IS_ON(MONITOR_OS_PENDING_READS);
 #ifdef HAVE_PREAD
@@ -3022,9 +3015,8 @@ os_file_pread(
 
 	if (UNIV_UNLIKELY(start_time != 0))
 	{
-		ut_usectime(&sec, &ms);
-		finish_time = (ib_uint64_t)sec * 1000000 + ms;
-		trx->io_reads_wait_timer += (ulint)(finish_time - start_time);
+		trx->io_reads_wait_timer += ulint((my_interval_timer()
+						   - start_time) / 1000);
 	}
 
 	return(n_bytes);
@@ -3071,9 +3063,8 @@ os_file_pread(
 
 		if (UNIV_UNLIKELY(start_time != 0)
 		{
-			ut_usectime(&sec, &ms);
-			finish_time = (ib_uint64_t)sec * 1000000 + ms;
-			trx->io_reads_wait_timer += (ulint)(finish_time - start_time);
+			trx->io_reads_wait_timer += ulint(
+				(my_interval_timer() - start_time) / 1000);
 		}
 
 		return(ret);
@@ -4518,7 +4509,7 @@ os_aio_init(
 
 	os_aio_validate();
 
-	os_last_printout = ut_time();
+	os_last_printout = time(NULL);
 
 #ifdef _WIN32
 	ut_a(completion_port == 0 && read_completion_port == 0);
@@ -4846,7 +4837,7 @@ found:
 	}
 
 	slot->reserved = TRUE;
-	slot->reservation_time = ut_time();
+	slot->reservation_time = time(NULL);
 	slot->message1 = message1;
 	slot->message2 = message2;
 	slot->file     = file;
@@ -5988,7 +5979,7 @@ restart:
 		if (slot->reserved) {
 
 			age = (ulint) difftime(
-				ut_time(), slot->reservation_time);
+				time(NULL), slot->reservation_time);
 
 			if ((age >= 2 && age > biggest_age)
 			    || (age >= 2 && age == biggest_age
@@ -6401,7 +6392,7 @@ os_aio_print(
 	}
 
 	putc('\n', file);
-	current_time = ut_time();
+	current_time = time(NULL);
 	time_elapsed = 0.001 + difftime(current_time, os_last_printout);
 
 	fprintf(file,

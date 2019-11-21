@@ -18,6 +18,7 @@ drop table if exists t1;
 eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 create table t1 (a char);
 
+set @save_query_cache_size=@@query_cache_size;
 set GLOBAL query_cache_size=1355776;
 reset query cache;
 flush status;
@@ -32,5 +33,6 @@ show status like "Qcache_queries_in_cache";
 
 drop table t1;
 drop function metaphon;
-set GLOBAL query_cache_size=default;
+set GLOBAL query_cache_size=@save_query_cache_size;
+
 

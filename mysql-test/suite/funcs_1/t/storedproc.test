@@ -9,6 +9,8 @@
 #                   - restore global sort_buffer_size after some subtest
 #                  
 ############################################################################
+
+--source include/default_charset.inc
 set sql_mode="";
 
 # Bug#37746 - Arithmetic range ("int") is smaller than expected

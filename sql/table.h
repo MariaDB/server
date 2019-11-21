@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_plist.h"
@@ -54,6 +54,7 @@ struct TDC_element;
 class Virtual_column_info;
 class Table_triggers_list;
 class TMP_TABLE_PARAM;
+struct Name_resolution_context;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -323,6 +324,20 @@ enum tmp_table_type
   INTERNAL_TMP_TABLE, SYSTEM_TMP_TABLE
 };
 enum release_type { RELEASE_NORMAL, RELEASE_WAIT_FOR_DROP };
+
+
+enum vcol_init_mode
+{
+  VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING= 1,
+  VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR= 2
+  /*
+    There may be new flags here.
+    e.g. to automatically remove sql_mode dependency:
+      GENERATED ALWAYS AS (char_col) ->
+      GENERATED ALWAYS AS (RTRIM(char_col))
+  */
+};
+
 
 enum enum_vcol_update_mode
 {
@@ -761,6 +776,8 @@ struct TABLE_SHARE
 
   /** Instrumentation for this table share. */
   PSI_table_share *m_psi;
+
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
 
   /*
     Set share's table cache key and update its db and table name appropriately.
@@ -1309,6 +1326,7 @@ public:
   bool histograms_are_read;
   MDL_ticket *mdl_ticket;
 
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
   void reset_item_list(List<Item> *item_list) const;
@@ -1423,6 +1441,7 @@ public:
   bool is_filled_at_execution();
 
   bool update_const_key_parts(COND *conds);
+  void initialize_quick_structures();
 
   my_ptrdiff_t default_values_offset() const
   { return (my_ptrdiff_t) (s->default_values - record[0]); }
@@ -1435,7 +1454,8 @@ public:
   ulong actual_key_flags(KEY *keyinfo);
   int update_virtual_field(Field *vf);
   int update_virtual_fields(handler *h, enum_vcol_update_mode update_mode);
-  int update_default_fields(bool update, bool ignore_errors);
+  int update_default_fields(bool ignore_errors);
+  void evaluate_update_default_function();
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 
@@ -1751,6 +1771,7 @@ struct TABLE_LIST
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
   */
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
   inline void init_one_table(const char *db_name_arg,
                              size_t db_length_arg,
                              const char *table_name_arg,
@@ -1766,15 +1787,16 @@ struct TABLE_LIST
     else
       mdl_type= MDL_SHARED_READ;
 
-    bzero((char*) this, sizeof(*this));
     DBUG_ASSERT(!db_name_arg || strlen(db_name_arg) == db_length_arg);
     DBUG_ASSERT(!table_name_arg || strlen(table_name_arg) == table_name_length_arg);
+    reset();
     db= (char*) db_name_arg;
     db_length= db_length_arg;
     table_name= (char*) table_name_arg;
     table_name_length= table_name_length_arg;
     alias= (char*) (alias_arg ? alias_arg : table_name_arg);
     lock_type= lock_type_arg;
+    updating= lock_type >= TL_WRITE_ALLOW_WRITE;
     mdl_request.init(MDL_key::TABLE, db, table_name, mdl_type, MDL_TRANSACTION);
   }
 
@@ -1814,6 +1836,7 @@ struct TABLE_LIST
   char		*db, *alias, *table_name, *schema_table_name;
   char          *option;                /* Used by cache index  */
   Item		*on_expr;		/* Used with outer join */
+  Name_resolution_context *on_context;  /* For ON expressions */
 
   Item          *sj_on_expr;
   /*
@@ -2272,8 +2295,7 @@ struct TABLE_LIST
 
     @sa check_and_update_table_version()
   */
-  inline
-  bool is_table_ref_id_equal(TABLE_SHARE *s) const
+  inline bool is_table_ref_id_equal(TABLE_SHARE *s) const
   {
     return (m_table_ref_type == s->get_table_ref_type() &&
             m_table_ref_version == s->get_table_ref_version());
@@ -2285,12 +2307,10 @@ struct TABLE_LIST
 
     @sa check_and_update_table_version()
   */
-  inline
-  void set_table_ref_id(TABLE_SHARE *s)
+  inline void set_table_ref_id(TABLE_SHARE *s)
   { set_table_ref_id(s->get_table_ref_type(), s->get_table_ref_version()); }
 
-  inline
-  void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
+  inline void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
                         ulong table_ref_version_arg)
   {
     m_table_ref_type= table_ref_type_arg;
@@ -2561,9 +2581,31 @@ public:
 };
 
 
+#define JOIN_OP_NEST       1
+#define REBALANCED_NEST    2
+
 typedef struct st_nested_join
 {
   List<TABLE_LIST>  join_list;       /* list of elements in the nested join */
+  /*
+    Currently the valid values for nest type are:
+    JOIN_OP_NEST - for nest created for JOIN operation used as an operand in
+    a join expression, contains 2 elements;
+    JOIN_OP_NEST | REBALANCED_NEST -  nest created after tree re-balancing
+    in st_select_lex::add_cross_joined_table(), contains 1 element;
+    0 - for all other nests.
+    Examples:
+    1.  SELECT * FROM t1 JOIN t2 LEFT JOIN t3 ON t2.a=t3.a;
+    Here the nest created for LEFT JOIN at first has nest_type==JOIN_OP_NEST.
+    After re-balancing in st_select_lex::add_cross_joined_table() this nest
+    has nest_type==JOIN_OP_NEST | REBALANCED_NEST. The nest for JOIN created
+    in st_select_lex::add_cross_joined_table() has nest_type== JOIN_OP_NEST.
+    2.  SELECT * FROM t1 JOIN (t2 LEFT JOIN t3 ON t2.a=t3.a)
+    Here the nest created for LEFT JOIN has nest_type==0, because it's not
+    an operand in a join expression. The nest created for JOIN has nest_type
+    set to JOIN_OP_NEST.
+  */
+  uint nest_type;
   /* 
     Bitmap of tables within this nested join (including those embedded within
     its children), including tables removed by table elimination.
@@ -2710,7 +2752,7 @@ bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
 bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
                                     Virtual_column_info *vcol);
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
-                     bool *error_reported);
+                     bool *error_reported, vcol_init_mode expr);
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                                const char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,

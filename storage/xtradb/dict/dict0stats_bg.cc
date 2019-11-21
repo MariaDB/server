@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -437,14 +437,14 @@ dict_stats_process_entry_from_recalc_pool()
 
 	mutex_exit(&dict_sys->mutex);
 
-	/* ut_time() could be expensive, the current function
+	/* time() could be expensive, the current function
 	is called once every time a table has been changed more than 10% and
 	on a system with lots of small tables, this could become hot. If we
 	find out that this is a problem, then the check below could eventually
 	be replaced with something else, though a time interval is the natural
 	approach. */
 
-	if (ut_difftime(ut_time(), table->stats_last_recalc)
+	if (difftime(time(NULL), table->stats_last_recalc)
 	    < MIN_RECALC_INTERVAL) {
 
 		/* Stats were (re)calculated not long ago. To avoid

@@ -1137,6 +1137,7 @@ drop table t0,t1,t2;
 #
 # MDEV-11196: Error:Run-Time Check Failure #2 - Stack around the variable 'key_buff'
 # was corrupted, server crashes in opt_sum_query
+SET @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity,@@optimizer_use_condition_selectivity=1;
 CREATE TABLE t1 (
 pk INT,
 f1 VARCHAR(3),
@@ -1209,3 +1210,4 @@ EXPLAIN
   }
 }
 drop table t1;
+SET optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;

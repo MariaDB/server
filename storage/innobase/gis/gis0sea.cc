@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -289,7 +289,7 @@ rtr_pcur_getnext_from_path(
 		Note that we have SX lock on index->lock, there
 		should not be any split/shrink happening here */
 		if (page_ssn > path_ssn) {
-			ulint next_page_no = btr_page_get_next(page, mtr);
+			uint32_t next_page_no = btr_page_get_next(page);
 			rtr_non_leaf_stack_push(
 				rtr_info->path, next_page_no, path_ssn,
 				level, 0, NULL, 0);
@@ -1407,7 +1407,7 @@ search_again:
 	/* Check the page SSN to see if it has been splitted, if so, search
 	the right page */
 	if (!ret && page_ssn > path_ssn) {
-		page_no = btr_page_get_next(page, mtr);
+		page_no = btr_page_get_next(page);
 		goto search_again;
 	}
 
@@ -1631,15 +1631,13 @@ rtr_get_mbr_from_tuple(
 {
 	const dfield_t* dtuple_field;
         ulint           dtuple_f_len;
-	byte*		data;
 
 	dtuple_field = dtuple_get_nth_field(dtuple, 0);
 	dtuple_f_len = dfield_get_len(dtuple_field);
 	ut_a(dtuple_f_len >= 4 * sizeof(double));
 
-	data = static_cast<byte*>(dfield_get_data(dtuple_field));
-
-	rtr_read_mbr(data, mbr);
+	rtr_read_mbr(static_cast<const byte*>(dfield_get_data(dtuple_field)),
+		     mbr);
 }
 
 /****************************************************************//**
@@ -1715,7 +1713,7 @@ rtr_cur_search_with_match(
 		first page as much as possible, as there will be problem
 		when update MIN_REC rec in compress table */
 		if (buf_block_get_page_zip(block)
-		    && mach_read_from_4(page + FIL_PAGE_PREV) == FIL_NULL
+		    && !page_has_prev(page)
 		    && page_get_n_recs(page) >= 2) {
 
 			rec = page_rec_get_next_const(rec);

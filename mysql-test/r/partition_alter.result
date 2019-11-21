@@ -76,6 +76,7 @@ t1	CREATE TABLE `t1` (
 insert t1 values (2, '2020-01-03', 20);
 ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
 drop table t1;
+db.opt
 create table t1(id int, d date not null, b bool not null default 0, primary key(id,d))
 partition by range columns (d) (
 partition p1 values less than ('2016-10-18'),
@@ -100,6 +101,7 @@ t1	CREATE TABLE `t1` (
 insert t1 values (2, '2020-01-03', 20);
 ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
 drop table t1;
+db.opt
 create table t1 (id_1 int auto_increment, id_2 int, id_3 int, d1 date, dt1 datetime default current_timestamp, dt2 datetime default current_timestamp on update current_timestamp, primary key (id_2, id_3), key(id_1)) partition by hash(id_2) partitions 3 (partition p01, partition p02, partition p03);
 insert into t1 values(0, 1, 1, NULL, now(), now());
 alter online table t1 delay_key_write=1;

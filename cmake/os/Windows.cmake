@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 # This file includes Windows specific hacks, mostly around compiler flags
 
@@ -154,11 +154,18 @@ IF(MSVC)
   IF(MYSQL_MAINTAINER_MODE MATCHES "ERR")
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX")
+    FOREACH(type EXE SHARED MODULE)
+      FOREACH(cfg RELEASE DEBUG RELWITHDEBINFO)
+        SET(CMAKE_${type}_LINKER_FLAGS_${cfg} "${CMAKE_${type}_LINKER_FLAGS_${cfg}} /WX")
+      ENDFOREACH()
+    ENDFOREACH()
   ENDIF()
   IF(MSVC_VERSION LESS 1910)
     # Noisy warning C4800: 'type': forcing value to bool 'true' or 'false' (performance warning),
     # removed in VS2017
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4800")
+  ELSE()
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /d2OptimizeHugeFunctions")
   ENDIF()
 ENDIF()
 
@@ -218,7 +225,6 @@ CHECK_SYMBOL_REPLACEMENT(S_IROTH _S_IREAD sys/stat.h)
 CHECK_SYMBOL_REPLACEMENT(S_IFIFO _S_IFIFO sys/stat.h)
 CHECK_SYMBOL_REPLACEMENT(SIGQUIT SIGTERM signal.h)
 CHECK_SYMBOL_REPLACEMENT(SIGPIPE SIGINT signal.h)
-CHECK_SYMBOL_REPLACEMENT(isnan _isnan "math.h;float.h")
 CHECK_SYMBOL_REPLACEMENT(finite _finite "math;float.h")
 CHECK_FUNCTION_REPLACEMENT(popen _popen)
 CHECK_FUNCTION_REPLACEMENT(pclose _pclose)

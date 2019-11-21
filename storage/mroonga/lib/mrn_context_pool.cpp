@@ -14,7 +14,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 #include "mrn_context_pool.hpp"
@@ -77,7 +77,7 @@ namespace mrn {
     }
 
   private:
-    static const unsigned int CLEAR_THREATHOLD_IN_SECONDS = 60 * 5;
+    static const int CLEAR_THREATHOLD_IN_SECONDS = 60 * 5;
 
     mysql_mutex_t *mutex_;
     LIST *pool_;

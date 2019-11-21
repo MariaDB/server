@@ -28,7 +28,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -2163,10 +2163,11 @@ DECLARE_THREAD(srv_monitor_thread)(void*)
 	pfs_register_thread(srv_monitor_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
-	srv_last_monitor_time = ut_time();
-	last_table_monitor_time = ut_time();
-	last_tablespace_monitor_time = ut_time();
-	last_monitor_time = ut_time();
+	current_time = time(NULL);
+	srv_last_monitor_time = current_time;
+	last_table_monitor_time = current_time;
+	last_tablespace_monitor_time = current_time;
+	last_monitor_time = current_time;
 	mutex_skipped = 0;
 	last_srv_print_monitor = srv_print_innodb_monitor;
 loop:
@@ -2177,12 +2178,12 @@ loop:
 
 	os_event_wait_time_low(srv_monitor_event, 5000000, sig_count);
 
-	current_time = ut_time();
+	current_time = time(NULL);
 
 	time_elapsed = difftime(current_time, last_monitor_time);
 
 	if (time_elapsed > 15) {
-		last_monitor_time = ut_time();
+		last_monitor_time = current_time;
 
 		if (srv_print_innodb_monitor) {
 			/* Reset mutex_skipped counter everytime
@@ -2229,7 +2230,7 @@ loop:
 		if (srv_print_innodb_tablespace_monitor
 		    && difftime(current_time,
 				last_tablespace_monitor_time) > 60) {
-			last_tablespace_monitor_time = ut_time();
+			last_tablespace_monitor_time = current_time;
 
 			fputs("========================"
 			      "========================\n",
@@ -2255,7 +2256,7 @@ loop:
 		if (srv_print_innodb_table_monitor
 		    && difftime(current_time, last_table_monitor_time) > 60) {
 
-			last_table_monitor_time = ut_time();
+			last_table_monitor_time = current_time;
 
 			fprintf(stderr, "Warning: %s\n",
 				DEPRECATED_MSG_INNODB_TABLE_MONITOR);
@@ -2849,20 +2850,16 @@ static
 void
 srv_shutdown_print_master_pending(
 /*==============================*/
-	ib_time_t*	last_print_time,	/*!< last time the function
+	time_t*		last_print_time,	/*!< last time the function
 						print the message */
 	ulint		n_tables_to_drop,	/*!< number of tables to
 						be dropped */
 	ulint		n_bytes_merged)		/*!< number of change buffer
 						just merged */
 {
-	ib_time_t	current_time;
-	double		time_elapsed;
+	time_t current_time = time(NULL);
 
-	current_time = ut_time();
-	time_elapsed = ut_difftime(current_time, *last_print_time);
-
-	if (time_elapsed > 60) {
+	if (difftime(current_time, *last_print_time) > 60) {
 		*last_print_time = current_time;
 
 		if (n_tables_to_drop) {
@@ -2897,8 +2894,8 @@ void
 srv_master_do_active_tasks(void)
 /*============================*/
 {
-	ib_time_t	cur_time = ut_time();
-	ullint		counter_time = ut_time_us(NULL);
+	time_t		cur_time = time(NULL);
+	ulonglong	counter_time = microsecond_interval_timer();
 	ulint		n_evicted = 0;
 
 	/* First do the tasks that we are suppose to do at each
@@ -2927,7 +2924,7 @@ srv_master_do_active_tasks(void)
 
 	/* Do an ibuf merge */
 	srv_main_thread_op_info = "doing insert buffer merge";
-	counter_time = ut_time_us(NULL);
+	counter_time = microsecond_interval_timer();
 	ibuf_merge_in_background(false);
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_IBUF_MERGE_MICROSECOND, counter_time);
@@ -2989,9 +2986,7 @@ void
 srv_master_do_idle_tasks(void)
 /*==========================*/
 {
-	ullint	counter_time;
 	ulint	n_evicted = 0;
-
 	++srv_main_idle_loops;
 
 	MONITOR_INC(MONITOR_MASTER_IDLE_LOOPS);
@@ -3000,7 +2995,7 @@ srv_master_do_idle_tasks(void)
 	/* ALTER TABLE in MySQL requires on Unix that the table handler
 	can drop tables lazily after there no longer are SELECT
 	queries to them. */
-	counter_time = ut_time_us(NULL);
+	ulonglong counter_time = microsecond_interval_timer();
 	srv_main_thread_op_info = "doing background drop tables";
 	row_drop_tables_for_mysql_in_background();
 	MONITOR_INC_TIME_IN_MICRO_SECS(
@@ -3017,7 +3012,7 @@ srv_master_do_idle_tasks(void)
 	log_free_check();
 
 	/* Do an ibuf merge */
-	counter_time = ut_time_us(NULL);
+	counter_time = microsecond_interval_timer();
 	srv_main_thread_op_info = "doing insert buffer merge";
 	ibuf_merge_in_background(true);
 	MONITOR_INC_TIME_IN_MICRO_SECS(
@@ -3055,7 +3050,7 @@ srv_master_do_idle_tasks(void)
 
 	if (srv_log_arch_expire_sec) {
 		srv_main_thread_op_info = "purging archived logs";
-		purge_archived_logs(ut_time() - srv_log_arch_expire_sec,
+		purge_archived_logs(time(NULL) - srv_log_arch_expire_sec,
 				0);
 	}
 }
@@ -3068,7 +3063,7 @@ srv_shutdown(bool ibuf_merge)
 {
 	ulint		n_bytes_merged	= 0;
 	ulint		n_tables_to_drop;
-	ib_time_t	now = ut_time();
+	time_t		now = time(NULL);
 
 	do {
 		ut_ad(!srv_read_only_mode);
@@ -3229,10 +3224,10 @@ srv_purge_should_exit(ulint n_purged)
 	/* Slow shutdown was requested. */
 	if (n_purged) {
 #if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
-		static ib_time_t progress_time;
-		ib_time_t time = ut_time();
-		if (time - progress_time >= 15) {
-			progress_time = time;
+		static time_t progress_time;
+		time_t now = time(NULL);
+		if (now - progress_time >= 15) {
+			progress_time = now;
 			service_manager_extend_timeout(
 				INNODB_EXTEND_TIMEOUT_INTERVAL,
 				"InnoDB: to purge " ULINTPF " transactions",

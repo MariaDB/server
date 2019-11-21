@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -495,14 +495,7 @@ void
 dict_mem_table_free_foreign_vcol_set(
 	dict_table_t*	table);
 
-/** Create a temporary tablename like "#sql-ibtid-inc where
-  tid = the Table ID
-  inc = a randomly initialized number that is incremented for each file
-The table ID is a 64 bit integer, can use up to 20 digits, and is
-initialized at bootstrap. The second number is 32 bits, can use up to 10
-digits, and is initialized at startup to a randomly distributed number.
-It is hoped that the combination of these two numbers will provide a
-reasonably unique temporary file name.
+/** Create a temporary tablename like "#sql-ibNNN".
 @param[in]	heap	A memory heap
 @param[in]	dbtab	Table name in the form database/table name
 @param[in]	id	Table id
@@ -566,6 +559,11 @@ struct table_name_t
 	/** The name in internal representation */
 	char*	m_name;
 
+	/** Default constructor */
+	table_name_t() {}
+	/** Constructor */
+	table_name_t(char* name) : m_name(name) {}
+
 	/** @return the end of the schema name */
 	const char* dbend() const
 	{
@@ -588,6 +586,9 @@ struct table_name_t
 	@return the partition name
 	@retval	NULL	if the table is not partitioned */
 	const char* part() const { return strstr(basename(), part_suffix); }
+
+	/** @return whether this is a temporary or intermediate table name */
+	inline bool is_temporary() const;
 };
 
 /** Data structure for a column in a table */
@@ -1027,6 +1028,66 @@ struct dict_index_t{
 			n_fields = 0;
 		}
 	}
+
+	/** This ad-hoc class is used by record_size_info only.	*/
+	class record_size_info_t {
+	public:
+		record_size_info_t()
+		    : max_leaf_size(0), shortest_size(0), too_big(false),
+		      first_overrun_field_index(SIZE_T_MAX), overrun_size(0)
+		{
+		}
+
+		/** Mark row potentially too big for page and set up first
+		overflow field index. */
+		void set_too_big(size_t field_index)
+		{
+			ut_ad(field_index != SIZE_T_MAX);
+
+			too_big = true;
+			if (first_overrun_field_index > field_index) {
+				first_overrun_field_index = field_index;
+				overrun_size = shortest_size;
+			}
+		}
+
+		/** @return overrun field index or SIZE_T_MAX if nothing
+		overflowed*/
+		size_t get_first_overrun_field_index() const
+		{
+			ut_ad(row_is_too_big());
+			ut_ad(first_overrun_field_index != SIZE_T_MAX);
+			return first_overrun_field_index;
+		}
+
+		size_t get_overrun_size() const
+		{
+			ut_ad(row_is_too_big());
+			return overrun_size;
+		}
+
+		bool row_is_too_big() const { return too_big; }
+
+		size_t max_leaf_size; /** Bigger row size this index can
+				      produce */
+		size_t shortest_size; /** shortest because it counts everything
+				      as in overflow pages */
+
+	private:
+		bool too_big; /** This one is true when maximum row size this
+			      index can produce is bigger than maximum row
+			      size given page can hold. */
+		size_t first_overrun_field_index; /** After adding this field
+						  index row overflowed maximum
+						  allowed size. Useful for
+						  reporting back to user. */
+		size_t overrun_size;		  /** Just overrun row size */
+	};
+
+	/** Returns max possibly record size for that index, size of a shortest
+	everything in overflow) size of the longest possible row and index
+	of a field which made index records too big to fit on a page.*/
+	inline record_size_info_t record_size_info() const;
 };
 
 /** Detach a column from an index.
@@ -1408,6 +1469,16 @@ struct dict_table_t {
 		return(UNIV_LIKELY(!file_unreadable));
 	}
 
+	/** Check if a table name contains the string "/#sql"
+	which denotes temporary or intermediate tables in MariaDB. */
+	static bool is_temporary_name(const char* name)
+	{
+		return strstr(name, "/" TEMP_FILE_PREFIX) != NULL;
+	}
+
+	/** For overflow fields returns potential max length stored inline */
+	size_t get_overflow_field_local_len() const;
+
 	/** Id of the table. */
 	table_id_t				id;
 	/** Hash chain node. */
@@ -1599,7 +1670,7 @@ struct dict_table_t {
 	unsigned				stat_initialized:1;
 
 	/** Timestamp of last recalc of the stats. */
-	ib_time_t				stats_last_recalc;
+	time_t					stats_last_recalc;
 
 	/** The two bits below are set in the 'stat_persistent' member. They
 	have the following meaning:
@@ -1776,6 +1847,11 @@ public:
 	columns */
 	dict_vcol_templ_t*			vc_templ;
 };
+
+inline bool table_name_t::is_temporary() const
+{
+	return dict_table_t::is_temporary_name(m_name);
+}
 
 inline bool dict_index_t::is_readable() const
 {

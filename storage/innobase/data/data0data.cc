@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -37,7 +37,7 @@ Created 5/30/1994 Heikki Tuuri
 /** Dummy variable to catch access to uninitialized fields.  In the
 debug version, dtuple_create() will make all fields of dtuple_t point
 to data_error. */
-byte	data_error;
+ut_d(byte data_error);
 #endif /* UNIV_DEBUG */
 
 /** Compare two data tuples.
@@ -83,8 +83,6 @@ dtuple_set_n_fields(
 	dtuple_t*	tuple,		/*!< in: tuple */
 	ulint		n_fields)	/*!< in: number of fields */
 {
-	ut_ad(tuple);
-
 	tuple->n_fields = n_fields;
 	tuple->n_fields_cmp = n_fields;
 }
@@ -418,7 +416,7 @@ dfield_print_also_hex(
 			break;
 		}
 
-		data = static_cast<byte*>(dfield_get_data(dfield));
+		data = static_cast<const byte*>(dfield_get_data(dfield));
 		/* fall through */
 
 	case DATA_BINARY:
@@ -565,21 +563,13 @@ dtuple_convert_big_rec(
 	dict_field_t*	ifield;
 	ulint		size;
 	ulint		n_fields;
-	ulint		local_len;
 	ulint		local_prefix_len;
 
 	if (!dict_index_is_clust(index)) {
 		return(NULL);
 	}
 
-	if (dict_table_get_format(index->table) < UNIV_FORMAT_B) {
-		/* up to MySQL 5.1: store a 768-byte prefix locally */
-		local_len = BTR_EXTERN_FIELD_REF_SIZE
-			+ DICT_ANTELOPE_MAX_INDEX_COL_LEN;
-	} else {
-		/* new-format table: do not store any BLOB prefix locally */
-		local_len = BTR_EXTERN_FIELD_REF_SIZE;
-	}
+	const ulint local_len = index->table->get_overflow_field_local_len();
 
 	ut_a(dtuple_check_typed_no_assert(entry));
 

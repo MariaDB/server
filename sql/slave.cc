@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /**
@@ -3532,12 +3532,6 @@ apply_event_and_update_pos_setup(Log_event* ev, THD* thd, rpl_group_info *rgi)
   thd->variables.server_id = ev->server_id;
   thd->set_time();                            // time the query
   thd->lex->current_select= 0;
-  if (!ev->when)
-  {
-    my_hrtime_t hrtime= my_hrtime();
-    ev->when= hrtime_to_my_time(hrtime);
-    ev->when_sec_part= hrtime_sec_part(hrtime);
-  }
   thd->variables.option_bits=
     (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |
     (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ? OPTION_SKIP_REPLICATION : 0);
@@ -6323,7 +6317,18 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
           mi->last_queued_gtid.seq_no == 1000)
         goto skip_relay_logging;
     });
+    goto default_action;
 #endif
+  case START_ENCRYPTION_EVENT:
+    if (uint2korr(buf + FLAGS_OFFSET) & LOG_EVENT_IGNORABLE_F)
+    {
+      /*
+         If the event was not requested by the slave (the slave did not ask for
+         it), i.e. has end_log_pos=0, we do not increment mi->master_log_pos
+      */
+      inc_pos= uint4korr(buf+LOG_POS_OFFSET) ? event_len : 0;
+      break;
+    }
     /* fall through */
   default:
   default_action:

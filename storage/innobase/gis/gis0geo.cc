@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -68,9 +69,9 @@ static
 int
 rtree_add_point_to_mbr(
 /*===================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	uchar	byte_order,	/*!< in: byte order. */
 	double*	mbr)		/*!< in/out: mbr, which
@@ -108,9 +109,9 @@ static
 int
 rtree_get_point_mbr(
 /*================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored. */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	uchar	byte_order,	/*!< in: byte order. */
 	double*	mbr)		/*!< in/out: mbr,
@@ -127,9 +128,9 @@ static
 int
 rtree_get_linestring_mbr(
 /*=====================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored. */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	uchar	byte_order,	/*!< in: byte order. */
 	double*	mbr)		/*!< in/out: mbr,
@@ -158,9 +159,9 @@ static
 int
 rtree_get_polygon_mbr(
 /*==================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored. */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	uchar	byte_order,	/*!< in: byte order. */
 	double*	mbr)		/*!< in/out: mbr,
@@ -195,9 +196,9 @@ static
 int
 rtree_get_geometry_mbr(
 /*===================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored. */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	double*	mbr,		/*!< in/out: mbr. */
 	int	top)		/*!< in: if it is the top,
@@ -297,7 +298,7 @@ stored in "well-known binary representation" (wkb) format.
 int
 rtree_mbr_from_wkb(
 /*===============*/
-	uchar*	wkb,		/*!< in: wkb */
+	const uchar*	wkb,		/*!< in: wkb */
 	uint	size,		/*!< in: size of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	double*	mbr)		/*!< in/out: mbr, which must
@@ -366,7 +367,7 @@ mbr_join_square(
 
 	/* Check if finite (not infinity or NaN),
 	so we don't get NaN in calculations */
-	if (!isfinite(square)) {
+	if (!std::isfinite(square)) {
 		return DBL_MAX;
 	}
 

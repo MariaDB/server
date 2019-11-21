@@ -11,7 +11,7 @@
 #    executing statement. If difference is >0, then something was
 #    written to the binary log on the slave.
 
-connection slave;
+# On Connection Slave
 let $before = query_get_value("SHOW MASTER STATUS", Position, 1);
 
 connection master;

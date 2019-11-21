@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -60,23 +60,25 @@ ib_wqueue_free(
 	mem_free(wq);
 }
 
-/****************************************************************//**
-Add a work item to the queue. */
+/** Add a work item to the queue.
+@param[in,out]	wq		work queue
+@param[in]	item		work item
+@param[in,out]	heap		memory heap to use for allocating list node
+@param[in]	wq_locked	work queue mutex locked */
 UNIV_INTERN
 void
-ib_wqueue_add(
-/*==========*/
-	ib_wqueue_t*	wq,	/*!< in: work queue */
-	void*		item,	/*!< in: work item */
-	mem_heap_t*	heap)	/*!< in: memory heap to use for allocating the
-				list node */
+ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap, bool wq_locked)
 {
-	mutex_enter(&wq->mutex);
+	if (!wq_locked) {
+		mutex_enter(&wq->mutex);
+	}
 
 	ib_list_add_last(wq->items, item, heap);
 	os_event_set(wq->event);
 
-	mutex_exit(&wq->mutex);
+	if (!wq_locked) {
+		mutex_exit(&wq->mutex);
+	}
 }
 
 /****************************************************************//**
@@ -126,7 +128,7 @@ ib_wqueue_timedwait(
 /*================*/
 					/* out: work item or NULL on timeout*/
 	ib_wqueue_t*	wq,		/* in: work queue */
-	ib_time_t	wait_in_usecs)	/* in: wait time in micro seconds */
+	ulint		wait_in_usecs)	/* in: wait time in micro seconds */
 {
 	ib_list_node_t*	node = NULL;
 

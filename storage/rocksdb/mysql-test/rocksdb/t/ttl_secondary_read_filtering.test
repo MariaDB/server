@@ -121,6 +121,9 @@ SELECT * FROM t1 FORCE INDEX (kb);
 
 DROP TABLE t1;
 
+# Compact away the dropped data
+set global rocksdb_compact_cf= 'default';
+
 --echo # Read filtering index scan tests (None of these queries should return any results)
 CREATE TABLE t1 (
   a int,

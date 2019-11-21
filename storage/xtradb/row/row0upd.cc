@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -2208,7 +2208,6 @@ row_upd_clust_rec_by_insert(
 	rec_t*		rec;
 	ulint*		offsets			= NULL;
 
-	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 
 	trx = thr_get_trx(thr);
@@ -2357,7 +2356,6 @@ row_upd_clust_rec(
 	dberr_t		err;
 	const dtuple_t*	rebuilt_old_pk	= NULL;
 
-	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 
 	pcur = node->pcur;
@@ -2525,7 +2523,6 @@ row_upd_del_mark_clust_rec(
 	trx_t* trx = thr_get_trx(thr) ;
 #endif /* WITH_WSREP */
 
-	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(node->is_delete);
 

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,16 +26,11 @@ Created 2012-09-23 Sunny Bains
 
 #include "os0event.h"
 #include "ut0mutex.h"
+#include <my_sys.h>
 
 #ifdef _WIN32
 #include <windows.h>
 #include <synchapi.h>
-#endif /* _WIN32 */
-
-/** The number of microsecnds in a second. */
-static const ulint MICROSECS_IN_A_SECOND = 1000000;
-
-#ifdef _WIN32
 /** Native condition variable. */
 typedef CONDITION_VARIABLE	os_cond_t;
 #else
@@ -361,26 +357,9 @@ os_event::wait_time_low(
 	struct timespec	abstime;
 
 	if (time_in_usec != OS_SYNC_INFINITE_TIME) {
-		struct timeval	tv;
-		int		ret;
-		ulint		sec;
-		ulint		usec;
-
-		ret = ut_usectime(&sec, &usec);
-		ut_a(ret == 0);
-
-		tv.tv_sec = sec;
-		tv.tv_usec = usec;
-
-		tv.tv_usec += time_in_usec;
-
-		if ((ulint) tv.tv_usec >= MICROSECS_IN_A_SECOND) {
-			tv.tv_sec += tv.tv_usec / MICROSECS_IN_A_SECOND;
-			tv.tv_usec %= MICROSECS_IN_A_SECOND;
-		}
-
-		abstime.tv_sec  = tv.tv_sec;
-		abstime.tv_nsec = tv.tv_usec * 1000;
+		ulonglong usec = ulonglong(time_in_usec) + my_hrtime().val;
+		abstime.tv_sec = usec / 1000000;
+		abstime.tv_nsec = (usec % 1000000) * 1000;
 	} else {
 		abstime.tv_nsec = 999999999;
 		abstime.tv_sec = (time_t) ULINT_MAX;

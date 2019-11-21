@@ -1,5 +1,6 @@
 drop table if exists t1,t2;
 drop database if exists mysqltest;
+set @save_max_allowed_packet=@@global.max_allowed_packet;
 create table t1 (
 col1 int not null auto_increment primary key,
 col2 varchar(30) not null,
@@ -1463,7 +1464,7 @@ disconnect con1;
 connection default;
 DROP TABLE t1, t2, t3;
 SET SQL_MODE=default;
-SET GLOBAL max_allowed_packet=default;
+SET GLOBAL max_allowed_packet=@save_max_allowed_packet;
 CREATE TABLE t1 (
 id INT(11) NOT NULL,
 x_param INT(11) DEFAULT NULL,

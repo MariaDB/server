@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2009, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2009, 2019, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -283,7 +283,7 @@ dict_stats_exec_sql(
 	dberr_t	err;
 	bool	trx_started = false;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	if (!dict_stats_persistent_storage_check(true)) {
@@ -962,7 +962,7 @@ dict_stats_update_transient(
 	table->stat_sum_of_other_index_sizes = sum_of_index_sizes
 		- index->stat_index_size;
 
-	table->stats_last_recalc = ut_time();
+	table->stats_last_recalc = time(NULL);
 
 	table->stat_modified_counter = 0;
 
@@ -1076,7 +1076,7 @@ dict_stats_analyze_index_level(
 	ut_a(btr_page_get_level(page, mtr) == level);
 
 	/* there should not be any pages on the left */
-	ut_a(btr_page_get_prev(page, mtr) == FIL_NULL);
+	ut_a(!page_has_prev(page));
 
 	/* check whether the first record on the leftmost page is marked
 	as such, if we are on a non-leaf level */
@@ -1689,7 +1689,7 @@ dict_stats_analyze_index_for_n_prefix(
 	ut_a(btr_page_get_level(page, mtr) == n_diff_data->level);
 
 	/* there should not be any pages on the left */
-	ut_a(btr_page_get_prev(page, mtr) == FIL_NULL);
+	ut_a(!page_has_prev(page));
 
 	/* check whether the first record on the leftmost page is marked
 	as such; we are on a non-leaf level */
@@ -2269,7 +2269,7 @@ dict_stats_update_persistent(
 			+= index->stat_index_size;
 	}
 
-	table->stats_last_recalc = ut_time();
+	table->stats_last_recalc = time(NULL);
 
 	table->stat_modified_counter = 0;
 
@@ -2298,7 +2298,7 @@ rolled back only in the case of error, but not freed.
 dberr_t
 dict_stats_save_index_stat(
 	dict_index_t*	index,
-	ib_time_t	last_update,
+	time_t		last_update,
 	const char*	stat_name,
 	ib_uint64_t	stat_value,
 	ib_uint64_t*	sample_size,
@@ -2311,7 +2311,7 @@ dict_stats_save_index_stat(
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
 	ut_ad(!trx || trx->internal || trx->in_mysql_trx_list);
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	dict_fs2utf8(index->table->name.m_name, db_utf8, sizeof(db_utf8),
@@ -2427,7 +2427,6 @@ dict_stats_save(
 	const index_id_t*	only_for_index)
 {
 	pars_info_t*	pinfo;
-	ib_time_t	now;
 	dberr_t		ret;
 	dict_table_t*	table;
 	char		db_utf8[MAX_DB_UTF8_LEN];
@@ -2446,8 +2445,8 @@ dict_stats_save(
 	dict_fs2utf8(table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
 
-	now = ut_time();
-	rw_lock_x_lock(dict_operation_lock);
+	const time_t now = time(NULL);
+	rw_lock_x_lock(&dict_operation_lock);
 	mutex_enter(&dict_sys->mutex);
 
 	pinfo = pars_info_create();
@@ -2488,7 +2487,7 @@ dict_stats_save(
 			<< table->name << ": " << ut_strerr(ret);
 
 		mutex_exit(&dict_sys->mutex);
-		rw_lock_x_unlock(dict_operation_lock);
+		rw_lock_x_unlock(&dict_operation_lock);
 
 		dict_stats_snapshot_free(table);
 
@@ -2595,7 +2594,7 @@ end:
 	trx_free_for_background(trx);
 
 	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	rw_lock_x_unlock(&dict_operation_lock);
 
 	dict_stats_snapshot_free(table);
 
@@ -3109,6 +3108,8 @@ dict_stats_update_for_index(
 		if (dict_stats_persistent_storage_check(false)) {
 			dict_table_stats_lock(index->table, RW_X_LATCH);
 			dict_stats_analyze_index(index);
+			index->table->stat_sum_of_other_index_sizes
+				+= index->stat_index_size;
 			dict_table_stats_unlock(index->table, RW_X_LATCH);
 			dict_stats_save(index->table, &index->id);
 			DBUG_VOID_RETURN;
@@ -3404,7 +3405,7 @@ dict_stats_drop_index(
 
 	pars_info_add_str_literal(pinfo, "index_name", iname);
 
-	rw_lock_x_lock(dict_operation_lock);
+	rw_lock_x_lock(&dict_operation_lock);
 	mutex_enter(&dict_sys->mutex);
 
 	ret = dict_stats_exec_sql(
@@ -3418,7 +3419,7 @@ dict_stats_drop_index(
 		"END;\n", NULL);
 
 	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	rw_lock_x_unlock(&dict_operation_lock);
 
 	if (ret == DB_STATS_DO_NOT_EXIST) {
 		ret = DB_SUCCESS;
@@ -3466,7 +3467,7 @@ dict_stats_delete_from_table_stats(
 	pars_info_t*	pinfo;
 	dberr_t		ret;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	pinfo = pars_info_create();
@@ -3502,7 +3503,7 @@ dict_stats_delete_from_index_stats(
 	pars_info_t*	pinfo;
 	dberr_t		ret;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	pinfo = pars_info_create();
@@ -3539,7 +3540,7 @@ dict_stats_drop_table(
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 	dberr_t		ret;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	/* skip tables that do not contain a database name
@@ -3615,7 +3616,7 @@ dict_stats_rename_table_in_table_stats(
 	pars_info_t*	pinfo;
 	dberr_t		ret;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	pinfo = pars_info_create();
@@ -3659,7 +3660,7 @@ dict_stats_rename_table_in_index_stats(
 	pars_info_t*	pinfo;
 	dberr_t		ret;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	pinfo = pars_info_create();
@@ -3703,7 +3704,7 @@ dict_stats_rename_table(
 	char		new_table_utf8[MAX_TABLE_UTF8_LEN];
 	dberr_t		ret;
 
-	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(!rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(!mutex_own(&dict_sys->mutex));
 
 	/* skip innodb_table_stats and innodb_index_stats themselves */
@@ -3721,7 +3722,7 @@ dict_stats_rename_table(
 	dict_fs2utf8(new_name, new_db_utf8, sizeof(new_db_utf8),
 		     new_table_utf8, sizeof(new_table_utf8));
 
-	rw_lock_x_lock(dict_operation_lock);
+	rw_lock_x_lock(&dict_operation_lock);
 	mutex_enter(&dict_sys->mutex);
 
 	ulint	n_attempts = 0;
@@ -3743,9 +3744,9 @@ dict_stats_rename_table(
 
 		if (ret != DB_SUCCESS) {
 			mutex_exit(&dict_sys->mutex);
-			rw_lock_x_unlock(dict_operation_lock);
+			rw_lock_x_unlock(&dict_operation_lock);
 			os_thread_sleep(200000 /* 0.2 sec */);
-			rw_lock_x_lock(dict_operation_lock);
+			rw_lock_x_lock(&dict_operation_lock);
 			mutex_enter(&dict_sys->mutex);
 		}
 	} while ((ret == DB_DEADLOCK
@@ -3775,7 +3776,7 @@ dict_stats_rename_table(
 			 new_db_utf8, new_table_utf8,
 			 old_db_utf8, old_table_utf8);
 		mutex_exit(&dict_sys->mutex);
-		rw_lock_x_unlock(dict_operation_lock);
+		rw_lock_x_unlock(&dict_operation_lock);
 		return(ret);
 	}
 	/* else */
@@ -3799,9 +3800,9 @@ dict_stats_rename_table(
 
 		if (ret != DB_SUCCESS) {
 			mutex_exit(&dict_sys->mutex);
-			rw_lock_x_unlock(dict_operation_lock);
+			rw_lock_x_unlock(&dict_operation_lock);
 			os_thread_sleep(200000 /* 0.2 sec */);
-			rw_lock_x_lock(dict_operation_lock);
+			rw_lock_x_lock(&dict_operation_lock);
 			mutex_enter(&dict_sys->mutex);
 		}
 	} while ((ret == DB_DEADLOCK
@@ -3810,7 +3811,7 @@ dict_stats_rename_table(
 		 && n_attempts < 5);
 
 	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	rw_lock_x_unlock(&dict_operation_lock);
 
 	if (ret != DB_SUCCESS) {
 		snprintf(errstr, errstr_sz,
@@ -3837,65 +3838,6 @@ dict_stats_rename_table(
 
 	return(ret);
 }
-
-#ifdef MYSQL_RENAME_INDEX
-/*********************************************************************//**
-Renames an index in InnoDB persistent stats storage.
-This function creates its own transaction and commits it.
-@return DB_SUCCESS or error code. DB_STATS_DO_NOT_EXIST will be returned
-if the persistent stats do not exist. */
-dberr_t
-dict_stats_rename_index(
-/*====================*/
-	const dict_table_t*	table,		/*!< in: table whose index
-						is renamed */
-	const char*		old_index_name,	/*!< in: old index name */
-	const char*		new_index_name)	/*!< in: new index name */
-{
-	rw_lock_x_lock(dict_operation_lock);
-	mutex_enter(&dict_sys->mutex);
-
-	if (!dict_stats_persistent_storage_check(true)) {
-		mutex_exit(&dict_sys->mutex);
-		rw_lock_x_unlock(dict_operation_lock);
-		return(DB_STATS_DO_NOT_EXIST);
-	}
-
-	char	dbname_utf8[MAX_DB_UTF8_LEN];
-	char	tablename_utf8[MAX_TABLE_UTF8_LEN];
-
-	dict_fs2utf8(table->name.m_name, dbname_utf8, sizeof(dbname_utf8),
-		     tablename_utf8, sizeof(tablename_utf8));
-
-	pars_info_t*	pinfo;
-
-	pinfo = pars_info_create();
-
-	pars_info_add_str_literal(pinfo, "dbname_utf8", dbname_utf8);
-	pars_info_add_str_literal(pinfo, "tablename_utf8", tablename_utf8);
-	pars_info_add_str_literal(pinfo, "new_index_name", new_index_name);
-	pars_info_add_str_literal(pinfo, "old_index_name", old_index_name);
-
-	dberr_t	ret;
-
-	ret = dict_stats_exec_sql(
-		pinfo,
-		"PROCEDURE RENAME_INDEX_IN_INDEX_STATS () IS\n"
-		"BEGIN\n"
-		"UPDATE \"" INDEX_STATS_NAME "\" SET\n"
-		"index_name = :new_index_name\n"
-		"WHERE\n"
-		"database_name = :dbname_utf8 AND\n"
-		"table_name = :tablename_utf8 AND\n"
-		"index_name = :old_index_name;\n"
-		"END;\n", NULL);
-
-	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
-
-	return(ret);
-}
-#endif /* MYSQL_RENAME_INDEX */
 
 /* tests @{ */
 #ifdef UNIV_ENABLE_UNIT_TEST_DICT_STATS

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Q: Why isn't ma_recovery_util.c simply moved to ma_recovery.c ?
@@ -70,14 +70,7 @@ void tprint(FILE *trace_file __attribute__ ((unused)),
 #endif
   va_start(args, format);
   if (trace_file != NULL)
-  {
-    if (procent_printed)
-    {
-      procent_printed= 0;
-      fputc('\n', trace_file);
-    }
     vfprintf(trace_file, format, args);
-  }
   va_end(args);
 }
 
@@ -93,9 +86,10 @@ void eprint(FILE *trace_file __attribute__ ((unused)),
 
   if (procent_printed)
   {
-    /* In silent mode, print on another line than the 0% 10% 20% line */
     procent_printed= 0;
-    fputc('\n', trace_file);
+    /* In silent mode, print on another line than the 0% 10% 20% line */
+    fputc('\n', stderr);
+    fflush(stderr);
   }
   vfprintf(trace_file , format, args);
   fputc('\n', trace_file);

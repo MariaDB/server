@@ -1,3 +1,4 @@
+call mtr.add_suppression("character set is multi-byte");
 drop table if exists t1;
 create table t1 SELECT 1,"table 1";
 repair table t1 use_frm;
@@ -188,6 +189,8 @@ drop tables t1, t2;
 # .frm file from MySQL 3.23
 #
 # Test with a saved table from 3.23
+SET @save_global_character_set_server= @@global.character_set_server;
+set @@global.character_set_server=@@character_set_server;
 select count(*) from t1;
 ERROR HY000: Got error 190 "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump an" from storage engine MyISAM
 check table t1;
@@ -208,6 +211,7 @@ check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 drop table t1;
+set @@global.character_set_server=@save_global_character_set_server;
 create table t1 (a blob);
 create view v1 as select * from t1;
 repair view v1;

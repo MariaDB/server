@@ -1,0 +1,282 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+SET @prior_rocksdb_perf_context_level = @@rocksdb_perf_context_level;
+SET GLOBAL rocksdb_perf_context_level=3;
+SET GLOBAL enable_blind_replace=ON;
+create table t1(c1 int,c2 int, primary key (c1)) engine=rocksdb;
+insert into t1 values(1,1),(2,2),(3,3);
+select * from t1;
+c1	c2
+1	1
+2	2
+3	3
+create table t2(c1 int,c2 int, primary key (c1)) engine=rocksdb;
+insert into t2 values(1,1),(2,2),(3,3);
+select * from t2;
+c1	c2
+1	1
+2	2
+3	3
+create table t3(c1 int,c2 int, primary key (c1)) engine=rocksdb;
+insert into t3 values(1,1),(2,2),(3,3);
+select * from t3;
+c1	c2
+1	1
+2	2
+3	3
+SET GLOBAL enable_blind_replace=ON;
+create trigger trg before insert on t2 for each row set @a:=1;
+alter table t3 add constraint slave_unique_key unique (c2);
+connect slave
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+Case 1
+connect master
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+replace into t1 values(1,11);
+replace into t1 values(2,22);
+replace into t1 values(3,33);
+select case when variable_value-@d > 3 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+select * from t1;
+c1	c2
+1	11
+2	22
+3	33
+connect slave
+select case when variable_value-@d > 3 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+select * from t1;
+c1	c2
+1	11
+2	22
+3	33
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+Case 2
+connect master
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+replace into t1 values(2,44),(3,55);
+select case when variable_value-@d > 2 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+select * from t1;
+c1	c2
+1	11
+2	44
+3	55
+connect slave
+select case when variable_value-@d > 2 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+select * from t1;
+c1	c2
+1	11
+2	44
+3	55
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+Case 3
+connect master
+update t1 set c2=66 where c1=3;
+select * from t1;
+c1	c2
+1	11
+2	44
+3	66
+connect slave
+select * from t1;
+c1	c2
+1	11
+2	44
+3	66
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+Case 4
+connect master
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+replace into t2 values(1,111);
+replace into t2 values(2,222);
+replace into t2 values(3,333);
+select case when variable_value-@d > 3 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+select * from t2;
+c1	c2
+1	111
+2	222
+3	333
+connect slave
+select case when variable_value-@d > 3 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+false
+select * from t2;
+c1	c2
+1	111
+2	222
+3	333
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+Case 5
+connect master
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+replace into t3 values(1,1111);
+replace into t3 values(2,2222);
+replace into t3 values(3,3333);
+select * from t3;
+c1	c2
+1	1111
+2	2222
+3	3333
+select case when variable_value-@d > 3 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+connect slave
+select case when variable_value-@d > 3 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+false
+select * from t3;
+c1	c2
+1	1111
+2	2222
+3	3333
+select * from t3 use index (slave_unique_key);
+c1	c2
+1	1111
+2	2222
+3	3333
+Case 6
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Query	#	#	use `test`; create table t1(c1 int,c2 int, primary key (c1)) engine=rocksdb
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	use `test`; create table t2(c1 int,c2 int, primary key (c1)) engine=rocksdb
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	use `test`; create table t3(c1 int,c2 int, primary key (c1)) engine=rocksdb
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Update_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
+master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Query	#	#	use `test`; create table t1(c1 int,c2 int, primary key (c1)) engine=rocksdb
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	use `test`; create table t2(c1 int,c2 int, primary key (c1)) engine=rocksdb
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+slave-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	use `test`; create table t3(c1 int,c2 int, primary key (c1)) engine=rocksdb
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
+slave-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` trigger trg before insert on t2 for each row set @a:=1
+slave-bin.000001	#	Query	#	#	use `test`; alter table t3 add constraint slave_unique_key unique (c2)
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+slave-bin.000001	#	Update_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+slave-bin.000001	#	Update_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+slave-bin.000001	#	Update_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
+slave-bin.000001	#	Update_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
+slave-bin.000001	#	Delete_rows	#	#	table_id: #
+slave-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
+slave-bin.000001	#	Delete_rows	#	#	table_id: #
+slave-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Query	#	#	BEGIN
+slave-bin.000001	#	Table_map	#	#	table_id: # (test.t3)
+slave-bin.000001	#	Delete_rows	#	#	table_id: #
+slave-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+drop table t1;
+drop table t2;
+drop table t3;
+SET GLOBAL rocksdb_perf_context_level = @prior_rocksdb_perf_context_level;
+SET GLOBAL enable_blind_replace=DEFAULT;
+SET GLOBAL enable_blind_replace=DEFAULT;
+include/rpl_end.inc

@@ -1,4 +1,4 @@
-#!/bin/sh -ue
+#!/bin/bash -ue
 
 # Copyright (C) 2010-2014 Codership Oy
 #
@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING. If not, write to the
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
-# MA  02110-1301  USA.
+# MA  02110-1335  USA.
 
 # This is a reference script for rsync-based state snapshot tansfer
 
@@ -149,7 +149,14 @@ then
 fi
 
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
+# Try to set WSREP_LOG_DIR from the command line:
+if [ -z "$WSREP_LOG_DIR" ]; then
+    WSREP_LOG_DIR=$INNODB_LOG_GROUP_HOME_ARG
+fi
 # if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
+if [ -z "$WSREP_LOG_DIR" ]; then
+    WSREP_LOG_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-log-group-home-dir '')
+fi
 if [ -z "$WSREP_LOG_DIR" ]; then
     WSREP_LOG_DIR=$(parse_cnf --mysqld innodb-log-group-home-dir '')
 fi
@@ -172,7 +179,7 @@ if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
 fi
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir "")
+    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir '')
 fi
 
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then

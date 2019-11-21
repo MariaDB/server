@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "sql_plugin.h"                         // Includes my_global.h
 #include "sql_priv.h"                         // SHOW_MY_BOOL
@@ -77,7 +77,7 @@ uint plugin_maturity_map[]=
 { 0, 1, 2, 3, 4, 5, 6 };
 
 /*
-  When you ad a new plugin type, add both a string and make sure that the
+  When you add a new plugin type, add both a string and make sure that the
   init and deinit array are correctly updated.
 */
 const LEX_STRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
@@ -228,6 +228,7 @@ static DYNAMIC_ARRAY plugin_array;
 static HASH plugin_hash[MYSQL_MAX_PLUGIN_TYPE_NUM];
 static MEM_ROOT plugin_mem_root;
 static bool reap_needed= false;
+volatile int global_plugin_version= 1;
 
 static bool initialized= 0;
 ulong dlopen_count;
@@ -747,9 +748,9 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
     This is done to ensure that only approved libraries from the
     plugin directory are used (to make this even remotely secure).
   */
-  if (check_valid_path(dl->str, dl->length) ||
-      check_string_char_length((LEX_STRING *) dl, 0, NAME_CHAR_LEN,
+  if (check_string_char_length((LEX_STRING *) dl, 0, NAME_CHAR_LEN,
                                system_charset_info, 1) ||
+      check_valid_path(dl->str, dl->length) ||
       plugin_dir_len + dl->length + 1 >= FN_REFLEN)
   {
     report_error(report, ER_UDF_NO_PATHS);
@@ -1825,6 +1826,9 @@ static void plugin_load(MEM_ROOT *tmp_root)
     LEX_STRING name= {(char *)str_name.ptr(), str_name.length()};
     LEX_STRING dl= {(char *)str_dl.ptr(), str_dl.length()};
 
+    if (!name.length || !dl.length)
+      continue;
+
     /*
       there're no other threads running yet, so we don't need a mutex.
       but plugin_add() before is designed to work in multi-threaded
@@ -2193,6 +2197,7 @@ bool mysql_install_plugin(THD *thd, const LEX_STRING *name,
     reap_plugins();
   }
 err:
+  global_plugin_version++;
   mysql_mutex_unlock(&LOCK_plugin);
   if (argv)
     free_defaults(argv);
@@ -2340,6 +2345,7 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
   }
   reap_plugins();
 
+  global_plugin_version++;
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(error);
 
@@ -3661,7 +3667,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
   const LEX_STRING plugin_dash = { C_STRING_WITH_LEN("plugin-") };
   uint plugin_name_len= strlen(plugin_name);
   uint optnamelen;
-  const int max_comment_len= 180;
+  const int max_comment_len= 255;
   char *comment= (char *) alloc_root(mem_root, max_comment_len + 1);
   char *optname;
 
@@ -3695,8 +3701,9 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
     options[0].typelib= options[1].typelib= &global_plugin_typelib;
 
     strxnmov(comment, max_comment_len, "Enable or disable ", plugin_name,
-            " plugin. One of: ON, OFF, FORCE (don't start "
-            "if the plugin fails to load).", NullS);
+            " plugin. One of: ON, OFF, FORCE (don't start if the plugin"
+            " fails to load), FORCE_PLUS_PERMANENT (like FORCE, but the"
+            " plugin can not be uninstalled).", NullS);
     options[0].comment= comment;
     /*
       Allocate temporary space for the value of the tristate.

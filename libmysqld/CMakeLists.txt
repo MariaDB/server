@@ -12,7 +12,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 ADD_DEFINITIONS(-DMYSQL_SERVER -DEMBEDDED_LIBRARY
  ${SSL_DEFINES})
@@ -107,6 +107,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_analyze_stmt.cc ../sql/sql_analyze_stmt.h
            ../sql/compat56.cc
            ../sql/sql_type.cc ../sql/sql_type.h
+           ../sql/sql_mode.cc
            ../sql/table_cache.cc ../sql/mf_iocache_encr.cc
            ../sql/item_inetfunc.cc
            ../sql/wsrep_dummy.cc ../sql/encryption.cc

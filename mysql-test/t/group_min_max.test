@@ -3,6 +3,8 @@
 # The queries in this file test query execution via QUICK_GROUP_MIN_MAX_SELECT.
 #
 
+--source include/default_optimizer_switch.inc
+
 #
 # TODO:
 # Add queries with:

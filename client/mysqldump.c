@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 /* mysqldump.c  - Dump a tables contents and format to an ASCII file
@@ -967,6 +967,10 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       exit(1);
     }
     break;
+  case (int) OPT_DEFAULT_CHARSET:
+    if (default_charset == disabled_my_option)
+      default_charset= (char *)mysql_universal_client_charset;
+    break;
   }
   return 0;
 }
@@ -1053,7 +1057,7 @@ static int get_options(int *argc, char ***argv)
             my_progname_short);
     return(EX_USAGE);
   }
-  if (strcmp(default_charset, charset_info->csname) &&
+  if (strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME) &&
       !(charset_info= get_charset_by_csname(default_charset,
                                             MY_CS_PRIMARY, MYF(MY_WME))))
     exit(1);
@@ -1517,6 +1521,9 @@ static int switch_character_set_results(MYSQL *mysql, const char *cs_name)
 {
   char query_buffer[QUERY_LENGTH];
   size_t query_length;
+
+  if (!strcmp(cs_name, MYSQL_AUTODETECT_CHARSET_NAME))
+    cs_name= (char *)my_default_csname();
 
   /* Server lacks facility.  This is not an error, by arbitrary decision . */
   if (!server_supports_switching_charsets)
@@ -3268,7 +3275,7 @@ static void dump_trigger_old(FILE *sql_file, MYSQL_RES *show_triggers_rs,
 
   char name_buff[NAME_LEN * 4 + 3];
   const char *xml_msg= "\nWarning! mysqldump being run against old server "
-                       "that does not\nsupport 'SHOW CREATE TRIGGERS' "
+                       "that does not\nsupport 'SHOW CREATE TRIGGER' "
                        "statement. Skipping..\n";
 
   DBUG_ENTER("dump_trigger_old");
@@ -3427,12 +3434,14 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
 
   char       db_cl_name[MY_CS_NAME_SIZE];
   int        ret= TRUE;
+  /* Servers below 5.1.21 do not support SHOW CREATE TRIGGER */
+  const int  use_show_create_trigger= mysql_get_server_version(mysql) >= 50121;
 
   DBUG_ENTER("dump_triggers_for_table");
   DBUG_PRINT("enter", ("db: %s, table_name: %s", db_name, table_name));
 
-  if (path && !(sql_file= open_sql_file_for_table(table_name,
-                                                  O_WRONLY | O_APPEND)))
+  if (path &&
+      !(sql_file= open_sql_file_for_table(table_name, O_WRONLY | O_APPEND)))
     DBUG_RETURN(1);
 
   /* Do not use ANSI_QUOTES on triggers in dump */
@@ -3448,11 +3457,15 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
 
   /* Get list of triggers. */
 
-  my_snprintf(query_buff, sizeof(query_buff),
-              "SELECT TRIGGER_NAME FROM INFORMATION_SCHEMA.TRIGGERS "
-              "WHERE EVENT_OBJECT_SCHEMA = DATABASE() AND "
-              "EVENT_OBJECT_TABLE = %s",
-              quote_for_equal(table_name, name_buff));
+  if (use_show_create_trigger)
+    my_snprintf(query_buff, sizeof(query_buff),
+                "SELECT TRIGGER_NAME FROM INFORMATION_SCHEMA.TRIGGERS "
+                "WHERE EVENT_OBJECT_SCHEMA = DATABASE() AND "
+                "EVENT_OBJECT_TABLE = %s",
+                quote_for_equal(table_name, name_buff));
+  else
+    my_snprintf(query_buff, sizeof(query_buff), "SHOW TRIGGERS LIKE %s",
+                quote_for_like(table_name, name_buff));
 
   if (mysql_query_with_error_report(mysql, &show_triggers_rs, query_buff))
     goto done;
@@ -3468,35 +3481,28 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
 
   while ((row= mysql_fetch_row(show_triggers_rs)))
   {
-
-    my_snprintf(query_buff, sizeof (query_buff),
-                "SHOW CREATE TRIGGER %s",
-                quote_name(row[0], name_buff, TRUE));
-
-    if (mysql_query(mysql, query_buff))
+    if (use_show_create_trigger)
     {
-      /*
-        mysqldump is being run against old server, that does not support
-        SHOW CREATE TRIGGER statement. We should use SHOW TRIGGERS output.
+      MYSQL_RES *show_create_trigger_rs;
 
-        NOTE: the dump may be incorrect, as old SHOW TRIGGERS does not
-        provide all the necessary information to restore trigger properly.
-      */
+      my_snprintf(query_buff, sizeof (query_buff), "SHOW CREATE TRIGGER %s",
+                  quote_name(row[0], name_buff, TRUE));
 
-      dump_trigger_old(sql_file, show_triggers_rs, &row, table_name);
+      if (mysql_query_with_error_report(mysql, &show_create_trigger_rs,
+                                        query_buff))
+        goto done;
+      else
+      {
+        int error= (!show_create_trigger_rs ||
+                    dump_trigger(sql_file, show_create_trigger_rs, db_name,
+                                 db_cl_name));
+        mysql_free_result(show_create_trigger_rs);
+        if (error)
+          goto done;
+      }
     }
     else
-    {
-      MYSQL_RES *show_create_trigger_rs= mysql_store_result(mysql);
-
-      int error= (!show_create_trigger_rs ||
-                  dump_trigger(sql_file, show_create_trigger_rs, db_name,
-                               db_cl_name));
-      mysql_free_result(show_create_trigger_rs);
-      if (error)
-        goto done;
-    }
-    
+      dump_trigger_old(sql_file, show_triggers_rs, &row, table_name);
   }
 
   if (opt_xml)

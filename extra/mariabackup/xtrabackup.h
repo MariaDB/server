@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -140,7 +140,7 @@ extern uint		opt_safe_slave_backup_timeout;
 
 extern const char	*opt_history;
 
-enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_LOCKLESS, BINLOG_INFO_ON,
+enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_ON,
 			BINLOG_INFO_AUTO};
 
 extern ulong opt_binlog_info;

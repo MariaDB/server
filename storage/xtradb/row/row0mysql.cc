@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -615,8 +615,7 @@ handle_new_error:
 	switch (err) {
 	case DB_LOCK_WAIT_TIMEOUT:
 		if (row_rollback_on_timeout) {
-			trx_rollback_to_savepoint(trx, NULL);
-			break;
+			goto rollback;
 		}
 		/* fall through */
 	case DB_DUPLICATE_KEY:
@@ -635,6 +634,7 @@ handle_new_error:
 	case DB_DICT_CHANGED:
 	case DB_TABLE_NOT_FOUND:
 	case DB_DECRYPTION_FAILED:
+	rollback_to_savept:
 		if (savept) {
 			/* Roll back the latest, possibly incomplete insertion
 			or update */
@@ -658,6 +658,7 @@ handle_new_error:
 
 	case DB_DEADLOCK:
 	case DB_LOCK_TABLE_FULL:
+	rollback:
 		/* Roll back the whole transaction; this resolution was added
 		to version 3.23.43 */
 
@@ -687,14 +688,14 @@ handle_new_error:
 		      "InnoDB: you dump the tables, look at\n"
 		      "InnoDB: " REFMAN "forcing-innodb-recovery.html"
 		      " for help.\n", stderr);
-		break;
+		goto rollback_to_savept;
 	case DB_FOREIGN_EXCEED_MAX_CASCADE:
 		fprintf(stderr, "InnoDB: Cannot delete/update rows with"
 			" cascading foreign key constraints that exceed max"
 			" depth of %lu\n"
 			"Please drop excessive foreign constraints"
 			" and try again\n", (ulong) DICT_FK_MAX_RECURSIVE_LOAD);
-		break;
+		goto rollback_to_savept;
 	default:
 		fprintf(stderr, "InnoDB: unknown error code %lu\n",
 			(ulong) err);
@@ -1475,8 +1476,9 @@ error_exit:
 		doc_id = fts_get_doc_id_from_row(table, node->row);
 
 		if (doc_id <= 0) {
-			fprintf(stderr,
-				"InnoDB: FTS Doc ID must be large than 0 \n");
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"FTS_DOC_ID must be larger than 0"
+				" for table %s", table->name);
 			err = DB_FTS_INVALID_DOCID;
 			trx->error_state = DB_FTS_INVALID_DOCID;
 			goto error_exit;
@@ -1487,12 +1489,10 @@ error_exit:
 				= table->fts->cache->next_doc_id;
 
 			if (doc_id < next_doc_id) {
-				fprintf(stderr,
-					"InnoDB: FTS Doc ID must be large than"
-					" " UINT64PF " for table",
-					next_doc_id - 1);
-				ut_print_name(stderr, trx, TRUE, table->name);
-				putc('\n', stderr);
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"FTS_DOC_ID must be larger than "
+					UINT64PF " for table %s",
+					next_doc_id - 1, table->name);
 
 				err = DB_FTS_INVALID_DOCID;
 				trx->error_state = DB_FTS_INVALID_DOCID;
@@ -3238,7 +3238,6 @@ row_mysql_lock_table(
 	dberr_t		err;
 	sel_node_t*	node;
 
-	ut_ad(trx);
 	ut_ad(mode == LOCK_X || mode == LOCK_S);
 
 	heap = mem_heap_create(512);
@@ -3319,17 +3318,17 @@ fil_wait_crypt_bg_threads(
 		time_t now = time(0);
 		if (now >= last + 30) {
 			fprintf(stderr,
-				"WARNING: waited " TIMETPF " seconds "
+				"WARNING: waited %ld seconds "
 				"for ref-count on table: %s space: %u\n",
-				now - start, table->name, table->space);
+				(long)(now - start), table->name, table->space);
 			last = now;
 		}
 
 		if (now >= start + 300) {
 			fprintf(stderr,
-				"WARNING: after " TIMETPF " seconds, gave up waiting "
+				"WARNING: after %ld seconds, gave up waiting "
 				"for ref-count on table: %s space: %u\n",
-				now - start, table->name, table->space);
+				(long)(now - start), table->name, table->space);
 			break;
 		}
 	}
@@ -3840,11 +3839,11 @@ next_rec:
 			DBUG_EXECUTE_IF("ib_trunc_sleep_before_fts_cache_clear",
 					os_thread_sleep(10000000););
 
-			table->fts->fts_status |= TABLE_DICT_LOCKED;
-			fts_update_next_doc_id(trx, table, NULL, 0);
+			table->fts->dict_locked = true;
+			fts_update_next_doc_id(trx, table, 0);
 			fts_cache_clear(table->fts->cache);
 			fts_cache_init(table->fts->cache);
-			table->fts->fts_status &= ~TABLE_DICT_LOCKED;
+			table->fts->dict_locked = false;
 		}
 	}
 
@@ -3894,7 +3893,7 @@ row_drop_table_for_mysql(
 	const char*	name,	/*!< in: table name */
 	trx_t*		trx,	/*!< in: transaction handle */
 	bool		drop_db,/*!< in: true=dropping whole database */
-	ibool		create_failed,/*!<in: TRUE=create table failed
+	bool		create_failed,/*!<in: TRUE=create table failed
 				       because e.g. foreign key column
 				       type mismatch. */
 	bool		nonatomic)
@@ -4234,12 +4233,13 @@ row_drop_table_for_mysql(
 		calling btr_search_drop_page_hash_index() while we
 		hold the InnoDB dictionary lock, we will drop any
 		adaptive hash index entries upfront. */
-		const bool is_temp = dict_table_is_temporary(table)
+		const bool immune = create_failed
+			|| dict_table_is_temporary(table)
 			|| strncmp(tablename_minus_db, tmp_file_prefix,
 				   tmp_file_prefix_length)
 			|| strncmp(tablename_minus_db, "FTS_", 4);
 		while (buf_LRU_drop_page_hash_for_tablespace(table)) {
-			if ((!is_temp && trx_is_interrupted(trx))
+			if ((!immune && trx_is_interrupted(trx))
 			    || srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 				err = DB_INTERRUPTED;
 				goto funct_exit;
@@ -4444,8 +4444,7 @@ do_drop:
 			/* Need to set TABLE_DICT_LOCKED bit, since
 			fts_que_graph_free_check_lock would try to acquire
 			dict mutex lock */
-			table->fts->fts_status |= TABLE_DICT_LOCKED;
-
+			table->fts->dict_locked = true;
 			fts_free(table);
 		}
 
@@ -5183,11 +5182,12 @@ row_rename_table_for_mysql(
 
 	if (!new_is_tmp) {
 		/* Rename all constraints. */
-		char	new_table_name[MAX_TABLE_NAME_LEN] = "";
-		char	old_table_utf8[MAX_TABLE_NAME_LEN] = "";
+		char	new_table_name[MAX_TABLE_NAME_LEN + 1];
+		char	old_table_utf8[MAX_TABLE_NAME_LEN + 1];
 		uint	errors = 0;
 
 		strncpy(old_table_utf8, old_name, MAX_TABLE_NAME_LEN);
+		old_table_utf8[MAX_TABLE_NAME_LEN] = '\0';
 		innobase_convert_to_system_charset(
 			strchr(old_table_utf8, '/') + 1,
 			strchr(old_name, '/') +1,
@@ -5198,6 +5198,7 @@ row_rename_table_for_mysql(
 			my_charset_filename to UTF-8. This means that the
 			table name is already in UTF-8 (#mysql#50). */
 			strncpy(old_table_utf8, old_name, MAX_TABLE_NAME_LEN);
+			old_table_utf8[MAX_TABLE_NAME_LEN] = '\0';
 		}
 
 		info = pars_info_create();
@@ -5208,6 +5209,7 @@ row_rename_table_for_mysql(
 					  old_table_utf8);
 
 		strncpy(new_table_name, new_name, MAX_TABLE_NAME_LEN);
+		new_table_name[MAX_TABLE_NAME_LEN] = '\0';
 		innobase_convert_to_system_charset(
 			strchr(new_table_name, '/') + 1,
 			strchr(new_name, '/') +1,
@@ -5218,6 +5220,7 @@ row_rename_table_for_mysql(
 			my_charset_filename to UTF-8. This means that the
 			table name is already in UTF-8 (#mysql#50). */
 			strncpy(new_table_name, new_name, MAX_TABLE_NAME_LEN);
+			new_table_name[MAX_TABLE_NAME_LEN] = '\0';
 		}
 
 		pars_info_add_str_literal(info, "new_table_utf8", new_table_name);

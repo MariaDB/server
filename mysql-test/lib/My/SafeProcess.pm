@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 package My::SafeProcess;
 
@@ -100,6 +100,8 @@ else
   $bindir = getcwd();
 }
 
+our $wsrep_check_version;
+
 # Find the safe process binary or script
 sub find_bin {
   if (IS_WIN32PERL or IS_CYGWIN)
@@ -119,6 +121,10 @@ sub find_bin {
 			 "my_safe_process");
     push(@safe_process_cmd, $exe);
   }
+  # Wsrep version check utility:
+  $wsrep_check_version=
+    my_find_bin($bindir, ["lib/My/SafeProcess", "My/SafeProcess"],
+                "wsrep_check_version", NOT_REQUIRED);
 }
 
 

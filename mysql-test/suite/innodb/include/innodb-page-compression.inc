@@ -1,3 +1,5 @@
+# This test is slow on buildbot.
+--source include/big_test.inc
 --disable_warnings
 set global innodb_file_format = `Barracuda`;
 set global innodb_file_per_table = on;

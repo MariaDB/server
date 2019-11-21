@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -291,6 +291,13 @@ too_small:
 
 		ut_ad(rw_lock_get_x_lock_count(&new_block->lock) == 1);
 		page_no = buf_block_get_page_no(new_block);
+		/* We only do this in the debug build, to ensure that
+		both the check in buf_flush_init_for_writing() and
+		recv_parse_or_apply_log_rec_body() will see a valid
+		page type. The flushes of new_block are actually
+		unnecessary here.  */
+		ut_d(mlog_write_ulint(FIL_PAGE_TYPE + new_block->frame,
+				      FIL_PAGE_TYPE_SYS, MLOG_2BYTES, &mtr));
 
 		if (i == FSP_EXTENT_SIZE / 2) {
 			ut_a(page_no == FSP_EXTENT_SIZE);
@@ -353,6 +360,7 @@ too_small:
 
 	/* Flush the modified pages to disk and make a checkpoint */
 	log_make_checkpoint_at(LSN_MAX, TRUE);
+	buf_dblwr_being_created = FALSE;
 
 	/* Remove doublewrite pages from LRU */
 	buf_pool_invalidate();
@@ -612,20 +620,13 @@ bad:
 
 		ulint decomp = fil_page_decompress(buf, page);
 		if (!decomp || (decomp != srv_page_size && zip_size)) {
-			goto bad_doublewrite;
+			continue;
 		}
 
 		if (expect_encrypted && mach_read_from_4(
 			    page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
 		    ? !fil_space_verify_crypt_checksum(page, zip_size)
 		    : buf_page_is_corrupted(true, page, zip_size, space())) {
-			if (!is_all_zero) {
-bad_doublewrite:
-				ib_logf(IB_LOG_LEVEL_WARN,
-					"A doublewrite copy of page "
-					ULINTPF ":" ULINTPF " is corrupted.",
-					space_id, page_no);
-			}
 			/* Theoretically we could have another good
 			copy for this page in the doublewrite
 			buffer. If not, we will report a fatal error

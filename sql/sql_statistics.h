@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_STATISTICS_H
 #define SQL_STATISTICS_H
@@ -89,9 +89,8 @@ Use_stat_tables_mode get_use_stat_tables_mode(THD *thd)
 }
 
 int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables);
+int read_statistics_for_tables(THD *thd, TABLE_LIST *tables);
 int collect_statistics_for_table(THD *thd, TABLE *table);
-int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *share,
-                                     bool is_safe);
 void delete_stat_values_for_table_share(TABLE_SHARE *table_share);
 int alloc_statistics_for_table(THD *thd, TABLE *table);
 int update_statistics_for_table(THD *thd, TABLE *table);

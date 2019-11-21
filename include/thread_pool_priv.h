@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 #ifndef THREAD_POOL_PRIV_INCLUDED
@@ -98,8 +98,6 @@ void mysql_audit_release(THD *thd);
 bool thd_is_connection_alive(THD *thd);
 /* Close connection with possible error code */
 void close_connection(THD *thd, uint errcode);
-/* End the connection before closing it */
-void end_connection(THD *thd);
 /* Decrement connection counter */
 void dec_connection_count();
 /* Destroy THD object */

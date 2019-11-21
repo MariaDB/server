@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -854,7 +854,16 @@ buf_flush_init_for_writing(
 	ut_ad(block == NULL || block->frame == page);
 	ut_ad(block == NULL || page_zip_ == NULL
 	      || &block->page.zip == page_zip_);
+	ut_ad(!srv_safe_truncate || !block || newest_lsn);
 	ut_ad(page);
+#if 0 /* MDEV-15528 TODO: reinstate this check */
+	/* innodb_immediate_scrub_data_uncompressed=ON would cause
+	fsp_init_file_page() to be called on freed pages, and thus
+	cause them to be written as almost-all-zeroed.
+	In MDEV-15528 we should change that implement an option to
+	make freed pages appear all-zero, bypassing this code. */
+	ut_ad(!srv_safe_truncate || !newest_lsn || fil_page_get_type(page));
+#endif
 
 	if (page_zip_) {
 		page_zip_des_t*	page_zip;
@@ -1041,11 +1050,6 @@ buf_flush_write_block_low(
 	ut_ad(!buf_page_get_mutex(bpage)->is_owned());
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_WRITE);
 	ut_ad(bpage->oldest_modification != 0);
-
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a(ibuf_count_get(bpage->id) == 0);
-#endif /* UNIV_IBUF_COUNT_DEBUG */
-
 	ut_ad(bpage->newest_modification != 0);
 
 	/* Force the log to the disk before writing the modified block */
@@ -2464,7 +2468,7 @@ page_cleaner_flush_pages_recommendation(
 	if (prev_lsn == 0) {
 		/* First time around. */
 		prev_lsn = cur_lsn;
-		prev_time = ut_time();
+		prev_time = time(NULL);
 		return(0);
 	}
 
@@ -2474,7 +2478,7 @@ page_cleaner_flush_pages_recommendation(
 
 	sum_pages += last_pages_in;
 
-	time_t	curr_time = ut_time();
+	time_t	curr_time = time(NULL);
 	double	time_elapsed = difftime(curr_time, prev_time);
 
 	/* We update our variables every srv_flushing_avg_loops
@@ -3538,7 +3542,7 @@ buf_flush_request_force(
 
 /** Functor to validate the flush list. */
 struct	Check {
-	void	operator()(const buf_page_t* elem)
+	void operator()(const buf_page_t* elem) const
 	{
 		ut_a(elem->in_flush_list);
 	}
@@ -3555,11 +3559,10 @@ buf_flush_validate_low(
 {
 	buf_page_t*		bpage;
 	const ib_rbt_node_t*	rnode = NULL;
-	Check			check;
 
 	ut_ad(buf_flush_list_mutex_own(buf_pool));
 
-	ut_list_validate(buf_pool->flush_list, check);
+	ut_list_validate(buf_pool->flush_list, Check());
 
 	bpage = UT_LIST_GET_FIRST(buf_pool->flush_list);
 

@@ -16,7 +16,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <mysqld_error.h>
 
@@ -274,7 +274,7 @@ public:
   Field **nullable_fields() { return record0_field; }
   void reset_extra_null_bitmap()
   {
-    size_t null_bytes= (trigger_table->s->stored_fields -
+    size_t null_bytes= (trigger_table->s->fields -
                         trigger_table->s->null_fields + 7)/8;
     bzero(extra_null_bitmap, null_bytes);
   }

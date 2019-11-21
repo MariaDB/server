@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /* 
@@ -227,8 +227,7 @@ void print_annotate_event(PRINT_EVENT_INFO *print_event_info)
   if (annotate_event)
   {
     annotate_event->print(result_file, print_event_info);
-    delete annotate_event;  // the event should not be printed more than once
-    annotate_event= 0;
+    free_annotate_event();
   }
 }
 
@@ -1465,7 +1464,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       if (print_row_event(print_event_info, ev, e->get_table_id(),
                           e->get_flags(Rows_log_event::STMT_END_F)))
         goto err;
-      if (!is_stmt_end)
+      if (opt_flashback && !is_stmt_end)
         destroy_evt= FALSE;
       break;
     }
@@ -1478,7 +1477,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       if (print_row_event(print_event_info, ev, e->get_table_id(),
                           e->get_flags(Old_rows_log_event::STMT_END_F)))
         goto err;
-      if (!is_stmt_end)
+      if (opt_flashback && !is_stmt_end)
         destroy_evt= FALSE;
       break;
     }
@@ -1535,12 +1534,11 @@ end:
       {
         my_fwrite(result_file, (const uchar *) tmp_str.str, tmp_str.length,
                   MYF(MY_NABP));
+        fflush(result_file);
         my_free(tmp_str.str);
       }
     }
 
-    if (remote_opt)
-      ev->temp_buf= 0;
     if (destroy_evt) /* destroy it later if not set (ignored table map) */
       delete ev;
   }
@@ -3173,17 +3171,24 @@ err:
   DBUG_RETURN(retval == ERROR_STOP ? 1 : 0);
 }
 
+uint e_key_get_latest_version_func(uint) { return 1; }
+uint e_key_get_func(uint, uint, uchar*, uint*) { return 1; }
+uint e_ctx_size_func(uint, uint) { return 1; }
+int e_ctx_init_func(void *, const uchar*, uint, const uchar*, uint,
+                    int, uint, uint) { return 1; }
+int e_ctx_update_func(void *, const uchar*, uint, uchar*, uint*) { return 1; }
+int e_ctx_finish_func(void *, uchar*, uint*) { return 1; }
+uint e_encrypted_length_func(uint, uint, uint) { return 1; }
 
-uint dummy1() { return 1; }
 struct encryption_service_st encryption_handler=
 {
-  (uint(*)(uint))dummy1,
-  (uint(*)(uint, uint, uchar*, uint*))dummy1,
-  (uint(*)(uint, uint))dummy1,
-  (int (*)(void*, const uchar*, uint, const uchar*, uint, int, uint, uint))dummy1,
-  (int (*)(void*, const uchar*, uint, uchar*, uint*))dummy1,
-  (int (*)(void*, uchar*, uint*))dummy1,
-  (uint (*)(uint, uint, uint))dummy1
+  e_key_get_latest_version_func,
+  e_key_get_func,
+  e_ctx_size_func,
+  e_ctx_init_func,
+  e_ctx_update_func,
+  e_ctx_finish_func,
+  e_encrypted_length_func
 };
 
 /*

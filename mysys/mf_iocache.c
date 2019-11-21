@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Cashing of files with only does (sequential) read or writes of fixed-
@@ -120,6 +120,10 @@ init_functions(IO_CACHE* info)
     DBUG_ASSERT(0);
     break;
   }
+  if (type == READ_CACHE || type == WRITE_CACHE || type == SEQ_READ_APPEND)
+    info->myflags|= MY_FULL_IO;
+  else
+    info->myflags&= ~MY_FULL_IO;
 }
 
 
@@ -296,10 +300,6 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
   }
   info->inited=info->aio_result.pending=0;
 #endif
-  if (type == READ_CACHE || type == WRITE_CACHE || type == SEQ_READ_APPEND)
-    info->myflags|= MY_FULL_IO;
-  else
-    info->myflags&= ~MY_FULL_IO;
   DBUG_RETURN(0);
 }						/* init_io_cache */
 

@@ -65,3 +65,13 @@ DROP TABLE t1;
 
 STOP SLAVE;
 RESET SLAVE ALL;
+
+--echo #cleanup
+--connection node_1
+reset master;
+
+--connection node_2
+reset master;
+
+--connection node_3
+reset master;

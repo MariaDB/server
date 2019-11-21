@@ -1,3 +1,5 @@
+--source include/default_optimizer_switch.inc
+
 create table t1 (a int, b  varchar(32));
 insert into t1 values
   (4,'aaaa' ), (7,'bb'), (1,'ccc'), (4,'dd');  
@@ -1168,3 +1170,15 @@ select * from v1;
 
 drop view v1;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-19112: CTE usage when information_schema is set as default db
+--echo #
+
+with t as (select 1 as t ) select * from t;
+
+use information_schema;
+with t as (select 1 as t) select * from t;
+with columns as (select 1 as t) select * from columns;
+
+use test;

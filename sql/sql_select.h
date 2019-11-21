@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -203,7 +203,6 @@ class AGGR_OP;
 class Filesort;
 
 typedef struct st_join_table {
-  st_join_table() {}
   TABLE		*table;
   TABLE_LIST    *tab_list;
   KEYUSE	*keyuse;			/**< pointer to first used key */
@@ -793,6 +792,7 @@ public:
   friend void best_access_path(JOIN      *join,
                                JOIN_TAB  *s,
                                table_map remaining_tables,
+                               const struct st_position *join_positions,
                                uint      idx,
                                bool      disable_jbuf,
                                double    record_count,
@@ -1961,6 +1961,11 @@ protected:
   }
 };
 
+void best_access_path(JOIN *join, JOIN_TAB *s,
+                      table_map remaining_tables,
+                      const POSITION *join_positions, uint idx,
+                      bool disable_jbuf, double record_count,
+                      POSITION *pos, POSITION *loose_scan_pos);
 bool cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref);
 bool error_if_full_join(JOIN *join);
 int report_error(TABLE *table, int error);
@@ -2047,9 +2052,9 @@ public:
   static void *operator new(size_t size, THD *thd) throw();
   static void operator delete(void *ptr, size_t size) {TRASH_FREE(ptr, size);}
 
-  Virtual_tmp_table(THD *thd)
+  Virtual_tmp_table(THD *thd) : m_alloced_field_count(0)
   {
-    bzero(this, sizeof(*this));
+    reset();
     temp_pool_slot= MY_BIT_NONE;
     in_use= thd;
   }
@@ -2278,7 +2283,7 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
                            ulonglong options);
 bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
-double prev_record_reads(POSITION *positions, uint idx, table_map found_ref);
+double prev_record_reads(const POSITION *positions, uint idx, table_map found_ref);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
 
 struct st_cond_statistic

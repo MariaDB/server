@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -127,8 +127,7 @@ dict_hdr_get_new_id(
 	}
 
 	if (space_id) {
-		*space_id = mtr_read_ulint(dict_hdr + DICT_HDR_MAX_SPACE_ID,
-					   MLOG_4BYTES, &mtr);
+		*space_id = mach_read_from_4(dict_hdr + DICT_HDR_MAX_SPACE_ID);
 		if (fil_assign_new_space_id(space_id)) {
 			mlog_write_ulint(dict_hdr + DICT_HDR_MAX_SPACE_ID,
 					 *space_id, MLOG_4BYTES, &mtr);
@@ -198,8 +197,7 @@ dict_hdr_create(
 	mlog_write_ull(dict_header + DICT_HDR_INDEX_ID,
 		       DICT_HDR_FIRST_ID, mtr);
 
-	mlog_write_ulint(dict_header + DICT_HDR_MAX_SPACE_ID,
-			 0, MLOG_4BYTES, mtr);
+	ut_ad(mach_read_from_4(dict_header + DICT_HDR_MAX_SPACE_ID) == 0);
 
 	/* Obsolete, but we must initialize it anyway. */
 	mlog_write_ulint(dict_header + DICT_HDR_MIX_ID_LOW,
@@ -362,10 +360,8 @@ dict_boot(void)
 	index->id = DICT_TABLES_ID;
 
 	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_TABLES,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
+					mach_read_from_4(dict_hdr
+							 + DICT_HDR_TABLES));
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
@@ -374,11 +370,8 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_TABLE_IDS_ID;
-	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_TABLE_IDS,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
+	error = dict_index_add_to_cache(
+		table, index, mach_read_from_4(dict_hdr + DICT_HDR_TABLE_IDS));
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
@@ -408,10 +401,8 @@ dict_boot(void)
 
 	index->id = DICT_COLUMNS_ID;
 	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_COLUMNS,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
+					mach_read_from_4(dict_hdr
+							 + DICT_HDR_COLUMNS));
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
@@ -442,10 +433,8 @@ dict_boot(void)
 
 	index->id = DICT_INDEXES_ID;
 	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_INDEXES,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
+					mach_read_from_4(dict_hdr
+							 + DICT_HDR_INDEXES));
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
@@ -470,10 +459,8 @@ dict_boot(void)
 
 	index->id = DICT_FIELDS_ID;
 	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_FIELDS,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
+					mach_read_from_4(dict_hdr
+							 + DICT_HDR_FIELDS));
 	ut_a(error == DB_SUCCESS);
 
 	mtr_commit(&mtr);

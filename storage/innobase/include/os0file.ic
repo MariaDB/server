@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -348,9 +348,10 @@ a synchronous read operation.
 @param[in]      n               number of bytes to read
 @param[in]      src_file        caller file name
 @param[in]      src_line        caller line number
-@return	whether the request was successful */
+@return error code
+@retval	DB_SUCCESS	if the operation succeeded */
 UNIV_INLINE
-bool
+dberr_t
 pfs_os_file_read_no_error_handling_int_fd_func(
 	const IORequest&	type,
 	int			file,
@@ -371,14 +372,14 @@ pfs_os_file_read_no_error_handling_int_fd_func(
 			__FILE__, __LINE__);
 	}
 
-	bool success = DB_SUCCESS == os_file_read_no_error_handling_func(
+	dberr_t err = os_file_read_no_error_handling_func(
 		type, OS_FILE_FROM_FD(file), buf, offset, n, NULL);
 
 	if (locker != NULL) {
 		PSI_FILE_CALL(end_file_wait)(locker, n);
 	}
 
-	return(success);
+	return err;
 }
 
 /** NOTE! Please use the corresponding macro os_file_write(), not directly
@@ -435,9 +436,10 @@ os_file_write_int_fd() which requests a synchronous write operation.
 @param[in]	n		number of bytes
 @param[in]	src_file	file name where func invoked
 @param[in]	src_line	line where the func invoked
-@return	whether the request was successful */
+@return error code
+@retval	DB_SUCCESS	if the operation succeeded */
 UNIV_INLINE
-bool
+dberr_t
 pfs_os_file_write_int_fd_func(
 	const IORequest&	type,
 	const char*		name,
@@ -459,14 +461,14 @@ pfs_os_file_write_int_fd_func(
 			__FILE__, __LINE__);
 	}
 
-        bool success = DB_SUCCESS == os_file_write_func(
+	dberr_t err = os_file_write_func(
 		type, name, OS_FILE_FROM_FD(file), buf, offset, n);
 
         if (locker != NULL) {
                 PSI_FILE_CALL(end_file_wait)(locker, n);
         }
 
-        return(success);
+	return err;
 }
 
 /** NOTE! Please use the corresponding macro os_file_flush(), not directly

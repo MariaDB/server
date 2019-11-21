@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* The hash functions used for saveing keys */
 
@@ -778,7 +778,6 @@ uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
       uchar *pos= (uchar*) rec + seg->start;
       DBUG_ASSERT(seg->type != HA_KEYTYPE_BIT);
 
-#ifdef HAVE_ISNAN
       if (seg->type == HA_KEYTYPE_FLOAT)
       {
 	float nr;
@@ -802,7 +801,6 @@ uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
 	  continue;
 	}
       }
-#endif
       pos+= length;
       while (length--)
       {

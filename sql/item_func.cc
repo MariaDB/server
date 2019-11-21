@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -66,18 +66,6 @@ bool check_reserved_words(LEX_STRING *name)
       !my_strcasecmp(system_charset_info, name->str, "SESSION"))
     return TRUE;
   return FALSE;
-}
-
-
-/**
-  @return
-    TRUE if item is a constant
-*/
-
-bool
-eval_const_cond(COND *cond)
-{
-  return ((Item_func*) cond)->val_int() ? TRUE : FALSE;
 }
 
 
@@ -234,6 +222,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
       with_window_func= with_window_func || item->with_window_func;
       with_field= with_field || item->with_field;
       used_tables_and_const_cache_join(item);
+      not_null_tables_cache|= item->not_null_tables();
       with_subselect|=        item->has_subquery();
     }
   }
@@ -430,6 +419,15 @@ void Item_args::propagate_equal_fields(THD *thd,
   for (i= 0; i < arg_count; i++)
     args[i]->propagate_equal_fields_and_change_item_tree(thd, ctx, cond,
                                                          &args[i]);
+}
+
+
+Sql_mode_dependency Item_args::value_depends_on_sql_mode_bit_or() const
+{
+  Sql_mode_dependency res;
+  for (uint i= 0; i < arg_count; i++)
+    res|= args[i]->value_depends_on_sql_mode();
+  return res;
 }
 
 
@@ -1425,10 +1423,19 @@ bool Item_func_minus::fix_length_and_dec()
 {
   if (Item_num_op::fix_length_and_dec())
     return TRUE;
-  if (unsigned_flag &&
+  if ((m_depends_on_sql_mode_no_unsigned_subtraction= unsigned_flag) &&
       (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION))
-    unsigned_flag=0;
+    unsigned_flag= false;
   return FALSE;
+}
+
+
+Sql_mode_dependency Item_func_minus::value_depends_on_sql_mode() const
+{
+  Sql_mode_dependency dep= Item_func_additive_op::value_depends_on_sql_mode();
+  if (m_depends_on_sql_mode_no_unsigned_subtraction)
+    dep|= Sql_mode_dependency(0, MODE_NO_UNSIGNED_SUBTRACTION);
+  return dep;
 }
 
 
@@ -1928,8 +1935,11 @@ my_decimal *Item_func_mod::decimal_op(my_decimal *decimal_value)
 
 void Item_func_mod::result_precision()
 {
+  unsigned_flag= args[0]->unsigned_flag;
   decimals= MY_MAX(args[0]->decimal_scale(), args[1]->decimal_scale());
-  max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
+  uint prec= MY_MAX(args[0]->decimal_precision(), args[1]->decimal_precision());
+  fix_char_length(my_decimal_precision_to_length_no_truncation(prec, decimals,
+                                                               unsigned_flag));
 }
 
 
@@ -1938,6 +1948,10 @@ bool Item_func_mod::fix_length_and_dec()
   if (Item_num_op::fix_length_and_dec())
     return true;
   maybe_null= 1;
+  /*
+    result_precision() sets unsigned_flag for INT_RESULT and DECIMAL_RESULT.
+    Here we need to set it in case of REAL_RESULT.
+  */
   unsigned_flag= args[0]->unsigned_flag;
   return false;
 }
@@ -2539,12 +2553,12 @@ double my_double_round(double value, longlong dec, bool dec_unsigned,
   volatile double value_div_tmp= value / tmp;
   volatile double value_mul_tmp= value * tmp;
 
-  if (!dec_negative && my_isinf(tmp)) // "dec" is too large positive number
+  if (!dec_negative && std::isinf(tmp)) // "dec" is too large positive number
     return value;
 
-  if (dec_negative && my_isinf(tmp))
+  if (dec_negative && std::isinf(tmp))
     tmp2= 0.0;
-  else if (!dec_negative && my_isinf(value_mul_tmp))
+  else if (!dec_negative && std::isinf(value_mul_tmp))
     tmp2= value;
   else if (truncate)
   {
@@ -2777,15 +2791,21 @@ bool Item_func_min_max::fix_length_and_dec()
 
   switch (tmp_cmp_type) {
   case TIME_RESULT:
+  {
     // At least one temporal argument was found.
+    if (temporal_type_count < arg_count)
+      maybe_null= true; // Non-temporal-to-temporal conversion can return NULL
     collation.set_numeric();
     set_handler_by_field_type(temporal_field_type);
     if (is_temporal_type_with_time(temporal_field_type))
       set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
     else
       decimals= 0;
+    uint len= decimals ? (decimals + 1) : 0;
+    len+= mysql_temporal_int_part_length(temporal_field_type);
+    fix_char_length(len);
     break;
-
+  }
   case STRING_RESULT:
     /*
       All arguments are of string-alike types:
@@ -5751,7 +5771,9 @@ my_decimal* Item_user_var_as_out_param::val_decimal(my_decimal *decimal_buffer)
 }
 
 
-void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
+void Item_user_var_as_out_param::load_data_print_for_log_event(THD *thd,
+                                                               String *str)
+                                                               const
 {
   str->append('@');
   append_identifier(thd, str, name.str, name.length);

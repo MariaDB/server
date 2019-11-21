@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -388,8 +388,6 @@ trx_undo_report_insert_virtual(
 
 	for (ulint col_no = 0; col_no < dict_table_get_n_v_cols(table);
 	     col_no++) {
-		dfield_t*       vfield = NULL;
-
 		const dict_v_col_t*     col
 			= dict_table_get_nth_v_col(table, col_no);
 
@@ -412,10 +410,17 @@ trx_undo_report_insert_virtual(
 				return(false);
 			}
 
-			vfield = dtuple_get_nth_v_field(row, col->v_pos);
-			ulint	flen = vfield->len;
+			const dfield_t* vfield = dtuple_get_nth_v_field(
+				row, col->v_pos);
+			switch (ulint flen = vfield->len) {
+			case 0: case UNIV_SQL_NULL:
+				if (trx_undo_left(undo_page, *ptr) < 5) {
+					return(false);
+				}
 
-			if (flen != UNIV_SQL_NULL) {
+				*ptr += mach_write_compressed(*ptr, flen);
+				break;
+			default:
 				ulint	max_len
 					= dict_max_v_field_len_store_undo(
 						table, col_no);
@@ -430,15 +435,8 @@ trx_undo_report_insert_virtual(
 				}
 				*ptr += mach_write_compressed(*ptr, flen);
 
-				ut_memcpy(*ptr, vfield->data, flen);
+				memcpy(*ptr, vfield->data, flen);
 				*ptr += flen;
-			} else {
-				if (trx_undo_left(undo_page, *ptr) < 5) {
-
-					return(false);
-				}
-
-				*ptr += mach_write_compressed(*ptr, flen);
 			}
 		}
 	}
@@ -507,13 +505,16 @@ trx_undo_page_report_insert(
 
 		ptr += mach_write_compressed(ptr, flen);
 
-		if (flen != UNIV_SQL_NULL) {
+		switch (flen) {
+		case 0: case UNIV_SQL_NULL:
+			break;
+		default:
 			if (trx_undo_left(undo_page, ptr) < flen) {
 
 				return(0);
 			}
 
-			ut_memcpy(ptr, dfield_get_data(field), flen);
+			memcpy(ptr, dfield_get_data(field), flen);
 			ptr += flen;
 		}
 	}
@@ -982,7 +983,7 @@ trx_undo_page_report_modify(
 				return(0);
 			}
 
-			ut_memcpy(ptr, field, flen);
+			memcpy(ptr, field, flen);
 			ptr += flen;
 		}
 	}
@@ -1124,7 +1125,7 @@ trx_undo_page_report_modify(
 					return(0);
 				}
 
-				ut_memcpy(ptr, field, flen);
+				memcpy(ptr, field, flen);
 				ptr += flen;
 			}
 
@@ -1150,7 +1151,7 @@ trx_undo_page_report_modify(
 						return(0);
 					}
 
-					ut_memcpy(ptr, field, flen);
+					memcpy(ptr, field, flen);
 					ptr += flen;
 				}
 			}
@@ -1306,7 +1307,7 @@ trx_undo_page_report_modify(
 						return(0);
 					}
 
-					ut_memcpy(ptr, field, flen);
+					memcpy(ptr, field, flen);
 					ptr += flen;
 				}
 
@@ -1331,8 +1332,6 @@ already_logged:
 
 		for (col_no = 0; col_no < dict_table_get_n_v_cols(table);
 		     col_no++) {
-			dfield_t*	vfield = NULL;
-
 			const dict_v_col_t*     col
 				= dict_table_get_nth_v_col(table, col_no);
 
@@ -1361,6 +1360,8 @@ already_logged:
 				if (!ptr) {
 					 return(0);
 				}
+
+				const dfield_t* vfield = NULL;
 
 				if (update) {
 					ut_ad(!row);
@@ -1392,14 +1393,17 @@ already_logged:
 
 				ptr += mach_write_compressed(ptr, flen);
 
-				if (flen != UNIV_SQL_NULL) {
+				switch (flen) {
+				case 0: case UNIV_SQL_NULL:
+					break;
+				default:
 					if (trx_undo_left(undo_page, ptr)
 					    < flen) {
 
 						return(0);
 					}
 
-					ut_memcpy(ptr, field, flen);
+					memcpy(ptr, field, flen);
 					ptr += flen;
 				}
 			}
@@ -1681,10 +1685,6 @@ trx_undo_rec_get_partial_row(
 	bool		first_v_col = true;
 	bool		is_undo_log = true;
 
-	ut_ad(index);
-	ut_ad(ptr);
-	ut_ad(row);
-	ut_ad(heap);
 	ut_ad(dict_index_is_clust(index));
 
 	*row = dtuple_create_with_vcol(
@@ -1958,7 +1958,7 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 		ut_ad((err == DB_SUCCESS) == !!block);
 
 		for (ut_d(int loop_count = 0); block;) {
-			ut_ad(++loop_count < 2);
+			ut_ad(loop_count++ < 2);
 			buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 			ut_ad(undo->last_page_no == block->page.id.page_no());
 
@@ -2304,7 +2304,7 @@ trx_undo_prev_version_build(
 				dtuple if it is not yet created. This heap
 				diffs from "heap" above in that it could be
 				prebuilt->old_vers_heap for selection */
-	const dtuple_t**vrow,	/*!< out: virtual column info, if any */
+	dtuple_t**	vrow,	/*!< out: virtual column info, if any */
 	ulint		v_status)
 				/*!< in: status determine if it is going
 				into this function by purge thread or not.
@@ -2507,7 +2507,7 @@ void
 trx_undo_read_v_cols(
 	const dict_table_t*	table,
 	const byte*		ptr,
-	const dtuple_t*		row,
+	dtuple_t*		row,
 	bool			in_purge)
 {
 	const byte*     end_ptr;

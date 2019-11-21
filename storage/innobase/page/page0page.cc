@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -526,6 +526,8 @@ page_create_empty(
 	page_zip_des_t*	page_zip= buf_block_get_page_zip(block);
 
 	ut_ad(fil_page_index_page_check(page));
+	ut_ad(!index->is_dummy);
+	ut_ad(block->page.id.space() == index->space);
 
 	/* Multiple transactions cannot simultaneously operate on the
 	same temp-table in parallel.
@@ -536,7 +538,7 @@ page_create_empty(
 	    && page_is_leaf(page)) {
 		max_trx_id = page_get_max_trx_id(page);
 		ut_ad(max_trx_id);
-	} else if (page_is_root(page)) {
+	} else if (block->page.id.page_no() == index->page) {
 		/* Preserve PAGE_ROOT_AUTO_INC. */
 		max_trx_id = page_get_max_trx_id(page);
 	} else {
@@ -602,20 +604,20 @@ page_copy_rec_list_end_no_locks(
 	/* Copy records from the original page to the new page */
 
 	while (!page_cur_is_after_last(&cur1)) {
-		rec_t*	cur1_rec = page_cur_get_rec(&cur1);
 		rec_t*	ins_rec;
-		offsets = rec_get_offsets(cur1_rec, index, offsets, is_leaf,
+		offsets = rec_get_offsets(cur1.rec, index, offsets, is_leaf,
 					  ULINT_UNDEFINED, &heap);
 		ins_rec = page_cur_insert_rec_low(cur2, index,
-						  cur1_rec, offsets, mtr);
+						  cur1.rec, offsets, mtr);
 		if (UNIV_UNLIKELY(!ins_rec)) {
 			ib::fatal() << "Rec offset " << page_offset(rec)
-				<< ", cur1 offset "
-				<< page_offset(page_cur_get_rec(&cur1))
+				<< ", cur1 offset " << page_offset(cur1.rec)
 				<< ", cur2 offset " << page_offset(cur2);
 		}
 
 		page_cur_move_to_next(&cur1);
+		ut_ad(!(rec_get_info_bits(cur1.rec, page_is_comp(new_page))
+			& REC_INFO_MIN_REC_FLAG));
 		cur2 = ins_rec;
 	}
 
@@ -801,6 +803,8 @@ page_copy_rec_list_start(
 	dict_index_t*	index,		/*!< in: record descriptor */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
+	ut_ad(page_align(rec) == block->frame);
+
 	page_t*		new_page	= buf_block_get_frame(new_block);
 	page_zip_des_t*	new_page_zip	= buf_block_get_page_zip(new_block);
 	page_cur_t	cur1;
@@ -818,7 +822,6 @@ page_copy_rec_list_start(
 	predefined infimum record. */
 
 	if (page_rec_is_infimum(rec)) {
-
 		return(ret);
 	}
 
@@ -852,17 +855,18 @@ page_copy_rec_list_start(
 						      rec_move, max_to_move,
 						      &num_moved, mtr);
 	} else {
-
 		while (page_cur_get_rec(&cur1) != rec) {
-			rec_t*	cur1_rec = page_cur_get_rec(&cur1);
-			offsets = rec_get_offsets(cur1_rec, index, offsets,
+			offsets = rec_get_offsets(cur1.rec, index, offsets,
 						  is_leaf,
 						  ULINT_UNDEFINED, &heap);
 			cur2 = page_cur_insert_rec_low(cur2, index,
-						       cur1_rec, offsets, mtr);
+						       cur1.rec, offsets, mtr);
 			ut_a(cur2);
 
 			page_cur_move_to_next(&cur1);
+			ut_ad(!(rec_get_info_bits(cur1.rec,
+						  page_is_comp(new_page))
+				& REC_INFO_MIN_REC_FLAG));
 		}
 	}
 
@@ -1229,6 +1233,7 @@ delete_all:
 	page_header_set_field(page, NULL, PAGE_GARBAGE, size
 			      + page_header_get_field(page, PAGE_GARBAGE));
 
+	ut_ad(page_get_n_recs(page) > n_recs);
 	page_header_set_field(page, NULL, PAGE_N_RECS,
 			      (ulint)(page_get_n_recs(page) - n_recs));
 }
@@ -1251,6 +1256,7 @@ page_delete_rec_list_start(
 
 	rec_offs_init(offsets_);
 
+	ut_ad(page_align(rec) == block->frame);
 	ut_ad((ibool) !!page_rec_is_comp(rec)
 	      == dict_table_is_comp(index->table));
 #ifdef UNIV_ZIP_DEBUG
@@ -2160,7 +2166,17 @@ page_simple_validate_old(
 			goto func_exit;
 		}
 
-		rec = page_rec_get_next_const(rec);
+		ulint offs = rec_get_next_offs(rec, FALSE);
+		if (!offs) {
+			break;
+		}
+		if (UNIV_UNLIKELY(offs < PAGE_OLD_INFIMUM
+				  || offs >= srv_page_size)) {
+			ib::error() << "Page free list is corrupted " << count;
+			goto func_exit;
+		}
+
+		rec = page + offs;
 	}
 
 	if (UNIV_UNLIKELY(page_dir_get_n_heap(page) != count + 1)) {
@@ -2352,7 +2368,17 @@ page_simple_validate_new(
 			goto func_exit;
 		}
 
-		rec = page_rec_get_next_const(rec);
+		const ulint offs = rec_get_next_offs(rec, TRUE);
+		if (!offs) {
+			break;
+		}
+		if (UNIV_UNLIKELY(offs < PAGE_OLD_INFIMUM
+				  || offs >= srv_page_size)) {
+			ib::error() << "Page free list is corrupted " << count;
+			goto func_exit;
+		}
+
+		rec = page + offs;
 	}
 
 	if (UNIV_UNLIKELY(page_dir_get_n_heap(page) != count + 1)) {
@@ -2389,6 +2415,7 @@ page_validate(
 	ulint			data_size;
 	const rec_t*		rec;
 	const rec_t*		old_rec		= NULL;
+	const rec_t*		first_rec	= NULL;
 	ulint			offs;
 	ulint			n_slots;
 	ibool			ret		= FALSE;
@@ -2483,6 +2510,21 @@ page_validate(
 
 		if (UNIV_UNLIKELY(!page_rec_validate(rec, offsets))) {
 			goto func_exit;
+		}
+
+		if (rec == first_rec) {
+			if ((rec_get_info_bits(rec, page_is_comp(page))
+			     & REC_INFO_MIN_REC_FLAG)
+			    && page_is_leaf(page)) {
+				ib::error() << "REC_INFO_MIN_REC_FLAG "
+					"is set in a leaf-page record";
+				ret = false;
+			}
+		} else if (rec_get_info_bits(rec, page_is_comp(page))
+			   & REC_INFO_MIN_REC_FLAG) {
+			ib::error() << "REC_INFO_MIN_REC_FLAG record is not "
+				       "first in page";
+			ret = false;
 		}
 
 		/* Check that the records are in the ascending order */
@@ -2596,6 +2638,11 @@ page_validate(
 		old_rec = rec;
 		rec = page_rec_get_next_const(rec);
 
+		if (page_rec_is_infimum(old_rec)
+		    && page_rec_is_user_rec(rec)) {
+			first_rec = rec;
+		}
+
 		/* set old_offsets to offsets; recycle offsets */
 		{
 			ulint* offs = old_offsets;
@@ -2644,16 +2691,32 @@ n_owned_zero:
 					  page_is_leaf(page),
 					  ULINT_UNDEFINED, &heap);
 		if (UNIV_UNLIKELY(!page_rec_validate(rec, offsets))) {
+			ret = FALSE;
+next_free:
+			const ulint offs = rec_get_next_offs(
+				rec, page_is_comp(page));
+			if (!offs) {
+				break;
+			}
+			if (UNIV_UNLIKELY(offs < PAGE_OLD_INFIMUM
+					  || offs >= srv_page_size)) {
+				ib::error() << "Page free list is corrupted";
+				ret = FALSE;
+				break;
+			}
 
-			goto func_exit;
+			rec = page + offs;
+			continue;
 		}
 
 		count++;
 		offs = page_offset(rec_get_start(rec, offsets));
 		i = rec_offs_size(offsets);
-		if (UNIV_UNLIKELY(offs + i >= UNIV_PAGE_SIZE)) {
-			ib::error() << "Record offset out of bounds";
-			goto func_exit;
+		if (UNIV_UNLIKELY(offs + i >= srv_page_size)) {
+			ib::error() << "Free record offset out of bounds: "
+				    << offs << '+' << i;
+			ret = FALSE;
+			goto next_free;
 		}
 
 		while (i--) {
@@ -2667,7 +2730,7 @@ n_owned_zero:
 			buf[offs + i] = 1;
 		}
 
-		rec = page_rec_get_next_const(rec);
+		goto next_free;
 	}
 
 	if (UNIV_UNLIKELY(page_dir_get_n_heap(page) != count + 1)) {
@@ -2761,8 +2824,7 @@ page_delete_rec(
 	if (!rec_offs_any_extern(offsets)
 	    && ((page_get_data_size(page) - rec_offs_size(offsets)
 		< BTR_CUR_PAGE_COMPRESS_LIMIT(index))
-		|| (mach_read_from_4(page + FIL_PAGE_NEXT) == FIL_NULL
-		    && mach_read_from_4(page + FIL_PAGE_PREV) == FIL_NULL)
+		|| !page_has_siblings(page)
 		|| (page_get_n_recs(page) < 2))) {
 
 		ulint	root_page_no = dict_index_get_page(index);

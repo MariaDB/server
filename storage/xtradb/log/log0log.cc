@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -1305,7 +1305,6 @@ log_io_complete(
 
 	group->n_pending_writes--;
 	log_sys->n_pending_writes--;
-	MONITOR_DEC(MONITOR_PENDING_LOG_WRITE);
 
 	unlock = log_group_check_flush_completion(group);
 	unlock = unlock | log_sys_check_flush_completion();
@@ -1356,8 +1355,6 @@ log_group_file_header_flush(
 #endif /* UNIV_DEBUG */
 	if (log_do_write) {
 		log_sys->n_log_ios++;
-
-		MONITOR_INC(MONITOR_LOG_IO);
 
 		srv_stats.os_log_pending_writes.inc();
 
@@ -1482,8 +1479,6 @@ loop:
 
 	if (log_do_write) {
 		log_sys->n_log_ios++;
-
-		MONITOR_INC(MONITOR_LOG_IO);
 
 		srv_stats.os_log_pending_writes.inc();
 
@@ -1632,7 +1627,6 @@ loop:
 	}
 #endif /* UNIV_DEBUG */
 	log_sys->n_pending_writes++;
-	MONITOR_INC(MONITOR_PENDING_LOG_WRITE);
 
 	group = UT_LIST_GET_FIRST(log_sys->log_groups);
 	group->n_pending_writes++;	/*!< We assume here that we have only
@@ -1724,7 +1718,6 @@ loop:
 
 	group->n_pending_writes--;
 	log_sys->n_pending_writes--;
-	MONITOR_DEC(MONITOR_PENDING_LOG_WRITE);
 
 	unlock = log_group_check_flush_completion(group);
 	unlock = unlock | log_sys_check_flush_completion();
@@ -1939,7 +1932,6 @@ log_io_complete_checkpoint(void)
 	ut_ad(log_sys->n_pending_checkpoint_writes > 0);
 
 	log_sys->n_pending_checkpoint_writes--;
-	MONITOR_DEC(MONITOR_PENDING_CHECKPOINT_WRITE);
 
 	if (log_sys->n_pending_checkpoint_writes == 0) {
 		log_complete_checkpoint();
@@ -2086,11 +2078,8 @@ log_group_checkpoint(
 		}
 
 		log_sys->n_pending_checkpoint_writes++;
-		MONITOR_INC(MONITOR_PENDING_CHECKPOINT_WRITE);
 
 		log_sys->n_log_ios++;
-
-		MONITOR_INC(MONITOR_LOG_IO);
 
 		/* We send as the last parameter the group machine address
 		added with 1, as we want to distinguish between a normal log
@@ -2177,8 +2166,6 @@ log_group_read_checkpoint_info(
 	ut_ad(mutex_own(&(log_sys->mutex)));
 
 	log_sys->n_log_ios++;
-
-	MONITOR_INC(MONITOR_LOG_IO);
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, group->space_id, 0,
 	       field / UNIV_PAGE_SIZE, field % UNIV_PAGE_SIZE,
@@ -2564,8 +2551,6 @@ loop:
 
 	log_sys->n_log_ios++;
 
-	MONITOR_INC(MONITOR_LOG_IO);
-
 	ut_a(source_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
 
 	if (release_mutex) {
@@ -2606,7 +2591,8 @@ loop:
 	start_lsn += len;
 	buf += len;
 
-	if (recv_recovery_is_on() && recv_sys && recv_sys->report(ut_time())) {
+	if (recv_recovery_is_on() && recv_sys
+	    && recv_sys->report(time(NULL))) {
 		ib_logf(IB_LOG_LEVEL_INFO, "Read redo log up to LSN=" LSN_PF,
 			start_lsn);
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
@@ -2727,8 +2713,6 @@ log_group_archive_file_header_write(
 
 	log_sys->n_log_ios++;
 
-	MONITOR_INC(MONITOR_LOG_IO);
-
 	fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->archive_space_id,
 	       0,
 	       dest_offset / UNIV_PAGE_SIZE,
@@ -2762,8 +2746,6 @@ log_group_archive_completed_header_write(
 	dest_offset = nth_file * group->file_size + LOG_FILE_ARCH_COMPLETED;
 
 	log_sys->n_log_ios++;
-
-	MONITOR_INC(MONITOR_LOG_IO);
 
 	fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->archive_space_id,
 	       0,
@@ -2894,8 +2876,6 @@ loop:
 	log_sys->n_pending_archive_ios++;
 
 	log_sys->n_log_ios++;
-
-	MONITOR_INC(MONITOR_LOG_IO);
 
 	//TODO (jonaso): This must be dead code??
 	log_encrypt_before_write(log_sys->next_checkpoint_no,

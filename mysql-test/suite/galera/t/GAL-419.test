@@ -5,6 +5,9 @@
 --source include/galera_cluster.inc
 --source include/big_test.inc
 
+call mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node.*");
+call mtr.add_suppression("Aborting");
+
 --connection node_2
 SET SESSION wsrep_sync_wait = 0;
 --source include/kill_galera.inc

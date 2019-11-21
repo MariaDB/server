@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -128,12 +129,12 @@ struct i_s_trx_row_t {
 	trx_id_t		trx_id;		/*!< transaction identifier */
 	const char*		trx_state;	/*!< transaction state from
 						trx_get_que_state_str() */
-	ib_time_t		trx_started;	/*!< trx_t::start_time */
+	time_t			trx_started;	/*!< trx_t::start_time */
 	const i_s_locks_row_t*	requested_lock_row;
 					/*!< pointer to a row
 					in innodb_locks if trx
 					is waiting, or NULL */
-	ib_time_t	trx_wait_started; /*!< trx_t::wait_started */
+	time_t		trx_wait_started; /*!< trx->lock.wait_started */
 	ullint		trx_weight;	/*!< TRX_WEIGHT() */
 	ulint		trx_mysql_thread_id; /*!< thd_get_thread_id() */
 	const char*	trx_query;	/*!< MySQL statement being

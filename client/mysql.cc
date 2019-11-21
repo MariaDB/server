@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* mysql command tool
  * Commands compatible with mSQL by David J. Hughes
@@ -40,6 +40,7 @@
 #include "my_readline.h"
 #include <signal.h>
 #include <violite.h>
+#include <my_sys.h>
 
 #if defined(USE_LIBEDIT_INTERFACE) && defined(HAVE_LOCALE_H)
 #include <locale.h>
@@ -3789,9 +3790,10 @@ print_table_data_html(MYSQL_RES *result)
   MYSQL_FIELD	*field;
 
   mysql_field_seek(result,0);
-  (void) tee_fputs("<TABLE BORDER=1><TR>", PAGER);
+  (void) tee_fputs("<TABLE BORDER=1>", PAGER);
   if (column_names)
   {
+    (void) tee_fputs("<TR>", PAGER);
     while((field = mysql_fetch_field(result)))
     {
       tee_fputs("<TH>", PAGER);
@@ -4700,7 +4702,8 @@ sql_real_connect(char *host,char *database,char *user,char *password,
 	    select_limit,max_join_size);
     mysql_options(&mysql, MYSQL_INIT_COMMAND, init_command);
   }
-
+  if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
+    default_charset= (char *)my_default_csname();
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
 
   if (!do_connect(&mysql, host, user, password, database,

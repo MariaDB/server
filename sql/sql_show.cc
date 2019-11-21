@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* Function with list databases, tables or fields */
@@ -1206,13 +1206,56 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
                               List<Item> *field_list, String *buffer)
 {
   bool error= TRUE;
+  LEX *lex= thd->lex;
   MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("mysqld_show_create_get_fields");
   DBUG_PRINT("enter",("db: %s  table: %s",table_list->db,
                       table_list->table_name));
 
+  if (lex->only_view)
+  {
+    if (check_table_access(thd, SELECT_ACL, table_list, FALSE, 1, FALSE))
+    {
+      DBUG_PRINT("debug", ("check_table_access failed"));
+      my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
+              "SHOW", thd->security_ctx->priv_user,
+              thd->security_ctx->host_or_ip, table_list->alias);
+      goto exit;
+    }
+    DBUG_PRINT("debug", ("check_table_access succeeded"));
+
+    /* Ignore temporary tables if this is "SHOW CREATE VIEW" */
+    table_list->open_type= OT_BASE_ONLY;
+  }
+  else
+  {
+    /*
+      Temporary tables should be opened for SHOW CREATE TABLE, but not
+      for SHOW CREATE VIEW.
+    */
+    if (thd->open_temporary_tables(table_list))
+      goto exit;
+
+    /*
+      The fact that check_some_access() returned FALSE does not mean that
+      access is granted. We need to check if table_list->grant.privilege
+      contains any table-specific privilege.
+    */
+    DBUG_PRINT("debug", ("table_list->grant.privilege: %lx",
+                         table_list->grant.privilege));
+    if (check_some_access(thd, SHOW_CREATE_TABLE_ACLS, table_list) ||
+        (table_list->grant.privilege & SHOW_CREATE_TABLE_ACLS) == 0)
+    {
+      my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
+              "SHOW", thd->security_ctx->priv_user,
+              thd->security_ctx->host_or_ip, table_list->alias);
+      goto exit;
+    }
+  }
+  /* Access is granted. Execute the command.  */
+
   /* We want to preserve the tree for views. */
-  thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
+  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
 
   {
     /*
@@ -1227,14 +1270,14 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
     bool open_error=
       open_tables(thd, &table_list, &counter,
                   MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL) ||
-      mysql_handle_derived(thd->lex, DT_INIT | DT_PREPARE);
+                  mysql_handle_derived(lex, DT_INIT | DT_PREPARE);
     thd->pop_internal_handler();
     if (open_error && (thd->killed || thd->is_error()))
       goto exit;
   }
 
   /* TODO: add environment variables show when it become possible */
-  if (thd->lex->only_view && !table_list->view)
+  if (lex->only_view && !table_list->view)
   {
     my_error(ER_WRONG_OBJECT, MYF(0),
              table_list->db, table_list->table_name, "VIEW");
@@ -2022,6 +2065,16 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
           !(sql_mode & MODE_NO_FIELD_OPTIONS))
         packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
     }
+
+    if (field->comment.length)
+    {
+      packet->append(STRING_WITH_LEN(" COMMENT "));
+      append_unescaped(packet, field->comment.str, field->comment.length);
+    }
+
+    append_create_options(thd, packet, field->option_list, check_options,
+                          hton->field_options);
+    
     if (field->check_constraint)
     {
       StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
@@ -2031,13 +2084,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       packet->append(STRING_WITH_LEN(")"));
     }
 
-    if (field->comment.length)
-    {
-      packet->append(STRING_WITH_LEN(" COMMENT "));
-      append_unescaped(packet, field->comment.str, field->comment.length);
-    }
-    append_create_options(thd, packet, field->option_list, check_options,
-                          hton->field_options);
   }
 
   key_info= table->key_info;
@@ -2688,8 +2734,12 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
     else
       protocol->store_null();
     protocol->store(thd_info->state_info, system_charset_info);
-    protocol->store(thd_info->query_string.str(),
-                    thd_info->query_string.charset());
+    if (thd_info->query_string.length())
+      protocol->store(thd_info->query_string.str(),
+                      thd_info->query_string.length(),
+                      thd_info->query_string.charset());
+    else
+      protocol->store_null();
     if (!thd->variables.old_mode &&
         !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
       protocol->store(thd_info->progress, 3, &store_buffer);
@@ -4360,6 +4410,7 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
                                            (can_deadlock ?
                                             MYSQL_OPEN_FAIL_ON_MDL_CONFLICT : 0)),
 					  DT_INIT | DT_PREPARE | DT_CREATE));
+
   /*
     Restore old value of sql_command back as it is being looked at in
     process_table() function.
@@ -6233,6 +6284,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     KEY *key_info=show_table->s->key_info;
     if (show_table->file)
     {
+      (void) read_statistics_for_tables(thd, tables);
       show_table->file->info(HA_STATUS_VARIABLE |
                              HA_STATUS_NO_LOCK |
                              HA_STATUS_TIME);
@@ -6338,7 +6390,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
         {
           TABLE_LIST table_list;
           uint view_access;
-          memset(&table_list, 0, sizeof(table_list));
+          table_list.reset();
           table_list.db= tables->db;
           table_list.table_name= tables->table_name;
           table_list.grant.privilege= thd->col_access;
@@ -7809,8 +7861,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     item->maybe_null= (fields_info->field_flags & MY_I_S_MAYBE_NULL);
     field_count++;
   }
-  TMP_TABLE_PARAM *tmp_table_param =
-    (TMP_TABLE_PARAM*) (thd->alloc(sizeof(TMP_TABLE_PARAM)));
+  TMP_TABLE_PARAM *tmp_table_param = new (thd->mem_root) TMP_TABLE_PARAM;
   tmp_table_param->init();
   tmp_table_param->table_charset= cs;
   tmp_table_param->field_count= field_count;
@@ -8050,8 +8101,6 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
     table->alias_name_used= my_strcasecmp(table_alias_charset,
                                           table_list->schema_table_name,
                                           table_list->alias);
-  table_list->table_name= table->s->table_name.str;
-  table_list->table_name_length= table->s->table_name.length;
   table_list->table= table;
   table->next= thd->derived_tables;
   thd->derived_tables= table;
@@ -8379,6 +8428,7 @@ bool get_schema_tables_result(JOIN *join,
         cond= tab->cache_select->cond;
       }
 
+      Switch_to_definer_security_ctx backup_ctx(thd, table_list);
       if (table_list->schema_table->fill_table(thd, table_list, cond))
       {
         result= 1;
@@ -9965,8 +10015,6 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   char header[256];
   int len;
 
-  mysql_mutex_lock(&LOCK_thread_count);
-
   len= my_snprintf(header, sizeof(header),
                    "MySQL thread id %lu, OS thread handle %lu, query id %lu",
                    thd->thread_id, (ulong) thd->real_id, (ulong) thd->query_id);
@@ -10011,7 +10059,6 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
     }
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   if (str.c_ptr_safe() == buffer)
     return buffer;

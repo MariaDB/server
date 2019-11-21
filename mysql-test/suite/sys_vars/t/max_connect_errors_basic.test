@@ -35,7 +35,7 @@
 ######################################################################
 
 SET @start_value = @@global.max_connect_errors;
-SELECT @start_value;
+SELECT @start_value >= 0;
 
 
 --echo '#--------------------FN_DYNVARS_073_01------------------------#'
@@ -45,7 +45,6 @@ SELECT @start_value;
 
 SET @@global.max_connect_errors = 5000;
 SET @@global.max_connect_errors = DEFAULT;
-SELECT @@global.max_connect_errors;
 
 --echo '#---------------------FN_DYNVARS_073_02-------------------------#'
 ############################################### 
@@ -53,7 +52,7 @@ SELECT @@global.max_connect_errors;
 ############################################### 
 
 SET @@global.max_connect_errors = @start_value;
-SELECT @@global.max_connect_errors = 10;
+SELECT @@global.max_connect_errors = @start_value;
 
 --echo '#--------------------FN_DYNVARS_073_03------------------------#'
 ##################################################################
@@ -169,10 +168,7 @@ SELECT max_connect_errors = @@session.max_connect_errors;
 ##############################
 
 SET @@global.max_connect_errors = @start_value;
-SELECT @@global.max_connect_errors;
-
 
 ##################################################################
-#              END OF max_connect_errors TESTS                      #
+#           END OF max_connect_errors TESTS                      #
 ##################################################################
-

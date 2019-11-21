@@ -1,7 +1,5 @@
 SET @global_start_value = @@global.character_set_client;
-SELECT @global_start_value;
-@global_start_value
-latin1
+SET @@global.character_set_client=@@character_set_client;
 SET @session_start_value = @@character_set_client;
 SELECT @session_start_value;
 @session_start_value
@@ -32,14 +30,14 @@ ERROR 42S22: Unknown column 'global' in 'field list'
 '#--------------------FN_DYNVARS_010_02-------------------------#'
 SET @@character_set_client = latin5;
 SET @@character_set_client = DEFAULT;
-SELECT @@character_set_client AS DEFAULT_VALUE;
-DEFAULT_VALUE
-utf8
+SELECT @@character_set_client = @@global.character_set_client;
+@@character_set_client = @@global.character_set_client
+1
 SET @@global.character_set_client = latin5;
 SET @@global.character_set_client = DEFAULT;
-SELECT @@global.character_set_client;
-@@global.character_set_client
-latin1
+SELECT @@global.character_set_client= @global_start_value;
+@@global.character_set_client= @global_start_value
+1
 '#--------------------FN_DYNVARS_010_03-------------------------#'
 SET @@session.character_set_client = utf8;
 SELECT @@session.character_set_client;
@@ -502,10 +500,4 @@ WHERE VARIABLE_NAME='character_set_client') AS res;
 res
 1
 SET @@global.character_set_client = @global_start_value;
-SELECT @@global.character_set_client;
-@@global.character_set_client
-latin1
 SET @@session.character_set_client = @session_start_value;
-SELECT @@session.character_set_client;
-@@session.character_set_client
-latin1

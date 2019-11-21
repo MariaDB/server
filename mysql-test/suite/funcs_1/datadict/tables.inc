@@ -9,6 +9,8 @@
 # 2008-06-04 mleich Create this script based on older scripts and new code.
 #
 
+--source include/default_charset.inc
+
 # Just have some tables within different databases.
 --disable_warnings
 DROP DATABASE IF EXISTS test1;

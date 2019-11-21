@@ -1557,5 +1557,14 @@ numgtfmt
 DROP VIEW v1;
 DROP TABLE t1;
 #
+# MDEV-20517 Assertion `!is_expensive()' failed in Item::value_depends_on_sql_mode_const_item
+#
+SELECT ( 1 LIKE GET_LOCK( 'foo', 0 ) ) - 2;
+( 1 LIKE GET_LOCK( 'foo', 0 ) ) - 2
+-1
+SELECT RELEASE_LOCK('foo');
+RELEASE_LOCK('foo')
+1
+#
 # End of 10.2 tests
 #

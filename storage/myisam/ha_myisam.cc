@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -767,8 +767,8 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
     growing files. Using an open_flag instead of calling mi_extra(...
     HA_EXTRA_MMAP ...) after mi_open() has the advantage that the
     mapping is not repeated for every open, but just done on the initial
-    open, when the MyISAM share is created. Everytime the server
-    requires to open a new instance of a table it calls this method. We
+    open, when the MyISAM share is created. Every time the server
+    requires opening a new instance of a table it calls this method. We
     will always supply HA_OPEN_MMAP for a permanent table. However, the
     MyISAM storage engine will ignore this flag if this is a secondary
     open of a table that is in use by other threads already (if the
@@ -934,14 +934,18 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
     ulong new_vreclength= file->s->vreclength;
     for (Field **vf= table->vfield; *vf; vf++)
     {
-      uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
-      set_if_bigger(new_vreclength, vf_end);
-      indexed_vcols|= (*vf)->flags & PART_KEY_FLAG;
+      if (!(*vf)->stored_in_db())
+      {
+        uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
+        set_if_bigger(new_vreclength, vf_end);
+        indexed_vcols|= (*vf)->flags & PART_KEY_FLAG;
+      }
     }
     if (!indexed_vcols)
       return;
     file->s->vreclength= new_vreclength;
   }
+  DBUG_ASSERT(file->s->base.reclength < file->s->vreclength);
   param->fix_record= compute_vcols;
   table->use_all_columns();
   table->vcol_set= &table->s->all_set;

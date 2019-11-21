@@ -11,7 +11,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 #
 
 INCLUDE (CheckCSourceCompiles)
@@ -251,7 +251,7 @@ SET(CMAKE_REQUIRED_DEFINITIONS ${CMAKE_REQUIRED_DEFINITIONS} -DPACKAGE=test) # b
 CHECK_INCLUDE_FILES (bfd.h BFD_H_EXISTS)
 IF(BFD_H_EXISTS)
   IF(NOT_FOR_DISTRIBUTION)
-    SET(NON_DISTRIBUTABLE_WARNING 1)
+    SET(NON_DISTRIBUTABLE_WARNING "GPLv3")
     SET(HAVE_BFD_H 1)
   ENDIF()
 ENDIF()
@@ -475,18 +475,7 @@ ELSE()
   CHECK_SYMBOL_EXISTS(finite  "ieeefp.h" HAVE_FINITE)
 ENDIF()
 CHECK_SYMBOL_EXISTS(log2  math.h HAVE_LOG2)
-CHECK_SYMBOL_EXISTS(isnan math.h HAVE_ISNAN)
 CHECK_SYMBOL_EXISTS(rint  math.h HAVE_RINT)
-
-# isinf() prototype not found on Solaris
-CHECK_CXX_SOURCE_COMPILES(
-"#include  <math.h>
-int main() { 
-  isinf(0.0); 
-  return 0;
-}" HAVE_ISINF)
-
-
 
 #
 # Test for endianess

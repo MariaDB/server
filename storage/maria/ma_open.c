@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* open an Aria table */
 
@@ -247,20 +248,6 @@ err:
   my_errno=save_errno;
   DBUG_RETURN (NULL);
 } /* maria_clone_internal */
-
-
-/* Make a clone of a maria table */
-
-MARIA_HA *maria_clone(MARIA_SHARE *share, int mode)
-{
-  MARIA_HA *new_info;
-  mysql_mutex_lock(&THR_LOCK_maria);
-  new_info= maria_clone_internal(share, mode,
-                                 share->data_file_type == BLOCK_RECORD ?
-                                 share->bitmap.file.file : -1, 0);
-  mysql_mutex_unlock(&THR_LOCK_maria);
-  return new_info;
-}
 
 
 /******************************************************************************
@@ -1374,7 +1361,7 @@ uint _ma_state_info_write(MARIA_SHARE *share, uint pWrite)
 
   if (pWrite & MA_STATE_INFO_WRITE_LOCK)
     mysql_mutex_lock(&share->intern_lock);
-  else if (maria_multi_threaded)
+  else if (maria_multi_threaded && !share->temporary)
     mysql_mutex_assert_owner(&share->intern_lock);
   if (share->base.born_transactional && translog_status == TRANSLOG_OK &&
       !maria_in_recovery)
@@ -1385,7 +1372,7 @@ uint _ma_state_info_write(MARIA_SHARE *share, uint pWrite)
       is too new). Recovery does it by itself.
     */
     share->state.is_of_horizon= translog_get_horizon();
-    DBUG_PRINT("info", ("is_of_horizon set to LSN " LSN_FMT,
+    DBUG_PRINT("info", ("is_of_horizon set to LSN " LSN_FMT "",
                         LSN_IN_PARTS(share->state.is_of_horizon)));
   }
   res= _ma_state_info_write_sub(share->kfile.file, &share->state, pWrite);

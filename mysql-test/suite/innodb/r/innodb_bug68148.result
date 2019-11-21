@@ -19,7 +19,6 @@ main
 ref_table1
 ref_table2
 # restart and see if we can still access the main table
-SET FOREIGN_KEY_CHECKS=0;
 ALTER TABLE `main` ADD INDEX `idx_1` (`ref_id1`);
 SHOW CREATE TABLE `main`;
 Table	Create Table

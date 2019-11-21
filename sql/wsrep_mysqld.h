@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <wsrep.h>
 
@@ -31,6 +31,7 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include "mysqld.h"
 #include "sql_table.h"
 #include "wsrep_mysqld_c.h"
+#include <vector>
 
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
 
@@ -89,6 +90,8 @@ extern my_bool     wsrep_restart_slave_activated;
 extern my_bool     wsrep_slave_FK_checks;
 extern my_bool     wsrep_slave_UK_checks;
 extern ulong       wsrep_running_threads;
+extern ulong       wsrep_running_applier_threads;
+extern ulong       wsrep_running_rollbacker_threads;
 extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
@@ -288,7 +291,14 @@ extern PSI_mutex_key key_LOCK_wsrep_slave_threads;
 extern PSI_mutex_key key_LOCK_wsrep_desync;
 
 extern PSI_file_key key_file_wsrep_gra_log;
+
+extern PSI_thread_key key_wsrep_sst_joiner;
+extern PSI_thread_key key_wsrep_sst_donor;
+extern PSI_thread_key key_wsrep_rollbacker;
+extern PSI_thread_key key_wsrep_applier;
 #endif /* HAVE_PSI_INTERFACE */
+
+
 struct TABLE_LIST;
 class Alter_info;
 int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
@@ -310,7 +320,21 @@ void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end);
 void thd_binlog_rollback_stmt(THD * thd);
 void thd_binlog_trx_reset(THD * thd);
 
+enum wsrep_thread_type {
+  WSREP_APPLIER_THREAD=1,
+  WSREP_ROLLBACKER_THREAD=2
+};
+
 typedef void (*wsrep_thd_processor_fun)(THD *);
+
+typedef struct {
+	pthread_t thread_id;
+	wsrep_thd_processor_fun processor;
+	enum wsrep_thread_type thread_type;
+} wsrep_thread_args;
+
+extern std::vector<wsrep_thread_args*> wsrep_thread_arg;
+
 pthread_handler_t start_wsrep_THD(void *arg);
 int wsrep_wait_committing_connections_close(int wait_time);
 extern void wsrep_close_client_connections(my_bool wait_to_end,

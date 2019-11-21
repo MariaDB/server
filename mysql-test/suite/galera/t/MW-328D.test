@@ -7,7 +7,6 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 
 CREATE TABLE t1 (i INT) ENGINE = InnoDB;
 INSERT INTO t1 (i) VALUES(1);

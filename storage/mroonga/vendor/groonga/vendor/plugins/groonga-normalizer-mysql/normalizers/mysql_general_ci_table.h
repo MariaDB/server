@@ -14,7 +14,7 @@
   You should have received a copy of the GNU Library General Public
   License along with this library; if not, write to the Free
   Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-  MA 02110-1301, USA
+  MA 02110-1335  USA
 
   This file uses normalization table defined in
   mysql-5.6.23/strings/ctype-utf8.c.
@@ -35,7 +35,7 @@
     You should have received a copy of the GNU Library General Public
     License along with this library; if not, write to the Free
     Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-    MA 02110-1301, USA
+    MA 02110-1335  USA
 
     UTF8 according RFC 2279
     Written by Alexander Barkov <bar@udm.net>

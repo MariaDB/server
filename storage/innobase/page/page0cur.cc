@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -41,7 +41,7 @@ number between 0 and 2^64-1 inclusive. The formula and the constants
 being used are:
 X[n+1] = (a * X[n] + c) mod m
 where:
-X[0] = ut_time_us(NULL)
+X[0] = my_interval_timer()
 a = 1103515245 (3^5 * 5 * 7 * 129749)
 c = 12345 (3 * 5 * 823)
 m = 18446744073709551616 (2^64)
@@ -54,12 +54,10 @@ page_cur_lcg_prng(void)
 {
 #define LCG_a	1103515245
 #define LCG_c	12345
-	static ib_uint64_t	lcg_current = 0;
-	static ibool		initialized = FALSE;
+	static uint64_t	lcg_current;
 
-	if (!initialized) {
-		lcg_current = (ib_uint64_t) ut_time_us(NULL);
-		initialized = TRUE;
+	if (!lcg_current) {
+		lcg_current = my_interval_timer();
 	}
 
 	/* no need to "% 2^64" explicitly because lcg_current is
@@ -523,7 +521,7 @@ up_rec_match:
 				ulint   rec_info = rec_get_info_bits(mid_rec,
                                                      rec_offs_comp(offsets));
 				ut_ad(rec_info & REC_INFO_MIN_REC_FLAG);
-				ut_ad(btr_page_get_prev(page, &mtr) == FIL_NULL);
+				ut_ad(!page_has_prev(page));
 				mtr_commit(&mtr);
 #endif
 
@@ -777,7 +775,7 @@ up_rec_match:
 				ulint   rec_info = rec_get_info_bits(mid_rec,
                                                      rec_offs_comp(offsets));
 				ut_ad(rec_info & REC_INFO_MIN_REC_FLAG);
-				ut_ad(btr_page_get_prev(page, &mtr) == FIL_NULL);
+				ut_ad(!page_has_prev(page));
 				mtr_commit(&mtr);
 #endif
 
@@ -1990,6 +1988,8 @@ page_parse_copy_rec_list_to_created_page(
 		return(rec_end);
 	}
 
+	ut_ad(fil_page_index_page_check(block->frame));
+
 	while (ptr < rec_end) {
 		ptr = page_cur_parse_insert_rec(TRUE, ptr, end_ptr,
 						block, index, mtr);
@@ -2045,6 +2045,7 @@ page_copy_rec_list_end_to_created_page(
 	ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 	ut_ad(page_align(rec) != new_page);
 	ut_ad(page_rec_is_comp(rec) == page_is_comp(new_page));
+	ut_ad(fil_page_index_page_check(new_page));
 
 	if (page_rec_is_infimum(rec)) {
 
@@ -2136,6 +2137,8 @@ page_copy_rec_list_end_to_created_page(
 		prev_rec = insert_rec;
 		rec = page_rec_get_next(rec);
 	} while (!page_rec_is_supremum(rec));
+
+	ut_ad(n_recs);
 
 	if ((slot_index > 0) && (count + 1
 				 + (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2
@@ -2418,10 +2421,6 @@ page_cur_delete_rec(
 	if (cur_n_owned <= PAGE_DIR_SLOT_MIN_N_OWNED) {
 		page_dir_balance_slot(page, page_zip, cur_slot_no);
 	}
-
-#ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
-#endif /* UNIV_ZIP_DEBUG */
 }
 
 #ifdef UNIV_COMPILE_TEST_FUNCS

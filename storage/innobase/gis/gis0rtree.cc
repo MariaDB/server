@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -64,7 +65,7 @@ rtr_page_split_initialize_nodes(
 	page_t*			page;
 	ulint			n_uniq;
 	ulint			len;
-	byte*			source_cur;
+	const byte*		source_cur;
 
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
@@ -104,7 +105,7 @@ rtr_page_split_initialize_nodes(
 	}
 
 	/* Put the insert key to node list */
-	source_cur = static_cast<byte*>(dfield_get_data(
+	source_cur = static_cast<const byte*>(dfield_get_data(
 		dtuple_get_nth_field(tuple, 0)));
 	cur->coords = reserve_coords(buf_pos, SPDIMS);
 	rec = (byte*) mem_heap_alloc(
@@ -604,16 +605,10 @@ update_mbr:
 		}
 	}
 
-#ifdef UNIV_DEBUG
-	ulint	left_page_no = btr_page_get_prev(page, mtr);
-
-	if (left_page_no == FIL_NULL) {
-
-		ut_a(REC_INFO_MIN_REC_FLAG & rec_get_info_bits(
-			page_rec_get_next(page_get_infimum_rec(page)),
-			page_is_comp(page)));
-	}
-#endif /* UNIV_DEBUG */
+	ut_ad(page_has_prev(page)
+	      || (REC_INFO_MIN_REC_FLAG & rec_get_info_bits(
+			  page_rec_get_next(page_get_infimum_rec(page)),
+			  page_is_comp(page))));
 
 	mem_heap_free(heap);
 
@@ -648,9 +643,6 @@ rtr_adjust_upper_level(
 	mem_heap_t*	heap;
 	ulint		level;
 	dtuple_t*	node_ptr_upper;
-	ulint		prev_page_no;
-	ulint		next_page_no;
-	ulint		space;
 	page_cur_t*	page_cursor;
 	rtr_mbr_t	parent_mbr;
 	lock_prdt_t	prdt;
@@ -727,15 +719,22 @@ rtr_adjust_upper_level(
 		cursor.rtr_info = sea_cur->rtr_info;
 		cursor.tree_height = sea_cur->tree_height;
 
+		/* Recreate a memory heap as input parameter for
+		btr_cur_pessimistic_insert(), because the heap may be
+		emptied in btr_cur_pessimistic_insert(). */
+		mem_heap_t* new_heap = mem_heap_create(1024);
+
 		err = btr_cur_pessimistic_insert(flags
 						 | BTR_NO_LOCKING_FLAG
 						 | BTR_KEEP_SYS_FLAG
 						 | BTR_NO_UNDO_LOG_FLAG,
-						 &cursor, &offsets, &heap,
+						 &cursor, &offsets, &new_heap,
 						 node_ptr_upper, &rec,
 						 &dummy_big_rec, 0, NULL, mtr);
 		cursor.rtr_info = NULL;
 		ut_a(err == DB_SUCCESS);
+
+		mem_heap_free(new_heap);
 	}
 
 	prdt.data = static_cast<void*>(mbr);
@@ -751,38 +750,19 @@ rtr_adjust_upper_level(
 
 	mem_heap_free(heap);
 
-	/* Get the previous and next pages of page */
-	prev_page_no = btr_page_get_prev(page, mtr);
-	next_page_no = btr_page_get_next(page, mtr);
-	space = block->page.id.space();
-	const page_size_t&	page_size = dict_table_page_size(index->table);
-
-	/* Update page links of the level */
-	if (prev_page_no != FIL_NULL) {
-		page_id_t	prev_page_id(space, prev_page_no);
-
-		buf_block_t*	prev_block = btr_block_get(
-			prev_page_id, page_size, RW_X_LATCH, index, mtr);
-#ifdef UNIV_BTR_DEBUG
-		ut_a(page_is_comp(prev_block->frame) == page_is_comp(page));
-		ut_a(btr_page_get_next(prev_block->frame, mtr)
-		     == block->page.id.page_no());
-#endif /* UNIV_BTR_DEBUG */
-
-		btr_page_set_next(buf_block_get_frame(prev_block),
-				  buf_block_get_page_zip(prev_block),
-				  page_no, mtr);
-	}
+	const uint32_t next_page_no = btr_page_get_next(page);
 
 	if (next_page_no != FIL_NULL) {
-		page_id_t	next_page_id(space, next_page_no);
+		page_id_t	next_page_id(block->page.id.space(),
+					     next_page_no);
 
 		buf_block_t*	next_block = btr_block_get(
-			next_page_id, page_size, RW_X_LATCH, index, mtr);
+			next_page_id, dict_table_page_size(index->table),
+			RW_X_LATCH, index, mtr);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(next_block->frame) == page_is_comp(page));
-		ut_a(btr_page_get_prev(next_block->frame, mtr)
-		     == page_get_page_no(page));
+		ut_a(btr_page_get_prev(next_block->frame)
+		     == block->page.id.page_no());
 #endif /* UNIV_BTR_DEBUG */
 
 		btr_page_set_prev(buf_block_get_frame(next_block),
@@ -790,7 +770,6 @@ rtr_adjust_upper_level(
 				  new_page_no, mtr);
 	}
 
-	btr_page_set_prev(page, page_zip, prev_page_no, mtr);
 	btr_page_set_next(page, page_zip, new_page_no, mtr);
 
 	btr_page_set_prev(new_page, new_page_zip, page_no, mtr);
@@ -1055,7 +1034,7 @@ func_start:
 
 	page_no = block->page.id.page_no();
 
-	if (btr_page_get_prev(page, mtr) == FIL_NULL && !page_is_leaf(page)) {
+	if (!page_has_prev(page) && !page_is_leaf(page)) {
 		first_rec = page_rec_get_next(
 			page_get_infimum_rec(buf_block_get_frame(block)));
 	}
@@ -1874,11 +1853,11 @@ rtr_estimate_n_rows_in_range(
 	ulint		dtuple_f_len MY_ATTRIBUTE((unused));
 	rtr_mbr_t	range_mbr;
 	double		range_area;
-	byte*		range_mbr_ptr;
 
 	dtuple_field = dtuple_get_nth_field(tuple, 0);
 	dtuple_f_len = dfield_get_len(dtuple_field);
-	range_mbr_ptr = reinterpret_cast<byte*>(dfield_get_data(dtuple_field));
+	const byte* range_mbr_ptr = static_cast<const byte*>(
+		dfield_get_data(dtuple_field));
 
 	ut_ad(dtuple_f_len >= DATA_MBR_LEN);
 	rtr_read_mbr(range_mbr_ptr, &range_mbr);
@@ -1990,7 +1969,7 @@ rtr_estimate_n_rows_in_range(
 	mtr_commit(&mtr);
 	mem_heap_free(heap);
 
-	if (!isfinite(area)) {
+	if (!std::isfinite(area)) {
 		return(HA_POS_ERROR);
 	}
 

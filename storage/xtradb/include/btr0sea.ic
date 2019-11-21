@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -104,8 +104,8 @@ btr_search_get_latch(
 /*=================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ut_ad(index->search_latch >= btr_search_latch_arr &&
-	      index->search_latch < btr_search_latch_arr +
+	ut_ad(index->search_latch >= btr_search_latch_arr);
+	ut_ad(index->search_latch < btr_search_latch_arr +
 	      btr_search_index_num);
 
 	return(index->search_latch);

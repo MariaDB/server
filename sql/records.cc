@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma implementation /* gcc class implementation */
@@ -197,8 +197,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   info->forms= &info->table;		/* Only one table */
   info->addon_field= addon_field;
   
-  if ((table->s->tmp_table == INTERNAL_TMP_TABLE ||
-       table->s->tmp_table == NON_TRANSACTIONAL_TMP_TABLE) &&
+  if ((table->s->tmp_table == INTERNAL_TMP_TABLE) &&
       !addon_field)
     (void) table->file->extra(HA_EXTRA_MMAP);
   

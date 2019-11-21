@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #include <my_global.h>
@@ -186,7 +186,12 @@ public:
     list= &a;
     current= a.m_first;
   }
-  /* Operator for it++ */
+  /**
+    Operator for it++
+
+    @note since we save next element pointer, caller may remove current element.
+    Such modification doesn't invalidate iterator.
+  */
   inline T* operator++(int)
   {
     T *result= current;

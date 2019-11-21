@@ -21,6 +21,8 @@ ERROR 42000: Unknown database 'mysqltest'
 connection default;
 CREATE DATABASE mysqltest;
 CREATE EVENT mysqltest.e1 ON SCHEDULE EVERY 15 MINUTE DO BEGIN END;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SET DEBUG_SYNC= "after_wait_locked_schema_name SIGNAL locked WAIT_FOR release";
 DROP DATABASE mysqltest;;
 connection con1;

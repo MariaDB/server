@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "debug_sync.h"  // DEBUG_SYNC
 #include "table.h"       // TABLE, FOREIGN_KEY_INFO
@@ -150,15 +150,11 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
   /* Loop over the set of foreign keys for which this table is a parent. */
   while ((fk_info= it++))
   {
-    DBUG_ASSERT(!my_strcasecmp(system_charset_info,
-                               fk_info->referenced_db->str,
-                               table->s->db.str));
-
-    DBUG_ASSERT(!my_strcasecmp(system_charset_info,
-                               fk_info->referenced_table->str,
-                               table->s->table_name.str));
-
-    if (my_strcasecmp(system_charset_info, fk_info->foreign_db->str,
+    if (my_strcasecmp(system_charset_info, fk_info->referenced_db->str,
+                      table->s->db.str) ||
+        my_strcasecmp(system_charset_info, fk_info->referenced_table->str,
+                      table->s->table_name.str) ||
+        my_strcasecmp(system_charset_info, fk_info->foreign_db->str,
                       table->s->db.str) ||
         my_strcasecmp(system_charset_info, fk_info->foreign_table->str,
                       table->s->table_name.str))
@@ -399,6 +395,8 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   {
     /* In RBR, the statement is not binlogged if the table is temporary. */
     binlog_stmt= !thd->is_current_stmt_binlog_format_row();
+
+    thd->close_unused_temporary_table_instances(table_ref);
 
     error= handler_truncate(thd, table_ref, TRUE);
 

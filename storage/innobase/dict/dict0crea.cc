@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -894,11 +894,14 @@ dict_create_index_tree_step(
 				err = DB_OUT_OF_FILE_SPACE; );
 	}
 
-	page_rec_write_field(
-		btr_pcur_get_rec(&pcur), DICT_FLD__SYS_INDEXES__PAGE_NO,
-		node->page_no, &mtr);
-
-	btr_pcur_close(&pcur);
+	ulint   len;
+	byte*   data = rec_get_nth_field_old(btr_pcur_get_rec(&pcur),
+					     DICT_FLD__SYS_INDEXES__PAGE_NO,
+					     &len);
+	ut_ad(len == 4);
+	if (mach_read_from_4(data) != node->page_no) {
+		mlog_write_ulint(data, node->page_no, MLOG_4BYTES, &mtr);
+	}
 
 	mtr_commit(&mtr);
 
@@ -951,17 +954,13 @@ dict_create_index_tree_in_mem(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	rec	SYS_INDEXES record
 @param[in,out]	pcur	persistent cursor on rec
+@param[in,out]	trx	dictionary transaction
 @param[in,out]	mtr	mini-transaction
 @return	whether freeing the B-tree was attempted */
-bool
-dict_drop_index_tree(
-	rec_t*		rec,
-	btr_pcur_t*	pcur,
-	mtr_t*		mtr)
+bool dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 {
 	const byte*	ptr;
 	ulint		len;
-	ulint		space;
 	ulint		root_page_no;
 
 	ut_ad(mutex_own(&dict_sys->mutex));
@@ -988,7 +987,15 @@ dict_drop_index_tree(
 
 	ut_ad(len == 4);
 
-	space = mtr_read_ulint(ptr, MLOG_4BYTES, mtr);
+	const uint32_t space_id = mach_read_from_4(ptr);
+	ut_ad(space_id < SRV_TMP_SPACE_ID);
+	if (space_id != TRX_SYS_SPACE
+	    && srv_safe_truncate
+	    && trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE) {
+		/* We are about to delete the entire .ibd file;
+		do not bother to free pages inside it. */
+		return false;
+	}
 
 	ptr = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__ID, &len);
@@ -996,7 +1003,7 @@ dict_drop_index_tree(
 	ut_ad(len == 8);
 
 	bool			found;
-	const page_size_t	page_size(fil_space_get_page_size(space,
+	const page_size_t	page_size(fil_space_get_page_size(space_id,
 								  &found));
 
 	if (!found) {
@@ -1009,11 +1016,11 @@ dict_drop_index_tree(
 	/* If tablespace is scheduled for truncate, do not try to drop
 	the indexes in that tablespace. There is a truncate fixup action
 	which will take care of it. */
-	if (srv_is_tablespace_truncated(space)) {
+	if (srv_is_tablespace_truncated(space_id)) {
 		return(false);
 	}
 
-	btr_free_if_exists(page_id_t(space, root_page_no), page_size,
+	btr_free_if_exists(page_id_t(space_id, root_page_no), page_size,
 			   mach_read_from_8(ptr), mtr);
 
 	return(true);
@@ -1473,15 +1480,10 @@ dict_create_index_step(
 	}
 
 	if (node->state == INDEX_ADD_TO_CACHE) {
+		err = dict_index_add_to_cache(
+			node->table, node->index, FIL_NULL, node->add_v);
 
-		index_id_t	index_id = node->index->id;
-
-		err = dict_index_add_to_cache_w_vcol(
-			node->table, node->index, node->add_v, FIL_NULL,
-			trx_is_strict(trx));
-
-		node->index = dict_index_get_if_in_cache_low(index_id);
-		ut_a((node->index == NULL) == (err != DB_SUCCESS));
+		ut_ad((node->index == NULL) == (err != DB_SUCCESS));
 
 		if (err != DB_SUCCESS) {
 
@@ -2471,7 +2473,7 @@ dict_delete_tablespace_and_datafiles(
 {
 	dberr_t		err = DB_SUCCESS;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(srv_sys_tablespaces_open);
 

@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "sql_parse.h"                      // check_one_table_access
                                             // check_merge_table_access
@@ -60,7 +60,7 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
     referenced from this structure will be modified.
     @todo move these into constructor...
   */
-  HA_CREATE_INFO create_info(lex->create_info);
+  IF_DBUG(HA_CREATE_INFO create_info(lex->create_info);,)
   Alter_info alter_info(lex->alter_info, thd->mem_root);
   ulong priv_needed= ALTER_ACL | DROP_ACL | INSERT_ACL | CREATE_ACL;
 
@@ -91,7 +91,6 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
   DBUG_ASSERT(!create_info.data_file_name && !create_info.index_file_name);
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
 
-  thd->enable_slow_log= opt_log_slow_admin_statements;
   DBUG_RETURN(exchange_partition(thd, first_table, &alter_info));
 #ifdef WITH_WSREP
  wsrep_error_label:

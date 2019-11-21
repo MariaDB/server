@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -21,6 +21,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 # include <mysql/service_wsrep.h>
 # include "../../../wsrep/wsrep_api.h"
 #endif /* WITH_WSREP */
+
+#include "table.h"
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
@@ -412,8 +414,15 @@ public:
 	Item* idx_cond_push(uint keyno, Item* idx_cond);
 	/* @} */
 
-protected:
+	/** Check if InnoDB is not storing virtual column metadata for a table.
+	@param	s	table definition (based on .frm file)
+	@return	whether InnoDB will omit virtual column metadata */
+	static bool omits_virtual_cols(const TABLE_SHARE& s)
+	{
+		return s.frm_version<FRM_VER_EXPRESSSIONS && s.virtual_fields;
+	}
 
+protected:
 	/**
 	MySQL calls this method at the end of each statement. This method
 	exists for readability only, called from reset(). The name reset()
@@ -430,7 +439,6 @@ protected:
 	@see build_template() */
 	void reset_template();
 
-protected:
 	inline void update_thd(THD* thd);
 	void update_thd();
 
@@ -457,10 +465,6 @@ protected:
 
 	/** Save CPU time with prebuilt/cached data structures */
 	row_prebuilt_t*		m_prebuilt;
-
-	/** prebuilt pointer for the right prebuilt. For native
-	partitioning, points to the current partition prebuilt. */
-	row_prebuilt_t**	m_prebuilt_ptr;
 
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
@@ -554,15 +558,6 @@ bool thd_is_strict_mode(const MYSQL_THD thd);
  */
 extern void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
 
-/** Get the partition_info working copy.
-@param	thd	Thread object.
-@return	NULL or pointer to partition_info working copy. */
-/* JAN: TODO: MySQL 5.7 Partitioning
-partition_info*
-thd_get_work_part_info(
-	THD*	thd);
-*/
-
 struct trx_t;
 #ifdef WITH_WSREP
 //extern "C" int wsrep_trx_order_before(void *thd1, void *thd2);
@@ -636,7 +631,7 @@ public:
 	- all but name/path is used, when validating options and using flags. */
 	create_table_info_t(
 		THD*		thd,
-		TABLE*		form,
+		const TABLE*	form,
 		HA_CREATE_INFO*	create_info,
 		char*		table_name,
 		char*		remote_path,
@@ -683,6 +678,11 @@ public:
 	int prepare_create_table(const char* name, bool strict = true);
 
 	void allocate_trx();
+
+	/** Checks that every index have sane size. Depends on strict mode */
+	bool row_size_is_acceptable(const dict_table_t& table) const;
+	/** Checks that given index have sane size. Depends on strict mode */
+	bool row_size_is_acceptable(const dict_index_t& index) const;
 
 	/** Determines InnoDB table flags.
 	If strict_mode=OFF, this will adjust the flags to what should be assumed.
@@ -859,10 +859,8 @@ innodb_base_col_setup_for_stored(
 	const Field*		field,
 	dict_s_col_t*		s_col);
 
-/** whether this is a stored column */
+/** whether this is a stored generated column */
 #define innobase_is_s_fld(field) ((field)->vcol_info && (field)->stored_in_db())
-/** whether this is a computed virtual column */
-#define innobase_is_v_fld(field) ((field)->vcol_info && !(field)->stored_in_db())
 
 /** Always normalize table name to lower case on Windows */
 #ifdef _WIN32
@@ -963,3 +961,10 @@ ib_push_frm_error(
 	TABLE*		table,		/*!< in: MySQL table */
 	ulint		n_keys,		/*!< in: InnoDB #keys */
 	bool		push_warning);	/*!< in: print warning ? */
+
+/** Check each index part length whether they not exceed the max limit
+@param[in]	max_field_len	maximum allowed key part length
+@param[in]	key		MariaDB key definition
+@return true if index column length exceeds limit */
+MY_ATTRIBUTE((warn_unused_result))
+bool too_big_key_part_length(size_t max_field_len, const KEY& key);

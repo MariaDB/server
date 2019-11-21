@@ -1,3 +1,5 @@
+SET @@global.character_set_server= @@session.character_set_server;
+set @@sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION";
 drop table if exists t1,t2;
 drop table if exists t1aa,t2aa;
 drop database if exists mysqltest;
@@ -438,9 +440,7 @@ table	CREATE TABLE `table` (
 DROP TABLE `table`;
 SET sql_quote_show_create= @old_sql_quote_show_create;
 SET sql_mode= @old_sql_mode;
-select @@max_heap_table_size;
-@@max_heap_table_size
-1048576
+set @@max_heap_table_size=1048576;
 CREATE TABLE t1 (
 a int(11) default NULL,
 KEY a USING BTREE (a)
@@ -807,6 +807,8 @@ create event e1 on schedule every 1 year starts now()
 ends date_add(now(), interval 5 hour) do
 begin
 end;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 flush status;
 show databases;
 show tables;
@@ -1448,7 +1450,9 @@ CREATE TABLE t1(c1 CHAR(10));
 CREATE TRIGGER t1_bi BEFORE INSERT ON t1
 FOR EACH ROW
 SET NEW.c1 = '‘≈”‘';
-CREATE EVENT ev1 ON SCHEDULE AT '2030-01-01 00:00:00' DO SELECT '‘≈”‘' AS test;
+CREATE EVENT ev1 ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO SELECT '‘≈”‘' AS test;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 set names utf8;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
@@ -1468,7 +1472,7 @@ FOR EACH ROW
 SET NEW.c1 = '—Ç–µ—Å—Ç'	koi8r	koi8r_general_ci	latin1_swedish_ci	#
 SHOW CREATE EVENT ev1;
 Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
-ev1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev1` ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO SELECT '—Ç–µ—Å—Ç' AS test	koi8r	koi8r_general_ci	latin1_swedish_ci
+ev1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `ev1` ON SCHEDULE AT '1970-01-02 00:00:00' ON COMPLETION PRESERVE DISABLE DO SELECT '—Ç–µ—Å—Ç' AS test	koi8r	koi8r_general_ci	latin1_swedish_ci
 DROP VIEW v1;
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
@@ -1593,3 +1597,4 @@ Level	Code	Message
 SHOW CONTRIBUTORS;
 SHOW WARNINGS;
 Level	Code	Message
+SET @@global.character_set_server=@save_character_set_server;

@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -204,9 +204,6 @@ que_thr_end_lock_wait(
 {
 	que_thr_t*	thr;
 	ibool		was_active;
-	ulint		sec;
-	ulint		ms;
-	ib_uint64_t	now;
 
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(trx));
@@ -224,10 +221,9 @@ que_thr_end_lock_wait(
 	que_thr_move_to_run_state(thr);
 
 	if (UNIV_UNLIKELY(trx->take_stats)) {
-		ut_usectime(&sec, &ms);
-		now = (ib_uint64_t)sec * 1000000 + ms;
-		trx->lock_que_wait_timer
-			+= (ulint)(now - trx->lock_que_wait_ustarted);
+		trx->lock_que_wait_timer += static_cast<ulint>(
+			(my_interval_timer() - trx->lock_que_wait_nstarted)
+			/ 1000);
 	}
 
 	trx->lock.que_state = TRX_QUE_RUNNING;

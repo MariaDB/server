@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "sql_class.h"                       // THD and my_global.h
 #include "keycaches.h"                       // get_key_cache
@@ -563,7 +563,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           if (!table->table->part_info)
           {
             my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
-            goto err2;
+            thd->resume_subsequent_commits(suspended_wfc);
+            DBUG_RETURN(TRUE);
           }
           if (set_part_state(alter_info, table->table->part_info, PART_ADMIN))
           {
@@ -696,19 +697,23 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       MDL_SHARED_NO_READ_WRITE lock (MDL_SHARED_WRITE cannot be upgraded)
       by *not* having HA_CONCURRENT_OPTIMIZE table_flag.
     */
-    if (lock_type == TL_WRITE && !table->table->s->tmp_table &&
-                        table->mdl_request.type > MDL_SHARED_WRITE)
+    if (lock_type == TL_WRITE && table->mdl_request.type > MDL_SHARED_WRITE)
     {
-      if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
-        goto err;
-      DEBUG_SYNC(thd, "after_admin_flush");
-      /* Flush entries in the query cache involving this table. */
-      query_cache_invalidate3(thd, table->table, 0);
-      /*
-        XXX: hack: switch off open_for_modify to skip the
-        flush that is made later in the execution flow. 
-      */
-      open_for_modify= 0;
+      if (table->table->s->tmp_table)
+        thd->close_unused_temporary_table_instances(tables);
+      else
+      {
+        if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
+          goto err;
+        DEBUG_SYNC(thd, "after_admin_flush");
+        /* Flush entries in the query cache involving this table. */
+        query_cache_invalidate3(thd, table->table, 0);
+        /*
+          XXX: hack: switch off open_for_modify to skip the
+          flush that is made later in the execution flow.
+        */
+        open_for_modify= 0;
+      }
     }
 
     if (table->table->s->crashed && operator_func == &handler::ha_check)
@@ -1216,9 +1221,6 @@ err:
   }
   close_thread_tables(thd);			// Shouldn't be needed
   thd->mdl_context.release_transactional_locks();
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-err2:
-#endif
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_RETURN(TRUE);
 }
@@ -1305,7 +1307,6 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error;
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
-  thd->enable_slow_log= opt_log_slow_admin_statements;
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt,
                          "analyze", lock_type, 1, 0, 0, 0,
                          &handler::ha_analyze, 0);
@@ -1337,8 +1338,6 @@ bool Sql_cmd_check_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL, first_table,
                          TRUE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
-  thd->enable_slow_log= opt_log_slow_admin_statements;
-
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "check",
                          lock_type, 0, 0, HA_OPEN_FOR_REPAIR, 0,
                          &handler::ha_check, &view_check);
@@ -1362,7 +1361,6 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
-  thd->enable_slow_log= opt_log_slow_admin_statements;
   res= (specialflag & SPECIAL_NO_NEW_FUNC) ?
     mysql_recreate_table(thd, first_table, true) :
     mysql_admin_table(thd, first_table, &m_lex->check_opt,
@@ -1395,7 +1393,6 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
-  thd->enable_slow_log= opt_log_slow_admin_statements;
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "repair",
                          TL_WRITE, 1,
