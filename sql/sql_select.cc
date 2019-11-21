@@ -19291,7 +19291,7 @@ join_read_last(JOIN_TAB *tab)
 {
   TABLE *table=tab->table;
   int error= 0;
-  DBUG_ENTER("join_read_first");
+  DBUG_ENTER("join_read_last");
 
   if (table->covering_keys.is_set(tab->index) && !table->no_keyread &&
       !table->key_read)
