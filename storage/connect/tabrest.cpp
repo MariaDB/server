@@ -36,11 +36,6 @@
 #include "tabfmt.h"
 #include "tabrest.h"
 
-/***********************************************************************/
-/*  Get the file from the Web.                                         */
-/***********************************************************************/
-int restGetFile(char *m, bool x, PCSZ http, PCSZ uri, PCSZ fn);
-
 #if defined(__WIN__)
 static PCSZ slash = "\\";
 #else // !__WIN__
@@ -51,6 +46,11 @@ static PCSZ slash = "/";
 typedef int(__stdcall* XGETREST) (char*, bool, PCSZ, PCSZ, PCSZ);
 static XGETREST getRestFnc = NULL;
 
+/***********************************************************************/
+/*  Some stupid compilers need these.                                  */
+/***********************************************************************/
+XGETREST GetRestFunction(PGLOBAL g);
+int restGetFile(char* m, bool x, PCSZ http, PCSZ uri, PCSZ fn);
 
 #if !defined(MARIADB)
 /***********************************************************************/
