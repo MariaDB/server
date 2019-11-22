@@ -88,8 +88,8 @@ void wsrep_create_appliers(long threads);
 void wsrep_create_rollbacker();
 
 bool wsrep_bf_abort(const THD*, THD*);
-int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,
-                                my_bool signal);
+int  wsrep_abort_thd(THD *bf_thd_ptr, THD *victim_thd_ptr, my_bool signal);
+
 extern void  wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe);
 
 /*
@@ -262,7 +262,7 @@ static inline void wsrep_override_error(THD* thd,
    @param message Optional message
    @param function Function where the call was made from
  */
-static inline void wsrep_log_thd(THD *thd,
+static inline void wsrep_log_thd(const THD *thd,
                                  const char *message,
                                  const char *function)
 {
