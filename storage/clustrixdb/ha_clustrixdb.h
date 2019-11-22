@@ -23,13 +23,15 @@ Copyright (c) 2019, MariaDB Corporation.
 size_t estimate_row_size(TABLE *table);
 clustrix_connection *get_trx(THD *thd, int *error_code);
 bool get_enable_sh(THD* thd);
+void add_current_table_to_rpl_table_list(rpl_group_info **_rgi, THD *thd,
+                                         TABLE *table);
+void remove_current_table_from_rpl_table_list(rpl_group_info *rgi);
 
 class ha_clustrixdb : public handler
 {
 private:
   ulonglong clustrix_table_oid;
   rpl_group_info *rgi;
-  Relay_log_info *rli;
 
   Field *auto_inc_field;
   ulonglong auto_inc_value;
@@ -105,8 +107,6 @@ public:
   int info_push(uint info_type, void *info);
 
 private:
-  void add_current_table_to_rpl_table_list();
-  void remove_current_table_from_rpl_table_list();
   void build_key_packed_row(uint index, const uchar *buf,
                             uchar *packed_key, size_t *packed_key_len);
 };
