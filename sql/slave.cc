@@ -306,6 +306,9 @@ handle_slave_background(void *arg __attribute__((unused)))
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);
+#ifdef WITH_WSREP
+  thd->variables.wsrep_on= 0;
+#endif
 
   thd_proc_info(thd, "Loading slave GTID position from table");
   if (rpl_load_gtid_slave_state(thd))
@@ -4181,7 +4184,9 @@ pthread_handler_t handle_slave_io(void *arg)
       goto err;
   }
 
-
+#ifdef WITH_WSREP
+  thd->variables.wsrep_on= 0;
+#endif
   if (RUN_HOOK(binlog_relay_io, thread_start, (thd, mi)))
   {
     mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
