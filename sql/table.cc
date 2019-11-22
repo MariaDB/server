@@ -8628,6 +8628,15 @@ void TABLE::evaluate_update_default_function()
   DBUG_VOID_RETURN;
 }
 
+int TABLE::check_period_overlaps(const KEY &lhs_key, const KEY &rhs_key,
+                                 const uchar *lhs, const uchar *rhs)
+{
+  int cmp_res= key_period_compare_bases(lhs_key, rhs_key, lhs, rhs);
+  if (cmp_res)
+    return cmp_res;
+
+  return key_period_compare_periods(lhs_key, rhs_key, lhs, rhs);
+}
 
 void TABLE::vers_update_fields()
 {
