@@ -28,12 +28,8 @@ class ha_clustrixdb_base_handler
     MY_BITMAP scan_fields;
     // Structures to unpack RBR rows from CLX BE
     rpl_group_info *rgi;
-    Relay_log_info *rli;
     // CLX BE scan operation reference
     clustrix_connection_cursor *scan;
-    // To unpack rows from CLX BE
-    void add_current_table_to_rpl_table_list();
-    void remove_current_table_from_rpl_table_list();
 };
 
 /*@brief select_handler class*/
