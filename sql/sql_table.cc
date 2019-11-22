@@ -4577,6 +4577,19 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
       key->columns.push_back(new Key_part_spec(&period_start, 0));
       key->columns.push_back(new Key_part_spec(&period_end, 0));
     }
+    else if (key->period)
+    {
+      if (!create_info->period_info.is_set()
+          || !key->period.streq(create_info->period_info.name))
+      {
+        my_error(ER_PERIOD_NOT_FOUND, MYF(0), key->period.str);
+        return true;
+      }
+      const auto &period_start= create_info->period_info.period.start;
+      const auto &period_end= create_info->period_info.period.end;
+      key->columns.push_back(new Key_part_spec(&period_start, 0));
+      key->columns.push_back(new Key_part_spec(&period_end, 0));
+    }
   }
 
   return false;

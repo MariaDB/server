@@ -7492,7 +7492,8 @@ uint Field_string::max_packed_col_length(uint max_length)
 }
 
 
-uint Field_string::get_key_image(uchar *buff, uint length, const uchar *ptr_arg, imagetype type_arg) const
+uint Field_string::get_key_image(uchar *buff, uint length,
+                                 const uchar *ptr_arg, imagetype type_arg) const
 {
   size_t bytes= my_charpos(field_charset(), (char*) ptr_arg,
                            (char*) ptr_arg + field_length,

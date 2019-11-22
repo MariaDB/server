@@ -9975,7 +9975,7 @@ wsrep_append_foreign_key(
 						foreign->referenced_col_names,
 						foreign->n_fields,
 						foreign->foreign_index,
-						TRUE, FALSE);
+						true, false, false);
 			}
 		} else {
 	  		foreign->foreign_table =
@@ -9989,7 +9989,7 @@ wsrep_append_foreign_key(
 						foreign->foreign_col_names,
 						foreign->n_fields,
 						foreign->referenced_index,
-						TRUE, FALSE);
+						true, false, false);
 			}
 		}
 		mutex_exit(&dict_sys.mutex);
@@ -10674,16 +10674,23 @@ create_table_info_t::create_table_def()
 
 	for (ulint i = 0, j = 0; j < n_cols; i++) {
 		Field*	field = m_form->field[i];
-		ulint vers_row = 0;
+		ulint vers_period_row = 0;
 
 		if (m_form->versioned()) {
 			if (i == m_form->s->vers.start_fieldno) {
-				vers_row = DATA_VERS_START;
+				vers_period_row = DATA_VERS_START;
 			} else if (i == m_form->s->vers.end_fieldno) {
-				vers_row = DATA_VERS_END;
+				vers_period_row = DATA_VERS_END;
 			} else if (!(field->flags
 				     & VERS_UPDATE_UNVERSIONED_FLAG)) {
-				vers_row = DATA_VERSIONED;
+				vers_period_row = DATA_VERSIONED;
+			}
+		}
+		if (m_form->s->period.name) {
+			if (i == m_form->s->period.start_fieldno) {
+				vers_period_row |= DATA_PERIOD_START;
+			} else if (i == m_form->s->period.end_fieldno) {
+				vers_period_row |= DATA_PERIOD_END;
 			}
 		}
 
@@ -10771,7 +10778,7 @@ err_col:
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
 					| binary_type | long_true_varchar
-					| vers_row,
+					| vers_period_row,
 					charset_no),
 				col_len);
 		} else if (!omit_virtual) {
@@ -10781,7 +10788,7 @@ err_col:
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
 					| binary_type | long_true_varchar
-					| vers_row
+					| vers_period_row
 					| is_virtual,
 					charset_no),
 				col_len, i, 0);
@@ -10939,6 +10946,7 @@ create_index(
 		/* Only one of these can be specified at a time. */
 		ut_ad(~key->flags & (HA_SPATIAL | HA_FULLTEXT));
 		ut_ad(!(key->flags & HA_NOSAME));
+		ut_ad(!key->without_overlaps);
 		index = dict_mem_index_create(table, key->name.str,
 					      (key->flags & HA_SPATIAL)
 					      ? DICT_SPATIAL : DICT_FTS,
@@ -10972,6 +10980,11 @@ create_index(
 
 	if (key->flags & HA_NOSAME) {
 		ind_type |= DICT_UNIQUE;
+	}
+
+	if (key->without_overlaps) {
+		ut_ad(ind_type & DICT_UNIQUE);
+		ind_type |= DICT_PERIOD;
 	}
 
 	field_lengths = (ulint*) my_malloc(//PSI_INSTRUMENT_ME,
@@ -14913,6 +14926,8 @@ get_foreign_key_info(
 	}
 
 	f_key_info.referenced_key_name = referenced_key_name;
+
+	f_key_info.has_period = foreign->has_period;
 
 	pf_key_info = (FOREIGN_KEY_INFO*) thd_memdup(thd, &f_key_info,
 						      sizeof(FOREIGN_KEY_INFO));

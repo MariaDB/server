@@ -1,0 +1,154 @@
+set default_storage_engine=innodb;
+create or replace table t (id int, x int, s date, e date, period for p(s,e),
+unique(id, x, p without overlaps));
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+foreign key(id, x, period fp)
+references t(id, x, period p)
+on delete restrict);
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `id` int(11) DEFAULT NULL,
+  `x` int(11) DEFAULT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `fp` (`s`, `e`),
+  KEY `id` (`id`,`x`,`s`,`e`),
+  CONSTRAINT `s_ibfk_1` FOREIGN KEY (`id`, `x`, `s`, `e`) REFERENCES `t` (`id`, `x`, `s`, `e`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+flush tables;
+insert into t values(1, 1, '2017-01-03', '2017-01-20');
+insert into t values(1, 1, '2017-01-20', '2017-01-25');
+insert into t values(1, 1, '2017-01-25', '2017-01-26');
+insert into t values(1, 1, '2017-01-26', '2017-01-30');
+insert into s values(1, 1, '2017-01-03', '2017-01-20');
+select * from t;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-20	2017-01-25
+1	1	2017-01-25	2017-01-26
+1	1	2017-01-26	2017-01-30
+select * from s;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+delete from t;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+select * from t;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-20	2017-01-25
+1	1	2017-01-25	2017-01-26
+1	1	2017-01-26	2017-01-30
+select * from s;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+delete from t where s = '2017-01-03' and e = '2017-01-20';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+# no error
+delete from t where s = '2017-01-20' and e = '2017-01-25';
+insert into t values(1, 1, '2017-01-20', '2017-01-25');
+insert into s values (1, 1, '2017-01-27', '2017-01-30');
+delete from t where s = '2017-01-26' and e = '2017-01-30';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+delete from t where s = '2017-01-25' and e = '2017-01-26';
+insert into s values (1, 1, '2017-01-22', '2017-01-28');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+insert into t values (1, 1, '2017-01-25', '2017-01-26');
+select * from t;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-20	2017-01-25
+1	1	2017-01-25	2017-01-26
+1	1	2017-01-26	2017-01-30
+select * from s;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-27	2017-01-30
+insert into s values (1, 1, '2017-01-03', '2017-01-15');
+insert into s values (1, 1, '2017-01-07', '2017-01-15');
+insert into s values (1, 1, '2017-01-07', '2017-01-20');
+insert into s values (1, 1, '2017-01-07', '2017-01-26');
+insert into s values (1, 1, '2017-01-07', '2017-01-27');
+insert into s values (1, 1, '2017-01-01', '2017-02-28');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+insert into s values (1, 1, '2017-01-01', '2017-01-30');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+select * from t;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-20	2017-01-25
+1	1	2017-01-25	2017-01-26
+1	1	2017-01-26	2017-01-30
+select * from s;
+id	x	s	e
+1	1	2017-01-03	2017-01-15
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-07	2017-01-15
+1	1	2017-01-07	2017-01-20
+1	1	2017-01-07	2017-01-26
+1	1	2017-01-07	2017-01-27
+1	1	2017-01-27	2017-01-30
+update t set x= 2 where s='2017-01-03' and e='2017-01-20';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+update s set x= 2 where s = '2017-01-03' and e = '2017-01-20';
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+update s set s= '2017-01-05' where s < '2017-01-05' and e > '2017-01-05';
+update s set s= '2017-01-01' where s < '2017-01-26' and e > '2017-01-25';
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+# Free period ('2017-01-25', '2017-01-26') from references
+update s set s= '2017-01-26', e= '2017-01-30' where s < '2017-01-26'
+                                                    and e > '2017-01-25';
+update t set x= 2 where s = '2017-01-25' and e = '2017-01-26';
+update t set s= '2017-01-26', e= '2017-01-30' where s = '2017-01-25'
+                                                    and e = '2017-01-26';
+update s set x= 2 where s = '2017-01-26' and e = '2017-01-30';
+update s set s= '2017-01-28', e = '2017-01-29' where x = 2;
+select * from t;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-20	2017-01-25
+1	1	2017-01-26	2017-01-30
+1	2	2017-01-26	2017-01-30
+select * from s;
+id	x	s	e
+1	1	2017-01-05	2017-01-15
+1	1	2017-01-05	2017-01-20
+1	1	2017-01-07	2017-01-15
+1	1	2017-01-07	2017-01-20
+1	1	2017-01-27	2017-01-30
+1	2	2017-01-28	2017-01-29
+1	2	2017-01-28	2017-01-29
+update t set x= 2 where s='2017-01-03' and e='2017-01-20';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+# Expand left
+update t set s= '2017-01-01' where s = '2017-01-03' and e = '2017-01-20';
+# Shrink left
+update t set s= '2017-01-05' where e = '2017-01-20';
+# Expand right
+update t set e= '2017-02-10' where s = '2017-01-26' and e = '2017-01-30';
+# Shrink right
+update t set e= '2017-01-29' where s = '2017-01-26';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+delete from s where s = '2017-01-27' and e = '2017-01-30';
+update t set e= '2017-01-29' where s = '2017-01-26';
+# Shrink both
+update t set s= '2017-01-27', e= '2017-01-28' where x = 2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+update t set s= '2017-01-28', e= '2017-01-29' where x = 2;
+# Expand both
+update t set s= '2017-01-20', e= '2017-02-05' where x = 2;
+# Move right
+update t set s= '2017-02-02', e= '2017-02-25' where x = 2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+update t set s= '2017-01-28', e= '2017-02-25' where x = 2;
+# Move left
+update t set s= '2017-01-20', e= '2017-01-27' where x = 2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+update t set s= '2017-01-20', e= '2017-01-29' where x = 2;
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+foreign key(id, x, period no_such_p)
+references t(id, x, period p)
+on delete restrict);
+ERROR HY000: Period `no_such_p` is not found in table
+drop database test;
+create database test;

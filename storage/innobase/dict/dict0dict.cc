@@ -2637,6 +2637,10 @@ dict_foreign_find_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
+	bool			check_period,
+					/*!< in: check if index contains
+					an application-time period
+					without overlaps*/
 	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
@@ -2660,7 +2664,7 @@ dict_foreign_find_index(
 		    && dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
 			    index, types_idx,
-			    check_charsets, check_null,
+			    check_charsets, check_null, check_period,
 			    error, err_col_no, err_index)) {
 			if (error) {
 				*error = FK_SUCCESS;
@@ -2772,7 +2776,7 @@ dict_foreign_add_to_cache(
 			ref_table, NULL,
 			for_in_cache->referenced_col_names,
 			for_in_cache->n_fields, for_in_cache->foreign_index,
-			check_charsets, false);
+			check_charsets, false, false);
 
 		if (index == NULL
 		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
@@ -2811,7 +2815,8 @@ dict_foreign_add_to_cache(
 			for_in_cache->referenced_index, check_charsets,
 			for_in_cache->type
 			& (DICT_FOREIGN_ON_DELETE_SET_NULL
-			   | DICT_FOREIGN_ON_UPDATE_SET_NULL));
+			   | DICT_FOREIGN_ON_UPDATE_SET_NULL),
+                        false);
 
 		if (index == NULL
 		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
@@ -3598,6 +3603,11 @@ dict_foreign_push_index_error(
 	DBUG_ASSERT(!"unknown error");
 }
 
+dberr_t rtrn(dberr_t x){
+	return x;
+}
+#define return(x) return rtrn(x);
+
 /*********************************************************************//**
 Scans a table create SQL string and adds to the data dictionary the foreign key
 constraints declared in the string. This function should be called after the
@@ -3631,6 +3641,8 @@ dict_create_foreign_constraints_low(
 	dict_index_t*	err_index		= NULL;
 	ulint		err_col;
 	const char*	constraint_name;
+	const char*	fk_period_name;
+	const char*	ref_period_name;
 	ibool		success;
 	dberr_t		error;
 	const char*	ptr1;
@@ -3941,6 +3953,7 @@ loop:
 	}
 
 	i = 0;
+	fk_period_name = NULL;
 
 	/* Scan the columns in the first list */
 col_loop1:
@@ -3948,6 +3961,27 @@ col_loop1:
 	orig = ptr;
 	ptr = dict_scan_col(cs, ptr, &success, table, columns + i,
 			    heap, column_names + i);
+
+	if (!success) {
+		ptr = dict_accept(cs, orig, "PERIOD", &success);
+		if (success) {
+			ptr = dict_scan_id(cs, ptr, heap, &fk_period_name,
+					   FALSE, FALSE);
+			if (fk_period_name == NULL) {
+				success = FALSE;
+			}
+		}
+		if (success) {
+			for (auto pcol: {uint(table->period_start),
+				         uint(table->period_end)}) {
+				columns[i] = dict_table_get_nth_col(table,
+								    pcol);
+				column_names[i] = columns[i]->name(*table);
+				i++;
+			}
+		}
+	}
+
 	if (!success) {
 		mutex_enter(&dict_foreign_err_mutex);
 		dict_foreign_error_report_low(ef, create_name);
@@ -3968,14 +4002,17 @@ col_loop1:
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
 
-	i++;
+	/* by spec, period should be specified at the end of the list */
+	if (fk_period_name == NULL) {
+		i++;
 
-	ptr = dict_accept(cs, ptr, ",", &success);
+		ptr = dict_accept(cs, ptr, ",", &success);
 
-	if (success) {
-		goto col_loop1;
+		if (success)
+		{
+			goto col_loop1;
+		}
 	}
-
 	orig = ptr;
 	ptr = dict_accept(cs, ptr, ")", &success);
 
@@ -4003,7 +4040,7 @@ col_loop1:
 
 	index = dict_foreign_find_index(
 		table, NULL, column_names, i,
-		NULL, TRUE, FALSE, &index_error, &err_col, &err_index);
+		NULL, true, FALSE, false, &index_error, &err_col, &err_index);
 
 	if (!index) {
 		mutex_enter(&dict_foreign_err_mutex);
@@ -4103,6 +4140,7 @@ col_loop1:
 
 	foreign->foreign_index = index;
 	foreign->n_fields = (unsigned int) i;
+	foreign->has_period = fk_period_name != NULL;
 
 	foreign->foreign_col_names = static_cast<const char**>(
 		mem_heap_alloc(foreign->heap, i * sizeof(void*)));
@@ -4171,12 +4209,36 @@ col_loop1:
 
 	/* Scan the columns in the second list */
 	i = 0;
+	ref_period_name = NULL;
 
 col_loop2:
 	orig = ptr;
 	ptr = dict_scan_col(cs, ptr, &success, referenced_table, columns + i,
 			    heap, ref_column_names + i);
 	i++;
+
+	if (!success) {
+		i--;
+		ptr = dict_accept(cs, orig, "PERIOD", &success);
+		if (success) {
+			ptr = dict_scan_id(cs, ptr, heap, &ref_period_name,
+					   FALSE, FALSE);
+			if (ref_period_name == NULL) {
+				success = FALSE;
+			}
+		}
+		if (success) {
+			for (auto pcol: {uint(referenced_table->period_start),
+                                         uint(referenced_table->period_end)}) {
+				columns[i] =
+					dict_table_get_nth_col(referenced_table,
+							       pcol);
+				ref_column_names[i] =
+					columns[i]->name(*referenced_table);
+				i++;
+			}
+		}
+	}
 
 	if (!success) {
 
@@ -4197,15 +4259,24 @@ col_loop2:
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
 
-	orig = ptr;
-	ptr = dict_accept(cs, ptr, ",", &success);
+	/* by spec, period should be specified at the end of the list */
+	if (ref_period_name == NULL)
+	{
+		orig = ptr;
+		ptr = dict_accept(cs, ptr, ",", &success);
 
-	if (success) {
-		goto col_loop2;
+		if (success)
+		{
+			goto col_loop2;
+		}
 	}
 
 	orig = ptr;
 	ptr = dict_accept(cs, ptr, ")", &success);
+
+	if ((ref_period_name == NULL) != (fk_period_name == NULL)) {
+		success = FALSE;
+	}
 
 	if (!success || foreign->n_fields != i) {
 
@@ -4426,7 +4497,8 @@ try_find_index:
 		index = dict_foreign_find_index(referenced_table, NULL,
 						ref_column_names, i,
 						foreign->foreign_index,
-			TRUE, FALSE, &index_error, &err_col, &err_index);
+			true, FALSE, fk_period_name != NULL,
+			&index_error, &err_col, &err_index);
 
 		if (!index) {
 			mutex_enter(&dict_foreign_err_mutex);
@@ -4477,6 +4549,7 @@ try_find_index:
 	goto loop;
 }
 
+#undef return
 /** Scans a table create SQL string and adds to the data dictionary
 the foreign key constraints declared in the string. This function
 should be called after the indexes for a table have been created.
@@ -5441,7 +5514,7 @@ dict_foreign_replace_index(
 				foreign->foreign_col_names,
 				foreign->n_fields, index,
 				/*check_charsets=*/TRUE, /*check_null=*/FALSE,
-				NULL, NULL, NULL);
+				false, NULL, NULL, NULL);
 			if (new_index) {
 				ut_ad(new_index->table == index->table);
 				ut_ad(!new_index->to_be_dropped);
@@ -5466,7 +5539,7 @@ dict_foreign_replace_index(
 				foreign->referenced_col_names,
 				foreign->n_fields, index,
 				/*check_charsets=*/TRUE, /*check_null=*/FALSE,
-				NULL, NULL, NULL);
+				false, NULL, NULL, NULL);
 			/* There must exist an alternative index,
 			since this must have been checked earlier. */
 			if (new_index) {
@@ -5970,6 +6043,10 @@ dict_foreign_qualify_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
+	bool			check_period,
+					/*!< in: check if index contains
+					an application-time period
+					without overlaps*/
 	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
@@ -5980,6 +6057,25 @@ dict_foreign_qualify_index(
 {
 	if (dict_index_get_n_fields(index) < n_cols) {
 		return(false);
+	}
+
+	if (check_period) {
+		if ((index->type & DICT_PERIOD) == 0) {
+			return(false);
+		}
+
+		// despite it is theoretically possible to construct such
+		// an index with period not at the last positions,
+		// it is not supported at least for now
+		if (dict_index_get_n_fields(index) - 1 != n_cols) {
+			return(false);
+		}
+		auto pstart = dict_index_get_nth_field(index, n_cols - 2);
+		auto pend = dict_index_get_nth_field(index, n_cols - 1);
+		if ((pstart->col->prtype & DATA_PERIOD_START) == 0
+		    || (pend->col->prtype & DATA_PERIOD_END) == 0) {
+			return false;
+		}
 	}
 
 	if (index->type & (DICT_SPATIAL | DICT_FTS)) {

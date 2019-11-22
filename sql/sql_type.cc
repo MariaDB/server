@@ -1450,15 +1450,14 @@ Type_handler_hybrid_field_type::Type_handler_hybrid_field_type()
 /***************************************************************************/
 
 /* number of bytes to store second_part part of the TIMESTAMP(N) */
-uint Type_handler_timestamp::m_sec_part_bytes[MAX_DATETIME_PRECISION + 1]=
+const uint Type_handler_timestamp::m_sec_part_bytes[MAX_DATETIME_PRECISION + 1]=
      { 0, 1, 1, 2, 2, 3, 3 };
 
 /* number of bytes to store DATETIME(N) */
-uint Type_handler_datetime::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
-     { 5, 6, 6, 7, 7, 7, 8 };
+constexpr uint Type_handler_datetime::m_hires_bytes[MAX_DATETIME_PRECISION + 1];
 
 /* number of bytes to store TIME(N) */
-uint Type_handler_time::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
+const uint Type_handler_time::m_hires_bytes[MAX_DATETIME_PRECISION + 1]=
      { 3, 4, 4, 5, 5, 5, 6 };
 
 /***************************************************************************/
