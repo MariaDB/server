@@ -269,7 +269,6 @@ ha_clustrixdb::ha_clustrixdb(handlerton *hton, TABLE_SHARE *table_arg)
   : handler(hton, table_arg)
 {
   DBUG_ENTER("ha_clustrixdb::ha_clustrixdb");
-  rli = NULL;
   rgi = NULL;
   scan_cur = NULL;
   clustrix_table_oid = 0;
@@ -278,8 +277,8 @@ ha_clustrixdb::ha_clustrixdb(handlerton *hton, TABLE_SHARE *table_arg)
 
 ha_clustrixdb::~ha_clustrixdb()
 {
-  if (rli)
-    ha_clustrixdb::remove_current_table_from_rpl_table_list();
+  if (rgi)
+    remove_current_table_from_rpl_table_list(rgi);
 }
 
 int ha_clustrixdb::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
@@ -720,7 +719,7 @@ int ha_clustrixdb::index_init(uint idx, bool sorted)
     return error_code;
 
   active_index = idx;
-  add_current_table_to_rpl_table_list();
+  add_current_table_to_rpl_table_list(&rgi, thd, table);
   scan_cur = NULL;
 
   /* Return all columns until there is a better understanding of
@@ -885,7 +884,7 @@ int ha_clustrixdb::rnd_init(bool scan)
   if (!trx)
     DBUG_RETURN(error_code);
 
-  add_current_table_to_rpl_table_list();
+  add_current_table_to_rpl_table_list(&rgi, thd, table);
   is_scan = scan;
   scan_cur = NULL;
 
@@ -1092,16 +1091,17 @@ int ha_clustrixdb::info_push(uint info_type, void *info)
   return 0;
 }
 
-void ha_clustrixdb::add_current_table_to_rpl_table_list()
+void add_current_table_to_rpl_table_list(rpl_group_info **_rgi, THD *thd,
+                                         TABLE *table)
 {
-  if (rli)
+  if (*_rgi)
     return;
 
-  THD *thd = ha_thd();
-  rli = new Relay_log_info(FALSE);
+  Relay_log_info *rli = new Relay_log_info(FALSE);
   rli->sql_driver_thd = thd;
 
-  rgi = new rpl_group_info(rli);
+  rpl_group_info *rgi = new rpl_group_info(rli);
+  *_rgi = rgi;
   rgi->thd = thd;
   rgi->tables_to_lock_count = 0;
   rgi->tables_to_lock = NULL;
@@ -1129,7 +1129,7 @@ void ha_clustrixdb::add_current_table_to_rpl_table_list()
     my_afree(col_type);
 }
 
-void ha_clustrixdb::remove_current_table_from_rpl_table_list()
+void remove_current_table_from_rpl_table_list(rpl_group_info *rgi)
 {
   if (!rgi->tables_to_lock)
     return;
@@ -1139,7 +1139,7 @@ void ha_clustrixdb::remove_current_table_from_rpl_table_list()
   my_free(rgi->tables_to_lock);
   rgi->tables_to_lock_count--;
   rgi->tables_to_lock = NULL;
-  delete rli;
+  delete rgi->rli;
   delete rgi;
 }
 
