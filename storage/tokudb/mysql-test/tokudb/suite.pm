@@ -11,6 +11,9 @@ my $exe_tokuftdump=
            "$::bindir/storage/tokudb/PerconaFT/tools/tokuftdump");
 $ENV{'MYSQL_TOKUFTDUMP'}= ::native_path($exe_tokuftdump);
 
+return "Doesn't work with tcmalloc" if $ENV{LD_PRELOAD} =~ /tcmalloc/ and
+                                       $mysql_version_id < 100000;
+
 #return "Not run for embedded server" if $::opt_embedded_server;
 return "No TokuDB engine" unless $ENV{HA_TOKUDB_SO} or $::mysqld_variables{tokudb};
 

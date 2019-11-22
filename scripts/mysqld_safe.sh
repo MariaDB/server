@@ -21,6 +21,7 @@ mysqld_ld_library_path=
 flush_caches=0
 numa_interleave=0
 unsafe_my_cnf=0
+defaults_group_suffix=
 
 # Initial logging status: error log is not open, and not using syslog
 logging=init
@@ -265,6 +266,8 @@ parse_arguments() {
       --timezone=*) TZ="$val"; export TZ; ;;
       --flush[-_]caches) flush_caches=1 ;;
       --numa[-_]interleave) numa_interleave=1 ;;
+
+      --defaults-group-suffix=*) defaults_group_suffix="$arg" ;;
 
       --help) usage ;;
 
@@ -851,7 +854,7 @@ then
   exit 1
 fi
 
-for i in  "$ledir/$MYSQLD" "$defaults" "--basedir=$MY_BASEDIR_VERSION" \
+for i in  "$ledir/$MYSQLD" "$defaults_group_suffix" "$defaults" "--basedir=$MY_BASEDIR_VERSION" \
   "--datadir=$DATADIR" "--plugin-dir=$plugin_dir" "$USER_OPTION"
 do
   cmd="$cmd "`shell_quote_string "$i"`

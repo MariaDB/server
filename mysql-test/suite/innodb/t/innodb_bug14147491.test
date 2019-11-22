@@ -107,5 +107,7 @@ SLEEP 1;
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
+# Note: SET DEBUG_DBUG need not be reset, because the server was restarted
+
 --echo # Cleanup
 DROP TABLE t1;

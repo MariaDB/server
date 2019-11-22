@@ -26,7 +26,7 @@ use Fcntl;
 BEGIN {
 	# ****************************
 	# static information...
-	$VERSION     = "2.06, 20 Dec 2000";
+	$VERSION     = "2.10, 13 Sep 2019";
 	$0           =~ m%/([^/]+)$%o;
 	$script      = $1;
         $script      = 'MySQLAccess' unless $script;
