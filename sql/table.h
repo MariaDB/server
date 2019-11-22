@@ -807,7 +807,7 @@ struct TABLE_SHARE
 #endif
 
   /**
-    System versioning support.
+    System versioning and application-time periods support.
   */
   struct period_info_t
   {
@@ -1641,6 +1641,13 @@ public:
   int period_make_insert(Item *src, Field *dst);
   int insert_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
                              ha_rows *rows_inserted);
+  /*
+   @return -1,    lhs precedes rhs
+            0,    lhs overlaps rhs
+            1,    lhs succeeds rhs
+   */
+  static int check_period_overlaps(const KEY &lhs_key, const KEY &rhs_key,
+                                   const uchar *lhs, const uchar *rhs);
   bool vers_check_update(List<Item> &items);
 
   int delete_row();
