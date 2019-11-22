@@ -189,7 +189,6 @@ ha_clustrixdb_select_handler::ha_clustrixdb_select_handler(
   thd__ = thd;
   scan = scan_;
   select = select_lex;
-  rli = NULL;
   rgi = NULL;
 }
 
@@ -213,7 +212,7 @@ ha_clustrixdb_select_handler::~ha_clustrixdb_select_handler()
     if (table__)
       my_bitmap_free(&scan_fields);
 
-    remove_current_table_from_rpl_table_list();
+    remove_current_table_from_rpl_table_list(rgi);
 }
 
 /*@brief  Initiate the query for select_handler           */
@@ -234,7 +233,7 @@ int ha_clustrixdb_select_handler::init_scan()
     return ER_OUTOFMEMORY;
   bitmap_set_all(&scan_fields);
 
-  add_current_table_to_rpl_table_list();
+  add_current_table_to_rpl_table_list(&rgi, thd__, table__);
 
   return 0;
 }
@@ -332,7 +331,6 @@ ha_clustrixdb_derived_handler::ha_clustrixdb_derived_handler(
   thd__ = thd;
   scan = scan_;
   select = select_lex;
-  rli = NULL;
   rgi = NULL;
 }
 
@@ -359,7 +357,7 @@ ha_clustrixdb_derived_handler::~ha_clustrixdb_derived_handler()
     if (table__)
       my_bitmap_free(&scan_fields);
 
-    remove_current_table_from_rpl_table_list();
+    remove_current_table_from_rpl_table_list(rgi);
 }
 
 /*@brief  Initiate the query for derived_handler           */
@@ -419,7 +417,7 @@ int ha_clustrixdb_derived_handler::init_scan()
     return ER_OUTOFMEMORY;
   bitmap_set_all(&scan_fields);
 
-  add_current_table_to_rpl_table_list();
+  add_current_table_to_rpl_table_list(&rgi, thd__, table__);
 
 err:
   // deallocate buffers
@@ -475,72 +473,4 @@ int ha_clustrixdb_derived_handler::next_row()
 int ha_clustrixdb_derived_handler::end_scan()
 {
     return 0;
-}
-
-/*@brief clone of ha_clustrixdb method                    */
-/***********************************************************
- * DESCRIPTION:
- * Creates structures to unpack RBR rows in ::next_row()
- * PARAMETERS:
- * RETURN:
- *   rc as int
- ***********************************************************/
-void ha_clustrixdb_base_handler::add_current_table_to_rpl_table_list()
-{
-  if (rli)
-    return;
-
-  rli = new Relay_log_info(FALSE);
-  rli->sql_driver_thd = thd__;
-
-  rgi = new rpl_group_info(rli);
-  rgi->thd = thd__;
-  rgi->tables_to_lock_count = 0;
-  rgi->tables_to_lock = NULL;
-  if (rgi->tables_to_lock_count)
-    return;
-
-  rgi->tables_to_lock = (RPL_TABLE_LIST *)my_malloc(sizeof(RPL_TABLE_LIST),
-                                                    MYF(MY_WME));
-  rgi->tables_to_lock->init_one_table(&table__->s->db, &table__->s->table_name, 0,
-                                      TL_READ);
-  rgi->tables_to_lock->table = table__;
-  rgi->tables_to_lock->table_id = table__->tablenr;
-  rgi->tables_to_lock->m_conv_table = NULL;
-  rgi->tables_to_lock->master_had_triggers = FALSE;
-  rgi->tables_to_lock->m_tabledef_valid = TRUE;
-  // We need one byte per column to save a column's binlog type.
-  uchar *col_type = (uchar*) my_alloca(table__->s->fields);
-  for (uint i = 0 ; i < table__->s->fields ; ++i)
-    col_type[i] = table__->field[i]->binlog_type();
-
-  table_def *tabledef = &rgi->tables_to_lock->m_tabledef;
-  new (tabledef) table_def(col_type, table__->s->fields, NULL, 0, NULL, 0);
-  rgi->tables_to_lock_count++;
-  if (col_type)
-    my_afree(col_type);
-}
-
-/*@brief clone of ha_clustrixdb method                    */
-/***********************************************************
- * DESCRIPTION:
- * Deletes structures that are used to unpack RBR rows
- * in ::next_row(). Called from dtor
- * PARAMETERS:
- * RETURN:
- *   rc as int
- ***********************************************************/
-void ha_clustrixdb_base_handler::remove_current_table_from_rpl_table_list()
-{
-  // the 2nd cond might be unnecessary
-  if (!rgi || !rgi->tables_to_lock)
-    return;
-
-  rgi->tables_to_lock->m_tabledef.table_def::~table_def();
-  rgi->tables_to_lock->m_tabledef_valid = FALSE;
-  my_free(rgi->tables_to_lock);
-  rgi->tables_to_lock_count--;
-  rgi->tables_to_lock = NULL;
-  delete rli;
-  delete rgi;
 }
