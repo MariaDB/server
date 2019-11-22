@@ -26,6 +26,9 @@ bool get_enable_sh(THD* thd);
 void add_current_table_to_rpl_table_list(rpl_group_info **_rgi, THD *thd,
                                          TABLE *table);
 void remove_current_table_from_rpl_table_list(rpl_group_info *rgi);
+int unpack_row_to_buf(rpl_group_info *rgi, TABLE *table, uchar *data,
+                      uchar const *const row_data, MY_BITMAP const *cols,
+                      uchar const *const row_end);
 
 class ha_clustrixdb : public handler
 {
