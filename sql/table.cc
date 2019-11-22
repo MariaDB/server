@@ -9172,6 +9172,8 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
     return true;
   case SYSTEM_TIME_BEFORE:
     break;
+  case SYSTEM_TIME_HISTORY:
+    break;
   case SYSTEM_TIME_AS_OF:
     return start.eq(conds.start);
   case SYSTEM_TIME_FROM_TO:

@@ -13785,7 +13785,7 @@ delete:
 opt_delete_system_time:
             /* empty */
           {
-            Lex->vers_conditions.init(SYSTEM_TIME_ALL);
+            Lex->vers_conditions.init(SYSTEM_TIME_HISTORY);
           }
           | BEFORE_SYM SYSTEM_TIME_SYM history_point
           {
