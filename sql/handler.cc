@@ -7002,49 +7002,39 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     if (error)
       return error;
 
-    for (int run= 0; run < 2; run++)
-    {
-      if (run == 0)
-      {
-        error = handler->ha_index_read_map(record_buffer,
-                                           check_overlaps_buffer,
-                                           key_part_map((1 << key_parts) - 1),
-                                           HA_READ_KEY_OR_PREV);
-        if (error == HA_ERR_KEY_NOT_FOUND)
-          continue;
-      }
-      else
-      {
-        error = handler->ha_index_next(record_buffer);
-        if (error == HA_ERR_END_OF_FILE)
-          continue;
-      }
-
-      if (error)
-      {
-        handler->ha_index_end();
-        return error;
-      }
-
+    auto old_row_found= [is_update, old_data, record_buffer, this](){
       /* In case of update it could appear that the nearest neighbour is
        * a record we are updating. It means, that there are no overlaps
        * from this side. */
-      if (is_update && memcmp(old_data + table->s->null_bytes,
+      return is_update && memcmp(old_data + table->s->null_bytes,
                               record_buffer + table->s->null_bytes,
-                              table->s->reclength - table->s->null_bytes) == 0)
-      {
-        continue;
-      }
+                              table->s->reclength - table->s->null_bytes) == 0;
+    };
 
-      if (table->check_period_overlaps(key_info, key_info, new_data, record_buffer) == 0)
-      {
-        handler->ha_index_end();
-        return HA_ERR_FOUND_DUPP_KEY;
-      }
-    }
-    error= handler->ha_index_end();
-    if (error)
-      return error;
+    error = handler->ha_index_read_map(record_buffer,
+                                       check_overlaps_buffer,
+                                       key_part_map((1 << key_parts) - 1),
+                                       HA_READ_KEY_OR_PREV);
+
+    if (!error && !old_row_found()
+        && table->check_period_overlaps(key_info, key_info, 
+                                        new_data, record_buffer) == 0)
+      error= HA_ERR_FOUND_DUPP_KEY;
+
+    if (!error || error == HA_ERR_KEY_NOT_FOUND)
+      error = handler->ha_index_next(record_buffer);
+
+    if (!error && !old_row_found()
+        && table->check_period_overlaps(key_info, key_info,
+                                        new_data, record_buffer) == 0)
+      error= HA_ERR_FOUND_DUPP_KEY;
+
+    if (error == HA_ERR_END_OF_FILE)
+      error= 0;
+
+    int end_error= handler->ha_index_end();
+    if (error || end_error)
+      return error ? error : end_error;
   }
   return 0;
 }
