@@ -612,8 +612,7 @@ int ha_clustrixdb::delete_row(const uchar *buf)
   // The estimate should consider only key fields widths.
   size_t packed_key_len;
   uchar *packed_key = (uchar*) my_alloca(estimate_row_size(table));
-  build_key_packed_row(table->s->primary_key, table->record[0],
-                       packed_key, &packed_key_len);
+  build_key_packed_row(table->s->primary_key, buf, packed_key, &packed_key_len);
 
   error_code = trx->key_delete(clustrix_table_oid, packed_key, packed_key_len);
 
@@ -638,7 +637,6 @@ ha_clustrixdb::Table_flags ha_clustrixdb::table_flags(void) const
                       HA_BINLOG_STMT_CAPABLE |
                       HA_CAN_TABLE_CONDITION_PUSHDOWN |
                       HA_CAN_DIRECT_UPDATE_AND_DELETE;
-
 
   return flags;
 }
@@ -744,12 +742,11 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
     DBUG_RETURN(error_code);
 
   is_scan = true;
-  key_restore(table->record[0], key, &table->key_info[active_index], key_len);
+  key_restore(buf, key, &table->key_info[active_index], key_len);
   // The estimate should consider only key fields widths.
   size_t packed_key_len;
   uchar *packed_key = (uchar*) my_alloca(estimate_row_size(table));
-  build_key_packed_row(active_index, table->record[0],
-                       packed_key, &packed_key_len);
+  build_key_packed_row(active_index, buf, packed_key, &packed_key_len);
 
   //bool exact = false;
   clustrix_connection::scan_type st;
@@ -939,12 +936,8 @@ int ha_clustrixdb::rnd_next(uchar *buf)
     rowdata_length -= 8;
   }
 
-  uchar const *current_row_end;
-  ulong master_reclength;
-
-  error_code = unpack_row(rgi, table, table->s->fields, rowdata,
-                          &scan_fields, &current_row_end,
-                          &master_reclength, rowdata + rowdata_length);
+  error_code = unpack_row_to_buf(rgi, table, buf, rowdata, &scan_fields,
+                                 rowdata + rowdata_length);
 
   if (error_code)
     return error_code;
@@ -969,15 +962,15 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
     memcpy(&last_hidden_key, pos, sizeof(ulonglong));
   } else {
     uint keyno = table->s->primary_key;
-    uint len = calculate_key_len(table, keyno, pos, table->const_key_parts[keyno]);
-    key_restore(table->record[0], pos, &table->key_info[keyno], len);
+    uint len = calculate_key_len(table, keyno, pos,
+                                 table->const_key_parts[keyno]);
+    key_restore(buf, pos, &table->key_info[keyno], len);
   }
 
   // The estimate should consider only key fields widths.
   uchar *packed_key = (uchar*) my_alloca(estimate_row_size(table));
   size_t packed_key_len;
-  build_key_packed_row(table->s->primary_key, table->record[0],
-                       packed_key, &packed_key_len);
+  build_key_packed_row(table->s->primary_key, buf, packed_key, &packed_key_len);
 
   uchar *rowdata = NULL;
   ulong rowdata_length;
@@ -986,11 +979,8 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
                                   &rowdata, &rowdata_length)))
     goto err;
 
-  uchar const *current_row_end;
-  ulong master_reclength;
-  if ((error_code = unpack_row(rgi, table, table->s->fields, rowdata,
-                              table->read_set, &current_row_end,
-                              &master_reclength, rowdata + rowdata_length)))
+  if ((error_code = unpack_row_to_buf(rgi, table, buf, rowdata, table->read_set,
+                                      rowdata + rowdata_length)))
     goto err;
 
 err:
@@ -1013,7 +1003,7 @@ int ha_clustrixdb::rnd_end()
   THD *thd = ha_thd();
   if (thd->lex->sql_command == SQLCOM_UPDATE)
     DBUG_RETURN(error_code);
- 
+
   clustrix_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
@@ -1091,6 +1081,10 @@ int ha_clustrixdb::info_push(uint info_type, void *info)
   return 0;
 }
 
+/****************************************************************************
+** Row encoding functions
+****************************************************************************/
+
 void add_current_table_to_rpl_table_list(rpl_group_info **_rgi, THD *thd,
                                          TABLE *table)
 {
@@ -1156,6 +1150,35 @@ void ha_clustrixdb::build_key_packed_row(uint index, const uchar *buf,
     *packed_key_len = pack_row(table, &table->tmp_set, packed_key,
                                buf);
   }
+}
+
+int unpack_row_to_buf(rpl_group_info *rgi, TABLE *table, uchar *data,
+                      uchar const *const row_data, MY_BITMAP const *cols,
+                      uchar const *const row_end)
+{
+  /* Since unpack_row can only write to record[0], if 'data' does not point to
+     table->record[0], we must back it up and then restore it afterwards. */
+  uchar const *current_row_end;
+  ulong master_reclength;
+  uchar *backup_row = NULL;
+  if (data != table->record[0]) {
+    /* See Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
+       and the definitions of store_record and restore_record. */
+    backup_row = (uchar*) my_alloca(table->s->reclength);
+    memcpy(backup_row, table->record[0], table->s->reclength);
+    restore_record(table, record[data == table->record[1] ? 1 : 2]);
+  }
+
+  int error_code = unpack_row(rgi, table, table->s->fields, row_data, cols,
+                              &current_row_end, &master_reclength, row_end);
+
+  if (backup_row) {
+    store_record(table, record[data == table->record[1] ? 1 : 2]);
+    memcpy(table->record[0], backup_row, table->s->reclength);
+    my_afree(backup_row);
+  }
+
+  return error_code;
 }
 
 /****************************************************************************
