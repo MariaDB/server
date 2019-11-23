@@ -389,6 +389,9 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr)
 	try {
 		for (colp = tdbp->GetColumns(); rc == RC_OK && colp;
 			colp = colp->GetNext()) {
+			xtrc(2, "Going to read column %s of table %s\n",
+				colp->GetName(), tdbp->GetName());
+
 			if (reset)
 				colp->Reset();
 
