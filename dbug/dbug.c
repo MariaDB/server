@@ -320,6 +320,10 @@ static void DbugVfprintf(FILE *stream, const char* format, va_list args);
 */
 
 #include <my_pthread.h>
+/*
+** Protects writing to all file descriptors, init_settings.keywords
+** pointer and it's pointee - a linked list with keywords.
+*/
 static pthread_mutex_t THR_LOCK_dbug;
 
 static void LockMutex(CODE_STATE *cs)
@@ -331,6 +335,16 @@ static void UnlockMutex(CODE_STATE *cs)
 {
   if (!cs->locked)
     pthread_mutex_unlock(&THR_LOCK_dbug);
+}
+static void LockIfInitSettings(CODE_STATE *cs)
+{
+  if (cs->stack == &init_settings)
+    LockMutex(cs);
+}
+static void UnlockIfInitSettings(CODE_STATE *cs)
+{
+  if (cs->stack == &init_settings)
+    UnlockMutex(cs);
 }
 
 static CODE_STATE *code_state(void)
@@ -476,7 +490,9 @@ static int DbugParse(CODE_STATE *cs, const char *control)
     stack->sub_level= 0;
     stack->out_file= sstderr;
     stack->functions= NULL;
+    LockIfInitSettings(cs);
     stack->keywords= NULL;
+    UnlockIfInitSettings(cs);
     stack->processes= NULL;
   }
   else if (!stack->out_file)
@@ -492,7 +508,9 @@ static int DbugParse(CODE_STATE *cs, const char *control)
     {
       /* never share with the global parent - it can change under your feet */
       stack->functions= ListCopy(init_settings.functions);
+      LockIfInitSettings(cs);
       stack->keywords= ListCopy(init_settings.keywords);
+      UnlockIfInitSettings(cs);
       stack->processes= ListCopy(init_settings.processes);
     }
     else
@@ -516,21 +534,31 @@ static int DbugParse(CODE_STATE *cs, const char *control)
     case 'd':
       if (sign < 0 && control == end)
       {
+        LockIfInitSettings(cs);
         if (!is_shared(stack, keywords))
           FreeList(stack->keywords);
         stack->keywords=NULL;
+        UnlockIfInitSettings(cs);
         stack->flags &= ~DEBUG_ON;
         break;
       }
+      LockIfInitSettings(cs);
       if (rel && is_shared(stack, keywords))
         stack->keywords= ListCopy(stack->keywords);
+      UnlockIfInitSettings(cs);
       if (sign < 0)
       {
         if (DEBUGGING)
+        {
+          LockIfInitSettings(cs);
           stack->keywords= ListDel(stack->keywords, control, end);
+          UnlockIfInitSettings(cs);
+        }
         break;
       }
+      LockIfInitSettings(cs);
       stack->keywords= ListAdd(stack->keywords, control, end);
+      UnlockIfInitSettings(cs);
       stack->flags |= DEBUG_ON;
       break;
     case 'D':
@@ -997,7 +1025,9 @@ int _db_explain_ (CODE_STATE *cs, char *buf, size_t len)
 
   get_code_state_if_not_set_or_return *buf=0;
 
+  LockIfInitSettings(cs);
   op_list_to_buf('d', cs->stack->keywords, DEBUGGING);
+  UnlockIfInitSettings(cs);
   op_int_to_buf ('D', cs->stack->delay, 0);
   op_list_to_buf('f', cs->stack->functions, cs->stack->functions);
   op_bool_to_buf('F', cs->stack->flags & FILE_ON);
@@ -1578,8 +1608,10 @@ static void PushState(CODE_STATE *cs)
 static void FreeState(CODE_STATE *cs, int free_state)
 {
   struct settings *state= cs->stack;
+  LockIfInitSettings(cs);
   if (!is_shared(state, keywords))
     FreeList(state->keywords);
+  UnlockIfInitSettings(cs);
   if (!is_shared(state, functions))
     FreeList(state->functions);
   if (!is_shared(state, processes))
@@ -1702,10 +1734,16 @@ FILE *_db_fp_(void)
 BOOLEAN _db_keyword_(CODE_STATE *cs, const char *keyword, int strict)
 {
   int match= strict ? INCLUDE : INCLUDE|MATCHED;
+  BOOLEAN result = FALSE;
   get_code_state_if_not_set_or_return FALSE;
 
-  return (DEBUGGING && DoTrace(cs) & DO_TRACE &&
-          InList(cs->stack->keywords, keyword, strict) & match);
+  if (!DEBUGGING || !(DoTrace(cs) & DO_TRACE))
+    return FALSE;
+
+  LockIfInitSettings(cs);
+  result= (InList(cs->stack->keywords, keyword, strict) & match) ? TRUE : FALSE;
+  UnlockIfInitSettings(cs);
+  return result;
 }
 
 /*
