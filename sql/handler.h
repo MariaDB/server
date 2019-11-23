@@ -3269,7 +3269,7 @@ public:
     DBUG_ASSERT(cached_table_flags < (HA_LAST_TABLE_FLAG << 1));
     return cached_table_flags;
   }
-  /** PRIMARY KEY WITHOUT OVERLAPS check is done globally */
+  /** PRIMARY KEY/UNIQUE WITHOUT OVERLAPS check */
   int ha_check_overlaps(const uchar *old_data, const uchar* new_data);
   /**
     These functions represent the public interface to *users* of the
