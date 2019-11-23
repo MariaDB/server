@@ -21101,10 +21101,11 @@ int join_init_read_record(JOIN_TAB *tab)
   */
   if (tab->distinct && tab->remove_duplicates())  // Remove duplicates.
     return 1;
-  if (tab->filesort && tab->sort_table())     // Sort table.
-    return 1;
 
   tab->build_range_rowid_filter_if_needed();
+
+  if (tab->filesort && tab->sort_table())     // Sort table.
+    return 1;
 
   DBUG_EXECUTE_IF("kill_join_init_read_record",
                   tab->join->thd->set_killed(KILL_QUERY););
@@ -21165,6 +21166,9 @@ JOIN_TAB::sort_table()
                                             JOIN::ordered_index_order_by :
                                             JOIN::ordered_index_group_by));
   rc= create_sort_index(join->thd, join, this, NULL);
+  /* Disactivate rowid filter if it was used when creating sort index */
+  if (rowid_filter)
+    table->file->rowid_filter_is_active= false;
   return (rc != 0);
 }
 
