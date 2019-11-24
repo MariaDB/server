@@ -27,7 +27,6 @@ insert into t1 values (101,101),(102,102),(600,600),(103,103);
 select * from t1;
 set check_constraint_checks=@save_check_constraint;
 
---replace_regex /failed for.*/failed for table/
 --error ER_CONSTRAINT_FAILED
 alter table t1 add c int default 0 check (c < 10);
 
@@ -110,4 +109,70 @@ drop table t1;
 create table t1 (id int auto_increment primary key, datecol datetime, check (datecol>'0001-01-01 00:00:00'));
 insert into t1 (datecol) values (now());
 insert into t1 (datecol) values (now());
+drop table t1;
+
+#
+# MDEV-15461 Check Constraints with binary logging makes insert inconsistent
+#
+
+CREATE TABLE t1 (
+  EmployeeID SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  FirstName VARCHAR(30) NOT NULL CHECK (CHAR_LENGTH(FirstName > 2))
+);
+
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES (NULL, 'Ken');
+SHOW WARNINGS;
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
+SHOW WARNINGS;
+INSERT IGNORE INTO t1 VALUES (NULL, 'Ken');
+INSERT IGNORE INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
+set sql_mode="";
+INSERT INTO t1 VALUES (NULL, 'Ken');
+INSERT INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
+set sql_mode=default;
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-16630: Ambiguous error message when check constraint
+--echo #             matches table name
+--echo #
+
+use test;
+--disable_warnings
+drop table if exists t;
+--enable_warnings
+
+create table t(a int, b int check(b>0),
+               constraint b check(a<b), constraint a check(a>0),
+               constraint x check (a>10));
+
+show create table t;
+
+# Generate error when field constraint 'b' is violated
+--echo # Field constraint 'b' will fail
+--error ER_CONSTRAINT_FAILED
+insert into t values (-1, 0);
+
+# Generate error when table constraint 'b' is violated.
+--echo # Table constraint 'b' will fail
+--error ER_CONSTRAINT_FAILED
+insert into t values (1,1);
+
+drop table t;
+
+#
+# check constraints and auto_is_null typo
+#
+create table t1 (a int auto_increment primary key, b int, check (b > 5));
+--error ER_CONSTRAINT_FAILED
+insert t1 (b) values (1);
+insert t1 (b) values (10);
+select * from t1 where a is null;
+set sql_auto_is_null=1;
+select * from t1 where a is null;
+--error ER_CONSTRAINT_FAILED
+insert t1 (b) values (1);
 drop table t1;

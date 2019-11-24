@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @addtogroup Replication
@@ -866,6 +866,7 @@ typedef struct st_print_event_info
   bool allow_parallel_printed;
   bool found_row_event;
   bool print_row_count;
+  static const uint max_delimiter_size= 16;
   /* Settings on how to print the events */
   bool short_form;
   /*
@@ -1264,7 +1265,7 @@ public:
   bool print_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
                     bool is_more);
   bool print_base64(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
-                    bool is_more);
+                    bool do_print_encoded);
 #endif /* MYSQL_SERVER */
 
   /* The following code used for Flashback */
@@ -4302,7 +4303,7 @@ public:
   int rewrite_db(const char* new_name, size_t new_name_len,
                  const Format_description_log_event*);
 #endif
-  ulong get_table_id() const        { return m_table_id; }
+  ulonglong get_table_id() const        { return m_table_id; }
   const char *get_table_name() const { return m_tblnam; }
   const char *get_db_name() const    { return m_dbnam; }
 
@@ -4346,7 +4347,7 @@ private:
   uchar         *m_coltype;
 
   uchar         *m_memory;
-  ulong          m_table_id;
+  ulonglong      m_table_id;
   flag_set       m_flags;
 
   size_t         m_data_size;
@@ -4475,7 +4476,7 @@ public:
   MY_BITMAP const *get_cols() const { return &m_cols; }
   MY_BITMAP const *get_cols_ai() const { return &m_cols_ai; }
   size_t get_width() const          { return m_width; }
-  ulong get_table_id() const        { return m_table_id; }
+  ulonglong get_table_id() const        { return m_table_id; }
 
 #if defined(MYSQL_SERVER)
   /*
@@ -4576,7 +4577,7 @@ protected:
 #ifdef MYSQL_SERVER
   TABLE *m_table;		/* The table the rows belong to */
 #endif
-  ulong       m_table_id;	/* Table ID */
+  ulonglong       m_table_id;	/* Table ID */
   MY_BITMAP   m_cols;		/* Bitmap denoting columns available */
   ulong       m_width;          /* The width of the columns bitmap */
   /*
@@ -5034,7 +5035,8 @@ public:
     DBUG_ENTER("Incident_log_event::Incident_log_event");
     DBUG_PRINT("enter", ("m_incident: %d", m_incident));
     m_message.length= 0;
-    if (!(m_message.str= (char*) my_malloc(msg->length+1, MYF(MY_WME))))
+    if (unlikely(!(m_message.str= (char*) my_malloc(msg->length+1,
+                                                    MYF(MY_WME)))))
     {
       /* Mark this event invalid */
       m_incident= INCIDENT_NONE;
@@ -5138,6 +5140,19 @@ public:
 
   virtual int get_data_size() { return IGNORABLE_HEADER_LEN; }
 };
+
+#ifdef MYSQL_CLIENT
+bool copy_cache_to_string_wrapped(IO_CACHE *body,
+                                  LEX_STRING *to,
+                                  bool do_wrap,
+                                  const char *delimiter,
+                                  bool is_verbose);
+bool copy_cache_to_file_wrapped(IO_CACHE *body,
+                                FILE *file,
+                                bool do_wrap,
+                                const char *delimiter,
+                                bool is_verbose);
+#endif
 
 #ifdef MYSQL_SERVER
 /*****************************************************************************

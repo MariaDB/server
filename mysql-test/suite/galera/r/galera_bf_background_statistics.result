@@ -1,0 +1,33 @@
+SELECT @@innodb_stats_persistent;
+@@innodb_stats_persistent
+1
+CREATE TABLE t1 (f1 INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY, f2 INTEGER DEFAULT 1) ENGINE=InnoDB;
+INSERT INTO t1(f1) values (NULL);
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+SELECT count(1) from t1;
+count(1)
+16384
+connection node_2;
+SET AUTOCOMMIT=OFF;
+INSERT INTO t1 VALUES (9999999,NULL);
+SELECT SLEEP(1000);;
+connection node_1;
+ALTER TABLE t1 CHANGE f2 f2 INTEGER NOT NULL DEFAULT 1;
+connection node_2;
+ERROR 40001: Deadlock: wsrep aborted transaction
+wsrep_local_aborts_increment
+1
+DROP TABLE t1;

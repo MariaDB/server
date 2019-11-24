@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Describe, check and repair of MARIA tables */
 
@@ -51,9 +51,6 @@
 #include <my_getopt.h>
 #ifdef HAVE_SYS_VADVISE_H
 #include <sys/vadvise.h>
-#endif
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
 #endif
 
 /* Functions defined in this file */
@@ -149,7 +146,7 @@ void maria_chk_init_for_check(HA_CHECK *param, MARIA_HA *info)
     */
     param->max_trid= ~(TrID) 0;
   }
-  else if (param->max_trid == 0)
+  else if (param->max_trid == 0 || param->max_trid == ~(TrID) 0)
   {
     if (!ma_control_file_inited())
       param->max_trid= 0;      /* Give warning for first trid found */
@@ -179,7 +176,7 @@ int maria_chk_status(HA_CHECK *param, MARIA_HA *info)
   if (share->state.open_count != (uint) (share->global_changed ? 1 : 0))
   {
     /* Don't count this as a real warning, as check can correct this ! */
-    uint save=param->warning_printed;
+    my_bool save=param->warning_printed;
     _ma_check_print_warning(param,
 			   share->state.open_count==1 ?
 			   "%d client is using or hasn't closed the table properly" :
@@ -191,6 +188,7 @@ int maria_chk_status(HA_CHECK *param, MARIA_HA *info)
   }
   if (share->state.create_trid > param->max_trid)
   {
+    param->wrong_trd_printed= 1;       /* Force should run zerofill */
     _ma_check_print_warning(param,
                             "Table create_trd (%llu) > current max_transaction id (%llu).  Table needs to be repaired or zerofilled to be usable",
                             share->state.create_trid, param->max_trid);
@@ -643,7 +641,7 @@ int maria_chk_key(HA_CHECK *param, register MARIA_HA *info)
                       (key_part_map) 1, HA_READ_KEY_EXACT))
       {
 	/* Don't count this as a real warning, as maria_chk can't correct it */
-	uint save=param->warning_printed;
+	my_bool save=param->warning_printed;
 	_ma_check_print_warning(param, "Found row where the auto_increment "
                                 "column has the value 0");
 	param->warning_printed=save;
@@ -891,11 +889,10 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   if (level > param->max_level)
     param->max_level=level;
 
-  if (_ma_get_keynr(share, anc_page->buff) !=
-      (uint) (keyinfo - share->keyinfo))
+  if (_ma_get_keynr(share, anc_page->buff) != keyinfo->key_nr)
     _ma_check_print_error(param, "Page at %s is not marked for index %u",
                           llstr(anc_page->pos, llbuff),
-                          (uint) (keyinfo - share->keyinfo));
+                          (uint) keyinfo->key_nr);
   if ((page_flag & KEYPAGE_FLAG_HAS_TRANSID) &&
       !share->base.born_transactional)
   {
@@ -916,7 +913,7 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   info->last_key.keyinfo= tmp_key.keyinfo= keyinfo;
   info->lastinx= ~0;                            /* Safety */
   tmp_key.data= tmp_key_buff;
-  for ( ;; )
+  for ( ;; _ma_copy_key(&info->last_key, &tmp_key))
   {
     if (nod_flag)
     {
@@ -998,7 +995,6 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
                                             tmp_key.data);
       }
     }
-    _ma_copy_key(&info->last_key, &tmp_key);
     (*key_checksum)+= maria_byte_checksum(tmp_key.data, tmp_key.data_length);
     record= _ma_row_pos_from_key(&tmp_key);
 
@@ -1011,6 +1007,7 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
       if (subkeys < 0)
       {
         ha_rows tmp_keys=0;
+        share->ft2_keyinfo.key_nr= keyinfo->key_nr;
         if (chk_index_down(param,info,&share->ft2_keyinfo,record,
                            temp_buff,&tmp_keys,key_checksum,1))
           goto err;
@@ -2381,6 +2378,7 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   param->retry_repair= 0;
   param->warning_printed= 0;
   param->error_printed= 0;
+  param->wrong_trd_printed= 0;
 
   sort_param->sort_info= sort_info;
   sort_param->fix_datafile= ! rep_quick;
@@ -5425,7 +5423,12 @@ int _ma_sort_write_record(MARIA_SORT_PARAM *sort_param)
       info->cur_row.checksum= (*share->calc_check_checksum)(info,
                                                               sort_param->
                                                               record);
-      reclength= _ma_rec_pack(info,from,sort_param->record);
+      if (!(reclength= _ma_rec_pack(info,from,sort_param->record)))
+      {
+        _ma_check_print_error(param,"Got error %d when packing record",
+                              my_errno);
+        DBUG_RETURN(1);
+      }
       flag=0;
 
       do
@@ -5754,8 +5757,7 @@ static int sort_insert_key(MARIA_SORT_PARAM *sort_param,
     a_length= share->keypage_header + nod_flag;
     key_block->end_pos= anc_buff + share->keypage_header;
     bzero(anc_buff, share->keypage_header);
-    _ma_store_keynr(share, anc_buff, (uint) (sort_param->keyinfo -
-                                            share->keyinfo));
+    _ma_store_keynr(share, anc_buff, sort_param->keyinfo->key_nr);
     lastkey=0;					/* No previous key in block */
   }
   else

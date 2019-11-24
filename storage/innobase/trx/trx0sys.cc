@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,10 +24,8 @@ Transaction system
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
-#include "mysqld.h"
 #include "trx0sys.h"
+#include "mysqld.h"
 #include "sql_error.h"
 
 #include "fsp0fsp.h"
@@ -42,9 +40,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "log0log.h"
 #include "log0recv.h"
 #include "os0file.h"
-#include "fsp0sysspace.h"
-
-#include <mysql/service_wsrep.h>
 
 /** The transaction system */
 trx_sys_t		trx_sys;
@@ -153,7 +148,6 @@ trx_sysf_create(
 	ulint		slot_no;
 	buf_block_t*	block;
 	page_t*		page;
-	ulint		page_no;
 	byte*		ptr;
 
 	ut_ad(mtr);
@@ -162,7 +156,7 @@ trx_sysf_create(
 	then enter the kernel: we must do it in this order to conform
 	to the latching order rules. */
 
-	mtr_x_lock(&fil_system.sys_space->latch, mtr);
+	mtr_x_lock_space(fil_system.sys_space, mtr);
 	compile_time_assert(TRX_SYS_SPACE == 0);
 
 	/* Create the trx sys file block in a new allocated file segment */
@@ -192,21 +186,21 @@ trx_sysf_create(
 	compile_time_assert(256 >= TRX_SYS_N_RSEGS);
 	memset(ptr, 0xff, 256 * TRX_SYS_RSEG_SLOT_SIZE);
 	ptr += 256 * TRX_SYS_RSEG_SLOT_SIZE;
-	ut_a(ptr <= page + (UNIV_PAGE_SIZE - FIL_PAGE_DATA_END));
+	ut_a(ptr <= page + (srv_page_size - FIL_PAGE_DATA_END));
 
 	/* Initialize all of the page.  This part used to be uninitialized. */
-	memset(ptr, 0, UNIV_PAGE_SIZE - FIL_PAGE_DATA_END + page - ptr);
+	memset(ptr, 0, srv_page_size - FIL_PAGE_DATA_END + size_t(page - ptr));
 
-	mlog_log_string(TRX_SYS + page, UNIV_PAGE_SIZE - FIL_PAGE_DATA_END
+	mlog_log_string(TRX_SYS + page, srv_page_size - FIL_PAGE_DATA_END
 			- TRX_SYS, mtr);
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);
-	page_no = trx_rseg_header_create(fil_system.sys_space, slot_no, block,
-					 mtr);
+	buf_block_t* rblock = trx_rseg_header_create(fil_system.sys_space,
+						     slot_no, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
-	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
+	ut_a(rblock->page.id.page_no() == FSP_FIRST_RSEG_PAGE_NO);
 }
 
 /** Create the instance */

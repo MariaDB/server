@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB
+   Copyright (c) 2008, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /***************************************************************************
  This is a test sample to test the new features in MySQL client-server
@@ -2348,6 +2348,12 @@ static void test_ps_query_cache()
                           "(2, 'hh', 'hh'), (1, 'ii', 'ii'), (2, 'ii', 'ii')");
   myquery(rc);
 
+  rc= mysql_query(mysql,
+                  "set @save_query_cache_type="
+                  "@@global.query_cache_type,"
+                  "@save_query_cache_size="
+                  "@@global.query_cache_size");
+  myquery(rc);
   rc= mysql_query(lmysql, "set global query_cache_type=ON");
   myquery(rc);
   rc= mysql_query(lmysql, "set local query_cache_type=ON");
@@ -2504,9 +2510,9 @@ static void test_ps_query_cache()
   if (lmysql != mysql)
     mysql_close(lmysql);
 
-  rc= mysql_query(mysql, "set global query_cache_size=default");
+  rc= mysql_query(mysql, "set global query_cache_size=@save_query_cache_size");
   myquery(rc);
-  rc= mysql_query(mysql, "set global query_cache_type=default");
+  rc= mysql_query(mysql, "set global query_cache_type=@save_query_cache_type");
   myquery(rc);
 }
 
@@ -8397,6 +8403,26 @@ static void test_list_fields()
 }
 
 
+/* Test mysql_list_fields() with information_schema */
+
+static void test_list_information_schema_fields()
+{
+  MYSQL_RES *result;
+  int rc;
+  myheader("test_list_information_schema_fields");
+
+  rc= mysql_select_db(mysql, "information_schema");
+  myquery(rc);
+  result= mysql_list_fields(mysql, "all_plugins", NULL);
+  mytest(result);
+  rc= my_process_result_set(result);
+  DIE_UNLESS(rc == 0);
+  mysql_free_result(result);
+  rc= mysql_select_db(mysql, current_db);
+  myquery(rc);
+}
+
+
 static void test_list_fields_default()
 {
   int rc, i;
@@ -13421,6 +13447,12 @@ static void test_open_cursor_prepared_statement_query_cache()
     return;
   }
 
+  rc= mysql_query(mysql,
+                  "set @save_query_cache_type="
+                  "@@global.query_cache_type,"
+                  "@save_query_cache_size="
+                  "@@global.query_cache_size");
+  myquery(rc);
   rc= mysql_query(mysql, "set global query_cache_type=ON");
   myquery(rc);
   rc= mysql_query(mysql, "set local query_cache_type=ON");
@@ -13447,9 +13479,9 @@ static void test_open_cursor_prepared_statement_query_cache()
   check_execute(stmt, rc);
   mysql_stmt_close(stmt);
 
-  rc= mysql_query(mysql, "set global query_cache_type=default");
+  rc= mysql_query(mysql, "set global query_cache_type=@save_query_cache_type");
   myquery(rc);
-  rc= mysql_query(mysql, "set global query_cache_size=default");
+  rc= mysql_query(mysql, "set global query_cache_size=@save_query_cache_size");
   myquery(rc);
 }
 
@@ -16425,6 +16457,7 @@ static void test_change_user()
   const char *db= "mysqltest_user_test_database";
   int rc;
   MYSQL*       conn;
+  MYSQL_RES* res;
   DBUG_ENTER("test_change_user");
   myheader("test_change_user");
 
@@ -16560,6 +16593,20 @@ static void test_change_user()
 
   rc= mysql_change_user(conn, user_pw, pw, "");
   myquery(rc);
+
+  /* MDEV-14581 : Check that there are no warnings after change user.*/
+  rc = mysql_query(conn,"SIGNAL SQLSTATE '01000'");
+  myquery(rc);
+
+  rc = mysql_change_user(conn, user_pw, pw, "");
+  myquery(rc);
+
+  rc = mysql_query(conn, "SHOW WARNINGS");
+  myquery(rc);
+  res = mysql_store_result(conn);
+  rc = my_process_result_set(res);
+  DIE_UNLESS(rc == 0);
+  mysql_free_result(res);
 
   rc= mysql_change_user(conn, user_no_pw, pw, db);
   DIE_UNLESS(rc);
@@ -18219,6 +18266,12 @@ static void test_bug36326()
   myquery(rc);
   rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1)");
   myquery(rc);
+  rc= mysql_query(mysql,
+                  "set @save_query_cache_type="
+                  "@@global.query_cache_type,"
+                  "@save_query_cache_size="
+                  "@@global.query_cache_size");
+  myquery(rc);
   rc= mysql_query(mysql, "SET GLOBAL query_cache_type = 1");
   myquery(rc);
   rc= mysql_query(mysql, "SET LOCAL query_cache_type = 1");
@@ -18246,8 +18299,8 @@ static void test_bug36326()
   DIE_UNLESS(rc == 1);
   rc= mysql_query(mysql, "DROP TABLE t1");
   myquery(rc);
-  rc= mysql_query(mysql, "SET GLOBAL query_cache_size = default");
-  rc= mysql_query(mysql, "SET GLOBAL query_cache_type = default");
+  rc= mysql_query(mysql, "SET GLOBAL query_cache_size = @save_query_cache_size");
+  rc= mysql_query(mysql, "SET GLOBAL query_cache_type = @save_query_cache_type");
   myquery(rc);
 
   DBUG_VOID_RETURN;
@@ -18488,6 +18541,7 @@ static void test_bug42373()
   DIE_UNLESS(rc == 1);
 
   mysql_stmt_close(stmt);
+  mysql_close(&con);
 
   /* Now try with a multi-statement. */
   DIE_UNLESS(mysql_client_init(&con));
@@ -18950,8 +19004,6 @@ static void test_progress_reporting()
 
 
   conn= client_connect(CLIENT_PROGRESS_OBSOLETE, MYSQL_PROTOCOL_TCP, 0);
-  if (!(conn->server_capabilities & CLIENT_PROGRESS_OBSOLETE))
-    return;
   DIE_UNLESS(conn->client_flag & CLIENT_PROGRESS_OBSOLETE);
 
   mysql_options(conn, MYSQL_PROGRESS_CALLBACK, (void*) report_progress);
@@ -19659,8 +19711,8 @@ static void test_big_packet()
                            opt_password, current_db, opt_port,
                            opt_unix_socket, 0)))
   {
-    mysql_close(mysql_local);
     fprintf(stderr, "\n connection failed(%s)", mysql_error(mysql_local));
+    mysql_close(mysql_local);
     exit(1);
   }
 
@@ -20151,6 +20203,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
     printf("%.*s %.*s\n", (int)addrlen, row[0], (int)addrlen, normalized_addr);
     DIE_UNLESS(strncmp(row[0], normalized_addr, addrlen) == 0);
     DIE_UNLESS(atoi(row[0] + addrlen+1) == port);
+    mysql_free_result(result);
     mysql_close(m);
   }
   sprintf(query,"DROP USER 'u'@'%s'",normalized_addr);
@@ -20189,6 +20242,7 @@ static void test_proxy_header_localhost()
   mytest(result);
   row = mysql_fetch_row(result);
   DIE_UNLESS(strcmp(row[0], "localhost") == 0);
+  mysql_free_result(result);
   mysql_close(m);
   rc = mysql_query(mysql,  "DROP USER 'u'@'localhost'");
   myquery(rc);
@@ -20286,12 +20340,132 @@ static void test_bulk_autoinc()
   {
     DIE_IF(atoi(row[0]) != id[i++]);
   }
+  mysql_free_result(result);
   rc= mysql_query(mysql, "DROP TABLE ai_field_value");
   myquery(rc);
 }
 
-#endif
+static void test_bulk_delete()
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[1];
+  MYSQL_ROW  row;
+  char       indicator[]= {0, 0, 0};
+  my_bool   error[1];
+  int        i, id[]= {1, 2, 4}, count= sizeof(id)/sizeof(id[0]);
+  MYSQL_RES *result;
 
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id int not null primary key)");
+  myquery(rc);
+  rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1),(2),(3),(4)");
+  myquery(rc);
+  verify_affected_rows(4);
+
+  stmt= mysql_stmt_init(mysql);
+  rc= mysql_stmt_prepare(stmt, "DELETE FROM t1 where id=?", -1);
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type = MYSQL_TYPE_LONG;
+  bind[0].buffer = (void *)id;
+  bind[0].buffer_length = 0;
+  bind[0].is_null = NULL;
+  bind[0].length = NULL;
+  bind[0].error = error;
+  bind[0].u.indicator= indicator;
+
+  mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, (void*)&count);
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  verify_affected_rows(3);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "SELECT id FROM t1");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  i= 0;
+  while ((row= mysql_fetch_row(result)))
+  {
+    i++;
+    DIE_IF(atoi(row[0]) != 3);
+  }
+  DIE_IF(i != 1);
+  mysql_free_result(result);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
+static void test_bulk_replace()
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[2];
+  MYSQL_ROW  row;
+  int        i,
+             id[]= {1, 2, 3, 4},
+             val[]= {1, 1, 1, 1},
+             count= sizeof(id)/sizeof(id[0]);
+  MYSQL_RES *result;
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id int not null primary key, active int)");
+  myquery(rc);
+  rc= mysql_query(mysql, "insert into t1 values (1, 0), (2, 0), (3, 0)");
+  myquery(rc);
+  verify_affected_rows(3);
+
+  stmt= mysql_stmt_init(mysql);
+  rc= mysql_stmt_prepare(stmt, "replace into t1 (id, active) values (?, ?)", -1);
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type = MYSQL_TYPE_LONG;
+  bind[0].buffer = (void *)id;
+  bind[0].buffer_length = 0;
+  bind[1].buffer_type = MYSQL_TYPE_LONG;
+  bind[1].buffer = (void *)val;
+  bind[1].buffer_length = 0;
+
+  mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, (void*)&count);
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "SELECT active FROM t1");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  i= 0;
+  while ((row= mysql_fetch_row(result)))
+  {
+    i++;
+    DIE_IF(atoi(row[0]) != 1);
+  }
+  DIE_IF(i != 4);
+  mysql_free_result(result);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+#endif
 
 static void print_metadata(MYSQL_RES *rs_metadata, int num_fields)
 {
@@ -20342,6 +20516,7 @@ static void test_explain_meta()
     mct_close_log();
     DIE("num_fields != 1");
   }
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN SELECT 1");
@@ -20358,6 +20533,7 @@ static void test_explain_meta()
     DIE("num_fields != 10");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN format=json SELECT 1");
@@ -20374,6 +20550,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20391,6 +20568,7 @@ static void test_explain_meta()
     DIE("num_fields != 13");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "ANALYZE format=json SELECT 1");
@@ -20407,6 +20585,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   rc= mysql_query(mysql, "CREATE TABLE t1 (a int)");
@@ -20426,6 +20605,7 @@ static void test_explain_meta()
     DIE("num_fields != 10");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN format=json INSERT INTO t1 values(1)");
@@ -20442,6 +20622,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20459,6 +20640,7 @@ static void test_explain_meta()
     DIE("num_fields != 13");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "ANALYZE format=json INSERT INTO t1 values(1)");
@@ -20475,6 +20657,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20492,6 +20675,7 @@ static void test_explain_meta()
     DIE("num_fields != 10");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN format=json  UPDATE t1 set a=2");
@@ -20508,6 +20692,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20525,6 +20710,7 @@ static void test_explain_meta()
     DIE("num_fields != 13");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "ANALYZE format=json UPDATE t1 set a=2");
@@ -20541,6 +20727,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20558,6 +20745,7 @@ static void test_explain_meta()
     DIE("num_fields != 10");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "EXPLAIN format=json DELETE FROM t1");
@@ -20574,6 +20762,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
 
@@ -20591,6 +20780,7 @@ static void test_explain_meta()
     DIE("num_fields != 13");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   strmov(query, "ANALYZE format=json DELETE FROM t1");
@@ -20607,6 +20797,7 @@ static void test_explain_meta()
     DIE("num_fields != 1");
   }
   print_metadata(rs_metadata, num_fields);
+  mysql_free_result(rs_metadata);
   mysql_stmt_close(stmt);
 
   rc= mysql_query(mysql, "DROP TABLE t1");
@@ -20622,7 +20813,7 @@ static struct my_tests_st my_tests[]= {
 #ifdef EMBEDDED_LIBRARY
   { "test_embedded_start_stop", test_embedded_start_stop },
 #endif
-#if NOT_YET_WORKING
+#ifdef NOT_YET_WORKING
   { "test_drop_temp", test_drop_temp },
 #endif
   { "test_fetch_seek", test_fetch_seek },
@@ -20712,6 +20903,7 @@ static struct my_tests_st my_tests[]= {
   { "test_fetch_column", test_fetch_column },
   { "test_mem_overun", test_mem_overun },
   { "test_list_fields", test_list_fields },
+  { "test_list_information_schema_fields", test_list_information_schema_fields },
   { "test_list_fields_default", test_list_fields_default },
   { "test_free_result", test_free_result },
   { "test_free_store_result", test_free_store_result },
@@ -20900,6 +21092,8 @@ static struct my_tests_st my_tests[]= {
 #ifndef EMBEDDED_LIBRARY
   { "test_proxy_header", test_proxy_header},
   { "test_bulk_autoinc", test_bulk_autoinc},
+  { "test_bulk_delete", test_bulk_delete },
+  { "test_bulk_replace", test_bulk_replace },
 #endif
   { "test_explain_meta", test_explain_meta },
   { 0, 0 }

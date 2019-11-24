@@ -47,6 +47,8 @@ drop database if exists db1;
 create database db1;
 use db1;
 create table t1 (i int auto_increment, f1 varchar(16), primary key pk (i,f1)) engine=MyISAM;
+Warnings:
+Warning	1280	Name 'pk' ignored for PRIMARY key.
 insert into t1 (f1) values ('one'),('two');
 connection slave;
 select * from db1.t1;

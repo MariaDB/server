@@ -25,7 +25,7 @@ SET GLOBAL innodb_default_row_format=Dynamic;
 CREATE TABLE tab(a INT) ENGINE=InnoDB;
 ALTER TABLE tab DISCARD TABLESPACE;
 ALTER TABLE tab IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1; .cfg file uses ROW_FORMAT=COMPACT)
 DROP TABLE tab;
 SET GLOBAL innodb_default_row_format=Compact;
 SELECT @@innodb_default_row_format;

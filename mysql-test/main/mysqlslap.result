@@ -255,3 +255,6 @@ Benchmark
 # MDEV-4684 - Enhancement request: --init-command support for mysqlslap
 #
 DROP TABLE t1;
+#
+# Bug MDEV-15789 (Upstream: #80329): MYSQLSLAP OPTIONS --AUTO-GENERATE-SQL-GUID-PRIMARY and --AUTO-GENERATE-SQL-SECONDARY-INDEXES DONT WORK
+#

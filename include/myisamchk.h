@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Definitions needed for myisamchk/mariachk.c */
 
@@ -100,12 +100,13 @@ typedef struct st_handler_check_param
   time_t backup_time;                           /* To sign backup files */
   ulong rec_per_key_part[HA_MAX_KEY_SEG * HA_MAX_POSSIBLE_KEY];
   double new_rec_per_key_part[HA_MAX_KEY_SEG * HA_MAX_POSSIBLE_KEY];
-  uint out_flag, warning_printed, error_printed, note_printed, verbose;
+  uint out_flag, error_printed, verbose;
   uint opt_sort_key, total_files, max_level;
   uint key_cache_block_size, pagecache_block_size;
   int tmpfile_createflag, err_count;
   myf myf_rw;
   uint16 language;
+  my_bool warning_printed, note_printed, wrong_trd_printed;
   my_bool using_global_keycache, opt_lock_memory, opt_follow_links;
   my_bool retry_repair, force_sort, calc_checksum, static_row_size;
   char temp_filename[FN_REFLEN];

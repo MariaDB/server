@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,16 +29,7 @@ table cache" for later retrieval.
 Created July 17, 2007 Vasil Dimov
 *******************************************************/
 
-/* Found during the build of 5.5.3 on Linux 2.4 and early 2.6 kernels:
-   The includes "univ.i" -> "my_global.h" cause a different path
-   to be taken further down with pthread functions and types,
-   so they must come first.
-   From the symptoms, this is related to bug#46587 in the MySQL bug DB.
-*/
-
-#include "ha_prototypes.h"
-#include <sql_class.h>
-
+#include "trx0i_s.h"
 #include "buf0buf.h"
 #include "dict0dict.h"
 #include "ha0storage.h"
@@ -52,10 +43,7 @@ Created July 17, 2007 Vasil Dimov
 #include "srv0srv.h"
 #include "sync0rw.h"
 #include "sync0sync.h"
-#include "trx0i_s.h"
 #include "trx0sys.h"
-#include "trx0trx.h"
-#include "ut0mem.h"
 #include "que0que.h"
 #include "trx0purge.h"
 
@@ -150,11 +138,10 @@ struct i_s_table_cache_t {
 
 /** This structure describes the intermediate buffer */
 struct trx_i_s_cache_t {
-	rw_lock_t*	rw_lock;	/*!< read-write lock protecting
+	rw_lock_t	rw_lock;	/*!< read-write lock protecting
 					the rest of this structure */
-	uintmax_t	last_read;	/*!< last time the cache was read;
-					measured in microseconds since
-					epoch */
+	ulonglong	last_read;	/*!< last time the cache was read;
+					measured in nanoseconds */
 	ib_mutex_t		last_read_mutex;/*!< mutex protecting the
 					last_read member - it is updated
 					inside a shared lock of the
@@ -469,7 +456,7 @@ fill_trx_row(
 	ut_ad(lock_mutex_own());
 
 	row->trx_id = trx_get_id_for_print(trx);
-	row->trx_started = (ib_time_t) trx->start_time;
+	row->trx_started = trx->start_time;
 	row->trx_state = trx_get_que_state_str(trx);
 	row->requested_lock_row = requested_lock_row;
 	ut_ad(requested_lock_row == NULL
@@ -478,7 +465,7 @@ fill_trx_row(
 	if (trx->lock.wait_lock != NULL) {
 
 		ut_a(requested_lock_row != NULL);
-		row->trx_wait_started = (ib_time_t) trx->lock.wait_started;
+		row->trx_wait_started = trx->lock.wait_started;
 	} else {
 		ut_a(requested_lock_row == NULL);
 		row->trx_wait_started = 0;
@@ -1195,22 +1182,16 @@ add_trx_relevant_locks_to_cache(
 }
 
 /** The minimum time that a cache must not be updated after it has been
-read for the last time; measured in microseconds. We use this technique
+read for the last time; measured in nanoseconds. We use this technique
 to ensure that SELECTs which join several INFORMATION SCHEMA tables read
 the same version of the cache. */
-#define CACHE_MIN_IDLE_TIME_US	100000 /* 0.1 sec */
+#define CACHE_MIN_IDLE_TIME_NS	100000000 /* 0.1 sec */
 
 /*******************************************************************//**
 Checks if the cache can safely be updated.
-@return TRUE if can be updated */
-static
-ibool
-can_cache_be_updated(
-/*=================*/
-	trx_i_s_cache_t*	cache)	/*!< in: cache */
+@return whether the cache can be updated */
+static bool can_cache_be_updated(trx_i_s_cache_t* cache)
 {
-	uintmax_t	now;
-
 	/* Here we read cache->last_read without acquiring its mutex
 	because last_read is only updated when a shared rw lock on the
 	whole cache is being held (see trx_i_s_cache_end_read()) and
@@ -1218,15 +1199,9 @@ can_cache_be_updated(
 	So it is not possible for last_read to be updated while we are
 	reading it. */
 
-	ut_ad(rw_lock_own(cache->rw_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&cache->rw_lock, RW_LOCK_X));
 
-	now = ut_time_us(NULL);
-	if (now - cache->last_read > CACHE_MIN_IDLE_TIME_US) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
+	return my_interval_timer() - cache->last_read > CACHE_MIN_IDLE_TIME_NS;
 }
 
 /*******************************************************************//**
@@ -1326,8 +1301,7 @@ trx_i_s_possibly_fetch_data_into_cache(
 	lock_mutex_exit();
 
 	/* update cache last read time */
-	time_t now = ut_time_us(NULL);
-	cache->last_read = now;
+	cache->last_read = my_interval_timer();
 
 	return(0);
 }
@@ -1361,10 +1335,7 @@ trx_i_s_cache_init(
 	release trx_i_s_cache_t::last_read_mutex
 	release trx_i_s_cache_t::rw_lock */
 
-	cache->rw_lock = static_cast<rw_lock_t*>(
-		ut_malloc_nokey(sizeof(*cache->rw_lock)));
-
-	rw_lock_create(trx_i_s_cache_lock_key, cache->rw_lock,
+	rw_lock_create(trx_i_s_cache_lock_key, &cache->rw_lock,
 		       SYNC_TRX_I_S_RWLOCK);
 
 	cache->last_read = 0;
@@ -1393,10 +1364,7 @@ trx_i_s_cache_free(
 /*===============*/
 	trx_i_s_cache_t*	cache)	/*!< in, own: cache to free */
 {
-	rw_lock_free(cache->rw_lock);
-	ut_free(cache->rw_lock);
-	cache->rw_lock = NULL;
-
+	rw_lock_free(&cache->rw_lock);
 	mutex_free(&cache->last_read_mutex);
 
 	hash_table_free(cache->locks_hash);
@@ -1413,7 +1381,7 @@ trx_i_s_cache_start_read(
 /*=====================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	rw_lock_s_lock(cache->rw_lock);
+	rw_lock_s_lock(&cache->rw_lock);
 }
 
 /*******************************************************************//**
@@ -1423,17 +1391,15 @@ trx_i_s_cache_end_read(
 /*===================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	uintmax_t	now;
-
-	ut_ad(rw_lock_own(cache->rw_lock, RW_LOCK_S));
+	ut_ad(rw_lock_own(&cache->rw_lock, RW_LOCK_S));
 
 	/* update cache last read time */
-	now = ut_time_us(NULL);
+	const ulonglong now = my_interval_timer();
 	mutex_enter(&cache->last_read_mutex);
 	cache->last_read = now;
 	mutex_exit(&cache->last_read_mutex);
 
-	rw_lock_s_unlock(cache->rw_lock);
+	rw_lock_s_unlock(&cache->rw_lock);
 }
 
 /*******************************************************************//**
@@ -1443,7 +1409,7 @@ trx_i_s_cache_start_write(
 /*======================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	rw_lock_x_lock(cache->rw_lock);
+	rw_lock_x_lock(&cache->rw_lock);
 }
 
 /*******************************************************************//**
@@ -1453,9 +1419,9 @@ trx_i_s_cache_end_write(
 /*====================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	ut_ad(rw_lock_own(cache->rw_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&cache->rw_lock, RW_LOCK_X));
 
-	rw_lock_x_unlock(cache->rw_lock);
+	rw_lock_x_unlock(&cache->rw_lock);
 }
 
 /*******************************************************************//**
@@ -1468,26 +1434,20 @@ cache_select_table(
 	trx_i_s_cache_t*	cache,	/*!< in: whole cache */
 	enum i_s_table		table)	/*!< in: which table */
 {
-	i_s_table_cache_t*	table_cache;
-
-	ut_ad(rw_lock_own(cache->rw_lock, RW_LOCK_S)
-	      || rw_lock_own(cache->rw_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own_flagged(&cache->rw_lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	switch (table) {
 	case I_S_INNODB_TRX:
-		table_cache = &cache->innodb_trx;
-		break;
+		return &cache->innodb_trx;
 	case I_S_INNODB_LOCKS:
-		table_cache = &cache->innodb_locks;
-		break;
+		return &cache->innodb_locks;
 	case I_S_INNODB_LOCK_WAITS:
-		table_cache = &cache->innodb_lock_waits;
-		break;
-	default:
-		ut_error;
+		return &cache->innodb_lock_waits;
 	}
 
-	return(table_cache);
+	ut_error;
+	return NULL;
 }
 
 /*******************************************************************//**

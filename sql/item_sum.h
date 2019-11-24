@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* classes for sum functions */
@@ -457,7 +457,8 @@ public:
     Updated value is then saved in the field.
   */
   virtual void update_field()=0;
-  virtual void fix_length_and_dec() { maybe_null=1; null_value=1; }
+  virtual bool fix_length_and_dec()
+  { maybe_null=1; null_value=1; return FALSE; }
   virtual Item *result_item(THD *thd, Field *field);
 
   void update_used_tables ();
@@ -753,8 +754,8 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   const Type_handler *type_handler() const { return &type_handler_longlong; }
-  void fix_length_and_dec()
-  { decimals=0; max_length=21; maybe_null=null_value=0; }
+  bool fix_length_and_dec()
+  { decimals=0; max_length=21; maybe_null=null_value=0; return FALSE; }
 };
 
 
@@ -770,7 +771,7 @@ protected:
   my_decimal direct_sum_decimal;
   my_decimal dec_buffs[2];
   uint curr_dec_buff;
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
 
 public:
   Item_sum_sum(THD *thd, Item *item_par, bool distinct):
@@ -905,7 +906,7 @@ public:
 
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   enum Sumfunctype sum_func () const 
   {
     return has_with_distinct() ? AVG_DISTINCT_FUNC : AVG_FUNC;
@@ -965,7 +966,7 @@ But, this falls prey to catastrophic cancellation.  Instead, use the recurrence 
 
 class Item_sum_variance : public Item_sum_num
 {
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
 
 public:
   double recurrence_m, recurrence_s;    /* Used in recurrence relation. */
@@ -1024,10 +1025,35 @@ class Item_sum_std :public Item_sum_variance
   { return get_item_copy<Item_sum_std>(thd, this); }
 };
 
+
+class Item_sum_hybrid: public Item_sum,
+                       public Type_handler_hybrid_field_type
+{
+public:
+  Item_sum_hybrid(THD *thd, Item *item_par):
+    Item_sum(thd, item_par),
+    Type_handler_hybrid_field_type(&type_handler_longlong)
+  { collation.set(&my_charset_bin); }
+  Item_sum_hybrid(THD *thd, Item *a, Item *b):
+    Item_sum(thd, a, b),
+    Type_handler_hybrid_field_type(&type_handler_longlong)
+  { collation.set(&my_charset_bin); }
+  Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
+    :Item_sum(thd, item),
+    Type_handler_hybrid_field_type(item)
+  { }
+  const Type_handler *type_handler() const
+  { return Type_handler_hybrid_field_type::type_handler(); }
+  bool fix_length_and_dec_generic();
+  bool fix_length_and_dec_numeric(const Type_handler *h);
+  bool fix_length_and_dec_string();
+};
+
+
 // This class is a string or number function depending on num_func
 class Arg_comparator;
 class Item_cache;
-class Item_sum_hybrid :public Item_sum, public Type_handler_hybrid_field_type
+class Item_sum_min_max :public Item_sum_hybrid
 {
 protected:
   bool direct_added;
@@ -1038,21 +1064,19 @@ protected:
   bool was_values;  // Set if we have found at least one row (for max/min only)
   bool was_null_value;
 
-  public:
-  Item_sum_hybrid(THD *thd, Item *item_par,int sign):
-    Item_sum(thd, item_par),
-    Type_handler_hybrid_field_type(&type_handler_longlong),
+public:
+  Item_sum_min_max(THD *thd, Item *item_par,int sign):
+    Item_sum_hybrid(thd, item_par),
     direct_added(FALSE), value(0), arg_cache(0), cmp(0),
     cmp_sign(sign), was_values(TRUE)
   { collation.set(&my_charset_bin); }
-  Item_sum_hybrid(THD *thd, Item_sum_hybrid *item)
-    :Item_sum(thd, item),
-    Type_handler_hybrid_field_type(item),
+  Item_sum_min_max(THD *thd, Item_sum_min_max *item)
+    :Item_sum_hybrid(thd, item),
     direct_added(FALSE), value(item->value), arg_cache(0),
     cmp_sign(item->cmp_sign), was_values(item->was_values)
   { }
   bool fix_fields(THD *, Item **);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   void setup_hybrid(THD *thd, Item *item, Item *value_arg);
   void clear();
   void direct_add(Item *item);
@@ -1066,8 +1090,6 @@ protected:
   {
     return get_arg(0)->real_type_handler();
   }
-  const Type_handler *type_handler() const
-  { return Type_handler_hybrid_field_type::type_handler(); }
   TYPELIB *get_typelib() const { return args[0]->get_typelib(); }
   void update_field();
   void min_max_update_str_field();
@@ -1083,11 +1105,11 @@ protected:
 };
 
 
-class Item_sum_min :public Item_sum_hybrid
+class Item_sum_min :public Item_sum_min_max
 {
 public:
-  Item_sum_min(THD *thd, Item *item_par): Item_sum_hybrid(thd, item_par, 1) {}
-  Item_sum_min(THD *thd, Item_sum_min *item) :Item_sum_hybrid(thd, item) {}
+  Item_sum_min(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, 1) {}
+  Item_sum_min(THD *thd, Item_sum_min *item) :Item_sum_min_max(thd, item) {}
   enum Sumfunctype sum_func () const {return MIN_FUNC;}
 
   bool add();
@@ -1098,11 +1120,11 @@ public:
 };
 
 
-class Item_sum_max :public Item_sum_hybrid
+class Item_sum_max :public Item_sum_min_max
 {
 public:
-  Item_sum_max(THD *thd, Item *item_par): Item_sum_hybrid(thd, item_par, -1) {}
-  Item_sum_max(THD *thd, Item_sum_max *item) :Item_sum_hybrid(thd, item) {}
+  Item_sum_max(THD *thd, Item *item_par): Item_sum_min_max(thd, item_par, -1) {}
+  Item_sum_max(THD *thd, Item_sum_max *item) :Item_sum_min_max(thd, item) {}
   enum Sumfunctype sum_func () const {return MAX_FUNC;}
 
   bool add();
@@ -1132,8 +1154,11 @@ public:
   longlong val_int();
   void reset_field();
   void update_field();
-  void fix_length_and_dec()
-  { decimals= 0; max_length=21; unsigned_flag= 1; maybe_null= null_value= 0; }
+  bool fix_length_and_dec()
+  {
+    decimals= 0; max_length=21; unsigned_flag= 1; maybe_null= null_value= 0;
+    return FALSE;
+  }
   void cleanup()
   {
     bits= reset_bits;
@@ -1292,6 +1317,7 @@ public:
 
   Item_sum_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name,
               sp_head *sp, List<Item> &list);
+  Item_sum_sp(THD *thd, Item_sum_sp *item);
 
   enum Sumfunctype sum_func () const
   {
@@ -1301,7 +1327,7 @@ public:
   {
     return create_table_field_from_handler(table);
   }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
   const char *func_name() const;
   const Type_handler *type_handler() const;
@@ -1361,6 +1387,7 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_sp>(thd, this); }
+  Item *copy_or_same(THD *thd);
 };
 
 /* Items to get the value of a stored sum function */
@@ -1560,7 +1587,7 @@ class Item_sum_udf_float :public Item_udf_sum
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   const Type_handler *type_handler() const { return &type_handler_double; }
-  void fix_length_and_dec() { fix_num_length_and_dec(); }
+  bool fix_length_and_dec() { fix_num_length_and_dec(); return FALSE; }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_udf_float>(thd, this); }
@@ -1582,7 +1609,7 @@ public:
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
   const Type_handler *type_handler() const { return &type_handler_longlong; }
-  void fix_length_and_dec() { decimals=0; max_length=21; }
+  bool fix_length_and_dec() { decimals=0; max_length=21; return FALSE; }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_udf_int>(thd, this); }
@@ -1623,7 +1650,7 @@ public:
   }
   my_decimal *val_decimal(my_decimal *dec);
   const Type_handler *type_handler() const { return string_type_handler(); }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_udf_str>(thd, this); }
@@ -1644,7 +1671,7 @@ public:
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
-  void fix_length_and_dec() { fix_num_length_and_dec(); }
+  bool fix_length_and_dec() { fix_num_length_and_dec(); return FALSE; }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_udf_decimal>(thd, this); }
@@ -1718,7 +1745,7 @@ public:
     { DBUG_ASSERT(fixed == 1); null_value=1; return 0; }
   double val_real() { DBUG_ASSERT(fixed == 1); null_value=1; return 0.0; }
   longlong val_int() { DBUG_ASSERT(fixed == 1); null_value=1; return 0; }
-  void fix_length_and_dec() { maybe_null=1; max_length=0; }
+  bool fix_length_and_dec() { maybe_null=1; max_length=0; return FALSE; }
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   void clear() {}
   bool add() { return 0; }  
@@ -1744,6 +1771,7 @@ class Item_func_group_concat : public Item_sum
   String *separator;
   TREE tree_base;
   TREE *tree;
+  size_t tree_len;
   Item **ref_pointer_array;
 
   /**
@@ -1790,6 +1818,9 @@ class Item_func_group_concat : public Item_sum
   friend int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
 			   void* item_arg);
+
+  bool repack_tree(THD *thd);
+
 public:
   Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                          bool is_distinct, List<Item> *is_select,
@@ -1846,8 +1877,8 @@ public:
   String* val_str(String* str);
   Item *copy_or_same(THD* thd);
   void no_rows_in_result() {}
-  virtual void print(String *str, enum_query_type query_type);
-  virtual bool change_context_processor(void *cntx)
+  void print(String *str, enum_query_type query_type);
+  bool change_context_processor(void *cntx)
     { context= (Name_resolution_context *)cntx; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_group_concat>(thd, this); }

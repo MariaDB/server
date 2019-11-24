@@ -1,6 +1,6 @@
 --- suite/storage_engine/parts/repair_table.result	2017-08-28 19:29:20.491633306 +0300
 +++ suite/storage_engine/parts/repair_table.reject	2017-08-28 19:34:41.723633059 +0300
-@@ -1,235 +1,115 @@
+@@ -1,232 +1,116 @@
  call mtr.add_suppression("Table '.*t1.*' is marked as crashed and should be repaired");
  DROP TABLE IF EXISTS t1, t2;
  CREATE TABLE t1 (a <INT_COLUMN>, b <CHAR_COLUMN>) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS> PARTITION BY HASH(a) PARTITIONS 2;
@@ -165,6 +165,9 @@
  REPAIR TABLE t1 USE_FRM;
  Table	Op	Msg_type	Msg_text
 -test.t1	repair	status	OK
++test.t1	repair	Error	Table 'test.t1' doesn't exist
++test.t1	repair	status	Operation failed
+ db.opt
 -t1#P#p0.MYD
 -t1#P#p0.MYI
 -t1#P#p1.MYD
@@ -189,7 +192,6 @@
 -15	o
 -Warnings:
 -Error	145	Table './test/t1#P#p0' is marked as crashed and should be repaired
--Error	1194	Table 't1' is marked as crashed and should be repaired
 -Error	1034	Number of rows changed from 3 to 2
 -# Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
 -# If you got a difference in error message, just add it to rdiff file
@@ -215,7 +217,6 @@
 -15	o
 -Warnings:
 -Error	145	Table './test/t1#P#p0' is marked as crashed and should be repaired
--Error	1194	Table 't1' is marked as crashed and should be repaired
 -Error	1034	Number of rows changed from 2 to 3
 -# Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
 -# If you got a difference in error message, just add it to rdiff file
@@ -240,7 +241,6 @@
 -15	o
 -Warnings:
 -Error	145	Table './test/t1#P#p1' is marked as crashed and should be repaired
--Error	1194	Table 't1' is marked as crashed and should be repaired
 -Error	1034	Number of rows changed from 4 to 3
 -# Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
 -# If you got a difference in error message, just add it to rdiff file
@@ -269,7 +269,6 @@
 -15	o
 -Warnings:
 -Error	145	Table './test/t1#P#p1' is marked as crashed and should be repaired
--Error	1194	Table 't1' is marked as crashed and should be repaired
 -Error	1034	Number of rows changed from 3 to 4
 -# Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
 -# If you got a difference in error message, just add it to rdiff file
@@ -296,7 +295,5 @@
 -15	o
 -# Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
 -# If you got a difference in error message, just add it to rdiff file
-+test.t1	repair	Error	Table 'test.t1' doesn't exist
-+test.t1	repair	status	Operation failed
  DROP TABLE t1;
 +ERROR 42S02: Unknown table 'test.t1'

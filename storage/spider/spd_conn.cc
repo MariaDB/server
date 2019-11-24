@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -86,10 +86,10 @@ extern PSI_thread_key spd_key_thd_bg_crd;
 extern PSI_thread_key spd_key_thd_bg_mon;
 #endif
 #endif
-
-extern pthread_mutex_t spider_global_trx_mutex;
-extern SPIDER_TRX *spider_global_trx;
 #endif
+
+/* UTC time zone for timestamp columns */
+extern Time_zone *UTC;
 
 HASH spider_open_connections;
 uint spider_open_connections_id;
@@ -456,6 +456,13 @@ SPIDER_CONN *spider_create_conn(
   char *tmp_wrapper, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
   DBUG_ENTER("spider_create_conn");
+
+  if (unlikely(!UTC))
+  {
+    /* UTC time zone for timestamp columns */
+    String tz_00_name(STRING_WITH_LEN("+00:00"), &my_charset_bin);
+    UTC = my_tz_find(current_thd, &tz_00_name);
+  }
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if (conn_kind == SPIDER_CONN_KIND_MYSQL)
@@ -1432,6 +1439,15 @@ void spider_conn_queue_time_zone(
   DBUG_VOID_RETURN;
 }
 
+void spider_conn_queue_UTC_time_zone(
+  SPIDER_CONN *conn
+) {
+  DBUG_ENTER("spider_conn_queue_UTC_time_zone");
+  DBUG_PRINT("info", ("spider conn=%p", conn));
+  spider_conn_queue_time_zone(conn, UTC);
+  DBUG_VOID_RETURN;
+}
+
 void spider_conn_queue_start_transaction(
   SPIDER_CONN *conn
 ) {
@@ -2071,6 +2087,7 @@ void spider_bg_all_conn_break(
 #endif
     if (spider->quick_targets[roop_count])
     {
+      spider_db_free_one_quick_result((SPIDER_RESULT *) result_list->current);
       DBUG_ASSERT(spider->quick_targets[roop_count] == conn->quick_target);
       DBUG_PRINT("info", ("spider conn[%p]->quick_target=NULL", conn));
       conn->quick_target = NULL;
@@ -2994,9 +3011,6 @@ void *spider_bg_sts_action(
     DBUG_RETURN(NULL);
   }
   share->bg_sts_thd = thd;
-/*
-  spider.trx = spider_global_trx;
-*/
   spider.trx = trx;
   spider.share = share;
   spider.conns = conns;
@@ -3105,13 +3119,11 @@ void *spider_bg_sts_action(
       {
         if (!conns[spider.search_link_idx])
         {
-          pthread_mutex_lock(&spider_global_trx_mutex);
           spider_get_conn(share, spider.search_link_idx,
             share->conn_keys[spider.search_link_idx],
-            spider_global_trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
+            trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
             &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
-          pthread_mutex_unlock(&spider_global_trx_mutex);
 /*
           if (
             error_num &&
@@ -3120,7 +3132,7 @@ void *spider_bg_sts_action(
           ) {
             lex_start(thd);
             error_num = spider_ping_table_mon_from_table(
-                spider_global_trx,
+                trx,
                 thd,
                 share,
                 spider.search_link_idx,
@@ -3142,7 +3154,6 @@ void *spider_bg_sts_action(
         }
         if (spider.search_link_idx != -1 && conns[spider.search_link_idx])
         {
-          DBUG_ASSERT(!conns[spider.search_link_idx]->thd);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           if (spider_get_sts(share, spider.search_link_idx,
             share->bg_sts_try_time, &spider,
@@ -3163,7 +3174,7 @@ void *spider_bg_sts_action(
             ) {
               lex_start(thd);
               error_num = spider_ping_table_mon_from_table(
-                  spider_global_trx,
+                  trx,
                   thd,
                   share,
                   spider.search_link_idx,
@@ -3369,9 +3380,6 @@ void *spider_bg_crd_action(
   table.s = share->table_share;
   table.field = share->table_share->field;
   table.key_info = share->table_share->key_info;
-/*
-  spider.trx = spider_global_trx;
-*/
   spider.trx = trx;
   spider.change_table_ptr(&table, share->table_share);
   spider.share = share;
@@ -3481,13 +3489,11 @@ void *spider_bg_crd_action(
       {
         if (!conns[spider.search_link_idx])
         {
-          pthread_mutex_lock(&spider_global_trx_mutex);
           spider_get_conn(share, spider.search_link_idx,
             share->conn_keys[spider.search_link_idx],
-            spider_global_trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
+            trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
             &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
-          pthread_mutex_unlock(&spider_global_trx_mutex);
 /*
           if (
             error_num &&
@@ -3496,7 +3502,7 @@ void *spider_bg_crd_action(
           ) {
             lex_start(thd);
             error_num = spider_ping_table_mon_from_table(
-                spider_global_trx,
+                trx,
                 thd,
                 share,
                 spider.search_link_idx,
@@ -3518,7 +3524,6 @@ void *spider_bg_crd_action(
         }
         if (spider.search_link_idx != -1 && conns[spider.search_link_idx])
         {
-          DBUG_ASSERT(!conns[spider.search_link_idx]->thd);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           if (spider_get_crd(share, spider.search_link_idx,
             share->bg_crd_try_time, &spider, &table,
@@ -3539,7 +3544,7 @@ void *spider_bg_crd_action(
             ) {
               lex_start(thd);
               error_num = spider_ping_table_mon_from_table(
-                  spider_global_trx,
+                  trx,
                   thd,
                   share,
                   spider.search_link_idx,
@@ -3902,7 +3907,7 @@ void *spider_bg_mon_action(
     {
       lex_start(thd);
       error_num = spider_ping_table_mon_from_table(
-        spider_global_trx,
+        trx,
         thd,
         share,
         link_idx,

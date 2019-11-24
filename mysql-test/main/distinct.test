@@ -3,6 +3,7 @@
 # Bug with group by and not used fields
 #
 
+--source include/default_optimizer_switch.inc
 --disable_warnings
 drop table if exists t1,t2,t3;
 --enable_warnings
@@ -789,5 +790,31 @@ select count(distinct case when id<=63 then id end) from tb;
 drop table tb;
 
 SET @@tmp_table_size= @tmp_table_size_save;
+
+--echo #
+--echo # MDEV-14695: Assertion `n < m_size' failed in Bounds_checked_array<Element_type>::operator
+--echo #
+
+CREATE TABLE t1 (b1 BIT, b2 BIT, b3 BIT, b4 BIT , b5 BIT, b6 BIT);
+INSERT INTO t1 VALUES (1,0,0,1,0,1),(0,1,0,0,1,0);
+SELECT DISTINCT b1+'0', b2+'0', b3+'0', b4+'0', b5+'0', b6 +'0'   FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12575: Server crash in AGGR_OP::put_record or in JOIN_CACHE::free
+--echo # or Invalid write in JOIN::make_aggr_tables_info
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+explain
+( SELECT DISTINCT 1 FROM t1 ORDER BY BENCHMARK(1, MIN(pk)) )
+UNION
+( SELECT DISTINCT 1 FROM t1 ORDER BY BENCHMARK(1, MIN(pk)) );
+
+( SELECT DISTINCT 1 FROM t1 ORDER BY BENCHMARK(1, MIN(pk)) )
+UNION
+( SELECT DISTINCT 1 FROM t1 ORDER BY BENCHMARK(1, MIN(pk)) );
+drop table t1;
 
 --echo End of 5.5 tests

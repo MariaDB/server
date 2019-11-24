@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /**
@@ -127,7 +127,7 @@ int writefrm(const char *path, const char *db, const char *table,
   File file= mysql_file_create(key_file_frm, file_name,
                                CREATE_MODE, create_flags, MYF(0));
 
-  if ((error= file < 0))
+  if (unlikely((error= file < 0)))
   {
     if (my_errno == ENOENT)
       my_error(ER_BAD_DB_ERROR, MYF(0), db);

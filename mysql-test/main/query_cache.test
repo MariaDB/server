@@ -1,6 +1,7 @@
 -- source include/have_query_cache.inc
 -- source include/long_test.inc
 
+set @save_query_cache_size=@@query_cache_size;
 #
 # Tests with query cache
 #
@@ -1236,7 +1237,7 @@ set session query_cache_type=on;
  drop database db1;
  show status like 'Qcache_queries_in_cache';
  drop database db2;
- set global query_cache_size=default;
+ set global query_cache_size=@save_query_cache_size;
 
  --disable_warnings
  drop database if exists db1;
@@ -1266,7 +1267,7 @@ set session query_cache_type=on;
 set GLOBAL query_cache_type=default;
 set GLOBAL query_cache_limit=default;
 set GLOBAL query_cache_min_res_unit=default;
-set GLOBAL query_cache_size=default;
+set GLOBAL query_cache_size=@save_query_cache_size;
 set local query_cache_type=default;
 set GLOBAL query_cache_type=on;
 set local query_cache_type=on;
@@ -1632,6 +1633,7 @@ select @@query_cache_size, @@global.query_cache_type, @@local.query_cache_type;
 --echo # USER_STATISTICS (and in HOST_STATISTICS)
 --echo #
 
+set @save_userstat=@@global.userstat;
 SET GLOBAL userstat=1;
 set GLOBAL query_cache_size=1355776;
 FLUSH USER_STATISTICS;
@@ -1716,7 +1718,7 @@ show status like "Qcache_hits";
 drop procedure p1;
 drop table t1;
 set GLOBAL query_cache_size=1355776;
-SET GLOBAL userstat=default;
+SET GLOBAL userstat=@save_userstat;
 
 --echo End of 5.5 tests
 
@@ -1784,5 +1786,4 @@ drop table t1;
 
 --echo restore defaults
 SET GLOBAL query_cache_type= default;
-SET GLOBAL query_cache_size= default;
-SET LOCAL query_cache_type= default;
+SET GLOBAL query_cache_size=@save_query_cache_size;

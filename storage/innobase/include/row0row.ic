@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -119,8 +119,8 @@ row_build_index_entry(
 					inserted or purged */
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
-	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap)	/*!< in: memory heap from which
+	const dict_index_t*	index,	/*!< in: index on the table */
+	mem_heap_t*		heap)	/*!< in,out: memory heap from which
 					the memory for the index entry
 					is allocated */
 {

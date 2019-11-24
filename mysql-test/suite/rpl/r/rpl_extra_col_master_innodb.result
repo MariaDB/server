@@ -194,7 +194,7 @@ INSERT into t31 set f1=1, f2=1, f3=1, f4='first';
 insert ignore into t31 set f1=1, f2=1, f3=2, f4='second',
 f9=2.2,  f10='seven samurai', f28=222.222, f35='222';
 Warnings:
-Warning	1366	Incorrect integer value: 'seven samurai' for column 'f10' at row 1
+Warning	1366	Incorrect integer value: 'seven samurai' for column `test`.`t31`.`f10` at row 1
 insert ignore into t31 values (1, 1, 3, 'third',
 /* f5  BIGINT,  */            333333333333333333333333,
 /* f6  BLOB,  */              '3333333333333333333333',
@@ -468,7 +468,7 @@ INSERT INTO t10 () VALUES(1,@b1,DEFAULT,'Kyle',DEFAULT),
 
 connection slave;
 include/wait_for_slave_sql_error_and_skip.inc [errno=1677]
-Last_SQL_Error = 'Column 2 of table 'test.t10' cannot be converted from type 'double' to type 'char(5)''
+Last_SQL_Error = 'Column 2 of table 'test.t10' cannot be converted from type 'double' to type 'char(5 octets) character set latin1''
 
 *** Drop t10  ***
 connection master;
@@ -510,7 +510,7 @@ INSERT INTO t11 () VALUES(1,@b1,'Testing is fun','Kyle',DEFAULT),
 
 connection slave;
 include/wait_for_slave_sql_error_and_skip.inc [errno=1677]
-Last_SQL_Error = 'Column 2 of table 'test.t11' cannot be converted from type 'tinyblob' to type 'varchar(254)''
+Last_SQL_Error = 'Column 2 of table 'test.t11' cannot be converted from type 'blob' to type 'varchar(254 octets) character set latin1''
 
 *** Drop t11  ***
 connection master;

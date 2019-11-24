@@ -537,6 +537,8 @@ DROP TABLE t1;
 --error ER_INVALID_CHARACTER_STRING
 SELECT _eucjpms 0x8EA0;
 
+SET NAMES eucjpms;
+--source include/ctype_mdev13118.inc
 
 --echo #
 --echo # End of 10.0 tests

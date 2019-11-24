@@ -1,0 +1,1 @@
+--binlog-format=row --rocksdb-flush-log-at-trx-commit=1

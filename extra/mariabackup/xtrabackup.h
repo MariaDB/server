@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -44,6 +44,9 @@ extern char		*xtrabackup_incremental_basedir;
 extern char		*innobase_data_home_dir;
 extern char		*innobase_buffer_pool_filename;
 extern char		*xb_plugin_dir;
+extern char		*xb_rocksdb_datadir;
+extern my_bool	xb_backup_rocksdb;
+
 extern uint		opt_protocol;
 extern ds_ctxt_t	*ds_meta;
 extern ds_ctxt_t	*ds_data;
@@ -56,9 +59,7 @@ extern xb_page_bitmap *changed_page_bitmap;
 extern char		*xtrabackup_incremental;
 extern my_bool		xtrabackup_incremental_force_scan;
 
-extern lsn_t		metadata_from_lsn;
 extern lsn_t		metadata_to_lsn;
-extern lsn_t		metadata_last_lsn;
 
 extern xb_stream_fmt_t	xtrabackup_stream_fmt;
 extern ibool		xtrabackup_stream;
@@ -70,7 +71,7 @@ extern char		*xtrabackup_databases_file;
 extern char		*xtrabackup_tables_exclude;
 extern char		*xtrabackup_databases_exclude;
 
-extern ibool		xtrabackup_compress;
+extern uint		xtrabackup_compress;
 
 extern my_bool		xtrabackup_backup;
 extern my_bool		xtrabackup_prepare;
@@ -85,14 +86,10 @@ extern int		xtrabackup_parallel;
 
 extern my_bool		xb_close_files;
 extern const char	*xtrabackup_compress_alg;
-#ifdef __cplusplus
-extern "C"{
-#endif
-  extern uint		xtrabackup_compress_threads;
-  extern ulonglong	xtrabackup_compress_chunk_size;
-#ifdef __cplusplus
-}
-#endif
+
+extern uint		xtrabackup_compress_threads;
+extern ulonglong	xtrabackup_compress_chunk_size;
+
 extern my_bool		xtrabackup_export;
 extern char		*xtrabackup_extra_lsndir;
 extern ulint		xtrabackup_log_copy_interval;
@@ -110,6 +107,8 @@ extern my_bool		opt_noversioncheck;
 extern my_bool		opt_no_backup_locks;
 extern my_bool		opt_decompress;
 extern my_bool		opt_remove_original;
+extern my_bool		opt_extended_validation;
+extern my_bool		opt_encrypted_backup;
 extern my_bool		opt_lock_ddl_per_table;
 
 extern char		*opt_incremental_history_name;
@@ -141,7 +140,7 @@ extern uint		opt_safe_slave_backup_timeout;
 
 extern const char	*opt_history;
 
-enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_LOCKLESS, BINLOG_INFO_ON,
+enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_ON,
 			BINLOG_INFO_AUTO};
 
 extern ulong opt_binlog_info;

@@ -1,0 +1,14 @@
+#
+# Check that vcol update works with binlog enabled
+#
+
+--source include/have_binlog_format_row.inc
+
+set binlog_row_image="FULL";
+set @@default_storage_engine="myisam";
+
+--source update.test
+
+set binlog_row_image="MINIMAL";
+
+--source update.test

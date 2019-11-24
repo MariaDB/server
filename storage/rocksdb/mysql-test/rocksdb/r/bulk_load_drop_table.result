@@ -1,0 +1,11 @@
+CREATE TABLE t1 (pk INT, PRIMARY KEY (pk)) ENGINE=ROCKSDB;
+SET rocksdb_bulk_load_allow_unsorted=1;
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES (1);
+connect  con1,localhost,root,,;
+DROP TABLE t1;
+connection default;
+disconnect con1;
+SET rocksdb_bulk_load=0;
+SELECT * FROM t1;
+ERROR 42S02: Table 'test.t1' doesn't exist

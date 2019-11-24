@@ -1,4 +1,25 @@
 --echo #
+--echo # Start of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-15955 Assertion `field_types == 0 || field_types[field_pos] == MYSQL_TYPE_LONGLONG' failed in Protocol_text::store_longlong
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT @a := 1 FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+SELECT COALESCE(1) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+SELECT COALESCE(@a:=1) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+SELECT COALESCE(@a) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+DROP TABLE t1;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+
+--echo #
 --echo # Start of 10.1 tests
 --echo #
 
@@ -72,6 +93,18 @@ INSERT INTO t1 VALUES (10.1),(10.9);
 ALTER TABLE t1 MODIFY a INT;
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9334 ALTER from DECIMAL to BIGINT UNSIGNED returns a wrong result
+--echo #
+
+CREATE TABLE t1 (a DECIMAL(30,0));
+INSERT INTO t1 VALUES (CAST(0xFFFFFFFFFFFFFFFF AS UNSIGNED));
+SELECT * FROM t1;
+ALTER TABLE t1 MODIFY a BIGINT UNSIGNED;
+SELECT * FROM t1;
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of 10.2 tests
@@ -163,6 +196,17 @@ DROP FUNCTION uint32;
 DROP FUNCTION sint32;
 DROP FUNCTION uint64;
 DROP FUNCTION sint64;
+
+--echo #
+--echo # MDEV-20285 Wrong result on INSERT..SELECT when converting from SIGNED to UNSIGNED
+--echo #
+
+CREATE TABLE t1 (a TINYINT UNSIGNED);
+CREATE TABLE t2 (a TINYINT);
+INSERT INTO t1 VALUES (255);
+INSERT IGNORE INTO t2 SELECT a FROM t1;
+SELECT * FROM t2;
+DROP TABLE t1, t2;
 
 --echo #
 --echo # End of 10.3 tests

@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 disable_query_log;
 
@@ -33,4 +33,10 @@ if (!$have_mroonga_storage_engine) {
   UNINSTALL PLUGIN mroonga;
 }
 
+# Some test re-creates the test database. Put it back in the
+# original character set
+--source include/default_charset.inc
+disable_query_log;
+drop database test;
+create database test;
 enable_query_log;

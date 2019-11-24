@@ -1,3 +1,4 @@
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 CREATE TABLE t1(
 a INT AUTO_INCREMENT PRIMARY KEY,
 b CHAR(1),
@@ -5,6 +6,7 @@ c INT,
 INDEX(b))
 ENGINE=InnoDB STATS_PERSISTENT=0;
 SET GLOBAL innodb_change_buffering_debug = 1;
+BEGIN;
 INSERT INTO t1 VALUES(0,'x',1);
 INSERT INTO t1 SELECT 0,b,c FROM t1;
 INSERT INTO t1 SELECT 0,b,c FROM t1;
@@ -18,8 +20,11 @@ INSERT INTO t1 SELECT 0,b,c FROM t1;
 INSERT INTO t1 SELECT 0,b,c FROM t1;
 INSERT INTO t1 SELECT 0,b,c FROM t1;
 INSERT INTO t1 SELECT 0,b,c FROM t1;
+COMMIT;
+InnoDB		0 transactions not purged
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	Warning	InnoDB: Index 'b' contains #### entries, should be 4096.
 test.t1	check	error	Corrupt
+SET GLOBAL innodb_fast_shutdown=0;
 DROP TABLE t1;

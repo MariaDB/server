@@ -12,13 +12,14 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* The hash functions used for saveing keys */
 
 #include "heapdef.h"
 #include <m_ctype.h>
 
+static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key);
 /*
   Find out how many rows there is in the given range
 
@@ -209,11 +210,9 @@ void hp_movelink(HASH_INFO *pos, HASH_INFO *next_link, HASH_INFO *newlink)
   return;
 }
 
-#ifndef NEW_HASH_FUNCTION
-
 	/* Calc hashvalue for a key */
 
-ulong hp_hashnr(register HP_KEYDEF *keydef, register const uchar *key)
+static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
 {
   /*register*/ 
   ulong nr=1, nr2=4;
@@ -349,136 +348,6 @@ ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
 #endif
   return(nr);
 }
-
-#else
-
-/*
- * Fowler/Noll/Vo hash
- *
- * The basis of the hash algorithm was taken from an idea sent by email to the
- * IEEE Posix P1003.2 mailing list from Phong Vo (kpv@research.att.com) and
- * Glenn Fowler (gsf@research.att.com).  Landon Curt Noll (chongo@toad.com)
- * later improved on their algorithm.
- *
- * The magic is in the interesting relationship between the special prime
- * 16777619 (2^24 + 403) and 2^32 and 2^8.
- *
- * This hash produces the fewest collisions of any function that we've seen so
- * far, and works well on both numbers and strings.
- */
-
-ulong hp_hashnr(register HP_KEYDEF *keydef, register const uchar *key)
-{
-  /*
-    Note, if a key consists of a combination of numeric and
-    a text columns, it most likely won't work well.
-    Making text columns work with NEW_HASH_FUNCTION
-    needs also changes in strings/ctype-xxx.c.
-  */
-  ulong nr= 1, nr2= 4;
-  HA_KEYSEG *seg,*endseg;
-
-  for (seg=keydef->seg,endseg=seg+keydef->keysegs ; seg < endseg ; seg++)
-  {
-    uchar *pos=(uchar*) key;
-    key+=seg->length;
-    if (seg->null_bit)
-    {
-      key++;
-      if (*pos)
-      {
-	nr^= (nr << 1) | 1;
-	/* Add key pack length (2) to key for VARCHAR segments */
-        if (seg->type == HA_KEYTYPE_VARTEXT1)
-          key+= 2;
-	continue;
-      }
-      pos++;
-    }
-    if (seg->type == HA_KEYTYPE_TEXT)
-    {
-      seg->charset->coll->hash_sort(seg->charset, pos, ((uchar*)key)-pos,
-                                    &nr, &nr2);
-    }
-    else if (seg->type == HA_KEYTYPE_VARTEXT1)  /* Any VARCHAR segments */
-    {
-      uint pack_length= 2;                      /* Key packing is constant */
-      uint length= uint2korr(pos);
-      seg->charset->coll->hash_sort(seg->charset, pos+pack_length, length,
-                                    &nr, &nr2);
-      key+= pack_length;
-    }
-    else
-    {
-      for ( ; pos < (uchar*) key ; pos++)
-      {
-	nr *=16777619; 
-	nr ^=(uint) *pos;
-      }
-    }
-  }
-#ifdef ONLY_FOR_HASH_DEBUGGING
-  DBUG_PRINT("exit", ("hash: 0x%lx", nr));
-#endif
-  return(nr);
-}
-
-	/* Calc hashvalue for a key in a record */
-
-ulong hp_rec_hashnr(register HP_KEYDEF *keydef, register const uchar *rec)
-{
-  ulong nr= 1, nr2= 4;
-  HA_KEYSEG *seg,*endseg;
-
-  for (seg=keydef->seg,endseg=seg+keydef->keysegs ; seg < endseg ; seg++)
-  {
-    uchar *pos=(uchar*) rec+seg->start;
-    if (seg->null_bit)
-    {
-      if (rec[seg->null_pos] & seg->null_bit)
-      {
-	nr^= (nr << 1) | 1;
-	continue;
-      }
-    }
-    if (seg->type == HA_KEYTYPE_TEXT)
-    {
-      uint char_length= seg->length; /* TODO: fix to use my_charpos() */
-      seg->charset->coll->hash_sort(seg->charset, pos, char_length,
-                                    &nr, &nr2);
-    }
-    else if (seg->type == HA_KEYTYPE_VARTEXT1)  /* Any VARCHAR segments */
-    {
-      uint pack_length= seg->bit_start;
-      uint length= (pack_length == 1 ? (uint) *(uchar*) pos : uint2korr(pos));
-      seg->charset->coll->hash_sort(seg->charset, pos+pack_length,
-                                    length, &nr, &nr2);
-    }
-    else
-    {
-      uchar *end= pos+seg->length;
-      if (seg->type == HA_KEYTYPE_BIT && seg->bit_length)
-      {
-        uchar bits= get_rec_bits(rec + seg->bit_pos,
-                                 seg->bit_start, seg->bit_length);
-	nr *=16777619;
-	nr ^=(uint) bits;
-        end--;
-      }
-      for ( ; pos < end ; pos++)
-      {
-	nr *=16777619; 
-	nr ^=(uint) *pos;
-      }
-    }
-  }
-#ifdef ONLY_FOR_HASH_DEBUGGING
-  DBUG_PRINT("exit", ("hash: 0x%lx", nr));
-#endif
-  return(nr);
-}
-
-#endif
 
 
 /*
@@ -754,7 +623,6 @@ uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
       uchar *pos= (uchar*) rec + seg->start;
       DBUG_ASSERT(seg->type != HA_KEYTYPE_BIT);
 
-#ifdef HAVE_ISNAN
       if (seg->type == HA_KEYTYPE_FLOAT)
       {
 	float nr;
@@ -778,7 +646,6 @@ uint hp_rb_make_key(HP_KEYDEF *keydef, uchar *key,
 	  continue;
 	}
       }
-#endif
       pos+= length;
       while (length--)
       {
@@ -982,7 +849,7 @@ void heap_update_auto_increment(HP_INFO *info, const uchar *record)
 
   switch (info->s->auto_key_type) {
   case HA_KEYTYPE_INT8:
-    s_value= (longlong) *(char*)key;
+    s_value= (longlong) *(const signed char*) key;
     break;
   case HA_KEYTYPE_BINARY:
     value=(ulonglong)  *(uchar*) key;

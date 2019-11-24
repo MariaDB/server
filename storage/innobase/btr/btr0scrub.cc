@@ -432,8 +432,8 @@ btr_pessimistic_scrub(
 
 	/* read block variables */
 	const ulint page_no =  mach_read_from_4(page + FIL_PAGE_OFFSET);
-	const ulint left_page_no = mach_read_from_4(page + FIL_PAGE_PREV);
-	const ulint right_page_no = mach_read_from_4(page + FIL_PAGE_NEXT);
+	const uint32_t left_page_no = btr_page_get_prev(page);
+	const uint32_t right_page_no = btr_page_get_next(page);
 	const page_size_t page_size(index->table->space->flags);
 
 	/**
@@ -450,14 +450,14 @@ btr_pessimistic_scrub(
 		mtr->release_block_at_savepoint(scrub_data->savepoint, block);
 
 		buf_block_t* get_block __attribute__((unused)) = btr_block_get(
-			page_id_t(index->table->space->id, left_page_no),
+			page_id_t(index->table->space_id, left_page_no),
 			page_size, RW_X_LATCH, index, mtr);
 
 		/**
 		* Refetch block and re-initialize page
 		*/
 		block = btr_block_get(
-			page_id_t(index->table->space->id, page_no),
+			page_id_t(index->table->space_id, page_no),
 			page_size, RW_X_LATCH, index, mtr);
 
 		page = buf_block_get_frame(block);
@@ -465,13 +465,13 @@ btr_pessimistic_scrub(
 		/**
 		* structure should be unchanged
 		*/
-		ut_a(left_page_no == btr_page_get_prev(page, mtr));
-		ut_a(right_page_no == btr_page_get_next(page, mtr));
+		ut_a(left_page_no == btr_page_get_prev(page));
+		ut_a(right_page_no == btr_page_get_next(page));
 	}
 
 	if (right_page_no != FIL_NULL) {
 		buf_block_t* get_block __attribute__((unused))= btr_block_get(
-			page_id_t(index->table->space->id, right_page_no),
+			page_id_t(index->table->space_id, right_page_no),
 			page_size, RW_X_LATCH, index, mtr);
 	}
 
@@ -626,13 +626,8 @@ btr_scrub_get_table_and_index(
 		scrub_data->current_table = NULL;
 	}
 
-	/* argument to dict_table_open_on_index_id */
-	bool dict_locked = true;
-
 	/* open table based on index_id */
-	dict_table_t* table = dict_table_open_on_index_id(
-		index_id,
-		dict_locked);
+	dict_table_t* table = dict_table_open_on_index_id(index_id);
 
 	if (table != NULL) {
 		/* mark table as being scrubbed */
@@ -668,7 +663,7 @@ btr_scrub_free_page(
 		* it will be found by scrubbing thread again
 		*/
 		memset(buf_block_get_frame(block) + PAGE_HEADER, 0,
-		       UNIV_PAGE_SIZE - PAGE_HEADER);
+		       srv_page_size - PAGE_HEADER);
 
 		mach_write_to_2(buf_block_get_frame(block) + FIL_PAGE_TYPE,
 				FIL_PAGE_TYPE_ALLOCATED);
@@ -747,7 +742,7 @@ btr_scrub_recheck_page(
 	}
 
 	mtr_start(mtr);
-	mtr_x_lock(dict_index_get_lock(scrub_data->current_index), mtr);
+	mtr_x_lock_index(scrub_data->current_index, mtr);
 	/** set savepoint for X-latch of block */
 	scrub_data->savepoint = mtr_set_savepoint(mtr);
 	return BTR_SCRUB_PAGE;
@@ -787,7 +782,7 @@ btr_scrub_page(
 	/* check that table/index still match now that they are loaded */
 
 	if (!scrub_data->current_table->space
-	    || scrub_data->current_table->space->id != scrub_data->space) {
+	    || scrub_data->current_table->space_id != scrub_data->space) {
 		/* this is truncate table */
 		mtr_commit(mtr);
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;

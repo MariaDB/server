@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /*
 =======================================================================
@@ -2084,26 +2084,21 @@ int decimal_mul(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
     }
   }
 
-  /* Now we have to check for -0.000 case */
-  if (to->sign)
+  /* Remove trailing zero words in frac part */
+  frac0= ROUND_UP(to->frac);
+
+  if (frac0 > 0 && to->buf[intg0 + frac0 - 1] == 0)
   {
-    dec1 *buf= to->buf;
-    dec1 *end= to->buf + intg0 + frac0;
-    DBUG_ASSERT(buf != end);
-    for (;;)
+    do
     {
-      if (*buf)
-        break;
-      if (++buf == end)
-      {
-        /* We got decimal zero */
-        decimal_make_zero(to);
-        break;
-      }
-    }
+      frac0--;
+    } while (frac0 > 0 && to->buf[intg0 + frac0 - 1] == 0);
+    to->frac= DIG_PER_DEC1 * frac0;
   }
+
+  /* Remove heading zero words in intg part */
   buf1= to->buf;
-  d_to_move= intg0 + ROUND_UP(to->frac);
+  d_to_move= intg0 + frac0;
   while (!*buf1 && (to->intg > DIG_PER_DEC1))
   {
     buf1++;
@@ -2115,6 +2110,14 @@ int decimal_mul(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
     dec1 *cur_d= to->buf;
     for (; d_to_move--; cur_d++, buf1++)
       *cur_d= *buf1;
+  }
+
+  /* Now we have to check for -0.000 case */
+  if (to->sign && to->frac == 0 && to->buf[0] == 0)
+  {
+    DBUG_ASSERT(to->intg <= DIG_PER_DEC1);
+    /* We got decimal zero */
+    decimal_make_zero(to);
   }
   return error;
 }
@@ -2248,7 +2251,7 @@ static int do_div_mod(const decimal_t *from1, const decimal_t *from2,
   */
   norm_factor=DIG_BASE/(*start2+1);
   norm2=(dec1)(norm_factor*start2[0]);
-  if (likely(len2>0))
+  if (unlikely(len2>0))
     norm2+=(dec1)(norm_factor*start2[1]/DIG_BASE);
 
   if (*start1 < *start2)
@@ -2270,7 +2273,7 @@ static int do_div_mod(const decimal_t *from1, const decimal_t *from2,
       guess=(norm_factor*x+norm_factor*y/DIG_BASE)/norm2;
       if (unlikely(guess >= DIG_BASE))
         guess=DIG_BASE-1;
-      if (likely(len2>0))
+      if (unlikely(len2>0))
       {
         /* hmm, this is a suspicious trick - I removed normalization here */
         if (start2[1]*guess > (x-guess*start2[0])*DIG_BASE+y)

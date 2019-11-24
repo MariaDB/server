@@ -1,6 +1,10 @@
 set system_versioning_alter_history=keep;
 # Check conventional partitioning on temporal tables
-create table t1 (x int)
+create or replace table t1 (
+x int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end))
 with system versioning
 partition by range columns (x) (
 partition p0 values less than (100),
@@ -34,7 +38,13 @@ select * from t1 partition (p1) for system_time all;
 x
 300
 # Engine change native <-> non-native versioning prohibited
-create or replace table t1 (i int) engine=DEFAULT_ENGINE with system versioning partition by hash(i);
+create or replace table t1 (
+i int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end))
+engine=DEFAULT_ENGINE
+with system versioning partition by hash(i);
 alter table t1 engine=NON_DEFAULT_ENGINE;
 ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change to/from native system versioning engine is not supported.
 ## CREATE TABLE
@@ -322,14 +332,21 @@ select * from t1 partition (p1sp0);
 x
 select * from t1 partition (p1sp1);
 x
-create or replace table t1 (a bigint)
+create or replace table t1 (
+a bigint,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end))
 with system versioning
 partition by range (a)
 (partition p0 values less than (20) engine innodb,
 partition p1 values less than maxvalue engine innodb);
 insert into t1 values (1);
 create or replace table t1 (
-f_int1 integer default 0
+f_int1 integer default 0,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end)
 ) with system versioning
 partition by range(f_int1)
 subpartition by hash(f_int1)
@@ -338,7 +355,11 @@ subpartition by hash(f_int1)
 subpartition subpart12 storage engine = 'innodb'));
 insert into t1 values (1);
 create or replace table t1 (i int) engine=innodb partition by key(i);
-alter table t1 add system versioning;
+alter table t1
+add column row_start SYS_DATATYPE as row start invisible,
+add column row_end SYS_DATATYPE as row end invisible,
+add period for system_time(row_start, row_end),
+add system versioning;
 insert into t1 values();
 # MDEV-14722 Assertion in ha_commit_trans for sub-statement
 create or replace table t1 (i int) with system versioning
@@ -479,6 +500,69 @@ insert into t1 values (1),(2),(3);
 update t1 set a = 4;
 delete from t1;
 delete from t1 where a is not null;
-# Test cleanup
-drop database test;
-create database test;
+# MDEV-14823 Wrong error message upon selecting from a system_time partition
+create or replace table t1 (i int) with system versioning partition by system_time limit 10 (partition p0 history, partition pn current);
+select * from t1 partition (p0) for system_time all;
+ERROR HY000: SYSTEM_TIME partitions in table `t1` does not support historical query
+# MDEV-15380 Index for versioned table gets corrupt after partitioning and DELETE
+create or replace table t1 (pk int primary key)
+engine=myisam
+with system versioning
+partition by key() partitions 3;
+set timestamp=1523466002.799571;
+insert into t1 values (11),(12);
+set timestamp=1523466004.169435;
+delete from t1 where pk in (11, 12);
+Same test but for Aria storage engine
+create or replace table t1 (pk int primary key)
+engine=aria
+with system versioning
+partition by key() partitions 3;
+set timestamp=1523466002.799571;
+insert into t1 values (11),(12);
+set timestamp=1523466004.169435;
+delete from t1 where pk in (11, 12);
+#
+# MDEV-18136 Server crashes in Item_func_dyncol_create::prepare_arguments
+#
+create or replace table t1 (pk int) with system versioning
+partition by system_time interval 7 second (
+partition ver_p1 history,
+partition ver_pn current);
+alter table t1
+partition by system_time interval column_get(column_create(7,7), 7 as int) second (
+partition ver_p1 history,
+partition ver_pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 7 SECOND
+(PARTITION `ver_p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `ver_pn` CURRENT ENGINE = DEFAULT_ENGINE)
+#
+# MDEV-19175 Server crashes in ha_partition::vers_can_native upon INSERT DELAYED into versioned partitioned table
+#
+create or replace table t1 (f int) with system versioning partition by hash(f);
+insert delayed into t1 values (1);
+#
+# MDEV-20068 History partition rotation is not done under LOCK TABLES
+#
+create or replace table t1 (x int) with system versioning partition by system_time limit 1
+(partition p1 history, partition pn current);
+lock tables t1 write;
+insert into t1 values (0), (1), (2), (3);
+delete from t1 where x < 3;
+delete from t1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+unlock tables;
+#
+# MDEV-20336 Assertion bitmap_is_set(read_partitions) upon SELECT FOR UPDATE from versioned table
+#
+create or replace table t1 (pk int primary key) with system versioning partition by system_time limit 100 (partition p1 history, partition pn current);
+execute immediate 'select * from t1 for update';
+pk
+drop view v1;
+drop tables t, t1, t2, t3, t4;

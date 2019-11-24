@@ -82,19 +82,32 @@ void
 Window_spec::print(String *str, enum_query_type query_type)
 {
   str->append('(');
+  print_partition(str, query_type);
+  print_order(str, query_type);
+
+  if (window_frame)
+    window_frame->print(str, query_type);
+  str->append(')');
+}
+
+void
+Window_spec::print_partition(String *str, enum_query_type query_type)
+{
   if (partition_list->first)
   {
     str->append(STRING_WITH_LEN(" partition by "));
     st_select_lex::print_order(str, partition_list->first, query_type);
   }
+}
+
+void
+Window_spec::print_order(String *str, enum_query_type query_type)
+{
   if (order_list->first)
   {
     str->append(STRING_WITH_LEN(" order by "));
     st_select_lex::print_order(str, order_list->first, query_type);
   }
-  if (window_frame)
-    window_frame->print(str, query_type);
-  str->append(')');
 }
 
 bool
@@ -442,6 +455,22 @@ int compare_order_lists(SQL_I_List<ORDER> *part_list1,
   for ( ; elem1 && elem2; elem1= elem1->next, elem2= elem2->next)
   {
     int cmp;
+    // remove all constants as we don't need them for comparision
+    while(elem1 && ((*elem1->item)->real_item())->const_item())
+    {
+      elem1= elem1->next;
+      continue;
+    }
+
+    while(elem2 && ((*elem2->item)->real_item())->const_item())
+    {
+      elem2= elem2->next;
+      continue;
+    }
+
+    if (!elem1 || !elem2)
+      break;
+
     if ((cmp= compare_order_elements(elem1, elem2)))
       return cmp;
   }
@@ -869,7 +898,7 @@ public:
   {
     Rowid_seq_cursor::init(info);
     table= info->table;
-    record= info->record;
+    record= info->record();
   }
 
   virtual int fetch()
@@ -2681,10 +2710,37 @@ bool save_window_function_values(List<Item_window_func>& window_functions,
                                  TABLE *tbl, uchar *rowid_buf)
 {
   List_iterator_fast<Item_window_func> iter(window_functions);
+  JOIN_TAB *join_tab= tbl->reginfo.join_tab;
   tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
   store_record(tbl, record[1]);
   while (Item_window_func *item_win= iter++)
     item_win->save_in_field(item_win->result_field, true);
+
+  /*
+    In case we have window functions present, an extra step is required
+    to compute all the fields from the temporary table.
+    In case we have a compound expression such as: expr + expr,
+    where one of the terms has a window function inside it, only
+    after computing window function values we actually know the true
+    final result of the compounded expression.
+
+    Go through all the func items and save their values once again in the
+    corresponding temp table fields. Do this for each row in the table.
+
+    This needs to be done earlier because ORDER BY clause can also have
+    a window function, so we need to make sure all the fields of the temp.table
+    are updated before we do the filesort. So is best to update the other fields
+    that contain the window functions along with the computation of window
+    functions.
+  */
+
+  Item **func_ptr= join_tab->tmp_table_param->items_to_copy;
+  Item *func;
+  for (; (func = *func_ptr) ; func_ptr++)
+  {
+    if (func->with_window_func && func->type() != Item::WINDOW_FUNC_ITEM)
+      func->save_in_result_field(true);
+  }
 
   int err= tbl->file->ha_update_row(tbl->record[1], tbl->record[0]);
   if (err && err != HA_ERR_RECORD_IS_THE_SAME)
@@ -2799,7 +2855,7 @@ bool compute_window_func(THD *thd,
 
       /* Check if we found any error in the window function while adding values
          through cursors. */
-      if (thd->is_error() || thd->is_killed())
+      if (unlikely(thd->is_error() || thd->is_killed()))
         break;
 
 
@@ -2928,10 +2984,10 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
 }
 
 
-bool Window_funcs_sort::exec(JOIN *join)
+bool Window_funcs_sort::exec(JOIN *join, bool keep_filesort_result)
 {
   THD *thd= join->thd;
-  JOIN_TAB *join_tab= join->join_tab + join->exec_join_tab_cnt();
+  JOIN_TAB *join_tab= join->join_tab + join->total_join_tab_cnt();
 
   /* Sort the table based on the most specific sorting criteria of
      the window functions. */
@@ -2943,8 +2999,11 @@ bool Window_funcs_sort::exec(JOIN *join)
 
   bool is_error= runner.exec(thd, tbl, filesort_result);
 
-  delete join_tab->filesort_result;
-  join_tab->filesort_result= NULL;
+  if (!keep_filesort_result)
+  {
+    delete join_tab->filesort_result;
+    join_tab->filesort_result= NULL;
+  }
   return is_error;
 }
 
@@ -3053,14 +3112,18 @@ bool Window_funcs_computation::setup(THD *thd,
 }
 
 
-bool Window_funcs_computation::exec(JOIN *join)
+bool Window_funcs_computation::exec(JOIN *join, bool keep_last_filesort_result)
 {
   List_iterator<Window_funcs_sort> it(win_func_sorts);
   Window_funcs_sort *srt;
+  uint counter= 0; /* Count how many sorts we've executed. */
   /* Execute each sort */
   while ((srt = it++))
   {
-    if (srt->exec(join))
+    counter++;
+    bool keep_filesort_result= keep_last_filesort_result &&
+                               counter == win_func_sorts.elements;
+    if (srt->exec(join, keep_filesort_result))
       return true;
   }
   return false;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef _my_sys_h
 #define _my_sys_h
@@ -67,6 +67,7 @@ typedef struct my_aio_result {
 #define MY_WAIT_IF_FULL 32U	/* Wait and try again if disk full error */
 #define MY_IGNORE_BADFD 32U     /* my_sync(): ignore 'bad descriptor' errors */
 #define MY_ENCRYPT      64U     /* Encrypt IO_CACHE temporary files */
+#define MY_TEMPORARY    64U     /* create_temp_file(): delete file at once */
 #define MY_NOSYMLINKS  512U     /* my_open(): don't follow symlinks */
 #define MY_FULL_IO     512U     /* my_read(): loop until I/O is complete */
 #define MY_DONT_CHECK_FILESIZE 128U /* Option to init_io_cache() */
@@ -260,11 +261,13 @@ extern ulonglong my_collation_statistics_get_use_count(uint id);
 extern const char *my_collation_get_tailoring(uint id);
 
 /* statistics */
-extern ulong	my_file_opened,my_stream_opened, my_tmp_file_created;
+extern ulong    my_stream_opened, my_tmp_file_created;
 extern ulong    my_file_total_opened;
 extern ulong    my_sync_count;
 extern uint	mysys_usage_id;
+extern int32    my_file_opened;
 extern my_bool	my_init_done, my_thr_key_mysys_exists;
+extern my_bool my_assert;
 extern my_bool  my_assert_on_error;
 extern myf      my_global_flags;        /* Set to MY_WME for more error messages */
 					/* Point to current my_message() */
@@ -573,21 +576,21 @@ static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 static inline size_t my_b_fill(IO_CACHE *info)
 {
   info->read_pos= info->read_end;
-  return _my_b_read(info,0,0) ? 0 : info->read_end - info->read_pos;
+  return _my_b_read(info,0,0) ? 0 : (size_t) (info->read_end - info->read_pos);
 }
 
 static inline my_off_t my_b_tell(const IO_CACHE *info)
 {
   if (info->type == WRITE_CACHE) {
-    return info->pos_in_file + (info->write_pos - info->request_pos);
+    return info->pos_in_file + (my_off_t)(info->write_pos - info->request_pos);
 
   }
-  return info->pos_in_file + (info->read_pos - info->request_pos);
+  return info->pos_in_file + (my_off_t) (info->read_pos - info->request_pos);
 }
 
 static inline my_off_t my_b_write_tell(const IO_CACHE *info)
 {
-  return info->pos_in_file + (info->write_pos - info->write_buffer);
+  return info->pos_in_file + (my_off_t) (info->write_pos - info->write_buffer);
 }
 
 static inline uchar* my_b_get_buffer_start(const IO_CACHE *info)
@@ -597,7 +600,7 @@ static inline uchar* my_b_get_buffer_start(const IO_CACHE *info)
 
 static inline size_t my_b_get_bytes_in_buffer(const IO_CACHE *info)
 {
-  return info->read_end - info->request_pos;
+  return (size_t) (info->read_end - info->request_pos);
 }
 
 static inline my_off_t my_b_get_pos_in_file(const IO_CACHE *info)
@@ -608,12 +611,14 @@ static inline my_off_t my_b_get_pos_in_file(const IO_CACHE *info)
 static inline size_t my_b_bytes_in_cache(const IO_CACHE *info)
 {
   if (info->type == WRITE_CACHE) {
-    return info->write_end - info->write_pos;
+    return (size_t) (info->write_end - info->write_pos);
   }
-  return info->read_end - info->read_pos;
+  return (size_t) (info->read_end - info->read_pos);
 }
 
-int      my_b_copy_to_file(IO_CACHE *cache, FILE *file);
+int my_b_copy_to_file    (IO_CACHE *cache, FILE *file, size_t count);
+int my_b_copy_all_to_file(IO_CACHE *cache, FILE *file);
+
 my_off_t my_b_append_tell(IO_CACHE* info);
 my_off_t my_b_safe_tell(IO_CACHE* info); /* picks the correct tell() */
 int my_b_pread(IO_CACHE *info, uchar *Buffer, size_t Count, my_off_t pos);
@@ -627,6 +632,7 @@ extern int (*mysys_test_invalid_symlink)(const char *filename);
 
 extern int my_copy(const char *from,const char *to,myf MyFlags);
 extern int my_delete(const char *name,myf MyFlags);
+extern int my_rmtree(const char *name, myf Myflags);
 extern int my_getwd(char * buf,size_t size,myf MyFlags);
 extern int my_setwd(const char *dir,myf MyFlags);
 extern int my_lock(File fd,int op,my_off_t start, my_off_t length,myf MyFlags);
@@ -732,12 +738,6 @@ void my_create_backup_name(char *to, const char *from,
                            time_t backup_time_stamp);
 extern int my_copystat(const char *from, const char *to, int MyFlags);
 extern char * my_filename(File fd);
-
-#ifdef EXTRA_DEBUG
-void my_print_open_files(void);
-#else
-#define my_print_open_files()
-#endif
 
 extern my_bool init_tmpdir(MY_TMPDIR *tmpdir, const char *pathlist);
 extern char *my_tmpdir(MY_TMPDIR *tmpdir);
@@ -964,8 +964,6 @@ extern ulonglong my_getcputime(void);
 #endif
 
 #ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-
 #ifndef MAP_NOSYNC
 #define MAP_NOSYNC      0
 #endif
@@ -1050,6 +1048,7 @@ extern char *get_tty_password(const char *opt_message);
 /* File system character set */
 extern CHARSET_INFO *fs_character_set(void);
 #endif
+extern const char *my_default_csname(void);
 extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);

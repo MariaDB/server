@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2017 Kentoku Shiba
+/* Copyright (C) 2009-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -52,11 +52,6 @@ extern PSI_mutex_key spd_key_mutex_mon_list_receptor;
 extern PSI_mutex_key spd_key_mutex_mon_list_monitor;
 extern PSI_mutex_key spd_key_mutex_mon_list_update_status;
 extern PSI_mutex_key spd_key_mutex_mon_table_cache;
-#endif
-
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-extern pthread_mutex_t spider_global_trx_mutex;
-extern SPIDER_TRX *spider_global_trx;
 #endif
 
 HASH *spider_udf_table_mon_list_hash;
@@ -134,7 +129,6 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
   )
 #endif
   {
-    DBUG_ASSERT(trx != spider_global_trx);
     if (
       table_mon_list &&
       table_mon_list->mon_table_cache_version != mon_table_cache_version
@@ -659,29 +653,17 @@ SPIDER_CONN *spider_get_ping_table_tgt_conn(
 ) {
   SPIDER_CONN *conn;
   DBUG_ENTER("spider_get_ping_table_tgt_conn");
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-  if (trx == spider_global_trx)
-    pthread_mutex_lock(&spider_global_trx_mutex);
-#endif
   if (
     !(conn = spider_get_conn(
       share, 0, share->conn_keys[0], trx, NULL, FALSE, FALSE,
       SPIDER_CONN_KIND_MYSQL, error_num))
   ) {
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-    if (trx == spider_global_trx)
-      pthread_mutex_unlock(&spider_global_trx_mutex);
-#endif
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0),
       share->server_names[0]);
     *error_num = ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
     goto error;
   }
 #ifndef DBUG_OFF
-  if (trx == spider_global_trx)
-  {
-    DBUG_ASSERT(!conn->thd);
-  }
   DBUG_PRINT("info",("spider conn->thd=%p", conn->thd));
   if (conn->thd)
   {
@@ -689,10 +671,6 @@ SPIDER_CONN *spider_get_ping_table_tgt_conn(
   }
 #endif
   conn->error_mode = 0;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-  if (trx == spider_global_trx)
-    pthread_mutex_unlock(&spider_global_trx_mutex);
-#endif
   DBUG_RETURN(conn);
 
 error:

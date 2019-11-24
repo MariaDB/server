@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**********************************************************************
 This file contains the implementation of error and warnings related
@@ -337,7 +337,7 @@ Diagnostics_area::set_ok_status(ulonglong affected_rows,
     In production, refuse to overwrite an error or a custom response
     with an OK packet.
   */
-  if (is_error() || is_disabled())
+  if (unlikely(is_error() || is_disabled()))
     return;
   /*
     When running a bulk operation, m_status will be DA_OK for the first
@@ -377,7 +377,7 @@ Diagnostics_area::set_eof_status(THD *thd)
     In production, refuse to overwrite an error or a custom response
     with an EOF packet.
   */
-  if (is_error() || is_disabled())
+  if (unlikely(is_error() || is_disabled()))
     return;
 
   /*

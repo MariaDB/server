@@ -1,17 +1,10 @@
-set @save_optimizer_switch=@@optimizer_switch;
 set @@optimizer_switch='optimize_join_buffer_size=on';
 set @@optimizer_switch='semijoin_with_cache=on';
 set @@optimizer_switch='outer_join_with_cache=on';
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set join_cache_level=6;
-show variables like 'join_cache_level';
-Variable_name	Value
-join_cache_level	6
-set @join_cache_level_for_subselect3_test=@@join_cache_level;
 drop table if exists t0, t1, t2, t3, t4, t5, t11, t12, t21, t22;
-set @subselect3_tmp= @@optimizer_switch;
 set optimizer_switch='semijoin=on,firstmatch=on,loosescan=on,semijoin_with_cache=on';
-set join_cache_level=@join_cache_level_for_subselect3_test;
 create table t1 (oref int, grp int, ie int) ;
 insert into t1 (oref, grp, ie) values
 (1, 1, 1),
@@ -1149,8 +1142,8 @@ create table t3 (a int);
 insert into t3 select A.a + 10*B.a from t0 A, t0 B;
 explain select * from t3 where a in (select kp1 from t1 where kp1<20);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	kp1	kp1	5	NULL	48	Using where; Using index; LooseScan
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	PRIMARY	t1	ref	kp1	kp1	5	test.t3.a	1	Using index; FirstMatch(t3)
 create table t4 (pk int primary key);
 insert into t4 select a from t3;
 explain select * from t3 where a in (select t1.kp1 from t1,t4 where kp1<20
@@ -1286,12 +1279,12 @@ insert into t1 select A.a, B.a, 'filler' from t0 A, t0 B;
 create table t2 as select * from t1;
 explain select * from t2 where a in (select b from t1 where a=3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ref	a	a	5	const	8	Using index; LooseScan
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	PRIMARY	t1	ref	a	a	10	const,test.t2.a	1	Using index; FirstMatch(t2)
 explain select * from t2 where (b,a) in (select a,b from t1 where a=3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ref	a	a	5	const	8	Using index; LooseScan
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	PRIMARY	t1	ref	a	a	10	const,test.t2.a	1	Using index; FirstMatch(t2)
 drop table t1,t2;
 set @@optimizer_switch=@save_optimizer_switch;
 create table t1 (a int, b int);
@@ -1348,10 +1341,10 @@ create table t2 as select a as a, a as b from t0 where a < 3;
 insert into t2 select * from t2;
 explain select * from t1 where (a,b,c) in (select X.a, Y.a, Z.a from t2 X, t2 Y, t2 Z where X.b=33);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	X	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	Y	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	Z	ALL	NULL	NULL	NULL	NULL	6	Using where; FirstMatch(t1); Using join buffer (incremental, BNL join)
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	X	hash_ALL	NULL	#hash#$hj	5	test.t1.a	6	Using where; Start temporary; Using join buffer (flat, BNLH join)
+1	PRIMARY	Y	hash_ALL	NULL	#hash#$hj	5	test.t1.b	6	Using where; Using join buffer (incremental, BNLH join)
+1	PRIMARY	Z	hash_ALL	NULL	#hash#$hj	5	test.t1.c	6	Using where; End temporary; Using join buffer (incremental, BNLH join)
 drop table t0,t1,t2;
 set @@optimizer_switch=@save_optimizer_switch;
 
@@ -1554,10 +1547,4 @@ Note	1276	Field or reference 'test.t2.v' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`i` AS `i`,`test`.`t2`.`v` AS `v`,<expr_cache><`test`.`t2`.`v`>((/* select#2 */ select count(distinct `test`.`t1`.`i`) from `test`.`t1` where `test`.`t1`.`v` = `test`.`t2`.`v`)) AS `subsel` from `test`.`t2`
 DROP TABLE t1,t2;
 End of 5.6 tests
-set @@optimizer_switch=@subselect3_tmp;
-set join_cache_level=default;
-show variables like 'join_cache_level';
-Variable_name	Value
-join_cache_level	2
-set @@optimizer_switch=@save_optimizer_switch;
-set @join_cache_level_for_subselect3_test=NULL;
+# end of 10.2 test

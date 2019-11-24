@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,11 +27,8 @@ Created 13/06/2005 Jan Lindstrom
 #ifndef row0merge_h
 #define row0merge_h
 
-#include "univ.i"
-#include "data0data.h"
-#include "dict0types.h"
-#include "trx0types.h"
 #include "que0types.h"
+#include "trx0types.h"
 #include "mtr0mtr.h"
 #include "rem0types.h"
 #include "rem0rec.h"
@@ -61,11 +58,11 @@ struct ib_sequence_t;
 
 /** @brief Block size for I/O operations in merge sort.
 
-The minimum is UNIV_PAGE_SIZE, or page_get_free_space_of_empty()
+The minimum is srv_page_size, or page_get_free_space_of_empty()
 rounded to a power of 2.
 
 When not creating a PRIMARY KEY that contains column prefixes, this
-can be set as small as UNIV_PAGE_SIZE / 2. */
+can be set as small as srv_page_size / 2. */
 typedef byte	row_merge_block_t;
 
 /** @brief Secondary buffer for I/O operations of merge records.
@@ -295,6 +292,12 @@ row_merge_drop_table(
 	dict_table_t*	table)		/*!< in: table instance to drop */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+/** Write an MLOG_INDEX_LOAD record to indicate in the redo-log
+that redo-logging of individual index pages was disabled, and
+the flushing of such pages to the data files was completed.
+@param[in]	index	an index tree on which redo logging was disabled */
+void row_merge_write_redo(const dict_index_t* index);
+
 /** Build indexes on a table by reading a clustered index, creating a temporary
 file containing index entries, merge sorting these index entries and inserting
 sorted index entries to indexes.
@@ -322,7 +325,7 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	add_v		new virtual columns added along with indexes
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
-@param[in]	drop_historical	whether to drop historical system rows
+@param[in]	allow_non_null	allow the conversion from null to not-null
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -342,7 +345,7 @@ row_merge_build_indexes(
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
 	struct TABLE*		eval_table,
-	bool			drop_historical)
+	bool			allow_non_null)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
@@ -367,7 +370,9 @@ row_merge_buf_sort(
 
 /********************************************************************//**
 Write a merge block to the file system.
-@return whether the request was completed successfully */
+@return whether the request was completed successfully
+@retval	false	on error
+@retval	true	on success */
 UNIV_INTERN
 bool
 row_merge_write(

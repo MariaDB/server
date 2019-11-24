@@ -45,13 +45,11 @@ disconnect plug_con;
 connect(plug_con,localhost,plug,bad_credentials);
 --enable_query_log
 
---echo ## test bad default plugin : should get CR_AUTH_PLUGIN_CANNOT_LOAD
---disable_result_log
---disable_query_log
---error 2059
+--echo ## test bad default plugin : nothing bad happens, as that plugin was't required by the server
 connect(plug_con_wrongp,localhost,plug,plug_dest,,,,,wrong_plugin_name);
---enable_query_log
---enable_result_log
+select USER(),CURRENT_USER();
+connection default;
+disconnect plug_con_wrongp;
 
 --echo ## test correct default plugin
 connect(plug_con_rightp,localhost,plug,plug_dest,,,,,auth_test_plugin);

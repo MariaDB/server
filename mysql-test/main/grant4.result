@@ -129,6 +129,26 @@ connection default;
 disconnect con1;
 drop database mysqltest_db1;
 drop user mysqltest_u1@localhost;
+call mtr.add_suppression("Table 'mysql.user' doesn't exist");
+call mtr.add_suppression("'mysql.user' is not of type 'TABLE'");
+rename table mysql.user to mysql.user1;
+create view mysql.user as select * from mysql.user1;
+flush privileges;
+ERROR HY000: 'mysql.user' is not of type 'TABLE'
+drop view mysql.user;
+create temporary table mysql.user select * from mysql.user1 limit 0;
+flush privileges;
+ERROR 42S02: Table 'mysql.user' doesn't exist
+drop temporary table mysql.user;
+rename table mysql.user1 to mysql.user;
+call mtr.add_suppression('mysql.user table is damaged');
+rename table mysql.user to mysql.user1;
+create table mysql.user (Host char(100), User char(100));
+flush privileges;
+ERROR HY000: Unknown error
+drop table mysql.user;
+rename table mysql.user1 to mysql.user;
+End of 5.5 tests
 #
 # Additional coverage for refactoring which is made as part
 # of fix for bug #27480 "Extend CREATE TEMPORARY TABLES privilege
@@ -224,3 +244,4 @@ ERROR HY000: Password hash should be a 16-digit hexadecimal number
 create user foo4 identified via mysql_old_password using '11111111111111111111111111111111111111111';
 ERROR HY000: Password hash should be a 16-digit hexadecimal number
 set GLOBAL sql_mode=default;
+End of 10.1 tests

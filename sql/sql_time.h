@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_TIME_INCLUDED
 #define SQL_TIME_INCLUDED
@@ -42,13 +42,13 @@ bool str_to_datetime_with_warn(CHARSET_INFO *cs, const char *str, size_t length,
                                ulonglong flags);
 bool double_to_datetime_with_warn(double value, MYSQL_TIME *ltime,
                                   ulonglong fuzzydate,
-                                  const char *name);
+                                  const TABLE_SHARE *s, const char *name);
 bool decimal_to_datetime_with_warn(const my_decimal *value, MYSQL_TIME *ltime,
                                    ulonglong fuzzydate,
-                                   const char *name);
+                                   const TABLE_SHARE *s, const char *name);
 bool int_to_datetime_with_warn(bool neg, ulonglong value, MYSQL_TIME *ltime,
                                ulonglong fuzzydate,
-                               const char *name);
+                               const TABLE_SHARE *s, const char *name);
 
 bool time_to_datetime(THD *thd, const MYSQL_TIME *tm, MYSQL_TIME *dt);
 bool time_to_datetime_with_warn(THD *thd,
@@ -118,14 +118,15 @@ void make_truncated_value_warning(THD *thd,
                                   Sql_condition::enum_warning_level level,
                                   const ErrConv *str_val,
                                   timestamp_type time_type,
-                                  const char *field_name);
+                                  const TABLE_SHARE *s, const char *field_name);
 
 static inline void make_truncated_value_warning(THD *thd,
-                Sql_condition::enum_warning_level level, const char *str_val, size_t str_length, timestamp_type time_type,
-                const char *field_name)
+                Sql_condition::enum_warning_level level, const char *str_val,
+		size_t str_length, timestamp_type time_type,
+                const TABLE_SHARE *s, const char *field_name)
 {
   const ErrConvString str(str_val, str_length, &my_charset_bin);
-  make_truncated_value_warning(thd, level, &str, time_type, field_name);
+  make_truncated_value_warning(thd, level, &str, time_type, s, field_name);
 }
 
 extern DATE_TIME_FORMAT *date_time_format_make(timestamp_type format_type,

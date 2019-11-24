@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* Copy data from a textfile to table */
@@ -41,6 +41,7 @@
 #include "sql_trigger.h"
 #include "sql_derived.h"
 #include "sql_show.h"
+#include "debug_sync.h"
 
 extern "C" int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t Count);
 
@@ -119,16 +120,26 @@ static bool wsrep_load_data_split(THD *thd, const TABLE *table,
     if (hton->db_type != DB_TYPE_INNODB)
       DBUG_RETURN(false);
     WSREP_DEBUG("intermediate transaction commit in LOAD DATA");
+    wsrep_set_load_multi_commit(thd, true);
     if (wsrep_run_wsrep_commit(thd, true) != WSREP_TRX_OK) DBUG_RETURN(true);
     if (binlog_hton->commit(binlog_hton, thd, true)) DBUG_RETURN(true);
     wsrep_post_commit(thd, true);
     hton->commit(hton, thd, true);
+    wsrep_set_load_multi_commit(thd, false);
+    DEBUG_SYNC(thd, "intermediate_transaction_commit");
     table->file->extra(HA_EXTRA_FAKE_START_STMT);
   }
 
   DBUG_RETURN(false);
 }
-# define WSREP_LOAD_DATA_SPLIT(thd,table,info)		\
+/*
+  If the commit fails, then an early return from
+  the function occurs there and therefore we need
+  to reset the table->auto_increment_field_not_null
+  flag, which is usually reset after calling
+  the write_record():
+*/
+#define WSREP_LOAD_DATA_SPLIT(thd,table,info)		\
   if (wsrep_load_data_split(thd,table,info))		\
   {							\
     table->auto_increment_field_not_null= FALSE;	\
@@ -137,6 +148,14 @@ static bool wsrep_load_data_split(THD *thd, const TABLE *table,
 #else /* WITH_WSREP */
 #define WSREP_LOAD_DATA_SPLIT(thd,table,info) /* empty */
 #endif /* WITH_WSREP */
+
+#define WRITE_RECORD(thd,table,info)			\
+  do {							\
+    int err_= write_record(thd, table, &info);		\
+    table->auto_increment_field_not_null= FALSE;	\
+    if (err_)						\
+      DBUG_RETURN(1);					\
+  } while (0)
 
 class READ_INFO: public Load_data_param
 {
@@ -387,8 +406,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
     DBUG_RETURN(TRUE);
-  if (mysql_handle_single_derived(thd->lex, table_list, DT_MERGE_FOR_INSERT) ||
-      mysql_handle_single_derived(thd->lex, table_list, DT_PREPARE))
+  if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
+    DBUG_RETURN(TRUE);
+  if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
     DBUG_RETURN(TRUE);
   if (setup_tables_and_check_access(thd, &thd->lex->select_lex.context,
                                     &thd->lex->select_lex.top_join_list,
@@ -402,6 +422,11 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       check_key_in_view(thd, table_list))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "LOAD");
+    DBUG_RETURN(TRUE);
+  }
+  if (table_list->is_multitable())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "Multi-table VIEW", "LOAD");
     DBUG_RETURN(TRUE);
   }
   if (table_list->prepare_where(thd, 0, TRUE) ||
@@ -431,19 +456,15 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   is_concurrent= (table_list->lock_type == TL_WRITE_CONCURRENT_INSERT);
 #endif
 
-  if (table->versioned(VERS_TIMESTAMP) && handle_duplicates == DUP_REPLACE)
-  {
-    // Additional memory may be required to create historical items.
-    if (table_list->set_insert_values(thd->mem_root))
-      DBUG_RETURN(TRUE);
-  }
-
   if (!fields_vars.elements)
   {
     Field_iterator_table_ref field_iterator;
     field_iterator.set(table_list);
     for (; !field_iterator.end_of_fields(); field_iterator.next())
     {
+      if (field_iterator.field() &&
+              field_iterator.field()->invisible > VISIBLE)
+        continue;
       Item *item;
       if (!(item= field_iterator.create_item(thd)))
         DBUG_RETURN(TRUE);
@@ -593,7 +614,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                       *ex->field_term, *ex->line_start,
                       *ex->line_term, *ex->enclosed,
 		      info.escape_char, read_file_from_client, is_fifo);
-  if (read_info.error)
+  if (unlikely(read_info.error))
   {
     if (file >= 0)
       mysql_file_close(file, MYF(0));           // no files in net reading
@@ -625,7 +646,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   }
 
   thd_proc_info(thd, "Reading file");
-  if (!(error= MY_TEST(read_info.error)))
+  if (likely(!(error= MY_TEST(read_info.error))))
   {
     table->reset_default_fields();
     table->next_number_field=table->found_next_number_field;
@@ -641,6 +662,10 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     table->copy_blobs=1;
 
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
+
+    if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS) &&
+        (error= table_list->table->file->ha_rnd_init_with_error(0)))
+      goto err;
 
     thd_progress_init(thd, 2);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
@@ -661,8 +686,11 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                             set_fields, set_values, read_info,
                             *ex->enclosed, skip_lines, ignore);
 
+    if (table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS)
+      table_list->table->file->ha_rnd_end();
+
     thd_proc_info(thd, "End bulk insert");
-    if (!error)
+    if (likely(!error))
       thd_progress_next_stage(thd);
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
         table->file->ha_end_bulk_insert() && !error)
@@ -787,7 +815,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       */
       error= error || mysql_bin_log.get_log_file()->error;
     }
-    if (error)
+    if (unlikely(error))
       goto err;
   }
 #endif /*!EMBEDDED_LIBRARY*/
@@ -916,7 +944,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   List_iterator_fast<Item> it(fields_vars);
   Item *item;
   TABLE *table= table_list->table;
-  bool err, progress_reports;
+  bool progress_reports;
   ulonglong counter, time_to_report_progress;
   DBUG_ENTER("read_fixed_length");
 
@@ -1008,11 +1036,8 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
 
     WSREP_LOAD_DATA_SPLIT(thd, table, info);
-    err= write_record(thd, table, &info);
-    table->auto_increment_field_not_null= FALSE;
-    if (err)
-      DBUG_RETURN(1);
-   
+    WRITE_RECORD(thd, table, info);
+
     /*
       We don't need to reset auto-increment field since we are restoring
       its default value at the beginning of each loop iteration.
@@ -1045,7 +1070,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   Item *item;
   TABLE *table= table_list->table;
   uint enclosed_length;
-  bool err, progress_reports;
+  bool progress_reports;
   ulonglong counter, time_to_report_progress;
   DBUG_ENTER("read_sep_field");
 
@@ -1110,11 +1135,11 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       }
     }
 
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
       read_info.error= 1;
-
-    if (read_info.error)
+    if (unlikely(read_info.error))
       break;
+
     if (skip_lines)
     {
       skip_lines--;
@@ -1129,16 +1154,16 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       {
         Load_data_outvar *dst= item->get_load_data_outvar_or_error();
         DBUG_ASSERT(dst);
-        if (dst->load_data_set_no_data(thd, &read_info))
+        if (unlikely(dst->load_data_set_no_data(thd, &read_info)))
           DBUG_RETURN(1);
       }
     }
 
-    if (thd->killed ||
-        fill_record_n_invoke_before_triggers(thd, table, set_fields,
-                                             set_values,
-                                             ignore_check_option_errors,
-                                             TRG_EVENT_INSERT))
+    if (unlikely(thd->killed) ||
+        unlikely(fill_record_n_invoke_before_triggers(thd, table, set_fields,
+                                                      set_values,
+                                                      ignore_check_option_errors,
+                                                      TRG_EVENT_INSERT)))
       DBUG_RETURN(1);
 
     switch (table_list->view_check_option(thd,
@@ -1151,10 +1176,8 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
 
     WSREP_LOAD_DATA_SPLIT(thd, table, info);
-    err= write_record(thd, table, &info);
-    table->auto_increment_field_not_null= FALSE;
-    if (err)
-      DBUG_RETURN(1);
+    WRITE_RECORD(thd, table, info);
+
     /*
       We don't need to reset auto-increment field since we are restoring
       its default value at the beginning of each loop iteration.
@@ -1198,7 +1221,6 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   
   for ( ; ; it.rewind())
   {
-    bool err;
     if (thd->killed)
     {
       thd->send_kill_message();
@@ -1247,7 +1269,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         DBUG_RETURN(1);
     }
     
-    if (read_info.error)
+    if (unlikely(read_info.error))
       break;
     
     if (skip_lines)
@@ -1272,13 +1294,10 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     case VIEW_CHECK_ERROR:
       DBUG_RETURN(-1);
     }
-    
+
     WSREP_LOAD_DATA_SPLIT(thd, table, info);
-    err= write_record(thd, table, &info);
-    table->auto_increment_field_not_null= false;
-    if (err)
-      DBUG_RETURN(1);
-    
+    WRITE_RECORD(thd, table, info);
+
     /*
       We don't need to reset auto-increment field since we are restoring
       its default value at the beginning of each loop iteration.
@@ -2044,7 +2063,7 @@ int READ_INFO::read_xml(THD *thd)
       chr= read_value(delim, &value);
       if (attribute.length() > 0 && value.length() > 0)
       {
-        DBUG_PRINT("read_xml", ("lev:%i att:%s val:%s\n",
+        DBUG_PRINT("read_xml", ("lev:%i att:%s val:%s",
                                 level + 1,
                                 attribute.c_ptr_safe(),
                                 value.c_ptr_safe()));

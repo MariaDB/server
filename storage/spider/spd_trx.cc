@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -253,7 +253,7 @@ int spider_trx_another_lock_tables(
   sql_str.init_calc_mem(188);
   sql_str.length(0);
   memset((void*)&tmp_spider, 0, sizeof(ha_spider));
-  memset(&tmp_share, 0, sizeof(SPIDER_SHARE));
+  memset((void*)&tmp_share, 0, sizeof(SPIDER_SHARE));
   tmp_spider.share = &tmp_share;
   tmp_spider.trx = trx;
   tmp_share.access_charset = system_charset_info;
@@ -1586,21 +1586,23 @@ int spider_check_and_set_trx_isolation(
   SPIDER_CONN *conn,
   int *need_mon
 ) {
+  THD *thd = conn->thd;
   int trx_isolation;
   DBUG_ENTER("spider_check_and_set_trx_isolation");
-
-  trx_isolation = thd_tx_isolation(conn->thd);
-  DBUG_PRINT("info",("spider local trx_isolation=%d", trx_isolation));
-/*
-  DBUG_PRINT("info",("spider conn->trx_isolation=%d", conn->trx_isolation));
-  if (conn->trx_isolation != trx_isolation)
+  if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL)
   {
-*/
-    spider_conn_queue_trx_isolation(conn, trx_isolation);
-/*
-    conn->trx_isolation = trx_isolation;
+    if ((trx_isolation = spider_param_slave_trx_isolation()) == -1)
+    {
+      trx_isolation = thd_tx_isolation(thd);
+      DBUG_PRINT("info",("spider local trx_isolation=%d", trx_isolation));
+    } else {
+      DBUG_PRINT("info",("spider slave trx_isolation=%d", trx_isolation));
+    }
+  } else {
+    trx_isolation = thd_tx_isolation(thd);
+    DBUG_PRINT("info",("spider local trx_isolation=%d", trx_isolation));
   }
-*/
+  spider_conn_queue_trx_isolation(conn, trx_isolation);
   DBUG_RETURN(0);
 }
 
@@ -1638,15 +1640,18 @@ int spider_check_and_set_sql_log_off(
   SPIDER_CONN *conn,
   int *need_mon
 ) {
-  bool internal_sql_log_off;
+  int internal_sql_log_off;
   DBUG_ENTER("spider_check_and_set_sql_log_off");
 
   internal_sql_log_off = spider_param_internal_sql_log_off(thd);
-  if (internal_sql_log_off)
+  if (internal_sql_log_off != -1)
   {
-    spider_conn_queue_sql_log_off(conn, TRUE);
-  } else {
-    spider_conn_queue_sql_log_off(conn, FALSE);
+    if (internal_sql_log_off)
+    {
+      spider_conn_queue_sql_log_off(conn, TRUE);
+    } else {
+      spider_conn_queue_sql_log_off(conn, FALSE);
+    }
   }
 /*
   if (internal_sql_log_off && conn->sql_log_off != 1)
@@ -1835,7 +1840,6 @@ int spider_internal_start_trx(
   SPIDER_TRX *trx = spider->trx;
   THD *thd = trx->thd;
   bool sync_autocommit = spider_param_sync_autocommit(thd);
-  bool sync_time_zone = spider_param_sync_time_zone(thd);
   double ping_interval_at_trx_start =
     spider_param_ping_interval_at_trx_start(thd);
   bool xa_lock = FALSE;
@@ -1862,9 +1866,6 @@ int spider_internal_start_trx(
   if (
     (error_num = spider_check_and_set_sql_log_off(thd, conn,
       &spider->need_mons[link_idx])) ||
-    (sync_time_zone &&
-      (error_num = spider_check_and_set_time_zone(thd, conn,
-        &spider->need_mons[link_idx]))) ||
     (sync_autocommit &&
       (error_num = spider_check_and_set_autocommit(thd, conn,
         &spider->need_mons[link_idx])))
@@ -2762,7 +2763,8 @@ int spider_initinal_xa_recover(
       FALSE, FALSE);
   }
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
-  while ((!(read_record->read_record())) && cnt < (int) len)
+  while ((!(read_record->SPIDER_read_record_read_record(read_record))) &&
+    cnt < (int) len)
   {
     spider_get_sys_xid(table_xa, &xid_list[cnt], &mem_root);
     cnt++;
@@ -2811,7 +2813,7 @@ int spider_internal_xa_commit_by_xid(
   SPIDER_TRX *trx,
   XID* xid
 ) {
-  TABLE *table_xa, *table_xa_member= 0;
+  TABLE *table_xa, *table_xa_member = 0;
   int error_num;
   char xa_key[MAX_KEY_LENGTH];
   char xa_member_key[MAX_KEY_LENGTH];
@@ -2942,7 +2944,7 @@ int spider_internal_xa_commit_by_xid(
     }
   }
 
-  memset(&tmp_share, 0, sizeof(SPIDER_SHARE));
+  memset((void*)&tmp_share, 0, sizeof(SPIDER_SHARE));
   memset(&tmp_connect_info, 0,
     sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT);
   spider_set_tmp_share_pointer(&tmp_share, tmp_connect_info,
@@ -3046,7 +3048,7 @@ int spider_internal_xa_rollback_by_xid(
   SPIDER_TRX *trx,
   XID* xid
 ) {
-  TABLE *table_xa, *table_xa_member= 0;
+  TABLE *table_xa, *table_xa_member = 0;
   int error_num;
   char xa_key[MAX_KEY_LENGTH];
   char xa_member_key[MAX_KEY_LENGTH];
@@ -3175,7 +3177,7 @@ int spider_internal_xa_rollback_by_xid(
     }
   }
 
-  memset(&tmp_share, 0, sizeof(SPIDER_SHARE));
+  memset((void*)&tmp_share, 0, sizeof(SPIDER_SHARE));
   memset(&tmp_connect_info, 0,
     sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT);
   spider_set_tmp_share_pointer(&tmp_share, tmp_connect_info,

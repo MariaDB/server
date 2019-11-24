@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Written by Sergei A. Golubchik, who has a shared copyright to this code */
 
@@ -75,19 +75,15 @@ static int walk_and_match(FT_WORD *word, uint32 count, ALL_IN_ONE *aio)
   MI_KEYDEF    *keyinfo=info->s->keyinfo+aio->keynr;
   my_off_t     key_root;
   uint         extra= HA_FT_WLEN + info->s->rec_reflength;
-#if HA_FT_WTYPE == HA_KEYTYPE_FLOAT
   float tmp_weight;
-#else
-#error
-#endif
   DBUG_ENTER("walk_and_match");
-  LINT_INIT_STRUCT(subkeys);
 
   word->weight=LWS_FOR_QUERY;
 
   keylen=_ft_make_key(info,aio->keynr,keybuff,word,0);
   keylen-=HA_FT_WLEN;
   doc_cnt=0;
+  subkeys.i= 0;
 
   if (share->concurrent_insert)
     mysql_rwlock_rdlock(&share->key_root_lock[aio->keynr]);
@@ -134,12 +130,8 @@ static int walk_and_match(FT_WORD *word, uint32 count, ALL_IN_ONE *aio)
       r=_mi_search_first(info, keyinfo, key_root);
       goto do_skip;
     }
-#if HA_FT_WTYPE == HA_KEYTYPE_FLOAT
     /* The weight we read was actually a float */
     tmp_weight= subkeys.f;
-#else
-#error
-#endif
   /* The following should be safe, even if we compare doubles */
     if (tmp_weight==0)
       DBUG_RETURN(doc_cnt); /* stopword, doc_cnt should be 0 */

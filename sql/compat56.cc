@@ -13,7 +13,7 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "compat56.h"
@@ -254,6 +254,9 @@ void TIME_from_longlong_datetime_packed(MYSQL_TIME *ltime, longlong tmp)
 {
   longlong ymd, hms;
   longlong ymdhms, ym;
+
+  DBUG_ASSERT(tmp != LONGLONG_MIN);
+
   if ((ltime->neg= (tmp < 0)))
     tmp= -tmp;
 

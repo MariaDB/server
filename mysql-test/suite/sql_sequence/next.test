@@ -269,3 +269,14 @@ create temporary table tmp (i int);
 --error ER_NOT_SEQUENCE
 select next value for tmp;
 drop table tmp;
+
+--echo #
+--echo # Test negative numbers
+--echo #
+
+create sequence s start with 1 minvalue=-1000 maxvalue=1000 increment -1;
+select next value for s;
+select next value for s;
+flush tables;
+select next value for s;
+drop sequence s;

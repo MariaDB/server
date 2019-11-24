@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* Analyse database */
@@ -88,7 +88,7 @@ proc_analyse_init(THD *thd, ORDER *param, select_result *result,
   else if (param->next)
   {
     // first parameter
-    if (!(*param->item)->fixed && (*param->item)->fix_fields(thd, param->item))
+    if ((*param->item)->fix_fields_if_needed(thd, param->item))
     {
       DBUG_PRINT("info", ("fix_fields() for the first parameter failed"));
       goto err;
@@ -107,7 +107,7 @@ proc_analyse_init(THD *thd, ORDER *param, select_result *result,
       goto err;
     }
     // second parameter
-    if (!(*param->item)->fixed && (*param->item)->fix_fields(thd, param->item))
+    if ((*param->item)->fix_fields_if_needed(thd, param->item))
     {
       DBUG_PRINT("info", ("fix_fields() for the second parameter failed"));
       goto err;
@@ -298,9 +298,9 @@ bool get_ev_num_info(EV_NUM_INFO *ev_info, NUM_INFO *info, const char *num)
 } // get_ev_num_info
 
 
-int free_string(String *s)
+int free_string(void* str, TREE_FREE, void*)
 {
-  s->free();
+  ((String*)str)->free();
   return 0;
 }
 
@@ -1242,4 +1242,3 @@ uint check_ulonglong(const char *str, uint length)
   while (*cmp && *cmp++ == *str++) ;
   return ((uchar) str[-1] <= (uchar) cmp[-1]) ? smaller : bigger;
 } /* check_ulonlong */
-

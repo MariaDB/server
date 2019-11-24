@@ -1,0 +1,90 @@
+--source "include/have_rocksdb.inc"
+--source "include/have_log_bin.inc"
+# Don't run this with --rpc_protocol because it is doing its own work with
+# the RPC protocol
+--source "include/not_rpc_protocol.inc"
+
+#
+# This test was created because 2pc transactions were failing in MyRocks
+# when using detached sessions.  The test generates two separate transactions
+# in two detached sessions and then attempts to commit them as simultaneously
+# as possible.  This consistently showed the problem but succeeds after the
+# fix was put in place.
+
+CREATE DATABASE db_rpc;
+USE db_rpc;
+CREATE TABLE t1(pk INT PRIMARY KEY) ENGINE=rocksdb;
+
+SET GLOBAL rocksdb_enable_2pc=1;
+
+connect(con2,localhost,root,,);
+connection default;
+
+query_attrs_add rpc_role root;
+query_attrs_add rpc_db db_rpc;
+SET autocommit = 0;
+let $rpc_id1 = get_rpc_id();
+if ($rpc_id1 == "") {
+  echo "Fail: rpc_id not returned as expected";
+}
+
+SET autocommit = 0;
+let $rpc_id2 = get_rpc_id();
+if ($rpc_id2 == "") {
+  echo "Fail: rpc_id not returned as expected";
+}
+
+query_attrs_delete rpc_role;
+query_attrs_delete rpc_db;
+
+query_attrs_add rpc_id $rpc_id1;
+BEGIN;
+query_attrs_delete rpc_id;
+
+query_attrs_add rpc_id $rpc_id2;
+BEGIN;
+query_attrs_delete rpc_id;
+
+query_attrs_add rpc_id $rpc_id1;
+SELECT * from t1;
+query_attrs_delete rpc_id;
+
+query_attrs_add rpc_id $rpc_id2;
+SELECT * from t1;
+query_attrs_delete rpc_id;
+
+query_attrs_add rpc_id $rpc_id1;
+INSERT INTO t1 VALUES(1);
+query_attrs_delete rpc_id;
+
+query_attrs_add rpc_id $rpc_id2;
+INSERT INTO t1 VALUES(2);
+query_attrs_delete rpc_id;
+
+query_attrs_add rpc_id $rpc_id1;
+send COMMIT;
+
+connection con2;
+query_attrs_add rpc_id $rpc_id2;
+send COMMIT;
+
+connection default;
+reap;
+query_attrs_delete rpc_id;
+
+connection con2;
+reap;
+query_attrs_delete rpc_id;
+
+connection default;
+disconnect con2;
+
+SELECT * from db_rpc.t1;
+
+disable_query_log;
+eval KILL $rpc_id1;
+eval KILL $rpc_id2;
+enable_query_log;
+
+DROP DATABASE db_rpc;
+

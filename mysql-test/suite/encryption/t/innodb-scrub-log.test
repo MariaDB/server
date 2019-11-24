@@ -1,7 +1,7 @@
 --source include/have_innodb.inc
 
 #
-# MDEV-11705: InnoDB: Failing assertion: (&log_sys->mutex)->is_owned() if server started with innodb-scrub-log
+# MDEV-11705: InnoDB: Failing assertion: (&log_sys.mutex)->is_owned() if server started with innodb-scrub-log
 #
 
 create table t1(a int not null primary key auto_increment,

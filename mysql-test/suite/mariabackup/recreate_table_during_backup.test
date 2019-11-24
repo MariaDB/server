@@ -1,0 +1,37 @@
+--source include/have_debug.inc
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+mkdir $targetdir;
+
+CREATE TABLE t1(i int) ENGINE=INNODB;
+CREATE TABLE t2(i int) ENGINE=INNODB;
+CREATE TABLE t3(a CHAR(36)) ENGINE INNODB;
+INSERT INTO t3 SELECT UUID() FROM seq_1_to_1000;
+
+# this will table and populate it, after backup has list of tables to be copied
+--let before_copy_test_t1=BEGIN NOT ATOMIC DROP TABLE test.t1;CREATE TABLE test.t1 ENGINE=INNODB SELECT UUID() from test.seq_1_to_100; END
+--let after_copy_test_t2=BEGIN NOT ATOMIC  DROP TABLE test.t2;CREATE TABLE test.t2 ENGINE=INNODB SELECT UUID() from test.seq_1_to_1000; END
+--let after_copy_test_t3=ALTER TABLE test.t3 ADD INDEX index_a(a),ALGORITHM=COPY
+echo # xtrabackup backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --target-dir=$targetdir  --close-files --dbug=+d,mariabackup_events;
+--enable_result_log
+--let after_load_tables=
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+# Check that new table is there after restore.
+SELECT COUNT(*) from t1;
+SELECT COUNT(*) from t2;
+SELECT COUNT(*) from t3;
+DROP INDEX index_a ON t3;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+rmdir $targetdir;
+
+
+

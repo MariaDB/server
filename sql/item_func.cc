@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -62,23 +62,11 @@
 
 bool check_reserved_words(const LEX_CSTRING *name)
 {
-  if (!my_strcasecmp(system_charset_info, name->str, "GLOBAL") ||
-      !my_strcasecmp(system_charset_info, name->str, "LOCAL") ||
-      !my_strcasecmp(system_charset_info, name->str, "SESSION"))
+  if (lex_string_eq(name, STRING_WITH_LEN("GLOBAL")) ||
+      lex_string_eq(name, STRING_WITH_LEN("LOCAL")) ||
+      lex_string_eq(name, STRING_WITH_LEN("SESSION")))
     return TRUE;
   return FALSE;
-}
-
-
-/**
-  @return
-    TRUE if item is a constant
-*/
-
-bool
-eval_const_cond(COND *cond)
-{
-  return ((Item_func*) cond)->val_int() ? TRUE : FALSE;
 }
 
 
@@ -148,6 +136,7 @@ void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
     with_sum_func|= item->with_sum_func;
     with_window_func|= item->with_window_func;
     with_field|= item->with_field;
+    with_param|= item->with_param;
   }
 }
 
@@ -359,7 +348,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	We can't yet set item to *arg as fix_fields may change *arg
 	We shouldn't call fix_fields() twice, so check 'fixed' field first
       */
-      if ((!(*arg)->fixed && (*arg)->fix_fields(thd, arg)))
+      if ((*arg)->fix_fields_if_needed(thd, arg))
 	return TRUE;				/* purecov: inspected */
       item= *arg;
 
@@ -367,16 +356,17 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	maybe_null=1;
 
       with_sum_func= with_sum_func || item->with_sum_func;
+      with_param= with_param || item->with_param;
       with_window_func= with_window_func || item->with_window_func;
       with_field= with_field || item->with_field;
       used_tables_and_const_cache_join(item);
+      not_null_tables_cache|= item->not_null_tables();
       m_with_subquery|= item->with_subquery();
     }
   }
   if (check_arguments())
     return true;
-  fix_length_and_dec();
-  if (thd->is_error()) // An error inside fix_length_and_dec occurred
+  if (fix_length_and_dec())
     return TRUE;
   fixed= 1;
   return FALSE;
@@ -572,6 +562,15 @@ void Item_args::propagate_equal_fields(THD *thd,
 }
 
 
+Sql_mode_dependency Item_args::value_depends_on_sql_mode_bit_or() const
+{
+  Sql_mode_dependency res;
+  for (uint i= 0; i < arg_count; i++)
+    res|= args[i]->value_depends_on_sql_mode();
+  return res;
+}
+
+
 /**
   See comments in Item_cond::split_sum_func()
 */
@@ -646,10 +645,7 @@ bool Item_func::eq(const Item *item, bool binary_cmp) const
       (func_type == Item_func::FUNC_SP &&
        my_strcasecmp(system_charset_info, func_name(), item_func->func_name())))
     return 0;
-  for (uint i=0; i < arg_count ; i++)
-    if (!args[i]->eq(item_func->args[i], binary_cmp))
-      return 0;
-  return 1;
+  return Item_args::eq(item_func, binary_cmp);
 }
 
 
@@ -760,10 +756,12 @@ String *Item_int_func::val_str(String *str)
 }
 
 
-void Item_func_connection_id::fix_length_and_dec()
+bool Item_func_connection_id::fix_length_and_dec()
 {
-  Item_long_func::fix_length_and_dec();
+  if (Item_long_func::fix_length_and_dec())
+    return TRUE;
   max_length= 10;
+  return FALSE;
 }
 
 
@@ -790,19 +788,19 @@ bool Item_num_op::fix_type_handler(const Type_aggregator *aggregator)
 }
 
 
-void Item_func_plus::fix_length_and_dec(void)
+bool Item_func_plus::fix_length_and_dec(void)
 {
   DBUG_ENTER("Item_func_plus::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
   const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_plus;
   DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_for_result;);
   DBUG_ASSERT(aggregator->is_commutative());
-  if (!fix_type_handler(aggregator))
-  {
-    Item_func_plus::type_handler()->Item_func_plus_fix_length_and_dec(this);
-    DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
-  }
-  DBUG_VOID_RETURN;
+  if (fix_type_handler(aggregator))
+    DBUG_RETURN(TRUE);
+  if (Item_func_plus::type_handler()->Item_func_plus_fix_length_and_dec(this))
+    DBUG_RETURN(TRUE);
+  DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -844,6 +842,7 @@ bool Item_func_hybrid_field_type::get_date_from_decimal_op(MYSQL_TIME *ltime,
   my_decimal value, *res;
   if (!(res= decimal_op_with_null_check(&value)) ||
       decimal_to_datetime_with_warn(res, ltime, fuzzydate,
+                                    field_table_or_null(),
                                     field_name_or_null()))
     return make_zero_mysql_time(ltime, fuzzydate);
   return (null_value= 0);
@@ -882,6 +881,7 @@ bool Item_func_hybrid_field_type::get_date_from_int_op(MYSQL_TIME *ltime,
   bool neg= !unsigned_flag && value < 0;
   if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
                                               ltime, fuzzydate,
+                                              field_table_or_null(),
                                               field_name_or_null()))
     return make_zero_mysql_time(ltime, fuzzydate);
   return (null_value= 0);
@@ -899,7 +899,7 @@ String *Item_func_hybrid_field_type::val_str_from_real_op(String *str)
 
 longlong Item_func_hybrid_field_type::val_int_from_real_op()
 {
-  return (longlong) rint(real_op());
+  return Converter_double_to_longlong(real_op(), unsigned_flag).result();
 }
 
 my_decimal *
@@ -917,6 +917,7 @@ bool Item_func_hybrid_field_type::get_date_from_real_op(MYSQL_TIME *ltime,
 {
   double value= real_op();
   if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate,
+                                                 field_table_or_null(),
                                                  field_name_or_null()))
     return make_zero_mysql_time(ltime, fuzzydate);
   return (null_value= 0);
@@ -1142,18 +1143,26 @@ void Item_decimal_typecast::print(String *str, enum_query_type query_type)
 }
 
 
-double Item_double_typecast::val_real()
+double Item_real_typecast::val_real_with_truncate(double max_value)
 {
   int error;
   double tmp= args[0]->val_real();
   if ((null_value= args[0]->null_value))
     return 0.0;
 
-  if ((error= truncate_double(&tmp, max_length, decimals, 0, DBL_MAX)))
+  if (unlikely((error= truncate_double(&tmp, max_length, decimals,
+                                       false/*unsigned_flag*/, max_value))))
   {
+    /*
+      We don't want automatic escalation from a warning to an error
+      in this scenario:
+        INSERT INTO t1 (float_field) VALUES (CAST(1e100 AS FLOAT));
+      The above statement should work even in the strict mode.
+      So let's use a note rather than a warning.
+    */
     THD *thd= current_thd;
     push_warning_printf(thd,
-                        Sql_condition::WARN_LEVEL_WARN,
+                        Sql_condition::WARN_LEVEL_NOTE,
                         ER_WARN_DATA_OUT_OF_RANGE,
                         ER_THD(thd, ER_WARN_DATA_OUT_OF_RANGE),
                         name.str, (ulong) 1);
@@ -1167,14 +1176,15 @@ double Item_double_typecast::val_real()
 }
 
 
-void Item_double_typecast::print(String *str, enum_query_type query_type)
+void Item_real_typecast::print(String *str, enum_query_type query_type)
 {
   char len_buf[20*3 + 1];
   char *end;
 
   str->append(STRING_WITH_LEN("cast("));
   args[0]->print(str, query_type);
-  str->append(STRING_WITH_LEN(" as double"));
+  str->append(STRING_WITH_LEN(" as "));
+  str->append(type_handler()->name().ptr());
   if (decimals != NOT_FIXED_DEC)
   {
     str->append('(');
@@ -1316,19 +1326,31 @@ void Item_func_minus::fix_unsigned_flag()
 }
 
 
-void Item_func_minus::fix_length_and_dec()
+bool Item_func_minus::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_minus::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
   const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_minus;
   DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_non_commutative_test;);
   DBUG_ASSERT(!aggregator->is_commutative());
-  if (!fix_type_handler(aggregator))
-  {
-    Item_func_minus::type_handler()->Item_func_minus_fix_length_and_dec(this);
-    DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
-  }
-  DBUG_VOID_RETURN;
+  if (fix_type_handler(aggregator))
+    DBUG_RETURN(TRUE);
+  if (Item_func_minus::type_handler()->Item_func_minus_fix_length_and_dec(this))
+    DBUG_RETURN(TRUE);
+  DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  if ((m_depends_on_sql_mode_no_unsigned_subtraction= unsigned_flag) &&
+      (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION))
+    unsigned_flag= false;
+  DBUG_RETURN(FALSE);
+}
+
+
+Sql_mode_dependency Item_func_minus::value_depends_on_sql_mode() const
+{
+  Sql_mode_dependency dep= Item_func_additive_op::value_depends_on_sql_mode();
+  if (m_depends_on_sql_mode_no_unsigned_subtraction)
+    dep|= Sql_mode_dependency(0, MODE_NO_UNSIGNED_SUBTRACTION);
+  return dep;
 }
 
 
@@ -1548,19 +1570,19 @@ void Item_func_mul::result_precision()
 }
 
 
-void Item_func_mul::fix_length_and_dec(void)
+bool Item_func_mul::fix_length_and_dec(void)
 {
   DBUG_ENTER("Item_func_mul::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
   const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_mul;
   DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_for_result;);
   DBUG_ASSERT(aggregator->is_commutative());
-  if (!fix_type_handler(aggregator))
-  {
-    Item_func_mul::type_handler()->Item_func_mul_fix_length_and_dec(this);
-    DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
-  }
-  DBUG_VOID_RETURN;
+  if (fix_type_handler(aggregator))
+    DBUG_RETURN(TRUE);
+  if (Item_func_mul::type_handler()->Item_func_mul_fix_length_and_dec(this))
+    DBUG_RETURN(TRUE);
+  DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -1655,7 +1677,7 @@ void Item_func_div::fix_length_and_dec_int(void)
 }
 
 
-void Item_func_div::fix_length_and_dec(void)
+bool Item_func_div::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_div::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
@@ -1665,12 +1687,12 @@ void Item_func_div::fix_length_and_dec(void)
   const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_div;
   DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_non_commutative_test;);
   DBUG_ASSERT(!aggregator->is_commutative());
-  if (!fix_type_handler(aggregator))
-  {
-    Item_func_div::type_handler()->Item_func_div_fix_length_and_dec(this);
-    DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
-  }
-  DBUG_VOID_RETURN;
+  if (fix_type_handler(aggregator))
+    DBUG_RETURN(TRUE);
+  if (Item_func_div::type_handler()->Item_func_div_fix_length_and_dec(this))
+    DBUG_RETURN(TRUE);
+  DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -1746,17 +1768,14 @@ longlong Item_func_int_div::val_int()
 }
 
 
-void Item_func_int_div::fix_length_and_dec()
+bool Item_func_int_div::fix_length_and_dec()
 {
-  Item_result argtype= args[0]->result_type();
-  /* use precision ony for the data type it is applicable for and valid */
-  uint32 char_length= args[0]->max_char_length() -
-                      (argtype == DECIMAL_RESULT || argtype == INT_RESULT ?
-                       args[0]->decimals : 0);
-  fix_char_length(char_length > MY_INT64_NUM_DECIMAL_DIGITS ?
-                  MY_INT64_NUM_DECIMAL_DIGITS : char_length);
+  uint32 prec= args[0]->decimal_int_part();
+  set_if_smaller(prec, MY_INT64_NUM_DECIMAL_DIGITS);
+  fix_char_length(prec);
   maybe_null=1;
   unsigned_flag=args[0]->unsigned_flag | args[1]->unsigned_flag;
+  return false;
 }
 
 
@@ -1835,12 +1854,15 @@ my_decimal *Item_func_mod::decimal_op(my_decimal *decimal_value)
 
 void Item_func_mod::result_precision()
 {
+  unsigned_flag= args[0]->unsigned_flag;
   decimals= MY_MAX(args[0]->decimal_scale(), args[1]->decimal_scale());
-  max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
+  uint prec= MY_MAX(args[0]->decimal_precision(), args[1]->decimal_precision());
+  fix_char_length(my_decimal_precision_to_length_no_truncation(prec, decimals,
+                                                               unsigned_flag));
 }
 
 
-void Item_func_mod::fix_length_and_dec()
+bool Item_func_mod::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_mod::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
@@ -1848,12 +1870,12 @@ void Item_func_mod::fix_length_and_dec()
   const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_mod;
   DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_non_commutative_test;);
   DBUG_ASSERT(!aggregator->is_commutative());
-  if (!fix_type_handler(aggregator))
-  {
-    Item_func_mod::type_handler()->Item_func_mod_fix_length_and_dec(this);
-    DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
-  }
-  DBUG_VOID_RETURN;
+  if (fix_type_handler(aggregator))
+    DBUG_RETURN(TRUE);
+  if (Item_func_mod::type_handler()->Item_func_mod_fix_length_and_dec(this))
+    DBUG_RETURN(TRUE);
+  DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -1951,13 +1973,15 @@ void Item_func_neg::fix_length_and_dec_decimal()
 }
 
 
-void Item_func_neg::fix_length_and_dec()
+bool Item_func_neg::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_neg::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
-  args[0]->cast_to_int_type_handler()->Item_func_neg_fix_length_and_dec(this);
+  if (args[0]->cast_to_int_type_handler()->
+      Item_func_neg_fix_length_and_dec(this))
+    DBUG_RETURN(TRUE);
   DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -1996,7 +2020,6 @@ my_decimal *Item_func_abs::decimal_op(my_decimal *decimal_value)
   return 0;
 }
 
-
 void Item_func_abs::fix_length_and_dec_int()
 {
   max_length= args[0]->max_length;
@@ -2023,13 +2046,15 @@ void Item_func_abs::fix_length_and_dec_decimal()
 }
 
 
-void Item_func_abs::fix_length_and_dec()
+bool Item_func_abs::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_abs::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
-  args[0]->cast_to_int_type_handler()->Item_func_abs_fix_length_and_dec(this);
+  if (args[0]->cast_to_int_type_handler()->
+      Item_func_abs_fix_length_and_dec(this))
+    DBUG_RETURN(TRUE);
   DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -2295,14 +2320,15 @@ void Item_func_int_val::fix_length_and_dec_double()
 }
 
 
-void Item_func_int_val::fix_length_and_dec()
+bool Item_func_int_val::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_int_val::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
-  args[0]->cast_to_int_type_handler()->
-    Item_func_int_val_fix_length_and_dec(this);
+  if (args[0]->cast_to_int_type_handler()->
+      Item_func_int_val_fix_length_and_dec(this))
+    DBUG_RETURN(TRUE);
   DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -2428,11 +2454,11 @@ void Item_func_round::fix_arg_decimal()
 {
   if (args[1]->const_item())
   {
-    uint dec= (uint) args[1]->val_uint_from_val_int(DECIMAL_MAX_SCALE);
+    Longlong_hybrid dec= args[1]->to_longlong_hybrid();
     if (args[1]->null_value)
       fix_length_and_dec_double(NOT_FIXED_DEC);
     else
-      fix_length_and_dec_decimal(dec);
+      fix_length_and_dec_decimal(dec.to_uint(DECIMAL_MAX_SCALE));
   }
   else
   {
@@ -2448,8 +2474,9 @@ void Item_func_round::fix_arg_double()
 {
   if (args[1]->const_item())
   {
-    uint dec= (uint) args[1]->val_uint_from_val_int(NOT_FIXED_DEC);
-    fix_length_and_dec_double(args[1]->null_value ? NOT_FIXED_DEC : dec);
+    Longlong_hybrid dec= args[1]->to_longlong_hybrid();
+    fix_length_and_dec_double(args[1]->null_value ? NOT_FIXED_DEC :
+                              dec.to_uint(NOT_FIXED_DEC));
   }
   else
     fix_length_and_dec_double(args[0]->decimals);
@@ -2460,17 +2487,14 @@ void Item_func_round::fix_arg_int()
 {
   if (args[1]->const_item())
   {
-    longlong val1= args[1]->val_int();
-    bool val1_is_negative= val1 < 0 && !args[1]->unsigned_flag;
-    uint decimals_to_set= val1_is_negative ?
-                          0 : (uint) MY_MIN(val1, DECIMAL_MAX_SCALE);
+    Longlong_hybrid val1= args[1]->to_longlong_hybrid();
     if (args[1]->null_value)
       fix_length_and_dec_double(NOT_FIXED_DEC);
-    else if ((!decimals_to_set && truncate) ||
+    else if ((!val1.to_uint(DECIMAL_MAX_SCALE) && truncate) ||
              args[0]->decimal_precision() < DECIMAL_LONGLONG_DIGITS)
     {
       // Length can increase in some cases: ROUND(9,-1) -> 10
-      int length_can_increase= MY_TEST(!truncate && val1_is_negative);
+      int length_can_increase= MY_TEST(!truncate && val1.neg());
       max_length= args[0]->max_length + length_can_increase;
       // Here we can keep INT_RESULT
       unsigned_flag= args[0]->unsigned_flag;
@@ -2478,11 +2502,10 @@ void Item_func_round::fix_arg_int()
       set_handler(type_handler_long_or_longlong());
     }
     else
-      fix_length_and_dec_decimal(decimals_to_set);
+      fix_length_and_dec_decimal(val1.to_uint(DECIMAL_MAX_SCALE));
   }
   else
     fix_length_and_dec_double(args[0]->decimals);
-
 }
 
 
@@ -2506,12 +2529,12 @@ double my_double_round(double value, longlong dec, bool dec_unsigned,
   volatile double value_div_tmp= value / tmp;
   volatile double value_mul_tmp= value * tmp;
 
-  if (!dec_negative && my_isinf(tmp)) // "dec" is too large positive number
+  if (!dec_negative && std::isinf(tmp)) // "dec" is too large positive number
     return value;
 
-  if (dec_negative && my_isinf(tmp))
+  if (dec_negative && std::isinf(tmp))
     tmp2= 0.0;
-  else if (!dec_negative && my_isinf(value_mul_tmp))
+  else if (!dec_negative && std::isinf(value_mul_tmp))
     tmp2= value;
   else if (truncate)
   {
@@ -2741,7 +2764,7 @@ bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     longlong res= args[i]->val_datetime_packed();
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
-    if (args[i]->null_value)
+    if (unlikely(args[i]->null_value))
       return (null_value= 1);
 
     if (i == 0 || (res < min_max ? cmp_sign : -cmp_sign) > 0)
@@ -2750,7 +2773,7 @@ bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   unpack_time(min_max, ltime, mysql_timestamp_type());
 
   if (!(fuzzy_date & TIME_TIME_ONLY) &&
-      ((null_value= check_date_with_warn(ltime, fuzzy_date,
+      unlikely((null_value= check_date_with_warn(ltime, fuzzy_date,
                                          MYSQL_TIMESTAMP_ERROR))))
     return true;
 
@@ -3039,14 +3062,15 @@ longlong Item_func_field::val_int()
 }
 
 
-void Item_func_field::fix_length_and_dec()
+bool Item_func_field::fix_length_and_dec()
 {
   maybe_null=0; max_length=3;
   cmp_type= args[0]->result_type();
   for (uint i=1; i < arg_count ; i++)
     cmp_type= item_cmp_type(cmp_type, args[i]->result_type());
   if (cmp_type == STRING_RESULT)
-    agg_arg_charsets_for_comparison(cmp_collation, args, arg_count);
+    return agg_arg_charsets_for_comparison(cmp_collation, args, arg_count);
+  return FALSE;
 }
 
 
@@ -3093,7 +3117,7 @@ longlong Item_func_ord::val_int()
 	/* Returns number of found type >= 1 or 0 if not found */
 	/* This optimizes searching in enums to bit testing! */
 
-void Item_func_find_in_set::fix_length_and_dec()
+bool Item_func_find_in_set::fix_length_and_dec()
 {
   decimals=0;
   max_length=3;					// 1-999
@@ -3115,7 +3139,7 @@ void Item_func_find_in_set::fix_length_and_dec()
       }
     }
   }
-  agg_arg_charsets_for_comparison(cmp_collation, args, 2);
+  return agg_arg_charsets_for_comparison(cmp_collation, args, 2);
 }
 
 static const char separator=',';
@@ -3276,13 +3300,10 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 	 arg != arg_end ;
 	 arg++,i++)
     {
-      if (!(*arg)->fixed &&
-          (*arg)->fix_fields(thd, arg))
-	DBUG_RETURN(1);
+      if ((*arg)->fix_fields_if_needed_for_scalar(thd, arg))
+	DBUG_RETURN(true);
       // we can't assign 'item' before, because fix_fields() can change arg
       Item *item= *arg;
-      if (item->check_cols(1))
-	DBUG_RETURN(TRUE);
       /*
 	TODO: We should think about this. It is not always
 	right way just to set an UDF result to return my_charset_bin
@@ -3299,7 +3320,10 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       if (item->maybe_null)
 	func->maybe_null=1;
       func->with_sum_func= func->with_sum_func || item->with_sum_func;
+      func->with_window_func= func->with_window_func ||
+                              item->with_window_func;
       func->with_field= func->with_field || item->with_field;
+      func->with_param= func->with_param || item->with_param;
       func->With_subquery_cache::join(item);
       func->used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();
@@ -3318,7 +3342,8 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       DBUG_RETURN(TRUE);
     }
   }
-  func->fix_length_and_dec();
+  if (func->fix_length_and_dec())
+    DBUG_RETURN(TRUE);
   initid.max_length=func->max_length;
   initid.maybe_null=func->maybe_null;
   initid.const_item=func->const_item_cache;
@@ -3379,7 +3404,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       }
     }
     Udf_func_init init= u_d->func_init;
-    if ((error=(uchar) init(&initid, &f_args, init_msg_buff)))
+    if (unlikely((error=(uchar) init(&initid, &f_args, init_msg_buff))))
     {
       my_error(ER_CANT_INITIALIZE_UDF, MYF(0),
                u_d->name.str, init_msg_buff);
@@ -3397,7 +3422,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
     func->decimals=MY_MIN(initid.decimals,NOT_FIXED_DEC);
   }
   initialized=1;
-  if (error)
+  if (unlikely(error))
   {
     my_error(ER_CANT_INITIALIZE_UDF, MYF(0),
              u_d->name.str, ER_THD(thd, ER_UNKNOWN_ERROR));
@@ -3409,7 +3434,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 
 bool udf_handler::get_arguments()
 {
-  if (error)
+  if (unlikely(error))
     return 1;					// Got an error earlier
   char *to= num_buffer;
   uint str_count=0;
@@ -3484,7 +3509,7 @@ String *udf_handler::val_str(String *str,String *save_str)
   char *res=func(&initid, &f_args, (char*) str->ptr(), &res_length,
 		 &is_null_tmp, &error);
   DBUG_PRINT("info", ("udf func returned, res_length: %lu", res_length));
-  if (is_null_tmp || !res || error)		// The !res is for safety
+  if (is_null_tmp || !res || unlikely(error))	// The !res is for safety
   {
     DBUG_PRINT("info", ("Null or error"));
     DBUG_RETURN(0);
@@ -3520,7 +3545,7 @@ my_decimal *udf_handler::val_decimal(my_bool *null_value, my_decimal *dec_buf)
     u_d->func;
 
   char *res= func(&initid, &f_args, buf, &res_length, &is_null, &error);
-  if (is_null || error)
+  if (is_null || unlikely(error))
   {
     *null_value= 1;
     return 0;
@@ -3658,13 +3683,13 @@ String *Item_func_udf_decimal::val_str(String *str)
 
 /* Default max_length is max argument length */
 
-void Item_func_udf_str::fix_length_and_dec()
+bool Item_func_udf_str::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_udf_str::fix_length_and_dec");
   max_length=0;
   for (uint i = 0; i < arg_count; i++)
     set_if_bigger(max_length,args[i]->max_length);
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 String *Item_func_udf_str::val_str(String *str)
@@ -4081,7 +4106,7 @@ longlong Item_func_get_lock::val_int()
   thd->push_internal_handler(&lock_wait_timeout_handler);
   bool error= thd->mdl_context.acquire_lock(&ull_request, timeout);
   (void) thd->pop_internal_handler();
-  if (error)
+  if (unlikely(error))
   {
     if (lock_wait_timeout_handler.m_lock_wait_timeout)
       null_value= 0;
@@ -4572,7 +4597,7 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
 }
 
 
-void
+bool
 Item_func_set_user_var::fix_length_and_dec()
 {
   maybe_null=args[0]->maybe_null;
@@ -4586,6 +4611,7 @@ Item_func_set_user_var::fix_length_and_dec()
                            args[0]->collation.collation);
   }
   unsigned_flag= args[0]->unsigned_flag;
+  return FALSE;
 }
 
 
@@ -4649,7 +4675,7 @@ bool Item_func_set_user_var::register_field_in_bitmap(void *arg)
     true    failure
 */
 
-static bool
+bool
 update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
             Item_result type, CHARSET_INFO *cs,
             bool unsigned_arg)
@@ -5354,13 +5380,14 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
                                                                new (thd->mem_root) Item_null(thd))),
                            thd->mem_root);
     /* Create the variable if the above allocations succeeded */
-    if (thd->is_fatal_error || sql_set_variables(thd, &tmp_var_list, false))
+    if (unlikely(thd->is_fatal_error) ||
+        unlikely(sql_set_variables(thd, &tmp_var_list, false)))
     {
       thd->lex= sav_lex;
       goto err;
     }
     thd->lex= sav_lex;
-    if (!(var_entry= get_variable(&thd->user_vars, name, 0)))
+    if (unlikely(!(var_entry= get_variable(&thd->user_vars, name, 0))))
       goto err;
   }
   else if (var_entry->used_query_id == thd->query_id ||
@@ -5389,8 +5416,8 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     destroyed.
   */
   size= ALIGN_SIZE(sizeof(BINLOG_USER_VAR_EVENT)) + var_entry->length;
-  if (!(user_var_event= (BINLOG_USER_VAR_EVENT *)
-        alloc_root(thd->user_var_events_alloc, size)))
+  if (unlikely(!(user_var_event= (BINLOG_USER_VAR_EVENT *)
+                 alloc_root(thd->user_var_events_alloc, size))))
     goto err;
 
   user_var_event->value= (char*) user_var_event +
@@ -5424,7 +5451,7 @@ err:
   return 1;
 }
 
-void Item_func_get_user_var::fix_length_and_dec()
+bool Item_func_get_user_var::fix_length_and_dec()
 {
   THD *thd=current_thd;
   int error;
@@ -5439,7 +5466,7 @@ void Item_func_get_user_var::fix_length_and_dec()
     'm_var_entry' is NULL only if there occurred an error during the call to
     get_var_with_binlog.
   */
-  if (!error && m_var_entry)
+  if (likely(!error && m_var_entry))
   {
     unsigned_flag= m_var_entry->unsigned_flag;
     max_length= (uint32)m_var_entry->length;
@@ -5473,6 +5500,7 @@ void Item_func_get_user_var::fix_length_and_dec()
     set_handler(&type_handler_long_blob);
     max_length= MAX_BLOB_WIDTH;
   }
+  return false;
 }
 
 
@@ -5625,7 +5653,7 @@ void Item_func_get_system_var::update_null_value()
 }
 
 
-void Item_func_get_system_var::fix_length_and_dec()
+bool Item_func_get_system_var::fix_length_and_dec()
 {
   char *cptr;
   maybe_null= TRUE;
@@ -5637,7 +5665,7 @@ void Item_func_get_system_var::fix_length_and_dec()
     {
       my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0),
                var->name.str, var_type == OPT_GLOBAL ? "SESSION" : "GLOBAL");
-      return;
+      return TRUE;
     }
     /* As there was no local variable, return the global value */
     var_type= OPT_GLOBAL;
@@ -5701,6 +5729,7 @@ void Item_func_get_system_var::fix_length_and_dec()
       my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str);
       break;
   }
+  return FALSE;
 }
 
 
@@ -5930,8 +5959,8 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
     for (uint i= 1; i < arg_count; i++)
       fields.push_back(args[i]);
     concat_ws= new (thd->mem_root) Item_func_concat_ws(thd, fields);
-    if (thd->is_fatal_error)
-      DBUG_RETURN(1);                           // OOM
+    if (unlikely(thd->is_fatal_error))
+      DBUG_RETURN(1);                           // OOM in new or push_back
     /*
       Above function used only to get value and do not need fix_fields for it:
       Item_string - basic constant
@@ -6360,7 +6389,7 @@ bool Item_func_sp::is_expensive()
   @note called from Item::fix_fields.
 */
 
-void Item_func_sp::fix_length_and_dec()
+bool Item_func_sp::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_sp::fix_length_and_dec");
 
@@ -6370,7 +6399,7 @@ void Item_func_sp::fix_length_and_dec()
   collation.derivation= DERIVATION_COERCIBLE;
   maybe_null= 1;
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -6507,17 +6536,17 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
 
   if (m_sp->agg_type() == GROUP_AGGREGATE)
   {
-    List<Item> list;
-    list.empty();
-    for (uint i=0; i < arg_count; i++)
-      list.push_back(*(args+i));
-
     Item_sum_sp *item_sp;
     Query_arena *arena, backup;
     arena= thd->activate_stmt_arena_if_needed(&backup);
 
     if (arg_count)
+    {
+      List<Item> list;
+      for (uint i= 0; i < arg_count; i++)
+        list.push_back(args[i]);
       item_sp= new (thd->mem_root) Item_sum_sp(thd, context, m_name, sp, list);
+    }
     else
       item_sp= new (thd->mem_root) Item_sum_sp(thd, context, m_name, sp);
 
@@ -6531,7 +6560,6 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     if (err)
       DBUG_RETURN(TRUE);
 
-    list.empty();
     DBUG_RETURN(FALSE);
   }
 
@@ -6685,11 +6713,12 @@ bool Item_func_last_value::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 }
 
 
-void Item_func_last_value::fix_length_and_dec()
+bool Item_func_last_value::fix_length_and_dec()
 {
   last_value=          args[arg_count -1];
   Type_std_attributes::set(last_value);
   maybe_null=          last_value->maybe_null;
+  return FALSE;
 }
 
 
@@ -6806,7 +6835,7 @@ longlong Item_func_nextval::val_int()
   entry->value= value;
   entry->set_version(table);
 
-  if (error)                                    // Warning already printed
+  if (unlikely(error))                          // Warning already printed
     entry->null_value= null_value= 1;           // For not strict mode
   DBUG_RETURN(value);
 }
@@ -6902,9 +6931,9 @@ longlong Item_func_lastval::val_int()
 /*
   Sets next value to be returned from sequences
 
-  SELECT setval('foo', 42, 0);           Next nextval will return 43
-  SELECT setval('foo', 42, 0, true);     Same as above
-  SELECT setval('foo', 42, 0, false);    Next nextval will return 42
+  SELECT setval(foo, 42, 0);           Next nextval will return 43
+  SELECT setval(foo, 42, 0, true);     Same as above
+  SELECT setval(foo, 42, 0, false);    Next nextval will return 42
 */
 
 longlong Item_func_setval::val_int()
@@ -6918,7 +6947,7 @@ longlong Item_func_setval::val_int()
   DBUG_ASSERT(table && table->s->sequence);
   thd= table->in_use;
 
-  if (thd->count_cuted_fields == CHECK_FIELD_EXPRESSION)
+  if (unlikely(thd->count_cuted_fields == CHECK_FIELD_EXPRESSION))
   {
     /* Alter table checking if function works */
     null_value= 0;
@@ -6927,7 +6956,7 @@ longlong Item_func_setval::val_int()
 
   value= nextval;
   error= table->s->sequence->set_value(table, nextval, round, is_used);
-  if (error)
+  if (unlikely(error))
   {
     null_value= 1;
     value= 0;

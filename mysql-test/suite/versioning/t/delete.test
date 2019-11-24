@@ -81,6 +81,6 @@ insert into t1 values (1);
 update t1 set x= 2;
 delete from t1;
 select x from t1 for system_time all;
+drop table t1;
 
-drop database test;
-create database test;
+--source suite/versioning/common_finish.inc

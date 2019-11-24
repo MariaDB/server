@@ -9,20 +9,18 @@ PerconaFT is provided as a shared library with an interface similar to
 Berkeley DB.
 
 To build the full MySQL product, see the instructions for
-[Percona/tokudb-engine][tokudb-engine].  To build TokuMX, see the instructions
-for [Percona/percona-server-mongodb][mongo].  This document covers PerconaFT only.
+[Percona/percona-server][percona-server].  This document covers PerconaFT only.
 
-[tokudb-engine]: https://github.com/Percona/tokudb-engine
-[mongo]: https://github.com/Percona/percona-server-mongodb
+[percona-server]: https://github.com/Percona/percona-server
 
 
 Building
 --------
 
 PerconaFT is built using CMake >= 2.8.9.  Out-of-source builds are
-recommended.  You need a C++11 compiler, though only GCC >= 4.7 and
-Apple's Clang are tested.  You also need zlib development packages
-(`yum install zlib-devel` or `apt-get install zlib1g-dev`).
+recommended.  You need a C++11 compiler, though only some versions
+of GCC >= 4.7 and Clang are tested.  You also need zlib development
+packages (`yum install zlib-devel` or `apt-get install zlib1g-dev`).
 
 You will also need the source code for jemalloc, checked out in
 `third_party/`.
@@ -42,16 +40,16 @@ CC=gcc47 CXX=g++47 cmake \
 cmake --build . --target install
 ```
 
-This will build `libtokudb.so` and `libtokuportability.so` and install it,
+This will build `libft.so` and `libtokuportability.so` and install it,
 some header files, and some examples to `percona-ft/prefix/`.  It will also
 build jemalloc and install it alongside these libraries, you should link
 to that if you are planning to run benchmarks or in production.
 
 ### Platforms
 
-PerconaFT is supported on 64-bit Centos, should work on other 64-bit linux
-distributions, and may work on OSX 10.8 and FreeBSD.  PerconaFT is not
-supported on 32-bit systems.
+PerconaFT is supported on 64-bit Centos, Debian, and Ubuntu and should work
+on other 64-bit linux distributions, and may work on OSX 10.8 and FreeBSD.
+PerconaFT is not supported on 32-bit systems.
 
 [Transparent hugepages][transparent-hugepages] is a feature in newer linux
 kernel versions that causes problems for the memory usage tracking
@@ -97,27 +95,23 @@ We have two publicly accessible mailing lists for TokuDB:
  - tokudb-dev@googlegroups.com is for discussion of the development of
    TokuDB.
 
-and two for TokuMX:
-
- - tokumx-user@googlegroups.com is for general and support related
-   questions about the use of TokuMX.
- - tokumx-dev@googlegroups.com is for discussion of the development of
-   TokuMX.
-
 All source code and test contributions must be provided under a [BSD 2-Clause][bsd-2] license. For any small change set, the license text may be contained within the commit comment and the pull request. For larger contributions, the license must be presented in a COPYING.<feature_name> file in the root of the PerconaFT project. Please see the [BSD 2-Clause license template][bsd-2] for the content of the license text.
 
-[jira]: https://tokutek.atlassian.net/browse/FT/
+[jira]: https://jira.percona.com/projects/TDB
 [bsd-2]: http://opensource.org/licenses/BSD-2-Clause/
 
 
 License
 -------
 
+Portions of the PerconaFT library (the 'locktree' and 'omt') are available under the Apache version 2 license.
 PerconaFT is available under the GPL version 2, and AGPL version 3.
-See [COPYING.AGPLv3][agpllicense],
+See [COPYING.APACHEv2][apachelicense],
+[COPYING.AGPLv3][agpllicense],
 [COPYING.GPLv2][gpllicense], and
 [PATENTS][patents].
 
+[apachelicense]: http://github.com/Percona/PerconaFT/blob/master/COPYING.APACHEv2
 [agpllicense]: http://github.com/Percona/PerconaFT/blob/master/COPYING.AGPLv3
 [gpllicense]: http://github.com/Percona/PerconaFT/blob/master/COPYING.GPLv2
 [patents]: http://github.com/Percona/PerconaFT/blob/master/PATENTS

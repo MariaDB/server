@@ -193,7 +193,8 @@ EOF
 --exec $INNOCHECKSUM $t3_IBD
 
 --echo # Run innochecksum on t6
---echo # no encryption corrupting the field should not have effect
+--echo # Space ID mismatch
+--error 1
 --exec $INNOCHECKSUM $t6_IBD
 
 --enable_result_log

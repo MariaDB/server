@@ -1,0 +1,5 @@
+[write_committed]
+loose-rocksdb_write_policy=write_committed
+
+[write_prepared]
+loose-rocksdb_write_policy=write_prepared

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Struct to store tables in use by one transaction */
 
@@ -84,5 +84,5 @@ my_bool _ma_row_visible_non_transactional_table(MARIA_HA *info);
 my_bool _ma_row_visible_transactional_table(MARIA_HA *info);
 void _ma_remove_not_visible_states_with_lock(struct st_maria_share *share,
                                              my_bool all);
-void _ma_remove_table_from_trnman(struct st_maria_share *share, TRN *trn);
+void _ma_remove_table_from_trnman(MARIA_HA *info);
 void _ma_reset_history(struct st_maria_share *share);

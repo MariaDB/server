@@ -16,7 +16,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "sql_partition.h"      /* part_id_range, partition_element */
 #include "queues.h"             /* QUEUE */
@@ -92,6 +92,7 @@ public:
   bool auto_inc_initialized;
   mysql_mutex_t auto_inc_mutex;                /**< protecting auto_inc val */
   ulonglong next_auto_inc_val;                 /**< first non reserved value */
+  ulonglong prev_auto_inc_val;                 /**< stored next_auto_inc_val */
   /**
     Hash of partition names. Initialized in the first ha_partition::open()
     for the table_share. After that it is read-only, i.e. no locking required.
@@ -103,6 +104,7 @@ public:
   Partition_share()
     : auto_inc_initialized(false),
     next_auto_inc_val(0),
+    prev_auto_inc_val(0),
     partition_name_hash_initialized(false),
     partition_names(NULL)
   {
@@ -349,7 +351,6 @@ private:
   /*
     Variables for lock structures.
   */
-  THR_LOCK_DATA lock;                   /* MySQL lock */
 
   bool auto_increment_lock;             /**< lock reading/updating auto_inc */
   /**
@@ -372,6 +373,24 @@ private:
   MY_BITMAP m_locked_partitions;
   /** Stores shared auto_increment etc. */
   Partition_share *part_share;
+  /** Fix spurious -Werror=overloaded-virtual in GCC 9 */
+  virtual void restore_auto_increment(ulonglong prev_insert_id)
+  {
+    handler::restore_auto_increment(prev_insert_id);
+  }
+  /** Store and restore next_auto_inc_val over duplicate key errors. */
+  virtual void store_auto_increment()
+  {
+    DBUG_ASSERT(part_share);
+    part_share->prev_auto_inc_val= part_share->next_auto_inc_val;
+    handler::store_auto_increment();
+  }
+  virtual void restore_auto_increment()
+  {
+    DBUG_ASSERT(part_share);
+    part_share->next_auto_inc_val= part_share->prev_auto_inc_val;
+    handler::restore_auto_increment();
+  }
   /** Temporary storage for new partitions Handler_shares during ALTER */
   List<Parts_share_refs> m_new_partitions_share_refs;
   /** Sorted array of partition ids in descending order of number of rows. */
@@ -412,6 +431,22 @@ public:
   }
 
   virtual void return_record_by_parent();
+
+  virtual bool vers_can_native(THD *thd)
+  {
+    if (thd->lex->part_info)
+    {
+      // PARTITION BY SYSTEM_TIME is not supported for now
+      return thd->lex->part_info->part_type != VERSIONING_PARTITION;
+    }
+    else
+    {
+      bool can= true;
+      for (uint i= 0; i < m_tot_parts && can; i++)
+        can= can && m_file[i]->vers_can_native(thd);
+      return can;
+    }
+  }
 
   /*
     -------------------------------------------------------------------------
@@ -620,8 +655,8 @@ public:
   virtual int bulk_update_row(const uchar *old_data, const uchar *new_data,
                               ha_rows *dup_key_found);
   virtual int update_row(const uchar * old_data, const uchar * new_data);
-  virtual int direct_update_rows_init();
-  virtual int pre_direct_update_rows_init();
+  virtual int direct_update_rows_init(List<Item> *update_fields);
+  virtual int pre_direct_update_rows_init(List<Item> *update_fields);
   virtual int direct_update_rows(ha_rows *update_rows);
   virtual int pre_direct_update_rows();
   virtual bool start_bulk_delete();
@@ -844,7 +879,7 @@ public:
   int change_partitions_to_open(List<String> *partition_names);
   int open_read_partitions(char *name_buff, size_t name_buff_size);
   virtual int extra(enum ha_extra_function operation);
-  virtual int extra_opt(enum ha_extra_function operation, ulong cachesize);
+  virtual int extra_opt(enum ha_extra_function operation, ulong arg);
   virtual int reset(void);
   virtual uint count_query_cache_dependant_tables(uint8 *tables_type);
   virtual my_bool
@@ -854,6 +889,8 @@ public:
                                           uint *n);
 
 private:
+  typedef int handler_callback(handler *, void *);
+
   my_bool reg_query_cache_dependant_table(THD *thd,
                                           char *engine_key,
                                           uint engine_key_len,
@@ -864,7 +901,7 @@ private:
                                           **block_table,
                                           handler *file, uint *n);
   static const uint NO_CURRENT_PART_ID= NOT_A_PARTITION_ID;
-  int loop_extra(enum ha_extra_function operation);
+  int loop_partitions(handler_callback callback, void *param);
   int loop_extra_alter(enum ha_extra_function operations);
   void late_extra_cache(uint partition_id);
   void late_extra_no_cache(uint partition_id);
@@ -1038,6 +1075,10 @@ public:
     Can't define a table without primary key (and cannot handle a table
     with hidden primary key)
     (No handler has this limitation currently)
+
+    HA_WANTS_PRIMARY_KEY:
+    Can't define a table without primary key except sequences
+    (Only InnoDB has this when using innodb_force_primary_key == ON)
 
     HA_STATS_RECORDS_IS_EXACT:
     Does the counter of records after the info call specify an exact
@@ -1288,6 +1329,19 @@ private:
     unlock_auto_increment();
   }
 
+  void check_insert_autoincrement()
+  {
+    /*
+      If we INSERT into the table having the AUTO_INCREMENT column,
+      we have to read all partitions for the next autoincrement value
+      unless we already did it.
+    */
+    if (!part_share->auto_inc_initialized &&
+        ha_thd()->lex->sql_command == SQLCOM_INSERT &&
+        table->found_next_number_field)
+      bitmap_set_all(&m_part_info->read_partitions);
+  }
+
 public:
 
   /*
@@ -1422,18 +1476,6 @@ public:
     void append_row_to_str(String &str);
     public:
 
-  /*
-    -------------------------------------------------------------------------
-    Admin commands not supported currently (almost purely MyISAM routines)
-    This means that the following methods are not implemented:
-    -------------------------------------------------------------------------
-
-    virtual int backup(TD* thd, HA_CHECK_OPT *check_opt);
-    virtual int restore(THD* thd, HA_CHECK_OPT *check_opt);
-    virtual int dump(THD* thd, int fd = -1);
-    virtual int net_read_dump(NET* net);
-  */
-    virtual uint checksum() const;
   /* Enabled keycache for performance reasons, WL#4571 */
     virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt);
     virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt);

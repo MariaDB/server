@@ -586,9 +586,9 @@ ha_create_table_option connect_table_option_list[]=
 	HA_TOPTION_STRING("FILTER", filter),
 	HA_TOPTION_STRING("OPTION_LIST", oplist),
   HA_TOPTION_STRING("DATA_CHARSET", data_charset),
-  HA_TOPTION_STRING("HTTP", http),
-  HA_TOPTION_STRING("URI", uri),
-  HA_TOPTION_NUMBER("LRECL", lrecl, 0, 0, INT_MAX32, 1),
+	HA_TOPTION_STRING("HTTP", http),
+	HA_TOPTION_STRING("URI", uri),
+	HA_TOPTION_NUMBER("LRECL", lrecl, 0, 0, INT_MAX32, 1),
   HA_TOPTION_NUMBER("BLOCK_SIZE", elements, 0, 0, INT_MAX32, 1),
 //HA_TOPTION_NUMBER("ESTIMATE", estimate, 0, 0, INT_MAX32, 1),
   HA_TOPTION_NUMBER("MULTIPLE", multiple, 0, 0, 3, 1),
@@ -1035,14 +1035,14 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
 #if defined(REST_SUPPORT)
 		else if (pos->http)
 			switch (type) {
-			case TAB_JSON:
-			case TAB_XML:
-			case TAB_CSV:
-				type= TAB_REST;
-				break;
-			case TAB_REST:
-				type= TAB_NIY;
-				break;
+				case TAB_JSON:
+				case TAB_XML:
+				case TAB_CSV:
+					type = TAB_REST;
+					break;
+				case TAB_REST:
+					type = TAB_NIY;
+					break;
 			}	// endswitch type
 #endif   // REST_SUPPORT
 
@@ -1166,30 +1166,30 @@ PCSZ GetListOption(PGLOBAL g, PCSZ opname, PCSZ oplist, PCSZ def)
 			while (n && key[n - 1] == ' ')
 				n--;
 
-			key[n]=  0;
+			key[n]= 0;
 
 			while (*(++pv) == ' ');
 
-			n=  MY_MIN((pn ? pn - pv : strlen(pv)), sizeof(val) - 1);
+			n= MY_MIN((pn ? pn - pv : strlen(pv)), sizeof(val) - 1);
 			memcpy(val, pv, n);
 
 			while (n && val[n - 1] == ' ')
 				n--;
 
-			val[n]=  0;
+			val[n]= 0;
 		} else {
-			n=  MY_MIN((pn ? pn - pk : strlen(pk)), sizeof(key) - 1);
+			n= MY_MIN((pn ? pn - pk : strlen(pk)), sizeof(key) - 1);
 			memcpy(key, pk, n);
 
 			while (n && key[n - 1] == ' ')
 				n--;
 
-			key[n]=  0;
-			val[0]=  0;
+			key[n]= 0;
+			val[0]= 0;
 		} // endif pv
 
 		if (!stricmp(opname, key)) {
-			opval=  PlugDup(g, val);
+			opval= PlugDup(g, val);
 			break;
 		} else if (!pn)
 			break;
@@ -1237,7 +1237,7 @@ PCSZ GetStringTableOption(PGLOBAL g, PTOS options, PCSZ opname, PCSZ sdef)
   else if (!stricmp(opname, "Colist"))
     opval= options->colist;
 	else if (!stricmp(opname, "Filter"))
-		opval=  options->filter;
+		opval= options->filter;
 	else if (!stricmp(opname, "Data_charset"))
     opval= options->data_charset;
   else if (!stricmp(opname, "Http") || !stricmp(opname, "URL"))
@@ -1274,7 +1274,7 @@ bool GetBooleanTableOption(PGLOBAL g, PTOS options, PCSZ opname, bool bdef)
   else if (!stricmp(opname, "Header"))
     opval= (options->header != 0);   // Is Boolean for some table types
 	else if (!stricmp(opname, "Zipped"))
-		opval=  options->zipped;
+		opval= options->zipped;
 	else if (options->oplist)
     if ((pv= GetListOption(g, opname, options->oplist)))
       opval= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
@@ -1339,7 +1339,7 @@ char *ha_connect::GetRealString(PCSZ s)
 {
   char *sv;
 
-  if (IsPartitioned() && s && partname && *partname) {
+  if (IsPartitioned() && s && *partname) {
     sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
     sprintf(sv, s, partname);
     PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
@@ -1368,8 +1368,8 @@ PCSZ ha_connect::GetStringOption(PCSZ opname, PCSZ sdef)
 
 	} else if (!stricmp(opname, "Query_String")) {
 //  This escapes everything and returns a wrong query 
-//	opval=  thd_query_string(table->in_use)->str;
-		opval=  (PCSZ)PlugSubAlloc(xp->g, NULL, 
+//	opval= thd_query_string(table->in_use)->str;
+		opval= (PCSZ)PlugSubAlloc(xp->g, NULL, 
 			thd_query_string(table->in_use)->length + 1);
 		strcpy((char*)opval, thd_query_string(table->in_use)->str);
 //	sprintf((char*)opval, "%s", thd_query_string(table->in_use)->str);
@@ -1390,7 +1390,7 @@ PCSZ ha_connect::GetStringOption(PCSZ opname, PCSZ sdef)
              || !stricmp(opname, "filename")
 						 || !stricmp(opname, "optname")
 						 || !stricmp(opname, "entry")))
-						 opval=  GetRealString(opval);
+						 opval= GetRealString(opval);
 
   if (!opval) {
     if (sdef && !strcmp(sdef, "*")) {
@@ -1519,7 +1519,7 @@ PFOS ha_connect::GetFieldOptionStruct(Field *fdp)
 void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 {
   const char *cp;
-  char   *chset, v=  0;
+  char   *chset, v= 0;
   ha_field_option_struct *fop;
   Field*  fp;
   Field* *fldp;
@@ -1571,7 +1571,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     pcf->Fieldfmt= NULL;
   } // endif fop
 
-  chset=  (char *)fp->charset()->name;
+  chset= (char *)fp->charset()->name;
 
   switch (fp->type()) {
     case MYSQL_TYPE_BLOB:
@@ -2077,10 +2077,10 @@ bool ha_connect::CheckColumnList(PGLOBAL g)
 	} catch (int n) {
 		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
-		brc=  true;
+		brc= true;
 	} catch (const char *msg) {
 		strcpy(g->Message, msg);
-		brc=  true;
+		brc= true;
 	} // end catch
 
   return brc;
@@ -2207,9 +2207,9 @@ int ha_connect::MakeRecord(char *buf)
             rc= fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
             break;
 					case TYPE_BIN:
-						p=  value->GetCharValue();
-						charset=  &my_charset_bin;
-						rc=  fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
+						p= value->GetCharValue();
+						charset= &my_charset_bin;
+						rc= fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
 						break;
           case TYPE_DOUBLE:
             rc= fp->store(value->GetFloatValue());
@@ -2458,7 +2458,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 	kfp= &table->key_info[active_index];
 	old_map= dbug_tmp_use_all_columns(table, table->write_set);
 
-	for (i=  0; i <= 1; i++) {
+	for (i= 0; i <= 1; i++) {
 		if (ranges[i] == NULL)
 			continue;
 
@@ -2569,7 +2569,7 @@ const char *ha_connect::GetValStr(OPVAL vop, bool neg)
 
   switch (vop) {
     case OP_EQ:
-      val= " = ";
+      val= "= ";
       break;
     case OP_NE:
       val= " <> ";
@@ -2839,7 +2839,7 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
 /***********************************************************************/
 PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 {
-	AMT   tty=  filp->Type;
+	AMT   tty= filp->Type;
   char *body= filp->Body;
 	char *havg= filp->Having;
 	unsigned int i;
@@ -2856,7 +2856,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 
   if (cond->type() == COND::COND_ITEM) {
     char      *pb0, *pb1, *pb2, *ph0= 0, *ph1= 0, *ph2= 0;
-		bool       bb=  false, bh=  false;
+		bool       bb= false, bh= false;
     Item_cond *cond_item= (Item_cond *)cond;
 
     if (x)
@@ -2915,13 +2915,13 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 
 				bb |= filp->Bd;
 				bh |= filp->Hv;
-				filp->Bd=  filp->Hv=  false;
+				filp->Bd= filp->Hv= false;
       } else
         return NULL;
 
     if (bb)	{
       strcpy(pb1, ")");
-			filp->Bd=  bb;
+			filp->Bd= bb;
 		} else
 			*pb0= 0;
 
@@ -3093,7 +3093,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                 strncat(s, res->ptr(), res->length());
 
                 if (res->length() < 19)
-                  strcat(s, "1970-01-01 00:00:00" + res->length());
+                  strcat(s, &"1970-01-01 00:00:00"[res->length()]);
 
                 strcat(s, "'}");
                 break;
@@ -3123,7 +3123,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                     strncat(s, res->ptr(), res->length());
 
                     if (res->length() < 19)
-                      strcat(s, "1970-01-01 00:00:00" + res->length());
+                      strcat(s, &"1970-01-01 00:00:00"[res->length()]);
 
                     strcat(s, "'}");
                     break;
@@ -4468,7 +4468,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool 
     case TAB_XML:
     case TAB_INI:
     case TAB_VEC:
-    case TAB_REST:
+		case TAB_REST:
     case TAB_JSON:
 			if (options->filename && *options->filename) {
 				if (!quick) {
@@ -4501,34 +4501,13 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool 
 		case TAB_DIR:
 		case TAB_ZIP:
 		case TAB_OEM:
-#ifdef NO_EMBEDDED_ACCESS_CHECKS
-			return false;
-			#endif
-
-			/*
-			Check FILE_ACL
-			If table or table->mdl_ticket is NULL - it's a DLL, e.g. CREATE TABLE.
-			if the table has an MDL_EXCLUSIVE lock - it's a DDL too, e.g. the
-			insert step of CREATE ... SELECT.
-			
-			Otherwise it's a DML, the table was normally opened, locked,
-			privilege were already checked, and table->grant.privilege is set.
-			With SQL SECURITY DEFINER, table->grant.privilege has definer's privileges.
-			
-			Unless we're in prelocking mode, in this case table->grant.privilege
-			is only checked in start_stmt(), not in external_lock().
-			*/
-			if (!table || !table->mdl_ticket || table->mdl_ticket->get_type() == MDL_EXCLUSIVE)
-			  return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
-
-			if ((!quick && thd->lex->requires_prelocking()) || table->grant.privilege & FILE_ACL)
-			  return false;
-
-			status_var_increment(thd->status_var.access_denied_errors);
-			my_error(access_denied_error_code(thd->password), MYF(0),
-			         thd->security_ctx->priv_user, thd->security_ctx->priv_host,
-			         (thd->password ?  ER(ER_YES) : ER(ER_NO)));
-			return true;
+      if (table && table->pos_in_table_list) // if SELECT
+      {
+        Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
+        return check_global_access(thd, FILE_ACL);
+      }
+      else
+        return check_global_access(thd, FILE_ACL);
     case TAB_ODBC:
 		case TAB_JDBC:
 		case TAB_MONGO:
@@ -4758,7 +4737,7 @@ int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
 		} // endif Close
 
 		locked= 0;
-		xmod= MODE_ANY;               // For info commands
+		xmod= MODE_ANY;              // For info commands
 		DBUG_RETURN(rc);
 	} // endif MODE_ANY
 
@@ -5537,7 +5516,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	PCSZ     fncn= "?";
 	PCSZ     user, fn, db, host, pwd, sep, tbl, src;
 	PCSZ     col, ocl, rnk, pic, fcl, skc, zfn;
-  char    *tab, *dsn, *shm, *dpath, *url; 
+	char    *tab, *dsn, *shm, *dpath, *url;
 #if defined(__WIN__)
 	PCSZ     nsp= NULL, cls= NULL;
 #endif   // __WIN__
@@ -5646,11 +5625,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(REST_SUPPORT)
 		} else if (topt->http) {
 			switch (ttp) {
-			case TAB_JSON:
-			case TAB_XML:
-			case TAB_CSV:
-				ttp= TAB_REST;
-				break;
+				case TAB_JSON:
+				case TAB_XML:
+				case TAB_CSV:
+					ttp = TAB_REST;
+					break;
 			}	// endswitch type
 #endif   // REST_SUPPORT
 		} // endif ttp
@@ -6730,6 +6709,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   if (trace(1))
     htrc("xchk=%p createas=%d\n", g->Xchk, g->Createas);
 
+#if defined(ZIP_SUPPORT)
 	if (options->zipped) {
 #if defined(ZIP_SUPPORT)
 		// Check whether the zip entry must be made from a file
@@ -6763,6 +6743,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 		DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 #endif  // !ZIP_SUPPORT
 	}	// endif zipped
+#endif   // ZIP_SUPPORT
 
   // To check whether indexes have to be made or remade
   if (!g->Xchk) {

@@ -2,23 +2,14 @@
 #
 # 2-sweeps read Index_merge test
 #
-# The variable
-#     $engine_type       -- storage engine to be tested
-# has to be set before sourcing this script.
-#
 # Last update:
 # 2006-08-02 ML test refactored
 #               old name was index_merge_innodb2.test
 #               main code went into include/index_merge_2sweeps.inc
 #
+--source include/have_sequence.inc
 
 --echo #---------------- 2-sweeps read Index merge test 2 -------------------------------
-
-eval SET SESSION STORAGE_ENGINE = $engine_type;
-
---disable_warnings
-drop table if exists t1;
---enable_warnings
 
 create table t1 (
   pk int primary key,
@@ -30,15 +21,8 @@ create table t1 (
   index(key2)
 );
 
-
---disable_query_log
-let $1=1000;
-while ($1)
-{
-  eval insert into t1 values($1, $1, $1, 'filler-data','filler-data-2');
-  dec $1;
-}
---enable_query_log
+insert into t1 select seq, seq, seq, 'filler-data', 'filler-data-2'
+from seq_1000_to_1;
 
 select * from t1 where (key1 >= 2 and key1 <= 10) or (pk >= 4 and pk <=8 );
 

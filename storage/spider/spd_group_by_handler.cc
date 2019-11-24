@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -172,6 +172,7 @@ int spider_fields::make_link_idx_chain(
           add_link_idx_holder->table_link_idx_holder =
             dup_link_idx_holder->table_link_idx_holder;
           add_link_idx_holder->link_idx = dup_link_idx_holder->link_idx;
+          add_link_idx_holder->link_status = dup_link_idx_holder->link_status;
           link_idx_holder->next = add_link_idx_holder;
         }
         link_idx_holder = link_idx_holder->next;
@@ -446,6 +447,8 @@ bool spider_fields::check_link_ok_chain(
   for (current_link_idx_chain = first_link_idx_chain; current_link_idx_chain;
     current_link_idx_chain = current_link_idx_chain->next)
   {
+    DBUG_PRINT("info",("spider current_link_idx_chain=%p", current_link_idx_chain));
+    DBUG_PRINT("info",("spider current_link_idx_chain->link_status=%d", current_link_idx_chain->link_status));
     if (current_link_idx_chain->link_status == SPIDER_LINK_STATUS_OK)
     {
       first_ok_link_idx_chain = current_link_idx_chain;
@@ -819,7 +822,7 @@ void spider_fields::choose_a_conn(
     current_conn_holder = first_conn_holder;
   }
 
-  DBUG_PRINT("info",("spider choosed connection is %p",
+  DBUG_PRINT("info",("spider chosen connection is %p",
     current_conn_holder->conn));
   last_conn_holder = current_conn_holder;
   current_conn_holder = current_conn_holder->next;
@@ -911,6 +914,35 @@ SPIDER_TABLE_HOLDER *spider_fields::add_table(
   DBUG_RETURN(return_table_holder);
 }
 
+/**
+  Verify that all fields in the query are members of tables that are in the
+  query.
+
+  @return TRUE              All fields in the query are members of tables
+                            that are in the query.
+          FALSE             At least one field in the query is not a
+                            member of a table that is in the query.
+*/
+
+bool spider_fields::all_query_fields_are_query_table_members()
+{
+  SPIDER_FIELD_HOLDER *field_holder;
+  DBUG_ENTER("spider_fields::all_query_fields_are_query_table_members");
+  DBUG_PRINT("info",("spider this=%p", this));
+
+  set_pos_to_first_field_holder();
+  while ((field_holder = get_next_field_holder()))
+  {
+    if (!field_holder->spider)
+    {
+      DBUG_PRINT("info", ("spider field is not a member of a query table"));
+      DBUG_RETURN(FALSE);
+    }
+  }
+
+  DBUG_RETURN(TRUE);
+}
+
 int spider_fields::create_table_holder(
   uint table_count_arg
 ) {
@@ -946,6 +978,25 @@ SPIDER_TABLE_HOLDER *spider_fields::get_next_table_holder(
   return_table_holder = &table_holder[current_table_num];
   ++current_table_num;
   DBUG_RETURN(return_table_holder);
+}
+
+SPIDER_TABLE_HOLDER *spider_fields::get_table_holder(TABLE *table)
+{
+  uint table_num;
+  DBUG_ENTER("spider_fields::get_table_holder");
+  DBUG_PRINT("info",("spider this=%p", this));
+  for (table_num = 0; table_num < table_count; ++table_num)
+  {
+    if (table_holder[table_num].table == table)
+      DBUG_RETURN(&table_holder[table_num]);
+  }
+  DBUG_RETURN(NULL);
+}
+
+uint spider_fields::get_table_count()
+{
+  DBUG_ENTER("spider_fields::get_table_count");
+  DBUG_RETURN(table_count);
 }
 
 int spider_fields::add_field(
@@ -1162,7 +1213,8 @@ int spider_group_by_handler::init_scan()
     *field;
     field++
   ) {
-    DBUG_PRINT("info",("spider field_name=%s", (*field)->field_name.str));
+    DBUG_PRINT("info",("spider field_name=%s",
+      SPIDER_field_name_str(*field)));
   }
 #endif
 
@@ -1727,7 +1779,7 @@ group_by_handler *spider_create_group_by_handler(
       while ((item = it++))
       {
         DBUG_PRINT("info",("spider select item=%p", item));
-        if (spider_db_print_item_type(item, spider, NULL, NULL, 0,
+        if (spider_db_print_item_type(item, NULL, spider, NULL, NULL, 0,
           roop_count, TRUE, fields_arg))
         {
           DBUG_PRINT("info",("spider dbton_id=%d can't create select", roop_count));
@@ -1738,10 +1790,20 @@ group_by_handler *spider_create_group_by_handler(
       }
       if (keep_going)
       {
+        if (spider_dbton[roop_count].db_util->append_from_and_tables(
+          spider, fields_arg, NULL, query->from, table_idx))
+        {
+          DBUG_PRINT("info",("spider dbton_id=%d can't create from", roop_count));
+          spider_clear_bit(dbton_bitmap, roop_count);
+          keep_going = FALSE;
+        }
+      }
+      if (keep_going)
+      {
         DBUG_PRINT("info",("spider query->where=%p", query->where));
         if (query->where)
         {
-          if (spider_db_print_item_type(query->where, spider, NULL, NULL, 0,
+          if (spider_db_print_item_type(query->where, NULL, spider, NULL, NULL, 0,
             roop_count, TRUE, fields_arg))
           {
             DBUG_PRINT("info",("spider dbton_id=%d can't create where", roop_count));
@@ -1757,7 +1819,7 @@ group_by_handler *spider_create_group_by_handler(
         {
           for (order = query->group_by; order; order = order->next)
           {
-            if (spider_db_print_item_type((*order->item), spider, NULL, NULL, 0,
+            if (spider_db_print_item_type((*order->item), NULL, spider, NULL, NULL, 0,
               roop_count, TRUE, fields_arg))
             {
               DBUG_PRINT("info",("spider dbton_id=%d can't create group by", roop_count));
@@ -1775,7 +1837,7 @@ group_by_handler *spider_create_group_by_handler(
         {
           for (order = query->order_by; order; order = order->next)
           {
-            if (spider_db_print_item_type((*order->item), spider, NULL, NULL, 0,
+            if (spider_db_print_item_type((*order->item), NULL, spider, NULL, NULL, 0,
               roop_count, TRUE, fields_arg))
             {
               DBUG_PRINT("info",("spider dbton_id=%d can't create order by", roop_count));
@@ -1791,7 +1853,7 @@ group_by_handler *spider_create_group_by_handler(
         DBUG_PRINT("info",("spider query->having=%p", query->having));
         if (query->having)
         {
-          if (spider_db_print_item_type(query->having, spider, NULL, NULL, 0,
+          if (spider_db_print_item_type(query->having, NULL, spider, NULL, NULL, 0,
             roop_count, TRUE, fields_arg))
           {
             DBUG_PRINT("info",("spider dbton_id=%d can't create having", roop_count));
@@ -1993,10 +2055,17 @@ group_by_handler *spider_create_group_by_handler(
     }
   }
 
+  if (!fields->all_query_fields_are_query_table_members())
+  {
+    DBUG_PRINT("info", ("spider found a query field that is not a query table member"));
+    delete fields;
+    DBUG_RETURN(NULL);
+  }
+
   fields->check_support_dbton(dbton_bitmap);
   if (!fields->has_conn_holder())
   {
-    DBUG_PRINT("info",("spider all choosed connections can't match dbton_id"));
+    DBUG_PRINT("info",("spider all chosen connections can't match dbton_id"));
     delete fields;
     DBUG_RETURN(NULL);
   }

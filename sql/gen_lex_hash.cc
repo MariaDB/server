@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -78,6 +78,7 @@ So, we can read full search-structure as 32-bit word
 */
 
 #define NO_YACC_SYMBOLS
+#undef CHECK_UNLIKELY
 #include "mariadb.h"
 #include "mysql_version.h"
 #include "lex.h"
@@ -140,7 +141,8 @@ void insert_into_hash(hash_lex_struct *root, const char *name,
   if (root->first_char>(*name))
   {
     size_t new_size= root->last_char-(*name)+1;
-    if (new_size<real_size) printf("error!!!!\n");
+    if (unlikely(new_size<real_size))
+      printf("error!!!!\n");
     tails= root->char_tails;
     tails= (hash_lex_struct*)realloc((char*)tails,
 				       sizeof(hash_lex_struct)*new_size);
@@ -155,7 +157,8 @@ void insert_into_hash(hash_lex_struct *root, const char *name,
   if (root->last_char<(*name))
   {
     size_t new_size= (*name)-root->first_char+1;
-    if (new_size<real_size) printf("error!!!!\n");
+    if (unlikely(new_size<real_size))
+      printf("error!!!!\n");
     tails= root->char_tails;
     tails= (hash_lex_struct*)realloc((char*)tails,
 				    sizeof(hash_lex_struct)*new_size);

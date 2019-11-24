@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   WL#3234 Maria control file
@@ -42,7 +42,7 @@ extern LSN last_checkpoint_lsn;
 */
 extern uint32 last_logno;
 
-extern TrID max_trid_in_control_file;
+extern TrID max_trid_in_control_file, max_long_trid;
 
 extern uint8 recovery_failures;
 

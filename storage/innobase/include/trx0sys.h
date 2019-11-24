@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,8 +26,6 @@ Created 3/26/1996 Heikki Tuuri
 
 #ifndef trx0sys_h
 #define trx0sys_h
-
-#include "univ.i"
 
 #include "buf0buf.h"
 #include "fil0fil.h"
@@ -49,9 +47,7 @@ typedef UT_LIST_BASE_NODE_T(trx_t) trx_ut_list_t;
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
 @return true if trx sys header page */
-inline
-bool
-trx_sys_hdr_page(const page_id_t& page_id)
+inline bool trx_sys_hdr_page(const page_id_t& page_id)
 {
 	return(page_id.space() == TRX_SYS_SPACE
 	       && page_id.page_no() == TRX_SYS_PAGE_NO);
@@ -224,7 +220,7 @@ trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
 # error "UNIV_PAGE_SIZE_MIN < 4096"
 #endif
 /** The offset of the MySQL binlog offset info in the trx system header */
-#define TRX_SYS_MYSQL_LOG_INFO		(UNIV_PAGE_SIZE - 1000)
+#define TRX_SYS_MYSQL_LOG_INFO		(srv_page_size - 1000)
 #define	TRX_SYS_MYSQL_LOG_MAGIC_N_FLD	0	/*!< magic number which is
 						TRX_SYS_MYSQL_LOG_MAGIC_N
 						if we have valid data in the
@@ -233,7 +229,7 @@ trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
 						within that file */
 #define TRX_SYS_MYSQL_LOG_NAME		12	/*!< MySQL log file name */
 
-/** Memory map TRX_SYS_PAGE_NO = 5 when UNIV_PAGE_SIZE = 4096
+/** Memory map TRX_SYS_PAGE_NO = 5 when srv_page_size = 4096
 
 0...37 FIL_HEADER
 38...45 TRX_SYS_TRX_ID_STORE
@@ -249,7 +245,7 @@ trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
 ...
   ...1063  TRX_SYS_RSEG_PAGE_NO     for slot 126
 
-(UNIV_PAGE_SIZE-3500 WSREP ::: FAIL would overwrite undo tablespace
+(srv_page_size-3500 WSREP ::: FAIL would overwrite undo tablespace
 space_id, page_no pairs :::)
 596 TRX_SYS_WSREP_XID_INFO             TRX_SYS_WSREP_XID_MAGIC_N_FLD
 600 TRX_SYS_WSREP_XID_FORMAT
@@ -259,7 +255,7 @@ space_id, page_no pairs :::)
 739 TRX_SYS_WSREP_XID_DATA_END
 
 FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
-(UNIV_PAGE_SIZE-2500)
+(srv_page_size-2500)
 1596 TRX_SYS_WSREP_XID_INFO             TRX_SYS_WSREP_XID_MAGIC_N_FLD
 1600 TRX_SYS_WSREP_XID_FORMAT
 1604 TRX_SYS_WSREP_XID_GTRID_LEN
@@ -267,19 +263,19 @@ FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
 1612 TRX_SYS_WSREP_XID_DATA   (len = 128)
 1739 TRX_SYS_WSREP_XID_DATA_END
 
-(UNIV_PAGE_SIZE - 2000 MYSQL MASTER LOG)
+(srv_page_size - 2000 MYSQL MASTER LOG)
 2096   TRX_SYS_MYSQL_MASTER_LOG_INFO   TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
 2100   TRX_SYS_MYSQL_LOG_OFFSET_HIGH
 2104   TRX_SYS_MYSQL_LOG_OFFSET_LOW
 2108   TRX_SYS_MYSQL_LOG_NAME
 
-(UNIV_PAGE_SIZE - 1000 MYSQL LOG)
+(srv_page_size - 1000 MYSQL LOG)
 3096   TRX_SYS_MYSQL_LOG_INFO          TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
 3100   TRX_SYS_MYSQL_LOG_OFFSET_HIGH
 3104   TRX_SYS_MYSQL_LOG_OFFSET_LOW
 3108   TRX_SYS_MYSQL_LOG_NAME
 
-(UNIV_PAGE_SIZE - 200 DOUBLEWRITE)
+(srv_page_size - 200 DOUBLEWRITE)
 3896   TRX_SYS_DOUBLEWRITE		TRX_SYS_DOUBLEWRITE_FSEG
 3906         TRX_SYS_DOUBLEWRITE_MAGIC
 3910         TRX_SYS_DOUBLEWRITE_BLOCK1
@@ -287,7 +283,7 @@ FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
 3918         TRX_SYS_DOUBLEWRITE_REPEAT
 3930         TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N
 
-(UNIV_PAGE_SIZE - 8, TAILER)
+(srv_page_size - 8, TAILER)
 4088..4096	FIL_TAILER
 
 */
@@ -308,7 +304,7 @@ FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
 /** Doublewrite buffer */
 /* @{ */
 /** The offset of the doublewrite buffer header on the trx system header page */
-#define TRX_SYS_DOUBLEWRITE		(UNIV_PAGE_SIZE - 200)
+#define TRX_SYS_DOUBLEWRITE		(srv_page_size - 200)
 /*-------------------------------------------------------------*/
 #define TRX_SYS_DOUBLEWRITE_FSEG	0	/*!< fseg header of the fseg
 						containing the doublewrite
@@ -435,6 +431,7 @@ class rw_trx_hash_t
     if (trx_t *trx= element->trx)
     {
       ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED) ||
+            trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
             (trx_state_eq(trx, TRX_STATE_ACTIVE) &&
              (!srv_was_started ||
               srv_read_only_mode ||
@@ -517,8 +514,11 @@ class rw_trx_hash_t
   {
     ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
     ut_ad(!trx_is_autocommit_non_locking(trx));
+    /* trx->state can be anything except TRX_STATE_NOT_STARTED */
     mutex_enter(&trx->mutex);
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
+          trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY) ||
+          trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
           trx_state_eq(trx, TRX_STATE_PREPARED));
     mutex_exit(&trx->mutex);
   }
@@ -616,7 +616,7 @@ public:
       @retval pointer to trx
   */
 
-  trx_t *find(trx_t *caller_trx, trx_id_t trx_id, bool do_ref_count= false)
+  trx_t *find(trx_t *caller_trx, trx_id_t trx_id, bool do_ref_count)
   {
     /*
       In MariaDB 10.3, purge will reset DB_TRX_ID to 0
@@ -624,15 +624,11 @@ public:
       always have a nonzero trx_t::id; there the value 0 is
       reserved for transactions that did not write or lock
       anything yet.
+
+      The caller should already have handled trx_id==0 specially.
     */
-    if (!trx_id)
-      return NULL;
-    if (caller_trx && caller_trx->id == trx_id)
-    {
-      if (do_ref_count)
-        caller_trx->reference();
-      return caller_trx;
-    }
+    ut_ad(trx_id);
+    ut_ad(!caller_trx || caller_trx->id != trx_id || !do_ref_count);
 
     trx_t *trx= 0;
     LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
@@ -645,11 +641,27 @@ public:
     {
       mutex_enter(&element->mutex);
       lf_hash_search_unpin(pins);
-      if ((trx= element->trx))
-      {
-        if (do_ref_count)
-          trx->reference();
+      if ((trx= element->trx)) {
+        DBUG_ASSERT(trx_id == trx->id);
         ut_d(validate_element(trx));
+        if (do_ref_count)
+        {
+          /*
+            We have an early state check here to avoid committer
+            starvation in a wait loop for transaction references,
+            when there's a stream of trx_sys.find() calls from other
+            threads. The trx->state may change to COMMITTED after
+            trx->mutex is released, and it will have to be rechecked
+            by the caller after reacquiring the mutex.
+          */
+          trx_mutex_enter(trx);
+          const trx_state_t state= trx->state;
+          trx_mutex_exit(trx);
+          if (state == TRX_STATE_COMMITTED_IN_MEMORY)
+            trx= NULL;
+          else
+            trx->reference();
+        }
       }
       mutex_exit(&element->mutex);
     }
@@ -704,9 +716,10 @@ public:
     because it may change even before this method returns.
   */
 
-  int32_t size()
+  uint32_t size()
   {
-    return my_atomic_load32_explicit(&hash.count, MY_MEMORY_ORDER_RELAXED);
+    return uint32_t(my_atomic_load32_explicit(&hash.count,
+					      MY_MEMORY_ORDER_RELAXED));
   }
 
 
@@ -940,7 +953,7 @@ public:
   /**
     Takes MVCC snapshot.
 
-    To reduce malloc probablility we reserver rw_trx_hash.size() + 32 elements
+    To reduce malloc probablility we reserve rw_trx_hash.size() + 32 elements
     in ids.
 
     For details about get_rw_trx_hash_version() != get_max_trx_id() spin
@@ -1043,13 +1056,13 @@ public:
 
   bool is_registered(trx_t *caller_trx, trx_id_t id)
   {
-    return rw_trx_hash.find(caller_trx, id);
+    return id && find(caller_trx, id, false);
   }
 
 
-  trx_t *find(trx_t *caller_trx, trx_id_t id)
+  trx_t *find(trx_t *caller_trx, trx_id_t id, bool do_ref_count= true)
   {
-    return rw_trx_hash.find(caller_trx, id, true);
+    return rw_trx_hash.find(caller_trx, id, do_ref_count);
   }
 
 

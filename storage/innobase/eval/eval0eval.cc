@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -585,7 +586,7 @@ eval_instr(
 				/* We have already matched j characters */
 
 				if (j == len2) {
-					int_val = i + 1;
+					int_val = lint(i) + 1;
 
 					goto match_found;
 				}
@@ -781,7 +782,7 @@ eval_predefined(
 		}
 
 		/* allocate the string */
-		data = eval_node_ensure_val_buf(func_node, int_len + 1);
+		data = eval_node_ensure_val_buf(func_node, ulint(int_len) + 1);
 
 		/* add terminating NUL character */
 		data[int_len] = 0;
@@ -804,7 +805,7 @@ eval_predefined(
 			}
 		}
 
-		dfield_set_len(que_node_get_val(func_node), int_len);
+		dfield_set_len(que_node_get_val(func_node), ulint(int_len));
 
 		return;
 
@@ -814,7 +815,7 @@ eval_predefined(
 			       dfield_get_data(que_node_get_val(arg1)));
 
 	} else if (func == PARS_SYSDATE_TOKEN) {
-		int_val = (lint) ut_time();
+		int_val = (lint) time(NULL);
 	} else {
 		eval_predefined_2(func_node);
 
@@ -833,12 +834,11 @@ eval_func(
 {
 	que_node_t*	arg;
 	ulint		fclass;
-	ulint		func;
 
 	ut_ad(que_node_get_type(func_node) == QUE_NODE_FUNC);
 
 	fclass = func_node->fclass;
-	func = func_node->func;
+	const int func = func_node->func;
 
 	arg = func_node->args;
 

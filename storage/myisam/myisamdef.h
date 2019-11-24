@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* This file is included by all internal myisam files */
 
@@ -197,7 +197,7 @@ typedef struct st_mi_isam_share
   ulong last_process;                   /* For table-change-check */
   ulong last_version;                   /* Version on start */
   ulong options;                        /* Options used */
-  ulong min_pack_length;                /* Theese are used by packed data */
+  ulong min_pack_length;                /* These are used by packed data */
   ulong max_pack_length;
   ulong state_diff_length;
   uint	rec_reflength;			/* rec_reflength in use now */

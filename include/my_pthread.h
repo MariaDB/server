@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* Defines to make different thread packages compatible */
 
@@ -22,6 +22,8 @@
 #ifndef ETIME
 #define ETIME ETIMEDOUT				/* For FreeBSD */
 #endif
+
+#include <my_atomic.h>
 
 #ifdef  __cplusplus
 #define EXTERNC extern "C"
@@ -161,7 +163,7 @@ int pthread_cancel(pthread_t thread);
 #define pthread_key(T,V) pthread_key_t V
 #define my_pthread_getspecific_ptr(T,V) my_pthread_getspecific(T,(V))
 #define my_pthread_setspecific_ptr(T,V) pthread_setspecific(T,(void*) (V))
-#define pthread_detach_this_thread() { pthread_t tmp=pthread_self() ; pthread_detach(tmp); }
+#define pthread_detach_this_thread()
 #define pthread_handler_t EXTERNC void *
 typedef void *(* pthread_handler)(void *);
 
@@ -691,7 +693,11 @@ extern void my_mutex_end(void);
   We need to have at least 256K stack to handle calls to myisamchk_init()
   with the current number of keys and key parts.
 */
-#define DEFAULT_THREAD_STACK	(292*1024L)
+#ifdef __SANITIZE_ADDRESS__
+#define DEFAULT_THREAD_STACK	(383*1024L) /* 392192 */
+#else
+#define DEFAULT_THREAD_STACK	(292*1024L) /* 299008 */
+#endif
 #endif
 
 #define MY_PTHREAD_LOCK_READ 0
@@ -798,6 +804,26 @@ extern uint thd_lib_detected;
 #define statistic_add(V,C,L)     (V)+=(C)
 #define statistic_sub(V,C,L)     (V)-=(C)
 #endif /* SAFE_STATISTICS */
+
+static inline void thread_safe_increment32(int32 *value)
+{
+  (void) my_atomic_add32_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
+}
+
+static inline void thread_safe_decrement32(int32 *value)
+{
+  (void) my_atomic_add32_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
+}
+
+static inline void thread_safe_increment64(int64 *value)
+{
+  (void) my_atomic_add64_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
+}
+
+static inline void thread_safe_decrement64(int64 *value)
+{
+  (void) my_atomic_add64_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
+}
 
 /*
   No locking needed, the counter is owned by the thread

@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -76,6 +76,9 @@ extern HASH spider_open_connections;
 pthread_mutex_t spider_open_conn_mutex;
 const char spider_dig_upper[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
+/* UTC time zone for timestamp columns */
+Time_zone *UTC = 0;
+
 int spider_db_connect(
   const SPIDER_SHARE *share,
   SPIDER_CONN *conn,
@@ -121,7 +124,10 @@ int spider_db_connect(
     conn->net_write_timeout = spider_param_net_write_timeout(thd,
       share->net_write_timeouts[link_idx]);
     connect_retry_interval = spider_param_connect_retry_interval(thd);
-    connect_retry_count = spider_param_connect_retry_count(thd);
+    if (conn->disable_connect_retry)
+      connect_retry_count = 0;
+    else
+      connect_retry_count = spider_param_connect_retry_count(thd);
   } else {
     conn->connect_timeout = spider_param_connect_timeout(NULL,
       share->connect_timeouts[link_idx]);
@@ -188,10 +194,14 @@ int spider_db_connect(
     }
     DBUG_RETURN(error_num);
   }
+
   conn->connect_error = 0;
   conn->opened_handlers = 0;
   conn->db_conn->reset_opened_handler();
   ++conn->connection_id;
+
+  /* Set the connection's time zone to UTC */
+  spider_conn_queue_UTC_time_zone(conn);
   DBUG_RETURN(0);
 }
 
@@ -1377,12 +1387,34 @@ int spider_db_unlock_tables(
 
 int spider_db_append_name_with_quote_str(
   spider_string *str,
-  char *name,
+  const char *name,
   uint dbton_id
 ) {
-  int error_num, length = strlen(name);
-  char *name_end, head_code;
   DBUG_ENTER("spider_db_append_name_with_quote_str");
+  DBUG_RETURN(spider_db_append_name_with_quote_str_internal(
+    str, name, strlen(name), dbton_id));
+}
+
+int spider_db_append_name_with_quote_str(
+  spider_string *str,
+  LEX_CSTRING &name,
+  uint dbton_id
+) {
+  DBUG_ENTER("spider_db_append_name_with_quote_str");
+  DBUG_RETURN(spider_db_append_name_with_quote_str_internal(
+    str, name.str, name.length, dbton_id));
+}
+
+int spider_db_append_name_with_quote_str_internal(
+  spider_string *str,
+  const char *name,
+  int length,
+  uint dbton_id
+) {
+  int error_num;
+  const char *name_end;
+  char head_code;
+  DBUG_ENTER("spider_db_append_name_with_quote_str_internal");
   for (name_end = name + length; name < name_end; name += length)
   {
     head_code = *name;
@@ -1685,8 +1717,13 @@ int spider_db_append_key_where_internal(
 
   if (sql_kind == SPIDER_SQL_KIND_HANDLER)
   {
+#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
     const char *key_name = key_info->name.str;
-    key_name_length =      key_info->name.length;
+    key_name_length = key_info->name.length;
+#else
+    const char *key_name = key_info->name;
+    key_name_length = strlen(key_name);
+#endif
     if (str->reserve(SPIDER_SQL_READ_LEN +
       /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + key_name_length))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -2668,7 +2705,7 @@ int spider_db_fetch_for_item_sum_func(
           thd->free_list = free_list;
         }
 
-        Item_sum_hybrid *item_hybrid = (Item_sum_hybrid *) item_sum;
+        Item_sum_min_max *item_sum_min_max = (Item_sum_min_max *) item_sum;
         Item_string *item =
           (Item_string *) spider->direct_aggregate_item_current->item;
         if (row->is_null())
@@ -2695,7 +2732,7 @@ int spider_db_fetch_for_item_sum_func(
 #endif
           item->null_value = FALSE;
         }
-        item_hybrid->direct_add(item);
+        item_sum_min_max->direct_add(item);
         row->next();
       }
       break;
@@ -2863,12 +2900,20 @@ int spider_db_fetch_row(
   my_ptrdiff_t ptr_diff
 ) {
   int error_num;
+  THD *thd = field->table->in_use;
+  Time_zone *saved_time_zone = thd->variables.time_zone;
   DBUG_ENTER("spider_db_fetch_row");
-  DBUG_PRINT("info", ("spider field_name %s", field->field_name.str));
+  DBUG_PRINT("info", ("spider field_name %s", SPIDER_field_name_str(field)));
   DBUG_PRINT("info", ("spider fieldcharset %s", field->charset()->csname));
+
+  thd->variables.time_zone = UTC;
+
   field->move_field_offset(ptr_diff);
   error_num = row->store_to_field(field, share->access_charset);
   field->move_field_offset(-ptr_diff);
+
+  thd->variables.time_zone = saved_time_zone;
+
   DBUG_RETURN(error_num);
 }
 
@@ -2995,7 +3040,7 @@ int spider_db_fetch_table(
           dbug_tmp_use_all_columns(table, table->write_set);
 #endif
         DBUG_PRINT("info", ("spider bitmap is set %s",
-                            (*field)->field_name.str));
+          SPIDER_field_name_str(*field)));
         if ((error_num =
           spider_db_fetch_row(share, *field, row, ptr_diff)))
           DBUG_RETURN(error_num);
@@ -3166,7 +3211,8 @@ int spider_db_fetch_key(
       my_bitmap_map *tmp_map =
         dbug_tmp_use_all_columns(table, table->write_set);
 #endif
-      DBUG_PRINT("info", ("spider bitmap is set %s", field->field_name.str));
+      DBUG_PRINT("info", ("spider bitmap is set %s",
+        SPIDER_field_name_str(field)));
       if ((error_num =
         spider_db_fetch_row(share, field, row, ptr_diff)))
         DBUG_RETURN(error_num);
@@ -3285,7 +3331,7 @@ int spider_db_fetch_minimum_columns(
           dbug_tmp_use_all_columns(table, table->write_set);
 #endif
         DBUG_PRINT("info", ("spider bitmap is set %s",
-                            (*field)->field_name.str));
+          SPIDER_field_name_str(*field)));
         if ((error_num = spider_db_fetch_row(share, *field, row, ptr_diff)))
           DBUG_RETURN(error_num);
 #ifndef DBUG_OFF
@@ -3422,6 +3468,22 @@ void spider_db_free_one_result(
           }
         }
       }
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
+void spider_db_free_one_quick_result(
+  SPIDER_RESULT *result
+) {
+  DBUG_ENTER("spider_db_free_one_quick_result");
+  if (result && result->result)
+  {
+    result->result->free_result();
+    if (!result->result_tmp_tbl)
+    {
+      delete result->result;
+      result->result = NULL;
     }
   }
   DBUG_VOID_RETURN;
@@ -3953,11 +4015,22 @@ int spider_db_store_result(
       SPIDER_DB_ROW *tmp_row;
       uint field_count = current->result->num_fields();
       SPIDER_POSITION *position;
-      longlong page_size =
-        !result_list->quick_page_size ||
-        result_list->limit_num < result_list->quick_page_size ?
-        result_list->limit_num : result_list->quick_page_size;
+      longlong page_size;
       int roop_count = 0;
+      if (!result_list->quick_page_size)
+      {
+        if (result_list->quick_mode == 3)
+        {
+          page_size = 0;
+        } else {
+          result_list->quick_page_size = result_list->limit_num;
+          page_size = result_list->limit_num;
+        }
+      } else {
+        page_size =
+          result_list->limit_num < result_list->quick_page_size ?
+          result_list->limit_num : result_list->quick_page_size;
+      }
       current->field_count = field_count;
       if (!(position = (SPIDER_POSITION *)
         spider_bulk_malloc(spider_current_trx, 7, MYF(MY_WME | MY_ZEROFILL),
@@ -3969,22 +4042,56 @@ int spider_db_store_result(
       current->pos_page_size = (int) page_size;
       current->first_position = position;
       current->tmp_tbl_row = tmp_row;
-      do {
-        if (!(position->row = row->clone()))
+      if (result_list->quick_mode == 3)
+      {
+        while (page_size > roop_count && row)
         {
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          if (result_list->quick_page_byte < row->get_byte_size())
+          {
+            current->pos_page_size = roop_count;
+            page_size = roop_count;
+            result_list->quick_page_size = roop_count;
+            result_list->quick_page_byte = 0;
+            break;
+          } else {
+            result_list->quick_page_byte -= row->get_byte_size();
+          }
+          if (!(position->row = row->clone()))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          position++;
+          roop_count++;
+          row = current->result->fetch_row();
         }
-        position++;
-        roop_count++;
-      } while (
-        page_size > roop_count &&
-        (row = current->result->fetch_row())
-      );
+      } else {
+        do {
+          if (!(position->row = row->clone()))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          position++;
+          roop_count++;
+          if (result_list->quick_page_byte < row->get_byte_size())
+          {
+            current->pos_page_size = roop_count;
+            page_size = roop_count;
+            result_list->quick_page_size = roop_count;
+            result_list->quick_page_byte = 0;
+            break;
+          } else {
+            result_list->quick_page_byte -= row->get_byte_size();
+          }
+        } while (
+          page_size > roop_count &&
+          (row = current->result->fetch_row())
+        );
+      }
       if (
         result_list->quick_mode == 3 &&
         page_size == roop_count &&
         result_list->limit_num > roop_count &&
-        (row = current->result->fetch_row())
+        row
       ) {
         THD *thd = current_thd;
         char buf[MAX_FIELD_WIDTH];
@@ -3993,9 +4100,18 @@ int spider_db_store_result(
 
         DBUG_PRINT("info",("spider store result to temporary table"));
         DBUG_ASSERT(!current->result_tmp_tbl);
+#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
+        LEX_CSTRING field_name1 = {STRING_WITH_LEN("a")};
+        LEX_CSTRING field_name2 = {STRING_WITH_LEN("b")};
+        LEX_CSTRING field_name3 = {STRING_WITH_LEN("c")};
+        if (!(current->result_tmp_tbl = spider_mk_sys_tmp_table_for_result(
+          thd, table, &current->result_tmp_tbl_prm, &field_name1, &field_name2,
+          &field_name3, &my_charset_bin)))
+#else
         if (!(current->result_tmp_tbl = spider_mk_sys_tmp_table_for_result(
           thd, table, &current->result_tmp_tbl_prm, "a", "b", "c",
           &my_charset_bin)))
+#endif
         {
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
@@ -4021,7 +4137,11 @@ int spider_db_store_result(
       result_list->record_num += roop_count;
       if (
         result_list->internal_limit <= result_list->record_num ||
-        page_size > roop_count
+        page_size > roop_count ||
+        (
+          result_list->quick_mode == 3 &&
+          result_list->limit_num > roop_count
+        )
       ) {
         DBUG_PRINT("info",("spider set finish_flg point 4"));
         DBUG_PRINT("info",("spider current->finish_flg = TRUE"));
@@ -5306,7 +5426,7 @@ int spider_db_seek_tmp_table(
         dbug_tmp_use_all_columns(table, table->write_set);
 #endif
       DBUG_PRINT("info", ("spider bitmap is set %s",
-                          (*field)->field_name.str));
+        SPIDER_field_name_str(*field)));
       if ((error_num =
         spider_db_fetch_row(spider->share, *field, row, ptr_diff)))
         DBUG_RETURN(error_num);
@@ -5393,7 +5513,8 @@ int spider_db_seek_tmp_key(
       my_bitmap_map *tmp_map =
         dbug_tmp_use_all_columns(table, table->write_set);
 #endif
-      DBUG_PRINT("info", ("spider bitmap is set %s", field->field_name.str));
+      DBUG_PRINT("info", ("spider bitmap is set %s",
+        SPIDER_field_name_str(field)));
       if ((error_num =
         spider_db_fetch_row(spider->share, field, row, ptr_diff)))
         DBUG_RETURN(error_num);
@@ -5484,7 +5605,7 @@ int spider_db_seek_tmp_minimum_columns(
         dbug_tmp_use_all_columns(table, table->write_set);
 #endif
       DBUG_PRINT("info", ("spider bitmap is set %s",
-                          (*field)->field_name.str));
+        SPIDER_field_name_str(*field)));
       if ((error_num =
         spider_db_fetch_row(spider->share, *field, row, ptr_diff)))
         DBUG_RETURN(error_num);
@@ -5496,7 +5617,7 @@ int spider_db_seek_tmp_minimum_columns(
     else if (bitmap_is_set(table->read_set, (*field)->field_index))
     {
       DBUG_PRINT("info", ("spider bitmap is cleared %s",
-        (*field)->field_name.str));
+        SPIDER_field_name_str(*field)));
       bitmap_clear_bit(table->read_set, (*field)->field_index);
     }
   }
@@ -8446,8 +8567,78 @@ int spider_db_flush_logs(
   DBUG_RETURN(0);
 }
 
+/**
+  Find the field among the items in an expression tree.
+
+  @param  item_list         List of items of the expression.
+  @param  item_count        Number of items in the item list.
+  @param  start_item        Index of the first item to consider.
+  @param  str               String into which the expression is to be printed.
+  @param  func_name         Function or operator name.
+  @param  func_name_length  Length of function or operator name.
+
+  @return                   Pointer to the field in the item list if the list
+                            contains only one field; NULL otherwise.
+*/
+
+Field *spider_db_find_field_in_item_list(
+  Item **item_list,
+  uint item_count,
+  uint start_item,
+  spider_string *str,
+  const char *func_name,
+  int func_name_length
+) {
+  uint item_num;
+  Item *item;
+  Field *field = NULL;
+  DBUG_ENTER("spider_db_find_field_in_item_list");
+
+  if (str && func_name_length)
+  {
+    if (strncasecmp(func_name, ",", 1))
+    {
+      /* A known function or operator */
+      for (item_num = start_item; item_num < item_count; item_num++)
+      {
+        item = item_list[item_num];
+
+        if (item->type() == Item::FIELD_ITEM)
+        {
+          if (field)
+          {
+            /* Field is not relevant if there are multiple fields */
+            DBUG_RETURN(NULL);
+          }
+
+          field = ((Item_field *) item)->field;
+        }
+      }
+    }
+  }
+
+  DBUG_RETURN(field);
+}
+
+/**
+  Print an operand value within a statement generated for an expression.
+
+  @param  item              Operand value to print.
+  @param  field             Field related to the operand value.
+  @param  spider            Spider.
+  @param  str               String into which the value is to be printed.
+  @param  alias             Name related to the operand.
+  @param  alias_length      Length of the name.
+  @param  dbton_id          Spider Db/Table id.
+  @param  use_fields        Use fields or exchange fields.
+  @param  fields            Array of fields in the expression.
+
+  @return                   Error code.
+*/
+
 int spider_db_print_item_type(
   Item *item,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -8458,6 +8649,7 @@ int spider_db_print_item_type(
 ) {
   DBUG_ENTER("spider_db_print_item_type");
   DBUG_PRINT("info",("spider COND type=%d", item->type()));
+
   switch (item->type())
   {
     case Item::FUNC_ITEM:
@@ -8480,20 +8672,40 @@ int spider_db_print_item_type(
     case Item::ROW_ITEM:
       DBUG_RETURN(spider_db_open_item_row((Item_row *) item, spider, str,
         alias, alias_length, dbton_id, use_fields, fields));
+#ifdef SPIDER_USE_CONST_ITEM_FOR_STRING_INT_REAL_DECIMAL_DATE_ITEM
+    case Item::CONST_ITEM:
+    {
+      switch (item->cmp_type()) {
+        case TIME_RESULT:
+        case STRING_RESULT:
+          DBUG_RETURN(spider_db_open_item_string(item, field, spider, str,
+            alias, alias_length, dbton_id, use_fields, fields));
+        case INT_RESULT:
+        case REAL_RESULT:
+        case DECIMAL_RESULT:
+          DBUG_RETURN(spider_db_open_item_int(item, field, spider, str,
+            alias, alias_length, dbton_id, use_fields, fields));
+        default:
+          DBUG_ASSERT(FALSE);
+          DBUG_RETURN(spider_db_print_item_type_default(item, spider, str));
+      }
+    }
+#else
     case Item::STRING_ITEM:
-      DBUG_RETURN(spider_db_open_item_string(item, spider, str,
+      DBUG_RETURN(spider_db_open_item_string(item, field, spider, str,
         alias, alias_length, dbton_id, use_fields, fields));
     case Item::INT_ITEM:
     case Item::REAL_ITEM:
     case Item::DECIMAL_ITEM:
-      DBUG_RETURN(spider_db_open_item_int(item, spider, str,
+      DBUG_RETURN(spider_db_open_item_int(item, field, spider, str,
         alias, alias_length, dbton_id, use_fields, fields));
+#endif
     case Item::CACHE_ITEM:
-      DBUG_RETURN(spider_db_open_item_cache((Item_cache *)item, spider, str,
-        alias, alias_length, dbton_id, use_fields, fields));
+      DBUG_RETURN(spider_db_open_item_cache((Item_cache *) item, field, spider,
+        str, alias, alias_length, dbton_id, use_fields, fields));
     case Item::INSERT_VALUE_ITEM:
-      DBUG_RETURN(spider_db_open_item_insert_value((Item_insert_value *)item,
-        spider, str, alias, alias_length, dbton_id, use_fields, fields));
+      DBUG_RETURN(spider_db_open_item_insert_value((Item_insert_value *) item,
+        field, spider, str, alias, alias_length, dbton_id, use_fields, fields));
     case Item::SUBSELECT_ITEM:
     case Item::TRIGGER_FIELD_ITEM:
 #ifdef SPIDER_HAS_EXPR_CACHE_ITEM
@@ -8501,26 +8713,36 @@ int spider_db_print_item_type(
 #endif
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
     default:
-      THD *thd = spider->trx->thd;
-      SPIDER_SHARE *share = spider->share;
-      if (spider_param_skip_default_condition(thd,
-        share->skip_default_condition))
-        DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-      if (str)
-      {
-        if (spider->share->access_charset->cset == system_charset_info->cset)
-        {
+      DBUG_RETURN(spider_db_print_item_type_default(item, spider, str));
+  }
+
+  DBUG_RETURN(0);
+}
+
+int spider_db_print_item_type_default(
+  Item *item,
+  ha_spider *spider,
+  spider_string *str
+) {
+  DBUG_ENTER("spider_db_print_item_type_default");
+  THD *thd = spider->trx->thd;
+  SPIDER_SHARE *share = spider->share;
+  if (spider_param_skip_default_condition(thd,
+    share->skip_default_condition))
+    DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+  if (str)
+  {
+    if (spider->share->access_charset->cset == system_charset_info->cset)
+    {
 #if MYSQL_VERSION_ID < 50500
-          item->print(str->get_str(), QT_IS);
+      item->print(str->get_str(), QT_IS);
 #else
-          item->print(str->get_str(), QT_TO_SYSTEM_CHARSET);
+      item->print(str->get_str(), QT_TO_SYSTEM_CHARSET);
 #endif
-        } else {
-          item->print(str->get_str(), QT_ORDINARY);
-        }
-        str->mem_calc();
-      }
-      break;
+    } else {
+      item->print(str->get_str(), QT_ORDINARY);
+    }
+    str->mem_calc();
   }
   DBUG_RETURN(0);
 }
@@ -8553,7 +8775,7 @@ restart_first:
   {
     if (str)
       restart_pos = str->length();
-    if ((error_num = spider_db_print_item_type(item, spider, str,
+    if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
       alias, alias_length, dbton_id, use_fields, fields)))
     {
       if (
@@ -8587,7 +8809,7 @@ restart_first:
       str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
     }
 
-    if ((error_num = spider_db_print_item_type(item, spider, str,
+    if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
       alias, alias_length, dbton_id, use_fields, fields)))
     {
       if (
@@ -8697,7 +8919,15 @@ int spider_db_open_item_ident(
   }
   if (str)
   {
-    field_name_length = item_ident->field_name.length;
+#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
+    if (item_ident->field_name.str)
+      field_name_length = item_ident->field_name.length;
+#else
+    if (item_ident->field_name)
+      field_name_length = strlen(item_ident->field_name);
+#endif
+    else
+      field_name_length = 0;
     if (share->access_charset->cset == system_charset_info->cset)
     {
       if (str->reserve(alias_length +
@@ -8706,8 +8936,13 @@ int spider_db_open_item_ident(
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       }
       str->q_append(alias, alias_length);
+#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
       if ((error_num = spider_dbton[dbton_id].db_util->
         append_name(str, item_ident->field_name.str, field_name_length)))
+#else
+      if ((error_num = spider_dbton[dbton_id].db_util->
+        append_name(str, item_ident->field_name, field_name_length)))
+#endif
       {
         DBUG_RETURN(error_num);
       }
@@ -8715,9 +8950,15 @@ int spider_db_open_item_ident(
       if (str->reserve(alias_length))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       str->q_append(alias, alias_length);
+#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
       if ((error_num = spider_dbton[dbton_id].db_util->
         append_name_with_charset(str, item_ident->field_name.str,
           field_name_length, system_charset_info)))
+#else
+      if ((error_num = spider_dbton[dbton_id].db_util->
+        append_name_with_charset(str, item_ident->field_name,
+          field_name_length, system_charset_info)))
+#endif
       {
         DBUG_RETURN(error_num);
       }
@@ -8802,29 +9043,49 @@ int spider_db_open_item_ref(
   DBUG_ENTER("spider_db_open_item_ref");
   if (item_ref->ref)
   {
+#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
     if (
       (*(item_ref->ref))->type() != Item::CACHE_ITEM &&
       item_ref->ref_type() != Item_ref::VIEW_REF &&
       !item_ref->table_name &&
       item_ref->name.str &&
       item_ref->alias_name_used
-    ) {
+    )
+#else
+    if (
+      (*(item_ref->ref))->type() != Item::CACHE_ITEM &&
+      item_ref->ref_type() != Item_ref::VIEW_REF &&
+      !item_ref->table_name &&
+      item_ref->name &&
+      item_ref->alias_name_used
+    )
+#endif
+    {
       if (str)
       {
+#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
         uint length = item_ref->name.length;
+#else
+        uint length = strlen(item_ref->name);
+#endif
         if (str->reserve(length + /* SPIDER_SQL_NAME_QUOTE_LEN */ 2))
         {
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
+#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
         if ((error_num = spider_dbton[dbton_id].db_util->
           append_name(str, item_ref->name.str, length)))
+#else
+        if ((error_num = spider_dbton[dbton_id].db_util->
+          append_name(str, item_ref->name, length)))
+#endif
         {
           DBUG_RETURN(error_num);
         }
       }
       DBUG_RETURN(0);
     }
-    DBUG_RETURN(spider_db_print_item_type(*(item_ref->ref), spider, str,
+    DBUG_RETURN(spider_db_print_item_type(*(item_ref->ref), NULL, spider, str,
       alias, alias_length, dbton_id, use_fields, fields));
   }
   DBUG_RETURN(spider_db_open_item_ident((Item_ident *) item_ref, spider, str,
@@ -8854,7 +9115,7 @@ int spider_db_open_item_row(
   for (roop_count = 0; roop_count < cols; roop_count++)
   {
     item = item_row->element_index(roop_count);
-    if ((error_num = spider_db_print_item_type(item, spider, str,
+    if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
       alias, alias_length, dbton_id, use_fields, fields)))
       DBUG_RETURN(error_num);
     if (str)
@@ -8865,7 +9126,7 @@ int spider_db_open_item_row(
     }
   }
   item = item_row->element_index(roop_count);
-  if ((error_num = spider_db_print_item_type(item, spider, str,
+  if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
     alias, alias_length, dbton_id, use_fields, fields)))
     DBUG_RETURN(error_num);
   if (str)
@@ -8878,8 +9139,26 @@ int spider_db_open_item_row(
   DBUG_RETURN(0);
 }
 
+/**
+  Print a string value within a generated statement.
+
+  @param  item              String value to print.
+  @param  field             Field related to the string value.
+  @param  spider            Spider.
+  @param  str               String into which the value is to be printed.
+  @param  alias             Name related to the string value.
+  @param  alias_length      Length of the name.
+  @param  dbton_id          Spider Db/Table id.
+  @param  use_fields        Use fields or exchange fields.
+  @param  fields            Array of fields in an expression containing
+                            the string value.
+
+  @return                   Error code.
+*/
+
 int spider_db_open_item_string(
   Item *item,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -8888,37 +9167,105 @@ int spider_db_open_item_string(
   bool use_fields,
   spider_fields *fields
 ) {
+  int error_num = 0;
   DBUG_ENTER("spider_db_open_item_string");
+
   if (str)
   {
+    THD *thd = NULL;
+    TABLE *table;
+    my_bitmap_map *saved_map;
+    Time_zone *saved_time_zone;
+    String str_value;
     char tmp_buf[MAX_FIELD_WIDTH];
     spider_string tmp_str(tmp_buf, MAX_FIELD_WIDTH, str->charset());
     String *tmp_str2;
     tmp_str.init_calc_mem(126);
+
     if (!(tmp_str2 = item->val_str(tmp_str.get_str())))
     {
       if (str->reserve(SPIDER_SQL_NULL_LEN))
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      {
+        error_num = HA_ERR_OUT_OF_MEM;
+        goto end;
+      }
       str->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
     } else {
+      if (
+        field &&
+        field->type() == FIELD_TYPE_TIMESTAMP &&
+        field->table->in_use->variables.time_zone != UTC
+      ) {
+        /*
+          Store the string value in the field. This is necessary
+          when the statement contains more than one value for the
+          same field.
+        */
+        table = field->table;
+        thd = table->in_use;
+        saved_map = dbug_tmp_use_all_columns(table, table->write_set);
+        item->save_in_field(field, FALSE);
+        saved_time_zone = thd->variables.time_zone;
+        thd->variables.time_zone = UTC;
+
+        /* Retrieve the stored value converted to UTC */
+        tmp_str2 = field->val_str(&str_value);
+
+        if (!tmp_str2)
+        {
+          error_num = HA_ERR_OUT_OF_MEM;
+          goto end;
+        }
+      }
       if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN * 2 +
         tmp_str2->length() * 2))
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      tmp_str.mem_calc();
+      {
+        error_num = HA_ERR_OUT_OF_MEM;
+        goto end;
+      }
+      if (!thd)
+        tmp_str.mem_calc();
       str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
       str->append_escape_string(tmp_str2->ptr(), tmp_str2->length());
-      if (
-        str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN)
-      )
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN))
+      {
+        error_num = HA_ERR_OUT_OF_MEM;
+        goto end;
+      }
       str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
     }
+
+end:
+    if (thd)
+    {
+      thd->variables.time_zone = saved_time_zone;
+      dbug_tmp_restore_column_map(table->write_set, saved_map);
+    }
   }
-  DBUG_RETURN(0);
+
+  DBUG_RETURN(error_num);
 }
+
+/**
+  Print an integer value within a generated statement.
+
+  @param  item              Integer value to print.
+  @param  field             Field related to the integer value.
+  @param  spider            Spider.
+  @param  str               String into which the value is to be printed.
+  @param  alias             Name related to the integer value.
+  @param  alias_length      Length of the name.
+  @param  dbton_id          Spider Db/Table id.
+  @param  use_fields        Use fields or exchange fields.
+  @param  fields            Array of fields in an expression containing
+                            the integer value.
+
+  @return                   Error code.
+*/
 
 int spider_db_open_item_int(
   Item *item,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -8927,38 +9274,114 @@ int spider_db_open_item_int(
   bool use_fields,
   spider_fields *fields
 ) {
+  int error_num = 0;
   DBUG_ENTER("spider_db_open_item_int");
+
   if (str)
   {
+    THD *thd = NULL;
+    TABLE *table;
+    my_bitmap_map *saved_map;
+    Time_zone *saved_time_zone;
+    String str_value;
+    bool print_quoted_string;
     char tmp_buf[MAX_FIELD_WIDTH];
     spider_string tmp_str(tmp_buf, MAX_FIELD_WIDTH, str->charset());
     String *tmp_str2;
     tmp_str.init_calc_mem(127);
+
     if (!(tmp_str2 = item->val_str(tmp_str.get_str())))
-      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    tmp_str.mem_calc();
-#ifdef SPIDER_ITEM_HAS_CMP_TYPE
-    DBUG_PRINT("info",("spider cmp_type=%u", item->cmp_type()));
-    if (item->cmp_type() == TIME_RESULT)
     {
+      error_num = HA_ERR_OUT_OF_MEM;
+      goto end;
+    }
+    tmp_str.mem_calc();
+
+    if (
+      field &&
+      field->type() == FIELD_TYPE_TIMESTAMP &&
+      field->table->in_use->variables.time_zone != UTC
+    ) {
+      /*
+        Store the int value in the field.  This is necessary
+        when the statement contains more than one value for the
+        same field.
+      */
+      table = field->table;
+      thd = table->in_use;
+      saved_map = dbug_tmp_use_all_columns(table, table->write_set);
+      item->save_in_field(field, FALSE);
+      saved_time_zone = thd->variables.time_zone;
+      thd->variables.time_zone = UTC;
+      print_quoted_string = TRUE;
+    } else {
+#ifdef SPIDER_ITEM_HAS_CMP_TYPE
+      DBUG_PRINT("info",("spider cmp_type=%u", item->cmp_type()));
+      if (item->cmp_type() == TIME_RESULT)
+        print_quoted_string = TRUE;
+      else
+#endif
+        print_quoted_string = FALSE;
+    }
+
+    if (print_quoted_string)
+    {
+      if (thd)
+      {
+        /* Retrieve the stored value converted to UTC */
+        tmp_str2 = field->val_str(&str_value);
+
+        if (!tmp_str2)
+        {
+          error_num = HA_ERR_OUT_OF_MEM;
+          goto end;
+        }
+      }
+
       if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN * 2 + tmp_str2->length()))
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      {
+        error_num = HA_ERR_OUT_OF_MEM;
+        goto end;
+      }
       str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
       str->append(*tmp_str2);
       str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
     } else {
-#endif
       if (str->append(*tmp_str2))
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-#ifdef SPIDER_ITEM_HAS_CMP_TYPE
+        error_num = HA_ERR_OUT_OF_MEM;
     }
-#endif
+
+end:
+    if (thd)
+    {
+      thd->variables.time_zone = saved_time_zone;
+      dbug_tmp_restore_column_map(table->write_set, saved_map);
+    }
   }
-  DBUG_RETURN(0);
+
+  DBUG_RETURN(error_num);
 }
+
+/**
+  Print a cached value within a generated statement.
+
+  @param  item              Cached value to print.
+  @param  field             Field related to the cached value.
+  @param  spider            Spider.
+  @param  str               String into which the value is to be printed.
+  @param  alias             Name related to the cached value.
+  @param  alias_length      Length of the name.
+  @param  dbton_id          Spider Db/Table id.
+  @param  use_fields        Use fields or exchange fields.
+  @param  fields            Array of fields in the expression containing
+                            the cached value.
+
+  @return                   Error code.
+*/
 
 int spider_db_open_item_cache(
   Item_cache *item_cache,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -8971,10 +9394,11 @@ int spider_db_open_item_cache(
   if (!item_cache->const_item())
     DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
   DBUG_PRINT("info",("spider result_type=%u", item_cache->result_type()));
+
   switch (item_cache->result_type())
   {
     case STRING_RESULT:
-      DBUG_RETURN(spider_db_open_item_string(item_cache, spider, str,
+      DBUG_RETURN(spider_db_open_item_string(item_cache, field, spider, str,
         alias, alias_length, dbton_id, use_fields, fields));
     case ROW_RESULT:
       {
@@ -8990,7 +9414,7 @@ int spider_db_open_item_cache(
         for (roop_count = 0; roop_count < item_count; ++roop_count)
         {
           if ((error_num = spider_db_open_item_cache(
-            (Item_cache *) item_cache_row->element_index(roop_count),
+            (Item_cache *) item_cache_row->element_index(roop_count), NULL,
             spider, str, alias, alias_length, dbton_id, use_fields, fields
           ))) {
             DBUG_RETURN(error_num);
@@ -9003,7 +9427,7 @@ int spider_db_open_item_cache(
           }
         }
         if ((error_num = spider_db_open_item_cache(
-          (Item_cache *) item_cache_row->element_index(roop_count),
+          (Item_cache *) item_cache_row->element_index(roop_count), NULL,
           spider, str, alias, alias_length, dbton_id, use_fields, fields
         ))) {
           DBUG_RETURN(error_num);
@@ -9023,12 +9447,29 @@ int spider_db_open_item_cache(
     default:
       break;
   }
-  DBUG_RETURN(spider_db_open_item_int(item_cache, spider, str,
+  DBUG_RETURN(spider_db_open_item_int(item_cache, field, spider, str,
     alias, alias_length, dbton_id, use_fields, fields));
 }
 
+/**
+  Print an INSERT value within a generated INSERT statement.
+
+  @param  item              INSERT value to print.
+  @param  field             Field related to the INSERT value.
+  @param  spider            Spider.
+  @param  str               String into which the value is to be printed.
+  @param  alias             Name related to the INSERT value.
+  @param  alias_length      Length of the name.
+  @param  dbton_id          Spider Db/Table id.
+  @param  use_fields        Use fields or exchange fields.
+  @param  fields            Array of fields in the expression.
+
+  @return                   Error code.
+*/
+
 int spider_db_open_item_insert_value(
   Item_insert_value *item_insert_value,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -9039,6 +9480,7 @@ int spider_db_open_item_insert_value(
 ) {
   int error_num;
   DBUG_ENTER("spider_db_open_item_insert_value");
+
   if (item_insert_value->arg)
   {
     if (str)
@@ -9048,8 +9490,8 @@ int spider_db_open_item_insert_value(
       str->q_append(SPIDER_SQL_VALUES_STR, SPIDER_SQL_VALUES_LEN);
       str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
     }
-    if ((error_num = spider_db_print_item_type(item_insert_value->arg, spider,
-      str, alias, alias_length, dbton_id, use_fields, fields)))
+    if ((error_num = spider_db_print_item_type(item_insert_value->arg, field,
+      spider, str, alias, alias_length, dbton_id, use_fields, fields)))
       DBUG_RETURN(error_num);
     if (str)
     {
@@ -9058,6 +9500,7 @@ int spider_db_open_item_insert_value(
       str->q_append(SPIDER_SQL_CLOSE_PAREN_STR, SPIDER_SQL_CLOSE_PAREN_LEN);
     }
   }
+
   DBUG_RETURN(0);
 }
 
@@ -9114,7 +9557,7 @@ int spider_db_append_update_columns(
   {
     value = vi++;
     if ((error_num = spider_db_print_item_type(
-      (Item *) field, spider, str, alias, alias_length, dbton_id,
+      (Item *) field, NULL, spider, str, alias, alias_length, dbton_id,
       use_fields, fields)))
     {
       if (
@@ -9134,8 +9577,8 @@ int spider_db_append_update_columns(
       str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
     }
     if ((error_num = spider_db_print_item_type(
-      (Item *) value, spider, str, alias, alias_length, dbton_id,
-      use_fields, fields)))
+      (Item *) value, ((Item_field *) field)->field, spider, str,
+      alias, alias_length, dbton_id, use_fields, fields)))
       DBUG_RETURN(error_num);
     if (str)
     {
@@ -10333,8 +10776,13 @@ int spider_db_udf_copy_key_row(
 ) {
   int error_num;
   DBUG_ENTER("spider_db_udf_copy_key_row");
+#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
   if ((error_num = spider_db_append_name_with_quote_str(str,
     (char *) field->field_name.str, dbton_id)))
+#else
+  if ((error_num = spider_db_append_name_with_quote_str(str,
+    (char *) field->field_name, dbton_id)))
+#endif
     DBUG_RETURN(error_num);
   if (str->reserve(joint_length + *length + SPIDER_SQL_AND_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);

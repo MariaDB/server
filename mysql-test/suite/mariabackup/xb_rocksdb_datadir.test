@@ -1,0 +1,34 @@
+if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'rocksdb'`)
+{
+  --skip Requires rocksdb
+}
+
+
+CREATE TABLE t(i INT) ENGINE ROCKSDB;
+INSERT INTO t VALUES(1);
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+
+INSERT INTO t VALUES(2);
+
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+let $_datadir= `SELECT @@datadir`;
+let $_rocksdb_datadir=`SELECT @@rocksdb_datadir`; 
+--source include/shutdown_mysqld.inc
+rmdir $_datadir;
+rmdir $_rocksdb_datadir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --move-back --target-dir=$targetdir --datadir=$_datadir --rocksdb_datadir=$_rocksdb_datadir;
+--enable_result_log
+--source include/start_mysqld.inc
+
+
+SELECT * FROM t;
+DROP TABLE t;
+rmdir $targetdir;
+

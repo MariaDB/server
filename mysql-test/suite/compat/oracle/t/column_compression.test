@@ -1,0 +1,84 @@
+--source include/have_innodb.inc
+--source include/have_csv.inc
+
+SET sql_mode=ORACLE;
+
+SET column_compression_zlib_wrap=true;
+CREATE TABLE t1 (a BLOB COMPRESSED);
+INSERT INTO t1 VALUES (REPEAT('a',10000));
+SELECT DATA_LENGTH<100 AS c FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17363 - Compressed columns cannot be restored from dump
+--echo #
+
+--error ER_WRONG_FIELD_SPEC
+CREATE TABLE t1(a INT NOT NULL COMPRESSED);
+SHOW WARNINGS;
+
+CREATE TABLE t1(
+  a JSON COMPRESSED,
+  b VARCHAR(1000) COMPRESSED BINARY,
+  c NVARCHAR(1000) COMPRESSED BINARY,
+  d TINYTEXT COMPRESSED BINARY
+);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # VARCHAR and TEXT variants
+--echo #
+
+--let type=VARCHAR(10)
+--source include/column_compression_syntax_varchar.inc
+
+--let type=VARCHAR2(10)
+--source include/column_compression_syntax_varchar.inc
+
+--let type=TINYTEXT
+--source include/column_compression_syntax_varchar.inc
+
+--let type=TEXT
+--source include/column_compression_syntax_varchar.inc
+
+--let type=MEDIUMTEXT
+--source include/column_compression_syntax_varchar.inc
+
+--let type=LONGTEXT
+--source include/column_compression_syntax_varchar.inc
+
+
+--echo #
+--echo # VARBINARY and BLOB variables
+--echo #
+
+--let type=VARCHAR(10)
+--source include/column_compression_syntax_varbinary.inc
+
+--let type=TINYBLOB
+--source include/column_compression_syntax_varbinary.inc
+
+--let type=BLOB
+--source include/column_compression_syntax_varbinary.inc
+
+--let type=MEDIUMBLOB
+--source include/column_compression_syntax_varbinary.inc
+
+--let type=LONGBLOB
+--source include/column_compression_syntax_varbinary.inc
+
+
+--echo #
+--echo # NVARCHAR
+--echo #
+
+CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED BINARY COMPRESSED);
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED DEFAULT '' COMPRESSED);

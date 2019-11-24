@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifndef _trnman_h
 #define _trnman_h
@@ -46,7 +46,8 @@ struct st_ma_transaction
   LF_PINS              *pins;
   WT_THD               *wt;
   mysql_mutex_t         state_lock;
-  void                 *used_tables;  /**< Tables used by transaction */
+  void                 *used_tables;  /**< Table shares used by transaction */
+  void                 *used_instances; /* table files used by transaction */
   TRN                  *next, *prev;
   TrID                 trid, min_read_from, commit_trid;
   LSN		       rec_lsn, undo_lsn;

@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,11 +27,27 @@ Created 25/08/2016 Jan Lindström
 #ifndef dict0defrag_bg_h
 #define dict0defrag_bg_h
 
-#include "univ.i"
-
-#include "dict0types.h"
 #include "os0event.h"
 #include "os0thread.h"
+#include "dict0types.h"
+
+/** Indices whose defrag stats need to be saved to persistent storage.*/
+struct defrag_pool_item_t {
+	table_id_t	table_id;
+	index_id_t	index_id;
+};
+
+/** Allocator type, used by std::vector */
+typedef ut_allocator<defrag_pool_item_t>
+	defrag_pool_allocator_t;
+
+/** The multitude of tables to be defragmented- an STL vector */
+typedef std::vector<defrag_pool_item_t, defrag_pool_allocator_t>
+	defrag_pool_t;
+
+/** Pool where we store information on which tables are to be processed
+by background defragmentation. */
+extern defrag_pool_t		defrag_pool;
 
 /*****************************************************************//**
 Initialize the defrag pool, called once during thread initialization. */

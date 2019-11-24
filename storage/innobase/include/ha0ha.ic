@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -137,11 +138,8 @@ hash_assert_can_search(
 	if (table->type == HASH_TABLE_SYNC_MUTEX) {
 		ut_ad(mutex_own(hash_get_mutex(table, fold)));
 	} else if (table->type == HASH_TABLE_SYNC_RW_LOCK) {
-# ifdef UNIV_DEBUG
-		rw_lock_t* lock = hash_get_lock(table, fold);
-		ut_ad(rw_lock_own(lock, RW_LOCK_X)
-		      || rw_lock_own(lock, RW_LOCK_S));
-# endif
+		ut_ad(rw_lock_own_flagged(hash_get_lock(table, fold),
+					  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	} else {
 		ut_ad(table->type == HASH_TABLE_SYNC_NONE);
 	}

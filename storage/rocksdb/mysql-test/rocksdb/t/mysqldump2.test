@@ -29,7 +29,7 @@ let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
 
 select variable_value into @a from information_schema.global_status where variable_name='rocksdb_block_cache_add';
 
---exec $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --rocksdb test > /dev/null
+--exec ASAN_OPTIONS="detect_leaks=0" $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --rocksdb test > /dev/null
 
 # verifying block cache was not filled
 select case when variable_value - @a > 20 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_block_cache_add';

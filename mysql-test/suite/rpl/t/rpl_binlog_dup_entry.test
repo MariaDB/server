@@ -1,0 +1,72 @@
+# ==== Purpose ====
+#
+# Test verifies that there are no duplicate entries in binlog (i.e a safe
+# statement which follows an unsafe statement gets logged in both row format
+# and statement format resulting in duplicate entry) when binlog-format=MIXED
+# and LOCK TABLES are enabled.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    1 - Create three tables t1,t2 and t3 with AUTO_INCREMENT on.
+#    2 - Create a trigger on table t3, so that trigger execution results in
+#        unsafe statement. Note query that modifies autoinc column in
+#        sub-statement can make the master and slave inconsistent. Hence they
+#        are logged in row format.
+#    3 - Lock tables t1,t2 and t3.
+#    4 - Execute an unsafe update which modifies tables t1 and t3. But since t2
+#        table is also locked its table map event also gets written into the
+#        binary log during the execution of update.
+#    5 - Execute a safe DML operation using table 't2' and verify that master
+#        doesn't report any assert.
+#    6 - Ensure that slave is in sync with master and data is consistent.
+#
+# ==== References ====
+#
+# MDEV-19158: MariaDB 10.2.22 is writing duplicate entries into binary log
+
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+CREATE TABLE t1 (id mediumint(8) unsigned NOT NULL AUTO_INCREMENT, someLabel varchar(30) NOT NULL, flag tinyint(1) NOT NULL DEFAULT 0, PRIMARY KEY (id)) Engine=MyISAM;
+CREATE TABLE t2 (id mediumint(8) unsigned NOT NULL AUTO_INCREMENT, data varchar(30) NOT NULL, status tinyint(1) NOT NULL,   PRIMARY KEY (id)) Engine=MyISAM;
+CREATE TABLE t3 (id mediumint(8) unsigned NOT NULL AUTO_INCREMENT, t1id mediumint(8) unsigned NOT NULL, flag tinyint(1) NOT NULL DEFAULT 0, status tinyint(1) NOT NULL DEFAULT 0,  PRIMARY KEY (id)) Engine=MyISAM;
+
+INSERT INTO t1 ( id, someLabel, flag ) VALUES ( 1, 'ABC', 0 );
+
+DELIMITER |;
+
+CREATE OR REPLACE TRIGGER doNothing
+BEFORE UPDATE ON t1
+FOR EACH ROW
+ BEGIN
+     IF
+         new.someLabel != old.someLabel
+     THEN
+         UPDATE t3 SET t3.flag = 0;
+     END IF;
+ END|
+
+DELIMITER ;|
+
+FLUSH LOGS;
+
+LOCK TABLES   t1 WRITE,  t2 WRITE;
+INSERT INTO t2 (data, status) VALUES ('1', 4);
+UPDATE t1 SET flag = 1 WHERE id = 1;
+INSERT INTO t2 (data, status) VALUES ('2', 4);
+UNLOCK TABLES;
+
+sync_slave_with_master;
+
+let $diff_tables= master:t1, slave:t1;
+--source include/diff_tables.inc
+let $diff_tables= master:t2, slave:t2;
+--source include/diff_tables.inc
+let $diff_tables= master:t3, slave:t3;
+--source include/diff_tables.inc
+
+--connection master
+DROP TABLE t1, t2, t3;
+
+--source include/rpl_end.inc

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,10 +25,9 @@ Created July 18, 2007 Vasil Dimov
 Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <mysql_version.h>
 #include <field.h>
-#include "univ.i"
 
 #include <sql_acl.h>
 #include <sql_show.h>
@@ -58,9 +57,10 @@ Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 #include "sync0arr.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
-#include "fsp0sysspace.h"
-#include "ut0new.h"
 #include "dict0crea.h"
+
+/** The latest successfully looked up innodb_fts_aux_table */
+UNIV_INTERN table_id_t innodb_ft_aux_table_id;
 
 /** structure associates a name string with a file page type and/or buffer
 page state. */
@@ -86,11 +86,6 @@ in i_s_page_type[] array */
 #define I_S_PAGE_TYPE_LAST		I_S_PAGE_TYPE_IBUF
 
 #define I_S_PAGE_TYPE_BITS		4
-
-/* Check if we can hold all page types */
-#if I_S_PAGE_TYPE_LAST >= 1 << I_S_PAGE_TYPE_BITS
-# error i_s_page_type[] is too large
-#endif
 
 /** Name string for File Page Types */
 static buf_page_desc_t	i_s_page_type[] = {
@@ -261,60 +256,13 @@ field_store_string(
 	const char*	str)	/*!< in: NUL-terminated utf-8 string,
 				or NULL */
 {
-	int	ret;
-
-	if (str != NULL) {
-
-		ret = field->store(str, static_cast<uint>(strlen(str)),
-				   system_charset_info);
-		field->set_notnull();
-	} else {
-
-		ret = 0; /* success */
+	if (!str) {
 		field->set_null();
-	}
-
-	return(ret);
-}
-
-/*******************************************************************//**
-Store the name of an index in a MYSQL_TYPE_VARCHAR field.
-Handles the names of incomplete secondary indexes.
-@return 0 on success */
-static
-int
-field_store_index_name(
-/*===================*/
-	Field*		field,		/*!< in/out: target field for
-					storage */
-	const char*	index_name)	/*!< in: NUL-terminated utf-8
-					index name, possibly starting with
-					TEMP_INDEX_PREFIX */
-{
-	int	ret;
-
-	ut_ad(index_name != NULL);
-	ut_ad(field->real_type() == MYSQL_TYPE_VARCHAR ||
-              field->real_type() == MYSQL_TYPE_NULL);
-
-	/* Since TEMP_INDEX_PREFIX is not a valid UTF8, we need to convert
-	it to something else. */
-	if (*index_name == *TEMP_INDEX_PREFIX_STR) {
-		char	buf[NAME_LEN + 1];
-		buf[0] = '?';
-		memcpy(buf + 1, index_name + 1, strlen(index_name));
-		ret = field->store(
-			buf, static_cast<uint>(strlen(buf)),
-			system_charset_info);
-	} else {
-		ret = field->store(
-			index_name, static_cast<uint>(strlen(index_name)),
-			system_charset_info);
+		return 0;
 	}
 
 	field->set_notnull();
-
-	return(ret);
+	return field->store(str, uint(strlen(str)), system_charset_info);
 }
 
 /*******************************************************************//**
@@ -331,7 +279,7 @@ field_store_ulint(
 
 	if (n != ULINT_UNDEFINED) {
 
-		ret = field->store(n, true);
+		ret = field->store(longlong(n), true);
 		field->set_notnull();
 	} else {
 
@@ -937,12 +885,8 @@ fill_innodb_locks_from_cache(
 			buf, uint(bufend - buf), system_charset_info));
 
 		/* lock_index */
-		if (row->lock_index != NULL) {
-			OK(field_store_index_name(fields[IDX_LOCK_INDEX],
-						  row->lock_index));
-		} else {
-			fields[IDX_LOCK_INDEX]->set_null();
-		}
+		OK(field_store_string(fields[IDX_LOCK_INDEX],
+				      row->lock_index));
 
 		/* lock_space */
 		OK(field_store_ulint(fields[IDX_LOCK_SPACE],
@@ -1415,12 +1359,14 @@ i_s_cmp_fill_low(
 		page0zip.cc. */
 		table->field[1]->store(zip_stat->compressed, true);
 		table->field[2]->store(zip_stat->compressed_ok, true);
-		table->field[3]->store(zip_stat->compressed_usec / 1000000, true);
+		table->field[3]->store(zip_stat->compressed_usec / 1000000,
+				       true);
 		table->field[4]->store(zip_stat->decompressed, true);
-		table->field[5]->store(zip_stat->decompressed_usec / 1000000, true);
+		table->field[5]->store(zip_stat->decompressed_usec / 1000000,
+				       true);
 
 		if (reset) {
-			memset(zip_stat, 0, sizeof *zip_stat);
+			new (zip_stat) page_zip_stat_t();
 		}
 
 		if (schema_table_store_record(thd, table)) {
@@ -1716,7 +1662,6 @@ i_s_cmp_per_index_fill_low(
 
 	for (iter = snap.begin(), i = 0; iter != snap.end(); iter++, i++) {
 
-		char		name[192];
 		dict_index_t*	index = dict_index_find_on_id_low(iter->first);
 
 		if (index != NULL) {
@@ -1727,38 +1672,39 @@ i_s_cmp_per_index_fill_low(
 				     db_utf8, sizeof(db_utf8),
 				     table_utf8, sizeof(table_utf8));
 
-			field_store_string(fields[IDX_DATABASE_NAME], db_utf8);
-			field_store_string(fields[IDX_TABLE_NAME], table_utf8);
-			field_store_index_name(fields[IDX_INDEX_NAME],
-					       index->name);
+			status = field_store_string(fields[IDX_DATABASE_NAME],
+						    db_utf8)
+				|| field_store_string(fields[IDX_TABLE_NAME],
+						      table_utf8)
+				|| field_store_string(fields[IDX_INDEX_NAME],
+						      index->name);
 		} else {
 			/* index not found */
-			snprintf(name, sizeof(name),
-				 "index_id:" IB_ID_FMT, iter->first);
-			field_store_string(fields[IDX_DATABASE_NAME],
-					   "unknown");
-			field_store_string(fields[IDX_TABLE_NAME],
-					   "unknown");
-			field_store_string(fields[IDX_INDEX_NAME],
-					   name);
+			char name[MY_INT64_NUM_DECIMAL_DIGITS
+				  + sizeof "index_id: "];
+			fields[IDX_DATABASE_NAME]->set_null();
+			fields[IDX_TABLE_NAME]->set_null();
+			fields[IDX_INDEX_NAME]->set_notnull();
+			status = fields[IDX_INDEX_NAME]->store(
+				name,
+				uint(snprintf(name, sizeof name,
+					      "index_id: " IB_ID_FMT,
+					      iter->first)),
+				system_charset_info);
 		}
 
-		fields[IDX_COMPRESS_OPS]->store(
-			   iter->second.compressed, true);
-
-		fields[IDX_COMPRESS_OPS_OK]->store(
-			   iter->second.compressed_ok, true);
-
-		fields[IDX_COMPRESS_TIME]->store(
-			   iter->second.compressed_usec / 1000000, true);
-
-		fields[IDX_UNCOMPRESS_OPS]->store(
-			   iter->second.decompressed, true);
-
-		fields[IDX_UNCOMPRESS_TIME]->store(
-			   iter->second.decompressed_usec / 1000000, true);
-
-		if (schema_table_store_record(thd, table)) {
+		if (status
+		    || fields[IDX_COMPRESS_OPS]->store(
+			    iter->second.compressed, true)
+		    || fields[IDX_COMPRESS_OPS_OK]->store(
+			    iter->second.compressed_ok, true)
+		    || fields[IDX_COMPRESS_TIME]->store(
+			    iter->second.compressed_usec / 1000000, true)
+		    || fields[IDX_UNCOMPRESS_OPS]->store(
+			    iter->second.decompressed, true)
+		    || fields[IDX_UNCOMPRESS_TIME]->store(
+			    iter->second.decompressed_usec / 1000000, true)
+		    || schema_table_store_record(thd, table)) {
 			status = 1;
 			break;
 		}
@@ -1766,8 +1712,9 @@ i_s_cmp_per_index_fill_low(
 		threads to proceed. This could eventually result in the
 		contents of INFORMATION_SCHEMA.innodb_cmp_per_index being
 		inconsistent, but it is an acceptable compromise. */
-		if (i % 1000 == 0) {
+		if (i == 1000) {
 			mutex_exit(&dict_sys->mutex);
+			i = 0;
 			mutex_enter(&dict_sys->mutex);
 		}
 	}
@@ -2920,25 +2867,21 @@ i_s_fts_deleted_generic_fill(
 		DBUG_RETURN(0);
 	}
 
-	if (!fts_internal_tbl_name) {
-		DBUG_RETURN(0);
-	}
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	/* Prevent DDL to drop fts aux tables. */
-	rw_lock_s_lock(dict_operation_lock);
+	/* Prevent DROP of the internal tables for fulltext indexes.
+	FIXME: acquire DDL-blocking MDL on the user table name! */
+	rw_lock_s_lock(&dict_operation_lock);
 
-	user_table = dict_table_open_on_name(
-		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	user_table = dict_table_open_on_id(
+		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
-		rw_lock_s_unlock(dict_operation_lock);
-
+		rw_lock_s_unlock(&dict_operation_lock);
 		DBUG_RETURN(0);
 	} else if (!dict_table_has_fts_index(user_table)) {
 		dict_table_close(user_table, FALSE, FALSE);
-
-		rw_lock_s_unlock(dict_operation_lock);
-
+		rw_lock_s_unlock(&dict_operation_lock);
 		DBUG_RETURN(0);
 	}
 
@@ -2952,6 +2895,12 @@ i_s_fts_deleted_generic_fill(
 			   FTS_COMMON_TABLE, user_table);
 
 	fts_table_fetch_doc_ids(trx, &fts_table, deleted);
+
+	dict_table_close(user_table, FALSE, FALSE);
+
+	rw_lock_s_unlock(&dict_operation_lock);
+
+	trx_free(trx);
 
 	fields = table->field;
 
@@ -2967,13 +2916,7 @@ i_s_fts_deleted_generic_fill(
 		BREAK_IF(ret = schema_table_store_record(thd, table));
 	}
 
-	trx_free(trx);
-
 	fts_doc_ids_free(deleted);
-
-	dict_table_close(user_table, FALSE, FALSE);
-
-	rw_lock_s_unlock(dict_operation_lock);
 
 	DBUG_RETURN(ret);
 }
@@ -3334,32 +3277,33 @@ i_s_fts_index_cache_fill(
 		DBUG_RETURN(0);
 	}
 
-	if (!fts_internal_tbl_name) {
-		DBUG_RETURN(0);
-	}
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	user_table = dict_table_open_on_name(
-		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	/* Prevent DROP of the internal tables for fulltext indexes.
+	FIXME: acquire DDL-blocking MDL on the user table name! */
+	rw_lock_s_lock(&dict_operation_lock);
+
+	user_table = dict_table_open_on_id(
+		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
+no_fts:
+		rw_lock_s_unlock(&dict_operation_lock);
 		DBUG_RETURN(0);
 	}
 
-	if (user_table->fts == NULL || user_table->fts->cache == NULL) {
+	if (!user_table->fts || !user_table->fts->cache) {
 		dict_table_close(user_table, FALSE, FALSE);
-
-		DBUG_RETURN(0);
+		goto no_fts;
 	}
 
 	cache = user_table->fts->cache;
 
-	ut_a(cache);
-
 	int			ret = 0;
 	fts_string_t		conv_str;
-	conv_str.f_len = system_charset_info->mbmaxlen
-		* FTS_MAX_WORD_LEN_IN_CHAR;
-	conv_str.f_str = static_cast<byte*>(ut_malloc_nokey(conv_str.f_len));
+	byte			word[HA_FT_MAXBYTELEN + 1];
+	conv_str.f_len = sizeof word;
+	conv_str.f_str = word;
 
 	for (ulint i = 0; i < ib_vector_size(cache->indexes); i++) {
 		fts_index_cache_t*      index_cache;
@@ -3371,9 +3315,8 @@ i_s_fts_index_cache_fill(
 				 index_cache, thd, &conv_str, tables));
 	}
 
-	ut_free(conv_str.f_str);
-
 	dict_table_close(user_table, FALSE, FALSE);
+	rw_lock_s_unlock(&dict_operation_lock);
 
 	DBUG_RETURN(ret);
 }
@@ -3781,19 +3724,17 @@ i_s_fts_index_table_fill(
 		DBUG_RETURN(0);
 	}
 
-	if (!fts_internal_tbl_name) {
-		DBUG_RETURN(0);
-	}
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	/* Prevent DDL to drop fts aux tables. */
-	rw_lock_s_lock(dict_operation_lock);
+	/* Prevent DROP of the internal tables for fulltext indexes.
+	FIXME: acquire DDL-blocking MDL on the user table name! */
+	rw_lock_s_lock(&dict_operation_lock);
 
-	user_table = dict_table_open_on_name(
-		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	user_table = dict_table_open_on_id(
+		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
-		rw_lock_s_unlock(dict_operation_lock);
-
+		rw_lock_s_unlock(&dict_operation_lock);
 		DBUG_RETURN(0);
 	}
 
@@ -3813,7 +3754,7 @@ i_s_fts_index_table_fill(
 
 	dict_table_close(user_table, FALSE, FALSE);
 
-	rw_lock_s_unlock(dict_operation_lock);
+	rw_lock_s_unlock(&dict_operation_lock);
 
 	ut_free(conv_str.f_str);
 
@@ -3946,31 +3887,27 @@ i_s_fts_config_fill(
 		DBUG_RETURN(0);
 	}
 
-	if (!fts_internal_tbl_name) {
-		DBUG_RETURN(0);
-	}
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	DEBUG_SYNC_C("i_s_fts_config_fille_check");
+	/* Prevent DROP of the internal tables for fulltext indexes.
+	FIXME: acquire DDL-blocking MDL on the user table name! */
+	rw_lock_s_lock(&dict_operation_lock);
 
-	fields = table->field;
-
-	/* Prevent DDL to drop fts aux tables. */
-	rw_lock_s_lock(dict_operation_lock);
-
-	user_table = dict_table_open_on_name(
-		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	user_table = dict_table_open_on_id(
+		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
-		rw_lock_s_unlock(dict_operation_lock);
-
-		DBUG_RETURN(0);
-	} else if (!dict_table_has_fts_index(user_table)) {
-		dict_table_close(user_table, FALSE, FALSE);
-
-		rw_lock_s_unlock(dict_operation_lock);
-
+no_fts:
+		rw_lock_s_unlock(&dict_operation_lock);
 		DBUG_RETURN(0);
 	}
+
+	if (!dict_table_has_fts_index(user_table)) {
+		dict_table_close(user_table, FALSE, FALSE);
+		goto no_fts;
+	}
+
+	fields = table->field;
 
 	trx = trx_create();
 	trx->op_info = "Select for FTS CONFIG TABLE";
@@ -4023,11 +3960,11 @@ i_s_fts_config_fill(
 
 	fts_sql_commit(trx);
 
-	trx_free(trx);
-
 	dict_table_close(user_table, FALSE, FALSE);
 
-	rw_lock_s_unlock(dict_operation_lock);
+	rw_lock_s_unlock(&dict_operation_lock);
+
+	trx_free(trx);
 
 	DBUG_RETURN(ret);
 }
@@ -4852,6 +4789,8 @@ i_s_innodb_buffer_page_fill(
 	TABLE*			table;
 	Field**			fields;
 
+	compile_time_assert(I_S_PAGE_TYPE_LAST < 1 << I_S_PAGE_TYPE_BITS);
+
 	DBUG_ENTER("i_s_innodb_buffer_page_fill");
 
 	table = tables->table;
@@ -4917,9 +4856,11 @@ i_s_innodb_buffer_page_fill(
 
 			mutex_enter(&dict_sys->mutex);
 
-			if (const dict_index_t*	index =
-			    dict_index_get_if_in_cache_low(
-				    page_info->index_id)) {
+			const dict_index_t* index =
+				dict_index_get_if_in_cache_low(
+					page_info->index_id);
+
+			if (index) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
 					index->table->name.m_name,
@@ -4932,17 +4873,22 @@ i_s_innodb_buffer_page_fill(
 							table_name_end
 							- table_name),
 						system_charset_info)
-					|| field_store_index_name(
-						fields
-						[IDX_BUFFER_PAGE_INDEX_NAME],
-						index->name);
+					|| fields[IDX_BUFFER_PAGE_INDEX_NAME]
+					->store(index->name,
+						uint(strlen(index->name)),
+						system_charset_info);
 			}
 
 			mutex_exit(&dict_sys->mutex);
 
 			OK(ret);
 
-			fields[IDX_BUFFER_PAGE_TABLE_NAME]->set_notnull();
+			if (index) {
+				fields[IDX_BUFFER_PAGE_TABLE_NAME]
+					->set_notnull();
+				fields[IDX_BUFFER_PAGE_INDEX_NAME]
+					->set_notnull();
+			}
 		}
 
 		OK(fields[IDX_BUFFER_PAGE_NUM_RECS]->store(
@@ -4955,10 +4901,7 @@ i_s_innodb_buffer_page_fill(
 			   page_info->zip_ssize
 			   ? (UNIV_ZIP_SIZE_MIN >> 1) << page_info->zip_ssize
 			   : 0, true));
-
-#if BUF_PAGE_STATE_BITS > 3
-# error "BUF_PAGE_STATE_BITS > 3, please ensure that all 1<<BUF_PAGE_STATE_BITS values are checked for"
-#endif
+		compile_time_assert(BUF_PAGE_STATE_BITS == 3);
 		state = static_cast<enum buf_page_state>(page_info->page_state);
 
 		switch (state) {
@@ -5636,9 +5579,11 @@ i_s_innodb_buf_page_lru_fill(
 
 			mutex_enter(&dict_sys->mutex);
 
-			if (const dict_index_t* index =
-			    dict_index_get_if_in_cache_low(
-				    page_info->index_id)) {
+			const dict_index_t* index =
+				dict_index_get_if_in_cache_low(
+					page_info->index_id);
+
+			if (index) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
 					index->table->name.m_name,
@@ -5651,17 +5596,22 @@ i_s_innodb_buf_page_lru_fill(
 							table_name_end
 							- table_name),
 						system_charset_info)
-					|| field_store_index_name(
-						fields
-						[IDX_BUF_LRU_PAGE_INDEX_NAME],
-						index->name);
+					|| fields[IDX_BUF_LRU_PAGE_INDEX_NAME]
+					->store(index->name,
+						uint(strlen(index->name)),
+						system_charset_info);
 			}
 
 			mutex_exit(&dict_sys->mutex);
 
 			OK(ret);
 
-			fields[IDX_BUF_LRU_PAGE_TABLE_NAME]->set_notnull();
+			if (index) {
+				fields[IDX_BUF_LRU_PAGE_TABLE_NAME]
+					->set_notnull();
+				fields[IDX_BUF_LRU_PAGE_INDEX_NAME]
+					->set_notnull();
+			}
 		}
 
 		OK(fields[IDX_BUF_LRU_PAGE_NUM_RECS]->store(
@@ -5916,12 +5866,8 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_page_lru =
 
 /*******************************************************************//**
 Unbind a dynamic INFORMATION_SCHEMA table.
-@return 0 on success */
-static
-int
-i_s_common_deinit(
-/*==============*/
-	void*	p)	/*!< in/out: table schema object */
+@return 0 */
+static int i_s_common_deinit(void*)
 {
 	DBUG_ENTER("i_s_common_deinit");
 
@@ -6388,7 +6334,7 @@ i_s_sys_tables_fill_table_stats(
 	}
 
 	heap = mem_heap_create(1000);
-	rw_lock_s_lock(dict_operation_lock);
+	rw_lock_s_lock(&dict_operation_lock);
 	mutex_enter(&dict_sys->mutex);
 	mtr_start(&mtr);
 
@@ -6422,11 +6368,11 @@ i_s_sys_tables_fill_table_stats(
 					    err_msg);
 		}
 
-		rw_lock_s_unlock(dict_operation_lock);
+		rw_lock_s_unlock(&dict_operation_lock);
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		rw_lock_s_lock(dict_operation_lock);
+		rw_lock_s_lock(&dict_operation_lock);
 		mutex_enter(&dict_sys->mutex);
 
 		mtr_start(&mtr);
@@ -6435,7 +6381,7 @@ i_s_sys_tables_fill_table_stats(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys->mutex);
-	rw_lock_s_unlock(dict_operation_lock);
+	rw_lock_s_unlock(&dict_operation_lock);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -6611,7 +6557,15 @@ i_s_dict_fill_sys_indexes(
 
 	fields = table_to_fill->field;
 
-	OK(field_store_index_name(fields[SYS_INDEX_NAME], index->name));
+	if (*index->name == *TEMP_INDEX_PREFIX_STR) {
+		/* Since TEMP_INDEX_PREFIX_STR is not valid UTF-8, we
+		need to convert it to something else. */
+		*const_cast<char*>(index->name()) = '?';
+	}
+
+	OK(fields[SYS_INDEX_NAME]->store(index->name,
+					 uint(strlen(index->name)),
+					 system_charset_info));
 
 	OK(fields[SYS_INDEX_ID]->store(longlong(index->id), true));
 
@@ -6876,7 +6830,7 @@ i_s_dict_fill_sys_columns(
 
 	OK(field_store_string(fields[SYS_COLUMN_NAME], col_name));
 
-	if (dict_col_is_virtual(column)) {
+	if (column->is_virtual()) {
 		ulint	pos = dict_create_v_col_pos(nth_v_col, column->ind);
 		OK(fields[SYS_COLUMN_POSITION]->store(pos, true));
 	} else {
@@ -7119,7 +7073,6 @@ i_s_sys_virtual_fill_table(
 	const rec_t*	rec;
 	ulint		pos;
 	ulint		base_pos;
-	mem_heap_t*	heap;
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_virtual_fill_table");
@@ -7130,7 +7083,6 @@ i_s_sys_virtual_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	heap = mem_heap_create(1000);
 	mutex_enter(&dict_sys->mutex);
 	mtr_start(&mtr);
 
@@ -7142,7 +7094,7 @@ i_s_sys_virtual_fill_table(
 
 		/* populate a dict_col_t structure with information from
 		a SYS_VIRTUAL row */
-		err_msg = dict_process_sys_virtual_rec(heap, rec,
+		err_msg = dict_process_sys_virtual_rec(rec,
 						       &table_id, &pos,
 						       &base_pos);
 
@@ -7158,8 +7110,6 @@ i_s_sys_virtual_fill_table(
 					    err_msg);
 		}
 
-		mem_heap_empty(heap);
-
 		/* Get the next record */
 		mutex_enter(&dict_sys->mutex);
 		mtr_start(&mtr);
@@ -7168,7 +7118,6 @@ i_s_sys_virtual_fill_table(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys->mutex);
-	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
 }
@@ -7239,7 +7188,7 @@ struct st_maria_plugin	i_s_innodb_sys_virtual =
 
 	/* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_BETA),
+	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 /**  SYS_FIELDS  ***************************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_FIELDS */
@@ -8633,7 +8582,8 @@ i_s_tablespaces_encryption_fill_table(
 
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
-		if (space->purpose == FIL_TYPE_TABLESPACE) {
+		if (space->purpose == FIL_TYPE_TABLESPACE
+		    && !space->is_stopping()) {
 			space->acquire();
 			mutex_exit(&fil_system.mutex);
 			if (int err = i_s_dict_fill_tablespaces_encryption(
@@ -8795,15 +8745,6 @@ static ST_FIELD_INFO	innodb_tablespaces_scrubbing_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define TABLESPACES_ENCRYPTION_ROTATING_OR_FLUSHING 9
-	{STRUCT_FLD(field_name,		"ROTATING_OR_FLUSHING"),
-	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
-	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
-	 STRUCT_FLD(value,		0),
-	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
-	 STRUCT_FLD(old_name,		""),
-	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
-
 	END_OF_ST_FIELD_INFO
 };
 
@@ -8904,7 +8845,8 @@ i_s_tablespaces_scrubbing_fill_table(
 
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
-		if (space->purpose == FIL_TYPE_TABLESPACE) {
+		if (space->purpose == FIL_TYPE_TABLESPACE
+		    && !space->is_stopping()) {
 			space->acquire();
 			mutex_exit(&fil_system.mutex);
 			if (int err = i_s_dict_fill_tablespaces_scrubbing(
@@ -9075,10 +9017,12 @@ i_s_innodb_mutexes_fill_table(
 		}
 
 		OK(field_store_string(fields[MUTEXES_NAME], mutex->cmutex_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(mutex->cfile_name)));
-		OK(fields[MUTEXES_CREATE_LINE]->store(mutex->cline, true));
+		OK(field_store_string(fields[MUTEXES_CREATE_FILE],
+				      innobase_basename(mutex->cfile_name)));
+		OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline, true));
 		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)mutex->count_os_wait));
+		OK(fields[MUTEXES_OS_WAITS]->store(lock->count_os_wait, true));
+		fields[MUTEXES_OS_WAITS]->set_notnull();
 		OK(schema_table_store_record(thd, tables->table));
 	}
 
@@ -9099,43 +9043,58 @@ i_s_innodb_mutexes_fill_table(
 	mutex_exit(&mutex_list_mutex);
 #endif /* JAN_TODO_FIXME */
 
-	mutex_enter(&rw_lock_list_mutex);
+	{
+		struct Locking
+		{
+			Locking() { mutex_enter(&rw_lock_list_mutex); }
+			~Locking() { mutex_exit(&rw_lock_list_mutex); }
+		} locking;
 
-	for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
-	     lock = UT_LIST_GET_NEXT(list, lock)) {
-		if (lock->count_os_wait == 0) {
-			continue;
+		for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
+		     lock = UT_LIST_GET_NEXT(list, lock)) {
+			if (lock->count_os_wait == 0) {
+				continue;
+			}
+
+			if (buf_pool_is_block_lock(lock)) {
+				block_lock = lock;
+				block_lock_oswait_count += lock->count_os_wait;
+				continue;
+			}
+
+			//OK(field_store_string(fields[MUTEXES_NAME],
+			//			lock->lock_name));
+			OK(field_store_string(
+				   fields[MUTEXES_CREATE_FILE],
+				   innobase_basename(lock->cfile_name)));
+			OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline,
+							      true));
+			fields[MUTEXES_CREATE_LINE]->set_notnull();
+			OK(fields[MUTEXES_OS_WAITS]->store(lock->count_os_wait,
+							   true));
+			fields[MUTEXES_OS_WAITS]->set_notnull();
+			OK(schema_table_store_record(thd, tables->table));
 		}
 
-		if (buf_pool_is_block_lock(lock)) {
-			block_lock = lock;
-			block_lock_oswait_count += lock->count_os_wait;
-			continue;
+		if (block_lock) {
+			char buf1[IO_SIZE];
+
+			snprintf(buf1, sizeof buf1, "combined %s",
+				 innobase_basename(block_lock->cfile_name));
+
+			//OK(field_store_string(fields[MUTEXES_NAME],
+			//			block_lock->lock_name));
+			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
+					      buf1));
+			OK(fields[MUTEXES_CREATE_LINE]->store(block_lock->cline,
+							      true));
+			fields[MUTEXES_CREATE_LINE]->set_notnull();
+			OK(fields[MUTEXES_OS_WAITS]->store(
+				   block_lock_oswait_count, true));
+			fields[MUTEXES_OS_WAITS]->set_notnull();
+			OK(schema_table_store_record(thd, tables->table));
 		}
-
-		//OK(field_store_string(fields[MUTEXES_NAME], lock->lock_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(lock->cfile_name)));
-		OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline, true));
-		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)lock->count_os_wait));
-		OK(schema_table_store_record(thd, tables->table));
 	}
-
-	if (block_lock) {
-		char buf1[IO_SIZE];
-
-		snprintf(buf1, sizeof buf1, "combined %s",
-			 innobase_basename(block_lock->cfile_name));
-
-		//OK(field_store_string(fields[MUTEXES_NAME], block_lock->lock_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
-		OK(fields[MUTEXES_CREATE_LINE]->store(block_lock->cline, true));
-		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_lock_oswait_count));
-		OK(schema_table_store_record(thd, tables->table));
-	}
-
-	mutex_exit(&rw_lock_list_mutex);
 
 	DBUG_RETURN(0);
 }

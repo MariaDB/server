@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /* This C++ file's header */
 #include "./rdb_io_watchdog.h"
@@ -40,12 +40,13 @@ void Rdb_io_watchdog::expire_io_callback(union sigval timer_data) {
   // At this point we know that I/O has been stuck in `write()` for more than
   // `m_write_timeout` seconds. We'll log a message and shut down the service.
   // NO_LINT_DEBUG
-  sql_print_error("MyRocks has detected a combination of I/O requests which "
-                  "have cumulatively been blocking for more than %u seconds. "
-                  "Shutting the service down.",
-                  m_write_timeout);
+  sql_print_error(
+      "MyRocks has detected a combination of I/O requests which "
+      "have cumulatively been blocking for more than %u seconds. "
+      "Shutting the service down.",
+      m_write_timeout);
 
-  abort_with_stack_traces();
+  abort();
 }
 
 void Rdb_io_watchdog::io_check_callback(union sigval timer_data) {
@@ -151,7 +152,7 @@ int Rdb_io_watchdog::check_write_access(const std::string &dirname) const {
   return HA_EXIT_SUCCESS;
 }
 
-int Rdb_io_watchdog::reset_timeout(const uint32_t &write_timeout) {
+int Rdb_io_watchdog::reset_timeout(const uint32_t write_timeout) {
   // This function will be called either from a thread initializing MyRocks
   // engine or handling system variable changes. We need to account for the
   // possibility of I/O callback executing at the same time. If that happens

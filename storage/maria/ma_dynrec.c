@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Functions to handle space-packed-records and blobs
@@ -224,6 +224,8 @@ my_bool _ma_write_dynamic_record(MARIA_HA *info, const uchar *record)
 {
   ulong reclength= _ma_rec_pack(info,info->rec_buff + MARIA_REC_BUFF_OFFSET,
                                 record);
+  if (!reclength)
+    return 1;
   return (write_dynamic_record(info,info->rec_buff + MARIA_REC_BUFF_OFFSET,
                                reclength));
 }
@@ -234,6 +236,8 @@ my_bool _ma_update_dynamic_record(MARIA_HA *info, MARIA_RECORD_POS pos,
 {
   uint length= _ma_rec_pack(info, info->rec_buff + MARIA_REC_BUFF_OFFSET,
                             record);
+  if (!length)
+    return 1;
   return (update_dynamic_record(info, pos,
                                 info->rec_buff + MARIA_REC_BUFF_OFFSET,
                                 length));
@@ -258,12 +262,19 @@ my_bool _ma_write_blob_record(MARIA_HA *info, const uchar *record)
   reclength2= _ma_rec_pack(info,
                            rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
 			   record);
+  if (!reclength2)
+  {
+    error= 1;
+    goto err;
+  }
+
   DBUG_PRINT("info",("reclength: %lu  reclength2: %lu",
 		     reclength, reclength2));
   DBUG_ASSERT(reclength2 <= reclength);
   error= write_dynamic_record(info,
                               rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
                               reclength2);
+err:
   my_safe_afree(rec_buff, reclength);
   return(error != 0);
 }
@@ -293,12 +304,19 @@ my_bool _ma_update_blob_record(MARIA_HA *info, MARIA_RECORD_POS pos,
     my_errno= HA_ERR_OUT_OF_MEM; /* purecov: inspected */
     return(1);
   }
-  reclength2= _ma_rec_pack(info,rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
-			 record);
+  reclength2= _ma_rec_pack(info, rec_buff+
+                           ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
+                           record);
+  if (!reclength2)
+  {
+    error= 1;
+    goto err;
+  }
   DBUG_ASSERT(reclength2 <= reclength);
   error=update_dynamic_record(info,pos,
 			      rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
 			      reclength2);
+err:
   my_safe_afree(rec_buff, reclength);
   return(error != 0);
 }
@@ -938,7 +956,12 @@ err:
 }
 
 
-	/* Pack a record. Return new reclength */
+/**
+   Pack a record.
+
+   @return new reclength
+   @return 0 in case of wrong data in record
+*/
 
 uint _ma_rec_pack(MARIA_HA *info, register uchar *to,
                   register const uchar *from)
@@ -1041,6 +1064,11 @@ uint _ma_rec_pack(MARIA_HA *info, register uchar *to,
         {
           tmp_length= uint2korr(from);
           store_key_length_inc(to,tmp_length);
+        }
+        if (tmp_length > column->length)
+        {
+          my_errno= HA_ERR_WRONG_IN_RECORD;
+          DBUG_RETURN(0);
         }
         memcpy(to, from+pack_length,tmp_length);
         to+= tmp_length;
@@ -1613,7 +1641,9 @@ my_bool _ma_cmp_dynamic_record(register MARIA_HA *info,
       if (!(buffer=(uchar*) my_safe_alloca(buffer_length)))
 	DBUG_RETURN(1);
     }
-    reclength= _ma_rec_pack(info,buffer,record);
+    if (!(reclength= _ma_rec_pack(info,buffer,record)))
+      goto err;
+
     record= buffer;
 
     filepos= info->cur_row.lastpos;

@@ -1483,6 +1483,14 @@ ip_full_addr
 2000::
 DROP PROCEDURE p1;
 #
+# MDEV-18195 ASAN use-after-poison in my_strcasecmp_utf8 / Item::eq upon prepared statement with ORDER BY NAME_CONST
+#
+PREPARE stmt FROM "SELECT 'x' ORDER BY NAME_CONST( 'f', 'foo' )";
+EXECUTE stmt;
+x
+x
+DEALLOCATE PREPARE stmt;
+#
 # Start of 10.2 tests
 #
 #
@@ -1549,6 +1557,15 @@ numgtfmt
 DROP VIEW v1;
 DROP TABLE t1;
 #
+# MDEV-20517 Assertion `!is_expensive()' failed in Item::value_depends_on_sql_mode_const_item
+#
+SELECT ( 1 LIKE GET_LOCK( 'foo', 0 ) ) - 2;
+( 1 LIKE GET_LOCK( 'foo', 0 ) ) - 2
+-1
+SELECT RELEASE_LOCK('foo');
+RELEASE_LOCK('foo')
+1
+#
 # End of 10.2 tests
 #
 #
@@ -1562,3 +1579,23 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def					INET_ATON("255.255.255.255.255.255.255.255")	8	21	20	Y	32928	0	63
 INET_ATON("255.255.255.255.255.255.255.255")
 18446744073709551615
+#
+# MDEV-8049 name_const() is not consistent about its signess
+#
+SELECT 18446744073709551615 AS c1, name_const('a',18446744073709551615) AS c2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	8	20	20	N	32929	0	63
+def					c2	8	20	20	Y	32928	0	63
+c1	c2
+18446744073709551615	18446744073709551615
+CREATE TABLE t1 AS SELECT 18446744073709551615 AS c1, name_const('a',18446744073709551615) AS c2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(20) unsigned NOT NULL,
+  `c2` bigint(20) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+c1	c2
+18446744073709551615	18446744073709551615
+DROP TABLE t1;

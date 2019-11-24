@@ -971,4 +971,31 @@ SELECT a, MAX(b) FROM t2 WHERE a IN (10, 100) GROUP BY a;
 --echo # Should be no more than 4 reads.
 SHOW status LIKE 'handler_read_key';
 
+--echo #
+--echo # MDEV-18501 Partition pruning doesn't work for historical queries
+--echo #
+set time_zone= '+00:00';
+let $ts= `select unix_timestamp('2000-01-01 00:00:00') + 1`;
+
+--error ER_WRONG_EXPR_IN_PARTITION_FUNC_ERROR
+create or replace table t1 (d datetime(6))
+partition by range (unix_timestamp(d)) (
+    partition p0 values less than (1),
+    partition p1 values less than (maxvalue));
+
+--echo # DECIMAL functions are now allowed, partitioning is done by integer part
+eval create or replace table t1 (d timestamp(6))
+partition by range (unix_timestamp(d)) (
+    partition p0 values less than ($ts),
+    partition p1 values less than (maxvalue));
+
+insert into t1 values
+  # go to p0
+  ('2000-01-01 00:00:00'),
+  ('2000-01-01 00:00:00.000001'),
+  # goes to p1
+  ('2000-01-01 00:00:01');
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+
 DROP TABLE t1, t2;

@@ -1,0 +1,52 @@
+USE mysql;
+CREATE TABLE mysql_table (a INT) ENGINE=ROCKSDB;
+CREATE TABLE test.mysql_table (a INT) ENGINE=ROCKSDB;
+ERROR HY000: Table without primary key cannot be created outside mysql schema.
+USE test;
+CREATE TABLE mysql_table (a INT) ENGINE=ROCKSDB;
+ERROR HY000: Table without primary key cannot be created outside mysql schema.
+CREATE TABLE IF NOT EXISTS mysql_table_2 (a INT) ENGINE=ROCKSDB;
+ERROR HY000: Table without primary key cannot be created outside mysql schema.
+CREATE TABLE mysql_table_no_cols ENGINE=ROCKSDB;
+ERROR 42000: A table must have at least 1 column
+CREATE TABLE mysql.mysql_table_2 (a INT) ENGINE=ROCKSDB;
+CREATE TABLE mysql_primkey (a INT PRIMARY KEY, b INT, c INT, d INT, INDEX (c)) ENGINE=ROCKSDB;
+ALTER TABLE mysql_primkey DROP b, DROP a, ADD (f INT PRIMARY KEY);
+ALTER TABLE mysql_primkey DROP PRIMARY KEY;
+ERROR HY000: Table without primary key cannot be created outside mysql schema.
+CREATE TABLE mysql_primkey2 (a INT PRIMARY KEY, b INT, c INT) ENGINE=ROCKSDB;
+ALTER TABLE mysql_primkey2 DROP b;
+ALTER TABLE mysql_primkey2 ADD (b INT);
+ALTER TABLE mysql_primkey2 DROP c, DROP A;
+ERROR HY000: Table without primary key cannot be created outside mysql schema.
+CREATE TABLE mysql_primkey3 (a INT PRIMARY KEY, b INT, c INT, INDEX indexonb (b), INDEX indexonc (c)) ENGINE=ROCKSDB;
+ALTER TABLE mysql_primkey3 DROP INDEX indexonb;
+ALTER TABLE mysql_primkey3 DROP c;
+ALTER TABLE mysql_primkey3 DROP PRIMARY KEY, ADD PRIMARY KEY(b);
+CREATE TABLE mysql_primkey4(a INT, b INT, PRIMARY KEY(a), INDEX si (a, b)) ENGINE=ROCKSDB;
+DROP INDEX si ON mysql_primkey4;
+DROP INDEX `PRIMARY` ON mysql_primkey4;
+ERROR HY000: Table without primary key cannot be created outside mysql schema.
+ALTER TABLE mysql.mysql_table ADD PRIMARY KEY (a);
+ALTER TABLE mysql.mysql_table DROP PRIMARY KEY;
+SET default_storage_engine=ROCKSDB;
+CREATE TABLE mysql_noeng(a INT, b INT);
+ERROR HY000: Table without primary key cannot be created outside mysql schema.
+SET sql_mode="";
+CREATE TABLE mysql_noeng_sub(a INT, b INT) ENGINE=BOGUS_ENGINE;
+ERROR HY000: Table without primary key cannot be created outside mysql schema.
+CREATE TABLE mysql_primkey5 LIKE mysql_primkey;
+SET @@global.block_create_no_primary_key = false;
+CREATE TABLE mysql_no_primkey (a INT) ENGINE=ROCKSDB;
+SET @@global.block_create_no_primary_key = true;
+CREATE TABLE mysql_block_no_primkey LIKE mysql_no_primkey;
+ERROR HY000: Table without primary key cannot be created outside mysql schema.
+DROP TABLE mysql_primkey;
+DROP TABLE mysql_primkey2;
+DROP TABLE mysql_primkey3;
+DROP TABLE mysql_primkey4;
+DROP TABLE mysql_primkey5;
+DROP TABLE mysql_no_primkey;
+USE mysql;
+DROP TABLE mysql_table;
+DROP TABLE mysql_table_2;

@@ -340,6 +340,35 @@ IF(CONNECT_WITH_REST)
 ENDIF(CONNECT_WITH_REST)
 
 #
+# REST
+#
+
+OPTION(CONNECT_WITH_REST "Compile CONNECT storage engine with REST support" ON)
+
+IF(CONNECT_WITH_REST)
+  FIND_PACKAGE(cpprestsdk QUIET)
+  IF (cpprestsdk_FOUND)
+	IF(UNIX)
+#     INCLUDE_DIRECTORIES(${CPPRESTSDK_INCLUDE_DIR})
+#     If needed edit next line to set the path to libcpprest.so
+      SET(REST_LIBRARY -lcpprest)
+      MESSAGE (STATUS ${REST_LIBRARY})
+	ELSE(NOT UNIX)
+#     Next line sets debug compile mode matching cpprest_2_10d.dll
+#     when it was binary installed (can be change later in Visual Studio)
+#     Comment it out if not needed depending on your cpprestsdk installation.
+	  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
+	ENDIF(UNIX)
+    IF(REST_LIBRARY)
+      SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp restget.cpp tabrest.h)
+      add_definitions(-DREST_SUPPORT)
+    ENDIF()
+  ELSE(NOT cpprestsdk_FOUND)
+#    MESSAGE(STATUS "=====> cpprestsdk package not found")
+  ENDIF (cpprestsdk_FOUND)
+ENDIF(CONNECT_WITH_REST)
+
+#
 # XMAP
 #
 
@@ -358,7 +387,7 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   COMPONENT connect-engine
   RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
-    ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY})
+    ${ODBC_LIBRARY} ${JDBC_LIBRARY} ${MONGOC_LIBRARY} ${IPHLPAPI_LIBRARY} ${REST_LIBRARY})
 
 IF(NOT TARGET connect)
   RETURN()
@@ -374,8 +403,8 @@ ENDIF()
 
 IF(WIN32)
   IF (libmongoc-1.0_FOUND)
-	  SET_TARGET_PROPERTIES(connect PROPERTIES LINK_FLAGS
-	    "/DELAYLOAD:libbson-1.0.dll /DELAYLOAD:libmongoc-1.0.dll")
+    SET_TARGET_PROPERTIES(connect PROPERTIES LINK_FLAGS
+      "/DELAYLOAD:libbson-1.0.dll /DELAYLOAD:libmongoc-1.0.dll")
   ENDIF(libmongoc-1.0_FOUND)
 
 # Install some extra files that belong to connect engine
@@ -403,3 +432,4 @@ IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
     ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
     DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
 ENDIF()
+

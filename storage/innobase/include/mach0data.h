@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -28,9 +28,10 @@ Created 11/28/1995 Heikki Tuuri
 #ifndef mach0data_h
 #define mach0data_h
 
+#include "univ.i"
+
 #ifndef UNIV_INNOCHECKSUM
 
-#include "univ.i"
 #include "mtr0types.h"
 
 /* The data and all fields are always stored in a database file

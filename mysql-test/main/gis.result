@@ -816,11 +816,15 @@ POINT(1 1)
 drop function fn3;
 create table t1(pt POINT);
 alter table t1 add primary key pti(pt);
+Warnings:
+Warning	1280	Name 'pti' ignored for PRIMARY key.
 drop table t1;
 create table t1(pt GEOMETRY);
 alter table t1 add primary key pti(pt);
 ERROR 42000: BLOB/TEXT column 'pt' used in key specification without a key length
 alter table t1 add primary key pti(pt(20));
+Warnings:
+Warning	1280	Name 'pti' ignored for PRIMARY key.
 drop table t1;
 create table t1 select GeomFromText('point(1 1)');
 desc t1;
@@ -1679,7 +1683,7 @@ NULL
 #
 create table t1 (pt point);
 insert into t1 values(Geomfromtext('POLYGON((1 1, 2 2, 2 1, 1 1))'));
-ERROR 22007: Incorrect POINT value: 'POLYGON' for column 'pt' at row 1
+ERROR 22007: Incorrect POINT value: 'POLYGON' for column `test`.`t1`.`pt` at row 1
 drop table t1;
 SELECT st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100));
 st_astext(ST_Buffer(ST_PolygonFromText('POLYGON((3 5, 2 4, 2 5, 3 5))'), -100))
@@ -1720,6 +1724,22 @@ c2
 52
 DROP TABLE t1;
 SET optimizer_switch=@save_optimizer_switch;
+#
+# MDEV-16995: ER_CANT_CREATE_GEOMETRY_OBJECT encountered for a query with
+# optimizer_use_condition_selectivity>=3
+#
+CREATE TABLE t1 (a POINT);
+INSERT INTO t1 VALUES (POINT(1,1)),(POINT(1,2)),(POINT(1,3));
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @@use_stat_tables= PREFERABLY;
+set @@optimizer_use_condition_selectivity=3;
+SELECT COUNT(*) FROM t1 WHERE a IN ('test','test1');
+COUNT(*)
+0
+set @@use_stat_tables= @save_use_stat_tables;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1;
 #
 # End 10.0 tests
 #
@@ -1849,6 +1869,20 @@ t2	CREATE TABLE `t2` (
   `w2` int(1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1,t2;
+CREATE TABLE t1 (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+point_data POINT NOT NULL,
+PRIMARY KEY (id),
+KEY idx_point_data(point_data)
+) ENGINE=MyISAM;
+INSERT t1 (point_data) VALUES
+(GeomFromText('Point(37.0248492 23.8512726)')),
+(GeomFromText('Point(38.0248492 23.8512726)'));
+SELECT id FROM t1
+WHERE ST_Contains(point_data, GeomFromText('Point(38.0248492 23.8512726)'));
+id
+2
+DROP TABLE t1;
 #
 # Start of 10.2 tests
 #
@@ -2218,8 +2252,20 @@ SELECT c FROM t1;
 c
 1
 DROP TABLE t1;
+create table t1 (p point default "qwer");
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+create table t1 (p point default 0);
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+create table t1 (p point not null default st_geometryfromtext('point 0)'));
+ERROR 42000: Invalid default value for 'p'
+create table t1 (p point not null default st_geometryfromtext('point(0 0)'));
+insert into t1 values(default);
+select st_astext(p) from t1;
+st_astext(p)
+POINT(0 0)
+drop table t1;
 #
-# Start of 10.3 tests
+# End of 10.2 tests
 #
 #
 # MDEV-11478 Result data type aggregation for pluggable data types
@@ -3996,6 +4042,8 @@ SELECT CAST(POINT(1,1) AS SIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_signed'
 SELECT CAST(POINT(1,1) AS UNSIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_unsigned'
+SELECT CAST(POINT(1,1) AS FLOAT) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'float_typecast'
 SELECT CAST(POINT(1,1) AS DOUBLE) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'double_typecast'
 SELECT CAST(POINT(1,1) AS DECIMAL(10,1)) FROM t1;
@@ -4012,6 +4060,8 @@ SELECT CAST(a AS SIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_signed'
 SELECT CAST(a AS UNSIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_unsigned'
+SELECT CAST(a AS FLOAT) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'float_typecast'
 SELECT CAST(a AS DOUBLE) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'double_typecast'
 SELECT CAST(a AS DECIMAL(10,1)) FROM t1;
@@ -4028,6 +4078,8 @@ SELECT CAST(COALESCE(a) AS SIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_signed'
 SELECT CAST(COALESCE(a) AS UNSIGNED) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'cast_as_unsigned'
+SELECT CAST(COALESCE(a) AS FLOAT) FROM t1;
+ERROR HY000: Illegal parameter data type geometry for operation 'float_typecast'
 SELECT CAST(COALESCE(a) AS DOUBLE) FROM t1;
 ERROR HY000: Illegal parameter data type geometry for operation 'double_typecast'
 SELECT CAST(COALESCE(a) AS DECIMAL(10,1)) FROM t1;
@@ -4128,17 +4180,17 @@ ERROR HY000: Illegal parameter data types geometry and interval for operation 'd
 SELECT INTERVAL 10 DAY + POINT(1,1);
 ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
 SELECT ADDTIME(POINT(1,1), '10:10:10');
-ERROR HY000: Illegal parameter data types geometry and varchar for operation 'add_time'
+ERROR HY000: Illegal parameter data types geometry and varchar for operation 'addtime'
 SELECT ADDTIME('10:10:10', POINT(1,1));
-ERROR HY000: Illegal parameter data types varchar and geometry for operation 'add_time'
+ERROR HY000: Illegal parameter data types varchar and geometry for operation 'addtime'
 SELECT ADDTIME(POINT(1,1), TIME'10:10:10');
-ERROR HY000: Illegal parameter data types geometry and time for operation 'add_time'
+ERROR HY000: Illegal parameter data types geometry and time for operation 'addtime'
 SELECT ADDTIME(TIME'10:10:10', POINT(1,1));
-ERROR HY000: Illegal parameter data types time and geometry for operation 'add_time'
+ERROR HY000: Illegal parameter data types time and geometry for operation 'addtime'
 SELECT ADDTIME(POINT(1,1), TIMESTAMP'2001-01-01 10:10:10');
-ERROR HY000: Illegal parameter data types geometry and datetime for operation 'add_time'
+ERROR HY000: Illegal parameter data types geometry and datetime for operation 'addtime'
 SELECT ADDTIME(TIMESTAMP'2001-01-01 10:10:10', POINT(1,1));
-ERROR HY000: Illegal parameter data types datetime and geometry for operation 'add_time'
+ERROR HY000: Illegal parameter data types datetime and geometry for operation 'addtime'
 SELECT STR_TO_DATE(POINT(1,1),'%M %d,%Y');
 ERROR HY000: Illegal parameter data types geometry and varchar for operation 'str_to_date'
 SELECT STR_TO_DATE('2001-01-01', POINT(1,1));

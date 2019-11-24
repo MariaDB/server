@@ -25,6 +25,7 @@ NOT FOUND /foobar/ in t1.ibd
 NOT FOUND /temp/ in t2.ibd
 # t3 ... on expecting NOT FOUND
 NOT FOUND /barfoo/ in t3.ibd
+db.opt
 t1.frm
 t1.ibd
 t2.frm
@@ -35,6 +36,7 @@ FLUSH TABLES t1, t2, t3 FOR EXPORT;
 backup: t1
 backup: t2
 backup: t3
+db.opt
 t1.cfg
 t1.frm
 t1.ibd

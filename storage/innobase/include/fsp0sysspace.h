@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,7 +26,6 @@ Created 2013-7-26 by Kevin Lewis
 #ifndef fsp0sysspace_h
 #define fsp0sysspace_h
 
-#include "univ.i"
 #include "fsp0space.h"
 
 /** If the last data file is auto-extended, we add this many pages to it
@@ -103,7 +102,7 @@ public:
 	void shutdown();
 
 	/** Normalize the file size, convert to extents. */
-	void normalize();
+	void normalize_size();
 
 	/**
 	@return true if a new raw device was created. */
@@ -139,8 +138,8 @@ public:
 	@return the autoextend increment in pages. */
 	ulint get_autoextend_increment() const
 	{
-		return(sys_tablespace_auto_extend_increment
-		       * ((1024 * 1024) / UNIV_PAGE_SIZE));
+		return sys_tablespace_auto_extend_increment
+			<< (20 - srv_page_size_shift);
 	}
 
 	/**

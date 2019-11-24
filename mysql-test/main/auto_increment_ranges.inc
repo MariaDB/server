@@ -238,3 +238,23 @@ delete from t1 where a=32767;
 --error HA_ERR_AUTOINC_ERANGE
 insert into t1 values(NULL);
 drop table t1;
+
+--echo #
+--echo # MDEV-17333 Assertion in update_auto_increment() upon exotic LOAD
+--echo #
+--source include/have_partition.inc
+let $mysqld_datadir= `select @@datadir`;
+--write_file $mysqld_datadir/test/load.data
+1	1
+0	2
+3	3
+4	1
+0	1
+6	6
+EOF
+create or replace table t1 (pk int auto_increment, x int, primary key(pk), unique key(x))
+with system versioning partition by system_time interval 2 day
+(partition p1 history, partition pn current);
+load data infile 'load.data' ignore into table t1;
+--remove_file $mysqld_datadir/test/load.data
+drop table t1;

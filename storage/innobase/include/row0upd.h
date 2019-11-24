@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -30,7 +30,6 @@ Created 12/27/1996 Heikki Tuuri
 #include "data0data.h"
 #include "row0types.h"
 #include "btr0types.h"
-#include "dict0types.h"
 #include "trx0types.h"
 #include "btr0pcur.h"
 #include "que0types.h"
@@ -220,6 +219,7 @@ the equal ordering fields. NOTE: we compare the fields as binary strings!
 @param[in]	heap		memory heap from which allocated
 @param[in,out]	mysql_table	NULL, or mysql table object when
 				user thread invokes dml
+@param[out]	error		error number in case of failure
 @return own: update vector of differing fields, excluding roll ptr and
 trx id */
 upd_t*
@@ -231,8 +231,9 @@ row_upd_build_difference_binary(
 	bool		no_sys,
 	trx_t*		trx,
 	mem_heap_t*	heap,
-	TABLE*		mysql_table)
-	MY_ATTRIBUTE((nonnull(1,2,3,7), warn_unused_result));
+	TABLE*		mysql_table,
+	dberr_t*	error)
+	MY_ATTRIBUTE((nonnull(1,2,3,7,9), warn_unused_result));
 /** Apply an update vector to an index entry.
 @param[in,out]	entry	index entry to be updated; the clustered index record
 			must be covered by a lock or a page latch to prevent
@@ -522,8 +523,8 @@ struct upd_node_t{
 	ibool		searched_update;
 				/* TRUE if searched update, FALSE if
 				positioned */
-	ibool		in_mysql_interface;
-				/* TRUE if the update node was created
+	bool		in_mysql_interface;
+				/* whether the update node was created
 				for the MySQL interface */
 	dict_foreign_t*	foreign;/* NULL or pointer to a foreign key
 				constraint if this update node is used in
@@ -588,14 +589,6 @@ struct upd_node_t{
 				/* column assignment list */
 	ulint		magic_n;
 
-	/** Also set row_start = CURRENT_TIMESTAMP/trx->id
-	@param[in]	trx	transaction */
-	void make_versioned_update(const trx_t* trx);
-	/** Only set row_end = CURRENT_TIMESTAMP/trx->id.
-	Do not touch other fields at all.
-	@param[in]	trx	transaction */
-	void make_versioned_delete(const trx_t* trx);
-
 private:
 	/** Appends row_start or row_end field to update vector and sets a
 	CURRENT_TIMESTAMP/trx->id value to it.
@@ -604,6 +597,24 @@ private:
 	@param[in]	trx	transaction
 	@param[in]	vers_sys_idx	table->row_start or table->row_end */
 	void make_versioned_helper(const trx_t* trx, ulint idx);
+
+public:
+	/** Also set row_start = CURRENT_TIMESTAMP/trx->id
+	@param[in]	trx	transaction */
+	void make_versioned_update(const trx_t* trx)
+	{
+		make_versioned_helper(trx, table->vers_start);
+	}
+
+	/** Only set row_end = CURRENT_TIMESTAMP/trx->id.
+	Do not touch other fields at all.
+	@param[in]	trx	transaction */
+	void make_versioned_delete(const trx_t* trx)
+	{
+		update->n_fields = 0;
+		is_delete = VERSIONED_DELETE;
+		make_versioned_helper(trx, table->vers_end);
+	}
 };
 
 #define	UPD_NODE_MAGIC_N	1579975

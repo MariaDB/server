@@ -1,11 +1,6 @@
 --source include/have_innodb.inc
 --source include/count_sessions.inc
 
-if (`select plugin_auth_version <= "5.6.28-MariaDB-76.1" from information_schema.plugins where plugin_name='innodb'`)
-{
-  --skip Not fixed in XtraDB as of 5.6.28-MariaDB-76.1 or earlier
-}
-
 --echo #
 --echo # Bug #19183565 CREATE DYNAMIC INNODB_TMPDIR VARIABLE TO CONTROL
 --echo #		WHERE INNODB WRITES TEMP FILES

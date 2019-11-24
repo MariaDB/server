@@ -1,0 +1,17 @@
+call mtr.add_suppression("InnoDB: Operating system error number ");
+call mtr.add_suppression("InnoDB: (The error means|If you are|Cannot open datafile) ");
+call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`\.`t`");
+call mtr.add_suppression("InnoDB: Table test/t .* does not exist");
+CREATE TABLE t (a SERIAL) ENGINE=InnoDB;
+INSERT INTO t() VALUES();
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  UNIQUE KEY `a` (`a`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1
+SELECT * FROM t;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+TRUNCATE TABLE t;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+DROP TABLE t;

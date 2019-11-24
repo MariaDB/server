@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
 IF(MSVC)
   RETURN()
@@ -33,10 +33,15 @@ SET(MY_WARNING_FLAGS
   -Wnon-virtual-dtor
   -Wvla
   -Wwrite-strings
+  -Werror
   )
 
-IF(MYSQL_MAINTAINER_MODE MATCHES "ON")
-  SET(WHERE)
+IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
+  SET(MY_WARNING_FLAGS ${MY_WARNING_FLAGS} -Wno-error=maybe-uninitialized)
+ENDIF()
+
+IF(MYSQL_MAINTAINER_MODE MATCHES "OFF")
+  RETURN()
 ELSEIF(MYSQL_MAINTAINER_MODE MATCHES "AUTO")
   SET(WHERE DEBUG)
 ENDIF()

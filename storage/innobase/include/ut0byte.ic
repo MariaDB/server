@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -144,9 +144,6 @@ ut_bit_get_nth(
 	ulint	n)	/*!< in: nth bit requested */
 {
 	ut_ad(n < 8 * sizeof(ulint));
-#if TRUE != 1
-# error "TRUE != 1"
-#endif
 	return(1 & (a >> n));
 }
 
@@ -162,9 +159,6 @@ ut_bit_set_nth(
 	ibool	val)	/*!< in: value for the bit to set */
 {
 	ut_ad(n < 8 * sizeof(ulint));
-#if TRUE != 1
-# error "TRUE != 1"
-#endif
 	if (val) {
 		return(((ulint) 1 << n) | a);
 	} else {

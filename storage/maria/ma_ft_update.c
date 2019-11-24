@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Written by Sergei A. Golubchik, who has a shared copyright to this code */
 
@@ -289,17 +289,10 @@ MARIA_KEY *_ma_ft_make_key(MARIA_HA *info, MARIA_KEY *key, uint keynr,
                            FT_WORD *wptr, my_off_t filepos)
 {
   uchar buf[HA_FT_MAXBYTELEN+16];
+    float weight=(float) ((filepos==HA_OFFSET_ERROR) ? 0 : wptr->weight);
   DBUG_ENTER("_ma_ft_make_key");
 
-#if HA_FT_WTYPE == HA_KEYTYPE_FLOAT
-  {
-    float weight=(float) ((filepos==HA_OFFSET_ERROR) ? 0 : wptr->weight);
-    mi_float4store(buf,weight);
-  }
-#else
-#error
-#endif
-
+  mi_float4store(buf,weight);
   int2store(buf+HA_FT_WLEN,wptr->len);
   memcpy(buf+HA_FT_WLEN+2,wptr->pos,wptr->len);
   /* Can't be spatial so it's ok to call _ma_make_key directly here */

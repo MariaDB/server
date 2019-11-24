@@ -1,3 +1,5 @@
+--source include/have_utf8mb4.inc
+
 # Embedded server doesn't support external clients
 --source include/not_embedded.inc
 --source include/have_innodb.inc
@@ -58,7 +60,9 @@ select * from t4;
 select * from t5; 
 select * from t6; 
 
+--replace_result "NAMES utf8mb4" "NAMES utf8mb4" "NAMES utf8" "NAMES utf8mb4"
 --exec $MYSQL_DUMP --skip-comments --delayed-insert --insert-ignore --databases test
+--replace_result "NAMES utf8mb4" "NAMES utf8mb4" "NAMES utf8" "NAMES utf8mb4"
 --exec $MYSQL_DUMP --skip-comments --delayed-insert --databases test
 
 drop table t1; 

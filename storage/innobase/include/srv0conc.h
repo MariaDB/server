@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -25,7 +26,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -41,9 +42,7 @@ Created 2011/04/18 Sunny Bains
 #define srv_conc_h
 
 /** We are prepared for a situation that we have this many threads waiting for
-a semaphore inside InnoDB. innobase_start_or_create_for_mysql() sets the
-value. */
-
+a semaphore inside InnoDB. srv_start() sets the value. */
 extern	ulint	srv_max_n_threads;
 
 /** The following controls how many threads we let inside InnoDB concurrently:

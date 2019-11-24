@@ -1,0 +1,16 @@
+GRANT ALL PRIVILEGES on *.* TO backup_user IDENTIFIED by 'x' REQUIRE SSL;
+FLUSH PRIVILEGES;
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --user=backup_user --password=x --ssl --backup --target-dir=$targetdir;
+--enable_result_log
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+DROP USER backup_user;
+rmdir $targetdir;
+

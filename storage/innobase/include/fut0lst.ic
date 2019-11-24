@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -58,7 +58,7 @@ flst_write_addr(
 					     MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_SX_FIX));
 	ut_a(addr.page == FIL_NULL || addr.boffset >= FIL_PAGE_DATA);
-	ut_a(ut_align_offset(faddr, UNIV_PAGE_SIZE) >= FIL_PAGE_DATA);
+	ut_a(ut_align_offset(faddr, srv_page_size) >= FIL_PAGE_DATA);
 
 	mlog_write_ulint(faddr + FIL_ADDR_PAGE, addr.page, MLOG_4BYTES, mtr);
 	mlog_write_ulint(faddr + FIL_ADDR_BYTE, addr.boffset,
@@ -83,7 +83,7 @@ flst_read_addr(
 	addr.boffset = mtr_read_ulint(faddr + FIL_ADDR_BYTE, MLOG_2BYTES,
 				      mtr);
 	ut_a(addr.page == FIL_NULL || addr.boffset >= FIL_PAGE_DATA);
-	ut_a(ut_align_offset(faddr, UNIV_PAGE_SIZE) >= FIL_PAGE_DATA);
+	ut_a(ut_align_offset(faddr, srv_page_size) >= FIL_PAGE_DATA);
 	return(addr);
 }
 

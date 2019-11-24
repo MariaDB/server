@@ -308,3 +308,34 @@ SELECT CONVERT_TZ('2001-10-08 00:00:00', MAKE_SET(0,'+01:00'), '+00:00' );
 --echo #
 --echo # End of 5.3 tests
 --echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-11895 NO_ZERO_DATE affects timestamp values without any warnings
+--echo #
+
+SET sql_mode = '';
+CREATE TABLE t1 (a TIMESTAMP NULL) ENGINE = MyISAM;
+CREATE TABLE t2 (a TIMESTAMP NULL) ENGINE = MyISAM;
+CREATE TABLE t3 (a TIMESTAMP NULL) ENGINE = MyISAM;
+
+SET @@session.time_zone = 'UTC';
+INSERT INTO t1 VALUES ('2011-10-29 23:00:00');
+INSERT INTO t1 VALUES ('2011-10-29 23:00:01');
+INSERT INTO t1 VALUES ('2011-10-29 23:59:59');
+
+SET @@session.time_zone = 'Europe/Moscow';
+SET sql_mode='NO_ZERO_DATE';
+INSERT INTO t2 SELECT * FROM t1;
+SET sql_mode='';
+INSERT INTO t3 SELECT * FROM t1;
+SELECT UNIX_TIMESTAMP(a), a FROM t2;
+SELECT UNIX_TIMESTAMP(a), a FROM t3;
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

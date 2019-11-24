@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 #pragma once
 
 #include "rdb_mariadb_port.h"
@@ -21,6 +21,7 @@
 #include <chrono>
 #include <string>
 #include <vector>
+#include <functional>
 
 /* MySQL header files */
 #include "../sql/log.h"
@@ -44,7 +45,7 @@ namespace myrocks {
 
 #ifndef interface
 #define interface struct
-#endif // interface
+#endif  // interface
 
 /*
   Introduce C-style pseudo-namespaces, a handy way to make code more readble
@@ -52,8 +53,8 @@ namespace myrocks {
   Since we cannot or don't want to change the API in any way, we can use this
   mechanism to define readability tokens that look like C++ namespaces, but are
   not enforced in any way by the compiler, since the pre-compiler strips them
-  out. However, on the calling side, code looks like my_core::thd_ha_data()
-  rather than plain a thd_ha_data() call. This technique adds an immediate
+  out. However, on the calling side, code looks like my_core::thd_get_ha_data()
+  rather than plain a thd_get_ha_data() call. This technique adds an immediate
   visible cue on what type of API we are calling into.
 */
 
@@ -62,13 +63,13 @@ namespace myrocks {
 // to non-obvious MySQL functions, like the ones that do not start with well
 // known prefixes: "my_", "sql_", and "mysql_".
 #define my_core
-#endif // my_core
+#endif  // my_core
 
 /*
   The intent behind a SHIP_ASSERT() macro is to have a mechanism for validating
   invariants in retail builds. Traditionally assertions (such as macros defined
   in <cassert>) are evaluated for performance reasons only in debug builds and
-  become NOOP in retail builds when NDEBUG is defined.
+  become NOOP in retail builds when DBUG_OFF is defined.
 
   This macro is intended to validate the invariants which are critical for
   making sure that data corruption and data loss won't take place. Proper
@@ -80,14 +81,14 @@ namespace myrocks {
 */
 
 #ifndef SHIP_ASSERT
-#define SHIP_ASSERT(expr)                                                      \
-  do {                                                                         \
-    if (!(expr)) {                                                             \
-      my_safe_printf_stderr("\nShip assert failure: \'%s\'\n", #expr);         \
-      abort_with_stack_traces();                                               \
-    }                                                                          \
+#define SHIP_ASSERT(expr)                                              \
+  do {                                                                 \
+    if (!(expr)) {                                                     \
+      my_safe_printf_stderr("\nShip assert failure: \'%s\'\n", #expr); \
+      abort();                                                         \
+    }                                                                  \
   } while (0)
-#endif // SHIP_ASSERT
+#endif  // SHIP_ASSERT
 
 /*
   Assert a implies b.
@@ -103,7 +104,7 @@ namespace myrocks {
   a and b must be both true or both false.
 */
 #ifndef DBUG_ASSERT_IFF
-#define DBUG_ASSERT_IFF(a, b)                                                  \
+#define DBUG_ASSERT_IFF(a, b) \
   DBUG_ASSERT(static_cast<bool>(a) == static_cast<bool>(b))
 #endif
 
@@ -151,10 +152,10 @@ namespace myrocks {
   Macros to better convey the intent behind checking the results from locking
   and unlocking mutexes.
 */
-#define RDB_MUTEX_LOCK_CHECK(m)                                                \
+#define RDB_MUTEX_LOCK_CHECK(m) \
   rdb_check_mutex_call_result(__MYROCKS_PORTABLE_PRETTY_FUNCTION__, true,      \
                               mysql_mutex_lock(&m))
-#define RDB_MUTEX_UNLOCK_CHECK(m)                                              \
+#define RDB_MUTEX_UNLOCK_CHECK(m)                         \
   rdb_check_mutex_call_result(__MYROCKS_PORTABLE_PRETTY_FUNCTION__, false,     \
                               mysql_mutex_unlock(&m))
 
@@ -243,18 +244,26 @@ inline void rdb_check_mutex_call_result(const char *function_name,
                                         const int result) {
   if (unlikely(result)) {
     /* NO_LINT_DEBUG */
-    sql_print_error("%s a mutex inside %s failed with an "
-                    "error code %d.",
-                    attempt_lock ? "Locking" : "Unlocking", function_name,
-                    result);
+    sql_print_error(
+        "%s a mutex inside %s failed with an "
+        "error code %d.",
+        attempt_lock ? "Locking" : "Unlocking", function_name, result);
 
     // This will hopefully result in a meaningful stack trace which we can use
     // to efficiently debug the root cause.
-    abort_with_stack_traces();
+    abort();
   }
 }
 
 void rdb_log_status_error(const rocksdb::Status &s, const char *msg = nullptr);
+
+// return true if the marker file exists which indicates that the corruption
+// has been detected
+bool rdb_check_rocksdb_corruption();
+
+// stores a marker file in the data directory so that after restart server
+// is still aware that rocksdb data is corrupted
+void rdb_persist_corruption_marker();
 
 /*
   Helper functions to parse strings.
@@ -283,7 +292,7 @@ const char *rdb_parse_id(const struct charset_info_st *const cs,
 const char *rdb_skip_id(const struct charset_info_st *const cs, const char *str)
     MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));
 
-const std::vector<std::string> parse_into_tokens(const std::string& s,
+const std::vector<std::string> parse_into_tokens(const std::string &s,
                                                  const char delim);
 
 /*
@@ -301,4 +310,26 @@ bool rdb_database_exists(const std::string &db_name);
 
 const char *get_rocksdb_supported_compression_types();
 
-} // namespace myrocks
+/*
+  Helper class to make sure cleanup always happens. Helpful for complicated
+  logic where there can be multiple exits/returns requiring cleanup
+ */
+class Ensure_cleanup {
+ public:
+  explicit Ensure_cleanup(std::function<void()> cleanup)
+      : m_cleanup(cleanup), m_skip_cleanup(false) {}
+
+  ~Ensure_cleanup() {
+    if (!m_skip_cleanup) {
+      m_cleanup();
+    }
+  }
+
+  // If you want to skip cleanup (such as when the operation is successful)
+  void skip() { m_skip_cleanup = true; }
+
+ private:
+  std::function<void()> m_cleanup;
+  bool m_skip_cleanup;
+};
+}  // namespace myrocks

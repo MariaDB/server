@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,7 +24,6 @@ Doublwrite buffer module
 Created 2011/12/19
 *******************************************************/
 
-#include "ha_prototypes.h"
 #include "buf0dblwr.h"
 #include "buf0buf.h"
 #include "buf0checksum.h"
@@ -149,11 +148,11 @@ buf_dblwr_init(
 		ut_zalloc_nokey(buf_size * sizeof(bool)));
 
 	buf_dblwr->write_buf_unaligned = static_cast<byte*>(
-		ut_malloc_nokey((1 + buf_size) * UNIV_PAGE_SIZE));
+		ut_malloc_nokey((1 + buf_size) << srv_page_size_shift));
 
 	buf_dblwr->write_buf = static_cast<byte*>(
 		ut_align(buf_dblwr->write_buf_unaligned,
-			 UNIV_PAGE_SIZE));
+			 srv_page_size));
 
 	buf_dblwr->buf_block_arr = static_cast<buf_page_t**>(
 		ut_zalloc_nokey(buf_size * sizeof(void*)));
@@ -214,7 +213,8 @@ too_small:
 			<< "Cannot create doublewrite buffer: "
 			"the first file in innodb_data_file_path"
 			" must be at least "
-			<< (3 * (FSP_EXTENT_SIZE * UNIV_PAGE_SIZE) >> 20)
+			<< (3 * (FSP_EXTENT_SIZE
+				 >> (20U - srv_page_size_shift)))
 			<< "M.";
 		mtr.commit();
 		return(false);
@@ -264,6 +264,13 @@ too_small:
 
 		ut_ad(rw_lock_get_x_lock_count(&new_block->lock) == 1);
 		page_no = new_block->page.id.page_no();
+		/* We only do this in the debug build, to ensure that
+		both the check in buf_flush_init_for_writing() and
+		recv_parse_or_apply_log_rec_body() will see a valid
+		page type. The flushes of new_block are actually
+		unnecessary here.  */
+		ut_d(mlog_write_ulint(FIL_PAGE_TYPE + new_block->frame,
+				      FIL_PAGE_TYPE_SYS, MLOG_2BYTES, &mtr));
 
 		if (i == FSP_EXTENT_SIZE / 2) {
 			ut_a(page_no == FSP_EXTENT_SIZE);
@@ -325,7 +332,8 @@ too_small:
 	mtr_commit(&mtr);
 
 	/* Flush the modified pages to disk and make a checkpoint */
-	log_make_checkpoint_at(LSN_MAX, TRUE);
+	log_make_checkpoint();
+	buf_dblwr_being_created = FALSE;
 
 	/* Remove doublewrite pages from LRU */
 	buf_pool_invalidate();
@@ -363,10 +371,10 @@ buf_dblwr_init_or_load_pages(
 	/* We do the file i/o past the buffer pool */
 
 	unaligned_read_buf = static_cast<byte*>(
-		ut_malloc_nokey(3 * UNIV_PAGE_SIZE));
+		ut_malloc_nokey(3U << srv_page_size_shift));
 
 	read_buf = static_cast<byte*>(
-		ut_align(unaligned_read_buf, UNIV_PAGE_SIZE));
+		ut_align(unaligned_read_buf, srv_page_size));
 
 	/* Read the trx sys header to check if we are using the doublewrite
 	buffer */
@@ -376,8 +384,8 @@ buf_dblwr_init_or_load_pages(
 
 	err = os_file_read(
 		read_request,
-		file, read_buf, TRX_SYS_PAGE_NO * UNIV_PAGE_SIZE,
-		UNIV_PAGE_SIZE);
+		file, read_buf, TRX_SYS_PAGE_NO << srv_page_size_shift,
+		srv_page_size);
 
 	if (err != DB_SUCCESS) {
 
@@ -425,8 +433,8 @@ buf_dblwr_init_or_load_pages(
 	/* Read the pages from the doublewrite buffer to memory */
 	err = os_file_read(
 		read_request,
-		file, buf, block1 * UNIV_PAGE_SIZE,
-		TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * UNIV_PAGE_SIZE);
+		file, buf, block1 << srv_page_size_shift,
+		TRX_SYS_DOUBLEWRITE_BLOCK_SIZE << srv_page_size_shift);
 
 	if (err != DB_SUCCESS) {
 
@@ -442,9 +450,9 @@ buf_dblwr_init_or_load_pages(
 	err = os_file_read(
 		read_request,
 		file,
-		buf + TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * UNIV_PAGE_SIZE,
-		block2 * UNIV_PAGE_SIZE,
-		TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * UNIV_PAGE_SIZE);
+		buf + (TRX_SYS_DOUBLEWRITE_BLOCK_SIZE << srv_page_size_shift),
+		block2 << srv_page_size_shift,
+		TRX_SYS_DOUBLEWRITE_BLOCK_SIZE << srv_page_size_shift);
 
 	if (err != DB_SUCCESS) {
 
@@ -484,8 +492,8 @@ buf_dblwr_init_or_load_pages(
 
 			err = os_file_write(
 				write_request, path, file, page,
-				source_page_no * UNIV_PAGE_SIZE,
-				UNIV_PAGE_SIZE);
+				source_page_no << srv_page_size_shift,
+				srv_page_size);
 			if (err != DB_SUCCESS) {
 
 				ib::error()
@@ -503,7 +511,7 @@ buf_dblwr_init_or_load_pages(
 			recv_dblwr.add(page);
 		}
 
-		page += univ_page_size.physical();
+		page += srv_page_size;
 	}
 
 	if (reset_space_ids) {
@@ -529,10 +537,11 @@ buf_dblwr_process()
 	}
 
 	unaligned_read_buf = static_cast<byte*>(
-		ut_malloc_nokey(2 * UNIV_PAGE_SIZE));
+		ut_malloc_nokey(3U << srv_page_size_shift));
 
 	read_buf = static_cast<byte*>(
-		ut_align(unaligned_read_buf, UNIV_PAGE_SIZE));
+		ut_align(unaligned_read_buf, srv_page_size));
+	byte* const buf = read_buf + srv_page_size;
 
 	for (recv_dblwr_t::list::iterator i = recv_dblwr.pages.begin();
 	     i != recv_dblwr.pages.end();
@@ -558,7 +567,8 @@ buf_dblwr_process()
 			is scheduled for truncation or was truncated
 			and we have parsed an MLOG_TRUNCATE record. */
 			if (!srv_is_tablespace_truncated(space_id)
-			    && !srv_was_tablespace_truncated(space)) {
+			    && !srv_was_tablespace_truncated(space)
+			    && !srv_is_undo_tablespace(space_id)) {
 				ib::warn() << "A copy of page " << page_id
 					<< " in the doublewrite buffer slot "
 					<< page_no_dblwr
@@ -568,7 +578,7 @@ buf_dblwr_process()
 		}
 
 		const page_size_t	page_size(space->flags);
-		ut_ad(!buf_page_is_zeroes(page, page_size));
+		ut_ad(!buf_page_is_zeroes(page, page_size.physical()));
 
 		/* We want to ensure that for partial reads the
 		unread portion of the page is NUL. */
@@ -592,7 +602,9 @@ buf_dblwr_process()
 		}
 
 		const bool is_all_zero = buf_page_is_zeroes(
-			read_buf, page_size);
+			read_buf, page_size.physical());
+		const bool expect_encrypted = space->crypt_data
+			&& space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED;
 
 		if (is_all_zero) {
 			/* We will check if the copy in the
@@ -600,24 +612,27 @@ buf_dblwr_process()
 			ignore this page (there should be redo log
 			records to initialize it). */
 		} else {
-			if (fil_page_is_compressed_encrypted(read_buf) ||
-			    fil_page_is_compressed(read_buf)) {
-				/* Decompress the page before
-				validating the checksum. */
-				fil_decompress_page(
-					NULL, read_buf, srv_page_size,
-					NULL, true);
+			/* Decompress the page before
+			validating the checksum. */
+			ulint decomp = fil_page_decompress(buf, read_buf);
+			if (!decomp || (decomp != srv_page_size
+					&& page_size.is_compressed())) {
+				goto bad;
 			}
 
-			if (fil_space_verify_crypt_checksum(
-				    read_buf, page_size, space_id, page_no)
-			   || !buf_page_is_corrupted(
-				   true, read_buf, page_size, space)) {
+			if (expect_encrypted && mach_read_from_4(
+				    read_buf
+				    + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
+			    ? fil_space_verify_crypt_checksum(read_buf,
+							      page_size)
+			    : !buf_page_is_corrupted(true, read_buf,
+						     page_size, space)) {
 				/* The page is good; there is no need
 				to consult the doublewrite buffer. */
 				continue;
 			}
 
+bad:
 			/* We intentionally skip this message for
 			is_all_zero pages. */
 			ib::info()
@@ -625,22 +640,16 @@ buf_dblwr_process()
 				<< " from the doublewrite buffer.";
 		}
 
-		/* Next, validate the doublewrite page. */
-		if (fil_page_is_compressed_encrypted(page) ||
-		    fil_page_is_compressed(page)) {
-			/* Decompress the page before
-			validating the checksum. */
-			fil_decompress_page(
-				NULL, page, srv_page_size, NULL, true);
+		ulint decomp = fil_page_decompress(buf, page);
+		if (!decomp || (decomp != srv_page_size
+				&& page_size.is_compressed())) {
+			continue;
 		}
 
-		if (!fil_space_verify_crypt_checksum(page, page_size,
-						     space_id, page_no)
-		    && buf_page_is_corrupted(true, page, page_size, space)) {
-			if (!is_all_zero) {
-				ib::warn() << "A doublewrite copy of page "
-					<< page_id << " is corrupted.";
-			}
+		if (expect_encrypted && mach_read_from_4(
+			    page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
+		    ? !fil_space_verify_crypt_checksum(page, page_size)
+		    : buf_page_is_corrupted(true, page, page_size, space)) {
 			/* Theoretically we could have another good
 			copy for this page in the doublewrite
 			buffer. If not, we will report a fatal error
@@ -791,14 +800,14 @@ buf_dblwr_check_page_lsn(
 	}
 
 	if (memcmp(page + (FIL_PAGE_LSN + 4),
-		   page + (UNIV_PAGE_SIZE
+		   page + (srv_page_size
 			   - FIL_PAGE_END_LSN_OLD_CHKSUM + 4),
 		   4)) {
 
 		const ulint	lsn1 = mach_read_from_4(
 			page + FIL_PAGE_LSN + 4);
 		const ulint	lsn2 = mach_read_from_4(
-			page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM
+			page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM
 			+ 4);
 
 		ib::error() << "The page to be written seems corrupt!"
@@ -856,7 +865,7 @@ buf_dblwr_check_block(
 		but just happens to have wrongly set FIL_PAGE_TYPE,
 		such pages should never be modified to without also
 		adjusting the page type during page allocation or
-		buf_flush_init_for_writing() or fil_page_reset_type(). */
+		buf_flush_init_for_writing() or fil_block_reset_type(). */
 		break;
 	case FIL_PAGE_TYPE_FSP_HDR:
 	case FIL_PAGE_IBUF_BITMAP:
@@ -1001,7 +1010,7 @@ try_again:
 
 	for (ulint len2 = 0, i = 0;
 	     i < buf_dblwr->first_free;
-	     len2 += UNIV_PAGE_SIZE, i++) {
+	     len2 += srv_page_size, i++) {
 
 		const buf_block_t*	block;
 
@@ -1024,8 +1033,8 @@ try_again:
 	}
 
 	/* Write out the first block of the doublewrite buffer */
-	len = ut_min(TRX_SYS_DOUBLEWRITE_BLOCK_SIZE,
-		     buf_dblwr->first_free) * UNIV_PAGE_SIZE;
+	len = std::min<ulint>(TRX_SYS_DOUBLEWRITE_BLOCK_SIZE,
+			      buf_dblwr->first_free) << srv_page_size_shift;
 
 	fil_io(IORequestWrite, true,
 	       page_id_t(TRX_SYS_SPACE, buf_dblwr->block1), univ_page_size,
@@ -1038,10 +1047,10 @@ try_again:
 
 	/* Write out the second block of the doublewrite buffer. */
 	len = (buf_dblwr->first_free - TRX_SYS_DOUBLEWRITE_BLOCK_SIZE)
-	       * UNIV_PAGE_SIZE;
+	       << srv_page_size_shift;
 
 	write_buf = buf_dblwr->write_buf
-		    + TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * UNIV_PAGE_SIZE;
+		+ (TRX_SYS_DOUBLEWRITE_BLOCK_SIZE << srv_page_size_shift);
 
 	fil_io(IORequestWrite, true,
 	       page_id_t(TRX_SYS_SPACE, buf_dblwr->block2), univ_page_size,
@@ -1123,7 +1132,7 @@ try_again:
 	}
 
 	byte*	p = buf_dblwr->write_buf
-		+ univ_page_size.physical() * buf_dblwr->first_free;
+		+ srv_page_size * buf_dblwr->first_free;
 
 	/* We request frame here to get correct buffer in case of
 	encryption and/or page compression */
@@ -1136,7 +1145,7 @@ try_again:
 		memcpy(p, frame, bpage->size.physical());
 
 		memset(p + bpage->size.physical(), 0x0,
-		       univ_page_size.physical() - bpage->size.physical());
+		       srv_page_size - bpage->size.physical());
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 
@@ -1266,20 +1275,20 @@ retry:
 	void * frame = buf_page_get_frame(bpage);
 
 	if (bpage->size.is_compressed()) {
-		memcpy(buf_dblwr->write_buf + univ_page_size.physical() * i,
+		memcpy(buf_dblwr->write_buf + srv_page_size * i,
 		       frame, bpage->size.physical());
 
-		memset(buf_dblwr->write_buf + univ_page_size.physical() * i
+		memset(buf_dblwr->write_buf + srv_page_size * i
 		       + bpage->size.physical(), 0x0,
-		       univ_page_size.physical() - bpage->size.physical());
+		       srv_page_size - bpage->size.physical());
 
 		fil_io(IORequestWrite,
 		       true,
 		       page_id_t(TRX_SYS_SPACE, offset),
 		       univ_page_size,
 		       0,
-		       univ_page_size.physical(),
-		       (void *)(buf_dblwr->write_buf + univ_page_size.physical() * i),
+		       srv_page_size,
+		       (void *)(buf_dblwr->write_buf + srv_page_size * i),
 		       NULL);
 	} else {
 		/* It is a regular page. Write it directly to the
@@ -1289,7 +1298,7 @@ retry:
 		       page_id_t(TRX_SYS_SPACE, offset),
 		       univ_page_size,
 		       0,
-		       univ_page_size.physical(),
+		       srv_page_size,
 		       (void*) frame,
 		       NULL);
 	}

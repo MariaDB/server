@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* see include/mysql/service_debug_sync.h for debug sync documentation */
 
@@ -584,7 +584,7 @@ static void debug_sync_remove_action(st_debug_sync_control *ds_control,
     memmove(save_action, action, sizeof(st_debug_sync_action));
 
     /* Move actions down. */
-    memmove(ds_control->ds_action + dsp_idx,
+    memmove((void*)(ds_control->ds_action + dsp_idx),
             ds_control->ds_action + dsp_idx + 1,
             (ds_control->ds_active - dsp_idx) *
             sizeof(st_debug_sync_action));
@@ -595,8 +595,8 @@ static void debug_sync_remove_action(st_debug_sync_control *ds_control,
       produced by the shift. Again do not use an assignment operator to
       avoid string allocation/copy.
     */
-    memmove(ds_control->ds_action + ds_control->ds_active, save_action,
-            sizeof(st_debug_sync_action));
+    memmove((void*)(ds_control->ds_action + ds_control->ds_active),
+            save_action, sizeof(st_debug_sync_action));
   }
 
   DBUG_VOID_RETURN;
@@ -790,7 +790,7 @@ static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
       and shall not be reported as a result of SET DEBUG_SYNC.
       Hence, we check for the first condition above.
     */
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
       DBUG_RETURN(TRUE);
   }
 
@@ -1448,7 +1448,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
             DBUG_PRINT("debug_sync",
                        ("awoke from %s  global: %s  error: %d",
                         sig_wait, sig_glob, error));});
-        if (error == ETIMEDOUT || error == ETIME)
+        if (unlikely(error == ETIMEDOUT || error == ETIME))
         {
           // We should not make the statement fail, even if in strict mode.
           const bool save_abort_on_warning= thd->abort_on_warning;

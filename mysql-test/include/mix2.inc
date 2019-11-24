@@ -1153,7 +1153,7 @@ checksum table t1, t2, t3, t4, t5, t6, t7 extended;
 drop table t1,t2,t3, t4, t5, t6;
 
 #
-# Test problem with refering to different fields in same table in UNION
+# Test problem with referring to different fields in same table in UNION
 # (Bug#2552: UNION returns NULL instead of expected value (innoDB only tables))
 #
 eval create table t1 (id int,  name char(10) not null,  name2 char(10) not null) engine=$engine_type;

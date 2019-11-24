@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,8 +25,6 @@ Created 11/9/1995 Heikki Tuuri
 
 #ifndef ut0sort_h
 #define ut0sort_h
-
-#include "univ.i"
 
 /* This module gives a macro definition of the body of
 a standard sort function for an array of elements of any

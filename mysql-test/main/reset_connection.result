@@ -1,0 +1,27 @@
+FLUSH STATUS;
+SHOW local STATUS LIKE 'com_select';
+Variable_name	Value
+Com_select	10
+SHOW local STATUS LIKE 'com_select';
+Variable_name	Value
+Com_select	0
+# Test if charset changes after reset (utf8)
+connect utf8_conn,localhost,root,,,,,CHARSET=utf8;
+connection utf8_conn;
+SELECT IF(@@character_set_client='utf8','OK', 'FAIL') AS RESULT;
+RESULT
+OK
+SELECT IF(@@character_set_client='utf8','OK', 'FAIL') AS RESULT;
+RESULT
+OK
+disconnect utf8_conn;
+# Test if charset changes after reset (latin1)
+connect latin1_conn,localhost,root,,,,,CHARSET=latin1;
+connection latin1_conn;
+SELECT IF(@@character_set_client='latin1','OK', 'FAIL') AS RESULT;
+RESULT
+OK
+SELECT IF(@@character_set_client='latin1','OK', 'FAIL') AS RESULT;
+RESULT
+OK
+disconnect latin1_conn;

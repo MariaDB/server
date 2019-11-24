@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -118,7 +118,7 @@ vers_get_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields, b
   List_iterator<Create_field> it(create_fields);
   Create_field *sql_field = NULL;
 
-  const LString_i row_field= row_start ? create_info->vers_info.as_row.start
+  const Lex_ident row_field= row_start ? create_info->vers_info.as_row.start
                                    : create_info->vers_info.as_row.end;
   DBUG_ASSERT(row_field);
 
@@ -194,7 +194,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
   error= pack_vcols(&vcols, create_fields, create_info->check_constraint_list);
   thd->variables.sql_mode= save_sql_mode;
 
-  if (error)
+  if (unlikely(error))
     DBUG_RETURN(frm);
 
   if (vcols.length())
@@ -202,7 +202,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
 
   error= pack_header(thd, forminfo, create_fields, create_info,
                      (ulong)data_offset, db_file);
-  if (error)
+  if (unlikely(error))
     DBUG_RETURN(frm);
 
   reclength= uint2korr(forminfo+266);
@@ -1082,9 +1082,8 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
          field->real_field_type() == MYSQL_TYPE_GEOMETRY))
     {
       Item *expr= field->default_value->expr;
-
-      int res= !expr->fixed && // may be already fixed if ALTER TABLE
-                expr->fix_fields(thd, &expr);
+      // may be already fixed if ALTER TABLE
+      int res= expr->fix_fields_if_needed(thd, &expr);
       if (!res)
         res= expr->save_in_field(regfield, 1);
       if (!res && (field->flags & BLOB_FLAG))

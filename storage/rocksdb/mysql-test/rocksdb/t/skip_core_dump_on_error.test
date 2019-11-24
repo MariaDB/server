@@ -1,0 +1,53 @@
+--source include/have_rocksdb.inc
+--source include/have_debug.inc
+--source include/not_valgrind.inc
+
+--enable_connect_log
+--enable_info
+
+# setup search pattern and file (new log error file)
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/skip_core_dump_on_error.err
+
+# restart the server with the custom error log file
+--let $_mysqld_option=--log-error=$SEARCH_FILE --default-storage-engine=rocksdb
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--source include/restart_mysqld_with_option.inc
+
+# setup
+create table mz(c int);
+insert into mz values(1);
+commit;
+
+# simulate a write error
+SET debug= '+d,abort_with_io_write_error';
+
+# we want to abort server if we fail to write (ABORT_SERVER)
+set global binlog_error_action=1;
+
+# diplay the values of the key parameters
+show session variables like 'debug';
+show global variables like 'binlog_error_action';
+show global variables like 'skip_core_dump_on_error';
+
+--echo # crash_during_update
+# tell client that crash is expected
+--error 1598
+# run an update to trigger a write error
+update mz set c=13;
+
+# should find server abort (prints: Pattern "..." found)
+--echo # server aborted
+--let SEARCH_PATTERN=mysqld got signal 6
+--source include/search_pattern.inc
+
+# should not find a core dump (prints: Pattern "..." not found)
+--echo # but no core written
+--let SEARCH_PATTERN=Writing a core file
+--source include/search_pattern.inc
+
+--let _$mysqld_option=
+--source include/start_mysqld.inc
+--remove_file $SEARCH_FILE
+
+# tidy up
+drop table mz;

@@ -1702,6 +1702,59 @@ DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(UUID()))));
 DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));
 SELECT SEC_TO_TIME(MAKEDATE(0,RAND(~0)));
 
+#
+# MDEV-16810 AddressSanitizer: stack-buffer-overflow in int10_to_str
+#
+SELECT PERIOD_DIFF(2018, AES_ENCRYPT('Rae Bareli', 'Rae Bareli'));
+
+
+--echo #
+--echo # MDEV-17249 MAKETIME(-1e50,0,0) returns a wrong result
+--echo #
+
+--vertical_results
+SELECT
+  MAKETIME(1e10,0,0),
+  MAKETIME(-1e10,0,0),
+  MAKETIME(1e50,0,0),
+  MAKETIME(-1e50,0,0),
+  MAKETIME(COALESCE(1e50),0,0),
+  MAKETIME(COALESCE(-1e50),0,0);
+--horizontal_results
+
+CREATE TABLE t1 (a FLOAT);
+INSERT INTO t1 VALUES (1e30),(-1e30);
+SELECT MAKETIME(a,0,0) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17244 MAKETIME(900,0,0.111) returns a wrong result
+--echo #
+
+SELECT MAKETIME(900,0,0);
+SELECT MAKETIME(900,0,0.1);
+SELECT MAKETIME(900,0,0.11);
+SELECT MAKETIME(900,0,0.111);
+SELECT MAKETIME(900,0,0.1111);
+SELECT MAKETIME(900,0,0.11111);
+SELECT MAKETIME(900,0,0.111111);
+SELECT MAKETIME(900,0,0.1111111);
+SELECT MAKETIME(900,0,0.11111111);
+SELECT MAKETIME(900,0,0.111111111);
+SELECT MAKETIME(900,0,EXP(1));
+
+SELECT MAKETIME(-900,0,0);
+SELECT MAKETIME(-900,0,0.1);
+SELECT MAKETIME(-900,0,0.11);
+SELECT MAKETIME(-900,0,0.111);
+SELECT MAKETIME(-900,0,0.1111);
+SELECT MAKETIME(-900,0,0.11111);
+SELECT MAKETIME(-900,0,0.111111);
+SELECT MAKETIME(-900,0,0.1111111);
+SELECT MAKETIME(-900,0,0.11111111);
+SELECT MAKETIME(-900,0,0.111111111);
+SELECT MAKETIME(-900,0,EXP(1));
+
 
 --echo #
 --echo # End of 5.5 tests
@@ -1854,13 +1907,70 @@ SELECT * FROM t2;
 SHOW CREATE TABLE t2;
 DROP TABLE t1,t2;
 
+
+--echo #
+--echo # MDEV-14926 AddressSanitizer: heap-use-after-free in make_date_time on weird combination of functions
+--echo #
+
+DO INET_ATON( FROM_UNIXTIME( @@timestamp, ( TRIM( UNHEX(HEX('%m.%d.%Y') ) ) ) ) );
+
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1989-03-10');
+SELECT TIME_FORMAT('23:59:43', BINARY d) AS f FROM t1 GROUP BY 'foo';
+DROP TABLE t1;
+
+CREATE TABLE t1 (d DATE) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('1900-01-01');
+SELECT LENGTH( DATE_FORMAT( d, BINARY DATABASE() ) ) AS f FROM t1 GROUP BY d;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18667 ASAN heap-use-after-free in make_date_time / Arg_comparator::compare_string / Item_func_nullif::compare
+--echo #
+
+SELECT NULLIF('foo', FROM_UNIXTIME('2012-12-12 12:12:12', TRIM(0)));
+
+--echo #
+--echo # MDEV-18626 ASAN stack-buffer-overflow in int10_to_str / make_date_time upon DATE_FORMAT
+--echo #
+
+SELECT DATE_FORMAT(100000000000, '%j');
+
+
 --echo #
 --echo # End of 10.1 tests
 --echo #
 
+--echo #
+--echo # MDEV-16217: Assertion `!table || (!table->read_set ||
+--echo # bitmap_is_set(table->read_set, field_index))'
+--echo # failed in Field_num::get_date
+--echo #
+CREATE TABLE t1 (pk int  default 0, a1 date);
+INSERT INTO t1 VALUES (1,'1900-01-01'),(2,NULL),(3,NULL),(4,NULL);
+
+CREATE VIEW v1 AS
+SELECT t1.pk AS pk, t1.a1 AS a1 FROM t1;
+
+SELECT a1 BETWEEN (('2018-08-24')) AND (DEFAULT(pk)) FROM v1;
+SELECT a1 BETWEEN (('2018-08-24')) AND (~ DEFAULT(pk)) FROM v1;
+
+CREATE TABLE t2 (pk int  default 1, a1 date);
+INSERT INTO t2 VALUES (4,NULL);
+CREATE view v2 as SELECT default(t1.pk), default(t2.pk), t1.pk from t1,t2;
+select * from v2;
+show create view v2;
+CREATE view v3 as SELECT default(pk) from t2;
+select * from v3;
+explain extended select * from v3;
+explain extended select default(pk) from t2;
+show create view v3;
+
+DROP VIEW v1,v2,v3;
+DROP TABLE t1,t2;
 
 --echo #
---echo # Start of 10.3 tests
+--echo # End of 10.2 tests
 --echo #
 
 --echo #
@@ -2057,3 +2167,110 @@ EXECUTE IMMEDIATE
 USING NULL, '10', 10, 10.0, 10e0, TIME'10:20:30';
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16152 Expressions with INTERVAL return bad results in some cases
+--echo #
+
+SELECT TIMESTAMP'2001-01-01 10:20:30' - INTERVAL '10' YEAR AS c1,
+      -INTERVAL '10' YEAR + TIMESTAMP'2001-01-01 10:20:30' AS c2;
+
+SELECT TIMESTAMP'2001-01-01 10:20:30' + INTERVAL '10' YEAR AS c1,
+       INTERVAL '10' YEAR + TIMESTAMP'2001-01-01 10:20:30' AS c2,
+      +INTERVAL '10' YEAR + TIMESTAMP'2001-01-01 10:20:30' AS c3;
+
+EXPLAIN EXTENDED SELECT
+  TIMESTAMP'2001-01-01 10:20:30' - INTERVAL '10' YEAR AS c1,
+  -INTERVAL '10' YEAR + TIMESTAMP'2001-01-01 10:20:30' AS c2;
+
+EXPLAIN EXTENDED SELECT
+  TIMESTAMP'2001-01-01 10:20:30' + INTERVAL '10' YEAR AS c1,
+  INTERVAL '10' YEAR + TIMESTAMP'2001-01-01 10:20:30' AS c2,
+  +INTERVAL '10' YEAR + TIMESTAMP'2001-01-01 10:20:30' AS c3;
+
+############
+# MDEV-13727
+# Current timestamp functions inside stored functions must return the
+# value of the top-level statement's timestamp (its start time).
+# This must hold regardless of @@slow_query_log option.
+#
+
+CREATE TABLE t_ts   (a timestamp(6));
+CREATE TABLE t_trig (a timestamp(6));
+delimiter //;
+CREATE FUNCTION fn_sleep_before_now() returns int
+BEGIN
+  INSERT INTO t_ts SET a= current_timestamp(6);
+  RETURN 0;
+END//
+CREATE TRIGGER trg_insert_t_ts after INSERT on t_ts for each row
+BEGIN
+  INSERT into t_trig set a= current_timestamp(6);
+END//
+delimiter ;//
+
+SET @sav_slow_query_log= @@session.slow_query_log;
+
+# @@slow_query_log ON check
+SET @@session.slow_query_log= ON;
+SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @ts_func;
+
+SELECT a FROM t_ts   LIMIT 1 into @ts_func;
+SELECT a FROM t_trig LIMIT 1 into @ts_trig;
+if (!`SELECT @ts_cur = @ts_func and @ts_func = @ts_trig`)
+{
+  SELECT @ts_cur, @ts_func, @ts_trig;
+  --die Error: timestamps must be equal but they diverge
+}
+DELETE FROM t_ts;
+DELETE FROM t_trig;
+
+# @@slow_query_log OFF check
+SET @@session.slow_query_log= OFF;
+SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @func_ts;
+SELECT a FROM t_ts   LIMIT 1 into @ts_func;
+SELECT a FROM t_trig LIMIT 1 into @ts_trig;
+if (!`SELECT @ts_cur = @ts_func and @ts_func = @ts_trig`)
+{
+  SELECT @ts_cur, @ts_func, @ts_trig;
+  --die Error: timestamps must be equal but they diverge
+}
+
+# Cleanup
+SET @@session.slow_query_log= @sav_slow_query_log;
+DROP FUNCTION fn_sleep_before_now;
+DROP TRIGGER trg_insert_t_ts;
+DROP TABLE t_ts, t_trig;
+
+#
+# End of MDEV-13727
+###################
+
+
+--echo #
+--echo # MDEV-16878 Functions ADDTIME and SUBTIME get wrongly removed from WHERE by the equal expression optimizer
+--echo #
+
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:10'),('00:00:20');
+SELECT a, SUBTIME(a,TIME'00:00:01'), ADDTIME(a,TIME'00:00:01') FROM t1;
+SELECT * FROM t1 WHERE SUBTIME(a,TIME'00:00:01')=TIME'00:00:09';
+SELECT * FROM t1 WHERE ADDTIME(a,TIME'00:00:01')<=TIME'00:00:09'; 
+SELECT * FROM t1 WHERE SUBTIME(a,TIME'00:00:01')=TIME'00:00:09' AND ADDTIME(a,TIME'00:00:01')<=TIME'00:00:09'; 
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE SUBTIME(a,TIME'00:00:01')=TIME'00:00:09' AND ADDTIME(a,TIME'00:00:01')<=TIME'00:00:09'; 
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15363 Wrong result for CAST(LAST_DAY(TIME'00:00:00') AS TIME)
+--echo #
+
+set timestamp=unix_timestamp('2018-08-02 10:10:10');
+SELECT
+  LAST_DAY(TIME'00:00:00') AS c1,
+  CAST(CAST(LAST_DAY(TIME'00:00:00') AS DATE) AS TIME) AS c2,
+  CAST(LAST_DAY(TIME'00:00:00') AS TIME) AS c3;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

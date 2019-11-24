@@ -1,6 +1,8 @@
 #
 # EXPLAIN FORMAT=JSON tests. These are tests developed for MariaDB.
 #
+--source include/default_optimizer_switch.inc
+
 --disable_warnings
 drop table if exists t0,t1,t2;
 --enable_warnings

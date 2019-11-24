@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /* This file should be included when using heap_database_functions */
@@ -246,7 +246,7 @@ int hp_panic(enum ha_panic_function flag);
 int heap_rkey(HP_INFO *info, uchar *record, int inx, const uchar *key,
               key_part_map keypart_map, enum ha_rkey_function find_flag);
 extern uchar * heap_find(HP_INFO *info,int inx,const uchar *key);
-extern int heap_check_heap(HP_INFO *info, my_bool print_status);
+extern int heap_check_heap(const HP_INFO *info, my_bool print_status);
 extern uchar *heap_position(HP_INFO *info);
 
 /* The following is for programs that uses the old HEAP interface where

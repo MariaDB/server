@@ -26,9 +26,6 @@ select variable_value into @u from information_schema.global_status where variab
 SELECT COUNT(*) FROM t1 WHERE id1=1 AND id2=1 AND id3=1;
 select variable_value-@u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 
-# MariaDB: the following doesn't work on Windows and doesn't seem to be needed
-# on Linux:
-#--exec echo "" > $MYSQLTEST_VARDIR/log/mysqld.1.err
 --let $_mysqld_option=--rocksdb_override_cf_options=cf1={prefix_extractor=capped:26};
 
 --echo
@@ -37,16 +34,16 @@ select variable_value-@u from information_schema.global_status where variable_na
 --sorted_result
 SELECT * FROM information_schema.rocksdb_cf_options WHERE option_type like '%prefix_extractor%';
 
-# This should no longer crash. See https://github.com/facebook/mysql-5.6/issues/641
+SET @@global.rocksdb_update_cf_options = 'cf1={prefix_extractor=capped:26};';
 --echo
---echo Restarting with new Prefix Extractor...
---echo
---source include/restart_mysqld_with_option.inc
-
---echo
---echo Changed Prefix Extractor (after restart):
+--echo Changed Prefix Extractor (after update_cf_options set, without restart):
 --echo
 --sorted_result
+# Restart no longer needed
+SELECT * FROM information_schema.rocksdb_cf_options WHERE option_type like '%prefix_extractor%';
+
+# set cf_options for non-existent cf2, cf2 should be created automatically
+SET @@global.rocksdb_update_cf_options = 'cf2={prefix_extractor=capped:28};';
 SELECT * FROM information_schema.rocksdb_cf_options WHERE option_type like '%prefix_extractor%';
 
 # Satisfies can_use_bloom_filter (4+8+8+8), but can't use because the old SST
@@ -88,6 +85,7 @@ select variable_value into @u from information_schema.global_status where variab
 SELECT COUNT(*) FROM t1 WHERE id1=1 AND id2=1 AND id3=1;
 select variable_value-@u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
 
+SET @@global.rocksdb_update_cf_options = '';
 set global rocksdb_compact_cf='cf1';
 
 # Select the updated, make sure bloom filter is checked now

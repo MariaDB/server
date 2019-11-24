@@ -15,6 +15,10 @@ create table t2 (a int) engine=myisam;
 # transactions are committed and after when they are aborted.
 #
 
+set @save_binlog_stmt_cache_size=@@global.binlog_stmt_cache_size;
+set @save_binlog_cache_size=@@global.binlog_cache_size;
+set @@global.binlog_stmt_cache_size=32768;
+set @@global.binlog_cache_size=32768;
 #
 # Checking commit.
 #
@@ -249,3 +253,6 @@ if (`SELECT $got_cache <> $exp_cache || $got_disk <> $exp_disk || $got_stmt_cach
   -- die
 }
 drop table t1, t2;
+
+set @@global.binlog_stmt_cache_size=@save_binlog_stmt_cache_size;
+set @@global.binlog_cache_size=@save_binlog_cache_size;

@@ -1,0 +1,5 @@
+# Simulate creating and removing mariabackup checkpoint twice
+SET GLOBAL rocksdb_create_checkpoint=CONCAT(@@rocksdb_datadir,'/mariabackup-checkpoint');
+SET GLOBAL rocksdb_remove_mariabackup_checkpoint=ON;
+SET GLOBAL rocksdb_create_checkpoint=CONCAT(@@rocksdb_datadir,'/mariabackup-checkpoint');
+SET GLOBAL rocksdb_remove_mariabackup_checkpoint=ON;

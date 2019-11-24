@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface
@@ -576,6 +576,7 @@ public:
     ha_rows *dup_key_found
   );
   int end_bulk_update();
+#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
   int bulk_update_row(
     const uchar *old_data,
     const uchar *new_data,
@@ -585,8 +586,34 @@ public:
     const uchar *old_data,
     const uchar *new_data
   );
+#else
+  int bulk_update_row(
+    const uchar *old_data,
+    uchar *new_data,
+    ha_rows *dup_key_found
+  );
+  int update_row(
+    const uchar *old_data,
+    uchar *new_data
+  );
+#endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
+#ifdef SPIDER_MDEV_16246
+  inline int direct_update_rows_init(
+    List<Item> *update_fields
+  ) {
+    return direct_update_rows_init(update_fields, 2, NULL, 0, FALSE, NULL);
+  }
+  int direct_update_rows_init(
+    List<Item> *update_fields,
+    uint mode,
+    KEY_MULTI_RANGE *ranges,
+    uint range_count,
+    bool sorted,
+    uchar *new_data
+  );
+#else
   inline int direct_update_rows_init()
   {
     return direct_update_rows_init(2, NULL, 0, FALSE, NULL);
@@ -596,13 +623,35 @@ public:
     KEY_MULTI_RANGE *ranges,
     uint range_count,
     bool sorted,
-    const uchar *new_data
+    uchar *new_data
+  );
+#endif
+#else
+#ifdef SPIDER_MDEV_16246
+  int direct_update_rows_init(
+    List<Item> *update_fields
   );
 #else
   int direct_update_rows_init();
 #endif
+#endif
 #ifdef HA_CAN_BULK_ACCESS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
+#ifdef SPIDER_MDEV_16246
+  inline int pre_direct_update_rows_init(
+    List<Item> *update_fields
+  ) {
+    return pre_direct_update_rows_init(update_fields, 2, NULL, 0, FALSE, NULL);
+  }
+  int pre_direct_update_rows_init(
+    List<Item> *update_fields,
+    uint mode,
+    KEY_MULTI_RANGE *ranges,
+    uint range_count,
+    bool sorted,
+    uchar *new_data
+  );
+#else
   inline int pre_direct_update_rows_init()
   {
     return pre_direct_update_rows_init(2, NULL, 0, FALSE, NULL);
@@ -614,8 +663,15 @@ public:
     bool sorted,
     uchar *new_data
   );
+#endif
+#else
+#ifdef SPIDER_MDEV_16246
+  int pre_direct_update_rows_init(
+    List<Item> *update_fields
+  );
 #else
   int pre_direct_update_rows_init();
+#endif
 #endif
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS

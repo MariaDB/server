@@ -1,6 +1,10 @@
 #
 #  Tests for "ANALYZE $statement" feature
 #
+
+# Fix that analyze delete with join doesn't add extra WHERE clause.
+set join_cache_level=2;
+
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
 --enable_warnings
@@ -196,7 +200,7 @@ drop table t1;
 --echo #
 create table t1 (i int);
 insert into t1 values (1);
-analyze select * from t1 into @var;
+analyze select * into @var from t1 ;
 drop table t1;
 
 --echo #
@@ -223,9 +227,9 @@ drop table t1;
 create table t1(a int);
 insert into t1 values (1),(2);
 
-analyze select a from t1 where a <2 into @var;
+analyze select a into @var from t1 where a <2 ;
 --error ER_TOO_MANY_ROWS
-analyze select a from t1 into @var;
+analyze select a into @var from t1 ;
 
 analyze insert into t1 select * from t1;
 

@@ -112,7 +112,7 @@ create table t1 (a int not null primary key, b int, c varchar(80));
 create table t2 (a int not null primary key, b int, c varchar(80));
 create table t3 (a int not null primary key, b int, c varchar(80)) engine=merge UNION=(t1);
 alter online table t3 union=(t1,t2);
-ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=EXCLUSIVE
 drop table t1,t2,t3;
 create table t1 (i int) partition by hash(i) partitions 2;
 alter online table t1 comment 'test';

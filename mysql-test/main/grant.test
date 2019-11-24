@@ -1265,6 +1265,9 @@ SELECT CURRENT_USER();
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("admin");
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("");
 
+#cleanup after MDEV-16238
+update mysql.user set plugin='';
+
 #
 # Bug#57952: privilege change is not taken into account by EXECUTE.
 #
@@ -1510,15 +1513,7 @@ drop database mysqltest1;
 
 
 --echo End of 5.0 tests
-
-#
-# Bug#21432 Database/Table name limited to 64 bytes, not chars, problems with multi-byte
-#
 set names utf8;
-grant select on test.* to юзер_юзер@localhost;
---exec $MYSQL --default-character-set=utf8 --user=юзер_юзер -e "select user()"
-revoke all on test.* from юзер_юзер@localhost;
-drop user юзер_юзер@localhost;
 --error ER_WRONG_STRING_LENGTH
 grant select on test.* to очень_длинный_юзер890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890@localhost;
 set names default;
@@ -1603,6 +1598,9 @@ use test;
 #
 # Bug#16470 crash on grant if old grant tables
 #
+
+call mtr.add_suppression("Can't open and lock privilege tables");
+
 --echo FLUSH PRIVILEGES without procs_priv table.
 RENAME TABLE mysql.procs_priv TO mysql.procs_gone;
 FLUSH PRIVILEGES;
@@ -2177,6 +2175,28 @@ DROP USER foo@'127.0.0.1';
 
 --echo # End of Bug#12766319
 
+#
+# Bug#27230925: HANDLE_FATAL_SIGNAL (SIG=11) IN SHOW_ROUTINE_GRANTS
+#
+create user foo@localhost;
+create database foodb;
+grant create routine on foodb.* to foo@localhost;
+connect con1,localhost,foo;
+create procedure fooproc() select 'i am fooproc';
+show grants;
+disconnect con1;
+connection default;
+rename table mysql.procs_priv to mysql.procs_priv1;
+flush privileges;
+show grants for foo@localhost;
+rename table mysql.procs_priv1 to mysql.procs_priv;
+show grants for foo@localhost;
+flush privileges;
+show grants for foo@localhost;
+drop user foo@localhost;
+drop procedure fooproc;
+drop database foodb;
+
 
 --echo #
 --echo # Bug#11756966 - 48958: STORED PROCEDURES CAN BE LEVERAGED TO BYPASS
@@ -2237,4 +2257,41 @@ DROP USER dummy@localhost;
 
 --echo #
 --echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-19948 'show grants' return privileges individually
+--echo #
+
+# Let's cheat server that we are using `10.2` user table
+# which doesn't have `Delete_history_priv` column
+
+SET @had_user_delete_history_priv := 0;
+SELECT @had_user_delete_history_priv :=1 FROM mysql.user WHERE Delete_history_priv LIKE '%';
+
+ALTER TABLE mysql.user DROP COLUMN Delete_history_priv;
+FLUSH PRIVILEGES;
+CREATE USER ten2;
+GRANT ALL ON *.* TO ten2;
+
+# Without any patching, this should show a lot of privileges,
+# but without delete history. With patch it is showing `all privileges`
+SHOW GRANTS FOR ten2;
+FLUSH PRIVILEGES;
+
+# Now should show `all privileges` with/without patch
+SHOW GRANTS FOR ten2;
+DROP USER ten2;
+
+# Restore original table (similar to `mysql_upgrade`)
+ALTER TABLE mysql.user ADD Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Create_tablespace_priv;
+UPDATE mysql.user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_priv = 1;
+FLUSH PRIVILEGES;
+
+--echo #
+--echo # End of 10.3 tests
 --echo #

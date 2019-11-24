@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,12 +29,8 @@ Created 2012-03-24 Sunny Bains.
 #ifndef ut0mutex_h
 #define ut0mutex_h
 
-extern uint	srv_spin_wait_delay;
-extern ulong	srv_n_spin_wait_rounds;
-
 #include "sync0policy.h"
 #include "ib0mutex.h"
-#include <set>
 
 /** Create a typedef using the MutexType<PolicyType>
 @param[in]	M		Mutex type

@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 #ifndef SEMISYNC_MASTER_H
@@ -23,6 +23,7 @@
 #include "semisync_master_ack_receiver.h"
 
 #ifdef HAVE_PSI_INTERFACE
+extern PSI_mutex_key key_LOCK_rpl_semi_sync_master_enabled;
 extern PSI_mutex_key key_LOCK_binlog;
 extern PSI_cond_key key_COND_binlog_send;
 #endif
@@ -343,11 +344,8 @@ public:
    * position.
    * If log_file_name is NULL, everything will be cleared: the sorted
    * list and the hash table will be reset to empty.
-   * 
-   * Return:
-   *  0: success;  non-zero: error
    */
-  int clear_active_tranx_nodes(const char *log_file_name,
+  void clear_active_tranx_nodes(const char *log_file_name,
                                my_off_t    log_file_pos);
 
   /* Given a position, check to see whether the position is an active
@@ -368,7 +366,6 @@ public:
 */
 class Repl_semi_sync_master
   :public Repl_semi_sync_base {
- private:
   Active_tranx    *m_active_tranxs;  /* active transaction list: the list will
                                       be cleared when semi-sync switches off. */
 
@@ -449,7 +446,7 @@ class Repl_semi_sync_master
   }
 
   /* Switch semi-sync off because of timeout in transaction waiting. */
-  int switch_off();
+  void switch_off();
 
   /* Switch semi-sync on when slaves catch up. */
   int try_switch_on(int server_id,
@@ -494,8 +491,8 @@ class Repl_semi_sync_master
   /* Enable the object to enable semi-sync replication inside the master. */
   int enable_master();
 
-  /* Enable the object to enable semi-sync replication inside the master. */
-  int disable_master();
+  /* Disable the object to disable semi-sync replication inside the master. */
+  void disable_master();
 
   /* Add a semi-sync replication slave */
   void add_slave();
@@ -622,6 +619,8 @@ class Repl_semi_sync_master
   int before_reset_master();
 
   void check_and_switch();
+
+  mysql_mutex_t LOCK_rpl_semi_sync_master_enabled;
 };
 
 enum rpl_semi_sync_master_wait_point_t {

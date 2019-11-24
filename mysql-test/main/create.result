@@ -1053,6 +1053,8 @@ USE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ERROR 42000: Incorrect database name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 SHOW CREATE DATABASE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
 ERROR 42000: Incorrect database name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+set @save_character_set_client=@@character_set_client;
+set @save_collation_connection=@@collation_connection;
 set names utf8;
 create database имя_базы_в_кодировке_утф8_длиной_больше_чем_45;
 use имя_базы_в_кодировке_утф8_длиной_больше_чем_45;
@@ -1141,7 +1143,9 @@ return 0;
 ERROR 42000: Identifier name 'очень_очень_очень_очень_очень_очень_очень_очень_длинна' is too long
 drop view имя_вью_кодировке_утф8_длиной_больше_чем_42;
 drop table имя_таблицы_в_кодировке_утф8_длиной_больше_чем_48;
-set names default;
+set @@character_set_client=@save_character_set_client;
+set @@character_set_results=@save_character_set_client;
+set @@session.collation_connection=@save_collation_connection;
 drop table if exists t1,t2,t3;
 drop function if exists f1;
 create function f1() returns int
@@ -1249,7 +1253,7 @@ INSERT INTO t3 VALUES (0);
 SET sql_mode = TRADITIONAL;
 
 ALTER TABLE t3 ADD INDEX(c1);
-ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column 'c1' at row 1
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t3`.`c1` at row 1
 
 # -- Cleanup.
 SET sql_mode = '';
@@ -1807,12 +1811,12 @@ NULL	0000-00-00	0000-00-00
 drop table t1;
 set @@session.sql_mode='STRICT_ALL_TABLES';
 create table if not exists t1 (a int, b date, c date) select 1 as b, 2 as c;
-ERROR 22007: Incorrect date value: '1' for column 'b' at row 1
+ERROR 22007: Incorrect date value: '1' for column `test`.`t1`.`b` at row 1
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 create table if not exists t1 (a int, b date, c date) 
 replace select 1 as b, 2 as c;
-ERROR 22007: Incorrect date value: '1' for column 'b' at row 1
+ERROR 22007: Incorrect date value: '1' for column `test`.`t1`.`b` at row 1
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 create table if not exists t1 (a int, b date, c date) 
@@ -2093,3 +2097,7 @@ create table t1 (i int, j int, key(i), key(i)) as select 1 as i, 2 as j;
 Warnings:
 Note	1831	Duplicate index `i_2`. This is deprecated and will be disallowed in a future release
 drop table t1;
+CREATE TABLE t1 ( id1 INT, id2 INT, CONSTRAINT `foo` PRIMARY KEY (id1), CONSTRAINT `bar` UNIQUE KEY(id2));
+Warnings:
+Warning	1280	Name 'foo' ignored for PRIMARY key.
+DROP TABLE t1;

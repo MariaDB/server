@@ -41,7 +41,7 @@ START SLAVE;
 .. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
 ...==== BEGIN include/wait_for_slave_param.inc [Slave_IO_Running] ====
 ... con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
-Waiting until 'Slave_IO_Running' = 'Yes' [timeout='300', $slave_error_param='Last_IO_Errno']
+Waiting until 'Slave_IO_Running' = 'Yes' [$slave_error_param='Last_IO_Errno']
 [connection slave]
 ...==== END include/wait_for_slave_param.inc [Slave_IO_Running] ====
 ... con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
@@ -52,7 +52,7 @@ Waiting until 'Slave_IO_Running' = 'Yes' [timeout='300', $slave_error_param='Las
 .. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
 ...==== BEGIN include/wait_for_slave_param.inc [Slave_SQL_Running] ====
 ... con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
-Waiting until 'Slave_SQL_Running' = 'Yes' [timeout='300', $slave_error_param='1']
+Waiting until 'Slave_SQL_Running' = 'Yes' [$slave_error_param='1']
 [connection slave]
 ...==== END include/wait_for_slave_param.inc [Slave_SQL_Running] ====
 ... con='slave' warn='1' qlog='1' rlog='1' aborterr='1'

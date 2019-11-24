@@ -91,7 +91,7 @@ show grants;
 --echo # Now we remove the authentication plugin password, flush privileges and
 --echo # try again.
 --echo #
-update mysql.user set authentication_string = '' where user='u1';
+update mysql.user set password=authentication_string, plugin='', authentication_string='' where user='u1';
 select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
 flush privileges;
 show grants for u1;

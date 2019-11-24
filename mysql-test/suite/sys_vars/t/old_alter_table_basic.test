@@ -20,7 +20,7 @@ select * from information_schema.session_variables where variable_name='old_alte
 # show that it's writable
 #
 set global old_alter_table=1;
-set session old_alter_table=ON;
+set session old_alter_table=1;
 select @@global.old_alter_table;
 select @@session.old_alter_table;
 show global variables like 'old_alter_table';
@@ -28,6 +28,32 @@ show session variables like 'old_alter_table';
 select * from information_schema.global_variables where variable_name='old_alter_table';
 select * from information_schema.session_variables where variable_name='old_alter_table';
 
+set global old_alter_table=2;
+set session old_alter_table=2;
+select @@global.old_alter_table;
+select @@session.old_alter_table;
+show global variables like 'old_alter_table';
+show session variables like 'old_alter_table';
+select * from information_schema.global_variables where variable_name='old_alter_table';
+select * from information_schema.session_variables where variable_name='old_alter_table';
+
+set global old_alter_table=3;
+set session old_alter_table=3;
+select @@global.old_alter_table;
+select @@session.old_alter_table;
+show global variables like 'old_alter_table';
+show session variables like 'old_alter_table';
+select * from information_schema.global_variables where variable_name='old_alter_table';
+select * from information_schema.session_variables where variable_name='old_alter_table';
+
+set global old_alter_table=4;
+set session old_alter_table=4;
+select @@global.old_alter_table;
+select @@session.old_alter_table;
+show global variables like 'old_alter_table';
+show session variables like 'old_alter_table';
+select * from information_schema.global_variables where variable_name='old_alter_table';
+select * from information_schema.session_variables where variable_name='old_alter_table';
 #
 # incorrect types
 #

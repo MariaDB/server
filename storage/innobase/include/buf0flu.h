@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,7 +27,6 @@ Created 11/5/1995 Heikki Tuuri
 #ifndef buf0flu_h
 #define buf0flu_h
 
-#include "univ.i"
 #include "ut0byte.h"
 #include "log0log.h"
 #include "buf0types.h"
@@ -168,16 +167,6 @@ void
 buf_flush_wait_flushed(
 	lsn_t		new_oldest);
 
-/******************************************************************//**
-Waits until a flush batch of the given type ends. This is called by
-a thread that only wants to wait for a flush to end but doesn't do
-any flushing itself. */
-void
-buf_flush_wait_batch_end_wait_only(
-/*===============================*/
-	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	buf_flush_t	type);		/*!< in: BUF_FLUSH_LRU
-					or BUF_FLUSH_LIST */
 /********************************************************************//**
 This function should be called at a mini-transaction commit, if a page was
 modified in it. Puts the block to the list of modified blocks, if it not
@@ -217,16 +206,10 @@ buf_flush_ready_for_replace(
 #ifdef UNIV_DEBUG
 /** Disables page cleaner threads (coordinator and workers).
 It's used by: SET GLOBAL innodb_page_cleaner_disabled_debug = 1 (0).
-@param[in]	thd		thread handle
-@param[in]	var		pointer to system variable
-@param[out]	var_ptr		where the formal string goes
 @param[in]	save		immediate result from check function */
-void
-buf_flush_page_cleaner_disabled_debug_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save);
+void buf_flush_page_cleaner_disabled_debug_update(THD*,
+						  st_mysql_sys_var*, void*,
+						  const void* save);
 #endif /* UNIV_DEBUG */
 
 /******************************************************************//**
@@ -377,9 +360,8 @@ public:
 		m_interrupted = true;
 	}
 
-	/** Check whether trx is interrupted
-	@return true if trx is interrupted */
-	bool check_interrupted();
+	/** Check whether the operation has been interrupted */
+	void check_interrupted();
 
 	/** Flush dirty pages. */
 	void flush();
@@ -401,7 +383,7 @@ private:
 	fil_space_t*		m_space;
 
 	/** Trx instance */
-	trx_t* const		m_trx;
+	const trx_t* const	m_trx;
 
 	/** Performance schema accounting object, used by ALTER TABLE.
 	If not NULL, then stage->begin_phase_flush() will be called initially,

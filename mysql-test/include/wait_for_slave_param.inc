@@ -69,7 +69,7 @@ if (!$_slave_param_comparison)
 
 if ($rpl_debug)
 {
-  --echo Waiting until '$slave_param' $_slave_param_comparison '$slave_param_value' [timeout='$_slave_timeout', \$slave_error_param='$slave_error_param']
+  --echo Waiting until '$slave_param' $_slave_param_comparison '$slave_param_value' [\$slave_error_param='$slave_error_param']
 }
 
 --let $_slave_check_configured= query_get_value("SHOW SLAVE STATUS", Slave_IO_Running, 1)

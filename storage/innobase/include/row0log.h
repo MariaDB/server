@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,14 +27,12 @@ Created 2011-05-26 Marko Makela
 #ifndef row0log_h
 #define row0log_h
 
-#include "univ.i"
+#include "que0types.h"
 #include "mtr0types.h"
 #include "row0types.h"
 #include "rem0types.h"
 #include "data0types.h"
-#include "dict0types.h"
 #include "trx0types.h"
-#include "que0types.h"
 
 class ut_stage_alter_t;
 
@@ -61,7 +59,9 @@ row_log_allocate(
 	const ulint*	col_map,/*!< in: mapping of old column
 				numbers to new ones, or NULL if !table */
 	const char*	path,	/*!< in: where to create temporary file */
-	bool		ignore) /*!< in: Whether alter ignore issued */
+	const TABLE*	old_table,	/*!< in:table definition before alter */
+	bool		allow_not_null) /*!< in: allow null to non-null
+					conversion */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 /******************************************************//**
@@ -209,13 +209,15 @@ row_log_table_blob_alloc(
 @param[in,out]	stage		performance schema accounting object, used by
 ALTER TABLE. stage->begin_phase_log_table() will be called initially and then
 stage->inc() will be called for each block of log that is applied.
+@param[in]	new_table	Altered table
 @return DB_SUCCESS, or error code on failure */
 dberr_t
 row_log_table_apply(
 	que_thr_t*		thr,
 	dict_table_t*		old_table,
 	struct TABLE*		table,
-	ut_stage_alter_t*	stage)
+	ut_stage_alter_t*	stage,
+	dict_table_t*		new_table)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************//**

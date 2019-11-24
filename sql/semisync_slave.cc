@@ -144,8 +144,7 @@ void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
   {
     sql_print_information("cannot connect to master to kill slave io_thread's "
                           "connection");
-    if (!ret)
-      mysql_close(kill_mysql);
+    mysql_close(kill_mysql);
     return;
   }
   size_t kill_buffer_length = my_snprintf(kill_buffer, 30, "KILL %lu",

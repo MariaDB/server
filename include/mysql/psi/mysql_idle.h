@@ -12,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifndef MYSQL_IDLE_H
 #define MYSQL_IDLE_H
@@ -82,7 +82,7 @@ inline_mysql_start_idle_wait(PSI_idle_locker_state *state,
 static inline void
 inline_mysql_end_idle_wait(struct PSI_idle_locker *locker)
 {
-  if (likely(locker != NULL))
+  if (psi_likely(locker != NULL))
     PSI_IDLE_CALL(end_idle_wait)(locker);
 }
 #endif

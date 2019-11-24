@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
@@ -27,6 +27,7 @@
 #include "sql_array.h"         // Dynamic_array
 #include "log_event.h"         // Query_log_event
 #include "sql_derived.h"       // mysql_handle_derived
+#include "sql_cte.h"
 #include "sql_select.h"        // Virtual_tmp_table
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -99,7 +100,7 @@ sp_map_item_type(const Type_handler *handler)
 
 bool Item_splocal::append_for_log(THD *thd, String *str)
 {
-  if (fix_fields(thd, NULL))
+  if (fix_fields_if_needed(thd, NULL))
     return true;
 
   if (limit_clause_param)
@@ -137,7 +138,7 @@ bool Item_splocal::append_value_for_log(THD *thd, String *str)
 
 bool Item_splocal_row_field::append_for_log(THD *thd, String *str)
 {
-  if (fix_fields(thd, NULL))
+  if (fix_fields_if_needed(thd, NULL))
     return true;
 
   if (limit_clause_param)
@@ -168,7 +169,7 @@ sp_get_flags_for_command(LEX *lex)
 
   switch (lex->sql_command) {
   case SQLCOM_SELECT:
-    if (lex->result)
+    if (lex->result && !lex->analyze_stmt)
     {
       flags= 0;                      /* This is a SELECT with INTO clause */
       break;
@@ -202,6 +203,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_SHOW_EXPLAIN:
   case SQLCOM_SHOW_FIELDS:
   case SQLCOM_SHOW_FUNC_CODE:
+  case SQLCOM_SHOW_GENERIC:
   case SQLCOM_SHOW_GRANTS:
   case SQLCOM_SHOW_ENGINE_STATUS:
   case SQLCOM_SHOW_ENGINE_LOGS:
@@ -369,19 +371,18 @@ Item *THD::sp_prepare_func_item(Item **it_addr, uint cols)
 /**
   Fix an Item for evaluation for SP.
 */
+
 Item *THD::sp_fix_func_item(Item **it_addr)
 {
   DBUG_ENTER("THD::sp_fix_func_item");
-  if (!(*it_addr)->fixed &&
-      (*it_addr)->fix_fields(this, it_addr))
+  if ((*it_addr)->fix_fields_if_needed(this, it_addr))
   {
     DBUG_PRINT("info", ("fix_fields() failed"));
     DBUG_RETURN(NULL);
   }
   it_addr= (*it_addr)->this_item_addr(this, it_addr);
 
-  if (!(*it_addr)->fixed &&
-      (*it_addr)->fix_fields(this, it_addr))
+  if ((*it_addr)->fix_fields_if_needed(this, it_addr))
   {
     DBUG_PRINT("info", ("fix_fields() failed"));
     DBUG_RETURN(NULL);
@@ -552,6 +553,7 @@ sp_head::sp_head(sp_package *parent, const Sp_handler *sph)
 
   DBUG_ENTER("sp_head::sp_head");
 
+  m_security_ctx.init();
   m_backpatch.empty();
   m_backpatch_goto.empty();
   m_cont_backpatch.empty();
@@ -594,6 +596,7 @@ sp_package::~sp_package()
 /*
   Test if two routines have equal specifications
 */
+
 bool sp_head::eq_routine_spec(const sp_head *sp) const
 {
   // TODO: Add tests for equal return data types (in case of FUNCTION)
@@ -836,7 +839,7 @@ sp_head::~sp_head()
     thd->lex->sphead= NULL;
     lex_end(thd->lex);
     delete thd->lex;
-    thd->lex= thd->stmt_lex= lex;
+    thd->lex= lex;
   }
 
   my_hash_free(&m_sptabs);
@@ -1153,7 +1156,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
               backup_arena;
   query_id_t old_query_id;
   TABLE *old_derived_tables;
-  LEX *old_lex, *old_stmt_lex;
+  LEX *old_lex;
   Item_change_list old_change_list;
   String old_packet;
   uint old_server_status;
@@ -1260,7 +1263,6 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     do it in each instruction
   */
   old_lex= thd->lex;
-  old_stmt_lex= thd->stmt_lex;
   /*
     We should also save Item tree change list to avoid rollback something
     too early in the calling query.
@@ -1377,7 +1379,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       errors are not catchable by SQL handlers) or the connection has been
       killed during execution.
     */
-    if (!thd->is_fatal_error && !thd->killed_errno() &&
+    if (likely(!thd->is_fatal_error) && likely(!thd->killed_errno()) &&
         ctx->handle_sql_condition(thd, &ip, i))
     {
       err_status= FALSE;
@@ -1386,7 +1388,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     /* Reset sp_rcontext::end_partial_result_set flag. */
     ctx->end_partial_result_set= FALSE;
 
-  } while (!err_status && !thd->killed && !thd->is_fatal_error &&
+  } while (!err_status && likely(!thd->killed) &&
+           likely(!thd->is_fatal_error) &&
            !thd->spcont->pause_state);
 
 #if defined(ENABLED_PROFILING)
@@ -1406,7 +1409,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   /* Only pop cursors when we're done with group aggregate running. */
   if (m_chistics.agg_type != GROUP_AGGREGATE ||
       (m_chistics.agg_type == GROUP_AGGREGATE && thd->spcont->quit_func))
-    thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error
+    thd->spcont->pop_all_cursors(thd); // To avoid memory leaks after an error
 
   /* Restore all saved */
   if (m_chistics.agg_type == GROUP_AGGREGATE)
@@ -1416,7 +1419,6 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   DBUG_ASSERT(thd->Item_change_list::is_empty());
   old_change_list.move_elements_to(thd);
   thd->lex= old_lex;
-  thd->stmt_lex= old_stmt_lex;
   thd->set_query_id(old_query_id);
   DBUG_ASSERT(!thd->derived_tables);
   thd->derived_tables= old_derived_tables;
@@ -1494,7 +1496,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       NULL. In this case, mysql_change_db() would generate an error.
     */
 
-    err_status|= mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);
+    err_status|= mysql_change_db(thd, (LEX_CSTRING*)&saved_cur_db_name, TRUE) != 0;
   }
   m_flags&= ~IS_INVOKED;
   if (m_parent)
@@ -1606,6 +1608,7 @@ bool sp_head::check_execute_access(THD *thd) const
   @retval           NULL - error (access denided or EOM)
   @retval          !NULL - success (the invoker has rights to all %TYPE tables)
 */
+
 sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
                                       Row_definition_list *defs,
                                       bool switch_security_ctx)
@@ -1783,6 +1786,7 @@ err_with_cleanup:
 /*
   Execute the package initialization section.
 */
+
 bool sp_package::instantiate_if_needed(THD *thd)
 {
   List<Item> args;
@@ -2458,6 +2462,7 @@ sp_head::merge_lex(THD *thd, LEX *oldlex, LEX *sublex)
 /**
   Put the instruction on the backpatch list, associated with the label.
 */
+
 int
 sp_head::push_backpatch(THD *thd, sp_instr *i, sp_label *lab,
                         List<bp_t> *list, backpatch_instr_type itype)
@@ -2513,6 +2518,7 @@ sp_head::push_backpatch_goto(THD *thd, sp_pcontext *ctx, sp_label *lab)
   Update all instruction with this label in the backpatch list to
   the current position.
 */
+
 void
 sp_head::backpatch(sp_label *lab)
 {
@@ -2733,7 +2739,6 @@ sp_head::restore_thd_mem_root(THD *thd)
   Item *flist= free_list;	// The old list
   set_query_arena(thd);         // Get new free_list and mem_root
   state= STMT_INITIALIZED_FOR_SP;
-  is_stored_procedure= true;
 
   DBUG_PRINT("info", ("mem_root %p returned from thd mem root %p",
                       &mem_root, &thd->mem_root));
@@ -3040,6 +3045,7 @@ bool sp_head::add_instr_preturn(THD *thd, sp_pcontext *spcont)
 
   QQ: Perhaps we need a dedicated sp_instr_nop for this purpose.
 */
+
 bool sp_head::replace_instr_to_nop(THD *thd, uint ip)
 {
   sp_instr *instr= get_instr(ip);
@@ -3164,6 +3170,7 @@ sp_head::opt_mark()
   @return
     0 if ok, !=0 on error.
 */
+
 int
 sp_head::show_routine_code(THD *thd)
 {
@@ -3203,7 +3210,7 @@ sp_head::show_routine_code(THD *thd)
       const char *format= "Instruction at position %u has m_ip=%u";
       char tmp[sizeof(format) + 2*SP_INSTR_UINT_MAXLEN + 1];
 
-      sprintf(tmp, format, ip, i->m_ip);
+      my_snprintf(tmp, sizeof(tmp), format, ip, i->m_ip);
       /*
         Since this is for debugging purposes only, we don't bother to
         introduce a special error code for it.
@@ -3271,7 +3278,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     We should not save old value since it is saved/restored in
     sp_head::execute() when we are entering/leaving routine.
   */
-  thd->lex= thd->stmt_lex= m_lex;
+  thd->lex= m_lex;
 
   thd->set_query_id(next_query_id());
 
@@ -3309,9 +3316,10 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 #endif
 
   if (open_tables)
-    res= instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
+    res= check_dependencies_in_with_clauses(m_lex->with_clauses_list) ||
+         instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
 
-  if (!res)
+  if (likely(!res))
   {
     res= instr->exec_core(thd, nextp);
     DBUG_PRINT("info",("exec_core returned: %d", res));
@@ -3371,7 +3379,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     Update the state of the active arena if no errors on
     open_tables stage.
   */
-  if (!res || !thd->is_error() ||
+  if (likely(!res) || likely(!thd->is_error()) ||
       (thd->get_stmt_da()->sql_errno() != ER_CANT_REOPEN_TABLE &&
        thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE &&
        thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE &&
@@ -3466,7 +3474,6 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
   int res;
   bool save_enable_slow_log;
   const CSET_STRING query_backup= thd->query_string;
-  QUERY_START_TIME_INFO time_info;
   Sub_statement_state backup_state;
   DBUG_ENTER("sp_instr_stmt::execute");
   DBUG_PRINT("info", ("command: %d", m_lex_keeper.sql_command()));
@@ -3476,15 +3483,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
   thd->profiling.set_query_source(m_query.str, m_query.length);
 #endif
 
-  if ((save_enable_slow_log= thd->enable_slow_log))
-  {
-    /*
-      Save start time info for the CALL statement and overwrite it with the
-      current time for log_slow_statement() to log the individual query timing.
-    */
-    thd->backup_query_start_time(&time_info);
-    thd->set_time();
-  }
+  save_enable_slow_log= thd->enable_slow_log;
   thd->store_slow_query_state(&backup_state);
 
   if (!(res= alloc_query(thd, m_query.str, m_query.length)) &&
@@ -3542,15 +3541,12 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
     thd->set_query(query_backup);
     thd->query_name_consts= 0;
 
-    if (!thd->is_error())
+    if (likely(!thd->is_error()))
     {
       res= 0;
       thd->get_stmt_da()->reset_diagnostics_area();
     }
   }
-  /* Restore the original query start time */
-  if (thd->enable_slow_log)
-    thd->restore_query_start_time(&time_info);
 
   DBUG_RETURN(res || thd->is_error());
 }
@@ -4035,7 +4031,7 @@ sp_instr_hpush_jump::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_hpush_jump::execute");
 
-  int ret= thd->spcont->push_handler(m_handler, m_ip + 1);
+  int ret= thd->spcont->push_handler(this);
 
   *nextp= m_dest;
 
@@ -4194,11 +4190,13 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpush::execute");
 
-  int ret= thd->spcont->push_cursor(thd, &m_lex_keeper);
+  sp_cursor::reset(thd, &m_lex_keeper);
+  m_lex_keeper.disable_query_cache();
+  thd->spcont->push_cursor(this);
 
   *nextp= m_ip+1;
 
-  DBUG_RETURN(ret);
+  DBUG_RETURN(false);
 }
 
 
@@ -4232,7 +4230,7 @@ int
 sp_instr_cpop::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpop::execute");
-  thd->spcont->pop_cursors(m_count);
+  thd->spcont->pop_cursors(thd, m_count);
   *nextp= m_ip+1;
   DBUG_RETURN(0);
 }
@@ -4408,7 +4406,7 @@ sp_instr_cfetch::print(String *str)
 int
 sp_instr_agg_cfetch::execute(THD *thd, uint *nextp)
 {
-  DBUG_ENTER("sp_instr_cfetch::execute");
+  DBUG_ENTER("sp_instr_agg_cfetch::execute");
   int res= 0;
   if (!thd->spcont->instr_ptr)
   {
@@ -4433,7 +4431,16 @@ sp_instr_agg_cfetch::execute(THD *thd, uint *nextp)
   DBUG_RETURN(res);
 }
 
+void
+sp_instr_agg_cfetch::print(String *str)
+{
 
+  uint rsrv= SP_INSTR_UINT_MAXLEN+11;
+
+  if (str->reserve(rsrv))
+    return;
+  str->qs_append(STRING_WITH_LEN("agg_cfetch"));
+}
 
 /*
   sp_instr_cursor_copy_struct class functions
@@ -4447,6 +4454,7 @@ sp_instr_agg_cfetch::execute(THD *thd, uint *nextp)
   - opens the cursor without copying data (materialization).
   - copies the cursor structure to the associated %ROWTYPE variable.
 */
+
 int
 sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
 {
@@ -4464,24 +4472,26 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
   */
   if (!row->arguments())
   {
-    sp_cursor tmp(thd, &m_lex_keeper);
+    sp_cursor tmp(thd, &m_lex_keeper, true);
     // Open the cursor without copying data
-    if (!(ret= tmp.open_view_structure_only(thd)))
+    if (!(ret= tmp.open(thd)))
     {
       Row_definition_list defs;
+      /*
+        Create row elements on the caller arena.
+        It's the same arena that was used during sp_rcontext::create().
+        This puts cursor%ROWTYPE elements on the same mem_root
+        where explicit ROW elements and table%ROWTYPE reside:
+        - tmp.export_structure() allocates new Spvar_definition instances
+          and their components (such as TYPELIBs).
+        - row->row_create_items() creates new Item_field instances.
+        They all are created on the same mem_root.
+      */
+      Query_arena current_arena;
+      thd->set_n_backup_active_arena(thd->spcont->callers_arena, &current_arena);
       if (!(ret= tmp.export_structure(thd, &defs)))
-      {
-        /*
-          Create row elements on the caller arena.
-          It's the same arena that was used during sp_rcontext::create().
-          This puts cursor%ROWTYPE elements on the same mem_root
-          where explicit ROW elements and table%ROWTYPE reside.
-        */
-        Query_arena current_arena;
-        thd->set_n_backup_active_arena(thd->spcont->callers_arena, &current_arena);
         row->row_create_items(thd, &defs);
-        thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
-      }
+      thd->restore_active_arena(thd->spcont->callers_arena, &current_arena);
       tmp.close(thd);
     }
   }
@@ -4503,7 +4513,7 @@ void
 sp_instr_cursor_copy_struct::print(String *str)
 {
   sp_variable *var= m_ctx->find_variable(m_var);
-  const LEX_CSTRING *name= m_lex_keeper.cursor_name();
+  const LEX_CSTRING *name= m_ctx->find_cursor(m_cursor);
   str->append(STRING_WITH_LEN("cursor_copy_struct "));
   str->append(name);
   str->append(' ');
@@ -4642,6 +4652,7 @@ typedef struct st_sp_table
   uint lock_count;
   uint query_lock_count;
   uint8 trg_event_map;
+  my_bool for_insert_data;
 } SP_TABLE;
 
 
@@ -4737,6 +4748,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
         if (tab->query_lock_count > tab->lock_count)
           tab->lock_count++;
         tab->trg_event_map|= table->trg_event_map;
+        tab->for_insert_data|= table->for_insert_data;
       }
       else
       {
@@ -4760,6 +4772,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
         tab->lock_type= table->lock_type;
         tab->lock_count= tab->query_lock_count= 1;
         tab->trg_event_map= table->trg_event_map;
+        tab->for_insert_data= table->for_insert_data;
         if (my_hash_insert(&m_sptabs, (uchar *)tab))
           return FALSE;
       }
@@ -4843,7 +4856,8 @@ sp_head::add_used_tables_to_table_list(THD *thd,
                                            TABLE_LIST::PRELOCK_ROUTINE,
                                            belong_to_view,
                                            stab->trg_event_map,
-                                           query_tables_last_ptr);
+                                           query_tables_last_ptr,
+                                           stab->for_insert_data);
       tab_buff+= ALIGN_SIZE(sizeof(TABLE_LIST));
       result= TRUE;
     }
@@ -4923,6 +4937,7 @@ sp_head::set_local_variable(THD *thd, sp_pcontext *spcont,
 /**
   Similar to set_local_variable(), but for ROW variable fields.
 */
+
 bool
 sp_head::set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
                                       const Sp_rcontext_handler *rh,
@@ -4997,7 +5012,8 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
 
   sp_instr *instr_copy_struct=
     new (thd->mem_root) sp_instr_cursor_copy_struct(instructions(),
-                                                    spcont, pcursor->lex(),
+                                                    spcont, coffset,
+                                                    pcursor->lex(),
                                                     index->offset);
   if (instr_copy_struct == NULL || add_instr(instr_copy_struct))
     return true;
@@ -5117,6 +5133,7 @@ bool sp_head::spvar_fill_table_rowtype_reference(THD *thd,
     END p1;
   Check that the first p1 and the last p1 match.
 */
+
 bool sp_head::check_package_routine_end_name(const LEX_CSTRING &end_name) const
 {
   LEX_CSTRING non_qualified_name= m_name;
@@ -5143,7 +5160,5 @@ err:
 
 ulong sp_head::sp_cache_version() const
 {
-  return m_parent ? m_parent->sp_cache_version() :
-                    m_sp_cache_version;
-
+  return m_parent ? m_parent->sp_cache_version() : m_sp_cache_version;
 }

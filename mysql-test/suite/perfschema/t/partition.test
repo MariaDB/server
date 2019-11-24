@@ -1,0 +1,16 @@
+--source include/have_perfschema.inc
+--source include/have_partition.inc
+
+--echo #
+--echo # MDEV-10679
+--echo # Server crashes in in mysql_create_frm_image upon query from
+--echo # performance schema in ps-protocol mode
+--echo #
+
+CREATE TABLE t1 (i INT);
+--error ER_PARTITION_MGMT_ON_NONPARTITIONED
+ALTER TABLE t1 ADD PARTITION (PARTITION p VALUES LESS THAN (1));
+--disable_result_log
+SELECT * FROM performance_schema.events_stages_summary_by_user_by_event_name;
+--enable_result_log
+DROP TABLE t1;

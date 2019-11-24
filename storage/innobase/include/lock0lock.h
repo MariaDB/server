@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,12 +27,10 @@ Created 5/7/1996 Heikki Tuuri
 #ifndef lock0lock_h
 #define lock0lock_h
 
-#include "univ.i"
 #include "buf0types.h"
 #include "trx0types.h"
 #include "mtr0types.h"
 #include "rem0types.h"
-#include "dict0types.h"
 #include "que0types.h"
 #include "lock0types.h"
 #include "hash0hash.h"
@@ -484,14 +482,10 @@ lock_rec_unlock(
 	const buf_block_t*	block,	/*!< in: buffer block containing rec */
 	const rec_t*		rec,	/*!< in: record */
 	lock_mode		lock_mode);/*!< in: LOCK_S or LOCK_X */
-/*********************************************************************//**
-Releases a transaction's locks, and releases possible other transactions
-waiting because of these locks. Change the state of the transaction to
-TRX_STATE_COMMITTED_IN_MEMORY. */
-void
-lock_trx_release_locks(
-/*===================*/
-	trx_t*	trx);	/*!< in/out: transaction */
+
+/** Release the explicit locks of a committing transaction,
+and release possible other transactions waiting because of these locks. */
+void lock_release(trx_t* trx);
 
 /*********************************************************************//**
 Calculates the fold value of a page file address: used in inserting or
@@ -568,11 +562,10 @@ lock_print_info_summary(
 
 /** Prints transaction lock wait and MVCC state.
 @param[in,out]	file	file where to print
-@param[in]	trx	transaction */
+@param[in]	trx	transaction
+@param[in]	now	current time */
 void
-lock_trx_print_wait_and_mvcc_state(
-	FILE*		file,
-	const trx_t*	trx);
+lock_trx_print_wait_and_mvcc_state(FILE* file, const trx_t* trx, time_t now);
 
 /*********************************************************************//**
 Prints info of locks for each transaction. This function assumes that the
@@ -789,83 +782,22 @@ const lock_t*
 lock_trx_has_sys_table_locks(
 /*=========================*/
 	const trx_t*	trx)	/*!< in: transaction to check */
-	MY_ATTRIBUTE((warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*******************************************************************//**
-Check if the transaction holds an exclusive lock on a record.
-@return whether the locks are held */
+/** Check if the transaction holds an explicit exclusive lock on a record.
+@param[in]	trx	transaction
+@param[in]	table	table
+@param[in]	block	leaf page
+@param[in]	heap_no	heap number identifying the record
+@return whether an explicit X-lock is held */
 bool
-lock_trx_has_rec_x_lock(
-/*====================*/
+lock_trx_has_expl_x_lock(
 	const trx_t*		trx,	/*!< in: transaction to check */
 	const dict_table_t*	table,	/*!< in: table to check */
 	const buf_block_t*	block,	/*!< in: buffer block of the record */
 	ulint			heap_no)/*!< in: record heap number */
-	MY_ATTRIBUTE((warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #endif /* UNIV_DEBUG */
-
-/**
-Allocate cached locks for the transaction.
-@param trx		allocate cached record locks for this transaction */
-void
-lock_trx_alloc_locks(trx_t* trx);
-
-/** Lock modes and types */
-/* @{ */
-#define LOCK_MODE_MASK	0xFUL	/*!< mask used to extract mode from the
-				type_mode field in a lock */
-/** Lock types */
-/* @{ */
-#define LOCK_TABLE	16U	/*!< table lock */
-#define	LOCK_REC	32U	/*!< record lock */
-#define LOCK_TYPE_MASK	0xF0UL	/*!< mask used to extract lock type from the
-				type_mode field in a lock */
-#if LOCK_MODE_MASK & LOCK_TYPE_MASK
-# error "LOCK_MODE_MASK & LOCK_TYPE_MASK"
-#endif
-
-#define LOCK_WAIT	256U	/*!< Waiting lock flag; when set, it
-				means that the lock has not yet been
-				granted, it is just waiting for its
-				turn in the wait queue */
-/* Precise modes */
-#define LOCK_ORDINARY	0	/*!< this flag denotes an ordinary
-				next-key lock in contrast to LOCK_GAP
-				or LOCK_REC_NOT_GAP */
-#define LOCK_GAP	512U	/*!< when this bit is set, it means that the
-				lock holds only on the gap before the record;
-				for instance, an x-lock on the gap does not
-				give permission to modify the record on which
-				the bit is set; locks of this type are created
-				when records are removed from the index chain
-				of records */
-#define LOCK_REC_NOT_GAP 1024U	/*!< this bit means that the lock is only on
-				the index record and does NOT block inserts
-				to the gap before the index record; this is
-				used in the case when we retrieve a record
-				with a unique key, and is also used in
-				locking plain SELECTs (not part of UPDATE
-				or DELETE) when the user has set the READ
-				COMMITTED isolation level */
-#define LOCK_INSERT_INTENTION 2048U/*!< this bit is set when we place a waiting
-				gap type record lock request in order to let
-				an insert of an index record to wait until
-				there are no conflicting locks by other
-				transactions on the gap; note that this flag
-				remains set when the waiting lock is granted,
-				or if the lock is inherited to a neighboring
-				record */
-#define LOCK_PREDICATE	8192U	/*!< Predicate lock */
-#define LOCK_PRDT_PAGE	16384U	/*!< Page lock */
-
-
-#if (LOCK_WAIT|LOCK_GAP|LOCK_REC_NOT_GAP|LOCK_INSERT_INTENTION|LOCK_PREDICATE|LOCK_PRDT_PAGE)&LOCK_MODE_MASK
-# error
-#endif
-#if (LOCK_WAIT|LOCK_GAP|LOCK_REC_NOT_GAP|LOCK_INSERT_INTENTION|LOCK_PREDICATE|LOCK_PRDT_PAGE)&LOCK_TYPE_MASK
-# error
-#endif
-/* @} */
 
 /** Lock operation struct */
 struct lock_op_t{

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file
@@ -63,7 +63,7 @@ class engine_option_value: public Sql_alloc
     name(name_arg), next(NULL), parsed(false), quoted_value(false)
   {
     char *str;
-    if ((value.str= str= (char *)alloc_root(root, 22)))
+    if (likely((value.str= str= (char *)alloc_root(root, 22))))
     {
       value.length= longlong10_to_str(value_arg, str, 10) - str;
       link(start, end);

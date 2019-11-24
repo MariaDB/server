@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc., 51 Franklin St,
-Fifth Floor, Boston, MA 02110-1301 USA
+Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,8 +26,6 @@ Created 11/19/1996 Heikki Tuuri
 
 /* Historical note: Innobase executed its first SQL string (CREATE TABLE)
 on 1/27/1998 */
-
-#include "ha_prototypes.h"
 
 #include "pars0pars.h"
 #include "row0sel.h"
@@ -43,7 +41,6 @@ on 1/27/1998 */
 #include "data0type.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
-#include "lock0lock.h"
 #include "eval0eval.h"
 
 /* Global variable used while parsing a single procedure or query : the code is
@@ -1832,7 +1829,7 @@ pars_column_def(
 	ulint len2;
 
 	if (len) {
-		len2 = eval_node_get_int_val(len);
+		len2 = ulint(eval_node_get_int_val(len));
 	} else {
 		len2 = 0;
 	}
@@ -2065,18 +2062,15 @@ pars_stored_procedure_call(
 
 /*************************************************************//**
 Retrieves characters to the lexical analyzer. */
-int
+size_t
 pars_get_lex_chars(
 /*===============*/
 	char*	buf,		/*!< in/out: buffer where to copy */
-	int	max_size)	/*!< in: maximum number of characters which fit
+	size_t	max_size)	/*!< in: maximum number of characters which fit
 				in the buffer */
 {
-	int	len;
-
-	len = static_cast<int>(
-		pars_sym_tab_global->string_len
-		- pars_sym_tab_global->next_char_pos);
+	size_t len = pars_sym_tab_global->string_len
+		- pars_sym_tab_global->next_char_pos;
 	if (len == 0) {
 		return(0);
 	}
@@ -2085,8 +2079,8 @@ pars_get_lex_chars(
 		len = max_size;
 	}
 
-	ut_memcpy(buf, pars_sym_tab_global->sql_string
-		  + pars_sym_tab_global->next_char_pos, len);
+	memcpy(buf, pars_sym_tab_global->sql_string
+	       + pars_sym_tab_global->next_char_pos, len);
 
 	pars_sym_tab_global->next_char_pos += len;
 
@@ -2345,7 +2339,7 @@ pars_info_add_int4_literal(
 /*=======================*/
 	pars_info_t*	info,		/*!< in: info struct */
 	const char*	name,		/*!< in: name */
-	lint		val)		/*!< in: value */
+	ulint		val)		/*!< in: value */
 {
 	byte*	buf = static_cast<byte*>(mem_heap_alloc(info->heap, 4));
 

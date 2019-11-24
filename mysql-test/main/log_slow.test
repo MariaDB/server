@@ -2,6 +2,8 @@
 # Testing of slow log query options
 #
 
+set @@log_slow_verbosity="";
+
 select @@log_slow_filter;
 select @@log_slow_rate_limit;
 select @@log_slow_verbosity;
@@ -58,3 +60,43 @@ set @@log_slow_filter=default;
 set @@log_slow_verbosity=default;
 set global log_output= default;
 truncate mysql.slow_log;
+
+--echo #
+--echo # MDEV-18333 Slow_queries count doesn't increase when slow_query_log is turned off
+--echo #
+
+SET SESSION slow_query_log=OFF;
+SET GLOBAL slow_query_log=OFF;
+SET long_query_time=0.1;
+
+--echo # Although this query is disallowed by slow_query_log, it should still increment Slow_queries
+
+SELECT VARIABLE_VALUE INTO @global_slow_queries
+  FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+  WHERE VARIABLE_NAME='SLOW_QUERIES';
+SELECT sleep(0.2) INTO @tmp FROM DUAL;
+SELECT
+    CAST(VARIABLE_VALUE AS UNSIGNED)-@global_slow_queries AS Slow_queries_increment
+  FROM
+    INFORMATION_SCHEMA.GLOBAL_STATUS
+  WHERE
+    VARIABLE_NAME='SLOW_QUERIES';
+
+--echo # Although this query is disallowed by log_slow_filter, it should still increment Slow_queries
+
+SET log_slow_filter=filesort;
+SELECT sleep(0.2) INTO @tmp FROM DUAL;
+SELECT VARIABLE_VALUE INTO @global_slow_queries
+  FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+  WHERE VARIABLE_NAME='SLOW_QUERIES';
+SELECT sleep(0.2) INTO @tmp FROM DUAL;
+SELECT
+    CAST(VARIABLE_VALUE AS UNSIGNED)-@global_slow_queries AS Slow_queries_increment
+  FROM
+    INFORMATION_SCHEMA.GLOBAL_STATUS
+  WHERE
+    VARIABLE_NAME='SLOW_QUERIES';
+SET log_slow_filter=DEFAULT;
+
+SET @@long_query_time=default;
+SET GLOBAL slow_query_log= @org_slow_query_log;

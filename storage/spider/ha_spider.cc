@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation
@@ -63,6 +63,9 @@ extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern HASH spider_open_tables;
 #endif
 extern pthread_mutex_t spider_lgtm_tblhnd_share_mutex;
+
+/* UTC time zone for timestamp columns */
+extern Time_zone *UTC;
 
 ha_spider::ha_spider(
 ) : handler(spider_hton_ptr, NULL)
@@ -7375,6 +7378,8 @@ int ha_spider::rnd_init(
 #endif
           if (quick_targets[roop_count])
           {
+            spider_db_free_one_quick_result(
+              (SPIDER_RESULT *) result_list.current);
             DBUG_ASSERT(quick_targets[roop_count] ==
               conns[roop_count]->quick_target);
             DBUG_PRINT("info", ("spider conn[%p]->quick_target=NULL",
@@ -7963,7 +7968,7 @@ int ha_spider::cmp_ref(
       if ((ret = (*field)->cmp_binary_offset((uint) ptr_diff)))
       {
         DBUG_PRINT("info",("spider different at %s",
-                           (*field)->field_name.str));
+          SPIDER_field_name_str(*field)));
         break;
       }
     }
@@ -9959,21 +9964,38 @@ int ha_spider::end_bulk_update(
   DBUG_RETURN(0);
 }
 
+#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
 int ha_spider::bulk_update_row(
   const uchar *old_data,
   const uchar *new_data,
   ha_rows *dup_key_found
-) {
+)
+#else
+int ha_spider::bulk_update_row(
+  const uchar *old_data,
+  uchar *new_data,
+  ha_rows *dup_key_found
+)
+#endif
+{
   DBUG_ENTER("ha_spider::bulk_update_row");
   DBUG_PRINT("info",("spider this=%p", this));
   *dup_key_found = 0;
   DBUG_RETURN(update_row(old_data, new_data));
 }
 
+#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
 int ha_spider::update_row(
   const uchar *old_data,
   const uchar *new_data
-) {
+)
+#else
+int ha_spider::update_row(
+  const uchar *old_data,
+  uchar *new_data
+)
+#endif
+{
   int error_num;
   THD *thd = ha_thd();
   backup_error_status();
@@ -10064,13 +10086,25 @@ int ha_spider::update_row(
 
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
+#ifdef SPIDER_MDEV_16246
+int ha_spider::direct_update_rows_init(
+  List<Item> *update_fields,
+  uint mode,
+  KEY_MULTI_RANGE *ranges,
+  uint range_count,
+  bool sorted,
+  uchar *new_data
+)
+#else
 int ha_spider::direct_update_rows_init(
   uint mode,
   KEY_MULTI_RANGE *ranges,
   uint range_count,
   bool sorted,
-  const uchar *new_data
-) {
+  uchar *new_data
+)
+#endif
+{
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   int error_num;
 #endif
@@ -10097,8 +10131,13 @@ int ha_spider::direct_update_rows_init(
         pre_direct_init_result));
       DBUG_RETURN(pre_direct_init_result);
     }
+#ifdef SPIDER_MDEV_16246
+    DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_update_rows_init(
+      update_fields, mode, ranges, range_count, sorted, new_data));
+#else
     DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_update_rows_init(
       mode, ranges, range_count, sorted, new_data));
+#endif
   }
 #endif
   direct_update_init(
@@ -10202,14 +10241,53 @@ int ha_spider::direct_update_rows_init(
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 #else
+#ifdef SPIDER_MDEV_16246
+/**
+  Perform initialization for a direct update request.
+
+  @param  update fields       Pointer to the list of fields to update.
+
+  @return >0                  Error.
+          0                   Success.
+*/
+
+int ha_spider::direct_update_rows_init(
+  List<Item> *update_fields
+)
+#else
 int ha_spider::direct_update_rows_init()
+#endif
 {
   st_select_lex *select_lex;
   longlong select_limit;
   longlong offset_limit;
+  List_iterator<Item> it(*direct_update_fields);
+  Item *item;
+  Field *field;
   THD *thd = trx->thd;
   DBUG_ENTER("ha_spider::direct_update_rows_init");
   DBUG_PRINT("info",("spider this=%p", this));
+  if (thd->variables.time_zone != UTC)
+  {
+    while ((item = it++))
+    {
+      if (item->type() == Item::FIELD_ITEM)
+      {
+        field = ((Item_field *)item)->field;
+
+        if (field->type() == FIELD_TYPE_TIMESTAMP &&
+            field->flags & UNIQUE_KEY_FLAG)
+        {
+          /*
+            Spider cannot perform direct update on unique timestamp fields.
+            To avoid false duplicate key errors, the table needs to be
+            updated one row at a time.
+          */
+          DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+        }
+      }
+    }
+  }
 #ifdef HA_CAN_BULK_ACCESS
   if (
     bulk_access_executing &&
@@ -10227,7 +10305,12 @@ int ha_spider::direct_update_rows_init()
         pre_direct_init_result));
       DBUG_RETURN(pre_direct_init_result);
     }
+#ifdef SPIDER_MDEV_16246
+    DBUG_RETURN(bulk_access_link_exec_tgt->spider->
+      direct_update_rows_init(update_fields));
+#else
     DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_update_rows_init());
+#endif
   }
 #endif
   direct_update_init(
@@ -10298,44 +10381,92 @@ int ha_spider::direct_update_rows_init()
 
 #ifdef HA_CAN_BULK_ACCESS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
+#ifdef SPIDER_MDEV_16246
+int ha_spider::pre_direct_update_rows_init(
+  List<Item> *update_fields,
+  uint mode,
+  KEY_MULTI_RANGE *ranges,
+  uint range_count,
+  bool sorted,
+  uchar *new_data
+)
+#else
 int ha_spider::pre_direct_update_rows_init(
   uint mode,
   KEY_MULTI_RANGE *ranges,
   uint range_count,
   bool sorted,
-  const uchar *new_data
-) {
-  int error_num;
-  DBUG_ENTER("ha_spider::pre_direct_update_rows_init");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (bulk_access_started)
-  {
-    error_num = bulk_access_link_current->spider->
-      pre_direct_update_rows_init(
-      mode, ranges, range_count, sorted, new_data);
-    bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
-    bulk_access_link_current->called = TRUE;
-    DBUG_RETURN(error_num);
-  }
-  pre_direct_init_result = direct_update_rows_init(
-    mode, ranges, range_count, sorted, new_data);
-  DBUG_RETURN(pre_direct_init_result);
-}
-#else
-int ha_spider::pre_direct_update_rows_init()
+  uchar *new_data
+)
+#endif
 {
   int error_num;
   DBUG_ENTER("ha_spider::pre_direct_update_rows_init");
   DBUG_PRINT("info",("spider this=%p", this));
   if (bulk_access_started)
   {
+#ifdef SPIDER_MDEV_16246
     error_num = bulk_access_link_current->spider->
-      pre_direct_update_rows_init();
+      pre_direct_update_rows_init(
+      update_fields, mode, ranges, range_count, sorted, new_data);
+#else
+    error_num = bulk_access_link_current->spider->
+      pre_direct_update_rows_init(
+      mode, ranges, range_count, sorted, new_data);
+#endif
     bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
     bulk_access_link_current->called = TRUE;
     DBUG_RETURN(error_num);
   }
+#ifdef SPIDER_MDEV_16246
+  pre_direct_init_result = direct_update_rows_init(
+    update_fields, mode, ranges, range_count, sorted, new_data);
+#else
+  pre_direct_init_result = direct_update_rows_init(
+    mode, ranges, range_count, sorted, new_data);
+#endif
+  DBUG_RETURN(pre_direct_init_result);
+}
+#else
+#ifdef SPIDER_MDEV_16246
+/**
+  Do initialization for performing parallel direct update
+  for a handlersocket update request.
+
+  @param  update fields       Pointer to the list of fields to update.
+
+  @return >0                  Error.
+          0                   Success.
+*/
+
+int ha_spider::pre_direct_update_rows_init(
+  List<Item> *update_fields
+)
+#else
+int ha_spider::pre_direct_update_rows_init()
+#endif
+{
+  int error_num;
+  DBUG_ENTER("ha_spider::pre_direct_update_rows_init");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (bulk_access_started)
+  {
+#ifdef SPIDER_MDEV_16246
+    error_num = bulk_access_link_current->spider->
+      pre_direct_update_rows_init(update_fields);
+#else
+    error_num = bulk_access_link_current->spider->
+      pre_direct_update_rows_init();
+#endif
+    bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
+    bulk_access_link_current->called = TRUE;
+    DBUG_RETURN(error_num);
+  }
+#ifdef SPIDER_MDEV_16246
+  pre_direct_init_result = direct_update_rows_init(update_fields);
+#else
   pre_direct_init_result = direct_update_rows_init();
+#endif
   DBUG_RETURN(pre_direct_init_result);
 }
 #endif
@@ -11164,7 +11295,7 @@ int ha_spider::create(
     error_num = ER_SPIDER_ALTER_BEFORE_UNLOCK_NUM;
     goto error_alter_before_unlock;
   }
-  memset(&tmp_share, 0, sizeof(SPIDER_SHARE));
+  memset((void*)&tmp_share, 0, sizeof(SPIDER_SHARE));
   tmp_share.table_name = (char*) name;
   tmp_share.table_name_length = strlen(name);
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
@@ -11264,7 +11395,7 @@ int ha_spider::create(
 
     DBUG_PRINT("info",
       ("spider alter_info.flags: %llu  alter_info.partition_flags: %lu",
-       thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
+        thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
     if ((thd->lex->alter_info.partition_flags &
         (
           SPIDER_ALTER_PARTITION_ADD | SPIDER_ALTER_PARTITION_DROP |
@@ -11460,7 +11591,7 @@ int ha_spider::rename_table(
 
     DBUG_PRINT("info",
       ("spider alter_info.flags: %llu  alter_info.partition_flags: %lu",
-       thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
+        thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
     if (
       (thd->lex->alter_info.partition_flags &
         (
@@ -11656,7 +11787,7 @@ int ha_spider::delete_table(
 
     DBUG_PRINT("info",
       ("spider alter_info.flags: %llu  alter_info.partition_flags: %lu",
-       thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
+        thd->lex->alter_info.flags, thd->lex->alter_info.partition_flags));
     if (
       sql_command == SQLCOM_ALTER_TABLE &&
       (thd->lex->alter_info.partition_flags &
@@ -13473,6 +13604,7 @@ void ha_spider::check_pre_call(
   bool use_parallel
 ) {
   THD* thd = ha_thd();
+  LEX *lex = thd->lex;
   st_select_lex *select_lex = spider_get_select_lex(this);
   int skip_parallel_search =
     spider_param_skip_parallel_search(thd, share->skip_parallel_search);
@@ -13481,11 +13613,15 @@ void ha_spider::check_pre_call(
   if (
     (
       (skip_parallel_search & 1) &&
-      thd->lex && thd->lex->sql_command != SQLCOM_SELECT // such like insert .. select ..
+      lex->sql_command != SQLCOM_SELECT // such like insert .. select ..
     ) ||
     (
       (skip_parallel_search & 2) &&
+#ifdef SPIDER_SQL_CACHE_IS_IN_LEX
+      lex->sql_cache == LEX::SQL_NO_CACHE //  for mysqldump
+#else
       select_lex && select_lex->sql_cache == SELECT_LEX::SQL_NO_CACHE //  for mysqldump
+#endif
     )
   ) {
     use_pre_call = FALSE;
@@ -15631,12 +15767,23 @@ int ha_spider::mk_bulk_tmp_table_and_bulk_start()
       dbton_hdl->first_link_idx >= 0 &&
       dbton_hdl->need_copy_for_update(roop_count)
     ) {
+#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
+      LEX_CSTRING field_name = {STRING_WITH_LEN("a")};
+      if (
+        !tmp_table[roop_count] &&
+        !(tmp_table[roop_count] = spider_mk_sys_tmp_table(
+          trx->thd, table, &result_list.upd_tmp_tbl_prms[roop_count],
+          &field_name, result_list.update_sqls[roop_count].charset()))
+      )
+#else
       if (
         !tmp_table[roop_count] &&
         !(tmp_table[roop_count] = spider_mk_sys_tmp_table(
           trx->thd, table, &result_list.upd_tmp_tbl_prms[roop_count], "a",
           result_list.update_sqls[roop_count].charset()))
-      ) {
+      )
+#endif
+      {
         error_num = HA_ERR_OUT_OF_MEM;
         goto error_2;
       }
@@ -15733,7 +15880,7 @@ int ha_spider::print_item_type(
     dbton_hdl = dbton_handler[dbton_id];
     if (
       dbton_hdl->first_link_idx >= 0 &&
-      (error_num = spider_db_print_item_type(item, this, str,
+      (error_num = spider_db_print_item_type(item, NULL, this, str,
         alias, alias_length, dbton_id, FALSE, NULL))
     ) {
       DBUG_RETURN(error_num);

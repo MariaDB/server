@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 #ifndef GCALC_SLICESCAN_INCLUDED
@@ -63,6 +63,7 @@ public:
   };
 
   Gcalc_dyn_list(size_t blk_size, size_t sizeof_item);
+  Gcalc_dyn_list(const Gcalc_dyn_list &dl);
   ~Gcalc_dyn_list();
   Item *new_item()
   {
@@ -229,6 +230,12 @@ public:
     Gcalc_dyn_list(blk_size, sizeof(Info)),
     m_hook(&m_first), m_n_points(0)
   {}
+
+  Gcalc_heap(const Gcalc_heap &gh) :
+    Gcalc_dyn_list(gh),
+    m_hook(&m_first), m_n_points(0)
+  {}
+
   void set_extent(double xmin, double xmax, double ymin, double ymax);
   Info *new_point_info(double x, double y, gcalc_shape_info shape);
   void free_point_info(Info *i, Gcalc_dyn_list::Item **i_hook);

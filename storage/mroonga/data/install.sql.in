@@ -1,6 +1,6 @@
-DELETE IGNORE FROM mysql.plugin WHERE dl = 'ha_mroonga@MRN_PLUGIN_SUFFIX@';
-
-INSTALL PLUGIN Mroonga SONAME 'ha_mroonga@MRN_PLUGIN_SUFFIX@';
+SET @inst=IF(EXISTS(SELECT * FROM mysql.plugin WHERE NAME='mroonga'),'DO 1', "INSTALL PLUGIN mroonga SONAME 'ha_mroonga'");
+PREPARE s FROM @inst;
+EXECUTE s;
 
 DROP FUNCTION IF EXISTS last_insert_grn_id;
 CREATE FUNCTION last_insert_grn_id RETURNS INTEGER

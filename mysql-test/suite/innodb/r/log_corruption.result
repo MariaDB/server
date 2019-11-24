@@ -125,7 +125,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
 1
-FOUND 2 /InnoDB: Upgrading redo log:/ in mysqld.1.err
+FOUND 3 /InnoDB: Upgrading redo log:/ in mysqld.1.err
 # Minimal MariaDB 10.1.21 encrypted redo log
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'

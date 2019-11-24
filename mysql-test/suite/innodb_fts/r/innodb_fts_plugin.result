@@ -67,8 +67,6 @@ INSERT INTO articles (title, body) VALUES
 ('1001 MySQL Tricks','How to use full-text search engine'),
 ('Go MySQL Tricks','How to use full text search engine');
 ALTER TABLE articles ADD FULLTEXT INDEX (title, body) WITH PARSER simple_parser;
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('mysql');
 id	title	body

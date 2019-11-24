@@ -11,7 +11,7 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with this program; if not, write to the Free Software Foundation,
--- 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+-- 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA
 
 delimiter ||;
 
@@ -242,7 +242,7 @@ BEGIN
   DECLARE `pos` bigint unsigned;
 
   -- Don't write these queries to binlog
-  SET SQL_LOG_BIN=0;
+  SET SQL_LOG_BIN=0, SQL_SAFE_UPDATES=0;
 
   --
   -- Remove mark from lines that are suppressed by global suppressions

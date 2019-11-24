@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Written by Sergei A. Golubchik, who has a shared copyright to this code */
 
@@ -281,17 +281,10 @@ uint _ft_make_key(MI_INFO *info, uint keynr, uchar *keybuf, FT_WORD *wptr,
 		  my_off_t filepos)
 {
   uchar buf[HA_FT_MAXBYTELEN+16];
+  float weight=(float) ((filepos==HA_OFFSET_ERROR) ? 0 : wptr->weight);
   DBUG_ENTER("_ft_make_key");
 
-#if HA_FT_WTYPE == HA_KEYTYPE_FLOAT
-  {
-    float weight=(float) ((filepos==HA_OFFSET_ERROR) ? 0 : wptr->weight);
-    mi_float4store(buf,weight);
-  }
-#else
-#error
-#endif
-
+  mi_float4store(buf,weight);
   int2store(buf+HA_FT_WLEN,wptr->len);
   memcpy(buf+HA_FT_WLEN+2,wptr->pos,wptr->len);
   DBUG_RETURN(_mi_make_key(info,keynr,(uchar*) keybuf,buf,filepos));

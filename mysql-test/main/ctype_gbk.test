@@ -199,6 +199,9 @@ let $ctype_unescape_combinations=selected;
 SET NAMES gbk;
 --source include/ctype_E05C.inc
 
+SET NAMES utf8, character_set_connection=gbk;
+--source include/ctype_mdev13118.inc
+
 --echo #
 --echo # MDEV-9886 Illegal mix of collations with a view comparing a field to a binary constant
 --echo #

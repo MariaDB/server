@@ -30,6 +30,9 @@ bind-address=0.0.0.0
 ## WSREP options
 ##
 
+# Enable wsrep
+wsrep_on=1
+
 # Full path to wsrep provider library or 'none'
 wsrep_provider=none
 
@@ -64,10 +67,10 @@ wsrep_slave_threads=1
 wsrep_certify_nonPK=1
 
 # Maximum number of rows in write set
-wsrep_max_ws_rows=131072
+wsrep_max_ws_rows=0
 
 # Maximum size of write set
-wsrep_max_ws_size=1073741824
+wsrep_max_ws_size=2147483647
 
 # to enable debug level logging, set this to 1
 wsrep_debug=0

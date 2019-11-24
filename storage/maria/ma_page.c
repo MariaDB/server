@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Read and write key blocks
@@ -153,8 +153,9 @@ my_bool _ma_fetch_keypage(MARIA_PAGE *page, MARIA_HA *info,
     if (page_size < 4 || page_size > share->max_index_block_size ||
         _ma_get_keynr(share, tmp) != keyinfo->key_nr)
     {
-      DBUG_PRINT("error",("page %lu had wrong page length: %u  keynr: %u",
+      DBUG_PRINT("error",("page %lu had wrong page length: %u  page_header: %u  keynr: %u",
                           (ulong) (pos / block_size), page_size,
+                          share->keypage_header,
                           _ma_get_keynr(share, tmp)));
       DBUG_DUMP("page", tmp, page_size);
       info->last_keypage = HA_OFFSET_ERROR;

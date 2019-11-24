@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include <my_global.h>
 #include <sys/statvfs.h>
@@ -20,6 +20,7 @@
 #include <mntent.h>
 #include <sql_class.h>
 #include <table.h>
+#include <sql_acl.h>                            /* check_global_access() */
 
 bool schema_table_store_record(THD *thd, TABLE *table);
 
@@ -84,6 +85,9 @@ int disks_fill_table(THD* pThd, TABLE_LIST* pTables, Item* pCond)
     int rv = 1;
     TABLE* pTable = pTables->table;
 
+    if (check_global_access(pThd, FILE_ACL, true))
+      return 0;
+
     FILE* pFile = setmntent("/etc/mtab", "r");
 
     if (pFile)
@@ -145,11 +149,11 @@ maria_declare_plugin(disks)
     PLUGIN_LICENSE_GPL,                /* license type */
     disks_table_init,                  /* init function */
     NULL,                              /* deinit function */
-    0x0100,                            /* version = 1.0 */
+    0x0101,                            /* version = 1.1 */
     NULL,                              /* no status variables */
     NULL,                              /* no system variables */
-    "1.0",                             /* String version representation */
-    MariaDB_PLUGIN_MATURITY_BETA       /* Maturity (see include/mysql/plugin.h)*/
+    "1.1",                             /* String version representation */
+    MariaDB_PLUGIN_MATURITY_STABLE     /* Maturity (see include/mysql/plugin.h)*/
 }
 mysql_declare_plugin_end;
 

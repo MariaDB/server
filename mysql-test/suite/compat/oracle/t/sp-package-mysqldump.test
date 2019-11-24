@@ -1,3 +1,4 @@
+--source include/have_utf8mb4.inc
 --source include/not_embedded.inc
 
 SET sql_mode=ORACLE;
@@ -56,7 +57,7 @@ $$
 DELIMITER ;$$
 
 
---exec $MYSQL_DUMP --skip-comments --routines test
+--exec $MYSQL_DUMP --skip-comments --routines --default-character-set=utf8mb4 test
 --exec $MYSQL_DUMP --skip-comments --routines --xml test
 
 let $dump = $MYSQLTEST_VARDIR/tmp/sp-package-mysqldump.sql;

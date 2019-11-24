@@ -1,11 +1,8 @@
 SET @start_global_value = @@global.histogram_size;
-SELECT @start_global_value;
-@start_global_value
-0
 SET @start_session_value = @@session.histogram_size;
-SELECT @start_session_value;
-@start_session_value
-0
+SELECT @start_global_value = @start_session_value;
+@start_global_value = @start_session_value
+1
 '#--------------------FN_DYNVARS_053_01-------------------------#'
 SET @@global.histogram_size = DEFAULT;
 SELECT @@global.histogram_size;
@@ -127,10 +124,4 @@ SELECT @@local.histogram_size = @@session.histogram_size;
 @@local.histogram_size = @@session.histogram_size
 1
 SET @@global.histogram_size = @start_global_value;
-SELECT @@global.histogram_size;
-@@global.histogram_size
-0
 SET @@session.histogram_size = @start_session_value;
-SELECT @@session.histogram_size;
-@@session.histogram_size
-0

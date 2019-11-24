@@ -1,0 +1,65 @@
+--source include/have_innodb.inc
+--source include/have_file_key_management_plugin.inc
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed file read of tablespace test/t1 page");
+call mtr.add_suppression("InnoDB: Failed to read file '.*test.t1\\.ibd' at offset 3: Table is encrypted but decrypt failed");
+call mtr.add_suppression("InnoDB: The page \\[page id: space=\\d+, page number=3\\] in file '.*test.t1\\.ibd' cannot be decrypted");
+call mtr.add_suppression("InnoDB: Table in tablespace \\d+ encrypted. However key management plugin or used key_version \\d+ is not found or used encryption algorithm or method does not match. Can't continue opening the table.");
+--enable_query_log
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+CREATE TABLE t1(a BIGINT PRIMARY KEY) ENGINE=InnoDB, ENCRYPTED=YES;
+INSERT INTO t1 VALUES(1);
+# Force a redo log checkpoint.
+--source include/restart_mysqld.inc
+--source ../../suite/innodb/include/no_checkpoint_start.inc
+CREATE TABLE t2(a BIGINT PRIMARY KEY) ENGINE=InnoDB, ENCRYPTED=YES;
+INSERT INTO t1 VALUES(2);
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+INSERT INTO t2 VALUES(2);
+
+--let CLEANUP_IF_CHECKPOINT=DROP TABLE t1,t2;
+--source ../../suite/innodb/include/no_checkpoint_end.inc
+
+--echo # Corrupt the pages
+
+perl;
+my $ps = $ENV{INNODB_PAGE_SIZE};
+
+my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+seek (FILE, $ENV{INNODB_PAGE_SIZE} * 3, SEEK_SET) or die "seek";
+print FILE "junk";
+close FILE or die "close";
+
+$file = "$ENV{MYSQLD_DATADIR}/test/t2.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+# Corrupt pages 1 to 3. MLOG_INIT_FILE_PAGE2 should protect us!
+# Unfortunately, we are not immune to page 0 corruption.
+seek (FILE, $ps, SEEK_SET) or die "seek";
+print FILE chr(0xff) x ($ps * 3);
+close FILE or die "close";
+EOF
+
+--source include/start_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+--disable_query_log
+call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t[1].ibd looks corrupted; key_version=1786080875");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted. Please drop the table and recreate.");
+--enable_query_log
+let $restart_parameters=--innodb_force_recovery=1 --skip-innodb-buffer-pool-load-at-startup;
+--source include/restart_mysqld.inc
+
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+SELECT * FROM t1;
+SELECT * FROM t2;
+CHECK TABLE t2;
+
+DROP TABLE t1, t2;

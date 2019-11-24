@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,10 +27,8 @@ Created 4/20/1996 Heikki Tuuri
 #ifndef row0ins_h
 #define row0ins_h
 
-#include "univ.i"
 #include "data0data.h"
 #include "que0types.h"
-#include "dict0types.h"
 #include "trx0types.h"
 #include "row0types.h"
 
@@ -94,10 +92,7 @@ row_ins_clust_index_entry_low(
 	ulint		n_uniq,	/*!< in: 0 or index->n_uniq */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	que_thr_t*	thr,	/*!< in: query thread or NULL */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	que_thr_t*	thr)	/*!< in: query thread or NULL */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /***************************************************************//**
@@ -122,21 +117,8 @@ row_ins_sec_index_entry_low(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	trx_id_t	trx_id,	/*!< in: PAGE_MAX_TRX_ID during
 				row_log_table_apply(), or 0 */
-	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	que_thr_t*	thr)	/*!< in: query thread */
 	MY_ATTRIBUTE((warn_unused_result));
-/** Sets the values of the dtuple fields in entry from the values of appropriate
-columns in row.
-@param[in]	index	index handler
-@param[out]	entry	index entry to make
-@param[in]	row	row */
-dberr_t
-row_ins_index_entry_set_vals(
-	const dict_index_t*	index,
-	dtuple_t*		entry,
-	const dtuple_t*		row);
 
 /***************************************************************//**
 Inserts an entry into a clustered index. Tries first optimistic,
@@ -150,10 +132,7 @@ row_ins_clust_index_entry(
 	dict_index_t*	index,	/*!< in: clustered index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr,	/*!< in: query thread */
-	ulint		n_ext,	/*!< in: number of externally stored columns */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	ulint		n_ext)	/*!< in: number of externally stored columns */
 	MY_ATTRIBUTE((warn_unused_result));
 /***************************************************************//**
 Inserts an entry into a secondary index. Tries first optimistic,
@@ -167,9 +146,8 @@ row_ins_sec_index_entry(
 	dict_index_t*	index,	/*!< in: secondary index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	bool		check_foreign = true) /*!< in: true if check
+				foreign table is needed, false otherwise */
 	MY_ATTRIBUTE((warn_unused_result));
 /***********************************************************//**
 Inserts a row to a table. This is a high-level function used in
@@ -210,10 +188,6 @@ struct ins_node_t{
 				entry_list and sys fields are stored here;
 				if this is NULL, entry list should be created
 				and buffers for sys fields in row allocated */
-	dict_index_t*   duplicate;
-				/* This is the first index that reported
-				DB_DUPLICATE_KEY.  Used in the case of REPLACE
-				or INSERT ... ON DUPLICATE UPDATE. */
 	ulint		magic_n;
 };
 

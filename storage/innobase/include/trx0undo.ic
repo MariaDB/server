@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -40,9 +40,7 @@ trx_undo_build_roll_ptr(
 	ulint	offset)		/*!< in: offset of the undo entry within page */
 {
 	roll_ptr_t	roll_ptr;
-#if DATA_ROLL_PTR_LEN != 7
-# error "DATA_ROLL_PTR_LEN != 7"
-#endif
+	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
 	ut_ad(is_insert == 0 || is_insert == 1);
 	ut_ad(rseg_id < TRX_SYS_N_RSEGS);
 	ut_ad(offset < 65536);
@@ -67,12 +65,7 @@ trx_undo_decode_roll_ptr(
 	ulint*		offset)		/*!< out: offset of the undo
 					entry within page */
 {
-#if DATA_ROLL_PTR_LEN != 7
-# error "DATA_ROLL_PTR_LEN != 7"
-#endif
-#if TRUE != 1
-# error "TRUE != 1"
-#endif
+	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
 	ut_ad(roll_ptr < (1ULL << 56));
 	*offset = (ulint) roll_ptr & 0xFFFF;
 	roll_ptr >>= 16;
@@ -92,12 +85,7 @@ trx_undo_roll_ptr_is_insert(
 /*========================*/
 	roll_ptr_t	roll_ptr)	/*!< in: roll pointer */
 {
-#if DATA_ROLL_PTR_LEN != 7
-# error "DATA_ROLL_PTR_LEN != 7"
-#endif
-#if TRUE != 1
-# error "TRUE != 1"
-#endif
+	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
 	ut_ad(roll_ptr < (1ULL << (ROLL_PTR_INSERT_FLAG_POS + 1)));
 	return((ibool) (roll_ptr >> ROLL_PTR_INSERT_FLAG_POS));
 }
@@ -111,10 +99,8 @@ trx_undo_trx_id_is_insert(
 /*======================*/
 	const byte*	trx_id)	/*!< in: DB_TRX_ID, followed by DB_ROLL_PTR */
 {
-#if DATA_TRX_ID + 1 != DATA_ROLL_PTR
-# error
-#endif
-	return(static_cast<bool>(trx_id[DATA_TRX_ID_LEN] >> 7));
+	compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
+	return bool(trx_id[DATA_TRX_ID_LEN] >> 7);
 }
 
 /*****************************************************************//**
@@ -129,9 +115,7 @@ trx_write_roll_ptr(
 					written */
 	roll_ptr_t	roll_ptr)	/*!< in: roll ptr */
 {
-#if DATA_ROLL_PTR_LEN != 7
-# error "DATA_ROLL_PTR_LEN != 7"
-#endif
+	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
 	mach_write_to_7(ptr, roll_ptr);
 }
 
@@ -146,9 +130,7 @@ trx_read_roll_ptr(
 /*==============*/
 	const byte*	ptr)	/*!< in: pointer to memory from where to read */
 {
-#if DATA_ROLL_PTR_LEN != 7
-# error "DATA_ROLL_PTR_LEN != 7"
-#endif
+	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
 	return(mach_read_from_7(ptr));
 }
 
@@ -158,7 +140,7 @@ trx_read_roll_ptr(
 @return pointer to page x-latched */
 UNIV_INLINE
 page_t*
-trx_undo_page_get(const page_id_t& page_id, mtr_t* mtr)
+trx_undo_page_get(const page_id_t page_id, mtr_t* mtr)
 {
 	buf_block_t*	block = buf_page_get(page_id, univ_page_size,
 					     RW_X_LATCH, mtr);
@@ -174,7 +156,7 @@ trx_undo_page_get(const page_id_t& page_id, mtr_t* mtr)
 @return pointer to page s-latched */
 UNIV_INLINE
 page_t*
-trx_undo_page_get_s_latched(const page_id_t& page_id, mtr_t* mtr)
+trx_undo_page_get_s_latched(const page_id_t page_id, mtr_t* mtr)
 {
 	buf_block_t*	block = buf_page_get(page_id, univ_page_size,
 					     RW_S_LATCH, mtr);
@@ -220,7 +202,7 @@ trx_undo_page_get_next_rec(
 	ulint	end;
 	ulint	next;
 
-	undo_page = (page_t*) ut_align_down(rec, UNIV_PAGE_SIZE);
+	undo_page = (page_t*) ut_align_down(rec, srv_page_size);
 
 	end = trx_undo_page_get_end(undo_page, page_no, offset);
 

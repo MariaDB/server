@@ -4,11 +4,9 @@
 ##########################################################################
 
 --source include/have_innodb.inc
+--source include/have_debug.inc
 --source include/have_debug_sync.inc
-
---disable_warnings
-drop table if exists t1;
---enable_warnings
+--source include/innodb_binlog.inc
 
 set global transaction isolation level repeatable read;
 
@@ -69,28 +67,21 @@ CREATE TABLE t1(
        k INT,
        c CHAR(1),
        UNIQUE KEY(k)) ENGINE=InnoDB;
-       
+
 --echo #
 --echo # Parallel execution
 --echo #
 
---connect(con1, localhost, root)
 --connect(con2, localhost, root)
-
 --send SET DEBUG_SYNC='now WAIT_FOR write_row_done'
---connection con1
---echo #
---echo # Connection 1
---echo #
+
+--connect(con1, localhost, root)
 SET DEBUG_SYNC='ha_write_row_end SIGNAL write_row_done WAIT_FOR continue';
 --send INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1'
 --connection con2
---echo #
---echo # Connection 2
---echo #
 --reap
+
 SET DEBUG_SYNC='execute_command_after_close_tables SIGNAL continue';
---error ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
 
 --connection con1
@@ -138,23 +129,14 @@ CREATE TABLE t1(
 --enable_info
 
 --connect(con1, localhost, root)
---connect(con2, localhost, root)
-
---connection con1
-
---echo #
---echo # Connection 1
---echo #
 SET DEBUG_SYNC='ha_write_row_end SIGNAL continue2 WAIT_FOR continue1';
 --send INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1'
 
---connection con2
---echo #
---echo # Connection 2
---echo #
+--connect(con2, localhost, root)
 SET DEBUG_SYNC='ha_write_row_start WAIT_FOR continue2';
 SET DEBUG_SYNC='after_mysql_insert SIGNAL continue1';
 INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
+--disconnect con2
 
 --connection con1
 --reap
@@ -167,11 +149,9 @@ SET DEBUG_SYNC='RESET';
 SELECT * FROM t1 ORDER BY k;
 
 --disconnect con1
---disconnect con2
 
 --connection default
 
 DROP TABLE t1;
 
 set global transaction isolation level repeatable read;
-

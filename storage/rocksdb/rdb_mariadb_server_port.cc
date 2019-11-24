@@ -9,9 +9,7 @@
 #include "./log.h"
 #include <mysys_err.h>
 #include <mysql/psi/mysql_table.h>
-#ifdef MARIAROCKS_NOT_YET
-#include <mysql/thread_pool_priv.h>
-#endif
+//#include <mysql/thread_pool_priv.h>
 
 #include <string>
 

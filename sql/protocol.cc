@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -285,7 +285,7 @@ net_send_ok(THD *thd,
   DBUG_ASSERT(store.length() <= MAX_PACKET_LENGTH);
 
   error= my_net_write(net, (const unsigned char*)store.ptr(), store.length());
-  if (!error && (!skip_flush || is_eof))
+  if (likely(!error) && (!skip_flush || is_eof))
     error= net_flush(net);
 
   thd->server_status&= ~SERVER_SESSION_STATE_CHANGED;
@@ -349,7 +349,7 @@ net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
   {
     thd->get_stmt_da()->set_overwrite_status(true);
     error= write_eof_packet(thd, net, server_status, statement_warn_count);
-    if (!error)
+    if (likely(!error))
       error= net_flush(net);
     thd->get_stmt_da()->set_overwrite_status(false);
     DBUG_PRINT("info", ("EOF sent, so no more error sending allowed"));
@@ -393,7 +393,7 @@ static bool write_eof_packet(THD *thd, NET *net,
       because if 'is_fatal_error' is set the server is not going to execute
       other queries (see the if test in dispatch_command / COM_QUERY)
     */
-    if (thd->is_fatal_error)
+    if (unlikely(thd->is_fatal_error))
       server_status&= ~SERVER_MORE_RESULTS_EXISTS;
     int2store(buff + 3, server_status);
     error= my_net_write(net, buff, 5);
@@ -461,6 +461,17 @@ bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
   */
   if ((save_compress= net->compress))
     net->compress= 2;
+
+  /*
+    Sometimes, we send errors "out-of-band", e.g ER_CONNECTION_KILLED
+    on an idle connection. The current protocol "sequence number" is 0,
+    however some client drivers would however always   expect packets
+    coming from server to have seq_no > 0, due to missing awareness
+    of "out-of-band" operations. Make these clients happy.
+  */
+  if (!net->pkt_nr)
+   net->pkt_nr= 1;
+
   ret= net_write_command(net,(uchar) 255, (uchar*) "", 0, (uchar*) buff,
                          length);
   net->compress= save_compress;
@@ -590,7 +601,7 @@ void Protocol::end_statement()
                    thd->get_stmt_da()->skip_flush());
     break;
   }
-  if (!error)
+  if (likely(!error))
     thd->get_stmt_da()->set_is_sent(true);
   DBUG_VOID_RETURN;
 }
@@ -711,7 +722,7 @@ uchar *net_store_data(uchar *to, const uchar *from, size_t length)
 
 uchar *net_store_data(uchar *to,int32 from)
 {
-  char buff[20];
+  char buff[22];
   uint length=(uint) (int10_to_str(from,buff,10)-buff);
   to=net_store_length_fast(to,length);
   memcpy(to,buff,length);
@@ -990,7 +1001,7 @@ bool Protocol::send_result_set_row(List<Item> *row_items)
       DBUG_RETURN(TRUE);
     }
     /* Item::send() may generate an error. If so, abort the loop. */
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
       DBUG_RETURN(TRUE);
   }
 
@@ -1137,7 +1148,7 @@ bool Protocol_text::store_tiny(longlong from)
   DBUG_ASSERT(field_types == 0 || field_types[field_pos] == MYSQL_TYPE_TINY);
   field_pos++;
 #endif
-  char buff[20];
+  char buff[22];
   return net_store_data((uchar*) buff,
 			(size_t) (int10_to_str((int) from, buff, -10) - buff));
 }
@@ -1151,7 +1162,7 @@ bool Protocol_text::store_short(longlong from)
 	      field_types[field_pos] == MYSQL_TYPE_SHORT);
   field_pos++;
 #endif
-  char buff[20];
+  char buff[22];
   return net_store_data((uchar*) buff,
 			(size_t) (int10_to_str((int) from, buff, -10) -
                                   buff));
@@ -1166,7 +1177,7 @@ bool Protocol_text::store_long(longlong from)
               field_types[field_pos] == MYSQL_TYPE_LONG);
   field_pos++;
 #endif
-  char buff[20];
+  char buff[22];
   return net_store_data((uchar*) buff,
 			(size_t) (int10_to_str((long int)from, buff,
                                                (from <0)?-10:10)-buff));
@@ -1209,7 +1220,7 @@ bool Protocol_text::store(float from, uint32 decimals, String *buffer)
 	      field_types[field_pos] == MYSQL_TYPE_FLOAT);
   field_pos++;
 #endif
-  buffer->set_real((double) from, decimals, thd->charset());
+  Float(from).to_string(buffer, decimals);
   return net_store_data((uchar*) buffer->ptr(), buffer->length());
 }
 

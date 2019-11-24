@@ -35,10 +35,7 @@
 #############################################################
 
 SET @start_global_value = @@global.long_query_time;
-SELECT @start_global_value;
 SET @start_session_value = @@session.long_query_time;
-SELECT @start_session_value;
-
 
 --echo '#--------------------FN_DYNVARS_068_01-------------------------#'
 ###############################################################
@@ -47,24 +44,11 @@ SELECT @start_session_value;
 
 SET @@global.long_query_time = 100;
 SET @@global.long_query_time = DEFAULT;
-SELECT @@global.long_query_time;
+SELECT @@global.long_query_time >= 0;
 
 SET @@session.long_query_time = 200;
 SET @@session.long_query_time = DEFAULT;
-SELECT @@session.long_query_time;
-
-
---echo '#--------------------FN_DYNVARS_068_02-------------------------#'
-###############################################################
-#     Check the DEFAULT value of long_query_time              #
-###############################################################
-
-SET @@global.long_query_time = DEFAULT;
-SELECT @@global.long_query_time = 10;
-
-SET @@session.long_query_time = DEFAULT;
-SELECT @@session.long_query_time = 10;
-
+SELECT @@session.long_query_time >= 0;
 
 --echo '#--------------------FN_DYNVARS_068_03-------------------------#'
 #########################################################################
@@ -197,12 +181,7 @@ SELECT long_query_time = @@session.long_query_time;
 ####################################
 
 SET @@global.long_query_time = @start_global_value;
-SELECT @@global.long_query_time;
-SET @@session.long_query_time = @start_session_value;
-SELECT @@session.long_query_time;
-
 
 ####################################################
 #                 END OF long_query_time TESTS     #
 ####################################################
-

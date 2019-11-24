@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -28,6 +28,7 @@
 #include <sql_priv.h>
 #include "set_var.h"
 
+extern bool throw_bounds_warning(THD *thd, const char *name,const char *v);
 extern bool throw_bounds_warning(THD *thd, const char *name,
                                  bool fixed, bool is_unsigned, longlong v);
 extern bool throw_bounds_warning(THD *thd, const char *name, bool fixed,

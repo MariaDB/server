@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -225,7 +225,7 @@ mlog_write_initial_log_record_fast(
 	ut_ad(log_ptr);
 	ut_d(mtr->memo_modify_page(ptr));
 
-	page = (const byte*) ut_align_down(ptr, UNIV_PAGE_SIZE);
+	page = (const byte*) ut_align_down(ptr, srv_page_size);
 	space = mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	offset = mach_read_from_4(page + FIL_PAGE_OFFSET);
 

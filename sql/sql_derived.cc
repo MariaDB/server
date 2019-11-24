@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /*
@@ -93,6 +93,7 @@ mysql_handle_derived(LEX *lex, uint phases)
 	 sl= sl->next_select_in_list())
     {
       TABLE_LIST *cursor= sl->get_table_list();
+      sl->changed_elements|= TOUCHED_SEL_DERIVED;
       /*
         DT_MERGE_FOR_INSERT is not needed for views/derived tables inside
         subqueries. Views and derived tables of subqueries should be
@@ -178,6 +179,7 @@ mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
   if (!lex->derived_tables)
     DBUG_RETURN(FALSE);
 
+  derived->select_lex->changed_elements|= TOUCHED_SEL_DERIVED;
   lex->thd->derived_tables_processing= TRUE;
 
   for (uint phase= 0; phase < DT_PHASES; phase++)
@@ -199,36 +201,6 @@ mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
   }
   lex->thd->derived_tables_processing= FALSE;
   DBUG_RETURN(res);
-}
-
-
-/**
-  Run specified phases for derived tables/views in the given list
-
-  @param lex        LEX for this thread
-  @param table_list list of derived tables/view to handle
-  @param phase_map  phases to process tables/views through
-
-  @details
-  This function runs phases specified by the 'phases_map' on derived
-  tables/views found in the 'dt_list' with help of the
-  TABLE_LIST::handle_derived function.
-  'lex' is passed as an argument to the TABLE_LIST::handle_derived.
-
-  @return FALSE ok
-  @return TRUE  error
-*/
-
-bool
-mysql_handle_list_of_derived(LEX *lex, TABLE_LIST *table_list, uint phases)
-{
-  for (TABLE_LIST *tl= table_list; tl; tl= tl->next_local)
-  {
-    if (tl->is_view_or_derived() &&
-        tl->handle_derived(lex, phases))
-      return TRUE;
-  }
-  return FALSE;
 }
 
 
@@ -465,9 +437,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
       derived->prep_on_expr= expr->copy_andor_structure(thd);
     }
     if (derived->on_expr &&
-        ((!derived->on_expr->fixed &&
-          derived->on_expr->fix_fields(thd, &derived->on_expr)) ||
-          derived->on_expr->check_cols(1)))
+        derived->on_expr->fix_fields_if_needed_for_bool(thd, &derived->on_expr))
     {
       res= TRUE; /* purecov: inspected */
       goto exit_merge;
@@ -674,7 +644,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       table reference from a subquery for this.
     */
     DBUG_ASSERT(derived->with->get_sq_rec_ref());
-    if (mysql_derived_prepare(lex->thd, lex, derived->with->get_sq_rec_ref()))
+    if (unlikely(mysql_derived_prepare(lex->thd, lex,
+                                       derived->with->get_sq_rec_ref())))
       DBUG_RETURN(TRUE);
   }
 
@@ -698,7 +669,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                   &derived->alias, FALSE, FALSE, FALSE, 0);
     thd->create_tmp_table_for_derived= FALSE;
 
-    if (!res && !derived->table)
+    if (likely(!res) && !derived->table)
     {
       derived->derived_result->set_unit(unit);
       derived->table= derived->derived_result->table;
@@ -747,8 +718,6 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     }
   }
 
-  unit->derived= derived;
-
   /*
     Above cascade call of prepare is important for PS protocol, but after it
     is called we can check if we really need prepare for this derived
@@ -766,7 +735,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
   // st_select_lex_unit::prepare correctly work for single select
-  if ((res= unit->prepare(thd, derived->derived_result, 0)))
+  if ((res= unit->prepare(derived, derived->derived_result, 0)))
     goto exit;
   if (derived->with &&
       (res= derived->with->rename_columns_of_derived_unit(thd, unit)))
@@ -1109,6 +1078,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_ASSERT(derived->table && derived->table->is_created());
   select_unit *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
+  bool derived_recursive_is_filled= false;
 
   if (unit->executed && !derived_is_recursive &&
       (unit->uncacheable & UNCACHEABLE_DEPENDENT))
@@ -1137,6 +1107,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     {
       /* In this case all iteration are performed */
       res= derived->fill_recursive(thd);
+      derived_recursive_is_filled= true;
     }
   }
   else if (unit->is_unit_op())
@@ -1192,7 +1163,8 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     }
   }
 err:
-  if (res || (!lex->describe && !derived_is_recursive && !unit->uncacheable))
+  if (res || (!lex->describe && !unit->uncacheable &&
+              (!derived_is_recursive || derived_recursive_is_filled)))
     unit->cleanup();
   lex->current_select= save_current_select;
 
@@ -1436,4 +1408,3 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   thd->lex->current_select= save_curr_select;
   DBUG_RETURN(false);
 }
-

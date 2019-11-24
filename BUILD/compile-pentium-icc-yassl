@@ -14,7 +14,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 path=`dirname $0`
 . "$path/SETUP.sh"
@@ -34,7 +34,7 @@ extra_flags="$fast_cflags -unroll2 -ip -mp -restrict"
 # IPO link: can not find "-lstdc++_shared"
 # icpc: error: problem during multi-file optimization compilation (code 1)
 extra_flags="$extra_flags -no-ipo"
-base_cxxflags="-fno-exceptions -fno-rtti"
+base_cxxflags="-fno-exceptions"
 extra_configs="$pentium_configs $static_link --with-yassl"
 
 . "$path/FINISH.sh"

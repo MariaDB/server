@@ -1,0 +1,62 @@
+############# suite/sys_vars/t/innodb_log_optimize_ddl_basic.test #############
+#                                                                             #
+# Variable Name: innodb_log_optimize_ddl                                      #
+# Scope: Global                                                               #
+# Access Type: Dynamic                                                        #
+# Data Type: boolean                                                          #
+#                                                                             #
+# The variable was introduced by                                              #
+# MDEV-16809 Allow full redo logging for ALTER TABLE                          #
+#                                                                             #
+###############################################################################
+
+--source include/have_innodb.inc
+
+#### Reveal that the global innodb system variable exists
+SELECT COUNT(@@GLOBAL.innodb_log_optimize_ddl);
+--echo 1 Expected
+
+#### Reveal that no session innodb system variable exists
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.innodb_log_optimize_ddl);
+--echo Expected error 'Variable is a GLOBAL variable'
+
+SELECT @@GLOBAL.innodb_log_optimize_ddl INTO @innodb_log_optimize_ddl_save;
+#### Check if the value can be set
+SET @@GLOBAL.innodb_log_optimize_ddl = ON;
+SET @@GLOBAL.innodb_log_optimize_ddl = OFF;
+
+#### Check if disallowed values are refused
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@GLOBAL.innodb_log_optimize_ddl = 13;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@GLOBAL.innodb_log_optimize_ddl = 'ABC';
+
+#### Check if the initial value was in the range of supported values
+# We use 0 and 1 in order to avoid a warning.
+SELECT @@GLOBAL.innodb_log_optimize_ddl = 0
+    OR @@GLOBAL.innodb_log_optimize_ddl = 1 AS col;
+--echo 1 Expected
+
+#### Check if the value presented without GLOBAL point is the same
+SELECT @@innodb_log_optimize_ddl = @@GLOBAL.innodb_log_optimize_ddl AS col;
+--echo 1 Expected
+
+#### Show the value presented in information_schema and SHOW VARIABLES
+# We do not want to get and than maybe suppress the print of
+#     Warning 1292 Truncated incorrect DOUBLE value: 'OFF'
+# and so we simply print the value and do not compare.
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='innodb_log_optimize_ddl';
+SHOW VARIABLES WHERE VARIABLE_NAME='innodb_log_optimize_ddl';
+
+#### Show that variants with @@local. and without @@ do not exist.
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@local.innodb_log_optimize_ddl;
+--echo Expected error 'Variable is a GLOBAL variable'
+--Error ER_BAD_FIELD_ERROR
+SELECT innodb_log_optimize_ddl;
+
+#### Restore the initial value
+SET GLOBAL innodb_log_optimize_ddl = @innodb_log_optimize_ddl_save;
+

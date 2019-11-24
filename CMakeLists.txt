@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2017, MariaDB
+# Copyright (c) 2008, 2019, MariaDB Corporation.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -12,32 +12,24 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.3)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.7)
 
-# explicitly set the policy to OLD
-# (cannot use NEW, not everyone is on cmake-2.8.12 yet)
 IF(POLICY CMP0022)
-  CMAKE_POLICY(SET CMP0022 OLD)
-ENDIF()
-
-# We use the LOCATION target property (CMP0026)
-# and get_target_property() for non-existent targets (CMP0045)
-# and INSTALL_NAME_DIR (CMP0042)
-IF(CMAKE_VERSION VERSION_EQUAL "3.0.0" OR
-   CMAKE_VERSION VERSION_GREATER "3.0.0")
- CMAKE_POLICY(SET CMP0026 OLD)
- CMAKE_POLICY(SET CMP0045 OLD)
- CMAKE_POLICY(SET CMP0042 OLD)
+  CMAKE_POLICY(SET CMP0022 NEW)
 ENDIF()
 IF(POLICY CMP0054)
   CMAKE_POLICY(SET CMP0054 NEW)
 ENDIF()
+IF(POLICY CMP0075)
+  CMAKE_POLICY(SET CMP0075 NEW)
+ENDIF()
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 
-SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
+SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
+  ${CMAKE_SOURCE_DIR}/cmake ${CMAKE_SOURCE_DIR}/cmake/Internal/CPack)
 
 # Use a default manufacturer if no manufacturer was identified.
 IF(NOT DEFINED MANUFACTURER) 
@@ -166,7 +158,7 @@ INCLUDE(install_macros)
 INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
 INCLUDE(compile_flags)
-INCLUDE(crc32-vpmsum)
+INCLUDE(crc32)
 
 # Handle options
 OPTION(DISABLE_SHARED 
@@ -181,6 +173,12 @@ IF(UNIX)
 ENDIF()
 OPTION (WITH_UNIT_TESTS "Compile MySQL with unit tests" ON)
 
+IF (WITHOUT_SERVER)
+  SET (SKIP_COMPONENTS "Server|IniFiles|SuportFiles|Readme")
+ELSE()
+  SET (SKIP_COMPONENTS "N-O-N-E")
+ENDIF()
+
 OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
 
 INCLUDE(check_compiler_flag)
@@ -188,6 +186,8 @@ INCLUDE(check_compiler_flag)
 OPTION(WITH_ASAN "Enable address sanitizer" OFF)
 
 IF (WITH_ASAN AND NOT MSVC)
+  # this flag might be set by default on some OS
+  MY_CHECK_AND_SET_COMPILER_FLAG("-U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
   # gcc 4.8.1 and new versions of clang
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=address -fPIC"
     DEBUG RELWITHDEBINFO)
@@ -219,16 +219,29 @@ IF (WITH_TSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=thread" DEBUG RELWITHDEBINFO)
 ENDIF()
 
+OPTION(WITH_UBSAN "Enable undefined behavior sanitizer" OFF)
+IF (WITH_UBSAN)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=undefined -fno-sanitize=alignment -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
+ENDIF()
+
+OPTION(WITH_MSAN "Enable memory sanitizer" OFF)
+IF (WITH_MSAN)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
+ENDIF()
+
 IF(NOT WITH_TSAN)
   # enable security hardening features, like most distributions do
   # in our benchmarks that costs about ~1% of performance, depending on the load
-  IF(CMAKE_C_COMPILER_VERSION VERSION_LESS "4.6")
+  IF(CMAKE_C_COMPILER_VERSION VERSION_LESS "4.6" OR WITH_ASAN OR WITH_UBSAN)
     SET(security_default OFF)
   ELSE()
     SET(security_default ON)
   ENDIF()
   OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ${security_default})
   IF(SECURITY_HARDENED)
+    IF(WITH_ASAN OR WITH_UBSAN)
+      MESSAGE(FATAL_ERROR "WITH_ASAN/WITH_UBSAN and SECURITY_HARDENED are mutually exclusive")
+    ENDIF()
     # security-enhancing flags
     MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
     MY_CHECK_AND_SET_COMPILER_FLAG("-Wl,-z,relro,-z,now")
@@ -248,8 +261,14 @@ ENDIF()
 
 MY_CHECK_AND_SET_COMPILER_FLAG(-ggdb3 DEBUG)
 
-OPTION(ENABLED_LOCAL_INFILE
- "If we should should enable LOAD DATA LOCAL by default" ${IF_WIN})
+SET(ENABLED_LOCAL_INFILE "AUTO" CACHE STRING "If we should should enable LOAD DATA LOCAL by default (OFF/ON/AUTO)")
+IF (ENABLED_LOCAL_INFILE MATCHES "^(0|FALSE)$")
+  SET(ENABLED_LOCAL_INFILE OFF)
+ELSEIF(ENABLED_LOCAL_INFILE MATCHES "^(1|TRUE)$")
+  SET(ENABLED_LOCAL_INFILE ON)
+ELSEIF (NOT ENABLED_LOCAL_INFILE MATCHES "^(ON|OFF|AUTO)$")
+  MESSAGE(FATAL_ERROR "ENABLED_LOCAL_INFILE must be one of OFF, ON, AUTO")
+ENDIF()
 
 # Set DBUG_OFF and other optional release-only flags for non-debug project types
 FOREACH(BUILD_TYPE RELEASE RELWITHDEBINFO MINSIZEREL)
@@ -280,6 +299,16 @@ ELSEIF(WITH_SAFEMALLOC MATCHES "AUTO" AND NOT WIN32 AND NOT WITH_VALGRIND)
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DSAFEMALLOC")
 ENDIF()
 
+# Another memory debugging feature
+SET(TRASH_FREED_MEMORY "AUTO" CACHE STRING "Fill freed memory with specific byte pattern. Will result in slower execution. Options are: ON OFF AUTO.")
+MARK_AS_ADVANCED(TRASH_FREED_MEMORY)
+IF(TRASH_FREED_MEMORY MATCHES "ON")
+  ADD_DEFINITIONS( -DTRASH_FREED_MEMORY)
+ELSEIF(TRASH_FREED_MEMORY MATCHES "AUTO" AND NOT WIN32 AND NOT WITH_VALGRIND AND NOT WITH_ASAN)
+  SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DTRASH_FREED_MEMORY")
+  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DTRASH_FREED_MEMORY")
+ENDIF()
+
 # Set commonly used variables
 IF(WIN32)
   SET(DEFAULT_MYSQL_HOME "C:/Program Files/MariaDB ${MYSQL_BASE_VERSION}")
@@ -297,7 +326,7 @@ ELSE()
 ENDIF()
 SET(DEFAULT_CHARSET_HOME "${DEFAULT_MYSQL_HOME}")
 SET(PLUGINDIR "${DEFAULT_MYSQL_HOME}/${INSTALL_PLUGINDIR}")
-IF(INSTALL_SYSCONFDIR AND NOT DEFAULT_SYSCONFDIR)
+IF(INSTALL_SYSCONFDIR AND NOT DEFAULT_SYSCONFDIR AND NOT DEB)
   SET(DEFAULT_SYSCONFDIR "${INSTALL_SYSCONFDIR}")
 ENDIF()
 
@@ -340,6 +369,8 @@ MYSQL_CHECK_SSL()
 MYSQL_CHECK_READLINE()
 
 SET(MALLOC_LIBRARY "system")
+SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
+MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 CHECK_PCRE()
 
@@ -398,6 +429,7 @@ IF(NOT WITHOUT_SERVER)
   IF(WITH_EMBEDDED_SERVER) 
    ADD_SUBDIRECTORY(libmysqld)
    ADD_SUBDIRECTORY(libmysqld/examples)
+   ADD_SUBDIRECTORY(unittest/embedded)
   ENDIF(WITH_EMBEDDED_SERVER)
 
   IF(WITH_WSREP)
@@ -444,7 +476,7 @@ CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/include/mysql_version.h.in
 CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/sql/sql_builtin.cc.in
     ${CMAKE_BINARY_DIR}/sql/sql_builtin.cc)
 
-IF(GIT_EXECUTABLE)
+IF(GIT_EXECUTABLE AND EXISTS ${PROJECT_SOURCE_DIR}/.git)
   EXECUTE_PROCESS(
     COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
@@ -479,7 +511,7 @@ ADD_CUSTOM_TARGET(INFO_BIN ALL
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
-INSTALL_DOCUMENTATION(README.md CREDITS COPYING COPYING.thirdparty
+INSTALL_DOCUMENTATION(README.md CREDITS COPYING THIRDPARTY
                       EXCEPTIONS-CLIENT COMPONENT Readme)
 
 # MDEV-6526 these files are not installed anymore
@@ -489,6 +521,8 @@ INSTALL_DOCUMENTATION(README.md CREDITS COPYING COPYING.thirdparty
 IF(UNIX)
   INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY Docs/README-wsrep COMPONENT Readme)
 ENDIF()
+
+INCLUDE(build_depends)
 
 INCLUDE(CPack)
 
@@ -500,5 +534,5 @@ ENDIF()
 
 IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
-You have linked MariaDB with GPLv3 libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with Free Software Foundation.")
+You have linked MariaDB with ${NON_DISTRIBUTABLE_WARNING} libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with the Free Software Foundation.")
 ENDIF()

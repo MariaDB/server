@@ -1,0 +1,10 @@
+# xtrabackup backup
+# xtrabackup prepare
+DROP TABLE t;
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+SELECT * FROM t;
+i
+DROP TABLE t;

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 	/* Functions to compressed records */
 
@@ -810,7 +810,7 @@ static void (*get_unpack_function(MI_COLUMNDEF *rec))
     return &uf_varchar2;
   case FIELD_LAST:
   default:
-    return 0;			/* This should never happend */
+    return 0;			/* This should never happen */
   }
 }
 
@@ -1479,9 +1479,6 @@ static uint max_bit(register uint value)
 /*****************************************************************************
 	Some redefined functions to handle files when we are using memmap
 *****************************************************************************/
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 
 #ifdef HAVE_MMAP
 

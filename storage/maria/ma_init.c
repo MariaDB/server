@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Initialize an maria-database */
 
@@ -81,6 +81,7 @@ int maria_init(void)
 
 void maria_end(void)
 {
+  DBUG_ENTER("maria_end");
   if (maria_inited)
   {
     TrID trid;
@@ -111,6 +112,7 @@ void maria_end(void)
     mysql_mutex_destroy(&THR_LOCK_maria);
     my_hash_free(&maria_stored_state);
   }
+  DBUG_VOID_RETURN;
 }
 
 /**

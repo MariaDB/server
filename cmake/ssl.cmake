@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 # We support different versions of SSL:
 # - "bundled" uses source code in <source dir>/extra/yassl
@@ -159,12 +159,12 @@ MACRO (MYSQL_CHECK_SSL)
       SET(CMAKE_REQUIRED_LIBRARIES)
     ELSE()
       IF(WITH_SSL STREQUAL "system")
-        MESSAGE(SEND_ERROR "Cannot find appropriate system libraries for SSL. Use WITH_SSL=bundled to enable SSL support")
+        MESSAGE(FATAL_ERROR "Cannot find appropriate system libraries for SSL. Use WITH_SSL=bundled to enable SSL support")
       ENDIF()
       MYSQL_USE_BUNDLED_SSL()
     ENDIF()
   ELSE()
-    MESSAGE(SEND_ERROR
+    MESSAGE(FATAL_ERROR
       "Wrong option for WITH_SSL. Valid values are: ${WITH_SSL_DOC}")
   ENDIF()
 ENDMACRO()

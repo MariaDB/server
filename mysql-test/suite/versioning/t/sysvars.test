@@ -84,4 +84,6 @@ select * from t for system_time all;
 select * from t for system_time from '0-0-0' to current_timestamp(6);
 select * from t for system_time between '0-0-0' and current_timestamp(6);
 
+show status like "Feature_system_versioning";
+
 drop table t;

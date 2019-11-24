@@ -438,7 +438,7 @@ char *ARRAY::GetStringValue(int n)
 /***********************************************************************/
 bool ARRAY::Find(PVAL valp)
   {
-  register int n;
+  int n;
   PVAL     vp;
 
   if (Type != valp->GetType()) {
@@ -1042,7 +1042,7 @@ MULAR::MULAR(PGLOBAL g, int n) : CSORT(false)
 /***********************************************************************/
 int MULAR::Qcompare(int *i1, int *i2)
   {
-  register int i, n = 0;
+  int i, n = 0;
 
   for (i = 0; i < Narray; i++)
     if ((n = Pars[i]->Qcompare(i1, i2)))

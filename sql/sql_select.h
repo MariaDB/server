@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -241,7 +241,6 @@ struct SplM_plan_info;
 class SplM_opt_info;
 
 typedef struct st_join_table {
-  st_join_table() {}
   TABLE		*table;
   TABLE_LIST    *tab_list;
   KEYUSE	*keyuse;			/**< pointer to first used key */
@@ -263,8 +262,12 @@ typedef struct st_join_table {
   /*
     Pointer to the associated ON expression. on_expr_ref=!NULL except for
     degenerate joins. 
-    *on_expr_ref!=NULL for tables that are first inner tables within an outer
-    join.
+
+    Optimization phase: *on_expr_ref!=NULL for tables that are the single
+      tables on the inner side of the outer join (t1 LEFT JOIN t2 ON...)
+
+    Execution phase: *on_expr_ref!=NULL for tables that are first inner tables
+      within an outer join (which may have multiple tables)
   */
   Item	       **on_expr_ref;
   COND_EQUAL    *cond_equal;    /**< multiple equalities for the on expression */
@@ -470,7 +473,7 @@ typedef struct st_join_table {
   Window_funcs_computation* window_funcs_step;
 
   /**
-    List of topmost expressions in the select list. The *next* JOIN TAB
+    List of topmost expressions in the select list. The *next* JOIN_TAB
     in the plan should use it to obtain correct values. Same applicable to
     all_fields. These lists are needed because after tmp tables functions
     will be turned to fields. These variables are pointing to
@@ -655,7 +658,8 @@ typedef struct st_join_table {
   void add_keyuses_for_splitting();
   SplM_plan_info *choose_best_splitting(double record_count,
                                         table_map remaining_tables);
-  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables);
+  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables,
+                     bool is_const_table);
 } JOIN_TAB;
 
 
@@ -834,6 +838,7 @@ public:
   friend void best_access_path(JOIN      *join,
                                JOIN_TAB  *s,
                                table_map remaining_tables,
+                               const struct st_position *join_positions,
                                uint      idx,
                                bool      disable_jbuf,
                                double    record_count,
@@ -862,7 +867,7 @@ public:
   void set_empty()
   {
     sjm_scan_need_tables= 0;
-    LINT_INIT_STRUCT(sjm_scan_last_inner);
+    sjm_scan_last_inner= 0;
     is_used= FALSE;
   }
   void set_from_prev(struct st_position *prev);
@@ -1438,6 +1443,9 @@ public:
   
   enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE, QEP_DELETED} have_query_plan;
 
+  // if keep_current_rowid=true, whether they should be saved in temporary table
+  bool tmp_table_keep_current_rowid;
+
   /*
     Additional WHERE and HAVING predicates to be considered for IN=>EXISTS
     subquery transformation of a JOIN object.
@@ -1543,6 +1551,7 @@ public:
     pushdown_query= 0;
     original_join_tab= 0;
     explain= NULL;
+    tmp_table_keep_current_rowid= 0;
 
     all_fields= fields_arg;
     if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */
@@ -1570,6 +1579,15 @@ public:
   bool only_const_tables()  { return const_tables == table_count; }
   /* Number of tables actually joined at the top level */
   uint exec_join_tab_cnt() { return tables_list ? top_join_tab_count : 0; }
+
+  /*
+    Number of tables in the join which also includes the temporary tables
+    created for GROUP BY, DISTINCT , WINDOW FUNCTION etc.
+  */
+  uint total_join_tab_cnt()
+  {
+    return exec_join_tab_cnt() + aggr_tables - 1;
+  }
 
   int prepare(TABLE_LIST *tables, uint wind_num,
 	      COND *conds, uint og_num, ORDER *order, bool skip_order_by,
@@ -1767,6 +1785,7 @@ private:
   void cleanup_item_list(List<Item> &items) const;
   bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
+  bool add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *fields);
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};
@@ -2025,6 +2044,11 @@ protected:
   }
 };
 
+void best_access_path(JOIN *join, JOIN_TAB *s,
+                      table_map remaining_tables,
+                      const POSITION *join_positions, uint idx,
+                      bool disable_jbuf, double record_count,
+                      POSITION *pos, POSITION *loose_scan_pos);
 bool cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref);
 bool error_if_full_join(JOIN *join);
 int report_error(TABLE *table, int error);
@@ -2115,9 +2139,9 @@ public:
   static void operator delete(void *ptr, size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *, THD *) throw(){}
 
-  Virtual_tmp_table(THD *thd)
+  Virtual_tmp_table(THD *thd) : m_alloced_field_count(0)
   {
-    bzero(this, sizeof(*this));
+    reset();
     temp_pool_slot= MY_BIT_NONE;
     in_use= thd;
     copy_blobs= true;
@@ -2373,6 +2397,7 @@ int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table,
 #define RATIO_TO_PACK_ROWS	       2
 #define MIN_STRING_LENGTH_TO_PACK_ROWS   10
 
+void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group);
 TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
 			ORDER *group, bool distinct, bool save_sum_fields,
 			ulonglong select_options, ha_rows rows_limit,
@@ -2394,7 +2419,7 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
                            ulonglong options);
 bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
-double prev_record_reads(POSITION *positions, uint idx, table_map found_ref);
+double prev_record_reads(const POSITION *positions, uint idx, table_map found_ref);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
 double get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size);
 double get_tmp_table_write_cost(THD *thd, double row_count, uint row_size);

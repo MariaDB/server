@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Make sure to look at ha_tina.h for more details.
@@ -1788,7 +1788,7 @@ maria_declare_plugin(csv)
   &csv_storage_engine,
   "CSV",
   "Brian Aker, MySQL AB",
-  "CSV storage engine",
+  "Stores tables as CSV files",
   PLUGIN_LICENSE_GPL,
   tina_init_func, /* Plugin Init */
   tina_done_func, /* Plugin Deinit */

@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   This file defines the client API to MySQL and also the ABI of the
@@ -293,7 +293,7 @@ typedef struct st_mysql
 
   /* session-wide random string */
   char	        scramble[SCRAMBLE_LENGTH+1];
-  my_bool unused1;
+  my_bool       auto_local_infile;
   void *unused2, *unused3, *unused4, *unused5;
 
   LIST  *stmts;                     /* list of all statements */

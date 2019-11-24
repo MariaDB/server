@@ -71,7 +71,7 @@ connection default;
 set password for u1 = PASSWORD('SOMETHINGELSE');
 select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
 user	host	password	plugin	authentication_string
-u1	%	*054B7BBD2B9A553DA560520DCD3F76DA2D81B7C6		
+u1	%	*054B7BBD2B9A553DA560520DCD3F76DA2D81B7C6	mysql_native_password	*054B7BBD2B9A553DA560520DCD3F76DA2D81B7C6
 #
 # Here we should use the password field, as that primes over
 # the authentication_string field.
@@ -112,7 +112,7 @@ connection default;
 # Now we remove the authentication plugin password, flush privileges and
 # try again.
 #
-update mysql.user set authentication_string = '' where user='u1';
+update mysql.user set password=authentication_string, plugin='', authentication_string='' where user='u1';
 select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
 user	host	password	plugin	authentication_string
 u1	%	*054B7BBD2B9A553DA560520DCD3F76DA2D81B7C6		
@@ -172,7 +172,7 @@ connection default;
 set password for u1 = '';
 select user, host, password, plugin, authentication_string from mysql.user where user = 'u1';
 user	host	password	plugin	authentication_string
-u1	%			
+u1	%		mysql_native_password	
 #
 # Test no password connect.
 #

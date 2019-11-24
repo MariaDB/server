@@ -9,6 +9,7 @@
 # relay logs and binary logs are encrypted on slave.
 #
 
+--source include/have_partition.inc
 --source encryption_algorithms.inc
 --source include/have_innodb.inc
 

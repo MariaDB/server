@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* mysql command tool
  * Commands compatible with mSQL by David J. Hughes
@@ -40,6 +40,7 @@
 #include "my_readline.h"
 #include <signal.h>
 #include <violite.h>
+#include <my_sys.h>
 #include <source_revision.h>
 #if defined(USE_LIBEDIT_INTERFACE) && defined(HAVE_LOCALE_H)
 #include <locale.h>
@@ -1059,7 +1060,7 @@ extern "C" int write_history(const char *command);
 extern "C" HIST_ENTRY *history_get(int num);
 extern "C" int history_length;
 static int not_in_history(const char *line);
-static void initialize_readline (char *name);
+static void initialize_readline ();
 static void fix_history(String *final_command);
 #endif
 
@@ -1240,7 +1241,7 @@ int main(int argc,char *argv[])
   }
 
 #ifdef HAVE_READLINE
-  initialize_readline((char*) my_progname);
+  initialize_readline();
   if (!status.batch && !quick && !opt_html && !opt_xml)
   {
     /* read-history from file, default ~/.mysql_history*/
@@ -1493,7 +1494,7 @@ static struct my_option my_long_options[] =
   {"batch", 'B',
    "Don't use history file. Disable interactive behavior. (Enables --silent.)",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"binary-as-hex", 'b', "Print binary data as hex", &opt_binhex, &opt_binhex,
+  {"binary-as-hex", 0, "Print binary data as hex", &opt_binhex, &opt_binhex,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Directory for character set files.", &charsets_dir,
@@ -2667,10 +2668,11 @@ static int fake_magic_space(const char *, int)
 }
 
 
-static void initialize_readline (char *name)
+static void initialize_readline ()
 {
   /* Allow conditional parsing of the ~/.inputrc file. */
-  rl_readline_name = name;
+  rl_readline_name= (char *) "mysql";
+  rl_terminal_name= getenv("TERM");
 
   /* Tell the completer that we want a crack first. */
 #if defined(USE_NEW_READLINE_INTERFACE)
@@ -3786,9 +3788,10 @@ print_table_data_html(MYSQL_RES *result)
   MYSQL_FIELD	*field;
 
   mysql_field_seek(result,0);
-  (void) tee_fputs("<TABLE BORDER=1><TR>", PAGER);
+  (void) tee_fputs("<TABLE BORDER=1>", PAGER);
   if (column_names)
   {
+    (void) tee_fputs("<TR>", PAGER);
     while((field = mysql_fetch_field(result)))
     {
       tee_fputs("<TH>", PAGER);
@@ -4205,8 +4208,7 @@ com_edit(String *buffer,char *line __attribute__((unused)))
   const char *editor;
   MY_STAT stat_arg;
 
-  if ((fd=create_temp_file(filename,NullS,"sql", O_CREAT | O_WRONLY,
-			   MYF(MY_WME))) < 0)
+  if ((fd= create_temp_file(filename,NullS,"sql", 0, MYF(MY_WME))) < 0)
     goto err;
   if (buffer->is_empty() && !old_buffer.is_empty())
     (void) my_write(fd,(uchar*) old_buffer.ptr(),old_buffer.length(),
@@ -4697,7 +4699,8 @@ sql_real_connect(char *host,char *database,char *user,char *password,
 	    select_limit,max_join_size);
     mysql_options(&mysql, MYSQL_INIT_COMMAND, init_command);
   }
-
+  if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
+    default_charset= (char *)my_default_csname();
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
 
   if (!do_connect(&mysql, host, user, password, database,

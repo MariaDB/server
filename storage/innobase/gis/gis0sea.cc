@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -137,7 +137,7 @@ rtr_pcur_getnext_from_path(
 	if (!index_locked) {
 		ut_ad(latch_mode & BTR_SEARCH_LEAF
 		      || latch_mode & BTR_MODIFY_LEAF);
-		mtr_s_lock(dict_index_get_lock(index), mtr);
+		mtr_s_lock_index(index, mtr);
 	} else {
 		ut_ad(mtr_memo_contains_flagged(mtr, &index->lock,
 						MTR_MEMO_SX_LOCK
@@ -257,9 +257,8 @@ rtr_pcur_getnext_from_path(
 		rtr_info->tree_savepoints[tree_idx] = mtr_set_savepoint(mtr);
 
 #ifdef UNIV_RTR_DEBUG
-		ut_ad(!(rw_lock_own(&btr_cur->page_cur.block->lock, RW_LOCK_X)
-			||
-			rw_lock_own(&btr_cur->page_cur.block->lock, RW_LOCK_S))
+		ut_ad(!(rw_lock_own_flagged(&btr_cur->page_cur.block->lock,
+					    RW_LOCK_FLAG_X | RW_LOCK_FLAG_S))
 			|| my_latch_mode == BTR_MODIFY_TREE
 			|| my_latch_mode == BTR_CONT_MODIFY_TREE
 			|| !page_is_leaf(buf_block_get_frame(
@@ -269,7 +268,7 @@ rtr_pcur_getnext_from_path(
 		dberr_t err = DB_SUCCESS;
 
 		block = buf_page_get_gen(
-			page_id_t(index->table->space->id,
+			page_id_t(index->table->space_id,
 				  next_rec.page_no), page_size,
 			rw_latch, NULL, BUF_GET, __FILE__, __LINE__, mtr, &err);
 
@@ -289,7 +288,7 @@ rtr_pcur_getnext_from_path(
 		Note that we have SX lock on index->lock, there
 		should not be any split/shrink happening here */
 		if (page_ssn > path_ssn) {
-			ulint next_page_no = btr_page_get_next(page, mtr);
+			uint32_t next_page_no = btr_page_get_next(page);
 			rtr_non_leaf_stack_push(
 				rtr_info->path, next_page_no, path_ssn,
 				level, 0, NULL, 0);
@@ -299,7 +298,7 @@ rtr_pcur_getnext_from_path(
 			    && mode != PAGE_CUR_RTREE_LOCATE) {
 				ut_ad(rtr_info->thr);
 				lock_place_prdt_page_lock(
-					index->table->space->id,
+					index->table->space_id,
 					next_page_no, index,
 					rtr_info->thr);
 			}
@@ -390,8 +389,7 @@ rtr_pcur_getnext_from_path(
 		if (mode != PAGE_CUR_RTREE_INSERT
 		    && mode != PAGE_CUR_RTREE_LOCATE
 		    && mode >= PAGE_CUR_CONTAIN
-		    && btr_cur->rtr_info->need_prdt_lock
-		    && found) {
+		    && btr_cur->rtr_info->need_prdt_lock) {
 			lock_prdt_t	prdt;
 
 			trx_t*		trx = thr_get_trx(
@@ -407,8 +405,7 @@ rtr_pcur_getnext_from_path(
 			}
 
 			lock_prdt_lock(block, &prdt, index, LOCK_S,
-				       LOCK_PREDICATE, btr_cur->rtr_info->thr,
-				       mtr);
+				       LOCK_PREDICATE, btr_cur->rtr_info->thr);
 
 			if (rw_latch == RW_NO_LATCH) {
 				rw_lock_s_unlock(&(block->lock));
@@ -425,7 +422,7 @@ rtr_pcur_getnext_from_path(
 
 					btr_cur_latch_leaves(
 						block,
-						page_id_t(index->table->space->id,
+						page_id_t(index->table->space_id,
 							  block->page.id.page_no()),
 						page_size, BTR_MODIFY_TREE,
 						btr_cur, mtr);
@@ -729,7 +726,7 @@ rtr_page_get_father_node_ptr(
 	rtr_get_mbr_from_rec(user_rec, offsets, &mbr);
 
 	tuple = rtr_index_build_node_ptr(
-			index, &mbr, user_rec, page_no, heap, level);
+		index, &mbr, user_rec, page_no, heap);
 
 	if (sea_cur && !sea_cur->rtr_info) {
 		sea_cur = NULL;
@@ -775,7 +772,7 @@ rtr_page_get_father_node_ptr(
 		error << ". You should dump + drop + reimport the table to"
 			" fix the corruption. If the crash happens at"
 			" database startup, see "
-			"https://mariadb.com/kb/en/library/xtradbinnodb-recovery-modes/"
+			"https://mariadb.com/kb/en/library/innodb-recovery-modes/"
 			" about forcing"
 			" recovery. Then dump + drop + reimport.";
 	}
@@ -1363,7 +1360,7 @@ search_again:
 	dberr_t err = DB_SUCCESS;
 
 	block = buf_page_get_gen(
-		page_id_t(index->table->space->id, page_no),
+		page_id_t(index->table->space_id, page_no),
 		page_size, RW_X_LATCH, NULL,
 		BUF_GET, __FILE__, __LINE__, mtr, &err);
 
@@ -1408,7 +1405,7 @@ search_again:
 	/* Check the page SSN to see if it has been splitted, if so, search
 	the right page */
 	if (!ret && page_ssn > path_ssn) {
-		page_no = btr_page_get_next(page, mtr);
+		page_no = btr_page_get_next(page);
 		goto search_again;
 	}
 
@@ -1454,7 +1451,7 @@ rtr_leaf_push_match_rec(
 	data_len = rec_offs_data_size(offsets) + rec_offs_extra_size(offsets);
 	match_rec->used += data_len;
 
-	ut_ad(match_rec->used < UNIV_PAGE_SIZE);
+	ut_ad(match_rec->used < srv_page_size);
 }
 
 /**************************************************************//**
@@ -1548,7 +1545,7 @@ rtr_copy_buf(
 	will be copied. It is also undefined what will happen with the
 	newly memcpy()ed mutex if the source mutex was acquired by
 	(another) thread while it was copied. */
-	memcpy(&matches->block.page, &block->page, sizeof(buf_page_t));
+	new (&matches->block.page) buf_page_t(block->page);
 	matches->block.frame = block->frame;
 	matches->block.unzip_LRU = block->unzip_LRU;
 
@@ -1632,15 +1629,13 @@ rtr_get_mbr_from_tuple(
 {
 	const dfield_t* dtuple_field;
         ulint           dtuple_f_len;
-	byte*		data;
 
 	dtuple_field = dtuple_get_nth_field(dtuple, 0);
 	dtuple_f_len = dfield_get_len(dtuple_field);
 	ut_a(dtuple_f_len >= 4 * sizeof(double));
 
-	data = static_cast<byte*>(dfield_get_data(dtuple_field));
-
-	rtr_read_mbr(data, mbr);
+	rtr_read_mbr(static_cast<const byte*>(dfield_get_data(dtuple_field)),
+		     mbr);
 }
 
 /****************************************************************//**

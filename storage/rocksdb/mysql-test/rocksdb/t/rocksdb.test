@@ -1,5 +1,6 @@
 --source include/have_rocksdb.inc
 --source include/have_partition.inc
+--source include/have_write_committed.inc
 
 #
 # RocksDB Storage Engine tests
@@ -574,7 +575,6 @@ insert into t30 values
   ('row3', 'row3-key', 'row3-data'),
   ('row4', 'row4-key', 'row4-data'),
   ('row5', 'row5-key', 'row5-data');
-analyze table t30;
 
 --replace_column 9 #
 explain 
@@ -786,11 +786,15 @@ drop table t45;
 --echo # Now it fails if there is data overlap with what
 --echo # already exists
 --echo #
+# We exclude rocksdb_max_open_files here because it value is dependent on
+# the value of the servers open_file_limit and is expected to be different
+# across distros and installs
 
 --replace_regex /[a-f0-9]{40}/#/
 show variables 
 where 
   variable_name like 'rocksdb%' and 
+  variable_name not like 'rocksdb_max_open_files' and
   variable_name not like 'rocksdb_supported_compression_types';
 
 create table t47 (pk int primary key, col1 varchar(12)) engine=rocksdb;
@@ -1110,7 +1114,7 @@ update t1 set a = sleep(100) where pk = 1;
 
 --connect (con1,localhost,root,,)
 
-let $wait_condition= select State='User sleep' from information_schema.processlist where id=$con_id;
+let $wait_condition= select State='User sleep' from information_schema.processlist where id=$con_id/* or srv_id=$con_id*/;
 --source include/wait_condition.inc
 
 --echo kill query \$con_id;
@@ -1147,7 +1151,7 @@ set @a=-1;
 insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables limit 100;
 set @tmp1= @@rocksdb_max_row_locks;
 set rocksdb_max_row_locks= 20;
---error ER_RDB_STATUS_GENERAL
+--error ER_GET_ERRMSG 
 update t1 set a=a+10;
 DROP TABLE t1;
 
@@ -1203,7 +1207,7 @@ drop table t1;
 create table t1 (i int primary key auto_increment) engine=RocksDB;
 
 insert into t1 values (null),(null);
---replace_column 7 #
+--replace_column 7 # 12 # 13 #
 show table status like 't1';
 drop table t1;
 
@@ -1247,14 +1251,15 @@ drop table t0, t1;
 
 --echo #
 --echo # Check status variables
+--echo # NOTE: We exclude rocksdb_num_get_for_update_calls because it's a debug only status var
 --echo #
 --replace_column 2 #
-show status like 'rocksdb%';
+show status where variable_name like 'rocksdb%' and variable_name not like '%num_get_for_update%';
 
-select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%';
+select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%' and VARIABLE_NAME NOT LIKE '%num_get_for_update%';
 --echo # RocksDB-SE's status variables are global internally 
 --echo #  but they are shown as both session and global, like InnoDB's status vars.
-select VARIABLE_NAME from INFORMATION_SCHEMA.session_status where VARIABLE_NAME LIKE 'rocksdb%';
+select VARIABLE_NAME from INFORMATION_SCHEMA.session_status where VARIABLE_NAME LIKE 'rocksdb%' and VARIABLE_NAME NOT LIKE '%num_get_for_update%';
 
 
 --echo #
@@ -1909,11 +1914,13 @@ DROP TABLE t1;
 # value is 4 while MyRocks will show it as 3.
 CREATE TABLE t1(a INT AUTO_INCREMENT KEY);
 INSERT INTO t1 VALUES(0),(-1),(0);
+--replace_column 12 # 13 #
 SHOW TABLE STATUS LIKE 't1';
 SELECT * FROM t1;
 DROP TABLE t1;
 CREATE TABLE t1(a INT AUTO_INCREMENT KEY);
 INSERT INTO t1 VALUES(0),(10),(0);
+--replace_column 12 # 13 #
 SHOW TABLE STATUS LIKE 't1';
 SELECT * FROM t1;
 DROP TABLE t1;

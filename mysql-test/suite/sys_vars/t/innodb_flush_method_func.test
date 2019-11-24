@@ -1,0 +1,26 @@
+--source include/have_innodb.inc
+# Embedded server tests do not support restarting.
+--source include/not_embedded.inc
+
+call mtr.add_suppression("InnoDB: Failed to set .*DIRECT");
+--replace_result unbuffered fsync
+select @@innodb_flush_method;
+
+create table t(a serial) engine=innodb;
+
+# kill and restart
+FLUSH TABLES;
+let $shutdown_timeout= 0;
+let $restart_parameters=--innodb-flush-method=5;
+--source include/restart_mysqld.inc
+select @@innodb_flush_method;
+
+insert into t values(0);
+# kill and restart
+FLUSH TABLES;
+let $shutdown_timeout= 0;
+let $restart_parameters=--innodb-flush-method=0;
+--source include/restart_mysqld.inc
+select @@innodb_flush_method;
+
+drop table t;

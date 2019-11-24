@@ -13,6 +13,8 @@ select a , invisible from t1;
 --error ER_BAD_FIELD_ERROR
 insert into t1(a, invisible) values(99,99);
 --error ER_BAD_FIELD_ERROR
+select default(invisible) from t1;
+--error ER_BAD_FIELD_ERROR
 insert into t1(invisible) values(99);
 insert into t_tmp select a, invisible from t1;
 --error ER_WRONG_VALUE_COUNT_ON_ROW
@@ -270,3 +272,18 @@ explain select * from t1 where invisible =9;
 show indexes in t1;
 drop table t1;
 set @old_debug= @@debug_dbug;
+## MDEV 15127
+CREATE TABLE t1 (i INT );
+SET debug_dbug="+d,test_completely_invisible,test_invisible_index";
+CREATE TABLE t2 LIKE t1;
+SET debug_dbug= DEFAULT;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-20210
+--echo # If you have an INVISIBLE VIRTUAL column, SHOW CREATE TABLE doesn't list it as INVISIBLE
+--echo #
+
+CREATE TABLE t1 (i INT, v int GENERATED ALWAYS AS (1) VIRTUAL INVISIBLE);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

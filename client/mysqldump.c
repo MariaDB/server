@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 /* mysqldump.c  - Dump a tables contents and format to an ASCII file
@@ -39,7 +39,7 @@
 ** 10 Jun 2003: SET NAMES and --no-set-names by Alexander Barkov
 */
 
-#define DUMP_VERSION "10.16"
+#define DUMP_VERSION "10.17"
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -979,6 +979,10 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       exit(1);
     }
     break;
+  case (int) OPT_DEFAULT_CHARSET:
+    if (default_charset == disabled_my_option)
+      default_charset= (char *)mysql_universal_client_charset;
+    break;
   }
   return 0;
 }
@@ -1077,7 +1081,7 @@ static int get_options(int *argc, char ***argv)
 	    my_progname_short);
     return(EX_USAGE);
   }
-  if (strcmp(default_charset, charset_info->csname) &&
+  if (strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME) &&
       !(charset_info= get_charset_by_csname(default_charset,
                                             MY_CS_PRIMARY, MYF(MY_WME))))
     exit(1);
@@ -1541,6 +1545,9 @@ static int switch_character_set_results(MYSQL *mysql, const char *cs_name)
 {
   char query_buffer[QUERY_LENGTH];
   size_t query_length;
+
+  if (!strcmp(cs_name, MYSQL_AUTODETECT_CHARSET_NAME))
+    cs_name= (char *)my_default_csname();
 
   /* Server lacks facility.  This is not an error, by arbitrary decision . */
   if (!server_supports_switching_charsets)
@@ -2141,7 +2148,7 @@ static void print_xml_row(FILE *xml_file, const char *row_name,
       {
         create_stmt_ptr= (*row)[i];
         create_stmt_len= lengths[i];
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
         body_found= 1;
 #endif
       }
@@ -2514,13 +2521,15 @@ static uint dump_routines_for_db(char *db)
                                      "Create Package Body"};
   char       db_name_buff[NAME_LEN*2+3], name_buff[NAME_LEN*2+3];
   char       *routine_name;
-  int        i;
+  uint       i;
   FILE       *sql_file= md_result_file;
   MYSQL_ROW  row, routine_list_row;
 
   char       db_cl_name[MY_CS_NAME_SIZE];
   int        db_cl_altered= FALSE;
-
+  // before 10.3 packages are not supported
+  uint upper_bound= mysql_get_server_version(mysql) >= 100300 ?
+                    array_elements(routine_type) : 2;
   DBUG_ENTER("dump_routines_for_db");
   DBUG_PRINT("enter", ("db: '%s'", db));
 
@@ -2550,7 +2559,7 @@ static uint dump_routines_for_db(char *db)
     fputs("\t<routines>\n", sql_file);
 
   /* 0, retrieve and dump functions, 1, procedures, etc. */
-  for (i= 0; i < 4; i++)
+  for (i= 0; i < upper_bound; i++)
   {
     my_snprintf(query_buff, sizeof(query_buff),
                 "SHOW %s STATUS WHERE Db = '%s'",
@@ -3322,7 +3331,7 @@ static void dump_trigger_old(FILE *sql_file, MYSQL_RES *show_triggers_rs,
 
   char name_buff[NAME_LEN * 4 + 3];
   const char *xml_msg= "\nWarning! mysqldump being run against old server "
-                       "that does not\nsupport 'SHOW CREATE TRIGGERS' "
+                       "that does not\nsupport 'SHOW CREATE TRIGGER' "
                        "statement. Skipping..\n";
 
   DBUG_ENTER("dump_trigger_old");
@@ -3481,12 +3490,14 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
 
   char       db_cl_name[MY_CS_NAME_SIZE];
   int        ret= TRUE;
+  /* Servers below 5.1.21 do not support SHOW CREATE TRIGGER */
+  const int  use_show_create_trigger= mysql_get_server_version(mysql) >= 50121;
 
   DBUG_ENTER("dump_triggers_for_table");
   DBUG_PRINT("enter", ("db: %s, table_name: %s", db_name, table_name));
 
-  if (path && !(sql_file= open_sql_file_for_table(table_name,
-                                                  O_WRONLY | O_APPEND)))
+  if (path &&
+      !(sql_file= open_sql_file_for_table(table_name, O_WRONLY | O_APPEND)))
     DBUG_RETURN(1);
 
   /* Do not use ANSI_QUOTES on triggers in dump */
@@ -3502,11 +3513,15 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
 
   /* Get list of triggers. */
 
-  my_snprintf(query_buff, sizeof(query_buff),
-              "SELECT TRIGGER_NAME FROM INFORMATION_SCHEMA.TRIGGERS "
-              "WHERE EVENT_OBJECT_SCHEMA = DATABASE() AND "
-              "EVENT_OBJECT_TABLE = %s",
-              quote_for_equal(table_name, name_buff));
+  if (use_show_create_trigger)
+    my_snprintf(query_buff, sizeof(query_buff),
+                "SELECT TRIGGER_NAME FROM INFORMATION_SCHEMA.TRIGGERS "
+                "WHERE EVENT_OBJECT_SCHEMA = DATABASE() AND "
+                "EVENT_OBJECT_TABLE = %s",
+                quote_for_equal(table_name, name_buff));
+  else
+    my_snprintf(query_buff, sizeof(query_buff), "SHOW TRIGGERS LIKE %s",
+                quote_for_like(table_name, name_buff));
 
   if (mysql_query_with_error_report(mysql, &show_triggers_rs, query_buff))
     goto done;
@@ -3522,35 +3537,28 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
 
   while ((row= mysql_fetch_row(show_triggers_rs)))
   {
-
-    my_snprintf(query_buff, sizeof (query_buff),
-                "SHOW CREATE TRIGGER %s",
-                quote_name(row[0], name_buff, TRUE));
-
-    if (mysql_query(mysql, query_buff))
+    if (use_show_create_trigger)
     {
-      /*
-        mysqldump is being run against old server, that does not support
-        SHOW CREATE TRIGGER statement. We should use SHOW TRIGGERS output.
+      MYSQL_RES *show_create_trigger_rs;
 
-        NOTE: the dump may be incorrect, as old SHOW TRIGGERS does not
-        provide all the necessary information to restore trigger properly.
-      */
+      my_snprintf(query_buff, sizeof (query_buff), "SHOW CREATE TRIGGER %s",
+                  quote_name(row[0], name_buff, TRUE));
 
-      dump_trigger_old(sql_file, show_triggers_rs, &row, table_name);
+      if (mysql_query_with_error_report(mysql, &show_create_trigger_rs,
+                                        query_buff))
+        goto done;
+      else
+      {
+        int error= (!show_create_trigger_rs ||
+                    dump_trigger(sql_file, show_create_trigger_rs, db_name,
+                                 db_cl_name));
+        mysql_free_result(show_create_trigger_rs);
+        if (error)
+          goto done;
+      }
     }
     else
-    {
-      MYSQL_RES *show_create_trigger_rs= mysql_store_result(mysql);
-
-      int error= (!show_create_trigger_rs ||
-                  dump_trigger(sql_file, show_create_trigger_rs, db_name,
-                               db_cl_name));
-      mysql_free_result(show_create_trigger_rs);
-      if (error)
-        goto done;
-    }
-    
+      dump_trigger_old(sql_file, show_triggers_rs, &row, table_name);
   }
 
   if (opt_xml)
@@ -4298,7 +4306,8 @@ static int dump_tablespaces(char* ts_where)
                       " EXTRA"
                       " FROM INFORMATION_SCHEMA.FILES"
                       " WHERE FILE_TYPE = 'UNDO LOG'"
-                      " AND FILE_NAME IS NOT NULL",
+                      " AND FILE_NAME IS NOT NULL"
+                      " AND LOGFILE_GROUP_NAME IS NOT NULL",
                       256, 1024);
   if(ts_where)
   {
@@ -4313,7 +4322,7 @@ static int dump_tablespaces(char* ts_where)
   }
   dynstr_append_checked(&sqlbuf,
                 " GROUP BY LOGFILE_GROUP_NAME, FILE_NAME"
-                ", ENGINE"
+                ", ENGINE, TOTAL_EXTENTS, INITIAL_SIZE"
                 " ORDER BY LOGFILE_GROUP_NAME");
 
   if (mysql_query(mysql, sqlbuf.str) ||
@@ -5090,6 +5099,14 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   if (opt_xml)
     print_xml_tag(md_result_file, "", "\n", "database", "name=", db, NullS);
 
+
+  /* obtain dump of routines (procs/functions) */
+  if (opt_routines && mysql_get_server_version(mysql) >= 50009)
+  {
+    DBUG_PRINT("info", ("Dumping routines for database %s", db));
+    dump_routines_for_db(db);
+  }
+
   if (opt_single_transaction && mysql_get_server_version(mysql) >= 50500)
   {
     verbose_msg("-- Setting savepoint...\n");
@@ -5099,7 +5116,6 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
       DBUG_RETURN(1);
     }
   }
-
   /* Dump each selected table */
   for (pos= dump_tables; pos < end; pos++)
   {
@@ -5160,12 +5176,6 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   {
     DBUG_PRINT("info", ("Dumping events for database %s", db));
     dump_events_for_db(db);
-  }
-  /* obtain dump of routines (procs/functions) */
-  if (opt_routines && mysql_get_server_version(mysql) >= 50009)
-  {
-    DBUG_PRINT("info", ("Dumping routines for database %s", db));
-    dump_routines_for_db(db);
   }
   free_root(&glob_root, MYF(0));
   if (opt_xml)

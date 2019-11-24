@@ -1,0 +1,17 @@
+source include/have_innodb.inc;
+
+#
+# MDEV-20354 All but last insert ignored in InnoDB tables when table locked
+#
+rename table mysql.table_stats to mysql.table_stats_save;
+flush tables;
+set use_stat_tables= PREFERABLY;
+create table t1 (a int) engine=InnoDB;
+start transaction;
+insert t1 values (1);
+insert t1 values (2);
+commit;
+select * from t1;
+drop table t1;
+rename table mysql.table_stats_save to mysql.table_stats;
+flush tables;

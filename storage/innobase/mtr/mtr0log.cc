@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -98,7 +98,11 @@ mlog_parse_initial_log_record(
 	}
 
 	*type = mlog_id_t(*ptr & ~MLOG_SINGLE_REC_FLAG);
-	ut_ad(*type <= MLOG_BIGGEST_TYPE || EXTRA_CHECK_MLOG_NUMBER(*type));
+	if (UNIV_UNLIKELY(*type > MLOG_BIGGEST_TYPE
+			  && !EXTRA_CHECK_MLOG_NUMBER(*type))) {
+		recv_sys->found_corrupt_log = true;
+		return NULL;
+	}
 
 	ptr++;
 
@@ -144,7 +148,7 @@ mlog_parse_nbytes(
 	offset = mach_read_from_2(ptr);
 	ptr += 2;
 
-	if (offset >= UNIV_PAGE_SIZE) {
+	if (offset >= srv_page_size) {
 		recv_sys->found_corrupt_log = TRUE;
 
 		return(NULL);
@@ -312,7 +316,7 @@ mlog_write_string(
 	mtr_t*		mtr)	/*!< in: mini-transaction handle */
 {
 	ut_ad(ptr && mtr);
-	ut_a(len < UNIV_PAGE_SIZE);
+	ut_a(len < srv_page_size);
 
 	memcpy(ptr, str, len);
 
@@ -332,7 +336,7 @@ mlog_log_string(
 	byte*	log_ptr;
 
 	ut_ad(ptr && mtr);
-	ut_ad(len <= UNIV_PAGE_SIZE);
+	ut_ad(len <= srv_page_size);
 
 	log_ptr = mlog_open(mtr, 30);
 
@@ -383,7 +387,7 @@ mlog_parse_string(
 	len = mach_read_from_2(ptr);
 	ptr += 2;
 
-	if (offset >= UNIV_PAGE_SIZE || len + offset > UNIV_PAGE_SIZE) {
+	if (offset >= srv_page_size || len + offset > srv_page_size) {
 		recv_sys->found_corrupt_log = TRUE;
 
 		return(NULL);
@@ -504,8 +508,8 @@ mlog_open_and_write_index(
 			}
 			if (log_ptr + 2 > log_end) {
 				mlog_close(mtr, log_ptr);
-				ut_a(total > (ulint) (log_ptr - log_start));
-				total -= log_ptr - log_start;
+				ut_a(total > ulint(log_ptr - log_start));
+				total -= ulint(log_ptr - log_start);
 				alloc = std::min(
 					total,
 					ulint(mtr_buf_t::MAX_DATA_SIZE));
@@ -631,7 +635,7 @@ mlog_parse_index(
 				ind->get_n_nullable(n_core_fields));
 		} else {
 			ind->n_core_null_bytes = UT_BITS_IN_BYTES(
-				ind->n_nullable);
+				unsigned(ind->n_nullable));
 			ind->n_core_fields = ind->n_fields;
 		}
 	}

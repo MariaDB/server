@@ -1,6 +1,7 @@
-SET @start_global_value = @@global.ROCKSDB_STRICT_COLLATION_EXCEPTIONS;
-DROP TABLE IF EXISTS t1;
+call mtr.add_suppression("Invalid pattern");
 CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text) engine=rocksdb charset utf8;
+ALTER TABLE t1 ADD INDEX (value);
+ERROR HY000: Unsupported collation on string indexed column test.t1.value Use binary collation (binary, latin1_bin, utf8_bin).
 DROP TABLE t1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value)) engine=rocksdb charset utf8;
 ERROR HY000: Unsupported collation on string indexed column test.t1.value Use binary collation (latin1_bin, binary, utf8_bin).
@@ -13,6 +14,7 @@ SET GLOBAL rocksdb_strict_collation_check=1;
 CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value2)) engine=rocksdb charset utf8;
 DROP TABLE t1;
 CREATE TABLE t1 (id varchar(20), value varchar(50), value2 varchar(50), value3 text, primary key (id), index(value, value2)) engine=rocksdb charset latin1 collate latin1_bin;
+ALTER TABLE t1 collate=latin1_general_ci;
 DROP TABLE t1;
 CREATE TABLE t1 (id varchar(20), value varchar(50), value2 varchar(50), value3 text, primary key (id), index(value, value2)) engine=rocksdb charset utf8 collate utf8_bin;
 DROP TABLE t1;
@@ -127,4 +129,16 @@ CREATE TABLE abcd (id INT PRIMARY KEY, value varchar(50), index(value)) engine=r
 ERROR HY000: Unsupported collation on string indexed column test.abcd.value Use binary collation (latin1_bin, binary, utf8_bin).
 DROP TABLE abc;
 SET GLOBAL rocksdb_strict_collation_exceptions=null;
-SET GLOBAL rocksdb_strict_collation_exceptions=@start_global_value;
+SET GLOBAL rocksdb_strict_collation_check=1;
+CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value)) engine=rocksdb charset utf8;
+Warnings:
+Warning	1210	Unsupported collation on string indexed column test.t1.value Use binary collation (binary, latin1_bin, utf8_bin).
+DROP TABLE t1;
+CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text) engine=rocksdb charset utf8;
+ALTER TABLE t1 ADD INDEX (value);
+Warnings:
+Warning	1210	Unsupported collation on string indexed column test.t1.value Use binary collation (binary, latin1_bin, utf8_bin).
+DROP TABLE t1;
+CREATE TABLE t1 (id varchar(20), value varchar(50), value2 varchar(50), value3 text, primary key (id), index(value, value2)) engine=rocksdb charset latin1 collate latin1_bin;
+ALTER TABLE t1 collate=latin1_general_ci;
+DROP TABLE t1;

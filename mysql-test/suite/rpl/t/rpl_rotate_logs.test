@@ -193,4 +193,8 @@ show binlog events in '';
 purge master logs before now();
 
 --echo End of 5.0 tests
+--echo #cleanup
+
+--remove_file $MYSQLD_SLAVE_DATADIR/master.info
 --source include/stop_slave.inc
+reset slave all;

@@ -151,8 +151,7 @@ remove_file $MYSQLTEST_VARDIR/tmp/master.sql;
 --exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ --stop-position=$stop_position --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001
 
 --echo --- Test 4 Second Remote test --
---exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 > $MYSQLTEST_VARDIR/tmp/remote.sql
---exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000002 >> $MYSQLTEST_VARDIR/tmp/remote.sql
+--exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT --to-last-log master-bin.000001 > $MYSQLTEST_VARDIR/tmp/remote.sql
 
 # Now that we have our file, lets get rid of the current database.
 # Cleanup the master and the slave and try to recreate.

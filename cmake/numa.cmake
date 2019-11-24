@@ -3,7 +3,7 @@ MACRO (MYSQL_CHECK_NUMA)
   STRING(TOLOWER "${WITH_NUMA}" WITH_NUMA_LOWERCASE)
 
   IF(NOT WITH_NUMA)
-    MESSAGE(STATUS "WITH_NUMA=OFF: NUMA memory allocation policy disabled")
+    MESSAGE_ONCE(numa "WITH_NUMA=OFF: NUMA memory allocation policy disabled")
 
   ELSEIF(NOT WITH_NUMA_LOWERCASE STREQUAL "auto" AND NOT WITH_NUMA_LOWERCASE STREQUAL "on")
       MESSAGE(FATAL_ERROR "Wrong value for WITH_NUMA")
@@ -34,11 +34,11 @@ MACRO (MYSQL_CHECK_NUMA)
     ENDIF()
 
     IF(WITH_NUMA_LOWERCASE STREQUAL "auto" AND HAVE_LIBNUMA)
-      MESSAGE(STATUS "WITH_NUMA=AUTO: NUMA memory allocation policy enabled")
+      MESSAGE_ONCE(numa "WITH_NUMA=AUTO: NUMA memory allocation policy enabled")
     ELSEIF(WITH_NUMA_LOWERCASE STREQUAL "auto" AND NOT HAVE_LIBNUMA)
-      MESSAGE(STATUS "WITH_NUMA=AUTO: NUMA memory allocation policy disabled")
+      MESSAGE_ONCE(numa "WITH_NUMA=AUTO: NUMA memory allocation policy disabled")
     ELSEIF(HAVE_LIBNUMA)
-      MESSAGE(STATUS "WITH_NUMA=ON: NUMA memory allocation policy enabled")
+      MESSAGE_ONCE(numa "WITH_NUMA=ON: NUMA memory allocation policy enabled")
     ELSE()
       # Forget it in cache, abort the build.
       UNSET(WITH_NUMA CACHE)

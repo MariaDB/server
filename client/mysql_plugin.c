@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 #include <my_global.h>
@@ -159,8 +159,7 @@ static int make_tempfile(char *filename, const char *ext)
 {
   int fd= 0;
 
-  if ((fd=create_temp_file(filename, NullS, ext, O_CREAT | O_WRONLY,
-         MYF(MY_WME))) < 0)
+  if ((fd= create_temp_file(filename, NullS, ext, 0, MYF(MY_WME))) < 0)
   {
     fprintf(stderr, "ERROR: Cannot generate temporary file. Error code: %d.\n",
             fd);
@@ -322,7 +321,7 @@ static int get_default_values()
   int ret= 0;
   FILE *file= 0;
 
-  bzero(tool_path, FN_REFLEN);
+  memset(tool_path, 0, FN_REFLEN);
   if ((error= find_tool("my_print_defaults" FN_EXEEXT, tool_path)))
     goto exit;
   else
@@ -335,9 +334,9 @@ static int get_default_values()
       char *format_str= 0;
   
       if (has_spaces(tool_path) || has_spaces(defaults_file))
-        format_str = "\"%s mysqld > %s\"";
+        format_str = "\"%s --mysqld > %s\"";
       else
-        format_str = "%s mysqld > %s";
+        format_str = "%s --mysqld > %s";
   
       snprintf(defaults_cmd, sizeof(defaults_cmd), format_str,
                add_quotes(tool_path), add_quotes(defaults_file));
@@ -348,7 +347,7 @@ static int get_default_values()
     }
 #else
     snprintf(defaults_cmd, sizeof(defaults_cmd),
-             "%s mysqld > %s", tool_path, defaults_file);
+             "%s --mysqld > %s", tool_path, defaults_file);
 #endif
 
     /* Execute the command */
@@ -365,6 +364,12 @@ static int get_default_values()
     }
     /* Now open the file and read the defaults we want. */
     file= fopen(defaults_file, "r");
+    if (file == NULL)
+    {
+      fprintf(stderr, "ERROR: failed to open file %s: %s.\n", defaults_file,
+              strerror(errno));
+      goto exit;
+    }
     while (fgets(line, FN_REFLEN, file) != NULL)
     {
       char *value= 0;

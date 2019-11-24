@@ -1,0 +1,17 @@
+--source include/have_rocksdb.inc
+
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES("write_committed");
+INSERT INTO valid_values VALUES("write_prepared");
+INSERT INTO valid_values VALUES("write_unprepared");
+
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+
+--let $sys_var=ROCKSDB_WRITE_POLICY
+--let $read_only=1
+--let $session=0
+--source ../include/rocksdb_sys_var.inc
+
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

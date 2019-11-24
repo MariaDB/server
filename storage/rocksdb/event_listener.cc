@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #include <my_global.h>
 
@@ -33,9 +33,9 @@
 
 namespace myrocks {
 
-static std::vector<Rdb_index_stats>
-extract_index_stats(const std::vector<std::string> &files,
-                    const rocksdb::TablePropertiesCollection &props) {
+static std::vector<Rdb_index_stats> extract_index_stats(
+    const std::vector<std::string> &files,
+    const rocksdb::TablePropertiesCollection &props) {
   std::vector<Rdb_index_stats> ret;
   for (auto fn : files) {
     const auto it = props.find(fn);
@@ -82,4 +82,15 @@ void Rdb_event_listener::OnExternalFileIngested(
   DBUG_ASSERT(db != nullptr);
   update_index_stats(info.table_properties);
 }
-} // namespace myrocks
+
+void Rdb_event_listener::OnBackgroundError(
+    rocksdb::BackgroundErrorReason reason, rocksdb::Status *status) {
+  rdb_log_status_error(*status, "Error detected in background");
+  // NO_LINT_DEBUG
+  sql_print_error("RocksDB: BackgroundErrorReason: %d", (int)reason);
+  if (status->IsCorruption()) {
+    rdb_persist_corruption_marker();
+    abort();
+  }
+}
+}  // namespace myrocks

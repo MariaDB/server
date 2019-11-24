@@ -103,10 +103,6 @@ set join_cache_level=default;
 
 DROP TABLE t1,t2;
 
-
-set join_cache_level=default;
-show variables like 'join_cache_level';
-
 set @@optimizer_switch=@save_optimizer_switch_jcl6;
 set @optimizer_switch_for_subselect_sj2_test=NULL;
 set @join_cache_level_subselect_sj2_test=NULL;

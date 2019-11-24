@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,8 +25,6 @@ Created 2/2/1994 Heikki Tuuri
 
 #ifndef page0page_h
 #define page0page_h
-
-#include "univ.i"
 
 #include "page0types.h"
 #ifndef UNIV_INNOCHECKSUM
@@ -87,12 +85,12 @@ bits are stored in the most significant 5 bits of PAGE_DIRECTION_B.
 
 These FIL_PAGE_TYPE_INSTANT and PAGE_INSTANT may be assigned even if
 instant ADD COLUMN was not committed. Changes to these page header fields
-are not undo-logged, but changes to the 'default value record' are.
+are not undo-logged, but changes to the hidden metadata record are.
 If the server is killed and restarted, the page header fields could
-remain set even though no 'default value record' is present.
+remain set even though no metadata record is present.
 
 When the table becomes empty, the PAGE_INSTANT field and the
-FIL_PAGE_TYPE can be reset and any 'default value record' be removed. */
+FIL_PAGE_TYPE can be reset and any metadata record be removed. */
 #define PAGE_INSTANT	12
 
 /** last insert direction: PAGE_LEFT, ....
@@ -158,9 +156,9 @@ Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
 /*-----------------------------*/
 
 /* Heap numbers */
-#define PAGE_HEAP_NO_INFIMUM	0	/* page infimum */
-#define PAGE_HEAP_NO_SUPREMUM	1	/* page supremum */
-#define PAGE_HEAP_NO_USER_LOW	2	/* first user record in
+#define PAGE_HEAP_NO_INFIMUM	0U	/* page infimum */
+#define PAGE_HEAP_NO_SUPREMUM	1U	/* page supremum */
+#define PAGE_HEAP_NO_USER_LOW	2U	/* first user record in
 					creation (insertion) order,
 					not necessarily collation order;
 					this record may have been deleted */
@@ -210,7 +208,7 @@ inline
 page_t*
 page_align(const void* ptr)
 {
-	return(static_cast<page_t*>(ut_align_down(ptr, UNIV_PAGE_SIZE)));
+	return(static_cast<page_t*>(ut_align_down(ptr, srv_page_size)));
 }
 
 /** Gets the byte offset within a page frame.
@@ -221,7 +219,7 @@ inline
 ulint
 page_offset(const void*	ptr)
 {
-	return(ut_align_offset(ptr, UNIV_PAGE_SIZE));
+	return(ut_align_offset(ptr, srv_page_size));
 }
 
 /** Determine whether an index page is not in ROW_FORMAT=REDUNDANT.
@@ -285,13 +283,11 @@ page_rec_is_comp(const byte* rec)
 }
 
 # ifdef UNIV_DEBUG
-/** Determine if the record is the 'default row' pseudo-record
+/** Determine if the record is the metadata pseudo-record
 in the clustered index.
 @param[in]	rec	leaf page record on an index page
-@return	whether the record is the 'default row' pseudo-record */
-inline
-bool
-page_rec_is_default_row(const rec_t* rec)
+@return	whether the record is the metadata pseudo-record */
+inline bool page_rec_is_metadata(const rec_t* rec)
 {
 	return rec_get_info_bits(rec, page_rec_is_comp(rec))
 		& REC_INFO_MIN_REC_FLAG;
@@ -335,7 +331,7 @@ page_rec_is_user_rec_low(ulint offset)
 	compile_time_assert(PAGE_NEW_SUPREMUM < PAGE_OLD_SUPREMUM_END);
 	compile_time_assert(PAGE_OLD_SUPREMUM < PAGE_NEW_SUPREMUM_END);
 	ut_ad(offset >= PAGE_NEW_INFIMUM);
-	ut_ad(offset <= UNIV_PAGE_SIZE - PAGE_EMPTY_DIR_START);
+	ut_ad(offset <= srv_page_size - PAGE_EMPTY_DIR_START);
 
 	return(offset != PAGE_NEW_SUPREMUM
 	       && offset != PAGE_NEW_INFIMUM
@@ -351,7 +347,7 @@ bool
 page_rec_is_supremum_low(ulint offset)
 {
 	ut_ad(offset >= PAGE_NEW_INFIMUM);
-	ut_ad(offset <= UNIV_PAGE_SIZE - PAGE_EMPTY_DIR_START);
+	ut_ad(offset <= srv_page_size - PAGE_EMPTY_DIR_START);
 	return(offset == PAGE_NEW_SUPREMUM || offset == PAGE_OLD_SUPREMUM);
 }
 
@@ -363,7 +359,7 @@ bool
 page_rec_is_infimum_low(ulint offset)
 {
 	ut_ad(offset >= PAGE_NEW_INFIMUM);
-	ut_ad(offset <= UNIV_PAGE_SIZE - PAGE_EMPTY_DIR_START);
+	ut_ad(offset <= srv_page_size - PAGE_EMPTY_DIR_START);
 	return(offset == PAGE_NEW_INFIMUM || offset == PAGE_OLD_INFIMUM);
 }
 
@@ -663,7 +659,7 @@ page_dir_get_nth_slot(
 	ulint		n);	/*!< in: position */
 #else /* UNIV_DEBUG */
 # define page_dir_get_nth_slot(page, n)			\
-	((page) + (UNIV_PAGE_SIZE - PAGE_DIR		\
+	((page) + (srv_page_size - PAGE_DIR		\
 		   - (n + 1) * PAGE_DIR_SLOT_SIZE))
 #endif /* UNIV_DEBUG */
 /**************************************************************//**
@@ -736,9 +732,7 @@ page_rec_get_heap_no(
 /** Determine whether a page has any siblings.
 @param[in]	page	page frame
 @return true if the page has any siblings */
-inline
-bool
-page_has_siblings(const page_t* page)
+inline bool page_has_siblings(const page_t* page)
 {
 	compile_time_assert(!(FIL_PAGE_PREV % 8));
 	compile_time_assert(FIL_PAGE_NEXT == FIL_PAGE_PREV + 4);
@@ -747,22 +741,10 @@ page_has_siblings(const page_t* page)
 		!= ~uint64_t(0);
 }
 
-/** Determine whether a page is an index root page.
-@param[in]	page	page frame
-@return true if the page is a root page of an index */
-inline
-bool
-page_is_root(const page_t* page)
-{
-	return fil_page_index_page_check(page) && !page_has_siblings(page);
-}
-
 /** Determine whether a page has a predecessor.
 @param[in]	page	page frame
 @return true if the page has a predecessor */
-inline
-bool
-page_has_prev(const page_t* page)
+inline bool page_has_prev(const page_t* page)
 {
 	return *reinterpret_cast<const uint32_t*>(page + FIL_PAGE_PREV)
 		!= FIL_NULL;
@@ -771,9 +753,7 @@ page_has_prev(const page_t* page)
 /** Determine whether a page has a successor.
 @param[in]	page	page frame
 @return true if the page has a successor */
-inline
-bool
-page_has_next(const page_t* page)
+inline bool page_has_next(const page_t* page)
 {
 	return *reinterpret_cast<const uint32_t*>(page + FIL_PAGE_NEXT)
 		!= FIL_NULL;
@@ -896,17 +876,6 @@ page_rec_find_owner_rec(
 /*====================*/
 	rec_t*	rec);	/*!< in: the physical record */
 
-/***********************************************************************//**
-Write a 32-bit field in a data dictionary record. */
-UNIV_INLINE
-void
-page_rec_write_field(
-/*=================*/
-	rec_t*	rec,	/*!< in/out: record to update */
-	ulint	i,	/*!< in: index of the field to update */
-	ulint	val,	/*!< in: value to write */
-	mtr_t*	mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
 /************************************************************//**
 Returns the maximum combined size of records which can be inserted on top
 of record heap.
@@ -1330,15 +1299,12 @@ ibool
 page_simple_validate_new(
 /*=====================*/
 	const page_t*	page);	/*!< in: index page in ROW_FORMAT!=REDUNDANT */
-/***************************************************************//**
-This function checks the consistency of an index page.
-@return TRUE if ok */
-ibool
-page_validate(
-/*==========*/
-	const page_t*	page,	/*!< in: index page */
-	dict_index_t*	index);	/*!< in: data dictionary index containing
-				the page record type definition */
+/** Check the consistency of an index page.
+@param[in]	page	index page
+@param[in]	index	B-tree or R-tree index
+@return	whether the page is valid */
+bool page_validate(const page_t* page, const dict_index_t* index)
+	MY_ATTRIBUTE((nonnull));
 /***************************************************************//**
 Looks in the page record list for a record with the given heap number.
 @return record, NULL if not found */
@@ -1354,17 +1320,6 @@ page_find_rec_with_heap_no(
 const rec_t*
 page_find_rec_max_not_deleted(
 	const page_t*	page);
-
-/** Issue a warning when the checksum that is stored in the page is valid,
-but different than the global setting innodb_checksum_algorithm.
-@param[in]	current_algo	current checksum algorithm
-@param[in]	page_checksum	page valid checksum
-@param[in]	page_id		page identifier */
-void
-page_warn_strict_checksum(
-	srv_checksum_algorithm_t	curr_algo,
-	srv_checksum_algorithm_t	page_checksum,
-	const page_id_t&		page_id);
 
 #ifdef UNIV_MATERIALIZE
 #undef UNIV_INLINE

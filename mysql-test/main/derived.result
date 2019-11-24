@@ -607,6 +607,17 @@ select x.id, message from (select id from t1) x left join
 (select id, 1 as message from t2) y on x.id=y.id
 where coalesce(message,0) <> 0;
 id	message
+explain extended
+select x.id, message from (select id from t1) x left join
+(select id, 1 as message from t2) y on x.id=y.id
+where message <> 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	/* select#1 */ select `x`.`id` AS `id`,`y`.`message` AS `message` from (/* select#2 */ select `test`.`t1`.`id` AS `id` from `test`.`t1`) `x` join (/* select#3 */ select `test`.`t2`.`id` AS `id`,1 AS `message` from `test`.`t2`) `y` where `y`.`id` = `x`.`id` and `y`.`message` <> 0
 drop table t1,t2;
 #
 # MDEV-7827: Assertion `!table || (!table->read_set ||
@@ -1053,6 +1064,7 @@ INSERT INTO t2 VALUES (NULL),(NULL);
 CREATE TABLE t3 (c VARCHAR(1024) CHARACTER SET utf8, d INT) ENGINE=MyISAM;
 CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t3;
 INSERT INTO t3 VALUES ('abc',NULL),('def',4);
+set @save_join_cache_level= @@join_cache_level;
 SET join_cache_level= 8;
 explain
 SELECT * FROM v1, t2, v3 WHERE a = c AND b = d;
@@ -1082,6 +1094,38 @@ i
 drop procedure pr;
 drop view v1;
 drop table t1;
+set @@join_cache_level= @save_join_cache_level;
+#
+# MDEV-16307: Incorrect results when using BNLH join instead of BNL join with views
+#
+CREATE TABLE t1 (c1 text, c2 int);
+INSERT INTO t1 VALUES ('a',1), ('c',3), ('g',7), ('d',4), ('c',3);
+CREATE TABLE t2 (c1 text, c2 int);
+INSERT INTO t2 VALUES ('b',2), ('c',3);
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+explain SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	
+SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
+c1	c2	c1	c2
+c	3	c	3
+c	3	c	3
+set @save_join_cache_level= @@join_cache_level;
+set @@join_cache_level=4;
+explain SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	hash_ALL	NULL	#hash#$hj	3	test.t2.c1	5	Using where; Using join buffer (flat, BNLH join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	
+SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
+c1	c2	c1	c2
+c	3	c	3
+c	3	c	3
+drop table t1,t2;
+drop view v1;
+set @@join_cache_level= @save_join_cache_level;
 # end of 5.5
 #
 # Start of 10.1 tests
@@ -1162,3 +1206,57 @@ drop table t1,t2,t3;
 #
 # End of 10.2 tests
 #
+#
+# MDEV-9959: A serious MariaDB server performance bug
+#
+create table t1(a int);
+insert into t1 values (1),(2),(3),(4),(5),(6);
+create table t2(a int, b int,c int);
+insert into t2(a,b,c) values (1,1,2),(2,2,3),(3,1,4),(4,2,2),(5,1,1),(6,2,5);
+create table t3(a int, b int);
+insert into t3(a,b) values (1,1),(2,2),(2,1),(1,2),(5,1),(9,2);
+table "<derived2>" should have type=ref and rows=1
+one select in derived table
+with distinct
+analyze select * from t1 , ((select distinct t2.a from t2 order by c))q  where t1.a=q.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	1.00	100.00	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using temporary; Using filesort
+analyze select * from t1 , ((select distinct t2.a, t2.b from t2 order by c))q  where t1.a=q.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	1.00	100.00	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using temporary; Using filesort
+# multiple selects in derived table
+# NO UNION ALL
+analyze select * from t1 , ( (select t2.a from t2 order by c) union  (select t2.a from t2 order by c))q  where t1.a=q.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	1.00	100.00	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	6.00	NULL	NULL	
+select * from t1 , ( (select t2.a from t2 order by c) union  (select t2.a from t2 order by c))q  where t1.a=q.a;
+a	a
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+# UNION ALL and EXCEPT
+analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	0.50	100.00	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+4	EXCEPT	t3	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	3.00	NULL	NULL	
+select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
+a	a
+3	3
+4	4
+6	6
+drop table t1,t2,t3;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,8 +25,6 @@ Created 2007/03/27 Sunny Bains
 Completed 2011/7/10 Sunny and Jimmy Yang
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "dict0dict.h"
 #include "ut0rbt.h"
 #include "row0sel.h"
@@ -36,7 +34,6 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "fts0pars.h"
 #include "fts0types.h"
 #include "fts0plugin.h"
-#include "ut0new.h"
 
 #include <iomanip>
 #include <vector>
@@ -75,7 +72,7 @@ struct fts_query_t {
 
 	fts_table_t	fts_index_table;/*!< FTS auxiliary index table def */
 
-	ulint		total_size;	/*!< total memory size used by query */
+	size_t		total_size;	/*!< total memory size used by query */
 
 	fts_doc_ids_t*	deleted;	/*!< Deleted doc ids that need to be
 					filtered from the output */
@@ -1750,7 +1747,7 @@ fts_query_match_phrase_add_word_for_parser(
 	MYSQL_FTPARSER_PARAM*	param,		/*!< in: parser param */
 	const char*			word,		/*!< in: token */
 	int			word_len,	/*!< in: token length */
-	MYSQL_FTPARSER_BOOLEAN_INFO* info)	/*!< in: token info */
+	MYSQL_FTPARSER_BOOLEAN_INFO*)
 {
 	fts_phrase_param_t*	phrase_param;
 	fts_phrase_t*		phrase;
@@ -1772,8 +1769,8 @@ fts_query_match_phrase_add_word_for_parser(
 	}
 
 	match.f_str = (uchar *)(word);
-	match.f_len = word_len;
-	match.f_n_char = fts_get_token_size(phrase->charset, word, word_len);
+	match.f_len = ulint(word_len);
+	match.f_n_char= fts_get_token_size(phrase->charset, word, match.f_len);
 
 	if (match.f_len > 0) {
 		/* Get next token to match. */
@@ -1905,7 +1902,7 @@ fts_query_match_phrase(
 				&phrase_param,
 				phrase->parser,
 				ptr,
-				(end - ptr))) {
+				ulint(end - ptr))) {
 				break;
 			}
 		} else {
@@ -3296,7 +3293,7 @@ fts_query_filter_doc_ids(
 		++ptr;
 
 		/* Bytes decoded so far */
-		decoded = ptr - (byte*) data;
+		decoded = ulint(ptr - (byte*) data);
 
 		/* We simply collect the matching documents and the
 		positions here and match later. */
@@ -3920,7 +3917,7 @@ fts_query_can_optimize(
 }
 
 /** FTS Query entry point.
-@param[in]	trx		transaction
+@param[in,out]	trx		transaction
 @param[in]	index		fts index to search
 @param[in]	flags		FTS search mode
 @param[in]	query_str	FTS query
@@ -3942,7 +3939,7 @@ fts_query(
 	ulint		lc_query_str_len;
 	ulint		result_len;
 	bool		boolean_mode;
-	trx_t*		query_trx;
+	trx_t*		query_trx; /* FIXME: use provided trx */
 	CHARSET_INFO*	charset;
 	ulint		start_time_ms;
 	bool		will_be_ignored = false;
@@ -3964,7 +3961,6 @@ fts_query(
 
 	query.fts_common_table.type = FTS_COMMON_TABLE;
 	query.fts_common_table.table_id = index->table->id;
-	query.fts_common_table.parent = index->table->name.m_name;
 	query.fts_common_table.table = index->table;
 
 	charset = fts_index_get_charset(index);
@@ -3972,7 +3968,6 @@ fts_query(
 	query.fts_index_table.type = FTS_INDEX_TABLE;
 	query.fts_index_table.index_id = index->id;
 	query.fts_index_table.table_id = index->table->id;
-	query.fts_index_table.parent = index->table->name.m_name;
 	query.fts_index_table.charset = charset;
 	query.fts_index_table.table = index->table;
 
@@ -4057,6 +4052,7 @@ fts_query(
 	/* Parse the input query string. */
 	if (fts_query_parse(&query, lc_query_str, result_len)) {
 		fts_ast_node_t*	ast = query.root;
+		ast->trx = trx;
 
 		/* Optimize query to check if it's a single term */
 		fts_query_can_optimize(&query, flags);
@@ -4070,6 +4066,11 @@ fts_query(
 		query.error = fts_ast_visit(
 			FTS_NONE, ast, fts_query_visitor,
 			&query, &will_be_ignored);
+		if (query.error == DB_INTERRUPTED) {
+			error = DB_INTERRUPTED;
+			ut_free(lc_query_str);
+			goto func_exit;
+		}
 
 		/* If query expansion is requested, extend the search
 		with first search pass result */
@@ -4096,6 +4097,15 @@ fts_query(
 			ut_zalloc_nokey(sizeof(**result)));
 	}
 
+	if (trx_is_interrupted(trx)) {
+		error = DB_INTERRUPTED;
+		ut_free(lc_query_str);
+		if (*result) {
+			fts_query_free_result(*result);
+		}
+		goto func_exit;
+	}
+
 	ut_free(lc_query_str);
 
 	if (fts_enable_diag_print && (*result)) {
@@ -4105,7 +4115,7 @@ fts_query(
 			<< diff_time / 1000 << " secs: " << diff_time % 1000
 			<< " millisec: row(s) "
 			<< ((*result)->rankings_by_id
-			    ? rbt_size((*result)->rankings_by_id)
+			    ? lint(rbt_size((*result)->rankings_by_id))
 			    : -1);
 
 		/* Log memory consumption & result size */

@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -60,7 +60,8 @@ ib_create(
 
 	if (n_sync_obj == 0) {
 		table->heap = mem_heap_create_typed(
-			ut_min(static_cast<ulint>(4096),
+			std::min<ulong>(
+				4096,
 				MEM_MAX_ALLOC_IN_BUF / 2
 				- MEM_BLOCK_HEADER_SIZE - MEM_SPACE_NEEDED(0)),
 			type);
@@ -84,7 +85,8 @@ ib_create(
 
 	for (ulint i = 0; i < n_sync_obj; i++) {
 		table->heaps[i] = mem_heap_create_typed(
-			ut_min(static_cast<ulint>(4096),
+			std::min<ulong>(
+				4096,
 				MEM_MAX_ALLOC_IN_BUF / 2
 				- MEM_BLOCK_HEADER_SIZE - MEM_SPACE_NEEDED(0)),
 			type);
@@ -126,7 +128,8 @@ ib_recreate(
 
 	for (ulint i = 0; i < new_table->n_sync_obj; i++) {
 		new_table->heaps[i] = mem_heap_create_typed(
-			ut_min(static_cast<ulint>(4096),
+			std::min<ulong>(
+				4096,
 				MEM_MAX_ALLOC_IN_BUF / 2
 				- MEM_BLOCK_HEADER_SIZE - MEM_SPACE_NEEDED(0)),
 			MEM_HEAP_FOR_PAGE_HASH);

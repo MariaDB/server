@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* The hash functions used for saveing keys */
 /* One of key_length or key_length_offset must be given */
@@ -748,7 +748,7 @@ my_bool my_hash_update(HASH *hash, uchar *record, uchar *old_key,
 }
 
 
-uchar *my_hash_element(HASH *hash, ulong idx)
+uchar *my_hash_element(HASH *hash, size_t idx)
 {
   if (idx < hash->records)
     return dynamic_element(&hash->array,idx,HASH_LINK*)->data;

@@ -15,7 +15,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface				/* gcc class implementation */
@@ -133,7 +133,6 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs);
   @param[in]     table Table containing read_set and fields for the row.
 */
 void append_row_to_str(String &str, const uchar *row, TABLE *table);
-void mem_alloc_error(size_t size);
 void truncate_partition_filename(char *path);
 
 /*
@@ -277,6 +276,10 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
                                 bool show_partition_options,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info);
+char *generate_partition_syntax_for_frm(THD *thd, partition_info *part_info,
+                                        uint *buf_length,
+                                        HA_CREATE_INFO *create_info,
+                                        Alter_info *alter_info);
 bool verify_data_with_partition(TABLE *table, TABLE *part_table,
                                 uint32 part_id);
 bool compare_partition_options(HA_CREATE_INFO *table_create_info,

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,9 +25,8 @@ The database buffer buf_pool flush algorithm
 Created 11/11/1995 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <mysql/service_thd_wait.h>
-#include <my_dbug.h>
 #include <sql_class.h>
 
 #include "buf0flu.h"
@@ -46,7 +45,6 @@ Created 11/11/1995 Heikki Tuuri
 #include "os0file.h"
 #include "trx0sys.h"
 #include "srv0mon.h"
-#include "fsp0sysspace.h"
 #include "ut0stage.h"
 #include "fil0pagecompress.h"
 #ifdef UNIV_LINUX
@@ -857,7 +855,16 @@ buf_flush_init_for_writing(
 	ut_ad(block == NULL || block->frame == page);
 	ut_ad(block == NULL || page_zip_ == NULL
 	      || &block->page.zip == page_zip_);
+	ut_ad(!block || newest_lsn);
 	ut_ad(page);
+#if 0 /* MDEV-15528 TODO: reinstate this check */
+	/* innodb_immediate_scrub_data_uncompressed=ON would cause
+	fsp_init_file_page() to be called on freed pages, and thus
+	cause them to be written as almost-all-zeroed.
+	In MDEV-15528 we should change that implement an option to
+	make freed pages appear all-zero, bypassing this code. */
+	ut_ad(!newest_lsn || fil_page_get_type(page));
+#endif
 
 	if (page_zip_) {
 		page_zip_des_t*	page_zip;
@@ -902,7 +909,7 @@ buf_flush_init_for_writing(
 	/* Write the newest modification lsn to the page header and trailer */
 	mach_write_to_8(page + FIL_PAGE_LSN, newest_lsn);
 
-	mach_write_to_8(page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM,
+	mach_write_to_8(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
 			newest_lsn);
 
 	if (block && srv_page_size == 16384) {
@@ -967,7 +974,7 @@ buf_flush_init_for_writing(
 		}
 	}
 
-	uint32_t checksum= 0;
+	uint32_t checksum = BUF_NO_CHECKSUM_MAGIC;
 
 	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
@@ -990,7 +997,6 @@ buf_flush_init_for_writing(
 		break;
 	case SRV_CHECKSUM_ALGORITHM_NONE:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-		checksum = BUF_NO_CHECKSUM_MAGIC;
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
 				checksum);
 		break;
@@ -998,7 +1004,7 @@ buf_flush_init_for_writing(
 		new enum is added and not handled here */
 	}
 
-	mach_write_to_4(page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM,
+	mach_write_to_4(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
 			checksum);
 }
 
@@ -1046,11 +1052,6 @@ buf_flush_write_block_low(
 	ut_ad(!buf_page_get_mutex(bpage)->is_owned());
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_WRITE);
 	ut_ad(bpage->oldest_modification != 0);
-
-#ifdef UNIV_IBUF_COUNT_DEBUG
-	ut_a(ibuf_count_get(bpage->id) == 0);
-#endif /* UNIV_IBUF_COUNT_DEBUG */
-
 	ut_ad(bpage->newest_modification != 0);
 
 	/* Force the log to the disk before writing the modified block */
@@ -1299,7 +1300,7 @@ buf_flush_page_try(
 static
 bool
 buf_flush_check_neighbor(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	buf_flush_t		flush_type)
 {
 	buf_page_t*	bpage;
@@ -1349,7 +1350,7 @@ buf_flush_check_neighbor(
 static
 ulint
 buf_flush_try_neighbors(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	buf_flush_t		flush_type,
 	ulint			n_flushed,
 	ulint			n_to_flush)
@@ -2439,7 +2440,7 @@ page_cleaner_flush_pages_recommendation(
 
 	cur_lsn = log_get_lsn_nowait();
 
-	/* log_get_lsn_nowait tries to get log_sys->mutex with
+	/* log_get_lsn_nowait tries to get log_sys.mutex with
 	mutex_enter_nowait, if this does not succeed function
 	returns 0, do not use that value to update stats. */
 	if (cur_lsn == 0) {
@@ -2449,7 +2450,7 @@ page_cleaner_flush_pages_recommendation(
 	if (prev_lsn == 0) {
 		/* First time around. */
 		prev_lsn = cur_lsn;
-		prev_time = ut_time();
+		prev_time = time(NULL);
 		return(0);
 	}
 
@@ -2459,7 +2460,7 @@ page_cleaner_flush_pages_recommendation(
 
 	sum_pages += last_pages_in;
 
-	time_t	curr_time = ut_time();
+	time_t	curr_time = time(NULL);
 	double	time_elapsed = difftime(curr_time, prev_time);
 
 	/* We update our variables every srv_flushing_avg_loops
@@ -2778,8 +2779,8 @@ pc_flush_slot(void)
 {
 	ulint	lru_tm = 0;
 	ulint	list_tm = 0;
-	int	lru_pass = 0;
-	int	list_pass = 0;
+	ulint	lru_pass = 0;
+	ulint	list_pass = 0;
 
 	mutex_enter(&page_cleaner.mutex);
 
@@ -2983,17 +2984,10 @@ buf_flush_page_cleaner_disabled_loop(void)
 }
 
 /** Disables page cleaner threads (coordinator and workers).
-It's used by: SET GLOBAL innodb_page_cleaner_disabled_debug = 1 (0).
-@param[in]	thd		thread handle
-@param[in]	var		pointer to system variable
-@param[out]	var_ptr		where the formal string goes
 @param[in]	save		immediate result from check function */
-void
-buf_flush_page_cleaner_disabled_debug_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
+void buf_flush_page_cleaner_disabled_debug_update(THD*,
+						  st_mysql_sys_var*, void*,
+						  const void* save)
 {
 	if (!page_cleaner.is_running) {
 		return;
@@ -3582,7 +3576,7 @@ buf_flush_request_force(
 
 /** Functor to validate the flush list. */
 struct	Check {
-	void	operator()(const buf_page_t* elem)
+	void operator()(const buf_page_t* elem) const
 	{
 		ut_a(elem->in_flush_list);
 	}
@@ -3599,11 +3593,10 @@ buf_flush_validate_low(
 {
 	buf_page_t*		bpage;
 	const ib_rbt_node_t*	rnode = NULL;
-	Check			check;
 
 	ut_ad(buf_flush_list_mutex_own(buf_pool));
 
-	ut_list_validate(buf_pool->flush_list, check);
+	ut_list_validate(buf_pool->flush_list, Check());
 
 	bpage = UT_LIST_GET_FIRST(buf_pool->flush_list);
 
@@ -3777,18 +3770,12 @@ FlushObserver::~FlushObserver()
 	DBUG_LOG("flush", "~FlushObserver(): trx->id=" << m_trx->id);
 }
 
-/** Check whether trx is interrupted
-@return true if trx is interrupted */
-bool
-FlushObserver::check_interrupted()
+/** Check whether the operation has been interrupted */
+void FlushObserver::check_interrupted()
 {
 	if (trx_is_interrupted(m_trx)) {
 		interrupted();
-
-		return(true);
 	}
-
-	return(false);
 }
 
 /** Notify observer of a flush

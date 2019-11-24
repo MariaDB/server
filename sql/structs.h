@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 
@@ -109,8 +109,8 @@ typedef struct st_key {
       pk2 is explicitly present in idx1, it is not in the extension, so
       ext_key_part_map.is_set(1) == false
   */
-  LEX_CSTRING name;
   key_part_map ext_key_part_map;
+  LEX_CSTRING name;
   uint  block_size;
   enum  ha_key_alg algorithm;
   /* 
@@ -148,9 +148,6 @@ typedef struct st_key {
   */
   Index_statistics *collected_stats;
  
-  union {
-    int  bdb_return_if_eq;
-  } handler;
   TABLE *table;
   LEX_CSTRING comment;
   /** reference to the list of options or NULL */
@@ -692,26 +689,41 @@ public:
 struct Lex_for_loop_bounds_st
 {
 public:
-  class sp_assignment_lex *m_index;
-  class sp_assignment_lex *m_upper_bound;
+  class sp_assignment_lex *m_index;  // The first iteration value (or cursor)
+  class sp_assignment_lex *m_target_bound; // The last iteration value
   int8 m_direction;
   bool m_implicit_cursor;
-  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+  bool is_for_loop_cursor() const { return m_target_bound == NULL; }
+};
+
+
+class Lex_for_loop_bounds_intrange: public Lex_for_loop_bounds_st
+{
+public:
+  Lex_for_loop_bounds_intrange(int8 direction,
+                               class sp_assignment_lex *left_expr,
+                               class sp_assignment_lex *right_expr)
+  {
+    m_direction= direction;
+    m_index=        direction > 0 ? left_expr  : right_expr;
+    m_target_bound= direction > 0 ? right_expr : left_expr;
+    m_implicit_cursor= false;
+  }
 };
 
 
 struct Lex_for_loop_st
 {
 public:
-  class sp_variable *m_index;
-  class sp_variable *m_upper_bound;
+  class sp_variable *m_index;  // The first iteration value (or cursor)
+  class sp_variable *m_target_bound; // The last iteration value
   int m_cursor_offset;
   int8 m_direction;
   bool m_implicit_cursor;
   void init()
   {
     m_index= 0;
-    m_upper_bound= 0;
+    m_target_bound= 0;
     m_direction= 0;
     m_implicit_cursor= false;
   }
@@ -719,7 +731,11 @@ public:
   {
     *this= other;
   }
-  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+  bool is_for_loop_cursor() const { return m_target_bound == NULL; }
+  bool is_for_loop_explicit_cursor() const
+  {
+    return is_for_loop_cursor() && !m_implicit_cursor;
+  }
 };
 
 

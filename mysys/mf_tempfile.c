@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 #include <m_string.h>
@@ -22,7 +22,9 @@
 #include <paths.h>
 #endif
 
-
+#ifdef HAVE_MKOSTEMP
+#define mkstemp(A) mkostemp(A, O_CLOEXEC)
+#endif
 
 /*
   @brief
@@ -45,8 +47,11 @@
     implementation, it's main use is to generate a file with
     a name that does not already exist.
 
-    When passing O_TEMPORARY flag in "mode" the file should
-    be automatically deleted
+    When passing MY_TEMPORARY flag in MyFlags the file is automatically deleted
+
+    "mode" bits that always must be used for newly created files with
+    unique file names (O_EXCL | O_TRUNC | O_CREAT | O_RDWR) are added
+    automatically, and shouldn't be specified by the caller.
 
     The implementation using mkstemp should be considered the
     reference implementation when adding a new or modifying an
@@ -55,51 +60,55 @@
 */
 
 File create_temp_file(char *to, const char *dir, const char *prefix,
-		      int mode __attribute__((unused)),
-		      myf MyFlags __attribute__((unused)))
+		      int mode, myf MyFlags)
 {
   File file= -1;
-#ifdef __WIN__
-  TCHAR path_buf[MAX_PATH-14];
-#endif
 
   DBUG_ENTER("create_temp_file");
   DBUG_PRINT("enter", ("dir: %s, prefix: %s", dir, prefix));
-#if defined (__WIN__)
+  DBUG_ASSERT((mode & (O_EXCL | O_TRUNC | O_CREAT | O_RDWR)) == 0);
 
-   /*
-     Use GetTempPath to determine path for temporary files.
-     This is because the documentation for GetTempFileName 
-     has the following to say about this parameter:
-     "If this parameter is NULL, the function fails."
-   */
-   if (!dir)
-   {
-     if(GetTempPath(sizeof(path_buf), path_buf) > 0) 
-       dir = path_buf;
-   }
-   /*
-     Use GetTempFileName to generate a unique filename, create
-     the file and release it's handle
-      - uses up to the first three letters from prefix
-   */
-  if (GetTempFileName(dir, prefix, 0, to) == 0)
-    DBUG_RETURN(-1);
+  mode|= O_TRUNC | O_CREAT | O_RDWR; /* not O_EXCL, see Windows code below */
 
-  DBUG_PRINT("info", ("name: %s", to));
-
-  /*
-    Open the file without the "open only if file doesn't already exist"
-    since the file has already been created by GetTempFileName
-  */
-  if ((file= my_open(to,  (mode & ~O_EXCL), MyFlags)) < 0)
+#ifdef _WIN32
   {
-    /* Open failed, remove the file created by GetTempFileName */
-    int tmp= my_errno;
-    (void) my_delete(to, MYF(0));
-    my_errno= tmp;
-  }
+    TCHAR path_buf[MAX_PATH-14];
+    /*
+      Use GetTempPath to determine path for temporary files.
+      This is because the documentation for GetTempFileName
+      has the following to say about this parameter:
+      "If this parameter is NULL, the function fails."
+    */
+    if (!dir)
+    {
+      if(GetTempPath(sizeof(path_buf), path_buf) > 0)
+        dir = path_buf;
+    }
+    /*
+      Use GetTempFileName to generate a unique filename, create
+      the file and release it's handle
+       - uses up to the first three letters from prefix
+    */
+    if (GetTempFileName(dir, prefix, 0, to) == 0)
+      DBUG_RETURN(-1);
 
+    DBUG_PRINT("info", ("name: %s", to));
+
+    if (MyFlags & MY_TEMPORARY)
+      mode|= O_SHORT_LIVED | O_TEMPORARY;
+
+    /*
+      Open the file without O_EXCL flag
+      since the file has already been created by GetTempFileName
+    */
+    if ((file= my_open(to, mode, MyFlags)) < 0)
+    {
+      /* Open failed, remove the file created by GetTempFileName */
+      int tmp= my_errno;
+      (void) my_delete(to, MYF(0));
+      my_errno= tmp;
+    }
+  }
 #elif defined(HAVE_MKSTEMP)
   {
     char prefix_buff[30];
@@ -119,8 +128,8 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
     }
     strmov(convert_dirname(to,dir,NullS),prefix_buff);
     org_file=mkstemp(to);
-    if (mode & O_TEMPORARY)
-      (void) my_delete(to, MYF(MY_WME | ME_NOINPUT));
+    if (org_file >= 0 && (MyFlags & MY_TEMPORARY))
+      (void) my_delete(to, MYF(MY_WME));
     file=my_register_filename(org_file, to, FILE_BY_MKSTEMP,
 			      EE_CANTCREATEFILE, MyFlags);
     /* If we didn't manage to register the name, remove the temp file */
@@ -132,46 +141,10 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
       my_errno=tmp;
     }
   }
-#elif defined(HAVE_TEMPNAM)
-  {
-    extern char **environ;
-
-    char *res,**old_env,*temp_env[1];
-    if (dir && !dir[0])
-    {				/* Change empty string to current dir */
-      to[0]= FN_CURLIB;
-      to[1]= 0;
-      dir=to;
-    }
-
-    old_env= (char**) environ;
-    if (dir)
-    {				/* Don't use TMPDIR if dir is given */
-      environ=(const char**) temp_env;
-      temp_env[0]=0;
-    }
-
-    if ((res=tempnam((char*) dir, (char*) prefix)))
-    {
-      strmake(to,res,FN_REFLEN-1);
-      (*free)(res);
-      file=my_create(to,0,
-		     (int) (O_RDWR | O_BINARY | O_TRUNC | O_EXCL | O_NOFOLLOW |
-			    O_TEMPORARY | O_SHORT_LIVED),
-		     MYF(MY_WME));
-
-    }
-    else
-    {
-      DBUG_PRINT("error",("Got error: %d from tempnam",errno));
-    }
-
-    environ=(const char**) old_env;
-  }
 #else
 #error No implementation found for create_temp_file
 #endif
   if (file >= 0)
-    thread_safe_increment(my_tmp_file_created,&THR_LOCK_open);
+    statistic_increment(my_tmp_file_created,&THR_LOCK_open);
   DBUG_RETURN(file);
 }

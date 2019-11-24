@@ -265,6 +265,9 @@ SELECT JSON_search( '{"x": "\\""}', "one", '\\"');
 #
 # MDEV-11833 JSON functions don't seem to respect max_allowed_packet.
 #
+set @save_max_allowed_packet=@@max_allowed_packet;
+set @save_net_buffer_length=@@net_buffer_length;
+
 set @@global.net_buffer_length=1024;
 set @@global.max_allowed_packet=2048;
 --connect (newconn, localhost, root,,)
@@ -275,8 +278,8 @@ select json_array(repeat('a',1024),repeat('a',1024));
 select json_object("a", repeat('a',1024),"b", repeat('a',1024));
 --connection default
 
-set @@global.max_allowed_packet = default;
-set @@global.net_buffer_length = default;
+set @@global.max_allowed_packet = @save_max_allowed_packet;
+set @@global.net_buffer_length = @save_net_buffer_length;
 --disconnect newconn
 
 
@@ -397,6 +400,143 @@ drop table t1;
 
 select json_extract('{"test":8.437e-5}','$.test');
 
+#
+# MDEV-15905 select json_value('{"b":true}','$.b')=1 --> false with
+#    "Truncated incorrect DOUBLE value: 'true'"
+#
+select json_value('{"b":true}','$.b')=1;
+
+#
+# MDEV-16209 JSON_EXTRACT in query crashes server.
+#
+
+CREATE TABLE t1 (c VARCHAR(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT * FROM t1 WHERE c IN (JSON_EXTRACT('{"a":"b"}', '$.*'));
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16814 CREATE TABLE SELECT JSON_QUOTE(multibyte_charset_expr) makes a field of a wrong length
+--echo #
+
+CREATE TABLE t1 AS SELECT
+  JSON_QUOTE(_latin1'foo') AS c1,
+  JSON_QUOTE(_utf8'foo') AS c2;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16054 simple json functions flatline cpu on garbage input.
+--echo #
+
+select json_array(1,uuid(),compress(5.140264e+307));
+
+--echo #
+--echo # MDEV-16869 String functions don't respect character set of JSON_VALUE.
+--echo #
+
+create table t1(json_col TEXT) DEFAULT CHARSET=latin1;
+insert into t1 values (_latin1 X'7B226B657931223A2253EC227D');
+select JSON_VALUE(json_col, '$.key1')= _latin1 X'53EC' from t1;
+select REPLACE(JSON_VALUE(json_col, '$.key1'), 'null', '') = _latin1 X'53EC' from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-16750 JSON_SET mishandles unicode every second pair of arguments.
+--echo #
+
+SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6);
+SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6, '$.b', _utf8 0xC3B6);
+SELECT JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6');
+
+--echo #
+--echo # MDEV-17121 JSON_ARRAY_APPEND
+--echo #
+
+select json_array_append('[             ]', '$', 'aue');
+
+--echo #
+--echo # MDEV-17018 JSON_SEARCH and User-Defined Variables.
+--echo #
+
+SET @`json` := '["A", [{"B": "1"}], {"C": "AB"}, {"D": "BC"}]', @`value` := 'AB';
+SELECT JSON_SEARCH(@`json`, 'one', @`value`);
+SET @`json` := NULL, @`value` := NULL;
+
+--echo #
+--echo # MDEV-17001 JSON_MERGE returns nullwhen merging empty array.
+--echo #
+
+SELECT JSON_MERGE('[1]', '[]');
+
+--echo #
+--echo # MDEV-16174 Assertion `0' failed in Type_handler_string_result::
+--echo #       make_sort_key(uchar*, Item*, const SORT_FIELD_ATTR*, Sort_param*)
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (fld varchar(16) NOT NULL);
+CREATE TABLE t2 SELECT JSON_ARRAY_INSERT(fld, '$.[0]', '0') FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+SET sql_mode=default;
+
+--echo #
+--echo # MDEV-17454 JSON_VALID( '{"a":1]' ) evaluates to 1
+--echo #
+
+select JSON_VALID( '{"a":1]' );
+
+--echo #
+--echo # MDEV-18886 JSON_ARRAY() does not recognise JSON argument.
+--echo #
+SELECT JSON_ARRAY(_UTF8 'str', JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket'));
+SELECT CHARSET(JSON_ARRAY());
+SELECT CHARSET(JSON_OBJECT());
+
+--echo #
+--echo # MDEV-13992 Implement JSON_MERGE_PATCH
+--echo #
+
+CREATE TABLE merge_t(
+id INT PRIMARY KEY AUTO_INCREMENT,
+target VARCHAR(100), patch VARCHAR(100)
+);
+INSERT INTO merge_t(target, patch) VALUES
+('{"a":"b"}', '{"a":"c"}'),
+('{"a":"b"}', '{"b":"c"}'),
+('{"a":"b"}', '{"a":null}'),
+('{"a":"b", "b":"c"}', '{"a":null}'),
+('{"a":["b"]}', '{"a":"c"}'),
+('{"a":"c"}', '{"a":["b"]}'),
+('{"a": {"b":"c"}}', '{"a": {"b":"d", "c":null}}'),
+('{"a":[{"b":"c"}]}', '{"a": [1]}'),
+('["a","b"]', '["c","d"]'),
+('{"a":"b"}', '["c"]'),
+('{"a":"foo"}', 'null'),
+('{"a":"foo"}', '"bar"'),
+('{"e":null}', '{"a":1}'),
+('[1,2]', '{"a":"b", "c":null}'),
+('{}', '{"a":{"bb":{"ccc":null}}}'),
+(NULL, '{}'),
+('{}', NULL);
+SELECT id, target, patch,
+       JSON_MERGE_PATCH(target, patch) AS merged,
+       JSON_EXTRACT(JSON_MERGE_PATCH(target, patch), '$.a') AS a
+FROM merge_t ORDER BY id;
+DROP TABLE merge_t;
+
+SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '{"c":"d"}');
+SELECT JSON_MERGE_PATCH(NULL, '[1,2,3]');
+SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}');
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_MERGE_PATCH();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_MERGE_PATCH('{}');
+SELECT JSON_MERGE_PATCH('{', '[1,2,3]');
+SELECT JSON_MERGE_PATCH('{"a":"b"}', '[1,');
+
 --echo #
 --echo # End of 10.2 tests
 --echo #
@@ -420,6 +560,23 @@ SELECT
 
 --enable_ps_protocol
 --disable_metadata
+
+--echo #
+--echo # MDEV-19670 json escaped unicode parse error
+--echo #
+
+SELECT json_valid('{"value":"\\ud83d\\ude0a"}');
+SELECT json_valid('{"test": "\\ud83d\\ude0b"}');
+
+--echo #
+--echo # MDEV-19670 json escaped unicode parse error
+--echo #
+
+SELECT JSON_VALID('{"admin\\"": null}'), '{"admin\\"": null}'
+    UNION
+    SELECT JSON_VALID('{"\\"admin": null}'), '{"\\"admin": null}'
+      UNION
+      SELECT JSON_VALID('{"\\"": null}'), '{"\\"": null}';
 
 --echo #
 --echo # End of 10.3 tests

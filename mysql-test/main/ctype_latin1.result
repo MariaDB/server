@@ -506,6 +506,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+latin1_swedish_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 #
 # MDEV-4842 STR_TO_DATE does not work with UCS2/UTF16/UTF32
 #
@@ -636,6 +642,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+latin1_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 SELECT strcmp('a','a '),   strcmp('a ','a');
 strcmp('a','a ')	strcmp('a ','a')
 0	0
@@ -808,7 +820,7 @@ create table t1 as select concat(1 % 2) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) DEFAULT NULL
+  `c1` varchar(2) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(-1));
@@ -7987,12 +7999,12 @@ SET NAMES utf8;
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
 INSERT IGNORE INTO t1 VALUES ('Â'),('Â#');
 Warnings:
-Warning	1366	Incorrect string value: '\xC2' for column 'a' at row 1
-Warning	1366	Incorrect string value: '\xC2#' for column 'a' at row 2
+Warning	1366	Incorrect string value: '\xC2' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect string value: '\xC2#' for column `test`.`t1`.`a` at row 2
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1366	Incorrect string value: '\xC2' for column 'a' at row 1
-Warning	1366	Incorrect string value: '\xC2#' for column 'a' at row 2
+Warning	1366	Incorrect string value: '\xC2' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect string value: '\xC2#' for column `test`.`t1`.`a` at row 2
 SELECT HEX(a),a FROM t1;
 HEX(a)	a
 3F	?
@@ -8022,6 +8034,38 @@ a
 0
 DROP VIEW v1;
 DROP TABLE t1;
+SET NAMES latin1;
+#
+# MDEV-13118 Wrong results with LOWER and UPPER and subquery
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch=_latin1'derived_merge=on';
+CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS t LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('abcdefghi'),('ABCDEFGHI');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT LOWER(t) t2 FROM t1) sub;
+c2
+abcdefghi-abcdefghi
+abcdefghi-abcdefghi
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT UPPER(t) t2 FROM t1) sub;
+c2
+ABCDEFGHI-ABCDEFGHI
+ABCDEFGHI-ABCDEFGHI
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
+#
+# MDEV-17298 ASAN unknown-crash / READ of size 1 in my_strntoul_8bit upon INSERT .. SELECT
+#
+SET NAMES latin1;
+CREATE TABLE t1 (a CHAR);
+CREATE TABLE t2 (b ENUM('foo','bar'));
+INSERT INTO t1 VALUES ('1');
+INSERT INTO t2 SELECT * FROM t1;
+DROP TABLE t1, t2;
 #
 # End of 10.0 tests
 #

@@ -26,7 +26,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -38,13 +38,11 @@ InnoDB concurrency manager
 Created 2011/04/18 Sunny Bains
 *******************************************************/
 
-#include "ha_prototypes.h"
-#include <mysql/service_thd_wait.h>
-
 #include "srv0srv.h"
 #include "trx0trx.h"
 #include "row0mysql.h"
 #include "dict0dict.h"
+#include <mysql/service_thd_wait.h>
 #include <mysql/service_wsrep.h>
 
 /** Number of times a thread is allowed to enter InnoDB within the same
@@ -58,10 +56,8 @@ ulong	srv_thread_sleep_delay	= 10000;
 
 
 /** We are prepared for a situation that we have this many threads waiting for
-a semaphore inside InnoDB. innobase_start_or_create_for_mysql() sets the
-value. */
-
-ulint	srv_max_n_threads	= 0;
+a semaphore inside InnoDB. srv_start() sets the value. */
+ulint	srv_max_n_threads;
 
 /** The following controls how many threads we let inside InnoDB concurrently:
 threads waiting for locks are not counted into the number because otherwise
@@ -136,12 +132,9 @@ srv_conc_enter_innodb_with_atomics(
 #endif /* WITH_WSREP */
 
 		if (srv_thread_concurrency == 0) {
-
 			if (notified_mysql) {
-
-				(void) my_atomic_addlint(
-					&srv_conc.n_waiting, -1);
-
+				my_atomic_addlint(&srv_conc.n_waiting,
+						  ulint(-1));
 				thd_wait_end(trx->mysql_thd);
 			}
 
@@ -160,10 +153,8 @@ srv_conc_enter_innodb_with_atomics(
 				srv_enter_innodb_with_tickets(trx);
 
 				if (notified_mysql) {
-
-					(void) my_atomic_addlint(
-						&srv_conc.n_waiting, -1);
-
+					my_atomic_addlint(&srv_conc.n_waiting,
+							  ulint(-1));
 					thd_wait_end(trx->mysql_thd);
 				}
 
@@ -185,13 +176,11 @@ srv_conc_enter_innodb_with_atomics(
 			/* Since there were no free seats, we relinquish
 			the overbooked ticket. */
 
-			(void) my_atomic_addlint(
-				&srv_conc.n_active, -1);
+			my_atomic_addlint(&srv_conc.n_active, ulint(-1));
 		}
 
 		if (!notified_mysql) {
-			(void) my_atomic_addlint(
-				&srv_conc.n_waiting, 1);
+			my_atomic_addlint(&srv_conc.n_waiting, 1);
 
 			thd_wait_begin(trx->mysql_thd, THD_WAIT_USER_LOCK);
 
@@ -235,7 +224,7 @@ srv_conc_exit_innodb_with_atomics(
 	trx->n_tickets_to_enter_innodb = 0;
 	trx->declared_to_be_inside_innodb = FALSE;
 
-	(void) my_atomic_addlint(&srv_conc.n_active, -1);
+	my_atomic_addlint(&srv_conc.n_active, ulint(-1));
 }
 
 /*********************************************************************//**

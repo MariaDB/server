@@ -14,7 +14,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335 USA
 
 ##############################################################################
 #
@@ -23,7 +23,7 @@
 #  Tool used for executing a suite of .test file
 #
 #  See the "MySQL Test framework manual" for more information
-#  http://dev.mysql.com/doc/mysqltest/en/index.html
+#  https://mariadb.com/kb/en/library/mysqltest/
 #
 #  Please keep the test framework tools identical in all versions!
 #

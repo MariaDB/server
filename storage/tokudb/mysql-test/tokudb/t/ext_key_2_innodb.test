@@ -5,8 +5,6 @@ disable_warnings;
 drop table if exists t;
 enable_warnings;
 
-select @@optimizer_switch;
-
 create table t (a int not null, b int not null, c int not null, d int not null, primary key(a,b), key(c,a)) engine=innodb;
 
 insert into t values (0,0,0,0),(0,1,0,1);

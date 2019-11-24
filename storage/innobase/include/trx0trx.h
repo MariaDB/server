@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,15 +27,8 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0trx_h
 #define trx0trx_h
 
-#include <set>
-
-#include "ha_prototypes.h"
-
-#include "dict0types.h"
 #include "trx0types.h"
-
 #include "lock0types.h"
-#include "log0log.h"
 #include "que0types.h"
 #include "mem0mem.h"
 #include "trx0xa.h"
@@ -43,21 +36,13 @@ Created 3/26/1996 Heikki Tuuri
 #include "fts0fts.h"
 #include "read0types.h"
 
+#include <vector>
+#include <set>
+
 // Forward declaration
 struct mtr_t;
-
-// Forward declaration
 class FlushObserver;
-
 struct rw_trx_hash_element_t;
-
-/** Set flush observer for the transaction
-@param[in/out]	trx		transaction struct
-@param[in]	observer	flush observer */
-void
-trx_set_flush_observer(
-	trx_t*		trx,
-	FlushObserver*	observer);
 
 /******************************************************************//**
 Set detailed error message for the transaction. */
@@ -226,16 +211,13 @@ trx_recover_for_mysql(
 /*==================*/
 	XID*	xid_list,	/*!< in/out: prepared transactions */
 	uint	len);		/*!< in: number of slots in xid_list */
-/*******************************************************************//**
-This function is used to find one X/Open XA distributed transaction
-which is in the prepared state
-@return trx or NULL; on match, the trx->xid will be invalidated;
-note that the trx may have been committed, unless the caller is
-holding lock_sys.mutex */
-trx_t *
-trx_get_trx_by_xid(
-/*===============*/
-	XID*	xid);	/*!< in: X/Open XA transaction identifier */
+/** Look up an X/Open distributed transaction in XA PREPARE state.
+@param[in]	xid	X/Open XA transaction identifier
+@return	transaction on match (the trx_t::xid will be invalidated);
+note that the trx may have been committed before the caller acquires
+trx_t::mutex
+@retval	NULL if no match */
+trx_t* trx_get_trx_by_xid(const XID* xid);
 /**********************************************************************//**
 If required, flushes the log to disk if we called trx_commit_for_mysql()
 with trx->flush_log_later == TRUE. */
@@ -355,8 +337,8 @@ trx_state_eq(
 
 /**********************************************************************//**
 Determines if the currently running transaction has been interrupted.
-@return TRUE if interrupted */
-ibool
+@return true if interrupted */
+bool
 trx_is_interrupted(
 /*===============*/
 	const trx_t*	trx);	/*!< in: transaction */
@@ -462,7 +444,7 @@ Check transaction state */
 	ut_ad(!trx_is_autocommit_non_locking((t)));			\
 	switch ((t)->state) {						\
 	case TRX_STATE_PREPARED:					\
-		/* fall through */					\
+	case TRX_STATE_PREPARED_RECOVERED:				\
 	case TRX_STATE_ACTIVE:						\
 	case TRX_STATE_COMMITTED_IN_MEMORY:				\
 		continue;						\
@@ -476,10 +458,15 @@ Check transaction state */
 @param t transaction handle */
 #define	assert_trx_is_free(t)	do {					\
 	ut_ad(trx_state_eq((t), TRX_STATE_NOT_STARTED));		\
-	ut_ad(!trx->has_logged());					\
+	ut_ad(!(t)->id);						\
+	ut_ad(!(t)->has_logged());					\
+	ut_ad(!(t)->is_referenced());					\
 	ut_ad(!(t)->read_view.is_open());				\
 	ut_ad((t)->lock.wait_thr == NULL);				\
 	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
+	ut_ad((t)->lock.table_locks.empty());				\
+	ut_ad(!(t)->autoinc_locks					\
+	      || ib_vector_is_empty((t)->autoinc_locks));		\
 	ut_ad((t)->dict_operation == TRX_DICT_OP_NONE);			\
 } while(0)
 
@@ -517,7 +504,7 @@ The transaction must have mysql_thd assigned. */
 # define assert_trx_nonlocking_or_in_list(trx) ((void)0)
 #endif /* UNIV_DEBUG */
 
-typedef std::vector<ib_lock_t*, ut_allocator<ib_lock_t*> >	lock_pool_t;
+typedef std::vector<ib_lock_t*, ut_allocator<ib_lock_t*> >	lock_list;
 
 /*******************************************************************//**
 Latching protocol for trx_lock_t::que_state.  trx_lock_t::que_state
@@ -579,13 +566,19 @@ struct trx_lock_t {
 					only be modified by the thread that is
 					serving the running transaction. */
 
-	lock_pool_t	rec_pool;	/*!< Pre-allocated record locks */
+	/** Pre-allocated record locks */
+	struct {
+		ib_lock_t lock; byte pad[256];
+	} rec_pool[8];
 
-	lock_pool_t	table_pool;	/*!< Pre-allocated table locks */
+	/** Pre-allocated table locks */
+	ib_lock_t	table_pool[8];
 
-	ulint		rec_cached;	/*!< Next free rec lock in pool */
+	/** Next available rec_pool[] entry */
+	unsigned	rec_cached;
 
-	ulint		table_cached;	/*!< Next free table lock in pool */
+	/** Next available table_pool[] entry */
+	unsigned	table_cached;
 
 	mem_heap_t*	lock_heap;	/*!< memory heap for trx_locks;
 					protected by lock_sys.mutex */
@@ -595,7 +588,7 @@ struct trx_lock_t {
 					and lock_sys.mutex; removals are
 					protected by lock_sys.mutex */
 
-	lock_pool_t	table_locks;	/*!< All table locks requested by this
+	lock_list	table_locks;	/*!< All table locks requested by this
 					transaction, including AUTOINC locks */
 
 	bool		cancel;		/*!< true if the transaction is being
@@ -706,10 +699,9 @@ Normally, only the thread that is currently associated with a running
 transaction may access (read and modify) the trx object, and it may do
 so without holding any mutex. The following are exceptions to this:
 
-* trx_rollback_resurrected() may access resurrected (connectionless)
-transactions while the system is already processing new user
-transactions. The trx_sys.mutex prevents a race condition between it
-and lock_trx_release_locks() [invoked by trx_commit()].
+* trx_rollback_recovered() may access resurrected (connectionless)
+transactions (state == TRX_STATE_ACTIVE && is_recovered)
+while the system is already processing new user transactions (!is_recovered).
 
 * trx_print_low() may access transactions not associated with the current
 thread. The caller must be holding lock_sys.mutex.
@@ -720,7 +712,7 @@ must not be modified without holding trx->mutex.
 * The locking code (in particular, lock_deadlock_recursive() and
 lock_rec_convert_impl_to_expl()) will access transactions associated
 to other connections. The locks of transactions are protected by
-lock_sys.mutex and sometimes by trx->mutex. */
+lock_sys.mutex (insertions also by trx->mutex). */
 
 /** Represents an instance of rollback segment along with its state variables.*/
 struct trx_undo_ptr_t {
@@ -792,6 +784,7 @@ public:
 	TRX_STATE_NOT_STARTED
 	TRX_STATE_ACTIVE
 	TRX_STATE_PREPARED
+	TRX_STATE_PREPARED_RECOVERED (special case of TRX_STATE_PREPARED)
 	TRX_STATE_COMMITTED_IN_MEMORY (alias below COMMITTED)
 
 	Valid state transitions are:
@@ -843,28 +836,26 @@ public:
 	ACTIVE->COMMITTED is possible when the transaction is in
 	rw_trx_hash.
 
-	Transitions to COMMITTED are protected by both lock_sys.mutex
-	and trx->mutex.
-
-	NOTE: Some of these state change constraints are an overkill,
-	currently only required for a consistent view for printing stats.
-	This unnecessarily adds a huge cost for the general case. */
-
+	Transitions to COMMITTED are protected by trx_t::mutex. */
 	trx_state_t	state;
 
 	ReadView	read_view;	/*!< consistent read view used in the
 					transaction, or NULL if not yet set */
 	trx_lock_t	lock;		/*!< Information about the transaction
 					locks and state. Protected by
-					trx->mutex or lock_sys.mutex
-					or both */
-	bool		is_recovered;	/*!< 0=normal transaction,
-					1=recovered, must be rolled back,
-					protected by trx_sys.mutex when
-					trx is in rw_trx_hash */
-
+					lock_sys.mutex (insertions also
+					by trx_t::mutex). */
 
 	/* These fields are not protected by any mutex. */
+
+	/** false=normal transaction, true=recovered (must be rolled back)
+	or disconnected transaction in XA PREPARE STATE.
+
+	This field is accessed by the thread that owns the transaction,
+	without holding any mutex.
+	There is only one foreign-thread access in trx_print_low()
+	and a possible race condition with trx_disconnect_prepared(). */
+	bool		is_recovered;
 	const char*	op_info;	/*!< English text describing the
 					current operation, or an empty
 					string */
@@ -924,10 +915,11 @@ public:
 					on dict_operation_lock. Protected
 					by dict_operation_lock. */
 
-	time_t		start_time;	/*!< time the state last time became
-					TRX_STATE_ACTIVE */
-	ib_uint64_t	start_time_micro; /*!< start time of transaction in
-					microseconds */
+	/** wall-clock time of the latest transition to TRX_STATE_ACTIVE;
+	used for diagnostic purposes only */
+	time_t		start_time;
+	/** microsecond_interval_timer() of transaction start */
+	ulonglong	start_time_micro;
 	lsn_t		commit_lsn;	/*!< lsn at the time of the commit */
 	table_id_t	table_id;	/*!< Table to drop iff dict_operation
 					== TRX_DICT_OP_TABLE, or 0. */
@@ -940,7 +932,7 @@ public:
 					contains a pointer to the latest file
 					name; this is NULL if binlog is not
 					used */
-	int64_t		mysql_log_offset;
+	ulonglong	mysql_log_offset;
 					/*!< if MySQL binlog is used, this
 					field contains the end offset of the
 					binlog entry */
@@ -1050,8 +1042,11 @@ public:
 	/*------------------------------*/
 	char*		detailed_error;	/*!< detailed error message for last
 					error, or empty. */
-	FlushObserver*	flush_observer;	/*!< flush observer */
-
+private:
+	/** flush observer used to track flushing of non-redo logged pages
+	during bulk create index */
+	FlushObserver*	flush_observer;
+public:
 	/* Lock wait statistics */
 	ulint		n_rec_lock_waits;
 					/*!< Number of record lock waits,
@@ -1103,6 +1098,26 @@ public:
 
 		return(assign_temp_rseg());
 	}
+
+	/** Set the innodb_log_optimize_ddl page flush observer
+	@param[in,out]	space	tablespace
+	@param[in,out]	stage	performance_schema accounting */
+	void set_flush_observer(fil_space_t* space, ut_stage_alter_t* stage);
+
+	/** Remove the flush observer */
+	void remove_flush_observer();
+
+	/** @return the flush observer */
+	FlushObserver* get_flush_observer() const
+	{
+		return flush_observer;
+	}
+
+  /** Transition to committed state, to release implicit locks. */
+  inline void commit_state();
+
+  /** Release any explicit locks of a committing transaction. */
+  inline void release_locks();
 
 
   bool is_referenced()

@@ -119,6 +119,10 @@ select count(*) from t1;
 
 -- disable_query_log
 -- disable_result_log
+if ($engine_type == RocksDB)
+{
+    set global rocksdb_force_flush_memtable_now=1;
+}
 analyze table t0;
 analyze table t1;
 -- enable_result_log
@@ -141,6 +145,10 @@ insert into t1 (key1, key2, key3, key4, filler1) values (-1, -1, 100, 100, 'key4
 
 -- disable_query_log
 -- disable_result_log
+if ($engine_type == RocksDB)
+{
+    set global rocksdb_force_flush_memtable_now=1;
+}
 analyze table t1;
 -- enable_result_log
 -- enable_query_log
@@ -193,6 +201,10 @@ update t1 set key1=200,key2=200 where key1=100 and key2=100;
 delete from t1 where key1=200 and key2=200;
 -- disable_query_log
 -- disable_result_log
+if ($engine_type == RocksDB)
+{
+    set global rocksdb_force_flush_memtable_now=1;
+}
 analyze table t1;
 -- enable_result_log
 -- enable_query_log
@@ -210,6 +222,10 @@ delete from t1 where key3=100 and key4=100;
 
 -- disable_query_log
 -- disable_result_log
+if ($engine_type == RocksDB)
+{
+    set global rocksdb_force_flush_memtable_now=1;
+}
 analyze table t1;
 -- enable_result_log
 -- enable_query_log
@@ -236,6 +252,10 @@ insert into t1 (key1, key2, key3, key4, filler1) values (100, 100, 200, 200,'key
 
 -- disable_query_log
 -- disable_result_log
+if ($engine_type == RocksDB)
+{
+    set global rocksdb_force_flush_memtable_now=1;
+}
 analyze table t1;
 -- enable_result_log
 -- enable_query_log
@@ -250,6 +270,10 @@ insert into t1 (key1, key2, key3, key4, filler1) values (-1, -1, -1, 200,'key4')
 
 -- disable_query_log
 -- disable_result_log
+if ($engine_type == RocksDB)
+{
+    set global rocksdb_force_flush_memtable_now=1;
+}
 analyze table t1;
 -- enable_result_log
 -- enable_query_log
@@ -264,6 +288,10 @@ insert into t1 (key1, key2, key3, key4, filler1) values (-1, -1, 200, -1,'key3')
 
 -- disable_query_log
 -- disable_result_log
+if ($engine_type == RocksDB)
+{
+    set global rocksdb_force_flush_memtable_now=1;
+}
 analyze table t1;
 -- enable_result_log
 -- enable_query_log
@@ -392,6 +420,10 @@ select count(a) from t2 where b='BBBBBBBB';
 
 -- disable_query_log
 -- disable_result_log
+if ($engine_type == RocksDB)
+{
+    set global rocksdb_force_flush_memtable_now=1;
+}
 analyze table t2;
 -- enable_result_log
 -- enable_query_log
@@ -405,6 +437,10 @@ select count(a) from t2 ignore index(a,b) where a='AAAAAAAA' and b='AAAAAAAA';
 insert into t2 values ('ab', 'ab', 'uh', 'oh');
 -- disable_query_log
 -- disable_result_log
+if ($engine_type == RocksDB)
+{
+    set global rocksdb_force_flush_memtable_now=1;
+}
 analyze table t2;
 -- enable_result_log
 -- enable_query_log

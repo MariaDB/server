@@ -11,7 +11,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 INCLUDE_DIRECTORIES(
  ${CMAKE_SOURCE_DIR}/include
@@ -20,9 +20,6 @@ INCLUDE_DIRECTORIES(
  ${CMAKE_SOURCE_DIR}/extra/yassl/taocrypt/mySTL)
 
 ADD_DEFINITIONS(${SSL_DEFINES})
-#Remove -fno-implicit-templates
-#(yassl sources cannot  be compiled with  it)
-STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 SET(YASSL_SOURCES  src/buffer.cpp src/cert_wrapper.cpp src/crypto_wrapper.cpp src/handshake.cpp src/lock.cpp 
 				src/log.cpp src/socket_wrapper.cpp src/ssl.cpp src/timer.cpp src/yassl_error.cpp 
 				src/yassl_imp.cpp src/yassl_int.cpp)

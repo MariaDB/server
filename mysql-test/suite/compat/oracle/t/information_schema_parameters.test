@@ -92,3 +92,36 @@ SET sql_mode=ORACLE;
 SELECT *, '--------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='f1';
 --horizontal_results
 DROP FUNCTION f1;
+
+--echo #
+--echo # MDEV 18092 Query with the table I_S.PARAMETERS stop working
+--echo # after a package is created
+--echo #
+
+SET sql_mode=ORACLE;
+
+CREATE DATABASE db1_mdev18092;
+USE db1_mdev18092;
+
+DELIMITER $$;
+
+CREATE PROCEDURE p1(a INT)
+AS BEGIN
+  NULL;
+END;
+$$
+
+CREATE OR REPLACE PACKAGE employee_tools AS
+  FUNCTION getSalary(eid INT) RETURN DECIMAL(10,2);
+  PROCEDURE raiseSalary(eid INT, amount DECIMAL(10,2));
+  PROCEDURE raiseSalaryStd(eid INT);
+  PROCEDURE hire(ename TEXT, esalary DECIMAL(10,2));
+END;
+$$
+DELIMITER ;$$
+
+--vertical_results
+SELECT *, '---------------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_SCHEMA='db1_mdev18092';
+--horizontal_results
+
+DROP DATABASE db1_mdev18092;

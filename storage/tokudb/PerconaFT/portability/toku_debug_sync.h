@@ -40,7 +40,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 struct tokutxn;
 
-#if defined(ENABLED_DEBUG_SYNC)
+#if defined(MYSQL_TOKUDB_ENGINE) && MYSQL_TOKUDB_ENGINE && \
+    defined(ENABLED_DEBUG_SYNC) && ENABLED_DEBUG_SYNC
 
 /*
   the below macros are defined in my_global.h
@@ -62,9 +63,6 @@ inline void toku_debug_sync(struct tokutxn *txn, const char *sync_point_name) {
     uint64_t client_id;
     void *client_extra;
     THD *thd;
-
-    if (likely(!opt_debug_sync_timeout))
-        return;
 
     toku_txn_get_client_id(txn, &client_id, &client_extra);
     thd = reinterpret_cast<THD *>(client_extra);

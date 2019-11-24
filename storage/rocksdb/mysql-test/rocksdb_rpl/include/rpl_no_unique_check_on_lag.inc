@@ -30,6 +30,7 @@ INSERT INTO t1 VALUES(1, 1);
 connection slave;
 --let $slave_sql_errno= 1062
 --let $not_switch_connection= 0
+--let $slave_timeout= 120
 --source include/wait_for_slave_sql_error_and_skip.inc
 set global reset_seconds_behind_master=0;
 --source include/stop_slave_io.inc

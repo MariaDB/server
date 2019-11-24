@@ -5,6 +5,7 @@
 # Note that this test gives error in the gzip library when running under
 # valgrind, but these warnings can be ignored
 
+set @save_max_allowed_packet=@@max_allowed_packet;
 set global max_allowed_packet=1048576;
 connect (conn1,localhost,root,,);
 connection conn1;
@@ -56,7 +57,7 @@ eval select compress(repeat('aaaaaaaaaa', IF('$LOW_MEMORY', 10, 10000000))) is n
 disconnect newconn;
 --source include/wait_until_disconnected.inc
 connection default;
-set @@global.max_allowed_packet=default;
+set @@global.max_allowed_packet=@save_max_allowed_packet;
 
 #
 # Bug #18643: problem with null values
@@ -116,7 +117,7 @@ DROP TABLE t1;
 --echo End of 5.0 tests
 --disable_result_log
 --disable_query_log
-set @@global.max_allowed_packet=default;
+set @@global.max_allowed_packet=@save_max_allowed_packet;
 --enable_result_log
 --enable_query_log
 
@@ -148,7 +149,7 @@ SELECT UNCOMPRESS(CAST(0 AS BINARY(5)));
 
 disconnect conn1;
 connection default;
-set global max_allowed_packet=default;
+set global max_allowed_packet=@save_max_allowed_packet;
 --echo #
 --echo # End of 5.5 tests
 --echo #

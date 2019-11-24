@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file storage/perfschema/table_performance_timers.cc
@@ -58,23 +58,23 @@ table_performance_timers::table_performance_timers()
 
   index= (int)TIMER_NAME_CYCLE - FIRST_TIMER_NAME;
   m_data[index].m_timer_name= TIMER_NAME_CYCLE;
-  m_data[index].m_info= pfs_timer_info.cycles;
+  m_data[index].m_info= sys_timer_info.cycles;
 
   index= (int)TIMER_NAME_NANOSEC - FIRST_TIMER_NAME;
   m_data[index].m_timer_name= TIMER_NAME_NANOSEC;
-  m_data[index].m_info= pfs_timer_info.nanoseconds;
+  m_data[index].m_info= sys_timer_info.nanoseconds;
 
   index= (int)TIMER_NAME_MICROSEC - FIRST_TIMER_NAME;
   m_data[index].m_timer_name= TIMER_NAME_MICROSEC;
-  m_data[index].m_info= pfs_timer_info.microseconds;
+  m_data[index].m_info= sys_timer_info.microseconds;
 
   index= (int)TIMER_NAME_MILLISEC - FIRST_TIMER_NAME;
   m_data[index].m_timer_name= TIMER_NAME_MILLISEC;
-  m_data[index].m_info= pfs_timer_info.milliseconds;
+  m_data[index].m_info= sys_timer_info.milliseconds;
 
   index= (int)TIMER_NAME_TICK - FIRST_TIMER_NAME;
   m_data[index].m_timer_name= TIMER_NAME_TICK;
-  m_data[index].m_info= pfs_timer_info.ticks;
+  m_data[index].m_info= sys_timer_info.ticks;
 }
 
 void table_performance_timers::reset_position(void)

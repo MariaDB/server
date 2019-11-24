@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Get Properties of an existing mysqld Windows service 
@@ -108,7 +108,7 @@ BOOL exclude_service(mysqld_service_properties *props)
   }
   if ((props->version_major == 0) ||
      (props->version_major > 5 && props->version_major < 10) ||
-     (props->version_major == 5 && props->version_minor > 6))
+     (props->version_major == 5 && props->version_minor > 7))
   {
     return TRUE;
   }

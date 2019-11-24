@@ -156,7 +156,6 @@ create table t1 (a int, b int generated always as (a+1) virtual,
                  foreign key (b) references t2(a));
 
 create table t1 (a int, b int generated always as (a+1) virtual);
---replace_regex /`#sql-.*`/`#sql-temporary`/
 --error ER_CANT_CREATE_TABLE
 alter table t1 add foreign key (b) references t2(a);
 drop table t1;

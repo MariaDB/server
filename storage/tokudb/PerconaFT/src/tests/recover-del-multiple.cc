@@ -84,7 +84,7 @@ put_callback(DB *dest_db, DB *src_db, DBT_ARRAY *dest_keys, DBT_ARRAY *dest_vals
         memcpy(dest_key->data, &pri_data[dbnum], dest_key->size);
         break;
     default:
-        assert(0);
+        abort();
     }
 
     if (dest_val) {
@@ -98,9 +98,9 @@ put_callback(DB *dest_db, DB *src_db, DBT_ARRAY *dest_keys, DBT_ARRAY *dest_vals
             }
             break;
         case DB_DBT_REALLOC:
-            assert(0);
+            abort();
         default:
-            assert(0);
+            abort();
         }
     }
     

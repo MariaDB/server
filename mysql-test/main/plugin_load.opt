@@ -1,3 +1,4 @@
+--plugin-maturity=unknown
 --plugin-load-add=$DIALOG_EXAMPLES_SO
 --plugin-load=$LIBDAEMON_EXAMPLE_SO
 --plugin-load-add=EXAMPLE=$HA_EXAMPLE_SO

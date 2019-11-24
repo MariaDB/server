@@ -710,8 +710,6 @@ SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 16;
 a
 USA
 CAN
-Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 17 rows, which exceeds LIMIT ROWS EXAMINED (16). The query result may be incomplete
 drop table t1,t2,t3;
 set @@optimizer_switch='default';
 

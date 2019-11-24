@@ -252,6 +252,15 @@ select plugin_name from information_schema.plugins where plugin_library like 'ha
 uninstall soname 'ha_example';
 select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
 
+#
+#
+#
+set names utf8;
+select convert('admin𝌆' using utf8);
+--error ER_UDF_NO_PATHS
+install plugin foo soname 'admin𝌆';
+
+--echo # End of 5.5 test
 
 --echo #
 --echo # MDEV-5309 - RENAME TABLE does not check for existence of the table's
@@ -265,3 +274,5 @@ UNINSTALL PLUGIN example;
 --error ER_NO_SUCH_TABLE
 RENAME TABLE t1 TO t2;
 DROP TABLE t1;
+
+--echo # End of 10.1 test

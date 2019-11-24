@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,12 +27,9 @@ Created 4/20/1996 Heikki Tuuri
 #ifndef row0row_h
 #define row0row_h
 
-#include "univ.i"
-#include "data0data.h"
-#include "dict0types.h"
+#include "que0types.h"
 #include "ibuf0ibuf.h"
 #include "trx0types.h"
-#include "que0types.h"
 #include "mtr0mtr.h"
 #include "rem0types.h"
 #include "row0types.h"
@@ -90,8 +87,8 @@ row_build_index_entry_low(
 					inserted or purged */
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
-	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap,	/*!< in: memory heap from which
+	const dict_index_t*	index,	/*!< in: index on the table */
+	mem_heap_t*		heap,	/*!< in,out: memory heap from which
 					the memory for the index entry
 					is allocated */
 	ulint			flag)	/*!< in: ROW_BUILD_NORMAL,
@@ -112,8 +109,8 @@ row_build_index_entry(
 					inserted or purged */
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
-	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap)	/*!< in: memory heap from which
+	const dict_index_t*	index,	/*!< in: index on the table */
+	mem_heap_t*		heap)	/*!< in,out: memory heap from which
 					the memory for the index entry
 					is allocated */
 	MY_ATTRIBUTE((warn_unused_result, nonnull(1,3,4)));
@@ -269,9 +266,8 @@ row_build_row_ref_in_tuple(
 					held as long as the row
 					reference is used! */
 	const dict_index_t*	index,	/*!< in: secondary index */
-	ulint*			offsets,/*!< in: rec_get_offsets(rec, index)
+	ulint*			offsets)/*!< in: rec_get_offsets(rec, index)
 					or NULL */
-	trx_t*			trx)	/*!< in: transaction or NULL */
 	MY_ATTRIBUTE((nonnull(1,2,3)));
 /*******************************************************************//**
 Builds from a secondary index record a row reference with which we can
@@ -398,7 +394,7 @@ row_mtr_start(mtr_t* mtr, dict_index_t* index, bool pessimistic)
 {
 	mtr->start();
 
-	switch (index->table->space->id) {
+	switch (index->table->space_id) {
 	case IBUF_SPACE_ID:
 		if (pessimistic
 		    && !(index->type & (DICT_UNIQUE | DICT_SPATIAL))) {

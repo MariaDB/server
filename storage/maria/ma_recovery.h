@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   WL#3072 Maria recovery
@@ -33,4 +33,6 @@ int maria_apply_log(LSN lsn, LSN lsn_end, enum maria_apply_log_way apply,
 /* Table of tables to recover */
 extern HASH tables_to_redo;
 extern ulong maria_recovery_force_crash_counter;
+extern ulong recovery_found_crashed_tables;
+extern uint skipped_lsn_err_count;
 C_MODE_END

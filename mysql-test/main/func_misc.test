@@ -2,6 +2,7 @@
 # Testing of misc functions
 #
 
+--source include/default_optimizer_switch.inc
 --disable_warnings
 DROP TABLE IF EXISTS t1, t2;
 --enable_warnings
@@ -1130,6 +1131,14 @@ DELIMITER ;$$
 CALL p1();
 DROP PROCEDURE p1;
 
+--echo #
+--echo # MDEV-18195 ASAN use-after-poison in my_strcasecmp_utf8 / Item::eq upon prepared statement with ORDER BY NAME_CONST
+--echo #
+
+PREPARE stmt FROM "SELECT 'x' ORDER BY NAME_CONST( 'f', 'foo' )";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 
 --echo #
 --echo # Start of 10.2 tests
@@ -1183,6 +1192,12 @@ SELECT * FROM v1 WHERE numgtfmt =  NAME_CONST('wnumgtfmt',_utf8'QEDITIONS' COLLA
 DROP VIEW v1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-20517 Assertion `!is_expensive()' failed in Item::value_depends_on_sql_mode_const_item
+--echo #
+
+SELECT ( 1 LIKE GET_LOCK( 'foo', 0 ) ) - 2;
+SELECT RELEASE_LOCK('foo');
 
 --echo #
 --echo # End of 10.2 tests
@@ -1203,3 +1218,18 @@ SELECT INET_ATON("255.255.255.255.255.255.255.255");
 
 --enable_ps_protocol
 --disable_metadata
+
+--echo #
+--echo # MDEV-8049 name_const() is not consistent about its signess
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+SELECT 18446744073709551615 AS c1, name_const('a',18446744073709551615) AS c2;
+--enable_ps_protocol
+--disable_metadata
+
+CREATE TABLE t1 AS SELECT 18446744073709551615 AS c1, name_const('a',18446744073709551615) AS c2;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;

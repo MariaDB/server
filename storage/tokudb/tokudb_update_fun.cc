@@ -343,14 +343,11 @@ static inline uint32_t copy_toku_blob(
     return (length + len_bytes);
 }
 
-static int tokudb_hcad_update_fun(
-    DB* db,
-    const DBT* key,
-    const DBT* old_val,
-    const DBT* extra,
-    void (*set_val)(const DBT* new_val, void* set_extra),
-    void* set_extra) {
-
+static int tokudb_hcad_update_fun(const DBT* old_val,
+                                  const DBT* extra,
+                                  void (*set_val)(const DBT* new_val,
+                                                  void* set_extra),
+                                  void* set_extra) {
     uint32_t max_num_bytes;
     uint32_t num_columns;
     DBT new_val;
@@ -761,14 +758,11 @@ cleanup:
 
 // Expand the variable offset array in the old row given the update mesage
 // in the extra.
-static int tokudb_expand_variable_offsets(
-    DB* db,
-    const DBT* key,
-    const DBT* old_val,
-    const DBT* extra,
-    void (*set_val)(const DBT* new_val, void* set_extra),
-    void* set_extra) {
-
+static int tokudb_expand_variable_offsets(const DBT* old_val,
+                                          const DBT* extra,
+                                          void (*set_val)(const DBT* new_val,
+                                                          void* set_extra),
+                                          void* set_extra) {
     int error = 0;
     tokudb::buffer extra_val(extra->data, 0, extra->size);
 
@@ -840,14 +834,11 @@ cleanup:
 }
 
 // Expand an int field in a old row given the expand message in the extra.
-static int tokudb_expand_int_field(
-    DB* db,
-    const DBT* key,
-    const DBT* old_val,
-    const DBT* extra,
-    void (*set_val)(const DBT* new_val, void* set_extra),
-    void* set_extra) {
-
+static int tokudb_expand_int_field(const DBT* old_val,
+                                   const DBT* extra,
+                                   void (*set_val)(const DBT* new_val,
+                                                   void* set_extra),
+                                   void* set_extra) {
     int error = 0;
     tokudb::buffer extra_val(extra->data, 0, extra->size);
 
@@ -937,14 +928,11 @@ cleanup:
 }
 
 // Expand a char field in a old row given the expand message in the extra.
-static int tokudb_expand_char_field(
-    DB* db,
-    const DBT* key,
-    const DBT* old_val,
-    const DBT* extra,
-    void (*set_val)(const DBT* new_val, void* set_extra),
-    void* set_extra) {
-
+static int tokudb_expand_char_field(const DBT* old_val,
+                                    const DBT* extra,
+                                    void (*set_val)(const DBT* new_val,
+                                                    void* set_extra),
+                                    void* set_extra) {
     int error = 0;
     tokudb::buffer extra_val(extra->data, 0, extra->size);
 
@@ -1497,14 +1485,11 @@ static uint8_t *consume_uint8_array(tokudb::buffer &b, uint32_t array_size) {
     return p;
 }
 
-static int tokudb_expand_blobs(
-    DB* db,
-    const DBT* key_dbt,
-    const DBT* old_val_dbt,
-    const DBT* extra,
-    void (*set_val)(const DBT* new_val_dbt, void* set_extra),
-    void* set_extra) {
-
+static int tokudb_expand_blobs(const DBT* old_val_dbt,
+                               const DBT* extra,
+                               void (*set_val)(const DBT* new_val_dbt,
+                                               void* set_extra),
+                               void* set_extra) {
     tokudb::buffer extra_val(extra->data, 0, extra->size);
     
     uint8_t operation;
@@ -1549,12 +1534,9 @@ static int tokudb_expand_blobs(
 
 // Decode and apply a sequence of update operations defined in the extra to
 // the old value and put the result in the new value.
-static void apply_1_updates(
-    tokudb::value_map& vd,
-    tokudb::buffer& new_val,
-    tokudb::buffer& old_val,
-    tokudb::buffer& extra_val) {
-
+static void apply_1_updates(tokudb::value_map& vd,
+                            tokudb::buffer& old_val,
+                            tokudb::buffer& extra_val) {
     uint32_t num_updates;
     extra_val.consume(&num_updates, sizeof num_updates);
     for ( ; num_updates > 0; num_updates--) {
@@ -1628,14 +1610,11 @@ static void apply_1_updates(
 
 // Simple update handler. Decode the update message, apply the update operations
 // to the old value, and set the new value.
-static int tokudb_update_1_fun(
-    DB* db,
-    const DBT* key_dbt,
-    const DBT* old_val_dbt,
-    const DBT* extra,
-    void (*set_val)(const DBT* new_val_dbt, void* set_extra),
-    void* set_extra) {
-
+static int tokudb_update_1_fun(const DBT* old_val_dbt,
+                               const DBT* extra,
+                               void (*set_val)(const DBT* new_val_dbt,
+                                               void* set_extra),
+                               void* set_extra) {
     tokudb::buffer extra_val(extra->data, 0, extra->size);
     
     uint8_t operation;
@@ -1669,7 +1648,7 @@ static int tokudb_update_1_fun(
             m_bytes_per_offset);
 
         // apply updates to new val
-        apply_1_updates(vd, new_val, old_val, extra_val);
+        apply_1_updates(vd, old_val, extra_val);
 
         // set the new val
         DBT new_val_dbt; memset(&new_val_dbt, 0, sizeof new_val_dbt);
@@ -1685,14 +1664,11 @@ static int tokudb_update_1_fun(
 // then insert a new value from the extra.
 // Otherwise, apply the update operations to the old value, and then set the
 // new value.
-static int tokudb_upsert_1_fun(
-    DB* db,
-    const DBT* key_dbt,
-    const DBT* old_val_dbt,
-    const DBT* extra,
-    void (*set_val)(const DBT* new_val_dbt, void* set_extra),
-    void* set_extra) {
-
+static int tokudb_upsert_1_fun(const DBT* old_val_dbt,
+                               const DBT* extra,
+                               void (*set_val)(const DBT* new_val_dbt,
+                                               void* set_extra),
+                               void* set_extra) {
     tokudb::buffer extra_val(extra->data, 0, extra->size);
 
     uint8_t operation;
@@ -1736,7 +1712,7 @@ static int tokudb_upsert_1_fun(
             m_bytes_per_offset);
 
         // apply updates to new val
-        apply_1_updates(vd, new_val, old_val, extra_val);
+        apply_1_updates(vd, old_val, extra_val);
 
         // set the new val
         DBT new_val_dbt; memset(&new_val_dbt, 0, sizeof new_val_dbt);
@@ -1750,12 +1726,9 @@ static int tokudb_upsert_1_fun(
 
 // Decode and apply a sequence of update operations defined in the extra to the
 // old value and put the result in the new value.
-static void apply_2_updates(
-    tokudb::value_map& vd,
-    tokudb::buffer& new_val,
-    tokudb::buffer& old_val,
-    tokudb::buffer& extra_val) {
-
+static void apply_2_updates(tokudb::value_map& vd,
+                            tokudb::buffer& old_val,
+                            tokudb::buffer& extra_val) {
     uint32_t num_updates = consume_uint32(extra_val);
     for (uint32_t i = 0; i < num_updates; i++) {
         uint32_t update_operation = consume_uint32(extra_val);
@@ -1856,14 +1829,11 @@ static void apply_2_updates(
 
 // Simple update handler. Decode the update message, apply the update
 // operations to the old value, and set the new value.
-static int tokudb_update_2_fun(
-    DB* db,
-    const DBT* key_dbt,
-    const DBT* old_val_dbt,
-    const DBT* extra,
-    void (*set_val)(const DBT* new_val_dbt, void* set_extra),
-    void* set_extra) {
-
+static int tokudb_update_2_fun(const DBT* old_val_dbt,
+                               const DBT* extra,
+                               void (*set_val)(const DBT* new_val_dbt,
+                                               void* set_extra),
+                               void* set_extra) {
     tokudb::buffer extra_val(extra->data, 0, extra->size);
     
     uint8_t op;
@@ -1883,7 +1853,7 @@ static int tokudb_update_2_fun(
         tokudb::value_map vd(&new_val);
 
         // apply updates to new val
-        apply_2_updates(vd, new_val, old_val, extra_val);
+        apply_2_updates(vd, old_val, extra_val);
 
         // set the new val
         DBT new_val_dbt; memset(&new_val_dbt, 0, sizeof new_val_dbt);
@@ -1899,14 +1869,11 @@ static int tokudb_update_2_fun(
 // then insert a new value from the extra.
 // Otherwise, apply the update operations to the old value, and then set the
 // new value.
-static int tokudb_upsert_2_fun(
-    DB* db,
-    const DBT* key_dbt,
-    const DBT* old_val_dbt,
-    const DBT* extra,
-    void (*set_val)(const DBT* new_val_dbt, void* set_extra),
-    void* set_extra) {
-
+static int tokudb_upsert_2_fun(const DBT* old_val_dbt,
+                               const DBT* extra,
+                               void (*set_val)(const DBT* new_val_dbt,
+                                               void* set_extra),
+                               void* set_extra) {
     tokudb::buffer extra_val(extra->data, 0, extra->size);
 
     uint8_t op;
@@ -1937,7 +1904,7 @@ static int tokudb_upsert_2_fun(
         tokudb::value_map vd(&new_val);
 
         // apply updates to new val
-        apply_2_updates(vd, new_val, old_val, extra_val);
+        apply_2_updates(vd, old_val, extra_val);
 
         // set the new val
         DBT new_val_dbt; memset(&new_val_dbt, 0, sizeof new_val_dbt);
@@ -1952,101 +1919,46 @@ static int tokudb_upsert_2_fun(
 // This function is the update callback function that is registered with the
 // YDB environment. It uses the first byte in the update message to identify
 // the update message type and call the handler for that message.
-int tokudb_update_fun(
-    DB* db,
-    const DBT* key,
-    const DBT* old_val,
-    const DBT* extra,
-    void (*set_val)(const DBT* new_val, void* set_extra),
-    void* set_extra) {
-
+int tokudb_update_fun(TOKUDB_UNUSED(DB* db),
+                      TOKUDB_UNUSED(const DBT* key),
+                      const DBT* old_val,
+                      const DBT* extra,
+                      void (*set_val)(const DBT* new_val, void* set_extra),
+                      void* set_extra) {
     assert_always(extra->size > 0);
     uint8_t* extra_pos = (uchar*)extra->data;
     uint8_t operation = extra_pos[0];
     int error;
     switch (operation) {
     case UPDATE_OP_COL_ADD_OR_DROP:
-        error = tokudb_hcad_update_fun(
-            db,
-            key,
-            old_val,
-            extra,
-            set_val,
-            set_extra);
+        error = tokudb_hcad_update_fun(old_val, extra, set_val, set_extra);
         break;
     case UPDATE_OP_EXPAND_VARIABLE_OFFSETS:
-        error = tokudb_expand_variable_offsets(
-            db,
-            key,
-            old_val,
-            extra,
-            set_val,
-            set_extra);
+        error =
+            tokudb_expand_variable_offsets(old_val, extra, set_val, set_extra);
         break;
     case UPDATE_OP_EXPAND_INT:
     case UPDATE_OP_EXPAND_UINT:
-        error = tokudb_expand_int_field(
-            db,
-            key,
-            old_val,
-            extra,
-            set_val,
-            set_extra);
+        error = tokudb_expand_int_field(old_val, extra, set_val, set_extra);
         break;
     case UPDATE_OP_EXPAND_CHAR:
     case UPDATE_OP_EXPAND_BINARY:
-        error = tokudb_expand_char_field(
-            db,
-            key,
-            old_val,
-            extra,
-            set_val,
-            set_extra);
+        error = tokudb_expand_char_field(old_val, extra, set_val, set_extra);
         break;
     case UPDATE_OP_EXPAND_BLOB:
-        error = tokudb_expand_blobs(
-            db,
-            key,
-            old_val,
-            extra,
-            set_val,
-            set_extra);
+        error = tokudb_expand_blobs(old_val, extra, set_val, set_extra);
         break;
     case UPDATE_OP_UPDATE_1:
-        error = tokudb_update_1_fun(
-            db,
-            key,
-            old_val,
-            extra,
-            set_val,
-            set_extra);
+        error = tokudb_update_1_fun(old_val, extra, set_val, set_extra);
         break;
     case UPDATE_OP_UPSERT_1:
-        error = tokudb_upsert_1_fun(
-            db,
-            key,
-            old_val,
-            extra,
-            set_val,
-            set_extra);
+        error = tokudb_upsert_1_fun(old_val, extra, set_val, set_extra);
         break;
     case UPDATE_OP_UPDATE_2:
-        error = tokudb_update_2_fun(
-            db,
-            key,
-            old_val,
-            extra,
-            set_val,
-            set_extra);
+        error = tokudb_update_2_fun(old_val, extra, set_val, set_extra);
         break;
     case UPDATE_OP_UPSERT_2:
-        error = tokudb_upsert_2_fun(
-            db,
-            key,
-            old_val,
-            extra,
-            set_val,
-            set_extra);
+        error = tokudb_upsert_2_fun(old_val, extra, set_val, set_extra);
         break;
     default:
         assert_unreachable();

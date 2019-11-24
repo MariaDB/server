@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -22,7 +22,7 @@ Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 ***********************************************************************/
 
@@ -796,9 +796,7 @@ os_file_rename
 os_aio
 os_file_read
 os_file_read_no_error_handling
-os_file_read_no_error_handling_int_fd
 os_file_write
-os_file_write_int_fd
 
 The wrapper functions have the prefix of "innodb_". */
 
@@ -1174,13 +1172,9 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_read_no_error_handling(type, file, buf, offset, n, o)	\
 	os_file_read_no_error_handling_func(type, file, buf, offset, n, o)
-# define os_file_read_no_error_handling_int_fd(type, file, buf, offset, n) \
-	os_file_read_no_error_handling_func(type, OS_FILE_FROM_FD(file), buf, offset, n, NULL)
 
 # define os_file_write(type, name, file, buf, offset, n)	\
 	os_file_write_func(type, name, file, buf, offset, n)
-# define os_file_write_int_fd(type, name, file, buf, offset, n)	\
-	os_file_write_func(type, name, OS_FILE_FROM_FD(file), buf, offset, n)
 
 # define os_file_flush(file)	os_file_flush_func(file)
 
@@ -1241,17 +1235,18 @@ bool
 os_file_set_eof(
 	FILE*		file);	/*!< in: file to be truncated */
 
-/** Truncates a file to a specified size in bytes. Do nothing if the size
-preserved is smaller or equal than current size of file.
+/** Truncate a file to a specified size in bytes.
 @param[in]	pathname	file path
 @param[in]	file		file to be truncated
 @param[in]	size		size preserved in bytes
+@param[in]	allow_shrink	whether to allow the file to become smaller
 @return true if success */
 bool
 os_file_truncate(
 	const char*	pathname,
 	os_file_t	file,
-	os_offset_t	size);
+	os_offset_t	size,
+	bool		allow_shrink = false);
 
 /** NOTE! Use the corresponding macro os_file_flush(), not directly this
 function!

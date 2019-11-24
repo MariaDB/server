@@ -3,6 +3,8 @@
 # The queries in this file test query execution via QUICK_GROUP_MIN_MAX_SELECT.
 #
 
+--source include/default_optimizer_switch.inc
+
 #
 # TODO:
 # Add queries with:
@@ -1519,6 +1521,23 @@ ALTER TABLE t1 ADD KEY(id,a);
 SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=DATE'2001-01-04' GROUP BY id;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-17039: Query plan changes when we use GROUP BY optimization with optimizer_use_condition_selectivity=4
+--echo # and use_stat_tables= PREFERABLY
+--echo #
+
+CREATE TABLE t1 (a INT, b INT,c INT DEFAULT 0, INDEX (a,b));
+INSERT INTO t1 (a, b) VALUES (1,1), (1,2), (1,3), (1,4), (1,5),
+(2,2), (2,3), (2,1), (3,1), (4,1), (4,2), (4,3), (4,4), (4,5), (4,6);
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @save_use_stat_tables= @@use_stat_tables;
+set @@optimizer_use_condition_selectivity=4;
+set @@use_stat_tables=PREFERABLY;
+explain extended SELECT a FROM t1 AS t1_outer WHERE a IN (SELECT max(b) FROM t1  GROUP BY a); 
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set @@use_stat_tables=@save_use_stat_tables;
+explain extended SELECT a FROM t1 AS t1_outer WHERE a IN (SELECT max(b) FROM t1   GROUP BY a); 
+drop table t1; 
 
 --echo #
 --echo # End of 10.0 tests
@@ -1606,6 +1625,33 @@ insert into t1 values("bar"),("Cafe");
 explain select min(a) from t1 where a between "a" and "Cafe2";
 explain select min(a) from t1 where a between "a" and "Cafeeeeeeeeeeeeeeeeeeeeeeeeee";
 explain select min(a) from t1 where a between "abbbbbbbbbbbbbbbbbbbb" and "Cafe2";
+drop table t1;
+
+--echo #
+--echo # MDEV-15433: Optimizer does not use group by optimization with distinct
+--echo #
+
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, a INT NOT NULL, KEY(a));
+--disable_query_log
+INSERT INTO t1(a) VALUES (1), (2), (3), (4);
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+--enable_query_log
+OPTIMIZE TABLE t1;
+EXPLAIN SELECT DISTINCT a FROM t1;
+SELECT DISTINCT a FROM t1;
 drop table t1;
 
 --echo #

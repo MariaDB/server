@@ -64,7 +64,6 @@ set DEBUG_SYNC = 'now WAIT_FOR s1';
 --error ER_DUP_ENTRY
 update t1 set a=1 where id=2;
 SET DEBUG_SYNC = 'now SIGNAL s2';
-disconnect con1;
 
 --echo /* connection default */
 connection default;
@@ -74,6 +73,62 @@ connection default;
 SET DEBUG_SYNC = 'RESET';
 
 drop table t1;
+
+--echo #
+--echo # Bug #27753193  ASSERTION `PREBUILT->TRX->ERROR_KEY_NUM <
+--echo #                HA_ALTER_INFO->KEY_COUNT'
+
+CREATE TABLE t1 (a INT, UNIQUE KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+SET DEBUG_SYNC = 'row_log_table_apply1_before signal S1 WAIT_FOR S2';
+send ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+
+connection con1;
+SET DEBUG_SYNC = 'now WAIT_FOR S1';
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (1);
+SET DEBUG_SYNC = 'now SIGNAL S2';
+disconnect con1;
+
+CONNECTION default;
+--error ER_DUP_ENTRY
+reap;
+SET DEBUG_SYNC='RESET';
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17470 Orphan temporary files after interrupted ALTER
+--echo # cause InnoDB: Operating system error number 17 and eventual
+--echo # fatal error 71
+--echo #
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, i INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL,1),(NULL,2),(NULL,3),(NULL,4),(NULL,5),(NULL,6),(NULL,7),(NULL,8);
+INSERT INTO t1 SELECT NULL, i FROM t1;
+INSERT INTO t1 SELECT NULL, i FROM t1;
+INSERT INTO t1 SELECT NULL, i FROM t1;
+INSERT INTO t1 SELECT NULL, i FROM t1;
+INSERT INTO t1 SELECT NULL, i FROM t1;
+
+LOCK TABLE t1 READ;
+
+--connect (con1,localhost,root,,test)
+let $ID= `SELECT @id := CONNECTION_ID()`;
+send ALTER TABLE t1 FORCE, ALGORITHM=COPY;
+
+--connection default
+let $wait_condition= select 1 from information_schema.processlist where state='Waiting for table metadata lock';
+source include/wait_condition.inc;
+let $ignore= `SELECT @id := $ID`;
+kill query @id;
+--connection con1
+--error ER_QUERY_INTERRUPTED
+reap;
+--disconnect con1
+--connection default
+UNLOCK TABLES;
+DROP TABLE t1;
 
 # Wait till all disconnects are completed
 --source include/wait_until_count_sessions.inc

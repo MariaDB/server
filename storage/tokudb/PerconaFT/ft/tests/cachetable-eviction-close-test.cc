@@ -113,9 +113,7 @@ static void cachetable_eviction_full_test (void) {
     uint32_t fullhash = toku_cachetable_hash(f1, make_blocknum(0));
 
     void* value1;
-    long size1;
     void* value2;
-    long size2;
     //
     // let's pin a node multiple times
     // and really bring up its clock count
@@ -129,7 +127,6 @@ static void cachetable_eviction_full_test (void) {
             key, 
             fullhash, 
             &value1, 
-            &size1, 
             wc, 
             fetch,
             def_pf_req_callback,
@@ -150,7 +147,6 @@ static void cachetable_eviction_full_test (void) {
         make_blocknum(1), 
         1, 
         &value2, 
-        &size2, 
         wc, 
         fetch,
         def_pf_req_callback,

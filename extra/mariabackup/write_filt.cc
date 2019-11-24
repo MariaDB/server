@@ -16,7 +16,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -80,9 +80,8 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 	cp->delta_buf = (unsigned char *)os_mem_alloc_large(&cp->delta_buf_size);
 
 	if (!cp->delta_buf) {
-		msg("[%02u] mariabackup: Error: "
-			"cannot allocate %zu bytes\n",
-			cursor->thread_n, (size_t) cp->delta_buf_size);
+		msg(cursor->thread_n,"Can't allocate %zu bytes",
+			(size_t) cp->delta_buf_size);
 		return (FALSE);
 	}
 
@@ -91,9 +90,9 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 		 XB_DELTA_INFO_SUFFIX);
 	const xb_delta_info_t	info(cursor->page_size, cursor->space_id);
 	if (!xb_write_delta_metadata(meta_name, &info)) {
-		msg("[%02u] mariabackup: Error: "
-		    "failed to write meta info for %s\n",
-		    cursor->thread_n, cursor->rel_path);
+		msg(cursor->thread_n,"Error: "
+		    "failed to write meta info for %s",
+		    cursor->rel_path);
 		return(FALSE);
 	}
 

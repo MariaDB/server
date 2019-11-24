@@ -1,0 +1,85 @@
+#
+# Issue #809: Wrong query result with bloom filters
+# 
+create table t1 (
+id1 bigint not null,
+id2 bigint not null,
+id3 varchar(100) not null,
+id4 int not null,
+id5 int not null,
+value bigint,
+value2 varchar(100),
+primary key (id1, id2, id3, id4) COMMENT 'rev:bf5_1'
+) engine=ROCKSDB;
+create table t2(a int);
+insert into t2 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t3(seq int);
+insert into t3
+select 
+1+ A.a + B.a* 10 + C.a * 100 + D.a * 1000 
+from t2 A, t2 B, t2 C, t2 D;
+insert t1
+select 
+(seq+9) div 10, (seq+4) div 5, (seq+4) div 5, seq, seq, 1000, "aaabbbccc"
+from t3;
+set global rocksdb_force_flush_memtable_now=1;
+# Full table scan
+explain 
+select * from t1 limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10000	
+select * from t1 limit 10;
+id1	id2	id3	id4	id5	value	value2
+1000	2000	2000	10000	10000	1000	aaabbbccc
+1000	2000	2000	9999	9999	1000	aaabbbccc
+1000	2000	2000	9998	9998	1000	aaabbbccc
+1000	2000	2000	9997	9997	1000	aaabbbccc
+1000	2000	2000	9996	9996	1000	aaabbbccc
+1000	1999	1999	9995	9995	1000	aaabbbccc
+1000	1999	1999	9994	9994	1000	aaabbbccc
+1000	1999	1999	9993	9993	1000	aaabbbccc
+1000	1999	1999	9992	9992	1000	aaabbbccc
+1000	1999	1999	9991	9991	1000	aaabbbccc
+# An index scan starting from the end of the table:
+explain 
+select * from t1 order by id1 desc,id2 desc, id3 desc, id4 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	122	NULL	1	
+select * from t1 order by id1 desc,id2 desc, id3 desc, id4 desc limit 1;
+id1	id2	id3	id4	id5	value	value2
+1000	2000	2000	10000	10000	1000	aaabbbccc
+create table t4 (
+pk int unsigned not null primary key,
+kp1 int unsigned not null,
+kp2 int unsigned not null,
+col1 int unsigned,
+key(kp1, kp2) comment 'rev:bf5_2'
+) engine=rocksdb;
+insert into t4 values (1, 0xFFFF, 0xFFF, 12345);
+# This must not fail an assert:
+select * from t4 force index(kp1) where kp1=0xFFFFFFFF and kp2<=0xFFFFFFFF order by  kp2 desc;
+pk	kp1	kp2	col1
+#
+#  Issue #881: Issue #809 still occurs for reverse scans on forward cfs
+#
+create table t5 (
+id1 bigint not null,
+id2 bigint not null,
+id3 varchar(100) not null,
+id4 int not null,
+id5 int not null,
+value bigint,
+value2 varchar(100),
+primary key (id1, id2, id3, id4) COMMENT 'bf5_1'
+) engine=ROCKSDB;
+insert into t5 select * from t1;
+set global rocksdb_force_flush_memtable_now=1;
+# An index scan starting from the end of the table:
+explain
+select * from t5 order by id1 desc,id2 desc, id3 desc, id4 desc limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t5	index	NULL	PRIMARY	122	NULL	1	
+select * from t5 order by id1 desc,id2 desc, id3 desc, id4 desc limit 1;
+id1	id2	id3	id4	id5	value	value2
+1000	2000	2000	10000	10000	1000	aaabbbccc
+drop table t1,t2,t3,t4,t5;

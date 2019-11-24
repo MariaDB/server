@@ -95,6 +95,8 @@ LOADERS_READY = 0
 REQUEST_ID = 1
 REQUEST_ID_LOCK = threading.Lock()
 
+INSERT_ID_SET = set()
+
 def get_next_request_id():
   global REQUEST_ID
   with REQUEST_ID_LOCK:
@@ -302,9 +304,18 @@ class PopulateWorker(WorkerThread):
       execute(self.cur, stmt)
       if i % 101 == 0:
         self.con.commit()
+        check_id(self.con.insert_id())
     self.con.commit()
+    check_id(self.con.insert_id())
     logging.info("Inserted %d rows starting at id %d" %
                  (self.num_to_add, self.start_id))
+
+def check_id(id):
+  if id == 0:
+    return
+  if id in INSERT_ID_SET:
+    raise Exception("Duplicate auto_inc id %d" % id)
+  INSERT_ID_SET.add(id)
 
 def populate_table(num_records):
 
@@ -422,6 +433,7 @@ class LoadGenWorker(WorkerThread):
       execute(self.cur, gen_insert(self.table, idx, self.thread_id,
                                    request_id, 0))
       self.con.commit()
+      check_id(self.con.insert_id())
 
     self.id_map.append(request_id)
 
@@ -687,6 +699,7 @@ class LoadGenWorker(WorkerThread):
     else:
       self.cur_txn_state = self.TXN_COMMIT_STARTED
       self.con.commit()
+      check_id(self.con.insert_id())
       if not self.con.get_server_info():
         raise MySQLdb.OperationalError(MySQLdb.constants.CR.CONNECTION_ERROR,
                                        "Possible connection error on commit")

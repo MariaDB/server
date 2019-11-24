@@ -228,6 +228,12 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
       entry->stop_on_error_sub_id == (uint64)ULONGLONG_MAX)
     entry->stop_on_error_sub_id= sub_id;
   mysql_mutex_unlock(&entry->LOCK_parallel_entry);
+  DBUG_EXECUTE_IF("hold_worker_on_schedule", {
+      if (entry->stop_on_error_sub_id < (uint64)ULONGLONG_MAX)
+      {
+        debug_sync_set_action(thd, STRING_WITH_LEN("now SIGNAL continue_worker"));
+      }
+    });
 
   DBUG_EXECUTE_IF("rpl_parallel_simulate_wait_at_retry", {
       if (rgi->current_gtid.seq_no == 1000) {
@@ -337,7 +343,7 @@ do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
     thd->set_time_for_next_stage();
     do
     {
-      if (thd->check_killed() && !rgi->worker_error)
+      if (!rgi->worker_error && unlikely(thd->check_killed(1)))
       {
         DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior_killed");
         thd->clear_error();
@@ -402,9 +408,8 @@ do_ftwrl_wait(rpl_group_info *rgi,
     {
       if (entry->force_abort || rgi->worker_error)
         break;
-      if (thd->check_killed())
+      if (unlikely(thd->check_killed()))
       {
-        thd->send_kill_message();
         slave_output_error_info(rgi, thd);
         signal_error_to_sql_driver_thread(thd, rgi, 1);
         break;
@@ -453,9 +458,8 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
   }
   while (pool->busy)
   {
-    if (thd && thd->check_killed())
+    if (thd && unlikely(thd->check_killed()))
     {
-      thd->send_kill_message();
       res= 1;
       break;
     }
@@ -571,9 +575,8 @@ rpl_pause_for_ftwrl(THD *thd)
            e->last_committed_sub_id < e->pause_sub_id &&
            !err)
     {
-      if (thd->check_killed())
+      if (unlikely(thd->check_killed()))
       {
-        thd->send_kill_message();
         err= 1;
         break;
       }
@@ -838,8 +841,8 @@ do_retry:
   }
   DBUG_EXECUTE_IF("inject_mdev8031", {
       /* Simulate pending KILL caught in read_relay_log_description_event(). */
-      if (thd->check_killed()) {
-        thd->send_kill_message();
+      if (unlikely(thd->check_killed()))
+      {
         err= 1;
         goto err;
       }
@@ -862,13 +865,13 @@ do_retry:
 
       if (ev)
         break;
-      if (rlog.error < 0)
+      if (unlikely(rlog.error < 0))
       {
         errmsg= "slave SQL thread aborted because of I/O error";
         err= 1;
         goto check_retry;
       }
-      if (rlog.error > 0)
+      if (unlikely(rlog.error > 0))
       {
         sql_print_error("Slave SQL thread: I/O error reading "
                         "event(errno: %d  cur_log->error: %d)",
@@ -1036,6 +1039,8 @@ handle_rpl_parallel_thread(void *arg)
   thd->system_thread= SYSTEM_THREAD_SLAVE_SQL;
   thd->security_ctx->skip_grants();
   thd->variables.max_allowed_packet= slave_max_allowed_packet;
+  /* Ensure that slave can exeute any alter table it gets from master */
+  thd->variables.alter_algorithm= (ulong) Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT;
   thd->slave_thread= 1;
 
   set_slave_thread_options(thd);
@@ -1137,6 +1142,13 @@ handle_rpl_parallel_thread(void *arg)
         bool did_enter_cond= false;
         PSI_stage_info old_stage;
 
+        DBUG_EXECUTE_IF("hold_worker_on_schedule", {
+            if (rgi->current_gtid.domain_id == 0 &&
+                rgi->current_gtid.seq_no == 100) {
+                  debug_sync_set_action(thd,
+                STRING_WITH_LEN("now SIGNAL reached_pause WAIT_FOR continue_worker"));
+            }
+          });
         DBUG_EXECUTE_IF("rpl_parallel_scheduled_gtid_0_x_100", {
             if (rgi->current_gtid.domain_id == 0 &&
                 rgi->current_gtid.seq_no == 100) {
@@ -1178,7 +1190,10 @@ handle_rpl_parallel_thread(void *arg)
         skip_event_group= do_gco_wait(rgi, gco, &did_enter_cond, &old_stage);
 
         if (unlikely(entry->stop_on_error_sub_id <= rgi->wait_commit_sub_id))
+        {
           skip_event_group= true;
+          rgi->worker_error= 1;
+        }
         if (likely(!skip_event_group))
           do_ftwrl_wait(rgi, &did_enter_cond, &old_stage);
 
@@ -1288,7 +1303,7 @@ handle_rpl_parallel_thread(void *arg)
         if (!err)
 #endif
         {
-          if (thd->check_killed())
+          if (unlikely(thd->check_killed()))
           {
             thd->clear_error();
             thd->get_stmt_da()->reset_diagnostics_area();
@@ -1301,7 +1316,7 @@ handle_rpl_parallel_thread(void *arg)
         delete_or_keep_event_post_apply(rgi, event_type, qev->ev);
         DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_gtid_0_x_100",
                         err= dbug_simulate_tmp_error(rgi, thd););
-        if (err)
+        if (unlikely(err))
         {
           convert_kill_to_deadlock_error(rgi);
           if (has_temporary_error(thd) && slave_trans_retries > 0)
@@ -1658,21 +1673,31 @@ int rpl_parallel_resize_pool_if_no_slaves(void)
 
 
 /**
-   Resize pool if not active or busy (in which case we may be in
-   resize to 0
+  Pool activation is preceeded by taking a "lock" of pool_mark_busy
+  which guarantees the number of running slaves drops to zero atomicly
+  with the number of pool workers.
+  This resolves race between the function caller thread and one
+  that may be attempting to deactivate the pool.
 */
-
 int
 rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool)
 {
-  bool resize;
-  mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
-  resize= !pool->count || pool->busy;
-  mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
-  if (resize)
-    return rpl_parallel_change_thread_count(pool, opt_slave_parallel_threads,
-                                            0);
-  return 0;
+  int rc= 0;
+
+  if ((rc= pool_mark_busy(pool, current_thd)))
+    return rc;   // killed
+
+  if (!pool->count)
+  {
+    pool_mark_not_busy(pool);
+    rc= rpl_parallel_change_thread_count(pool, opt_slave_parallel_threads,
+                                         0);
+  }
+  else
+  {
+    pool_mark_not_busy(pool);
+  }
+  return rc;
 }
 
 
@@ -2075,7 +2100,7 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
         /* The thread is ready to queue into. */
         break;
       }
-      else if (rli->sql_driver_thd->check_killed())
+      else if (unlikely(rli->sql_driver_thd->check_killed(1)))
       {
         unlock_or_exit_cond(rli->sql_driver_thd, &thr->LOCK_rpl_thread,
                             did_enter_cond, old_stage);
@@ -2401,9 +2426,8 @@ rpl_parallel::wait_for_workers_idle(THD *thd)
                     &stage_waiting_for_workers_idle, &old_stage);
     while (e->current_sub_id > e->last_committed_sub_id)
     {
-      if (thd->check_killed())
+      if (unlikely(thd->check_killed()))
       {
-        thd->send_kill_message();
         err= 1;
         break;
       }

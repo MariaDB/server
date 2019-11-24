@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Functions to handle tables with no row data (only index)
@@ -32,14 +32,14 @@ my_bool _ma_update_no_record(MARIA_HA *info __attribute__((unused)),
                              const uchar *oldrec __attribute__((unused)),
                              const uchar *record __attribute__((unused)))
 {
-  return (my_bool)HA_ERR_WRONG_COMMAND;
+  return 1;
 }
 
 
 my_bool _ma_delete_no_record(MARIA_HA *info __attribute__((unused)),
                              const uchar *record __attribute__((unused)))
 {
-  return (my_bool)HA_ERR_WRONG_COMMAND;
+  return 1;
 }
 
 

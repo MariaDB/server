@@ -1,0 +1,42 @@
+--source include/have_maria.inc
+
+# MDEV-17021
+# Server crash or assertion `length <= column->length' failure in
+# write_block_record
+#
+
+CREATE OR REPLACE TABLE t1 (
+  f1 DECIMAL(43,0) NOT NULL,
+  f2 TIME(4) NULL,
+  f3 BINARY(101) NULL,
+  f4 TIMESTAMP(4) NULL,
+  f5 DATETIME(1) NULL,
+  f6 SET('a','b','c') NOT NULL DEFAULT 'a',
+  f7 VARBINARY(2332) NOT NULL DEFAULT '',
+  f8 DATE NULL,
+  f9 BLOB NULL,
+  f10 MEDIUMINT(45) NOT NULL DEFAULT 0,
+  f11 YEAR NULL,
+  f12 BIT(58) NULL,
+  v2 TIME(1) AS (f2) VIRTUAL,
+  v3 BINARY(115) AS (f3) VIRTUAL,
+  v4 TIMESTAMP(3) AS (f4) VIRTUAL,
+  v7 VARBINARY(658) AS (f7) PERSISTENT,
+  v8 DATE AS (f8) PERSISTENT,
+  v9 TINYTEXT AS (f9) PERSISTENT,
+  v11 YEAR AS (f11) VIRTUAL
+) ENGINE=Aria;
+INSERT IGNORE INTO t1 (f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) VALUES
+ (0.8,'16:01:46',NULL,'2006-03-01 12:44:34','2029-10-10 21:27:53','a','foo','1989-12-24','bar',9,1975,b'1');
+DROP TABLE t1;
+
+#
+# MDEV-17067 Server crash in write_block_record
+#
+
+CREATE OR REPLACE TABLE t1 (a INT(45));
+INSERT IGNORE INTO t1 VALUES (1),(2);
+
+CREATE OR REPLACE TABLE t2 ENGINE=Aria AS SELECT SUM(a) AS f1, IFNULL( 'qux', ExtractValue( 'foo', 'bar' ) ) AS f2 FROM t1;
+select * from t2;
+DROP TABLE t1, t2;

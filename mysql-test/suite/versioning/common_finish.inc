@@ -1,6 +1,8 @@
 --disable_query_log
-drop procedure verify_vtq;
-drop procedure verify_vtq_dummy;
-drop function current_row;
-drop function check_row;
+--disable_warnings
+drop procedure if exists verify_trt;
+drop procedure if exists verify_trt_dummy;
+drop function if exists current_row;
+drop function if exists check_row;
+--enable_warnings
 --enable_query_log

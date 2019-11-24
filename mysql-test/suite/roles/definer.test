@@ -4,7 +4,9 @@
 # create event
 # mysqldump dumping the definer
 
-source include/not_embedded.inc;
+--source include/not_embedded.inc
+--source include/default_charset.inc
+
 let MYSQLD_DATADIR=`select @@datadir`;
 
 create database mysqltest1;

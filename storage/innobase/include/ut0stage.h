@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -34,8 +34,6 @@ Created Nov 12, 2014 Vasil Dimov
 
 #include "mysql/psi/mysql_stage.h" /* mysql_stage_inc_work_completed */
 #include "mysql/psi/psi.h" /* HAVE_PSI_STAGE_INTERFACE, PSI_stage_progress */
-
-#include "univ.i"
 
 #include "dict0mem.h" /* dict_index_t */
 #include "row0log.h" /* row_log_estimate_work() */
@@ -529,65 +527,28 @@ ut_stage_alter_t::change_phase(
 
 class ut_stage_alter_t {
 public:
-	explicit
-	ut_stage_alter_t(
-		const dict_index_t*	pk)
-	{
-	}
+	explicit ut_stage_alter_t(const dict_index_t*) {}
 
-	void
-	begin_phase_read_pk(
-		ulint	n_sort_indexes)
-	{
-	}
+	void begin_phase_read_pk(ulint)	{}
 
-	void
-	n_pk_recs_inc()
-	{
-	}
+	void n_pk_recs_inc() {}
 
-	void
-	inc(
-		ulint	inc_val = 1)
-	{
-	}
+	void inc() {}
+	void inc(ulint) {}
 
-	void
-	end_phase_read_pk()
-	{
-	}
+	void end_phase_read_pk() {}
 
-	void
-	begin_phase_sort(
-		double	sort_multi_factor)
-	{
-	}
+	void begin_phase_sort(double) {}
 
-	void
-	begin_phase_insert()
-	{
-	}
+	void begin_phase_insert() {}
 
-	void
-	begin_phase_flush(
-		ulint	n_flush_pages)
-	{
-	}
+	void begin_phase_flush(ulint) {}
 
-	void
-	begin_phase_log_index()
-	{
-	}
+	void begin_phase_log_index() {}
 
-	void
-	begin_phase_log_table()
-	{
-	}
+	void begin_phase_log_table() {}
 
-	void
-	begin_phase_end()
-	{
-	}
+	void begin_phase_end() {}
 };
 
 #endif /* HAVE_PSI_STAGE_INTERFACE */

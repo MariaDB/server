@@ -12,12 +12,9 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "myisamdef.h"
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 
 static void mi_extra_keyflag(MI_INFO *info, enum ha_extra_function function);
 
@@ -211,7 +208,7 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     info->read_record=	share->read_record;
     info->opt_flag&= ~(KEY_READ_USED | REMEMBER_OLD_POS);
     break;
-  case HA_EXTRA_NO_USER_CHANGE: /* Database is somehow locked agains changes */
+  case HA_EXTRA_NO_USER_CHANGE: /* Database is somehow locked against changes */
     info->lock_type= F_EXTRA_LCK; /* Simulate as locked */
     break;
   case HA_EXTRA_WAIT_LOCK:
@@ -263,6 +260,8 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     share->deleting= TRUE;
     share->global_changed= FALSE;     /* force writing changed flag */
     _mi_mark_file_changed(info);
+    if (share->temporary)
+      break;
     /* fall through */
   case HA_EXTRA_PREPARE_FOR_RENAME:
     DBUG_ASSERT(!share->temporary);
@@ -350,7 +349,7 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     if (share->base.blobs)
       mi_alloc_rec_buff(info, -1, &info->rec_buff);
     break;
-  case HA_EXTRA_NORMAL:				/* Theese isn't in use */
+  case HA_EXTRA_NORMAL:				/* These aren't in use */
     info->quick_mode=0;
     break;
   case HA_EXTRA_QUICK:

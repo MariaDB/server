@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -156,6 +156,7 @@ void Item_subselect::cleanup()
   reset();
   filesort_buffer.free_sort_buffer();
   my_free(sortbuffer.str);
+  sortbuffer.str= 0;
 
   value_assigned= 0;
   expr_cache= 0;
@@ -268,7 +269,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
   {
     if (sl->tvc)
     {
-      wrap_tvc_in_derived_table(thd, sl);
+      wrap_tvc_into_select(thd, sl);
     }
   }
   
@@ -301,8 +302,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
 	engine->exclude();
       substitution= 0;
       thd->where= "checking transformed subquery";
-      if (!(*ref)->fixed)
-	res= (*ref)->fix_fields(thd, ref);
+      res= (*ref)->fix_fields_if_needed(thd, ref);
       goto end;
 
     }
@@ -310,10 +310,14 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
     if (engine->cols() > max_columns)
     {
       my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
-
+      res= TRUE;
       goto end;
     }
-    fix_length_and_dec();
+    if (fix_length_and_dec())
+    {
+      res= TRUE;
+      goto end;
+    }
   }
   else
     goto end;
@@ -706,11 +710,20 @@ bool Item_subselect::exec()
   DBUG_ENTER("Item_subselect::exec");
   DBUG_ASSERT(fixed);
 
+  DBUG_EXECUTE_IF("Item_subselect",
+    Item::Print print(this,
+      enum_query_type(QT_TO_SYSTEM_CHARSET |
+        QT_WITHOUT_INTRODUCERS));
+
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+       ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %.*s",
+       print.length(),print.ptr());
+  );
   /*
     Do not execute subselect in case of a fatal error
     or if the query has been killed.
   */
-  if (thd->is_error() || thd->killed)
+  if (unlikely(thd->is_error() || thd->killed))
     DBUG_RETURN(true);
 
   DBUG_ASSERT(!thd->lex->context_analysis_only);
@@ -910,9 +923,11 @@ Item::Type Item_subselect::type() const
 }
 
 
-void Item_subselect::fix_length_and_dec()
+bool Item_subselect::fix_length_and_dec()
 {
-  engine->fix_length_and_dec(0);
+  if (engine->fix_length_and_dec(0))
+    return TRUE;
+  return FALSE;
 }
 
 
@@ -1186,18 +1201,19 @@ const Type_handler *Item_singlerow_subselect::type_handler() const
   return engine->type_handler();
 }
 
-void Item_singlerow_subselect::fix_length_and_dec()
+bool Item_singlerow_subselect::fix_length_and_dec()
 {
   if ((max_columns= engine->cols()) == 1)
   {
-    engine->fix_length_and_dec(row= &value);
+    if (engine->fix_length_and_dec(row= &value))
+      return TRUE;
   }
   else
   {
     if (!(row= (Item_cache**) current_thd->alloc(sizeof(Item_cache*) *
-                                                 max_columns)))
-      return;
-    engine->fix_length_and_dec(row);
+                                                 max_columns)) ||
+        engine->fix_length_and_dec(row))
+      return TRUE;
     value= *row;
   }
   unsigned_flag= value->unsigned_flag;
@@ -1213,6 +1229,7 @@ void Item_singlerow_subselect::fix_length_and_dec()
     for (uint i= 0; i < max_columns; i++)
       row[i]->maybe_null= TRUE;
   }
+  return FALSE;
 }
 
 
@@ -1417,14 +1434,14 @@ void Item_exists_subselect::print(String *str, enum_query_type query_type)
 
 bool Item_in_subselect::test_limit(st_select_lex_unit *unit_arg)
 {
-  if (unit_arg->fake_select_lex &&
-      unit_arg->fake_select_lex->test_limit())
+  if (unlikely(unit_arg->fake_select_lex &&
+               unit_arg->fake_select_lex->test_limit()))
     return(1);
 
   SELECT_LEX *sl= unit_arg->first_select();
   for (; sl; sl= sl->next_select())
   {
-    if (sl->test_limit())
+    if (unlikely(sl->test_limit()))
       return(1);
   }
   return(0);
@@ -1497,22 +1514,32 @@ void Item_exists_subselect::init_length_and_dec()
 }
 
 
-void Item_exists_subselect::fix_length_and_dec()
+bool Item_exists_subselect::fix_length_and_dec()
 {
   DBUG_ENTER("Item_exists_subselect::fix_length_and_dec");
   init_length_and_dec();
-  /*
-    We need only 1 row to determine existence (i.e. any EXISTS that is not
-    an IN always requires LIMIT 1)
-  */
-  thd->change_item_tree(&unit->global_parameters()->select_limit,
-                        new (thd->mem_root) Item_int(thd, (int32) 1));
-  DBUG_PRINT("info", ("Set limit to 1"));
-  DBUG_VOID_RETURN;
+  // If limit is not set or it is constant more than 1
+  if (!unit->global_parameters()->select_limit ||
+      (unit->global_parameters()->select_limit->basic_const_item() &&
+       unit->global_parameters()->select_limit->val_int() > 1))
+  {
+    /*
+       We need only 1 row to determine existence (i.e. any EXISTS that is not
+       an IN always requires LIMIT 1)
+     */
+    Item *item= new (thd->mem_root) Item_int(thd, (int32) 1);
+    if (!item)
+      DBUG_RETURN(TRUE);
+    thd->change_item_tree(&unit->global_parameters()->select_limit,
+                          item);
+    unit->global_parameters()->explicit_limit= 1; // we set the limit
+    DBUG_PRINT("info", ("Set limit to 1"));
+  }
+  DBUG_RETURN(FALSE);
 }
 
 
-void Item_in_subselect::fix_length_and_dec()
+bool Item_in_subselect::fix_length_and_dec()
 {
   DBUG_ENTER("Item_in_subselect::fix_length_and_dec");
   init_length_and_dec();
@@ -1520,7 +1547,7 @@ void Item_in_subselect::fix_length_and_dec()
     Unlike Item_exists_subselect, LIMIT 1 is set later for
     Item_in_subselect, depending on the chosen strategy.
   */
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -1939,7 +1966,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
       (!select_lex->ref_pointer_array[0]->maybe_null ||  /*4*/
        substype() != Item_subselect::ALL_SUBS))          /*4*/
   {
-    Item_sum_hybrid *item;
+    Item_sum_min_max *item;
     nesting_map save_allow_sum_func;
     if (func->l_op())
     {
@@ -1972,8 +1999,7 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
                  print_where(item, "rewrite with MIN/MAX", QT_ORDINARY););
 
     save_allow_sum_func= thd->lex->allow_sum_func;
-    thd->lex->allow_sum_func|=
-        (nesting_map)1 << thd->lex->current_select->nest_level;
+    thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
     /*
       Item_sum_(max|min) can't substitute other item => we can use 0 as
       reference, also Item_sum_(max|min) can't be fixed after creation, so
@@ -2180,7 +2206,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
         row_value_transformer?
       */
       item->name= in_additional_cond;
-      if (!item->fixed && item->fix_fields(thd, 0))
+      if (item->fix_fields_if_needed(thd, 0))
         DBUG_RETURN(true);
       *where_item= item;
     }
@@ -2503,7 +2529,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
 
   if (*where_item)
   {
-    if (!(*where_item)->fixed && (*where_item)->fix_fields(thd, 0))
+    if ((*where_item)->fix_fields_if_needed(thd, 0))
       DBUG_RETURN(true);
     (*where_item)->top_level_item();
   }
@@ -2650,7 +2676,7 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     }
 
     where_item= and_items(thd, join_arg->conds, where_item);
-    if (!where_item->fixed && where_item->fix_fields(thd, 0))
+    if (where_item->fix_fields_if_needed(thd, 0))
       DBUG_RETURN(true);
     // TIMOUR TODO: call optimize_cond() for the new where clause
     thd->change_item_tree(&select_lex->where, where_item);
@@ -3116,7 +3142,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
         exp= optimizer;
     }
     upper_not->arguments()[0]= exp;
-    if (!exp->fixed && exp->fix_fields(thd, upper_not->arguments()))
+    if (exp->fix_fields_if_needed(thd, upper_not->arguments()))
     {
       res= TRUE;
       goto out;
@@ -3314,8 +3340,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
     }
   }
 
-  if (left_expr && !left_expr->fixed &&
-      left_expr->fix_fields(thd_arg, &left_expr))
+  if (left_expr && left_expr->fix_fields_if_needed(thd_arg, &left_expr))
     goto err;
   else
   if (Item_subselect::fix_fields(thd_arg, ref))
@@ -3674,7 +3699,7 @@ int subselect_single_select_engine::prepare(THD *thd)
 int subselect_union_engine::prepare(THD *thd_arg)
 {
   set_thd(thd_arg);
-  return unit->prepare(thd, result, SELECT_NO_UNLOCK);
+  return unit->prepare(unit->derived, result, SELECT_NO_UNLOCK);
 }
 
 int subselect_uniquesubquery_engine::prepare(THD *)
@@ -3706,11 +3731,11 @@ bool subselect_single_select_engine::no_rows()
 }
 
 
-/* 
- makes storage for the output values for the subquery and calcuates 
+/**
+ Makes storage for the output values for the subquery and calcuates
  their data and column types and their nullability.
-*/ 
-void subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
+*/
+bool subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
 {
   Item *sel_item;
   List_iterator_fast<Item> li(item_list);
@@ -3723,44 +3748,51 @@ void subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
     item->unsigned_flag= sel_item->unsigned_flag;
     maybe_null= sel_item->maybe_null;
     if (!(row[i]= sel_item->get_cache(thd)))
-      return;
+      return TRUE;
     row[i]->setup(thd, sel_item);
  //psergey-backport-timours:   row[i]->store(sel_item);
   }
   if (item_list.elements > 1)
     set_handler(&type_handler_row);
+  return FALSE;
 }
 
-void subselect_single_select_engine::fix_length_and_dec(Item_cache **row)
+bool subselect_single_select_engine::fix_length_and_dec(Item_cache **row)
 {
   DBUG_ASSERT(row || select_lex->item_list.elements==1);
-  set_row(select_lex->item_list, row);
+  if (set_row(select_lex->item_list, row))
+    return TRUE;
   item->collation.set(row[0]->collation);
   if (cols() != 1)
     maybe_null= 0;
+  return FALSE;
 }
 
-void subselect_union_engine::fix_length_and_dec(Item_cache **row)
+bool subselect_union_engine::fix_length_and_dec(Item_cache **row)
 {
   DBUG_ASSERT(row || unit->first_select()->item_list.elements==1);
 
   if (unit->first_select()->item_list.elements == 1)
   {
-    set_row(unit->types, row);
+    if (set_row(unit->types, row))
+      return TRUE;
     item->collation.set(row[0]->collation);
   }
   else
   {
     bool maybe_null_saved= maybe_null;
-    set_row(unit->types, row);
+    if (set_row(unit->types, row))
+      return TRUE;
     maybe_null= maybe_null_saved;
   }
+  return FALSE;
 }
 
-void subselect_uniquesubquery_engine::fix_length_and_dec(Item_cache **row)
+bool subselect_uniquesubquery_engine::fix_length_and_dec(Item_cache **row)
 {
   //this never should be called
   DBUG_ASSERT(0);
+  return FALSE;
 }
 
 int  read_first_record_seq(JOIN_TAB *tab);
@@ -3852,7 +3884,6 @@ int subselect_single_select_engine::exec()
               tab->save_read_record= tab->read_record.read_record_func;
               tab->read_record.read_record_func= rr_sequential;
               tab->read_first_record= read_first_record_seq;
-              tab->read_record.record= tab->table->record[0];
               tab->read_record.thd= join->thd;
               tab->read_record.ref_length= tab->table->file->ref_length;
               tab->read_record.unlock_row= rr_unlock_row;
@@ -3870,7 +3901,6 @@ int subselect_single_select_engine::exec()
     for (JOIN_TAB **ptab= changed_tabs; ptab != last_changed_tab; ptab++)
     {
       JOIN_TAB *tab= *ptab;
-      tab->read_record.record= 0;
       tab->read_record.ref_length= 0;
       tab->read_first_record= tab->save_read_first_record;
       tab->read_record.read_record_func= tab->save_read_record;
@@ -3935,12 +3965,8 @@ int subselect_uniquesubquery_engine::scan_table()
   for (;;)
   {
     error=table->file->ha_rnd_next(table->record[0]);
-    if (error) {
-      if (error == HA_ERR_RECORD_DELETED)
-      {
-        error= 0;
-        continue;
-      }
+    if (unlikely(error))
+    {
       if (error == HA_ERR_END_OF_FILE)
       {
         error= 0;
@@ -4076,8 +4102,8 @@ int subselect_uniquesubquery_engine::exec()
                                         make_prev_keypart_map(tab->
                                                               ref.key_parts),
                                         HA_READ_KEY_EXACT);
-  if (error &&
-      error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+  if (unlikely(error &&
+               error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE))
     error= report_error(table, error);
   else
   {
@@ -4115,7 +4141,8 @@ int subselect_uniquesubquery_engine::index_lookup()
                                         HA_READ_KEY_EXACT);
   DBUG_PRINT("info", ("lookup result: %i", error));
 
-  if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+  if (unlikely(error && error != HA_ERR_KEY_NOT_FOUND &&
+               error != HA_ERR_END_OF_FILE))
   {
     /*
       TIMOUR: I don't understand at all when do we need to call report_error.
@@ -4246,8 +4273,8 @@ int subselect_indexsubquery_engine::exec()
                                         make_prev_keypart_map(tab->
                                                               ref.key_parts),
                                         HA_READ_KEY_EXACT);
-  if (error &&
-      error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+  if (unlikely(error &&
+               error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE))
     error= report_error(table, error);
   else
   {
@@ -4269,7 +4296,7 @@ int subselect_indexsubquery_engine::exec()
         error= table->file->ha_index_next_same(table->record[0],
                                                tab->ref.key_buff,
                                                tab->ref.key_length);
-        if (error && error != HA_ERR_END_OF_FILE)
+        if (unlikely(error && error != HA_ERR_END_OF_FILE))
         {
           error= report_error(table, error);
           break;
@@ -4282,7 +4309,7 @@ int subselect_indexsubquery_engine::exec()
         *tab->ref.null_ref_key= 1;
         null_finding= 1;
         /* Check if there exists a row with a null value in the index */
-        if ((error= (safe_index_read(tab) == 1)))
+        if (unlikely((error= (safe_index_read(tab) == 1))))
           break;
       }
     }
@@ -5001,8 +5028,8 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
     Repeat name resolution for 'cond' since cond is not part of any
     clause of the query, and it is not 'fixed' during JOIN::prepare.
   */
-  if (semi_join_conds && !semi_join_conds->fixed &&
-      semi_join_conds->fix_fields(thd, (Item**)&semi_join_conds))
+  if (semi_join_conds &&
+      semi_join_conds->fix_fields_if_needed(thd, (Item**)&semi_join_conds))
     DBUG_RETURN(TRUE);
   /* Let our engine reuse this query plan for materialization. */
   materialize_join= materialize_engine->join;
@@ -5425,8 +5452,8 @@ int subselect_hash_sj_engine::exec()
   DBUG_ASSERT(materialize_join->optimization_state == JOIN::OPTIMIZATION_DONE &&
               !is_materialized);
   materialize_join->exec();
-  if ((res= MY_TEST(materialize_join->error || thd->is_fatal_error ||
-                    thd->is_error())))
+  if (unlikely((res= MY_TEST(materialize_join->error || thd->is_fatal_error ||
+                             thd->is_error()))))
     goto err;
 
   /*
@@ -5590,9 +5617,10 @@ void subselect_hash_sj_engine::print(String *str, enum_query_type query_type)
          ));
 }
 
-void subselect_hash_sj_engine::fix_length_and_dec(Item_cache** row)
+bool subselect_hash_sj_engine::fix_length_and_dec(Item_cache** row)
 {
   DBUG_ASSERT(FALSE);
+  return FALSE;
 }
 
 void subselect_hash_sj_engine::exclude()
@@ -5784,14 +5812,14 @@ Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
   rowid_a= row_num_to_rowid + a * rowid_length;
   rowid_b= row_num_to_rowid + b * rowid_length;
   /* Fetch the rows for comparison. */
-  if ((error= tbl->file->ha_rnd_pos(tbl->record[0], rowid_a)))
+  if (unlikely((error= tbl->file->ha_rnd_pos(tbl->record[0], rowid_a))))
   {
     /* purecov: begin inspected */
     tbl->file->print_error(error, MYF(ME_FATALERROR));  // Sets fatal_error
     return 0;
     /* purecov: end */
   }
-  if ((error= tbl->file->ha_rnd_pos(tbl->record[1], rowid_b)))
+  if (unlikely((error= tbl->file->ha_rnd_pos(tbl->record[1], rowid_b))))
   {
     /* purecov: begin inspected */
     tbl->file->print_error(error, MYF(ME_FATALERROR));  // Sets fatal_error
@@ -5824,12 +5852,16 @@ Ordered_key::cmp_keys_by_row_data_and_rownum(Ordered_key *key,
 }
 
 
-void Ordered_key::sort_keys()
+bool Ordered_key::sort_keys()
 {
+  if (tbl->file->ha_rnd_init_with_error(0))
+    return TRUE;
   my_qsort2(key_buff, (size_t) key_buff_elements, sizeof(rownum_t),
             (qsort2_cmp) &cmp_keys_by_row_data_and_rownum, (void*) this);
   /* Invalidate the current row position. */
   cur_key_idx= HA_POS_ERROR;
+  tbl->file->ha_rnd_end();
+  return FALSE;
 }
 
 
@@ -5873,7 +5905,7 @@ int Ordered_key::cmp_key_with_search_key(rownum_t row_num)
   int __attribute__((unused)) error;
   int cmp_res;
 
-  if ((error= tbl->file->ha_rnd_pos(tbl->record[0], cur_rowid)))
+  if (unlikely((error= tbl->file->ha_rnd_pos(tbl->record[0], cur_rowid))))
   {
     /* purecov: begin inspected */
     tbl->file->print_error(error, MYF(ME_FATALERROR));  // Sets fatal_error
@@ -6222,7 +6254,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
   DBUG_ASSERT(cur_keyid == merge_keys_count);
 
   /* Populate the indexes with data from the temporary table. */
-  if (tmp_table->file->ha_rnd_init_with_error(1))
+  if (unlikely(tmp_table->file->ha_rnd_init_with_error(1)))
     return TRUE;
   tmp_table->file->extra_opt(HA_EXTRA_CACHE,
                              current_thd->variables.read_buff_size);
@@ -6230,17 +6262,12 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
   while (TRUE)
   {
     error= tmp_table->file->ha_rnd_next(tmp_table->record[0]);
-    if (error == HA_ERR_RECORD_DELETED)
-    {
-      /* We get this for duplicate records that should not be in tmp_table. */
-      continue;
-    }
     /*
       This is a temp table that we fully own, there should be no other
       cause to stop the iteration than EOF.
     */
     DBUG_ASSERT(!error || error == HA_ERR_END_OF_FILE);
-    if (error == HA_ERR_END_OF_FILE)
+    if (unlikely(error == HA_ERR_END_OF_FILE))
     {
       DBUG_ASSERT(cur_rownum == tmp_table->file->stats.records);
       break;
@@ -6282,7 +6309,8 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
 
   /* Sort the keys in each of the indexes. */
   for (uint i= 0; i < merge_keys_count; i++)
-    merge_keys[i]->sort_keys();
+    if (merge_keys[i]->sort_keys())
+      return TRUE;
 
   if (init_queue(&pq, merge_keys_count, 0, FALSE,
                  subselect_rowid_merge_engine::cmp_keys_by_cur_rownum, NULL,
@@ -6460,7 +6488,7 @@ bool subselect_rowid_merge_engine::partial_match()
   DBUG_ASSERT(!pq.elements);
 
   /* All data accesses during execution are via handler::ha_rnd_pos() */
-  if (tmp_table->file->ha_rnd_init_with_error(0))
+  if (unlikely(tmp_table->file->ha_rnd_init_with_error(0)))
   {
     res= FALSE;
     goto end;
@@ -6666,7 +6694,7 @@ bool subselect_table_scan_engine::partial_match()
   int error;
   bool res;
 
-  if (tmp_table->file->ha_rnd_init_with_error(1))
+  if (unlikely(tmp_table->file->ha_rnd_init_with_error(1)))
   {
     res= FALSE;
     goto end;
@@ -6677,12 +6705,8 @@ bool subselect_table_scan_engine::partial_match()
   for (;;)
   {
     error= tmp_table->file->ha_rnd_next(tmp_table->record[0]);
-    if (error) {
-      if (error == HA_ERR_RECORD_DELETED)
-      {
-        error= 0;
-        continue;
-      }
+    if (unlikely(error))
+    {
       if (error == HA_ERR_END_OF_FILE)
       {
         error= 0;

@@ -300,28 +300,29 @@ check table t1 extended;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 drop table t1;
-select lower(variable_name) as Variable_name, Variable_value as Value from information_schema.session_variables where variable_name like "aria%" and variable_name not like "aria_used_for_temp_tables" order by 1;
+select lower(variable_name) as Variable_name, Variable_value as Value from information_schema.session_variables where variable_name like "aria%" order by 1;
 Variable_name	Value
-aria_block_size	8192
-aria_checkpoint_interval	30
-aria_checkpoint_log_activity	1048576
-aria_encrypt_tables	OFF
-aria_force_start_after_recovery_failures	0
-aria_group_commit	none
-aria_group_commit_interval	0
-aria_log_file_size	4294959104
-aria_log_purge_type	immediate
-aria_max_sort_file_size	9223372036853727232
-aria_pagecache_age_threshold	300
-aria_pagecache_buffer_size	8388608
-aria_pagecache_division_limit	100
-aria_pagecache_file_hash_size	512
-aria_page_checksum	OFF
-aria_recover_options	BACKUP,QUICK
-aria_repair_threads	1
-aria_sort_buffer_size	268434432
-aria_stats_method	nulls_unequal
-aria_sync_log_dir	NEWFILE
+aria_block_size	#
+aria_checkpoint_interval	#
+aria_checkpoint_log_activity	#
+aria_encrypt_tables	#
+aria_force_start_after_recovery_failures	#
+aria_group_commit	#
+aria_group_commit_interval	#
+aria_log_file_size	#
+aria_log_purge_type	#
+aria_max_sort_file_size	#
+aria_pagecache_age_threshold	#
+aria_pagecache_buffer_size	#
+aria_pagecache_division_limit	#
+aria_pagecache_file_hash_size	#
+aria_page_checksum	#
+aria_recover_options	#
+aria_repair_threads	#
+aria_sort_buffer_size	#
+aria_stats_method	#
+aria_sync_log_dir	#
+aria_used_for_temp_tables	#
 show status like 'aria%';
 Variable_name	Value
 Aria_pagecache_blocks_not_flushed	#

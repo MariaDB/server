@@ -1,0 +1,9 @@
+include/master-slave.inc
+[connection master]
+CREATE TEMPORARY TABLE t (i INT);
+CREATE TABLE t AS SELECT * FROM t;
+connection slave;
+connection master;
+DROP TEMPORARY TABLE t;
+DROP TABLE t;
+include/rpl_end.inc

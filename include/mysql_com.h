@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
 ** Common definition between mysql server & client
@@ -179,6 +179,7 @@ enum enum_indicator_type
 #define BINCMP_FLAG	131072U		/* Intern: Used by sql_yacc */
 #define GET_FIXED_FIELDS_FLAG (1U << 18) /* Used to get fields in item tree */
 #define FIELD_IN_PART_FUNC_FLAG (1U << 19)/* Field part of partition func */
+#define PART_INDIRECT_KEY_FLAG (1U << 20)
 
 /**
   Intern: Field in TABLE object for new version of altered table,

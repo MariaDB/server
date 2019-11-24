@@ -1,0 +1,57 @@
+#  This file tests that mariadb cluster should not crash when encrypt_tmp_file
+#  is enabled
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+SELECT COUNT(*) = 1 FROM t1;
+
+DROP TABLE t1;
+
+--connection node_1
+
+CREATE TABLE `t1` (
+  `col1` int(11) NOT NULL,
+  `col2` varchar(64) NOT NULL DEFAULT '',
+  `col3` varchar(32) NOT NULL DEFAULT '0',
+  `col4` varchar(64) NOT NULL DEFAULT '',
+  `col5` tinyint(4) NOT NULL DEFAULT '0',
+  `col6` int(11) NOT NULL DEFAULT '0',
+  `col7` varchar(64) NOT NULL DEFAULT '',
+  `col8` tinyint(4) NOT NULL DEFAULT '0',
+  `col9` tinyint(4) NOT NULL DEFAULT '0',
+  `col10` text NOT NULL,
+  `col11` varchar(255) NOT NULL DEFAULT '',
+  `col12` tinyint(4) NOT NULL DEFAULT '1'
+) ;
+
+#Although we just need $counter >= 907 for IO_CACHE to use
+#encrypted temp file. Just on safe side I am using $counter
+# = 1100
+--disable_query_log
+--let $counter=1100
+--let $query= (1,'test','test','test',0,0,'-1',0,0,'','',-1)
+while($counter)
+{
+  --let $query= $query ,(1,'test','test','test',0,0,'-1',0,0,'','',-1)
+  --dec $counter
+}
+--let $query= INSERT INTO t1 values $query ;
+--eval $query
+--enable_query_log
+#INSERT INTO `t1` VALUE
+
+create table t2 (test int);
+insert into t2 values (1);
+
+drop table t1,t2;

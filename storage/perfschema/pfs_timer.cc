@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file storage/perfschema/pfs_timer.cc
@@ -26,7 +26,6 @@ enum_timer_name idle_timer= TIMER_NAME_MICROSEC;
 enum_timer_name wait_timer= TIMER_NAME_CYCLE;
 enum_timer_name stage_timer= TIMER_NAME_NANOSEC;
 enum_timer_name statement_timer= TIMER_NAME_NANOSEC;
-MY_TIMER_INFO pfs_timer_info;
 
 static ulonglong cycle_v0;
 static ulonglong nanosec_v0;
@@ -65,41 +64,39 @@ void init_timers(void)
 {
   double pico_frequency= 1.0e12;
 
-  my_timer_init(&pfs_timer_info);
-
   cycle_v0= my_timer_cycles();
   nanosec_v0= my_timer_nanoseconds();
   microsec_v0= my_timer_microseconds();
   millisec_v0= my_timer_milliseconds();
   tick_v0= my_timer_ticks();
 
-  if (pfs_timer_info.cycles.frequency > 0)
+  if (sys_timer_info.cycles.frequency > 0)
     cycle_to_pico= round_to_ulong(pico_frequency/
-                                  (double)pfs_timer_info.cycles.frequency);
+                                  (double)sys_timer_info.cycles.frequency);
   else
     cycle_to_pico= 0;
 
-  if (pfs_timer_info.nanoseconds.frequency > 0)
+  if (sys_timer_info.nanoseconds.frequency > 0)
     nanosec_to_pico= round_to_ulong(pico_frequency/
-                                    (double)pfs_timer_info.nanoseconds.frequency);
+                                    (double)sys_timer_info.nanoseconds.frequency);
   else
     nanosec_to_pico= 0;
 
-  if (pfs_timer_info.microseconds.frequency > 0)
+  if (sys_timer_info.microseconds.frequency > 0)
     microsec_to_pico= round_to_ulong(pico_frequency/
-                                     (double)pfs_timer_info.microseconds.frequency);
+                                     (double)sys_timer_info.microseconds.frequency);
   else
     microsec_to_pico= 0;
 
-  if (pfs_timer_info.milliseconds.frequency > 0)
+  if (sys_timer_info.milliseconds.frequency > 0)
     millisec_to_pico= round_to_ulong(pico_frequency/
-                                     (double)pfs_timer_info.milliseconds.frequency);
+                                     (double)sys_timer_info.milliseconds.frequency);
   else
     millisec_to_pico= 0;
 
-  if (pfs_timer_info.ticks.frequency > 0)
+  if (sys_timer_info.ticks.frequency > 0)
     tick_to_pico= round_to_ulonglong(pico_frequency/
-                                     (double)pfs_timer_info.ticks.frequency);
+                                     (double)sys_timer_info.ticks.frequency);
   else
     tick_to_pico= 0;
 

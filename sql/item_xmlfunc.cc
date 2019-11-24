@@ -1,5 +1,5 @@
-/* Copyright (c) 2005, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+/* Copyright (c) 2005, 2019, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -222,13 +222,14 @@ public:
     return str;
   }
   enum Item_result result_type () const { return STRING_RESULT; }
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     max_length= MAX_BLOB_WIDTH;
     collation.collation= pxml->charset();
     // To avoid premature evaluation, mark all nodeset functions as non-const.
     used_tables_cache= RAND_TABLE_BIT;
     const_item_cache= false;
+    return FALSE;
   }
   const char *func_name() const { return "nodeset"; }
   bool check_vcol_func_processor(void *arg)
@@ -456,7 +457,7 @@ public:
     Item_nodeset_func(thd, pxml), string_cache(str_arg) { }
   String *val_nodeset(String *res)
   { return string_cache; }
-  void fix_length_and_dec() { max_length= MAX_BLOB_WIDTH; }
+  bool fix_length_and_dec() { max_length= MAX_BLOB_WIDTH;; return FALSE;  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_context_cache>(thd, this); }
 };
@@ -470,7 +471,7 @@ public:
   Item_func_xpath_position(THD *thd, Item *a, String *p):
     Item_long_func(thd, a), pxml(p) {}
   const char *func_name() const { return "xpath_position"; }
-  void fix_length_and_dec() { max_length=10; }
+  bool fix_length_and_dec() { max_length=10; return FALSE; }
   longlong val_int()
   {
     String *flt= args[0]->val_nodeset(&tmp_value);
@@ -491,7 +492,7 @@ public:
   Item_func_xpath_count(THD *thd, Item *a, String *p):
     Item_long_func(thd, a), pxml(p) {}
   const char *func_name() const { return "xpath_count"; }
-  void fix_length_and_dec() { max_length=10; }
+  bool fix_length_and_dec() { max_length=10; return FALSE; }
   longlong val_int()
   {
     uint predicate_supplied_context_size;
@@ -2632,6 +2633,10 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
     sp_variable *spv;
     const Sp_rcontext_handler *rh;
     LEX *lex;
+    /*
+      We call lex->find_variable() rather than thd->lex->spcont->find_variable()
+      to make sure package body variables are properly supported.
+    */
     if ((lex= thd->lex) &&
         (spv= lex->find_variable(&name, &rh)))
     {
@@ -2724,10 +2729,10 @@ my_xpath_parse(MY_XPATH *xpath, const char *str, const char *strend)
 }
 
 
-void Item_xml_str_func::fix_length_and_dec()
+bool Item_xml_str_func::fix_length_and_dec()
 {
   max_length= MAX_BLOB_WIDTH;
-  agg_arg_charsets_for_comparison(collation, args, arg_count);
+  return agg_arg_charsets_for_comparison(collation, args, arg_count);
 }
 
 

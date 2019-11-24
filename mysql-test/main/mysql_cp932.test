@@ -10,13 +10,43 @@
 # BUG#16217 - MySQL client misinterprets multi-byte char as escape `\' 
 #
 
+let $mysql_in= $MYSQL_TMP_DIR/mysql_in;
+
 # new command \C or charset
---exec $MYSQL --default-character-set=utf8 test -e "\C cp932 \g"
---exec $MYSQL --default-character-set=cp932 test -e "charset utf8;"
+write_file $mysql_in;
+\C cp932 \g
+EOF
+--exec $MYSQL --default-character-set=utf8 test < $mysql_in
+remove_file $mysql_in;
+
+write_file $mysql_in;
+charset utf8;
+EOF
+--exec $MYSQL --default-character-set=cp932 test < $mysql_in
+remove_file $mysql_in;
 
 # its usage to switch internally in mysql to requested charset
---exec $MYSQL --default-character-set=utf8 test -e "charset cp932; select 'ソ'; create table t1 (c_cp932 TEXT CHARACTER SET cp932); insert into t1 values('ソ'); select * from t1;  drop table t1;"
---exec $MYSQL --default-character-set=utf8 test -e "charset cp932; select 'ソ'"
---exec $MYSQL --default-character-set=utf8 test -e "/*charset cp932 */; set character_set_client= cp932; select 'ソ'"
---exec $MYSQL --default-character-set=utf8 test -e "/*!\C cp932 */; set character_set_client= cp932; select 'ソ'"
+write_file $mysql_in;
+charset cp932; select 'ソ'; create table t1 (c_cp932 TEXT CHARACTER SET cp932); insert into t1 values('ソ'); select * from t1;  drop table t1;
+EOF
+--exec $MYSQL --default-character-set=utf8 test < $mysql_in
+remove_file $mysql_in;
+
+write_file $mysql_in;
+charset cp932; select 'ソ'
+EOF
+--exec $MYSQL --default-character-set=utf8 test  < $mysql_in
+remove_file $mysql_in;
+
+write_file $mysql_in;
+/*charset cp932 */; set character_set_client= cp932; select 'ソ'
+EOF 
+--exec $MYSQL --default-character-set=utf8 test < $mysql_in
+remove_file $mysql_in;
+
+write_file $mysql_in;
+/*!\C cp932 */; set character_set_client= cp932; select 'ソ'
+EOF
+--exec $MYSQL --default-character-set=utf8 test < $mysql_in
+remove_file $mysql_in;
 

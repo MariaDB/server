@@ -642,3 +642,23 @@ SET DEBUG_SYNC = 'RESET';
 DROP FUNCTION MY_KILL;
 
 set global sql_mode=default;
+
+--echo #
+--echo # MDEV-17998
+--echo # Deadlock and eventual Assertion `!table->pos_in_locked_tables' failed
+--echo # in tc_release_table on KILL_TIMEOUT
+--echo #
+
+SET max_statement_time= 2;
+
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (b INT, c INT);
+ 
+LOCK TABLES v1 READ, t2 WRITE, t1 WRITE;
+--error ER_BAD_FIELD_ERROR,ER_STATEMENT_TIMEOUT
+ALTER TABLE t1 CHANGE f1 f2 DOUBLE;
+ALTER TABLE t2 DROP c;
+UNLOCK TABLES;
+DROP VIEW v1;
+DROP TABLE t1, t2;

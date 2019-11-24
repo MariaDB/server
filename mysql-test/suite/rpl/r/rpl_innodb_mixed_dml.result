@@ -480,72 +480,72 @@ SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
 ******************** CREATE USER ********************
 CREATE USER 'user_test_rpl'@'localhost' IDENTIFIED BY PASSWORD '*1111111111111111111111111111111111111111';
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	select_priv
-localhost	user_test_rpl	*1111111111111111111111111111111111111111	N
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+host	user	password	plugin	authentication_string	select_priv
+localhost	user_test_rpl	*1111111111111111111111111111111111111111			N
 connection slave;
 USE test_rpl;
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	select_priv
-localhost	user_test_rpl	*1111111111111111111111111111111111111111	N
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+host	user	password	plugin	authentication_string	select_priv
+localhost	user_test_rpl	*1111111111111111111111111111111111111111			N
 connection master;
 
 ******************** GRANT ********************
 GRANT SELECT ON *.* TO 'user_test_rpl'@'localhost';
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	select_priv
-localhost	user_test_rpl	*1111111111111111111111111111111111111111	Y
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+host	user	password	plugin	authentication_string	select_priv
+localhost	user_test_rpl	*1111111111111111111111111111111111111111			Y
 connection slave;
 USE test_rpl;
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	select_priv
-localhost	user_test_rpl	*1111111111111111111111111111111111111111	Y
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+host	user	password	plugin	authentication_string	select_priv
+localhost	user_test_rpl	*1111111111111111111111111111111111111111			Y
 connection master;
 
 ******************** REVOKE ********************
 REVOKE SELECT ON *.* FROM 'user_test_rpl'@'localhost';
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	select_priv
-localhost	user_test_rpl	*1111111111111111111111111111111111111111	N
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+host	user	password	plugin	authentication_string	select_priv
+localhost	user_test_rpl	*1111111111111111111111111111111111111111			N
 connection slave;
 USE test_rpl;
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	select_priv
-localhost	user_test_rpl	*1111111111111111111111111111111111111111	N
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+host	user	password	plugin	authentication_string	select_priv
+localhost	user_test_rpl	*1111111111111111111111111111111111111111			N
 connection master;
 
 ******************** SET PASSWORD ********************
 SET PASSWORD FOR 'user_test_rpl'@'localhost' = '*0000000000000000000000000000000000000000';
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	select_priv
-localhost	user_test_rpl	*0000000000000000000000000000000000000000	N
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+host	user	password	plugin	authentication_string	select_priv
+localhost	user_test_rpl	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
 connection slave;
 USE test_rpl;
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	select_priv
-localhost	user_test_rpl	*0000000000000000000000000000000000000000	N
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+host	user	password	plugin	authentication_string	select_priv
+localhost	user_test_rpl	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
 connection master;
 
 ******************** RENAME USER ********************
 RENAME USER 'user_test_rpl'@'localhost' TO 'user_test_rpl_2'@'localhost';
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	select_priv
-localhost	user_test_rpl_2	*0000000000000000000000000000000000000000	N
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+host	user	password	plugin	authentication_string	select_priv
+localhost	user_test_rpl_2	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
 connection slave;
 USE test_rpl;
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	select_priv
-localhost	user_test_rpl_2	*0000000000000000000000000000000000000000	N
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+host	user	password	plugin	authentication_string	select_priv
+localhost	user_test_rpl_2	*0000000000000000000000000000000000000000	mysql_native_password	*0000000000000000000000000000000000000000	N
 connection master;
 
 ******************** DROP USER ********************
 DROP USER 'user_test_rpl_2'@'localhost';
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	select_priv
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+host	user	password	plugin	authentication_string	select_priv
 connection slave;
 USE test_rpl;
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
-host	user	password	select_priv
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+host	user	password	plugin	authentication_string	select_priv
 connection master;
 INSERT INTO t1 VALUES(100, 'test');
 
@@ -679,6 +679,8 @@ DROP TRIGGER tr1;
 GRANT EVENT ON *.* TO 'root'@'localhost';
 INSERT INTO t1 VALUES(1, 'test1');
 CREATE EVENT e1 ON SCHEDULE EVERY '1' SECOND COMMENT 'e_second_comment' DO DELETE FROM t1;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 test_rpl	e1	root@localhost	SYSTEM	RECURRING	NULL	1	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci

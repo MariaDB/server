@@ -1,0 +1,9 @@
+GRANT ALL PRIVILEGES on *.* TO backup_user IDENTIFIED by 'x' REQUIRE SSL;
+FLUSH PRIVILEGES;
+# xtrabackup backup
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+DROP USER backup_user;

@@ -662,7 +662,21 @@ SELECT NAME, COUNT > 0 FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
 LIKE 'buffer_page_written_index_leaf';
 NAME	COUNT > 0
 buffer_page_written_index_leaf	1
+DROP TABLE t1;
+CREATE TABLE t1(id INT PRIMARY KEY, a INT, b CHAR(1), UNIQUE KEY u(a,b))
+ENGINE=InnoDB;
+SET @start = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+= 'lock_rec_lock_created');
+BEGIN;
+INSERT INTO t1 VALUES(1,1,'a'),(2,9999,'b'),(3,10000,'c'),(4,4,'d');
+DELETE FROM t1 WHERE a = 9999 AND b='b';
+COMMIT;
+SET @end = (SELECT COUNT FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE NAME
+= 'lock_rec_lock_created');
+SELECT @end - @start;
+@end - @start
+0
+DROP TABLE t1;
 SET GLOBAL innodb_monitor_enable=default;
 SET GLOBAL innodb_monitor_disable=default;
 SET GLOBAL innodb_monitor_reset_all=default;
-DROP TABLE t1;

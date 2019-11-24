@@ -47,16 +47,16 @@ public:
 
     void reinit(pfs_key_t key);
     void lock(
-#ifdef HAVE_PSI_MUTEX_INTERFACE
+#if defined(SAFE_MUTEX) || defined(HAVE_PSI_MUTEX_INTERFACE)
         const char* src_file,
         uint src_line
-#endif  // HAVE_PSI_MUTEX_INTERFACE
+#endif  // SAFE_MUTEX || HAVE_PSI_MUTEX_INTERFACE
         );
     void unlock(
-#ifdef HAVE_PSI_MUTEX_INTERFACE
+#if defined(SAFE_MUTEX)
         const char* src_file,
         uint src_line
-#endif  // HAVE_PSI_MUTEX_INTERFACE
+#endif  // SAFE_MUTEX
         );
 #ifdef TOKUDB_DEBUG
     bool is_owned_by_me(void) const;
@@ -111,7 +111,6 @@ public:
 
     // wait for the event to become signalled
     void wait(void);
-    int wait(ulonglong microseconds);
 
     // signal the event
     void signal(void);
@@ -152,7 +151,6 @@ public:
 
     // wait for the semaphore to become signalled
     E_WAIT wait(void);
-    E_WAIT wait(ulonglong microseconds);
 
     // signal the semaphore to increase the count
     // return true if signalled, false if ignored due to count
@@ -225,18 +223,18 @@ inline void mutex_t::reinit(pfs_key_t key) {
     assert_debug(r == 0);
 }
 inline void mutex_t::lock(
-#ifdef HAVE_PSI_MUTEX_INTERFACE
+#if defined(SAFE_MUTEX) || defined(HAVE_PSI_MUTEX_INTERFACE)
     const char* src_file,
     uint src_line
-#endif  // HAVE_PSI_MUTEX_INTERFACE
+#endif  // SAFE_MUTEX || HAVE_PSI_MUTEX_INTERFACE
     ) {
     assert_debug(is_owned_by_me() == false);
     int r MY_ATTRIBUTE((unused)) = inline_mysql_mutex_lock(&_mutex
-#ifdef HAVE_PSI_MUTEX_INTERFACE
+#if defined(SAFE_MUTEX) || defined(HAVE_PSI_MUTEX_INTERFACE)
                                     ,
                                     src_file,
                                     src_line
-#endif  // HAVE_PSI_MUTEX_INTERFACE
+#endif  // SAFE_MUTEX || HAVE_PSI_MUTEX_INTERFACE
                                     );
     assert_debug(r == 0);
 #ifdef TOKUDB_DEBUG
@@ -245,15 +243,11 @@ inline void mutex_t::lock(
 #endif
 }
 inline void mutex_t::unlock(
-#ifdef HAVE_PSI_MUTEX_INTERFACE
+#if defined(SAFE_MUTEX)
     const char* src_file,
     uint src_line
-#endif  // HAVE_PSI_MUTEX_INTERFACE
-    ) {
-#ifndef SAFE_MUTEX
-    (void)(src_file);
-    (void)(src_line);
 #endif  // SAFE_MUTEX
+    ) {
 #ifdef TOKUDB_DEBUG
     assert_debug(_owners > 0);
     assert_debug(is_owned_by_me());
@@ -261,7 +255,7 @@ inline void mutex_t::unlock(
     _owner = _null_owner;
 #endif
     int r MY_ATTRIBUTE((unused)) = inline_mysql_mutex_unlock(&_mutex
-#ifdef SAFE_MUTEX
+#if defined(SAFE_MUTEX)
                                       ,
                                       src_file,
                                       src_line
@@ -372,28 +366,6 @@ inline void event_t::wait(void) {
     assert_debug(r == 0);
     return;
 }
-inline int event_t::wait(ulonglong microseconds) {
-    timespec waittime = time::offset_timespec(microseconds);
-    int r = pthread_mutex_timedlock(&_mutex, &waittime);
-    if (r == ETIMEDOUT) return ETIMEDOUT;
-    assert_debug(r == 0);
-    while (_signalled == false && _pulsed == false) {
-        r = pthread_cond_timedwait(&_cond, &_mutex, &waittime);
-        if (r == ETIMEDOUT) {
-            r = pthread_mutex_unlock(&_mutex);
-            assert_debug(r == 0);
-            return ETIMEDOUT;
-        }
-        assert_debug(r == 0);
-    }
-    if (_manual_reset == false)
-        _signalled = false;
-    if (_pulsed)
-        _pulsed = false;
-    r = pthread_mutex_unlock(&_mutex);
-    assert_debug(r == 0);
-    return 0;
-}
 inline void event_t::signal(void) {
     int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
@@ -467,31 +439,6 @@ inline semaphore_t::E_WAIT semaphore_t::wait(void) {
     assert_debug(r == 0);
     while (_signalled == 0 && _interrupted == false) {
         r = pthread_cond_wait(&_cond, &_mutex);
-        assert_debug(r == 0);
-    }
-    if (_interrupted) {
-        ret = E_INTERRUPTED;
-    } else {
-        _signalled--;
-        ret = E_SIGNALLED;
-    }
-    r = pthread_mutex_unlock(&_mutex);
-    assert_debug(r == 0);
-    return ret;
-}
-inline semaphore_t::E_WAIT semaphore_t::wait(ulonglong microseconds) {
-    E_WAIT ret;
-    timespec waittime = time::offset_timespec(microseconds);
-    int r = pthread_mutex_timedlock(&_mutex, &waittime);
-    if (r == ETIMEDOUT) return E_TIMEDOUT;
-    assert_debug(r == 0);
-    while (_signalled == 0 && _interrupted == false) {
-        r = pthread_cond_timedwait(&_cond, &_mutex, &waittime);
-        if (r == ETIMEDOUT) {
-            r = pthread_mutex_unlock(&_mutex);
-            assert_debug(r == 0);
-            return E_TIMEDOUT;
-        }
         assert_debug(r == 0);
     }
     if (_interrupted) {

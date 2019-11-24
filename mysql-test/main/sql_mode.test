@@ -554,3 +554,26 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-16471 mysqldump throws "Variable 'sql_mode' can't be set to the value of 'NULL' (1231)"
+--echo #
+
+SET sql_mode='ORACLE,EMPTY_STRING_IS_NULL';
+SELECT @@sql_mode;
+SELECT '' AS empty;
+SET sql_mode='';
+SELECT @@sql_mode;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

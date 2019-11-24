@@ -1,3 +1,5 @@
+set @@join_buffer_size=256*1024;
+set @save_optimizer_switch=@@optimizer_switch;
 create table t1 (a int, b int);
 create table t2 (c int, d int);
 insert into t1 values (1,1),(2,2);
@@ -279,6 +281,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `a`.`a` AS `a`,`a`.`b` AS `b` from ((/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) intersect (/* select#3 */ select `test`.`t2`.`c` AS `c`,`test`.`t3`.`e` AS `e` from `test`.`t2` join `test`.`t3`)) `a`
+set @@optimizer_switch='optimize_join_buffer_size=off';
 EXPLAIN format=json (select a,b from t1) intersect (select c,e from t2,t3);
 EXPLAIN
 {
@@ -472,6 +475,7 @@ ANALYZE
     }
   }
 }
+set @@optimizer_switch=@save_optimizer_switch;
 select * from ((select a,b from t1) intersect (select c,e from t2,t3)) a;
 a	b
 2	2

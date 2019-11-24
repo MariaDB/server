@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /**
   @file
@@ -244,6 +244,12 @@ protected:
   uchar *global_var_ptr()
   { return ((uchar*)&global_system_variables) + offset; }
 
+  void *max_var_ptr()
+  {
+    return scope() == SESSION ? (((uchar*)&max_system_variables) + offset) :
+                                0;
+  }
+
   friend class Session_sysvars_tracker;
   friend class Session_tracker;
 };
@@ -392,7 +398,8 @@ extern SHOW_COMP_OPTION have_openssl;
 SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type);
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond);
 
-sys_var *find_sys_var(THD *thd, const char *str, size_t length=0);
+sys_var *find_sys_var(THD *thd, const char *str, size_t length= 0,
+                      bool throw_error= false);
 int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free);
 
 #define SYSVAR_AUTOSIZE(VAR,VAL)                        \
@@ -423,11 +430,14 @@ inline bool IS_SYSVAR_AUTOSIZE(void *ptr)
 bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 
 sql_mode_t expand_sql_mode(sql_mode_t sql_mode);
+const char *sql_mode_string_representation(uint bit_number);
 bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                     LEX_CSTRING *ls);
 int default_regex_flags_pcre(const THD *thd);
 
-extern sys_var *Sys_autocommit_ptr;
+extern sys_var *Sys_autocommit_ptr, *Sys_last_gtid_ptr,
+  *Sys_character_set_client_ptr, *Sys_character_set_connection_ptr,
+  *Sys_character_set_results_ptr;
 
 CHARSET_INFO *get_old_charset_by_name(const char *old_name);
 
@@ -435,6 +445,7 @@ int sys_var_init();
 uint sys_var_elements();
 int sys_var_add_options(DYNAMIC_ARRAY *long_options, int parse_flags);
 void sys_var_end(void);
+bool check_has_super(sys_var *self, THD *thd, set_var *var);
 plugin_ref *resolve_engine_list(THD *thd, const char *str_arg, size_t str_arg_len,
                                 bool error_on_unknown_engine, bool temp_copy);
 void free_engine_list(plugin_ref *list);
@@ -443,4 +454,3 @@ plugin_ref *temp_copy_engine_list(THD *thd, plugin_ref *list);
 char *pretty_print_engine_list(THD *thd, plugin_ref *list);
 
 #endif
-

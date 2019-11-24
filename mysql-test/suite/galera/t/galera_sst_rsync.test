@@ -1,3 +1,4 @@
+--source include/big_test.inc
 --source include/galera_cluster.inc
 
 --let $node_1=node_1

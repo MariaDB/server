@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,10 +27,8 @@ Created 12/19/1997 Heikki Tuuri
 #ifndef row0sel_h
 #define row0sel_h
 
-#include "univ.i"
 #include "data0data.h"
 #include "que0types.h"
-#include "dict0types.h"
 #include "trx0types.h"
 #include "read0types.h"
 #include "row0types.h"
@@ -135,8 +133,7 @@ row_sel_convert_mysql_key_to_innobase(
 	ulint		buf_len,	/*!< in: buffer length */
 	dict_index_t*	index,		/*!< in: index of the key value */
 	const byte*	key_ptr,	/*!< in: MySQL key value */
-	ulint		key_len,	/*!< in: MySQL key value length */
-	trx_t*		trx);		/*!< in: transaction */
+	ulint		key_len);	/*!< in: MySQL key value length */
 
 
 /** Searches for rows in the database. This is used in the interface to
@@ -213,16 +210,6 @@ row_count_rtree_recs(
 	ulint*		n_rows);	/*!< out: number of entries
 					seen in the consistent read */
 
-/*******************************************************************//**
-Checks if MySQL at the moment is allowed for this table to retrieve a
-consistent read result, or store it to the query cache.
-@return whether storing or retrieving from the query cache is permitted */
-bool
-row_search_check_if_query_cache_permitted(
-/*======================================*/
-	trx_t*		trx,		/*!< in: transaction object */
-	const char*	norm_name);	/*!< in: concatenation of database name,
-					'/' char, table name */
 /** Read the max AUTOINC value from an index.
 @param[in] index	index starting with an AUTO_INCREMENT column
 @return	the largest AUTO_INCREMENT value

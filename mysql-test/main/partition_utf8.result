@@ -51,3 +51,19 @@ t1	CREATE TABLE `t1` (
 insert into t1 values ('');
 insert into t1 values (_ucs2 0x2020);
 drop table t1;
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-20855 Crash with PARTITION BY LIST and extended characters
+#
+SET NAMES utf8;
+CREATE OR REPLACE TABLE t1 (a CHAR(10)) CHARACTER SET latin1
+PARTITION BY LIST COLUMNS (a) (PARTITION p0 VALUES IN ('Б'));
+ERROR HY000: This partition function is not allowed
+CREATE OR REPLACE TABLE t1 (a TIME)
+PARTITION BY LIST COLUMNS (a) (PARTITION p0 VALUES IN ('Б'));
+ERROR HY000: This partition function is not allowed
+#
+# End of 10.3 tests
+#

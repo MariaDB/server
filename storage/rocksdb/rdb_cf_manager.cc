@@ -12,10 +12,10 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation // gcc: Class implementation
+#pragma implementation  // gcc: Class implementation
 #endif
 
 /* For use of 'PRIu64': */
@@ -31,7 +31,10 @@
 /* MyRocks header files */
 #include "./ha_rocksdb.h"
 #include "./ha_rocksdb_proto.h"
+#include "./rdb_datadic.h"
 #include "./rdb_psi.h"
+
+#include <string>
 
 namespace myrocks {
 
@@ -43,7 +46,7 @@ bool Rdb_cf_manager::is_cf_name_reverse(const char *const name) {
 }
 
 void Rdb_cf_manager::init(
-    std::unique_ptr<Rdb_cf_options> cf_options,
+    std::unique_ptr<Rdb_cf_options> &&cf_options,
     std::vector<rocksdb::ColumnFamilyHandle *> *const handles) {
   mysql_mutex_init(rdb_cfm_mutex_key, &m_mutex, MY_MUTEX_INIT_FAST);
 
@@ -75,9 +78,8 @@ void Rdb_cf_manager::cleanup() {
   @detail
     See Rdb_cf_manager::get_cf
 */
-rocksdb::ColumnFamilyHandle *
-Rdb_cf_manager::get_or_create_cf(rocksdb::DB *const rdb,
-                                 const std::string &cf_name_arg) {
+rocksdb::ColumnFamilyHandle *Rdb_cf_manager::get_or_create_cf(
+    rocksdb::DB *const rdb, const std::string &cf_name_arg) {
   DBUG_ASSERT(rdb != nullptr);
 
   rocksdb::ColumnFamilyHandle *cf_handle = nullptr;
@@ -105,7 +107,10 @@ Rdb_cf_manager::get_or_create_cf(rocksdb::DB *const rdb,
     // NO_LINT_DEBUG
     sql_print_information("RocksDB: creating a column family %s",
                           cf_name.c_str());
+    // NO_LINT_DEBUG
     sql_print_information("    write_buffer_size=%ld", opts.write_buffer_size);
+
+    // NO_LINT_DEBUG
     sql_print_information("    target_file_size_base=%" PRIu64,
                           opts.target_file_size_base);
 
@@ -129,12 +134,13 @@ Rdb_cf_manager::get_or_create_cf(rocksdb::DB *const rdb,
   Find column family by its cf_name.
 */
 
-rocksdb::ColumnFamilyHandle *
-Rdb_cf_manager::get_cf(const std::string &cf_name_arg) const {
+rocksdb::ColumnFamilyHandle *Rdb_cf_manager::get_cf(
+    const std::string &cf_name_arg, const bool lock_held_by_caller) const {
   rocksdb::ColumnFamilyHandle *cf_handle;
 
-  RDB_MUTEX_LOCK_CHECK(m_mutex);
-
+  if (!lock_held_by_caller) {
+    RDB_MUTEX_LOCK_CHECK(m_mutex);
+  }
   std::string cf_name = cf_name_arg.empty() ? DEFAULT_CF_NAME : cf_name_arg;
 
   const auto it = m_cf_name_map.find(cf_name);
@@ -145,18 +151,19 @@ Rdb_cf_manager::get_cf(const std::string &cf_name_arg) const {
     sql_print_warning("Column family '%s' not found.", cf_name.c_str());
   }
 
-  RDB_MUTEX_UNLOCK_CHECK(m_mutex);
+  if (!lock_held_by_caller) {
+    RDB_MUTEX_UNLOCK_CHECK(m_mutex);
+  }
 
   return cf_handle;
 }
 
-rocksdb::ColumnFamilyHandle *Rdb_cf_manager::get_cf(const uint32_t &id) const {
+rocksdb::ColumnFamilyHandle *Rdb_cf_manager::get_cf(const uint32_t id) const {
   rocksdb::ColumnFamilyHandle *cf_handle = nullptr;
 
   RDB_MUTEX_LOCK_CHECK(m_mutex);
   const auto it = m_cf_id_map.find(id);
-  if (it != m_cf_id_map.end())
-    cf_handle = it->second;
+  if (it != m_cf_id_map.end()) cf_handle = it->second;
   RDB_MUTEX_UNLOCK_CHECK(m_mutex);
 
   return cf_handle;
@@ -174,8 +181,8 @@ std::vector<std::string> Rdb_cf_manager::get_cf_names(void) const {
   return names;
 }
 
-std::vector<rocksdb::ColumnFamilyHandle *>
-Rdb_cf_manager::get_all_cf(void) const {
+std::vector<rocksdb::ColumnFamilyHandle *> Rdb_cf_manager::get_all_cf(
+    void) const {
   std::vector<rocksdb::ColumnFamilyHandle *> list;
 
   RDB_MUTEX_LOCK_CHECK(m_mutex);
@@ -190,4 +197,77 @@ Rdb_cf_manager::get_all_cf(void) const {
   return list;
 }
 
-} // namespace myrocks
+struct Rdb_cf_scanner : public Rdb_tables_scanner {
+  uint32_t m_cf_id;
+  int m_is_cf_used;
+
+  explicit Rdb_cf_scanner(uint32_t cf_id)
+      : m_cf_id(cf_id), m_is_cf_used(false) {}
+
+  int add_table(Rdb_tbl_def *tdef) override {
+    DBUG_ASSERT(tdef != nullptr);
+
+    for (uint i = 0; i < tdef->m_key_count; i++) {
+      const Rdb_key_def &kd = *tdef->m_key_descr_arr[i];
+
+      if (kd.get_cf()->GetID() == m_cf_id) {
+        m_is_cf_used = true;
+        return HA_EXIT_SUCCESS;
+      }
+    }
+    return HA_EXIT_SUCCESS;
+  }
+};
+
+int Rdb_cf_manager::drop_cf(const std::string &cf_name) {
+  auto ddl_manager = rdb_get_ddl_manager();
+  uint32_t cf_id = 0;
+
+  if (cf_name == DEFAULT_SYSTEM_CF_NAME) {
+    return HA_EXIT_FAILURE;
+  }
+
+  RDB_MUTEX_LOCK_CHECK(m_mutex);
+  auto cf_handle = get_cf(cf_name, true /* lock_held_by_caller */);
+  if (cf_handle == nullptr) {
+    RDB_MUTEX_UNLOCK_CHECK(m_mutex);
+    return HA_EXIT_SUCCESS;
+  }
+
+  cf_id = cf_handle->GetID();
+  Rdb_cf_scanner scanner(cf_id);
+
+  auto ret = ddl_manager->scan_for_tables(&scanner);
+  if (ret) {
+    RDB_MUTEX_UNLOCK_CHECK(m_mutex);
+    return ret;
+  }
+
+  if (scanner.m_is_cf_used) {
+    // column family is used by existing key
+    RDB_MUTEX_UNLOCK_CHECK(m_mutex);
+    return HA_EXIT_FAILURE;
+  }
+
+  auto rdb = rdb_get_rocksdb_db();
+  auto status = rdb->DropColumnFamily(cf_handle);
+  if (!status.ok()) {
+    RDB_MUTEX_UNLOCK_CHECK(m_mutex);
+    return ha_rocksdb::rdb_error_to_mysql(status);
+  }
+
+  delete cf_handle;
+
+  auto id_iter = m_cf_id_map.find(cf_id);
+  DBUG_ASSERT(id_iter != m_cf_id_map.end());
+  m_cf_id_map.erase(id_iter);
+
+  auto name_iter = m_cf_name_map.find(cf_name);
+  DBUG_ASSERT(name_iter != m_cf_name_map.end());
+  m_cf_name_map.erase(name_iter);
+
+  RDB_MUTEX_UNLOCK_CHECK(m_mutex);
+
+  return HA_EXIT_SUCCESS;
+}
+}  // namespace myrocks

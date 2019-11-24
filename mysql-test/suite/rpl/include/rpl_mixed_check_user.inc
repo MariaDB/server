@@ -5,9 +5,9 @@
 # Requirements: 
 #########################################
 
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 sync_slave_with_master;
 USE test_rpl;
-SELECT host, user, password, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
+SELECT host, user, password, plugin, authentication_string, select_priv FROM mysql.user WHERE user LIKE 'user_test_rpl%';
 connection master;
 

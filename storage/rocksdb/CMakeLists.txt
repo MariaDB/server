@@ -5,8 +5,8 @@ MACRO(SKIP_ROCKSDB_PLUGIN msg)
   RETURN()
 ENDMACRO()
 
-IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile")
-  SKIP_ROCKSDB_PLUGIN("Missing Makefile in rocksdb directory. Try \"git submodule update\".")
+IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/CMakeLists.txt")
+  SKIP_ROCKSDB_PLUGIN("Missing CMakeLists.txt in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
 
 CHECK_LIBRARY_EXISTS(rt timer_delete "" HAVE_TIMER_DELETE)
@@ -19,6 +19,9 @@ IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1 -DROCKSDB_SCHED_GETCPU_PRESENT)
 ENDIF()
 
+IF(WITH_VALGRIND)
+  ADD_DEFINITIONS(-DROCKSDB_VALGRIND_RUN=1)
+ENDIF()
 
 # We've had our builders hang during the build process. This prevents MariaRocks
 # to be built on 32 bit intel OS kernels.
@@ -99,6 +102,10 @@ SET(ROCKSDB_SE_SOURCES
   rdb_threads.h
   rdb_psi.h
   rdb_psi.cc
+  rdb_sst_info.cc
+  rdb_sst_info.h
+  rdb_converter.cc
+  rdb_converter.h
 )
 
 # MariaDB: the following is added in build_rocksdb.cmake, when appropriate:
@@ -106,7 +113,7 @@ SET(ROCKSDB_SE_SOURCES
 #ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX
 #)
 
-MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} STORAGE_ENGINE
+MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} MODULE_ONLY STORAGE_ENGINE
                  MODULE_OUTPUT_NAME ha_rocksdb
                  COMPONENT rocksdb-engine)
 
@@ -123,10 +130,15 @@ CHECK_CXX_SOURCE_COMPILES("
 #endif
 int main() {
   static __thread int tls;
+  tls=0;
+  return tls;
 }
 " HAVE_THREAD_LOCAL)
 if(HAVE_THREAD_LOCAL)
   ADD_DEFINITIONS(-DROCKSDB_SUPPORT_THREAD_LOCAL)
+else()
+  MESSAGE(SEND_ERROR "The compiler failed the check for ROCKSDB_SUPPORT_THREAD_LOCAL. "
+                     "MyRocks requires that feature.")
 endif()
 
 INCLUDE(build_rocksdb.cmake)
@@ -141,10 +153,9 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
   event_listener.h
   rdb_perf_context.cc
   rdb_perf_context.h
-  rdb_sst_info.cc
-  rdb_sst_info.h
   rdb_buff.h
   rdb_mariadb_port.h
+  nosql_access.cc nosql_access.h
 )
 
 ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
@@ -155,7 +166,31 @@ if (UNIX AND NOT APPLE)
   TARGET_LINK_LIBRARIES(rocksdb_aux_lib -lrt)
 endif()
 
+# IF (WITH_JEMALLOC)
+#  FIND_LIBRARY(JEMALLOC_LIBRARY
+#    NAMES libjemalloc${PIC_EXT}.a jemalloc
+#    HINTS ${WITH_JEMALLOC}/lib)
+#  SET(rocksdb_static_libs ${rocksdb_static_libs}
+#    ${JEMALLOC_LIBRARY})
+#  ADD_DEFINITIONS(-DROCKSDB_JEMALLOC)
+#  ADD_DEFINITIONS(-DROCKSDB_MALLOC_USABLE_SIZE)
+# ENDIF()
+
+# MariaDB: Q: why does the upstream add libunwind for a particular 
+# storage engine?
+#IF (WITH_UNWIND)
+#  FIND_LIBRARY(UNWIND_LIBRARY
+#    NAMES libunwind${PIC_EXT}.a unwind
+#    HINTS ${WITH_UNWIND}/lib)
+#  SET(rocksdb_static_libs ${rocksdb_static_libs}
+#    ${UNWIND_LIBRARY})
+#ENDIF()
+
+
 TARGET_LINK_LIBRARIES(rocksdb rocksdb_aux_lib)
+  FIND_LIBRARY(LZ4_LIBRARY
+    NAMES liblz4${PIC_EXT}.a lz4
+    HINTS ${WITH_LZ4}/lib)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
@@ -180,11 +215,16 @@ ENDIF()
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1)
+# MariaDB: don't do this:
+#  ADD_DEFINITIONS(-DZSTD_STATIC_LINKING_ONLY)
 ENDIF()
 
-IF (NOT "$ENV{WITH_TBB}" STREQUAL "")
+IF (WITH_TBB)
+  FIND_LIBRARY(TBB_LIBRARY
+    NAMES libtbb${PIC_EXT}.a tbb
+    HINTS ${WITH_TBB}/lib)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_TBB}/libtbb${PIC_EXT}.a)
+    ${TBB_LIBRARY})
   ADD_DEFINITIONS(-DTBB)
 ENDIF()
 
@@ -210,9 +250,11 @@ MYSQL_ADD_EXECUTABLE(sst_dump rocksdb/tools/sst_dump.cc COMPONENT rocksdb-engine
 TARGET_LINK_LIBRARIES(sst_dump rocksdblib)
 
 MYSQL_ADD_EXECUTABLE(mysql_ldb tools/mysql_ldb.cc COMPONENT rocksdb-engine)
-TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_tools rocksdb_aux_lib)
+TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_tools rocksdb_aux_lib dbug)
 
-INSTALL_SCRIPT(myrocks_hotbackup COMPONENT rocksdb-engine)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/myrocks_hotbackup.py
+  ${CMAKE_CURRENT_BINARY_DIR}/myrocks_hotbackup @ONLY)
+INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/myrocks_hotbackup COMPONENT rocksdb-engine)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS -frtti)
@@ -231,7 +273,14 @@ IF(MSVC)
   ENDIF()
 ENDIF()
 
-IF(GIT_EXECUTABLE)
+# Enable ZSTD if available. Upstream rocksdb cmake will use WITH_ZSTD and set
+# defines within their code.
+FIND_PACKAGE(zstd)
+IF (ZSTD_FOUND)
+  SET(WITH_ZSTD ON)
+ENDIF()
+
+IF(GIT_EXECUTABLE AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/.git)
   EXECUTE_PROCESS(
     COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb

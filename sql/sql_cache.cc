@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Description of the query cache:
@@ -329,9 +329,6 @@ TODO list:
 */
 
 #include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
-#if defined(DBUG_OFF) && defined(HAVE_MADVISE)
-#include <sys/mman.h>
-#endif
 #include "sql_priv.h"
 #include "sql_basic_types.h"
 #include "sql_cache.h"
@@ -1052,7 +1049,7 @@ void query_cache_insert(void *thd_arg, const char *packet, size_t length,
     called for this thread.
   */
 
-  if (!thd)
+  if (unlikely(!thd))
     return;
 
   query_cache.insert(thd, &thd->query_cache_tls,
@@ -2662,7 +2659,7 @@ size_t Query_cache::init_cache()
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DONTDUMP)
   if (madvise(cache, query_cache_size+additional_data_size, MADV_DONTDUMP))
   {
-    DBUG_PRINT("warning", ("coudn't mark query cache memory as MADV_DONTDUMP: %s",
+    DBUG_PRINT("warning", ("coudn't mark query cache memory as " DONTDUMP_STR ": %s",
 			 strerror(errno)));
   }
 #endif
@@ -2831,7 +2828,7 @@ void Query_cache::free_cache()
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DODUMP)
   if (madvise(cache, query_cache_size+additional_data_size, MADV_DODUMP))
   {
-    DBUG_PRINT("warning", ("coudn't mark query cache memory as MADV_DODUMP: %s",
+    DBUG_PRINT("warning", ("coudn't mark query cache memory as " DODUMP_STR ": %s",
 			 strerror(errno)));
   }
 #endif

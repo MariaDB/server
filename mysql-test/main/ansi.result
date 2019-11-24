@@ -46,3 +46,73 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`i`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-16186 Concatenation operator || returns wrong results in sql_mode=ORACLE
+#
+SET sql_mode=ANSI;
+SELECT -1<<1||1 AS a FROM DUAL;
+a
+18446744073709549568
+SELECT -1||0<<1 AS a FROM DUAL;
+a
+18446744073709551596
+EXPLAIN EXTENDED SELECT -1<<1||1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select -1 << concat(1,1) AS "a"
+EXPLAIN EXTENDED SELECT -1||0<<1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat(-1,0) << 1 AS "a"
+SELECT -1+1||1 AS a FROM DUAL;
+a
+10
+SELECT -1||0+1 AS a FROM DUAL;
+a
+-9
+EXPLAIN EXTENDED SELECT -1+1||1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select -1 + concat(1,1) AS "a"
+EXPLAIN EXTENDED SELECT -1||0+1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat(-1,0) + 1 AS "a"
+SELECT 1*1||-1 AS a FROM DUAL;
+a
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '1-1'
+SELECT 1||1*-1 AS a FROM DUAL;
+a
+-11
+EXPLAIN EXTENDED SELECT 1*1||-1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select 1 * concat(1,-1) AS "a"
+EXPLAIN EXTENDED SELECT 1||1*-1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat(1,1) * -1 AS "a"
+SELECT -1^1||1 AS a FROM DUAL;
+a
+18446744073709551604
+SELECT -1||0^1 AS a FROM DUAL;
+a
+18446744073709551607
+EXPLAIN EXTENDED SELECT -1^1||1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select -1 ^ concat(1,1) AS "a"
+EXPLAIN EXTENDED SELECT -1||0^1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat(-1,0) ^ 1 AS "a"

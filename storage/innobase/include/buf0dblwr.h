@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,7 +27,6 @@ Created 2011/12/19 Inaam Rana
 #ifndef buf0dblwr_h
 #define buf0dblwr_h
 
-#include "univ.i"
 #include "ut0byte.h"
 #include "log0log.h"
 #include "buf0types.h"
@@ -131,7 +130,7 @@ struct buf_dblwr_t{
 				doublewrite block (64 pages) */
 	ulint		block2;	/*!< page number of the second block */
 	ulint		first_free;/*!< first free position in write_buf
-				measured in units of UNIV_PAGE_SIZE */
+				measured in units of srv_page_size */
 	ulint		b_reserved;/*!< number of slots currently reserved
 				for batch flush. */
 	os_event_t	b_event;/*!< event where threads wait for a
@@ -150,7 +149,7 @@ struct buf_dblwr_t{
 				buffer. */
 	byte*		write_buf;/*!< write buffer used in writing to the
 				doublewrite buffer, aligned to an
-				address divisible by UNIV_PAGE_SIZE
+				address divisible by srv_page_size
 				(which is required by Windows aio) */
 	byte*		write_buf_unaligned;/*!< pointer to write_buf,
 				but unaligned */

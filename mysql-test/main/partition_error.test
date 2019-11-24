@@ -2074,3 +2074,21 @@ SELECT PARTITION_NAME, SUBPARTITION_NAME, PARTITION_COMMENT FROM INFORMATION_SCH
 WHERE TABLE_NAME = 't1' AND TABLE_SCHEMA = 'test';
 
 DROP TABLE t1;
+
+#
+# MDEV-16429
+# Assertion `!table || (!table->read_set
+#                       || bitmap_is_set(table->read_set, field_index))'
+# fails upon attempt to update virtual column on partitioned versioned table
+#
+CREATE OR REPLACE TABLE t1 (
+  pk INT PRIMARY KEY,
+  c CHAR(3) NOT NULL,
+  v CHAR(4) AS (c) VIRTUAL
+) WITH SYSTEM VERSIONING PARTITION BY HASH(pk);
+
+INSERT INTO t1 (pk,c) VALUES (1,'foo'),(2,'bar');
+-- error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+UPDATE t1 SET v = 'qux' WHERE pk = 2;
+
+DROP TABLE t1;

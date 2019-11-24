@@ -17,11 +17,6 @@
 
 --echo #---------------- ROR-index_merge tests -----------------------
 
-eval SET SESSION STORAGE_ENGINE = $engine_type;
-
---disable_warnings
-drop table if exists  t0,t1,t2;
---enable_warnings
 create table t1
 (
   /* Field names reflect value(rowid) distribution, st=STairs, swt= SaWTooth */
@@ -67,18 +62,21 @@ create table t1
 create table t0 as select * from t1;
 --disable_query_log
 --echo # Printing of many insert into t0 values (....) disabled.
+begin;
 let $cnt=1000;
 while ($cnt)
 {
   eval insert into t0 values (1, 2, 3, 1, 2, 3, 0, 0, 0, 0, 'data1', 'data2', 'data3', 'data4', 'data5', 'data6');
   dec $cnt;
 }
+commit;
 --enable_query_log
 
 alter table t1 disable keys;
 --disable_query_log
 --echo # Printing of many insert into t1 select .... from t0 disabled.
 let $1=4;
+begin;
 while ($1)
 {
   let $2=4;
@@ -94,6 +92,7 @@ while ($1)
   }
  dec $1;
 }
+commit;
 
 --echo # Printing of many insert into t1 (...) values (....) disabled.
 # Row retrieval tests
@@ -101,6 +100,7 @@ while ($1)
 # insert enough rows for index intersection to be used for (key1,key2)
 insert into t1 (key1, key2, key3, key4, filler1) values (100, 100, 100, 100,'key1-key2-key3-key4');
 let $cnt=400;
+begin;
 while ($cnt)
 {
   eval insert into t1 (key1, key2, key3, key4, filler1) values (100, -1, 100, -1,'key1-key3');
@@ -112,6 +112,7 @@ while ($cnt)
   eval insert into t1 (key1, key2, key3, key4, filler1) values (-1, 100, -1, 100,'key2-key4');
   dec $cnt;
 }
+commit;
 --enable_query_log
 alter table t1 enable keys;
 select count(*) from t1;
@@ -249,6 +250,7 @@ create table t2 (
 
 --disable_query_log
 let $1=8;
+begin;
 while ($1)
 {
   eval insert into t2 values (repeat(char($1+64), 8),repeat(char($1+64), 8),'filler1', 'filler2');
@@ -256,6 +258,7 @@ while ($1)
 }
 insert into t2 select * from t2;
 insert into t2 select * from t2;
+commit;
 --enable_query_log
 
 # The table row buffer is reused. Fill it with rows that don't match.

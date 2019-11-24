@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -32,15 +32,6 @@ Created 9/11/1995 Heikki Tuuri
 *******************************************************/
 
 #include "sync0rw.h"
-#include "ha_prototypes.h"
-
-#include "os0thread.h"
-#include "mem0mem.h"
-#include "srv0srv.h"
-#include "os0event.h"
-#include "srv0mon.h"
-#include "sync0debug.h"
-#include "ha_prototypes.h"
 #include "my_cpu.h"
 #include <my_sys.h>
 
@@ -248,9 +239,6 @@ rw_lock_create_func(
 
 	mutex_enter(&rw_lock_list_mutex);
 
-	ut_ad(UT_LIST_GET_FIRST(rw_lock_list) == NULL
-	      || UT_LIST_GET_FIRST(rw_lock_list)->magic_n == RW_LOCK_MAGIC_N);
-
 	UT_LIST_ADD_FIRST(rw_lock_list, lock);
 
 	mutex_exit(&rw_lock_list_mutex);
@@ -278,12 +266,6 @@ rw_lock_free_func(
 	UT_LIST_REMOVE(rw_lock_list, lock);
 
 	mutex_exit(&rw_lock_list_mutex);
-
-	/* We did an in-place new in rw_lock_create_func() */
-	ut_d(lock->~rw_lock_t());
-	/* Sometimes (maybe when compiled with GCC -O3) the above call
-	to rw_lock_t::~rw_lock_t() will not actually assign magic_n=0. */
-	ut_d(lock->magic_n = 0);
 }
 
 /******************************************************************//**
@@ -302,8 +284,8 @@ rw_lock_s_lock_spin(
 {
 	ulint		i = 0;	/* spin round count */
 	sync_array_t*	sync_arr;
-	ulint		spin_count = 0;
-	uint64_t	count_os_wait = 0;
+	lint		spin_count = 0;
+	int64_t		count_os_wait = 0;
 
 	/* We reuse the thread id to index into the counter, cache
 	it here for efficiency. */
@@ -430,9 +412,9 @@ rw_lock_x_lock_wait_func(
 	unsigned	line)	/*!< in: line where requested */
 {
 	ulint		i = 0;
-	ulint		n_spins = 0;
+	lint		n_spins = 0;
 	sync_array_t*	sync_arr;
-	uint64_t	count_os_wait = 0;
+	int64_t		count_os_wait = 0;
 
 	ut_ad(my_atomic_load32_explicit(&lock->lock_word, MY_MEMORY_ORDER_RELAXED) <= threshold);
 
@@ -485,14 +467,6 @@ rw_lock_x_lock_wait_func(
 
 	if (count_os_wait > 0) {
 		lock->count_os_wait += static_cast<uint32_t>(count_os_wait);
-		rw_lock_stats.rw_x_os_wait_count.add(count_os_wait);
-	}
-
-	rw_lock_stats.rw_x_spin_round_count.add(n_spins);
-
-	if (count_os_wait > 0) {
-		lock->count_os_wait +=
-			static_cast<uint32_t>(count_os_wait);
 		rw_lock_stats.rw_x_os_wait_count.add(count_os_wait);
 	}
 }
@@ -682,8 +656,8 @@ rw_lock_x_lock_func(
 {
 	ulint		i = 0;
 	sync_array_t*	sync_arr;
-	ulint		spin_count = 0;
-	uint64_t	count_os_wait = 0;
+	lint		spin_count = 0;
+	int64_t		count_os_wait = 0;
 
 	ut_ad(rw_lock_validate(lock));
 	ut_ad(!rw_lock_own(lock, RW_LOCK_S));
@@ -714,7 +688,7 @@ lock_loop:
 		}
 
 		HMT_medium();
-		spin_count += i;
+		spin_count += lint(i);
 
 		if (i >= srv_n_spin_wait_rounds) {
 
@@ -780,9 +754,9 @@ rw_lock_sx_lock_func(
 {
 	ulint		i = 0;
 	sync_array_t*	sync_arr;
-	ulint		spin_count = 0;
-	uint64_t	count_os_wait = 0;
-	ulint		spin_wait_count = 0;
+	lint		spin_count = 0;
+	int64_t		count_os_wait = 0;
+	lint		spin_wait_count = 0;
 
 	ut_ad(rw_lock_validate(lock));
 	ut_ad(!rw_lock_own(lock, RW_LOCK_S));
@@ -814,7 +788,7 @@ lock_loop:
 			i++;
 		}
 
-		spin_count += i;
+		spin_count += lint(i);
 
 		if (i >= srv_n_spin_wait_rounds) {
 
@@ -879,7 +853,6 @@ rw_lock_validate(
 	lock_word = my_atomic_load32_explicit(const_cast<int32_t*>(&lock->lock_word),
 					      MY_MEMORY_ORDER_RELAXED);
 
-	ut_ad(lock->magic_n == RW_LOCK_MAGIC_N);
 	ut_ad(my_atomic_load32_explicit(const_cast<int32_t*>(&lock->waiters),
 					MY_MEMORY_ORDER_RELAXED) < 2);
 	ut_ad(lock_word > -(2 * X_LOCK_DECR));
@@ -1021,13 +994,22 @@ rw_lock_own(
 	ut_ad(lock);
 	ut_ad(rw_lock_validate(lock));
 
+	const os_thread_id_t thread_id = os_thread_get_curr_id();
+
+	if (!os_thread_eq(lock->writer_thread, thread_id)) {
+	} else if (lock_type == RW_LOCK_X && rw_lock_get_x_lock_count(lock)) {
+		return TRUE;
+	} else if (lock_type == RW_LOCK_SX && rw_lock_get_sx_lock_count(lock)) {
+		return TRUE;
+	}
+
 	rw_lock_debug_mutex_enter();
 
 	for (const rw_lock_debug_t* info = UT_LIST_GET_FIRST(lock->debug_list);
 	     info != NULL;
 	     info = UT_LIST_GET_NEXT(list, info)) {
 
-		if (os_thread_eq(info->thread_id, os_thread_get_curr_id())
+		if (os_thread_eq(info->thread_id, thread_id)
 		    && info->pass == 0
 		    && info->lock_type == lock_type) {
 
@@ -1042,86 +1024,63 @@ rw_lock_own(
 	return(false);
 }
 
-/** For collecting the debug information for a thread's rw-lock */
-typedef std::vector<rw_lock_debug_t*> Infos;
-
-/** Get the thread debug info
-@param[in]	infos		The rw-lock mode owned by the threads
-@param[in]	lock		rw-lock to check
-@return the thread debug info or NULL if not found */
-void
-rw_lock_get_debug_info(const rw_lock_t* lock, Infos* infos)
-{
-	rw_lock_debug_t*	info = NULL;
-
-	ut_ad(rw_lock_validate(lock));
-
-	rw_lock_debug_mutex_enter();
-
-	for (info = UT_LIST_GET_FIRST(lock->debug_list);
-	     info != NULL;
-	     info = UT_LIST_GET_NEXT(list, info)) {
-
-		if (os_thread_eq(info->thread_id, os_thread_get_curr_id())) {
-
-			infos->push_back(info);
-		}
-	}
-
-	rw_lock_debug_mutex_exit();
-}
-
 /** Checks if the thread has locked the rw-lock in the specified mode, with
 the pass value == 0.
 @param[in]	lock		rw-lock
 @param[in]	flags		specify lock types with OR of the
 				rw_lock_flag_t values
 @return true if locked */
-bool
-rw_lock_own_flagged(
-	const rw_lock_t*	lock,
-	rw_lock_flags_t		flags)
+bool rw_lock_own_flagged(const rw_lock_t* lock, rw_lock_flags_t flags)
 {
-	Infos	infos;
+	ut_ad(rw_lock_validate(lock));
 
-	rw_lock_get_debug_info(lock, &infos);
+	const os_thread_id_t thread_id = os_thread_get_curr_id();
 
-	Infos::const_iterator	end = infos.end();
+	if (!os_thread_eq(lock->writer_thread, thread_id)) {
+	} else if ((flags & RW_LOCK_FLAG_X)
+		   && rw_lock_get_x_lock_count(lock)) {
+		return true;
+	} else if ((flags & RW_LOCK_FLAG_SX)
+		   && rw_lock_get_sx_lock_count(lock)) {
+		return true;
+	}
 
-	for (Infos::const_iterator it = infos.begin(); it != end; ++it) {
+	rw_lock_debug_mutex_enter();
 
-		const rw_lock_debug_t*	info = *it;
-
-		ut_ad(os_thread_eq(info->thread_id, os_thread_get_curr_id()));
-
-		if (info->pass != 0) {
+	for (rw_lock_debug_t* info = UT_LIST_GET_FIRST(lock->debug_list);
+	     info != NULL;
+	     info = UT_LIST_GET_NEXT(list, info)) {
+		if (!os_thread_eq(info->thread_id, thread_id)
+		    || info->pass) {
 			continue;
 		}
 
 		switch (info->lock_type) {
 		case RW_LOCK_S:
-
-			if (flags & RW_LOCK_FLAG_S) {
-				return(true);
+			if (!(flags & RW_LOCK_FLAG_S)) {
+				continue;
 			}
 			break;
 
 		case RW_LOCK_X:
-
-			if (flags & RW_LOCK_FLAG_X) {
-				return(true);
+			if (!(flags & RW_LOCK_FLAG_X)) {
+				continue;
 			}
 			break;
 
 		case RW_LOCK_SX:
-
-			if (flags & RW_LOCK_FLAG_SX) {
-				return(true);
+			if (!(flags & RW_LOCK_FLAG_SX)) {
+				continue;
 			}
+			break;
 		}
+
+		rw_lock_debug_mutex_exit();
+		return true;
 	}
 
-	return(false);
+	rw_lock_debug_mutex_exit();
+	return false;
 }
 
 /***************************************************************//**
@@ -1222,28 +1181,31 @@ rw_lock_t::locked_from() const
 	the same thread can call X lock recursively. */
 
 	std::ostringstream	msg;
-	Infos			infos;
+	bool			written = false;
 
-	rw_lock_get_debug_info(this, &infos);
+	ut_ad(rw_lock_validate(this));
 
-	ulint			i = 0;
-	Infos::const_iterator	end = infos.end();
+	rw_lock_debug_mutex_enter();
 
-	for (Infos::const_iterator it = infos.begin(); it != end; ++it, ++i) {
+	for (rw_lock_debug_t* info = UT_LIST_GET_FIRST(debug_list);
+	     info != NULL;
+	     info = UT_LIST_GET_NEXT(list, info)) {
+		if (!os_thread_eq(info->thread_id, os_thread_get_curr_id())) {
+			continue;
+		}
 
-		const rw_lock_debug_t*	info = *it;
-
-		ut_ad(os_thread_eq(info->thread_id, os_thread_get_curr_id()));
-
-		if (i > 0) {
+		if (written) {
 			msg << ", ";
 		}
+
+		written = true;
 
 		msg << info->file_name << ":" << info->line;
 	}
 
-	return(msg.str());
+	rw_lock_debug_mutex_exit();
 
+	return(msg.str());
 }
 
 /** Print the rw-lock information.

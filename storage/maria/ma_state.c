@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Functions to maintain live statistics for Maria transactional tables
@@ -66,7 +66,7 @@ my_bool _ma_setup_live_state(MARIA_HA *info)
     DBUG_RETURN(1);
 
   trn= info->trn;
-  for (tables= (MARIA_USED_TABLES*) info->trn->used_tables;
+  for (tables= (MARIA_USED_TABLES*) trn->used_tables;
        tables;
        tables= tables->next)
   {
@@ -455,7 +455,7 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
   MARIA_USED_TABLES *tables, *next;
   DBUG_ENTER("_ma_trnman_end_trans_hook");
   DBUG_PRINT("enter", ("trn: %p  used_tables: %p", trn, trn->used_tables));
-  
+
   for (tables= (MARIA_USED_TABLES*) trn->used_tables;
        tables;
        tables= next)
@@ -551,6 +551,7 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
     my_free(tables);
   }
   trn->used_tables= 0;
+  trn->used_instances= 0;
   DBUG_RETURN(error);
 }
 
@@ -565,18 +566,26 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
      share->internal_lock must be locked when function is called
 */
 
-void _ma_remove_table_from_trnman(MARIA_SHARE *share, TRN *trn)
+void _ma_remove_table_from_trnman(MARIA_HA *info)
 {
+  MARIA_SHARE *share= info->s;
+  TRN *trn= info->trn;
   MARIA_USED_TABLES *tables, **prev;
+  MARIA_HA *handler, **prev_file;
+  uint unlinked= 0;
   DBUG_ENTER("_ma_remove_table_from_trnman");
   DBUG_PRINT("enter", ("trn: %p  used_tables: %p  share: %p  in_trans: %d",
                        trn, trn->used_tables, share, share->in_trans));
 
   mysql_mutex_assert_owner(&share->intern_lock);
-  
-  for (prev= (MARIA_USED_TABLES**) (char*) &trn->used_tables, tables= *prev;
-       tables;
-       tables= *prev)
+
+  if (trn == &dummy_transaction_object)
+    DBUG_VOID_RETURN;
+
+  /* First remove share from used_tables */
+  for (prev= (MARIA_USED_TABLES**) (char*) &trn->used_tables;
+       (tables= *prev);
+       prev= &tables->next)
   {
     if (tables->share == share)
     {
@@ -585,8 +594,39 @@ void _ma_remove_table_from_trnman(MARIA_SHARE *share, TRN *trn)
       my_free(tables);
       break;
     }
-    prev= &tables->next;
   }
+  if (!tables)
+  {
+    /*
+      This can only happens in case of rename of intermediate table as
+      part of alter table
+    */
+    DBUG_PRINT("warning", ("share: %p where not in used_tables_list", share));
+  }
+
+  /* unlink all instances of the table from used_instances */
+  prev_file= (MARIA_HA**) &trn->used_instances;
+  while ((handler= *prev_file))
+  {
+    if (handler->s == share)
+    {
+      unlinked++;
+      *prev_file= handler->trn_next;  /* Remove instance */
+    }
+    else
+      prev_file= &handler->trn_next;  /* Continue with next instance */
+  }
+
+  DBUG_PRINT("note", ("unlinked tables: %u", unlinked));
+  if (!unlinked)
+  {
+    /*
+      This can only happens in case of rename of intermediate table as
+      part of alter table
+    */
+    DBUG_PRINT("warning", ("table: %p where not in used_instances", info));
+  }
+  info->trn= 0;                                 /* Not part of trans anymore */
   DBUG_VOID_RETURN;
 }
 

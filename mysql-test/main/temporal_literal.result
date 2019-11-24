@@ -517,7 +517,6 @@ Warning	1292	Incorrect datetime value: '2001-00-00'
 Warning	1292	Incorrect datetime value: '2001-00-00'
 Warning	1292	Incorrect datetime value: '2001-00-00'
 Warning	1292	Incorrect datetime value: '2001-00-00'
-Warning	1292	Incorrect datetime value: '2001-00-00'
 SET sql_mode=DEFAULT;
 DROP TABLE t1;
 #

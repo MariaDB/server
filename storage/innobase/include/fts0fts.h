@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,12 +27,8 @@ Created 2011/09/02 Sunny Bains
 #ifndef fts0fts_h
 #define fts0fts_h
 
-#include "ha_prototypes.h"
-
 #include "data0type.h"
 #include "data0types.h"
-#include "dict0types.h"
-#include "hash0hash.h"
 #include "mem0mem.h"
 #include "rem0types.h"
 #include "row0types.h"
@@ -180,7 +176,6 @@ do {								\
 	(fts_table)->suffix = m_suffix;				\
         (fts_table)->type = m_type;				\
         (fts_table)->table_id = m_table->id;			\
-        (fts_table)->parent = m_table->name.m_name;		\
         (fts_table)->table = m_table;				\
 } while (0);
 
@@ -189,7 +184,6 @@ do {								\
 	(fts_table)->suffix = m_suffix;				\
         (fts_table)->type = m_type;				\
         (fts_table)->table_id = m_index->table->id;		\
-        (fts_table)->parent = m_index->table->name.m_name;	\
         (fts_table)->table = m_index->table;			\
         (fts_table)->index_id = m_index->id;			\
 } while (0);
@@ -294,10 +288,6 @@ struct fts_result_t {
 table id and the index id to generate the column specific FTS auxiliary
 table name. */
 struct fts_table_t {
-	const char*	parent;		/*!< Parent table name, this is
-					required only for the database
-					name */
-
 	fts_table_type_t
 			type;		/*!< The auxiliary table type */
 
@@ -313,27 +303,6 @@ struct fts_table_t {
 	CHARSET_INFO*	charset;	/*!< charset info if it is for FTS
 					index auxiliary table */
 };
-
-enum	fts_status {
-	BG_THREAD_STOP = 1,	 	/*!< TRUE if the FTS background thread
-					has finished reading the ADDED table,
-					meaning more items can be added to
-					the table. */
-
-	BG_THREAD_READY = 2,		/*!< TRUE if the FTS background thread
-					is ready */
-
-	ADD_THREAD_STARTED = 4,		/*!< TRUE if the FTS add thread
-					has started */
-
-	ADDED_TABLE_SYNCED = 8,		/*!< TRUE if the ADDED table record is
-					sync-ed after crash recovery */
-
-	TABLE_DICT_LOCKED = 16		/*!< Set if the table has
-					dict_sys->mutex */
-};
-
-typedef	enum fts_status	fts_status_t;
 
 /** The state of the FTS sub system. */
 class fts_t {
@@ -351,12 +320,15 @@ public:
 	/** Mutex protecting bg_threads* and fts_add_wq. */
 	ib_mutex_t	bg_threads_mutex;
 
+	/** Whether the ADDED table record sync-ed after
+	crash recovery; protected by bg_threads_mutex */
+	unsigned	added_synced:1;
+	/** Whether the table holds dict_sys->mutex;
+	protected by bg_threads_mutex */
+	unsigned	dict_locked:1;
+
 	/** Number of background threads accessing this table. */
 	ulint		bg_threads;
-
-	/** Status bit regarding fts running state. TRUE if background
-	threads running should stop themselves. */
-	ulint		fts_status;
 
 	/** Work queue for scheduling jobs for the FTS 'Add' thread, or NULL
 	if the thread has not yet been created. Each work item is a
@@ -372,6 +344,10 @@ public:
 
 	/** Vector of FTS indexes, this is mainly for caching purposes. */
 	ib_vector_t*	indexes;
+
+	/** Whether the table exists in fts_optimize_wq;
+	protected by fts_optimize_wq mutex */
+	bool		in_queue;
 
 	/** Heap for fts_t allocation. */
 	mem_heap_t*	fts_heap;
@@ -394,7 +370,7 @@ extern ulong		fts_max_cache_size;
 extern ulong		fts_max_total_cache_size;
 
 /** Variable specifying the FTS result cache limit for each query */
-extern ulong		fts_result_cache_limit;
+extern size_t		fts_result_cache_limit;
 
 /** Variable specifying the maximum FTS max token size */
 extern ulong		fts_max_token_size;
@@ -405,11 +381,6 @@ extern ulong		fts_min_token_size;
 /** Whether the total memory used for FTS cache is exhausted, and we will
 need a sync to free some memory */
 extern bool		fts_need_sync;
-
-/** Variable specifying the table that has Fulltext index to display its
-content through information schema table */
-extern char*		fts_internal_tbl_name;
-extern char*		fts_internal_tbl_name2;
 
 #define	fts_que_graph_free(graph)			\
 do {							\
@@ -452,8 +423,8 @@ fts_update_next_doc_id(
 /*===================*/
 	trx_t*			trx,		/*!< in/out: transaction */
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
-	doc_id_t		doc_id);	/*!< in: DOC ID to set */
+	doc_id_t		doc_id)		/*!< in: DOC ID to set */
+	MY_ATTRIBUTE((nonnull(2)));
 
 /******************************************************************//**
 Create a new fts_doc_ids_t.
@@ -462,12 +433,11 @@ fts_doc_ids_t*
 fts_doc_ids_create(void);
 /*=====================*/
 
-/******************************************************************//**
-Free a fts_doc_ids_t. */
-void
-fts_doc_ids_free(
-/*=============*/
-	fts_doc_ids_t*	doc_ids);		/*!< in: doc_ids to free */
+/** Free fts_doc_ids_t */
+inline void fts_doc_ids_free(fts_doc_ids_t* doc_ids)
+{
+	mem_heap_free(static_cast<mem_heap_t*>(doc_ids->self_heap->arg));
+}
 
 /******************************************************************//**
 Notify the FTS system about an operation on an FTS-indexed table. */
@@ -561,7 +531,7 @@ fts_commit(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** FTS Query entry point.
-@param[in]	trx		transaction
+@param[in,out]	trx		transaction
 @param[in]	index		fts index to search
 @param[in]	flags		FTS search mode
 @param[in]	query_str	FTS query
@@ -650,28 +620,6 @@ void
 fts_startup(void);
 /*==============*/
 
-#if 0 // TODO: Enable this in WL#6608
-/******************************************************************//**
-Signal FTS threads to initiate shutdown. */
-void
-fts_start_shutdown(
-/*===============*/
-	dict_table_t*	table,			/*!< in: table with FTS
-						indexes */
-	fts_t*		fts);			/*!< in: fts instance to
-						shutdown */
-
-/******************************************************************//**
-Wait for FTS threads to shutdown. */
-void
-fts_shutdown(
-/*=========*/
-	dict_table_t*	table,			/*!< in: table with FTS
-						indexes */
-	fts_t*		fts);			/*!< in: fts instance to
-						shutdown */
-#endif
-
 /******************************************************************//**
 Create an instance of fts_t.
 @return instance of fts_t */
@@ -713,6 +661,12 @@ fts_drop_index_tables(
 	dict_index_t*	index)			/*!< in: Index to drop */
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Add the table to add to the OPTIMIZER's list.
+@param[in]	table	table to add */
+void
+fts_optimize_add_table(
+	dict_table_t*	table);
+
 /******************************************************************//**
 Remove the table from the OPTIMIZER's list. We do wait for
 acknowledgement from the consumer of the message. */
@@ -736,7 +690,6 @@ Take a FTS savepoint. */
 void
 fts_savepoint_take(
 /*===============*/
-	trx_t*		trx,			/*!< in: transaction */
 	fts_trx_t*	fts_trx,		/*!< in: fts transaction */
 	const char*	name);			/*!< in: savepoint name */
 
@@ -793,16 +746,9 @@ fts_drop_orphaned_tables(void);
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	table		fts table
-@param[in]	unlock_cache	whether unlock cache when write node
-@param[in]	wait		whether wait for existing sync to finish
-@param[in]      has_dict        whether has dict operation lock
+@param[in]	wait		whether to wait for existing sync to finish
 @return DB_SUCCESS on success, error code on failure. */
-dberr_t
-fts_sync_table(
-	dict_table_t*	table,
-	bool		unlock_cache,
-	bool		wait,
-	bool		has_dict);
+dberr_t fts_sync_table(dict_table_t* table, bool wait = true);
 
 /****************************************************************//**
 Free the query graph but check whether dict_sys->mutex is already

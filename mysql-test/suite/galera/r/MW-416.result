@@ -1,0 +1,111 @@
+CREATE USER 'userMW416'@'localhost';
+GRANT SELECT, INSERT, UPDATE ON test.* TO 'userMW416'@'localhost';
+connect userMW416, localhost, userMW416,, test, $NODE_MYPORT_1;
+connection userMW416;
+ALTER DATABASE db CHARACTER SET = utf8;
+ERROR 42000: Access denied for user 'userMW416'@'localhost' to database 'db'
+ALTER EVENT ev1 RENAME TO ev2;
+ERROR 42000: Access denied for user 'userMW416'@'localhost' to database 'test'
+ALTER FUNCTION fun1 COMMENT 'foo';
+ERROR 42000: alter routine command denied to user 'userMW416'@'localhost' for routine 'test.fun1'
+ALTER LOGFILE GROUP lfg ADD UNDOFILE 'file' ENGINE=InnoDB;
+Got one of the listed errors
+ALTER PROCEDURE proc1 COMMENT 'foo';
+Got one of the listed errors
+ALTER SERVER srv OPTIONS (USER 'sally');
+Got one of the listed errors
+ALTER TABLE tbl DROP COLUMN col;
+Got one of the listed errors
+ALTER TABLESPACE tblspc DROP DATAFILE 'file' ENGINE=innodb;
+Got one of the listed errors
+ALTER VIEW vw AS SELECT 1;
+Got one of the listed errors
+CREATE DATABASE db;
+Got one of the listed errors
+CREATE EVENT ev1 ON SCHEDULE AT CURRENT_TIMESTAMP  DO SELECT 1;
+Got one of the listed errors
+CREATE FUNCTION fun1() RETURNS int RETURN(1);
+Got one of the listed errors
+CREATE FUNCTION fun1 RETURNS STRING SONAME 'funlib.so';
+Got one of the listed errors
+CREATE PROCEDURE proc1()  BEGIN END;
+Got one of the listed errors
+CREATE INDEX idx ON tbl(id);
+Got one of the listed errors
+CREATE LOGFILE GROUP lfg ADD UNDOFILE 'undofile' ENGINE innodb;
+Got one of the listed errors
+CREATE SERVER srv FOREIGN DATA WRAPPER 'fdw' OPTIONS (USER 'user');
+Got one of the listed errors
+CREATE TABLE t (i int);
+Got one of the listed errors
+CREATE TABLESPACE tblspc ADD DATAFILE 'file' ENGINE=innodb;
+Got one of the listed errors
+CREATE TRIGGER trg BEFORE UPDATE ON t FOR EACH ROW BEGIN END;
+Got one of the listed errors
+CREATE VIEW vw AS SELECT 1;
+Got one of the listed errors
+DROP DATABASE db;
+Got one of the listed errors
+DROP EVENT ev;
+Got one of the listed errors
+DROP FUNCTION fun1;
+Got one of the listed errors
+DROP INDEX idx ON t0;
+Got one of the listed errors
+DROP LOGFILE GROUP lfg;
+Got one of the listed errors
+DROP PROCEDURE proc1;
+Got one of the listed errors
+DROP SERVEr srv;
+Got one of the listed errors
+DROP TABLE t0;
+Got one of the listed errors
+DROP TABLESPACE tblspc;
+Got one of the listed errors
+DROP TRIGGER trg;
+Got one of the listed errors
+DROP VIEW vw;
+Got one of the listed errors
+RENAME TABLE t0 TO t1;
+Got one of the listed errors
+TRUNCATE TABLE t0;
+Got one of the listed errors
+ALTER USER myuser PASSWORD EXPIRE;
+Got one of the listed errors
+CREATE USER myuser IDENTIFIED BY 'pass';
+Got one of the listed errors
+DROP USER myuser;
+Got one of the listed errors
+GRANT ALL ON *.* TO 'myuser';
+Got one of the listed errors
+RENAME USER myuser TO mariauser;
+Got one of the listed errors
+REVOKE SELECT ON test FROM myuser;
+Got one of the listed errors
+REVOKE ALL, GRANT OPTION FROM myuser;
+Got one of the listed errors
+REVOKE PROXY ON myuser FROM myuser;
+Got one of the listed errors
+ANALYZE TABLE db.tbl;
+Got one of the listed errors
+CHECK TABLE db.tbl;
+Got one of the listed errors
+CHECKSUM TABLE db.tbl;
+Got one of the listed errors
+OPTIMIZE TABLE db.tbl;
+Got one of the listed errors
+REPAIR TABLE db.tbl;
+Got one of the listed errors
+INSTALL PLUGIN plg SONAME 'plg.so';
+Got one of the listed errors
+UNINSTALL PLUGIN plg;
+Got one of the listed errors
+connection node_1;
+DROP USER 'userMW416'@'localhost';
+SHOW DATABASES;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+test

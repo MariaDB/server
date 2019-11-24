@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #include "item.h"
@@ -32,12 +32,13 @@ public:
   Item_func_inet_aton(THD *thd, Item *a): Item_longlong_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "inet_aton"; }
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals= 0;
     max_length= 21;
     maybe_null= 1;
     unsigned_flag= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_inet_aton>(thd, this); }
@@ -55,11 +56,12 @@ public:
   { }
   String* val_str(String* str);
   const char *func_name() const { return "inet_ntoa"; }
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals= 0;
     fix_length_and_charset(3 * 8 + 7, default_charset());
     maybe_null= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_inet_ntoa>(thd, this); }
@@ -124,11 +126,12 @@ public:
   virtual const char *func_name() const
   { return "inet6_aton"; }
 
-  virtual void fix_length_and_dec()
+  virtual bool fix_length_and_dec()
   {
     decimals= 0;
     fix_length_and_charset(16, &my_charset_bin);
     maybe_null= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_inet6_aton>(thd, this); }
@@ -153,7 +156,7 @@ public:
   virtual const char *func_name() const
   { return "inet6_ntoa"; }
 
-  virtual void fix_length_and_dec()
+  virtual bool fix_length_and_dec()
   {
     decimals= 0;
 
@@ -163,6 +166,7 @@ public:
     fix_length_and_charset(8 * 4 + 7, default_charset());
 
     maybe_null= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_inet6_ntoa>(thd, this); }

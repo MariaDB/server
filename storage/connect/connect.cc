@@ -16,7 +16,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /***********************************************************************/
-/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2017    */
+/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2019    */
 /*                                                                     */
 /*  WHAT THIS PROGRAM DOES:                                            */
 /*  -----------------------                                            */

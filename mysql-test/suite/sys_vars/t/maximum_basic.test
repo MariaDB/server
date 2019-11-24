@@ -18,3 +18,22 @@ SELECT @@session.tmp_table_size;
 SET @@session.max_join_size=40960;
 SELECT @@session.max_join_size;
 
+#
+# enum
+#
+SET @@session.use_stat_tables= COMPLEMENTARY;
+SELECT @@session.use_stat_tables;
+SET @@session.use_stat_tables= PREFERABLY;
+SELECT @@session.use_stat_tables;
+SET @@session.use_stat_tables= 2;
+SELECT @@session.use_stat_tables;
+
+#
+# set
+#
+SET @@session.sql_mode= 'REAL_AS_FLOAT';
+SELECT @@session.sql_mode;
+SET @@session.sql_mode= 'REAL_AS_FLOAT,ANSI_QUOTES';
+SELECT @@session.sql_mode;
+SET @@session.sql_mode= 'ANSI_QUOTES,IGNORE_SPACE';
+SELECT @@session.sql_mode;

@@ -31,12 +31,11 @@ count(*)
 set debug_dbug='';
 select event_name
 from
-performance_schema.events_stages_history_long
+performance_schema.events_stages_history_long join
+performance_schema.threads using (thread_id)
 where
 event_name like '%show explain' and
-thread_id in(select thread_id
-from performance_schema.events_statements_history_long
-where EVENT_NAME='statement/sql/show_explain');
+processlist_id=$thr1;
 event_name
 stage/sql/Show explain
 drop table t0;

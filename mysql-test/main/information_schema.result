@@ -51,6 +51,7 @@ c
 ALL_PLUGINS
 APPLICABLE_ROLES
 CHARACTER_SETS
+CHECK_CONSTRAINTS
 CLIENT_STATISTICS
 COLLATIONS
 COLLATION_CHARACTER_SET_APPLICABILITY
@@ -491,7 +492,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_1'@'localhost'	def	test	ALTER ROUTINE	YES
 'mysqltest_1'@'localhost'	def	test	EVENT	YES
 'mysqltest_1'@'localhost'	def	test	TRIGGER	YES
-'mysqltest_1'@'localhost'	def	test	DELETE VERSIONING ROWS	YES
+'mysqltest_1'@'localhost'	def	test	DELETE HISTORY	YES
 select * from information_schema.TABLE_PRIVILEGES where grantee like '%mysqltest_1%';
 GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	PRIVILEGE_TYPE	IS_GRANTABLE
 'mysqltest_1'@'localhost'	def	test	t1	SELECT	NO
@@ -938,6 +939,7 @@ connection user10261;
 SELECT TABLE_NAME, COLUMN_NAME, PRIVILEGES FROM INFORMATION_SCHEMA.COLUMNS 
 where COLUMN_NAME='TABLE_NAME' and table_name not like 'innodb%';
 TABLE_NAME	COLUMN_NAME	PRIVILEGES
+CHECK_CONSTRAINTS	TABLE_NAME	select
 COLUMNS	TABLE_NAME	select
 COLUMN_PRIVILEGES	TABLE_NAME	select
 FILES	TABLE_NAME	select
@@ -1489,7 +1491,7 @@ USE test;
 End of 5.0 tests.
 select * from information_schema.engines WHERE ENGINE="MyISAM";
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-MyISAM	DEFAULT	MyISAM storage engine	NO	NO	NO
+MyISAM	DEFAULT	Non-transactional engine with good performance and small data footprint	NO	NO	NO
 grant select on *.* to user3148@localhost;
 connect  con3148,localhost,user3148,,test;
 connection con3148;

@@ -267,6 +267,13 @@ void TABLE::deny_splitting()
 }
 
 
+double TABLE::get_materialization_cost()
+{
+  DBUG_ASSERT(spl_opt_info != NULL);
+  return spl_opt_info->unsplit_cost;
+}
+
+
 /* This structure is auxiliary and used only in the function that follows it */
 struct SplM_field_ext_info: public SplM_field_info
 {
@@ -413,7 +420,8 @@ bool JOIN::check_for_splittable_materialized()
 
         for (cand= cand_start; cand < cand_end; cand++)
         {
-          if (cand->underlying_field->field_index + 1 == fldnr)
+          if (cand->underlying_field->table == table &&
+              cand->underlying_field->field_index + 1 == fldnr)
 	  {
             cand->is_usable_for_ref_access= true;
             break;
@@ -544,7 +552,14 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   added_key_field->level= 0;
   added_key_field->optimize= KEY_OPTIMIZE_EQ;
   added_key_field->eq_func= true;
-  added_key_field->null_rejecting= true;
+
+  Item *real= key_field->val->real_item();
+  if ((real->type() == Item::FIELD_ITEM) &&
+        ((Item_field*)real)->field->maybe_null())
+    added_key_field->null_rejecting= true;
+  else
+    added_key_field->null_rejecting= false;
+
   added_key_field->cond_guard= NULL;
   added_key_field->sj_pred_no= UINT_MAX;
   return;
@@ -880,6 +895,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       continue;
     JOIN_TAB *tab= join->map2table[tablenr];
     TABLE *table= tab->table;
+    if (keyuse_ext->table != table)
+      continue;
     do
     {
       uint key= keyuse_ext->key;
@@ -1061,6 +1078,7 @@ bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
   @param
     spl_plan   info on the splitting plan chosen for the splittable table T
     remaining_tables  the table T is joined just before these tables
+    is_const_table    the table T is a constant table
 
   @details
     If in the final query plan the optimizer has chosen a splitting plan
@@ -1074,12 +1092,13 @@ bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
 */
 
 bool JOIN_TAB::fix_splitting(SplM_plan_info *spl_plan,
-                             table_map remaining_tables)
+                             table_map remaining_tables,
+                             bool is_const_table)
 {
   SplM_opt_info *spl_opt_info= table->spl_opt_info;
   DBUG_ASSERT(table->spl_opt_info != 0);
   JOIN *md_join= spl_opt_info->join;
-  if (spl_plan)
+  if (spl_plan && !is_const_table)
   {
     memcpy((char *) md_join->best_positions,
            (char *) spl_plan->best_positions,
@@ -1096,7 +1115,7 @@ bool JOIN_TAB::fix_splitting(SplM_plan_info *spl_plan,
                                     remaining_tables,
                                     true);
   }
-  else
+  else if (md_join->save_qep)
   {
     md_join->restore_query_plan(md_join->save_qep);
   }
@@ -1126,10 +1145,11 @@ bool JOIN::fix_all_splittings_in_plan()
   {
     POSITION *cur_pos= &best_positions[tablenr];
     JOIN_TAB *tab= cur_pos->table;
-    if (tablenr >= const_tables && tab->table->is_splittable())
+    if (tab->table->is_splittable())
     {
       SplM_plan_info *spl_plan= cur_pos->spl_plan;
-      if (tab->fix_splitting(spl_plan, all_tables & ~prev_tables))
+      if (tab->fix_splitting(spl_plan, all_tables & ~prev_tables,
+                             tablenr < const_tables ))
           return true;
     }
     prev_tables|= tab->table->map;

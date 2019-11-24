@@ -1,4 +1,5 @@
 --source include/have_wsrep.inc
+--source include/force_restart.inc
 
 SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
 SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
@@ -29,7 +30,7 @@ CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*")
 
 --disable_query_log
 eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
---let $galera_version=25.3.17
+--let $galera_version=25.3.24
 source include/check_galera_version.inc;
 --enable_query_log
 
@@ -49,15 +50,11 @@ SHOW STATUS LIKE 'x';
 # Reset it back.
 SET GLOBAL wsrep_provider=none;
 
---echo #
---echo # MDEV#6079: xtrabackup SST failing with maria-10.0-galera
---echo #
-
 --disable_query_log
 eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 --enable_query_log
 
-# The following 2 variables are used in innobackupex during xtrabackup-based
+# The following 2 variables are used by mariabackup
 # SST.
 --echo
 --replace_column 2 #
@@ -101,8 +98,17 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 --echo # Setting wsrep_cluster_address triggers the creation of
 --echo # applier/rollbacker threads.
 SET GLOBAL wsrep_cluster_address= 'gcomm://';
---echo # Wait for applier threads to get created.
-sleep 3; 
+
+--echo # Wait for applier thread to get created 1.
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+--source include/wait_condition.inc
+--echo # Wait for applier thread to get created 2.
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
+--source include/wait_condition.inc
+
+SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
+SELECT VARIABLE_VALUE AS EXPECT_2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 
 --replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
@@ -113,10 +119,30 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 
 SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
 SET GLOBAL wsrep_slave_threads= 10;
---echo # Wait for applier threads to get created.
-sleep 3; 
+
+--echo # Wait for 9 applier threads to get created.
+--let $wait_condition = SELECT VARIABLE_VALUE = 10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+--source include/wait_condition.inc
+
+SELECT VARIABLE_VALUE AS EXPECT_10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
+SELECT VARIABLE_VALUE AS EXPECT_11 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
+
 SHOW STATUS LIKE 'threads_connected';
-SHOW STATUS LIKE 'wsrep_thread_count';
+
+#
+# privileges for wsrep_on
+#
+set wsrep_on=0;
+set wsrep_on=1;
+create user test@localhost;
+connect con1,localhost,test;
+set auto_increment_increment=10;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+set wsrep_on=0;
+disconnect con1;
+connection default;
+drop user test@localhost;
 
 --echo #
 --echo # MDEV#6411: Setting set @@global.wsrep_sst_auth=NULL causes crash

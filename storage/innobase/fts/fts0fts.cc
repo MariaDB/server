@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -21,8 +21,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 @file fts/fts0fts.cc
 Full Text Search interface
 ***********************************************************************/
-
-#include "ha_prototypes.h"
 
 #include "trx0roll.h"
 #include "row0mysql.h"
@@ -40,7 +38,6 @@ Full Text Search interface
 #include "dict0stats.h"
 #include "btr0pcur.h"
 #include "sync0sync.h"
-#include "ut0new.h"
 
 static const ulint FTS_MAX_ID_LEN = 32;
 
@@ -67,7 +64,7 @@ ulong	fts_max_total_cache_size;
 
 /** This is FTS result cache limit for each query and would be
 a configurable variable */
-ulong	fts_result_cache_limit;
+size_t	fts_result_cache_limit;
 
 /** Variable specifying the maximum FTS max token size */
 ulong	fts_max_token_size;
@@ -77,8 +74,8 @@ ulong	fts_min_token_size;
 
 
 // FIXME: testing
-static ib_time_t elapsed_time = 0;
-static ulint n_nodes = 0;
+static time_t elapsed_time;
+static ulint n_nodes;
 
 #ifdef FTS_CACHE_SIZE_DEBUG
 /** The cache size permissible lower limit (1K) */
@@ -90,11 +87,6 @@ static const ulint FTS_CACHE_SIZE_UPPER_LIMIT_IN_MB = 1024;
 
 /** Time to sleep after DEADLOCK error before retrying operation. */
 static const ulint FTS_DEADLOCK_RETRY_WAIT = 100000;
-
-/** variable to record innodb_fts_internal_tbl_name for information
-schema table INNODB_FTS_INSERTED etc. */
-char* fts_internal_tbl_name		= NULL;
-char* fts_internal_tbl_name2		= NULL;
 
 /** InnoDB default stopword list:
 There are different versions of stopwords, the stop words listed
@@ -202,15 +194,13 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	sync		sync state
 @param[in]	unlock_cache	whether unlock cache lock when write node
 @param[in]	wait		whether wait when a sync is in progress
-@param[in]      has_dict        whether has dict operation lock
 @return DB_SUCCESS if all OK */
 static
 dberr_t
 fts_sync(
 	fts_sync_t*	sync,
 	bool		unlock_cache,
-	bool		wait,
-	bool		has_dict);
+	bool		wait);
 
 /****************************************************************//**
 Release all resources help by the words rb tree e.g., the node ilist. */
@@ -252,7 +242,6 @@ dberr_t
 fts_update_sync_doc_id(
 /*===================*/
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
 	doc_id_t		doc_id,		/*!< in: last document id */
 	trx_t*			trx)		/*!< in: update trx, or NULL */
 	MY_ATTRIBUTE((nonnull(1)));
@@ -470,7 +459,7 @@ fts_load_user_stopword(
 	dberr_t		error = DB_SUCCESS;
 	ibool		ret = TRUE;
 	trx_t*		trx;
-	ibool		has_lock = fts->fts_status & TABLE_DICT_LOCKED;
+	ibool		has_lock = fts->dict_locked;
 
 	trx = trx_create();
 	trx->op_info = "Load user stopword table into FTS cache";
@@ -502,7 +491,6 @@ fts_load_user_stopword(
 				stopword_info);
 
 	graph = fts_parse_sql_no_dict_lock(
-		NULL,
 		info,
 		"DECLARE FUNCTION my_func;\n"
 		"DECLARE CURSOR c IS"
@@ -730,6 +718,7 @@ fts_reset_get_doc(
 		memset(get_doc, 0x0, sizeof(*get_doc));
 
 		get_doc->index_cache = ind_cache;
+		get_doc->cache = cache;
 	}
 
 	ut_ad(ib_vector_size(cache->get_docs)
@@ -861,37 +850,28 @@ fts_drop_index(
 
 			err = fts_drop_index_tables(trx, index);
 
-			for(;;) {
-				bool retry = false;
-				if (index->index_fts_syncing) {
-					retry = true;
-				}
-				if (!retry){
-					fts_free(table);
-					break;
-				}
+			while (index->index_fts_syncing
+				&& !trx_is_interrupted(trx)) {
 				DICT_BG_YIELD(trx);
 			}
+
+			fts_free(table);
+
 			return(err);
 		}
 
-		for(;;) {
-			bool retry = false;
-			if (index->index_fts_syncing) {
-				retry = true;
-			}
-			if (!retry){
-				current_doc_id = table->fts->cache->next_doc_id;
-				first_doc_id = table->fts->cache->first_doc_id;
-				fts_cache_clear(table->fts->cache);
-				fts_cache_destroy(table->fts->cache);
-				table->fts->cache = fts_cache_create(table);
-				table->fts->cache->next_doc_id = current_doc_id;
-				table->fts->cache->first_doc_id = first_doc_id;
-				break;
-			}
+		while (index->index_fts_syncing
+		       && !trx_is_interrupted(trx)) {
 			DICT_BG_YIELD(trx);
 		}
+
+		current_doc_id = table->fts->cache->next_doc_id;
+		first_doc_id = table->fts->cache->first_doc_id;
+		fts_cache_clear(table->fts->cache);
+		fts_cache_destroy(table->fts->cache);
+		table->fts->cache = fts_cache_create(table);
+		table->fts->cache->next_doc_id = current_doc_id;
+		table->fts->cache->first_doc_id = first_doc_id;
 	} else {
 		fts_cache_t*            cache = table->fts->cache;
 		fts_index_cache_t*      index_cache;
@@ -901,17 +881,13 @@ fts_drop_index(
 		index_cache = fts_find_index_cache(cache, index);
 
 		if (index_cache != NULL) {
-			for(;;) {
-				bool retry = false;
-				if (index->index_fts_syncing) {
-					retry = true;
-				}
-				if (!retry && index_cache->words) {
-					fts_words_free(index_cache->words);
-					rbt_free(index_cache->words);
-					break;
-				}
+			while (index->index_fts_syncing
+			       && !trx_is_interrupted(trx)) {
 				DICT_BG_YIELD(trx);
+			}
+			if (index_cache->words) {
+				fts_words_free(index_cache->words);
+				rbt_free(index_cache->words);
 			}
 
 			ib_vector_remove(cache->indexes, *(void**) index_cache);
@@ -941,18 +917,16 @@ fts_que_graph_free_check_lock(
 	const fts_index_cache_t*index_cache,	/*!< in: FTS index cache */
 	que_t*			graph)		/*!< in: query graph */
 {
-	ibool	has_dict = FALSE;
+	bool	has_dict = FALSE;
 
 	if (fts_table && fts_table->table) {
 		ut_ad(fts_table->table->fts);
 
-		has_dict = fts_table->table->fts->fts_status
-			 & TABLE_DICT_LOCKED;
+		has_dict = fts_table->table->fts->dict_locked;
 	} else if (index_cache) {
 		ut_ad(index_cache->index->table->fts);
 
-		has_dict = index_cache->index->table->fts->fts_status
-			 & TABLE_DICT_LOCKED;
+		has_dict = index_cache->index->table->fts->dict_locked;
 	}
 
 	if (!has_dict) {
@@ -1483,7 +1457,8 @@ fts_drop_table(
 		/* Pass nonatomic=false (dont allow data dict unlock),
 		because the transaction may hold locks on SYS_* tables from
 		previous calls to fts_drop_table(). */
-		error = row_drop_table_for_mysql(table_name, trx, true, false, false);
+		error = row_drop_table_for_mysql(table_name, trx,
+						 SQLCOM_DROP_DB, false, false);
 
 		if (error != DB_SUCCESS) {
 			ib::error() << "Unable to drop FTS index aux table "
@@ -1526,8 +1501,8 @@ fts_rename_one_aux_table(
 	       table_new_name_len - new_db_name_len);
 	fts_table_new_name[table_new_name_len] = 0;
 
-	return(row_rename_table_for_mysql(
-		fts_table_old_name, fts_table_new_name, trx, false));
+	return row_rename_table_for_mysql(
+		fts_table_old_name, fts_table_new_name, trx, false, false);
 }
 
 /****************************************************************//**
@@ -1546,14 +1521,13 @@ fts_rename_aux_tables(
 
 	FTS_INIT_FTS_TABLE(&fts_table, NULL, FTS_COMMON_TABLE, table);
 
+	dberr_t err = DB_SUCCESS;
+	char old_table_name[MAX_FULL_NAME_LEN];
+
 	/* Rename common auxiliary tables */
 	for (i = 0; fts_common_tables[i] != NULL; ++i) {
-		char	old_table_name[MAX_FULL_NAME_LEN];
-		dberr_t	err = DB_SUCCESS;
-
 		fts_table.suffix = fts_common_tables[i];
-
-		fts_get_table_name(&fts_table, old_table_name);
+		fts_get_table_name(&fts_table, old_table_name, true);
 
 		err = fts_rename_one_aux_table(new_name, old_table_name, trx);
 
@@ -1575,12 +1549,8 @@ fts_rename_aux_tables(
 		FTS_INIT_INDEX_TABLE(&fts_table, NULL, FTS_INDEX_TABLE, index);
 
 		for (ulint j = 0; j < FTS_NUM_AUX_INDEX; ++j) {
-			dberr_t	err;
-			char	old_table_name[MAX_FULL_NAME_LEN];
-
 			fts_table.suffix = fts_get_suffix(j);
-
-			fts_get_table_name(&fts_table, old_table_name);
+			fts_get_table_name(&fts_table, old_table_name, true);
 
 			err = fts_rename_one_aux_table(
 				new_name, old_table_name, trx);
@@ -1619,8 +1589,7 @@ fts_drop_common_tables(
 		char	table_name[MAX_FULL_NAME_LEN];
 
 		fts_table->suffix = fts_common_tables[i];
-
-		fts_get_table_name(fts_table, table_name);
+		fts_get_table_name(fts_table, table_name, true);
 
 		err = fts_drop_table(trx, table_name);
 
@@ -1656,8 +1625,7 @@ fts_drop_index_split_tables(
 		char	table_name[MAX_FULL_NAME_LEN];
 
 		fts_table.suffix = fts_get_suffix(i);
-
-		fts_get_table_name(&fts_table, table_name);
+		fts_get_table_name(&fts_table, table_name, true);
 
 		err = fts_drop_table(trx, table_name);
 
@@ -1757,7 +1725,7 @@ fts_create_in_mem_aux_table(
 {
 	dict_table_t*	new_table = dict_mem_table_create(
 		aux_table_name, NULL, n_cols, 0, table->flags,
-		table->space->id == TRX_SYS_SPACE
+		table->space_id == TRX_SYS_SPACE
 		? 0 : table->space->purpose == FIL_TYPE_TEMPORARY
 		? DICT_TF2_TEMPORARY : DICT_TF2_USE_FILE_PER_TABLE);
 
@@ -1786,7 +1754,7 @@ fts_create_one_common_table(
 	const char*		fts_suffix,
 	mem_heap_t*		heap)
 {
-	dict_table_t*		new_table = NULL;
+	dict_table_t*		new_table;
 	dberr_t			error;
 	bool			is_config = strcmp(fts_suffix, "CONFIG") == 0;
 
@@ -1839,11 +1807,13 @@ fts_create_one_common_table(
 	}
 
 	if (error != DB_SUCCESS) {
-		trx->error_state = error;
 		dict_mem_table_free(new_table);
 		new_table = NULL;
 		ib::warn() << "Failed to create FTS common table "
 			<< fts_table_name;
+		trx->error_state = DB_SUCCESS;
+		row_drop_table_for_mysql(fts_table_name, trx, SQLCOM_DROP_DB);
+		trx->error_state = error;
 	}
 	return(new_table);
 }
@@ -1901,7 +1871,7 @@ fts_create_common_tables(
 	for (ulint i = 0; fts_common_tables[i] != NULL; ++i) {
 
 		fts_table.suffix = fts_common_tables[i];
-		fts_get_table_name(&fts_table, full_name[i]);
+		fts_get_table_name(&fts_table, full_name[i], true);
 		dict_table_t*	common_table = fts_create_one_common_table(
 			trx, table, full_name[i], fts_table.suffix, heap);
 
@@ -1928,11 +1898,11 @@ fts_create_common_tables(
 	info = pars_info_create();
 
 	fts_table.suffix = "CONFIG";
-	fts_get_table_name(&fts_table, fts_name);
+	fts_get_table_name(&fts_table, fts_name, true);
 	pars_info_bind_id(info, true, "config_table", fts_name);
 
 	graph = fts_parse_sql_no_dict_lock(
-		&fts_table, info, fts_config_table_insert_values_sql);
+		info, fts_config_table_insert_values_sql);
 
 	error = fts_eval_sql(trx, graph);
 
@@ -1957,8 +1927,8 @@ func_exit:
 	if (error != DB_SUCCESS) {
 		for (it = common_tables.begin(); it != common_tables.end();
 		     ++it) {
-			row_drop_table_for_mysql(
-				(*it)->name.m_name, trx, true, FALSE);
+			row_drop_table_for_mysql((*it)->name.m_name, trx,
+						 SQLCOM_DROP_DB);
 		}
 	}
 
@@ -1984,14 +1954,14 @@ fts_create_one_index_table(
 	mem_heap_t*		heap)
 {
 	dict_field_t*		field;
-	dict_table_t*		new_table = NULL;
+	dict_table_t*		new_table;
 	char			table_name[MAX_FULL_NAME_LEN];
 	dberr_t			error;
 	CHARSET_INFO*		charset;
 
 	ut_ad(index->type & DICT_FTS);
 
-	fts_get_table_name(fts_table, table_name);
+	fts_get_table_name(fts_table, table_name, true);
 
 	new_table = fts_create_in_mem_aux_table(
 			table_name, fts_table->table,
@@ -2005,7 +1975,7 @@ fts_create_one_index_table(
 			       ? DATA_VARCHAR : DATA_VARMYSQL,
 			       field->col->prtype,
 			       FTS_MAX_WORD_LEN_IN_CHAR
-			       * field->col->mbmaxlen);
+			       * unsigned(field->col->mbmaxlen));
 
 	dict_mem_table_add_col(new_table, heap, "first_doc_id", DATA_INT,
 			       DATA_NOT_NULL | DATA_UNSIGNED,
@@ -2048,11 +2018,13 @@ fts_create_one_index_table(
 	}
 
 	if (error != DB_SUCCESS) {
-		trx->error_state = error;
 		dict_mem_table_free(new_table);
 		new_table = NULL;
 		ib::warn() << "Failed to create FTS index table "
 			<< table_name;
+		trx->error_state = DB_SUCCESS;
+		row_drop_table_for_mysql(table_name, trx, SQLCOM_DROP_DB);
+		trx->error_state = error;
 	}
 
 	return(new_table);
@@ -2085,7 +2057,6 @@ fts_create_index_tables(trx_t* trx, const dict_index_t* index, table_id_t id)
 	fts_table.type = FTS_INDEX_TABLE;
 	fts_table.index_id = index->id;
 	fts_table.table_id = id;
-	fts_table.parent = index->table->name.m_name;
 	fts_table.table = index->table;
 
 	/* aux_idx_tables vector is used for dropping FTS AUX INDEX
@@ -2127,8 +2098,8 @@ fts_create_index_tables(trx_t* trx, const dict_index_t* index, table_id_t id)
 
 		for (it = aux_idx_tables.begin(); it != aux_idx_tables.end();
 		     ++it) {
-			row_drop_table_for_mysql(
-				(*it)->name.m_name, trx, true, FALSE);
+			row_drop_table_for_mysql((*it)->name.m_name, trx,
+						 SQLCOM_DROP_DB);
 		}
 	}
 
@@ -2311,7 +2282,7 @@ fts_trx_create(
 	     savep != NULL;
 	     savep = UT_LIST_GET_NEXT(trx_savepoints, savep)) {
 
-		fts_savepoint_take(trx, ftt, savep->name);
+		fts_savepoint_take(ftt, savep->name);
 	}
 
 	return(ftt);
@@ -2594,7 +2565,6 @@ fts_update_next_doc_id(
 /*===================*/
 	trx_t*			trx,		/*!< in/out: transaction */
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
 	doc_id_t		doc_id)		/*!< in: DOC ID to set */
 {
 	table->fts->cache->synced_doc_id = doc_id;
@@ -2603,7 +2573,7 @@ fts_update_next_doc_id(
 	table->fts->cache->first_doc_id = table->fts->cache->next_doc_id;
 
 	fts_update_sync_doc_id(
-		table, table_name, table->fts->cache->synced_doc_id, trx);
+		table, table->fts->cache->synced_doc_id, trx);
 
 }
 
@@ -2670,8 +2640,6 @@ retry:
 	fts_table.type = FTS_COMMON_TABLE;
 	fts_table.table = table;
 
-	fts_table.parent = table->name.m_name;
-
 	trx = trx_create();
 	if (srv_read_only_mode) {
 		trx_start_internal_read_only(trx);
@@ -2717,6 +2685,10 @@ retry:
 	}
 
 	if (read_only) {
+		/* InnoDB stores actual synced_doc_id value + 1 in
+		FTS_CONFIG table. Reduce the value by 1 while reading
+		after startup. */
+		if (*doc_id) *doc_id -= 1;
 		goto func_exit;
 	}
 
@@ -2736,7 +2708,7 @@ retry:
 
 	if (doc_id_cmp > *doc_id) {
 		error = fts_update_sync_doc_id(
-			table, table->name.m_name, cache->synced_doc_id, trx);
+			table, cache->synced_doc_id, trx);
 	}
 
 	*doc_id = cache->next_doc_id;
@@ -2772,7 +2744,6 @@ dberr_t
 fts_update_sync_doc_id(
 /*===================*/
 	const dict_table_t*	table,		/*!< in: table */
-	const char*		table_name,	/*!< in: table name, or NULL */
 	doc_id_t		doc_id,		/*!< in: last document id */
 	trx_t*			trx)		/*!< in: update trx, or NULL */
 {
@@ -2794,11 +2765,6 @@ fts_update_sync_doc_id(
 	fts_table.table_id = table->id;
 	fts_table.type = FTS_COMMON_TABLE;
 	fts_table.table = table;
-	if (table_name) {
-		fts_table.parent = table_name;
-	} else {
-		fts_table.parent = table->name.m_name;
-	}
 
 	if (!trx) {
 		trx = trx_create();
@@ -2810,12 +2776,13 @@ fts_update_sync_doc_id(
 
 	info = pars_info_create();
 
-	id_len = snprintf(
+	id_len = (ulint) snprintf(
 		(char*) id, sizeof(id), FTS_DOC_ID_FORMAT, doc_id + 1);
 
 	pars_info_bind_varchar_literal(info, "doc_id", id, id_len);
 
-	fts_get_table_name(&fts_table, fts_name);
+	fts_get_table_name(&fts_table, fts_name,
+			   table->fts->dict_locked);
 	pars_info_bind_id(info, true, "table_name", fts_name);
 
 	graph = fts_parse_sql(
@@ -2864,21 +2831,6 @@ fts_doc_ids_create(void)
 		fts_doc_ids->self_heap, sizeof(fts_update_t), 32));
 
 	return(fts_doc_ids);
-}
-
-/*********************************************************************//**
-Free a fts_doc_ids_t. */
-void
-fts_doc_ids_free(
-/*=============*/
-	fts_doc_ids_t*	fts_doc_ids)
-{
-	mem_heap_t*	heap = static_cast<mem_heap_t*>(
-		fts_doc_ids->self_heap->arg);
-
-	memset(fts_doc_ids, 0, sizeof(*fts_doc_ids));
-
-	mem_heap_free(heap);
 }
 
 /*********************************************************************//**
@@ -2944,7 +2896,7 @@ fts_delete(
 	into cache from last crash (delete Doc will not initialize the
 	sync). Avoid any added counter accounting until the FTS cache
 	is re-established and sync-ed */
-	if (table->fts->fts_status & ADDED_TABLE_SYNCED
+	if (table->fts->added_synced
 	    && doc_id > cache->synced_doc_id) {
 		mutex_enter(&table->fts->cache->deleted_lock);
 
@@ -3352,12 +3304,11 @@ fts_fetch_doc_from_tuple(
                const dict_field_t*     ifield;
                const dict_col_t*       col;
                ulint                   pos;
-               dfield_t*               field;
 
                ifield = dict_index_get_nth_field(index, i);
                col = dict_field_get_col(ifield);
                pos = dict_col_get_no(col);
-               field = dtuple_get_nth_field(tuple, pos);
+		const dfield_t* field = dtuple_get_nth_field(tuple, pos);
 
                if (!get_doc->index_cache->charset) {
                        get_doc->index_cache->charset = fts_get_charset(
@@ -3408,7 +3359,7 @@ fts_add_doc_from_tuple(
 
        ut_ad(cache->get_docs);
 
-       if (!(ftt->table->fts->fts_status & ADDED_TABLE_SYNCED)) {
+       if (!ftt->table->fts->added_synced) {
                fts_init_index(ftt->table, FALSE);
        }
 
@@ -3448,7 +3399,7 @@ fts_add_doc_from_tuple(
 
                        if (cache->total_size > fts_max_cache_size / 5
                            || fts_need_sync) {
-                               fts_sync(cache->sync, true, false, false);
+                               fts_sync(cache->sync, true, false);
                        }
 
                        mtr_start(&mtr);
@@ -3493,7 +3444,7 @@ fts_add_doc_by_id(
 	/* If Doc ID has been supplied by the user, then the table
 	might not yet be sync-ed */
 
-	if (!(ftt->table->fts->fts_status & ADDED_TABLE_SYNCED)) {
+	if (!ftt->table->fts->added_synced) {
 		fts_init_index(ftt->table, FALSE);
 	}
 
@@ -3561,7 +3512,7 @@ fts_add_doc_by_id(
 			dict_index_copy_types(clust_ref, clust_index, n_fields);
 
 			row_build_row_ref_in_tuple(
-				clust_ref, rec, fts_id_index, NULL, NULL);
+				clust_ref, rec, fts_id_index, NULL);
 
 			btr_pcur_open_with_no_init(
 				clust_index, clust_ref, PAGE_CUR_LE,
@@ -3626,7 +3577,7 @@ fts_add_doc_by_id(
 
 				DBUG_EXECUTE_IF(
 					"fts_instrument_sync_debug",
-					fts_sync(cache->sync, true, true, false);
+					fts_sync(cache->sync, true, true);
 				);
 
 				DEBUG_SYNC_C("fts_instrument_sync_request");
@@ -3746,7 +3697,7 @@ fts_get_max_doc_id(
 			goto func_exit;
 		}
 
-		ut_ad(!rec_is_default_row(rec, index));
+		ut_ad(!rec_is_metadata(rec, index));
 		offsets = rec_get_offsets(
 			rec, index, offsets, true, ULINT_UNDEFINED, &heap);
 
@@ -3899,7 +3850,7 @@ fts_write_node(
 	pars_info_t*	info;
 	dberr_t		error;
 	ib_uint32_t	doc_count;
-	ib_time_t	start_time;
+	time_t		start_time;
 	doc_id_t	last_doc_id;
 	doc_id_t	first_doc_id;
 	char		table_name[MAX_FULL_NAME_LEN];
@@ -3948,9 +3899,9 @@ fts_write_node(
 			"  :last_doc_id, :doc_count, :ilist);");
 	}
 
-	start_time = ut_time();
+	start_time = time(NULL);
 	error = fts_eval_sql(trx, *graph);
-	elapsed_time += ut_time() - start_time;
+	elapsed_time += time(NULL) - start_time;
 	++n_nodes;
 
 	return(error);
@@ -4049,6 +4000,9 @@ fts_sync_write_words(
 
 		word = rbt_value(fts_tokenizer_word_t, rbt_node);
 
+		DBUG_EXECUTE_IF("fts_instrument_write_words_before_select_index",
+				os_thread_sleep(300000););
+
 		selected = fts_select_index(
 			index_cache->charset, word->text.f_str,
 			word->text.f_len);
@@ -4124,7 +4078,7 @@ fts_sync_begin(
 	n_nodes = 0;
 	elapsed_time = 0;
 
-	sync->start_time = ut_time();
+	sync->start_time = time(NULL);
 
 	sync->trx = trx_create();
 	trx_start_internal(sync->trx);
@@ -4263,7 +4217,7 @@ fts_sync_commit(
 	if (fts_enable_diag_print && elapsed_time) {
 		ib::info() << "SYNC for table " << sync->table->name
 			<< ": SYNC time: "
-			<< (ut_time() - sync->start_time)
+			<< (time(NULL) - sync->start_time)
 			<< " secs: elapsed "
 			<< (double) n_nodes / elapsed_time
 			<< " ins/sec";
@@ -4333,15 +4287,13 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	sync		sync state
 @param[in]	unlock_cache	whether unlock cache lock when write node
 @param[in]	wait		whether wait when a sync is in progress
-@param[in]      has_dict        whether has dict operation lock
 @return DB_SUCCESS if all OK */
 static
 dberr_t
 fts_sync(
 	fts_sync_t*	sync,
 	bool		unlock_cache,
-	bool		wait,
-	bool		has_dict)
+	bool		wait)
 {
 	if (srv_read_only_mode) {
 		return DB_READ_ONLY;
@@ -4374,12 +4326,6 @@ fts_sync(
 	DEBUG_SYNC_C("fts_sync_begin");
 	fts_sync_begin(sync);
 
-	/* When sync in background, we hold dict operation lock
-	to prevent DDL like DROP INDEX, etc. */
-	if (has_dict) {
-		sync->trx->dict_operation_lock_mode = RW_S_LATCH;
-	}
-
 begin_sync:
 	if (cache->total_size > fts_max_cache_size) {
 		/* Avoid the case: sync never finish when
@@ -4399,15 +4345,13 @@ begin_sync:
 			continue;
 		}
 
+		DBUG_EXECUTE_IF("fts_instrument_sync_before_syncing",
+				os_thread_sleep(300000););
 		index_cache->index->index_fts_syncing = true;
-		DBUG_EXECUTE_IF("fts_instrument_sync_sleep_drop_waits",
-				os_thread_sleep(10000000);
-				);
 
 		error = fts_sync_index(sync, index_cache);
 
-		if (error != DB_SUCCESS && !sync->interrupted) {
-
+		if (error != DB_SUCCESS) {
 			goto end_sync;
 		}
 	}
@@ -4442,8 +4386,8 @@ end_sync:
 	}
 
 	rw_lock_x_lock(&cache->lock);
-	/* Clear fts syncing flags of any indexes incase sync is
-	interrupeted */
+	/* Clear fts syncing flags of any indexes in case sync is
+	interrupted */
 	for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
 		static_cast<fts_index_cache_t*>(
 			ib_vector_get(cache->indexes, i))
@@ -4472,25 +4416,17 @@ end_sync:
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	table		fts table
-@param[in]	unlock_cache	whether unlock cache when write node
 @param[in]	wait		whether wait for existing sync to finish
-@param[in]	has_dict	whether has dict operation lock
 @return DB_SUCCESS on success, error code on failure. */
-dberr_t
-fts_sync_table(
-	dict_table_t*	table,
-	bool		unlock_cache,
-	bool		wait,
-	bool		has_dict)
+dberr_t fts_sync_table(dict_table_t* table, bool wait)
 {
 	dberr_t	err = DB_SUCCESS;
 
 	ut_ad(table->fts);
 
-	if (!dict_table_is_discarded(table) && table->fts->cache
+	if (table->space && table->fts->cache
 	    && !dict_table_is_corrupted(table)) {
-		err = fts_sync(table->fts->cache->sync,
-			       unlock_cache, wait, has_dict);
+		err = fts_sync(table->fts->cache->sync, !wait, wait);
 	}
 
 	return(err);
@@ -4725,7 +4661,7 @@ fts_tokenize_add_word_for_parser(
 	MYSQL_FTPARSER_PARAM*	param,		/* in: parser paramter */
 	const char*			word,		/* in: token word */
 	int			word_len,	/* in: word len */
-	MYSQL_FTPARSER_BOOLEAN_INFO* boolean_info) /* in: word boolean info */
+	MYSQL_FTPARSER_BOOLEAN_INFO*)
 {
 	fts_string_t	str;
 	fts_tokenize_param_t*	fts_param;
@@ -4737,9 +4673,9 @@ fts_tokenize_add_word_for_parser(
 	ut_ad(result_doc != NULL);
 
 	str.f_str = (byte*)(word);
-	str.f_len = word_len;
+	str.f_len = ulint(word_len);
 	str.f_n_char = fts_get_token_size(
-		const_cast<CHARSET_INFO*>(param->cs), word, word_len);
+		const_cast<CHARSET_INFO*>(param->cs), word, str.f_len);
 
 	/* JAN: TODO: MySQL 5.7 FTS
 	ut_ad(boolean_info->position >= 0);
@@ -4794,12 +4730,12 @@ fts_tokenize_document(
 	ut_a(!doc->tokens);
 	ut_a(doc->charset);
 
-	doc->tokens = rbt_create_arg_cmp(
-		sizeof(fts_token_t), innobase_fts_text_cmp, (void*) doc->charset);
+	doc->tokens = rbt_create_arg_cmp(sizeof(fts_token_t),
+					 innobase_fts_text_cmp,
+					 (void*) doc->charset);
 
 	if (parser != NULL) {
 		fts_tokenize_param_t	fts_param;
-
 		fts_param.result_doc = (result != NULL) ? result : doc;
 		fts_param.add_pos = 0;
 
@@ -4943,7 +4879,7 @@ fts_init_doc_id(
 		fts_init_index((dict_table_t*) table, TRUE);
 	}
 
-	table->fts->fts_status |= ADDED_TABLE_SYNCED;
+	table->fts->added_synced = true;
 
 	table->fts->cache->first_doc_id = max_doc_id;
 
@@ -5353,67 +5289,6 @@ fts_cache_append_deleted_doc_ids(
 }
 
 /*********************************************************************//**
-Wait for the background thread to start. We poll to detect change
-of state, which is acceptable, since the wait should happen only
-once during startup.
-@return true if the thread started else FALSE (i.e timed out) */
-ibool
-fts_wait_for_background_thread_to_start(
-/*====================================*/
-	dict_table_t*		table,		/*!< in: table to which the thread
-						is attached */
-	ulint			max_wait)	/*!< in: time in microseconds, if
-						set to 0 then it disables
-						timeout checking */
-{
-	ulint			count = 0;
-	ibool			done = FALSE;
-
-	ut_a(max_wait == 0 || max_wait >= FTS_MAX_BACKGROUND_THREAD_WAIT);
-
-	for (;;) {
-		fts_t*		fts = table->fts;
-
-		mutex_enter(&fts->bg_threads_mutex);
-
-		if (fts->fts_status & BG_THREAD_READY) {
-
-			done = TRUE;
-		}
-
-		mutex_exit(&fts->bg_threads_mutex);
-
-		if (!done) {
-			os_thread_sleep(FTS_MAX_BACKGROUND_THREAD_WAIT);
-
-			if (max_wait > 0) {
-
-				max_wait -= FTS_MAX_BACKGROUND_THREAD_WAIT;
-
-				/* We ignore the residual value. */
-				if (max_wait < FTS_MAX_BACKGROUND_THREAD_WAIT) {
-					break;
-				}
-			}
-
-			++count;
-		} else {
-			break;
-		}
-
-		if (count >= FTS_BACKGROUND_THREAD_WAIT_COUNT) {
-			ib::error() << "The background thread for the FTS"
-				" table " << table->name
-				<< " refuses to start";
-
-			count = 0;
-		}
-	}
-
-	return(done);
-}
-
-/*********************************************************************//**
 Add the FTS document id hidden column. */
 void
 fts_add_doc_id_column(
@@ -5495,11 +5370,11 @@ fts_t::fts_t(
 	const dict_table_t*	table,
 	mem_heap_t*		heap)
 	:
+	added_synced(0), dict_locked(0),
 	bg_threads(0),
-	fts_status(0),
 	add_wq(NULL),
 	cache(NULL),
-	doc_col(ULINT_UNDEFINED),
+	doc_col(ULINT_UNDEFINED), in_queue(false),
 	fts_heap(heap)
 {
 	ut_a(table->fts == NULL);
@@ -5566,42 +5441,6 @@ fts_free(
 	table->fts = NULL;
 }
 
-#if 0 // TODO: Enable this in WL#6608
-/*********************************************************************//**
-Signal FTS threads to initiate shutdown. */
-void
-fts_start_shutdown(
-/*===============*/
-	dict_table_t*	table,		/*!< in: table with FTS indexes */
-	fts_t*		fts)		/*!< in: fts instance that needs
-					to be informed about shutdown */
-{
-	mutex_enter(&fts->bg_threads_mutex);
-
-	fts->fts_status |= BG_THREAD_STOP;
-
-	mutex_exit(&fts->bg_threads_mutex);
-
-}
-
-/*********************************************************************//**
-Wait for FTS threads to shutdown. */
-void
-fts_shutdown(
-/*=========*/
-	dict_table_t*	table,		/*!< in: table with FTS indexes */
-	fts_t*		fts)		/*!< in: fts instance to shutdown */
-{
-	mutex_enter(&fts->bg_threads_mutex);
-
-	ut_a(fts->fts_status & BG_THREAD_STOP);
-
-	dict_table_wait_for_bg_threads_to_exit(table, 20000);
-
-	mutex_exit(&fts->bg_threads_mutex);
-}
-#endif
-
 /*********************************************************************//**
 Take a FTS savepoint. */
 UNIV_INLINE
@@ -5634,7 +5473,6 @@ Take a FTS savepoint. */
 void
 fts_savepoint_take(
 /*===============*/
-	trx_t*		trx,		/*!< in: transaction */
 	fts_trx_t*	fts_trx,	/*!< in: fts transaction */
 	const char*	name)		/*!< in: savepoint name */
 {
@@ -5912,7 +5750,7 @@ fts_savepoint_rollback(
 		ut_a(ib_vector_size(savepoints) > 0);
 
 		/* Restore the savepoint. */
-		fts_savepoint_take(trx, trx->fts_trx, name);
+		fts_savepoint_take(trx->fts_trx, name);
 	}
 }
 
@@ -5942,7 +5780,7 @@ fts_is_aux_table_name(
 	if (ptr != NULL) {
 		/* We will start the match after the '/' */
 		++ptr;
-		len = end - ptr;
+		len = ulint(end - ptr);
 	}
 
 	/* All auxiliary tables are prefixed with "FTS_" and the name
@@ -5969,7 +5807,7 @@ fts_is_aux_table_name(
 		/* Skip the underscore. */
 		++ptr;
 		ut_a(end > ptr);
-		len = end - ptr;
+		len = ulint(end - ptr);
 
 		/* First search the common table suffix array. */
 		for (i = 0; fts_common_tables[i] != NULL; ++i) {
@@ -6000,7 +5838,7 @@ fts_is_aux_table_name(
 		/* Skip the underscore. */
 		++ptr;
 		ut_a(end > ptr);
-		len = end - ptr;
+		len = ulint(end - ptr);
 
 		/* Search the FT index specific array. */
 		for (i = 0; i < FTS_NUM_AUX_INDEX; ++i) {
@@ -6232,7 +6070,6 @@ fts_rename_one_aux_table_to_hex_format(
 
 	ut_a(fts_table.suffix != NULL);
 
-	fts_table.parent = parent_table->name.m_name;
 	fts_table.table_id = aux_table->parent_id;
 	fts_table.index_id = aux_table->index_id;
 	fts_table.table = parent_table;
@@ -6245,7 +6082,7 @@ fts_rename_one_aux_table_to_hex_format(
 	}
 
 	error = row_rename_table_for_mysql(aux_table->name, new_name, trx,
-					   FALSE);
+					   false, false);
 
 	if (error != DB_SUCCESS) {
 		ib::warn() << "Failed to rename aux table '"
@@ -6384,7 +6221,7 @@ fts_rename_aux_tables_to_hex_format_low(
 			DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS_AUX_HEX_NAME);
 			err = row_rename_table_for_mysql(table->name.m_name,
 							 aux_table->name,
-							 trx_bg, FALSE);
+							 trx_bg, false, false);
 
 			trx_bg->dict_operation_lock_mode = 0;
 			dict_table_close(table, TRUE, FALSE);
@@ -6528,7 +6365,7 @@ fts_check_corrupt_index(
 		if (index->id == aux_table->index_id) {
 			ut_ad(index->type & DICT_FTS);
 			dict_table_close(table, true, false);
-			return(dict_index_is_corrupted(index));
+			return index->is_corrupted();
 		}
 	}
 
@@ -6703,7 +6540,8 @@ fts_drop_obsolete_aux_table_from_vector(
 		trx_start_for_ddl(trx_drop, TRX_DICT_OP_TABLE);
 
 		err = row_drop_table_for_mysql(
-			aux_drop_table->name, trx_drop, false, true);
+			aux_drop_table->name, trx_drop,
+			SQLCOM_DROP_TABLE, true);
 
 		trx_drop->dict_operation_lock_mode = 0;
 
@@ -7175,7 +7013,6 @@ fts_drop_orphaned_tables(void)
 	pars_info_bind_function(info, "my_func", fts_read_tables, tables);
 
 	graph = fts_parse_sql_no_dict_lock(
-		NULL,
 		info,
 		"DECLARE FUNCTION my_func;\n"
 		"DECLARE CURSOR c IS"
@@ -7585,7 +7422,7 @@ fts_init_index(
 	}
 	rw_lock_x_unlock(&cache->init_lock);
 
-	if (table->fts->fts_status & ADDED_TABLE_SYNCED) {
+	if (table->fts->added_synced) {
 		goto func_exit;
 	}
 
@@ -7627,7 +7464,7 @@ fts_init_index(
 		}
 	}
 
-	table->fts->fts_status |= ADDED_TABLE_SYNCED;
+	table->fts->added_synced = true;
 
 	fts_get_docs_clear(cache->get_docs);
 

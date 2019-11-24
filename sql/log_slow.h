@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Defining what to log to slow log */
 
@@ -38,6 +38,7 @@
 #define QPLAN_TMP_DISK        (1U << 10)
 
 /* ... */
+#define QPLAN_STATUS          (1UL << 31) /* not in the slow_log_filter */
 #define QPLAN_MAX             (1UL << 31) /* reserved as placeholder */
 
 /* Bits for log_slow_disabled_statements */

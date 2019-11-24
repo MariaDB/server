@@ -1,0 +1,1278 @@
+SET sql_mode=ORACLE;
+
+create table t1 (a int, b int);
+
+insert into t1 values (1,2),(4,6),(9,7),
+                      (1,1),(2,5),(7,8);
+
+--echo # just VALUES
+
+values (1,2);
+
+values (1,2), (3,4), (5.6,0);
+
+values ('abc', 'def');
+
+--echo # UNION that uses VALUES structure(s)
+
+select 1,2
+union
+values (1,2);
+
+values (1,2)
+union
+select 1,2;
+
+select 1,2
+union
+values (1,2),(3,4),(5,6),(7,8);
+
+select 3,7
+union
+values (1,2),(3,4),(5,6);
+
+select 3,7,4
+union
+values (1,2,5),(4,5,6);
+
+select 1,2
+union
+values (1,7),(3,6.5);
+
+select 1,2
+union
+values (1,2.0),(3,6);
+
+select 1.8,2
+union
+values (1,2),(3,6);
+
+values (1,2.4),(3,6)
+union
+select 2.8,9;
+
+values (1,2),(3,4),(5,6),(7,8)
+union
+select 5,6;
+
+select 'ab','cdf'
+union
+values ('al','zl'),('we','q');
+
+values ('ab', 'cdf')
+union
+select 'ab','cdf';
+
+values (1,2)
+union
+values (1,2),(5,6);
+
+values (1,2)
+union
+values (3,4),(5,6);
+
+values (1,2)
+union
+values (1,2)
+union values (4,5);
+
+--echo # UNION ALL that uses VALUES structure
+
+values (1,2),(3,4)
+union all
+select 5,6;
+
+values (1,2),(3,4)
+union all
+select 1,2;
+
+select 5,6
+union all
+values (1,2),(3,4);
+
+select 1,2
+union all
+values (1,2),(3,4);
+
+values (1,2)
+union all
+values (1,2),(5,6);
+
+values (1,2)
+union all
+values (3,4),(5,6);
+
+values (1,2)
+union all
+values (1,2)
+union all
+values (4,5);
+
+values (1,2)
+union all
+values (1,2)
+union values (1,2);
+
+values (1,2)
+union
+values (1,2)
+union all
+values (1,2);
+
+--echo # EXCEPT that uses VALUES structure(s)
+
+select 1,2
+except
+values (3,4),(5,6);
+
+select 1,2
+except
+values (1,2),(3,4);
+
+values (1,2),(3,4)
+except
+select 5,6;
+
+values (1,2),(3,4)
+except
+select 1,2;
+
+values (1,2),(3,4)
+except
+values (5,6);
+
+values (1,2),(3,4)
+except
+values (1,2);
+
+--echo # INTERSECT that uses VALUES structure(s)
+
+select 1,2
+intersect
+values (3,4),(5,6);
+
+select 1,2
+intersect
+values (1,2),(3,4);
+
+values (1,2),(3,4)
+intersect
+select 5,6;
+
+values (1,2),(3,4)
+intersect
+select 1,2;
+
+values (1,2),(3,4)
+intersect
+values (5,6);
+
+values (1,2),(3,4)
+intersect
+values (1,2);
+
+--echo # combination of different structures that uses VALUES structures : UNION + EXCEPT
+
+values (1,2),(3,4)
+except
+select 1,2
+union values (1,2);
+
+values (1,2),(3,4)
+except
+values (1,2)
+union
+values (1,2);
+
+values (1,2),(3,4)
+except
+values (1,2)
+union
+values (3,4);
+
+values (1,2),(3,4)
+union
+values (1,2)
+except
+values (1,2);
+
+--echo # combination of different structures that uses VALUES structures : UNION ALL + EXCEPT
+
+values (1,2),(3,4)
+except
+select 1,2
+union all
+values (1,2);
+
+values (1,2),(3,4)
+except
+values (1,2)
+union all
+values (1,2);
+
+values (1,2),(3,4)
+except
+values (1,2)
+union all
+values (3,4);
+
+values (1,2),(3,4)
+union all
+values (1,2)
+except
+values (1,2);
+
+--echo # combination of different structures that uses VALUES structures : UNION + INTERSECT
+
+values (1,2),(3,4)
+intersect
+select 1,2
+union
+values (1,2);
+
+values (1,2),(3,4)
+intersect
+values (1,2)
+union
+values (1,2);
+
+values (1,2),(3,4)
+intersect
+values (1,2)
+union
+values (3,4);
+
+values (1,2),(3,4)
+union
+values (1,2)
+intersect
+values (1,2);
+
+--echo # combination of different structures that uses VALUES structures : UNION ALL + INTERSECT
+
+values (1,2),(3,4)
+intersect
+select 1,2
+union all
+values (1,2);
+
+values (1,2),(3,4)
+intersect
+values (1,2)
+union all
+values (1,2);
+
+values (1,2),(3,4)
+intersect
+values (1,2)
+union all
+values (3,4);
+
+values (1,2),(3,4)
+union all
+values (1,2)
+intersect
+values (1,2);
+
+--echo # combination of different structures that uses VALUES structures : UNION + UNION ALL
+
+values (1,2),(3,4)
+union all
+select 1,2
+union
+values (1,2);
+
+values (1,2),(3,4)
+union all
+values (1,2)
+union
+values (1,2);
+
+values (1,2),(3,4)
+union all
+values (1,2)
+union
+values (3,4);
+
+values (1,2),(3,4)
+union
+values (1,2)
+union all
+values (1,2);
+
+values (1,2)
+union
+values (1,2)
+union all
+values (1,2);
+
+--echo # CTE that uses VALUES structure(s) : non-recursive CTE
+
+with t2 as
+(
+  values (1,2),(3,4)
+)
+select * from t2;
+
+with t2 as
+(
+  select 1,2
+  union
+  values (1,2)
+)
+select * from t2;
+
+with t2 as
+(
+  select 1,2
+  union
+  values (1,2),(3,4)
+)
+select * from t2;
+
+with t2 as
+(
+  values (1,2)
+  union
+  select 1,2
+)
+select * from t2;
+
+with t2 as
+(
+  values (1,2),(3,4)
+  union
+  select 1,2
+)
+select * from t2;
+
+with t2 as
+(
+  values (5,6)
+  union
+  values (1,2),(3,4)
+)
+select * from t2;
+
+with t2 as
+(
+  values (1,2)
+  union
+  values (1,2),(3,4)
+)
+select * from t2;
+
+with t2 as
+(
+  select 1,2
+  union all
+  values (1,2),(3,4)
+)
+select * from t2;
+
+with t2 as
+(
+  values (1,2),(3,4)
+  union all
+  select 1,2
+)
+select * from t2;
+
+with t2 as
+(
+  values (1,2)
+  union all
+  values (1,2),(3,4)
+)
+select * from t2;
+
+--echo # recursive CTE that uses VALUES structure(s) : singe VALUES structure as anchor
+
+with recursive t2(a,b) as
+(
+  values(1,1)
+  union
+  select t1.a, t1.b
+  from t1,t2
+  where t1.a=t2.a
+)
+select * from t2;
+
+with recursive t2(a,b) as
+(
+  values(1,1)
+  union
+  select t1.a+1, t1.b
+  from t1,t2
+  where t1.a=t2.a
+)
+select * from t2;
+
+--echo # recursive CTE that uses VALUES structure(s) : several VALUES structures as anchors
+
+with recursive t2(a,b) as
+(
+  values(1,1)
+  union
+  values (3,4)
+  union
+  select t2.a+1, t1.b
+  from t1,t2
+  where t1.a=t2.a
+)
+select * from t2;
+
+--echo # recursive CTE that uses VALUES structure(s) : that uses UNION ALL
+
+with recursive t2(a,b,st) as
+(
+  values(1,1,1)
+  union all
+  select t2.a, t1.b, t2.st+1
+  from t1,t2
+  where t1.a=t2.a and st<3
+)
+select * from t2;
+
+--echo # recursive CTE that uses VALUES structure(s) : computation of factorial (first 10 elements)
+
+with recursive fact(n,f) as
+(
+  values(1,1)
+  union
+  select n+1,f*n from fact where n < 10
+)
+select * from fact;
+
+--echo # Derived table that uses VALUES structure(s) : singe VALUES structure
+
+select * from (values (1,2),(3,4)) as t2;
+
+--echo # Derived table that uses VALUES structure(s) : UNION with VALUES structure(s)
+
+select * from (select 1,2 union values (1,2)) as t2;
+
+select * from (select 1,2 union values (1,2),(3,4)) as t2;
+
+select * from (values (1,2) union select 1,2) as t2;
+
+select * from (values (1,2),(3,4) union select 1,2) as t2;
+
+select * from (values (5,6) union values (1,2),(3,4)) as t2;
+
+select * from (values (1,2) union values (1,2),(3,4)) as t2;
+
+--echo # Derived table that uses VALUES structure(s) : UNION ALL with VALUES structure(s)
+
+select * from (select 1,2 union all values (1,2),(3,4)) as t2;
+
+select * from (values (1,2),(3,4) union all select 1,2) as t2;
+
+select * from (values (1,2) union all values (1,2),(3,4)) as t2;
+
+--echo # CREATE VIEW that uses VALUES structure(s) : singe VALUES structure
+
+let $drop_view= drop view v1;
+let $select_view= select * from v1;
+
+create view v1 as values (1,2),(3,4);
+
+eval $select_view;
+eval $drop_view;
+
+--echo # CREATE VIEW that uses VALUES structure(s) : UNION with VALUES structure(s)
+
+create view v1 as
+  select 1,2
+  union
+  values (1,2);
+
+eval $select_view;
+eval $drop_view;
+
+create view v1 as
+  select 1,2
+  union
+  values (1,2),(3,4);
+
+eval $select_view;
+eval $drop_view;
+
+create view v1 as
+  values (1,2)
+  union
+  select 1,2;
+
+eval $select_view;
+eval $drop_view;
+
+create view v1 as
+  values (1,2),(3,4)
+  union
+  select 1,2;
+
+eval $select_view;
+eval $drop_view;
+
+create view v1 as
+  values (5,6)
+  union
+  values (1,2),(3,4);
+
+eval $select_view;
+eval $drop_view;
+
+--echo # CREATE VIEW that uses VALUES structure(s) : UNION ALL with VALUES structure(s)
+
+create view v1 as
+  values (1,2)
+  union
+  values (1,2),(3,4);
+
+eval $select_view;
+eval $drop_view;
+
+create view v1 as
+  select 1,2
+  union all
+  values (1,2),(3,4);
+
+eval $select_view;
+eval $drop_view;
+
+create view v1 as
+  values (1,2),(3,4)
+  union all
+  select 1,2;
+
+eval $select_view;
+eval $drop_view;
+
+create view v1 as
+  values (1,2)
+  union all
+  values (1,2),(3,4);
+
+eval $select_view;
+eval $drop_view;
+
+--echo # IN-subquery with VALUES structure(s) : simple case
+let $query= 
+select * from t1
+where a in (values (1));
+let $subst_query= 
+select * from t1
+where a in (select * from (values (1)) as tvc_0);
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # IN-subquery with VALUES structure(s) : UNION with VALUES on the first place
+let $query=
+select * from t1
+where a in (values (1) union select 2);
+let $subst_query=
+select * from t1
+where a in (select * from (values (1)) as tvc_0 union 
+	    select 2);
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # IN-subquery with VALUES structure(s) : UNION with VALUES on the second place
+let $query= 
+select * from t1
+where a in (select 2 union values (1));
+let $subst_query= 
+select * from t1
+where a in (select 2 union 
+            select * from (values (1)) tvc_0);
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # IN-subquery with VALUES structure(s) : UNION ALL
+let $query=
+select * from t1
+where a in (values (1) union all select b from t1);
+let $subst_query=
+select * from t1
+where a in (select * from (values (1)) as tvc_0 union all 
+            select b from t1);
+
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # NOT IN subquery with VALUES structure(s) : simple case
+let $query=
+select * from t1 
+where a not in (values (1),(2));
+let $subst_query=
+select * from t1 
+where a not in (select * from (values (1),(2)) as tvc_0);
+
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # NOT IN subquery with VALUES structure(s) : UNION with VALUES on the first place
+let $query=
+select * from t1
+where a not in (values (1) union select 2);
+let $subst_query=
+select * from t1
+where a not in (select * from (values (1)) as tvc_0 union 
+                select 2);
+                
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # NOT IN subquery with VALUES structure(s) : UNION with VALUES on the second place
+let $query=
+select * from t1
+where a not in (select 2 union values (1));
+let $subst_query=
+select * from t1
+where a not in (select 2 union 
+		select * from (values (1)) as tvc_0);
+		
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # ANY-subquery with VALUES structure(s) : simple case
+let $query=
+select * from t1 
+where a = any (values (1),(2));
+let $subst_query=
+select * from t1 
+where a = any (select * from (values (1),(2)) as tvc_0);
+
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # ANY-subquery with VALUES structure(s) : UNION with VALUES on the first place
+let $query=
+select * from t1 
+where a = any (values (1) union select 2);
+let $subst_query=
+select * from t1
+where a = any (select * from (values (1)) as tvc_0 union 
+               select 2);
+                
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # ANY-subquery with VALUES structure(s) : UNION with VALUES on the second place
+let $query=
+select * from t1
+where a = any (select 2 union values (1));
+let $subst_query=
+select * from t1
+where a = any (select 2 union 
+	       select * from (values (1)) as tvc_0);
+		
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # ALL-subquery with VALUES structure(s) : simple case
+let $query=
+select * from t1 
+where a = all (values (1));
+let $subst_query=
+select * from t1 
+where a = all (select * from (values (1)) as tvc_0);
+
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # ALL-subquery with VALUES structure(s) : UNION with VALUES on the first place
+let $query=
+select * from t1 
+where a = all (values (1) union select 1);
+let $subst_query=
+select * from t1
+where a = all (select * from (values (1)) as tvc_0 union 
+               select 1);
+                
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # ALL-subquery with VALUES structure(s) : UNION with VALUES on the second place
+let $query=
+select * from t1
+where a = any (select 1 union values (1));
+let $subst_query=
+select * from t1
+where a = any (select 1 union 
+	       select * from (values (1)) as tvc_0);
+		
+eval $query;
+eval $subst_query;
+eval explain extended $query;
+eval explain extended $subst_query;
+
+--echo # prepare statement that uses VALUES structure(s): single VALUES structure
+
+prepare stmt1 from '
+values (1,2);
+';
+
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+--echo # prepare statement that uses VALUES structure(s): UNION with VALUES structure(s)
+
+prepare stmt1 from '
+  select 1,2
+  union
+  values (1,2),(3,4);
+';
+
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+prepare stmt1 from '
+  values (1,2),(3,4)
+  union
+  select 1,2;
+';
+
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+prepare stmt1 from '
+  select 1,2
+  union
+  values (3,4)
+  union
+  values (1,2);
+';
+
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+prepare stmt1 from '
+  values (5,6)
+  union
+  values (1,2),(3,4);
+';
+
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+--echo # prepare statement that uses VALUES structure(s): UNION ALL with VALUES structure(s)
+
+prepare stmt1 from '
+  select 1,2
+  union
+  values (1,2),(3,4);
+';
+
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+prepare stmt1 from '
+  values (1,2),(3,4)
+  union all
+  select 1,2;
+';
+
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+prepare stmt1 from '
+  select 1,2
+  union all
+  values (3,4)
+  union all
+  values (1,2);
+';
+
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+prepare stmt1 from '
+  values (1,2)
+  union all
+  values (1,2),(3,4);
+';
+
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+--echo # explain query that uses VALUES structure(s): single VALUES structure
+
+explain
+values (1,2);
+
+explain format=json
+values (1,2);
+
+--echo # explain query that uses VALUES structure(s): UNION with VALUES structure(s)
+
+explain
+select 1,2
+union
+values (1,2),(3,4);
+
+explain
+values (1,2),(3,4)
+union
+select 1,2;
+
+explain
+values (5,6)
+union
+values (1,2),(3,4);
+
+explain format=json
+select 1,2
+union
+values (1,2),(3,4);
+
+explain format=json
+values (1,2),(3,4)
+union
+select 1,2;
+
+explain format=json
+values (5,6)
+union
+values (1,2),(3,4);
+
+explain
+select 1,2
+union
+values (3,4)
+union
+values (1,2);
+
+explain format=json
+select 1,2
+union
+values (3,4)
+union
+values (1,2);
+
+--echo # explain query that uses VALUES structure(s): UNION ALL with VALUES structure(s)
+
+explain
+select 1,2
+union
+values (1,2),(3,4);
+
+explain
+values (1,2),(3,4)
+union all
+select 1,2;
+
+explain
+values (1,2)
+union all
+values (1,2),(3,4);
+
+explain format=json
+values (1,2),(3,4)
+union all
+select 1,2;
+
+explain format=json
+select 1,2
+union
+values (1,2),(3,4);
+
+explain format=json
+values (1,2)
+union all
+values (1,2),(3,4);
+
+explain
+select 1,2
+union all
+values (3,4)
+union all
+values (1,2);
+
+explain format=json
+select 1,2
+union all
+values (3,4)
+union all
+values (1,2);
+
+--echo # analyze query that uses VALUES structure(s): single VALUES structure
+
+analyze
+values (1,2);
+
+analyze format=json
+values (1,2);
+
+--echo # analyze query that uses VALUES structure(s): UNION with VALUES structure(s)
+
+analyze
+select 1,2
+union
+values (1,2),(3,4);
+
+analyze
+values (1,2),(3,4)
+union
+select 1,2;
+
+analyze
+values (5,6)
+union
+values (1,2),(3,4);
+
+analyze format=json
+select 1,2
+union
+values (1,2),(3,4);
+
+analyze format=json
+values (1,2),(3,4)
+union
+select 1,2;
+
+analyze format=json
+values (5,6)
+union
+values (1,2),(3,4);
+
+analyze
+select 1,2
+union
+values (3,4)
+union
+values (1,2);
+
+analyze format=json
+select 1,2
+union
+values (3,4)
+union
+values (1,2);
+
+--echo # analyze query that uses VALUES structure(s): UNION ALL with VALUES structure(s)
+
+analyze
+select 1,2
+union
+values (1,2),(3,4);
+
+analyze
+values (1,2),(3,4)
+union all
+select 1,2;
+
+analyze
+values (1,2)
+union all
+values (1,2),(3,4);
+
+analyze format=json
+values (1,2),(3,4)
+union all
+select 1,2;
+
+analyze format=json
+select 1,2
+union
+values (1,2),(3,4);
+
+analyze format=json
+values (1,2)
+union all
+values (1,2),(3,4);
+
+analyze
+select 1,2
+union all
+values (3,4)
+union all
+values (1,2);
+
+analyze format=json
+select 1,2
+union all
+values (3,4)
+union all
+values (1,2);
+
+--echo # different number of values in TVC
+--error ER_WRONG_NUMBER_OF_VALUES_IN_TVC
+values (1,2),(3,4,5);
+
+--echo # illegal parameter data types in TVC
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+values (1,point(1,1)),(1,1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+values (1,point(1,1)+1);
+
+--echo # field reference in TVC
+--error ER_FIELD_REFERENCE_IN_TVC
+select * from (values (1), (b), (2)) as new_tvc;
+--error ER_FIELD_REFERENCE_IN_TVC
+select * from (values (1), (t1.b), (2)) as new_tvc;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-15940: cursor over TVC
+--echo #
+
+DELIMITER |;
+
+DECLARE
+  v INT;
+  CURSOR cur IS VALUES(7);
+BEGIN
+  OPEN cur;
+  FETCH cur INTO v;
+  SELECT v;
+END;
+|
+
+DECLARE
+  v INT DEFAULT 0;
+BEGIN
+  FOR a IN (VALUES (7)) LOOP
+    SET v = v + 1;
+  END LOOP;
+  SELECT v;
+END;
+|
+
+DELIMITER ;|
+
+--echo #
+--echo # MDEV-16038: empty row in TVC
+--echo #
+
+--error ER_EMPTY_ROW_IN_TVC
+with t as (values (),()) select 1 from t;
+
+--echo #
+--echo # MDEV-17017: TVC in derived table
+--echo #
+
+create table t1 (a int);
+insert into t1 values (9), (3), (2);
+
+let $q1=
+select * from (values (7), (5), (8), (1), (3), (8), (1)) t;
+eval $q1;
+eval explain $q1;
+
+let $q2=
+select * from (values (1,11), (7,77), (3,31), (4,42)) t;
+eval $q2;
+eval explain $q2;
+
+let $q3=
+select * from (values (7), (5), (8), (1) union values (3), (8), (1)) t;
+eval $q3;
+eval explain $q3;
+
+let $q4=
+select * from (values (7), (5), (8), (1) union select * from t1) t;
+eval $q4;
+eval explain $q4;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-16930: expression in the first row of TVC specifying derived table
+--echo #
+
+SELECT 1 + 1, 2, 'abc';
+SELECT * FROM (SELECT 1 + 1, 2, 'abc') t;
+WITH cte AS (SELECT 1 + 1, 2, 'abc') SELECT * FROM cte;
+SELECT 1 + 1, 2, 'abc' UNION SELECT 3+4, 3, 'abc';
+CREATE VIEW v1 AS SELECT 1 + 1, 2, 'abc';
+SELECT * FROM v1;
+DROP VIEW v1;
+
+VALUES(1 + 1,2,'abc');
+SELECT * FROM (VALUES(1 + 1,2,'abc')) t;
+
+--echo #
+--echo # MDEV-17894: tvc with ORDER BY ... LIMIT
+--echo #
+
+let $q=
+values (5), (7), (1), (3), (4) limit 2;
+eval $q;
+eval explain extended $q;
+
+let $q=
+values (5), (7), (1), (3), (4) limit 2 offset 1;
+eval $q;
+eval explain extended $q;
+
+let $q=
+values (5), (7), (1), (3), (4) order by 1 limit 2;
+eval $q;
+eval explain extended $q;
+
+let $q=
+values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1;
+eval $q;
+eval explain extended $q;
+
+let $q=
+values (5), (7), (1), (3), (4) order by 1;
+eval $q;
+eval explain extended $q;
+
+let $q=
+values (5,90), (7,20), (1,70), (3,50), (4,10) order by 2;
+eval $q;
+eval explain extended $q;
+
+let $q=
+select 2 union (values (5), (7), (1), (3), (4) limit 2);
+eval $q;
+eval explain extended $q;
+
+let $q=
+select 2 union (values (5), (7), (1), (3), (4) limit 2 offset 1);
+eval $q;
+eval explain extended $q;
+
+let $q=
+select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2);
+eval $q;
+eval explain extended $q;
+
+let $q=
+select 2 union (values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1);
+eval $q;
+eval explain extended $q;
+
+
+let $q=
+(values (5), (7), (1), (3), (4) limit 2) union select 2;
+eval $q;
+eval explain extended $q;
+
+let $q=
+(values (5), (7), (1), (3), (4) limit 2 offset 1) union select 2;
+eval $q;
+eval explain extended $q;
+
+let $q=
+(values (5), (7), (1), (3), (4) order by 1 limit 2) union select 2;
+eval $q;
+eval explain extended $q;
+
+let $q=
+(values (5), (7), (1), (3), (4) order by 1 limit 2 offset 1) union select 2;
+eval $q;
+eval explain extended $q;
+
+
+let $q=
+select 3 union all (values (5), (7), (1), (3), (4) limit 2 offset 3);
+eval $q;
+eval explain extended $q;
+
+let $q=
+(values (5), (7), (1), (3), (4) limit 2 offset 3) union all select 3;
+eval $q;
+eval explain extended $q;
+
+let $q=
+select 3 union all (values (5), (7), (1), (3), (4) order by 1 limit 2);
+eval $q;
+eval explain extended $q;
+
+let $q=
+(values (5), (7), (1), (3), (4) order by 1 limit 2) union all select 3;
+eval $q;
+eval explain extended $q;
+
+let $q=
+( values (5), (7), (1), (3), (4) limit 2 offset 1 )
+  union
+( values (5), (7), (1), (3), (4) order by 1 limit 2 );
+eval $q;
+eval explain extended $q;
+
+let $q=
+( values (5), (7), (1), (3), (4) limit 2 offset 1 )
+  union all
+( values (5), (7), (1), (3), (4) order by 1 limit 2 );
+eval $q;
+eval explain extended $q;
+
+let $q=
+(values (5), (7), (1), (3), (4) limit 2 offset 3) union all select 3 order by 1;
+eval $q;
+eval explain extended $q;
+
+let $q=
+(values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3 order by 1;
+eval $q;
+eval explain extended $q;
+
+let $q=
+(values (5), (7), (1), (3), (4) order by 1 limit 3 offset 1) union all select 3
+ order by 1 limit 2 offset 1;
+eval $q;
+eval explain extended $q;
+
+--error ER_BAD_FIELD_ERROR
+values (5,90), (7,20), (1,70), (3,50), (4,10) order by 3;
+
+create view v1 as values (5), (7), (1), (3), (4) order by 1 limit 2;
+show create view v1;
+select * from v1;
+drop view v1;
+
+create view v1 as
+( values (5), (7), (1), (3), (4) limit 2 offset 1 )
+  union
+( values (5), (7), (1), (3), (4) order by 1 limit 2 );
+show create view v1;
+select * from v1;
+drop view v1;
+
+--error ER_BAD_FIELD_ERROR
+create view v1 as values (5,90), (7,20), (1,70), (3,50), (4,10) order by 3;
+
+--error ER_BAD_FIELD_ERROR
+create view v1 as
+( values (5), (7), (1), (3), (4) limit 2 offset 1 )
+  union
+( values (5), (7), (1), (3), (4) order by 2 limit 2 );

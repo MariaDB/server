@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, SkySQL Ab.
+   Copyright (c) 2008, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -196,6 +196,7 @@ unpack_row(rpl_group_info *rgi,
            uchar const **const current_row_end, ulong *const master_reclength,
            uchar const *const row_end)
 {
+  int error;
   DBUG_ENTER("unpack_row");
   DBUG_ASSERT(row_data);
   DBUG_ASSERT(table);
@@ -318,7 +319,7 @@ unpack_row(rpl_group_info *rgi,
           normal unpack operation.
         */
         uint16 const metadata= tabledef->field_metadata(i);
-        uchar const *const old_pack_ptr= pack_ptr;
+        IF_DBUG(uchar const *const old_pack_ptr= pack_ptr;,)
 
         pack_ptr= f->unpack(f->ptr, pack_ptr, row_end, metadata);
 	DBUG_PRINT("debug", ("field: %s; metadata: 0x%x;"
@@ -336,10 +337,9 @@ unpack_row(rpl_group_info *rgi,
               Galera Node throws "Could not read field" error and drops out of cluster
             */
             WSREP_WARN("ROW event unpack field: %s  metadata: 0x%x;"
-                       " pack_ptr: %p; conv_table %p conv_field %p table %s"
+                       " conv_table %p conv_field %p table %s"
                        " row_end: %p",
-                       f->field_name.str, metadata,
-                       old_pack_ptr, conv_table, conv_field,
+                       f->field_name.str, metadata, conv_table, conv_field,
                        (table_found) ? "found" : "not found", row_end
             );
 	  }
@@ -419,7 +419,7 @@ unpack_row(rpl_group_info *rgi,
   /*
     Add Extra slave persistent columns
   */
-  if (int error= fill_extra_persistent_columns(table, cols->n_bits))
+  if (unlikely(error= fill_extra_persistent_columns(table, cols->n_bits)))
     DBUG_RETURN(error);
 
   /*

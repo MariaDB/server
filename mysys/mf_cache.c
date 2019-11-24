@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Open a temporary file and cache it with io_cache. Delete it on close */
 
@@ -19,36 +19,6 @@
 #include <m_string.h>
 #include "my_static.h"
 #include "mysys_err.h"
-
-/**
-  Remove an open tempfile so that it doesn't survive if we crash
-
-  If the operating system doesn't support this, just remember
-  the file name for later removal
-*/
-
-static my_bool cache_remove_open_tmp(IO_CACHE *cache __attribute__((unused)),
-				     const char *name)
-{
-#if O_TEMPORARY == 0
-#if !defined(CANT_DELETE_OPEN_FILES)
-  /* The following should always succeed */
-  (void) my_delete(name,MYF(MY_WME | ME_NOINPUT));
-#else
-  int length;
-  if (!(cache->file_name=
-	(char*) my_malloc((length=strlen(name)+1),MYF(MY_WME))))
-  {
-    my_close(cache->file,MYF(0));
-    cache->file = -1;
-    errno=my_errno=ENOMEM;
-    return 1;
-  }
-  memcpy(cache->file_name,name,length);
-#endif
-#endif /* O_TEMPORARY == 0 */
-  return 0;
-}
 
 /**
   Open tempfile cached by IO_CACHE
@@ -88,14 +58,11 @@ my_bool real_open_cached_file(IO_CACHE *cache)
   char name_buff[FN_REFLEN];
   int error=1;
   DBUG_ENTER("real_open_cached_file");
-  if ((cache->file=create_temp_file(name_buff, cache->dir,
+  if ((cache->file= create_temp_file(name_buff, cache->dir,
                                     cache->prefix[0] ? cache->prefix : 0,
-				    (O_RDWR | O_BINARY | O_TRUNC |
-				     O_TEMPORARY | O_SHORT_LIVED),
-				    MYF(MY_WME))) >= 0)
+                                    O_BINARY, MYF(MY_WME | MY_TEMPORARY))) >= 0)
   {
     error=0;
-    cache_remove_open_tmp(cache, name_buff);
   }
   DBUG_RETURN(error);
 }

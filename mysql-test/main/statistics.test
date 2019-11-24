@@ -5,6 +5,8 @@ drop table if exists t1,t2;
 --enable_warnings
 
 set @save_use_stat_tables=@@use_stat_tables;
+set @save_histogram_size=@@global.histogram_size;
+set @@global.histogram_size=0,@@local.histogram_size=0;
 
 DELETE FROM mysql.table_stats;
 --sorted_result
@@ -819,6 +821,32 @@ set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivi
 drop table t1,t2;
 
 --echo #
+--echo # MDEV-16507: statistics for temporary tables should not be used
+--echo #
+
+SET
+@save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+SET @@use_stat_tables = preferably ;
+SET @@optimizer_use_condition_selectivity = 4;
+
+CREATE TABLE t1 (
+  TIMESTAMP TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ON UPDATE CURRENT_TIMESTAMP
+);
+
+SET @had_t1_table= @@warning_count != 0;
+CREATE TEMPORARY TABLE tmp_t1 LIKE t1;
+INSERT INTO tmp_t1 VALUES (now());
+INSERT INTO t1 SELECT * FROM tmp_t1 WHERE @had_t1_table=0;
+DROP TABLE t1;
+
+SET
+use_stat_tables=@save_use_stat_tables;
+SET
+optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+--echo # End of 10.0 tests
+
+--echo #
 --echo # MDEV-9590: Always print "Engine-independent statistic" warnings and
 --echo # might be filtering columns unintentionally from engines
 --echo #
@@ -853,6 +881,21 @@ rename table t1 to t2, t3 to t4;
 drop table t1, mysql.table_stats;
 rename table test.table_stats to mysql.table_stats;
 
+--echo #
+--echo # MDEV-19334: bool is_eits_usable(Field*): Assertion `field->table->stats_is_read' failed.
+--echo #
+
+create temporary table t1(a int);
+insert into t1 values (1),(2),(3);
+ 
+set use_stat_tables=preferably;
+set @optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=4;
+ 
+select * from t1 where a >= 2;
+drop table t1;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+
 set use_stat_tables=@save_use_stat_tables;
 
 --echo #
@@ -872,3 +915,5 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+set @@global.histogram_size=@save_histogram_size;

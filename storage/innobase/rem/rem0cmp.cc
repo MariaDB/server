@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -23,17 +23,11 @@ Comparison services for records
 Created 7/1/1994 Heikki Tuuri
 ************************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "rem0cmp.h"
+#include "rem0rec.h"
+#include "page0page.h"
+#include "dict0mem.h"
 #include "handler0alter.h"
-#include "srv0srv.h"
-
-#include <gstream.h>
-#include <spatial.h>
-#include <gis0geo.h>
-#include <page0cur.h>
-#include <algorithm>
 
 /*		ALPHABETICAL ORDER
 		==================
@@ -229,7 +223,6 @@ static
 int
 cmp_geometry_field(
 /*===============*/
-	ulint		mtype,		/*!< in: main type */
 	ulint		prtype,		/*!< in: precise type */
 	const byte*	a,		/*!< in: data field */
 	unsigned int	a_length,	/*!< in: data field length,
@@ -303,12 +296,10 @@ cmp_gis_field(
 					not UNIV_SQL_NULL */
 {
 	if (mode == PAGE_CUR_MBR_EQUAL) {
-		/* TODO: Since the DATA_GEOMETRY is not used in compare
-		function, we could pass it instead of a specific type now */
-		return(cmp_geometry_field(DATA_GEOMETRY, DATA_GIS_MBR,
-					  a, a_length, b, b_length));
+		return cmp_geometry_field(DATA_GIS_MBR,
+					  a, a_length, b, b_length);
 	} else {
-		return(rtree_key_cmp(mode, a, a_length, b, b_length));
+		return rtree_key_cmp(mode, a, int(a_length), b, int(b_length));
 	}
 }
 
@@ -379,8 +370,7 @@ cmp_whole_field(
 		return(innobase_mysql_cmp(prtype,
 					  a, a_length, b, b_length));
 	case DATA_GEOMETRY:
-		return(cmp_geometry_field(mtype, prtype, a, a_length, b,
-				b_length));
+		return cmp_geometry_field(prtype, a, a_length, b, b_length);
 	default:
 		ib::fatal() << "Unknown data type number " << mtype;
 	}
@@ -798,20 +788,23 @@ cmp_dtuple_rec_with_match_bytes(
 	ulint*			matched_fields,
 	ulint*			matched_bytes)
 {
-	ulint		n_cmp	= dtuple_get_n_fields_cmp(dtuple);
-	ulint		cur_field;	/* current field number */
-	ulint		cur_bytes;
-	int		ret;		/* return value */
-
 	ut_ad(dtuple_check_typed(dtuple));
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!(REC_INFO_MIN_REC_FLAG
 		& dtuple_get_info_bits(dtuple)));
-	ut_ad(!(REC_INFO_MIN_REC_FLAG
-		& rec_get_info_bits(rec, rec_offs_comp(offsets))));
 
-	cur_field = *matched_fields;
-	cur_bytes = *matched_bytes;
+	if (UNIV_UNLIKELY(REC_INFO_MIN_REC_FLAG
+			  & rec_get_info_bits(rec, rec_offs_comp(offsets)))) {
+		ut_ad(page_rec_is_first(rec, page_align(rec)));
+		ut_ad(!page_has_prev(page_align(rec)));
+		ut_ad(rec_is_metadata(rec, index));
+		return 1;
+	}
+
+	ulint cur_field = *matched_fields;
+	ulint cur_bytes = *matched_bytes;
+	ulint n_cmp = dtuple_get_n_fields_cmp(dtuple);
+	int ret;
 
 	ut_ad(n_cmp <= dtuple_get_n_fields(dtuple));
 	ut_ad(cur_field <= n_cmp);

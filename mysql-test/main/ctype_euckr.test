@@ -197,6 +197,16 @@ set collation_connection=euckr_bin;
 --echo # End of 5.6 tests
 --echo #
 
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+SET NAMES utf8, character_set_connection=euckr;
+--source include/ctype_mdev13118.inc
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
 
 --echo #
 --echo # Start of 10.2 tests

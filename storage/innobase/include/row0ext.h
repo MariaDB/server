@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,12 +26,11 @@ Created September 2006 Marko Makela
 #ifndef row0ext_h
 #define row0ext_h
 
-#include "univ.i"
-#include "row0types.h"
 #include "data0types.h"
 #include "mem0mem.h"
 #include "dict0types.h"
 #include "page0size.h"
+#include "row0types.h"
 
 /********************************************************************//**
 Creates a cache of column prefixes of externally stored columns.

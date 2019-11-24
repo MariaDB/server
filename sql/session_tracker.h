@@ -32,7 +32,6 @@ enum enum_session_tracker
   SESSION_SYSVARS_TRACKER,                       /* Session system variables */
   CURRENT_SCHEMA_TRACKER,                        /* Current schema */
   SESSION_STATE_CHANGE_TRACKER,
-  SESSION_GTIDS_TRACKER,                         /* Tracks GTIDs */
   TRANSACTION_INFO_TRACKER,                      /* Transaction state */
   SESSION_TRACKER_END                            /* must be the last */
 };
@@ -67,17 +66,12 @@ protected:
   */
   bool m_enabled;
 
+private:
   /** Has the session state type changed ? */
   bool m_changed;
 
 public:
-  /** Constructor */
-  State_tracker() : m_enabled(false), m_changed(false)
-  {}
-
-  /** Destructor */
-  virtual ~State_tracker()
-  {}
+  virtual ~State_tracker() {}
 
   /** Getters */
   bool is_enabled() const
@@ -86,8 +80,20 @@ public:
   bool is_changed() const
   { return m_changed; }
 
-  /** Called in the constructor of THD*/
-  virtual bool enable(THD *thd)= 0;
+  void reset_changed() { m_changed= false; }
+
+  /**
+    Called by THD::init() when new connection is being created
+
+    We may inherit m_changed from previous connection served by this THD if
+    connection was broken or client didn't have session tracking capability.
+    Thus we have to reset it here.
+  */
+  virtual bool enable(THD *thd)
+  {
+    reset_changed();
+    return update(thd, 0);
+  }
 
   /** To be invoked when the tracker's system variable is updated (ON_UPDATE).*/
   virtual bool update(THD *thd, set_var *var)= 0;
@@ -99,74 +105,156 @@ public:
   virtual void mark_as_changed(THD *thd, LEX_CSTRING *name);
 };
 
+
+/**
+  Session_sysvars_tracker
+
+  This is a tracker class that enables & manages the tracking of session
+  system variables. It internally maintains a hash of user supplied variable
+  references and a boolean field to store if the variable was changed by the
+  last statement.
+*/
+
+class Session_sysvars_tracker: public State_tracker
+{
+  struct sysvar_node_st {
+    sys_var *m_svar;
+    bool *test_load;
+    bool m_changed;
+  };
+
+  class vars_list
+  {
+    /**
+      Registered system variables. (@@session_track_system_variables)
+      A hash to store the name of all the system variables specified by the
+      user.
+    */
+    HASH m_registered_sysvars;
+    /**
+      If TRUE then we want to check all session variable.
+    */
+    bool track_all;
+    void init()
+    {
+      my_hash_init(&m_registered_sysvars, &my_charset_bin, 0, 0, 0,
+                   (my_hash_get_key) sysvars_get_key, my_free,
+                   HASH_UNIQUE | (mysqld_server_initialized ?
+                                  HASH_THREAD_SPECIFIC : 0));
+    }
+    void free_hash()
+    {
+      DBUG_ASSERT(my_hash_inited(&m_registered_sysvars));
+      my_hash_free(&m_registered_sysvars);
+    }
+
+    sysvar_node_st *search(const sys_var *svar)
+    {
+      return reinterpret_cast<sysvar_node_st*>(
+               my_hash_search(&m_registered_sysvars,
+                             reinterpret_cast<const uchar*>(&svar),
+                             sizeof(sys_var*)));
+    }
+
+    sysvar_node_st *at(ulong i)
+    {
+      DBUG_ASSERT(i < m_registered_sysvars.records);
+      return reinterpret_cast<sysvar_node_st*>(
+               my_hash_element(&m_registered_sysvars, i));
+    }
+  public:
+    vars_list(): track_all(false) { init(); }
+    ~vars_list() { if (my_hash_inited(&m_registered_sysvars)) free_hash(); }
+    void deinit() { free_hash(); }
+
+    sysvar_node_st *insert_or_search(const sys_var *svar)
+    {
+      sysvar_node_st *res= search(svar);
+      if (!res)
+      {
+        if (track_all)
+        {
+          insert(svar);
+          return search(svar);
+        }
+      }
+      return res;
+    }
+
+    bool insert(const sys_var *svar);
+    void reinit();
+    void reset();
+    inline bool is_enabled()
+    {
+      return track_all || m_registered_sysvars.records;
+    }
+    void copy(vars_list* from, THD *thd);
+    bool parse_var_list(THD *thd, LEX_STRING var_list, bool throw_error,
+                        CHARSET_INFO *char_set);
+    bool construct_var_list(char *buf, size_t buf_len);
+    bool store(THD *thd, String *buf);
+  };
+  /**
+    Two objects of vars_list type are maintained to manage
+    various operations.
+  */
+  vars_list orig_list;
+  bool m_parsed;
+
+public:
+  void init(THD *thd);
+  void deinit(THD *thd);
+  bool enable(THD *thd);
+  bool update(THD *thd, set_var *var);
+  bool store(THD *thd, String *buf);
+  void mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name);
+  void deinit() { orig_list.deinit(); }
+  /* callback */
+  static uchar *sysvars_get_key(const char *entry, size_t *length,
+                                my_bool not_used __attribute__((unused)));
+
+  friend bool sysvartrack_global_update(THD *thd, char *str, size_t len);
+};
+
+
 bool sysvartrack_validate_value(THD *thd, const char *str, size_t len);
-bool sysvartrack_reprint_value(THD *thd, char *str, size_t len);
-bool sysvartrack_update(THD *thd, set_var *var);
-size_t sysvartrack_value_len(THD *thd);
-bool sysvartrack_value_construct(THD *thd, char *val, size_t len);
+bool sysvartrack_global_update(THD *thd, char *str, size_t len);
 
 
 /**
-  Session_tracker
+  Current_schema_tracker,
 
-  This class holds an object each for all tracker classes and provides
-  methods necessary for systematic detection and generation of session
-  state change information.
+  This is a tracker class that enables & manages the tracking of current
+  schema for a particular connection.
 */
 
-class Session_tracker
+class Current_schema_tracker: public State_tracker
 {
-private:
-  State_tracker *m_trackers[SESSION_TRACKER_END];
-
-  /* The following two functions are private to disable copying. */
-  Session_tracker(Session_tracker const &other)
-  {
-    DBUG_ASSERT(FALSE);
-  }
-  Session_tracker& operator= (Session_tracker const &rhs)
-  {
-    DBUG_ASSERT(FALSE);
-    return *this;
-  }
-
 public:
-
-  Session_tracker();
-  ~Session_tracker()
-  {
-    deinit();
-  }
-
-  /* trick to make happy memory accounting system */
-  void deinit()
-  {
-    for (int i= 0; i < SESSION_TRACKER_END; i++)
-    {
-      if (m_trackers[i])
-        delete m_trackers[i];
-      m_trackers[i]= NULL;
-    }
-  }
-
-  void enable(THD *thd);
-  static bool server_boot_verify(CHARSET_INFO *char_set);
-
-  /** Returns the pointer to the tracker object for the specified tracker. */
-  inline State_tracker *get_tracker(enum_session_tracker tracker) const
-  {
-    return m_trackers[tracker];
-  }
-
-  inline void mark_as_changed(THD *thd, enum enum_session_tracker tracker,
-                              LEX_CSTRING *data)
-  {
-    if (m_trackers[tracker]->is_enabled())
-      m_trackers[tracker]->mark_as_changed(thd, data);
-  }
+  bool update(THD *thd, set_var *var);
+  bool store(THD *thd, String *buf);
+};
 
 
-  void store(THD *thd, String *main_buf);
+/*
+  Session_state_change_tracker
+
+  This is a boolean tracker class that will monitor any change that contributes
+  to a session state change.
+  Attributes that contribute to session state change include:
+     - Successful change to System variables
+     - User defined variables assignments
+     - temporary tables created, altered or deleted
+     - prepared statements added or removed
+     - change in current database
+     - change of current role
+*/
+
+class Session_state_change_tracker: public State_tracker
+{
+public:
+  bool update(THD *thd, set_var *var);
+  bool store(THD *thd, String *buf);
 };
 
 
@@ -231,14 +319,21 @@ enum enum_session_track_transaction_info {
 
 class Transaction_state_tracker : public State_tracker
 {
-private:
   /** Helper function: turn table info into table access flag */
   enum_tx_state calc_trx_state(THD *thd, thr_lock_type l, bool has_trx);
 public:
-  /** Constructor */
-  Transaction_state_tracker();
+
   bool enable(THD *thd)
-  { return update(thd, NULL); }
+  {
+    m_enabled= false;
+    tx_changed= TX_CHG_NONE;
+    tx_curr_state= TX_EMPTY;
+    tx_reported_state= TX_EMPTY;
+    tx_read_flags= TX_READ_INHERIT;
+    tx_isol_level= TX_ISOL_INHERIT;
+    return State_tracker::enable(thd);
+  }
+
   bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
 
@@ -276,8 +371,6 @@ private:
   /**  isolation level */
   enum enum_tx_isol_level  tx_isol_level;
 
-  void reset();
-
   inline void update_change_flags(THD *thd)
   {
     tx_changed &= uint(~TX_CHG_STATE);
@@ -289,11 +382,67 @@ private:
 
 #define TRANSACT_TRACKER(X) \
  do { if (thd->variables.session_track_transaction_info > TX_TRACK_NONE) \
-   {((Transaction_state_tracker *) \
-         thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER)) \
-          ->X; } } while(0)
+        thd->session_tracker.transaction_info.X; } while(0)
 #define SESSION_TRACKER_CHANGED(A,B,C) \
   thd->session_tracker.mark_as_changed(A,B,C)
+
+
+/**
+  Session_tracker
+
+  This class holds an object each for all tracker classes and provides
+  methods necessary for systematic detection and generation of session
+  state change information.
+*/
+
+class Session_tracker
+{
+  State_tracker *m_trackers[SESSION_TRACKER_END];
+
+  /* The following two functions are private to disable copying. */
+  Session_tracker(Session_tracker const &other)
+  {
+    DBUG_ASSERT(FALSE);
+  }
+  Session_tracker& operator= (Session_tracker const &rhs)
+  {
+    DBUG_ASSERT(FALSE);
+    return *this;
+  }
+
+public:
+  Current_schema_tracker current_schema;
+  Session_state_change_tracker state_change;
+  Transaction_state_tracker transaction_info;
+  Session_sysvars_tracker sysvars;
+
+  Session_tracker()
+  {
+    m_trackers[SESSION_SYSVARS_TRACKER]= &sysvars;
+    m_trackers[CURRENT_SCHEMA_TRACKER]= &current_schema;
+    m_trackers[SESSION_STATE_CHANGE_TRACKER]= &state_change;
+    m_trackers[TRANSACTION_INFO_TRACKER]= &transaction_info;
+  }
+
+  void enable(THD *thd)
+  {
+    for (int i= 0; i < SESSION_TRACKER_END; i++)
+      m_trackers[i]->enable(thd);
+  }
+
+  inline void mark_as_changed(THD *thd, enum enum_session_tracker tracker,
+                              LEX_CSTRING *data)
+  {
+    if (m_trackers[tracker]->is_enabled())
+      m_trackers[tracker]->mark_as_changed(thd, data);
+  }
+
+
+  void store(THD *thd, String *main_buf);
+};
+
+
+int session_tracker_init();
 #else
 
 #define TRANSACT_TRACKER(X) do{}while(0)

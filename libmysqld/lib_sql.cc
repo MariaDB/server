@@ -44,16 +44,20 @@ extern unsigned int mysql_server_last_errno;
 extern char mysql_server_last_error[MYSQL_ERRMSG_SIZE];
 static my_bool emb_read_query_result(MYSQL *mysql);
 static void emb_free_embedded_thd(MYSQL *mysql);
-
+static bool embedded_print_errors= 0;
 
 extern "C" void unireg_clear(int exit_code)
 {
   DBUG_ENTER("unireg_clear");
-  clean_up(!opt_help && (exit_code || !opt_bootstrap)); /* purecov: inspected */
+  embedded_print_errors= 0;
+  clean_up(!opt_help && !exit_code); /* purecov: inspected */
   clean_up_mutexes();
   my_end(opt_endinfo ? MY_CHECK_ERROR | MY_GIVE_INFO : 0);
   DBUG_VOID_RETURN;
 }
+
+
+static my_bool mysql_embedded_init= 0;
 
 /*
   Wrapper error handler for embedded server to call client/server error 
@@ -518,6 +522,8 @@ int init_embedded_server(int argc, char **argv, char **groups)
   const char *fake_groups[] = { "server", "embedded", 0 };
   my_bool acl_error;
 
+  DBUG_ASSERT(mysql_embedded_init == 0);
+  embedded_print_errors= 1;
   if (my_thread_init())
     return 1;
 
@@ -637,15 +643,20 @@ int init_embedded_server(int argc, char **argv, char **groups)
   }
 
   execute_ddl_log_recovery();
+  mysql_embedded_init= 1;
   return 0;
 }
 
 void end_embedded_server()
 {
-  my_free(copy_arguments_ptr);
-  copy_arguments_ptr=0;
-  clean_up(0);
-  clean_up_mutexes();
+  if (mysql_embedded_init)
+  {
+    my_free(copy_arguments_ptr);
+    copy_arguments_ptr=0;
+    clean_up(0);
+    clean_up_mutexes();
+    mysql_embedded_init= 0;
+  }
 }
 
 
@@ -1337,8 +1348,17 @@ int vprint_msg_to_log(enum loglevel level __attribute__((unused)),
                        const char *format, va_list argsi)
 {
   vsnprintf(mysql_server_last_error, sizeof(mysql_server_last_error),
-           format, argsi);
+            format, argsi);
   mysql_server_last_errno= CR_UNKNOWN_ERROR;
+  if (embedded_print_errors && level == ERROR_LEVEL)
+  {
+    /* The following is for testing when someone removes the above test */
+    const char *tag= (level == ERROR_LEVEL ? "ERROR" :
+                      level == WARNING_LEVEL ? "Warning" :
+                      "Note");
+    fprintf(stderr,"Got %s: \"%s\" errno: %d\n",
+            tag, mysql_server_last_error, mysql_server_last_errno);
+  }
   return 0;
 }
 

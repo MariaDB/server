@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -40,7 +40,6 @@ class THD;
 // JAN: TODO missing features:
 #undef MYSQL_FT_INIT_EXT
 #undef MYSQL_PFS
-#undef MYSQL_RENAME_INDEX
 #undef MYSQL_STORE_FTS_DOC_ID
 
 /*******************************************************************//**
@@ -70,13 +69,11 @@ innobase_invalidate_query_cache(
 /*============================*/
 	trx_t*		trx,		/*!< in: transaction which
 					modifies the table */
-	const char*	full_name,	/*!< in: concatenation of
+	const char*	full_name);	/*!< in: concatenation of
 					database name, path separator,
 					table name, null char NUL;
 					NOTE that in Windows this is
 					always in LOWER CASE! */
-	ulint		full_name_len);	/*!< in: full name length where
-					also the null chars count */
 
 /** Quote a standard SQL identifier like tablespace, index or column name.
 @param[in]	file	output stream
@@ -158,7 +155,6 @@ UNIV_INTERN
 void
 innobase_mysql_log_notify(
 /*======================*/
-	ib_uint64_t	write_lsn,	/*!< in: LSN written to log file */
 	ib_uint64_t	flush_lsn);	/*!< in: LSN flushed to disk */
 
 /** Converts a MySQL type to an InnoDB type. Note that this function returns
@@ -240,7 +236,7 @@ wsrep_innobase_kill_one_trx(void * const thd_ptr,
                             const trx_t * const bf_trx,
                             trx_t *victim_trx,
                             ibool signal);
-int wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
+ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
                              unsigned char* str, unsigned int str_length,
                              unsigned int buf_length);
 #endif /* WITH_WSREP */
@@ -309,14 +305,6 @@ thd_lock_wait_timeout(
 /*==================*/
 	THD*	thd);	/*!< in: thread handle, or NULL to query
 			the global innodb_lock_wait_timeout */
-/******************************************************************//**
-Add up the time waited for the lock for the current query. */
-void
-thd_set_lock_wait_time(
-/*===================*/
-	THD*	thd,	/*!< in/out: thread handle */
-	ulint	value);	/*!< in: time waited for the lock */
-
 /** Get status of innodb_tmpdir.
 @param[in]	thd	thread handle, or NULL to query
 			the global innodb_tmpdir.
@@ -367,14 +355,6 @@ implies that it is a SELECT (read-only) transaction.
 @return true if the transaction is an auto commit read-only transaction. */
 ibool
 thd_trx_is_auto_commit(
-/*===================*/
-	THD*	thd);	/*!< in: thread handle, or NULL */
-
-/******************************************************************//**
-Get the thread start time.
-@return the thread start time in seconds since the epoch. */
-ulint
-thd_start_time_in_secs(
 /*===================*/
 	THD*	thd);	/*!< in: thread handle, or NULL */
 
@@ -440,7 +420,6 @@ extern const char* 	TROUBLESHOOTING_MSG;
 extern const char* 	TROUBLESHOOT_DATADICT_MSG;
 extern const char* 	BUG_REPORT_MSG;
 extern const char* 	FORCE_RECOVERY_MSG;
-extern const char*      ERROR_CREATING_MSG;
 extern const char*      OPERATING_SYSTEM_ERROR_MSG;
 extern const char*      FOREIGN_KEY_CONSTRAINTS_MSG;
 extern const char*      SET_TRANSACTION_MSG;
@@ -452,14 +431,6 @@ Returns the NUL terminated value of glob_hostname.
 const char*
 server_get_hostname();
 /*=================*/
-
-/******************************************************************//**
-Get the error message format string.
-@return the format string or 0 if not found. */
-const char*
-innobase_get_err_msg(
-/*=================*/
-	int	error_code);	/*!< in: MySQL error code */
 
 /*********************************************************************//**
 Compute the next autoinc value.
@@ -533,7 +504,7 @@ UNIV_INTERN
 void
 ib_push_warning(
 	trx_t*		trx,	/*!< in: trx */
-	ulint		error,	/*!< in: error code to push as warning */
+	dberr_t		error,	/*!< in: error code to push as warning */
 	const char	*format,/*!< in: warning message */
 	...);
 
@@ -543,7 +514,7 @@ UNIV_INTERN
 void
 ib_push_warning(
 	void*		ithd,	/*!< in: thd */
-	ulint		error,	/*!< in: error code to push as warning */
+	dberr_t		error,	/*!< in: error code to push as warning */
 	const char	*format,/*!< in: warning message */
 	...);
 
@@ -570,20 +541,6 @@ ICP_RESULT
 innobase_index_cond(
 /*================*/
 	void*	file)	/*!< in/out: pointer to ha_innobase */
-	MY_ATTRIBUTE((warn_unused_result));
-
-/******************************************************************//**
-Gets information on the durability property requested by thread.
-Used when writing either a prepare or commit record to the log
-buffer.
-@return the durability property. */
-
-#include <dur_prop.h>
-
-enum durability_properties
-thd_requested_durability(
-/*=====================*/
-	const THD* thd)	/*!< in: thread handle */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Update the system variable with the given value of the InnoDB

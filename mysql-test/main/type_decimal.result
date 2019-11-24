@@ -176,9 +176,9 @@ Note	1265	Data truncated for column 'a' at row 2
 insert ignore into t1 values ("1e+18446744073709551615"),("1e+18446744073709551616"),("1e-9223372036854775807"),("1e-9223372036854775809");
 Warnings:
 Warning	1264	Out of range value for column 'a' at row 1
-Warning	1366	Incorrect decimal value: '1e+18446744073709551616' for column 'a' at row 2
+Warning	1366	Incorrect decimal value: '1e+18446744073709551616' for column `test`.`t1`.`a` at row 2
 Note	1265	Data truncated for column 'a' at row 3
-Warning	1366	Incorrect decimal value: '1e-9223372036854775809' for column 'a' at row 4
+Warning	1366	Incorrect decimal value: '1e-9223372036854775809' for column `test`.`t1`.`a` at row 4
 insert ignore into t1 values ("123.4e"),("123.4e+2"),("123.4e-2"),("123e1"),("123e+0");
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
@@ -1020,6 +1020,26 @@ cast('-0.0' as decimal(5,1)) < 0
 # End of 5.5 tests
 #
 #
+# Start of 10.1 tests
+#
+#
+# MDEV-18968 Both (WHERE 0.1) and (WHERE NOT 0.1) return empty set
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT CASE WHEN 0.1 THEN 'TRUE' ELSE 'FALSE' END FROM t1;
+CASE WHEN 0.1 THEN 'TRUE' ELSE 'FALSE' END
+TRUE
+SELECT * FROM t1 WHERE 0.1;
+a
+10
+SELECT * FROM t1 WHERE NOT 0.1;
+a
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#
+#
 # Start of 10.2 tests
 #
 #
@@ -1032,6 +1052,31 @@ CAST(TIME'00:00:00.123456' AS DECIMAL(10,6)) AS c2;
 c1	c2
 0.123456	0.123456
 SET sql_mode=DEFAULT;
+#
+# MDEV-12574 MAX(old_decimal) produces a column of the old DECIMAL type
+#
+SHOW CREATE TABLE t1dec102;
+Table	Create Table
+t1dec102	CREATE TABLE `t1dec102` (
+  `a` decimal(10,2)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE TABLE t1 AS SELECT a, MAX(a), COALESCE(a) FROM t1dec102;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2) DEFAULT NULL,
+  `MAX(a)` decimal(10,2) DEFAULT NULL,
+  `COALESCE(a)` decimal(10,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT a FROM t1dec102 UNION SELECT a FROM t1dec102;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(10,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP TABLE t1dec102;
 #
 # End of 10.2 tests
 #
@@ -1046,7 +1091,7 @@ CREATE TABLE t1 AS SELECT MAX(a) FROM t1dec102;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `MAX(a)` decimal(10,2)/*old*/ DEFAULT NULL
+  `MAX(a)` decimal(10,2) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT COALESCE(a) FROM t1dec102;

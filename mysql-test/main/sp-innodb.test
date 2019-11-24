@@ -158,5 +158,47 @@ SET @@innodb_lock_wait_timeout= @innodb_lock_wait_timeout_saved;
 --echo # BUG 16041903: End of test case
 --echo #
 
+--echo #
+--echo # MDEV-15035: SP using query with outer join and a parameter
+--echo #             in ON expression
+--echo #
+
+CREATE TABLE t1 (
+	id int NOT NULL,
+	PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1), (2);
+
+CREATE TABLE t2 (
+	id int NOT NULL,
+	id_foo int NOT NULL,
+	PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+INSERT INTO t2 VALUES (1, 1);
+
+--disable_warnings
+DROP PROCEDURE IF EXISTS test_proc;
+--enable_warnings
+
+DELIMITER |;
+CREATE PROCEDURE test_proc(IN param int)
+LANGUAGE SQL
+READS SQL DATA
+BEGIN
+	SELECT DISTINCT f.id
+	FROM t1 f
+	LEFT OUTER JOIN t2 b ON b.id_foo = f.id
+	WHERE (param <> 0 OR b.id IS NOT NULL);
+END|
+DELIMITER ;|
+
+CALL test_proc(0);
+CALL test_proc(1);
+
+DROP PROCEDURE IF EXISTS test_proc;
+DROP TABLE t1, t2;
+
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc

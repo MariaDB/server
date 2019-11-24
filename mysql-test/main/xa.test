@@ -393,33 +393,30 @@ DROP TABLE t1;
 --echo #                FAILED 
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1, t2;
---enable_warnings
-
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 CREATE TABLE t2 (a INT) ENGINE=InnoDB;
 
-START TRANSACTION;
-INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1); COMMIT;
+BEGIN;
+INSERT INTO t2 VALUES (2);
+UPDATE t2 SET a=a+1;
 
 --connect (con2,localhost,root)
 XA START 'xid1';
+INSERT INTO t1 VALUES (1);
 --echo # Sending:
---send INSERT INTO t2 SELECT a FROM t1
+--send DELETE FROM t2
 
 --connection default
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
-  WHERE state = "Sending data"
-  AND info = "INSERT INTO t2 SELECT a FROM t1";
---echo # Waiting until INSERT ... is blocked
+  WHERE state = "Updating"
+  AND info = "DELETE FROM t2";
 --source include/wait_condition.inc
 --sleep 0.1
-DELETE FROM t1;
+--send DELETE FROM t1
 
 --connection con2
---echo # Reaping: INSERT INTO t2 SELECT a FROM t1
 --error ER_LOCK_DEADLOCK
 --reap
 --error ER_XA_RBDEADLOCK
@@ -427,6 +424,7 @@ XA COMMIT 'xid1';
 
 connection default;
 
+reap;
 COMMIT;
 
 connection con2;

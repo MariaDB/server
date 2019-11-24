@@ -1379,3 +1379,158 @@ BEGIN NOT ATOMIC
 END;
 $$
 DELIMITER ;$$
+
+
+--echo #
+--echo # MDEV-16202 Latest changes made erroneously some keywords reserved in sql_mode=ORACLE
+--echo #
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(name VARCHAR(64), pattern TEXT)
+BEGIN
+  DECLARE query TEXT DEFAULT REPLACE(pattern, 'name', name);
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+  BEGIN
+    SHOW ERRORS;
+  END;
+  SELECT query AS '';
+  EXECUTE IMMEDIATE query;
+END;
+$$
+
+CREATE PROCEDURE p2(name VARCHAR(64))
+BEGIN
+  CALL p1(name, 'BEGIN NOT ATOMIC DECLARE name INT; SET name=10; SELECT name; END');
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (name INT)', 'name', name);
+  CALL p1(name, 'SELECT name FROM t1');
+  CALL p1(name, 'SELECT name ''alias'' FROM t1');
+  CALL p1(name, 'SELECT name()');
+  CALL p1(name, 'SELECT name.name()');
+  CALL p1(name, 'SELECT name DATE FROM t1');
+  CALL p1(name, 'SELECT name HISTORY FROM t1');
+  CALL p1(name, 'SELECT name NEXT FROM t1');
+  CALL p1(name, 'SELECT name PERIOD FROM t1');
+  CALL p1(name, 'SELECT name PREVIOUS FROM t1');
+  CALL p1(name, 'SELECT name SYSTEM FROM t1');
+  CALL p1(name, 'SELECT name SYSTEM_TIME FROM t1');
+  CALL p1(name, 'SELECT name TIME FROM t1');
+  CALL p1(name, 'SELECT name TIMESTAMP FROM t1');
+  CALL p1(name, 'SELECT name TRANSACTION FROM t1');
+  CALL p1(name, 'SELECT name VALUE FROM t1');
+  CALL p1(name, 'SELECT name VERSIONING FROM t1');
+  CALL p1(name, 'SELECT name WITHOUT FROM t1');
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+
+--disable_column_names
+CALL p2('date');
+CALL p2('history');
+CALL p2('next');
+CALL p2('period');
+CALL p2('previous');
+CALL p2('system');
+CALL p2('system_time');
+CALL p2('time');
+CALL p2('timestamp');
+CALL p2('transaction');
+CALL p2('value');
+CALL p2('versioning');
+CALL p2('without');
+--enable_column_names
+
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-16697: Fix difference between 32bit/windows and 64bit
+--echo # systems in allowed select nest level
+--echo #
+ SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+1
+)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))));
+
+--echo #
+--echo # MDEV-17693 Shift/reduce conflicts for NAMES,ROLE,PASSWORD in the option_value_no_option_type grammar
+--echo #
+
+CREATE TABLE names (names INT);
+SELECT names FROM names AS names;
+DROP TABLE names;
+
+CREATE TABLE password (password INT);
+SELECT password FROM password AS password;
+DROP TABLE password;
+
+CREATE TABLE role (role INT);
+SELECT role FROM role AS role;
+DROP TABLE role;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE names    VARCHAR(32) DEFAULT '[names]';
+  DECLARE password VARCHAR(32) DEFAULT '[password]';
+  DECLARE role     VARCHAR(32) DEFAULT '[role]';
+names:
+  LOOP
+    SELECT names;
+    LEAVE names;
+  END LOOP;
+password:
+  LOOP
+    SELECT password;
+    LEAVE password;
+  END LOOP;
+role:
+  LOOP
+    SELECT role;
+    LEAVE role;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_BAD_VAR_SHADOW
+BEGIN NOT ATOMIC
+  DECLARE names VARCHAR(32);
+  SET names='[names]';
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_BAD_VAR_SHADOW
+BEGIN NOT ATOMIC
+  DECLARE password VARCHAR(32);
+  SET password='[password]';
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE role VARCHAR(32);
+  SET role='[role]';
+END;
+$$
+DELIMITER ;$$
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.names;
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.password;
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.role;
+
+--echo End of 10.3 tests

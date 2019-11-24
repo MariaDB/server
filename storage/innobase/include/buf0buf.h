@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -41,6 +41,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "os0proc.h"
 #include "log0log.h"
 #include "srv0srv.h"
+#include "my_atomic.h"
 #include <ostream>
 
 // Forward declaration
@@ -214,108 +215,6 @@ struct buf_pools_list_size_t {
 };
 #endif /* !UNIV_INNOCHECKSUM */
 
-/** Page identifier. */
-class page_id_t {
-public:
-
-	/** Constructor from (space, page_no).
-	@param[in]	space	tablespace id
-	@param[in]	page_no	page number */
-	page_id_t(ulint space, ulint page_no)
-		:
-		m_space(static_cast<ib_uint32_t>(space)),
-		m_page_no(static_cast<ib_uint32_t>(page_no)),
-		m_fold(ULINT_UNDEFINED)
-	{
-		ut_ad(space <= 0xFFFFFFFFU);
-		ut_ad(page_no <= 0xFFFFFFFFU);
-	}
-
-	/** Retrieve the tablespace id.
-	@return tablespace id */
-	inline ib_uint32_t space() const
-	{
-		return(m_space);
-	}
-
-	/** Retrieve the page number.
-	@return page number */
-	inline ib_uint32_t page_no() const
-	{
-		return(m_page_no);
-	}
-
-	/** Retrieve the fold value.
-	@return fold value */
-	inline ulint fold() const
-	{
-		/* Initialize m_fold if it has not been initialized yet. */
-		if (m_fold == ULINT_UNDEFINED) {
-			m_fold = (m_space << 20) + m_space + m_page_no;
-			ut_ad(m_fold != ULINT_UNDEFINED);
-		}
-
-		return(m_fold);
-	}
-
-	/** Copy the values from a given page_id_t object.
-	@param[in]	src	page id object whose values to fetch */
-	inline void copy_from(const page_id_t& src)
-	{
-		m_space = src.space();
-		m_page_no = src.page_no();
-		m_fold = src.fold();
-	}
-
-	/** Reset the object. */
-	void reset() { m_space= ~0U; m_page_no= ~0U; m_fold= ULINT_UNDEFINED; }
-
-	/** Reset the page number only.
-	@param[in]	page_no	page number */
-	inline void set_page_no(ulint page_no)
-	{
-		m_page_no = static_cast<ib_uint32_t>(page_no);
-		m_fold = ULINT_UNDEFINED;
-
-		ut_ad(page_no <= 0xFFFFFFFFU);
-	}
-
-	/** Check if a given page_id_t object is equal to the current one.
-	@param[in]	a	page_id_t object to compare
-	@return true if equal */
-	inline bool equals_to(const page_id_t& a) const
-	{
-		return(a.space() == m_space && a.page_no() == m_page_no);
-	}
-
-private:
-
-	/** Tablespace id. */
-	ib_uint32_t	m_space;
-
-	/** Page number. */
-	ib_uint32_t	m_page_no;
-
-	/** A fold value derived from m_space and m_page_no,
-	used in hashing. */
-	mutable ulint	m_fold;
-
-	/* Disable implicit copying. */
-	void operator=(const page_id_t&);
-
-	/** Declare the overloaded global operator<< as a friend of this
-	class. Refer to the global declaration for further details.  Print
-	the given page_id_t object.
-	@param[in,out]	out	the output stream
-	@param[in]	page_id	the page_id_t object to be printed
-	@return the output stream */
-        friend
-        std::ostream&
-        operator<<(
-                std::ostream&           out,
-                const page_id_t&        page_id);
-};
-
 /** Print the given page_id_t object.
 @param[in,out]	out	the output stream
 @param[in]	page_id	the page_id_t object to be printed
@@ -323,7 +222,7 @@ private:
 std::ostream&
 operator<<(
 	std::ostream&		out,
-	const page_id_t&	page_id);
+	const page_id_t		page_id);
 
 #ifndef UNIV_INNOCHECKSUM
 /********************************************************************//**
@@ -506,7 +405,7 @@ Suitable for using when holding the lock_sys_t::mutex.
 @return pointer to a page or NULL */
 buf_block_t*
 buf_page_try_get_func(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const char*		file,
 	unsigned		line,
 	mtr_t*			mtr);
@@ -532,7 +431,7 @@ the same set of mutexes or latches.
 @return pointer to the block */
 buf_page_t*
 buf_page_get_zip(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size);
 
 /** This is the general function used to get access to a database page.
@@ -548,7 +447,7 @@ BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
 @return pointer to the block or NULL */
 buf_block_t*
 buf_page_get_gen(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ulint			rw_latch,
 	buf_block_t*		guess,
@@ -568,7 +467,7 @@ FILE_PAGE (the other is buf_page_get_gen).
 @return pointer to the block, page bufferfixed */
 buf_block_t*
 buf_page_create(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	mtr_t*			mtr);
 
@@ -602,10 +501,7 @@ NOTE that it is possible that the page is not yet read from disk,
 though.
 @param[in]	page_id	page id
 @return TRUE if found in the page hash table */
-UNIV_INLINE
-ibool
-buf_page_peek(
-	const page_id_t&	page_id);
+inline bool buf_page_peek(const page_id_t page_id);
 
 #ifdef UNIV_DEBUG
 
@@ -615,9 +511,7 @@ debug version to check that it is not accessed any more unless
 reallocated.
 @param[in]	page_id	page id
 @return control block if found in page hash table, otherwise NULL */
-buf_page_t*
-buf_page_set_file_page_was_freed(
-	const page_id_t&	page_id);
+buf_page_t* buf_page_set_file_page_was_freed(const page_id_t page_id);
 
 /** Sets file_page_was_freed FALSE if the page is found in the buffer pool.
 This function should be called when we free a file page and want the
@@ -625,9 +519,7 @@ debug version to check that it is not accessed any more unless
 reallocated.
 @param[in]	page_id	page id
 @return control block if found in page hash table, otherwise NULL */
-buf_page_t*
-buf_page_reset_file_page_was_freed(
-	const page_id_t&	page_id);
+buf_page_t* buf_page_reset_file_page_was_freed(const page_id_t page_id);
 
 #endif /* UNIV_DEBUG */
 /********************************************************************//**
@@ -717,31 +609,27 @@ buf_block_buf_fix_inc_func(
 @return the count */
 UNIV_INLINE
 ulint
-buf_block_fix(
-	buf_page_t*	bpage);
+buf_block_fix(buf_page_t* bpage);
 
 /** Increments the bufferfix count.
 @param[in,out]	block	block to bufferfix
 @return the count */
 UNIV_INLINE
 ulint
-buf_block_fix(
-	buf_block_t*	block);
+buf_block_fix(buf_block_t* block);
 
 /** Decrements the bufferfix count.
 @param[in,out]	bpage	block to bufferunfix
 @return	the remaining buffer-fix count */
 UNIV_INLINE
 ulint
-buf_block_unfix(
-	buf_page_t*	bpage);
+buf_block_unfix(buf_page_t* bpage);
 /** Decrements the bufferfix count.
 @param[in,out]	block	block to bufferunfix
 @return	the remaining buffer-fix count */
 UNIV_INLINE
 ulint
-buf_block_unfix(
-	buf_block_t*	block);
+buf_block_unfix(buf_block_t* block);
 
 # ifdef UNIV_DEBUG
 /** Increments the bufferfix count.
@@ -758,18 +646,22 @@ buf_block_unfix(
 # endif /* UNIV_DEBUG */
 #endif /* !UNIV_INNOCHECKSUM */
 
+/** Check if a page is all zeroes.
+@param[in]	read_buf	database page
+@param[in]	page_size	page frame size
+@return whether the page is all zeroes */
+bool buf_page_is_zeroes(const void* read_buf, size_t page_size);
+
 /** Checks if the page is in crc32 checksum format.
 @param[in]	read_buf		database page
 @param[in]	checksum_field1		new checksum field
 @param[in]	checksum_field2		old checksum field
-@param[in]	use_legacy_big_endian   use legacy big endian algorithm
 @return true if the page is in crc32 checksum format. */
 bool
 buf_page_is_checksum_valid_crc32(
 	const byte*			read_buf,
 	ulint				checksum_field1,
-	ulint				checksum_field2,
-	bool				use_legacy_big_endian)
+	ulint				checksum_field2)
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 /** Checks if the page is in innodb checksum format.
@@ -796,15 +688,6 @@ buf_page_is_checksum_valid_none(
 	ulint				checksum_field2)
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
-/** Checks if a page contains only zeroes.
-@param[in]	read_buf	database page
-@param[in]	page_size	page size
-@return true if page is filled with zeroes */
-bool
-buf_page_is_zeroes(
-	const byte*		read_buf,
-	const page_size_t&	page_size);
-
 /** Check if a page is corrupt.
 @param[in]	check_lsn	whether the LSN should be checked
 @param[in]	read_buf	database page
@@ -823,9 +706,7 @@ buf_page_is_corrupted(
 #endif
 	MY_ATTRIBUTE((warn_unused_result));
 
-
 #ifndef UNIV_INNOCHECKSUM
-
 /**********************************************************************//**
 Gets the space id, page offset, and byte offset within page of a
 pointer pointing to a buffer frame containing a file page. */
@@ -1075,7 +956,7 @@ UNIV_INLINE
 void
 buf_block_set_file_page(
 	buf_block_t*		block,
-	const page_id_t&	page_id);
+	const page_id_t		page_id);
 
 /*********************************************************************//**
 Gets the io_fix state of a block.
@@ -1256,7 +1137,7 @@ buf_page_t*
 buf_page_init_for_read(
 	dberr_t*		err,
 	ulint			mode,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	bool			unzip);
 
@@ -1304,10 +1185,7 @@ buf_pool_from_block(
 /** Returns the buffer pool instance given a page id.
 @param[in]	page_id	page id
 @return buffer pool */
-UNIV_INLINE
-buf_pool_t*
-buf_pool_get(
-	const page_id_t&	page_id);
+inline buf_pool_t* buf_pool_get(const page_id_t page_id);
 
 /******************************************************************//**
 Returns the buffer pool instance given its array index
@@ -1327,7 +1205,7 @@ UNIV_INLINE
 buf_page_t*
 buf_page_hash_get_low(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id);
+	const page_id_t		page_id);
 
 /** Returns the control block of a file page, NULL if not found.
 If the block is found and lock is not NULL then the appropriate
@@ -1349,7 +1227,7 @@ UNIV_INLINE
 buf_page_t*
 buf_page_hash_get_locked(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	rw_lock_t**		lock,
 	ulint			lock_mode,
 	bool			watch = false);
@@ -1372,7 +1250,7 @@ UNIV_INLINE
 buf_block_t*
 buf_block_hash_get_locked(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	rw_lock_t**		lock,
 	ulint			lock_mode);
 
@@ -1412,18 +1290,14 @@ buf_pool_watch_is_sentinel(
 /** Stop watching if the page has been read in.
 buf_pool_watch_set(space,offset) must have returned NULL before.
 @param[in]	page_id	page id */
-void
-buf_pool_watch_unset(
-	const page_id_t&	page_id);
+void buf_pool_watch_unset(const page_id_t page_id);
 
 /** Check if the page has been read in.
 This may only be called after buf_pool_watch_set(space,offset)
 has returned NULL and before invoking buf_pool_watch_unset(space,offset).
 @param[in]	page_id	page id
 @return FALSE if the given page was not read in, TRUE if it was */
-ibool
-buf_pool_watch_occurred(
-	const page_id_t&	page_id)
+bool buf_pool_watch_occurred(const page_id_t page_id)
 MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
@@ -1506,8 +1380,10 @@ NOTE! The definition appears here only for other modules of this
 directory (buf) to see it. Do not use from outside! */
 
 typedef struct {
-	bool		reserved;	/*!< true if this slot is reserved
+private:
+	int32		reserved;	/*!< true if this slot is reserved
 					*/
+public:
 	byte*           crypt_buf;	/*!< for encryption the data needs to be
 					copied to a separate buffer before it's
 					encrypted&written. this as a page can be
@@ -1518,6 +1394,21 @@ typedef struct {
 	byte*		out_buf;	/*!< resulting buffer after
 					encryption/compression. This is a
 					pointer and not allocated. */
+
+	/** Release the slot */
+	void release()
+	{
+		my_atomic_store32_explicit(&reserved, false,
+					   MY_MEMORY_ORDER_RELAXED);
+	}
+
+	/** Acquire the slot
+	@return whether the slot was acquired */
+	bool acquire()
+	{
+		return !my_atomic_fas32_explicit(&reserved, true,
+						 MY_MEMORY_ORDER_RELAXED);
+	}
 } buf_tmp_buffer_t;
 
 /** The common buffer control block structure
@@ -1538,12 +1429,15 @@ public:
 
 	/** Page id. Protected by buf_pool mutex. */
 	page_id_t	id;
+	buf_page_t*	hash;		/*!< node used in chaining to
+					buf_pool->page_hash or
+					buf_pool->zip_hash */
 
 	/** Page size. Protected by buf_pool mutex. */
 	page_size_t	size;
 
 	/** Count of how manyfold this block is currently bufferfixed. */
-	ib_uint32_t	buf_fix_count;
+	int32		buf_fix_count;
 
 	/** type of pending I/O operation; also protected by
 	buf_pool->mutex for writes only */
@@ -1574,10 +1468,8 @@ public:
 					if written again we check is TRIM
 					operation needed. */
 
-	bool            encrypted;	/*!< page is still encrypted */
-
 	ulint           real_size;	/*!< Real size of the page
-					Normal pages == UNIV_PAGE_SIZE
+					Normal pages == srv_page_size
 					page compressed pages, payload
 					size alligned to sector boundary.
 					*/
@@ -1585,9 +1477,6 @@ public:
 	buf_tmp_buffer_t* slot;		/*!< Slot for temporary memory
 					used for encryption/compression
 					or NULL */
-	buf_page_t*	hash;		/*!< node used in chaining to
-					buf_pool->page_hash or
-					buf_pool->zip_hash */
 #ifdef UNIV_DEBUG
 	ibool		in_page_hash;	/*!< TRUE if in buf_pool->page_hash */
 	ibool		in_zip_hash;	/*!< TRUE if in buf_pool->zip_hash */
@@ -1712,9 +1601,9 @@ struct buf_block_t{
 					buf_pool->page_hash can point
 					to buf_page_t or buf_block_t */
 	byte*		frame;		/*!< pointer to buffer frame which
-					is of size UNIV_PAGE_SIZE, and
+					is of size srv_page_size, and
 					aligned to an address divisible by
-					UNIV_PAGE_SIZE */
+					srv_page_size */
 	BPageLock	lock;		/*!< read-write lock of the buffer
 					frame */
 	UT_LIST_NODE_T(buf_block_t) unzip_LRU;
@@ -1874,7 +1763,7 @@ struct buf_block_t{
 /**********************************************************************//**
 Compute the hash fold value for blocks in buf_pool->zip_hash. */
 /* @{ */
-#define BUF_POOL_ZIP_FOLD_PTR(ptr) ((ulint) (ptr) / UNIV_PAGE_SIZE)
+#define BUF_POOL_ZIP_FOLD_PTR(ptr) (ulint(ptr) >> srv_page_size_shift)
 #define BUF_POOL_ZIP_FOLD(b) BUF_POOL_ZIP_FOLD_PTR((b)->frame)
 #define BUF_POOL_ZIP_FOLD_BPAGE(b) BUF_POOL_ZIP_FOLD((buf_block_t*) (b))
 /* @} */
@@ -2467,8 +2356,7 @@ struct	CheckInLRUList {
 
 	static void validate(const buf_pool_t* buf_pool)
 	{
-		CheckInLRUList	check;
-		ut_list_validate(buf_pool->LRU, check);
+		ut_list_validate(buf_pool->LRU, CheckInLRUList());
 	}
 };
 
@@ -2481,8 +2369,7 @@ struct	CheckInFreeList {
 
 	static void validate(const buf_pool_t* buf_pool)
 	{
-		CheckInFreeList	check;
-		ut_list_validate(buf_pool->free, check);
+		ut_list_validate(buf_pool->free, CheckInFreeList());
 	}
 };
 
@@ -2495,8 +2382,8 @@ struct	CheckUnzipLRUAndLRUList {
 
 	static void validate(const buf_pool_t* buf_pool)
 	{
-		CheckUnzipLRUAndLRUList	check;
-		ut_list_validate(buf_pool->unzip_LRU, check);
+		ut_list_validate(buf_pool->unzip_LRU,
+				 CheckUnzipLRUAndLRUList());
 	}
 };
 #endif /* UNIV_DEBUG || defined UNIV_BUF_DEBUG */

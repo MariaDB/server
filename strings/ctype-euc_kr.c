@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* 
  * This file is for Korean EUC charset, and created by powerm90@tinc.co.kr.
@@ -10028,8 +10028,8 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_mb_ctype_mb,
   my_caseup_str_mb,
   my_casedn_str_mb,
-  my_caseup_mb_varlen, /* UPPER() can reduce length: Turkish DOTLESS i -> I */
-  my_casedn_mb,        /* LOWER() does not change length, use simple version*/
+  my_caseup_mb,        /* UPPER() can reduce length: Turkish DOTLESS i -> I */
+  my_casedn_mb,        /* LOWER() does not change length */
   my_snprintf_8bit,
   my_long10_to_str_8bit,
   my_longlong10_to_str_8bit,

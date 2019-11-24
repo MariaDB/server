@@ -1,4 +1,8 @@
 --disable_query_log
+if (!$TEST_VERSIONING_SO)
+{
+  --skip needs test_versioning plugin
+}
 source include/have_innodb.inc;
 
 set @@session.time_zone='+00:00';
@@ -6,7 +10,7 @@ select ifnull(max(transaction_id), 0) into @start_trx_id from mysql.transaction_
 set @test_start=now(6);
 
 delimiter ~~;
-create procedure if not exists verify_vtq()
+create procedure if not exists verify_trt()
 begin
   set @i= 0;
   select
@@ -22,7 +26,7 @@ begin
   from mysql.transaction_registry;
 end~~
 
-create procedure if not exists verify_vtq_dummy(recs int)
+create procedure if not exists verify_trt_dummy(recs int)
 begin
   declare i int default 1;
   create temporary table tmp (No int, A bool, B bool, C bool, D bool);
@@ -43,6 +47,10 @@ let $sys_datatype_expl_uc= TIMESTAMP(6);
 let $sys_datatype_max= TIMESTAMP'2038-01-19 03:14:07.999999';
 
 if ($MTR_COMBINATION_MYISAM)
+{
+  --let $MTR_COMBINATION_TIMESTAMP= 1
+}
+if ($MTR_COMBINATION_HEAP)
 {
   --let $MTR_COMBINATION_TIMESTAMP= 1
 }

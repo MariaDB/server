@@ -1,8 +1,8 @@
 --source include/have_partition.inc
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
+--source include/default_optimizer_switch.inc
 
-SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='outer_join_with_cache=off';
 
 #
@@ -2054,7 +2054,9 @@ flush status;
 create table t1(f1 char(1));
 create view v1 as select * from t1;
 select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+--disable_ps_protocol
 show status like "Created_tmp%";
+--enable_ps_protocol
 drop view v1;
 drop table t1;
 
@@ -2063,7 +2065,9 @@ set @@optimizer_switch='derived_merge=OFF';
 create table t1(f1 char(1));
 create view v1 as select * from t1;
 select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+--disable_ps_protocol
 show status like "Created_tmp%";
+--enable_ps_protocol
 drop view v1;
 drop table t1;
 set @@optimizer_switch=@tmp;
@@ -2369,6 +2373,7 @@ DROP TABLE t1;
 # Bug#15943 mysql_next_result hangs on invalid SHOW CREATE VIEW
 #
 
+--disable_ps_protocol
 delimiter //;
 drop table if exists t1;
 drop view if exists v1;
@@ -2379,6 +2384,7 @@ show create view v1;
 drop view v1;
 //
 delimiter ;//
+--enable_ps_protocol
 
 
 #
@@ -3658,12 +3664,12 @@ SELECT * FROM v1;
 CREATE VIEW v2 AS SELECT t1.a FROM t1, v1 AS a;
 
 REPLACE INTO v2(a) SELECT 1 FROM t1,t1 AS c;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 REPLACE INTO v2(a) SELECT 3 FROM t1,t1 AS c;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 INSERT INTO v2(a) SELECT 1 FROM t1,t1 AS c
 ON DUPLICATE KEY UPDATE `v2`.`a`= 1;
-SELECT * FROM v2;
+SELECT * FROM v2 order by 1;
 
 DROP VIEW v1;
 DROP VIEW v2;
@@ -3889,7 +3895,9 @@ CREATE VIEW v1 AS SELECT f1() FROM t1;
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 copy_file std_data/bug48449.frm $MYSQLD_DATADIR/test/v2.frm;
 
+enable_prepare_warnings;
 SHOW CREATE VIEW v1;
+disable_prepare_warnings;
 
 DROP VIEW v1,v2;
 DROP TABLE t1,t2;
@@ -5615,6 +5623,26 @@ t46, t47, t48, t49, t50, t51, t52, t53, t54,
 t55, t56, t57, t58, t59,t60;
 drop view v60;
 
+--echo #
+--echo # MDEV-15572: view.test, server crash with --big-tables=1
+--echo #
+
+set @save_big_tables=@@big_tables;
+set big_tables=ON;
+CREATE TABLE t1 ( f1 int , f2 int , f3 int , f4 int);
+CREATE TABLE t2 ( f1 int , f2 int , f3 int , f4 int);
+
+CREATE VIEW v1 AS
+	SELECT t2.f1, t1.f2, t2.f3, t2.f4 FROM (t1 JOIN t2);
+
+--error ER_VIEW_MULTIUPDATE
+REPLACE INTO v1 (f1, f2, f3, f4)
+	SELECT f1, f2, f3, f4 FROM t1;
+
+drop view v1;
+drop table t1, t2;
+set big_tables=@save_big_tables;
+
 --echo # -----------------------------------------------------------------
 --echo # -- End of 5.5 tests.
 --echo # -----------------------------------------------------------------
@@ -6399,6 +6427,22 @@ drop view v1;
 drop table t1;
 
 --echo #
+--echo # MDEV-18502: Server crash in find_field_in_tables upon 2nd execution of SP which causes ER_WRONG_GROUP_FIELD
+--echo #
+
+CREATE TABLE t1 (id INT, f VARCHAR(1));
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'a'),(2,'b');
+CREATE PROCEDURE sp() SELECT f AS f1, MAX(id) AS f2 FROM v1 GROUP BY f1, f2 ORDER BY f1;
+--error ER_WRONG_GROUP_FIELD
+CALL sp;
+--error ER_WRONG_GROUP_FIELD
+CALL sp;
+DROP PROCEDURE sp;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -6413,6 +6457,29 @@ drop table t1;
 
 --error ER_PARSE_ERROR
 ALTER VIEW IF NOT EXISTS v1 AS SELECT 1;
+
+--echo #
+--echo # MDEV-18605: Loss of column aliases by using view and group
+--echo #
+
+CREATE TABLE t1 (id int, foo int);
+CREATE VIEW v1 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1;
+
+INSERT INTO t1 (id, foo) VALUES (1,1),(2,2);
+
+SELECT v.id, v.foo AS bar  FROM v1 v
+  WHERE id = 2;
+
+SELECT v.id, v.foo AS bar  FROM v1 v
+  GROUP BY v.id;
+
+SELECT v.id, v.foo AS bar  FROM v1 v
+  WHERE id = 2
+  GROUP BY v.id;
+
+#Cleanup
+Drop View v1;
+Drop table t1;
 
 --echo #
 --echo # End of 10.3 tests

@@ -1,0 +1,42 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-15151: function with recursive CTE using no base tables
+--echo #             (duplicate of  MDEV-16661)
+--echo #
+
+--connection default
+
+CREATE TABLE t1 (id int  KEY);
+INSERT INTO t1 VALUES (0), (1),(2);
+
+CREATE OR REPLACE FUNCTION func() RETURNS int
+RETURN
+(
+  WITH recursive cte AS
+  (SELECT 1 a UNION SELECT cte.* FROM cte natural join t1)
+  SELECT * FROM cte  limit 1
+);
+
+--connect (con1,localhost,root,,test)
+
+--let $conid= `SELECT CONNECTION_ID()`
+--send SELECT func()
+
+--connect (con2,localhost,root,,test)
+--disable_query_log
+--eval KILL QUERY $conid
+--enable_query_log
+--disconnect con2
+
+--disable_result_log
+--connection con1
+--error 0,ER_QUERY_INTERRUPTED
+--reap
+--disconnect con1
+--enable_result_log
+
+--connection default
+
+DROP FUNCTION func;
+DROP TABLE t1;

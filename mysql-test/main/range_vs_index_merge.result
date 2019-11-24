@@ -1795,7 +1795,7 @@ SELECT * FROM t1 FORCE KEY (state,capital)
 WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND id != 9 
 OR ( capital >= 'Topeka' OR state = 'Kansas' ) AND state != 'Texas';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	state,capital	state	71	NULL	12	Using index condition; Using where
+1	SIMPLE	t1	range	state,capital	state	71	NULL	8	Using index condition; Using where
 SELECT * FROM t1 FORCE KEY (state,capital) 
 WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND id != 9 
 OR ( capital >= 'Topeka' OR state = 'Kansas' ) AND state != 'Texas';

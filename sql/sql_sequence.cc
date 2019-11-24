@@ -88,13 +88,13 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
 
   /*
     If min_value is not set, set it to LONGLONG_MIN or 1, depending on
-    increment
+    real_increment
   */
   if (!(used_fields & seq_field_used_min_value))
     min_value= real_increment < 0 ? LONGLONG_MIN+1 : 1;
 
   /*
-    If min_value is not set, set it to LONGLONG_MAX or -1, depending on
+    If max_value is not set, set it to LONGLONG_MAX or -1, depending on
     real_increment
   */
   if (!(used_fields & seq_field_used_max_value))
@@ -176,7 +176,7 @@ void sequence_definition::store_fields(TABLE *table)
 
 
 /*
-  Check the sequence fields through seq_fields when createing a sequence.
+  Check the sequence fields through seq_fields when creating a sequence.
 
   RETURN VALUES
     false       Success
@@ -341,7 +341,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
                                 MYSQL_OPEN_HAS_MDL_LOCK);
     thd->open_options&= ~HA_OPEN_FOR_CREATE;
     thd->m_reprepare_observer= save_reprepare_observer;
-    if (error)
+    if (unlikely(error))
     {
       lex->restore_backup_query_tables_list(&query_tables_list_backup);
       thd->restore_backup_open_tables_state(&open_tables_backup);
@@ -459,7 +459,10 @@ int SEQUENCE::read_initial_values(TABLE *table)
       mdl_requests.push_front(&mdl_request);
       if (thd->mdl_context.acquire_locks(&mdl_requests,
                                          thd->variables.lock_wait_timeout))
+      {
+        write_unlock(table);
         DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
+      }
     }
     save_lock_type= table->reginfo.lock_type;
     table->reginfo.lock_type= TL_READ;
@@ -468,10 +471,11 @@ int SEQUENCE::read_initial_values(TABLE *table)
     {
       if (mdl_lock_used)
         thd->mdl_context.release_lock(mdl_request.ticket);
+      write_unlock(table);
       DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
     }
     DBUG_ASSERT(table->reginfo.lock_type == TL_READ);
-    if (!(error= read_stored_values(table)))
+    if (likely(!(error= read_stored_values(table))))
       initialized= SEQ_READY_TO_USE;
     mysql_unlock_tables(thd, lock);
     if (mdl_lock_used)
@@ -510,7 +514,7 @@ int SEQUENCE::read_stored_values(TABLE *table)
   error= table->file->ha_read_first_row(table->record[0], MAX_KEY);
   tmp_restore_column_map(table->read_set, save_read_set);
 
-  if (error)
+  if (unlikely(error))
   {
     table->file->print_error(error, MYF(0));
     DBUG_RETURN(error);
@@ -538,7 +542,8 @@ void sequence_definition::adjust_values(longlong next_value)
 
     if ((real_increment= global_system_variables.auto_increment_increment)
         != 1)
-      offset= global_system_variables.auto_increment_offset;
+      offset= (global_system_variables.auto_increment_offset %
+               global_system_variables.auto_increment_increment);
 
     /*
       Ensure that next_free_value has the right offset, so that we
@@ -560,7 +565,7 @@ void sequence_definition::adjust_values(longlong next_value)
     else
     {
       next_free_value+= to_add;
-      DBUG_ASSERT(next_free_value % real_increment == offset);
+      DBUG_ASSERT(llabs(next_free_value % real_increment) == offset);
     }
   }
 }
@@ -591,7 +596,7 @@ int sequence_definition::write_initial_sequence(TABLE *table)
   table->s->sequence->initialized= SEQUENCE::SEQ_UNINTIALIZED;
   reenable_binlog(thd);
   table->write_set= save_write_set;
-  if (error)
+  if (unlikely(error))
     table->file->print_error(error, MYF(0));
   else
   {
@@ -633,7 +638,7 @@ int sequence_definition::write(TABLE *table, bool all_fields)
   table->read_set= table->write_set= &table->s->all_set;
   table->file->column_bitmaps_signal();
   store_fields(table);
-  if ((error= table->file->ha_write_row(table->record[0])))
+  if (unlikely((error= table->file->ha_write_row(table->record[0]))))
     table->file->print_error(error, MYF(0));
   table->rpl_write_set= save_rpl_write_set;
   table->read_set=  save_read_set;
@@ -740,7 +745,7 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
     DBUG_RETURN(next_value(table, 1, error));
   }
 
-  if ((*error= write(table, 0)))
+  if (unlikely((*error= write(table, 0))))
   {
     reserved_until= org_reserved_until;
     next_free_value= res_value;
@@ -892,7 +897,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
     trapped_errors= no_such_table_handler.safely_trapped_errors();
     thd->pop_internal_handler();
   }
-  if (error)
+  if (unlikely(error))
   {
     if (trapped_errors)
     {
@@ -948,7 +953,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   }
 
   table->s->sequence->write_lock(table);
-  if (!(error= new_seq->write(table, 1)))
+  if (likely(!(error= new_seq->write(table, 1))))
   {
     /* Store the sequence values in table share */
     table->s->sequence->copy(new_seq);
@@ -960,9 +965,9 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
     error= 1;
   if (trans_commit_implicit(thd))
     error= 1;
-  if (!error)
+  if (likely(!error))
     error= write_bin_log(thd, 1, thd->query(), thd->query_length());
-  if (!error)
+  if (likely(!error))
     my_ok(thd);
 
 end:

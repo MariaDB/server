@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -107,7 +107,7 @@ trx_read_roll_ptr(
 @return pointer to page x-latched */
 UNIV_INLINE
 page_t*
-trx_undo_page_get(const page_id_t& page_id, mtr_t* mtr);
+trx_undo_page_get(const page_id_t page_id, mtr_t* mtr);
 
 /** Gets an undo log page and s-latches it.
 @param[in]	page_id		page id
@@ -115,7 +115,7 @@ trx_undo_page_get(const page_id_t& page_id, mtr_t* mtr);
 @return pointer to page s-latched */
 UNIV_INLINE
 page_t*
-trx_undo_page_get_s_latched(const page_id_t& page_id, mtr_t* mtr);
+trx_undo_page_get_s_latched(const page_id_t page_id, mtr_t* mtr);
 
 /******************************************************************//**
 Returns the next undo log record on the page in the specified log, or
@@ -166,13 +166,11 @@ trx_undo_get_first_rec(
 	mtr_t*			mtr);
 
 /** Allocate an undo log page.
-@param[in,out]	trx	transaction
 @param[in,out]	undo	undo log
 @param[in,out]	mtr	mini-transaction that does not hold any page latch
 @return	X-latched block if success
 @retval	NULL	on failure */
-buf_block_t*
-trx_undo_add_page(trx_t* trx, trx_undo_t* undo, mtr_t* mtr)
+buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Free the last undo log page. The caller must hold the rseg mutex.
@@ -205,6 +203,11 @@ trx_undo_truncate_start(
 	ulint		hdr_page_no,
 	ulint		hdr_offset,
 	undo_no_t	limit);
+/** Mark that an undo log header belongs to a data dictionary transaction.
+@param[in]	trx	dictionary transaction
+@param[in,out]	undo	undo log
+@param[in,out]	mtr	mini-transaction */
+void trx_undo_mark_as_dict(const trx_t* trx, trx_undo_t* undo, mtr_t* mtr);
 /** Assign an undo log for a persistent transaction.
 A new undo log is created or a cached undo log reused.
 @param[in,out]	trx	transaction
@@ -262,19 +265,7 @@ trx_undo_commit_cleanup(trx_undo_t* undo, bool is_temp);
 void
 trx_undo_free_at_shutdown(trx_t *trx);
 
-/* Forward declaration. */
-namespace undo {
-	class Truncate;
-};
-
-/** Truncate UNDO tablespace, reinitialize header and rseg.
-@param[in]	undo_trunc	UNDO tablespace handler
-@return true if success else false. */
-bool
-trx_undo_truncate_tablespace(
-	undo::Truncate*	undo_trunc);
-
-/** Parse MLOG_UNDO_INIT for crash-upgrade from MariaDB 10.2.
+/** Parse MLOG_UNDO_INIT.
 @param[in]	ptr	log record
 @param[in]	end_ptr	end of log record buffer
 @param[in,out]	page	page or NULL
@@ -282,23 +273,17 @@ trx_undo_truncate_tablespace(
 @return	end of log record
 @retval	NULL	if the log record is incomplete */
 byte*
-trx_undo_parse_page_init(
-	const byte*	ptr,
-	const byte*	end_ptr,
-	page_t*		page,
-	mtr_t*		mtr);
+trx_undo_parse_page_init(const byte* ptr, const byte* end_ptr, page_t* page);
 /** Parse MLOG_UNDO_HDR_REUSE for crash-upgrade from MariaDB 10.2.
 @param[in]	ptr	redo log record
 @param[in]	end_ptr	end of log buffer
 @param[in,out]	page	undo page or NULL
-@param[in,out]	mtr	mini-transaction
 @return end of log record or NULL */
 byte*
 trx_undo_parse_page_header_reuse(
 	const byte*	ptr,
 	const byte*	end_ptr,
-	page_t*		page,
-	mtr_t*		mtr);
+	page_t*		page);
 
 /** Parse the redo log entry of an undo log page header create.
 @param[in]	ptr	redo log record
@@ -421,7 +406,7 @@ struct trx_undo_t {
 at most this many bytes used; we must leave space at least for one new undo
 log header on the page */
 
-#define TRX_UNDO_PAGE_REUSE_LIMIT	(3 * UNIV_PAGE_SIZE / 4)
+#define TRX_UNDO_PAGE_REUSE_LIMIT	(3 << (srv_page_size_shift - 2))
 
 /* An update undo log segment may contain several undo logs on its first page
 if the undo logs took so little space that the segment could be cached and

@@ -17,7 +17,7 @@
 
 # You should have received a copy of the GNU General Public License along with
 # this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
-# Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 use strict;
 use warnings FATAL => 'all';
@@ -1439,7 +1439,7 @@ licenses.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
-Street, Fifth Floor, Boston, MA 02111-1301 USA.
+Street, Fifth Floor, Boston, MA 02110-1335 USA.
 LICENSE
 
 # Configuration information and global setup {{{1
@@ -12234,7 +12234,7 @@ licenses.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
-Street, Fifth Floor, Boston, MA 02111-1301 USA.
+Street, Fifth Floor, Boston, MA 02110-1335 USA.
 
 Execute innotop and press '!' to see this information at any time.
 

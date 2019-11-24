@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @defgroup Bi-directional LIFO buffers used by DS-MRR implementation
@@ -84,7 +84,7 @@ public:
     start= start_arg;
     end= end_arg;
     if (end != start)
-      TRASH_ALLOC(start, end - start);
+      TRASH_ALLOC(start, size_t(end - start));
     reset();
   }
   
@@ -224,7 +224,7 @@ public:
   {
     DBUG_ASSERT(unused_end >= unused_start);
     DBUG_ASSERT(end == unused_start);
-    TRASH_ALLOC(unused_start, unused_end - unused_start);
+    TRASH_ALLOC(unused_start, size_t(unused_end - unused_start));
     end= unused_end;
   }
   /* Return pointer to start of the memory area that is occupied by the data */

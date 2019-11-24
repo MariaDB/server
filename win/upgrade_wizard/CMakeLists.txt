@@ -11,6 +11,9 @@ IF(CMAKE_USING_VC_FREE_TOOLS)
 ENDIF()
 
 # We need MFC
+# /permissive- flag does not play well with MFC, disable it.
+STRING(REPLACE "/permissive-"  "" CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS}")
+
 FIND_PACKAGE(MFC)
 IF(NOT MFC_FOUND)
   IF(BUILD_RELEASE)
@@ -43,9 +46,8 @@ SET_TARGET_PROPERTIES(mysql_upgrade_wizard PROPERTIES WIN32_EXECUTABLE 1)
 # to change service configuration. Due to a CMake bug http://www.vtk.org/Bug/view.php?id=11171
 # it is not possible currenly to do it with linker flags. Work around is to use
 # manifest tool mt.exe and embed the manifest post-build.
-GET_TARGET_PROPERTY(upgrade_wizard_location mysql_upgrade_wizard LOCATION)
 ADD_CUSTOM_COMMAND(
   TARGET mysql_upgrade_wizard POST_BUILD
   COMMAND mt.exe -manifest ${CMAKE_CURRENT_SOURCE_DIR}/upgrade_wizard.exe.manifest
-  "-outputresource:${upgrade_wizard_location};#1"
+  "-outputresource:$<TARGET_FILE:mysql_upgrade_wizard>;#1"
 )

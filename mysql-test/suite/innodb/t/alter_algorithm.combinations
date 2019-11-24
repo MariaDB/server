@@ -1,0 +1,11 @@
+[COPY]
+--alter_algorithm=copy
+
+[INPLACE]
+--alter_algorithm=inplace
+
+[NOCOPY]
+--alter_algorithm=nocopy
+
+[INSTANT]
+--alter_algorithm=instant

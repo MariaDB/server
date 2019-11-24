@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h" 
@@ -105,7 +105,7 @@ int injector::transaction::use_table(server_id_type sid, table tbl)
 
   int error;
 
-  if ((error= check_state(TABLE_STATE)))
+  if (unlikely((error= check_state(TABLE_STATE))))
     DBUG_RETURN(error);
 
   server_id_type save_id= m_thd->variables.server_id;
@@ -180,7 +180,8 @@ void injector::new_trans(THD *thd, injector::transaction *ptr)
 int injector::record_incident(THD *thd, Incident incident)
 {
   Incident_log_event ev(thd, incident);
-  if (int error= mysql_bin_log.write(&ev))
+  int error;
+  if (unlikely((error= mysql_bin_log.write(&ev))))
     return error;
   return mysql_bin_log.rotate_and_purge(true);
 }
@@ -189,7 +190,8 @@ int injector::record_incident(THD *thd, Incident incident,
                               const LEX_CSTRING *message)
 {
   Incident_log_event ev(thd, incident, message);
-  if (int error= mysql_bin_log.write(&ev))
+  int error;
+  if (unlikely((error= mysql_bin_log.write(&ev))))
     return error;
   return mysql_bin_log.rotate_and_purge(true);
 }

@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 # Produce meaningful package name for the binary package
 # The logic is rather involved with special cases for  different OSes
@@ -77,6 +77,9 @@ IF(NOT VERSION)
           SET(DEFAULT_MACHINE "i386")
         ENDIF()
       ENDIF()
+    ELSEIF(CMAKE_SYSTEM_NAME MATCHES "GNU")
+      SET(DEFAULT_PLATFORM "GNU")
+      SET(DEFAULT_MACHINE "i386")
     ELSEIF(CMAKE_SYSTEM_NAME MATCHES "Darwin")
       IF(CMAKE_OSX_DEPLOYMENT_TARGET)
         SET(DEFAULT_PLATFORM "osx${CMAKE_OSX_DEPLOYMENT_TARGET}")
@@ -132,7 +135,7 @@ IF(NOT VERSION)
 
   SET(package_name "mariadb${PRODUCT_TAG}-${VERSION}-${SYSTEM_NAME_AND_PROCESSOR}")
 
-  MESSAGE(STATUS "Packaging as: ${package_name}")
+  MESSAGE_ONCE(package_name "Packaging as: ${package_name}")
 
   # Sometimes package suffix is added (something like "-icc-glibc23")
   IF(PACKAGE_SUFFIX)

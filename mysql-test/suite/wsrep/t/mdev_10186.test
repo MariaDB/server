@@ -7,7 +7,5 @@
 --echo #
 
 SELECT @@wsrep_on;
---replace_regex /.*libgalera_smm.so/libgalera_smm.so/
-SELECT @@GLOBAL.wsrep_provider;
 SET @@GLOBAL.wsrep_cluster_address='gcomm://';
 

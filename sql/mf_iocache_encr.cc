@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*************************************************************************
   Limitation of encrypted IO_CACHEs
@@ -49,8 +49,8 @@ static int my_b_encr_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 
   if (pos_in_file == info->end_of_file)
   {
-    info->read_pos= info->read_end= info->buffer;
-    info->pos_in_file= pos_in_file;
+    /*  reading past EOF should not empty the cache */
+    info->read_pos= info->read_end;
     info->error= 0;
     DBUG_RETURN(MY_TEST(Count));
   }

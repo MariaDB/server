@@ -1,0 +1,119 @@
+--source include/have_rocksdb.inc
+--source include/have_debug.inc
+--source include/have_log_bin.inc
+--source include/not_valgrind.inc
+
+--echo #
+--echo # Testing upgrading from server without merges for auto_increment
+--echo # to new server with such support.
+--echo #
+
+set debug_dbug='+d,myrocks_autoinc_upgrade';
+create table t (i int primary key auto_increment);
+insert into t values ();
+insert into t values ();
+insert into t values ();
+select * from t;
+
+delete from t where i > 1;
+select * from t;
+
+select table_name, index_name, auto_increment
+  from information_schema.rocksdb_ddl where table_name = 't';
+
+set debug_dbug='-d,myrocks_autoinc_upgrade';
+
+--source include/restart_mysqld.inc
+
+insert into t values ();
+insert into t values ();
+insert into t values ();
+select * from t;
+
+select table_name, index_name, auto_increment
+  from information_schema.rocksdb_ddl where table_name = 't';
+
+delete from t where i > 1;
+
+--source include/restart_mysqld.inc
+
+insert into t values ();
+insert into t values ();
+insert into t values ();
+select * from t;
+
+drop table t;
+
+--echo #
+--echo # Testing crash safety of transactions.
+--echo #
+create table t (i int primary key auto_increment);
+insert into t values ();
+insert into t values ();
+insert into t values ();
+
+--echo # Before anything
+begin;
+insert into t values ();
+insert into t values ();
+set debug_dbug="+d,crash_commit_before";
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013
+commit;
+--source include/wait_until_disconnected.inc
+--enable_reconnect
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+select max(i) into @row_max from t;
+select table_schema, table_name, auto_increment > @row_max from information_schema.tables where table_name = 't';
+
+--echo # After engine prepare
+begin;
+insert into t values ();
+insert into t values ();
+set debug_dbug="+d,crash_commit_after_prepare";
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013
+commit;
+--source include/wait_until_disconnected.inc
+--enable_reconnect
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+select max(i) into @row_max from t;
+select table_schema, table_name, auto_increment > @row_max from information_schema.tables where table_name = 't';
+
+--echo # After binlog
+begin;
+insert into t values ();
+insert into t values ();
+set debug_dbug="+d,crash_commit_after_log";
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013
+commit;
+--source include/wait_until_disconnected.inc
+--enable_reconnect
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+select max(i) into @row_max from t;
+select table_schema, table_name, auto_increment > @row_max from information_schema.tables where table_name = 't';
+
+--echo # After everything
+begin;
+insert into t values ();
+insert into t values ();
+set debug_dbug="+d,crash_commit_after";
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013
+commit;
+--source include/wait_until_disconnected.inc
+--enable_reconnect
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+select max(i) into @row_max from t;
+select table_schema, table_name, auto_increment > @row_max from information_schema.tables where table_name = 't';
+
+drop table t;

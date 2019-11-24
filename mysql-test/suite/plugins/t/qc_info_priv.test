@@ -1,3 +1,4 @@
+set @save_query_cache_size=@@global.query_cache_size;
 --source include/not_embedded.inc
 --source qc_info_init.inc
 
@@ -11,5 +12,5 @@ connection default;
 drop user mysqltest;
 drop table t1;
 
-set global query_cache_size= default;
+set @@global.query_cache_size=@save_query_cache_size;
 set global query_cache_type=default;

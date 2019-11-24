@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -407,6 +407,19 @@ sp_condition_value *sp_pcontext::find_condition(const LEX_CSTRING *name,
   return (!current_scope_only && m_parent) ?
     m_parent->find_condition(name, false) :
     NULL;
+}
+
+sp_condition_value *
+sp_pcontext::find_declared_or_predefined_condition(THD *thd,
+                                                   const LEX_CSTRING *name)
+                                                   const
+{
+  sp_condition_value *p= find_condition(name, false);
+  if (p)
+    return p;
+  if (thd->variables.sql_mode & MODE_ORACLE)
+    return find_predefined_condition(name);
+  return NULL;
 }
 
 

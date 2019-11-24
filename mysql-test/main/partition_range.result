@@ -981,4 +981,31 @@ a	MAX(b)
 SHOW status LIKE 'handler_read_key';
 Variable_name	Value
 Handler_read_key	4
+#
+# MDEV-18501 Partition pruning doesn't work for historical queries
+#
+set time_zone= '+00:00';
+create or replace table t1 (d datetime(6))
+partition by range (unix_timestamp(d)) (
+partition p0 values less than (1),
+partition p1 values less than (maxvalue));
+ERROR HY000: Constant, random or timezone-dependent expressions in (sub)partitioning function are not allowed
+# DECIMAL functions are now allowed, partitioning is done by integer part
+create or replace table t1 (d timestamp(6))
+partition by range (unix_timestamp(d)) (
+partition p0 values less than (946684801),
+partition p1 values less than (maxvalue));
+insert into t1 values
+# go to p0
+('2000-01-01 00:00:00'),
+('2000-01-01 00:00:00.000001'),
+# goes to p1
+('2000-01-01 00:00:01');
+select * from t1 partition (p0);
+d
+2000-01-01 00:00:00.000000
+2000-01-01 00:00:00.000001
+select * from t1 partition (p1);
+d
+2000-01-01 00:00:01.000000
 DROP TABLE t1, t2;

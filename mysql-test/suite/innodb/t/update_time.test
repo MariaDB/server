@@ -8,6 +8,8 @@
 -- source include/have_innodb_max_16k.inc
 # restart does not work with embedded
 -- source include/not_embedded.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 
 CREATE TABLE t (a INT) ENGINE=INNODB;
 

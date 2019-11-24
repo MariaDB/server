@@ -1,0 +1,21 @@
+--source include/have_debug.inc
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+mkdir $targetdir;
+CREATE TABLE t1(i int) ENGINE INNODB;
+exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --target-dir=$targetdir  --lock-ddl-per-table --dbug=+d,rename_during_mdl_lock_table;
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+# the table was renamed from t1 to t2
+# make sure t1 does not exist, and t2 does
+
+CREATE TABLE t1(i int);
+DROP TABLE t1;
+SELECT * from t2;
+DROP TABLE t2;
+
+rmdir $targetdir;
+

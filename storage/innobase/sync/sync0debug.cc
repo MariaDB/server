@@ -19,7 +19,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -32,11 +32,9 @@ Created 2012-08-21 Sunny Bains
 
 #include "sync0sync.h"
 #include "sync0debug.h"
-
-#include "ut0new.h"
 #include "srv0start.h"
+#include "fil0fil.h"
 
-#include <map>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -191,10 +189,10 @@ struct LatchDebug {
 					latch that the thread is trying
 					to acquire
 	@return true if passes, else crash with error message. */
-	bool basic_check(
+	inline bool basic_check(
 		const Latches*	latches,
 		latch_level_t	requested_level,
-		ulint		level) const
+		lint		level) const
 		UNIV_NOTHROW;
 
 	/** Adds a latch and its level in the thread level array. Allocates
@@ -606,11 +604,11 @@ LatchDebug::less(
 				The level of the latch that the thread is
 				trying to acquire
 @return true if passes, else crash with error message. */
-bool
+inline bool
 LatchDebug::basic_check(
 	const Latches*	latches,
 	latch_level_t	requested_level,
-	ulint		in_level) const
+	lint		in_level) const
 	UNIV_NOTHROW
 {
 	latch_level_t	level = latch_level_t(in_level);
@@ -738,7 +736,7 @@ LatchDebug::check_order(
 		if (srv_is_being_started) {
 			/* This is violated during trx_sys_create_rsegs()
 			when creating additional rollback segments when
-			upgrading in innobase_start_or_create_for_mysql(). */
+			upgrading in srv_start(). */
 			break;
 		}
 
@@ -910,19 +908,10 @@ LatchDebug::check_order(
 
 	case SYNC_TREE_NODE:
 
-		{
-			const latch_t*	fsp_latch;
-
-			fsp_latch = find(latches, SYNC_FSP);
-
-			ut_a((fsp_latch != NULL
-			      && fsp_latch->is_temp_fsp())
-			     || find(latches, SYNC_INDEX_TREE) != 0
-			     || find(latches, SYNC_DICT_OPERATION)
-			     || basic_check(latches,
-					    level, SYNC_TREE_NODE - 1));
-		}
-
+		ut_a(find(latches, SYNC_FSP) == &fil_system.temp_space->latch
+		     || find(latches, SYNC_INDEX_TREE)
+		     || find(latches, SYNC_DICT_OPERATION)
+		     || basic_check(latches, level, SYNC_TREE_NODE - 1));
 		break;
 
 	case SYNC_TREE_NODE_NEW:
@@ -1739,7 +1728,7 @@ sync_check_init()
 
 	ut_d(LatchDebug::init());
 
-	sync_array_init(OS_THREAD_MAX_N);
+	sync_array_init();
 }
 
 /** Free the InnoDB synchronization data structures. */

@@ -668,6 +668,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf32_general_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 SET NAMES latin1;
 SET collation_connection='utf32_bin';
 create table t1 select repeat('a',4000) a;
@@ -805,6 +811,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf32_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 select hex(substr(_utf32 0x000000e4000000e500000068,1));
 hex(substr(_utf32 0x000000e4000000e500000068,1))
 000000E4000000E500000068
@@ -985,31 +997,31 @@ create table t1 (utf32 varchar(2) character set utf32);
 Wrong character with pad
 insert ignore into t1 values (0x110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x11\x00\x00' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
 Wrong chsaracter without pad
 insert ignore into t1 values (0x00110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
 Wrong character with pad followed by another wrong character
 insert ignore into t1 values (0x11000000110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x11\x00\x00\x00\x11\x00...' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x11\x00\x00\x00\x11\x00...' for column `test`.`t1`.`utf32` at row 1
 Good character with pad followed by bad character
 insert ignore into t1 values (0x10000000110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
 Good character without pad followed by bad character
 insert ignore into t1 values (0x0010000000110000);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x11\x00\x00' for column `test`.`t1`.`utf32` at row 1
 Wrong character with the second byte higher than 0x10
 insert ignore into t1 values (0x00800037);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x80\x007' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x80\x007' for column `test`.`t1`.`utf32` at row 1
 Wrong character with pad with the second byte higher than 0x10
 insert ignore into t1 values (0x00800037);
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x80\x007' for column 'utf32' at row 1
+Warning	1366	Incorrect string value: '\x00\x80\x007' for column `test`.`t1`.`utf32` at row 1
 drop table t1;
 select _utf32'a' collate utf32_general_ci = 0xfffd;
 _utf32'a' collate utf32_general_ci = 0xfffd
@@ -1561,12 +1573,12 @@ CREATE TABLE t1 (utf32 CHAR(5) CHARACTER SET utf32, latin1 CHAR(5) CHARACTER SET
 INSERT INTO t1 (utf32) VALUES (0xc581);
 UPDATE IGNORE t1 SET latin1 = utf32;
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x00\xC5\x81' for column 'latin1' at row 1
+Warning	1366	Incorrect string value: '\x00\x00\xC5\x81' for column `test`.`t1`.`latin1` at row 1
 DELETE FROM t1;
 INSERT INTO t1 (utf32) VALUES (0x100cc);
 UPDATE IGNORE t1 SET latin1 = utf32;
 Warnings:
-Warning	1366	Incorrect string value: '\x00\x01\x00\xCC' for column 'latin1' at row 1
+Warning	1366	Incorrect string value: '\x00\x01\x00\xCC' for column `test`.`t1`.`latin1` at row 1
 DROP TABLE t1;
 #
 # Bug#55912 FORMAT with locale set fails for numbers < 1000
@@ -2241,6 +2253,29 @@ EXECUTE stmt USING @arg00;
 CONCAT(_utf32'a' COLLATE utf32_unicode_ci, ?)
 aÿ
 DEALLOCATE PREPARE stmt;
+SET NAMEs utf8, character_set_connection=utf32;
+#
+# MDEV-13118 Wrong results with LOWER and UPPER and subquery
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch=_latin1'derived_merge=on';
+CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS t LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` varchar(10) CHARACTER SET utf32 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('abcdefghi'),('ABCDEFGHI');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT LOWER(t) t2 FROM t1) sub;
+c2
+abcdefghi-abcdefghi
+abcdefghi-abcdefghi
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT UPPER(t) t2 FROM t1) sub;
+c2
+ABCDEFGHI-ABCDEFGHI
+ABCDEFGHI-ABCDEFGHI
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
 #
 # End of 10.0 tests
 #

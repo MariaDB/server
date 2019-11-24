@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -126,6 +126,13 @@ void Json_writer::add_ll(longlong val)
 {
   char buf[64];
   my_snprintf(buf, sizeof(buf), "%lld", val);
+  add_unquoted_str(buf);
+}
+
+void Json_writer::add_ull(ulonglong val)
+{
+  char buf[64];
+  my_snprintf(buf, sizeof(buf), "%llu", val);
   add_unquoted_str(buf);
 }
 

@@ -1,0 +1,335 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+drop table if exists t1;
+create table t1 (id int primary key, value int);
+insert into t1 values (1,1), (2,2), (3,3), (4,4);
+include/sync_slave_sql_with_master.inc
+
+# regular update/delete. With rocks_read_free_rpl=PK_SK, rocksdb_rows_read does not increase on slaves
+
+select variable_value into @up from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+update t1 set value=value+1 where id=1;
+delete from t1 where id=4;
+select * from t1;
+id	value
+1	2
+2	2
+3	3
+include/sync_slave_sql_with_master.inc
+select case when variable_value-@up > 0 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+select * from t1;
+id	value
+1	2
+2	2
+3	3
+
+# "rocks_read_free_rpl=PK_SK" makes "row not found error" not happen anymore
+
+include/stop_slave.inc
+delete from t1 where id in (2, 3);
+include/start_slave.inc
+select variable_value into @up from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+update t1 set value=value+1 where id=3;
+delete from t1 where id=2;
+select * from t1;
+id	value
+1	2
+3	4
+include/sync_slave_sql_with_master.inc
+select case when variable_value-@up > 0 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+select * from t1;
+id	value
+1	2
+3	4
+
+## tables without primary key -- read free replication should be disabled
+
+
+#no index
+
+drop table t1;
+create table t1 (c1 int, c2 int);
+insert into t1 values (1,1), (2,2),(3,3),(4,4),(5,5);
+include/sync_slave_sql_with_master.inc
+select variable_value into @up from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+update t1 set c2=100 where c1=3;
+delete from t1 where c1 <= 2;
+include/sync_slave_sql_with_master.inc
+select case when variable_value-@up > 0 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+false
+select * from t1;
+c1	c2
+3	100
+4	4
+5	5
+
+#secondary index only
+
+drop table t1;
+create table t1 (c1 int, c2 int, index i(c1));
+insert into t1 values (1,1), (2,2),(3,3),(4,4),(5,5);
+include/sync_slave_sql_with_master.inc
+select variable_value into @up from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+update t1 set c2=100 where c1=3;
+delete from t1 where c1 <= 2;
+include/sync_slave_sql_with_master.inc
+select case when variable_value-@up > 0 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+false
+select * from t1;
+c1	c2
+3	100
+4	4
+5	5
+
+## large row operations -- primary key modification, secondary key modification
+
+drop table t1;
+create table t1 (id1 bigint, id2 bigint, c1 bigint, c2 bigint, c3 bigint, c4 bigint, c5 bigint, c6 bigint, c7 bigint, primary key (id1, id2), index i(c1, c2));
+include/sync_slave_sql_with_master.inc
+select variable_value into @up from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+
+#updating all secondary keys by 1
+
+include/sync_slave_sql_with_master.inc
+select case when variable_value-@up > 0 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+include/diff_tables.inc [master:t1, slave:t1]
+
+#updating all primary keys by 2
+
+select variable_value into @up from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+include/sync_slave_sql_with_master.inc
+select case when variable_value-@up > 0 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+include/diff_tables.inc [master:t1, slave:t1]
+
+#updating secondary keys after truncating t1 on slave
+
+truncate table t1;
+select variable_value into @up from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+update t1 set c2=c2+10;
+include/sync_slave_sql_with_master.inc
+select case when variable_value-@up > 0 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+include/diff_tables.inc [master:t1, slave:t1]
+
+#updating primary keys after truncating t1 on slave
+
+truncate table t1;
+select variable_value into @up from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+update t1 set id2=id2+10;
+include/sync_slave_sql_with_master.inc
+select case when variable_value-@up > 0 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+include/diff_tables.inc [master:t1, slave:t1]
+
+#deleting half rows
+
+select variable_value into @up from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+delete from t1 where id1 <= 5000;
+include/sync_slave_sql_with_master.inc
+select case when variable_value-@up > 0 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+include/diff_tables.inc [master:t1, slave:t1]
+
+# rocksdb_read_free_rpl = PK_ONLY i.e. it only works on tables with only PK
+
+[on slave]
+stop slave;
+set @@global.rocksdb_read_free_rpl = PK_ONLY;
+start slave;
+[on master]
+create table t2 (id int primary key, i1 int, i2 int, value int);
+create table u2 (id int primary key, i1 int, i2 int, value int, index(i1), index(i2));
+insert into t2 values (1,1,1,1),(2,2,2,2),(3,3,3,3);
+insert into u2 values (1,1,1,1),(2,2,2,2),(3,3,3,3);
+include/sync_slave_sql_with_master.inc
+[on slave]
+delete from t2 where id <= 2;
+delete from u2 where id <= 2;
+[on master]
+update t2 set i2=100, value=100 where id=1;
+update u2 set i2=100, value=100 where id=1;
+[on slave]
+call mtr.add_suppression("Slave SQL.*Could not execute Update_rows event on table test.u2.*Error_code.*");
+call mtr.add_suppression("Slave: Can't find record in 'u2'.*");
+include/wait_for_slave_sql_error.inc [errno=1032]
+select count(*) from t2 force index(primary);
+count(*)
+2
+select * from t2 where id=1;
+id	i1	i2	value
+1	1	100	100
+select i1 from t2 where i1=1;
+i1
+1
+select i2 from t2 where i2=100;
+i2
+100
+select count(*) from u2 force index(primary);
+count(*)
+1
+select count(*) from u2 force index(i1);
+count(*)
+1
+select count(*) from u2 force index(i2);
+count(*)
+1
+select * from u2 where id=1;
+id	i1	i2	value
+select i1 from u2 where i1=1;
+i1
+select i2 from u2 where i2=100;
+i2
+include/wait_for_slave_sql_to_start.inc
+[on slave]
+stop slave;
+set @@global.rocksdb_read_free_rpl = PK_SK;
+start slave;
+
+# some tables with read-free replication on and some with it off
+
+[on slave]
+stop slave;
+set @@global.rocksdb_read_free_rpl_tables = "t.*";
+start slave;
+[on master]
+drop table if exists t2;
+drop table if exists u2;
+create table t2 (id int primary key, i1 int, i2 int, value int);
+create table u2 (id int primary key, i1 int, i2 int, value int);
+insert into t2 values (1,1,1,1),(2,2,2,2),(3,3,3,3);
+insert into u2 values (1,1,1,1),(2,2,2,2),(3,3,3,3);
+include/sync_slave_sql_with_master.inc
+[on slave]
+delete from t2 where id <= 2;
+delete from u2 where id <= 2;
+[on master]
+update t2 set i2=100, value=100 where id=1;
+update u2 set i2=100, value=100 where id=1;
+[on slave]
+call mtr.add_suppression("Slave SQL.*Could not execute Update_rows event on table test.u2.*Error_code.*");
+call mtr.add_suppression("Slave: Can't find record in 'u2'.*");
+include/wait_for_slave_sql_error.inc [errno=1032]
+select count(*) from t2 force index(primary);
+count(*)
+2
+select * from t2 where id=1;
+id	i1	i2	value
+1	1	100	100
+select i1 from t2 where i1=1;
+i1
+1
+select i2 from t2 where i2=100;
+i2
+100
+select count(*) from u2 force index(primary);
+count(*)
+1
+select * from u2 where id=1;
+id	i1	i2	value
+select i1 from u2 where i1=1;
+i1
+select i2 from u2 where i2=100;
+i2
+include/wait_for_slave_sql_to_start.inc
+[on slave]
+stop slave;
+set @@global.rocksdb_read_free_rpl_tables = ".*";
+start slave;
+
+# secondary keys lose rows
+
+[on master]
+create table t3 (id int primary key, i1 int, i2 int, value int, index(i1),
+index(i2));
+insert into t3 values (1,1,1,1),(2,2,2,2),(3,3,3,3);
+include/sync_slave_sql_with_master.inc
+[on slave]
+delete from t3 where id <= 2;
+[on master]
+update t3 set i2=100, value=100 where id=1;
+include/sync_slave_sql_with_master.inc
+select count(*) from t3 force index(primary);
+count(*)
+2
+select count(*) from t3 force index(i1);
+count(*)
+1
+select count(*) from t3 force index(i2);
+count(*)
+2
+select * from t3 where id=1;
+id	i1	i2	value
+1	1	100	100
+select i1 from t3 where i1=1;
+i1
+select i2 from t3 where i2=100;
+i2
+100
+
+# secondary keys have extra rows
+
+[on master]
+create table t4 (id int primary key, i1 int, i2 int, value int, index(i1), index(i2));
+insert into t4 values (1,1,1,1),(2,2,2,2),(3,3,3,3);
+include/sync_slave_sql_with_master.inc
+[on slave]
+update t4 set i1=100 where id=1;
+[on master]
+delete from t4 where id=1;
+include/sync_slave_sql_with_master.inc
+[on slave]
+select count(*) from t4 force index(primary);
+count(*)
+2
+select count(*) from t4 force index(i1);
+count(*)
+3
+select count(*) from t4 force index(i2);
+count(*)
+2
+select i1 from t4 where i1=100;
+i1
+100
+
+# inserts are also read-free
+
+[on master]
+drop table if exists t2;
+drop table if exists t3;
+create table t2 (id int primary key, i1 int, i2 int);
+create table t3 (id int primary key, i1 int, i2 int, key(i1));
+select variable_value into @up from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+insert into t2 values(1, 1, 1);
+insert into t2 values(2, 2, 2);
+insert into t3 values(1, 1, 1);
+insert into t3 values(2, 2, 2);
+include/sync_slave_sql_with_master.inc
+select case when variable_value-@up > 0 then 'false' else 'true' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+read_free
+true
+select * from t2;
+id	i1	i2
+1	1	1
+2	2	2
+select * from t3;
+id	i1	i2
+1	1	1
+2	2	2
+drop table t1, t2, t3, t4, u2;
+include/rpl_end.inc

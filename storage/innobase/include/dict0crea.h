@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,14 +27,11 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0crea_h
 #define dict0crea_h
 
-#include "univ.i"
-#include "dict0types.h"
 #include "dict0dict.h"
 #include "que0types.h"
 #include "row0types.h"
 #include "mtr0mtr.h"
 #include "fil0crypt.h"
-#include "fsp0space.h"
 
 /*********************************************************************//**
 Creates a table create graph.
@@ -126,13 +123,11 @@ dict_recreate_index_tree(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	rec	SYS_INDEXES record
 @param[in,out]	pcur	persistent cursor on rec
+@param[in,out]	trx	dictionary transaction
 @param[in,out]	mtr	mini-transaction
 @return	whether freeing the B-tree was attempted */
-bool
-dict_drop_index_tree(
-	rec_t*		rec,
-	btr_pcur_t*	pcur,
-	mtr_t*		mtr);
+bool dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull));
 
 /***************************************************************//**
 Creates an index tree for the index if it is not a member of a cluster.

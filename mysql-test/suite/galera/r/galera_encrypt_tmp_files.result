@@ -1,0 +1,37 @@
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+VARIABLE_VALUE = 'Synced'
+1
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+VARIABLE_VALUE = 'Synced'
+1
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE `t1` (
+`col1` int(11) NOT NULL,
+`col2` varchar(64) NOT NULL DEFAULT '',
+`col3` varchar(32) NOT NULL DEFAULT '0',
+`col4` varchar(64) NOT NULL DEFAULT '',
+`col5` tinyint(4) NOT NULL DEFAULT '0',
+`col6` int(11) NOT NULL DEFAULT '0',
+`col7` varchar(64) NOT NULL DEFAULT '',
+`col8` tinyint(4) NOT NULL DEFAULT '0',
+`col9` tinyint(4) NOT NULL DEFAULT '0',
+`col10` text NOT NULL,
+`col11` varchar(255) NOT NULL DEFAULT '',
+`col12` tinyint(4) NOT NULL DEFAULT '1'
+) ;
+create table t2 (test int);
+insert into t2 values (1);
+drop table t1,t2;

@@ -1,0 +1,9 @@
+--source include/have_utf16.inc
+
+--echo #
+--echo # MDEV-15938 - TINYTEXT CHARACTER SET utf8 COMPRESSED truncates data
+--echo #
+CREATE TABLE t1(a TINYTEXT COMPRESSED, b TINYTEXT) CHARACTER SET utf16;
+INSERT INTO t1 VALUES (REPEAT(_latin1'a', 127), REPEAT(_latin1'a', 127));
+SELECT CHAR_LENGTH(a), CHAR_LENGTH(b), LEFT(a, 10), LEFT(b, 10) FROM t1;
+DROP TABLE t1;

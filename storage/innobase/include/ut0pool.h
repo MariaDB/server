@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -115,7 +115,7 @@ struct Pool {
 		} else if (m_last < m_end) {
 
 			/* Initialise the remaining elements. */
-			init(m_end - m_last);
+			init(size_t(m_end - m_last));
 
 			ut_ad(!m_pqueue.empty());
 
@@ -125,8 +125,7 @@ struct Pool {
 			elem = NULL;
 		}
 
-		m_lock_strategy.exit();
-
+#if defined HAVE_valgrind || defined __SANITIZE_ADDRESS__
 		if (elem) {
 			/* Unpoison the memory for AddressSanitizer */
 			MEM_UNDEFINED(&elem->m_type, sizeof elem->m_type);
@@ -135,10 +134,11 @@ struct Pool {
 			actually initialized; we checked that by
 			UNIV_MEM_ASSERT_RW() in mem_free() below. */
 			UNIV_MEM_VALID(&elem->m_type, sizeof elem->m_type);
-			return &elem->m_type;
 		}
+#endif
 
-		return NULL;
+		m_lock_strategy.exit();
+		return elem ? &elem->m_type : NULL;
 	}
 
 	/** Add the object to the pool.
@@ -151,8 +151,12 @@ struct Pool {
 		elem = reinterpret_cast<Element*>(p - sizeof(*elem));
 		UNIV_MEM_ASSERT_RW(&elem->m_type, sizeof elem->m_type);
 
-		elem->m_pool->put(elem);
+		elem->m_pool->m_lock_strategy.enter();
+
+		elem->m_pool->putl(elem);
 		MEM_NOACCESS(&elem->m_type, sizeof elem->m_type);
+
+		elem->m_pool->m_lock_strategy.exit();
 	}
 
 protected:
@@ -170,17 +174,13 @@ private:
 
 	/** Release the object to the free pool
 	@param elem element to free */
-	void put(Element* elem)
+	void putl(Element* elem)
 	{
-		m_lock_strategy.enter();
-
 		ut_ad(elem >= m_start && elem < m_last);
 
 		ut_ad(Factory::debug(&elem->m_type));
 
 		m_pqueue.push(elem);
-
-		m_lock_strategy.exit();
 	}
 
 	/** Initialise the elements.

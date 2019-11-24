@@ -1,0 +1,13 @@
+#
+# MDEV-15729 Server crashes in Field::make_field upon HANDLER READ executed with PS protocol
+#
+create table t1 (i int);
+handler test.t1 open handler_a;
+flush status;
+handler handler_a read first;
+# handler...read must be prepared in --ps-protocol mode
+--replace_result $PS_PROTOCOL OK
+--disable_ps_protocol
+show status like 'Com_stmt_prepare%';
+--enable_ps_protocol
+drop table t1;

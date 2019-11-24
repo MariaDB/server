@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2017 Kentoku Shiba
+/* Copyright (C) 2009-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -27,6 +27,7 @@
 #include "sql_partition.h"
 #include "sql_base.h"
 #include "sql_servers.h"
+#include "tztime.h"
 #endif
 #include "spd_err.h"
 #include "spd_param.h"
@@ -64,6 +65,9 @@ extern pthread_mutex_t spider_conn_mutex;
 extern pthread_mutex_t spider_conn_id_mutex;
 extern pthread_mutex_t spider_ipport_conn_mutex;
 extern ulonglong spider_conn_id;
+
+/* UTC time zone for timestamp columns */
+extern Time_zone *UTC;
 
 uint spider_udf_calc_hash(
   char *key,
@@ -132,7 +136,7 @@ int spider_udf_direct_sql_create_table_list(
       &direct_sql->tables, sizeof(TABLE*) * table_count,
       &tmp_name_ptr, sizeof(char) * (
         table_name_list_length +
-        thd->db.length * table_count +
+        SPIDER_THD_db_length(thd) * table_count +
         2 * table_count
       ),
       &direct_sql->iop, sizeof(int) * table_count,
@@ -163,11 +167,11 @@ int spider_udf_direct_sql_create_table_list(
       tmp_name_ptr += length + 1;
       tmp_ptr = tmp_ptr3 + 1;
     } else {
-      if (thd->db.str)
+      if (SPIDER_THD_db_str(thd))
       {
-        memcpy(tmp_name_ptr, thd->db.str,
-          thd->db.length + 1);
-        tmp_name_ptr += thd->db.length + 1;
+        memcpy(tmp_name_ptr, SPIDER_THD_db_str(thd),
+          SPIDER_THD_db_length(thd) + 1);
+        tmp_name_ptr += SPIDER_THD_db_length(thd) + 1;
       } else {
         direct_sql->db_names[roop_count] = (char *) "";
       }
@@ -394,6 +398,13 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
   int *need_mon;
   DBUG_ENTER("spider_udf_direct_sql_create_conn");
+
+  if (unlikely(!UTC))
+  {
+    /* UTC time zone for timestamp columns */
+    String tz_00_name(STRING_WITH_LEN("+00:00"), &my_charset_bin);
+    UTC = my_tz_find(current_thd, &tz_00_name);
+  }
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if (direct_sql->access_mode == 0)
@@ -973,13 +984,11 @@ error:
     if (!direct_sql->param_name) \
     { \
       if ((direct_sql->param_name = spider_get_string_between_quote( \
-        start_ptr, TRUE))) \
+        start_ptr, TRUE, &param_string_parse))) \
         direct_sql->SPIDER_PARAM_STR_LEN(param_name) = \
           strlen(direct_sql->param_name); \
       else { \
-        error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
-        my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR, \
-          MYF(0), tmp_ptr); \
+        error_num = param_string_parse.print_param_error(); \
         goto error; \
       } \
       DBUG_PRINT("info",("spider " title_name "=%s", direct_sql->param_name)); \
@@ -999,9 +1008,7 @@ error:
     { \
       if (hint_num < 0 || hint_num >= max_size) \
       { \
-        error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
-        my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR, \
-          MYF(0), tmp_ptr); \
+        error_num = param_string_parse.print_param_error(); \
         goto error; \
       } else if (direct_sql->param_name[hint_num] != -1) \
         break; \
@@ -1014,17 +1021,13 @@ error:
         else if (direct_sql->param_name[hint_num] > max_val) \
           direct_sql->param_name[hint_num] = max_val; \
       } else { \
-        error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
-        my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR, \
-          MYF(0), tmp_ptr); \
+        error_num = param_string_parse.print_param_error(); \
         goto error; \
       } \
       DBUG_PRINT("info",("spider " title_name "[%d]=%d", hint_num, \
         direct_sql->param_name[hint_num])); \
     } else { \
-      error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
-      my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR, \
-        MYF(0), tmp_ptr); \
+      error_num = param_string_parse.print_param_error(); \
       goto error; \
     } \
     break; \
@@ -1043,10 +1046,11 @@ error:
           direct_sql->param_name = min_val; \
         else if (direct_sql->param_name > max_val) \
           direct_sql->param_name = max_val; \
+        param_string_parse.set_param_value(tmp_ptr2, \
+                                           tmp_ptr2 + \
+                                             strlen(tmp_ptr2) + 1); \
       } else { \
-        error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
-        my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR, \
-          MYF(0), tmp_ptr); \
+        error_num = param_string_parse.print_param_error(); \
         goto error; \
       } \
       DBUG_PRINT("info",("spider " title_name "=%d", \
@@ -1066,10 +1070,11 @@ error:
         direct_sql->param_name = atoi(tmp_ptr2); \
         if (direct_sql->param_name < min_val) \
           direct_sql->param_name = min_val; \
+        param_string_parse.set_param_value(tmp_ptr2, \
+                                           tmp_ptr2 + \
+                                             strlen(tmp_ptr2) + 1); \
       } else { \
-        error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
-        my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR, \
-          MYF(0), tmp_ptr); \
+        error_num = param_string_parse.print_param_error(); \
         goto error; \
       } \
       DBUG_PRINT("info",("spider " title_name "=%d", direct_sql->param_name)); \
@@ -1089,10 +1094,11 @@ error:
           my_strtoll10(tmp_ptr2, (char**) NULL, &error_num); \
         if (direct_sql->param_name < min_val) \
           direct_sql->param_name = min_val; \
+        param_string_parse.set_param_value(tmp_ptr2, \
+                                           tmp_ptr2 + \
+                                             strlen(tmp_ptr2) + 1); \
       } else { \
-        error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
-        my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR, \
-          MYF(0), tmp_ptr); \
+        error_num = param_string_parse.print_param_error(); \
         goto error; \
       } \
       DBUG_PRINT("info",("spider " title_name "=%lld", \
@@ -1112,6 +1118,7 @@ int spider_udf_parse_direct_sql_param(
   char *sprit_ptr[2];
   char *tmp_ptr, *tmp_ptr2, *start_ptr;
   int title_length;
+  SPIDER_PARAM_STRING_PARSE param_string_parse;
   DBUG_ENTER("spider_udf_parse_direct_sql_param");
   direct_sql->tgt_port = -1;
   direct_sql->tgt_ssl_vsc = -1;
@@ -1148,6 +1155,7 @@ int spider_udf_parse_direct_sql_param(
   DBUG_PRINT("info",("spider param_string=%s", param_string));
 
   sprit_ptr[0] = param_string;
+  param_string_parse.init(param_string, ER_SPIDER_INVALID_UDF_PARAM_NUM);
   while (sprit_ptr[0])
   {
     if ((sprit_ptr[1] = strchr(sprit_ptr[0], ',')))
@@ -1174,10 +1182,14 @@ int spider_udf_parse_direct_sql_param(
       title_length++;
       start_ptr++;
     }
+    param_string_parse.set_param_title(tmp_ptr, tmp_ptr + title_length);
 
     switch (title_length)
     {
       case 0:
+        error_num = param_string_parse.print_param_error();
+        if (error_num)
+          goto error;
         continue;
       case 3:
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -1203,120 +1215,92 @@ int spider_udf_parse_direct_sql_param(
         SPIDER_PARAM_INT_WITH_MAX("urt", use_real_table, 0, 1);
 #endif
         SPIDER_PARAM_INT("wto", net_write_timeout, 0);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 4:
         SPIDER_PARAM_INT_WITH_MAX("erwm", error_rw_mode, 0, 1);
         SPIDER_PARAM_STR("host", tgt_host);
         SPIDER_PARAM_INT_WITH_MAX("port", tgt_port, 0, 65535);
         SPIDER_PARAM_STR("user", tgt_username);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 6:
         SPIDER_PARAM_STR("server", server_name);
         SPIDER_PARAM_STR("socket", tgt_socket);
         SPIDER_PARAM_HINT_WITH_MAX("iop", iop, 3, direct_sql->table_count, 0, 2);
         SPIDER_PARAM_STR("ssl_ca", tgt_ssl_ca);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 7:
         SPIDER_PARAM_STR("wrapper", tgt_wrapper);
         SPIDER_PARAM_STR("ssl_key", tgt_ssl_key);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 8:
         SPIDER_PARAM_STR("database", tgt_default_db_name);
         SPIDER_PARAM_STR("password", tgt_password);
         SPIDER_PARAM_LONGLONG("priority", priority, 0);
         SPIDER_PARAM_STR("ssl_cert", tgt_ssl_cert);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 10:
         SPIDER_PARAM_STR("ssl_cipher", tgt_ssl_cipher);
         SPIDER_PARAM_STR("ssl_capath", tgt_ssl_capath);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 11:
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
         SPIDER_PARAM_INT_WITH_MAX("access_mode", access_mode, 0, 2);
 #endif
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 12:
         SPIDER_PARAM_STR("default_file", tgt_default_file);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 13:
         SPIDER_PARAM_STR("default_group", tgt_default_group);
         SPIDER_PARAM_INT_WITH_MAX("error_rw_mode", error_rw_mode, 0, 1);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 14:
 #if MYSQL_VERSION_ID < 50500
 #else
         SPIDER_PARAM_INT_WITH_MAX("use_real_table", use_real_table, 0, 1);
 #endif
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 15:
         SPIDER_PARAM_INT_WITH_MAX("table_loop_mode", table_loop_mode, 0, 2);
         SPIDER_PARAM_INT("connect_timeout", connect_timeout, 0);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 16:
         SPIDER_PARAM_LONGLONG("bulk_insert_rows", bulk_insert_rows, 1);
         SPIDER_PARAM_INT("net_read_timeout", net_read_timeout, 0);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 17:
         SPIDER_PARAM_INT("net_write_timeout", net_write_timeout, 0);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 18:
         SPIDER_PARAM_INT_WITH_MAX(
           "connection_channel", connection_channel, 0, 63);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 22:
         SPIDER_PARAM_INT_WITH_MAX("ssl_verify_server_cert", tgt_ssl_vsc, 0, 1);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       default:
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
     }
+
+    /* Verify that the remainder of the parameter value is whitespace */
+    if ((error_num = param_string_parse.has_extra_parameter_values()))
+      goto error;
   }
 
 set_default:
@@ -1356,10 +1340,10 @@ int spider_udf_set_direct_sql_param_default(
   if (!direct_sql->tgt_default_db_name)
   {
     DBUG_PRINT("info",("spider create default tgt_default_db_name"));
-    direct_sql->tgt_default_db_name_length = trx->thd->db.length;
+    direct_sql->tgt_default_db_name_length = SPIDER_THD_db_length(trx->thd);
     if (
       !(direct_sql->tgt_default_db_name = spider_create_string(
-        trx->thd->db.str,
+        SPIDER_THD_db_str(trx->thd),
         direct_sql->tgt_default_db_name_length))
     ) {
       my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
@@ -1712,17 +1696,32 @@ long long spider_direct_sql_body(
   for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
   {
 #ifdef SPIDER_NEED_INIT_ONE_TABLE_FOR_FIND_TEMPORARY_TABLE
-    LEX_CSTRING db_name=  { direct_sql->db_names[roop_count],
-                           strlen(direct_sql->db_names[roop_count]) };
-    LEX_CSTRING tbl_name= { direct_sql->table_names[roop_count],
-                            strlen(direct_sql->table_names[roop_count]) };
+#ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
+    LEX_CSTRING db_name =
+    {
+      direct_sql->db_names[roop_count],
+      strlen(direct_sql->db_names[roop_count])
+    };
+    LEX_CSTRING tbl_name =
+    {
+      direct_sql->table_names[roop_count],
+      strlen(direct_sql->table_names[roop_count])
+    };
     table_list.init_one_table(&db_name, &tbl_name, 0, TL_WRITE);
 #else
-    table_list.db = direct_sql->db_names[roop_count];
-    table_list.table_name = direct_sql->table_names[roop_count];
+    table_list.init_one_table(direct_sql->db_names[roop_count],
+      strlen(direct_sql->db_names[roop_count]),
+      direct_sql->table_names[roop_count],
+      strlen(direct_sql->table_names[roop_count]),
+      direct_sql->table_names[roop_count], TL_WRITE);
+#endif
+#else
+    SPIDER_TABLE_LIST_db_str(&table_list) = direct_sql->db_names[roop_count];
+    SPIDER_TABLE_LIST_table_name_str(&table_list) =
+      direct_sql->table_names[roop_count];
 #endif
     if (!(direct_sql->tables[roop_count] =
-      SPIDER_find_temporary_table(thd, &table_list)))
+      spider_find_temporary_table(thd, &table_list)))
     {
 #if MYSQL_VERSION_ID < 50500
 #else
@@ -1732,16 +1731,28 @@ long long spider_direct_sql_body(
         error_num = ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_NUM;
         my_printf_error(ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_NUM,
           ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_STR,
-          MYF(0), table_list.db, table_list.table_name);
+          MYF(0), SPIDER_TABLE_LIST_db_str(&table_list),
+          SPIDER_TABLE_LIST_table_name_str(&table_list));
         goto error;
 #if MYSQL_VERSION_ID < 50500
 #else
       }
       TABLE_LIST *tables = &direct_sql->table_list[roop_count];
-
-      table_list.init_one_table(&table_list.db, &table_list.table_name, 0, TL_WRITE);
-      tables->mdl_request.init(MDL_key::TABLE, table_list.db.str,
-                               table_list.table_name.str, MDL_SHARED_WRITE, MDL_TRANSACTION);
+#ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
+      table_list.init_one_table(
+        &table_list.db, &table_list.table_name, 0, TL_WRITE);
+#else
+      tables->init_one_table(
+        SPIDER_TABLE_LIST_db_str(&table_list),
+        SPIDER_TABLE_LIST_db_length(&table_list),
+        SPIDER_TABLE_LIST_table_name_str(&table_list),
+        SPIDER_TABLE_LIST_table_name_length(&table_list),
+        SPIDER_TABLE_LIST_table_name_str(&table_list), TL_WRITE);
+#endif
+      tables->mdl_request.init(MDL_key::TABLE,
+        SPIDER_TABLE_LIST_db_str(&table_list),
+        SPIDER_TABLE_LIST_table_name_str(&table_list),
+        MDL_SHARED_WRITE, MDL_TRANSACTION);
       if (!direct_sql->table_list_first)
       {
         direct_sql->table_list_first = tables;

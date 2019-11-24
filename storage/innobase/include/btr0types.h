@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,12 +26,9 @@ Created 2/17/1996 Heikki Tuuri
 #ifndef btr0types_h
 #define btr0types_h
 
-#include "univ.i"
-
-#include "rem0types.h"
 #include "page0types.h"
-#include "sync0rw.h"
 #include "page0size.h"
+#include "rem0types.h"
 
 /** Persistent cursor */
 struct btr_pcur_t;

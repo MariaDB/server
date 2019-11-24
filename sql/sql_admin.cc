@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2018, MariaDB
+   Copyright (c) 2011, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_class.h"                       // THD
@@ -267,7 +267,7 @@ end:
     tdc_release_share(table->s);
   }
   /* In case of a temporary table there will be no metadata lock. */
-  if (error && has_mdl_lock)
+  if (unlikely(error) && has_mdl_lock)
     thd->mdl_context.release_transactional_locks();
 
   DBUG_RETURN(error);
@@ -430,7 +430,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                               HA_CHECK_OPT* check_opt,
                               const char *operator_name,
                               thr_lock_type lock_type,
-                              bool open_for_modify,
+                              bool org_open_for_modify,
                               bool repair_table_use_frm,
                               uint extra_open_options,
                               int (*prepare_func)(THD *, TABLE_LIST *,
@@ -451,8 +451,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   wait_for_commit* suspended_wfc;
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
-
-  thd->prepare_logs_for_admin_command();
 
   field_list.push_back(item= new (thd->mem_root)
                        Item_empty_string(thd, "Table",
@@ -497,6 +495,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     bool fatal_error=0;
     bool open_error;
     bool collect_eis=  FALSE;
+    bool open_for_modify= org_open_for_modify;
 
     DBUG_PRINT("admin", ("table: '%s'.'%s'", db, table->table_name.str));
     strxmov(table_name, db, ".", table->table_name.str, NullS);
@@ -525,7 +524,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         If open_and_lock_tables() failed, close_thread_tables() will close
         the table and table->table can therefore be invalid.
       */
-      if (open_error)
+      if (unlikely(open_error))
         table->table= NULL;
 
       /*
@@ -533,7 +532,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         so any errors opening the table are logical errors.
         In these cases it does not make sense to try to repair.
       */
-      if (open_error && thd->locked_tables_mode)
+      if (unlikely(open_error) && thd->locked_tables_mode)
       {
         result_code= HA_ADMIN_FAILED;
         goto send_result;
@@ -567,7 +566,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           if (!table->table->part_info)
           {
             my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
-            goto err2;
+            thd->resume_subsequent_commits(suspended_wfc);
+            DBUG_RETURN(TRUE);
           }
           if (set_part_state(alter_info, table->table->part_info, PART_ADMIN))
           {
@@ -700,19 +700,23 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       MDL_SHARED_NO_READ_WRITE lock (MDL_SHARED_WRITE cannot be upgraded)
       by *not* having HA_CONCURRENT_OPTIMIZE table_flag.
     */
-    if (lock_type == TL_WRITE && !table->table->s->tmp_table &&
-                        table->mdl_request.type > MDL_SHARED_WRITE)
+    if (lock_type == TL_WRITE && table->mdl_request.type > MDL_SHARED_WRITE)
     {
-      if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
-        goto err;
-      DEBUG_SYNC(thd, "after_admin_flush");
-      /* Flush entries in the query cache involving this table. */
-      query_cache_invalidate3(thd, table->table, 0);
-      /*
-        XXX: hack: switch off open_for_modify to skip the
-        flush that is made later in the execution flow. 
-      */
-      open_for_modify= 0;
+      if (table->table->s->tmp_table)
+        thd->close_unused_temporary_table_instances(tables);
+      else
+      {
+        if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
+          goto err;
+        DEBUG_SYNC(thd, "after_admin_flush");
+        /* Flush entries in the query cache involving this table. */
+        query_cache_invalidate3(thd, table->table, 0);
+        /*
+          XXX: hack: switch off open_for_modify to skip the
+          flush that is made later in the execution flow.
+        */
+        open_for_modify= 0;
+      }
     }
 
     if (table->table->s->crashed && operator_func == &handler::ha_check)
@@ -828,7 +832,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                       repair_table_use_frm, FALSE);
       thd->open_options&= ~extra_open_options;
 
-      if (!open_error)
+      if (unlikely(!open_error))
       {
         TABLE *tab= table->table;
         Field **field_ptr= tab->field;
@@ -1164,7 +1168,7 @@ send_result_message:
       }
     }
     /* Error path, a admin command failed. */
-    if (thd->transaction_rollback_request)
+    if (thd->transaction_rollback_request || fatal_error)
     {
       /*
         Unlikely, but transaction rollback was requested by one of storage
@@ -1175,7 +1179,9 @@ send_result_message:
     }
     else
     {
-      if (trans_commit_stmt(thd) || trans_commit_implicit(thd))
+      if (trans_commit_stmt(thd) ||
+          (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END) &&
+           trans_commit_implicit(thd)))
         goto err;
     }
     close_thread_tables(thd);
@@ -1209,7 +1215,8 @@ send_result_message:
 err:
   /* Make sure this table instance is not reused after the failure. */
   trans_rollback_stmt(thd);
-  trans_rollback(thd);
+  if (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END))
+    trans_rollback(thd);
   if (table && table->table)
   {
     table->table->m_needs_reopen= true;
@@ -1217,7 +1224,6 @@ err:
   }
   close_thread_tables(thd);			// Shouldn't be needed
   thd->mdl_context.release_transactional_locks();
-err2:
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_RETURN(TRUE);
 }
@@ -1308,7 +1314,7 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
                          "analyze", lock_type, 1, 0, 0, 0,
                          &handler::ha_analyze, 0);
   /* ! we write after unlocking the table */
-  if (!res && !m_lex->no_write_to_binlog)
+  if (!res && !m_lex->no_write_to_binlog && (!opt_readonly || thd->slave_thread))
   {
     /*
       Presumably, ANALYZE and binlog writing doesn't require synchronization
@@ -1319,6 +1325,7 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
+WSREP_ERROR_LABEL:
   DBUG_RETURN(res);
 }
 
@@ -1365,7 +1372,7 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
                       "optimize", TL_WRITE, 1, 0, 0, 0,
                       &handler::ha_optimize, 0);
   /* ! we write after unlocking the table */
-  if (!res && !m_lex->no_write_to_binlog)
+  if (!res && !m_lex->no_write_to_binlog && (!opt_readonly || thd->slave_thread))
   {
     /*
       Presumably, OPTIMIZE and binlog writing doesn't require synchronization
@@ -1376,6 +1383,7 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
+WSREP_ERROR_LABEL:
   DBUG_RETURN(res);
 }
 
@@ -1390,8 +1398,6 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
-  thd->enable_slow_log&= !MY_TEST(thd->variables.log_slow_disabled_statements &
-                                  LOG_SLOW_DISABLE_ADMIN);
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "repair",
                          TL_WRITE, 1,
@@ -1400,7 +1406,7 @@ bool Sql_cmd_repair_table::execute(THD *thd)
                          &handler::ha_repair, &view_repair);
 
   /* ! we write after unlocking the table */
-  if (!res && !m_lex->no_write_to_binlog)
+  if (!res && !m_lex->no_write_to_binlog && (!opt_readonly || thd->slave_thread))
   {
     /*
       Presumably, REPAIR and binlog writing doesn't require synchronization
@@ -1411,5 +1417,6 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
+WSREP_ERROR_LABEL:
   DBUG_RETURN(res);
 }

@@ -453,7 +453,8 @@ int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
     mysql.reconnect= 1;
   }
 
-  error= mysql_real_query(&mysql, buffer, (ulong)length);
+  if (!(error= mysql_real_query(&mysql, STRING_WITH_LEN("set time_zone='+00:00'"))))
+    error= mysql_real_query(&mysql, buffer, (ulong)length);
   
   DBUG_RETURN(error);
 }

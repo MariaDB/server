@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,11 +24,8 @@ Insert into a table
 Created 4/20/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "row0ins.h"
 #include "dict0dict.h"
-#include "dict0boot.h"
 #include "trx0rec.h"
 #include "trx0undo.h"
 #include "btr0btr.h"
@@ -38,7 +35,6 @@ Created 4/20/1996 Heikki Tuuri
 #include "que0que.h"
 #include "row0upd.h"
 #include "row0sel.h"
-#include "row0row.h"
 #include "row0log.h"
 #include "rem0cmp.h"
 #include "lock0lock.h"
@@ -48,8 +44,12 @@ Created 4/20/1996 Heikki Tuuri
 #include "buf0lru.h"
 #include "fts0fts.h"
 #include "fts0types.h"
-#include "m_string.h"
-#include "gis0geo.h"
+
+#ifdef WITH_WSREP
+#include <mysql/service_wsrep.h>
+#include "../../../wsrep/wsrep_api.h"
+#include "wsrep_mysqld_c.h"
+#endif /* WITH_WSREP */
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -74,7 +74,11 @@ ins_node_create(
 	ins_node_t*	node;
 
 	node = static_cast<ins_node_t*>(
-		mem_heap_alloc(heap, sizeof(ins_node_t)));
+		mem_heap_zalloc(heap, sizeof(ins_node_t)));
+
+	if (!node) {
+		return(NULL);
+	}
 
 	node->common.type = QUE_NODE_INSERT;
 
@@ -82,13 +86,6 @@ ins_node_create(
 
 	node->state = INS_NODE_SET_IX_LOCK;
 	node->table = table;
-	node->index = NULL;
-	node->entry = NULL;
-
-	node->select = NULL;
-
-	node->trx_id = 0;
-	node->duplicate = NULL;
 
 	node->entry_sys_heap = mem_heap_create(128);
 
@@ -193,7 +190,6 @@ ins_node_set_new_row(
 	node->state = INS_NODE_SET_IX_LOCK;
 	node->index = NULL;
 	node->entry = NULL;
-	node->duplicate = NULL;
 
 	node->row = row;
 
@@ -334,7 +330,7 @@ row_ins_clust_index_entry_by_modify(
 {
 	const rec_t*	rec;
 	upd_t*		update;
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 	btr_cur_t*	cursor	= btr_pcur_get_btr_cur(pcur);
 	TABLE*		mysql_table = NULL;
 	ut_ad(dict_index_is_clust(cursor->index));
@@ -357,9 +353,14 @@ row_ins_clust_index_entry_by_modify(
 
 	update = row_upd_build_difference_binary(
 		cursor->index, entry, rec, NULL, true,
-		thr_get_trx(thr), heap, mysql_table);
+		thr_get_trx(thr), heap, mysql_table, &err);
+	if (err != DB_SUCCESS) {
+		return(err);
+	}
+
 	if (mode != BTR_MODIFY_TREE) {
-		ut_ad((mode & ~BTR_ALREADY_S_LATCHED) == BTR_MODIFY_LEAF);
+		ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
+		      == BTR_MODIFY_LEAF);
 
 		/* Try optimistic updating of the record, keeping changes
 		within the page */
@@ -489,8 +490,6 @@ row_ins_cascade_calc_update_vec(
 	doc_id_t	new_doc_id = FTS_NULL_DOC_ID;
 	ulint		prefix_col;
 
-	ut_a(node);
-	ut_a(foreign);
 	ut_a(cascade);
 	ut_a(table);
 	ut_a(index);
@@ -640,7 +639,7 @@ row_ins_cascade_calc_update_vec(
 				    && dict_table_is_fts_column(
 					table->fts->indexes,
 					dict_col_get_no(col),
-					dict_col_is_virtual(col))
+					col->is_virtual())
 					!= ULINT_UNDEFINED) {
 					affects_fulltext = true;
 				}
@@ -875,8 +874,12 @@ row_ins_foreign_report_add_err(
 	fk_str = dict_print_info_on_foreign_key_in_create_format(trx, foreign,
 							TRUE);
 	fputs(fk_str.c_str(), ef);
-	fprintf(ef, " in parent table, in index %s",
-		foreign->foreign_index->name());
+	if (foreign->foreign_index) {
+		fprintf(ef, " in parent table, in index %s",
+			foreign->foreign_index->name());
+	} else {
+		fputs(" in parent table", ef);
+	}
 	if (entry) {
 		fputs(" tuple:\n", ef);
 		/* TODO: DB_TRX_ID and DB_ROLL_PTR may be uninitialized.
@@ -914,8 +917,7 @@ row_ins_invalidate_query_cache(
 	const char*	name)		/*!< in: table name prefixed with
 					database name and a '/' character */
 {
-	ulint	len = strlen(name) + 1;
-	innobase_invalidate_query_cache(thr_get_trx(thr), name, len);
+	innobase_invalidate_query_cache(thr_get_trx(thr), name);
 }
 
 
@@ -944,13 +946,16 @@ row_ins_foreign_fill_virtual(
 		rec_get_offsets(rec, index, offsets_, true,
 				ULINT_UNDEFINED, &cascade->heap);
 	mem_heap_t*	v_heap = NULL;
+	TABLE*		mysql_table= NULL;
+	VCOL_STORAGE*	vcol_storage= NULL;
+	byte*		record;
 	upd_t*		update = cascade->update;
 	ulint		n_v_fld = index->table->n_v_def;
 	ulint		n_diff;
 	upd_field_t*	upd_field;
 	dict_vcol_set*	v_cols = foreign->v_cols;
 	update->old_vrow = row_build(
-		ROW_COPY_POINTERS, index, rec,
+		ROW_COPY_DATA, index, rec,
 		offsets, index->table, NULL, NULL,
 		&ext, cascade->heap);
 	n_diff = update->n_fields;
@@ -961,6 +966,14 @@ row_ins_foreign_fill_virtual(
 		/** This can occur when there is a cascading
 		delete or update after restart. */
 		innobase_init_vc_templ(index->table);
+	}
+
+	if (innobase_allocate_row_for_vcol(thd, index, &v_heap,
+                                           &mysql_table,
+                                           &record, &vcol_storage)) {
+		if (v_heap) mem_heap_free(v_heap);
+		*err = DB_OUT_OF_MEMORY;
+		goto func_exit;
 	}
 
 	for (ulint i = 0; i < n_v_fld; i++) {
@@ -976,8 +989,8 @@ row_ins_foreign_fill_virtual(
 
 		dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
-				&v_heap, update->heap, NULL, thd, NULL,
-				NULL, NULL, NULL);
+				&v_heap, update->heap, NULL, thd, mysql_table,
+                                record, NULL, NULL, NULL);
 
 		if (vfield == NULL) {
 			*err = DB_COMPUTE_VALUE_FAILED;
@@ -1007,7 +1020,8 @@ row_ins_foreign_fill_virtual(
 			dfield_t* new_vfield = innobase_get_computed_value(
 					update->old_vrow, col, index,
 					&v_heap, update->heap, NULL, thd,
-					NULL, NULL, node->update, foreign);
+					mysql_table, record, NULL,
+					node->update, foreign);
 
 			if (new_vfield == NULL) {
 				*err = DB_COMPUTE_VALUE_FAILED;
@@ -1025,17 +1039,19 @@ row_ins_foreign_fill_virtual(
 
 func_exit:
 	if (v_heap) {
+		if (vcol_storage)
+			innobase_free_row_for_vcol(vcol_storage);
 		mem_heap_free(v_heap);
 	}
 }
 
 #ifdef WITH_WSREP
 dberr_t wsrep_append_foreign_key(trx_t *trx,
-			       dict_foreign_t*	foreign,
-			       const rec_t*	clust_rec,
-			       dict_index_t*	clust_index,
-			       ibool		referenced,
-			       ibool            shared);
+				dict_foreign_t*	foreign,
+				const rec_t*	clust_rec,
+				dict_index_t*	clust_index,
+				ibool		referenced,
+				enum wsrep_key_type key_type);
 #endif /* WITH_WSREP */
 
 /*********************************************************************//**
@@ -1074,10 +1090,6 @@ row_ins_foreign_check_on_constraint(
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 
 	DBUG_ENTER("row_ins_foreign_check_on_constraint");
-	ut_a(thr);
-	ut_a(foreign);
-	ut_a(pcur);
-	ut_a(mtr);
 
 	trx = thr_get_trx(thr);
 
@@ -1300,9 +1312,9 @@ row_ins_foreign_check_on_constraint(
 			if (!affects_fulltext
 			    && table->fts && dict_table_is_fts_column(
 				    table->fts->indexes,
-				    dict_index_get_nth_col_no(index, i),
-				    dict_col_is_virtual(
-					    dict_index_get_nth_col(index, i)))
+				    dict_index_get_nth_col(index, i)->ind,
+				    dict_index_get_nth_col(index, i)
+				    ->is_virtual())
 			    != ULINT_UNDEFINED) {
 				affects_fulltext = true;
 			}
@@ -1329,9 +1341,8 @@ row_ins_foreign_check_on_constraint(
 		for (ulint i = 0; i < foreign->n_fields; i++) {
 			if (dict_table_is_fts_column(
 				table->fts->indexes,
-				dict_index_get_nth_col_no(index, i),
-				dict_col_is_virtual(
-					dict_index_get_nth_col(index, i)))
+				dict_index_get_nth_col(index, i)->ind,
+				dict_index_get_nth_col(index, i)->is_virtual())
 			    != ULINT_UNDEFINED) {
 				affects_fulltext = true;
 				break;
@@ -1396,9 +1407,9 @@ row_ins_foreign_check_on_constraint(
 	if (table->versioned() && cascade->is_delete != PLAIN_DELETE
 	    && cascade->update->affects_versioned()) {
 		ut_ad(!cascade->historical_heap);
-		cascade->historical_heap = mem_heap_create(128);
+		cascade->historical_heap = mem_heap_create(srv_page_size);
 		cascade->historical_row = row_build(
-			ROW_COPY_POINTERS, clust_index, clust_rec, NULL, table,
+			ROW_COPY_DATA, clust_index, clust_rec, NULL, table,
 			NULL, NULL, NULL, cascade->historical_heap);
 	}
 
@@ -1420,8 +1431,8 @@ row_ins_foreign_check_on_constraint(
 	cascade->state = UPD_NODE_UPDATE_CLUSTERED;
 
 #ifdef WITH_WSREP
-	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
-				       FALSE, FALSE);
+	err = wsrep_append_foreign_key(trx, foreign, cascade->pcur->old_rec, clust_index,
+				       FALSE, WSREP_KEY_EXCLUSIVE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);
@@ -1574,7 +1585,7 @@ row_ins_check_foreign_constraint(
 	upd_node= NULL;
 #endif /* WITH_WSREP */
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_S));
 
 	err = DB_SUCCESS;
 
@@ -1649,34 +1660,51 @@ row_ins_check_foreign_constraint(
 	    || !check_table->is_readable()
 	    || check_index == NULL) {
 
-		if (!srv_read_only_mode && check_ref) {
-			FILE*	ef = dict_foreign_err_file;
-			std::string fk_str;
+		FILE*	ef = dict_foreign_err_file;
+		std::string fk_str;
 
-			row_ins_set_detailed(trx, foreign);
+		row_ins_set_detailed(trx, foreign);
+		row_ins_foreign_trx_print(trx);
 
-			row_ins_foreign_trx_print(trx);
-
-			fputs("Foreign key constraint fails for table ", ef);
-			ut_print_name(ef, trx,
-				      foreign->foreign_table_name);
-			fputs(":\n", ef);
-			fk_str = dict_print_info_on_foreign_key_in_create_format(
-				trx, foreign, TRUE);
-			fputs(fk_str.c_str(), ef);
-			fprintf(ef, "\nTrying to add to index %s tuple:\n",
-				foreign->foreign_index->name());
+		fputs("Foreign key constraint fails for table ", ef);
+		ut_print_name(ef, trx, check_ref
+			      ? foreign->foreign_table_name
+			      : foreign->referenced_table_name);
+		fputs(":\n", ef);
+		fk_str = dict_print_info_on_foreign_key_in_create_format(
+			trx, foreign, TRUE);
+		fputs(fk_str.c_str(), ef);
+		if (check_ref) {
+			if (foreign->foreign_index) {
+				fprintf(ef, "\nTrying to add to index %s"
+					" tuple:\n",
+					foreign->foreign_index->name());
+			} else {
+				fputs("\nTrying to add tuple:\n", ef);
+			}
 			dtuple_print(ef, entry);
 			fputs("\nBut the parent table ", ef);
-			ut_print_name(ef, trx,
-				      foreign->referenced_table_name);
-			fputs("\nor its .ibd file does"
+			ut_print_name(ef, trx, foreign->referenced_table_name);
+			fputs("\nor its .ibd file or the required index does"
 			      " not currently exist!\n", ef);
-			mutex_exit(&dict_foreign_err_mutex);
-
 			err = DB_NO_REFERENCED_ROW;
+		} else {
+			if (foreign->referenced_index) {
+				fprintf(ef, "\nTrying to modify index %s"
+					" tuple:\n",
+					foreign->referenced_index->name());
+			} else {
+				fputs("\nTrying to modify tuple:\n", ef);
+			}
+			dtuple_print(ef, entry);
+			fputs("\nBut the referencing table ", ef);
+			ut_print_name(ef, trx, foreign->foreign_table_name);
+			fputs("\nor its .ibd file or the required index does"
+			      " not currently exist!\n", ef);
+			err = DB_ROW_IS_REFERENCED;
 		}
 
+		mutex_exit(&dict_foreign_err_mutex);
 		goto exit_func;
 	}
 
@@ -1796,13 +1824,36 @@ row_ins_check_foreign_constraint(
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
+					if (!wsrep_on(trx->mysql_thd)) {
+						goto end_scan;
+					}
+					enum wsrep_key_type key_type;
+					if (upd_node != NULL) {
+						key_type = WSREP_KEY_SHARED;
+					} else {
+						switch (wsrep_certification_rules) {
+						default:
+						case WSREP_CERTIFICATION_RULES_STRICT:
+							key_type = WSREP_KEY_EXCLUSIVE;
+							break;
+						case WSREP_CERTIFICATION_RULES_OPTIMIZED:
+							key_type = WSREP_KEY_SEMI;
+							break;
+						}
+					}
+
 					err = wsrep_append_foreign_key(
-						thr_get_trx(thr),
+						trx,
 						foreign,
 						rec,
 						check_index,
 						check_ref,
-						(upd_node) ? TRUE : FALSE);
+						key_type);
+
+					if (err != DB_SUCCESS) {
+						fprintf(stderr,
+							"WSREP: foreign key append failed: %d\n", err);
+					}
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
@@ -1903,9 +1954,12 @@ do_possible_lock_wait:
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
-		if (check_table->to_be_dropped
-		    || trx->error_state == DB_LOCK_WAIT_TIMEOUT) {
+		err = trx->error_state;
+		if (err != DB_SUCCESS) {
+		} else if (check_table->to_be_dropped) {
 			err = DB_LOCK_WAIT_TIMEOUT;
+		} else {
+			err = DB_LOCK_WAIT;
 		}
 
 		check_table->dec_fk_checks();
@@ -1932,6 +1986,7 @@ row_ins_check_foreign_constraints(
 /*==============================*/
 	dict_table_t*	table,	/*!< in: table */
 	dict_index_t*	index,	/*!< in: index */
+	bool		pk,	/*!< in: index->is_primary() */
 	dtuple_t*	entry,	/*!< in: index entry for index */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
@@ -1939,6 +1994,8 @@ row_ins_check_foreign_constraints(
 	dberr_t		err;
 	trx_t*		trx;
 	ibool		got_s_lock	= FALSE;
+
+	DBUG_ASSERT(index->is_primary() == pk);
 
 	trx = thr_get_trx(thr);
 
@@ -1951,7 +2008,8 @@ row_ins_check_foreign_constraints(
 
 		foreign = *it;
 
-		if (foreign->foreign_index == index) {
+		if (foreign->foreign_index == index
+		    || (pk && !foreign->foreign_index)) {
 			dict_table_t*	ref_table = NULL;
 			dict_table_t*	referenced_table
 						= foreign->referenced_table;
@@ -2325,12 +2383,6 @@ row_ins_duplicate_error_in_clust(
 						  true,
 						  ULINT_UNDEFINED, &heap);
 
-			ulint lock_type;
-
-			lock_type =
-				trx->isolation_level <= TRX_ISO_READ_COMMITTED
-				? LOCK_REC_NOT_GAP : LOCK_ORDINARY;
-
 			/* We set a lock on the possible duplicate: this
 			is needed in logical logging of MySQL to make
 			sure that in roll-forward we get the same duplicate
@@ -2347,13 +2399,13 @@ row_ins_duplicate_error_in_clust(
 				INSERT ON DUPLICATE KEY UPDATE). */
 
 				err = row_ins_set_exclusive_rec_lock(
-					lock_type,
+					LOCK_REC_NOT_GAP,
 					btr_cur_get_block(cursor),
 					rec, cursor->index, offsets, thr);
 			} else {
 
 				err = row_ins_set_shared_rec_lock(
-					lock_type,
+					LOCK_REC_NOT_GAP,
 					btr_cur_get_block(cursor), rec,
 					cursor->index, offsets, thr);
 			}
@@ -2477,10 +2529,8 @@ row_ins_index_entry_big_rec(
 	const big_rec_t*	big_rec,
 	ulint*			offsets,
 	mem_heap_t**		heap,
-#ifndef DBUG_OFF
-	const void*		thd,
-#endif /* DBUG_OFF */
-	dict_index_t*		index)
+	dict_index_t*		index,
+	const void*		thd __attribute__((unused)))
 {
 	mtr_t		mtr;
 	btr_pcur_t	pcur;
@@ -2521,14 +2571,6 @@ row_ins_index_entry_big_rec(
 	return(error);
 }
 
-#ifdef DBUG_OFF
-# define row_ins_index_entry_big_rec(e,big,ofs,heap,index,thd) \
-	row_ins_index_entry_big_rec(e,big,ofs,heap,index)
-#else /* DBUG_OFF */
-# define row_ins_index_entry_big_rec(e,big,ofs,heap,index,thd) \
-	row_ins_index_entry_big_rec(e,big,ofs,heap,thd,index)
-#endif /* DBUG_OFF */
-
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
 constraints. If a record with the same unique key is found, the other
@@ -2551,10 +2593,7 @@ row_ins_clust_index_entry_low(
 	ulint		n_uniq,	/*!< in: 0 or index->n_uniq */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	que_thr_t*	thr)	/*!< in: query thread */
 {
 	btr_pcur_t	pcur;
 	btr_cur_t*	cursor;
@@ -2577,7 +2616,7 @@ row_ins_clust_index_entry_low(
 
 	mtr_start(&mtr);
 
-	if (dict_table_is_temporary(index->table)) {
+	if (index->table->is_temporary()) {
 		/* Disable REDO logging as the lifetime of temp-tables is
 		limited to server or connection lifetime and so REDO
 		information is not needed on restart for recovery.
@@ -2594,7 +2633,7 @@ row_ins_clust_index_entry_low(
 		if (mode == BTR_MODIFY_LEAF
 		    && dict_index_is_online_ddl(index)) {
 			mode = BTR_MODIFY_LEAF_ALREADY_S_LATCHED;
-			mtr_s_lock(dict_index_get_lock(index), &mtr);
+			mtr_s_lock_index(index, &mtr);
 		}
 
 		if (unsigned ai = index->table->persistent_autoinc) {
@@ -2638,12 +2677,11 @@ row_ins_clust_index_entry_low(
 	}
 #endif /* UNIV_DEBUG */
 
-	if (UNIV_UNLIKELY(entry->info_bits)) {
-		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
+	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
+		ut_ad(entry->info_bits == REC_INFO_METADATA);
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
 		ut_ad(!dict_index_is_online_ddl(index));
-		ut_ad(!dup_chk_only);
 
 		const rec_t* rec = btr_cur_get_rec(cursor);
 
@@ -2654,7 +2692,8 @@ row_ins_clust_index_entry_low(
 			err = DB_DUPLICATE_KEY;
 			goto err_exit;
 		case REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG:
-			/* The 'default row' is never delete-marked.
+			/* The metadata record never carries the delete-mark
+			in MariaDB Server 10.3.
 			If a table loses its 'instantness', it happens
 			by the rollback of this first-time insert, or
 			by a call to btr_page_empty() on the root page
@@ -2667,9 +2706,7 @@ row_ins_clust_index_entry_low(
 		}
 	}
 
-	if (index->is_instant()) entry->trim(*index);
-
-	if (rec_is_default_row(btr_cur_get_rec(cursor), index)) {
+	if (rec_is_metadata(btr_cur_get_rec(cursor), index)) {
 		goto do_insert;
 	}
 
@@ -2710,11 +2747,6 @@ err_exit:
 		}
 	}
 
-	if (dup_chk_only) {
-		mtr_commit(&mtr);
-		goto func_exit;
-	}
-
 	/* Note: Allowing duplicates would qualify for modification of
 	an existing record as the new entry is exactly same as old entry. */
 	if (row_ins_must_modify_rec(cursor)) {
@@ -2735,11 +2767,12 @@ err_exit:
 		mtr_commit(&mtr);
 		mem_heap_free(entry_heap);
 	} else {
+		if (index->is_instant()) entry->trim(*index);
 do_insert:
 		rec_t*	insert_rec;
 
 		if (mode != BTR_MODIFY_TREE) {
-			ut_ad((mode & ~BTR_ALREADY_S_LATCHED)
+			ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
 			      == BTR_MODIFY_LEAF);
 			err = btr_cur_optimistic_insert(
 				flags, cursor, &offsets, &offsets_heap,
@@ -2779,8 +2812,7 @@ do_insert:
 
 			DBUG_EXECUTE_IF(
 				"row_ins_extern_checkpoint",
-				log_make_checkpoint_at(
-					LSN_MAX, TRUE););
+				log_write_up_to(mtr.commit_lsn(), true););
 			err = row_ins_index_entry_big_rec(
 				entry, big_rec, offsets, &offsets_heap, index,
 				thr_get_trx(thr)->mysql_thd);
@@ -2834,9 +2866,9 @@ row_ins_sec_mtr_start_and_check_if_aborted(
 	}
 
 	if (search_mode & BTR_ALREADY_S_LATCHED) {
-		mtr_s_lock(dict_index_get_lock(index), mtr);
+		mtr_s_lock_index(index, mtr);
 	} else {
-		mtr_sx_lock(dict_index_get_lock(index), mtr);
+		mtr_sx_lock_index(index, mtr);
 	}
 
 	switch (index->online_status) {
@@ -2876,10 +2908,7 @@ row_ins_sec_index_entry_low(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	trx_id_t	trx_id,	/*!< in: PAGE_MAX_TRX_ID during
 				row_log_table_apply(), or 0 */
-	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	que_thr_t*	thr)	/*!< in: query thread */
 {
 	DBUG_ENTER("row_ins_sec_index_entry_low");
 
@@ -2925,9 +2954,9 @@ row_ins_sec_index_entry_low(
 		DEBUG_SYNC_C("row_ins_sec_index_enter");
 		if (mode == BTR_MODIFY_LEAF) {
 			search_mode |= BTR_ALREADY_S_LATCHED;
-			mtr_s_lock(dict_index_get_lock(index), &mtr);
+			mtr_s_lock_index(index, &mtr);
 		} else {
-			mtr_sx_lock(dict_index_get_lock(index), &mtr);
+			mtr_sx_lock_index(index, &mtr);
 		}
 
 		if (row_log_online_op_try(
@@ -2989,7 +3018,7 @@ row_ins_sec_index_entry_low(
 				"Table %s is encrypted but encryption service or"
 				" used key_id is not available. "
 				" Can't continue reading table.",
-				index->table->name);
+				index->table->name.m_name);
 			index->table->file_unreadable = true;
 		}
 		goto func_exit;
@@ -3076,48 +3105,6 @@ row_ins_sec_index_entry_low(
 			&cursor, 0, __FILE__, __LINE__, &mtr);
 	}
 
-	if (!(flags & BTR_NO_LOCKING_FLAG)
-	    && dict_index_is_unique(index)
-	    && thr_get_trx(thr)->duplicates
-	    && thr_get_trx(thr)->isolation_level >= TRX_ISO_REPEATABLE_READ) {
-
-		/* When using the REPLACE statement or ON DUPLICATE clause, a
-		gap lock is taken on the position of the to-be-inserted record,
-		to avoid other concurrent transactions from inserting the same
-		record. */
-
-		dberr_t	err;
-		const rec_t* rec = page_rec_get_next_const(
-			btr_cur_get_rec(&cursor));
-
-		ut_ad(!page_rec_is_infimum(rec));
-
-		offsets = rec_get_offsets(rec, index, offsets, true,
-					  ULINT_UNDEFINED, &offsets_heap);
-
-		err = row_ins_set_exclusive_rec_lock(
-			LOCK_GAP, btr_cur_get_block(&cursor), rec,
-			index, offsets, thr);
-
-		switch (err) {
-		case DB_SUCCESS:
-		case DB_SUCCESS_LOCKED_REC:
-			if (thr_get_trx(thr)->error_state != DB_DUPLICATE_KEY) {
-				break;
-			}
-			/* Fall through (skip actual insert) after we have
-			successfully acquired the gap lock. */
-		default:
-			goto func_exit;
-		}
-	}
-
-	ut_ad(thr_get_trx(thr)->error_state == DB_SUCCESS);
-
-	if (dup_chk_only) {
-		goto func_exit;
-	}
-
 	if (row_ins_must_modify_rec(&cursor)) {
 		/* There is already an index entry with a long enough common
 		prefix, we must convert the insert into a modify of an
@@ -3132,7 +3119,7 @@ row_ins_sec_index_entry_low(
 
 		if (err == DB_SUCCESS && dict_index_is_spatial(index)
 		    && rtr_info.mbr_adj) {
-			err = rtr_ins_enlarge_mbr(&cursor, thr, &mtr);
+			err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 		}
 	} else {
 		rec_t*		insert_rec;
@@ -3146,7 +3133,7 @@ row_ins_sec_index_entry_low(
 			if (err == DB_SUCCESS
 			    && dict_index_is_spatial(index)
 			    && rtr_info.mbr_adj) {
-				err = rtr_ins_enlarge_mbr(&cursor, thr, &mtr);
+				err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 			}
 		} else {
 			ut_ad(mode == BTR_MODIFY_TREE);
@@ -3171,7 +3158,7 @@ row_ins_sec_index_entry_low(
 			if (err == DB_SUCCESS
 				   && dict_index_is_spatial(index)
 				   && rtr_info.mbr_adj) {
-				err = rtr_ins_enlarge_mbr(&cursor, thr, &mtr);
+				err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 			}
 		}
 
@@ -3206,10 +3193,7 @@ row_ins_clust_index_entry(
 	dict_index_t*	index,	/*!< in: clustered index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr,	/*!< in: query thread */
-	ulint		n_ext,	/*!< in: number of externally stored columns */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	ulint		n_ext)	/*!< in: number of externally stored columns */
 {
 	dberr_t	err;
 	ulint	n_uniq;
@@ -3218,7 +3202,7 @@ row_ins_clust_index_entry(
 
 	if (!index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(
-			index->table, index, entry, thr);
+			index->table, index, true, entry, thr);
 		if (err != DB_SUCCESS) {
 
 			DBUG_RETURN(err);
@@ -3228,7 +3212,7 @@ row_ins_clust_index_entry(
 	n_uniq = dict_index_is_unique(index) ? index->n_uniq : 0;
 
 	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
-		: dict_table_is_temporary(index->table)
+		: index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG : 0;
 	const ulint	orig_n_fields = entry->n_fields;
 
@@ -3248,7 +3232,7 @@ row_ins_clust_index_entry(
 
 	err = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_LEAF, index, n_uniq, entry,
-		n_ext, thr, dup_chk_only);
+		n_ext, thr);
 
 	entry->n_fields = orig_n_fields;
 
@@ -3265,7 +3249,7 @@ row_ins_clust_index_entry(
 
 	err = row_ins_clust_index_entry_low(
 		flags, BTR_MODIFY_TREE, index, n_uniq, entry,
-		n_ext, thr, dup_chk_only);
+		n_ext, thr);
 
 	entry->n_fields = orig_n_fields;
 
@@ -3284,9 +3268,8 @@ row_ins_sec_index_entry(
 	dict_index_t*	index,	/*!< in: secondary index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr,	/*!< in: query thread */
-	bool		dup_chk_only)
-				/*!< in: if true, just do duplicate check
-				and return. don't execute actual insert. */
+	bool		check_foreign) /*!< in: true if check
+				foreign table is needed, false otherwise */
 {
 	dberr_t		err;
 	mem_heap_t*	offsets_heap;
@@ -3297,9 +3280,9 @@ row_ins_sec_index_entry(
 			DBUG_SET("-d,row_ins_sec_index_entry_timeout");
 			return(DB_LOCK_WAIT);});
 
-	if (!index->table->foreign_set.empty()) {
+	if (check_foreign && !index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(index->table, index,
-							entry, thr);
+							false, entry, thr);
 		if (err != DB_SUCCESS) {
 
 			return(err);
@@ -3314,7 +3297,7 @@ row_ins_sec_index_entry(
 	/* Try first optimistic descent to the B-tree */
 
 	log_free_check();
-	ulint flags = dict_table_is_temporary(index->table)
+	ulint flags = index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG
 		: 0;
 
@@ -3329,7 +3312,7 @@ row_ins_sec_index_entry(
 
 	err = row_ins_sec_index_entry_low(
 		flags, BTR_MODIFY_LEAF, index, offsets_heap, heap, entry,
-		trx_id, thr, dup_chk_only);
+		trx_id, thr);
 	if (err == DB_FAIL) {
 		mem_heap_empty(heap);
 
@@ -3343,8 +3326,7 @@ row_ins_sec_index_entry(
 
 		err = row_ins_sec_index_entry_low(
 			flags, BTR_MODIFY_TREE, index,
-			offsets_heap, heap, entry, 0, thr,
-			dup_chk_only);
+			offsets_heap, heap, entry, 0, thr);
 	}
 
 	mem_heap_free(heap);
@@ -3373,9 +3355,9 @@ row_ins_index_entry(
 			return(DB_LOCK_WAIT);});
 
 	if (index->is_primary()) {
-		return(row_ins_clust_index_entry(index, entry, thr, 0, false));
+		return row_ins_clust_index_entry(index, entry, thr, 0);
 	} else {
-		return(row_ins_sec_index_entry(index, entry, thr, false));
+		return row_ins_sec_index_entry(index, entry, thr);
 	}
 }
 
@@ -3390,14 +3372,14 @@ row_ins_spatial_index_entry_set_mbr_field(
 	dfield_t*	field,		/*!< in/out: mbr field */
 	const dfield_t*	row_field)	/*!< in: row field */
 {
-	uchar*		dptr = NULL;
 	ulint		dlen = 0;
 	double		mbr[SPDIMS * 2];
 
 	/* This must be a GEOMETRY datatype */
 	ut_ad(DATA_GEOMETRY_MTYPE(field->type.mtype));
 
-	dptr = static_cast<uchar*>(dfield_get_data(row_field));
+	const byte* dptr = static_cast<const byte*>(
+		dfield_get_data(row_field));
 	dlen = dfield_get_len(row_field);
 
 	/* obtain the MBR */
@@ -3414,8 +3396,8 @@ columns in row.
 @param[in]	index	index handler
 @param[out]	entry	index entry to make
 @param[in]	row	row
-
 @return DB_SUCCESS if the set is successful */
+static
 dberr_t
 row_ins_index_entry_set_vals(
 	const dict_index_t*	index,
@@ -3446,7 +3428,7 @@ row_ins_index_entry_set_vals(
 			col = ind_field->col;
 		}
 
-		if (dict_col_is_virtual(col)) {
+		if (col->is_virtual()) {
 			const dict_v_col_t*     v_col
 				= reinterpret_cast<const dict_v_col_t*>(col);
 			ut_ad(dtuple_get_n_fields(row)
@@ -3632,15 +3614,9 @@ row_ins(
 	ins_node_t*	node,	/*!< in: row insert node */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	dberr_t	err;
-
 	DBUG_ENTER("row_ins");
 
 	DBUG_PRINT("row_ins", ("table: %s", node->table->name.m_name));
-
-	if (node->duplicate) {
-		thr_get_trx(thr)->error_state = DB_DUPLICATE_KEY;
-	}
 
 	if (node->state == INS_NODE_ALLOC_ROW_ID) {
 
@@ -3665,105 +3641,11 @@ row_ins(
 
 	while (node->index != NULL) {
 		if (node->index->type != DICT_FTS) {
-			err = row_ins_index_entry_step(node, thr);
+			dberr_t err = row_ins_index_entry_step(node, thr);
 
-			switch (err) {
-			case DB_SUCCESS:
-				break;
-			case DB_NO_REFERENCED_ROW:
-				if (!dict_index_is_unique(node->index)) {
-					DBUG_RETURN(err);
-				}
-				/* fall through */
-			case DB_DUPLICATE_KEY:
-				ut_ad(dict_index_is_unique(node->index));
-
-				if (thr_get_trx(thr)->isolation_level
-				    >= TRX_ISO_REPEATABLE_READ
-				    && thr_get_trx(thr)->duplicates) {
-
-					/* When we are in REPLACE statement or
-					INSERT ..  ON DUPLICATE UPDATE
-					statement, we process all the
-					unique secondary indexes, even after we
-					encounter a duplicate error. This is
-					done to take necessary gap locks in
-					secondary indexes to block concurrent
-					transactions from inserting the
-					searched records. */
-					if (err == DB_NO_REFERENCED_ROW
-					    && node->duplicate) {
-						/* A foreign key check on a
-						unique index may fail to
-						find the record.
-
-						Consider as a example
-						following:
-						create table child(a int not null
-						primary key, b int not null,
-						c int,
-						unique key (b),
-						foreign key (b) references
-						parent (id)) engine=innodb;
-
-						insert into child values
-						(1,1,2);
-
-						insert into child(a) values
-						(1) on duplicate key update
-						c = 3;
-
-						Now primary key value 1
-						naturally causes duplicate
-						key error that will be
-						stored on node->duplicate.
-						If there was no duplicate
-						key error, we should return
-						the actual no referenced
-						row error.
-
-						As value for
-						column b used in both unique
-						key and foreign key is not
-						provided, server uses 0 as a
-						search value. This is
-						naturally, not found leading
-						to DB_NO_REFERENCED_ROW.
-						But, we should update the
-						row with primay key value 1
-						anyway.
-
-						Return the
-						original  DB_DUPLICATE_KEY
-						error after
-						placing all gaplocks. */
-						err = DB_DUPLICATE_KEY;
-						break;
-					} else if (!node->duplicate) {
-						/* Save 1st dup error. Ignore
-						subsequent dup errors. */
-						node->duplicate = node->index;
-						thr_get_trx(thr)->error_state
-							= DB_DUPLICATE_KEY;
-					}
-					break;
-				}
-				// fall through
-			default:
+			if (err != DB_SUCCESS) {
 				DBUG_RETURN(err);
 			}
-		}
-
-		if (node->duplicate && dict_table_is_temporary(node->table)) {
-			ut_ad(thr_get_trx(thr)->error_state
-			      == DB_DUPLICATE_KEY);
-			/* For TEMPORARY TABLE, we won't lock anything,
-			so we can simply break here instead of requiring
-			GAP locks for other unique secondary indexes,
-			pretending we have consumed all indexes. */
-			node->index = NULL;
-			node->entry = NULL;
-			break;
 		}
 
 		node->index = dict_table_get_next_index(node->index);
@@ -3774,35 +3656,17 @@ row_ins(
 			node->index = NULL; node->entry = NULL; break;);
 
 		/* Skip corrupted secondary index and its entry */
-		while (node->index && dict_index_is_corrupted(node->index)) {
-
+		while (node->index && node->index->is_corrupted()) {
 			node->index = dict_table_get_next_index(node->index);
 			node->entry = UT_LIST_GET_NEXT(tuple_list, node->entry);
-		}
-
-		/* After encountering a duplicate key error, we process
-		remaining indexes just to place gap locks and no actual
-		insertion will take place.  These gap locks are needed
-		only for unique indexes.  So skipping non-unique indexes. */
-		if (node->duplicate) {
-			while (node->index
-			       && !dict_index_is_unique(node->index)) {
-
-				node->index = dict_table_get_next_index(
-					node->index);
-				node->entry = UT_LIST_GET_NEXT(tuple_list,
-							       node->entry);
-			}
-			thr_get_trx(thr)->error_state = DB_DUPLICATE_KEY;
 		}
 	}
 
 	ut_ad(node->entry == NULL);
 
-	thr_get_trx(thr)->error_info = node->duplicate;
 	node->state = INS_NODE_ALLOC_ROW_ID;
 
-	DBUG_RETURN(node->duplicate ? DB_DUPLICATE_KEY : DB_SUCCESS);
+	DBUG_RETURN(DB_SUCCESS);
 }
 
 /***********************************************************//**
@@ -3851,7 +3715,7 @@ row_ins_step(
 		/* No-rollback tables should only be written to by a
 		single thread at a time, but there can be multiple
 		concurrent readers. We must hold an open table handle. */
-		DBUG_ASSERT(node->table->n_ref_count > 0);
+		DBUG_ASSERT(node->table->get_ref_count() > 0);
 		DBUG_ASSERT(node->ins_type == INS_DIRECT);
 		/* No-rollback tables can consist only of a single index. */
 		DBUG_ASSERT(UT_LIST_GET_LEN(node->entry_list) == 1);

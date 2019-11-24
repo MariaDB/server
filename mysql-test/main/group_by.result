@@ -523,6 +523,8 @@ NULL	9
 b	1
 drop table t1;
 set big_tables=0;
+SET @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity,@save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='outer_join_with_cache=off',@@optimizer_use_condition_selectivity=1;
 create table t1 (a int not null, b int not null);
 insert into t1 values (1,1),(1,2),(3,1),(3,2),(2,2),(2,1);
 create table t2 (a int not null, b int not null, key(a));
@@ -535,10 +537,10 @@ a	b
 3	1
 select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b ORDER BY NULL;
 a	b
-1	3
-3	1
-2	2
 1	1
+1	3
+2	2
+3	1
 explain select t1.a,t2.b from t1,t2 where t1.a=t2.a group by t1.a,t2.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
@@ -548,6 +550,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary
 1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
 drop table t1,t2;
+SET @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity,@@optimizer_switch=@save_optimizer_switch;
 create table t1 (a int, b int);
 insert into t1 values (1, 4),(10, 40),(1, 4),(10, 43),(1, 4),(10, 41),(1, 4),(10, 43),(1, 4);
 select a, MAX(b), INTERVAL (MAX(b), 1,3,10,30,39,40,50,60,100,1000) from t1 group by a;
@@ -1607,7 +1610,8 @@ EXPLAIN SELECT 1 FROM t2 WHERE a IN
 (SELECT a FROM t1 USE INDEX (i2) IGNORE INDEX (i2));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	index	a	a	5	NULL	4	Using index
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	144	Using where; FirstMatch(t2)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	144	
 SET optimizer_switch=@save_optimizer_switch;
 DROP TABLE t1, t2;
 CREATE TABLE t1(
@@ -2832,3 +2836,24 @@ select distinct 1 from t1 group by a,b with rollup limit 1;
 1
 1
 drop table t1;
+CREATE TABLE t1 ( pk int, i1 int, v1 varchar(1));
+explain
+SELECT 1 FROM t1
+GROUP BY REPEAT((BINARY pk), v1), AES_DECRYPT((@A := i1), 20852) WITH ROLLUP HAVING LOAD_FILE('a') ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+SELECT 1 FROM t1
+GROUP BY REPEAT((BINARY pk), v1), AES_DECRYPT((@A := i1), 20852) WITH ROLLUP HAVING LOAD_FILE('a') ;
+1
+drop table t1;
+#
+# MDEV-16170
+# Server crashes in Item_null_result::type_handler on SELECT with ROLLUP
+#
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('2032-10-08');
+SELECT d != '2023-03-04' AS f, COUNT(*) FROM t1 GROUP BY d WITH ROLLUP;
+f	COUNT(*)
+1	1
+NULL	1
+DROP TABLE t1;

@@ -16,7 +16,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************
 
@@ -34,8 +34,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
+Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *******************************************************/
 
@@ -738,7 +738,7 @@ ibx_get_one_option(int optid,
 		exit(0);
 		break;
 	case 'v':
-		msg("innobackupex version %s %s (%s)\n",
+		printf("innobackupex version %s %s (%s)",
 			MYSQL_SERVER_VERSION,
 			SYSTEM_TYPE, MACHINE_TYPE);
 		exit(0);

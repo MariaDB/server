@@ -13,7 +13,9 @@
 #    switches, data distribution, available indexes, and typical queries.
 #
 
-set @subselect_mat_cost=@@optimizer_switch;
+--source include/default_optimizer_switch.inc
+--source include/default_charset.inc
+
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 #
 # Test logging to slow log (there was some errors in the log files about
@@ -426,4 +428,4 @@ drop database world;
 #   inner subqyery is materialized while the outer subquery  is not (
 #IN_EXIST transformation is applied to it)
 
-set optimizer_switch=@subselect_mat_cost;
+set optimizer_switch=default;

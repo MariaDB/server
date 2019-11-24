@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -28,8 +28,6 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0mem_h
 #define dict0mem_h
 
-#include "univ.i"
-#include "dict0types.h"
 #include "data0type.h"
 #include "mem0mem.h"
 #include "row0types.h"
@@ -47,7 +45,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "buf0buf.h"
 #include "gis0type.h"
 #include "os0once.h"
-#include "ut0new.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include <set>
@@ -109,7 +106,7 @@ are described in fsp0fsp.h. */
 /** dict_table_t::flags bit 0 is equal to 0 if the row format = Redundant */
 #define DICT_TF_REDUNDANT		0	/*!< Redundant row format. */
 /** dict_table_t::flags bit 0 is equal to 1 if the row format = Compact */
-#define DICT_TF_COMPACT			1	/*!< Compact row format. */
+#define DICT_TF_COMPACT			1U	/*!< Compact row format. */
 
 /** This bitmask is used in SYS_TABLES.N_COLS to set and test whether
 the Compact page format is used, i.e ROW_FORMAT != REDUNDANT */
@@ -479,14 +476,7 @@ void
 dict_mem_table_free_foreign_vcol_set(
 	dict_table_t*	table);
 
-/** Create a temporary tablename like "#sql-ibtid-inc where
-  tid = the Table ID
-  inc = a randomly initialized number that is incremented for each file
-The table ID is a 64 bit integer, can use up to 20 digits, and is
-initialized at bootstrap. The second number is 32 bits, can use up to 10
-digits, and is initialized at startup to a randomly distributed number.
-It is hoped that the combination of these two numbers will provide a
-reasonably unique temporary file name.
+/** Create a temporary tablename like "#sql-ibNNN".
 @param[in]	heap	A memory heap
 @param[in]	dbtab	Table name in the form database/table name
 @param[in]	id	Table id
@@ -496,10 +486,6 @@ dict_mem_create_temporary_tablename(
 	mem_heap_t*	heap,
 	const char*	dbtab,
 	table_id_t	id);
-
-/** Initialize dict memory variables */
-void
-dict_mem_init(void);
 
 /** SQL identifier name wrapper for pretty-printing */
 class id_name_t
@@ -588,8 +574,12 @@ struct dict_col_t{
 					3072 (REC_VERSION_56_MAX_INDEX_COL_LEN)
 					bytes. */
 
+	/** Detach the column from an index.
+	@param[in]	index	index to be detached from */
+	inline void detach(const dict_index_t& index);
+
 	/** Data for instantly added columns */
-	struct {
+	struct def_t {
 		/** original default value of instantly added column */
 		const void*	data;
 		/** len of data, or UNIV_SQL_DEFAULT if unavailable */
@@ -597,7 +587,7 @@ struct dict_col_t{
 	} def_val;
 
 	/** Retrieve the column name.
-	@param[in]	table	table name */
+	@param[in]	table	the table of this column */
 	const char* name(const dict_table_t& table) const;
 
 	/** @return whether this is a virtual column */
@@ -683,8 +673,7 @@ struct dict_v_col_t{
 	ulint			v_pos;
 
 	/** Virtual index list, and column position in the index,
-	the allocated memory is not from table->heap, nor it is
-	tracked by dict_sys->size */
+	the allocated memory is not from table->heap */
 	dict_v_idx_list*	v_indexes;
 
 };
@@ -766,6 +755,9 @@ struct dict_field_t{
 	unsigned	fixed_len:10;	/*!< 0 or the fixed length of the
 					column if smaller than
 					DICT_ANTELOPE_MAX_INDEX_COL_LEN */
+
+	/** Zero-initialize all fields */
+	dict_field_t() : col(NULL), name(NULL), prefix_len(0), fixed_len(0) {}
 
 	/** Check whether two index fields are equivalent.
 	@param[in]	old	the other index field
@@ -1045,18 +1037,37 @@ struct dict_index_t{
 		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
 	}
 
+	/** @return whether this is a spatial index */
+	bool is_spatial() const { return UNIV_UNLIKELY(type & DICT_SPATIAL); }
+
+	/** @return whether the index includes virtual columns */
+	bool has_virtual() const { return type & DICT_VIRTUAL; }
+
+	/** @return whether the index is corrupted */
+	inline bool is_corrupted() const;
+
+	/** Detach the columns from the index that is to be freed. */
+	void detach_columns()
+	{
+		if (has_virtual()) {
+			for (unsigned i = 0; i < n_fields; i++) {
+				fields[i].col->detach(*this);
+			}
+
+			n_fields = 0;
+		}
+	}
+
 	/** Determine how many fields of a given prefix can be set NULL.
 	@param[in]	n_prefix	number of fields in the prefix
 	@return	number of fields 0..n_prefix-1 that can be set NULL */
 	unsigned get_n_nullable(ulint n_prefix) const
 	{
-		DBUG_ASSERT(is_instant());
 		DBUG_ASSERT(n_prefix > 0);
 		DBUG_ASSERT(n_prefix <= n_fields);
 		unsigned n = n_nullable;
 		for (; n_prefix < n_fields; n_prefix++) {
 			const dict_col_t* col = fields[n_prefix].col;
-			DBUG_ASSERT(is_dummy || col->is_instant());
 			DBUG_ASSERT(!col->is_virtual());
 			n -= col->is_nullable();
 		}
@@ -1093,7 +1104,7 @@ struct dict_index_t{
 			fields[i].col->remove_instant();
 		}
 		n_core_fields = n_fields;
-		n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
+		n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(n_nullable));
 	}
 
 	/** Check if record in clustered index is historical row.
@@ -1109,7 +1120,87 @@ struct dict_index_t{
 	@return true on error */
 	bool
 	vers_history_row(const rec_t* rec, bool &history_row);
+
+	/** This ad-hoc class is used by record_size_info only.	*/
+	class record_size_info_t {
+	public:
+		record_size_info_t()
+		    : max_leaf_size(0), shortest_size(0), too_big(false),
+		      first_overrun_field_index(SIZE_T_MAX), overrun_size(0)
+		{
+		}
+
+		/** Mark row potentially too big for page and set up first
+		overflow field index. */
+		void set_too_big(size_t field_index)
+		{
+			ut_ad(field_index != SIZE_T_MAX);
+
+			too_big = true;
+			if (first_overrun_field_index > field_index) {
+				first_overrun_field_index = field_index;
+				overrun_size = shortest_size;
+			}
+		}
+
+		/** @return overrun field index or SIZE_T_MAX if nothing
+		overflowed*/
+		size_t get_first_overrun_field_index() const
+		{
+			ut_ad(row_is_too_big());
+			ut_ad(first_overrun_field_index != SIZE_T_MAX);
+			return first_overrun_field_index;
+		}
+
+		size_t get_overrun_size() const
+		{
+			ut_ad(row_is_too_big());
+			return overrun_size;
+		}
+
+		bool row_is_too_big() const { return too_big; }
+
+		size_t max_leaf_size; /** Bigger row size this index can
+				      produce */
+		size_t shortest_size; /** shortest because it counts everything
+				      as in overflow pages */
+
+	private:
+		bool too_big; /** This one is true when maximum row size this
+			      index can produce is bigger than maximum row
+			      size given page can hold. */
+		size_t first_overrun_field_index; /** After adding this field
+						  index row overflowed maximum
+						  allowed size. Useful for
+						  reporting back to user. */
+		size_t overrun_size;		  /** Just overrun row size */
+	};
+
+	/** Returns max possibly record size for that index, size of a shortest
+	everything in overflow) size of the longest possible row and index
+	of a field which made index records too big to fit on a page.*/
+	inline record_size_info_t record_size_info() const;
 };
+
+/** Detach a column from an index.
+@param[in]	index	index to be detached from */
+inline void dict_col_t::detach(const dict_index_t& index)
+{
+	if (!is_virtual()) {
+		return;
+	}
+
+	if (dict_v_idx_list* v_indexes = reinterpret_cast<const dict_v_col_t*>
+	    (this)->v_indexes) {
+		for (dict_v_idx_list::iterator i = v_indexes->begin();
+		     i != v_indexes->end(); i++) {
+			if (i->index == &index) {
+				v_indexes->erase(i);
+				return;
+			}
+		}
+	}
+}
 
 /** The status of online index creation */
 enum online_index_status {
@@ -1441,7 +1532,11 @@ struct dict_table_t {
 
 	/** Get reference count.
 	@return current value of n_ref_count */
-	inline ulint get_ref_count() const;
+	inline int32 get_ref_count()
+	{
+		return my_atomic_load32_explicit(&n_ref_count,
+						 MY_MEMORY_ORDER_RELAXED);
+	}
 
 	/** Acquire the table handle. */
 	inline void acquire();
@@ -1453,7 +1548,7 @@ struct dict_table_t {
 	/** @return whether the table supports transactions */
 	bool no_rollback() const
 	{
-		return !(~flags & DICT_TF_MASK_NO_ROLLBACK);
+		return !(~unsigned(flags) & DICT_TF_MASK_NO_ROLLBACK);
         }
 	/** @return whether this is a temporary table */
 	bool is_temporary() const
@@ -1470,6 +1565,13 @@ struct dict_table_t {
 	{
 		ut_ad(file_unreadable || space);
 		return(UNIV_LIKELY(!file_unreadable));
+	}
+
+	/** Check if a table name contains the string "/#sql"
+	which denotes temporary or intermediate tables in MariaDB. */
+	static bool is_temporary_name(const char* name)
+	{
+		return strstr(name, "/" TEMP_FILE_PREFIX) != NULL;
 	}
 
 	/** @return whether instant ADD COLUMN is in effect */
@@ -1514,7 +1616,7 @@ struct dict_table_t {
 	void inc_fk_checks()
 	{
 #ifdef UNIV_DEBUG
-		lint fk_checks=
+		lint fk_checks= (lint)
 #endif
 		my_atomic_addlint(&n_foreign_key_checks_running, 1);
 		ut_ad(fk_checks >= 0);
@@ -1522,28 +1624,26 @@ struct dict_table_t {
 	void dec_fk_checks()
 	{
 #ifdef UNIV_DEBUG
-		lint fk_checks=
+		lint fk_checks= (lint)
 #endif
-		my_atomic_addlint(&n_foreign_key_checks_running, -1);
+		my_atomic_addlint(&n_foreign_key_checks_running, ulint(-1));
 		ut_ad(fk_checks > 0);
 	}
 
+	/** For overflow fields returns potential max length stored inline */
+	size_t get_overflow_field_local_len() const;
+
 	/** Id of the table. */
 	table_id_t				id;
-
-	/** Memory heap. If you allocate from this heap after the table has
-	been created then be sure to account the allocation into
-	dict_sys->size. When closing the table we do something like
-	dict_sys->size -= mem_heap_get_size(table->heap) and if that is going
-	to become negative then we would assert. Something like this should do:
-	old_size = mem_heap_get_size()
-	mem_heap_alloc()
-	new_size = mem_heap_get_size()
-	dict_sys->size += new_size - old_size. */
-	mem_heap_t*				heap;
-
+	/** Hash chain node. */
+	hash_node_t				id_hash;
 	/** Table name. */
 	table_name_t				name;
+	/** Hash chain node. */
+	hash_node_t				name_hash;
+
+	/** Memory heap */
+	mem_heap_t*				heap;
 
 	/** NULL or the directory path specified by DATA DIRECTORY. */
 	char*					data_dir_path;
@@ -1662,12 +1762,6 @@ struct dict_table_t {
 				/*!< !DICT_FRM_CONSISTENT==0 if data
 				dictionary information and
 				MySQL FRM information mismatch. */
-	/** Hash chain node. */
-	hash_node_t				name_hash;
-
-	/** Hash chain node. */
-	hash_node_t				id_hash;
-
 	/** The FTS_DOC_ID_INDEX, or NULL if no fulltext indexes exist */
 	dict_index_t*				fts_doc_id_index;
 
@@ -1697,8 +1791,8 @@ struct dict_table_t {
 	/** Transactions whose view low limit is greater than this number are
 	not allowed to store to the MySQL query cache or retrieve from it.
 	When a trx with undo logs commits, it sets this to the value of the
-	current time. */
-	trx_id_t				query_cache_inv_id;
+	transaction id. */
+	trx_id_t				query_cache_inv_trx_id;
 
 	/** Transaction id that last touched the table definition. Either when
 	loading the definition or CREATE TABLE, or ALTER TABLE (prepare,
@@ -1735,7 +1829,7 @@ struct dict_table_t {
 	unsigned				stat_initialized:1;
 
 	/** Timestamp of last recalc of the stats. */
-	ib_time_t				stats_last_recalc;
+	time_t					stats_last_recalc;
 
 	/** The two bits below are set in the 'stat_persistent' member. They
 	have the following meaning:
@@ -1888,13 +1982,11 @@ struct dict_table_t {
 	It is protected by lock_sys.mutex. */
 	ulint					n_rec_locks;
 
-#ifndef DBUG_ASSERT_EXISTS
 private:
-#endif
 	/** Count of how many handles are opened to this table. Dropping of the
 	table is NOT allowed until this count gets to zero. MySQL does NOT
 	itself check the number of open handles at DROP. */
-	ulint					n_ref_count;
+	int32					n_ref_count;
 
 public:
 	/** List of locks on the table. Protected by lock_sys.mutex. */
@@ -1920,10 +2012,12 @@ inline void dict_index_t::set_modified(mtr_t& mtr) const
 	mtr.set_named_space(table->space);
 }
 
-inline bool dict_index_t::is_readable() const
+inline bool table_name_t::is_temporary() const
 {
-	return(UNIV_LIKELY(!table->file_unreadable));
+	return dict_table_t::is_temporary_name(m_name);
 }
+
+inline bool dict_index_t::is_readable() const { return table->is_readable(); }
 
 inline bool dict_index_t::is_instant() const
 {
@@ -1934,6 +2028,13 @@ inline bool dict_index_t::is_instant() const
 	ut_ad(n_core_fields == n_fields || table->supports_instant());
 	ut_ad(n_core_fields == n_fields || !table->is_temporary());
 	return(n_core_fields != n_fields);
+}
+
+inline bool dict_index_t::is_corrupted() const
+{
+	return UNIV_UNLIKELY(online_status >= ONLINE_INDEX_ABORTED
+			     || (type & DICT_CORRUPT)
+			     || (table && table->corrupted));
 }
 
 /*******************************************************************//**

@@ -713,6 +713,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf16le_general_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 SET NAMES utf8, collation_connection='utf16le_bin';
 create table t1 select repeat('a',4000) a;
 delete from t1;
@@ -849,6 +855,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf16le_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 #
 # Bug#10344 Some string functions fail for UCS2
 #
@@ -1124,7 +1136,7 @@ INSERT INTO t1 VALUES (0xDF84);
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY column s1 VARCHAR(50) CHARACTER SET utf16le;
 Warnings:
-Warning	1366	Incorrect string value: '\xDF\x84' for column 's1' at row 1
+Warning	1366	Incorrect string value: '\xDF\x84' for column `test`.`t1`.`s1` at row 1
 SELECT HEX(s1) FROM t1;
 HEX(s1)
 3F00
@@ -1136,7 +1148,7 @@ CREATE TABLE t1 (s1 VARCHAR(5) CHARACTER SET ucs2, s2 VARCHAR(5) CHARACTER SET u
 INSERT INTO t1 (s1) VALUES (0xdf84);
 UPDATE IGNORE t1 set s2 = s1;
 Warnings:
-Warning	1366	Incorrect string value: '\xDF\x84' for column 's2' at row 1
+Warning	1366	Incorrect string value: '\xDF\x84' for column `test`.`t1`.`s2` at row 1
 SELECT HEX(s2) FROM t1;
 HEX(s2)
 3F00
@@ -2324,6 +2336,35 @@ hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE))
 DFFFFFDFFFFF9CFFFF9DFFFF9EFFFF
 #
 # End of 5.6 tests
+#
+#
+# Start of 10.0 tests
+#
+SET NAMES utf8, character_set_connection=utf16le;
+#
+# MDEV-13118 Wrong results with LOWER and UPPER and subquery
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch=_latin1'derived_merge=on';
+CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS t LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` varchar(10) CHARACTER SET utf16le DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('abcdefghi'),('ABCDEFGHI');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT LOWER(t) t2 FROM t1) sub;
+c2
+abcdefghi-abcdefghi
+abcdefghi-abcdefghi
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT UPPER(t) t2 FROM t1) sub;
+c2
+ABCDEFGHI-ABCDEFGHI
+ABCDEFGHI-ABCDEFGHI
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
+#
+# Start of 10.0 tests
 #
 #
 # Start of 10.1 tests

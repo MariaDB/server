@@ -682,7 +682,6 @@ void With_element::move_anchors_ahead()
 {
   st_select_lex *next_sl;
   st_select_lex *new_pos= spec->first_select();
-  st_select_lex *UNINIT_VAR(last_sl);
   new_pos->linkage= UNION_TYPE;
   for (st_select_lex *sl= new_pos; sl; sl= next_sl)
   {
@@ -690,6 +689,14 @@ void With_element::move_anchors_ahead()
     if (is_anchor(sl))
     {
       sl->move_node(new_pos);
+      if (new_pos == spec->first_select())
+      {
+        enum sub_select_type type= new_pos->linkage;
+        new_pos->linkage= sl->linkage;
+        sl->linkage= type;
+        new_pos->with_all_modifier= sl->with_all_modifier;
+        sl->with_all_modifier= false;
+      }
       new_pos= sl->next_select();
     }
     else if (!sq_rec_ref && no_rec_ref_on_top_level())
@@ -697,11 +704,9 @@ void With_element::move_anchors_ahead()
       sq_rec_ref= find_first_sq_rec_ref_in_select(sl);
       DBUG_ASSERT(sq_rec_ref != NULL);
     }
-    last_sl= sl;
   }
-  if (spec->union_distinct)
-    spec->union_distinct= last_sl;
   first_recursive= new_pos;
+  spec->first_select()->linkage= DERIVED_TABLE_TYPE;
 }
 
 
@@ -739,9 +744,10 @@ bool With_clause::prepare_unreferenced_elements(THD *thd)
   @brief
     Save the specification of the given with table as a string
 
-  @param thd        The context of the statement containing this with element
-  @param spec_start The beginning of the specification in the input string
-  @param spec_end   The end of the specification in the input string
+  @param thd         The context of the statement containing this with element
+  @param spec_start  The beginning of the specification in the input string
+  @param spec_end    The end of the specification in the input string
+  @param spec_offset The offset of the specification in the input string
 
   @details
     The method creates for a string copy of the specification used in this
@@ -753,10 +759,17 @@ bool With_clause::prepare_unreferenced_elements(THD *thd)
     true    on failure
 */
   
-bool With_element::set_unparsed_spec(THD *thd, char *spec_start, char *spec_end)
+bool With_element::set_unparsed_spec(THD *thd, char *spec_start, char *spec_end,
+                                     my_ptrdiff_t spec_offset)
 {
+  stmt_prepare_mode= thd->m_parser_state->m_lip.stmt_prepare_mode;
   unparsed_spec.length= spec_end - spec_start;
-  unparsed_spec.str= thd->strmake(spec_start, unparsed_spec.length);
+
+  if (stmt_prepare_mode || !thd->lex->sphead)
+    unparsed_spec.str= spec_start;
+  else
+    unparsed_spec.str= thd->strmake(spec_start, unparsed_spec.length);
+  unparsed_spec_offset= spec_offset;
 
   if (!unparsed_spec.str)
   {
@@ -826,12 +839,28 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
   TABLE_LIST *spec_tables_tail;
   st_select_lex *with_select;
 
+  char save_end= unparsed_spec.str[unparsed_spec.length];
+  ((char*) &unparsed_spec.str[unparsed_spec.length])[0]= '\0';
   if (parser_state.init(thd, (char*) unparsed_spec.str, (unsigned int)unparsed_spec.length))
     goto err;
+  parser_state.m_lip.stmt_prepare_mode= stmt_prepare_mode;
+  parser_state.m_lip.multi_statements= false;
+  parser_state.m_lip.m_digest= NULL;
+
   lex_start(thd);
+  lex->clone_spec_offset= unparsed_spec_offset;
+  lex->param_list= old_lex->param_list;
+  lex->sphead= old_lex->sphead;
+  lex->spname= old_lex->spname;
+  lex->spcont= old_lex->spcont;
+  lex->sp_chistics= old_lex->sp_chistics;
+
+  lex->stmt_lex= old_lex;
   with_select= &lex->select_lex;
-  with_select->select_number= ++thd->stmt_lex->current_select_number;
+  with_select->select_number= ++thd->lex->stmt_lex->current_select_number;
   parse_status= parse_sql(thd, &parser_state, 0);
+  ((char*) &unparsed_spec.str[unparsed_spec.length])[0]= save_end;
+
   if (parse_status)
     goto err;
 
@@ -876,6 +905,7 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
                         with_select));
   if (check_dependencies_in_with_clauses(lex->with_clauses_list))
     res= NULL;
+  lex->sphead= NULL;    // in order not to delete lex->sphead
   lex_end(lex);
 err:
   if (arena)
@@ -978,7 +1008,7 @@ bool With_element::prepare_unreferenced(THD *thd)
 
   thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
   if (!spec->prepared &&
-      (spec->prepare(thd, 0, 0) ||
+      (spec->prepare(spec->derived, 0, 0) ||
        rename_columns_of_derived_unit(thd, spec) ||
        check_duplicate_names(thd, first_sl->item_list, 1)))
     rc= true;
@@ -1079,6 +1109,7 @@ bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
     table= 0;
   }
   with= with_elem;
+  schema_table= NULL;
   if (!with_elem->is_referenced() || with_elem->is_recursive)
   {
     derived= with_elem->spec;
@@ -1249,7 +1280,7 @@ bool With_element::check_unrestricted_recursive(st_select_lex *sel,
       With_element *with_elem= unit->with_element;
       if (encountered & with_elem->get_elem_map())
         unrestricted|= with_elem->mutually_recursive;
-      else
+      else if (with_elem ==this)
         encountered|= with_elem->get_elem_map();
     }
   } 
@@ -1399,6 +1430,22 @@ void With_clause::print(String *str, enum_query_type query_type)
 void With_element::print(String *str, enum_query_type query_type)
 {
   str->append(query_name);
+  if (column_list.elements)
+  {
+    List_iterator_fast<LEX_CSTRING> li(column_list);
+    str->append('(');
+    for (LEX_CSTRING *col_name= li++; ; )
+    {
+      str->append(col_name);
+      col_name= li++;
+      if (!col_name)
+      {
+        str->append(')');
+        break;
+      }
+      str->append(',');
+    }
+  }
   str->append(STRING_WITH_LEN(" as "));
   str->append('(');
   spec->print(str, query_type);

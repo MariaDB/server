@@ -406,7 +406,68 @@ DROP TABLE t1, t2;
 --echo End of 5.0 tests
 
 --echo #
---echo # Start of 10.3 tests
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-16190 Server crashes in Item_null_result::field_type on SELECT with time field, ROLLUP and HAVING
+--echo #
+CREATE TABLE t1 (t TIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('12:12:12');
+SELECT t, COUNT(*) FROM t1 GROUP BY t WITH ROLLUP HAVING t > '00:00:00';
+DROP TABLE t1;
+
+CREATE TABLE t1 (t TIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('12:12:12'),('12:12:13');
+SELECT t, COUNT(*) FROM t1 GROUP BY t WITH ROLLUP HAVING t > '00:00:00';
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-17830 Server crashes in Item_null_result::field_type upon SELECT with CHARSET(date) and ROLLUP
+--echo #
+
+--echo # Note, different MariaDB versions can return different results
+--echo # in the two rows (such as "latin1" vs "binary"). This is wrong.
+--echo # Both lines should return equal values.
+--echo # The point in this test is to make sure it does not crash.
+--echo # As this is a minor issue, bad result will be fixed
+--echo # in a later version, presumably in 10.4.
+
+CREATE TABLE t (d DATE) ENGINE=MyISAM;
+INSERT INTO t VALUES ('2018-12-12');
+SELECT CHARSET(d) AS f FROM t GROUP BY d WITH ROLLUP;
+DROP TABLE t;
+
+
+--echo #
+--echo # MDEV-14041 Server crashes in String::length on queries with functions and ROLLUP
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT GET_LOCK( 'foo', 0 );
+SELECT HEX( RELEASE_LOCK( 'foo' ) ) AS f FROM t1 GROUP BY f WITH ROLLUP;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT i FROM t1 GROUP BY i WITH ROLLUP
+UNION ALL
+SELECT ELT( FOUND_ROWS(), 1 ) f FROM t1 GROUP BY f WITH ROLLUP;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT a FROM t1 GROUP BY NULLIF( CONVERT('', DATE), '2015-10-15' ) WITH ROLLUP;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # End of 10.2 tests
 --echo #
 
 --echo #
@@ -447,3 +508,19 @@ DESC v1;
 DROP VIEW v1;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15576: Server crashed in Cached_item_str::cmp / sortcmp or
+--echo # Assertion `item->null_value' failed in
+--echo # Type_handler_temporal_result::make_sort_key upon SELECT with NULLIF
+--echo # and ROLLUP
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+--disable_warnings
+SELECT NULLIF( CAST( 'foo' AS DATE ), NULL & 'bar' ) AS f FROM t1 GROUP BY f WITH ROLLUP;
+--enable_warnings
+DROP TABLE t1;
+
+--echo # End of 10.3 Tests

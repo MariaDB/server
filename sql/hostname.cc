@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /**
@@ -460,7 +460,7 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
       entry->m_last_seen= now;
       *connect_errors= entry->m_errors.m_connect;
 
-      if (entry->m_errors.m_connect >= max_connect_errors)
+      if (unlikely(entry->m_errors.m_connect >= max_connect_errors))
       {
         entry->m_errors.m_host_blocked++;
         entry->set_error_timestamps(now);

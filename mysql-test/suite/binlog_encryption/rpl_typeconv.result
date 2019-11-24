@@ -47,6 +47,10 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS='';
 # MDEV-15833 Row format replication between LONGBLOB and MEDIUMBLOB does not work for long values
 #
 # End of MDEV-15833
+#
+# MDEV-17098 DATE <-> DATETIME
+#
+# End of MDEV-17098
 include/rpl_reset.inc
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_NON_LOSSY';
@@ -59,6 +63,10 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_NON_LOSSY';
 # MDEV-15833 Row format replication between LONGBLOB and MEDIUMBLOB does not work for long values
 #
 # End of MDEV-15833
+#
+# MDEV-17098 DATE <-> DATETIME
+#
+# End of MDEV-17098
 include/rpl_reset.inc
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY';
@@ -71,6 +79,10 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY';
 # MDEV-15833 Row format replication between LONGBLOB and MEDIUMBLOB does not work for long values
 #
 # End of MDEV-15833
+#
+# MDEV-17098 DATE <-> DATETIME
+#
+# End of MDEV-17098
 include/rpl_reset.inc
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY,ALL_NON_LOSSY';
@@ -83,6 +95,10 @@ SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY,ALL_NON_LOSSY';
 # MDEV-15833 Row format replication between LONGBLOB and MEDIUMBLOB does not work for long values
 #
 # End of MDEV-15833
+#
+# MDEV-17098 DATE <-> DATETIME
+#
+# End of MDEV-17098
 include/rpl_reset.inc
 connection slave;
 **** Result of conversions ****
@@ -244,6 +260,13 @@ LONGBLOB       	TINYBLOB       	                         	<Correct error>
 LONGBLOB       	BLOB           	                         	<Correct error>
 LONGBLOB       	MEDIUMBLOB     	                         	<Correct error>
 LONGBLOB       	VARBINARY(65500	                         	<Correct error>
+DATE           	DATETIME(6)    	                         	<Correct error>
+DATE           	DATETIME(6)    	                         	<Correct error>
+DATE           	DATETIME(6)    	                         	<Correct error>
+DATE           	DATETIME(0)    	                         	<Correct error>
+DATETIME(6)    	DATE           	                         	<Correct error>
+DATETIME(6)    	DATE           	                         	<Correct error>
+DATETIME(0)    	DATE           	                         	<Correct error>
 TINYBLOB       	TINYBLOB       	ALL_NON_LOSSY            	<Correct value>
 TINYBLOB       	BLOB           	ALL_NON_LOSSY            	<Correct value>
 TINYBLOB       	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct value>
@@ -401,6 +424,13 @@ LONGBLOB       	TINYBLOB       	ALL_NON_LOSSY            	<Correct error>
 LONGBLOB       	BLOB           	ALL_NON_LOSSY            	<Correct error>
 LONGBLOB       	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct error>
 LONGBLOB       	VARBINARY(65500	ALL_NON_LOSSY            	<Correct error>
+DATE           	DATETIME(6)    	ALL_NON_LOSSY            	<Correct value>
+DATE           	DATETIME(6)    	ALL_NON_LOSSY            	<Correct value>
+DATE           	DATETIME(6)    	ALL_NON_LOSSY            	<Correct value>
+DATE           	DATETIME(0)    	ALL_NON_LOSSY            	<Correct value>
+DATETIME(6)    	DATE           	ALL_NON_LOSSY            	<Correct error>
+DATETIME(6)    	DATE           	ALL_NON_LOSSY            	<Correct error>
+DATETIME(0)    	DATE           	ALL_NON_LOSSY            	<Correct error>
 TINYBLOB       	TINYBLOB       	ALL_LOSSY                	<Correct value>
 TINYBLOB       	BLOB           	ALL_LOSSY                	<Correct error>
 TINYBLOB       	MEDIUMBLOB     	ALL_LOSSY                	<Correct error>
@@ -558,6 +588,13 @@ LONGBLOB       	TINYBLOB       	ALL_LOSSY                	<Correct value>
 LONGBLOB       	BLOB           	ALL_LOSSY                	<Correct value>
 LONGBLOB       	MEDIUMBLOB     	ALL_LOSSY                	<Correct value>
 LONGBLOB       	VARBINARY(65500	ALL_LOSSY                	<Correct value>
+DATE           	DATETIME(6)    	ALL_LOSSY                	<Correct error>
+DATE           	DATETIME(6)    	ALL_LOSSY                	<Correct error>
+DATE           	DATETIME(6)    	ALL_LOSSY                	<Correct error>
+DATE           	DATETIME(0)    	ALL_LOSSY                	<Correct error>
+DATETIME(6)    	DATE           	ALL_LOSSY                	<Correct value>
+DATETIME(6)    	DATE           	ALL_LOSSY                	<Correct value>
+DATETIME(0)    	DATE           	ALL_LOSSY                	<Correct value>
 TINYBLOB       	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 TINYBLOB       	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 TINYBLOB       	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
@@ -715,6 +752,13 @@ LONGBLOB       	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 LONGBLOB       	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 LONGBLOB       	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 LONGBLOB       	VARBINARY(65500	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATE           	DATETIME(6)    	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATE           	DATETIME(6)    	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATE           	DATETIME(6)    	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATE           	DATETIME(0)    	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATETIME(6)    	DATE           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATETIME(6)    	DATE           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATETIME(0)    	DATE           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 DROP TABLE type_conversions;
 call mtr.add_suppression("Slave SQL.*Column 1 of table .test.t1. cannot be converted from type.* error.* 1677");
 connection master;

@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -28,11 +28,9 @@ Created 9/5/1995 Heikki Tuuri
 #define sync0types_h
 
 #include <vector>
-#include <iostream>
 #include <my_atomic.h>
 
 #include "ut0new.h"
-#include "ut0counter.h"
 
 #ifdef _WIN32
 /** Native mutex */
@@ -979,8 +977,7 @@ struct latch_t {
 		UNIV_NOTHROW
 		:
 		m_id(id),
-		m_rw_lock(),
-		m_temp_fsp() { }
+		m_rw_lock() {}
 
 	/** Destructor */
 	virtual ~latch_t() UNIV_NOTHROW { }
@@ -1014,24 +1011,6 @@ struct latch_t {
 		return(sync_latch_get_level(m_id));
 	}
 
-	/** @return true if the latch is for a temporary file space*/
-	bool is_temp_fsp() const
-		UNIV_NOTHROW
-	{
-		return(m_temp_fsp);
-	}
-
-	/** Set the temporary tablespace flag. (For internal temporary
-	tables, MySQL 5.7 does not always acquire the index->lock. We
-	need to figure out the context and add some special rules
-	during the checks.) */
-	void set_temp_fsp()
-		UNIV_NOTHROW
-	{
-		ut_ad(get_id() == LATCH_ID_FIL_SPACE);
-		m_temp_fsp = true;
-	}
-
 	/** @return the latch name, m_id must be set  */
 	const char* get_name() const
 		UNIV_NOTHROW
@@ -1047,9 +1026,6 @@ struct latch_t {
 	/** true if it is a rw-lock. In debug mode, rw_lock_t derives from
 	this class and sets this variable. */
 	bool		m_rw_lock;
-
-	/** true if it is an temporary space latch */
-	bool		m_temp_fsp;
 };
 
 /** Subclass this to iterate over a thread's acquired latch levels. */
@@ -1221,7 +1197,7 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_atomic_counter
 
 	/** Add to the counter
 	@param[in]	i	amount to be added
-	@return	the value of the counter after adding */
+	@return	the value of the counter before adding */
 	Type add(Type i) { return my_atomic_addlint(&m_counter, i); }
 
 	/** @return the value of the counter (non-atomic access)! */

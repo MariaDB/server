@@ -843,7 +843,7 @@ CREATE FUNCTION f1 (a INT, b INT) RETURN INT
 AS
 total INT := 0;
 BEGIN
-FOR i IN REVERSE a..1
+FOR i IN REVERSE 1..a
 LOOP
 total:= total + i;
 IF i = b THEN
@@ -2072,7 +2072,7 @@ t1	CREATE TABLE "t1" (
   "tables_table_name" varchar(64) CHARACTER SET utf8 DEFAULT NULL,
   "tables_table_rows" bigint(21) unsigned DEFAULT NULL,
   "processlist_info" longtext CHARACTER SET utf8 DEFAULT NULL,
-  "processlist_info_binary" blob DEFAULT NULL
+  "processlist_info_binary" blob(65535) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -2502,3 +2502,61 @@ BEGIN
 SELECT 'a' IN ('b',v);
 END $$
 ERROR HY000: Illegal parameter data types varchar and row for operation 'in'
+#
+# MDEV-17253 Oracle compatibility: The REVERSE key word for FOR loop behaves incorrectly
+#
+DECLARE
+totalprice DECIMAL(12,2):=NULL;
+loop_start INTEGER := 1;
+BEGIN
+FOR idx IN REVERSE loop_start..10 LOOP
+SELECT idx;
+END LOOP;
+END;
+$$
+idx
+10
+idx
+9
+idx
+8
+idx
+7
+idx
+6
+idx
+5
+idx
+4
+idx
+3
+idx
+2
+idx
+1
+CREATE PROCEDURE p1 AS
+loop_start INTEGER := 1;
+BEGIN
+FOR idx IN REVERSE 3..loop_start LOOP
+SELECT idx;
+END LOOP;
+END;
+$$
+CALL p1();
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+loop_start INTEGER := 1;
+BEGIN
+FOR idx IN REVERSE loop_start..3 LOOP
+SELECT idx;
+END LOOP;
+END;
+$$
+CALL p1();
+idx
+3
+idx
+2
+idx
+1
+DROP PROCEDURE p1;

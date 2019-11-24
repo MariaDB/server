@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,15 +26,9 @@ Created 5/30/1994 Heikki Tuuri
 
 #include "rem0rec.h"
 #include "page0page.h"
-#include "mtr0mtr.h"
 #include "mtr0log.h"
 #include "fts0fts.h"
-#ifdef WITH_WSREP
-#include <ha_prototypes.h>
-#endif /* WITH_WSREP */
-#include "gis0geo.h"
 #include "trx0sys.h"
-#include "mach0data.h"
 
 /*			PHYSICAL RECORD (OLD STYLE)
 			===========================
@@ -237,15 +231,6 @@ rec_get_n_extern_new(
 	return(n_extern);
 }
 
-/** Get the length of added field count in a REC_STATUS_COLUMNS_ADDED record.
-@param[in]	n_add_field	number of added fields, minus one
-@return	storage size of the field count, in bytes */
-static inline unsigned rec_get_n_add_field_len(ulint n_add_field)
-{
-	ut_ad(n_add_field < REC_MAX_N_FIELDS);
-	return n_add_field < 0x80 ? 1 : 2;
-}
-
 /** Get the added field count in a REC_STATUS_COLUMNS_ADDED record.
 @param[in,out]	header	variable header of a REC_STATUS_COLUMNS_ADDED record
 @return	number of added fields */
@@ -262,22 +247,6 @@ static inline unsigned rec_get_n_add_field(const byte*& header)
 	ut_ad(n_fields_add < REC_MAX_N_FIELDS);
 	ut_ad(rec_get_n_add_field_len(n_fields_add) == 2);
 	return n_fields_add;
-}
-
-/** Set the added field count in a REC_STATUS_COLUMNS_ADDED record.
-@param[in,out]	header	variable header of a REC_STATUS_COLUMNS_ADDED record
-@param[in]	n_add	number of added fields, minus 1
-@return	record header before the number of added fields */
-static inline void rec_set_n_add_field(byte*& header, ulint n_add)
-{
-	ut_ad(n_add < REC_MAX_N_FIELDS);
-
-	if (n_add < 0x80) {
-		*header-- = byte(n_add);
-	} else {
-		*header-- = byte(n_add) | 0x80;
-		*header-- = byte(n_add >> 7);
-	}
 }
 
 /** Format of a leaf-page ROW_FORMAT!=REDUNDANT record */
@@ -298,6 +267,9 @@ in ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED.
 This is a special case of rec_init_offsets() and rec_get_offsets_func().
 @param[in]	rec	leaf-page record
 @param[in]	index	the index that the record belongs in
+@param[in]	n_core	number of core fields (index->n_core_fields)
+@param[in]	def_val	default values for non-core fields, or
+			NULL to refer to index->fields[].col->def_val
 @param[in,out]	offsets	offsets, with valid rec_offs_n_fields(offsets)
 @param[in]	format	record format */
 static inline
@@ -306,17 +278,20 @@ rec_init_offsets_comp_ordinary(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	ulint*			offsets,
+	ulint			n_core,
+	const dict_col_t::def_t*def_val,
 	rec_leaf_format		format)
 {
 	ulint		offs		= 0;
 	ulint		any		= 0;
 	const byte*	nulls		= rec;
 	const byte*	lens		= NULL;
-	ulint		n_fields	= index->n_core_fields;
+	ulint		n_fields	= n_core;
 	ulint		null_mask	= 1;
 
-	ut_ad(index->n_core_fields > 0);
-	ut_ad(index->n_fields >= index->n_core_fields);
+	ut_ad(index->n_core_fields >= n_core);
+	ut_ad(n_core > 0);
+	ut_ad(index->n_fields >= n_core);
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	ut_ad(format == REC_LEAF_TEMP || format == REC_LEAF_TEMP_COLUMNS_ADDED
 	      || dict_table_is_comp(index->table));
@@ -344,17 +319,17 @@ ordinary:
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
 		nulls -= REC_N_NEW_EXTRA_BYTES;
+		ut_ad(index->is_instant());
 		/* fall through */
 	case REC_LEAF_TEMP_COLUMNS_ADDED:
-		ut_ad(index->is_instant());
-		n_fields = index->n_core_fields + 1
-			+ rec_get_n_add_field(nulls);
+		n_fields = n_core + 1 + rec_get_n_add_field(nulls);
 		ut_ad(n_fields <= index->n_fields);
 		const ulint n_nullable = index->get_n_nullable(n_fields);
 		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 		ut_d(n_null = n_nullable);
 		ut_ad(n_null <= index->n_nullable);
-		ut_ad(n_null_bytes >= index->n_core_null_bytes);
+		ut_ad(n_null_bytes >= index->n_core_null_bytes
+		      || n_core < index->n_core_fields);
 		lens = --nulls - n_null_bytes;
 	}
 
@@ -376,7 +351,19 @@ ordinary:
 		ulint			len;
 
 		/* set default value flag */
-		if (i >= n_fields) {
+		if (i < n_fields) {
+		} else if (def_val) {
+			const dict_col_t::def_t& d = def_val[i - n_core];
+			if (!d.data) {
+				len = offs | REC_OFFS_SQL_NULL;
+				ut_ad(d.len == UNIV_SQL_NULL);
+			} else {
+				len = offs | REC_OFFS_DEFAULT;
+				any |= REC_OFFS_DEFAULT;
+			}
+
+			goto resolved;
+		} else {
 			ulint dlen;
 			if (!index->instant_field_value(i, &dlen)) {
 				len = offs | REC_OFFS_SQL_NULL;
@@ -448,7 +435,7 @@ resolved:
 	} while (++i < rec_offs_n_fields(offsets));
 
 	*rec_offs_base(offsets)
-		= (rec - (lens + 1)) | REC_OFFS_COMPACT | any;
+		= ulint(rec - (lens + 1)) | REC_OFFS_COMPACT | any;
 }
 
 #ifdef UNIV_DEBUG
@@ -594,7 +581,7 @@ rec_init_offsets(
 		const byte*	lens;
 		dict_field_t*	field;
 		ulint		null_mask;
-		ulint		status = rec_get_status(rec);
+		rec_comp_status_t status = rec_get_status(rec);
 		ulint		n_node_ptr_field = ULINT_UNDEFINED;
 
 		switch (UNIV_EXPECT(status, REC_STATUS_ORDINARY)) {
@@ -613,12 +600,17 @@ rec_init_offsets(
 			break;
 		case REC_STATUS_COLUMNS_ADDED:
 			ut_ad(leaf);
+			ut_ad(index->is_instant());
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
+						       index->n_core_fields,
+						       NULL,
 						       REC_LEAF_COLUMNS_ADDED);
 			return;
 		case REC_STATUS_ORDINARY:
 			ut_ad(leaf);
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
+						       index->n_core_fields,
+						       NULL,
 						       REC_LEAF_ORDINARY);
 			return;
 		}
@@ -710,7 +702,7 @@ resolved:
 		} while (++i < rec_offs_n_fields(offsets));
 
 		*rec_offs_base(offsets)
-			= (rec - (lens + 1)) | REC_OFFS_COMPACT;
+			= ulint(rec - (lens + 1)) | REC_OFFS_COMPACT;
 	} else {
 		/* Old-style record: determine extra size and end offsets */
 		offs = REC_N_OLD_EXTRA_BYTES;
@@ -750,6 +742,10 @@ resolved:
 		}
 
 		if (i < rec_offs_n_fields(offsets)) {
+			ut_ad(index->is_instant()
+			      || i + (index->id == DICT_INDEXES_ID)
+			      == rec_offs_n_fields(offsets));
+
 			offs = (rec_offs_base(offsets)[i] & REC_OFFS_MASK)
 				| REC_OFFS_DEFAULT;
 
@@ -789,10 +785,6 @@ rec_get_offsets_func(
 {
 	ulint	n;
 	ulint	size;
-
-	ut_ad(rec);
-	ut_ad(index);
-	ut_ad(heap);
 
 	if (dict_table_is_comp(index->table)) {
 		switch (UNIV_EXPECT(rec_get_status(rec),
@@ -904,13 +896,10 @@ rec_get_offsets_reverse(
 	ulint		null_mask;
 	ulint		n_node_ptr_field;
 
-	ut_ad(extra);
-	ut_ad(index);
-	ut_ad(offsets);
 	ut_ad(dict_table_is_comp(index->table));
 	ut_ad(!index->is_instant());
 
-	if (UNIV_UNLIKELY(node_ptr)) {
+	if (UNIV_UNLIKELY(node_ptr != 0)) {
 		n_node_ptr_field =
 			dict_index_get_n_unique_in_tree_nonleaf(index);
 		n = n_node_ptr_field + 1;
@@ -996,7 +985,7 @@ resolved:
 	} while (++i < rec_offs_n_fields(offsets));
 
 	ut_ad(lens >= extra);
-	*rec_offs_base(offsets) = (lens - extra + REC_N_NEW_EXTRA_BYTES)
+	*rec_offs_base(offsets) = (ulint(lens - extra) + REC_N_NEW_EXTRA_BYTES)
 		| REC_OFFS_COMPACT | any_ext;
 }
 
@@ -1015,8 +1004,6 @@ rec_get_nth_field_offs_old(
 	ulint	os;
 	ulint	next_os;
 
-	ut_ad(len);
-	ut_a(rec);
 	ut_a(n < rec_get_n_fields_old(rec));
 
 	if (rec_get_1byte_offs_flag(rec)) {
@@ -1048,7 +1035,7 @@ rec_get_nth_field_offs_old(
 
 	*len = next_os - os;
 
-	ut_ad(*len < UNIV_PAGE_SIZE);
+	ut_ad(*len < srv_page_size);
 
 	return(os);
 }
@@ -1113,9 +1100,7 @@ rec_get_converted_size_comp_prefix_low(
 		col = dict_field_get_col(field);
 
 #ifdef UNIV_DEBUG
-		dtype_t*	type;
-
-		type = dfield_get_type(&fields[i]);
+		const dtype_t* type = dfield_get_type(&fields[i]);
 		if (dict_index_is_spatial(index)) {
 			if (DATA_GEOMETRY_MTYPE(col->mtype) && i == 0) {
 				ut_ad(type->prtype & DATA_GIS_MBR);
@@ -1484,7 +1469,8 @@ rec_convert_dtuple_to_rec_comp(
 		lens = nulls - (index->is_instant()
 				? UT_BITS_IN_BYTES(index->get_n_nullable(
 							   n_fields))
-				: UT_BITS_IN_BYTES(index->n_nullable));
+				: UT_BITS_IN_BYTES(
+					unsigned(index->n_nullable)));
 		break;
 	case REC_STATUS_NODE_PTR:
 		ut_ad(!temp);
@@ -1505,7 +1491,7 @@ rec_convert_dtuple_to_rec_comp(
 
 	end = rec;
 	/* clear the SQL-null flags */
-	memset(lens + 1, 0, nulls - lens);
+	memset(lens + 1, 0, ulint(nulls - lens));
 
 	/* Store the data and the offsets */
 
@@ -1688,23 +1674,45 @@ rec_get_converted_size_temp(
 @param[in]	rec	temporary file record
 @param[in]	index	index of that the record belongs to
 @param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
-@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
-*/
+@param[in]	n_core	number of core fields (index->n_core_fields)
+@param[in]	def_val	default values for non-core fields
+@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED */
 void
 rec_init_offsets_temp(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	ulint*			offsets,
+	ulint			n_core,
+	const dict_col_t::def_t*def_val,
 	rec_comp_status_t	status)
 {
 	ut_ad(status == REC_STATUS_ORDINARY
 	      || status == REC_STATUS_COLUMNS_ADDED);
-	ut_ad(status == REC_STATUS_ORDINARY || index->is_instant());
-
-	rec_init_offsets_comp_ordinary(rec, index, offsets,
+	/* The table may have been converted to plain format
+	if it was emptied during an ALTER TABLE operation. */
+	ut_ad(index->n_core_fields == n_core || !index->is_instant());
+	ut_ad(index->n_core_fields >= n_core);
+	rec_init_offsets_comp_ordinary(rec, index, offsets, n_core, def_val,
 				       status == REC_STATUS_COLUMNS_ADDED
 				       ? REC_LEAF_TEMP_COLUMNS_ADDED
 				       : REC_LEAF_TEMP);
+}
+
+/** Determine the offset to each field in temporary file.
+@param[in]	rec	temporary file record
+@param[in]	index	index of that the record belongs to
+@param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
+*/
+void
+rec_init_offsets_temp(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	ulint*			offsets)
+{
+	ut_ad(!index->is_instant());
+	rec_init_offsets_comp_ordinary(rec, index, offsets,
+				       index->n_core_fields, NULL,
+				       REC_LEAF_TEMP);
 }
 
 /** Convert a data tuple prefix to the temporary file format.
@@ -1834,13 +1842,6 @@ rec_copy_prefix_to_buf(
 						or NULL */
 	ulint*			buf_size)	/*!< in/out: buffer size */
 {
-	const byte*	nulls;
-	const byte*	UNINIT_VAR(lens);
-	ulint		i;
-	ulint		prefix_len;
-	ulint		null_mask;
-	bool		is_rtr_node_ptr = false;
-
 	ut_ad(n_fields <= index->n_fields || dict_index_is_ibuf(index));
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	UNIV_PREFETCH_RW(*buf);
@@ -1853,48 +1854,62 @@ rec_copy_prefix_to_buf(
 			       buf, buf_size));
 	}
 
+	ulint		prefix_len	= 0;
+	ulint		instant_omit	= 0;
+	const byte*	nulls		= rec - (REC_N_NEW_EXTRA_BYTES + 1);
+	const byte*	nullf		= nulls;
+	const byte*	lens		= nulls - index->n_core_null_bytes;
+
 	switch (rec_get_status(rec)) {
-	case REC_STATUS_INFIMUM:
-	case REC_STATUS_SUPREMUM:
+	default:
 		/* infimum or supremum record: no sense to copy anything */
 		ut_error;
 		return(NULL);
 	case REC_STATUS_ORDINARY:
 		ut_ad(n_fields <= index->n_core_fields);
-		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
-		lens = nulls - index->n_core_null_bytes;
 		break;
 	case REC_STATUS_NODE_PTR:
 		/* For R-tree, we need to copy the child page number field. */
+		compile_time_assert(DICT_INDEX_SPATIAL_NODEPTR_SIZE == 1);
 		if (dict_index_is_spatial(index)) {
+			ut_ad(index->n_core_null_bytes == 0);
 			ut_ad(n_fields == DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1);
-			is_rtr_node_ptr = true;
-		} else {
-			/* it doesn't make sense to copy the child page number
-			field */
-			ut_ad(n_fields <=
-			      dict_index_get_n_unique_in_tree_nonleaf(index));
+			ut_ad(index->fields[0].col->prtype & DATA_NOT_NULL);
+			ut_ad(DATA_BIG_COL(index->fields[0].col));
+			/* This is a deficiency of the format introduced
+			in MySQL 5.7. The length in the R-tree index should
+			always be DATA_MBR_LEN. */
+			ut_ad(!index->fields[0].fixed_len);
+			ut_ad(*lens == DATA_MBR_LEN);
+			lens--;
+			prefix_len = DATA_MBR_LEN + REC_NODE_PTR_SIZE;
+			n_fields = 0; /* skip the "for" loop below */
+			break;
 		}
-		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
-		lens = nulls - index->n_core_null_bytes;
+		/* it doesn't make sense to copy the child page number field */
+		ut_ad(n_fields
+		      <= dict_index_get_n_unique_in_tree_nonleaf(index));
 		break;
 	case REC_STATUS_COLUMNS_ADDED:
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
-		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
-		nulls = &rec[-REC_N_NEW_EXTRA_BYTES];
-		const ulint n_rec = index->n_core_fields + 1
+		ut_ad(index->is_instant() || page_rec_is_metadata(rec));
+		nulls++;
+		const ulint n_rec = ulint(index->n_core_fields) + 1
 			+ rec_get_n_add_field(nulls);
-		const uint n_nullable = index->get_n_nullable(n_rec);
-		lens = --nulls - UT_BITS_IN_BYTES(n_nullable);
+		instant_omit = ulint(&rec[-REC_N_NEW_EXTRA_BYTES] - nulls);
+		ut_ad(instant_omit == 1 || instant_omit == 2);
+		nullf = nulls;
+		const uint nb = UT_BITS_IN_BYTES(index->get_n_nullable(n_rec));
+		instant_omit += nb - index->n_core_null_bytes;
+		lens = --nulls - nb;
 	}
 
+	const byte* const lenf = lens;
 	UNIV_PREFETCH_R(lens);
-	prefix_len = 0;
-	null_mask = 1;
 
 	/* read the lengths of fields 0..n */
-	for (i = 0; i < n_fields; i++) {
+	for (ulint i = 0, null_mask = 1; i < n_fields; i++) {
 		const dict_field_t*	field;
 		const dict_col_t*	col;
 
@@ -1916,11 +1931,7 @@ rec_copy_prefix_to_buf(
 			null_mask <<= 1;
 		}
 
-		if (is_rtr_node_ptr && i == 1) {
-			/* For rtree node ptr rec, we need to
-			copy the page no field with 4 bytes len. */
-			prefix_len += 4;
-		} else if (field->fixed_len) {
+		if (field->fixed_len) {
 			prefix_len += field->fixed_len;
 		} else {
 			ulint	len = *lens--;
@@ -1946,17 +1957,41 @@ rec_copy_prefix_to_buf(
 
 	UNIV_PREFETCH_R(rec + prefix_len);
 
-	prefix_len += rec - (lens + 1);
+	ulint size = prefix_len + ulint(rec - (lens + 1)) - instant_omit;
 
-	if ((*buf == NULL) || (*buf_size < prefix_len)) {
+	if (*buf == NULL || *buf_size < size) {
 		ut_free(*buf);
-		*buf_size = prefix_len;
-		*buf = static_cast<byte*>(ut_malloc_nokey(prefix_len));
+		*buf_size = size;
+		*buf = static_cast<byte*>(ut_malloc_nokey(size));
 	}
 
-	memcpy(*buf, lens + 1, prefix_len);
-
-	return(*buf + (rec - (lens + 1)));
+	if (instant_omit) {
+		/* Copy and convert the record header to a format where
+		instant ADD COLUMN has not been used:
+		+ lengths of variable-length fields in the prefix
+		- omit any null flag bytes for any instantly added columns
+		+ index->n_core_null_bytes of null flags
+		- omit the n_add_fields header (1 or 2 bytes)
+		+ REC_N_NEW_EXTRA_BYTES of fixed header */
+		byte* b = *buf;
+		/* copy the lengths of the variable-length fields */
+		memcpy(b, lens + 1, ulint(lenf - lens));
+		b += ulint(lenf - lens);
+		/* copy the null flags */
+		memcpy(b, nullf - index->n_core_null_bytes,
+		       index->n_core_null_bytes);
+		b += index->n_core_null_bytes + REC_N_NEW_EXTRA_BYTES;
+		ut_ad(ulint(b - *buf) + prefix_len == size);
+		/* copy the fixed-size header and the record prefix */
+		memcpy(b - REC_N_NEW_EXTRA_BYTES, rec - REC_N_NEW_EXTRA_BYTES,
+		       prefix_len + REC_N_NEW_EXTRA_BYTES);
+		ut_ad(rec_get_status(b) == REC_STATUS_COLUMNS_ADDED);
+		rec_set_status(b, REC_STATUS_ORDINARY);
+		return b;
+	} else {
+		memcpy(*buf, lens + 1, size);
+		return *buf + (rec - (lens + 1));
+	}
 }
 
 /***************************************************************//**
@@ -1984,7 +2019,7 @@ rec_validate_old(
 	for (i = 0; i < n_fields; i++) {
 		rec_get_nth_field_offs_old(rec, i, &len);
 
-		if (!((len < UNIV_PAGE_SIZE) || (len == UNIV_SQL_NULL))) {
+		if (!((len < srv_page_size) || (len == UNIV_SQL_NULL))) {
 			ib::error() << "Record field " << i << " len " << len;
 			return(FALSE);
 		}
@@ -2019,7 +2054,6 @@ rec_validate(
 	ulint		len_sum		= 0;
 	ulint		i;
 
-	ut_a(rec);
 	n_fields = rec_offs_n_fields(offsets);
 
 	if ((n_fields == 0) || (n_fields > REC_MAX_N_FIELDS)) {
@@ -2035,7 +2069,7 @@ rec_validate(
 
 		switch (len) {
 		default:
-			if (len >= UNIV_PAGE_SIZE) {
+			if (len >= srv_page_size) {
 				ib::error() << "Record field " << i
 					<< " len " << len;
 				return(FALSE);
@@ -2076,8 +2110,6 @@ rec_print_old(
 	ulint		len;
 	ulint		n;
 	ulint		i;
-
-	ut_ad(rec);
 
 	n = rec_get_n_fields_old(rec);
 
@@ -2252,8 +2284,6 @@ rec_print_mbr_rec(
 	const rec_t*	rec,	/*!< in: physical record */
 	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
-	ut_ad(rec);
-	ut_ad(offsets);
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 	ut_ad(!rec_offs_any_default(offsets));
 
@@ -2322,8 +2352,6 @@ rec_print_new(
 	const rec_t*	rec,	/*!< in: physical record */
 	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
-	ut_ad(rec);
-	ut_ad(offsets);
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 
 #ifdef UNIV_DEBUG
@@ -2357,8 +2385,6 @@ rec_print(
 	const rec_t*		rec,	/*!< in: physical record */
 	const dict_index_t*	index)	/*!< in: record descriptor */
 {
-	ut_ad(index);
-
 	if (!dict_table_is_comp(index->table)) {
 		rec_print_old(file, rec);
 		return;
@@ -2518,6 +2544,8 @@ rec_offs_make_nth_extern(
 	rec_offs_base(offsets)[1 + n] |= REC_OFFS_EXTERNAL;
 }
 #ifdef WITH_WSREP
+# include "ha_prototypes.h"
+
 int
 wsrep_rec_get_foreign_key(
 	byte 		*buf,     /* out: extracted key */
