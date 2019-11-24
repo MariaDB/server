@@ -2966,12 +2966,10 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 			case Item_func::LE_FUNC:     vop= OP_LE;   break;
 			case Item_func::GE_FUNC:     vop= OP_GE;   break;
 			case Item_func::GT_FUNC:     vop= OP_GT;   break;
-#if 0
-			case Item_func::LIKE_FUNC:
-				vop= OP_LIKE; 
-				neg= ((Item_func_like*)condf)->negated;
-				break;
-#endif // 0
+			//case Item_func::LIKE_FUNC:
+			//	vop = OP_LIKE;
+			//  neg= ((Item_func_like*)condf)->negated;
+			//  break;
 			case Item_func::ISNOTNULL_FUNC:
 				neg= true;	
 				// fall through
@@ -3789,9 +3787,9 @@ int ha_connect::index_init(uint idx, bool sorted)
     active_index= MAX_KEY;
     rc= HA_ERR_INTERNAL_ERROR;
   } else if (tdbp->GetKindex()) {
-    if (((PTDBDOX)tdbp)->To_Kindex->GetNum_K()) {
+    if (((PTDBDOS)tdbp)->GetKindex()->GetNum_K()) {
       if (tdbp->GetFtype() != RECFM_NAF)
-        ((PTDBDOX)tdbp)->GetTxfp()->ResetBuffer(g);
+        ((PTDBDOS)tdbp)->GetTxfp()->ResetBuffer(g);
 
       active_index= idx;
 //  } else {        // Void table

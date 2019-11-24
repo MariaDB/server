@@ -173,9 +173,12 @@ class DllExport TDBASE : public TDB {
   inline  void    SetKindex(PKXBASE kxp) {To_Kindex = kxp;}
 
   // Properties
-	virtual PKXBASE GetKindex(void) {return To_Kindex;}
+	PKXBASE GetKindex(void) {return To_Kindex;}
+	PXOB   *GetLink(void) {return To_Link;}
+	PIXDEF  GetXdp(void) {return To_Xdp;}
 	void    ResetKindex(PGLOBAL g, PKXBASE kxp);
   PCOL    Key(int i) {return (To_Key_Col) ? To_Key_Col[i] : NULL;}
+	PXOB    Link(int i) { return (To_Link) ? To_Link[i] : NULL; }
 
   // Methods
   virtual bool   IsUsingTemp(PGLOBAL) {return false;}
