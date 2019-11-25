@@ -1166,6 +1166,10 @@ row_log_table_get_pk_col(
 
 	field = rec_get_nth_field(rec, offsets, i, &len);
 
+	if (len == UNIV_SQL_DEFAULT) {
+		field = log->instant_field_value(i, &len);
+	}
+
 	if (len == UNIV_SQL_NULL) {
 		if (!log->allow_not_null) {
 			return(DB_INVALID_NULL);
