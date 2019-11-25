@@ -5,7 +5,7 @@
 
 let $default_engine= `select @@default_storage_engine`;
 
-create or replace table t(id int NULL, s date, e date,
+create or replace table t(id int, s date, e date,
                           period for p(s,e),
                           primary key(id, p without overlaps));
 
@@ -16,13 +16,13 @@ show create table t;
 insert into t values (1, '2003-01-01', '2003-03-01'),
                      (1, '2003-05-01', '2003-07-01');
 
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 insert into t values (1, '2003-02-01', '2003-04-01');
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 insert into t values (1, '2003-04-01', '2003-06-01');
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 insert into t values (1, '2003-05-15', '2003-06-15');
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 insert into t values (1, '2003-04-01', '2003-08-01');
 
 insert into t values (1, '2003-03-01', '2003-05-01');
@@ -43,23 +43,23 @@ update t set s= '2003-01-10', e= '2003-01-20' where s = '2003-01-01';
 update t set s= '2003-01-01', e= '2003-02-01' where s = '2003-01-10';
 
 --echo # intersect left/right, strict inclusion/containment
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 update t set e= '2003-04-01' where s = '2003-01-01';
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 update t set s= '2003-04-01' where s = '2003-05-01';
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 update t set s= '2003-03-10', e= '2003-03-20' where s = '2003-01-01';
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 update t set s= '2003-04-01', e= '2003-08-01' where s = '2003-03-01';
 
 --echo # inclusion/containment with partial match
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 update t set s= '2003-03-01', e= '2003-04-01' where s = '2003-01-01';
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 update t set s= '2003-04-01', e= '2003-05-01' where s = '2003-01-01';
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 update t set s= '2003-03-01' where s = '2003-05-01';
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 update t set e= '2003-05-01' where s = '2003-01-01';
 
 select * from t where year(s) = 2003;
@@ -93,7 +93,7 @@ create or replace table t(id int, u int, s date, e date,
 show create table t;
 insert into t values (1, 1, '2003-03-01', '2003-05-01');
 insert into t values (1, 2, '2003-05-01', '2003-07-01');
---error ER_DUP_KEY
+--error ER_DUP_ENTRY
 insert into t values (1, 3, '2003-04-01', '2003-05-01');
 
 create or replace table t(id int, u int, s date, e date,
@@ -113,7 +113,8 @@ insert into t values (1, '2003-01-01', '2003-03-01'),
                      (1, '2003-05-01', '2003-07-01'),
                      (1, '2003-02-01', '2003-04-01');
 
---error ER_DUP_KEY
+--replace_regex /#sql-\w+/#sql-temp/
+--error ER_DUP_ENTRY
 alter table t add primary key(id, p without overlaps);
 
 --echo # Historical rows are not checked against constraints

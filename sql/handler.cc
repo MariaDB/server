@@ -4173,6 +4173,11 @@ uint handler::get_dup_key(int error)
   if (table->s->long_unique_table && table->file->errkey < table->s->keys)
     DBUG_RETURN(table->file->errkey);
   table->file->errkey  = (uint) -1;
+  if (overlaps_error_key != -1)
+  {
+    table->file->errkey= (uint)overlaps_error_key;
+    DBUG_RETURN(table->file->errkey);
+  }
   if (error == HA_ERR_FOUND_DUPP_KEY ||
       error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
       error == HA_ERR_FOUND_DUPP_UNIQUE || error == HA_ERR_NULL_IN_SPATIAL ||
@@ -6407,6 +6412,7 @@ int handler::ha_external_lock(THD *thd, int lock_type)
     check_overlaps_handler->ha_external_lock(table->in_use, F_UNLCK);
     check_overlaps_handler->close();
     check_overlaps_handler= NULL;
+    overlaps_error_key= -1;
   }
 
   if (MYSQL_HANDLER_RDLOCK_DONE_ENABLED() ||
@@ -7017,7 +7023,7 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
                                        HA_READ_KEY_OR_PREV);
 
     if (!error && !old_row_found()
-        && table->check_period_overlaps(key_info, key_info, 
+        && table->check_period_overlaps(key_info, key_info,
                                         new_data, record_buffer) == 0)
       error= HA_ERR_FOUND_DUPP_KEY;
 
@@ -7031,6 +7037,9 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 
     if (error == HA_ERR_END_OF_FILE)
       error= 0;
+
+    if (error == HA_ERR_FOUND_DUPP_KEY)
+      overlaps_error_key= key_nr;
 
     int end_error= handler->ha_index_end();
     if (error || end_error)
