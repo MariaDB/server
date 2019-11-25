@@ -67,14 +67,6 @@ Created 11/5/1995 Heikki Tuuri
 #include <map>
 #include <sstream>
 
-#ifdef UNIV_LINUX
-#include <stdlib.h>
-#endif
-
-#ifdef HAVE_LZO
-#include "lzo/lzo1x.h"
-#endif
-
 #ifdef HAVE_LIBNUMA
 #include <numa.h>
 #include <numaif.h>
@@ -117,44 +109,6 @@ struct set_numa_interleave_t
 #else
 #define NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE
 #endif /* HAVE_LIBNUMA */
-
-#ifdef HAVE_SNAPPY
-#include "snappy-c.h"
-#endif
-
-#ifndef UNIV_INNOCHECKSUM
-inline void* aligned_malloc(size_t size, size_t align) {
-    void *result;
-#ifdef _MSC_VER
-    result = _aligned_malloc(size, align);
-#elif defined (HAVE_POSIX_MEMALIGN)
-    if(posix_memalign(&result, align, size)) {
-	    result = 0;
-    }
-#else
-    /* Use unaligned malloc as fallback */
-    result = malloc(size);
-#endif
-    return result;
-}
-
-inline void aligned_free(void *ptr) {
-#ifdef _MSC_VER
-        _aligned_free(ptr);
-#else
-      free(ptr);
-#endif
-}
-
-buf_pool_t::io_buf_t::~io_buf_t()
-{
-	for (buf_tmp_buffer_t* s = slots, *e = slots + n_slots; s != e; s++) {
-		aligned_free(s->crypt_buf);
-		aligned_free(s->comp_buf);
-	}
-	ut_free(slots);
-}
-#endif /* !UNIV_INNOCHECKSUM */
 
 /*
 		IMPLEMENTATION OF THE BUFFER POOL
@@ -423,45 +377,6 @@ on the io_type */
 	 : (counter##_WRITTEN))
 
 
-/** Reserve a buffer slot for encryption, decryption or page compression.
-@param[in,out]	buf_pool	buffer pool
-@return reserved buffer slot */
-static buf_tmp_buffer_t* buf_pool_reserve_tmp_slot(buf_pool_t* buf_pool)
-{
-	buf_tmp_buffer_t* slot = buf_pool->io_buf.reserve();
-	ut_a(slot);
-	return slot;
-}
-
-/** Reserve a buffer for encryption, decryption or decompression.
-@param[in,out]	slot	reserved slot */
-static void buf_tmp_reserve_crypt_buf(buf_tmp_buffer_t* slot)
-{
-	if (!slot->crypt_buf) {
-		slot->crypt_buf = static_cast<byte*>(
-			aligned_malloc(srv_page_size, srv_page_size));
-	}
-}
-
-/** Reserve a buffer for compression.
-@param[in,out]	slot	reserved slot */
-static void buf_tmp_reserve_compression_buf(buf_tmp_buffer_t* slot)
-{
-	if (!slot->comp_buf) {
-		/* Both snappy and lzo compression methods require that
-		output buffer used for compression is bigger than input
-		buffer. Increase the allocated buffer size accordingly. */
-		ulint size = srv_page_size;
-#ifdef HAVE_LZO
-		size += LZO1X_1_15_MEM_COMPRESS;
-#elif defined HAVE_SNAPPY
-		size = snappy_max_compressed_length(size);
-#endif
-		slot->comp_buf = static_cast<byte*>(
-			aligned_malloc(size, srv_page_size));
-	}
-}
-
 /** Registers a chunk to buf_pool_chunk_map
 @param[in]	chunk	chunk of buffers */
 static
@@ -534,8 +449,9 @@ static bool buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
 
 	if (space->purpose == FIL_TYPE_TEMPORARY
 	    && innodb_encrypt_temporary_tables) {
-		buf_tmp_buffer_t* slot = buf_pool_reserve_tmp_slot(buf_pool);
-		buf_tmp_reserve_crypt_buf(slot);
+		buf_tmp_buffer_t* slot = buf_pool->io_buf.reserve();
+		ut_a(slot);
+		slot->allocate();
 
 		if (!buf_tmp_page_decrypt(slot->crypt_buf, dst_frame)) {
 			slot->release();
@@ -564,9 +480,9 @@ decompress:
 			return false;
 		}
 
-		slot = buf_pool_reserve_tmp_slot(buf_pool);
-		/* For decompression, use crypt_buf. */
-		buf_tmp_reserve_crypt_buf(slot);
+		slot = buf_pool->io_buf.reserve();
+		ut_a(slot);
+		slot->allocate();
 
 decompress_with_slot:
 		ut_d(fil_page_type_validate(space, dst_frame));
@@ -595,10 +511,9 @@ decrypt_failed:
 			return false;
 		}
 
-		/* Find free slot from temporary memory array */
-		slot = buf_pool_reserve_tmp_slot(buf_pool);
-		buf_tmp_reserve_crypt_buf(slot);
-
+		slot = buf_pool->io_buf.reserve();
+		ut_a(slot);
+		slot->allocate();
 		ut_d(fil_page_type_validate(space, dst_frame));
 
 		/* decrypt using crypt_buf to dst_frame */
@@ -1816,8 +1731,6 @@ buf_chunk_not_freed(
 				/* The page cleaner is disabled in
 				read-only mode.  No pages can be
 				dirtied, so all of them must be clean. */
-				ut_ad(block->page.oldest_modification
-				      == block->page.newest_modification);
 				ut_ad(block->page.oldest_modification == 0
 				      || block->page.oldest_modification
 				      == recv_sys.recovered_lsn
@@ -3544,7 +3457,6 @@ page_found:
 		bpage = &buf_pool->watch[i];
 
 		ut_ad(bpage->access_time == 0);
-		ut_ad(bpage->newest_modification == 0);
 		ut_ad(bpage->oldest_modification == 0);
 		ut_ad(bpage->zip.data == NULL);
 		ut_ad(!bpage->in_zip_hash);
@@ -5123,7 +5035,6 @@ buf_page_init_low(
 	bpage->old = 0;
 	bpage->freed_page_clock = 0;
 	bpage->access_time = 0;
-	bpage->newest_modification = 0;
 	bpage->oldest_modification = 0;
 	bpage->write_size = 0;
 	bpage->real_size = 0;
@@ -7252,197 +7163,6 @@ operator<<(
 		<< ", created=" << buf_pool.stat.n_pages_created
 		<< ", written=" << buf_pool.stat.n_pages_written << "]";
 	return(out);
-}
-
-/** Encrypt a buffer of temporary tablespace
-@param[in]	offset		Page offset
-@param[in]	src_frame	Page to encrypt
-@param[in,out]	dst_frame	Output buffer
-@return encrypted buffer or NULL */
-static byte* buf_tmp_page_encrypt(
-	ulint	offset,
-	byte*	src_frame,
-	byte*	dst_frame)
-{
-	/* Calculate the start offset in a page */
-	uint srclen = srv_page_size - (FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
-				       + FIL_PAGE_FCRC32_CHECKSUM);
-	const byte* src = src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
-	byte* dst = dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
-
-	memcpy(dst_frame, src_frame, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-
-	if (!log_tmp_block_encrypt(src, srclen, dst, (offset * srv_page_size),
-				   true)) {
-		return NULL;
-	}
-
-	const ulint payload = srv_page_size - FIL_PAGE_FCRC32_CHECKSUM;
-	mach_write_to_4(dst_frame + payload, ut_crc32(dst_frame, payload));
-
-	srv_stats.pages_encrypted.inc();
-	srv_stats.n_temp_blocks_encrypted.inc();
-	return dst_frame;
-}
-
-/** Encryption and page_compression hook that is called just before
-a page is written to disk.
-@param[in,out]	space		tablespace
-@param[in,out]	bpage		buffer page
-@param[in]	src_frame	physical page frame that is being encrypted
-@return	page frame to be written to file
-(may be src_frame or an encrypted/compressed copy of it) */
-UNIV_INTERN
-byte*
-buf_page_encrypt(
-	fil_space_t*	space,
-	buf_page_t*	bpage,
-	byte*		src_frame)
-{
-	ut_ad(space->id == bpage->id.space());
-	bpage->real_size = srv_page_size;
-
-	ut_d(fil_page_type_validate(space, src_frame));
-
-	switch (bpage->id.page_no()) {
-	case 0:
-		/* Page 0 of a tablespace is not encrypted/compressed */
-		return src_frame;
-	case TRX_SYS_PAGE_NO:
-		if (bpage->id.space() == TRX_SYS_SPACE) {
-			/* don't encrypt/compress page as it contains
-			address to dblwr buffer */
-			return src_frame;
-		}
-	}
-
-	fil_space_crypt_t* crypt_data = space->crypt_data;
-
-	bool encrypted, page_compressed;
-
-	if (space->purpose == FIL_TYPE_TEMPORARY) {
-		ut_ad(!crypt_data);
-		encrypted = innodb_encrypt_temporary_tables;
-		page_compressed = false;
-	} else {
-		encrypted = crypt_data
-			&& !crypt_data->not_encrypted()
-			&& crypt_data->type != CRYPT_SCHEME_UNENCRYPTED
-			&& (!crypt_data->is_default_encryption()
-			    || srv_encrypt_tables);
-		page_compressed = space->is_compressed();
-	}
-
-	if (!encrypted && !page_compressed) {
-		/* No need to encrypt or page compress the page.
-		Clear key-version & crypt-checksum. */
-		if (space->full_crc32()) {
-			memset(src_frame + FIL_PAGE_FCRC32_KEY_VERSION, 0, 4);
-		} else {
-			memset(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-			       0, 8);
-		}
-
-		return src_frame;
-	}
-
-	ut_ad(!bpage->zip_size() || !page_compressed);
-	buf_pool_t* buf_pool = buf_pool_from_bpage(bpage);
-	/* Find free slot from temporary memory array */
-	buf_tmp_buffer_t* slot = buf_pool_reserve_tmp_slot(buf_pool);
-	slot->out_buf = NULL;
-	bpage->slot = slot;
-
-	buf_tmp_reserve_crypt_buf(slot);
-	byte *dst_frame = slot->crypt_buf;
-	const bool full_crc32 = space->full_crc32();
-
-	if (full_crc32) {
-		/* Write LSN for the full crc32 checksum before
-		encryption. Because lsn is one of the input for encryption. */
-		mach_write_to_8(src_frame + FIL_PAGE_LSN,
-				bpage->newest_modification);
-		if (!page_compressed) {
-			mach_write_to_4(
-				src_frame + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
-				(ulint) bpage->newest_modification);
-		}
-	}
-
-	if (!page_compressed) {
-not_compressed:
-		byte* tmp;
-		if (space->purpose == FIL_TYPE_TEMPORARY) {
-			/* Encrypt temporary tablespace page content */
-			tmp = buf_tmp_page_encrypt(bpage->id.page_no(),
-						   src_frame, dst_frame);
-		} else {
-			/* Encrypt page content */
-			tmp = fil_space_encrypt(
-					space, bpage->id.page_no(),
-					bpage->newest_modification,
-					src_frame, dst_frame);
-		}
-
-		bpage->real_size = srv_page_size;
-		slot->out_buf = dst_frame = tmp;
-
-		ut_d(fil_page_type_validate(space, tmp));
-	} else {
-		ut_ad(space->purpose != FIL_TYPE_TEMPORARY);
-		/* First we compress the page content */
-		buf_tmp_reserve_compression_buf(slot);
-		byte* tmp = slot->comp_buf;
-		ulint out_len = fil_page_compress(
-			src_frame, tmp, space->flags,
-			fil_space_get_block_size(space, bpage->id.page_no()),
-			encrypted);
-
-		if (!out_len) {
-			goto not_compressed;
-		}
-
-		bpage->real_size = out_len;
-
-		if (full_crc32) {
-			ut_d(bool compressed = false);
-			out_len = buf_page_full_crc32_size(tmp,
-#ifdef UNIV_DEBUG
-							   &compressed,
-#else
-							   NULL,
-#endif
-							   NULL);
-			ut_ad(compressed);
-		}
-
-		/* Workaround for MDEV-15527. */
-		memset(tmp + out_len, 0 , srv_page_size - out_len);
-		ut_d(fil_page_type_validate(space, tmp));
-
-		if (encrypted) {
-			/* And then we encrypt the page content */
-			tmp = fil_space_encrypt(space,
-						bpage->id.page_no(),
-						bpage->newest_modification,
-						tmp,
-						dst_frame);
-		}
-
-		if (full_crc32) {
-			compile_time_assert(FIL_PAGE_FCRC32_CHECKSUM == 4);
-			mach_write_to_4(tmp + out_len - 4,
-					ut_crc32(tmp, out_len - 4));
-			ut_ad(!buf_page_is_corrupted(true, tmp, space->flags));
-		}
-
-		slot->out_buf = dst_frame = tmp;
-	}
-
-	ut_d(fil_page_type_validate(space, dst_frame));
-
-	// return dst_frame which will be written
-	return dst_frame;
 }
 
 /**

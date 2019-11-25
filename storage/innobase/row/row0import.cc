@@ -796,14 +796,12 @@ public:
 		AbstractCallback(trx, space_id),
 		m_cfg(cfg),
 		m_index(cfg->m_indexes),
-		m_current_lsn(log_get_lsn()),
 		m_page_zip_ptr(0),
 		m_rec_iter(),
 		m_offsets_(), m_offsets(m_offsets_),
 		m_heap(0),
 		m_cluster_index(dict_table_get_first_index(cfg->m_table))
 	{
-		ut_ad(m_current_lsn);
 		rec_offs_init(m_offsets_);
 	}
 
@@ -905,9 +903,6 @@ private:
 
 	/** Current index whose pages are being imported */
 	row_index_t*		m_index;
-
-	/** Current system LSN */
-	lsn_t			m_current_lsn;
 
 	/** Alias for m_page_zip, only set for compressed pages. */
 	page_zip_des_t*		m_page_zip_ptr;
@@ -1921,9 +1916,7 @@ PageConverter::update_header(
 		ib::warn() << "Space id check in the header failed: ignored";
 	}
 
-	mach_write_to_8(
-		get_frame(block) + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-		m_current_lsn);
+	memset(get_frame(block) + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,0,8);
 
 	/* Write back the adjusted flags. */
 	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
@@ -2036,20 +2029,22 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 	}
 
 	const bool full_crc32 = fil_space_t::full_crc32(get_space_flags());
+	byte* frame = get_frame(block);
+	compile_time_assert(FIL_PAGE_LSN % 8 == 0);
+	*reinterpret_cast<uint64_t*>(frame + FIL_PAGE_LSN)= 0;
 
 	if (!block->page.zip.data) {
 		buf_flush_init_for_writing(
-			NULL, block->frame, NULL, m_current_lsn, full_crc32);
+			NULL, block->frame, NULL, full_crc32);
 	} else if (fil_page_type_is_index(page_type)) {
 		buf_flush_init_for_writing(
 			NULL, block->page.zip.data, &block->page.zip,
-			m_current_lsn, full_crc32);
+			full_crc32);
 	} else {
 		/* Calculate and update the checksum of non-index
 		pages for ROW_FORMAT=COMPRESSED tables. */
 		buf_flush_update_zip_checksum(
-			block->page.zip.data, block->zip_size(),
-			m_current_lsn);
+			block->page.zip.data, block->zip_size());
 	}
 
 	return DB_SUCCESS;
@@ -3554,7 +3549,6 @@ not_encrypted:
 					iter.crypt_data,
 					block->page.id.space(),
 					block->page.id.page_no(),
-					mach_read_from_8(src + FIL_PAGE_LSN),
 					src, block->zip_size(), dest,
 					full_crc32);
 

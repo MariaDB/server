@@ -1876,13 +1876,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 	page = block->frame;
 	page_zip = buf_block_get_page_zip(block);
 
-	/* The page may have been modified in the buffer pool.
-	FIL_PAGE_LSN would only be updated right before flushing. */
-	lsn_t page_lsn = buf_page_get_newest_modification(&block->page);
-	if (!page_lsn) {
-		page_lsn = mach_read_from_8(page + FIL_PAGE_LSN);
-	}
-
+	const lsn_t page_lsn = mach_read_from_8(page + FIL_PAGE_LSN);
 	bool free_page = false;
 	lsn_t start_lsn = 0, end_lsn = 0;
 	ut_d(lsn_t recv_start_lsn = 0);

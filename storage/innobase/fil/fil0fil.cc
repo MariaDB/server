@@ -3036,12 +3036,12 @@ err_exit:
 			page_zip.m_end = page_zip.m_nonempty =
 			page_zip.n_blobs = 0;
 
-		buf_flush_init_for_writing(NULL, page, &page_zip, 0, false);
+		buf_flush_init_for_writing(NULL, page, &page_zip, false);
 
 		*err = os_file_write(
 			IORequestWrite, path, file, page_zip.data, 0, zip_size);
 	} else {
-		buf_flush_init_for_writing(NULL, page, NULL, 0,
+		buf_flush_init_for_writing(NULL, page, NULL,
 					   fil_space_t::full_crc32(flags));
 
 		*err = os_file_write(

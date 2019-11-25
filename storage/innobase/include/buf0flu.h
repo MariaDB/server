@@ -85,14 +85,12 @@ void buf_flush_assign_full_crc32_checksum(byte* page);
 @param[in]	block			buffer block; NULL if bypassing the buffer pool
 @param[in,out]	page			page frame
 @param[in,out]	page_zip_		compressed page, or NULL if uncompressed
-@param[in]	newest_lsn		newest modification LSN to the page
 @param[in]	use_full_checksum	whether tablespace uses full checksum */
 void
 buf_flush_init_for_writing(
 	const buf_block_t*	block,
 	byte*			page,
 	void*			page_zip_,
-	lsn_t			newest_lsn,
 	bool			use_full_checksum);
 
 # if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG

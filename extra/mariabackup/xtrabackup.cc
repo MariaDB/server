@@ -4585,7 +4585,7 @@ xb_space_create_file(
 
 	if (!zip_size) {
 		buf_flush_init_for_writing(
-			NULL, page, NULL, 0,
+			NULL, page, NULL,
 			fil_space_t::full_crc32(flags));
 
 		ret = os_file_write(IORequestWrite, path, *file, page, 0,
@@ -4602,7 +4602,7 @@ xb_space_create_file(
 			page_zip.m_end = page_zip.m_nonempty =
 			page_zip.n_blobs = 0;
 
-		buf_flush_init_for_writing(NULL, page, &page_zip, 0, false);
+		buf_flush_init_for_writing(NULL, page, &page_zip, false);
 
 		ret = os_file_write(IORequestWrite, path, *file,
 				    page_zip.data, 0, zip_size);

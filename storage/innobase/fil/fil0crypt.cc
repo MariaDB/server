@@ -678,26 +678,25 @@ static byte* fil_encrypt_buf_for_full_crc32(
 @param[in,out]		crypt_data		Crypt data
 @param[in]		space			space_id
 @param[in]		offset			Page offset
-@param[in]		lsn			Log sequence number
 @param[in]		src_frame		Page to encrypt
 @param[in]		zip_size		ROW_FORMAT=COMPRESSED
 						page size, or 0
 @param[in,out]		dst_frame		Output buffer
 @param[in]		use_full_checksum	full crc32 algo is used
 @return encrypted buffer or NULL */
-UNIV_INTERN
-byte*
-fil_encrypt_buf(
+byte* fil_encrypt_buf(
 	fil_space_crypt_t*	crypt_data,
 	ulint			space,
 	ulint			offset,
-	lsn_t			lsn,
 	const byte*		src_frame,
 	ulint			zip_size,
 	byte*			dst_frame,
 	bool			use_full_checksum)
 {
+	const lsn_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
+
 	if (use_full_checksum) {
+		ut_ad(!zip_size);
 		return fil_encrypt_buf_for_full_crc32(
 			crypt_data, space, offset,
 			lsn, src_frame, dst_frame);
@@ -732,16 +731,12 @@ Encrypt a page
 
 @param[in]		space		Tablespace
 @param[in]		offset		Page offset
-@param[in]		lsn		Log sequence number
 @param[in]		src_frame	Page to encrypt
 @param[in,out]		dst_frame	Output buffer
 @return encrypted buffer or NULL */
-UNIV_INTERN
-byte*
-fil_space_encrypt(
+byte* fil_space_encrypt(
 	const fil_space_t*	space,
 	ulint			offset,
-	lsn_t			lsn,
 	byte*			src_frame,
 	byte*			dst_frame)
 {
@@ -759,7 +754,7 @@ fil_space_encrypt(
 
 	const bool full_crc32 = space->full_crc32();
 
-	byte* tmp = fil_encrypt_buf(crypt_data, space->id, offset, lsn,
+	byte* tmp = fil_encrypt_buf(crypt_data, space->id, offset,
 				    src_frame, zip_size, dst_frame,
 				    full_crc32);
 
@@ -1994,8 +1989,8 @@ fil_crypt_rotate_page(
 							     &sleeptime_ms)) {
 		bool modified = false;
 		int needs_scrubbing = BTR_SCRUB_SKIP_PAGE;
-		lsn_t block_lsn = block->page.newest_modification;
 		byte* frame = buf_block_get_frame(block);
+		const lsn_t block_lsn = mach_read_from_8(FIL_PAGE_LSN + frame);
 		uint kv = buf_page_get_key_version(frame, space->flags);
 
 		if (space->is_stopping()) {
