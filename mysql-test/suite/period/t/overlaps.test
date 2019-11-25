@@ -1,10 +1,15 @@
---source include/have_innodb.inc
 --source include/have_partition.inc
 
-create or replace table t(id int, s date, e date,
+# Test both myisam and innodb
+--source suite/period/engines.inc
+
+let $default_engine= `select @@default_storage_engine`;
+
+create or replace table t(id int NULL, s date, e date,
                           period for p(s,e),
                           primary key(id, p without overlaps));
 
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t;
 
 
@@ -84,6 +89,7 @@ create or replace table t(id int, u int, s date, e date,
                           period for p(s,e),
                           primary key(id, p without overlaps),
                           unique(u));
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t;
 insert into t values (1, 1, '2003-03-01', '2003-05-01');
 insert into t values (1, 2, '2003-05-01', '2003-07-01');
@@ -94,13 +100,14 @@ create or replace table t(id int, u int, s date, e date,
                           period for p(s,e),
                           primary key(id, p without overlaps),
                           unique(u, p without overlaps));
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t;
 insert into t values (1, 1, '2003-03-01', '2003-05-01');
 insert into t values (1, 2, '2003-05-01', '2003-07-01');
 insert into t values (2, 1, '2003-05-01', '2003-07-01');
 
 create or replace table t(id int, s date, e date,
-                          period for p(s,e)) engine=innodb;
+                          period for p(s,e));
 
 insert into t values (1, '2003-01-01', '2003-03-01'),
                      (1, '2003-05-01', '2003-07-01'),
@@ -121,10 +128,12 @@ insert into t values (1, '2003-01-01', '2003-03-01'),
 
 --echo # `without overlaps` is not lost on alter table
 alter table t add y int;
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t;
 alter table t drop y;
 
 create or replace table t1 like t;
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
 --error ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
