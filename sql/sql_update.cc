@@ -1261,12 +1261,6 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
 
   thd->lex->allow_sum_func.clear_all();
 
-/* 10.4:
-  if (table_list->has_period() &&
-      select_lex->period_setup_conds(thd, table_list))
-      DBUG_RETURN(true);
-*/
-
   DBUG_ASSERT(table_list->table);
   // conds could be cached from previous SP call
   DBUG_ASSERT(!table_list->vers_conditions.is_set() ||

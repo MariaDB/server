@@ -917,20 +917,6 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
     DBUG_RETURN(true);
   }
 
-/* 10.4:
-  if (table_list->has_period())
-  {
-    if (table_list->is_view_or_derived())
-    {
-      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
-      DBUG_RETURN(true);
-    }
-
-    if (select_lex->period_setup_conds(thd, table_list))
-      DBUG_RETURN(true);
-  }
-*/
-
   DBUG_ASSERT(table_list->table);
   // conds could be cached from previous SP call
   DBUG_ASSERT(!table_list->vers_conditions.is_set() ||
