@@ -225,19 +225,11 @@ bool Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
 static bool record_should_be_deleted(THD *thd, TABLE *table, SQL_SELECT *sel,
                                      Explain_delete *explain, bool truncate_history)
 {
-  bool check_delete= true;
-
-  if (table->versioned())
-  {
-    bool historical= !table->vers_end_field()->is_max();
-    check_delete= truncate_history ? historical : !historical;
-  }
-
   explain->tracker.on_record_read();
   thd->inc_examined_row_count(1);
   if (table->vfield)
     (void) table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_DELETE);
-  if (check_delete && (!sel || sel->skip_record(thd) > 0))
+  if (!sel || sel->skip_record(thd) > 0)
   {
     explain->tracker.on_record_after_where();
     return true;
@@ -351,30 +343,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   THD_STAGE_INFO(thd, stage_init_update);
 
-  bool delete_history= table_list->vers_conditions.is_set();
-  if (delete_history)
-  {
-    DBUG_ASSERT(!table_list->period_conditions.is_set());
-
-    if (table_list->is_view_or_derived())
-    {
-      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
-      DBUG_RETURN(true);
-    }
-
-    DBUG_ASSERT(table_list->table);
-    DBUG_ASSERT(!conds || thd->stmt_arena->is_stmt_execute());
-
-    // conds could be cached from previous SP call
-    if (!conds)
-    {
-      if (select_lex->vers_setup_conds(thd, table_list))
-        DBUG_RETURN(TRUE);
-
-      conds= table_list->on_expr;
-      table_list->on_expr= NULL;
-    }
-  }
+  const bool delete_history= table_list->vers_conditions.delete_history;
+  DBUG_ASSERT(!(delete_history && table_list->period_conditions.is_set()));
 
   if (thd->lex->handle_list_of_derived(table_list, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE);
@@ -1036,15 +1006,11 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
                                     select_lex->leaf_tables, FALSE, 
                                     DELETE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(TRUE);
-  if (table_list->vers_conditions.is_set())
+
+  if (table_list->vers_conditions.is_set() && table_list->is_view_or_derived())
   {
-    if (table_list->is_view())
-    {
-      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
-      DBUG_RETURN(true);
-    }
-    if (select_lex->vers_setup_conds(thd, table_list))
-      DBUG_RETURN(true);
+    my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
+    DBUG_RETURN(true);
   }
 
   if (table_list->has_period())
@@ -1055,10 +1021,18 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
       DBUG_RETURN(true);
     }
 
-    *conds= select_lex->period_setup_conds(thd, table_list, *conds);
-    if (!*conds)
+    if (select_lex->period_setup_conds(thd, table_list))
       DBUG_RETURN(true);
   }
+
+  DBUG_ASSERT(table_list->table);
+  // conds could be cached from previous SP call
+  DBUG_ASSERT(!table_list->vers_conditions.is_set() ||
+              !*conds || thd->stmt_arena->is_stmt_execute());
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(TRUE);
+
+  *conds= select_lex->where;
 
   if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num,
                               &select_lex->hidden_bit_fields)) ||
@@ -1355,11 +1329,6 @@ int multi_delete::send_data(List<Item> &values)
     /* Check if we are using outer join and we didn't find the row */
     if (table->status & (STATUS_NULL_ROW | STATUS_DELETED))
       continue;
-
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
 
     table->file->position(table->record[0]);
     found++;

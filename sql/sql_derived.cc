@@ -723,7 +723,17 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
        !(derived->is_multitable() &&
          (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
           thd->lex->sql_command == SQLCOM_DELETE_MULTI))))
+  {
+    /*
+       System versioned tables may still require to get versioning conditions
+       (when updating view). See vers_setup_conds().
+    */
+    if (!unit->prepared &&
+        derived->table->versioned() &&
+        (res= unit->prepare(derived, derived->derived_result, 0)))
+      goto exit;
     DBUG_RETURN(FALSE);
+  }
 
   /* prevent name resolving out of derived table */
   for (SELECT_LEX *sl= first_select; sl; sl= sl->next_select())

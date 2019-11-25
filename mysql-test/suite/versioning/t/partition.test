@@ -508,4 +508,18 @@ execute immediate 'select * from t1 for update';
 drop view v1;
 drop tables t, t1, t2, t3, t4;
 
+--echo #
+--echo # MDEV-18957 UPDATE with LIMIT clause is wrong for versioned partitioned tables
+--echo #
+create or replace table t1 (
+  x int,
+  a varchar(255)
+) with system versioning partition by system_time (partition p1 history, partition pn current);
+
+insert into t1 (x) values (1), (2), (3), (4);
+update t1 set a= 'foo' limit 3;
+update t1 set a= 'bar' limit 4;
+select * from t1;
+drop table t1;
+
 --source suite/versioning/common_finish.inc

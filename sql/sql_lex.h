@@ -1291,7 +1291,7 @@ public:
   /* push new Item_field into item_list */
   bool vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name);
 
-  Item* period_setup_conds(THD *thd, TABLE_LIST *table, Item *where);
+  int period_setup_conds(THD *thd, TABLE_LIST *table);
   void init_query();
   void init_select();
   st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }
