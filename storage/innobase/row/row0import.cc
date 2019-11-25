@@ -3805,7 +3805,7 @@ row_import_for_mysql(
 	ut_ad(!table->is_temporary());
 
 	ut_ad(table->space_id);
-	ut_ad(table->space_id < SRV_LOG_SPACE_FIRST_ID);
+	ut_ad(table->space_id < SRV_SPACE_ID_UPPER_BOUND);
 	ut_ad(prebuilt->trx);
 	ut_ad(!table->is_readable());
 

@@ -1774,12 +1774,12 @@ srv_mon_process_existing_counter(
 
 	/* innodb_os_log_fsyncs */
 	case MONITOR_OVLD_OS_LOG_FSYNC:
-		value = fil_n_log_flushes;
+		value = log_sys.get_flushes();
 		break;
 
 	/* innodb_os_log_pending_fsyncs */
 	case MONITOR_OVLD_OS_LOG_PENDING_FSYNC:
-		value = fil_n_pending_log_flushes;
+		value = log_sys.get_pending_flushes();
 		update_min = TRUE;
 		break;
 

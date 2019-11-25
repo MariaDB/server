@@ -56,8 +56,6 @@ enum fil_type_t {
 	FIL_TYPE_IMPORT,
 	/** persistent tablespace (for system, undo log or tables) */
 	FIL_TYPE_TABLESPACE,
-	/** redo log covering changes to files of FIL_TYPE_TABLESPACE */
-	FIL_TYPE_LOG
 };
 
 /** Check if fil_type is any of FIL_TYPE_TEMPORARY, FIL_TYPE_IMPORT
@@ -859,11 +857,6 @@ enum fil_encryption_t {
 
 #ifndef UNIV_INNOCHECKSUM
 
-/** The number of fsyncs done to the log */
-extern ulint	fil_n_log_flushes;
-
-/** Number of pending redo log flushes */
-extern ulint	fil_n_pending_log_flushes;
 /** Number of pending tablespace flushes */
 extern ulint	fil_n_pending_tablespace_flushes;
 
@@ -1074,28 +1067,19 @@ fil_space_get_size(
 /*===============*/
 	ulint	id);	/*!< in: space id */
 
-/*******************************************************************//**
-Opens all log files and system tablespace data files. They stay open until the
+/** Opens all system tablespace data files. They stay open until the
 database server shutdown. This should be called at a server startup after the
-space objects for the log and the system tablespace have been created. The
+space objects for the system tablespace have been created. The
 purpose of this operation is to make sure we never run out of file descriptors
-if we need to read from the insert buffer or to write to the log. */
+if we need to read from the insert buffer. */
 void
-fil_open_log_and_system_tablespace_files(void);
+fil_open_system_tablespace_files();
 /*==========================================*/
 /*******************************************************************//**
 Closes all open files. There must not be any pending i/o's or not flushed
 modifications in the files. */
 void
 fil_close_all_files(void);
-/*=====================*/
-/*******************************************************************//**
-Closes the redo log files. There must not be any pending i/o's or not
-flushed modifications in the files. */
-void
-fil_close_log_files(
-/*================*/
-	bool	free);	/*!< in: whether to free the memory object */
 /*******************************************************************//**
 Sets the max tablespace id counter if the given number is bigger than the
 previous value. */
@@ -1454,7 +1438,7 @@ fil_flush(fil_space_t* space);
 
 /** Flush to disk the writes in file spaces of the given type
 possibly cached by the OS.
-@param[in]	purpose	FIL_TYPE_TABLESPACE or FIL_TYPE_LOG */
+@param[in]	purpose	FIL_TYPE_TABLESPACE */
 void
 fil_flush_file_spaces(
 	fil_type_t	purpose);

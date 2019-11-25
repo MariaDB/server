@@ -2764,7 +2764,7 @@ dict_load_tablespace(
 {
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space);
-	ut_ad(table->space_id < SRV_LOG_SPACE_FIRST_ID);
+	ut_ad(table->space_id < SRV_SPACE_ID_UPPER_BOUND);
 	ut_ad(fil_system.sys_space);
 
 	if (table->space_id == TRX_SYS_SPACE) {

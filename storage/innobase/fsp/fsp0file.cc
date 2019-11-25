@@ -567,7 +567,7 @@ err_exit:
 		goto err_exit;
 	}
 
-	if (m_space_id >= SRV_LOG_SPACE_FIRST_ID) {
+	if (m_space_id >= SRV_SPACE_ID_UPPER_BOUND) {
 		error_txt = "A bad Space ID was found";
 		goto err_exit;
 	}

@@ -39,7 +39,7 @@ safe to look at BUF_BUDDY_STAMP_OFFSET.
 The answer lies in following invariants:
 * All blocks allocated by buddy allocator are used for compressed
 page frame.
-* A compressed table always have space_id < SRV_LOG_SPACE_FIRST_ID
+* A compressed table always have space_id < SRV_SPACE_ID_UPPER_BOUND
 * BUF_BUDDY_STAMP_OFFSET always points to the space_id field in
 a frame.
   -- The above is true because we look at these fields when the
@@ -67,7 +67,7 @@ are written.*/
 
 /** Value that we stamp on all buffers that are currently on the zip_free
 list. This value is stamped at BUF_BUDDY_STAMP_OFFSET offset */
-#define BUF_BUDDY_STAMP_FREE	 SRV_LOG_SPACE_FIRST_ID
+#define BUF_BUDDY_STAMP_FREE	 SRV_SPACE_ID_UPPER_BOUND
 
 /** Stamp value for non-free buffers. Will be overwritten by a non-zero
 value by the consumer of the block */

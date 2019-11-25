@@ -588,6 +588,90 @@ void log_t::create()
   }
 }
 
+void log_t::files::set_file_names(std::vector<std::string> names)
+{
+  file_names= std::move(names);
+}
+
+void log_t::files::open_files()
+{
+  ut_ad(files.empty());
+  files.reserve(file_names.size());
+  for (const auto &name : file_names)
+  {
+    bool success;
+    files.push_back(os_file_create(innodb_log_file_key, name.c_str(),
+                                   OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
+                                   OS_FILE_NORMAL, OS_LOG_FILE,
+                                   srv_read_only_mode, &success));
+    if (!success)
+    {
+      ib::fatal() << "os_file_create(" << name << ") failed";
+    }
+  }
+}
+
+void log_t::files::read(size_t total_offset, span<byte> buf)
+{
+  ut_ad(files.size() == file_names.size());
+
+  const size_t file_idx= total_offset / file_size;
+  const size_t offset= total_offset % file_size;
+
+  if (const dberr_t err= os_file_read(IORequestRead, files[file_idx],
+                                      buf.data(), offset, buf.size()))
+  {
+    ib::fatal() << "os_file_read(" << file_names[file_idx] << ") returned "
+                << err;
+  }
+}
+
+void log_t::files::write(size_t total_offset, span<byte> buf)
+{
+  ut_ad(files.size() == file_names.size());
+
+  const size_t file_idx= total_offset / file_size;
+  const size_t offset= total_offset % file_size;
+
+  if (const dberr_t err=
+          os_file_write(IORequestWrite, file_names[file_idx].c_str(),
+                        files[file_idx], buf.data(), offset, buf.size()))
+  {
+    ib::fatal() << "os_file_write(" << file_names[file_idx] << ") returned "
+                << err;
+  }
+}
+
+void log_t::files::fsync()
+{
+  ut_ad(files.size() == file_names.size());
+
+  log_sys.pending_flushes.fetch_add(1, std::memory_order_acquire);
+  for (auto it= files.begin(), end= files.end(); it != end; ++it)
+  {
+    if (!os_file_flush(*it))
+    {
+      const auto idx= std::distance(files.begin(), it);
+      ib::fatal() << "os_file_flush(" << file_names[idx] << ") failed";
+    }
+  }
+  log_sys.pending_flushes.fetch_add(1, std::memory_order_release);
+  log_sys.flushes.fetch_add(1, std::memory_order_release);
+}
+
+void log_t::files::close_files()
+{
+  for (auto it= files.begin(), end= files.end(); it != end; ++it)
+  {
+    if (!os_file_close(*it))
+    {
+      const auto idx= std::distance(files.begin(), it);
+      ib::fatal() << "os_file_close(" << file_names[idx] << ") failed";
+    }
+  }
+  files.clear();
+}
+
 /** Initialize the redo log.
 @param[in]	n_files		number of files */
 void log_t::files::create(ulint n_files)
@@ -651,13 +735,7 @@ log_file_header_flush(
 
 	srv_stats.os_log_pending_writes.inc();
 
-	const ulint	page_no = ulint(dest_offset >> srv_page_size_shift);
-
-	fil_io(IORequestLogWrite, true,
-	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       0,
-	       ulint(dest_offset & (srv_page_size - 1)),
-	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
+	log_sys.log.write(dest_offset, buf);
 
 	srv_stats.os_log_pending_writes.dec();
 }
@@ -758,12 +836,7 @@ loop:
 
 	ut_a((next_offset >> srv_page_size_shift) <= ULINT_MAX);
 
-	const ulint	page_no = ulint(next_offset >> srv_page_size_shift);
-
-	fil_io(IORequestLogWrite, true,
-	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       0,
-	       ulint(next_offset & (srv_page_size - 1)), write_len, buf, NULL);
+	log_sys.log.write(next_offset, {buf, write_len});
 
 	srv_stats.os_log_pending_writes.dec();
 
@@ -791,17 +864,10 @@ log_write_flush_to_disk_low()
 	calling os_event_set()! */
 	ut_a(log_sys.n_pending_flushes == 1); /* No other threads here */
 
-	bool	do_flush = srv_file_flush_method != SRV_O_DSYNC;
-
-	if (do_flush) {
-		fil_flush(SRV_LOG_SPACE_FIRST_ID);
-	}
-
+	log_sys.log.fsync();
 
 	log_mutex_enter();
-	if (do_flush) {
-		log_sys.flushed_to_disk_lsn = log_sys.current_flush_lsn;
-	}
+	log_sys.flushed_to_disk_lsn = log_sys.current_flush_lsn;
 
 	log_sys.n_pending_flushes--;
 
@@ -1173,11 +1239,8 @@ void log_header_read(ulint header)
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
-	fil_io(IORequestLogRead, true,
-	       page_id_t(SRV_LOG_SPACE_FIRST_ID,
-			 header >> srv_page_size_shift),
-	       0, header & (srv_page_size - 1),
-	       OS_FILE_LOG_BLOCK_SIZE, log_sys.checkpoint_buf, NULL);
+	log_sys.log.read(header,
+			 {log_sys.checkpoint_buf, OS_FILE_LOG_BLOCK_SIZE});
 }
 
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
@@ -1231,21 +1294,11 @@ void log_write_checkpoint_info(lsn_t end_lsn)
 	/* Note: We alternate the physical place of the checkpoint info.
 	See the (next_checkpoint_no & 1) below. */
 
-	fil_io(IORequestLogWrite, true,
-	       page_id_t(SRV_LOG_SPACE_FIRST_ID, 0),
-	       0,
-	       (log_sys.next_checkpoint_no & 1)
-	       ? LOG_CHECKPOINT_2 : LOG_CHECKPOINT_1,
-	       OS_FILE_LOG_BLOCK_SIZE,
-	       buf, nullptr);
+	log_sys.log.write((log_sys.next_checkpoint_no & 1) ? LOG_CHECKPOINT_2
+							   : LOG_CHECKPOINT_1,
+			  {buf, OS_FILE_LOG_BLOCK_SIZE});
 
-	switch (srv_flush_t(srv_file_flush_method)) {
-	case SRV_O_DSYNC:
-	case SRV_NOSYNC:
-		break;
-	default:
-		fil_flush(SRV_LOG_SPACE_FIRST_ID);
-	}
+	log_sys.log.fsync();
 
 	log_mutex_enter();
 
@@ -1723,7 +1776,7 @@ wait_suspend_loop:
 
 		/* Ensure that all buffered changes are written to the
 		redo log before fil_close_all_files(). */
-		fil_flush_file_spaces(FIL_TYPE_LOG);
+		log_sys.log.fsync();
 	} else {
 		lsn = srv_start_lsn;
 	}

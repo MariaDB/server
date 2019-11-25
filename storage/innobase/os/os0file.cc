@@ -4220,7 +4220,7 @@ os_aio_print(FILE*	file)
 		ULINTPF " OS file reads, "
 		ULINTPF " OS file writes, "
 		ULINTPF " OS fsyncs\n",
-		fil_n_pending_log_flushes,
+		log_sys.get_pending_flushes(),
 		fil_n_pending_tablespace_flushes,
 		os_n_file_reads,
 		os_n_file_writes,
@@ -4478,7 +4478,6 @@ void fil_node_t::find_metadata(os_file_t file
 bool fil_node_t::read_page0(bool first)
 {
 	ut_ad(mutex_own(&fil_system.mutex));
-	ut_a(space->purpose != FIL_TYPE_LOG);
 	const ulint psize = space->physical_size();
 #ifndef _WIN32
 	struct stat statbuf;

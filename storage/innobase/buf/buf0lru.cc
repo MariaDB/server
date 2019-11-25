@@ -1152,7 +1152,7 @@ not_found:
 			" flush a page!"
 			" Consider increasing innodb_buffer_pool_size."
 			" Pending flushes (fsync) log: "
-			<< fil_n_pending_log_flushes
+			<< log_sys.get_pending_flushes()
 			<< "; buffer pool: "
 			<< fil_n_pending_tablespace_flushes
 			<< ". " << os_n_file_reads << " OS file reads, "

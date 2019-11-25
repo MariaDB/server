@@ -3791,14 +3791,14 @@ xb_filters_free()
 	}
 }
 
-/*********************************************************************//**
-Create log file metadata. */
+/**Create log file metadata.
+@param[in]	i		log file number in group
+@param[in,out]	file_names	redo log file names */
 static
 void
 open_or_create_log_file(
-/*====================*/
-	fil_space_t* space,
-	ulint	i)			/*!< in: log file number in group */
+	ulint	i,
+	std::vector<std::string> &file_names)
 {
 	char	name[FN_REFLEN];
 	ulint	dirnamelen;
@@ -3818,9 +3818,7 @@ open_or_create_log_file(
 
 	ut_a(fil_validate());
 
-	space->add(name, OS_FILE_CLOSED,
-		   ulint(srv_log_file_size >> srv_page_size_shift),
-		   false, false);
+	file_names.emplace_back(name);
 }
 
 /***********************************************************************
@@ -4080,13 +4078,15 @@ fail:
 
 	log_sys.create();
 	log_sys.log.create(srv_n_log_files);
-	fil_space_t*	space = fil_space_create(
-		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0,
-		FIL_TYPE_LOG, NULL);
+
+	std::vector<std::string> file_names;
 
 	for (ulint i = 0; i < srv_n_log_files; i++) {
-		open_or_create_log_file(space, i);
+		open_or_create_log_file(i, file_names);
 	}
+
+	log_sys.log.set_file_names(std::move(file_names));
+	log_sys.log.open_files();
 
 	/* create extra LSN dir if it does not exist. */
 	if (xtrabackup_extra_lsndir
@@ -5537,8 +5537,7 @@ static bool xtrabackup_prepare_func(char** argv)
 	}
 
 	/* Check whether the log is applied enough or not. */
-	if ((srv_start_lsn || fil_space_get(SRV_LOG_SPACE_FIRST_ID))
-	    && srv_start_lsn < target_lsn) {
+	if (srv_start_lsn && srv_start_lsn < target_lsn) {
 		msg("mariabackup: error: "
 		    "The log was only applied up to LSN " LSN_PF
 		    ", instead of " LSN_PF,

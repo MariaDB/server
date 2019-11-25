@@ -899,13 +899,7 @@ loop:
 
 	ut_a((source_offset >> srv_page_size_shift) <= ULINT_MAX);
 
-	const ulint	page_no = ulint(source_offset >> srv_page_size_shift);
-
-	fil_io(IORequestLogRead, true,
-	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       0,
-	       ulint(source_offset & (srv_page_size - 1)),
-	       len, buf, NULL);
+	log_sys.log.read(source_offset, {buf, len});
 
 	for (ulint l = 0; l < len; l += OS_FILE_LOG_BLOCK_SIZE,
 		     buf += OS_FILE_LOG_BLOCK_SIZE,
@@ -1108,19 +1102,14 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 	log_mutex_enter();
 	const lsn_t	source_offset = log_sys.log.calc_lsn_offset(lsn);
 	log_mutex_exit();
-	const ulint	page_no = ulint(source_offset >> srv_page_size_shift);
 	byte*		buf = log_sys.buf;
 
 	static const char* NO_UPGRADE_RECOVERY_MSG =
 		"Upgrade after a crash is not supported."
 		" This redo log was created before MariaDB 10.2.2";
 
-	fil_io(IORequestLogRead, true,
-	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
-	       0,
-	       ulint((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
-		     & (srv_page_size - 1)),
-	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
+	log_sys.log.read(source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1),
+			 {buf, OS_FILE_LOG_BLOCK_SIZE});
 
 	if (log_block_calc_checksum_format_0(buf)
 	    != log_block_get_checksum(buf)

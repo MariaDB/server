@@ -168,9 +168,6 @@ static ulint	srv_start_state;
 SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */
 enum srv_shutdown_t	srv_shutdown_state = SRV_SHUTDOWN_NONE;
 
-/** Files comprising the system tablespace */
-pfs_os_file_t	files[1000];
-
 /** Name of srv_monitor_file */
 static char*	srv_monitor_file_name;
 std::unique_ptr<tpool::timer> srv_master_timer;
@@ -251,19 +248,15 @@ srv_file_check_mode(
 }
 
 
-/*********************************************************************//**
-Creates a log file.
+/** Creates a log file.
+@param[in]	name	log file name
 @return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-create_log_file(
-/*============*/
-	pfs_os_file_t*	file,	/*!< out: file handle */
-	const char*	name)	/*!< in: log file name */
+static MY_ATTRIBUTE((nonnull, warn_unused_result)) dberr_t
+	create_log_file(const char* name)
 {
 	bool		ret;
 
-	*file = os_file_create(
+	pfs_os_file_t file = os_file_create(
 		innodb_log_file_key, name,
 		OS_FILE_CREATE|OS_FILE_ON_ERROR_NO_EXIT, OS_FILE_NORMAL,
 		OS_LOG_FILE, srv_read_only_mode, &ret);
@@ -276,14 +269,15 @@ create_log_file(
 	ib::info() << "Setting log file " << name << " size to "
 		<< srv_log_file_size << " bytes";
 
-	ret = os_file_set_size(name, *file, srv_log_file_size);
+	ret = os_file_set_size(name, file, srv_log_file_size);
 	if (!ret) {
+		os_file_close(file);
 		ib::error() << "Cannot set log file " << name << " size to "
 			<< srv_log_file_size << " bytes";
 		return(DB_ERROR);
 	}
 
-	ret = os_file_close(*file);
+	ret = os_file_close(file);
 	ut_a(ret);
 
 	return(DB_SUCCESS);
@@ -326,7 +320,7 @@ create_log_files(
 	char*	logfilename,	/*!< in/out: buffer for log file name */
 	size_t	dirnamelen,	/*!< in: length of the directory path */
 	lsn_t	lsn,		/*!< in: FIL_PAGE_FILE_FLUSH_LSN value */
-	char*&	logfile0)	/*!< out: name of the first log file */
+	std::string& logfile0)	/*!< out: name of the first log file */
 {
 	dberr_t err;
 
@@ -350,16 +344,23 @@ create_log_files(
 	DBUG_EXECUTE_IF("innodb_log_abort_7", return(DB_ERROR););
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_7"));
 
+	std::vector<std::string> file_names;
+
 	for (unsigned i = 0; i < srv_n_log_files; i++) {
 		sprintf(logfilename + dirnamelen,
 			"ib_logfile%u", i ? i : INIT_LOG_FILE0);
 
-		err = create_log_file(&files[i], logfilename);
+		err = create_log_file(logfilename);
 
 		if (err != DB_SUCCESS) {
 			return(err);
 		}
+
+		file_names.emplace_back(logfilename);
 	}
+
+	logfile0 = file_names[0];
+	log_sys.log.set_file_names(std::move(file_names));
 
 	DBUG_EXECUTE_IF("innodb_log_abort_8", return(DB_ERROR););
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_8"));
@@ -367,35 +368,14 @@ create_log_files(
 	/* We did not create the first log file initially as
 	ib_logfile0, so that crash recovery cannot find it until it
 	has been completed and renamed. */
-	sprintf(logfilename + dirnamelen, "ib_logfile%u", INIT_LOG_FILE0);
-
-	fil_space_t*	log_space = fil_space_create(
-		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0, FIL_TYPE_LOG,
-		NULL/* innodb_encrypt_log works at a different level */);
-
-	ut_a(fil_validate());
-	ut_a(log_space != NULL);
-
-	const ulint size = ulint(srv_log_file_size >> srv_page_size_shift);
-
-	logfile0 = log_space->add(logfilename, OS_FILE_CLOSED, size,
-				  false, false)->name;
-	ut_a(logfile0);
-
-	for (unsigned i = 1; i < srv_n_log_files; i++) {
-
-		sprintf(logfilename + dirnamelen, "ib_logfile%u", i);
-
-		log_space->add(logfilename, OS_FILE_CLOSED, size,
-			       false, false);
-	}
 
 	log_sys.log.create(srv_n_log_files);
 	if (!log_set_capacity(srv_log_file_size_requested)) {
 		return(DB_ERROR);
 	}
 
-	fil_open_log_and_system_tablespace_files();
+	log_sys.log.open_files();
+	fil_open_system_tablespace_files();
 
 	/* Create a log checkpoint. */
 	log_mutex_enter();
@@ -438,54 +418,47 @@ create_log_files(
 @return	error code
 @retval	DB_SUCCESS	on successful operation */
 MY_ATTRIBUTE((warn_unused_result, nonnull))
-static
-dberr_t
-create_log_files_rename(
-/*====================*/
-	char*	logfilename,	/*!< in/out: buffer for log file name */
-	size_t	dirnamelen,	/*!< in: length of the directory path */
-	lsn_t	lsn,		/*!< in: FIL_PAGE_FILE_FLUSH_LSN value */
-	char*	logfile0)	/*!< in/out: name of the first log file */
+static dberr_t create_log_files_rename(char *logfilename, size_t dirnamelen,
+                                       lsn_t lsn, std::string &logfile0)
 {
-	/* If innodb_flush_method=O_DSYNC,
-	we need to explicitly flush the log buffers. */
-	fil_flush(SRV_LOG_SPACE_FIRST_ID);
+  log_sys.log.fsync();
 
-	ut_ad(!srv_log_files_created);
-	ut_d(srv_log_files_created = true);
+  ut_ad(!srv_log_files_created);
+  ut_d(srv_log_files_created= true);
 
-	DBUG_EXECUTE_IF("innodb_log_abort_9", return(DB_ERROR););
-	DBUG_PRINT("ib_log", ("After innodb_log_abort_9"));
+  DBUG_EXECUTE_IF("innodb_log_abort_9", return (DB_ERROR););
+  DBUG_PRINT("ib_log", ("After innodb_log_abort_9"));
 
-	/* Close the log files, so that we can rename
-	the first one. */
-	fil_close_log_files(false);
+  /* Close the log files, so that we can rename the first one. */
+  log_sys.log.close_files();
 
-	/* Rename the first log file, now that a log
-	checkpoint has been created. */
-	sprintf(logfilename + dirnamelen, "ib_logfile%u", 0);
+  /* Rename the first log file, now that a log
+  checkpoint has been created. */
+  sprintf(logfilename + dirnamelen, "ib_logfile%u", 0);
 
-	ib::info() << "Renaming log file " << logfile0 << " to "
-		<< logfilename;
+  ib::info() << "Renaming log file " << logfile0 << " to " << logfilename;
 
-	log_mutex_enter();
-	ut_ad(strlen(logfile0) == 2 + strlen(logfilename));
-	dberr_t err = os_file_rename(
-		innodb_log_file_key, logfile0, logfilename)
-		? DB_SUCCESS : DB_ERROR;
+  log_mutex_enter();
+  ut_ad(logfile0.size() == 2 + strlen(logfilename));
+  dberr_t err=
+      os_file_rename(innodb_log_file_key, logfile0.c_str(), logfilename)
+          ? DB_SUCCESS
+          : DB_ERROR;
 
-	/* Replace the first file with ib_logfile0. */
-	strcpy(logfile0, logfilename);
-	log_mutex_exit();
+  /* Replace the first file with ib_logfile0. */
+  logfile0= logfilename;
+  log_sys.log.file_names[0]= logfilename;
+  log_mutex_exit();
 
-	DBUG_EXECUTE_IF("innodb_log_abort_10", err = DB_ERROR;);
+  DBUG_EXECUTE_IF("innodb_log_abort_10", err= DB_ERROR;);
 
-	if (err == DB_SUCCESS) {
-		fil_open_log_and_system_tablespace_files();
-		ib::info() << "New log files created, LSN=" << lsn;
-	}
+  if (err == DB_SUCCESS)
+  {
+    log_sys.log.open_files();
+    ib::info() << "New log files created, LSN=" << lsn;
+  }
 
-	return(err);
+  return (err);
 }
 
 /** Create an undo tablespace file
@@ -645,7 +618,7 @@ err_exit:
     }
 
     uint32_t id= mach_read_from_4(FIL_PAGE_SPACE_ID + page);
-    if (id == 0 || id >= SRV_LOG_SPACE_FIRST_ID ||
+    if (id == 0 || id >= SRV_SPACE_ID_UPPER_BOUND ||
         memcmp_aligned<4>(FIL_PAGE_SPACE_ID + page,
                           FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4))
     {
@@ -1159,9 +1132,7 @@ srv_prepare_to_delete_redo_log_files(
 
 		log_write_up_to(flushed_lsn, true);
 
-		/* If innodb_flush_method=O_DSYNC,
-		we need to explicitly flush the log buffers. */
-		fil_flush(SRV_LOG_SPACE_FIRST_ID);
+		log_sys.log.fsync();
 
 		ut_ad(flushed_lsn == log_get_lsn());
 
@@ -1196,9 +1167,6 @@ dberr_t srv_start(bool create_new_db)
 	dberr_t		err		= DB_SUCCESS;
 	ulint		srv_n_log_files_found = srv_n_log_files;
 	mtr_t		mtr;
-	char		logfilename[10000];
-	char*		logfile0	= NULL;
-	size_t		dirnamelen;
 	unsigned	i = 0;
 
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
@@ -1482,7 +1450,8 @@ dberr_t srv_start(bool create_new_db)
 		return(srv_init_abort(err));
 	}
 
-	dirnamelen = strlen(srv_log_group_home_dir);
+	char logfilename[10000];
+	size_t dirnamelen = strlen(srv_log_group_home_dir);
 	ut_a(dirnamelen < (sizeof logfilename) - 10 - sizeof "ib_logfile");
 	memcpy(logfilename, srv_log_group_home_dir, dirnamelen);
 
@@ -1497,6 +1466,7 @@ dberr_t srv_start(bool create_new_db)
 		return srv_init_abort(DB_ERROR);
 	}
 
+	std::string logfile0;
 	if (create_new_db) {
 
 		buf_flush_sync_all_buf_pools();
@@ -1627,31 +1597,18 @@ dberr_t srv_start(bool create_new_db)
 
 		srv_n_log_files_found = i;
 
-		/* Create the in-memory file space objects. */
-
-		sprintf(logfilename + dirnamelen, "ib_logfile%u", 0);
-
-		/* Disable the doublewrite buffer for log files. */
-		fil_space_t*	log_space = fil_space_create(
-			"innodb_redo_log",
-			SRV_LOG_SPACE_FIRST_ID, 0,
-			FIL_TYPE_LOG,
-			NULL /* no encryption yet */);
-
-		ut_a(fil_validate());
-		ut_a(log_space);
-
 		ut_a(srv_log_file_size <= log_group_max_size);
 
-		const ulint size = 1 + ulint((srv_log_file_size - 1)
-					     >> srv_page_size_shift);
+		std::vector<std::string> file_names;
 
 		for (unsigned j = 0; j < srv_n_log_files_found; j++) {
 			sprintf(logfilename + dirnamelen, "ib_logfile%u", j);
 
-			log_space->add(logfilename, OS_FILE_CLOSED, size,
-				       false, false);
+			file_names.emplace_back(logfilename);
 		}
+
+		log_sys.log.set_file_names(std::move(file_names));
+		log_sys.log.open_files();
 
 		log_sys.log.create(srv_n_log_files_found);
 
@@ -1665,7 +1622,7 @@ files_checked:
 	tablespace: we keep them open until database
 	shutdown */
 
-	fil_open_log_and_system_tablespace_files();
+	fil_open_system_tablespace_files();
 	ut_d(fil_system.sys_space->recv_size = srv_sys_space_size_debug);
 
 	err = srv_undo_tablespaces_init(create_new_db);
@@ -1892,7 +1849,7 @@ files_checked:
 			buf_flush_sync_all_buf_pools();
 			err = fil_write_flushed_lsn(log_get_lsn());
 			ut_ad(!buf_pool_check_no_pending_io());
-			fil_close_log_files(true);
+			log_sys.log.close_files();
 			if (err == DB_SUCCESS) {
 				bool trunc = srv_operation
 					== SRV_OPERATION_RESTORE;
@@ -1955,7 +1912,7 @@ files_checked:
 
 			/* Close and free the redo log files, so that
 			we can replace them. */
-			fil_close_log_files(true);
+			log_sys.log.close_files();
 
 			DBUG_EXECUTE_IF("innodb_log_abort_5",
 					return(srv_init_abort(DB_ERROR)););

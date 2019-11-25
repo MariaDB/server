@@ -135,8 +135,6 @@ fseg_alloc_free_page_low(
 @return pointer to the space header, page x-locked */
 inline buf_block_t *fsp_get_header(const fil_space_t *space, mtr_t *mtr)
 {
- ut_ad(space->purpose != FIL_TYPE_LOG);
-
  buf_block_t *block= buf_page_get(page_id_t(space->id, 0), space->zip_size(),
                                   RW_SX_LATCH, mtr);
  buf_block_dbg_add_level(block, SYNC_FSP_PAGE);

@@ -352,7 +352,7 @@ buf_dump(
 		     bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
 
 			ut_a(buf_page_in_file(bpage));
-			if (bpage->id.space() >= SRV_LOG_SPACE_FIRST_ID) {
+			if (bpage->id.space() == SRV_TMP_SPACE_ID) {
 				/* Ignore the innodb_temporary tablespace. */
 				continue;
 			}
@@ -679,7 +679,7 @@ buf_load()
 		/* space_id for this iteration of the loop */
 		const ulint	this_space_id = BUF_DUMP_SPACE(dump[i]);
 
-		if (this_space_id >= SRV_LOG_SPACE_FIRST_ID) {
+		if (this_space_id == SRV_TMP_SPACE_ID) {
 			/* Ignore the innodb_temporary tablespace. */
 			continue;
 		}

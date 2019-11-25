@@ -162,11 +162,6 @@ const char*	fil_path_to_mysql_datadir;
 /** Common InnoDB file extensions */
 const char* dot_ext[] = { "", ".ibd", ".isl", ".cfg" };
 
-/** The number of fsyncs done to the log */
-ulint	fil_n_log_flushes			= 0;
-
-/** Number of pending redo log flushes */
-ulint	fil_n_pending_log_flushes		= 0;
 /** Number of pending tablespace flushes */
 ulint	fil_n_pending_tablespace_flushes	= 0;
 
@@ -228,7 +223,6 @@ fil_space_belongs_in_lru(
 {
 	switch (space->purpose) {
 	case FIL_TYPE_TEMPORARY:
-	case FIL_TYPE_LOG:
 		return(false);
 	case FIL_TYPE_TABLESPACE:
 		return(fil_is_user_tablespace_id(space->id));
@@ -354,7 +348,6 @@ fil_space_get(
 	mutex_enter(&fil_system.mutex);
 	fil_space_t*	space = fil_space_get_by_id(id);
 	mutex_exit(&fil_system.mutex);
-	ut_ad(space == NULL || space->purpose != FIL_TYPE_LOG);
 	return(space);
 }
 
@@ -560,10 +553,6 @@ fail:
 			goto fail;
 		}
 
-	} else if (space->purpose == FIL_TYPE_LOG) {
-		node->handle = os_file_create(
-			innodb_log_file_key, node->name, OS_FILE_OPEN,
-			OS_FILE_AIO, OS_LOG_FILE, read_only_mode, &success);
 	} else {
 		node->handle = os_file_create(
 			innodb_data_file_key, node->name,
@@ -730,10 +719,6 @@ static void fil_flush_low(fil_space_t* space, bool metadata = false)
 		case FIL_TYPE_IMPORT:
 			fil_n_pending_tablespace_flushes++;
 			break;
-		case FIL_TYPE_LOG:
-			fil_n_pending_log_flushes++;
-			fil_n_log_flushes++;
-			break;
 		}
 #ifdef _WIN32
 		if (node->is_raw_disk) {
@@ -772,9 +757,6 @@ skip_flush:
 		case FIL_TYPE_TABLESPACE:
 		case FIL_TYPE_IMPORT:
 			fil_n_pending_tablespace_flushes--;
-			continue;
-		case FIL_TYPE_LOG:
-			fil_n_pending_log_flushes--;
 			continue;
 		}
 
@@ -911,11 +893,6 @@ fil_mutex_enter_and_prepare_for_io(
 {
 	for (ulint count = 0;;) {
 		mutex_enter(&fil_system.mutex);
-
-		if (space_id >= SRV_LOG_SPACE_FIRST_ID) {
-			/* We keep log files always open. */
-			break;
-		}
 
 		fil_space_t*	space = fil_space_get_by_id(space_id);
 
@@ -1214,8 +1191,7 @@ fil_space_create(
 
 	ut_ad(fil_system.is_initialised());
 	ut_ad(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, id));
-	ut_ad(purpose == FIL_TYPE_LOG
-	      || srv_page_size == UNIV_PAGE_SIZE_ORIG || flags != 0);
+	ut_ad(srv_page_size == UNIV_PAGE_SIZE_ORIG || flags != 0);
 
 	DBUG_EXECUTE_IF("fil_space_create_failure", return(NULL););
 
@@ -1286,7 +1262,7 @@ fil_space_create(
 
 	UT_LIST_ADD_LAST(fil_system.space_list, space);
 
-	if (id < SRV_LOG_SPACE_FIRST_ID && id > fil_system.max_assigned_id) {
+	if (id < SRV_SPACE_ID_UPPER_BOUND && id > fil_system.max_assigned_id) {
 
 		fil_system.max_assigned_id = id;
 	}
@@ -1332,16 +1308,16 @@ fil_assign_new_space_id(
 
 	id++;
 
-	if (id > (SRV_LOG_SPACE_FIRST_ID / 2) && (id % 1000000UL == 0)) {
+	if (id > (SRV_SPACE_ID_UPPER_BOUND / 2) && (id % 1000000UL == 0)) {
 		ib::warn() << "You are running out of new single-table"
 			" tablespace id's. Current counter is " << id
-			<< " and it must not exceed" << SRV_LOG_SPACE_FIRST_ID
+			<< " and it must not exceed" <<SRV_SPACE_ID_UPPER_BOUND
 			<< "! To reset the counter to zero you have to dump"
 			" all your tables and recreate the whole InnoDB"
 			" installation.";
 	}
 
-	success = (id < SRV_LOG_SPACE_FIRST_ID);
+	success = (id < SRV_SPACE_ID_UPPER_BOUND);
 
 	if (success) {
 		*space_id = fil_system.max_assigned_id = id;
@@ -1416,8 +1392,6 @@ fil_space_get_space(
 	}
 
 	switch (space->purpose) {
-	case FIL_TYPE_LOG:
-		break;
 	case FIL_TYPE_TEMPORARY:
 	case FIL_TYPE_TABLESPACE:
 	case FIL_TYPE_IMPORT:
@@ -1436,7 +1410,7 @@ fil_space_set_recv_size(ulint id, ulint size)
 {
 	mutex_enter(&fil_system.mutex);
 	ut_ad(size);
-	ut_ad(id < SRV_LOG_SPACE_FIRST_ID);
+	ut_ad(id < SRV_SPACE_ID_UPPER_BOUND);
 
 	if (fil_space_t* space = fil_space_get_space(id)) {
 		space->recv_size = size;
@@ -1620,15 +1594,13 @@ void fil_system_t::close()
 	ut_ad(!spaces);
 }
 
-/*******************************************************************//**
-Opens all log files and system tablespace data files. They stay open until the
+/** Opens all system tablespace data files. They stay open until the
 database server shutdown. This should be called at a server startup after the
-space objects for the log and the system tablespace have been created. The
+space objects for the system tablespace have been created. The
 purpose of this operation is to make sure we never run out of file descriptors
-if we need to read from the insert buffer or to write to the log. */
+if we need to read from the insert buffer. */
 void
-fil_open_log_and_system_tablespace_files(void)
-/*==========================================*/
+fil_open_system_tablespace_files()
 {
 	fil_space_t*	space;
 
@@ -1727,56 +1699,6 @@ fil_close_all_files(void)
 }
 
 /*******************************************************************//**
-Closes the redo log files. There must not be any pending i/o's or not
-flushed modifications in the files. */
-void
-fil_close_log_files(
-/*================*/
-	bool	free)	/*!< in: whether to free the memory object */
-{
-	fil_space_t*	space;
-
-	mutex_enter(&fil_system.mutex);
-
-	space = UT_LIST_GET_FIRST(fil_system.space_list);
-
-	while (space != NULL) {
-		fil_node_t*	node;
-		fil_space_t*	prev_space = space;
-
-		if (space->purpose != FIL_TYPE_LOG) {
-			space = UT_LIST_GET_NEXT(space_list, space);
-			continue;
-		}
-
-		/* Log files are not in the fil_system.named_spaces list. */
-		ut_ad(space->max_lsn == 0);
-
-		for (node = UT_LIST_GET_FIRST(space->chain);
-		     node != NULL;
-		     node = UT_LIST_GET_NEXT(chain, node)) {
-
-			if (node->is_open()) {
-				node->close();
-			}
-		}
-
-		space = UT_LIST_GET_NEXT(space_list, space);
-
-		if (free) {
-			fil_space_detach(prev_space);
-			fil_space_free_low(prev_space);
-		}
-	}
-
-	mutex_exit(&fil_system.mutex);
-
-	if (free) {
-		log_sys.log.close();
-	}
-}
-
-/*******************************************************************//**
 Sets the max tablespace id counter if the given number is bigger than the
 previous value. */
 void
@@ -1784,7 +1706,7 @@ fil_set_max_space_id_if_bigger(
 /*===========================*/
 	ulint	max_id)	/*!< in: maximum known id */
 {
-	if (max_id >= SRV_LOG_SPACE_FIRST_ID) {
+	if (max_id >= SRV_SPACE_ID_UPPER_BOUND) {
 		ib::fatal() << "Max tablespace id is too high, " << max_id;
 	}
 
@@ -2717,7 +2639,7 @@ retry:
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
 		ulint id = space->id;
-		if (id && id < SRV_LOG_SPACE_FIRST_ID
+		if (id
 		    && space->purpose == FIL_TYPE_TABLESPACE
 		    && !strcmp(new_path,
 			       UT_LIST_GET_FIRST(space->chain)->name)) {
@@ -2892,7 +2814,7 @@ fil_ibd_create(
 
 	ut_ad(!is_system_tablespace(space_id));
 	ut_ad(!srv_read_only_mode);
-	ut_a(space_id < SRV_LOG_SPACE_FIRST_ID);
+	ut_a(space_id < SRV_SPACE_ID_UPPER_BOUND);
 	ut_a(size >= FIL_IBD_FILE_INITIAL_SIZE);
 	ut_a(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, space_id));
 
@@ -4259,7 +4181,6 @@ fil_io(
 	req_type.set_fil_node(node);
 
 	ut_ad(!req_type.is_write()
-	      || page_id.space() == SRV_LOG_SPACE_FIRST_ID
 	      || !fil_is_user_tablespace_id(page_id.space())
 	      || offset == page_id.page_no() * zip_size);
 
@@ -4314,7 +4235,6 @@ void fil_aio_callback(const tpool::aiocb *cb)
 	mutex_enter(&fil_system.mutex);
 
 	fil_node_complete_io(node, data->type);
-	ut_ad(node->space->purpose != FIL_TYPE_LOG);
 	const ulint		space_id= node->space->id;
 	bool			dblwr	= node->space->use_doublewrite();
 
@@ -4403,7 +4323,7 @@ fil_flush(fil_space_t* space)
 
 /** Flush to disk the writes in file spaces of the given type
 possibly cached by the OS.
-@param[in]	purpose	FIL_TYPE_TABLESPACE or FIL_TYPE_LOG */
+@param[in]	purpose	FIL_TYPE_TABLESPACE */
 void
 fil_flush_file_spaces(
 	fil_type_t	purpose)
@@ -4412,7 +4332,7 @@ fil_flush_file_spaces(
 	ulint*		space_ids;
 	ulint		n_space_ids;
 
-	ut_ad(purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_LOG);
+	ut_ad(purpose == FIL_TYPE_TABLESPACE);
 
 	mutex_enter(&fil_system.mutex);
 
@@ -4755,7 +4675,7 @@ fil_names_dirty_and_write(
 				char bogus_name[] = "./test/bogus file.ibd";
 				os_normalize_path(bogus_name);
 				fil_name_write(
-					SRV_LOG_SPACE_FIRST_ID, 0,
+					SRV_SPACE_ID_UPPER_BOUND, 0,
 					bogus_name, mtr);
 			});
 }
