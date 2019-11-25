@@ -723,6 +723,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
 {
   vers_asof_timestamp_t &in= thd->variables.vers_asof_timestamp;
   type= (vers_system_time_t) in.type;
+  delete_history= false;
   start.unit= VERS_TIMESTAMP;
   if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
   {
@@ -755,6 +756,7 @@ void vers_select_conds_t::print(String *str, enum_query_type query_type) const
     end.print(str, query_type, STRING_WITH_LEN(" AND "));
     break;
   case SYSTEM_TIME_BEFORE:
+  case SYSTEM_TIME_HISTORY:
     DBUG_ASSERT(0);
     break;
   case SYSTEM_TIME_ALL:
@@ -790,10 +792,15 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
     switch (conds->type)
     {
     case SYSTEM_TIME_UNSPECIFIED:
+    case SYSTEM_TIME_HISTORY:
       thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
       max_time.second_part= TIME_MAX_SECOND_PART;
       curr= newx Item_datetime_literal(thd, &max_time, TIME_SECOND_PART_DIGITS);
-      cond1= newx Item_func_eq(thd, conds->field_end, curr);
+      if (conds->type == SYSTEM_TIME_UNSPECIFIED)
+        cond1= newx Item_func_eq(thd, conds->field_end, curr);
+      else
+        cond1= newx Item_func_lt(thd, conds->field_end, curr);
+      break;
       break;
     case SYSTEM_TIME_AS_OF:
       cond1= newx Item_func_le(thd, conds->field_start, conds->start.item);
@@ -837,8 +844,13 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
     switch (conds->type)
     {
     case SYSTEM_TIME_UNSPECIFIED:
+    case SYSTEM_TIME_HISTORY:
       curr= newx Item_int(thd, ULONGLONG_MAX);
-      cond1= newx Item_func_eq(thd, conds->field_end, curr);
+      if (conds->type == SYSTEM_TIME_UNSPECIFIED)
+        cond1= newx Item_func_eq(thd, conds->field_end, curr);
+      else
+        cond1= newx Item_func_lt(thd, conds->field_end, curr);
+      break;
       DBUG_ASSERT(!conds->start.item);
       DBUG_ASSERT(!conds->end.item);
       break;
@@ -881,12 +893,12 @@ bool skip_setup_conds(THD *thd)
          || thd->lex->is_view_context_analysis();
 }
 
-Item* SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables, Item *where)
+int SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables)
 {
   DBUG_ENTER("SELECT_LEX::period_setup_conds");
 
   if (skip_setup_conds(thd))
-    DBUG_RETURN(where);
+    DBUG_RETURN(0);
 
   Query_arena backup;
   Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
@@ -904,19 +916,19 @@ Item* SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables, Item *where)
       my_error(ER_PERIOD_NOT_FOUND, MYF(0), conds.name.str);
       if (arena)
         thd->restore_active_arena(arena, &backup);
-      DBUG_RETURN(NULL);
+      DBUG_RETURN(-1);
     }
 
     conds.period= &table->table->s->period;
     result= and_items(thd, result,
                       period_get_condition(thd, table, this, &conds, true));
   }
-  result= and_items(thd, where, result);
+  where= and_items(thd, where, result);
 
   if (arena)
     thd->restore_active_arena(arena, &backup);
 
-  DBUG_RETURN(result);
+  DBUG_RETURN(0);
 }
 
 int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
@@ -968,9 +980,22 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     }
   }
 
+  bool is_select= false;
+  switch (thd->lex->sql_command)
+  {
+  case SQLCOM_SELECT:
+  case SQLCOM_INSERT_SELECT:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_DELETE_MULTI:
+  case SQLCOM_UPDATE_MULTI:
+    is_select= true;
+  default:
+    break;
+  }
+
   for (TABLE_LIST *table= tables; table; table= table->next_local)
   {
-    if (!table->table || !table->table->versioned())
+    if (!table->table || table->is_view() || !table->table->versioned())
       continue;
 
     vers_select_conds_t &vers_conditions= table->vers_conditions;
@@ -1000,7 +1025,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     }
 
     // propagate system_time from sysvar
-    if (!vers_conditions.is_set())
+    if (!vers_conditions.is_set() && is_select)
     {
       if (vers_conditions.init_from_sysvar(thd))
         DBUG_RETURN(-1);
@@ -1016,7 +1041,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 
     bool timestamps_only= table->table->versioned(VERS_TIMESTAMP);
 
-    if (vers_conditions.is_set())
+    if (vers_conditions.is_set() && vers_conditions.type != SYSTEM_TIME_HISTORY)
     {
       thd->where= "FOR SYSTEM_TIME";
       /* TODO: do resolve fix_length_and_dec(), fix_fields(). This requires
@@ -1036,10 +1061,21 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     vers_conditions.period = &table->table->s->vers;
     Item *cond= period_get_condition(thd, table, this, &vers_conditions,
                                      timestamps_only);
-    if (cond)
+    if (is_select)
       table->on_expr= and_items(thd, table->on_expr, cond);
-    table->vers_conditions.type= SYSTEM_TIME_ALL;
+    else
+    {
+      if (join)
+      {
+        where= and_items(thd, join->conds, cond);
+        join->conds= where;
+      }
+      else
+        where= and_items(thd, where, cond);
+      table->where= and_items(thd, table->where, cond);
+    }
 
+    table->vers_conditions.type= SYSTEM_TIME_ALL;
   } // for (table= tables; ...)
 
   DBUG_RETURN(0);
@@ -21209,10 +21245,11 @@ int join_init_read_record(JOIN_TAB *tab)
   */
   if (tab->distinct && tab->remove_duplicates())  // Remove duplicates.
     return 1;
-  if (tab->filesort && tab->sort_table())     // Sort table.
-    return 1;
 
   tab->build_range_rowid_filter_if_needed();
+
+  if (tab->filesort && tab->sort_table())     // Sort table.
+    return 1;
 
   DBUG_EXECUTE_IF("kill_join_init_read_record",
                   tab->join->thd->set_killed(KILL_QUERY););
@@ -21273,6 +21310,9 @@ JOIN_TAB::sort_table()
                                             JOIN::ordered_index_order_by :
                                             JOIN::ordered_index_group_by));
   rc= create_sort_index(join->thd, join, this, NULL);
+  /* Disactivate rowid filter if it was used when creating sort index */
+  if (rowid_filter)
+    table->file->rowid_filter_is_active= false;
   return (rc != 0);
 }
 

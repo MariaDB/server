@@ -2236,3 +2236,38 @@ a	b
 drop table t1;
 set optimizer_switch=@save_optimizer_switch;
 SET SESSION STORAGE_ENGINE=DEFAULT;
+#
+# MDEV-19919: use of rowid filter for innodb table + ORDER BY
+#
+SET @stats.save= @@innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= ON;
+CREATE TABLE t1 (
+a INT,
+b VARCHAR(10),
+c VARCHAR(1024),
+KEY (b),
+KEY (c)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(1,'w','z'), (1,'X','o'), (1,'q','c'), (5,'w','c'), (2,'j','m'),
+(2,'Q','s'), (9,'e','J'), (2,'p','W'), (9,'o','F'), (2,'g','S'),
+(1,'Y','a'), (NULL,'Y','p'), (NULL,'s','x'), (NULL,'i','S'),
+(1,'l','q'), (7,'r','e'), (4,'b','h'), (NULL,'E','c'),
+(NULL,'M','a'), (3,'e','X'), (NULL,'p','r'), (9,'e','i'),
+(3,'g','x'), (2,'h','y');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	b,c	b|c	13|1027	NULL	5 (42%)	41.67	Using index condition; Using where; Using filesort; Using rowid filter
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'k' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a;
+a
+1
+5
+DROP TABLE t1;
+SET GLOBAL innodb_stats_persistent= @stats.save;

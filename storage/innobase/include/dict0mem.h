@@ -674,18 +674,63 @@ public:
 		def_val.data = NULL;
 	}
 
+  /** @return whether two columns have compatible data type encoding */
+  bool same_type(const dict_col_t &other) const
+  {
+    if (mtype != other.mtype)
+    {
+      /* For latin1_swedish_ci, DATA_CHAR and DATA_VARCHAR
+      will be used instead of DATA_MYSQL and DATA_VARMYSQL.
+      As long as mtype,prtype are being written to InnoDB
+      data dictionary tables, we cannot simplify this. */
+      switch (mtype) {
+      default:
+        return false;
+      case DATA_VARCHAR:
+        if (other.mtype != DATA_VARMYSQL)
+          return false;
+        goto check_encoding;
+      case DATA_VARMYSQL:
+        if (other.mtype != DATA_VARCHAR)
+          return false;
+        goto check_encoding;
+      case DATA_CHAR:
+        if (other.mtype != DATA_MYSQL)
+          return false;
+        goto check_encoding;
+      case DATA_MYSQL:
+        if (other.mtype != DATA_CHAR)
+          return false;
+        goto check_encoding;
+      }
+    }
+    else if (dtype_is_string_type(mtype))
+    {
+    check_encoding:
+      const uint16_t cset= dtype_get_charset_coll(prtype);
+      const uint16_t ocset= dtype_get_charset_coll(other.prtype);
+      return cset == ocset || dict_col_t::same_encoding(cset, ocset);
+    }
+
+    return true;
+  }
+
+  /** @return whether two collations codes have the same character encoding */
+  static bool same_encoding(uint16_t a, uint16_t b);
+
 	/** Determine if the columns have the same format
 	except for is_nullable() and is_versioned().
 	@param[in]	other	column to compare to
 	@return	whether the columns have the same format */
 	bool same_format(const dict_col_t& other) const
 	{
-		return mtype == other.mtype
+		return same_type(other)
 			&& len >= other.len
 			&& mbminlen == other.mbminlen
 			&& mbmaxlen == other.mbmaxlen
 			&& !((prtype ^ other.prtype)
 			     & ~(DATA_NOT_NULL | DATA_VERSIONED
+				 | CHAR_COLL_MASK << 16
 				 | DATA_LONG_TRUE_VARCHAR));
 	}
 };

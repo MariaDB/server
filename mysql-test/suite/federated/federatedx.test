@@ -2010,4 +2010,25 @@ connection master;
 --error ER_CANT_CREATE_FEDERATED_TABLE
 eval CREATE TABLE t1 (a INT) ENGINE=FEDERATED CONNECTION='mysql://@127.0.0.1:$SLAVE_MYPORT/federated/t1';
 
+--echo #
+--echo # MDEV-21049 Segfault in create federatedx table with empty hostname
+--echo #
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+--error ER_CANT_CREATE_FEDERATED_TABLE
+eval CREATE TABLE federated.t1 (x int) ENGINE=FEDERATED
+  CONNECTION='mysql://root@:$SLAVE_MYPORT/federated/t1';
+
+connection slave;
+CREATE TABLE federated.t1(x int);
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE federated.t1 (x int) ENGINE=FEDERATED
+  CONNECTION='mysql://root@:$SLAVE_MYPORT/federated/t1';
+
+DROP TABLE federated.t1;
+connection slave;
+DROP TABLE federated.t1;
+connection default;
+
 source include/federated_cleanup.inc;

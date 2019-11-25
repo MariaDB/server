@@ -806,12 +806,12 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
       goto error;
 
     if (share->hostname[0] == '\0')
-      share->hostname= NULL;
+      share->hostname= strdup_root(mem_root, my_localhost);
 
   }
   if (!share->port)
   {
-    if (!share->hostname || strcmp(share->hostname, my_localhost) == 0)
+    if (0 == strcmp(share->hostname, my_localhost))
       share->socket= (char *) MYSQL_UNIX_ADDR;
     else
       share->port= MYSQL_PORT;
@@ -3396,8 +3396,7 @@ int ha_federatedx::create(const char *name, TABLE *table_arg,
     goto error;
 
   /* loopback socket connections hang due to LOCK_open mutex */
-  if ((!tmp_share.hostname || !strcmp(tmp_share.hostname,my_localhost)) &&
-      !tmp_share.port)
+  if (0 == strcmp(tmp_share.hostname, my_localhost) && !tmp_share.port)
     goto error;
 
   /*

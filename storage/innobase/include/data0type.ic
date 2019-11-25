@@ -28,18 +28,6 @@ Created 1/16/1996 Heikki Tuuri
 #include "ha_prototypes.h"
 
 /*********************************************************************//**
-Gets the MySQL charset-collation code for MySQL string types.
-@return MySQL charset-collation code */
-UNIV_INLINE
-ulint
-dtype_get_charset_coll(
-/*===================*/
-	ulint	prtype)	/*!< in: precise data type */
-{
-	return((prtype >> 16) & CHAR_COLL_MASK);
-}
-
-/*********************************************************************//**
 Determines if a MySQL string type is a subset of UTF-8.  This function
 may return false negatives, in case further character-set collation
 codes are introduced in MySQL later.

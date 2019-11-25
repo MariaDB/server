@@ -4789,8 +4789,10 @@ mysql_execute_command(THD *thd)
     {
       result= new (thd->mem_root) multi_delete(thd, aux_tables,
                                                lex->table_count);
-      if (unlikely(result))
+      if (likely(result))
       {
+        if (unlikely(select_lex->vers_setup_conds(thd, aux_tables)))
+          goto multi_delete_error;
         res= mysql_select(thd,
                           select_lex->get_table_list(),
                           select_lex->item_list,
@@ -4811,6 +4813,7 @@ mysql_execute_command(THD *thd)
           if (lex->describe || lex->analyze_stmt)
             res= thd->lex->explain->send_explain(thd);
         }
+      multi_delete_error:
         delete result;
       }
     }
@@ -9683,7 +9686,7 @@ bool update_precheck(THD *thd, TABLE_LIST *tables)
 bool delete_precheck(THD *thd, TABLE_LIST *tables)
 {
   DBUG_ENTER("delete_precheck");
-  if (tables->vers_conditions.is_set())
+  if (tables->vers_conditions.delete_history)
   {
     if (check_one_table_access(thd, DELETE_HISTORY_ACL, tables))
       DBUG_RETURN(TRUE);

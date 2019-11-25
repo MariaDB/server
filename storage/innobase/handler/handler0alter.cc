@@ -539,8 +539,9 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 			c.def_val = o->def_val;
 			DBUG_ASSERT(!((c.prtype ^ o->prtype)
 				      & ~(DATA_NOT_NULL | DATA_VERSIONED
+					  | CHAR_COLL_MASK << 16
 					  | DATA_LONG_TRUE_VARCHAR)));
-			DBUG_ASSERT(c.mtype == o->mtype);
+			DBUG_ASSERT(c.same_type(*o));
 			DBUG_ASSERT(c.len >= o->len);
 
 			if (o->vers_sys_start()) {

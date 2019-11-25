@@ -566,3 +566,20 @@ pn	SYSTEM_TIME	CURRENT
 # Test cleanup
 drop view v1;
 drop tables t, t1, t2, t3, t4;
+#
+# MDEV-18957 UPDATE with LIMIT clause is wrong for versioned partitioned tables
+#
+create or replace table t1 (
+x int,
+a varchar(255)
+) with system versioning partition by system_time (partition p1 history, partition pn current);
+insert into t1 (x) values (1), (2), (3), (4);
+update t1 set a= 'foo' limit 3;
+update t1 set a= 'bar' limit 4;
+select * from t1;
+x	a
+1	bar
+2	bar
+3	bar
+4	bar
+drop table t1;

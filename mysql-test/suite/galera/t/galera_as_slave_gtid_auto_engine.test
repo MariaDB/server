@@ -8,3 +8,7 @@
 #
 
 --source galera_as_slave_gtid.inc
+
+--connection node_2
+DROP TABLE mysql.gtid_slave_pos_InnoDB;
+CALL mtr.add_suppression("The automatically created table");

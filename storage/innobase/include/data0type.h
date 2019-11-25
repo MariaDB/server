@@ -334,14 +334,15 @@ dtype_get_mblen(
 				multi-byte character */
 	ulint*	mbmaxlen);	/*!< out: maximum length of a
 				multi-byte character */
-/*********************************************************************//**
-Gets the MySQL charset-collation code for MySQL string types.
-@return MySQL charset-collation code */
-UNIV_INLINE
-ulint
-dtype_get_charset_coll(
-/*===================*/
-	ulint	prtype);/*!< in: precise data type */
+/**
+Get the charset-collation code for string types.
+@param  prtype  InnoDB precise type
+@return charset-collation code */
+inline uint16_t dtype_get_charset_coll(ulint prtype)
+{
+  return static_cast<uint16_t>(prtype >> 16) & CHAR_COLL_MASK;
+}
+
 /** Form a precise type from the < 4.1.2 format precise type plus the
 charset-collation code.
 @param[in]	old_prtype	MySQL type code and the flags
