@@ -147,12 +147,6 @@ bool has_extra2_field_flags(List<Create_field> &create_fields)
   return false;
 }
 
-static size_t extra2_str_size(size_t len)
-{
-  return (len > 255 ? 3 : 1) + len;
-}
-
-
 static uint gis_field_options_image(uchar *buff,
                                     List<Create_field> &create_fields)
 {
@@ -256,9 +250,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   size_t period_info_len= create_info->period_info.name
                           ? extra2_str_size(create_info->period_info.name.length)
                             + extra2_str_size(create_info->period_info.constr->name.length)
-                            + frm_keyno_size * (create_info->period_info.unique_keys + 1)
                             + 2 * frm_fieldno_size
                           : 0;
+  size_t without_overlaps_len= frm_keyno_size * (create_info->period_info.unique_keys + 1);
   uint e_unique_hash_extra_parts= 0;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
   const partition_info *part_info= IF_PARTITIONING(thd->work_part_info, 0);
@@ -391,7 +385,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (create_info->period_info.name)
   {
-    extra2_size+= 1 + extra2_str_size(period_info_len);
+    // two extra2 sections are taken after 10.5
+    extra2_size+= 2 + extra2_str_size(period_info_len)
+                    + extra2_str_size(without_overlaps_len);
   }
 
   bool has_extra2_field_flags_= has_extra2_field_flags(create_fields);
@@ -486,6 +482,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     store_frm_fieldno(pos, get_fieldno_by_name(create_info, create_fields,
                                        create_info->period_info.period.end));
     pos+= frm_fieldno_size;
+
+    *pos++= EXTRA2_PERIOD_WITHOUT_OVERLAPS;
+    pos= extra2_write_len(pos, without_overlaps_len);
     store_frm_keyno(pos, create_info->period_info.unique_keys);
     pos+= frm_keyno_size;
     for (uint key= 0; key < keys; key++)
