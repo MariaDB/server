@@ -1998,11 +1998,13 @@ struct Table_period_info: Sql_alloc
 {
   Table_period_info() :
     create_if_not_exists(false),
-    constr(NULL) {}
+    constr(NULL),
+    unique_keys(0) {}
   Table_period_info(const char *name_arg, size_t size) :
     name(name_arg, size),
     create_if_not_exists(false),
-    constr(NULL) {}
+    constr(NULL),
+    unique_keys(0){}
 
   Lex_ident name;
 
@@ -2018,6 +2020,7 @@ struct Table_period_info: Sql_alloc
   start_end_t period;
   bool create_if_not_exists;
   Virtual_column_info *constr;
+  uint unique_keys;
 
   bool is_set() const
   {
@@ -4677,6 +4680,8 @@ private:
   int check_duplicate_long_entries(const uchar *new_rec);
   int check_duplicate_long_entries_update(const uchar *new_rec);
   int check_duplicate_long_entry_key(const uchar *new_rec, uint key_no);
+  /** PRIMARY KEY/UNIQUE WITHOUT OVERLAPS check */
+  int ha_check_overlaps(const uchar *old_data, const uchar* new_data);
 
 protected:
   /*

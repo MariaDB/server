@@ -7957,3 +7957,7 @@ ER_SLAVE_IGNORED_SHARED_TABLE
         swe "Slav SQL tråden ignorerade '%s' pga tabellen är delad"
 ER_NO_AUTOINCREMENT_WITH_UNIQUE
         eng  "AUTO_INCREMENT column %`s cannot be used in the UNIQUE index %`s"
+ER_KEY_CONTAINS_PERIOD_FIELDS
+        eng "Key %`s cannot explicitly include column %`s"
+ER_KEY_CANT_HAVE_WITHOUT_OVERLAPS
+        eng "Key %`s cannot have WITHOUT OVERLAPS"
