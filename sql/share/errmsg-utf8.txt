@@ -7943,3 +7943,9 @@ ER_WARN_HISTORY_ROW_START_TIME
         eng "Table `%s.%s` history row start '%s' is later than row end '%s'"
 ER_PART_STARTS_BEYOND_INTERVAL
         eng "%`s: STARTS is later than query time, first history partition may exceed INTERVAL value"
+ER_KEY_CONTAINS_PERIOD_FIELDS
+        eng "Key %`s should not contain period fields in order to make it WITHOUT OVERLAPS"
+ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
+        eng "Period WITHOUT OVERLAPS is not implemented for partitioned tables"
+ER_PERIOD_WITHOUT_OVERLAPS_NON_UNIQUE
+        eng "Period WITHOUT OVERLAPS is only allowed for unique keys"

@@ -2225,6 +2225,14 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
   }
 
+  if (period.name)
+  {
+    append_period(thd, packet,
+                  period.start_field(share)->field_name,
+                  period.end_field(share)->field_name,
+                  period.name, true);
+  }
+
   key_info= table->s->key_info;
   primary_key= share->primary_key;
 
@@ -2259,7 +2267,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
     packet->append(STRING_WITH_LEN(" ("));
 
-    for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
+    uint key_parts= key_info->user_defined_key_parts;
+    if (key_info->without_overlaps)
+      key_parts-= 2;
+
+    for (uint j=0 ; j < key_parts ; j++,key_part++)
     {
       Field *field= key_part->field;
       if (field->invisible > INVISIBLE_USER)
@@ -2279,6 +2291,14 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                                       key_part->field->charset()->mbmaxlen);
       }
     }
+
+    if (key_info->without_overlaps)
+    {
+      packet->append(',');
+      append_identifier(thd, packet, &share->period.name);
+      packet->append(STRING_WITH_LEN(" WITHOUT OVERLAPS"));
+    }
+
     packet->append(')');
     store_key_options(thd, packet, table, &table->key_info[i]);
     if (key_info->parser)
@@ -2311,15 +2331,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       DBUG_ASSERT(fe->invisible == INVISIBLE_SYSTEM);
     }
   }
-
-  if (period.name)
-  {
-    append_period(thd, packet,
-                  period.start_field(share)->field_name,
-                  period.end_field(share)->field_name,
-                  period.name, true);
-  }
-
 
   /*
     Get possible foreign key definitions stored in InnoDB and append them
