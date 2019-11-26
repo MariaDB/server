@@ -624,7 +624,8 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     return NULL;
   } else
 //  PlugSetPath(soname, Module, GetPluginDir());  // Crashes on Fedora
-    strncat(strcpy(soname, GetPluginDir()), Module, _MAX_PATH);
+    strncat(strcpy(soname, GetPluginDir()), Module,
+			sizeof(soname) - strlen(soname) - 1);
 
 #if defined(__WIN__)
   // Is the DLL already loaded?
