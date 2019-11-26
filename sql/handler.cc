@@ -6802,6 +6802,10 @@ int handler::ha_write_row(const uchar *buf)
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
 
+  error= ha_check_overlaps(NULL, buf);
+  if (unlikely(error))
+    goto end;
+
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
@@ -6828,6 +6832,7 @@ int handler::ha_write_row(const uchar *buf)
 #endif /* WITH_WSREP */
   }
 
+end:
   DEBUG_SYNC_C("ha_write_row_end");
   DBUG_RETURN(error);
 }
@@ -6846,6 +6851,9 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
    */
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
+
+  if ((error= ha_check_overlaps(old_data, new_data)))
+    return error;
 
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
@@ -7119,6 +7127,115 @@ int handler::create_lookup_handler()
   lookup_handler= clone(table_share->normalized_path.str,
                         table->in_use->mem_root);
   int error= lookup_handler->ha_external_lock(table->in_use, F_RDLCK);
+  return error;
+}
+
+int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
+{
+  DBUG_ASSERT(new_data);
+  if (!table_share->period.unique_keys)
+    return 0;
+  if (table->versioned() && !table->vers_end_field()->is_max())
+    return 0;
+
+  bool is_update= old_data != NULL;
+  alloc_lookup_buffer();
+  auto *record_buffer= lookup_buffer + table_share->max_unique_length
+                                     + table_share->null_fields;
+  auto *handler= this;
+  // handler->inited can be NONE on INSERT
+  if (handler->inited != NONE)
+  {
+    create_lookup_handler();
+    handler= lookup_handler;
+
+    // Needs to compare record refs later is old_row_found()
+    if (is_update)
+      position(old_data);
+  }
+
+  DBUG_ASSERT(!keyread_enabled());
+
+  int error= 0;
+  lookup_errkey= (uint)-1;
+
+  for (uint key_nr= 0; key_nr < table_share->keys && !error; key_nr++)
+  {
+    const KEY &key_info= table->key_info[key_nr];
+    const uint key_parts= key_info.user_defined_key_parts;
+    if (!key_info.without_overlaps)
+      continue;
+
+    if (is_update)
+    {
+      bool key_used= false;
+      for (uint k= 0; k < key_parts && !key_used; k++)
+        key_used= bitmap_is_set(table->write_set,
+                                key_info.key_part[k].fieldnr - 1);
+      if (!key_used)
+        continue;
+    }
+
+    error= handler->ha_index_init(key_nr, 0);
+    if (error)
+      return error;
+
+    error= handler->ha_start_keyread(key_nr);
+    DBUG_ASSERT(!error);
+
+    const uint period_field_length= key_info.key_part[key_parts - 1].length;
+    const uint key_base_length= key_info.key_length - 2 * period_field_length;
+
+    key_copy(lookup_buffer, new_data, &key_info, 0);
+
+    /* Copy period_start to period_end.
+       the value in period_start field is not significant, but anyway let's leave
+       it defined to avoid uninitialized memory access
+     */
+    memcpy(lookup_buffer + key_base_length,
+           lookup_buffer + key_base_length + period_field_length,
+           period_field_length);
+
+    /* Find row with period_end > (period_start of new_data) */
+    error = handler->ha_index_read_map(record_buffer, lookup_buffer,
+                                       key_part_map((1 << (key_parts - 1)) - 1),
+                                       HA_READ_AFTER_KEY);
+
+    if (!error && is_update)
+    {
+      /* In case of update it could happen that the nearest neighbour is
+         a record we are updating. It means, that there are no overlaps
+         from this side.
+
+         An assumption is made that during update we always have the last
+         fetched row in old_data. Therefore, comparing ref's is enough
+      */
+      DBUG_ASSERT(handler != this);
+      DBUG_ASSERT(inited != NONE);
+      DBUG_ASSERT(ref_length == handler->ref_length);
+
+      handler->position(record_buffer);
+      if (memcmp(ref, handler->ref, ref_length) == 0)
+        error= handler->ha_index_next(record_buffer);
+    }
+
+    if (!error && table->check_period_overlaps(key_info, new_data, record_buffer))
+      error= HA_ERR_FOUND_DUPP_KEY;
+
+    if (error == HA_ERR_KEY_NOT_FOUND || error == HA_ERR_END_OF_FILE)
+      error= 0;
+
+    if (error == HA_ERR_FOUND_DUPP_KEY)
+      lookup_errkey= key_nr;
+
+    int end_error= handler->ha_end_keyread();
+    DBUG_ASSERT(!end_error);
+
+    end_error= handler->ha_index_end();
+    if (!error && end_error)
+      error= end_error;
+  }
+
   return error;
 }
 

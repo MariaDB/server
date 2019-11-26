@@ -59,6 +59,7 @@ struct extra2_fields
   LEX_CUSTRING system_period;
   LEX_CUSTRING application_period;
   LEX_CUSTRING field_data_type_info;
+  LEX_CUSTRING without_overlaps;
   void reset()
   { bzero((void*)this, sizeof(*this)); }
 };
@@ -1562,6 +1563,9 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
         case EXTRA2_APPLICATION_TIME_PERIOD:
           fail= read_extra2_section_once(extra2, length, &fields->application_period);
           break;
+        case EXTRA2_PERIOD_WITHOUT_OVERLAPS:
+          fail= read_extra2_section_once(extra2, length, &fields->without_overlaps);
+          break;
         case EXTRA2_FIELD_DATA_TYPE_INFO:
           fail= read_extra2_section_once(extra2, length, &fields->field_data_type_info);
           break;
@@ -2248,7 +2252,30 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     if (init_period_from_extra2(&period, pos, end))
       goto err;
+    if (extra2_str_size(period.name.length)
+         + extra2_str_size(period.constr_name.length)
+         + 2 * frm_fieldno_size
+        != extra2.application_period.length)
+      goto err;
     status_var_increment(thd->status_var.feature_application_time_periods);
+  }
+
+  if (extra2.without_overlaps.str)
+  {
+    if (extra2.application_period.str == NULL)
+      goto err;
+    const uchar *key_pos= extra2.without_overlaps.str;
+    period.unique_keys= read_frm_keyno(key_pos);
+    for (uint k= 0; k < period.unique_keys; k++)
+    {
+      key_pos+= frm_keyno_size;
+      uint key_nr= read_frm_keyno(key_pos);
+      key_info[key_nr].without_overlaps= true;
+    }
+
+    if ((period.unique_keys + 1) * frm_keyno_size
+        != extra2.without_overlaps.length)
+      goto err;
   }
 
   if (extra2.field_data_type_info.length &&
@@ -8597,6 +8624,38 @@ void TABLE::evaluate_update_default_function()
   DBUG_VOID_RETURN;
 }
 
+/**
+  Compare two records by a specific key (that has WITHOUT OVERLAPS clause)
+
+  @return  true,     key values are equal and periods overlap
+           false,    either key values differ or periods don't overlap
+ */
+bool TABLE::check_period_overlaps(const KEY &key,
+                                 const uchar *lhs, const uchar *rhs)
+{
+  DBUG_ASSERT(key.without_overlaps);
+  uint base_part_nr= key.user_defined_key_parts - 2;
+  for (uint part_nr= 0; part_nr < base_part_nr; part_nr++)
+  {
+    Field *f= key.key_part[part_nr].field;
+    if (key.key_part[part_nr].null_bit)
+      if (f->is_null_in_record(lhs) || f->is_null_in_record(rhs))
+        return false;
+    if (f->cmp(f->ptr_in_record(lhs), f->ptr_in_record(rhs)) != 0)
+      return false;
+  }
+
+  uint period_start= key.user_defined_key_parts - 1;
+  uint period_end= key.user_defined_key_parts - 2;
+  const Field *fs= key.key_part[period_start].field;
+  const Field *fe= key.key_part[period_end].field;
+
+  if (fs->cmp(fe->ptr_in_record(lhs), fs->ptr_in_record(rhs)) <= 0)
+    return false;
+  if (fs->cmp(fs->ptr_in_record(lhs), fe->ptr_in_record(rhs)) >= 0)
+    return false;
+  return true;
+}
 
 void TABLE::vers_update_fields()
 {

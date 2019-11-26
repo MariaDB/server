@@ -966,6 +966,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %token  <kwd>  OPEN_SYM                      /* SQL-2003-R */
 %token  <kwd>  OPTIONS_SYM
 %token  <kwd>  OPTION                        /* SQL-2003-N */
+%token  <kwd>  OVERLAPS_SYM
 %token  <kwd>  OWNER_SYM
 %token  <kwd>  PACK_KEYS_SYM
 %token  <kwd>  PAGE_SYM
@@ -1499,7 +1500,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
         option_type opt_var_type opt_var_ident_type
 
 %type <key_type>
-        opt_unique constraint_key_type fulltext spatial
+        constraint_key_type fulltext spatial
 
 %type <key_alg>
         btree_or_rtree opt_key_algorithm_clause opt_USING_key_algorithm
@@ -2361,7 +2362,26 @@ create:
             create_table_set_open_action_and_adjust_tables(lex);
             Lex->pop_select(); //main select
           }
-        | create_or_replace opt_unique INDEX_SYM opt_if_not_exists
+        | create_or_replace INDEX_SYM opt_if_not_exists
+          {
+            if (Lex->main_select_push())
+              MYSQL_YYABORT;
+          }
+          ident
+          opt_key_algorithm_clause
+          ON table_ident
+          {
+            if (Lex->add_create_index_prepare($8))
+              MYSQL_YYABORT;
+            if (Lex->add_create_index(Key::MULTIPLE, &$5, $6, $1 | $3))
+              MYSQL_YYABORT;
+          }
+          '(' key_list ')' opt_lock_wait_timeout normal_key_options
+          opt_index_lock_algorithm
+          {
+            Lex->pop_select(); //main select
+          }
+        | create_or_replace UNIQUE_SYM INDEX_SYM opt_if_not_exists
           {
             if (Lex->main_select_push())
               MYSQL_YYABORT;
@@ -2372,10 +2392,11 @@ create:
           {
             if (Lex->add_create_index_prepare($9))
               MYSQL_YYABORT;
-            if (Lex->add_create_index($2, &$6, $7, $1 | $4))
+            if (Lex->add_create_index(Key::UNIQUE, &$6, $7, $1 | $4))
               MYSQL_YYABORT;
           }
-          '(' key_list ')' opt_lock_wait_timeout normal_key_options
+          '(' key_list opt_without_overlaps ')'
+          opt_lock_wait_timeout normal_key_options
           opt_index_lock_algorithm
           {
             Lex->pop_select(); //main select
@@ -5845,7 +5866,7 @@ key_def:
             if (unlikely(Lex->add_key($2, $4.str ? &$4 : &$1, $5, $3)))
               MYSQL_YYABORT;
           }
-          '(' key_list ')' normal_key_options { }
+          '(' key_list opt_without_overlaps ')' normal_key_options { }
         | opt_constraint constraint_key_type opt_if_not_exists ident
           TYPE_SYM btree_or_rtree
           {
@@ -5853,7 +5874,7 @@ key_def:
             if (unlikely(Lex->add_key($2, $4.str ? &$4 : &$1, $6, $3)))
               MYSQL_YYABORT;
           }
-          '(' key_list ')' normal_key_options { }
+          '(' key_list opt_without_overlaps ')' normal_key_options { }
         | opt_constraint FOREIGN KEY_SYM opt_if_not_exists opt_ident
           {
             if (unlikely(Lex->check_add_key($4)) ||
@@ -6901,11 +6922,6 @@ keys_or_index:
         | INDEXES {}
         ;
 
-opt_unique:
-          /* empty */  { $$= Key::MULTIPLE; }
-        | UNIQUE_SYM   { $$= Key::UNIQUE; }
-        ;
-
 fulltext:
           FULLTEXT_SYM { $$= Key::FULLTEXT;}
         ;
@@ -7045,6 +7061,15 @@ key_list:
             Lex->last_key->columns.push_back($1, thd->mem_root);
           }
         ;
+
+opt_without_overlaps:
+         /* nothing */ {}
+         | ',' ident WITHOUT OVERLAPS_SYM
+          {
+            Lex->last_key->without_overlaps= true;
+            Lex->last_key->period= $2;
+          }
+         ;
 
 key_part:
           ident
@@ -10582,6 +10607,12 @@ function_call_generic:
               MYSQL_YYABORT;
           }
         | CONTAINS_SYM '(' opt_expr_list ')'
+          {
+            if (!($$= Lex->make_item_func_call_native_or_parse_error(thd,
+                                                                     $1, $3)))
+              MYSQL_YYABORT;
+          }
+        | OVERLAPS_SYM '(' opt_expr_list ')'
           {
             if (!($$= Lex->make_item_func_call_native_or_parse_error(thd,
                                                                      $1, $3)))
@@ -15641,6 +15672,7 @@ keyword_sp_var_and_label:
         | ONE_SYM
         | ONLINE_SYM
         | ONLY_SYM
+        | OVERLAPS_SYM
         | PACKAGE_MARIADB_SYM
         | PACK_KEYS_SYM
         | PAGE_SYM

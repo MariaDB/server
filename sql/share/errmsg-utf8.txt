@@ -7948,3 +7948,7 @@ ER_LOAD_INFILE_CAPABILITY_DISABLED
         rum "Comanda folosită nu este permisă deoarece clientul sau serverul MariaDB a dezactivat această capabilitate"
 ER_NO_SECURE_TRANSPORTS_CONFIGURED
         eng "No secure transports are configured, unable to set --require_secure_transport=ON"
+ER_KEY_CONTAINS_PERIOD_FIELDS
+        eng "Key %`s cannot explicitly include column %`s"
+ER_KEY_CANT_HAVE_WITHOUT_OVERLAPS
+        eng "Key %`s cannot have WITHOUT OVERLAPS"

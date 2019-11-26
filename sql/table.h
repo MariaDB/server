@@ -803,7 +803,7 @@ struct TABLE_SHARE
 #endif
 
   /**
-    System versioning support.
+    System versioning and application-time periods support.
   */
   struct period_info_t
   {
@@ -811,6 +811,7 @@ struct TABLE_SHARE
     uint16 end_fieldno;
     Lex_ident name;
     Lex_ident constr_name;
+    uint unique_keys;
     Field *start_field(TABLE_SHARE *s) const
     {
       return s->field[start_fieldno];
@@ -1632,7 +1633,7 @@ public:
   int insert_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
                              ha_rows *rows_inserted);
   bool vers_check_update(List<Item> &items);
-
+  static bool check_period_overlaps(const KEY &key, const uchar *lhs, const uchar *rhs);
   int delete_row();
   void vers_update_fields();
   void vers_update_end();
@@ -1770,10 +1771,18 @@ class IS_table_read_plan;
 
 /** number of bytes used by field positional indexes in frm */
 constexpr uint frm_fieldno_size= 2;
+/** number of bytes used by key position number in frm */
+constexpr uint frm_keyno_size= 2;
 static inline uint16 read_frm_fieldno(const uchar *data)
 { return uint2korr(data); }
 static inline void store_frm_fieldno(uchar *data, uint16 fieldno)
 { int2store(data, fieldno); }
+static inline uint16 read_frm_keyno(const uchar *data)
+{ return uint2korr(data); }
+static inline void store_frm_keyno(uchar *data, uint16 fieldno)
+{ int2store(data, fieldno); }
+static inline size_t extra2_str_size(size_t len)
+{ return (len > 255 ? 3 : 1) + len; }
 
 class select_unit;
 class TMP_TABLE_PARAM;
