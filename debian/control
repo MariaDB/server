@@ -6,7 +6,6 @@ Uploaders: MariaDB Developers <maria-developers@lists.launchpad.net>
 Build-Depends: bison,
                chrpath,
                cmake (>= 2.7),
-               cracklib-runtime,
                debhelper,
                dh-apparmor,
                dpatch,
