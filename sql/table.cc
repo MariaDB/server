@@ -1501,6 +1501,14 @@ static size_t extra2_read_len(const uchar **extra2, const uchar *extra2_end)
   return length;
 }
 
+static
+bool read_extra2_section_once(const uchar *extra2, size_t len, LEX_CUSTRING *section)
+{
+  if (section->str)
+    return true;
+  *section= {extra2, len};
+  return false;
+}
 
 static
 bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
@@ -1520,6 +1528,8 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
       size_t length= extra2_read_len(&extra2, e2end);
       if (!length)
         DBUG_RETURN(true);
+
+      bool fail= false;
       switch (type) {
         case EXTRA2_TABLEDEF_VERSION:
           if (fields->version.str) // see init_from_sql_statement_string()
@@ -1534,49 +1544,35 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
           }
           break;
         case EXTRA2_ENGINE_TABLEOPTS:
-          if (fields->options.str)
-            DBUG_RETURN(true);
-          fields->options.str= extra2;
-          fields->options.length= length;
+          fail= read_extra2_section_once(extra2, length, &fields->options);
           break;
         case EXTRA2_DEFAULT_PART_ENGINE:
           fields->engine.set((const char*)extra2, length);
           break;
         case EXTRA2_GIS:
-          if (fields->gis.str)
-            DBUG_RETURN(true);
-          fields->gis.str= extra2;
-          fields->gis.length= length;
+          fail= read_extra2_section_once(extra2, length, &fields->gis);
           break;
         case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
-          if (fields->system_period.str || length != 2 * frm_fieldno_size)
-            DBUG_RETURN(true);
-          fields->system_period.str = extra2;
-          fields->system_period.length= length;
+          fail= read_extra2_section_once(extra2, length, &fields->system_period)
+                  || length != 2 * frm_fieldno_size;
           break;
         case EXTRA2_FIELD_FLAGS:
-          if (fields->field_flags.str)
-            DBUG_RETURN(true);
-          fields->field_flags.str= extra2;
-          fields->field_flags.length= length;
+          fail= read_extra2_section_once(extra2, length, &fields->field_flags);
           break;
         case EXTRA2_APPLICATION_TIME_PERIOD:
-          if (fields->application_period.str)
-            DBUG_RETURN(true);
-          fields->application_period.str= extra2;
-          fields->application_period.length= length;
+          fail= read_extra2_section_once(extra2, length, &fields->application_period);
           break;
         case EXTRA2_FIELD_DATA_TYPE_INFO:
-          if (fields->field_data_type_info.str)
-            DBUG_RETURN(true);
-          fields->field_data_type_info.str= extra2;
-          fields->field_data_type_info.length= length;
+          fail= read_extra2_section_once(extra2, length, &fields->field_data_type_info);
           break;
         default:
           /* abort frm parsing if it's an unknown but important extra2 value */
           if (type >= EXTRA2_ENGINE_IMPORTANT)
             DBUG_RETURN(true);
       }
+      if (fail)
+        DBUG_RETURN(true);
+
       extra2+= length;
     }
     if (extra2 != e2end)
