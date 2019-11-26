@@ -41,7 +41,7 @@ then
   MARIADB_OPTIONAL_DEBS="${MARIADB_OPTIONAL_DEBS} cracklib-password-check-10.1"
   sed -i -e "/\\\${MAYBE_LIBCRACK}/d" debian/control
 else
-  MAYBE_LIBCRACK='libcrack2-dev (>= 2.9.0), cracklib-runtime'
+  MAYBE_LIBCRACK='libcrack2-dev (>= 2.9.0), cracklib-runtime,'
   sed -i -e "s/\\\${MAYBE_LIBCRACK}/${MAYBE_LIBCRACK}/g" debian/control
 fi
 
