@@ -1638,6 +1638,12 @@ bool JOIN::make_range_rowid_filters()
   {
     if (!tab->range_rowid_filter_info)
       continue;
+
+    DBUG_ASSERT(!(tab->ref.key >= 0 &&
+                  tab->ref.key == (int) tab->range_rowid_filter_info->key_no));
+    DBUG_ASSERT(!(tab->ref.key == -1 && tab->quick &&
+                  tab->quick->index == tab->range_rowid_filter_info->key_no));
+
     int err;
     SQL_SELECT *sel= NULL;
     Rowid_filter_container *filter_container= NULL;
@@ -7701,7 +7707,8 @@ best_access_path(JOIN      *join,
                                               found_ref);
       } /* not ft_key */
 
-      if (records < DBL_MAX)
+      if (records < DBL_MAX &&
+	  (found_part & 1))   // start_key->key can be used for index access
       {
         double rows= record_count * records;
         double access_cost_factor= MY_MIN(tmp / rows, 1.0);
