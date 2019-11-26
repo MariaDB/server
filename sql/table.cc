@@ -1725,11 +1725,26 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   keyinfo= &first_keyinfo;
   thd->mem_root= &share->mem_root;
 
+  auto err= [thd, share, &handler_file, &se_plugin, old_root](){
+    share->db_plugin= NULL;
+    share->error= OPEN_FRM_CORRUPTED;
+    share->open_errno= my_errno;
+    delete handler_file;
+    plugin_unlock(0, se_plugin);
+    my_hash_free(&share->name_hash);
+
+    if (!thd->is_error())
+      open_table_error(share, OPEN_FRM_CORRUPTED, share->open_errno);
+
+    thd->mem_root= old_root;
+    return HA_ERR_NOT_A_TABLE;
+  };
+
   if (write && write_frm_image(frm_image, frm_length))
-    goto err;
+    DBUG_RETURN(err());
 
   if (frm_length < FRM_HEADER_SIZE + FRM_FORMINFO_SIZE)
-    goto err;
+    DBUG_RETURN(err());
 
   share->frm_version= frm_image[2];
   /*
@@ -1749,13 +1764,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   len = uint2korr(frm_image+4);
 
   if (read_extra2(frm_image, len, &extra2))
-    goto err;
+    DBUG_RETURN(err());
 
   tabledef_version.length= extra2.version.length;
   tabledef_version.str= (uchar*)memdup_root(&mem_root, extra2.version.str,
                                                        extra2.version.length);
   if (!tabledef_version.str)
-    goto err;
+    DBUG_RETURN(err());
 
   /* remember but delay parsing until we have read fields and keys */
   options= extra2.options;
@@ -1765,17 +1780,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   {
     share->default_part_plugin= ha_resolve_by_name(NULL, &extra2.engine, false);
     if (!share->default_part_plugin)
-      goto err;
+      DBUG_RETURN(err());
   }
 #endif
 
   if (frm_length < FRM_HEADER_SIZE + len ||
       !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
-    goto err;
+    DBUG_RETURN(err());
 
   forminfo= frm_image + pos;
   if (forminfo + FRM_FORMINFO_SIZE >= frm_image_end)
-    goto err;
+    DBUG_RETURN(err());
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (frm_image[61] && !share->default_part_plugin)
@@ -1783,7 +1798,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     enum legacy_db_type db_type= (enum legacy_db_type) (uint) frm_image[61];
     share->default_part_plugin= ha_lock_engine(NULL, ha_checktype(thd, db_type));
     if (!share->default_part_plugin)
-      goto err;
+      DBUG_RETURN(err());
   }
 #endif
   legacy_db_type= (enum legacy_db_type) (uint) frm_image[3];
@@ -1823,7 +1838,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       enum_value_with_check(thd, share, "row_format", frm_image[40], ROW_TYPE_MAX);
 
     if (cs_new && !(share->table_charset= get_charset(cs_new, MYF(MY_WME))))
-      goto err;
+      DBUG_RETURN(err());
     share->null_field_first= 1;
     share->stats_sample_pages= uint2korr(frm_image+42);
     share->stats_auto_recalc= (enum_stats_auto_recalc)(frm_image[44]);
@@ -1852,7 +1867,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   disk_buff= frm_image + uint2korr(frm_image+6);
 
   if (disk_buff + 6 >= frm_image_end)
-    goto err;
+    DBUG_RETURN(err());
 
   if (disk_buff[0] & 0x80)
   {
@@ -1880,7 +1895,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                             uint4korr(frm_image+47) : uint2korr(frm_image+14))));
 
   if (record_offset + share->reclength >= frm_length)
-    goto err;
+    DBUG_RETURN(err());
  
   if ((n_length= uint4korr(frm_image+55)))
   {
@@ -1891,7 +1906,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     buff_end= next_chunk + n_length;
 
     if (buff_end >= frm_image_end)
-      goto err;
+      DBUG_RETURN(err());
 
     share->connect_string.length= uint2korr(next_chunk);
     if (!(share->connect_string.str= strmake_root(&share->mem_root,
@@ -1899,7 +1914,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                                   share->connect_string.
                                                   length)))
     {
-      goto err;
+      DBUG_RETURN(err());
     }
     next_chunk+= share->connect_string.length + 2;
     if (next_chunk + 2 < buff_end)
@@ -1944,7 +1959,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         {
           my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
                    "--skip-partition");
-          goto err;
+          DBUG_RETURN(err());
         }
         plugin_unlock(NULL, se_plugin);
         se_plugin= ha_lock_engine(NULL, partition_hton);
@@ -1955,7 +1970,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         /* purecov: begin inspected */
         ((char*) name.str)[name.length]=0;
         my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), name.str);
-        goto err;
+        DBUG_RETURN(err());
         /* purecov: end */
       }
       next_chunk+= str_db_type_length + 2;
@@ -1966,7 +1981,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, &ext_key_parts,
                          share, len, &first_keyinfo, &keynames))
-      goto err;
+      DBUG_RETURN(err());
 
     if (next_chunk + 5 < buff_end)
     {
@@ -1979,14 +1994,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
               memdup_root(&share->mem_root, next_chunk + 4,
                           partition_info_str_len + 1)))
         {
-          goto err;
+          DBUG_RETURN(err());
         }
       }
 #else
       if (partition_info_str_len)
       {
         DBUG_PRINT("info", ("WITH_PARTITION_STORAGE_ENGINE is not defined"));
-        goto err;
+        DBUG_RETURN(err());
       }
 #endif
       next_chunk+= 5 + partition_info_str_len;
@@ -2009,7 +2024,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         {
           DBUG_PRINT("error",
                      ("fulltext key uses parser that is not defined in .frm"));
-          goto err;
+          DBUG_RETURN(err());
         }
         parser_name.str= (char*) next_chunk;
         parser_name.length= strlen((char*) next_chunk);
@@ -2019,7 +2034,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (! keyinfo->parser)
         {
           my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), parser_name.str);
-          goto err;
+          DBUG_RETURN(err());
         }
       }
     }
@@ -2031,13 +2046,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
           DBUG_PRINT("error",
                      ("long table comment is not defined in .frm"));
-          goto err;
+          DBUG_RETURN(err());
       }
       share->comment.length = uint2korr(next_chunk);
       if (! (share->comment.str= strmake_root(&share->mem_root,
              (char*)next_chunk + 2, share->comment.length)))
       {
-          goto err;
+          DBUG_RETURN(err());
       }
       next_chunk+= 2 + share->comment.length;
     }
@@ -2047,7 +2062,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (share->db_create_options & HA_OPTION_TEXT_CREATE_OPTIONS_legacy)
     {
       if (options.str)
-        goto err;
+        DBUG_RETURN(err());
       options.length= uint4korr(next_chunk);
       options.str= next_chunk + 4;
       next_chunk+= options.length + 4;
@@ -2059,7 +2074,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (create_key_infos(disk_buff + 6, frm_image_end, keys, keyinfo,
                          new_frm_ver, &ext_key_parts,
                          share, len, &first_keyinfo, &keynames))
-      goto err;
+      DBUG_RETURN(err());
   }
   share->key_block_size= uint2korr(frm_image+62);
   keyinfo= share->key_info;
@@ -2068,12 +2083,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       hash_fields++;
 
   if (share->db_plugin && !plugin_equals(share->db_plugin, se_plugin))
-    goto err; // wrong engine (someone changed the frm under our feet?)
+    DBUG_RETURN(err()); // wrong engine (someone changed the frm under our feet?)
 
   rec_buff_length= ALIGN_SIZE(share->reclength + 1);
   share->rec_buff_length= rec_buff_length;
   if (!(record= (uchar *) alloc_root(&share->mem_root, rec_buff_length)))
-    goto err;                          /* purecov: inspected */
+    DBUG_RETURN(err());                          /* purecov: inspected */
   MEM_NOACCESS(record, rec_buff_length);
   MEM_UNDEFINED(record, share->reclength);
   share->default_values= record;
@@ -2082,7 +2097,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   disk_buff= frm_image + pos + FRM_FORMINFO_SIZE;
   share->fields= uint2korr(forminfo+258);
   if (extra2.field_flags.str && extra2.field_flags.length != share->fields)
-    goto err;
+    DBUG_RETURN(err());
   pos= uint2korr(forminfo+260);   /* Length of all screens */
   n_length= uint2korr(forminfo+268);
   interval_count= uint2korr(forminfo+270);
@@ -2114,7 +2129,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                         &vcol_screen_pos, vcol_screen_length,
                         NullS))
 
-    goto err;
+    DBUG_RETURN(err());
 
   field_ptr= share->field;
   table_check_constraints= share->check_constraints;
@@ -2137,7 +2152,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   fix_type_pointers(&interval_array, &share->fieldnames, 1, &names);
   if (share->fieldnames.count != share->fields)
-    goto err;
+    DBUG_RETURN(err());
   fix_type_pointers(&interval_array, share->intervals, interval_count, &names);
 
   {
@@ -2150,7 +2165,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       uint count= (uint) (interval->count + 1) * sizeof(uint);
       if (!(interval->type_lengths= (uint *) alloc_root(&share->mem_root,
                                                         count)))
-        goto err;
+        DBUG_RETURN(err());
       for (count= 0; count < interval->count; count++)
       {
         char *val= (char*) interval->type_names[count];
@@ -2166,10 +2181,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
  /* Allocate handler */
   if (!(handler_file= get_new_handler(share, thd->mem_root,
                                       plugin_hton(se_plugin))))
-    goto err;
+    DBUG_RETURN(err());
 
   if (handler_file->set_ha_share_ref(&share->ha_share))
-    goto err;
+    DBUG_RETURN(err());
 
   record= share->default_values-1;              /* Fieldstart = 1 */
   null_bits_are_used= share->null_fields != 0;
@@ -2228,7 +2243,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     DBUG_PRINT("info", ("Setting system versioning informations"));
     if (init_period_from_extra2(&vers, extra2.system_period.str,
                   extra2.system_period.str + extra2.system_period.length))
-      goto err;
+      DBUG_RETURN(err());
     DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]",
                         vers.start_fieldno, vers.end_fieldno));
     versioned= VERS_TIMESTAMP;
@@ -2250,12 +2265,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     pos+= period.constr_name.length;
 
     if (init_period_from_extra2(&period, pos, end))
-      goto err;
+      DBUG_RETURN(err());
     if (extra2_str_size(period.name.length)
          + extra2_str_size(period.constr_name.length)
          + 2 * frm_fieldno_size
         != extra2.application_period.length)
-      goto err;
+      DBUG_RETURN(err());
     status_var_increment(thd->status_var.feature_application_time_periods);
   }
 
@@ -2274,13 +2289,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     if ((period.unique_keys + 1) * frm_keyno_size
         != extra2.without_overlaps.length)
-      goto err;
+      DBUG_RETURN(err());
   }
 
   if (extra2.field_data_type_info.length &&
       field_data_type_info_array.parse(old_root, share->fields,
                                        extra2.field_data_type_info))
-    goto err;
+    DBUG_RETURN(err());
 
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
   {
@@ -2320,11 +2335,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         uint vcol_info_length= (uint) strpos[12];
 
         if (!vcol_info_length) // Expect non-null expression
-          goto err;
+          DBUG_RETURN(err());
 
         attr.frm_unpack_basic(strpos);
         if (attr.frm_unpack_charset(share, strpos))
-          goto err;
+          DBUG_RETURN(err());
         /*
           Old virtual field information before 10.2
 
@@ -2340,11 +2355,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         bool opt_interval_id= (uint)vcol_screen_pos[0] == 2;
         enum_field_types ftype= (enum_field_types) (uchar) vcol_screen_pos[1];
         if (!(handler= Type_handler::get_handler_by_real_type(ftype)))
-          goto err;
+          DBUG_RETURN(err());
         if (opt_interval_id)
           interval_nr= (uint)vcol_screen_pos[3];
         else if ((uint)vcol_screen_pos[0] != 1)
-          goto err;
+          DBUG_RETURN(err());
         bool stored= vcol_screen_pos[2] & 1;
         vcol_info->stored_in_db= stored;
         vcol_info->set_vcol_type(stored ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL);
@@ -2360,12 +2375,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         interval_nr=  (uint) strpos[12];
         enum_field_types field_type= (enum_field_types) strpos[13];
         if (!(handler= Type_handler::get_handler_by_real_type(field_type)))
-          goto err; // Not supported field type
+          DBUG_RETURN(err()); // Not supported field type
         handler= handler->type_handler_frm_unpack(strpos);
         if (handler->Column_definition_attributes_frm_unpack(&attr, share,
                                                              strpos,
                                                              &extra2.gis))
-          goto err;
+          DBUG_RETURN(err());
 
         if (field_data_type_info_array.count())
         {
@@ -2392,7 +2407,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                 that the FRM data is consistent.
             */
             if (!h)
-              goto err;
+              DBUG_RETURN(err());
             handler= h;
           }
         }
@@ -2411,11 +2426,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           byte 5..      = expr
         */
         if ((uint)(vcol_screen_pos)[0] != 1)
-          goto err;
+          DBUG_RETURN(err());
         vcol_info= new (&share->mem_root) Virtual_column_info();
         uint vcol_info_length= uint2korr(vcol_screen_pos + 1);
         if (!vcol_info_length) // Expect non-empty expression
-          goto err;
+          DBUG_RETURN(err());
         vcol_info->stored_in_db= vcol_screen_pos[3];
         vcol_info->utf8= 0;
         vcol_screen_pos+= vcol_info_length + MYSQL57_GCOL_HEADER_SIZE;;
@@ -2439,7 +2454,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       /* old frm file */
       enum_field_types ftype= (enum_field_types) f_packtype(attr.pack_flag);
       if (!(handler= Type_handler::get_handler_by_real_type(ftype)))
-        goto err; // Not supported field type
+        DBUG_RETURN(err()); // Not supported field type
 
       if (f_is_binary(attr.pack_flag))
       {
@@ -2461,7 +2476,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         attr.charset= share->table_charset;
       bzero((char*) &comment, sizeof(comment));
       if ((!(handler= old_frm_type_handler(attr.pack_flag, interval_nr))))
-        goto err; // Not supported field type
+        DBUG_RETURN(err()); // Not supported field type
     }
 
     /* Remove >32 decimals from old files */
@@ -2533,7 +2548,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), fieldnames.type_names[i],
             versioned == VERS_TIMESTAMP ? "TIMESTAMP(6)" : "BIGINT(20) UNSIGNED",
             table_name.str);
-          goto err;
+          DBUG_RETURN(err());
         }
       }
     }
@@ -2546,7 +2561,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     *field_ptr= reg_field=
       attr.make_field(share, &share->mem_root, &addr, handler, &name, flags);
     if (!reg_field)				// Not supported field type
-      goto err;
+      DBUG_RETURN(err());
 
     if (attr.unireg_check == Field::TIMESTAMP_DNUN_FIELD ||
         attr.unireg_check == Field::TIMESTAMP_DN_FIELD)
@@ -2607,7 +2622,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       share->found_next_number_field= field_ptr;
 
     if (use_hash && my_hash_insert(&share->name_hash, (uchar*) field_ptr))
-      goto err;
+      DBUG_RETURN(err());
     if (!reg_field->stored_in_db())
     {
       share->stored_fields--;
@@ -2852,7 +2867,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                                  (uint) key_part->offset,
                                                  (uint) key_part->length);
 	if (!key_part->fieldnr)
-          goto err;
+          DBUG_RETURN(err());
 
         field= key_part->field= share->field[key_part->fieldnr-1];
         key_part->type= field->key_type();
@@ -3033,7 +3048,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       uint name_length=  (uint) vcol_screen_pos[5];
 
       if (!(vcol_info=   new (&share->mem_root) Virtual_column_info()))
-        goto err;
+        DBUG_RETURN(err());
 
       /* The following can only be true for check_constraints */
 
@@ -3106,10 +3121,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   {
     DBUG_ASSERT(options.length);
     if (engine_table_options_frm_read(options.str, options.length, share))
-      goto err;
+      DBUG_RETURN(err());
   }
   if (parse_engine_table_options(thd, handler_file->partition_ht(), share))
-    goto err;
+    DBUG_RETURN(err());
 
   if (share->found_next_number_field)
   {
@@ -3119,7 +3134,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                             share->default_values, reg_field,
 			    &share->next_number_key_offset,
                             &share->next_number_keypart)) < 0)
-      goto err; // Wrong field definition
+      DBUG_RETURN(err()); // Wrong field definition
     reg_field->flags |= AUTO_INCREMENT_FLAG;
   }
 
@@ -3132,7 +3147,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (!(share->blob_field= save=
 	  (uint*) alloc_root(&share->mem_root,
                              (uint) (share->blob_fields* sizeof(uint)))))
-      goto err;
+      DBUG_RETURN(err());
     for (k=0, ptr= share->field ; *ptr ; ptr++, k++)
     {
       if ((*ptr)->flags & BLOB_FLAG)
@@ -3159,13 +3174,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     feature_check_constraint++;
     if (!(share->check_set= (MY_BITMAP*)
           alloc_root(&share->mem_root, sizeof(*share->check_set))))
-      goto err;
+      DBUG_RETURN(err());
     bitmap_count++;
   }
   if (!(bitmaps= (my_bitmap_map*) alloc_root(&share->mem_root,
                                              share->column_bitmap_size *
                                              bitmap_count)))
-    goto err;
+    DBUG_RETURN(err());
   my_bitmap_init(&share->all_set, bitmaps, share->fields, FALSE);
   bitmap_set_all(&share->all_set);
   if (share->check_set)
@@ -3193,20 +3208,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   thd->status_var.opened_shares++;
   thd->mem_root= old_root;
   DBUG_RETURN(0);
-
-err:
-  share->db_plugin= NULL;
-  share->error= OPEN_FRM_CORRUPTED;
-  share->open_errno= my_errno;
-  delete handler_file;
-  plugin_unlock(0, se_plugin);
-  my_hash_free(&share->name_hash);
-
-  if (!thd->is_error())
-    open_table_error(share, OPEN_FRM_CORRUPTED, share->open_errno);
-
-  thd->mem_root= old_root;
-  DBUG_RETURN(HA_ERR_NOT_A_TABLE);
 }
 
 
