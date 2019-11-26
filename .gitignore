@@ -173,6 +173,7 @@ sql/sql_yacc.cc
 sql/sql_yacc.hh
 sql/sql_yacc_ora.cc
 sql/sql_yacc_ora.hh
+sql/sql_yacc_ora.yy
 storage/heap/hp_test1
 storage/heap/hp_test2
 storage/maria/aria_chk

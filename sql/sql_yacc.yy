@@ -322,14 +322,16 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 /*
   We should not introduce new conflicts any more.
 */
-//%{#ifdef SQL_MODE_DEFAULT_SPECIFIC
+
+/* Start SQL_MODE_DEFAULT_SPECIFIC */
 %expect 37
-//#endif %} // SQL_MODE_DEFAULT_SPECIFIC
+/* End SQL_MODE_DEFAULT_SPECIFIC */
 
 
-%{#ifdef SQL_MODE_ORACLE_SPECIFIC
+/* Start SQL_MODE_ORACLE_SPECIFIC
 %expect 40
-#endif %} // SQL_MODE_ORACLE_SPECIFIC
+End SQL_MODE_ORACLE_SPECIFIC */
+
 
 /*
    Comments for TOKENS.
@@ -1721,7 +1723,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <vers_history_point> history_point
 %type <vers_column_versioning> with_or_without_system
 
-//%{#ifdef SQL_MODE_DEFAULT_SPECIFIC
+/* Start SQL_MODE_DEFAULT_SPECIFIC */
 %type <NONE> sp_tail_standalone
 %type <NONE> sp_unlabeled_block_not_atomic
 %type <NONE> sp_proc_stmt_in_returns_clause
@@ -1733,10 +1735,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <spblock> sp_decl_variable_list
 %type <spblock> sp_decl_variable_list_anchored
 %type <kwd> reserved_keyword_udt_param_type
-//#endif %} // SQL_MODE_DEFAULT_SPECIFIC
+/* End SQL_MODE_DEFAULT_SPECIFIC */
 
 
-%{#ifdef SQL_MODE_ORACLE_SPECIFIC
+/* Start SQL_MODE_ORACLE_SPECIFIC
 %type <NONE> set_assign
 %type <spvar_mode> sp_opt_inout
 %type <NONE> sp_tail_standalone
@@ -1771,7 +1773,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <lex> package_routine_lex
 %type <lex> package_specification_function
 %type <lex> package_specification_procedure
-#endif %} // SQL_MODE_ORACLE_SPECIFIC
+End SQL_MODE_ORACLE_SPECIFIC */
 
 %%
 
