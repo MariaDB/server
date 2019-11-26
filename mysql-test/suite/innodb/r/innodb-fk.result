@@ -190,3 +190,12 @@ bor#oda	CREATE TABLE `bor#oda` (
   CONSTRAINT `bor#oda_ibfk_2` FOREIGN KEY (`b`) REFERENCES `bor#oda` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 DROP TABLE `bor#oda`;
+#
+# MDEV-21127 Assertion `(size_t)(ptr - buf) < MAX_TEXT - 4' failed in key_text::key_text
+#
+CREATE TABLE t1 (
+a012345678901234567890123456789012345678901 char(255),
+b char(255),
+FOREIGN KEY ( a012345678901234567890123456789012345678901, b ) REFERENCES tx (ax, bx)
+) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")

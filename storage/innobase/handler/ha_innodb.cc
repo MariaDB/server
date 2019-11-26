@@ -12208,9 +12208,9 @@ public:
 			/* 3 is etc continuation ("...");
 			   2 is comma separator (", ") in case of next exists;
 			   1 is terminating ')' */
-			if ((size_t)(ptr - buf) < MAX_TEXT
-				- (it.peek() ? 3 + 2 + 1 : 3 + 1)
-				- k->field_name.length) {
+			if (MAX_TEXT - (size_t)(ptr - buf)
+				>= (it.peek() ? 3 + 2 + 1 : 3 + 1)
+				+ k->field_name.length) {
 				memcpy(ptr, k->field_name.str,
 				       k->field_name.length);
 				ptr += k->field_name.length;

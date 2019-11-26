@@ -226,3 +226,13 @@ ADD FOREIGN KEY (`b`) REFERENCES `bor#oda`(`id`);
 
 SHOW CREATE TABLE `bor#oda`;
 DROP TABLE `bor#oda`;
+
+--echo #
+--echo # MDEV-21127 Assertion `(size_t)(ptr - buf) < MAX_TEXT - 4' failed in key_text::key_text
+--echo #
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1 (
+    a012345678901234567890123456789012345678901 char(255),
+    b char(255),
+    FOREIGN KEY ( a012345678901234567890123456789012345678901, b ) REFERENCES tx (ax, bx)
+) ENGINE=InnoDB;
