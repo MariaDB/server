@@ -2434,7 +2434,7 @@ loop:
 		btr_pcur_open(ibuf.index, tuple, PAGE_CUR_GE, BTR_MODIFY_LEAF,
 			      &pcur, &mtr);
 		if (!btr_pcur_is_on_user_rec(&pcur)) {
-			ut_ad(btr_pcur_is_after_last_in_tree(&pcur));
+			ut_ad(btr_pcur_is_after_last_on_page(&pcur));
 			goto done;
 		}
 
@@ -4480,7 +4480,7 @@ loop:
 	}
 
 	if (!btr_pcur_is_on_user_rec(&pcur)) {
-		ut_ad(btr_pcur_is_after_last_in_tree(&pcur));
+		ut_ad(btr_pcur_is_after_last_on_page(&pcur));
 		goto reset_bit;
 	}
 
@@ -4707,7 +4707,7 @@ loop:
 		&pcur, &mtr);
 
 	if (!btr_pcur_is_on_user_rec(&pcur)) {
-		ut_ad(btr_pcur_is_after_last_in_tree(&pcur));
+		ut_ad(btr_pcur_is_after_last_on_page(&pcur));
 		goto leave_loop;
 	}
 
