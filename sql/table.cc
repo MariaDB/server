@@ -60,6 +60,7 @@ struct extra2_fields
   LEX_CUSTRING system_period;
   LEX_CUSTRING application_period;
   LEX_CUSTRING field_data_type_info;
+  LEX_CUSTRING without_overlaps;
   void reset()
   { bzero((void*)this, sizeof(*this)); }
 };
@@ -1568,6 +1569,9 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
         case EXTRA2_APPLICATION_TIME_PERIOD:
           fail= fill_extra2(&fields->application_period);
           break;
+        case EXTRA2_PERIOD_WITHOUT_OVERLAPS:
+          fail= fill_extra2(&fields->without_overlaps);
+          break;
         case EXTRA2_FIELD_DATA_TYPE_INFO:
           fail= fill_extra2(&fields->field_data_type_info);
           break;
@@ -2256,8 +2260,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (init_period_from_extra2(&period, pos, end))
       goto err;
     status_var_increment(thd->status_var.feature_application_time_periods);
+  }
 
-    const uchar *key_pos= pos + 2 * frm_fieldno_size;
+  if (extra2.without_overlaps.str)
+  {
+    const uchar *key_pos= extra2.without_overlaps.str;
     period.unique_keys= read_frm_keyno(key_pos);
     for (uint k= 0; k < period.unique_keys; k++)
     {
@@ -2266,10 +2273,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       key_info[key_nr].without_overlaps= true;
     }
 
-    if (frm_ident_stored_size(period.name.length)
-        + frm_ident_stored_size(period.constr_name.length)
-        + (period.unique_keys + 1) * frm_keyno_size + 2 * frm_fieldno_size
-        != extra2.application_period.length)
+    if ((period.unique_keys + 1) * frm_keyno_size
+        != extra2.without_overlaps.length)
       goto err;
   }
 

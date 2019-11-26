@@ -1799,8 +1799,8 @@ static inline uint16 read_frm_keyno(const uchar *data)
 { return uint2korr(data); }
 static inline void store_frm_keyno(uchar *data, uint16 fieldno)
 { int2store(data, fieldno); }
-static inline size_t frm_ident_stored_size(size_t len)
-{ return len + (len > 255 ? 3 : 1); }
+static inline size_t extra2_str_size(size_t len)
+{ return (len > 255 ? 3 : 1) + len; }
 
 class select_unit;
 class TMP_TABLE_PARAM;
