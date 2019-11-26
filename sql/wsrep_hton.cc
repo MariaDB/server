@@ -478,12 +478,29 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
 
   if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_ws_handle.trx_id)
   {
-    WSREP_WARN("SQL statement was ineffective, THD: %lu, buf: %zu\n"
+    /*
+      Async replication slave may have applied some non-innodb workload,
+      and then has written replication "meta data" into gtid_slave_pos
+      innodb table. Writes to gtid_slave_pos must not be replicated,
+      but this activity has caused that innodb hton is registered for this
+       transaction, but no wsrep keys have been appended.
+       We enter in this code path, because IO cache has events for non-innodb
+       tables.
+       => we should not treat it an error if trx is not introduced for provider
+    */
+    if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL)
+    {
+      WSREP_DEBUG("skipping wsrep replication for async slave, error not raised");
+      DBUG_RETURN(WSREP_TRX_OK);
+    }
+
+    WSREP_WARN("SQL statement was ineffective  thd: %lu  buf: %zu\n"
                "schema: %s \n"
 	       "QUERY: %s\n"
 	       " => Skipping replication",
 	       thd->thread_id, data_len,
                (thd->db ? thd->db : "(null)"), thd->query());
+
     rcode = WSREP_TRX_FAIL;
   }
   else if (!rcode)
