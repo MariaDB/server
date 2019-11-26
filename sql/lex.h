@@ -453,6 +453,7 @@ static SYMBOL symbols[] = {
   { "OUTER",		SYM(OUTER)},
   { "OUTFILE",		SYM(OUTFILE)},
   { "OVER",             SYM(OVER_SYM)},
+  { "OVERLAPS",         SYM(OVERLAPS)},
   { "OWNER",		SYM(OWNER_SYM)},
   { "PACKAGE",          SYM(PACKAGE_MARIADB_SYM)},
   { "PACK_KEYS",	SYM(PACK_KEYS_SYM)},

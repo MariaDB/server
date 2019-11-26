@@ -4228,6 +4228,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
     // Check if a duplicate index is defined.
     check_duplicate_key(thd, key, key_info, &alter_info->key_list);
+
+    key_info->without_overlaps= key->without_overlaps;
+    if (key->without_overlaps)
+      create_info->period_info.unique_keys++;
+
     key_info++;
   }
 
@@ -4506,15 +4511,13 @@ bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 }
 
 
-static bool vers_prepare_keys(THD *thd, HA_CREATE_INFO *create_info,
-                         Alter_info *alter_info, KEY **key_info, uint key_count)
+static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
+                                    Alter_info *alter_info, KEY **key_info,
+                                    uint key_count)
 {
-  DBUG_ASSERT(create_info->versioned());
-
-  const char *row_start_field= create_info->vers_info.as_row.start;
-  DBUG_ASSERT(row_start_field);
-  const char *row_end_field= create_info->vers_info.as_row.end;
-  DBUG_ASSERT(row_end_field);
+  const auto &row_start_field= create_info->vers_info.as_row.start;
+  const auto &row_end_field= create_info->vers_info.as_row.end;
+  DBUG_ASSERT(!create_info->versioned() || (row_start_field && row_end_field));
 
   List_iterator<Key> key_it(alter_info->key_list);
   Key *key= NULL;
@@ -4523,25 +4526,57 @@ static bool vers_prepare_keys(THD *thd, HA_CREATE_INFO *create_info,
     if (key->type != Key::PRIMARY && key->type != Key::UNIQUE)
       continue;
 
-    Key_part_spec *key_part= NULL;
-    List_iterator<Key_part_spec> part_it(key->columns);
-    while ((key_part=part_it++))
+    if (create_info->versioned())
     {
-      if (!my_strcasecmp(system_charset_info,
-                         row_start_field,
-                         key_part->field_name.str) ||
-
-          !my_strcasecmp(system_charset_info,
-                         row_end_field,
-                         key_part->field_name.str))
-        break;
+      Key_part_spec *key_part=NULL;
+      List_iterator<Key_part_spec> part_it(key->columns);
+      while ((key_part=part_it++))
+      {
+        if (row_start_field.streq(key_part->field_name) ||
+            row_end_field.streq(key_part->field_name))
+          break;
+      }
+      if (!key_part)
+        key->columns.push_back(new Key_part_spec(&row_end_field, 0));
     }
-    if (key_part)
-      continue; // Key already contains Sys_start or Sys_end
+  }
 
-    Key_part_spec *key_part_sys_end_col=
-        new (thd->mem_root) Key_part_spec(&create_info->vers_info.as_row.end, 0);
-    key->columns.push_back(key_part_sys_end_col);
+  key_it.rewind();
+  while ((key=key_it++))
+  {
+    if (key->without_overlaps)
+    {
+      if (key->type != Key::PRIMARY && key->type != Key::UNIQUE)
+      {
+        my_error(ER_PERIOD_WITHOUT_OVERLAPS_NON_UNIQUE, MYF(0), key->period.str);
+        return true;
+      }
+      if (!create_info->period_info.is_set()
+          || !key->period.streq(create_info->period_info.name))
+      {
+        my_error(ER_PERIOD_NOT_FOUND, MYF(0), key->period.str);
+        return true;
+      }
+      if (thd->work_part_info)
+      {
+        my_error(ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED, MYF(0));
+        return true;
+      }
+      const auto &period_start= create_info->period_info.period.start;
+      const auto &period_end= create_info->period_info.period.end;
+      List_iterator<Key_part_spec> part_it(key->columns);
+      while (Key_part_spec *key_part= part_it++)
+      {
+        if (period_start.streq(key_part->field_name)
+            || period_end.streq(key_part->field_name))
+        {
+          my_error(ER_KEY_CONTAINS_PERIOD_FIELDS, MYF(0), key->name.str);
+          return true;
+        }
+      }
+      key->columns.push_back(new Key_part_spec(&period_start, 0));
+      key->columns.push_back(new Key_part_spec(&period_end, 0));
+    }
   }
 
   return false;
@@ -4781,12 +4816,9 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
   }
 #endif
 
-  if (create_info->versioned())
-  {
-    if(vers_prepare_keys(thd, create_info, alter_info, key_info,
-                                *key_count))
-      goto err;
-  }
+  if (append_system_key_parts(thd, create_info, alter_info, key_info,
+                              *key_count))
+    goto err;
 
   if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
                                  file, key_info, key_count, create_table_mode))
@@ -8400,8 +8432,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     const char *dropped_key_part= NULL;
     KEY_PART_INFO *key_part= key_info->key_part;
     key_parts.empty();
+    uint key_parts_nr= key_info->user_defined_key_parts;
+    if (key_info->without_overlaps)
+      key_parts_nr-= 2;
+
     bool delete_index_stat= FALSE;
-    for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
+    for (uint j=0 ; j < key_parts_nr ; j++,key_part++)
     {
       Field *kfield= key_part->field;
       if (!kfield)
@@ -8540,6 +8576,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key= new Key(key_type, &tmp_name, &key_create_info,
                    MY_TEST(key_info->flags & HA_GENERATED_KEY),
                    &key_parts, key_info->option_list, DDL_options());
+      key->without_overlaps= key_info->without_overlaps;
+      key->period= table->s->period.name;
       new_key_list.push_back(key, thd->mem_root);
     }
     if (long_hash_key)
@@ -10047,6 +10085,14 @@ do_continue:;
     enum_alter_inplace_result inplace_supported=
       table->file->check_if_supported_inplace_alter(&altered_table,
                                                     &ha_alter_info);
+
+    Key *k;
+    for (List_iterator<Key> it(alter_info->key_list);
+         (k= it++) && inplace_supported != HA_ALTER_INPLACE_NOT_SUPPORTED;)
+    {
+      if(k->without_overlaps)
+        inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
+    }
 
     if (alter_info->supports_algorithm(thd, inplace_supported, &ha_alter_info) ||
         alter_info->supports_lock(thd, inplace_supported, &ha_alter_info))

@@ -256,6 +256,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   size_t period_info_len= create_info->period_info.name
                           ? extra2_str_size(create_info->period_info.name.length)
                             + extra2_str_size(create_info->period_info.constr->name.length)
+                            + frm_keyno_size * (create_info->period_info.unique_keys + 1)
                             + 2 * frm_fieldno_size
                           : 0;
   uint e_unique_hash_extra_parts= 0;
@@ -485,6 +486,16 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     store_frm_fieldno(pos, get_fieldno_by_name(create_info, create_fields,
                                        create_info->period_info.period.end));
     pos+= frm_fieldno_size;
+    store_frm_keyno(pos, create_info->period_info.unique_keys);
+    pos+= frm_keyno_size;
+    for (uint key= 0; key < keys; key++)
+    {
+      if (key_info[key].without_overlaps)
+      {
+        store_frm_keyno(pos, key);
+        pos+= frm_keyno_size;
+      }
+    }
   }
 
   if (create_info->versioned())

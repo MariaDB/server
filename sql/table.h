@@ -804,6 +804,7 @@ struct TABLE_SHARE
     uint16 end_fieldno;
     Lex_ident name;
     Lex_ident constr_name;
+    uint unique_keys;
     Field *start_field(TABLE_SHARE *s) const
     {
       return s->field[start_fieldno];
@@ -1759,10 +1760,18 @@ class IS_table_read_plan;
 
 /** number of bytes used by field positional indexes in frm */
 constexpr uint frm_fieldno_size= 2;
+/** number of bytes used by key position number in frm */
+constexpr uint frm_keyno_size= 2;
 static inline uint16 read_frm_fieldno(const uchar *data)
 { return uint2korr(data); }
-static inline void store_frm_fieldno(const uchar *data, uint16 fieldno)
+static inline void store_frm_fieldno(uchar *data, uint16 fieldno)
 { int2store(data, fieldno); }
+static inline uint16 read_frm_keyno(const uchar *data)
+{ return uint2korr(data); }
+static inline void store_frm_keyno(uchar *data, uint16 fieldno)
+{ int2store(data, fieldno); }
+static inline size_t frm_ident_stored_size(size_t len)
+{ return len + (len > 255 ? 3 : 1); }
 
 class select_unit;
 class TMP_TABLE_PARAM;

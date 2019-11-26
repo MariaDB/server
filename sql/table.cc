@@ -2253,6 +2253,21 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (init_period_from_extra2(&period, pos, end))
       goto err;
     status_var_increment(thd->status_var.feature_application_time_periods);
+
+    const uchar *key_pos= pos + 2 * frm_fieldno_size;
+    period.unique_keys= read_frm_keyno(key_pos);
+    for (uint k= 0; k < period.unique_keys; k++)
+    {
+      key_pos+= frm_keyno_size;
+      uint key_nr= read_frm_keyno(key_pos);
+      key_info[key_nr].without_overlaps= true;
+    }
+
+    if (frm_ident_stored_size(period.name.length)
+        + frm_ident_stored_size(period.constr_name.length)
+        + (period.unique_keys + 1) * frm_keyno_size + 2 * frm_fieldno_size
+        != extra2.application_period.length)
+      goto err;
   }
 
   if (extra2.field_data_type_info.length &&

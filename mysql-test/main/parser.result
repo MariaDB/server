@@ -1388,6 +1388,7 @@ CALL p1(name, 'SELECT name TRANSACTION FROM t1');
 CALL p1(name, 'SELECT name VALUE FROM t1');
 CALL p1(name, 'SELECT name VERSIONING FROM t1');
 CALL p1(name, 'SELECT name WITHOUT FROM t1');
+CALL p1(name, 'SELECT name OVERLAPS FROM t1');
 DROP TABLE t1;
 END;
 $$
@@ -1414,6 +1415,7 @@ SELECT date TRANSACTION FROM t1
 SELECT date VALUE FROM t1
 SELECT date VERSIONING FROM t1
 SELECT date WITHOUT FROM t1
+SELECT date OVERLAPS FROM t1
 CALL p2('history');
 BEGIN NOT ATOMIC DECLARE history INT; SET history=10; SELECT history; END
 10
@@ -1436,6 +1438,7 @@ SELECT history TRANSACTION FROM t1
 SELECT history VALUE FROM t1
 SELECT history VERSIONING FROM t1
 SELECT history WITHOUT FROM t1
+SELECT history OVERLAPS FROM t1
 CALL p2('next');
 BEGIN NOT ATOMIC DECLARE next INT; SET next=10; SELECT next; END
 10
@@ -1459,6 +1462,7 @@ SELECT next VALUE FROM t1
 Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM t1' at line 1
 SELECT next VERSIONING FROM t1
 SELECT next WITHOUT FROM t1
+SELECT next OVERLAPS FROM t1
 CALL p2('period');
 BEGIN NOT ATOMIC DECLARE period INT; SET period=10; SELECT period; END
 10
@@ -1481,6 +1485,7 @@ SELECT period TRANSACTION FROM t1
 SELECT period VALUE FROM t1
 SELECT period VERSIONING FROM t1
 SELECT period WITHOUT FROM t1
+SELECT period OVERLAPS FROM t1
 CALL p2('previous');
 BEGIN NOT ATOMIC DECLARE previous INT; SET previous=10; SELECT previous; END
 10
@@ -1504,6 +1509,7 @@ SELECT previous VALUE FROM t1
 Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM t1' at line 1
 SELECT previous VERSIONING FROM t1
 SELECT previous WITHOUT FROM t1
+SELECT previous OVERLAPS FROM t1
 CALL p2('system');
 BEGIN NOT ATOMIC DECLARE system INT; SET system=10; SELECT system; END
 10
@@ -1526,6 +1532,7 @@ SELECT system TRANSACTION FROM t1
 SELECT system VALUE FROM t1
 SELECT system VERSIONING FROM t1
 SELECT system WITHOUT FROM t1
+SELECT system OVERLAPS FROM t1
 CALL p2('system_time');
 BEGIN NOT ATOMIC DECLARE system_time INT; SET system_time=10; SELECT system_time; END
 10
@@ -1548,6 +1555,7 @@ SELECT system_time TRANSACTION FROM t1
 SELECT system_time VALUE FROM t1
 SELECT system_time VERSIONING FROM t1
 SELECT system_time WITHOUT FROM t1
+SELECT system_time OVERLAPS FROM t1
 CALL p2('time');
 BEGIN NOT ATOMIC DECLARE time INT; SET time=10; SELECT time; END
 10
@@ -1571,6 +1579,7 @@ SELECT time TRANSACTION FROM t1
 SELECT time VALUE FROM t1
 SELECT time VERSIONING FROM t1
 SELECT time WITHOUT FROM t1
+SELECT time OVERLAPS FROM t1
 CALL p2('timestamp');
 BEGIN NOT ATOMIC DECLARE timestamp INT; SET timestamp=10; SELECT timestamp; END
 10
@@ -1594,6 +1603,7 @@ SELECT timestamp TRANSACTION FROM t1
 SELECT timestamp VALUE FROM t1
 SELECT timestamp VERSIONING FROM t1
 SELECT timestamp WITHOUT FROM t1
+SELECT timestamp OVERLAPS FROM t1
 CALL p2('transaction');
 BEGIN NOT ATOMIC DECLARE transaction INT; SET transaction=10; SELECT transaction; END
 10
@@ -1616,6 +1626,7 @@ SELECT transaction TRANSACTION FROM t1
 SELECT transaction VALUE FROM t1
 SELECT transaction VERSIONING FROM t1
 SELECT transaction WITHOUT FROM t1
+SELECT transaction OVERLAPS FROM t1
 CALL p2('value');
 BEGIN NOT ATOMIC DECLARE value INT; SET value=10; SELECT value; END
 10
@@ -1638,6 +1649,7 @@ SELECT value TRANSACTION FROM t1
 SELECT value VALUE FROM t1
 SELECT value VERSIONING FROM t1
 SELECT value WITHOUT FROM t1
+SELECT value OVERLAPS FROM t1
 CALL p2('versioning');
 BEGIN NOT ATOMIC DECLARE versioning INT; SET versioning=10; SELECT versioning; END
 10
@@ -1660,6 +1672,7 @@ SELECT versioning TRANSACTION FROM t1
 SELECT versioning VALUE FROM t1
 SELECT versioning VERSIONING FROM t1
 SELECT versioning WITHOUT FROM t1
+SELECT versioning OVERLAPS FROM t1
 CALL p2('without');
 BEGIN NOT ATOMIC DECLARE without INT; SET without=10; SELECT without; END
 10
@@ -1682,6 +1695,30 @@ SELECT without TRANSACTION FROM t1
 SELECT without VALUE FROM t1
 SELECT without VERSIONING FROM t1
 SELECT without WITHOUT FROM t1
+SELECT without OVERLAPS FROM t1
+CALL p2('overlaps');
+BEGIN NOT ATOMIC DECLARE overlaps INT; SET overlaps=10; SELECT overlaps; END
+10
+SELECT overlaps FROM t1
+SELECT overlaps 'alias' FROM t1
+SELECT overlaps()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT overlaps.overlaps()
+Error	1630	FUNCTION overlaps.overlaps does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT overlaps DATE FROM t1
+SELECT overlaps HISTORY FROM t1
+SELECT overlaps NEXT FROM t1
+SELECT overlaps PERIOD FROM t1
+SELECT overlaps PREVIOUS FROM t1
+SELECT overlaps SYSTEM FROM t1
+SELECT overlaps SYSTEM_TIME FROM t1
+SELECT overlaps TIME FROM t1
+SELECT overlaps TIMESTAMP FROM t1
+SELECT overlaps TRANSACTION FROM t1
+SELECT overlaps VALUE FROM t1
+SELECT overlaps VERSIONING FROM t1
+SELECT overlaps WITHOUT FROM t1
+SELECT overlaps OVERLAPS FROM t1
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
 #

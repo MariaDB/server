@@ -1423,6 +1423,7 @@ BEGIN
   CALL p1(name, 'SELECT name VALUE FROM t1');
   CALL p1(name, 'SELECT name VERSIONING FROM t1');
   CALL p1(name, 'SELECT name WITHOUT FROM t1');
+  CALL p1(name, 'SELECT name OVERLAPS FROM t1');
   DROP TABLE t1;
 END;
 $$
@@ -1442,6 +1443,7 @@ CALL p2('transaction');
 CALL p2('value');
 CALL p2('versioning');
 CALL p2('without');
+CALL p2('overlaps');
 --enable_column_names
 
 DROP PROCEDURE p2;

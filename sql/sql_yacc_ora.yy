@@ -926,6 +926,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  OPEN_SYM                      /* SQL-2003-R */
 %token  <kwd>  OPTIONS_SYM
 %token  <kwd>  OPTION                        /* SQL-2003-N */
+%token  <kwd>  OVERLAPS
 %token  <kwd>  OWNER_SYM
 %token  <kwd>  PACK_KEYS_SYM
 %token  <kwd>  PAGE_SYM
@@ -6967,6 +6968,11 @@ key_list:
           key_list ',' key_part order_dir
           {
             Lex->last_key->columns.push_back($3, thd->mem_root);
+          }
+        | key_list ',' ident WITHOUT OVERLAPS
+          {
+            Lex->last_key->without_overlaps= true;
+            Lex->last_key->period= $3;
           }
         | key_part order_dir
           {
@@ -15491,6 +15497,7 @@ keyword_sp_var_and_label:
         | ONE_SYM
         | ONLINE_SYM
         | ONLY_SYM
+        | OVERLAPS
         | PACKAGE_MARIADB_SYM
         | PACK_KEYS_SYM
         | PAGE_SYM

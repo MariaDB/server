@@ -6402,6 +6402,13 @@ int handler::ha_external_lock(THD *thd, int lock_type)
       mysql_audit_external_lock(thd, table_share, lock_type);
   }
 
+  if (lock_type == F_UNLCK && check_overlaps_handler)
+  {
+    check_overlaps_handler->ha_external_lock(table->in_use, F_UNLCK);
+    check_overlaps_handler->close();
+    check_overlaps_handler= NULL;
+  }
+
   if (MYSQL_HANDLER_RDLOCK_DONE_ENABLED() ||
       MYSQL_HANDLER_WRLOCK_DONE_ENABLED() ||
       MYSQL_HANDLER_UNLOCK_DONE_ENABLED())
@@ -6642,6 +6649,10 @@ int handler::ha_write_row(const uchar *buf)
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
 
+  error= ha_check_overlaps(NULL, buf);
+  if (unlikely(error))
+    goto end;
+
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
@@ -6671,6 +6682,7 @@ int handler::ha_write_row(const uchar *buf)
 #endif /* WITH_WSREP */
   }
 
+end:
   DEBUG_SYNC_C("ha_write_row_end");
   DBUG_RETURN(error);
 }
@@ -6689,6 +6701,9 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
    */
   DBUG_ASSERT(new_data == table->record[0]);
   DBUG_ASSERT(old_data == table->record[1]);
+
+  if ((error= ha_check_overlaps(old_data, new_data)))
+    return error;
 
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
@@ -6933,6 +6948,130 @@ void signal_log_not_needed(struct handlerton, char *log_file)
 void handler::set_lock_type(enum thr_lock_type lock)
 {
   table->reginfo.lock_type= lock;
+}
+
+int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
+{
+  DBUG_ASSERT(new_data);
+  if (!table_share->period.unique_keys)
+    return 0;
+  if (table->versioned() && !table->vers_end_field()->is_max())
+    return 0;
+
+  bool is_update= old_data != NULL;
+  if (!check_overlaps_buffer)
+    check_overlaps_buffer= (uchar*)alloc_root(&table_share->mem_root,
+                                              table_share->max_unique_length
+                                              + table_share->reclength);
+  auto *record_buffer= check_overlaps_buffer + table_share->max_unique_length;
+  auto *handler= this;
+  if (handler->inited != NONE)
+  {
+    if (!check_overlaps_handler)
+    {
+      check_overlaps_handler= clone(table_share->normalized_path.str,
+                                    &table_share->mem_root);
+      int error= -1;
+      if (check_overlaps_handler != NULL)
+        error= check_overlaps_handler->ha_external_lock(table->in_use, F_RDLCK);
+      if (error)
+        return error;
+    }
+    handler= check_overlaps_handler;
+  }
+
+  for (uint key_nr= 0; key_nr < table_share->keys; key_nr++)
+  {
+    const KEY *key_info= table->key_info + key_nr;
+    const uint key_parts= key_info->user_defined_key_parts;
+    if (!key_info->without_overlaps)
+      continue;
+
+    key_copy(check_overlaps_buffer, new_data, key_info, 0);
+    if (is_update)
+    {
+      bool key_used= false;
+      for (uint k= 0; k < key_parts && !key_used; k++)
+        key_used= bitmap_is_set(table->write_set,
+                                key_info->key_part[k].fieldnr - 1);
+      if (!key_used)
+        continue;
+    }
+
+    int error= handler->ha_index_init(key_nr, 0);
+    if (error)
+      return error;
+
+    for (int run= 0; run < 2; run++)
+    {
+      if (run == 0)
+      {
+        error = handler->ha_index_read_map(record_buffer,
+                                           check_overlaps_buffer,
+                                           key_part_map((1 << key_parts) - 1),
+                                           HA_READ_KEY_OR_PREV);
+        if (error == HA_ERR_KEY_NOT_FOUND)
+          continue;
+      }
+      else
+      {
+        error = handler->ha_index_next(record_buffer);
+        if (error == HA_ERR_END_OF_FILE)
+          continue;
+      }
+
+      if (error)
+      {
+        handler->ha_index_end();
+        return error;
+      }
+
+      /* In case of update it could appear that the nearest neighbour is
+       * a record we are updating. It means, that there are no overlaps
+       * from this side. */
+      if (is_update && memcmp(old_data + table->s->null_bytes,
+                              record_buffer + table->s->null_bytes,
+                              table->s->reclength - table->s->null_bytes) == 0)
+      {
+        continue;
+      }
+
+      uint period_key_part_nr= key_parts - 2;
+      int cmp_res= 0;
+      for (uint part_nr= 0; !cmp_res && part_nr < period_key_part_nr; part_nr++)
+      {
+        Field *f= key_info->key_part[part_nr].field;
+        cmp_res= f->cmp(f->ptr_in_record(new_data),
+                        f->ptr_in_record(record_buffer));
+      }
+      if (cmp_res)
+        continue; /* key is different => no overlaps */
+
+      int period_cmp[2][2]= {/* l1 > l2, l1 > r2, r1 > l2, r1 > r2 */};
+      for (int i= 0; i < 2; i++)
+      {
+        for (int j= 0; j < 2; j++)
+        {
+          Field *lhs= key_info->key_part[period_key_part_nr + i].field;
+          Field *rhs= key_info->key_part[period_key_part_nr + j].field;
+
+          period_cmp[i][j]= lhs->cmp(lhs->ptr_in_record(new_data),
+                                     rhs->ptr_in_record(record_buffer));
+        }
+      }
+
+      if ((period_cmp[0][0] <= 0 && period_cmp[1][0] > 0)
+          || (period_cmp[0][0] >= 0 && period_cmp[0][1] < 0))
+      {
+        handler->ha_index_end();
+        return HA_ERR_FOUND_DUPP_KEY;
+      }
+    }
+    error= handler->ha_index_end();
+    if (error)
+      return error;
+  }
+  return 0;
 }
 
 #ifdef WITH_WSREP
