@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2018, MariaDB Corporation.
+Copyright (C) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,7 +25,6 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 MDEV-11782: Rewritten for MariaDB 10.2 by Marko Mäkelä, MariaDB Corporation.
 *******************************************************/
 #include <my_global.h>
-#include "m_string.h"
 #include "log0crypt.h"
 #include <mysql/service_my_crypt.h>
 

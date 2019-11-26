@@ -78,6 +78,7 @@ support cross-platform development and expose comonly used SQL names. */
 
 #include <my_global.h>
 #include "my_counter.h"
+#include <m_string.h>
 
 /* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_MY_THREAD_H
@@ -85,7 +86,6 @@ support cross-platform development and expose comonly used SQL names. */
 #endif
 
 #ifndef UNIV_INNOCHECKSUM
-# include <m_string.h>
 # include <mysqld_error.h>
 #endif /* !UNIV_INNOCHECKSUM */
 

@@ -501,8 +501,7 @@ buf_dblwr_init_or_load_pages(
 
 				return(err);
 			}
-
-		} else if (memcmp(field_ref_zero, page + FIL_PAGE_LSN, 8)) {
+		} else if (mach_read_from_8(page + FIL_PAGE_LSN)) {
 			/* Each valid page header must contain
 			a nonzero FIL_PAGE_LSN field. */
 			recv_dblwr.add(page);
@@ -789,29 +788,21 @@ buf_dblwr_update(
 
 #ifdef UNIV_DEBUG
 /** Check the LSN values on the page.
-@param[in]	page	page to check
-@param[in]	s	tablespace */
+@param[in] page  page to check
+@param[in] s     tablespace */
 static void buf_dblwr_check_page_lsn(const page_t* page, const fil_space_t& s)
 {
-	/* Ignore page compressed or encrypted pages */
-	if (s.is_compressed()
-	    || buf_page_get_key_version(page, s.flags)) {
-		return;
-	}
-
-	const unsigned lsn1 = mach_read_from_4(page + FIL_PAGE_LSN + 4),
-		lsn2 = mach_read_from_4(page + srv_page_size
-					- (s.full_crc32()
-					   ? FIL_PAGE_FCRC32_END_LSN
-					   : FIL_PAGE_END_LSN_OLD_CHKSUM - 4));
-	if (UNIV_UNLIKELY(lsn1 != lsn2)) {
-		ib::error() << "The page to be written to "
-			    << s.chain.start->name <<
-			" seems corrupt!"
-			" The low 4 bytes of LSN fields do not match"
-			" (" << lsn1 << " != " << lsn2 << ")!"
-			" Noticed in the buffer pool.";
-	}
+  /* Ignore page compressed or encrypted pages */
+  if (s.is_compressed() || buf_page_get_key_version(page, s.flags))
+    return;
+  const byte* lsn_start= FIL_PAGE_LSN + 4 + page;
+  const byte* lsn_end= page +
+    srv_page_size - (s.full_crc32()
+    ? FIL_PAGE_FCRC32_END_LSN
+    : FIL_PAGE_END_LSN_OLD_CHKSUM - 4);
+  static_assert(FIL_PAGE_FCRC32_END_LSN % 4 == 0, "alignment");
+  static_assert(FIL_PAGE_LSN % 4 == 0, "alignment");
+  ut_ad(!memcmp_aligned<4>(lsn_start, lsn_end, 4));
 }
 
 static void buf_dblwr_check_page_lsn(const buf_page_t& b, const byte* page)

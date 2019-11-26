@@ -95,7 +95,8 @@ PageBulk::init()
 		if (new_page_zip) {
 			page_create_zip(new_block, m_index, m_level, 0,
 					&m_mtr);
-			memset(FIL_PAGE_PREV + new_page, 0xff, 8);
+			static_assert(FIL_PAGE_PREV % 8 == 0, "alignment");
+			memset_aligned<8>(FIL_PAGE_PREV + new_page, 0xff, 8);
 			page_zip_write_header(new_page_zip,
 					      FIL_PAGE_PREV + new_page,
 					      8, &m_mtr);

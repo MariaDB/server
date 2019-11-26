@@ -1165,7 +1165,8 @@ btr_create(
 	compile_time_assert(FIL_NULL == 0xffffffff);
 	mlog_memset(block, FIL_PAGE_PREV, 8, 0xff, mtr);
 	if (UNIV_LIKELY_NULL(page_zip)) {
-		memset(page_zip->data + FIL_PAGE_PREV, 0xff, 8);
+		static_assert(FIL_PAGE_PREV % 8 == 0, "alignment");
+		memset_aligned<8>(FIL_PAGE_PREV + page_zip->data, 0xff, 8);
 	}
 
 	/* We reset the free bits for the page in a separate
@@ -1573,10 +1574,13 @@ btr_page_reorganize_low(
 			/* Preserve the PAGE_INSTANT information. */
 			ut_ad(!page_zip);
 			ut_ad(index->is_instant());
-			memcpy(FIL_PAGE_TYPE + page,
-			       FIL_PAGE_TYPE + temp_page, 2);
-			memcpy(PAGE_HEADER + PAGE_INSTANT + page,
-			       PAGE_HEADER + PAGE_INSTANT + temp_page, 2);
+			static_assert(!(FIL_PAGE_TYPE % 2), "alignment");
+			memcpy_aligned<2>(FIL_PAGE_TYPE + page,
+					  FIL_PAGE_TYPE + temp_page, 2);
+			static_assert(!((PAGE_HEADER+PAGE_INSTANT) % 2), "");
+			memcpy_aligned<2>(PAGE_HEADER + PAGE_INSTANT + page,
+					  PAGE_HEADER + PAGE_INSTANT
+					  + temp_page, 2);
 			if (!index->table->instant) {
 			} else if (page_is_comp(page)) {
 				memcpy(PAGE_NEW_INFIMUM + page,
@@ -1947,7 +1951,8 @@ btr_root_raise_and_insert(
 	compile_time_assert(FIL_NULL == 0xffffffff);
 	mlog_memset(new_block, FIL_PAGE_PREV, 8, 0xff, mtr);
 	if (UNIV_LIKELY_NULL(new_page_zip)) {
-		memset(new_page_zip->data + FIL_PAGE_PREV, 0xff, 8);
+		static_assert(FIL_PAGE_PREV % 8 == 0, "alignment");
+		memset_aligned<8>(new_page_zip->data + FIL_PAGE_PREV, 0xff, 8);
 	}
 
 	/* Copy the records from root to the new page one by one. */
@@ -3225,8 +3230,10 @@ void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
 			= buf_block_get_frame(prev_block);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(prev_page) == page_is_comp(page));
-		ut_a(!memcmp(prev_page + FIL_PAGE_NEXT, page + FIL_PAGE_OFFSET,
-			     4));
+		static_assert(FIL_PAGE_NEXT % 4 == 0, "alignment");
+		static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
+		ut_a(!memcmp_aligned<4>(prev_page + FIL_PAGE_NEXT,
+					page + FIL_PAGE_OFFSET, 4));
 #endif /* UNIV_BTR_DEBUG */
 
 		btr_page_set_next(prev_page,
@@ -3242,8 +3249,10 @@ void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
 			= buf_block_get_frame(next_block);
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(next_page) == page_is_comp(page));
-		ut_a(!memcmp(next_page + FIL_PAGE_PREV, page + FIL_PAGE_OFFSET,
-			     4));
+		static_assert(FIL_PAGE_PREV % 4 == 0, "alignment");
+		static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
+		ut_a(!memcmp_aligned<4>(next_page + FIL_PAGE_PREV,
+					page + FIL_PAGE_OFFSET, 4));
 #endif /* UNIV_BTR_DEBUG */
 
 		btr_page_set_prev(next_page,
@@ -3818,11 +3827,12 @@ retry:
 			invoked by page_copy_rec_list_end() below,
 			requires that FIL_PAGE_PREV be FIL_NULL.
 			Clear the field, but prepare to restore it. */
+			static_assert(FIL_PAGE_PREV % 8 == 0, "alignment");
 #ifdef UNIV_BTR_DEBUG
 			memcpy(fil_page_prev, merge_page + FIL_PAGE_PREV, 4);
 #endif /* UNIV_BTR_DEBUG */
 			compile_time_assert(FIL_NULL == 0xffffffffU);
-			memset(merge_page + FIL_PAGE_PREV, 0xff, 4);
+			memset_aligned<4>(merge_page + FIL_PAGE_PREV, 0xff, 4);
 		}
 
 		orig_succ = page_copy_rec_list_end(merge_block, block,

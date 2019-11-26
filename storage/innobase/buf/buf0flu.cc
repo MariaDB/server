@@ -831,11 +831,17 @@ buf_flush_init_for_writing(
 	}
 
 	if (use_full_checksum) {
-		memcpy(page + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
-		       FIL_PAGE_LSN + 4 + page, 4);
+		static_assert(FIL_PAGE_FCRC32_END_LSN % 4 == 0, "aligned");
+		static_assert(FIL_PAGE_LSN % 4 == 0, "aligned");
+		memcpy_aligned<4>(page + srv_page_size
+				  - FIL_PAGE_FCRC32_END_LSN,
+				  FIL_PAGE_LSN + 4 + page, 4);
 	} else {
-		memcpy(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
-		       FIL_PAGE_LSN + page, 8);
+		static_assert(FIL_PAGE_END_LSN_OLD_CHKSUM % 8 == 0, "aligned");
+		static_assert(FIL_PAGE_LSN % 8 == 0, "aligned");
+		memcpy_aligned<8>(page + srv_page_size
+				  - FIL_PAGE_END_LSN_OLD_CHKSUM,
+				  FIL_PAGE_LSN + page, 8);
 	}
 
 	if (block && !use_full_checksum && srv_page_size == 16384) {
@@ -1030,16 +1036,21 @@ static byte* buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s)
   if (!encrypted && !page_compressed)
   {
     /* No need to encrypt or compress. Clear key-version & crypt-checksum. */
+    static_assert(FIL_PAGE_FCRC32_KEY_VERSION % 4 == 0, "alignment");
+    static_assert(FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION % 4 == 2,
+                  "not perfect alignment");
     if (full_crc32)
-      memset(s + FIL_PAGE_FCRC32_KEY_VERSION, 0, 4);
+      memset_aligned<4>(s + FIL_PAGE_FCRC32_KEY_VERSION, 0, 4);
     else
-      memset(s + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
+      memset_aligned<2>(s + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
     return s;
   }
 
+  static_assert(FIL_PAGE_FCRC32_END_LSN % 4 == 0, "alignment");
+  static_assert(FIL_PAGE_LSN % 8 == 0, "alignment");
   if (full_crc32)
-    memcpy(s + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
-           FIL_PAGE_LSN + 4 + s, 4);
+    memcpy_aligned<4>(s + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
+                      FIL_PAGE_LSN + 4 + s, 4);
 
   ut_ad(!bpage->zip_size() || !page_compressed);
   buf_pool_t *buf_pool= buf_pool_from_bpage(bpage);
@@ -1101,7 +1112,7 @@ not_compressed:
 
     if (full_crc32)
     {
-      compile_time_assert(FIL_PAGE_FCRC32_CHECKSUM == 4);
+      static_assert(FIL_PAGE_FCRC32_CHECKSUM == 4, "alignment");
       mach_write_to_4(tmp + len - 4, ut_crc32(tmp, len - 4));
       ut_ad(!buf_page_is_corrupted(true, tmp, space->flags));
     }

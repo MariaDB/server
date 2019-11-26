@@ -475,10 +475,14 @@ void fsp_apply_init_file_page(buf_block_t* block)
 
 	if (page_zip_des_t* page_zip= buf_block_get_page_zip(block)) {
 		memset(page_zip->data, 0, page_zip_get_size(page_zip));
-		memcpy(page_zip->data + FIL_PAGE_OFFSET,
-		       page + FIL_PAGE_OFFSET, 4);
-		memcpy(page_zip->data + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-		       page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 4);
+		static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
+		memcpy_aligned<4>(page_zip->data + FIL_PAGE_OFFSET,
+				  page + FIL_PAGE_OFFSET, 4);
+		static_assert(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID % 4 == 2,
+			      "not perfect alignment");
+		memcpy_aligned<2>(page_zip->data
+				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
+				  page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 4);
 	}
 }
 

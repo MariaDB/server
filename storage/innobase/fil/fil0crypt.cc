@@ -558,6 +558,8 @@ static byte* fil_encrypt_buf_for_non_full_checksum(
 	uint size = uint(zip_size ? zip_size : srv_page_size);
 	uint key_version = fil_crypt_get_latest_key_version(crypt_data);
 	ut_a(key_version != ENCRYPTION_KEY_VERSION_INVALID);
+	ut_ad(!ut_align_offset(src_frame, 8));
+	ut_ad(!ut_align_offset(dst_frame, 8));
 
 	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	ibool page_compressed = (orig_page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
@@ -596,9 +598,9 @@ static byte* fil_encrypt_buf_for_non_full_checksum(
 	to sector boundary is written. */
 	if (!page_compressed) {
 		/* FIL page trailer is also not encrypted */
-		memcpy(dst_frame + size - FIL_PAGE_DATA_END,
-			src_frame + size - FIL_PAGE_DATA_END,
-			FIL_PAGE_DATA_END);
+		static_assert(FIL_PAGE_DATA_END == 8, "alignment");
+		memcpy_aligned<8>(dst_frame + size - FIL_PAGE_DATA_END,
+				  src_frame + size - FIL_PAGE_DATA_END, 8);
 	} else {
 		/* Clean up rest of buffer */
 		memset(dst_frame+header_len+srclen, 0,

@@ -416,9 +416,10 @@ static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 		return false;
 	}
 
-	memcpy(tmp_frame + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
-	       src_frame + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
-	       FIL_PAGE_FCRC32_CHECKSUM);
+	static_assert(FIL_PAGE_FCRC32_CHECKSUM == 4, "alignment");
+	memcpy_aligned<4>(tmp_frame + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
+			  src_frame + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
+			  FIL_PAGE_FCRC32_CHECKSUM);
 
 	memcpy(src_frame, tmp_frame, srv_page_size);
 	srv_stats.pages_decrypted.inc();
@@ -959,12 +960,16 @@ buf_page_is_corrupted(
 				      size - FIL_PAGE_FCRC32_CHECKSUM)) {
 			return true;
 		}
+		static_assert(FIL_PAGE_FCRC32_KEY_VERSION == 0, "alignment");
+		static_assert(FIL_PAGE_LSN % 4 == 0, "alignment");
+		static_assert(FIL_PAGE_FCRC32_END_LSN % 4 == 0, "alignment");
 		if (!compressed
 		    && !mach_read_from_4(FIL_PAGE_FCRC32_KEY_VERSION
 					 + read_buf)
-		    && memcmp(read_buf + (FIL_PAGE_LSN + 4),
-			      end - (FIL_PAGE_FCRC32_END_LSN
-				     - FIL_PAGE_FCRC32_CHECKSUM), 4)) {
+		    && memcmp_aligned<4>(read_buf + (FIL_PAGE_LSN + 4),
+					 end - (FIL_PAGE_FCRC32_END_LSN
+						- FIL_PAGE_FCRC32_CHECKSUM),
+					 4)) {
 			return true;
 		}
 
@@ -998,10 +1003,13 @@ buf_page_is_corrupted(
 		return(false);
 	}
 
-	if (!zip_size && memcmp(read_buf + FIL_PAGE_LSN + 4,
-				read_buf + srv_page_size
-				- FIL_PAGE_END_LSN_OLD_CHKSUM + 4, 4)) {
+	static_assert(FIL_PAGE_LSN % 4 == 0, "alignment");
+	static_assert(FIL_PAGE_END_LSN_OLD_CHKSUM % 4 == 0, "alignment");
 
+	if (!zip_size
+	    && memcmp_aligned<4>(read_buf + FIL_PAGE_LSN + 4,
+				 read_buf + srv_page_size
+				 - FIL_PAGE_END_LSN_OLD_CHKSUM + 4, 4)) {
 		/* Stored log sequence numbers at the start and the end
 		of page do not match */
 
@@ -1029,7 +1037,7 @@ buf_page_is_corrupted(
 	checksum_field2 = mach_read_from_4(
 		read_buf + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM);
 
-	compile_time_assert(!(FIL_PAGE_LSN % 8));
+	static_assert(FIL_PAGE_LSN % 8 == 0, "alignment");
 
 	/* A page filled with NUL bytes is considered not corrupted.
 	The FIL_PAGE_FILE_FLUSH_LSN field may be written nonzero for
@@ -2176,8 +2184,12 @@ buf_page_realloc(
 		ut_ad(new_block->page.in_page_hash);
 
 		buf_block_modify_clock_inc(block);
-		memset(block->frame + FIL_PAGE_OFFSET, 0xff, 4);
-		memset(block->frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
+		static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
+		memset_aligned<4>(block->frame + FIL_PAGE_OFFSET, 0xff, 4);
+		static_assert(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID % 4 == 2,
+			      "not perfect alignment");
+		memset_aligned<2>(block->frame
+				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
 		UNIV_MEM_INVALID(block->frame, srv_page_size);
 		buf_block_set_state(block, BUF_BLOCK_REMOVE_HASH);
 		block->page.id
@@ -5499,8 +5511,9 @@ buf_page_create(
 
 	frame = block->frame;
 
-	memset(frame + FIL_PAGE_PREV, 0xff, 4);
-	memset(frame + FIL_PAGE_NEXT, 0xff, 4);
+	static_assert(FIL_PAGE_PREV % 8 == 0, "alignment");
+	static_assert(FIL_PAGE_PREV + 4 == FIL_PAGE_NEXT, "adjacent");
+	memset_aligned<8>(frame + FIL_PAGE_PREV, 0xff, 8);
 	mach_write_to_2(frame + FIL_PAGE_TYPE, FIL_PAGE_TYPE_ALLOCATED);
 
 	/* FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION is only used on the
@@ -5510,7 +5523,8 @@ buf_page_create(
 	(3) key_version on encrypted pages (not page 0:0) */
 
 	memset(frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
-	memset(frame + FIL_PAGE_LSN, 0, 8);
+	static_assert(FIL_PAGE_LSN % 8 == 0, "alignment");
+	memset_aligned<8>(frame + FIL_PAGE_LSN, 0, 8);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 	ut_a(++buf_dbg_counter % 5771 || buf_validate());
@@ -5692,25 +5706,21 @@ buf_corrupt_page_release(buf_page_t* bpage, const fil_space_t* space)
 
 /** Check if the encrypted page is corrupted for the full crc32 format.
 @param[in]	space_id	page belongs to space id
-@param[in]	dst_frame	page
+@param[in]	d		page
 @param[in]	is_compressed	compressed page
 @return true if page is corrupted or false if it isn't */
-static bool buf_page_full_crc32_is_corrupted(
-	ulint		space_id,
-	const byte*	dst_frame,
-	bool		is_compressed)
+static bool buf_page_full_crc32_is_corrupted(ulint space_id, const byte* d,
+                                             bool is_compressed)
 {
-	if (!is_compressed
-	    && memcmp(dst_frame + FIL_PAGE_LSN + 4,
-		      dst_frame + srv_page_size - FIL_PAGE_FCRC32_END_LSN, 4)) {
-		return true;
-	}
+  if (space_id != mach_read_from_4(d + FIL_PAGE_SPACE_ID))
+    return true;
 
-	if (space_id != mach_read_from_4(dst_frame + FIL_PAGE_SPACE_ID)) {
-		return true;
-	}
+  static_assert(FIL_PAGE_LSN % 4 == 0, "alignment");
+  static_assert(FIL_PAGE_FCRC32_END_LSN % 4 == 0, "alignment");
 
-	return false;
+  return !is_compressed &&
+    memcmp_aligned<4>(FIL_PAGE_LSN + 4 + d,
+                      d + srv_page_size - FIL_PAGE_FCRC32_END_LSN, 4);
 }
 
 /** Check if page is maybe compressed, encrypted or both when we encounter
