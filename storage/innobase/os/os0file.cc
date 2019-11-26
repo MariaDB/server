@@ -425,7 +425,7 @@ public:
 	@param[in]	max_events	number of events
 	@param[out]	io_ctx		io_ctx to initialize.
 	@return true on success. */
-	static bool linux_create_io_ctx(unsigned max_events, io_context_t* io_ctx)
+	static bool linux_create_io_ctx(unsigned max_events, io_context_t& io_ctx)
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Checks if the system supports native linux aio. On some kernel
@@ -2180,18 +2180,18 @@ AIO::linux_dispatch(Slot* slot)
 bool
 AIO::linux_create_io_ctx(
 	unsigned	max_events,
-	io_context_t*	io_ctx)
+	io_context_t&	io_ctx)
 {
 	ssize_t		n_retries = 0;
 
 	for (;;) {
 
-		memset(io_ctx, 0x0, sizeof(*io_ctx));
+		memset(&io_ctx, 0x0, sizeof(io_ctx));
 
 		/* Initialize the io_ctx. Tell it how many pending
 		IO requests this context will handle. */
 
-		int	ret = io_setup(max_events, io_ctx);
+		int	ret = io_setup(max_events, &io_ctx);
 		ut_a(ret != -EINVAL);
 
 		if (ret == 0) {
@@ -2271,7 +2271,7 @@ AIO::is_linux_native_aio_supported()
 	io_context_t	io_ctx;
 	char		name[1000];
 
-	if (!linux_create_io_ctx(1, &io_ctx)) {
+	if (!linux_create_io_ctx(1, io_ctx)) {
 
 		/* The platform does not support native aio. */
 
@@ -5867,14 +5867,13 @@ AIO::init_linux_native_aio()
 
 	ulint		max_events = slots_per_segment();
 
-	for (ulint i = 0; i < m_aio_ctx.size(); ++i) {
+	for (std::vector<io_context_t>::iterator it = m_aio_ctx.begin(),
+						 end = m_aio_ctx.end();
+	     it != end; ++it) {
 
-		if (!linux_create_io_ctx(max_events, &m_aio_ctx[i])) {
+		if (!linux_create_io_ctx(max_events, *it)) {
 			/* If something bad happened during aio setup
 			we disable linux native aio.
-			The disadvantage will be a small memory leak
-			at shutdown but that's ok compared to a crash
-			or a not working server.
 			This frequently happens when running the test suite
 			with many threads on a system with low fs.aio-max-nr!
 			*/
@@ -5887,8 +5886,10 @@ AIO::init_linux_native_aio()
 				<< "fs.aio-max-nr to 1048576 or larger or "
 				<< "setting innodb_use_native_aio = 0 in my.cnf";
 
-			for (ulint j = 0; j < i; j++) {
-				int ret = io_destroy(m_aio_ctx[i]);
+			for (std::vector<io_context_t>::iterator it2
+			     = m_aio_ctx.begin();
+			     it2 != it; ++it2) {
+				int ret = io_destroy(*it2);
 				ut_a(ret != -EINVAL);
 			}
 
