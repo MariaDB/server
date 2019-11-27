@@ -8,5 +8,6 @@ CheckDatabaseProperties
 CheckDataDirectoryEmpty
 CheckDBInUse
 CheckServiceUpgrades
-CreateSymlinks
-DeleteSymlinks
+FixSymlinks
+FixSymlinksRollback
+SymlinksUninstall

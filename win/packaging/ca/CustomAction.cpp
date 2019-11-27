@@ -746,7 +746,7 @@ extern "C" UINT __stdcall PresetDatabaseProperties(MSIHANDLE hInstall)
 
   if (BufferPoolsizeParamLen && buff[0])
   {
-    WcaLog(LOGMSG_STANDARD, "BUFFERPOOLSIZE=%s, len=%u",buff, BufferPoolsizeParamLen);
+    WcaLog(LOGMSG_STANDARD, "BUFFERPOOLSIZE=%S, len=%u",buff, BufferPoolsizeParamLen);
     InnodbBufferPoolSize= _wtoi64(buff);
   }
   else
@@ -1013,304 +1013,268 @@ extern "C" BOOL WINAPI DllMain(
   return TRUE;
 }
 
-// check if file exists
-inline bool checkIfFileExists (wstring& name) {
-  string sLog = "checkIfFileExists, ";
 
-  string sName(name.begin(), name.end() );
-
-  ifstream f(sName);
-
-  sLog.append(sName);
-  sLog.append(", result: ");
-  bool fileExists = f.good();
-
-  if (f.good())
-    sLog.append("true");
-  else
-    sLog.append("false");
-
-  WcaLog(LOGMSG_STANDARD, sLog.c_str());
-
-  return f.good();
-}
-
-// string to wstring
-std::wstring s2ws(const std::string& s)
+static wstring MakeExePath(const wchar_t *installDir, const wchar_t *basename)
 {
-    int len;
-    int slength = (int)s.length() + 1;
-    len = MultiByteToWideChar(CP_ACP, 0, s.c_str(), slength, 0, 0);
-    wchar_t* buf = new wchar_t[len];
-    MultiByteToWideChar(CP_ACP, 0, s.c_str(), slength, buf, len);
-    std::wstring r(buf);
-    delete[] buf;
-    return r;
+  wstring path(installDir);
+  if (path.back() != L'\\')
+    path.append(L"\\");
+  path.append(L"bin\\");
+  path.append(basename);
+  path.append(L".exe");
+  return path;
 }
 
+static wstring MakeExePath(const wchar_t *installDir, string basename)
+{
+  wstring path(installDir);
+  if (path.back() != L'\\')
+    path.append(L"\\");
+  path.append(L"bin\\");
+  for (auto c : basename)
+    path+= c;
+  path.append(L".exe");
+  return path;
+}
+static wstring MakeFixSymlinksLogPath()
+{
+  wchar_t buf[MAX_PATH];
+  if (GetTempPathW(MAX_PATH, buf))
+    return wstring(buf) + L"\\mariadb_msi_fix_symlinks.log";
+  return L"";
+}
+
+static string w2s(wstring w)
+{
+  string s;
+  for (auto wc : w)
+    s += (char)wc;
+  return s;
+}
+
+/*
+  Remove symlinks if target file does not exist.
+  Create symlink if target exists, but symlink is not.
+*/
+static void fix_symlink(const wchar_t *file, const wchar_t *link,
+                        const wchar_t *installdir,
+                        vector<string> &rollback_actions)
+{
+  WcaLog(LOGMSG_STANDARD, "fix_symlink %S=>%S", link, file);
+
+  auto tgt= MakeExePath(installdir, file);
+  auto lnk= MakeExePath(installdir, link);
+  auto target_path= tgt.c_str();
+  auto link_path= lnk.c_str();
+
+  auto target_attr= GetFileAttributesW(target_path);
+  auto link_attr= GetFileAttributesW(link_path);
+  WcaLog(LOGMSG_STANDARD, "%S %s", target_path,
+         target_attr == INVALID_FILE_ATTRIBUTES ? "does not exist" : "exists");
+  WcaLog(LOGMSG_STANDARD, "%S %s", link_path,
+         link_attr == INVALID_FILE_ATTRIBUTES ? "does not exist" : "exists");
+
+  if (link_attr != INVALID_FILE_ATTRIBUTES &&
+      ((link_attr & FILE_ATTRIBUTE_REPARSE_POINT) == 0))
+  {
+    WcaLog(LOGMSG_STANDARD, "%S is not a symlink!", link_path);
+    return;
+  }
+
+  if (target_attr == INVALID_FILE_ATTRIBUTES)
+  {
+    if (link_attr == INVALID_FILE_ATTRIBUTES)
+    {
+      return;
+    }
+    auto ok= DeleteFileW(link_path);
+    WcaLog(LOGMSG_STANDARD, "DeleteFileW(L\"%S\") returned %s, last error %lu",
+           link_path, ok ? "success" : "error", GetLastError());
+    if (ok)
+    {
+      rollback_actions.push_back(string("create_symlink ") + w2s(link) + " " +
+                                 w2s(file));
+    }
+    return;
+  }
+
+  if (link_attr != INVALID_FILE_ATTRIBUTES)
+    return;
+
+  auto ok= CreateSymbolicLinkW(link_path, target_path, 0);
+  WcaLog(LOGMSG_STANDARD,
+         "CreateSymbolicLinkW(\"%S\",\"%S\", 0) returned %s, last error %d",
+         link_path, target_path, ok ? "success" : "error",
+         (int) GetLastError());
+  if (ok)
+    rollback_actions.push_back(string("delete ") + w2s(link));
+}
+
+static string rollback_info_path()
+{
+  char tmppath[MAX_PATH];
+  if (!GetTempPathA(MAX_PATH, tmppath))
+    return "";
+  string filepath(tmppath);
+  filepath.append("\\mariadb_symlink_rollback_info.tmp");
+  return filepath;
+}
+
+
+static void save_symlink_rollback_info(vector<string> rollback_info)
+{
+  std::ofstream ofs;
+  string path = rollback_info_path();
+  ofs.open(path, std::ofstream::out | std::ofstream::trunc);
+  if (!ofs.good())
+    return;
+  WcaLog(LOGMSG_STANDARD,
+    "Storing this rollback script for custom action in %s, in case installation rolls back",
+    path.c_str());
+  for (auto line : rollback_info)
+  {
+    WcaLog(LOGMSG_STANDARD, "%s", line.c_str());
+    ofs << line << "\n";
+  }
+  WcaLog(LOGMSG_STANDARD, "End of rollback script");
+}
+
+
+#include <symlinks.h>
 /* MDEV-19781 MariaDB symlinks on Windows */
-extern "C" UINT __stdcall CreateSymlinks(MSIHANDLE hInstall)
+extern "C" UINT __stdcall FixSymlinksRollback(MSIHANDLE hInstall)
+{
+  HRESULT hr= S_OK;
+  UINT er= ERROR_SUCCESS;
+  wchar_t targetdir[MAX_PATH];
+  DWORD len= MAX_PATH;
+  hr= WcaInitialize(hInstall, __FUNCTION__);
+  WcaLog(LOGMSG_STANDARD, "Initialized.");
+  std::ifstream ifs;
+  std::string command;
+
+  if (MsiGetPropertyW(hInstall, L"CustomActionData", targetdir, &len) !=
+      ERROR_SUCCESS)
+  {
+    hr= HRESULT_FROM_WIN32(GetLastError());
+    ExitOnFailure(hr, "MsiGetPropertyW failed");
+  }
+
+  ifs.open(rollback_info_path(), std::ofstream::in);
+  if (!ifs.good())
+    goto LExit;
+
+  while (ifs >> command)
+  {
+    if (command == "create_symlink")
+    {
+      string link;
+      ifs >> link;
+      auto link_path= MakeExePath(targetdir, link);
+      string file;
+      ifs >> file;
+      auto target_path= MakeExePath(targetdir, file);
+      bool ok= CreateSymbolicLinkW(link_path.c_str(), target_path.c_str(), 0);
+      WcaLog(LOGMSG_STANDARD, "CreateSymbolicLinkW(%S,%S) %s, last error %lu",
+             link_path.c_str(), target_path.c_str(), ok ? "success" : "error",
+             GetLastError());
+    }
+    else if (command == "delete")
+    {
+      string link;
+      ifs >> link;
+      auto link_path= MakeExePath(targetdir, link);
+      auto link_attr= GetFileAttributesW(link_path.c_str());
+      if (link_attr != INVALID_FILE_ATTRIBUTES &&
+          (link_attr & FILE_ATTRIBUTE_REPARSE_POINT))
+      {
+        auto ok= DeleteFileW(link_path.c_str());
+        WcaLog(LOGMSG_STANDARD, "DeleteFile(%S) %s, last error %lu",
+               link_path.c_str(), ok ? "success" : "error", GetLastError());
+      }
+    }
+    else
+    {
+      WcaLog(LOGMSG_STANDARD, "Unknown command '%s' in rollback script ",
+             command.c_str());
+      goto LExit;
+    }
+  }
+
+LExit:
+  return WcaFinalize(er);
+}
+
+
+extern "C" UINT __stdcall SymlinksUninstall(MSIHANDLE hInstall)
 {
   HRESULT hr = S_OK;
   UINT er = ERROR_SUCCESS;
-  wchar_t customActionData[10000];
-  wchar_t installDir[MAX_PATH];
-  DWORD len = 10000;
-  wchar_t installerVersion[MAX_VERSION_PROPERTY_SIZE];
-  DWORD size = MAX_VERSION_PROPERTY_SIZE;
-  wchar_t binDir[MAX_PATH];
-  size_t blen = NULL;
-
+  wchar_t targetdir[MAX_PATH];
+  DWORD len = MAX_PATH;
+  int i;
   hr = WcaInitialize(hInstall, __FUNCTION__);
   WcaLog(LOGMSG_STANDARD, "Initialized.");
 
-  if (MsiGetPropertyW(hInstall, L"CustomActionData", customActionData, &len) != ERROR_SUCCESS)
+  if (MsiGetPropertyW(hInstall, L"CustomActionData", targetdir, &len) !=
+    ERROR_SUCCESS)
   {
     hr = HRESULT_FROM_WIN32(GetLastError());
-    MsiProcessMessage(hInstall, INSTALLMESSAGE_INFO, hr);
+    ExitOnFailure(hr, "MsiGetPropertyW failed");
   }
 
-  if (MsiGetPropertyW(hInstall, L"ProductVersion", installerVersion, &size) != ERROR_SUCCESS)
+  for (i = 0; all_symlinks[i].file; i++)
   {
-    hr = HRESULT_FROM_WIN32(GetLastError());
-    MsiProcessMessage(hInstall, INSTALLMESSAGE_INFO, hr);
-  }
+    auto link_path = MakeExePath(targetdir, all_symlinks[i].link);
+    auto link_attr = GetFileAttributesW(link_path.c_str());
+    auto filepath = link_path.c_str();
 
-  MsiProcessMessage(hInstall, INSTALLMESSAGE_INFO, hr);
-
-  wstring wsCustomActionData(customActionData);
-  string sCustomActionData(wsCustomActionData.begin(), wsCustomActionData.end());
-  WcaLog(LOGMSG_STANDARD, sCustomActionData.c_str());
-
-  stringstream ss;
-  ss << sCustomActionData;
-  vector<string> vCustomActionData;
-
-  while( ss.good() )
-  {
-    string substr;
-    getline( ss, substr, '|' );
-    WcaLog(LOGMSG_STANDARD, substr.c_str());
-    vCustomActionData.push_back( substr );
-  }
-
-  int i = 0;
-  string sBinPath = "";
-  string sPathFrom = "";
-  string sPathTo = "";
-
-  for(auto const& value: vCustomActionData) {
-    if (i == 0) {
-        sBinPath = value;
-        sBinPath.append("bin\\");
-    } else if (i == 1) {
-        sPathFrom = value;
-    } else if (i == 2) {
-        sPathTo = value;
+    if (link_attr == INVALID_FILE_ATTRIBUTES)
+    {
+      WcaLog(LOGMSG_STANDARD, " %S does not exist",filepath);
+      continue;
     }
 
-    WcaLog(LOGMSG_STANDARD, value.c_str());
-
-    i++;
+    if(!(link_attr & FILE_ATTRIBUTE_REPARSE_POINT))
+    {
+      WcaLog(LOGMSG_STANDARD, " %S is not a symbolic link!",filepath);
+      continue;
+    }
+    BOOL ok = DeleteFileW(filepath);
+    WcaLog(LOGMSG_STANDARD, "DeleteFile(%S) %s, last error %lu",
+      filepath, ok? "succeeded":"failed", GetLastError());
   }
 
-  WcaLog(LOGMSG_STANDARD, sBinPath.c_str());
-  WcaLog(LOGMSG_STANDARD, sPathFrom.c_str());
-  WcaLog(LOGMSG_STANDARD, sPathTo.c_str());
-
-  stringstream ssPathFrom, ssPathTo;
-  ssPathFrom << sPathFrom;
-  ssPathTo << sPathTo;
-  vector<string> vPathFrom;
-  vector<string> vPathTo;
-
-  while(ssPathFrom.good()) {
-    string substr = "";
-    getline(ssPathFrom, substr, ';');
-    substr = substr.insert(0, sBinPath);
-    WcaLog(LOGMSG_STANDARD, substr.c_str());
-    vPathFrom.push_back(substr);
-  }
-
-  while(ssPathTo.good()) {
-    string substr = "";
-    getline(ssPathTo, substr, ';');
-    substr = substr.insert(0, sBinPath);
-    WcaLog(LOGMSG_STANDARD, substr.c_str());
-    vPathTo.push_back(substr);
-  }
-
-  i = 0;
-
-  for(auto const& value: vPathTo) {
-    string &sTmpPathFrom = vPathFrom[i];
-    string &sTmpPathTo = vPathTo[i];
-
-    sTmpPathFrom.append(".exe");
-    sTmpPathTo.append(".exe");
-
-    wstring wsPathFrom = s2ws(sTmpPathFrom);
-    LPCWSTR lPathFrom = wsPathFrom.c_str();
-    wstring wsPathTo = s2ws(sTmpPathTo);
-    LPCWSTR lPathTo = wsPathTo.c_str();
-
-    int createdSymlink = -1;
-
-    if (checkIfFileExists(wsPathFrom))
-        createdSymlink = CreateSymbolicLinkW(wsPathTo.c_str(), wsPathFrom.c_str(), 0);
-
-    string created = "Created symlink: ";
-    created.append(sTmpPathTo);
-    created.append(" --> ");
-    created.append(sTmpPathFrom);
-    created.append(", result= ");
-    created.append(to_string(createdSymlink));
-
-    WcaLog(LOGMSG_STANDARD, created.c_str());
-
-    i++;
-  }
-
-  ReleaseStr(installDir);
-  ReleaseStr(installerVersion);
-  ReleaseStr(binDir);
+LExit:
   return WcaFinalize(er);
 }
 
 /* MDEV-19781 MariaDB symlinks on Windows */
-extern "C" UINT __stdcall DeleteSymlinks(MSIHANDLE hInstall)
+extern "C" UINT __stdcall FixSymlinks(MSIHANDLE hInstall)
 {
-  HRESULT hr = S_OK;
-  UINT er = ERROR_SUCCESS;
-  wchar_t customActionData[10000];
-  wchar_t installDir[MAX_PATH];
-  DWORD len = 10000;
-  DWORD size = MAX_VERSION_PROPERTY_SIZE;
-  wchar_t binDir[MAX_PATH];
-  size_t blen = NULL;
+  HRESULT hr= S_OK;
+  UINT er= ERROR_SUCCESS;
+  wchar_t targetdir[MAX_PATH];
+  vector<string> rollback_actions;
+  DWORD len= MAX_PATH;
+  int i;
+  hr= WcaInitialize(hInstall, __FUNCTION__);
+  WcaLog(LOGMSG_STANDARD, "Initialized.");
 
-  hr = WcaInitialize(hInstall, __FUNCTION__);
-  WcaLog(LOGMSG_STANDARD, "DeleteSymlinks initialized.");
-
-  if (MsiGetPropertyW(hInstall, L"CustomActionData", customActionData, &len) != ERROR_SUCCESS)
+  if (MsiGetPropertyW(hInstall, L"CustomActionData", targetdir, &len) !=
+      ERROR_SUCCESS)
   {
-    hr = HRESULT_FROM_WIN32(GetLastError());
-    MsiProcessMessage(hInstall, INSTALLMESSAGE_INFO, hr);
+    hr= HRESULT_FROM_WIN32(GetLastError());
+    ExitOnFailure(hr, "MsiGetPropertyW failed");
   }
 
-  wstring wsCustomActionData(customActionData);
-  string sCustomActionData(wsCustomActionData.begin(), wsCustomActionData.end());
-  WcaLog(LOGMSG_STANDARD, sCustomActionData.c_str());
+  for (i= 0; all_symlinks[i].file; i++)
+    fix_symlink(all_symlinks[i].file, all_symlinks[i].link, targetdir,
+                rollback_actions);
 
-  stringstream ss;
-  ss << sCustomActionData;
-  vector<string> vCustomActionData;
+  save_symlink_rollback_info(rollback_actions);
 
-  while( ss.good() )
-  {
-    string substr;
-    getline( ss, substr, '|' );
-    WcaLog(LOGMSG_STANDARD, substr.c_str());
-    vCustomActionData.push_back( substr );
-  }
-
-  int i = 0;
-  string sBinPath = "";
-  string sPathFrom = "";
-  string sPathTo = "";
-
-  for(auto const& value: vCustomActionData) {
-    if (i == 0) {
-        sBinPath = value;
-        sBinPath.append("bin\\");
-    } else if (i == 1) {
-        sPathFrom = value;
-    } else if (i == 2) {
-        sPathTo = value;
-    }
-
-    WcaLog(LOGMSG_STANDARD, value.c_str());
-
-    i++;
-  }
-
-  WcaLog(LOGMSG_STANDARD, sBinPath.c_str());
-  WcaLog(LOGMSG_STANDARD, sPathFrom.c_str());
-  WcaLog(LOGMSG_STANDARD, sPathTo.c_str());
-
-  stringstream ssPathFrom, ssPathTo;
-  ssPathFrom << sPathFrom;
-  ssPathTo << sPathTo;
-  vector<string> vPathFrom;
-  vector<string> vPathTo;
-
-  while(ssPathFrom.good()) {
-    string substr = "";
-    getline(ssPathFrom, substr, ';');
-    substr = substr.insert(0, sBinPath);
-    WcaLog(LOGMSG_STANDARD, substr.c_str());
-    vPathFrom.push_back(substr);
-  }
-
-  while(ssPathTo.good()) {
-    string substr = "";
-    getline(ssPathTo, substr, ';');
-    substr = substr.insert(0, sBinPath);
-    WcaLog(LOGMSG_STANDARD, substr.c_str());
-    vPathTo.push_back(substr);
-  }
-
-  i = 0;
-
-  for(auto const& value: vPathTo) {
-    string &sTmpPathFrom = vPathFrom[i];
-    string &sTmpPathTo = vPathTo[i];
-
-    sTmpPathFrom.append(".exe");
-    sTmpPathTo.append(".exe");
-
-    wstring wsPathFrom = s2ws(sTmpPathFrom);
-    LPCWSTR lPathFrom = wsPathFrom.c_str();
-    wstring wsPathTo = s2ws(sTmpPathTo);
-    LPCWSTR lPathTo = wsPathTo.c_str();
-
-    int deletedSymlink = -1;
-
-    if (checkIfFileExists(wsPathTo))
-        deletedSymlink = DeleteFileW(wsPathTo.c_str());
-
-    string deleted = "Deleted symlink: ";
-    deleted.append(sTmpPathTo);
-    deleted.append(" --> ");
-    deleted.append(sTmpPathFrom);
-    deleted.append(", result= ");
-    deleted.append(to_string(deletedSymlink));
-
-    WcaLog(LOGMSG_STANDARD, deleted.c_str());
-
-    i++;
-  }
-/*
-
-  for(size_t i = 0; i < std::size(symlink_to); i++) {
-    wchar_t pathTo[MAX_PATH];
-
-    wcscpy(pathTo, binDir);
-    wcscat(pathTo, symlink_to[i].data());
-
-    wstring wsPathTo(pathTo);
-
-    if ( checkIfFileExists(wsPathTo) ) {
-      DeleteFileW(pathTo);
-    } else {
-      hr = HRESULT_FROM_WIN32(GetLastError());
-      ExitOnFailure(hr, "Could not delete symlink");
-    }
-  }
-  
-*/
-
-  ReleaseStr(installDir);
-  ReleaseStr(binDir);
+LExit:
   return WcaFinalize(er);
 }
+

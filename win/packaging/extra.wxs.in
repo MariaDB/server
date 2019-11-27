@@ -63,9 +63,6 @@
     <Property Id="BUFFERPOOLSIZE" Secure="yes"/>
     <!-- Innodb page size -->
     <Property Id="PAGESIZE" Secure="yes" Value="16K"/>
-    <!-- Symlinks -->
-    <Property Id="SYMLINK_TOS" Value="@MARIADB_SYMLINK_TOS@" />
-    <Property Id="SYMLINK_FROMS" Value="@MARIADB_SYMLINK_FROMS@" />
 
     <CustomAction Id="LaunchUrl" BinaryKey="WixCA" DllEntry="WixShellExec"  Execute="immediate" Return="check" Impersonate="yes" />
 
@@ -665,16 +662,19 @@
    <?endif?>
    
     <!-- Custom action, create symlinks -->
-    <CustomAction Id="CreateSymlinks.SetProperty" Return="check" Property="CreateSymlinks" Value="[INSTALLDIR]|[SYMLINK_FROMS]|[SYMLINK_TOS]" />
-    <CustomAction Id="CreateSymlinks" BinaryKey="wixca.dll" DllEntry="CreateSymlinks" Execute="deferred" Impersonate="no" Return="ignore" />
-    <CustomAction Id="DeleteSymlinks.SetProperty" Return="check" Property="DeleteSymlinks" Value="[INSTALLDIR]|[SYMLINK_FROMS]|[SYMLINK_TOS]" />
-    <CustomAction Id='DeleteSymlinks' BinaryKey="wixca.dll" DllEntry="DeleteSymlinks" Execute="deferred" Impersonate="no" Return="ignore" />
-
+    <CustomAction Id="Symlinks.SetProperty" Return="check" Property="Symlinks" Value="[INSTALLDIR]" />
+    <CustomAction Id="Symlinks" BinaryKey="wixca.dll" DllEntry="FixSymlinks" Execute="deferred" Impersonate="no" Return="ignore"/>
+    <CustomAction Id="SymlinksRollback.SetProperty" Return="check" Property="SymlinksRollback" Value="[INSTALLDIR]" />
+    <CustomAction Id="SymlinksRollback" BinaryKey="wixca.dll" DllEntry="FixSymlinksRollback" Execute="rollback" Impersonate="no" Return="ignore"/>
+    <CustomAction Id="SymlinksUninstall.SetProperty" Return="check" Property="SymlinksUninstall" Value="[INSTALLDIR]" />
+    <CustomAction Id="SymlinksUninstall" BinaryKey="wixca.dll" DllEntry="SymlinksUninstall" Execute="deferred" Impersonate="no" Return="ignore"/>
     <InstallExecuteSequence>
-      <Custom Action="CreateSymlinks.SetProperty" Before="CreateSymlinks">NOT Installed</Custom>
-      <Custom Action="CreateSymlinks" Before="InstallFinalize">NOT Installed</Custom>
-      <Custom Action="DeleteSymlinks.SetProperty" Before="DeleteSymlinks">Installed AND NOT REINSTALL</Custom>
-      <Custom Action="DeleteSymlinks" Before="RemoveFiles">Installed AND NOT REINSTALL</Custom>
+      <Custom Action="Symlinks.SetProperty" Before="Symlinks">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="Symlinks" After="SymlinksRollback">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksRollback.SetProperty" Before="SymlinksRollback">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksRollback" After="InstallFiles">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksUninstall.SetProperty" Before="SymlinksUninstall">Installed AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksUninstall" Before="RemoveFiles">Installed AND NOT UPGRADINGPRODUCTCODE</Custom>
     </InstallExecuteSequence>
 
     <!-- Custom action, call mysql_install_db -->
@@ -897,10 +897,10 @@
       >
       <![CDATA[ NOT(NSISINSTALLKEY << "MariaDB @MAJOR_VERSION@.@MINOR_VERSION@.") OR Installed]]>
     </Condition>
-    <!-- Condition Message=
+    <Condition Message=
        'Setting the ALLUSERS property is not allowed because [ProductName] is a per-machine application. Setup will now exit.'>
       <![CDATA[ALLUSERS = "1"]]>
-    </Condition -->
+    </Condition>
 	<Condition Message='This application is only supported on Windows Vista, Windows Server 2008, or higher.'>
       <![CDATA[Installed OR (VersionNT >= 600)]]>
     </Condition>

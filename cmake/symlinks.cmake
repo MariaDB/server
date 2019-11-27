@@ -1,4 +1,8 @@
 # Create lists
+if(COMMAND REGISTER_SYMLINK)
+  return()
+endif()
+
 macro(REGISTER_SYMLINK from to)
   list(APPEND MARIADB_SYMLINK_FROMS ${from})
   list(APPEND MARIADB_SYMLINK_TOS ${to})
