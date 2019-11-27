@@ -221,7 +221,7 @@ connection cn1;
 create table t1(id int) engine=myisam;
 insert delayed into t1 values (1), (2);
 connection default;
-# Waiting until ALTER TABLE is blocked.
+# Waiting until INSERT DELAYED thread does the insert.
 drop table t1;
 disconnect cn1;
 drop user user1@localhost;

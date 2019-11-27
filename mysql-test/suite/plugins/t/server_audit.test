@@ -148,7 +148,7 @@ connection cn1;
 create table t1(id int) engine=myisam;
 insert delayed into t1 values (1), (2);
 connection default;
---echo # Waiting until ALTER TABLE is blocked.
+--echo # Waiting until INSERT DELAYED thread does the insert.
 let $wait_condition= SELECT COUNT(*) = 2 FROM t1;
 --source include/wait_condition.inc
 drop table t1;
