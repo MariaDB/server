@@ -199,6 +199,7 @@ wf_wt_init(xb_write_filt_ctxt_t *ctxt, char *dst_name __attribute__((unused)),
 	   xb_fil_cur_t *cursor)
 {
 	ctxt->cursor = cursor;
+	ctxt->dst_page = 0;
 
 	return(TRUE);
 }
@@ -211,6 +212,23 @@ static my_bool
 wf_wt_process(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile)
 {
 	xb_fil_cur_t			*cursor = ctxt->cursor;
+
+	if (cursor->node->space->id != SRV_LOG_SPACE_FIRST_ID &&
+			fil_is_user_tablespace_id(cursor->node->space->id)) {
+		ulint				i;
+		byte				*page;
+		const ulint			page_size
+			= cursor->page_size.physical();
+		for (i = 0, page = cursor->buf; i < cursor->buf_npages;
+				i++, page += page_size) {
+			uint32_t page_no = mach_read_from_4(page + FIL_PAGE_OFFSET);
+			if (page_no && page_no != ctxt->dst_page + i)
+				msg("Warning: page %u of file %s is written to wrong offset %llu",
+						mach_read_from_4(page + FIL_PAGE_OFFSET), cursor->node->name,
+						ctxt->dst_page + i);
+		}
+	}
+	ctxt->dst_page += cursor->buf_npages;
 
 	if (ds_write(dstfile, cursor->buf, cursor->buf_read)) {
 		return(FALSE);
