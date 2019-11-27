@@ -2581,12 +2581,7 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n, const char *dest_name=
 		goto skip;
 	}
 
-	if (!changed_page_bitmap) {
-		read_filter = &rf_pass_through;
-	}
-	else {
-		read_filter = &rf_bitmap;
-	}
+	read_filter = &rf_pass_through;
 
 	res = xb_fil_cur_open(&cursor, read_filter, node, thread_n,max_size);
 	if (res == XB_FIL_CUR_SKIP) {
@@ -5040,6 +5035,13 @@ xtrabackup_apply_delta(
 					if (fail) goto error;
 				}
 			}
+
+			if (info.space_id != SRV_LOG_SPACE_FIRST_ID &&
+					fil_is_user_tablespace_id(info.space_id) &&
+					mach_read_from_4(buf + FIL_PAGE_OFFSET) != (off/page_size))
+				msg("Warning: page %u of file %s is written to wrong offset %" PRIu64,
+						mach_read_from_4(buf + FIL_PAGE_OFFSET), dst_path,
+						off/page_size);
 
 			success = os_file_write(IORequestWrite,
 						dst_path, dst_file, buf, off, page_size);
