@@ -499,28 +499,32 @@ incompatible:
 		we must duplicate some logic here. */
 		if (trx_id_offset) {
 		} else if (index->table->not_redundant()) {
-			/* PRIMARY KEY columns can never be NULL.
-			We can skip the null flag bitmap. */
-			const byte* lens = rec - (REC_N_NEW_EXTRA_BYTES + 1)
-				- index->n_core_null_bytes;
-			unsigned n_add = rec_get_n_add_field(lens);
-			ut_ad(index->n_core_fields + n_add >= index->n_fields);
-			lens -= n_add;
+			/* The PRIMARY KEY contains variable-length columns.
+			For the metadata record, variable-length columns are
+			always written with zero length. The DB_TRX_ID will
+			start right after any fixed-length columns. */
+
+			/* OK, before MDEV-21088 was fixed, for
+			variable-length encoded PRIMARY KEY column of
+			type CHAR, we wrote more than zero bytes. In
+			order to allow affected tables to be accessed,
+			it would be nice to determine the actual
+			length of each PRIMARY KEY column. However, to
+			be able to do that, we should determine the
+			size of the null-bit bitmap in the metadata
+			record. And we cannot know that before reading
+			the metadata BLOB, whose starting point we are
+			trying to find here. (Although the PRIMARY KEY
+			columns cannot be NULL, we would have to know
+			where the lengths of variable-length PRIMARY KEY
+			columns start.)
+
+			So, unfortunately we cannot help users who
+			were affected by MDEV-21088 on a ROW_FORMAT=COMPACT
+			or ROW_FORMAT=DYNAMIC table. */
 
 			for (uint i = index->n_uniq; i--; ) {
-				const dict_field_t& f = index->fields[i];
-				unsigned len = f.fixed_len;
-				if (!len) {
-					len = *lens--;
-					if ((len & 0x80)
-					    && DATA_BIG_COL(f.col)) {
-						/* 1exxxxxxx xxxxxxxx */
-						len &= 0x3f;
-						len <<= 8;
-						len |= *lens--;
-					}
-				}
-				trx_id_offset += len;
+				trx_id_offset += index->fields[i].fixed_len;
 			}
 		} else if (rec_get_1byte_offs_flag(rec)) {
 			trx_id_offset = rec_1_get_field_end_info(
