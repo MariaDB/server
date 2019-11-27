@@ -1,7 +1,3 @@
-# get the symlink lists
-#INCLUDE(${CMAKE_SOURCE_DIR}/../../cmake/symlinks.cmake)
-#INCLUDE(symlinks)
-INCLUDE(${CMAKE_CURRENT_LIST_DIR}/../../cmake/symlinks.cmake)
 
 MACRO(MAKE_WIX_IDENTIFIER str varname)
   STRING(REPLACE "/" "." ${varname} "${str}")
