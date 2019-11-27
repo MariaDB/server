@@ -1,0 +1,6 @@
+#!/bin/bash -e
+
+if [ "$1" = "purge" ]; then
+    rm -rf /var/lib/columnstore
+fi
+

@@ -1,0 +1,20 @@
+set(PLUGIN_COLUMNSTORE "NO" CACHE STRING "Enable ColumnStore engine")
+
+if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}")
+  return()
+endif()
+
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCOLUMNSTORE_MATURITY=MariaDB_PLUGIN_MATURITY_GAMMA")
+add_subdirectory(columnstore)
+
+# Needed to bump the component changes up to the main scope
+SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} PARENT_SCOPE)
+IF (RPM)
+    SET(CPACK_RPM_columnstore-platform_USER_FILELIST ${CPACK_RPM_columnstore-platform_USER_FILELIST} PARENT_SCOPE)
+    SET(CPACK_RPM_columnstore-libs_USER_FILELIST ${CPACK_RPM_columnstore-libs_USER_FILELIST} PARENT_SCOPE)
+    SET(CPACK_RPM_columnstore-engine_USER_FILELIST ${CPACK_RPM_columnstore-engine_USER_FILELIST} PARENT_SCOPE)
+    SET(CPACK_RPM_columnstore-platform_PACKAGE_REQUIRES ${CPACK_RPM_columnstore-platform_PACKAGE_REQUIRES} PARENT_SCOPE)
+    SET(CPACK_RPM_columnstore-platform_PRE_INSTALL_SCRIPT_FILE ${CPACK_RPM_columnstore-platform_PRE_INSTALL_SCRIPT_FILE} PARENT_SCOPE)
+    SET(CPACK_RPM_columnstore-platform_POST_INSTALL_SCRIPT_FILE ${CPACK_RPM_columnstore-platform_POST_INSTALL_SCRIPT_FILE} PARENT_SCOPE)
+    SET(CPACK_RPM_columnstore-platform_PRE_UNINSTALL_SCRIPT_FILE ${CPACK_RPM_columnstore-platform_PRE_UNINSTALL_SCRIPT_FILE} PARENT_SCOPE)
+ENDIF ()

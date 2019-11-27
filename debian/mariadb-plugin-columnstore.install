@@ -1,0 +1,11 @@
+etc/mysql/conf.d/columnstore.cnf
+usr/lib/mysql/plugin/ha_columnstore.so
+usr/lib/mysql/plugin/libregr_mysql.so
+usr/lib/mysql/plugin/libudf_mysql.so
+usr/sbin/install_mcs_mysql.sh
+usr/share/columnstore/calremoveuserpriority.sql
+usr/share/columnstore/calsetuserpriority.sql
+usr/share/columnstore/calshowprocesslist.sql
+usr/share/columnstore/columnstore_info.sql
+usr/share/columnstore/dumpcat_mysql.sql
+usr/share/columnstore/syscatalog_mysql.sql
