@@ -470,7 +470,7 @@ static int compare_bits(const void *s1, const void *s2, int bit_count)
   int byte_count= bit_count / 8;
   if (byte_count && (result= memcmp(s1, s2, byte_count)))
     return result;
-  int rem= byte_count % 8;
+  int rem= bit_count % 8;
   if (rem)
   {
     // compare remaining bits i.e partial bytes.
