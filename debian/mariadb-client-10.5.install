@@ -1,5 +1,6 @@
 debian/additions/innotop/innotop usr/bin/
 debian/additions/mysqlreport usr/bin/
+usr/bin/mariadb-conv
 usr/bin/mysql_find_rows
 usr/bin/mysql_fix_extensions
 usr/bin/mysql_waitpid

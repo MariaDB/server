@@ -1,0 +1,13 @@
+#
+# MDEV-17088 Provide tools to encode/decode mysql-encoded file system names
+#
+# default encoding
+t1
+t1
+t1
+# invalid option
+mariadb-conv: unknown option '-r'
+# unknown "to" character set
+Character set unknown-cs is not supported
+# unknown "from" character set
+Character set unknown-cs is not supported

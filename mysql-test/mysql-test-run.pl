@@ -176,6 +176,7 @@ my @DEFAULT_SUITES= qw(
     archive-
     binlog-
     binlog_encryption-
+    client-
     csv-
     compat/oracle-
     compat/mssql-
@@ -218,6 +219,7 @@ our $exe_mysqladmin;
 our $exe_mysqltest;
 our $exe_libtool;
 our $exe_mysql_embedded;
+our $exe_mariadb_conv;
 
 our $opt_big_test= 0;
 our $opt_staging_run= 0;
@@ -2185,6 +2187,7 @@ sub executable_setup () {
   $exe_mysqladmin=     mtr_exe_exists("$path_client_bindir/mysqladmin");
   $exe_mysql=          mtr_exe_exists("$path_client_bindir/mysql");
   $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mysql_plugin");
+  $exe_mariadb_conv=   mtr_exe_exists("$path_client_bindir/mariadb-conv");
 
   $exe_mysql_embedded= mtr_exe_maybe_exists("$basedir/libmysqld/examples/mysql_embedded");
 
@@ -2486,6 +2489,7 @@ sub environment_setup {
   $ENV{'EXE_MYSQL'}=                $exe_mysql;
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
+  $ENV{'MARIADB_CONV'}=             $exe_mariadb_conv;
   if(IS_WINDOWS)
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$opt_vs_config/mysql_install_db");
