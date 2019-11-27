@@ -4385,10 +4385,34 @@ fil_io(
 
 	req_type.set_fil_node(node);
 
+/*
 	ut_ad(!req_type.is_write()
 	      || page_id.space() == SRV_LOG_SPACE_FIRST_ID
 	      || !fil_is_user_tablespace_id(page_id.space())
 	      || offset == page_id.page_no() * page_size.physical());
+*/
+
+	if (req_type.is_write()
+		&& page_id.space() != SRV_LOG_SPACE_FIRST_ID
+		&& fil_is_user_tablespace_id(page_id.space())
+		&& (offset != page_id.page_no() * page_size.physical()
+			|| mach_read_from_4(static_cast<const byte *>(buf) + FIL_PAGE_OFFSET)
+				!= page_id.page_no()
+			|| mach_read_from_4(static_cast<const byte *>(buf)
+				+ FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID) != page_id.space())
+		) {
+		ib::error() << "Page writes at the wrong offset in file '"
+			<< name << "' space id: " << page_id.space()
+			<< "page: " << page_id.page_no()
+			<< " space id read from buffer: "
+			<< mach_read_from_4(static_cast<const byte *>(buf)
+				+ FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID)
+			<< " page read from buffer: "
+			<< mach_read_from_4(static_cast<const byte *>(buf) + FIL_PAGE_OFFSET)
+			<<". Actual Offset should be "
+			<< offset * page_size.physical()
+			<< " but the wrong offset is " << offset;
+	}
 
 	/* Queue the aio request */
 	dberr_t err = os_aio(
