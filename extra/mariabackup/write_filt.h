@@ -41,6 +41,7 @@ typedef struct {
 	union {
 		xb_wf_incremental_ctxt_t	wf_incremental_ctxt;
 	} u;
+	my_off_t dst_page;
 } xb_write_filt_ctxt_t;
 
 
