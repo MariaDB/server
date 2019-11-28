@@ -1012,7 +1012,7 @@ fsp_fill_free_list(
 		buf_block_t*	desc_block = NULL;
 		descr = xdes_get_descriptor_with_space_hdr(
 			header, space, i, mtr, init_space, &desc_block);
-		if (desc_block != NULL) {
+		if (desc_block && !space->full_crc32()) {
 			fil_block_check_type(
 				*desc_block, FIL_PAGE_TYPE_XDES, mtr);
 		}
@@ -1070,7 +1070,7 @@ fsp_alloc_free_extent(
 	descr = xdes_get_descriptor_with_space_hdr(
 		header, space, hint, mtr, false, &desc_block);
 
-	if (desc_block != NULL) {
+	if (desc_block && !space->full_crc32()) {
 		fil_block_check_type(*desc_block, FIL_PAGE_TYPE_XDES, mtr);
 	}
 
@@ -1597,7 +1597,9 @@ fsp_alloc_seg_inode(
 
 	block = buf_page_get(page_id, space->zip_size(), RW_SX_LATCH, mtr);
 	buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
-	fil_block_check_type(*block, FIL_PAGE_INODE, mtr);
+	if (!space->full_crc32()) {
+		fil_block_check_type(*block, FIL_PAGE_INODE, mtr);
+	}
 
 	page = buf_block_get_frame(block);
 
@@ -1898,12 +1900,13 @@ fseg_create(
 
 		header = byte_offset + buf_block_get_frame(block);
 
-		const ulint	type = space->id == TRX_SYS_SPACE
-			&& page == TRX_SYS_PAGE_NO
-			? FIL_PAGE_TYPE_TRX_SYS
-			: FIL_PAGE_TYPE_SYS;
-
-		fil_block_check_type(*block, type, mtr);
+		if (!space->full_crc32()) {
+			fil_block_check_type(*block, space->id == TRX_SYS_SPACE
+					     && page == TRX_SYS_PAGE_NO
+					     ? FIL_PAGE_TYPE_TRX_SYS
+					     : FIL_PAGE_TYPE_SYS,
+					     mtr);
+		}
 	}
 
 	if (!has_done_reservation
@@ -2452,7 +2455,9 @@ fseg_alloc_free_page_general(
 	space = mtr_x_lock_space(space_id, mtr);
 	inode = fseg_inode_get(seg_header, space_id, space->zip_size(),
 			       mtr, &iblock);
-	fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
+	if (!space->full_crc32()) {
+		fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
+	}
 
 	if (!has_done_reservation
 	    && !fsp_reserve_free_extents(&n_reserved, space, 2,
@@ -2872,7 +2877,9 @@ fseg_free_page_func(
 	seg_inode = fseg_inode_get(seg_header, space->id, space->zip_size(),
 				   mtr,
 				   &iblock);
-	fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
+	if (!space->full_crc32()) {
+		fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
+	}
 
 	fseg_free_page_low(seg_inode, space, offset, ahi, log, mtr);
 
@@ -3047,7 +3054,9 @@ fseg_free_step_func(
 		DBUG_RETURN(TRUE);
 	}
 
-	fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
+	if (!space->full_crc32()) {
+		fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
+	}
 	descr = fseg_get_first_extent(inode, space, mtr);
 
 	if (descr != NULL) {
@@ -3113,7 +3122,9 @@ fseg_free_step_not_header_func(
 
 	inode = fseg_inode_get(header, space_id, space->zip_size(), mtr,
 			       &iblock);
-	fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
+	if (!space->full_crc32()) {
+		fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
+	}
 
 	descr = fseg_get_first_extent(inode, space, mtr);
 

@@ -2104,8 +2104,9 @@ files_checked:
 		}
 
 		/* Validate a few system page types that were left
-		uninitialized by older versions of MySQL. */
-		if (!high_level_read_only) {
+		uninitialized before MySQL or MariaDB 5.5. */
+		if (!high_level_read_only
+		    && !fil_system.sys_space->full_crc32()) {
 			buf_block_t*	block;
 			mtr.start();
 			/* Bitmap page types will be reset in
