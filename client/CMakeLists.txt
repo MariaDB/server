@@ -81,7 +81,7 @@ SET_SOURCE_FILES_PROPERTIES(mysqlslap.c PROPERTIES COMPILE_FLAGS "-DTHREADS")
 TARGET_LINK_LIBRARIES(mysqlslap ${CLIENT_LIB})
 
 MYSQL_ADD_EXECUTABLE(mariadb-conv mariadb-conv.cc)
-TARGET_LINK_LIBRARIES(mariadb-conv ${CLIENT_LIB} strings)
+TARGET_LINK_LIBRARIES(mariadb-conv mysys strings)
 
 # "WIN32" also covers 64 bit. "echo" is used in some files below "mysql-test/".
 IF(WIN32)
