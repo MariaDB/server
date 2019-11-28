@@ -101,8 +101,7 @@ wsrep_recover_position() {
 
 # Safety checks
 if [ -n "$log_file" -a -f "$log_file" ]; then
-  [ "$euid" = "0" ] && chown $user $log_file
-      chmod 600 $log_file
+  chmod 600 $log_file
 else
   log "WSREP: mktemp failed"
 fi
