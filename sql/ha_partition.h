@@ -371,6 +371,9 @@ private:
   MY_BITMAP m_locked_partitions;
   /** Stores shared auto_increment etc. */
   Partition_share *part_share;
+  void sum_copy_info(handler *file);
+  void sum_copy_infos();
+  void reset_copy_info();
   /** Temporary storage for new partitions Handler_shares during ALTER */
   List<Parts_share_refs> m_new_partitions_share_refs;
   /** Sorted array of partition ids in descending order of number of rows. */
@@ -622,7 +625,7 @@ public:
   virtual int update_row(const uchar * old_data, const uchar * new_data);
   virtual int direct_update_rows_init(List<Item> *update_fields);
   virtual int pre_direct_update_rows_init(List<Item> *update_fields);
-  virtual int direct_update_rows(ha_rows *update_rows);
+  virtual int direct_update_rows(ha_rows *update_rows, ha_rows *found_rows);
   virtual int pre_direct_update_rows();
   virtual bool start_bulk_delete();
   virtual int end_bulk_delete();
