@@ -7240,7 +7240,7 @@ because execution stopped before plugins were initialized.");
   }
 
   puts("\n\
-To see what values a running MySQL server is using, type\n\
+To see what variables a running MySQL server is using, type\n\
 'mysqladmin variables' instead of 'mysqld --verbose --help'.");
   }
   DBUG_VOID_RETURN;
