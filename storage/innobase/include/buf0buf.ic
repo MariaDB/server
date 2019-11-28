@@ -774,7 +774,7 @@ buf_ptr_get_fsp_addr(
 
 	*space = mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	addr->page = mach_read_from_4(page + FIL_PAGE_OFFSET);
-	addr->boffset = ut_align_offset(ptr, srv_page_size);
+	addr->boffset = static_cast<uint16_t>(ut_align_offset(ptr, srv_page_size));
 }
 
 /**********************************************************************//**

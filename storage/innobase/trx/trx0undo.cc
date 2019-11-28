@@ -176,7 +176,7 @@ trx_undo_get_prev_rec_from_prev_page(
 	undo_page = page_align(rec);
 
 	prev_page_no = flst_get_prev_addr(undo_page + TRX_UNDO_PAGE_HDR
-					  + TRX_UNDO_PAGE_NODE, mtr)
+					  + TRX_UNDO_PAGE_NODE)
 		.page;
 
 	if (prev_page_no == FIL_NULL) {
@@ -284,8 +284,8 @@ trx_undo_get_next_rec_from_next_page(
 		}
 	}
 
-	next_page_no = flst_get_next_addr(undo_page + TRX_UNDO_PAGE_HDR
-					  + TRX_UNDO_PAGE_NODE, mtr)
+	next_page_no = flst_get_next_addr(TRX_UNDO_PAGE_HDR
+					  + TRX_UNDO_PAGE_NODE + undo_page)
 		.page;
 	if (next_page_no == FIL_NULL) {
 
@@ -856,7 +856,7 @@ trx_undo_free_page(
 		       rseg->space, page_no, false, true, mtr);
 
 	const fil_addr_t last_addr = flst_get_last(
-		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + header_page, mtr);
+		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + header_page);
 	rseg->curr_size--;
 
 	if (in_history) {
@@ -1143,8 +1143,7 @@ trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no,
 		}
 
 		fil_addr_t	last_addr = flst_get_last(
-			TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + undo_page,
-			&mtr);
+			TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + undo_page);
 
 		undo->last_page_no = last_addr.page;
 		undo->top_page_no = last_addr.page;

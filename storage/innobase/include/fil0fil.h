@@ -672,8 +672,10 @@ typedef	byte	fil_faddr_t;	/*!< 'type' definition in C: an address
 
 /** File space address */
 struct fil_addr_t {
-	ulint	page;		/*!< page number within a space */
-	ulint	boffset;	/*!< byte offset within the page */
+  /** page number within a tablespace */
+  uint32_t page;
+  /** byte offset within the page */
+  uint16_t boffset;
 };
 
 /** The byte offsets on a file page for various variables @{ */

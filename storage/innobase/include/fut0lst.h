@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -133,42 +133,6 @@ uint32_t
 flst_get_len(
 	const flst_base_node_t*	base);
 /********************************************************************//**
-Gets list first node address.
-@return file address */
-UNIV_INLINE
-fil_addr_t
-flst_get_first(
-/*===========*/
-	const flst_base_node_t*	base,	/*!< in: pointer to base node */
-	mtr_t*			mtr);	/*!< in: mini-transaction handle */
-/********************************************************************//**
-Gets list last node address.
-@return file address */
-UNIV_INLINE
-fil_addr_t
-flst_get_last(
-/*==========*/
-	const flst_base_node_t*	base,	/*!< in: pointer to base node */
-	mtr_t*			mtr);	/*!< in: mini-transaction handle */
-/********************************************************************//**
-Gets list next node address.
-@return file address */
-UNIV_INLINE
-fil_addr_t
-flst_get_next_addr(
-/*===============*/
-	const flst_node_t*	node,	/*!< in: pointer to node */
-	mtr_t*			mtr);	/*!< in: mini-transaction handle */
-/********************************************************************//**
-Gets list prev node address.
-@return file address */
-UNIV_INLINE
-fil_addr_t
-flst_get_prev_addr(
-/*===============*/
-	const flst_node_t*	node,	/*!< in: pointer to node */
-	mtr_t*			mtr);	/*!< in: mini-transaction handle */
-/********************************************************************//**
 Writes a file address. */
 UNIV_INLINE
 void
@@ -177,15 +141,41 @@ flst_write_addr(
 	fil_faddr_t*	faddr,	/*!< in: pointer to file faddress */
 	fil_addr_t	addr,	/*!< in: file address */
 	mtr_t*		mtr);	/*!< in: mini-transaction handle */
-/********************************************************************//**
-Reads a file address.
-@return file address */
-UNIV_INLINE
-fil_addr_t
-flst_read_addr(
-/*===========*/
-	const fil_faddr_t*	faddr,	/*!< in: pointer to file faddress */
-	mtr_t*			mtr);	/*!< in: mini-transaction handle */
+
+/** @return a file address */
+inline fil_addr_t flst_read_addr(const fil_faddr_t *faddr)
+{
+  fil_addr_t addr= { mach_read_from_4(faddr + FIL_ADDR_PAGE),
+		     mach_read_from_2(faddr + FIL_ADDR_BYTE) };
+  ut_a(addr.page == FIL_NULL || addr.boffset >= FIL_PAGE_DATA);
+  ut_a(ut_align_offset(faddr, srv_page_size) >= FIL_PAGE_DATA);
+  return addr;
+}
+
+/** @return list first node address */
+inline fil_addr_t flst_get_first(const flst_base_node_t *base)
+{
+  return flst_read_addr(base + FLST_FIRST);
+}
+
+/** @return list last node address */
+inline fil_addr_t flst_get_last(const flst_base_node_t *base)
+{
+  return flst_read_addr(base + FLST_LAST);
+}
+
+/** @return list next node address */
+inline fil_addr_t flst_get_next_addr(const flst_node_t* node)
+{
+  return flst_read_addr(node + FLST_NEXT);
+}
+
+/** @return list prev node address */
+inline fil_addr_t flst_get_prev_addr(const flst_node_t *node)
+{
+  return flst_read_addr(node + FLST_PREV);
+}
+
 /********************************************************************//**
 Validates a file-based list.
 @return TRUE if ok */

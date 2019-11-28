@@ -998,12 +998,12 @@ fsp_alloc_free_extent(
 		/* Ok, we can take this extent */
 	} else {
 		/* Take the first extent in the free list */
-		first = flst_get_first(header + FSP_FREE, mtr);
+		first = flst_get_first(header + FSP_FREE);
 
 		if (fil_addr_is_null(first)) {
 			fsp_fill_free_list(false, space, header, mtr);
 
-			first = flst_get_first(header + FSP_FREE, mtr);
+			first = flst_get_first(header + FSP_FREE);
 		}
 
 		if (fil_addr_is_null(first)) {
@@ -1148,7 +1148,7 @@ fsp_alloc_free_page(
 		/* Ok, we can take this extent */
 	} else {
 		/* Else take the first extent in free_frag list */
-		first = flst_get_first(header + FSP_FREE_FRAG, mtr);
+		first = flst_get_first(header + FSP_FREE_FRAG);
 
 		if (fil_addr_is_null(first)) {
 			/* There are no partially full fragments: allocate
@@ -1479,7 +1479,7 @@ fsp_alloc_seg_inode(
 	}
 	const page_id_t		page_id(
 		space->id,
-		flst_get_first(space_header + FSP_SEG_INODES_FREE, mtr).page);
+		flst_get_first(space_header + FSP_SEG_INODES_FREE).page);
 
 	block = buf_page_get(page_id, space->zip_size(), RW_SX_LATCH, mtr);
 	buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
@@ -2019,7 +2019,7 @@ fseg_alloc_free_extent(
 	if (flst_get_len(inode + FSEG_FREE) > 0) {
 		/* Segment free list is not empty, allocate from it */
 
-		first = flst_get_first(inode + FSEG_FREE, mtr);
+		first = flst_get_first(inode + FSEG_FREE);
 
 		descr = xdes_lst_get_descriptor(space, first, mtr);
 	} else {
@@ -2193,10 +2193,9 @@ take_hinted_page:
 		fil_addr_t	first;
 
 		if (flst_get_len(seg_inode + FSEG_NOT_FULL) > 0) {
-			first = flst_get_first(seg_inode + FSEG_NOT_FULL,
-					       mtr);
+			first = flst_get_first(seg_inode + FSEG_NOT_FULL);
 		} else if (flst_get_len(seg_inode + FSEG_FREE) > 0) {
-			first = flst_get_first(seg_inode + FSEG_FREE, mtr);
+			first = flst_get_first(seg_inode + FSEG_FREE);
 		} else {
 			ut_ad(!has_done_reservation);
 			return(NULL);
@@ -3039,16 +3038,11 @@ fseg_get_first_extent(
 	ut_ad(mach_read_from_4(inode + FSEG_MAGIC_N) == FSEG_MAGIC_N_VALUE);
 
 	if (flst_get_len(inode + FSEG_FULL) > 0) {
-
-		first = flst_get_first(inode + FSEG_FULL, mtr);
-
+		first = flst_get_first(inode + FSEG_FULL);
 	} else if (flst_get_len(inode + FSEG_NOT_FULL) > 0) {
-
-		first = flst_get_first(inode + FSEG_NOT_FULL, mtr);
-
+		first = flst_get_first(inode + FSEG_NOT_FULL);
 	} else if (flst_get_len(inode + FSEG_FREE) > 0) {
-
-		first = flst_get_first(inode + FSEG_FREE, mtr);
+		first = flst_get_first(inode + FSEG_FREE);
 	} else {
 		return(NULL);
 	}

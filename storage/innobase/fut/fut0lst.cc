@@ -109,7 +109,7 @@ flst_add_last(
 					     MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_SX_FIX));
 	len = flst_get_len(base);
-	last_addr = flst_get_last(base, mtr);
+	last_addr = flst_get_last(base);
 
 	buf_ptr_get_fsp_addr(node, &space, &node_addr);
 
@@ -159,7 +159,7 @@ flst_add_first(
 					     MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_SX_FIX));
 	len = flst_get_len(base);
-	first_addr = flst_get_first(base, mtr);
+	first_addr = flst_get_first(base);
 
 	buf_ptr_get_fsp_addr(node, &space, &node_addr);
 
@@ -218,7 +218,7 @@ flst_insert_after(
 	buf_ptr_get_fsp_addr(node1, &space, &node1_addr);
 	buf_ptr_get_fsp_addr(node2, &space, &node2_addr);
 
-	node3_addr = flst_get_next_addr(node1, mtr);
+	node3_addr = flst_get_next_addr(node1);
 
 	/* Set prev and next fields of node2 */
 	flst_write_addr(node2 + FLST_PREV, node1_addr, mtr);
@@ -281,7 +281,7 @@ flst_insert_before(
 	buf_ptr_get_fsp_addr(node2, &space, &node2_addr);
 	buf_ptr_get_fsp_addr(node3, &space, &node3_addr);
 
-	node1_addr = flst_get_prev_addr(node3, mtr);
+	node1_addr = flst_get_prev_addr(node3);
 
 	/* Set prev and next fields of node2 */
 	flst_write_addr(node2 + FLST_PREV, node1_addr, mtr);
@@ -340,8 +340,8 @@ flst_remove(
 	ulint zip_size = s ? s->zip_size() : 0;
 	if (s) s->release();
 
-	node1_addr = flst_get_prev_addr(node2, mtr);
-	node3_addr = flst_get_next_addr(node2, mtr);
+	node1_addr = flst_get_prev_addr(node2);
+	node3_addr = flst_get_next_addr(node2);
 
 	if (!fil_addr_is_null(node1_addr)) {
 
@@ -426,14 +426,14 @@ flst_validate(
 	if (s) s->release();
 
 	len = flst_get_len(base);
-	node_addr = flst_get_first(base, mtr1);
+	node_addr = flst_get_first(base);
 
 	for (i = 0; i < len; i++) {
 		mtr_start(&mtr2);
 
 		node = fut_get_ptr(space, zip_size,
 				   node_addr, RW_SX_LATCH, &mtr2);
-		node_addr = flst_get_next_addr(node, &mtr2);
+		node_addr = flst_get_next_addr(node);
 
 		mtr_commit(&mtr2); /* Commit mtr2 each round to prevent buffer
 				   becoming full */
@@ -441,14 +441,14 @@ flst_validate(
 
 	ut_a(fil_addr_is_null(node_addr));
 
-	node_addr = flst_get_last(base, mtr1);
+	node_addr = flst_get_last(base);
 
 	for (i = 0; i < len; i++) {
 		mtr_start(&mtr2);
 
 		node = fut_get_ptr(space, zip_size,
 				   node_addr, RW_SX_LATCH, &mtr2);
-		node_addr = flst_get_prev_addr(node, &mtr2);
+		node_addr = flst_get_prev_addr(node);
 
 		mtr_commit(&mtr2); /* Commit mtr2 each round to prevent buffer
 				   becoming full */

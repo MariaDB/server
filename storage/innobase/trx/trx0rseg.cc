@@ -506,7 +506,7 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 		trx_sys.rseg_history_len += len;
 
 		fil_addr_t	node_addr = trx_purge_get_log_from_hist(
-			flst_get_last(rseg_header + TRX_RSEG_HISTORY, mtr));
+			flst_get_last(rseg_header + TRX_RSEG_HISTORY));
 
 		rseg->last_page_no = node_addr.page;
 		rseg->last_offset = node_addr.boffset;

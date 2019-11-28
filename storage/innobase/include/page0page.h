@@ -210,11 +210,9 @@ page_align(const void* ptr)
 @param[in]	ptr	pointer within a page frame
 @return offset from the start of the page */
 MY_ATTRIBUTE((const))
-inline
-ulint
-page_offset(const void*	ptr)
+inline uint16_t page_offset(const void*	ptr)
 {
-	return(ut_align_offset(ptr, srv_page_size));
+  return static_cast<uint16_t>(ut_align_offset(ptr, srv_page_size));
 }
 
 /** Determine whether an index page is not in ROW_FORMAT=REDUNDANT.

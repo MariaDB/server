@@ -441,8 +441,8 @@ trx_purge_truncate_rseg_history(
 
 	rseg_hdr = trx_rsegf_get(rseg.space, rseg.page_no, &mtr);
 
-	hdr_addr = trx_purge_get_log_from_hist(
-		flst_get_last(rseg_hdr + TRX_RSEG_HISTORY, &mtr));
+	hdr_addr = trx_purge_get_log_from_hist(flst_get_last(TRX_RSEG_HISTORY
+							     + rseg_hdr));
 loop:
 	if (hdr_addr.page == FIL_NULL) {
 func_exit:
@@ -469,7 +469,7 @@ func_exit:
 	}
 
 	prev_hdr_addr = trx_purge_get_log_from_hist(
-		flst_get_prev_addr(log_hdr + TRX_UNDO_HISTORY_NODE, &mtr));
+		flst_get_prev_addr(log_hdr + TRX_UNDO_HISTORY_NODE));
 
 	seg_hdr = undo_page + TRX_UNDO_SEG_HDR;
 
@@ -852,7 +852,7 @@ static void trx_purge_rseg_get_next_history_log(
 	(*n_pages_handled)++;
 
 	prev_log_addr = trx_purge_get_log_from_hist(
-		flst_get_prev_addr(log_hdr + TRX_UNDO_HISTORY_NODE, &mtr));
+		flst_get_prev_addr(log_hdr + TRX_UNDO_HISTORY_NODE));
 
 	const bool empty = prev_log_addr.page == FIL_NULL;
 

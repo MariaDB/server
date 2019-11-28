@@ -2013,8 +2013,8 @@ ibuf_remove_free_page(void)
 
 	mutex_exit(&ibuf_mutex);
 
-	page_no = flst_get_last(root + PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
-				&mtr2).page;
+	page_no = flst_get_last(PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST
+				+ root).page;
 
 	/* NOTE that we must release the latch on the ibuf tree root
 	because in fseg_free_page we access level 1 pages, and the root
@@ -2043,8 +2043,8 @@ ibuf_remove_free_page(void)
 
 	root = ibuf_tree_root_get(&mtr);
 
-	ut_ad(page_no == flst_get_last(root + PAGE_HEADER
-				       + PAGE_BTR_IBUF_FREE_LIST, &mtr).page);
+	ut_ad(page_no == flst_get_last(PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST
+				       + root).page);
 
 	{
 		buf_block_t*	block;

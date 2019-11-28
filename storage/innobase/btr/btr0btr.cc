@@ -478,8 +478,8 @@ btr_page_alloc_for_ibuf(
 
 	root = btr_root_get(index, mtr);
 
-	node_addr = flst_get_first(root + PAGE_HEADER
-				   + PAGE_BTR_IBUF_FREE_LIST, mtr);
+	node_addr = flst_get_first(PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST
+				   + root);
 	ut_a(node_addr.page != FIL_NULL);
 
 	new_block = buf_page_get(
