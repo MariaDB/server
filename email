@@ -1,0 +1,149 @@
+Hi Andrei , Sujatha
+
+I want to discuss two things first the actual implementation and the second thing will be
+the interface of circular queue with actual events processing and relay log.
+So in the circular buffer granularity of reading and writing will be either one event or
+one transaction.To achieve this will need to have transaction length in GTID event
+itself.
+>>Opinion needed:- How to store transaction length in the gtid_log_event, There are two
+options
+1. Store it in constant 8byte length.Issue with this is it will be 8bytes even if size
+is 1 byte so lots of wasted storage.
+2. Use variable memory_length to store the transaction length(net_store_length) mysql
+does the same Although there are some issues with this approach
+  1. get_data_size() will be accurate only after gtid_log_event::write_event is called.
+circular queue member variables.
+  2. We have already exhausted flags2(1 byte) in gtid_log_event so in future if we need to
+store flags we have to allocate space after storing transaction length. Since length is
+not fixed calculating flag will be more complex.
+Athough 2nd issue can be averted by storing one(or maybe 2) byte for flag in
+gtid_event_length.
+|--Old Gtid_event --|1 byte flag| 4byte thread id| variable transaction size|
+
+Circular queue Implementation
+
+Members:
+uchar* buffer;
+uchar* buffer_end;
+uint64 size;
+uint elements;
+/*
+ Some time we can have empty space in end if transaction/event is big to fit
+ in continues space.
+*/
+uchar* buffer_usable_ptr;
+uchar* write_head;
+uchar* read_head;
+uchar* flush_head;
+std::mutex read_lock;
+std::mutex write_lock;
+uchar* buffer_end;
+uint64 size;
+uint elements;
+
+so as we can see there are there are total three type of pointers pointers for the
+for the queue read write operation.
+
+write head :- this pointer in the buffer will be pointing to the current write
+head all the new inserts will be done after the write head. we will be guaranteeing
+that the granularity is  satisfied. and transaction / events will be written in
+continuous memory so in a case of when we have write head close to buffer end and
+we cannot have any space for whole transaction or event then we will write from
+starting of buffer given if it is empty in starting.
+
+read head:- reading operation will be simpler. user can read in 2 granularity
+either one whole transaction or one event. reading and writing granularity should be same. 
+
+flush head:- this will be the pointer which will be actually freeing the space
+on buffer.
+Some Important buffer method Implementation:-
+
+Empty space for this case
+S= Buffer_start
+F= Flush Pointer
+W= write pointer
+E= buffer end
+U= Buffer usable_ptr
+
+if this case
+S--F----W-----E
+E - W + F -S
+
+if this case
+S--W-- F --- U--E
+F-W
+
+Write code
+TS = Transaction size
+
+if this case
+S--F----W----E
+if W > F
+  if E-W > TS
+    then write data and W+= TS
+
+  if E-W < TS
+    buffer_usable_ptr= write_head
+    write_head= 0
+    It will become the second case
+
+
+if this case
+S--W----F--U--E
+if W < F
+  if TS < F -W
+    write
+    W+= TS
+  else
+    give error that buffer is full
+    and write into file
+
+Read from queue
+
+lock the mutex
+return_addr= R
+if R < W
+  S--R---W--E
+  R+= TS/ES
+  unlock the mutex
+  return return_addr
+
+if R > W
+  S--W---R--U--E
+  R += TS/ES
+  if R == U
+  R= 0
+  unlock the mutex
+  return return_addr
+(in rest of the cases)
+return NULL
+
+>>Opiniion needed:- I still have to figure out how I will be able to get a flush pointer.
+for example let's assume we have a one binlog group commit with 10 transactions.
+and our granularity is transaction level. and for simplicity let's assume we have
+10 worker threads so each thread will execute one transaction and it will increment
+read pointer to next transaction. so after 10 worker committing the 10 transaction
+, circular queue read pointer is advanced with 10 transaction, but now the issue
+is how we advance the flush pointer ? how we call back to queue that please advance
+flush pointer.
+
+>>Opinion needed:-
+second issue which I am facing is this how to differentiate whether circular buffer
+is full or empty when flush point and buffer pointer point to same location on buffer.
+one way is using a counter of elements second way is never have flush pointer And write
+pointer pointing to same location we can have something like this that flush. pointer
+is is always one less than right pointer. using elements approach is more intuitive but
+it will be hard to maintain number of elements when we are not sure about how to have
+flush logic.
+
+>>Opinion needed:-
+Handling in case of full buffer:- so when circular queue is full , we will be writing
+the events from io thread to temp file.
+so after this we have two options
+first option we can wait until buffer is empty and then copy from the temp file to buffer.
+this will be done by io thread. we will be temporary stop the thread from reading the events
+from network instead it will be copying events from file to buffer.
+second option which is also easier to implement when we have half buffer empty we will 
+send a broadcast condition that  buffer is half empty so the IO thread which will be
+listening to this condition will copy the events from temporary file to the circular
+buffer.

@@ -1,0 +1,141 @@
+write_transaction or stmt
+one way get the cache length and then gtid length and then last event (mostly
+query log event) and add them up and save into gtid packet 
+second way no calculation relie on actual binlog event writen in cache and then
+write it into gtid event (fuck it wont work , what about fucking fsync and 
+i have to call write agian really bad idea)
+so what the fuck to do
+plan so far
+we will be giing wia first method since secind  meyhod will not work
+there are three type if  events one with comit one wi rollback and xid log event
+so query log  dvent and xid xheexkpoint eveent
+it shhould  be eastt yo get datta size from xid log but for qury we n3d to 
+do some  shit.
+one  option mite bee to use fjxed length since  there are onlyb2 options
+for  the  time this  is the the  only solutiin --- asshole this wont work
+
+So the plan right now
+write_transaction_or_stmt
+1. Rememember the current posiotion in cache (thread trx/stmt cache) (in case of
+rollback and commit only , Xid event will have fixed lenght), why the not genneralize 
+it ?
+2. write the event in cache(IO_CACHE) (how the fuck I will be doing i t, no clue)
+3.read the whole cache length , trx and stmt
+4 Pass it to write_gtid_event
+
+::write()
+No fucking clue
+here babe
+  {
+   5984     Log_event_writer writer(&cache_data->cache_log, cache_data);
+   5985
+   5986     /*
+   5987     ┆ Write pending event to the cache.
+   5988     */
+   5989     DBUG_EXECUTE_IF("simulate_disk_full_at_flush_pending",
+   5990     ┆   ┆   ┆   ┆   {DBUG_SET("+d,simulate_file_write_error");});
+   5991     if (writer.write(pending))
+   5992 }
+
+DDL
+fuck me
+
+So now for the writing in gtid_log_event
+We will have the size of transaction - gtid_event_size
+On the time of write , We need to have one flag
+But how ? I mean we just have
+bro i just explained that in #replication channel 
+see there
+in shorrt extendable one byte  flag every time when we over shoot
+how to store thread id 4bytes
+how we will be storing transaction size maybe use net_write_packet or 8 solid bytes
+
+FOR THE TIME LETS HAVE 8 +4 no flexible , we will change it later
+
+
+
+
+
+
+
+
+Circular buffer
+
+Memeber variables
+  uchar* buffer;
+  uchar* buffer_end;
+  uint64 size;
+  uint elements;
+  /*
+   Some time we can have empty space in end if transaction/event is big to fit
+   in continues space.
+  */
+  uchar* buffer_usable_ptr;
+  // Actual free space
+  uint64 usable_free_space;
+  uchar* write_head;
+  uchar* read_head;
+  uchar* flush_head;
+  std::mutex read_lock;
+  std::mutex write_lock;
+
+Empty space for this case
+S= Buffer_start
+F= Flush Pointer
+W= write pointer
+E= buffer end
+U= Buffer usable_ptr
+
+if this case
+S--F----W-----E
+E - W + F -S
+
+if this case
+S--W-- F --- U--E
+F-W
+
+
+Write code
+TS = Transaction size
+
+if this case
+S--F----W----E
+if E-W > TS
+then write data and W+= TS
+
+if E-W < TS
+buffer_usable_ptr= write_head
+write_head= 0
+It will become the second case
+
+
+if this case
+S--W----F--U--E
+if TS < F -W
+write
+W+= TS
+else
+  give error that buffer is full
+and write into file
+
+Read from queue
+ R < W
+S--R---W--E
+
+lock the mutex
+R+= TS/ES
+unlock the mutex
+return the old read ptr
+
+R > W
+S--W---R--U--E
+lock the mutex
+R += TS/ES
+if R == U
+R= 0
+unlock the mutex
+return the old ptr
+
+
+
+Bharthi no 02024407100 vandna mam
