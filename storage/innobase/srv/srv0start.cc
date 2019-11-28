@@ -2010,10 +2010,13 @@ files_checked:
 	}
 
 	if (!create_new_db) {
+		ut_ad(high_level_read_only
+		      || srv_force_recovery <= SRV_FORCE_NO_IBUF_MERGE);
+
 		/* Validate a few system page types that were left
 		uninitialized before MySQL or MariaDB 5.5. */
-		if (!high_level_read_only) {
-			ut_ad(srv_force_recovery <= SRV_FORCE_NO_IBUF_MERGE);
+		if (!high_level_read_only
+		    && !fil_system.sys_space->full_crc32()) {
 			buf_block_t*	block;
 			mtr.start();
 			/* Bitmap page types will be reset in
@@ -2041,29 +2044,26 @@ files_checked:
 				0, RW_X_LATCH, &mtr);
 			fil_block_check_type(*block, FIL_PAGE_TYPE_SYS, &mtr);
 			mtr.commit();
+		}
 
-			/* Roll back any recovered data dictionary
-			transactions, so that the data dictionary
-			tables will be free of any locks.  The data
-			dictionary latch should guarantee that there
-			is at most one data dictionary transaction
-			active at a time. */
-			if (srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
-				/* If the following call is ever
-				removed, the first-time
-				ha_innobase::open() must hold (or
-				acquire and release) a table lock that
-				conflicts with
-				trx_resurrect_table_locks(), to ensure
-				that any recovered incomplete ALTER
-				TABLE will have been rolled
-				back. Otherwise, dict_table_t::instant
-				could be cleared by rollback invoking
-				dict_index_t::clear_instant_alter()
-				while open table handles exist in
-				client connections. */
-				trx_rollback_recovered(false);
-			}
+		/* Roll back any recovered data dictionary
+		transactions, so that the data dictionary tables will
+		be free of any locks.  The data dictionary latch
+		should guarantee that there is at most one data
+		dictionary transaction active at a time. */
+		if (!high_level_read_only
+		    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO) {
+			/* If the following call is ever removed, the
+			first-time ha_innobase::open() must hold (or
+			acquire and release) a table lock that
+			conflicts with trx_resurrect_table_locks(), to
+			ensure that any recovered incomplete ALTER
+			TABLE will have been rolled back. Otherwise,
+			dict_table_t::instant could be cleared by
+			rollback invoking
+			dict_index_t::clear_instant_alter() while open
+			table handles exist in client connections. */
+			trx_rollback_recovered(false);
 		}
 
 		/* FIXME: Skip the following if srv_read_only_mode,
