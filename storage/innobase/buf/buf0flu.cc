@@ -1208,11 +1208,14 @@ buf_flush_write_block_low(
 		frame = buf_page_encrypt(space, bpage, frame);
 	}
 
-	ut_ad(space->purpose == FIL_TYPE_TABLESPACE
-	      || space->atomic_write_supported);
-
-	if (space->purpose == FIL_TYPE_TABLESPACE) {
-		log_write_up_to(mach_read_from_8(frame + FIL_PAGE_LSN), true);
+	if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE)) {
+		const lsn_t lsn = mach_read_from_8(frame + FIL_PAGE_LSN);
+		ut_ad(lsn);
+		ut_ad(lsn >= bpage->oldest_modification);
+		ut_ad(!srv_read_only_mode);
+		log_write_up_to(lsn, true);
+	} else {
+		ut_ad(space->atomic_write_supported);
 	}
 
 	const bool use_doublewrite = !bpage->init_on_flush
