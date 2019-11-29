@@ -1273,7 +1273,8 @@ static void page_dir_split_slot(page_t* page, page_zip_des_t* page_zip,
 	const ulint n_slots = page_dir_get_n_slots(page);
 	page_dir_set_n_slots(page, page_zip, n_slots + 1);
 	page_dir_slot_t* last_slot = page_dir_get_nth_slot(page, n_slots);
-	memmove(last_slot, last_slot + PAGE_DIR_SLOT_SIZE, slot - last_slot);
+	memmove_aligned<2>(last_slot, last_slot + PAGE_DIR_SLOT_SIZE,
+			   slot - last_slot);
 
 	/* 3. We store the appropriate values to the new slot. */
 
@@ -1327,8 +1328,8 @@ static void page_dir_balance_slot(page_t* page, page_zip_des_t* page_zip,
 		/* Shift the slots */
 		page_dir_slot_t* last_slot = page_dir_get_nth_slot(
 			page, n_slots - 1);
-		memmove(last_slot + PAGE_DIR_SLOT_SIZE, last_slot,
-			slot - last_slot);
+		memmove_aligned<2>(last_slot + PAGE_DIR_SLOT_SIZE, last_slot,
+				   slot - last_slot);
 		mach_write_to_2(last_slot, 0);
 		page_dir_set_n_slots(page, page_zip, n_slots - 1);
 		return;

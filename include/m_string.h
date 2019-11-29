@@ -210,6 +210,13 @@ inline void *memcpy_aligned(void *dest, const void *src, size_t n)
                 MY_ASSUME_ALIGNED(src, Alignment), n);
 }
 template <size_t Alignment>
+inline void *memmove_aligned(void *dest, const void *src, size_t n)
+{
+  static_assert(Alignment && !(Alignment & (Alignment - 1)), "power of 2");
+  return memmove(MY_ASSUME_ALIGNED(dest, Alignment),
+                 MY_ASSUME_ALIGNED(src, Alignment), n);
+}
+template <size_t Alignment>
 inline int memcmp_aligned(const void *s1, const void *s2, size_t n)
 {
   static_assert(Alignment && !(Alignment & (Alignment - 1)), "power of 2");

@@ -4430,8 +4430,8 @@ page_zip_dir_insert(
 	}
 
 	/* Shift the dense directory to allocate place for rec. */
-	memmove(slot_free - PAGE_ZIP_DIR_SLOT_SIZE, slot_free,
-		ulint(slot_rec - slot_free));
+	memmove_aligned<2>(slot_free - PAGE_ZIP_DIR_SLOT_SIZE, slot_free,
+			   ulint(slot_rec - slot_free));
 
 	/* Write the entry for the inserted record.
 	The "owned" and "deleted" flags must be zero. */
@@ -4489,9 +4489,8 @@ page_zip_dir_delete(
 	}
 
 	if (UNIV_LIKELY(slot_rec > slot_free)) {
-		memmove(slot_free + PAGE_ZIP_DIR_SLOT_SIZE,
-			slot_free,
-			ulint(slot_rec - slot_free));
+		memmove_aligned<2>(slot_free + PAGE_ZIP_DIR_SLOT_SIZE,
+				   slot_free, ulint(slot_rec - slot_free));
 	}
 
 	/* Write the entry for the deleted record.
@@ -4585,7 +4584,8 @@ page_zip_dir_add_slot(
 
 	/* Move the uncompressed area backwards to make space
 	for one directory slot. */
-	memmove(stored - PAGE_ZIP_DIR_SLOT_SIZE, stored, ulint(dir - stored));
+	memmove_aligned<2>(stored - PAGE_ZIP_DIR_SLOT_SIZE, stored,
+			   ulint(dir - stored));
 }
 
 /***********************************************************//**
