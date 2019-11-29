@@ -1544,14 +1544,15 @@ err_exit:
 	page_zip->n_blobs = unsigned(n_blobs);
 	/* Copy those header fields that will not be written
 	in buf_flush_init_for_writing() */
-	memcpy(page_zip->data + FIL_PAGE_PREV, page + FIL_PAGE_PREV,
-	       FIL_PAGE_LSN - FIL_PAGE_PREV);
-	memcpy(page_zip->data + FIL_PAGE_TYPE, page + FIL_PAGE_TYPE, 2);
-	memcpy(page_zip->data + FIL_PAGE_DATA, page + FIL_PAGE_DATA,
-	       PAGE_DATA - FIL_PAGE_DATA);
+	memcpy_aligned<8>(page_zip->data + FIL_PAGE_PREV, page + FIL_PAGE_PREV,
+			  FIL_PAGE_LSN - FIL_PAGE_PREV);
+	memcpy_aligned<2>(page_zip->data + FIL_PAGE_TYPE, page + FIL_PAGE_TYPE,
+			  2);
+	memcpy_aligned<2>(page_zip->data + FIL_PAGE_DATA, page + FIL_PAGE_DATA,
+			  PAGE_DATA - FIL_PAGE_DATA);
 	/* Copy the rest of the compressed page */
-	memcpy(page_zip->data + PAGE_DATA, buf,
-	       page_zip_get_size(page_zip) - PAGE_DATA);
+	memcpy_aligned<2>(page_zip->data + PAGE_DATA, buf,
+			  page_zip_get_size(page_zip) - PAGE_DATA);
 	mem_heap_free(heap);
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(page_zip_validate(page_zip, page, index));
@@ -3021,7 +3022,7 @@ page_zip_decompress_low(
 
 	if (all) {
 		/* Copy the page header. */
-		memcpy(page, page_zip->data, PAGE_DATA);
+		memcpy_aligned<2>(page, page_zip->data, PAGE_DATA);
 	} else {
 		/* Check that the bytes that we skip are identical. */
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
@@ -3034,9 +3035,10 @@ page_zip_decompress_low(
 #endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
 
 		/* Copy the mutable parts of the page header. */
-		memcpy(page, page_zip->data, FIL_PAGE_TYPE);
-		memcpy(PAGE_HEADER + page, PAGE_HEADER + page_zip->data,
-		       PAGE_LEVEL - PAGE_N_DIR_SLOTS);
+		memcpy_aligned<8>(page, page_zip->data, FIL_PAGE_TYPE);
+		memcpy_aligned<2>(PAGE_HEADER + page,
+				  PAGE_HEADER + page_zip->data,
+				  PAGE_LEVEL - PAGE_N_DIR_SLOTS);
 
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
 		/* Check that the page headers match after copying. */
@@ -3070,8 +3072,9 @@ zlib_error:
 				      & PAGE_ZIP_DIR_SLOT_MASK);
 	}
 	memcpy(page + PAGE_NEW_INFIMUM, infimum_data, sizeof infimum_data);
-	memcpy(page + (PAGE_NEW_SUPREMUM - REC_N_NEW_EXTRA_BYTES + 1),
-	       supremum_extra_data, sizeof supremum_extra_data);
+	memcpy_aligned<4>(PAGE_NEW_SUPREMUM - REC_N_NEW_EXTRA_BYTES + 1
+			  + page, supremum_extra_data,
+			  sizeof supremum_extra_data);
 
 	page_zip_set_alloc(&d_stream, heap);
 
@@ -4737,8 +4740,8 @@ page_zip_reorganize(
 					index, mtr);
 
 	/* Copy the PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC. */
-	memcpy(page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
-	       temp_page + (PAGE_HEADER + PAGE_MAX_TRX_ID), 8);
+	memcpy_aligned<8>(page + (PAGE_HEADER + PAGE_MAX_TRX_ID),
+			  temp_page + (PAGE_HEADER + PAGE_MAX_TRX_ID), 8);
 	/* PAGE_MAX_TRX_ID must be set on secondary index leaf pages. */
 	ut_ad(dict_index_is_clust(index) || !page_is_leaf(temp_page)
 	      || page_get_max_trx_id(page) != 0);
@@ -4806,21 +4809,24 @@ page_zip_copy_recs(
 	PAGE_MAX_TRX_ID.  Skip the rest of the page header and
 	trailer.  On the compressed page, there is no trailer. */
 	compile_time_assert(PAGE_MAX_TRX_ID + 8 == PAGE_HEADER_PRIV_END);
-	memcpy(PAGE_HEADER + page, PAGE_HEADER + src,
-	       PAGE_HEADER_PRIV_END);
-	memcpy(PAGE_DATA + page, PAGE_DATA + src,
-	       srv_page_size - PAGE_DATA - FIL_PAGE_DATA_END);
-	memcpy(PAGE_HEADER + page_zip->data, PAGE_HEADER + src_zip->data,
-	       PAGE_HEADER_PRIV_END);
-	memcpy(PAGE_DATA + page_zip->data, PAGE_DATA + src_zip->data,
-	       page_zip_get_size(page_zip) - PAGE_DATA);
+	memcpy_aligned<2>(PAGE_HEADER + page, PAGE_HEADER + src,
+			  PAGE_HEADER_PRIV_END);
+	memcpy_aligned<2>(PAGE_DATA + page, PAGE_DATA + src,
+			  srv_page_size - (PAGE_DATA + FIL_PAGE_DATA_END));
+	memcpy_aligned<2>(PAGE_HEADER + page_zip->data,
+			  PAGE_HEADER + src_zip->data,
+			  PAGE_HEADER_PRIV_END);
+	memcpy_aligned<2>(PAGE_DATA + page_zip->data,
+			  PAGE_DATA + src_zip->data,
+			  page_zip_get_size(page_zip) - PAGE_DATA);
 
 	if (dict_index_is_clust(index)) {
 		/* Reset the PAGE_ROOT_AUTO_INC field when copying
 		from a root page. */
-		memset(PAGE_HEADER + PAGE_ROOT_AUTO_INC + page, 0, 8);
-		memset(PAGE_HEADER + PAGE_ROOT_AUTO_INC + page_zip->data,
-		       0, 8);
+		memset_aligned<8>(PAGE_HEADER + PAGE_ROOT_AUTO_INC
+				  + page, 0, 8);
+		memset_aligned<8>(PAGE_HEADER + PAGE_ROOT_AUTO_INC
+				  + page_zip->data, 0, 8);
 	} else {
 		/* The PAGE_MAX_TRX_ID must be nonzero on leaf pages
 		of secondary indexes, and 0 on others. */
