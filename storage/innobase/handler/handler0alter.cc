@@ -165,10 +165,7 @@ static void instant_metadata_lock(dict_index_t& index, mtr_t& mtr)
 }
 
 /** Initialize instant->field_map.
-@tparam	replace_dropped	whether to point clustered index fields
-to instant->dropped[]
 @param[in]	table	table definition to copy from */
-template<bool replace_dropped>
 inline void dict_table_t::init_instant(const dict_table_t& table)
 {
 	const dict_index_t& oindex __attribute__((unused))= *table.indexes.start;
@@ -209,12 +206,10 @@ inline void dict_table_t::init_instant(const dict_table_t& table)
 		ut_ad(f.col < table.instant->dropped
 		      + table.instant->n_dropped);
 		ut_d(n_drop++);
-		if (replace_dropped) {
-			size_t d = f.col - table.instant->dropped;
-			ut_ad(f.col == &table.instant->dropped[d]);
-			ut_ad(d <= instant->n_dropped);
-			f.col = &instant->dropped[d];
-		}
+		size_t d = f.col - table.instant->dropped;
+		ut_ad(f.col == &table.instant->dropped[d]);
+		ut_ad(d <= instant->n_dropped);
+		f.col = &instant->dropped[d];
 	}
 	ut_ad(n_drop == n_dropped());
 	ut_ad(field_map_it == &instant->field_map[index.n_fields - u]);
@@ -655,7 +650,7 @@ dup_dropped:
 		const field_map_element_t* field_map = old_instant
 			? old_instant->field_map : NULL;
 
-		init_instant<true>(table);
+		init_instant(table);
 
 		if (!metadata_changed) {
 			metadata_changed = !field_map
