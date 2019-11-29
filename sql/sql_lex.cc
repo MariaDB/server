@@ -1288,6 +1288,7 @@ void LEX::start(THD *thd_arg)
 
   vers_conditions.empty();
   period_conditions.empty();
+  fk_ref_period= {};
 
   is_lex_started= TRUE;
 
@@ -11202,11 +11203,13 @@ bool LEX::add_table_foreign_key(const LEX_CSTRING *name,
 
   Key *key= new (thd->mem_root) Foreign_key(name,
                                             &last_key->columns,
+                                            last_key->period,
                                             constraint_name,
                                             &ref_table_name->db,
                                             &ref_table_name->table,
                                             ref_table,
                                             &ref_list,
+                                            fk_ref_period,
                                             fk_delete_opt,
                                             fk_update_opt,
                                             fk_match_option,

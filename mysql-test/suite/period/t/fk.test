@@ -1,0 +1,261 @@
+--source include/have_innodb.inc
+set default_storage_engine= innodb;
+
+create or replace table t (id int, x int, s date, e date, period for p(s,e),
+                           unique(id, x, p without overlaps));
+
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+                           foreign key(id, x, period fp)
+                             references t(id, x, period p)
+                             on delete restrict);
+
+show create table s;
+
+flush tables;
+
+--error ER_NO_REFERENCED_ROW_2
+insert into s values(1, 1, '2017-01-03', '2017-01-20');
+
+insert into t values(1, 1, '2017-01-03', '2017-01-20');
+insert into t values(1, 1, '2017-01-20', '2017-01-25');
+insert into t values(1, 1, '2017-01-25', '2017-01-26');
+insert into t values(1, 1, '2017-01-26', '2017-01-30');
+
+insert into s values(1, 1, '2017-01-03', '2017-01-20');
+--sorted_result
+select * from t;
+--sorted_result
+select * from s;
+
+--error ER_ROW_IS_REFERENCED_2
+delete from t;
+
+--sorted_result
+select * from t;
+--sorted_result
+select * from s;
+
+--error ER_ROW_IS_REFERENCED_2
+delete from t where s = '2017-01-03' and e = '2017-01-20';
+
+--echo # no error
+delete from t where s = '2017-01-20' and e = '2017-01-25';
+insert into t values(1, 1, '2017-01-20', '2017-01-25');
+
+insert into s values (1, 1, '2017-01-27', '2017-01-30');
+--error ER_ROW_IS_REFERENCED_2
+delete from t where s = '2017-01-26' and e = '2017-01-30';
+
+delete from t where s = '2017-01-25' and e = '2017-01-26';
+--error ER_NO_REFERENCED_ROW_2
+insert into s values (1, 1, '2017-01-22', '2017-01-28');
+insert into t values (1, 1, '2017-01-25', '2017-01-26');
+
+--sorted_result
+select * from t;
+--sorted_result
+select * from s;
+
+insert into s values (1, 1, '2017-01-03', '2017-01-15');
+insert into s values (1, 1, '2017-01-07', '2017-01-15');
+insert into s values (1, 1, '2017-01-07', '2017-01-20');
+insert into s values (1, 1, '2017-01-07', '2017-01-26');
+insert into s values (1, 1, '2017-01-07', '2017-01-27');
+--error ER_NO_REFERENCED_ROW_2
+insert into s values (1, 1, '2017-01-01', '2017-02-28');
+--error ER_NO_REFERENCED_ROW_2
+insert into s values (1, 1, '2017-01-01', '2017-01-30');
+
+--sorted_result
+select * from t;
+--sorted_result
+select * from s;
+
+--error ER_ROW_IS_REFERENCED_2
+update t set x= 2 where s='2017-01-03' and e='2017-01-20';
+
+--error ER_NO_REFERENCED_ROW_2
+update s set x= 2 where s = '2017-01-03' and e = '2017-01-20';
+
+update s set s= '2017-01-05' where s < '2017-01-05' and e > '2017-01-05';
+
+--error ER_NO_REFERENCED_ROW_2
+update s set s= '2017-01-01' where s < '2017-01-26' and e > '2017-01-25';
+
+--echo # Free period ('2017-01-25', '2017-01-26') from references
+update s set s= '2017-01-26', e= '2017-01-30' where s < '2017-01-26'
+                                                    and e > '2017-01-25';
+
+
+update t set x= 2 where s = '2017-01-25' and e = '2017-01-26';
+update t set s= '2017-01-26', e= '2017-01-30' where s = '2017-01-25'
+                                                    and e = '2017-01-26';
+
+update s set x= 2 where s = '2017-01-26' and e = '2017-01-30';
+update s set s= '2017-01-28', e = '2017-01-29' where x = 2;
+
+--sorted_result
+select * from t;
+--sorted_result
+select * from s;
+
+--error ER_ROW_IS_REFERENCED_2
+update t set x= 2 where s='2017-01-03' and e='2017-01-20';
+
+
+--echo #
+--echo # False-positives
+--echo #
+
+--echo # Expand left
+--error ER_ROW_IS_REFERENCED_2
+update t set s= '2017-01-01' where s = '2017-01-03' and e = '2017-01-20';
+
+--echo # Shrink left
+--error ER_ROW_IS_REFERENCED_2
+update t set s= '2017-01-05' where e = '2017-01-20';
+
+--echo # Expand right
+--error ER_ROW_IS_REFERENCED_2
+update t set e= '2017-02-10' where s = '2017-01-26' and e = '2017-01-30';
+
+--echo # Shrink right
+--error ER_ROW_IS_REFERENCED_2
+update t set e= '2017-01-29' where s = '2017-01-26';
+
+delete from s where s = '2017-01-27' and e = '2017-01-30';
+update t set e= '2017-01-29' where s = '2017-01-26' and x = 1;
+
+--echo # Shrink both
+--echo # Not a false-positive
+--error ER_ROW_IS_REFERENCED_2
+update t set s= '2017-01-27', e= '2017-01-28' where x = 2;
+--echo # False-positive
+--error ER_ROW_IS_REFERENCED_2
+update t set s= '2017-01-28', e= '2017-01-29' where x = 2;
+
+--echo # Expand both
+--error ER_ROW_IS_REFERENCED_2
+update t set s= '2017-01-20', e= '2017-02-05' where x = 2;
+
+--echo # Move right
+--echo # Not a false-positive
+--error ER_ROW_IS_REFERENCED_2
+update t set s= '2017-02-02', e= '2017-02-25' where x = 2;
+--echo # False-positive
+--error ER_ROW_IS_REFERENCED_2
+update t set s= '2017-01-28', e= '2017-02-25' where x = 2;
+
+--echo # Move left
+--echo # Not a false-positive
+--error ER_ROW_IS_REFERENCED_2
+update t set s= '2017-01-20', e= '2017-01-27' where x = 2;
+--echo # False-positive
+--error ER_ROW_IS_REFERENCED_2
+update t set s= '2017-01-20', e= '2017-01-29' where x = 2;
+
+create or replace table s (x int, y int, z char(200), pk int,
+                           e date, s date, period for fp(s,e),
+                           unique(x), unique(z),
+                           foreign key(pk, y, period fp)
+                             references t(id, x, period p)
+                             on delete restrict);
+delete from t;
+insert into t values(1, 1, '2017-01-03', '2017-01-20');
+
+show create table s;
+--sorted_result
+select * from t;
+insert into s values (-1, 1, '0', 1, '2017-01-15', '2017-01-05');
+--error ER_NO_REFERENCED_ROW_2
+insert into s values ( 0, 1, '1', 1, '2017-02-20', '2017-02-03');
+--error ER_ROW_IS_REFERENCED_2
+delete from t;
+delete from s;
+delete from t;
+
+call mtr.add_suppression("In ALTER TABLE .* has or is referenced in foreign key constraints which are not compatible with the new table definition.");
+
+--replace_regex  /Error on rename of '.*' to '.*'/Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME'/
+--error ER_ERROR_ON_RENAME
+alter table t drop period for p, drop constraint id;
+
+show create table s;
+alter table t drop period for p, drop constraint id, add period for pop(s, e),
+              add primary key(id, x, pop without overlaps);
+show create table s;
+
+--replace_regex  /Error on rename of '.*' to '.*'/Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME'/
+--error ER_ERROR_ON_RENAME
+alter table t drop period for pop, drop primary key,
+              add primary key(id, x, s, e);
+show create table s;
+
+--error ER_PERIOD_NOT_FOUND
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+                           foreign key(id, x, period no_such_p)
+                             references t(id, x, period p)
+                             on delete restrict);
+--error ER_WRONG_FK_DEF
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+                           foreign key(id, x, s, e)
+                             references t(id, x, period p)
+                             on delete restrict);
+--error ER_WRONG_FK_DEF
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+                           foreign key(id, x, period fp)
+                             references t(id, x, s, e)
+                             on delete restrict);
+
+--error ER_PERIOD_FK_NOT_FOUND
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+                           foreign key(id, x, period fp)
+                             references t(id, x, period no_such_p)
+                             on delete restrict);
+
+
+create or replace table t1 (id int, x int, s timestamp, e timestamp, period for p(s,e),
+                           unique(id, x, p without overlaps));
+
+--error ER_PERIOD_FK_TYPES_MISMATCH
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+                           foreign key(id, x, period fp)
+                             references t1(id, x, period p)
+                             on delete restrict);
+
+--error ER_PERIOD_FK_TYPES_MISMATCH
+create or replace table s (id int, x int, s timestamp(6), e timestamp(6),
+                           period for fp(s,e),
+                           foreign key(id, x, period fp)
+                             references t1(id, x, period p)
+                             on delete restrict);
+
+create or replace table s (id int, x int, s date, e date);
+--error ER_PERIOD_FK_NOT_FOUND
+alter table s add period for fp(s,e),
+              add foreign key(id, x, period fp)
+               references t1(id, x, period no_such_p)
+               on delete restrict;
+
+--error ER_PERIOD_FK_TYPES_MISMATCH
+alter table s add period for fp(s,e),
+              add foreign key(id, x, period fp)
+               references t1(id, x, period p)
+               on delete restrict;
+
+--error ER_PERIOD_FK_TYPES_MISMATCH
+alter table s change s s timestamp(6), change e e timestamp(6),
+              add period for fp(s, e),
+              add foreign key(id, x, period fp)
+               references t1(id, x, period p)
+               on delete restrict;
+
+alter table s change s s timestamp(6), change e e timestamp(6),
+              add period for fp(s, e);
+--error ER_PERIOD_FK_TYPES_MISMATCH
+alter table s add foreign key(id, x, period fp)
+               references t1(id, x, period p)
+               on delete restrict;
+
+drop database test;
+create database test;
