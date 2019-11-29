@@ -152,12 +152,12 @@ connection default;
 let $wait_condition= SELECT COUNT(*) = 2 FROM t1;
 --source include/wait_condition.inc
 drop table t1;
-disconnect cn1;
-drop user user1@localhost;
 
 set global server_audit_logging= off;
-set global server_audit_incl_users='';
+set global server_audit_incl_users='root';
 set global server_audit_logging= on;
+disconnect cn1;
+drop user user1@localhost;
 
 set global server_audit_events='';
 

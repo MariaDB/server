@@ -2104,6 +2104,7 @@ public:
      status(0), retry(0), handler_thread_initialized(FALSE), group_count(0)
   {
     DBUG_ENTER("Delayed_insert constructor");
+    orig_thread_id= thd.thread_id;
     set_default_user();
     strmake_buf(thd.security_ctx->priv_user, thd.security_ctx->user);
     thd.current_tablenr=0;
