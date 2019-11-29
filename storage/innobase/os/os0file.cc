@@ -84,10 +84,12 @@ class io_slots
 private:
 	tpool::cache<tpool::aiocb> m_cache;
 	tpool::task_group m_group;
+	int m_max_aio;
 public:
 	io_slots(int max_submitted_io, int max_callback_concurrency) :
 		m_cache(max_submitted_io),
-		m_group(max_callback_concurrency)
+		m_group(max_callback_concurrency),
+		m_max_aio(max_submitted_io)
 	{
 	}
 	/* Get cached AIO control block */
@@ -110,6 +112,11 @@ public:
 	void wait()
 	{
 		m_cache.wait();
+	}
+
+	size_t pending_io_count()
+	{
+		return (size_t)m_max_aio - m_cache.size();
 	}
 
 	tpool::task_group* get_task_group()
@@ -4058,7 +4065,12 @@ void os_aio_free()
 be other, synchronous, pending writes. */
 void os_aio_wait_until_no_pending_writes()
 {
-  write_slots->wait();
+  if (write_slots->pending_io_count())
+  {
+    tpool::tpool_wait_begin();
+    write_slots->wait();
+    tpool::tpool_wait_end();
+  }
 }
 
 

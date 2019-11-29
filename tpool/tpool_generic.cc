@@ -70,8 +70,6 @@ namespace tpool
   and also ensures that idle timeout works well. LIFO wakeup order ensures
   that active threads stay active, and idle ones stay idle.
 
-  - to minimize spurious wakeups, some items are not put into the queue. Instead
-  submit() will pass the data directly to the thread it woke up.
 */
 
 /**
@@ -109,7 +107,8 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
   {
     NONE = 0,
     EXECUTING_TASK = 1,
-    LONG_TASK = 2
+    LONG_TASK = 2,
+    WAITING = 4
   };
 
   int m_state;
@@ -154,6 +153,9 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
   }
 };
 
+
+static thread_local worker_data* tls_worker_data;
+
 class thread_pool_generic : public thread_pool
 {
   /** Cache for per-worker structures */
@@ -186,6 +188,7 @@ class thread_pool_generic : public thread_pool
 
   /** Overall number of enqueues*/
   unsigned long long m_tasks_enqueued;
+  unsigned long long m_group_enqueued;
   /** Overall number of dequeued tasks. */
   unsigned long long m_tasks_dequeued;
 
@@ -212,6 +215,8 @@ class thread_pool_generic : public thread_pool
   adjusting concurrency */
   int m_long_tasks_count;
 
+  int m_waiting_task_count;
+
   /** Last time thread was created*/
   std::chrono::system_clock::time_point m_last_thread_creation;
 
@@ -237,7 +242,8 @@ class thread_pool_generic : public thread_pool
   }
   bool add_thread();
   bool wake(worker_wake_reason reason, task *t = nullptr);
-  void wake_or_create_thread();
+  void maybe_wake_or_create_thread();
+  bool too_many_active_threads();
   bool get_task(worker_data *thread_var, task **t);
   bool wait_for_tasks(std::unique_lock<std::mutex> &lk,
                       worker_data *thread_var);
@@ -250,6 +256,8 @@ class thread_pool_generic : public thread_pool
 public:
   thread_pool_generic(int min_threads, int max_threads);
   ~thread_pool_generic();
+  void wait_begin() override;
+  void wait_end() override;
   void submit_task(task *task) override;
   virtual aio *create_native_aio(int max_io) override
   {
@@ -447,31 +455,24 @@ bool thread_pool_generic::get_task(worker_data *thread_var, task **t)
 
   thread_var->m_state = worker_data::NONE;
 
-  if (m_task_queue.empty())
+  while (m_task_queue.empty())
   {
     if (m_in_shutdown)
       return false;
 
     if (!wait_for_tasks(lk, thread_var))
       return false;
-
-    /* Task was handed over directly by signaling thread.*/
-    if (thread_var->m_wake_reason == WAKE_REASON_TASK)
-    {
-      *t= thread_var->m_task;
-      goto end;
-    }
-
     if (m_task_queue.empty())
-      return false;
+    {
+      m_spurious_wakeups++;
+      continue;
+    }
   }
 
   /* Dequeue from the task queue.*/
   *t= m_task_queue.front();
   m_task_queue.pop();
   m_tasks_dequeued++;
-
-end:
   thread_var->m_state |= worker_data::EXECUTING_TASK;
   thread_var->m_task_start_time = m_timestamp;
   return true;
@@ -491,13 +492,17 @@ void thread_pool_generic::worker_end(worker_data* thread_data)
   }
 }
 
+extern "C" void set_tls_pool(tpool::thread_pool* pool);
+
 /* The worker get/execute task loop.*/
 void thread_pool_generic::worker_main(worker_data *thread_var)
 {
   task* task;
-
+  set_tls_pool(this);
   if(m_worker_init_callback)
    m_worker_init_callback();
+
+  tls_worker_data = thread_var;
 
   while (get_task(thread_var, &task) && task)
   {
@@ -557,12 +562,10 @@ void thread_pool_generic::maintainence()
       m_long_tasks_count++;
     }
   }
+
+  maybe_wake_or_create_thread();
+
   size_t thread_cnt = (int)thread_count();
-  if (m_active_threads.size() - m_long_tasks_count < m_concurrency*OVERSUBSCRIBE_FACTOR)
-  {
-    wake_or_create_thread();
-    return;
-  }
   if (m_last_activity == m_tasks_dequeued + m_wakeups &&
       m_last_thread_count <= thread_cnt && m_active_threads.size() == thread_cnt)
   {
@@ -638,7 +641,7 @@ bool thread_pool_generic::add_thread()
 }
 
 /** Wake a standby thread, and hand the given task over to this thread. */
-bool thread_pool_generic::wake(worker_wake_reason reason, task *t)
+bool thread_pool_generic::wake(worker_wake_reason reason, task *)
 {
   assert(reason != WAKE_REASON_NONE);
 
@@ -650,10 +653,6 @@ bool thread_pool_generic::wake(worker_wake_reason reason, task *t)
   assert(var->m_wake_reason == WAKE_REASON_NONE);
   var->m_wake_reason= reason;
   var->m_cv.notify_one();
-  if (t)
-  {
-    var->m_task= t;
-  }
   m_wakeups++;
   return true;
 }
@@ -673,10 +672,11 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
   m_tasks_dequeued(),
   m_wakeups(),
   m_spurious_wakeups(),
-  m_concurrency(std::thread::hardware_concurrency()),
+  m_concurrency(std::thread::hardware_concurrency()*2),
   m_in_shutdown(),
   m_timestamp(),
   m_long_tasks_count(),
+  m_waiting_task_count(),
   m_last_thread_creation(),
   m_min_threads(min_threads),
   m_max_threads(max_threads),
@@ -700,14 +700,15 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
 }
 
 
-void thread_pool_generic::wake_or_create_thread()
+void thread_pool_generic::maybe_wake_or_create_thread()
 {
-  assert(!m_task_queue.empty());
+  if (m_task_queue.empty())
+    return;
+  if (m_active_threads.size() - m_long_tasks_count - m_waiting_task_count > m_concurrency)
+    return;
   if (!m_standby_threads.empty())
   {
-    auto t= m_task_queue.front();
-    m_task_queue.pop();
-    wake(WAKE_REASON_TASK, t);
+    wake(WAKE_REASON_TASK);
   }
   else
   {
@@ -715,6 +716,11 @@ void thread_pool_generic::wake_or_create_thread()
   }
 }
 
+bool thread_pool_generic::too_many_active_threads()
+{
+  return m_active_threads.size() - m_long_tasks_count - m_waiting_task_count >
+    m_concurrency* OVERSUBSCRIBE_FACTOR;
+}
 
 /** Submit a new task*/
 void thread_pool_generic::submit_task(task* task)
@@ -725,9 +731,35 @@ void thread_pool_generic::submit_task(task* task)
   task->add_ref();
   m_tasks_enqueued++;
   m_task_queue.push(task);
+  maybe_wake_or_create_thread();
+}
 
-  if (m_active_threads.size() - m_long_tasks_count < m_concurrency *OVERSUBSCRIBE_FACTOR)
-    wake_or_create_thread();
+
+/* Notify thread pool that current thread is going to wait */
+void thread_pool_generic::wait_begin()
+{
+  if (!tls_worker_data || tls_worker_data->is_long_task())
+    return;
+  tls_worker_data->m_state |= worker_data::WAITING;
+  std::unique_lock<std::mutex> lk(m_mtx);
+  m_waiting_task_count++;
+
+  /* Maintain concurrency */
+  if (m_task_queue.empty())
+    return;
+  if (m_active_threads.size() - m_long_tasks_count - m_waiting_task_count < m_concurrency)
+    maybe_wake_or_create_thread();
+}
+
+
+void thread_pool_generic::wait_end()
+{
+  if (tls_worker_data && (tls_worker_data->m_state & worker_data::WAITING))
+  {
+    tls_worker_data->m_state &= ~worker_data::WAITING;
+    std::unique_lock<std::mutex> lk(m_mtx);
+    m_waiting_task_count--;
+  }
 }
 
 /**
