@@ -6530,7 +6530,7 @@ Options for strace
   client-strace         Trace the "mysqltest".
   strace-option=ARGS    Option to give strace, appends to existing options.
   stracer=<EXE>         Specify name and path to the trace program to use.
-                        Example: $0 --strace-client=ktrace.
+                        Default is "strace". Example: $0 --stracer=ktrace.
 
 Misc options
   user=USER             User for connecting to mysqld(default: $opt_user)
