@@ -3707,6 +3707,38 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                  ER_THD(thd, ER_KEY_REF_DO_NOT_MATCH_TABLE_REF));
 	DBUG_RETURN(TRUE);
       }
+
+      if (fk_key->ref_period)
+      {
+        auto *ref_table= fk_key->ref_table_list->table->s;
+        if (!fk_key->ref_period.streq(ref_table->period.name))
+        {
+          my_error(ER_PERIOD_FK_NOT_FOUND, MYF(0), fk_key->ref_period.str,
+                   ref_table->db.str, ref_table->table_name.str);
+        }
+
+        Create_field *period_start= NULL;
+        List_iterator_fast<Create_field> fit(alter_info->create_list);
+        while(auto *f= fit++)
+        {
+          if (create_info->period_info.period.start.streq(f->field_name))
+          {
+            period_start= f;
+            break;
+          }
+        }
+        DBUG_ASSERT(period_start);
+
+        auto *ref_period_start= ref_table->period.start_field(ref_table);
+
+        if (ref_period_start->type_handler() != period_start->type_handler()
+            || ref_period_start->pack_length() != period_start->pack_length)
+        {
+          my_error(ER_PERIOD_FK_TYPES_MISMATCH, MYF(0), fk_key->period.str,
+                   ref_table->db.str, ref_table->table_name.str,
+                   ref_table->period.name.str);
+        }
+      }
       continue;
     }
     (*key_count)++;
@@ -3956,6 +3988,30 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         DBUG_RETURN(TRUE);
       }
 
+      switch (key->type) {
+        case Key::UNIQUE:
+        case Key::MULTIPLE:
+          if (!key->period)
+            break;
+          /* Fall through:
+             WITHOUT OVERLAPS and FOREIGN KEY with period forces fields to be
+             NOT NULL
+           */
+        case Key::PRIMARY:
+          /* Implicitly set primary key fields to NOT NULL for ISO conf. */
+          if (!(sql_field->flags & NOT_NULL_FLAG))
+          {
+            /* Implicitly set primary key fields to NOT NULL for ISO conf. */
+            sql_field->flags|= NOT_NULL_FLAG;
+            sql_field->pack_flag&= ~FIELDFLAG_MAYBE_NULL;
+            null_fields--;
+          }
+          break;
+        default:
+          // Fall through
+          break;
+      }
+
       cols2.rewind();
       switch(key->type) {
 
@@ -3993,13 +4049,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	                                                          *sql_field,
 	                                                          file))
           DBUG_RETURN(TRUE);
-        if (!(sql_field->flags & NOT_NULL_FLAG))
-        {
-          /* Implicitly set primary key fields to NOT NULL for ISO conf. */
-          sql_field->flags|= NOT_NULL_FLAG;
-          sql_field->pack_flag&= ~FIELDFLAG_MAYBE_NULL;
-          null_fields--;
-        }
         break;
 
       case Key::MULTIPLE:
@@ -4549,7 +4598,7 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
   Key *key= NULL;
   while ((key=key_it++))
   {
-    if (key->type != Key::PRIMARY && key->type != Key::UNIQUE)
+    if (!key->period && key->type != Key::PRIMARY && key->type != Key::UNIQUE)
       continue;
 
     if (create_info->versioned())
@@ -4562,8 +4611,19 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
             row_end_field.streq(key_part->field_name))
           break;
       }
-      if (!key_part)
+      if (!key_part || key->type == Key::FOREIGN_KEY)
         key->columns.push_back(new Key_part_spec(&row_end_field, 0));
+
+      if (key->type == Key::FOREIGN_KEY)
+      {
+        auto *fk = static_cast<Foreign_key *>(key);
+
+        const LEX_CSTRING *ref_vers_end= &row_end_field;
+        if (fk->ref_table_list->table)
+          ref_vers_end= &fk->ref_table_list->table->vers_end_field()->field_name;
+
+        fk->ref_columns.push_back(new Key_part_spec(ref_vers_end, 0));
+      }
     }
   }
 
@@ -4602,6 +4662,30 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
       }
       key->columns.push_back(new Key_part_spec(&period_start, 0));
       key->columns.push_back(new Key_part_spec(&period_end, 0));
+    }
+    else if (key->period)
+    {
+      if (!create_info->period_info.is_set()
+          || !key->period.streq(create_info->period_info.name))
+      {
+        my_error(ER_PERIOD_NOT_FOUND, MYF(0), key->period.str);
+        return true;
+      }
+      const auto &period_start= create_info->period_info.period.start;
+      const auto &period_end= create_info->period_info.period.end;
+      key->columns.push_back(new Key_part_spec(&period_start, 0));
+      key->columns.push_back(new Key_part_spec(&period_end, 0));
+
+      if (key->type == Key::FOREIGN_KEY)
+      {
+        auto *fk= static_cast<Foreign_key*>(key);
+        const auto &ref_period= fk->ref_table_list->table->s->period;
+        const auto *field= fk->ref_table_list->table->field;
+        const auto &ref_period_start= field[ref_period.start_fieldno]->field_name;
+        const auto &ref_period_end= field[ref_period.end_fieldno]->field_name;
+        fk->ref_columns.push_back(new Key_part_spec(&ref_period_start, 0));
+        fk->ref_columns.push_back(new Key_part_spec(&ref_period_end, 0));
+      }
     }
   }
 
@@ -8616,9 +8700,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       /* We dont need LONG_UNIQUE_HASH_FIELD flag because it will be autogenerated */
       key= new (thd->mem_root) Key(key_type, &tmp_name, &key_create_info,
                    MY_TEST(key_info->flags & HA_GENERATED_KEY),
-                   &key_parts, key_info->option_list, DDL_options());
-      key->without_overlaps= key_info->without_overlaps;
-      key->period= table->s->period.name;
+                   &key_parts, table->s->period.name, key_info->without_overlaps,
+                   key_info->option_list, DDL_options());
       new_key_list.push_back(key, thd->mem_root);
     }
     if (long_hash_key)

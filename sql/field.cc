@@ -4473,17 +4473,17 @@ void Field_longlong::set_max()
   int8store(ptr, unsigned_flag ? ULONGLONG_MAX : LONGLONG_MAX);
 }
 
-bool Field_longlong::is_max()
+bool Field_longlong::is_max_in_ptr(const uchar *ptr_arg) const
 {
   DBUG_ASSERT(marked_for_read());
   if (unsigned_flag)
   {
     ulonglong j;
-    j= uint8korr(ptr);
+    j= uint8korr(ptr_arg);
     return j == ULONGLONG_MAX;
   }
   longlong j;
-  j= sint8korr(ptr);
+  j= sint8korr(ptr_arg);
   return j == LONGLONG_MAX;
 }
 
@@ -5555,13 +5555,13 @@ void Field_timestampf::set_max()
   DBUG_VOID_RETURN;
 }
 
-bool Field_timestampf::is_max()
+bool Field_timestampf::is_max_in_ptr(const uchar *ptr_arg) const
 {
-  DBUG_ENTER("Field_timestampf::is_max");
+  DBUG_ENTER("Field_timestampf::is_max_in_ptr");
   DBUG_ASSERT(marked_for_read());
 
-  DBUG_RETURN(mi_sint4korr(ptr) == TIMESTAMP_MAX_VALUE &&
-              mi_sint3korr(ptr + 4) == TIME_MAX_SECOND_PART);
+  DBUG_RETURN(mi_sint4korr(ptr_arg) == TIMESTAMP_MAX_VALUE &&
+              mi_sint3korr(ptr_arg + 4) == TIME_MAX_SECOND_PART);
 }
 
 my_time_t Field_timestampf::get_timestamp(const uchar *pos,
@@ -7492,7 +7492,8 @@ uint Field_string::max_packed_col_length(uint max_length)
 }
 
 
-uint Field_string::get_key_image(uchar *buff, uint length, const uchar *ptr_arg, imagetype type_arg) const
+uint Field_string::get_key_image(uchar *buff, uint length,
+                                 const uchar *ptr_arg, imagetype type_arg) const
 {
   size_t bytes= my_charpos(field_charset(), (char*) ptr_arg,
                            (char*) ptr_arg + field_length,

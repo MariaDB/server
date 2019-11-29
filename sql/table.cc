@@ -1773,7 +1773,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   if (frm_length < FRM_HEADER_SIZE + len ||
       !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
-    goto err;
+    DBUG_RETURN(err());
 
   if (read_extra2(frm_image, len, &extra2))
     DBUG_RETURN(err());
@@ -9388,6 +9388,7 @@ bool TABLE_SHARE::update_foreign_keys(THD *thd, Alter_info *alter_info,
     dst->delete_method= src->delete_opt;
     dst->foreign_fields.empty();
     dst->referenced_fields.empty();
+    dst->has_period= bool(src->period);
 
     Key_part_spec* col;
     List_iterator_fast<Key_part_spec> col_it(src->columns);

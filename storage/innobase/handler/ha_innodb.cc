@@ -10037,7 +10037,7 @@ wsrep_append_foreign_key(
 						foreign->referenced_col_names,
 						foreign->n_fields,
 						foreign->foreign_index,
-						TRUE, FALSE);
+						true, false, false);
 			}
 		} else {
 	  		foreign->foreign_table =
@@ -10051,7 +10051,7 @@ wsrep_append_foreign_key(
 						foreign->foreign_col_names,
 						foreign->n_fields,
 						foreign->referenced_index,
-						TRUE, FALSE);
+						true, false, false);
 			}
 		}
 		mutex_exit(&dict_sys.mutex);
@@ -10736,16 +10736,23 @@ create_table_info_t::create_table_def()
 
 	for (ulint i = 0, j = 0; j < n_cols; i++) {
 		Field*	field = m_form->field[i];
-		ulint vers_row = 0;
+		ulint vers_period_row = 0;
 
 		if (m_form->versioned()) {
 			if (i == m_form->s->vers.start_fieldno) {
-				vers_row = DATA_VERS_START;
+				vers_period_row = DATA_VERS_START;
 			} else if (i == m_form->s->vers.end_fieldno) {
-				vers_row = DATA_VERS_END;
+				vers_period_row = DATA_VERS_END;
 			} else if (!(field->flags
 				     & VERS_UPDATE_UNVERSIONED_FLAG)) {
-				vers_row = DATA_VERSIONED;
+				vers_period_row = DATA_VERSIONED;
+			}
+		}
+		if (m_form->s->period.name) {
+			if (i == m_form->s->period.start_fieldno) {
+				vers_period_row |= DATA_PERIOD_START;
+			} else if (i == m_form->s->period.end_fieldno) {
+				vers_period_row |= DATA_PERIOD_END;
 			}
 		}
 
@@ -10833,7 +10840,7 @@ err_col:
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
 					| binary_type | long_true_varchar
-					| vers_row,
+					| vers_period_row,
 					charset_no),
 				col_len);
 		} else if (!omit_virtual) {
@@ -10843,7 +10850,7 @@ err_col:
 					(ulint) field->type()
 					| nulls_allowed | unsigned_type
 					| binary_type | long_true_varchar
-					| vers_row
+					| vers_period_row
 					| is_virtual,
 					charset_no),
 				col_len, i, 0);
@@ -11001,6 +11008,7 @@ create_index(
 		/* Only one of these can be specified at a time. */
 		ut_ad(~key->flags & (HA_SPATIAL | HA_FULLTEXT));
 		ut_ad(!(key->flags & HA_NOSAME));
+		ut_ad(!key->without_overlaps);
 		index = dict_mem_index_create(table, key->name.str,
 					      (key->flags & HA_SPATIAL)
 					      ? DICT_SPATIAL : DICT_FTS,
@@ -11034,6 +11042,11 @@ create_index(
 
 	if (key->flags & HA_NOSAME) {
 		ind_type |= DICT_UNIQUE;
+	}
+
+	if (key->without_overlaps) {
+		ut_ad(ind_type & DICT_UNIQUE);
+		ind_type |= DICT_PERIOD;
 	}
 
 	field_lengths = (ulint*) my_malloc(//PSI_INSTRUMENT_ME,
@@ -12290,6 +12303,41 @@ public:
 	const char* str() { return buf; }
 };
 
+static const unsigned MAX_COLS_PER_FK = 500;
+
+static const char *get_fk_column(dict_table_t *table, trx_t *trx,
+				 dict_foreign_t *foreign, FOREIGN_KEY_INFO *fk,
+				 const LEX_CSTRING &field_name,
+				 char *create_name,
+				 const char *operation,
+				 int ncol)
+{
+	const char *column_name= mem_heap_strdupl(foreign->heap,
+						  field_name.str,
+						  field_name.length);
+	bool success = find_col(table, &column_name);
+	if (!success) {
+		key_text k(fk);
+		ib_foreign_warn(trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
+				"%s table %s foreign key %s constraint failed."
+				" Column %s was not found.",
+				operation, create_name, k.str(),
+				column_name);
+
+		return NULL;
+	}
+	if (ncol >= MAX_COLS_PER_FK - 1) {
+		key_text k(fk);
+		ib_foreign_warn(trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
+				"%s table %s foreign key %s constraint failed."
+				" Too many columns: %u (%u allowed).",
+				operation, create_name, k.str(), ncol,
+				MAX_COLS_PER_FK);
+		return NULL;
+	}
+	return column_name;
+}
+
 /** Create InnoDB foreign keys from MySQL alter_info. Collect all
 dict_foreign_t items into local_fk_set and then add into system table.
 @return		DB_SUCCESS or specific error code */
@@ -12300,7 +12348,6 @@ create_table_info_t::create_foreign_keys()
 	dict_foreign_set_free local_fk_set_free(local_fk_set);
 	dberr_t		      error;
 	ulint		      number	      = 1;
-	static const unsigned MAX_COLS_PER_FK = 500;
 	const char*	      column_names[MAX_COLS_PER_FK];
 	const char*	      ref_column_names[MAX_COLS_PER_FK];
 	char		      create_name[MAX_TABLE_NAME_LEN + 1];
@@ -12382,7 +12429,7 @@ create_table_info_t::create_foreign_keys()
 		}
 
 		LEX_CSTRING*   col;
-		bool	       success;
+		bool	       success = true;
 
 		dict_foreign_t* foreign = dict_mem_foreign_create();
 		if (!foreign) {
@@ -12431,38 +12478,16 @@ create_table_info_t::create_foreign_keys()
 		List_iterator_fast<LEX_CSTRING> col_it(fk->foreign_fields);
 		unsigned			  i = 0, j = 0;
 		while ((col = col_it++)) {
-			column_names[i] = mem_heap_strdupl(
-				foreign->heap, col->str, col->length);
-			success = find_col(table, column_names + i);
-			if (!success) {
-				key_text k(fk);
-				ib_foreign_warn(
-					m_trx, DB_CANNOT_ADD_CONSTRAINT,
-					create_name,
-					"%s table %s foreign key %s constraint"
-					" failed. Column %s was not found.",
-					operation, create_name, k.str(),
-					column_names[i]);
-
-				return (DB_CANNOT_ADD_CONSTRAINT);
-			}
-			++i;
-			if (i >= MAX_COLS_PER_FK) {
-				key_text k(fk);
-				ib_foreign_warn(
-					m_trx, DB_CANNOT_ADD_CONSTRAINT,
-					create_name,
-					"%s table %s foreign key %s constraint"
-					" failed. Too many columns: %u (%u "
-					"allowed).",
-					operation, create_name, k.str(), i,
-					MAX_COLS_PER_FK);
-				return (DB_CANNOT_ADD_CONSTRAINT);
-			}
+			column_names[i] = get_fk_column(table, m_trx, foreign,
+							fk, *col, create_name,
+							operation, i);
+			if (column_names[i] == nullptr)
+				return DB_CANNOT_ADD_CONSTRAINT;
+			i++;
 		}
 
 		index = dict_foreign_find_index(
-			table, NULL, column_names, i, NULL, TRUE, FALSE,
+			table, NULL, column_names, i, NULL, true, FALSE, false,
 			&index_error, &err_col, &err_index);
 
 		if (!index) {
@@ -12485,6 +12510,7 @@ create_table_info_t::create_foreign_keys()
 
 		foreign->foreign_index = index;
 		foreign->n_fields      = (unsigned int)i;
+		foreign->has_period    = fk->has_period;
 
 		foreign->foreign_col_names = static_cast<const char**>(
 			mem_heap_alloc(foreign->heap, i * sizeof(void*)));
@@ -12540,22 +12566,24 @@ create_table_info_t::create_foreign_keys()
 			if (foreign->referenced_table) {
 				success = find_col(foreign->referenced_table,
 						   ref_column_names + j);
-				if (!success) {
-					key_text k(fk);
-					ib_foreign_warn(
-						m_trx,
-						DB_CANNOT_ADD_CONSTRAINT,
-						create_name,
-						"%s table %s foreign key %s "
-						"constraint failed. "
-						"Column %s was not found.",
-						operation, create_name,
-						k.str(), ref_column_names[j]);
-
-					return (DB_CANNOT_ADD_CONSTRAINT);
-				}
+				if (!success)
+					break;
 			}
 			++j;
+		}
+
+		if (!success)
+		{
+			key_text k(fk);
+			ib_foreign_warn(m_trx,
+					DB_CANNOT_ADD_CONSTRAINT, create_name,
+					"%s table %s foreign key %s "
+					"constraint failed. "
+					"Column %s was not found.",
+					operation, create_name,
+					k.str(), ref_column_names[j]);
+
+			return DB_CANNOT_ADD_CONSTRAINT;
 		}
 		/* See ER_WRONG_FK_DEF in mysql_prepare_create_table() */
 		ut_ad(i == j);
@@ -12568,8 +12596,8 @@ create_table_info_t::create_foreign_keys()
 			index = dict_foreign_find_index(
 				foreign->referenced_table, NULL,
 				ref_column_names, i, foreign->foreign_index,
-				TRUE, FALSE, &index_error, &err_col,
-				&err_index);
+				TRUE, FALSE, fk->has_period,
+				&index_error, &err_col, &err_index);
 
 			if (!index) {
 				key_text k(fk);
@@ -15509,6 +15537,9 @@ get_foreign_key_info(
 	}
 
 	f_key_info.referenced_key_name = referenced_key_name;
+	f_key_info.has_period = foreign->has_period;
+	bool has_period = f_key_info.has_period;
+
 	return pf_key_info;
 }
 

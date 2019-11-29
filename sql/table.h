@@ -1136,6 +1136,7 @@ struct st_cond_statistic;
 class SplM_opt_info;
 
 struct vers_select_conds_t;
+struct FOREIGN_KEY;
 
 struct TABLE
 {
@@ -1200,6 +1201,11 @@ public:
   Field *next_number_field;		/* Set if next_number is activated */
   Field *found_next_number_field;	/* Set on open */
   Virtual_column_info **check_constraints;
+
+  uint foreign_keys;
+  uint referenced_keys;
+  FOREIGN_KEY *foreign;
+  FOREIGN_KEY *referenced;
 
   /* Table's triggers, 0 if there are no of them */
   Table_triggers_list *triggers;
@@ -1719,10 +1725,23 @@ typedef struct st_foreign_key_info
   LEX_CSTRING *referenced_key_name;
   List<LEX_CSTRING> foreign_fields;
   List<LEX_CSTRING> referenced_fields;
+  bool has_period;
 } FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
 bool fk_modifies_child(enum_fk_option opt);
+
+struct FOREIGN_KEY
+{
+  uint foreign_key_nr;
+  uint referenced_key_nr;
+  KEY *foreign_key;
+  KEY *referenced_key;
+  uint fields_num;
+  bool has_period;
+  enum_fk_option update_method;
+  enum_fk_option delete_method;
+};
 
 class IS_table_read_plan;
 

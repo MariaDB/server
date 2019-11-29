@@ -2811,6 +2811,10 @@ dict_foreign_find_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
+	bool			check_period,
+					/*!< in: check if index contains
+					an application-time period
+					without overlaps*/
 	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
@@ -2834,7 +2838,7 @@ dict_foreign_find_index(
 		    && dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
 			    index, types_idx,
-			    check_charsets, check_null,
+			    check_charsets, check_null, check_period,
 			    error, err_col_no, err_index)) {
 			if (error) {
 				*error = FK_SUCCESS;
@@ -2946,7 +2950,7 @@ dict_foreign_add_to_cache(
 			ref_table, NULL,
 			for_in_cache->referenced_col_names,
 			for_in_cache->n_fields, for_in_cache->foreign_index,
-			check_charsets, false);
+			check_charsets, false, false);
 
 		if (index == NULL
 		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
@@ -2985,7 +2989,8 @@ dict_foreign_add_to_cache(
 			for_in_cache->referenced_index, check_charsets,
 			for_in_cache->type
 			& (DICT_FOREIGN_ON_DELETE_SET_NULL
-			   | DICT_FOREIGN_ON_UPDATE_SET_NULL));
+			   | DICT_FOREIGN_ON_UPDATE_SET_NULL),
+                        false);
 
 		if (index == NULL
 		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
@@ -4436,7 +4441,7 @@ dict_foreign_replace_index(
 				foreign->foreign_col_names,
 				foreign->n_fields, index,
 				/*check_charsets=*/TRUE, /*check_null=*/FALSE,
-				NULL, NULL, NULL);
+				false, NULL, NULL, NULL);
 			if (new_index) {
 				ut_ad(new_index->table == index->table);
 				ut_ad(!new_index->to_be_dropped);
@@ -4461,7 +4466,7 @@ dict_foreign_replace_index(
 				foreign->referenced_col_names,
 				foreign->n_fields, index,
 				/*check_charsets=*/TRUE, /*check_null=*/FALSE,
-				NULL, NULL, NULL);
+				false, NULL, NULL, NULL);
 			/* There must exist an alternative index,
 			since this must have been checked earlier. */
 			if (new_index) {
@@ -4965,6 +4970,10 @@ dict_foreign_qualify_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
+	bool			check_period,
+					/*!< in: check if index contains
+					an application-time period
+					without overlaps*/
 	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
@@ -4975,6 +4984,26 @@ dict_foreign_qualify_index(
 {
 	if (dict_index_get_n_fields(index) < n_cols) {
 		return(false);
+	}
+
+	if (check_period) {
+		if ((index->type & DICT_PERIOD) == 0) {
+			return(false);
+		}
+
+		/* Despite it is theoretically possible to construct such
+		   an index with period not at the last positions,
+		   it is not supported at least for now.
+		*/
+		if (dict_index_get_n_ordering_defined_by_user(index) != n_cols){
+			return(false);
+		}
+		auto pstart = dict_index_get_nth_field(index, n_cols - 2);
+		auto pend = dict_index_get_nth_field(index, n_cols - 1);
+		if ((pstart->col->prtype & DATA_PERIOD_START) == 0
+		    || (pend->col->prtype & DATA_PERIOD_END) == 0) {
+			return false;
+		}
 	}
 
 	if (index->type & (DICT_SPATIAL | DICT_FTS)) {
