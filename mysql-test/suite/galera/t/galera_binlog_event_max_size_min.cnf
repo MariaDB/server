@@ -1,0 +1,9 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+binlog-row-event-max-size=256
+
+[mysqld.2]
+
+
+

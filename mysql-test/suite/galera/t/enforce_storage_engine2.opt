@@ -1,2 +1,0 @@
---enforce_storage_engine=innodb --sql_mode=''
-
