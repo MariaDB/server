@@ -9,7 +9,10 @@
 /*  Definitions needed by the included files.                          */
 /***********************************************************************/
 #if defined(MARIADB)
-#include <my_global.h> // All MariaDB stuff
+#include <my_global.h>    // All MariaDB stuff
+#if !defined(__WIN__) && !defined(REST_SOURCE)
+#include <dlfcn.h>         // dlopen(), dlclose(), dlsym() ...
+#endif
 #else   // !MARIADB       OEM module
 #include "mini-global.h"
 #define _MAX_PATH 260
