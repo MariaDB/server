@@ -1,3 +1,5 @@
+-- source include/not_embedded.inc
+
 --echo #
 --echo # MDEV-17088 Provide tools to encode/decode mysql-encoded file system names
 --echo #
