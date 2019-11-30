@@ -143,7 +143,13 @@ os_thread_create_func(
 	pthread_attr_t	attr;
 
 #ifndef UNIV_HPUX10
-	pthread_attr_init(&attr);
+	ret = pthread_attr_init(&attr);
+	if (UNIV_UNLIKELY(ret)) {
+		fprintf(stderr,
+			"InnoDB: Error: pthread_attr_init() returned %d\n",
+			ret);
+		exit(1);
+	}
 #endif
 
 #ifdef UNIV_AIX
@@ -171,7 +177,11 @@ os_thread_create_func(
 #else
 	ret = pthread_create(&pthread, &attr, func, arg);
 #endif
-	ut_a(ret == 0);
+	if (UNIV_UNLIKELY(ret)) {
+		fprintf(stderr,
+			"InnoDB: Error: pthread_create() returned %d\n", ret);
+		exit(1);
+	}
 
 #ifndef UNIV_HPUX10
 	pthread_attr_destroy(&attr);
