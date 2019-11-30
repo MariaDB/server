@@ -20,7 +20,7 @@
 #if defined(__WIN__)
 #include <sqlext.h>
 #else
-#include <dlfcn.h>          // dlopen(), dlclose(), dlsym() ...
+//#include <dlfcn.h>          // dlopen(), dlclose(), dlsym() ...
 #include "osutil.h"
 //#include "sqlext.h"
 #endif
