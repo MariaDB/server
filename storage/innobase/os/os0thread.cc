@@ -148,7 +148,7 @@ os_thread_create_func(
 		fprintf(stderr,
 			"InnoDB: Error: pthread_attr_init() returned %d\n",
 			ret);
-		exit(1);
+		abort();
 	}
 #endif
 
@@ -165,7 +165,7 @@ os_thread_create_func(
 		fprintf(stderr,
 			"InnoDB: Error: pthread_attr_setstacksize"
 			" returned %d\n", ret);
-		exit(1);
+		abort();
 	}
 #endif
 	os_mutex_enter(os_sync_mutex);
@@ -180,7 +180,7 @@ os_thread_create_func(
 	if (UNIV_UNLIKELY(ret)) {
 		fprintf(stderr,
 			"InnoDB: Error: pthread_create() returned %d\n", ret);
-		exit(1);
+		abort();
 	}
 
 #ifndef UNIV_HPUX10
