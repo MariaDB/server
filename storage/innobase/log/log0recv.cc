@@ -1630,7 +1630,7 @@ parse_log:
 		ut_a(type == MLOG_COMP_REC_MIN_MARK || !page_zip);
 		ptr = btr_parse_set_min_rec_mark(
 			ptr, end_ptr, type == MLOG_COMP_REC_MIN_MARK,
-			page, mtr);
+			block, mtr);
 		break;
 	case MLOG_REC_DELETE: case MLOG_COMP_REC_DELETE:
 		ut_ad(!page || fil_page_type_is_index(page_type));

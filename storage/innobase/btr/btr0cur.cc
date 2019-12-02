@@ -6069,7 +6069,7 @@ discard_page:
 				    offsets, mtr);
 
 		if (min_mark_next_rec) {
-			btr_set_min_rec_mark(next_rec, mtr);
+			btr_set_min_rec_mark(next_rec, *block, mtr);
 		}
 
 #ifdef UNIV_ZIP_DEBUG

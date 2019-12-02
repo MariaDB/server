@@ -3263,24 +3263,6 @@ void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
 }
 
 /****************************************************************//**
-Writes the redo log record for setting an index record as the predefined
-minimum record. */
-UNIV_INLINE
-void
-btr_set_min_rec_mark_log(
-/*=====================*/
-	rec_t*		rec,	/*!< in: record */
-	mlog_id_t	type,	/*!< in: MLOG_COMP_REC_MIN_MARK or
-				MLOG_REC_MIN_MARK */
-	mtr_t*		mtr)	/*!< in: mtr */
-{
-	mlog_write_initial_log_record(rec, type, mtr);
-
-	/* Write rec offset as a 2-byte ulint */
-	mlog_catenate_ulint(mtr, page_offset(rec), MLOG_2BYTES);
-}
-
-/****************************************************************//**
 Parses the redo log record for setting an index record as the predefined
 minimum record.
 @return end of log record or NULL */
@@ -3290,7 +3272,7 @@ btr_parse_set_min_rec_mark(
 	const byte*	ptr,	/*!< in: buffer */
 	const byte*	end_ptr,/*!< in: buffer end */
 	ulint		comp,	/*!< in: nonzero=compact page format */
-	page_t*		page,	/*!< in: page or NULL */
+	buf_block_t*	block,	/*!< in: page or NULL */
 	mtr_t*		mtr)	/*!< in: mtr or NULL */
 {
 	rec_t*	rec;
@@ -3300,37 +3282,15 @@ btr_parse_set_min_rec_mark(
 		return(NULL);
 	}
 
-	if (page) {
-		ut_a(!page_is_comp(page) == !comp);
+	if (block) {
+		ut_a(!page_is_comp(block->frame) == !comp);
 
-		rec = page + mach_read_from_2(ptr);
+		rec = block->frame + mach_read_from_2(ptr);
 
-		btr_set_min_rec_mark(rec, mtr);
+		btr_set_min_rec_mark(rec, *block, mtr);
 	}
 
 	return(ptr + 2);
-}
-
-/** Sets a record as the predefined minimum record. */
-void btr_set_min_rec_mark(rec_t* rec, mtr_t* mtr)
-{
-	const bool comp = page_rec_is_comp(rec);
-
-	ut_ad(rec == page_rec_get_next_const(page_get_infimum_rec(
-						     page_align(rec))));
-	ut_ad(!(rec_get_info_bits(page_rec_get_next(rec), comp)
-		& REC_INFO_MIN_REC_FLAG));
-
-	size_t info_bits = rec_get_info_bits(rec, comp);
-	if (comp) {
-		rec_set_info_bits_new(rec, info_bits | REC_INFO_MIN_REC_FLAG);
-
-		btr_set_min_rec_mark_log(rec, MLOG_COMP_REC_MIN_MARK, mtr);
-	} else {
-		rec_set_info_bits_old(rec, info_bits | REC_INFO_MIN_REC_FLAG);
-
-		btr_set_min_rec_mark_log(rec, MLOG_REC_MIN_MARK, mtr);
-	}
 }
 
 /*************************************************************//**
@@ -4258,7 +4218,7 @@ btr_discard_page(
 		because everything will take place within a single
 		mini-transaction and because writing to the redo log
 		is an atomic operation (performed by mtr_commit()). */
-		btr_set_min_rec_mark(node_ptr, mtr);
+		btr_set_min_rec_mark(node_ptr, *block, mtr);
 	}
 
 	if (dict_index_is_spatial(index)) {

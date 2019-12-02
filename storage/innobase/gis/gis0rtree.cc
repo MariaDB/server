@@ -446,7 +446,7 @@ update_mbr:
 		if (!ins_suc) {
 			ut_ad(rec_info & REC_INFO_MIN_REC_FLAG);
 
-			btr_set_min_rec_mark(next_rec, mtr);
+			btr_set_min_rec_mark(next_rec, *block, mtr);
 		}
 
 		/* If there's more than 1 rec left in the page, delete
@@ -468,7 +468,7 @@ update_mbr:
 				mark the new leftmost node pointer as
 				the predefined minimum record */
 				rec_t*	next_rec = page_rec_get_next(cur2_rec);
-				btr_set_min_rec_mark(next_rec, mtr);
+				btr_set_min_rec_mark(next_rec, *block, mtr);
 			}
 
 			ut_ad(del_page_no
@@ -572,7 +572,7 @@ update_mbr:
 				mark the new leftmost node pointer as
 				the predefined minimum record */
 				rec_t*	next_rec = page_rec_get_next(cur2_rec);
-				btr_set_min_rec_mark(next_rec, mtr);
+				btr_set_min_rec_mark(next_rec, *block, mtr);
 			}
 
 			ut_ad(cur2_pno == del_page_no && cur2_rec != insert_rec);
