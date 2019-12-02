@@ -228,6 +228,21 @@ for system_time all as t;
 create or replace table t1 (x int) with system versioning engine myisam;
 --error ER_VERS_ENGINE_UNSUPPORTED
 select * from t1 for system_time as of transaction 1;
+--echo # MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+create or replace procedure sp()
+select * from t1 for system_time as of transaction 1;
+--error ER_VERS_ENGINE_UNSUPPORTED
+call sp;
+--error ER_VERS_ENGINE_UNSUPPORTED
+call sp;
+create or replace table t1 (a int);
+create or replace procedure sp()
+select * from t1 for system_time all;
+--error ER_VERS_NOT_VERSIONED
+call sp;
+--error ER_VERS_NOT_VERSIONED
+call sp;
+drop procedure sp;
 
 create or replace table t1 (
   x int,
