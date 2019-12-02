@@ -1462,10 +1462,8 @@ parse_log:
 		}
 #endif /* UNIV_DEBUG */
 		ptr = mlog_parse_nbytes(type, ptr, end_ptr, page, page_zip);
-		if (ptr != NULL && page != NULL
-		    && page_no == 0 && type == MLOG_4BYTES) {
-			ulint	offs = mach_read_from_2(old_ptr);
-			switch (offs) {
+		if (ptr && page && !page_no && type == MLOG_4BYTES) {
+			switch (ulint offs = mach_read_from_2(old_ptr)) {
 				fil_space_t*	space;
 				ulint		val;
 			default:
@@ -1662,6 +1660,25 @@ parse_log:
 		this record yet. */
 		break;
 	case MLOG_WRITE_STRING:
+		if (page_no || mach_read_from_2(ptr + 2)
+		    != 11 + MY_AES_BLOCK_SIZE) {
+			/* Not writing crypt_info */
+		} else if (fil_space_t* space
+			   = fil_space_acquire_silent(space_id)) {
+			if (mach_read_from_2(ptr)
+			    == FSP_HEADER_OFFSET + XDES_ARR_OFFSET + MAGIC_SZ
+			    + space->physical_size() * XDES_SIZE
+			    / FSP_EXTENT_SIZE
+			    && (ptr[4] == CRYPT_SCHEME_UNENCRYPTED
+				|| ptr[4] == CRYPT_SCHEME_1)
+			    && ptr[5] == MY_AES_BLOCK_SIZE
+			    && ptr[6 + MY_AES_BLOCK_SIZE + 4 + 4]
+			    <= FIL_ENCRYPTION_OFF) {
+				/* from fil_space_crypt_t::write_page0() */
+				fil_crypt_parse(space, ptr + 4);
+			}
+			space->release();
+		}
 		ptr = mlog_parse_string(ptr, end_ptr, page, page_zip);
 		break;
 	case MLOG_ZIP_WRITE_NODE_PTR:

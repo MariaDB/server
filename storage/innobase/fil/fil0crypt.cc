@@ -321,7 +321,6 @@ fil_space_crypt_t* fil_space_read_crypt_data(ulint zip_size, const byte* page)
 	members */
 	crypt_data->type = type;
 	crypt_data->min_key_version = min_key_version;
-	crypt_data->page0_offset = offset;
 	memcpy(crypt_data->iv, page + offset + MAGIC_SZ + 2, iv_length);
 
 	return crypt_data;
@@ -354,6 +353,34 @@ fil_space_destroy_crypt_data(
 	}
 }
 
+/** Amend encryption information from redo log.
+@param[in]	space	tablespace
+@param[in]	data	encryption metadata */
+void fil_crypt_parse(fil_space_t* space, const byte* data)
+{
+	ut_ad(data[1] == MY_AES_BLOCK_SIZE);
+	if (void* buf = ut_zalloc_nokey(sizeof(fil_space_crypt_t))) {
+		fil_space_crypt_t* crypt_data = new(buf)
+			fil_space_crypt_t(
+				data[0],
+				mach_read_from_4(&data[2 + MY_AES_BLOCK_SIZE]),
+				mach_read_from_4(&data[6 + MY_AES_BLOCK_SIZE]),
+				static_cast<fil_encryption_t>
+				(data[10 + MY_AES_BLOCK_SIZE]));
+		memcpy(crypt_data->iv, data + 2, MY_AES_BLOCK_SIZE);
+		mutex_enter(&fil_system.mutex);
+		if (space->crypt_data) {
+			fil_space_merge_crypt_data(space->crypt_data,
+						   crypt_data);
+			fil_space_destroy_crypt_data(&crypt_data);
+			crypt_data = space->crypt_data;
+		} else {
+			space->crypt_data = crypt_data;
+		}
+		mutex_exit(&fil_system.mutex);
+	}
+}
+
 /** Fill crypt data information to the give page.
 It should be called during ibd file creation.
 @param[in]	flags	tablespace flags
@@ -367,7 +394,6 @@ fil_space_crypt_t::fill_page0(
 	const ulint offset = FSP_HEADER_OFFSET
 		+ fsp_header_get_encryption_offset(
 			fil_space_t::zip_size(flags));
-	page0_offset = offset;
 
 	memcpy(page + offset, CRYPT_MAGIC, MAGIC_SZ);
 	mach_write_to_1(page + offset + MAGIC_SZ, type);
@@ -395,53 +421,29 @@ fil_space_crypt_t::write_page0(
 	mtr_t*			mtr)
 {
 	ut_ad(this == space->crypt_data);
-	const uint len = sizeof(iv);
 	const ulint offset = FSP_HEADER_OFFSET
 		+ fsp_header_get_encryption_offset(space->zip_size());
-	page0_offset = offset;
+	byte* b = page + offset;
 
-	/*
-	redo log this as bytewise updates to page 0
-	followed by an MLOG_FILE_WRITE_CRYPT_DATA
-	(that will during recovery update fil_space_t)
-	*/
-	mlog_write_string(page + offset, CRYPT_MAGIC, MAGIC_SZ, mtr);
-	mlog_write_ulint(page + offset + MAGIC_SZ + 0, type, MLOG_1BYTE, mtr);
-	mlog_write_ulint(page + offset + MAGIC_SZ + 1, len, MLOG_1BYTE, mtr);
-	mlog_write_string(page + offset + MAGIC_SZ + 2, iv, len,
-			  mtr);
-	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len, min_key_version,
-			 MLOG_4BYTES, mtr);
-	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len + 4, key_id,
-			 MLOG_4BYTES, mtr);
-	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len + 8, encryption,
-		MLOG_1BYTE, mtr);
-
-	byte* log_ptr = mlog_open(mtr, 11 + 17 + len);
-
-	if (log_ptr != NULL) {
-		log_ptr = mlog_write_initial_log_record_fast(
-			page,
-			MLOG_FILE_WRITE_CRYPT_DATA,
-			log_ptr, mtr);
-		mach_write_to_4(log_ptr, space->id);
-		log_ptr += 4;
-		mach_write_to_2(log_ptr, offset);
-		log_ptr += 2;
-		mach_write_to_1(log_ptr, type);
-		log_ptr += 1;
-		mach_write_to_1(log_ptr, len);
-		log_ptr += 1;
-		mach_write_to_4(log_ptr, min_key_version);
-		log_ptr += 4;
-		mach_write_to_4(log_ptr, key_id);
-		log_ptr += 4;
-		mach_write_to_1(log_ptr, encryption);
-		log_ptr += 1;
-		mlog_close(mtr, log_ptr);
-
-		mlog_catenate_string(mtr, iv, len);
+	if (memcmp(b, CRYPT_MAGIC, MAGIC_SZ)) {
+		mlog_write_string(b, CRYPT_MAGIC, MAGIC_SZ, mtr);
 	}
+
+	b += MAGIC_SZ;
+	byte* const start = b;
+	*b++ = static_cast<byte>(type);
+	compile_time_assert(sizeof iv == MY_AES_BLOCK_SIZE);
+	compile_time_assert(sizeof iv == CRYPT_SCHEME_1_IV_LEN);
+	*b++ = sizeof iv;
+	memcpy(b, iv, sizeof iv);
+	b += sizeof iv;
+	mach_write_to_4(b, min_key_version);
+	b += 4;
+	mach_write_to_4(b, key_id);
+	b += 4;
+	*b++ = byte(encryption);
+	ut_ad(b - start == 11 + MY_AES_BLOCK_SIZE);
+	mlog_log_string(start, b - start, mtr);
 }
 
 /******************************************************************
@@ -475,7 +477,7 @@ fil_parse_write_crypt_data(
 
 	ulint space_id = mach_read_from_4(ptr);
 	ptr += 4;
-	uint offset = mach_read_from_2(ptr);
+	// uint offset = mach_read_from_2(ptr);
 	ptr += 2;
 	uint type = mach_read_from_1(ptr);
 	ptr += 1;
@@ -513,7 +515,6 @@ fil_parse_write_crypt_data(
 	fil_space_crypt_t* crypt_data = fil_space_create_crypt_data(
 		encryption, key_id);
 
-	crypt_data->page0_offset = offset;
 	crypt_data->min_key_version = min_key_version;
 	crypt_data->type = type;
 	memcpy(crypt_data->iv, ptr, len);
