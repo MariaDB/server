@@ -4688,6 +4688,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   cond_selectivity_sampling_explain= NULL;
   vers_write= s->versioned;
   quick_condition_rows=0;
+  no_cache= false;
   initialize_quick_structures();
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */

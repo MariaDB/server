@@ -1536,8 +1536,15 @@ public:
     return s->versioned == type;
   }
 
-  bool versioned_write(vers_sys_type_t type= VERS_UNDEFINED) const
+  bool versioned_write() const
   {
+    DBUG_ASSERT(versioned() || !vers_write);
+    return versioned() ? vers_write : false;
+  }
+
+  bool versioned_write(vers_sys_type_t type) const
+  {
+    DBUG_ASSERT(type);
     DBUG_ASSERT(versioned() || !vers_write);
     return versioned(type) ? vers_write : false;
   }
@@ -1556,6 +1563,8 @@ public:
 
   ulonglong vers_start_id() const;
   ulonglong vers_end_id() const;
+
+  bool vers_check_update(List<Item> &items);
 
   int delete_row();
   void vers_update_fields();
