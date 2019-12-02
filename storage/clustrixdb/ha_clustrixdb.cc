@@ -381,6 +381,13 @@ int ha_clustrixdb::rename_table(const char* from, const char* to)
   return trx->run_query(rename_cmd);
 }
 
+static void
+clustrixdb_mark_table_for_discovery(TABLE *table)
+{
+  table->s->tabledef_version.str = NULL;
+  table->s->tabledef_version.length = 0;
+  table->m_needs_reopen = TRUE;
+}
 
 int ha_clustrixdb::open(const char *name, int mode, uint test_if_locked)
 {
@@ -389,7 +396,7 @@ int ha_clustrixdb::open(const char *name, int mode, uint test_if_locked)
              ("%s", table->s->tabledef_version.str));
 
   if (!table->s->tabledef_version.str)
-    return HA_ERR_TABLE_DEF_CHANGED;
+    DBUG_RETURN(HA_ERR_TABLE_DEF_CHANGED);
   if (!clustrix_table_oid)
     clustrix_table_oid = atoll((const char *)table->s->tabledef_version.str);
 
@@ -488,10 +495,13 @@ int ha_clustrixdb::write_row(const uchar *buf)
     insert_id_for_cur_row = last_insert_id;
 
 err:
-    if (packed_size)
-      my_afree(packed_new_row);
+  if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+    clustrixdb_mark_table_for_discovery(table);
 
-    return error_code;
+  if (packed_size)
+    my_afree(packed_new_row);
+
+  return error_code;
 }
 
 int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
@@ -523,6 +533,9 @@ int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
 
   if(packed_new_row)
     my_afree(packed_new_row);
+
+  if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+    clustrixdb_mark_table_for_discovery(table);
 
   DBUG_RETURN(error_code);
 }
@@ -603,13 +616,13 @@ int ha_clustrixdb::delete_row(const uchar *buf)
   build_key_packed_row(table->s->primary_key, table->record[0],
                        packed_key, &packed_key_len);
 
-  if ((error_code = trx->key_delete(clustrix_table_oid,
-                                    packed_key, packed_key_len)))
-    goto err;
+  error_code = trx->key_delete(clustrix_table_oid, packed_key, packed_key_len);
 
-err:
-    if (packed_key)
-      my_afree(packed_key);
+  if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+    clustrixdb_mark_table_for_discovery(table);
+
+  if (packed_key)
+    my_afree(packed_key);
 
   return error_code;
 }
@@ -776,6 +789,9 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
   if (packed_key)
     my_afree(packed_key);
 
+  if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+    clustrixdb_mark_table_for_discovery(table);
+
   if (error_code)
     DBUG_RETURN(error_code);
 
@@ -791,10 +807,15 @@ int ha_clustrixdb::index_first(uchar *buf)
   if (!trx)
     DBUG_RETURN(error_code);
 
-  if ((error_code = trx->scan_from_key(clustrix_table_oid, active_index,
-                                       clustrix_connection::READ_FROM_START,
-                                       sorted_scan, &scan_fields, NULL, 0,
-                                       THDVAR(thd, row_buffer), &scan_cur)))
+  error_code = trx->scan_from_key(clustrix_table_oid, active_index,
+                                  clustrix_connection::READ_FROM_START,
+                                  sorted_scan, &scan_fields, NULL, 0,
+                                  THDVAR(thd, row_buffer), &scan_cur);
+
+  if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+    clustrixdb_mark_table_for_discovery(table);
+
+  if (error_code)
     DBUG_RETURN(error_code);
 
   DBUG_RETURN(rnd_next(buf));
@@ -809,10 +830,15 @@ int ha_clustrixdb::index_last(uchar *buf)
   if (!trx)
     DBUG_RETURN(error_code);
 
-  if ((error_code = trx->scan_from_key(clustrix_table_oid, active_index,
-                                       clustrix_connection::READ_FROM_LAST,
-                                       sorted_scan, &scan_fields, NULL, 0,
-                                       THDVAR(thd, row_buffer), &scan_cur)))
+  error_code = trx->scan_from_key(clustrix_table_oid, active_index,
+                                  clustrix_connection::READ_FROM_LAST,
+                                  sorted_scan, &scan_fields, NULL, 0,
+                                  THDVAR(thd, row_buffer), &scan_cur);
+
+  if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+    clustrixdb_mark_table_for_discovery(table);
+
+  if (error_code)
     DBUG_RETURN(error_code);
 
   DBUG_RETURN(rnd_next(buf));
@@ -878,10 +904,15 @@ int ha_clustrixdb::rnd_init(bool scan)
   bitmap_set_all(&scan_fields);
 #endif
 
-  if ((error_code = trx->scan_table(clustrix_table_oid, 0,
-                                    clustrix_connection::SORT_NONE,
-                                    &scan_fields, THDVAR(thd, row_buffer),
-                                    &scan_cur)))
+  error_code = trx->scan_table(clustrix_table_oid, 0,
+                               clustrix_connection::SORT_NONE,
+                               &scan_fields, THDVAR(thd, row_buffer),
+                               &scan_cur);
+
+  if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+    clustrixdb_mark_table_for_discovery(table);
+
+  if (error_code)
     DBUG_RETURN(error_code);
 
   DBUG_RETURN(0);
@@ -969,6 +1000,9 @@ err:
 
   if (packed_key)
     my_afree(packed_key);
+
+  if (error_code == HA_ERR_TABLE_DEF_CHANGED)
+    clustrixdb_mark_table_for_discovery(table);
 
   DBUG_RETURN(error_code);
 }
