@@ -7,14 +7,20 @@
 --source include/galera_cluster.inc
 
 --connection node_1
+SET SESSION wsrep_on=OFF;
 RESET MASTER;
+SET SESSION wsrep_on=ON;
 
+--disable_warnings
 SET SESSION binlog_format = 'STATEMENT';
+--enable_warnings
 
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 
+--disable_warnings
 SET SESSION binlog_format = 'MIXED';
+--enable_warnings
 
 INSERT INTO t1 VALUES (2);
 

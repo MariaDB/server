@@ -12712,12 +12712,15 @@ bool create_table_info_t::row_size_is_acceptable(
     const size_t idx= info.get_first_overrun_field_index();
     const dict_field_t *field= dict_index_get_nth_field(&index, idx);
 
-    ib::error_or_warn(strict)
-        << "Cannot add field " << field->name << " in table "
-        << index.table->name << " because after adding it, the row size is "
-        << info.get_overrun_size()
-        << " which is greater than maximum allowed size ("
-        << info.max_leaf_size << " bytes) for a record on index leaf page.";
+    if (strict || global_system_variables.log_warnings > 2)
+    {
+      ib::error_or_warn(strict)
+          << "Cannot add field " << field->name << " in table "
+          << index.table->name << " because after adding it, the row size is "
+          << info.get_overrun_size()
+          << " which is greater than maximum allowed size ("
+          << info.max_leaf_size << " bytes) for a record on index leaf page.";
+    }
 
     if (strict)
     {

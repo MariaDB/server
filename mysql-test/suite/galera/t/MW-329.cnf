@@ -1,0 +1,9 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+wsrep-retry-autocommit=0
+
+[mysqld.2]
+
+
+

@@ -1,0 +1,13 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+wsrep_notify_cmd=$MYSQL_TEST_DIR/std_data/wsrep_notify.sh
+wsrep-sync-wait=0
+
+[mysqld.2]
+
+
+
+
+
+

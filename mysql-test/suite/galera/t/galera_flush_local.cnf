@@ -1,0 +1,12 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+query_cache_type=1
+query_cache_size=1000000
+wsrep_replicate_myisam=ON
+
+[mysqld.2]
+query_cache_type=1
+query_cache_size=1000000
+wsrep_replicate_myisam=ON
+
