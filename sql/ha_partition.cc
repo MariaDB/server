@@ -10697,8 +10697,8 @@ int ha_partition::indexes_are_disabled(void)
   @param repair        If true, move misplaced rows to correct partition.
 
   @return Operation status.
-    @retval 0     Success
-    @retval != 0  Error
+    @retval HA_ADMIN_OK     Success
+    @retval != HA_ADMIN_OK  Error
 */
 
 int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
@@ -10711,6 +10711,17 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
   DBUG_ENTER("ha_partition::check_misplaced_rows");
 
   DBUG_ASSERT(m_file);
+
+  if (m_part_info->vers_info &&
+      read_part_id != m_part_info->vers_info->now_part->id &&
+      !m_part_info->vers_info->interval.is_set())
+  {
+    print_admin_msg(ha_thd(), MYSQL_ERRMSG_SIZE, "note",
+                    table_share->db.str, table->alias,
+                    opt_op_name[CHECK_PARTS],
+                    "Not supported for non-INTERVAL history partitions");
+    DBUG_RETURN(HA_ADMIN_NOT_IMPLEMENTED);
+  }
 
   if (do_repair)
   {
