@@ -931,6 +931,16 @@ enum tablespace_access_mode
   TS_NOT_ACCESSIBLE = 2
 };
 
+/* Statistics about batch operations like bulk_insert */
+struct ha_copy_info
+{
+  ha_rows records;        /* Used to check if rest of variables can be used */
+  ha_rows touched;
+  ha_rows copied;
+  ha_rows deleted;
+  ha_rows updated;
+};
+
 struct handlerton;
 class st_alter_tablespace : public Sql_alloc
 {
@@ -3065,6 +3075,7 @@ public:
   ulonglong rows_changed;
   /* One bigger than needed to avoid to test if key == MAX_KEY */
   ulonglong index_rows_read[MAX_KEY+1];
+  ha_copy_info copy_info;
 
 private:
   /* ANALYZE time tracker, if present */
@@ -3280,6 +3291,7 @@ public:
   {
     DBUG_ENTER("handler::ha_start_bulk_insert");
     estimation_rows_to_insert= rows;
+    bzero(&copy_info,sizeof(copy_info));
     start_bulk_insert(rows, flags);
     DBUG_VOID_RETURN;
   }
@@ -3351,6 +3363,13 @@ public:
   {
     rows_read= rows_changed= rows_tmp_read= 0;
     bzero(index_rows_read, sizeof(index_rows_read));
+    bzero(&copy_info, sizeof(copy_info));
+  }
+  virtual void reset_copy_info() {}
+  void ha_reset_copy_info()
+  {
+    bzero(&copy_info, sizeof(copy_info));
+    reset_copy_info();
   }
   virtual void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share)
   {
@@ -4584,7 +4603,7 @@ private:
 
   /* Perform initialization for a direct update request */
 public:
-  int ha_direct_update_rows(ha_rows *update_rows);
+  int ha_direct_update_rows(ha_rows *update_rows, ha_rows *found_rows);
   virtual int direct_update_rows_init(List<Item> *update_fields)
   {
     return HA_ERR_WRONG_COMMAND;
@@ -4594,7 +4613,8 @@ private:
   {
     return HA_ERR_WRONG_COMMAND;
   }
-  virtual int direct_update_rows(ha_rows *update_rows __attribute__((unused)))
+  virtual int direct_update_rows(ha_rows *update_rows __attribute__((unused)),
+                                 ha_rows *found_rows __attribute__((unused)))
   {
     return HA_ERR_WRONG_COMMAND;
   }

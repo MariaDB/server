@@ -184,6 +184,11 @@ static uchar SPIDER_SQL_LINESTRING_HEAD_STR[] =
   {0x00,0x00,0x00,0x00,0x01,0x02,0x00,0x00,0x00,0x02,0x00,0x00,0x00};
 #define SPIDER_SQL_LINESTRING_HEAD_LEN sizeof(SPIDER_SQL_LINESTRING_HEAD_STR)
 
+#define SPIDER_SQL_DIRECT_INSERT_KIND_INSERT     0
+#define SPIDER_SQL_DIRECT_INSERT_KIND_REPLACE    1
+#define SPIDER_SQL_DIRECT_INSERT_KIND_IGNORE     2
+#define SPIDER_SQL_DIRECT_INSERT_KIND_DUP_UPDATE 3
+
 static const char *spider_db_table_lock_str[] =
 {
   " read local,",
@@ -2442,6 +2447,81 @@ uint spider_db_mbase::affected_rows()
   last_used_con = db_conn;
 #endif
   DBUG_RETURN((uint) last_used_con->affected_rows);
+}
+
+uint spider_db_mbase::matched_rows()
+{
+  MYSQL *last_used_con;
+  DBUG_ENTER("spider_db_mysql::matched_rows");
+  DBUG_PRINT("info", ("spider this=%p", this));
+#if MYSQL_VERSION_ID < 50500
+  last_used_con = db_conn->last_used_con;
+#else
+  last_used_con = db_conn;
+#endif
+  /* Rows matched: 65 Changed: 65 Warnings: 0 */
+  const char *info = last_used_con->info;
+  if (!info)
+    DBUG_RETURN(0);
+  DBUG_PRINT("info", ("spider info=%s", info));
+  const char *begin = strstr(info, "Rows matched: ");
+  if (!begin)
+    DBUG_RETURN(0);
+  DBUG_RETURN(atoi(begin + strlen("Rows matched: ")));
+}
+
+bool spider_db_mbase::inserted_info(
+  spider_db_handler *handler,
+  ha_copy_info *copy_info
+) {
+  MYSQL *last_used_con;
+  uchar direct_insert_kind =
+    ((spider_mbase_handler *) handler)->direct_insert_kind;
+  DBUG_ENTER("spider_db_mysql::inserted_info");
+  DBUG_PRINT("info", ("spider this=%p", this));
+  if (direct_insert_kind == SPIDER_SQL_DIRECT_INSERT_KIND_INSERT)
+  {
+    DBUG_RETURN(TRUE);
+  }
+#if MYSQL_VERSION_ID < 50500
+  last_used_con = db_conn->last_used_con;
+#else
+  last_used_con = db_conn;
+#endif
+  /* Records: 10  Duplicates: 4  Warnings: 0 */
+  const char *info = last_used_con->info;
+  if (!info)
+    DBUG_RETURN(FALSE);
+  DBUG_PRINT("info", ("spider info=%s", info));
+  const char *begin = strstr(info, "Records: ");
+  if (!begin)
+    DBUG_RETURN(FALSE);
+  begin += strlen("Records: ");
+  uint records = atoi(begin);
+  begin = strstr(begin, "Duplicates: ");
+  if (!begin)
+    DBUG_RETURN(FALSE);
+  uint duplicates = atoi(begin + strlen("Duplicates: "));
+  copy_info->records+= records;
+  switch (direct_insert_kind)
+  {
+    case SPIDER_SQL_DIRECT_INSERT_KIND_IGNORE:
+      copy_info->copied+= duplicates;
+      break;
+    case SPIDER_SQL_DIRECT_INSERT_KIND_REPLACE:
+      copy_info->copied+= records;
+      copy_info->deleted+= duplicates;
+      break;
+    case SPIDER_SQL_DIRECT_INSERT_KIND_DUP_UPDATE:
+      copy_info->touched+= (last_used_con->affected_rows - (duplicates * 2));
+      copy_info->copied+= (last_used_con->affected_rows - duplicates);
+      copy_info->updated+= duplicates;
+      break;
+    default:
+      DBUG_ASSERT(0);
+      DBUG_RETURN(FALSE);
+  }
+  DBUG_RETURN(TRUE);
 }
 
 ulonglong spider_db_mbase::last_insert_id()
@@ -9017,6 +9097,7 @@ int spider_mbase_handler::append_insert(
 ) {
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_mbase_handler::append_insert");
+  direct_insert_kind = SPIDER_SQL_DIRECT_INSERT_KIND_INSERT;
   if (
     (
       spider->write_can_replace ||
@@ -9026,6 +9107,7 @@ int spider_mbase_handler::append_insert(
     ) &&
     spider->direct_dup_insert
   ) {
+    direct_insert_kind = SPIDER_SQL_DIRECT_INSERT_KIND_REPLACE;
     if (str->reserve(SPIDER_SQL_REPLACE_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_REPLACE_STR, SPIDER_SQL_REPLACE_LEN);
@@ -9073,6 +9155,7 @@ int spider_mbase_handler::append_insert(
     spider->sql_command != SQLCOM_REPLACE &&
     spider->sql_command != SQLCOM_REPLACE_SELECT
   ) {
+    direct_insert_kind = SPIDER_SQL_DIRECT_INSERT_KIND_IGNORE;
     if (str->reserve(SPIDER_SQL_SQL_IGNORE_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_SQL_IGNORE_STR, SPIDER_SQL_SQL_IGNORE_LEN);
@@ -11911,6 +11994,7 @@ int spider_mbase_handler::append_insert_terminator(
     dup_update_sql.length()
   ) {
     DBUG_PRINT("info",("spider add duplicate key update"));
+    direct_insert_kind = SPIDER_SQL_DIRECT_INSERT_KIND_DUP_UPDATE;
     str->length(str->length() - SPIDER_SQL_COMMA_LEN);
     if (str->reserve(SPIDER_SQL_DUPLICATE_KEY_UPDATE_LEN +
       dup_update_sql.length()))

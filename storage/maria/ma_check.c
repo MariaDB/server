@@ -6195,7 +6195,7 @@ end:
 }
 
 
-	/* write suffix to data file if neaded */
+/* Write suffix to data file if needed */
 
 int maria_write_data_suffix(MARIA_SORT_INFO *sort_info, my_bool fix_datafile)
 {

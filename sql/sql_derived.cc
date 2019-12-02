@@ -726,12 +726,27 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   {
     /*
        System versioned tables may still require to get versioning conditions
-       (when updating view). See vers_setup_conds().
+       when modifying view (see vers_setup_conds()). Only UPDATE and DELETE are
+       affected because they use WHERE condition.
     */
     if (!unit->prepared &&
         derived->table->versioned() &&
-        (res= unit->prepare(derived, derived->derived_result, 0)))
-      goto exit;
+        derived->merge_underlying_list &&
+        /* choose only those merged views that do not select from other views */
+        !derived->merge_underlying_list->merge_underlying_list)
+    {
+      switch (thd->lex->sql_command)
+      {
+      case SQLCOM_DELETE:
+      case SQLCOM_DELETE_MULTI:
+      case SQLCOM_UPDATE:
+      case SQLCOM_UPDATE_MULTI:
+        if ((res= unit->prepare(derived, derived->derived_result, 0)))
+          goto exit;
+      default:
+        break;
+      }
+    }
     DBUG_RETURN(FALSE);
   }
 
@@ -881,7 +896,7 @@ exit:
   {
     if (!derived->is_with_table_recursive_reference())
     {
-      if (derived->table)
+      if (derived->table && derived->table->s->tmp_table)
         free_tmp_table(thd, derived->table);
       delete derived->derived_result;
     }

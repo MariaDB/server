@@ -896,9 +896,7 @@ bool skip_setup_conds(THD *thd)
 int SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables)
 {
   DBUG_ENTER("SELECT_LEX::period_setup_conds");
-
-  if (skip_setup_conds(thd))
-    DBUG_RETURN(0);
+  const bool update_conds= !skip_setup_conds(thd);
 
   Query_arena backup;
   Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
@@ -919,11 +917,15 @@ int SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables)
       DBUG_RETURN(-1);
     }
 
-    conds.period= &table->table->s->period;
-    result= and_items(thd, result,
-                      period_get_condition(thd, table, this, &conds, true));
+    if (update_conds)
+    {
+      conds.period= &table->table->s->period;
+      result= and_items(thd, result,
+                        period_get_condition(thd, table, this, &conds, true));
+    }
   }
-  where= and_items(thd, where, result);
+  if (update_conds)
+    where= and_items(thd, where, result);
 
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -934,9 +936,7 @@ int SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables)
 int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 {
   DBUG_ENTER("SELECT_LEX::vers_setup_conds");
-
-  if (skip_setup_conds(thd))
-    DBUG_RETURN(0);
+  const bool update_conds= !skip_setup_conds(thd);
 
   if (!versioned_tables)
   {
@@ -1007,13 +1007,15 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       */
       if (table->partition_names && table->table->part_info->vers_info)
       {
-        if (vers_conditions.is_set())
+        /* If the history is stored in partitions, then partitions
+            themselves are not versioned. */
+        if (vers_conditions.was_set())
         {
           my_error(ER_VERS_QUERY_IN_PARTITION, MYF(0), table->alias.str);
           DBUG_RETURN(-1);
         }
-        else
-          vers_conditions.init(SYSTEM_TIME_ALL);
+        else if (!vers_conditions.is_set())
+          vers_conditions.set_all();
       }
 #endif
 
@@ -1058,24 +1060,27 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       }
     }
 
-    vers_conditions.period = &table->table->s->vers;
-    Item *cond= period_get_condition(thd, table, this, &vers_conditions,
-                                     timestamps_only);
-    if (is_select)
-      table->on_expr= and_items(thd, table->on_expr, cond);
-    else
+    if (update_conds)
     {
-      if (join)
-      {
-        where= and_items(thd, join->conds, cond);
-        join->conds= where;
-      }
+      vers_conditions.period = &table->table->s->vers;
+      Item *cond= period_get_condition(thd, table, this, &vers_conditions,
+                                      timestamps_only);
+      if (is_select)
+        table->on_expr= and_items(thd, table->on_expr, cond);
       else
-        where= and_items(thd, where, cond);
-      table->where= and_items(thd, table->where, cond);
-    }
+      {
+        if (join)
+        {
+          where= and_items(thd, join->conds, cond);
+          join->conds= where;
+        }
+        else
+          where= and_items(thd, where, cond);
+        table->where= and_items(thd, table->where, cond);
+      }
 
-    table->vers_conditions.type= SYSTEM_TIME_ALL;
+      table->vers_conditions.set_all();
+    }
   } // for (table= tables; ...)
 
   DBUG_RETURN(0);

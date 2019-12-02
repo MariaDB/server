@@ -356,6 +356,21 @@ ERROR HY000: Table `t` is not system-versioned
 create or replace table t1 (x int) with system versioning engine myisam;
 select * from t1 for system_time as of transaction 1;
 ERROR HY000: Transaction-precise system versioning for `t1` is not supported
+# MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+create or replace procedure sp()
+select * from t1 for system_time as of transaction 1;
+call sp;
+ERROR HY000: Transaction-precise system versioning for `t1` is not supported
+call sp;
+ERROR HY000: Transaction-precise system versioning for `t1` is not supported
+create or replace table t1 (a int);
+create or replace procedure sp()
+select * from t1 for system_time all;
+call sp;
+ERROR HY000: Table `t1` is not system-versioned
+call sp;
+ERROR HY000: Table `t1` is not system-versioned
+drop procedure sp;
 create or replace table t1 (
 x int,
 sys_trx_start bigint unsigned as row start invisible,

@@ -5249,6 +5249,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   check_unique_buf= NULL;
   vers_write= s->versioned;
   quick_condition_rows=0;
+  no_cache= false;
   initialize_quick_structures();
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
@@ -7168,12 +7169,8 @@ void TABLE::mark_columns_needed_for_update()
     /*
       For System Versioning we have to read all columns since we store
       a copy of previous row with modified row_end back to a table.
-
-      Without write_set versioning.rpl,row is unstable until MDEV-16370 is
-      applied.
     */
     bitmap_union(read_set, &s->all_set);
-    bitmap_union(write_set, &s->all_set);
     need_signal= true;
   }
   if (check_constraints)
@@ -7336,8 +7333,16 @@ void TABLE::mark_columns_per_binlog_row_image()
           binary log will include all columns read anyway.
         */
         mark_columns_used_by_index_no_reset(s->primary_key, read_set);
-        /* Only write columns that have changed */
-        rpl_write_set= write_set;
+        if (versioned())
+        {
+          // TODO: After MDEV-18432 we don't pass history rows, so remove this:
+          rpl_write_set= &s->all_set;
+        }
+        else
+        {
+          /* Only write columns that have changed */
+          rpl_write_set= write_set;
+        }
         break;
 
       default:
