@@ -323,16 +323,6 @@ buf_block_free(
 /*===========*/
 	buf_block_t*	block);	/*!< in, own: block to be freed */
 
-/*********************************************************************//**
-Copies contents of a buffer frame to a given buffer.
-@return buf */
-UNIV_INLINE
-byte*
-buf_frame_copy(
-/*===========*/
-	byte*			buf,	/*!< in: buffer to copy to */
-	const buf_frame_t*	frame);	/*!< in: buffer frame */
-
 /**************************************************************//**
 NOTE! The following macros should be used instead of buf_page_get_gen,
 to improve debugging. Only values RW_S_LATCH and RW_X_LATCH are allowed

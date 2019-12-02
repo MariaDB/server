@@ -847,23 +847,6 @@ buf_block_free(
 	buf_pool_mutex_exit(buf_pool);
 }
 
-/*********************************************************************//**
-Copies contents of a buffer frame to a given buffer.
-@return buf */
-UNIV_INLINE
-byte*
-buf_frame_copy(
-/*===========*/
-	byte*			buf,	/*!< in: buffer to copy to */
-	const buf_frame_t*	frame)	/*!< in: buffer frame */
-{
-	ut_ad(buf && frame);
-
-	memcpy(buf, frame, srv_page_size);
-
-	return(buf);
-}
-
 /********************************************************************//**
 Increments the modify clock of a frame by 1. The caller must (1) own the
 buf_pool mutex and block bufferfix count has to be zero, (2) or own an x-lock

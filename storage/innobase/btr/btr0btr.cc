@@ -1461,7 +1461,8 @@ btr_page_reorganize_low(
 		      || dict_index_is_spatial(index));
 
 	/* Copy the old page to temporary space */
-	buf_frame_copy(temp_page, page);
+	memcpy_aligned<UNIV_PAGE_SIZE_MIN>(temp_block->frame, block->frame,
+					   srv_page_size);
 
 	if (!recovery) {
 		btr_search_drop_page_hash_index(block);

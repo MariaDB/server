@@ -4725,7 +4725,8 @@ page_zip_reorganize(
 	temp_page = temp_block->frame;
 
 	/* Copy the old page to temporary space */
-	buf_frame_copy(temp_page, page);
+	memcpy_aligned<UNIV_PAGE_SIZE_MIN>(temp_block->frame, block->frame,
+					   srv_page_size);
 
 	/* Recreate the page: note that global data on page (possible
 	segment headers, next page-field, etc.) is preserved intact */
