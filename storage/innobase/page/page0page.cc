@@ -250,30 +250,6 @@ page_set_autoinc(
 	}
 }
 
-/**********************************************************//**
-Writes a log record of page creation. */
-UNIV_INLINE
-void
-page_create_write_log(
-/*==================*/
-	buf_frame_t*	frame,	/*!< in: a buffer frame where the page is
-				created */
-	mtr_t*		mtr,	/*!< in: mini-transaction handle */
-	ibool		comp,	/*!< in: TRUE=compact page format */
-	bool		is_rtree) /*!< in: whether it is R-tree */
-{
-	mlog_id_t	type;
-
-	if (is_rtree) {
-		type = comp ? MLOG_COMP_PAGE_CREATE_RTREE
-			    : MLOG_PAGE_CREATE_RTREE;
-	} else {
-		type = comp ? MLOG_COMP_PAGE_CREATE : MLOG_PAGE_CREATE;
-	}
-
-	mlog_write_initial_log_record(frame, type, mtr);
-}
-
 /** The page infimum and supremum of an empty page in ROW_FORMAT=REDUNDANT */
 static const byte infimum_supremum_redundant[] = {
 	/* the infimum record */
@@ -398,7 +374,22 @@ page_create(
 	bool		is_rtree)	/*!< in: whether it is a R-Tree page */
 {
 	ut_ad(mtr->is_named_space(block->page.id.space()));
-	page_create_write_log(buf_block_get_frame(block), mtr, comp, is_rtree);
+	mtr->set_modified();
+	if (mtr->get_log_mode() != MTR_LOG_ALL) {
+		ut_ad(mtr->get_log_mode() == MTR_LOG_NONE
+		      || mtr->get_log_mode() == MTR_LOG_NO_REDO);
+	} else {
+		mlog_id_t type = is_rtree
+			? (comp
+			   ? MLOG_COMP_PAGE_CREATE_RTREE
+			   : MLOG_PAGE_CREATE_RTREE)
+			: (comp ? MLOG_COMP_PAGE_CREATE : MLOG_PAGE_CREATE);
+		byte *l= mtr->get_log()->open(11);
+		l = mlog_write_initial_log_record_low(
+			type, block->page.id.space(), block->page.id.page_no(),
+			l, mtr);
+		mlog_close(mtr, l);
+	}
 	return(page_create_low(block, comp, is_rtree));
 }
 

@@ -90,17 +90,6 @@ mlog_memset(buf_block_t* b, ulint ofs, ulint len, byte val, mtr_t* mtr);
 void mlog_memset(byte* b, ulint len, byte val, mtr_t* mtr);
 
 /********************************************************//**
-Writes initial part of a log record consisting of one-byte item
-type and four-byte space and page numbers. */
-void
-mlog_write_initial_log_record(
-/*==========================*/
-	const byte*	ptr,	/*!< in: pointer to (inside) a buffer
-				frame holding the file page where
-				modification is made */
-	mlog_id_t	type,	/*!< in: log item type: MLOG_1BYTE, ... */
-	mtr_t*		mtr);	/*!< in: mini-transaction handle */
-/********************************************************//**
 Catenates 1 - 4 bytes to the mtr log. The value is not compressed. */
 UNIV_INLINE
 void
@@ -195,7 +184,7 @@ mlog_write_initial_log_record_fast(
 				been opened */
 	mtr_t*		mtr);	/*!< in: mtr */
 /********************************************************//**
-Parses an initial log record written by mlog_write_initial_log_record.
+Parses an initial log record written by mlog_write_initial_log_record_low().
 @return parsed record end, NULL if not a complete record */
 const byte*
 mlog_parse_initial_log_record(
