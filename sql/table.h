@@ -1871,6 +1871,7 @@ public:
 struct vers_select_conds_t
 {
   vers_system_time_t type;
+  vers_system_time_t orig_type;
   bool used:1;
   bool delete_history:1;
   Vers_history_point start;
@@ -1879,6 +1880,7 @@ struct vers_select_conds_t
   void empty()
   {
     type= SYSTEM_TIME_UNSPECIFIED;
+    orig_type= SYSTEM_TIME_UNSPECIFIED;
     used= false;
     delete_history= false;
     start.empty();
@@ -1890,6 +1892,7 @@ struct vers_select_conds_t
             Vers_history_point _end= Vers_history_point())
   {
     type= _type;
+    orig_type= _type;
     used= false;
     delete_history= (type == SYSTEM_TIME_HISTORY ||
       type == SYSTEM_TIME_BEFORE);
@@ -1904,6 +1907,10 @@ struct vers_select_conds_t
   bool is_set() const
   {
     return type != SYSTEM_TIME_UNSPECIFIED;
+  }
+  bool was_set() const
+  {
+    return orig_type != SYSTEM_TIME_UNSPECIFIED;
   }
   bool resolve_units(THD *thd);
   bool eq(const vers_select_conds_t &conds) const;

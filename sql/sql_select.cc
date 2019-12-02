@@ -719,22 +719,21 @@ void vers_select_conds_t::print(String *str, enum_query_type query_type) const
   }
 }
 
+static
+bool skip_setup_conds(THD *thd)
+{
+  return (!thd->stmt_arena->is_conventional()
+          && !thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
+         || thd->lex->is_view_context_analysis();
+}
+
 int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 {
   DBUG_ENTER("SELECT_LEX::vers_setup_cond");
 #define newx new (thd->mem_root)
 
+  const bool update_conds= !skip_setup_conds(thd);
   TABLE_LIST *table;
-
-  if (!thd->stmt_arena->is_conventional() &&
-      !thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
-  {
-    // statement is already prepared
-    DBUG_RETURN(0);
-  }
-
-  if (thd->lex->is_view_context_analysis())
-    DBUG_RETURN(0);
 
   if (!versioned_tables)
   {
@@ -805,13 +804,15 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       */
       if (table->partition_names && table->table->part_info->vers_info)
       {
-        if (vers_conditions.is_set())
+        /* If the history is stored in partitions, then partitions
+            themselves are not versioned. */
+        if (vers_conditions.was_set())
         {
           my_error(ER_VERS_QUERY_IN_PARTITION, MYF(0), table->alias.str);
           DBUG_RETURN(-1);
         }
-        else
-          vers_conditions.init(SYSTEM_TIME_ALL);
+        else if (!vers_conditions.is_set())
+          vers_conditions.type= SYSTEM_TIME_ALL;
       }
 #endif
 
@@ -865,6 +866,9 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         DBUG_RETURN(-1);
       }
     }
+
+    if (!update_conds)
+      continue;
 
     Item *cond1= NULL, *cond2= NULL, *cond3= NULL, *curr= NULL;
     Item *point_in_time1= vers_conditions.start.item;
