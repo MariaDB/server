@@ -160,6 +160,7 @@ period for system_time (row_start, row_end)
 ) with system versioning;
 insert into t1 values (1), (2);
 create or replace view v1 as select * from t1 where x > 1;
+# update, delete
 update v1 set x= x + 1;
 select *, check_row(row_start, row_end) from t1 for system_time all order by x;
 x	check_row(row_start, row_end)
@@ -211,5 +212,70 @@ x	check_row(row_start, row_end)
 1	CURRENT ROW
 2	HISTORICAL ROW
 3	HISTORICAL ROW
+# replace
+create or replace table t1 (
+x int primary key, y int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+insert into t1 values (1, 0), (2, 0);
+create or replace view v1 as select * from t1 where x > 1;
+replace v1 values (1, 1);
+replace v1 values (2, 1);
+replace v1 values (3, 1);
+# REPLACE ignores VIEW condition because itself doesn't use WHERE
+select *, check_row(row_start, row_end) from t1 for system_time all order by x, row_end;
+x	y	check_row(row_start, row_end)
+1	0	HISTORICAL ROW
+1	1	CURRENT ROW
+2	0	HISTORICAL ROW
+2	1	CURRENT ROW
+3	1	CURRENT ROW
+# insert-select, on duplicate key
+insert v1 select * from t1 where x = 1 on duplicate key update x = v1.x - 1;
+select *, check_row(row_start, row_end) from t1 for system_time all order by x, row_end;
+x	y	check_row(row_start, row_end)
+0	1	CURRENT ROW
+1	0	HISTORICAL ROW
+1	1	HISTORICAL ROW
+2	0	HISTORICAL ROW
+2	1	CURRENT ROW
+3	1	CURRENT ROW
 drop view v1, v2;
 drop tables t1, t2;
+#
+# MDEV-21146 Assertion `m_lock_type == 2' in handler::ha_drop_table upon LOAD DATA
+#
+create table t1 (a int);
+create view v1 as select * from t1;
+create or replace table t1 (b int) with system versioning;
+load data infile 'xx' into table v1;
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+drop view v1;
+drop table t1;
+#
+# MDEV-21155 Assertion with versioned table upon DELETE from view of view after replacing first view
+#
+create table t1 (a int);
+insert into t1 values (1);
+create table t2 (
+b int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+insert into t2 values (2);
+create view v1 as select * from t1;
+create view v2 as select * from v1;
+create or replace view v1 as select * from t2;
+delete from v2;
+select * from t1;
+a
+1
+select *, check_row(row_start, row_end) from t2 for system_time all;
+b	check_row(row_start, row_end)
+2	HISTORICAL ROW
+drop view v2;
+drop view v1;
+drop table t1, t2;

@@ -157,7 +157,6 @@ replace t1 values (1,2),(1,3),(2,4);
 --echo #
 --echo # MDEV-14829 Assertion `0' failed in Protocol::end_statement upon concurrent UPDATE
 --echo #
-
 create or replace table t1 (pk int, a char(3), b char(3), primary key(pk))
   engine=innodb with system versioning;
 
@@ -191,5 +190,32 @@ update v set a= '2000-01-01' order by b limit 1; # point of failure
 drop view v;
 drop table t1, t2;
 --enable_warnings
+
+--echo #
+--echo # MDEV-20441 ER_CRASHED_ON_USAGE upon update on versioned Aria table
+--echo #
+create or replace table t1 (a varchar(8))
+engine=aria row_format=fixed
+with system versioning;
+
+insert into t1 (a) values ('foo');
+update t1 set a = 'bar';
+drop table t1;
+
+--echo #
+--echo # MDEV-21147 Assertion `marked_for_read()' upon UPDATE on versioned table via view
+--echo #
+create or replace table t1 (
+    pk int, a char(8), b char(8),
+    primary key (pk)
+) with system versioning;
+
+create or replace view v1 as select * from t1;
+insert into t1 values  (1, null, 'd') ,  (2, null, 'i') ;
+update v1 set a= null where b = '';
+
+# cleanup
+drop view v1;
+drop table t1;
 
 source suite/versioning/common_finish.inc;

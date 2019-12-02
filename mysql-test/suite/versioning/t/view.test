@@ -136,6 +136,7 @@ eval create or replace table t1 (
 ) with system versioning;
 insert into t1 values (1), (2);
 create or replace view v1 as select * from t1 where x > 1;
+--echo # update, delete
 update v1 set x= x + 1;
 select *, check_row(row_start, row_end) from t1 for system_time all order by x;
 insert v1 values (4);
@@ -153,8 +154,63 @@ select *, check_row(row_start, row_end) from t2 for system_time all order by x;
 delete v1, v2 from v1 join v2 where v1.x = v2.x + 2;
 select *, check_row(row_start, row_end) from t1 for system_time all order by x;
 select *, check_row(row_start, row_end) from t2 for system_time all order by x;
-
+--echo # replace
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t1 (
+  x int primary key, y int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end)
+) with system versioning;
+insert into t1 values (1, 0), (2, 0);
+create or replace view v1 as select * from t1 where x > 1;
+replace v1 values (1, 1);
+replace v1 values (2, 1);
+replace v1 values (3, 1);
+--echo # REPLACE ignores VIEW condition because itself doesn't use WHERE
+select *, check_row(row_start, row_end) from t1 for system_time all order by x, row_end;
+--echo # insert-select, on duplicate key
+insert v1 select * from t1 where x = 1 on duplicate key update x = v1.x - 1;
+select *, check_row(row_start, row_end) from t1 for system_time all order by x, row_end;
 drop view v1, v2;
 drop tables t1, t2;
+
+--echo #
+--echo # MDEV-21146 Assertion `m_lock_type == 2' in handler::ha_drop_table upon LOAD DATA
+--echo #
+create table t1 (a int);
+create view v1 as select * from t1;
+create or replace table t1 (b int) with system versioning;
+--error ER_VIEW_INVALID
+load data infile 'xx' into table v1;
+
+# cleanup
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-21155 Assertion with versioned table upon DELETE from view of view after replacing first view
+--echo #
+create table t1 (a int);
+insert into t1 values (1);
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create table t2 (
+  b int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end)
+) with system versioning;
+insert into t2 values (2);
+create view v1 as select * from t1;
+create view v2 as select * from v1;
+create or replace view v1 as select * from t2;
+delete from v2;
+select * from t1;
+select *, check_row(row_start, row_end) from t2 for system_time all;
+
+# cleanup
+drop view v2;
+drop view v1;
+drop table t1, t2;
 
 --source suite/versioning/common_finish.inc

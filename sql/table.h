@@ -324,7 +324,7 @@ typedef struct st_grant_info
 
 enum tmp_table_type
 {
-  NO_TMP_TABLE, NON_TRANSACTIONAL_TMP_TABLE, TRANSACTIONAL_TMP_TABLE,
+  NO_TMP_TABLE= 0, NON_TRANSACTIONAL_TMP_TABLE, TRANSACTIONAL_TMP_TABLE,
   INTERNAL_TMP_TABLE, SYSTEM_TMP_TABLE
 };
 enum release_type { RELEASE_NORMAL, RELEASE_WAIT_FOR_DROP };
@@ -1589,8 +1589,15 @@ public:
     return s->versioned == type;
   }
 
-  bool versioned_write(vers_sys_type_t type= VERS_UNDEFINED) const
+  bool versioned_write() const
   {
+    DBUG_ASSERT(versioned() || !vers_write);
+    return versioned() ? vers_write : false;
+  }
+
+  bool versioned_write(vers_sys_type_t type) const
+  {
+    DBUG_ASSERT(type);
     DBUG_ASSERT(versioned() || !vers_write);
     return versioned(type) ? vers_write : false;
   }
@@ -1614,6 +1621,8 @@ public:
   int period_make_insert(Item *src, Field *dst);
   int insert_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
                              ha_rows *rows_inserted);
+  bool vers_check_update(List<Item> &items);
+
   int delete_row();
   void vers_update_fields();
   void vers_update_end();
