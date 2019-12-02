@@ -202,4 +202,20 @@ insert into t1 (a) values ('foo');
 update t1 set a = 'bar';
 drop table t1;
 
+--echo #
+--echo # MDEV-21147 Assertion `marked_for_read()' upon UPDATE on versioned table via view
+--echo #
+create or replace table t1 (
+    pk int, a char(8), b char(8),
+    primary key (pk)
+) with system versioning;
+
+create or replace view v1 as select * from t1;
+insert into t1 values  (1, null, 'd') ,  (2, null, 'i') ;
+update v1 set a= null where b = '';
+
+# cleanup
+drop view v1;
+drop table t1;
+
 source suite/versioning/common_finish.inc;
