@@ -21,6 +21,8 @@ BINARY CONVERT(a USING filename)
 ‘ªŽŽŽ‘—¿2
 test/‘ªŽŽŽ‘—¿.frm
 test/‘ªŽŽŽ‘—¿2.frm
+test/‘ªŽŽŽ‘—¿.frm
+test/‘ªŽŽŽ‘—¿2.frm
 DROP TABLE t1;
 # bulk convert with file
 # --- Start of mariadb-conv for mysql-conv-test-cp932.txt ---

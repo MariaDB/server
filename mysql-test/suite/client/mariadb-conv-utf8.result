@@ -21,6 +21,8 @@ BINARY CONVERT(a USING filename)
 測試資料2
 test/測試資料.frm
 test/測試資料2.frm
+test/測試資料.frm
+test/測試資料2.frm
 DROP TABLE t1;
 # bulk convert with file
 # --- Start of mariadb-conv for mysql-conv-test-utf8.txt ---
