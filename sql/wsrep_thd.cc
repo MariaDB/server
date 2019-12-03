@@ -345,7 +345,7 @@ void wsrep_fire_rollbacker(THD *thd)
 }
 
 
-int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
+int wsrep_abort_thd(THD *bf_thd_ptr, THD *victim_thd_ptr, my_bool signal)
 {
   DBUG_ENTER("wsrep_abort_thd");
   THD *victim_thd= (THD *) victim_thd_ptr;
@@ -373,7 +373,7 @@ int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
 
 bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
 {
-  WSREP_LOG_THD((THD*)bf_thd, "BF aborter before");
+  WSREP_LOG_THD(bf_thd, "BF aborter before");
   WSREP_LOG_THD(victim_thd, "victim before");
   wsrep::seqno bf_seqno(bf_thd->wsrep_trx().ws_meta().seqno());
 
