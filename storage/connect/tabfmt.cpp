@@ -1,11 +1,11 @@
 /************* TabFmt C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFMT                                                */
 /* -------------                                                       */
-/*  Version 3.9.2                                                      */
+/*  Version 3.9.3                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2017  */
+/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2019  */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -477,6 +477,7 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   if (DOSDEF::DefineAM(g, "CSV", poff))
     return true;
 
+	Recfm = RECFM_CSV;
   GetCharCatInfo("Separator", ",", buf, sizeof(buf));
   Sep = (strlen(buf) == 2 && buf[0] == '\\' && buf[1] == 't') ? '\t' : *buf;
   Quoted = GetIntCatInfo("Quoted", -1);

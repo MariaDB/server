@@ -102,14 +102,14 @@ class MYCAT : public CATALOG {
   // Methods
   void    Reset(void);
   bool    StoreIndex(PGLOBAL, PTABDEF) {return false;}  // Temporary
-	PRELDEF GetTableDesc(PGLOBAL g, PTABLE tablep,
+	PTABDEF GetTableDesc(PGLOBAL g, PTABLE tablep,
 		                   LPCSTR type, PRELDEF *prp = NULL);
   PTDB    GetTable(PGLOBAL g, PTABLE tablep, 
                               MODE mode = MODE_READ, LPCSTR type = NULL);
   void    ClearDB(PGLOBAL g);
 
  protected:
-	PRELDEF MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am);
+	PTABDEF MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am);
 
   // Members
   ha_connect *Hc;                          // The Connect handler
