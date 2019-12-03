@@ -2033,7 +2033,6 @@ static bool srv_task_execute()
 }
 
 
-
 /** Do the actual purge operation.
 @param[in,out]	n_total_purged	total number of purged pages
 @return length of history list before the last purge batch. */

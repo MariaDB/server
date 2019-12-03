@@ -123,6 +123,23 @@ alter table t1 drop partition p0;
 
 select x from t1;
 
+--echo # rename works
+create or replace table t1 (x int) with system versioning
+partition by system_time;
+alter table t1 reorganize partition p0 into
+(partition custom_name history);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+--echo # merge and split doesn't (MDEV-19938)
+create or replace table t1 (x int) with system versioning
+partition by system_time partitions 3;
+--error ER_REORG_HASH_ONLY_ON_SAME_NO
+alter table t1 reorganize partition p0, p1 into (partition p00 history);
+--error ER_REORG_HASH_ONLY_ON_SAME_NO
+alter table t1 reorganize partition p1 into (partition p1 history, partition p2 history);
+
+
 --echo # Bug tempesta-tech/mariadb#260: incorrect IB partitioning warning
 create or replace table t1 (x int)
 with system versioning
@@ -224,13 +241,6 @@ insert into t1 values (7), (8);
 delete from t1;
 select * from t1 partition (p1) order by x;
 
---echo ### Assertion in ALTER on warning from partitioning LIMIT [#446]
-create or replace table t1 (x int) with system versioning;
-insert into t1 values (1), (2);
-delete from t1;
-alter table t1 partition by system_time limit 1 (
-  partition p1 history,
-  partition pn current);
 
 --echo ## rotation by INTERVAL
 --error ER_PART_WRONG_VALUE
@@ -241,6 +251,28 @@ partition by system_time interval 0 second partitions 3;
 --error ER_PARSE_ERROR
 create table t1 (i int) with system versioning
 partition by system_time interval 6 day limit 98;
+
+--error ER_DATA_OUT_OF_RANGE
+create or replace table t1 (pk int) with system versioning
+partition by system_time interval 10 year partitions 3;
+
+--echo # INTERVAL and ALTER TABLE
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 hour;
+
+set @ts=(select partition_description from information_schema.partitions
+  where table_schema='test' and table_name='t1' and partition_name='p0');
+
+alter table t1 add column b int;
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+alter table t1 add partition (partition p1 history, partition p2 history);
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+alter table t1 drop partition p0;
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+--error ER_VERS_DROP_PARTITION_INTERVAL
+alter table t1 drop partition p2;
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+
 
 --echo ## Subpartitions
 create or replace table t1 (x int)
@@ -262,24 +294,18 @@ select * from t1 partition (p0sp1);
 select * from t1 partition (p1sp0);
 select * from t1 partition (p1sp1);
 
---replace_result $sys_datatype_expl SYS_DATATYPE
-eval create or replace table t1 (
-    a bigint,
-    row_start $sys_datatype_expl as row start invisible,
-    row_end $sys_datatype_expl as row end invisible,
-    period for system_time(row_start, row_end))
+--echo # check implicit sys fields for implicit engine of partitioned table
+create or replace table t1 (a bigint)
 with system versioning
 partition by range (a)
 (partition p0 values less than (20) engine innodb,
  partition p1 values less than maxvalue engine innodb);
 insert into t1 values (1);
+select * from t1 partition (p0);
 
---replace_result $sys_datatype_expl SYS_DATATYPE
-eval create or replace table t1 (
-    f_int1 integer default 0,
-    row_start $sys_datatype_expl as row start invisible,
-    row_end $sys_datatype_expl as row end invisible,
-    period for system_time(row_start, row_end)
+--echo # check for partition engine
+create or replace table t1 (
+  f_int1 integer default 0
 ) with system versioning
 partition by range(f_int1)
 subpartition by hash(f_int1)
@@ -287,17 +313,28 @@ subpartition by hash(f_int1)
 (subpartition subpart11 storage engine = 'innodb',
 subpartition subpart12 storage engine = 'innodb'));
 insert into t1 values (1);
+select * from t1 partition (part1);
 
+--echo #
+--echo # Assertion in ALTER on warning from partitioning LIMIT [#446]
+--echo #
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1), (2);
+delete from t1;
+alter table t1 partition by system_time limit 1 (
+  partition p1 history,
+  partition pn current);
+
+--echo #
+--echo # MDEV-14649 Assertion `t->mysql_col_len == 8' failed in row_insert_for_mysql
+--echo #
 create or replace table t1 (i int) engine=innodb partition by key(i);
---replace_result $sys_datatype_expl SYS_DATATYPE
-eval alter table t1
-    add column row_start $sys_datatype_expl as row start invisible,
-    add column row_end $sys_datatype_expl as row end invisible,
-    add period for system_time(row_start, row_end),
-    add system versioning;
+alter table t1 add system versioning;
 insert into t1 values();
 
+--echo #
 --echo # MDEV-14722 Assertion in ha_commit_trans for sub-statement
+--echo #
 create or replace table t1 (i int) with system versioning
 partition by system_time interval 1 day;
 create or replace table t2 (f int);
@@ -306,7 +343,9 @@ for each row select table_rows from information_schema.tables
 where table_name = 't1' into @a;
 insert into t2 values (1);
 
+--echo #
 --echo # MDEV-14740 Locking assertion for system_time partitioning
+--echo #
 create or replace table t1 (i int) with system versioning
 partition by system_time interval 1 week;
 create or replace table t2 (f int);
@@ -314,7 +353,9 @@ create or replace trigger tr before insert on t2
 for each row select count(*) from t1 into @a;
 insert into t2 values (1);
 
+--echo #
 --echo # MDEV-14747 ALTER PARTITION BY SYSTEM_TIME after LOCK TABLES
+--echo #
 create or replace table t1 (x int) with system versioning;
 lock table t1 write;
 alter table t1 partition by system_time interval 1 week (
@@ -322,7 +363,9 @@ alter table t1 partition by system_time interval 1 week (
   partition pn current);
 unlock tables;
 
+--echo #
 --echo # MDEV-14748 Assertion in ha_myisammrg::attach_children()
+--echo #
 create or replace table t1 (x int) engine=myisam with system versioning
   partition by system_time interval 1 month (partition p1 history, partition pn current);
 create or replace table t2 (x int) engine=myisam;
@@ -332,17 +375,22 @@ create or replace trigger tr after insert on t4 for each row insert into t2
   ( select x from t3 ) union ( select x from t1 );
 insert into t4 values (1);
 
+--echo #
 --echo # MDEV-14821 Assertion failure
+--echo #
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (0), (1);
 update t1 set x= x + 1;
 alter table t1 partition by system_time limit 1 (
     partition p1 history,
     partition p2 history,
-    partition pn current);delete from t1 where x = 1;
+    partition pn current);
+delete from t1 where x = 1;
 delete from t1 where x = 2;
 
+--echo #
 --echo # MDEV-14923 Assertion upon INSERT into locked versioned partitioned table
+--echo #
 create or replace table t1 (x int) with system versioning
 partition by system_time;
 lock table t1 write;
@@ -350,27 +398,6 @@ lock table t1 write;
 alter table t1 add partition (partition p0 history);
 insert into t1 values (1);
 unlock tables;
-
---error ER_DATA_OUT_OF_RANGE
-create or replace table t1 (pk int) with system versioning
-partition by system_time interval 10 year partitions 3;
-
-# INTERVAL and ALTER TABLE
-create or replace table t1 (i int) with system versioning
-partition by system_time interval 1 hour;
-
-set @ts=(select partition_description from information_schema.partitions
-  where table_schema='test' and table_name='t1' and partition_name='p0');
-
-alter table t1 add column b int;
-select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
-alter table t1 add partition (partition p1 history, partition p2 history);
-select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
-alter table t1 drop partition p0;
-select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
---error ER_VERS_DROP_PARTITION_INTERVAL
-alter table t1 drop partition p2;
-select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 
 --echo #
 --echo # MDEV-15103 Assertion in ha_partition::part_records() for updating VIEW
@@ -389,7 +416,9 @@ partition by system_time;
 --error ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
 alter table t drop system versioning;
 
+--echo #
 --echo # MDEV-15191 Assertion `bit < (map)->n_bits' failed in bitmap_is_set upon INSERT
+--echo #
 create or replace table t1 (i int) with system versioning;
 insert into t1 values (1), (2);
 update t1 set i= 3;
@@ -399,7 +428,9 @@ alter table t1 add partition (partition p2 history);
 insert into t1 values (4);
 unlock tables;
 
+--echo #
 --echo # MDEV-15036 Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' in Diagnostics_area::set_ok_status or unexpected ER_RANGE_NOT_INCREASING_ERROR
+--echo #
 create or replace table t1 (a int) with system versioning
 partition by system_time limit 2 partitions 4;
 insert into t1 values (1),(2),(3);
@@ -407,7 +438,9 @@ update t1 set a = 4;
 delete from t1;
 delete from t1 where a is not null;
 
+--echo #
 --echo # MDEV-14823 Wrong error message upon selecting from a system_time partition
+--echo #
 create or replace table t1 (i int) with system versioning partition by system_time limit 10;
 --error ER_VERS_QUERY_IN_PARTITION
 select * from t1 partition (p0) for system_time all;
@@ -420,7 +453,9 @@ call sp;
 call sp;
 drop procedure sp;
 
+--echo #
 --echo # MDEV-15380 Index for versioned table gets corrupt after partitioning and DELETE
+--echo #
 create or replace table t1 (pk int primary key)
   engine=myisam
   with system versioning

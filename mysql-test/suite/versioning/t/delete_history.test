@@ -2,6 +2,8 @@
 --source include/have_partition.inc
 --source suite/versioning/engines.inc
 
+call mtr.add_suppression("need more HISTORY partitions");
+
 create table t (a int);
 --error ER_VERS_NOT_VERSIONED
 delete history from t before system_time now();
@@ -56,16 +58,13 @@ select * from t for system_time all;
 drop procedure truncate_sp;
 
 --echo # Truncate partitioned
-create or replace table t (a int)
-with system versioning
-partition by system_time limit 1 (
-    partition p0 history,
-    partition p1 history,
-    partition pn current);
+create or replace table t (a int) with system versioning
+partition by system_time limit 1 partitions 3;
 insert into t values (1);
 update t set a= 2;
 update t set a= 3;
 delete history from t;
+--echo # The above warning is one command late (MDEV-20345) ^^^
 select * from t for system_time all;
 
 --echo # VIEW
