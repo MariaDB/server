@@ -10601,6 +10601,13 @@ Field *make_field(TABLE_SHARE *share,
                        FLAGSTR(pack_flag, FIELDFLAG_PACK),
                        FLAGSTR(pack_flag, FIELDFLAG_BLOB)));
 
+  /*
+  if (handler == &type_handler_mysql_json)
+  {
+    return new (mem_root) Field_mysql_json(ptr, field_name);
+  }
+  */
+
   if (handler == &type_handler_row)
   {
     DBUG_ASSERT(field_length == 0);

@@ -3665,8 +3665,7 @@ public:
       return do_field_int;
     */
     if (!(from->flags & BLOB_FLAG) || from->charset() != charset() ||
-        !from->compression_method() != !compression_method() ||
-        from->type() == MYSQL_TYPE_MYSQL_JSON)
+        !from->compression_method() != !compression_method())
       return do_conv_blob;
     if (from->pack_length() != Field_blob::pack_length())
       return do_copy_blob;
@@ -4853,7 +4852,7 @@ class Field_mysql_json :public Field_blob
   String *val_str(String *, String *);
   enum_field_types type() const
   {
-    return MYSQL_TYPE_MYSQL_JSON;
+    return MYSQL_TYPE_LONG_BLOB;
   }
   bool parse_mysql(String*, bool, const char *) const;
 };
