@@ -2094,8 +2094,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 
 				ib::error() << "Error in an adaptive hash"
 					<< " index pointer to page "
-					<< page_id_t(page_get_space_id(page),
-						     page_get_page_no(page))
+					<< block->page.id
 					<< ", ptr mem address "
 					<< reinterpret_cast<const void*>(
 						node->data)

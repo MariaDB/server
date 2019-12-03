@@ -5613,17 +5613,15 @@ btr_cur_compress_if_useful(
 	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
 			       MTR_MEMO_PAGE_X_FIX));
 
-	if (dict_index_is_spatial(cursor->index)) {
-		const page_t*   page = btr_cur_get_page(cursor);
-		const trx_t*	trx = NULL;
-
-		if (cursor->rtr_info->thr != NULL) {
-			trx = thr_get_trx(cursor->rtr_info->thr);
-		}
+	if (cursor->index->is_spatial()) {
+		const trx_t*	trx = cursor->rtr_info->thr
+			? thr_get_trx(cursor->rtr_info->thr)
+			: NULL;
+		const buf_block_t* block = btr_cur_get_block(cursor);
 
 		/* Check whether page lock prevents the compression */
-		if (!lock_test_prdt_page_lock(trx, page_get_space_id(page),
-					      page_get_page_no(page))) {
+		if (!lock_test_prdt_page_lock(trx, block->page.id.space(),
+					      block->page.id.page_no())) {
 			return(false);
 		}
 	}
@@ -6127,8 +6125,6 @@ btr_cur_add_path_info(
 	ulint		root_height)	/*!< in: root node height in tree */
 {
 	btr_path_t*	slot;
-	const rec_t*	rec;
-	const page_t*	page;
 
 	ut_a(cursor->path_arr);
 
@@ -6147,16 +6143,14 @@ btr_cur_add_path_info(
 		slot->nth_rec = ULINT_UNDEFINED;
 	}
 
-	rec = btr_cur_get_rec(cursor);
-
 	slot = cursor->path_arr + (root_height - height);
 
-	page = page_align(rec);
+	const buf_block_t* block = btr_cur_get_block(cursor);
 
-	slot->nth_rec = page_rec_get_n_recs_before(rec);
-	slot->n_recs = page_get_n_recs(page);
-	slot->page_no = page_get_page_no(page);
-	slot->page_level = btr_page_get_level(page);
+	slot->nth_rec = page_rec_get_n_recs_before(btr_cur_get_rec(cursor));
+	slot->n_recs = page_get_n_recs(block->frame);
+	slot->page_no = block->page.id.page_no();
+	slot->page_level = btr_page_get_level(block->frame);
 }
 
 /*******************************************************************//**
@@ -7428,9 +7422,7 @@ struct btr_blob_log_check_t {
 
 		if (UNIV_UNLIKELY(m_op == BTR_STORE_INSERT_BULK)) {
 			offs = page_offset(*m_rec);
-			page_no = page_get_page_no(
-				buf_block_get_frame(*m_block));
-
+			page_no = (*m_block)->page.id.page_no();
 			buf_block_buf_fix_inc(*m_block, __FILE__, __LINE__);
 		} else {
 			btr_pcur_store_position(m_pcur, m_mtr);
@@ -7950,40 +7942,30 @@ func_exit:
 	return(error);
 }
 
-/*******************************************************************//**
-Check the FIL_PAGE_TYPE on an uncompressed BLOB page. */
-static
-void
-btr_check_blob_fil_page_type(
-/*=========================*/
-	ulint		space_id,	/*!< in: space id */
-	ulint		page_no,	/*!< in: page number */
-	const page_t*	page,		/*!< in: page */
-	ibool		read)		/*!< in: TRUE=read, FALSE=purge */
+/** Check the FIL_PAGE_TYPE on an uncompressed BLOB page.
+@param[in]      block   uncompressed BLOB page
+@param[in]      read    true=read, false=purge */
+static void btr_check_blob_fil_page_type(const buf_block_t& block, bool read)
 {
-	ulint	type = fil_page_get_type(page);
+  uint16_t type= fil_page_get_type(block.frame);
 
-	ut_a(space_id == page_get_space_id(page));
-	ut_a(page_no == page_get_page_no(page));
-
-	if (UNIV_UNLIKELY(type != FIL_PAGE_TYPE_BLOB)) {
-		ulint	flags = fil_space_get_flags(space_id);
-
-#ifndef UNIV_DEBUG /* Improve debug test coverage */
-		if (!DICT_TF_HAS_ATOMIC_BLOBS(flags)) {
-			/* Old versions of InnoDB did not initialize
-			FIL_PAGE_TYPE on BLOB pages.  Do not print
-			anything about the type mismatch when reading
-			a BLOB page that may be from old versions. */
-			return;
-		}
-#endif /* !UNIV_DEBUG */
-
-		ib::fatal() << "FIL_PAGE_TYPE=" << type
-			<< " on BLOB " << (read ? "read" : "purge")
-			<< " space " << space_id << " page " << page_no
-			<< " flags " << flags;
-	}
+  if (UNIV_LIKELY(type == FIL_PAGE_TYPE_BLOB))
+    return;
+  /* FIXME: take the tablespace as a parameter */
+  if (fil_space_t *space= fil_space_acquire_silent(block.page.id.space()))
+  {
+    /* Old versions of InnoDB did not initialize FIL_PAGE_TYPE on BLOB
+    pages.  Do not print anything about the type mismatch when reading
+    a BLOB page that may be from old versions. */
+    if (space->full_crc32() || DICT_TF_HAS_ATOMIC_BLOBS(space->flags))
+    {
+      ib::fatal() << "FIL_PAGE_TYPE=" << type
+		  << (read ? " on BLOB read file " : " on BLOB purge file ")
+		  << space->chain.start->name
+		  << " page " << block.page.id.page_no();
+    }
+    space->release();
+  }
 }
 
 /*******************************************************************//**
@@ -8139,8 +8121,7 @@ btr_free_externally_stored_field(
 			}
 		} else {
 			ut_ad(!block->page.zip.data);
-			btr_check_blob_fil_page_type(space_id, page_no, page,
-						     FALSE);
+			btr_check_blob_fil_page_type(*ext_block, false);
 
 			next_page_no = mach_read_from_4(
 				page + FIL_PAGE_DATA
@@ -8277,7 +8258,7 @@ btr_copy_blob_prefix(
 		buf_block_dbg_add_level(block, SYNC_EXTERN_STORAGE);
 		page = buf_block_get_frame(block);
 
-		btr_check_blob_fil_page_type(space_id, page_no, page, TRUE);
+		btr_check_blob_fil_page_type(*block, true);
 
 		blob_header = page + offset;
 		part_len = btr_blob_get_part_len(blob_header);

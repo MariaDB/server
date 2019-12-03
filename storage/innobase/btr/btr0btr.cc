@@ -1906,7 +1906,7 @@ btr_root_raise_and_insert(
 					    + root->frame, space));
 	}
 
-	ut_a(dict_index_get_page(index) == page_get_page_no(root->frame));
+	ut_a(dict_index_get_page(index) == root->page.id.page_no());
 #endif /* UNIV_BTR_DEBUG */
 	ut_ad(mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
 					MTR_MEMO_X_LOCK

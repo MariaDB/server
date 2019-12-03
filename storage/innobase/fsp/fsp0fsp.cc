@@ -1852,7 +1852,7 @@ fseg_create(
 		      + block->frame, page_offset(inode));
 
 	mtr->write<4>(*block, byte_offset + FSEG_HDR_PAGE_NO
-		      + block->frame, page_get_page_no(page_align(inode)));
+		      + block->frame, iblock->page.id.page_no());
 
 	mtr->write<4,mtr_t::OPT>(*block, byte_offset + FSEG_HDR_SPACE
 				 + block->frame, space->id);

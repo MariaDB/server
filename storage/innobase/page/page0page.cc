@@ -2575,19 +2575,17 @@ page_delete_rec(
 	ut_ad(page_is_leaf(page));
 
 	if (!rec_offs_any_extern(offsets)
-	    && ((page_get_data_size(page) - rec_offs_size(offsets)
-		< BTR_CUR_PAGE_COMPRESS_LIMIT(index))
-		|| !page_has_siblings(page)
-		|| (page_get_n_recs(page) < 2))) {
-
-		ulint	root_page_no = dict_index_get_page(index);
+	    && (!page_has_siblings(page)
+		|| (page_get_n_recs(page) < 2)
+		|| page_get_data_size(page) - rec_offs_size(offsets)
+		< BTR_CUR_PAGE_COMPRESS_LIMIT(index))) {
 
 		/* The page fillfactor will drop below a predefined
 		minimum value, OR the level in the B-tree contains just
 		one page, OR the page will become empty: we recommend
 		compression if this is not the root page. */
 
-		no_compress_needed = page_get_page_no(page) == root_page_no;
+		no_compress_needed = block->page.id.page_no() == index->page;
 	} else {
 		no_compress_needed = true;
 	}

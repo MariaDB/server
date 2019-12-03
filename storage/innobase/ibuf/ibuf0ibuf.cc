@@ -2434,10 +2434,8 @@ ibuf_merge_pages(
 		and the whole B-tree must be empty. InnoDB does not
 		allow empty B-tree pages other than the root. */
 		ut_ad(ibuf.empty);
-		ut_ad(page_get_space_id(btr_pcur_get_page(&pcur))
-		      == IBUF_SPACE_ID);
-		ut_ad(page_get_page_no(btr_pcur_get_page(&pcur))
-		      == FSP_IBUF_TREE_ROOT_PAGE_NO);
+		ut_ad(btr_pcur_get_block(&pcur)->page.id
+		      == page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO));
 
 		ibuf_mtr_commit(&mtr);
 		btr_pcur_close(&pcur);
@@ -2495,11 +2493,8 @@ ibuf_merge_space(
 		and the whole B-tree must be empty. InnoDB does not
 		allow empty B-tree pages other than the root. */
 		ut_ad(ibuf.empty);
-		ut_ad(page_get_space_id(btr_pcur_get_page(&pcur))
-		      == IBUF_SPACE_ID);
-		ut_ad(page_get_page_no(btr_pcur_get_page(&pcur))
-		      == FSP_IBUF_TREE_ROOT_PAGE_NO);
-
+		ut_ad(btr_pcur_get_block(&pcur)->page.id
+		      == page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO));
 	} else {
 
 		sum_sizes = ibuf_get_merge_pages(

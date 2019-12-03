@@ -4762,14 +4762,13 @@ wrong_offs:
 			ib::error() << "Rec address "
 				<< static_cast<const void*>(rec)
 				<< ", buf block fix count "
-				<< btr_cur_get_block(
-					btr_pcur_get_btr_cur(pcur))->page
+				<< btr_pcur_get_block(pcur)->page
 					.buf_fix_count;
 
 			ib::error() << "Index corruption: rec offs "
 				<< page_offset(rec) << " next offs "
 				<< next_offs << ", page no "
-				<< page_get_page_no(page_align(rec))
+				<< btr_pcur_get_block(pcur)->page.id.page_no()
 				<< ", index " << index->name
 				<< " of table " << index->table->name
 				<< ". Run CHECK TABLE. You may need to"
@@ -4786,7 +4785,7 @@ wrong_offs:
 			ib::info() << "Index corruption: rec offs "
 				<< page_offset(rec) << " next offs "
 				<< next_offs << ", page no "
-				<< page_get_page_no(page_align(rec))
+				<< btr_pcur_get_block(pcur)->page.id.page_no()
 				<< ", index " << index->name
 				<< " of table " << index->table->name
 				<< ". We try to skip the rest of the page.";
@@ -4814,7 +4813,7 @@ wrong_offs:
 			ib::error() << "Index corruption: rec offs "
 				<< page_offset(rec) << " next offs "
 				<< next_offs << ", page no "
-				<< page_get_page_no(page_align(rec))
+				<< btr_pcur_get_block(pcur)->page.id.page_no()
 				<< ", index " << index->name
 				<< " of table " << index->table->name
 				<< ". We try to skip the record.";
