@@ -133,7 +133,11 @@ public:
   static void simulated_aio_callback(void *param)
   {
     aiocb *cb= (aiocb *) param;
-    int ret_len;
+#ifdef _WIN32
+    size_t ret_len;
+#else
+    ssize_t ret_len;
+#endif
     int err= 0;
     switch (cb->m_opcode)
     {
@@ -146,14 +150,13 @@ public:
     default:
       abort();
     }
-    if (ret_len < 0)
-    {
 #ifdef _WIN32
+    if (static_cast<int>(ret_len) < 0)
       err= GetLastError();
 #else
+    if (ret_len < 0)
       err= errno;
 #endif
-    }
     cb->m_ret_len = ret_len;
     cb->m_err = err;
     cb->m_callback(cb);

@@ -110,7 +110,6 @@ enum class aio_opcode
   AIO_PWRITE
 };
 const int MAX_AIO_USERDATA_LEN= 40;
-struct aiocb;
 
 /** IO control block, includes parameters for the IO, and the callback*/
 
@@ -129,7 +128,7 @@ struct aiocb
   callback_func m_callback;
   task_group* m_group;
   /* Returned length and error code*/
-  int m_ret_len;
+  size_t m_ret_len;
   int m_err;
   void *m_internal;
   task m_internal_task;
