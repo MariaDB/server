@@ -1,5 +1,5 @@
-/*************** Rest C++ Program Source Code File (.CPP) **************/
-/* PROGRAM NAME: Rest   Version 1.6                                    */
+/************** tabrest C++ Program Source Code File (.CPP) ************/
+/* PROGRAM NAME: tabrest   Version 1.7                                 */
 /*  (C) Copyright to the author Olivier BERTRAND          2018 - 2019  */
 /*  This program is the REST Web API support for MariaDB.              */
 /*  When compiled without MARIADB defined, it is the EOM module code.  */
@@ -13,12 +13,14 @@
 #else   // !MARIADB       OEM module
 #include "mini-global.h"
 #define _MAX_PATH 260
-#if !defined(__WIN__)
-#define __stdcall
 #if !defined(REST_SOURCE)
+#if defined(__WIN__) || defined(_WINDOWS)
+#include <windows.h>
+#else		 // !__WIN__
+#define __stdcall
 #include <dlfcn.h>         // dlopen(), dlclose(), dlsym() ...
-#endif
 #endif   // !__WIN__
+#endif	 // !REST_SOURCE
 #define _OS_H_INCLUDED     // Prevent os.h to be called
 #endif  // !MARIADB
 
@@ -26,7 +28,6 @@
 /*  Include application header files:                                  */
 /*  global.h    is header containing all global declarations.          */
 /*  plgdbsem.h  is header containing the DB application declarations.  */
-/*  (x)table.h  is header containing the TDBASE declarations.          */
 /***********************************************************************/
 #include "global.h"
 #include "plgdbsem.h"
@@ -76,11 +77,11 @@ XGETREST GetRestFunction(PGLOBAL g)
 	if (getRestFnc)
 		return getRestFnc;
 	
-#if !defined(REST_SOURCE)
+#if !defined(MARIADB) || !defined(REST_SOURCE)
 	if (trace(515))
 		htrc("Looking for GetRest library\n");
 
-#if defined(__WIN__)
+#if defined(__WIN__) || defined(_WINDOWS)
 	HANDLE Hdll;
 	const char* soname = "GetRest.dll";   // Module name
 
