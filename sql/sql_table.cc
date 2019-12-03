@@ -4585,6 +4585,8 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
       }
       if (thd->work_part_info)
       {
+        // Unfortunately partitions do not support searching upper/lower bounds
+        // (i.e. ha_index_read_map with KEY_OR_PREV, KEY_OR_NEXT)
         my_error(ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED, MYF(0));
         return true;
       }
