@@ -71,10 +71,8 @@ trx_rseg_write_wsrep_checkpoint(
 
 	const ulint xid_length = static_cast<ulint>(xid->gtrid_length
 						    + xid->bqual_length);
-	mlog_write_string(TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
-			  + rseg_header->frame,
-			  reinterpret_cast<const byte*>(xid->data),
-			  xid_length, mtr);
+	mtr->memcpy(rseg_header, TRX_RSEG + TRX_RSEG_WSREP_XID_DATA,
+		    xid->data, xid_length);
 	if (UNIV_LIKELY(xid_length < XIDDATASIZE)) {
 		mtr->memset(rseg_header,
 			    TRX_RSEG + TRX_RSEG_WSREP_XID_DATA + xid_length,
@@ -787,11 +785,10 @@ void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
 				 TRX_RSEG + TRX_RSEG_BINLOG_OFFSET
 				 + rseg_header->frame,
 				 trx->mysql_log_offset);
-	byte* p = TRX_RSEG + TRX_RSEG_BINLOG_NAME + rseg_header->frame;
-	const byte* binlog_name = reinterpret_cast<const byte*>
-		(trx->mysql_log_file_name);
 
-	if (memcmp(binlog_name, p, len)) {
-		mlog_write_string(p, binlog_name, len, mtr);
+	if (memcmp(trx->mysql_log_file_name, TRX_RSEG + TRX_RSEG_BINLOG_NAME
+		   + rseg_header->frame, len)) {
+		mtr->memcpy(rseg_header, TRX_RSEG + TRX_RSEG_BINLOG_NAME,
+			    trx->mysql_log_file_name, len);
 	}
 }

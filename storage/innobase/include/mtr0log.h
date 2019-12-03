@@ -34,26 +34,6 @@ Created 12/7/1995 Heikki Tuuri
 struct dict_index_t;
 
 /********************************************************//**
-Writes a string to a file page buffered in the buffer pool. Writes the
-corresponding log record to the mini-transaction log. */
-void
-mlog_write_string(
-/*==============*/
-	byte*		ptr,	/*!< in: pointer where to write */
-	const byte*	str,	/*!< in: string to write */
-	ulint		len,	/*!< in: string length */
-	mtr_t*		mtr);	/*!< in: mini-transaction handle */
-/********************************************************//**
-Logs a write of a string to a file page buffered in the buffer pool.
-Writes the corresponding log record to the mini-transaction log. */
-void
-mlog_log_string(
-/*============*/
-	byte*	ptr,	/*!< in: pointer written to */
-	ulint	len,	/*!< in: string length */
-	mtr_t*	mtr);	/*!< in: mini-transaction handle */
-
-/********************************************************//**
 Catenates 1 - 4 bytes to the mtr log. The value is not compressed. */
 UNIV_INLINE
 void
@@ -157,6 +137,18 @@ inline void mtr_t::write(const buf_block_t &block, byte *ptr, V val)
               static_cast<uint32_t>(val));
 }
 
+/** Write a byte string to a page.
+@param[in,out]  b       buffer page
+@param[in]      ofs     byte offset from b->frame
+@param[in]      str     the data to write
+@param[in]      len     length of the data to write */
+inline
+void mtr_t::memcpy(buf_block_t *b, ulint offset, const void *str, ulint len)
+{
+  ::memcpy(b->frame + offset, str, len);
+  memcpy(*b, offset, len);
+}
+
 /** Writes a log record about an operation.
 @param[in]	type		redo log record type
 @param[in]	space_id	tablespace identifier
@@ -213,7 +205,7 @@ mlog_parse_nbytes(
 				or NULL */
 	void*		page_zip);/*!< in/out: compressed page, or NULL */
 /********************************************************//**
-Parses a log record written by mlog_write_string.
+Parses a log record written by mtr_t::memcpy().
 @return parsed record end, NULL if not a complete record */
 const byte*
 mlog_parse_string(

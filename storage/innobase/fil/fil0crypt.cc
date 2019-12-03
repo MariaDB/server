@@ -408,25 +408,17 @@ fil_space_crypt_t::fill_page0(
 			encryption);
 }
 
-/******************************************************************
-Write crypt data to a page (0)
-@param[in]	space	tablespace
-@param[in,out]	page0	first page of the tablespace
+/** Write encryption metadata to the first page.
+@param[in,out]	block	first page of the tablespace
 @param[in,out]	mtr	mini-transaction */
-UNIV_INTERN
-void
-fil_space_crypt_t::write_page0(
-	const fil_space_t*	space,
-	byte* 			page,
-	mtr_t*			mtr)
+void fil_space_crypt_t::write_page0(buf_block_t* block, mtr_t* mtr)
 {
-	ut_ad(this == space->crypt_data);
 	const ulint offset = FSP_HEADER_OFFSET
-		+ fsp_header_get_encryption_offset(space->zip_size());
-	byte* b = page + offset;
+		+ fsp_header_get_encryption_offset(block->zip_size());
+	byte* b = block->frame + offset;
 
 	if (memcmp(b, CRYPT_MAGIC, MAGIC_SZ)) {
-		mlog_write_string(b, CRYPT_MAGIC, MAGIC_SZ, mtr);
+		mtr->memcpy(block, offset, CRYPT_MAGIC, MAGIC_SZ);
 	}
 
 	b += MAGIC_SZ;
@@ -443,7 +435,7 @@ fil_space_crypt_t::write_page0(
 	b += 4;
 	*b++ = byte(encryption);
 	ut_ad(b - start == 11 + MY_AES_BLOCK_SIZE);
-	mlog_log_string(start, b - start, mtr);
+	mtr->memcpy(*block, offset + MAGIC_SZ, b - start);
 }
 
 /******************************************************************
@@ -1255,9 +1247,8 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 
 
 		/* 3 - write crypt data to page 0 */
-		byte* frame = buf_block_get_frame(block);
 		crypt_data->type = CRYPT_SCHEME_1;
-		crypt_data->write_page0(space, frame, &mtr);
+		crypt_data->write_page0(block, &mtr);
 
 		mtr.commit();
 
@@ -2243,7 +2234,7 @@ fil_crypt_flush_space(
 		    RW_X_LATCH, NULL, BUF_GET,
 		    __FILE__, __LINE__, &mtr, &err)) {
 		mtr.set_named_space(space);
-		crypt_data->write_page0(space, block->frame, &mtr);
+		crypt_data->write_page0(block, &mtr);
 	}
 
 	mtr.commit();

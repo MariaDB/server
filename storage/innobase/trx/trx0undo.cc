@@ -597,9 +597,7 @@ static void trx_undo_write_xid(buf_block_t *block, uint16_t offset,
                            static_cast<uint32_t>(xid.bqual_length));
   const ulint xid_length= static_cast<ulint>(xid.gtrid_length
                                              + xid.bqual_length);
-  mlog_write_string(log_hdr + TRX_UNDO_XA_XID,
-                    reinterpret_cast<const byte*>(xid.data),
-                    xid_length, mtr);
+  mtr->memcpy(block, offset + TRX_UNDO_XA_XID, xid.data, xid_length);
   if (UNIV_LIKELY(xid_length < XIDDATASIZE))
     mtr->memset(block, offset + TRX_UNDO_XA_XID + xid_length,
                 XIDDATASIZE - xid_length, 0);

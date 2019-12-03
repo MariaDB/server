@@ -1627,15 +1627,11 @@ func_exit:
 					    mach_read_from_2(instant));
 		if (!index->table->instant) {
 		} else if (page_is_comp(block->frame)) {
-			mlog_log_string(PAGE_NEW_INFIMUM + block->frame, 8,
-					mtr);
-			mlog_log_string(PAGE_NEW_SUPREMUM + block->frame, 8,
-					mtr);
+			mtr->memcpy(*block, PAGE_NEW_INFIMUM, 8);
+			mtr->memcpy(*block, PAGE_NEW_SUPREMUM, 8);
 		} else {
-			mlog_log_string(PAGE_OLD_INFIMUM + block->frame, 8,
-					mtr);
-			mlog_log_string(PAGE_OLD_SUPREMUM + block->frame, 8,
-					mtr);
+			mtr->memcpy(*block, PAGE_OLD_INFIMUM, 8);
+			mtr->memcpy(*block, PAGE_OLD_SUPREMUM, 8);
 		}
 	}
 

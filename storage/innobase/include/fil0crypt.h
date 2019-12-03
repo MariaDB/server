@@ -183,11 +183,10 @@ struct fil_space_crypt_t : st_encryption_scheme
 	@param[in,out]	page	first page of the tablespace */
 	void fill_page0(ulint flags, byte* page);
 
-	/** Write crypt data to a page (0)
-	@param[in]	space	tablespace
-	@param[in,out]	page0	first page of the tablespace
+	/** Write encryption metadata to the first page.
+	@param[in,out]	block	first page of the tablespace
 	@param[in,out]	mtr	mini-transaction */
-	void write_page0(const fil_space_t* space, byte* page0, mtr_t* mtr);
+	void write_page0(buf_block_t* block, mtr_t* mtr);
 
 	uint min_key_version; // min key version for this space
 	fil_encryption_t encryption; // Encryption setup

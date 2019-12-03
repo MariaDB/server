@@ -298,63 +298,38 @@ void mtr_t::log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
   mlog_close(this, log_ptr);
 }
 
-/********************************************************//**
-Writes a string to a file page buffered in the buffer pool. Writes the
-corresponding log record to the mini-transaction log. */
-void
-mlog_write_string(
-/*==============*/
-	byte*		ptr,	/*!< in: pointer where to write */
-	const byte*	str,	/*!< in: string to write */
-	ulint		len,	/*!< in: string length */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle */
+/** Log a write of a byte string to a page.
+@param[in]      b       buffer page
+@param[in]      ofs     byte offset from b->frame
+@param[in]      str     the data to write
+@param[in]      len     length of the data to write */
+void mtr_t::memcpy(const buf_block_t &b, ulint ofs, ulint len)
 {
-	ut_ad(ptr && mtr);
-	ut_a(len < srv_page_size);
+  ut_ad(len);
+  ut_ad(ofs <= ulint(srv_page_size));
+  ut_ad(ofs + len <= ulint(srv_page_size));
+  ut_ad(ofs + len < PAGE_DATA || !b.page.zip.data ||
+        mach_read_from_2(b.frame + FIL_PAGE_TYPE) <= FIL_PAGE_TYPE_ZBLOB2);
 
-	memcpy(ptr, str, len);
+  set_modified();
+  if (get_log_mode() != MTR_LOG_ALL)
+  {
+    ut_ad(get_log_mode() == MTR_LOG_NONE ||
+          get_log_mode() == MTR_LOG_NO_REDO);
+    return;
+  }
 
-	mlog_log_string(ptr, len, mtr);
+  byte *l= get_log()->open(11 + 2 + 2);
+  l= mlog_write_initial_log_record_low(MLOG_WRITE_STRING, b.page.id.space(),
+                                       b.page.id.page_no(), l, this);
+  mach_write_to_2(l, ofs);
+  mach_write_to_2(l + 2, len);
+  mlog_close(this, l + 4);
+  mlog_catenate_string(this, b.frame + ofs, len);
 }
 
 /********************************************************//**
-Logs a write of a string to a file page buffered in the buffer pool.
-Writes the corresponding log record to the mini-transaction log. */
-void
-mlog_log_string(
-/*============*/
-	byte*	ptr,	/*!< in: pointer written to */
-	ulint	len,	/*!< in: string length */
-	mtr_t*	mtr)	/*!< in: mini-transaction handle */
-{
-	byte*	log_ptr;
-
-	ut_ad(ptr && mtr);
-	ut_ad(len <= srv_page_size);
-
-	log_ptr = mlog_open(mtr, 30);
-
-	/* If no logging is requested, we may return now */
-	if (log_ptr == NULL) {
-
-		return;
-	}
-
-	log_ptr = mlog_write_initial_log_record_fast(ptr, MLOG_WRITE_STRING,
-						     log_ptr, mtr);
-	mach_write_to_2(log_ptr, page_offset(ptr));
-	log_ptr += 2;
-
-	mach_write_to_2(log_ptr, len);
-	log_ptr += 2;
-
-	mlog_close(mtr, log_ptr);
-
-	mlog_catenate_string(mtr, ptr, len);
-}
-
-/********************************************************//**
-Parses a log record written by mlog_write_string.
+Parses a log record written by mtr_t::memcpy().
 @return parsed record end, NULL if not a complete record */
 const byte*
 mlog_parse_string(

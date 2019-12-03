@@ -226,8 +226,10 @@ func_exit:
 			static const byte str[8 + 8] = "supremuminfimum";
 			if (memcmp(infimum, str + 8, 8)
 			    || memcmp(supremum, str, 8)) {
-				mlog_write_string(infimum, str + 8, 8, &mtr);
-				mlog_write_string(supremum, str, 8, &mtr);
+				mtr.memcpy(root, page_offset(infimum),
+					   str + 8, 8);
+				mtr.memcpy(root, page_offset(supremum),
+					   str, 8);
 			}
 		}
 	}

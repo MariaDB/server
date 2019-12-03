@@ -838,8 +838,15 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 				byte*	ptr = rec_get_nth_field(
 					rec, offsets, trx_id_pos, &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
-				mlog_write_string(ptr, reset_trx_id,
-						  sizeof reset_trx_id, mtr);
+				buf_block_t* block = btr_pcur_get_block(
+					&node->pcur);
+				uint16_t offs = page_offset(ptr);
+				mtr->memset(block, offs, DATA_TRX_ID_LEN, 0);
+				offs += DATA_TRX_ID_LEN;
+				mtr->write<1,mtr_t::OPT>(*block, block->frame
+							 + offs, 0x80U);
+				mtr->memset(block, offs + 1,
+					    DATA_ROLL_PTR_LEN - 1, 0);
 			}
 		}
 	}

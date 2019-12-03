@@ -7723,7 +7723,7 @@ btr_store_big_rec_extern_fields(
 				be made simpler.  Before InnoDB Plugin
 				1.0.4, the initialization of
 				FIL_PAGE_TYPE was logged as part of
-				the mlog_log_string() below. */
+				the mtr_t::memcpy() below. */
 
 				mtr.write<2>(*block,
 					     block->frame + FIL_PAGE_TYPE,
@@ -7770,12 +7770,11 @@ btr_store_big_rec_extern_fields(
 				mtr.write<4>(*block, block->frame
 					     + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
 					     rec_page_no);
-				mlog_log_string(block->frame
-						+ FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-						page_zip_get_size(page_zip)
-						- FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
-						- c_stream.avail_out,
-						&mtr);
+				mtr.memcpy(*block,
+					   FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
+					   page_zip_get_size(page_zip)
+					   - FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+					   - c_stream.avail_out);
 				/* Zero out the unused part of the page. */
 				if (c_stream.avail_out) {
 					mtr.memset(block,
@@ -7852,14 +7851,12 @@ next_zip_page:
 					store_len = extern_len;
 				}
 
-				mlog_write_string(FIL_PAGE_DATA
-						  + BTR_BLOB_HDR_SIZE
-						  + block->frame,
-						  (const byte*)
-						  big_rec_vec->fields[i].data
-						  + big_rec_vec->fields[i].len
-						  - extern_len,
-						  store_len, &mtr);
+				mtr.memcpy(block,
+					   FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE,
+					   (const byte*)
+					   big_rec_vec->fields[i].data
+					   + big_rec_vec->fields[i].len
+					   - extern_len, store_len);
 				mtr.write<4>(*block, BTR_BLOB_HDR_PART_LEN
 					     + FIL_PAGE_DATA + block->frame,
 					     store_len);
