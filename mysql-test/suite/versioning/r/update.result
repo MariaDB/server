@@ -295,5 +295,17 @@ primary key (pk)
 create or replace view v1 as select * from t1;
 insert into t1 values  (1, null, 'd') ,  (2, null, 'i') ;
 update v1 set a= null where b = '';
+create or replace table t1 (id int, k int, primary key (id)) engine=innodb with system versioning;
+insert into t1 values (1,1),(2,2);
+create or replace view v1 as select * from t1;
+update v1 set id= 2 where k = 0;
+create or replace table t1 (a int) with system versioning;
+create or replace view v1 as select * from t1;
+create or replace procedure sp() update v1 set xx = 1;
+call sp;
+ERROR 42S22: Unknown column 'xx' in 'field list'
+call sp;
+ERROR 42S22: Unknown column 'xx' in 'field list'
+drop procedure sp;
 drop view v1;
 drop table t1;
