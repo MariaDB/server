@@ -3,10 +3,10 @@
 # notifications into a table.
 #
 
---source include/have_innodb.inc
 --source include/galera_cluster.inc
 
 --connection node_1
-SELECT COUNT(DISTINCT uuid) = 2 FROM mtr_wsrep_notify.membership;
-SELECT MAX(size) = 2 FROM mtr_wsrep_notify.status;
-SELECT COUNT(DISTINCT idx) = 2 FROM mtr_wsrep_notify.status;
+SET SESSION wsrep_sync_wait=15;
+SELECT COUNT(DISTINCT uuid) FROM mtr_wsrep_notify.membership;
+SELECT MAX(size) FROM mtr_wsrep_notify.status;
+SELECT COUNT(DISTINCT idx) FROM mtr_wsrep_notify.status;
