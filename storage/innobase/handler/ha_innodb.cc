@@ -17856,14 +17856,10 @@ func_exit:
 		space->zip_size(), RW_X_LATCH, &mtr);
 
 	if (block != NULL) {
-		byte*	page = block->frame;
-
-		ib::info() << "Dirtying page: " << page_id_t(
-			page_get_space_id(page), page_get_page_no(page));
-
-		mlog_write_ulint(page + FIL_PAGE_TYPE,
-				 fil_page_get_type(page),
-				 MLOG_2BYTES, &mtr);
+		ib::info() << "Dirtying page: " << block->page.id;
+		mtr.write<1,mtr_t::FORCED>(*block,
+					   block->frame + FIL_PAGE_SPACE_ID,
+					   block->frame[FIL_PAGE_SPACE_ID]);
 	}
 	mtr.commit();
 	goto func_exit;

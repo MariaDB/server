@@ -335,37 +335,30 @@ static bool row_undo_rec_get(undo_node_t* node)
 	mtr_t	mtr;
 	mtr.start();
 
-	page_t*	undo_page = trx_undo_page_get_s_latched(
+	buf_block_t* undo_page = trx_undo_page_get_s_latched(
 		page_id_t(undo->rseg->space->id, undo->top_page_no), &mtr);
 
-	ulint	offset = undo->top_offset;
+	uint16_t offset = undo->top_offset;
 
-	trx_undo_rec_t*	prev_rec = trx_undo_get_prev_rec(
-		undo_page + offset, undo->hdr_page_no, undo->hdr_offset,
-		true, &mtr);
-
-	if (prev_rec == NULL) {
-		undo->top_undo_no = IB_ID_MAX;
-		ut_ad(undo->empty());
-	} else {
-		page_t*	prev_rec_page = page_align(prev_rec);
-
-		if (prev_rec_page != undo_page) {
-
+	buf_block_t* prev_page = undo_page;
+	if (trx_undo_rec_t* prev_rec = trx_undo_get_prev_rec(
+		    prev_page, offset, undo->hdr_page_no, undo->hdr_offset,
+		    true, &mtr)) {
+		if (prev_page != undo_page) {
 			trx->pages_undone++;
 		}
 
-		undo->top_page_no = page_get_page_no(prev_rec_page);
-		undo->top_offset  = ulint(prev_rec - prev_rec_page);
+		undo->top_page_no = prev_page->page.id.page_no();
+		undo->top_offset  = page_offset(prev_rec);
 		undo->top_undo_no = trx_undo_rec_get_undo_no(prev_rec);
 		ut_ad(!undo->empty());
+	} else {
+		undo->top_undo_no = IB_ID_MAX;
+		ut_ad(undo->empty());
 	}
 
-	{
-		const trx_undo_rec_t* undo_rec = undo_page + offset;
-		node->undo_rec = trx_undo_rec_copy(undo_rec, node->heap);
-	}
-
+	node->undo_rec = trx_undo_rec_copy(undo_page->frame + offset,
+					   node->heap);
 	mtr.commit();
 
 	switch (trx_undo_rec_get_type(node->undo_rec)) {

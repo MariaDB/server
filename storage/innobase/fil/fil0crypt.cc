@@ -2035,8 +2035,9 @@ fil_crypt_rotate_page(
 			modified = true;
 
 			/* force rotation by dummy updating page */
-			mlog_write_ulint(frame + FIL_PAGE_SPACE_ID,
-					 space_id, MLOG_4BYTES, &mtr);
+			mtr.write<1,mtr_t::FORCED>(*block,
+						   &frame[FIL_PAGE_SPACE_ID],
+						   frame[FIL_PAGE_SPACE_ID]);
 
 			/* statistics */
 			state->crypt_stat.pages_modified++;

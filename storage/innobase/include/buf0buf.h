@@ -717,16 +717,6 @@ inline void aligned_free(void *ptr)
 }
 
 /**********************************************************************//**
-Gets the space id, page offset, and byte offset within page of a
-pointer pointing to a buffer frame containing a file page. */
-UNIV_INLINE
-void
-buf_ptr_get_fsp_addr(
-/*=================*/
-	const void*	ptr,	/*!< in: pointer to a buffer frame */
-	ulint*		space,	/*!< out: space id */
-	fil_addr_t*	addr);	/*!< out: page offset and byte offset */
-/**********************************************************************//**
 Gets the hash value of a block. This can be used in searches in the
 lock hash table.
 @return lock hash value */
@@ -1094,9 +1084,9 @@ buf_block_get_frame(
 Gets the compressed page descriptor corresponding to an uncompressed page
 if applicable. */
 #define buf_block_get_page_zip(block) \
-	((block)->page.zip.data ? &(block)->page.zip : NULL)
+	(UNIV_LIKELY_NULL((block)->page.zip.data) ? &(block)->page.zip : NULL)
 #define is_buf_block_get_page_zip(block) \
-        ((block)->page.zip.data != 0)
+        UNIV_LIKELY_NULL((block)->page.zip.data)
 
 #ifdef BTR_CUR_HASH_ADAPT
 /** Get a buffer block from an adaptive hash index pointer.

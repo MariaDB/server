@@ -10198,12 +10198,12 @@ commit_cache_norebuild(
 					    space->zip_size(),
 					    RW_X_LATCH, &mtr)) {
 					mtr.set_named_space(space);
-					mlog_write_ulint(
+					mtr.write<4,mtr_t::OPT>(
+						*b,
 						FSP_HEADER_OFFSET
 						+ FSP_SPACE_FLAGS + b->frame,
 						space->flags
-						& ~FSP_FLAGS_MEM_MASK,
-						MLOG_4BYTES, &mtr);
+						& ~FSP_FLAGS_MEM_MASK);
 				}
 				mtr.commit();
 			}

@@ -184,15 +184,15 @@ public:
 					to purge */
 	trx_rseg_t*	rseg;		/*!< Rollback segment for the next undo
 					record to purge */
-	ulint		page_no;	/*!< Page number for the next undo
+	uint32_t	page_no;	/*!< Page number for the next undo
 					record to purge, page number of the
 					log header, if dummy record */
-	ulint		offset;		/*!< Page offset for the next undo
+	uint32_t	hdr_page_no;	/*!< Header page of the undo log where
+					the next record to purge belongs */
+	uint16_t	offset;		/*!< Page offset for the next undo
 					record to purge, 0 if the dummy
 					record */
-	ulint		hdr_page_no;	/*!< Header page of the undo log where
-					the next record to purge belongs */
-	ulint		hdr_offset;	/*!< Header byte offset on the page */
+	uint16_t	hdr_offset;	/*!< Header byte offset on the page */
 
 
 	TrxUndoRsegsIterator

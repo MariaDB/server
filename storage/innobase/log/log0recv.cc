@@ -1619,7 +1619,7 @@ parse_log:
 		break;
 	case MLOG_UNDO_HDR_CREATE:
 		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
-		ptr = trx_undo_parse_page_header(ptr, end_ptr, page, mtr);
+		ptr = trx_undo_parse_page_header(ptr, end_ptr, block, mtr);
 		break;
 	case MLOG_REC_MIN_MARK: case MLOG_COMP_REC_MIN_MARK:
 		ut_ad(!page || fil_page_type_is_index(page_type));

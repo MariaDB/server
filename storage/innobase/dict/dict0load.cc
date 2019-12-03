@@ -1481,7 +1481,8 @@ void dict_check_tablespaces_and_store_max_id()
 	/* Initialize the max space_id from sys header */
 	mtr.start();
 	ulint max_space_id = mach_read_from_4(DICT_HDR_MAX_SPACE_ID
-					      + dict_hdr_get(&mtr));
+					      + DICT_HDR
+					      + dict_hdr_get(&mtr)->frame);
 	mtr.commit();
 
 	fil_set_max_space_id_if_bigger(max_space_id);

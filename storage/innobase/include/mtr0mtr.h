@@ -425,7 +425,50 @@ struct mtr_t {
 	static inline bool is_block_dirtied(const buf_block_t* block)
 		MY_ATTRIBUTE((warn_unused_result));
 
+  /** Write request types */
+  enum write_type
+  {
+    /** the page is guaranteed to always change */
+    NORMAL= 0,
+    /** optional: the page contents might not change */
+    OPT,
+    /** force a write, even if the page contents is not changing */
+    FORCED
+  };
+
+  /** Write 1, 2, 4, or 8 bytes to a file page.
+  @param[in]      block   file page
+  @param[in,out]  ptr     pointer in file page
+  @param[in]      val     value to write
+  @tparam l       number of bytes to write
+  @tparam w       write request type
+  @tparam V       type of val */
+  template<unsigned l,write_type w= NORMAL,typename V>
+  inline void write(const buf_block_t &block, byte *ptr, V val)
+    MY_ATTRIBUTE((nonnull));
+
 private:
+  /**
+  Write a log record for writing 1, 2, or 4 bytes.
+  @param[in]      block   file page
+  @param[in,out]  ptr     pointer in file page
+  @param[in]      l       number of bytes to write
+  @param[in,out]  log_ptr log record buffer
+  @param[in]      val     value to write */
+  void log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
+                 byte *log_ptr, uint32_t val)
+    MY_ATTRIBUTE((nonnull));
+  /**
+  Write a log record for writing 8 bytes.
+  @param[in]      block   file page
+  @param[in,out]  ptr     pointer in file page
+  @param[in]      l       number of bytes to write (8)
+  @param[in,out]  log_ptr log record buffer
+  @param[in]      val     value to write */
+  void log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
+                 byte *log_ptr, uint64_t val)
+    MY_ATTRIBUTE((nonnull));
+
 	/** Prepare to write the mini-transaction log to the redo log buffer.
 	@return number of bytes to write in finish_write() */
 	inline ulint prepare_write();

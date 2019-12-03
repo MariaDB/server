@@ -2755,7 +2755,7 @@ err_exit:
 				insert fails, then this disown will be undone
 				when the operation is rolled back. */
 				btr_cur_disown_inherited_fields(
-					btr_cur_get_page_zip(btr_cur),
+					btr_cur_get_block(btr_cur),
 					rec, index, offsets, node->update,
 					mtr);
 			}

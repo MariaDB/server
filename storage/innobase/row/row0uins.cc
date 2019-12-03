@@ -208,20 +208,22 @@ func_exit:
 		/* When rolling back the very first instant ADD COLUMN
 		operation, reset the root page to the basic state. */
 		ut_ad(!index->table->is_temporary());
-		if (page_t* root = btr_root_get(index, &mtr)) {
-			byte* page_type = root + FIL_PAGE_TYPE;
+		if (buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH,
+							   &mtr)) {
+			byte* page_type = root->frame + FIL_PAGE_TYPE;
 			ut_ad(mach_read_from_2(page_type)
 			      == FIL_PAGE_TYPE_INSTANT
 			      || mach_read_from_2(page_type)
 			      == FIL_PAGE_INDEX);
-			mlog_write_ulint(page_type, FIL_PAGE_INDEX,
-					 MLOG_2BYTES, &mtr);
-			byte* instant = PAGE_INSTANT + PAGE_HEADER + root;
-			mlog_write_ulint(instant,
-					 page_ptr_get_direction(instant + 1),
-					 MLOG_2BYTES, &mtr);
-			rec_t* infimum = page_get_infimum_rec(root);
-			rec_t* supremum = page_get_supremum_rec(root);
+			mtr.write<2,mtr_t::OPT>(*root, page_type,
+						FIL_PAGE_INDEX);
+			byte* instant = PAGE_INSTANT + PAGE_HEADER
+				+ root->frame;
+			mtr.write<2,mtr_t::OPT>(
+				*root, instant,
+				page_ptr_get_direction(instant + 1));
+			rec_t* infimum = page_get_infimum_rec(root->frame);
+			rec_t* supremum = page_get_supremum_rec(root->frame);
 			static const byte str[8 + 8] = "supremuminfimum";
 			if (memcmp(infimum, str + 8, 8)
 			    || memcmp(supremum, str, 8)) {

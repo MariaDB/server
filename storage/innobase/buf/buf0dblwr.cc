@@ -71,25 +71,13 @@ buf_dblwr_page_inside(
 	return(FALSE);
 }
 
-/****************************************************************//**
-Calls buf_page_get() on the TRX_SYS_PAGE and returns a pointer to the
-doublewrite buffer within it.
-@return pointer to the doublewrite buffer within the filespace header
-page. */
-UNIV_INLINE
-byte*
-buf_dblwr_get(
-/*==========*/
-	mtr_t*	mtr)	/*!< in/out: MTR to hold the page latch */
+/** @return the TRX_SYS page */
+inline buf_block_t *buf_dblwr_trx_sys_get(mtr_t *mtr)
 {
-	buf_block_t*	block;
-
-	block = buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
-			     0, RW_X_LATCH, mtr);
-
-	buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
-
-	return(buf_block_get_frame(block) + TRX_SYS_DOUBLEWRITE);
+  buf_block_t *block= buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
+                                   0, RW_X_LATCH, mtr);
+  buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
+  return block;
 }
 
 /********************************************************************//**
@@ -106,12 +94,7 @@ buf_dblwr_sync_datafiles()
 
 /****************************************************************//**
 Creates or initialializes the doublewrite buffer at a database start. */
-static
-void
-buf_dblwr_init(
-/*===========*/
-	byte*	doublewrite)	/*!< in: pointer to the doublewrite buf
-				header on trx sys page */
+static void buf_dblwr_init(const byte *doublewrite)
 {
 	ulint	buf_size;
 
@@ -164,7 +147,6 @@ buf_dblwr_create()
 {
 	buf_block_t*	block2;
 	buf_block_t*	new_block;
-	byte*	doublewrite;
 	byte*	fseg_header;
 	ulint	page_no;
 	ulint	prev_page_no;
@@ -180,14 +162,15 @@ start_again:
 	mtr.start();
 	buf_dblwr_being_created = TRUE;
 
-	doublewrite = buf_dblwr_get(&mtr);
+	buf_block_t *trx_sys_block = buf_dblwr_trx_sys_get(&mtr);
 
-	if (mach_read_from_4(doublewrite + TRX_SYS_DOUBLEWRITE_MAGIC)
+	if (mach_read_from_4(TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC
+			     + trx_sys_block->frame)
 	    == TRX_SYS_DOUBLEWRITE_MAGIC_N) {
 		/* The doublewrite buffer has already been created:
 		just read in some numbers */
 
-		buf_dblwr_init(doublewrite);
+		buf_dblwr_init(TRX_SYS_DOUBLEWRITE + trx_sys_block->frame);
 
 		mtr.commit();
 		buf_dblwr_being_created = FALSE;
@@ -229,7 +212,8 @@ too_small:
 
 	buf_block_dbg_add_level(block2, SYNC_NO_ORDER_CHECK);
 
-	fseg_header = doublewrite + TRX_SYS_DOUBLEWRITE_FSEG;
+	fseg_header = TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG
+		+ trx_sys_block->frame;
 	prev_page_no = 0;
 
 	for (i = 0; i < TRX_SYS_DOUBLEWRITE_BLOCKS * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE
@@ -265,30 +249,38 @@ too_small:
 		recv_parse_or_apply_log_rec_body() will see a valid
 		page type. The flushes of new_block are actually
 		unnecessary here.  */
-		ut_d(mlog_write_ulint(FIL_PAGE_TYPE + new_block->frame,
-				      FIL_PAGE_TYPE_SYS, MLOG_2BYTES, &mtr));
+		ut_d(mtr.write<2>(*new_block,
+				  FIL_PAGE_TYPE + new_block->frame,
+				  FIL_PAGE_TYPE_SYS));
 
 		if (i == FSP_EXTENT_SIZE / 2) {
 			ut_a(page_no == FSP_EXTENT_SIZE);
-			mlog_write_ulint(doublewrite
-					 + TRX_SYS_DOUBLEWRITE_BLOCK1,
-					 page_no, MLOG_4BYTES, &mtr);
-			mlog_write_ulint(doublewrite
-					 + TRX_SYS_DOUBLEWRITE_REPEAT
-					 + TRX_SYS_DOUBLEWRITE_BLOCK1,
-					 page_no, MLOG_4BYTES, &mtr);
+			mtr.write<4>(*trx_sys_block,
+				     TRX_SYS_DOUBLEWRITE
+				     + TRX_SYS_DOUBLEWRITE_BLOCK1
+				     + trx_sys_block->frame,
+				     page_no);
+			mtr.write<4>(*trx_sys_block,
+				     TRX_SYS_DOUBLEWRITE
+				     + TRX_SYS_DOUBLEWRITE_REPEAT
+				     + TRX_SYS_DOUBLEWRITE_BLOCK1
+				     + trx_sys_block->frame,
+				     page_no);
 
 		} else if (i == FSP_EXTENT_SIZE / 2
 			   + TRX_SYS_DOUBLEWRITE_BLOCK_SIZE) {
 			ut_a(page_no == 2 * FSP_EXTENT_SIZE);
-			mlog_write_ulint(doublewrite
-					 + TRX_SYS_DOUBLEWRITE_BLOCK2,
-					 page_no, MLOG_4BYTES, &mtr);
-			mlog_write_ulint(doublewrite
-					 + TRX_SYS_DOUBLEWRITE_REPEAT
-					 + TRX_SYS_DOUBLEWRITE_BLOCK2,
-					 page_no, MLOG_4BYTES, &mtr);
-
+			mtr.write<4>(*trx_sys_block,
+				     TRX_SYS_DOUBLEWRITE
+				     + TRX_SYS_DOUBLEWRITE_BLOCK2
+				     + trx_sys_block->frame,
+				     page_no);
+			mtr.write<4>(*trx_sys_block,
+				     TRX_SYS_DOUBLEWRITE
+				     + TRX_SYS_DOUBLEWRITE_REPEAT
+				     + TRX_SYS_DOUBLEWRITE_BLOCK2
+				     + trx_sys_block->frame,
+				     page_no);
 		} else if (i > FSP_EXTENT_SIZE / 2) {
 			ut_a(page_no == prev_page_no + 1);
 		}
@@ -303,29 +295,32 @@ too_small:
 			lock the fseg header too many times. Since
 			this code is not done while any other threads
 			are active, restart the MTR occasionally. */
-			mtr_commit(&mtr);
-			mtr_start(&mtr);
-			doublewrite = buf_dblwr_get(&mtr);
-			fseg_header = doublewrite
-				      + TRX_SYS_DOUBLEWRITE_FSEG;
+			mtr.commit();
+			mtr.start();
+			trx_sys_block = buf_dblwr_trx_sys_get(&mtr);
+			fseg_header = TRX_SYS_DOUBLEWRITE
+				+ TRX_SYS_DOUBLEWRITE_FSEG
+				+ trx_sys_block->frame;
 		}
 
 		prev_page_no = page_no;
 	}
 
-	mlog_write_ulint(doublewrite + TRX_SYS_DOUBLEWRITE_MAGIC,
-			 TRX_SYS_DOUBLEWRITE_MAGIC_N,
-			 MLOG_4BYTES, &mtr);
-	mlog_write_ulint(doublewrite + TRX_SYS_DOUBLEWRITE_MAGIC
-			 + TRX_SYS_DOUBLEWRITE_REPEAT,
-			 TRX_SYS_DOUBLEWRITE_MAGIC_N,
-			 MLOG_4BYTES, &mtr);
+	mtr.write<4>(*trx_sys_block,
+		     TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC
+		     + trx_sys_block->frame,
+		     TRX_SYS_DOUBLEWRITE_MAGIC_N);
+	mtr.write<4>(*trx_sys_block,
+		     TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_MAGIC
+		     + TRX_SYS_DOUBLEWRITE_REPEAT
+		     + trx_sys_block->frame,
+		     TRX_SYS_DOUBLEWRITE_MAGIC_N);
 
-	mlog_write_ulint(doublewrite
-			 + TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED,
-			 TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N,
-			 MLOG_4BYTES, &mtr);
-	mtr_commit(&mtr);
+	mtr.write<4>(*trx_sys_block,
+		     TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED
+		     + trx_sys_block->frame,
+		     TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N);
+	mtr.commit();
 
 	/* Flush the modified pages to disk and make a checkpoint */
 	log_make_checkpoint();

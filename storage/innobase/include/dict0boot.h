@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,15 +33,8 @@ Created 4/18/1996 Heikki Tuuri
 #include "buf0buf.h"
 #include "dict0dict.h"
 
-typedef	byte	dict_hdr_t;
-
-/**********************************************************************//**
-Gets a pointer to the dictionary header and x-latches its page.
-@return pointer to the dictionary header, page x-latched */
-dict_hdr_t*
-dict_hdr_get(
-/*=========*/
-	mtr_t*	mtr);	/*!< in: mtr */
+/** @return the DICT_HDR block, x-latched */
+buf_block_t *dict_hdr_get(mtr_t* mtr);
 /**********************************************************************//**
 Returns a new table, index, or space id. */
 void

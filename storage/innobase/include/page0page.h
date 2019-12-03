@@ -31,6 +31,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "fil0fil.h"
 #include "buf0buf.h"
 #include "rem0rec.h"
+#include "mach0data.h"
 #ifndef UNIV_INNOCHECKSUM
 #include "dict0dict.h"
 #include "data0data.h"
@@ -42,8 +43,6 @@ Created 2/2/1994 Heikki Tuuri
 Index page header starts at the first offset left free by the FIL-module */
 
 typedef	byte		page_header_t;
-#else
-# include "mach0data.h"
 #endif /* !UNIV_INNOCHECKSUM */
 
 #define	PAGE_HEADER	FSEG_PAGE_DATA	/* index page header starts at this
@@ -393,13 +392,17 @@ inline
 bool
 page_rec_is_infimum(const rec_t* rec);
 
-/*************************************************************//**
-Returns the max trx id field value. */
-UNIV_INLINE
-trx_id_t
-page_get_max_trx_id(
-/*================*/
-	const page_t*	page);	/*!< in: page */
+/** Read PAGE_MAX_TRX_ID.
+@param[in]      page    index page
+@return the value of PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC */
+inline trx_id_t page_get_max_trx_id(const page_t *page)
+{
+  static_assert((PAGE_HEADER + PAGE_MAX_TRX_ID) % 8 == 0, "alignment");
+  const byte *p= static_cast<const byte*>
+    (MY_ASSUME_ALIGNED(page + PAGE_HEADER + PAGE_MAX_TRX_ID, 8));
+  return mach_read_from_8(p);
+}
+
 /*************************************************************//**
 Sets the max trx id field value. */
 void
@@ -424,7 +427,6 @@ page_update_max_trx_id(
 
 /** Persist the AUTO_INCREMENT value on a clustered index root page.
 @param[in,out]	block	clustered index root page
-@param[in]	index	clustered index
 @param[in]	autoinc	next available AUTO_INCREMENT value
 @param[in,out]	mtr	mini-transaction
 @param[in]	reset	whether to reset the AUTO_INCREMENT
@@ -433,7 +435,6 @@ page_update_max_trx_id(
 void
 page_set_autoinc(
 	buf_block_t*		block,
-	const dict_index_t*	index MY_ATTRIBUTE((unused)),
 	ib_uint64_t		autoinc,
 	mtr_t*			mtr,
 	bool			reset)
@@ -517,17 +518,12 @@ page_header_set_ptr(
 	ulint		field,	/*!< in/out: PAGE_FREE, ... */
 	const byte*	ptr);	/*!< in: pointer or NULL*/
 
-/*************************************************************//**
-Resets the last insert info field in the page header. Writes to mlog
-about this operation. */
-UNIV_INLINE
-void
-page_header_reset_last_insert(
-/*==========================*/
-	page_t*		page,	/*!< in: page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
-				uncompressed part will be updated, or NULL */
-	mtr_t*		mtr);	/*!< in: mtr */
+/**
+Reset PAGE_LAST_INSERT.
+@param[in,out]  block    file page
+@param[in,out]  mtr      mini-transaction */
+inline void page_header_reset_last_insert(buf_block_t *block, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull));
 #define page_get_infimum_rec(page) ((page) + page_get_infimum_offset(page))
 #define page_get_supremum_rec(page) ((page) + page_get_supremum_offset(page))
 
@@ -663,14 +659,17 @@ ibool
 page_rec_check(
 /*===========*/
 	const rec_t*	rec);	/*!< in: record */
-/***************************************************************//**
-Gets the record pointed to by a directory slot.
+/** Get the record pointed to by a directory slot.
+@param[in] slot   directory slot
 @return pointer to record */
-UNIV_INLINE
-const rec_t*
-page_dir_slot_get_rec(
-/*==================*/
-	const page_dir_slot_t*	slot);	/*!< in: directory slot */
+inline rec_t *page_dir_slot_get_rec(page_dir_slot_t *slot)
+{
+  return page_align(slot) + mach_read_from_2(slot);
+}
+inline const rec_t *page_dir_slot_get_rec(const page_dir_slot_t *slot)
+{
+  return page_dir_slot_get_rec(const_cast<rec_t*>(slot));
+}
 /***************************************************************//**
 This is used to set the record offset in a directory slot. */
 UNIV_INLINE

@@ -62,7 +62,7 @@ General philosophy of InnoDB redo-logs:
 through mtr, which in mtr_commit() writes log records
 to the InnoDB redo log.
 
-2) Normally these changes are performed using a mlog_write_ulint()
+2) Normally these changes are performed using a mlog_write()
 or similar function.
 
 3) In some page level operations only a code number of a

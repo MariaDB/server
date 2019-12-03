@@ -101,11 +101,25 @@ public:
 	/** Insert a record in the page.
 	@param[in]	rec		record
 	@param[in]	offsets		record offsets */
-	void insert(const rec_t* rec, ulint* offsets);
+	inline void insert(const rec_t* rec, ulint* offsets);
+private:
+	/** Page format */
+	enum format { REDUNDANT, DYNAMIC, COMPRESSED };
+	/** Mark end of insertion to the page. Scan all records to set page
+	dirs, and set page header members.
+	@tparam format  the page format */
+	template<format> inline void finishPage();
+	/** Insert a record in the page.
+	@tparam format  the page format
+	@param[in]	rec		record
+	@param[in]	offsets		record offsets */
+	template<format> inline void insertPage(const rec_t* rec,
+						ulint* offsets);
 
+public:
 	/** Mark end of insertion to the page. Scan all records to set page
 	dirs, and set page header members. */
-	void finish();
+	inline void finish();
 
 	/** Commit mtr for a page
 	@param[in]	success		Flag whether all inserts succeed. */
@@ -198,6 +212,8 @@ public:
 	{
 		return(m_err);
 	}
+
+	void set_modified() { m_mtr.set_modified(); }
 
 	/* Memory heap for internal allocation */
 	mem_heap_t*	m_heap;

@@ -628,12 +628,8 @@ rtr_adjust_upper_level(
 	rtr_mbr_t*	new_mbr,	/*!< in: MBR on the new page */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	page_t*		page;
-	page_t*		new_page;
 	ulint		page_no;
 	ulint		new_page_no;
-	page_zip_des_t*	page_zip;
-	page_zip_des_t*	new_page_zip;
 	dict_index_t*	index = sea_cur->index;
 	btr_cur_t	cursor;
 	ulint*		offsets;
@@ -657,13 +653,9 @@ rtr_adjust_upper_level(
 	level = btr_page_get_level(buf_block_get_frame(block));
 	ut_ad(level == btr_page_get_level(buf_block_get_frame(new_block)));
 
-	page = buf_block_get_frame(block);
 	page_no = block->page.id.page_no();
-	page_zip = buf_block_get_page_zip(block);
 
-	new_page = buf_block_get_frame(new_block);
 	new_page_no = new_block->page.id.page_no();
-	new_page_zip = buf_block_get_page_zip(new_block);
 
 	/* Set new mbr for the old page on the upper level. */
 	/* Look up the index for the node pointer to page */
@@ -672,7 +664,8 @@ rtr_adjust_upper_level(
 
 	page_cursor = btr_cur_get_page_cur(&cursor);
 
-	rtr_update_mbr_field(&cursor, offsets, NULL, page, mbr, NULL, mtr);
+	rtr_update_mbr_field(&cursor, offsets, NULL, block->frame, mbr, NULL,
+			     mtr);
 
 	/* Already updated parent MBR, reset in our path */
 	if (sea_cur->rtr_info) {
@@ -686,7 +679,7 @@ rtr_adjust_upper_level(
 	/* Insert the node for the new page. */
 	node_ptr_upper = rtr_index_build_node_ptr(
 		index, new_mbr,
-		page_rec_get_next(page_get_infimum_rec(new_page)),
+		page_rec_get_next(page_get_infimum_rec(new_block->frame)),
 		new_page_no, heap);
 
 	ulint	up_match = 0;
@@ -742,26 +735,25 @@ rtr_adjust_upper_level(
 
 	ut_ad(block->zip_size() == index->table->space->zip_size());
 
-	const uint32_t next_page_no = btr_page_get_next(page);
+	const uint32_t next_page_no = btr_page_get_next(block->frame);
 
 	if (next_page_no != FIL_NULL) {
 		buf_block_t*	next_block = btr_block_get(
 			*index, next_page_no, RW_X_LATCH, false, mtr);
 #ifdef UNIV_BTR_DEBUG
-		ut_a(page_is_comp(next_block->frame) == page_is_comp(page));
+		ut_a(page_is_comp(next_block->frame)
+		     == page_is_comp(block->frame));
 		ut_a(btr_page_get_prev(next_block->frame)
 		     == block->page.id.page_no());
 #endif /* UNIV_BTR_DEBUG */
 
-		btr_page_set_prev(buf_block_get_frame(next_block),
-				  buf_block_get_page_zip(next_block),
-				  new_page_no, mtr);
+		btr_page_set_prev(next_block, new_page_no, mtr);
 	}
 
-	btr_page_set_next(page, page_zip, new_page_no, mtr);
+	btr_page_set_next(block, new_page_no, mtr);
 
-	btr_page_set_prev(new_page, new_page_zip, page_no, mtr);
-	btr_page_set_next(new_page, new_page_zip, next_page_no, mtr);
+	btr_page_set_prev(new_block, page_no, mtr);
+	btr_page_set_next(new_block, next_page_no, mtr);
 }
 
 /*************************************************************//**
@@ -848,11 +840,8 @@ rtr_split_page_move_rec_list(
 			ut_ad(!is_leaf || cur_split_node->key != first_rec);
 
 			rec = page_cur_insert_rec_low(
-					page_cur_get_rec(&new_page_cursor),
-					index,
-					cur_split_node->key,
-					offsets,
-					mtr);
+				page_cur_get_rec(&new_page_cursor),
+				index, cur_split_node->key, offsets, mtr);
 
 			ut_a(rec);
 

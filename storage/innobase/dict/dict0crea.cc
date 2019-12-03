@@ -373,16 +373,18 @@ dict_build_table_def_step(
 			mtr.start();
 			undo->table_id = trx->table_id;
 			undo->dict_operation = TRUE;
-			page_t* page = trx_undo_page_get(
+			buf_block_t* block = trx_undo_page_get(
 				page_id_t(trx->rsegs.m_redo.rseg->space->id,
 					  undo->hdr_page_no),
 				&mtr);
-			mlog_write_ulint(page + undo->hdr_offset
-					 + TRX_UNDO_DICT_TRANS,
-					 TRUE, MLOG_1BYTE, &mtr);
-			mlog_write_ull(page + undo->hdr_offset
-				       + TRX_UNDO_TABLE_ID,
-				       trx->table_id, &mtr);
+			mtr.write<1,mtr_t::OPT>(
+				*block,
+				block->frame + undo->hdr_offset
+				+ TRX_UNDO_DICT_TRANS, 1U);
+			mtr.write<8,mtr_t::OPT>(
+				*block,
+				block->frame + undo->hdr_offset
+				+ TRX_UNDO_TABLE_ID, trx->table_id);
 			mtr.commit();
 			log_write_up_to(mtr.commit_lsn(), true);
 		}
@@ -851,14 +853,13 @@ dict_create_index_tree_step(
 				err = DB_OUT_OF_FILE_SPACE; );
 	}
 
-	ulint   len;
-	byte*   data = rec_get_nth_field_old(btr_pcur_get_rec(&pcur),
+	ulint	len;
+	byte*	data = rec_get_nth_field_old(btr_pcur_get_rec(&pcur),
 					     DICT_FLD__SYS_INDEXES__PAGE_NO,
 					     &len);
 	ut_ad(len == 4);
-	if (mach_read_from_4(data) != node->page_no) {
-		mlog_write_ulint(data, node->page_no, MLOG_4BYTES, &mtr);
-	}
+	mtr.write<4,mtr_t::OPT>(*btr_pcur_get_block(&pcur), data,
+				node->page_no);
 
 	mtr.commit();
 

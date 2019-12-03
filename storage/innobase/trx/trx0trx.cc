@@ -565,8 +565,6 @@ trx_resurrect_table_locks(
 	const trx_undo_t*	undo)	/*!< in: undo log */
 {
 	mtr_t			mtr;
-	page_t*			undo_page;
-	trx_undo_rec_t*		undo_rec;
 	table_id_set		tables;
 
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
@@ -581,11 +579,11 @@ trx_resurrect_table_locks(
 
 	/* trx_rseg_mem_create() may have acquired an X-latch on this
 	page, so we cannot acquire an S-latch. */
-	undo_page = trx_undo_page_get(
+	buf_block_t* block = trx_undo_page_get(
 		page_id_t(trx->rsegs.m_redo.rseg->space->id,
 			  undo->top_page_no), &mtr);
-
-	undo_rec = undo_page + undo->top_offset;
+	buf_block_t* undo_block = block;
+	trx_undo_rec_t* undo_rec = block->frame + undo->top_offset;
 
 	do {
 		ulint		type;
@@ -594,11 +592,9 @@ trx_resurrect_table_locks(
 		ulint		cmpl_info;
 		bool		updated_extern;
 
-		page_t*		undo_rec_page = page_align(undo_rec);
-
-		if (undo_rec_page != undo_page) {
-			mtr.release_page(undo_page, MTR_MEMO_PAGE_X_FIX);
-			undo_page = undo_rec_page;
+		if (undo_block != block) {
+			mtr.memo_release(undo_block, MTR_MEMO_PAGE_X_FIX);
+			undo_block = block;
 		}
 
 		trx_undo_rec_get_pars(
@@ -607,7 +603,7 @@ trx_resurrect_table_locks(
 		tables.insert(table_id);
 
 		undo_rec = trx_undo_get_prev_rec(
-			undo_rec, undo->hdr_page_no,
+			block, page_offset(undo_rec), undo->hdr_page_no,
 			undo->hdr_offset, false, &mtr);
 	} while (undo_rec);
 

@@ -541,7 +541,7 @@ inline void btr_set_min_rec_mark(rec_t *rec, const buf_block_t &block,
     page. We are not modifying the compressed page frame at all. */
     *rec|= REC_INFO_MIN_REC_FLAG;
   else
-    mlog_write_ulint(rec, *rec | REC_INFO_MIN_REC_FLAG, MLOG_1BYTE, mtr);
+    mtr->write<1>(block, rec, *rec | REC_INFO_MIN_REC_FLAG);
 }
 
 /** Seek to the parent page of a B-tree page.

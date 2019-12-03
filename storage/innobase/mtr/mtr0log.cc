@@ -90,7 +90,7 @@ mlog_parse_initial_log_record(
 }
 
 /********************************************************//**
-Parses a log record written by mlog_write_ulint, mlog_write_ull, mlog_memset.
+Parses a log record written by mtr_t::write(), mlog_memset().
 @return parsed record end, NULL if not a complete record or a corrupt record */
 const byte*
 mlog_parse_nbytes(
@@ -213,80 +213,58 @@ mlog_parse_nbytes(
 	return const_cast<byte*>(ptr);
 }
 
-/********************************************************//**
-Writes 1, 2 or 4 bytes to a file page. Writes the corresponding log
-record to the mini-transaction log if mtr is not NULL. */
-void
-mlog_write_ulint(
-/*=============*/
-	byte*		ptr,	/*!< in: pointer where to write */
-	ulint		val,	/*!< in: value to write */
-	mlog_id_t	type,	/*!< in: MLOG_1BYTE, MLOG_2BYTES, MLOG_4BYTES */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle */
+/**
+Write a log record for writing 1, 2, 4, or 8 bytes.
+@param[in]      block   file page
+@param[in,out]  ptr     pointer in file page
+@param[in]      l       number of bytes to write
+@param[in,out]  log_ptr log record buffer
+@param[in,out]  mtr     mini-transaction */
+static byte *
+mlog_log_write_low(const buf_block_t &block, byte *ptr, mlog_id_t l,
+                   byte *log_ptr, mtr_t &mtr)
 {
-	switch (type) {
-	case MLOG_1BYTE:
-		mach_write_to_1(ptr, val);
-		break;
-	case MLOG_2BYTES:
-		mach_write_to_2(ptr, val);
-		break;
-	case MLOG_4BYTES:
-		mach_write_to_4(ptr, val);
-		break;
-	default:
-		ut_error;
-	}
-
-	if (mtr != 0) {
-		byte*	log_ptr = mlog_open(mtr, 11 + 2 + 5);
-
-		/* If no logging is requested, we may return now */
-
-		if (log_ptr != 0) {
-
-			log_ptr = mlog_write_initial_log_record_fast(
-				ptr, type, log_ptr, mtr);
-
-			mach_write_to_2(log_ptr, page_offset(ptr));
-			log_ptr += 2;
-
-			log_ptr += mach_write_compressed(log_ptr, val);
-
-			mlog_close(mtr, log_ptr);
-		}
-	}
+  ut_ad(block.page.state == BUF_BLOCK_FILE_PAGE);
+  ut_ad(ptr >= block.frame + FIL_PAGE_OFFSET);
+  ut_ad(ptr + unsigned(l) <= &block.frame[srv_page_size - FIL_PAGE_DATA_END]);
+  log_ptr= mlog_write_initial_log_record_low(l,
+                                             block.page.id.space(),
+                                             block.page.id.page_no(),
+                                             log_ptr, &mtr);
+  mach_write_to_2(log_ptr, page_offset(ptr));
+  return log_ptr + 2;
 }
 
-/********************************************************//**
-Writes 8 bytes to a file page. Writes the corresponding log
-record to the mini-transaction log, only if mtr is not NULL */
-void
-mlog_write_ull(
-/*===========*/
-	byte*		ptr,	/*!< in: pointer where to write */
-	ib_uint64_t	val,	/*!< in: value to write */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle */
+/**
+Write a log record for writing 1, 2, or 4 bytes.
+@param[in]      block   file page
+@param[in,out]  ptr     pointer in file page
+@param[in]      l       number of bytes to write
+@param[in,out]  log_ptr log record buffer
+@param[in]      val     value to write */
+void mtr_t::log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
+                      byte *log_ptr, uint32_t val)
 {
-	mach_write_to_8(ptr, val);
+  ut_ad(l == MLOG_1BYTE || l == MLOG_2BYTES || l == MLOG_4BYTES);
+  log_ptr= mlog_log_write_low(block, ptr, l, log_ptr, *this);
+  log_ptr+= mach_write_compressed(log_ptr, val);
+  mlog_close(this, log_ptr);
+}
 
-	if (mtr != 0) {
-		byte*	log_ptr = mlog_open(mtr, 11 + 2 + 9);
-
-		/* If no logging is requested, we may return now */
-		if (log_ptr != 0) {
-
-			log_ptr = mlog_write_initial_log_record_fast(
-				ptr, MLOG_8BYTES, log_ptr, mtr);
-
-			mach_write_to_2(log_ptr, page_offset(ptr));
-			log_ptr += 2;
-
-			log_ptr += mach_u64_write_compressed(log_ptr, val);
-
-			mlog_close(mtr, log_ptr);
-		}
-	}
+/**
+Write a log record for writing 8 bytes.
+@param[in]      block   file page
+@param[in,out]  ptr     pointer in file page
+@param[in]      l       number of bytes to write
+@param[in,out]  log_ptr log record buffer
+@param[in]      val     value to write */
+void mtr_t::log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
+                      byte *log_ptr, uint64_t val)
+{
+  ut_ad(l == MLOG_8BYTES);
+  log_ptr= mlog_log_write_low(block, ptr, l, log_ptr, *this);
+  log_ptr+= mach_u64_write_compressed(log_ptr, val);
+  mlog_close(this, log_ptr);
 }
 
 /********************************************************//**
@@ -402,7 +380,7 @@ mlog_parse_string(
 @param[in]	val	the data byte to write
 @param[in,out]	mtr	mini-transaction */
 void
-mlog_memset(buf_block_t* b, ulint ofs, ulint len, byte val, mtr_t* mtr)
+mlog_memset(const buf_block_t* b, ulint ofs, ulint len, byte val, mtr_t* mtr)
 {
 	ut_ad(len);
 	ut_ad(ofs <= ulint(srv_page_size));

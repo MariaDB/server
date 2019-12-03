@@ -924,12 +924,11 @@ skip_secondaries:
 		if (dfield_is_ext(&ufield->new_val)) {
 			trx_rseg_t*	rseg;
 			buf_block_t*	block;
-			ulint		internal_offset;
 			byte*		data_field;
-			ibool		is_insert;
+			bool		is_insert;
 			ulint		rseg_id;
-			ulint		page_no;
-			ulint		offset;
+			uint32_t	page_no;
+			uint16_t	offset;
 
 			/* We use the fact that new_val points to
 			undo_rec and get thus the offset of
@@ -937,7 +936,7 @@ skip_secondaries:
 			can calculate from node->roll_ptr the file
 			address of the new_val data */
 
-			internal_offset = ulint(
+			const uint16_t internal_offset = uint16_t(
 				static_cast<const byte*>
 				(dfield_get_data(&ufield->new_val))
 				- undo_rec);
@@ -989,7 +988,7 @@ skip_secondaries:
 				index,
 				data_field + dfield_get_len(&ufield->new_val)
 				- BTR_EXTERN_FIELD_REF_SIZE,
-				NULL, NULL, NULL, 0, false, &mtr);
+				NULL, NULL, block, 0, false, &mtr);
 			mtr.commit();
 		}
 	}

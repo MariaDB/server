@@ -1813,9 +1813,9 @@ files_checked:
 				ut_ad(size == fil_system.sys_space
 				      ->size_in_header);
 				size += sum_of_new_sizes;
-				mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SIZE
-						 + block->frame, size,
-						 MLOG_4BYTES, &mtr);
+				mtr.write<4>(*block,
+					     FSP_HEADER_OFFSET + FSP_SIZE
+					     + block->frame, size);
 				fil_system.sys_space->size_in_header = size;
 				mtr.commit();
 				/* Immediately write the log record about

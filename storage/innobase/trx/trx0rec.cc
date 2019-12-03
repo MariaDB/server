@@ -162,7 +162,7 @@ that was written to ptr. Update the first free value by the number of bytes
 written for this undo record.
 @return offset of the inserted entry on the page if succeeded, 0 if fail */
 static
-ulint
+uint16_t
 trx_undo_page_set_next_prev_and_add(
 /*================================*/
 	buf_block_t*	undo_block,	/*!< in/out: undo log page */
@@ -170,30 +170,22 @@ trx_undo_page_set_next_prev_and_add(
 					written on this undo page. */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	ulint		first_free;	/*!< offset within undo_page */
-	ulint		end_of_rec;	/*!< offset within undo_page */
-	byte*		ptr_to_first_free;
-					/* pointer within undo_page
-					that points to the next free
-					offset value within undo_page.*/
-
-	ut_ad(ptr > undo_block->frame);
-	ut_ad(ptr < undo_block->frame + srv_page_size);
+	ut_ad(page_align(ptr) == undo_block->frame);
 
 	if (UNIV_UNLIKELY(trx_undo_left(undo_block, ptr) < 2)) {
 		return(0);
 	}
 
-	ptr_to_first_free = TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+	byte* ptr_to_first_free = TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
 		+ undo_block->frame;
 
-	first_free = mach_read_from_2(ptr_to_first_free);
+	uint16_t first_free = mach_read_from_2(ptr_to_first_free);
 
 	/* Write offset of the previous undo log record */
 	mach_write_to_2(ptr, first_free);
 	ptr += 2;
 
-	end_of_rec = ulint(ptr - undo_block->frame);
+	uint16_t end_of_rec = uint16_t(ptr - undo_block->frame);
 
 	/* Write offset of the next undo log record */
 	mach_write_to_2(undo_block->frame + first_free, end_of_rec);
@@ -457,7 +449,7 @@ trx_undo_report_insert_virtual(
 Reports in the undo log of an insert of a clustered index record.
 @return offset of the inserted entry on the page if succeed, 0 if fail */
 static
-ulint
+uint16_t
 trx_undo_page_report_insert(
 /*========================*/
 	buf_block_t*	undo_block,	/*!< in: undo log page */
@@ -467,10 +459,6 @@ trx_undo_page_report_insert(
 					inserted to the clustered index */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	ulint		first_free;
-	byte*		ptr;
-	ulint		i;
-
 	ut_ad(dict_index_is_clust(index));
 	/* MariaDB 10.3.1+ in trx_undo_page_init() always initializes
 	TRX_UNDO_PAGE_TYPE as 0, but previous versions wrote
@@ -479,9 +467,10 @@ trx_undo_page_report_insert(
 	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
 			       + undo_block->frame) <= 2);
 
-	first_free = mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
-				      + undo_block->frame);
-	ptr = undo_block->frame + first_free;
+	uint16_t first_free = mach_read_from_2(TRX_UNDO_PAGE_HDR
+					       + TRX_UNDO_PAGE_FREE
+					       + undo_block->frame);
+	byte* ptr = undo_block->frame + first_free;
 
 	ut_ad(first_free <= srv_page_size);
 
@@ -509,7 +498,7 @@ trx_undo_page_report_insert(
 		goto done;
 	}
 
-	for (i = 0; i < dict_index_get_n_unique(index); i++) {
+	for (unsigned i = 0; i < dict_index_get_n_unique(index); i++) {
 
 		const dfield_t*	field	= dtuple_get_nth_field(clust_entry, i);
 		ulint		flen	= dfield_get_len(field);
@@ -572,12 +561,14 @@ trx_undo_rec_get_pars(
 
 	*updated_extern = !!(type_cmpl & TRX_UNDO_UPD_EXTERN);
 	type_cmpl &= ~TRX_UNDO_UPD_EXTERN;
-
 	*type = type_cmpl & (TRX_UNDO_CMPL_INFO_MULT - 1);
+	ut_ad(*type >= TRX_UNDO_RENAME_TABLE);
+	ut_ad(*type <= TRX_UNDO_DEL_MARK_REC);
 	*cmpl_info = type_cmpl / TRX_UNDO_CMPL_INFO_MULT;
 
 	*undo_no = mach_read_next_much_compressed(&ptr);
 	*table_id = mach_read_next_much_compressed(&ptr);
+	ut_ad(*table_id);
 
 	return(const_cast<byte*>(ptr));
 }
@@ -856,7 +847,7 @@ record.
 @return byte offset of the inserted undo log entry on the page if
 succeed, 0 if fail */
 static
-ulint
+uint16_t
 trx_undo_page_report_modify(
 /*========================*/
 	buf_block_t*	undo_block,	/*!< in: undo log page */
@@ -875,7 +866,6 @@ trx_undo_page_report_modify(
 					virtual column info */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	ulint		first_free;
 	byte*		ptr;
 
 	ut_ad(index->is_primary());
@@ -887,8 +877,9 @@ trx_undo_page_report_modify(
 	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
 			       + undo_block->frame) <= 2);
 
-	first_free = mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
-				      + undo_block->frame);
+	uint16_t first_free = mach_read_from_2(TRX_UNDO_PAGE_HDR
+					       + TRX_UNDO_PAGE_FREE
+					       + undo_block->frame);
 	ptr = undo_block->frame + first_free;
 
 	ut_ad(first_free <= srv_page_size);
@@ -1953,13 +1944,13 @@ trx_undo_erase_page_end(page_t* undo_page)
 @return	byte offset of the undo log record
 @retval	0	in case of failure */
 static
-ulint
+uint16_t
 trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 			    buf_block_t* block, mtr_t* mtr)
 {
 	byte*	ptr_first_free  = TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
 		+ block->frame;
-	ulint	first_free = mach_read_from_2(ptr_first_free);
+	uint16_t first_free = mach_read_from_2(ptr_first_free);
 	ut_ad(first_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
 	ut_ad(first_free <= srv_page_size);
 	byte* start = block->frame + first_free;
@@ -1985,7 +1976,7 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 	ptr += len;
 	mach_write_to_2(ptr, first_free);
 	ptr += 2;
-	ulint offset = page_offset(ptr);
+	uint16_t offset = page_offset(ptr);
 	mach_write_to_2(start, offset);
 	mach_write_to_2(ptr_first_free, offset);
 
@@ -2014,7 +2005,7 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 			ut_ad(loop_count++ < 2);
 			ut_ad(undo->last_page_no == block->page.id.page_no());
 
-			if (ulint offset = trx_undo_page_report_rename(
+			if (uint16_t offset = trx_undo_page_report_rename(
 				    trx, table, block, &mtr)) {
 				undo->withdraw_clock = buf_withdraw_clock;
 				undo->top_page_no = undo->last_page_no;
@@ -2118,7 +2109,7 @@ trx_undo_report_row_operation(
 	ut_ad(undo != NULL);
 
 	do {
-		ulint	offset = !rec
+		uint16_t offset = !rec
 			? trx_undo_page_report_insert(
 				undo_block, trx, index, clust_entry, &mtr)
 			: trx_undo_page_report_modify(
@@ -2240,11 +2231,10 @@ trx_undo_get_undo_rec_low(
 {
 	trx_undo_rec_t*	undo_rec;
 	ulint		rseg_id;
-	ulint		page_no;
-	ulint		offset;
-	const page_t*	undo_page;
+	uint32_t	page_no;
+	uint16_t	offset;
 	trx_rseg_t*	rseg;
-	ibool		is_insert;
+	bool		is_insert;
 	mtr_t		mtr;
 
 	trx_undo_decode_roll_ptr(roll_ptr, &is_insert, &rseg_id, &page_no,
@@ -2254,14 +2244,14 @@ trx_undo_get_undo_rec_low(
 	rseg = trx_sys.rseg_array[rseg_id];
 	ut_ad(rseg->is_persistent());
 
-	mtr_start(&mtr);
+	mtr.start();
 
-	undo_page = trx_undo_page_get_s_latched(
+	buf_block_t* undo_page = trx_undo_page_get_s_latched(
 		page_id_t(rseg->space->id, page_no), &mtr);
 
-	undo_rec = trx_undo_rec_copy(undo_page + offset, heap);
+	undo_rec = trx_undo_rec_copy(undo_page->frame + offset, heap);
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	return(undo_rec);
 }

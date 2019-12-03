@@ -101,7 +101,6 @@ see the table in fsp0types.h @{ */
 #define FSP_HEADER_OFFSET	FIL_PAGE_DATA
 
 /* The data structures in files are defined just as byte strings in C */
-typedef	byte	fsp_header_t;
 typedef	byte	xdes_t;
 
 /*			SPACE HEADER
@@ -207,7 +206,7 @@ typedef	byte	fseg_inode_t;
 	(16 + 3 * FLST_BASE_NODE_SIZE			\
 	 + FSEG_FRAG_ARR_N_SLOTS * FSEG_FRAG_SLOT_SIZE)
 
-#define FSEG_MAGIC_N_VALUE	97937874
+static constexpr uint32_t FSEG_MAGIC_N_VALUE= 97937874;
 
 #define	FSEG_FILLFACTOR		8	/* If this value is x, then if
 					the number of unused but reserved
@@ -534,7 +533,7 @@ by repeatedly calling this function in different mini-transactions.
 Doing the freeing in a single mini-transaction might result in
 too big a mini-transaction.
 @return TRUE if freeing completed */
-ibool
+bool
 fseg_free_step_func(
 	fseg_header_t*	header,	/*!< in, own: segment header; NOTE: if the header
 				resides on the first page of the frag list
@@ -554,8 +553,8 @@ fseg_free_step_func(
 /**********************************************************************//**
 Frees part of a segment. Differs from fseg_free_step because this function
 leaves the header page unfreed.
-@return TRUE if freeing completed, except the header page */
-ibool
+@return true if freeing completed, except the header page */
+bool
 fseg_free_step_not_header_func(
 	fseg_header_t*	header,	/*!< in: segment header which must reside on
 				the first fragment page of the segment */

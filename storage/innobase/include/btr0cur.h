@@ -646,8 +646,7 @@ to free the field. */
 void
 btr_cur_disown_inherited_fields(
 /*============================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose uncompressed
-				part will be updated, or NULL */
+	buf_block_t*	block,	/*!< in/out: index page */
 	rec_t*		rec,	/*!< in/out: record in a clustered index */
 	dict_index_t*	index,	/*!< in: index of the page */
 	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
@@ -722,12 +721,12 @@ btr_free_externally_stored_field(
 					page_zip_write_blob_ptr(), or NULL */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index),
 					or NULL */
-	page_zip_des_t*	page_zip,	/*!< in: compressed page corresponding
-					to rec, or NULL if rec == NULL */
+	buf_block_t*	block,		/*!< in/out: page of field_ref */
 	ulint		i,		/*!< in: field number of field_ref;
 					ignored if rec == NULL */
 	bool		rollback,	/*!< in: performing rollback? */
-	mtr_t*		local_mtr);	/*!< in: mtr containing the latch */
+	mtr_t*		local_mtr)	/*!< in: mtr containing the latch */
+	MY_ATTRIBUTE((nonnull(1,2,5,8)));
 
 /** Copies the prefix of an externally stored field of a record.
 The clustered index record must be protected by a lock or a page latch.

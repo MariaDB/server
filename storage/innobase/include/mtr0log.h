@@ -34,26 +34,6 @@ Created 12/7/1995 Heikki Tuuri
 struct dict_index_t;
 
 /********************************************************//**
-Writes 1, 2 or 4 bytes to a file page. Writes the corresponding log
-record to the mini-transaction log if mtr is not NULL. */
-void
-mlog_write_ulint(
-/*=============*/
-	byte*		ptr,	/*!< in: pointer where to write */
-	ulint		val,	/*!< in: value to write */
-	mlog_id_t	type,	/*!< in: MLOG_1BYTE, MLOG_2BYTES, MLOG_4BYTES */
-	mtr_t*		mtr);	/*!< in: mini-transaction handle */
-
-/********************************************************//**
-Writes 8 bytes to a file page. Writes the corresponding log
-record to the mini-transaction log, only if mtr is not NULL */
-void
-mlog_write_ull(
-/*===========*/
-	byte*		ptr,	/*!< in: pointer where to write */
-	ib_uint64_t	val,	/*!< in: value to write */
-	mtr_t*		mtr);	/*!< in: mini-transaction handle */
-/********************************************************//**
 Writes a string to a file page buffered in the buffer pool. Writes the
 corresponding log record to the mini-transaction log. */
 void
@@ -80,7 +60,7 @@ mlog_log_string(
 @param[in]	val	the data byte to write
 @param[in,out]	mtr	mini-transaction */
 void
-mlog_memset(buf_block_t* b, ulint ofs, ulint len, byte val, mtr_t* mtr);
+mlog_memset(const buf_block_t* b, ulint ofs, ulint len, byte val, mtr_t* mtr);
 
 /** Initialize a string of bytes.
 @param[in,out]	byte	byte address
@@ -124,14 +104,6 @@ mlog_catenate_ulint_compressed(
 	mtr_t*		mtr,	/*!< in: mtr */
 	ulint		val);	/*!< in: value to write */
 /********************************************************//**
-Catenates a compressed 64-bit integer to mlog. */
-UNIV_INLINE
-void
-mlog_catenate_ull_compressed(
-/*=========================*/
-	mtr_t*		mtr,	/*!< in: mtr */
-	ib_uint64_t	val);	/*!< in: value to write */
-/********************************************************//**
 Opens a buffer to mlog. It must be closed with mlog_close.
 @return buffer, NULL if log mode MTR_LOG_NONE */
 UNIV_INLINE
@@ -150,6 +122,56 @@ mlog_close(
 	mtr_t*		mtr,	/*!< in: mtr */
 	byte*		ptr);	/*!< in: buffer space from ptr up was
 				not used */
+
+/** Write 1, 2, 4, or 8 bytes to a file page.
+@param[in]      block   file page
+@param[in,out]  ptr     pointer in file page
+@param[in]      val     value to write
+@tparam l       number of bytes to write
+@tparam w       write request type
+@tparam V       type of val */
+template<unsigned l,mtr_t::write_type w,typename V>
+inline void mtr_t::write(const buf_block_t &block, byte *ptr, V val)
+{
+  ut_ad(ut_align_down(ptr, srv_page_size) == block.frame);
+  ut_ad(m_log_mode == MTR_LOG_NONE || m_log_mode == MTR_LOG_NO_REDO ||
+        !block.page.zip.data ||
+        /* written by fil_crypt_rotate_page() or innodb_make_page_dirty()? */
+        (w == FORCED && l == 1 && ptr == &block.frame[FIL_PAGE_SPACE_ID]) ||
+        mach_read_from_2(block.frame + FIL_PAGE_TYPE) <= FIL_PAGE_TYPE_ZBLOB2);
+  static_assert(l == 1 || l == 2 || l == 4 || l == 8, "wrong length");
+
+  switch (l) {
+  case 1:
+    if (w == OPT && mach_read_from_1(ptr) == val) return;
+    ut_ad(w != NORMAL || mach_read_from_1(ptr) != val);
+    mach_write_to_1(ptr, val);
+    break;
+  case 2:
+    if (w == OPT && mach_read_from_2(ptr) == val) return;
+    ut_ad(w != NORMAL  || mach_read_from_2(ptr) != val);
+    mach_write_to_2(ptr, val);
+    break;
+  case 4:
+    if (w == OPT && mach_read_from_4(ptr) == val) return;
+    ut_ad(w != NORMAL  || mach_read_from_4(ptr) != val);
+    mach_write_to_4(ptr, val);
+    break;
+  case 8:
+    if (w == OPT && mach_read_from_8(ptr) == val) return;
+    ut_ad(w != NORMAL  || mach_read_from_8(ptr) != val);
+    mach_write_to_8(ptr, val);
+    break;
+  }
+  byte *log_ptr= mlog_open(this, 11 + 2 + (l == 8 ? 9 : 5));
+  if (!log_ptr)
+    return;
+  if (l == 8)
+    log_write(block, ptr, static_cast<mlog_id_t>(l), log_ptr, uint64_t{val});
+  else
+    log_write(block, ptr, static_cast<mlog_id_t>(l), log_ptr,
+              static_cast<uint32_t>(val));
+}
 
 /** Writes a log record about an operation.
 @param[in]	type		redo log record type
@@ -195,7 +217,7 @@ mlog_parse_initial_log_record(
 	ulint*		space,	/*!< out: space id */
 	ulint*		page_no);/*!< out: page number */
 /********************************************************//**
-Parses a log record written by mlog_write_ulint, mlog_write_ull, mlog_memset.
+Parses a log record written by mtr_t::write(), mlog_memset().
 @return parsed record end, NULL if not a complete record */
 const byte*
 mlog_parse_nbytes(

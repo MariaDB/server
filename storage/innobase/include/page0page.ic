@@ -28,23 +28,9 @@ Created 2/2/1994 Heikki Tuuri
 #define page0page_ic
 
 #ifndef UNIV_INNOCHECKSUM
-#include "mach0data.h"
 #include "rem0cmp.h"
 #include "mtr0log.h"
 #include "page0zip.h"
-
-/*************************************************************//**
-Returns the max trx id field value. */
-UNIV_INLINE
-trx_id_t
-page_get_max_trx_id(
-/*================*/
-	const page_t*	page)	/*!< in: page */
-{
-	ut_ad(page);
-
-	return(mach_read_from_8(page + PAGE_HEADER + PAGE_MAX_TRX_ID));
-}
 
 /*************************************************************//**
 Sets the max trx id field value if trx_id is bigger than the previous
@@ -115,21 +101,16 @@ page_set_ssn_id(
 	node_seq_t	ssn_id,	/*!< in: transaction id */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	page_t*	page = buf_block_get_frame(block);
-
 	ut_ad(!mtr || mtr_memo_contains_flagged(mtr, block,
 						MTR_MEMO_PAGE_SX_FIX
 						| MTR_MEMO_PAGE_X_FIX));
 
-	if (page_zip) {
-		mach_write_to_8(page + FIL_RTREE_SPLIT_SEQ_NUM, ssn_id);
-		page_zip_write_header(page_zip,
-				      page + FIL_RTREE_SPLIT_SEQ_NUM,
-				      8, mtr);
-	} else if (mtr) {
-		mlog_write_ull(page + FIL_RTREE_SPLIT_SEQ_NUM, ssn_id, mtr);
+	byte* ssn = block->frame + FIL_RTREE_SPLIT_SEQ_NUM;
+	if (UNIV_LIKELY_NULL(page_zip)) {
+		mach_write_to_8(ssn, ssn_id);
+		page_zip_write_header(page_zip, ssn, 8, mtr);
 	} else {
-		mach_write_to_8(page + FIL_RTREE_SPLIT_SEQ_NUM, ssn_id);
+		mtr->write<8,mtr_t::OPT>(*block, ssn, ssn_id);
 	}
 }
 
@@ -229,30 +210,21 @@ page_header_set_ptr(
 	page_header_set_field(page, page_zip, field, offs);
 }
 
-/*************************************************************//**
-Resets the last insert info field in the page header. Writes to mlog
-about this operation. */
-UNIV_INLINE
-void
-page_header_reset_last_insert(
-/*==========================*/
-	page_t*		page,	/*!< in/out: page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
-				uncompressed part will be updated, or NULL */
-	mtr_t*		mtr)	/*!< in: mtr */
+/**
+Reset PAGE_LAST_INSERT.
+@param[in,out]  block    file page
+@param[in,out]  mtr      mini-transaction */
+inline void page_header_reset_last_insert(buf_block_t *block, mtr_t *mtr)
 {
-	ut_ad(page != NULL);
-	ut_ad(mtr != NULL);
+  byte *b= &block->frame[PAGE_HEADER + PAGE_LAST_INSERT];
 
-	if (page_zip) {
-		mach_write_to_2(page + (PAGE_HEADER + PAGE_LAST_INSERT), 0);
-		page_zip_write_header(page_zip,
-				      page + (PAGE_HEADER + PAGE_LAST_INSERT),
-				      2, mtr);
-	} else {
-		mlog_write_ulint(page + (PAGE_HEADER + PAGE_LAST_INSERT), 0,
-				 MLOG_2BYTES, mtr);
-	}
+  if (UNIV_LIKELY_NULL(block->page.zip.data))
+  {
+    mach_write_to_2(b, 0);
+    page_zip_write_header(&block->page.zip, b, 2, mtr);
+  }
+  else
+    mtr->write<2,mtr_t::OPT>(*block, b, 0U);
 }
 
 /***************************************************************//**
@@ -539,18 +511,6 @@ page_rec_check(
 	ut_a(page_offset(rec) >= PAGE_DATA);
 
 	return(TRUE);
-}
-
-/***************************************************************//**
-Gets the record pointed to by a directory slot.
-@return pointer to record */
-UNIV_INLINE
-const rec_t*
-page_dir_slot_get_rec(
-/*==================*/
-	const page_dir_slot_t*	slot)	/*!< in: directory slot */
-{
-	return(page_align(slot) + mach_read_from_2(slot));
 }
 
 /***************************************************************//**
