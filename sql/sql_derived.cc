@@ -707,8 +707,9 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       case SQLCOM_DELETE_MULTI:
       case SQLCOM_UPDATE:
       case SQLCOM_UPDATE_MULTI:
-        if ((res= unit->prepare(derived, derived->derived_result, 0)))
+        if ((res= unit->first_select()->vers_setup_conds(thd, derived->merge_underlying_list)))
           goto exit;
+        derived->where= and_items(thd, derived->where, derived->merge_underlying_list->where);
       default:
         break;
       }
