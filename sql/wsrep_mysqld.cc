@@ -2101,12 +2101,18 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     if (wsrep_thd_is_toi(granted_thd) ||
         wsrep_thd_is_applying(granted_thd))
     {
-      if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
+      if (wsrep_thd_is_aborting(granted_thd))
+      {
+        WSREP_DEBUG("BF thread waiting for SR in aborting state");
+        ticket->wsrep_report(wsrep_debug);
+        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+      }
+      else if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
       {
         WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR", 
                       schema, schema_len, request_thd, granted_thd);
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-        wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
+        wsrep_abort_thd(request_thd, granted_thd, 1);
       }
       else
       {
@@ -2130,7 +2136,7 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                   wsrep_thd_transaction_state_str(granted_thd));
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-      wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
+      wsrep_abort_thd(request_thd, granted_thd, 1);
     }
     else
     {
