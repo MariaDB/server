@@ -273,6 +273,193 @@ select partition_name,partition_ordinal_position,partition_method,timediff(parti
 alter table t1 drop partition p2;
 select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
 
+#
+# partition rotation (moved from partition_rotation.test)
+#
+set timestamp=unix_timestamp('2001-02-03 10:20:30');
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day
+    subpartition by key (i) subpartitions 2
+    (partition p1 history, partition pn current);
+set timestamp=unix_timestamp('2001-02-03 10:20:40');
+insert t1 values (1); delete from t1;
+set timestamp=unix_timestamp('2001-02-04 10:20:50');
+insert t1 values (2); delete from t1;
+
+select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
+
+set timestamp=unix_timestamp('2001-02-04 10:20:55');
+alter table t1 add partition (partition p0 history, partition p2 history);
+set timestamp=unix_timestamp('2001-02-04 10:30:00');
+insert t1 values (4),(5);
+set timestamp=unix_timestamp('2001-02-04 10:30:10');
+update t1 set i=6 where i=5;
+
+select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
+
+--echo ## pruning check
+set @ts=(select partition_description from information_schema.partitions
+  where table_schema='test' and table_name='t1' and partition_name='p0' limit 1);
+--sorted_result
+select * from t1;
+--replace_column 10 #
+explain partitions select * from t1;
+--replace_column 10 #
+explain partitions select * from t1 for system_time as of '2001-02-04 10:20:30';
+set @ts=(select row_end from t1 for system_time all where i=1);
+select * from t1 for system_time all where row_end = @ts;
+--replace_column 5 # 10 # 11 #
+explain partitions select * from t1 for system_time all where row_end = @ts;
+
+--echo ## INTERVAL ... STARTS
+--error ER_PART_WRONG_VALUE
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts 'a';
+
+--error ER_PART_WRONG_VALUE
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '00:00:00';
+
+--error ER_PART_WRONG_VALUE
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-00-01 00:00:00';
+
+--error ER_PART_WRONG_VALUE
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts 946684800;
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-01 00:00:00';
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+--echo # Test STARTS warning
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-01 00:00:01';
+
+--echo # Test default STARTS rounding
+set timestamp= unix_timestamp('1999-12-15 13:33:33');
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 second;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 minute;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 hour;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 month;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 year;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+--echo # seconds equivalent of 1 day does not round:
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 86400 second;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+--echo # STARTS value is in local time_zone:
+set time_zone="+03:00";
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-01 00:00:00';
+
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t2 (i int) with system versioning
+partition by system_time interval 1 day;
+
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t2;
+set time_zone="+00:00";
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t2;
+
+--echo # Test rotation
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+--echo # it's ok to add partitions for past:
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-01 00:00:00'
+partitions 3;
+
+--echo # we are warned when we push to present:
+insert into t1 values (0);
+set timestamp= unix_timestamp('2001-01-01 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2001-01-01 00:00:02');
+update t1 set i= i + 1;
+
+select *, row_end from t1 partition (p0);
+select *, row_end from t1 partition (p1);
+
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+--echo # now we "overflow" first partition a bit:
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-03 00:00:00'
+partitions 3;
+
+insert into t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-02 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-03 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-04 00:00:01');
+update t1 set i= i + 1;
+
+select *, row_end from t1 partition (p0);
+select *, row_end from t1 partition (p1);
+
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+--echo # and this is how it usually goes:
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day
+partitions 3;
+
+insert into t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-02 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-03 00:00:01');
+update t1 set i= i + 1;
+set timestamp= unix_timestamp('2000-01-04 00:00:01');
+update t1 set i= i + 1;
+
+alter table t1 add partition (partition p2 history, partition p3 history);
+
+select *, row_end from t1 partition (p0);
+select *, row_end from t1 partition (p1);
+select *, row_end from t1 partition (p2);
+select *, row_end from t1 partition (p3);
+
+drop tables t1, t2;
 
 --echo ## Subpartitions
 create or replace table t1 (x int)
@@ -314,6 +501,84 @@ subpartition by hash(f_int1)
 subpartition subpart12 storage engine = 'innodb'));
 insert into t1 values (1);
 select * from t1 partition (part1);
+
+--echo #
+--echo # TRX_ID versioning (moved from partition_innodb.test)
+--echo #
+--echo # MDEV-15951 system versioning by trx id doesn't work with partitioning
+--echo # currently trx_id does not support partitioning by system_time
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t1(
+  i int,
+  row_start bigint unsigned generated always as row start,
+  row_end bigint unsigned generated always as row end,
+  period for system_time(row_start, row_end)
+) engine=InnoDB with system versioning partition by system_time (
+  partition p0 history,
+  partition pn current
+);
+
+create or replace table t1(
+  i int,
+  row_start bigint unsigned generated always as row start,
+  row_end bigint unsigned generated always as row end,
+  period for system_time(row_start, row_end)
+) engine=InnoDB with system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+alter table t1  partition by system_time (
+  partition p0 history,
+  partition pn current
+);
+
+drop table t1;
+
+--error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+create or replace table t (
+  a int primary key,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by key() (
+  partition p1,
+  partition p2
+);
+
+--error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+create or replace table t (
+  a int primary key,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by key(a, row_start) (
+  partition p1,
+  partition p2
+);
+
+--error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+create or replace table t (
+  a int primary key,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by hash(a + row_end * 2) (
+  partition p1,
+  partition p2
+);
+
+--error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+create or replace table t (
+  a int primary key,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by range columns (a, row_start) (
+  partition p1 values less than (100, 100)
+);
 
 --echo #
 --echo # Assertion in ALTER on warning from partitioning LIMIT [#446]
