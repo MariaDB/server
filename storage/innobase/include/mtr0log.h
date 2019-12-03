@@ -109,17 +109,20 @@ inline void mtr_t::write(const buf_block_t &block, byte *ptr, V val)
   case 1:
     if (w == OPT && mach_read_from_1(ptr) == val) return;
     ut_ad(w != NORMAL || mach_read_from_1(ptr) != val);
-    mach_write_to_1(ptr, val);
+    ut_ad(val == static_cast<byte>(val));
+    *ptr= static_cast<byte>(val);
     break;
   case 2:
+    ut_ad(val == static_cast<uint16_t>(val));
     if (w == OPT && mach_read_from_2(ptr) == val) return;
     ut_ad(w != NORMAL  || mach_read_from_2(ptr) != val);
-    mach_write_to_2(ptr, val);
+    mach_write_to_2(ptr, static_cast<uint16_t>(val));
     break;
   case 4:
+    ut_ad(val == static_cast<uint32_t>(val));
     if (w == OPT && mach_read_from_4(ptr) == val) return;
     ut_ad(w != NORMAL  || mach_read_from_4(ptr) != val);
-    mach_write_to_4(ptr, val);
+    mach_write_to_4(ptr, static_cast<uint32_t>(val));
     break;
   case 8:
     if (w == OPT && mach_read_from_8(ptr) == val) return;
