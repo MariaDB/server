@@ -1,0 +1,19 @@
+--source include/have_innodb.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file std_data/t_isam.frm $MYSQLD_DATADIR/test/t_isam.frm
+--copy_file std_data/t_isam.MYI $MYSQLD_DATADIR/test/t_isam.MYI
+--copy_file std_data/t_isam.MYD $MYSQLD_DATADIR/test/t_isam.MYD
+
+--copy_file std_data/t_isam_compressed.frm $MYSQLD_DATADIR/test/t_isam_compressed.frm
+--copy_file std_data/t_isam_compressed.MYI $MYSQLD_DATADIR/test/t_isam_compressed.MYI
+--copy_file std_data/t_isam_compressed.MYD $MYSQLD_DATADIR/test/t_isam_compressed.MYD
+
+use test;
+show tables;
+
+#show create table t_isam;
+alter table t_isam force;
+show create table t_isam;
+show create table t_isam_compressed;
