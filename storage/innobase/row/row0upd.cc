@@ -3124,8 +3124,7 @@ row_upd_clust_step(
 
 		ut_ad(!dict_index_is_online_ddl(index));
 
-		dict_drop_index_tree(
-			btr_pcur_get_rec(pcur), pcur, trx, &mtr);
+		dict_drop_index_tree(pcur, trx, &mtr);
 
 		mtr.commit();
 

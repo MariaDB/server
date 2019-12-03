@@ -113,7 +113,7 @@ PageBulk::init()
 			compile_time_assert(FIL_PAGE_NEXT
 					    == FIL_PAGE_PREV + 4);
 			compile_time_assert(FIL_NULL == 0xffffffff);
-			mlog_memset(new_block, FIL_PAGE_PREV, 8, 0xff, &m_mtr);
+			m_mtr.memset(new_block, FIL_PAGE_PREV, 8, 0xff);
 			m_mtr.write<2,mtr_t::OPT>(*new_block,
 						  PAGE_HEADER + PAGE_LEVEL
 						  + new_page, m_level);

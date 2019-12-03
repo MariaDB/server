@@ -7744,8 +7744,7 @@ btr_store_big_rec_extern_fields(
 				compile_time_assert(FIL_PAGE_NEXT
 						    == FIL_PAGE_PREV + 4);
 				compile_time_assert(FIL_NULL == 0xffffffff);
-				mlog_memset(block, FIL_PAGE_PREV, 8, 0xff,
-					    &mtr);
+				mtr.memset(block, FIL_PAGE_PREV, 8, 0xff);
 				/* Write a back pointer to the record
 				into the otherwise unused area.  This
 				information could be useful in
@@ -7779,11 +7778,10 @@ btr_store_big_rec_extern_fields(
 						&mtr);
 				/* Zero out the unused part of the page. */
 				if (c_stream.avail_out) {
-					mlog_memset(block,
-						    page_zip_get_size(page_zip)
-						    - c_stream.avail_out,
-						    c_stream.avail_out,
-						    0, &mtr);
+					mtr.memset(block,
+						   page_zip_get_size(page_zip)
+						   - c_stream.avail_out,
+						   c_stream.avail_out, 0);
 				}
 				/* Copy the page to compressed storage,
 				because it will be flushed to disk
@@ -7866,8 +7864,8 @@ next_zip_page:
 					     + FIL_PAGE_DATA + block->frame,
 					     store_len);
 				compile_time_assert(FIL_NULL == 0xffffffff);
-				mlog_memset(block, BTR_BLOB_HDR_NEXT_PAGE_NO
-					    + FIL_PAGE_DATA, 4, 0xff, &mtr);
+				mtr.memset(block, BTR_BLOB_HDR_NEXT_PAGE_NO
+					   + FIL_PAGE_DATA, 4, 0xff);
 
 				extern_len -= store_len;
 

@@ -607,42 +607,35 @@ btr_get_size(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
 				is s-latched */
 {
-	fseg_header_t*	seg_header;
-	page_t*		root;
 	ulint		n=0;
-	ulint		dummy;
 
 	ut_ad(srv_read_only_mode
 	      || mtr_memo_contains(mtr, dict_index_get_lock(index),
 				   MTR_MEMO_S_LOCK));
+	ut_ad(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
 
 	if (index->page == FIL_NULL
 	    || dict_index_is_online_ddl(index)
-	    || !index->is_committed()) {
+	    || !index->is_committed()
+	    || !index->table->space) {
 		return(ULINT_UNDEFINED);
 	}
 
-	root = btr_root_get(index, mtr);
-
-	if (root) {
-		if (flag == BTR_N_LEAF_PAGES) {
-			seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_LEAF;
-
-			fseg_n_reserved_pages(seg_header, &n, mtr);
-
-		} else if (flag == BTR_TOTAL_SIZE) {
-			seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_TOP;
-
-			n = fseg_n_reserved_pages(seg_header, &dummy, mtr);
-
-			seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_LEAF;
-
-			n += fseg_n_reserved_pages(seg_header, &dummy, mtr);
-		} else {
-			ut_error;
-		}
+	buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, mtr);
+	if (!root) {
+		return ULINT_UNDEFINED;
+	}
+	mtr_x_lock_space(index->table->space, mtr);
+	if (flag == BTR_N_LEAF_PAGES) {
+		fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
+				      + root->frame, &n, mtr);
 	} else {
-		n = ULINT_UNDEFINED;
+		ulint dummy;
+		n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_TOP
+					  + root->frame, &dummy, mtr);
+		n += fseg_n_reserved_pages(*root,
+					   PAGE_HEADER + PAGE_BTR_SEG_LEAF
+					   + root->frame, &dummy, mtr);
 	}
 
 	return(n);
@@ -662,9 +655,6 @@ btr_get_size_and_reserved(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
 				is s-latched */
 {
-	fseg_header_t*	seg_header;
-	page_t*		root;
-	ulint		n=ULINT_UNDEFINED;
 	ulint		dummy;
 
 	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
@@ -674,26 +664,26 @@ btr_get_size_and_reserved(
 
 	if (index->page == FIL_NULL
 	    || dict_index_is_online_ddl(index)
-	    || !index->is_committed()) {
+	    || !index->is_committed()
+	    || !index->table->space) {
 		return(ULINT_UNDEFINED);
 	}
 
-	root = btr_root_get(index, mtr);
+	buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, mtr);
 	*used = 0;
+	if (!root) {
+		return ULINT_UNDEFINED;
+	}
 
-	if (root) {
+	mtr_x_lock_space(index->table->space, mtr);
 
-		seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_LEAF;
-
-		n = fseg_n_reserved_pages(seg_header, used, mtr);
-
-		if (flag == BTR_TOTAL_SIZE) {
-			seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_TOP;
-
-			n += fseg_n_reserved_pages(seg_header, &dummy, mtr);
-			*used += dummy;
-
-		}
+	ulint n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
+					+ root->frame, used, mtr);
+	if (flag == BTR_TOTAL_SIZE) {
+		n += fseg_n_reserved_pages(*root,
+					   PAGE_HEADER + PAGE_BTR_SEG_TOP
+					   + root->frame, &dummy, mtr);
+		*used += dummy;
 	}
 
 	return(n);
@@ -1148,7 +1138,7 @@ btr_create(
 	/* Set the next node and previous node fields */
 	compile_time_assert(FIL_PAGE_NEXT == FIL_PAGE_PREV + 4);
 	compile_time_assert(FIL_NULL == 0xffffffff);
-	mlog_memset(block, FIL_PAGE_PREV, 8, 0xff, mtr);
+	mtr->memset(block, FIL_PAGE_PREV, 8, 0xff);
 
 	/* We reset the free bits for the page in a separate
 	mini-transaction to allow creation of several trees in the
@@ -1847,8 +1837,8 @@ void btr_set_instant(buf_block_t* root, const dict_index_t& index, mtr_t* mtr)
 	}
 
 	if (index.table->instant) {
-		mlog_memset(root, infimum - root->frame, 8, 0, mtr);
-		mlog_memset(root, supremum - root->frame, 7, 0, mtr);
+		mtr->memset(root, infimum - root->frame, 8, 0);
+		mtr->memset(root, supremum - root->frame, 7, 0);
 		mtr->write<1,mtr_t::OPT>(*root, &supremum[7],
 					 index.n_core_null_bytes);
 	}
@@ -1939,7 +1929,7 @@ btr_root_raise_and_insert(
 	} else {
 		compile_time_assert(FIL_PAGE_NEXT == FIL_PAGE_PREV + 4);
 		compile_time_assert(FIL_NULL == 0xffffffff);
-		mlog_memset(new_block, FIL_PAGE_PREV, 8, 0xff, mtr);
+		mtr->memset(new_block, FIL_PAGE_PREV, 8, 0xff);
 		if (UNIV_LIKELY_NULL(new_page_zip)) {
 			static_assert(FIL_PAGE_PREV % 8 == 0, "alignment");
 			memset_aligned<8>(new_page_zip->data + FIL_PAGE_PREV,
@@ -1988,8 +1978,7 @@ btr_root_raise_and_insert(
 			memset_aligned<8>(p, 0, 8);
 			page_zip_write_header(root_page_zip, p, 8, mtr);
 		} else if (mach_read_from_8(p)) {
-			mlog_memset(root, PAGE_HEADER + PAGE_MAX_TRX_ID, 8, 0,
-				    mtr);
+			mtr->memset(root, PAGE_HEADER + PAGE_MAX_TRX_ID, 8, 0);
 		}
 	} else {
 		/* PAGE_ROOT_AUTO_INC is only present in the clustered index
@@ -2002,8 +1991,8 @@ btr_root_raise_and_insert(
 			memset_aligned<8>(p, 0, 8);
 			page_zip_write_header(new_page_zip, p, 8, mtr);
 		} else if (mach_read_from_8(p)) {
-			mlog_memset(new_block, PAGE_HEADER + PAGE_MAX_TRX_ID,
-				    8, 0, mtr);
+			mtr->memset(new_block, PAGE_HEADER + PAGE_MAX_TRX_ID,
+				    8, 0);
 		}
 	}
 

@@ -50,7 +50,38 @@ mlog_catenate_string(
 }
 
 /********************************************************//**
-Parses an initial log record written by mlog_write_initial_log_record_low().
+Writes the initial part of a log record consisting of one-byte item
+type and four-byte space and page numbers. Also pushes info
+to the mtr memo that a buffer page has been modified. */
+void
+mlog_write_initial_log_record(
+/*==========================*/
+	const byte*	ptr,	/*!< in: pointer to (inside) a buffer
+				frame holding the file page where
+				modification is made */
+	mlog_id_t	type,	/*!< in: log item type: MLOG_1BYTE, ... */
+	mtr_t*		mtr)	/*!< in: mini-transaction handle */
+{
+	byte*	log_ptr;
+
+	ut_ad(type <= MLOG_BIGGEST_TYPE);
+	ut_ad(type > MLOG_8BYTES);
+
+	log_ptr = mlog_open(mtr, 11);
+
+	/* If no logging is requested, we may return now */
+	if (log_ptr == NULL) {
+
+		return;
+	}
+
+	log_ptr = mlog_write_initial_log_record_fast(ptr, type, log_ptr, mtr);
+
+	mlog_close(mtr, log_ptr);
+}
+
+/********************************************************//**
+Parses an initial log record written by mlog_write_initial_log_record.
 @return parsed record end, NULL if not a complete record */
 const byte*
 mlog_parse_initial_log_record(
@@ -90,7 +121,7 @@ mlog_parse_initial_log_record(
 }
 
 /********************************************************//**
-Parses a log record written by mtr_t::write(), mlog_memset().
+Parses a log record written by mtr_t::write(), mtr_t::memset().
 @return parsed record end, NULL if not a complete record or a corrupt record */
 const byte*
 mlog_parse_nbytes(
@@ -374,69 +405,34 @@ mlog_parse_string(
 }
 
 /** Initialize a string of bytes.
-@param[in,out]	b	buffer page
-@param[in]	ofs	byte offset from block->frame
-@param[in]	len	length of the data to write
-@param[in]	val	the data byte to write
-@param[in,out]	mtr	mini-transaction */
-void
-mlog_memset(const buf_block_t* b, ulint ofs, ulint len, byte val, mtr_t* mtr)
+@param[in,out]  b       buffer page
+@param[in]      ofs     byte offset from block->frame
+@param[in]      len     length of the data to write
+@param[in]      val     the data byte to write */
+void mtr_t::memset(const buf_block_t* b, ulint ofs, ulint len, byte val)
 {
-	ut_ad(len);
-	ut_ad(ofs <= ulint(srv_page_size));
-	ut_ad(ofs + len <= ulint(srv_page_size));
-	memset(ofs + b->frame, val, len);
+  ut_ad(len);
+  ut_ad(ofs <= ulint(srv_page_size));
+  ut_ad(ofs + len <= ulint(srv_page_size));
+  ut_ad(ofs + len < PAGE_DATA || !b->page.zip.data ||
+        mach_read_from_2(b->frame + FIL_PAGE_TYPE) <= FIL_PAGE_TYPE_ZBLOB2);
+  ::memset(ofs + b->frame, val, len);
 
-	mtr->set_modified();
-	switch (mtr->get_log_mode()) {
-	case MTR_LOG_NONE:
-	case MTR_LOG_NO_REDO:
-		return;
-	case MTR_LOG_SHORT_INSERTS:
-		ut_ad(0);
-		/* fall through */
-	case MTR_LOG_ALL:
-		break;
-	}
+  set_modified();
+  if (get_log_mode() != MTR_LOG_ALL)
+  {
+    ut_ad(get_log_mode() == MTR_LOG_NONE ||
+          get_log_mode() == MTR_LOG_NO_REDO);
+    return;
+  }
 
-	byte* l = mtr->get_log()->open(11 + 2 + 2 + 1);
-	l = mlog_write_initial_log_record_low(
-		MLOG_MEMSET, b->page.id.space(), b->page.id.page_no(), l, mtr);
-	mach_write_to_2(l, ofs);
-	mach_write_to_2(l + 2, len);
-	l[4] = val;
-	mlog_close(mtr, l + 5);
-}
-
-/** Initialize a string of bytes.
-@param[in,out]	byte	byte address
-@param[in]	len	length of the data to write
-@param[in]	val	the data byte to write
-@param[in,out]	mtr	mini-transaction */
-void mlog_memset(byte* b, ulint len, byte val, mtr_t* mtr)
-{
-	ut_ad(len);
-	ut_ad(page_offset(b) + len <= ulint(srv_page_size));
-	memset(b, val, len);
-
-	mtr->set_modified();
-	switch (mtr->get_log_mode()) {
-	case MTR_LOG_NONE:
-	case MTR_LOG_NO_REDO:
-		return;
-	case MTR_LOG_SHORT_INSERTS:
-		ut_ad(0);
-		/* fall through */
-	case MTR_LOG_ALL:
-		break;
-	}
-
-	byte* l = mtr->get_log()->open(11 + 2 + 2 + 1);
-	l = mlog_write_initial_log_record_fast(b, MLOG_MEMSET, l, mtr);
-	mach_write_to_2(l, page_offset(b));
-	mach_write_to_2(l + 2, len);
-	l[4] = val;
-	mlog_close(mtr, l + 5);
+  byte *l= get_log()->open(11 + 2 + 2 + 1);
+  l= mlog_write_initial_log_record_low(MLOG_MEMSET, b->page.id.space(),
+                                       b->page.id.page_no(), l, this);
+  mach_write_to_2(l, ofs);
+  mach_write_to_2(l + 2, len);
+  l[4]= val;
+  mlog_close(this, l + 5);
 }
 
 /********************************************************//**

@@ -179,15 +179,15 @@ trx_sysf_create(
 	compile_time_assert(TRX_SYS + TRX_SYS_RSEGS
 			    + 256 * TRX_SYS_RSEG_SLOT_SIZE
 			    <= UNIV_PAGE_SIZE_MIN - FIL_PAGE_DATA_END);
-	mlog_memset(block, TRX_SYS + TRX_SYS_RSEGS,
-		    256 * TRX_SYS_RSEG_SLOT_SIZE, 0xff, mtr);
+	mtr->memset(block, TRX_SYS + TRX_SYS_RSEGS,
+		    256 * TRX_SYS_RSEG_SLOT_SIZE, 0xff);
 	/* Initialize all of the page.  This part used to be uninitialized. */
-	mlog_memset(block, TRX_SYS + TRX_SYS_RSEGS
+	mtr->memset(block, TRX_SYS + TRX_SYS_RSEGS
 		    + 256 * TRX_SYS_RSEG_SLOT_SIZE,
 		    srv_page_size
 		    - (FIL_PAGE_DATA_END + TRX_SYS + TRX_SYS_RSEGS
 		       + 256 * TRX_SYS_RSEG_SLOT_SIZE),
-		    0, mtr);
+		    0);
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);

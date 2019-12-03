@@ -230,9 +230,9 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		/* The undo log segment will not be reused */
 		ut_a(undo->id < TRX_RSEG_N_SLOTS);
 		compile_time_assert(FIL_NULL == 0xffffffff);
-		mlog_memset(TRX_RSEG + TRX_RSEG_UNDO_SLOTS
-			    + undo->id * TRX_RSEG_SLOT_SIZE
-			    + rseg_header->frame, 4, 0xff, mtr);
+		mtr->memset(rseg_header,
+			    TRX_RSEG + TRX_RSEG_UNDO_SLOTS
+			    + undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
 
 		MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_USED);
 

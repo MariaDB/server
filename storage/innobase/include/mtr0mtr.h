@@ -447,6 +447,13 @@ struct mtr_t {
   inline void write(const buf_block_t &block, byte *ptr, V val)
     MY_ATTRIBUTE((nonnull));
 
+  /** Initialize a string of bytes.
+  @param[in,out]        b       buffer page
+  @param[in]            ofs     byte offset from b->frame
+  @param[in]            len     length of the data to write
+  @param[in]            val     the data byte to write */
+  void memset(const buf_block_t* b, ulint ofs, ulint len, byte val);
+
 private:
   /**
   Write a log record for writing 1, 2, or 4 bytes.

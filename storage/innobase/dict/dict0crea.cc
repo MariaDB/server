@@ -899,12 +899,12 @@ dict_create_index_tree_in_mem(
 }
 
 /** Drop the index tree associated with a row in SYS_INDEXES table.
-@param[in,out]	rec	SYS_INDEXES record
 @param[in,out]	pcur	persistent cursor on rec
 @param[in,out]	trx	dictionary transaction
 @param[in,out]	mtr	mini-transaction */
-void dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
+void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 {
+	rec_t*	rec = btr_pcur_get_rec(pcur);
 	byte*	ptr;
 	ulint	len;
 
@@ -925,7 +925,7 @@ void dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 	}
 
 	compile_time_assert(FIL_NULL == 0xffffffff);
-	mlog_memset(ptr, 4, 0xff, mtr);
+	mtr->memset(btr_pcur_get_block(pcur), page_offset(ptr), 4, 0xff);
 
 	ptr = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__SPACE, &len);

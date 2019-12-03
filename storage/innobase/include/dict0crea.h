@@ -97,11 +97,10 @@ dict_create_index_tree(
 	const trx_t*	trx);	/*!< in: InnoDB transaction handle */
 
 /** Drop the index tree associated with a row in SYS_INDEXES table.
-@param[in,out]	rec	SYS_INDEXES record
 @param[in,out]	pcur	persistent cursor on rec
 @param[in,out]	trx	dictionary transaction
 @param[in,out]	mtr	mini-transaction */
-void dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
+void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 	MY_ATTRIBUTE((nonnull));
 
 /***************************************************************//**

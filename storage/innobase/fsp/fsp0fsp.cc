@@ -257,7 +257,8 @@ Inits an extent descriptor to the free and clean state. */
 inline void xdes_init(const buf_block_t &block, xdes_t *descr, mtr_t *mtr)
 {
   ut_ad(mtr_memo_contains_page(mtr, descr, MTR_MEMO_PAGE_SX_FIX));
-  mlog_memset(descr + XDES_BITMAP, XDES_SIZE - XDES_BITMAP, 0xff, mtr);
+  mtr->memset(&block, uint16_t(descr - block.frame) + XDES_BITMAP,
+              XDES_SIZE - XDES_BITMAP, 0xff);
   xdes_set_state(block, descr, XDES_FREE, mtr);
 }
 
@@ -1574,7 +1575,7 @@ static void fsp_free_seg_inode(
 static
 fseg_inode_t*
 fseg_inode_try_get(
-	fseg_header_t*		header,
+	const fseg_header_t*	header,
 	ulint			space,
 	ulint			zip_size,
 	mtr_t*			mtr,
@@ -1611,7 +1612,7 @@ fseg_inode_try_get(
 static
 fseg_inode_t*
 fseg_inode_get(
-	fseg_header_t*		header,
+	const fseg_header_t*	header,
 	ulint			space,
 	ulint			zip_size,
 	mtr_t*			mtr,
@@ -1820,8 +1821,8 @@ fseg_create(
 	mtr->write<4>(*iblock, inode + FSEG_MAGIC_N, FSEG_MAGIC_N_VALUE);
 	compile_time_assert(FSEG_FRAG_SLOT_SIZE == 4);
 	compile_time_assert(FIL_NULL == 0xffffffff);
-	mlog_memset(iblock, uint16_t(inode - iblock->frame) + FSEG_FRAG_ARR,
-		    FSEG_FRAG_SLOT_SIZE * FSEG_FRAG_ARR_N_SLOTS, 0xff, mtr);
+	mtr->memset(iblock, uint16_t(inode - iblock->frame) + FSEG_FRAG_ARR,
+		    FSEG_FRAG_SLOT_SIZE * FSEG_FRAG_ARR_N_SLOTS, 0xff);
 
 	if (page == 0) {
 		block = fseg_alloc_free_page_low(space,
@@ -1895,30 +1896,22 @@ fseg_n_reserved_pages_low(
 	return(ret);
 }
 
-/**********************************************************************//**
-Calculates the number of pages reserved by a segment, and how many pages are
-currently used.
+/** Calculate the number of pages reserved by a segment,
+and how many pages are currently used.
+@param[in]      block   buffer block containing the file segment header
+@param[in]      header  file segment header
+@param[out]     used    number of pages that are used (not more than reserved)
+@param[in,out]  mtr     mini-transaction
 @return number of reserved pages */
-ulint
-fseg_n_reserved_pages(
-/*==================*/
-	fseg_header_t*	header,	/*!< in: segment header */
-	ulint*		used,	/*!< out: number of pages used (<= reserved) */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+ulint fseg_n_reserved_pages(const buf_block_t &block,
+                            const fseg_header_t *header, ulint *used,
+                            mtr_t *mtr)
 {
-	ulint		ret;
-	fseg_inode_t*	inode;
-	ulint		space_id;
-	fil_space_t*	space;
-
-	space_id = page_get_space_id(page_align(header));
-	space = mtr_x_lock_space(space_id, mtr);
-
-	inode = fseg_inode_get(header, space_id, space->zip_size(), mtr);
-
-	ret = fseg_n_reserved_pages_low(inode, used, mtr);
-
-	return(ret);
+  ut_ad(page_align(header) == block.frame);
+  return fseg_n_reserved_pages_low(fseg_inode_get(header,
+                                                  block.page.id.space(),
+                                                  block.zip_size(), mtr),
+                                   used, mtr);
 }
 
 /** Tries to fill the free list of a segment with consecutive free extents.
@@ -2588,6 +2581,7 @@ fseg_free_page_low(
 	ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N)
 	      == FSEG_MAGIC_N_VALUE);
 	ut_ad(!((page_offset(seg_inode) - FSEG_ARR_OFFSET) % FSEG_INODE_SIZE));
+	ut_ad(iblock->frame == page_align(seg_inode));
 	ut_d(space->modify_check(*mtr));
 #ifdef BTR_CUR_HASH_ADAPT
 	/* Drop search system page hash index if the page is found in
@@ -2621,8 +2615,9 @@ fseg_free_page_low(
 			}
 
 			compile_time_assert(FIL_NULL == 0xffffffff);
-			mlog_memset(seg_inode + FSEG_FRAG_ARR
-				    + i * FSEG_FRAG_SLOT_SIZE, 4, 0xff, mtr);
+			mtr->memset(iblock, uint16_t(seg_inode - iblock->frame)
+				    + FSEG_FRAG_ARR
+				    + i * FSEG_FRAG_SLOT_SIZE, 4, 0xff);
 			break;
 		}
 

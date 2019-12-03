@@ -391,16 +391,17 @@ fseg_create(
 			no need to do the check for this individual
 			operation */
 
-/**********************************************************************//**
-Calculates the number of pages reserved by a segment, and how many pages are
-currently used.
+/** Calculate the number of pages reserved by a segment,
+and how many pages are currently used.
+@param[in]      block   buffer block containing the file segment header
+@param[in]      header  file segment header
+@param[out]     used    number of pages that are used (not more than reserved)
+@param[in,out]  mtr     mini-transaction
 @return number of reserved pages */
-ulint
-fseg_n_reserved_pages(
-/*==================*/
-	fseg_header_t*	header,	/*!< in: segment header */
-	ulint*		used,	/*!< out: number of pages used (<= reserved) */
-	mtr_t*		mtr);	/*!< in/out: mini-transaction */
+ulint fseg_n_reserved_pages(const buf_block_t &block,
+                            const fseg_header_t *header, ulint *used,
+                            mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Allocates a single free page from a segment. This function implements
 the intelligent allocation strategy which tries to minimize

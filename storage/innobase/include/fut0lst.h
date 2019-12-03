@@ -74,8 +74,8 @@ inline void flst_init(const buf_block_t* block, uint16_t ofs, mtr_t* mtr)
   ut_ad(!mach_read_from_2(FLST_FIRST + FIL_ADDR_BYTE + ofs + block->frame));
   ut_ad(!mach_read_from_2(FLST_LAST + FIL_ADDR_BYTE + ofs + block->frame));
   compile_time_assert(FIL_NULL == 0xffU * 0x1010101U);
-  mlog_memset(block, FLST_FIRST + FIL_ADDR_PAGE + ofs, 4, 0xff, mtr);
-  mlog_memset(block, FLST_LAST + FIL_ADDR_PAGE + ofs, 4, 0xff, mtr);
+  mtr->memset(block, FLST_FIRST + FIL_ADDR_PAGE + ofs, 4, 0xff);
+  mtr->memset(block, FLST_LAST + FIL_ADDR_PAGE + ofs, 4, 0xff);
 }
 
 /** Write a null file address.
@@ -85,7 +85,7 @@ inline void flst_init(const buf_block_t* block, uint16_t ofs, mtr_t* mtr)
 inline void flst_zero_addr(const buf_block_t& b, fil_faddr_t *addr, mtr_t *mtr)
 {
   if (mach_read_from_4(addr + FIL_ADDR_PAGE) != FIL_NULL)
-    mlog_memset(&b, ulint(addr - b.frame) + FIL_ADDR_PAGE, 4, 0xff, mtr);
+    mtr->memset(&b, ulint(addr - b.frame) + FIL_ADDR_PAGE, 4, 0xff);
   mtr->write<2,mtr_t::OPT>(b, addr + FIL_ADDR_BYTE, 0U);
 }
 

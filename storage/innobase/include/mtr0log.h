@@ -53,22 +53,6 @@ mlog_log_string(
 	ulint	len,	/*!< in: string length */
 	mtr_t*	mtr);	/*!< in: mini-transaction handle */
 
-/** Initialize a string of bytes.
-@param[in,out]	b	buffer page
-@param[in]	ofs	byte offset from block->frame
-@param[in]	len	length of the data to write
-@param[in]	val	the data byte to write
-@param[in,out]	mtr	mini-transaction */
-void
-mlog_memset(const buf_block_t* b, ulint ofs, ulint len, byte val, mtr_t* mtr);
-
-/** Initialize a string of bytes.
-@param[in,out]	byte	byte address
-@param[in]	len	length of the data to write
-@param[in]	val	the data byte to write
-@param[in,out]	mtr	mini-transaction */
-void mlog_memset(byte* b, ulint len, byte val, mtr_t* mtr);
-
 /********************************************************//**
 Catenates 1 - 4 bytes to the mtr log. The value is not compressed. */
 UNIV_INLINE
@@ -217,7 +201,7 @@ mlog_parse_initial_log_record(
 	ulint*		space,	/*!< out: space id */
 	ulint*		page_no);/*!< out: page number */
 /********************************************************//**
-Parses a log record written by mtr_t::write(), mlog_memset().
+Parses a log record written by mtr_t::write(), mtr_t::memset().
 @return parsed record end, NULL if not a complete record */
 const byte*
 mlog_parse_nbytes(

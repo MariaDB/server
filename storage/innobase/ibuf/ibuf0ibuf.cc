@@ -411,7 +411,6 @@ ibuf_init_at_db_start(void)
 {
 	page_t*		root;
 	ulint		n_used;
-	page_t*		header_page;
 
 	ut_ad(!ibuf.index);
 	mtr_t mtr;
@@ -419,7 +418,9 @@ ibuf_init_at_db_start(void)
 	compile_time_assert(IBUF_SPACE_ID == TRX_SYS_SPACE);
 	compile_time_assert(IBUF_SPACE_ID == 0);
 	mtr_x_lock_space(fil_system.sys_space, &mtr);
-	header_page = ibuf_header_page_get(&mtr);
+	buf_block_t* header_page = buf_page_get(
+		page_id_t(IBUF_SPACE_ID, FSP_IBUF_HEADER_PAGE_NO),
+		0, RW_X_LATCH, &mtr);
 
 	if (!header_page) {
 		mtr.commit();
@@ -443,8 +444,9 @@ ibuf_init_at_db_start(void)
 
 	mutex_enter(&ibuf_mutex);
 
-	fseg_n_reserved_pages(header_page + IBUF_HEADER + IBUF_TREE_SEG_HEADER,
-			      &n_used, &mtr);
+	fseg_n_reserved_pages(*header_page,
+			      IBUF_HEADER + IBUF_TREE_SEG_HEADER
+			      + header_page->frame, &n_used, &mtr);
 
 	ut_ad(n_used >= 2);
 

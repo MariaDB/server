@@ -76,9 +76,9 @@ trx_rseg_write_wsrep_checkpoint(
 			  reinterpret_cast<const byte*>(xid->data),
 			  xid_length, mtr);
 	if (UNIV_LIKELY(xid_length < XIDDATASIZE)) {
-		mlog_memset(TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
-			    + rseg_header->frame + xid_length,
-			    XIDDATASIZE - xid_length, 0, mtr);
+		mtr->memset(rseg_header,
+			    TRX_RSEG + TRX_RSEG_WSREP_XID_DATA + xid_length,
+			    XIDDATASIZE - xid_length, 0);
 	}
 }
 
@@ -115,9 +115,9 @@ trx_rseg_update_wsrep_checkpoint(
 @param[in,out]	mtr 	mini-transaction */
 static void trx_rseg_clear_wsrep_checkpoint(buf_block_t *block, mtr_t *mtr)
 {
-  mlog_memset(block, TRX_RSEG + TRX_RSEG_WSREP_XID_INFO,
+  mtr->memset(block, TRX_RSEG + TRX_RSEG_WSREP_XID_INFO,
               TRX_RSEG_WSREP_XID_DATA + XIDDATASIZE - TRX_RSEG_WSREP_XID_INFO,
-              0, mtr);
+              0);
 }
 
 static void
@@ -283,13 +283,13 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 @param[in,out]	mtr		mini-transaction */
 void trx_rseg_format_upgrade(buf_block_t *rseg_header, mtr_t *mtr)
 {
-  mlog_memset(rseg_header, TRX_RSEG + TRX_RSEG_FORMAT, 4, 0, mtr);
+  mtr->memset(rseg_header, TRX_RSEG + TRX_RSEG_FORMAT, 4, 0);
   /* Clear also possible garbage at the end of the page. Old
   InnoDB versions did not initialize unused parts of pages. */
-  mlog_memset(rseg_header, TRX_RSEG + TRX_RSEG_MAX_TRX_ID + 8,
+  mtr->memset(rseg_header, TRX_RSEG + TRX_RSEG_MAX_TRX_ID + 8,
               srv_page_size
               - (FIL_PAGE_DATA_END + TRX_RSEG + TRX_RSEG_MAX_TRX_ID + 8),
-              0, mtr);
+              0);
 }
 
 /** Create a rollback segment header.
@@ -330,8 +330,8 @@ trx_rseg_header_create(
 	flst_init(block, TRX_RSEG_HISTORY + TRX_RSEG, mtr);
 
 	/* Reset the undo log slots */
-	mlog_memset(block, TRX_RSEG_UNDO_SLOTS + TRX_RSEG,
-		    TRX_RSEG_N_SLOTS * 4, 0xff, mtr);
+	mtr->memset(block, TRX_RSEG_UNDO_SLOTS + TRX_RSEG,
+		    TRX_RSEG_N_SLOTS * 4, 0xff);
 
 	if (sys_header) {
 		/* Add the rollback segment info to the free slot in
@@ -643,9 +643,9 @@ trx_rseg_array_init()
 		}
 
 		/* Finally, clear WSREP XID in TRX_SYS page. */
-		mlog_memset(trx_sysf_get(&mtr),
-			    TRX_SYS + TRX_SYS_WSREP_XID_INFO,
-			    TRX_SYS_WSREP_XID_LEN, 0, &mtr);
+		mtr.memset(trx_sysf_get(&mtr),
+			   TRX_SYS + TRX_SYS_WSREP_XID_INFO,
+			   TRX_SYS_WSREP_XID_LEN, 0);
 		mtr.commit();
 	}
 #endif

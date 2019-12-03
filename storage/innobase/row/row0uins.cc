@@ -130,8 +130,7 @@ row_undo_ins_remove_clust_rec(
 			      == RW_X_LATCH);
 			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 
-			dict_drop_index_tree(rec, &node->pcur, node->trx,
-					     &mtr);
+			dict_drop_index_tree(&node->pcur, node->trx, &mtr);
 			mtr.commit();
 
 			mtr.start();

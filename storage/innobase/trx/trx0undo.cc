@@ -601,8 +601,8 @@ static void trx_undo_write_xid(buf_block_t *block, uint16_t offset,
                     reinterpret_cast<const byte*>(xid.data),
                     xid_length, mtr);
   if (UNIV_LIKELY(xid_length < XIDDATASIZE))
-    mlog_memset(log_hdr + TRX_UNDO_XA_XID + xid_length,
-                XIDDATASIZE - xid_length, 0, mtr);
+    mtr->memset(block, offset + TRX_UNDO_XA_XID + xid_length,
+                XIDDATASIZE - xid_length, 0);
 }
 
 /********************************************************************//**
@@ -946,9 +946,8 @@ static void trx_undo_seg_free(const trx_undo_t* undo, bool noredo)
 			buf_block_t* rseg_header = trx_rsegf_get(
 				rseg->space, rseg->page_no, &mtr);
 			compile_time_assert(FIL_NULL == 0xffffffff);
-			mlog_memset(rseg_header, TRX_RSEG + TRX_RSEG_UNDO_SLOTS
-				    + undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff,
-				    &mtr);
+			mtr.memset(rseg_header, TRX_RSEG + TRX_RSEG_UNDO_SLOTS
+				   + undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
 			MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_USED);
 		}
 
