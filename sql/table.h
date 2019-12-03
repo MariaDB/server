@@ -1912,6 +1912,10 @@ struct vers_select_conds_t
   {
     return orig_type != SYSTEM_TIME_UNSPECIFIED;
   }
+  bool need_setup() const
+  {
+    return type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL;
+  }
   bool resolve_units(THD *thd);
   bool eq(const vers_select_conds_t &conds) const;
 };
