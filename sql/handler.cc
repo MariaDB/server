@@ -6986,7 +6986,13 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     handler= check_overlaps_handler;
   }
 
-  for (uint key_nr= 0; key_nr < table_share->keys; key_nr++)
+  // Save and later restore this handler's keyread
+  int old_this_keyread= this->keyread;
+  DBUG_ASSERT(this->ha_end_keyread() == 0);
+
+  int error= 0;
+
+  for (uint key_nr= 0; key_nr < table_share->keys && !error; key_nr++)
   {
     const KEY &key_info= table->key_info[key_nr];
     const uint key_parts= key_info.user_defined_key_parts;
@@ -7004,7 +7010,7 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
         continue;
     }
 
-    int error= handler->ha_index_init(key_nr, 0);
+    error= handler->ha_index_init(key_nr, 0);
     if (error)
       return error;
 
@@ -7016,6 +7022,9 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
                               record_buffer + table->s->null_bytes,
                               table->s->reclength - table->s->null_bytes) == 0;
     };
+
+    error= handler->ha_start_keyread(key_nr);
+    DBUG_ASSERT(!error);
 
     error = handler->ha_index_read_map(record_buffer,
                                        check_overlaps_buffer,
@@ -7041,11 +7050,19 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     if (error == HA_ERR_FOUND_DUPP_KEY)
       overlaps_error_key= key_nr;
 
-    int end_error= handler->ha_index_end();
-    if (error || end_error)
-      return error ? error : end_error;
+    int end_error= handler->ha_end_keyread();
+    DBUG_ASSERT(!end_error);
+
+    end_error= handler->ha_index_end();
+    if (!error && end_error)
+      error= end_error;
   }
-  return 0;
+
+  // Restore keyread of this handler, if it was enabled
+  if (old_this_keyread < MAX_KEY)
+    DBUG_ASSERT(this->ha_start_keyread(old_this_keyread) == 0);
+
+  return error;
 }
 
 #ifdef WITH_WSREP
