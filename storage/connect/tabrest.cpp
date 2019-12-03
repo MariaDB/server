@@ -15,9 +15,9 @@
 #define _MAX_PATH 260
 #if !defined(__WIN__)
 #define __stdcall
-//#if !defined(REST_SOURCE)
-//#include <dlfcn.h>         // dlopen(), dlclose(), dlsym() ...
-//#endif
+#if !defined(REST_SOURCE)
+#include <dlfcn.h>         // dlopen(), dlclose(), dlsym() ...
+#endif
 #endif   // !__WIN__
 #define _OS_H_INCLUDED     // Prevent os.h to be called
 #endif  // !MARIADB
