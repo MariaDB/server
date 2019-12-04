@@ -6984,6 +6984,10 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
         return error;
     }
     handler= check_overlaps_handler;
+
+    // Needs to compare record refs later is old_row_found()
+    if (is_update)
+      position(old_data);
   }
 
   // Save and later restore this handler's keyread
@@ -7013,13 +7017,21 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     if (error)
       return error;
 
-    auto old_row_found= [is_update, old_data, record_buffer, this](){
+    auto old_row_found= [is_update, old_data, record_buffer, this, handler](){
+      if (!is_update)
+        return false;
       /* In case of update it could appear that the nearest neighbour is
        * a record we are updating. It means, that there are no overlaps
-       * from this side. */
-      return is_update && memcmp(old_data + table->s->null_bytes,
-                              record_buffer + table->s->null_bytes,
-                              table->s->reclength - table->s->null_bytes) == 0;
+       * from this side.
+       *
+       * An assumption is made that during update we always have the last
+       * fetched row in old_data. Therefore, comparing ref's is enough
+       * */
+      DBUG_ASSERT(handler != this && inited != NONE);
+      DBUG_ASSERT(ref_length == handler->ref_length);
+
+      handler->position(record_buffer);
+      return memcmp(ref, handler->ref, ref_length) == 0;
     };
 
     error= handler->ha_start_keyread(key_nr);
