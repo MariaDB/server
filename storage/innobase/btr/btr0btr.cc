@@ -4105,10 +4105,7 @@ btr_discard_page(
 	ulint		left_page_no;
 	ulint		right_page_no;
 	buf_block_t*	merge_block;
-	page_t*		merge_page;
 	buf_block_t*	block;
-	page_t*		page;
-	rec_t*		node_ptr;
 	btr_cur_t	parent_cursor;
 
 	block = btr_cur_get_block(cursor);
@@ -4131,16 +4128,15 @@ btr_discard_page(
 
 	/* Decide the page which will inherit the locks */
 
-	left_page_no = btr_page_get_prev(buf_block_get_frame(block));
-	right_page_no = btr_page_get_next(buf_block_get_frame(block));
+	left_page_no = btr_page_get_prev(block->frame);
+	right_page_no = btr_page_get_next(block->frame);
 
 	ut_d(bool parent_is_different = false);
 	if (left_page_no != FIL_NULL) {
 		merge_block = btr_block_get(*index, left_page_no, RW_X_LATCH,
 					    true, mtr);
-		merge_page = buf_block_get_frame(merge_block);
 #ifdef UNIV_BTR_DEBUG
-		ut_a(btr_page_get_next(merge_page)
+		ut_a(btr_page_get_next(merge_block->frame)
 		     == block->page.id.page_no());
 #endif /* UNIV_BTR_DEBUG */
 		ut_d(parent_is_different =
@@ -4152,38 +4148,31 @@ btr_discard_page(
 	} else if (right_page_no != FIL_NULL) {
 		merge_block = btr_block_get(*index, right_page_no, RW_X_LATCH,
 					    true, mtr);
-		merge_page = buf_block_get_frame(merge_block);
 #ifdef UNIV_BTR_DEBUG
-		ut_a(btr_page_get_prev(merge_page)
+		ut_a(btr_page_get_prev(merge_block->frame)
 		     == block->page.id.page_no());
 #endif /* UNIV_BTR_DEBUG */
 		ut_d(parent_is_different = page_rec_is_supremum(
 			page_rec_get_next(btr_cur_get_rec(&parent_cursor))));
+		if (!page_is_leaf(merge_block->frame)) {
+			rec_t* node_ptr = page_rec_get_next(
+				page_get_infimum_rec(merge_block->frame));
+			ut_ad(page_rec_is_user_rec(node_ptr));
+			/* We have to mark the leftmost node pointer as the
+			predefined minimum record. */
+			btr_set_min_rec_mark<true>(node_ptr, *merge_block,
+						   mtr);
+		}
 	} else {
 		btr_discard_only_page_on_level(index, block, mtr);
 
 		return;
 	}
 
-	page = buf_block_get_frame(block);
-	ut_a(page_is_comp(merge_page) == page_is_comp(page));
+	ut_a(page_is_comp(merge_block->frame) == page_is_comp(block->frame));
+	ut_ad(!memcmp_aligned<2>(&merge_block->frame[PAGE_HEADER + PAGE_LEVEL],
+				 &block->frame[PAGE_HEADER + PAGE_LEVEL], 2));
 	btr_search_drop_page_hash_index(block);
-
-	if (left_page_no == FIL_NULL && !page_is_leaf(page)) {
-
-		/* We have to mark the leftmost node pointer on the right
-		side page as the predefined minimum record */
-		node_ptr = page_rec_get_next(page_get_infimum_rec(merge_page));
-
-		ut_ad(page_rec_is_user_rec(node_ptr));
-
-		/* This will make page_zip_validate() fail on merge_page
-		until btr_level_list_remove() completes.  This is harmless,
-		because everything will take place within a single
-		mini-transaction and because writing to the redo log
-		is an atomic operation (performed by mtr_commit()). */
-		btr_set_min_rec_mark(node_ptr, *block, mtr);
-	}
 
 	if (dict_index_is_spatial(index)) {
 		rtr_node_ptr_delete(&parent_cursor, mtr);
@@ -4199,7 +4188,8 @@ btr_discard_page(
 		page_zip_des_t*	merge_page_zip
 			= buf_block_get_page_zip(merge_block);
 		ut_a(!merge_page_zip
-		     || page_zip_validate(merge_page_zip, merge_page, index));
+		     || page_zip_validate(merge_page_zip, merge_block->frame,
+					  index));
 	}
 #endif /* UNIV_ZIP_DEBUG */
 

@@ -523,16 +523,18 @@ btr_insert_on_non_leaf_level_func(
 #define btr_insert_on_non_leaf_level(f,i,l,t,m)			\
 	btr_insert_on_non_leaf_level_func(f,i,l,t,__FILE__,__LINE__,m)
 
-/** Set a record as the predefined minimum record.
+/** Set a child page pointer record as the predefined minimum record.
+@tparam has_prev  whether the page is supposed to have a left sibling
 @param[in,out]  rec     leftmost record on a leftmost non-leaf page
 @param[in,out]  block   buffer pool block
 @param[in,out]  mtr     mini-transaction */
+template<bool has_prev= false>
 inline void btr_set_min_rec_mark(rec_t *rec, const buf_block_t &block,
                                  mtr_t *mtr)
 {
   ut_ad(block.frame == page_align(rec));
   ut_ad(!page_is_leaf(block.frame));
-  ut_ad(!page_has_prev(block.frame));
+  ut_ad(has_prev == page_has_prev(block.frame));
 
   rec-= page_rec_is_comp(rec) ? REC_NEW_INFO_BITS : REC_OLD_INFO_BITS;
 
