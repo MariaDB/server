@@ -125,10 +125,6 @@ my_bool	srv_undo_log_truncate;
 /** Maximum size of undo tablespace. */
 unsigned long long	srv_max_undo_log_size;
 
-/** Default undo tablespace size in UNIV_PAGEs count (10MB). */
-const ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES =
-	((1024 * 1024) * 10) / UNIV_PAGE_SIZE_DEF;
-
 /** Set if InnoDB must operate in read-only mode. We don't do any
 recovery and open all tables in RO mode instead of RW mode. We don't
 sync the max trx id to disk either. */
