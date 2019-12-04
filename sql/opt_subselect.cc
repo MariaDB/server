@@ -829,7 +829,12 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
 
   in_subs->types_allow_materialization= FALSE;  // Assign default values
   in_subs->sjm_scan_allowed= FALSE;
-  
+
+  /*
+    The checks here must be kept in sync with the one in
+    Item_func_in::in_predicate_to_in_subs_transformer().
+  */
+
   bool all_are_fields= TRUE;
   uint32 total_key_length = 0;
   for (uint i= 0; i < elements; i++)

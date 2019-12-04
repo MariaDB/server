@@ -629,11 +629,9 @@ SELECT * FROM t1 WHERE i IN (NULL, NULL, NULL, NULL, NULL);
 i
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE i IN (NULL, NULL, NULL, NULL, NULL);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`i` AS `i` from `test`.`t1` semi join ((values (NULL),(NULL),(NULL),(NULL),(NULL)) `tvc_0`) where `test`.`t1`.`i` = `tvc_0`.`_col_1`
+Note	1003	select `test`.`t1`.`i` AS `i` from `test`.`t1` where `test`.`t1`.`i` in (NULL,NULL,NULL,NULL,NULL)
 SET in_predicate_conversion_threshold= default;
 DROP TABLE t1;
 #
@@ -686,4 +684,51 @@ f1	f2
 1	2
 1	1
 DROP TABLE t1,t2,t3;
+SET @@in_predicate_conversion_threshold= default;
+#
+# MDEV-20900: IN predicate to IN subquery conversion causes performance regression
+#
+create table t1(a int, b int);
+insert into t1 select seq-1, seq-1 from seq_1_to_10;
+set in_predicate_conversion_threshold=2;
+explain select * from t1 where t1.a IN ("1","2","3","4");
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+select * from t1 where t1.a IN ("1","2","3","4");
+a	b
+1	1
+2	2
+3	3
+4	4
+set in_predicate_conversion_threshold=0;
+explain select * from t1 where t1.a IN ("1","2","3","4");
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+select * from t1 where t1.a IN ("1","2","3","4");
+a	b
+1	1
+2	2
+3	3
+4	4
+set in_predicate_conversion_threshold=2;
+explain select * from t1 where (t1.a,t1.b) in (("1","1"),(2,2),(3,3),(4,4));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+select * from t1 where (t1.a,t1.b) in (("1","1"),(2,2),(3,3),(4,4));
+a	b
+1	1
+2	2
+3	3
+4	4
+set in_predicate_conversion_threshold=0;
+explain select * from t1 where (t1.a,t1.b) in (("1","1"),(2,2),(3,3),(4,4));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+select * from t1 where (t1.a,t1.b) in (("1","1"),(2,2),(3,3),(4,4));
+a	b
+1	1
+2	2
+3	3
+4	4
+drop table t1;
 SET @@in_predicate_conversion_threshold= default;
