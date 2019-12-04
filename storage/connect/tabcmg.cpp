@@ -53,25 +53,30 @@ bool CMGDISC::FindInDoc(PGLOBAL g, bson_iter_t *iter, const bson_t *doc,
 {
 	if (!doc || bson_iter_init(iter, doc)) {
 		const char *key;
-		char  colname[65];
-		char 	fmt[129];
-		bool  newcol;
+		char   colname[65];
+		char 	 fmt[129];
+		bool   newcol;
+		size_t n;
 
 		while (bson_iter_next(iter)) {
 			key = bson_iter_key(iter);
 			newcol = true;
 
 			if (pcn) {
-				strncpy(colname, pcn, 64);
-				colname[64] = 0;
-				strncat(strncat(colname, "_", 65), key, 65);
+				n = sizeof(colname) - 1;
+				strncpy(colname, pcn, n);
+				colname[n] = 0;
+				n -= strlen(colname);
+				strncat(strncat(colname, "_", n), key, n - 1);
 			}	else
 				strcpy(colname, key);
 
 			if (pfmt) {
-				strncpy(fmt, pfmt, 128);
-				fmt[128] = 0;
-				strncat(strncat(fmt, ".", 129), key, 129);
+				n = sizeof(fmt) - 1;
+				strncpy(fmt, pfmt, n);
+				fmt[n] = 0;
+				n -= strlen(fmt);
+				strncat(strncat(fmt, ".", n), key, n - 1);
 			} else
 				strcpy(fmt, key);
 

@@ -115,11 +115,14 @@ bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 
   Recfm = RECFM_VCT;
 
+	// poff is no more in use; This will have to be revisited
+#if 0
   // For packed files the logical record length is calculated in poff
   if (poff != Lrecl) {
     Lrecl = poff;
     SetIntCatInfo("Lrecl", poff);
     } // endif poff
+#endif // 0
 
   Padded = false;
   Blksize = 0;

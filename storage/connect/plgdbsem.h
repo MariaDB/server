@@ -149,16 +149,22 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
 	        TYPE_AM_MGO   = 194,				/* MGO access method type no     */
 					TYPE_AM_OUT   = 200};       /* Output relations (storage)    */
 
-enum RECFM {RECFM_NAF   =    -2,      /* Not a file                    */
-            RECFM_OEM   =    -1,      /* OEM file access method        */
-            RECFM_VAR   =     0,      /* Varying length DOS files      */
-            RECFM_FIX   =     1,      /* Fixed length DOS files        */
-            RECFM_BIN   =     2,      /* Binary DOS files (also fixed) */
-            RECFM_VCT   =     3,      /* VCT formatted files           */
-            RECFM_ODBC  =     4,      /* Table accessed via ODBC       */
-						RECFM_JDBC  =     5,      /* Table accessed via JDBC       */
-						RECFM_PLG   =     6,      /* Table accessed via PLGconn    */
-            RECFM_DBF   =     7};     /* DBase formatted file          */
+enum RECFM {RECFM_DFLT  =     0,      /* Default table type            */
+            RECFM_NAF   =     1,      /* Not a file table              */
+            RECFM_OEM   =     2,      /* OEM table                     */
+            RECFM_VAR   =     3,      /* Varying length DOS files      */
+            RECFM_FIX   =     4,      /* Fixed length DOS files        */
+            RECFM_BIN   =     5,      /* Binary DOS files (also fixed) */
+						RECFM_DBF   =     6,      /* DBase formatted file          */
+						RECFM_CSV   =     7,      /* CSV file                      */
+						RECFM_FMT   =     8,      /* FMT formatted file            */
+						RECFM_VCT   =     9,      /* VCT formatted files           */
+						RECFM_XML   =    10,      /* XML formatted files           */
+						RECFM_JASON =    11,      /* JASON formatted files         */
+						RECFM_DIR   =    12,      /* DIR table                     */
+						RECFM_ODBC  =    13,      /* Table accessed via ODBC       */
+						RECFM_JDBC  =    14,      /* Table accessed via JDBC       */
+						RECFM_PLG   =    15};     /* Table accessed via PLGconn    */
 
 enum MISC {DB_TABNO     =     1,      /* DB routines in Utility Table  */
            MAX_MULT_KEY =    10,      /* Max multiple key number       */
@@ -537,7 +543,8 @@ enum XFLD {FLD_NO       =  0,         /* Not a field definition item   */
            FLD_FORMAT   = 16,         /* Field format                  */
            FLD_CAT      = 17,         /* Table catalog                 */
            FLD_SCHEM    = 18,         /* Table schema                  */
-           FLD_TABNAME  = 19};        /* Column Table name             */
+           FLD_TABNAME  = 19,         /* Column Table name             */
+					 FLD_FLAG     = 20};        /* Field flag (CONNECT specific) */
 
 /***********************************************************************/
 /*  Result of last SQL noconv query.                                   */

@@ -1788,6 +1788,9 @@ LinuxAIOHandler::resubmit(Slot* slot)
 
 	iocb->data = slot;
 
+	ut_a(reinterpret_cast<size_t>(iocb->u.c.buf) % OS_FILE_LOG_BLOCK_SIZE
+	     == 0);
+
 	/* Resubmit an I/O request */
 	int	ret = io_submit(m_array->io_ctx(m_segment), 1, &iocb);
 	ut_a(ret != -EINVAL);
@@ -2156,6 +2159,9 @@ AIO::linux_dispatch(Slot* slot)
 
 	io_ctx_index = (slot->pos * m_n_segments) / m_slots.size();
 
+	ut_a(reinterpret_cast<size_t>(iocb->u.c.buf) % OS_FILE_LOG_BLOCK_SIZE
+	     == 0);
+
 	int	ret = io_submit(io_ctx(io_ctx_index), 1, &iocb);
 	ut_a(ret != -EINVAL);
 
@@ -2348,6 +2354,8 @@ AIO::is_linux_native_aio_supported()
 		io_prep_pread(p_iocb, fd, ptr, 512, 0);
 	}
 
+	ut_a(reinterpret_cast<size_t>(p_iocb->u.c.buf) % OS_FILE_LOG_BLOCK_SIZE
+	     == 0);
 	int	err = io_submit(io_ctx, 1, &p_iocb);
 	ut_a(err != -EINVAL);
 
@@ -6215,6 +6223,10 @@ AIO::reserve_slot(
 	os_offset_t		offset,
 	ulint			len)
 {
+	ut_ad(reinterpret_cast<size_t>(buf) % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_ad(offset % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_ad(len % OS_FILE_LOG_BLOCK_SIZE == 0);
+
 #ifdef WIN_ASYNC_IO
 	ut_a((len & 0xFFFFFFFFUL) == len);
 #endif /* WIN_ASYNC_IO */
