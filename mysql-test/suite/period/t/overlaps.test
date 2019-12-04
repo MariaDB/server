@@ -42,6 +42,8 @@ update t set s= '2003-01-01', e= '2003-02-01' where s = '2002-12-15';
 update t set s= '2003-01-10', e= '2003-01-20' where s = '2003-01-01';
 update t set s= '2003-01-01', e= '2003-02-01' where s = '2003-01-10';
 
+select * from t;
+
 --echo # intersect left/right, strict inclusion/containment
 --error ER_DUP_ENTRY
 update t set e= '2003-04-01' where s = '2003-01-01';

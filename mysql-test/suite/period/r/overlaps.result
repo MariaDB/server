@@ -32,6 +32,11 @@ update t set s= '2003-01-01', e= '2003-02-01' where s = '2002-12-15';
 # diminish/enlarge
 update t set s= '2003-01-10', e= '2003-01-20' where s = '2003-01-01';
 update t set s= '2003-01-01', e= '2003-02-01' where s = '2003-01-10';
+select * from t;
+id	s	e
+1	2003-01-01	2003-02-01
+1	2003-03-01	2003-05-01
+1	2003-05-01	2003-07-01
 # intersect left/right, strict inclusion/containment
 update t set e= '2003-04-01' where s = '2003-01-01';
 ERROR 23000: Duplicate entry '1-2003-01-01-2003-04-01' for key 'PRIMARY'

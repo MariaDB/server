@@ -6999,7 +6999,6 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     if (!key_info.without_overlaps)
       continue;
 
-    key_copy(check_overlaps_buffer, new_data, &key_info, 0);
     if (is_update)
     {
       bool key_used= false;
@@ -7026,25 +7025,33 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     error= handler->ha_start_keyread(key_nr);
     DBUG_ASSERT(!error);
 
+    const uint period_field_length= key_info.key_part[key_parts - 1].length;
+    const uint key_base_length= key_info.key_length - 2 * period_field_length;
+
+    key_copy(check_overlaps_buffer, new_data, &key_info, 0);
+
+    /* Copy period_end to period_start.
+     * the value in period_end field is not significant, but anyway let's leave
+     * it defined to avoid uninitialized memory access
+     */
+    memcpy(check_overlaps_buffer + key_base_length,
+           check_overlaps_buffer + key_base_length + period_field_length,
+           period_field_length);
+
+    /* Find row with period_start < (period_end of new_data) */
     error = handler->ha_index_read_map(record_buffer,
                                        check_overlaps_buffer,
                                        key_part_map((1 << key_parts) - 1),
-                                       HA_READ_KEY_OR_PREV);
+                                       HA_READ_BEFORE_KEY);
 
-    if (!error && !old_row_found()
-        && table->check_period_overlaps(key_info, key_info,
+    if (!error && old_row_found())
+      error= handler->ha_index_prev(record_buffer);
+
+    if (!error && table->check_period_overlaps(key_info, key_info,
                                         new_data, record_buffer) == 0)
       error= HA_ERR_FOUND_DUPP_KEY;
 
-    if (!error || error == HA_ERR_KEY_NOT_FOUND)
-      error = handler->ha_index_next(record_buffer);
-
-    if (!error && !old_row_found()
-        && table->check_period_overlaps(key_info, key_info,
-                                        new_data, record_buffer) == 0)
-      error= HA_ERR_FOUND_DUPP_KEY;
-
-    if (error == HA_ERR_END_OF_FILE)
+    if (error == HA_ERR_KEY_NOT_FOUND || error == HA_ERR_END_OF_FILE)
       error= 0;
 
     if (error == HA_ERR_FOUND_DUPP_KEY)
