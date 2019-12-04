@@ -55,17 +55,20 @@ trx_rseg_write_wsrep_checkpoint(
 	DBUG_ASSERT(xid->bqual_length >= 0);
 	DBUG_ASSERT(xid->gtrid_length + xid->bqual_length < XIDDATASIZE);
 
-	mtr->write<4>(*rseg_header, TRX_RSEG + TRX_RSEG_WSREP_XID_FORMAT
-		      + rseg_header->frame,
-		      uint32_t(xid->formatID));
+	mtr->write<4,mtr_t::OPT>(*rseg_header,
+				 TRX_RSEG + TRX_RSEG_WSREP_XID_FORMAT
+				 + rseg_header->frame,
+				 uint32_t(xid->formatID));
 
-	mtr->write<4>(*rseg_header, TRX_RSEG + TRX_RSEG_WSREP_XID_GTRID_LEN
-		      + rseg_header->frame,
-		      uint32_t(xid->gtrid_length));
+	mtr->write<4,mtr_t::OPT>(*rseg_header,
+				 TRX_RSEG + TRX_RSEG_WSREP_XID_GTRID_LEN
+				 + rseg_header->frame,
+				 uint32_t(xid->gtrid_length));
 
-	mtr->write<4>(*rseg_header, TRX_RSEG + TRX_RSEG_WSREP_XID_BQUAL_LEN
-		      + rseg_header->frame,
-		      uint32_t(xid->bqual_length));
+	mtr->write<4,mtr_t::OPT>(*rseg_header,
+				 TRX_RSEG + TRX_RSEG_WSREP_XID_BQUAL_LEN
+				 + rseg_header->frame,
+				 uint32_t(xid->bqual_length));
 
 	const ulint xid_length = static_cast<ulint>(xid->gtrid_length
 						    + xid->bqual_length);
