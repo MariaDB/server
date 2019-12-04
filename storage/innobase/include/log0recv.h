@@ -80,10 +80,8 @@ recv_sys_var_init(void);
 /*===================*/
 
 /** Apply recv_sys.pages to persistent data pages.
-@param[in]	last_batch	whether the change buffer merge will be
-				performed as part of the operation */
-void
-recv_apply_hashed_log_recs(bool last_batch);
+@param[in]	last_batch	whether redo log writes are possible */
+void recv_apply_hashed_log_recs(bool last_batch);
 
 /** Whether to store redo log records in recv_sys.pages */
 enum store_t {

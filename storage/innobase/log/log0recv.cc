@@ -254,10 +254,8 @@ public:
 		lsn_t lsn;
 		/** Whether btr_page_create() avoided a read of the page.
 
-		At the end of the last recovery batch, ibuf_merge()
-		will invoke change buffer merge for pages that reside
-		in the buffer pool. (In the last batch, loading pages
-		would trigger change buffer merge.) */
+		At the end of the last recovery batch, mark_ibuf_exist()
+		will mark pages for which this flag is set. */
 		bool created;
 	};
 
@@ -307,14 +305,9 @@ public:
 		}
 	}
 
-	/** On the last recovery batch, mark whether the page contains
-	change buffered changes for the list of pages that were initialized
+	/** On the last recovery batch, mark whether there exist
+	buffered changes for the pages that were initialized
 	by buf_page_create() and still reside in the buffer pool.
-
-	Note: When MDEV-14481 implements redo log apply in the
-	background, we will have to ensure that buf_page_get_gen()
-	will not deliver stale pages to users (pages on which the
-	change buffer was not merged yet).
 	@param[in,out]	mtr	dummy mini-transaction */
 	void mark_ibuf_exist(mtr_t& mtr)
 	{
@@ -2100,8 +2093,7 @@ static void recv_read_in_area(page_id_t page_id)
 }
 
 /** Apply recv_sys.pages to persistent data pages.
-@param[in]	last_batch	whether the change buffer merge will be
-				performed as part of the operation */
+@param[in]	last_batch	whether redo log writes are possible */
 void recv_apply_hashed_log_recs(bool last_batch)
 {
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
@@ -3199,10 +3191,6 @@ recv_group_scan_log_recs(
 	do {
 		if (last_phase && store_to_hash == STORE_NO) {
 			store_to_hash = STORE_IF_EXISTS;
-			/* We must not allow change buffer
-			merge here, because it would generate
-			redo log records before we have
-			finished the redo log scan. */
 			recv_apply_hashed_log_recs(false);
 		}
 
