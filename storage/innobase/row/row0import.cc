@@ -1903,36 +1903,25 @@ clear_page_max_trx_id:
 /** Validate the space flags and update tablespace header page.
 @param block block read from file, not from the buffer pool.
 @retval DB_SUCCESS or error code */
-inline
-dberr_t
-PageConverter::update_header(
-	buf_block_t*	block) UNIV_NOTHROW
+inline dberr_t PageConverter::update_header(buf_block_t* block) UNIV_NOTHROW
 {
-	/* Check for valid header */
-	switch (fsp_header_get_space_id(get_frame(block))) {
-	case 0:
-		return(DB_CORRUPTION);
-	case ULINT_UNDEFINED:
-		ib::warn() << "Space id check in the header failed: ignored";
-	}
+  byte *frame= get_frame(block);
+  if (memcmp_aligned<4>(FIL_PAGE_SPACE_ID + frame,
+                        FSP_HEADER_OFFSET + FSP_SPACE_ID + frame, 4))
+    ib::warn() << "Space id check in the header failed: ignored";
+  else if (!mach_read_from_4(FIL_PAGE_SPACE_ID + frame))
+    return DB_CORRUPTION;
 
-	memset(get_frame(block) + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,0,8);
+  memset(frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 
-	/* Write back the adjusted flags. */
-	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
-			+ get_frame(block), m_space_flags);
+  /* Write space_id to the tablespace header, page 0. */
+  mach_write_to_4(FIL_PAGE_SPACE_ID + frame, get_space_id());
+  memcpy_aligned<4>(FSP_HEADER_OFFSET + FSP_SPACE_ID + frame,
+                    FIL_PAGE_SPACE_ID + frame, 4);
+  /* Write back the adjusted flags. */
+  mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + frame, m_space_flags);
 
-	/* Write space_id to the tablespace header, page 0. */
-	mach_write_to_4(
-		get_frame(block) + FSP_HEADER_OFFSET + FSP_SPACE_ID,
-		get_space_id());
-
-	/* This is on every page in the tablespace. */
-	mach_write_to_4(
-		get_frame(block) + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-		get_space_id());
-
-	return(DB_SUCCESS);
+  return DB_SUCCESS;
 }
 
 /** Update the page, set the space id, max trx id and index id.

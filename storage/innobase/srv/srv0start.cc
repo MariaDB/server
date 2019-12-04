@@ -599,7 +599,6 @@ static ulint trx_rseg_get_n_undo_tablespaces()
 @retval 0 on failure */
 static ulint srv_undo_tablespace_open(bool create, const char* name, ulint i)
 {
-  pfs_os_file_t	fh;
   bool success;
   char undo_name[sizeof "innodb_undo000"];
   ulint space_id= 0;
@@ -620,10 +619,11 @@ static ulint srv_undo_tablespace_open(bool create, const char* name, ulint i)
     }
   }
 
-  fh = os_file_create(
-        innodb_data_file_key, name, OS_FILE_OPEN
-        | OS_FILE_ON_ERROR_NO_EXIT | OS_FILE_ON_ERROR_SILENT,
-        OS_FILE_AIO, OS_DATA_FILE, srv_read_only_mode, &success);
+  pfs_os_file_t fh= os_file_create(innodb_data_file_key, name, OS_FILE_OPEN |
+                                   OS_FILE_ON_ERROR_NO_EXIT |
+                                   OS_FILE_ON_ERROR_SILENT,
+                                   OS_FILE_AIO, OS_DATA_FILE,
+                                   srv_read_only_mode, &success);
 
   if (!success)
     return 0;
@@ -644,11 +644,20 @@ err_exit:
       return err;
     }
 
-    fsp_flags= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
-    uint32_t id= fsp_header_get_space_id(page);
+    uint32_t id= mach_read_from_4(FIL_PAGE_SPACE_ID + page);
     if (id == 0 || id >= SRV_LOG_SPACE_FIRST_ID ||
-        buf_page_is_corrupted(false, page, fsp_flags))
+        memcmp_aligned<4>(FIL_PAGE_SPACE_ID + page,
+                          FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4))
     {
+      ib::error() << "Inconsistent tablespace ID in file " << name;
+      err= DB_CORRUPTION;
+      goto err_exit;
+    }
+
+    fsp_flags= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
+    if (buf_page_is_corrupted(false, page, fsp_flags))
+    {
+      ib::error() << "Checksum mismatch in the first page of file " << name;
       err= DB_CORRUPTION;
       goto err_exit;
     }

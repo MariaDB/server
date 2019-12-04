@@ -341,7 +341,17 @@ Datafile::read_first_page(bool read_only_mode)
 	}
 
 	if (m_order == 0) {
-		m_space_id = fsp_header_get_space_id(m_first_page);
+		if (memcmp_aligned<4>(FIL_PAGE_SPACE_ID + m_first_page,
+				      FSP_HEADER_OFFSET + FSP_SPACE_ID
+				      + m_first_page, 4)) {
+			ib::error()
+				<< "Inconsistent tablespace ID in "
+				<< m_filepath;
+			return DB_CORRUPTION;
+		}
+
+		m_space_id = mach_read_from_4(FIL_PAGE_SPACE_ID
+					      + m_first_page);
 		m_flags = fsp_header_get_flags(m_first_page);
 		if (!fil_space_t::is_valid_flags(m_flags, m_space_id)) {
 			ulint cflags = fsp_flags_convert_from_101(m_flags);

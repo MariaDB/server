@@ -612,33 +612,6 @@ void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
 	}
 }
 
-/**********************************************************************//**
-Reads the space id from the first page of a tablespace.
-@return space id, ULINT UNDEFINED if error */
-ulint
-fsp_header_get_space_id(
-/*====================*/
-	const page_t*	page)	/*!< in: first page of a tablespace */
-{
-	ulint	fsp_id;
-	ulint	id;
-
-	fsp_id = mach_read_from_4(FSP_HEADER_OFFSET + page + FSP_SPACE_ID);
-
-	id = mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-
-	DBUG_EXECUTE_IF("fsp_header_get_space_id_failure",
-			id = ULINT_UNDEFINED;);
-
-	if (id != fsp_id) {
-		ib::error() << "Space ID in fsp header is " << fsp_id
-			<< ", but in the page header it is " << id << ".";
-		return(ULINT_UNDEFINED);
-	}
-
-	return(id);
-}
-
 /** Try to extend a single-table tablespace so that a page would fit in the
 data file.
 @param[in,out]	space	tablespace

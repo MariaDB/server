@@ -4464,17 +4464,20 @@ bool fil_node_t::read_page0(bool first)
 		return false;
 	}
 
-	byte* buf2 = static_cast<byte*>(ut_malloc_nokey(2 * psize));
-
-	/* Align the memory for file i/o if we might have O_DIRECT set */
-	byte* page = static_cast<byte*>(ut_align(buf2, psize));
-	IORequest request(IORequest::READ);
-	if (os_file_read(request, handle, page, 0, psize) != DB_SUCCESS) {
+	page_t *page= static_cast<byte*>(aligned_malloc(psize, psize));
+	if (os_file_read(IORequestRead, handle, page, 0, psize)
+	    != DB_SUCCESS) {
 		ib::error() << "Unable to read first page of file " << name;
-		ut_free(buf2);
+corrupted:
+		aligned_free(page);
 		return false;
 	}
-	const ulint space_id = fsp_header_get_space_id(page);
+
+	const ulint space_id = memcmp_aligned<4>(
+		FIL_PAGE_SPACE_ID + page,
+		FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
+		? ULINT_UNDEFINED
+		: mach_read_from_4(FIL_PAGE_SPACE_ID + page);
 	ulint flags = fsp_header_get_flags(page);
 	const ulint size = fsp_header_get_field(page, FSP_SIZE);
 	const ulint free_limit = fsp_header_get_field(page, FSP_FREE_LIMIT);
@@ -4489,8 +4492,7 @@ invalid:
 				<< ib::hex(space->flags)
 				<< " but found " << ib::hex(flags)
 				<< " in the file " << name;
-			ut_free(buf2);
-			return false;
+			goto corrupted;
 		}
 
 		ulint cf = cflags & ~FSP_FLAGS_MEM_MASK;
@@ -4511,7 +4513,7 @@ invalid:
 		space->crypt_data = fil_space_read_crypt_data(
 			fil_space_t::zip_size(flags), page);
 	}
-	ut_free(buf2);
+	aligned_free(page);
 
 	if (UNIV_UNLIKELY(space_id != space->id)) {
 		ib::error() << "Expected tablespace id " << space->id

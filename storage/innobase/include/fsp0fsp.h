@@ -302,14 +302,6 @@ inline bool xdes_is_free(const xdes_t *descr, ulint offset)
 #ifndef UNIV_INNOCHECKSUM
 /* @} */
 
-/**********************************************************************//**
-Reads the space id from the first page of a tablespace.
-@return space id, ULINT UNDEFINED if error */
-ulint
-fsp_header_get_space_id(
-/*====================*/
-	const page_t*	page);	/*!< in: first page of a tablespace */
-
 /** Read a tablespace header field.
 @param[in]	page	first page of a tablespace
 @param[in]	field	the header field
