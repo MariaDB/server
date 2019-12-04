@@ -10601,12 +10601,6 @@ Field *make_field(TABLE_SHARE *share,
                        FLAGSTR(pack_flag, FIELDFLAG_PACK),
                        FLAGSTR(pack_flag, FIELDFLAG_BLOB)));
 
-  /*
-  if (handler == &type_handler_mysql_json)
-  {
-    return new (mem_root) Field_mysql_json(ptr, field_name);
-  }
-  */
 
   if (handler == &type_handler_row)
   {
@@ -10635,6 +10629,7 @@ Field *make_field(TABLE_SHARE *share,
   {
     null_bit= ((uchar) 1) << null_bit;
   }
+
 
 
   if (f_is_alpha(pack_flag))
@@ -10678,6 +10673,13 @@ Field *make_field(TABLE_SHARE *share,
                                                 f_packtype(pack_flag));
     uint pack_length= tmp->calc_pack_length(field_length);
 
+    if (handler == &type_handler_mysql_json)
+    {
+        return new (mem_root) Field_mysql_json(ptr, null_pos, null_bit,
+                                               unireg_check, field_name, share,
+                                               pack_length, field_charset);
+    }
+
 #ifdef HAVE_SPATIAL
     if (f_is_geom(pack_flag))
     {
@@ -10688,10 +10690,6 @@ Field *make_field(TABLE_SHARE *share,
                    pack_length, geom_type, srid);
     }
 #endif
-    if (f_is_json(pack_flag))
-      return new Field_mysql_json(ptr, null_pos, null_bit,
-                                  unireg_check, field_name, share,
-                                  pack_length, field_charset);
     if (f_is_blob(pack_flag))
     {
       if (unireg_check == Field::TMYSQL_COMPRESSED)

@@ -2486,11 +2486,17 @@ Field *Type_handler_mysql_json::make_table_field(const LEX_CSTRING *name,
                                                  const Type_all_attributes &attr,
                                                  TABLE *table) const
 {
+  /*
+    DBUG_ASSERT will be removed when we reuse make_table_field()
+    for make_field() in field.cc
+  */
+  DBUG_ASSERT(0);
+
   DBUG_ASSERT(0);
   return new (table->in_use->mem_root)
          Field_mysql_json(addr.ptr, addr.null_ptr, addr.null_bit,
-                    Field::NONE, name, table->s,
-                    2, attr.collation);
+                          Field::NONE, name, table->s,
+                          4, attr.collation);
 }
 /*************************************************************************/
 /*

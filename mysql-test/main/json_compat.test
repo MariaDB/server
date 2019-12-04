@@ -16,4 +16,5 @@ show tables;
 #show create table t_isam;
 alter table t_isam force;
 show create table t_isam;
-show create table t_isam_compressed;
+select * from t_isam;
+#show create table t_isam_compressed;

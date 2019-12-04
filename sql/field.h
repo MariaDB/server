@@ -3665,7 +3665,9 @@ public:
       return do_field_int;
     */
     if (!(from->flags & BLOB_FLAG) || from->charset() != charset() ||
-        !from->compression_method() != !compression_method())
+        !from->compression_method() != !compression_method() ||
+        /* Always perform conversion from mysql_json. */
+        from->type_handler() == &type_handler_mysql_json)
       return do_conv_blob;
     if (from->pack_length() != Field_blob::pack_length())
       return do_copy_blob;
@@ -4854,7 +4856,12 @@ class Field_mysql_json :public Field_blob
   {
     return MYSQL_TYPE_LONG_BLOB;
   }
+  const Type_handler *type_handler() const
+  {
+    return &type_handler_mysql_json;
+  }
   bool parse_mysql(String*, bool, const char *) const;
+
 };
 
 uint pack_length_to_packflag(uint type);
@@ -4880,7 +4887,6 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
 #define FIELDFLAG_GEOM			2048U   // mangled with decimals!
 
 #define FIELDFLAG_TREAT_BIT_AS_CHAR     4096U   /* use Field_bit_as_char */
-#define FIELDFLAG_JSON  	             	4096U  // Shares same flag
 #define FIELDFLAG_LONG_DECIMAL          8192U
 #define FIELDFLAG_NO_DEFAULT		16384U  /* sql */
 #define FIELDFLAG_MAYBE_NULL		32768U	// sql
@@ -4909,7 +4915,6 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)
 #define f_is_hex_escape(x)      ((x) & FIELDFLAG_HEX_ESCAPE)
 #define f_visibility(x)         (static_cast<field_visibility_t> ((x) & INVISIBLE_MAX_BITS))
-#define f_is_json(x)		(((x) & (FIELDFLAG_JSON | FIELDFLAG_NUMBER | FIELDFLAG_BITFIELD)) == FIELDFLAG_JSON)
 
 inline
 ulonglong TABLE::vers_end_id() const
