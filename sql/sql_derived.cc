@@ -707,9 +707,15 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       case SQLCOM_DELETE_MULTI:
       case SQLCOM_UPDATE:
       case SQLCOM_UPDATE_MULTI:
-        if ((res= unit->first_select()->vers_setup_conds(thd, derived->merge_underlying_list)))
+        if ((res= first_select->vers_setup_conds(thd,
+                                                 derived->merge_underlying_list)))
           goto exit;
-        derived->where= and_items(thd, derived->where, derived->merge_underlying_list->where);
+        if (derived->merge_underlying_list->where)
+        {
+          Query_arena_stmt on_stmt_arena(thd);
+          derived->where= and_items(thd, derived->where,
+                                    derived->merge_underlying_list->where);
+        }
       default:
         break;
       }
