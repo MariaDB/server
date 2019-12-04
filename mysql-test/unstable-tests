@@ -23,7 +23,7 @@
 #
 ##############################################################################
 #
-# Based on 10.1 1bb857089fdcd3a08cb166cb6d75f3e1dbb76f27
+# Based on 10.1 05e72a33331bd9ad96ebbe4c844b94f0a5fb7390
 
 main.alter_table_trans             : MDEV-12084 - timeout
 main.analyze_stmt_slow_query_log   : MDEV-12237 - Wrong result
@@ -83,6 +83,7 @@ main.mysqlhotcopy_myisam           : MDEV-10995 - test hangs on debug build
 main.mysqlslap                     : MDEV-11801 - timeout
 main.mysqltest                     : MDEV-9269 - fails on Alpha
 main.old-mode                      : MDEV-19373 - Wrong result
+main.order_by                      : Modified in 10.1.44
 main.order_by_innodb               : Modified in 10.1.42
 main.order_by_optimizer_innodb     : MDEV-10683 - wrong execution plan
 main.partition_debug_sync          : MDEV-15669 - Deadlock found when trying to get lock; modified in 10.1.42
@@ -97,7 +98,7 @@ main.query_cache                   : MDEV-12895 - Wrong result
 main.query_cache_debug             : MDEV-15281 - Resize or similar command in progress
 main.range_vs_index_merge_innodb   : MDEV-15283 - Server has gone away
 main.repair_symlink-5543           : Modified in 10.1.41
-main.selectivity                   : Modified in 10.1.42
+main.selectivity                   : Modified in 10.1.44
 main.set_statement                 : MDEV-13183 - Wrong result
 main.show_explain                  : MDEV-10674 - sporadic failure
 main.sp                            : Modified in 10.1.42
@@ -151,6 +152,7 @@ binlog.load_data_stm_view                        : MDEV-16948 - Wrong result
 
 binlog_encryption.binlog_xa_recover           : MDEV-12908 - Extra checkpoint
 binlog_encryption.encrypted_master            : MDEV-12906 - Failed to sync
+binlog_encryption.rpl_corruption              : Include file modified in 10.1.44
 binlog_encryption.rpl_parallel                : MDEV-10653 - Timeout
 binlog_encryption.rpl_parallel_ignored_errors : Added in 10.1.42
 binlog_encryption.rpl_relayrotate             : MDEV-15194 - Timeout
@@ -276,7 +278,7 @@ innodb.xa_recovery                           : MDEV-15279 - mysqld got exception
 innodb_fts.concurrent_insert     : Modified in 10.1.42
 innodb_fts.crash_recovery        : Modified in 10.1.42
 innodb_fts.innodb_ft_aux_table   : Added in 10.1.41
-innodb_fts.innodb_fts_misc       : Modified in 10.1.42
+innodb_fts.innodb_fts_misc       : Modified in 10.1.44
 innodb_fts.innodb_fts_misc_debug : MDEV-14156 - Unexpected warning
 
 #-----------------------------------------------------------------------
@@ -337,6 +339,7 @@ perfschema.connect_attrs                     : MDEV-17283 - Wrong result
 perfschema.func_file_io                      : MDEV-5708 - fails for s390x
 perfschema.func_mutex                        : MDEV-5708 - fails for s390x
 perfschema.hostcache_ipv6_ssl                : MDEV-10696 - crash on shutdown
+perfschema.misc                              : Modified in 10.1.44
 perfschema.privilege_table_io                : MDEV-13184 - Extra lines
 perfschema.rpl_gtid_func                     : MDEV-16897 - Wrong result
 perfschema.socket_summary_by_event_name_func : MDEV-10622 - Socket summary tables do not match
@@ -376,6 +379,7 @@ rpl.rpl_binlog_index                    : MDEV-9501 - Warning: failed registerin
 rpl.rpl_blackhole                       : Modified in 10.1.41
 rpl.rpl_blackhole_row_annotate          : Added in 10.1.41
 rpl.rpl_colSize                         : MDEV-16112 - Server crash
+rpl.rpl_corruption                      : Include file modified in 10.1.44
 rpl.rpl_create_or_replace_fail          : Added in 10.1.42
 rpl.rpl_ddl                             : MDEV-10417 - Fails on Mips
 rpl.rpl_domain_id_filter_io_crash       : MDEV-14357 - Wrong result
@@ -429,6 +433,7 @@ rpl.rpl_semi_sync                       : MDEV-11220 - Wrong result
 rpl.rpl_semi_sync_after_sync            : MDEV-14366 - Wrong result
 rpl.rpl_semi_sync_after_sync_row        : MDEV-14366 - Wrong result
 rpl.rpl_semi_sync_event_after_sync      : MDEV-11806 - warnings
+rpl.rpl_semi_sync_gtid_reconnect        : Added in 10.1.44
 rpl.rpl_semi_sync_skip_repl             : Modified in 10.1.41
 rpl.rpl_semi_sync_uninstall_plugin      : MDEV-7140 - Wrong plugin status; modified in 10.1.41
 rpl.rpl_semi_sync_wait_point            : MDEV-11807 - timeout in wait condition
