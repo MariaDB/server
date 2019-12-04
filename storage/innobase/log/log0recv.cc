@@ -3414,6 +3414,15 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+#ifdef UNIV_DEBUG
+	for (ulint i= 0; i < srv_buf_pool_instances; i++) {
+		buf_pool_t* buf_pool = buf_pool_from_array(i);
+		buf_flush_list_mutex_enter(buf_pool);
+		ut_ad(UT_LIST_GET_LEN(buf_pool->LRU) == 0);
+		ut_ad(UT_LIST_GET_LEN(buf_pool->unzip_LRU) == 0);
+		buf_flush_list_mutex_exit(buf_pool);
+	}
+#endif
 
 	/* Initialize red-black tree for fast insertions into the
 	flush_list during recovery process. */

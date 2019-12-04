@@ -31,8 +31,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0purge.h"
 #include "srv0mon.h"
 
-#include <algorithm>
-
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
 
@@ -710,55 +708,6 @@ trx_temp_rseg_create()
 		trx_sys.temp_rsegs[i] = rseg;
 		mtr.commit();
 	}
-}
-
-/********************************************************************
-Get the number of unique rollback tablespaces in use except space id 0.
-The last space id will be the sentinel value ULINT_UNDEFINED. The array
-will be sorted on space id. Note: space_ids should have have space for
-TRX_SYS_N_RSEGS + 1 elements.
-@return number of unique rollback tablespaces in use. */
-ulint
-trx_rseg_get_n_undo_tablespaces(
-/*============================*/
-	ulint*		space_ids)	/*!< out: array of space ids of
-					UNDO tablespaces */
-{
-	mtr_t mtr;
-	mtr.start();
-
-	buf_block_t* sys_header = trx_sysf_get(&mtr, false);
-	if (!sys_header) {
-		mtr.commit();
-		return 0;
-	}
-
-	ulint* end = space_ids;
-
-	for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
-		uint32_t page_no = trx_sysf_rseg_get_page_no(sys_header,
-							     rseg_id);
-
-		if (page_no == FIL_NULL) {
-			continue;
-		}
-
-		if (ulint space = trx_sysf_rseg_get_space(sys_header,
-							  rseg_id)) {
-			if (std::find(space_ids, end, space) == end) {
-				*end++ = space;
-			}
-		}
-	}
-
-	mtr.commit();
-
-	ut_a(end - space_ids <= TRX_SYS_N_RSEGS);
-	*end = ULINT_UNDEFINED;
-
-	std::sort(space_ids, end);
-
-	return ulint(end - space_ids);
 }
 
 /** Update the offset information about the end of the binlog entry

@@ -85,17 +85,6 @@ trx_rseg_create(ulint space_id)
 void
 trx_temp_rseg_create();
 
-/********************************************************************
-Get the number of unique rollback tablespaces in use except space id 0.
-The last space id will be the sentinel value ULINT_UNDEFINED. The array
-will be sorted on space id. Note: space_ids should have have space for
-TRX_SYS_N_RSEGS + 1 elements.
-@return number of unique rollback tablespaces in use. */
-ulint
-trx_rseg_get_n_undo_tablespaces(
-/*============================*/
-	ulint*		space_ids);	/*!< out: array of space ids of
-					UNDO tablespaces */
 /* Number of undo log slots in a rollback segment file copy */
 #define TRX_RSEG_N_SLOTS	(srv_page_size / 16)
 
