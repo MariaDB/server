@@ -657,7 +657,7 @@ ibuf_bitmap_page_set_bits(
 		ut_ad(bit_offset + 1 < 8);
 		ut_ad(val <= 3);
 		b &= ~(3U << bit_offset);
-		b |= (val & 2) << (bit_offset - 1)
+		b |= ((val & 2) >> 1) << bit_offset
 			| (val & 1) << (bit_offset + 1);
 	} else {
 		ut_ad(val <= 1);
