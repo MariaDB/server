@@ -511,9 +511,9 @@ static int DbugParse(CODE_STATE *cs, const char *control)
     {
       /* never share with the global parent - it can change under your feet */
       stack->functions= ListCopy(init_settings.functions);
-      LockIfInitSettings(cs);
+      LockMutex(cs);
       stack->keywords= ListCopy(init_settings.keywords);
-      UnlockIfInitSettings(cs);
+      UnlockMutex(cs);
       stack->processes= ListCopy(init_settings.processes);
     }
     else
@@ -1617,7 +1617,10 @@ static void FreeState(CODE_STATE *cs, int free_state)
   struct settings *state= cs->stack;
   LockIfInitSettings(cs);
   if (!is_shared(state, keywords))
+  {
     FreeList(state->keywords);
+    state->keywords= NULL;
+  }
   UnlockIfInitSettings(cs);
   if (!is_shared(state, functions))
     FreeList(state->functions);
