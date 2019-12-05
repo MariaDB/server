@@ -1713,7 +1713,20 @@ JOIN::optimize_inner()
     }
   }
   
-  conds= optimize_cond(this, conds, join_list, FALSE,
+  bool ignore_on_expr= false;
+  /*
+    PS/SP note: on_expr of versioned table can not be reallocated
+    (see build_equal_items() below) because it can be not rebuilt
+    at second invocation.
+  */
+  if (!thd->stmt_arena->is_conventional() && thd->mem_root != thd->stmt_arena->mem_root)
+    for (TABLE_LIST *tbl= tables_list; tbl; tbl= tbl->next_local)
+      if (tbl->table && tbl->on_expr && tbl->table->versioned())
+      {
+        ignore_on_expr= true;
+        break;
+      }
+  conds= optimize_cond(this, conds, join_list, ignore_on_expr,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
   
   if (thd->is_error())
