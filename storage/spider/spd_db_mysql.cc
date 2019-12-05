@@ -14534,7 +14534,7 @@ int spider_mbase_handler::simple_action(
   SPIDER_DB_RESULT *res;
   SPIDER_SHARE *share = spider->share;
   uint pos = spider->conn_link_idx[link_idx];
-  spider_string *str;
+  spider_string *str = NULL;
   DBUG_ENTER("spider_mbase_handler::simple_action");
   switch (simple_action)
   {
@@ -14575,7 +14575,7 @@ int spider_mbase_handler::simple_action(
 #endif
     default:
       DBUG_ASSERT(0);
-      break;
+      DBUG_RETURN(0);
   }
   pthread_mutex_lock(&conn->mta_conn_mutex);
   SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
