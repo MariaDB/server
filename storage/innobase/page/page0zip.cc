@@ -3285,8 +3285,6 @@ page_zip_validate_low(
 					TRUE=ignore the MIN_REC_FLAG */
 {
 	page_zip_des_t	temp_page_zip;
-	byte*		temp_page_buf;
-	page_t*		temp_page;
 	ibool		valid;
 
 	if (memcmp(page_zip->data + FIL_PAGE_PREV, page + FIL_PAGE_PREV,
@@ -3309,9 +3307,8 @@ page_zip_validate_low(
 
 	/* page_zip_decompress() expects the uncompressed page to be
 	srv_page_size aligned. */
-	temp_page_buf = static_cast<byte*>(
-		ut_malloc_nokey(2 << srv_page_size_shift));
-	temp_page = static_cast<byte*>(ut_align(temp_page_buf, srv_page_size));
+	page_t* temp_page = static_cast<byte*>(aligned_malloc(srv_page_size,
+							      srv_page_size));
 
 	UNIV_MEM_ASSERT_RW(page, srv_page_size);
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
@@ -3467,7 +3464,7 @@ func_exit:
 		page_zip_hexdump(page, srv_page_size);
 		page_zip_hexdump(temp_page, srv_page_size);
 	}
-	ut_free(temp_page_buf);
+	aligned_free(temp_page);
 	return(valid);
 }
 

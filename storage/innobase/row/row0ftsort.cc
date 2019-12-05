@@ -252,14 +252,9 @@ row_fts_psort_info_init(
 			}
 
 			/* Need to align memory for O_DIRECT write */
-			psort_info[j].block_alloc[i] =
-				static_cast<row_merge_block_t*>(ut_malloc_nokey(
-					block_size + 1024));
-
 			psort_info[j].merge_block[i] =
 				static_cast<row_merge_block_t*>(
-					ut_align(
-					psort_info[j].block_alloc[i], 1024));
+					aligned_malloc(block_size, 1024));
 
 			if (!psort_info[j].merge_block[i]) {
 				ret = FALSE;
@@ -269,23 +264,17 @@ row_fts_psort_info_init(
 			/* If tablespace is encrypted, allocate additional buffer for
 			encryption/decryption. */
 			if (encrypted) {
-
 				/* Need to align memory for O_DIRECT write */
-				psort_info[j].crypt_alloc[i] =
-					static_cast<row_merge_block_t*>(ut_malloc_nokey(
-							block_size + 1024));
-
 				psort_info[j].crypt_block[i] =
 					static_cast<row_merge_block_t*>(
-						ut_align(
-							psort_info[j].crypt_alloc[i], 1024));
+						aligned_malloc(block_size,
+							       1024));
 
 				if (!psort_info[j].crypt_block[i]) {
 					ret = FALSE;
 					goto func_exit;
 				}
 			} else {
-				psort_info[j].crypt_alloc[i] = NULL;
 				psort_info[j].crypt_block[i] = NULL;
 			}
 		}
@@ -337,12 +326,9 @@ row_fts_psort_info_destroy(
 						psort_info[j].merge_file[i]);
 				}
 
-				ut_free(psort_info[j].block_alloc[i]);
+				aligned_free(psort_info[j].merge_block[i]);
 				ut_free(psort_info[j].merge_file[i]);
-
-				if (psort_info[j].crypt_alloc[i]) {
-					ut_free(psort_info[j].crypt_alloc[i]);
-				}
+				aligned_free(psort_info[j].crypt_block[i]);
 			}
 
 			mutex_free(&psort_info[j].mutex);

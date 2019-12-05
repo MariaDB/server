@@ -466,14 +466,13 @@ struct datafile_cur_t {
 	char		abs_path[FN_REFLEN];
 	MY_STAT		statinfo;
 	uint		thread_n;
-	byte*		orig_buf;
 	byte*		buf;
 	size_t		buf_size;
 	size_t		buf_read;
 	size_t		buf_offset;
 
 	explicit datafile_cur_t(const char* filename = NULL) :
-		file(), thread_n(0), orig_buf(NULL), buf(NULL), buf_size(0),
+		file(), thread_n(0), buf(NULL), buf_size(0),
 		buf_read(0), buf_offset(0)
 	{
 		memset(rel_path, 0, sizeof rel_path);

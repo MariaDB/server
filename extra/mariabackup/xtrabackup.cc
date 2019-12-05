@@ -3269,8 +3269,6 @@ static dberr_t xb_assign_undo_space_start()
 {
 
 	pfs_os_file_t	file;
-	byte*		buf;
-	byte*		page;
 	bool		ret;
 	dberr_t		error = DB_SUCCESS;
 	ulint		space;
@@ -3289,8 +3287,8 @@ static dberr_t xb_assign_undo_space_start()
 		return DB_ERROR;
 	}
 
-	buf = static_cast<byte*>(ut_malloc_nokey(2U << srv_page_size_shift));
-	page = static_cast<byte*>(ut_align(buf, srv_page_size));
+	byte* page = static_cast<byte*>
+		(aligned_malloc(srv_page_size, srv_page_size));
 
 	if (os_file_read(IORequestRead, file, page, 0, srv_page_size)
 	    != DB_SUCCESS) {
@@ -3337,7 +3335,7 @@ retry:
 	srv_undo_space_id_start = space;
 
 func_exit:
-	ut_free(buf);
+	aligned_free(page);
 	ret = os_file_close(file);
 	ut_a(ret);
 
@@ -4552,8 +4550,6 @@ xb_space_create_file(
 	pfs_os_file_t*	file)		/*!<out: file handle */
 {
 	bool		ret;
-	byte*		buf;
-	byte*		page;
 
 	*file = os_file_create_simple_no_error_handling(
 		0, path, OS_FILE_CREATE, OS_FILE_READ_WRITE, false, &ret);
@@ -4572,9 +4568,9 @@ xb_space_create_file(
 		return ret;
 	}
 
-	buf = static_cast<byte *>(malloc(3U << srv_page_size_shift));
 	/* Align the memory for file i/o if we might have O_DIRECT set */
-	page = static_cast<byte *>(ut_align(buf, srv_page_size));
+	byte* page = static_cast<byte*>(aligned_malloc(2 * srv_page_size,
+						       srv_page_size));
 
 	memset(page, '\0', srv_page_size);
 
@@ -4608,7 +4604,7 @@ xb_space_create_file(
 				    page_zip.data, 0, zip_size);
 	}
 
-	free(buf);
+	aligned_free(page);
 
 	if (ret != DB_SUCCESS) {
 		msg("mariabackup: could not write the first page to %s",
@@ -4821,8 +4817,7 @@ xtrabackup_apply_delta(
 	xb_delta_info_t info(srv_page_size, 0, SRV_TMP_SPACE_ID);
 	ulint		page_size;
 	ulint		page_size_shift;
-	byte*		incremental_buffer_base = NULL;
-	byte*		incremental_buffer;
+	byte*		incremental_buffer = NULL;
 
 	size_t		offset;
 
@@ -4890,11 +4885,8 @@ xtrabackup_apply_delta(
 	posix_fadvise(dst_file, 0, 0, POSIX_FADV_DONTNEED);
 
 	/* allocate buffer for incremental backup (4096 pages) */
-	incremental_buffer_base = static_cast<byte *>
-		(malloc((page_size / 4 + 1) * page_size));
 	incremental_buffer = static_cast<byte *>
-		(ut_align(incremental_buffer_base,
-			  page_size));
+		(aligned_malloc(page_size / 4 * page_size, page_size));
 
 	msg("Applying %s to %s...", src_path, dst_path);
 
@@ -5003,7 +4995,7 @@ xtrabackup_apply_delta(
 		incremental_buffers++;
 	}
 
-	free(incremental_buffer_base);
+	aligned_free(incremental_buffer);
 	if (src_file != OS_FILE_CLOSED) {
 		os_file_close(src_file);
 		os_file_delete(0,src_path);
@@ -5013,7 +5005,7 @@ xtrabackup_apply_delta(
 	return TRUE;
 
 error:
-	free(incremental_buffer_base);
+	aligned_free(incremental_buffer);
 	if (src_file != OS_FILE_CLOSED)
 		os_file_close(src_file);
 	if (dst_file != OS_FILE_CLOSED)

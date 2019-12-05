@@ -126,12 +126,9 @@ static void buf_dblwr_init(const byte *doublewrite)
 	buf_dblwr->in_use = static_cast<bool*>(
 		ut_zalloc_nokey(buf_size * sizeof(bool)));
 
-	buf_dblwr->write_buf_unaligned = static_cast<byte*>(
-		ut_malloc_nokey((1 + buf_size) << srv_page_size_shift));
-
 	buf_dblwr->write_buf = static_cast<byte*>(
-		ut_align(buf_dblwr->write_buf_unaligned,
-			 srv_page_size));
+		aligned_malloc(buf_size << srv_page_size_shift,
+			       srv_page_size));
 
 	buf_dblwr->buf_block_arr = static_cast<buf_page_t**>(
 		ut_zalloc_nokey(buf_size * sizeof(void*)));
@@ -355,23 +352,18 @@ buf_dblwr_init_or_load_pages(
 	ulint		space_id;
 	byte*		read_buf;
 	byte*		doublewrite;
-	byte*		unaligned_read_buf;
 	ibool		reset_space_ids = FALSE;
 	recv_dblwr_t&	recv_dblwr = recv_sys.dblwr;
 
 	/* We do the file i/o past the buffer pool */
-
-	unaligned_read_buf = static_cast<byte*>(
-		ut_malloc_nokey(3U << srv_page_size_shift));
-
 	read_buf = static_cast<byte*>(
-		ut_align(unaligned_read_buf, srv_page_size));
+		aligned_malloc(2 * srv_page_size, srv_page_size));
 
 	/* Read the trx sys header to check if we are using the doublewrite
 	buffer */
 	dberr_t		err;
 
-	IORequest	read_request(IORequest::READ);
+	IORequest       read_request(IORequest::READ);
 
 	err = os_file_read(
 		read_request,
@@ -382,9 +374,8 @@ buf_dblwr_init_or_load_pages(
 
 		ib::error()
 			<< "Failed to read the system tablespace header page";
-
-		ut_free(unaligned_read_buf);
-
+func_exit:
+		aligned_free(read_buf);
 		return(err);
 	}
 
@@ -403,8 +394,8 @@ buf_dblwr_init_or_load_pages(
 
 		buf = buf_dblwr->write_buf;
 	} else {
-		ut_free(unaligned_read_buf);
-		return(DB_SUCCESS);
+		err = DB_SUCCESS;
+		goto func_exit;
 	}
 
 	if (mach_read_from_4(doublewrite + TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED)
@@ -432,10 +423,7 @@ buf_dblwr_init_or_load_pages(
 		ib::error()
 			<< "Failed to read the first double write buffer "
 			"extent";
-
-		ut_free(unaligned_read_buf);
-
-		return(err);
+		goto func_exit;
 	}
 
 	err = os_file_read(
@@ -450,10 +438,7 @@ buf_dblwr_init_or_load_pages(
 		ib::error()
 			<< "Failed to read the second double write buffer "
 			"extent";
-
-		ut_free(unaligned_read_buf);
-
-		return(err);
+		goto func_exit;
 	}
 
 	/* Check if any of these pages is half-written in data files, in the
@@ -480,10 +465,8 @@ buf_dblwr_init_or_load_pages(
 					+ i - TRX_SYS_DOUBLEWRITE_BLOCK_SIZE;
 			}
 
-			IORequest	write_request(IORequest::WRITE);
-
 			err = os_file_write(
-				write_request, path, file, page,
+				IORequestWrite, path, file, page,
 				source_page_no << srv_page_size_shift,
 				srv_page_size);
 			if (err != DB_SUCCESS) {
@@ -491,10 +474,7 @@ buf_dblwr_init_or_load_pages(
 				ib::error()
 					<< "Failed to write to the double write"
 					" buffer";
-
-				ut_free(unaligned_read_buf);
-
-				return(err);
+				goto func_exit;
 			}
 		} else if (mach_read_from_8(page + FIL_PAGE_LSN)) {
 			/* Each valid page header must contain
@@ -509,9 +489,8 @@ buf_dblwr_init_or_load_pages(
 		os_file_flush(file);
 	}
 
-	ut_free(unaligned_read_buf);
-
-	return(DB_SUCCESS);
+	err = DB_SUCCESS;
+	goto func_exit;
 }
 
 /** Process and remove the double write buffer pages for all tablespaces. */
@@ -520,18 +499,14 @@ buf_dblwr_process()
 {
 	ulint		page_no_dblwr	= 0;
 	byte*		read_buf;
-	byte*		unaligned_read_buf;
 	recv_dblwr_t&	recv_dblwr	= recv_sys.dblwr;
 
 	if (!buf_dblwr) {
 		return;
 	}
 
-	unaligned_read_buf = static_cast<byte*>(
-		ut_malloc_nokey(3U << srv_page_size_shift));
-
 	read_buf = static_cast<byte*>(
-		ut_align(unaligned_read_buf, srv_page_size));
+		aligned_malloc(2 * srv_page_size, srv_page_size));
 	byte* const buf = read_buf + srv_page_size;
 
 	for (recv_dblwr_t::list::iterator i = recv_dblwr.pages.begin();
@@ -687,7 +662,7 @@ bad:
 	recv_dblwr.pages.clear();
 
 	fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
-	ut_free(unaligned_read_buf);
+	aligned_free(read_buf);
 }
 
 /****************************************************************//**
@@ -702,15 +677,9 @@ buf_dblwr_free()
 
 	os_event_destroy(buf_dblwr->b_event);
 	os_event_destroy(buf_dblwr->s_event);
-	ut_free(buf_dblwr->write_buf_unaligned);
-	buf_dblwr->write_buf_unaligned = NULL;
-
+	aligned_free(buf_dblwr->write_buf);
 	ut_free(buf_dblwr->buf_block_arr);
-	buf_dblwr->buf_block_arr = NULL;
-
 	ut_free(buf_dblwr->in_use);
-	buf_dblwr->in_use = NULL;
-
 	mutex_free(&buf_dblwr->mutex);
 	ut_free(buf_dblwr);
 	buf_dblwr = NULL;

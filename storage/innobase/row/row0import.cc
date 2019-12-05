@@ -3656,11 +3656,10 @@ fil_tablespace_iterate(
 
 	/* Allocate a page to read in the tablespace header, so that we
 	can determine the page size and zip_size (if it is compressed).
-	We allocate an extra page in case it is a compressed table. One
-	page is to ensure alignement. */
+	We allocate an extra page in case it is a compressed table. */
 
-	void*	page_ptr = ut_malloc_nokey(3U << srv_page_size_shift);
-	byte*	page = static_cast<byte*>(ut_align(page_ptr, srv_page_size));
+	byte*	page = static_cast<byte*>(aligned_malloc(2 * srv_page_size,
+							 srv_page_size));
 
 	buf_block_t* block = reinterpret_cast<buf_block_t*>
 		(ut_zalloc_nokey(sizeof *block));
@@ -3712,20 +3711,16 @@ fil_tablespace_iterate(
 		iter.n_io_buffers = n_io_buffers;
 
 		/* Add an extra page for compressed page scratch area. */
-		void*	io_buffer = ut_malloc_nokey(
-			(2 + iter.n_io_buffers) << srv_page_size_shift);
-
 		iter.io_buffer = static_cast<byte*>(
-			ut_align(io_buffer, srv_page_size));
+			aligned_malloc((1 + iter.n_io_buffers)
+				       << srv_page_size_shift, srv_page_size));
 
-		void* crypt_io_buffer = NULL;
-		if (iter.crypt_data) {
-			crypt_io_buffer = ut_malloc_nokey(
-				(2 + iter.n_io_buffers)
-				<< srv_page_size_shift);
-			iter.crypt_io_buffer = static_cast<byte*>(
-				ut_align(crypt_io_buffer, srv_page_size));
-		}
+		iter.crypt_io_buffer = iter.crypt_data
+			? static_cast<byte*>(
+				aligned_malloc((1 + iter.n_io_buffers)
+					       << srv_page_size_shift,
+					       srv_page_size))
+			: NULL;
 
 		if (block->page.zip.ssize) {
 			ut_ad(iter.n_io_buffers == 1);
@@ -3739,8 +3734,8 @@ fil_tablespace_iterate(
 			fil_space_destroy_crypt_data(&iter.crypt_data);
 		}
 
-		ut_free(crypt_io_buffer);
-		ut_free(io_buffer);
+		aligned_free(iter.crypt_io_buffer);
+		aligned_free(iter.io_buffer);
 	}
 
 	if (err == DB_SUCCESS) {
@@ -3756,7 +3751,7 @@ fil_tablespace_iterate(
 
 	os_file_close(file);
 
-	ut_free(page_ptr);
+	aligned_free(page);
 	ut_free(filepath);
 	ut_free(block);
 

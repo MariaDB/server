@@ -1601,8 +1601,11 @@ buf_chunk_init(
 	opt_large_page_size is smaller than srv_page_size,
 	we may allocate one fewer block than requested.  When
 	it is bigger, we may allocate more blocks than requested. */
+	static_assert(sizeof(byte*) == sizeof(ulint), "pointer size");
 
-	frame = (byte*) ut_align(chunk->mem, srv_page_size);
+	frame = reinterpret_cast<byte*>((reinterpret_cast<ulint>(chunk->mem)
+					 + srv_page_size - 1)
+					& ~(srv_page_size - 1));
 	chunk->size = (chunk->mem_pfx.m_size >> srv_page_size_shift)
 		- (frame != chunk->mem);
 

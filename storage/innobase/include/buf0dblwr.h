@@ -150,8 +150,6 @@ struct buf_dblwr_t{
 				doublewrite buffer, aligned to an
 				address divisible by srv_page_size
 				(which is required by Windows aio) */
-	byte*		write_buf_unaligned;/*!< pointer to write_buf,
-				but unaligned */
 	buf_page_t**	buf_block_arr;/*!< array to store pointers to
 				the buffer blocks which have been
 				cached to write_buf */

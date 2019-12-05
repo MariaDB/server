@@ -687,7 +687,6 @@ inline uint buf_page_full_crc32_size(const byte* buf, bool* comp, bool* cr)
 	return page_size;
 }
 
-#ifndef UNIV_INNOCHECKSUM
 # ifdef UNIV_LINUX
 # include <stdlib.h>
 # endif
@@ -716,6 +715,7 @@ inline void aligned_free(void *ptr)
 #endif
 }
 
+#ifndef UNIV_INNOCHECKSUM
 /**********************************************************************//**
 Gets the hash value of a block. This can be used in searches in the
 lock hash table.

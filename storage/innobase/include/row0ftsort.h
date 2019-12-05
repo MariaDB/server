@@ -80,12 +80,8 @@ struct fts_psort_t {
 						/*!< sort file */
 	row_merge_block_t*	merge_block[FTS_NUM_AUX_INDEX];
 						/*!< buffer to write to file */
-	row_merge_block_t*	block_alloc[FTS_NUM_AUX_INDEX];
-						/*!< buffer to allocated */
 	row_merge_block_t*	crypt_block[FTS_NUM_AUX_INDEX];
 						/*!< buffer to crypt data */
-	row_merge_block_t*	crypt_alloc[FTS_NUM_AUX_INDEX];
-						/*!< buffer to allocated */
 	ulint			child_status;	/*!< child task status */
 	ulint			state;		/*!< parent state */
 	fts_doc_list_t		fts_doc_list;	/*!< doc list to process */

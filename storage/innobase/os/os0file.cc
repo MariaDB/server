@@ -3627,12 +3627,8 @@ fallback:
 		<< srv_page_size_shift;
 
 	/* Align the buffer for possible raw i/o */
-	byte*	buf2;
-
-	buf2 = static_cast<byte*>(ut_malloc_nokey(buf_size + srv_page_size));
-
-	byte*	buf = static_cast<byte*>(ut_align(buf2, srv_page_size));
-
+	byte*	buf = static_cast<byte*>(aligned_malloc(buf_size,
+							srv_page_size));
 	/* Write buffer full of zeros */
 	memset(buf, 0, buf_size);
 
@@ -3661,7 +3657,7 @@ fallback:
 		current_size += n_bytes;
 	}
 
-	ut_free(buf2);
+	aligned_free(buf);
 
 	return(current_size >= size && os_file_flush(file));
 }
@@ -3959,13 +3955,13 @@ static bool is_linux_native_aio_supported()
 
 	memset(&io_event, 0x0, sizeof(io_event));
 
-	byte* buf = static_cast<byte*>(ut_malloc_nokey(srv_page_size * 2));
-	byte* ptr = static_cast<byte*>(ut_align(buf, srv_page_size));
+	byte* ptr = static_cast<byte*>(aligned_malloc(srv_page_size,
+						      srv_page_size));
 
 	struct iocb	iocb;
 
 	/* Suppress valgrind warning. */
-	memset(buf, 0x00, srv_page_size * 2);
+	memset(ptr, 0, srv_page_size);
 	memset(&iocb, 0x0, sizeof(iocb));
 
 	struct iocb* p_iocb = &iocb;
@@ -3988,7 +3984,7 @@ static bool is_linux_native_aio_supported()
 		err = io_getevents(io_ctx, 1, 1, &io_event, NULL);
 	}
 
-	ut_free(buf);
+	aligned_free(ptr);
 	my_close(fd, MYF(MY_WME));
 
 	switch (err) {

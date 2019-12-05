@@ -1551,8 +1551,6 @@ int main(
 	/* our input filename. */
 	char*		filename;
 	/* Buffer to store pages read. */
-	byte*		buf_ptr = NULL;
-	byte*		xdes_ptr = NULL;
 	byte*		buf = NULL;
 	byte*		xdes = NULL;
 	/* bytes read count */
@@ -1632,10 +1630,10 @@ int main(
 	}
 
 
-	buf_ptr = (byte*) malloc(UNIV_PAGE_SIZE_MAX * 2);
-	xdes_ptr = (byte*)malloc(UNIV_PAGE_SIZE_MAX * 2);
-	buf = (byte *) ut_align(buf_ptr, UNIV_PAGE_SIZE_MAX);
-	xdes = (byte *) ut_align(xdes_ptr, UNIV_PAGE_SIZE_MAX);
+	buf = static_cast<byte*>(aligned_malloc(UNIV_PAGE_SIZE_MAX,
+						UNIV_PAGE_SIZE_MAX));
+	xdes = static_cast<byte*>(aligned_malloc(UNIV_PAGE_SIZE_MAX,
+						 UNIV_PAGE_SIZE_MAX));
 
 	/* The file name is not optional. */
 	for (int i = 0; i < argc; ++i) {
@@ -2014,21 +2012,9 @@ first_non_zero:
 		fclose(log_file);
 	}
 
-	free(buf_ptr);
-	free(xdes_ptr);
-
-	my_end(exit_status);
-	DBUG_RETURN(exit_status);
+	goto common_exit;
 
 my_exit:
-	if (buf_ptr) {
-		free(buf_ptr);
-	}
-
-	if (xdes_ptr) {
-		free(xdes_ptr);
-	}
-
 	if (!read_from_stdin && fil_in) {
 		fclose(fil_in);
 	}
@@ -2037,6 +2023,9 @@ my_exit:
 		fclose(log_file);
 	}
 
+common_exit:
+	aligned_free(buf);
+	aligned_free(xdes);
 	my_end(exit_status);
 	DBUG_RETURN(exit_status);
 }

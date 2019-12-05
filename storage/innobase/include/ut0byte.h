@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -61,15 +62,6 @@ ut_uint64_align_up(
 	ib_uint64_t	 n,		/*!< in: number to be rounded */
 	ulint		 align_no);	/*!< in: align by this number
 					which must be a power of 2 */
-/*********************************************************//**
-The following function rounds up a pointer to the nearest aligned address.
-@return aligned pointer */
-UNIV_INLINE
-void*
-ut_align(
-/*=====*/
-	const void*	ptr,		/*!< in: pointer */
-	ulint		align_no);	/*!< in: align by this number */
 /*********************************************************//**
 The following function rounds down a pointer to the nearest
 aligned address.
