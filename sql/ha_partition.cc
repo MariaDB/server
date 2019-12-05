@@ -9227,7 +9227,6 @@ void ha_partition::late_extra_cache(uint partition_id)
   }
   if (m_extra_prepare_for_update)
   {
-    DBUG_ASSERT(m_extra_cache);
     (void) file->extra(HA_EXTRA_PREPARE_FOR_UPDATE);
   }
   m_extra_cache_part_id= partition_id;
