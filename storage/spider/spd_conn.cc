@@ -4565,16 +4565,18 @@ SPIDER_IP_PORT_CONN* spider_create_ipport_conn(SPIDER_CONN *conn)
       goto err_malloc_key;
     }
 
-    ret->key = (char *) my_malloc(ret->key_len, MY_ZEROFILL | MY_WME);
+    ret->key = (char *) my_malloc(ret->key_len + conn->tgt_host_length + 1,
+      MY_ZEROFILL | MY_WME);
     if (!ret->key) {
       pthread_cond_destroy(&ret->cond);
       pthread_mutex_destroy(&ret->mutex);
       goto err_malloc_key;
     }
+    ret->remote_ip_str = ret->key + ret->key_len;
 
     memcpy(ret->key, conn->conn_key, ret->key_len);
 
-    strncpy(ret->remote_ip_str, conn->tgt_host, sizeof(ret->remote_ip_str));
+    memcpy(ret->remote_ip_str, conn->tgt_host, conn->tgt_host_length);
     ret->remote_port = conn->tgt_port;
     ret->conn_id = conn->conn_id;
     ret->ip_port_count = 1; // init
