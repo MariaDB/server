@@ -7853,6 +7853,23 @@ my_var *LEX::create_outvar(THD *thd,
 }
 
 
+bool LEX::sequence_nextval_item_found(const LEX_CSTRING &table_name)
+{
+  List_iterator<Item> li(current_select->item_list);
+  Item *item;
+
+  while ((item= li++)) {
+    if (item->type() == Item::FUNC_ITEM &&
+        static_cast<Item_func*>(item)->functype() == Item_func::NEXTVAL_FUNC &&
+        !my_strcasecmp(table_alias_charset,
+                       static_cast<Item_func_nextval*>(item)->table_name(),
+                       table_name.str))
+    { return true; }
+  }
+  return false;
+}
+
+
 Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
 {
   TABLE_LIST *table;

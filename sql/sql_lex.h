@@ -4599,6 +4599,8 @@ public:
                               const LEX_CSTRING *constraint_name,
                               Table_ident *ref_table_name,
                               DDL_options ddl_options);
+
+  bool sequence_nextval_item_found(const LEX_CSTRING &table_name);
 };
 
 

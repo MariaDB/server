@@ -9751,12 +9751,22 @@ column_default_non_parenthesized_expr:
           }
         | NEXT_SYM VALUE_SYM FOR_SYM table_ident
           {
-            if (unlikely(!($$= Lex->create_item_func_nextval(thd, $4))))
+            if (!Lex->sequence_nextval_item_found($4->table))
+              $$= Lex->create_item_func_nextval(thd, $4);
+            else
+              $$= Lex->create_item_func_lastval(thd, $4);
+
+            if (unlikely(!$$))
               MYSQL_YYABORT;
           }
         | NEXTVAL_SYM '(' table_ident ')'
           {
-            if (unlikely(!($$= Lex->create_item_func_nextval(thd, $3))))
+            if (!Lex->sequence_nextval_item_found($3->table))
+              $$= Lex->create_item_func_nextval(thd, $3);
+            else
+              $$= Lex->create_item_func_lastval(thd, $3);
+
+            if (unlikely(!$$))
               MYSQL_YYABORT;
           }
         | PREVIOUS_SYM VALUE_SYM FOR_SYM table_ident

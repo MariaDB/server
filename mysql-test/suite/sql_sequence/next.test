@@ -280,3 +280,51 @@ select next value for s;
 flush tables;
 select next value for s;
 drop sequence s;
+
+--echo #
+--echo # MDEV-13010 Next value expressions should increment
+--echo # sequence only once per SQL Statement
+--echo #
+
+create sequence s1;
+create sequence s2;
+select nextval(s1);
+select nextval(s2);
+# Sequence should increment only once
+select nextval(s1), nextval(s1);
+# NEXTVAL on multiple sequences should increment independently
+select nextval(s1), nextval(s2);
+
+create function sf_using_nextval() returns int
+  return nextval(s1);
+# Sequence is incremented once for each SF call
+select sf_using_nextval(), sf_using_nextval();
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
+select nextval(s1), sf_using_nextval();
+
+# Sequence is incremented correctly for each processed row
+create sequence s;
+create table t (a int);
+insert into t values (1), (2), (3);
+select a, nextval(s), nextval(s) from t;
+drop sequence s;
+
+# f(nextval) shouldn't increment once more
+select nextval(s1), a + nextval(s1) from t;
+select nextval(s1), sum(nextval(s1)) from t;
+select nextval(s1), avg(nextval(s1)) over (partition by a) from t;
+
+# derived merge optimization should be deactivated
+select nextval(s1), T.nv from (select nextval(s1) as nv, a from t) as T;
+
+# condition pushdown optimization should be deactivated
+create view v1 as
+select a, nextval(s1), T.nv from (select nextval(s1) as nv, a from t) as T;
+select lastval(s1);
+select * from v1 where a<3;
+select lastval(s1);
+
+drop view v1;
+drop function sf_using_nextval;
+drop sequence s1, s2;
+drop table t;

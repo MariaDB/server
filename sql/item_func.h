@@ -76,7 +76,7 @@ public:
                   SUSERVAR_FUNC, GUSERVAR_FUNC, COLLATE_FUNC,
                   EXTRACT_FUNC, CHAR_TYPECAST_FUNC, FUNC_SP, UDF_FUNC,
                   NEG_FUNC, GSYSVAR_FUNC, IN_OPTIMIZER_FUNC, DYNCOL_FUNC,
-                  JSON_EXTRACT_FUNC,
+                  JSON_EXTRACT_FUNC, NEXTVAL_FUNC,
                   CASE_SEARCHED_FUNC, // Used by ColumnStore/Spider
                   CASE_SIMPLE_FUNC    // Used by ColumnStore/spider
                 };
@@ -3528,6 +3528,9 @@ public:
   Item_longlong_func(thd), table_list(table_list_arg) {}
   longlong val_int();
   const char *func_name() const { return "nextval"; }
+  virtual enum Functype functype() const { return NEXTVAL_FUNC; }
+  const char *table_name() const { return table_list->table_name.str; }
+
   bool fix_length_and_dec()
   {
     unsigned_flag= 0;
@@ -3573,6 +3576,7 @@ public:
   Item_func_nextval(thd, table_list_arg) {}
   longlong val_int();
   const char *func_name() const { return "lastval"; }
+  virtual enum Functype functype() const { return UNKNOWN_FUNC; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_lastval>(thd, this); }
 };
@@ -3593,6 +3597,7 @@ public:
   {}
   longlong val_int();
   const char *func_name() const { return "setval"; }
+  virtual enum Functype functype() const { return UNKNOWN_FUNC; }
   void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_setval>(thd, this); }
