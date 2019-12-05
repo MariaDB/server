@@ -673,9 +673,8 @@ Datafile::find_space_id()
 		}
 
 		for (ulint j = 0; j < page_count; ++j) {
-			if (dberr_t err = os_file_read(
-				    IORequestRead, m_handle, page,
-				    j * page_size, page_size)) {
+			if (os_file_read(IORequestRead, m_handle, page,
+					 j * page_size, page_size)) {
 				ib::info()
 					<< "READ FAIL: page_no:" << j;
 				continue;

@@ -1605,7 +1605,7 @@ buf_chunk_init(
 
 	frame = reinterpret_cast<byte*>((reinterpret_cast<ulint>(chunk->mem)
 					 + srv_page_size - 1)
-					& ~(srv_page_size - 1));
+					& ~ulint{srv_page_size - 1});
 	chunk->size = (chunk->mem_pfx.m_size >> srv_page_size_shift)
 		- (frame != chunk->mem);
 
