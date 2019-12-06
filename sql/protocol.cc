@@ -1143,6 +1143,18 @@ bool Protocol::store_string_aux(const char *from, size_t length,
 }
 
 
+bool Protocol::store_warning(const char *from, size_t length)
+{
+  BinaryStringBuffer<MYSQL_ERRMSG_SIZE> tmp;
+  CHARSET_INFO *cs= thd->variables.character_set_results;
+  if (cs == &my_charset_bin)
+    cs= system_charset_info;
+  if (tmp.copy_printable_hhhh(cs, system_charset_info, from, length))
+    return net_store_data((const uchar*)"", 0);
+  return net_store_data((const uchar *) tmp.ptr(), tmp.length());
+}
+
+
 bool Protocol_text::store(const char *from, size_t length,
                           CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {

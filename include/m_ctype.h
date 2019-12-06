@@ -45,6 +45,19 @@ extern "C" {
 
 #define MY_CS_REPLACEMENT_CHARACTER 0xFFFD
 
+/**
+  Maximum character length of a string produced by wc_to_printable().
+  Note, wc_to_printable() is currently limited to BMP.
+  One non-printable or non-convertable character can produce a string
+  with at most 5 characters: \hhhh.
+  If we ever modify wc_to_printable() to support supplementary characters,
+  e.g. \+hhhhhh, this constant should be changed to 8.
+  Note, maximum octet length of a wc_to_printable() result can be calculated
+  as: (MY_CS_PRINTABLE_CHAR_LENGTH*cs->mbminlen).
+*/
+#define MY_CS_PRINTABLE_CHAR_LENGTH  5
+
+
 /*
   On i386 we store Unicode->CS conversion tables for
   some character sets using Big-endian order,
@@ -739,6 +752,9 @@ int my_wc_mb_bin(CHARSET_INFO *cs,my_wc_t wc, uchar *s, uchar *e);
 
 int my_mb_ctype_8bit(CHARSET_INFO *,int *, const uchar *,const uchar *);
 int my_mb_ctype_mb(CHARSET_INFO *,int *, const uchar *,const uchar *);
+
+int my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
+                               uchar *s, uchar *e);
 
 size_t my_scan_8bit(CHARSET_INFO *cs, const char *b, const char *e, int sq);
 

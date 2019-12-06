@@ -934,3 +934,23 @@ let $coll_pad='utf16_bin';
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-8844 Unreadable control characters printed as is in warnings
+--echo #
+
+SET NAMES utf8;
+# Make sure surrogate halfs (when a part of a full utf16 character)
+# are not escaped and the entire utf16 character consisting of two
+# surrogate pairs is replaced to a single question mark.
+SELECT CAST(_utf16 0x0061D83DDE0E0062 AS INT);
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

@@ -777,6 +777,28 @@ void Static_binary_string::qs_append(ulonglong i)
   str_length+= (int) (end-buff);
 }
 
+
+bool Binary_string::copy_printable_hhhh(CHARSET_INFO *to_cs,
+                                        CHARSET_INFO *from_cs,
+                                        const char *from,
+                                        uint32 from_length)
+{
+  uint errors;
+  uint one_escaped_char_length= MY_CS_PRINTABLE_CHAR_LENGTH * to_cs->mbminlen;
+  uint one_char_length= MY_MAX(one_escaped_char_length, to_cs->mbmaxlen);
+  uint32 bytes_needed= (uint32) from_length * one_char_length;
+  if (alloc(bytes_needed))
+    return true;
+  str_length= my_convert_using_func(Ptr, Alloced_length, to_cs,
+                                    my_wc_to_printable_generic,
+                                    from, from_length,
+                                    from_cs,
+                                    from_cs->cset->mb_wc,
+                                    &errors);
+  return false;
+}
+
+
 /*
   Compare strings according to collation, without end space.
 

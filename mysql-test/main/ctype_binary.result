@@ -3174,3 +3174,29 @@ DROP TABLE t1;
 #
 # End of 10.1 tests
 #
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-8844 Unreadable control characters printed as is in warnings
+#
+SET NAMES binary;
+CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET latin1, UNIQUE(a));
+INSERT INTO t1 VALUES (0x61000162FF);
+INSERT INTO t1 VALUES (0x61000162FF);
+ERROR 23000: Duplicate entry 'a\0000\0001bÿ' for key 'a'
+INSERT IGNORE INTO t1 VALUES (0x61000162FF);
+Warnings:
+Warning	1062	Duplicate entry 'a\0000\0001bÿ' for key 'a'
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET utf8, UNIQUE(a));
+INSERT INTO t1 VALUES (_latin1 0x61000162FF);
+INSERT INTO t1 VALUES (_latin1 0x61000162FF);
+ERROR 23000: Duplicate entry 'a\0000\0001bÿ' for key 'a'
+INSERT IGNORE INTO t1 VALUES (_latin1 0x61000162FF);
+Warnings:
+Warning	1062	Duplicate entry 'a\0000\0001bÿ' for key 'a'
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#

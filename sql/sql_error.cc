@@ -822,9 +822,8 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
 		    warning_level_names[err->get_level()].length,
                     system_charset_info);
     protocol->store((uint32) err->get_sql_errno());
-    protocol->store(err->get_message_text(),
-                    err->get_message_octet_length(),
-                    system_charset_info);
+    protocol->store_warning(err->get_message_text(),
+                            err->get_message_octet_length());
     if (protocol->write())
       DBUG_RETURN(TRUE);
   }
@@ -833,6 +832,26 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
   thd->get_stmt_da()->set_warning_info_read_only(FALSE);
 
   DBUG_RETURN(FALSE);
+}
+
+
+/**
+  This replaces U+0000 to '\0000', so the result error message string:
+  - is a good null-terminated string
+  - presents the entire data
+  For example:
+    SELECT CAST(_latin1 0x610062 AS SIGNED);
+  returns a warning:
+    Truncated incorrect INTEGER value: 'a\0000b'
+  Notice, the 0x00 byte is replaced to a 5-byte long string '\0000',
+  while 'a' and 'b' are printed as is.
+*/
+extern "C" int my_wc_mb_utf8_null_terminated(CHARSET_INFO *cs,
+                                             my_wc_t wc, uchar *r, uchar *e)
+{
+  return wc == '\0' ?
+         my_wc_to_printable_generic(cs, wc, r, e) :
+         my_charset_utf8mb3_handler.wc_mb(cs, wc, r, e);
 }
 
 
@@ -894,8 +913,11 @@ char *err_conv(char *buff, uint to_length, const char *from,
   else
   {
     uint errors;
-    res= copy_and_convert(to, to_length, system_charset_info,
-                          from, from_length, from_cs, &errors);
+    res= my_convert_using_func(to, to_length, system_charset_info,
+                               my_wc_mb_utf8_null_terminated,
+                               from, from_length, from_cs,
+                               from_cs->cset->mb_wc,
+                               &errors);
     to[res]= 0;
   }
   return buff;
@@ -921,64 +943,21 @@ size_t convert_error_message(char *to, size_t to_length, CHARSET_INFO *to_cs,
                              const char *from, size_t from_length,
                              CHARSET_INFO *from_cs, uint *errors)
 {
-  int  cnvres;
-  my_wc_t     wc;
-  const uchar *from_end= (const uchar*) from+from_length;
-  char *to_start= to;
-  uchar *to_end;
-  my_charset_conv_mb_wc mb_wc= from_cs->cset->mb_wc;
-  my_charset_conv_wc_mb wc_mb;
-  uint error_count= 0;
-  size_t length;
-
   DBUG_ASSERT(to_length > 0);
   /* Make room for the null terminator. */
   to_length--;
-  to_end= (uchar*) (to + to_length);
 
-  if (!to_cs || from_cs == to_cs || to_cs == &my_charset_bin)
-  {
-    length= MY_MIN(to_length, from_length);
-    memmove(to, from, length);
-    to[length]= 0;
-    return length;
-  }
-
-  wc_mb= to_cs->cset->wc_mb;
-  while (1)
-  {
-    if ((cnvres= (*mb_wc)(from_cs, &wc, (uchar*) from, from_end)) > 0)
-    {
-      if (!wc)
-        break;
-      from+= cnvres;
-    }
-    else if (cnvres == MY_CS_ILSEQ)
-    {
-      wc= (ulong) (uchar) *from;
-      from+=1;
-    }
-    else
-      break;
-
-    if ((cnvres= (*wc_mb)(to_cs, wc, (uchar*) to, to_end)) > 0)
-      to+= cnvres;
-    else if (cnvres == MY_CS_ILUNI)
-    {
-      length= (wc <= 0xFFFF) ? 6/* '\1234' format*/ : 9 /* '\+123456' format*/;
-      if ((uchar*)(to + length) >= to_end)
-        break;
-      cnvres= (int)my_snprintf(to, 9,
-                          (wc <= 0xFFFF) ? "\\%04X" : "\\+%06X", (uint) wc);
-      to+= cnvres;
-    }
-    else
-      break;
-  }
-
-  *to= 0;
-  *errors= error_count;
-  return (size_t) (to - to_start);
+  if (to_cs == &my_charset_bin)
+    to_cs= system_charset_info;
+  uint32 cnv_length= my_convert_using_func(to, to_length,
+                                           to_cs,
+                                           my_wc_to_printable_generic,
+                                           from, from_length,
+                                           from_cs, from_cs->cset->mb_wc,
+                                           errors);
+  DBUG_ASSERT(to_length >= cnv_length);
+  to[cnv_length]= '\0';
+  return cnv_length;
 }
 
 

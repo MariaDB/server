@@ -524,6 +524,15 @@ public:
   bool copy(const char *s, size_t arg_length);	// Allocate new string
   bool copy_or_move(const char *s,size_t arg_length);
 
+  /**
+    Convert a string to a printable format.
+    All non-convertable and control characters are replaced to 5-character
+    sequences '\hhhh'.
+  */
+  bool copy_printable_hhhh(CHARSET_INFO *to_cs,
+                           CHARSET_INFO *from_cs,
+                           const char *from, uint32 from_length);
+
   bool append_ulonglong(ulonglong val);
   bool append_longlong(longlong val);
 
