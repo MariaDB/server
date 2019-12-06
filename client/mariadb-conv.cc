@@ -188,7 +188,7 @@ protected:
   }
   bool is_delimiter(char ch) const
   {
-    return ch < 0 ? false : m_delimiter[(uint32) ch];
+    return (signed char) ch < 0 ? false : m_delimiter[(uint32) ch];
   }
 public:
   Delimiter()
@@ -205,7 +205,7 @@ public:
     m_has_delimiter_cached= false;
     for ( ; *str; str++)
     {
-      if (*str < 0)
+      if ((signed char) *str < 0)
         return true;
       if (*str == '\\')
       {
