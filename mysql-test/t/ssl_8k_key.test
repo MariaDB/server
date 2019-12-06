@@ -1,6 +1,3 @@
-# schannel does not support keys longer than 4k
--- source include/not_windows.inc
-
 -- source include/have_ssl_communication.inc
 #
 # Bug#29784 YaSSL assertion failure when reading 8k key.
