@@ -10966,6 +10966,13 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	  if (i != join->const_tables && tab->use_quick != 2 &&
               !tab->first_inner)
 	  {					/* Read with cache */
+            /*
+              TODO: the execution also gets here when we will not be using
+              join buffer. Review these cases and perhaps, remove this call.
+              (The final decision whether to use join buffer is made in
+              check_join_cache_usage, so we should only call make_scan_filter()
+              there, too).
+            */
             if (tab->make_scan_filter())
               DBUG_RETURN(1);
           }
@@ -11928,6 +11935,9 @@ uint check_join_cache_usage(JOIN_TAB *tab,
     if ((tab->cache= new (root) JOIN_CACHE_BNL(join, tab, prev_cache)))
     {
       tab->icp_other_tables_ok= FALSE;
+      /* If make_join_select() hasn't called make_scan_filter(), do it now */
+      if (!tab->cache_select && tab->make_scan_filter())
+        goto no_join_cache;
       return (2 - MY_TEST(!prev_cache));
     }
     goto no_join_cache;
