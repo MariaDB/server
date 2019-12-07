@@ -1075,7 +1075,7 @@ my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
     }
     str+= cs->mbminlen;
   }
-  return str - str0;
+  return (int) (str - str0);
 }
 
 

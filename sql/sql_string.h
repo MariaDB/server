@@ -531,7 +531,7 @@ public:
   */
   bool copy_printable_hhhh(CHARSET_INFO *to_cs,
                            CHARSET_INFO *from_cs,
-                           const char *from, uint32 from_length);
+                           const char *from, size_t from_length);
 
   bool append_ulonglong(ulonglong val);
   bool append_longlong(longlong val);
