@@ -7392,8 +7392,17 @@ long max_stack_used;
     corresponding exec. (Thus we only have to check in fix_fields.)
   - Passing to check_stack_overrun() prevents the compiler from removing it.
 */
-bool check_stack_overrun(THD *thd, long margin,
-			 uchar *buf __attribute__((unused)))
+
+bool
+#ifdef __GNUC__
+/*
+  Do not optimize the function in order to preserve a stack variable creation.
+  Otherwise, the variable pointed as "buf" can be removed due to a missing
+  usage.
+ */
+__attribute__((optimize("-O0")))
+#endif
+check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 {
   long stack_used;
   DBUG_ASSERT(thd == current_thd);
