@@ -246,6 +246,7 @@ trx_undo_prev_version_build(
 @param[in,out]	page	page or NULL
 @return	end of log record
 @retval	NULL	if the log record is incomplete */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 byte*
 trx_undo_parse_add_undo_rec(
 	const byte*	ptr,
