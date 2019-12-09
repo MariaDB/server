@@ -1806,8 +1806,8 @@ fseg_create(
 		}
 
 		ut_ad(rw_lock_get_sx_lock_count(&block->lock) == 1);
-
-		mtr->write<2>(*block, block->frame + FIL_PAGE_TYPE,
+		ut_ad(!mach_read_from_2(FIL_PAGE_TYPE + block->frame));
+		mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
 			      FIL_PAGE_TYPE_SYS);
 	}
 

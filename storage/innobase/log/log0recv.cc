@@ -1469,6 +1469,9 @@ parse_log:
 			switch (type) {
 			default:
 				ut_error;
+			case MLOG_1BYTE:
+				ut_ad(offs == FIL_PAGE_TYPE + 1);
+				break;
 			case MLOG_2BYTES:
 				/* Note that this can fail when the
 				redo log been written with something

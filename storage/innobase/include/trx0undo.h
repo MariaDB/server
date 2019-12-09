@@ -257,6 +257,7 @@ trx_undo_free_at_shutdown(trx_t *trx);
 @param[in,out]	mtr	mini-transaction
 @return	end of log record
 @retval	NULL	if the log record is incomplete */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 byte*
 trx_undo_parse_page_init(const byte* ptr, const byte* end_ptr, page_t* page);
 /** Parse MLOG_UNDO_HDR_REUSE for crash-upgrade from MariaDB 10.2.
@@ -264,6 +265,7 @@ trx_undo_parse_page_init(const byte* ptr, const byte* end_ptr, page_t* page);
 @param[in]	end_ptr	end of log buffer
 @param[in,out]	page	undo page or NULL
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 byte*
 trx_undo_parse_page_header_reuse(
 	const byte*	ptr,

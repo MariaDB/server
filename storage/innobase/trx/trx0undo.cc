@@ -298,6 +298,7 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
 @param[in,out]	page	page or NULL
 @return	end of log record
 @retval	NULL	if the log record is incomplete */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 byte*
 trx_undo_parse_page_init(const byte* ptr, const byte* end_ptr, page_t* page)
 {
@@ -331,6 +332,7 @@ trx_undo_parse_page_init(const byte* ptr, const byte* end_ptr, page_t* page)
 @param[in]	end_ptr	end of log buffer
 @param[in,out]	page	undo log page or NULL
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 byte*
 trx_undo_parse_page_header_reuse(
 	const byte*	ptr,
@@ -379,31 +381,21 @@ trx_undo_parse_page_header_reuse(
 @param[in,out]	mtr		mini-transaction */
 static void trx_undo_page_init(const buf_block_t *undo_block, mtr_t *mtr)
 {
-	page_t* page = undo_block->frame;
-	mach_write_to_2(FIL_PAGE_TYPE + page, FIL_PAGE_UNDO_LOG);
-	mach_write_to_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE + page, 0);
-	mach_write_to_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START + page,
-			TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-	mach_write_to_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE + page,
-			TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
+  static_assert(FIL_PAGE_TYPE_ALLOCATED == 0, "compatibility");
+  /* FIXME: FIL_PAGE_TYPE should be FIL_PAGE_TYPE_ALLOCATED here! */
+  ut_ad(mach_read_from_2(FIL_PAGE_TYPE + undo_block->frame) < 0x100);
+  mtr->write<1>(*undo_block, FIL_PAGE_TYPE + 1 + undo_block->frame,
+                FIL_PAGE_UNDO_LOG);
+  compile_time_assert(TRX_UNDO_PAGE_TYPE == 0);
+  compile_time_assert(TRX_UNDO_PAGE_START == 2);
+  compile_time_assert(TRX_UNDO_PAGE_NODE == TRX_UNDO_PAGE_FREE + 2);
 
-	mtr->set_modified();
-	switch (mtr->get_log_mode()) {
-	case MTR_LOG_NONE:
-	case MTR_LOG_NO_REDO:
-		return;
-	case MTR_LOG_ALL:
-		break;
-	}
-
-	byte* log_ptr = mtr->get_log()->open(11 + 1);
-	log_ptr = mlog_write_initial_log_record_low(
-		MLOG_UNDO_INIT,
-		undo_block->page.id.space(),
-		undo_block->page.id.page_no(),
-		log_ptr, mtr);
-	*log_ptr++ = 0;
-	mlog_close(mtr, log_ptr);
+  /* MDEV-12353 FIXME: write minimal number of bytes in the new encoding */
+  mtr->write<4>(*undo_block, TRX_UNDO_PAGE_HDR + undo_block->frame,
+                TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
+  mtr->write<2>(*undo_block, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE +
+                undo_block->frame,
+                TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
 }
 
 /** Look for a free slot for an undo log segment.
