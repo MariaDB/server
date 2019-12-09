@@ -1788,14 +1788,14 @@ sub command_line_setup {
   $ENV{ASAN_OPTIONS}= "abort_on_error=1:" . ($ENV{ASAN_OPTIONS} || '');
   $ENV{ASAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/asan.supp:" .
     $ENV{ASAN_OPTIONS}
-    if -f "$glob_mysql_test_dir/asan.supp";
+    if -f "$glob_mysql_test_dir/asan.supp" and not IS_WINDOWS;
   # The following can be useful when a test fails without any asan report
   # on stderr like with openssl_1.test
   # $ENV{ASAN_OPTIONS}= "log_path=${opt_vardir}/log/asan:" . $ENV{ASAN_OPTIONS};
 
   # Add leak suppressions
   $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp"
-    if -f "$glob_mysql_test_dir/lsan.supp";
+    if -f "$glob_mysql_test_dir/lsan.supp" and not IS_WINDOWS;
 
   if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || 
        $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd || 
@@ -1819,6 +1819,7 @@ sub command_line_setup {
     # One day for PID file creation (this is given in seconds not minutes)
     $opt_start_timeout= 24 * 60 * 60;
   }
+  mtr_verbose("ASAN_OPTIONS=$ENV{ASAN_OPTIONS}");
 
   # --------------------------------------------------------------------------
   # Modified behavior with --start options
