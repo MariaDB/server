@@ -1784,7 +1784,7 @@ static int wsrep_RSU_begin(THD *thd, char *db_, char *table_)
     }
 
     my_error(ER_LOCK_DEADLOCK, MYF(0));
-    return(1);
+    return(-1);
   }
 
   wsrep_seqno_t seqno = wsrep->pause(wsrep);
@@ -2311,6 +2311,7 @@ static my_bool have_committing_connections()
 
     if (is_committing_connection(tmp))
     {
+      mysql_mutex_unlock(&LOCK_thread_count);
       return TRUE;
     }
   }
