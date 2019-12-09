@@ -6049,4 +6049,76 @@ select f2 from t2,t1 where f2 = 0;
 f2
 drop table t1, t2;
 set join_buffer_size = default;
+#
+# MDEV-21243: Join buffer: condition is checked in wrong place for range access
+#
+create table t1(a int primary key);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (a int);
+insert into t2 select A.a + 10*B.a from t1 A, t1 B;
+create table t3 (
+kp1 int,
+kp2 int,
+col1 int,
+col2 int,
+key (kp1, kp2)
+);
+insert into t3
+select
+A.a,
+B.a,
+A.a + 100*B.a,
+A.a + 100*B.a
+from
+t2 A, t2 B;
+analyze table t3;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Table is already up to date
+# The following must have "B.col1 + 1 < 33333" attached to table B
+# and not to the block-nl-join node:
+explain format=json
+select *
+from t1 a, t3 b
+where
+b.kp1=a.a and
+b.kp1 <= 10 and
+b.kp2 <= 10 and
+b.col1 +1 < 33333;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "a",
+      "access_type": "index",
+      "possible_keys": ["PRIMARY"],
+      "key": "PRIMARY",
+      "key_length": "4",
+      "used_key_parts": ["a"],
+      "rows": 10,
+      "filtered": 100,
+      "attached_condition": "a.a <= 10",
+      "using_index": true
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "b",
+        "access_type": "range",
+        "possible_keys": ["kp1"],
+        "key": "kp1",
+        "key_length": "10",
+        "used_key_parts": ["kp1", "kp2"],
+        "rows": 836,
+        "filtered": 11.962,
+        "index_condition": "b.kp2 <= 10",
+        "attached_condition": "b.kp2 <= 10 and b.col1 + 1 < 33333"
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "attached_condition": "b.kp1 = a.a"
+    }
+  }
+}
+drop table t1,t2,t3;
 set @@optimizer_switch=@save_optimizer_switch;
