@@ -1680,7 +1680,11 @@ parse_log:
 	case MLOG_UNDO_ERASE_END:
 		if (page) {
 			ut_ad(page_type == FIL_PAGE_UNDO_LOG);
-			trx_undo_erase_page_end(page);
+			uint16_t first_free = mach_read_from_2(
+				TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE + page);
+			memset(page + first_free, 0,
+			       (srv_page_size - FIL_PAGE_DATA_END)
+			       - first_free);
 		}
 		break;
 	case MLOG_UNDO_INIT:

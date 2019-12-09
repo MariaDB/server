@@ -251,11 +251,6 @@ trx_undo_parse_add_undo_rec(
 	const byte*	ptr,
 	const byte*	end_ptr,
 	page_t*		page);
-/** Erase the unused undo log page end.
-@param[in,out]	undo_page	undo log page
-@return whether the page contained something */
-bool
-trx_undo_erase_page_end(page_t* undo_page);
 
 /** Read from an undo log record a non-virtual column value.
 @param[in,out]	ptr		pointer to remaining part of the undo record

@@ -1917,22 +1917,6 @@ trx_undo_rec_get_partial_row(
 	return(const_cast<byte*>(ptr));
 }
 
-/** Erase the unused undo log page end.
-@param[in,out]	undo_page	undo log page
-@return whether the page contained something */
-bool
-trx_undo_erase_page_end(page_t* undo_page)
-{
-	ulint	first_free;
-
-	first_free = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
-				      + TRX_UNDO_PAGE_FREE);
-	memset(undo_page + first_free, 0,
-	       (srv_page_size - FIL_PAGE_DATA_END) - first_free);
-
-	return(first_free != TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-}
-
 /** Report a RENAME TABLE operation.
 @param[in,out]	trx	transaction
 @param[in]	table	table that is being renamed
@@ -2114,7 +2098,15 @@ trx_undo_report_row_operation(
 				cmpl_info, clust_entry, &mtr);
 
 		if (UNIV_UNLIKELY(offset == 0)) {
-			if (!trx_undo_erase_page_end(undo_block->frame)) {
+			const uint16_t first_free = mach_read_from_2(
+				TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+				+ undo_block->frame);
+			memset(undo_block->frame + first_free, 0,
+			       (srv_page_size - FIL_PAGE_DATA_END)
+			       - first_free);
+
+			if (first_free
+			    == TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE) {
 				/* The record did not fit on an empty
 				undo page. Discard the freshly allocated
 				page and return an error. */
