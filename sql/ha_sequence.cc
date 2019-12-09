@@ -108,7 +108,7 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       MY_TEST(flags & HA_OPEN_INTERNAL_TABLE);
     reset_statistics();
 
-    /* Don't try to read the inital row the call is part of create code */
+    /* Don't try to read the initial row the call is part of create code */
     if (!(flags & (HA_OPEN_FOR_CREATE | HA_OPEN_FOR_REPAIR)))
     {
       if (unlikely((error= table->s->sequence->read_initial_values(table))))

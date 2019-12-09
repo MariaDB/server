@@ -323,7 +323,7 @@ error_message(
 
 /***********************************************//*
  @param>>_______[in] name>_____name of file.
- @retval file pointer; file pointer is NULL when error occured.
+ @retval file pointer; file pointer is NULL when error occurred.
 */
 
 FILE*
@@ -1119,7 +1119,7 @@ parse_page(
 /**
 @param [in/out] file_name	name of the filename
 
-@retval FILE pointer if successfully created else NULL when error occured.
+@retval FILE pointer if successfully created else NULL when error occurred.
 */
 FILE*
 create_file(

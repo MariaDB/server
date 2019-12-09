@@ -172,6 +172,7 @@ ALTER TABLE t2
     CHANGE b d INT UNSIGNED,
     ADD c INT;
 DROP TABLE t2, t1;
+--echo # End of 10.3 tests
 
 
 create table t (

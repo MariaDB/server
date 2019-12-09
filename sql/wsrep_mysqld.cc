@@ -46,7 +46,6 @@
 #include <cstdlib>
 #include <string>
 #include "log_event.h"
-#include <slave.h>
 
 #include <sstream>
 
@@ -1646,6 +1645,39 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     {
       return false;
     }
+    /*
+      If mariadb master has replicated a CTAS, we should not replicate the create table
+      part separately as TOI, but to replicate both create table and following inserts
+      as one write set.
+      Howver, if CTAS creates empty table, we should replicate the create table alone
+      as TOI. We have to do relay log event lookup to see if row events follow the
+      create table event.
+    */
+    if (thd->slave_thread && !(thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_STANDALONE))
+    {
+      /* this is CTAS, either empty or populated table */
+      ulonglong event_size = 0;
+      enum Log_event_type ev_type= wsrep_peak_event(thd->rgi_slave, &event_size);
+      switch (ev_type)
+      {
+      case QUERY_EVENT:
+        /* CTAS with empty table, we replicate create table as TOI */
+        break;
+
+      case TABLE_MAP_EVENT:
+        WSREP_DEBUG("replicating CTAS of empty table as TOI");
+        // fall through
+      case WRITE_ROWS_EVENT:
+        /* CTAS with populated table, we replicate later at commit time */
+        WSREP_DEBUG("skipping create table of CTAS replication");
+        return false;
+
+      default:
+        WSREP_WARN("unexpected async replication event: %d", ev_type);
+      }
+      return true;
+    }
+    /* no next async replication event */
     return true;
 
   case SQLCOM_CREATE_VIEW:

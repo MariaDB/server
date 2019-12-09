@@ -5,6 +5,8 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+call mtr.add_suppression("WSREP has not yet prepared node for application use");
+
 CREATE TABLE t1 (f1 INTEGER);
 
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
@@ -15,7 +17,7 @@ SET SESSION wsrep_reject_queries = ALL;
 
 SET GLOBAL wsrep_reject_queries = ALL;
 
---error ER_UNKNOWN_COM_ERROR
+--error ER_UNKNOWN_COM_ERROR,1047
 SELECT * FROM t1;
 
 #
@@ -30,7 +32,7 @@ SET GLOBAL wsrep_reject_queries = ALL_KILL;
 SELECT * FROM t1;
 
 --connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
---error ER_UNKNOWN_COM_ERROR
+--error ER_UNKNOWN_COM_ERROR,1047
 SELECT * FROM t1;
 
 # Confirm that replication continues

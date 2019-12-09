@@ -1387,7 +1387,7 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
 
   DBUG_ASSERT(table_list->table);
   // conds could be cached from previous SP call
-  DBUG_ASSERT(!table_list->vers_conditions.is_set() ||
+  DBUG_ASSERT(!table_list->vers_conditions.need_setup() ||
               !*conds || thd->stmt_arena->is_stmt_execute());
   if (select_lex->vers_setup_conds(thd, table_list))
     DBUG_RETURN(TRUE);

@@ -1973,7 +1973,7 @@ static bool innodb_init_param()
 	return false;
 
 error:
-	msg("mariabackup: innodb_init_param(): Error occured.\n");
+	msg("mariabackup: innodb_init_param(): Error occurred.\n");
 	return true;
 }
 

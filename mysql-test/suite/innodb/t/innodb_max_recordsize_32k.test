@@ -1,8 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_innodb_32k.inc
 
-call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
-
 # Check page size 32k
 SELECT @@innodb_page_size;
 

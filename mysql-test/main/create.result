@@ -949,7 +949,7 @@ drop table t1;
 
 Bug #26104 Bug on foreign key class constructor
 
-Check that ref_columns is initalized correctly in the constructor
+Check that ref_columns is initialized correctly in the constructor
 and semantic checks in mysql_prepare_table work.
 
 We do not need a storage engine that supports foreign keys

@@ -4254,7 +4254,7 @@ row_search_mvcc(
 		    || prebuilt->m_read_virtual_key);
 
 	/* Reset the new record lock info if srv_locks_unsafe_for_binlog
-	is set or session is using a READ COMMITED isolation level. Then
+	is set or session is using a READ COMMITTED isolation level. Then
 	we are able to remove the record locks set here on an individual
 	row. */
 	prebuilt->new_rec_locks = 0;
@@ -4968,7 +4968,7 @@ wrong_offs:
 		existence with LOCK_REC_NOT_GAP. */
 
 		/* If innodb_locks_unsafe_for_binlog option is used
-		or this session is using a READ COMMITED isolation
+		or this session is using a READ COMMITTED isolation
 		level we lock only the record, i.e., next-key locking is
 		not used. */
 

@@ -519,6 +519,13 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+SET innodb_strict_mode = ON;
+CREATE TABLE t1 (a INT, b VARCHAR(500), c TEXT, UNIQUE(a,b)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 ADD d TEXT;
+ALTER TABLE t1 ADD PRIMARY KEY (b,a);
+ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
+DROP TABLE t1;
+SET innodb_strict_mode = OFF;
 CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 INSERT INTO t1 (a) VALUES (NULL), (NULL);
 ALTER TABLE t1 DROP a, ADD COLUMN a INT;
@@ -1389,6 +1396,13 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+SET innodb_strict_mode = ON;
+CREATE TABLE t1 (a INT, b VARCHAR(500), c TEXT, UNIQUE(a,b)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 ADD d TEXT;
+ALTER TABLE t1 ADD PRIMARY KEY (b,a);
+ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
+DROP TABLE t1;
+SET innodb_strict_mode = OFF;
 CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=COMPACT;
 INSERT INTO t1 (a) VALUES (NULL), (NULL);
 ALTER TABLE t1 DROP a, ADD COLUMN a INT;
@@ -2259,6 +2273,13 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+SET innodb_strict_mode = ON;
+CREATE TABLE t1 (a INT, b VARCHAR(500), c TEXT, UNIQUE(a,b)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 ADD d TEXT;
+ALTER TABLE t1 ADD PRIMARY KEY (b,a);
+ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
+DROP TABLE t1;
+SET innodb_strict_mode = OFF;
 CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
 INSERT INTO t1 (a) VALUES (NULL), (NULL);
 ALTER TABLE t1 DROP a, ADD COLUMN a INT;
@@ -2670,7 +2691,7 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-193
+196
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
 #
 # MDEV-18266: Changing an index comment unnecessarily rebuilds index

@@ -659,7 +659,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*  Not true for DBF tables because of eventual soft deleted lines.  */
   /*  Note: for Num_K = 1 any non null value is Ok.                    */
   /*********************************************************************/
-  if (Srtd && !filp && Tdbp->Ftype != RECFM_VAR 
+  if (Srtd && !filp && Tdbp->Ftype != RECFM_VAR && Tdbp->Ftype != RECFM_CSV
                     && Tdbp->Txfp->GetAmType() != TYPE_AM_DBF) {
     Incr = (Num_K > 1) ? To_Rec[1] : Num_K;
     PlgDBfree(Record);
@@ -837,7 +837,8 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -990,7 +991,8 @@ bool XINDEX::Init(PGLOBAL g)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -1243,7 +1245,8 @@ bool XINDEX::MapInit(PGLOBAL g)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -1457,7 +1460,8 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;

@@ -159,7 +159,7 @@ current working directory ".", but in the MySQL Embedded Server Library
 it is an absolute path. */
 const char*	fil_path_to_mysql_datadir;
 
-/** Common InnoDB file extentions */
+/** Common InnoDB file extensions */
 const char* dot_ext[] = { "", ".ibd", ".isl", ".cfg" };
 
 /** The number of fsyncs done to the log */

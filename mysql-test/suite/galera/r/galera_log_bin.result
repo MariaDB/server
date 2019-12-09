@@ -78,8 +78,3 @@ DROP TABLE t2;
 connection node_1;
 SET GLOBAL wsrep_on=OFF;
 RESET MASTER;
-SET GLOBAL wsrep_on=ON;
-connection node_2;
-SET GLOBAL wsrep_on=OFF;
-reset master;
-SET GLOBAL wsrep_on=ON;

@@ -142,7 +142,7 @@ bool JAVAConn::Check(jint rc)
 			s = (jstring)env->CallObjectMethod(exc, tid);
 			Msg = GetUTFString(s);
 		} else
-			Msg = "Exception occured";
+			Msg = "Exception occurred";
 
 		env->ExceptionClear();
 	} else if (rc < 0) {

@@ -3453,11 +3453,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     Update the state of the active arena if no errors on
     open_tables stage.
   */
-  if (likely(!res) || likely(!thd->is_error()) ||
-      (thd->get_stmt_da()->sql_errno() != ER_CANT_REOPEN_TABLE &&
-       thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE &&
-       thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE &&
-       thd->get_stmt_da()->sql_errno() != ER_UPDATE_TABLE_USED))
+  if (likely(!res) || likely(!thd->is_error()))
     thd->stmt_arena->state= Query_arena::STMT_EXECUTED;
 
   /*

@@ -1173,7 +1173,7 @@ bool Master_info_index::init_all_master_info()
     }
     else
     {
-      /* Initialization of Master_info succeded. Add it to HASH */
+      /* Initialization of Master_info succeeded. Add it to HASH */
       if (global_system_variables.log_warnings > 1)
         sql_print_information("Initialized Master_info from '%s'",
                               buf_master_info_file);

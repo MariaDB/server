@@ -3344,7 +3344,7 @@ int reset_slave(THD *thd, Master_info* mi)
   char fname[FN_REFLEN];
   int thread_mask= 0, error= 0;
   uint sql_errno=ER_UNKNOWN_ERROR;
-  const char* errmsg= "Unknown error occurred while reseting slave";
+  const char* errmsg= "Unknown error occurred while resetting slave";
   char master_info_file_tmp[FN_REFLEN];
   char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("reset_slave");
@@ -3951,7 +3951,7 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
   }
 #endif /* WITH_WSREP */
   bool ret= 0;
-  /* Temporarily disable master semisync before reseting master. */
+  /* Temporarily disable master semisync before resetting master. */
   repl_semisync_master.before_reset_master();
   ret= mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len,
                                 next_log_number);

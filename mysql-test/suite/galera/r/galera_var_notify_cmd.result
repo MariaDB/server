@@ -1,10 +1,11 @@
 connection node_1;
-SELECT COUNT(DISTINCT uuid) = 2 FROM mtr_wsrep_notify.membership;
-COUNT(DISTINCT uuid) = 2
-1
-SELECT MAX(size) = 2 FROM mtr_wsrep_notify.status;
-MAX(size) = 2
-1
-SELECT COUNT(DISTINCT idx) = 2 FROM mtr_wsrep_notify.status;
-COUNT(DISTINCT idx) = 2
+SET SESSION wsrep_sync_wait=15;
+SELECT COUNT(DISTINCT uuid) FROM mtr_wsrep_notify.membership;
+COUNT(DISTINCT uuid)
+2
+SELECT MAX(size) FROM mtr_wsrep_notify.status;
+MAX(size)
+2
+SELECT COUNT(DISTINCT idx) FROM mtr_wsrep_notify.status;
+COUNT(DISTINCT idx)
 1

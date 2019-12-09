@@ -192,7 +192,7 @@ void tp_callback(TP_connection *c)
   }
   else if (threadpool_process_request(thd))
   {
-    /* QUIT or an error occured. */
+    /* QUIT or an error occurred. */
     goto error;
   }
 

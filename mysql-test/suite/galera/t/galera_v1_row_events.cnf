@@ -1,0 +1,13 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+log-bin-use-v1-row-events=1
+
+[mysqld.2]
+
+
+
+
+
+
+
