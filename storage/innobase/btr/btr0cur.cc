@@ -8110,9 +8110,9 @@ btr_free_externally_stored_field(
 				mtr.write<4>(*block,
 					     BTR_EXTERN_PAGE_NO + field_ref,
 					     next_page_no);
-				mtr.write<4>(*block,
-					     BTR_EXTERN_LEN + 4 + field_ref,
-					     0U);
+				mtr.write<4,mtr_t::OPT>(*block,
+							BTR_EXTERN_LEN + 4
+							+ field_ref, 0U);
 			}
 		} else {
 			ut_ad(!block->page.zip.data);
