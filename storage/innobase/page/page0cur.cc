@@ -1629,7 +1629,6 @@ page_cur_insert_rec_zip(
 				rec_size, 1)
 	    || reorg_before_insert) {
 		/* The values can change dynamically. */
-		bool	log_compressed	= page_zip_log_pages;
 		ulint	level		= page_zip_level;
 #ifdef UNIV_DEBUG
 		rec_t*	cursor_rec	= page_cur_get_rec(cursor);
@@ -1664,9 +1663,6 @@ page_cur_insert_rec_zip(
 		} else if (!page_zip->m_nonempty && !page_has_garbage(page)) {
 			/* The page has been freshly compressed, so
 			reorganizing it will not help. */
-		} else if (log_compressed && !reorg_before_insert) {
-			/* Insert into uncompressed page only, and
-			try page_zip_reorganize() afterwards. */
 		} else if (btr_page_reorganize_low(
 				   recv_recovery_is_on(), level,
 				   cursor, index, mtr)) {
@@ -1724,81 +1720,33 @@ page_cur_insert_rec_zip(
 			ulint	pos = page_rec_get_n_recs_before(insert_rec);
 			ut_ad(pos > 0);
 
-			if (!log_compressed) {
-				const mtr_log_t log_mode = mtr->set_log_mode(
-					MTR_LOG_NONE);
-				const bool ok = page_zip_compress(
-					page_cur_get_block(cursor),
-					index, level, mtr);
-				mtr->set_log_mode(log_mode);
-				if (ok) {
-					page_cur_insert_rec_write_log(
-						insert_rec, rec_size,
-						cursor->rec, index, mtr);
-					page_zip_compress_write_log_no_data(
-						level,
-						page_cur_get_block(cursor),
-						index, mtr);
-
-					rec_offs_make_valid(
-						insert_rec, index,
-						page_is_leaf(page), offsets);
-					return(insert_rec);
+			/* We are writing entire page images to the
+			log.  Reduce the redo log volume by
+			reorganizing the page at the same time. */
+			if (page_zip_reorganize(cursor->block, index, mtr)) {
+				/* The page was reorganized: Seek to pos. */
+				if (pos > 1) {
+					cursor->rec = page_rec_get_nth(
+						page, pos - 1);
+				} else {
+					cursor->rec = page + PAGE_NEW_INFIMUM;
 				}
 
-				/* Page compress failed. If this happened on a
-				leaf page, put the data size into the sample
-				buffer. */
-				if (page_is_leaf(page)) {
-					ulint occupied = page_get_data_size(page)
-						+ page_dir_calc_reserved_space(
-								page_get_n_recs(page));
-					index->stat_defrag_data_size_sample[
-						index->stat_defrag_sample_next_slot] =
-								occupied;
-					index->stat_defrag_sample_next_slot =
-						(index->stat_defrag_sample_next_slot
-						 + 1) % STAT_DEFRAG_DATA_SIZE_N_SAMPLE;
-				}
-
-				ut_ad(cursor->rec
-				      == (pos > 1
-					  ? page_rec_get_nth(
-						  page, pos - 1)
-					  : page + PAGE_NEW_INFIMUM));
-			} else {
-				/* We are writing entire page images
-				to the log. Reduce the redo log volume
-				by reorganizing the page at the same time. */
-				if (page_zip_reorganize(
-					    cursor->block, index, mtr)) {
-					/* The page was reorganized:
-					Seek to pos. */
-					if (pos > 1) {
-						cursor->rec = page_rec_get_nth(
-							page, pos - 1);
-					} else {
-						cursor->rec = page
-							+ PAGE_NEW_INFIMUM;
-					}
-
-					insert_rec = page + rec_get_next_offs(
-						cursor->rec, TRUE);
-					rec_offs_make_valid(
-						insert_rec, index,
-						page_is_leaf(page), offsets);
-					return(insert_rec);
-				}
-
-				/* Theoretically, we could try one
-				last resort of btr_page_reorganize_low()
-				followed by page_zip_available(), but
-				that would be very unlikely to
-				succeed. (If the full reorganized page
-				failed to compress, why would it
-				succeed to compress the page, plus log
-				the insert of this record? */
+				insert_rec = page + rec_get_next_offs(
+					cursor->rec, TRUE);
+				rec_offs_make_valid(
+					insert_rec, index,
+					page_is_leaf(page), offsets);
+				return(insert_rec);
 			}
+
+			/* Theoretically, we could try one last resort
+			of btr_page_reorganize_low() followed by
+			page_zip_available(), but that would be very
+			unlikely to succeed. (If the full reorganized
+			page failed to compress, why would it succeed
+			to compress the page, plus log the insert of
+			this record?) */
 
 			/* Out of space: restore the page */
 			if (!page_zip_decompress(page_zip, page, FALSE)) {

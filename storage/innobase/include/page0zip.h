@@ -59,10 +59,6 @@ extern uint	page_zip_level;
 /** 'deleted' flag */
 #define PAGE_ZIP_DIR_SLOT_DEL		0x8000U
 
-/* Whether or not to log compressed page images to avoid possible
-compression algorithm changes in zlib. */
-extern my_bool	page_zip_log_pages;
-
 /**********************************************************************//**
 Determine the size of a compressed page in bytes.
 @return size in bytes */
@@ -475,18 +471,6 @@ innodb_checksum_algorithm */
 bool page_zip_verify_checksum(const void* data, ulint size);
 
 #ifndef UNIV_INNOCHECKSUM
-/**********************************************************************//**
-Write a log record of compressing an index page without the data on the page. */
-UNIV_INLINE
-void
-page_zip_compress_write_log_no_data(
-/*================================*/
-	ulint		level,	/*!< in: compression level */
-	buf_block_t*	block,	/*!< in: ROW_FORMAT=COMPRESSED index page */
-	dict_index_t*	index,	/*!< in: index */
-	mtr_t*		mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
-
 /**********************************************************************//**
 Reset the counters used for filling
 INFORMATION_SCHEMA.innodb_cmp_per_index. */

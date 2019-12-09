@@ -62,10 +62,6 @@ page_zip_stat_per_index_t	page_zip_stat_per_index;
 /** Compression level to be used by zlib. Settable by user. */
 uint	page_zip_level;
 
-/** Whether or not to log compressed page images to avoid possible
-compression algorithm changes in zlib. */
-my_bool	page_zip_log_pages;
-
 /* Please refer to ../include/page0zip.ic for a description of the
 compressed page format. */
 

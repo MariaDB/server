@@ -1400,7 +1400,6 @@ btr_page_reorganize_low(
 	ulint		max_ins_size2;
 	bool		success		= false;
 	ulint		pos;
-	bool		log_compressed;
 	bool		is_spatial;
 
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
@@ -1476,14 +1475,6 @@ btr_page_reorganize_low(
 	      || (dict_index_is_sec_or_ibuf(index)
 		  ? page_is_leaf(temp_block->frame)
 		  : block->page.id.page_no() == index->page));
-
-	/* If innodb_log_compressed_pages is ON, page reorganize should log the
-	compressed page image.*/
-	log_compressed = page_zip && page_zip_log_pages;
-
-	if (log_compressed) {
-		mtr_set_log_mode(mtr, log_mode);
-	}
 
 	if (page_zip
 	    && !page_zip_compress(block, index, z_level, mtr)) {
@@ -1585,7 +1576,6 @@ func_exit:
 
 	if (success) {
 		mlog_id_t	type;
-		byte*		log_ptr;
 
 		/* Write the log record */
 		if (page_zip) {
@@ -1597,16 +1587,10 @@ func_exit:
 			type = MLOG_PAGE_REORGANIZE;
 		}
 
-		log_ptr = log_compressed
-			? NULL
-			: mlog_open_and_write_index(
-				mtr, page, index, type,
-				page_zip ? 1 : 0);
-
-		/* For compressed pages write the compression level. */
-		if (log_ptr && page_zip) {
-			mach_write_to_1(log_ptr, z_level);
-			mlog_close(mtr, log_ptr + 1);
+		if (byte* log_ptr = mlog_open_and_write_index(
+			    mtr, page, index, type, page_zip ? 1 : 0)) {
+			*log_ptr++ = z_level;
+			mlog_close(mtr, log_ptr);
 		}
 
 		MONITOR_INC(MONITOR_INDEX_REORG_SUCCESSFUL);

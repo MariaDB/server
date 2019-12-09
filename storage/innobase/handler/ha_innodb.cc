@@ -3423,6 +3423,11 @@ static my_bool innodb_log_checksums;
 static const char* innodb_log_checksums_deprecated
 = "The parameter innodb_log_checksums is deprecated and has no effect.";
 /** Deprecated parameter with no effect */
+static my_bool innodb_log_compressed_pages;
+/** Deprecation message for innodb_log_compressed_pages */
+static const char* innodb_log_compressed_pages_deprecated
+= "The parameter innodb_log_compressed_pages is deprecated and has no effect.";
+/** Deprecated parameter with no effect */
 static my_bool	innodb_log_optimize_ddl;
 static const char* innodb_log_optimize_ddl_deprecated
 = "The parameter innodb_log_optimize_ddl is deprecated and has no effect.";
@@ -3740,6 +3745,11 @@ static int innodb_init_params()
 	if (UNIV_UNLIKELY(!innodb_log_checksums)) {
 		sql_print_warning(innodb_log_checksums_deprecated);
 		innodb_log_checksums = TRUE;
+	}
+
+	if (UNIV_UNLIKELY(!innodb_log_compressed_pages)) {
+		sql_print_warning(innodb_log_compressed_pages_deprecated);
+		innodb_log_compressed_pages = TRUE;
 	}
 
 	if (UNIV_UNLIKELY(innodb_log_optimize_ddl)) {
@@ -18853,6 +18863,17 @@ innodb_log_checksums_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 			    innodb_log_checksums_deprecated);
 }
 
+/** Issue a deprecation warning for SET GLOBAL innodb_log_compressed_pages.
+@param[in,out]	thd	client connection */
+static void
+innodb_log_compressed_pages_warn(THD* thd, st_mysql_sys_var*, void*,
+				 const void*)
+{
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			    HA_ERR_UNSUPPORTED,
+			    innodb_log_compressed_pages_deprecated);
+}
+
 /** Issue a deprecation warning for SET GLOBAL innodb_log_optimize_ddl.
 @param[in,out]	thd	client connection */
 static void
@@ -19372,14 +19393,9 @@ static MYSQL_SYSVAR_UINT(compression_level, page_zip_level,
   ", 1 is fastest, 9 is best compression and default is 6.",
   NULL, NULL, DEFAULT_COMPRESSION_LEVEL, 0, 9, 0);
 
-static MYSQL_SYSVAR_BOOL(log_compressed_pages, page_zip_log_pages,
-       PLUGIN_VAR_OPCMDARG,
-  "Enables/disables the logging of entire compressed page images."
-  " InnoDB logs the compressed pages to prevent corruption if"
-  " the zlib compression algorithm changes."
-  " When turned OFF, InnoDB will assume that the zlib"
-  " compression algorithm doesn't change.",
-  NULL, NULL, TRUE);
+static MYSQL_SYSVAR_BOOL(log_compressed_pages, innodb_log_compressed_pages,
+  PLUGIN_VAR_OPCMDARG,
+  innodb_deprecated_ignored, NULL, innodb_log_compressed_pages_warn, TRUE);
 
 static MYSQL_SYSVAR_BOOL(log_optimize_ddl, innodb_log_optimize_ddl,
   PLUGIN_VAR_OPCMDARG,
