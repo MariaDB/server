@@ -278,6 +278,7 @@ trx_undo_parse_page_header_reuse(
 @param[in,out]	block	page frame or NULL
 @param[in,out]	mtr	mini-transaction or NULL
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 byte*
 trx_undo_parse_page_header(
 	const byte*	ptr,
@@ -478,14 +479,6 @@ which purge would not result in removing delete-marked records. */
 /*-------------------------------------------------------------*/
 /** Size of the undo log header without XID information */
 #define TRX_UNDO_LOG_OLD_HDR_SIZE (34 + FLST_NODE_SIZE)
-
-/* Note: the writing of the undo log old header is coded by a log record
-MLOG_UNDO_HDR_CREATE. The appending of an XID to the
-header is logged separately. In this sense, the XID is not really a member
-of the undo log header. TODO: do not append the XID to the log header if XA
-is not needed by the user. The XID wastes about 150 bytes of space in every
-undo log. In the history list we may have millions of undo logs, which means
-quite a large overhead. */
 
 /** X/Open XA Transaction Identification (XID) */
 /* @{ */

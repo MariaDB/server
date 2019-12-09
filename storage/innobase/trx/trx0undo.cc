@@ -493,10 +493,7 @@ trx_undo_seg_create(fil_space_t *space, buf_block_t *rseg_hdr, ulint *id,
 	return block;
 }
 
-/***************************************************************//**
-Creates a new undo log header in file. NOTE that this function has its own
-log record type MLOG_UNDO_HDR_CREATE. You must NOT change the operation of
-this function!
+/** Initialize an undo log header.
 @param[in,out]  undo_page   undo log segment header page
 @param[in]      trx_id      transaction identifier
 @param[in,out]  mtr         mini-transaction
@@ -504,62 +501,42 @@ this function!
 static uint16_t trx_undo_header_create(buf_block_t *undo_page, trx_id_t trx_id,
                                        mtr_t* mtr)
 {
-	byte* page_free = TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
-		+ undo_page->frame;
-	uint16_t free = mach_read_from_2(page_free);
-	uint16_t new_free = free + TRX_UNDO_LOG_OLD_HDR_SIZE;
+  const uint16_t free= mach_read_from_2(TRX_UNDO_PAGE_HDR +
+                                        TRX_UNDO_PAGE_FREE + undo_page->frame);
+  const uint16_t new_free= free + TRX_UNDO_LOG_OLD_HDR_SIZE;
 
-	ut_a(free + TRX_UNDO_LOG_XA_HDR_SIZE < srv_page_size - 100);
+  ut_a(free + TRX_UNDO_LOG_XA_HDR_SIZE < srv_page_size - 100);
 
-	mach_write_to_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START
-			+ undo_page->frame, new_free);
-	mach_write_to_2(page_free, new_free);
+  mtr->write<2>(*undo_page, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START +
+                undo_page->frame, new_free);
+  /* MDEV-12353 TODO: use MEMMOVE record */
+  mtr->write<2>(*undo_page, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE +
+                undo_page->frame, new_free);
+  mtr->write<2>(*undo_page, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE +
+                undo_page->frame, TRX_UNDO_ACTIVE);
 
-	mach_write_to_2(TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + undo_page->frame,
-			TRX_UNDO_ACTIVE);
-	byte* last_log = TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG
-		+ undo_page->frame;
+  mtr->write<2,mtr_t::OPT>(*undo_page, free + TRX_UNDO_NEEDS_PURGE +
+                           undo_page->frame, 1U);
+  mtr->write<8>(*undo_page, free + TRX_UNDO_TRX_ID + undo_page->frame, trx_id);
+  mtr->write<2,mtr_t::OPT>(*undo_page, free + TRX_UNDO_LOG_START +
+                           undo_page->frame, new_free);
+  mtr->memset(undo_page, free + TRX_UNDO_XID_EXISTS,
+              TRX_UNDO_LOG_OLD_HDR_SIZE - TRX_UNDO_XID_EXISTS, 0);
 
-	uint16_t prev_log = mach_read_from_2(last_log);
+  if (uint16_t prev_log= mach_read_from_2(TRX_UNDO_SEG_HDR +
+                                          TRX_UNDO_LAST_LOG +
+                                          undo_page->frame))
+  {
+    mtr->write<2>(*undo_page, prev_log + TRX_UNDO_NEXT_LOG + undo_page->frame,
+                  free);
+    mtr->write<2>(*undo_page, free + TRX_UNDO_PREV_LOG + undo_page->frame,
+                  prev_log);
+  }
 
-	if (prev_log != 0) {
-		mach_write_to_2(prev_log + TRX_UNDO_NEXT_LOG + undo_page->frame,
-				free);
-	}
+  mtr->write<2>(*undo_page, TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG +
+                undo_page->frame, free);
 
-	mach_write_to_2(last_log, free);
-
-	trx_ulogf_t* log_hdr = undo_page->frame + free;
-
-	mach_write_to_2(log_hdr + TRX_UNDO_NEEDS_PURGE, 1);
-
-	mach_write_to_8(log_hdr + TRX_UNDO_TRX_ID, trx_id);
-	mach_write_to_2(log_hdr + TRX_UNDO_LOG_START, new_free);
-
-	mach_write_to_1(log_hdr + TRX_UNDO_XID_EXISTS, FALSE);
-	mach_write_to_1(log_hdr + TRX_UNDO_DICT_TRANS, FALSE);
-
-	mach_write_to_2(log_hdr + TRX_UNDO_NEXT_LOG, 0);
-	mach_write_to_2(log_hdr + TRX_UNDO_PREV_LOG, prev_log);
-
-	/* Write the log record about the header creation */
-	mtr->set_modified();
-	if (mtr->get_log_mode() != MTR_LOG_ALL) {
-		ut_ad(mtr->get_log_mode() == MTR_LOG_NONE
-		      || mtr->get_log_mode() == MTR_LOG_NO_REDO);
-		return free;
-	}
-
-	byte* log_ptr = mtr->get_log()->open(11 + 15);
-	log_ptr = mlog_write_initial_log_record_low(
-		MLOG_UNDO_HDR_CREATE,
-		undo_page->page.id.space(),
-		undo_page->page.id.page_no(),
-		log_ptr, mtr);
-	log_ptr += mach_u64_write_compressed(log_ptr, trx_id);
-	mlog_close(mtr, log_ptr);
-
-	return(free);
+  return free;
 }
 
 /** Write X/Open XA Transaction Identifier (XID) to undo log header
@@ -639,6 +616,7 @@ static void trx_undo_header_add_space_for_xid(buf_block_t *block, ulint offset,
 @param[in,out]	block	page frame or NULL
 @param[in,out]	mtr	mini-transaction or NULL
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 byte*
 trx_undo_parse_page_header(
 	const byte*	ptr,
