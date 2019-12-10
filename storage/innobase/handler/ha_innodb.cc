@@ -127,6 +127,7 @@ TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 MYSQL_THD create_background_thd();
 void destroy_background_thd(MYSQL_THD thd);
 void reset_thd(MYSQL_THD thd);
+TABLE *get_purge_table(THD *thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 			const char *tb, size_t tblen);
 void close_thread_tables(THD* thd);
@@ -5847,14 +5848,6 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 int
 ha_innobase::open(const char* name, int, uint)
 {
-	/* TODO: If trx_rollback_recovered(bool all=false) is ever
-	removed, the first-time open() must hold (or acquire and release)
-	a table lock that conflicts with trx_resurrect_table_locks(),
-	to ensure that any recovered incomplete ALTER TABLE will have been
-	rolled back. Otherwise, dict_table_t::instant could be cleared by
-	the rollback invoking dict_index_t::clear_instant_alter() while
-	open table handles exist in client connections. */
-
 	char			norm_name[FN_REFLEN];
 
 	DBUG_ENTER("ha_innobase::open");
@@ -13731,35 +13724,6 @@ innobase_rename_table(
 		row_mysql_lock_data_dictionary(trx);
 	}
 
-	dict_table_t*   table = dict_table_open_on_name(
-		norm_from, TRUE, FALSE, DICT_ERR_IGNORE_FK_NOKEY);
-
-	/* Since DICT_BG_YIELD has sleep for 250 milliseconds,
-	Convert lock_wait_timeout unit from second to 250 milliseconds */
-	long int lock_wait_timeout = thd_lock_wait_timeout(trx->mysql_thd) * 4;
-	if (table != NULL) {
-		for (dict_index_t* index = dict_table_get_first_index(table);
-		     index != NULL;
-		     index = dict_table_get_next_index(index)) {
-
-			if (index->type & DICT_FTS) {
-				/* Found */
-				while (index->index_fts_syncing
-					&& !trx_is_interrupted(trx)
-					&& (lock_wait_timeout--) > 0) {
-					DICT_BG_YIELD(trx);
-				}
-			}
-		}
-		dict_table_close(table, TRUE, FALSE);
-	}
-
-	/* FTS sync is in progress. We shall timeout this operation */
-	if (lock_wait_timeout < 0) {
-		error = DB_LOCK_WAIT_TIMEOUT;
-		goto func_exit;
-	}
-
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, commit,
 					   use_fk);
 
@@ -13811,7 +13775,6 @@ innobase_rename_table(
 		}
 	}
 
-func_exit:
 	if (commit) {
 		row_mysql_unlock_data_dictionary(trx);
 	}
@@ -20647,126 +20610,6 @@ ha_innobase::multi_range_read_explain_info(
 	return m_ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
 }
 
-/** Parse the table file name into table name and database name.
-@param[in]	tbl_name	InnoDB table name
-@param[out]	dbname		database name buffer (NAME_LEN + 1 bytes)
-@param[out]	tblname		table name buffer (NAME_LEN + 1 bytes)
-@param[out]	dbnamelen	database name length
-@param[out]	tblnamelen	table name length
-@return true if the table name is parsed properly. */
-static bool table_name_parse(
-	const table_name_t&	tbl_name,
-	char*			dbname,
-	char*			tblname,
-	ulint&			dbnamelen,
-	ulint&			tblnamelen)
-{
-	dbnamelen = dict_get_db_name_len(tbl_name.m_name);
-	char db_buf[MAX_DATABASE_NAME_LEN  + 1];
-	char tbl_buf[MAX_TABLE_NAME_LEN + 1];
-
-	ut_ad(dbnamelen > 0);
-	ut_ad(dbnamelen <= MAX_DATABASE_NAME_LEN);
-
-	memcpy(db_buf, tbl_name.m_name, dbnamelen);
-	db_buf[dbnamelen] = 0;
-
-	tblnamelen = strlen(tbl_name.m_name + dbnamelen + 1);
-	memcpy(tbl_buf, tbl_name.m_name + dbnamelen + 1, tblnamelen);
-	tbl_buf[tblnamelen] = 0;
-
-	filename_to_tablename(db_buf, dbname, MAX_DATABASE_NAME_LEN + 1, true);
-
-	if (tblnamelen > TEMP_FILE_PREFIX_LENGTH
-	    && !strncmp(tbl_buf, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH)) {
-		return false;
-	}
-
-	if (char *is_part = strchr(tbl_buf, '#')) {
-		*is_part = '\0';
-		tblnamelen = is_part - tbl_buf;
-	}
-
-	filename_to_tablename(tbl_buf, tblname, MAX_TABLE_NAME_LEN + 1, true);
-	return true;
-}
-
-
-/** Acquire metadata lock and MariaDB table handle for an InnoDB table.
-@param[in,out]	thd	thread handle
-@param[in,out]	table	InnoDB table
-@return MariaDB table handle
-@retval NULL if the table does not exist, is unaccessible or corrupted. */
-static TABLE* innodb_acquire_mdl(THD* thd, dict_table_t* table)
-{
-	char	db_buf[NAME_LEN + 1], db_buf1[NAME_LEN + 1];
-	char	tbl_buf[NAME_LEN + 1], tbl_buf1[NAME_LEN + 1];
-	ulint	db_buf_len, db_buf1_len;
-	ulint	tbl_buf_len, tbl_buf1_len;
-
-	if (!table_name_parse(table->name, db_buf, tbl_buf,
-			      db_buf_len, tbl_buf_len)) {
-		table->release();
-		return NULL;
-	}
-
-	DEBUG_SYNC(thd, "ib_purge_virtual_latch_released");
-
-	const table_id_t table_id = table->id;
-retry_mdl:
-	const bool unaccessible = !table->is_readable() || table->corrupted;
-	table->release();
-
-	if (unaccessible) {
-		return NULL;
-	}
-
-	TABLE*	mariadb_table = open_purge_table(thd, db_buf, db_buf_len,
-						 tbl_buf, tbl_buf_len);
-	if (!mariadb_table)
-		thd_clear_error(thd);
-
-	DEBUG_SYNC(thd, "ib_purge_virtual_got_no_such_table");
-
-	table = dict_table_open_on_id(table_id, false, DICT_TABLE_OP_NORMAL);
-
-	if (table == NULL) {
-		/* Table is dropped. */
-		goto fail;
-	}
-
-	if (!fil_table_accessible(table)) {
-release_fail:
-		table->release();
-fail:
-		if (mariadb_table) {
-			close_thread_tables(thd);
-		}
-
-		return NULL;
-	}
-
-	if (!table_name_parse(table->name, db_buf1, tbl_buf1,
-			      db_buf1_len, tbl_buf1_len)) {
-		goto release_fail;
-	}
-
-	if (!mariadb_table) {
-	} else if (!strcmp(db_buf, db_buf1) && !strcmp(tbl_buf, tbl_buf1)) {
-		return mariadb_table;
-	} else {
-		/* Table is renamed. So release MDL for old name and try
-		to acquire the MDL for new table name. */
-		close_thread_tables(thd);
-	}
-
-	strcpy(tbl_buf, tbl_buf1);
-	strcpy(db_buf, db_buf1);
-	tbl_buf_len = tbl_buf1_len;
-	db_buf_len = db_buf1_len;
-	goto retry_mdl;
-}
-
 /** Find or open a table handle for the virtual column template
 @param[in]	thd	thread handle
 @param[in,out]	table	InnoDB table whose virtual column template
@@ -20790,12 +20633,13 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 			    STRING_WITH_LEN("ib_purge_virtual_got_no_such_table "
 					    "SIGNAL got_no_such_table"))););
 
-	if (THDVAR(thd, background_thread)) {
-		/* Purge thread acquires dict_sys.latch while
-		processing undo log record. Release it
-		before acquiring MDL on the table. */
-		rw_lock_s_unlock(&dict_sys.latch);
-		return innodb_acquire_mdl(thd, table);
+	TABLE *mysql_table;
+	const bool  bg_thread = THDVAR(thd, background_thread);
+
+	if (bg_thread) {
+		if ((mysql_table = get_purge_table(thd))) {
+			return mysql_table;
+		}
 	} else {
 		if (table->vc_templ->mysql_table_query_id
 		    == thd_get_query_id(thd)) {
@@ -20807,15 +20651,17 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	char	tbl_buf[NAME_LEN + 1];
 	ulint	db_buf_len, tbl_buf_len;
 
-	if (!table_name_parse(table->name, db_buf, tbl_buf,
-			      db_buf_len, tbl_buf_len)) {
-		ut_ad(!"invalid table name");
+	if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
 		return NULL;
 	}
 
-	TABLE* mysql_table = find_fk_open_table(thd, db_buf, db_buf_len,
-						tbl_buf, tbl_buf_len);
+	if (bg_thread) {
+		return open_purge_table(thd, db_buf, db_buf_len,
+					tbl_buf, tbl_buf_len);
+	}
 
+	mysql_table = find_fk_open_table(thd, db_buf, db_buf_len,
+					 tbl_buf, tbl_buf_len);
 	table->vc_templ->mysql_table = mysql_table;
 	table->vc_templ->mysql_table_query_id = thd_get_query_id(thd);
 	return mysql_table;

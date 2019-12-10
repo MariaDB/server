@@ -4752,6 +4752,12 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   DBUG_RETURN(error ? NULL : tl->table);
 }
 
+TABLE *get_purge_table(THD *thd)
+{
+  /* see above, at most one table can be opened */
+  DBUG_ASSERT(thd->open_tables == NULL || thd->open_tables->next == NULL);
+  return thd->open_tables;
+}
 
 /** Find an open table in the list of prelocked tabled
 
@@ -5302,6 +5308,18 @@ extern "C" void thd_wait_end(MYSQL_THD thd)
 }
 
 #endif // INNODB_COMPATIBILITY_HOOKS */
+
+
+/**
+  MDL_context accessor
+  @param thd   the current session
+  @return pointer to thd->mdl_context
+*/
+extern "C" void *thd_mdl_context(MYSQL_THD thd)
+{
+  return &thd->mdl_context;
+}
+
 
 /****************************************************************************
   Handling of statement states in functions and triggers.

@@ -33,21 +33,27 @@ Created 1/8/1996 Heikki Tuuri
 #include "fsp0fsp.h"
 #include <deque>
 
+class MDL_ticket;
 extern bool innodb_table_stats_not_found;
 extern bool innodb_index_stats_not_found;
 
 /** the first table or index ID for other than hard-coded system tables */
 constexpr uint8_t DICT_HDR_FIRST_ID= 10;
 
-/********************************************************************//**
-Get the database name length in a table name.
+
+/** Get the database name length in a table name.
+@param name   filename-safe encoded table name "dbname/tablename"
 @return database name length */
-ulint
-dict_get_db_name_len(
-/*=================*/
-	const char*	name)	/*!< in: table name in the form
-				dbname '/' tablename */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+inline size_t dict_get_db_name_len(const char *name)
+{
+  /* table_name_t::dblen() would assert that '/' is contained */
+  if (const char* s= strchr(name, '/'))
+    return size_t(s - name);
+
+  return 0;
+}
+
+
 /*********************************************************************//**
 Open a table from its database and table name, this is currently used by
 foreign constraint parser to get the referenced table.
@@ -118,33 +124,56 @@ enum dict_table_op_t {
 	DICT_TABLE_OP_OPEN_ONLY_IF_CACHED
 };
 
-/**********************************************************************//**
-Returns a table object based on table id.
+/** Acquire MDL shared for the table name.
+@tparam trylock whether to use non-blocking operation
+@param[in,out]  table           table object
+@param[in,out]  thd             background thread
+@param[out]     mdl             mdl ticket
+@param[in]      table_op        operation to perform when opening
+@return table object after locking MDL shared
+@retval NULL if the table is not readable, or if trylock && MDL blocked */
+template<bool trylock>
+dict_table_t*
+dict_acquire_mdl_shared(dict_table_t *table,
+                        THD *thd,
+                        MDL_ticket **mdl,
+                        dict_table_op_t table_op= DICT_TABLE_OP_NORMAL);
+
+/** Look up a table by numeric identifier.
+@param[in]      table_id        table identifier
+@param[in]      dict_locked     data dictionary locked
+@param[in]      table_op        operation to perform when opening
+@param[in,out]  thd             background thread, or NULL to not acquire MDL
+@param[out]     mdl             mdl ticket, or NULL
 @return table, NULL if does not exist */
 dict_table_t*
-dict_table_open_on_id(
-/*==================*/
-	table_id_t	table_id,	/*!< in: table id */
-	ibool		dict_locked,	/*!< in: TRUE=data dictionary locked */
-	dict_table_op_t	table_op)	/*!< in: operation to perform */
-	MY_ATTRIBUTE((warn_unused_result));
+dict_table_open_on_id(table_id_t table_id, bool dict_locked,
+                      dict_table_op_t table_op, THD *thd= nullptr,
+                      MDL_ticket **mdl= nullptr)
+  MY_ATTRIBUTE((warn_unused_result));
 
 /**********************************************************************//**
 Returns a table object based on table id.
 @return	table, NULL if does not exist */
 dict_table_t* dict_table_open_on_index_id(index_id_t index_id)
 	__attribute__((warn_unused_result));
-/********************************************************************//**
-Decrements the count of open handles to a table. */
+
+/** Decrements the count of open handles of a table.
+@param[in,out]	table		table
+@param[in]	dict_locked	data dictionary locked
+@param[in]	try_drop	try to drop any orphan indexes after
+				an aborted online index creation
+@param[in]	thd		thread to release MDL
+@param[in]	mdl		metadata lock or NULL if the thread is a
+				foreground one. */
 void
 dict_table_close(
-/*=============*/
-	dict_table_t*	table,		/*!< in/out: table */
-	ibool		dict_locked,	/*!< in: TRUE=data dictionary locked */
-	ibool		try_drop)	/*!< in: TRUE=try to drop any orphan
-					indexes after an aborted online
-					index creation */
-	MY_ATTRIBUTE((nonnull));
+	dict_table_t*	table,
+	bool		dict_locked,
+	bool		try_drop,
+	THD*		thd = NULL,
+	MDL_ticket*	mdl = NULL);
+
 /*********************************************************************//**
 Closes the only open handle to a table and drops a table while assuring
 that dict_sys.mutex is held the whole time.  This assures that the table

@@ -140,7 +140,6 @@ public:
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	rw_lock_t	latch;
 private:
-	bool m_initialized;
 	/** whether purge is enabled; protected by latch and std::atomic */
 	std::atomic<bool>		m_enabled;
 	/** number of pending stop() calls without resume() */
@@ -213,6 +212,8 @@ public:
 		fil_space_t*	last;
 	} truncate;
 
+	/** Heap for reading the undo log records */
+	mem_heap_t*	heap;
   /**
     Constructor.
 
@@ -220,8 +221,7 @@ public:
     uninitialised. Real initialisation happens in create().
   */
 
-  purge_sys_t(): m_initialized(false), m_enabled(false) {}
-
+  purge_sys_t(): m_enabled(false), heap(nullptr) {}
 
   /** Create the instance */
   void create();
@@ -260,12 +260,6 @@ public:
 
 /** The global data structure coordinating a purge */
 extern purge_sys_t	purge_sys;
-
-/** Info required to purge a record */
-struct trx_purge_rec_t {
-	trx_undo_rec_t*	undo_rec;	/*!< Record to purge */
-	roll_ptr_t	roll_ptr;	/*!< File pointr to UNDO record */
-};
 
 #include "trx0purge.ic"
 

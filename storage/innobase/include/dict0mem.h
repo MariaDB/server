@@ -46,6 +46,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "gis0type.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
+#include "mysql_com.h"
 #include <sql_const.h>
 #include <set>
 #include <algorithm>
@@ -1039,9 +1040,6 @@ struct dict_index_t {
 	bool		has_new_v_col;
 				/*!< whether it has a newly added virtual
 				column in ALTER */
-	bool            index_fts_syncing;/*!< Whether the fts index is
-					still syncing in the background;
-					FIXME: remove this and use MDL */
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
 #ifdef BTR_CUR_ADAPT
@@ -1883,6 +1881,18 @@ struct dict_table_t {
 
 	/** For overflow fields returns potential max length stored inline */
 	inline size_t get_overflow_field_local_len() const;
+
+	/** Parse the table file name into table name and database name.
+	@tparam		dict_locked	whether dict_sys.mutex is being held
+	@param[in,out]	db_name		database name buffer
+	@param[in,out]	tbl_name	table name buffer
+	@param[out]	db_name_len	database name length
+	@param[out]	tbl_name_len	table name length
+	@return whether the table name is visible to SQL */
+	template<bool dict_locked= false>
+	bool parse_name(char (&db_name)[NAME_LEN + 1],
+			char (&tbl_name)[NAME_LEN + 1],
+			size_t *db_name_len, size_t *tbl_name_len) const;
 
 private:
 	/** Initialize instant->field_map.

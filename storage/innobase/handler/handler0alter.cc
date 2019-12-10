@@ -140,30 +140,6 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| ALTER_RENAME_INDEX
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
-/** Acquire a page latch on the possible metadata record,
-to prevent concurrent invocation of dict_index_t::clear_instant_alter()
-by purge when the table turns out to be empty.
-@param[in,out]	index	clustered index
-@param[in,out]	mtr	mini-transaction */
-static void instant_metadata_lock(dict_index_t& index, mtr_t& mtr)
-{
-	DBUG_ASSERT(index.is_primary());
-
-	if (!index.is_instant()) {
-		/* dict_index_t::clear_instant_alter() cannot be called.
-		No need for a latch. */
-		return;
-	}
-
-	btr_cur_t btr_cur;
-	btr_cur_open_at_index_side(true, &index, BTR_SEARCH_LEAF,
-				   &btr_cur, 0, &mtr);
-	ut_ad(page_cur_is_before_first(btr_cur_get_page_cur(&btr_cur)));
-	ut_ad(page_is_leaf(btr_cur_get_page(&btr_cur)));
-	ut_ad(!page_has_prev(btr_cur_get_page(&btr_cur)));
-	ut_ad(!buf_block_get_page_zip(btr_cur_get_block(&btr_cur)));
-}
-
 /** Initialize instant->field_map.
 @param[in]	table	table definition to copy from */
 inline void dict_table_t::init_instant(const dict_table_t& table)
@@ -237,15 +213,9 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 	If that is the case, the instant ALTER TABLE would keep
 	the InnoDB table in its current format. */
 
-	dict_index_t& oindex = *old.indexes.start;
+	const dict_index_t& oindex = *old.indexes.start;
 	dict_index_t& index = *indexes.start;
 	first_alter_pos = 0;
-
-	mtr_t mtr;
-	mtr.start();
-	/* Protect oindex.n_core_fields and others, so that
-	purge cannot invoke dict_index_t::clear_instant_alter(). */
-	instant_metadata_lock(oindex, mtr);
 
 	for (unsigned i = 0; i + DATA_N_SYS_COLS < old.n_cols; i++) {
 		if (col_map[i] != i) {
@@ -419,7 +389,6 @@ found_j:
 	DBUG_ASSERT(n_dropped() >= old.n_dropped());
 	DBUG_ASSERT(index.n_core_fields == oindex.n_core_fields);
 	DBUG_ASSERT(index.n_core_null_bytes == oindex.n_core_null_bytes);
-	mtr.commit();
 }
 
 /** Adjust index metadata for instant ADD/DROP/reorder COLUMN.
@@ -439,15 +408,8 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 	DBUG_ASSERT(n_uniq == instant.n_uniq);
 	DBUG_ASSERT(instant.n_fields >= n_fields);
 	DBUG_ASSERT(instant.n_nullable >= n_nullable);
-	/* dict_table_t::prepare_instant() initialized n_core_fields
-	to be equal. However, after that purge could have emptied the
-	table and invoked dict_index_t::clear_instant_alter(). */
-	DBUG_ASSERT(instant.n_core_fields <= n_core_fields);
-	DBUG_ASSERT(instant.n_core_null_bytes <= n_core_null_bytes);
-	DBUG_ASSERT(instant.n_core_fields == n_core_fields
-		    || (!is_instant() && instant.is_instant()));
-	DBUG_ASSERT(instant.n_core_null_bytes == n_core_null_bytes
-		    || (!is_instant() && instant.is_instant()));
+	DBUG_ASSERT(instant.n_core_fields == n_core_fields);
+	DBUG_ASSERT(instant.n_core_null_bytes == n_core_null_bytes);
 
 	/* instant will have all fields (including ones for columns
 	that have been or are being instantly dropped) in the same position
@@ -752,11 +714,6 @@ inline void dict_table_t::rollback_instant(
 {
 	ut_d(dict_sys.assert_locked());
 	dict_index_t* index = indexes.start;
-	mtr_t mtr;
-	mtr.start();
-	/* Prevent concurrent execution of dict_index_t::clear_instant_alter()
-	by acquiring a latch on the leftmost leaf page. */
-	instant_metadata_lock(*index, mtr);
 	/* index->is_instant() does not necessarily hold here, because
 	the table may have been emptied */
 	DBUG_ASSERT(old_n_cols >= DATA_N_SYS_COLS);
@@ -811,7 +768,6 @@ inline void dict_table_t::rollback_instant(
 	}
 
 	index->fields = old_fields;
-	mtr.commit();
 
 	while ((index = dict_table_get_next_index(index)) != NULL) {
 		if (index->to_be_dropped) {
@@ -5557,12 +5513,6 @@ static bool innobase_instant_try(
 	dict_table_t* user_table = ctx->old_table;
 
 	dict_index_t* index = dict_table_get_first_index(user_table);
-	mtr_t mtr;
-	mtr.start();
-	/* Prevent purge from calling dict_index_t::clear_instant_add(),
-	to protect index->n_core_fields, index->table->instant and others
-	from changing during ctx->instant_column(). */
-	instant_metadata_lock(*index, mtr);
 	const unsigned n_old_fields = index->n_fields;
 	const dict_col_t* old_cols = user_table->cols;
 	DBUG_ASSERT(user_table->n_cols == ctx->old_n_cols);
@@ -5570,11 +5520,6 @@ static bool innobase_instant_try(
 	const bool metadata_changed = ctx->instant_column();
 
 	DBUG_ASSERT(index->n_fields >= n_old_fields);
-	/* Release the page latch. Between this and the next
-	btr_pcur_open_at_index_side(), data fields such as
-	index->n_core_fields and index->table->instant could change,
-	but we would handle that in empty_table: below. */
-	mtr.commit();
 	/* The table may have been emptied and may have lost its
 	'instantness' during this ALTER TABLE. */
 
@@ -5736,6 +5681,7 @@ add_all_virtual:
 	memset(roll_ptr, 0, sizeof roll_ptr);
 
 	dtuple_t* entry = index->instant_metadata(*row, ctx->heap);
+	mtr_t	mtr;
 	mtr.start();
 	index->set_modified(mtr);
 	btr_pcur_t pcur;
@@ -6974,6 +6920,10 @@ op_ok:
 	dict_locked = false;
 
 	ut_a(ctx->trx->lock.n_active_thrs == 0);
+
+	if (ctx->old_table->fts) {
+		fts_sync_during_ddl(ctx->old_table);
+	}
 
 error_handling:
 	/* After an error, remove all those index definitions from the
@@ -8517,6 +8467,26 @@ innobase_rollback_sec_index(
 	}
 }
 
+/* Get the number of uncommitted fts index during rollback
+operation.
+@param[in]	table	table which undergoes rollback for alter
+@return number of uncommitted fts indexes. */
+static
+ulint innobase_get_uncommitted_fts_indexes(const dict_table_t* table)
+{
+  ut_ad(mutex_own(&dict_sys.mutex));
+  dict_index_t*	index = dict_table_get_first_index(table);
+  ulint n_uncommitted_fts = 0;
+
+  for (; index ; index = dict_table_get_next_index(index))
+  {
+    if (index->type & DICT_FTS && !index->is_committed())
+      n_uncommitted_fts++;
+  }
+
+  return n_uncommitted_fts;
+}
+
 /** Roll back the changes made during prepare_inplace_alter_table()
 and inplace_alter_table() inside the storage engine. Note that the
 allowed level of concurrency during this operation will be the same as
@@ -8598,6 +8568,19 @@ rollback_inplace_alter_table(
 		DBUG_ASSERT(!(ha_alter_info->handler_flags
 			      & ALTER_ADD_PK_INDEX));
 		DBUG_ASSERT(ctx->new_table == prebuilt->table);
+
+		/* Remove the fts table from fts_optimize_wq if
+		there is only one fts index exist. */
+		if (prebuilt->table->fts
+		    && innobase_get_uncommitted_fts_indexes(
+					prebuilt->table) == 1
+		    && (ib_vector_is_empty(prebuilt->table->fts->indexes)
+			|| ib_vector_size(prebuilt->table->fts->indexes)
+			   == 1)) {
+			row_mysql_unlock_data_dictionary(ctx->trx);
+			fts_optimize_remove_table(prebuilt->table);
+			row_mysql_lock_data_dictionary(ctx->trx);
+		}
 
 		innobase_rollback_sec_index(
 			prebuilt->table, table, FALSE, ctx->trx);
@@ -10724,6 +10707,7 @@ ha_innobase::commit_inplace_alter_table(
 		if (ctx->new_table->fts) {
 			ut_ad(!ctx->new_table->fts->add_wq);
 			fts_optimize_remove_table(ctx->new_table);
+			fts_sync_during_ddl(ctx->new_table);
 		}
 
 		/* Apply the online log of the table before acquiring
@@ -10776,44 +10760,6 @@ ha_innobase::commit_inplace_alter_table(
 
 		if (!retry) {
 			break;
-		}
-
-		DICT_BG_YIELD(trx);
-	}
-
-	/* Make a concurrent Drop fts Index to wait until sync of that
-	fts index is happening in the background */
-	for (int retry_count = 0;;) {
-		bool    retry = false;
-
-		for (inplace_alter_handler_ctx** pctx = ctx_array;
-		    *pctx; pctx++) {
-			ha_innobase_inplace_ctx*        ctx
-				= static_cast<ha_innobase_inplace_ctx*>(*pctx);
-			DBUG_ASSERT(new_clustered == ctx->need_rebuild());
-
-			if (dict_fts_index_syncing(ctx->old_table)) {
-				retry = true;
-				break;
-			}
-
-			if (new_clustered && dict_fts_index_syncing(ctx->new_table)) {
-				retry = true;
-				break;
-			}
-		}
-
-		if (!retry) {
-			 break;
-		}
-
-		/* Print a message if waiting for a long time. */
-		if (retry_count < 100) {
-			retry_count++;
-		} else {
-			ib::info() << "Drop index waiting for background sync"
-				" to finish";
-			retry_count = 0;
 		}
 
 		DICT_BG_YIELD(trx);

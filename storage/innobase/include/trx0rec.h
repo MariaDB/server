@@ -327,6 +327,16 @@ record */
 /** The search tuple corresponding to TRX_UNDO_INSERT_METADATA */
 extern const dtuple_t trx_undo_metadata;
 
+/** Read the table id from an undo log record.
+@param[in]      rec        Undo log record
+@return table id stored as a part of undo log record */
+inline table_id_t trx_undo_rec_get_table_id(const trx_undo_rec_t *rec)
+{
+  rec+= 3;
+  mach_read_next_much_compressed(&rec);
+  return mach_read_next_much_compressed(&rec);
+}
+
 #include "trx0rec.ic"
 
 #endif /* trx0rec_h */
