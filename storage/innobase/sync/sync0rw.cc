@@ -298,10 +298,7 @@ lock_loop:
 	/* Spin waiting for the writer field to become free */
 	HMT_low();
 	while (i < srv_n_spin_wait_rounds && lock->lock_word <= 0) {
-		if (srv_spin_wait_delay) {
-			ut_delay(ut_rnd_interval(srv_spin_wait_delay));
-		}
-
+		ut_delay(srv_spin_wait_delay);
 		i++;
 	}
 
@@ -420,13 +417,9 @@ rw_lock_x_lock_wait_func(
 
 	ut_ad(lock->lock_word <= threshold);
 
+	HMT_low();
 	while (lock->lock_word < threshold) {
-
-
-		HMT_low();
-		if (srv_spin_wait_delay) {
-			ut_delay(ut_rnd_interval(srv_spin_wait_delay));
-		}
+		ut_delay(srv_spin_wait_delay);
 
 		if (i < srv_n_spin_wait_rounds) {
 			i++;
@@ -683,10 +676,7 @@ lock_loop:
 		while (i < srv_n_spin_wait_rounds
 		       && lock->lock_word <= X_LOCK_HALF_DECR) {
 
-			if (srv_spin_wait_delay) {
-				ut_delay(ut_rnd_interval(srv_spin_wait_delay));
-			}
-
+			ut_delay(srv_spin_wait_delay);
 			i++;
 		}
 
@@ -788,10 +778,7 @@ lock_loop:
 		while (i < srv_n_spin_wait_rounds
 		       && lock->lock_word <= X_LOCK_HALF_DECR) {
 
-			if (srv_spin_wait_delay) {
-				ut_delay(ut_rnd_interval(srv_spin_wait_delay));
-			}
-
+			ut_delay(srv_spin_wait_delay);
 			i++;
 		}
 
