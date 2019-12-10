@@ -27,7 +27,7 @@ Created 5/11/1994 Heikki Tuuri
 #include "ut0rnd.h"
 
 /** Seed value of ut_rnd_gen() */
-uint64_t ut_rnd_current;
+int32 ut_rnd_current;
 
 /** These random numbers are used in ut_find_prime */
 /*@{*/
