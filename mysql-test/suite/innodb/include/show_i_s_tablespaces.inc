@@ -13,5 +13,6 @@ SELECT s.name 'Space_Name',
 	     information_schema.innodb_sys_datafiles d
 	WHERE s.space = d.space
 	AND s.name NOT LIKE 'mysql/%'
+	AND s.name NOT LIKE '%/#sql-ib%'
 	ORDER BY s.space;
 --enable_query_log

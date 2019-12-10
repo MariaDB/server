@@ -3504,7 +3504,13 @@ row_drop_table_for_mysql(
 
 	if (table->n_foreign_key_checks_running > 0) {
 defer:
-		if (!is_temp_name) {
+		/* Rename #sql2 to #sql-ib if table has open ref count
+		while dropping the table. This scenario can happen
+		when purge thread is waiting for dict_sys.mutex so
+		that it could close the table. But drop table acquires
+		dict_sys.mutex. */
+		if (!is_temp_name
+		    || strstr(table->name.m_name, "/#sql2")) {
 			heap = mem_heap_create(FN_REFLEN);
 			const char* tmp_name
 				= dict_mem_create_temporary_tablename(
