@@ -36,9 +36,6 @@ uint64_t ut_rnd_current;
 #define UT_RANDOM_3	1.0132677
 /*@}*/
 
-/** Seed value of ut_rnd_gen_ulint(). */
-ulint	ut_rnd_ulint_counter = 65654363;
-
 /***********************************************************//**
 Looks for a prime number slightly greater than the given argument.
 The prime is chosen so that it is not near any power of 2.

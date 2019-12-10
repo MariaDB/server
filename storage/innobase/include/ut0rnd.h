@@ -56,15 +56,11 @@ inline uint64_t ut_rnd_gen()
 	return ut_rnd_current;
 }
 
-/********************************************************//**
-Generates a random integer from a given interval.
-@return the 'random' number */
-UNIV_INLINE
-ulint
-ut_rnd_interval(
-/*============*/
-	ulint	low,	/*!< in: low limit; can generate also this value */
-	ulint	high);	/*!< in: high limit; can generate also this value */
+/** @return a random number between 0 and n-1, inclusive */
+inline ulint ut_rnd_interval(ulint n)
+{
+  return n > 1 ? static_cast<ulint>(ut_rnd_gen() % n) : 0;
+}
 
 /*******************************************************//**
 The following function generates a hash value for a ulint integer

@@ -792,8 +792,7 @@ page_cur_open_on_rnd_user_rec(
 	}
 
 	cursor->rec = page_rec_get_nth(block->frame,
-				       static_cast<ulint>
-				       (ut_rnd_gen() % n_recs) + 1);
+				       ut_rnd_interval(n_recs) + 1);
 }
 
 /** Write a redo log record of inserting a record into an index page.
