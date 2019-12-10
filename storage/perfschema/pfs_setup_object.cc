@@ -34,6 +34,7 @@
 #include "pfs_instr.h"
 #include "pfs_setup_object.h"
 #include "pfs_global.h"
+#include "pfs_buffer_container.h"
 
 /**
   @addtogroup Performance_schema_buffers
@@ -41,10 +42,6 @@
 */
 
 uint setup_objects_version= 0;
-
-ulong setup_object_max;
-
-PFS_setup_object *setup_object_array= NULL;
 
 LF_HASH setup_object_hash;
 static bool setup_object_hash_inited= false;
@@ -56,27 +53,13 @@ static bool setup_object_hash_inited= false;
 */
 int init_setup_object(const PFS_global_param *param)
 {
-  setup_object_max= param->m_setup_object_sizing;
-
-  setup_object_array= NULL;
-
-  if (setup_object_max > 0)
-  {
-    setup_object_array= PFS_MALLOC_ARRAY(setup_object_max, sizeof(PFS_setup_object),
-                                         PFS_setup_object, MYF(MY_ZEROFILL));
-    if (unlikely(setup_object_array == NULL))
-      return 1;
-  }
-
-  return 0;
+  return global_setup_object_container.init(param->m_setup_object_sizing);
 }
 
 /** Cleanup all the setup object buffers. */
 void cleanup_setup_object(void)
 {
-  pfs_free(setup_object_array);
-  setup_object_array= NULL;
-  setup_object_max= 0;
+  global_setup_object_container.cleanup();
 }
 
 C_MODE_START
@@ -100,13 +83,12 @@ C_MODE_END
   Initialize the setup objects hash.
   @return 0 on success
 */
-int init_setup_object_hash(void)
+int init_setup_object_hash(const PFS_global_param *param)
 {
-  if ((! setup_object_hash_inited) && (setup_object_max > 0))
+  if ((! setup_object_hash_inited) && (param->m_setup_object_sizing != 0))
   {
     lf_hash_init(&setup_object_hash, sizeof(PFS_setup_object*), LF_HASH_UNIQUE,
                  0, 0, setup_object_hash_get_key, &my_charset_bin);
-    /* setup_object_hash.size= setup_object_max; */
     setup_object_hash_inited= true;
   }
   return 0;
@@ -158,9 +140,6 @@ static void set_setup_object_key(PFS_setup_object_key *key,
 int insert_setup_object(enum_object_type object_type, const String *schema,
                         const String *object, bool enabled, bool timed)
 {
-  if (setup_object_max == 0)
-    return HA_ERR_RECORD_FILE_FULL;
-
   PFS_thread *thread= PFS_thread::get_current_thread();
   if (unlikely(thread == NULL))
     return HA_ERR_OUT_OF_MEM;
@@ -169,47 +148,37 @@ int insert_setup_object(enum_object_type object_type, const String *schema,
   if (unlikely(pins == NULL))
     return HA_ERR_OUT_OF_MEM;
 
-  static uint PFS_ALIGNED setup_object_monotonic_index= 0;
-  uint index;
-  uint attempts= 0;
   PFS_setup_object *pfs;
+  pfs_dirty_state dirty_state;
 
-  while (++attempts <= setup_object_max)
+  pfs= global_setup_object_container.allocate(& dirty_state);
+  if (pfs != NULL)
   {
-    /* See create_mutex() */
-    index= PFS_atomic::add_u32(& setup_object_monotonic_index, 1) % setup_object_max;
-    pfs= setup_object_array + index;
+    set_setup_object_key(&pfs->m_key, object_type,
+                         schema->ptr(), schema->length(),
+                         object->ptr(), object->length());
+    pfs->m_schema_name= &pfs->m_key.m_hash_key[1];
+    pfs->m_schema_name_length= schema->length();
+    pfs->m_object_name= pfs->m_schema_name + pfs->m_schema_name_length + 1;
+    pfs->m_object_name_length= object->length();
+    pfs->m_enabled= enabled;
+    pfs->m_timed= timed;
 
-    if (pfs->m_lock.is_free())
+    int res;
+    pfs->m_lock.dirty_to_allocated(& dirty_state);
+    res= lf_hash_insert(&setup_object_hash, pins, &pfs);
+    if (likely(res == 0))
     {
-      if (pfs->m_lock.free_to_dirty())
-      {
-        set_setup_object_key(&pfs->m_key, object_type,
-                             schema->ptr(), schema->length(),
-                             object->ptr(), object->length());
-        pfs->m_schema_name= &pfs->m_key.m_hash_key[1];
-        pfs->m_schema_name_length= schema->length();
-        pfs->m_object_name= pfs->m_schema_name + pfs->m_schema_name_length + 1;
-        pfs->m_object_name_length= object->length();
-        pfs->m_enabled= enabled;
-        pfs->m_timed= timed;
-
-        int res;
-        res= lf_hash_insert(&setup_object_hash, pins, &pfs);
-        if (likely(res == 0))
-        {
-          pfs->m_lock.dirty_to_allocated();
-          setup_objects_version++;
-          return 0;
-        }
-
-        pfs->m_lock.dirty_to_free();
-        if (res > 0)
-          return HA_ERR_FOUND_DUPP_KEY;
-        /* OOM in lf_hash_insert */
-        return HA_ERR_OUT_OF_MEM;
-      }
+      setup_objects_version++;
+      return 0;
     }
+
+    global_setup_object_container.deallocate(pfs);
+
+    if (res > 0)
+      return HA_ERR_FOUND_DUPP_KEY;
+    /* OOM in lf_hash_insert */
+    return HA_ERR_OUT_OF_MEM;
   }
 
   return HA_ERR_RECORD_FILE_FULL;
@@ -239,7 +208,7 @@ int delete_setup_object(enum_object_type object_type, const String *schema,
   {
     PFS_setup_object *pfs= *entry;
     lf_hash_delete(&setup_object_hash, pins, key.m_hash_key, key.m_key_length);
-    pfs->m_lock.allocated_to_free();
+    global_setup_object_container.deallocate(pfs);
   }
 
   lf_hash_search_unpin(pins);
@@ -247,6 +216,26 @@ int delete_setup_object(enum_object_type object_type, const String *schema,
   setup_objects_version++;
   return 0;
 }
+
+class Proc_reset_setup_object
+  : public PFS_buffer_processor<PFS_setup_object>
+{
+public:
+  Proc_reset_setup_object(LF_PINS* pins)
+    : m_pins(pins)
+  {}
+
+  virtual void operator()(PFS_setup_object *pfs)
+  {
+    lf_hash_delete(&setup_object_hash, m_pins,
+                   pfs->m_key.m_hash_key, pfs->m_key.m_key_length);
+
+    global_setup_object_container.deallocate(pfs);
+  }
+
+private:
+  LF_PINS* m_pins;
+};
 
 int reset_setup_object()
 {
@@ -258,18 +247,9 @@ int reset_setup_object()
   if (unlikely(pins == NULL))
     return HA_ERR_OUT_OF_MEM;
 
-  PFS_setup_object *pfs= setup_object_array;
-  PFS_setup_object *pfs_last= setup_object_array + setup_object_max;
-
-  for ( ; pfs < pfs_last; pfs++)
-  {
-    if (pfs->m_lock.is_populated())
-    {
-      lf_hash_delete(&setup_object_hash, pins,
-                     pfs->m_key.m_hash_key, pfs->m_key.m_key_length);
-      pfs->m_lock.allocated_to_free();
-    }
-  }
+  Proc_reset_setup_object proc(pins);
+  // FIXME: delete helper instead
+  global_setup_object_container.apply(proc);
 
   setup_objects_version++;
   return 0;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,12 +26,14 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_socket_summary_by_instance.h"
 #include "pfs_global.h"
+#include "pfs_buffer_container.h"
+#include "field.h"
 
 THR_LOCK table_socket_summary_by_instance::m_table_lock;
 
@@ -40,11 +42,10 @@ table_socket_summary_by_instance::m_share=
 {
   { C_STRING_WITH_LEN("socket_summary_by_instance") },
   &pfs_readonly_acl,
-  &table_socket_summary_by_instance::create,
+  table_socket_summary_by_instance::create,
   NULL, /* write_row */
   table_socket_summary_by_instance::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_socket_summary_by_instance::get_row_count,
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE socket_summary_by_instance("
@@ -71,7 +72,8 @@ table_socket_summary_by_instance::m_share=
                       "SUM_TIMER_MISC BIGINT unsigned not null,"
                       "MIN_TIMER_MISC BIGINT unsigned not null,"
                       "AVG_TIMER_MISC BIGINT unsigned not null,"
-                      "MAX_TIMER_MISC BIGINT unsigned not null)") }
+                      "MAX_TIMER_MISC BIGINT unsigned not null)") },
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_socket_summary_by_instance::create(void)
@@ -90,6 +92,12 @@ int table_socket_summary_by_instance::delete_all_rows(void)
   return 0;
 }
 
+ha_rows
+table_socket_summary_by_instance::get_row_count(void)
+{
+  return global_socket_container.get_row_count();
+}
+
 void table_socket_summary_by_instance::reset_position(void)
 {
   m_pos.m_index= 0;
@@ -100,17 +108,14 @@ int table_socket_summary_by_instance::rnd_next(void)
 {
   PFS_socket *pfs;
 
-  for (m_pos.set_at(&m_next_pos);
-       m_pos.m_index < socket_max;
-       m_pos.next())
+  m_pos.set_at(&m_next_pos);
+  PFS_socket_iterator it= global_socket_container.iterate(m_pos.m_index);
+  pfs= it.scan_next(& m_pos.m_index);
+  if (pfs != NULL)
   {
-    pfs= &socket_array[m_pos.m_index];
-    if (pfs->m_lock.is_populated())
-    {
-      make_row(pfs);
-      m_next_pos.set_after(&m_pos);
-      return 0;
-    }
+    make_row(pfs);
+    m_next_pos.set_after(&m_pos);
+    return 0;
   }
 
   return HA_ERR_END_OF_FILE;
@@ -121,19 +126,20 @@ int table_socket_summary_by_instance::rnd_pos(const void *pos)
   PFS_socket *pfs;
 
   set_position(pos);
-  DBUG_ASSERT(m_pos.m_index < socket_max);
-  pfs= &socket_array[m_pos.m_index];
 
-  if (! pfs->m_lock.is_populated())
-    return HA_ERR_RECORD_DELETED;
+  pfs= global_socket_container.get(m_pos.m_index);
+  if (pfs != NULL)
+  {
+    make_row(pfs);
+    return 0;
+  }
 
-  make_row(pfs);
-  return 0;
+  return HA_ERR_RECORD_DELETED;
 }
 
 void table_socket_summary_by_instance::make_row(PFS_socket *pfs)
 {
-  pfs_lock lock;
+  pfs_optimistic_state lock;
   PFS_socket_class *safe_class;
 
   m_row_exists= false;

@@ -60,7 +60,7 @@ connection master;
 --echo *** Create test tables
 --echo
 
-show variables like 'binlog_format%';
+show global variables like 'binlog_format%';
 
 --disable_warnings
 drop table if exists test.marker;
@@ -113,7 +113,7 @@ select count(*) = 1 as 'Expect 1' from test.marker;
 connection master;
 
 --echo
-show variables like 'binlog_format%';
+show global variables like 'binlog_format%';
 
 --echo *** Clear statement events
 --source ../include/rpl_statements_truncate.inc

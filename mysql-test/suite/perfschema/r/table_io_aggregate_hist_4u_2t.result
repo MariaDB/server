@@ -1,14 +1,26 @@
+Warnings:
+Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+Warnings:
+Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 update performance_schema.setup_instruments
 set enabled='NO' where name='wait/lock/table/sql/handler';
 delete from performance_schema.setup_objects
 where object_name='t2';
 select * from performance_schema.setup_actors
 order by USER, HOST, ROLE;
-HOST	USER	ROLE
-localhost	user1	%
-localhost	user2	%
-localhost	user3	%
-localhost	user4	%
+HOST	USER	ROLE	ENABLED	HISTORY
+localhost	user1	%	YES	YES
+localhost	user2	%	YES	YES
+localhost	user3	%	YES	YES
+localhost	user4	%	YES	YES
 select * from performance_schema.setup_objects
 order by object_type, object_schema, object_name;
 OBJECT_TYPE	OBJECT_SCHEMA	OBJECT_NAME	ENABLED	TIMED
@@ -22,6 +34,9 @@ events_stages_history_long	YES
 events_statements_current	YES
 events_statements_history	YES
 events_statements_history_long	YES
+events_transactions_current	YES
+events_transactions_history	YES
+events_transactions_history_long	YES
 events_waits_current	YES
 events_waits_history	YES
 events_waits_history_long	YES
@@ -39,6 +54,85 @@ truncate performance_schema.events_waits_summary_by_user_by_event_name;
 truncate performance_schema.events_waits_summary_by_host_by_event_name;
 truncate performance_schema.events_waits_summary_global_by_event_name;
 truncate performance_schema.events_waits_history_long;
+<<<<<<< HEAD
+=======
+show global variables like "performance_schema%";
+Variable_name	Value
+performance_schema	ON
+performance_schema_accounts_size	100
+performance_schema_digests_size	200
+performance_schema_events_stages_history_long_size	1000
+performance_schema_events_stages_history_size	10
+performance_schema_events_statements_history_long_size	1000
+performance_schema_events_statements_history_size	10
+performance_schema_events_transactions_history_long_size	1000
+performance_schema_events_transactions_history_size	10
+performance_schema_events_waits_history_long_size	10000
+performance_schema_events_waits_history_size	10
+performance_schema_hosts_size	100
+performance_schema_max_cond_classes	80
+performance_schema_max_cond_instances	1000
+performance_schema_max_digest_length	1024
+performance_schema_max_file_classes	80
+performance_schema_max_file_handles	32768
+performance_schema_max_file_instances	10000
+performance_schema_max_index_stat	5000
+performance_schema_max_memory_classes	320
+performance_schema_max_metadata_locks	10000
+performance_schema_max_mutex_classes	210
+performance_schema_max_mutex_instances	5000
+performance_schema_max_prepared_statements_instances	100
+performance_schema_max_program_instances	5000
+performance_schema_max_rwlock_classes	50
+performance_schema_max_rwlock_instances	5000
+performance_schema_max_socket_classes	10
+performance_schema_max_socket_instances	1000
+performance_schema_max_sql_text_length	1024
+performance_schema_max_stage_classes	150
+performance_schema_max_statement_classes	193
+performance_schema_max_statement_stack	10
+performance_schema_max_table_handles	1000
+performance_schema_max_table_instances	500
+performance_schema_max_table_lock_stat	500
+performance_schema_max_thread_classes	50
+performance_schema_max_thread_instances	200
+performance_schema_session_connect_attrs_size	2048
+performance_schema_setup_actors_size	100
+performance_schema_setup_objects_size	100
+performance_schema_users_size	100
+show global status like "performance_schema%";
+Variable_name	Value
+Performance_schema_accounts_lost	0
+Performance_schema_cond_classes_lost	0
+Performance_schema_cond_instances_lost	0
+Performance_schema_digest_lost	0
+Performance_schema_file_classes_lost	0
+Performance_schema_file_handles_lost	0
+Performance_schema_file_instances_lost	0
+Performance_schema_hosts_lost	0
+Performance_schema_index_stat_lost	0
+Performance_schema_locker_lost	0
+Performance_schema_memory_classes_lost	0
+Performance_schema_metadata_lock_lost	0
+Performance_schema_mutex_classes_lost	0
+Performance_schema_mutex_instances_lost	0
+Performance_schema_nested_statement_lost	0
+Performance_schema_prepared_statements_lost	0
+Performance_schema_program_lost	0
+Performance_schema_rwlock_classes_lost	0
+Performance_schema_rwlock_instances_lost	0
+Performance_schema_session_connect_attrs_lost	0
+Performance_schema_socket_classes_lost	0
+Performance_schema_socket_instances_lost	0
+Performance_schema_stage_classes_lost	0
+Performance_schema_statement_classes_lost	0
+Performance_schema_table_handles_lost	0
+Performance_schema_table_instances_lost	0
+Performance_schema_table_lock_stat_lost	0
+Performance_schema_thread_classes_lost	0
+Performance_schema_thread_instances_lost	0
+Performance_schema_users_lost	0
+>>>>>>> 258e16fa2de... WIP 5.7 P_S
 "================== Step 1 =================="
 call dump_thread();
 username	status
@@ -65,28 +159,20 @@ execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
-TABLE	test	t1	NULL	0	0	0	0	0	0	0
 TABLE	test	t1	index_b	0	0	0	0	0	0	0
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
 TABLE	test	t1	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	0	0	0	0	0	0	0
 TABLE	test	t3	index_b	0	0	0	0	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
 TABLE	test	t3	PRIMARY	0	0	0	0	0	0	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	0	0	0	0	0	0	0
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
@@ -128,28 +214,20 @@ execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
-TABLE	test	t1	NULL	0	0	0	0	0	0	0
 TABLE	test	t1	index_b	0	0	0	0	0	0	0
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
 TABLE	test	t1	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	0	0	0	0	0	0	0
 TABLE	test	t3	index_b	0	0	0	0	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
 TABLE	test	t3	PRIMARY	0	0	0	0	0	0	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	0	0	0	0	0	0	0
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
@@ -180,18 +258,26 @@ update test.t3 set d=d+1;
 update test.t1 set d=d+1 where a=101;
 update test.t2 set d=d+1 where a=101;
 update test.t3 set d=d+1 where a=101;
-select * from test.t1 where b=5;
+select * from test.t1 force index(index_b) where b=5;
 a	b	c	d
-select * from test.t2 where b=5;
+select * from test.t2 force index(index_b) where b=5;
 a	b	c	d
-select * from test.t3 where b=5;
+select * from test.t3 force index(index_b) where b=5;
 a	b	c	d
 105	5	5	1
+<<<<<<< HEAD
 connection default;
 "================== Step 3 =================="
 call dump_thread();
 username	event_name	count_star
 user1	wait/io/table/sql/handler	25
+=======
+"================== con1 marker =================="
+"================== Step 3-A =================="
+call dump_thread();
+username	event_name	count_star
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
 username	status
 user2	not found
@@ -201,6 +287,7 @@ username	status
 user4	not found
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
 user1	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
@@ -222,33 +309,118 @@ wait/io/table/sql/handler	17	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	6	4	2	4	1	1	0
+=======
+user1	localhost	wait/io/table/sql/handler	22
+user1	localhost	wait/lock/table/sql/handler	0
+execute dump_waits_user;
+user	event_name	count_star
+user1	wait/io/table/sql/handler	22
+user1	wait/lock/table/sql/handler	0
+execute dump_waits_host;
+host	event_name	count_star
+localhost	wait/io/table/sql/handler	22
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	22
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	7	TABLE	test	t1
+wait/io/table/sql/handler	15	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	4	3	1	3	1	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_b	0	0	0	0	0	0	0
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	2	1	1	1	0	1	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	14	8	6	8	3	3	0
-TABLE	test	t3	index_b	2	2	0	2	0	0	0
+TABLE	test	t1	PRIMARY	3	1	2	1	0	2	0
+TABLE	test	t3	NULL	10	7	3	7	3	0	0
+TABLE	test	t3	index_b	1	1	0	1	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	1	1	0	1	0	0	0
+TABLE	test	t3	PRIMARY	4	1	3	1	0	3	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	8	5	3	5	1	2	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	17	11	6	11	3	3	0
+=======
+TABLE	test	t1	7	4	3	4	1	2	0
+TABLE	test	t3	15	9	6	9	3	3	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	8
 TABLE	test	t2	0
 TABLE	test	t3	17
 connect  con2, localhost, user2, , ;
+=======
+TABLE	test	t1	7
+TABLE	test	t2	0
+TABLE	test	t3	15
+flush tables;
+"================== con1 FLUSH =================="
+"================== Step 3-B =================="
+call dump_thread();
+username	event_name	count_star
+user1	wait/io/table/sql/handler	22
+user1	wait/lock/table/sql/handler	0
+username	status
+user2	not found
+username	status
+user3	not found
+username	status
+user4	not found
+execute dump_waits_account;
+user	host	event_name	count_star
+user1	localhost	wait/io/table/sql/handler	22
+user1	localhost	wait/lock/table/sql/handler	0
+execute dump_waits_user;
+user	event_name	count_star
+user1	wait/io/table/sql/handler	22
+user1	wait/lock/table/sql/handler	0
+execute dump_waits_host;
+host	event_name	count_star
+localhost	wait/io/table/sql/handler	22
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	22
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	7	TABLE	test	t1
+wait/io/table/sql/handler	15	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	4	3	1	3	1	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+TABLE	test	t1	index_cb	0	0	0	0	0	0	0
+TABLE	test	t1	PRIMARY	3	1	2	1	0	2	0
+TABLE	test	t3	NULL	10	7	3	7	3	0	0
+TABLE	test	t3	index_b	1	1	0	1	0	0	0
+TABLE	test	t3	index_cb	0	0	0	0	0	0	0
+TABLE	test	t3	PRIMARY	4	1	3	1	0	3	0
+execute dump_waits_table_io;
+object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	7	4	3	4	1	2	0
+TABLE	test	t3	15	9	6	9	3	3	0
+execute dump_waits_table_lock;
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
+execute dump_objects_summary;
+object_type	object_schema	object_name	count_star
+TABLE	test	t1	7
+TABLE	test	t2	0
+TABLE	test	t3	15
+>>>>>>> merge-perfschema-5.7
 select concat(current_user(), " is connected") as status;
 status
 user2@localhost is connected
@@ -256,7 +428,11 @@ connection default;
 "================== Step 4 =================="
 call dump_thread();
 username	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
 username	event_name	count_star
 user2	wait/io/table/sql/handler	0
@@ -267,18 +443,27 @@ username	status
 user4	not found
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
 user2	localhost	wait/io/table/sql/handler	0
 user2	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
 user2	wait/io/table/sql/handler	0
 user2	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	25
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -292,33 +477,54 @@ wait/io/table/sql/handler	17	TABLE	test	t3
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	6	4	2	4	1	1	0
+=======
+localhost	wait/io/table/sql/handler	22
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	22
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	7	TABLE	test	t1
+wait/io/table/sql/handler	15	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	4	3	1	3	1	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_b	0	0	0	0	0	0	0
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	2	1	1	1	0	1	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	14	8	6	8	3	3	0
-TABLE	test	t3	index_b	2	2	0	2	0	0	0
+TABLE	test	t1	PRIMARY	3	1	2	1	0	2	0
+TABLE	test	t3	NULL	10	7	3	7	3	0	0
+TABLE	test	t3	index_b	1	1	0	1	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	1	1	0	1	0	0	0
+TABLE	test	t3	PRIMARY	4	1	3	1	0	3	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	8	5	3	5	1	2	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	17	11	6	11	3	3	0
+=======
+TABLE	test	t1	7	4	3	4	1	2	0
+TABLE	test	t3	15	9	6	9	3	3	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	8
 TABLE	test	t2	0
 TABLE	test	t3	17
 connection con2;
+=======
+TABLE	test	t1	7
+TABLE	test	t2	0
+TABLE	test	t3	15
+>>>>>>> merge-perfschema-5.7
 insert into test.t1 set a=201, b=1, c=1;
 insert into test.t2 set a=202, b=2, c=2;
 insert into test.t2 set a=203, b=3, c=3;
@@ -349,11 +555,11 @@ update test.t3 set d=d+1;
 update test.t1 set d=d+1 where a=201;
 update test.t2 set d=d+1 where a=201;
 update test.t3 set d=d+1 where a=201;
-select * from test.t1 where b=5;
+select * from test.t1 force index(index_b) where b=5;
 a	b	c	d
-select * from test.t2 where b=5;
+select * from test.t2 force index(index_b) where b=5;
 a	b	c	d
-select * from test.t3 where b=5;
+select * from test.t3 force index(index_b) where b=5;
 a	b	c	d
 105	5	5	2
 205	5	5	1
@@ -361,10 +567,14 @@ connection default;
 "================== Step 5 =================="
 call dump_thread();
 username	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
 username	status
 user3	not found
@@ -372,18 +582,27 @@ username	status
 user4	not found
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	64
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -398,32 +617,54 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	15	10	5	10	2	3	0
 TABLE	test	t1	index_b	1	1	0	1	0	0	0
+=======
+localhost	wait/io/table/sql/handler	57
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	57
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	17	TABLE	test	t1
+wait/io/table/sql/handler	40	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	10	8	2	8	2	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	4	2	2	2	0	2	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	37	22	15	22	6	9	0
-TABLE	test	t3	index_b	5	5	0	5	0	0	0
+TABLE	test	t1	PRIMARY	7	2	5	2	0	5	0
+TABLE	test	t3	NULL	26	20	6	20	6	0	0
+TABLE	test	t3	index_b	3	3	0	3	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	2	2	0	2	0	0	0
+TABLE	test	t3	PRIMARY	11	2	9	2	0	9	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	20	13	7	13	2	5	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	44	29	15	29	6	9	0
+=======
+TABLE	test	t1	17	10	7	10	2	5	0
+TABLE	test	t3	40	25	15	25	6	9	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	20
 TABLE	test	t2	0
 TABLE	test	t3	44
 connect  con3, localhost, user3, , ;
+=======
+TABLE	test	t1	17
+TABLE	test	t2	0
+TABLE	test	t3	40
+>>>>>>> merge-perfschema-5.7
 select concat(current_user(), " is connected") as status;
 status
 user3@localhost is connected
@@ -431,10 +672,14 @@ connection default;
 "================== Step 6 =================="
 call dump_thread();
 username	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
 username	event_name	count_star
 user3	wait/io/table/sql/handler	0
@@ -443,22 +688,31 @@ username	status
 user4	not found
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
 user3	localhost	wait/io/table/sql/handler	0
 user3	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
 user3	wait/io/table/sql/handler	0
 user3	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	64
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -473,32 +727,54 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	15	10	5	10	2	3	0
 TABLE	test	t1	index_b	1	1	0	1	0	0	0
+=======
+localhost	wait/io/table/sql/handler	57
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	57
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	17	TABLE	test	t1
+wait/io/table/sql/handler	40	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	10	8	2	8	2	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	4	2	2	2	0	2	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	37	22	15	22	6	9	0
-TABLE	test	t3	index_b	5	5	0	5	0	0	0
+TABLE	test	t1	PRIMARY	7	2	5	2	0	5	0
+TABLE	test	t3	NULL	26	20	6	20	6	0	0
+TABLE	test	t3	index_b	3	3	0	3	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	2	2	0	2	0	0	0
+TABLE	test	t3	PRIMARY	11	2	9	2	0	9	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	20	13	7	13	2	5	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	44	29	15	29	6	9	0
+=======
+TABLE	test	t1	17	10	7	10	2	5	0
+TABLE	test	t3	40	25	15	25	6	9	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	20
 TABLE	test	t2	0
 TABLE	test	t3	44
 connection con3;
+=======
+TABLE	test	t1	17
+TABLE	test	t2	0
+TABLE	test	t3	40
+>>>>>>> merge-perfschema-5.7
 insert into test.t1 set a=301, b=1, c=1;
 insert into test.t2 set a=302, b=2, c=2;
 insert into test.t2 set a=303, b=3, c=3;
@@ -535,11 +811,11 @@ update test.t3 set d=d+1;
 update test.t1 set d=d+1 where a=301;
 update test.t2 set d=d+1 where a=301;
 update test.t3 set d=d+1 where a=301;
-select * from test.t1 where b=5;
+select * from test.t1 force index(index_b) where b=5;
 a	b	c	d
-select * from test.t2 where b=5;
+select * from test.t2 force index(index_b) where b=5;
 a	b	c	d
-select * from test.t3 where b=5;
+select * from test.t3 force index(index_b) where b=5;
 a	b	c	d
 105	5	5	3
 205	5	5	2
@@ -548,34 +824,47 @@ connection default;
 "================== Step 7 =================="
 call dump_thread();
 username	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
 username	status
 user4	not found
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
-user3	localhost	wait/io/table/sql/handler	52
+user3	localhost	wait/io/table/sql/handler	48
 user3	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	116
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -590,32 +879,54 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	27	18	9	18	3	6	0
 TABLE	test	t1	index_b	2	2	0	2	0	0	0
+=======
+localhost	wait/io/table/sql/handler	105
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	105
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	30	TABLE	test	t1
+wait/io/table/sql/handler	75	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	18	15	3	15	3	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	6	3	3	3	0	3	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	69	42	27	42	9	18	0
-TABLE	test	t3	index_b	9	9	0	9	0	0	0
+TABLE	test	t1	PRIMARY	12	3	9	3	0	9	0
+TABLE	test	t3	NULL	48	39	9	39	9	0	0
+TABLE	test	t3	index_b	6	6	0	6	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	3	3	0	3	0	0	0
+TABLE	test	t3	PRIMARY	21	3	18	3	0	18	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	35	23	12	23	3	9	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	81	54	27	54	9	18	0
+=======
+TABLE	test	t1	30	18	12	18	3	9	0
+TABLE	test	t3	75	48	27	48	9	18	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	35
 TABLE	test	t2	0
 TABLE	test	t3	81
 connect  con4, localhost, user4, , ;
+=======
+TABLE	test	t1	30
+TABLE	test	t2	0
+TABLE	test	t3	75
+>>>>>>> merge-perfschema-5.7
 select concat(current_user(), " is connected") as status;
 status
 user4@localhost is connected
@@ -623,39 +934,52 @@ connection default;
 "================== Step 8 =================="
 call dump_thread();
 username	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
 username	event_name	count_star
 user4	wait/io/table/sql/handler	0
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
-user3	localhost	wait/io/table/sql/handler	52
+user3	localhost	wait/io/table/sql/handler	48
 user3	localhost	wait/lock/table/sql/handler	0
 user4	localhost	wait/io/table/sql/handler	0
 user4	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
 user4	wait/io/table/sql/handler	0
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	116
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -670,32 +994,54 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	27	18	9	18	3	6	0
 TABLE	test	t1	index_b	2	2	0	2	0	0	0
+=======
+localhost	wait/io/table/sql/handler	105
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	105
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	30	TABLE	test	t1
+wait/io/table/sql/handler	75	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	18	15	3	15	3	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	6	3	3	3	0	3	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	69	42	27	42	9	18	0
-TABLE	test	t3	index_b	9	9	0	9	0	0	0
+TABLE	test	t1	PRIMARY	12	3	9	3	0	9	0
+TABLE	test	t3	NULL	48	39	9	39	9	0	0
+TABLE	test	t3	index_b	6	6	0	6	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	3	3	0	3	0	0	0
+TABLE	test	t3	PRIMARY	21	3	18	3	0	18	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	35	23	12	23	3	9	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	81	54	27	54	9	18	0
+=======
+TABLE	test	t1	30	18	12	18	3	9	0
+TABLE	test	t3	75	48	27	48	9	18	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	35
 TABLE	test	t2	0
 TABLE	test	t3	81
 connection con4;
+=======
+TABLE	test	t1	30
+TABLE	test	t2	0
+TABLE	test	t3	75
+>>>>>>> merge-perfschema-5.7
 insert into test.t1 set a=401, b=1, c=1;
 insert into test.t2 set a=402, b=2, c=2;
 insert into test.t2 set a=403, b=3, c=3;
@@ -738,11 +1084,11 @@ update test.t3 set d=d+1;
 update test.t1 set d=d+1 where a=401;
 update test.t2 set d=d+1 where a=401;
 update test.t3 set d=d+1 where a=401;
-select * from test.t1 where b=5;
+select * from test.t1 force index(index_b) where b=5;
 a	b	c	d
-select * from test.t2 where b=5;
+select * from test.t2 force index(index_b) where b=5;
 a	b	c	d
-select * from test.t3 where b=5;
+select * from test.t3 force index(index_b) where b=5;
 a	b	c	d
 105	5	5	4
 205	5	5	3
@@ -752,39 +1098,52 @@ connection default;
 "================== Step 9 =================="
 call dump_thread();
 username	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
-user3	localhost	wait/io/table/sql/handler	52
+user3	localhost	wait/io/table/sql/handler	48
 user3	localhost	wait/lock/table/sql/handler	0
-user4	localhost	wait/io/table/sql/handler	65
+user4	localhost	wait/io/table/sql/handler	61
 user4	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	181
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -799,32 +1158,54 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	42	28	14	28	4	10	0
 TABLE	test	t1	index_b	3	3	0	3	0	0	0
+=======
+localhost	wait/io/table/sql/handler	166
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	166
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	28	24	4	24	4	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	8	4	4	4	0	4	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	110	68	42	68	12	30	0
-TABLE	test	t3	index_b	14	14	0	14	0	0	0
+TABLE	test	t1	PRIMARY	18	4	14	4	0	14	0
+TABLE	test	t3	NULL	76	64	12	64	12	0	0
+TABLE	test	t3	index_b	10	10	0	10	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	4	4	0	4	0	0	0
+TABLE	test	t3	PRIMARY	34	4	30	4	0	30	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	53	35	18	35	4	14	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	128	86	42	86	12	30	0
+=======
+TABLE	test	t1	46	28	18	28	4	14	0
+TABLE	test	t3	120	78	42	78	12	30	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	53
 TABLE	test	t2	0
 TABLE	test	t3	128
 connection con1;
+=======
+TABLE	test	t1	46
+TABLE	test	t2	0
+TABLE	test	t3	120
+>>>>>>> merge-perfschema-5.7
 lock tables test.t1 read, test.t2 read, test.t3 read;
 unlock tables;
 lock tables test.t1 write, test.t2 write, test.t3 write;
@@ -833,39 +1214,52 @@ connection default;
 "================== Step 10 =================="
 call dump_thread();
 username	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
-user3	localhost	wait/io/table/sql/handler	52
+user3	localhost	wait/io/table/sql/handler	48
 user3	localhost	wait/lock/table/sql/handler	0
-user4	localhost	wait/io/table/sql/handler	65
+user4	localhost	wait/io/table/sql/handler	61
 user4	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	181
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -880,70 +1274,105 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	42	28	14	28	4	10	0
 TABLE	test	t1	index_b	3	3	0	3	0	0	0
+=======
+localhost	wait/io/table/sql/handler	166
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	166
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	28	24	4	24	4	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	8	4	4	4	0	4	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	110	68	42	68	12	30	0
-TABLE	test	t3	index_b	14	14	0	14	0	0	0
+TABLE	test	t1	PRIMARY	18	4	14	4	0	14	0
+TABLE	test	t3	NULL	76	64	12	64	12	0	0
+TABLE	test	t3	index_b	10	10	0	10	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	4	4	0	4	0	0	0
+TABLE	test	t3	PRIMARY	34	4	30	4	0	30	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	53	35	18	35	4	14	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	128	86	42	86	12	30	0
+=======
+TABLE	test	t1	46	28	18	28	4	14	0
+TABLE	test	t3	120	78	42	78	12	30	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	53
 TABLE	test	t2	0
 TABLE	test	t3	128
 connection default;
+=======
+TABLE	test	t1	46
+TABLE	test	t2	0
+TABLE	test	t3	120
+>>>>>>> merge-perfschema-5.7
 flush tables;
 "================== flush marker =================="
 "================== Step 11 =================="
 call dump_thread();
 username	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
-user3	localhost	wait/io/table/sql/handler	52
+user3	localhost	wait/io/table/sql/handler	48
 user3	localhost	wait/lock/table/sql/handler	0
-user4	localhost	wait/io/table/sql/handler	65
+user4	localhost	wait/io/table/sql/handler	61
 user4	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	181
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -958,70 +1387,103 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	42	28	14	28	4	10	0
 TABLE	test	t1	index_b	3	3	0	3	0	0	0
+=======
+localhost	wait/io/table/sql/handler	166
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	166
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	28	24	4	24	4	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	8	4	4	4	0	4	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	110	68	42	68	12	30	0
-TABLE	test	t3	index_b	14	14	0	14	0	0	0
+TABLE	test	t1	PRIMARY	18	4	14	4	0	14	0
+TABLE	test	t3	NULL	76	64	12	64	12	0	0
+TABLE	test	t3	index_b	10	10	0	10	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	4	4	0	4	0	0	0
+TABLE	test	t3	PRIMARY	34	4	30	4	0	30	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	53	35	18	35	4	14	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	128	86	42	86	12	30	0
+=======
+TABLE	test	t1	46	28	18	28	4	14	0
+TABLE	test	t3	120	78	42	78	12	30	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	53
+=======
+TABLE	test	t1	46
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t2	0
-TABLE	test	t3	128
+TABLE	test	t3	120
 set global read_only=1;
 set global read_only=0;
 "================== global read_only marker =================="
 "================== Step 12 =================="
 call dump_thread();
 username	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
-user3	localhost	wait/io/table/sql/handler	52
+user3	localhost	wait/io/table/sql/handler	48
 user3	localhost	wait/lock/table/sql/handler	0
-user4	localhost	wait/io/table/sql/handler	65
+user4	localhost	wait/io/table/sql/handler	61
 user4	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	181
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -1036,67 +1498,99 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	42	28	14	28	4	10	0
 TABLE	test	t1	index_b	3	3	0	3	0	0	0
+=======
+localhost	wait/io/table/sql/handler	166
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	166
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	28	24	4	24	4	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	8	4	4	4	0	4	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	110	68	42	68	12	30	0
-TABLE	test	t3	index_b	14	14	0	14	0	0	0
+TABLE	test	t1	PRIMARY	18	4	14	4	0	14	0
+TABLE	test	t3	NULL	76	64	12	64	12	0	0
+TABLE	test	t3	index_b	10	10	0	10	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	4	4	0	4	0	0	0
+TABLE	test	t3	PRIMARY	34	4	30	4	0	30	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	53	35	18	35	4	14	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	128	86	42	86	12	30	0
+=======
+TABLE	test	t1	46	28	18	28	4	14	0
+TABLE	test	t3	120	78	42	78	12	30	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	53
 TABLE	test	t2	0
 TABLE	test	t3	128
 disconnect con1;
+=======
+TABLE	test	t1	46
+TABLE	test	t2	0
+TABLE	test	t3	120
+"================== con1 disconnected =================="
+>>>>>>> merge-perfschema-5.7
 "================== Step 13 =================="
 call dump_thread();
 username	status
 user1	not found
 username	event_name	count_star
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
-user3	localhost	wait/io/table/sql/handler	52
+user3	localhost	wait/io/table/sql/handler	48
 user3	localhost	wait/lock/table/sql/handler	0
-user4	localhost	wait/io/table/sql/handler	65
+user4	localhost	wait/io/table/sql/handler	61
 user4	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	181
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -1111,32 +1605,55 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	42	28	14	28	4	10	0
 TABLE	test	t1	index_b	3	3	0	3	0	0	0
+=======
+localhost	wait/io/table/sql/handler	166
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	166
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	28	24	4	24	4	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	8	4	4	4	0	4	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	110	68	42	68	12	30	0
-TABLE	test	t3	index_b	14	14	0	14	0	0	0
+TABLE	test	t1	PRIMARY	18	4	14	4	0	14	0
+TABLE	test	t3	NULL	76	64	12	64	12	0	0
+TABLE	test	t3	index_b	10	10	0	10	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	4	4	0	4	0	0	0
+TABLE	test	t3	PRIMARY	34	4	30	4	0	30	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	53	35	18	35	4	14	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	128	86	42	86	12	30	0
+=======
+TABLE	test	t1	46	28	18	28	4	14	0
+TABLE	test	t3	120	78	42	78	12	30	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	53
 TABLE	test	t2	0
 TABLE	test	t3	128
 disconnect con2;
+=======
+TABLE	test	t1	46
+TABLE	test	t2	0
+TABLE	test	t3	120
+"================== con2 disconnected =================="
+>>>>>>> merge-perfschema-5.7
 "================== Step 14 =================="
 call dump_thread();
 username	status
@@ -1144,33 +1661,42 @@ user1	not found
 username	status
 user2	not found
 username	event_name	count_star
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
 username	event_name	count_star
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
-user3	localhost	wait/io/table/sql/handler	52
+user3	localhost	wait/io/table/sql/handler	48
 user3	localhost	wait/lock/table/sql/handler	0
-user4	localhost	wait/io/table/sql/handler	65
+user4	localhost	wait/io/table/sql/handler	61
 user4	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	181
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -1185,32 +1711,55 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	42	28	14	28	4	10	0
 TABLE	test	t1	index_b	3	3	0	3	0	0	0
+=======
+localhost	wait/io/table/sql/handler	166
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	166
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	28	24	4	24	4	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	8	4	4	4	0	4	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	110	68	42	68	12	30	0
-TABLE	test	t3	index_b	14	14	0	14	0	0	0
+TABLE	test	t1	PRIMARY	18	4	14	4	0	14	0
+TABLE	test	t3	NULL	76	64	12	64	12	0	0
+TABLE	test	t3	index_b	10	10	0	10	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	4	4	0	4	0	0	0
+TABLE	test	t3	PRIMARY	34	4	30	4	0	30	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	53	35	18	35	4	14	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	128	86	42	86	12	30	0
+=======
+TABLE	test	t1	46	28	18	28	4	14	0
+TABLE	test	t3	120	78	42	78	12	30	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	53
 TABLE	test	t2	0
 TABLE	test	t3	128
 disconnect con3;
+=======
+TABLE	test	t1	46
+TABLE	test	t2	0
+TABLE	test	t3	120
+"================== con3 disconnected =================="
+>>>>>>> merge-perfschema-5.7
 "================== Step 15 =================="
 call dump_thread();
 username	status
@@ -1220,30 +1769,39 @@ user2	not found
 username	status
 user3	not found
 username	event_name	count_star
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
-user3	localhost	wait/io/table/sql/handler	52
+user3	localhost	wait/io/table/sql/handler	48
 user3	localhost	wait/lock/table/sql/handler	0
-user4	localhost	wait/io/table/sql/handler	65
+user4	localhost	wait/io/table/sql/handler	61
 user4	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	181
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -1258,32 +1816,55 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	42	28	14	28	4	10	0
 TABLE	test	t1	index_b	3	3	0	3	0	0	0
+=======
+localhost	wait/io/table/sql/handler	166
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	166
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	28	24	4	24	4	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	8	4	4	4	0	4	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	110	68	42	68	12	30	0
-TABLE	test	t3	index_b	14	14	0	14	0	0	0
+TABLE	test	t1	PRIMARY	18	4	14	4	0	14	0
+TABLE	test	t3	NULL	76	64	12	64	12	0	0
+TABLE	test	t3	index_b	10	10	0	10	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	4	4	0	4	0	0	0
+TABLE	test	t3	PRIMARY	34	4	30	4	0	30	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	53	35	18	35	4	14	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	128	86	42	86	12	30	0
+=======
+TABLE	test	t1	46	28	18	28	4	14	0
+TABLE	test	t3	120	78	42	78	12	30	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	53
 TABLE	test	t2	0
 TABLE	test	t3	128
 disconnect con4;
+=======
+TABLE	test	t1	46
+TABLE	test	t2	0
+TABLE	test	t3	120
+"================== con4 disconnected =================="
+>>>>>>> merge-perfschema-5.7
 "================== Step 16 =================="
 call dump_thread();
 username	status
@@ -1296,26 +1877,35 @@ username	status
 user4	not found
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
-user3	localhost	wait/io/table/sql/handler	52
+user3	localhost	wait/io/table/sql/handler	48
 user3	localhost	wait/lock/table/sql/handler	0
-user4	localhost	wait/io/table/sql/handler	65
+user4	localhost	wait/io/table/sql/handler	61
 user4	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	181
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -1330,32 +1920,54 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	42	28	14	28	4	10	0
 TABLE	test	t1	index_b	3	3	0	3	0	0	0
+=======
+localhost	wait/io/table/sql/handler	166
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	166
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	28	24	4	24	4	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	8	4	4	4	0	4	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	110	68	42	68	12	30	0
-TABLE	test	t3	index_b	14	14	0	14	0	0	0
+TABLE	test	t1	PRIMARY	18	4	14	4	0	14	0
+TABLE	test	t3	NULL	76	64	12	64	12	0	0
+TABLE	test	t3	index_b	10	10	0	10	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	4	4	0	4	0	0	0
+TABLE	test	t3	PRIMARY	34	4	30	4	0	30	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	53	35	18	35	4	14	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	128	86	42	86	12	30	0
+=======
+TABLE	test	t1	46	28	18	28	4	14	0
+TABLE	test	t3	120	78	42	78	12	30	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	53
 TABLE	test	t2	0
 TABLE	test	t3	128
 connection default;
+=======
+TABLE	test	t1	46
+TABLE	test	t2	0
+TABLE	test	t3	120
+>>>>>>> merge-perfschema-5.7
 truncate performance_schema.events_waits_summary_by_thread_by_event_name;
 "================== BY_THREAD truncated =================="
 "================== Step 17 =================="
@@ -1370,26 +1982,35 @@ username	status
 user4	not found
 execute dump_waits_account;
 user	host	event_name	count_star
+<<<<<<< HEAD
 user1	localhost	wait/io/table/sql/handler	25
+=======
+user1	localhost	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	localhost	wait/lock/table/sql/handler	0
-user2	localhost	wait/io/table/sql/handler	39
+user2	localhost	wait/io/table/sql/handler	35
 user2	localhost	wait/lock/table/sql/handler	0
-user3	localhost	wait/io/table/sql/handler	52
+user3	localhost	wait/io/table/sql/handler	48
 user3	localhost	wait/lock/table/sql/handler	0
-user4	localhost	wait/io/table/sql/handler	65
+user4	localhost	wait/io/table/sql/handler	61
 user4	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	181
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -1404,31 +2025,51 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	42	28	14	28	4	10	0
 TABLE	test	t1	index_b	3	3	0	3	0	0	0
+=======
+localhost	wait/io/table/sql/handler	166
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	166
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	28	24	4	24	4	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	8	4	4	4	0	4	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	110	68	42	68	12	30	0
-TABLE	test	t3	index_b	14	14	0	14	0	0	0
+TABLE	test	t1	PRIMARY	18	4	14	4	0	14	0
+TABLE	test	t3	NULL	76	64	12	64	12	0	0
+TABLE	test	t3	index_b	10	10	0	10	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	4	4	0	4	0	0	0
+TABLE	test	t3	PRIMARY	34	4	30	4	0	30	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	53	35	18	35	4	14	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	128	86	42	86	12	30	0
+=======
+TABLE	test	t1	46	28	18	28	4	14	0
+TABLE	test	t3	120	78	42	78	12	30	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	53
+=======
+TABLE	test	t1	46
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t2	0
-TABLE	test	t3	128
+TABLE	test	t3	120
 truncate performance_schema.events_waits_summary_by_account_by_event_name;
 "================== BY_ACCOUNT truncated =================="
 "================== Step 18 =================="
@@ -1453,16 +2094,21 @@ user4	localhost	wait/io/table/sql/handler	0
 user4	localhost	wait/lock/table/sql/handler	0
 execute dump_waits_user;
 user	event_name	count_star
+<<<<<<< HEAD
 user1	wait/io/table/sql/handler	25
+=======
+user1	wait/io/table/sql/handler	22
+>>>>>>> merge-perfschema-5.7
 user1	wait/lock/table/sql/handler	0
-user2	wait/io/table/sql/handler	39
+user2	wait/io/table/sql/handler	35
 user2	wait/lock/table/sql/handler	0
-user3	wait/io/table/sql/handler	52
+user3	wait/io/table/sql/handler	48
 user3	wait/lock/table/sql/handler	0
-user4	wait/io/table/sql/handler	65
+user4	wait/io/table/sql/handler	61
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	181
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -1477,31 +2123,51 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	42	28	14	28	4	10	0
 TABLE	test	t1	index_b	3	3	0	3	0	0	0
+=======
+localhost	wait/io/table/sql/handler	166
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	166
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	28	24	4	24	4	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	8	4	4	4	0	4	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	110	68	42	68	12	30	0
-TABLE	test	t3	index_b	14	14	0	14	0	0	0
+TABLE	test	t1	PRIMARY	18	4	14	4	0	14	0
+TABLE	test	t3	NULL	76	64	12	64	12	0	0
+TABLE	test	t3	index_b	10	10	0	10	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	4	4	0	4	0	0	0
+TABLE	test	t3	PRIMARY	34	4	30	4	0	30	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	53	35	18	35	4	14	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	128	86	42	86	12	30	0
+=======
+TABLE	test	t1	46	28	18	28	4	14	0
+TABLE	test	t3	120	78	42	78	12	30	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	53
+=======
+TABLE	test	t1	46
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t2	0
-TABLE	test	t3	128
+TABLE	test	t3	120
 truncate performance_schema.events_waits_summary_by_user_by_event_name;
 "================== BY_USER truncated =================="
 "================== Step 19 =================="
@@ -1536,6 +2202,7 @@ user4	wait/io/table/sql/handler	0
 user4	wait/lock/table/sql/handler	0
 execute dump_waits_host;
 host	event_name	count_star
+<<<<<<< HEAD
 localhost	wait/io/table/sql/handler	181
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
@@ -1550,31 +2217,51 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	42	28	14	28	4	10	0
 TABLE	test	t1	index_b	3	3	0	3	0	0	0
+=======
+localhost	wait/io/table/sql/handler	166
+localhost	wait/lock/table/sql/handler	0
+execute dump_waits_global;
+event_name	count_star
+wait/io/table/sql/handler	166
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	28	24	4	24	4	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	8	4	4	4	0	4	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	110	68	42	68	12	30	0
-TABLE	test	t3	index_b	14	14	0	14	0	0	0
+TABLE	test	t1	PRIMARY	18	4	14	4	0	14	0
+TABLE	test	t3	NULL	76	64	12	64	12	0	0
+TABLE	test	t3	index_b	10	10	0	10	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	4	4	0	4	0	0	0
+TABLE	test	t3	PRIMARY	34	4	30	4	0	30	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	53	35	18	35	4	14	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	128	86	42	86	12	30	0
+=======
+TABLE	test	t1	46	28	18	28	4	14	0
+TABLE	test	t3	120	78	42	78	12	30	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	53
+=======
+TABLE	test	t1	46
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t2	0
-TABLE	test	t3	128
+TABLE	test	t3	120
 truncate performance_schema.events_waits_summary_by_host_by_event_name;
 "================== BY_HOST truncated =================="
 "================== Step 21 =================="
@@ -1613,6 +2300,7 @@ localhost	wait/io/table/sql/handler	0
 localhost	wait/lock/table/sql/handler	0
 execute dump_waits_global;
 event_name	count_star
+<<<<<<< HEAD
 wait/io/table/sql/handler	181
 wait/lock/table/sql/handler	0
 execute dump_waits_history;
@@ -1623,31 +2311,47 @@ execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	42	28	14	28	4	10	0
 TABLE	test	t1	index_b	3	3	0	3	0	0	0
+=======
+wait/io/table/sql/handler	166
+wait/lock/table/sql/handler	0
+execute dump_waits_history;
+event_name	count(event_name)	object_type	object_schema	object_name
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+execute dump_waits_index_io;
+object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+TABLE	test	t1	NULL	28	24	4	24	4	0	0
+TABLE	test	t1	index_b	0	0	0	0	0	0	0
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
-TABLE	test	t1	PRIMARY	8	4	4	4	0	4	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t3	NULL	110	68	42	68	12	30	0
-TABLE	test	t3	index_b	14	14	0	14	0	0	0
+TABLE	test	t1	PRIMARY	18	4	14	4	0	14	0
+TABLE	test	t3	NULL	76	64	12	64	12	0	0
+TABLE	test	t3	index_b	10	10	0	10	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
-TABLE	test	t3	PRIMARY	4	4	0	4	0	0	0
+TABLE	test	t3	PRIMARY	34	4	30	4	0	30	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
+<<<<<<< HEAD
 TABLE	test	t1	53	35	18	35	4	14	0
 TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	128	86	42	86	12	30	0
+=======
+TABLE	test	t1	46	28	18	28	4	14	0
+TABLE	test	t3	120	78	42	78	12	30	0
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
+<<<<<<< HEAD
 TABLE	test	t1	53
+=======
+TABLE	test	t1	46
+>>>>>>> merge-perfschema-5.7
 TABLE	test	t2	0
-TABLE	test	t3	128
+TABLE	test	t3	120
 truncate performance_schema.events_waits_summary_global_by_event_name;
 "================== GLOBAL truncated =================="
 "================== Step 21 =================="
@@ -1690,18 +2394,19 @@ wait/io/table/sql/handler	0
 wait/lock/table/sql/handler	0
 execute dump_waits_history;
 event_name	count(event_name)	object_type	object_schema	object_name
+<<<<<<< HEAD
 wait/io/table/sql/handler	53	TABLE	test	t1
 wait/io/table/sql/handler	128	TABLE	test	t3
+=======
+wait/io/table/sql/handler	46	TABLE	test	t1
+wait/io/table/sql/handler	120	TABLE	test	t3
+>>>>>>> merge-perfschema-5.7
 execute dump_waits_index_io;
 object_type	object_schema	object_name	index_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	NULL	0	0	0	0	0	0	0
 TABLE	test	t1	index_b	0	0	0	0	0	0	0
 TABLE	test	t1	index_cb	0	0	0	0	0	0	0
 TABLE	test	t1	PRIMARY	0	0	0	0	0	0	0
-TABLE	test	t2	NULL	0	0	0	0	0	0	0
-TABLE	test	t2	index_b	0	0	0	0	0	0	0
-TABLE	test	t2	index_cb	0	0	0	0	0	0	0
-TABLE	test	t2	PRIMARY	0	0	0	0	0	0	0
 TABLE	test	t3	NULL	0	0	0	0	0	0	0
 TABLE	test	t3	index_b	0	0	0	0	0	0	0
 TABLE	test	t3	index_cb	0	0	0	0	0	0	0
@@ -1709,19 +2414,17 @@ TABLE	test	t3	PRIMARY	0	0	0	0	0	0	0
 execute dump_waits_table_io;
 object_type	object_schema	object_name	count_star	count_read	count_write	count_fetch	count_insert	count_update	count_delete
 TABLE	test	t1	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0
 TABLE	test	t3	0	0	0	0	0	0	0
 execute dump_waits_table_lock;
-object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_delayed	count_write_low_priority	count_write_external
-TABLE	test	t1	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t2	0	0	0	0	0	0	0	0	0	0	0
-TABLE	test	t3	0	0	0	0	0	0	0	0	0	0	0
+object_type	object_schema	object_name	count_star	count_read	count_write	count_read_normal	count_read_with_shared_locks	count_read_high_priority	count_read_no_insert	count_read_external	count_write_low_priority	count_write_external
+TABLE	test	t1	0	0	0	0	0	0	0	0	0	0
+TABLE	test	t3	0	0	0	0	0	0	0	0	0	0
 execute dump_objects_summary;
 object_type	object_schema	object_name	count_star
 TABLE	test	t1	0
 TABLE	test	t2	0
 TABLE	test	t3	0
-show status like "performance_schema%";
+show global status like "performance_schema%";
 Variable_name	Value
 Performance_schema_accounts_lost	0
 Performance_schema_cond_classes_lost	0
@@ -1731,9 +2434,15 @@ Performance_schema_file_classes_lost	0
 Performance_schema_file_handles_lost	0
 Performance_schema_file_instances_lost	0
 Performance_schema_hosts_lost	0
+Performance_schema_index_stat_lost	0
 Performance_schema_locker_lost	0
+Performance_schema_memory_classes_lost	0
+Performance_schema_metadata_lock_lost	0
 Performance_schema_mutex_classes_lost	0
 Performance_schema_mutex_instances_lost	0
+Performance_schema_nested_statement_lost	0
+Performance_schema_prepared_statements_lost	0
+Performance_schema_program_lost	0
 Performance_schema_rwlock_classes_lost	0
 Performance_schema_rwlock_instances_lost	0
 Performance_schema_session_connect_attrs_lost	0
@@ -1743,6 +2452,7 @@ Performance_schema_stage_classes_lost	0
 Performance_schema_statement_classes_lost	0
 Performance_schema_table_handles_lost	0
 Performance_schema_table_instances_lost	0
+Performance_schema_table_lock_stat_lost	0
 Performance_schema_thread_classes_lost	0
 Performance_schema_thread_instances_lost	0
 Performance_schema_users_lost	0

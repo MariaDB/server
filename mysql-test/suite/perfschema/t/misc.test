@@ -156,7 +156,7 @@ DELETE FROM t_60905 WHERE i = 1;
 # should delete with a full scan (5 NULL fetch, 1 NULL delete)
 DELETE FROM t_60905 WHERE j = 8;
 
-# show the instrument data
+# show the instrument data.
 SELECT object_schema,
        object_name,
        index_name,
@@ -169,6 +169,23 @@ SELECT object_schema,
    AND object_name = 't_60905';
 
 DROP TABLE t_60905;
+
+#
+# Bug#71278 NUMBER OF ROWS IN PERFORMANCE SCHEMA TABLES
+#
+
+show global variables like "performance_schema_max_thread_instances";
+explain select * from performance_schema.threads;
+
+#
+# Bug #73082 SHOW EVENTS in performance_schema gives Access Denied
+#
+
+use performance_schema;
+show events;
+show events from performance_schema;
+show events where Db= 'performance_schema';
+use test;
 
 
 #

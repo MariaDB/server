@@ -1,17 +1,18 @@
 select * from performance_schema.setup_actors;
-HOST	USER	ROLE
-%	%	%
+HOST	USER	ROLE	ENABLED	HISTORY
+%	%	%	YES	YES
 truncate table performance_schema.setup_actors;
 insert into performance_schema.setup_actors
-values ('hosta', 'user1', '%');
+values ('hosta', 'user1', '%', 'YES', 'YES');
 insert into performance_schema.setup_actors
-values ('%', 'user2', '%');
+values ('%', 'user2', '%', 'YES', 'YES');
 insert into performance_schema.setup_actors
-values ('localhost', 'user3', '%');
+values ('localhost', 'user3', '%', 'YES', 'YES');
 insert into performance_schema.setup_actors
-values ('hostb', '%', '%');
+values ('hostb', '%', '%', 'YES', 'YES');
 select * from performance_schema.setup_actors
 order by USER, HOST, ROLE;
+<<<<<<< HEAD
 HOST	USER	ROLE
 hostb	%	%
 hosta	user1	%
@@ -26,7 +27,35 @@ grant ALL on *.* to user3@localhost;
 create user user4@localhost;
 grant ALL on *.* to user4@localhost;
 create user user5@localhost;
+=======
+HOST	USER	ROLE	ENABLED	HISTORY
+hostb	%	%	YES	YES
+hosta	user1	%	YES	YES
+%	user2	%	YES	YES
+localhost	user3	%	YES	YES
+set @orig_sql_mode= @@sql_mode;
+set sql_mode= (select replace(@@sql_mode,'NO_AUTO_CREATE_USER',''));
+Warnings:
+Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
+grant ALL on *.* to user1@localhost;
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+grant ALL on *.* to user2@localhost;
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+grant ALL on *.* to user3@localhost;
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+grant ALL on *.* to user4@localhost;
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+>>>>>>> merge-perfschema-5.7
 grant select on test.* to user5@localhost;
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+set sql_mode= @orig_sql_mode;
+Warnings:
+Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
 flush privileges;
 connect  con1, localhost, user1, , ;
 select NAME, TYPE, INSTRUMENTED, PROCESSLIST_USER, PROCESSLIST_HOST
@@ -36,8 +65,13 @@ NAME	TYPE	INSTRUMENTED	PROCESSLIST_USER	PROCESSLIST_HOST
 thread/sql/one_connection	FOREGROUND	NO	user1	localhost
 connection default;
 insert into performance_schema.setup_actors
+<<<<<<< HEAD
 values ('%', 'user1', '%');
 connection con1;
+=======
+values ('%', 'user1', '%', 'YES', 'YES');
+# Switch to connection con1
+>>>>>>> merge-perfschema-5.7
 select NAME, TYPE, INSTRUMENTED, PROCESSLIST_USER, PROCESSLIST_HOST
 from performance_schema.threads
 where PROCESSLIST_ID = connection_id();
@@ -90,9 +124,10 @@ thread/sql/one_connection	FOREGROUND	NO	user4	localhost
 disconnect con4;
 connection default;
 insert into performance_schema.setup_actors
-values ('localhost', '%', '%');
+values ('localhost', '%', '%', 'YES', 'YES');
 select * from performance_schema.setup_actors
 order by USER, HOST, ROLE;
+<<<<<<< HEAD
 HOST	USER	ROLE
 hostb	%	%
 localhost	%	%
@@ -101,6 +136,16 @@ hosta	user1	%
 %	user2	%
 localhost	user3	%
 connect  con4b, localhost, user4, , ;
+=======
+HOST	USER	ROLE	ENABLED	HISTORY
+hostb	%	%	YES	YES
+localhost	%	%	YES	YES
+%	user1	%	YES	YES
+hosta	user1	%	YES	YES
+%	user2	%	YES	YES
+localhost	user3	%	YES	YES
+# Switch to (con4b, localhost, user4, , )
+>>>>>>> merge-perfschema-5.7
 select NAME, TYPE, INSTRUMENTED, PROCESSLIST_USER, PROCESSLIST_HOST
 from performance_schema.threads
 where PROCESSLIST_ID = connection_id();
@@ -109,7 +154,7 @@ thread/sql/one_connection	FOREGROUND	YES	user4	localhost
 disconnect con4b;
 connection default;
 insert into performance_schema.setup_actors
-values ('%', 'user5', '%');
+values ('%', 'user5', '%', 'YES', 'YES');
 create sql security definer view test.v1 as select NAME, TYPE, INSTRUMENTED, PROCESSLIST_USER, PROCESSLIST_HOST
 from performance_schema.threads
 where PROCESSLIST_ID = connection_id();
@@ -135,7 +180,7 @@ drop user user5@localhost;
 flush privileges;
 truncate table performance_schema.setup_actors;
 insert into performance_schema.setup_actors
-values ('%', '%', '%');
+values ('%', '%', '%', 'YES', 'YES');
 select * from performance_schema.setup_actors;
-HOST	USER	ROLE
-%	%	%
+HOST	USER	ROLE	ENABLED	HISTORY
+%	%	%	YES	YES

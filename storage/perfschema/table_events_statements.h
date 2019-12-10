@@ -53,6 +53,8 @@ struct row_events_statements
   ulonglong m_nesting_event_id;
   /** Column NESTING_EVENT_TYPE. */
   enum_event_type m_nesting_event_type;
+  /** Column NESTING_EVENT_LEVEL. */
+  uint m_nesting_event_level;
   /** Column EVENT_NAME. */
   const char *m_name;
   /** Length in bytes of @c m_name. */
@@ -73,10 +75,22 @@ struct row_events_statements
   String m_sqltext;
   /** Column DIGEST and DIGEST_TEXT. */
   PFS_digest_row m_digest;
-  /** Column CURRENT_SCHEMA. */
+    /** Column CURRENT_SCHEMA. */
   char m_current_schema_name[NAME_LEN];
   /** Length in bytes of @c m_current_schema_name. */
   uint m_current_schema_name_length;
+
+  /** Column OBJECT_TYPE. */
+  enum_object_type m_object_type;
+  /** Column OBJECT_SCHEMA. */
+  char m_schema_name[NAME_LEN];
+  /** Length in bytes of @c m_schema_name. */
+  uint m_schema_name_length;
+  /** Column OBJECT_NAME. */
+  char m_object_name[NAME_LEN];
+  /** Length in bytes of @c m_object_name. */
+  uint m_object_name_length;
+
 
   /** Column MESSAGE_TEXT. */
   char m_message_text[MYSQL_ERRMSG_SIZE+1];
@@ -199,6 +213,7 @@ public:
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
   virtual int rnd_init(bool scan);
   virtual int rnd_next();
@@ -235,6 +250,7 @@ public:
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
   virtual int rnd_init(bool scan);
   virtual int rnd_next();
@@ -268,6 +284,7 @@ public:
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
   virtual int rnd_init(bool scan);
   virtual int rnd_next();

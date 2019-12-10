@@ -35,26 +35,28 @@
 #include "pfs_account.h"
 #include "pfs_events_waits.h"
 #include "pfs_atomic.h"
+#include "pfs_buffer_container.h"
+#include "pfs_builtin_memory.h"
 #include "m_string.h"
 
-ulong events_waits_history_long_size= 0;
+PFS_ALIGNED ulong events_waits_history_long_size= 0;
 /** Consumer flag for table EVENTS_WAITS_CURRENT. */
-bool flag_events_waits_current= false;
+PFS_ALIGNED bool flag_events_waits_current= false;
 /** Consumer flag for table EVENTS_WAITS_HISTORY. */
-bool flag_events_waits_history= false;
+PFS_ALIGNED bool flag_events_waits_history= false;
 /** Consumer flag for table EVENTS_WAITS_HISTORY_LONG. */
-bool flag_events_waits_history_long= false;
+PFS_ALIGNED bool flag_events_waits_history_long= false;
 /** Consumer flag for the global instrumentation. */
-bool flag_global_instrumentation= false;
+PFS_ALIGNED bool flag_global_instrumentation= false;
 /** Consumer flag for the per thread instrumentation. */
-bool flag_thread_instrumentation= false;
+PFS_ALIGNED bool flag_thread_instrumentation= false;
 
 /** True if EVENTS_WAITS_HISTORY_LONG circular buffer is full. */
-bool events_waits_history_long_full= false;
+PFS_ALIGNED bool events_waits_history_long_full= false;
 /** Index in EVENTS_WAITS_HISTORY_LONG circular buffer. */
-volatile uint32 events_waits_history_long_index= 0;
+PFS_ALIGNED PFS_cacheline_uint32 events_waits_history_long_index;
 /** EVENTS_WAITS_HISTORY_LONG circular buffer. */
-PFS_events_waits *events_waits_history_long_array= NULL;
+PFS_ALIGNED PFS_events_waits *events_waits_history_long_array= NULL;
 
 /**
   Initialize table EVENTS_WAITS_HISTORY_LONG.
@@ -64,14 +66,16 @@ int init_events_waits_history_long(uint events_waits_history_long_sizing)
 {
   events_waits_history_long_size= events_waits_history_long_sizing;
   events_waits_history_long_full= false;
-  PFS_atomic::store_u32(&events_waits_history_long_index, 0);
+  PFS_atomic::store_u32(&events_waits_history_long_index.m_u32, 0);
 
   if (events_waits_history_long_size == 0)
     return 0;
 
   events_waits_history_long_array=
-    PFS_MALLOC_ARRAY(events_waits_history_long_size, sizeof(PFS_events_waits),
-                     PFS_events_waits, MYF(MY_ZEROFILL));
+    PFS_MALLOC_ARRAY(& builtin_memory_waits_history_long,
+                     events_waits_history_long_size,
+                     sizeof(PFS_events_waits), PFS_events_waits,
+                     MYF(MY_ZEROFILL));
 
   return (events_waits_history_long_array ? 0 : 1);
 }
@@ -79,7 +83,9 @@ int init_events_waits_history_long(uint events_waits_history_long_sizing)
 /** Cleanup table EVENTS_WAITS_HISTORY_LONG. */
 void cleanup_events_waits_history_long(void)
 {
-  pfs_free(events_waits_history_long_array);
+  PFS_FREE_ARRAY(& builtin_memory_waits_history_long,
+                 events_waits_history_long_size, sizeof(PFS_events_waits),
+                 events_waits_history_long_array);
   events_waits_history_long_array= NULL;
 }
 
@@ -129,7 +135,7 @@ void insert_events_waits_history_long(PFS_events_waits *wait)
   if (unlikely(events_waits_history_long_size == 0))
     return;
 
-  uint index= PFS_atomic::add_u32(&events_waits_history_long_index, 1);
+  uint index= PFS_atomic::add_u32(&events_waits_history_long_index.m_u32, 1);
 
   index= index % events_waits_history_long_size;
   if (index == 0)
@@ -139,44 +145,43 @@ void insert_events_waits_history_long(PFS_events_waits *wait)
   copy_events_waits(&events_waits_history_long_array[index], wait);
 }
 
+static void fct_reset_events_waits_current(PFS_thread *pfs_thread)
+{
+  PFS_events_waits *pfs_wait= pfs_thread->m_events_waits_stack;
+  PFS_events_waits *pfs_wait_last= pfs_wait + WAIT_STACK_SIZE;
+
+  for ( ; pfs_wait < pfs_wait_last; pfs_wait++)
+    pfs_wait->m_wait_class= NO_WAIT_CLASS;
+}
+
+
 /** Reset table EVENTS_WAITS_CURRENT data. */
 void reset_events_waits_current(void)
 {
-  PFS_thread *pfs_thread= thread_array;
-  PFS_thread *pfs_thread_last= thread_array + thread_max;
+  global_thread_container.apply_all(fct_reset_events_waits_current);
+}
 
-  for ( ; pfs_thread < pfs_thread_last; pfs_thread++)
-  {
-    PFS_events_waits *pfs_wait= pfs_thread->m_events_waits_stack;
-    PFS_events_waits *pfs_wait_last= pfs_wait + WAIT_STACK_SIZE;
+static void fct_reset_events_waits_history(PFS_thread *pfs_thread)
+{
+  PFS_events_waits *wait= pfs_thread->m_waits_history;
+  PFS_events_waits *wait_last= wait + events_waits_history_per_thread;
 
-    for ( ; pfs_wait < pfs_wait_last; pfs_wait++)
-      pfs_wait->m_wait_class= NO_WAIT_CLASS;
-  }
+  pfs_thread->m_waits_history_index= 0;
+  pfs_thread->m_waits_history_full= false;
+  for ( ; wait < wait_last; wait++)
+    wait->m_wait_class= NO_WAIT_CLASS;
 }
 
 /** Reset table EVENTS_WAITS_HISTORY data. */
 void reset_events_waits_history(void)
 {
-  PFS_thread *pfs_thread= thread_array;
-  PFS_thread *pfs_thread_last= thread_array + thread_max;
-
-  for ( ; pfs_thread < pfs_thread_last; pfs_thread++)
-  {
-    PFS_events_waits *wait= pfs_thread->m_waits_history;
-    PFS_events_waits *wait_last= wait + events_waits_history_per_thread;
-
-    pfs_thread->m_waits_history_index= 0;
-    pfs_thread->m_waits_history_full= false;
-    for ( ; wait < wait_last; wait++)
-      wait->m_wait_class= NO_WAIT_CLASS;
-  }
+  global_thread_container.apply_all(fct_reset_events_waits_history);
 }
 
 /** Reset table EVENTS_WAITS_HISTORY_LONG data. */
 void reset_events_waits_history_long(void)
 {
-  PFS_atomic::store_u32(&events_waits_history_long_index, 0);
+  PFS_atomic::store_u32(&events_waits_history_long_index.m_u32, 0);
   events_waits_history_long_full= false;
 
   PFS_events_waits *wait= events_waits_history_long_array;
@@ -185,141 +190,112 @@ void reset_events_waits_history_long(void)
     wait->m_wait_class= NO_WAIT_CLASS;
 }
 
+static void fct_reset_events_waits_by_thread(PFS_thread *thread)
+{
+  PFS_account *account= sanitize_account(thread->m_account);
+  PFS_user *user= sanitize_user(thread->m_user);
+  PFS_host *host= sanitize_host(thread->m_host);
+  aggregate_thread_waits(thread, account, user, host);
+}
+
 /** Reset table EVENTS_WAITS_SUMMARY_BY_THREAD_BY_EVENT_NAME data. */
 void reset_events_waits_by_thread()
 {
-  PFS_thread *thread= thread_array;
-  PFS_thread *thread_last= thread_array + thread_max;
-  PFS_account *account;
-  PFS_user *user;
-  PFS_host *host;
+  global_thread_container.apply(fct_reset_events_waits_by_thread);
+}
 
-  for ( ; thread < thread_last; thread++)
-  {
-    if (thread->m_lock.is_populated())
-    {
-      account= sanitize_account(thread->m_account);
-      user= sanitize_user(thread->m_user);
-      host= sanitize_host(thread->m_host);
-      aggregate_thread_waits(thread, account, user, host);
-    }
-  }
+static void fct_reset_events_waits_by_account(PFS_account *pfs)
+{
+  PFS_user *user= sanitize_user(pfs->m_user);
+  PFS_host *host= sanitize_host(pfs->m_host);
+  pfs->aggregate_waits(user, host);
 }
 
 /** Reset table EVENTS_WAITS_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME data. */
 void reset_events_waits_by_account()
 {
-  PFS_account *pfs= account_array;
-  PFS_account *pfs_last= account_array + account_max;
-  PFS_user *user;
-  PFS_host *host;
+  global_account_container.apply(fct_reset_events_waits_by_account);
+}
 
-  for ( ; pfs < pfs_last; pfs++)
-  {
-    if (pfs->m_lock.is_populated())
-    {
-      user= sanitize_user(pfs->m_user);
-      host= sanitize_host(pfs->m_host);
-      pfs->aggregate_waits(user, host);
-    }
-  }
+static void fct_reset_events_waits_by_user(PFS_user *pfs)
+{
+  pfs->aggregate_waits();
 }
 
 /** Reset table EVENTS_WAITS_SUMMARY_BY_USER_BY_EVENT_NAME data. */
 void reset_events_waits_by_user()
 {
-  PFS_user *pfs= user_array;
-  PFS_user *pfs_last= user_array + user_max;
+  global_user_container.apply(fct_reset_events_waits_by_user);
+}
 
-  for ( ; pfs < pfs_last; pfs++)
-  {
-    if (pfs->m_lock.is_populated())
-      pfs->aggregate_waits();
-  }
+static void fct_reset_events_waits_by_host(PFS_host *pfs)
+{
+  pfs->aggregate_waits();
 }
 
 /** Reset table EVENTS_WAITS_SUMMARY_BY_HOST_BY_EVENT_NAME data. */
 void reset_events_waits_by_host()
 {
-  PFS_host *pfs= host_array;
-  PFS_host *pfs_last= host_array + host_max;
+  global_host_container.apply(fct_reset_events_waits_by_host);
+}
 
-  for ( ; pfs < pfs_last; pfs++)
-  {
-    if (pfs->m_lock.is_populated())
-      pfs->aggregate_waits();
-  }
+static void fct_reset_table_waits_by_table(PFS_table_share *pfs)
+{
+  pfs->aggregate();
 }
 
 void reset_table_waits_by_table()
 {
-  PFS_table_share *pfs= table_share_array;
-  PFS_table_share *pfs_last= pfs + table_share_max;
+  global_table_share_container.apply(fct_reset_table_waits_by_table);
+}
 
-  for ( ; pfs < pfs_last; pfs++)
-  {
-    if (pfs->m_lock.is_populated())
-      pfs->aggregate();
-  }
+static void fct_reset_table_io_waits_by_table(PFS_table_share *pfs)
+{
+  pfs->aggregate_io();
 }
 
 void reset_table_io_waits_by_table()
 {
-  PFS_table_share *pfs= table_share_array;
-  PFS_table_share *pfs_last= pfs + table_share_max;
+  global_table_share_container.apply(fct_reset_table_io_waits_by_table);
+}
 
-  for ( ; pfs < pfs_last; pfs++)
-  {
-    if (pfs->m_lock.is_populated())
-      pfs->aggregate_io();
-  }
+static void fct_reset_table_lock_waits_by_table(PFS_table_share *pfs)
+{
+  pfs->aggregate_lock();
 }
 
 void reset_table_lock_waits_by_table()
 {
-  PFS_table_share *pfs= table_share_array;
-  PFS_table_share *pfs_last= pfs + table_share_max;
+  global_table_share_container.apply(fct_reset_table_lock_waits_by_table);
+}
 
-  for ( ; pfs < pfs_last; pfs++)
-  {
-    if (pfs->m_lock.is_populated())
-      pfs->aggregate_lock();
-  }
+void fct_reset_table_waits_by_table_handle(PFS_table *pfs)
+{
+  pfs->sanitized_aggregate();
 }
 
 void reset_table_waits_by_table_handle()
 {
-  PFS_table *pfs= table_array;
-  PFS_table *pfs_last= pfs + table_max;
+  global_table_container.apply(fct_reset_table_waits_by_table_handle);
+}
 
-  for ( ; pfs < pfs_last; pfs++)
-  {
-    if (pfs->m_lock.is_populated())
-      pfs->sanitized_aggregate();
-  }
+void fct_reset_table_io_waits_by_table_handle(PFS_table *pfs)
+{
+  pfs->sanitized_aggregate_io();
 }
 
 void reset_table_io_waits_by_table_handle()
 {
-  PFS_table *pfs= table_array;
-  PFS_table *pfs_last= pfs + table_max;
+  global_table_container.apply(fct_reset_table_io_waits_by_table_handle);
+}
 
-  for ( ; pfs < pfs_last; pfs++)
-  {
-    if (pfs->m_lock.is_populated())
-      pfs->sanitized_aggregate_io();
-  }
+void fct_reset_table_lock_waits_by_table_handle(PFS_table *pfs)
+{
+  pfs->sanitized_aggregate_lock();
 }
 
 void reset_table_lock_waits_by_table_handle()
 {
-  PFS_table *pfs= table_array;
-  PFS_table *pfs_last= pfs + table_max;
-
-  for ( ; pfs < pfs_last; pfs++)
-  {
-    if (pfs->m_lock.is_populated())
-      pfs->sanitized_aggregate_lock();
-  }
+  global_table_container.apply(fct_reset_table_lock_waits_by_table_handle);
 }
 

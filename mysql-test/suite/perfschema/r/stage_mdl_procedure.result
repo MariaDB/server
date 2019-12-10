@@ -1,4 +1,19 @@
+<<<<<<< HEAD
 connect  con1, localhost, user1, , ;
+=======
+Warnings:
+Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+Warnings:
+Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
+>>>>>>> merge-perfschema-5.7
 drop function if exists test.f1;
 drop procedure if exists test.p1;
 create function test.f1() returns int
@@ -21,6 +36,7 @@ username	event_name	sql_text
 user1	statement/sql/select	select test.f1()
 username	event_name	nesting_event_type
 username	event_name	nesting_event_type
+<<<<<<< HEAD
 user1	stage/sql/Closing tables	STATEMENT
 user1	stage/sql/End of update loop	STATEMENT
 user1	stage/sql/Query end	STATEMENT
@@ -31,14 +47,37 @@ user1	stage/sql/Closing tables	STATEMENT
 user1	stage/sql/Starting cleanup	STATEMENT
 user1	stage/sql/Freeing items	STATEMENT
 user1	stage/sql/Reset for next command	STATEMENT
+=======
+<<<<<<< HEAD
+user1	stage/sql/closing tables	STATEMENT
+user1	stage/sql/Opening tables	STATEMENT
+user1	stage/sql/After opening tables	STATEMENT
+user1	stage/sql/closing tables	STATEMENT
+user1	stage/sql/end	STATEMENT
+user1	stage/sql/query end	STATEMENT
+user1	stage/sql/closing tables	STATEMENT
+user1	stage/sql/Unlocking tables	STATEMENT
+user1	stage/sql/freeing items	STATEMENT
+user1	stage/sql/cleaning up	STATEMENT
+=======
+>>>>>>> merge-perfschema-5.7
+>>>>>>> 258e16fa2de... WIP 5.7 P_S
 call dump_one_thread('user2');
 username	event_name	sql_text
 user2	statement/sql/drop_procedure	drop procedure test.p1
 username	event_name	nesting_event_type
 user2	stage/sql/Waiting for stored procedure metadata lock	STATEMENT
 username	event_name	nesting_event_type
+<<<<<<< HEAD
 user2	stage/sql/Init	STATEMENT
+=======
+<<<<<<< HEAD
+user2	stage/sql/init	STATEMENT
+>>>>>>> 258e16fa2de... WIP 5.7 P_S
 connection con1;
+=======
+user2	stage/sql/starting	STATEMENT
+>>>>>>> merge-perfschema-5.7
 select test.f1();
 test.f1()
 1
