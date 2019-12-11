@@ -100,8 +100,7 @@ PageBulk::init()
 		} else {
 			ut_ad(!m_index->is_spatial());
 			page_create(new_block, &m_mtr,
-				    m_index->table->not_redundant(),
-				    false);
+				    m_index->table->not_redundant());
 			compile_time_assert(FIL_PAGE_NEXT
 					    == FIL_PAGE_PREV + 4);
 			compile_time_assert(FIL_NULL == 0xffffffff);

@@ -662,8 +662,7 @@ btr_scrub_free_page(
 	}
 
 	page_create(block, mtr,
-		    dict_table_is_comp(scrub_data->current_table),
-		    dict_index_is_spatial(scrub_data->current_index));
+		    dict_table_is_comp(scrub_data->current_table));
 
 	mtr_commit(mtr);
 

@@ -274,17 +274,10 @@ static const byte infimum_supremum_compact[] = {
 	's', 'u', 'p', 'r', 'e', 'm', 'u', 'm'
 };
 
-/**********************************************************//**
-The index page creation function.
-@return pointer to the page */
-static
-page_t*
-page_create_low(
-/*============*/
-	buf_block_t*	block,		/*!< in: a buffer block where the
-					page is created */
-	ulint		comp,		/*!< in: nonzero=compact page format */
-	bool		is_rtree)	/*!< in: if it is an R-Tree page */
+/** Create an index page.
+@param[in,out]	block	buffer block
+@param[in]	comp	nonzero=compact page format */
+void page_create_low(const buf_block_t* block, bool comp)
 {
 	page_t*		page;
 
@@ -293,15 +286,9 @@ page_create_low(
 	compile_time_assert(PAGE_BTR_IBUF_FREE_LIST_NODE + FLST_NODE_SIZE
 			    <= PAGE_DATA);
 
-	buf_block_modify_clock_inc(block);
-
 	page = buf_block_get_frame(block);
 
-	if (is_rtree) {
-		fil_page_set_type(page, FIL_PAGE_RTREE);
-	} else {
-		fil_page_set_type(page, FIL_PAGE_INDEX);
-	}
+	fil_page_set_type(page, FIL_PAGE_INDEX);
 
 	memset(page + PAGE_HEADER, 0, PAGE_HEADER_PRIV_END);
 	page[PAGE_HEADER + PAGE_N_DIR_SLOTS + 1] = 2;
@@ -334,36 +321,13 @@ page_create_low(
 		page[srv_page_size - PAGE_DIR - PAGE_DIR_SLOT_SIZE + 1]
 			= PAGE_OLD_INFIMUM;
 	}
-
-	return(page);
 }
 
-/** Parses a redo log record of creating a page.
-@param[in,out]	block	buffer block, or NULL
-@param[in]	comp	nonzero=compact page format
-@param[in]	is_rtree whether it is rtree page */
-void
-page_parse_create(
-	buf_block_t*	block,
-	ulint		comp,
-	bool		is_rtree)
-{
-	if (block != NULL) {
-		page_create_low(block, comp, is_rtree);
-	}
-}
-
-/**********************************************************//**
-Create an uncompressed B-tree or R-tree index page.
-@return pointer to the page */
-page_t*
-page_create(
-/*========*/
-	buf_block_t*	block,		/*!< in: a buffer block where the
-					page is created */
-	mtr_t*		mtr,		/*!< in: mini-transaction handle */
-	ulint		comp,		/*!< in: nonzero=compact page format */
-	bool		is_rtree)	/*!< in: whether it is a R-Tree page */
+/** Create an uncompressed index page.
+@param[in,out]	block	buffer block
+@param[in,out]	mtr	mini-transaction
+@param[in]	comp	set unless ROW_FORMAT=REDUNDANT */
+void page_create(buf_block_t* block, mtr_t* mtr, bool comp)
 {
 	ut_ad(mtr->is_named_space(block->page.id.space()));
 	mtr->set_modified();
@@ -371,24 +335,21 @@ page_create(
 		ut_ad(mtr->get_log_mode() == MTR_LOG_NONE
 		      || mtr->get_log_mode() == MTR_LOG_NO_REDO);
 	} else {
-		mlog_id_t type = is_rtree
-			? (comp
-			   ? MLOG_COMP_PAGE_CREATE_RTREE
-			   : MLOG_PAGE_CREATE_RTREE)
-			: (comp ? MLOG_COMP_PAGE_CREATE : MLOG_PAGE_CREATE);
+		mlog_id_t type = comp
+			? MLOG_COMP_PAGE_CREATE : MLOG_PAGE_CREATE;
 		byte *l= mtr->get_log()->open(11);
 		l = mlog_write_initial_log_record_low(
 			type, block->page.id.space(), block->page.id.page_no(),
 			l, mtr);
 		mlog_close(mtr, l);
 	}
-	return(page_create_low(block, comp, is_rtree));
+	buf_block_modify_clock_inc(block);
+	page_create_low(block, comp);
 }
 
 /**********************************************************//**
-Create a compressed B-tree index page.
-@return pointer to the page */
-page_t*
+Create a compressed B-tree index page. */
+void
 page_create_zip(
 /*============*/
 	buf_block_t*		block,		/*!< in/out: a buffer frame
@@ -401,8 +362,6 @@ page_create_zip(
 	mtr_t*			mtr)		/*!< in/out: mini-transaction
 						handle */
 {
-	page_t*			page;
-
 	ut_ad(block);
 	ut_ad(buf_block_get_page_zip(block));
 	ut_ad(dict_table_is_comp(index->table));
@@ -423,17 +382,24 @@ page_create_zip(
 	      || !dict_index_is_sec_or_ibuf(index)
 	      || index->table->is_temporary());
 
-	page = page_create_low(block, TRUE, dict_index_is_spatial(index));
-	mach_write_to_2(PAGE_HEADER + PAGE_LEVEL + page, level);
-	mach_write_to_8(PAGE_HEADER + PAGE_MAX_TRX_ID + page, max_trx_id);
+	buf_block_modify_clock_inc(block);
+	page_create_low(block, true);
+
+	if (index->is_spatial()) {
+		mach_write_to_2(FIL_PAGE_TYPE + block->frame, FIL_PAGE_RTREE);
+		memset(block->frame + FIL_RTREE_SPLIT_SEQ_NUM, 0, 8);
+		memset(block->page.zip.data + FIL_RTREE_SPLIT_SEQ_NUM, 0, 8);
+	}
+
+	mach_write_to_2(PAGE_HEADER + PAGE_LEVEL + block->frame, level);
+	mach_write_to_8(PAGE_HEADER + PAGE_MAX_TRX_ID + block->frame,
+			max_trx_id);
 
 	if (!page_zip_compress(block, index, page_zip_level, mtr)) {
 		/* The compression of a newly created
 		page should always succeed. */
 		ut_error;
 	}
-
-	return(page);
 }
 
 /**********************************************************//**
@@ -446,10 +412,9 @@ page_create_empty(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	trx_id_t	max_trx_id;
-	page_t*		page	= buf_block_get_frame(block);
 	page_zip_des_t*	page_zip= buf_block_get_page_zip(block);
 
-	ut_ad(fil_page_index_page_check(page));
+	ut_ad(fil_page_index_page_check(block->frame));
 	ut_ad(!index->is_dummy);
 	ut_ad(block->page.id.space() == index->table->space->id);
 
@@ -459,12 +424,12 @@ page_create_empty(
 	for MVCC. */
 	if (dict_index_is_sec_or_ibuf(index)
 	    && !index->table->is_temporary()
-	    && page_is_leaf(page)) {
-		max_trx_id = page_get_max_trx_id(page);
+	    && page_is_leaf(block->frame)) {
+		max_trx_id = page_get_max_trx_id(block->frame);
 		ut_ad(max_trx_id);
 	} else if (block->page.id.page_no() == index->page) {
 		/* Preserve PAGE_ROOT_AUTO_INC. */
-		max_trx_id = page_get_max_trx_id(page);
+		max_trx_id = page_get_max_trx_id(block->frame);
 	} else {
 		max_trx_id = 0;
 	}
@@ -472,11 +437,23 @@ page_create_empty(
 	if (page_zip) {
 		ut_ad(!index->table->is_temporary());
 		page_create_zip(block, index,
-				page_header_get_field(page, PAGE_LEVEL),
+				page_header_get_field(block->frame,
+						      PAGE_LEVEL),
 				max_trx_id, mtr);
 	} else {
-		page_create(block, mtr, index->table->not_redundant(),
-			    index->is_spatial());
+		page_create(block, mtr, index->table->not_redundant());
+		if (index->is_spatial()) {
+			static_assert(((FIL_PAGE_INDEX & 0xff00)
+				       | byte(FIL_PAGE_RTREE))
+				      == FIL_PAGE_RTREE, "compatibility");
+			mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
+				      byte(FIL_PAGE_RTREE));
+			if (mach_read_from_8(block->frame
+					     + FIL_RTREE_SPLIT_SEQ_NUM)) {
+				mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM,
+					    8, 0);
+			}
+		}
 
 		if (max_trx_id) {
 			mtr->write<8>(*block, PAGE_HEADER + PAGE_MAX_TRX_ID

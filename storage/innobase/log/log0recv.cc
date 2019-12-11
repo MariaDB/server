@@ -1665,13 +1665,23 @@ parse_log:
 		}
 		break;
 	case MLOG_PAGE_CREATE: case MLOG_COMP_PAGE_CREATE:
+	case MLOG_PAGE_CREATE_RTREE: case MLOG_COMP_PAGE_CREATE_RTREE:
 		/* Allow anything in page_type when creating a page. */
 		ut_a(!page_zip);
-		page_parse_create(block, type == MLOG_COMP_PAGE_CREATE, false);
-		break;
-	case MLOG_PAGE_CREATE_RTREE: case MLOG_COMP_PAGE_CREATE_RTREE:
-		page_parse_create(block, type == MLOG_COMP_PAGE_CREATE_RTREE,
-				  true);
+		if (!block) {
+			break;
+		}
+		page_create_low(block, type == MLOG_COMP_PAGE_CREATE
+				|| type == MLOG_COMP_PAGE_CREATE_RTREE);
+		if (type == MLOG_PAGE_CREATE_RTREE
+		    || type == MLOG_COMP_PAGE_CREATE_RTREE) {
+			static_assert(((FIL_PAGE_INDEX & 0xff00)
+				       | byte(FIL_PAGE_RTREE))
+				      == FIL_PAGE_RTREE, "compatibility");
+			page[FIL_PAGE_TYPE] = byte(FIL_PAGE_RTREE);
+			memset(page + FIL_RTREE_SPLIT_SEQ_NUM, 0, 8);
+		}
+
 		break;
 	case MLOG_UNDO_INSERT:
 		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
@@ -2036,7 +2046,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 
 		const recv_t* recv = static_cast<const recv_t*>(l);
 		ut_ad(recv->start_lsn);
-		ut_ad(recv_start_lsn < recv->start_lsn);
+		ut_ad(recv_start_lsn <= recv->start_lsn);
 		ut_d(recv_start_lsn = recv->start_lsn);
 
 		if (recv->start_lsn < page_lsn) {
@@ -2120,11 +2130,12 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (start_lsn) {
+		buf_block_modify_clock_inc(block);
 		log_flush_order_mutex_enter();
 		buf_flush_note_modification(block, start_lsn, end_lsn);
 		log_flush_order_mutex_exit();
 	} else if (free_page && init) {
-		/* There have been no operations than MLOG_INIT_FREE_PAGE.
+		/* There have been no operations that modify the page.
 		Any buffered changes must not be merged. A subsequent
 		buf_page_create() from a user thread should discard
 		any buffered changes. */

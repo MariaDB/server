@@ -983,21 +983,14 @@ inline
 uint16_t
 page_get_instant(const page_t* page);
 
+/** Create an uncompressed index page.
+@param[in,out]	block	buffer block
+@param[in,out]	mtr	mini-transaction
+@param[in]	comp	set unless ROW_FORMAT=REDUNDANT */
+void page_create(buf_block_t* block, mtr_t* mtr, bool comp);
 /**********************************************************//**
-Create an uncompressed B-tree index page.
-@return pointer to the page */
-page_t*
-page_create(
-/*========*/
-	buf_block_t*	block,		/*!< in: a buffer block where the
-					page is created */
-	mtr_t*		mtr,		/*!< in: mini-transaction handle */
-	ulint		comp,		/*!< in: nonzero=compact page format */
-	bool		is_rtree);	/*!< in: if creating R-tree page */
-/**********************************************************//**
-Create a compressed B-tree index page.
-@return pointer to the page */
-page_t*
+Create a compressed B-tree index page. */
+void
 page_create_zip(
 /*============*/
 	buf_block_t*		block,		/*!< in/out: a buffer frame
@@ -1157,15 +1150,10 @@ page_parse_delete_rec_list(
 	buf_block_t*	block,	/*!< in/out: buffer block or NULL */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	mtr_t*		mtr);	/*!< in: mtr or NULL */
-/** Parses a redo log record of creating a page.
-@param[in,out]	block	buffer block, or NULL
-@param[in]	comp	nonzero=compact page format
-@param[in]	is_rtree whether it is rtree page */
-void
-page_parse_create(
-	buf_block_t*	block,
-	ulint		comp,
-	bool		is_rtree);
+/** Create an index page.
+@param[in,out]	block	buffer block
+@param[in]	comp	nonzero=compact page format */
+void page_create_low(const buf_block_t* block, bool comp);
 
 /************************************************************//**
 Prints record contents including the data relevant only in

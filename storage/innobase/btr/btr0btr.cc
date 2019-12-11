@@ -438,27 +438,31 @@ btr_page_create(
 	ulint		level,	/*!< in: the B-tree level of the page */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	page_t*		page = buf_block_get_frame(block);
-
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
-	byte *index_id= &page[PAGE_HEADER + PAGE_INDEX_ID];
+	byte *index_id= &block->frame[PAGE_HEADER + PAGE_INDEX_ID];
 
 	if (UNIV_LIKELY_NULL(page_zip)) {
 		page_create_zip(block, index, level, 0, mtr);
 		mach_write_to_8(index_id, index->id);
 		page_zip_write_header(page_zip, index_id, 8, mtr);
 	} else {
-		page_create(block, mtr, dict_table_is_comp(index->table),
-			    dict_index_is_spatial(index));
+		page_create(block, mtr, dict_table_is_comp(index->table));
+		if (index->is_spatial()) {
+			static_assert(((FIL_PAGE_INDEX & 0xff00)
+				       | byte(FIL_PAGE_RTREE))
+				      == FIL_PAGE_RTREE, "compatibility");
+			mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
+				      byte(FIL_PAGE_RTREE));
+			if (mach_read_from_8(block->frame
+					     + FIL_RTREE_SPLIT_SEQ_NUM)) {
+				mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM,
+					    8, 0);
+			}
+		}
 		/* Set the level of the new index page */
 		mtr->write<2,mtr_t::OPT>(*block, PAGE_HEADER + PAGE_LEVEL
 					 + block->frame, level);
 		mtr->write<8,mtr_t::OPT>(*block, index_id, index->id);
-	}
-
-	/* For Spatial Index, initialize the Split Sequence Number */
-	if (dict_index_is_spatial(index)) {
-		page_set_ssn_id(block, page_zip, 0, mtr);
 	}
 }
 
@@ -1127,8 +1131,19 @@ btr_create(
 		memset_aligned<8>(FIL_PAGE_PREV + block->page.zip.data,
 				  0xff, 8);
 	} else {
-		page_create(block, mtr, index->table->not_redundant(),
-			    index->is_spatial());
+		page_create(block, mtr, index->table->not_redundant());
+		if (index->is_spatial()) {
+			static_assert(((FIL_PAGE_INDEX & 0xff00)
+				       | byte(FIL_PAGE_RTREE))
+				      == FIL_PAGE_RTREE, "compatibility");
+			mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
+				      byte(FIL_PAGE_RTREE));
+			if (mach_read_from_8(block->frame
+					     + FIL_RTREE_SPLIT_SEQ_NUM)) {
+				mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM,
+					    8, 0);
+			}
+		}
 		/* Set the level of the new index page */
 		mtr->write<2,mtr_t::OPT>(*block, PAGE_HEADER + PAGE_LEVEL
 					 + block->frame, 0U);
@@ -1382,7 +1397,6 @@ static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
 	ulint		max_ins_size1;
 	ulint		max_ins_size2;
 	ulint		pos;
-	bool		is_spatial;
 
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!is_buf_block_get_page_zip(block));
@@ -1400,11 +1414,6 @@ static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
 
 	MONITOR_INC(MONITOR_INDEX_REORG_ATTEMPTS);
 
-	/* This function can be called by log redo with a "dummy" index.
-	So we would trust more on the original page's type */
-	is_spatial = (fil_page_get_type(page) == FIL_PAGE_RTREE
-		      || dict_index_is_spatial(index));
-
 	/* Copy the old page to temporary space */
 	memcpy_aligned<UNIV_PAGE_SIZE_MIN>(temp_block->frame, block->frame,
 					   srv_page_size);
@@ -1419,7 +1428,17 @@ static void btr_page_reorganize_low(page_cur_t *cursor, dict_index_t *index,
 	/* Recreate the page: note that global data on page (possible
 	segment headers, next page-field, etc.) is preserved intact */
 
-	page_create(block, mtr, dict_table_is_comp(index->table), is_spatial);
+	page_create(block, mtr, index->table->not_redundant());
+	if (index->is_spatial()) {
+		static_assert(((FIL_PAGE_INDEX & 0xff00)
+			       | byte(FIL_PAGE_RTREE))
+			      == FIL_PAGE_RTREE, "compatibility");
+		mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
+			      byte(FIL_PAGE_RTREE));
+		if (mach_read_from_8(block->frame + FIL_RTREE_SPLIT_SEQ_NUM)) {
+			mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM, 8, 0);
+		}
+	}
 
 	/* Copy the records from the temporary space to the recreated page;
 	do not copy the lock bits yet */
@@ -1682,8 +1701,19 @@ btr_page_empty(
 	if (page_zip) {
 		page_create_zip(block, index, level, autoinc, mtr);
 	} else {
-		page_create(block, mtr, dict_table_is_comp(index->table),
-			    dict_index_is_spatial(index));
+		page_create(block, mtr, index->table->not_redundant());
+		if (index->is_spatial()) {
+			static_assert(((FIL_PAGE_INDEX & 0xff00)
+				       | byte(FIL_PAGE_RTREE))
+				      == FIL_PAGE_RTREE, "compatibility");
+			mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
+				      byte(FIL_PAGE_RTREE));
+			if (mach_read_from_8(block->frame
+					     + FIL_RTREE_SPLIT_SEQ_NUM)) {
+				mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM,
+					    8, 0);
+			}
+		}
 		mtr->write<2,mtr_t::OPT>(*block, PAGE_HEADER + PAGE_LEVEL
 					 + block->frame, level);
 		if (autoinc) {

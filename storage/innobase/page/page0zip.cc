@@ -4667,6 +4667,7 @@ page_zip_reorganize(
 	page_t*		temp_page;
 
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(block->page.zip.data);
 	ut_ad(page_is_comp(page));
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(!index->table->is_temporary());
@@ -4689,7 +4690,14 @@ page_zip_reorganize(
 	/* Recreate the page: note that global data on page (possible
 	segment headers, next page-field, etc.) is preserved intact */
 
-	page_create(block, mtr, TRUE, dict_index_is_spatial(index));
+	page_create(block, mtr, true);
+	if (index->is_spatial()) {
+		mach_write_to_2(FIL_PAGE_TYPE + page, FIL_PAGE_RTREE);
+		memcpy_aligned<2>(block->page.zip.data + FIL_PAGE_TYPE,
+				  page + FIL_PAGE_TYPE, 2);
+		memset(FIL_RTREE_SPLIT_SEQ_NUM + page, 0, 8);
+		memset(FIL_RTREE_SPLIT_SEQ_NUM + block->page.zip.data, 0, 8);
+	}
 
 	/* Copy the records from the temporary space to the recreated page;
 	do not copy the lock bits yet */
