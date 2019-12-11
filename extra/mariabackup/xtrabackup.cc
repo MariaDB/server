@@ -102,6 +102,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <srv0srv.h>
 #include <crc_glue.h>
 #include <log.h>
+#include <derror.h>
 
 int sys_var_init();
 
@@ -5914,41 +5915,12 @@ extern void init_signals(void);
 
 #include <sql_locale.h>
 
-/* Messages . Avoid loading errmsg.sys file */
+
 void setup_error_messages()
 {
-  static const char *my_msgs[ERRORS_PER_RANGE];
-  static const char **all_msgs[] = { my_msgs, my_msgs, my_msgs, my_msgs };
   my_default_lc_messages = &my_locale_en_US;
-  my_default_lc_messages->errmsgs->errmsgs = all_msgs;
-
-  /* Populate the necessary error messages */
-  struct {
-    int id;
-    const char *fmt;
-  }
-  xb_msgs[] =
-  {
-  { ER_DATABASE_NAME,"Database" },
-  { ER_TABLE_NAME,"Table"},
-  { ER_PARTITION_NAME, "Partition" },
-  { ER_SUBPARTITION_NAME, "Subpartition" },
-  { ER_TEMPORARY_NAME, "Temporary"},
-  { ER_RENAMED_NAME, "Renamed"},
-  { ER_CANT_FIND_DL_ENTRY, "Can't find symbol '%-.128s' in library"},
-  { ER_CANT_OPEN_LIBRARY, "Can't open shared library '%-.192s' (errno: %d, %-.128s)" },
-  { ER_OUTOFMEMORY, "Out of memory; restart server and try again (needed %d bytes)" },
-  { ER_CANT_OPEN_LIBRARY, "Can't open shared library '%-.192s' (errno: %d, %-.128s)" },
-  { ER_UDF_NO_PATHS, "No paths allowed for shared library" },
-  { ER_CANT_INITIALIZE_UDF,"Can't initialize function '%-.192s'; %-.80s"},
-  { ER_PLUGIN_IS_NOT_LOADED,"Plugin '%-.192s' is not loaded" }
-  };
-
-  for (int i = 0; i < (int)array_elements(all_msgs); i++)
-    all_msgs[0][i] = "Unknown error";
-
-  for (int i = 0; i < (int)array_elements(xb_msgs); i++)
-    all_msgs[0][xb_msgs[i].id - ER_ERROR_FIRST] = xb_msgs[i].fmt;
+	if (init_errmessage())
+	  die("could not initialize error messages");
 }
 
 void
@@ -6220,6 +6192,8 @@ int main(int argc, char **argv)
 		(void) pthread_key_delete(THR_THD);
 
 	logger.cleanup_base();
+	cleanup_errmsgs();
+	free_error_messages();
 	mysql_mutex_destroy(&LOCK_error_log);
 
 	if (status == EXIT_SUCCESS) {
