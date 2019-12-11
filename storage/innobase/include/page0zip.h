@@ -259,6 +259,7 @@ page_zip_write_rec(
 /***********************************************************//**
 Parses a log record of writing a BLOB pointer of a record.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_zip_parse_write_blob_ptr(
 /*==========================*/
@@ -285,6 +286,7 @@ page_zip_write_blob_ptr(
 /***********************************************************//**
 Parses a log record of writing the node pointer of a record.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_zip_parse_write_node_ptr(
 /*==========================*/
@@ -331,6 +333,7 @@ page_zip_write_trx_id_and_roll_ptr(
 @param[in,out]	page_zip	compressed page
 @return end of log record
 @retval	NULL	if the log record is incomplete */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_zip_parse_write_trx_id(
 	const byte*	ptr,
@@ -398,6 +401,7 @@ page_zip_dir_add_slot(
 /***********************************************************//**
 Parses a log record of writing to the header of a page.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_zip_parse_write_header(
 /*========================*/
@@ -448,6 +452,7 @@ page_zip_copy_recs(
 @param[in,out]	block	ROW_FORMAT=COMPRESSED block, or NULL for parsing only
 @return	end of log record
 @retval	NULL	if the log record is incomplete */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte* page_zip_parse_compress(const byte* ptr, const byte* end_ptr,
 				    buf_block_t* block);
 

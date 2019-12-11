@@ -120,6 +120,9 @@ enum mlog_id_t {
 	/** initialize an ibuf bitmap page (used in MariaDB 10.2 and 10.3) */
 	MLOG_IBUF_BITMAP_INIT = 27,
 
+	/** MDEV-12353 WIP: write to a ROW_FORMAT=COMPRESSED page */
+	MLOG_ZIP_WRITE_STRING = 29,
+
 	/** write a string to a page */
 	MLOG_WRITE_STRING = 30,
 

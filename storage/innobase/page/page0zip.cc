@@ -3815,6 +3815,7 @@ page_zip_write_rec(
 /***********************************************************//**
 Parses a log record of writing a BLOB pointer of a record.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_zip_parse_write_blob_ptr(
 /*==========================*/
@@ -3935,24 +3936,22 @@ page_zip_write_blob_ptr(
 	ut_a(page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2 + FIELD_REF_SIZE)) {
+	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + FIELD_REF_SIZE)) {
 		log_ptr = mlog_write_initial_log_record_low(
-			MLOG_ZIP_WRITE_BLOB_PTR,
+			MLOG_ZIP_WRITE_STRING,
 			block->page.id.space(), block->page.id.page_no(),
 			log_ptr, mtr);
-		mach_write_to_2(log_ptr, page_offset(field));
-		log_ptr += 2;
 		mach_write_to_2(log_ptr, ulint(externs - page_zip->data));
-		log_ptr += 2;
-		memcpy(log_ptr, externs, BTR_EXTERN_FIELD_REF_SIZE);
-		log_ptr += BTR_EXTERN_FIELD_REF_SIZE;
-		mlog_close(mtr, log_ptr);
+		mach_write_to_2(log_ptr + 2, BTR_EXTERN_FIELD_REF_SIZE);
+		memcpy(log_ptr + 4, externs, BTR_EXTERN_FIELD_REF_SIZE);
+		mlog_close(mtr, log_ptr + 4 + BTR_EXTERN_FIELD_REF_SIZE);
 	}
 }
 
 /***********************************************************//**
 Parses a log record of writing the node pointer of a record.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_zip_parse_write_node_ptr(
 /*==========================*/
@@ -4066,18 +4065,15 @@ page_zip_write_node_ptr(
 	mach_write_to_4(field, ptr);
 	memcpy(storage, field, REC_NODE_PTR_SIZE);
 
-	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2 + REC_NODE_PTR_SIZE)) {
+	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + REC_NODE_PTR_SIZE)) {
 		log_ptr = mlog_write_initial_log_record_low(
-			MLOG_ZIP_WRITE_NODE_PTR,
+			MLOG_ZIP_WRITE_STRING,
 			block->page.id.space(), block->page.id.page_no(),
 			log_ptr, mtr);
-		mach_write_to_2(log_ptr, page_offset(field));
-		log_ptr += 2;
 		mach_write_to_2(log_ptr, ulint(storage - page_zip->data));
-		log_ptr += 2;
-		memcpy(log_ptr, field, REC_NODE_PTR_SIZE);
-		log_ptr += REC_NODE_PTR_SIZE;
-		mlog_close(mtr, log_ptr);
+		mach_write_to_2(log_ptr + 2, REC_NODE_PTR_SIZE);
+		memcpy(log_ptr + 4, storage, REC_NODE_PTR_SIZE);
+		mlog_close(mtr, log_ptr + 4 + REC_NODE_PTR_SIZE);
 	}
 }
 
@@ -4120,9 +4116,10 @@ page_zip_write_trx_id_and_roll_ptr(
 
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
 
+	constexpr ulint sys_len = DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
 	storage = page_zip_dir_start(page_zip)
 		- (rec_get_heap_no_new(rec) - 1)
-		* (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+		* sys_len;
 
 	compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
 	field = rec_get_nth_field(rec, offsets, trx_id_col, &len);
@@ -4131,35 +4128,27 @@ page_zip_write_trx_id_and_roll_ptr(
 	      == rec_get_nth_field(rec, offsets, trx_id_col + 1, &len));
 	ut_ad(len == DATA_ROLL_PTR_LEN);
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
-	ut_a(!memcmp(storage, field, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN));
+	ut_a(!memcmp(storage, field, sys_len));
 #endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
 	compile_time_assert(DATA_TRX_ID_LEN == 6);
 	mach_write_to_6(field, trx_id);
 	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
 	mach_write_to_7(field + DATA_TRX_ID_LEN, roll_ptr);
-	memcpy(storage, field, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+	memcpy(storage, field, sys_len);
 
 	UNIV_MEM_ASSERT_RW(rec, rec_offs_data_size(offsets));
 	UNIV_MEM_ASSERT_RW(rec - rec_offs_extra_size(offsets),
 			   rec_offs_extra_size(offsets));
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
 
-	if (mtr) {
-		byte*	log_ptr	= mlog_open(
-			mtr, 11 + 2 + 2 + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
-		if (UNIV_UNLIKELY(!log_ptr)) {
-			return;
-		}
-
+	if (!mtr) {
+	} else if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2 + sys_len)) {
 		log_ptr = mlog_write_initial_log_record_fast(
-			(byte*) field, MLOG_ZIP_WRITE_TRX_ID, log_ptr, mtr);
-		mach_write_to_2(log_ptr, page_offset(field));
-		log_ptr += 2;
+			field, MLOG_ZIP_WRITE_STRING, log_ptr, mtr);
 		mach_write_to_2(log_ptr, ulint(storage - page_zip->data));
-		log_ptr += 2;
-		memcpy(log_ptr, field, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
-		log_ptr += DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
-		mlog_close(mtr, log_ptr);
+		mach_write_to_2(log_ptr + 2, sys_len);
+		memcpy(log_ptr + 4, field, sys_len);
+		mlog_close(mtr, log_ptr + 4 + sys_len);
 	}
 }
 
@@ -4170,6 +4159,7 @@ page_zip_write_trx_id_and_roll_ptr(
 @param[in,out]	page_zip	compressed page
 @return end of log record
 @retval	NULL	if the log record is incomplete */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_zip_parse_write_trx_id(
 	const byte*	ptr,
@@ -4585,6 +4575,7 @@ page_zip_dir_add_slot(
 /***********************************************************//**
 Parses a log record of writing to the header of a page.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_zip_parse_write_header(
 /*========================*/
@@ -4638,39 +4629,6 @@ corrupt:
 	}
 
 	return(ptr + len);
-}
-
-/**********************************************************************//**
-Write a log record of writing to the uncompressed header portion of a page. */
-void
-page_zip_write_header_log(
-/*======================*/
-	const byte*	data,	/*!< in: data on the uncompressed page */
-	ulint		length,	/*!< in: length of the data */
-	mtr_t*		mtr)	/*!< in: mini-transaction */
-{
-	byte*	log_ptr	= mlog_open(mtr, 11 + 1 + 1);
-	ulint	offset	= page_offset(data);
-
-	ut_ad(offset < PAGE_DATA);
-	ut_ad(offset + length < PAGE_DATA);
-	compile_time_assert(PAGE_DATA < 256U);
-	ut_ad(length > 0);
-	ut_ad(length < 256);
-
-	/* If no logging is requested, we may return now */
-	if (UNIV_UNLIKELY(!log_ptr)) {
-
-		return;
-	}
-
-	log_ptr = mlog_write_initial_log_record_fast(
-		(byte*) data, MLOG_ZIP_WRITE_HEADER, log_ptr, mtr);
-	*log_ptr++ = (byte) offset;
-	*log_ptr++ = (byte) length;
-	mlog_close(mtr, log_ptr);
-
-	mlog_catenate_string(mtr, data, length);
 }
 
 /**********************************************************************//**
@@ -4885,6 +4843,7 @@ page_zip_copy_recs(
 @param[in,out]	block	ROW_FORMAT=COMPRESSED block, or NULL for parsing only
 @return	end of log record
 @retval	NULL	if the log record is incomplete */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte* page_zip_parse_compress(const byte* ptr, const byte* end_ptr,
 				    buf_block_t* block)
 {

@@ -1737,6 +1737,40 @@ parse_log:
 		contents can be ignored. We do not write or apply
 		this record yet. */
 		break;
+	case MLOG_ZIP_WRITE_STRING:
+		ut_ad(!page_zip
+		      || !fil_page_get_type(page_zip->data)
+		      || fil_page_get_type(page_zip->data) == FIL_PAGE_INDEX
+		      || fil_page_get_type(page_zip->data) == FIL_PAGE_RTREE);
+		if (ptr + 4 > end_ptr) {
+			goto truncated;
+		} else {
+			const ulint ofs = mach_read_from_2(ptr);
+			const ulint len = mach_read_from_2(ptr + 2);
+			if (ofs < FIL_PAGE_PREV || !len) {
+				goto corrupted;
+			}
+			ptr += 4 + len;
+			if (ptr > end_ptr) {
+				goto truncated;
+			}
+			if (!page_zip) {
+				break;
+			}
+			ut_ad(ofs + len <= block->zip_size());
+			memcpy(page_zip->data + ofs, old_ptr + 4, len);
+			if (ofs >= FIL_PAGE_TYPE +2
+			    || ofs + len < FIL_PAGE_TYPE + 2) {
+				break;
+			}
+			/* Ensure that buf_flush_init_for_writing()
+			will treat the page as an index page, and
+			not overwrite the compressed page with the
+			contents of the uncompressed page. */
+			memcpy_aligned<2>(&page[FIL_PAGE_TYPE],
+					  &page_zip->data[FIL_PAGE_TYPE], 2);
+		}
+		break;
 	case MLOG_WRITE_STRING:
 		ut_ad(!page_zip
 		      || fil_page_get_type(page_zip->data)
@@ -1813,11 +1847,12 @@ parse_log:
 		}
 		break;
 	default:
-		ptr = NULL;
 		ib::error() << "Incorrect log record type "
 			<< ib::hex(unsigned(type));
-
+corrupted:
 		recv_sys.found_corrupt_log = true;
+truncated:
+		ptr = NULL;
 	}
 
 	if (index) {
@@ -2064,9 +2099,16 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 					- FIL_PAGE_END_LSN_OLD_CHKSUM
 					+ page, end_lsn);
 
-			if (page_zip) {
-				mach_write_to_8(FIL_PAGE_LSN + page_zip->data,
-						end_lsn);
+			if (UNIV_LIKELY_NULL(page_zip)) {
+				memcpy_aligned<8>(FIL_PAGE_LSN
+						  + page_zip->data,
+						  FIL_PAGE_LSN + page, 8);
+				if (fil_page_index_page_check(page)
+				    && !page_zip_decompress(page_zip, page,
+							    true)) {
+					ib::error() << "corrupted page "
+						    << block->page.id;
+				}
 			}
 		}
 	}
@@ -3935,6 +3977,9 @@ static const char* get_mlog_string(mlog_id_t type)
 
 	case MLOG_IBUF_BITMAP_INIT:
 		return("MLOG_IBUF_BITMAP_INIT");
+
+	case MLOG_ZIP_WRITE_STRING:
+		return("MLOG_ZIP_WRITE_STRING");
 
 	case MLOG_WRITE_STRING:
 		return("MLOG_WRITE_STRING");

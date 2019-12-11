@@ -320,15 +320,6 @@ page_zip_des_init(
 }
 
 /**********************************************************************//**
-Write a log record of writing to the uncompressed header portion of a page. */
-void
-page_zip_write_header_log(
-/*======================*/
-	const byte*	data,/*!< in: data on the uncompressed page */
-	ulint		length,	/*!< in: length of the data */
-	mtr_t*		mtr);	/*!< in: mini-transaction */
-
-/**********************************************************************//**
 Write data to the uncompressed header portion of a page.  The data must
 already have been written to the uncompressed page.
 However, the data portion of the uncompressed page may differ from
@@ -351,14 +342,21 @@ page_zip_write_header(
 	pos = page_offset(str);
 
 	ut_ad(pos < PAGE_DATA);
+	ut_ad(pos + length < PAGE_DATA);
 
 	memcpy(page_zip->data + pos, str, length);
 
 	/* The following would fail in page_cur_insert_rec_zip(). */
 	/* ut_ad(page_zip_validate(page_zip, str - pos)); */
 
-	if (mtr) {
-		page_zip_write_header_log(str, length, mtr);
+	if (!mtr) {
+	} else if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2 + length)) {
+		log_ptr = mlog_write_initial_log_record_fast(
+			str, MLOG_ZIP_WRITE_STRING, log_ptr, mtr);
+		mach_write_to_2(log_ptr, pos);
+		mach_write_to_2(log_ptr + 2, length);
+		memcpy(log_ptr + 4, str, length);
+		mlog_close(mtr, log_ptr + 4 + length);
 	}
 }
 
