@@ -1,13 +1,20 @@
-/* Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2015, 2018, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
@@ -152,8 +159,10 @@ void table_session_variables
 ::make_row(const System_variable *system_var)
 {
   m_row_exists= false;
+  if (system_var->is_null() || system_var->is_ignored())
+    return;
   m_row.m_variable_name.make_row(system_var->m_name, system_var->m_name_length);
-  m_row.m_variable_value.make_row(system_var->m_value_str, system_var->m_value_length);
+  m_row.m_variable_value.make_row(system_var);
   m_row_exists= true;
 }
 
@@ -182,7 +191,7 @@ int table_session_variables
         set_field_varchar_utf8(f, m_row.m_variable_name.m_str, m_row.m_variable_name.m_length);
         break;
       case 1: /* VARIABLE_VALUE */
-        set_field_varchar_utf8(f, m_row.m_variable_value.m_str, m_row.m_variable_value.m_length);
+        m_row.m_variable_value.set_field(f);
         break;
       default:
         DBUG_ASSERT(false);

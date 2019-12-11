@@ -1,13 +1,20 @@
-/* Copyright (c) 2008, 2016, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2017, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
@@ -232,22 +239,20 @@ void test_oom()
   ok(cond_2 == NULL, "oom (create cond)");
 
   /* Create file. */
-  stub_alloc_always_fails = false;
   PFS_thread fake_thread;
+  rc = init_instruments(&param);
   fake_thread.m_filename_hash_pins= NULL;
   init_file_hash(&param);
-  rc = init_instruments(&param);
-  ok(rc == 0, "instances init");
+
+  stub_alloc_always_fails = true;
+  file_2 = find_or_create_file(&fake_thread, &dummy_file_class, "dummy", 5, true);
+  ok(file_2 == NULL, "oom (create file)");
 
   stub_alloc_always_fails= false;
   file_1= find_or_create_file(&fake_thread, &dummy_file_class, "dummy", 5, true);
   ok(file_1 != NULL, "create file");
   release_file(file_1);
   cleanup_instruments();
-
-  stub_alloc_always_fails= true;
-  file_2= find_or_create_file(&fake_thread, &dummy_file_class, "dummy", 5, true);
-  ok(file_2 == NULL, "oom (create file)");
 
   /* Create socket. */
   stub_alloc_always_fails = false;
@@ -299,6 +304,10 @@ void test_oom()
   stub_alloc_fails_after_count= 2;
   thread= psi->new_thread(thread_key_1, NULL, 0);
   ok(thread == NULL, "oom (per thread wait)");
+
+  cleanup_sync_class();
+  cleanup_thread_class();
+  cleanup_file_class();
   cleanup_instruments();
 
   /* Thread waits history sizing. */
@@ -309,6 +318,8 @@ void test_oom()
   stub_alloc_fails_after_count= 3;
   thread= psi->new_thread(thread_key_1, NULL, 0);
   ok(thread == NULL, "oom (thread waits history sizing)");
+
+  cleanup_thread_class();
   cleanup_instruments();
 
   /* Per thread stages. */
@@ -318,6 +329,9 @@ void test_oom()
   stub_alloc_fails_after_count= 3;
   thread= psi->new_thread(thread_key_1, NULL, 0);
   ok(thread == NULL, "oom (per thread stages)");
+
+  cleanup_stage_class();
+  cleanup_thread_class();
   cleanup_instruments();
   cleanup_stage_class();
 
@@ -328,7 +342,9 @@ void test_oom()
   stub_alloc_fails_after_count= 3;
   thread= psi->new_thread(thread_key_1, NULL, 0);
   ok(thread == NULL, "oom (thread stages history sizing)");
+  
   cleanup_instruments();
+  cleanup_thread_class();
 
   /* Per thread statements. */
   memset(&param, 0, sizeof(param));
@@ -338,8 +354,11 @@ void test_oom()
   stub_alloc_fails_after_count= 3;
   thread= psi->new_thread(thread_key_1, NULL, 0);
   ok(thread == NULL, "oom (per thread statements)");
-  cleanup_instruments();
+
+  cleanup_stage_class();
   cleanup_statement_class();
+  cleanup_thread_class();
+  cleanup_instruments();
 
   /* Thread statements history sizing. */
   memset(&param, 0, sizeof(param));
@@ -348,6 +367,8 @@ void test_oom()
   stub_alloc_fails_after_count= 3;
   thread= psi->new_thread(thread_key_1, NULL, 0);
   ok(thread == NULL, "oom (thread statements history sizing)");
+  
+  cleanup_thread_class();
   cleanup_instruments();
 
   /* Per thread transactions. */
@@ -358,6 +379,8 @@ void test_oom()
   thread= psi->new_thread(thread_key_1, NULL, 0);
   ok(thread == NULL, "oom (per thread transactions)");
   transaction_class_max= 0;
+
+  cleanup_thread_class();
   cleanup_instruments();
 
   /* Thread transactions history sizing. */
@@ -367,6 +390,8 @@ void test_oom()
   stub_alloc_fails_after_count= 3;
   thread= psi->new_thread(thread_key_1, NULL, 0);
   ok(thread == NULL, "oom (thread transactions history sizing)");
+
+  cleanup_thread_class();
   cleanup_instruments();
 
   /* Global stages. */
@@ -381,8 +406,9 @@ void test_oom()
   ok(rc == 0, "init stage class");
   rc= init_instruments(& param);
   ok(rc == 1, "oom (global stages)");
-  cleanup_instruments();
+
   cleanup_stage_class();
+  cleanup_instruments();
 
   /* Global statements. */
   memset(&param, 0, sizeof(param));
@@ -396,8 +422,9 @@ void test_oom()
   ok(rc == 0, "init statement class");
   rc= init_instruments(&param);
   ok(rc == 1, "oom (global statements)");
-  cleanup_instruments();
+
   cleanup_statement_class();
+  cleanup_instruments();
 
   /* Global memory. */
   memset(&param, 0, sizeof(param));
@@ -411,8 +438,9 @@ void test_oom()
   ok(rc == 0, "init memory class");
   rc= init_instruments(& param);
   ok(rc == 1, "oom (global memory)");
-  cleanup_instruments();
+
   cleanup_memory_class();
+  cleanup_instruments();
 }
 
 void do_all_tests()
@@ -422,9 +450,9 @@ void do_all_tests()
 
 int main(int, char **)
 {
-  plan(28);
+  plan(32);
   MY_INIT("pfs_instr-oom-t");
   do_all_tests();
-  return 0;
+  return (exit_status());
 }
 

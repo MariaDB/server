@@ -1,13 +1,20 @@
-/* Copyright (c) 2009, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2009, 2016, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
@@ -204,6 +211,20 @@ struct pfs_lock
     uint32 new_val= (copy & VERSION_MASK) + VERSION_INC + PFS_LOCK_ALLOCATED;
 
     PFS_atomic::store_u32(&m_version_state, new_val);
+  }
+
+  /**
+    Initialize a lock to dirty.
+  */
+  void set_dirty(pfs_dirty_state *copy_ptr)
+  {
+    /* Do not set the version to 0, read the previous value. */
+    uint32 copy= PFS_atomic::load_u32(&m_version_state);
+    /* Increment the version, set the DIRTY state */
+    uint32 new_val= (copy & VERSION_MASK) + VERSION_INC + PFS_LOCK_DIRTY;
+    PFS_atomic::store_u32(&m_version_state, new_val);
+
+    copy_ptr->m_version_state= new_val;
   }
 
   /**

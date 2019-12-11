@@ -1,13 +1,20 @@
-/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2016, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
@@ -42,6 +49,8 @@ struct PFS_user;
 struct PFS_account;
 struct PFS_object_name;
 struct PFS_program;
+class System_variable;
+class Status_variable;
 
 /**
   @file storage/perfschema/table_helper.h
@@ -634,10 +643,22 @@ public:
 
 struct PFS_variable_value_row
 {
-  void make_row(const char* str, size_t length);
+public:
+  /** Set the row from a status variable. */
+  void make_row(const Status_variable *var);
+
+  /** Set the row from a system variable. */
+  void make_row(const System_variable *var);
+
+  /** Set a table field from the row. */
+  void set_field(Field *f);
+
+private:
+  void make_row(const CHARSET_INFO *cs, const char* str, size_t length);
 
   char m_str[1024];
   uint m_length;
+  const CHARSET_INFO *m_charset;
 };
 
 struct PFS_user_variable_value_row

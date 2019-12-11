@@ -1,13 +1,20 @@
-/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2019, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
@@ -680,6 +687,16 @@ void PFS_engine_table::set_field_char_utf8(Field *f, const char* str,
   f2->store(str, len, &my_charset_utf8_bin);
 }
 
+void PFS_engine_table::set_field_varchar(Field *f,
+                                         const CHARSET_INFO *cs,
+                                         const char* str,
+                                         uint len)
+{
+  DBUG_ASSERT(f->real_type() == MYSQL_TYPE_VARCHAR);
+  Field_varstring *f2= (Field_varstring*) f;
+  f2->store(str, len, cs);
+}
+
 void PFS_engine_table::set_field_varchar_utf8(Field *f, const char* str,
                                               uint len)
 {
@@ -828,6 +845,31 @@ void initialize_performance_schema_acl(bool bootstrap)
   }
 }
 
+static bool allow_drop_table_privilege() {
+  /*
+    The same DROP_ACL privilege is used for different statements,
+    in particular:
+    - TRUNCATE TABLE
+    - DROP TABLE
+    - ALTER TABLE
+    Here, we want to prevent DROP / ALTER  while allowing TRUNCATE.
+    Note that we must also allow GRANT to transfer the truncate privilege.
+  */
+  THD *thd= current_thd;
+  if (thd == NULL) {
+    return false;
+  }
+
+  DBUG_ASSERT(thd->lex != NULL);
+  if ((thd->lex->sql_command != SQLCOM_TRUNCATE) &&
+      (thd->lex->sql_command != SQLCOM_GRANT)) {
+    return false;
+  }
+
+  return true;
+}
+
+
 PFS_readonly_acl pfs_readonly_acl;
 
 ACL_internal_access_result
@@ -851,7 +893,10 @@ PFS_readonly_world_acl::check(ulong want_access, ulong *save_priv) const
 {
   ACL_internal_access_result res= PFS_readonly_acl::check(want_access, save_priv);
   if (res == ACL_INTERNAL_ACCESS_CHECK_GRANT)
-    res= ACL_INTERNAL_ACCESS_GRANTED;
+  {
+    if (want_access == SELECT_ACL)
+      res= ACL_INTERNAL_ACCESS_GRANTED;
+  }
   return res;
 }
 
@@ -879,7 +924,15 @@ PFS_truncatable_world_acl::check(ulong want_access, ulong *save_priv) const
 {
   ACL_internal_access_result res= PFS_truncatable_acl::check(want_access, save_priv);
   if (res == ACL_INTERNAL_ACCESS_CHECK_GRANT)
-    res= ACL_INTERNAL_ACCESS_GRANTED;
+  {
+    if (want_access == DROP_ACL)
+    {
+      if (allow_drop_table_privilege())
+        res= ACL_INTERNAL_ACCESS_GRANTED;
+    }
+    else if (want_access == SELECT_ACL)
+      res= ACL_INTERNAL_ACCESS_GRANTED;
+  }
   return res;
 }
 
