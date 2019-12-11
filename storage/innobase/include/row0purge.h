@@ -34,7 +34,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "row0types.h"
 #include "row0mysql.h"
 #include "mysqld.h"
-#include <list>
+#include <queue>
 
 class MDL_ticket;
 /** Determines if it is possible to remove a secondary index entry.
@@ -150,7 +150,7 @@ public:
 	int			mdl_hold_recs;
 
 	/** Undo recs to purge */
-	std::list<trx_purge_rec_t*>	undo_recs;
+	std::queue<trx_purge_rec_t>	undo_recs;
 
 	/** Constructor */
 	explicit purge_node_t(que_thr_t* parent) :
@@ -166,7 +166,6 @@ public:
 		purge_thd(NULL),
 		mdl_hold_recs(0)
 	{
-		undo_recs.clear();
 	}
 
 #ifdef UNIV_DEBUG
@@ -258,7 +257,7 @@ public:
   {
     DBUG_ASSERT(common.type == QUE_NODE_PURGE);
     close_table();
-    undo_recs.clear();
+    ut_ad(undo_recs.empty());
     ut_d(in_progress= false);
     purge_thd= nullptr;
     mem_heap_empty(heap);

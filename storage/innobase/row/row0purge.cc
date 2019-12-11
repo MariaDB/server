@@ -1155,12 +1155,11 @@ row_purge_step(
 	node->start();
 
 	if (!node->undo_recs.empty()) {
-		trx_purge_rec_t*	purge_rec =
-			node->undo_recs.front();
-		node->undo_recs.pop_front();
-		node->roll_ptr = purge_rec->roll_ptr;
+		trx_purge_rec_t purge_rec = node->undo_recs.front();
+		node->undo_recs.pop();
+		node->roll_ptr = purge_rec.roll_ptr;
 
-		row_purge(node, purge_rec->undo_rec, thr);
+		row_purge(node, purge_rec.undo_rec, thr);
 
 		if (node->undo_recs.empty()) {
 			row_purge_end(thr);

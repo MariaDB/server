@@ -1141,16 +1141,13 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 
 	while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown) {
 		purge_node_t*		node;
-		trx_purge_rec_t*	purge_rec;
+		trx_purge_rec_t		purge_rec;
 
 		ut_a(!thr->is_active);
 
 		/* Get the purge node. */
 		node = (purge_node_t*) thr->child;
 		ut_a(que_node_get_type(node) == QUE_NODE_PURGE);
-
-		purge_rec = static_cast<trx_purge_rec_t*>(
-			mem_heap_zalloc(purge_sys.heap, sizeof(*purge_rec)));
 
 		/* Track the max {trx_id, undo_no} for truncating the
 		UNDO logs once we have purged the records. */
@@ -1160,18 +1157,18 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 		}
 
 		/* Fetch the next record, and advance the purge_sys.tail. */
-		purge_rec->undo_rec = trx_purge_fetch_next_rec(
-			&purge_rec->roll_ptr, &n_pages_handled,
+		purge_rec.undo_rec = trx_purge_fetch_next_rec(
+			&purge_rec.roll_ptr, &n_pages_handled,
 			purge_sys.heap);
 
-		if (purge_rec->undo_rec == NULL) {
+		if (purge_rec.undo_rec == NULL) {
 			break;
-		} else if (purge_rec->undo_rec == &trx_purge_dummy_rec) {
+		} else if (purge_rec.undo_rec == &trx_purge_dummy_rec) {
 			continue;
 		}
 
 		table_id_t table_id = trx_undo_rec_get_table_id(
-			purge_rec->undo_rec);
+			purge_rec.undo_rec);
 
 		auto it = table_id_map.find(table_id);
 
@@ -1189,7 +1186,7 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 			table_id_map.insert({table_id, node});
 		}
 
-		node->undo_recs.push_back(purge_rec);
+		node->undo_recs.push(purge_rec);
 
 		if (n_pages_handled >= batch_size) {
 			break;
