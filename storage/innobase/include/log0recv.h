@@ -33,7 +33,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "log0log.h"
 #include "mtr0types.h"
 
-#include <forward_list>
+#include <deque>
 
 /** Is recv_writer_thread active? */
 extern bool	recv_writer_thread_active;
@@ -173,7 +173,7 @@ struct recv_dblwr_t {
 	@retval NULL if no page was found */
 	const byte* find_page(ulint space_id, ulint page_no);
 
-	typedef std::forward_list<byte*, ut_allocator<byte*> > list;
+	typedef std::deque<byte*, ut_allocator<byte*> > list;
 
 	/** Recovered doublewrite buffer page frames */
 	list	pages;
