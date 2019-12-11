@@ -2571,7 +2571,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       }
       if (bp->instr_type == CPOP)
       {
-        uint n= lab->ctx->diff_cursors(lab_begin_block->ctx, true);
+        uint n= bp->instr->m_ctx->diff_cursors(lab_begin_block->ctx, true);
         if (n == 0)
         {
           // Remove cpop instr
@@ -2588,7 +2588,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       }
       if (bp->instr_type == HPOP)
       {
-        uint n= lab->ctx->diff_handlers(lab_begin_block->ctx, true);
+        uint n= bp->instr->m_ctx->diff_handlers(lab_begin_block->ctx, true);
         if (n == 0)
         {
           // Remove hpop instr
@@ -3081,6 +3081,8 @@ void sp_head::optimize()
   List<sp_instr> bp;
   sp_instr *i;
   uint src, dst;
+
+  DBUG_EXECUTE_IF("sp_head_optimize_disable", return; );
 
   opt_mark();
 
