@@ -212,25 +212,9 @@ mlog_parse_string(
 	void*		page_zip);/*!< in/out: compressed page, or NULL */
 
 /********************************************************//**
-Opens a buffer for mlog, writes the initial log record and,
-if needed, the field lengths of an index.  Reserves space
-for further log entries.  The log entry must be closed with
-mtr_close().
-@return buffer, NULL if log mode MTR_LOG_NONE */
-byte*
-mlog_open_and_write_index(
-/*======================*/
-	mtr_t*			mtr,	/*!< in: mtr */
-	const byte*		rec,	/*!< in: index record or page */
-	const dict_index_t*	index,	/*!< in: record descriptor */
-	mlog_id_t		type,	/*!< in: log item type */
-	ulint			size);	/*!< in: requested buffer size in bytes
-					(if 0, calls mlog_close() and
-					returns NULL) */
-
-/********************************************************//**
 Parses a log record written by mlog_open_and_write_index.
 @return parsed record end, NULL if not a complete record */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 mlog_parse_index(
 /*=============*/
