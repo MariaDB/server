@@ -7676,9 +7676,14 @@ void fil_node_t::find_metadata(os_file_t file
 		on_ssd = win32_is_ssd(volume_handle);
 		CloseHandle(volume_handle);
 	} else {
-		if (GetLastError() != ERROR_ACCESS_DENIED) {
-			os_file_handle_error_no_exit(volume,
-				"CreateFile()", FALSE);
+		/*
+		Report error, unless it is expected, e.g
+		missing permissions, or error when trying to
+		open volume for UNC share.
+		*/
+		if (GetLastError() != ERROR_ACCESS_DENIED
+		    && GetDriveType(volume) == DRIVE_FIXED) {
+			    os_file_handle_error_no_exit(volume, "CreateFile()", FALSE);
 		}
 	}
 
