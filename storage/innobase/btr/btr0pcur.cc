@@ -457,7 +457,7 @@ btr_pcur_move_to_next_page(
 		return;
 	}
 
-	next_page_no = btr_page_get_next(page, mtr);
+	next_page_no = btr_page_get_next(page);
 
 	ut_ad(next_page_no != FIL_NULL);
 
@@ -484,7 +484,7 @@ btr_pcur_move_to_next_page(
 	next_page = buf_block_get_frame(next_block);
 #ifdef UNIV_BTR_DEBUG
 	ut_a(page_is_comp(next_page) == page_is_comp(page));
-	ut_a(btr_page_get_prev(next_page, mtr)
+	ut_a(btr_page_get_prev(next_page)
 	     == btr_pcur_get_block(cursor)->page.id.page_no());
 #endif /* UNIV_BTR_DEBUG */
 
@@ -546,7 +546,7 @@ btr_pcur_move_backward_from_page(
 
 	page = btr_pcur_get_page(cursor);
 
-	prev_page_no = btr_page_get_prev(page, mtr);
+	prev_page_no = btr_page_get_prev(page);
 
 	if (prev_page_no == FIL_NULL) {
 	} else if (btr_pcur_is_before_first_on_page(cursor)) {

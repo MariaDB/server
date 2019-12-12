@@ -10,7 +10,7 @@
 #               include/index_merge*.inc files
 #
 
-let $engine_type= MyISAM;
+SET STORAGE_ENGINE = MyISAM;
 # MyISAM supports Merge tables
 let $merge_table_support= 1;
 
@@ -34,7 +34,7 @@ insert into t1 select
   A.a * B.a*10 + C.a*100,
   A.a, 
   'filler'
-from t0 A, t0 B, t0 C; 
+from t0 A, t0 B, t0 C;
 
 --echo This should use union:
 explain select * from t1 where a=1 or b=1;
@@ -254,15 +254,7 @@ create table t0
   INDEX i1(key1)
 );
 
-insert into t0 values (1),(2),(3),(4),(5),(6),(7),(8);
-let $1=7;
-set @d=8;
-while ($1)
-{
-  eval insert into t0 select key1+ @d from t0;
-  eval set @d=@d*2;
-  dec $1;
-}
+insert into t0 select * from seq_1_to_1024;
 alter table t0 add key2 int not null, add index i2(key2);
 alter table t0 add key3 int not null, add index i3(key3);
 alter table t0 add key8 int not null, add index i8(key8);

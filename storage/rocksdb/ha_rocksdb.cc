@@ -3010,7 +3010,7 @@ protected:
     time_t tm;
     tm = time(nullptr);
     for (auto &it : modified_tables) {
-      it->update_time = tm;
+      it->m_update_time = tm;
     }
     modified_tables.clear();
   }
@@ -3018,6 +3018,7 @@ protected:
     modified_tables.clear();
   }
  public:
+  // Inform the transaction that this table was modified
   void log_table_write_op(Rdb_tbl_def *tbl) {
     modified_tables.insert(tbl);
   }
@@ -7726,8 +7727,6 @@ int ha_rocksdb::create_table(const std::string &table_name,
     goto error;
   }
 
-  m_tbl_def->put_creation_time(&dict_manager, batch, time(nullptr));
-
   err = dict_manager.commit(batch);
   if (err != HA_EXIT_SUCCESS) {
     dict_manager.unlock();
@@ -11045,11 +11044,11 @@ int ha_rocksdb::info(uint flag) {
       }
     }
 
-    stats.create_time = m_tbl_def->get_creation_time(&dict_manager);
+    stats.create_time = m_tbl_def->get_create_time();
   }
 
   if (flag & HA_STATUS_TIME) {
-    stats.update_time = m_tbl_def->update_time;
+    stats.update_time = m_tbl_def->m_update_time;
   }
 
   if (flag & HA_STATUS_ERRKEY) {

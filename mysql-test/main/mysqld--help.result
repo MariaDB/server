@@ -1107,7 +1107,7 @@ The following specify which files/extra groups are read (specified before remain
  disable; STATE to track just transaction state (Is there
  an active transaction? Does it have any data? etc.);
  CHARACTERISTICS to track transaction state and report all
- statements needed to start a transaction withthe same
+ statements needed to start a transaction with the same
  characteristics (isolation level, read only/read
  write,snapshot - but not any work done / data modified
  within the transaction).
@@ -1773,5 +1773,5 @@ userstat FALSE
 verbose TRUE
 wait-timeout 28800
 
-To see what values a running MySQL server is using, type
+To see what variables a running MySQL server is using, type
 'mysqladmin variables' instead of 'mysqld --verbose --help'.

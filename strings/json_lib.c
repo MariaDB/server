@@ -825,6 +825,11 @@ static int skip_colon(json_engine_t *j)
 static int skip_key(json_engine_t *j)
 {
   int t_next, c_len;
+
+  if (json_instr_chr_map[j->s.c_next] == S_BKSL &&
+      json_handle_esc(&j->s))
+    return 1;
+
   while (json_read_keyname_chr(j) == 0) {}
 
   if (j->s.error)

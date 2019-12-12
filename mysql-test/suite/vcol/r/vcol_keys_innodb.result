@@ -274,3 +274,18 @@ index(col_char,vcol_blob(64))
 insert ignore into t1 (pk) values (1),(2);
 update t1 set col_char = 'foo' where pk = 1;
 drop table t1;
+create table t1 (
+id int not null primary key,
+a varchar(200),
+b varchar(200),
+c int,
+va char(200)  generated always as (ucase(a)) virtual,
+vb char(200) generated always as (ucase(b)) virtual,
+key (c,va,vb)
+) engine=innodb;
+insert t1 (id,a,c) select seq,seq,seq from seq_1_to_330;
+select IF(@@innodb_sort_buffer_size < count(*)*200, 'GOOD', 'WRONG SIZE') from t1;
+IF(@@innodb_sort_buffer_size < count(*)*200, 'GOOD', 'WRONG SIZE')
+GOOD
+alter table t1 drop column va;
+drop table t1;

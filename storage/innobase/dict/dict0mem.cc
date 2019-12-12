@@ -37,6 +37,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "lock0lock.h"
 #include "sync0sync.h"
 #include "row0row.h"
+#include "sql_string.h"
 #include <iostream>
 
 #define	DICT_HEAP_SIZE		100	/*!< initial memory heap size when
@@ -113,6 +114,14 @@ operator<<(
 	const table_name_t&	table_name)
 {
 	return(s << ut_get_name(NULL, table_name.m_name));
+}
+
+bool dict_col_t::same_encoding(uint16_t a, uint16_t b)
+{
+  if (const CHARSET_INFO *acs= get_charset(a, MYF(MY_WME)))
+    if (const CHARSET_INFO *bcs= get_charset(b, MYF(MY_WME)))
+      return Charset(acs).same_encoding(bcs);
+  return false;
 }
 
 /**********************************************************************//**

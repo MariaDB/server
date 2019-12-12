@@ -1014,7 +1014,6 @@ Decrypt a page.
 @param[in]	space			Tablespace
 @param[in]	tmp_frame		Temporary buffer used for decrypting
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	decrypted		true if page was decrypted
 @return decrypted page, or original not encrypted page if decryption is
 not needed.*/
 UNIV_INTERN
@@ -1022,13 +1021,11 @@ byte*
 fil_space_decrypt(
 	const fil_space_t* space,
 	byte*		tmp_frame,
-	byte*		src_frame,
-	bool*		decrypted)
+	byte*		src_frame)
 {
 	dberr_t err = DB_SUCCESS;
 	byte* res = NULL;
 	const ulint physical_size = space->physical_size();
-	*decrypted = false;
 
 	ut_ad(space->crypt_data != NULL && space->crypt_data->is_encrypted());
 	ut_ad(space->pending_io());
@@ -1040,7 +1037,6 @@ fil_space_decrypt(
 
 	if (err == DB_SUCCESS) {
 		if (encrypted) {
-			*decrypted = true;
 			/* Copy the decrypted page back to page buffer, not
 			really any other options. */
 			memcpy(src_frame, tmp_frame, physical_size);
@@ -1991,8 +1987,6 @@ fil_crypt_rotate_page(
 		return;
 	}
 
-	ut_d(const bool was_free = fseg_page_is_free(space, (uint32_t)offset));
-
 	mtr_t mtr;
 	mtr.start();
 	if (buf_block_t* block = fil_crypt_get_page_throttle(state,
@@ -2007,9 +2001,9 @@ fil_crypt_rotate_page(
 		if (space->is_stopping()) {
 			/* The tablespace is closing (in DROP TABLE or
 			TRUNCATE TABLE or similar): avoid further access */
-		} else if (!*reinterpret_cast<uint32_t*>(FIL_PAGE_OFFSET
-							 + frame)) {
-			/* It looks like this page was never
+		} else if (!kv && !*reinterpret_cast<uint16_t*>
+			   (&frame[FIL_PAGE_TYPE])) {
+			/* It looks like this page is not
 			allocated. Because key rotation is accessing
 			pages in a pattern that is unlike the normal
 			B-tree and undo log access pattern, we cannot
@@ -2019,9 +2013,20 @@ fil_crypt_rotate_page(
 			tablespace latch before acquiring block->lock,
 			then the fseg_page_is_free() information
 			could be stale already. */
-			ut_ad(was_free);
-			ut_ad(kv == 0);
-			ut_ad(page_get_space_id(frame) == 0);
+
+			/* If the data file was originally created
+			before MariaDB 10.0 or MySQL 5.6, some
+			allocated data pages could carry 0 in
+			FIL_PAGE_TYPE. The FIL_PAGE_TYPE on those
+			pages will be updated in
+			buf_flush_init_for_writing() when the page
+			is modified the next time.
+
+			Also, when the doublewrite buffer pages are
+			allocated on bootstrap in a non-debug build,
+			some dummy pages will be allocated, with 0 in
+			the FIL_PAGE_TYPE. Those pages should be
+			skipped from key rotation forever. */
 		} else if (fil_crypt_needs_rotation(
 				crypt_data,
 				kv,
@@ -2517,8 +2522,8 @@ static void fil_crypt_rotation_list_fill()
 			release fil_system.mutex. */
 			space->n_pending_ops++;
 #ifndef DBUG_OFF
-			fil_space_t* s= fil_system.read_page0(
-				space->id);
+			ut_d(const fil_space_t* s=)
+			        fil_system.read_page0(space->id);
 			ut_ad(!s || s == space);
 #endif
 			space->n_pending_ops--;

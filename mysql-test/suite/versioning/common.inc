@@ -4,8 +4,6 @@ if (!$TEST_VERSIONING_SO)
   --skip needs test_versioning plugin
 }
 source include/have_innodb.inc;
-create database test2 character set latin1;
-use test2;
 
 set @@session.time_zone='+00:00';
 select ifnull(max(transaction_id), 0) into @start_trx_id from mysql.transaction_registry;

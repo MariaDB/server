@@ -266,7 +266,7 @@ extern ulong    my_sync_count;
 extern uint	mysys_usage_id;
 extern int32    my_file_opened;
 extern my_bool	my_init_done, my_thr_key_mysys_exists;
-extern MYSQL_PLUGIN_IMPORT my_bool my_assert;
+extern my_bool my_assert;
 extern my_bool  my_assert_on_error;
 extern myf      my_global_flags;        /* Set to MY_WME for more error messages */
 					/* Point to current my_message() */
@@ -964,8 +964,6 @@ extern ulonglong my_getcputime(void);
 #endif
 
 #ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-
 #ifndef MAP_NOSYNC
 #define MAP_NOSYNC      0
 #endif
@@ -994,6 +992,16 @@ extern ulonglong my_getcputime(void);
 #define HAVE_MMAP
 void *my_mmap(void *, size_t, int, int, int, my_off_t);
 int my_munmap(void *, size_t);
+#endif
+
+#ifdef _WIN32
+extern FILE* my_win_popen(const char*, const char*);
+extern int my_win_pclose(FILE*);
+#define my_popen(A,B) my_win_popen(A,B)
+#define my_pclose(A) my_win_pclose(A)
+#else
+#define my_popen(A,B) popen(A,B)
+#define my_pclose(A) pclose(A)
 #endif
 
 /* my_getpagesize */

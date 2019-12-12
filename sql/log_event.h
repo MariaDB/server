@@ -3621,7 +3621,7 @@ public:
   bool write_data_header();
   bool write_data_body();
   /*
-    Cut out Create_file extentions and
+    Cut out Create_file extensions and
     write it as Load event - used on the slave
   */
   bool write_base();
@@ -5242,6 +5242,9 @@ bool event_that_should_be_ignored(const char *buf);
 bool event_checksum_test(uchar *buf, ulong event_len, enum_binlog_checksum_alg alg);
 enum enum_binlog_checksum_alg get_checksum_alg(const char* buf, ulong len);
 extern TYPELIB binlog_checksum_typelib;
+#ifdef WITH_WSREP
+enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size);
+#endif /* WITH_WSREP */
 
 /**
   @} (end of group Replication)

@@ -155,21 +155,21 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select `test2`.`t1`.`x` AS `IJ2_x1`,`test2`.`t1`.`y` AS `y1`,`test2`.`t2`.`x` AS `x2`,`test2`.`t2`.`y` AS `y2` from `test2`.`t1` FOR SYSTEM_TIME ALL join `test2`.`t2` FOR SYSTEM_TIME ALL where `test2`.`t1`.`x` = `test2`.`t2`.`x` and `test2`.`t2`.`row_end` > @`t0` and `test2`.`t2`.`row_start` <= @`t0` and `test2`.`t1`.`row_end` > @`t0` and `test2`.`t1`.`row_start` <= @`t0`
+Note	1003	select `test`.`t1`.`x` AS `IJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t1` FOR SYSTEM_TIME ALL join `test`.`t2` FOR SYSTEM_TIME ALL where `test`.`t1`.`x` = `test`.`t2`.`x` and `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0` and `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0`
 explain extended select * from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select `test2`.`t1`.`x` AS `LJ2_x1`,`test2`.`t1`.`y` AS `y1`,`test2`.`t2`.`x` AS `x2`,`test2`.`t2`.`y` AS `y2` from `test2`.`t1` FOR SYSTEM_TIME ALL left join `test2`.`t2` FOR SYSTEM_TIME ALL on(`test2`.`t2`.`x` = `test2`.`t1`.`x` and `test2`.`t2`.`row_end` > @`t0` and `test2`.`t2`.`row_start` <= @`t0`) where `test2`.`t1`.`row_end` > @`t0` and `test2`.`t1`.`row_start` <= @`t0`
+Note	1003	select `test`.`t1`.`x` AS `LJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t1` FOR SYSTEM_TIME ALL left join `test`.`t2` FOR SYSTEM_TIME ALL on(`test`.`t2`.`x` = `test`.`t1`.`x` and `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0`) where `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0`
 explain extended select * from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select `test2`.`t1`.`x` AS `RJ2_x1`,`test2`.`t1`.`y` AS `y1`,`test2`.`t2`.`x` AS `x2`,`test2`.`t2`.`y` AS `y2` from `test2`.`t2` FOR SYSTEM_TIME ALL left join `test2`.`t1` FOR SYSTEM_TIME ALL on(`test2`.`t1`.`x` = `test2`.`t2`.`x` and `test2`.`t1`.`row_end` > @`t0` and `test2`.`t1`.`row_start` <= @`t0`) where `test2`.`t2`.`row_end` > @`t0` and `test2`.`t2`.`row_start` <= @`t0`
+Note	1003	select `test`.`t1`.`x` AS `RJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t2` FOR SYSTEM_TIME ALL left join `test`.`t1` FOR SYSTEM_TIME ALL on(`test`.`t1`.`x` = `test`.`t2`.`x` and `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0`) where `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0`
 select * from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 IJ2_x1	y1	x2	y2
@@ -330,7 +330,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test2`.`t1`.`a` AS `a`,`test2`.`t2`.`a` AS `a` from `test2`.`t1` FOR SYSTEM_TIME ALL left join (`test2`.`t1` FOR SYSTEM_TIME ALL `t2` left join `test2`.`t1` FOR SYSTEM_TIME ALL `t3` on(`test2`.`t3`.`a` = `test2`.`t2`.`a` and `test2`.`t3`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999')) on(`test2`.`t2`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999' and `test2`.`t1`.`a` > 1) where `test2`.`t1`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999'
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a` from `test`.`t1` FOR SYSTEM_TIME ALL left join (`test`.`t1` FOR SYSTEM_TIME ALL `t2` left join `test`.`t1` FOR SYSTEM_TIME ALL `t3` on(`test`.`t3`.`a` = `test`.`t2`.`a` and `test`.`t3`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999')) on(`test`.`t2`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999' and `test`.`t1`.`a` > 1) where `test`.`t1`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999'
 select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
 a	a
 2	1
@@ -356,6 +356,21 @@ ERROR HY000: Table `t` is not system-versioned
 create or replace table t1 (x int) with system versioning engine myisam;
 select * from t1 for system_time as of transaction 1;
 ERROR HY000: Transaction-precise system versioning for `t1` is not supported
+# MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+create or replace procedure sp()
+select * from t1 for system_time as of transaction 1;
+call sp;
+ERROR HY000: Transaction-precise system versioning for `t1` is not supported
+call sp;
+ERROR HY000: Transaction-precise system versioning for `t1` is not supported
+create or replace table t1 (a int);
+create or replace procedure sp()
+select * from t1 for system_time all;
+call sp;
+ERROR HY000: Table `t1` is not system-versioned
+call sp;
+ERROR HY000: Table `t1` is not system-versioned
+drop procedure sp;
 create or replace table t1 (
 x int,
 sys_trx_start bigint unsigned as row start invisible,
@@ -549,7 +564,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
-Note	1003	select `test2`.`t1`.`f1` AS `f1` from `test2`.`t1` FOR SYSTEM_TIME ALL join `test2`.`t2` left join (`test2`.`t3` left join `test2`.`t4` FOR SYSTEM_TIME ALL on(`test2`.`t4`.`f4` = `test2`.`t2`.`f2` and `test2`.`t4`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999')) on(`test2`.`t3`.`f3` = `test2`.`t2`.`f2`) where `test2`.`t1`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999'
+Note	1003	select `test`.`t1`.`f1` AS `f1` from `test`.`t1` FOR SYSTEM_TIME ALL join `test`.`t2` left join (`test`.`t3` left join `test`.`t4` FOR SYSTEM_TIME ALL on(`test`.`t4`.`f4` = `test`.`t2`.`f2` and `test`.`t4`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999')) on(`test`.`t3`.`f3` = `test`.`t2`.`f2`) where `test`.`t1`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999'
 drop view v1;
 drop table t1, t2, t3, t4;
 #
@@ -613,6 +628,30 @@ call p;
 i
 drop procedure p;
 drop table t1;
+#
+# MDEV-21234 Server crashes in in setup_on_expr upon 3rd execution of SP
+#
+create table t1 (a varchar(8));
+insert into t1 values ('foo'),('bar');
+create table t2 (b date);
+create procedure pr() insert into t2 select * from t1;
+call pr;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+prepare stmt from 'insert into t2 select * from t1';
+execute stmt;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+alter table t1 add system versioning;
+call pr;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+call pr;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+execute stmt;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+execute stmt;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+drop prepare stmt;
+drop procedure pr;
+drop table t1, t2;
 call verify_trt_dummy(34);
 No	A	B	C	D
 1	1	1	1	1

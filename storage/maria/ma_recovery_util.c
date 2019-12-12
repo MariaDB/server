@@ -51,6 +51,8 @@ LSN checkpoint_start= LSN_IMPOSSIBLE;
 my_bool procent_printed;
 FILE *tracef; /**< trace file for debugging */
 
+ulong recovery_found_crashed_tables;
+uint skipped_lsn_err_count;
 
 /** @brief Prints to a trace file if it is not NULL */
 void tprint(FILE *trace_file __attribute__ ((unused)),
@@ -59,11 +61,12 @@ void tprint(FILE *trace_file __attribute__ ((unused)),
   va_list args;
 #ifndef DBUG_OFF
   {
-    char buff[1024], *end;
+    char buff[1024];
+    size_t length;
     va_start(args, format);
-    vsnprintf(buff, sizeof(buff)-1, format, args);
-    if (*(end= strend(buff)) == '\n')
-      *end= 0;                                  /* Don't print end \n */
+    length= my_vsnprintf(buff, sizeof(buff)-1, format, args);
+    if (length && buff[length-1] == '\n')
+      buff[length-1]= 0;                      /* Don't print end \n */
     DBUG_PRINT("info", ("%s", buff));
     va_end(args);
   }

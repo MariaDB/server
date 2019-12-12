@@ -315,7 +315,7 @@ public:
   */
   key_map possible_keys;
   longlong baseflag;
-  uint max_key_part, range_count;
+  uint max_key_parts, range_count;
 
   bool quick;				// Don't calulate possible keys
 
@@ -2661,12 +2661,16 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   records= head->stat_records();
   if (!records)
     records++;					/* purecov: inspected */
-  scan_time= (double) records / TIME_FOR_COMPARE + 1;
-  read_time= (double) head->file->scan_time() + scan_time + 1.1;
-  if (head->force_index)
+
+  if (head->force_index || force_quick_range)
     scan_time= read_time= DBL_MAX;
-  if (limit < records)
-    read_time= (double) records + scan_time + 1; // Force to use index
+  else
+  {
+    scan_time= (double) records / TIME_FOR_COMPARE + 1;
+    read_time= (double) head->file->scan_time() + scan_time + 1.1;
+    if (limit < records)
+      read_time= (double) records + scan_time + 1; // Force to use index
+  }
   
   possible_keys.clear_all();
 
@@ -7383,7 +7387,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         index_scan->idx= idx;
         index_scan->keynr= keynr;
         index_scan->key_info= &param->table->key_info[keynr];
-        index_scan->used_key_parts= param->max_key_part+1;
+        index_scan->used_key_parts= param->max_key_parts;
         index_scan->range_count= param->range_count;
         index_scan->records= found_records;
         index_scan->sel_arg= key;
@@ -11038,7 +11042,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   seq.start= tree;
 
   param->range_count=0;
-  param->max_key_part=0;
+  param->max_key_parts=0;
 
   seq.is_ror_scan= TRUE;
   if (file->index_flags(keynr, 0, TRUE) & HA_KEY_SCAN_NOT_ROR)
@@ -11051,9 +11055,13 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   *mrr_flags|= HA_MRR_NO_ASSOCIATION | HA_MRR_SORTED;
 
   bool pk_is_clustered= file->primary_key_is_clustered();
+  // TODO: param->max_key_parts holds 0 now, and not the #keyparts used.
+  // Passing wrong second argument to index_flags() makes no difference for
+  // most storage engines but might be an issue for MyRocks with certain
+  // datatypes.
   if (index_only && 
-      (file->index_flags(keynr, param->max_key_part, 1) & HA_KEYREAD_ONLY) &&
-      !(file->index_flags(keynr, param->max_key_part, 1) & HA_CLUSTERED_INDEX))
+      (file->index_flags(keynr, param->max_key_parts, 1) & HA_KEYREAD_ONLY) &&
+      !(file->index_flags(keynr, param->max_key_parts, 1) & HA_CLUSTERED_INDEX))
      *mrr_flags |= HA_MRR_INDEX_ONLY;
   
   if (param->thd->lex->sql_command != SQLCOM_SELECT)
@@ -11069,12 +11077,22 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
                                             bufsize, mrr_flags, cost);
   if (rows != HA_POS_ERROR)
   {
+    ha_rows table_records= param->table->stat_records();
+    if (rows > table_records)
+    {
+      /*
+        For any index the total number of records within all ranges
+        cannot be be bigger than the number of records in the table
+      */
+      rows= table_records;
+      set_if_bigger(rows, 1);
+    }
     param->quick_rows[keynr]= rows;
     param->possible_keys.set_bit(keynr);
     if (update_tbl_stats)
     {
       param->table->quick_keys.set_bit(keynr);
-      param->table->quick_key_parts[keynr]= param->max_key_part+1;
+      param->table->quick_key_parts[keynr]= param->max_key_parts;
       param->table->quick_n_ranges[keynr]= param->range_count;
       param->table->quick_condition_rows=
         MY_MIN(param->table->quick_condition_rows, rows);

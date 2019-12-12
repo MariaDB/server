@@ -6395,6 +6395,7 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
     }
     else if (lsn_korr(buff) >= lsn)           /* Test if already applied */
     {
+      check_skipped_lsn(info, lsn_korr(buff), 1, page);
       /* Fix bitmap, just in case */
       empty_space= uint2korr(buff + EMPTY_SPACE_OFFSET);
       if (!enough_free_entries_on_page(share, buff))
@@ -6562,6 +6563,7 @@ uint _ma_apply_redo_purge_row_head_or_tail(MARIA_HA *info, LSN lsn,
       Note that in case the page is not anymore a head or tail page
       a future redo will fix the bitmap.
     */
+    check_skipped_lsn(info, lsn_korr(buff), 1, page);
     if ((uint) (buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == page_type)
     {
       empty_space= uint2korr(buff+EMPTY_SPACE_OFFSET);
@@ -6732,6 +6734,7 @@ uint _ma_apply_redo_free_head_or_tail(MARIA_HA *info, LSN lsn,
   if (lsn_korr(buff) >= lsn)
   {
     /* Already applied */
+    check_skipped_lsn(info, lsn_korr(buff), 1, page);
     pagecache_unlock_by_link(share->pagecache, page_link.link,
                              PAGECACHE_LOCK_WRITE_UNLOCK,
                              PAGECACHE_UNPIN, LSN_IMPOSSIBLE,
@@ -6909,8 +6912,7 @@ uint _ma_apply_redo_insert_row_blobs(MARIA_HA *info,
             if (lsn_korr(buff) >= lsn)
             {
               /* Already applied */
-              DBUG_PRINT("info", ("already applied %llu >= %llu",
-                                  lsn_korr(buff), lsn));
+              check_skipped_lsn(info, lsn_korr(buff), 1, page);
               pagecache_unlock_by_link(share->pagecache, page_link.link,
                                        PAGECACHE_LOCK_WRITE_UNLOCK,
                                        PAGECACHE_UNPIN, LSN_IMPOSSIBLE,

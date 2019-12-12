@@ -84,7 +84,7 @@ PTDB TDBFIX::Clone(PTABS t)
 
   tp = new(g) TDBFIX(g, this);
 
-  if (Ftype < 2) {
+  if (Ftype == RECFM_VAR || Ftype == RECFM_FIX) {
     // File is text
     PDOSCOL cp1, cp2;
 

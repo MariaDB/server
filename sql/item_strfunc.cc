@@ -2402,7 +2402,7 @@ String *Item_func_sqlerrm::val_str(String *str)
               system_charset_info);
     return str;
   }
-  str->copy(STRING_WITH_LEN("normal, successful completition"),
+  str->copy(STRING_WITH_LEN("normal, successful completion"),
             system_charset_info);
   return str;
 }
@@ -2666,10 +2666,17 @@ const int FORMAT_MAX_DECIMALS= 30;
 
 bool Item_func_format::fix_length_and_dec()
 {
-  uint32 char_length= args[0]->max_char_length();
-  uint32 max_sep_count= (char_length / 3) + (decimals ? 1 : 0) + /*sign*/1;
+  uint32 char_length= args[0]->type_handler()->Item_decimal_notation_int_digits(args[0]);
+  uint dec= FORMAT_MAX_DECIMALS;
+  if (args[1]->const_item() && !args[1]->is_expensive())
+  {
+    Longlong_hybrid tmp= args[1]->to_longlong_hybrid();
+    if (!args[1]->null_value)
+      dec= tmp.to_uint(FORMAT_MAX_DECIMALS);
+  }
+  uint32 max_sep_count= (char_length / 3) + (dec ? 1 : 0) + /*sign*/1;
   collation.set(default_charset());
-  fix_char_length(char_length + max_sep_count + decimals);
+  fix_char_length(char_length + max_sep_count + dec);
   if (arg_count == 3)
     locale= args[2]->basic_const_item() ? args[2]->locale_from_val_str() : NULL;
   else

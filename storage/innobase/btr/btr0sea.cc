@@ -782,10 +782,7 @@ btr_search_check_guess(
 		const rec_t* prev_rec = page_rec_get_prev(rec);
 
 		if (page_rec_is_infimum(prev_rec)) {
-			success = *reinterpret_cast<const uint32_t*>(
-				page_align(prev_rec) + FIL_PAGE_PREV)
-				== FIL_NULL;
-
+			success = !page_has_prev(page_align(prev_rec));
 			goto exit_func;
 		}
 
@@ -804,10 +801,7 @@ btr_search_check_guess(
 		const rec_t* next_rec = page_rec_get_next(rec);
 
 		if (page_rec_is_supremum(next_rec)) {
-			if (*reinterpret_cast<const uint32_t*>(
-				    page_align(next_rec) + FIL_PAGE_NEXT)
-			    == FIL_NULL) {
-
+			if (!page_has_next(page_align(next_rec))) {
 				cursor->up_match = 0;
 				success = TRUE;
 			}

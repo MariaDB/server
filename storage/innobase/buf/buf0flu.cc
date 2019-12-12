@@ -788,7 +788,9 @@ buf_flush_init_for_writing(
 	ut_ad(block == NULL || block->frame == page);
 	ut_ad(block == NULL || page_zip_ == NULL
 	      || &block->page.zip == page_zip_);
+	ut_ad(!block || newest_lsn);
 	ut_ad(page);
+	ut_ad(!newest_lsn || fil_page_get_type(page));
 
 	if (page_zip_) {
 		page_zip_des_t*	page_zip;
@@ -835,7 +837,7 @@ buf_flush_init_for_writing(
 
 	if (use_full_checksum) {
 		mach_write_to_4(page + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
-				(ulint) newest_lsn);
+				static_cast<uint32_t>(newest_lsn));
 	} else {
 		mach_write_to_8(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
 				newest_lsn);

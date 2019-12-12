@@ -68,7 +68,8 @@ bool
 write_binlog_info(MYSQL *connection);
 
 bool
-write_xtrabackup_info(MYSQL *connection, const char * filename, bool history);
+write_xtrabackup_info(MYSQL *connection, const char * filename, bool history,
+                       bool stream);
 
 bool
 write_backup_config_file();

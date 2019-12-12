@@ -173,10 +173,10 @@ bool log_crypt(byte* buf, lsn_t lsn, ulint size, log_crypt_t op)
 		byte* key_ver = &buf[OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_KEY
 				     - LOG_BLOCK_CHECKSUM];
 		const uint dst_size
-			= log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4
+			= log_sys.log.format == log_t::FORMAT_ENC_10_4
 			? sizeof dst - LOG_BLOCK_KEY
 			: sizeof dst;
-		if (log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4) {
+		if (log_sys.log.format == log_t::FORMAT_ENC_10_4) {
 			const uint key_version = info.key_version;
 			switch (op) {
 			case LOG_ENCRYPT_ROTATE_KEY:

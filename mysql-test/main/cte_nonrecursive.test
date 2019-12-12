@@ -1182,3 +1182,18 @@ with t as (select 1 as t) select * from t;
 with columns as (select 1 as t) select * from columns;
 
 use test;
+
+
+--echo #
+--echo # MDEV-20730: Syntax error on SELECT INTO @variable with CTE
+--echo #
+
+with data as (select 1 as id)
+select id into @myid from data;
+set @save_sql_mode = @@sql_mode;
+set sql_mode="oracle";
+with data as (select 1 as id)
+select id into @myid from data;
+set sql_mode= @save_sql_mode;
+
+--echo # End of 10.4 tests

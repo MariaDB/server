@@ -1,9 +1,10 @@
-create table t (
-id int primary key,
+create or replace table t(
+id int,
+KEY_TYPE(id),
 x int,
 row_start SYS_DATATYPE as row start invisible,
 row_end SYS_DATATYPE as row end invisible,
-period for system_time (row_start, row_end)
+period for system_time(row_start, row_end)
 ) with system versioning;
 insert t values (1, 2);
 replace t values (1, 3);
@@ -32,7 +33,8 @@ insert into t1 values (1,1);
 create or replace table t2 (c int);
 create or replace view v as select t1.* from t1 join t2;
 replace into v (a, b) select a, b from t1;
-drop table t1;
+drop view v;
+drop tables t1, t2;
 CREATE TABLE t1 (
 pk INT AUTO_INCREMENT,
 f INT,

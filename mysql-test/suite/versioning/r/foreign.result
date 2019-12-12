@@ -2,7 +2,8 @@
 # Test RESTRICT #
 #################
 create table parent(
-id int unique key
+id int,
+KEY_TYPE (id)
 ) engine innodb;
 create table child(
 parent_id int,
@@ -16,13 +17,13 @@ on update restrict
 insert into parent values(1);
 insert into child values(1);
 delete from parent where id = 1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 delete from child where parent_id = 1;
 delete from parent where id = 1;
 insert into parent values(1);
 insert into child values(1);
 update parent set id=id+1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 delete from child;
 update parent set id=id+1;
 select * from child for system_time all;
@@ -35,7 +36,8 @@ drop table parent;
 # Test when clustered index is a foreign key #
 ##############################################
 create table parent(
-id int(10) unsigned unique key
+id int(10) unsigned,
+KEY_TYPE (id)
 ) engine innodb;
 create table child(
 parent_id int(10) unsigned primary key,
@@ -47,14 +49,15 @@ foreign key(parent_id) references parent(id)
 insert into parent values(1);
 insert into child values(1);
 delete from parent where id = 1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 drop table child;
 drop table parent;
 ################
 # Test CASCADE #
 ################
 create table parent(
-id int unique key
+id int,
+KEY_TYPE (id)
 ) engine innodb;
 create table child(
 parent_id int,
@@ -87,7 +90,8 @@ parent_id
 drop table child;
 drop table parent;
 create or replace table parent (
-id int primary key,
+id int,
+KEY_TYPE(id),
 sys_start SYS_DATATYPE as row start invisible,
 sys_end SYS_DATATYPE as row end invisible,
 period for system_time(sys_start, sys_end)
@@ -110,7 +114,8 @@ x	parent_id
 drop table child;
 drop table parent;
 create or replace table parent (
-id int primary key
+id int,
+KEY_TYPE(id)
 )
 engine innodb;
 create or replace table child (
@@ -138,8 +143,9 @@ drop table parent;
 #################
 # Test SET NULL #
 #################
-create or replace table parent(
-id int unique key
+create table parent(
+id int,
+KEY_TYPE (id)
 ) engine innodb;
 create or replace table child(
 parent_id int,
@@ -183,7 +189,8 @@ drop table parent;
 # Parent table is foreign #
 ###########################
 create or replace table parent(
-id int unique key,
+id int,
+KEY_TYPE (id),
 sys_start SYS_DATATYPE as row start invisible,
 sys_end SYS_DATATYPE as row end invisible,
 period for system_time(sys_start, sys_end)
@@ -195,26 +202,27 @@ foreign key(parent_id) references parent(id)
 insert into parent values(1);
 insert into child values(1);
 delete from parent;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 update parent set id=2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 delete from child;
 delete from parent;
 insert into child values(1);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 insert into parent values(1);
 insert into child values(1);
 delete from parent;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 update parent set id=2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `child_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
 drop table child;
 drop table parent;
 ###################
 # crash on DELETE #
 ###################
 create or replace table a (
-cola int(10) primary key,
+cola int(10),
+KEY_TYPE (cola),
 v_cola int(10) as (cola mod 10) virtual,
 sys_start SYS_DATATYPE as row start invisible,
 sys_end SYS_DATATYPE as row end invisible,
@@ -233,7 +241,7 @@ foreign key (v_cola) references a (v_cola);
 insert into a(cola) values (12);
 insert into b(cola, v_cola) values (10,2);
 delete from a;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test2`.`b`, CONSTRAINT `v_cola_fk` FOREIGN KEY (`v_cola`) REFERENCES `a` (`v_cola`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`b`, CONSTRAINT `v_cola_fk` FOREIGN KEY (`v_cola`) REFERENCES `a` (`v_cola`))
 drop table b, a;
 ###############################################
 # CASCADE UPDATE foreign not system versioned #
@@ -292,15 +300,18 @@ select count(*) from subchild;
 count(*)
 0
 drop table subchild, child, parent;
-CREATE TABLE t1 (f1 INT, KEY(f1)) ENGINE=InnoDB;
-CREATE TABLE t2 (f2 INT, FOREIGN KEY (f2) REFERENCES t1 (f1)) ENGINE=InnoDB WITH SYSTEM VERSIONING;
-SET FOREIGN_KEY_CHECKS= OFF;
-INSERT IGNORE INTO t2 VALUES (1);
-SET FOREIGN_KEY_CHECKS= ON;
-UPDATE t2 SET f2= 2;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test2`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
-DELETE FROM t2;
-DROP TABLE t2, t1;
+#
+# MDEV-18057 Assertion `(node->state == 5) || (node->state == 6)' failed in row_upd_sec_step upon DELETE after UPDATE failed due to FK violation
+#
+create or replace table t1 (f1 int, key(f1)) engine=innodb;
+create or replace table t2 (f2 int, foreign key (f2) references t1 (f1)) engine=innodb with system versioning;
+set foreign_key_checks= off;
+insert ignore into t2 values (1);
+set foreign_key_checks= on;
+update t2 set f2= 2;
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+delete from t2;
+drop table t2, t1;
 #
 # MDEV-18879 Corrupted record inserted by FOREIGN KEY operation
 #
@@ -389,3 +400,32 @@ Warning	1265	Data truncated for column 'f12' at row 7
 SET timestamp = 9;
 REPLACE INTO t2 SELECT * FROM t2;
 DROP TABLE t1, t2;
+#
+# MDEV-16210 FK constraints on versioned tables use historical rows, which may cause constraint violation
+#
+create or replace table t1 (a int, key(a)) engine innodb with system versioning;
+create or replace table t2 (b int, foreign key (b) references t1(a)) engine innodb;
+insert into t1 values (1),(2);
+insert into t2 values (1);
+# DELETE from referenced table is not allowed
+delete from t1 where a = 1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
+drop tables t2, t1;
+#
+# MDEV-20812 Unexpected ER_ROW_IS_REFERENCED_2 or server crash in row_ins_foreign_report_err upon DELETE from versioned table with FK
+#
+create or replace table t1 (x int primary key) engine innodb;
+create or replace table t2 (x int, foreign key (x) references t1(x)) engine innodb with system versioning;
+set foreign_key_checks= off;
+insert into t2 values (1), (1);
+set foreign_key_checks= on;
+# DELETE from foreign table is allowed
+delete from t2;
+drop tables t2, t1;
+create or replace table t1 (a int, key(a)) engine innodb;
+insert into t1 values (1);
+create or replace table t2 (b int, foreign key (b) references t1(a)) engine innodb with system versioning;
+insert into t2 values (1), (1);
+# DELETE from foreign table is allowed
+delete from t2;
+drop tables t2, t1;

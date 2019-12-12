@@ -335,7 +335,7 @@ static int _ftb_no_dupes_cmp(void* not_used __attribute__((unused)),
   When performing prefix search (a word with truncation operator), we
   must preserve original prefix to ensure that characters which may be
   expanded/contracted do not break the prefix. This is done by storing
-  newly found key immediatly after the original word in ftbw->word
+  newly found key immediately after the original word in ftbw->word
   buffer.
 
   ftbw->word= LENGTH WORD [ LENGTH1 WORD1 ] WEIGHT REFERENCE

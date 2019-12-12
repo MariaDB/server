@@ -159,7 +159,7 @@ current working directory ".", but in the MySQL Embedded Server Library
 it is an absolute path. */
 const char*	fil_path_to_mysql_datadir;
 
-/** Common InnoDB file extentions */
+/** Common InnoDB file extensions */
 const char* dot_ext[] = { "", ".ibd", ".isl", ".cfg" };
 
 /** The number of fsyncs done to the log */
@@ -1873,10 +1873,8 @@ for concurrency control.
 @param[in]	id	tablespace ID
 @param[in]	silent	whether to silently ignore missing tablespaces
 @return	the tablespace
-@retval	NULL if missing or being deleted or truncated */
-UNIV_INTERN
-fil_space_t*
-fil_space_acquire_low(ulint id, bool silent)
+@retval	NULL if missing or being deleted */
+fil_space_t* fil_space_acquire_low(ulint id, bool silent)
 {
 	fil_space_t*	space;
 
@@ -2203,9 +2201,7 @@ enum fil_operation_t {
 @param[in]	space	tablespace
 @param[in]	count	number of attempts so far
 @return 0 if no operations else count + 1. */
-static
-ulint
-fil_check_pending_ops(const fil_space_t* space, ulint count)
+static ulint fil_check_pending_ops(const fil_space_t* space, ulint count)
 {
 	ut_ad(mutex_own(&fil_system.mutex));
 
@@ -2216,7 +2212,7 @@ fil_check_pending_ops(const fil_space_t* space, ulint count)
 	if (ulint n_pending_ops = space->n_pending_ops) {
 
 		if (count > 5000) {
-			ib::warn() << "Trying to close/delete/truncate"
+			ib::warn() << "Trying to delete"
 				" tablespace '" << space->name
 				<< "' but there are " << n_pending_ops
 				<< " pending operations on it.";
@@ -2263,7 +2259,7 @@ fil_check_pending_io(
 		ut_a(!(*node)->being_extended);
 
 		if (count > 1000) {
-			ib::warn() << "Trying to delete/close/truncate"
+			ib::warn() << "Trying to delete"
 				" tablespace '" << space->name
 				<< "' but there are "
 				<< space->n_pending_flushes

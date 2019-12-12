@@ -17,7 +17,7 @@ insert into t1 select * from t1;
 insert into t1 select * from t1;
 insert into t1 select * from t1;
 
---connect (con1,localhost,root,,test2)
+--connect (con1,localhost,root,,test)
 alter table t1 add system versioning;
 
 --connection default

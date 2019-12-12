@@ -1529,7 +1529,8 @@ static int prepare_export()
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
-      " --console  --skip-log-error --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
+      " --console  --skip-log-error --skip-log-bin --bootstrap  < "
+      BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe, 
       orig_argv1, (my_defaults_group_suffix?my_defaults_group_suffix:""),
       xtrabackup_use_memory);
@@ -1541,7 +1542,8 @@ static int prepare_export()
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
-      " --console  --log-error= --bootstrap  < "  BOOTSTRAP_FILENAME IF_WIN("\"",""),
+      " --console  --log-error= --skip-log-bin --bootstrap  < "
+      BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
       (my_defaults_group_suffix?my_defaults_group_suffix:""),
       xtrabackup_use_memory);
@@ -1971,7 +1973,7 @@ static bool innodb_init_param()
 	return false;
 
 error:
-	msg("mariabackup: innodb_init_param(): Error occured.\n");
+	msg("mariabackup: innodb_init_param(): Error occurred.\n");
 	return true;
 }
 
@@ -3341,9 +3343,9 @@ retry:
 			       + TRX_SYS_RSEG_PAGE_NO + page)
 	      != FIL_NULL);
 
-	space = mach_read_ulint(TRX_SYS + TRX_SYS_RSEGS
-				+ TRX_SYS_RSEG_SLOT_SIZE
-				+ TRX_SYS_RSEG_SPACE + page, MLOG_4BYTES);
+	space = mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS
+				 + TRX_SYS_RSEG_SLOT_SIZE
+				 + TRX_SYS_RSEG_SPACE + page);
 
 	srv_undo_space_id_start = space;
 
@@ -3982,7 +3984,7 @@ static bool xtrabackup_backup_low()
 		}
 		sprintf(filename, "%s/%s", xtrabackup_extra_lsndir,
 			XTRABACKUP_INFO);
-		if (!write_xtrabackup_info(mysql_connection, filename, false)) {
+		if (!write_xtrabackup_info(mysql_connection, filename, false, false)) {
 			msg("Error: failed to write info "
 			 "to '%s'.", filename);
 			return false;

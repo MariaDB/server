@@ -660,11 +660,27 @@
     <MergeRef Id="VCRedist"/>
    </Feature>
    <?endif?>
+   
+    <!-- Custom action, create symlinks -->
+    <CustomAction Id="Symlinks.SetProperty" Return="check" Property="Symlinks" Value="[INSTALLDIR]" />
+    <CustomAction Id="Symlinks" BinaryKey="wixca.dll" DllEntry="FixSymlinks" Execute="deferred" Impersonate="no" Return="ignore"/>
+    <CustomAction Id="SymlinksRollback.SetProperty" Return="check" Property="SymlinksRollback" Value="[INSTALLDIR]" />
+    <CustomAction Id="SymlinksRollback" BinaryKey="wixca.dll" DllEntry="FixSymlinksRollback" Execute="rollback" Impersonate="no" Return="ignore"/>
+    <CustomAction Id="SymlinksUninstall.SetProperty" Return="check" Property="SymlinksUninstall" Value="[INSTALLDIR]" />
+    <CustomAction Id="SymlinksUninstall" BinaryKey="wixca.dll" DllEntry="SymlinksUninstall" Execute="deferred" Impersonate="no" Return="ignore"/>
+    <InstallExecuteSequence>
+      <Custom Action="Symlinks.SetProperty" Before="Symlinks">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="Symlinks" After="SymlinksRollback">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksRollback.SetProperty" Before="SymlinksRollback">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksRollback" After="InstallFiles">NOT Installed OR UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksUninstall.SetProperty" Before="SymlinksUninstall">Installed AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="SymlinksUninstall" Before="RemoveFiles">Installed AND NOT UPGRADINGPRODUCTCODE</Custom>
+    </InstallExecuteSequence>
 
-    <!--  Custom action, call mysql_install_db  -->
-    <SetProperty  Sequence='execute'  Before='CreateDatabaseCommand' Id="SKIPNETWORKING"  Value="--skip-networking" >SKIPNETWORKING</SetProperty>
-    <SetProperty Sequence='execute'  Before='CreateDatabaseCommand'  Id="ALLOWREMOTEROOTACCESS" Value="--allow-remote-root-access">ALLOWREMOTEROOTACCESS</SetProperty>
-    <SetProperty Sequence='execute'  Before='CreateDatabaseCommand' Id="DEFAULTUSER" Value="--default-user">DEFAULTUSER</SetProperty>
+    <!-- Custom action, call mysql_install_db -->
+    <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="SKIPNETWORKING" Value="--skip-networking" >SKIPNETWORKING</SetProperty>
+    <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="ALLOWREMOTEROOTACCESS" Value="--allow-remote-root-access">ALLOWREMOTEROOTACCESS</SetProperty>
+    <SetProperty Sequence='execute' Before='CreateDatabaseCommand' Id="DEFAULTUSER" Value="--default-user">DEFAULTUSER</SetProperty>
     <CustomAction Id='CheckDatabaseProperties' BinaryKey='wixca.dll' DllEntry='CheckDatabaseProperties' />
     <CustomAction Id='PresetDatabaseProperties' BinaryKey='wixca.dll' DllEntry='PresetDatabaseProperties' />
     <CustomAction Id="CreateDatabaseCommand" Property="CreateDatabase"

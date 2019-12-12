@@ -674,18 +674,63 @@ public:
 		def_val.data = NULL;
 	}
 
+  /** @return whether two columns have compatible data type encoding */
+  bool same_type(const dict_col_t &other) const
+  {
+    if (mtype != other.mtype)
+    {
+      /* For latin1_swedish_ci, DATA_CHAR and DATA_VARCHAR
+      will be used instead of DATA_MYSQL and DATA_VARMYSQL.
+      As long as mtype,prtype are being written to InnoDB
+      data dictionary tables, we cannot simplify this. */
+      switch (mtype) {
+      default:
+        return false;
+      case DATA_VARCHAR:
+        if (other.mtype != DATA_VARMYSQL)
+          return false;
+        goto check_encoding;
+      case DATA_VARMYSQL:
+        if (other.mtype != DATA_VARCHAR)
+          return false;
+        goto check_encoding;
+      case DATA_CHAR:
+        if (other.mtype != DATA_MYSQL)
+          return false;
+        goto check_encoding;
+      case DATA_MYSQL:
+        if (other.mtype != DATA_CHAR)
+          return false;
+        goto check_encoding;
+      }
+    }
+    else if (dtype_is_string_type(mtype))
+    {
+    check_encoding:
+      const uint16_t cset= dtype_get_charset_coll(prtype);
+      const uint16_t ocset= dtype_get_charset_coll(other.prtype);
+      return cset == ocset || dict_col_t::same_encoding(cset, ocset);
+    }
+
+    return true;
+  }
+
+  /** @return whether two collations codes have the same character encoding */
+  static bool same_encoding(uint16_t a, uint16_t b);
+
 	/** Determine if the columns have the same format
 	except for is_nullable() and is_versioned().
 	@param[in]	other	column to compare to
 	@return	whether the columns have the same format */
 	bool same_format(const dict_col_t& other) const
 	{
-		return mtype == other.mtype
+		return same_type(other)
 			&& len >= other.len
 			&& mbminlen == other.mbminlen
 			&& mbmaxlen == other.mbmaxlen
 			&& !((prtype ^ other.prtype)
 			     & ~(DATA_NOT_NULL | DATA_VERSIONED
+				 | CHAR_COLL_MASK << 16
 				 | DATA_LONG_TRUE_VARCHAR));
 	}
 };
@@ -1214,12 +1259,6 @@ struct dict_index_t {
 	bool
 	vers_history_row(const rec_t* rec, bool &history_row);
 
-	/** If a record of this index might not fit on a single B-tree page,
-	  return true.
-	@param[in]	strict	issue error or warning
-	@return true if the index record could become too big */
-	bool rec_potentially_too_big(bool strict) const;
-
 	/** Reconstruct the clustered index fields. */
 	inline void reconstruct_fields();
 
@@ -1229,6 +1268,66 @@ struct dict_index_t {
 	@return whether the index contains the column or its prefix */
 	bool contains_col_or_prefix(ulint n, bool is_virtual) const
 	MY_ATTRIBUTE((warn_unused_result));
+
+	/** This ad-hoc class is used by record_size_info only.	*/
+	class record_size_info_t {
+	public:
+		record_size_info_t()
+		    : max_leaf_size(0), shortest_size(0), too_big(false),
+		      first_overrun_field_index(SIZE_T_MAX), overrun_size(0)
+		{
+		}
+
+		/** Mark row potentially too big for page and set up first
+		overflow field index. */
+		void set_too_big(size_t field_index)
+		{
+			ut_ad(field_index != SIZE_T_MAX);
+
+			too_big = true;
+			if (first_overrun_field_index > field_index) {
+				first_overrun_field_index = field_index;
+				overrun_size = shortest_size;
+			}
+		}
+
+		/** @return overrun field index or SIZE_T_MAX if nothing
+		overflowed*/
+		size_t get_first_overrun_field_index() const
+		{
+			ut_ad(row_is_too_big());
+			ut_ad(first_overrun_field_index != SIZE_T_MAX);
+			return first_overrun_field_index;
+		}
+
+		size_t get_overrun_size() const
+		{
+			ut_ad(row_is_too_big());
+			return overrun_size;
+		}
+
+		bool row_is_too_big() const { return too_big; }
+
+		size_t max_leaf_size; /** Bigger row size this index can
+				      produce */
+		size_t shortest_size; /** shortest because it counts everything
+				      as in overflow pages */
+
+	private:
+		bool too_big; /** This one is true when maximum row size this
+			      index can produce is bigger than maximum row
+			      size given page can hold. */
+		size_t first_overrun_field_index; /** After adding this field
+						  index row overflowed maximum
+						  allowed size. Useful for
+						  reporting back to user. */
+		size_t overrun_size;		  /** Just overrun row size */
+	};
+
+	/** Returns max possibly record size for that index, size of a shortest
+	everything in overflow) size of the longest possible row and index
+	of a field which made index records too big to fit on a page.*/
+	inline record_size_info_t record_size_info() const;
 };
 
 /** Detach a column from an index.
@@ -1787,10 +1886,7 @@ struct dict_table_t {
 
 private:
 	/** Initialize instant->field_map.
-	@tparam	replace_dropped	whether to point clustered index fields
-				to instant->dropped[]
 	@param[in]	table	table definition to copy from */
-	template<bool replace_dropped = false>
 	inline void init_instant(const dict_table_t& table);
 public:
 	/** Id of the table. */

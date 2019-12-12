@@ -1,13 +1,19 @@
+--source suite/versioning/key_type.inc
+if ($MTR_COMBINATION_SEC)
+{
+  --skip pk or unique only
+}
 --source suite/versioning/common.inc
 --source suite/versioning/engines.inc
 
---replace_result $sys_datatype_expl SYS_DATATYPE
-eval create table t (
-  id int primary key,
+--replace_result $sys_datatype_expl SYS_DATATYPE "$KEY_TYPE" KEY_TYPE
+eval create or replace table t(
+  id int,
+  $KEY_TYPE(id),
   x int,
   row_start $sys_datatype_expl as row start invisible,
   row_end $sys_datatype_expl as row end invisible,
-  period for system_time (row_start, row_end)
+  period for system_time(row_start, row_end)
 ) with system versioning;
 
 insert t values (1, 2);
@@ -35,7 +41,8 @@ insert into t1 values (1,1);
 create or replace table t2 (c int);
 create or replace view v as select t1.* from t1 join t2;
 replace into v (a, b) select a, b from t1;
-drop table t1;
+drop view v;
+drop tables t1, t2;
 
 --replace_result $sys_datatype_expl SYS_DATATYPE
 eval CREATE TABLE t1 (

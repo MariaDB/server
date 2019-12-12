@@ -107,7 +107,7 @@ insert into t values (1, 1);
 
 select c.prtype from information_schema.innodb_sys_columns as c
   join information_schema.innodb_sys_tables as t on c.table_id=t.table_id
-  where t.name='test2/t' and c.name='b';
+  where t.name='test/t' and c.name='b';
 
 set @@system_versioning_alter_history=keep;
 
@@ -125,7 +125,7 @@ set debug_dbug= default;
 
 select c.prtype from information_schema.innodb_sys_columns as c
   join information_schema.innodb_sys_tables as t on c.table_id=t.table_id
-  where t.name='test2/t' and c.name='b';
+  where t.name='test/t' and c.name='b';
 
 --replace_result $sys_datatype_expl SYS_DATATYPE
 show create table t;
@@ -193,7 +193,6 @@ create or replace table t1 (
 ) with system versioning;
 alter table t1 drop system versioning;
 
-drop database test;
-create database test;
+drop tables t, t1;
 
 --source suite/versioning/common_finish.inc

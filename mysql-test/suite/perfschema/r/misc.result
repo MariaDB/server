@@ -134,3 +134,19 @@ truncate performance_schema.events_statements_history	0
 select * from t1	3
 insert into t1 select RAND()*10000 from t1	6
 drop table t1;
+#
+# MDEV-17896 Assertion `pfs->get_refcount() > 0' failed
+# in release_table_share
+#
+SELECT COUNT(*)<@@performance_schema_max_table_instances FROM
+performance_schema.objects_summary_global_by_type WHERE OBJECT_TYPE='TABLE';
+COUNT(*)<@@performance_schema_max_table_instances
+1
+CREATE TABLE t0(a INT);
+SELECT * FROM t0;
+a
+DROP TEMPORARY TABLE IF EXISTS t0;
+Warnings:
+Note	1051	Unknown table 'test.t0'
+FLUSH TABLE t0;
+DROP TABLE t0;

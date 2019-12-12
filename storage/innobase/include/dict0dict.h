@@ -37,7 +37,7 @@ extern bool innodb_table_stats_not_found;
 extern bool innodb_index_stats_not_found;
 
 /** the first table or index ID for other than hard-coded system tables */
-#define	DICT_HDR_FIRST_ID	10
+constexpr uint8_t DICT_HDR_FIRST_ID= 10;
 
 /********************************************************************//**
 Get the database name length in a table name.
@@ -910,24 +910,6 @@ inline ulint dict_table_extent_size(const dict_table_t* table)
 	return FSP_EXTENT_SIZE;
 }
 
-/*********************************************************************//**
-Obtain exclusive locks on all index trees of the table. This is to prevent
-accessing index trees while InnoDB is updating internal metadata for
-operations such as truncate tables. */
-UNIV_INLINE
-void
-dict_table_x_lock_indexes(
-/*======================*/
-	dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull));
-/*********************************************************************//**
-Release the exclusive locks on all index tree. */
-UNIV_INLINE
-void
-dict_table_x_unlock_indexes(
-/*========================*/
-	dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull));
 /********************************************************************//**
 Checks if a column is in the ordering columns of the clustered index of a
 table. Column prefixes are treated like whole columns.
@@ -968,17 +950,6 @@ dict_table_copy_types(
 	dtuple_t*		tuple,	/*!< in/out: data tuple */
 	const dict_table_t*	table)	/*!< in: table */
 	MY_ATTRIBUTE((nonnull));
-/********************************************************************
-Wait until all the background threads of the given table have exited, i.e.,
-bg_threads == 0. Note: bg_threads_mutex must be reserved when
-calling this. */
-void
-dict_table_wait_for_bg_threads_to_exit(
-/*===================================*/
-	dict_table_t*	table,	/* in: table */
-	ulint		delay)	/* in: time in microseconds to wait between
-				checks of bg_threads. */
-	MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Looks for an index with the given id. NOTE that we do not reserve
 the dictionary mutex: this function is for emergency purposes like
@@ -1002,26 +973,17 @@ dict_make_room_in_cache(
 
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
-@param[in]	index	index; NOTE! The index memory
+@param[in,out]	index	index; NOTE! The index memory
 			object is freed in this function!
 @param[in]	page_no	root page number of the index
-@param[in]	strict	true=refuse to create the index
-			if records could be too big to fit in
-			an B-tree page
-@param[out]	err	DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION
-@param[in]	add_v	new virtual column that being added along with
-			an add index call
-@return	the added index
-@retval	NULL	on error */
-dict_index_t*
+@param[in]	add_v	virtual columns being added along with ADD INDEX
+@return DB_SUCCESS, or DB_CORRUPTION */
+dberr_t
 dict_index_add_to_cache(
-	dict_index_t*		index,
+	dict_index_t*&		index,
 	ulint			page_no,
-	bool			strict = false,
-	dberr_t*		err = NULL,
 	const dict_add_v_col_t* add_v = NULL)
-	MY_ATTRIBUTE((nonnull(1)));
-
+	MY_ATTRIBUTE((warn_unused_result));
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index,
 including fields added by the dictionary system.

@@ -432,7 +432,7 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
 
       /*
         If prefix_len > cmplen then we are in the end-space comparison
-        phase. Do not try to acces the key any more ==> left= 0.
+        phase. Do not try to access the key any more ==> left= 0.
       */
       left= ((len <= cmplen) ? suffix_len :
              ((prefix_len < cmplen) ? cmplen - prefix_len : 0));

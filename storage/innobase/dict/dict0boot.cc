@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -89,8 +89,7 @@ dict_hdr_get_new_id(
 	}
 
 	if (space_id) {
-		*space_id = mtr_read_ulint(dict_hdr + DICT_HDR_MAX_SPACE_ID,
-					   MLOG_4BYTES, &mtr);
+		*space_id = mach_read_from_4(dict_hdr + DICT_HDR_MAX_SPACE_ID);
 		if (fil_assign_new_space_id(space_id)) {
 			mlog_write_ulint(dict_hdr + DICT_HDR_MAX_SPACE_ID,
 					 *space_id, MLOG_4BYTES, &mtr);
@@ -161,8 +160,7 @@ dict_hdr_create(
 	mlog_write_ull(dict_header + DICT_HDR_INDEX_ID,
 		       DICT_HDR_FIRST_ID, mtr);
 
-	mlog_write_ulint(dict_header + DICT_HDR_MAX_SPACE_ID,
-			 0, MLOG_4BYTES, mtr);
+	ut_ad(mach_read_from_4(dict_header + DICT_HDR_MAX_SPACE_ID) == 0);
 
 	/* Obsolete, but we must initialize it anyway. */
 	mlog_write_ulint(dict_header + DICT_HDR_MIX_ID_LOW,
@@ -323,9 +321,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "NAME", 0);
 
 	index->id = DICT_TABLES_ID;
-	index = dict_index_add_to_cache(
+	dberr_t error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_TABLES));
-	ut_a(index);
+	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		unsigned(table->indexes.start->n_nullable));
@@ -335,9 +333,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_TABLE_IDS_ID;
-	index = dict_index_add_to_cache(
+	error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_TABLE_IDS));
-	ut_a(index);
+	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
 	table = dict_mem_table_create("SYS_COLUMNS", fil_system.sys_space,
@@ -365,9 +363,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "POS", 0);
 
 	index->id = DICT_COLUMNS_ID;
-	index = dict_index_add_to_cache(
+	error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_COLUMNS));
-	ut_a(index);
+	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		unsigned(table->indexes.start->n_nullable));
@@ -408,9 +406,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_INDEXES_ID;
-	index = dict_index_add_to_cache(
+	error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_INDEXES));
-	ut_a(index);
+	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		unsigned(table->indexes.start->n_nullable));
@@ -437,9 +435,9 @@ dict_boot(void)
 	dict_mem_index_add_field(index, "POS", 0);
 
 	index->id = DICT_FIELDS_ID;
-	index = dict_index_add_to_cache(
+	error = dict_index_add_to_cache(
 		index, mach_read_from_4(dict_hdr + DICT_HDR_FIELDS));
-	ut_a(index);
+	ut_a(error == DB_SUCCESS);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		unsigned(table->indexes.start->n_nullable));

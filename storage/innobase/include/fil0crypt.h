@@ -376,7 +376,6 @@ Decrypt a page
 @param[in]	space			Tablespace
 @param[in]	tmp_frame		Temporary buffer used for decrypting
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	decrypted		true if page was decrypted
 @return decrypted page, or original not encrypted page if decryption is
 not needed.*/
 UNIV_INTERN
@@ -384,8 +383,7 @@ byte*
 fil_space_decrypt(
 	const fil_space_t* space,
 	byte*		tmp_frame,
-	byte*		src_frame,
-	bool*		decrypted)
+	byte*		src_frame)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /**

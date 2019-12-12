@@ -147,4 +147,89 @@ select @tmp2 = sys_trx_start as B2, salary from t2;
 drop table t1;
 drop table t2;
 
+--echo ### Issue tempesta-tech/mariadb#365, bug 7 (duplicate of historical row)
+create or replace table t1 (a int primary key, b int)
+with system versioning engine myisam;
+insert into t1 (a) values (1);
+
+replace t1 values (1,2),(1,3),(2,4);
+
+--echo #
+--echo # MDEV-14829 Assertion `0' failed in Protocol::end_statement upon concurrent UPDATE
+--echo #
+create or replace table t1 (pk int, a char(3), b char(3), primary key(pk))
+  engine=innodb with system versioning;
+
+insert into t1 (pk) values (1);
+connect (con1,localhost,root,,test);
+start transaction;
+select * from t1 for update;
+connection default;
+send update t1 set b = 'foo';
+connection con1;
+let $wait_condition= select count(*) from information_schema.innodb_lock_waits;
+source include/wait_condition.inc;
+error ER_LOCK_DEADLOCK;
+update t1 set a = 'bar';
+disconnect con1;
+connection default;
+reap;
+drop table t1;
+
+--echo #
+--echo # MDEV-19406 Assertion on updating view of join with versioned table
+--echo #
+--disable_warnings
+create or replace table t1 (pk int primary key, a date, b int, index(b)) engine=innodb with system versioning;
+create or replace table t2 (c int);
+create or replace view v as select * from t1 join t2;
+
+insert into t1 (pk) values (1);
+update t1 set a= '2012-12-12';
+update v set a= '2000-01-01' order by b limit 1; # point of failure
+drop view v;
+drop table t1, t2;
+--enable_warnings
+
+--echo #
+--echo # MDEV-20441 ER_CRASHED_ON_USAGE upon update on versioned Aria table
+--echo #
+create or replace table t1 (a varchar(8))
+engine=aria row_format=fixed
+with system versioning;
+
+insert into t1 (a) values ('foo');
+update t1 set a = 'bar';
+drop table t1;
+
+--echo #
+--echo # MDEV-21147 Assertion `marked_for_read()' upon UPDATE on versioned table via view
+--echo #
+create or replace table t1 (
+    pk int, a char(8), b char(8),
+    primary key (pk)
+) with system versioning;
+
+create or replace view v1 as select * from t1;
+insert into t1 values  (1, null, 'd') ,  (2, null, 'i') ;
+update v1 set a= null where b = '';
+
+create or replace table t1 (id int, k int, primary key (id)) engine=innodb with system versioning;
+insert into t1 values (1,1),(2,2);
+create or replace view v1 as select * from t1;
+update v1 set id= 2 where k = 0;
+
+create or replace table t1 (a int) with system versioning;
+create or replace view v1 as select * from t1;
+create or replace procedure sp() update v1 set xx = 1;
+--error ER_BAD_FIELD_ERROR
+call sp;
+--error ER_BAD_FIELD_ERROR
+call sp;
+
+# cleanup
+drop procedure sp;
+drop view v1;
+drop table t1;
+
 source suite/versioning/common_finish.inc;

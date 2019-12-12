@@ -651,6 +651,10 @@ page_rec_get_next_low(
 		return(NULL);
 	}
 
+	ut_ad(page_rec_is_infimum(rec)
+	      || !(rec_get_info_bits(page + offs, comp)
+		   & REC_INFO_MIN_REC_FLAG));
+
 	return(page + offs);
 }
 
@@ -905,27 +909,6 @@ page_get_free_space_of_empty(
 		       - PAGE_OLD_SUPREMUM_END
 		       - PAGE_DIR
 		       - 2 * PAGE_DIR_SLOT_SIZE));
-}
-
-/***********************************************************************//**
-Write a 32-bit field in a data dictionary record. */
-UNIV_INLINE
-void
-page_rec_write_field(
-/*=================*/
-	rec_t*	rec,	/*!< in/out: record to update */
-	ulint	i,	/*!< in: index of the field to update */
-	ulint	val,	/*!< in: value to write */
-	mtr_t*	mtr)	/*!< in/out: mini-transaction */
-{
-	byte*	data;
-	ulint	len;
-
-	data = rec_get_nth_field_old(rec, i, &len);
-
-	ut_ad(len == 4);
-
-	mlog_write_ulint(data, val, MLOG_4BYTES, mtr);
 }
 
 /************************************************************//**

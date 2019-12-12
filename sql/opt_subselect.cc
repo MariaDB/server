@@ -453,11 +453,6 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables);
 static SJ_MATERIALIZATION_INFO *
 at_sjmat_pos(const JOIN *join, table_map remaining_tables, const JOIN_TAB *tab,
              uint idx, bool *loose_scan);
-void best_access_path(JOIN *join, JOIN_TAB *s, 
-                             table_map remaining_tables, uint idx, 
-                             bool disable_jbuf, double record_count,
-                             POSITION *pos, POSITION *loose_scan_pos);
-
 static Item *create_subq_in_equalities(THD *thd, SJ_MATERIALIZATION_INFO *sjm, 
                                 Item_in_subselect *subq_pred);
 static bool remove_sj_conds(THD *thd, Item **tree);
@@ -2686,9 +2681,17 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
       {
         do  /* For all equalities on all key parts */
         {
-          /* Check if this is "t.keypart = expr(outer_tables) */
+          /*
+            Check if this is "t.keypart = expr(outer_tables)
+
+            Don't allow variants that can produce duplicates:
+            - Dont allow "ref or null"
+            - the keyuse (that is, the operation) must be null-rejecting,
+              unless the other expression is non-NULLable.
+          */
           if (!(keyuse->used_tables & sj_inner_tables) &&
-              !(keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL))
+              !(keyuse->optimize & KEY_OPTIMIZE_REF_OR_NULL) &&
+              (keyuse->null_rejecting || !keyuse->val->maybe_null))
           {
             bound_parts |= 1 << keyuse->keypart;
           }
@@ -2781,6 +2784,14 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
 {
   POSITION *pos= join->positions + idx;
   const JOIN_TAB *new_join_tab= pos->table; 
+
+#ifdef HAVE_valgrind
+  new (&pos->firstmatch_picker) Firstmatch_picker;
+  new (&pos->loosescan_picker) LooseScan_picker;
+  new (&pos->sjmat_picker) Sj_materialization_picker;
+  new (&pos->dups_weedout_picker) Duplicate_weedout_picker;
+#endif
+
   if (join->emb_sjm_nest || //(1)
       !join->select_lex->have_merged_subqueries) //(2)
   {
@@ -3121,7 +3132,8 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     Json_writer_temp_disable trace_semijoin_mat_scan(thd);
     for (i= first_tab + mat_info->tables; i <= idx; i++)
     {
-      best_access_path(join, join->positions[i].table, rem_tables, i,
+      best_access_path(join, join->positions[i].table, rem_tables,
+                       join->positions, i,
                        disable_jbuf, prefix_rec_count, &curpos, &dummy);
       prefix_rec_count= COST_MULT(prefix_rec_count, curpos.records_read);
       prefix_cost= COST_ADD(prefix_cost, curpos.read_time);
@@ -3132,7 +3144,22 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
 
     *strategy= SJ_OPT_MATERIALIZE_SCAN;
     *read_time=    prefix_cost;
-    *record_count= prefix_rec_count / mat_info->rows_with_duplicates;
+    /*
+      Note: the next line means we did not remove the subquery's fanout from
+      *record_count. It needs to be removed, as the join prefix is
+
+        ntX  SJM-SCAN(it1 ... itN) | (ot1 ... otN) ...
+
+      here, the SJM-SCAN may have introduced subquery's fanout (duplicate rows,
+      rows that don't have matches in ot1_i). All this fanout is gone after
+      table otN (or earlier) but taking it into account is hard.
+
+      Some consolation here is that SJM-Scan strategy is applicable when the
+      subquery is smaller than tables otX. If the subquery has large cardinality,
+      we can greatly overestimate *record_count here, but it doesn't matter as
+      SJ-Materialization-Lookup is a better strategy anyway.
+    */
+    *record_count= prefix_rec_count;
     *handled_fanout= mat_nest->sj_inner_tables;
     if (unlikely(join->thd->trace_started()))
     {
@@ -3790,7 +3817,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
           Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[i].table);
         }
-        best_access_path(join, join->best_positions[i].table, rem_tables, i, 
+        best_access_path(join, join->best_positions[i].table, rem_tables,
+                         join->best_positions, i,
                          FALSE, prefix_rec_count,
                          join->best_positions + i, &dummy);
         prefix_rec_count *= join->best_positions[i].records_read;
@@ -3830,8 +3858,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         }
         if (join->best_positions[idx].use_join_buffer)
         {
-           best_access_path(join, join->best_positions[idx].table, 
-                            rem_tables, idx, TRUE /* no jbuf */,
+           best_access_path(join, join->best_positions[idx].table,
+                            rem_tables, join->best_positions, idx,
+                            TRUE /* no jbuf */,
                             record_count, join->best_positions + idx, &dummy);
         }
         record_count *= join->best_positions[idx].records_read;
@@ -3869,7 +3898,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         if (join->best_positions[idx].use_join_buffer || (idx == first))
         {
            best_access_path(join, join->best_positions[idx].table,
-                            rem_tables, idx, TRUE /* no jbuf */,
+                            rem_tables, join->best_positions, idx,
+                            TRUE /* no jbuf */,
                             record_count, join->best_positions + idx,
                             &loose_scan_pos);
            if (idx==first)
@@ -4547,7 +4577,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     field->reset();
     /*
       Test if there is a default field value. The test for ->ptr is to skip
-      'offset' fields generated by initalize_tables
+      'offset' fields generated by initialize_tables
     */
     // Initialize the table field:
     bzero(field->ptr, field->pack_length());

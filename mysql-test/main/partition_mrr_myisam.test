@@ -1,0 +1,3 @@
+let $engine_type= myisam;
+
+--source include/partition_mrr.inc

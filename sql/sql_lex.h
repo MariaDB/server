@@ -1291,7 +1291,7 @@ public:
   /* push new Item_field into item_list */
   bool vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name);
 
-  Item* period_setup_conds(THD *thd, TABLE_LIST *table, Item *where);
+  int period_setup_conds(THD *thd, TABLE_LIST *table);
   void init_query();
   void init_select();
   st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }
@@ -2175,6 +2175,14 @@ public:
                 ((1U << STMT_READS_TEMP_TRANS_TABLE) |
                  (1U << STMT_WRITES_TEMP_TRANS_TABLE))) != 0);
   }
+  inline bool stmt_writes_to_non_temp_table()
+  {
+    DBUG_ENTER("THD::stmt_writes_to_non_temp_table");
+
+    DBUG_RETURN((stmt_accessed_table_flag &
+                ((1U << STMT_WRITES_TRANS_TABLE) |
+                 (1U << STMT_WRITES_NON_TRANS_TABLE))));
+  }
 
   /**
     Checks if a temporary non-transactional table is about to be accessed
@@ -2226,7 +2234,7 @@ public:
       unsafe= (binlog_unsafe_map[stmt_accessed_table_flag] & condition);
 
 #if !defined(DBUG_OFF)
-      DBUG_PRINT("LEX::is_mixed_stmt_unsafe", ("RESULT %02X %02X %02X\n", condition,
+      DBUG_PRINT("LEX::is_mixed_stmt_unsafe", ("RESULT %02X %02X %02X", condition,
               binlog_unsafe_map[stmt_accessed_table_flag],
               (binlog_unsafe_map[stmt_accessed_table_flag] & condition)));
  
@@ -4414,9 +4422,6 @@ public:
     insert_list= 0;
   }
 
-  bool make_select_in_brackets(SELECT_LEX* dummy_select,
-                               SELECT_LEX *nselect, bool automatic);
-
   SELECT_LEX_UNIT *alloc_unit();
   SELECT_LEX *alloc_select(bool is_select);
   SELECT_LEX_UNIT *create_unit(SELECT_LEX*);
@@ -4426,7 +4431,7 @@ public:
   bool insert_select_hack(SELECT_LEX *sel);
   SELECT_LEX *create_priority_nest(SELECT_LEX *first_in_nest);
 
-  void set_main_unit(st_select_lex_unit *u)
+  bool set_main_unit(st_select_lex_unit *u)
   {
     unit.options= u->options;
     unit.uncacheable= u->uncacheable;
@@ -4436,16 +4441,10 @@ public:
     unit.union_distinct= u->union_distinct;
     unit.set_with_clause(u->with_clause);
     builtin_select.exclude_from_global();
+    return false;
   }
   bool check_main_unit_semantics();
 
-  // reaction on different parsed parts (bodies are in sql_yacc.yy)
-  bool parsed_unit_in_brackets(SELECT_LEX_UNIT *unit);
-  SELECT_LEX *parsed_select(SELECT_LEX *sel, Lex_order_limit_lock * l);
-  SELECT_LEX *parsed_unit_in_brackets_tail(SELECT_LEX_UNIT *unit,
-                                           Lex_order_limit_lock * l);
-  SELECT_LEX *parsed_select_in_brackets(SELECT_LEX *sel,
-                                             Lex_order_limit_lock * l);
   SELECT_LEX_UNIT *parsed_select_expr_start(SELECT_LEX *s1, SELECT_LEX *s2,
                                             enum sub_select_type unit_type,
                                             bool distinct);
@@ -4453,20 +4452,35 @@ public:
                                            SELECT_LEX *s2,
                                            enum sub_select_type unit_type,
                                            bool distinct, bool oracle);
-  SELECT_LEX_UNIT *parsed_body_select(SELECT_LEX *sel,
-                                      Lex_order_limit_lock * l);
-  bool parsed_body_unit(SELECT_LEX_UNIT *unit);
-  SELECT_LEX_UNIT *parsed_body_unit_tail(SELECT_LEX_UNIT *unit,
-                                         Lex_order_limit_lock * l);
+  bool parsed_multi_operand_query_expression_body(SELECT_LEX_UNIT *unit);
+  SELECT_LEX_UNIT *add_tail_to_query_expression_body(SELECT_LEX_UNIT *unit,
+						     Lex_order_limit_lock *l);
+  SELECT_LEX_UNIT *
+  add_tail_to_query_expression_body_ext_parens(SELECT_LEX_UNIT *unit,
+					       Lex_order_limit_lock *l);
+  SELECT_LEX_UNIT *parsed_body_ext_parens_primary(SELECT_LEX_UNIT *unit,
+                                                  SELECT_LEX *primary,
+                                              enum sub_select_type unit_type,
+                                              bool distinct);
+  SELECT_LEX_UNIT *
+  add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
+                                       SELECT_LEX *sel,
+                                       enum sub_select_type unit_type,
+                                       bool distinct,
+                                       bool oracle);
+  SELECT_LEX_UNIT *
+  add_primary_to_query_expression_body_ext_parens(
+                                       SELECT_LEX_UNIT *unit,
+                                       SELECT_LEX *sel,
+                                       enum sub_select_type unit_type,
+                                       bool distinct);
   SELECT_LEX *parsed_subselect(SELECT_LEX_UNIT *unit);
   bool parsed_insert_select(SELECT_LEX *firs_select);
   bool parsed_TVC_start();
   SELECT_LEX *parsed_TVC_end();
-  TABLE_LIST *parsed_derived_select(SELECT_LEX *sel, int for_system_time,
-                                    LEX_CSTRING *alias);
-  TABLE_LIST *parsed_derived_unit(SELECT_LEX_UNIT *unit,
-                                  int for_system_time,
-                                  LEX_CSTRING *alias);
+  TABLE_LIST *parsed_derived_table(SELECT_LEX_UNIT *unit,
+                                   int for_system_time,
+                                   LEX_CSTRING *alias);
   bool parsed_create_view(SELECT_LEX_UNIT *unit, int check);
   bool select_finalize(st_select_lex_unit *expr);
   bool select_finalize(st_select_lex_unit *expr, Lex_select_lock l);
@@ -4525,6 +4539,8 @@ public:
                                 Item_result return_type,
                                 const LEX_CSTRING &soname);
   Spvar_definition *row_field_name(THD *thd, const Lex_ident_sys_st &name);
+
+  void mark_first_table_as_inserting();
 };
 
 

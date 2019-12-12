@@ -309,6 +309,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     param.max_keys_per_buffer=((param.max_keys_per_buffer *
                                 (param.rec_length + sizeof(char*))) /
                                param.rec_length - 1);
+    set_if_bigger(param.max_keys_per_buffer, 1);
     maxbuffer--;				// Offset from 0
     if (merge_many_buff(&param,
                         (uchar*) sort->get_sort_keys(),

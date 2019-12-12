@@ -19,6 +19,9 @@
 #include "ma_key_recover.h" /* For some in-write hooks */
 #include "ma_checkpoint.h"
 #include "ma_servicethread.h"
+#include "ma_recovery.h"
+#include "ma_loghandler_lsn.h"
+#include "ma_recovery_util.h"
 
 /*
   On Windows, neither my_open() nor mysql_file_sync() work for directories.
@@ -7903,6 +7906,34 @@ static my_bool translog_sync_files(uint32 min, uint32 max,
   }
 
   DBUG_RETURN(rc);
+}
+
+
+/**
+   check_skipped_lsn
+
+   Check if lsn skipped in redo is ok
+*/
+
+void check_skipped_lsn(MARIA_HA *info, LSN lsn, my_bool index_file,
+                       pgcache_page_no_t page)
+{
+  if (lsn <= log_descriptor.horizon)
+  {
+    DBUG_PRINT("info", ("Page is up to date, skipping redo"));
+  }
+  else
+  {
+    /* Give error, but don't flood the log */
+    if (skipped_lsn_err_count++ < 10 && ! info->s->redo_error_given++)
+    {
+      eprint(tracef, "Table %s has wrong LSN: " LSN_FMT " on page: %llu",
+             (index_file ? info->s->data_file_name.str :
+              info->s->index_file_name.str),
+             LSN_IN_PARTS(lsn), (ulonglong) page);
+      recovery_found_crashed_tables++;
+    }
+  }
 }
 
 

@@ -696,7 +696,7 @@ trx_temp_rseg_create()
 	for (ulong i = 0; i < TRX_SYS_N_RSEGS; i++) {
 		mtr.start();
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-		mtr_x_lock(&fil_system.temp_space->latch, &mtr);
+		mtr_x_lock_space(fil_system.temp_space, &mtr);
 
 		buf_block_t* rblock = trx_rseg_header_create(
 			fil_system.temp_space, i, NULL, &mtr);

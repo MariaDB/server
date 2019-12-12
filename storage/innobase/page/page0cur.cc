@@ -2327,7 +2327,8 @@ page_cur_delete_rec(
 	/* The record must not be the supremum or infimum record. */
 	ut_ad(page_rec_is_user_rec(current_rec));
 
-	if (page_get_n_recs(page) == 1 && !recv_recovery_is_on()) {
+	if (page_get_n_recs(page) == 1 && !recv_recovery_is_on()
+	    && !rec_is_alter_metadata(current_rec, *index)) {
 		/* Empty the page, unless we are applying the redo log
 		during crash recovery. During normal operation, the
 		page_create_empty() gets logged as one of MLOG_PAGE_CREATE,
@@ -2419,10 +2420,6 @@ page_cur_delete_rec(
 	if (cur_n_owned <= PAGE_DIR_SLOT_MIN_N_OWNED) {
 		page_dir_balance_slot(page, page_zip, cur_slot_no);
 	}
-
-#ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
-#endif /* UNIV_ZIP_DEBUG */
 }
 
 #ifdef UNIV_COMPILE_TEST_FUNCS

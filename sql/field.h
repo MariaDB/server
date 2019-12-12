@@ -709,9 +709,6 @@ public:
    */
   bool is_created_from_null_item;
 
-  /* TRUE in Field objects created for column min/max values */
-  bool is_stat_field; 
-
   /* 
     Selectivity of the range condition over this field.
     When calculating this selectivity a range predicate
@@ -1271,9 +1268,7 @@ public:
     return create_tmp_field(root, new_table, maybe_null());
   }
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table);
-  Field *clone(MEM_ROOT *mem_root, TABLE *new_table, my_ptrdiff_t diff,
-               bool stat_flag= FALSE);
-  Field *clone(MEM_ROOT *mem_root, my_ptrdiff_t diff);
+  Field *clone(MEM_ROOT *mem_root, TABLE *new_table, my_ptrdiff_t diff);
   inline void move_field(uchar *ptr_arg,uchar *null_ptr_arg,uchar null_bit_arg)
   {
     ptr=ptr_arg; null_ptr=null_ptr_arg; null_bit=null_bit_arg;

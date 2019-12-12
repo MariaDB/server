@@ -1049,37 +1049,23 @@ int Wsrep_schema::remove_fragments(THD* thd,
   Wsrep_schema_impl::wsrep_off  wsrep_off(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
 
-  /*
-    Open SR table for write.
-    Adopted from Rpl_info_table_access::open_table()
-  */
-  uint flags= (MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |
-               MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY |
-               MYSQL_OPEN_IGNORE_FLUSH |
-               MYSQL_LOCK_IGNORE_TIMEOUT);
   Query_tables_list query_tables_list_backup;
   Open_tables_backup open_tables_backup;
   thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
   thd->reset_n_backup_open_tables_state(&open_tables_backup);
-  TABLE_LIST tables;
-  LEX_CSTRING schema_str= { wsrep_schema_str.c_str(), wsrep_schema_str.length() };
-  LEX_CSTRING table_str= { sr_table_str.c_str(), sr_table_str.length() };
-  tables.init_one_table(&schema_str,
-                        &table_str, 0, TL_WRITE);
 
-  if (!open_n_lock_single_table(thd, &tables, tables.lock_type, flags))
+  TABLE* frag_table= 0;
+  if (Wsrep_schema_impl::open_for_write(thd, sr_table_str.c_str(), &frag_table))
   {
-    WSREP_DEBUG("Failed to open SR table for access");
     ret= 1;
   }
   else
   {
-    tables.table->use_all_columns();
     for (std::vector<wsrep::seqno>::const_iterator i= fragments.begin();
          i != fragments.end(); ++i)
     {
       if (remove_fragment(thd,
-                          tables.table,
+                          frag_table,
                           server_id,
                           transaction_id, *i))
       {

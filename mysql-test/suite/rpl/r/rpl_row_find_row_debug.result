@@ -15,7 +15,8 @@ DELETE FROM t1;
 DROP TABLE t1;
 connection slave;
 # Check if any note related to long DELETE_ROWS and UPDATE_ROWS appears in the error log
-Occurrences: update=1, delete=1
+FOUND 1 /The slave is applying a ROW event on behalf of an UPDATE statement on table t1 and is currently taking a considerable amount/ in mysqld.2.err
+FOUND 1 /The slave is applying a ROW event on behalf of a DELETE statement on table t1 and is currently taking a considerable amount/ in mysqld.2.err
 include/stop_slave.inc
 SET GLOBAL debug_dbug = '';
 SET GLOBAL log_warnings = 2;

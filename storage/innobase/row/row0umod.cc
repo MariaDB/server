@@ -237,7 +237,7 @@ static bool row_undo_mod_must_purge(undo_node_t* node, mtr_t* mtr)
 	btr_cur_t* btr_cur = btr_pcur_get_btr_cur(&node->pcur);
 	ut_ad(btr_cur->index->is_primary());
 
-	mtr_s_lock(&purge_sys.latch, mtr);
+	mtr->s_lock(&purge_sys.latch, __FILE__, __LINE__);
 
 	if (!purge_sys.view.changes_visible(node->new_trx_id,
 					    node->table->name)) {
@@ -288,7 +288,7 @@ row_undo_mod_clust(
 	online = dict_index_is_online_ddl(index);
 	if (online) {
 		ut_ad(node->trx->dict_operation_lock_mode != RW_X_LATCH);
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
+		mtr_s_lock_index(index, &mtr);
 	}
 
 	mem_heap_t*	heap		= mem_heap_create(1024);
@@ -443,7 +443,7 @@ row_undo_mod_clust(
 			goto mtr_commit_exit;
 		}
 		rec_t* rec = btr_pcur_get_rec(pcur);
-		mtr_s_lock(&purge_sys.latch, &mtr);
+		mtr.s_lock(&purge_sys.latch, __FILE__, __LINE__);
 		if (!purge_sys.view.changes_visible(node->new_trx_id,
 						   node->table->name)) {
 			goto mtr_commit_exit;
@@ -536,10 +536,10 @@ row_undo_mod_del_mark_or_remove_sec_low(
 		is protected by index->lock. */
 		if (modify_leaf) {
 			mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
-			mtr_s_lock(dict_index_get_lock(index), &mtr);
+			mtr_s_lock_index(index, &mtr);
 		} else {
 			ut_ad(mode == (BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE));
-			mtr_sx_lock(dict_index_get_lock(index), &mtr);
+			mtr_sx_lock_index(index, &mtr);
 		}
 
 		if (row_log_online_op_try(index, entry, 0)) {
@@ -732,10 +732,10 @@ try_again:
 		is protected by index->lock. */
 		if (mode == BTR_MODIFY_LEAF) {
 			mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
-			mtr_s_lock(dict_index_get_lock(index), &mtr);
+			mtr_s_lock_index(index, &mtr);
 		} else {
 			ut_ad(mode == BTR_MODIFY_TREE);
-			mtr_sx_lock(dict_index_get_lock(index), &mtr);
+			mtr_sx_lock_index(index, &mtr);
 		}
 
 		if (row_log_online_op_try(index, entry, trx->id)) {

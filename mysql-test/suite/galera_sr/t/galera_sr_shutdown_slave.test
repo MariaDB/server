@@ -4,6 +4,11 @@
 
 --source include/galera_cluster.inc
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE = InnoDB;
 
@@ -32,6 +37,7 @@ INSERT INTO t1 VALUES (21),(22),(23);
 
 --connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 
 # Commit one transaction while the slave is down
 --connection node_1a
@@ -44,7 +50,7 @@ COMMIT;
 
 # Confirm SR table on slave has entries
 SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
-SELECT COUNT(*) = 6 FROM t1 WHERE f1 IN (11,12,13,14,15,16);
+SELECT COUNT(*) AS EXPECT_6 FROM t1 WHERE f1 IN (11,12,13,14,15,16);
 
 # Commit the second transaction on master after the slave has rejoined
 --connection node_1b
@@ -53,11 +59,14 @@ COMMIT;
 
 # Confirm that SR table on slave is empty
 --connection node_2
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
-SELECT COUNT(*) = 12 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_12 FROM t1;
 
 # SR table on master should be empty too
 --connection node_1
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

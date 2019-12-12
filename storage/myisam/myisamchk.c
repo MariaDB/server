@@ -21,9 +21,6 @@
 #include <stdarg.h>
 #include <my_getopt.h>
 #include <my_bit.h>
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 
 static uint decode_bits;
 static char **default_argv;
@@ -378,7 +375,7 @@ static void usage(void)
 
   puts("Check options (check is the default action for myisamchk):\n\
   -c, --check	      Check table for errors.\n\
-  -e, --extend-check  Check the table VERY throughly.  Only use this in\n\
+  -e, --extend-check  Check the table VERY thoroughly.  Only use this in\n\
                       extreme cases as myisamchk should normally be able to\n\
                       find out if the table is ok even without this switch.\n\
   -F, --fast	      Check only tables that haven't been closed properly.\n\

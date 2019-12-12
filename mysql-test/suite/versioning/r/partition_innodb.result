@@ -21,6 +21,7 @@ partition p0 history,
 partition pn current
 );
 ERROR HY000: `row_start` must be of type TIMESTAMP(6) for system-versioned table `t1`
+drop table t1;
 create or replace table t (
 a int primary key,
 row_start bigint unsigned as row start invisible,

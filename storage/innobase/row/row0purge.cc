@@ -46,6 +46,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "handler.h"
 #include "ha_innodb.h"
 #include "fil0fil.h"
+#include "debug_sync.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -387,14 +388,14 @@ row_purge_remove_sec_if_poss_tree(
 	enum row_search_result	search_result;
 
 	log_free_check();
-	mtr_start(&mtr);
+	mtr.start();
 	index->set_modified(mtr);
 
 	if (!index->is_committed()) {
 		/* The index->online_status may change if the index is
 		or was being created online, but not committed yet. It
 		is protected by index->lock. */
-		mtr_sx_lock(dict_index_get_lock(index), &mtr);
+		mtr_sx_lock_index(index, &mtr);
 
 		if (dict_index_is_online_ddl(index)) {
 			/* Online secondary index creation will not
@@ -489,9 +490,9 @@ row_purge_remove_sec_if_poss_tree(
 	}
 
 func_exit:
-	btr_pcur_close(&pcur);
+	btr_pcur_close(&pcur); // FIXME: need this?
 func_exit_no_pcur:
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	return(success);
 }
@@ -518,7 +519,7 @@ row_purge_remove_sec_if_poss_leaf(
 	log_free_check();
 	ut_ad(index->table == node->table);
 	ut_ad(!index->table->is_temporary());
-	mtr_start(&mtr);
+	mtr.start();
 	index->set_modified(mtr);
 
 	if (!index->is_committed()) {
@@ -530,7 +531,7 @@ row_purge_remove_sec_if_poss_leaf(
 		/* The index->online_status may change if the the
 		index is or was being created online, but not
 		committed yet. It is protected by index->lock. */
-		mtr_s_lock(dict_index_get_lock(index), &mtr);
+		mtr_s_lock_index(index, &mtr);
 
 		if (dict_index_is_online_ddl(index)) {
 			/* Online secondary index creation will not
@@ -634,7 +635,7 @@ row_purge_remove_sec_if_poss_leaf(
 						 ->page.id);
 
 					btr_pcur_close(&pcur);
-					mtr_commit(&mtr);
+					mtr.commit();
 					return(success);
 				}
 			}
@@ -660,9 +661,9 @@ row_purge_remove_sec_if_poss_leaf(
 		/* The deletion was buffered. */
 	case ROW_NOT_FOUND:
 		/* The index entry does not exist, nothing to do. */
-		btr_pcur_close(&pcur);
+		btr_pcur_close(&pcur); // FIXME: do we need these? when is btr_cur->rtr_info set?
 func_exit_no_pcur:
-		mtr_commit(&mtr);
+		mtr.commit();
 		return(success);
 	}
 
@@ -953,12 +954,12 @@ skip_secondaries:
 			ut_ad(rseg->id == rseg_id);
 			ut_ad(rseg->is_persistent());
 
-			mtr_start(&mtr);
+			mtr.start();
 
 			/* We have to acquire an SX-latch to the clustered
 			index tree (exclude other tree changes) */
 
-			mtr_sx_lock(dict_index_get_lock(index), &mtr);
+			mtr_sx_lock_index(index, &mtr);
 
 			index->set_modified(mtr);
 
@@ -989,7 +990,7 @@ skip_secondaries:
 				data_field + dfield_get_len(&ufield->new_val)
 				- BTR_EXTERN_FIELD_REF_SIZE,
 				NULL, NULL, NULL, 0, false, &mtr);
-			mtr_commit(&mtr);
+			mtr.commit();
 		}
 	}
 
@@ -1309,6 +1310,26 @@ row_purge_step(
 	node = static_cast<purge_node_t*>(thr->run_node);
 
 	node->start();
+
+#ifdef UNIV_DEBUG
+	srv_slot_t *slot = thr->thread_slot;
+	ut_ad(slot);
+
+	rw_lock_x_lock(&slot->debug_sync_lock);
+	while (UT_LIST_GET_LEN(slot->debug_sync)) {
+		srv_slot_t::debug_sync_t *sync =
+					UT_LIST_GET_FIRST(slot->debug_sync);
+		const char* sync_str = reinterpret_cast<char*>(&sync[1]);
+		bool result = debug_sync_set_action(current_thd,
+						    sync_str,
+						    strlen(sync_str));
+		ut_a(!result);
+
+		UT_LIST_REMOVE(slot->debug_sync, sync);
+		ut_free(sync);
+	}
+	rw_lock_x_unlock(&slot->debug_sync_lock);
+#endif
 
 	if (!(node->undo_recs == NULL || ib_vector_is_empty(node->undo_recs))) {
 		trx_purge_rec_t*purge_rec;

@@ -2020,7 +2020,7 @@ end_of_index:
 				buf_block_t*	block;
 
 				next_page_no = btr_page_get_next(
-					page_cur_get_page(cur), &mtr);
+					page_cur_get_page(cur));
 
 				if (next_page_no == FIL_NULL) {
 					goto end_of_index;
@@ -2697,7 +2697,7 @@ write_buffers:
 						buf, fts_index, old_table,
 						new_table, psort_info, row, ext,
 						&doc_id, conv_heap,
-						&err, &v_heap, table, trx)))) {
+						&err, &v_heap, eval_table, trx)))) {
 					/* An empty buffer should have enough
 					room for at least one record. */
 					ut_error;

@@ -4315,10 +4315,6 @@ page_zip_clear_rec(
 	} else {
 		ut_ad(!rec_offs_any_extern(offsets));
 	}
-
-#ifdef UNIV_ZIP_DEBUG
-	ut_a(page_zip_validate(page_zip, page, index));
-#endif /* UNIV_ZIP_DEBUG */
 }
 
 /**********************************************************************//**

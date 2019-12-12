@@ -931,8 +931,9 @@ RemoteDatafile::create_link_file(
 
 	prev_filepath = read_link_file(link_filepath);
 	if (prev_filepath) {
-		/* Truncate will call this with an existing
-		link file which contains the same filepath. */
+		/* Truncate (starting with MySQL 5.6, probably no
+		longer since MariaDB Server 10.2.19) used to call this
+		with an existing link file which contains the same filepath. */
 		bool same = !strcmp(prev_filepath, filepath);
 		ut_free(prev_filepath);
 		if (same) {

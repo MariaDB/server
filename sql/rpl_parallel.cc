@@ -4,6 +4,10 @@
 #include "rpl_mi.h"
 #include "sql_parse.h"
 #include "debug_sync.h"
+#include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif
 
 /*
   Code for optional parallel execution of replicated events on the slave.
@@ -35,6 +39,13 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
 
   DBUG_ASSERT(qev->typ == rpl_parallel_thread::queued_event::QUEUED_EVENT);
   ev= qev->ev;
+#ifdef WITH_WSREP
+  if (wsrep_before_statement(thd))
+  {
+    WSREP_WARN("Parallel slave failed at wsrep_before_statement() hook");
+    return(1);
+  }
+#endif /* WITH_WSREP */
 
   thd->system_thread_info.rpl_sql_info->rpl_filter = rli->mi->rpl_filter;
   ev->thd= thd;
@@ -50,6 +61,13 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   err= apply_event_and_update_pos_for_parallel(ev, thd, rgi);
 
   thread_safe_increment64(&rli->executed_entries);
+#ifdef WITH_WSREP
+  if (wsrep_after_statement(thd))
+  {
+    WSREP_WARN("Parallel slave failed at wsrep_after_statement() hook");
+    err= 1;
+  }
+#endif /* WITH_WSREP */
   /* ToDo: error handling. */
   return err;
 }
@@ -228,6 +246,12 @@ finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
       entry->stop_on_error_sub_id == (uint64)ULONGLONG_MAX)
     entry->stop_on_error_sub_id= sub_id;
   mysql_mutex_unlock(&entry->LOCK_parallel_entry);
+  DBUG_EXECUTE_IF("hold_worker_on_schedule", {
+      if (entry->stop_on_error_sub_id < (uint64)ULONGLONG_MAX)
+      {
+        debug_sync_set_action(thd, STRING_WITH_LEN("now SIGNAL continue_worker"));
+      }
+    });
 
   DBUG_EXECUTE_IF("rpl_parallel_simulate_wait_at_retry", {
       if (rgi->current_gtid.seq_no == 1000) {
@@ -1060,6 +1084,14 @@ handle_rpl_parallel_thread(void *arg)
   mysql_cond_signal(&rpt->COND_rpl_thread);
 
   thd->set_command(COM_SLAVE_WORKER);
+#ifdef WITH_WSREP
+  wsrep_open(thd);
+  if (wsrep_before_command(thd))
+  {
+    WSREP_WARN("Parallel slave failed at wsrep_before_command() hook");
+    rpt->stop = true;
+  }
+#endif /* WITH_WSREP */
   while (!rpt->stop)
   {
     uint wait_count= 0;
@@ -1136,6 +1168,13 @@ handle_rpl_parallel_thread(void *arg)
         bool did_enter_cond= false;
         PSI_stage_info old_stage;
 
+        DBUG_EXECUTE_IF("hold_worker_on_schedule", {
+            if (rgi->current_gtid.domain_id == 0 &&
+                rgi->current_gtid.seq_no == 100) {
+                  debug_sync_set_action(thd,
+                STRING_WITH_LEN("now SIGNAL reached_pause WAIT_FOR continue_worker"));
+            }
+          });
         DBUG_EXECUTE_IF("rpl_parallel_scheduled_gtid_0_x_100", {
             if (rgi->current_gtid.domain_id == 0 &&
                 rgi->current_gtid.seq_no == 100) {
@@ -1177,7 +1216,10 @@ handle_rpl_parallel_thread(void *arg)
         skip_event_group= do_gco_wait(rgi, gco, &did_enter_cond, &old_stage);
 
         if (unlikely(entry->stop_on_error_sub_id <= rgi->wait_commit_sub_id))
+        {
           skip_event_group= true;
+          rgi->worker_error= 1;
+        }
         if (likely(!skip_event_group))
           do_ftwrl_wait(rgi, &did_enter_cond, &old_stage);
 
@@ -1420,6 +1462,11 @@ handle_rpl_parallel_thread(void *arg)
         rpt->pool->release_thread(rpt);
     }
   }
+#ifdef WITH_WSREP
+  wsrep_after_command_before_result(thd);
+  wsrep_after_command_after_result(thd);
+  wsrep_close(thd);
+#endif /* WITH_WSREP */
 
   rpt->thd= NULL;
   mysql_mutex_unlock(&rpt->LOCK_rpl_thread);

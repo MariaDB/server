@@ -45,7 +45,7 @@
 #include "global.h"
 #include "osutil.h"
 #include "plgdbsem.h"
-#include "catalog.h"
+//#include "catalog.h"
 #include "mycat.h"
 #include "xindex.h"
 #include "filamap.h"
@@ -161,7 +161,12 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
 //Last = GetIntCatInfo("Last", 0);
   Ending = GetIntCatInfo("Ending", CRLF);
 
-  if (Recfm == RECFM_FIX || Recfm == RECFM_BIN) {
+	if (Ending <= 0) {
+		Ending = (Recfm == RECFM_BIN || Recfm == RECFM_VCT) ? 0 : CRLF;
+		SetIntCatInfo("Ending", Ending);
+	} // endif ending
+
+	if (Recfm == RECFM_FIX || Recfm == RECFM_BIN) {
     Huge = GetBoolCatInfo("Huge", Cat->GetDefHuge());
     Padded = GetBoolCatInfo("Padded", false);
     Blksize = GetIntCatInfo("Blksize", 0);
@@ -191,7 +196,8 @@ bool DOSDEF::GetOptFileName(PGLOBAL g, char *filename)
     case RECFM_FIX: ftype = ".fop"; break;
     case RECFM_BIN: ftype = ".bop"; break;
     case RECFM_VCT: ftype = ".vop"; break;
-    case RECFM_DBF: ftype = ".dbp"; break;
+		case RECFM_CSV: ftype = ".cop"; break;
+		case RECFM_DBF: ftype = ".dbp"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Recfm);
       return true;
@@ -261,7 +267,8 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(BAD_RECFM_VAL), Recfm);
       return true;
@@ -2257,7 +2264,7 @@ int TDBDOS::ReadDB(PGLOBAL g)
 /***********************************************************************/
 bool TDBDOS::PrepareWriting(PGLOBAL)
   {
-  if (!Ftype && (Mode == MODE_INSERT || Txfp->GetUseTemp())) {
+  if (Ftype == RECFM_VAR && (Mode == MODE_INSERT || Txfp->GetUseTemp())) {
     char *p;
 
     /*******************************************************************/
@@ -2542,7 +2549,8 @@ void DOSCOL::ReadColumn(PGLOBAL g)
   /*********************************************************************/
   /*  For a variable length file, check if the field exists.           */
   /*********************************************************************/
-  if (tdbp->Ftype == RECFM_VAR && strlen(tdbp->To_Line) < (unsigned)Deplac)
+  if ((tdbp->Ftype == RECFM_VAR || tdbp->Ftype == RECFM_CSV)
+				&& strlen(tdbp->To_Line) < (unsigned)Deplac)
     field = 0;
   else if (Dsp)
     for(i = 0; i < field; i++)
@@ -2552,7 +2560,8 @@ void DOSCOL::ReadColumn(PGLOBAL g)
   switch (tdbp->Ftype) {
     case RECFM_VAR:
     case RECFM_FIX:            // Fixed length text file
-    case RECFM_DBF:            // Fixed length DBase file
+		case RECFM_CSV:            // Variable length CSV or FMT file
+		case RECFM_DBF:            // Fixed length DBase file
       if (Nod) switch (Buf_Type) {
         case TYPE_INT:
         case TYPE_SHORT:

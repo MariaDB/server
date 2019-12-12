@@ -28,11 +28,6 @@
   There is no reference counting and no unloading either.
 */
 
-#if defined(_MSC_VER)
-/* Silence warnings about variable 'unused' being used. */
-#define FORCE_INIT_OF_VARS 1
-#endif
-
 #include <my_global.h>
 #include "mysql.h"
 #include <my_sys.h>
@@ -243,12 +238,12 @@ int mysql_client_plugin_init()
   struct st_mysql_client_plugin **builtin;
   va_list unused;
   DBUG_ENTER("mysql_client_plugin_init");
-  LINT_INIT_STRUCT(unused);
 
   if (initialized)
     DBUG_RETURN(0);
 
   bzero(&mysql, sizeof(mysql)); /* dummy mysql for set_mysql_extended_error */
+  bzero(&unused, sizeof unused);
 
   mysql_mutex_init(0, &LOCK_load_client_plugin, MY_MUTEX_INIT_SLOW);
   init_alloc_root(&mem_root, "client_plugin", 128, 128, MYF(0));
@@ -306,9 +301,7 @@ struct st_mysql_client_plugin *
 mysql_client_register_plugin(MYSQL *mysql,
                              struct st_mysql_client_plugin *plugin)
 {
-  va_list unused;
   DBUG_ENTER("mysql_client_register_plugin");
-  LINT_INIT_STRUCT(unused);
 
   if (is_not_initialized(mysql, plugin->name))
     DBUG_RETURN(NULL);
@@ -324,7 +317,11 @@ mysql_client_register_plugin(MYSQL *mysql,
     plugin= NULL;
   }
   else
+  {
+    va_list unused;
+    bzero(&unused, sizeof unused);
     plugin= add_plugin(mysql, plugin, 0, 0, unused);
+  }
 
   mysql_mutex_unlock(&LOCK_load_client_plugin);
   DBUG_RETURN(plugin);

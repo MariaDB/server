@@ -85,8 +85,12 @@ inline void flst_init(buf_block_t* block, uint16_t ofs, mtr_t* mtr)
 @param[in,out]	mtr	mini-transaction */
 inline void flst_zero_addr(fil_faddr_t* faddr, mtr_t* mtr)
 {
-	mlog_memset(faddr + FIL_ADDR_PAGE, 4, 0xff, mtr);
-	mlog_write_ulint(faddr + FIL_ADDR_BYTE, 0, MLOG_2BYTES, mtr);
+	if (mach_read_from_4(faddr + FIL_ADDR_PAGE) != FIL_NULL) {
+		mlog_memset(faddr + FIL_ADDR_PAGE, 4, 0xff, mtr);
+	}
+	if (mach_read_from_2(faddr + FIL_ADDR_BYTE)) {
+		mlog_write_ulint(faddr + FIL_ADDR_BYTE, 0, MLOG_2BYTES, mtr);
+	}
 }
 
 /********************************************************************//**

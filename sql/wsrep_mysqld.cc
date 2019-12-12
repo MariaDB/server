@@ -46,7 +46,6 @@
 #include <cstdlib>
 #include <string>
 #include "log_event.h"
-#include <slave.h>
 
 #include <sstream>
 
@@ -550,11 +549,11 @@ static std::string wsrep_server_incoming_address()
     {
       if (node_addr.size())
       {
-        size_t const ip_len= wsrep_host_len(node_addr.c_str(), node_addr.size());
-        if (ip_len + 7 /* :55555\0 */ < inc_addr_max)
+        size_t const ip_len_mdb= wsrep_host_len(node_addr.c_str(), node_addr.size());
+        if (ip_len_mdb + 7 /* :55555\0 */ < inc_addr_max)
         {
-          memcpy (inc_addr, node_addr.c_str(), ip_len);
-          snprintf(inc_addr + ip_len, inc_addr_max - ip_len, ":%u",
+          memcpy (inc_addr, node_addr.c_str(), ip_len_mdb);
+          snprintf(inc_addr + ip_len_mdb, inc_addr_max - ip_len_mdb, ":%u",
                    (int)mysqld_port);
         }
         else
@@ -627,6 +626,7 @@ static wsrep::gtid wsrep_server_initial_position()
  */
 static void wsrep_init_provider_status_variables()
 {
+  wsrep_inited= 1;
   const wsrep::provider& provider=
     Wsrep_server_state::instance().provider();
   strncpy(provider_name,
@@ -711,9 +711,7 @@ int wsrep_init()
       WSREP_ERROR("wsrep::init() failed: %d, must shutdown", err);
     }
     else
-    {
       wsrep_init_provider_status_variables();
-    }
     return err;
   }
 
@@ -749,7 +747,6 @@ int wsrep_init()
     Wsrep_server_state::instance().unload_provider();
     return 1;
   }
-  wsrep_inited= 1;
 
   wsrep_init_provider_status_variables();
   wsrep_capabilities_export(Wsrep_server_state::instance().provider().capabilities(),
@@ -1648,6 +1645,39 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     {
       return false;
     }
+    /*
+      If mariadb master has replicated a CTAS, we should not replicate the create table
+      part separately as TOI, but to replicate both create table and following inserts
+      as one write set.
+      Howver, if CTAS creates empty table, we should replicate the create table alone
+      as TOI. We have to do relay log event lookup to see if row events follow the
+      create table event.
+    */
+    if (thd->slave_thread && !(thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_STANDALONE))
+    {
+      /* this is CTAS, either empty or populated table */
+      ulonglong event_size = 0;
+      enum Log_event_type ev_type= wsrep_peak_event(thd->rgi_slave, &event_size);
+      switch (ev_type)
+      {
+      case QUERY_EVENT:
+        /* CTAS with empty table, we replicate create table as TOI */
+        break;
+
+      case TABLE_MAP_EVENT:
+        WSREP_DEBUG("replicating CTAS of empty table as TOI");
+        // fall through
+      case WRITE_ROWS_EVENT:
+        /* CTAS with populated table, we replicate later at commit time */
+        WSREP_DEBUG("skipping create table of CTAS replication");
+        return false;
+
+      default:
+        WSREP_WARN("unexpected async replication event: %d", ev_type);
+      }
+      return true;
+    }
+    /* no next async replication event */
     return true;
 
   case SQLCOM_CREATE_VIEW:
@@ -1669,10 +1699,17 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
 
   case SQLCOM_CREATE_TRIGGER:
 
-    DBUG_ASSERT(!table_list);
     DBUG_ASSERT(first_table);
 
     if (thd->find_temporary_table(first_table))
+    {
+      return false;
+    }
+    return true;
+
+  case SQLCOM_DROP_TRIGGER:
+    DBUG_ASSERT(table_list);
+    if (thd->find_temporary_table(table_list))
     {
       return false;
     }
@@ -1698,26 +1735,6 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
   }
 }
 
-#if UNUSED /* 323f269d4099 (Jan Lindström     2018-07-19) */
-static const char* wsrep_get_query_or_msg(const THD* thd)
-{
-  switch(thd->lex->sql_command)
-  {
-    case SQLCOM_CREATE_USER:
-      return "CREATE USER";
-    case SQLCOM_GRANT:
-      return "GRANT";
-    case SQLCOM_REVOKE:
-      return "REVOKE";
-    case SQLCOM_SET_OPTION:
-      if (thd->lex->definer)
-        return "SET PASSWORD";
-      /* fallthrough */
-    default:
-      return thd->query();
-   }
-}
-#endif //UNUSED
 
 static int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 {
@@ -2116,12 +2133,18 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     if (wsrep_thd_is_toi(granted_thd) ||
         wsrep_thd_is_applying(granted_thd))
     {
-      if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
+      if (wsrep_thd_is_aborting(granted_thd))
+      {
+        WSREP_DEBUG("BF thread waiting for SR in aborting state");
+        ticket->wsrep_report(wsrep_debug);
+        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+      }
+      else if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
       {
         WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR", 
                       schema, schema_len, request_thd, granted_thd);
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-        wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
+        wsrep_abort_thd(request_thd, granted_thd, 1);
       }
       else
       {
@@ -2145,7 +2168,7 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                   wsrep_thd_transaction_state_str(granted_thd));
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-      wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
+      wsrep_abort_thd(request_thd, granted_thd, 1);
     }
     else
     {
@@ -2654,7 +2677,7 @@ void* start_wsrep_THD(void *arg)
     need to know the start of the stack so that we could check for
     stack overruns.
   */
-  DBUG_PRINT("wsrep", ("handle_one_connection called by thread %lld\n",
+  DBUG_PRINT("wsrep", ("handle_one_connection called by thread %lld",
                        (long long)thd->thread_id));
   /* now that we've called my_thread_init(), it is safe to call DBUG_* */
 

@@ -49,3 +49,10 @@ explain select count(*) from seq_1_to_15_step_2 group by mod(seq,2);
 create temporary table t1 select * from seq_1_to_3;
 select count(NULL) from t1;
 select count(NULL) from seq_1_to_3;
+
+--echo #
+--echo # MDEV-20753: Sequence with limit 0 crashes server
+--echo #
+select count(NULL) from seq_1_to_3 limit 0;
+
+--echo # End of 10.3 tests

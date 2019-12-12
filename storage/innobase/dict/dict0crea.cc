@@ -852,11 +852,14 @@ dict_create_index_tree_step(
 				err = DB_OUT_OF_FILE_SPACE; );
 	}
 
-	page_rec_write_field(
-		btr_pcur_get_rec(&pcur), DICT_FLD__SYS_INDEXES__PAGE_NO,
-		node->page_no, &mtr);
-
-	btr_pcur_close(&pcur);
+	ulint   len;
+	byte*   data = rec_get_nth_field_old(btr_pcur_get_rec(&pcur),
+					     DICT_FLD__SYS_INDEXES__PAGE_NO,
+					     &len);
+	ut_ad(len == 4);
+	if (mach_read_from_4(data) != node->page_no) {
+		mlog_write_ulint(data, node->page_no, MLOG_4BYTES, &mtr);
+	}
 
 	mtr.commit();
 
@@ -898,18 +901,12 @@ dict_create_index_tree_in_mem(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	rec	SYS_INDEXES record
 @param[in,out]	pcur	persistent cursor on rec
-@param[in,out]	mtr	mini-transaction
-@return	whether freeing the B-tree was attempted */
-bool
-dict_drop_index_tree(
-	rec_t*		rec,
-	btr_pcur_t*	pcur,
-	mtr_t*		mtr)
+@param[in,out]	trx	dictionary transaction
+@param[in,out]	mtr	mini-transaction */
+void dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 {
-	const byte*	ptr;
-	ulint		len;
-	ulint		space;
-	ulint		root_page_no;
+	byte*	ptr;
+	ulint	len;
 
 	ut_ad(mutex_own(&dict_sys.mutex));
 	ut_a(!dict_table_is_comp(dict_sys.sys_indexes));
@@ -920,122 +917,45 @@ dict_drop_index_tree(
 
 	btr_pcur_store_position(pcur, mtr);
 
-	root_page_no = mtr_read_ulint(ptr, MLOG_4BYTES, mtr);
+	const uint32_t root_page_no = mach_read_from_4(ptr);
 
 	if (root_page_no == FIL_NULL) {
 		/* The tree has already been freed */
-
-		return(false);
+		return;
 	}
 
-	mlog_write_ulint(const_cast<byte*>(ptr), FIL_NULL, MLOG_4BYTES, mtr);
+	compile_time_assert(FIL_NULL == 0xffffffff);
+	mlog_memset(ptr, 4, 0xff, mtr);
 
 	ptr = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__SPACE, &len);
 
 	ut_ad(len == 4);
 
-	space = mtr_read_ulint(ptr, MLOG_4BYTES, mtr);
+	const uint32_t space_id = mach_read_from_4(ptr);
+	ut_ad(space_id < SRV_TMP_SPACE_ID);
+	if (space_id != TRX_SYS_SPACE
+	    && trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE) {
+		/* We are about to delete the entire .ibd file;
+		do not bother to free pages inside it. */
+		return;
+	}
 
 	ptr = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__ID, &len);
 
 	ut_ad(len == 8);
 
-	if (fil_space_t* s = fil_space_acquire_silent(space)) {
+	if (fil_space_t* s = fil_space_acquire_silent(space_id)) {
 		/* Ensure that the tablespace file exists
 		in order to avoid a crash in buf_page_get_gen(). */
-		if (s->size || fil_space_get_size(space)) {
-			btr_free_if_exists(page_id_t(space, root_page_no),
+		if (s->size || fil_space_get_size(space_id)) {
+			btr_free_if_exists(page_id_t(space_id, root_page_no),
 					   s->zip_size(),
 					   mach_read_from_8(ptr), mtr);
 		}
 		s->release();
-		return true;
 	}
-
-	return false;
-}
-
-/*******************************************************************//**
-Recreate the index tree associated with a row in SYS_INDEXES table.
-@return	new root page number, or FIL_NULL on failure */
-ulint
-dict_recreate_index_tree(
-/*=====================*/
-	const dict_table_t*
-			table,	/*!< in/out: the table the index belongs to */
-	btr_pcur_t*	pcur,	/*!< in/out: persistent cursor pointing to
-				record in the clustered index of
-				SYS_INDEXES table. The cursor may be
-				repositioned in this call. */
-	mtr_t*		mtr)	/*!< in/out: mtr having the latch
-				on the record page. */
-{
-	ut_ad(mutex_own(&dict_sys.mutex));
-	ut_a(!dict_table_is_comp(dict_sys.sys_indexes));
-	ut_ad(!table->space || table->space->id == table->space_id);
-
-	ulint		len;
-	const rec_t*	rec = btr_pcur_get_rec(pcur);
-
-	const byte*	ptr = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
-
-	ut_ad(len == 4);
-
-	ut_ad(table->space_id == mach_read_from_4(
-		      rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__SPACE,
-					    &len)));
-	ut_ad(len == 4);
-
-	if (!table->space) {
-		/* It is a single table tablespae and the .ibd file is
-		missing: do nothing. */
-
-		ib::warn()
-			<< "Trying to TRUNCATE a missing .ibd file of table "
-			<< table->name << "!";
-
-		return(FIL_NULL);
-	}
-
-	ptr = rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__TYPE, &len);
-	ut_ad(len == 4);
-	ulint	type = mach_read_from_4(ptr);
-
-	ptr = rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__ID, &len);
-	ut_ad(len == 8);
-	index_id_t	index_id = mach_read_from_8(ptr);
-
-	/* We will need to commit the mini-transaction in order to avoid
-	deadlocks in the btr_create() call, because otherwise we would
-	be freeing and allocating pages in the same mini-transaction. */
-	btr_pcur_store_position(pcur, mtr);
-	mtr_commit(mtr);
-
-	mtr_start(mtr);
-	mtr->set_named_space(table->space);
-	btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur, mtr);
-
-	/* Find the index corresponding to this SYS_INDEXES record. */
-	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
-	     index != NULL;
-	     index = UT_LIST_GET_NEXT(indexes, index)) {
-		if (index->id == index_id) {
-			ulint root_page_no = (index->type & DICT_FTS)
-				? FIL_NULL
-				: btr_create(type, table->space,
-					     index_id, index, mtr);
-			index->page = unsigned(root_page_no);
-			return root_page_no;
-		}
-	}
-
-	ib::error() << "Failed to create index with index id " << index_id
-		<< " of table " << table->name;
-
-	return(FIL_NULL);
 }
 
 /*********************************************************************//**
@@ -1324,9 +1244,8 @@ dict_create_index_step(
 
 	if (node->state == INDEX_ADD_TO_CACHE) {
 		ut_ad(node->index->table == node->table);
-		node->index = dict_index_add_to_cache(
-			node->index, FIL_NULL, trx_is_strict(trx),
-			&err, node->add_v);
+		err = dict_index_add_to_cache(node->index, FIL_NULL,
+					      node->add_v);
 
 		ut_ad((node->index == NULL) == (err != DB_SUCCESS));
 

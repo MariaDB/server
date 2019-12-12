@@ -44,8 +44,5 @@ xdes_get_bit(
 	ulint	bit_index = index % 8;
 	ulint	byte_index = index / 8;
 
-	return(ut_bit_get_nth(
-			mach_read_ulint(descr + XDES_BITMAP + byte_index,
-					MLOG_1BYTE),
-			bit_index));
+	return ut_bit_get_nth(descr[XDES_BITMAP + byte_index], bit_index);
 }

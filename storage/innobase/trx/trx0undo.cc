@@ -1617,7 +1617,7 @@ trx_undo_commit_cleanup(trx_undo_t* undo, bool is_temp)
 
 		/* Delete first the undo log segment in the file */
 		mutex_exit(&rseg->mutex);
-		trx_undo_seg_free(undo, true);
+		trx_undo_seg_free(undo, is_temp);
 		mutex_enter(&rseg->mutex);
 
 		ut_ad(rseg->curr_size > undo->size);

@@ -386,6 +386,8 @@ int translog_soft_sync_start(void);
 void  translog_soft_sync_end(void);
 void translog_sync();
 void translog_set_group_commit_interval(uint32 interval);
+extern void check_skipped_lsn(MARIA_HA *info, LSN lsn, my_bool index_file,
+                              pgcache_page_no_t page);
 
 /*
   all the rest added because of recovery; should we make

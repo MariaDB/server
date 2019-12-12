@@ -599,8 +599,8 @@ static bool create_tvc_name(THD *thd, st_select_lex *parent_select,
 
 bool table_value_constr::to_be_wrapped_as_with_tail()
 {
-  return select_lex->master_unit()->first_select()->next_select() &&
-         select_lex->order_list.elements && select_lex->explicit_limit;
+  return  select_lex->master_unit()->first_select()->next_select() &&
+          select_lex->order_list.elements && select_lex->explicit_limit;
 }
 
 

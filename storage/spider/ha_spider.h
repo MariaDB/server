@@ -685,20 +685,22 @@ public:
 #endif
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int direct_update_rows(ha_rows *update_rows)
+  inline int direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
   {
-    return direct_update_rows(NULL, 0, FALSE, NULL, update_rows);
+    return direct_update_rows(NULL, 0, FALSE, NULL, update_rows, found_rows);
   }
   int direct_update_rows(
     KEY_MULTI_RANGE *ranges,
     uint range_count,
     bool sorted,
     uchar *new_data,
-    ha_rows *update_rows
+    ha_rows *update_rows,
+    ha_rows *found_row
   );
 #else
   int direct_update_rows(
-    ha_rows *update_rows
+    ha_rows *update_rows,
+    ha_rows *found_row
   );
 #endif
 #ifdef HA_CAN_BULK_ACCESS
@@ -706,15 +708,18 @@ public:
   inline int pre_direct_update_rows()
   {
     ha_rows update_rows;
+    ha_rows found_rows;
 
-    return pre_direct_update_rows(NULL, 0, FALSE, NULL, &update_rows);
+    return pre_direct_update_rows(NULL, 0, FALSE, NULL, &update_rows,
+      &found_rows);
   }
   int pre_direct_update_rows(
     KEY_MULTI_RANGE *ranges,
     uint range_count,
     bool sorted,
     uchar *new_data,
-    ha_rows *update_rows
+    ha_rows *update_rows,
+    ha_rows *found_row
   );
 #else
   int pre_direct_update_rows();

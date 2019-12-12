@@ -92,18 +92,15 @@ struct fil_space_t {
 	/** Log sequence number of the latest MLOG_INDEX_LOAD record
 	that was found while parsing the redo log */
 	lsn_t		enable_lsn;
+	/** set when an .ibd file is about to be deleted,
+	or an undo tablespace is about to be truncated.
+	When this is set following new ops are not allowed:
+	* read IO request
+	* ibuf merge
+	* file flush
+	Note that we can still possibly have new write operations
+	because we don't check this flag when doing flush batches. */
 	bool		stop_new_ops;
-				/*!< we set this true when we start
-				deleting a single-table tablespace.
-				When this is set following new ops
-				are not allowed:
-				* read IO request
-				* ibuf merge
-				* file flush
-				Note that we can still possibly have
-				new write operations because we don't
-				check this flag when doing flush
-				batches. */
 	/** whether undo tablespace truncation is in progress */
 	bool		is_being_truncated;
 #ifdef UNIV_DEBUG
@@ -632,7 +629,7 @@ inline bool fil_space_t::is_rotational() const
 	return false;
 }
 
-/** Common InnoDB file extentions */
+/** Common InnoDB file extensions */
 enum ib_extention {
 	NO_EXT = 0,
 	IBD = 1,
@@ -1112,10 +1109,8 @@ for concurrency control.
 @param[in]	id	tablespace ID
 @param[in]	silent	whether to silently ignore missing tablespaces
 @return	the tablespace
-@retval	NULL if missing or being deleted or truncated */
-UNIV_INTERN
-fil_space_t*
-fil_space_acquire_low(ulint id, bool silent)
+@retval	NULL if missing or being deleted */
+fil_space_t* fil_space_acquire_low(ulint id, bool silent)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Acquire a tablespace when it could be dropped concurrently.

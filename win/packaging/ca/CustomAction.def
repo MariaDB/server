@@ -8,3 +8,6 @@ CheckDatabaseProperties
 CheckDataDirectoryEmpty
 CheckDBInUse
 CheckServiceUpgrades
+FixSymlinks
+FixSymlinksRollback
+SymlinksUninstall

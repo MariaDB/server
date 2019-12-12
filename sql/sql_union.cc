@@ -831,8 +831,8 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   bool is_union_select;
   bool have_except= FALSE, have_intersect= FALSE;
   bool instantiate_tmp_table= false;
-  bool single_tvc= !first_sl->next_select() && first_sl->tvc &&
-                   !fake_select_lex;
+  bool single_tvc= !first_sl->next_select() && first_sl->tvc;
+  bool single_tvc_wo_order= single_tvc && !first_sl->order_list.elements;
   DBUG_ENTER("st_select_lex_unit::prepare");
   DBUG_ASSERT(thd == current_thd);
 
@@ -924,8 +924,9 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
 
   if (is_union_select || is_recursive)
   {
-    if ((is_unit_op() && !union_needs_tmp_table() &&
-        !have_except && !have_intersect) || single_tvc)
+    if ((single_tvc_wo_order && !fake_select_lex) ||
+        (is_unit_op() && !union_needs_tmp_table() &&
+	 !have_except && !have_intersect && !single_tvc))
     {
       SELECT_LEX *last= first_select();
       while (last->next_select())
@@ -940,7 +941,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     else
     {
       if (!is_recursive)
-	union_result= new (thd->mem_root) select_unit(thd);
+       union_result= new (thd->mem_root) select_unit(thd);
       else
       {
         with_element->rec_result=
@@ -976,9 +977,21 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
       if (sl->tvc->prepare(thd, sl, tmp_result, this))
 	goto err;
     }
-    else if (prepare_join(thd, first_sl, tmp_result, additional_options,
+    else
+    {
+      if (prepare_join(thd, first_sl, tmp_result, additional_options,
                      is_union_select))
-      goto err;
+        goto err;
+
+      if (derived_arg && derived_arg->table &&
+          derived_arg->derived_type == VIEW_ALGORITHM_MERGE &&
+          derived_arg->table->versioned())
+      {
+        /* Got versioning conditions (see vers_setup_conds()), need to update
+           derived_arg. */
+        derived_arg->where= first_sl->where;
+      }
+    }
     types= first_sl->item_list;
     goto cont;
   }
@@ -986,17 +999,40 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
   if (sl->tvc && sl->order_list.elements &&
       !sl->tvc->to_be_wrapped_as_with_tail())
   {
+    SELECT_LEX_UNIT *unit= sl->master_unit();
     if (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)
     {
-      sl->master_unit()->fake_select_lex= 0;
-      sl->master_unit()->saved_fake_select_lex= 0;
+      unit->fake_select_lex= 0;
+      unit->saved_fake_select_lex= 0;
     }
     else
     {
-      sl->order_list.empty();
-      sl->explicit_limit= 0;
-      sl->select_limit= 0;
-      sl->offset_limit= 0;
+      if (!unit->first_select()->next_select())
+      {
+        if (!unit->fake_select_lex)
+	{
+          Query_arena *arena, backup_arena;
+          arena= thd->activate_stmt_arena_if_needed(&backup_arena);
+          bool rc= unit->add_fake_select_lex(thd);
+          if (arena)
+            thd->restore_active_arena(arena, &backup_arena);
+          if (rc)
+            goto err;
+        }
+        SELECT_LEX *fake= unit->fake_select_lex;
+        fake->order_list= sl->order_list;
+        fake->explicit_limit= sl->explicit_limit;
+        fake->select_limit= sl->select_limit;
+        fake->offset_limit= sl->offset_limit;
+        sl->order_list.empty();
+        sl->explicit_limit= 0;
+        sl->select_limit= 0;
+        sl->offset_limit= 0;
+        if (describe)
+          fake->options|= SELECT_DESCRIBE;
+      }
+      else if (!sl->explicit_limit)
+        sl->order_list.empty();
     }
   }
 
@@ -1021,7 +1057,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
 	  goto err;
       }
       else if (sl->tvc->prepare(thd, sl, tmp_result, this))
-	goto err;
+	  goto err;
     }
     else if (prepare_join(thd, sl, tmp_result, additional_options,
                           is_union_select))
@@ -1875,6 +1911,7 @@ bool st_select_lex_unit::cleanup()
       DBUG_RETURN(FALSE);
     }
   }
+  columns_are_renamed= false;
   cleaned= 1;
 
   for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())

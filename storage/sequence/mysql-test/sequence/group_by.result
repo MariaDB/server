@@ -97,3 +97,9 @@ count(NULL)
 select count(NULL) from seq_1_to_3;
 count(NULL)
 0
+#
+# MDEV-20753: Sequence with limit 0 crashes server
+#
+select count(NULL) from seq_1_to_3 limit 0;
+count(NULL)
+# End of 10.3 tests

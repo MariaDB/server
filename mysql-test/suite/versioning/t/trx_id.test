@@ -173,10 +173,7 @@ commit;
 select row_start from t1 into @trx_id;
 select trt_begin_ts(@trx_id) <= @ts1 as BEGIN_TS_GOOD;
 
-drop database test;
-create database test;
-use test;
-
+drop table t1;
 
 --echo #
 --echo # MDEV-16100 FOR SYSTEM_TIME erroneously resolves string user variables as transaction IDs

@@ -75,3 +75,23 @@ id	w	q
 1	2	test;range=meta.foo_count,100,500
 5	1	test;range=meta.foo_count,100,500
 drop table ts;
+#
+# MDEV-19205: Sphinx unable to connect using a host name
+#
+create table ts ( id bigint unsigned not null, w int not null, q varchar(255) not null, index(q) ) engine=sphinx connection="sphinx://localhost:SPHINXSEARCH_PORT/*";
+select * from ts where q=';filter=meta.foo_count,100';
+id	w	q
+1	1	;filter=meta.foo_count,100
+select * from ts where q='test;filter=meta.sub.int,7';
+id	w	q
+5	1	test;filter=meta.sub.int,7
+select * from ts where q=';filter=meta.sub.list[0],4';
+id	w	q
+select * from ts where q=';filter=meta.sub.list[1],4';
+id	w	q
+5	1	;filter=meta.sub.list[1],4
+select * from ts where q='test;range=meta.foo_count,100,500';
+id	w	q
+1	2	test;range=meta.foo_count,100,500
+5	1	test;range=meta.foo_count,100,500
+drop table ts;

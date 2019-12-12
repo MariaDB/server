@@ -3235,7 +3235,7 @@ my_bool mysql_reconnect(MYSQL *mysql)
   if (ctxt)
     my_context_install_suspend_resume_hook(ctxt, NULL, NULL);
 
-  DBUG_PRINT("info", ("reconnect succeded"));
+  DBUG_PRINT("info", ("reconnect succeeded"));
   tmp_mysql.reconnect= 1;
   tmp_mysql.free_me= mysql->free_me;
 

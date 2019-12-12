@@ -93,7 +93,6 @@ support cross-platform development and expose comonly used SQL names. */
 #include <sys/stat.h>
 
 #ifndef _WIN32
-# include <sys/mman.h> /* mmap() for os0proc.cc */
 # include <sched.h>
 # include "my_config.h"
 #endif

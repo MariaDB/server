@@ -279,11 +279,11 @@ dict_stats_save_defrag_stats(
 	mtr_t	mtr;
 	ulint	n_leaf_pages;
 	ulint	n_leaf_reserved;
-	mtr_start(&mtr);
-	mtr_s_lock(dict_index_get_lock(index), &mtr);
+	mtr.start();
+	mtr_s_lock_index(index, &mtr);
 	n_leaf_reserved = btr_get_size_and_reserved(index, BTR_N_LEAF_PAGES,
 						    &n_leaf_pages, &mtr);
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	if (n_leaf_reserved == ULINT_UNDEFINED) {
 		// The index name is different during fast index creation,

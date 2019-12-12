@@ -317,6 +317,14 @@ ibuf_insert(
 	ulint			zip_size,
 	que_thr_t*		thr);
 
+/**
+Delete any buffered entries for a page.
+This prevents an infinite loop on slow shutdown
+in the case where the change buffer bitmap claims that no buffered
+changes exist, while entries exist in the change buffer tree.
+@param page_id  page number for which there should be no unbuffered changes */
+ATTRIBUTE_COLD void ibuf_delete_recs(const page_id_t page_id);
+
 /** When an index page is read from a disk to the buffer pool, this function
 applies any buffered operations to the page and deletes the entries from the
 insert buffer. If the page is not read, but created in the buffer pool, this
@@ -337,15 +345,11 @@ ibuf_merge_or_delete_for_page(
 	ulint			zip_size,
 	bool			update_ibuf_bitmap);
 
-/*********************************************************************//**
-Deletes all entries in the insert buffer for a given space id. This is used
-in DISCARD TABLESPACE and IMPORT TABLESPACE.
-NOTE: this does not update the page free bitmaps in the space. The space will
-become CORRUPT when you call this function! */
-void
-ibuf_delete_for_discarded_space(
-/*============================*/
-	ulint	space);	/*!< in: space id */
+/** Delete all change buffer entries for a tablespace,
+in DISCARD TABLESPACE, IMPORT TABLESPACE, or crash recovery.
+@param[in]	space		missing or to-be-discarded tablespace */
+void ibuf_delete_for_discarded_space(ulint space);
+
 /** Contract the change buffer by reading pages to the buffer pool.
 @param[in]	full		If true, do a full contraction based
 on PCT_IO(100). If false, the size of contract batch is determined

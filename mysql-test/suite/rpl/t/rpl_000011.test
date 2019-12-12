@@ -5,19 +5,19 @@
 #
 
 source include/master-slave.inc;
-
+--connection slave
+let $initial_com_insert= query_get_value(show global status like "Com_insert", Value, 1);
+--connection master
 create table t1 (n int);
 insert into t1 values(1);
-sync_slave_with_master; 
-show global status like 'com_insert';
+sync_slave_with_master;
+let $current_com_insert= query_get_value(show global status like "Com_insert", Value, 1);
+--let $delta_com_insert= `select $current_com_insert - $initial_com_insert from dual`
+--echo # Com_insert = $delta_com_insert
 stop slave;
-# Temporary work-around for bug MDEV-8301. There is a small window during
-# thread exit where the local status values of a thread are counted twice
-# in the global status. Remove this wait_condition.inc once MDEV-8301 is
-# fixed.
---let $wait_condition= SELECT variable_value=1 FROM information_schema.global_status WHERE variable_name="Com_insert";
---source include/wait_condition.inc
-show global status like 'com_insert';
+let $current_com_insert= query_get_value(show global status like "Com_insert", Value, 1);
+--let $delta_com_insert= `select $current_com_insert - $initial_com_insert from dual`
+--echo # Com_insert = $delta_com_insert
 --source include/wait_for_slave_to_stop.inc
 start slave;
 --source include/wait_for_slave_to_start.inc

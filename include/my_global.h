@@ -440,6 +440,20 @@ C_MODE_END
 #if HAVE_MADVISE && !HAVE_DECL_MADVISE && defined(__cplusplus)
 extern "C" int madvise(void *addr, size_t len, int behav);
 #endif
+#ifdef HAVE_SYS_MMAN_H
+#include <sys/mman.h>
+#endif
+/** FreeBSD equivalent */
+#if defined(MADV_CORE) && !defined(MADV_DODUMP)
+#define MADV_DODUMP MADV_CORE
+#define MADV_DONTDUMP MADV_NOCORE
+#define DODUMP_STR "MADV_CORE"
+#define DONTDUMP_STR "MADV_NOCORE"
+#else
+#define DODUMP_STR "MADV_DODUMP"
+#define DONTDUMP_STR "MADV_DONTDUMP"
+#endif
+
 
 #define QUOTE_ARG(x)		#x	/* Quote argument (before cpp) */
 #define STRINGIFY_ARG(x) QUOTE_ARG(x)	/* Quote argument, after cpp */

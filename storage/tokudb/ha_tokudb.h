@@ -387,7 +387,8 @@ inline void TOKUDB_SHARE::init_cardinality_counts(
 
     assert_debug(_mutex.is_owned_by_me());
     // can not change number of keys live
-    assert_always(_rec_per_key == NULL && _rec_per_keys == 0);
+    assert_always(_rec_per_key == nullptr);
+    assert_always(_rec_per_keys == 0);
     _rec_per_keys = rec_per_keys;
     _rec_per_key = rec_per_key;
 }

@@ -18,13 +18,13 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add column y int;
-ERROR HY000: Not allowed for system-versioned `test2`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
+ERROR HY000: Not allowed for system-versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
 alter table t add primary key (a);
-ERROR HY000: Not allowed for system-versioned `test2`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
+ERROR HY000: Not allowed for system-versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
 alter table t add unique key (a);
-ERROR HY000: Not allowed for system-versioned `test2`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
+ERROR HY000: Not allowed for system-versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
 alter table t engine innodb;
-ERROR HY000: Not allowed for system-versioned `test2`.`t`. Change to/from native system versioning engine is not supported.
+ERROR HY000: Not allowed for system-versioned `test`.`t`. Change to/from native system versioning engine is not supported.
 alter table t drop system versioning;
 show create table t;
 Table	Create Table
@@ -80,13 +80,17 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t add column trx_start timestamp(6) as row start;
-ERROR HY000: Table `t` is not system-versioned
+ERROR HY000: Duplicate ROW START column `trx_start`
 alter table t add system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t add column trx_start timestamp(6) as row start;
+ERROR HY000: Duplicate ROW START column `trx_start`
+alter table t modify a int as row start;
+ERROR HY000: Duplicate ROW START column `a`
 alter table t add column b int;
 show create table t;
 Table	Create Table
@@ -526,14 +530,14 @@ ERROR HY000: Table `t` is already system-versioned
 #
 use mysql;
 create or replace table t (x int) with system versioning;
-ERROR HY000: System-versioned tables in the `mysql` database are not suported
+ERROR HY000: System-versioned tables in the `mysql` database are not supported
 alter table db add system versioning;
-ERROR HY000: System-versioned tables in the `mysql` database are not suported
+ERROR HY000: System-versioned tables in the `mysql` database are not supported
 use test;
 # MDEV-15956 Strange ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN upon ALTER on versioning column
 create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
 alter table t1 modify s timestamp(6) as row start;
-ERROR HY000: Can not change system versioning field `s`
+ERROR HY000: Duplicate ROW START column `s`
 # ignore CHECK for historical rows
 create or replace table t (a int) with system versioning;
 insert into t values (0), (1);
@@ -682,5 +686,4 @@ alter table t
 add column c int without system versioning,
 change column c c int,
 change column b b int without system versioning;
-drop database test;
-create database test;
+drop table t;

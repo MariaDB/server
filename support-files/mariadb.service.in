@@ -1,16 +1,22 @@
+# It's not recommended to modify this file in-place, because it will be
+# overwritten during package upgrades.  If you want to customize, the
+# best way is to create a file "/etc/systemd/system/mariadb.service",
+# containing
+#	.include /usr/lib/systemd/system/mariadb.service
+#	...make your changes here...
+# or create a file "/etc/systemd/system/mariadb.service.d/foo.conf",
+# which doesn't need to include ".include" call and which will be parsed
+# after the file mariadb.service itself is parsed.
 #
-# /etc/systemd/system/mariadb.service
+# For more info about custom unit files, see systemd.unit(5) or
+# https://mariadb.com/kb/en/mariadb/systemd/
+#
+# Copyright notice:
 #
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation; either version 2.1 of the License, or
 # (at your option) any later version.
-#
-# Thanks to:
-# Daniel Black
-# Erkan Yanar
-# David Strauss
-# and probably others
 
 [Unit]
 Description=MariaDB @VERSION@ database server
@@ -86,10 +92,11 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
 # This isn't a replacement for my.cnf.
 # _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
 ExecStart=@sbindir@/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
-@SYSTEMD_EXECSTARTPOST@
 
 # Unset _WSREP_START_POSITION environment variable.
 ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
+
+@SYSTEMD_EXECSTARTPOST@
 
 KillSignal=SIGTERM
 

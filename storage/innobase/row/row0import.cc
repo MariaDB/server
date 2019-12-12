@@ -466,17 +466,12 @@ protected:
 		UT_DELETE_ARRAY(m_xdes);
 		m_xdes = NULL;
 
-		ulint		state;
-		const xdes_t*	xdesc = page + XDES_ARR_OFFSET;
-
-		state = mach_read_ulint(xdesc + XDES_STATE, MLOG_4BYTES);
-
-		if (state != XDES_FREE) {
+		if (mach_read_from_4(XDES_ARR_OFFSET + XDES_STATE + page)
+		    != XDES_FREE) {
 			const ulint physical_size = m_zip_size
 				? m_zip_size : srv_page_size;
 
-			m_xdes = UT_NEW_ARRAY_NOKEY(xdes_t,
-						    physical_size);
+			m_xdes = UT_NEW_ARRAY_NOKEY(xdes_t, physical_size);
 
 			/* Trigger OOM */
 			DBUG_EXECUTE_IF(
@@ -2022,29 +2017,13 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 
 	ulint		page_type;
 
-	dberr_t err = update_page(block, page_type);
-	if (err != DB_SUCCESS) return err;
+	if (dberr_t err = update_page(block, page_type)) {
+		return err;
+	}
 
 	const bool full_crc32 = fil_space_t::full_crc32(get_space_flags());
-	const bool page_compressed = fil_space_t::is_compressed(get_space_flags());
 
 	if (!block->page.zip.data) {
-		if (full_crc32
-		    && (block->page.encrypted || page_compressed)
-		    && block->page.id.page_no() > 0) {
-			byte* page = block->frame;
-			mach_write_to_8(page + FIL_PAGE_LSN, m_current_lsn);
-
-			if (!page_compressed) {
-				mach_write_to_4(
-					page + (srv_page_size
-						- FIL_PAGE_FCRC32_END_LSN),
-					(ulint) m_current_lsn);
-			}
-
-			return err;
-		}
-
 		buf_flush_init_for_writing(
 			NULL, block->frame, NULL, m_current_lsn, full_crc32);
 	} else if (fil_page_type_is_index(page_type)) {
@@ -2140,7 +2119,7 @@ row_import_cleanup(
 
 	DBUG_EXECUTE_IF("ib_import_before_checkpoint_crash", DBUG_SUICIDE(););
 
-	log_make_checkpoint_at(LSN_MAX);
+	log_make_checkpoint();
 
 	return(err);
 }
@@ -3482,10 +3461,6 @@ not_encrypted:
 					   ? dst : src,
 					   callback.get_space_flags())) {
 				goto page_corrupted;
-			}
-
-			if (encrypted) {
-				block->page.encrypted = true;
 			}
 
 			if ((err = callback(block)) != DB_SUCCESS) {

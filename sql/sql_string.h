@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB Corporation.
+   Copyright (c) 2008, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -163,6 +163,10 @@ public:
   void swap(Charset &other)
   {
     swap_variables(CHARSET_INFO*, m_charset, other.m_charset);
+  }
+  bool same_encoding(const Charset &other) const
+  {
+    return !strcmp(m_charset->csname, other.m_charset->csname);
   }
   /*
     Collation name without the character set name.

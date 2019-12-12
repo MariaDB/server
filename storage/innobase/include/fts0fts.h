@@ -304,27 +304,6 @@ struct fts_table_t {
 					index auxiliary table */
 };
 
-enum	fts_status {
-	BG_THREAD_STOP = 1,	 	/*!< TRUE if the FTS background thread
-					has finished reading the ADDED table,
-					meaning more items can be added to
-					the table. */
-
-	BG_THREAD_READY = 2,		/*!< TRUE if the FTS background thread
-					is ready */
-
-	ADD_THREAD_STARTED = 4,		/*!< TRUE if the FTS add thread
-					has started */
-
-	ADDED_TABLE_SYNCED = 8,		/*!< TRUE if the ADDED table record is
-					sync-ed after crash recovery */
-
-	TABLE_DICT_LOCKED = 16		/*!< Set if the table has
-					dict_sys.mutex */
-};
-
-typedef	enum fts_status	fts_status_t;
-
 /** The state of the FTS sub system. */
 class fts_t {
 public:
@@ -341,12 +320,15 @@ public:
 	/** Mutex protecting bg_threads* and fts_add_wq. */
 	ib_mutex_t	bg_threads_mutex;
 
+	/** Whether the ADDED table record sync-ed after
+	crash recovery; protected by bg_threads_mutex */
+	unsigned	added_synced:1;
+	/** Whether the table holds dict_sys.mutex;
+	protected by bg_threads_mutex */
+	unsigned	dict_locked:1;
+
 	/** Number of background threads accessing this table. */
 	ulint		bg_threads;
-
-	/** Status bit regarding fts running state. TRUE if background
-	threads running should stop themselves. */
-	ulint		fts_status;
 
 	/** Work queue for scheduling jobs for the FTS 'Add' thread, or NULL
 	if the thread has not yet been created. Each work item is a
@@ -362,6 +344,10 @@ public:
 
 	/** Vector of FTS indexes, this is mainly for caching purposes. */
 	ib_vector_t*	indexes;
+
+	/** Whether the table exists in fts_optimize_wq;
+	protected by fts_optimize_wq mutex */
+	bool		in_queue;
 
 	/** Heap for fts_t allocation. */
 	mem_heap_t*	fts_heap;
@@ -631,28 +617,6 @@ FTS initialize. */
 void
 fts_startup(void);
 /*==============*/
-
-#if 0 // TODO: Enable this in WL#6608
-/******************************************************************//**
-Signal FTS threads to initiate shutdown. */
-void
-fts_start_shutdown(
-/*===============*/
-	dict_table_t*	table,			/*!< in: table with FTS
-						indexes */
-	fts_t*		fts);			/*!< in: fts instance to
-						shutdown */
-
-/******************************************************************//**
-Wait for FTS threads to shutdown. */
-void
-fts_shutdown(
-/*=========*/
-	dict_table_t*	table,			/*!< in: table with FTS
-						indexes */
-	fts_t*		fts);			/*!< in: fts instance to
-						shutdown */
-#endif
 
 /******************************************************************//**
 Create an instance of fts_t.

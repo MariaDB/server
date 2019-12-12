@@ -1,3 +1,4 @@
+SET @save_dbug = @@debug_dbug;
 set debug_dbug='+d,unstable_db_type';
 install soname 'ha_archive';
 create table t1 (a int) engine=archive;
@@ -32,4 +33,4 @@ t1.frm
 drop table t1;
 db.opt
 uninstall soname 'ha_archive';
-set debug_dbug='-d,unstable_db_type';
+set debug_dbug=@save_dbug;

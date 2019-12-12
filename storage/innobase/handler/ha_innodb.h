@@ -630,7 +630,7 @@ public:
 	- all but name/path is used, when validating options and using flags. */
 	create_table_info_t(
 		THD*		thd,
-		TABLE*		form,
+		const TABLE*	form,
 		HA_CREATE_INFO*	create_info,
 		char*		table_name,
 		char*		remote_path,
@@ -677,6 +677,11 @@ public:
 	int prepare_create_table(const char* name, bool strict = true);
 
 	void allocate_trx();
+
+	/** Checks that every index have sane size. Depends on strict mode */
+	bool row_size_is_acceptable(const dict_table_t& table) const;
+	/** Checks that given index have sane size. Depends on strict mode */
+	bool row_size_is_acceptable(const dict_index_t& index) const;
 
 	/** Determines InnoDB table flags.
 	If strict_mode=OFF, this will adjust the flags to what should be assumed.

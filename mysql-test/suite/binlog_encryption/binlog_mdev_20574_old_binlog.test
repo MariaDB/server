@@ -1,0 +1,46 @@
+# MDEV-20574 Position of events reported by mysqlbinlog is wrong with encrypted binlogs, SHOW BINLOG EVENTS reports the correct one.
+# Test replicating off old master.
+# Test case Desc:-  When new server reads the data from old server binlog which
+# does not send START_ENCRYPTION_EVENT to slave.
+# We simulate old master by copying in pre-generated binlog files from earlier
+# server versions with encrypted binlog.
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+--let $datadir= `SELECT @@datadir`
+
+--let $rpl_server_number= 1
+--source include/rpl_stop_server.inc
+
+--remove_file $datadir/master-bin.000001
+--remove_file $datadir/master-bin.state
+--echo # Data in binlog
+--echo # CREATE TABLE t1 (a INT);
+--echo # INSERT INTO t1 VALUES (1),(2),(3);
+--echo # REPLACE INTO t1 VALUES (4);
+
+--copy_file $MYSQL_TEST_DIR/std_data/binlog_before_20574.bin $datadir/master-bin.000001
+
+--let $rpl_server_number= 1
+--source include/rpl_start_server.inc
+
+--source include/wait_until_connected_again.inc
+--save_master_pos
+
+--connection slave
+RESET SLAVE;
+RESET MASTER;
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4;
+--source include/start_slave.inc
+--sync_with_master
+DESC t1;
+SELECT * FROM t1 ORDER BY a;
+
+DROP TABLE t1;
+--source include/rpl_end.inc

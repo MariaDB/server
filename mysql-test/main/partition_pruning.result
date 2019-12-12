@@ -3487,6 +3487,16 @@ a	b	c	d
 1	a	b	1
 drop table t1;
 #
+# MDEV-14667 Assertion `used_parts > 0' failed in ha_partition::init_record_priority_queue.
+#
+create table t1 (a int);
+insert into t1 values (1),(2);
+create table t2 (b int, c int, key(c,b)) partition by hash(b) partitions 2;
+insert into t2 values (3,4),(5,6);
+select straight_join * from t1, t2 where b != NULL;
+a	b	c
+drop table t1, t2;
+#
 # MDEV-17493: Partition pruning doesn't work for nested outer joins
 #
 create table t0(a int);

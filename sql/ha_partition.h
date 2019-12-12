@@ -92,6 +92,7 @@ public:
   bool auto_inc_initialized;
   mysql_mutex_t auto_inc_mutex;                /**< protecting auto_inc val */
   ulonglong next_auto_inc_val;                 /**< first non reserved value */
+  ulonglong prev_auto_inc_val;                 /**< stored next_auto_inc_val */
   /**
     Hash of partition names. Initialized in the first ha_partition::open()
     for the table_share. After that it is read-only, i.e. no locking required.
@@ -103,6 +104,7 @@ public:
   Partition_share()
     : auto_inc_initialized(false),
     next_auto_inc_val(0),
+    prev_auto_inc_val(0),
     partition_name_hash_initialized(false),
     partition_names(NULL)
   {
@@ -371,6 +373,27 @@ private:
   MY_BITMAP m_locked_partitions;
   /** Stores shared auto_increment etc. */
   Partition_share *part_share;
+  /** Fix spurious -Werror=overloaded-virtual in GCC 9 */
+  virtual void restore_auto_increment(ulonglong prev_insert_id)
+  {
+    handler::restore_auto_increment(prev_insert_id);
+  }
+  /** Store and restore next_auto_inc_val over duplicate key errors. */
+  virtual void store_auto_increment()
+  {
+    DBUG_ASSERT(part_share);
+    part_share->prev_auto_inc_val= part_share->next_auto_inc_val;
+    handler::store_auto_increment();
+  }
+  virtual void restore_auto_increment()
+  {
+    DBUG_ASSERT(part_share);
+    part_share->next_auto_inc_val= part_share->prev_auto_inc_val;
+    handler::restore_auto_increment();
+  }
+  void sum_copy_info(handler *file);
+  void sum_copy_infos();
+  void reset_copy_info();
   /** Temporary storage for new partitions Handler_shares during ALTER */
   List<Parts_share_refs> m_new_partitions_share_refs;
   /** Sorted array of partition ids in descending order of number of rows. */
@@ -637,7 +660,7 @@ public:
   virtual int update_row(const uchar * old_data, const uchar * new_data);
   virtual int direct_update_rows_init(List<Item> *update_fields);
   virtual int pre_direct_update_rows_init(List<Item> *update_fields);
-  virtual int direct_update_rows(ha_rows *update_rows);
+  virtual int direct_update_rows(ha_rows *update_rows, ha_rows *found_rows);
   virtual int pre_direct_update_rows();
   virtual bool start_bulk_delete();
   virtual int end_bulk_delete();
@@ -1307,6 +1330,19 @@ private:
     if (nr >= part_share->next_auto_inc_val)
       part_share->next_auto_inc_val= nr + 1;
     unlock_auto_increment();
+  }
+
+  void check_insert_autoincrement()
+  {
+    /*
+      If we INSERT into the table having the AUTO_INCREMENT column,
+      we have to read all partitions for the next autoincrement value
+      unless we already did it.
+    */
+    if (!part_share->auto_inc_initialized &&
+        ha_thd()->lex->sql_command == SQLCOM_INSERT &&
+        table->found_next_number_field)
+      bitmap_set_all(&m_part_info->read_partitions);
   }
 
 public:

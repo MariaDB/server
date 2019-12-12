@@ -725,10 +725,11 @@ ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
    can_enable_indexes(1)
 {}
 
-handler *ha_myisam::clone(const char *name, MEM_ROOT *mem_root)
+handler *ha_myisam::clone(const char *name __attribute__((unused)),
+                          MEM_ROOT *mem_root)
 {
-  ha_myisam *new_handler= static_cast <ha_myisam *>(handler::clone(name,
-                                                                   mem_root));
+  ha_myisam *new_handler=
+    static_cast <ha_myisam *>(handler::clone(file->filename, mem_root));
   if (new_handler)
     new_handler->file->state= file->state;
   return new_handler;
@@ -793,8 +794,8 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
     growing files. Using an open_flag instead of calling mi_extra(...
     HA_EXTRA_MMAP ...) after mi_open() has the advantage that the
     mapping is not repeated for every open, but just done on the initial
-    open, when the MyISAM share is created. Everytime the server
-    requires to open a new instance of a table it calls this method. We
+    open, when the MyISAM share is created. Every time the server
+    requires opening a new instance of a table it calls this method. We
     will always supply HA_OPEN_MMAP for a permanent table. However, the
     MyISAM storage engine will ignore this flag if this is a secondary
     open of a table that is in use by other threads already (if the
@@ -882,7 +883,7 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
 
   /*
     For static size rows, tell MariaDB that we will access all bytes
-    in the record when writing it.  This signals MariaDB to initalize
+    in the record when writing it.  This signals MariaDB to initialize
     the full row to ensure we don't get any errors from valgrind and
     that all bytes in the row is properly reset.
   */

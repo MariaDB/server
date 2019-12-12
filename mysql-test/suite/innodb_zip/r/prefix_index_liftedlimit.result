@@ -1,3 +1,4 @@
+call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
 CREATE TABLE worklog5743 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
 PRIMARY KEY (col_1_varchar(3072))

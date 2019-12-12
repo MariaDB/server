@@ -295,10 +295,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 50 shift/reduce conflicts.
+  Currently there are 41 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 50
+%expect 41
 
 /*
    Comments for TOKENS.
@@ -1115,6 +1115,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   '^'
 %left   MYSQL_CONCAT_SYM
 %left   NEG '~' NOT2_SYM BINARY
+%left SUBQUERY_AS_EXPR
 %left   COLLATE_SYM
 
 /*
@@ -1206,7 +1207,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
       ALTER TABLE t1 ADD SYSTEM VERSIONING;
 */
 %left   PREC_BELOW_CONTRACTION_TOKEN2
-%left   TEXT_STRING '(' VALUE_SYM VERSIONING_SYM
+%left   TEXT_STRING '(' ')' VALUE_SYM VERSIONING_SYM
+%left EMPTY_FROM_CLAUSE
+%right INTO
 
 %type <lex_str>
         DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
@@ -1478,16 +1481,18 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         query_specification
         table_value_constructor
         simple_table
+        query_simple
         query_primary
-        query_primary_parens
+        subquery
         select_into_query_specification
 
-
 %type <select_lex_unit>
-        query_specification_start
-        query_expression_body
         query_expression
-        query_expression_unit
+        query_expression_no_with_clause
+        query_expression_body_ext
+        query_expression_body_ext_parens
+        query_expression_body
+        query_specification_start
 
 %type <boolfunc2creator> comp_op
 
@@ -1512,7 +1517,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <order_limit_lock>
         query_expression_tail
+        opt_query_expression_tail
         order_or_limit
+        order_limit_lock
         opt_order_limit_lock
 
 %type <select_order> opt_order_clause order_clause order_list
@@ -1681,7 +1688,7 @@ END_OF_INPUT
         THEN_SYM WHEN_SYM DIV_SYM MOD_SYM OR2_SYM AND_AND_SYM DELETE_SYM
         MYSQL_CONCAT_SYM ORACLE_CONCAT_SYM
 
-%type <with_clause> opt_with_clause with_clause
+%type <with_clause> with_clause
 
 %type <lex_str_ptr> query_name
 
@@ -2850,8 +2857,6 @@ server_option:
           {
             MYSQL_YYABORT_UNLESS(Lex->server_options.host.str == 0);
             Lex->server_options.host= $2;
-            my_casedn_str(system_charset_info,
-		         (char*) Lex->server_options.host.str);
           }
         | DATABASE TEXT_STRING_sys
           {
@@ -5275,7 +5280,7 @@ create_select_query_expression:
             if (Lex->parsed_insert_select($1->first_select()))
               MYSQL_YYABORT;
           }
-        | LEFT_PAREN_WITH with_clause query_expression_body ')'
+        | LEFT_PAREN_WITH with_clause query_expression_no_with_clause ')'
           {
             SELECT_LEX *first_select= $3->first_select();
             $3->set_with_clause($2);
@@ -6784,12 +6789,7 @@ parse_vcol_expr:
         ;
 
 parenthesized_expr:
-          query_expression
-          {
-            if (!($$= Lex->create_item_query_expression(thd, $1)))
-              MYSQL_YYABORT;
-          }
-        | expr
+          expr
         | expr ',' expr_list
           {
             $3->push_front($1, thd->mem_root);
@@ -6804,6 +6804,16 @@ virtual_column_func:
           {
             Virtual_column_info *v=
               add_virtual_expression(thd, $2);
+            if (unlikely(!v))
+              MYSQL_YYABORT;
+            $$= v;
+          }
+        | subquery
+          {
+            Item *item;
+            if (!(item= new (thd->mem_root) Item_singlerow_subselect(thd, $1)))
+              MYSQL_YYABORT;
+            Virtual_column_info *v= add_virtual_expression(thd, item);
             if (unlikely(!v))
               MYSQL_YYABORT;
             $$= v;
@@ -7886,6 +7896,7 @@ alter:
             Lex->first_select_lex()->db=
               (Lex->first_select_lex()->table_list.first)->db;
             Lex->create_last_non_select_table= Lex->last_table();
+            Lex->mark_first_table_as_inserting();
           }
           alter_commands
           {
@@ -9256,7 +9267,7 @@ opt_ignore_leaves:
 */
 
 select:
-          query_expression_body
+          query_expression_no_with_clause
           {
             if (Lex->push_select($1->fake_select_lex ?
                                  $1->fake_select_lex :
@@ -9266,10 +9277,11 @@ select:
           opt_procedure_or_into
           {
             Lex->pop_select();
+            $1->set_with_clause(NULL);
             if (Lex->select_finalize($1, $3))
               MYSQL_YYABORT;
           }
-        | with_clause query_expression_body
+        | with_clause query_expression_no_with_clause
           {
             if (Lex->push_select($2->fake_select_lex ?
                                  $2->fake_select_lex :
@@ -9295,12 +9307,32 @@ select_into:
           }
           opt_order_limit_lock
           {
-            st_select_lex_unit *unit;
-            if (!(unit= Lex->parsed_body_select($1, $3)))
+            SELECT_LEX_UNIT *unit;
+            if (!(unit  = Lex->create_unit($1)))
               MYSQL_YYABORT;
+            if ($3)
+              unit= Lex->add_tail_to_query_expression_body(unit, $3);
             if (Lex->select_finalize(unit))
               MYSQL_YYABORT;
            }
+        | with_clause
+          select_into_query_specification
+          {
+            if (Lex->push_select($2))
+              MYSQL_YYABORT;
+          }
+          opt_order_limit_lock
+          {
+            SELECT_LEX_UNIT *unit;
+            if (!(unit  = Lex->create_unit($2)))
+              MYSQL_YYABORT;
+            if ($4)
+              unit= Lex->add_tail_to_query_expression_body(unit, $4);
+            unit->set_with_clause($1);
+            $1->attach_to($2);
+            if (Lex->select_finalize(unit))
+              MYSQL_YYABORT;
+          }
          ;
 
 
@@ -9368,92 +9400,191 @@ select_into_query_specification:
           }
         ;
 
-opt_from_clause:
-        /* Empty */
-        | from_clause
-        ;
+/**
 
+  The following grammar for query expressions conformant to
+  the latest SQL Standard is supported:
 
-query_primary:
-          simple_table
-          { $$= $1; }
-        | query_primary_parens
-          { $$= $1; }
-        ;
+    <query expression> ::=
+     [ <with clause> ] <query expression body>
+       [ <order by clause> ] [ <result offset clause> ] [ <fetch first clause> ]
 
-query_primary_parens:
-          '(' query_expression_unit
-          {
-            if (Lex->parsed_unit_in_brackets($2))
-              MYSQL_YYABORT;
-          }
-          query_expression_tail ')'
-          {
-            $$= Lex->parsed_unit_in_brackets_tail($2, $4);
-          }
-        | '(' query_primary
-          {
-            Lex->push_select($2);
-          }
-          query_expression_tail ')'
-          {
-            if (!($$= Lex->parsed_select_in_brackets($2, $4)))
-              YYABORT;
-          }
-        ;
+   <with clause> ::=
+     WITH [ RECURSIVE ] <with_list
 
-query_expression_unit:
-          query_primary
-          unit_type_decl
-          query_primary
-          {
-            if (!($$= Lex->parsed_select_expr_start($1, $3, $2.unit_type,
-                                                    $2.distinct)))
-              YYABORT;
-          }
-        | query_expression_unit
-          unit_type_decl
-          query_primary
-          {
-            if (!($$= Lex->parsed_select_expr_cont($1, $3, $2.unit_type,
-                                                   $2.distinct, TRUE)))
-              YYABORT;
-          }
-        ;
+   <with list> ::=
+     <with list element> [ { <comma> <with list element> }... ]
 
-query_expression_body:
-          query_primary
-          {
-            Lex->push_select($1);
-          }
-          query_expression_tail
-          {
-            if (!($$= Lex->parsed_body_select($1, $3)))
-              MYSQL_YYABORT;
-          }
-        | query_expression_unit
-          {
-            if (Lex->parsed_body_unit($1))
-              MYSQL_YYABORT;
-          }
-          query_expression_tail
-          {
-            if (!($$= Lex->parsed_body_unit_tail($1, $3)))
-              MYSQL_YYABORT;
-          }
-        ;
+   <with list element> ::=
+     <query name> [ '(' <with column list> ')' ]
+         AS <table subquery>
+
+   <with column list> ::=
+     <column name list>
+
+   <query expression body> ::
+       <query term>
+     | <query expression body> UNION [ ALL | DISTINCT ] <query term>
+     | <query expression body> EXCEPT [ DISTINCT ] <query term>
+
+   <query term> ::=
+       <query primary>
+     | <query term> INTERSECT [ DISTINCT ] <query primary>
+
+   <query primary> ::=
+       <simple table>
+     | '(' <query expression body>
+       [ <order by clause> ] [ <result offset clause> ] [ <fetch first clause> ]
+       ')'
+
+   <simple table>
+       <query specification>
+     | <table value constructor>
+
+  <subquery>
+       '(' <query_expression> ')'
+
+*/
+
+/*
+  query_expression produces the same expressions as
+      <query expression>
+*/
 
 query_expression:
-          opt_with_clause
-          query_expression_body
+          query_expression_no_with_clause
           {
-            if ($1)
-            {
-              $2->set_with_clause($1);
-              $1->attach_to($2->first_select());
-            }
+            $1->set_with_clause(NULL);
+            $$= $1;
+          }
+        | with_clause
+          query_expression_no_with_clause
+          {
+            $2->set_with_clause($1);
+            $1->attach_to($2->first_select());
             $$= $2;
           }
+        ;
+
+/*
+   query_expression_no_with_clause produces the same expressions as
+       <query expression> without [ <with clause> ]
+*/
+
+query_expression_no_with_clause:
+          query_expression_body_ext { $$= $1; }
+        | query_expression_body_ext_parens { $$= $1; }
+        ;
+
+/*
+  query_expression_body_ext produces the same expressions as
+      <query expression body>
+       [ <order by clause> ] [ <result offset clause> ] [ <fetch first clause> ]
+    | '('... <query expression body>
+       [ <order by clause> ] [ <result offset clause> ] [ <fetch first clause> ]
+      ')'...
+  Note: number of ')' must be equal to the number of '(' in the rule above
+*/
+
+query_expression_body_ext:
+          query_expression_body
+          {
+            if ($1->first_select()->next_select())
+            {
+              if (Lex->parsed_multi_operand_query_expression_body($1))
+                MYSQL_YYABORT;
+            }
+          }
+          opt_query_expression_tail
+          {
+            if (!$3)
+              $$= $1;
+            else
+              $$= Lex->add_tail_to_query_expression_body($1, $3);
+          }
+        | query_expression_body_ext_parens
+          {
+            Lex->push_select(!$1->first_select()->next_select() ?
+                               $1->first_select() : $1->fake_select_lex);
+          }
+          query_expression_tail
+          {
+            if (!($$= Lex->add_tail_to_query_expression_body_ext_parens($1, $3)))
+               MYSQL_YYABORT;
+          }
+        ;
+
+query_expression_body_ext_parens:
+          '(' query_expression_body_ext_parens ')'
+          { $$= $2; }
+        | '(' query_expression_body_ext ')'
+          {
+            SELECT_LEX *sel= $2->first_select()->next_select() ?
+                               $2->fake_select_lex : $2->first_select();
+            sel->braces= true;
+            $$= $2;
+          }
+        ;
+
+/*
+  query_expression_body produces the same expressions as
+      <query expression body>
+*/
+
+query_expression_body:
+          query_simple
+          {
+            Lex->push_select($1);
+            if (!($$= Lex->create_unit($1)))
+              MYSQL_YYABORT;
+          }
+        | query_expression_body
+          unit_type_decl
+          {
+            if (!$1->first_select()->next_select())
+            {
+              Lex->pop_select();
+            }
+          }
+          query_primary
+          {
+            if (!($$= Lex->add_primary_to_query_expression_body($1, $4,
+                                                                $2.unit_type,
+                                                                $2.distinct,
+                                                                TRUE)))
+              MYSQL_YYABORT;
+          }
+        | query_expression_body_ext_parens
+          unit_type_decl
+          query_primary
+          {
+            if (!($$= Lex->add_primary_to_query_expression_body_ext_parens(
+                                                                $1, $3,
+                                                                $2.unit_type,
+                                                                $2.distinct)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+/*
+  query_primary produces the same expressions as
+      <query primary>
+*/
+
+query_primary:
+          query_simple
+          { $$= $1; }
+        | query_expression_body_ext_parens
+          { $$= $1->first_select(); }
+        ;
+
+/*
+  query_simple produces the same expressions as
+      <simple table>
+*/
+
+query_simple:
+          simple_table { $$= $1;}
         ;
 
 subselect:
@@ -9464,10 +9595,62 @@ subselect:
           }
         ;
 
+/*
+  subquery produces the same expressions as
+     <subquery>
 
-/**
-  <table expression>, as in the SQL standard.
+  Consider the production rule of the SQL Standard
+     subquery:
+        '(' query_expression ')'
+
+  This rule is equivalent to the rule
+     subquery:
+          '(' query_expression_no_with_clause ')'
+        | '(' with_clause query_expression_no_with_clause ')'
+  that in its turn is equivalent to
+     subquery:
+          '(' query_expression_body_ext ')'
+        | query_expression_body_ext_parens
+        | '(' with_clause query_expression_no_with_clause ')'
+
+  The latter can be re-written into
+     subquery:
+          query_expression_body_ext_parens
+        | '(' with_clause query_expression_no_with_clause ')'
+
+  The last rule allows us to resolve properly the shift/reduce conflict
+  when subquery is used in expressions such as in the following queries
+     select (select * from t1 limit 1) + t2.a from t2
+     select * from t1 where t1.a [not] in (select t2.a from t2)
+
+  In the rule below %prec SUBQUERY_AS_EXPR forces the parser to perform a shift
+  operation rather then a reduce operation when ')' is encountered and can be
+  considered as the last symbol a query expression.
 */
+
+subquery:
+          query_expression_body_ext_parens %prec SUBQUERY_AS_EXPR
+          {
+            if (!$1->fake_select_lex)
+              $1->first_select()->braces= false;
+            else
+              $1->fake_select_lex->braces= false;
+            if (!($$= Lex->parsed_subselect($1)))
+              YYABORT;
+          }
+        | '(' with_clause query_expression_no_with_clause ')'
+          {
+            $3->set_with_clause($2);
+            $2->attach_to($3->first_select());
+            if (!($$= Lex->parsed_subselect($3)))
+              YYABORT;
+          }
+        ;
+
+opt_from_clause:
+        /* empty */ %prec EMPTY_FROM_CLAUSE
+        | from_clause
+        ;
 
 from_clause:
           FROM table_reference_list
@@ -9938,15 +10121,15 @@ bool_pri:
         ;
 
 predicate:
-          bit_expr IN_SYM '(' subselect ')'
+          bit_expr IN_SYM subquery
           {
-            $$= new (thd->mem_root) Item_in_subselect(thd, $1, $4);
+            $$= new (thd->mem_root) Item_in_subselect(thd, $1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | bit_expr not IN_SYM '(' subselect ')'
+        | bit_expr not IN_SYM subquery
           {
-            Item *item= new (thd->mem_root) Item_in_subselect(thd, $1, $5);
+            Item *item= new (thd->mem_root) Item_in_subselect(thd, $1, $4);
             if (unlikely(item == NULL))
               MYSQL_YYABORT;
             $$= negate_expression(thd, item);
@@ -10465,6 +10648,11 @@ primary_expr:
           column_default_non_parenthesized_expr
         | explicit_cursor_attr
         | '(' parenthesized_expr ')' { $$= $2; }
+        | subquery
+          {
+            if (!($$= Lex->create_item_query_expression(thd, $1->master_unit())))
+              MYSQL_YYABORT;
+          }
         ;
 
 string_factor_expr:
@@ -12263,36 +12451,14 @@ table_primary_ident:
           }
         ;
 
-
-/*
-  Represents a flattening of the following rules from the SQL:2003
-  standard. This sub-rule corresponds to the sub-rule
-  <table primary> ::= ... | <derived table> [ AS ] <correlation name>
-
-  <derived table> ::= <table subquery>
-  <table subquery> ::= <subquery>
-  <subquery> ::= <left paren> <query expression> <right paren>
-  <query expression> ::= [ <with clause> ] <query expression body>
-
-  For the time being we use the non-standard rule
-  select_derived_union which is a compromise between the standard
-  and our parser. Possibly this rule could be replaced by our
-  query_expression_body.
-*/
-
 table_primary_derived:
-          query_primary_parens opt_for_system_time_clause table_alias_clause
+          subquery
+          opt_for_system_time_clause table_alias_clause
           {
-            if (!($$= Lex->parsed_derived_select($1, $2, $3)))
-              YYABORT;
+            if (!($$= Lex->parsed_derived_table($1->master_unit(), $2, $3)))
+              MYSQL_YYABORT;
           }
-        | '('
-          query_expression
-          ')' opt_for_system_time_clause table_alias_clause
-          {
-            if (!($$= Lex->parsed_derived_unit($2, $4, $5)))
-              YYABORT;
-          }
+        ;
         ;
 
 opt_outer:
@@ -12427,7 +12593,6 @@ table_alias:
 
 opt_table_alias_clause:
           /* empty */ { $$=0; }
-
         | table_alias_clause { $$= $1; }
         ;
 
@@ -12890,10 +13055,8 @@ delete_limit_clause:
        | LIMIT limit_option ROWS_SYM EXAMINED_SYM { thd->parse_error(); MYSQL_YYABORT; }
         ;
 
-opt_order_limit_lock:
-          /* empty */ 
-          { $$= NULL; }
-        | order_or_limit
+order_limit_lock:
+          order_or_limit
           {
             $$= $1;
             $$->lock.empty();
@@ -12913,29 +13076,42 @@ opt_order_limit_lock:
             $$->lock= $1;
           }
         ;
+opt_order_limit_lock:
+          /* empty */
+          {
+            Lex->pop_select();
+            $$= NULL;
+          }
+        | order_limit_lock { $$= $1; }
+        ;
+
 query_expression_tail:
+          order_limit_lock
+        ;
+
+opt_query_expression_tail:
           opt_order_limit_lock
         ;
 
 opt_procedure_or_into:
           /* empty */ 
-        {
-          $$.empty();
-        }
+          {
+            $$.empty();
+          }
         | procedure_clause opt_select_lock_type
-        {
-          $$= $2;
-        }
+          {
+            $$= $2;
+          }
         | into opt_select_lock_type
-        {
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                              ER_WARN_DEPRECATED_SYNTAX,
-                              ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
-                              "<select expression> INTO <destination>;",
-                              "'SELECT <select list> INTO <destination>"
-                              " FROM...'");
-          $$= $2;
-        }
+          {
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                ER_WARN_DEPRECATED_SYNTAX,
+                                ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
+                                "<select expression> INTO <destination>;",
+                                "'SELECT <select list> INTO <destination>"
+                                " FROM...'");
+            $$= $2;
+          }
         ;
 
 
@@ -13443,6 +13619,7 @@ insert:
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
+            Lex->mark_first_table_as_inserting();
           }
         ;
 
@@ -13467,6 +13644,7 @@ replace:
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
+            Lex->mark_first_table_as_inserting();
           }
         ;
 
@@ -14961,6 +15139,7 @@ load:
             Lex->pop_select(); //main select
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
+            Lex->mark_first_table_as_inserting();
           }
           ;
 
@@ -15348,16 +15527,6 @@ temporal_literal:
               MYSQL_YYABORT;
           }
         ;
-
-
-opt_with_clause:
-	  /*empty */ { $$= 0; }
-	| with_clause
-          {
-            $$= $1;
-          }
-	;
-
 
 with_clause:
           WITH opt_recursive

@@ -64,7 +64,7 @@ inline bool Field::marked_for_read() const
          (!table->read_set ||
           bitmap_is_set(table->read_set, field_index) ||
           (!(ptr >= table->record[0] &&
-          ptr < table->record[0] + table->s->reclength)));
+             ptr < table->record[0] + table->s->reclength)));
 }
 
 /*
@@ -75,7 +75,7 @@ inline bool Field::marked_for_read() const
 
 inline bool Field::marked_for_write_or_computed() const
 {
-  return (is_stat_field || !table ||
+  return (!table ||
           (!table->write_set ||
            bitmap_is_set(table->write_set, field_index) ||
            (!(ptr >= table->record[0] &&
@@ -1786,8 +1786,7 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   flags=null_ptr ? 0: NOT_NULL_FLAG;
   comment.str= (char*) "";
   comment.length=0;
-  field_index= 0;   
-  is_stat_field= FALSE;
+  field_index= 0;
   cond_selectivity= 1.0;
   next_equal_field= NULL;
 }
@@ -2441,30 +2440,18 @@ Field *Field::clone(MEM_ROOT *root, TABLE *new_table)
 }
 
 
-
-Field *Field::clone(MEM_ROOT *root, TABLE *new_table, my_ptrdiff_t diff,
-                    bool stat_flag)
+Field *Field::clone(MEM_ROOT *root, TABLE *new_table, my_ptrdiff_t diff)
 {
   Field *tmp;
   if ((tmp= (Field*) memdup_root(root,(char*) this,size_of())))
   {
-    tmp->init(new_table);
-    tmp->move_field_offset(diff);
-  }
-  tmp->is_stat_field= stat_flag;
-  return tmp;
-}
-
-
-Field *Field::clone(MEM_ROOT *root, my_ptrdiff_t diff)
-{
-  Field *tmp;
-  if ((tmp= (Field*) memdup_root(root,(char*) this,size_of())))
-  {
+    if (new_table)
+      tmp->init(new_table);
     tmp->move_field_offset(diff);
   }
   return tmp;
 }
+
 
 int Field::set_default()
 {
@@ -2898,7 +2885,7 @@ int Field_decimal::store(const char *from_arg, size_t len, CHARSET_INFO *cs)
   
   /*
     Write digits of the frac_% parts ;
-    Depending on get_thd()->count_cutted_fields, we may also want
+    Depending on get_thd()->count_cuted_fields, we may also want
     to know if some non-zero tail of these parts will
     be truncated (for example, 0.002->0.00 will generate a warning,
     while 0.000->0.00 will not)
@@ -7026,7 +7013,8 @@ Field_longstr::check_string_copy_error(const String_copier *copier,
   if (likely(!(pos= copier->most_important_error_pos())))
     return FALSE;
 
-  if (!is_stat_field)
+  /* Ignore errors from internal expressions */
+  if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION)
   {
     DBUG_ASSERT(sizeof(tmp) >= convert_to_printable_required_length(6));
     convert_to_printable(tmp, sizeof(tmp), pos, (end - pos), cs, 6);
@@ -7060,8 +7048,9 @@ int
 Field_longstr::report_if_important_data(const char *pstr, const char *end,
                                         bool count_spaces)
 {
-  THD *thd= get_thd();
-  if ((pstr < end) && thd->count_cuted_fields > CHECK_FIELD_EXPRESSION)
+  THD *thd;
+  if ((pstr < end) &&
+      (thd= get_thd())->count_cuted_fields > CHECK_FIELD_EXPRESSION)
   {
     if (test_if_important_data(field_charset, pstr, end))
     {
@@ -7072,7 +7061,8 @@ Field_longstr::report_if_important_data(const char *pstr, const char *end,
       return 2;
     }
     else if (count_spaces)
-    { /* If we lost only spaces then produce a NOTE, not a WARNING */
+    {
+      /* If we lost only spaces then produce a NOTE, not a WARNING */
       set_note(WARN_DATA_TRUNCATED, 1);
       return 2;
     }
@@ -11190,13 +11180,17 @@ void Field::set_warning_truncated_wrong_value(const char *type_arg,
                                               const char *value)
 {
   THD *thd= get_thd();
-  const char *db_name= table->s->db.str;
-  const char *table_name= table->s->table_name.str;
+  const char *db_name;
+  const char *table_name;
+  /*
+    table has in the past been 0 in case of wrong calls when processing
+    statistics tables. Let's protect against that.
+  */
+  DBUG_ASSERT(table);
 
-  if (!db_name)
-    db_name= "";
-  if (!table_name)
-    table_name= "";
+  db_name= (table && table->s->db.str) ? table->s->db.str : "";
+  table_name= (table && table->s->table_name.str) ?
+              table->s->table_name.str : "";
 
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,

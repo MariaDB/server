@@ -158,12 +158,12 @@ Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
 					not necessarily collation order;
 					this record may have been deleted */
 
-/* Directions of cursor movement */
-#define	PAGE_LEFT		1
-#define	PAGE_RIGHT		2
-#define	PAGE_SAME_REC		3
-#define	PAGE_SAME_PAGE		4
-#define	PAGE_NO_DIRECTION	5
+/* Directions of cursor movement (stored in PAGE_DIRECTION field) */
+constexpr uint16_t PAGE_LEFT= 1;
+constexpr uint16_t PAGE_RIGHT= 2;
+constexpr uint16_t PAGE_SAME_REC= 3;
+constexpr uint16_t PAGE_SAME_PAGE= 4;
+constexpr uint16_t PAGE_NO_DIRECTION= 5;
 
 #ifndef UNIV_INNOCHECKSUM
 
@@ -871,17 +871,6 @@ page_rec_find_owner_rec(
 /*====================*/
 	rec_t*	rec);	/*!< in: the physical record */
 
-/***********************************************************************//**
-Write a 32-bit field in a data dictionary record. */
-UNIV_INLINE
-void
-page_rec_write_field(
-/*=================*/
-	rec_t*	rec,	/*!< in/out: record to update */
-	ulint	i,	/*!< in: index of the field to update */
-	ulint	val,	/*!< in: value to write */
-	mtr_t*	mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
 /************************************************************//**
 Returns the maximum combined size of records which can be inserted on top
 of record heap.
@@ -1023,9 +1012,7 @@ page_create_zip(
 	buf_block_t*		block,		/*!< in/out: a buffer frame
 						where the page is created */
 	dict_index_t*		index,		/*!< in: the index of the
-						page, or NULL when applying
-						TRUNCATE log
-						record during recovery */
+						page */
 	ulint			level,		/*!< in: the B-tree level of
 						the page */
 	trx_id_t		max_trx_id,	/*!< in: PAGE_MAX_TRX_ID */
@@ -1294,15 +1281,12 @@ ibool
 page_simple_validate_new(
 /*=====================*/
 	const page_t*	page);	/*!< in: index page in ROW_FORMAT!=REDUNDANT */
-/***************************************************************//**
-This function checks the consistency of an index page.
-@return TRUE if ok */
-ibool
-page_validate(
-/*==========*/
-	const page_t*	page,	/*!< in: index page */
-	dict_index_t*	index);	/*!< in: data dictionary index containing
-				the page record type definition */
+/** Check the consistency of an index page.
+@param[in]	page	index page
+@param[in]	index	B-tree or R-tree index
+@return	whether the page is valid */
+bool page_validate(const page_t* page, const dict_index_t* index)
+	MY_ATTRIBUTE((nonnull));
 /***************************************************************//**
 Looks in the page record list for a record with the given heap number.
 @return record, NULL if not found */

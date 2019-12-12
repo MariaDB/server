@@ -184,3 +184,13 @@ alter table rename_column_and_index
 show create table rename_column_and_index;
 check table rename_column_and_index;
 drop table rename_column_and_index;
+
+
+--echo #
+--echo # MDEV-19189: ASAN memcpy-param-overlap in fill_alter_inplace_info upon adding indexes
+--echo #
+
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT);
+ALTER TABLE t1 ADD FOREIGN KEY f (f2) REFERENCES xx(f2);
+ALTER TABLE t1 ADD FOREIGN KEY (f2) REFERENCES t1(f2), ADD KEY (f3), ADD KEY (f1);
+DROP TABLE t1;

@@ -291,6 +291,24 @@ inline unsigned rec_get_n_add_field_len(ulint n_add_field)
 	return n_add_field < 0x80 ? 1 : 2;
 }
 
+/** Get the added field count in a REC_STATUS_INSTANT record.
+@param[in,out]	header	variable header of a REC_STATUS_INSTANT record
+@return	number of added fields */
+inline unsigned rec_get_n_add_field(const byte*& header)
+{
+	unsigned n_fields_add = *--header;
+	if (n_fields_add < 0x80) {
+		ut_ad(rec_get_n_add_field_len(n_fields_add) == 1);
+		return n_fields_add;
+	}
+
+	n_fields_add &= 0x7f;
+	n_fields_add |= unsigned(*--header) << 7;
+	ut_ad(n_fields_add < REC_MAX_N_FIELDS);
+	ut_ad(rec_get_n_add_field_len(n_fields_add) == 2);
+	return n_fields_add;
+}
+
 /** Set the added field count in a REC_STATUS_INSTANT record.
 @param[in,out]	header	variable header of a REC_STATUS_INSTANT record
 @param[in]	n_add	number of added fields, minus 1
@@ -1024,7 +1042,7 @@ rec_init_offsets_temp(
 	ulint			n_core,
 	const dict_col_t::def_t*def_val,
 	rec_comp_status_t	status = REC_STATUS_ORDINARY)
-	MY_ATTRIBUTE((nonnull));
+	MY_ATTRIBUTE((nonnull(1,2,3)));
 /** Determine the offset to each field in temporary file.
 @param[in]	rec	temporary file record
 @param[in]	index	index of that the record belongs to

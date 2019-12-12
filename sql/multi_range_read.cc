@@ -1703,11 +1703,10 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
   }
 
   uint add_len= share->key_info[keyno].key_length + primary_file->ref_length; 
-  *bufsz -= add_len;
-  if (get_disk_sweep_mrr_cost(keyno, rows, *flags, bufsz, &dsmrr_cost))
+  if (get_disk_sweep_mrr_cost(keyno, rows, *flags, bufsz, add_len,
+                              &dsmrr_cost))
     return TRUE;
-  *bufsz += add_len;
-  
+
   bool force_dsmrr;
   /* 
     If mrr_cost_based flag is not set, then set cost of DS-MRR to be minimum of
@@ -1796,6 +1795,11 @@ static void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, Cost_estimate *
   @param rows               E(Number of rows to be scanned)
   @param flags              Scan parameters (HA_MRR_* flags)
   @param buffer_size INOUT  Buffer size
+                            IN: Buffer of size 0 means the function
+                            will determine the best size and return it.
+  @param extra_mem_overhead Extra memory overhead of the MRR implementation
+                            (the function assumes this many bytes of buffer
+                             space will not be usable by DS-MRR)
   @param cost        OUT    The cost
 
   @retval FALSE  OK
@@ -1804,7 +1808,9 @@ static void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, Cost_estimate *
 */
 
 bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
-                                         uint *buffer_size, Cost_estimate *cost)
+                                         uint *buffer_size,
+                                         uint extra_mem_overhead,
+                                         Cost_estimate *cost)
 {
   ulong max_buff_entries, elem_size;
   ha_rows rows_in_full_step;
@@ -1814,10 +1820,23 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
 
   elem_size= primary_file->ref_length + 
              sizeof(void*) * (!MY_TEST(flags & HA_MRR_NO_ASSOCIATION));
-  max_buff_entries = *buffer_size / elem_size;
 
-  if (!max_buff_entries)
+  if (!*buffer_size)
+  {
+    /*
+      We are requested to determine how much memory we need.
+      Request memory to finish the scan in one pass but do not request
+      more than @@mrr_buff_size.
+    */
+    *buffer_size= (uint) MY_MIN(extra_mem_overhead + elem_size*(ulong)rows,
+                                MY_MAX(table->in_use->variables.mrr_buff_size,
+                                       extra_mem_overhead));
+  }
+
+  if (elem_size + extra_mem_overhead > *buffer_size)
     return TRUE; /* Buffer has not enough space for even 1 rowid */
+
+  max_buff_entries = (*buffer_size - extra_mem_overhead) / elem_size;
 
   /* Number of iterations we'll make with full buffer */
   n_full_steps= (uint)floor(rows2double(rows) / max_buff_entries);

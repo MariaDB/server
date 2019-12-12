@@ -431,9 +431,9 @@ btr_pessimistic_scrub(
 	}
 
 	/* read block variables */
-	const ulint page_no =  mach_read_from_4(page + FIL_PAGE_OFFSET);
-	const ulint left_page_no = mach_read_from_4(page + FIL_PAGE_PREV);
-	const ulint right_page_no = mach_read_from_4(page + FIL_PAGE_NEXT);
+	const uint32_t page_no =  mach_read_from_4(page + FIL_PAGE_OFFSET);
+	const uint32_t left_page_no = btr_page_get_prev(page);
+	const uint32_t right_page_no = btr_page_get_next(page);
 	const ulint zip_size = index->table->space->zip_size();
 
 	/**
@@ -465,8 +465,8 @@ btr_pessimistic_scrub(
 		/**
 		* structure should be unchanged
 		*/
-		ut_a(left_page_no == btr_page_get_prev(page, mtr));
-		ut_a(right_page_no == btr_page_get_next(page, mtr));
+		ut_a(left_page_no == btr_page_get_prev(page));
+		ut_a(right_page_no == btr_page_get_next(page));
 	}
 
 	if (right_page_no != FIL_NULL) {
@@ -742,7 +742,7 @@ btr_scrub_recheck_page(
 	}
 
 	mtr_start(mtr);
-	mtr_x_lock(dict_index_get_lock(scrub_data->current_index), mtr);
+	mtr_x_lock_index(scrub_data->current_index, mtr);
 	/** set savepoint for X-latch of block */
 	scrub_data->savepoint = mtr_set_savepoint(mtr);
 	return BTR_SCRUB_PAGE;

@@ -453,6 +453,11 @@ public:
   );
   int next_result();
   uint affected_rows();
+  uint matched_rows();
+  bool inserted_info(
+    spider_db_handler *handler,
+    ha_copy_info *copy_info
+  );
   ulonglong last_insert_id();
   int set_character_set(
     const char *csname
@@ -801,6 +806,7 @@ public:
   spider_mbase_share      *mysql_share;
   SPIDER_LINK_FOR_HASH    *link_for_hash;
   uchar                   *minimum_select_bitmap;
+  uchar                   direct_insert_kind;
   spider_mbase_handler(
     ha_spider *spider,
     spider_mbase_share *share,

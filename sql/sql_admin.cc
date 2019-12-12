@@ -175,7 +175,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
   /*
     Check if this is a table type that stores index and data separately,
     like ISAM or MyISAM. We assume fixed order of engine file name
-    extentions array. First element of engine file name extentions array
+    extensions array. First element of engine file name extensions array
     is meta/index file extention. Second element - data file extention. 
   */
   ext= table->file->bas_ext();
@@ -1317,7 +1317,7 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
                          "analyze", lock_type, 1, 0, 0, 0,
                          &handler::ha_analyze, 0);
   /* ! we write after unlocking the table */
-  if (!res && !m_lex->no_write_to_binlog)
+  if (!res && !m_lex->no_write_to_binlog && (!opt_readonly || thd->slave_thread))
   {
     /*
       Presumably, ANALYZE and binlog writing doesn't require synchronization
@@ -1377,7 +1377,7 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
                       "optimize", TL_WRITE, 1, 0, 0, 0,
                       &handler::ha_optimize, 0);
   /* ! we write after unlocking the table */
-  if (!res && !m_lex->no_write_to_binlog)
+  if (!res && !m_lex->no_write_to_binlog && (!opt_readonly || thd->slave_thread))
   {
     /*
       Presumably, OPTIMIZE and binlog writing doesn't require synchronization
@@ -1413,7 +1413,7 @@ bool Sql_cmd_repair_table::execute(THD *thd)
                          &handler::ha_repair, &view_repair);
 
   /* ! we write after unlocking the table */
-  if (!res && !m_lex->no_write_to_binlog)
+  if (!res && !m_lex->no_write_to_binlog && (!opt_readonly || thd->slave_thread))
   {
     /*
       Presumably, REPAIR and binlog writing doesn't require synchronization

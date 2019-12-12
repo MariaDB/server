@@ -1528,9 +1528,6 @@ static uint max_bit(register uint value)
 /*****************************************************************************
 	Some redefined functions to handle files when we are using memmap
 *****************************************************************************/
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 
 #ifdef HAVE_MMAP
 

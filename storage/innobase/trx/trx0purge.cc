@@ -697,7 +697,7 @@ not_free:
 		mtr_t mtr;
 		const ulint size = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 		mtr.start();
-		mtr_x_lock(&purge_sys.truncate.current->latch, &mtr);
+		mtr_x_lock_space(purge_sys.truncate.current, &mtr);
 		fil_truncate_log(purge_sys.truncate.current, size, &mtr);
 		fsp_header_init(purge_sys.truncate.current, size, &mtr);
 		mutex_enter(&fil_system.mutex);
@@ -1278,7 +1278,12 @@ trx_purge(
 /*======*/
 	ulint	n_purge_threads,	/*!< in: number of purge tasks
 					to submit to the work queue */
-	bool	truncate)		/*!< in: truncate history if true */
+	bool	truncate		/*!< in: truncate history if true */
+#ifdef UNIV_DEBUG
+	, srv_slot_t *slot		/*!< in/out: purge coordinator
+					thread slot */
+#endif
+)
 {
 	que_thr_t*	thr = NULL;
 	ulint		n_pages_handled;
@@ -1313,6 +1318,7 @@ trx_purge(
 
 	thr = que_fork_scheduler_round_robin(purge_sys.query, thr);
 
+	ut_d(thr->thread_slot = slot);
 	que_run_threads(thr);
 
 	trx_purge_wait_for_workers_to_complete();

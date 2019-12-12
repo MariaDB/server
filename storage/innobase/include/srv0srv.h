@@ -588,6 +588,8 @@ extern ulong	srv_fatal_semaphore_wait_threshold;
 /** Buffer pool dump status frequence in percentages */
 extern ulong srv_buf_dump_status_frequency;
 
+#define srv_max_purge_threads 32
+
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 extern mysql_pfs_key_t	buf_dump_thread_key;
@@ -629,11 +631,11 @@ do {								\
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Performance schema stage event for monitoring ALTER TABLE progress
-everything after flush log_make_checkpoint_at(). */
+everything after flush log_make_checkpoint(). */
 extern PSI_stage_info	srv_stage_alter_table_end;
 
 /** Performance schema stage event for monitoring ALTER TABLE progress
-log_make_checkpoint_at(). */
+log_make_checkpoint(). */
 extern PSI_stage_info	srv_stage_alter_table_flush;
 
 /** Performance schema stage event for monitoring ALTER TABLE progress
@@ -1083,7 +1085,22 @@ struct srv_slot_t{
 						to do */
 	que_thr_t*	thr;			/*!< suspended query thread
 						(only used for user threads) */
+#ifdef UNIV_DEBUG
+	struct debug_sync_t {
+		UT_LIST_NODE_T(debug_sync_t) debug_sync_list;
+	};
+	UT_LIST_BASE_NODE_T(debug_sync_t) debug_sync;
+	rw_lock_t debug_sync_lock;
+#endif
 };
+
+#ifdef UNIV_DEBUG
+typedef void srv_slot_callback_t(srv_slot_t*, const void*);
+
+void srv_for_each_thread(srv_thread_type type,
+			 srv_slot_callback_t callback,
+			 const void *arg);
+#endif
 
 #ifdef WITH_WSREP
 UNIV_INTERN

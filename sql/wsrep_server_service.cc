@@ -42,15 +42,13 @@ static void init_service_thd(THD* thd, char* thread_stack)
   thd->reset_for_next_command(true);
 }
 
-wsrep::storage_service* Wsrep_server_service::storage_service(
-  wsrep::client_service& client_service)
+Wsrep_storage_service*
+wsrep_create_storage_service(THD* orig_THD, const char* ctx)
 {
-  Wsrep_client_service& cs=
-    static_cast<Wsrep_client_service&>(client_service);
-  THD* thd= new THD(next_thread_id(), true);
-  init_service_thd(thd, cs.m_thd->thread_stack);
-  WSREP_DEBUG("Created storage service with thread id %llu",
-              thd->thread_id);
+  THD* thd= new THD(true, true);
+  init_service_thd(thd, orig_THD->thread_stack);
+  WSREP_DEBUG("Created storage service in %s context with thread id %llu",
+              ctx, thd->thread_id);
   /* Use variables from the current thd attached to client_service.
      This is because we need to be able to BF abort storage access
      operations. */
@@ -59,16 +57,19 @@ wsrep::storage_service* Wsrep_server_service::storage_service(
 }
 
 wsrep::storage_service* Wsrep_server_service::storage_service(
+  wsrep::client_service& client_service)
+{
+  Wsrep_client_service& cs=
+    static_cast<Wsrep_client_service&>(client_service);
+  return wsrep_create_storage_service(cs.m_thd, "local");
+}
+
+wsrep::storage_service* Wsrep_server_service::storage_service(
   wsrep::high_priority_service& high_priority_service)
 {
   Wsrep_high_priority_service& hps=
     static_cast<Wsrep_high_priority_service&>(high_priority_service);
-  THD* thd= new THD(next_thread_id(), true);
-  init_service_thd(thd, hps.m_thd->thread_stack);
-  WSREP_DEBUG("Created high priority storage service with thread id %llu",
-              thd->thread_id);
-  wsrep_assign_from_threadvars(thd);
-  return new Wsrep_storage_service(thd);
+  return wsrep_create_storage_service(hps.m_thd, "high priority");
 }
 
 void Wsrep_server_service::release_storage_service(

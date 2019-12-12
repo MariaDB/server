@@ -66,7 +66,7 @@ const char *wsrep_thd_exec_mode_str(THD *)
 { return NULL; }
 
 const char *wsrep_thd_query(const THD *)
-{ return 0; }
+{ return "NULL"; }
 
 const char *wsrep_thd_query_state_str(THD *)
 { return 0; }
@@ -115,7 +115,7 @@ const char* wsrep_thd_transaction_state_str(const THD*)
 query_id_t wsrep_thd_transaction_id(const THD *)
 { return 0; }
 
-my_bool wsrep_thd_bf_abort(const THD *, THD *, my_bool)
+my_bool wsrep_thd_bf_abort(THD *, THD *, my_bool)
 { return 0; }
 
 my_bool wsrep_thd_order_before(const THD*, const THD *)

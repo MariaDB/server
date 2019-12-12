@@ -231,24 +231,6 @@ rec_get_n_extern_new(
 	return(n_extern);
 }
 
-/** Get the added field count in a REC_STATUS_INSTANT record.
-@param[in,out]	header	variable header of a REC_STATUS_INSTANT record
-@return	number of added fields */
-static inline unsigned rec_get_n_add_field(const byte*& header)
-{
-	unsigned n_fields_add = *--header;
-	if (n_fields_add < 0x80) {
-		ut_ad(rec_get_n_add_field_len(n_fields_add) == 1);
-		return n_fields_add;
-	}
-
-	n_fields_add &= 0x7f;
-	n_fields_add |= unsigned(*--header) << 7;
-	ut_ad(n_fields_add < REC_MAX_N_FIELDS);
-	ut_ad(rec_get_n_add_field_len(n_fields_add) == 2);
-	return n_fields_add;
-}
-
 /** Format of a leaf-page ROW_FORMAT!=REDUNDANT record */
 enum rec_leaf_format {
 	/** Temporary file record */
@@ -646,6 +628,7 @@ rec_init_offsets(
 			break;
 		case REC_STATUS_INSTANT:
 			ut_ad(leaf);
+			ut_ad(index->is_instant());
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
 						       index->n_core_fields,
 						       NULL,
@@ -787,6 +770,10 @@ resolved:
 		}
 
 		if (i < rec_offs_n_fields(offsets)) {
+			ut_ad(index->is_instant()
+			      || i + (index->id == DICT_INDEXES_ID)
+			      == rec_offs_n_fields(offsets));
+
 			offs = (rec_offs_base(offsets)[i] & REC_OFFS_MASK)
 				| REC_OFFS_DEFAULT;
 

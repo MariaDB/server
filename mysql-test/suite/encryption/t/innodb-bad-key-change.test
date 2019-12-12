@@ -16,6 +16,8 @@ call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]
 call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t1.ibd looks corrupted; key_version=1");
 call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` is corrupted");
 call mtr.add_suppression("File '.*mysql-test.std_data.keysbad3\\.txt' not found");
+# for innodb_checksum_algorithm=full_crc32 only
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot decrypt \\[page id: space=");
 
 --echo # Start server with keys2.txt
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt

@@ -2210,3 +2210,148 @@ a	b
 drop table t1;
 set optimizer_switch=@save_optimizer_switch;
 SET SESSION STORAGE_ENGINE=DEFAULT;
+#
+# MDEV-19919: use of rowid filter for innodb table + ORDER BY
+#
+SET @stats.save= @@innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= ON;
+CREATE TABLE t1 (
+a INT,
+b VARCHAR(10),
+c VARCHAR(1024),
+KEY (b),
+KEY (c)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(1,'w','z'), (1,'X','o'), (1,'q','c'), (5,'w','c'), (2,'j','m'),
+(2,'Q','s'), (9,'e','J'), (2,'p','W'), (9,'o','F'), (2,'g','S'),
+(1,'Y','a'), (NULL,'Y','p'), (NULL,'s','x'), (NULL,'i','S'),
+(1,'l','q'), (7,'r','e'), (4,'b','h'), (NULL,'E','c'),
+(NULL,'M','a'), (3,'e','X'), (NULL,'p','r'), (9,'e','i'),
+(3,'g','x'), (2,'h','y');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	b,c	b|c	13|1027	NULL	5 (42%)	41.67	Using index condition; Using where; Using filesort; Using rowid filter
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`c` < 'k' and `test`.`t1`.`b` > 't' order by `test`.`t1`.`a`
+SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a;
+a
+1
+5
+DROP TABLE t1;
+SET GLOBAL innodb_stats_persistent= @stats.save;
+#
+# MDEV-20056: index to build range filter should not be
+#             the same as table access index
+#
+SET @stats.save= @@innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= ON;
+CREATE TABLE t1 (ch varchar(1), id int, id2 int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+('l',3,2), ('e',NULL,NULL), ('r',7,3), ('h',NULL,2), (NULL,4,4), ('c',4,NULL),
+('k',NULL,NULL), ('h',NULL,NULL), ('b',9,NULL), ('f',6,NULL);
+CREATE TABLE t2 (
+pk int NOT NULL, col_date_key date, ch2 varchar(1), id2 int,
+PRIMARY KEY (pk), KEY (col_date_key), KEY (ch2), KEY (id2)
+) ENGINE=InnoDB;
+INSERT INTO t2 VALUES
+(1,'2034-04-21','g',9), (2,'2006-09-08','y',1), (3,NULL,'h',2),
+(4,'1987-03-02','s',2), (5,'2019-07-02','u',NULL),(6,'2012-12-18','z',1),
+(7,NULL,'w',4), (8,'2005-03-10','o',8), (9,'1987-02-12','d',4);
+CREATE TABLE t3 (id int) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (6);
+ANALYZE TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+EXPLAIN EXTENDED SELECT 1 FROM t3
+WHERE EXISTS ( SELECT 1 FROM t1
+WHERE t3.id IN ( SELECT bt1.id FROM t2, t1 AS bt1
+WHERE bt1.id = t2.pk AND
+t2.ch2 <= 'g' ) OR
+t1.id2 = t1.id);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+3	MATERIALIZED	t2	range	PRIMARY,col_date_key,ch2,id2	ch2	4	NULL	2	100.00	Using where; Using index
+3	MATERIALIZED	bt1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1276	Field or reference 'test.t3.id' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t3` where <in_optimizer>(1,<expr_cache><`test`.`t3`.`id`>(exists(/* select#2 */ select 1 from `test`.`t1` where <expr_cache><`test`.`t3`.`id`>(<in_optimizer>(`test`.`t3`.`id`,`test`.`t3`.`id` in ( <materialize> (/* select#3 */ select `test`.`bt1`.`id` from `test`.`t2` join `test`.`t1` `bt1` where `test`.`bt1`.`id` = `test`.`t2`.`pk` and `test`.`t2`.`ch2` <= 'g' ), <primary_index_lookup>(`test`.`t3`.`id` in <temporary table> on distinct_key where `test`.`t3`.`id` = `<subquery3>`.`id`)))) or `test`.`t1`.`id2` = `test`.`t1`.`id` limit 1)))
+SELECT 1 FROM t3
+WHERE EXISTS ( SELECT 1 FROM t1
+WHERE t3.id IN ( SELECT bt1.id FROM t2, t1 AS bt1
+WHERE bt1.id = t2.pk AND
+t2.ch2 <= 'g' ) OR
+t1.id2 = t1.id);
+1
+1
+EXPLAIN EXTENDED SELECT 1 FROM t3
+WHERE EXISTS ( SELECT 1 FROM t1
+WHERE t3.id IN ( SELECT bt1.id FROM t2, t1 AS bt1
+WHERE bt1.ch = t2.ch2 AND
+bt1.id = t2.pk AND
+t2.ch2 <= 'g' ) OR
+t1.id2 = t1.id);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+3	MATERIALIZED	t2	range	PRIMARY,col_date_key,ch2,id2	ch2	4	NULL	2	100.00	Using where; Using index
+3	MATERIALIZED	bt1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1276	Field or reference 'test.t3.id' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t3` where <in_optimizer>(1,<expr_cache><`test`.`t3`.`id`>(exists(/* select#2 */ select 1 from `test`.`t1` where <expr_cache><`test`.`t3`.`id`>(<in_optimizer>(`test`.`t3`.`id`,`test`.`t3`.`id` in ( <materialize> (/* select#3 */ select `test`.`bt1`.`id` from `test`.`t2` join `test`.`t1` `bt1` where `test`.`bt1`.`ch` = `test`.`t2`.`ch2` and `test`.`bt1`.`id` = `test`.`t2`.`pk` and `test`.`t2`.`ch2` <= 'g' ), <primary_index_lookup>(`test`.`t3`.`id` in <temporary table> on distinct_key where `test`.`t3`.`id` = `<subquery3>`.`id`)))) or `test`.`t1`.`id2` = `test`.`t1`.`id` limit 1)))
+SELECT 1 FROM t3
+WHERE EXISTS ( SELECT 1 FROM t1
+WHERE t3.id IN ( SELECT bt1.id FROM t2, t1 AS bt1
+WHERE bt1.ch = t2.ch2 AND
+bt1.id = t2.pk AND
+t2.ch2 <= 'g' ) OR
+t1.id2 = t1.id);
+1
+1
+DROP TABLE t1, t2, t3;
+SET GLOBAL innodb_stats_persistent= @stats.save;
+#
+# MDEV-20407: usage of range filter is not supported when
+#             the joined table is accessed by a full text index
+#
+set @stats.save= @@innodb_stats_persistent;
+set global innodb_stats_persistent=on;
+create table t1(id int, s text, key (id), fulltext key (s)) engine=innodb;
+insert into t1 values
+(1119,'t'),(1134,'t'),(1134,'t'),(1143,'t'),(1143,'t'),(1187,'t'),(1187,'t'),
+(1187,'t'),(1187,'t'),(1187,'t'),(1187,'t'),(1187,'t'),(1187,'t'),(1187,'t'),
+(1187,'t'),(1210,'t'),(1210,'t'),(1210,'t'),(1210,'t'),(1210,'t'),(1210,'t'),
+(1214,'t'),(1214,'t'),(1215,'t'),(1215,'t'),(1215,'t'),(1216,'t'),(1218,'t'),
+(1220,'t'),(1220,'t'),(1220,'t'),(1222,'t'),(1223,'t'),(1223,'t'),(1224,'t'),
+(1225,'t'),(1225,'t'),(1226,'t'),(1226,'t'),(1227,'t'),(1227,'t'),(1228,'t'),
+(1229,'t'),(1230,'t'),(1230,'t'),(1231,'t'),(1231,'t'),(1232,'t'),(1232,'t'),
+(1232,'t'),(1232,'t'),(1233,'t'),(1241,'t'),(1245,'t'),(1247,'t'),(1247,'t'),
+(1247,'t'),(1247,'t'),(1247,'t'),(1247,'t'),(1248,'like fttest');
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 's'
+test.t1	analyze	status	OK
+explain extended select count(0) from t1
+where id=15066 and (match s against ('+"fttest"' in boolean mode));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	fulltext	id,s	s	0		1	1.64	Using where
+Warnings:
+Note	1003	select count(0) AS `count(0)` from `test`.`t1` where `test`.`t1`.`id` = 15066 and (match `test`.`t1`.`s` against ('+"fttest"' in boolean mode))
+select count(0) from t1
+where id=15066 and (match s against ('+"fttest"' in boolean mode));
+count(0)
+0
+drop table t1;
+set global innodb_stats_persistent= @stats.save;

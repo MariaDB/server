@@ -90,13 +90,13 @@ period for system_time(row_start, row_end)
 insert into t values (1, 1);
 select c.prtype from information_schema.innodb_sys_columns as c
 join information_schema.innodb_sys_tables as t on c.table_id=t.table_id
-where t.name='test2/t' and c.name='b';
+where t.name='test/t' and c.name='b';
 prtype
 50179
 set @@system_versioning_alter_history=keep;
 select c.prtype from information_schema.innodb_sys_columns as c
 join information_schema.innodb_sys_tables as t on c.table_id=t.table_id
-where t.name='test2/t' and c.name='b';
+where t.name='test/t' and c.name='b';
 prtype
 50179
 show create table t;
@@ -156,5 +156,4 @@ v int as (x) virtual,
 y int
 ) with system versioning;
 alter table t1 drop system versioning;
-drop database test;
-create database test;
+drop tables t, t1;

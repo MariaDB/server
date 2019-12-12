@@ -440,7 +440,7 @@ if [ "$reply" = "n" ]; then
   echo " ... skipping."
 else
   emptypass=0
-  do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', 'invalid', '$.auth_or', json_array(json_object(), json_object('plugin', 'unix_socket'))) WHERE User='root';"
+  do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.password_last_changed', UNIX_TIMESTAMP(), '$.plugin', 'mysql_native_password', '$.authentication_string', 'invalid', '$.auth_or', json_array(json_object(), json_object('plugin', 'unix_socket'))) WHERE User='root';"
   if [ $? -eq 0 ]; then
    echo "Enabled successfully!"
    echo "Reloading privilege tables.."

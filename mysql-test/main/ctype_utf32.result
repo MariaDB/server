@@ -1588,7 +1588,7 @@ CREATE TABLE t1 AS SELECT format(123,2,'no_NO');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `format(123,2,'no_NO')` varchar(45) CHARACTER SET utf32 DEFAULT NULL
+  `format(123,2,'no_NO')` varchar(17) CHARACTER SET utf32 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT * FROM t1;
 format(123,2,'no_NO')

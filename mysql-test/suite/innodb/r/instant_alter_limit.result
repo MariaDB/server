@@ -4,6 +4,7 @@ WHERE variable_name = 'innodb_instant_alter_column');
 CREATE TABLE t(a INT PRIMARY KEY, b INT, c INT, d INT, e INT)
 ENGINE=InnoDB;
 INSERT INTO t VALUES(1,2,3,4,5);
+SET innodb_strict_mode = OFF;
 SELECT * FROM t;
 b	d	a	c	e
 NULL	NULL	1	NULL	NULL

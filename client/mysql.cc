@@ -2668,7 +2668,7 @@ static int fake_magic_space(const char *, int)
 static void initialize_readline ()
 {
   /* Allow conditional parsing of the ~/.inputrc file. */
-  rl_readline_name= "mysql";
+  rl_readline_name= (char *) "mysql";
   rl_terminal_name= getenv("TERM");
 
   /* Tell the completer that we want a crack first. */
@@ -3208,7 +3208,7 @@ static int
 com_go(String *buffer,char *line __attribute__((unused)))
 {
   char		buff[200]; /* about 110 chars used so far */
-  char          time_buff[53+3+1]; /* time max + space&parens + NUL */
+  char		time_buff[53+3+1]; /* time max + space & parens + NUL */
   MYSQL_RES	*result;
   ulonglong	timer;
   ulong		warnings= 0;
@@ -3228,7 +3228,7 @@ com_go(String *buffer,char *line __attribute__((unused)))
 
   if (buffer->is_empty())
   {
-    if (status.batch)				// Ignore empty quries
+    if (status.batch)				// Ignore empty queries.
       return 0;
     return put_info("No query specified\n",INFO_ERROR);
 
@@ -3293,7 +3293,7 @@ com_go(String *buffer,char *line __attribute__((unused)))
     else
       time_buff[0]= '\0';
 
-    /* Every branch must truncate  buff . */
+    /* Every branch must truncate buff. */
     if (result)
     {
       if (!mysql_num_rows(result) && ! quick && !column_types_flag)

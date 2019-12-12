@@ -1,6 +1,8 @@
 --source include/have_innodb.inc
---source include/big_test.inc
+--source include/have_sequence.inc
 
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SET @saved_include_delete_marked = @@GLOBAL.innodb_stats_include_delete_marked;
 SET GLOBAL innodb_stats_include_delete_marked = ON;
 SET @saved_traditional = @@GLOBAL.innodb_stats_traditional;
@@ -8,19 +10,11 @@ SET GLOBAL innodb_stats_traditional=false;
 SET @saved_modified_counter = @@GLOBAL.innodb_stats_modified_counter;
 SET GLOBAL innodb_stats_modified_counter=1;
 
-CREATE TABLE t0 (id SERIAL, val INT UNSIGNED NOT NULL, KEY(val))
+CREATE TABLE t1 (id SERIAL, val INT UNSIGNED NOT NULL, KEY(val))
 ENGINE=INNODB STATS_PERSISTENT=1,STATS_AUTO_RECALC=1;
-CREATE TABLE t1 LIKE t0;
-CREATE TABLE t2 LIKE t0;
+CREATE TABLE t2 LIKE t1;
 
-INSERT INTO t0 (val) VALUES (4);
-INSERT INTO t0 (val) SELECT 4 FROM t0;
-INSERT INTO t0 (val) SELECT 4 FROM t0;
-INSERT INTO t0 (val) SELECT 4 FROM t0;
-INSERT INTO t0 (val) SELECT 4 FROM t0;
-
-INSERT INTO t1 SELECT * FROM t0;
-SELECT COUNT(*) FROM t1;
+INSERT INTO t1 (val) SELECT 4 FROM seq_1_to_16;
 ANALYZE TABLE t1;
 
 connect(con1, localhost, root,,);
@@ -46,7 +40,7 @@ SELECT COUNT(*) FROM t1;
 
 connection default;
 BEGIN;
-INSERT INTO t2 SELECT * FROM t0;
+INSERT INTO t2 (val) SELECT 4 FROM seq_1_to_16;
 
 --echo # The INSERT will show up before COMMIT.
 EXPLAIN SELECT * FROM t2 WHERE val=4;
@@ -57,21 +51,18 @@ SELECT COUNT(*) FROM t2;
 
 connection con1;
 EXPLAIN SELECT * FROM t2 WHERE val=4;
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 --source include/wait_all_purged.inc
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 --echo # After COMMIT and purge, the DELETE must show up.
 EXPLAIN SELECT * FROM t1 WHERE val=4;
 
 SET GLOBAL innodb_stats_include_delete_marked = OFF;
 BEGIN;
-INSERT INTO t1 SELECT * FROM t0;
+INSERT INTO t1 (val) SELECT 4 FROM seq_1_to_16;
 EXPLAIN SELECT * FROM t1 WHERE val=4;
 ROLLBACK;
 EXPLAIN SELECT * FROM t1 WHERE val=4;
 BEGIN;
-INSERT INTO t1 SELECT * FROM t0;
+INSERT INTO t1 (val) SELECT 4 FROM seq_1_to_16;
 COMMIT;
 EXPLAIN SELECT * FROM t1 WHERE val=4;
 BEGIN;
@@ -89,7 +80,8 @@ disconnect con1;
 
 connection default;
 
-DROP TABLE t0,t1,t2;
+DROP TABLE t1,t2;
 SET GLOBAL innodb_stats_include_delete_marked = @saved_include_delete_marked;
 SET GLOBAL innodb_stats_traditional = @saved_traditional;
 SET GLOBAL innodb_stats_modified_counter = @saved_modified_counter;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

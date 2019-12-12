@@ -52,9 +52,6 @@
 #ifdef HAVE_SYS_VADVISE_H
 #include <sys/vadvise.h>
 #endif
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 
 /* Functions defined in this file */
 
@@ -6192,7 +6189,7 @@ end:
 }
 
 
-	/* write suffix to data file if neaded */
+/* Write suffix to data file if needed */
 
 int maria_write_data_suffix(MARIA_SORT_INFO *sort_info, my_bool fix_datafile)
 {

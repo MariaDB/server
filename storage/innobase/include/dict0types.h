@@ -141,6 +141,8 @@ struct table_name_t
 };
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+/** Dump the change buffer at startup */
+extern my_bool		ibuf_dump;
 /** Flag to control insert buffer debugging. */
 extern uint		ibuf_debug;
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */

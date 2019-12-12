@@ -1,2 +1,3 @@
 galera_sr_table_contents : missing file
-GCF-437 : test relies on InnoDB redo log size limtation
+GCF-437 : test relies on InnoDB redo log size limitation
+GCF-1043A : MDEV-21170 Galera test failure on galera_sr.GCF-1043A

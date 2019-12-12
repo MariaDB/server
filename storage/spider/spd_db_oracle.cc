@@ -1731,6 +1731,22 @@ uint spider_db_oracle::affected_rows()
   DBUG_RETURN(update_rows);
 }
 
+uint spider_db_oracle::matched_rows()
+{
+  DBUG_ENTER("spider_db_oracle::matched_rows");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(0);
+}
+
+bool spider_db_oracle::inserted_info(
+  spider_db_handler *handler,
+  ha_copy_info *copy_info
+) {
+  DBUG_ENTER("spider_db_oracle::inserted_info");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(FALSE);
+}
+
 ulonglong spider_db_oracle::last_insert_id()
 {
   DBUG_ENTER("spider_db_oracle::last_insert_id");

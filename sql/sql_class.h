@@ -20,6 +20,7 @@
 
 /* Classes in mysql */
 
+#include <atomic>
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_const.h"
@@ -1617,12 +1618,16 @@ public:
 /**
   @class Sub_statement_state
   @brief Used to save context when executing a function or trigger
+
+  operations on stat tables aren't technically a sub-statement, but they are
+  similar in a sense that they cannot change the transaction status.
 */
 
 /* Defines used for Sub_statement_state::in_sub_stmt */
 
 #define SUB_STMT_TRIGGER 1
 #define SUB_STMT_FUNCTION 2
+#define SUB_STMT_STAT_TABLES 4
 
 
 class Sub_statement_state
@@ -2007,7 +2012,7 @@ struct wait_for_commit
   /*
     The LOCK_wait_commit protects the fields subsequent_commits_list and
     wakeup_subsequent_commits_running (for a waitee), and the pointer
-    waiterr and associated COND_wait_commit (for a waiter).
+    waitee and associated COND_wait_commit (for a waiter).
   */
   mysql_mutex_t LOCK_wait_commit;
   mysql_cond_t COND_wait_commit;
@@ -2021,8 +2026,14 @@ struct wait_for_commit
 
     When this is cleared for wakeup, the COND_wait_commit condition is
     signalled.
+
+    This pointer is protected by LOCK_wait_commit. But there is also a "fast
+    path" where the waiter compares this to NULL without holding the lock.
+    Such read must be done with acquire semantics (and all corresponding
+    writes done with release semantics). This ensures that a wakeup with error
+    is reliably detected as (waitee==NULL && wakeup_error != 0).
   */
-  wait_for_commit *waitee;
+  std::atomic<wait_for_commit *> waitee;
   /*
     Generic pointer for use by the transaction coordinator to optimise the
     waiting for improved group commit.
@@ -2057,7 +2068,7 @@ struct wait_for_commit
       Quick inline check, to avoid function call and locking in the common case
       where no wakeup is registered, or a registered wait was already signalled.
     */
-    if (waitee)
+    if (waitee.load(std::memory_order_acquire))
       return wait_for_prior_commit2(thd);
     else
     {
@@ -2085,7 +2096,7 @@ struct wait_for_commit
   }
   void unregister_wait_for_prior_commit()
   {
-    if (waitee)
+    if (waitee.load(std::memory_order_relaxed))
       unregister_wait_for_prior_commit2();
     else
       wakeup_error= 0;
@@ -2107,7 +2118,7 @@ struct wait_for_commit
       }
       next_ptr_ptr= &cur->next_subsequent_commit;
     }
-    waitee= NULL;
+    waitee.store(NULL, std::memory_order_relaxed);
   }
 
   void wakeup(int wakeup_error);
@@ -2428,9 +2439,6 @@ public:
     derived table or a view.
   */ 
   bool create_tmp_table_for_derived;
-
-  /* The flag to force reading statistics from EITS tables */
-  bool force_read_stats;
 
   bool save_prep_leaf_list;
 
@@ -6477,6 +6485,11 @@ public:
 /* Bits in server_command_flags */
 
 /**
+  Statement that deletes existing rows (DELETE, DELETE_MULTI)
+*/
+#define CF_DELETES_DATA (1U << 24)
+
+/**
   Skip the increase of the global query id counter. Commonly set for
   commands that are stateless (won't cause any change on the server
   internal states).
@@ -6679,6 +6692,22 @@ class Sql_mode_save
  private:
   THD *thd;
   sql_mode_t old_mode; // SQL mode saved at construction time.
+};
+
+class Switch_to_definer_security_ctx
+{
+ public:
+  Switch_to_definer_security_ctx(THD *thd, TABLE_LIST *table) :
+    m_thd(thd), m_sctx(thd->security_ctx)
+  {
+    if (table->security_ctx)
+      thd->security_ctx= table->security_ctx;
+  }
+  ~Switch_to_definer_security_ctx() { m_thd->security_ctx = m_sctx; }
+
+ private:
+  THD *m_thd;
+  Security_context *m_sctx;
 };
 
 
@@ -6899,11 +6928,12 @@ void dbug_serve_apcs(THD *thd, int n_calls);
 class ScopedStatementReplication
 {
 public:
-  ScopedStatementReplication(THD *thd) : thd(thd)
-  {
-    if (thd)
-      saved_binlog_format= thd->set_current_stmt_binlog_format_stmt();
-  }
+  ScopedStatementReplication(THD *thd) :
+    saved_binlog_format(thd
+                        ? thd->set_current_stmt_binlog_format_stmt()
+                        : BINLOG_FORMAT_MIXED),
+    thd(thd)
+  {}
   ~ScopedStatementReplication()
   {
     if (thd)
@@ -6911,8 +6941,8 @@ public:
   }
 
 private:
-  enum_binlog_format saved_binlog_format;
-  THD *thd;
+  const enum_binlog_format saved_binlog_format;
+  THD *const thd;
 };
 
 

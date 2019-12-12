@@ -1711,8 +1711,11 @@ my_decimal *Item_func_mod::decimal_op(my_decimal *decimal_value)
 
 void Item_func_mod::result_precision()
 {
+  unsigned_flag= args[0]->unsigned_flag;
   decimals= MY_MAX(args[0]->decimal_scale(), args[1]->decimal_scale());
-  max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
+  uint prec= MY_MAX(args[0]->decimal_precision(), args[1]->decimal_precision());
+  fix_char_length(my_decimal_precision_to_length_no_truncation(prec, decimals,
+                                                               unsigned_flag));
 }
 
 

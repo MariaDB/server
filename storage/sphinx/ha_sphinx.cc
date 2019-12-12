@@ -2163,7 +2163,7 @@ int ha_sphinx::Connect ( const char * sHost, ushort uPort )
 #if MYSQL_VERSION_ID>=50515
 			struct addrinfo *hp = NULL;
 			tmp_errno = getaddrinfo ( sHost, NULL, NULL, &hp );
-			if ( !tmp_errno || !hp || !hp->ai_addr )
+			if ( tmp_errno || !hp || !hp->ai_addr )
 			{
 				bError = true;
 				if ( hp )
@@ -2190,8 +2190,9 @@ int ha_sphinx::Connect ( const char * sHost, ushort uPort )
 			}
 
 #if MYSQL_VERSION_ID>=50515
-			memcpy ( &sin.sin_addr, hp->ai_addr, Min ( sizeof(sin.sin_addr), (size_t)hp->ai_addrlen ) );
-			freeaddrinfo ( hp );
+			struct sockaddr_in *in = (sockaddr_in *)hp->ai_addr;
+			memcpy ( &sin.sin_addr, &in->sin_addr, Min ( sizeof(sin.sin_addr), sizeof(in->sin_addr) ) );
+ 			freeaddrinfo ( hp );
 #else
 			memcpy ( &sin.sin_addr, hp->h_addr, Min ( sizeof(sin.sin_addr), (size_t)hp->h_length ) );
 			my_gethostbyname_r_free();
@@ -3354,7 +3355,7 @@ int ha_sphinx::delete_table ( const char * )
 // Renames a table from one name to another from alter table call.
 //
 // If you do not implement this, the default rename_table() is called from
-// handler.cc and it will delete all files with the file extentions returned
+// handler.cc and it will delete all files with the file extensions returned
 // by bas_ext().
 //
 // Called from sql_table.cc by mysql_rename_table().

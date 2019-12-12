@@ -14,16 +14,16 @@ INSERT INTO t1 VALUES (1, 'x');
 --connection node_2b
 --sleep 1
 SET SESSION wsrep_sync_wait = 0;
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
 
 --connection node_1
 SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_trx_fragment_size = 1;
-SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
 REPLACE INTO t1 VALUES (1,'y');
 
 --connection node_2b
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
 
 --connection node_2a
 --source include/galera_signal_sync_point.inc
@@ -31,6 +31,8 @@ SELECT COUNT(*) = 0 FROM t1;
 
 --connection node_2
 --reap
-SELECT COUNT(*) = 1 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
 
 DROP TABLE t1;

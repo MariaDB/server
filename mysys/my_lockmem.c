@@ -20,7 +20,6 @@
 #include <my_list.h>
 
 #ifdef HAVE_MLOCK
-#include <sys/mman.h>
 
 struct st_mem_list
 {

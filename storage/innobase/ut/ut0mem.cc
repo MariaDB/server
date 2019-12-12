@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,55 +25,6 @@ Created 5/11/1994 Heikki Tuuri
 *************************************************************************/
 
 #include "ut0mem.h"
-#include "os0thread.h"
-#include "srv0srv.h"
-#include <stdlib.h>
-
-/**********************************************************************//**
-Copies up to size - 1 characters from the NUL-terminated string src to
-dst, NUL-terminating the result. Returns strlen(src), so truncation
-occurred if the return value >= size.
-@return strlen(src) */
-ulint
-ut_strlcpy(
-/*=======*/
-	char*		dst,	/*!< in: destination buffer */
-	const char*	src,	/*!< in: source buffer */
-	ulint		size)	/*!< in: size of destination buffer */
-{
-	ulint	src_size = strlen(src);
-
-	if (size != 0) {
-		ulint	n = ut_min(src_size, size - 1);
-
-		memcpy(dst, src, n);
-		dst[n] = '\0';
-	}
-
-	return(src_size);
-}
-
-/**********************************************************************//**
-Like ut_strlcpy, but if src doesn't fit in dst completely, copies the last
-(size - 1) bytes of src, not the first.
-@return strlen(src) */
-ulint
-ut_strlcpy_rev(
-/*===========*/
-	char*		dst,	/*!< in: destination buffer */
-	const char*	src,	/*!< in: source buffer */
-	ulint		size)	/*!< in: size of destination buffer */
-{
-	ulint	src_size = strlen(src);
-
-	if (size != 0) {
-		ulint	n = ut_min(src_size, size - 1);
-
-		memcpy(dst, src + src_size - n, n + 1);
-	}
-
-	return(src_size);
-}
 
 /********************************************************************
 Concatenate 3 strings.*/

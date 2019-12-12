@@ -101,6 +101,7 @@ a	b
 SELECT * FROM t1 FORCE INDEX (kb);
 a	b
 DROP TABLE t1;
+set global rocksdb_compact_cf= 'default';
 # Read filtering index scan tests (None of these queries should return any results)
 CREATE TABLE t1 (
 a int,

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1726,10 +1726,20 @@ exp:    /* [ E [ <sign> ] <unsigned integer> ] */
           goto ret_sign;
         }
       }
-      for (exponent= 0 ;
-           str < end && (ch= (uchar) (*str - '0')) < 10;
-           str++)
+      if (shift > 0 && !negative_exp)
+        goto ret_too_big;
+      for (exponent= 0 ; str < end && (ch= (uchar) (*str - '0')) < 10; str++)
       {
+        if (negative_exp)
+        {
+          if (exponent - shift > DIGITS_IN_ULONGLONG)
+            goto ret_zero;
+        }
+        else
+        {
+          if (exponent + shift > DIGITS_IN_ULONGLONG)
+            goto ret_too_big;
+        }
         exponent= exponent * 10 + ch;
       }
       shift+= negative_exp ? -exponent : exponent;

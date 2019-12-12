@@ -25,6 +25,9 @@ Created 2011-02-15 Jimmy Yang
 #ifndef INNODB_FTS0OPT_H
 #define INNODB_FTS0OPT_H
 
+/** The FTS optimize thread's work queue. */
+extern ib_wqueue_t*	fts_optimize_wq;
+
 /********************************************************************
 Callback function to fetch the rows in an FTS INDEX record. */
 ibool

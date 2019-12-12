@@ -3490,7 +3490,6 @@ uint32 Type_handler_temporal_result::max_display_length(const Item *item) const
   return item->max_length;
 }
 
-
 uint32 Type_handler_string_result::max_display_length(const Item *item) const
 {
   return item->max_length;
@@ -3515,6 +3514,50 @@ uint32 Type_handler_general_purpose_int::max_display_length(const Item *item)
   return type_limits_int_by_unsigned_flag(item->unsigned_flag)->char_length();
 }
 
+/*************************************************************************/
+
+uint32 
+Type_handler_decimal_result::Item_decimal_notation_int_digits(const Item *item)
+                                                              const
+{
+  return item->decimal_int_part();
+}
+
+
+uint32 
+Type_handler_temporal_result::Item_decimal_notation_int_digits(const Item *item)
+                                                               const
+{
+  return item->decimal_int_part();
+}
+
+
+uint32 
+Type_handler_bit::Item_decimal_notation_int_digits(const Item *item)
+                                                              const
+{
+  return Bit_decimal_notation_int_digits(item);
+}
+
+
+uint32
+Type_handler_general_purpose_int::Item_decimal_notation_int_digits(
+                                                   const Item *item) const
+{
+  return type_limits_int_by_unsigned_flag(item->unsigned_flag)->precision();
+}
+
+/*************************************************************************/
+
+/*
+    Decimal to binary digits ratio converges to log2(10) thus using 3 as
+    a divisor.
+*/
+uint32
+Type_handler_bit::Bit_decimal_notation_int_digits(const Item *item)
+{
+  return item->max_length/3+1;
+}
 
 /*************************************************************************/
 

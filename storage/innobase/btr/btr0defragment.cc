@@ -582,7 +582,7 @@ btr_defragment_n_pages(
 	blocks[0] = block;
 	for (uint i = 1; i <= n_pages; i++) {
 		page_t* page = buf_block_get_frame(blocks[i-1]);
-		ulint page_no = btr_page_get_next(page, mtr);
+		ulint page_no = btr_page_get_next(page);
 		total_data_size += page_get_data_size(page);
 		total_n_recs += page_get_n_recs(page);
 		if (page_no == FIL_NULL) {
@@ -748,7 +748,7 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 		index->set_modified(mtr);
 		/* To follow the latching order defined in WL#6326, acquire index->lock X-latch.
 		This entitles us to acquire page latches in any order for the index. */
-		mtr_x_lock(&index->lock, &mtr);
+		mtr_x_lock_index(index, &mtr);
 		/* This will acquire index->lock SX-latch, which per WL#6363 is allowed
 		when we are already holding the X-latch. */
 		btr_pcur_restore_position(BTR_MODIFY_TREE, pcur, &mtr);

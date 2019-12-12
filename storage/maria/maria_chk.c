@@ -23,9 +23,6 @@
 #include <my_getopt.h>
 #include <my_check_opt.h>
 #include <my_handler_errors.h>
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 
 static uint decode_bits;
 static char **default_argv;

@@ -1,0 +1,72 @@
+--source ../include/select_by_null_init.inc
+--echo
+--echo this test is for MDEV-16279
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+echo CHILD2_1_CREATE_TABLES;
+eval $CHILD2_1_CREATE_TABLES;
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+--enable_query_log
+INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO tbl_a (pkey) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
+INSERT INTO tbl_a (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29);
+FLUSH TABLES;
+
+--echo
+--echo select test 1
+
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+SELECT pkey FROM tbl_a WHERE NULL;
+
+--connection child2_1
+eval $CHILD2_1_SELECT_ARGUMENT1;
+eval $CHILD2_1_SELECT_TABLES;
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+
+--enable_warnings
+--source ../include/select_by_null_deinit.inc
+--echo
+--echo end of test

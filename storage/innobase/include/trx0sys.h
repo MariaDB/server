@@ -68,17 +68,12 @@ trx_sys_rseg_find_free(const buf_block_t* sys_header);
 @param[in]	rw	whether to lock the page for writing
 @return the TRX_SYS page
 @retval	NULL	if the page cannot be read */
-inline
-buf_block_t*
-trx_sysf_get(mtr_t* mtr, bool rw = true)
+inline buf_block_t *trx_sysf_get(mtr_t* mtr, bool rw= true)
 {
-	buf_block_t* block = buf_page_get(
-		page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
-		0, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
-	if (block) {
-		buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
-	}
-	return block;
+  buf_block_t* block = buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
+				    0, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
+  ut_d(if (block) buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);)
+  return block;
 }
 
 #ifdef UNIV_DEBUG
@@ -200,14 +195,13 @@ trx_sysf_rseg_get_space(const buf_block_t* sys_header, ulint rseg_id)
 @param[in]	sys_header	TRX_SYS page
 @param[in]	rseg_id		rollback segment identifier
 @return	undo page number */
-inline
-uint32_t
-trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
+inline uint32_t
+trx_sysf_rseg_get_page_no(const buf_block_t *sys_header, ulint rseg_id)
 {
-	ut_ad(rseg_id < TRX_SYS_N_RSEGS);
-	return mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO
-				+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
-				+ sys_header->frame);
+  ut_ad(rseg_id < TRX_SYS_N_RSEGS);
+  return mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO +
+			  rseg_id * TRX_SYS_RSEG_SLOT_SIZE +
+			  sys_header->frame);
 }
 
 /** Maximum length of MySQL binlog file name, in bytes.
@@ -344,9 +338,9 @@ FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID. */
 
 /*-------------------------------------------------------------*/
 /** Contents of TRX_SYS_DOUBLEWRITE_MAGIC */
-#define TRX_SYS_DOUBLEWRITE_MAGIC_N	536853855
+constexpr uint32_t TRX_SYS_DOUBLEWRITE_MAGIC_N= 536853855;
 /** Contents of TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED */
-#define TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N 1783657386
+constexpr uint32_t TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N= 1783657386;
 
 /** Size of the doublewrite block in pages */
 #define TRX_SYS_DOUBLEWRITE_BLOCK_SIZE	FSP_EXTENT_SIZE

@@ -1,3 +1,4 @@
+
 MACRO(MAKE_WIX_IDENTIFIER str varname)
   STRING(REPLACE "/" "." ${varname} "${str}")
   STRING(REGEX REPLACE "[^a-zA-Z_0-9.]" "_" ${varname} "${${varname}}")

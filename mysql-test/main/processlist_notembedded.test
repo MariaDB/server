@@ -1,0 +1,34 @@
+source include/have_debug.inc;
+source include/have_debug_sync.inc;
+source include/not_embedded.inc;
+
+--echo #
+--echo # MDEV-20466: SHOW PROCESSLIST truncates query text on \0 bytes
+--echo #
+
+connect (con1,localhost,root,,);
+
+connection con1;
+
+let $q= `select CONCAT("SELECT user FROM mysql.user WHERE user ='some", CHAR(0), "' or sleep (30)")`;
+
+SET DEBUG_SYNC= 'before_join_optimize SIGNAL in_sync';
+--disable_query_log
+--send_eval $q;
+--enable_query_log
+connection default;
+
+SET DEBUG_SYNC= 'now WAIT_FOR in_sync';
+
+exec $MYSQL test  -e "SHOW PROCESSLIST" > $MYSQLTEST_VARDIR/tmp/MDEV-20466.text;
+
+let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/MDEV-20466.text;
+let SEARCH_PATTERN=sleep \(30\);
+source include/search_pattern_in_file.inc;
+remove_file $MYSQLTEST_VARDIR/tmp/MDEV-20466.text;
+
+disconnect con1;
+
+SET DEBUG_SYNC = 'RESET';
+
+--echo End of 5.5 tests

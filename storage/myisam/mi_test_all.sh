@@ -19,8 +19,8 @@
 # MA 02110-1335  USA
 
 #
-# Execute some simple basic test on MyISAM libary to check if things
-# works at all.
+# Execute some simple basic tests on the MyISAM library to check if
+# things work at all.
 
 valgrind="valgrind --alignment=8 --leak-check=yes"
 silent="-s"

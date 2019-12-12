@@ -202,7 +202,6 @@ main.function_defaults_innodb
 main.gcc296
 main.get_diagnostics
 main.gis
-main.gis2
 main.gis-alter_table_online
 main.gis-precise
 main.gis-rt-precise

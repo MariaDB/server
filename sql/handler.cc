@@ -6812,14 +6812,14 @@ int handler::ha_delete_row(const uchar *buf)
   @retval != 0          Failure.
 */
 
-int handler::ha_direct_update_rows(ha_rows *update_rows)
+int handler::ha_direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
 {
   int error;
 
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
 
-  error = direct_update_rows(update_rows);
+  error = direct_update_rows(update_rows, found_rows);
   MYSQL_UPDATE_ROW_DONE(error);
   return error;
 }
@@ -7512,13 +7512,15 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     return false;
   }
 
+  if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
   {
     List_iterator_fast<Create_field> it(alter_info->create_list);
     while (Create_field *f= it++)
     {
-      if (f->change.length && f->flags & VERS_SYSTEM_FIELD)
+      if (f->flags & VERS_SYSTEM_FIELD)
       {
-        my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->field_name.str);
+        my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
+                 f->flags & VERS_SYS_START_FLAG ? "START" : "END", f->field_name.str);
         return true;
       }
     }

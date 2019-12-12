@@ -431,5 +431,7 @@ call mtr.add_suppression("Can't generate a unique log-filename .*");
 -- source include/stop_slave_sql.inc
 RESET SLAVE;
 RESET MASTER;
+--remove_file $load_file
+--remove_file $load_file2
 --let $rpl_only_running_threads= 1
 --source include/rpl_end.inc

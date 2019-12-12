@@ -606,7 +606,7 @@ with t(c) as (select a from t1 where b >= 'c')
 select * from t r1 where r1.c=4;
 show create view v3;
 View	Create View	character_set_client	collation_connection
-v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS with t as (select `t1`.`a` AS `c` from `t1` where `t1`.`b` >= 'c')select `r1`.`c` AS `c` from `t` `r1` where `r1`.`c` = 4	latin1	latin1_swedish_ci
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS with t(c) as (select `t1`.`a` AS `c` from `t1` where `t1`.`b` >= 'c')select `r1`.`c` AS `c` from `t` `r1` where `r1`.`c` = 4	latin1	latin1_swedish_ci
 select * from v3;
 c
 4
@@ -618,7 +618,7 @@ with t(c) as (select a from t1 where b >= 'c')
 select * from t r1, t r2 where r1.c=r2.c and r2.c=4;
 show create view v4;
 View	Create View	character_set_client	collation_connection
-v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS with t as (select `test`.`t1`.`a` AS `c` from `test`.`t1` where `test`.`t1`.`b` >= 'c')select `r1`.`c` AS `c`,`r2`.`c` AS `d` from (`t` `r1` join (select `test`.`t1`.`a` AS `c` from `test`.`t1` where `test`.`t1`.`b` >= 'c') `r2`) where `r1`.`c` = `r2`.`c` and `r2`.`c` = 4	latin1	latin1_swedish_ci
+v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS with t(c) as (select `test`.`t1`.`a` AS `c` from `test`.`t1` where `test`.`t1`.`b` >= 'c')select `r1`.`c` AS `c`,`r2`.`c` AS `d` from (`t` `r1` join (select `test`.`t1`.`a` AS `c` from `test`.`t1` where `test`.`t1`.`b` >= 'c') `r2`) where `r1`.`c` = `r2`.`c` and `r2`.`c` = 4	latin1	latin1_swedish_ci
 select * from v4;
 c	d
 4	4
@@ -1673,3 +1673,14 @@ with columns as (select 1 as t) select * from columns;
 t
 1
 use test;
+#
+# MDEV-20730: Syntax error on SELECT INTO @variable with CTE
+#
+with data as (select 1 as id)
+select id into @myid from data;
+set @save_sql_mode = @@sql_mode;
+set sql_mode="oracle";
+with data as (select 1 as id)
+select id into @myid from data;
+set sql_mode= @save_sql_mode;
+# End of 10.4 tests

@@ -16,7 +16,8 @@ fi
 # Make MySQL start/shutdown automatically when the machine does it.
 if [ $1 = 1 ] ; then
   if [ -x /usr/bin/systemctl ] ; then
-          /usr/bin/systemctl daemon-reload >/dev/null 2>&1
+          /usr/bin/systemctl daemon-reload >/dev/null 2>&1 || :
+          /usr/bin/systemctl preset mariadb.service >/dev/null 2>&1 || :
   elif [ -x /sbin/chkconfig ] ; then
           /sbin/chkconfig --add mysql
   fi

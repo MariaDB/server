@@ -5983,7 +5983,6 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
   DBUG_ASSERT(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open());
   DBUG_PRINT("enter", ("event: %p", event));
 
-  int error= 0;
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
 
@@ -6021,7 +6020,7 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
 
   thd->binlog_set_pending_rows_event(event, is_transactional);
 
-  DBUG_RETURN(error);
+  DBUG_RETURN(0);
 }
 
 
@@ -7482,8 +7481,10 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   */
   wfc= orig_entry->thd->wait_for_commit_ptr;
   orig_entry->queued_by_other= false;
-  if (wfc && wfc->waitee)
+  if (wfc && wfc->waitee.load(std::memory_order_acquire))
   {
+    wait_for_commit *loc_waitee;
+
     mysql_mutex_lock(&wfc->LOCK_wait_commit);
     /*
       Do an extra check here, this time safely under lock.
@@ -7495,10 +7496,10 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
       before setting the flag, so there is no risk that we can queue ahead of
       it.
     */
-    if (wfc->waitee && !wfc->waitee->commit_started)
+    if ((loc_waitee= wfc->waitee.load(std::memory_order_relaxed)) &&
+        !loc_waitee->commit_started)
     {
       PSI_stage_info old_stage;
-      wait_for_commit *loc_waitee;
 
       /*
         By setting wfc->opaque_pointer to our own entry, we mark that we are
@@ -7520,7 +7521,8 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
                                   &wfc->LOCK_wait_commit,
                                   &stage_waiting_for_prior_transaction_to_commit,
                                   &old_stage);
-      while ((loc_waitee= wfc->waitee) && !orig_entry->thd->check_killed(1))
+      while ((loc_waitee= wfc->waitee.load(std::memory_order_relaxed)) &&
+              !orig_entry->thd->check_killed(1))
         mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
       wfc->opaque_pointer= NULL;
       DBUG_PRINT("info", ("After waiting for prior commit, queued_by_other=%d",
@@ -7538,14 +7540,18 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           do
           {
             mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
-          } while (wfc->waitee);
+          } while (wfc->waitee.load(std::memory_order_relaxed));
         }
         else
         {
           /* We were killed, so remove us from the list of waitee. */
           wfc->remove_from_list(&loc_waitee->subsequent_commits_list);
           mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
-          wfc->waitee= NULL;
+          /*
+            This is the thread clearing its own status, it is no longer on
+            the list of waiters. So no memory barriers are needed here.
+          */
+          wfc->waitee.store(NULL, std::memory_order_relaxed);
 
           orig_entry->thd->EXIT_COND(&old_stage);
           /* Interrupted by kill. */
@@ -7733,7 +7739,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   mysql_mutex_unlock(&LOCK_prepare_ordered);
   DEBUG_SYNC(orig_entry->thd, "commit_after_release_LOCK_prepare_ordered");
 
-  DBUG_PRINT("info", ("Queued for group commit as %s\n",
+  DBUG_PRINT("info", ("Queued for group commit as %s",
                       (orig_queue == NULL) ? "leader" : "participant"));
   DBUG_RETURN(orig_queue == NULL);
 }
@@ -10768,13 +10774,13 @@ bool wsrep_stmt_rollback_is_safe(THD* thd)
     binlog_cache_data * trx_cache = &cache_mngr->trx_cache;
     if (thd->wsrep_sr().fragments_certified() > 0 &&
         (trx_cache->get_prev_position() == MY_OFF_T_UNDEF ||
-         trx_cache->get_prev_position() < thd->wsrep_sr().bytes_certified()))
+         trx_cache->get_prev_position() < thd->wsrep_sr().log_position()))
     {
       WSREP_DEBUG("statement rollback is not safe for streaming replication"
                   " pre-stmt_pos: %llu, frag repl pos: %zu\n"
                   "Thread: %llu, SQL: %s",
                   trx_cache->get_prev_position(),
-                  thd->wsrep_sr().bytes_certified(),
+                  thd->wsrep_sr().log_position(),
                   thd->thread_id, thd->query());
        ret = false;
     }

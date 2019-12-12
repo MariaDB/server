@@ -694,7 +694,11 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   frmlen= read_length + sizeof(head);
 
   share->init_from_binary_frm_image(thd, false, buf, frmlen);
-  error_given= true; // init_from_binary_frm_image has already called my_error()
+  /*
+    Don't give any additional errors. If there would be a problem,
+    init_from_binary_frm_image would call my_error() itself.
+  */
+  error_given= true;
   my_free(buf);
 
   goto err_not_open;
@@ -703,6 +707,9 @@ err:
   mysql_file_close(file, MYF(MY_WME));
 
 err_not_open:
+  /* Mark that table was created earlier and thus should have been logged */
+  share->table_creation_was_logged= 1;
+
   if (unlikely(share->error && !error_given))
   {
     share->open_errno= my_errno;
@@ -1152,12 +1159,21 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
                                     &((*field_ptr)->vcol_info), error_reported);
       *(vfield_ptr++)= *field_ptr;
+      DBUG_ASSERT(table->map == 0);
+      /*
+        We need Item_field::const_item() to return false, so
+        datetime_precision() and time_precision() do not try to calculate
+        field values, e.g. val_str().
+        Set table->map to non-zero temporarily.
+      */
+      table->map= 1;
       if (vcol && field_ptr[0]->check_vcol_sql_mode_dependency(thd, mode))
       {
         DBUG_ASSERT(thd->is_error());
         *error_reported= true;
         goto end;
       }
+      table->map= 0;
       break;
     case VCOL_DEFAULT:
       vcol= unpack_vcol_info_from_frm(thd, mem_root, table, &expr_str,
@@ -3170,6 +3186,8 @@ ret:
              sql_copy);
     DBUG_RETURN(HA_ERR_GENERIC);
   }
+  /* Treat the table as normal table from binary logging point of view */
+  table_creation_was_logged= 1;
   DBUG_RETURN(0);
 }
 
@@ -5091,6 +5109,9 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   update_handler= NULL;
   check_unique_buf= NULL;
   vers_write= s->versioned;
+  quick_condition_rows=0;
+  no_cache= false;
+  initialize_quick_structures();
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;
@@ -6922,15 +6943,16 @@ void TABLE::mark_columns_needed_for_delete()
     }
   }
 
-  if (need_signal)
-    file->column_bitmaps_signal();
-
   if (s->versioned)
   {
     bitmap_set_bit(read_set, s->vers.start_fieldno);
     bitmap_set_bit(read_set, s->vers.end_fieldno);
     bitmap_set_bit(write_set, s->vers.end_fieldno);
+    need_signal= true;
   }
+
+  if (need_signal)
+    file->column_bitmaps_signal();
 }
 
 
@@ -6943,7 +6965,7 @@ void TABLE::mark_columns_needed_for_delete()
     updated columns to be read.
 
     If this is no the case, we do like in the delete case and mark
-    if neeed, either the primary key column or all columns to be read.
+    if needed, either the primary key column or all columns to be read.
     (see mark_columns_needed_for_delete() for details)
 
     If the engine has HA_REQUIRES_KEY_COLUMNS_FOR_DELETE, we will
@@ -7001,14 +7023,14 @@ void TABLE::mark_columns_needed_for_update()
       need_signal= true;
     }
   }
-  /*
-     For System Versioning we have to read all columns since we will store
-     a copy of previous row with modified Sys_end column back to a table.
-  */
   if (s->versioned)
   {
-    // We will copy old columns to a new row.
-    use_all_columns();
+    /*
+      For System Versioning we have to read all columns since we store
+      a copy of previous row with modified row_end back to a table.
+    */
+    bitmap_union(read_set, &s->all_set);
+    need_signal= true;
   }
   if (check_constraints)
   {
@@ -7170,8 +7192,16 @@ void TABLE::mark_columns_per_binlog_row_image()
           binary log will include all columns read anyway.
         */
         mark_columns_used_by_index_no_reset(s->primary_key, read_set);
-        /* Only write columns that have changed */
-        rpl_write_set= write_set;
+        if (versioned())
+        {
+          // TODO: After MDEV-18432 we don't pass history rows, so remove this:
+          rpl_write_set= &s->all_set;
+        }
+        else
+        {
+          /* Only write columns that have changed */
+          rpl_write_set= write_set;
+        }
         break;
 
       default:
@@ -8448,7 +8478,10 @@ void TABLE::vers_update_fields()
   if (versioned(VERS_TIMESTAMP))
   {
     if (!vers_write)
+    {
+      file->column_bitmaps_signal();
       return;
+    }
     if (vers_start_field()->store_timestamp(in_use->query_start(),
                                             in_use->query_start_sec_part()))
       DBUG_ASSERT(0);
@@ -8456,11 +8489,15 @@ void TABLE::vers_update_fields()
   else
   {
     if (!vers_write)
+    {
+      file->column_bitmaps_signal();
       return;
+    }
   }
 
   vers_end_field()->set_max();
   bitmap_set_bit(read_set, vers_end_field()->field_index);
+  file->column_bitmaps_signal();
 }
 
 
@@ -9479,6 +9516,8 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
     return true;
   case SYSTEM_TIME_BEFORE:
     break;
+  case SYSTEM_TIME_HISTORY:
+    break;
   case SYSTEM_TIME_AS_OF:
     return start.eq(conds.start);
   case SYSTEM_TIME_FROM_TO:
@@ -9577,4 +9616,22 @@ bool TABLE::export_structure(THD *thd, Row_definition_list *defs)
       return true;
   }
   return false;
+}
+
+/*
+  @brief
+    Initialize all the quick structures that are used to stored the
+    estimates when the range optimizer is run.
+  @details
+    This is specifically needed when we read the TABLE structure from the
+    table cache. There can be some garbage data from previous queries
+    that need to be reset here.
+*/
+
+void TABLE::initialize_quick_structures()
+{
+  bzero(quick_rows, sizeof(quick_rows));
+  bzero(quick_key_parts, sizeof(quick_key_parts));
+  bzero(quick_costs, sizeof(quick_costs));
+  bzero(quick_n_ranges, sizeof(quick_n_ranges));
 }

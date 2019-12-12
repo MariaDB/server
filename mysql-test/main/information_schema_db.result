@@ -246,3 +246,82 @@ connection user1;
 disconnect user1;
 connection default;
 set global sql_mode=default;
+create user foo@localhost;
+grant select on test.* to foo@localhost;
+create procedure rootonly() select 1;
+create sql security definer view v1d as select current_user(),user from information_schema.processlist;
+create sql security invoker view v1i as select current_user(),user from information_schema.processlist;
+create sql security definer view v2d as select table_name from information_schema.tables where table_schema='mysql' and table_name like '%user%';
+create sql security invoker view v2i as select table_name from information_schema.tables where table_schema='mysql' and table_name like '%user%';
+create sql security definer view v3d as select schema_name from information_schema.schemata where schema_name like '%mysql%';
+create sql security invoker view v3i as select schema_name from information_schema.schemata where schema_name like '%mysql%';
+create sql security definer view v4d as select routine_name from information_schema.routines where routine_schema='test';
+create sql security invoker view v4i as select routine_name from information_schema.routines where routine_schema='test';
+create sql security definer view v5d as select view_definition > '' from information_schema.views where table_name='v1d';
+create sql security invoker view v5i as select view_definition > '' from information_schema.views where table_name='v1d';
+connect foo,localhost,foo;
+select * from v1d;
+current_user()	user
+root@localhost	root
+root@localhost	root
+select * from v1i;
+current_user()	user
+foo@localhost	foo
+select * from v2d;
+table_name
+user
+select * from v2i;
+table_name
+select * from v3d;
+schema_name
+mysql
+select * from v3i;
+schema_name
+select * from v4d;
+routine_name
+rootonly
+select * from v4i;
+routine_name
+select * from v5d;
+view_definition > ''
+1
+select * from v5i;
+view_definition > ''
+0
+connection default;
+select * from v1d;
+current_user()	user
+root@localhost	foo
+root@localhost	root
+select * from v1i;
+current_user()	user
+root@localhost	foo
+root@localhost	root
+select * from v2d;
+table_name
+user
+select * from v2i;
+table_name
+user
+select * from v3d;
+schema_name
+mysql
+select * from v3i;
+schema_name
+mysql
+select * from v4d;
+routine_name
+rootonly
+select * from v4i;
+routine_name
+rootonly
+select * from v5d;
+view_definition > ''
+1
+select * from v5i;
+view_definition > ''
+1
+disconnect foo;
+drop view v1d, v1i, v2d, v2i, v3d, v3i, v4d, v4i, v5d, v5i;
+drop user foo@localhost;
+drop procedure rootonly;

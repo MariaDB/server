@@ -79,7 +79,8 @@ trx_set_detailed_error(
 	trx_t*		trx,	/*!< in: transaction struct */
 	const char*	msg)	/*!< in: detailed error message */
 {
-	ut_strlcpy(trx->detailed_error, msg, MAX_DETAILED_ERROR_LEN);
+	strncpy(trx->detailed_error, msg, MAX_DETAILED_ERROR_LEN - 1);
+	trx->detailed_error[MAX_DETAILED_ERROR_LEN - 1] = '\0';
 }
 
 /*************************************************************//**
@@ -504,7 +505,7 @@ inline void trx_t::release_locks()
     mem_heap_empty(lock.lock_heap);
   }
 
-  lock.table_locks.clear(); /* outside "if" to work around MDEV-20483 */
+  lock.table_locks.clear();
 }
 
 /** At shutdown, frees a transaction object. */
@@ -1152,26 +1153,14 @@ trx_finalize_for_fts_table(
 	fts_t*		  fts = ftt->table->fts;
 	fts_doc_ids_t*	  doc_ids = ftt->added_doc_ids;
 
-	mutex_enter(&fts->bg_threads_mutex);
+	ut_a(fts->add_wq);
 
-	if (fts->fts_status & BG_THREAD_STOP) {
-		/* The table is about to be dropped, no use
-		adding anything to its work queue. */
+	mem_heap_t* heap = static_cast<mem_heap_t*>(doc_ids->self_heap->arg);
 
-		mutex_exit(&fts->bg_threads_mutex);
-	} else {
-		mem_heap_t*     heap;
-		mutex_exit(&fts->bg_threads_mutex);
+	ib_wqueue_add(fts->add_wq, doc_ids, heap);
 
-		ut_a(fts->add_wq);
-
-		heap = static_cast<mem_heap_t*>(doc_ids->self_heap->arg);
-
-		ib_wqueue_add(fts->add_wq, doc_ids, heap);
-
-		/* fts_trx_table_t no longer owns the list. */
-		ftt->added_doc_ids = NULL;
-	}
+	/* fts_trx_table_t no longer owns the list. */
+	ftt->added_doc_ids = NULL;
 }
 
 /******************************************************************//**
@@ -1273,16 +1262,10 @@ trx_update_mod_tables_timestamp(
 
 	trx_mod_tables_t::const_iterator	end = trx->mod_tables.end();
 #ifdef UNIV_DEBUG
-# if MYSQL_VERSION_ID >= 100405
-#  define dict_sys_mutex dict_sys.mutex
-# else
-#  define dict_sys_mutex dict_sys->mutex
-# endif
-
 	const bool preserve_tables = !innodb_evict_tables_on_commit_debug
 		|| trx->is_recovered /* avoid trouble with XA recovery */
 # if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-		|| mutex_own(&dict_sys_mutex)
+		|| mutex_own(&dict_sys.mutex)
 # else /* this would be more proper way to do it */
 		|| trx->dict_operation_lock_mode || trx->dict_operation
 # endif
@@ -1312,15 +1295,11 @@ trx_update_mod_tables_timestamp(
 		}
 		/* recheck while holding the mutex that blocks
 		table->acquire() */
-		mutex_enter(&dict_sys_mutex);
+		mutex_enter(&dict_sys.mutex);
 		if (!table->get_ref_count()) {
-# if MYSQL_VERSION_ID >= 100405
 			dict_sys.remove(table, true);
-# else
-			dict_table_remove_from_cache_low(table, true);
-# endif
 		}
-		mutex_exit(&dict_sys_mutex);
+		mutex_exit(&dict_sys.mutex);
 #endif
 	}
 
@@ -1399,6 +1378,16 @@ trx_commit_in_memory(
 		DBUG_LOG("trx", "Autocommit in memory: " << trx);
 		trx->state = TRX_STATE_NOT_STARTED;
 	} else {
+#ifdef UNIV_DEBUG
+		if (!UT_LIST_GET_LEN(trx->lock.trx_locks)) {
+			for (lock_list::iterator it
+				= trx->lock.table_locks.begin();
+			     it != trx->lock.table_locks.end();
+			     it++) {
+				ut_ad(!*it);
+			}
+		}
+#endif /* UNIV_DEBUG */
 		trx->commit_state();
 
 		if (trx->id) {

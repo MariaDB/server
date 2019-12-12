@@ -745,7 +745,7 @@ t1	CREATE TABLE `t1` (
   `conv(130,16,10)` varchar(64) DEFAULT NULL,
   `hex(130)` varchar(6) DEFAULT NULL,
   `char(130)` varbinary(4) DEFAULT NULL,
-  `format(130,10)` varchar(45) DEFAULT NULL,
+  `format(130,10)` varchar(25) DEFAULT NULL,
   `left(_latin2'a',1)` varchar(1) CHARACTER SET latin2 DEFAULT NULL,
   `right(_latin2'a',1)` varchar(1) CHARACTER SET latin2 DEFAULT NULL,
   `lcase(_latin2'a')` varchar(1) CHARACTER SET latin2 DEFAULT NULL,
@@ -2708,7 +2708,7 @@ create table t1(a float);
 insert into t1 values (1.33);
 select format(a, 2) from t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					format(a, 2)	253	57	4	Y	0	39	8
+def					format(a, 2)	253	4	4	Y	0	39	8
 format(a, 2)
 1.33
 drop table t1;
@@ -3042,7 +3042,7 @@ CREATE TABLE t1 AS SELECT format(123,2,'no_NO');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `format(123,2,'no_NO')` varchar(45) DEFAULT NULL
+  `format(123,2,'no_NO')` varchar(17) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT * FROM t1;
 format(123,2,'no_NO')

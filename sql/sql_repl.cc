@@ -428,16 +428,27 @@ static int send_file(THD *thd)
 
 /**
    Internal to mysql_binlog_send() routine that recalculates checksum for
-   a FD event (asserted) that needs additional arranment prior sending to slave.
+   1. FD event (asserted) that needs additional arranment prior sending to slave.
+   2. Start_encryption_log_event whose Ignored flag is set
+TODO DBUG_ASSERT can be removed if this function is used for more general cases
 */
-inline void fix_checksum(String *packet, ulong ev_offset)
+
+inline void fix_checksum(enum_binlog_checksum_alg checksum_alg, String *packet,
+                         ulong ev_offset)
 {
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_OFF ||
+      checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF)
+    return;
   /* recalculate the crc for this event */
   uint data_len = uint4korr(packet->ptr() + ev_offset + EVENT_LEN_OFFSET);
   ha_checksum crc;
-  DBUG_ASSERT(data_len == 
+  DBUG_ASSERT((data_len ==
               LOG_EVENT_MINIMAL_HEADER_LEN + FORMAT_DESCRIPTION_HEADER_LEN +
-              BINLOG_CHECKSUM_ALG_DESC_LEN + BINLOG_CHECKSUM_LEN);
+              BINLOG_CHECKSUM_ALG_DESC_LEN + BINLOG_CHECKSUM_LEN) ||
+              (data_len ==
+              LOG_EVENT_MINIMAL_HEADER_LEN + BINLOG_CRYPTO_SCHEME_LENGTH +
+              BINLOG_KEY_VERSION_LENGTH + BINLOG_NONCE_LENGTH +
+              BINLOG_CHECKSUM_LEN));
   crc= my_checksum(0, (uchar *)packet->ptr() + ev_offset, data_len -
                    BINLOG_CHECKSUM_LEN);
   int4store(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN, crc);
@@ -2215,6 +2226,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   THD *thd= info->thd;
   String *packet= info->packet;
   Log_event_type event_type;
+  bool initial_log_pos= info->clear_initial_log_pos;
   DBUG_ENTER("send_format_descriptor_event");
 
   /**
@@ -2313,7 +2325,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
 
   (*packet)[FLAGS_OFFSET+ev_offset] &= ~LOG_EVENT_BINLOG_IN_USE_F;
 
-  if (info->clear_initial_log_pos)
+  if (initial_log_pos)
   {
     info->clear_initial_log_pos= false;
     /*
@@ -2331,9 +2343,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
               ST_CREATED_OFFSET+ev_offset, (ulong) 0);
 
     /* fix the checksum due to latest changes in header */
-    if (info->current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
-      info->current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
-      fix_checksum(packet, ev_offset);
+    fix_checksum(info->current_checksum_alg, packet, ev_offset);
   }
   else if (info->using_gtid_state)
   {
@@ -2354,9 +2364,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     {
       int4store((char*) packet->ptr()+LOG_EVENT_MINIMAL_HEADER_LEN+
                 ST_CREATED_OFFSET+ev_offset, (ulong) 0);
-      if (info->current_checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
-          info->current_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
-        fix_checksum(packet, ev_offset);
+      fix_checksum(info->current_checksum_alg, packet, ev_offset);
     }
   }
 
@@ -2369,12 +2377,16 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   }
 
   /*
-    Read the following Start_encryption_log_event but don't send it to slave.
-    Slave doesn't need to know whether master's binlog is encrypted,
-    and if it'll want to encrypt its logs, it should generate its own
-    random nonce, not use the one from the master.
+    Read the following Start_encryption_log_event and send it to slave as
+    Ignorable_log_event. Although Slave doesn't need to know whether master's
+    binlog is encrypted but it needs to update slave log pos (for mysqlbinlog).
+
+    If slave want to encrypt its logs, it should generate its own
+    random nonce, it should not use the one from the master.
   */
-  packet->length(0);
+  /* reset transmit packet for the event read from binary log file */
+  if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
+    DBUG_RETURN(1);
   info->last_pos= linfo->pos;
   error= Log_event::read_log_event(log, packet, info->fdev,
                                    opt_master_verify_checksum
@@ -2388,12 +2400,13 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     DBUG_RETURN(1);
   }
 
-  event_type= (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET]);
+  event_type= (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET + ev_offset]);
   if (event_type == START_ENCRYPTION_EVENT)
   {
     Start_encryption_log_event *sele= (Start_encryption_log_event *)
-      Log_event::read_log_event(packet->ptr(), packet->length(), &info->errmsg,
-                                info->fdev, BINLOG_CHECKSUM_ALG_OFF);
+      Log_event::read_log_event(packet->ptr() + ev_offset, packet->length()
+                                - ev_offset, &info->errmsg, info->fdev,
+                                BINLOG_CHECKSUM_ALG_OFF);
     if (!sele)
     {
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
@@ -2405,6 +2418,18 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       info->errmsg= "Could not decrypt binlog: encryption key error";
       delete sele;
+      DBUG_RETURN(1);
+    }
+    /* Make it Ignorable_log_event and send it */
+    (*packet)[FLAGS_OFFSET+ev_offset] |= LOG_EVENT_IGNORABLE_F;
+    if (initial_log_pos)
+      int4store((char*) packet->ptr()+LOG_POS_OFFSET+ev_offset, (ulong) 0);
+    /* fix the checksum due to latest changes in header */
+    fix_checksum(info->current_checksum_alg, packet, ev_offset);
+    if (my_net_write(info->net, (uchar*) packet->ptr(), packet->length()))
+    {
+      info->errmsg= "Failed on my_net_write()";
+      info->error= ER_UNKNOWN_ERROR;
       DBUG_RETURN(1);
     }
     delete sele;
@@ -2799,7 +2824,10 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   /* Check if the dump thread is created by a slave with semisync enabled. */
   thd->semi_sync_slave = is_semi_sync_slave();
-  if (repl_semisync_master.dump_start(thd, log_ident, pos))
+
+  DBUG_ASSERT(pos == linfo.pos);
+
+  if (repl_semisync_master.dump_start(thd, linfo.log_file_name, linfo.pos))
   {
     info->errmsg= "Failed to run hook 'transmit_start'";
     info->error= ER_UNKNOWN_ERROR;
@@ -3316,7 +3344,7 @@ int reset_slave(THD *thd, Master_info* mi)
   char fname[FN_REFLEN];
   int thread_mask= 0, error= 0;
   uint sql_errno=ER_UNKNOWN_ERROR;
-  const char* errmsg= "Unknown error occurred while reseting slave";
+  const char* errmsg= "Unknown error occurred while resetting slave";
   char master_info_file_tmp[FN_REFLEN];
   char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("reset_slave");
@@ -3923,7 +3951,7 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
   }
 #endif /* WITH_WSREP */
   bool ret= 0;
-  /* Temporarily disable master semisync before reseting master. */
+  /* Temporarily disable master semisync before resetting master. */
   repl_semisync_master.before_reset_master();
   ret= mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len,
                                 next_log_number);
