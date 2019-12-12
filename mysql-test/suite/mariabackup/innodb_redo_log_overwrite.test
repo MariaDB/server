@@ -1,0 +1,20 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t(i INT) ENGINE=INNODB;
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+
+# Generate enough redo log records to make at least one loop in log group
+--let before_innodb_log_copy_thread_started=INSERT INTO test.t SELECT * from test.seq_1_to_102400
+
+--disable_result_log
+# mariabackup must exit with error instead of hanging
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --dbug=+d,mariabackup_events;
+--enable_result_log
+
+DROP TABLE t;
+--rmdir $targetdir
+

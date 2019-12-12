@@ -1746,8 +1746,8 @@ dict_stats_analyze_index_for_n_prefix(
 		ut_a(left <= right);
 		ut_a(right <= last_idx_on_level);
 
-		const ulint	rnd = right == left ? 0 :
-			ut_rnd_gen_ulint() % (right - left);
+		const ulint	rnd = ut_rnd_interval(
+			static_cast<ulint>(right - left));
 
 		const ib_uint64_t	dive_below_idx
 			= boundaries->at(static_cast<unsigned>(left + rnd));

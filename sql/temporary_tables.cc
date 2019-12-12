@@ -351,6 +351,13 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
     DBUG_RETURN(false);
   }
 
+  if (!tl->db.str)
+  {
+    DBUG_PRINT("info",
+               ("Table reference to a temporary table must have database set"));
+    DBUG_RETURN(false);
+  }
+
   /*
     Temporary tables are not safe for parallel replication. They were
     designed to be visible to one thread only, so have no table locking.
