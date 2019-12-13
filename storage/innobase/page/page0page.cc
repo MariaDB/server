@@ -2549,62 +2549,6 @@ page_find_rec_with_heap_no(
 	}
 }
 
-/*******************************************************//**
-Removes the record from a leaf page. This function does not log
-any changes. It is used by the IMPORT tablespace functions.
-The cursor is moved to the next record after the deleted one.
-@return true if success, i.e., the page did not become too empty */
-bool
-page_delete_rec(
-/*============*/
-	const dict_index_t*	index,	/*!< in: The index that the record
-					belongs to */
-	page_cur_t*		pcur,	/*!< in/out: page cursor on record
-					to delete */
-	page_zip_des_t*
-#ifdef UNIV_ZIP_DEBUG
-		page_zip/*!< in: compressed page descriptor */
-#endif
-	,
-	const ulint*		offsets)/*!< in: offsets for record */
-{
-	bool		no_compress_needed;
-	buf_block_t*	block = pcur->block;
-	page_t*		page = buf_block_get_frame(block);
-
-	ut_ad(page_is_leaf(page));
-
-	if (!rec_offs_any_extern(offsets)
-	    && (!page_has_siblings(page)
-		|| (page_get_n_recs(page) < 2)
-		|| page_get_data_size(page) - rec_offs_size(offsets)
-		< BTR_CUR_PAGE_COMPRESS_LIMIT(index))) {
-
-		/* The page fillfactor will drop below a predefined
-		minimum value, OR the level in the B-tree contains just
-		one page, OR the page will become empty: we recommend
-		compression if this is not the root page. */
-
-		no_compress_needed = block->page.id.page_no() == index->page;
-	} else {
-		no_compress_needed = true;
-	}
-
-	if (no_compress_needed) {
-#ifdef UNIV_ZIP_DEBUG
-		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
-#endif /* UNIV_ZIP_DEBUG */
-
-		page_cur_delete_rec(pcur, index, offsets, 0);
-
-#ifdef UNIV_ZIP_DEBUG
-		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
-#endif /* UNIV_ZIP_DEBUG */
-	}
-
-	return(no_compress_needed);
-}
-
 /** Get the last non-delete-marked record on a page.
 @param[in]	page	index tree leaf page
 @return the last record, not delete-marked

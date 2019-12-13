@@ -2371,10 +2371,13 @@ page_cur_parse_delete_rec(
 	const byte*	end_ptr,/*!< in: buffer end */
 	buf_block_t*	block,	/*!< in: page or NULL */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	mtr_t*		mtr)	/*!< in: mtr or NULL */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction,
+				or NULL if block=NULL */
 {
 	ulint		offset;
 	page_cur_t	cursor;
+
+	ut_ad(!block == !mtr);
 
 	if (end_ptr < ptr + 2) {
 
@@ -2453,13 +2456,10 @@ page_cur_delete_rec(
 	const dict_index_t*	index,	/*!< in: record descriptor */
 	const ulint*		offsets,/*!< in: rec_get_offsets(
 					cursor->rec, index) */
-	mtr_t*			mtr)	/*!< in: mini-transaction handle
-					or NULL */
+	mtr_t*			mtr)	/*!< in/out: mini-transaction */
 {
 	page_dir_slot_t* cur_dir_slot;
 	page_dir_slot_t* prev_slot;
-	page_t*		page;
-	page_zip_des_t*	page_zip;
 	rec_t*		current_rec;
 	rec_t*		prev_rec	= NULL;
 	rec_t*		next_rec;
@@ -2467,36 +2467,36 @@ page_cur_delete_rec(
 	ulint		cur_n_owned;
 	rec_t*		rec;
 
-	page = page_cur_get_page(cursor);
-	page_zip = page_cur_get_page_zip(cursor);
-
 	/* page_zip_validate() will fail here when
 	btr_cur_pessimistic_delete() invokes btr_set_min_rec_mark().
-	Then, both "page_zip" and "page" would have the min-rec-mark
-	set on the smallest user record, but "page" would additionally
+	Then, both "page_zip" and "block->frame" would have the min-rec-mark
+	set on the smallest user record, but "block->frame" would additionally
 	have it set on the smallest-but-one record.  Because sloppy
 	page_zip_validate_low() only ignores min-rec-flag differences
 	in the smallest user record, it cannot be used here either. */
 
 	current_rec = cursor->rec;
+	buf_block_t* const block = cursor->block;
 	ut_ad(rec_offs_validate(current_rec, index, offsets));
-	ut_ad(!!page_is_comp(page) == dict_table_is_comp(index->table));
-	ut_ad(fil_page_index_page_check(page));
-	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID) == index->id
+	ut_ad(!!page_is_comp(block->frame) == index->table->not_redundant());
+	ut_ad(fil_page_index_page_check(block->frame));
+	ut_ad(mach_read_from_8(PAGE_HEADER + PAGE_INDEX_ID + block->frame)
+	      == index->id
 	      || index->is_dummy
-	      || (mtr ? mtr->is_inside_ibuf() : dict_index_is_ibuf(index)));
-	ut_ad(!mtr || mtr->is_named_space(index->table->space));
+	      || mtr->is_inside_ibuf());
+	ut_ad(mtr->is_named_space(index->table->space));
 
 	/* The record must not be the supremum or infimum record. */
 	ut_ad(page_rec_is_user_rec(current_rec));
 
-	if (page_get_n_recs(page) == 1 && !recv_recovery_is_on()
+	if (page_get_n_recs(block->frame) == 1
+	    && !recv_recovery_is_on()
 	    && !rec_is_alter_metadata(current_rec, *index)) {
 		/* Empty the page, unless we are applying the redo log
 		during crash recovery. During normal operation, the
 		page_create_empty() gets logged as one of MLOG_PAGE_CREATE,
 		MLOG_COMP_PAGE_CREATE, MLOG_ZIP_PAGE_COMPRESS. */
-		ut_ad(page_is_leaf(page));
+		ut_ad(page_is_leaf(block->frame));
 		/* Usually, this should be the root page,
 		and the whole index tree should become empty.
 		However, this could also be a call in
@@ -2512,21 +2512,21 @@ page_cur_delete_rec(
 	/* Save to local variables some data associated with current_rec */
 	cur_slot_no = page_dir_find_owner_slot(current_rec);
 	ut_ad(cur_slot_no > 0);
-	cur_dir_slot = page_dir_get_nth_slot(page, cur_slot_no);
+	cur_dir_slot = page_dir_get_nth_slot(block->frame, cur_slot_no);
 	cur_n_owned = page_dir_slot_get_n_owned(cur_dir_slot);
 
 	/* 1. Reset the last insert info in the page header and increment
 	the modify clock for the frame */
 
-	page_header_set_ptr(page, page_zip, PAGE_LAST_INSERT, NULL);
+	page_zip_des_t* const page_zip = buf_block_get_page_zip(block);
 
-	/* The page gets invalid for optimistic searches: increment the
-	frame modify clock only if there is an mini-transaction covering
-	the change. During IMPORT we allocate local blocks that are not
-	part of the buffer pool. */
+	page_header_set_ptr(block->frame, page_zip, PAGE_LAST_INSERT, NULL);
 
-	if (mtr != 0) {
-		buf_block_modify_clock_inc(page_cur_get_block(cursor));
+	/* The page gets invalid for optimistic searches: increment
+	the frame modify clock. Avoid this during IMPORT; the block is
+	not actually in the buffer pool. */
+	if (mtr->get_log_mode() != MTR_LOG_NONE) {
+		buf_block_modify_clock_inc(block);
 		page_cur_delete_rec_write_log(current_rec, index, mtr);
 	}
 
@@ -2534,9 +2534,9 @@ page_cur_delete_rec(
 	left at the next record. */
 
 	ut_ad(cur_slot_no > 0);
-	prev_slot = page_dir_get_nth_slot(page, cur_slot_no - 1);
+	prev_slot = page_dir_get_nth_slot(block->frame, cur_slot_no - 1);
 
-	rec = (rec_t*) page_dir_slot_get_rec(prev_slot);
+	rec = const_cast<rec_t*>(page_dir_slot_get_rec(prev_slot));
 
 	/* rec now points to the record of the previous directory slot. Look
 	for the immediate predecessor of current_rec in a loop. */
@@ -2570,14 +2570,14 @@ page_cur_delete_rec(
 	page_dir_slot_set_n_owned(cur_dir_slot, page_zip, cur_n_owned - 1);
 
 	/* 6. Free the memory occupied by the record */
-	page_mem_free(page, page_zip, current_rec, index, offsets);
+	page_mem_free(block->frame, page_zip, current_rec, index, offsets);
 
 	/* 7. Now we have decremented the number of owned records of the slot.
 	If the number drops below PAGE_DIR_SLOT_MIN_N_OWNED, we balance the
 	slots. */
 
 	if (cur_n_owned <= PAGE_DIR_SLOT_MIN_N_OWNED) {
-		page_dir_balance_slot(page, page_zip, cur_slot_no);
+		page_dir_balance_slot(block->frame, page_zip, cur_slot_no);
 	}
 }
 

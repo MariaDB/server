@@ -227,6 +227,9 @@ public:
 	RecIterator() UNIV_NOTHROW
 	{
 		memset(&m_cur, 0x0, sizeof(m_cur));
+		/* Make page_cur_delete_rec() happy. */
+		m_mtr.start();
+		m_mtr.set_log_mode(MTR_LOG_NONE);
 	}
 
 	/** Position the cursor on the first user record. */
@@ -267,16 +270,40 @@ public:
 		page_zip_des_t*		page_zip,
 		ulint*			offsets) UNIV_NOTHROW
 	{
+		ut_ad(page_is_leaf(m_cur.block->frame));
 		/* We can't end up with an empty page unless it is root. */
 		if (page_get_n_recs(m_cur.block->frame) <= 1) {
 			return(false);
 		}
 
-		return(page_delete_rec(index, &m_cur, page_zip, offsets));
+		if (!rec_offs_any_extern(offsets)
+		    && m_cur.block->page.id.page_no() != index->page
+		    && ((page_get_data_size(m_cur.block->frame)
+			 - rec_offs_size(offsets)
+			 < BTR_CUR_PAGE_COMPRESS_LIMIT(index))
+			|| !page_has_siblings(m_cur.block->frame)
+			|| (page_get_n_recs(m_cur.block->frame) < 2))) {
+			return false;
+		}
+
+#ifdef UNIV_ZIP_DEBUG
+		ut_a(!page_zip || page_zip_validate(
+			     page_zip, m_cur.block->frame, index));
+#endif /* UNIV_ZIP_DEBUG */
+
+		page_cur_delete_rec(&m_cur, index, offsets, &m_mtr);
+
+#ifdef UNIV_ZIP_DEBUG
+		ut_a(!page_zip || page_zip_validate(
+			     page_zip, m_cur.block->frame, index));
+#endif /* UNIV_ZIP_DEBUG */
+
+		return true;
 	}
 
 private:
 	page_cur_t	m_cur;
+	mtr_t		m_mtr;
 };
 
 /** Class that purges delete marked reocords from indexes, both secondary

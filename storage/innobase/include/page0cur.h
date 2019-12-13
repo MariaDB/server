@@ -27,12 +27,7 @@ Created 10/4/1994 Heikki Tuuri
 #ifndef page0cur_h
 #define page0cur_h
 
-#include "buf0types.h"
 #include "page0page.h"
-#include "rem0rec.h"
-#include "data0data.h"
-#include "mtr0mtr.h"
-#include "gis0type.h"
 
 #ifdef UNIV_DEBUG
 /*********************************************************//**
@@ -240,7 +235,8 @@ page_cur_delete_rec(
 	const dict_index_t*	index,	/*!< in: record descriptor */
 	const ulint*		offsets,/*!< in: rec_get_offsets(
 					cursor->rec, index) */
-	mtr_t*			mtr);	/*!< in: mini-transaction handle */
+	mtr_t*			mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull));
 
 /** Search the right position for a page cursor.
 @param[in] block buffer block
@@ -373,20 +369,9 @@ page_cur_parse_delete_rec(
 	const byte*	end_ptr,/*!< in: buffer end */
 	buf_block_t*	block,	/*!< in: page or NULL */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	mtr_t*		mtr);	/*!< in: mtr or NULL */
-/*******************************************************//**
-Removes the record from a leaf page. This function does not log
-any changes. It is used by the IMPORT tablespace functions.
-@return true if success, i.e., the page did not become too empty */
-bool
-page_delete_rec(
-/*============*/
-	const dict_index_t*	index,	/*!< in: The index that the record
-					belongs to */
-	page_cur_t*		pcur,	/*!< in/out: page cursor on record
-					to delete */
-	page_zip_des_t*		page_zip,/*!< in: compressed page descriptor */
-	const ulint*		offsets);/*!< in: offsets for record */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction,
+				or NULL if block=NULL */
+	MY_ATTRIBUTE((warn_unused_result, nonnull(1,2,4)));
 
 /** Index page cursor */
 
