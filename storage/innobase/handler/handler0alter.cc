@@ -2162,7 +2162,7 @@ innobase_rec_to_mysql(
 	struct TABLE*		table,	/*!< in/out: MySQL table */
 	const rec_t*		rec,	/*!< in: record */
 	const dict_index_t*	index,	/*!< in: index */
-	const ulint*		offsets)/*!< in: rec_get_offsets(
+	const offset_t*		offsets)/*!< in: rec_get_offsets(
 					rec, index, ...) */
 {
 	uint	n_fields	= table->s->fields;
@@ -4401,7 +4401,7 @@ innobase_add_instant_try(
 			uf->field_no = f;
 			uf->new_val = entry->fields[f];
 		}
-		ulint* offsets = NULL;
+		offset_t* offsets = NULL;
 		mem_heap_t* offsets_heap = NULL;
 		big_rec_t* big_rec;
 		err = btr_cur_pessimistic_update(

@@ -32,6 +32,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "buf0buf.h"
 #include "data0data.h"
 #include "dict0dict.h"
+#include "rem0types.h"
 #include "rem0rec.h"
 #endif /* !UNIV_INNOCHECKSUM*/
 #include "fsp0fsp.h"
@@ -963,7 +964,7 @@ page_mem_free(
 	rec_t*			rec,	/*!< in: pointer to the (origin of)
 					record */
 	const dict_index_t*	index,	/*!< in: index of rec */
-	const ulint*		offsets);/*!< in: array returned by
+	const offset_t*		offsets);/*!< in: array returned by
 					 rec_get_offsets() */
 
 /** Read the PAGE_DIRECTION field from a byte.
@@ -1223,7 +1224,7 @@ void
 page_rec_print(
 /*===========*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets);/*!< in: record descriptor */
+	const offset_t*	offsets);/*!< in: record descriptor */
 # ifdef UNIV_BTR_PRINT
 /***************************************************************//**
 This is used to print the contents of the directory for
@@ -1270,7 +1271,7 @@ ibool
 page_rec_validate(
 /*==============*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets);/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets);/*!< in: array returned by rec_get_offsets() */
 #ifdef UNIV_DEBUG
 /***************************************************************//**
 Checks that the first directory slot points to the infimum record and

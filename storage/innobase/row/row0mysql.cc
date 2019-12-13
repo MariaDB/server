@@ -2063,8 +2063,8 @@ row_unlock_for_mysql(
 						     + index->trx_id_offset);
 		} else {
 			mem_heap_t*	heap			= NULL;
-			ulint	offsets_[REC_OFFS_NORMAL_SIZE];
-			ulint*	offsets				= offsets_;
+			offset_t offsets_[REC_OFFS_NORMAL_SIZE];
+			offset_t* offsets				= offsets_;
 
 			rec_offs_init(offsets_);
 			offsets = rec_get_offsets(rec, index, offsets, true,
@@ -4682,8 +4682,8 @@ row_scan_index_for_mysql(
 	ulint		cnt;
 	mem_heap_t*	heap		= NULL;
 	ulint		n_ext;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets;
 	rec_offs_init(offsets_);
 
 	*n_rows = 0;
@@ -4816,7 +4816,7 @@ not_ok:
 
 			tmp_heap = mem_heap_create(size);
 
-			offsets = static_cast<ulint*>(
+			offsets = static_cast<offset_t*>(
 				mem_heap_dup(tmp_heap, offsets, size));
 		}
 

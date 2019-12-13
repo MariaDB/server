@@ -67,8 +67,8 @@ page_cur_try_search_shortcut(
 	ibool		success		= FALSE;
 	const page_t*	page		= buf_block_get_frame(block);
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(dtuple_check_typed(tuple));
@@ -151,8 +151,8 @@ page_cur_try_search_shortcut_bytes(
 	ibool		success		= FALSE;
 	const page_t*	page		= buf_block_get_frame(block);
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(dtuple_check_typed(tuple));
@@ -223,7 +223,7 @@ page_cur_rec_field_extends(
 /*=======================*/
 	const dtuple_t*	tuple,	/*!< in: data tuple */
 	const rec_t*	rec,	/*!< in: record */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint		n)	/*!< in: compare nth field */
 {
 	const dtype_t*	type;
@@ -299,8 +299,8 @@ page_cur_search_with_match(
 	const page_zip_des_t*	page_zip = buf_block_get_page_zip(block);
 #endif /* UNIV_ZIP_DEBUG */
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(dtuple_validate(tuple));
@@ -558,8 +558,8 @@ page_cur_search_with_match_bytes(
 	const page_zip_des_t*	page_zip = buf_block_get_page_zip(block);
 #endif /* UNIV_ZIP_DEBUG */
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(dtuple_validate(tuple));
@@ -821,11 +821,11 @@ page_cur_insert_rec_write_log(
 
 	{
 		mem_heap_t*	heap		= NULL;
-		ulint		cur_offs_[REC_OFFS_NORMAL_SIZE];
-		ulint		ins_offs_[REC_OFFS_NORMAL_SIZE];
+		offset_t	cur_offs_[REC_OFFS_NORMAL_SIZE];
+		offset_t	ins_offs_[REC_OFFS_NORMAL_SIZE];
 
-		ulint*		cur_offs;
-		ulint*		ins_offs;
+		offset_t*	cur_offs;
+		offset_t*	ins_offs;
 
 		rec_offs_init(cur_offs_);
 		rec_offs_init(ins_offs_);
@@ -1001,8 +1001,8 @@ page_cur_parse_insert_rec(
 	ulint		info_and_status_bits = 0; /* remove warning */
 	page_cur_t	cursor;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	page = block ? buf_block_get_frame(block) : NULL;
@@ -1219,7 +1219,7 @@ page_cur_insert_rec_low(
 				which the new record is inserted */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
 {
 	byte*		insert_buf;
@@ -1270,8 +1270,8 @@ page_cur_insert_rec_low(
 	free_rec = page_header_get_ptr(page, PAGE_FREE);
 	if (UNIV_LIKELY_NULL(free_rec)) {
 		/* Try to allocate from the head of the free list. */
-		ulint		foffsets_[REC_OFFS_NORMAL_SIZE];
-		ulint*		foffsets	= foffsets_;
+		offset_t	foffsets_[REC_OFFS_NORMAL_SIZE];
+		offset_t*	foffsets	= foffsets_;
 		mem_heap_t*	heap		= NULL;
 
 		rec_offs_init(foffsets_);
@@ -1442,7 +1442,7 @@ page_cur_insert_rec_zip(
 	page_cur_t*	cursor,	/*!< in/out: page cursor */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
 {
 	byte*		insert_buf;
@@ -1683,8 +1683,8 @@ page_cur_insert_rec_zip(
 	if (UNIV_LIKELY_NULL(free_rec)) {
 		/* Try to allocate from the head of the free list. */
 		lint	extra_size_diff;
-		ulint		foffsets_[REC_OFFS_NORMAL_SIZE];
-		ulint*		foffsets	= foffsets_;
+		offset_t	foffsets_[REC_OFFS_NORMAL_SIZE];
+		offset_t*	foffsets	= foffsets_;
 		mem_heap_t*	heap		= NULL;
 
 		rec_offs_init(foffsets_);
@@ -2006,8 +2006,8 @@ page_copy_rec_list_end_to_created_page(
 	byte*	log_ptr;
 	ulint	log_data_len;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
@@ -2230,7 +2230,7 @@ page_cur_parse_delete_rec(
 	if (block) {
 		page_t*		page		= buf_block_get_frame(block);
 		mem_heap_t*	heap		= NULL;
-		ulint		offsets_[REC_OFFS_NORMAL_SIZE];
+		offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
 		rec_t*		rec		= page + offset;
 		rec_offs_init(offsets_);
 
@@ -2258,7 +2258,7 @@ page_cur_delete_rec(
 /*================*/
 	page_cur_t*		cursor,	/*!< in/out: a page cursor */
 	const dict_index_t*	index,	/*!< in: record descriptor */
-	const ulint*		offsets,/*!< in: rec_get_offsets(
+	const offset_t*		offsets,/*!< in: rec_get_offsets(
 					cursor->rec, index) */
 	mtr_t*			mtr)	/*!< in: mini-transaction handle
 					or NULL */

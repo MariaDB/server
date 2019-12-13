@@ -214,7 +214,7 @@ row_upd_check_references_constraints(
 				cursor position is lost in this function! */
 	dict_table_t*	table,	/*!< in: table in question */
 	dict_index_t*	index,	/*!< in: index of the cursor */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(pcur.rec, index) */
+	offset_t*	offsets,/*!< in/out: rec_get_offsets(pcur.rec, index) */
 	que_thr_t*	thr,	/*!< in: query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
@@ -332,7 +332,7 @@ wsrep_row_upd_check_foreign_constraints(
 				cursor position is lost in this function! */
 	dict_table_t*	table,	/*!< in: table in question */
 	dict_index_t*	index,	/*!< in: index of the cursor */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(pcur.rec, index) */
+	offset_t*	offsets,/*!< in/out: rec_get_offsets(pcur.rec, index) */
 	que_thr_t*	thr,	/*!< in: query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
@@ -473,7 +473,7 @@ row_upd_rec_sys_fields_in_recovery(
 /*===============================*/
 	rec_t*		rec,	/*!< in/out: record */
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	ulint		pos,	/*!< in: TRX_ID position in rec */
 	trx_id_t	trx_id,	/*!< in: transaction id */
 	roll_ptr_t	roll_ptr)/*!< in: roll ptr of the undo log record */
@@ -537,7 +537,7 @@ ibool
 row_upd_changes_field_size_or_external(
 /*===================================*/
 	dict_index_t*	index,	/*!< in: index */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	const upd_t*	update)	/*!< in: update vector */
 {
 	const upd_field_t*	upd_field;
@@ -662,7 +662,7 @@ row_upd_rec_in_place(
 /*=================*/
 	rec_t*		rec,	/*!< in/out: record where replaced */
 	dict_index_t*	index,	/*!< in: the index the record belongs to */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	const upd_t*	update,	/*!< in: update vector */
 	page_zip_des_t*	page_zip)/*!< in: compressed page with enough space
 				available, or NULL */
@@ -961,7 +961,7 @@ row_upd_build_sec_rec_difference_binary(
 /*====================================*/
 	const rec_t*	rec,	/*!< in: secondary index record */
 	dict_index_t*	index,	/*!< in: index */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	const dtuple_t*	entry,	/*!< in: entry to insert */
 	mem_heap_t*	heap)	/*!< in: memory heap from which allocated */
 {
@@ -1042,7 +1042,7 @@ row_upd_build_difference_binary(
 	dict_index_t*	index,
 	const dtuple_t*	entry,
 	const rec_t*	rec,
-	const ulint*	offsets,
+	const offset_t*	offsets,
 	bool		no_sys,
 	trx_t*		trx,
 	mem_heap_t*	heap,
@@ -1053,7 +1053,7 @@ row_upd_build_difference_binary(
 	upd_t*		update;
 	ulint		n_diff;
 	ulint		trx_id_pos;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
 	const ulint	n_v_fld = dtuple_get_n_v_fields(entry);
 	rec_offs_init(offsets_);
 
@@ -2072,7 +2072,7 @@ void
 row_upd_copy_columns(
 /*=================*/
 	rec_t*		rec,	/*!< in: record in a clustered index */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	const dict_index_t*	index, /*!< in: index of rec */
 	sym_node_t*	column)	/*!< in: first column in a column list, or
 				NULL */
@@ -2224,8 +2224,8 @@ row_upd_store_row(
 	rec_t*		rec;
 	mem_heap_t*	heap		= NULL;
 	row_ext_t**	ext;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	const ulint*	offsets;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	const offset_t*	offsets;
 	rec_offs_init(offsets_);
 
 	ut_ad(node->pcur->latch_mode != BTR_NO_LATCHES);
@@ -2464,7 +2464,7 @@ row_upd_sec_index_entry(
 			    && wsrep_must_process_fk(node, trx)
 			    && !wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 
-				ulint*	offsets = rec_get_offsets(
+				offset_t* offsets = rec_get_offsets(
 					rec, index, NULL, true,
 					ULINT_UNDEFINED, &heap);
 
@@ -2509,7 +2509,7 @@ row_upd_sec_index_entry(
 
 		if (referenced) {
 
-			ulint*	offsets;
+			offset_t* offsets;
 
 			offsets = rec_get_offsets(
 				rec, index, NULL, true, ULINT_UNDEFINED,
@@ -2591,7 +2591,7 @@ row_upd_clust_rec_by_insert_inherit_func(
 /*=====================================*/
 	const rec_t*	rec,	/*!< in: old record, or NULL */
 #ifdef UNIV_DEBUG
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec), or NULL */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec), or NULL */
 #endif /* UNIV_DEBUG */
 	dtuple_t*	entry,	/*!< in/out: updated entry to be
 				inserted into the clustered index */
@@ -2692,9 +2692,12 @@ row_upd_clust_rec_by_insert(
 	dtuple_t*	entry;
 	dberr_t		err;
 	rec_t*		rec;
-	ulint*		offsets			= NULL;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets			= offsets_;
 
 	ut_ad(dict_index_is_clust(index));
+
+	rec_offs_init(offsets_);
 
 	trx = thr_get_trx(thr);
 	table = node->table;
@@ -2724,7 +2727,7 @@ row_upd_clust_rec_by_insert(
 		we update the primary key.  Delete-mark the old record
 		in the clustered index and prepare to insert a new entry. */
 		rec = btr_cur_get_rec(btr_cur);
-		offsets = rec_get_offsets(rec, index, NULL, true,
+		offsets = rec_get_offsets(rec, index, offsets, true,
 					  ULINT_UNDEFINED, &heap);
 		ut_ad(page_rec_is_user_rec(rec));
 
@@ -2831,7 +2834,7 @@ row_upd_clust_rec(
 	ulint		flags,  /*!< in: undo logging and locking flags */
 	upd_node_t*	node,	/*!< in: row update node */
 	dict_index_t*	index,	/*!< in: clustered index */
-	ulint*		offsets,/*!< in: rec_get_offsets() on node->pcur */
+	offset_t*	offsets,/*!< in: rec_get_offsets() on node->pcur */
 	mem_heap_t**	offsets_heap,
 				/*!< in/out: memory heap, can be emptied */
 	que_thr_t*	thr,	/*!< in: query thread */
@@ -2962,7 +2965,7 @@ row_upd_del_mark_clust_rec(
 /*=======================*/
 	upd_node_t*	node,	/*!< in: row update node */
 	dict_index_t*	index,	/*!< in: clustered index */
-	ulint*		offsets,/*!< in/out: rec_get_offsets() for the
+	offset_t*	offsets,/*!< in/out: rec_get_offsets() for the
 				record under the cursor */
 	que_thr_t*	thr,	/*!< in: query thread */
 	ibool		referenced,
@@ -3057,8 +3060,8 @@ row_upd_clust_step(
 	mtr_t		mtr;
 	rec_t*		rec;
 	mem_heap_t*	heap	= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets;
 	ibool		referenced;
 	ulint		flags;
 	trx_t*		trx = thr_get_trx(thr);

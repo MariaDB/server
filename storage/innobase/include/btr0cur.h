@@ -30,6 +30,7 @@ Created 10/16/1994 Heikki Tuuri
 #include "dict0dict.h"
 #include "page0cur.h"
 #include "btr0types.h"
+#include "rem0types.h"
 #include "gis0type.h"
 #include "my_base.h"
 
@@ -271,7 +272,7 @@ btr_cur_optimistic_insert(
 				specified */
 	btr_cur_t*	cursor,	/*!< in: cursor on page after which to insert;
 				cursor stays valid */
-	ulint**		offsets,/*!< out: offsets on *rec */
+	offset_t**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap */
 	dtuple_t*	entry,	/*!< in/out: entry to insert */
 	rec_t**		rec,	/*!< out: pointer to inserted record if
@@ -307,7 +308,7 @@ btr_cur_pessimistic_insert(
 				insertion will certainly succeed */
 	btr_cur_t*	cursor,	/*!< in: cursor after which to insert;
 				cursor stays valid */
-	ulint**		offsets,/*!< out: offsets on *rec */
+	offset_t**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap
 				that can be emptied */
 	dtuple_t*	entry,	/*!< in/out: entry to insert */
@@ -341,7 +342,7 @@ btr_cur_update_alloc_zip_func(
 	page_cur_t*	cursor,	/*!< in/out: B-tree page cursor */
 	dict_index_t*	index,	/*!< in: the index corresponding to cursor */
 #ifdef UNIV_DEBUG
-	ulint*		offsets,/*!< in/out: offsets of the cursor record */
+	offset_t*	offsets,/*!< in/out: offsets of the cursor record */
 #endif /* UNIV_DEBUG */
 	ulint		length,	/*!< in: size needed */
 	bool		create,	/*!< in: true=delete-and-insert,
@@ -368,7 +369,7 @@ btr_cur_update_in_place(
 	btr_cur_t*	cursor,	/*!< in: cursor on the record to update;
 				cursor stays valid and positioned on the
 				same record */
-	ulint*		offsets,/*!< in/out: offsets on cursor->page_cur.rec */
+	offset_t*	offsets,/*!< in/out: offsets on cursor->page_cur.rec */
 	const upd_t*	update,	/*!< in: update vector */
 	ulint		cmpl_info,/*!< in: compiler info on secondary index
 				updates */
@@ -410,7 +411,7 @@ btr_cur_optimistic_update(
 	btr_cur_t*	cursor,	/*!< in: cursor on the record to update;
 				cursor stays valid and positioned on the
 				same record */
-	ulint**		offsets,/*!< out: offsets on cursor->page_cur.rec */
+	offset_t**	offsets,/*!< out: offsets on cursor->page_cur.rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to NULL or memory heap */
 	const upd_t*	update,	/*!< in: update vector; this must also
 				contain trx id and roll ptr fields */
@@ -437,7 +438,7 @@ btr_cur_pessimistic_update(
 	btr_cur_t*	cursor,	/*!< in/out: cursor on the record to update;
 				cursor may become invalid if *big_rec == NULL
 				|| !(flags & BTR_KEEP_POS_FLAG) */
-	ulint**		offsets,/*!< out: offsets on cursor->page_cur.rec */
+	offset_t**	offsets,/*!< out: offsets on cursor->page_cur.rec */
 	mem_heap_t**	offsets_heap,
 				/*!< in/out: pointer to memory heap
 				that can be emptied */
@@ -469,7 +470,7 @@ btr_cur_del_mark_set_clust_rec(
 	buf_block_t*	block,	/*!< in/out: buffer block of the record */
 	rec_t*		rec,	/*!< in/out: record */
 	dict_index_t*	index,	/*!< in: clustered index of the record */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec) */
 	que_thr_t*	thr,	/*!< in: query thread */
 	const dtuple_t*	entry,	/*!< in: dtuple for the deleting record */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
@@ -636,7 +637,7 @@ btr_estimate_number_of_different_key_vals(
 ulint
 btr_rec_get_externally_stored_len(
 	const rec_t*	rec,
-	const ulint*	offsets);
+	const offset_t*	offsets);
 
 /*******************************************************************//**
 Marks non-updated off-page fields as disowned by this record. The ownership
@@ -650,7 +651,7 @@ btr_cur_disown_inherited_fields(
 				part will be updated, or NULL */
 	rec_t*		rec,	/*!< in/out: record in a clustered index */
 	dict_index_t*	index,	/*!< in: index of the page */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	const upd_t*	update,	/*!< in: update vector */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull(2,3,4,5,6)));
@@ -689,7 +690,7 @@ btr_store_big_rec_extern_fields(
 	btr_pcur_t*	pcur,		/*!< in/out: a persistent cursor. if
 					btr_mtr is restarted, then this can
 					be repositioned. */
-	ulint*		offsets,	/*!< in/out: rec_get_offsets() on
+	offset_t*	offsets,	/*!< in/out: rec_get_offsets() on
 					pcur. the "external storage" flags
 					in offsets will correctly correspond
 					to rec when this function returns */
@@ -720,7 +721,7 @@ btr_free_externally_stored_field(
 	byte*		field_ref,	/*!< in/out: field reference */
 	const rec_t*	rec,		/*!< in: record containing field_ref, for
 					page_zip_write_blob_ptr(), or NULL */
-	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index),
+	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec, index),
 					or NULL */
 	page_zip_des_t*	page_zip,	/*!< in: compressed page corresponding
 					to rec, or NULL if rec == NULL */
@@ -777,7 +778,7 @@ protected by a lock or a page latch
 byte*
 btr_rec_copy_externally_stored_field(
 	const rec_t*		rec,
-	const ulint*		offsets,
+	const offset_t*		offsets,
 	const page_size_t&	page_size,
 	ulint			no,
 	ulint*			len,

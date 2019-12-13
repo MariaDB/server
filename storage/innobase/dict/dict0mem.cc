@@ -1453,7 +1453,7 @@ void dict_table_t::rollback_instant(unsigned n)
 bool
 dict_index_t::vers_history_row(
 	const rec_t*		rec,
-	const ulint*		offsets)
+	const offset_t*		offsets)
 {
 	ut_ad(is_primary());
 
@@ -1484,8 +1484,8 @@ dict_index_t::vers_history_row(
 	bool error = false;
 	mem_heap_t* heap = NULL;
 	dict_index_t* clust_index = NULL;
-	ulint offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint* offsets = offsets_;
+	offset_t offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t* offsets = offsets_;
 	rec_offs_init(offsets_);
 
 	mtr_t mtr;

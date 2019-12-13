@@ -546,7 +546,7 @@ cmp_dtuple_rec_with_gis(
 				dtuple in some of the common fields, or which
 				has an equal number or more fields than
 				dtuple */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	page_cur_mode_t	mode)	/*!< in: compare mode */
 {
 	const dfield_t*	dtuple_field;	/* current field in logical record */
@@ -579,7 +579,7 @@ int
 cmp_dtuple_rec_with_gis_internal(
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets)
+	const offset_t*	offsets)
 {
 	const dfield_t*	dtuple_field;	/* current field in logical record */
 	ulint		dtuple_f_len;	/* the length of the current field
@@ -650,7 +650,7 @@ int
 cmp_dtuple_rec_with_match_low(
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets,
+	const offset_t*	offsets,
 	ulint		n_cmp,
 	ulint*		matched_fields)
 {
@@ -784,7 +784,7 @@ cmp_dtuple_rec_with_match_bytes(
 	const dtuple_t*		dtuple,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	const ulint*		offsets,
+	const offset_t*		offsets,
 	ulint*			matched_fields,
 	ulint*			matched_bytes)
 {
@@ -952,7 +952,7 @@ int
 cmp_dtuple_rec(
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets)
+	const offset_t*	offsets)
 {
 	ulint	matched_fields	= 0;
 
@@ -970,7 +970,7 @@ cmp_dtuple_is_prefix_of_rec(
 /*========================*/
 	const dtuple_t*	dtuple,	/*!< in: data tuple */
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ulint	n_fields;
 	ulint	matched_fields	= 0;
@@ -998,8 +998,8 @@ cmp_rec_rec_simple_field(
 /*=====================*/
 	const rec_t*		rec1,	/*!< in: physical record */
 	const rec_t*		rec2,	/*!< in: physical record */
-	const ulint*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
-	const ulint*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
+	const offset_t*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
+	const offset_t*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
 	const dict_index_t*	index,	/*!< in: data dictionary index */
 	ulint			n)	/*!< in: field to compare */
 {
@@ -1029,8 +1029,8 @@ cmp_rec_rec_simple(
 /*===============*/
 	const rec_t*		rec1,	/*!< in: physical record */
 	const rec_t*		rec2,	/*!< in: physical record */
-	const ulint*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
-	const ulint*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
+	const offset_t*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
+	const offset_t*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
 	const dict_index_t*	index,	/*!< in: data dictionary index */
 	struct TABLE*		table)	/*!< in: MySQL table, for reporting
 					duplicate key value if applicable,
@@ -1115,8 +1115,8 @@ int
 cmp_rec_rec_with_match(
 	const rec_t*		rec1,
 	const rec_t*		rec2,
-	const ulint*		offsets1,
-	const ulint*		offsets2,
+	const offset_t*		offsets1,
+	const offset_t*		offsets2,
 	const dict_index_t*	index,
 	bool			nulls_unequal,
 	ulint*			matched_fields)

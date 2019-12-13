@@ -115,7 +115,7 @@ row_undo_ins_remove_clust_rec(
 	if (online && dict_index_is_online_ddl(index)) {
 		const rec_t*	rec	= btr_cur_get_rec(btr_cur);
 		mem_heap_t*	heap	= NULL;
-		const ulint*	offsets	= rec_get_offsets(
+		const offset_t*	offsets	= rec_get_offsets(
 			rec, index, NULL, true, ULINT_UNDEFINED, &heap);
 		row_log_table_delete(rec, index, offsets, NULL);
 		mem_heap_free(heap);

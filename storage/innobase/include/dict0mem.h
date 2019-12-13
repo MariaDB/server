@@ -832,10 +832,6 @@ a certain index.*/
 system clustered index when there is no primary key. */
 const char innobase_index_reserve_name[] = "GEN_CLUST_INDEX";
 
-/* Estimated number of offsets in records (based on columns)
-to start with. */
-#define OFFS_IN_REC_NORMAL_SIZE		100
-
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
 struct dict_index_t{
@@ -1112,7 +1108,7 @@ struct dict_index_t{
 	@param[in]	offsets	offsets
 	@return true if row is historical */
 	bool
-	vers_history_row(const rec_t* rec, const ulint* offsets);
+	vers_history_row(const rec_t* rec, const offset_t* offsets);
 
 	/** Check if record in secondary index is historical row.
 	@param[in]	rec	record in a secondary index

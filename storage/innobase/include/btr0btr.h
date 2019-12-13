@@ -30,6 +30,7 @@ Created 6/2/1994 Heikki Tuuri
 
 #include "dict0dict.h"
 #include "data0data.h"
+#include "rem0types.h"
 #include "page0cur.h"
 #include "btr0types.h"
 #include "gis0type.h"
@@ -319,7 +320,7 @@ ulint
 btr_node_ptr_get_child_page_no(
 /*===========================*/
 	const rec_t*	rec,	/*!< in: node pointer record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Create the root node for a new index tree.
@@ -404,7 +405,7 @@ btr_root_raise_and_insert(
 				on the root page; when the function returns,
 				the cursor is positioned on the predecessor
 				of the inserted record */
-	ulint**		offsets,/*!< out: offsets on inserted record */
+	offset_t**	offsets,/*!< out: offsets on inserted record */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap
 				that can be emptied, or NULL */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
@@ -487,7 +488,7 @@ btr_page_split_and_insert(
 	btr_cur_t*	cursor,	/*!< in: cursor at which to insert; when the
 				function returns, the cursor is positioned
 				on the predecessor of the inserted record */
-	ulint**		offsets,/*!< out: offsets on inserted record */
+	offset_t**	offsets,/*!< out: offsets on inserted record */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap
 				that can be emptied, or NULL */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */

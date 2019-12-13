@@ -868,7 +868,7 @@ trx_undo_page_report_modify(
 					delete marking is done */
 	const rec_t*	rec,		/*!< in: clustered index record which
 					has NOT yet been modified */
-	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec, index) */
 	const upd_t*	update,		/*!< in: update vector which tells the
 					columns to be updated; in the case of
 					a delete, this should be set to NULL */
@@ -1967,7 +1967,7 @@ trx_undo_report_row_operation(
 	const rec_t*	rec,		/*!< in: case of an update or delete
 					marking, the record in the clustered
 					index; NULL if insert */
-	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
+	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec) */
 	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
 					undo log record */
 {
@@ -2225,7 +2225,7 @@ trx_undo_prev_version_build(
 				index_rec page and purge_view */
 	const rec_t*	rec,	/*!< in: version of a clustered index record */
 	dict_index_t*	index,	/*!< in: clustered index */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
 				needed is allocated */
 	rec_t**		old_vers,/*!< out, own: previous version, or NULL if
@@ -2407,8 +2407,10 @@ trx_undo_prev_version_build(
 	}
 
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
+	offset_t offsets_dbg[REC_OFFS_NORMAL_SIZE];
+	rec_offs_init(offsets_dbg);
 	ut_a(!rec_offs_any_null_extern(
-		*old_vers, rec_get_offsets(*old_vers, index, NULL, true,
+		*old_vers, rec_get_offsets(*old_vers, index, offsets_dbg, true,
 					   ULINT_UNDEFINED, &heap)));
 #endif // defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 
