@@ -421,7 +421,8 @@ static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 			  src_frame + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
 			  FIL_PAGE_FCRC32_CHECKSUM);
 
-	memcpy(src_frame, tmp_frame, srv_page_size);
+	memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(src_frame, tmp_frame,
+					       srv_page_size);
 	srv_stats.pages_decrypted.inc();
 	srv_stats.n_temp_blocks_decrypted.inc();
 
@@ -2125,7 +2126,8 @@ buf_page_realloc(
 	if (buf_page_can_relocate(&block->page)) {
 		mutex_enter(&new_block->mutex);
 
-		memcpy(new_block->frame, block->frame, srv_page_size);
+		memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(
+			new_block->frame, block->frame, srv_page_size);
 		new (&new_block->page) buf_page_t(block->page);
 
 		/* relocate LRU list */

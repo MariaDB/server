@@ -1085,7 +1085,8 @@ try_again:
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 
 		UNIV_MEM_ASSERT_RW(frame, srv_page_size);
-		memcpy(p, frame, srv_page_size);
+		memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(p, frame,
+						       srv_page_size);
 	}
 
 	buf_dblwr->buf_block_arr[buf_dblwr->first_free] = bpage;

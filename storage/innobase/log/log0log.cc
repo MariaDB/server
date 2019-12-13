@@ -181,7 +181,8 @@ void log_buffer_extend(ulong len)
 	srv_log_buffer_size = new_buf_size;
 	log_sys.buf = new_buf;
 	log_sys.first_in_use = true;
-	memcpy(log_sys.buf, old_buf_begin, log_sys.buf_free);
+	memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(log_sys.buf, old_buf_begin,
+					       log_sys.buf_free);
 
 	log_sys.max_buf_free = new_buf_size / LOG_BUF_FLUSH_RATIO
 		- LOG_BUF_FLUSH_MARGIN;
@@ -354,7 +355,8 @@ part_loop:
 			- log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
 	}
 
-	memcpy(log_sys.buf + log_sys.buf_free, str, len);
+	memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(log_sys.buf + log_sys.buf_free,
+					       str, len);
 
 	str_len -= len;
 	str = str + len;
@@ -833,8 +835,9 @@ log_buffer_switch()
 	}
 
 	/* Copy the last block to new buf */
-	memcpy(log_sys.buf, old_buf + area_end - OS_FILE_LOG_BLOCK_SIZE,
-	       OS_FILE_LOG_BLOCK_SIZE);
+	memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(
+		log_sys.buf, old_buf + area_end - OS_FILE_LOG_BLOCK_SIZE,
+		OS_FILE_LOG_BLOCK_SIZE);
 
 	log_sys.buf_free %= OS_FILE_LOG_BLOCK_SIZE;
 	log_sys.buf_next_to_write = log_sys.buf_free;
