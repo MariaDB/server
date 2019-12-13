@@ -210,7 +210,7 @@ int clustrix_connection::send_transaction_cmd()
 
   if ((error_code = read_query_response()))
     DBUG_RETURN(mysql_errno(&clustrix_net));
-  
+
   DBUG_RETURN(error_code);
 }
 
@@ -422,6 +422,7 @@ int clustrix_connection::key_delete(ulonglong clustrix_table_oid,
 }
 
 int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
+                                  clustrix_lock_mode_t lock_mode,
                                   MY_BITMAP *read_set, uchar *packed_key,
                                   ulong packed_key_length, uchar **rowdata,
                                   ulong *rowdata_length)
@@ -442,6 +443,9 @@ int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
   if ((error_code = add_command_operand_uint(index)))
     return error_code;
 
+  if ((error_code = add_command_operand_uchar((uchar)lock_mode)))
+    return error_code;
+
   if ((error_code = add_command_operand_bitmap(read_set)))
     return error_code;
 
@@ -458,7 +462,7 @@ int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
   uchar *data = clustrix_net.net.read_pos;
   *rowdata_length = safe_net_field_length_ll(&data, packet_length);
   *rowdata = (uchar *)my_malloc(*rowdata_length, MYF(MY_WME));
-  memcpy(*rowdata, data, *rowdata_length); 
+  memcpy(*rowdata, data, *rowdata_length);
 
   packet_length = cli_safe_read(&clustrix_net);
   if (packet_length == packet_error) {
@@ -619,9 +623,9 @@ int allocate_clustrix_connection_cursor(MYSQL *clustrix_net, ulong buffer_size,
   DBUG_RETURN(error_code);
 }
 
-int clustrix_connection::scan_table(ulonglong clustrix_table_oid, uint index,
-                                    enum sort_order sort, MY_BITMAP *read_set,
-                                    ushort row_req,
+int clustrix_connection::scan_table(ulonglong clustrix_table_oid,
+                                    clustrix_lock_mode_t lock_mode,
+                                    MY_BITMAP *read_set, ushort row_req,
                                     clustrix_connection_cursor **scan)
 {
   int error_code;
@@ -640,10 +644,7 @@ int clustrix_connection::scan_table(ulonglong clustrix_table_oid, uint index,
   if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
     return error_code;
 
-  if ((error_code = add_command_operand_uint(index)))
-    return error_code;
-
-  if ((error_code = add_command_operand_uchar(sort)))
+  if ((error_code = add_command_operand_uchar((uchar)lock_mode)))
     return error_code;
 
   if ((error_code = add_command_operand_bitmap(read_set)))
@@ -754,6 +755,7 @@ int clustrix_connection::update_query(String &stmt, LEX_CSTRING &dbname,
 
 
 int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
+                                       clustrix_lock_mode_t lock_mode,
                                        enum scan_type scan_dir,
                                        bool sorted_scan, MY_BITMAP *read_set,
                                        uchar *packed_key,
@@ -778,6 +780,9 @@ int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
     return error_code;
 
   if ((error_code = add_command_operand_uint(index)))
+    return error_code;
+
+  if ((error_code = add_command_operand_uchar((uchar)lock_mode)))
     return error_code;
 
   if ((error_code = add_command_operand_uchar(scan_dir)))
