@@ -87,16 +87,19 @@ row_vers_impl_x_locked_low(
 	dict_index_t*	clust_index,
 	const rec_t*	rec,
 	dict_index_t*	index,
-	const ulint*	offsets,
+	const offset_t*	offsets,
 	mtr_t*		mtr)
 {
 	trx_id_t	trx_id;
 	rec_t*		prev_version = NULL;
-	ulint*		clust_offsets;
+	offset_t	clust_offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	clust_offsets = clust_offsets_;
 	mem_heap_t*	heap;
 	dtuple_t*	ientry = NULL;
 	mem_heap_t*	v_heap = NULL;
 	dtuple_t*	cur_vrow = NULL;
+
+	rec_offs_init(clust_offsets_);
 
 	DBUG_ENTER("row_vers_impl_x_locked_low");
 
@@ -112,8 +115,8 @@ row_vers_impl_x_locked_low(
 
 	heap = mem_heap_create(1024);
 
-	clust_offsets = rec_get_offsets(
-		clust_rec, clust_index, NULL, true, ULINT_UNDEFINED, &heap);
+	clust_offsets = rec_get_offsets(clust_rec, clust_index, clust_offsets,
+					true, ULINT_UNDEFINED, &heap);
 
 	trx_id = row_get_rec_trx_id(clust_rec, clust_index, clust_offsets);
 	if (trx_id == 0) {
@@ -203,7 +206,7 @@ row_vers_impl_x_locked_low(
 		ut_ad(committed || prev_version
 		      || !rec_get_deleted_flag(version, comp));
 
-		/* Free version and clust_offsets. */
+		/* Free version. */
 		mem_heap_free(old_heap);
 
 		if (committed) {
@@ -238,7 +241,7 @@ not_locked:
 		}
 
 		clust_offsets = rec_get_offsets(
-			prev_version, clust_index, NULL, true,
+			prev_version, clust_index, clust_offsets, true,
 			ULINT_UNDEFINED, &heap);
 
 		vers_del = rec_get_deleted_flag(prev_version, comp);
@@ -387,7 +390,7 @@ row_vers_impl_x_locked(
 	trx_t*		caller_trx,
 	const rec_t*	rec,
 	dict_index_t*	index,
-	const ulint*	offsets)
+	const offset_t*	offsets)
 {
 	mtr_t		mtr;
 	trx_t*		trx;
@@ -519,7 +522,7 @@ row_vers_build_cur_vrow_low(
 	bool			in_purge,
 	const rec_t*		rec,
 	dict_index_t*		clust_index,
-	ulint*			clust_offsets,
+	offset_t*		clust_offsets,
 	dict_index_t*		index,
 	roll_ptr_t		roll_ptr,
 	trx_id_t		trx_id,
@@ -635,7 +638,7 @@ row_vers_vc_matches_cluster(
 	const rec_t*	rec,
 	const dtuple_t* icentry,
 	dict_index_t*	clust_index,
-	ulint*		clust_offsets,
+	offset_t*	clust_offsets,
 	dict_index_t*	index,
 	const dtuple_t* ientry,
 	roll_ptr_t	roll_ptr,
@@ -810,7 +813,7 @@ row_vers_build_cur_vrow(
 	bool			in_purge,
 	const rec_t*		rec,
 	dict_index_t*		clust_index,
-	ulint**			clust_offsets,
+	offset_t**		clust_offsets,
 	dict_index_t*		index,
 	roll_ptr_t		roll_ptr,
 	trx_id_t		trx_id,
@@ -894,7 +897,7 @@ row_vers_old_has_index_entry(
 	const rec_t*	version;
 	rec_t*		prev_version;
 	dict_index_t*	clust_index;
-	ulint*		clust_offsets;
+	offset_t*	clust_offsets;
 	mem_heap_t*	heap;
 	mem_heap_t*	heap2;
 	dtuple_t*	row;
@@ -1151,7 +1154,7 @@ row_vers_build_for_consistent_read(
 				of this records */
 	mtr_t*		mtr,	/*!< in: mtr holding the latch on rec */
 	dict_index_t*	index,	/*!< in: the clustered index */
-	ulint**		offsets,/*!< in/out: offsets returned by
+	offset_t**	offsets,/*!< in/out: offsets returned by
 				rec_get_offsets(rec, index) */
 	ReadView*	view,	/*!< in: the consistent read view */
 	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
@@ -1267,7 +1270,7 @@ row_vers_build_for_semi_consistent_read(
 				of this records */
 	mtr_t*		mtr,	/*!< in: mtr holding the latch on rec */
 	dict_index_t*	index,	/*!< in: the clustered index */
-	ulint**		offsets,/*!< in/out: offsets returned by
+	offset_t**	offsets,/*!< in/out: offsets returned by
 				rec_get_offsets(rec, index) */
 	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
 				the offsets are allocated */

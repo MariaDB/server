@@ -10108,6 +10108,8 @@ bool Item_cache_str::cache_value()
     value_buff.copy(*value);
     value= &value_buff;
   }
+  else
+    value_buff.copy();
   return TRUE;
 }
 

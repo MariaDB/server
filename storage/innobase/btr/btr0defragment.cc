@@ -338,8 +338,8 @@ btr_defragment_calc_n_recs_for_size(
 {
 	page_t* page = buf_block_get_frame(block);
 	ulint n_recs = 0;
-	ulint offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint* offsets = offsets_;
+	offset_t offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t* offsets = offsets_;
 	rec_offs_init(offsets_);
 	mem_heap_t* heap = NULL;
 	ulint size = 0;

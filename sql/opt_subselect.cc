@@ -861,7 +861,12 @@ bool subquery_types_allow_materialization(THD* thd, Item_in_subselect *in_subs)
   OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
                      in_subs->get_select_lex()->select_number,
                       "IN (SELECT)", "materialization");
-  
+
+  /*
+    The checks here must be kept in sync with the one in
+    Item_func_in::in_predicate_to_in_subs_transformer().
+  */
+
   bool all_are_fields= TRUE;
   uint32 total_key_length = 0;
   for (uint i= 0; i < elements; i++)
