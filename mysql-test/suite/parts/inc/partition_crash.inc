@@ -14,7 +14,7 @@ SELECT * FROM t1;
 --error 2013
 --eval $crash_statement
 --echo # State after crash (before recovery)
---replace_regex /sqlx.*\./sqlx-nnnn_nnnn./ /#p#/#P#/ /#sp#/#SP#/ /#tmp#/#TMP#/
+--replace_regex /sqlx.*\./sqlx-nnnn_nnnn./ /#p#/#P#/ /#sp#/#SP#/ /#tmp#/#TMP#/ /#sql-ib[0-9a-f]+\.ibd\n//
 --list_files $DATADIR/test
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --enable_reconnect
