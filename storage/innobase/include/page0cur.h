@@ -181,13 +181,12 @@ space available, NULL otherwise. The cursor stays at the same position.
 rec_t*
 page_cur_insert_rec_low(
 /*====================*/
-	rec_t*		current_rec,/*!< in: pointer to current record after
-				which the new record is inserted */
+	const page_cur_t*cur,	/*!< in: page cursor */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	const rec_t*	rec,	/*!< in: pointer to a physical record */
+	const rec_t*	rec,	/*!< in: record to insert after cur */
 	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
-	MY_ATTRIBUTE((nonnull(1,2,3,4), warn_unused_result));
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /***********************************************************//**
 Inserts a record next to page cursor on a compressed and uncompressed
@@ -208,8 +207,8 @@ page_cur_insert_rec_zip(
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
 	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
-	MY_ATTRIBUTE((nonnull(1,2,3,4), warn_unused_result));
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*************************************************************//**
 Copies records from page to a newly created page, from a given record onward,
 including that record. Infimum and supremum records are not copied.

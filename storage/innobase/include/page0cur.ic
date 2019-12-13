@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -281,7 +281,7 @@ page_cur_tuple_insert(
 		rec = page_cur_insert_rec_zip(
 			cursor, index, rec, *offsets, mtr);
 	} else {
-		rec = page_cur_insert_rec_low(cursor->rec,
+		rec = page_cur_insert_rec_low(cursor,
 					      index, rec, *offsets, mtr);
 	}
 
@@ -315,7 +315,7 @@ page_cur_rec_insert(
 		return(page_cur_insert_rec_zip(
 			       cursor, index, rec, offsets, mtr));
 	} else {
-		return(page_cur_insert_rec_low(cursor->rec,
-					       index, rec, offsets, mtr));
+		return(page_cur_insert_rec_low(
+			       cursor, index, rec, offsets, mtr));
 	}
 }

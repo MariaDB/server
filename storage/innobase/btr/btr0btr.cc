@@ -4068,11 +4068,13 @@ btr_discard_only_page_on_level(
 
 	if (index->is_primary()) {
 		if (rec) {
+			page_cur_t cur;
+			page_cur_set_before_first(block, &cur);
 			DBUG_ASSERT(index->table->instant);
 			DBUG_ASSERT(rec_is_alter_metadata(rec, *index));
 			btr_set_instant(block, *index, mtr);
 			rec = page_cur_insert_rec_low(
-				page_get_infimum_rec(block->frame),
+				&cur,
 				index, rec, offsets, mtr);
 			ut_ad(rec);
 			mem_heap_free(heap);

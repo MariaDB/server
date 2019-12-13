@@ -503,7 +503,7 @@ page_copy_rec_list_end_no_locks(
 {
 	page_t*		new_page	= buf_block_get_frame(new_block);
 	page_cur_t	cur1;
-	rec_t*		cur2;
+	page_cur_t	cur2;
 	mem_heap_t*	heap		= NULL;
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint*		offsets		= offsets_;
@@ -522,7 +522,7 @@ page_copy_rec_list_end_no_locks(
 	     (page_is_comp(new_page) ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
 	const bool is_leaf = page_is_leaf(block->frame);
 
-	cur2 = page_get_infimum_rec(buf_block_get_frame(new_block));
+	page_cur_set_before_first(new_block, &cur2);
 
 	/* Copy records from the original page to the new page */
 
@@ -530,18 +530,18 @@ page_copy_rec_list_end_no_locks(
 		rec_t*	ins_rec;
 		offsets = rec_get_offsets(cur1.rec, index, offsets, is_leaf,
 					  ULINT_UNDEFINED, &heap);
-		ins_rec = page_cur_insert_rec_low(cur2, index,
+		ins_rec = page_cur_insert_rec_low(&cur2, index,
 						  cur1.rec, offsets, mtr);
 		if (UNIV_UNLIKELY(!ins_rec)) {
 			ib::fatal() << "Rec offset " << page_offset(rec)
 				<< ", cur1 offset " << page_offset(cur1.rec)
-				<< ", cur2 offset " << page_offset(cur2);
+				<< ", cur2 offset " << page_offset(cur2.rec);
 		}
 
 		page_cur_move_to_next(&cur1);
 		ut_ad(!(rec_get_info_bits(cur1.rec, page_is_comp(new_page))
 			& REC_INFO_MIN_REC_FLAG));
-		cur2 = ins_rec;
+		cur2.rec = ins_rec;
 	}
 
 	if (UNIV_LIKELY_NULL(heap)) {
@@ -730,7 +730,7 @@ page_copy_rec_list_start(
 	page_t*		new_page	= buf_block_get_frame(new_block);
 	page_zip_des_t*	new_page_zip	= buf_block_get_page_zip(new_block);
 	page_cur_t	cur1;
-	rec_t*		cur2;
+	page_cur_t	cur2;
 	mem_heap_t*	heap		= NULL;
 	ulint		num_moved	= 0;
 	rtr_rec_move_t*	rec_move	= NULL;
@@ -756,7 +756,7 @@ page_copy_rec_list_start(
 	page_cur_set_before_first(block, &cur1);
 	page_cur_move_to_next(&cur1);
 
-	cur2 = ret;
+	page_cur_position(ret, new_block, &cur2);
 
 	const bool is_leaf = page_rec_is_leaf(rec);
 
@@ -782,9 +782,10 @@ page_copy_rec_list_start(
 			offsets = rec_get_offsets(cur1.rec, index, offsets,
 						  is_leaf,
 						  ULINT_UNDEFINED, &heap);
-			cur2 = page_cur_insert_rec_low(cur2, index,
-						       cur1.rec, offsets, mtr);
-			ut_a(cur2);
+			cur2.rec = page_cur_insert_rec_low(&cur2, index,
+							   cur1.rec, offsets,
+							   mtr);
+			ut_a(cur2.rec);
 
 			page_cur_move_to_next(&cur1);
 			ut_ad(!(rec_get_info_bits(cur1.rec,

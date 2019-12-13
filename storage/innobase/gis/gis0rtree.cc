@@ -840,7 +840,7 @@ rtr_split_page_move_rec_list(
 			ut_ad(!is_leaf || cur_split_node->key != first_rec);
 
 			rec = page_cur_insert_rec_low(
-				page_cur_get_rec(&new_page_cursor),
+				&new_page_cursor,
 				index, cur_split_node->key, offsets, mtr);
 
 			ut_a(rec);
@@ -1460,7 +1460,7 @@ rtr_page_copy_rec_list_end_no_locks(
 		offsets1 = rec_get_offsets(cur1_rec, index, offsets1, is_leaf,
 					   ULINT_UNDEFINED, &heap);
 
-		ins_rec = page_cur_insert_rec_low(cur_rec, index,
+		ins_rec = page_cur_insert_rec_low(&page_cur, index,
 						  cur1_rec, offsets1, mtr);
 		if (UNIV_UNLIKELY(!ins_rec)) {
 			fprintf(stderr, "page number %ld and %ld\n",
@@ -1582,14 +1582,11 @@ rtr_page_copy_rec_list_start_no_locks(
 		offsets1 = rec_get_offsets(cur1_rec, index, offsets1, is_leaf,
 					   ULINT_UNDEFINED, &heap);
 
-		ins_rec = page_cur_insert_rec_low(cur_rec, index,
+		ins_rec = page_cur_insert_rec_low(&page_cur, index,
 						  cur1_rec, offsets1, mtr);
 		if (UNIV_UNLIKELY(!ins_rec)) {
-			fprintf(stderr, "page number %ld and %ld\n",
-				(long)new_block->page.id.page_no(),
-				(long)block->page.id.page_no());
-
-			ib::fatal() << "rec offset " << page_offset(rec)
+			ib::fatal() << new_block->page.id
+				<< "rec offset " << page_offset(rec)
 				<< ", cur1 offset "
 				<<  page_offset(page_cur_get_rec(&cur1))
 				<< ", cur_rec offset "

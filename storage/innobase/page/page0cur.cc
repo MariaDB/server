@@ -1385,12 +1385,11 @@ space available, NULL otherwise. The cursor stays at the same position.
 rec_t*
 page_cur_insert_rec_low(
 /*====================*/
-	rec_t*		current_rec,/*!< in: pointer to current record after
-				which the new record is inserted */
+	const page_cur_t*cur,	/*!< in: page cursor */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	const rec_t*	rec,	/*!< in: pointer to a physical record */
+	const rec_t*	rec,	/*!< in: record to insert after cur */
 	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	byte*		insert_buf;
 	ulint		rec_size;
@@ -1403,6 +1402,8 @@ page_cur_insert_rec_low(
 	ulint		heap_no;	/*!< heap number of the inserted
 					record */
 
+	rec_t* current_rec = cur->rec;
+
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
 	page = page_align(current_rec);
@@ -1411,7 +1412,7 @@ page_cur_insert_rec_low(
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID) == index->id
 	      || index->is_dummy
-	      || (mtr ? mtr->is_inside_ibuf() : dict_index_is_ibuf(index)));
+	      || mtr->is_inside_ibuf());
 
 	ut_ad(!page_rec_is_supremum(current_rec));
 
@@ -1613,7 +1614,7 @@ page_cur_insert_rec_zip(
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
 	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	byte*		insert_buf;
 	ulint		rec_size;
@@ -1638,7 +1639,7 @@ page_cur_insert_rec_zip(
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID) == index->id
 	      || index->is_dummy
-	      || (mtr ? mtr->is_inside_ibuf() : dict_index_is_ibuf(index)));
+	      || mtr->is_inside_ibuf());
 	ut_ad(!page_get_instant(page));
 	ut_ad(!page_cur_is_after_last(cursor));
 #ifdef UNIV_ZIP_DEBUG
@@ -1731,8 +1732,10 @@ page_cur_insert_rec_zip(
 		}
 
 		/* Try compressing the whole page afterwards. */
+		const mtr_log_t log_mode = mtr->set_log_mode(MTR_LOG_NONE);
 		insert_rec = page_cur_insert_rec_low(
-			cursor->rec, index, rec, offsets, NULL);
+			cursor, index, rec, offsets, mtr);
+		mtr->set_log_mode(log_mode);
 
 		/* If recovery is on, this implies that the compression
 		of the page was successful during runtime. Had that not
@@ -2039,10 +2042,8 @@ no_direction:
 	page_zip_write_rec(page_zip, insert_rec, index, offsets, 1);
 
 	/* 9. Write log record of the insert */
-	if (UNIV_LIKELY(mtr != NULL)) {
-		page_cur_insert_rec_write_log(insert_rec, rec_size,
-					      cursor->rec, index, mtr);
-	}
+	page_cur_insert_rec_write_log(insert_rec, rec_size,
+				      cursor->rec, index, mtr);
 
 	return(insert_rec);
 }
