@@ -265,20 +265,20 @@ make_config() {
 get_root_password() {
     status=1
     while [ $status -eq 1 ]; do
-	stty -echo
-	echo $echo_n "Enter current password for root (enter for none): $echo_c"
-	read password
-	echo
-	stty echo
-	if [ "x$password" = "x" ]; then
-	    emptypass=1
-	else
-	    emptypass=0
-	fi
-	rootpass=$password
-	make_config
-	do_query "show create user root@localhost"
-	status=$?
+    	stty -echo
+    	echo $echo_n "Enter current password for root (enter for none): $echo_c"
+    	read password
+    	echo
+    	stty echo
+    	if [ "x$password" = "x" ]; then
+    	    emptypass=1
+    	else
+    	    emptypass=0
+    	fi
+    	rootpass=$password
+    	make_config
+    	do_query "show create user root@localhost"
+    	status=$?
     done
     if grep -q unix_socket $output; then
       emptypass=0
@@ -322,32 +322,32 @@ set_root_password() {
     stty echo
 
     if [ "$password1" != "$password2" ]; then
-  echo "Sorry, passwords do not match."
-  echo
-  return 1
+      echo "Sorry, passwords do not match."
+      echo
+      return 1
     fi
 
     if [ "$password1" = "" ]; then
-  echo "Sorry, you can't use an empty password here."
-  echo
-  return 1
+      echo "Sorry, you can't use an empty password here."
+      echo
+      return 1
     fi
 
     esc_pass=`basic_single_escape "$password1"`
     do_query "UPDATE mysql.global_priv SET priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', PASSWORD('$esc_pass')) WHERE User='$rootuser';"
     if [ $? -eq 0 ]; then
-  echo "Password updated successfully!"
-  echo "Reloading privilege tables.."
-  reload_privilege_tables
-  if [ $? -eq 1 ]; then
-    clean_and_exit
-  fi
-  echo
-  rootpass=$password1
-  make_config
+      echo "Password updated successfully!"
+      echo "Reloading privilege tables.."
+      reload_privilege_tables
+      if [ $? -eq 1 ]; then
+        clean_and_exit
+      fi
+      echo
+      rootpass=$password1
+      make_config
     else
-  echo "Password update failed!"
-  clean_and_exit
+      echo "Password update failed!"
+      clean_and_exit
     fi
 
     return 0
@@ -361,16 +361,15 @@ remove_anonymous_users() {
 	echo " ... Failed!"
 	clean_and_exit
     fi
-
     return 0
 }
 
 remove_remote_root() {
     do_query "DELETE FROM mysql.global_priv WHERE User='$rootuser' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
+	   echo " ... Success!"
     else
-	echo " ... Failed!"
+	   echo " ... Failed!"
     fi
 }
 
@@ -378,17 +377,17 @@ remove_test_database() {
     echo " - Dropping test database..."
     do_query "DROP DATABASE IF EXISTS test;"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
+	   echo " ... Success!"
     else
-	echo " ... Failed!  Not critical, keep moving..."
+	   echo " ... Failed!  Not critical, keep moving..."
     fi
 
     echo " - Removing privileges on test database..."
     do_query "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
+	   echo " ... Success!"
     else
-	echo " ... Failed!  Not critical, keep moving..."
+	   echo " ... Failed!  Not critical, keep moving..."
     fi
 
     return 0
@@ -397,11 +396,11 @@ remove_test_database() {
 reload_privilege_tables() {
     do_query "FLUSH PRIVILEGES;"
     if [ $? -eq 0 ]; then
-	echo " ... Success!"
-	return 0
+	   echo " ... Success!"
+	   return 0
     else
-	echo " ... Failed!"
-	return 1
+	   echo " ... Failed!"
+	   return 1
     fi
 }
 
@@ -463,10 +462,9 @@ done
 if [ "$reply" = "n" ]; then
     echo " ... skipping."
 else
-    status=1
-    while [ $status -eq 1 ]; do
+    set_root_user
+    while [ $? -eq 1 ]; do
       set_root_user
-      status=$?
     done
 fi
 echo
