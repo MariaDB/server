@@ -1704,7 +1704,7 @@ parse_log:
 				break;
 			}
 			if (page &&
-			    !page_zip_compress(block, index, *ptr, NULL)) {
+			    !page_zip_compress(block, index, *ptr, mtr)) {
 				ut_error;
 			}
 			ptr++;

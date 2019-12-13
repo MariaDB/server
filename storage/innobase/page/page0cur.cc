@@ -1772,14 +1772,20 @@ page_cur_insert_rec_zip(
 			ut_ad(pos > 0);
 
 			if (!log_compressed) {
-				if (page_zip_compress(
-					    page_cur_get_block(cursor),
-					    index, level, NULL)) {
+				const mtr_log_t log_mode = mtr->set_log_mode(
+					MTR_LOG_NONE);
+				const bool ok = page_zip_compress(
+					page_cur_get_block(cursor),
+					index, level, mtr);
+				mtr->set_log_mode(log_mode);
+				if (ok) {
 					page_cur_insert_rec_write_log(
 						insert_rec, rec_size,
 						cursor->rec, index, mtr);
 					page_zip_compress_write_log_no_data(
-						level, page, index, mtr);
+						level,
+						page_cur_get_block(cursor),
+						index, mtr);
 
 					rec_offs_make_valid(
 						insert_rec, index,
@@ -1991,7 +1997,7 @@ use_heap:
 	UNIV_MEM_ASSERT_RW(rec_get_start(insert_rec, offsets),
 			   rec_offs_size(offsets));
 
-	page_zip_dir_insert(page_zip, cursor->rec, free_rec, insert_rec);
+	page_zip_dir_insert(cursor, free_rec, insert_rec);
 
 	/* 6. Update the last insertion info in page header */
 

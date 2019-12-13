@@ -7153,8 +7153,7 @@ btr_cur_set_ownership_of_extern_field(
 
 	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 		mach_write_to_1(data + local_len + BTR_EXTERN_LEN, byte_val);
-		page_zip_write_blob_ptr(&block->page.zip, rec, index, offsets,
-					i, mtr);
+		page_zip_write_blob_ptr(block, rec, index, offsets, i, mtr);
 	} else {
 		mtr->write<1,mtr_t::OPT>(*block,
 					 data + local_len + BTR_EXTERN_LEN,
@@ -7826,7 +7825,7 @@ btr_store_big_rec_extern_fields(
 				/* We compress a page when finish bulk insert.*/
 				if (UNIV_LIKELY(op != BTR_STORE_INSERT_BULK)) {
 					page_zip_write_blob_ptr(
-						page_zip, rec, index, offsets,
+						rec_block, rec, index, offsets,
 						field_no, &mtr);
 				}
 
@@ -8103,8 +8102,7 @@ btr_free_externally_stored_field(
 				mach_write_to_4(field_ref + BTR_EXTERN_PAGE_NO,
 						next_page_no);
 				memset(field_ref + BTR_EXTERN_LEN, 0, 4);
-				page_zip_write_blob_ptr(&block->page.zip,
-							rec, index,
+				page_zip_write_blob_ptr(block, rec, index,
 							offsets, i, &mtr);
 			} else {
 				mtr.write<4>(*block,

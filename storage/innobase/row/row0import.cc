@@ -256,6 +256,8 @@ public:
 		return(page_cur_get_rec(&m_cur));
 	}
 
+	buf_block_t* current_block() const { return m_cur.block; }
+
 	/**
 	@return true if cursor is at the end */
 	bool	end() UNIV_NOTHROW
@@ -267,7 +269,6 @@ public:
 	@return true on success */
 	bool remove(
 		const dict_index_t*	index,
-		page_zip_des_t*		page_zip,
 		ulint*			offsets) UNIV_NOTHROW
 	{
 		ut_ad(page_is_leaf(m_cur.block->frame));
@@ -287,6 +288,7 @@ public:
 		}
 
 #ifdef UNIV_ZIP_DEBUG
+		page_zip_des_t* page_zip = buf_block_get_page_zip(m_cur.block);
 		ut_a(!page_zip || page_zip_validate(
 			     page_zip, m_cur.block->frame, index));
 #endif /* UNIV_ZIP_DEBUG */
@@ -303,6 +305,7 @@ public:
 
 private:
 	page_cur_t	m_cur;
+public:
 	mtr_t		m_mtr;
 };
 
@@ -823,7 +826,6 @@ public:
 		AbstractCallback(trx, space_id),
 		m_cfg(cfg),
 		m_index(cfg->m_indexes),
-		m_page_zip_ptr(0),
 		m_rec_iter(),
 		m_offsets_(), m_offsets(m_offsets_),
 		m_heap(0),
@@ -930,9 +932,6 @@ private:
 
 	/** Current index whose pages are being imported */
 	row_index_t*		m_index;
-
-	/** Alias for m_page_zip, only set for compressed pages. */
-	page_zip_des_t*		m_page_zip_ptr;
 
 	/** Iterator over records in a block */
 	RecIterator		m_rec_iter;
@@ -1616,9 +1615,10 @@ PageConverter::adjust_cluster_index_blob_column(
 
 	mach_write_to_4(field, get_space_id());
 
-	if (m_page_zip_ptr) {
+	if (UNIV_LIKELY_NULL(m_rec_iter.current_block()->page.zip.data)) {
 		page_zip_write_blob_ptr(
-			m_page_zip_ptr, rec, m_cluster_index, offsets, i, 0);
+			m_rec_iter.current_block(), rec, m_cluster_index,
+			offsets, i, &m_rec_iter.m_mtr);
 	}
 
 	return(DB_SUCCESS);
@@ -1689,7 +1689,7 @@ inline bool PageConverter::purge() UNIV_NOTHROW
 	const dict_index_t*	index = m_index->m_srv_index;
 
 	/* We can't have a page that is empty and not root. */
-	if (m_rec_iter.remove(index, m_page_zip_ptr, m_offsets)) {
+	if (m_rec_iter.remove(index, m_offsets)) {
 
 		++m_index->m_stats.m_n_purged;
 
@@ -1720,11 +1720,13 @@ PageConverter::adjust_cluster_record(
 		record. */
 		ulint	trx_id_pos = m_cluster_index->n_uniq
 			? m_cluster_index->n_uniq : 1;
-		if (m_page_zip_ptr) {
+		if (UNIV_LIKELY_NULL(m_rec_iter.current_block()
+				     ->page.zip.data)) {
 			page_zip_write_trx_id_and_roll_ptr(
-				m_page_zip_ptr, rec, m_offsets, trx_id_pos,
+				&m_rec_iter.current_block()->page.zip,
+				rec, m_offsets, trx_id_pos,
 				0, roll_ptr_t(1) << ROLL_PTR_INSERT_FLAG_POS,
-				NULL);
+				&m_rec_iter.m_mtr);
 		} else {
 			ulint	len;
 			byte*	ptr = rec_get_nth_field(
@@ -1843,8 +1845,8 @@ PageConverter::update_index_page(
 	the current index id. */
 	mach_write_to_8(page + (PAGE_HEADER + PAGE_INDEX_ID),
 			m_index->m_srv_index->id);
-	if (m_page_zip_ptr) {
-		memcpy(&m_page_zip_ptr->data[PAGE_HEADER + PAGE_INDEX_ID],
+	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+		memcpy(&block->page.zip.data[PAGE_HEADER + PAGE_INDEX_ID],
 		       &block->frame[PAGE_HEADER + PAGE_INDEX_ID], 8);
 	}
 
@@ -1891,11 +1893,11 @@ PageConverter::update_index_page(
 		/* Set PAGE_MAX_TRX_ID on secondary index leaf pages. */
 		mach_write_to_8(&block->frame[PAGE_HEADER + PAGE_MAX_TRX_ID],
 				m_trx->id);
-		if (m_page_zip_ptr) {
-			memcpy(&m_page_zip_ptr
-			       ->data[PAGE_HEADER + PAGE_MAX_TRX_ID],
-			       &block->frame[PAGE_HEADER + PAGE_MAX_TRX_ID],
-			       8);
+		if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+			memcpy_aligned<8>(&block->page.zip.data
+					  [PAGE_HEADER + PAGE_MAX_TRX_ID],
+					  &block->frame
+					  [PAGE_HEADER + PAGE_MAX_TRX_ID], 8);
 		}
 	} else {
 clear_page_max_trx_id:
@@ -1904,10 +1906,12 @@ clear_page_max_trx_id:
 		in MySQL 5.6, 5.7 and MariaDB 10.0 and 10.1
 		would set the field to the transaction ID even
 		on clustered index pages. */
-		memset(&block->frame[PAGE_HEADER + PAGE_MAX_TRX_ID], 0, 8);
-		if (m_page_zip_ptr) {
-			memset(&m_page_zip_ptr
-			       ->data[PAGE_HEADER + PAGE_MAX_TRX_ID], 0, 8);
+		memset_aligned<8>(&block->frame[PAGE_HEADER + PAGE_MAX_TRX_ID],
+				  0, 8);
+		if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+			memset_aligned<8>(&block->page.zip.data
+					  [PAGE_HEADER + PAGE_MAX_TRX_ID],
+					  0, 8);
 		}
 	}
 
@@ -1962,12 +1966,6 @@ PageConverter::update_page(buf_block_t* block, uint16_t& page_type)
 	dberr_t		err = DB_SUCCESS;
 
 	ut_ad(!block->page.zip.data == !is_compressed_table());
-
-	if (block->page.zip.data) {
-		m_page_zip_ptr = &block->page.zip;
-	} else {
-		ut_ad(!m_page_zip_ptr);
-	}
 
 	switch (page_type = fil_page_get_type(get_frame(block))) {
 	case FIL_PAGE_TYPE_FSP_HDR:

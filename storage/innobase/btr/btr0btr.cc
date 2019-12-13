@@ -780,7 +780,7 @@ inline void btr_node_ptr_set_child_page_no(buf_block_t *block,
         REC_NODE_PTR_SIZE);
 
   if (UNIV_LIKELY_NULL(block->page.zip.data))
-    page_zip_write_node_ptr(&block->page.zip, rec, offs, page_no, mtr);
+    page_zip_write_node_ptr(block, rec, offs, page_no, mtr);
   else
     mtr->write<4>(*block, rec + offs - REC_NODE_PTR_SIZE, page_no);
 }
