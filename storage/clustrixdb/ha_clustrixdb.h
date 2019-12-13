@@ -45,6 +45,7 @@ private:
   bool is_scan;
   MY_BITMAP scan_fields;
   bool sorted_scan;
+  clustrix_lock_mode_t clx_lock_type;
 
   uint last_dup_errkey;
 

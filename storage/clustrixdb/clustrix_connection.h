@@ -21,6 +21,12 @@ Copyright (c) 2019, MariaDB Corporation.
 
 #define CLUSTRIX_SERVER_REQUEST 30
 
+typedef enum clustrix_lock_mode {
+    CLUSTRIX_NO_LOCKS,
+    CLUSTRIX_SHARED,
+    CLUSTRIX_EXCLUSIVE,
+} clustrix_lock_mode_t;
+
 class clustrix_connection_cursor;
 class clustrix_connection
 {
@@ -101,7 +107,8 @@ public:
                  uchar *packed_new_data, size_t packed_new_length);
   int key_delete(ulonglong clustrix_table_oid,
                  uchar *packed_key, size_t packed_key_length);
-  int key_read(ulonglong clustrix_table_oid, uint index, MY_BITMAP *read_set,
+  int key_read(ulonglong clustrix_table_oid, uint index,
+               clustrix_lock_mode_t lock_mode, MY_BITMAP *read_set,
                uchar *packed_key, ulong packed_key_length, uchar **rowdata,
                ulong *rowdata_length);
 
@@ -115,8 +122,9 @@ public:
     READ_FROM_LAST,    /* rows with backwards from last key. */
   };
 
-  int scan_table(ulonglong clustrix_table_oid, uint index,
-                 enum sort_order sort, MY_BITMAP *read_set, ushort row_req,
+  int scan_table(ulonglong clustrix_table_oid,
+                 clustrix_lock_mode_t lock_mode,
+                 MY_BITMAP *read_set, ushort row_req,
                  clustrix_connection_cursor **scan);
   int scan_query(String &stmt, uchar *fieldtype, uint fields, uchar *null_bits,
                  uint null_bits_size, uchar *field_metadata,
@@ -124,6 +132,7 @@ public:
                  clustrix_connection_cursor **scan);
   int update_query(String &stmt, LEX_CSTRING &dbname, ulonglong *affected_rows);
   int scan_from_key(ulonglong clustrix_table_oid, uint index,
+                    clustrix_lock_mode_t lock_mode,
                     enum scan_type scan_dir, bool sorted_scan,
                     MY_BITMAP *read_set, uchar *packed_key,
                     ulong packed_key_length, ushort row_req,

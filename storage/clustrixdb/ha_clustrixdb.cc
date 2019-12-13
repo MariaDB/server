@@ -434,6 +434,7 @@ int ha_clustrixdb::reset()
   upsert_flag &= ~CLUSTRIX_BULK_UPSERT;
   upsert_flag &= ~CLUSTRIX_HAS_UPSERT;
   upsert_flag &= ~CLUSTRIX_UPSERT_SENT;
+  clx_lock_type = CLUSTRIX_NO_LOCKS;
   return 0;
 }
 
@@ -776,25 +777,23 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
   if (exact) {
     is_scan = false;
     ulong rowdata_length;
-    if ((error_code = trx->key_read(clustrix_table_oid, 0,
-                                    table->read_set, packed_key, packed_key_len,
-                                    &rowdata, &rowdata_length)))
-      goto err;
-
-    error_code = unpack_row_to_buf(rgi, table, buf, rowdata, table->read_set,
-                                   rowdata + rowdata_length);
+    error_code = trx->key_read(clustrix_table_oid, 0, clx_lock_type,
+                               table->read_set, packed_key, packed_key_len,
+                               &rowdata, &rowdata_length);
+    if (!error_code)
+        error_code = unpack_row_to_buf(rgi, table, buf, rowdata,
+                                       table->read_set,
+                                       rowdata + rowdata_length);
   } else {
     is_scan = true;
-    if ((error_code = trx->scan_from_key(clustrix_table_oid, active_index, st,
-                                         sorted_scan, &scan_fields, packed_key,
-                                         packed_key_len,
-                                         THDVAR(thd, row_buffer), &scan_cur)))
-      goto err;
-
-    error_code = rnd_next(buf);
+    error_code = trx->scan_from_key(clustrix_table_oid, active_index,
+                                    clx_lock_type, st, sorted_scan,
+                                    &scan_fields, packed_key, packed_key_len,
+                                    THDVAR(thd, row_buffer), &scan_cur);
+    if (!error_code)
+        error_code = rnd_next(buf);
   }
 
-err:
   if (rowdata)
     my_free(rowdata);
 
@@ -817,6 +816,7 @@ int ha_clustrixdb::index_first(uchar *buf)
     DBUG_RETURN(error_code);
 
   error_code = trx->scan_from_key(clustrix_table_oid, active_index,
+                                  clx_lock_type,
                                   clustrix_connection::READ_FROM_START,
                                   sorted_scan, &scan_fields, NULL, 0,
                                   THDVAR(thd, row_buffer), &scan_cur);
@@ -840,6 +840,7 @@ int ha_clustrixdb::index_last(uchar *buf)
     DBUG_RETURN(error_code);
 
   error_code = trx->scan_from_key(clustrix_table_oid, active_index,
+                                  clx_lock_type,
                                   clustrix_connection::READ_FROM_LAST,
                                   sorted_scan, &scan_fields, NULL, 0,
                                   THDVAR(thd, row_buffer), &scan_cur);
@@ -880,7 +881,6 @@ int ha_clustrixdb::index_end()
     DBUG_RETURN(rnd_end());
   else
     DBUG_RETURN(0);
-
 }
 
 int ha_clustrixdb::rnd_init(bool scan)
@@ -913,8 +913,7 @@ int ha_clustrixdb::rnd_init(bool scan)
   bitmap_set_all(&scan_fields);
 #endif
 
-  error_code = trx->scan_table(clustrix_table_oid, 0,
-                               clustrix_connection::SORT_NONE,
+  error_code = trx->scan_table(clustrix_table_oid, clx_lock_type,
                                &scan_fields, THDVAR(thd, row_buffer),
                                &scan_cur);
 
@@ -987,8 +986,8 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
 
   uchar *rowdata = NULL;
   ulong rowdata_length;
-  if ((error_code = trx->key_read(clustrix_table_oid, 0, table->read_set,
-                                  packed_key, packed_key_len,
+  if ((error_code = trx->key_read(clustrix_table_oid, 0, clx_lock_type,
+                                  table->read_set, packed_key, packed_key_len,
                                   &rowdata, &rowdata_length)))
     goto err;
 
@@ -1061,6 +1060,14 @@ int ha_clustrixdb::external_lock(THD *thd, int lock_type)
   DBUG_ENTER("ha_clustrixdb::external_lock()");
   int error_code;
   clustrix_connection *trx = get_trx(thd, &error_code);
+
+  if (lock_type == F_WRLCK)
+    clx_lock_type = CLUSTRIX_EXCLUSIVE;
+  else if (lock_type == F_RDLCK)
+    clx_lock_type = CLUSTRIX_SHARED;
+  else if (lock_type == F_UNLCK)
+    clx_lock_type = CLUSTRIX_NO_LOCKS;
+
   if (lock_type != F_UNLCK) {
     if (!trx->has_open_transaction())
       trx->begin_transaction();
