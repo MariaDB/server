@@ -11,8 +11,8 @@ n
 2002
 connection master;
 show slave hosts;
-Server_id	Host	Port	Master_id
-2	127.0.0.1	9999	1
+Server_id	Host	Port	Master_id	File	Position	Gtid
+2	127.0.0.1	9999	1		0	
 drop table t1;
 connection slave;
 stop slave;

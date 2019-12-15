@@ -3571,7 +3571,7 @@ Sys_semisync_master_trace_level(
        ON_UPDATE(fix_rpl_semi_sync_master_trace_level));
 
 static const char *repl_semisync_wait_point[]=
-{"AFTER_SYNC", "AFTER_COMMIT", NullS};
+{"AFTER_SYNC", "AFTER_COMMIT", "NONE", NullS};
 
 static Sys_var_on_access_global<Sys_var_enum,
                      PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_MASTER_WAIT_POINT>

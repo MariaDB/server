@@ -660,11 +660,15 @@ class Repl_semi_sync_master
   }
 
   mysql_mutex_t LOCK_rpl_semi_sync_master_enabled;
+
+  /* Export the current status */
+  void store_status(Protocol *protocol);
 };
 
 enum rpl_semi_sync_master_wait_point_t {
   SEMI_SYNC_MASTER_WAIT_POINT_AFTER_BINLOG_SYNC,
   SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT,
+  SEMI_SYNC_MASTER_WAIT_POINT_NONE,
 };
 
 extern Repl_semi_sync_master repl_semisync_master;

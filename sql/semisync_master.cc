@@ -18,6 +18,7 @@
 
 #include <my_global.h>
 #include "semisync_master.h"
+#include "repl_failsafe.h"
 
 #define TIME_THOUSAND 1000
 #define TIME_MILLION  1000000
@@ -595,6 +596,23 @@ l_end:
   DBUG_RETURN(result);
 }
 
+my_bool update_slave_info(THD *thd, Report_reply_binlog *report)
+{
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  auto si = thd->slave_info;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+
+  if (si)
+  {
+    if (si->server_id == report->server_id)
+    {
+      strncpy(si->log_file, report->log_file, FN_REFLEN - 1);
+      si->log_pos = report->log_pos;
+    }
+  }
+  return 0;
+}
+
 int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
                                                const char *log_file_name,
                                                my_off_t log_file_pos)
@@ -603,11 +621,17 @@ int Repl_semi_sync_master::report_reply_binlog(uint32 server_id,
   bool  can_release_threads = false;
   bool  need_copy_send_pos = true;
 
+  Report_reply_binlog params;
+  params.server_id = server_id;
+  params.log_file = log_file_name;
+  params.log_pos = log_file_pos;
+
   DBUG_ENTER("Repl_semi_sync_master::report_reply_binlog");
 
   if (!(get_master_enabled()))
     DBUG_RETURN(0);
 
+  server_threads.iterate(update_slave_info, &params);
   lock();
 
   /* This is the real check inside the mutex. */
@@ -1332,6 +1356,13 @@ void Repl_semi_sync_master::check_and_switch()
          && rpl_semi_sync_master_clients == 0)
       switch_off();
   }
+  unlock();
+}
+
+void Repl_semi_sync_master::store_status(Protocol *protocol)
+{
+  lock();
+  protocol->store(is_on());
   unlock();
 }
 

@@ -1,0 +1,19 @@
+include/master-slave.inc
+[connection master]
+connection master;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SET a=1;
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	File	Position	Gtid	Semisync
+2	127.0.0.1	REPLICA_PORT	1		0		0
+SET GLOBAL rpl_semi_sync_master_enabled = ON;
+INSERT INTO t1 SET a=2;
+SHOW REPLICA HOSTS;
+Server_id	Host	Port	Master_id	File	Position	Gtid	Semisync
+2	127.0.0.1	REPLICA_PORT	1	master-bin.000001	878	0-1-3	1
+SET GLOBAL rpl_semi_sync_master_enabled = OFF;
+DROP TABLE t1;
+SHOW SLAVE HOSTS;
+Server_id	Host	Port	Master_id	File	Position	Gtid	Semisync
+2	127.0.0.1	16001	1	master-bin.000001	878	0-1-3	0
+include/rpl_end.inc

@@ -220,10 +220,13 @@ show status like 'Rpl_semi_sync_master_yes_tx';
 echo [ semi-sync replication of these transactions will fail ];
 insert into t1 values (500);
 
-# Wait for the semi-sync replication of this transaction to timeout
-let $status_var= Rpl_semi_sync_master_status;
-let $status_var_value= OFF;
-source include/wait_for_status_var.inc;
+if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE variable_name = 'RPL_SEMI_SYNC_MASTER_WAIT_POINT' AND variable_value = 'NONE'`)
+{
+  # Wait for the semi-sync replication of this transaction to timeout (which won't happen on RPL_SEMI_SYNC_MASTER_WAIT_POINT=NONE)
+  let $status_var= Rpl_semi_sync_master_status;
+  let $status_var_value= OFF;
+  source include/wait_for_status_var.inc;
+}
 
 # The second semi-sync check should be off because one transaction
 # times out during waiting.

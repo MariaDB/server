@@ -34,6 +34,24 @@ extern mysql_cond_t COND_rpl_status;
 extern TYPELIB rpl_role_typelib;
 extern const char* rpl_role_type[], *rpl_status_type[];
 
+typedef struct Report_reply_binlog {
+  uint32 server_id;
+  const char *log_file;
+  my_off_t log_pos;
+} Report_reply_binlog;
+
+typedef struct Slave_info
+{
+  uint32 server_id;
+  uint32 master_id;
+  char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
+  char user[USERNAME_LENGTH+1];
+  char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
+  uint16 port;
+  char log_file[FN_REFLEN];
+  my_off_t log_pos;
+} Slave_info;
+
 void change_rpl_status(ulong from_status, ulong to_status);
 int find_recovery_captain(THD* thd, MYSQL* mysql);
 

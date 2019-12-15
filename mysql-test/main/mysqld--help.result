@@ -1125,7 +1125,7 @@ The following specify which files/extra groups are read (specified before remain
  --rpl-semi-sync-master-wait-point=name 
  Should transaction wait for semi-sync ack after having
  synced binlog, or after having committed in storage
- engine.. One of: AFTER_SYNC, AFTER_COMMIT
+ engine.. One of: AFTER_SYNC, AFTER_COMMIT, NONE
  --rpl-semi-sync-slave-delay-master 
  Only write master info file when ack is needed.
  --rpl-semi-sync-slave-enabled 

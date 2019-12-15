@@ -1,0 +1,21 @@
+# The test verifies that slaves report their replication information to the master
+
+--source include/master-slave.inc
+--source include/have_binlog_format_mixed.inc
+
+--connection master
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SET a=1;
+--replace_column 3 'REPLICA_PORT'
+--replace_result $SLAVE_MYPORT REPLICA_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+SHOW REPLICA HOSTS;
+SET GLOBAL rpl_semi_sync_master_enabled = ON;
+INSERT INTO t1 SET a=2;
+--replace_column 3 'REPLICA_PORT'
+--replace_result $SLAVE_MYPORT REPLICA_PORT $DEFAULT_MASTER_PORT DEFAULT_PORT
+SHOW REPLICA HOSTS;
+SET GLOBAL rpl_semi_sync_master_enabled = OFF;
+DROP TABLE t1;
+SHOW SLAVE HOSTS;
+
+--source include/rpl_end.inc
