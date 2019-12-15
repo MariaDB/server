@@ -5636,6 +5636,11 @@ int mysqld_main(int argc, char **argv)
 
   if (opt_bootstrap)
   {
+    if (opt_init_file && *opt_init_file)
+    {
+      if (read_init_file(opt_init_file))
+        unireg_abort(1);
+    }
     select_thread_in_use= 0;                    // Allow 'kill' to work
     int bootstrap_error= bootstrap(mysql_stdin);
     if (!abort_loop)
@@ -5664,7 +5669,7 @@ int mysqld_main(int argc, char **argv)
     unireg_abort(1);
   }
 
-  if (opt_init_file && *opt_init_file)
+  if (opt_init_file && *opt_init_file && !opt_bootstrap)
   {
     if (read_init_file(opt_init_file))
       unireg_abort(1);
