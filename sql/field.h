@@ -1125,6 +1125,11 @@ public:
     my_ptrdiff_t l_offset= (my_ptrdiff_t) (record -  table->record[0]);
     return ptr + l_offset;
   }
+  uchar *ptr_in_record( uchar *record) const
+  {
+    my_ptrdiff_t l_offset= (my_ptrdiff_t) (record -  table->record[0]);
+    return ptr + l_offset;
+  }
   virtual int set_default();
 
   bool has_update_default_function() const
