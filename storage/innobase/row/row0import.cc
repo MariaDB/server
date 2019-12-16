@@ -1837,8 +1837,8 @@ PageConverter::update_index_page(
 	}
 
 #ifdef UNIV_ZIP_DEBUG
-	ut_a(!is_compressed_table()
-	     || page_zip_validate(m_page_zip_ptr, page, m_index->m_srv_index));
+	ut_a(!block->page.zip.data || page_zip_validate(&block->page.zip, page,
+							m_index->m_srv_index));
 #endif /* UNIV_ZIP_DEBUG */
 
 	/* This has to be written to uncompressed index header. Set it to
