@@ -34,7 +34,7 @@ ENDIF(UNIX)
 
 MYSQL_ADD_EXECUTABLE(mysqltest_embedded ../../client/mysqltest.cc
   COMPONENT Test)
-TARGET_LINK_LIBRARIES(mysqltest_embedded mysqlserver pcreposix pcre)
+TARGET_LINK_LIBRARIES(mysqltest_embedded mysqlserver pcre2-8 pcre2-posix)
 
 IF(CMAKE_GENERATOR MATCHES "Xcode")
 # It does not seem possible to tell Xcode the resulting target might need

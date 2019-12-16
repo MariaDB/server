@@ -202,7 +202,8 @@ The following specify which files/extra groups are read (specified before remain
  using the password expiration options in ALTER USER.
  --default-regex-flags=name 
  Default flags for the regex library. Any combination of: 
- DOTALL, DUPNAMES, EXTENDED, EXTRA, MULTILINE, UNGREEDY
+ DOTALL, DUPNAMES, EXTENDED, EXTENDED_MORE, EXTRA, 
+ MULTILINE, UNGREEDY
  --default-storage-engine=name 
  The default storage engine for new tables
  --default-time-zone=name 

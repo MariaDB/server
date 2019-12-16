@@ -382,6 +382,7 @@ SELECT 'AB' RLIKE 'A B';
 SELECT 'AB' RLIKE 'A# this is a comment\nB';
 SET default_regex_flags=DEFAULT;
 
+--error ER_REGEXP_ERROR
 SELECT 'Aq' RLIKE 'A\\q';
 SET default_regex_flags='EXTRA';
 --error ER_REGEXP_ERROR

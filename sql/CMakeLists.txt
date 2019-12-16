@@ -193,7 +193,7 @@ RECOMPILE_FOR_EMBEDDED)
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql
-  mysys mysys_ssl dbug strings vio pcre
+  mysys mysys_ssl dbug strings vio pcre2-8
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT}
   ${SSL_LIBRARIES}
   ${LIBSYSTEMD})

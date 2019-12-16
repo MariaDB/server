@@ -5994,29 +5994,40 @@ static const char *default_regex_flags_names[]=
   "DOTALL",    // (?s)  . matches anything including NL
   "DUPNAMES",  // (?J)  Allow duplicate names for subpatterns
   "EXTENDED",  // (?x)  Ignore white space and # comments
-  "EXTRA",     // (?X)  extra features (e.g. error on unknown escape character)
+  "EXTENDED_MORE",//(?xx)  Ignore white space and # comments inside cheracter
+  "EXTRA",     // means nothing since PCRE2
   "MULTILINE", // (?m)  ^ and $ match newlines within data
   "UNGREEDY",  // (?U)  Invert greediness of quantifiers
   0
 };
 static const int default_regex_flags_to_pcre[]=
 {
-  PCRE_DOTALL,
-  PCRE_DUPNAMES,
-  PCRE_EXTENDED,
-  PCRE_EXTRA,
-  PCRE_MULTILINE,
-  PCRE_UNGREEDY,
+  PCRE2_DOTALL,
+  PCRE2_DUPNAMES,
+  PCRE2_EXTENDED,
+  PCRE2_EXTENDED_MORE,
+  -1, /* EXTRA flag not available since PCRE2 */
+  PCRE2_MULTILINE,
+  PCRE2_UNGREEDY,
   0
 };
-int default_regex_flags_pcre(const THD *thd)
+int default_regex_flags_pcre(THD *thd)
 {
   ulonglong src= thd->variables.default_regex_flags;
   int i, res;
   for (i= res= 0; default_regex_flags_to_pcre[i]; i++)
   {
     if (src & (1ULL << i))
+    {
+      if (default_regex_flags_to_pcre[i] < 0)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_UNKNOWN_ERROR,
+                            "PCRE2 doens't support the EXTRA flag. Ignored.");
+        continue;
+      }
       res|= default_regex_flags_to_pcre[i];
+    }
   }
   return res;
 }

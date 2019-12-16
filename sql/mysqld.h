@@ -575,8 +575,6 @@ extern pthread_t signal_thread;
 extern struct st_VioSSLFd * ssl_acceptor_fd;
 #endif /* HAVE_OPENSSL */
 
-extern ulonglong my_pcre_frame_size;
-
 /*
   The following variables were under INNODB_COMPABILITY_HOOKS
  */

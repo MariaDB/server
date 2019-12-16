@@ -113,7 +113,6 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_reload.h"  // reload_acl_and_cache
-#include "pcre.h"
 
 #ifdef HAVE_POLL_H
 #include <poll.h>
@@ -3260,20 +3259,6 @@ static void init_libstrings()
 #endif
 }
 
-ulonglong my_pcre_frame_size;
-
-static void init_pcre()
-{
-  pcre_malloc= pcre_stack_malloc= my_str_malloc_mysqld;
-  pcre_free= pcre_stack_free= my_free;
-  pcre_stack_guard= check_enough_stack_size_slow;
-  /* See http://pcre.org/original/doc/html/pcrestack.html */
-  my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0);
-  // pcre can underestimate its stack usage. Use a safe value, as in the manual
-  set_if_bigger(my_pcre_frame_size, 500);
-  my_pcre_frame_size += 16; // Again, safety margin, see the manual
-}
-
 
 /**
   Initialize one of the global date/time format variables.
@@ -4130,7 +4115,6 @@ static int init_common_variables()
   if (item_create_init())
     return 1;
   item_init();
-  init_pcre();
   /*
     Process a comma-separated character set list and choose
     the first available character set. This is mostly for

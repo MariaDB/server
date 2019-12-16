@@ -1302,13 +1302,6 @@ bool Item_func_replace::fix_length_and_dec()
 
 
 /*********************************************************************/
-bool Item_func_regexp_replace::fix_fields(THD *thd, Item **ref)
-{
-  re.set_recursion_limit(thd);
-  return Item_str_func::fix_fields(thd, ref);
-}
-
-
 bool Item_func_regexp_replace::fix_length_and_dec()
 {
   if (agg_arg_charsets_for_string_result_with_comparison(collation, args, 3))
@@ -1360,7 +1353,7 @@ bool Item_func_regexp_replace::append_replacement(String *str,
       if (n < re.nsubpatterns())
       {
         /* A valid sub-pattern reference found */
-        int pbeg= re.subpattern_start(n), plength= re.subpattern_end(n) - pbeg;
+        size_t pbeg= re.subpattern_start(n), plength= re.subpattern_end(n) - pbeg;
         if (str->append(source->str + pbeg, plength, cs))
           return true;
       }
@@ -1389,7 +1382,7 @@ String *Item_func_regexp_replace::val_str(String *str)
   String *source= args[0]->val_str(&tmp0);
   String *replace= args[2]->val_str(&tmp2);
   LEX_CSTRING src, rpl;
-  int startoffset= 0;
+  size_t startoffset= 0;
 
   if ((null_value= (args[0]->null_value || args[2]->null_value ||
                     re.recompile(args[1]))))
@@ -1418,7 +1411,8 @@ String *Item_func_regexp_replace::val_str(String *str)
         Append the rest of the source string
         starting from startoffset until the end of the source.
       */
-      if (str->append(src.str + startoffset, src.length - startoffset, re.library_charset()))
+      if (str->append(src.str + startoffset, src.length - startoffset,
+                      re.library_charset()))
         goto err;
       return str;
     }
@@ -1427,7 +1421,8 @@ String *Item_func_regexp_replace::val_str(String *str)
       Append prefix, the part before the matching pattern.
       starting from startoffset until the next match
     */
-    if (str->append(src.str + startoffset, re.subpattern_start(0) - startoffset, re.library_charset()))
+    if (str->append(src.str + startoffset,
+          re.subpattern_start(0) - startoffset, re.library_charset()))
       goto err;
 
     // Append replacement
@@ -1442,13 +1437,6 @@ String *Item_func_regexp_replace::val_str(String *str)
 err:
   null_value= true;
   return (String *) 0;
-}
-
-
-bool Item_func_regexp_substr::fix_fields(THD *thd, Item **ref)
-{
-  re.set_recursion_limit(thd);
-  return Item_str_func::fix_fields(thd, ref);
 }
 
 
@@ -1486,8 +1474,7 @@ String *Item_func_regexp_substr::val_str(String *str)
     return str;
 
   if (str->append(source->ptr() + re.subpattern_start(0),
-                  re.subpattern_end(0) - re.subpattern_start(0),
-                  re.library_charset()))
+                  re.subpattern_length(0), re.library_charset()))
     goto err;
 
   return str;

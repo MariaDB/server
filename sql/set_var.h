@@ -443,7 +443,7 @@ sql_mode_t expand_sql_mode(sql_mode_t sql_mode);
 const char *sql_mode_string_representation(uint bit_number);
 bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                     LEX_CSTRING *ls);
-int default_regex_flags_pcre(const THD *thd);
+int default_regex_flags_pcre(THD *thd);
 
 extern sys_var *Sys_autocommit_ptr, *Sys_last_gtid_ptr,
   *Sys_character_set_client_ptr, *Sys_character_set_connection_ptr,
