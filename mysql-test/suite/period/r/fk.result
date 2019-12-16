@@ -122,47 +122,31 @@ id	x	s	e
 1	2	2017-01-28	2017-01-29
 update t set x= 2 where s='2017-01-03' and e='2017-01-20';
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
-#
-# False-positives
-#
 # Expand left
 update t set s= '2017-01-01' where s = '2017-01-03' and e = '2017-01-20';
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 # Shrink left
 update t set s= '2017-01-05' where e = '2017-01-20';
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 # Expand right
 update t set e= '2017-02-10' where s = '2017-01-26' and e = '2017-01-30';
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 # Shrink right
 update t set e= '2017-01-29' where s = '2017-01-26';
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 delete from s where s = '2017-01-27' and e = '2017-01-30';
 update t set e= '2017-01-29' where s = '2017-01-26' and x = 1;
 # Shrink both
-# Not a false-positive
 update t set s= '2017-01-27', e= '2017-01-28' where x = 2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
-# False-positive
 update t set s= '2017-01-28', e= '2017-01-29' where x = 2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 # Expand both
 update t set s= '2017-01-20', e= '2017-02-05' where x = 2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 # Move right
-# Not a false-positive
 update t set s= '2017-02-02', e= '2017-02-25' where x = 2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
-# False-positive
 update t set s= '2017-01-28', e= '2017-02-25' where x = 2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 # Move left
-# Not a false-positive
 update t set s= '2017-01-20', e= '2017-01-27' where x = 2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
-# False-positive
 update t set s= '2017-01-20', e= '2017-01-29' where x = 2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 create or replace table s (x int, y int, z char(200), pk int,
 e date, s date, period for fp(s,e),
 unique(x), unique(z),

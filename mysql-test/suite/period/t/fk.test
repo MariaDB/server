@@ -103,20 +103,13 @@ select * from s;
 update t set x= 2 where s='2017-01-03' and e='2017-01-20';
 
 
---echo #
---echo # False-positives
---echo #
-
 --echo # Expand left
---error ER_ROW_IS_REFERENCED_2
 update t set s= '2017-01-01' where s = '2017-01-03' and e = '2017-01-20';
 
 --echo # Shrink left
---error ER_ROW_IS_REFERENCED_2
 update t set s= '2017-01-05' where e = '2017-01-20';
 
 --echo # Expand right
---error ER_ROW_IS_REFERENCED_2
 update t set e= '2017-02-10' where s = '2017-01-26' and e = '2017-01-30';
 
 --echo # Shrink right
@@ -127,31 +120,24 @@ delete from s where s = '2017-01-27' and e = '2017-01-30';
 update t set e= '2017-01-29' where s = '2017-01-26' and x = 1;
 
 --echo # Shrink both
---echo # Not a false-positive
 --error ER_ROW_IS_REFERENCED_2
 update t set s= '2017-01-27', e= '2017-01-28' where x = 2;
---echo # False-positive
---error ER_ROW_IS_REFERENCED_2
+
 update t set s= '2017-01-28', e= '2017-01-29' where x = 2;
 
 --echo # Expand both
---error ER_ROW_IS_REFERENCED_2
 update t set s= '2017-01-20', e= '2017-02-05' where x = 2;
 
 --echo # Move right
---echo # Not a false-positive
 --error ER_ROW_IS_REFERENCED_2
 update t set s= '2017-02-02', e= '2017-02-25' where x = 2;
---echo # False-positive
---error ER_ROW_IS_REFERENCED_2
+
 update t set s= '2017-01-28', e= '2017-02-25' where x = 2;
 
 --echo # Move left
---echo # Not a false-positive
 --error ER_ROW_IS_REFERENCED_2
 update t set s= '2017-01-20', e= '2017-01-27' where x = 2;
---echo # False-positive
---error ER_ROW_IS_REFERENCED_2
+
 update t set s= '2017-01-20', e= '2017-01-29' where x = 2;
 
 create or replace table s (x int, y int, z char(200), pk int,
