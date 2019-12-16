@@ -21,6 +21,22 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include <assert.h>
 #include <algorithm>
 
+
+/* Suppress TSAN warnings, that we believe are not critical. */
+#if defined(__has_feature)
+#define TPOOL_HAS_FEATURE(...) __has_feature(__VA_ARGS__)
+#else
+#define TPOOL_HAS_FEATURE(...) 0
+#endif
+
+#if TPOOL_HAS_FEATURE(address_sanitizer)
+#define TPOOL_SUPPRESS_TSAN  __attribute__((no_sanitize("thread"),noinline))
+#elif defined(__GNUC__) && defined (__SANITIZE_THREAD__)
+#define TPOOL_SUPPRESS_TSAN  __attribute__((no_sanitize_thread,noinline))
+#else
+#define TPOOL_SUPPRESS_TSAN
+#endif
+
 namespace tpool
 {
 
@@ -106,7 +122,7 @@ public:
     m_waiters--;
   }
 
-  size_t size()
+  TPOOL_SUPPRESS_TSAN size_t size()
   {
     return m_cache.size();
   }
