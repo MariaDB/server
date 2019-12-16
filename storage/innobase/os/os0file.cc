@@ -4083,12 +4083,15 @@ void os_aio_free()
 be other, synchronous, pending writes. */
 void os_aio_wait_until_no_pending_writes()
 {
-  if (write_slots->pending_io_count())
-  {
+  bool notify_wait = write_slots->pending_io_count() > 0;
+
+  if (notify_wait)
     tpool::tpool_wait_begin();
-    write_slots->wait();
-    tpool::tpool_wait_end();
-  }
+
+   write_slots->wait();
+
+   if (notify_wait)
+     tpool::tpool_wait_end();
 }
 
 

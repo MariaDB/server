@@ -99,8 +99,8 @@ public:
   waitable_task(callback_func func, void* arg, task_group* group = nullptr);
   void add_ref() override;
   void release() override;
-  bool is_running() { return m_ref_count > 0; }
-  bool get_ref_count() {return m_ref_count;}
+  TPOOL_SUPPRESS_TSAN bool is_running() { return get_ref_count() > 0; }
+  TPOOL_SUPPRESS_TSAN int get_ref_count() {return m_ref_count;}
   void wait();
   virtual ~waitable_task() {};
 };
