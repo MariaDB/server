@@ -21,6 +21,7 @@ INCLUDE_DIRECTORIES(
 ${CMAKE_SOURCE_DIR}/include 
 ${CMAKE_SOURCE_DIR}/libmysqld
 ${CMAKE_SOURCE_DIR}/sql
+${CMAKE_SOURCE_DIR}/tpool
 ${CMAKE_BINARY_DIR}/sql 
 ${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
@@ -154,7 +155,7 @@ ENDIF()
 
 
 SET(LIBS 
-  dbug strings mysys mysys_ssl pcre vio 
+  dbug strings mysys mysys_ssl pcre vio tpool
   ${ZLIB_LIBRARY} ${SSL_LIBRARIES} 
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
   ${EMBEDDED_PLUGIN_LIBS}
