@@ -4174,6 +4174,11 @@ os_aio_func(
 	cb->m_opcode = type.is_read() ? tpool::aio_opcode::AIO_PREAD : tpool::aio_opcode::AIO_PWRITE;
 	memcpy(cb->m_userdata, &userdata, sizeof(userdata));
 
+	ut_a(reinterpret_cast<size_t>(cb->m_buffer) % OS_FILE_LOG_BLOCK_SIZE
+	     == 0);
+	ut_a(cb->m_len % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_a(cb->m_offset % OS_FILE_LOG_BLOCK_SIZE == 0);
+
 	if (!srv_thread_pool->submit_io(cb))
 		return DB_SUCCESS;
 
