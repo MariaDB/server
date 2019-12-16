@@ -79,4 +79,19 @@ delete from t1;
 select x from t1 for system_time all;
 drop table t1;
 
+--echo #
+--echo # MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+--echo #
+create or replace table t1 (a int) with system versioning;
+replace into t1 values (1), (2);
+create or replace trigger tr before delete on t1 for each row delete from xx;
+create or replace procedure pr() delete from t1;
+--error ER_NO_SUCH_TABLE
+call pr;
+--error ER_NO_SUCH_TABLE
+call pr;
+drop procedure pr;
+drop trigger tr;
+drop table t1;
+
 --source suite/versioning/common_finish.inc

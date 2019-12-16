@@ -632,7 +632,7 @@ inline bool fil_space_t::is_rotational() const
 	return false;
 }
 
-/** Common InnoDB file extentions */
+/** Common InnoDB file extensions */
 enum ib_extention {
 	NO_EXT = 0,
 	IBD = 1,

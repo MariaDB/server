@@ -797,6 +797,38 @@ bool Item_subselect::wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl)
 }
 
 
+/*
+  @brief
+   Check whether the items are of comparable type or not
+
+  @details
+    This check are done because materialization is not performed
+    if the left expr and right expr are of the same types.
+    @see subquery_types_allow_materialization()
+
+  @retval
+   0 comparable
+   1 not comparable
+*/
+
+static bool cmp_row_types(Item* item1, Item* item2)
+{
+  uint n= item1->cols();
+  if (item2->check_cols(n))
+    return true;
+
+  for (uint i=0; i < n; i++)
+  {
+    Item *inner= item1->element_index(i);
+    Item *outer= item2->element_index(i);
+    if (!inner->type_handler()->subquery_type_allows_materialization(inner,
+                                                                     outer))
+      return true;
+  }
+  return false;
+}
+
+
 /**
   @brief
     Transform IN predicate into IN subquery
@@ -841,10 +873,22 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   /* SELECT_LEX object where the transformation is performed */
   SELECT_LEX *parent_select= lex->current_select;
   uint8 save_derived_tables= lex->derived_tables;
+
+  /*
+    Make sure that create_tmp_table will not fail due to too long keys.
+    Here the strategy would mainly use materialization, so we need to make
+    sure that the materialized table can be created.
+
+    The checks here are the same as in subquery_type_allows_materialization()
+  */
+  uint32 length= max_length_of_left_expr();
+  if (!length  || length > tmp_table_max_key_length() ||
+      args[0]->cols() > tmp_table_max_key_parts())
+    return this;
   
   for (uint i=1; i < arg_count; i++)
   {
-    if (!args[i]->const_item())
+    if (!args[i]->const_item() || cmp_row_types(args[0], args[i]))
       return this;
   }
 
@@ -946,6 +990,16 @@ err:
   lex->derived_tables= save_derived_tables;
   thd->lex->current_select= parent_select;
   return NULL;
+}
+
+
+uint32 Item_func_in::max_length_of_left_expr()
+{
+  uint n= args[0]->cols();
+  uint32 length= 0;
+  for (uint i=0; i < n; i++)
+    length+= args[0]->element_index(i)->max_length;
+  return length;
 }
 
 

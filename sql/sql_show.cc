@@ -1190,7 +1190,8 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
     goto exit;
   }
   else if (lex->table_type == TABLE_TYPE_SEQUENCE &&
-           table_list->table->s->table_type != TABLE_TYPE_SEQUENCE)
+           (!table_list->table ||
+            table_list->table->s->table_type != TABLE_TYPE_SEQUENCE))
   {
     my_error(ER_NOT_SEQUENCE, MYF(0),
              table_list->db.str, table_list->table_name.str);

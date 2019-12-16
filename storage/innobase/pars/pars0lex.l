@@ -249,28 +249,8 @@ In the state 'id', only two actions are possible (defined below). */
 			return(PARS_IN_TOKEN);
 }
 
-"OUT"		{
-			return(PARS_OUT_TOKEN);
-}
-
-"BINARY"	{
-			return(PARS_BINARY_TOKEN);
-}
-
-"BLOB"		{
-			return(PARS_BLOB_TOKEN);
-}
-
 "INT"		{
 			return(PARS_INT_TOKEN);
-}
-
-"INTEGER"	{
-			return(PARS_INT_TOKEN);
-}
-
-"FLOAT"		{
-			return(PARS_FLOAT_TOKEN);
 }
 
 "CHAR"		{
@@ -321,16 +301,8 @@ In the state 'id', only two actions are possible (defined below). */
 			return(PARS_SELECT_TOKEN);
 }
 
-"SUM"		{
-			return(PARS_SUM_TOKEN);
-}
-
 "COUNT"		{
 			return(PARS_COUNT_TOKEN);
-}
-
-"DISTINCT"	{
-			return(PARS_DISTINCT_TOKEN);
 }
 
 "FROM"		{
@@ -343,10 +315,6 @@ In the state 'id', only two actions are possible (defined below). */
 
 "FOR"		{
 			return(PARS_FOR_TOKEN);
-}
-
-"READ"		{
-			return(PARS_READ_TOKEN);
 }
 
 "ORDER"		{
@@ -405,14 +373,6 @@ In the state 'id', only two actions are possible (defined below). */
 			return(PARS_TABLE_TOKEN);
 }
 
-"COMPACT"	{
-			return(PARS_COMPACT_TOKEN);
-}
-
-"BLOCK_SIZE"	{
-			return(PARS_BLOCK_SIZE_TOKEN);
-}
-
 "INDEX"		{
 			return(PARS_INDEX_TOKEN);
 }
@@ -453,28 +413,12 @@ In the state 'id', only two actions are possible (defined below). */
 			return(PARS_NOTFOUND_TOKEN);
 }
 
-"TO_CHAR"	{
-			return(PARS_TO_CHAR_TOKEN);
-}
-
-"TO_NUMBER"	{
-			return(PARS_TO_NUMBER_TOKEN);
-}
-
 "TO_BINARY"	{
 			return(PARS_TO_BINARY_TOKEN);
 }
 
-"BINARY_TO_NUMBER" {
-			return(PARS_BINARY_TO_NUMBER_TOKEN);
-}
-
 "SUBSTR"	{
 			return(PARS_SUBSTR_TOKEN);
-}
-
-"REPLSTR"	{
-			return(PARS_REPLSTR_TOKEN);
 }
 
 "CONCAT"	{
@@ -489,30 +433,6 @@ In the state 'id', only two actions are possible (defined below). */
 			return(PARS_LENGTH_TOKEN);
 }
 
-"SYSDATE"	{
-			return(PARS_SYSDATE_TOKEN);
-}
-
-"PRINTF"	{
-			return(PARS_PRINTF_TOKEN);
-}
-
-"ASSERT"	{
-			return(PARS_ASSERT_TOKEN);
-}
-
-"RND"		{
-			return(PARS_RND_TOKEN);
-}
-
-"RND_STR"	{
-			return(PARS_RND_STR_TOKEN);
-}
-
-"ROW_PRINTF"	{
-			return(PARS_ROW_PRINTF_TOKEN);
-}
-
 "COMMIT"	{
 			return(PARS_COMMIT_TOKEN);
 }
@@ -523,10 +443,6 @@ In the state 'id', only two actions are possible (defined below). */
 
 "WORK"		{
 			return(PARS_WORK_TOKEN);
-}
-
-"UNSIGNED"	{
-			return(PARS_UNSIGNED_TOKEN);
 }
 
 "EXIT"		{

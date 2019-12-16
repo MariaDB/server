@@ -3184,7 +3184,7 @@ fts_fetch_doc_from_rec(
 	dict_index_t*	clust_index,	/*!< in: cluster index */
 	btr_pcur_t*	pcur,		/*!< in: cursor whose position
 					has been stored */
-	ulint*		offsets,	/*!< in: offsets */
+	offset_t*	offsets,	/*!< in: offsets */
 	fts_doc_t*	doc)		/*!< out: fts doc to hold parsed
 					documents */
 {
@@ -3458,7 +3458,7 @@ fts_add_doc_by_id(
 		btr_pcur_t*	doc_pcur;
 		const rec_t*	clust_rec;
 		btr_pcur_t	clust_pcur;
-		ulint*		offsets = NULL;
+		offset_t*	offsets = NULL;
 		ulint		num_idx = ib_vector_size(cache->get_docs);
 
 		rec = btr_pcur_get_rec(&pcur);
@@ -5126,7 +5126,7 @@ doc_id_t
 fts_get_doc_id_from_rec(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	const ulint*		offsets)
+	const offset_t*		offsets)
 {
 	ulint f = dict_col_get_index_pos(
 		&index->table->cols[index->table->fts->doc_col], index);

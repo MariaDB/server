@@ -625,6 +625,30 @@ call p;
 i
 drop procedure p;
 drop table t1;
+#
+# MDEV-21234 Server crashes in in setup_on_expr upon 3rd execution of SP
+#
+create table t1 (a varchar(8));
+insert into t1 values ('foo'),('bar');
+create table t2 (b date);
+create procedure pr() insert into t2 select * from t1;
+call pr;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+prepare stmt from 'insert into t2 select * from t1';
+execute stmt;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+alter table t1 add system versioning;
+call pr;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+call pr;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+execute stmt;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+execute stmt;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+drop prepare stmt;
+drop procedure pr;
+drop table t1, t2;
 call verify_trt_dummy(34);
 No	A	B	C	D
 1	1	1	1	1

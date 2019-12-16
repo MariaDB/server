@@ -1000,3 +1000,12 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	note	Not supported for non-INTERVAL history partitions
 test.t1	check	note	The storage engine for the table doesn't support check
 drop table t1;
+#
+# MDEV-21233 Assertion `m_extra_cache' failed in ha_partition::late_extra_cache
+#
+create table t1 (id int, a varchar(8)) with system versioning partition by key (id) partitions 2;
+insert into t1 values  (1,'foo'),(2,'bar');
+create table t2 (b int);
+insert into t2 values (1),(2);
+update t1, t2 set a = 1;
+drop table t1, t2;

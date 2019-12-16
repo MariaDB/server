@@ -173,7 +173,7 @@ PageBulk::init()
 @param[in]	rec		record
 @param[in]	offsets		record offsets */
 template<PageBulk::format fmt>
-inline void PageBulk::insertPage(const rec_t *rec, ulint *offsets)
+inline void PageBulk::insertPage(const rec_t *rec, offset_t *offsets)
 {
 	ut_ad((m_page_zip != nullptr) == (fmt == COMPRESSED));
 	ut_ad((fmt != REDUNDANT) == m_is_comp);
@@ -188,7 +188,7 @@ inline void PageBulk::insertPage(const rec_t *rec, ulint *offsets)
 	/* Check whether records are in order. */
 	if (!page_rec_is_infimum(m_cur_rec)) {
 		rec_t*	old_rec = m_cur_rec;
-		ulint*	old_offsets = rec_get_offsets(
+		offset_t* old_offsets = rec_get_offsets(
 			old_rec, m_index, NULL,	is_leaf,
 			ULINT_UNDEFINED, &m_heap);
 
@@ -246,7 +246,7 @@ inline void PageBulk::insertPage(const rec_t *rec, ulint *offsets)
 /** Insert a record in the page.
 @param[in]	rec		record
 @param[in]	offsets		record offsets */
-inline void PageBulk::insert(const rec_t *rec, ulint *offsets)
+inline void PageBulk::insert(const rec_t *rec, offset_t *offsets)
 {
   if (UNIV_LIKELY_NULL(m_page_zip))
     insertPage<COMPRESSED>(rec, offsets);
@@ -426,7 +426,7 @@ rec_t*
 PageBulk::getSplitRec()
 {
 	rec_t*		rec;
-	ulint*		offsets;
+	offset_t*	offsets;
 	ulint		total_used_size;
 	ulint		total_recs_size;
 	ulint		n_recs;
@@ -472,7 +472,7 @@ PageBulk::copyIn(
 {
 
 	rec_t*		rec = split_rec;
-	ulint*		offsets = NULL;
+	offset_t*	offsets = NULL;
 
 	ut_ad(m_rec_no == 0);
 	ut_ad(page_rec_is_user_rec(rec));
@@ -518,7 +518,7 @@ PageBulk::copyOut(
 	ut_ad(n > 0);
 
 	/* Set last record's next in page */
-	ulint*		offsets = NULL;
+	offset_t*	offsets = NULL;
 	rec = page_rec_get_prev(split_rec);
 	offsets = rec_get_offsets(rec, m_index, offsets,
 				  page_rec_is_leaf(split_rec),
@@ -624,7 +624,7 @@ the blob data is logged first, then the record is logged in bulk mode.
 dberr_t
 PageBulk::storeExt(
 	const big_rec_t*	big_rec,
-	ulint*			offsets)
+	offset_t*		offsets)
 {
 	/* Note: not all fileds are initialized in btr_pcur. */
 	btr_pcur_t	btr_pcur;
@@ -885,7 +885,7 @@ BtrBulk::insert(
 	ulint		rec_size = rec_get_converted_size(m_index, tuple, n_ext);
 	big_rec_t*	big_rec = NULL;
 	rec_t*		rec = NULL;
-	ulint*		offsets = NULL;
+	offset_t*	offsets = NULL;
 
 	if (page_bulk->needExt(tuple, rec_size)) {
 		/* The record is so big that we have to store some fields

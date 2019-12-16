@@ -1923,6 +1923,10 @@ struct vers_select_conds_t
   {
     return orig_type != SYSTEM_TIME_UNSPECIFIED;
   }
+  bool need_setup() const
+  {
+    return type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL;
+  }
   bool eq(const vers_select_conds_t &conds) const;
 };
 
@@ -3138,7 +3142,7 @@ public:
 
      @param[in] timestamp
      @param[in] true if we search for a lesser timestamp, false if greater
-     @retval true if exists, false it not exists or an error occured
+     @retval true if exists, false it not exists or an error occurred
    */
   bool query(MYSQL_TIME &commit_time, bool backwards);
   /**

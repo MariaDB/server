@@ -116,3 +116,17 @@ x
 2
 1
 drop table t1;
+#
+# MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+#
+create or replace table t1 (a int) with system versioning;
+replace into t1 values (1), (2);
+create or replace trigger tr before delete on t1 for each row delete from xx;
+create or replace procedure pr() delete from t1;
+call pr;
+ERROR 42S02: Table 'test.xx' doesn't exist
+call pr;
+ERROR 42S02: Table 'test.xx' doesn't exist
+drop procedure pr;
+drop trigger tr;
+drop table t1;

@@ -84,10 +84,12 @@ public:
   void    SetNext(PTABDEF tdfp) {Next = tdfp;}
   int     GetMultiple(void) {return Multiple;}
   int     GetPseudo(void) {return Pseudo;}
-  PCSZ    GetPath(void);
+	RECFM   GetRecfm(void) {return Recfm;}
+	PCSZ    GetPath(void);
 //PSZ     GetPath(void)
 //          {return (Database) ? (PSZ)Database : Cat->GetDataPath();}
-  bool    SepIndex(void) {return GetBoolCatInfo("SepIndex", false);}
+	RECFM   GetTableFormat(const char* type);
+	bool    SepIndex(void) {return GetBoolCatInfo("SepIndex", false);}
   bool    IsReadOnly(void) {return Read_Only;}
   virtual AMT    GetDefType(void) {return TYPE_AM_TAB;}
   virtual PIXDEF GetIndx(void) {return NULL;}
@@ -108,7 +110,8 @@ public:
   // Members
   PCSZ    Schema;               /* Table schema (for ODBC)             */
   PCSZ    Desc;                 /* Table description                   */
-  uint    Catfunc;              /* Catalog function ID                 */
+	RECFM   Recfm;                /* File or table format                */
+	uint    Catfunc;              /* Catalog function ID                 */
   int     Card;                 /* (max) number of rows in table       */
   int     Elemt;                /* Number of rows in blocks or rowset  */
   int     Sort;                 /* Table already sorted ???            */

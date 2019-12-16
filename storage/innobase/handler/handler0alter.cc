@@ -3102,7 +3102,7 @@ innobase_rec_to_mysql(
 	struct TABLE*		table,	/*!< in/out: MySQL table */
 	const rec_t*		rec,	/*!< in: record */
 	const dict_index_t*	index,	/*!< in: index */
-	const ulint*		offsets)/*!< in: rec_get_offsets(
+	const offset_t*		offsets)/*!< in: rec_get_offsets(
 					rec, index, ...) */
 {
 	uint	n_fields	= table->s->fields;
@@ -5756,7 +5756,7 @@ add_all_virtual:
 
 		ut_ad(j == n + f);
 
-		ulint* offsets = NULL;
+		offset_t* offsets = NULL;
 		mem_heap_t* offsets_heap = NULL;
 		big_rec_t* big_rec;
 		err = btr_cur_pessimistic_update(
@@ -6660,6 +6660,7 @@ new_table_failed:
 				if (index) {
 					dict_mem_index_free(index);
 				}
+error_handling_drop_uncached_1:
 				while (++a < ctx->num_to_add_index) {
 					dict_mem_index_free(ctx->add_index[a]);
 				}
@@ -6671,7 +6672,7 @@ new_table_failed:
 			ctx->add_index[a] = index;
 			if (!info.row_size_is_acceptable(*index)) {
 				error = DB_TOO_BIG_RECORD;
-				goto error_handling;
+				goto error_handling_drop_uncached_1;
 			}
 			index->parser = index_defs[a].parser;
 			index->has_new_v_col = has_new_v_col;

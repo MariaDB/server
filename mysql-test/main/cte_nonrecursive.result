@@ -1674,6 +1674,24 @@ t
 1
 use test;
 #
+# MDEV-18460: Server crashed in strmake / tdc_create_key /
+# THD::create_tmp_table_def_key
+#
+connect con1,localhost,root,,;
+CREATE TEMPORARY TABLE test.t (a INT);
+WITH cte AS (SELECT 1) SELECT * FROM cte;
+1
+1
+WITH t AS (SELECT 1) SELECT * FROM t;
+1
+1
+WITH cte AS (SELECT 1) SELECT * FROM t;
+ERROR 3D000: No database selected
+DROP TABLE test.t;
+connection default;
+disconnect con1;
+# End of 10.2 tests
+#
 # MDEV-20730: Syntax error on SELECT INTO @variable with CTE
 #
 with data as (select 1 as id)

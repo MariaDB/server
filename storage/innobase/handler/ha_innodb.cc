@@ -13041,15 +13041,18 @@ bool create_table_info_t::row_size_is_acceptable(
     const dict_field_t *field= dict_index_get_nth_field(&index, idx);
 
     ut_ad((!field->name) == field->col->is_dropped());
-    ib::error_or_warn eow(strict);
-    if (field->name)
-      eow << "Cannot add field " << field->name << " in table ";
-    else
-      eow << "Cannot add an instantly dropped column in table ";
-    eow << index.table->name << " because after adding it, the row size is "
-        << info.get_overrun_size()
-        << " which is greater than maximum allowed size ("
-        << info.max_leaf_size << " bytes) for a record on index leaf page.";
+    if (strict || global_system_variables.log_warnings > 2)
+    {
+      ib::error_or_warn eow(strict);
+      if (field->name)
+        eow << "Cannot add field " << field->name << " in table ";
+      else
+        eow << "Cannot add an instantly dropped column in table ";
+      eow << index.table->name << " because after adding it, the row size is "
+          << info.get_overrun_size()
+          << " which is greater than maximum allowed size ("
+          << info.max_leaf_size << " bytes) for a record on index leaf page.";
+    }
 
     if (strict)
     {

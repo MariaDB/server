@@ -1517,9 +1517,9 @@ struct handlerton
      Used by open_table_error(), by the default rename_table and delete_table
      handler methods, and by the default discovery implementation.
   
-     For engines that have more than one file name extentions (separate
+     For engines that have more than one file name extensions (separate
      metadata, index, and/or data files), the order of elements is relevant.
-     First element of engine file name extentions array should be metadata
+     First element of engine file name extensions array should be metadata
      file extention. This is implied by the open_table_error()
      and the default discovery implementation.
      

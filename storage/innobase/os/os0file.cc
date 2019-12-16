@@ -3924,6 +3924,10 @@ static bool is_linux_native_aio_supported()
 				<< "Unable to create temp file to check"
 				" native AIO support.";
 
+			int ret = io_destroy(io_ctx);
+			ut_a(ret != -EINVAL);
+			ut_ad(ret != -EFAULT);
+
 			return(false);
 		}
 	}
@@ -3953,6 +3957,10 @@ static bool is_linux_native_aio_supported()
 				<< "Unable to open"
 				<< " \"" << name << "\" to check native"
 				<< " AIO read support.";
+
+			int ret = io_destroy(io_ctx);
+			ut_a(ret != EINVAL);
+			ut_ad(ret != EFAULT);
 
 			return(false);
 		}
@@ -3996,7 +4004,13 @@ static bool is_linux_native_aio_supported()
 
 	switch (err) {
 	case 1:
-		return(true);
+		{
+			int ret = io_destroy(io_ctx);
+			ut_a(ret != -EINVAL);
+			ut_ad(ret != -EFAULT);
+
+			return(true);
+		}
 
 	case -EINVAL:
 	case -ENOSYS:
@@ -4015,6 +4029,10 @@ static bool is_linux_native_aio_supported()
 			<< (srv_read_only_mode ? name : "tmpdir")
 			<< "returned error[" << -err << "]";
 	}
+
+	int ret = io_destroy(io_ctx);
+	ut_a(ret != -EINVAL);
+	ut_ad(ret != -EFAULT);
 
 	return(false);
 }
@@ -4397,9 +4415,14 @@ void fil_node_t::find_metadata(os_file_t file
 		on_ssd = win32_is_ssd(volume_handle);
 		CloseHandle(volume_handle);
 	} else {
-		if (GetLastError() != ERROR_ACCESS_DENIED) {
-			os_file_handle_error_no_exit(volume,
-				"CreateFile()", FALSE);
+		/*
+		Report error, unless it is expected, e.g
+		missing permissions, or error when trying to
+		open volume for UNC share.
+		*/
+		if (GetLastError() != ERROR_ACCESS_DENIED
+		    && GetDriveType(volume) == DRIVE_FIXED) {
+			    os_file_handle_error_no_exit(volume, "CreateFile()", FALSE);
 		}
 	}
 

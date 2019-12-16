@@ -423,6 +423,35 @@ call p;
 drop procedure p;
 drop table t1;
 
+--echo #
+--echo # MDEV-21234 Server crashes in in setup_on_expr upon 3rd execution of SP
+--echo #
+create table t1 (a varchar(8));
+insert into t1 values ('foo'),('bar');
+create table t2 (b date);
+
+create procedure pr() insert into t2 select * from t1;
+--error ER_TRUNCATED_WRONG_VALUE
+call pr;
+prepare stmt from 'insert into t2 select * from t1';
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+alter table t1 add system versioning;
+--error ER_TRUNCATED_WRONG_VALUE
+call pr;
+--error ER_TRUNCATED_WRONG_VALUE
+call pr;
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+drop prepare stmt;
+
+# cleanup
+drop procedure pr;
+drop table t1, t2;
+
+
 call verify_trt_dummy(34);
 
 -- source suite/versioning/common_finish.inc

@@ -27,3 +27,14 @@ SELECT NEXT VALUE FOR v1;
 --error ER_NOT_SEQUENCE
 SELECT PREVIOUS VALUE FOR v1;
 drop view v1;
+
+--echo #
+--echo # MDEV 17978 Server crashes in mysqld_show_create_get_fields
+--echo # upon SHOW CREATE SEQUENCE on a broken view
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+DROP TABLE t1;
+--error ER_NOT_SEQUENCE
+SHOW CREATE SEQUENCE v1;
+DROP VIEW v1;

@@ -3633,6 +3633,15 @@ rank() over (partition by 'abc' order by 'xyz')
 1
 drop table t1;
 #
+# MDEV-19380: ASAN heap-use-after-free in Protocol::net_store_data
+#
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT (SELECT MIN('foo') OVER() FROM t1 LIMIT 1) as x;
+x
+foo
+drop table t1;
+#
 # End of 10.2 tests
 #
 #

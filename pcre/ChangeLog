@@ -1605,7 +1605,7 @@ Version 8.21 12-Dec-2011
     are added as well.
 
 3.  Fix cache-flush issue on PowerPC (It is still an experimental JIT port).
-    PCRE_EXTRA_TABLES is not suported by JIT, and should be checked before
+    PCRE_EXTRA_TABLES is not supported by JIT, and should be checked before
     calling _pcre_jit_exec. Some extra comments are added.
 
 4.  (*MARK) settings inside atomic groups that do not contain any capturing

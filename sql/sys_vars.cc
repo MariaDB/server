@@ -6341,7 +6341,7 @@ static Sys_var_enum Sys_session_track_transaction_info(
        "Track changes to the transaction attributes. OFF to disable; "
        "STATE to track just transaction state (Is there an active transaction? "
        "Does it have any data? etc.); CHARACTERISTICS to track transaction "
-       "state and report all statements needed to start a transaction with"
+       "state and report all statements needed to start a transaction with "
        "the same characteristics (isolation level, read only/read write,"
        "snapshot - but not any work done / data modified within the "
        "transaction).",

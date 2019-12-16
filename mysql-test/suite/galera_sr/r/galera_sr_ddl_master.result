@@ -48,8 +48,6 @@ SELECT COUNT(*) as expect_0 FROM mysql.wsrep_streaming_log;
 expect_0
 0
 connection node_2;
-SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
-set global wsrep_sync_wait=15;
 SELECT COUNT(*) as expect_6 FROM t1;
 expect_6
 6
