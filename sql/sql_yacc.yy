@@ -1717,7 +1717,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 
 %type <lex_str_ptr> query_name
 
-%type <lex_str_list> opt_with_column_list
+%type <lex_str_list> opt_with_column_list with_column_list
 
 %type <vers_range_unit> opt_history_unit
 %type <vers_history_point> history_point
@@ -14692,22 +14692,16 @@ with_list:
 with_list_element:
 	  query_name
 	  opt_with_column_list 
-          {
-            $2= new List<LEX_CSTRING> (Lex->with_column_list);
-            if (unlikely($2 == NULL))
-              MYSQL_YYABORT;
-            Lex->with_column_list.empty();
-          }
           AS '(' query_expression ')'
  	  {
             LEX *lex= thd->lex;
             const char *query_start= lex->sphead ? lex->sphead->m_tmp_query
                                                  : thd->query();
-            const char *spec_start= $5.pos() + 1;
-            With_element *elem= new With_element($1, *$2, $6);
+            const char *spec_start= $4.pos() + 1;
+            With_element *elem= new With_element($1, *$2, $5);
 	    if (elem == NULL || Lex->curr_with_clause->add_with_element(elem))
 	      MYSQL_YYABORT;
-            if (elem->set_unparsed_spec(thd, spec_start, $7.pos(),
+            if (elem->set_unparsed_spec(thd, spec_start, $6.pos(),
                                         spec_start - query_start))
               MYSQL_YYABORT;
 	  }
@@ -14716,22 +14710,31 @@ with_list_element:
 
 opt_with_column_list:
           /* empty */
-          { $$= NULL; }
+          {
+            if (($$= new (thd->mem_root) List<LEX_CSTRING>) == NULL)
+              MYSQL_YYABORT;
+          }
         | '(' with_column_list ')'
-          { $$= NULL; }
+          { $$= $2; }
         ;
-
 
 with_column_list:
           ident 
           {
-            Lex->with_column_list.push_back((LEX_CSTRING*)
-                    thd->memdup(&$1, sizeof(LEX_CSTRING)));
+
+            $$= new (thd->mem_root) List<LEX_CSTRING>;
+            if (unlikely($$ == NULL) ||
+                unlikely($$->push_back((LEX_CSTRING*)
+                                       thd->memdup(&$1, sizeof(LEX_CSTRING)),
+                                       thd->mem_root)))
+              MYSQL_YYABORT;
 	  }
         | with_column_list ',' ident
           {
-            Lex->with_column_list.push_back((LEX_CSTRING*)
-                    thd->memdup(&$3, sizeof(LEX_CSTRING)));
+            $1->push_back((LEX_CSTRING*)
+                          thd->memdup(&$3, sizeof(LEX_CSTRING)),
+                          thd->mem_root);
+            $$= $1;
           }
         ;
 

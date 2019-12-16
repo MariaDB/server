@@ -1224,7 +1224,6 @@ void LEX::start(THD *thd_arg)
   set_var_list.empty();
   param_list.empty();
   view_list.empty();
-  with_column_list.empty();
   with_persistent_for_clause= FALSE;
   column_list= NULL;
   index_list= NULL;
