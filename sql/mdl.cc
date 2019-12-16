@@ -24,6 +24,8 @@
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/psi/mysql_stage.h>
+#include <tpool.h>
+
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_MDL_wait_LOCK_wait_status;
 
@@ -1125,6 +1127,7 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
   owner->ENTER_COND(&m_COND_wait_status, &m_LOCK_wait_status,
                     wait_state_name, & old_stage);
   thd_wait_begin(NULL, THD_WAIT_META_DATA_LOCK);
+  tpool::tpool_wait_begin();
   while (!m_wait_status && !owner->is_killed() &&
          wait_result != ETIMEDOUT && wait_result != ETIME)
   {
@@ -1147,6 +1150,7 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
     wait_result= mysql_cond_timedwait(&m_COND_wait_status, &m_LOCK_wait_status,
                                       abs_timeout);
   }
+  tpool::tpool_wait_end();
   thd_wait_end(NULL);
 
   if (m_wait_status == EMPTY)
