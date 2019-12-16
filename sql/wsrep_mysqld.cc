@@ -1885,9 +1885,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
 
   wsrep::client_state& cs(thd->wsrep_cs());
   int ret= cs.enter_toi_local(key_array,
-                              wsrep::const_buffer(buff.ptr, buff.len),
-                              wsrep::provider::flag::start_transaction |
-                              wsrep::provider::flag::commit);
+                              wsrep::const_buffer(buff.ptr, buff.len));
 
   if (ret)
   {
