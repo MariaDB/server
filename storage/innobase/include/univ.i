@@ -199,9 +199,6 @@ using the call command. */
 						assertions. */
 #define UNIV_LRU_DEBUG				/* debug the buffer pool LRU */
 #define UNIV_HASH_DEBUG				/* debug HASH_ macros */
-#define UNIV_LOG_LSN_DEBUG			/* write LSN to the redo log;
-this will break redo log file compatibility, but it may be useful when
-debugging redo log application problems. */
 #define UNIV_IBUF_DEBUG				/* debug the insert buffer */
 #define UNIV_PERF_DEBUG                         /* debug flag that enables
                                                 light weight performance

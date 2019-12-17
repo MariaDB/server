@@ -1226,14 +1226,6 @@ dberr_t srv_start(bool create_new_db)
 	ib::info() << "!!!!!!!! UNIV_IBUF_DEBUG switched on !!!!!!!!!";
 #endif
 
-#ifdef UNIV_LOG_LSN_DEBUG
-	ib::info() << "!!!!!!!! UNIV_LOG_LSN_DEBUG switched on !!!!!!!!!";
-#endif /* UNIV_LOG_LSN_DEBUG */
-
-#if defined(COMPILER_HINTS_ENABLED)
-	ib::info() << "Compiler hints enabled.";
-#endif /* defined(COMPILER_HINTS_ENABLED) */
-
 #ifdef _WIN32
 	ib::info() << "Mutexes and rw_locks use Windows interlocked functions";
 #else

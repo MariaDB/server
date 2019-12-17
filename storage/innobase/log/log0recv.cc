@@ -1369,11 +1369,6 @@ parse_log:
 	const byte*	old_ptr = ptr;
 
 	switch (type) {
-#ifdef UNIV_LOG_LSN_DEBUG
-	case MLOG_LSN:
-		/* The LSN is checked in recv_parse_log_rec(). */
-		break;
-#endif /* UNIV_LOG_LSN_DEBUG */
 	case MLOG_1BYTE: case MLOG_2BYTES: case MLOG_4BYTES: case MLOG_8BYTES:
 	case MLOG_MEMSET:
 #ifdef UNIV_DEBUG
@@ -2361,20 +2356,6 @@ recv_parse_log_rec(
 	}
 
 	switch (*ptr) {
-#ifdef UNIV_LOG_LSN_DEBUG
-	case MLOG_LSN | MLOG_SINGLE_REC_FLAG:
-	case MLOG_LSN:
-		new_ptr = mlog_parse_initial_log_record(
-			ptr, end_ptr, type, space, page_no);
-		if (new_ptr != NULL) {
-			const lsn_t	lsn = static_cast<lsn_t>(
-				*space) << 32 | *page_no;
-			ut_a(lsn == recv_sys.recovered_lsn);
-		}
-
-		*type = MLOG_LSN;
-		return(new_ptr - ptr);
-#endif /* UNIV_LOG_LSN_DEBUG */
 	case MLOG_MULTI_REC_END:
 	case MLOG_DUMMY_RECORD:
 		*type = static_cast<mlog_id_t>(*ptr);
@@ -2560,9 +2541,6 @@ loop:
 
 	switch (*ptr) {
 	case MLOG_CHECKPOINT:
-#ifdef UNIV_LOG_LSN_DEBUG
-	case MLOG_LSN:
-#endif /* UNIV_LOG_LSN_DEBUG */
 	case MLOG_DUMMY_RECORD:
 		single_rec = true;
 		break;
@@ -2650,13 +2628,6 @@ loop:
 				return(true);
 			}
 			break;
-#ifdef UNIV_LOG_LSN_DEBUG
-		case MLOG_LSN:
-			/* Do not add these records to the hash table.
-			The page number and space id fields are misused
-			for something else. */
-			break;
-#endif /* UNIV_LOG_LSN_DEBUG */
 		default:
 			switch (store) {
 			case STORE_NO:
@@ -2822,13 +2793,6 @@ corrupted_log:
 			case MLOG_MULTI_REC_END:
 				/* Found the end mark for the records */
 				goto loop;
-#ifdef UNIV_LOG_LSN_DEBUG
-			case MLOG_LSN:
-				/* Do not add these records to the hash table.
-				The page number and space id fields are misused
-				for something else. */
-				break;
-#endif /* UNIV_LOG_LSN_DEBUG */
 			case MLOG_INDEX_LOAD:
 				recv_mlog_index_load(space, page_no, old_lsn);
 				break;
@@ -3833,11 +3797,6 @@ static const char* get_mlog_string(mlog_id_t type)
 
 	case MLOG_IBUF_BITMAP_INIT:
 		return("MLOG_IBUF_BITMAP_INIT");
-
-#ifdef UNIV_LOG_LSN_DEBUG
-	case MLOG_LSN:
-		return("MLOG_LSN");
-#endif /* UNIV_LOG_LSN_DEBUG */
 
 	case MLOG_WRITE_STRING:
 		return("MLOG_WRITE_STRING");
