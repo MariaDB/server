@@ -93,11 +93,6 @@ MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-class-memaccess")
 
 IF(NOT MSVC)
 
-  CHECK_FUNCTION_EXISTS(posix_memalign HAVE_POSIX_MEMALIGN)
-  IF(HAVE_POSIX_MEMALIGN)
-    ADD_DEFINITIONS(-DHAVE_POSIX_MEMALIGN)
-  ENDIF()
-
   # either define HAVE_IB_GCC_ATOMIC_BUILTINS or not
   # workaround for old gcc on x86, gcc atomic ops only work under -march=i686
   IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "i686" AND CMAKE_COMPILER_IS_GNUCC AND

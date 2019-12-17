@@ -92,17 +92,14 @@ buf_mark_space_corrupt(
 /* prototypes for new functions added to ha_innodb.cc */
 trx_t* innobase_get_trx();
 
-inline void* aligned_malloc(size_t size, size_t align) {
+static void* aligned_malloc(size_t size, size_t align) {
     void *result;
 #ifdef _MSC_VER
     result = _aligned_malloc(size, align);
-#elif defined (HAVE_POSIX_MEMALIGN)
-    if(posix_memalign(&result, align, size)) {
-	    result = 0;
-    }
 #else
-    /* Use unaligned malloc as fallback */
-    result = malloc(size);
+    if(posix_memalign(&result, align, size)) {
+	    result = NULL;
+    }
 #endif
     return result;
 }
