@@ -303,8 +303,29 @@ set_root_user() {
     echo "User updated successfully!"
     echo
     rootuser=$newuser
+    set_mysql_user_definer "$newuser"
   else
     echo "User update failed!"
+    clean_and_exit
+  fi
+
+  return 0
+}
+
+set_mysql_user_definer() {
+  def_user="root"
+  newuser="$1"
+
+  if [ -z "$newuser" ]; then
+    newuser="$def_user"
+  fi
+
+  do_query 'SET @v1 := (SELECT CONCAT("CREATE OR REPLACE DEFINER=`'"$newuser"'`@`localhost` VIEW `mysql`.`user` AS ", view_definition, ";") FROM information_schema.views WHERE table_schema="mysql" and table_name="user"); EXECUTE IMMEDIATE @v1;'
+  if [ $? -eq 0 ]; then
+    echo "mysql.user view definer updated successfully!"
+    echo
+  else
+    echo "mysql.user view definer update failed!"
     clean_and_exit
   fi
 
