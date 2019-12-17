@@ -2352,5 +2352,15 @@ SELECT (SELECT MIN('foo') OVER() FROM t1 LIMIT 1) as x;
 drop table t1;
 
 --echo #
+--echo # MDEV-16579: Wrong result of query using DISTINCT COUNT(*) OVER (*)
+--echo #
+
+CREATE TABLE t1 (i int) ;
+INSERT INTO t1 VALUES (1),(0),(1),(2),(0),(1),(2),(1),(2);
+
+SELECT  DISTINCT COUNT(*) OVER (), MOD(MIN(i),2) FROM t1 GROUP BY i ;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

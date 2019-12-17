@@ -3643,5 +3643,15 @@ x
 foo
 drop table t1;
 #
+# MDEV-16579: Wrong result of query using DISTINCT COUNT(*) OVER (*)
+#
+CREATE TABLE t1 (i int) ;
+INSERT INTO t1 VALUES (1),(0),(1),(2),(0),(1),(2),(1),(2);
+SELECT  DISTINCT COUNT(*) OVER (), MOD(MIN(i),2) FROM t1 GROUP BY i ;
+COUNT(*) OVER ()	MOD(MIN(i),2)
+3	0
+3	1
+drop table t1;
+#
 # End of 10.2 tests
 #
