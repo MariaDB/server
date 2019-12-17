@@ -6511,8 +6511,7 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h,
   result= h->ha_index_init(key_no, 0);
   if (result)
     return result;
-  store_record(table, check_unique_buf);
-  result= h->ha_index_read_map(table->record[0],
+  result= h->ha_index_read_map(table->check_unique_buf,
                                ptr, HA_WHOLE_KEY, HA_READ_KEY_EXACT);
   if (!result)
   {
@@ -6548,7 +6547,7 @@ static int check_duplicate_long_entry_key(TABLE *table, handler *h,
         }
       }
     }
-    while (!is_same && !(result= h->ha_index_next_same(table->record[0],
+    while (!is_same && !(result= h->ha_index_next_same(table->check_unique_buf,
                          ptr, key_info->key_length)));
     if (is_same)
       error= HA_ERR_FOUND_DUPP_KEY;
@@ -6562,11 +6561,10 @@ exit:
     table->file->errkey= key_no;
     if (h->ha_table_flags() & HA_DUPLICATE_POS)
     {
-      h->position(table->record[0]);
+      h->position(table->check_unique_buf);
       memcpy(table->file->dup_ref, h->ref, h->ref_length);
     }
   }
-  restore_record(table, check_unique_buf);
   h->ha_index_end();
   return error;
 }
