@@ -329,12 +329,9 @@ flush tables t1 with read lock;
 handler t1 read a next;
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 unlock tables;
-#
-# Sic: lost handler position.
-#
 handler t1 read a next;
 a
-1
+3
 handler t1 close;
 drop table t1;
 #
