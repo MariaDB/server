@@ -114,7 +114,7 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
   }
 
   /* cannot use ha_resolve_by_legacy_type without a THD */
-  if (thd && dbt < DB_TYPE_FIRST_DYNAMIC)
+  if (thd && dbt > DB_TYPE_UNKNOWN && dbt < DB_TYPE_FIRST_DYNAMIC)
   {
     handlerton *ht= ha_resolve_by_legacy_type(thd, (enum legacy_db_type)dbt);
     if (ht)
