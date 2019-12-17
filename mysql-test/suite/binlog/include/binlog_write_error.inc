@@ -38,6 +38,8 @@ DROP TRIGGER IF EXISTS tr2;
 DROP VIEW IF EXISTS v1, v2;
 enable_warnings;
 
+call mtr.add_suppression("Write to binary log failed: Error writing file*");
+
 --echo #
 --echo # Test injecting binlog write error when executing queries
 --echo #
