@@ -1173,7 +1173,7 @@ void wait_begin(thread_group_t *thread_group)
   DBUG_ASSERT(thread_group->connection_count > 0);
  
   if ((thread_group->active_thread_count == 0) && 
-     (thread_group->queue.is_empty() || !thread_group->listener))
+     (!thread_group->queue.is_empty() || !thread_group->listener))
   {
     /* 
       Group might stall while this thread waits, thus wake 
