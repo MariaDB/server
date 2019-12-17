@@ -527,6 +527,14 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   DBUG_RETURN(ret);
 }
 
+int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta& ws_meta,
+                                           const wsrep::const_buffer& data,
+                                           wsrep::mutable_buffer& err)
+{
+  DBUG_ENTER("Wsrep_applier_service::apply_nbo_begin");
+  DBUG_RETURN(0);
+}
+
 void Wsrep_applier_service::after_apply()
 {
   DBUG_ENTER("Wsrep_applier_service::after_apply");
