@@ -54,16 +54,12 @@ struct TDC_element
   /** Avoid false sharing between TDC_element and free_tables */
   char pad[CPU_LEVEL1_DCACHE_LINESIZE];
   Share_free_tables free_tables[1];
+
+  inline void wait_for_refs(uint my_refs);
+  void flush(THD *thd, bool mark_flushed);
+  void flush_unused(bool mark_flushed);
 };
 
-
-enum enum_tdc_remove_table_type
-{
-  TDC_RT_REMOVE_ALL,
-  TDC_RT_REMOVE_NOT_OWN,
-  TDC_RT_REMOVE_UNUSED,
-  TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE
-};
 
 extern ulong tdc_size;
 extern ulong tc_size;
@@ -81,8 +77,7 @@ int tdc_share_is_cached(THD *thd, const char *db, const char *table_name);
 extern TABLE_SHARE *tdc_acquire_share(THD *thd, TABLE_LIST *tl, uint flags,
                                       TABLE **out_table= 0);
 extern void tdc_release_share(TABLE_SHARE *share);
-extern bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
-                             const char *db, const char *table_name);
+void tdc_remove_table(THD *thd, const char *db, const char *table_name);
 
 extern int tdc_wait_for_old_version(THD *thd, const char *db,
                                     const char *table_name,

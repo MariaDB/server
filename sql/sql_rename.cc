@@ -309,8 +309,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
       Shared table. Just drop the old .frm as it's not correct anymore
       Discovery will find the old table when it's accessed
      */
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL,
-                     ren_table->db.str, ren_table->table_name.str);
+    tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
     quick_rm_table(thd, 0, &ren_table->db, &old_alias, FRM_ONLY, 0);
     DBUG_RETURN(0);
   }
@@ -329,8 +328,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
     DBUG_RETURN(1);
 #endif
 
-  tdc_remove_table(thd, TDC_RT_REMOVE_ALL,
-                   ren_table->db.str, ren_table->table_name.str);
+  tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
 
   if (hton != view_pseudo_hton)
   {

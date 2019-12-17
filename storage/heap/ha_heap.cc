@@ -24,7 +24,7 @@
 #include "sql_priv.h"
 #include "sql_plugin.h"
 #include "ha_heap.h"
-#include "sql_base.h"                    // enum_tdc_remove_table_type
+#include "sql_base.h"
 
 static handler *heap_create_handler(handlerton *hton,
                                     TABLE_SHARE *table, 

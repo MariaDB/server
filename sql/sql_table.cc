@@ -2485,8 +2485,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         table->table= 0;
       }
       else
-        tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table->db.str,
-                         table->table_name.str);
+        tdc_remove_table(thd, table->db.str, table->table_name.str);
 
       /* Check that we have an exclusive lock on the table to be dropped. */
       DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db.str,
@@ -7753,8 +7752,7 @@ static bool mysql_inplace_alter_table(THD *thd,
                                              thd->variables.lock_wait_timeout))
       goto cleanup;
 
-    tdc_remove_table(thd, TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE,
-                     table->s->db.str, table->s->table_name.str);
+    table->s->tdc->flush(thd, false);
   }
 
   /*
