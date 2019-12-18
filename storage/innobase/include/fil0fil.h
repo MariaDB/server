@@ -1073,14 +1073,6 @@ ulint
 fil_space_get_size(
 /*===============*/
 	ulint	id);	/*!< in: space id */
-/*******************************************************************//**
-Returns the flags of the space. The tablespace must be cached
-in the memory cache.
-@return flags, ULINT_UNDEFINED if space not found */
-ulint
-fil_space_get_flags(
-/*================*/
-	ulint	id);	/*!< in: space id */
 
 /*******************************************************************//**
 Opens all log files and system tablespace data files. They stay open until the

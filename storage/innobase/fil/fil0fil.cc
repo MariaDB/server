@@ -1469,37 +1469,6 @@ fil_space_get_size(
 	return(size);
 }
 
-/*******************************************************************//**
-Returns the flags of the space. The tablespace must be cached
-in the memory cache.
-@return flags, ULINT_UNDEFINED if space not found */
-ulint
-fil_space_get_flags(
-/*================*/
-	ulint	id)	/*!< in: space id */
-{
-	fil_space_t*	space;
-	ulint		flags;
-
-	ut_ad(fil_system.is_initialised());
-
-	mutex_enter(&fil_system.mutex);
-
-	space = fil_space_get_space(id);
-
-	if (space == NULL) {
-		mutex_exit(&fil_system.mutex);
-
-		return(ULINT_UNDEFINED);
-	}
-
-	flags = space->flags;
-
-	mutex_exit(&fil_system.mutex);
-
-	return(flags);
-}
-
 /** Open each file. Only invoked on fil_system.temp_space.
 @return whether all files were opened */
 bool fil_space_t::open()

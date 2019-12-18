@@ -2633,8 +2633,7 @@ loop:
 			case STORE_NO:
 				break;
 			case STORE_IF_EXISTS:
-				if (fil_space_get_flags(space)
-				    == ULINT_UNDEFINED) {
+				if (!fil_space_get_size(space)) {
 					break;
 				}
 				/* fall through */
@@ -2810,8 +2809,7 @@ corrupted_log:
 				case STORE_NO:
 					break;
 				case STORE_IF_EXISTS:
-					if (fil_space_get_flags(space)
-					    == ULINT_UNDEFINED) {
+					if (!fil_space_get_size(space)) {
 						break;
 					}
 					/* fall through */
