@@ -297,7 +297,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   pos+= reclength;
   int2store(pos, create_info->connect_string.length);
   pos+= 2;
-  memcpy(pos, create_info->connect_string.str, create_info->connect_string.length);
+  if (create_info->connect_string.length)
+    memcpy(pos, create_info->connect_string.str, create_info->connect_string.length);
   pos+= create_info->connect_string.length;
   int2store(pos, str_db_type.length);
   pos+= 2;
