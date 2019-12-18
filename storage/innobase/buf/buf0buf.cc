@@ -90,8 +90,8 @@ static void *aligned_malloc(size_t size, size_t align)
   void *result;
   if (posix_memalign(&result, align, size))
     result= NULL;
-#endif
   return result;
+#endif
 }
 
 inline void aligned_free(void *ptr) {
