@@ -407,15 +407,19 @@ insert into t1 (id, dt) values (350, '2010-12-17 00:00:00');
 SELECT COUNT(*) FROM t1;
 
 --connection node_2
+call mtr.add_suppression("WSREP: Sending JOIN failed:.*");
 --send call p1(100);
 
 --connection node_1a
+call mtr.add_suppression("WSREP: Sending JOIN failed:.*");
 --send call p1(100);
 
 --connection node_3
+call mtr.add_suppression("WSREP: Sending JOIN failed:.*");
 --send call p1(100);
 
 --connection node_4
+call mtr.add_suppression("WSREP: Sending JOIN failed:.*");
 --send call p1(100);
 
 --connection node_1
