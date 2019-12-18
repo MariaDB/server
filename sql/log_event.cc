@@ -9546,7 +9546,14 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
       which includes length bytes
     */
     var_header_len= uint2korr(post_start);
-    assert(var_header_len >= 2);
+    /* Check length and also avoid out of buffer read */
+    if (var_header_len < 2 ||
+        event_len < static_cast<unsigned int>(var_header_len +
+          (post_start - buf)))
+    {
+      m_cols.bitmap= 0;
+      DBUG_VOID_RETURN;
+    }
     var_header_len-= 2;
 
     /* Iterate over var-len header, extracting 'chunks' */
