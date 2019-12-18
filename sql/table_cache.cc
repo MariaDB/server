@@ -260,25 +260,12 @@ static void tc_remove_table(TABLE *table)
 
 
 static void tc_remove_all_unused_tables(TDC_element *element,
-                                        Share_free_tables::List *purge_tables,
-                                        bool mark_flushed)
+                                        Share_free_tables::List *purge_tables)
 {
-  TABLE *table;
-
-  /*
-    Mark share flushed in order to ensure that it gets
-    automatically deleted once it is no longer referenced.
-
-    Note that code in TABLE_SHARE::wait_for_old_version() assumes that
-    marking share flushed is followed by purge of unused table
-    shares.
-  */
-  if (mark_flushed)
-    element->flushed= true;
   for (uint32 i= 0; i < tc_instances; i++)
   {
     mysql_mutex_lock(&tc[i].LOCK_table_cache);
-    while ((table= element->free_tables[i].list.pop_front()))
+    while (auto table= element->free_tables[i].list.pop_front())
     {
       tc[i].records--;
       tc[i].free_tables.remove(table);
@@ -306,17 +293,11 @@ static void tc_remove_all_unused_tables(TDC_element *element,
         periodicly flush all not used tables.
 */
 
-struct tc_purge_arg
-{
-  Share_free_tables::List purge_tables;
-  bool mark_flushed;
-};
-
-
-static my_bool tc_purge_callback(TDC_element *element, tc_purge_arg *arg)
+static my_bool tc_purge_callback(TDC_element *element,
+                                 Share_free_tables::List *purge_tables)
 {
   mysql_mutex_lock(&element->LOCK_table_share);
-  tc_remove_all_unused_tables(element, &arg->purge_tables, arg->mark_flushed);
+  tc_remove_all_unused_tables(element, purge_tables);
   mysql_mutex_unlock(&element->LOCK_table_share);
   return FALSE;
 }
@@ -324,12 +305,10 @@ static my_bool tc_purge_callback(TDC_element *element, tc_purge_arg *arg)
 
 void tc_purge()
 {
-  tc_purge_arg argument;
-  TABLE *table;
+  Share_free_tables::List purge_tables;
 
-  argument.mark_flushed= false;
-  tdc_iterate(0, (my_hash_walk_action) tc_purge_callback, &argument);
-  while ((table= argument.purge_tables.pop_front()))
+  tdc_iterate(0, (my_hash_walk_action) tc_purge_callback, &purge_tables);
+  while (auto table= purge_tables.pop_front())
     intern_close_table(table);
 }
 
@@ -1096,9 +1075,10 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
   mysql_mutex_unlock(&LOCK_unused_shares);
 
   element->ref_count++;
+  if (remove_type != TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE)
+    element->flushed= true;
 
-  tc_remove_all_unused_tables(element, &purge_tables,
-                              remove_type != TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE);
+  tc_remove_all_unused_tables(element, &purge_tables);
 
   if (remove_type == TDC_RT_REMOVE_NOT_OWN ||
       remove_type == TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE)
