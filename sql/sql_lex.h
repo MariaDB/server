@@ -1191,28 +1191,6 @@ public:
   uint sroutines_list_own_elements;
 
   /**
-    Locking state of tables in this particular statement.
-
-    If we under LOCK TABLES or in prelocked mode we consider tables
-    for the statement to be "locked" if there was a call to lock_tables()
-    (which called handler::start_stmt()) for tables of this statement
-    and there was no matching close_thread_tables() call.
-
-    As result this state may differ significantly from one represented
-    by Open_tables_state::lock/locked_tables_mode more, which are always
-    "on" under LOCK TABLES or in prelocked mode.
-  */
-  enum enum_lock_tables_state {
-    LTS_NOT_LOCKED = 0,
-    LTS_LOCKED
-  };
-  enum_lock_tables_state lock_tables_state;
-  bool is_query_tables_locked()
-  {
-    return (lock_tables_state == LTS_LOCKED);
-  }
-
-  /**
     Number of tables which were open by open_tables() and to be locked
     by lock_tables().
     Note that we set this member only in some cases, when this value
