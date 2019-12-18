@@ -6449,7 +6449,7 @@ Rotate_log_event::Rotate_log_event(const char* buf, uint event_len,
   // The caller will ensure that event_len is what we have at EVENT_LEN_OFFSET
   uint8 post_header_len= description_event->post_header_len[ROTATE_EVENT-1];
   uint ident_offset;
-  if (event_len < LOG_EVENT_MINIMAL_HEADER_LEN)
+  if (event_len < (uint)(LOG_EVENT_MINIMAL_HEADER_LEN + post_header_len))
     DBUG_VOID_RETURN;
   buf+= LOG_EVENT_MINIMAL_HEADER_LEN;
   pos= post_header_len ? uint8korr(buf + R_POS_OFFSET) : 4;
