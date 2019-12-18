@@ -3815,7 +3815,9 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
 
   uint32 max_length= uint32(event_len - ((const char*)(end + db_len + 1) -
                                          (buf - common_header_len)));
-  if (q_len != max_length)
+  if (q_len != max_length ||
+      (event_len < uint((const char*)(end + db_len + 1) -
+                        (buf - common_header_len))))
   {
     q_len= 0;
     query= NULL;
