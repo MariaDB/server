@@ -11013,7 +11013,6 @@ Table_map_log_event::Table_map_log_event(const char *buf, uint event_len,
   uint8 post_header_len= description_event->post_header_len[TABLE_MAP_EVENT-1];
   DBUG_PRINT("info",("event_len: %u  common_header_len: %d  post_header_len: %d",
                      event_len, common_header_len, post_header_len));
-
   /*
     Don't print debug messages when running valgrind since they can
     trigger false warnings.
@@ -11021,6 +11020,9 @@ Table_map_log_event::Table_map_log_event(const char *buf, uint event_len,
 #ifndef HAVE_valgrind
   DBUG_DUMP("event buffer", (uchar*) buf, event_len);
 #endif
+
+  if (event_len < (uint)(common_header_len + post_header_len))
+    DBUG_VOID_RETURN;
 
   /* Read the post-header */
   const char *post_start= buf + common_header_len;
@@ -11084,15 +11086,24 @@ Table_map_log_event::Table_map_log_event(const char *buf, uint event_len,
     if (bytes_read < event_len)
     {
       m_field_metadata_size= net_field_length(&ptr_after_colcnt);
-      DBUG_ASSERT(m_field_metadata_size <= (m_colcnt * 2));
-      uint num_null_bytes= (m_colcnt + 7) / 8;
-      m_meta_memory= (uchar *)my_multi_malloc(MYF(MY_WME),
-                                     &m_null_bits, num_null_bytes,
-                                     &m_field_metadata, m_field_metadata_size,
-                                     NULL);
-      memcpy(m_field_metadata, ptr_after_colcnt, m_field_metadata_size);
-      ptr_after_colcnt= (uchar*)ptr_after_colcnt + m_field_metadata_size;
-      memcpy(m_null_bits, ptr_after_colcnt, num_null_bytes);
+      if(m_field_metadata_size <= (m_colcnt * 2))
+      {
+        uint num_null_bytes= (m_colcnt + 7) / 8;
+        m_meta_memory= (uchar *)my_multi_malloc(MYF(MY_WME),
+            &m_null_bits, num_null_bytes,
+            &m_field_metadata, m_field_metadata_size,
+            NULL);
+        memcpy(m_field_metadata, ptr_after_colcnt, m_field_metadata_size);
+        ptr_after_colcnt= (uchar*)ptr_after_colcnt + m_field_metadata_size;
+        memcpy(m_null_bits, ptr_after_colcnt, num_null_bytes);
+      }
+      else
+      {
+        m_coltype= NULL;
+        my_free(m_memory);
+        m_memory= NULL;
+        DBUG_VOID_RETURN;
+      }
     }
   }
 
