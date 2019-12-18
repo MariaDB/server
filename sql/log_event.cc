@@ -7957,6 +7957,11 @@ User_var_log_event(const char* buf, uint event_len,
       we keep the flags set to UNDEF_F.
     */
     uint bytes_read= ((val + val_len) - buf_start);
+    if (bytes_read > event_len)
+    {
+      error= true;
+      goto err;
+    }
     if ((data_written - bytes_read) > 0)
     {
       flags= (uint) *(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
