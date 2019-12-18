@@ -97,12 +97,7 @@ mysys/thr_timer
 packaging/rpm-oel/mysql.spec
 packaging/rpm-uln/mysql.10.0.11.spec
 packaging/solaris/postinstall-solaris
-pcre/config.h
-pcre/pcre.h
-pcre/pcre_chartables.c
-pcre/pcregrep
-pcre/pcretest
-pcre/test*grep
+extra/pcre2
 plugin/auth_pam/auth_pam_tool
 plugin/aws_key_management/aws-sdk-cpp
 plugin/aws_key_management/aws_sdk_cpp
