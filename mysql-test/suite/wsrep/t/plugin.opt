@@ -1,0 +1,1 @@
+--binlog_format=ROW --log-bin --wsrep-on=1 --innodb_autoinc_lock_mode=2 --wsrep-provider=$WSREP_PROVIDER --wsrep-cluster-address=gcomm://

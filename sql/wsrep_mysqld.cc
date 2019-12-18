@@ -2288,6 +2288,7 @@ int wsrep_wait_committing_connections_close(int wait_time)
 {
   int sleep_time= 100;
 
+  WSREP_DEBUG("wait for committing transaction to close: %d sleep: %d", wait_time, sleep_time);
   while (server_threads.iterate(have_committing_connections) && wait_time > 0)
   {
     WSREP_DEBUG("wait for committing transaction to close: %d", wait_time);
