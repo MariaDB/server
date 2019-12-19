@@ -1246,5 +1246,71 @@ drop table t1;
 SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 set @@old_mode= @save_old_mode;
 #
+# MDEV-21319 COUNT(*) returns 1, actual SELECT returns no result in 10.3.21, but 1 result in 10.1.41
+#
+CREATE OR REPLACE TABLE t1
+(
+id INT NOT NULL PRIMARY KEY,
+id2 INT,
+k TINYINT,
+j INT,
+t TIME,
+KEY k1 (id2,k,j,t)
+);
+INSERT INTO t1 VALUES
+(53,54,1,0,'10:09:59'),
+(54,54,1,0,'16:28:41'),
+(55,54,1,0,'16:29:10'),
+(56,54,1,0,'16:29:43'),
+(57,54,1,0,'16:30:16'),
+(58,54,1,0,'16:30:49'),
+(59,54,1,0,'16:31:23'),
+(60,54,1,0,'16:31:55'),
+(61,54,1,0,'16:32:28'),
+(62,54,1,0,'16:33:01'),
+(63,54,1,0,'16:33:34'),
+(64,54,1,0,'16:34:07'),
+(65,54,1,0,'16:34:40'),
+(66,54,1,0,'16:35:13'),
+(67,54,1,0,'16:35:46'),
+(68,54,1,0,'16:36:19');
+SELECT t FROM t1 GROUP BY t HAVING t=MAX(t);
+t
+10:09:59
+16:28:41
+16:29:10
+16:29:43
+16:30:16
+16:30:49
+16:31:23
+16:31:55
+16:32:28
+16:33:01
+16:33:34
+16:34:07
+16:34:40
+16:35:13
+16:35:46
+16:36:19
+SELECT t FROM t1 WHERE id2=54 AND j=0 AND k=1 GROUP BY t HAVING t=MAX(t);
+t
+10:09:59
+16:28:41
+16:29:10
+16:29:43
+16:30:16
+16:30:49
+16:31:23
+16:31:55
+16:32:28
+16:33:01
+16:33:34
+16:34:07
+16:34:40
+16:35:13
+16:35:46
+16:36:19
+DROP TABLE t1;
+#
 # End of 10.1 tests
 #

@@ -1302,6 +1302,13 @@ public:
     uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
     return get_date(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
   }
+  longlong val_datetime_packed_result();
+  longlong val_time_packed_result()
+  {
+    MYSQL_TIME ltime;
+    uint fuzzydate= TIME_TIME_ONLY | TIME_INVALID_DATES | TIME_FUZZY_DATES;
+    return get_date_result(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
+  }
   // Get a temporal value in packed DATE/DATETIME or TIME format
   longlong val_temporal_packed(enum_field_types f_type)
   {
