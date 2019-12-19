@@ -449,63 +449,18 @@ cmp_data(
 				       data2, (unsigned) len2));
 	}
 
-	ulint	len;
-	int	cmp;
+	ulint len = std::min(len1, len2);
 
-	if (len1 < len2) {
-		len = len1;
-		len2 -= len;
-		len1 = 0;
-	} else {
-		len = len2;
-		len1 -= len;
-		len2 = 0;
+	int cmp = memcmp(data1, data2, len);
+
+	if (cmp) {
+		return (cmp);
 	}
 
-	if (len) {
-#if defined __i386__ || defined __x86_64__ || defined _M_IX86 || defined _M_X64
-		/* Compare the first bytes with a loop to avoid the call
-		overhead of memcmp(). On x86 and x86-64, the GCC built-in
-		(repz cmpsb) seems to be very slow, so we will be calling the
-		libc version. http://gcc.gnu.org/bugzilla/show_bug.cgi?id=43052
-		tracks the slowness of the GCC built-in memcmp().
-
-		We compare up to the first 4..7 bytes with the loop.
-		The (len & 3) is used for "normalizing" or
-		"quantizing" the len parameter for the memcmp() call,
-		in case the whole prefix is equal. On x86 and x86-64,
-		the GNU libc memcmp() of equal strings is faster with
-		len=4 than with len=3.
-
-		On other architectures than the IA32 or AMD64, there could
-		be a built-in memcmp() that is faster than the loop.
-		We only use the loop where we know that it can improve
-		the performance. */
-		for (ulint i = 4 + (len & 3); i > 0; i--) {
-			cmp = int(*data1++) - int(*data2++);
-			if (cmp) {
-				return(cmp);
-			}
-
-			if (!--len) {
-				break;
-			}
-		}
-
-		if (len) {
-#endif /* IA32 or AMD64 */
-			cmp = memcmp(data1, data2, len);
-
-			if (cmp) {
-				return(cmp);
-			}
-
-			data1 += len;
-			data2 += len;
-#if defined __i386__ || defined __x86_64__ || defined _M_IX86 || defined _M_X64
-		}
-#endif /* IA32 or AMD64 */
-	}
+	data1 += len;
+	data2 += len;
+	len1 -= len;
+	len2 -= len;
 
 	cmp = (int) (len1 - len2);
 

@@ -93,17 +93,6 @@ IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
 ## As of Mar 15 2011 this flag causes 3573+ warnings. If you are reading this
 ## please fix them and enable the following code:
 #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wconversion")
-
-  IF (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64" OR
-      CMAKE_SYSTEM_PROCESSOR MATCHES "i386")
-    INCLUDE(CheckCXXCompilerFlag)
-    CHECK_CXX_COMPILER_FLAG("-fno-builtin-memcmp" HAVE_NO_BUILTIN_MEMCMP)
-    IF (HAVE_NO_BUILTIN_MEMCMP)
-      # Work around http://gcc.gnu.org/bugzilla/show_bug.cgi?id=43052
-      SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/rem/rem0cmp.cc
-	PROPERTIES COMPILE_FLAGS -fno-builtin-memcmp)
-    ENDIF()
-  ENDIF()
 ENDIF()
 
 # Enable InnoDB's UNIV_DEBUG in debug builds
