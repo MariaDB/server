@@ -67,6 +67,9 @@
 #include "semisync_slave.h"
 #include <ssl_compat.h>
 
+#define PCRE2_STATIC 1             /* Important on Windows */
+#include "pcre2.h"                 /* pcre2 header file */
+
 /*
   The rule for this file: everything should be 'static'. When a sys_var
   variable or a function from this file is - in very rare cases - needed

@@ -33,6 +33,8 @@
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_base.h"                  // dynamic_column_error_message
 
+#define PCRE2_STATIC 1             /* Important on Windows */
+#include "pcre2.h"                 /* pcre2 header file */
 
 /*
   Compare row signature of two expressions
@@ -5827,6 +5829,28 @@ int Regexp_processor_pcre::default_regex_flags()
   return default_regex_flags_pcre(current_thd);
 }
 
+void Regexp_processor_pcre::cleanup()
+{
+  pcre2_match_data_free(m_pcre_match_data);
+  pcre2_code_free(m_pcre);
+  reset();
+}
+
+void Regexp_processor_pcre::init(CHARSET_INFO *data_charset, int extra_flags)
+{
+  m_library_flags= default_regex_flags() | extra_flags |
+                  (data_charset != &my_charset_bin ?
+                   (PCRE2_UTF | PCRE2_UCP) : 0) |
+                  ((data_charset->state &
+                    (MY_CS_BINSORT | MY_CS_CSSORT)) ? 0 : PCRE2_CASELESS);
+
+  // Convert text data to utf-8.
+  m_library_charset= data_charset == &my_charset_bin ?
+                     &my_charset_bin : &my_charset_utf8mb3_general_ci;
+
+  m_conversion_is_needed= (data_charset != &my_charset_bin) &&
+                          !my_charset_same(data_charset, m_library_charset);
+}
 
 /**
   Convert string to lib_charset, if needed.

@@ -24,8 +24,6 @@
 #endif
 
 #include "item_func.h"             /* Item_int_func, Item_bool_func */
-#define PCRE2_STATIC 1             /* Important on Windows */
-#include "pcre2.h"                 /* pcre2 header file */
 #include "item.h"
 
 extern Item_result item_cmp_type(Item_result a,Item_result b);
@@ -2802,6 +2800,9 @@ public:
 };
 
 
+typedef struct pcre2_real_code_8 pcre2_code;
+typedef struct pcre2_real_match_data_8 pcre2_match_data;
+#define PCRE2_SIZE size_t
 class Regexp_processor_pcre
 {
   pcre2_code *m_pcre;
@@ -2830,21 +2831,7 @@ public:
     m_library_charset(&my_charset_utf8mb3_general_ci)
   {}
   int default_regex_flags();
-  void init(CHARSET_INFO *data_charset, int extra_flags)
-  {
-    m_library_flags= default_regex_flags() | extra_flags |
-                    (data_charset != &my_charset_bin ?
-                     (PCRE2_UTF | PCRE2_UCP) : 0) |
-                    ((data_charset->state &
-                      (MY_CS_BINSORT | MY_CS_CSSORT)) ? 0 : PCRE2_CASELESS);
-
-    // Convert text data to utf-8.
-    m_library_charset= data_charset == &my_charset_bin ?
-                       &my_charset_bin : &my_charset_utf8mb3_general_ci;
-
-    m_conversion_is_needed= (data_charset != &my_charset_bin) &&
-                            !my_charset_same(data_charset, m_library_charset);
-  }
+  void init(CHARSET_INFO *data_charset, int extra_flags);
   void fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
   bool compile(String *pattern, bool send_error);
   bool compile(Item *item, bool send_error);
@@ -2875,12 +2862,7 @@ public:
     m_pcre_match_data= NULL;
     m_prev_pattern.length(0);
   }
-  void cleanup()
-  {
-    pcre2_match_data_free(m_pcre_match_data);
-    pcre2_code_free(m_pcre);
-    reset();
-  }
+  void cleanup();
   bool is_compiled() const { return m_pcre != NULL; }
   bool is_const() const { return m_is_const; }
   void set_const(bool arg) { m_is_const= arg; }

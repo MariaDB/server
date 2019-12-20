@@ -198,6 +198,10 @@ TARGET_LINK_LIBRARIES(sql
   ${SSL_LIBRARIES}
   ${LIBSYSTEMD})
 
+IF(TARGET pcre2)
+  ADD_DEPENDENCIES(sql pcre2)
+ENDIF()
+
 FOREACH(se aria partition perfschema sql_sequence wsrep)
   # These engines are used directly in sql sources.
   IF(TARGET ${se})
