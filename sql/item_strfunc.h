@@ -368,7 +368,7 @@ public:
     {}
   void cleanup()
   {
-    DBUG_ENTER("Item_func_regex::cleanup");
+    DBUG_ENTER("Item_func_regexp_replace::cleanup");
     Item_str_func::cleanup();
     re.cleanup();
     DBUG_VOID_RETURN;
@@ -389,7 +389,7 @@ public:
     {}
   void cleanup()
   {
-    DBUG_ENTER("Item_func_regex::cleanup");
+    DBUG_ENTER("Item_func_regexp_substr::cleanup");
     Item_str_func::cleanup();
     re.cleanup();
     DBUG_VOID_RETURN;
