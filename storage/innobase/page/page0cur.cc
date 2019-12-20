@@ -2493,13 +2493,13 @@ page_cur_delete_rec(
 
 	page_header_set_ptr(block->frame, page_zip, PAGE_LAST_INSERT, NULL);
 
-	/* The page gets invalid for optimistic searches: increment
-	the frame modify clock. Avoid this during IMPORT; the block is
-	not actually in the buffer pool. */
-	if (mtr->get_log_mode() != MTR_LOG_NONE) {
-		buf_block_modify_clock_inc(block);
-		page_cur_delete_rec_write_log(current_rec, index, mtr);
-	}
+	/* The page gets invalid for btr_pcur_restore_pos().
+	We avoid invoking buf_block_modify_clock_inc(block) because its
+	consistency checks would fail for the dummy block that is being
+	used during IMPORT TABLESPACE. */
+	block->modify_clock++;
+
+	page_cur_delete_rec_write_log(current_rec, index, mtr);
 
 	/* 2. Find the next and the previous record. Note that the cursor is
 	left at the next record. */
