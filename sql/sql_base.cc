@@ -388,13 +388,12 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
       if (! table)
         continue;
 
-      if (thd->mdl_context.upgrade_shared_lock(table->mdl_ticket, MDL_EXCLUSIVE,
-                                               timeout))
+      if (wait_while_table_is_used(thd, table,
+                                   HA_EXTRA_PREPARE_FOR_FORCED_CLOSE))
       {
         result= true;
         break;
       }
-      table->file->extra(HA_EXTRA_PREPARE_FOR_FORCED_CLOSE);
       close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
     }
     /*
@@ -800,11 +799,10 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
                           TABLE *skip_table)
 {
   DBUG_ASSERT(!share->tmp_table);
+  DBUG_ASSERT(share->tdc->flushed);
 
   char key[MAX_DBKEY_LENGTH];
   size_t key_length= share->table_cache_key.length;
-  const char *db= key;
-  const char *table_name= db + share->db.length + 1;
   bool remove_from_locked_tables= extra != HA_EXTRA_NOT_USED;
 
   memcpy(key, share->table_cache_key.str, key_length);
@@ -841,9 +839,6 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
       prev= &table->next;
     }
   }
-  /* Remove the table share from the cache. */
-  if (skip_table == NULL)
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, db, table_name);
 }
 
 

@@ -6819,11 +6819,11 @@ static int alter_close_table(ALTER_PARTITION_PARAM_TYPE *lpt)
   @param close_table        Table is still open, close it before reverting
 */
 
-void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
-                             bool action_completed,
-                             bool drop_partition,
-                             bool frm_install,
-                             bool close_table)
+static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
+                                    bool action_completed,
+                                    bool drop_partition,
+                                    bool frm_install,
+                                    bool close_table)
 {
   partition_info *part_info= lpt->part_info;
   THD *thd= lpt->thd;
