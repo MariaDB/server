@@ -741,20 +741,18 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
   if (!trx)
     DBUG_RETURN(error_code);
 
-  is_scan = true;
   key_restore(buf, key, &table->key_info[active_index], key_len);
   // The estimate should consider only key fields widths.
   size_t packed_key_len;
   uchar *packed_key = (uchar*) my_alloca(estimate_row_size(table));
   build_key_packed_row(active_index, buf, packed_key, &packed_key_len);
 
-  //bool exact = false;
+  bool exact = false;
   clustrix_connection::scan_type st;
   switch (find_flag) {
     case HA_READ_KEY_EXACT:
-      //exact = true;
-      /* fall through */
-      //DBUG_RETURN(ER_NOT_SUPPORTED_YET);
+      exact = true;
+      break;
     case HA_READ_KEY_OR_NEXT:
       st = clustrix_connection::READ_KEY_OR_NEXT;
       break;
@@ -778,20 +776,40 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
       DBUG_RETURN(ER_NOT_SUPPORTED_YET);
   }
 
-  error_code = trx->scan_from_key(clustrix_table_oid, active_index, st,
-                                  sorted_scan, &scan_fields, packed_key,
-                                  packed_key_len, THDVAR(thd, row_buffer),
-                                  &scan_cur);
+  uchar *rowdata = NULL;
+  if (exact) {
+    is_scan = false;
+    ulong rowdata_length;
+    if ((error_code = trx->key_read(clustrix_table_oid, 0,
+                                    clustrix_connection::CLUSTRIX_SHARED,
+                                    table->read_set, packed_key, packed_key_len,
+                                    &rowdata, &rowdata_length)))
+      goto err;
+
+    error_code = unpack_row_to_buf(rgi, table, buf, rowdata, table->read_set,
+                                   rowdata + rowdata_length);
+  } else {
+    is_scan = true;
+    if ((error_code = trx->scan_from_key(clustrix_table_oid, active_index, st,
+                                         sorted_scan, &scan_fields, packed_key,
+                                         packed_key_len,
+                                         THDVAR(thd, row_buffer), &scan_cur)))
+      goto err;
+
+    error_code = rnd_next(buf);
+  }
+
+err:
+  if (rowdata)
+    my_free(rowdata);
+
   if (packed_key)
     my_afree(packed_key);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
     clustrixdb_mark_table_for_discovery(table);
 
-  if (error_code)
-    DBUG_RETURN(error_code);
-
-  DBUG_RETURN(rnd_next(buf));
+  DBUG_RETURN(error_code);
 }
 
 int ha_clustrixdb::index_first(uchar *buf)
