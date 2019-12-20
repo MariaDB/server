@@ -77,6 +77,7 @@ extern void tdc_purge(bool all);
 extern TDC_element *tdc_lock_share(THD *thd, const char *db,
                                    const char *table_name);
 extern void tdc_unlock_share(TDC_element *element);
+int tdc_share_is_cached(THD *thd, const char *db, const char *table_name);
 extern TABLE_SHARE *tdc_acquire_share(THD *thd, TABLE_LIST *tl, uint flags,
                                       TABLE **out_table= 0);
 extern void tdc_release_share(TABLE_SHARE *share);

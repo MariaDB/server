@@ -776,6 +776,23 @@ void tdc_unlock_share(TDC_element *element)
 }
 
 
+int tdc_share_is_cached(THD *thd, const char *db, const char *table_name)
+{
+  char key[MAX_DBKEY_LENGTH];
+
+  if (unlikely(fix_thd_pins(thd)))
+    return -1;
+
+  if (lf_hash_search(&tdc_hash, thd->tdc_hash_pins, (uchar*) key,
+                     tdc_create_key(key, db, table_name)))
+  {
+    lf_hash_search_unpin(thd->tdc_hash_pins);
+    return 1;
+  }
+  return 0;
+}
+
+
 /*
   Get TABLE_SHARE for a table.
 

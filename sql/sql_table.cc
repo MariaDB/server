@@ -7946,10 +7946,8 @@ static bool mysql_inplace_alter_table(THD *thd,
   // Rename altered table if requested.
   if (alter_ctx->is_table_renamed())
   {
-    // Remove TABLE and TABLE_SHARE for old name from TDC.
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL,
-                     alter_ctx->db.str, alter_ctx->table_name.str);
-
+    DBUG_ASSERT(!tdc_share_is_cached(thd, alter_ctx->db.str,
+                                     alter_ctx->table_name.str));
     if (mysql_rename_table(db_type, &alter_ctx->db, &alter_ctx->table_name,
                            &alter_ctx->new_db, &alter_ctx->new_alias, 0))
     {
