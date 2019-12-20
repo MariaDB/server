@@ -124,6 +124,79 @@ static void init_servers_cache_psi_keys(void)
 }
 #endif /* HAVE_PSI_INTERFACE */
 
+
+struct close_cached_connection_tables_arg
+{
+  THD *thd;
+  LEX_CSTRING *connection;
+  TABLE_LIST *tables;
+};
+
+
+static my_bool close_cached_connection_tables_callback(
+  TDC_element *element, close_cached_connection_tables_arg *arg)
+{
+  TABLE_LIST *tmp;
+
+  mysql_mutex_lock(&element->LOCK_table_share);
+  /* Ignore if table is not open or does not have a connect_string */
+  if (!element->share || !element->share->connect_string.length ||
+      !element->ref_count)
+    goto end;
+
+  /* Compare the connection string */
+  if (arg->connection &&
+      (arg->connection->length > element->share->connect_string.length ||
+       (arg->connection->length < element->share->connect_string.length &&
+        (element->share->connect_string.str[arg->connection->length] != '/' &&
+         element->share->connect_string.str[arg->connection->length] != '\\')) ||
+       strncasecmp(arg->connection->str, element->share->connect_string.str,
+                   arg->connection->length)))
+    goto end;
+
+  /* close_cached_tables() only uses these elements */
+  if (!(tmp= (TABLE_LIST*) alloc_root(arg->thd->mem_root, sizeof(TABLE_LIST))) ||
+      !(arg->thd->make_lex_string(&tmp->db, element->share->db.str, element->share->db.length)) ||
+      !(arg->thd->make_lex_string(&tmp->table_name, element->share->table_name.str,
+                                      element->share->table_name.length)))
+  {
+    mysql_mutex_unlock(&element->LOCK_table_share);
+    return TRUE;
+  }
+
+  tmp->next_local= arg->tables;
+  arg->tables= tmp;
+
+end:
+  mysql_mutex_unlock(&element->LOCK_table_share);
+  return FALSE;
+}
+
+
+/**
+  Close all tables which match specified connection string or
+  if specified string is NULL, then any table with a connection string.
+
+  @return false  ok
+  @return true   error, some tables may keep using old server info
+*/
+
+static bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connection)
+{
+  close_cached_connection_tables_arg argument= { thd, connection, 0 };
+  DBUG_ENTER("close_cached_connections");
+
+  if (tdc_iterate(thd,
+                  (my_hash_walk_action) close_cached_connection_tables_callback,
+                  &argument))
+    DBUG_RETURN(true);
+
+  DBUG_RETURN(argument.tables ?
+              close_cached_tables(thd, argument.tables, true,
+                                  thd->variables.lock_wait_timeout) : false);
+}
+
+
 /*
   Initialize structures responsible for servers used in federated
   server scheme information for them from the server
