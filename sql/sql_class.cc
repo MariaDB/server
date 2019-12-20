@@ -4917,6 +4917,25 @@ void reset_thd(MYSQL_THD thd)
   free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
 }
 
+int my_scheduler_get_context(void **ctx, void (**resume_fct)(void*))
+{
+  THD *thd = _current_thd();
+  if (thd && thd->scheduler && thd->scheduler->yield)
+  {
+    auto s = thd->scheduler;
+    *ctx = s->get_context();
+    *resume_fct =s->resume;
+    return ctx?0:1;
+  }
+  return 1;
+}
+
+void my_scheduler_yield()
+{
+  THD* thd = _current_thd();
+  thd->scheduler->yield();
+}
+
 unsigned long long thd_get_query_id(const MYSQL_THD thd)
 {
   return((unsigned long long)thd->query_id);

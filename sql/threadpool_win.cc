@@ -41,6 +41,7 @@ static void tp_log_warning(const char *msg, const char *fct)
 
 static PTP_POOL pool;
 static TP_CALLBACK_ENVIRON callback_environ;
+static TP_CALLBACK_ENVIRON callback_environ_highprio;
 static DWORD fls;
 
 static bool skip_completion_port_on_success = false;
@@ -49,6 +50,25 @@ PTP_CALLBACK_ENVIRON get_threadpool_win_callback_environ()
 {
   return pool? &callback_environ: 0;
 }
+
+enum class child_return
+{
+  SUCCESS,
+  ERROR,
+  YIELD,
+  YIELD_CONFIRM,
+  PARENT_ERROR
+};
+
+struct tp_fiber_data
+{
+  void* parent_fiber;
+  void* child_fiber;
+  void* child_data;
+  child_return child_ret;
+  tp_fiber_data():parent_fiber(),child_fiber(),child_data(), child_ret(){}
+};
+
 
 /*
   Threadpool callbacks.
@@ -97,8 +117,13 @@ public:
   PTP_IO  io;
   PTP_TIMER timer;
   PTP_WORK  work;
+  PTP_WORK work_highprio;
   bool long_callback;
-
+  void *fiber;
+  void *parent_fiber;
+  volatile child_return fiber_ret;
+  std::atomic<int> executing;
+  DWORD executing_thread_id;
 };
 
 struct TP_connection *new_TP_connection(CONNECT *connect)
@@ -112,27 +137,136 @@ struct TP_connection *new_TP_connection(CONNECT *connect)
   return c;
 }
 
+extern int tp_callback_internal(TP_connection* c);
+extern void tp_destroy_connection(TP_connection* c);
+
+static void tp_fiber(void *param)
+{
+  auto c = (TP_connection_win*)param;
+  void *parent_fiber;
+  for(;;)
+  {
+    if(c->fiber_ret == child_return::PARENT_ERROR)
+    {
+      parent_fiber = c->parent_fiber;
+      tp_destroy_connection(c);
+      SwitchToFiber(parent_fiber);
+    }
+    else
+    {
+      c->fiber_ret = child_return::YIELD;
+      if (tp_callback_internal(c))
+        c->fiber_ret = child_return::ERROR;
+      else
+        c->fiber_ret = child_return::SUCCESS;
+      SwitchToFiber(c->parent_fiber);
+    }
+  }
+}
+
+static void tp_callback_fiber(TP_connection_win* c)
+{
+  c->parent_fiber = GetCurrentFiber();
+  if (!c->fiber)
+    c->fiber = CreateFiber(my_thread_stack_size, tp_fiber, c);
+  if (!c->fiber)
+  {
+    tp_destroy_connection(c);
+    return;
+  }
+  void* child_fiber = c->fiber;
+  auto ret = c->fiber_ret;
+  switch (ret)
+  {
+  case child_return::ERROR:
+  case child_return::PARENT_ERROR:
+    abort();
+    break;
+  case child_return::YIELD:
+    SubmitThreadpoolWork(c->work);
+    return;
+  case child_return::YIELD_CONFIRM:
+    break;
+  case child_return::SUCCESS:
+    break;
+  }
+
+  if (c->executing++)
+    abort();
+  c->executing_thread_id = GetCurrentThreadId();
+  SwitchToFiber(c->fiber);
+  c->executing --;
+
+  switch (c->fiber_ret)
+  {
+  case child_return::SUCCESS:
+    if (c->start_io())
+    {
+      c->fiber_ret = child_return::PARENT_ERROR;
+
+      SwitchToFiber(child_fiber);
+      DeleteFiber(child_fiber);
+    }
+    break;
+  case child_return::ERROR:
+    c->fiber_ret = child_return::PARENT_ERROR;
+    SwitchToFiber(child_fiber);
+    DeleteFiber(child_fiber);
+    break;
+  case child_return::YIELD:
+    c->fiber_ret = child_return::YIELD_CONFIRM;
+    break;
+  case child_return::PARENT_ERROR:
+  case child_return::YIELD_CONFIRM:
+    abort();
+  }
+}
+
 void TP_pool_win::add(TP_connection *c)
 {
   if(FlsGetValue(fls))
   {
     /* Inside threadpool(), execute callback directly. */
-    tp_callback(c);
+    tp_callback_fiber((TP_connection_win*)c);
   }
   else
   {
-    SubmitThreadpoolWork(((TP_connection_win *)c)->work);
+    TP_connection_win *c_w = ((TP_connection_win*)c);
+    SubmitThreadpoolWork(c_w->work);
   }
 }
 
+void TP_pool_win::yield()
+{
+  TP_connection_win *c = (TP_connection_win *) GetFiberData();
+  c->fiber_ret = child_return::YIELD;
+  SwitchToFiber(c->parent_fiber);
+}
+
+void* TP_pool_win::get_context()
+{
+  return GetFiberData();
+}
+
+void TP_pool_win::resume(void* context)
+{
+  auto c = (TP_connection_win*) context;
+  if (c->fiber_ret != child_return::YIELD && c->fiber_ret != child_return::YIELD_CONFIRM)
+   abort();
+  SubmitThreadpoolWork(c->work);
+}
 
 TP_connection_win::TP_connection_win(CONNECT *c) :
   TP_connection(c),
-  timeout(ULONGLONG_MAX), 
+  timeout(ULONGLONG_MAX),
   callback_instance(0),
   io(0),
   timer(0),
-  work(0)
+  work(0),
+  parent_fiber(),
+  fiber(),
+  fiber_ret(),
+  executing(0)
 {
 }
 
@@ -167,6 +301,7 @@ int TP_connection_win::init()
   CHECK_ALLOC_ERROR(io= CreateThreadpoolIo(handle, io_completion_callback, this, &callback_environ));
   CHECK_ALLOC_ERROR(timer= CreateThreadpoolTimer(timer_callback, this,  &callback_environ));
   CHECK_ALLOC_ERROR(work= CreateThreadpoolWork(work_callback, this, &callback_environ));
+  CHECK_ALLOC_ERROR(work_highprio = CreateThreadpoolWork(work_callback, this, &callback_environ_highprio));
   return 0;
 }
 
@@ -266,6 +401,9 @@ TP_connection_win::~TP_connection_win()
   if (work)
     CloseThreadpoolWork(work);
 
+  if (work_highprio)
+    CloseThreadpoolWork(work_highprio);
+
   if (timer)
   {
     SetThreadpoolTimer(timer, 0, 0, 0);
@@ -304,6 +442,7 @@ void tp_win_callback_prolog()
   if (FlsGetValue(fls) == NULL)
   {
     /* Running in new  worker thread*/
+    ConvertThreadToFiber(NULL);
     FlsSetValue(fls, (void *)1);
     statistic_increment(thread_created, &LOCK_status);
     InterlockedIncrement((volatile long *)&tp_stats.num_worker_threads);
@@ -329,6 +468,7 @@ static VOID WINAPI thread_destructor(void *data)
 {
   if(data)
   {
+    ConvertFiberToThread();
     InterlockedDecrement((volatile long *)&tp_stats.num_worker_threads);
     my_thread_end();
   }
@@ -339,7 +479,7 @@ static VOID WINAPI thread_destructor(void *data)
 static inline void tp_callback(PTP_CALLBACK_INSTANCE instance, PVOID context)
 {
   pre_callback(context, instance);
-  tp_callback((TP_connection *)context);
+  tp_callback_fiber((TP_connection_win *)context);
 }
 
 
@@ -412,6 +552,9 @@ int TP_pool_win::init()
   InitializeThreadpoolEnvironment(&callback_environ);
   SetThreadpoolCallbackPool(&callback_environ, pool);
 
+  InitializeThreadpoolEnvironment(&callback_environ_highprio);
+  SetThreadpoolCallbackPriority(&callback_environ_highprio,TP_CALLBACK_PRIORITY_HIGH);
+  SetThreadpoolCallbackPool(&callback_environ_highprio, pool);
   if (threadpool_max_threads)
   {
     SetThreadpoolThreadMaximum(pool, threadpool_max_threads);
@@ -446,6 +589,7 @@ TP_pool_win::~TP_pool_win()
   if (!pool)
     return;
   DestroyThreadpoolEnvironment(&callback_environ);
+  DestroyThreadpoolEnvironment(&callback_environ_highprio);
   SetThreadpoolThreadMaximum(pool, 0);
   CloseThreadpool(pool);
   if (!tp_stats.num_worker_threads)

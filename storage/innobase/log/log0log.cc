@@ -843,6 +843,66 @@ log_buffer_switch()
 	log_sys.buf_next_to_write = log_sys.buf_free;
 }
 
+struct flush_notify_t
+{
+	lsn_t m_lsn;
+	void *m_data;
+	void (*m_func)(void *);
+};
+struct cmp_flush_notify
+{
+	bool operator()(const flush_notify_t& lhs, const flush_notify_t& rhs)
+	{
+		return lhs.m_lsn > rhs.m_lsn;
+	}
+};
+
+
+#include <queue>
+#include <mutex>
+class flush_notify_queue_t
+{
+	OSMutex m_mtx;
+	std::vector<flush_notify_t> m_queue;
+
+public:
+	flush_notify_queue_t():m_mtx(),m_queue()
+	{
+	 m_mtx.init();
+	 m_queue.reserve(1000);
+	}
+	void push(flush_notify_t e)
+	{
+		m_mtx.enter();
+		m_queue.push_back(e);
+		m_mtx.exit();
+	}
+	void notify(lsn_t lsn)
+	{
+		m_mtx.enter();
+		for(auto e: m_queue)
+		{
+			if(e.m_lsn <= lsn)
+				e.m_func(e.m_data);
+		}
+		m_queue.erase(std::remove_if(m_queue.begin(), m_queue.end(),
+			[lsn](flush_notify_t const& e)
+			{
+				return e.m_lsn <= lsn;
+			}), m_queue.end());
+		m_mtx.exit();
+	}
+	~flush_notify_queue_t()
+	{
+	 ut_a(m_queue.empty());
+	 m_mtx.destroy();
+	}
+};
+
+flush_notify_queue_t flush_notify_queue;
+extern int my_scheduler_get_context(void** ctx, void (**resume_fct)(void*));
+extern void my_scheduler_yield();
+
 /** Ensure that the log has been written to the log file up to a given
 log entry (such as that of a transaction commit). Start a new write, or
 wait and check if an already running write is covering the request.
@@ -906,10 +966,25 @@ loop:
 		/* Figure out if the current flush will do the job
 		for us. */
 		bool work_done = log_sys.current_flush_lsn >= lsn;
-
+		bool do_yield = false;
+		flush_notify_t fn;
+		if (!my_scheduler_get_context(&(fn.m_data), &(fn.m_func)))
+		{
+			fn.m_lsn = lsn;
+			flush_notify_queue.push(fn);
+			do_yield = true;
+		}
 		log_write_mutex_exit();
 
-		os_event_wait(log_sys.flush_event);
+		if (do_yield) {
+			my_scheduler_yield();
+#if (UNIV_WORD_SIZE >=8)
+			ut_a(log_sys.write_lsn >= lsn);
+#endif
+			return;
+		} else {
+			os_event_wait(log_sys.flush_event);
+		}
 
 		if (work_done) {
 			return;
@@ -1034,8 +1109,8 @@ loop:
 		log_write_flush_to_disk_low();
 		ib_uint64_t flush_lsn = log_sys.flushed_to_disk_lsn;
 		log_mutex_exit();
-
 		innobase_mysql_log_notify(flush_lsn);
+		flush_notify_queue.notify(flush_lsn);
 	}
 }
 

@@ -109,7 +109,14 @@ void post_kill_notification(THD *thd)
 */
 
 #ifndef EMBEDDED_LIBRARY
+static void* my_scheduler_yield()
+{
+  return NULL;
+}
 
+static void my_scheduler_resume(void *)
+{
+}
 void one_thread_per_connection_scheduler(scheduler_functions *func,
     ulong *arg_max_connections,
     Atomic_counter<uint> *arg_connection_count)
@@ -120,6 +127,7 @@ void one_thread_per_connection_scheduler(scheduler_functions *func,
   func->connection_count= arg_connection_count;
   func->add_connection= create_thread_to_handle_connection;
   func->post_kill_notification= post_kill_notification;
+
 }
 #else
 void handle_connection_in_main_thread(CONNECT *connect)
@@ -139,3 +147,4 @@ void one_thread_scheduler(scheduler_functions *func)
   func->connection_count= &connection_count;
   func->add_connection= handle_connection_in_main_thread;
 }
+

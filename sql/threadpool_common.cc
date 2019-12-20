@@ -169,15 +169,14 @@ static TP_PRIORITY get_priority(TP_connection *c)
   return prio;
 }
 
-
-void tp_callback(TP_connection *c)
+int tp_callback_internal(TP_connection* c)
 {
   DBUG_ASSERT(c);
 
   Worker_thread_context worker_context;
   worker_context.save();
 
-  THD *thd= c->thd;
+  THD* thd = c->thd;
 
   c->state = TP_STATE_RUNNING;
 
@@ -185,13 +184,14 @@ void tp_callback(TP_connection *c)
   {
     /* No THD, need to login first. */
     DBUG_ASSERT(c->connect);
-    thd= c->thd= threadpool_add_connection(c->connect, c);
+    my_thread_init();
+    thd = c->thd = threadpool_add_connection(c->connect, c);
     if (!thd)
     {
       /* Bail out on connect error.*/
       goto error;
     }
-    c->connect= 0;
+    c->connect = 0;
   }
   else if (threadpool_process_request(thd))
   {
@@ -200,27 +200,42 @@ void tp_callback(TP_connection *c)
   }
 
   /* Set priority */
-  c->priority= get_priority(c);
+  c->priority = get_priority(c);
 
   /* Read next command from client. */
   c->set_io_timeout(thd->get_net_wait_timeout());
-  c->state= TP_STATE_IDLE;
-  if (c->start_io())
-    goto error;
+  c->state = TP_STATE_IDLE;
 
   worker_context.restore();
-  return;
+  return 0;
 
 error:
-  c->thd= 0;
-  delete c;
+  worker_context.restore();
+  return -1;
+}
 
+void tp_destroy_connection(TP_connection *c)
+{
+  Worker_thread_context worker_context;
+  worker_context.save();
+
+  THD *thd = c->thd;
+  c->thd = 0;
+  delete c;
   if (thd)
-  {
     threadpool_remove_connection(thd);
-  }
   worker_context.restore();
 }
+
+void tp_callback(TP_connection *c)
+{
+  if (tp_callback_internal(c)
+    || c->start_io())
+  {
+    tp_destroy_connection(c);
+  }
+}
+
 
 
 static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
@@ -509,6 +524,21 @@ static void tp_post_kill_notification(THD *thd)
   post_kill_notification(thd);
 }
 
+static void tp_yield()
+{
+  pool->yield();
+}
+
+static void* tp_get_context()
+{
+  return pool->get_context();
+}
+
+static void tp_resume(void* context)
+{
+  pool->resume(context);
+}
+
 static scheduler_functions tp_scheduler_functions=
 {
   0,                                  // max_threads
@@ -519,7 +549,10 @@ static scheduler_functions tp_scheduler_functions=
   tp_wait_begin,                      // thd_wait_begin
   tp_wait_end,                        // thd_wait_end
   tp_post_kill_notification,          // post kill notification
-  tp_end                              // end
+  tp_end,                              // end
+  tp_get_context,
+  tp_yield,
+  tp_resume
 };
 
 void pool_of_threads_scheduler(struct scheduler_functions *func,
