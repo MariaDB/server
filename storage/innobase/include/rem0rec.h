@@ -455,7 +455,7 @@ value.
 @return offset of the start of the field, SQL null flag and extern
 storage flag ORed */
 UNIV_INLINE
-ulint
+offset_t
 rec_2_get_field_end_info(
 /*=====================*/
 	const rec_t*	rec,	/*!< in: record */

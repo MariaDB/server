@@ -1061,8 +1061,10 @@ row_merge_heap_create(
 	*offsets2 = static_cast<offset_t*>(
 		mem_heap_alloc(heap, i * sizeof **offsets2));
 
-	(*offsets1)[0] = (*offsets2)[0] = i;
-	(*offsets1)[1] = (*offsets2)[1] = dict_index_get_n_fields(index);
+	rec_offs_set_n_alloc(*offsets1, i);
+	rec_offs_set_n_alloc(*offsets2, i);
+	rec_offs_set_n_fields(*offsets1, dict_index_get_n_fields(index));
+	rec_offs_set_n_fields(*offsets2, dict_index_get_n_fields(index));
 
 	return(heap);
 }

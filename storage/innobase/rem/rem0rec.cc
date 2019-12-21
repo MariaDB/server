@@ -481,7 +481,8 @@ resolved:
 		/* Old-style record: determine extra size and end offsets */
 		offs = REC_N_OLD_EXTRA_BYTES;
 		if (rec_get_1byte_offs_flag(rec)) {
-			offs += rec_offs_n_fields(offsets);
+			offs += static_cast<offset_t>(
+				rec_offs_n_fields(offsets));
 			*rec_offs_base(offsets) = offs;
 			/* Determine offsets to fields */
 			do {

@@ -3171,7 +3171,7 @@ zlib_error:
 		offsets = static_cast<offset_t*>(
 			mem_heap_alloc(heap, n * sizeof(ulint)));
 
-		*offsets = n;
+		rec_offs_set_n_alloc(offsets, n);
 	}
 
 	/* Decompress the records in heap_no order. */
