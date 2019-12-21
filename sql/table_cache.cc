@@ -996,6 +996,20 @@ void tdc_release_share(TABLE_SHARE *share)
 }
 
 
+void tdc_remove_referenced_share(THD *thd, TABLE_SHARE *share)
+{
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, share->db.str,
+                                             share->table_name.str,
+                                             MDL_EXCLUSIVE));
+  share->tdc->flush_unused(false);
+  mysql_mutex_lock(&share->tdc->LOCK_table_share);
+  share->tdc->wait_for_refs(1);
+  DBUG_ASSERT(share->tdc->all_tables.is_empty());
+  share->tdc->ref_count--;
+  tdc_delete_share_from_hash(share->tdc);
+}
+
+
 /**
    Removes all TABLE instances and corresponding TABLE_SHARE
 
@@ -1009,7 +1023,6 @@ void tdc_release_share(TABLE_SHARE *share)
 
 void tdc_remove_table(THD *thd, const char *db, const char *table_name)
 {
-  Share_free_tables::List purge_tables;
   TDC_element *element;
   DBUG_ENTER("tdc_remove_table");
   DBUG_PRINT("enter", ("name: %s", table_name));
@@ -1042,18 +1055,10 @@ void tdc_remove_table(THD *thd, const char *db, const char *table_name)
   mysql_mutex_unlock(&LOCK_unused_shares);
 
   element->ref_count++;
-
-  tc_remove_all_unused_tables(element, &purge_tables);
   mysql_mutex_unlock(&element->LOCK_table_share);
 
-  while (auto table= purge_tables.pop_front())
-    intern_close_table(table);
-
-  mysql_mutex_lock(&element->LOCK_table_share);
-  element->wait_for_refs(1);
-  DBUG_ASSERT(element->all_tables.is_empty());
-  element->ref_count--;
-  tdc_delete_share_from_hash(element);
+  /* We have to relock the mutex to avoid code duplication. Sigh. */
+  tdc_remove_referenced_share(thd, element->share);
   DBUG_VOID_RETURN;
 }
 

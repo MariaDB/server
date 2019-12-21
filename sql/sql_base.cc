@@ -2942,9 +2942,7 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
     result= FALSE;
   }
 
-  tdc_release_share(share);
-  /* Remove the repaired share from the table cache. */
-  tdc_remove_table(thd, table_list->db.str, table_list->table_name.str);
+  tdc_remove_referenced_share(thd, share);
 end_free:
   my_free(entry);
   return result;
