@@ -96,6 +96,24 @@ extern void tc_add_table(THD *thd, TABLE *table);
 extern void tc_release_table(TABLE *table);
 extern TABLE *tc_acquire_table(THD *thd, TDC_element *element);
 
+
+class Share_lock
+{
+public:
+  TDC_element *element;
+
+  Share_lock(THD *thd, const char *db, const char *table)
+  {
+    element= tdc_lock_share(thd, db, table);
+  }
+  ~Share_lock()
+  {
+    if (element)
+      tdc_unlock_share(element);
+  }
+};
+
+
 /**
   Create a table cache key for non-temporary table.
 

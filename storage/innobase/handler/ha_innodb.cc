@@ -6171,13 +6171,15 @@ no_such_table:
 					thd, m_prebuilt->table->referenced_set,
 					err);
 			}
-			if (!table->s->referenced_keys) {
-				/* Assign some empty list to indicate that we
-				don't need to initialize this TABLE_SHARE
-				anymore. */
-				static FK_list empty_list;
-				DBUG_ASSERT(empty_list.is_empty());
-				table->s->referenced_keys = &empty_list;
+			if (!err && !table->s->referenced_keys) {
+				FK_list* list = (FK_list*)alloc_root(
+					&table->s->mem_root, sizeof(FK_list));
+				if (unlikely(!list)) {
+					set_my_errno(ENOMEM);
+					DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+				}
+				list->empty();
+				table->s->referenced_keys = list;
 			}
 		}
 		mysql_mutex_unlock(&table->s->LOCK_share);

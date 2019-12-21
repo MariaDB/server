@@ -9329,16 +9329,11 @@ public:
 };
 
 // Used in CREATE TABLE
-bool TABLE_SHARE::update_foreign_keys(THD *thd, Alter_info *alter_info)
+bool TABLE_SHARE::update_foreign_keys(THD *thd, Alter_info *alter_info,
+                                      Table_ident_set &ref_tables)
 {
-  DBUG_ASSERT(!foreign_keys);
-  static FK_list empty_list;
-  DBUG_ASSERT(empty_list.is_empty());
-  referenced_keys = &empty_list;
-
+  // TODO: this while() is removed in MDEV-21051
   List_iterator_fast<Key> key_it(alter_info->key_list);
-  MEM_ROOT *old_root= thd->mem_root;
-  thd->mem_root= &mem_root;
   while (Key* key= key_it++)
   {
     if (key->type != Key::FOREIGN_KEY)
@@ -9353,7 +9348,6 @@ bool TABLE_SHARE::update_foreign_keys(THD *thd, Alter_info *alter_info)
       if (unlikely(!foreign_keys))
       {
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
-        thd->mem_root= old_root;
         return true;
       }
       foreign_keys->empty();
@@ -9361,18 +9355,18 @@ bool TABLE_SHARE::update_foreign_keys(THD *thd, Alter_info *alter_info)
 
     FOREIGN_KEY_INFO *dst= (FOREIGN_KEY_INFO *) alloc_root(
       &mem_root, sizeof(FOREIGN_KEY_INFO));
-    if (unlikely(foreign_keys->push_back(dst)))
+    if (unlikely(foreign_keys->push_back(dst, &mem_root)))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
-      thd->mem_root= old_root;
       return true;
     }
-    dst->foreign_id= &src->constraint_name;
+    dst->foreign_id= make_clex_string(&mem_root, src->constraint_name);
     dst->foreign_db= &db;
     dst->foreign_table= &table_name;
-    dst->referenced_key_name= &src->name;
-    dst->referenced_db= src->ref_db.str ? &src->ref_db : &db;
-    dst->referenced_table= &src->ref_table;
+    dst->referenced_key_name= make_clex_string(&mem_root, src->name);
+    dst->referenced_db= src->ref_db.str ?
+      make_clex_string(&mem_root, src->ref_db) : &db;
+    dst->referenced_table= make_clex_string(&mem_root, src->ref_table);
     dst->update_method= src->update_opt;
     dst->delete_method= src->delete_opt;
     dst->foreign_fields.empty();
@@ -9382,10 +9376,10 @@ bool TABLE_SHARE::update_foreign_keys(THD *thd, Alter_info *alter_info)
     List_iterator_fast<Key_part_spec> col_it(src->columns);
     while ((col= col_it++))
     {
-      if (unlikely(dst->foreign_fields.push_back(&col->field_name)))
+      if (unlikely(dst->foreign_fields.push_back(
+                    make_clex_string(&mem_root, col->field_name), &mem_root)))
       {
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
-        thd->mem_root= old_root;
         return true;
       }
     }
@@ -9393,62 +9387,159 @@ bool TABLE_SHARE::update_foreign_keys(THD *thd, Alter_info *alter_info)
     col_it.init(src->ref_columns);
     while ((col= col_it++))
     {
-      if (unlikely(dst->referenced_fields.push_back(&col->field_name)))
+      if (unlikely(dst->referenced_fields.push_back(
+                    make_clex_string(&mem_root, col->field_name), &mem_root)))
       {
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
-        thd->mem_root= old_root;
         return true;
       }
     }
   }
-  thd->mem_root= old_root;
 
-  if (foreign_keys)
+  if (!foreign_keys)
+    return false;
+
+  List_iterator_fast<FOREIGN_KEY_INFO> fk_it(*foreign_keys);
+  while (FOREIGN_KEY_INFO *fk= fk_it++)
   {
-    MDL_request_list mdl_list;
-    Table_ident_set tables;
-    Tmp_mem_root tmp_root;
-    if (foreign_keys->get(thd, tables, false))
+    if (!cmp(fk->referenced_db, &db) && !cmp(fk->referenced_table, &table_name))
+      continue; // subject table name is already prelocked by caller DDL
+    ref_tables.insert(Table_ident(*fk->referenced_db, *fk->referenced_table));
+  }
+
+  if (ref_tables.empty())
+    return false;
+
+  MDL_request_list mdl_list;
+  Tmp_mem_root tmp_root;
+
+  Table_ident_set::const_iterator it;
+  for (it= ref_tables.begin(); it != ref_tables.end(); ++it)
+  {
+    MDL_request *req= new (&tmp_root) MDL_request;
+    if (!req)
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       return true;
     }
+    req->init(MDL_key::TABLE, it->db.str, it->table.str, MDL_EXCLUSIVE,
+              MDL_STATEMENT);
+    mdl_list.push_front(req);
+  }
 
-    if (!tables.empty())
+  if (!mdl_list.is_empty())
+  {
+    if (thd->mdl_context.acquire_locks(&mdl_list,
+                                    thd->variables.lock_wait_timeout))
     {
-      Table_ident_set::const_iterator it;
-      for (it= tables.begin(); it != tables.end(); ++it)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+                          "Could not lock referenced tables");
+      return true;
+    }
+
+    MDL_request_list::Iterator it(mdl_list);
+    while (MDL_request *req= it++)
+    {
+      const char *ref_db= req->key.db_name();
+      const char *ref_table= req->key.name();
+      Share_lock share_lock(thd, ref_db, ref_table);
+      TDC_element *el= share_lock.element;
+      if (!el)
+        continue;
+      Mutex_lock share_mutex(&el->share->LOCK_share);
+      if (!el->share->referenced_keys)
       {
-        if (!cmp(it->db, db) && !cmp(it->table, table_name))
-          continue; // subject table name is already locked by caller DDL
-        MDL_request *req= new (&tmp_root) MDL_request;
-        if (!req)
+        FK_list* list= (FK_list*)alloc_root(&el->share->mem_root, sizeof(FK_list));
+        if (unlikely(!list))
         {
           my_error(ER_OUT_OF_RESOURCES, MYF(0));
           return true;
         }
-        req->init(MDL_key::TABLE, it->db.str, it->table.str, MDL_EXCLUSIVE,
-                  MDL_TRANSACTION);
-        mdl_list.push_front(req);
+        list->empty();
+        el->share->referenced_keys= list;
       }
-      if (!mdl_list.is_empty() &&
-          thd->mdl_context.acquire_locks(&mdl_list,
-                                        thd->variables.lock_wait_timeout))
+      key_it.rewind();
+      while (Key* key= key_it++)
       {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
-                            "Could not lock referenced tables");
-      }
-    }
+        if (key->type != Key::FOREIGN_KEY)
+          continue;
+        Foreign_key *src= static_cast<Foreign_key*>(key);
+        LEX_CSTRING &src_db= src->ref_db.str ? src->ref_db : db;
+        // Find keys referencing the locked share
+        if (strcmp(src_db.str, ref_db) ||
+            strcmp(src->ref_table.str, ref_table))
+          continue;
 
-    if (!mdl_list.is_empty())
-    {
-      MDL_request_list::Iterator it(mdl_list);
-      while (MDL_request *req= it++)
-        tdc_remove_table(thd, TDC_RT_REMOVE_ALL, req->key.db_name(), req->key.name());
-    }
-  }
+        FOREIGN_KEY_INFO *dst= (FOREIGN_KEY_INFO *) alloc_root(
+          &el->share->mem_root, sizeof(FOREIGN_KEY_INFO));
+        if (unlikely(el->share->referenced_keys->push_back(dst, &el->share->mem_root)))
+        {
+          my_error(ER_OUT_OF_RESOURCES, MYF(0));
+          return true;
+        }
+        dst->foreign_id= make_clex_string(&el->share->mem_root, src->constraint_name);
+        dst->foreign_db= make_clex_string(&el->share->mem_root, db);
+        dst->foreign_table= make_clex_string(&el->share->mem_root, table_name);
+        dst->referenced_key_name= make_clex_string(&el->share->mem_root, src->name);
+        dst->referenced_db= make_clex_string(&el->share->mem_root, src_db);
+        dst->referenced_table= make_clex_string(&el->share->mem_root, src->ref_table);
+        dst->update_method= src->update_opt;
+        dst->delete_method= src->delete_opt;
+        dst->foreign_fields.empty();
+        dst->referenced_fields.empty();
+
+        Key_part_spec* col;
+        List_iterator_fast<Key_part_spec> col_it(src->columns);
+        while ((col= col_it++))
+        {
+          if (unlikely(dst->foreign_fields.push_back(
+                        make_clex_string(&el->share->mem_root, col->field_name),
+                        &el->share->mem_root)))
+          {
+            my_error(ER_OUT_OF_RESOURCES, MYF(0));
+            return true;
+          }
+        }
+
+        col_it.init(src->ref_columns);
+        while ((col= col_it++))
+        {
+          if (unlikely(dst->referenced_fields.push_back(
+                        make_clex_string(&el->share->mem_root, col->field_name),
+                        &el->share->mem_root)))
+          {
+            my_error(ER_OUT_OF_RESOURCES, MYF(0));
+            return true;
+          }
+        } // while ((col= col_it++))
+      } // while (Key* key= key_it++)
+    } // while (MDL_request *req= it++)
+  } // if (!mdl_list.is_empty())
+
   return false;
 }
+
+
+void TABLE_SHARE::revert_referenced_shares(THD *thd, Table_ident_set &ref_tables)
+{
+  Table_ident_set::const_iterator it;
+  for (it= ref_tables.begin(); it != ref_tables.end(); ++it)
+  {
+    Share_lock share_lock(thd, it->db.str, it->table.str);
+    TDC_element *el= share_lock.element;
+    if (!el || !el->share->referenced_keys)
+      continue;
+    List_iterator<FOREIGN_KEY_INFO> fk_it(*el->share->referenced_keys);
+    while (FOREIGN_KEY_INFO* fk= fk_it++)
+    {
+      if (!cmp(fk->foreign_db, &db) && !cmp(fk->foreign_table, &table_name))
+      {
+        fk_it.remove();
+      }
+    }
+  }
+}
+
 
 // Used in DROP TABLE and RENAME TABLE
 bool release_ref_shares(THD *thd, TABLE_LIST *t)

@@ -645,7 +645,9 @@ struct TABLE_SHARE
   KEY  *key_info;			/* data of keys in database */
   FK_list *foreign_keys;
   FK_list *referenced_keys;
-  bool update_foreign_keys(THD *thd, Alter_info *alter_info);
+  bool update_foreign_keys(THD *thd, Alter_info *alter_info,
+                           Table_ident_set &ref_tables);
+  void revert_referenced_shares(THD *thd, Table_ident_set &ref_tables);
   bool check_foreign_keys(THD *thd);
   bool referenced_by_foreign_key() const
   {

@@ -77,6 +77,14 @@ class Lex_cstring : public LEX_CSTRING
       return 1;
     return memcmp(str, rhs.str, length);
   }
+  int cmp(const char* rhs) const
+  {
+    if (!str)
+      return -1;
+    if (!rhs)
+      return 1;
+    return strcmp(str, rhs);
+  }
 };
 
 struct Lex_cstring_lt
@@ -141,6 +149,38 @@ static inline bool lex_string_eq(const LEX_CSTRING *a, const char *b, size_t b_l
   if (a->length != b_length)
     return 0;                                   /* Different */
   return strcasecmp(a->str, b) == 0;
+}
+
+inline
+LEX_CSTRING *make_clex_string(MEM_ROOT *mem_root, const char* str, size_t length)
+{
+  LEX_CSTRING *lex_str;
+  char *tmp;
+  if (unlikely(!(lex_str= (LEX_CSTRING *)alloc_root(mem_root,
+                                                    sizeof(LEX_CSTRING) +
+                                                    (str ? (length + 1) : 0)))))
+    return 0;
+  if (str)
+  {
+    tmp= (char*) (lex_str+1);
+    lex_str->str= tmp;
+    memcpy(tmp, str, length);
+    tmp[length]= 0;
+    lex_str->length= length;
+  }
+  else
+  {
+    DBUG_ASSERT(!length);
+    lex_str->str= NULL;
+    lex_str->length= 0;
+  }
+  return lex_str;
+}
+
+inline
+LEX_CSTRING *make_clex_string(MEM_ROOT *mem_root, const LEX_CSTRING from)
+{
+  return make_clex_string(mem_root, from.str, from.length);
 }
 
 #endif /* LEX_STRING_INCLUDED */

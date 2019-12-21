@@ -1121,6 +1121,22 @@ public:
 };
 
 
+class Mutex_lock
+{
+  mysql_mutex_t *mutex;
+
+public:
+  Mutex_lock(mysql_mutex_t *_mutex): mutex(_mutex)
+  {
+    mysql_mutex_lock(mutex);
+  }
+  ~Mutex_lock()
+  {
+    mysql_mutex_unlock(mutex);
+  }
+};
+
+
 class Server_side_cursor;
 
 /**

@@ -112,6 +112,15 @@ DROP TABLE tpk;
 # MDEV-16417 Store Foreign Key metadata outside of InnoDB
 #
 set default_storage_engine= innodb;
+# Check create table
+create or replace table t1 (id int primary key);
+create or replace table t2 (id int primary key, foreign key (id) references t1(id));
+select * from t1, t2;
+id	id
+flush tables t1, t2;
+Warnings:
+Note	1105	Referenced table test.t1 is not opened
+drop table t2, t1;
 # Check rename column, lock tables
 create or replace table t1 (id int primary key);
 create or replace table t2 (id int primary key);
