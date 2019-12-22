@@ -33,8 +33,12 @@ Created 10/25/1995 Heikki Tuuri
 #include "dict0types.h"
 #include "page0size.h"
 #include "ibuf0types.h"
+#include "intrusive_list.h"
 
 #include <list>
+
+struct unflushed_spaces_tag_t;
+struct rotation_list_tag_t;
 
 // Forward declaration
 extern ibool srv_use_doublewrite_buf;
@@ -78,7 +82,9 @@ fil_type_is_data(
 struct fil_node_t;
 
 /** Tablespace or log data space */
-struct fil_space_t {
+struct fil_space_t : intrusive::list_node<unflushed_spaces_tag_t>,
+                     intrusive::list_node<rotation_list_tag_t>
+{
 	ulint		id;	/*!< space id */
 	hash_node_t	hash;	/*!< hash chain node */
 	char*		name;	/*!< Tablespace name */
@@ -156,9 +162,6 @@ struct fil_space_t {
 	ulint		n_pending_ios;
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
-	UT_LIST_NODE_T(fil_space_t) unflushed_spaces;
-				/*!< list of spaces with at least one unflushed
-				file we have written to */
 	UT_LIST_NODE_T(fil_space_t) named_spaces;
 				/*!< list of spaces for which MLOG_FILE_NAME
 				records have been issued */
@@ -167,8 +170,6 @@ struct fil_space_t {
 	bool is_in_unflushed_spaces() const;
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
-	/** other tablespaces needing key rotation */
-	UT_LIST_NODE_T(fil_space_t) rotation_list;
 	/** Checks that this tablespace needs key rotation.
 	@return true if in a rotation list */
 	bool is_in_rotation_list() const;
@@ -484,6 +485,11 @@ fil_space_get(
 data space) is stored here; below we talk about tablespaces, but also
 the ib_logfiles form a 'space' and it is handled here */
 struct fil_system_t {
+	fil_system_t()
+	    : n_open(0), max_assigned_id(0), space_id_reuse_warned(false)
+	{
+	}
+
 	ib_mutex_t	mutex;		/*!< The mutex protecting the cache */
 	hash_table_t*	spaces;		/*!< The hash table of spaces in the
 					system; they are hashed on the space
@@ -501,8 +507,8 @@ struct fil_system_t {
 					not put to this list: they are opened
 					after the startup, and kept open until
 					shutdown */
-	UT_LIST_BASE_NODE_T(fil_space_t) unflushed_spaces;
-					/*!< base node for the list of those
+	intrusive::list<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
+					/*!< list of those
 					tablespaces whose files contain
 					unflushed writes; those spaces have
 					at least one file node where
@@ -524,11 +530,11 @@ struct fil_system_t {
 					record has been written since
 					the latest redo log checkpoint.
 					Protected only by log_sys->mutex. */
-	UT_LIST_BASE_NODE_T(fil_space_t) rotation_list;
+	intrusive::list<fil_space_t, rotation_list_tag_t> rotation_list;
 					/*!< list of all file spaces needing
 					key rotation.*/
 
-	ibool		space_id_reuse_warned;
+	bool		space_id_reuse_warned;
 					/* !< TRUE if fil_space_create()
 					has issued a warning about
 					potential space_id reuse */
