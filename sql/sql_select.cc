@@ -10670,6 +10670,11 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	    if (sel->cond && !sel->cond->fixed)
 	      sel->cond->quick_fix_field();
 
+            // Move away the quick select (the first thing test_quick_select()
+            // will do is delete it anyway)
+            SQL_SELECT save_sel= *sel;
+            tab->select->quick=NULL;
+
 	    if (sel->test_quick_select(thd, tab->keys,
 				       ((used_tables & ~ current_map) |
                                         OUTER_REF_TABLE_BIT),
@@ -10696,6 +10701,16 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             }
             else
 	      sel->cond=orig_cond;
+
+            // If save_sel_copy has a better quick select than sel, put it
+            // back.
+            if (save_sel.quick &&
+                (!sel->quick || sel->quick->read_time > save_sel.read_time))
+            {
+              delete sel->quick;
+              *sel= save_sel;
+              save_sel.quick= NULL;
+            }
 
 	    /* Fix for EXPLAIN */
 	    if (sel->quick)
