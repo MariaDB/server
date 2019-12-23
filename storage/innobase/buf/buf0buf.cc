@@ -103,6 +103,7 @@ struct set_numa_interleave_t
 					" policy to MPOL_INTERLEAVE: "
 					<< strerror(errno);
 			}
+			numa_bitmask_free(numa_mems_allowed);
 		}
 	}
 
@@ -1600,6 +1601,7 @@ buf_chunk_init(
 				" buffer pool page frames to MPOL_INTERLEAVE"
 				" (error: " << strerror(errno) << ").";
 		}
+		numa_bitmask_free(numa_mems_allowed);
 	}
 #endif /* HAVE_LIBNUMA */
 
