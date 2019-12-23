@@ -158,6 +158,19 @@ bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
 }
 
 
+longlong Item::val_datetime_packed_result()
+{
+  MYSQL_TIME ltime, tmp;
+  if (get_date_result(&ltime, TIME_FUZZY_DATES | TIME_INVALID_DATES))
+    return 0;
+  if (ltime.time_type != MYSQL_TIMESTAMP_TIME)
+    return pack_time(&ltime);
+  if ((null_value= time_to_datetime_with_warn(current_thd, &ltime, &tmp, 0)))
+    return 0;
+  return pack_time(&tmp);
+}
+
+
 /**
   Get date/time/datetime.
   If DATETIME or DATE result is returned, it's converted to TIME.
@@ -2855,12 +2868,13 @@ bool Item_field::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 
 bool Item_field::get_date_result(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
-  if (result_field->is_null() || result_field->get_date(ltime,fuzzydate))
+  if ((null_value= result_field->is_null()) ||
+      result_field->get_date(ltime, fuzzydate))
   {
     bzero((char*) ltime,sizeof(*ltime));
-    return (null_value= 1);
+    return true;
   }
-  return (null_value= 0);
+  return false;
 }
 
 
@@ -8014,7 +8028,7 @@ bool Item_ref::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 longlong Item_ref::val_datetime_packed()
 {
   DBUG_ASSERT(fixed);
-  longlong tmp= (*ref)->val_datetime_packed();
+  longlong tmp= (*ref)->val_datetime_packed_result();
   null_value= (*ref)->null_value;
   return tmp;
 }
@@ -8023,7 +8037,7 @@ longlong Item_ref::val_datetime_packed()
 longlong Item_ref::val_time_packed()
 {
   DBUG_ASSERT(fixed);
-  longlong tmp= (*ref)->val_time_packed();
+  longlong tmp= (*ref)->val_time_packed_result();
   null_value= (*ref)->null_value;
   return tmp;
 }

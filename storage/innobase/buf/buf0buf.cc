@@ -130,29 +130,6 @@ struct set_numa_interleave_t
 #include "snappy-c.h"
 #endif
 
-inline void* aligned_malloc(size_t size, size_t align) {
-    void *result;
-#ifdef _MSC_VER
-    result = _aligned_malloc(size, align);
-#elif defined (HAVE_POSIX_MEMALIGN)
-    if(posix_memalign(&result, align, size)) {
-	    result = 0;
-    }
-#else
-    /* Use unaligned malloc as fallback */
-    result = malloc(size);
-#endif
-    return result;
-}
-
-inline void aligned_free(void *ptr) {
-#ifdef _MSC_VER
-        _aligned_free(ptr);
-#else
-      free(ptr);
-#endif
-}
-
 /*
 		IMPLEMENTATION OF THE BUFFER POOL
 		=================================

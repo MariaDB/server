@@ -2441,7 +2441,7 @@ print_tz_leaps_as_sql(const TIME_ZONE_INFO *sp)
   if (!opt_skip_write_binlog)
       printf("\\d |\n"
         "IF (select count(*) from information_schema.global_variables where\n"
-        "variable_name='wsrep_on') = 1 THEN\n"
+        "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
         "ALTER TABLE time_zone_leap_second ENGINE=InnoDB;\n"
         "END IF|\n"
         "\\d ;\n");
@@ -2461,7 +2461,7 @@ print_tz_leaps_as_sql(const TIME_ZONE_INFO *sp)
   if (!opt_skip_write_binlog)
       printf("\\d |\n"
         "IF (select count(*) from information_schema.global_variables where\n"
-        "variable_name='wsrep_on') = 1 THEN\n"
+        "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
         "ALTER TABLE time_zone_leap_second ENGINE=MyISAM;\n"
         "END IF|\n"
         "\\d ;\n");
@@ -2717,7 +2717,7 @@ main(int argc, char **argv)
        sql_log_bin and wsrep_on to avoid Galera replicating below
        truncate table clauses. This will allow user to set different
        time zones to nodes in Galera cluster. */
-    printf("set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');\n"
+    printf("set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');\n"
            "prepare set_wsrep_write_binlog from @prep1;\n"
            "set @toggle=0; execute set_wsrep_write_binlog using @toggle;\n");
 
@@ -2733,7 +2733,7 @@ main(int argc, char **argv)
       // to allow changes to them to replicate with Galera
       printf("\\d |\n"
         "IF (select count(*) from information_schema.global_variables where\n"
-        "variable_name='wsrep_on') = 1 THEN\n"
+        "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
         "ALTER TABLE time_zone ENGINE=InnoDB;\n"
         "ALTER TABLE time_zone_name ENGINE=InnoDB;\n"
         "ALTER TABLE time_zone_transition ENGINE=InnoDB;\n"
@@ -2788,7 +2788,7 @@ main(int argc, char **argv)
       // Fall back to MyISAM
       printf("\\d |\n"
         "IF (select count(*) from information_schema.global_variables where\n"
-        "variable_name='wsrep_on') = 1 THEN\n"
+        "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
         "ALTER TABLE time_zone ENGINE=MyISAM;\n"
         "ALTER TABLE time_zone_name ENGINE=MyISAM;\n"
         "ALTER TABLE time_zone_transition ENGINE=MyISAM;\n"
