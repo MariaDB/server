@@ -2224,7 +2224,7 @@ static Sys_var_slave_parallel_mode Sys_slave_parallel_mode(
        "\"minimal\" only parallelizes the commit steps of transactions. "
        "\"none\" disables parallel apply completely.",
        GLOBAL_VAR(opt_slave_parallel_mode), NO_CMD_LINE,
-       slave_parallel_mode_names, DEFAULT(SLAVE_PARALLEL_CONSERVATIVE));
+       slave_parallel_mode_names, DEFAULT(SLAVE_PARALLEL_OPTIMISTIC));
 
 
 static Sys_var_bit Sys_skip_parallel_replication(

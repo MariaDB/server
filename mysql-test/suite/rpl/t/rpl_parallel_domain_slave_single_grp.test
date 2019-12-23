@@ -1,0 +1,1 @@
+--source include/rpl_parallel_domain_slave_single_grp.inc

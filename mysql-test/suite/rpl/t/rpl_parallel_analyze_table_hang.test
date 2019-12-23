@@ -1,0 +1,1 @@
+--source include/rpl_parallel_analyze_table_hang.inc

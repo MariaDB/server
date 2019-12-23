@@ -1,0 +1,1 @@
+--source include/rpl_parallel_deadlock_corrupt_binlog.inc

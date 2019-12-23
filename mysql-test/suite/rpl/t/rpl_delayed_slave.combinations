@@ -1,5 +1,4 @@
 [nonparallel]
 
 [parallel]
---slave-parallel-mode=conservative
 --slave-parallel-threads=10
