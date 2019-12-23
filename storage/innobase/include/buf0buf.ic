@@ -121,7 +121,7 @@ buf_pool_get_n_pages(void)
   {
     buf_pool_t* buf_pool = buf_pool_from_array(i);
     for (uint j= 0; j < buf_pool->n_chunks; j++)
-      chunk_size+= buf_pool->chunks[j]->size;
+      chunk_size+= buf_pool->chunks[j].size;
   }
   return chunk_size;
 }
