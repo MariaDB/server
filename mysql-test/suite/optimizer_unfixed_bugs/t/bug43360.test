@@ -6,6 +6,7 @@
 --source include/have_debug.inc
 --source include/have_innodb.inc
 
+set @saved_dbug = @@session.debug_dbug;
 # crash requires this
 set session debug_dbug="+d,optimizer_innodb_icp";
 
@@ -42,3 +43,4 @@ SELECT * FROM t1;
 SELECT * FROM t2;
 
 DROP TABLE t1,t2;   
+set debug_dbug= @saved_dbug;

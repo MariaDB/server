@@ -15,12 +15,13 @@ RESET MASTER;
 
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=innodb;
 INSERT INTO t1 VALUES(0);
+set @saved_dbug = @@session.debug_dbug;
 SET SESSION debug_dbug='+d,fail_binlog_write_1';
 --error ER_ERROR_ON_WRITE
 INSERT INTO t1 VALUES(1);
 --error ER_ERROR_ON_WRITE
 INSERT INTO t1 VALUES(2);
-SET SESSION debug_dbug='';
+SET SESSION debug_dbug=@saved_dbug;
 INSERT INTO t1 VALUES(3);
 SELECT * FROM t1;
 

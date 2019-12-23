@@ -14,6 +14,7 @@ a
 1
 2
 3
+set @saved_dbug = @@global.debug_dbug;
 SET GLOBAL debug_dbug= '+d,incident_database_resync_on_replace,*';
 REPLACE INTO t1 VALUES (4);
 SELECT * FROM t1;
@@ -22,6 +23,7 @@ a
 2
 3
 4
+set @@global.debug_dbug = @saved_dbug;
 connection slave;
 call mtr.add_suppression("Slave SQL.*The incident LOST_EVENTS occurred on the master.* 1590");
 include/wait_for_slave_sql_error.inc [errno=1590]
