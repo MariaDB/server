@@ -6782,13 +6782,21 @@ int handler::update_first_row(const uchar *new_data)
   return error;
 }
 
+static bool is_row_self_referencing(const uchar *row, const KEY &fk, const KEY &ref)
+{
+  if (fk.table->s != ref.table->s)
+    return false;
+  DBUG_ASSERT(ref.without_overlaps);
+  return key_period_compare_bases(fk, ref, row, row) == 0;
+}
 
 static int period_find_overlapping_record(handler *handler,
                                           const uchar *key_buf,
                                           const uchar *record_to_cmp,
                                           uchar *record,
                                           const KEY &key_to_cmp,
-                                          const KEY &key)
+                                          const KEY &key,
+                                          bool ignore_self_refs)
 {
   // number of key parts not including period fields
   auto base_parts= key.user_defined_key_parts - 2;
@@ -6809,19 +6817,22 @@ static int period_find_overlapping_record(handler *handler,
    */
   int error= handler->ha_index_read_map(record, key_buf,
                                         PREV_BITS(ulong, base_parts),
-                                        HA_READ_KEY_OR_NEXT);
+                                        HA_READ_KEY_EXACT);
   if (unlikely(error))
       return error;
 
   while (key_period_compare_bases(key, key_to_cmp, record, record_to_cmp) == 0)
   {
-    int overlap= key_period_compare_periods(key, key_to_cmp,
-                                            record, record_to_cmp);
+    if (!ignore_self_refs || !is_row_self_referencing(record, key, key_to_cmp))
+    {
+      int overlap= key_period_compare_periods(key, key_to_cmp,
+                                              record, record_to_cmp);
 
-    if (overlap > 0) // all the rest will definitely succeed tested record
-      return HA_ERR_KEY_NOT_FOUND;
-    else if (overlap == 0)
-      return 0;
+      if (overlap > 0) // all the rest will definitely succeed tested record
+        return HA_ERR_KEY_NOT_FOUND;
+      else if (overlap == 0)
+        return 0;
+    }
 
     error= handler->ha_index_next(record);
     if (unlikely(error == HA_ERR_END_OF_FILE))
@@ -6845,6 +6856,7 @@ static int period_row_check_delete_for_key(const uchar *record,
                                            const FOREIGN_KEY &fk)
 {
   handler *foreign_handler= fk.foreign_key->table->file;
+  auto *foreign_table= fk.foreign_key->table;
 
   /* We shouldn't save cursor here, since this handler is never used.
      The foreign table is only opened for FK matches. */
@@ -6853,10 +6865,15 @@ static int period_row_check_delete_for_key(const uchar *record,
     return error;
 
 
-  set_bits_with_key(fk.foreign_key->table->read_set,
+  set_bits_with_key(foreign_table->read_set,
                     fk.foreign_key, fk.fields_num);
-  auto *record_buffer= foreign_handler->get_table()->record[0];
-  auto *key_buffer= foreign_handler->get_table()->record[1];
+  if (foreign_table->s == fk.referenced_key->table->s)
+  {
+    set_bits_with_key(foreign_table->read_set, fk.referenced_key,
+                      fk.fields_num);
+  }
+  auto *record_buffer= foreign_table->record[0];
+  auto *key_buffer= foreign_table->record[1];
 
   key_copy(key_buffer, record, fk.referenced_key, 0);
   error= period_find_overlapping_record(foreign_handler,
@@ -6864,7 +6881,8 @@ static int period_row_check_delete_for_key(const uchar *record,
                                         record,
                                         record_buffer,
                                         *fk.referenced_key,
-                                        *fk.foreign_key);
+                                        *fk.foreign_key,
+                                        true);
 
   int end_error= foreign_handler->ha_index_end();
 
@@ -6950,7 +6968,7 @@ static int period_check_row_references(handler *ref_handler,
 {
   int error= period_find_overlapping_record(ref_handler, key_buf,
                                             record, ref_record,
-                                            key, ref_key);
+                                            key, ref_key, false);
   if (error)
     return error;
 
@@ -7003,6 +7021,9 @@ static int period_check_row_references(handler *ref_handler,
 static int period_row_check_insert_for_key(const uchar *record,
                                            const FOREIGN_KEY &fk)
 {
+  if (is_row_self_referencing(record, *fk.foreign_key, *fk.referenced_key))
+    return 0;
+
   handler *ref_handler= fk.referenced_key->table->file;
 
   int error= ref_handler->ha_index_init(fk.referenced_key_nr, false);
@@ -7031,6 +7052,8 @@ static int period_row_check_insert_for_key(const uchar *record,
 int handler::period_row_ins_fk_check(const uchar *record)
 {
   if (!table->foreign_keys)
+    return 0;
+  if (table->versioned() && !table->vers_end_field()->is_max())
     return 0;
 
   for(int k= 0; k < table->foreign_keys; k++)

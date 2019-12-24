@@ -9494,6 +9494,7 @@ bool TABLE_SHARE::update_foreign_keys(THD *thd, Alter_info *alter_info,
         dst->delete_method= src->delete_opt;
         dst->foreign_fields.empty();
         dst->referenced_fields.empty();
+        dst->has_period= bool(src->period);
 
         Key_part_spec* col;
         List_iterator_fast<Key_part_spec> col_it(src->columns);
