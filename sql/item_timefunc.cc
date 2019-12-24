@@ -1090,17 +1090,21 @@ longlong Item_func_yearweek::val_int()
 }
 
 
+static uint weekday_from_item(Item *item, bool *null_value, bool week_starts_on_sunday)
+{
+  MYSQL_TIME ltime;
+  if ((*null_value= item->get_date_with_conversion(&ltime, TIME_NO_ZERO_DATE |
+                                                           TIME_NO_ZERO_IN_DATE)))
+    return 0;
+  return calc_weekday(calc_daynr(ltime.year, ltime.month, ltime.day), week_starts_on_sunday) +
+         MY_TEST(week_starts_on_sunday);
+}
+
+
 longlong Item_func_weekday::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
-    return 0;
-
-  return (longlong) calc_weekday(calc_daynr(ltime.year, ltime.month,
-                                            ltime.day),
-                                 odbc_type) + MY_TEST(odbc_type);
+  return (longlong) weekday_from_item(args[0], &null_value, odbc_type);
 }
 
 bool Item_func_dayname::fix_length_and_dec()
@@ -1119,7 +1123,7 @@ bool Item_func_dayname::fix_length_and_dec()
 String* Item_func_dayname::val_str(String* str)
 {
   DBUG_ASSERT(fixed == 1);
-  uint weekday=(uint) val_int();		// Always Item_func_weekday()
+  uint weekday= weekday_from_item(args[0], &null_value, false);
   const char *day_name;
   uint err;
 
