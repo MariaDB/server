@@ -14,14 +14,15 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 /* Accepting connections on Windows */
-
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <afunix.h>
 #include <my_global.h>
+#include <mysql/psi/mysql_socket.h>
+#include <mysqld.h>
+#include <sddl.h>
 #include <sql_class.h>
 #include <sql_connect.h>
-#include <mysqld.h>
-#include <mswsock.h>
-#include <mysql/psi/mysql_socket.h>
-#include <sddl.h>
 
 #include <handle_connections_win.h>
 
@@ -116,6 +117,92 @@ struct Listener
 static LPFN_ACCEPTEX my_AcceptEx;
 static LPFN_GETACCEPTEXSOCKADDRS my_GetAcceptExSockaddrs;
 
+extern MYSQL_SOCKET unix_sock;
+HANDLE unix_sock_handle;
+
+bool is_afunix_socket(const char* path)
+{
+  WIN32_FIND_DATA find_data;
+
+  HANDLE hFind= FindFirstFile(path, &find_data);
+  if (hFind == INVALID_HANDLE_VALUE)
+    return false;
+  FindClose(hFind);
+
+  if (!(find_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+    return false;
+
+  return find_data.dwReserved0 == IO_REPARSE_TAG_AF_UNIX;
+}
+
+#include <windows.h>
+#include <AclAPI.h>
+MYSQL_SOCKET create_afunix_socket(const char *path)
+{
+  // Create a AF_UNIX stream server socket.
+  MYSQL_SOCKET listen_socket= mysql_socket_invalid();
+  listen_socket.fd= socket(AF_UNIX, SOCK_STREAM, 0);
+  if (listen_socket.fd == INVALID_SOCKET)
+    return listen_socket;
+
+  SOCKADDR_UN sock_addr_un= {};
+  sock_addr_un.sun_family= AF_UNIX;
+  if (strlen(path) > sizeof(sock_addr_un.sun_path))
+  {
+    sql_print_error("The socket file path is too long (> %u): %s",
+                    (uint) sizeof(sock_addr_un.sun_path) - 1,
+                    mysqld_unix_port);
+    return listen_socket;
+  }
+  strcpy(sock_addr_un.sun_path, path);
+
+#if 0
+  // Abstract socket does not work yet,
+  // https://github.com/microsoft/WSL/issues/4240
+  if (path[0] == '@')
+  {
+    sock_addr_un.sun_path[0]= 0;
+  }
+#endif
+
+
+  DeleteFile(path);
+
+  // Bind the socket to the path
+  int res= bind(listen_socket.fd, (struct sockaddr *) &sock_addr_un,
+                sizeof(sock_addr_un));
+  if (res == SOCKET_ERROR)
+  {
+    sql_perror("bind AF_UNIX socket failed");
+    closesocket(listen_socket.fd);
+    return mysql_socket_invalid();
+  }
+  PSECURITY_DESCRIPTOR sd;
+  if (!ConvertStringSecurityDescriptorToSecurityDescriptorA(
+          "S:(ML;; NW;;; LW) D:(A;; FA;;; WD)", 1, &sd, NULL))
+  {
+    sql_perror("Can't start server : Initialize security descriptor");
+    unireg_abort(1);
+  }
+  if (!SetFileSecurityA(path, DACL_SECURITY_INFORMATION, sd))
+  {
+    sql_perror("SetFileSecurity() failed on unix socket");
+    unireg_abort(1);
+  }
+  LocalFree(sd);
+  if (mysql_socket_listen(listen_socket, (int) back_log) < 0)
+  {
+    sql_print_warning("listen() on Unix socket failed with error %d",
+                      socket_errno);
+    closesocket(listen_socket.fd);
+    return mysql_socket_invalid();
+  }
+
+  unix_sock= listen_socket;
+  return listen_socket;
+}
+
+
 /**
   Listener that handles socket connections.
   Can be threadpool-bound (i.e the completion is executed in threadpool thread),
@@ -128,6 +215,7 @@ struct Socket_Listener: public Listener
 {
   /** Client socket passed to AcceptEx() call.*/
   SOCKET m_client_socket;
+  int m_ai_family;
 
   /** Buffer for sockaddrs passed to AcceptEx()/GetAcceptExSockaddrs() */
   char m_buffer[2 * sizeof(sockaddr_storage) + 32];
@@ -161,8 +249,9 @@ struct Socket_Listener: public Listener
   @PTP_CALLBACK_ENVIRON callback_environ  - threadpool environment, or NULL
     if threadpool is not used for completion callbacks.
   */
-  Socket_Listener(MYSQL_SOCKET listen_socket, PTP_CALLBACK_ENVIRON callback_environ) :
+  Socket_Listener(MYSQL_SOCKET listen_socket, int ai_family,PTP_CALLBACK_ENVIRON callback_environ) :
     Listener((HANDLE)listen_socket.fd,0),
+    m_ai_family(ai_family),
     m_client_socket(INVALID_SOCKET)
   {
     if (callback_environ)
@@ -184,8 +273,8 @@ struct Socket_Listener: public Listener
   */
   void begin_accept()
   {
-retry :
-    m_client_socket= socket(server_socket_ai_family, SOCK_STREAM, IPPROTO_TCP);
+  retry:
+    m_client_socket= socket(m_ai_family, SOCK_STREAM, 0);
     if (m_client_socket == INVALID_SOCKET)
     {
       sql_perror("socket() call failed.");
@@ -280,14 +369,15 @@ retry :
   */
   static void init_winsock_extensions()
   {
-    SOCKET s= mysql_socket_getfd(base_ip_sock);
-    if (s == INVALID_SOCKET)
-      s= mysql_socket_getfd(extra_ip_sock);
-    if (s == INVALID_SOCKET)
+    SOCKET s= INVALID_SOCKET;
+    for (auto sock : {base_ip_sock, extra_ip_sock, unix_sock})
     {
-      /* --skip-networking was used*/
-      return;
+      if ((s= mysql_socket_getfd(sock)) != INVALID_SOCKET)
+        break;
     }
+    if (s == INVALID_SOCKET)
+      return; // No sockets
+
     GUID guid_AcceptEx= WSAID_ACCEPTEX;
     GUID guid_GetAcceptExSockaddrs= WSAID_GETACCEPTEXSOCKADDRS;
 
@@ -481,6 +571,8 @@ struct Pipe_Listener : public Listener
 #define SHUTDOWN_IDX 0
 #define LISTENER_START_IDX 1
 
+
+
 void handle_connections_win()
 {
   Listener* all_listeners[MAX_WAIT_HANDLES]= {};
@@ -488,11 +580,17 @@ void handle_connections_win()
   int n_listeners= 0;
   int n_waits= 0;
 
+  if (mysqld_unix_port[0] && !opt_bootstrap && opt_enable_named_pipe)
+  {
+    unix_sock = create_afunix_socket(mysqld_unix_port);
+  }
+
   Socket_Listener::init_winsock_extensions();
 
   /* Listen for TCP connections on "extra-port" (no threadpool).*/
   if (extra_ip_sock.fd != INVALID_SOCKET)
-    all_listeners[n_listeners++]= new Socket_Listener(extra_ip_sock, 0);
+    all_listeners[n_listeners++]=
+        new Socket_Listener(extra_ip_sock, server_socket_ai_family, 0);
 
   /* Listen for named pipe connections */
   if (mysqld_unix_port[0] && !opt_bootstrap && opt_enable_named_pipe)
@@ -502,13 +600,26 @@ void handle_connections_win()
     */
     for (int i= 0; i < NUM_PIPE_LISTENERS; i++)
       all_listeners[n_listeners++]= new Pipe_Listener();
+
+
+    if (unix_sock.fd != INVALID_SOCKET)
+    {
+     /* Wait for Unix socket connections.*/
+      SetFileCompletionNotificationModes((HANDLE) unix_sock.fd,
+                                       FILE_SKIP_SET_EVENT_ON_HANDLE);
+      all_listeners[n_listeners++]= new Socket_Listener(
+          unix_sock, AF_UNIX, get_threadpool_win_callback_environ());
+    }
   }
 
   if (base_ip_sock.fd != INVALID_SOCKET)
   {
-     /* Wait for TCP connections.*/
-    SetFileCompletionNotificationModes((HANDLE)base_ip_sock.fd, FILE_SKIP_SET_EVENT_ON_HANDLE);
-    all_listeners[n_listeners++]= new Socket_Listener(base_ip_sock, get_threadpool_win_callback_environ());
+    /* Wait for TCP connections.*/
+    SetFileCompletionNotificationModes((HANDLE) base_ip_sock.fd,
+                                       FILE_SKIP_SET_EVENT_ON_HANDLE);
+    all_listeners[n_listeners++]=
+        new Socket_Listener(base_ip_sock, server_socket_ai_family,
+                            get_threadpool_win_callback_environ());
   }
 
   if (!n_listeners && !opt_bootstrap)

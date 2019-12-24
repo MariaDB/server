@@ -146,6 +146,7 @@ int TP_connection_win::init()
   {
   case VIO_TYPE_SSL:
   case VIO_TYPE_TCPIP:
+  case VIO_TYPE_SOCKET:
     handle= (HANDLE) mysql_socket_getfd(connect->sock);
     break;
   case VIO_TYPE_NAMEDPIPE:
