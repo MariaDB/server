@@ -1757,6 +1757,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   /* Length of the MariaDB extra2 segment in the form file. */
   len = uint2korr(frm_image+4);
 
+  if (frm_length < FRM_HEADER_SIZE + len ||
+      !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
+    goto err;
+
   if (read_extra2(frm_image, len, &extra2))
     goto err;
 
@@ -1777,10 +1781,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       goto err;
   }
 #endif
-
-  if (frm_length < FRM_HEADER_SIZE + len ||
-      !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
-    goto err;
 
   forminfo= frm_image + pos;
   if (forminfo + FRM_FORMINFO_SIZE >= frm_image_end)
