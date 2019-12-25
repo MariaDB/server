@@ -1779,11 +1779,7 @@ protected:
     List_iterator_fast<Item_sum> it(sum_functions);
     Item_sum* item;
     while ((item= it++))
-    {
-      Item_sum_window_with_row_count* item_with_row_count =
-        static_cast<Item_sum_window_with_row_count *>(item);
-      item_with_row_count->set_row_count(num_rows_in_partition);
-    }
+      item->set_partition_row_count(num_rows_in_partition);
   }
 };
 
