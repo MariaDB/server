@@ -11,17 +11,24 @@ MACRO(BUNDLE_PCRE2)
   FOREACH(lib pcre2-posix pcre2-8)
     ADD_LIBRARY(${lib} STATIC IMPORTED GLOBAL)
     ADD_DEPENDENCIES(${lib} pcre2)
-    IF(WIN32) # same condition as in pcre2 CMakeLists.txt that adds "d"
-      SET(file ${dir}/src/pcre2-build/${CMAKE_CFG_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${CMAKE_STATIC_LIBRARY_SUFFIX})
-      SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION_DEBUG ${dir}/src/pcre2-build/Debug/${lib}d.lib)
+    SET(file ${dir}/src/pcre2-build/${CMAKE_CFG_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${CMAKE_STATIC_LIBRARY_SUFFIX})
+    IF(WIN32)
+      # Debug libary name.
+      # Same condition as in pcre2 CMakeLists.txt that adds "d"
+      SET(file_d ${dir}/src/pcre2-build/${CMAKE_CFG_INTDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}d${CMAKE_STATIC_LIBRARY_SUFFIX})
+      SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION_DEBUG ${file_d})
     ELSE()
-      SET(file ${dir}/src/pcre2-build/${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${CMAKE_STATIC_LIBRARY_SUFFIX})
-      SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${file})
+      SET(file_d)
     ENDIF()
+	SET(byproducts ${byproducts} BUILD_BYPRODUCTS ${file} ${file_d})
     SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION ${file})
   ENDFOREACH()
   FOREACH(v "" "_DEBUG" "_RELWITHDEBINFO" "_RELEASE" "_MINZISEREL")
     STRING(REPLACE "/WX" "" pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
+    IF(MSVC)
+      # Suppress a warning
+      STRING(APPEND pcre2_flags${v} " /wd4244 " )
+    ENDIF()
   ENDFOREACH()
   ExternalProject_Add(
     pcre2
