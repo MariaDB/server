@@ -4905,35 +4905,13 @@ error:
 }
 
 /* TODO: Temporary until MDEV-21051 Store FK info in FRM files */
-FK_list *ha_mroonga::build_foreign_list(bool &err, bool referenced)
+void ha_mroonga::build_foreign_list(FK_list &fk_list, bool &err)
 {
-  FK_list fk_list;
   THD *thd= ha_thd();
   MEM_ROOT *old_root= thd->mem_root;
   thd->mem_root= &table->s->mem_root;
-  if (referenced)
-  {
-    err= storage_get_foreign_key_list(thd, &fk_list);
-  }
-  else
-  {
-    err= storage_get_foreign_key_list(thd, &fk_list);
-  }
+  err= storage_get_foreign_key_list(thd, &fk_list);
   thd->mem_root= old_root;
-
-  if (fk_list.is_empty())
-    return NULL;
-
-  FK_list *result_list= (FK_list *) alloc_root(
-      &table->s->mem_root, sizeof(FK_list));
-  if (unlikely(!result_list))
-  {
-    err= true;
-    return NULL;
-  }
-  result_list->empty();
-  result_list->copy(&fk_list, &table->s->mem_root);
-  return result_list;
 }
 
 int ha_mroonga::open(const char *name,
@@ -4965,36 +4943,19 @@ int ha_mroonga::open(const char *name,
   } else {
     error = storage_open(name, mode, open_options);
     /* TODO: Temporary until MDEV-21051 Store FK info in FRM files */
-    if (!error && !table->s->referenced_keys &&
+    if (!error && table->s->foreign_keys.is_empty() &&
         table->s->tmp_table == NO_TMP_TABLE)
     {
       bool err= false;
       mysql_mutex_lock(&table->s->LOCK_share);
-      if (!table->s->referenced_keys)
+      if (table->s->foreign_keys.is_empty())
       {
-        DBUG_ASSERT(!table->s->foreign_keys);
-        table->s->foreign_keys= build_foreign_list(err, false);
-        if (!err)
-        {
-          table->s->referenced_keys= build_foreign_list(err, true);
-        }
+        build_foreign_list(table->s->foreign_keys, err);
       }
       mysql_mutex_unlock(&table->s->LOCK_share);
-      if (!table->s->referenced_keys)
-      {
-        /* Assign some empty list to indicate that we don't need to initialize
-         * this TABLE_SHARE anymore. */
-        static FK_list empty_list;
-        DBUG_ASSERT(empty_list.is_empty());
-        table->s->referenced_keys= &empty_list;
-      }
       if (unlikely(err))
       {
         error= HA_ERR_OUT_OF_MEM;
-      }
-      else
-      {
-        DBUG_ASSERT(table->s->referenced_keys);
       }
     }
   }

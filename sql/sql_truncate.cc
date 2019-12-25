@@ -135,8 +135,7 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
     of foreign keys referencing this table in order to check the name
     of the child (dependent) tables.
   */
-  DBUG_ASSERT(table->s->referenced_keys);
-  it.init(*table->s->referenced_keys);
+  it.init(table->s->referenced_keys);
 
   /* Loop over the set of foreign keys for which this table is a parent. */
   while ((fk_info= it++))

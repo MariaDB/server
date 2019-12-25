@@ -153,6 +153,11 @@ select * from t1, t2;
 flush tables t1, t2;
 drop table t2, t1;
 
+create table t1 (id int primary key);
+create table t2 (id int references t1(id)) select id from t1;
+flush tables;
+drop table t2, t1;
+
 --echo # Check rename column, lock tables
 create or replace table t1 (id int primary key);
 create or replace table t2 (id int primary key);

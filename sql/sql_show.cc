@@ -6874,10 +6874,10 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
         }
     }
 
-    if (show_table->s->foreign_keys)
+    if (!show_table->s->foreign_keys.is_empty())
     {
       FOREIGN_KEY_INFO *f_key_info;
-      List_iterator_fast<FOREIGN_KEY_INFO> it(*show_table->s->foreign_keys);
+      List_iterator_fast<FOREIGN_KEY_INFO> it(show_table->s->foreign_keys);
       while ((f_key_info=it++))
       {
         if (store_constraints(thd, table, db_name, table_name,
@@ -7062,10 +7062,10 @@ static int get_schema_key_column_usage_record(THD *thd,
       }
     }
 
-    if (show_table->s->foreign_keys)
+    if (!show_table->s->foreign_keys.is_empty())
     {
       FOREIGN_KEY_INFO *f_key_info;
-      List_iterator_fast<FOREIGN_KEY_INFO> fkey_it(*show_table->s->foreign_keys);
+      List_iterator_fast<FOREIGN_KEY_INFO> fkey_it(show_table->s->foreign_keys);
       while ((f_key_info= fkey_it++))
       {
         LEX_CSTRING *f_info;
@@ -7806,7 +7806,7 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
     thd->clear_error();
     DBUG_RETURN(0);
   }
-  if (!tables->view && tables->table->s->foreign_keys)
+  if (!tables->view && !tables->table->s->foreign_keys.is_empty())
   {
     TABLE *show_table= tables->table;
     show_table->file->info(HA_STATUS_VARIABLE |
@@ -7814,7 +7814,7 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
                            HA_STATUS_TIME);
 
     FOREIGN_KEY_INFO *f_key_info;
-    List_iterator_fast<FOREIGN_KEY_INFO> it(*show_table->s->foreign_keys);
+    List_iterator_fast<FOREIGN_KEY_INFO> it(show_table->s->foreign_keys);
     while ((f_key_info= it++))
     {
       restore_record(table, s->default_values);

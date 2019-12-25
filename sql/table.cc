@@ -341,6 +341,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     share->normalized_path.length= path_length;
     share->table_category= get_table_category(& share->db, & share->table_name);
     share->open_errno= ENOENT;
+    share->foreign_keys.empty();
+    share->referenced_keys.empty();
     /* The following will be updated in open_table_from_share */
     share->can_do_row_logging= 1;
     if (share->table_category == TABLE_CATEGORY_LOG)
@@ -428,6 +430,8 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   share->frm_version= 		 FRM_VER_CURRENT;
   share->not_usable_by_query_cache= 1;
   share->can_do_row_logging= 0;           // No row logging
+  share->foreign_keys.empty();
+  share->referenced_keys.empty();
 
   /*
     table_map_id is also used for MERGE tables to suppress repeated
@@ -9341,21 +9345,9 @@ bool TABLE_SHARE::update_foreign_keys(THD *thd, Alter_info *alter_info,
 
     Foreign_key *src= static_cast<Foreign_key*>(key);
 
-    if (!foreign_keys)
-    {
-      foreign_keys= (FK_list *) alloc_root(
-        &mem_root, sizeof(FK_list));
-      if (unlikely(!foreign_keys))
-      {
-        my_error(ER_OUT_OF_RESOURCES, MYF(0));
-        return true;
-      }
-      foreign_keys->empty();
-    }
-
     FOREIGN_KEY_INFO *dst= (FOREIGN_KEY_INFO *) alloc_root(
       &mem_root, sizeof(FOREIGN_KEY_INFO));
-    if (unlikely(foreign_keys->push_back(dst, &mem_root)))
+    if (unlikely(foreign_keys.push_back(dst, &mem_root)))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       return true;
@@ -9396,10 +9388,10 @@ bool TABLE_SHARE::update_foreign_keys(THD *thd, Alter_info *alter_info,
     }
   }
 
-  if (!foreign_keys)
+  if (foreign_keys.is_empty())
     return false;
 
-  List_iterator_fast<FOREIGN_KEY_INFO> fk_it(*foreign_keys);
+  List_iterator_fast<FOREIGN_KEY_INFO> fk_it(foreign_keys);
   while (FOREIGN_KEY_INFO *fk= fk_it++)
   {
     if (!cmp(fk->referenced_db, &db) && !cmp(fk->referenced_table, &table_name))
@@ -9447,17 +9439,6 @@ bool TABLE_SHARE::update_foreign_keys(THD *thd, Alter_info *alter_info,
       if (!el)
         continue;
       Mutex_lock share_mutex(&el->share->LOCK_share);
-      if (!el->share->referenced_keys)
-      {
-        FK_list* list= (FK_list*)alloc_root(&el->share->mem_root, sizeof(FK_list));
-        if (unlikely(!list))
-        {
-          my_error(ER_OUT_OF_RESOURCES, MYF(0));
-          return true;
-        }
-        list->empty();
-        el->share->referenced_keys= list;
-      }
       key_it.rewind();
       while (Key* key= key_it++)
       {
@@ -9472,7 +9453,7 @@ bool TABLE_SHARE::update_foreign_keys(THD *thd, Alter_info *alter_info,
 
         FOREIGN_KEY_INFO *dst= (FOREIGN_KEY_INFO *) alloc_root(
           &el->share->mem_root, sizeof(FOREIGN_KEY_INFO));
-        if (unlikely(el->share->referenced_keys->push_back(dst, &el->share->mem_root)))
+        if (unlikely(el->share->referenced_keys.push_back(dst, &el->share->mem_root)))
         {
           my_error(ER_OUT_OF_RESOURCES, MYF(0));
           return true;
@@ -9527,9 +9508,9 @@ void TABLE_SHARE::revert_referenced_shares(THD *thd, Table_ident_set &ref_tables
   {
     Share_lock share_lock(thd, it->db.str, it->table.str);
     TDC_element *el= share_lock.element;
-    if (!el || !el->share->referenced_keys)
+    if (!el || el->share->referenced_keys.is_empty())
       continue;
-    List_iterator<FOREIGN_KEY_INFO> fk_it(*el->share->referenced_keys);
+    List_iterator<FOREIGN_KEY_INFO> fk_it(el->share->referenced_keys);
     while (FOREIGN_KEY_INFO* fk= fk_it++)
     {
       if (!cmp(fk->foreign_db, &db) && !cmp(fk->foreign_table, &table_name))
@@ -9595,14 +9576,14 @@ bool release_ref_shares(THD *thd, TABLE_LIST *t)
 
   Table_ident_set tables;
 
-  if (share->foreign_keys && share->foreign_keys->get(thd, tables, false))
+  if (!share->foreign_keys.is_empty() && share->foreign_keys.get(thd, tables, false))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     tdc_release_share(share);
     return true;
   }
 
-  if (share->referenced_keys && share->referenced_keys->get(thd, tables, true))
+  if (!share->referenced_keys.is_empty() && share->referenced_keys.get(thd, tables, true))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     tdc_release_share(share);
@@ -9650,7 +9631,7 @@ bool TABLE_SHARE::check_foreign_keys(THD *thd)
   List_iterator_fast<FOREIGN_KEY_INFO> ref_it;
   List_iterator_fast<FOREIGN_KEY_INFO> fk_it;
   if (referenced_by_foreign_key()) {
-    ref_it.init(*referenced_keys);
+    ref_it.init(referenced_keys);
     while (FOREIGN_KEY_INFO *rk= ref_it++)
     {
       TDC_element *el= tdc_lock_share(thd, rk->foreign_db->str, rk->foreign_table->str);
@@ -9677,7 +9658,7 @@ bool TABLE_SHARE::check_foreign_keys(THD *thd)
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
         return true;
       }
-      fk_it.init(*el->share->foreign_keys);
+      fk_it.init(el->share->foreign_keys);
       FOREIGN_KEY_INFO *fk;
       bool found_table= false;
       while ((fk= fk_it++))
@@ -9720,8 +9701,8 @@ bool TABLE_SHARE::check_foreign_keys(THD *thd)
       }
     }
   }
-  if (foreign_keys) {
-    fk_it.init(*foreign_keys);
+  if (!foreign_keys.is_empty()) {
+    fk_it.init(foreign_keys);
     while (FOREIGN_KEY_INFO *fk= fk_it++)
     {
       TDC_element *el= tdc_lock_share(thd, fk->referenced_db->str, fk->referenced_table->str);
@@ -9748,7 +9729,7 @@ bool TABLE_SHARE::check_foreign_keys(THD *thd)
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
         return true;
       }
-      ref_it.init(*el->share->referenced_keys);
+      ref_it.init(el->share->referenced_keys);
       FOREIGN_KEY_INFO *rk;
       bool found_table= false;
       while ((rk= ref_it++))

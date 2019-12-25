@@ -6260,10 +6260,10 @@ drop_create_field:
             }
           }
         }
-        else if (table->s->foreign_keys)
+        else if (!table->s->foreign_keys.is_empty())
         {
           FOREIGN_KEY_INFO *f_key;
-          List_iterator<FOREIGN_KEY_INFO> fk_key_it(*table->s->foreign_keys);
+          List_iterator<FOREIGN_KEY_INFO> fk_key_it(table->s->foreign_keys);
           while ((f_key= fk_key_it++))
           {
             if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
@@ -6361,10 +6361,10 @@ drop_create_field:
           }
         }
       }
-      else if (table->s->foreign_keys)
+      else if (!table->s->foreign_keys.is_empty())
       {
         FOREIGN_KEY_INFO *f_key;
-        List_iterator<FOREIGN_KEY_INFO> fk_key_it(*table->s->foreign_keys);
+        List_iterator<FOREIGN_KEY_INFO> fk_key_it(table->s->foreign_keys);
         while ((f_key= fk_key_it++))
         {
           if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
@@ -8166,14 +8166,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           0 != my_strcasecmp(system_charset_info, def->change.str,
                              def->field_name.str))
       {
-        if (table->s->foreign_keys &&
-            table->s->foreign_keys->get(thd, refs_to_close, def->change, true))
+        if (!table->s->foreign_keys.is_empty() &&
+            table->s->foreign_keys.get(thd, refs_to_close, def->change, true))
         {
           my_error(ER_OUT_OF_RESOURCES, MYF(0));
           DBUG_RETURN(1);
         }
-        if (table->s->referenced_keys &&
-            table->s->referenced_keys->get(thd, refs_to_close, def->change, false))
+        if (!table->s->referenced_keys.is_empty() &&
+            table->s->referenced_keys.get(thd, refs_to_close, def->change, false))
         {
           my_error(ER_OUT_OF_RESOURCES, MYF(0));
           DBUG_RETURN(1);
@@ -8721,11 +8721,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
   }
 
-  if (!alter_info->check_constraint_list.is_empty() && table->s->foreign_keys)
+  if (!alter_info->check_constraint_list.is_empty() &&
+      !table->s->foreign_keys.is_empty())
   {
     /* Check the table FOREIGN KEYs for name duplications. */
     FOREIGN_KEY_INFO *f_key;
-    List_iterator<FOREIGN_KEY_INFO> fk_key_it(*table->s->foreign_keys);
+    List_iterator<FOREIGN_KEY_INFO> fk_key_it(table->s->foreign_keys);
     while ((f_key= fk_key_it++))
     {
       List_iterator_fast<Virtual_column_info>
@@ -8992,14 +8993,14 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
 
   DBUG_ENTER("fk_prepare_copy_alter_table");
 
-  if (table->s->referenced_keys)
+  if (!table->s->referenced_keys.is_empty())
   {
     /*
       Remove from the list all foreign keys in which table participates as
       parent which are to be dropped by this ALTER TABLE. This is possible
       when a foreign key has the same table as child and parent.
     */
-    List_iterator<FOREIGN_KEY_INFO> fk_parent_key_it(*table->s->referenced_keys);
+    List_iterator<FOREIGN_KEY_INFO> fk_parent_key_it(table->s->referenced_keys);
 
     while ((f_key= fk_parent_key_it++))
     {
@@ -9032,9 +9033,9 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       as it might break referential integrity. OTOH it is OK to do
       so if foreign_key_checks are disabled.
     */
-    if (!table->s->referenced_keys->is_empty() &&
+    if (!table->s->referenced_keys.is_empty() &&
         !(thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS))
-      alter_ctx->set_fk_error_if_delete_row(table->s->referenced_keys->head());
+      alter_ctx->set_fk_error_if_delete_row(table->s->referenced_keys.head());
 
     fk_parent_key_it.rewind();
     while ((f_key= fk_parent_key_it++))
@@ -9084,13 +9085,13 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     }
   }
 
-  if (table->s->foreign_keys)
+  if (!table->s->foreign_keys.is_empty())
   {
     /*
       Remove from the list all foreign keys which are to be dropped
       by this ALTER TABLE.
     */
-    List_iterator<FOREIGN_KEY_INFO> fk_key_it(*table->s->foreign_keys);
+    List_iterator<FOREIGN_KEY_INFO> fk_key_it(table->s->foreign_keys);
 
     while ((f_key= fk_key_it++))
     {
@@ -9745,11 +9746,11 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     {
       if (drop->type == Alter_drop::CHECK_CONSTRAINT)
       {
-        if (table->s->foreign_keys)
+        if (!table->s->foreign_keys.is_empty())
         {
           /* Test if there is a FOREIGN KEY with this name. */
           FOREIGN_KEY_INFO *f_key;
-          List_iterator<FOREIGN_KEY_INFO> fk_key_it(*table->s->foreign_keys);
+          List_iterator<FOREIGN_KEY_INFO> fk_key_it(table->s->foreign_keys);
 
           while ((f_key= fk_key_it++))
           {
