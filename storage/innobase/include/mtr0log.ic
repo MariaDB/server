@@ -118,30 +118,6 @@ mlog_catenate_ulint(
 }
 
 /********************************************************//**
-Catenates a compressed ulint to mlog. */
-UNIV_INLINE
-void
-mlog_catenate_ulint_compressed(
-/*===========================*/
-	mtr_t*	mtr,	/*!< in: mtr */
-	ulint	val)	/*!< in: value to write */
-{
-	byte*	log_ptr;
-
-	log_ptr = mlog_open(mtr, 10);
-
-	/* If no logging is requested, we may return now */
-	if (log_ptr == NULL) {
-
-		return;
-	}
-
-	log_ptr += mach_write_compressed(log_ptr, val);
-
-	mlog_close(mtr, log_ptr);
-}
-
-/********************************************************//**
 Catenates a compressed 64-bit integer to mlog. */
 UNIV_INLINE
 void

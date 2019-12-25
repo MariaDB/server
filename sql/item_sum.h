@@ -587,6 +587,7 @@ public:
   virtual void setup_caches(THD *thd) {};
 
   bool with_sum_func() const { return true; }
+  virtual void set_partition_row_count(ulonglong count) { DBUG_ASSERT(0); }
 };
 
 
@@ -733,13 +734,33 @@ public:
   Item_sum_num(THD *thd, Item_sum_num *item):
     Item_sum(thd, item) {}
   bool fix_fields(THD *, Item **);
-  longlong val_int() { return val_int_from_real();  /* Real as default */ }
-  String *val_str(String*str);
-  my_decimal *val_decimal(my_decimal *);
+};
+
+
+class Item_sum_double :public Item_sum_num
+{
+public:
+  Item_sum_double(THD *thd): Item_sum_num(thd) {}
+  Item_sum_double(THD *thd, Item *item_par): Item_sum_num(thd, item_par) {}
+  Item_sum_double(THD *thd, List<Item> &list): Item_sum_num(thd, list) {}
+  Item_sum_double(THD *thd, Item_sum_double *item) :Item_sum_num(thd, item) {}
+  longlong val_int()
+  {
+    return val_int_from_real();
+  }
+  String *val_str(String*str)
+  {
+    return val_string_from_real(str);
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    return val_decimal_from_real(to);
+  }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
+    return get_date_from_real(thd, ltime, fuzzydate);
   }
+  const Type_handler *type_handler() const { return &type_handler_double; }
 };
 
 
@@ -753,6 +774,10 @@ public:
   double val_real() { DBUG_ASSERT(fixed == 1); return (double) val_int(); }
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  {
+    return get_date_from_int(thd, ltime, fuzzydate);
+  }
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   bool fix_length_and_dec()
   { decimals=0; max_length=21; maybe_null=null_value=0; return FALSE; }
@@ -794,6 +819,10 @@ public:
   longlong val_int();
   String *val_str(String*str);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  {
+    return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
+  }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
   void fix_length_and_dec_double();
@@ -985,7 +1014,7 @@ public:
 
 
 
-class Item_sum_variance : public Item_sum_num
+class Item_sum_variance : public Item_sum_double
 {
   Stddev m_stddev;
   bool fix_length_and_dec();
@@ -995,7 +1024,7 @@ public:
   uint prec_increment;
 
   Item_sum_variance(THD *thd, Item *item_par, uint sample_arg):
-    Item_sum_num(thd, item_par),
+    Item_sum_double(thd, item_par),
     sample(sample_arg)
     {}
   Item_sum_variance(THD *thd, Item_sum_variance *item);
@@ -1005,7 +1034,6 @@ public:
   void clear();
   bool add();
   double val_real();
-  my_decimal *val_decimal(my_decimal *);
   void reset_field();
   void update_field();
   Item *result_item(THD *thd, Field *field);
@@ -1014,11 +1042,10 @@ public:
     { return sample ? "var_samp(" : "variance("; }
   Item *copy_or_same(THD* thd);
   Field *create_tmp_field(bool group, TABLE *table);
-  const Type_handler *type_handler() const { return &type_handler_double; }
   void cleanup()
   {
     m_stddev= Stddev();
-    Item_sum_num::cleanup();
+    Item_sum_double::cleanup();
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_variance>(thd, this); }
@@ -1725,15 +1752,15 @@ public:
 
 #else /* Dummy functions to get sql_yacc.cc compiled */
 
-class Item_sum_udf_float :public Item_sum_num
+class Item_sum_udf_float :public Item_sum_double
 {
  public:
   Item_sum_udf_float(THD *thd, udf_func *udf_arg):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_float(THD *thd, udf_func *udf_arg, List<Item> &list):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_float(THD *thd, Item_sum_udf_float *item)
-    :Item_sum_num(thd, item) {}
+    :Item_sum_double(thd, item) {}
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   double val_real() { DBUG_ASSERT(fixed == 1); return 0.0; }
   void clear() {}
@@ -1743,15 +1770,15 @@ class Item_sum_udf_float :public Item_sum_num
 };
 
 
-class Item_sum_udf_int :public Item_sum_num
+class Item_sum_udf_int :public Item_sum_double
 {
 public:
   Item_sum_udf_int(THD *thd, udf_func *udf_arg):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_int(THD *thd, udf_func *udf_arg, List<Item> &list):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_int(THD *thd, Item_sum_udf_int *item)
-    :Item_sum_num(thd, item) {}
+    :Item_sum_double(thd, item) {}
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   longlong val_int() { DBUG_ASSERT(fixed == 1); return 0; }
   double val_real() { DBUG_ASSERT(fixed == 1); return 0; }
@@ -1762,15 +1789,15 @@ public:
 };
 
 
-class Item_sum_udf_decimal :public Item_sum_num
+class Item_sum_udf_decimal :public Item_sum_double
 {
  public:
   Item_sum_udf_decimal(THD *thd, udf_func *udf_arg):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_decimal(THD *thd, udf_func *udf_arg, List<Item> &list):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_decimal(THD *thd, Item_sum_udf_float *item)
-    :Item_sum_num(thd, item) {}
+    :Item_sum_double(thd, item) {}
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   double val_real() { DBUG_ASSERT(fixed == 1); return 0.0; }
   my_decimal *val_decimal(my_decimal *) { DBUG_ASSERT(fixed == 1); return 0; }
@@ -1781,15 +1808,15 @@ class Item_sum_udf_decimal :public Item_sum_num
 };
 
 
-class Item_sum_udf_str :public Item_sum_num
+class Item_sum_udf_str :public Item_sum_double
 {
 public:
   Item_sum_udf_str(THD *thd, udf_func *udf_arg):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_str(THD *thd, udf_func *udf_arg, List<Item> &list):
-    Item_sum_num(thd) {}
+    Item_sum_double(thd) {}
   Item_sum_udf_str(THD *thd, Item_sum_udf_str *item)
-    :Item_sum_num(thd, item) {}
+    :Item_sum_double(thd, item) {}
   String *val_str(String *)
     { DBUG_ASSERT(fixed == 1); null_value=1; return 0; }
   double val_real() { DBUG_ASSERT(fixed == 1); null_value=1; return 0.0; }

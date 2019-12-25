@@ -166,28 +166,13 @@ public:
 };
 
 
-class Item_func_month :public Item_func
+class Item_func_month :public Item_long_func
 {
 public:
-  Item_func_month(THD *thd, Item *a): Item_func(thd, a)
-  { collation.set_numeric(); }
+  Item_func_month(THD *thd, Item *a): Item_long_func(thd, a)
+  { }
   longlong val_int();
-  double val_real()
-  { DBUG_ASSERT(fixed == 1); return (double) Item_func_month::val_int(); }
-  String *val_str(String *str)
-  {
-    longlong nr= val_int();
-    if (null_value)
-      return 0;
-    str->set(nr, collation.collation);
-    return str;
-  }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
-  {
-    return get_date_from_int(thd, ltime, fuzzydate);
-  }
   const char *func_name() const { return "month"; }
-  const Type_handler *type_handler() const { return &type_handler_long; }
   bool fix_length_and_dec()
   {
     decimals= 0;

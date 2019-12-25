@@ -127,14 +127,6 @@ mlog_catenate_string(
 	const byte*	str,	/*!< in: string to write */
 	ulint		len);	/*!< in: string length */
 /********************************************************//**
-Catenates a compressed ulint to mlog. */
-UNIV_INLINE
-void
-mlog_catenate_ulint_compressed(
-/*===========================*/
-	mtr_t*		mtr,	/*!< in: mtr */
-	ulint		val);	/*!< in: value to write */
-/********************************************************//**
 Catenates a compressed 64-bit integer to mlog. */
 UNIV_INLINE
 void

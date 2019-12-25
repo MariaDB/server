@@ -440,27 +440,37 @@ class Item_sum_lag : public Item_sum_hybrid_simple
   { return get_item_copy<Item_sum_lag>(thd, this); }
 };
 
-/*
-  A base window function (aggregate) that also holds a counter for the number
-  of rows.
-*/
-class Item_sum_window_with_row_count : public Item_sum_num
+
+class Partition_row_count
 {
- public:
-  Item_sum_window_with_row_count(THD *thd) : Item_sum_num(thd),
-                                             partition_row_count_(0) {}
-
-  Item_sum_window_with_row_count(THD *thd, Item *arg) :
-    Item_sum_num(thd, arg), partition_row_count_(0) {};
-
-  void set_row_count(ulonglong count) { partition_row_count_ = count; }
-
-  void reset_field() { DBUG_ASSERT(0); }
- protected:
+public:
+  Partition_row_count() :partition_row_count_(0) { }
+  void set_partition_row_count(ulonglong count)
+  {
+    partition_row_count_ = count;
+  }
+  double calc_val_real(bool *null_value,
+                       ulonglong current_row_count)
+  {
+    if ((*null_value= (partition_row_count_ == 0)))
+      return 0;
+    return static_cast<double>(current_row_count) / partition_row_count_;
+  }
+protected:
   longlong get_row_count() { return partition_row_count_; }
- private:
   ulonglong partition_row_count_;
 };
+
+
+class Current_row_count
+{
+public:
+  Current_row_count() :current_row_count_(0) { }
+protected:
+  ulonglong get_row_number() { return current_row_count_ ; }
+  ulonglong current_row_count_;
+};
+
 
 /*
   @detail
@@ -473,11 +483,12 @@ class Item_sum_window_with_row_count : public Item_sum_num
     This is held within the row_count context.
   - Second pass to compute rank of current row and the value of the function
 */
-class Item_sum_percent_rank: public Item_sum_window_with_row_count
+class Item_sum_percent_rank: public Item_sum_double,
+                             public Partition_row_count
 {
  public:
   Item_sum_percent_rank(THD *thd)
-    : Item_sum_window_with_row_count(thd), cur_rank(1), peer_tracker(NULL) {}
+    : Item_sum_double(thd), cur_rank(1), peer_tracker(NULL) {}
 
   longlong val_int()
   {
@@ -530,6 +541,14 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
   }
 
   void setup_window_func(THD *thd, Window_spec *window_spec);
+
+  void reset_field() { DBUG_ASSERT(0); }
+
+  void set_partition_row_count(ulonglong count)
+  {
+    Partition_row_count::set_partition_row_count(count);
+  }
+
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_percent_rank>(thd, this); }
 
@@ -564,25 +583,17 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
   two passes.
 */
 
-class Item_sum_cume_dist: public Item_sum_window_with_row_count
+class Item_sum_cume_dist: public Item_sum_double,
+                          public Partition_row_count,
+                          public Current_row_count
 {
  public:
-  Item_sum_cume_dist(THD *thd) : Item_sum_window_with_row_count(thd),
-                                 current_row_count_(0) {}
-
-  Item_sum_cume_dist(THD *thd, Item *arg) : Item_sum_window_with_row_count(thd,arg),
-                                 current_row_count_(0) {}
+  Item_sum_cume_dist(THD *thd) :Item_sum_double(thd) { }
+  Item_sum_cume_dist(THD *thd, Item *arg) :Item_sum_double(thd, arg) { }
 
   double val_real()
   {
-    if (get_row_count() == 0)
-    {
-      null_value= true;
-      return 0;
-    }
-    ulonglong partition_row_count= get_row_count();
-    null_value= false;
-    return static_cast<double>(current_row_count_) / partition_row_count;
+    return calc_val_real(&null_value, current_row_count_);
   }
 
   bool add()
@@ -599,7 +610,7 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
   void clear()
   {
     current_row_count_= 0;
-    set_row_count(0);
+    partition_row_count_= 0;
   }
 
   const char*func_name() const
@@ -617,29 +628,26 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
     return FALSE;
   }
   
+  void reset_field() { DBUG_ASSERT(0); }
+
+  void set_partition_row_count(ulonglong count)
+  {
+    Partition_row_count::set_partition_row_count(count);
+  }
+
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_cume_dist>(thd, this); }
 
-  ulonglong get_row_number()
-  {
-    return current_row_count_ ;
-  }
-
- private:
-  ulonglong current_row_count_;
 };
 
-class Item_sum_ntile : public Item_sum_window_with_row_count
+class Item_sum_ntile : public Item_sum_int,
+                       public Partition_row_count,
+                       public Current_row_count
 {
  public:
   Item_sum_ntile(THD* thd, Item* num_quantiles_expr) :
-    Item_sum_window_with_row_count(thd, num_quantiles_expr),
-    current_row_count_(0) {};
-
-  double val_real()
-  {
-    return (double) val_int();
-  }
+    Item_sum_int(thd, num_quantiles_expr)
+  { }
 
   longlong val_int()
   {
@@ -680,7 +688,7 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
   void clear()
   {
     current_row_count_= 0;
-    set_row_count(0);
+    partition_row_count_= 0;
   }
 
   const char*func_name() const
@@ -690,21 +698,27 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
 
   void update_field() {}
 
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
-  
+  void reset_field() { DBUG_ASSERT(0); }
+
+  void set_partition_row_count(ulonglong count)
+  {
+    Partition_row_count::set_partition_row_count(count);
+  }
+
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_ntile>(thd, this); }
 
  private:
   longlong get_num_quantiles() { return args[0]->val_int(); }
-  ulong current_row_count_;
 };
 
-class Item_sum_percentile_disc : public Item_sum_cume_dist,
-                                 public Type_handler_hybrid_field_type
+class Item_sum_percentile_disc : public Item_sum_num,
+                                 public Type_handler_hybrid_field_type,
+                                 public Partition_row_count,
+                                 public Current_row_count
 {
 public:
-  Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg),
+  Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_num(thd, arg),
                            Type_handler_hybrid_field_type(&type_handler_longlong),
                            value(NULL), val_calculated(FALSE), first_call(TRUE),
                            prev_value(0), order_item(NULL){}
@@ -753,6 +767,17 @@ public:
     return value->val_str(str);
   }
 
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  {
+    if (get_row_count() == 0 || get_arg(0)->is_null())
+    {
+      null_value= true;
+      return 0;
+    }
+    null_value= false;
+    return value->get_date(thd, ltime, fuzzydate);
+  }
+
   bool add()
   {
     Item *arg= get_arg(0);
@@ -786,8 +811,8 @@ public:
     if (value->null_value)
       return false;
 
-    Item_sum_cume_dist::add();
-    double val= Item_sum_cume_dist::val_real();
+    current_row_count_++;
+    double val= calc_val_real(&null_value, current_row_count_);
 
     if (val >= prev_value && !val_calculated)
       val_calculated= true;
@@ -804,7 +829,8 @@ public:
     val_calculated= false;
     first_call= true;
     value->clear();
-    Item_sum_cume_dist::clear();
+    partition_row_count_= 0;
+    current_row_count_= 0;
   }
 
   const char*func_name() const
@@ -813,7 +839,6 @@ public:
   }
 
   void update_field() {}
-  void set_type_handler(Window_spec *window_spec);
   const Type_handler *type_handler() const
   {return Type_handler_hybrid_field_type::type_handler();}
 
@@ -822,6 +847,13 @@ public:
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
     return FALSE;
+  }
+
+  void reset_field() { DBUG_ASSERT(0); }
+
+  void set_partition_row_count(ulonglong count)
+  {
+    Partition_row_count::set_partition_row_count(count);
   }
 
   Item *get_copy(THD *thd)
@@ -838,12 +870,12 @@ private:
   Item *order_item;
 };
 
-class Item_sum_percentile_cont : public Item_sum_cume_dist,
-                                 public Type_handler_hybrid_field_type
+class Item_sum_percentile_cont : public Item_sum_double,
+                                 public Partition_row_count,
+                                 public Current_row_count
 {
 public:
-  Item_sum_percentile_cont(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg),
-                           Type_handler_hybrid_field_type(&type_handler_double),
+  Item_sum_percentile_cont(THD *thd, Item* arg) : Item_sum_double(thd, arg),
                            floor_value(NULL), ceil_value(NULL), first_call(TRUE),prev_value(0),
                            ceil_val_calculated(FALSE), floor_val_calculated(FALSE), order_item(NULL){}
 
@@ -913,7 +945,7 @@ public:
         return false;
     }
 
-    Item_sum_cume_dist::add();
+    current_row_count_++;
     double val= 1 + prev_value * (get_row_count()-1);
 
     if (!floor_val_calculated && get_row_number() == floor(val))
@@ -936,7 +968,8 @@ public:
     ceil_value->clear();
     floor_val_calculated= false;
     ceil_val_calculated= false;
-    Item_sum_cume_dist::clear();
+    partition_row_count_= 0;
+    current_row_count_= 0;
   }
 
   const char*func_name() const
@@ -944,15 +977,19 @@ public:
     return "percentile_cont";
   }
   void update_field() {}
-  void set_type_handler(Window_spec *window_spec);
-  const Type_handler *type_handler() const
-  {return Type_handler_hybrid_field_type::type_handler();}
 
   bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
     return FALSE;
+  }
+
+  void reset_field() { DBUG_ASSERT(0); }
+
+  void set_partition_row_count(ulonglong count)
+  {
+    Partition_row_count::set_partition_row_count(count);
   }
 
   Item *get_copy(THD *thd)

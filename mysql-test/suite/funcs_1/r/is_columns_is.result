@@ -26,9 +26,9 @@ def	information_schema	CHARACTER_SETS	DESCRIPTION	3	''	NO	varchar	60	180	NULL	NU
 def	information_schema	CHARACTER_SETS	MAXLEN	4	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(3)			select		NEVER	NULL
 def	information_schema	CHECK_CONSTRAINTS	CHECK_CLAUSE	5	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_CATALOG	1	''	NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)			select		NEVER	NULL
-def	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_NAME	3	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_NAME	4	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA	2	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
-def	information_schema	CHECK_CONSTRAINTS	TABLE_NAME	4	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	CHECK_CONSTRAINTS	TABLE_NAME	3	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	CLIENT_STATISTICS	ACCESS_DENIED	22	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL
 def	information_schema	CLIENT_STATISTICS	BINLOG_BYTES_WRITTEN	9	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select		NEVER	NULL
 def	information_schema	CLIENT_STATISTICS	BUSY_TIME	5	0	NO	double	NULL	NULL	21	NULL	NULL	NULL	NULL	double			select		NEVER	NULL
@@ -568,8 +568,8 @@ COL_CML	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	C
 NULL	information_schema	CHARACTER_SETS	MAXLEN	bigint	NULL	NULL	NULL	NULL	bigint(3)
 3.0000	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_CATALOG	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 3.0000	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
-3.0000	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	CHECK_CONSTRAINTS	TABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
+3.0000	information_schema	CHECK_CONSTRAINTS	CONSTRAINT_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	CHECK_CONSTRAINTS	CHECK_CLAUSE	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	CLIENT_STATISTICS	CLIENT	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 NULL	information_schema	CLIENT_STATISTICS	TOTAL_CONNECTIONS	bigint	NULL	NULL	NULL	NULL	bigint(21)
