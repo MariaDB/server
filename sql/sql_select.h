@@ -1057,6 +1057,7 @@ protected:
   void restore_query_plan(Join_plan_state *restore_from);
   /* Choose a subquery plan for a table-less subquery. */
   bool choose_tableless_subquery_plan();
+  void handle_implicit_grouping_with_window_funcs();
 
 public:
   JOIN_TAB *join_tab, **best_ref;

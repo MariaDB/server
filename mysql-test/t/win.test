@@ -2362,5 +2362,70 @@ SELECT  DISTINCT COUNT(*) OVER (), MOD(MIN(i),2) FROM t1 GROUP BY i ;
 drop table t1;
 
 --echo #
+--echo # MDEV-21318: Wrong results with window functions and implicit grouping
+--echo #
+
+CREATE TABLE t1 (a INT);
+
+--echo #
+--echo #  With empty const table
+--echo #  The expected result here is 1, NULL
+--echo #
+
+explain
+SELECT row_number() over(), sum(1) FROM t1;
+SELECT row_number() over(), sum(1) FROM t1;
+
+insert into t1 values (2);
+
+--echo #
+--echo #  Const table has 1 row, but still impossible where
+--echo #  The expected result here is 1, NULL
+--echo #
+
+EXPLAIN SELECT row_number() over(), sum(1) FROM t1 where a=1;
+SELECT row_number() over(), sum(1) FROM t1 where a=1;
+
+--echo #
+--echo #  Impossible HAVING
+--echo #  Empty result is expected
+--echo #
+
+EXPLAIN SELECT row_number() over(), sum(1) FROM t1 where a=1 having 1=0;
+SELECT row_number() over(), sum(1) FROM t1 where a=1 having 1=0;
+
+--echo #
+--echo #  const table has 1 row, no impossible where
+--echo #  The expected result here is 1, 2
+--echo #
+
+EXPLAIN SELECT row_number() over(), sum(a) FROM t1 where a=2;
+SELECT row_number() over(), sum(a) FROM t1 where a=2;
+drop table t1;
+
+--echo #
+--echo # Impossible Where
+--echo #
+
+create table t1(a int);
+insert into t1 values (1);
+
+--echo #
+--echo # Expected result is NULL, 0, NULL
+--echo #
+EXPLAIN SELECT MAX(a) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+SELECT MAX(a) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+
+--echo #
+--echo # Expected result is 1, 0, NULL
+--echo #
+
+EXPLAIN
+SELECT MAX(1) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+SELECT MAX(1) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
