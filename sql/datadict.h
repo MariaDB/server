@@ -77,13 +77,13 @@ inline size_t extra2_read_len(const uchar **pos, const uchar *end)
 {
   size_t length= *(*pos)++;
   if (length)
-    return length;
+    return length <= static_cast<size_t>(end - *pos) ? length : 0;
 
   if ((*pos) + 2 >= end)
     return 0;
   length= uint2korr(*pos);
   (*pos)+= 2;
-  if (length < 256 || *pos + length > end)
+  if (length < 256 || length > static_cast<size_t>(end - *pos))
     return 0;
   return length;
 }

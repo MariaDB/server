@@ -706,11 +706,11 @@ static uchar *option_list_frm_image(uchar *buff, engine_option_value *opt)
 /**
   Writes options image in the .frm buffer
 
-  @param buff              pointer to the buffer
-  @param table_option_list list of table options
-  @param create_fields     field descriptors list
-  @param keys              number of keys
-  @param key_info          array of key descriptors
+  @param[out] buff              pointer to the buffer
+  @param[in]  table_option_list list of table options
+  @param[in]  create_fields     field descriptors list
+  @param[in]  keys              number of keys
+  @param[in]  key_info          array of key descriptors
 
   @returns pointer to byte after last recorded in the buffer
 */
