@@ -1091,22 +1091,13 @@ longlong Item_func_yearweek::val_int()
 }
 
 
-static uint weekday_from_item(Item *item, bool *null_value, bool week_starts_on_sunday)
-{
-  MYSQL_TIME ltime;
-  if ((*null_value= Datetime(current_thd, item,
-                             TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE).
-       copy_to_mysql_time(&ltime, MYSQL_TIMESTAMP_DATETIME)))
-    return 0;
-  return calc_weekday(calc_daynr(ltime.year, ltime.month, ltime.day), week_starts_on_sunday) +
-         MY_TEST(week_starts_on_sunday);
-}
-
-
 longlong Item_func_weekday::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  return (longlong) weekday_from_item(args[0], &null_value, odbc_type);
+  Datetime dt(current_thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
+  if ((null_value= !dt.is_valid_datetime()))
+    return 0;
+  return dt.weekday(odbc_type) + MY_TEST(odbc_type);
 }
 
 bool Item_func_dayname::fix_length_and_dec()
@@ -1125,14 +1116,14 @@ bool Item_func_dayname::fix_length_and_dec()
 String* Item_func_dayname::val_str(String* str)
 {
   DBUG_ASSERT(fixed == 1);
-  uint weekday= weekday_from_item(args[0], &null_value, false);
   const char *day_name;
   uint err;
+  Datetime dt(current_thd, args[0], TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
 
-  if (null_value)
+  if ((null_value= !dt.is_valid_datetime()))
     return (String*) 0;
   
-  day_name= locale->day_names->type_names[weekday];
+  day_name= locale->day_names->type_names[dt.weekday(false)];
   str->copy(day_name, (uint) strlen(day_name), &my_charset_utf8_bin,
 	    collation.collation, &err);
   return str;

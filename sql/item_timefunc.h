@@ -426,12 +426,12 @@ public:
 };
 
 
-class Item_func_weekday :public Item_int_func
+class Item_func_weekday :public Item_long_func
 {
   bool odbc_type;
 public:
   Item_func_weekday(THD *thd, Item *a, bool type_arg):
-    Item_int_func(thd, a), odbc_type(type_arg) { }
+    Item_long_func(thd, a), odbc_type(type_arg) { }
   longlong val_int();
   const char *func_name() const
   {
@@ -441,7 +441,6 @@ public:
   {
     return type_handler()->Item_get_date(this, ltime, fuzzydate);
   }
-  const Type_handler *type_handler() const { return &type_handler_long; }
   bool fix_length_and_dec()
   {
     decimals= 0;
