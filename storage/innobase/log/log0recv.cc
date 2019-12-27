@@ -132,15 +132,15 @@ struct recv_t : public log_rec_t
     @param end_lsn   end LSN of the mini-transaction
   */
   recv_t(uint32_t len, mlog_id_t type, lsn_t start_lsn, lsn_t end_lsn) :
-    log_rec_t(end_lsn), len(len), type(type), start_lsn(start_lsn), data(NULL)
+    log_rec_t(end_lsn), start_lsn(start_lsn), len(len), type(type), data(NULL)
   {}
 
+  /** start LSN of the mini-transaction (not necessarily of this record) */
+  const lsn_t start_lsn;
   /** log record body length in bytes */
   const uint32_t len;
   /** log record type */
   const mlog_id_t type;
-  /** start LSN of the mini-transaction (not necessarily of this record) */
-  const lsn_t start_lsn;
   /** log record */
   struct data_t
   {
@@ -1640,6 +1640,9 @@ parse_log:
 		this record yet. */
 		break;
 	case MLOG_WRITE_STRING:
+		ut_ad(!page_zip
+		      || fil_page_get_type(page_zip->data)
+		      <= FIL_PAGE_TYPE_ZBLOB2);
 		if (page_id.page_no() || mach_read_from_2(ptr + 2)
 		    != 11 + MY_AES_BLOCK_SIZE) {
 			/* Not writing crypt_info */
@@ -1881,14 +1884,15 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 	const ulint chunk_limit = static_cast<ulint>(RECV_DATA_BLOCK_SIZE);
 
 	for (const log_rec_t* l : p->second.log) {
+		ut_ad(l->lsn);
+		ut_ad(end_lsn <= l->lsn);
+		end_lsn = l->lsn;
+		ut_ad(end_lsn <= log_sys.log.scanned_lsn);
+
 		const recv_t* recv = static_cast<const recv_t*>(l);
 		ut_ad(recv->start_lsn);
-		ut_ad(recv->lsn);
 		ut_ad(recv_start_lsn < recv->start_lsn);
 		ut_d(recv_start_lsn = recv->start_lsn);
-		ut_ad(end_lsn <= recv->lsn);
-		end_lsn = recv->lsn;
-		ut_ad(end_lsn <= log_sys.log.scanned_lsn);
 
 		if (recv->start_lsn < page_lsn) {
 			/* Ignore this record, because there are later changes
@@ -1940,6 +1944,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 			recv_parse_or_apply_log_rec_body(
 				recv->type, recs, recs + recv->len,
 				block->page.id, true, block, &mtr);
+			ut_free(buf);
 
 			end_lsn = recv->start_lsn + recv->len;
 			mach_write_to_8(FIL_PAGE_LSN + page, end_lsn);
@@ -1951,8 +1956,6 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 				mach_write_to_8(FIL_PAGE_LSN + page_zip->data,
 						end_lsn);
 			}
-
-			ut_free(buf);
 		}
 	}
 

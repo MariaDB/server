@@ -139,7 +139,7 @@ extern void (*log_file_op)(ulint space_id, const byte* flags,
 /** Stored redo log record */
 struct log_rec_t
 {
-  log_rec_t(lsn_t lsn) : next(NULL), lsn(lsn) {}
+  log_rec_t(lsn_t lsn) : next(nullptr), lsn(lsn) { ut_ad(lsn); }
   log_rec_t()= delete;
   log_rec_t(const log_rec_t&)= delete;
   log_rec_t &operator=(const log_rec_t&)= delete;
