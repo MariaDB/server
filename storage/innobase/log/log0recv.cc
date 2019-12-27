@@ -529,8 +529,7 @@ fil_name_process(
 /** Parse or process a MLOG_FILE_* record.
 @param[in]	ptr		redo log record
 @param[in]	end		end of the redo log buffer
-@param[in]	space_id	the tablespace ID
-@param[in]	first_page_no	first page number in the file
+@param[in]	page_id		first page number in the file
 @param[in]	type		MLOG_FILE_NAME or MLOG_FILE_DELETE
 or MLOG_FILE_CREATE2 or MLOG_FILE_RENAME2
 @param[in]	apply		whether to apply the record
@@ -541,8 +540,7 @@ byte*
 fil_name_parse(
 	byte*		ptr,
 	const byte*	end,
-	ulint		space_id,
-	ulint		first_page_no,
+	const page_id_t	page_id,
 	mlog_id_t	type,
 	bool		apply)
 {
@@ -566,9 +564,9 @@ fil_name_parse(
 	/* MLOG_FILE_* records should only be written for
 	user-created tablespaces. The name must be long enough
 	and end in .ibd. */
-	bool corrupt = is_predefined_tablespace(space_id)
+	bool corrupt = is_predefined_tablespace(page_id.space())
 		|| len < sizeof "/a.ibd\0"
-		|| (!first_page_no != !memcmp(ptr + len - 5, DOT_IBD, 5));
+		|| (!page_id.page_no() != !memcmp(ptr + len - 5, DOT_IBD, 5));
 
 	if (!corrupt && !memchr(ptr, OS_PATH_SEPARATOR, len)) {
 		if (byte* c = static_cast<byte*>
@@ -599,7 +597,8 @@ fil_name_parse(
 		}
 
 		fil_name_process(
-			reinterpret_cast<char*>(ptr), len, space_id, false);
+			reinterpret_cast<char*>(ptr), len, page_id.space(),
+			false);
 		break;
 	case MLOG_FILE_DELETE:
 		if (corrupt) {
@@ -608,23 +607,23 @@ fil_name_parse(
 			break;
 		}
 
-		fil_name_process(
-			reinterpret_cast<char*>(ptr), len, space_id, true);
+		fil_name_process(reinterpret_cast<char*>(ptr), len,
+				 page_id.space(), true);
 		/* fall through */
 	case MLOG_FILE_CREATE2:
-		if (first_page_no) {
-			ut_ad(first_page_no
+		if (page_id.page_no()) {
+			ut_ad(page_id.page_no()
 			      == SRV_UNDO_TABLESPACE_SIZE_IN_PAGES);
-			ut_a(srv_is_undo_tablespace(space_id));
+			ut_a(srv_is_undo_tablespace(page_id.space()));
 			compile_time_assert(
 				UT_ARR_SIZE(recv_sys.truncated_undo_spaces)
 				== TRX_SYS_MAX_UNDO_SPACES);
 			recv_sys_t::trunc& t = recv_sys.truncated_undo_spaces[
-				space_id - srv_undo_space_id_start];
+				page_id.space() - srv_undo_space_id_start];
 			t.lsn = recv_sys.recovered_lsn;
-			t.pages = uint32_t(first_page_no);
+			t.pages = uint32_t(page_id.page_no());
 		} else if (log_file_op) {
-			log_file_op(space_id,
+			log_file_op(page_id.space(),
 				    type == MLOG_FILE_CREATE2 ? ptr - 4 : NULL,
 				    ptr, len, NULL, 0);
 		}
@@ -680,13 +679,13 @@ fil_name_parse(
 
 		fil_name_process(
 			reinterpret_cast<char*>(ptr), len,
-			space_id, false);
+			page_id.space(), false);
 		fil_name_process(
 			reinterpret_cast<char*>(new_name), new_len,
-			space_id, false);
+			page_id.space(), false);
 
 		if (log_file_op) {
-			log_file_op(space_id, NULL,
+			log_file_op(page_id.space(), NULL,
 				    ptr, len, new_name, new_len);
 		}
 
@@ -694,7 +693,7 @@ fil_name_parse(
 			break;
 		}
 		if (!fil_op_replay_rename(
-			    space_id, first_page_no,
+			    page_id.space(), page_id.page_no(),
 			    reinterpret_cast<const char*>(ptr),
 			    reinterpret_cast<const char*>(new_name))) {
 			recv_sys.found_corrupt_fs = true;
@@ -1309,8 +1308,7 @@ specified.
 @param[in]	type		redo log entry type
 @param[in]	ptr		redo log record body
 @param[in]	end_ptr		end of buffer
-@param[in]	space_id	tablespace identifier
-@param[in]	page_no		page number
+@param[in]	page_id		page identifier
 @param[in]	apply		whether to apply the record
 @param[in,out]	block		buffer block, or NULL if
 a page log record should not be applied
@@ -1324,8 +1322,7 @@ recv_parse_or_apply_log_rec_body(
 	mlog_id_t	type,
 	byte*		ptr,
 	byte*		end_ptr,
-	ulint		space_id,
-	ulint		page_no,
+	const page_id_t	page_id,
 	bool		apply,
 	buf_block_t*	block,
 	mtr_t*		mtr)
@@ -1341,8 +1338,7 @@ recv_parse_or_apply_log_rec_body(
 		ut_ad(block == NULL);
 		/* Collect the file names when parsing the log,
 		before applying any log records. */
-		return(fil_name_parse(ptr, end_ptr, space_id, page_no, type,
-				      apply));
+		return fil_name_parse(ptr, end_ptr, page_id, type, apply);
 	case MLOG_INDEX_LOAD:
 		if (end_ptr < ptr + 8) {
 			return(NULL);
@@ -1371,21 +1367,20 @@ recv_parse_or_apply_log_rec_body(
 		page_zip = buf_block_get_page_zip(block);
 		ut_d(page_type = fil_page_get_type(page));
 	} else if (apply
-		   && !is_predefined_tablespace(space_id)
-		   && recv_spaces.find(space_id) == recv_spaces.end()) {
+		   && !is_predefined_tablespace(page_id.space())
+		   && recv_spaces.find(page_id.space()) == recv_spaces.end()) {
 		if (recv_sys.recovered_lsn < recv_sys.mlog_checkpoint_lsn) {
 			/* We have not seen all records between the
 			checkpoint and MLOG_CHECKPOINT. There should be
 			a MLOG_FILE_DELETE for this tablespace later. */
 			recv_spaces.insert(
-				std::make_pair(space_id,
+				std::make_pair(page_id.space(),
 					       file_name_t("", false)));
 			goto parse_log;
 		}
 
 		ib::error() << "Missing MLOG_FILE_NAME or MLOG_FILE_DELETE"
-			" for redo log record " << type << " (page "
-			    << space_id << ":" << page_no << ") at "
+			" for redo log record " << type << page_id << " at "
 			    << recv_sys.recovered_lsn << ".";
 		recv_sys.found_corrupt_log = true;
 		return(NULL);
@@ -1429,7 +1424,8 @@ parse_log:
 				redo log been written with something
 				older than InnoDB Plugin 1.0.4. */
 				ut_ad(offs == FIL_PAGE_TYPE
-				      || srv_is_undo_tablespace(space_id)
+				      || srv_is_undo_tablespace(
+					      page_id.space())
 				      || offs == IBUF_TREE_SEG_HEADER
 				      + IBUF_HEADER + FSEG_HDR_OFFSET
 				      || offs == PAGE_BTR_IBUF_FREE_LIST
@@ -1455,7 +1451,8 @@ parse_log:
 				ut_ad(0
 				      /* fil_crypt_rotate_page() writes this */
 				      || offs == FIL_PAGE_SPACE_ID
-				      || srv_is_undo_tablespace(space_id)
+				      || srv_is_undo_tablespace(
+					      page_id.space())
 				      || offs == IBUF_TREE_SEG_HEADER
 				      + IBUF_HEADER + FSEG_HDR_SPACE
 				      || offs == IBUF_TREE_SEG_HEADER
@@ -1487,7 +1484,7 @@ parse_log:
 #endif /* UNIV_DEBUG */
 		ptr = mlog_parse_nbytes(type, ptr, end_ptr, page, page_zip);
 		if (ptr != NULL && page != NULL
-		    && page_no == 0 && type == MLOG_4BYTES) {
+		    && page_id.page_no() == 0 && type == MLOG_4BYTES) {
 			ulint	offs = mach_read_from_2(old_ptr);
 			switch (offs) {
 				fil_space_t*	space;
@@ -1498,7 +1495,7 @@ parse_log:
 			case FSP_HEADER_OFFSET + FSP_SIZE:
 			case FSP_HEADER_OFFSET + FSP_FREE_LIMIT:
 			case FSP_HEADER_OFFSET + FSP_FREE + FLST_LEN:
-				space = fil_space_get(space_id);
+				space = fil_space_get(page_id.space());
 				ut_a(space != NULL);
 				val = mach_read_from_4(page + offs);
 
@@ -2026,8 +2023,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 
 			recv_parse_or_apply_log_rec_body(
 				recv->type, buf, buf + recv->len,
-				block->page.id.space(),
-				block->page.id.page_no(), true, block, &mtr);
+				block->page.id, true, block, &mtr);
 
 			end_lsn = recv->start_lsn + recv->len;
 			mach_write_to_8(FIL_PAGE_LSN + page, end_lsn);
@@ -2516,7 +2512,8 @@ recv_parse_log_rec(
 
 	const byte*	old_ptr = new_ptr;
 	new_ptr = recv_parse_or_apply_log_rec_body(
-		*type, new_ptr, end_ptr, *space, *page_no, apply, NULL, NULL);
+		*type, new_ptr, end_ptr, page_id_t(*space, *page_no), apply,
+		NULL, NULL);
 
 	if (UNIV_UNLIKELY(new_ptr == NULL)) {
 		return(0);
