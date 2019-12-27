@@ -2460,49 +2460,6 @@ dict_replace_tablespace_in_dictionary(
 	return(error);
 }
 
-/** Delete records from SYS_TABLESPACES and SYS_DATAFILES associated
-with a particular tablespace ID.
-@param[in]	space	Tablespace ID
-@param[in,out]	trx	Current transaction
-@return DB_SUCCESS if OK, dberr_t if the operation failed */
-
-dberr_t
-dict_delete_tablespace_and_datafiles(
-	ulint		space,
-	trx_t*		trx)
-{
-	dberr_t		err = DB_SUCCESS;
-
-	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(srv_sys_tablespaces_open);
-
-	trx->op_info = "delete tablespace and datafiles from dictionary";
-
-	pars_info_t*	info = pars_info_create();
-	ut_a(!is_system_tablespace(space));
-	pars_info_add_int4_literal(info, "space", space);
-
-	err = que_eval_sql(info,
-			   "PROCEDURE P () IS\n"
-			   "BEGIN\n"
-			   "DELETE FROM SYS_TABLESPACES\n"
-			   "WHERE SPACE = :space;\n"
-			   "DELETE FROM SYS_DATAFILES\n"
-			   "WHERE SPACE = :space;\n"
-			   "END;\n",
-			   FALSE, trx);
-
-	if (err != DB_SUCCESS) {
-		ib::warn() << "Could not delete space_id "
-			<< space << " from data dictionary";
-	}
-
-	trx->op_info = "";
-
-	return(err);
-}
-
 /** Assign a new table ID and put it into the table cache and the transaction.
 @param[in,out]	table	Table that needs an ID
 @param[in,out]	trx	Transaction */
