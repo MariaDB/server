@@ -3461,12 +3461,13 @@ bool Item_field::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 
 bool Item_field::get_date_result(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
-  if (result_field->is_null() || result_field->get_date(ltime,fuzzydate))
+  if ((null_value= result_field->is_null()) ||
+      result_field->get_date(ltime, fuzzydate))
   {
     bzero((char*) ltime,sizeof(*ltime));
-    return (null_value= 1);
+    return true;
   }
-  return (null_value= 0);
+  return false;
 }
 
 
@@ -8404,7 +8405,7 @@ bool Item_ref::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 longlong Item_ref::val_datetime_packed()
 {
   DBUG_ASSERT(fixed);
-  longlong tmp= (*ref)->val_datetime_packed();
+  longlong tmp= (*ref)->val_datetime_packed_result();
   null_value= (*ref)->null_value;
   return tmp;
 }
@@ -8413,7 +8414,7 @@ longlong Item_ref::val_datetime_packed()
 longlong Item_ref::val_time_packed()
 {
   DBUG_ASSERT(fixed);
-  longlong tmp= (*ref)->val_time_packed();
+  longlong tmp= (*ref)->val_time_packed_result();
   null_value= (*ref)->null_value;
   return tmp;
 }

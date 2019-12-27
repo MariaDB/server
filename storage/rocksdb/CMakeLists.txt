@@ -257,7 +257,7 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/myrocks_hotbackup.py
 INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/myrocks_hotbackup COMPONENT rocksdb-engine)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS -frtti)
+  SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS "-frtti -Wno-error")
 ENDIF()
 IF(MSVC)
   # RocksDB, the storage engine, overdoes "const" by adding

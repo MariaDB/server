@@ -1970,6 +1970,14 @@ DROP VIEW v1,v2,v3;
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-21388 Wrong result of DAYNAME()=xxx in combination with condition_pushdown_for_derived=on
+--echo #
+
+SELECT DAYNAME('2019-01-05')+0;
+SELECT CAST(DAYNAME('2019-01-05') AS SIGNED);
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

@@ -10568,6 +10568,36 @@ EXPLAIN
 }
 DROP TABLE t1;
 DROP VIEW v1;
+#
+# MDEV-21388 Wrong result of DAYNAME()=xxx in combination with condition_pushdown_for_derived=on
+#
+CREATE TABLE t1 (a INT, b DATE, c INT);
+INSERT INTO t1 VALUES
+(1,'2001-01-21',345),
+(6,'2001-01-20',315),
+(6,'2001-01-20',214);
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (2,19), (7,20);
+CREATE VIEW v1 AS SELECT a, b, max(c) AS max_c FROM t1
+GROUP BY a,b HAVING max_c < 707;
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a);
+a	b	max_c	a	b	dayname(v1.b)
+1	2001-01-21	345	2	19	Sunday
+1	2001-01-21	345	7	20	Sunday
+6	2001-01-20	315	7	20	Saturday
+SET optimizer_switch='condition_pushdown_for_derived=off';
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a) AND dayname(v1.b)='Sunday';
+a	b	max_c	a	b	dayname(v1.b)
+1	2001-01-21	345	2	19	Sunday
+1	2001-01-21	345	7	20	Sunday
+SET optimizer_switch='condition_pushdown_for_derived=on';
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a) AND dayname(v1.b)='Sunday';
+a	b	max_c	a	b	dayname(v1.b)
+1	2001-01-21	345	2	19	Sunday
+1	2001-01-21	345	7	20	Sunday
+DROP VIEW v1;
+DROP TABLE t1, t2;
+SET optimizer_switch=DEFAULT;
 # End of 10.2 tests
 #
 # MDEV-14579: pushdown conditions into materialized views/derived tables

@@ -119,14 +119,19 @@ bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn);
 
 /** Parse log records from a buffer and optionally store them to a
 hash table to wait merging to file pages.
-@param[in]	checkpoint_lsn	the LSN of the latest checkpoint
-@param[in]	store		whether to store page operations
-@param[in]	apply		whether to apply the records
+@param[in]	checkpoint_lsn		the LSN of the latest checkpoint
+@param[in]	store			whether to store page operations
+@param[in]	available_memory	memory to read the redo logs
+@param[in]	apply			whether to apply the records
 @return whether MLOG_CHECKPOINT record was seen the first time,
 or corruption was noticed */
-bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply);
+bool recv_parse_log_recs(
+	lsn_t		checkpoint_lsn,
+	store_t*	store,
+	ulint		available_memory,
+	bool		apply);
 
-/** Moves the parsing buffer data left to the buffer start. */
+/** Moves the parsing buffer data left to the buffer start */
 void recv_sys_justify_left_parsing_buf();
 
 /** Report optimized DDL operation (without redo log),

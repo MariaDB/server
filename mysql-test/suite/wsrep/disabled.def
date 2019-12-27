@@ -10,5 +10,4 @@
 #
 ##############################################################################
 
-foreign_key : MENT-535 Galera test failures on wsrep suite
-pool_of_threads : MENT-535 Galera test failures on wsrep suite
+
