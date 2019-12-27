@@ -226,7 +226,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   LEX_CSTRING str_db_type;
   uint reclength, key_info_length, i;
   ulong key_buff_length;
-  size_t filepos;
   ulong data_offset;
   uint options_len;
   uint gis_extra2_len= 0;
@@ -237,7 +236,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                           : 0;
   size_t without_overlaps_len= frm_keyno_size * (create_info->period_info.unique_keys + 1);
   uint e_unique_hash_extra_parts= 0;
-  uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
+  uchar frm_header[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
   const partition_info *part_info= IF_PARTITIONING(thd->work_part_info, 0);
   bool error;
   uchar *frm_ptr, *pos;
@@ -342,7 +341,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   DBUG_ASSERT(create_info->tabledef_version.length > 0);
   DBUG_ASSERT(create_info->tabledef_version.length <= 255);
 
-  prepare_frm_header(thd, reclength, fileinfo, create_info, keys, key_info);
+  prepare_frm_header(thd, reclength, frm_header, create_info, keys, key_info);
 
   /* one byte for a type, one or three for a length */
   size_t extra2_size= 1 + extra2_str_size(create_info->tabledef_version.length);
@@ -386,18 +385,18 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   for (i= 0; i < keys; i++)
     if (key_info[i].algorithm == HA_KEY_ALG_LONG_HASH)
       e_unique_hash_extra_parts++;
-  key_buff_length= uint4korr(fileinfo+47);
+  key_buff_length= uint4korr(frm_header + 47);
 
   frm.length= FRM_HEADER_SIZE;                  // fileinfo;
   frm.length+= extra2_size + 4;                 // mariadb extra2 frm segment
 
-  int2store(fileinfo+4, extra2_size);
-  int2store(fileinfo+6, frm.length);            // Position to key information
+  int2store(frm_header + 4, extra2_size);
+  int2store(frm_header + 6, frm.length);            // Position to key information
   frm.length+= key_buff_length;
   frm.length+= reclength;                       // row with default values
   frm.length+= create_info->extra_size;
 
-  filepos= frm.length;
+  const size_t forminfo_pos= frm.length;
   frm.length+= FRM_FORMINFO_SIZE;               // forminfo
   frm.length+= packed_fields_length(create_fields);
   frm.length+= create_info->expression_length;
@@ -415,7 +414,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     DBUG_RETURN(frm);
 
   /* write the extra2 segment */
-  pos = frm_ptr + 64;
+  pos = frm_ptr + FRM_HEADER_SIZE;
   compile_time_assert(EXTRA2_TABLEDEF_VERSION != '/');
   pos= extra2_write(pos, EXTRA2_TABLEDEF_VERSION,
                     create_info->tabledef_version);
@@ -499,14 +498,13 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   if (has_extra2_field_flags_)
     pos= extra2_write_field_properties(pos, create_fields);
 
-
   if (keys)
     pos= extra2_write_index_properties(pos, key_info, keys);
 
-  int4store(pos, filepos); // end of the extra2 segment
+  int4store(pos, forminfo_pos); // end of the extra2 segment
   pos+= 4;
 
-  DBUG_ASSERT(pos == frm_ptr + uint2korr(fileinfo+6));
+  DBUG_ASSERT(pos == frm_ptr + uint2korr(frm_header + 6));
   key_info_length= pack_keys(pos, keys, key_info, data_offset, e_unique_hash_extra_parts);
   if (key_info_length > UINT_MAX16)
   {
@@ -517,19 +515,19 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     goto err;
   }
 
-  int2store(forminfo+2, frm.length - filepos);
-  int4store(fileinfo+10, frm.length);
-  fileinfo[26]= (uchar) MY_TEST((create_info->max_rows == 1) &&
+  int2store(forminfo+2, frm.length - forminfo_pos);
+  int4store(frm_header + 10, frm.length);
+    frm_header[26]= (uchar) MY_TEST((create_info->max_rows == 1) &&
                                 (create_info->min_rows == 1) && (keys == 0));
-  int2store(fileinfo+28,key_info_length);
+  int2store(frm_header + 28, key_info_length);
 
   if (part_info)
   {
-    fileinfo[61]= (uchar) ha_legacy_type(part_info->default_engine_type);
-    DBUG_PRINT("info", ("part_db_type = %d", fileinfo[61]));
+        frm_header[61]= (uchar) ha_legacy_type(part_info->default_engine_type);
+    DBUG_PRINT("info", ("part_db_type = %d", frm_header[61]));
   }
 
-  memcpy(frm_ptr, fileinfo, FRM_HEADER_SIZE);
+  memcpy(frm_ptr, frm_header, FRM_HEADER_SIZE);
 
   pos+= key_buff_length;
   if (make_empty_rec(thd, pos, create_info->table_options, create_fields,
@@ -577,8 +575,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     pos+= create_info->comment.length;
   }
 
-  memcpy(frm_ptr + filepos, forminfo, FRM_FORMINFO_SIZE);
-  pos= frm_ptr + filepos + FRM_FORMINFO_SIZE;
+  memcpy(frm_ptr + forminfo_pos, forminfo, FRM_FORMINFO_SIZE);
+  pos= frm_ptr + forminfo_pos + FRM_FORMINFO_SIZE;
   if (pack_fields(&pos, create_fields, create_info, data_offset))
     goto err;
 
