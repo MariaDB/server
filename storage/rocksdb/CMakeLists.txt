@@ -248,6 +248,8 @@ IF(MSVC)
   IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
   ENDIF()
+ELSEIF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS "-Wno-error")
 ENDIF()
 
 # Enable ZSTD if available. Upstream rocksdb cmake will use WITH_ZSTD and set

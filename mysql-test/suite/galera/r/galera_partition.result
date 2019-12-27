@@ -397,11 +397,14 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 350
 connection node_2;
-call p1(10);;
+call mtr.add_suppression("WSREP: Sending JOIN failed:");
+call p1(10);
 connection node_3;
-call p1(10);;
+call mtr.add_suppression("WSREP: Sending JOIN failed:");
+call p1(10);
 connection node_4;
-call p1(10);;
+call mtr.add_suppression("WSREP: Sending JOIN failed:");
+call p1(10);
 connection node_1;
 SET SESSION wsrep_OSU_method='RSU';
 SELECT @@wsrep_OSU_method;

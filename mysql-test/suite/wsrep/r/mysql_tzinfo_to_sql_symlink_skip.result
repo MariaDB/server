@@ -2,7 +2,7 @@
 # MDEV-5226 mysql_tzinfo_to_sql errors with tzdata 2013f and above
 #
 # Verbose run
-set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
+set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
 prepare set_wsrep_write_binlog from @prep1;
 set @toggle=0; execute set_wsrep_write_binlog using @toggle;
 TRUNCATE TABLE time_zone;
@@ -29,7 +29,7 @@ Warning: Skipping directory 'MYSQLTEST_VARDIR/zoneinfo/posix/posix': to avoid in
 ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
 ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
 # Silent run
-set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
+set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
 prepare set_wsrep_write_binlog from @prep1;
 set @toggle=0; execute set_wsrep_write_binlog using @toggle;
 TRUNCATE TABLE time_zone;
@@ -55,7 +55,7 @@ ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
 #
 # Testing with explicit timezonefile
 #
-set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
+set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
 prepare set_wsrep_write_binlog from @prep1;
 set @toggle=0; execute set_wsrep_write_binlog using @toggle;
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
@@ -67,7 +67,7 @@ INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset,
 #
 # Testing --leap
 #
-set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
+set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
 prepare set_wsrep_write_binlog from @prep1;
 set @toggle=0; execute set_wsrep_write_binlog using @toggle;
 TRUNCATE TABLE time_zone_leap_second;

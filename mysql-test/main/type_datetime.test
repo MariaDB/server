@@ -748,6 +748,49 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-21319 COUNT(*) returns 1, actual SELECT returns no result in 10.3.21, but 1 result in 10.1.41
+--echo #
+
+CREATE TABLE t1
+(
+  id INT NOT NULL PRIMARY KEY,
+  id2 INT,
+  k TINYINT,
+  j INT,
+  t DATETIME,
+  KEY k1 (id2,k,j,t)
+);
+INSERT INTO t1 VALUES
+(53,54,1,0,'2019-12-13 10:09:59'),
+(54,54,1,0,'2019-12-13 16:28:41'),
+(55,54,1,0,'2019-12-13 16:29:10'),
+(56,54,1,0,'2019-12-13 16:29:43'),
+(57,54,1,0,'2019-12-13 16:30:16'),
+(58,54,1,0,'2019-12-13 16:30:49'),
+(59,54,1,0,'2019-12-13 16:31:23'),
+(60,54,1,0,'2019-12-13 16:31:55'),
+(61,54,1,0,'2019-12-13 16:32:28'),
+(62,54,1,0,'2019-12-13 16:33:01'),
+(63,54,1,0,'2019-12-13 16:33:34'),
+(64,54,1,0,'2019-12-13 16:34:07'),
+(65,54,1,0,'2019-12-13 16:34:40'),
+(66,54,1,0,'2019-12-13 16:35:13'),
+(67,54,1,0,'2019-12-13 16:35:46'),
+(68,54,1,0,'2019-12-13 16:36:19');
+SELECT t FROM t1 GROUP BY t HAVING t=max(t);
+SELECT t FROM t1 WHERE id2=54 and j=0 and k=1 GROUP BY t HAVING t=max(t);
+DROP TABLE t1;
+
+CREATE TABLE t1 (pk INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1);
+SELECT pk<DATE'2001-01-01' FROM t1 GROUP BY pk;
+SELECT pk<DATE'2001-01-01' FROM v1 GROUP BY pk;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
 

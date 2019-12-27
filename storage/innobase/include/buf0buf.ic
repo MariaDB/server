@@ -113,7 +113,17 @@ ulint
 buf_pool_get_n_pages(void)
 /*======================*/
 {
-	return buf_pool_get_curr_size() >> srv_page_size_shift;
+  if (!buf_pool_ptr)
+    return buf_pool_get_curr_size() >> srv_page_size_shift;
+
+  ulint chunk_size= 0;
+  for (uint i= 0; i < srv_buf_pool_instances; i++)
+  {
+    buf_pool_t* buf_pool = buf_pool_from_array(i);
+    for (uint j= 0; j < buf_pool->n_chunks; j++)
+      chunk_size+= buf_pool->chunks[j].size;
+  }
+  return chunk_size;
 }
 
 /********************************************************************//**

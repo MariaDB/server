@@ -3225,12 +3225,13 @@ bool Item_field::get_date(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate)
 
 bool Item_field::get_date_result(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  if (result_field->is_null() || result_field->get_date(ltime,fuzzydate))
+  if ((null_value= result_field->is_null()) ||
+      result_field->get_date(ltime, fuzzydate))
   {
     bzero((char*) ltime,sizeof(*ltime));
-    return (null_value= 1);
+    return true;
   }
-  return (null_value= 0);
+  return false;
 }
 
 
@@ -8229,7 +8230,7 @@ bool Item_ref::val_native(THD *thd, Native *to)
 longlong Item_ref::val_datetime_packed(THD *thd)
 {
   DBUG_ASSERT(fixed);
-  longlong tmp= (*ref)->val_datetime_packed(thd);
+  longlong tmp= (*ref)->val_datetime_packed_result(thd);
   null_value= (*ref)->null_value;
   return tmp;
 }
@@ -8238,7 +8239,7 @@ longlong Item_ref::val_datetime_packed(THD *thd)
 longlong Item_ref::val_time_packed(THD *thd)
 {
   DBUG_ASSERT(fixed);
-  longlong tmp= (*ref)->val_time_packed(thd);
+  longlong tmp= (*ref)->val_time_packed_result(thd);
   null_value= (*ref)->null_value;
   return tmp;
 }

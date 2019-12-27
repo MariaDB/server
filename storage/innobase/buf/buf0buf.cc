@@ -95,6 +95,7 @@ struct set_numa_interleave_t
 					" policy to MPOL_INTERLEAVE: "
 					<< strerror(errno);
 			}
+			numa_bitmask_free(numa_mems_allowed);
 		}
 	}
 
@@ -123,29 +124,6 @@ struct set_numa_interleave_t
 #endif
 
 #ifndef UNIV_INNOCHECKSUM
-inline void* aligned_malloc(size_t size, size_t align) {
-    void *result;
-#ifdef _MSC_VER
-    result = _aligned_malloc(size, align);
-#elif defined (HAVE_POSIX_MEMALIGN)
-    if(posix_memalign(&result, align, size)) {
-	    result = 0;
-    }
-#else
-    /* Use unaligned malloc as fallback */
-    result = malloc(size);
-#endif
-    return result;
-}
-
-inline void aligned_free(void *ptr) {
-#ifdef _MSC_VER
-        _aligned_free(ptr);
-#else
-      free(ptr);
-#endif
-}
-
 buf_pool_t::io_buf_t::~io_buf_t()
 {
 	for (buf_tmp_buffer_t* s = slots, *e = slots + n_slots; s != e; s++) {
@@ -1665,6 +1643,7 @@ buf_chunk_init(
 				" buffer pool page frames to MPOL_INTERLEAVE"
 				" (error: " << strerror(errno) << ").";
 		}
+		numa_bitmask_free(numa_mems_allowed);
 	}
 #endif /* HAVE_LIBNUMA */
 
