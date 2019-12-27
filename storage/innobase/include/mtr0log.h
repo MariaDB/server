@@ -60,14 +60,6 @@ mlog_catenate_string(
 	const byte*	str,	/*!< in: string to write */
 	ulint		len);	/*!< in: string length */
 /********************************************************//**
-Catenates a compressed ulint to mlog. */
-UNIV_INLINE
-void
-mlog_catenate_ulint_compressed(
-/*===========================*/
-	mtr_t*		mtr,	/*!< in: mtr */
-	ulint		val);	/*!< in: value to write */
-/********************************************************//**
 Opens a buffer to mlog. It must be closed with mlog_close.
 @return buffer, NULL if log mode MTR_LOG_NONE */
 UNIV_INLINE

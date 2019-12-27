@@ -4,7 +4,7 @@
 # Verbose run
 \d |
 IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on') = 1 THEN
+variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone ENGINE=InnoDB;
 ALTER TABLE time_zone_name ENGINE=InnoDB;
 ALTER TABLE time_zone_transition ENGINE=InnoDB;
@@ -36,7 +36,7 @@ ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
 ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
 \d |
 IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on') = 1 THEN
+variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone ENGINE=Aria;
 ALTER TABLE time_zone_name ENGINE=Aria;
 ALTER TABLE time_zone_transition ENGINE=Aria;
@@ -46,7 +46,7 @@ END IF|
 # Silent run
 \d |
 IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on') = 1 THEN
+variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone ENGINE=InnoDB;
 ALTER TABLE time_zone_name ENGINE=InnoDB;
 ALTER TABLE time_zone_transition ENGINE=InnoDB;
@@ -75,7 +75,7 @@ ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
 ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
 \d |
 IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on') = 1 THEN
+variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone ENGINE=Aria;
 ALTER TABLE time_zone_name ENGINE=Aria;
 ALTER TABLE time_zone_transition ENGINE=Aria;
@@ -93,7 +93,7 @@ INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset,
 ;
 \d |
 IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on') = 1 THEN
+variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone ENGINE=Aria;
 ALTER TABLE time_zone_name ENGINE=Aria;
 ALTER TABLE time_zone_transition ENGINE=Aria;
@@ -105,21 +105,21 @@ END IF|
 #
 \d |
 IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on') = 1 THEN
+variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone_leap_second ENGINE=InnoDB;
 END IF|
 \d ;
 TRUNCATE TABLE time_zone_leap_second;
 \d |
 IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on') = 1 THEN
+variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone_leap_second ENGINE=Aria;
 END IF|
 \d ;
 ALTER TABLE time_zone_leap_second ORDER BY Transition_time;
 \d |
 IF (select count(*) from information_schema.global_variables where
-variable_name='wsrep_on') = 1 THEN
+variable_name='wsrep_on' and variable_value='ON') = 1 THEN
 ALTER TABLE time_zone ENGINE=Aria;
 ALTER TABLE time_zone_name ENGINE=Aria;
 ALTER TABLE time_zone_transition ENGINE=Aria;

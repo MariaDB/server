@@ -2128,6 +2128,7 @@ JOIN::optimize_inner()
         zero_result_cause= "Zero limit";
       }
       table_count= top_join_tab_count= 0;
+      handle_implicit_grouping_with_window_funcs();
       error= 0;
       subq_exit_fl= true;
       goto setup_subq_exit;
@@ -2175,6 +2176,7 @@ JOIN::optimize_inner()
         table_count= top_join_tab_count= 0;
 	error=0;
         subq_exit_fl= true;
+        handle_implicit_grouping_with_window_funcs();
         goto setup_subq_exit;
       }
       if (res > 1)
@@ -2190,6 +2192,7 @@ JOIN::optimize_inner()
       tables_list= 0;				// All tables resolved
       select_lex->min_max_opt_list.empty();
       const_tables= top_join_tab_count= table_count;
+      handle_implicit_grouping_with_window_funcs();
       /*
         Extract all table-independent conditions and replace the WHERE
         clause with them. All other conditions were computed by opt_sum_query
@@ -2338,6 +2341,7 @@ int JOIN::optimize_stage2()
     zero_result_cause= "no matching row in const table";
     DBUG_PRINT("error",("Error: %s", zero_result_cause));
     error= 0;
+    handle_implicit_grouping_with_window_funcs();
     goto setup_subq_exit;
   }
   if (!(thd->variables.option_bits & OPTION_BIG_SELECTS) &&
@@ -2369,6 +2373,7 @@ int JOIN::optimize_stage2()
     zero_result_cause=
       "Impossible WHERE noticed after reading const tables";
     select_lex->mark_const_derived(zero_result_cause);
+    handle_implicit_grouping_with_window_funcs();
     goto setup_subq_exit;
   }
 
@@ -2531,6 +2536,7 @@ int JOIN::optimize_stage2()
     zero_result_cause=
       "Impossible WHERE noticed after reading const tables";
     select_lex->mark_const_derived(zero_result_cause);
+    handle_implicit_grouping_with_window_funcs();
     goto setup_subq_exit;
   }
 
@@ -15746,7 +15752,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
     }	 
   }
   else if (cond->type() == Item::FUNC_ITEM && 
-           ((Item_cond*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
+           ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
   {
     item_equal= (Item_equal *) cond;
     item_equal->sort(&compare_fields_by_table_order, table_join_idx);
@@ -19722,7 +19728,8 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab)
     }
   }
   else if (join->sort_and_group && !tmp_tbl->precomputed_group_by &&
-           !join->sort_and_group_aggr_tab && join->tables_list)
+           !join->sort_and_group_aggr_tab && join->tables_list &&
+           join->top_join_tab_count)
   {
     DBUG_PRINT("info",("Using end_write_group"));
     aggr->set_write_func(end_write_group);
@@ -25154,7 +25161,8 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   for (uint i= 0; (item= it++); i++)
   {
     Field *field;
-    if (item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM)
+    if ((item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM) ||
+       item->with_window_func)
       item_field= item;
     else if (item->type() == Item::FIELD_ITEM)
     {
@@ -28693,6 +28701,28 @@ Item *remove_pushed_top_conjuncts(THD *thd, Item *cond)
     }
   }
   return cond;
+}
+
+
+/*
+  There are 5 cases in which we shortcut the join optimization process as we
+  conclude that the join would be a degenerate one
+    1) IMPOSSIBLE WHERE
+    2) MIN/MAX optimization (@see opt_sum_query)
+    3) EMPTY CONST TABLE
+  If a window function is present in any of the above cases then to get the
+  result of the window function, we need to execute it. So we need to
+  create a temporary table for its execution. Here we need to take in mind
+  that aggregate functions and non-aggregate function need not be executed.
+
+*/
+
+void JOIN::handle_implicit_grouping_with_window_funcs()
+{
+  if (select_lex->have_window_funcs() && send_row_on_empty_set())
+  {
+    const_tables= top_join_tab_count= table_count= 0;
+  }
 }
 
 

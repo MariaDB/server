@@ -6795,23 +6795,35 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
     thd->clear_error();
     DBUG_RETURN(0);
   }
-  else if (!tables->view)
+  if (!tables->view)
   {
-    if (tables->table->s->table_check_constraints)
+    StringBuffer<MAX_FIELD_WIDTH> str(system_charset_info);
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    TABLE_LIST table_acl_check;
+    bzero((char*) &table_acl_check, sizeof(table_acl_check));
+#endif
+    for (uint i= 0; i < tables->table->s->table_check_constraints; i++)
     {
-      for (uint i= 0; i < tables->table->s->table_check_constraints; i++)
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      if (!(thd->col_access & TABLE_ACLS))
       {
-        StringBuffer<MAX_FIELD_WIDTH> str(system_charset_info);
-        Virtual_column_info *check= tables->table->check_constraints[i];
-        restore_record(table, s->default_values);
-        table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
-        table->field[1]->store(db_name->str, db_name->length, system_charset_info);
-        table->field[2]->store(check->name.str, check->name.length, system_charset_info);
-        table->field[3]->store(table_name->str, table_name->length, system_charset_info);
-        check->print(&str);
-        table->field[4]->store(str.ptr(), str.length(), system_charset_info);
-        schema_table_store_record(thd, table);
+        table_acl_check.db= *db_name;
+        table_acl_check.table_name= *table_name;
+        table_acl_check.grant.privilege= thd->col_access;
+        if (check_grant(thd, TABLE_ACLS, &table_acl_check, FALSE, 1, TRUE))
+          continue;
       }
+#endif
+      Virtual_column_info *check= tables->table->check_constraints[i];
+      table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
+      table->field[3]->store(check->name.str, check->name.length,
+                             system_charset_info);
+      /* Make sure the string is empty between each print. */
+      str.length(0);
+      check->print(&str);
+      table->field[4]->store(str.ptr(), str.length(), system_charset_info);
+      if (schema_table_store_record(thd, table))
+        DBUG_RETURN(1);
     }
   }
   DBUG_RETURN(res);
@@ -9370,8 +9382,8 @@ ST_FIELD_INFO check_constraints_fields_info[]=
 {
   Column("CONSTRAINT_CATALOG", Catalog(), NOT_NULL, OPEN_FULL_TABLE),
   Column("CONSTRAINT_SCHEMA",  Name(),    NOT_NULL, OPEN_FULL_TABLE),
-  Column("CONSTRAINT_NAME",    Name(),    NOT_NULL, OPEN_FULL_TABLE),
   Column("TABLE_NAME",         Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("CONSTRAINT_NAME",    Name(),    NOT_NULL, OPEN_FULL_TABLE),
   Column("CHECK_CLAUSE",       Name(),    NOT_NULL, OPEN_FULL_TABLE),
   CEnd()
 };
@@ -9402,7 +9414,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"CHARACTER_SETS", Show::charsets_fields_info, 0,
    fill_schema_charsets, make_character_sets_old_format, 0, -1, -1, 0, 0},
   {"CHECK_CONSTRAINTS", Show::check_constraints_fields_info, 0,
-   get_all_tables, 0, get_check_constraints_record, 1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
+   get_all_tables, 0,
+   get_check_constraints_record, 1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"COLLATIONS", Show::collation_fields_info, 0,
    fill_schema_collation, make_old_format, 0, -1, -1, 0, 0},
   {"COLLATION_CHARACTER_SET_APPLICABILITY", Show::coll_charset_app_fields_info,

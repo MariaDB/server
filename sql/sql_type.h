@@ -1887,6 +1887,10 @@ protected:
   {
     return (ulong) ::calc_daynr((uint) year, (uint) month, (uint) day);
   }
+  int weekday(bool sunday_first_day_of_week) const
+  {
+    return ::calc_weekday(daynr(), sunday_first_day_of_week);
+  }
   ulong dayofyear() const
   {
     return (ulong) (daynr() - ::calc_daynr(year, 1, 1) + 1);
@@ -2266,6 +2270,11 @@ public:
   {
     DBUG_ASSERT(is_valid_datetime_slow());
     return Temporal_with_date::daynr();
+  }
+  int weekday(bool sunday_first_day_of_week) const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return Temporal_with_date::weekday(sunday_first_day_of_week);
   }
   ulong dayofyear() const
   {

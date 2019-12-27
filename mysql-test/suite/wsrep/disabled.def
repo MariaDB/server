@@ -10,7 +10,4 @@
 #
 ##############################################################################
 
-foreign_key : MENT-535 Galera test failures on wsrep suite
-wsrep.pool_of_threads : Sporadic failure "WSREP has not yet prepared node for application use"
 variables : MDEV-20581 Crash on wsrep.variables test case
-pool_of_threads : MENT-535 Galera test failures on wsrep suite

@@ -612,6 +612,7 @@ page_rec_get_next_low(
 	}
 
 	ut_ad(page_rec_is_infimum(rec)
+	      || (!page_is_leaf(page) && !page_has_prev(page))
 	      || !(rec_get_info_bits(page + offs, comp)
 		   & REC_INFO_MIN_REC_FLAG));
 
