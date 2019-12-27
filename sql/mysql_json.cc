@@ -334,6 +334,32 @@ static bool parse_mysql_scalar(String *buffer, size_t value_json_type,
   }
 }
 
+static bool read_mysql_scalar_or_value(String *buffer, const char *data,
+                                       size_t len, size_t value_type_offset,
+                                       bool large, size_t depth)
+{
+  /* Get the type of the value stored at the key. */
+  const JSONB_TYPES value_type=
+    static_cast<JSONB_TYPES>(data[value_type_offset]);
+
+  if (type_is_stored_inline(value_type, large))
+  {
+    const size_t value_start = value_type_offset + 1;
+    if (parse_mysql_scalar(buffer, value_type, data + value_start,
+                           len - value_start))
+      return true;
+  }
+  else
+  {
+    const size_t value_start= read_offset_or_size(
+                                      data + value_type_offset + 1, large);
+    if (parse_mysql_json_value(buffer, value_type, data + value_start,
+                               len - value_start, depth))
+      return true;
+  }
+  return false;
+
+}
 
 static bool parse_array_or_object(String *buffer, const char *data, size_t len,
                                   bool handle_as_object, bool large,
@@ -394,12 +420,8 @@ static bool parse_array_or_object(String *buffer, const char *data, size_t len,
                                    data + key_offset + offset_size, false);
 
       const size_t value_type_offset= 2 * offset_size +
-                                      key_size(large) * element_count +
-                                      value_size(large) * i;
-
-      /* Get the type of the value stored at the key. */
-      const JSONB_TYPES value_type=
-        static_cast<JSONB_TYPES>(data[value_type_offset]);
+                                      element_count * key_size(large) +
+                                      i * value_size(large);
 
       /* First print the key. */
       if (buffer->append('"') ||
@@ -409,54 +431,24 @@ static bool parse_array_or_object(String *buffer, const char *data, size_t len,
         return true;
       }
 
-      if (type_is_stored_inline(value_type, large))
-      {
-        if (parse_mysql_scalar(buffer, value_type, data + value_type_offset + 1,
-                               bytes - value_type_offset - 1))
-          return true;
-      }
-      else
-      {
-        const size_t val_start_offset= read_offset_or_size(
-                                          data + value_type_offset + 1, large);
-        if (parse_mysql_json_value(buffer, value_type, data + val_start_offset,
-                                   bytes - val_start_offset, depth))
-          return true;
-      }
+      if (read_mysql_scalar_or_value(buffer, data, bytes, value_type_offset,
+                                     large, depth))
+        return true;
+
       if (i != element_count - 1 && buffer->append(", "))
         return true;
     }
     else
     {
       /*
-         Arrays do not have the keys vector and it's associated data.
+         Arrays do not have the keys vector and its associated data.
          We jump straight to reading values.
       */
       const size_t value_type_offset= 2 * offset_size + value_size(large) * i;
 
-      const JSONB_TYPES value_type=
-        static_cast<JSONB_TYPES>(data[value_type_offset]);
-
-      if (type_is_stored_inline(value_type, large))
-      {
-        const size_t value_start = value_type_offset + 1;
-        if (parse_mysql_scalar(buffer, value_type, data + value_start,
-                               bytes - value_start))
-          return true;
-      }
-      else
-      {
-        /*
-           Regular values have their position marked after the type.
-           A regular value can be either a scalar, an array or another JSON
-           object.
-        */
-        const size_t value_start= read_offset_or_size(
-                                      data + value_type_offset + 1, large);
-        if (parse_mysql_json_value(buffer, value_type, data + value_start,
-                                   bytes - value_start, depth))
-          return true;
-      }
+      if (read_mysql_scalar_or_value(buffer, data, bytes, value_type_offset,
+                                     large, depth))
+        return true;
 
       if (i != element_count - 1 && buffer->append(", "))
         return true;
