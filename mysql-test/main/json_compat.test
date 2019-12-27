@@ -26,7 +26,7 @@ select * from t_isam;
 alter table t_isam force;
 
 show create table t_isam;
-select * from t_isam;
+select JSON_VALID(1), a from t_isam;
 
 --copy_file std_data/mysql_json/mysql_json_test.frm $MYSQLD_DATADIR/test/mysql_json_test.frm
 --copy_file std_data/mysql_json/mysql_json_test.MYI $MYSQLD_DATADIR/test/mysql_json_test.MYI

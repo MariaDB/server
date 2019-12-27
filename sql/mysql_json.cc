@@ -7,12 +7,12 @@
 #include "sql_time.h"
 
 /*
-    Json values in MySQL comprises the standard set of JSON values plus a MySQL
-    specific set. A JSON number type is subdivided into int, uint, double and
-    decimal.
+  Json values in MySQL comprises the standard set of JSON values plus a MySQL
+  specific set. A JSON number type is subdivided into int, uint, double and
+  decimal.
 
-    MySQL also adds four built-in date/time values: date, time, datetime and
-    timestamp. An additional opaque value can store any other MySQL type.
+  MySQL also adds four built-in date/time values: date, time, datetime and
+  timestamp. An additional opaque value can store any other MySQL type.
 */
 
 
@@ -351,8 +351,6 @@ static bool parse_array_or_object(String *buffer, const char *data, size_t len,
   if (len < 2 * offset_size)
     return true;
 
-  /* Calculate number of elements and length of binary (number of bytes). */
-  size_t element_count, bytes;
 
   /*
      Every JSON Object or Array contains two numbers in the header:
@@ -362,8 +360,8 @@ static bool parse_array_or_object(String *buffer, const char *data, size_t len,
      Depending on the Object / Array type (small / large) the numbers are stored
      in 2 bytes or 4 bytes each.
   */
-  element_count= read_offset_or_size(data, large);
-  bytes= read_offset_or_size(data + offset_size, large);
+  const size_t element_count= read_offset_or_size(data, large);
+  const size_t bytes= read_offset_or_size(data + offset_size, large);
 
   /* The value can't have more bytes than what's available in the buffer. */
   if (bytes > len)
