@@ -334,9 +334,22 @@ static bool parse_mysql_scalar(String *buffer, size_t value_json_type,
   }
 }
 
-static bool read_mysql_scalar_or_value(String *buffer, const char *data,
-                                       size_t len, size_t value_type_offset,
-                                       bool large, size_t depth)
+
+/**
+  Read a value from a JSON Object or Array, given the position of it.
+  This function handles both inlined values as well as values stored at
+  an offset.
+
+  @param[out] buffer            Where to print the results.
+  @param[in] data               The raw binary data of the Object or Array.
+  @param[in] len                The length of the binary data.
+  @param[in] value_type_offset  Where the type of the value is stored.
+  @param[in] large              true if the large storage format is used;
+  @param[in] depth              How deep the JSON object is in the hierarchy.
+*/
+static bool parse_mysql_scalar_or_value(String *buffer, const char *data,
+                                        size_t len, size_t value_type_offset,
+                                        bool large, size_t depth)
 {
   /* Get the type of the value stored at the key. */
   const JSONB_TYPES value_type=
@@ -351,6 +364,8 @@ static bool read_mysql_scalar_or_value(String *buffer, const char *data,
   }
   else
   {
+    /* The offset to where the value is stored is relative to the start
+       of the Object / Array */
     const size_t value_start= read_offset_or_size(
                                       data + value_type_offset + 1, large);
     if (parse_mysql_json_value(buffer, value_type, data + value_start,
@@ -360,6 +375,7 @@ static bool read_mysql_scalar_or_value(String *buffer, const char *data,
   return false;
 
 }
+
 
 static bool parse_array_or_object(String *buffer, const char *data, size_t len,
                                   bool handle_as_object, bool large,
@@ -431,11 +447,9 @@ static bool parse_array_or_object(String *buffer, const char *data, size_t len,
         return true;
       }
 
-      if (read_mysql_scalar_or_value(buffer, data, bytes, value_type_offset,
-                                     large, depth))
-        return true;
-
-      if (i != element_count - 1 && buffer->append(", "))
+      /* Then print the value. */
+      if (parse_mysql_scalar_or_value(buffer, data, bytes, value_type_offset,
+                                      large, depth))
         return true;
     }
     else
@@ -446,13 +460,13 @@ static bool parse_array_or_object(String *buffer, const char *data, size_t len,
       */
       const size_t value_type_offset= 2 * offset_size + value_size(large) * i;
 
-      if (read_mysql_scalar_or_value(buffer, data, bytes, value_type_offset,
-                                     large, depth))
-        return true;
-
-      if (i != element_count - 1 && buffer->append(", "))
+      if (parse_mysql_scalar_or_value(buffer, data, bytes, value_type_offset,
+                                      large, depth))
         return true;
     }
+
+    if (i != element_count - 1 && buffer->append(", "))
+      return true;
   }
 
   return buffer->append(handle_as_object ? '}' : ']');
