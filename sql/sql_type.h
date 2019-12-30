@@ -5147,6 +5147,7 @@ public:
   }
   bool type_can_have_auto_increment_attribute() const { return true; }
   uint32 max_display_length(const Item *item) const { return 25; }
+  uint32 Item_decimal_notation_int_digits(const Item *item) const { return 39; }
   uint32 calc_pack_length(uint32 length) const { return sizeof(float); }
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
