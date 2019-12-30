@@ -4160,7 +4160,7 @@ mysql_execute_command(THD *thd)
 
     res= mysql_alter_table(thd, &first_table->db, &first_table->table_name,
                            &create_info, first_table, &alter_info,
-                           0, (ORDER*) 0, 0);
+                           0, (ORDER*) 0, 0, lex->if_exists());
     break;
   }
 #ifdef HAVE_REPLICATION
@@ -4272,7 +4272,7 @@ mysql_execute_command(THD *thd)
 
     WSREP_TO_ISOLATION_BEGIN(0, 0, first_table);
 
-    if (mysql_rename_tables(thd, first_table, 0))
+    if (mysql_rename_tables(thd, first_table, 0, lex->if_exists()))
       goto error;
     break;
   }

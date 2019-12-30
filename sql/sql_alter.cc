@@ -522,7 +522,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                             &alter_info,
                             select_lex->order_list.elements,
                             select_lex->order_list.first,
-                            lex->ignore);
+                            lex->ignore, lex->if_exists());
 
   DBUG_RETURN(result);
 #ifdef WITH_WSREP

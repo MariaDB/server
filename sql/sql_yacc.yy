@@ -7098,10 +7098,11 @@ alter:
               MYSQL_YYABORT;
             DBUG_ASSERT(!Lex->m_sql_cmd);
           }
-          alter_options TABLE_SYM table_ident opt_lock_wait_timeout
+          alter_options TABLE_SYM opt_if_exists table_ident opt_lock_wait_timeout
           {
+            Lex->create_info.set($5);
             if (!Lex->first_select_lex()->
-                 add_table_to_list(thd, $5, NULL, TL_OPTION_UPDATING,
+                 add_table_to_list(thd, $6, NULL, TL_OPTION_UPDATING,
                                    TL_READ_NO_INSERT, MDL_SHARED_UPGRADABLE))
               MYSQL_YYABORT;
             Lex->first_select_lex()->db=
@@ -8298,9 +8299,10 @@ opt_no_write_to_binlog:
         ;
 
 rename:
-          RENAME table_or_tables
+          RENAME table_or_tables opt_if_exists
           {
             Lex->sql_command= SQLCOM_RENAME_TABLE;
+            Lex->create_info.set($3);
             if (Lex->main_select_push())
               MYSQL_YYABORT;
           }

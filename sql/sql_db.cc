@@ -1805,7 +1805,7 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
   }
 
   if ((table_list= thd->lex->query_tables) &&
-      (error= mysql_rename_tables(thd, table_list, 1)))
+      (error= mysql_rename_tables(thd, table_list, 1, 0)))
   {
     /*
       Failed to move all tables from the old database to the new one.

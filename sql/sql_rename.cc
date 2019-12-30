@@ -32,10 +32,13 @@
 #include "sql_statistics.h" 
 
 static TABLE_LIST *rename_tables(THD *thd, TABLE_LIST *table_list,
-				 bool skip_error);
-static bool do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
-                      const LEX_CSTRING *new_table_name, const LEX_CSTRING *new_table_alias,
-                      bool skip_error);
+                                 bool skip_error, bool if_exits,
+                                 bool *force_if_exists);
+static bool do_rename(THD *thd, TABLE_LIST *ren_table,
+                      const LEX_CSTRING *new_db,
+                      const LEX_CSTRING *new_table_name,
+                      const LEX_CSTRING *new_table_alias,
+                      bool skip_error, bool if_exists, bool *force_if_exists);
 
 static TABLE_LIST *reverse_table_list(TABLE_LIST *table_list);
 
@@ -44,10 +47,11 @@ static TABLE_LIST *reverse_table_list(TABLE_LIST *table_list);
   the new name.
 */
 
-bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
+bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
+                          bool if_exists)
 {
   bool error= 1;
-  bool binlog_error= 0;
+  bool binlog_error= 0, force_if_exists;
   TABLE_LIST *ren_table= 0;
   int to_table;
   const char *rename_log_table[2]= {NULL, NULL};
@@ -151,7 +155,8 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
     An exclusive lock on table names is satisfactory to ensure
     no other thread accesses this table.
   */
-  if ((ren_table=rename_tables(thd,table_list,0)))
+  if ((ren_table= rename_tables(thd, table_list, 0, if_exists,
+                                &force_if_exists)))
   {
     /* Rename didn't succeed;  rename back the tables in reverse order */
     TABLE_LIST *table;
@@ -165,7 +170,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
 	 table= table->next_local->next_local) ;
     table= table->next_local->next_local;		// Skip error table
     /* Revert to old names */
-    rename_tables(thd, table, 1);
+    rename_tables(thd, table, 1, if_exists, &force_if_exists);
 
     /* Revert the table list (for prepared statements) */
     table_list= reverse_table_list(table_list);
@@ -246,6 +251,9 @@ do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table,
       new_table_name    The new table/view name
       new_table_alias   The new table/view alias
       skip_error        Whether to skip error
+      if_exists         Skip error, but only if the table didn't exists
+      force_if_exists   Set to 1 if we have to log the query with 'IF EXISTS'
+                        Otherwise don't touch the value
 
   DESCRIPTION
     Rename a single table or a view.
@@ -257,13 +265,16 @@ do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table,
 
 static bool
 do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
-          const LEX_CSTRING *new_table_name, const LEX_CSTRING *new_table_alias,
-          bool skip_error)
+          const LEX_CSTRING *new_table_name,
+          const LEX_CSTRING *new_table_alias,
+          bool skip_error, bool if_exists, bool *force_if_exists)
 {
   int rc= 1;
-  handlerton *hton;
+  handlerton *hton, *new_hton;
   LEX_CSTRING old_alias, new_alias;
   DBUG_ENTER("do_rename");
+  DBUG_PRINT("enter", ("skip_error: %d  if_exists: %d", (int) skip_error,
+                       (int) if_exists));
 
   if (lower_case_table_names == 2)
   {
@@ -277,13 +288,19 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
   }
   DBUG_ASSERT(new_alias.str);
 
-  if (ha_table_exists(thd, new_db, &new_alias))
+  if (!ha_table_exists(thd, &ren_table->db, &old_alias, &hton) || !hton)
+  {
+    my_error(ER_NO_SUCH_TABLE, MYF((skip_error | if_exists) ? ME_NOTE : 0),
+             ren_table->db.str, old_alias.str);
+    DBUG_RETURN(skip_error || if_exists ? 0 : 1);
+  }
+
+  if (ha_table_exists(thd, new_db, &new_alias, &new_hton))
   {
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), new_alias.str);
     DBUG_RETURN(1);                     // This can't be skipped
   }
 
-  if (ha_table_exists(thd, &ren_table->db, &old_alias, &hton) && hton)
   {
     DBUG_ASSERT(!thd->locked_tables_mode);
 
@@ -335,14 +352,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
         rc= mysql_rename_view(thd, new_db, &new_alias, ren_table);
     }
   }
-  else
-  {
-    my_error(ER_NO_SUCH_TABLE, MYF(0), ren_table->db.str, old_alias.str);
-  }
-  if (unlikely(rc && !skip_error))
-    DBUG_RETURN(1);
-
-  DBUG_RETURN(0);
+  DBUG_RETURN(rc && !skip_error ? 1 : 0);
 }
 
 
@@ -359,6 +369,9 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
       thd               Thread handle
       table_list        List of tables to rename
       skip_error        Whether to skip errors
+      if_exists         Don't give an error if table doesn't exists
+      force_if_exists   Set to 1 if we have to log the query with 'IF EXISTS'
+                        Otherwise set it to 0
 
   DESCRIPTION
     Take a table/view name from and odd list element and rename it to a
@@ -371,11 +384,13 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
 */
 
 static TABLE_LIST *
-rename_tables(THD *thd, TABLE_LIST *table_list, bool skip_error)
+rename_tables(THD *thd, TABLE_LIST *table_list, bool skip_error,
+              bool if_exists, bool *force_if_exists)
 {
   TABLE_LIST *ren_table, *new_table;
-
   DBUG_ENTER("rename_tables");
+
+  *force_if_exists= 0;
 
   for (ren_table= table_list; ren_table; ren_table= new_table->next_local)
   {
@@ -384,7 +399,7 @@ rename_tables(THD *thd, TABLE_LIST *table_list, bool skip_error)
     if (is_temporary_table(ren_table) ?
           do_rename_temporary(thd, ren_table, new_table, skip_error) :
           do_rename(thd, ren_table, &new_table->db, &new_table->table_name,
-                    &new_table->alias, skip_error))
+                    &new_table->alias, skip_error, if_exists, force_if_exists))
       DBUG_RETURN(ren_table);
   }
   DBUG_RETURN(0);

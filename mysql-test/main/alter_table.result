@@ -3244,3 +3244,22 @@ drop table t1;
 #
 # End of 10.5 tests
 #
+#
+# ALTER TABLE IF EXISTS
+#
+create table t1 (a int);
+alter table if exists t1 add column b int;
+alter table if exists t2 add column c int;
+Warnings:
+Error	1146	Table 'test.t2' doesn't exist
+alter table if exists t9 rename t1;
+Warnings:
+Error	1146	Table 'test.t9' doesn't exist
+alter table if exists t1 rename t2;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t2;

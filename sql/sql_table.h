@@ -217,11 +217,13 @@ bool mysql_prepare_alter_table(THD *thd, TABLE *table,
                                Alter_table_ctx *alter_ctx);
 bool mysql_trans_prepare_alter_copy_data(THD *thd);
 bool mysql_trans_commit_alter_copy_data(THD *thd);
-bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *new_name,
+bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
+                       const LEX_CSTRING *new_name,
                        HA_CREATE_INFO *create_info,
                        TABLE_LIST *table_list,
                        Alter_info *alter_info,
-                       uint order_num, ORDER *order, bool ignore);
+                       uint order_num, ORDER *order, bool ignore,
+                       bool if_exists);
 bool mysql_compare_tables(TABLE *table,
                           Alter_info *alter_info,
                           HA_CREATE_INFO *create_info,
@@ -244,7 +246,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
 int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool drop_temporary, bool drop_view,
                             bool drop_sequence,
-                            bool log_query, bool dont_free_locks);
+                            bool dont_log_query, bool dont_free_locks);
 bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
                     const LEX_CSTRING *table_name, bool temporary_table);
 bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,

@@ -5624,7 +5624,8 @@ private:
         *hton will be NULL.
 */
 
-bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
+bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
+                     const LEX_CSTRING *table_name,
                      handlerton **hton, bool *is_sequence)
 {
   handlerton *dummy;
