@@ -3550,7 +3550,7 @@ Type_handler_general_purpose_int::Item_decimal_notation_int_digits(
 /*************************************************************************/
 
 /*
-    Decimal to binary digits ratio converges to log2(10) thus using 3 as
+    Binary to Decimal digits ratio converges to log2(10) thus using 3 as
     a divisor.
 */
 uint32
