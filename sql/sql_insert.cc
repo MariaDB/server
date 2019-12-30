@@ -77,6 +77,7 @@
 #include "sql_audit.h"
 #include "sql_derived.h"                        // mysql_handle_derived
 #include "sql_prepare.h"
+#include "rpl_filter.h"                         // binlog_filter
 #include <my_bit.h>
 
 #include "debug_sync.h"
@@ -95,6 +96,8 @@ pthread_handler_t handle_delayed_insert(void *arg);
 static void unlink_blobs(TABLE *table);
 #endif
 static bool check_view_insertability(THD *thd, TABLE_LIST *view);
+static int binlog_show_create_table(THD *thd, TABLE *table,
+                                    Table_specification_st *create_info);
 
 /*
   Check that insert/update fields are from the same single table of a view.
@@ -4545,13 +4548,9 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
         return error;
 
       TABLE const *const table = *tables;
-      if (thd->is_current_stmt_binlog_format_row()  &&
+      if (thd->is_current_stmt_binlog_format_row() &&
           !table->s->tmp_table)
-      {
-        int error;
-        if (unlikely((error= ptr->binlog_show_create_table(tables, count))))
-          return error;
-      }
+        return binlog_show_create_table(thd, *tables, ptr->create_info);
       return 0;
     }
     select_create *ptr;
@@ -4650,8 +4649,9 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   DBUG_RETURN(0);
 }
 
-int
-select_create::binlog_show_create_table(TABLE **tables, uint count)
+
+static int binlog_show_create_table(THD *thd, TABLE *table,
+                                    Table_specification_st *create_info)
 {
   /*
     Note 1: In RBR mode, we generate a CREATE TABLE statement for the
@@ -4670,14 +4670,12 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
     statement transaction cache.
   */
   DBUG_ASSERT(thd->is_current_stmt_binlog_format_row());
-  DBUG_ASSERT(tables && *tables && count > 0);
-
   StringBuffer<2048> query(system_charset_info);
   int result;
   TABLE_LIST tmp_table_list;
 
   tmp_table_list.reset();
-  tmp_table_list.table = *tables;
+  tmp_table_list.table = table;
 
   result= show_create_table(thd, &tmp_table_list, &query,
                             create_info, WITH_DB_NAME);
@@ -4705,6 +4703,77 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
 #endif
   return result;
 }
+
+
+/**
+   Log CREATE TABLE to binary log
+
+   @param thd   Thread handler
+   @param table Log create statement for this table
+
+   This function is called from ALTER TABLE for a shared table converted
+   to a not shared table.
+*/
+
+bool binlog_create_table(THD *thd, TABLE *table)
+{
+  /* Don't log temporary tables in row format */
+  if (thd->variables.binlog_format == BINLOG_FORMAT_ROW &&
+      table->s->tmp_table)
+    return 0;
+  if (!mysql_bin_log.is_open() ||
+      !(thd->variables.option_bits & OPTION_BIN_LOG) ||
+      (thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
+       !binlog_filter->db_ok(table->s->db.str)))
+    return 0;
+
+  /*
+    We have to use ROW format to ensure that future row inserts will be
+    logged
+  */
+  thd->set_current_stmt_binlog_format_row();
+  return binlog_show_create_table(thd, table, 0) != 0;
+}
+
+
+/**
+   Log DROP TABLE to binary log
+
+   @param thd   Thread handler
+   @param table Log create statement for this table
+
+   This function is called from ALTER TABLE for a shared table converted
+   to a not shared table.
+*/
+
+bool binlog_drop_table(THD *thd, TABLE *table)
+{
+  StringBuffer<2048> query(system_charset_info);
+  /* Don't log temporary tables in row format */
+  if (!table->s->table_creation_was_logged)
+    return 0;
+  if (!mysql_bin_log.is_open() ||
+      !(thd->variables.option_bits & OPTION_BIN_LOG) ||
+      (thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
+       !binlog_filter->db_ok(table->s->db.str)))
+    return 0;
+
+  query.append("DROP ");
+  if (table->s->tmp_table)
+    query.append("TEMPORARY ");
+  query.append("TABLE IF EXISTS ");
+  append_identifier(thd, &query, &table->s->db);
+  query.append(".");
+  append_identifier(thd, &query, &table->s->table_name);
+
+  return thd->binlog_query(THD::STMT_QUERY_TYPE,
+                           query.ptr(), query.length(),
+                           /* is_trans */ TRUE,
+                           /* direct */ FALSE,
+                           /* suppress_use */ TRUE,
+                           0) > 0;
+}
+
 
 void select_create::store_values(List<Item> &values)
 {

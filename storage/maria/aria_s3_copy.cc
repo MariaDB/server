@@ -17,6 +17,8 @@
   Allow copying of Aria tables to and from S3 and also delete them from S3
 */
 
+#include <my_global.h>
+#include <m_string.h>
 #include "maria_def.h"
 #include <aria_backup.h>
 #include <my_getopt.h>

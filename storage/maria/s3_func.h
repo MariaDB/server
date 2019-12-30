@@ -73,7 +73,7 @@ my_bool s3_put_object(ms3_st *s3_client, const char *aws_bucket,
                       my_bool compression);
 my_bool s3_get_object(ms3_st *s3_client, const char *aws_bucket,
                       const char *name, S3_BLOCK *block, my_bool compression,
-                      my_bool print_error);
+                      int print_error);
 my_bool s3_delete_object(ms3_st *s3_client, const char *aws_bucket,
                       const char *name, my_bool print_error);
 my_bool s3_rename_object(ms3_st *s3_client, const char *aws_bucket,

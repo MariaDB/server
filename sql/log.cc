@@ -5916,7 +5916,7 @@ binlog_start_consistent_snapshot(handlerton *hton, THD *thd)
     nonzero if an error pops up when writing the table map event.
 */
 int THD::binlog_write_table_map(TABLE *table, bool is_transactional,
-                                my_bool *with_annotate)
+                                bool *with_annotate)
 {
   int error;
   DBUG_ENTER("THD::binlog_write_table_map");

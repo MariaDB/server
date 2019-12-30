@@ -4469,6 +4469,11 @@ static Sys_var_bit Sys_auto_is_null(
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_AUTO_IS_NULL,
        DEFAULT(FALSE), NO_MUTEX_GUARD, IN_BINLOG);
 
+static Sys_var_bit Sys_if_exists(
+      "sql_if_exists", "If set to 1 adds an implicate IF EXISTS to ALTER, RENAME and DROP of TABLES, VIEWS, FUNCTIONS and PACKAGES",
+       SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_IF_EXISTS,
+       DEFAULT(FALSE), NO_MUTEX_GUARD, IN_BINLOG);
+
 static Sys_var_bit Sys_safe_updates(
        "sql_safe_updates", "If set to 1, UPDATEs and DELETEs need either a key in "
        "the WHERE clause, or a LIMIT clause, or else they will aborted. Prevents "

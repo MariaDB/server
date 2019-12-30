@@ -859,7 +859,7 @@ protected:
   bool saved_error;
 
   bool prepare_join(THD *thd, SELECT_LEX *sl, select_result *result,
-                    ulong additional_options,
+                    ulonglong additional_options,
                     bool is_union_select);
   bool join_union_type_handlers(THD *thd,
                                 class Type_holder *holders, uint count);
@@ -981,7 +981,7 @@ public:
 
   /* UNION methods */
   bool prepare(TABLE_LIST *derived_arg, select_result *sel_result,
-               ulong additional_options);
+               ulonglong additional_options);
   bool optimize();
   void optimize_bag_operation(bool is_outer_distinct);
   bool exec();

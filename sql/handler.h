@@ -1728,6 +1728,20 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 /* can be replicated by wsrep replication provider plugin */
 #define HTON_WSREP_REPLICATION (1 << 13)
 
+/* Shared storage on slave. Ignore on slave any CREATE TABLE, DROP or updates */
+#define HTON_IGNORE_UPDATES (1 << 14)
+
+/*
+  The table may not exists on the slave. The effects of having this flag are:
+  - ALTER TABLE that changes engine from this table to another engine will
+    be replicated as CREATE + INSERT
+  - CREATE ... LIKE shared_table will be replicated as a full CREATE TABLE
+  - ALTER TABLE for this engine will have "IF EXISTS" added.
+  - RENAME TABLE for this engine will have "IF EXISTS" added.
+  - DROP TABLE for this engine will have "IF EXISTS" added.
+*/
+#define HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE (1 << 15)
+
 class Ha_trx_info;
 
 struct THD_TRANS
@@ -5044,6 +5058,7 @@ int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable);
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
                      handlerton **hton= 0, bool *is_sequence= 0);
+bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton, const char *op);
 #endif
 
 /* key cache */
@@ -5181,7 +5196,7 @@ int binlog_log_row(TABLE* table,
     if (unlikely(this_tracker)) \
       tracker->stop_tracking(table->in_use); \
   }
-
+int binlog_write_table_map(THD *thd, TABLE *table, bool with_annotate);
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);
 

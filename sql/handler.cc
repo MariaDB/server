@@ -4822,6 +4822,8 @@ handler::ha_rename_table(const char *from, const char *to)
 int
 handler::ha_delete_table(const char *name)
 {
+  if (ha_check_if_updates_are_ignored(current_thd, ht, "DROP"))
+    return 0;                                   // Simulate dropped
   mark_trx_read_write();
   return delete_table(name);
 }
@@ -4840,9 +4842,11 @@ void
 handler::ha_drop_table(const char *name)
 {
   DBUG_ASSERT(m_lock_type == F_UNLCK);
-  mark_trx_read_write();
+  if (ha_check_if_updates_are_ignored(current_thd, ht, "DROP"))
+    return;
 
-  return drop_table(name);
+  mark_trx_read_write();
+  drop_table(name);
 }
 
 
@@ -5719,6 +5723,28 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
   DBUG_RETURN(FALSE);
 }
 
+
+/*
+  Check if the CREATE/ALTER table should be ignored
+  This could happen for slaves where the table is shared between master
+  and slave
+
+  If statement is ignored, write a note
+*/
+
+bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton,
+                                     const char *op)
+{
+  DBUG_ENTER("ha_check_if_updates_are_ignored");
+  if (!thd->slave_thread || !(hton= ha_checktype(thd, hton, 1)))
+    DBUG_RETURN(0);                                   // Not slave or no engine
+  if (!(hton->flags & HTON_IGNORE_UPDATES))
+    DBUG_RETURN(0);                                   // Not shared table
+  my_error(ER_SLAVE_IGNORED_SHARED_TABLE, MYF(ME_NOTE), op);
+  DBUG_RETURN(1);
+}
+
+
 /**
   Discover all table names in a given database
 */
@@ -6406,36 +6432,47 @@ static int write_locked_table_maps(THD *thd)
          ++table_ptr)
     {
       TABLE *const table= *table_ptr;
-      DBUG_PRINT("info", ("Checking table %s", table->s->table_name.str));
       if (table->current_lock == F_WRLCK &&
           table->file->check_table_binlog_row_based(0))
       {
-        /*
-          We need to have a transactional behavior for SQLCOM_CREATE_TABLE
-          (e.g. CREATE TABLE... SELECT * FROM TABLE) in order to keep a
-          compatible behavior with the STMT based replication even when
-          the table is not transactional. In other words, if the operation
-          fails while executing the insert phase nothing is written to the
-          binlog.
-
-          Note that at this point, we check the type of a set of tables to
-          create the table map events. In the function binlog_log_row(),
-          which calls the current function, we check the type of the table
-          of the current row.
-        */
-        bool const has_trans= thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
-          table->file->has_transactions();
-        int const error= thd->binlog_write_table_map(table, has_trans,
-                                                     &with_annotate);
-        /*
-          If an error occurs, it is the responsibility of the caller to
-          roll back the transaction.
-        */
-        if (unlikely(error))
+        if (binlog_write_table_map(thd, table, with_annotate))
           DBUG_RETURN(1);
+        with_annotate= 0;
       }
     }
   }
+  DBUG_RETURN(0);
+}
+
+
+int binlog_write_table_map(THD *thd, TABLE *table, bool with_annotate)
+{
+  DBUG_ENTER("binlog_write_table_map");
+  DBUG_PRINT("info", ("table %s", table->s->table_name.str));
+  /*
+    We need to have a transactional behavior for SQLCOM_CREATE_TABLE
+    (e.g. CREATE TABLE... SELECT * FROM TABLE) in order to keep a
+    compatible behavior with the STMT based replication even when
+    the table is not transactional. In other words, if the operation
+    fails while executing the insert phase nothing is written to the
+    binlog.
+
+    Note that at this point, we check the type of a set of tables to
+    create the table map events. In the function binlog_log_row(),
+    which calls the current function, we check the type of the table
+    of the current row.
+  */
+  bool const has_trans= ((sql_command_flags[thd->lex->sql_command] &
+                          (CF_SCHEMA_CHANGE | CF_ADMIN_COMMAND)) ||
+                         table->file->has_transactions());
+  int const error= thd->binlog_write_table_map(table, has_trans,
+                                               &with_annotate);
+  /*
+    If an error occurs, it is the responsibility of the caller to
+    roll back the transaction.
+  */
+  if (unlikely(error))
+    DBUG_RETURN(1);
   DBUG_RETURN(0);
 }
 
@@ -6462,10 +6499,13 @@ static int binlog_log_row_internal(TABLE* table,
       compatible behavior with the STMT based replication even when
       the table is not transactional. In other words, if the operation
       fails while executing the insert phase nothing is written to the
-      binlog.
+      binlog. We need the same also for ALTER TABLE in the case we convert
+      a shared table to a not shared table as in this case we will log all
+      rows.
     */
-    bool const has_trans= thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
-      table->file->has_transactions();
+    bool const has_trans= ((sql_command_flags[thd->lex->sql_command] &
+                           (CF_SCHEMA_CHANGE | CF_ADMIN_COMMAND)) ||
+                           table->file->has_transactions());
     error= (*log_func)(thd, table, has_trans, before_record, after_record);
   }
   return error ? HA_ERR_RBR_LOGGING_FAILED : 0;

@@ -26,6 +26,18 @@ create temporary table t1 (a int);
 alter table t1 engine=S3;
 drop temporary table t1;
 
+--echo #
+--echo # CREATE of S3 table
+--echo #
+
+--replace_result $database database
+--error ER_CANT_CREATE_TABLE
+create or replace table t1 (a int, b int, key (a)) engine=S3;
+--replace_result $database database
+--error ER_NO_SUCH_TABLE
+select * from t1;
+
+#
 # clean up
 #
 --source drop_database.inc

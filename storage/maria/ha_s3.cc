@@ -60,6 +60,8 @@
 */
 
 #define MYSQL_SERVER 1
+#include <my_global.h>
+#include <m_string.h>
 #include "maria_def.h"
 #include "sql_class.h"
 #include <mysys_err.h>
@@ -79,7 +81,8 @@ static ulonglong s3_pagecache_buffer_size;
 static char *s3_bucket, *s3_access_key=0, *s3_secret_key=0, *s3_region;
 static char *s3_host_name;
 static char *s3_tmp_access_key=0, *s3_tmp_secret_key=0;
-static my_bool s3_debug= 0;
+static my_bool s3_debug= 0, s3_slave_ignore_updates= 0;
+static my_bool s3_replicate_alter_as_create_select= 0;
 handlerton *s3_hton= 0;
 
 /* Don't show access or secret keys to users if they exists */
@@ -124,6 +127,17 @@ static MYSQL_SYSVAR_BOOL(debug, s3_debug,
       "Generates trace file from libmarias3 on stderr for debugging",
        0, 0, 0);
 
+static MYSQL_SYSVAR_BOOL(slave_ignore_updates, s3_slave_ignore_updates,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+      "If the slave has shares same S3 storage as the master",
+       0, 0, 0);
+
+static MYSQL_SYSVAR_BOOL(replicate_alter_as_create_select,
+                         s3_replicate_alter_as_create_select,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+       "When converting S3 table to local table, log all rows in binary log",
+       0, 0, 1);
+
 static MYSQL_SYSVAR_ENUM(protocol_version, s3_protocol_version,
                          PLUGIN_VAR_RQCMDARG,
                          "Protocol used to communication with S3. One of "
@@ -165,7 +179,7 @@ static MYSQL_SYSVAR_STR(bucket, s3_bucket,
        0, 0, "MariaDB");
 static MYSQL_SYSVAR_STR(host_name, s3_host_name,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-      "AWS bucket",
+      "AWS host name",
        0, 0, DEFAULT_AWS_HOST_NAME);
 static MYSQL_SYSVAR_STR(access_key, s3_tmp_access_key,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_MEMALLOC,
@@ -632,6 +646,37 @@ end:
   DBUG_RETURN(0);
 }
 
+/*
+  Check if definition of table in S3 is same as in MariaDB.
+  This also covers the case where the table is not in S3 anymore.
+
+  Called when a copy of the S3 table is taken from the MariaDB table cache
+
+  TODO: Could possible be optimized by checking if the file on S3 is
+        of same time, data and size since when table was originally opened.
+*/
+
+int ha_s3::discover_check_version()
+{
+  S3_INFO s3_info= *file->s->s3_path;
+  s3_info.tabledef_version= table->s->tabledef_version;
+  return s3_check_frm_version(file->s3, &s3_info);
+}
+
+
+int ha_s3::rebind()
+{
+  if (int error= handler::rebind())
+    return error;
+  if (discover_check_version())
+  {
+    handler::unbind_psi();
+    return HA_ERR_TABLE_DEF_CHANGED;
+  }
+  return 0;
+}
+
+
 /**
   Update the .frm file in S3
 */
@@ -703,7 +748,9 @@ static int ha_s3_init(void *p)
   s3_hton->show_status= 0;
   s3_hton->prepare_for_backup= 0;
   s3_hton->end_backup= 0;
-  s3_hton->flags= 0;
+  s3_hton->flags= ((s3_slave_ignore_updates ? HTON_IGNORE_UPDATES : 0) |
+                   (s3_replicate_alter_as_create_select ?
+                    HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE : 0));
   /* Copy global arguments to s3_access_key and s3_secret_key */
   update_access_key(0,0,0,0);
   update_secret_key(0,0,0,0);
@@ -750,7 +797,8 @@ static struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(access_key),
   MYSQL_SYSVAR(secret_key),
   MYSQL_SYSVAR(region),
-
+  MYSQL_SYSVAR(slave_ignore_updates),
+  MYSQL_SYSVAR(replicate_alter_as_create_select),
   NULL
 };
 

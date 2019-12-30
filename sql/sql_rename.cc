@@ -180,7 +180,15 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
 
   if (likely(!silent && !error))
   {
+    ulonglong save_option_bits= thd->variables.option_bits;
+    if (force_if_exists && ! if_exists)
+    {
+      /* Add IF EXISTS to binary log */
+      thd->variables.option_bits|= OPTION_IF_EXISTS;
+    }
     binlog_error= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+    thd->variables.option_bits= save_option_bits;
+
     if (likely(!binlog_error))
       my_ok(thd);
   }
@@ -295,6 +303,18 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
     DBUG_RETURN(skip_error || if_exists ? 0 : 1);
   }
 
+  if (ha_check_if_updates_are_ignored(thd, hton, "RENAME"))
+  {
+    /*
+      Shared table. Just drop the old .frm as it's not correct anymore
+      Discovery will find the old table when it's accessed
+     */
+    tdc_remove_table(thd, TDC_RT_REMOVE_ALL,
+                     ren_table->db.str, ren_table->table_name.str);
+    quick_rm_table(thd, 0, &ren_table->db, &old_alias, FRM_ONLY, 0);
+    DBUG_RETURN(0);
+  }
+
   if (ha_table_exists(thd, new_db, &new_alias, &new_hton))
   {
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), new_alias.str);
@@ -315,6 +335,9 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
 
     if (hton != view_pseudo_hton)
     {
+      if (hton->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
+        *force_if_exists= 1;
+
       if (!(rc= mysql_rename_table(hton, &ren_table->db, &old_alias,
                                    new_db, &new_alias, 0)))
       {

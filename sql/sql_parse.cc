@@ -3395,7 +3395,8 @@ mysql_execute_command(THD *thd)
           according to slave filtering rules.
           Returning success without producing any errors in this case.
         */
-        if (!thd->lex->create_info.if_exists())
+        if (!thd->lex->create_info.if_exists() &&
+            !(thd->variables.option_bits & OPTION_IF_EXISTS))
           DBUG_RETURN(0);
         /*
           DROP TRIGGER IF NOT EXISTS will return without an error later
@@ -4128,8 +4129,11 @@ mysql_execute_command(THD *thd)
       res = ha_show_status(thd, lex->create_info.db_type, HA_ENGINE_MUTEX);
       break;
     }
-  case SQLCOM_CREATE_INDEX:
   case SQLCOM_DROP_INDEX:
+    if (thd->variables.option_bits & OPTION_IF_EXISTS)
+      lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
+    /* fall through */
+  case SQLCOM_CREATE_INDEX:
   /*
     CREATE INDEX and DROP INDEX are implemented by calling ALTER
     TABLE with proper arguments.
@@ -4271,6 +4275,9 @@ mysql_execute_command(THD *thd)
       goto error;
 
     WSREP_TO_ISOLATION_BEGIN(0, 0, first_table);
+
+    if (thd->variables.option_bits & OPTION_IF_EXISTS)
+      lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
 
     if (mysql_rename_tables(thd, first_table, 0, lex->if_exists()))
       goto error;
@@ -4856,8 +4863,9 @@ mysql_execute_command(THD *thd)
       recover from multi-table DROP TABLE that was aborted in the
       middle.
     */
-    if (thd->slave_thread && !thd->slave_expected_error &&
-        slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
+    if ((thd->slave_thread && !thd->slave_expected_error &&
+         slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT) ||
+        thd->variables.option_bits & OPTION_IF_EXISTS)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
 
 #ifdef WITH_WSREP
@@ -4878,7 +4886,7 @@ mysql_execute_command(THD *thd)
 
     /* DDL and binlog write order are protected by metadata locks. */
     res= mysql_rm_table(thd, first_table, lex->if_exists(), lex->tmp_table(),
-                        lex->table_type == TABLE_TYPE_SEQUENCE);
+                        lex->table_type == TABLE_TYPE_SEQUENCE, 0);
 
     /*
       When dropping temporary tables if @@session_track_state_change is ON
@@ -5085,6 +5093,9 @@ mysql_execute_command(THD *thd)
   }
   case SQLCOM_DROP_DB:
   {
+    if (thd->variables.option_bits & OPTION_IF_EXISTS)
+      lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
+
     if (prepare_db_action(thd, DROP_ACL, &lex->name))
       break;
 
@@ -5633,6 +5644,8 @@ mysql_execute_command(THD *thd)
 
   case SQLCOM_ALTER_PROCEDURE:
   case SQLCOM_ALTER_FUNCTION:
+    if (thd->variables.option_bits & OPTION_IF_EXISTS)
+      lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
     if (alter_routine(thd, lex))
       goto error;
     break;
@@ -5640,8 +5653,9 @@ mysql_execute_command(THD *thd)
   case SQLCOM_DROP_FUNCTION:
   case SQLCOM_DROP_PACKAGE:
   case SQLCOM_DROP_PACKAGE_BODY:
+    if (thd->variables.option_bits & OPTION_IF_EXISTS)
+      lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
     if (drop_routine(thd, lex))
-
       goto error;
     break;
   case SQLCOM_SHOW_CREATE_PROC:
@@ -5710,6 +5724,9 @@ mysql_execute_command(THD *thd)
 
       WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
+      if (thd->variables.option_bits & OPTION_IF_EXISTS)
+        lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
+
       /* Conditionally writes to binlog. */
       res= mysql_drop_view(thd, first_table, thd->lex->drop_mode);
       break;
@@ -5723,6 +5740,9 @@ mysql_execute_command(THD *thd)
   }
   case SQLCOM_DROP_TRIGGER:
   {
+    if (thd->variables.option_bits & OPTION_IF_EXISTS)
+      lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
+
     /* Conditionally writes to binlog. */
     res= mysql_create_or_drop_trigger(thd, all_tables, 0);
     break;

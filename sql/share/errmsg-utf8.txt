@@ -7950,3 +7950,10 @@ ER_LOAD_INFILE_CAPABILITY_DISABLED
         rum "Comanda folosită nu este permisă deoarece clientul sau serverul MariaDB a dezactivat această capabilitate"
 ER_NO_SECURE_TRANSPORTS_CONFIGURED
         eng "No secure transports are configured, unable to set --require_secure_transport=ON"
+ER_SLAVE_IGNORED_SHARED_TABLE
+        eng "Slave SQL thread ignored the '%s' because table is shared"
+        ger "Slave-SQL-Thread hat die Abfrage '%s' ignoriert"
+        nla "Slave SQL thread negeerde de query '%s'"
+        por "Slave SQL thread ignorado a consulta devido '%s'"
+        spa "Slave SQL thread ignorado el query '%s'"
+        swe "Slav SQL tråden ignorerade '%s' pga tabellen är delad"

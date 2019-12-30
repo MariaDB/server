@@ -118,7 +118,7 @@ ENDIF()
 IF (LIBXML2_FOUND AND CURL_FOUND)
   MYSQL_ADD_PLUGIN(s3 ${S3_SOURCES} STORAGE_ENGINE STATIC_ONLY
                    LINK_LIBRARIES aria myisam mysys mysys_ssl xml2 curl
-                   RECOMPILE_FOR_EMBEDDED)
+                   NOT_EMBEDDED)
 ENDIF()
 
 IF(TARGET s3)

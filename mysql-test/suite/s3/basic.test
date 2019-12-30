@@ -47,8 +47,12 @@ drop table t1;
 
 --replace_column 2 X
 show variables like "s3%";
+show variables like "s3_slave%";
+show variables like "s3_replicate%";
+
 --replace_column 2 X
 show status like "s3%";
+
 #
 # clean up
 #
