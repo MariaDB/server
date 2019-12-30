@@ -3666,8 +3666,8 @@ btr_cur_pessimistic_insert(
 		if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
 			ut_ad(entry->info_bits == REC_INFO_METADATA);
 			ut_ad(index->is_instant());
-			ut_ad((flags & ulint(~BTR_KEEP_IBUF_BITMAP))
-			      == BTR_NO_LOCKING_FLAG);
+			ut_ad(flags & BTR_NO_LOCKING_FLAG);
+			ut_ad(!(flags & BTR_CREATE_FLAG));
 		} else {
 			btr_search_update_hash_on_insert(
 				cursor, btr_get_search_latch(index));
