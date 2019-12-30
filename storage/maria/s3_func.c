@@ -72,7 +72,8 @@ static char *s3_wrap_strdup(const char *str)
 
 static void s3_wrap_free(void *ptr)
 {
-  my_free(ptr);
+  if (ptr)                                      /* Avoid tracing of null */
+    my_free(ptr);
 }
 
 void s3_init_library()
@@ -494,7 +495,7 @@ static my_bool copy_to_file(ms3_st *s3_client, const char *aws_bucket,
     if (s3_get_object(s3_client, aws_bucket, aws_path, &block, compression, 1))
       goto err;
 
-    error= my_write(file, block.str, block.length, MYF(MY_WME | MY_WME));
+    error= my_write(file, block.str, block.length, MYF(MY_WME | MY_FNABP));
     s3_free(&block);
     if (error == MY_FILE_ERROR)
       goto err;

@@ -321,59 +321,57 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
     DBUG_RETURN(1);                     // This can't be skipped
   }
 
-  {
-    DBUG_ASSERT(!thd->locked_tables_mode);
+  DBUG_ASSERT(!thd->locked_tables_mode);
 
 #ifdef WITH_WSREP
-    if (WSREP(thd) && hton &&
-	!wsrep_should_replicate_ddl(thd, hton->db_type))
-      DBUG_RETURN(1);
+  if (WSREP(thd) && hton &&
+      !wsrep_should_replicate_ddl(thd, hton->db_type))
+    DBUG_RETURN(1);
 #endif
 
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL,
-                     ren_table->db.str, ren_table->table_name.str);
+  tdc_remove_table(thd, TDC_RT_REMOVE_ALL,
+                   ren_table->db.str, ren_table->table_name.str);
 
-    if (hton != view_pseudo_hton)
+  if (hton != view_pseudo_hton)
+  {
+    if (hton->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
+      *force_if_exists= 1;
+
+    if (!(rc= mysql_rename_table(hton, &ren_table->db, &old_alias,
+                                 new_db, &new_alias, 0)))
     {
-      if (hton->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
-        *force_if_exists= 1;
-
-      if (!(rc= mysql_rename_table(hton, &ren_table->db, &old_alias,
-                                   new_db, &new_alias, 0)))
+      (void) rename_table_in_stat_tables(thd, &ren_table->db,
+                                         &ren_table->table_name,
+                                         new_db, &new_alias);
+      if ((rc= Table_triggers_list::change_table_name(thd, &ren_table->db,
+                                                      &old_alias,
+                                                      &ren_table->table_name,
+                                                      new_db,
+                                                      &new_alias)))
       {
-        (void) rename_table_in_stat_tables(thd, &ren_table->db,
-                                           &ren_table->table_name,
-                                           new_db, &new_alias);
-        if ((rc= Table_triggers_list::change_table_name(thd, &ren_table->db,
-                                                        &old_alias,
-                                                        &ren_table->table_name,
-                                                        new_db,
-                                                        &new_alias)))
-        {
-          /*
-            We've succeeded in renaming table's .frm and in updating
-            corresponding handler data, but have failed to update table's
-            triggers appropriately. So let us revert operations on .frm
-            and handler's data and report about failure to rename table.
-          */
-          (void) mysql_rename_table(hton, new_db, &new_alias,
-                                    &ren_table->db, &old_alias, NO_FK_CHECKS);
-        }
+        /*
+          We've succeeded in renaming table's .frm and in updating
+          corresponding handler data, but have failed to update table's
+          triggers appropriately. So let us revert operations on .frm
+          and handler's data and report about failure to rename table.
+        */
+        (void) mysql_rename_table(hton, new_db, &new_alias,
+                                  &ren_table->db, &old_alias, NO_FK_CHECKS);
       }
     }
+  }
+  else
+  {
+    /*
+      Change of schema is not allowed
+      except of ALTER ...UPGRADE DATA DIRECTORY NAME command
+      because a view has valid internal db&table names in this case.
+    */
+    if (thd->lex->sql_command != SQLCOM_ALTER_DB_UPGRADE &&
+        cmp(&ren_table->db, new_db))
+      my_error(ER_FORBID_SCHEMA_CHANGE, MYF(0), ren_table->db.str, new_db->str);
     else
-    {
-      /* 
-         change of schema is not allowed
-         except of ALTER ...UPGRADE DATA DIRECTORY NAME command
-         because a view has valid internal db&table names in this case.
-      */
-      if (thd->lex->sql_command != SQLCOM_ALTER_DB_UPGRADE &&
-          cmp(&ren_table->db, new_db))
-        my_error(ER_FORBID_SCHEMA_CHANGE, MYF(0), ren_table->db.str, new_db->str);
-      else
-        rc= mysql_rename_view(thd, new_db, &new_alias, ren_table);
-    }
+      rc= mysql_rename_view(thd, new_db, &new_alias, ren_table);
   }
   DBUG_RETURN(rc && !skip_error ? 1 : 0);
 }

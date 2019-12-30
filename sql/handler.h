@@ -5050,7 +5050,7 @@ public:
      INFORMATION_SCHEMA.TABLES without ORDER BY.
   */
   void sort_desc();
-#endif
+#endif /* DBUG_OFF */
 };
 
 int ha_discover_table(THD *thd, TABLE_SHARE *share);
@@ -5059,7 +5059,7 @@ int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
                      handlerton **hton= 0, bool *is_sequence= 0);
 bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton, const char *op);
-#endif
+#endif /* MYSQL_SERVER */
 
 /* key cache */
 extern "C" int ha_init_key_cache(const char *name, KEY_CACHE *key_cache, void *);

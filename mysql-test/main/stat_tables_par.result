@@ -1,3 +1,4 @@
+# restart
 set @save_use_stat_tables=@@use_stat_tables;
 set use_stat_tables='preferably';
 DROP DATABASE IF EXISTS dbt3_s001;

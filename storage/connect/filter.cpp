@@ -1220,7 +1220,8 @@ bool FILTER::Eval(PGLOBAL g)
   int     i; // n = 0;
 //PSUBQ   subp = NULL;
   PARRAY  ap = NULL;
-  PDBUSER dup __attribute__((unused)) = PlgGetUser(g);
+
+  (void) PlgGetUser(g);
 
   if (Opc <= OP_XX)
   {

@@ -173,9 +173,9 @@ extern "C" {
        char version[]= "Version 1.07.0001 November 12, 2019";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0001 " __DATE__ " "  __TIME__;
-       char slash= '\\';
+       static char slash= '\\';
 #else   // !__WIN__
-       char slash= '/';
+       static char slash= '/';
 #endif  // !__WIN__
 } // extern "C"
 
