@@ -838,6 +838,7 @@ buf_flush_init_for_writing(
 	if (use_full_checksum) {
 		mach_write_to_4(page + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
 				static_cast<uint32_t>(newest_lsn));
+		return buf_flush_assign_full_crc32_checksum(page);
 	} else {
 		mach_write_to_8(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
 				newest_lsn);
@@ -906,10 +907,6 @@ buf_flush_init_for_writing(
 	}
 
 	uint32_t checksum = BUF_NO_CHECKSUM_MAGIC;
-
-	if (use_full_checksum) {
-		return buf_flush_assign_full_crc32_checksum(page);
-	}
 
 	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
