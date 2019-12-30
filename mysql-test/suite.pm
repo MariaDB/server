@@ -89,16 +89,6 @@ sub skip_combinations {
   $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
     unless $openssl_ver ge "1.0.2";
 
-  my $openssl_cnf='/etc/ssl/openssl.cnf';
-  if ($openssl_ver and open my $f, '<', $openssl_cnf) {
-    local $/;
-    my $cnf=<$f>;
-    $skip{'main/tls_version.test'} = "TLSv1.1 disabled in $openssl_cnf"
-      if $cnf =~ /^\s*MinProtocol\s*=\s*TLSv1.[2-9]/m;
-    $skip{'main/tls_version1.test'} = "TLSv1.0 disabled in $openssl_cnf"
-      if $cnf =~ /^\s*MinProtocol\s*=\s*TLSv1.[1-9]/m;
-  }
-
   %skip;
 }
 

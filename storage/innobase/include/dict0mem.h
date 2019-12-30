@@ -1852,10 +1852,14 @@ struct dict_table_t {
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();
 
+	/** @return whether the table is versioned.
+	It is assumed that both vers_start and vers_end set to 0
+	iff table is not versioned. In any other case,
+	these fields correspond to actual positions in cols[]. */
 	bool versioned() const { return vers_start || vers_end; }
 	bool versioned_by_id() const
 	{
-		return vers_start && cols[vers_start].mtype == DATA_INT;
+		return versioned() && cols[vers_start].mtype == DATA_INT;
 	}
 
 	void inc_fk_checks()

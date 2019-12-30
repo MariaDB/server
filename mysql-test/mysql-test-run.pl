@@ -2445,8 +2445,10 @@ sub environment_setup {
   #
   $ENV{'LC_ALL'}=             "C";
   $ENV{'LC_CTYPE'}=           "C";
-
   $ENV{'LC_COLLATE'}=         "C";
+
+  $ENV{'OPENSSL_CONF'}=       "/dev/null";
+
   $ENV{'USE_RUNNING_SERVER'}= using_extern();
   $ENV{'MYSQL_TEST_DIR'}=     $glob_mysql_test_dir;
   $ENV{'DEFAULT_MASTER_PORT'}= $mysqld_variables{'port'};
