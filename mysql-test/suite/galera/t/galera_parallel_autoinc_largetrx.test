@@ -37,17 +37,24 @@ SET GLOBAL wsrep_slave_threads = 4;
 
 --connection node_1
 --reap
+--let $wait_condition = select count(*)=30000 from t1;
+--source include/wait_condition.inc
+
 SELECT COUNT(*) FROM t1;
 SELECT COUNT(DISTINCT f1) FROM t1;
 
 --connection node_1a
 --reap
+--let $wait_condition = select count(*)=30000 from t1;
+--source include/wait_condition.inc
 SELECT COUNT(*) FROM t1;
 SELECT COUNT(DISTINCT f1) FROM t1;
 
 --connection node_2
 --reap
 --disconnect node_1a
+--let $wait_condition = select count(*)=30000 from t1;
+--source include/wait_condition.inc
 SELECT COUNT(*) FROM t1;
 SELECT COUNT(DISTINCT f1) FROM t1;
 
