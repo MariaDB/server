@@ -41,7 +41,8 @@ uint my_get_large_page_size(void)
 /*
   General large pages allocator.
   Tries to allocate memory from large pages pool and falls back to
-  my_malloc_lock() in case of failure
+  my_malloc_lock() in case of failure.
+  Every implementation returns a zero filled buffer here.
 */
 
 uchar* my_large_malloc(size_t *size, myf my_flags)
@@ -50,7 +51,10 @@ uchar* my_large_malloc(size_t *size, myf my_flags)
   DBUG_ENTER("my_large_malloc");
   
   if ((ptr= my_large_malloc_int(size, my_flags)) != NULL)
+  {
+    MEM_MAKE_DEFINED(ptr, *size);
     DBUG_RETURN(ptr);
+  }
   if (my_flags & MY_WME)
     fprintf(stderr, "Warning: Using conventional memory pool\n");
       
@@ -74,6 +78,16 @@ void my_large_free(void *ptr, size_t size)
   */
   if (!my_large_free_int(ptr, size))
     my_free_lock(ptr);
+  else
+    /*
+      For ASAN, we need to explicitly unpoison this memory region because the OS
+      may reuse that memory for some TLS or stack variable. It will remain
+      poisoned if it was explicitly poisioned before release. If this happens,
+      we'll have hard to debug false positives like in MDEV-21239.
+      For valgrind, we mark it as UNDEFINED rather than NOACCESS because of the
+      implict reuse possiblility.
+    */
+    MEM_UNDEFINED(ptr, size);
 
   DBUG_VOID_RETURN;
 }
