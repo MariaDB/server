@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -135,15 +135,11 @@ struct mtr_t {
 
 	/** Commit a mini-transaction that did not modify any pages,
 	but generated some redo log on a higher level, such as
-	MLOG_FILE_NAME records and a MLOG_CHECKPOINT marker.
+	MLOG_FILE_NAME records and an optional MLOG_CHECKPOINT marker.
 	The caller must invoke log_mutex_enter() and log_mutex_exit().
 	This is to be used at log_checkpoint().
-	@param[in]	checkpoint_lsn		the LSN of the log checkpoint
-	@param[in]	write_mlog_checkpoint	Write MLOG_CHECKPOINT marker
-						if it is enabled. */
-	void commit_checkpoint(
-		lsn_t	checkpoint_lsn,
-		bool	write_mlog_checkpoint);
+	@param[in]	checkpoint_lsn		log checkpoint LSN, or 0 */
+	void commit_files(lsn_t	checkpoint_lsn = 0);
 
 	/** Return current size of the buffer.
 	@return	savepoint */

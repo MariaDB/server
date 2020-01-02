@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4701,6 +4701,7 @@ fil_names_clear(
 		);
 
 	ut_ad(log_mutex_own());
+	ut_ad(lsn);
 
 	if (log_sys.append_on_checkpoint) {
 		mtr_write_log(log_sys.append_on_checkpoint);
@@ -4741,7 +4742,7 @@ fil_names_clear(
 
 		if (mtr_log->size() > mtr_checkpoint_size) {
 			ut_ad(mtr_log->size() < (RECV_PARSING_BUF_SIZE / 2));
-			mtr.commit_checkpoint(lsn, false);
+			mtr.commit_files();
 			mtr.start();
 		}
 
@@ -4749,7 +4750,7 @@ fil_names_clear(
 	}
 
 	if (do_write) {
-		mtr.commit_checkpoint(lsn, true);
+		mtr.commit_files(lsn);
 	} else {
 		ut_ad(!mtr.has_modifications());
 	}
