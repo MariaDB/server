@@ -7820,33 +7820,6 @@ btr_store_big_rec_extern_fields(
 				compile_time_assert(FIL_NULL == 0xffffffff);
 				mlog_memset(block, FIL_PAGE_PREV, 8, 0xff,
 					    &mtr);
-				/* Write a back pointer to the record
-				into the otherwise unused area.  This
-				information could be useful in
-				debugging.  Later, we might want to
-				implement the possibility to relocate
-				BLOB pages.  Then, we would need to be
-				able to adjust the BLOB pointer in the
-				record.  We do not store the heap
-				number of the record, because it can
-				change in page_zip_reorganize() or
-				btr_page_reorganize().  However, also
-				the page number of the record may
-				change when B-tree nodes are split or
-				merged.
-				NOTE: FIL_PAGE_FILE_FLUSH_LSN space is
-				used by R-tree index for a Split Sequence
-				Number */
-				ut_ad(!dict_index_is_spatial(index));
-
-				mlog_write_ulint(page
-						 + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-						 space_id,
-						 MLOG_4BYTES, &mtr);
-				mlog_write_ulint(page
-						 + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
-						 rec_page_no,
-						 MLOG_4BYTES, &mtr);
 				mlog_log_string(page
 						+ FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 						page_zip_get_size(page_zip)
