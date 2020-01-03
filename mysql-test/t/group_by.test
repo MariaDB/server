@@ -1920,7 +1920,7 @@ drop table t1;
 --echo #
 
 CREATE TABLE t1(a int, b int);
-INSERT INTO t1 values (1, 100), (2, 200), (3, 100), (4, 200);
+INSERT INTO t1 values (1, 100), (2, 200), (3, 100), (4, 200), (5, 200);
 
 create view v1 as select a, b+1 as x from t1;
 
