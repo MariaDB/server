@@ -7410,6 +7410,7 @@ Item_equal::excl_dep_on_grouping_fields(st_select_lex *sel)
                      of the tree of the object to check if multiple equality
                      elements can be used to create equalities
   @param arg         parameter to be passed to the checker
+  @param clone_const true <=> clone the constant member if there is any
 
   @details
     How the method works on examples:
@@ -7420,36 +7421,31 @@ Item_equal::excl_dep_on_grouping_fields(st_select_lex *sel)
 
     Example 2:
     It takes MULT_EQ(1,a,b) and tries to create from its elements a set of
-    equalities {(1=a),(1=b)}.
+    equalities {(a=1),(a=b)}.
 
     How it is done:
 
-    1. The method finds the left part of the equalities to be built. It will
-       be the same for all equalities. It is either:
-       a. A constant if there is any
-       b. A first element in the multiple equality that satisfies
-       checker function
+    1. If there is a constant member c the first non-constant member x for
+       which the function checker returns true is taken and an item for
+       the equality x=c is created. When constructing the equality item
+       the left part of the equality is always taken as a clone of x while
+       the right part is taken as a clone of c only if clone_const == true.
 
-       For the example 1 the left element is field 'x'.
-       For the example 2 it is constant '1'.
+    2. After this all equalities of the form x=a (where x designates the first
+       non-constant member for which checker returns true and a is some other
+       such member of the multiplle equality) are created. When constructing
+       an equality item both its parts are taken as clones of x and a.
     
-    2. If the left element is found the rest elements of the multiple equality
-       are checked with the checker function if they can be right parts
-       of equalities.
-       If the element can be a right part of the equality, equality is built.
-       It is built with the left part element found at the step 1 and
-       the right part element found at this step (step 2).
-
-       Suppose for the example above that both 'a' and 'b' fields can be used
-       to build equalities:
+       Suppose in the examples above that for 'x', 'a', and 'b' the function
+       checker returns true.
 
        Example 1:
-       for 'a' field (x=a) is built
-       for 'b' field (x=b) is built
+         the equality (x=a) is built
+         the equality (x=b) is built
 
        Example 2:
-       for 'a' field (1=a) is built
-       for 'b' field (1=b) is built
+         the equality (a=1) is built
+         the equality (a=b) is built
 
     3. As a result we get a set of equalities built with the elements of
        this multiple equality. They are saved in the equality list.
@@ -7458,15 +7454,17 @@ Item_equal::excl_dep_on_grouping_fields(st_select_lex *sel)
        {(x=a),(x=b)}
 
        Example 2:
-       {(1=a),(1=b)}
+       {(a=1),(a=b)}
 
   @note
     This method is called for condition pushdown into materialized
     derived table/view, and IN subquery, and pushdown from HAVING into WHERE.
     When it is called for pushdown from HAVING the empty checker is passed.
-    It happens because elements of this multiple equality don't need to be
-    checked if they can be used to build equalities. There are no elements
-    that can't be used to build equalities.
+    This is because in this case the elements of the multiple equality don't
+    need to be  checked if they can be used to build equalities: either all
+    equalities can be pushed or none of them can be pushed.
+    When the function is called for pushdown from HAVING the value of the
+    parameter clone_const is always false. In other cases it's always true.
 
   @retval true   if an error occurs
   @retval false  otherwise
@@ -7475,23 +7473,41 @@ Item_equal::excl_dep_on_grouping_fields(st_select_lex *sel)
 bool Item_equal::create_pushable_equalities(THD *thd,
                                             List<Item> *equalities,
                                             Pushdown_checker checker,
-                                            uchar *arg)
+                                            uchar *arg,
+                                            bool clone_const)
 {
   Item *item;
+  Item *left_item= NULL;
+  Item *right_item = get_const();
   Item_equal_fields_iterator it(*this);
-  Item *left_item = get_const();
-  if (!left_item)
+
+  while ((item=it++))
   {
-    while ((item=it++))
-    {
-      left_item= item;
-      if (checker && !((item->*checker) (arg)))
-        continue;
-      break;
-    }
+    left_item= item;
+    if (checker && !((item->*checker) (arg)))
+      continue;
+    break;
   }
+
   if (!left_item)
     return false;
+
+  if (right_item)
+  {
+    Item_func_eq *eq= 0;
+    Item *left_item_clone= left_item->build_clone(thd);
+    Item *right_item_clone= !clone_const ?
+                            right_item : right_item->build_clone(thd);
+    if (!left_item_clone || !right_item_clone)
+      return true;
+    eq= new (thd->mem_root) Item_func_eq(thd,
+                                         left_item_clone,
+                                         right_item_clone);
+    if (!eq ||  equalities->push_back(eq, thd->mem_root))
+      return true;
+    if (!clone_const)
+      right_item->set_extraction_flag(IMMUTABLE_FL);
+  }
 
   while ((item=it++))
   {
@@ -7500,15 +7516,14 @@ bool Item_equal::create_pushable_equalities(THD *thd,
     Item_func_eq *eq= 0;
     Item *left_item_clone= left_item->build_clone(thd);
     Item *right_item_clone= item->build_clone(thd);
-    if (left_item_clone && right_item_clone)
-    {
-      left_item_clone->set_item_equal(NULL);
-      right_item_clone->set_item_equal(NULL);
-      eq= new (thd->mem_root) Item_func_eq(thd,
-                                           right_item_clone,
-                                           left_item_clone);
-    }
-    if (eq && equalities->push_back(eq, thd->mem_root))
+    if (!(left_item_clone && right_item_clone))
+      return true;
+    left_item_clone->set_item_equal(NULL);
+    right_item_clone->set_item_equal(NULL);
+    eq= new (thd->mem_root) Item_func_eq(thd,
+                                         right_item_clone,
+                                         left_item_clone);
+    if (!eq || equalities->push_back(eq, thd->mem_root))
       return true;
   }
   return false;
@@ -7533,7 +7548,7 @@ bool Item_equal::create_pushable_equalities(THD *thd,
 Item *Item_equal::multiple_equality_transformer(THD *thd, uchar *arg)
 {
   List<Item> equalities;
-  if (create_pushable_equalities(thd, &equalities, 0, 0))
+  if (create_pushable_equalities(thd, &equalities, 0, 0, false))
     return 0;
 
   switch (equalities.elements)

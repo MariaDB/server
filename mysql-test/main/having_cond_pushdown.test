@@ -1401,3 +1401,42 @@ EXPLAIN SELECT t1.a,MAX(t1.b),t1.c FROM t1
 WHERE t1.a = 3 AND (t1.a < 2 AND t1.b > 3) GROUP BY t1.a;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-21184: Constant subquery in condition movable to WHERE
+--echo #
+
+CREATE TABLE t1(a int, b int);
+INSERT INTO t1 VALUES
+  (1,10), (2,20), (1,11), (1,15), (2,20), (1,10), (2,21);
+
+CREATE TABLE t2 (c INT);
+INSERT INTO t2 VALUES (2),(3);
+
+let $q=
+SELECT a FROM t1 GROUP BY a HAVING a = 8 OR a = ( SELECT MIN(c) FROM t2 );
+
+eval EXPLAIN FORMAT=JSON $q;
+eval $q;
+
+let $q=
+SELECT a FROM t1 GROUP BY a,b
+  HAVING ( a = 8 OR a = ( SELECT MIN(c) FROM t2 ) ) and b < 20;
+
+eval EXPLAIN FORMAT=JSON $q;
+eval $q;
+
+let $q=
+SELECT a FROM t1 GROUP BY a
+  HAVING ( a = 8 OR a = ( SELECT MIN(c) FROM t2 ) ) and SUM(b) > 20;
+
+eval EXPLAIN FORMAT=JSON $q;
+eval $q;
+
+let $q=
+SELECT a FROM t1 GROUP BY a HAVING a = ( SELECT MIN(c) FROM t2 );
+
+eval EXPLAIN FORMAT=JSON $q;
+eval $q;
+
+DROP TABLE t1,t2;

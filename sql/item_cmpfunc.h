@@ -3209,7 +3209,8 @@ public:
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool create_pushable_equalities(THD *thd, List<Item> *equalities,
-                                  Pushdown_checker checker, uchar *arg);
+                                  Pushdown_checker checker, uchar *arg,
+                                  bool clone_const);
   /* Return the number of elements in this multiple equality */
   uint elements_count() { return equal_items.elements; }
   friend class Item_equal_fields_iterator;

@@ -152,8 +152,10 @@ bool mark_unsupported_function(const char *w1, const char *w2,
 #define NO_EXTRACTION_FL              (1 << 6)
 #define FULL_EXTRACTION_FL            (1 << 7)
 #define DELETION_FL                   (1 << 8)
-#define SUBSTITUTION_FL               (1 << 9)
-#define EXTRACTION_MASK (NO_EXTRACTION_FL | FULL_EXTRACTION_FL | DELETION_FL)
+#define IMMUTABLE_FL                  (1 << 9)
+#define SUBSTITUTION_FL               (1 << 10)
+#define EXTRACTION_MASK                                                \
+  (NO_EXTRACTION_FL | FULL_EXTRACTION_FL | DELETION_FL | IMMUTABLE_FL)
 
 extern const char *item_empty_name;
 
@@ -1867,6 +1869,7 @@ public:
   virtual bool cleanup_processor(void *arg);
   virtual bool cleanup_excluding_fields_processor (void *arg)
   { return cleanup_processor(arg); }
+  bool cleanup_excluding_immutables_processor (void *arg);
   virtual bool cleanup_excluding_const_fields_processor (void *arg)
   { return cleanup_processor(arg); }
   virtual bool collect_item_field_processor(void *arg) { return 0; }
