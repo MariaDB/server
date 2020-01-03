@@ -4249,7 +4249,7 @@ void SELECT_LEX::update_used_tables()
   }
 
   Item *item;
-  List_iterator_fast<Item> it(join->fields_list);
+  List_iterator_fast<Item> it(join->all_fields);
   select_list_tables= 0;
   while ((item= it++))
   {

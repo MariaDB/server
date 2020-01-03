@@ -4978,6 +4978,15 @@ public:
     item_equal= NULL;
     Item_direct_ref::cleanup();
   }
+  /*
+    TODO move these val_*_result function to Item_dierct_ref (maybe)
+  */
+  double val_result();
+  longlong val_int_result();
+  String *str_result(String* tmp);
+  my_decimal *val_decimal_result(my_decimal *val);
+  bool val_bool_result();
+
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_direct_view_ref>(thd, mem_root, this); }
 };
