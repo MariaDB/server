@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -836,15 +836,15 @@ buf_flush_init_for_writing(
 		memcpy_aligned<4>(page + srv_page_size
 				  - FIL_PAGE_FCRC32_END_LSN,
 				  FIL_PAGE_LSN + 4 + page, 4);
-	} else {
-		static_assert(FIL_PAGE_END_LSN_OLD_CHKSUM % 8 == 0, "aligned");
-		static_assert(FIL_PAGE_LSN % 8 == 0, "aligned");
-		memcpy_aligned<8>(page + srv_page_size
-				  - FIL_PAGE_END_LSN_OLD_CHKSUM,
-				  FIL_PAGE_LSN + page, 8);
+		return buf_flush_assign_full_crc32_checksum(page);
 	}
 
-	if (block && !use_full_checksum && srv_page_size == 16384) {
+	static_assert(FIL_PAGE_END_LSN_OLD_CHKSUM % 8 == 0, "aligned");
+	static_assert(FIL_PAGE_LSN % 8 == 0, "aligned");
+	memcpy_aligned<8>(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
+			  FIL_PAGE_LSN + page, 8);
+
+	if (block && srv_page_size == 16384) {
 		/* The page type could be garbage in old files
 		created before MySQL 5.5. Such files always
 		had a page size of 16 kilobytes. */
@@ -907,10 +907,6 @@ buf_flush_init_for_writing(
 	}
 
 	uint32_t checksum = BUF_NO_CHECKSUM_MAGIC;
-
-	if (use_full_checksum) {
-		return buf_flush_assign_full_crc32_checksum(page);
-	}
 
 	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
 	case SRV_CHECKSUM_ALGORITHM_INNODB:

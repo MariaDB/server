@@ -3,7 +3,7 @@
 Copyright (c) 1994, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -7744,31 +7744,6 @@ btr_store_big_rec_extern_fields(
 						    == FIL_PAGE_PREV + 4);
 				compile_time_assert(FIL_NULL == 0xffffffff);
 				mtr.memset(block, FIL_PAGE_PREV, 8, 0xff);
-				/* Write a back pointer to the record
-				into the otherwise unused area.  This
-				information could be useful in
-				debugging.  Later, we might want to
-				implement the possibility to relocate
-				BLOB pages.  Then, we would need to be
-				able to adjust the BLOB pointer in the
-				record.  We do not store the heap
-				number of the record, because it can
-				change in page_zip_reorganize() or
-				btr_page_reorganize().  However, also
-				the page number of the record may
-				change when B-tree nodes are split or
-				merged.
-				NOTE: FIL_PAGE_FILE_FLUSH_LSN space is
-				used by R-tree index for a Split Sequence
-				Number */
-				ut_ad(!dict_index_is_spatial(index));
-
-				mtr.write<4>(*block, block->frame
-					     + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-					     space_id);
-				mtr.write<4>(*block, block->frame
-					     + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
-					     rec_page_no);
 				mtr.memcpy(*block,
 					   FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 					   page_zip_get_size(page_zip)
