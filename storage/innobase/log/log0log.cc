@@ -615,8 +615,8 @@ void log_t::files::read(size_t total_offset, span<byte> buf)
 {
   ut_ad(files.size() == file_names.size());
 
-  const size_t file_idx= total_offset / file_size;
-  const size_t offset= total_offset % file_size;
+  const size_t file_idx= total_offset / static_cast<size_t>(file_size);
+  const size_t offset= total_offset % static_cast<size_t>(file_size);
 
   if (const dberr_t err= os_file_read(IORequestRead, files[file_idx],
                                       buf.data(), offset, buf.size()))
@@ -630,8 +630,8 @@ void log_t::files::write(size_t total_offset, span<byte> buf)
 {
   ut_ad(files.size() == file_names.size());
 
-  const size_t file_idx= total_offset / file_size;
-  const size_t offset= total_offset % file_size;
+  const size_t file_idx= total_offset / static_cast<size_t>(file_size);
+  const size_t offset= total_offset % static_cast<size_t>(file_size);
 
   if (const dberr_t err=
           os_file_write(IORequestWrite, file_names[file_idx].c_str(),
@@ -735,7 +735,7 @@ log_file_header_flush(
 
 	srv_stats.os_log_pending_writes.inc();
 
-	log_sys.log.write(dest_offset, buf);
+	log_sys.log.write(static_cast<size_t>(dest_offset), buf);
 
 	srv_stats.os_log_pending_writes.dec();
 }
@@ -836,7 +836,7 @@ loop:
 
 	ut_a((next_offset >> srv_page_size_shift) <= ULINT_MAX);
 
-	log_sys.log.write(next_offset, {buf, write_len});
+	log_sys.log.write(static_cast<size_t>(next_offset), {buf, write_len});
 
 	srv_stats.os_log_pending_writes.dec();
 

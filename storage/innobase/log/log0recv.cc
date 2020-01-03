@@ -899,7 +899,7 @@ loop:
 
 	ut_a((source_offset >> srv_page_size_shift) <= ULINT_MAX);
 
-	log_sys.log.read(source_offset, {buf, len});
+	log_sys.log.read(static_cast<size_t>(source_offset), {buf, len});
 
 	for (ulint l = 0; l < len; l += OS_FILE_LOG_BLOCK_SIZE,
 		     buf += OS_FILE_LOG_BLOCK_SIZE,
