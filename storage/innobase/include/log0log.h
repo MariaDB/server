@@ -565,6 +565,8 @@ struct log_t{
     void write(size_t total_offset, span<byte> buf);
     /** flushes OS page cache for all log files */
     void fsync();
+    /** flushes OS page cache (excluding metadata!) for all log files */
+    void fdatasync();
     /** closes all log files */
     void close_files();
 

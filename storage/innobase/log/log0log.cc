@@ -659,6 +659,23 @@ void log_t::files::fsync()
   log_sys.flushes.fetch_add(1, std::memory_order_release);
 }
 
+void log_t::files::fdatasync()
+{
+  ut_ad(files.size() == file_names.size());
+
+  log_sys.pending_flushes.fetch_add(1, std::memory_order_acquire);
+  for (auto it= files.begin(), end= files.end(); it != end; ++it)
+  {
+    if (!os_file_flush_data(*it))
+    {
+      const auto idx= std::distance(files.begin(), it);
+      ib::fatal() << "os_file_flush_data(" << file_names[idx] << ") failed";
+    }
+  }
+  log_sys.pending_flushes.fetch_add(1, std::memory_order_release);
+  log_sys.flushes.fetch_add(1, std::memory_order_release);
+}
+
 void log_t::files::close_files()
 {
   for (auto it= files.begin(), end= files.end(); it != end; ++it)
@@ -864,7 +881,7 @@ log_write_flush_to_disk_low()
 	calling os_event_set()! */
 	ut_a(log_sys.n_pending_flushes == 1); /* No other threads here */
 
-	log_sys.log.fsync();
+	log_sys.log.fdatasync();
 
 	log_mutex_enter();
 	log_sys.flushed_to_disk_lsn = log_sys.current_flush_lsn;
@@ -1298,7 +1315,7 @@ void log_write_checkpoint_info(lsn_t end_lsn)
 							   : LOG_CHECKPOINT_1,
 			  {buf, OS_FILE_LOG_BLOCK_SIZE});
 
-	log_sys.log.fsync();
+	log_sys.log.fdatasync();
 
 	log_mutex_enter();
 
@@ -1776,7 +1793,7 @@ wait_suspend_loop:
 
 		/* Ensure that all buffered changes are written to the
 		redo log before fil_close_all_files(). */
-		log_sys.log.fsync();
+		log_sys.log.fdatasync();
 	} else {
 		lsn = srv_start_lsn;
 	}

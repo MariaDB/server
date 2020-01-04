@@ -4614,3 +4614,24 @@ os_normalize_path(
 		}
 	}
 }
+
+bool pfs_os_file_flush_data_func(pfs_os_file_t file, const char *src_file,
+                                 uint src_line)
+{
+  PSI_file_locker_state state;
+  struct PSI_file_locker *locker= NULL;
+
+  register_pfs_file_io_begin(&state, locker, file, 0, PSI_FILE_SYNC, src_file,
+                             src_line);
+
+#ifdef _WIN32
+  bool result= os_file_flush_func(file);
+#else
+  bool result= true;
+  if (fdatasync(file) == -1)
+    ib::error() << "fdatasync() errno: " << errno;
+#endif
+
+  register_pfs_file_io_end(locker, 0);
+  return result;
+}

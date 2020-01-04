@@ -18632,7 +18632,7 @@ checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 			  ? log_sys.append_on_checkpoint->size() : 0)
 		       < log_sys.lsn) {
 			log_make_checkpoint();
-			log_sys.log.fsync();
+			log_sys.log.fdatasync();
 		}
 
 		dberr_t err = fil_write_flushed_lsn(log_sys.lsn);
