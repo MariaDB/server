@@ -108,6 +108,9 @@ public:
   enum_alter_table_algorithm    requested_algorithm;
   // Type of ALTER TABLE lock.
   enum_alter_table_lock         requested_lock;
+  // Used to determine if hidden fields for indexes on expressions were already
+  // processed.
+  bool                          is_hidden_fields_processed;
 
 
   Alter_info() :
@@ -115,7 +118,8 @@ public:
     keys_onoff(LEAVE_AS_IS),
     num_parts(0),
     requested_algorithm(ALTER_TABLE_ALGORITHM_DEFAULT),
-    requested_lock(ALTER_TABLE_LOCK_DEFAULT)
+    requested_lock(ALTER_TABLE_LOCK_DEFAULT),
+    is_hidden_fields_processed(false)
   {}
 
   void reset()
@@ -132,6 +136,7 @@ public:
     partition_names.empty();
     requested_algorithm= ALTER_TABLE_ALGORITHM_DEFAULT;
     requested_lock= ALTER_TABLE_LOCK_DEFAULT;
+    is_hidden_fields_processed = false;
   }
 
 

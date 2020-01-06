@@ -19,6 +19,7 @@
 
 #include <my_sys.h>                             // pthread_mutex_t
 #include "m_string.h"                           // LEX_CUSTRING
+#include "table.h"                           // LEX_CUSTRING
 
 class Alter_info;
 class Alter_table_ctx;
@@ -36,6 +37,7 @@ typedef struct st_key KEY;
 typedef struct st_key_cache KEY_CACHE;
 typedef struct st_lock_param_type ALTER_PARTITION_PARAM_TYPE;
 typedef struct st_order ORDER;
+class Key;
 
 enum ddl_log_entry_code
 {
@@ -251,6 +253,10 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
                     const LEX_CSTRING *table_name, uint flags,
                     const char *table_path=0);
 void close_cached_table(THD *thd, TABLE *table);
+Create_field *mysql_add_invisible_field(THD *thd, List<Create_field> * field_list,
+                              const char *field_name,
+                              const Type_handler *type_handler,
+                              field_visibility_t invisible, Item* default_value);
 void sp_prepare_create_field(THD *thd, Column_definition *sql_field);
 CHARSET_INFO* get_sql_field_charset(Column_definition *sql_field,
                                     HA_CREATE_INFO *create_info);
@@ -285,4 +291,6 @@ extern mysql_mutex_t LOCK_gdl;
 
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 
+bool add_hidden_vfield_fields(THD *thd, List<Create_field> *create_list,
+                              List<Key> *key_list, Alter_info *alter_info);
 #endif /* SQL_TABLE_INCLUDED */

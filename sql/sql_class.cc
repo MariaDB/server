@@ -124,6 +124,9 @@ extern "C" void free_sequence_last(SEQUENCE_LAST_VALUE *entry)
 
 bool Key_part_spec::operator==(const Key_part_spec& other) const
 {
+  if (vfield)
+    return length == other.length && vfield->is_equal(other.vfield);
+
   return length == other.length &&
          !lex_string_cmp(system_charset_info, &field_name,
                          &other.field_name);
@@ -179,6 +182,20 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }
+
+bool Key::has_index_on_hidden_fields()
+{
+  // todo: can evaluate only once
+  Key_part_spec *column;
+  List_iterator<Key_part_spec> cols(columns);
+  while ((column=cols++))
+  {
+    if (column->vfield)
+      return true;
+  }
+  return false;
+}
+
 
 /**
   Construct an (almost) deep copy of this foreign key. Only those

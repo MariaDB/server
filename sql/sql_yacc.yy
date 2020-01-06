@@ -7023,6 +7023,12 @@ key_part:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | virtual_column_func
+          {
+            $$= new (thd->mem_root) Key_part_spec($1);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
         ;
 
 opt_ident:

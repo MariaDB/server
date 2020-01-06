@@ -695,6 +695,10 @@ enum_nested_loop_state
 end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 		bool end_of_records);
 
+void rewrite_expr_with_vfieds(THD *thd, Name_resolution_context *context, Item **select_where);
+// collect all vcols that has indexes over them
+List<Field*> get_vfields_with_indexes(Name_resolution_context *context);
+
 
 struct st_position;
 
@@ -1785,6 +1789,7 @@ public:
   void make_notnull_conds_for_range_scans();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
+  void optimize_vfields_expressions();
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER

@@ -1584,6 +1584,8 @@ int JOIN::optimize()
 {
   int res= 0;
   join_optimization_state init_state= optimization_state;
+  optimize_vfields_expressions();
+
   if (select_lex->pushdown_select)
   {
     if (!(select_options & SELECT_DESCRIBE))
@@ -27751,6 +27753,95 @@ void JOIN::cache_const_exprs()
   }
 }
 
+void JOIN::optimize_vfields_expressions()
+{
+  Query_arena backup;
+  Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
+
+//  for (SELECT_LEX *cur_select_lex = select_lex; cur_select_lex; cur_select_lex = cur_select_lex->next_select())
+//  {
+//    for (TABLE_LIST *cur_table = select_lex->table_list.first; cur_table; cur_table = cur_table->next_local)
+//    {
+//      if (!cur_table->on_expr)
+//        continue;
+//  //    // subselects in joins
+//  //     cur_table->on_expr->walk(&Item::rewrite_subselects_with_vfields_processor, true, NULL);
+//      rewrite_expr_with_vfieds(thd, &(select_lex->context), &cur_table->on_expr);
+//    }
+
+  //  Item *select_where = select_lex->where;
+    // no where or no tables
+    if (!conds)
+      return;
+  //    continue;
+
+    // perform rewrites in all subselects
+  //  conds->walk(&Item::rewrite_subselects_with_vfields_processor, true, NULL);
+    rewrite_expr_with_vfieds(thd, &(select_lex->context),
+                             &conds);
+//  }
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+}
+
+void rewrite_expr_with_vfieds(THD *thd, Name_resolution_context *context, Item **select_where)
+{
+  if (!*select_where)
+    return;
+
+  List<Field*> vfields_with_indexes = get_vfields_with_indexes(context);
+  List_iterator<Field*> it(vfields_with_indexes);
+  Item::Build_clone_prm build_clone_prm;
+  build_clone_prm.return_this_on_subselects = true;
+
+  while (Field **vfield = it++)
+  {
+    Item* clone = (*select_where)->build_clone(thd, build_clone_prm);
+
+    if (!clone)
+      break;
+
+    Item::Subst_expr_prm prm = {thd, &clone, *vfield};
+    int replaced = clone->substitute_expr_with_vcol(&prm);
+//    int replaced = (*select_where)->substitute_expr_with_vcol(&prm);
+    if (replaced)
+    {
+      Item *new_where = new (thd->mem_root) Item_cond_and(thd, *select_where, clone);
+      new_where->fix_fields(thd, &new_where);
+      thd->change_item_tree(select_where, new_where);
+//      *select_where = new_where;
+    }
+  }
+}
+
+// todo: avoid cloning
+List<Field*> get_vfields_with_indexes(Name_resolution_context *context)
+{
+  List<Field*> vcols_with_indexes;
+  for (Name_resolution_context *ctx = context; ctx; ctx = ctx->outer_context)
+  {
+    for (TABLE_LIST *table_list = ctx->table_list; table_list; table_list = table_list->next_local)
+    {
+      if (!table_list->table)
+        continue;
+
+      Field **vf= table_list->table->vfield;
+      if (!vf)
+        return vcols_with_indexes;
+
+      for (; *vf; vf++)
+      {
+        // at least one index exist
+        if (!(*vf)->part_of_key.is_clear_all())
+        {
+          vcols_with_indexes.push_back(vf);
+        }
+      }
+    }
+  }
+  return vcols_with_indexes;
+}
  
 /*
   Get the cost of using index keynr to read #LIMIT matching rows
