@@ -80,6 +80,7 @@ eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 SELECT @@global.wsrep_provider;
 SELECT @@global.wsrep_slave_threads;
 SELECT @@global.wsrep_cluster_address;
+SELECT @@global.wsrep_on;
 SHOW STATUS LIKE 'threads_connected';
 SHOW STATUS LIKE 'wsrep_thread_count';
 --echo
@@ -91,6 +92,7 @@ eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 --replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
 SELECT @@global.wsrep_cluster_address;
+SELECT @@global.wsrep_on;
 SHOW STATUS LIKE 'threads_connected';
 SHOW STATUS LIKE 'wsrep_thread_count';
 --echo
@@ -113,6 +115,7 @@ SELECT VARIABLE_VALUE AS EXPECT_2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VA
 --replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
 SELECT @@global.wsrep_cluster_address;
+SELECT @@global.wsrep_on;
 SHOW STATUS LIKE 'threads_connected';
 SHOW STATUS LIKE 'wsrep_thread_count';
 --echo
@@ -135,6 +138,7 @@ SHOW STATUS LIKE 'threads_connected';
 #
 set wsrep_on=0;
 set wsrep_on=1;
+--source include/wait_until_connected_again.inc
 create user test@localhost;
 connect con1,localhost,test;
 set auto_increment_increment=10;

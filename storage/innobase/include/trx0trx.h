@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -342,13 +342,6 @@ bool
 trx_is_interrupted(
 /*===============*/
 	const trx_t*	trx);	/*!< in: transaction */
-/**********************************************************************//**
-Determines if the currently running transaction is in strict mode.
-@return TRUE if strict */
-ibool
-trx_is_strict(
-/*==========*/
-	trx_t*	trx);	/*!< in: transaction */
 
 /*******************************************************************//**
 Calculates the "weight" of a transaction. The weight of one transaction

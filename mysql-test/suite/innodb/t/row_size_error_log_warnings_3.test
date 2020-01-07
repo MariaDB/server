@@ -18,7 +18,15 @@ CREATE TABLE t1 (
   ,col_10 TEXT
   ,col_11 TEXT
 ) ENGINE=INNODB ROW_FORMAT=COMPACT;
+--enable_warnings
+TRUNCATE TABLE t1;
+OPTIMIZE TABLE t1;
+ALTER TABLE t1 FORCE;
+SET innodb_strict_mode = ON;
+TRUNCATE TABLE t1;
+OPTIMIZE TABLE t1;
+ALTER TABLE t1 FORCE;
 DROP TABLE t1;
+--disable_warnings
 
 SET @@global.log_warnings = 2;
-SET innodb_strict_mode = 1;
