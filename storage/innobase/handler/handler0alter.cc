@@ -5495,11 +5495,11 @@ inline
 void dict_table_t::serialise_mblob(mem_heap_t* heap, dfield_t* field) const
 {
 	DBUG_ASSERT(instant);
-	dict_index_t* index = UT_LIST_GET_FIRST(indexes);
-	unsigned n_fixed = index->first_user_field();
-	unsigned num_non_pk_fields = index->n_fields - n_fixed;
+	dict_index_t& index = *UT_LIST_GET_FIRST(indexes);
+	unsigned n_fixed = index.first_user_field();
+	unsigned num_non_pk_fields = index.n_fields - n_fixed;
 
-	rw_lock_s_lock(&index->lock);
+	rw_lock_s_lock(&index.lock);
 
 	ulint len = committed_count_inited ? 12 + num_non_pk_fields * 2 :
 		4 + num_non_pk_fields * 2;
@@ -5512,7 +5512,7 @@ void dict_table_t::serialise_mblob(mem_heap_t* heap, dfield_t* field) const
 
 	data += 4;
 
-	for (ulint i = n_fixed; i < index->n_fields; i++) {
+	for (ulint i = n_fixed; i < index.n_fields; i++) {
 		mach_write_to_2(data, instant->field_map[i - n_fixed]);
 		data += 2;
 	}
@@ -5522,7 +5522,7 @@ void dict_table_t::serialise_mblob(mem_heap_t* heap, dfield_t* field) const
 		data += 8;
 	}
 
-	rw_lock_s_unlock(&index->lock);
+	rw_lock_s_unlock(&index.lock);
 }
 
 /** Construct the metadata record for instant ALTER TABLE.
