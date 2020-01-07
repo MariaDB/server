@@ -103,8 +103,7 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_FOREIGN_OPERATIONS
 
 /** Operations that InnoDB cares about and can perform without validation */
 static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_NOVALIDATE
-	= INNOBASE_ONLINE_CREATE
-	| INNOBASE_FOREIGN_OPERATIONS
+	= INNOBASE_FOREIGN_OPERATIONS
 	| Alter_inplace_info::DROP_INDEX
 	| Alter_inplace_info::DROP_UNIQUE_INDEX
 	| Alter_inplace_info::ALTER_COLUMN_NAME
@@ -115,6 +114,7 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_NOVALIDATE
 /** Operations that InnoDB cares about and can perform without rebuild */
 static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_NOREBUILD
 	= INNOBASE_ALTER_NOVALIDATE
+	| INNOBASE_ONLINE_CREATE
 	| Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH
 	| Alter_inplace_info::ADD_VIRTUAL_COLUMN;
 
