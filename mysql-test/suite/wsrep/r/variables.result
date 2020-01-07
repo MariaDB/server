@@ -170,6 +170,9 @@ SELECT @@global.wsrep_slave_threads;
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
 
+SELECT @@global.wsrep_on;
+@@global.wsrep_on
+1
 SHOW STATUS LIKE 'threads_connected';
 Variable_name	Value
 Threads_connected	1
@@ -183,6 +186,9 @@ SELECT @@global.wsrep_provider;
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
 
+SELECT @@global.wsrep_on;
+@@global.wsrep_on
+1
 SHOW STATUS LIKE 'threads_connected';
 Variable_name	Value
 Threads_connected	1
@@ -210,6 +216,9 @@ SELECT @@global.wsrep_provider;
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
 gcomm://
+SELECT @@global.wsrep_on;
+@@global.wsrep_on
+1
 SHOW STATUS LIKE 'threads_connected';
 Variable_name	Value
 Threads_connected	1

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,9 +33,13 @@ Created 10/25/1995 Heikki Tuuri
 
 #include "log0recv.h"
 #include "dict0types.h"
+#include "intrusive_list.h"
 #ifdef UNIV_LINUX
 # include <set>
 #endif
+
+struct unflushed_spaces_tag_t;
+struct rotation_list_tag_t;
 
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
@@ -77,7 +81,13 @@ struct fil_node_t;
 #endif
 
 /** Tablespace or log data space */
-struct fil_space_t {
+#ifndef UNIV_INNOCHECKSUM
+struct fil_space_t : intrusive::list_node<unflushed_spaces_tag_t>,
+                     intrusive::list_node<rotation_list_tag_t>
+#else
+struct fil_space_t
+#endif
+{
 #ifndef UNIV_INNOCHECKSUM
 	ulint		id;	/*!< space id */
 	hash_node_t	hash;	/*!< hash chain node */
@@ -147,9 +157,6 @@ struct fil_space_t {
 	std::atomic<ulint>		n_pending_ios;
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
-	UT_LIST_NODE_T(fil_space_t) unflushed_spaces;
-				/*!< list of spaces with at least one unflushed
-				file we have written to */
 	UT_LIST_NODE_T(fil_space_t) named_spaces;
 				/*!< list of spaces for which MLOG_FILE_NAME
 				records have been issued */
@@ -158,8 +165,6 @@ struct fil_space_t {
 	bool is_in_unflushed_spaces() const;
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
-	/** other tablespaces needing key rotation */
-	UT_LIST_NODE_T(fil_space_t) rotation_list;
 	/** Checks that this tablespace needs key rotation.
 	@return true if in a rotation list */
 	bool is_in_rotation_list() const;
@@ -267,7 +272,7 @@ struct fil_space_t {
 	void release_for_io() { ut_ad(pending_io()); n_pending_ios--; }
 	/** @return whether I/O is pending */
 	bool pending_io() const { return n_pending_ios; }
-#endif
+#endif /* !UNIV_INNOCHECKSUM */
 	/** FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
 	check fsp0types.h to more info about flags. */
 	ulint		flags;
@@ -877,8 +882,6 @@ struct fil_system_t {
   {
     UT_LIST_INIT(LRU, &fil_node_t::LRU);
     UT_LIST_INIT(space_list, &fil_space_t::space_list);
-    UT_LIST_INIT(rotation_list, &fil_space_t::rotation_list);
-    UT_LIST_INIT(unflushed_spaces, &fil_space_t::unflushed_spaces);
     UT_LIST_INIT(named_spaces, &fil_space_t::named_spaces);
   }
 
@@ -930,8 +933,8 @@ public:
 					not put to this list: they are opened
 					after the startup, and kept open until
 					shutdown */
-	UT_LIST_BASE_NODE_T(fil_space_t) unflushed_spaces;
-					/*!< base node for the list of those
+	intrusive::list<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
+					/*!< list of those
 					tablespaces whose files contain
 					unflushed writes; those spaces have
 					at least one file node where
@@ -951,7 +954,7 @@ public:
 					record has been written since
 					the latest redo log checkpoint.
 					Protected only by log_sys.mutex. */
-	UT_LIST_BASE_NODE_T(fil_space_t) rotation_list;
+	intrusive::list<fil_space_t, rotation_list_tag_t> rotation_list;
 					/*!< list of all file spaces needing
 					key rotation.*/
 

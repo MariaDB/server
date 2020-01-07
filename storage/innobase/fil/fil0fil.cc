@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -760,9 +760,7 @@ skip_flush:
 			if (space->is_in_unflushed_spaces()
 			    && fil_space_is_flushed(space)) {
 
-				UT_LIST_REMOVE(
-					fil_system.unflushed_spaces,
-					space);
+				fil_system.unflushed_spaces.remove(*space);
 			}
 		}
 
@@ -1056,7 +1054,7 @@ fil_node_close_to_free(
 		} else if (space->is_in_unflushed_spaces()
 			   && fil_space_is_flushed(space)) {
 
-			UT_LIST_REMOVE(fil_system.unflushed_spaces, space);
+			fil_system.unflushed_spaces.remove(*space);
 		}
 
 		node->close();
@@ -1079,13 +1077,11 @@ fil_space_detach(
 	if (space->is_in_unflushed_spaces()) {
 
 		ut_ad(!fil_buffering_disabled(space));
-
-		UT_LIST_REMOVE(fil_system.unflushed_spaces, space);
+		fil_system.unflushed_spaces.remove(*space);
 	}
 
 	if (space->is_in_rotation_list()) {
-
-		UT_LIST_REMOVE(fil_system.rotation_list, space);
+		fil_system.rotation_list.remove(*space);
 	}
 
 	UT_LIST_REMOVE(fil_system.space_list, space);
@@ -1300,7 +1296,7 @@ fil_space_create(
 	     || srv_encrypt_tables)) {
 		/* Key rotation is not enabled, need to inform background
 		encryption threads. */
-		UT_LIST_ADD_LAST(fil_system.rotation_list, space);
+		fil_system.rotation_list.push_back(*space);
 		mutex_exit(&fil_system.mutex);
 		os_event_set(fil_crypt_threads_event);
 	} else {
@@ -1636,7 +1632,7 @@ void fil_system_t::close()
 {
 	ut_ad(this == &fil_system);
 	ut_a(!UT_LIST_GET_LEN(LRU));
-	ut_a(!UT_LIST_GET_LEN(unflushed_spaces));
+	ut_a(unflushed_spaces.empty());
 	ut_a(!UT_LIST_GET_LEN(space_list));
 	ut_ad(!sys_space);
 	ut_ad(!temp_space);
@@ -4037,8 +4033,8 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 			node->needs_flush = true;
 
 			if (!node->space->is_in_unflushed_spaces()) {
-				UT_LIST_ADD_FIRST(fil_system.unflushed_spaces,
-						  node->space);
+				fil_system.unflushed_spaces.push_front(
+					*node->space);
 			}
 		}
 	}
@@ -4491,7 +4487,6 @@ void
 fil_flush_file_spaces(
 	fil_type_t	purpose)
 {
-	fil_space_t*	space;
 	ulint*		space_ids;
 	ulint		n_space_ids;
 
@@ -4499,30 +4494,25 @@ fil_flush_file_spaces(
 
 	mutex_enter(&fil_system.mutex);
 
-	n_space_ids = UT_LIST_GET_LEN(fil_system.unflushed_spaces);
+	n_space_ids = fil_system.unflushed_spaces.size();
 	if (n_space_ids == 0) {
 
 		mutex_exit(&fil_system.mutex);
 		return;
 	}
 
-	/* Assemble a list of space ids to flush.  Previously, we
-	traversed fil_system.unflushed_spaces and called UT_LIST_GET_NEXT()
-	on a space that was just removed from the list by fil_flush().
-	Thus, the space could be dropped and the memory overwritten. */
 	space_ids = static_cast<ulint*>(
 		ut_malloc_nokey(n_space_ids * sizeof(*space_ids)));
 
 	n_space_ids = 0;
 
-	for (space = UT_LIST_GET_FIRST(fil_system.unflushed_spaces);
-	     space;
-	     space = UT_LIST_GET_NEXT(unflushed_spaces, space)) {
+	for (intrusive::list<fil_space_t, unflushed_spaces_tag_t>::iterator it
+	     = fil_system.unflushed_spaces.begin(),
+	     end = fil_system.unflushed_spaces.end();
+	     it != end; ++it) {
 
-		if (space->purpose == purpose
-		    && !space->is_stopping()) {
-
-			space_ids[n_space_ids++] = space->id;
+		if (it->purpose == purpose && !it->is_stopping()) {
+			space_ids[n_space_ids++] = it->id;
 		}
 	}
 
@@ -5030,8 +5020,8 @@ fil_space_remove_from_keyrotation(fil_space_t* space)
 	ut_ad(space);
 
 	if (!space->referenced() && space->is_in_rotation_list()) {
-		ut_a(UT_LIST_GET_LEN(fil_system.rotation_list) > 0);
-		UT_LIST_REMOVE(fil_system.rotation_list, space);
+		ut_a(!fil_system.rotation_list.empty());
+		fil_system.rotation_list.remove(*space);
 	}
 }
 
@@ -5047,53 +5037,45 @@ If NULL, use the first fil_space_t on fil_system.space_list.
 @param[in]	key_version	key version of the key state thread
 @return pointer to the next fil_space_t.
 @retval NULL if this was the last */
-fil_space_t*
-fil_system_t::keyrotate_next(
-	fil_space_t*	prev_space,
-	bool		recheck,
-	uint		key_version)
+fil_space_t *fil_system_t::keyrotate_next(fil_space_t *prev_space,
+                                          bool recheck, uint key_version)
 {
-	mutex_enter(&fil_system.mutex);
+  mutex_enter(&fil_system.mutex);
 
-	/* If one of the encryption threads already started the encryption
-	of the table then don't remove the unencrypted spaces from
-	rotation list
+  /* If one of the encryption threads already started the encryption
+  of the table then don't remove the unencrypted spaces from rotation list
 
-	If there is a change in innodb_encrypt_tables variables value then
-	don't remove the last processed tablespace from the rotation list. */
-	const bool remove = ((!recheck || prev_space->crypt_data)
-			     && (!key_version == !srv_encrypt_tables));
+  If there is a change in innodb_encrypt_tables variables value then
+  don't remove the last processed tablespace from the rotation list. */
+  const bool remove= (!recheck || prev_space->crypt_data) &&
+                     !key_version == !srv_encrypt_tables;
+  intrusive::list<fil_space_t, rotation_list_tag_t>::iterator it=
+      prev_space == NULL ? fil_system.rotation_list.end() : prev_space;
 
-	fil_space_t* space = prev_space;
+  if (it == fil_system.rotation_list.end())
+    it= fil_system.rotation_list.begin();
+  else
+  {
+    /* Move on to the next fil_space_t */
+    prev_space->release();
 
-	if (prev_space == NULL) {
-		space = UT_LIST_GET_FIRST(fil_system.rotation_list);
+    ++it;
 
-		/* We can trust that space is not NULL because we
-		checked list length above */
-	} else {
-		/* Move on to the next fil_space_t */
-		space->release();
+    while (it != fil_system.rotation_list.end() &&
+           (UT_LIST_GET_LEN(it->chain) == 0 || it->is_stopping()))
+      ++it;
 
-		space = UT_LIST_GET_NEXT(rotation_list, space);
+    if (remove)
+      fil_space_remove_from_keyrotation(prev_space);
+  }
 
-		while (space != NULL
-		       && (UT_LIST_GET_LEN(space->chain) == 0
-			   || space->is_stopping())) {
-			space = UT_LIST_GET_NEXT(rotation_list, space);
-		}
+  fil_space_t *space= it == fil_system.rotation_list.end() ? NULL : &*it;
 
-		if (remove) {
-			fil_space_remove_from_keyrotation(prev_space);
-		}
-	}
+  if (space)
+    space->acquire();
 
-	if (space != NULL) {
-		space->acquire();
-	}
-
-	mutex_exit(&fil_system.mutex);
-	return(space);
+  mutex_exit(&fil_system.mutex);
+  return space;
 }
 
 /** Determine the block size of the data file.
@@ -5148,18 +5130,21 @@ fil_space_found_by_id(
 
 /** Checks that this tablespace in a list of unflushed tablespaces.
 @return true if in a list */
-bool fil_space_t::is_in_unflushed_spaces() const {
-	ut_ad(mutex_own(&fil_system.mutex));
+bool fil_space_t::is_in_unflushed_spaces() const
+{
+  ut_ad(mutex_own(&fil_system.mutex));
 
-	return fil_system.unflushed_spaces.start == this
-	       || unflushed_spaces.next || unflushed_spaces.prev;
+  return static_cast<const intrusive::list_node<unflushed_spaces_tag_t> *>(
+             this)
+      ->next;
 }
 
 /** Checks that this tablespace needs key rotation.
 @return true if in a rotation list */
-bool fil_space_t::is_in_rotation_list() const {
-	ut_ad(mutex_own(&fil_system.mutex));
+bool fil_space_t::is_in_rotation_list() const
+{
+  ut_ad(mutex_own(&fil_system.mutex));
 
-	return fil_system.rotation_list.start == this || rotation_list.next
-	       || rotation_list.prev;
+  return static_cast<const intrusive::list_node<rotation_list_tag_t> *>(this)
+      ->next;
 }
