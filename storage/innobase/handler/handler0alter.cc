@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -101,18 +101,22 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_FOREIGN_OPERATIONS
 	= Alter_inplace_info::DROP_FOREIGN_KEY
 	| Alter_inplace_info::ADD_FOREIGN_KEY;
 
-/** Operations that InnoDB cares about and can perform without rebuild */
-static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_NOREBUILD
+/** Operations that InnoDB cares about and can perform without validation */
+static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_NOVALIDATE
 	= INNOBASE_ONLINE_CREATE
 	| INNOBASE_FOREIGN_OPERATIONS
 	| Alter_inplace_info::DROP_INDEX
 	| Alter_inplace_info::DROP_UNIQUE_INDEX
 	| Alter_inplace_info::ALTER_COLUMN_NAME
-	| Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH
 	//| Alter_inplace_info::ALTER_INDEX_COMMENT
-	| Alter_inplace_info::ADD_VIRTUAL_COLUMN
 	| Alter_inplace_info::DROP_VIRTUAL_COLUMN
 	| Alter_inplace_info::ALTER_VIRTUAL_COLUMN_ORDER;
+
+/** Operations that InnoDB cares about and can perform without rebuild */
+static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_NOREBUILD
+	= INNOBASE_ALTER_NOVALIDATE
+	| Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH
+	| Alter_inplace_info::ADD_VIRTUAL_COLUMN;
 
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 {
@@ -4844,7 +4848,14 @@ index_created:
 			goto error_handling;
 		}
 
-		if (!info.row_size_is_acceptable(*ctx->add_index[a])) {
+		/* For ALTER TABLE...FORCE or OPTIMIZE TABLE, we may
+		only issue warnings, because there will be no schema change. */
+		if (!info.row_size_is_acceptable(
+			    *ctx->add_index[a],
+			    !!(ha_alter_info->handler_flags
+			       & ~(INNOBASE_INPLACE_IGNORE
+				   | INNOBASE_ALTER_NOVALIDATE
+				   | Alter_inplace_info::RECREATE_TABLE)))) {
 			error = DB_TOO_BIG_RECORD;
 			goto error_handling;
 		}

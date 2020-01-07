@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -680,9 +680,11 @@ public:
 	void allocate_trx();
 
 	/** Checks that every index have sane size. Depends on strict mode */
-	bool row_size_is_acceptable(const dict_table_t& table) const;
+	bool row_size_is_acceptable(const dict_table_t& table,
+				    bool strict) const;
 	/** Checks that given index have sane size. Depends on strict mode */
-	bool row_size_is_acceptable(const dict_index_t& index) const;
+	bool row_size_is_acceptable(const dict_index_t& index,
+				    bool strict) const;
 
 	/** Determines InnoDB table flags.
 	If strict_mode=OFF, this will adjust the flags to what should be assumed.
