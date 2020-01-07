@@ -3492,6 +3492,18 @@ code_name(int code)
 }
 #endif
 
+#define VALIDATE_BYTES_READ(CUR_POS, START, EVENT_LEN)      \
+  do {                                                      \
+       uchar *cur_pos= (uchar *)CUR_POS;                    \
+       uchar *start= (uchar *)START;                        \
+       uint len= EVENT_LEN;                                 \
+       uint bytes_read= (uint)(cur_pos - start);            \
+       DBUG_PRINT("info", ("Bytes read: %u event_len:%u.\n",\
+             bytes_read, len));                             \
+       if (bytes_read >= len)                               \
+         DBUG_VOID_RETURN;                                  \
+  } while (0)
+
 /**
    Macro to check that there is enough space to read from memory.
 
@@ -11010,7 +11022,6 @@ Table_map_log_event::Table_map_log_event(const char *buf, uint event_len,
     m_data_size(0), m_field_metadata(0), m_field_metadata_size(0),
     m_null_bits(0), m_meta_memory(NULL)
 {
-  unsigned int bytes_read= 0;
   DBUG_ENTER("Table_map_log_event::Table_map_log_event(const char*,uint,...)");
 
   uint8 common_header_len= description_event->common_header_len;
@@ -11054,15 +11065,18 @@ Table_map_log_event::Table_map_log_event(const char *buf, uint event_len,
 
   /* Extract the length of the various parts from the buffer */
   uchar const *const ptr_dblen= (uchar const*)vpart + 0;
+  VALIDATE_BYTES_READ(ptr_dblen, buf, event_len);
   m_dblen= *(uchar*) ptr_dblen;
 
   /* Length of database name + counter + terminating null */
   uchar const *const ptr_tbllen= ptr_dblen + m_dblen + 2;
+  VALIDATE_BYTES_READ(ptr_tbllen, buf, event_len);
   m_tbllen= *(uchar*) ptr_tbllen;
 
   /* Length of table name + counter + terminating null */
   uchar const *const ptr_colcnt= ptr_tbllen + m_tbllen + 2;
   uchar *ptr_after_colcnt= (uchar*) ptr_colcnt;
+  VALIDATE_BYTES_READ(ptr_after_colcnt, buf, event_len);
   m_colcnt= net_field_length(&ptr_after_colcnt);
 
   DBUG_PRINT("info",("m_dblen: %lu  off: %ld  m_tbllen: %lu  off: %ld  m_colcnt: %lu  off: %ld",
@@ -11085,32 +11099,27 @@ Table_map_log_event::Table_map_log_event(const char *buf, uint event_len,
     memcpy(m_coltype, ptr_after_colcnt, m_colcnt);
 
     ptr_after_colcnt= ptr_after_colcnt + m_colcnt;
-    bytes_read= (uint) (ptr_after_colcnt - (uchar *)buf);
-    DBUG_PRINT("info", ("Bytes read: %d.\n", bytes_read));
-    if (bytes_read < event_len)
+    VALIDATE_BYTES_READ(ptr_after_colcnt, buf, event_len);
+    m_field_metadata_size= net_field_length(&ptr_after_colcnt);
+    if(m_field_metadata_size <= (m_colcnt * 2))
     {
-      m_field_metadata_size= net_field_length(&ptr_after_colcnt);
-      if(m_field_metadata_size <= (m_colcnt * 2))
-      {
-        uint num_null_bytes= (m_colcnt + 7) / 8;
-        m_meta_memory= (uchar *)my_multi_malloc(MYF(MY_WME),
-            &m_null_bits, num_null_bytes,
-            &m_field_metadata, m_field_metadata_size,
-            NULL);
-        memcpy(m_field_metadata, ptr_after_colcnt, m_field_metadata_size);
-        ptr_after_colcnt= (uchar*)ptr_after_colcnt + m_field_metadata_size;
-        memcpy(m_null_bits, ptr_after_colcnt, num_null_bytes);
-      }
-      else
-      {
-        m_coltype= NULL;
-        my_free(m_memory);
-        m_memory= NULL;
-        DBUG_VOID_RETURN;
-      }
+      uint num_null_bytes= (m_colcnt + 7) / 8;
+      m_meta_memory= (uchar *)my_multi_malloc(MYF(MY_WME),
+          &m_null_bits, num_null_bytes,
+          &m_field_metadata, m_field_metadata_size,
+          NULL);
+      memcpy(m_field_metadata, ptr_after_colcnt, m_field_metadata_size);
+      ptr_after_colcnt= (uchar*)ptr_after_colcnt + m_field_metadata_size;
+      memcpy(m_null_bits, ptr_after_colcnt, num_null_bytes);
+    }
+    else
+    {
+      m_coltype= NULL;
+      my_free(m_memory);
+      m_memory= NULL;
+      DBUG_VOID_RETURN;
     }
   }
-
   DBUG_VOID_RETURN;
 }
 #endif
