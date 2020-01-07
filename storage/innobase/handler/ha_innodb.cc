@@ -13505,6 +13505,7 @@ returns exact number of records; otherwise returns an estimate of index records.
 @param[out]  num_rows  number of rows in table
 @return  0 if success
 @return  1 if failure */
+inline
 int
 ha_innobase::records2(ha_rows* num_rows)
 {	
