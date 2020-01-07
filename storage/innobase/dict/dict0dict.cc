@@ -763,7 +763,10 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
     return false;
 
   if (char* is_part= strchr(tbl_buf, '#'))
+  {
     *is_part = '\0';
+    *tbl_name_len= is_part - tbl_buf;
+  }
 
   filename_to_tablename(tbl_buf, tbl_name, MAX_TABLE_NAME_LEN + 1, true);
   return true;
