@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -439,6 +439,13 @@ public:
 	can_convert_blob(const Field_blob* field,
 			 const Column_definition& new_field) const override;
 
+	/** @return whether innodb_strict_mode is active */
+	static bool is_innodb_strict_mode(THD* thd);
+
+	/** @return whether innodb_strict_mode is active */
+	bool is_innodb_strict_mode()
+	{ return is_innodb_strict_mode(m_user_thd); }
+
 protected:
 	dberr_t innobase_get_autoinc(ulonglong* value);
 	dberr_t innobase_lock_autoinc();
@@ -682,9 +689,11 @@ public:
 	void allocate_trx();
 
 	/** Checks that every index have sane size. Depends on strict mode */
-	bool row_size_is_acceptable(const dict_table_t& table) const;
+	bool row_size_is_acceptable(const dict_table_t& table,
+				    bool strict) const;
 	/** Checks that given index have sane size. Depends on strict mode */
-	bool row_size_is_acceptable(const dict_index_t& index) const;
+	bool row_size_is_acceptable(const dict_index_t& index,
+				    bool strict) const;
 
 	/** Determines InnoDB table flags.
 	If strict_mode=OFF, this will adjust the flags to what should be assumed.

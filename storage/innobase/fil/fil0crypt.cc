@@ -2546,7 +2546,7 @@ static void fil_crypt_rotation_list_fill()
 			}
 		}
 
-		UT_LIST_ADD_LAST(fil_system.rotation_list, space);
+		fil_system.rotation_list.push_back(*space);
 	}
 }
 

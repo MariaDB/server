@@ -2847,16 +2847,16 @@ drop table t1;
 # MDEV-20922: Adding an order by changes the query results
 #
 CREATE TABLE t1(a int, b int);
-INSERT INTO t1 values (1, 100), (2, 200), (3, 100), (4, 200);
+INSERT INTO t1 values (1, 100), (2, 200), (3, 100), (4, 200), (5, 200);
 create view v1 as select a, b+1 as x from t1;
 SELECT x, COUNT(DISTINCT a) AS y FROM v1 GROUP BY x ORDER BY y;
 x	y
 101	2
-201	2
+201	3
 SELECT b+1 AS x, COUNT(DISTINCT a) AS y FROM t1 GROUP BY x ORDER BY y;
 x	y
 101	2
-201	2
+201	3
 drop view v1;
 drop table t1;
 #

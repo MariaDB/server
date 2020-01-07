@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -123,6 +123,15 @@ static const alter_table_operations INNOBASE_FOREIGN_OPERATIONS
 static const alter_table_operations INNOBASE_ALTER_NOCREATE
 	= ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX
 	| ALTER_DROP_UNIQUE_INDEX;
+
+/** Operations that InnoDB cares about and can perform without validation */
+static const alter_table_operations INNOBASE_ALTER_NOVALIDATE
+	= INNOBASE_ALTER_NOCREATE
+	| ALTER_VIRTUAL_COLUMN_ORDER
+	| ALTER_COLUMN_NAME
+	| INNOBASE_FOREIGN_OPERATIONS
+	| ALTER_COLUMN_UNVERSIONED
+	| ALTER_DROP_VIRTUAL_COLUMN;
 
 /** Operations that InnoDB cares about and can perform without rebuild */
 static const alter_table_operations INNOBASE_ALTER_NOREBUILD
@@ -2286,7 +2295,7 @@ next_column:
 
 	const bool supports_instant = instant_alter_column_possible(
 		*m_prebuilt->table, ha_alter_info, table, altered_table,
-		trx_is_strict(m_prebuilt->trx));
+		is_innodb_strict_mode());
 	if (add_drop_v_cols) {
 		ulonglong flags = ha_alter_info->handler_flags;
 
@@ -6437,7 +6446,7 @@ new_clustered_failed:
 
 	if (ctx->need_rebuild() && instant_alter_column_possible(
 		    *user_table, ha_alter_info, old_table, altered_table,
-		    trx_is_strict(ctx->trx))) {
+		    ha_innobase::is_innodb_strict_mode(ctx->trx->mysql_thd))) {
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
 			ctx->add_index[a]->table = ctx->new_table;
 			error = dict_index_add_to_cache(
@@ -6670,7 +6679,15 @@ error_handling_drop_uncached_1:
 			}
 
 			ctx->add_index[a] = index;
-			if (!info.row_size_is_acceptable(*index)) {
+			/* For ALTER TABLE...FORCE or OPTIMIZE TABLE,
+			we may only issue warnings, because there will
+			be no schema change from the user perspective. */
+			if (!info.row_size_is_acceptable(
+				    *index,
+				    !!(ha_alter_info->handler_flags
+				       & ~(INNOBASE_INPLACE_IGNORE
+					   | INNOBASE_ALTER_NOVALIDATE
+					   | ALTER_RECREATE_TABLE)))) {
 				error = DB_TOO_BIG_RECORD;
 				goto error_handling_drop_uncached_1;
 			}
@@ -6771,7 +6788,7 @@ error_handling_drop_uncached:
 				DBUG_ASSERT(index != ctx->add_index[a]);
 			}
 			ctx->add_index[a]= index;
-			if (!info.row_size_is_acceptable(*index)) {
+			if (!info.row_size_is_acceptable(*index, true)) {
 				error = DB_TOO_BIG_RECORD;
 				goto error_handling_drop_uncached;
 			}
@@ -6824,7 +6841,7 @@ error_handling_drop_uncached:
 			}
 		}
 	} else if (ctx->is_instant()
-		   && !info.row_size_is_acceptable(*user_table)) {
+		   && !info.row_size_is_acceptable(*user_table, true)) {
 		error = DB_TOO_BIG_RECORD;
 		goto error_handling;
 	}

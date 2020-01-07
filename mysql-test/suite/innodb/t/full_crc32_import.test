@@ -139,6 +139,7 @@ CHECK TABLE t1;
 DROP TABLE t1;
 
 SET @save_algo = @@GLOBAL.innodb_compression_algorithm;
+--error 0,ER_WRONG_VALUE_FOR_VAR
 SET GLOBAL innodb_compression_algorithm=2;
 CREATE TABLE t1(a SERIAL) PAGE_COMPRESSED=1 ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
@@ -170,7 +171,7 @@ INSERT INTO t1 VALUES(2);
 SELECT * FROM t1;
 
 
---error 0,1231
+--error 0,ER_WRONG_VALUE_FOR_VAR
 SET GLOBAL innodb_compression_algorithm=3;
 FLUSH TABLE t1 FOR EXPORT;
 --echo # List before copying files

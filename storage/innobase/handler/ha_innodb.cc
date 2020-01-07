@@ -4,7 +4,7 @@ Copyright (c) 2000, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3239,17 +3239,6 @@ trx_is_interrupted(
 	const trx_t*	trx)	/*!< in: transaction */
 {
 	return(trx && trx->mysql_thd && thd_kill_level(trx->mysql_thd));
-}
-
-/**********************************************************************//**
-Determines if the currently running transaction is in strict mode.
-@return TRUE if strict */
-ibool
-trx_is_strict(
-/*==========*/
-	trx_t*	trx)	/*!< in: transaction */
-{
-	return(trx && trx->mysql_thd && THDVAR(trx->mysql_thd, strict_mode));
 }
 
 /**************************************************************//**
@@ -11549,6 +11538,12 @@ create_table_info_t::parse_table_name(
 	DBUG_RETURN(0);
 }
 
+/** @return whether innodb_strict_mode is active */
+bool ha_innobase::is_innodb_strict_mode(THD *thd)
+{
+  return THDVAR(thd, strict_mode);
+}
+
 /** Determine InnoDB table flags.
 If strict_mode=OFF, this will adjust the flags to what should be assumed.
 @retval true on success
@@ -12831,7 +12826,9 @@ int create_table_info_t::create_table(bool create_fk)
 					err, m_flags, NULL));
 	}
 
-	if (!row_size_is_acceptable(*m_table)) {
+	/* In TRUNCATE TABLE, we will merely warn about the maximum
+	row size being too large. */
+	if (!row_size_is_acceptable(*m_table, create_fk)) {
 		DBUG_RETURN(convert_error_code_to_mysql(
 			    DB_TOO_BIG_RECORD, m_flags, NULL));
 	}
@@ -12840,18 +12837,12 @@ int create_table_info_t::create_table(bool create_fk)
 }
 
 bool create_table_info_t::row_size_is_acceptable(
-    const dict_table_t &table) const
+  const dict_table_t &table, bool strict) const
 {
   for (dict_index_t *index= dict_table_get_first_index(&table); index;
        index= dict_table_get_next_index(index))
-  {
-
-    if (!row_size_is_acceptable(*index))
-    {
+    if (!row_size_is_acceptable(*index, strict))
       return false;
-    }
-  }
-
   return true;
 }
 
@@ -13029,7 +13020,7 @@ static void ib_warn_row_too_big(THD *thd, const dict_table_t *table)
 }
 
 bool create_table_info_t::row_size_is_acceptable(
-    const dict_index_t &index) const
+    const dict_index_t &index, bool strict) const
 {
   if ((index.type & DICT_FTS) || index.table->is_system_db)
   {
@@ -13038,7 +13029,7 @@ bool create_table_info_t::row_size_is_acceptable(
     return true;
   }
 
-  const bool strict= THDVAR(m_thd, strict_mode);
+  const bool innodb_strict_mode= THDVAR(m_thd, strict_mode);
   dict_index_t::record_size_info_t info= index.record_size_info();
 
   if (info.row_is_too_big())
@@ -13050,9 +13041,9 @@ bool create_table_info_t::row_size_is_acceptable(
     const dict_field_t *field= dict_index_get_nth_field(&index, idx);
 
     ut_ad((!field->name) == field->col->is_dropped());
-    if (strict || global_system_variables.log_warnings > 2)
+    if (innodb_strict_mode || global_system_variables.log_warnings > 2)
     {
-      ib::error_or_warn eow(strict);
+      ib::error_or_warn eow(strict && innodb_strict_mode);
       if (field->name)
         eow << "Cannot add field " << field->name << " in table ";
       else
@@ -13063,10 +13054,8 @@ bool create_table_info_t::row_size_is_acceptable(
           << info.max_leaf_size << " bytes) for a record on index leaf page.";
     }
 
-    if (strict)
-    {
+    if (strict && innodb_strict_mode)
       return false;
-    }
 
     ib_warn_row_too_big(m_thd, index.table);
   }
