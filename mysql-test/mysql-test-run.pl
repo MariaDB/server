@@ -176,6 +176,7 @@ my @DEFAULT_SUITES= qw(
     archive-
     binlog-
     binlog_encryption-
+    client-
     csv-
     compat/oracle-
     compat/mssql-
@@ -218,6 +219,7 @@ our $exe_mysqladmin;
 our $exe_mysqltest;
 our $exe_libtool;
 our $exe_mysql_embedded;
+our $exe_mariadb_conv;
 
 our $opt_big_test= 0;
 our $opt_staging_run= 0;
@@ -328,7 +330,8 @@ my $opt_valgrind_mysqld= 0;
 my $opt_valgrind_mysqltest= 0;
 my @valgrind_args;
 my $opt_strace= 0;
-my $opt_strace_client;
+my $opt_stracer;
+my $opt_client_strace = 0;
 my @strace_args;
 my $opt_valgrind_path;
 my $valgrind_reports= 0;
@@ -1333,9 +1336,10 @@ sub command_line_setup {
 	     'debugger=s'               => \$opt_debugger,
 	     'boot-dbx'                 => \$opt_boot_dbx,
 	     'client-debugger=s'        => \$opt_client_debugger,
-             'strace'			=> \$opt_strace,
-             'strace-client'            => \$opt_strace_client,
-             'strace-option=s'          => \@strace_args,
+             'strace'              => \$opt_strace,
+             'strace-option=s'     => \@strace_args,
+             'client-strace'       => \$opt_client_strace,
+             'stracer=s'           => \$opt_stracer,
              'max-save-core=i'          => \$opt_max_save_core,
              'max-save-datadir=i'       => \$opt_max_save_datadir,
              'max-test-fail=i'          => \$opt_max_test_fail,
@@ -1786,14 +1790,14 @@ sub command_line_setup {
   $ENV{ASAN_OPTIONS}= "abort_on_error=1:" . ($ENV{ASAN_OPTIONS} || '');
   $ENV{ASAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/asan.supp:" .
     $ENV{ASAN_OPTIONS}
-    if -f "$glob_mysql_test_dir/asan.supp";
+    if -f "$glob_mysql_test_dir/asan.supp" and not IS_WINDOWS;
   # The following can be useful when a test fails without any asan report
   # on stderr like with openssl_1.test
   # $ENV{ASAN_OPTIONS}= "log_path=${opt_vardir}/log/asan:" . $ENV{ASAN_OPTIONS};
 
   # Add leak suppressions
   $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp"
-    if -f "$glob_mysql_test_dir/lsan.supp";
+    if -f "$glob_mysql_test_dir/lsan.supp" and not IS_WINDOWS;
 
   if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || 
        $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd || 
@@ -1817,6 +1821,7 @@ sub command_line_setup {
     # One day for PID file creation (this is given in seconds not minutes)
     $opt_start_timeout= 24 * 60 * 60;
   }
+  mtr_verbose("ASAN_OPTIONS=$ENV{ASAN_OPTIONS}");
 
   # --------------------------------------------------------------------------
   # Modified behavior with --start options
@@ -1947,7 +1952,7 @@ sub command_line_setup {
 	       join(" ", @valgrind_args), "\"");
   }
 
-  if (@strace_args)
+  if (@strace_args || $opt_stracer)
   {
     $opt_strace=1;
   }
@@ -2185,6 +2190,7 @@ sub executable_setup () {
   $exe_mysqladmin=     mtr_exe_exists("$path_client_bindir/mysqladmin");
   $exe_mysql=          mtr_exe_exists("$path_client_bindir/mysql");
   $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mysql_plugin");
+  $exe_mariadb_conv=   mtr_exe_exists("$path_client_bindir/mariadb-conv");
 
   $exe_mysql_embedded= mtr_exe_maybe_exists("$basedir/libmysqld/examples/mysql_embedded");
 
@@ -2439,8 +2445,10 @@ sub environment_setup {
   #
   $ENV{'LC_ALL'}=             "C";
   $ENV{'LC_CTYPE'}=           "C";
-
   $ENV{'LC_COLLATE'}=         "C";
+
+  $ENV{'OPENSSL_CONF'}=       "/dev/null";
+
   $ENV{'USE_RUNNING_SERVER'}= using_extern();
   $ENV{'MYSQL_TEST_DIR'}=     $glob_mysql_test_dir;
   $ENV{'DEFAULT_MASTER_PORT'}= $mysqld_variables{'port'};
@@ -2486,6 +2494,7 @@ sub environment_setup {
   $ENV{'EXE_MYSQL'}=                $exe_mysql;
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
+  $ENV{'MARIADB_CONV'}=             $exe_mariadb_conv;
   if(IS_WINDOWS)
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$opt_vs_config/mysql_install_db");
@@ -4668,6 +4677,8 @@ sub extract_warning_lines ($$) {
      qr/missing DBUG_RETURN/,
      qr/Attempting backtrace/,
      qr/Assertion .* failed/,
+     qr/Sanitizer/,
+     qr/runtime error:/,
     );
   # These are taken from the include/mtr_warnings.sql global suppression
   # list. They occur delayed, so they can be parsed during shutdown rather
@@ -5562,12 +5573,12 @@ sub server_need_restart {
     {
       delete $server->{'restart_opts'};
       my $use_dynamic_option_switch= 0;
-      delete $server->{'restart_opts'};
+      my $restart_opts = delete $server->{'restart_opts'} || [];
       if (!$use_dynamic_option_switch)
       {
 	mtr_verbose_restart($server, "running with different options '" .
 			    join(" ", @{$extra_opts}) . "' != '" .
-			    join(" ", @{$started_opts}) . "'" );
+			    join(" ", @{$started_opts}, @{$restart_opts}) . "'" );
 	return 1;
       }
 
@@ -5896,14 +5907,6 @@ sub start_mysqltest ($) {
     mtr_add_arg($args, "--non-blocking-api");
   }
 
-  if ( $opt_strace_client )
-  {
-    $exe=  $opt_strace_client || "strace";
-    mtr_add_arg($args, "-o");
-    mtr_add_arg($args, "%s/log/mysqltest.strace", $opt_vardir);
-    mtr_add_arg($args, "$exe_mysqltest");
-  }
-
   mtr_add_arg($args, "--timer-file=%s/log/timer", $opt_vardir);
 
   if ( $opt_compress )
@@ -5966,6 +5969,17 @@ sub start_mysqltest ($) {
     my @args_saved = @$args;
     mtr_init_args(\$args);
     valgrind_arguments($args, \$exe);
+    mtr_add_arg($args, "%s", $_) for @args_saved;
+  }
+
+  # ----------------------------------------------------------------------
+  # Prefix the strace options to the argument list.
+  # ----------------------------------------------------------------------
+  if ( $opt_client_strace )
+  {
+    my @args_saved = @$args;
+    mtr_init_args(\$args);
+    strace_arguments($args, \$exe, "mysqltest");
     mtr_add_arg($args, "%s", $_) for @args_saved;
   }
 
@@ -6293,16 +6307,17 @@ sub strace_arguments {
   my $args= shift;
   my $exe=  shift;
   my $mysqld_name= shift;
+  my $output= sprintf("%s/log/%s.strace", $path_vardir_trace, $mysqld_name);
 
   mtr_add_arg($args, "-f");
-  mtr_add_arg($args, "-o%s/var/log/%s.strace", $glob_mysql_test_dir, $mysqld_name);
+  mtr_add_arg($args, "-o%s", $output);
 
-  # Add strace options, can be overridden by user
+  # Add strace options
   mtr_add_arg($args, '%s', $_) for (@strace_args);
 
   mtr_add_arg($args, $$exe);
 
-  $$exe= "strace";
+  $$exe=  $opt_stracer || "strace";
 
   if ($exe_libtool)
   {
@@ -6578,11 +6593,11 @@ Options for valgrind
 Options for strace
 
   strace                Run the "mysqld" executables using strace. Default
-                        options are -f -o var/log/'mysqld-name'.strace
-  strace-option=ARGS    Option to give strace, replaces default option(s),
-  strace-client=[path]  Create strace output for mysqltest client, optionally
-                        specifying name and path to the trace program to use.
-                        Example: $0 --strace-client=ktrace
+                        options are -f -o 'vardir'/log/'mysqld-name'.strace.
+  client-strace         Trace the "mysqltest".
+  strace-option=ARGS    Option to give strace, appends to existing options.
+  stracer=<EXE>         Specify name and path to the trace program to use.
+                        Default is "strace". Example: $0 --stracer=ktrace.
 
 Misc options
   user=USER             User for connecting to mysqld(default: $opt_user)

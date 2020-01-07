@@ -566,8 +566,6 @@ trx_resurrect_table_locks(
 	const trx_undo_t*	undo)	/*!< in: undo log */
 {
 	mtr_t			mtr;
-	page_t*			undo_page;
-	trx_undo_rec_t*		undo_rec;
 	table_id_set		tables;
 
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
@@ -582,11 +580,11 @@ trx_resurrect_table_locks(
 
 	/* trx_rseg_mem_create() may have acquired an X-latch on this
 	page, so we cannot acquire an S-latch. */
-	undo_page = trx_undo_page_get(
+	buf_block_t* block = trx_undo_page_get(
 		page_id_t(trx->rsegs.m_redo.rseg->space->id,
 			  undo->top_page_no), &mtr);
-
-	undo_rec = undo_page + undo->top_offset;
+	buf_block_t* undo_block = block;
+	trx_undo_rec_t* undo_rec = block->frame + undo->top_offset;
 
 	do {
 		ulint		type;
@@ -595,11 +593,9 @@ trx_resurrect_table_locks(
 		ulint		cmpl_info;
 		bool		updated_extern;
 
-		page_t*		undo_rec_page = page_align(undo_rec);
-
-		if (undo_rec_page != undo_page) {
-			mtr.release_page(undo_page, MTR_MEMO_PAGE_X_FIX);
-			undo_page = undo_rec_page;
+		if (undo_block != block) {
+			mtr.memo_release(undo_block, MTR_MEMO_PAGE_X_FIX);
+			undo_block = block;
 		}
 
 		trx_undo_rec_get_pars(
@@ -608,7 +604,7 @@ trx_resurrect_table_locks(
 		tables.insert(table_id);
 
 		undo_rec = trx_undo_get_prev_rec(
-			undo_rec, undo->hdr_page_no,
+			block, page_offset(undo_rec), undo->hdr_page_no,
 			undo->hdr_offset, false, &mtr);
 	} while (undo_rec);
 
@@ -1591,14 +1587,15 @@ void trx_update_persistent_counts(trx_t* trx)
     trx_undo_rec_t* undo_rec;
     mtr_t mtr;
     undo_rec_diff_t undo_rec_diff;
+    buf_block_t* undo_page;
     std::map<table_id_t, int64_t>::iterator it_uncommitted_counts;
 
     undo = trx->rsegs.m_redo.undo;
     if (undo && !uncommitted_counts.empty()) {
         mtr_start(&mtr);
 
-        undo_rec = trx_undo_get_first_rec(undo->rseg->space, undo->hdr_page_no,
-                    undo->hdr_offset, RW_S_LATCH, &mtr);
+        undo_rec = trx_undo_get_first_rec(*undo->rseg->space, undo->hdr_page_no,
+                    undo->hdr_offset, RW_S_LATCH, undo_page, &mtr);
 
         while (undo_rec) {
             undo_rec_get_diff(undo_rec, &undo_rec_diff);
@@ -1608,8 +1605,8 @@ void trx_update_persistent_counts(trx_t* trx)
                 it_uncommitted_counts->second += undo_rec_diff.diff;
             }
 
-            undo_rec = trx_undo_get_next_rec(undo_rec, undo->hdr_page_no,
-                undo->hdr_offset, &mtr);
+            undo_rec = trx_undo_get_next_rec(undo_page, page_offset(undo_rec),
+				undo->hdr_page_no, undo->hdr_offset, &mtr);
         }
         mtr_commit(&mtr);
     }
@@ -2585,14 +2582,15 @@ trx_t::uncommitted_count(const dict_table_t* table) const
     trx_undo_rec_t* undo_rec;
     mtr_t mtr;
     undo_rec_diff_t undo_rec_diff;
+    buf_block_t* undo_page;
     int64_t count = 0;
 
     undo = rsegs.m_redo.undo;
     if (undo) {
 		mtr_start(&mtr);
 
-        undo_rec = trx_undo_get_first_rec(undo->rseg->space, undo->hdr_page_no,
-            undo->hdr_offset, RW_S_LATCH, &mtr);
+        undo_rec = trx_undo_get_first_rec(*undo->rseg->space, undo->hdr_page_no,
+            undo->hdr_offset, RW_S_LATCH, undo_page, &mtr);
 
         while (undo_rec) {
             undo_rec_get_diff(undo_rec, &undo_rec_diff);
@@ -2600,8 +2598,8 @@ trx_t::uncommitted_count(const dict_table_t* table) const
                 count += undo_rec_diff.diff;
             }
 
-            undo_rec = trx_undo_get_next_rec(undo_rec, undo->hdr_page_no,
-                undo->hdr_offset, &mtr);
+            undo_rec = trx_undo_get_next_rec(undo_page, page_offset(undo_rec),
+				undo->hdr_page_no, undo->hdr_offset, &mtr);
         }
         mtr_commit(&mtr);
     }

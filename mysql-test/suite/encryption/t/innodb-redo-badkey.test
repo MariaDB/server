@@ -2,6 +2,10 @@
 -- source include/have_file_key_management_plugin.inc
 # embedded does not support restart
 -- source include/not_embedded.inc
+# MDEV-20839 innodb-redo-badkey sporadically fails on buildbot with page dump
+# We only require a debug build to avoid getting page dumps, making use of
+# MDEV-19766: Disable page dump output in debug builds
+-- source include/have_debug.inc
 
 call mtr.add_suppression("Plugin 'file_key_management'");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");

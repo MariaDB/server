@@ -1,3 +1,5 @@
+SET NAMES utf8;
+
 --echo #
 --echo # WL#2111: GET DIAGNOSTICS tests
 --echo #

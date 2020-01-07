@@ -189,6 +189,7 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
 
 Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
   :Key(rhs,mem_root),
+  constraint_name(rhs.constraint_name),
   ref_db(rhs.ref_db),
   ref_table(rhs.ref_table),
   ref_columns(rhs.ref_columns,mem_root),
@@ -4751,6 +4752,12 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   DBUG_RETURN(error ? NULL : tl->table);
 }
 
+TABLE *get_purge_table(THD *thd)
+{
+  /* see above, at most one table can be opened */
+  DBUG_ASSERT(thd->open_tables == NULL || thd->open_tables->next == NULL);
+  return thd->open_tables;
+}
 
 /** Find an open table in the list of prelocked tabled
 
@@ -4891,7 +4898,9 @@ void destroy_background_thd(MYSQL_THD thd)
      Also preserve current PSI context, since my_thread_end()
      would kill it, if we're not careful.
   */
+#ifdef HAVE_PSI_THREAD_INTERFACE
   auto save_psi_thread= PSI_CALL_get_thread();
+#endif
   PSI_CALL_set_thread(0);
   pthread_setspecific(THR_KEY_mysys, thd_mysys_var);
   my_thread_end();
@@ -5299,6 +5308,18 @@ extern "C" void thd_wait_end(MYSQL_THD thd)
 }
 
 #endif // INNODB_COMPATIBILITY_HOOKS */
+
+
+/**
+  MDL_context accessor
+  @param thd   the current session
+  @return pointer to thd->mdl_context
+*/
+extern "C" void *thd_mdl_context(MYSQL_THD thd)
+{
+  return &thd->mdl_context;
+}
+
 
 /****************************************************************************
   Handling of statement states in functions and triggers.

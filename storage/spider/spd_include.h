@@ -1452,7 +1452,7 @@ typedef struct st_spider_ip_port_conn {
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type key_hash_value;
 #endif
-  char               remote_ip_str[SPIDER_CONN_META_BUF_LEN];
+  char               *remote_ip_str;
   long               remote_port;
   ulong              ip_port_count;
   volatile ulong     waiting_count;

@@ -1,0 +1,102 @@
+*** MDEV-8031: Parallel replication stops on "connection killed" error (probably incorrectly handled deadlock kill) ***
+include/master-slave.inc
+[connection master]
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (201,0), (202,0);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,inject_mdev8031';
+connection server_1;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10200;
+INSERT INTO t3 VALUES (203, 1);
+INSERT INTO t3 VALUES (204, 1);
+INSERT INTO t3 VALUES (205, 1);
+UPDATE t3 SET b=b+1 WHERE a=201;
+UPDATE t3 SET b=b+1 WHERE a=201;
+UPDATE t3 SET b=b+1 WHERE a=201;
+UPDATE t3 SET b=b+1 WHERE a=202;
+UPDATE t3 SET b=b+1 WHERE a=202;
+UPDATE t3 SET b=b+1 WHERE a=202;
+UPDATE t3 SET b=b+1 WHERE a=202;
+UPDATE t3 SET b=b+1 WHERE a=203;
+UPDATE t3 SET b=b+1 WHERE a=203;
+UPDATE t3 SET b=b+1 WHERE a=204;
+UPDATE t3 SET b=b+1 WHERE a=204;
+UPDATE t3 SET b=b+1 WHERE a=204;
+UPDATE t3 SET b=b+1 WHERE a=203;
+UPDATE t3 SET b=b+1 WHERE a=205;
+UPDATE t3 SET b=b+1 WHERE a=205;
+SET SESSION debug_dbug=@old_dbug;
+SELECT * FROM t3 WHERE a>=200 ORDER BY a;
+a	b
+201	3
+202	4
+203	4
+204	4
+205	3
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t3 WHERE a>=200 ORDER BY a;
+a	b
+201	3
+202	4
+203	4
+204	4
+205	3
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_dbug;
+include/start_slave.inc
+*** Check getting deadlock killed inside open_binlog() during retry. ***
+connection server_2;
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,inject_retry_event_group_open_binlog_kill';
+SET @old_max= @@GLOBAL.max_relay_log_size;
+SET GLOBAL max_relay_log_size= 4096;
+connection server_1;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10210;
+Omit long queries that cause relaylog rotations and transaction retries...
+SET SESSION debug_dbug=@old_dbug;
+SELECT * FROM t3 WHERE a>=200 ORDER BY a;
+a	b
+201	6
+202	8
+203	7
+204	7
+205	5
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t3 WHERE a>=200 ORDER BY a;
+a	b
+201	6
+202	8
+203	7
+204	7
+205	5
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_debg;
+SET GLOBAL max_relay_log_size= @old_max;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t3;
+include/rpl_end.inc

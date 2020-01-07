@@ -112,7 +112,17 @@ extern "C" my_bool wsrep_get_debug()
 
 extern "C" my_bool wsrep_thd_is_local(const THD *thd)
 {
-  return thd->wsrep_cs().mode() == wsrep::client_state::m_local;
+  /*
+    async replication IO and background threads have nothing to replicate in the cluster,
+    marking them as non-local here to prevent write set population and replication
+
+    async replication SQL thread, applies client transactions from mariadb master
+    and will be replicated into cluster
+   */
+  return (
+          thd->system_thread != SYSTEM_THREAD_SLAVE_BACKGROUND &&
+          thd->system_thread != SYSTEM_THREAD_SLAVE_IO &&
+          thd->wsrep_cs().mode() == wsrep::client_state::m_local);
 }
 
 extern "C" my_bool wsrep_thd_is_applying(const THD *thd)
@@ -186,18 +196,10 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
   }
 }
 
-extern "C" my_bool wsrep_thd_bf_abort(const THD *bf_thd, THD *victim_thd,
+extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
                                       my_bool signal)
 {
-  /* Note: do not store/reset globals before wsrep_bf_abort() call
-     to avoid losing BF thd context. */
-  if (WSREP(victim_thd) && !victim_thd->wsrep_trx().active())
-  {
-    WSREP_DEBUG("BF abort for non active transaction");
-    wsrep_start_transaction(victim_thd, victim_thd->wsrep_next_trx_id());
-  }
   my_bool ret= wsrep_bf_abort(bf_thd, victim_thd);
-  wsrep_store_threadvars((THD*)bf_thd);
   /*
     Send awake signal if victim was BF aborted or does not
     have wsrep on. Note that this should never interrupt RSU

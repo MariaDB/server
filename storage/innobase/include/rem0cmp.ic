@@ -68,8 +68,8 @@ int
 cmp_rec_rec(
 	const rec_t*		rec1,
 	const rec_t*		rec2,
-	const ulint*		offsets1,
-	const ulint*		offsets2,
+	const offset_t*		offsets1,
+	const offset_t*		offsets2,
 	const dict_index_t*	index,
 	ulint*			matched_fields)
 {

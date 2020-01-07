@@ -57,8 +57,15 @@ buf_flush_note_modification(
 	      || fsp_is_system_temporary(block->page.id.space()));
 	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 	ut_ad(block->page.buf_fix_count > 0);
-	ut_ad(block->page.newest_modification <= end_lsn);
-	block->page.newest_modification = end_lsn;
+	ut_ad(mach_read_from_8(block->frame + FIL_PAGE_LSN) <= end_lsn);
+	mach_write_to_8(block->frame + FIL_PAGE_LSN, end_lsn);
+	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+		compile_time_assert(FIL_PAGE_LSN % 8 == 0);
+		*reinterpret_cast<uint64_t*>(FIL_PAGE_LSN
+					     + block->page.zip.data)
+			= *reinterpret_cast<const uint64_t*>(FIL_PAGE_LSN
+							     + block->frame);
+	}
 
 	/* Don't allow to set flush observer from non-null to null,
 	or from one observer to another. */

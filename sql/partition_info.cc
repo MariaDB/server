@@ -32,9 +32,10 @@
 #include "sql_parse.h"
 #include "sql_acl.h"                          // *_ACL
 #include "sql_base.h"                         // fill_record
-#include "sql_statistics.h"                   // vers_stat_end
-#include "vers_utils.h"
 #include "lock.h"
+#include "table.h"
+#include "sql_class.h"
+#include "vers_string.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -194,49 +195,6 @@ bool partition_info::set_named_partition_bitmap(const char *part_name, size_t le
   bitmap_copy(&lock_partitions, &read_partitions);
   DBUG_RETURN(false);
 }
-
-
-
-/**
-  Prune away partitions not mentioned in the PARTITION () clause,
-  if used.
-
-    @param table_list  Table list pointing to table to prune.
-
-  @return Operation status
-    @retval false Success
-    @retval true  Failure
-*/
-bool partition_info::set_read_partitions(List<char> *partition_names)
-{
-  DBUG_ENTER("partition_info::set_read_partitions");
-  if (!partition_names || !partition_names->elements)
-  {
-    DBUG_RETURN(true);
-  }
-
-  uint num_names= partition_names->elements;
-  List_iterator<char> partition_names_it(*partition_names);
-  uint i= 0;
-  /*
-    TODO: When adding support for FK in partitioned tables, the referenced
-    table must probably lock all partitions for read, and also write depending
-    of ON DELETE/UPDATE.
-  */
-  bitmap_clear_all(&read_partitions);
-
-  /* No check for duplicate names or overlapping partitions/subpartitions. */
-
-  DBUG_PRINT("info", ("Searching through partition_name_hash"));
-  do
-  {
-    char *part_name= partition_names_it++;
-    if (add_named_partition(part_name, strlen(part_name)))
-      DBUG_RETURN(true);
-  } while (++i < num_names);
-  DBUG_RETURN(false);
-}
-
 
 
 /**
@@ -446,7 +404,15 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
   bool result= TRUE;
   DBUG_ENTER("partition_info::set_up_default_partitions");
 
-  if (part_type != HASH_PARTITION)
+  if (part_type == VERSIONING_PARTITION)
+  {
+    if (use_default_num_partitions)
+    {
+      num_parts= 2;
+      use_default_num_partitions= false;
+    }
+  }
+  else if (part_type != HASH_PARTITION)
   {
     const char *error_string;
     if (part_type == RANGE_PARTITION)
@@ -482,7 +448,17 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
     {
       part_elem->engine_type= default_engine_type;
       part_elem->partition_name= default_name;
+      part_elem->id= i;
       default_name+=MAX_PART_NAME_SIZE;
+      if (part_type == VERSIONING_PARTITION)
+      {
+        if (i < num_parts - 1) {
+          part_elem->type= partition_element::HISTORY;
+        } else {
+          part_elem->type= partition_element::CURRENT;
+          part_elem->partition_name= "pn";
+        }
+      }
     }
     else
       goto end;
@@ -587,8 +563,9 @@ bool partition_info::set_up_defaults_for_partitioning(THD *thd, handler *file,
   if (!default_partitions_setup)
   {
     default_partitions_setup= TRUE;
-    if (use_default_partitions)
-      DBUG_RETURN(set_up_default_partitions(thd, file, info, start_no));
+    if (use_default_partitions &&
+        set_up_default_partitions(thd, file, info, start_no))
+      DBUG_RETURN(TRUE);
     if (is_sub_partitioned() && 
         use_default_subpartitions)
       DBUG_RETURN(set_up_default_subpartitions(thd, file, info));
@@ -830,6 +807,15 @@ bool partition_info::has_unique_name(partition_element *element)
   DBUG_RETURN(TRUE);
 }
 
+
+/**
+  @brief Switch history partition according limit or interval
+
+  @note
+    vers_info->limit      Limit by number of partition records
+    vers_info->interval   Limit by fixed time interval
+    vers_info->hist_part  (out) Working history partition
+*/
 void partition_info::vers_set_hist_part(THD *thd)
 {
   if (vers_info->limit)
@@ -848,7 +834,7 @@ void partition_info::vers_set_hist_part(THD *thd)
       vers_info->hist_part= next;
       records= next_records;
     }
-    if (records > vers_info->limit)
+    if (records >= vers_info->limit)
     {
       if (next == vers_info->now_part)
       {
@@ -882,49 +868,6 @@ void partition_info::vers_set_hist_part(THD *thd)
             table->s->db.str, table->s->table_name.str,
             vers_info->hist_part->partition_name, "INTERVAL");
   }
-}
-
-
-bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
-{
-  if (!table->versioned())
-  {
-    // frm must be corrupted, normally CREATE/ALTER TABLE checks for that
-    my_error(ER_FILE_CORRUPT, MYF(0), table->s->path.str);
-    return true;
-  }
-
-  DBUG_ASSERT(part_type == VERSIONING_PARTITION);
-  DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
-
-  if (!alter_add)
-  {
-    Field *row_end= table->vers_end_field();
-    // needed in handle_list_of_fields()
-    row_end->flags|= GET_FIXED_FIELDS_FLAG;
-    Name_resolution_context *context= &thd->lex->current_select->context;
-    Item *row_end_item= new (thd->mem_root) Item_field(thd, context, row_end);
-    Item *row_end_ts= new (thd->mem_root) Item_func_unix_timestamp(thd, row_end_item);
-    set_part_expr(thd, row_end_ts, false);
-  }
-
-  if (alter_add)
-  {
-    List_iterator<partition_element> it(partitions);
-    partition_element *el;
-    for(uint32 id= 0; ((el= it++)); id++)
-    {
-      DBUG_ASSERT(el->type != partition_element::CONVENTIONAL);
-      /* Newly added element is inserted before AS_OF_NOW. */
-      if (el->id == UINT_MAX32 || el->type == partition_element::CURRENT)
-      {
-        el->id= id;
-        if (el->type == partition_element::CURRENT)
-          break;
-      }
-    }
-  }
-  return false;
 }
 
 
@@ -1191,7 +1134,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
                  part_type == LIST_PARTITION ||
                  part_type == VERSIONING_PARTITION))))
   {
-    /* Only RANGE and LIST partitioning can be subpartitioned */
+    /* Only RANGE, LIST and SYSTEM_TIME partitioning can be subpartitioned */
     my_error(ER_SUBPARTITION_ERROR, MYF(0));
     goto end;
   }
@@ -1255,7 +1198,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   if (part_type == VERSIONING_PARTITION)
   {
     DBUG_ASSERT(vers_info);
-    if (num_parts < 2 || !vers_info->now_part)
+    if (num_parts < 2 || !(use_default_partitions || vers_info->now_part))
     {
       DBUG_ASSERT(info);
       DBUG_ASSERT(info->alias.str);
@@ -1405,9 +1348,8 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
 
   if (add_or_reorg_part)
   {
-    if (unlikely(part_type == VERSIONING_PARTITION &&
-                 vers_setup_expression(thd, add_or_reorg_part->partitions.elements)))
-      goto end;
+    if (part_type == VERSIONING_PARTITION && add_or_reorg_part->partitions.elements)
+      vers_update_el_ids();
     if (check_constants(thd, this))
       goto end;
   }

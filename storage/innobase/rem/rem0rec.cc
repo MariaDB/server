@@ -231,24 +231,6 @@ rec_get_n_extern_new(
 	return(n_extern);
 }
 
-/** Get the added field count in a REC_STATUS_INSTANT record.
-@param[in,out]	header	variable header of a REC_STATUS_INSTANT record
-@return	number of added fields */
-static inline unsigned rec_get_n_add_field(const byte*& header)
-{
-	unsigned n_fields_add = *--header;
-	if (n_fields_add < 0x80) {
-		ut_ad(rec_get_n_add_field_len(n_fields_add) == 1);
-		return n_fields_add;
-	}
-
-	n_fields_add &= 0x7f;
-	n_fields_add |= unsigned(*--header) << 7;
-	ut_ad(n_fields_add < REC_MAX_N_FIELDS);
-	ut_ad(rec_get_n_add_field_len(n_fields_add) == 2);
-	return n_fields_add;
-}
-
 /** Format of a leaf-page ROW_FORMAT!=REDUNDANT record */
 enum rec_leaf_format {
 	/** Temporary file record */
@@ -278,13 +260,13 @@ void
 rec_init_offsets_comp_ordinary(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	ulint*			offsets,
+	offset_t*		offsets,
 	ulint			n_core,
 	const dict_col_t::def_t*def_val,
 	rec_leaf_format		format)
 {
-	ulint		offs		= 0;
-	ulint		any		= 0;
+	offset_t	offs		= 0;
+	offset_t	any		= 0;
 	const byte*	nulls		= rec;
 	const byte*	lens		= NULL;
 	ulint		n_fields	= n_core;
@@ -353,14 +335,16 @@ ordinary:
 	}
 
 start:
+#ifdef UNIV_DEBUG
 	/* We cannot invoke rec_offs_make_valid() if format==REC_LEAF_TEMP.
 	Similarly, rec_offs_validate() will fail in that case, because
 	it invokes rec_get_status(). */
-	ut_d(offsets[2] = ulint(rec));
-	ut_d(offsets[3] = ulint(index));
+	memcpy(&offsets[RECORD_OFFSET], &rec, sizeof(rec));
+	memcpy(&offsets[INDEX_OFFSET], &index, sizeof(index));
+#endif /* UNIV_DEBUG */
 
 	/* read the lengths of fields 0..n_fields */
-	ulint len;
+	offset_t len;
 	ulint i = 0;
 	const dict_field_t* field = index->fields;
 
@@ -368,12 +352,12 @@ start:
 		if (mblob) {
 			if (i == index->first_user_field()) {
 				offs += FIELD_REF_SIZE;
-				len = offs | REC_OFFS_EXTERNAL;
+				len = combine(offs, STORED_OFFPAGE);
 				any |= REC_OFFS_EXTERNAL;
 				field--;
 				continue;
 			} else if (i >= n_fields) {
-				len = offs | REC_OFFS_DEFAULT;
+				len = combine(offs, DEFAULT);
 				any |= REC_OFFS_DEFAULT;
 				continue;
 			}
@@ -382,20 +366,21 @@ start:
 		} else if (!mblob && def_val) {
 			const dict_col_t::def_t& d = def_val[i - n_core];
 			if (!d.data) {
-				len = offs | REC_OFFS_SQL_NULL;
+				len = combine(offs, SQL_NULL);
 				ut_ad(d.len == UNIV_SQL_NULL);
 			} else {
-				len = offs | REC_OFFS_DEFAULT;
+				len = combine(offs, DEFAULT);
 				any |= REC_OFFS_DEFAULT;
 			}
 
 			continue;
 		} else {
-			if (!index->instant_field_value(i, &len)) {
-				ut_ad(len == UNIV_SQL_NULL);
-				len = offs | REC_OFFS_SQL_NULL;
+			ulint dlen;
+			if (!index->instant_field_value(i, &dlen)) {
+				len = combine(offs, SQL_NULL);
+				ut_ad(dlen == UNIV_SQL_NULL);
 			} else {
-				len = offs | REC_OFFS_DEFAULT;
+				len = combine(offs, DEFAULT);
 				any |= REC_OFFS_DEFAULT;
 			}
 
@@ -419,7 +404,7 @@ start:
 				We do not advance offs, and we set
 				the length to zero and enable the
 				SQL NULL flag in offsets[]. */
-				len = offs | REC_OFFS_SQL_NULL;
+				len = combine(offs, SQL_NULL);
 				continue;
 			}
 			null_mask <<= 1;
@@ -442,11 +427,11 @@ start:
 				len <<= 8;
 				len |= *lens--;
 
-				offs += len & 0x3fff;
+				offs += get_value(len);
 				if (UNIV_UNLIKELY(len & 0x4000)) {
 					ut_ad(dict_index_is_clust(index));
 					any |= REC_OFFS_EXTERNAL;
-					len = offs | REC_OFFS_EXTERNAL;
+					len = combine(offs, STORED_OFFPAGE);
 				} else {
 					len = offs;
 				}
@@ -462,7 +447,7 @@ start:
 		 i < rec_offs_n_fields(offsets));
 
 	*rec_offs_base(offsets)
-		= ulint(rec - (lens + 1)) | REC_OFFS_COMPACT | any;
+		= static_cast<offset_t>(rec - (lens + 1)) | REC_OFFS_COMPACT | any;
 }
 
 #ifdef UNIV_DEBUG
@@ -476,7 +461,7 @@ rec_offs_make_valid(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	bool			leaf,
-	ulint*			offsets)
+	offset_t*		offsets)
 {
 	const bool is_alter_metadata = leaf
 		&& rec_is_alter_metadata(rec, *index);
@@ -500,10 +485,10 @@ rec_offs_make_valid(
 	for (; n < rec_offs_n_fields(offsets); n++) {
 		ut_ad(leaf);
 		ut_ad(is_alter_metadata
-		      || rec_offs_base(offsets)[1 + n] & REC_OFFS_DEFAULT);
+		      || get_type(rec_offs_base(offsets)[1 + n]) == DEFAULT);
 	}
-	offsets[2] = ulint(rec);
-	offsets[3] = ulint(index);
+	memcpy(&offsets[RECORD_OFFSET], &rec, sizeof(rec));
+	memcpy(&offsets[INDEX_OFFSET], &index, sizeof(index));
 }
 
 /** Validate offsets returned by rec_get_offsets().
@@ -515,14 +500,14 @@ bool
 rec_offs_validate(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	const ulint*		offsets)
+	const offset_t*		offsets)
 {
 	ulint	i	= rec_offs_n_fields(offsets);
 	ulint	last	= ULINT_MAX;
 	ulint	comp	= *rec_offs_base(offsets) & REC_OFFS_COMPACT;
 
 	if (rec) {
-		ut_ad(ulint(rec) == offsets[2]);
+		ut_ad(!memcmp(&rec, &offsets[RECORD_OFFSET], sizeof(rec)));
 		if (!comp) {
 			const bool is_user_rec = rec_get_heap_no_old(rec)
 				>= PAGE_HEAP_NO_USER_LOW;
@@ -534,14 +519,14 @@ rec_offs_validate(
 			      || (n + (index->id == DICT_INDEXES_ID))
 			      >= index->n_core_fields);
 			for (; n < i; n++) {
-				ut_ad(rec_offs_base(offsets)[1 + n]
-				      & REC_OFFS_DEFAULT);
+				ut_ad(get_type(rec_offs_base(offsets)[1 + n])
+				      == DEFAULT);
 			}
 		}
 	}
 	if (index) {
-		ut_ad(ulint(index) == offsets[3]);
-		ulint max_n_fields = ut_max(
+		ut_ad(!memcmp(&index, &offsets[INDEX_OFFSET], sizeof(index)));
+		ulint max_n_fields = std::max(
 			dict_index_get_n_fields(index),
 			dict_index_get_n_unique_in_tree(index) + 1);
 		if (comp && rec) {
@@ -576,7 +561,7 @@ rec_offs_validate(
 		ut_ad(!index->n_def || i <= max_n_fields);
 	}
 	while (i--) {
-		ulint	curr = rec_offs_base(offsets)[1 + i] & REC_OFFS_MASK;
+		ulint curr = get_value(rec_offs_base(offsets)[1 + i]);
 		ut_ad(curr <= last);
 		last = curr;
 	}
@@ -593,10 +578,9 @@ to the extra size (if REC_OFFS_COMPACT is set, the record is in the
 new format; if REC_OFFS_EXTERNAL is set, the record contains externally
 stored columns), and rec_offs_base(offsets)[1..n_fields] will be set to
 offsets past the end of fields 0..n_fields, or to the beginning of
-fields 1..n_fields+1.  When the high-order bit of the offset at [i+1]
-is set (REC_OFFS_SQL_NULL), the field i is NULL.  When the second
-high-order bit of the offset at [i+1] is set (REC_OFFS_EXTERNAL), the
-field i is being stored externally.
+fields 1..n_fields+1.  When the type of the offset at [i+1]
+is (SQL_NULL), the field i is NULL. When the type of the offset at [i+1]
+is (STORED_OFFPAGE), the field i is stored externally.
 @param[in]	rec	record
 @param[in]	index	the index that the record belongs in
 @param[in]	leaf	whether the record resides in a leaf page
@@ -607,10 +591,10 @@ rec_init_offsets(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	bool			leaf,
-	ulint*			offsets)
+	offset_t*		offsets)
 {
 	ulint	i	= 0;
-	ulint	offs;
+	offset_t	offs;
 
 	/* This assertion was relaxed for the btr_cur_open_at_index_side()
 	call in btr_cur_instant_init_low(). We cannot invoke
@@ -619,8 +603,8 @@ rec_init_offsets(
 	dict_table_t::deserialise_mblob(). */
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable)
 	      || index->in_instant_init);
-	ut_d(offsets[2] = ulint(rec));
-	ut_d(offsets[3] = ulint(index));
+	ut_d(memcpy(&offsets[RECORD_OFFSET], &rec, sizeof(rec)));
+	ut_d(memcpy(&offsets[INDEX_OFFSET], &index, sizeof(index)));
 
 	if (dict_table_is_comp(index->table)) {
 		const byte*	nulls;
@@ -678,7 +662,7 @@ rec_init_offsets(
 
 		/* read the lengths of fields 0..n */
 		do {
-			ulint	len;
+			offset_t len;
 			if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
 				len = offs += REC_NODE_PTR_SIZE;
 				goto resolved;
@@ -700,7 +684,7 @@ rec_init_offsets(
 					We do not advance offs, and we set
 					the length to zero and enable the
 					SQL NULL flag in offsets[]. */
-					len = offs | REC_OFFS_SQL_NULL;
+					len = combine(offs, SQL_NULL);
 					goto resolved;
 				}
 				null_mask <<= 1;
@@ -732,7 +716,7 @@ rec_init_offsets(
 						stored columns.  Thus
 						the "e" flag must be 0. */
 						ut_a(!(len & 0x4000));
-						offs += len & 0x3fff;
+						offs += get_value(len);
 						len = offs;
 
 						goto resolved;
@@ -748,39 +732,40 @@ resolved:
 		} while (++i < rec_offs_n_fields(offsets));
 
 		*rec_offs_base(offsets)
-			= ulint(rec - (lens + 1)) | REC_OFFS_COMPACT;
+			= static_cast<offset_t>(rec - (lens + 1))
+			  | REC_OFFS_COMPACT;
 	} else {
 		/* Old-style record: determine extra size and end offsets */
 		offs = REC_N_OLD_EXTRA_BYTES;
 		const ulint n_fields = rec_get_n_fields_old(rec);
 		const ulint n = std::min(n_fields, rec_offs_n_fields(offsets));
-		ulint any;
+		offset_t any;
 
 		if (rec_get_1byte_offs_flag(rec)) {
-			offs += n_fields;
+			offs += static_cast<offset_t>(n_fields);
 			any = offs;
 			/* Determine offsets to fields */
 			do {
 				offs = rec_1_get_field_end_info(rec, i);
 				if (offs & REC_1BYTE_SQL_NULL_MASK) {
 					offs &= ~REC_1BYTE_SQL_NULL_MASK;
-					offs |= REC_OFFS_SQL_NULL;
+					set_type(offs, SQL_NULL);
 				}
 				rec_offs_base(offsets)[1 + i] = offs;
 			} while (++i < n);
 		} else {
-			offs += 2 * n_fields;
+			offs += 2 * static_cast<offset_t>(n_fields);
 			any = offs;
 			/* Determine offsets to fields */
 			do {
 				offs = rec_2_get_field_end_info(rec, i);
 				if (offs & REC_2BYTE_SQL_NULL_MASK) {
 					offs &= ~REC_2BYTE_SQL_NULL_MASK;
-					offs |= REC_OFFS_SQL_NULL;
+					set_type(offs, SQL_NULL);
 				}
 				if (offs & REC_2BYTE_EXTERN_MASK) {
 					offs &= ~REC_2BYTE_EXTERN_MASK;
-					offs |= REC_OFFS_EXTERNAL;
+					set_type(offs, STORED_OFFPAGE);
 					any |= REC_OFFS_EXTERNAL;
 				}
 				rec_offs_base(offsets)[1 + i] = offs;
@@ -792,8 +777,8 @@ resolved:
 			      || i + (index->id == DICT_INDEXES_ID)
 			      == rec_offs_n_fields(offsets));
 
-			offs = (rec_offs_base(offsets)[i] & REC_OFFS_MASK)
-				| REC_OFFS_DEFAULT;
+			ut_ad(i != 0);
+			offs = combine(rec_offs_base(offsets)[i], DEFAULT);
 
 			do {
 				rec_offs_base(offsets)[1 + i] = offs;
@@ -816,11 +801,11 @@ resolved:
 				(ULINT_UNDEFINED to compute all offsets)
 @param[in,out]	heap		memory heap
 @return the new offsets */
-ulint*
+offset_t*
 rec_get_offsets_func(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	ulint*			offsets,
+	offset_t*		offsets,
 	bool			leaf,
 	ulint			n_fields,
 #ifdef UNIV_DEBUG
@@ -906,21 +891,22 @@ rec_get_offsets_func(
 	if (UNIV_UNLIKELY(!offsets)
 	    || UNIV_UNLIKELY(rec_offs_get_n_alloc(offsets) < size)) {
 		if (UNIV_UNLIKELY(!*heap)) {
-			*heap = mem_heap_create_at(size * sizeof(ulint),
+			*heap = mem_heap_create_at(size * sizeof(*offsets),
 						   file, line);
 		}
-		offsets = static_cast<ulint*>(
-			mem_heap_alloc(*heap, size * sizeof(ulint)));
+		offsets = static_cast<offset_t*>(
+			mem_heap_alloc(*heap, size * sizeof(*offsets)));
 
 		rec_offs_set_n_alloc(offsets, size);
 	}
 
 	rec_offs_set_n_fields(offsets, n);
 
-	if (UNIV_UNLIKELY(alter_metadata)
-	    && dict_table_is_comp(index->table)) {
-		ut_d(offsets[2] = ulint(rec));
-		ut_d(offsets[3] = ulint(index));
+	if (UNIV_UNLIKELY(alter_metadata) && index->table->not_redundant()) {
+#ifdef UNIV_DEBUG
+		memcpy(&offsets[RECORD_OFFSET], &rec, sizeof rec);
+		memcpy(&offsets[INDEX_OFFSET], &index, sizeof index);
+#endif /* UNIV_DEBUG */
 		ut_ad(leaf);
 		ut_ad(index->is_dummy || index->table->instant);
 		ut_ad(index->is_dummy || index->is_instant());
@@ -949,13 +935,13 @@ rec_get_offsets_reverse(
 	const dict_index_t*	index,	/*!< in: record descriptor */
 	ulint			node_ptr,/*!< in: nonzero=node pointer,
 					0=leaf node */
-	ulint*			offsets)/*!< in/out: array consisting of
+	offset_t*		offsets)/*!< in/out: array consisting of
 					offsets[0] allocated elements */
 {
 	ulint		n;
 	ulint		i;
-	ulint		offs;
-	ulint		any_ext;
+	offset_t	offs;
+	offset_t	any_ext = 0;
 	const byte*	nulls;
 	const byte*	lens;
 	dict_field_t*	field;
@@ -981,11 +967,10 @@ rec_get_offsets_reverse(
 	lens = nulls + UT_BITS_IN_BYTES(index->n_nullable);
 	i = offs = 0;
 	null_mask = 1;
-	any_ext = 0;
 
 	/* read the lengths of fields 0..n */
 	do {
-		ulint	len;
+		offset_t len;
 		if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
 			len = offs += REC_NODE_PTR_SIZE;
 			goto resolved;
@@ -1006,7 +991,7 @@ rec_get_offsets_reverse(
 				We do not advance offs, and we set
 				the length to zero and enable the
 				SQL NULL flag in offsets[]. */
-				len = offs | REC_OFFS_SQL_NULL;
+				len = combine(offs, SQL_NULL);
 				goto resolved;
 			}
 			null_mask <<= 1;
@@ -1030,10 +1015,11 @@ rec_get_offsets_reverse(
 					len <<= 8;
 					len |= *lens++;
 
-					offs += len & 0x3fff;
+					offs += get_value(len);
 					if (UNIV_UNLIKELY(len & 0x4000)) {
 						any_ext = REC_OFFS_EXTERNAL;
-						len = offs | REC_OFFS_EXTERNAL;
+						len = combine(offs,
+							      STORED_OFFPAGE);
 					} else {
 						len = offs;
 					}
@@ -1044,15 +1030,16 @@ rec_get_offsets_reverse(
 
 			len = offs += len;
 		} else {
-			len = offs += field->fixed_len;
+			len = offs += static_cast<offset_t>(field->fixed_len);
 		}
 resolved:
 		rec_offs_base(offsets)[i + 1] = len;
 	} while (++i < rec_offs_n_fields(offsets));
 
 	ut_ad(lens >= extra);
-	*rec_offs_base(offsets) = (ulint(lens - extra) + REC_N_NEW_EXTRA_BYTES)
-		| REC_OFFS_COMPACT | any_ext;
+	*rec_offs_base(offsets)
+		= static_cast<offset_t>(lens - extra + REC_N_NEW_EXTRA_BYTES)
+		  | REC_OFFS_COMPACT | any_ext;
 }
 
 /************************************************************//**
@@ -1803,7 +1790,7 @@ void
 rec_init_offsets_temp(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	ulint*			offsets,
+	offset_t*		offsets,
 	ulint			n_core,
 	const dict_col_t::def_t*def_val,
 	rec_comp_status_t	status)
@@ -1829,7 +1816,7 @@ void
 rec_init_offsets_temp(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	ulint*			offsets)
+	offset_t*		offsets)
 {
 	ut_ad(!index->is_instant());
 	rec_init_offsets_comp_ordinary(rec, index, offsets,
@@ -1872,8 +1859,8 @@ rec_copy_prefix_to_dtuple(
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {
-	ulint	offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*	offsets	= offsets_;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets	= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(is_leaf || n_fields
@@ -2171,7 +2158,7 @@ ibool
 rec_validate(
 /*=========*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ulint		len;
 	ulint		n_fields;
@@ -2280,7 +2267,7 @@ rec_print_comp(
 /*===========*/
 	FILE*		file,	/*!< in: file where to print */
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ulint	i;
 
@@ -2406,7 +2393,7 @@ rec_print_mbr_rec(
 /*==============*/
 	FILE*		file,	/*!< in: file where to print */
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 	ut_ad(!rec_offs_any_default(offsets));
@@ -2474,7 +2461,7 @@ rec_print_new(
 /*==========*/
 	FILE*		file,	/*!< in: file where to print */
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 
@@ -2514,7 +2501,7 @@ rec_print(
 		return;
 	} else {
 		mem_heap_t*	heap	= NULL;
-		ulint		offsets_[REC_OFFS_NORMAL_SIZE];
+		offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
 		rec_offs_init(offsets_);
 
 		rec_print_new(file, rec,
@@ -2537,7 +2524,7 @@ rec_print(
 	std::ostream&	o,
 	const rec_t*	rec,
 	ulint		info,
-	const ulint*	offsets)
+	const offset_t*	offsets)
 {
 	const ulint	comp	= rec_offs_comp(offsets);
 	const ulint	n	= rec_offs_n_fields(offsets);
@@ -2594,7 +2581,7 @@ std::ostream&
 operator<<(std::ostream& o, const rec_index_print& r)
 {
 	mem_heap_t*	heap	= NULL;
-	ulint*		offsets	= rec_get_offsets(
+	offset_t*	offsets	= rec_get_offsets(
 		r.m_rec, r.m_index, NULL, page_rec_is_leaf(r.m_rec),
 		ULINT_UNDEFINED, &heap);
 	rec_print(o, r.m_rec,
@@ -2630,9 +2617,9 @@ rec_get_trx_id(
 	const byte*	trx_id;
 	ulint		len;
 	mem_heap_t*	heap		= NULL;
-	ulint offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+	offset_t offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 	rec_offs_init(offsets_);
-	ulint* offsets = offsets_;
+	offset_t* offsets = offsets_;
 
 	offsets = rec_get_offsets(rec, index, offsets, true,
 				  index->db_trx_id() + 1, &heap);
@@ -2654,11 +2641,11 @@ rec_get_trx_id(
 @param[in]	n		nth field */
 void
 rec_offs_make_nth_extern(
-	ulint*		offsets,
+	offset_t*	offsets,
 	const ulint	n)
 {
 	ut_ad(!rec_offs_nth_sql_null(offsets, n));
-	rec_offs_base(offsets)[1 + n] |= REC_OFFS_EXTERNAL;
+	set_type(rec_offs_base(offsets)[1 + n], STORED_OFFPAGE);
 }
 #ifdef WITH_WSREP
 # include "ha_prototypes.h"
@@ -2678,8 +2665,8 @@ wsrep_rec_get_foreign_key(
 	ulint		i;
 	uint            key_parts;
 	mem_heap_t*	heap	= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-        const ulint*    offsets;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	const offset_t* offsets;
 
 	ut_ad(index_for);
 	ut_ad(index_ref);

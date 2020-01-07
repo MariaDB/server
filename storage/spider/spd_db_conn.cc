@@ -5975,6 +5975,7 @@ int spider_db_bulk_insert_init(
 int spider_db_bulk_insert(
   ha_spider *spider,
   TABLE *table,
+  ha_copy_info *copy_info,
   bool bulk_end
 ) {
   int error_num, first_insert_link_idx = -1;
@@ -6021,6 +6022,7 @@ int spider_db_bulk_insert(
     if (!spider->is_bulk_access_clone)
     {
 #endif
+      bool insert_info = FALSE;
       for (
         roop_count2 = spider_conn_link_idx_next(share->link_statuses,
           spider->conn_link_idx, -1, share->link_count,
@@ -6169,6 +6171,11 @@ int spider_db_bulk_insert(
         }
         conn->mta_conn_mutex_lock_already = mta_conn_mutex_lock_already_backup;
         conn->mta_conn_mutex_unlock_later = mta_conn_mutex_unlock_later_backup;
+        if (!insert_info && copy_info)
+        {
+          insert_info =
+            conn->db_conn->inserted_info(dbton_handler, copy_info);
+        }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
         if (conn->conn_kind != SPIDER_CONN_KIND_MYSQL)
         {
@@ -6922,7 +6929,8 @@ int spider_db_direct_update(
   TABLE *table,
   KEY_MULTI_RANGE *ranges,
   uint range_count,
-  ha_rows *update_rows
+  ha_rows *update_rows,
+  ha_rows *found_rows
 ) {
   int error_num, roop_count;
   SPIDER_SHARE *share = spider->share;
@@ -7195,6 +7203,8 @@ int spider_db_direct_update(
         {
           *update_rows = spider->conns[roop_count]->db_conn->affected_rows();
           DBUG_PRINT("info", ("spider update_rows = %llu", *update_rows));
+          *found_rows = spider->conns[roop_count]->db_conn->matched_rows();
+          DBUG_PRINT("info", ("spider found_rows = %llu", *found_rows));
           counted = TRUE;
         }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -7216,6 +7226,8 @@ int spider_db_direct_update(
           {
             *update_rows = conn->db_conn->affected_rows();
             DBUG_PRINT("info", ("spider update_rows = %llu", *update_rows));
+            *found_rows = conn->db_conn->matched_rows();
+            DBUG_PRINT("info", ("spider found_rows = %llu", *found_rows));
             counted = TRUE;
           }
           result->free_result();
@@ -7253,7 +7265,8 @@ int spider_db_direct_update(
 int spider_db_direct_update(
   ha_spider *spider,
   TABLE *table,
-  ha_rows *update_rows
+  ha_rows *update_rows,
+  ha_rows *found_rows
 ) {
   int error_num, roop_count;
   SPIDER_SHARE *share = spider->share;
@@ -7446,6 +7459,8 @@ int spider_db_direct_update(
       {
         *update_rows = spider->conns[roop_count]->db_conn->affected_rows();
         DBUG_PRINT("info", ("spider update_rows = %llu", *update_rows));
+        *found_rows = spider->conns[roop_count]->db_conn->matched_rows();
+        DBUG_PRINT("info", ("spider found_rows = %llu", *found_rows));
         counted = TRUE;
       }
 #ifdef HA_CAN_BULK_ACCESS
@@ -7465,7 +7480,8 @@ int spider_db_direct_update(
 #ifdef HA_CAN_BULK_ACCESS
 int spider_db_bulk_direct_update(
   ha_spider *spider,
-  ha_rows *update_rows
+  ha_rows *update_rows,
+  ha_rows *found_rows
 ) {
   int error_num = 0, roop_count, tmp_error_num;
   SPIDER_SHARE *share = spider->share;
@@ -7510,6 +7526,8 @@ int spider_db_bulk_direct_update(
       {
         *update_rows = spider->conns[roop_count]->db_conn->affected_rows();
         DBUG_PRINT("info", ("spider update_rows = %llu", *update_rows));
+        *found_rows = spider->conns[roop_count]->db_conn->matched_rows();
+        DBUG_PRINT("info", ("spider found_rows = %llu", *found_rows));
         counted = TRUE;
       }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -7531,6 +7549,8 @@ int spider_db_bulk_direct_update(
         {
           *update_rows = conn->db_conn->affected_rows();
           DBUG_PRINT("info", ("spider update_rows = %llu", *update_rows));
+          *found_rows = conn->db_conn->matched_rows();
+          DBUG_PRINT("info", ("spider found_rows = %llu", *found_rows));
           counted = TRUE;
         }
         result->free_result();

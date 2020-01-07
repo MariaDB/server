@@ -2470,8 +2470,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         table->table= 0;
       }
       else
-        tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table->db.str, table->table_name.str,
-                         false);
+        tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table->db.str,
+                         table->table_name.str);
 
       /* Check that we have an exclusive lock on the table to be dropped. */
       DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db.str,
@@ -4315,10 +4315,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         continue;
 
       {
-        /* Check that there's no repeating constraint names. */
+        /* Check that there's no repeating table CHECK constraint names. */
         List_iterator_fast<Virtual_column_info>
           dup_it(alter_info->check_constraint_list);
-        Virtual_column_info *dup_check;
+        const Virtual_column_info *dup_check;
         while ((dup_check= dup_it++) && dup_check != check)
         {
           if (!lex_string_cmp(system_charset_info,
@@ -4327,6 +4327,27 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
             my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
             DBUG_RETURN(TRUE);
           }
+        }
+      }
+
+      /* Check that there's no repeating key constraint names. */
+      List_iterator_fast<Key> key_it(alter_info->key_list);
+      while (const Key *key= key_it++)
+      {
+        /*
+          Not all keys considered to be the CONSTRAINT
+          Noly Primary Key UNIQUE and Foreign keys.
+        */
+        if (key->type != Key::PRIMARY && key->type != Key::UNIQUE &&
+            key->type != Key::FOREIGN_KEY)
+          continue;
+
+        if (check->name.length == key->name.length &&
+            my_strcasecmp(system_charset_info,
+              check->name.str, key->name.str) == 0)
+        {
+          my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
+          DBUG_RETURN(TRUE);
         }
       }
 
@@ -5652,6 +5673,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   local_create_info.init(create_info->create_like_options());
   local_create_info.db_type= src_table->table->s->db_type();
   local_create_info.row_type= src_table->table->s->row_type;
+  local_create_info.alter_info= &local_alter_info;
   if (mysql_prepare_alter_table(thd, src_table->table, &local_create_info,
                                 &local_alter_info, &local_alter_ctx))
     goto err;
@@ -7625,8 +7647,7 @@ static bool mysql_inplace_alter_table(THD *thd,
       goto cleanup;
 
     tdc_remove_table(thd, TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE,
-                     table->s->db.str, table->s->table_name.str,
-                     false);
+                     table->s->db.str, table->s->table_name.str);
   }
 
   /*
@@ -7820,7 +7841,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   {
     // Remove TABLE and TABLE_SHARE for old name from TDC.
     tdc_remove_table(thd, TDC_RT_REMOVE_ALL,
-                     alter_ctx->db.str, alter_ctx->table_name.str, false);
+                     alter_ctx->db.str, alter_ctx->table_name.str);
 
     if (mysql_rename_table(db_type, &alter_ctx->db, &alter_ctx->table_name,
                            &alter_ctx->new_db, &alter_ctx->new_alias, 0))
@@ -8666,6 +8687,35 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
     }
   }
+
+  if (!alter_info->check_constraint_list.is_empty())
+  {
+    /* Check the table FOREIGN KEYs for name duplications. */
+    List <FOREIGN_KEY_INFO> fk_child_key_list;
+    FOREIGN_KEY_INFO *f_key;
+    table->file->get_foreign_key_list(thd, &fk_child_key_list);
+    List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+    while ((f_key= fk_key_it++))
+    {
+      List_iterator_fast<Virtual_column_info>
+        c_it(alter_info->check_constraint_list);
+      Virtual_column_info *check;
+      while ((check= c_it++))
+      {
+        if (!check->name.length || check->automatic_name)
+          continue;
+
+        if (check->name.length == f_key->foreign_id->length &&
+            my_strcasecmp(system_charset_info, f_key->foreign_id->str,
+                          check->name.str) == 0)
+        {
+          my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
+          goto err;
+        }
+      }
+    }
+  }
+
   /* Add new constraints */
   new_constraint_list.append(&alter_info->check_constraint_list);
 
@@ -10949,6 +10999,7 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
   bzero((char*) &create_info, sizeof(create_info));
   create_info.row_type=ROW_TYPE_NOT_USED;
   create_info.default_table_charset=default_charset_info;
+  create_info.alter_info= &alter_info;
   /* Force alter table to recreate table */
   alter_info.flags= (ALTER_CHANGE_COLUMN | ALTER_RECREATE);
 
@@ -11227,6 +11278,13 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
     res= 1;
     goto end_with_restore_list;
   }
+
+  /*
+   Since CREATE_INFO is not full without Alter_info, it is better to pass them
+   as a signle parameter. TODO: remove alter_info argument where create_info is
+   passed.
+  */
+  create_info.alter_info= &alter_info;
 
   /* Check privileges */
   if ((res= create_table_precheck(thd, select_tables, create_table)))

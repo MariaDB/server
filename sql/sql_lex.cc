@@ -1224,7 +1224,6 @@ void LEX::start(THD *thd_arg)
   set_var_list.empty();
   param_list.empty();
   view_list.empty();
-  with_column_list.empty();
   with_persistent_for_clause= FALSE;
   column_list= NULL;
   index_list= NULL;
@@ -5109,7 +5108,7 @@ void SELECT_LEX::update_used_tables()
   }
 
   Item *item;
-  List_iterator_fast<Item> it(join->fields_list);
+  List_iterator_fast<Item> it(join->all_fields);
   select_list_tables= 0;
   while ((item= it++))
   {
@@ -9741,6 +9740,17 @@ LEX::add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
 }
 
 
+SELECT_LEX_UNIT *
+LEX::add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
+                                          SELECT_LEX *sel,
+                                          enum sub_select_type unit_type,
+                                          bool distinct)
+{
+  return
+    add_primary_to_query_expression_body(unit, sel, unit_type, distinct,
+                                         thd->variables.sql_mode & MODE_ORACLE);
+}
+
 /**
   Add query primary to a parenthesized query primary
   pruducing a new query expression body
@@ -11128,5 +11138,100 @@ bool LEX::sp_if_after_statements(THD *thd)
     return true;
   sphead->backpatch(spcont->pop_label());
   sphead->push_backpatch(thd, i, spcont->push_label(thd, &empty_clex_str, 0));
+  return false;
+}
+
+
+sp_condition_value *LEX::stmt_signal_value(const Lex_ident_sys_st &ident)
+{
+  sp_condition_value *cond;
+  /* SIGNAL foo cannot be used outside of stored programs */
+  if (unlikely(spcont == NULL))
+  {
+    my_error(ER_SP_COND_MISMATCH, MYF(0), ident.str);
+    return NULL;
+  }
+  cond= spcont->find_declared_or_predefined_condition(thd, &ident);
+  if (unlikely(cond == NULL))
+  {
+    my_error(ER_SP_COND_MISMATCH, MYF(0), ident.str);
+    return NULL;
+  }
+  bool bad= thd->variables.sql_mode & MODE_ORACLE ?
+            !cond->has_sql_state() :
+            cond->type != sp_condition_value::SQLSTATE;
+  if (unlikely(bad))
+  {
+    my_error(ER_SIGNAL_BAD_CONDITION_TYPE, MYF(0));
+    return NULL;
+  }
+  return cond;
+}
+
+
+bool LEX::add_table_foreign_key(const LEX_CSTRING *name,
+                                const LEX_CSTRING *constraint_name,
+                                Table_ident *ref_table_name,
+                                DDL_options ddl_options)
+{
+  Key *key= new (thd->mem_root) Foreign_key(name,
+                                            &last_key->columns,
+                                            constraint_name,
+                                            &ref_table_name->db,
+                                            &ref_table_name->table,
+                                            &ref_list,
+                                            fk_delete_opt,
+                                            fk_update_opt,
+                                            fk_match_option,
+                                            ddl_options);
+  if (unlikely(key == NULL))
+    return true;
+
+  /*
+    handle_if_exists_options() expects the two keys in this order:
+    the Foreign_key, followed by its auto-generated Key.
+  */
+  alter_info.key_list.push_back(key, thd->mem_root);
+  alter_info.key_list.push_back(last_key, thd->mem_root);
+
+  option_list= NULL;
+
+  /* Only used for ALTER TABLE. Ignored otherwise. */
+  alter_info.flags|= ALTER_ADD_FOREIGN_KEY;
+
+  return false;
+}
+
+
+bool LEX::add_column_foreign_key(const LEX_CSTRING *name,
+                                 const LEX_CSTRING *constraint_name,
+                                 Table_ident *ref_table_name,
+                                 DDL_options ddl_options)
+{
+  if (last_field->vcol_info || last_field->vers_sys_field())
+  {
+    thd->parse_error();
+    return true;
+  }
+  if (unlikely(!(last_key= (new (thd->mem_root)
+                            Key(Key::MULTIPLE, constraint_name,
+                            HA_KEY_ALG_UNDEF, true, ddl_options)))))
+    return true;
+  Key_part_spec *key= new (thd->mem_root) Key_part_spec(name, 0);
+  if (unlikely(key == NULL))
+    return true;
+  last_key->columns.push_back(key, thd->mem_root);
+  if (ref_list.is_empty())
+  {
+    ref_list.push_back(key, thd->mem_root);
+  }
+  if (unlikely(add_table_foreign_key(constraint_name, constraint_name,
+                                     ref_table_name, ddl_options)))
+      return true;
+  option_list= NULL;
+
+  /* Only used for ALTER TABLE. Ignored otherwise. */
+  alter_info.flags|= ALTER_ADD_FOREIGN_KEY;
+
   return false;
 }

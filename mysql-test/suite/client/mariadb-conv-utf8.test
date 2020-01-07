@@ -1,0 +1,57 @@
+-- source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-17088 Provide tools to encode/decode mysql-encoded file system names
+--echo #
+
+--character_set utf8
+SET NAMES utf8;
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+
+# simple I/O
+--exec echo "測試資料" | $MARIADB_CONV -f utf8 -t filename --delimiter="\r\n"
+--exec echo "@6e2c@8a66@8cc7@6599@5eab" | $MARIADB_CONV -f filename -t utf8 --delimiter="\r\n"
+
+# undo query result
+--let $query_result=`SELECT CONVERT(CONVERT('測試資料' USING filename) USING binary);`
+--echo $query_result
+--exec echo $query_result | $MARIADB_CONV -f filename -t utf8 --delimiter="\r\n"
+
+--let $reverse_query_result=`SELECT CONVERT(_filename '@6e2c@8a66@8cc7@6599@5eab' USING utf8);`
+--echo $reverse_query_result
+--exec echo $reverse_query_result | $MARIADB_CONV -f utf8 -t filename --delimiter="\r\n"
+
+--echo # bulk convert with pipe
+
+CREATE TABLE t1 (id SERIAL, a VARCHAR(64) CHARACTER SET utf8);
+INSERT INTO t1 (a) VALUES ('測試資料'), ('測試資料2');
+--exec $MYSQL -Dtest --default-character-set=utf8 -e "SELECT a FROM t1 ORDER BY id" | $MARIADB_CONV -f utf8 -t filename --delimiter="\r\n"
+--exec $MYSQL -Dtest --default-character-set=utf8 -e "SELECT BINARY CONVERT(a USING filename) FROM t1 ORDER BY id"
+--exec $MYSQL -Dtest --default-character-set=utf8 --column-names=0 -e "SELECT BINARY CONVERT(a USING filename) FROM t1 ORDER BY id" | $MARIADB_CONV -f filename -t utf8 --delimiter="\r\n"
+--exec $MYSQL -Dtest --default-character-set=utf8 --column-names=0 -e "SELECT CONCAT('test/', BINARY CONVERT(a USING filename),'.frm') FROM t1 ORDER BY id" | $REPLACE "/" "@002f" "." "@002e"| $MARIADB_CONV -f filename -t utf8 --delimiter="\r\n"
+--exec $MYSQL -Dtest --default-character-set=utf8 --column-names=0 -e "SELECT CONCAT('test/', BINARY CONVERT(a USING filename),'.frm') FROM t1 ORDER BY id" | $MARIADB_CONV -f filename -t utf8 --delimiter="/.\r\n"
+DROP TABLE t1;
+
+
+--echo # bulk convert with file
+--write_file $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt
+
+測試資料
+
+測試資料2
+測試資料3
+
+EOF
+
+--echo # --- Start of mariadb-conv for mysql-conv-test-utf8.txt ---
+--exec $MARIADB_CONV -f utf8 -t filename --delimiter="\r\n" $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt
+--echo # --- End of mariadb-conv for mysql-conv-test-utf8.txt ---
+
+--copy_file $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt $MYSQL_TMP_DIR/mysql-conv-test-utf8-2.txt
+--echo # --- Start of mariadb-conv for mysql-conv-test-utf8.txt and mysql-conv-test-utf8-2.txt ---
+--exec $MARIADB_CONV -f utf8 -t filename --delimiter="\r\n" $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt $MYSQL_TMP_DIR/mysql-conv-test-utf8-2.txt
+--echo # --- Start of mariadb-conv for mysql-conv-test-utf8.txt and mysql-conv-test-utf8-2.txt ---
+
+--remove_file $MYSQL_TMP_DIR/mysql-conv-test-utf8.txt
+--remove_file $MYSQL_TMP_DIR/mysql-conv-test-utf8-2.txt

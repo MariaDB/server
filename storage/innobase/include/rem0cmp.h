@@ -89,7 +89,7 @@ cmp_dtuple_rec_with_gis(
 /*====================*/
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets,
+	const offset_t*	offsets,
 	page_cur_mode_t	mode)
 	MY_ATTRIBUTE((nonnull));
 
@@ -105,7 +105,7 @@ int
 cmp_dtuple_rec_with_gis_internal(
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets);
+	const offset_t*	offsets);
 
 /** Compare a data tuple to a physical record.
 @param[in] dtuple data tuple
@@ -121,7 +121,7 @@ int
 cmp_dtuple_rec_with_match_low(
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets,
+	const offset_t*	offsets,
 	ulint		n_cmp,
 	ulint*		matched_fields)
 	MY_ATTRIBUTE((nonnull));
@@ -145,7 +145,7 @@ cmp_dtuple_rec_with_match_bytes(
 	const dtuple_t*		dtuple,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	const ulint*		offsets,
+	const offset_t*		offsets,
 	ulint*			matched_fields,
 	ulint*			matched_bytes)
 	MY_ATTRIBUTE((warn_unused_result));
@@ -162,7 +162,7 @@ int
 cmp_dtuple_rec(
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets);
+	const offset_t*	offsets);
 /**************************************************************//**
 Checks if a dtuple is a prefix of a record. The last field in dtuple
 is allowed to be a prefix of the corresponding field in the record.
@@ -172,7 +172,7 @@ cmp_dtuple_is_prefix_of_rec(
 /*========================*/
 	const dtuple_t*	dtuple,	/*!< in: data tuple */
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets);/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets);/*!< in: array returned by rec_get_offsets() */
 /** Compare two physical records that contain the same number of columns,
 none of which are stored externally.
 @retval positive if rec1 (including non-ordering columns) is greater than rec2
@@ -183,8 +183,8 @@ cmp_rec_rec_simple(
 /*===============*/
 	const rec_t*		rec1,	/*!< in: physical record */
 	const rec_t*		rec2,	/*!< in: physical record */
-	const ulint*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
-	const ulint*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
+	const offset_t*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
+	const offset_t*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
 	const dict_index_t*	index,	/*!< in: data dictionary index */
 	struct TABLE*		table)	/*!< in: MySQL table, for reporting
 					duplicate key value if applicable,
@@ -209,8 +209,8 @@ int
 cmp_rec_rec_with_match(
 	const rec_t*		rec1,
 	const rec_t*		rec2,
-	const ulint*		offsets1,
-	const ulint*		offsets2,
+	const offset_t*		offsets1,
+	const offset_t*		offsets2,
 	const dict_index_t*	index,
 	bool			nulls_unequal,
 	ulint*			matched_fields);
@@ -231,8 +231,8 @@ int
 cmp_rec_rec(
 	const rec_t*		rec1,
 	const rec_t*		rec2,
-	const ulint*		offsets1,
-	const ulint*		offsets2,
+	const offset_t*		offsets1,
+	const offset_t*		offsets2,
 	const dict_index_t*	index,
 	ulint*			matched_fields = NULL);
 

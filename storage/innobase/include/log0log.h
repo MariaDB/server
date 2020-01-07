@@ -38,6 +38,10 @@ Created 12/9/1995 Heikki Tuuri
 #include "log0types.h"
 #include "os0event.h"
 #include "os0file.h"
+#include "span.h"
+#include <atomic>
+
+using st_::span;
 
 #ifndef UINT32_MAX
 #define UINT32_MAX             (4294967295U)
@@ -454,6 +458,8 @@ static const ulonglong log_group_max_size =
 typedef ib_mutex_t	LogSysMutex;
 typedef ib_mutex_t	FlushOrderMutex;
 
+extern my_bool	srv_read_only_mode;
+
 /** Redo log buffer */
 struct log_t{
   /** The original (not version-tagged) InnoDB redo log format */
@@ -534,10 +540,35 @@ struct log_t{
     lsn_t				lsn;
     /** the byte offset of the above lsn */
     lsn_t				lsn_offset;
+
   public:
     /** used only in recovery: recovery scan succeeded up to this
     lsn in this log group */
     lsn_t				scanned_lsn;
+
+    /** file descriptors for all log files */
+    std::vector<pfs_os_file_t> files;
+    /** file names for all log files */
+    std::vector<std::string> file_names;
+
+    /** simple setter, does not close or open log files */
+    void set_file_names(std::vector<std::string> names);
+    /** opens log files which must be closed prior this call */
+    void open_files();
+    /** reads buffer from log files
+    @param[in]	total_offset	offset in log files treated as a single file
+    @param[in]	buf		buffer where to read */
+    void read(size_t total_offset, span<byte> buf);
+    /** writes buffer to log files
+    @param[in]	total_offset	offset in log files treated as a single file
+    @param[in]	buf		buffer from which to write */
+    void write(size_t total_offset, span<byte> buf);
+    /** flushes OS page cache for all log files */
+    void fsync();
+    /** flushes OS page cache (excluding metadata!) for all log files */
+    void fdatasync();
+    /** closes all log files */
+    void close_files();
 
     /** @return whether the redo log is encrypted */
     bool is_encrypted() const { return format & FORMAT_ENCRYPTED; }
@@ -571,6 +602,7 @@ struct log_t{
     void close()
     {
       n_files = 0;
+      close_files();
     }
     void set_lsn(lsn_t a_lsn);
     lsn_t get_lsn() const { return lsn; }
@@ -593,6 +625,8 @@ struct log_t{
 	lsn_t		flushed_to_disk_lsn;
 					/*!< how far we have written the log
 					AND flushed to disk */
+	std::atomic<size_t> pending_flushes; /*!< system calls in progress */
+	std::atomic<size_t> flushes;	/*!< system calls counter */
 	ulint		n_pending_flushes;/*!< number of currently
 					pending flushes; protected by
 					log_sys.mutex */
@@ -694,6 +728,16 @@ public:
     return log.format == FORMAT_ENC_10_4
       ? OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM - LOG_BLOCK_KEY
       : OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM;
+  }
+
+  size_t get_pending_flushes() const
+  {
+    return pending_flushes.load(std::memory_order_relaxed);
+  }
+
+  size_t get_flushes() const
+  {
+    return flushes.load(std::memory_order_relaxed);
   }
 
   /** Initialise the redo log subsystem. */

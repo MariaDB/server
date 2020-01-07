@@ -39,7 +39,6 @@ namespace tpool
 
 class aio_linux : public aio
 {
-  int m_max_io_count;
   thread_pool* m_pool;
   io_context_t m_io_ctx;
   bool m_in_shutdown;
@@ -62,7 +61,7 @@ class aio_linux : public aio
         long long res = event.res;
         if (res < 0)
         {
-          iocb->m_err = -res;
+          iocb->m_err = static_cast<int>(-res);
           iocb->m_ret_len = 0;
         }
         else
@@ -93,8 +92,8 @@ class aio_linux : public aio
   }
 
 public:
-  aio_linux(io_context_t ctx, thread_pool* pool, size_t max_count)
-    : m_max_io_count(max_count), m_pool(pool), m_io_ctx(ctx),
+  aio_linux(io_context_t ctx, thread_pool* pool)
+    : m_pool(pool), m_io_ctx(ctx),
     m_in_shutdown(), m_getevent_thread(getevent_thread_routine, this)
   {
   }
@@ -146,7 +145,7 @@ aio* create_linux_aio(thread_pool* pool, int max_io)
     fprintf(stderr, "io_setup(%d) returned %d\n", max_io, ret);
     return nullptr;
   }
-  return new aio_linux(ctx, pool, max_io);
+  return new aio_linux(ctx, pool);
 }
 #else
 aio* create_linux_aio(thread_pool* pool, int max_aio)

@@ -353,6 +353,18 @@ id	s	e	datediff(e, s)
 1	1999-01-01	1999-01-03	2
 1	2018-12-10	2018-12-12	2
 2	1999-01-01	1999-01-03	2
+#
+# MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+#
+create or replace table t1 (id int, s date, e date, period for apptime(s,e));
+create or replace procedure sp()
+delete from t1 for portion of othertime from '2000-01-01' to '2018-01-01';
+call sp;
+ERROR HY000: Period `othertime` is not found in table
+call sp;
+ERROR HY000: Period `othertime` is not found in table
+drop table t1;
+drop procedure sp;
 drop table t,t2,t3,log_tbl;
 drop view v;
 drop procedure log;

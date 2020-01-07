@@ -22,6 +22,7 @@ ADD_LIBRARY(tpool STATIC
   tpool_generic.cc
   task_group.cc
   task.cc
+  wait_notification.cc
   ${EXTRA_SOURCES}
 )
 

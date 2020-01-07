@@ -175,7 +175,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
   /*
     Check if this is a table type that stores index and data separately,
     like ISAM or MyISAM. We assume fixed order of engine file name
-    extentions array. First element of engine file name extentions array
+    extensions array. First element of engine file name extensions array
     is meta/index file extention. Second element - data file extention. 
   */
   ext= table->file->bas_ext();
@@ -1158,7 +1158,7 @@ send_result_message:
       else if (open_for_modify || fatal_error)
       {
         tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
-                         table->db.str, table->table_name.str, FALSE);
+                         table->db.str, table->table_name.str);
         /*
           May be something modified. Consequently, we have to
           invalidate the query cache.

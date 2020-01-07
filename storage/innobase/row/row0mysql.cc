@@ -2055,8 +2055,8 @@ row_unlock_for_mysql(
 						     + index->trx_id_offset);
 		} else {
 			mem_heap_t*	heap			= NULL;
-			ulint	offsets_[REC_OFFS_NORMAL_SIZE];
-			ulint*	offsets				= offsets_;
+			offset_t offsets_[REC_OFFS_NORMAL_SIZE];
+			offset_t* offsets				= offsets_;
 
 			rec_offs_init(offsets_);
 			offsets = rec_get_offsets(rec, index, offsets, true,
@@ -3373,19 +3373,6 @@ row_drop_table_for_mysql(
 		table records yet. Thus it is safe to release and
 		reacquire the data dictionary latches. */
 		if (table->fts) {
-			ut_ad(!table->fts->add_wq);
-			ut_ad(lock_trx_has_sys_table_locks(trx) == 0);
-
-			for (;;) {
-				bool retry = false;
-				if (dict_fts_index_syncing(table)) {
-					retry = true;
-				}
-				if (!retry) {
-					break;
-				}
-				DICT_BG_YIELD(trx);
-			}
 			row_mysql_unlock_data_dictionary(trx);
 			fts_optimize_remove_table(table);
 			row_mysql_lock_data_dictionary(trx);
@@ -3517,7 +3504,13 @@ row_drop_table_for_mysql(
 
 	if (table->n_foreign_key_checks_running > 0) {
 defer:
-		if (!is_temp_name) {
+		/* Rename #sql2 to #sql-ib if table has open ref count
+		while dropping the table. This scenario can happen
+		when purge thread is waiting for dict_sys.mutex so
+		that it could close the table. But drop table acquires
+		dict_sys.mutex. */
+		if (!is_temp_name
+		    || strstr(table->name.m_name, "/#sql2")) {
 			heap = mem_heap_create(FN_REFLEN);
 			const char* tmp_name
 				= dict_mem_create_temporary_tablename(
@@ -4667,8 +4660,8 @@ row_scan_index_for_mysql(
 	ulint		cnt;
 	mem_heap_t*	heap		= NULL;
 	ulint		n_ext;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets;
+	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	offsets;
 	rec_offs_init(offsets_);
 
 	*n_rows = 0;
@@ -4801,7 +4794,7 @@ not_ok:
 
 			tmp_heap = mem_heap_create(size);
 
-			offsets = static_cast<ulint*>(
+			offsets = static_cast<offset_t*>(
 				mem_heap_dup(tmp_heap, offsets, size));
 		}
 

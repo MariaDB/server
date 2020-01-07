@@ -33,6 +33,8 @@
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_base.h"                  // dynamic_column_error_message
 
+#define PCRE2_STATIC 1             /* Important on Windows */
+#include "pcre2.h"                 /* pcre2 header file */
 
 /*
   Compare row signature of two expressions
@@ -5305,7 +5307,7 @@ void Item_cond::neg_arguments(THD *thd)
       
    @retval
      clone of the item
-     0 if an error occured
+     0 if an error occurred
 */ 
 
 Item *Item_cond::build_clone(THD *thd)
@@ -5827,15 +5829,28 @@ int Regexp_processor_pcre::default_regex_flags()
   return default_regex_flags_pcre(current_thd);
 }
 
-void Regexp_processor_pcre::set_recursion_limit(THD *thd)
+void Regexp_processor_pcre::cleanup()
 {
-  long stack_used;
-  DBUG_ASSERT(thd == current_thd);
-  stack_used= available_stack_size(thd->thread_stack, &stack_used);
-  m_pcre_extra.match_limit_recursion=
-    (ulong)((my_thread_stack_size - STACK_MIN_SIZE - stack_used)/my_pcre_frame_size);
+  pcre2_match_data_free(m_pcre_match_data);
+  pcre2_code_free(m_pcre);
+  reset();
 }
 
+void Regexp_processor_pcre::init(CHARSET_INFO *data_charset, int extra_flags)
+{
+  m_library_flags= default_regex_flags() | extra_flags |
+                  (data_charset != &my_charset_bin ?
+                   (PCRE2_UTF | PCRE2_UCP) : 0) |
+                  ((data_charset->state &
+                    (MY_CS_BINSORT | MY_CS_CSSORT)) ? 0 : PCRE2_CASELESS);
+
+  // Convert text data to utf-8.
+  m_library_charset= data_charset == &my_charset_bin ?
+                     &my_charset_bin : &my_charset_utf8mb3_general_ci;
+
+  m_conversion_is_needed= (data_charset != &my_charset_bin) &&
+                          !my_charset_same(data_charset, m_library_charset);
+}
 
 /**
   Convert string to lib_charset, if needed.
@@ -5869,8 +5884,8 @@ String *Regexp_processor_pcre::convert_if_needed(String *str, String *converter)
 
 bool Regexp_processor_pcre::compile(String *pattern, bool send_error)
 {
-  const char *pcreErrorStr;
-  int pcreErrorOffset;
+  int pcreErrorNumber;
+  PCRE2_SIZE pcreErrorOffset;
 
   if (is_compiled())
   {
@@ -5883,17 +5898,28 @@ bool Regexp_processor_pcre::compile(String *pattern, bool send_error)
   if (!(pattern= convert_if_needed(pattern, &pattern_converter)))
     return true;
 
-  m_pcre= pcre_compile(pattern->c_ptr_safe(), m_library_flags,
-                       &pcreErrorStr, &pcreErrorOffset, NULL);
+  m_pcre= pcre2_compile((PCRE2_SPTR8) pattern->ptr(), pattern->length(),
+                        m_library_flags,
+                        &pcreErrorNumber, &pcreErrorOffset, NULL);
 
   if (unlikely(m_pcre == NULL))
   {
     if (send_error)
     {
       char buff[MAX_FIELD_WIDTH];
-      my_snprintf(buff, sizeof(buff), "%s at offset %d", pcreErrorStr, pcreErrorOffset);
+      int lmsg= pcre2_get_error_message(pcreErrorNumber,
+                                        (PCRE2_UCHAR8 *)buff, sizeof(buff));
+      if (lmsg >= 0)
+        my_snprintf(buff+lmsg, sizeof(buff)-lmsg,
+                    " at offset %d", pcreErrorOffset);
       my_error(ER_REGEXP_ERROR, MYF(0), buff);
     }
+    return true;
+  }
+  m_pcre_match_data= pcre2_match_data_create_from_pattern(m_pcre, NULL);
+  if (m_pcre_match_data == NULL)
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return true;
   }
   return false;
@@ -5916,124 +5942,46 @@ bool Regexp_processor_pcre::compile(Item *item, bool send_error)
 */
 void Regexp_processor_pcre::pcre_exec_warn(int rc) const
 {
-  char buf[64];
-  const char *errmsg= NULL;
+  PCRE2_UCHAR8 buf[128];
   THD *thd= current_thd;
 
-  /*
-    Make a descriptive message only for those pcre_exec() error codes
-    that can actually happen in MariaDB.
-  */
-  switch (rc)
+  int errlen= pcre2_get_error_message(rc, buf, sizeof(buf));
+  if (errlen <= 0)
   {
-  case PCRE_ERROR_NULL:
-    errmsg= "pcre_exec: null argument passed";
-    break;
-  case PCRE_ERROR_BADOPTION:
-    errmsg= "pcre_exec: bad option";
-    break;
-  case PCRE_ERROR_BADMAGIC:
-    errmsg= "pcre_exec: bad magic - not a compiled regex";
-    break;
-  case PCRE_ERROR_UNKNOWN_OPCODE:
-    errmsg= "pcre_exec: error in compiled regex";
-    break;
-  case PCRE_ERROR_NOMEMORY:
-    errmsg= "pcre_exec: Out of memory";
-    break;
-  case PCRE_ERROR_NOSUBSTRING:
-    errmsg= "pcre_exec: no substring";
-    break;
-  case PCRE_ERROR_MATCHLIMIT:
-    errmsg= "pcre_exec: match limit exceeded";
-    break;
-  case PCRE_ERROR_CALLOUT:
-    errmsg= "pcre_exec: callout error";
-    break;
-  case PCRE_ERROR_BADUTF8:
-    errmsg= "pcre_exec: Invalid utf8 byte sequence in the subject string";
-    break;
-  case PCRE_ERROR_BADUTF8_OFFSET:
-    errmsg= "pcre_exec: Started at invalid location within utf8 byte sequence";
-    break;
-  case PCRE_ERROR_PARTIAL:
-    errmsg= "pcre_exec: partial match";
-    break;
-  case PCRE_ERROR_INTERNAL:
-    errmsg= "pcre_exec: internal error";
-    break;
-  case PCRE_ERROR_BADCOUNT:
-    errmsg= "pcre_exec: ovesize is negative";
-    break;
-  case PCRE_ERROR_RECURSIONLIMIT:
-    my_snprintf(buf, sizeof(buf), "pcre_exec: recursion limit of %ld exceeded",
-                m_pcre_extra.match_limit_recursion);
-    errmsg= buf;
-    break;
-  case PCRE_ERROR_BADNEWLINE:
-    errmsg= "pcre_exec: bad newline options";
-    break;
-  case PCRE_ERROR_BADOFFSET:
-    errmsg= "pcre_exec: start offset negative or greater than string length";
-    break;
-  case PCRE_ERROR_SHORTUTF8:
-    errmsg= "pcre_exec: ended in middle of utf8 sequence";
-    break;
-  case PCRE_ERROR_JIT_STACKLIMIT:
-    errmsg= "pcre_exec: insufficient stack memory for JIT compile";
-    break;
-  case PCRE_ERROR_RECURSELOOP:
-    errmsg= "pcre_exec: Recursion loop detected";
-    break;
-  case PCRE_ERROR_BADMODE:
-    errmsg= "pcre_exec: compiled pattern passed to wrong bit library function";
-    break;
-  case PCRE_ERROR_BADENDIANNESS:
-    errmsg= "pcre_exec: compiled pattern passed to wrong endianness processor";
-    break;
-  case PCRE_ERROR_JIT_BADOPTION:
-    errmsg= "pcre_exec: bad jit option";
-    break;
-  case PCRE_ERROR_BADLENGTH:
-    errmsg= "pcre_exec: negative length";
-    break;
-  default:
-    /*
-      As other error codes should normally not happen,
-      we just report the error code without textual description
-      of the code.
-    */
-    my_snprintf(buf, sizeof(buf), "pcre_exec: Internal error (%d)", rc);
-    errmsg= buf;
+    my_snprintf((char *)buf, sizeof(buf), "pcre_exec: Internal error (%d)", rc);
   }
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                      ER_REGEXP_ERROR, ER_THD(thd, ER_REGEXP_ERROR), errmsg);
+                      ER_REGEXP_ERROR, ER_THD(thd, ER_REGEXP_ERROR), buf);
 }
 
 
 /**
   Call pcre_exec() and send a warning if pcre_exec() returned with an error.
 */
-int Regexp_processor_pcre::pcre_exec_with_warn(const pcre *code,
-                                               const pcre_extra *extra,
+int Regexp_processor_pcre::pcre_exec_with_warn(const pcre2_code *code,
+                                               pcre2_match_data *data,
                                                const char *subject,
                                                int length, int startoffset,
-                                               int options, int *ovector,
-                                               int ovecsize)
+                                               int options)
 {
-  int rc= pcre_exec(code, extra, subject, length,
-                    startoffset, options, ovector, ovecsize);
+  int rc= pcre2_match(code, (PCRE2_SPTR8) subject, (PCRE2_SIZE) length,
+                      (PCRE2_SIZE) startoffset, options, data, NULL);
   DBUG_EXECUTE_IF("pcre_exec_error_123", rc= -123;);
-  if (unlikely(rc < PCRE_ERROR_NOMATCH))
+  if (unlikely(rc < PCRE2_ERROR_NOMATCH))
+  {
+    m_SubStrVec= NULL;
     pcre_exec_warn(rc);
+  }
+  else
+    m_SubStrVec= pcre2_get_ovector_pointer(data);
   return rc;
 }
 
 
 bool Regexp_processor_pcre::exec(const char *str, size_t length, size_t offset)
 {
-  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, &m_pcre_extra, str, (int)length, (int)offset, 0,
-                                      m_SubStrVec, array_elements(m_SubStrVec));
+  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, m_pcre_match_data,
+                                      str, (int)length, (int)offset, 0);
   return false;
 }
 
@@ -6043,10 +5991,8 @@ bool Regexp_processor_pcre::exec(String *str, int offset,
 {
   if (!(str= convert_if_needed(str, &subject_converter)))
     return true;
-  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, &m_pcre_extra,
-                                      str->c_ptr_safe(), str->length(),
-                                      offset, 0,
-                                      m_SubStrVec, array_elements(m_SubStrVec));
+  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, m_pcre_match_data,
+                                      str->ptr(), str->length(), offset, 0);
   if (m_pcre_exec_rc > 0)
   {
     uint i;
@@ -6096,12 +6042,6 @@ void Regexp_processor_pcre::fix_owner(Item_func *owner,
 }
 
 
-bool Item_func_regex::fix_fields(THD *thd, Item **ref)
-{
-  re.set_recursion_limit(thd);
-  return Item_bool_func::fix_fields(thd, ref);
-}
-
 bool
 Item_func_regex::fix_length_and_dec()
 {
@@ -6128,13 +6068,6 @@ longlong Item_func_regex::val_int()
 }
 
 
-bool Item_func_regexp_instr::fix_fields(THD *thd, Item **ref)
-{
-  re.set_recursion_limit(thd);
-  return Item_int_func::fix_fields(thd, ref);
-}
-
-
 bool
 Item_func_regexp_instr::fix_length_and_dec()
 {
@@ -6157,7 +6090,7 @@ longlong Item_func_regexp_instr::val_int()
   if ((null_value= re.exec(args[0], 0, 1)))
     return 0;
 
-  return re.match() ? re.subpattern_start(0) + 1 : 0;
+  return re.match() ? (longlong) (re.subpattern_start(0) + 1) : 0;
 }
 
 

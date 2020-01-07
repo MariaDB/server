@@ -61,7 +61,6 @@ public:
 		m_flags(),
 		m_exists(),
 		m_is_valid(),
-		m_first_page_buf(),
 		m_first_page(),
 		m_last_os_error(),
 		m_file_info()
@@ -83,7 +82,6 @@ public:
 		m_flags(flags),
 		m_exists(),
 		m_is_valid(),
-		m_first_page_buf(),
 		m_first_page(),
 		m_last_os_error(),
 		m_file_info()
@@ -103,7 +101,6 @@ public:
 		m_flags(file.m_flags),
 		m_exists(file.m_exists),
 		m_is_valid(file.m_is_valid),
-		m_first_page_buf(),
 		m_first_page(),
 		m_last_os_error(),
 		m_file_info()
@@ -162,7 +159,6 @@ public:
 
 		/* Do not make a copy of the first page,
 		it should be reread if needed */
-		m_first_page_buf = NULL;
 		m_first_page = NULL;
 
 		return(*this);
@@ -459,10 +455,7 @@ private:
 	/* true if the tablespace is valid */
 	bool			m_is_valid;
 
-	/** Buffer to hold first page */
-	byte*			m_first_page_buf;
-
-	/** Pointer to the first page held in the buffer above */
+	/** Aligned buffer to hold first page */
 	byte*			m_first_page;
 
 protected:

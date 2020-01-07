@@ -32,7 +32,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "log0log.h"
 #include "mtr0types.h"
 
-#include <forward_list>
+#include <deque>
 
 /** Is recv_writer_thread active? */
 extern bool	recv_writer_thread_active;
@@ -80,10 +80,8 @@ recv_sys_var_init(void);
 /*===================*/
 
 /** Apply recv_sys.pages to persistent data pages.
-@param[in]	last_batch	whether the change buffer merge will be
-				performed as part of the operation */
-void
-recv_apply_hashed_log_recs(bool last_batch);
+@param[in]	last_batch	whether redo log writes are possible */
+void recv_apply_hashed_log_recs(bool last_batch);
 
 /** Whether to store redo log records in recv_sys.pages */
 enum store_t {
@@ -104,16 +102,21 @@ recv_sys.parse_start_lsn is non-zero.
 @return true if more data added */
 bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn);
 
-/** Parse log records from a buffer and optionally store them in recv_sys.pages
+/** Parse log records from a buffer and optionally store them to recv_sys.pages
 to wait merging to file pages.
-@param[in]	checkpoint_lsn	the LSN of the latest checkpoint
-@param[in]	store		whether to store page operations
-@param[in]	apply		whether to apply the records
+@param[in]	checkpoint_lsn		the LSN of the latest checkpoint
+@param[in]	store			whether to store page operations
+@param[in]	available_memory	memory to read the redo logs
+@param[in]	apply			whether to apply the records
 @return whether MLOG_CHECKPOINT record was seen the first time,
 or corruption was noticed */
-bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply);
+bool recv_parse_log_recs(
+	lsn_t		checkpoint_lsn,
+	store_t*	store,
+	ulint		available_memory,
+	bool		apply);
 
-/** Moves the parsing buffer data left to the buffer start. */
+/** Moves the parsing buffer data left to the buffer start */
 void recv_sys_justify_left_parsing_buf();
 
 /** Report optimized DDL operation (without redo log),
@@ -136,7 +139,7 @@ extern void (*log_file_op)(ulint space_id, const byte* flags,
 /** Stored redo log record */
 struct log_rec_t
 {
-  log_rec_t(lsn_t lsn) : next(NULL), lsn(lsn) {}
+  log_rec_t(lsn_t lsn) : next(nullptr), lsn(lsn) { ut_ad(lsn); }
   log_rec_t()= delete;
   log_rec_t(const log_rec_t&)= delete;
   log_rec_t &operator=(const log_rec_t&)= delete;
@@ -160,7 +163,7 @@ struct recv_dblwr_t {
 	@retval NULL if no page was found */
 	const byte* find_page(ulint space_id, ulint page_no);
 
-	typedef std::forward_list<byte*, ut_allocator<byte*> > list;
+	typedef std::deque<byte*, ut_allocator<byte*> > list;
 
 	/** Recovered doublewrite buffer page frames */
 	list	pages;

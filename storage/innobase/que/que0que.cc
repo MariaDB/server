@@ -471,6 +471,7 @@ que_graph_free_recursive(
 
 		mem_heap_free(purge->heap);
 
+		purge->~purge_node_t();
 		break;
 
 	case QUE_NODE_UPDATE:

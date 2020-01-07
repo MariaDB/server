@@ -28,6 +28,7 @@ Created 03/11/2014 Shaohua Wang
 #define btr0bulk_h
 
 #include "dict0dict.h"
+#include "rem0types.h"
 #include "page0cur.h"
 
 #include <vector>
@@ -101,11 +102,25 @@ public:
 	/** Insert a record in the page.
 	@param[in]	rec		record
 	@param[in]	offsets		record offsets */
-	void insert(const rec_t* rec, ulint* offsets);
+	inline void insert(const rec_t* rec, offset_t* offsets);
+private:
+	/** Page format */
+	enum format { REDUNDANT, DYNAMIC, COMPRESSED };
+	/** Mark end of insertion to the page. Scan all records to set page
+	dirs, and set page header members.
+	@tparam format  the page format */
+	template<format> inline void finishPage();
+	/** Insert a record in the page.
+	@tparam format  the page format
+	@param[in]	rec		record
+	@param[in]	offsets		record offsets */
+	template<format> inline void insertPage(const rec_t* rec,
+						offset_t* offsets);
 
+public:
 	/** Mark end of insertion to the page. Scan all records to set page
 	dirs, and set page header members. */
-	void finish();
+	inline void finish();
 
 	/** Commit mtr for a page
 	@param[in]	success		Flag whether all inserts succeed. */
@@ -125,7 +140,7 @@ public:
 	@param[in]	big_rec		external recrod
 	@param[in]	offsets		record offsets
 	@return	error code */
-	dberr_t storeExt(const big_rec_t* big_rec, ulint* offsets);
+	dberr_t storeExt(const big_rec_t* big_rec, offset_t* offsets);
 
 	/** Get node pointer
 	@return node pointer */
@@ -198,6 +213,8 @@ public:
 	{
 		return(m_err);
 	}
+
+	void set_modified() { m_mtr.set_modified(); }
 
 	/* Memory heap for internal allocation */
 	mem_heap_t*	m_heap;

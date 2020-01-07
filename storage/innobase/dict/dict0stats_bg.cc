@@ -436,7 +436,16 @@ void dict_stats_start()
 
 static void dict_stats_schedule(int ms)
 {
-  std::lock_guard<std::mutex> lk(dict_stats_mutex);
+  std::unique_lock<std::mutex> lk(dict_stats_mutex, std::defer_lock);
+  /*
+    Use try_lock() to avoid deadlock in dict_stats_shutdown(), which
+    uses dict_stats_mutex too. If there is simultaneous timer reschedule,
+    the first one will win, which is fine.
+  */
+  if (!lk.try_lock())
+  {
+    return;
+  }
   if (dict_stats_timer)
     dict_stats_timer->set_time(ms,0);
 }

@@ -1235,9 +1235,8 @@ bool Item_func_minus::fix_length_and_dec()
   if (Item_func_minus::type_handler()->Item_func_minus_fix_length_and_dec(this))
     DBUG_RETURN(TRUE);
   DBUG_PRINT("info", ("Type: %s", type_handler()->name().ptr()));
-  if ((m_depends_on_sql_mode_no_unsigned_subtraction= unsigned_flag) &&
-      (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION))
-    unsigned_flag= false;
+  m_depends_on_sql_mode_no_unsigned_subtraction= unsigned_flag;
+  fix_unsigned_flag();
   DBUG_RETURN(FALSE);
 }
 

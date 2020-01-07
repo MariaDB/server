@@ -361,7 +361,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
   {
     /* Table is already locked exclusively. Remove cached instances. */
     tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table_ref->db.str,
-                     table_ref->table_name.str, FALSE);
+                     table_ref->table_name.str);
   }
 
   DBUG_RETURN(FALSE);

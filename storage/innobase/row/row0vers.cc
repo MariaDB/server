@@ -87,16 +87,19 @@ row_vers_impl_x_locked_low(
 	dict_index_t*	clust_index,
 	const rec_t*	rec,
 	dict_index_t*	index,
-	const ulint*	offsets,
+	const offset_t*	offsets,
 	mtr_t*		mtr)
 {
 	trx_id_t	trx_id;
 	rec_t*		prev_version = NULL;
-	ulint*		clust_offsets;
+	offset_t	clust_offsets_[REC_OFFS_NORMAL_SIZE];
+	offset_t*	clust_offsets = clust_offsets_;
 	mem_heap_t*	heap;
 	dtuple_t*	ientry = NULL;
 	mem_heap_t*	v_heap = NULL;
 	dtuple_t*	cur_vrow = NULL;
+
+	rec_offs_init(clust_offsets_);
 
 	DBUG_ENTER("row_vers_impl_x_locked_low");
 
@@ -112,8 +115,8 @@ row_vers_impl_x_locked_low(
 
 	heap = mem_heap_create(1024);
 
-	clust_offsets = rec_get_offsets(
-		clust_rec, clust_index, NULL, true, ULINT_UNDEFINED, &heap);
+	clust_offsets = rec_get_offsets(clust_rec, clust_index, clust_offsets,
+					true, ULINT_UNDEFINED, &heap);
 
 	trx_id = row_get_rec_trx_id(clust_rec, clust_index, clust_offsets);
 	if (trx_id == 0) {
@@ -203,7 +206,7 @@ row_vers_impl_x_locked_low(
 		ut_ad(committed || prev_version
 		      || !rec_get_deleted_flag(version, comp));
 
-		/* Free version and clust_offsets. */
+		/* Free version. */
 		mem_heap_free(old_heap);
 
 		if (committed) {
@@ -238,7 +241,7 @@ not_locked:
 		}
 
 		clust_offsets = rec_get_offsets(
-			prev_version, clust_index, NULL, true,
+			prev_version, clust_index, clust_offsets, true,
 			ULINT_UNDEFINED, &heap);
 
 		vers_del = rec_get_deleted_flag(prev_version, comp);
@@ -387,7 +390,7 @@ row_vers_impl_x_locked(
 	trx_t*		caller_trx,
 	const rec_t*	rec,
 	dict_index_t*	index,
-	const ulint*	offsets)
+	const offset_t*	offsets)
 {
 	mtr_t		mtr;
 	trx_t*		trx;
@@ -440,16 +443,14 @@ row_vers_impl_x_locked(
 @param[in,out]	row		the cluster index row in dtuple form
 @param[in]	clust_index	clustered index
 @param[in]	index		the secondary index
-@param[in]	heap		heap used to build virtual dtuple
-@param[in,out]	vcol_info	virtual column information. */
+@param[in]	heap		heap used to build virtual dtuple. */
 static
 void
 row_vers_build_clust_v_col(
 	dtuple_t*		row,
 	dict_index_t*		clust_index,
 	dict_index_t*		index,
-	mem_heap_t*		heap,
-	purge_vcol_info_t*	vcol_info)
+	mem_heap_t*		heap)
 {
 	mem_heap_t*	local_heap = NULL;
 	VCOL_STORAGE	*vcol_storage= NULL;
@@ -460,10 +461,6 @@ row_vers_build_clust_v_col(
 	ut_ad(dict_index_has_virtual(index));
 	ut_ad(index->table == clust_index->table);
 
-	if (vcol_info != NULL) {
-		vcol_info->set_used();
-		maria_table = vcol_info->table();
-	}
 	DEBUG_SYNC(current_thd, "ib_clust_v_col_before_row_allocated");
 
 	innobase_allocate_row_for_vcol(thd, index,
@@ -472,10 +469,7 @@ row_vers_build_clust_v_col(
 				       &record,
 				       &vcol_storage);
 
-	if (vcol_info && !vcol_info->table()) {
-		vcol_info->set_table(maria_table);
-		goto func_exit;
-	}
+	ut_ad(maria_table);
 
 	for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
 		const dict_field_t* ind_field = dict_index_get_nth_field(
@@ -494,7 +488,6 @@ row_vers_build_clust_v_col(
 		}
 	}
 
-func_exit:
 	if (local_heap) {
 		if (vcol_storage)
 			innobase_free_row_for_vcol(vcol_storage);
@@ -519,7 +512,7 @@ row_vers_build_cur_vrow_low(
 	bool			in_purge,
 	const rec_t*		rec,
 	dict_index_t*		clust_index,
-	ulint*			clust_offsets,
+	offset_t*		clust_offsets,
 	dict_index_t*		index,
 	roll_ptr_t		roll_ptr,
 	trx_id_t		trx_id,
@@ -635,7 +628,7 @@ row_vers_vc_matches_cluster(
 	const rec_t*	rec,
 	const dtuple_t* icentry,
 	dict_index_t*	clust_index,
-	ulint*		clust_offsets,
+	offset_t*	clust_offsets,
 	dict_index_t*	index,
 	const dtuple_t* ientry,
 	roll_ptr_t	roll_ptr,
@@ -802,7 +795,6 @@ func_exit:
 @param[in,out]	heap		heap memory
 @param[in,out]	v_heap		heap memory to keep virtual colum dtuple
 @param[in]	mtr		mtr holding the latch on rec
-@param[in,out]	vcol_info	virtual column information for purge thread
 @return dtuple contains virtual column data */
 static
 dtuple_t*
@@ -810,14 +802,13 @@ row_vers_build_cur_vrow(
 	bool			in_purge,
 	const rec_t*		rec,
 	dict_index_t*		clust_index,
-	ulint**			clust_offsets,
+	offset_t**		clust_offsets,
 	dict_index_t*		index,
 	roll_ptr_t		roll_ptr,
 	trx_id_t		trx_id,
 	mem_heap_t*		heap,
 	mem_heap_t*		v_heap,
-	mtr_t*			mtr,
-	purge_vcol_info_t*	vcol_info)
+	mtr_t*			mtr)
 {
 	dtuple_t* cur_vrow = NULL;
 
@@ -837,16 +828,8 @@ row_vers_build_cur_vrow(
 					  rec, *clust_offsets,
 					  NULL, NULL, NULL, NULL, heap);
 
-		if (vcol_info && !vcol_info->is_used()) {
-			mtr->commit();
-		}
-
 		row_vers_build_clust_v_col(
-			row, clust_index, index, heap, vcol_info);
-
-		if (vcol_info != NULL && vcol_info->is_first_fetch()) {
-			return NULL;
-		}
+			row, clust_index, index, heap);
 
 		cur_vrow = dtuple_copy(row, v_heap);
 		dtuple_dup_v_fld(cur_vrow, v_heap);
@@ -878,7 +861,6 @@ this case we return TRUE.
 @param[in]	ientry		secondary index entry
 @param[in]	roll_ptr	roll_ptr for the purge record
 @param[in]	trx_id		transaction ID on the purging record
-@param[in,out]	vcol_info	virtual column information for purge thread.
 @return TRUE if earlier version should have */
 bool
 row_vers_old_has_index_entry(
@@ -888,13 +870,12 @@ row_vers_old_has_index_entry(
 	dict_index_t*		index,
 	const dtuple_t*		ientry,
 	roll_ptr_t		roll_ptr,
-	trx_id_t		trx_id,
-	purge_vcol_info_t*	vcol_info)
+	trx_id_t		trx_id)
 {
 	const rec_t*	version;
 	rec_t*		prev_version;
 	dict_index_t*	clust_index;
-	ulint*		clust_offsets;
+	offset_t*	clust_offsets;
 	mem_heap_t*	heap;
 	mem_heap_t*	heap2;
 	dtuple_t*	row;
@@ -906,9 +887,6 @@ row_vers_old_has_index_entry(
 
 	ut_ad(mtr_memo_contains_page_flagged(mtr, rec, MTR_MEMO_PAGE_X_FIX
 					     | MTR_MEMO_PAGE_S_FIX));
-	ut_ad(!rw_lock_own(&purge_sys.latch, RW_LOCK_S));
-	ut_ad(also_curr || !vcol_info);
-
 	clust_index = dict_table_get_first_index(index->table);
 
 	comp = page_rec_is_comp(rec);
@@ -959,17 +937,8 @@ row_vers_old_has_index_entry(
 			if (trx_undo_roll_ptr_is_insert(t_roll_ptr)
 			    || dbug_v_purge) {
 
-				if (vcol_info && !vcol_info->is_used()) {
-					mtr->commit();
-				}
-
 				row_vers_build_clust_v_col(
-					row, clust_index, index, heap,
-					vcol_info);
-
-				if (vcol_info && vcol_info->is_first_fetch()) {
-					goto unsafe_to_purge;
-				}
+					row, clust_index, index, heap);
 
 				entry = row_build_index_entry(
 					row, ext, index, heap);
@@ -1045,11 +1014,7 @@ unsafe_to_purge:
 
 		cur_vrow = row_vers_build_cur_vrow(
 			also_curr, rec, clust_index, &clust_offsets,
-			index, roll_ptr, trx_id, heap, v_heap, mtr, vcol_info);
-
-		if (vcol_info && vcol_info->is_first_fetch()) {
-			goto unsafe_to_purge;
-		}
+			index, roll_ptr, trx_id, heap, v_heap, mtr);
 	}
 
 	version = rec;
@@ -1151,7 +1116,7 @@ row_vers_build_for_consistent_read(
 				of this records */
 	mtr_t*		mtr,	/*!< in: mtr holding the latch on rec */
 	dict_index_t*	index,	/*!< in: the clustered index */
-	ulint**		offsets,/*!< in/out: offsets returned by
+	offset_t**	offsets,/*!< in/out: offsets returned by
 				rec_get_offsets(rec, index) */
 	ReadView*	view,	/*!< in: the consistent read view */
 	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
@@ -1267,7 +1232,7 @@ row_vers_build_for_semi_consistent_read(
 				of this records */
 	mtr_t*		mtr,	/*!< in: mtr holding the latch on rec */
 	dict_index_t*	index,	/*!< in: the clustered index */
-	ulint**		offsets,/*!< in/out: offsets returned by
+	offset_t**	offsets,/*!< in/out: offsets returned by
 				rec_get_offsets(rec, index) */
 	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
 				the offsets are allocated */

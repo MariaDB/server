@@ -3,13 +3,16 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/big_test.inc
+--source include/force_restart.inc
 
 CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,B INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1,1);
 
 --connection node_2
-SET SESSION wsrep_sync_wait=15;
+--let $wait_condition = SELECT COUNT(*)=1 FROM t1;
+--source include/wait_condition.inc
+
 SELECT COUNT(*) FROM t1;
 
 --let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
@@ -53,5 +56,6 @@ SELECT COUNT(*) FROM t1;
 --disable_query_log
 --eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_orig';
 --enable_query_log
+--source include/wait_until_connected_again.inc
 
 DROP TABLE t1;

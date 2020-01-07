@@ -46,7 +46,6 @@
 #include <cstdlib>
 #include <string>
 #include "log_event.h"
-#include <slave.h>
 
 #include <sstream>
 
@@ -550,11 +549,11 @@ static std::string wsrep_server_incoming_address()
     {
       if (node_addr.size())
       {
-        size_t const ip_len= wsrep_host_len(node_addr.c_str(), node_addr.size());
-        if (ip_len + 7 /* :55555\0 */ < inc_addr_max)
+        size_t const ip_len_mdb= wsrep_host_len(node_addr.c_str(), node_addr.size());
+        if (ip_len_mdb + 7 /* :55555\0 */ < inc_addr_max)
         {
-          memcpy (inc_addr, node_addr.c_str(), ip_len);
-          snprintf(inc_addr + ip_len, inc_addr_max - ip_len, ":%u",
+          memcpy (inc_addr, node_addr.c_str(), ip_len_mdb);
+          snprintf(inc_addr + ip_len_mdb, inc_addr_max - ip_len_mdb, ":%u",
                    (int)mysqld_port);
         }
         else
@@ -1646,6 +1645,39 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     {
       return false;
     }
+    /*
+      If mariadb master has replicated a CTAS, we should not replicate the create table
+      part separately as TOI, but to replicate both create table and following inserts
+      as one write set.
+      Howver, if CTAS creates empty table, we should replicate the create table alone
+      as TOI. We have to do relay log event lookup to see if row events follow the
+      create table event.
+    */
+    if (thd->slave_thread && !(thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_STANDALONE))
+    {
+      /* this is CTAS, either empty or populated table */
+      ulonglong event_size = 0;
+      enum Log_event_type ev_type= wsrep_peak_event(thd->rgi_slave, &event_size);
+      switch (ev_type)
+      {
+      case QUERY_EVENT:
+        /* CTAS with empty table, we replicate create table as TOI */
+        break;
+
+      case TABLE_MAP_EVENT:
+        WSREP_DEBUG("replicating CTAS of empty table as TOI");
+        // fall through
+      case WRITE_ROWS_EVENT:
+        /* CTAS with populated table, we replicate later at commit time */
+        WSREP_DEBUG("skipping create table of CTAS replication");
+        return false;
+
+      default:
+        WSREP_WARN("unexpected async replication event: %d", ev_type);
+      }
+      return true;
+    }
+    /* no next async replication event */
     return true;
 
   case SQLCOM_CREATE_VIEW:
@@ -1856,9 +1888,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
 
   wsrep::client_state& cs(thd->wsrep_cs());
   int ret= cs.enter_toi_local(key_array,
-                              wsrep::const_buffer(buff.ptr, buff.len),
-                              wsrep::provider::flag::start_transaction |
-                              wsrep::provider::flag::commit);
+                              wsrep::const_buffer(buff.ptr, buff.len));
 
   if (ret)
   {
@@ -2109,12 +2139,18 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     if (wsrep_thd_is_toi(granted_thd) ||
         wsrep_thd_is_applying(granted_thd))
     {
-      if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
+      if (wsrep_thd_is_aborting(granted_thd))
+      {
+        WSREP_DEBUG("BF thread waiting for SR in aborting state");
+        ticket->wsrep_report(wsrep_debug);
+        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+      }
+      else if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
       {
         WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR", 
                       schema, schema_len, request_thd, granted_thd);
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-        wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
+        wsrep_abort_thd(request_thd, granted_thd, 1);
       }
       else
       {
@@ -2138,7 +2174,7 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                   wsrep_thd_transaction_state_str(granted_thd));
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-      wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
+      wsrep_abort_thd(request_thd, granted_thd, 1);
     }
     else
     {
@@ -2260,6 +2296,7 @@ int wsrep_wait_committing_connections_close(int wait_time)
 {
   int sleep_time= 100;
 
+  WSREP_DEBUG("wait for committing transaction to close: %d sleep: %d", wait_time, sleep_time);
   while (server_threads.iterate(have_committing_connections) && wait_time > 0)
   {
     WSREP_DEBUG("wait for committing transaction to close: %d", wait_time);

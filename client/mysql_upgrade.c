@@ -383,11 +383,20 @@ static int run_command(char* cmd,
   if (opt_verbose >= 4)
     puts(cmd);
 
-  if (!(res_file= popen(cmd, "r")))
+  if (!(res_file= my_popen(cmd, "r")))
     die("popen(\"%s\", \"r\") failed", cmd);
 
   while (fgets(buf, sizeof(buf), res_file))
   {
+#ifdef _WIN32
+    /* Strip '\r' off newlines. */
+    size_t len = strlen(buf);
+    if (len > 1 && buf[len - 2] == '\r' && buf[len - 1] == '\n')
+    {
+      buf[len - 2] = '\n';
+      buf[len - 1] = 0;
+    }
+#endif
     DBUG_PRINT("info", ("buf: %s", buf));
     if(ds_res)
     {
@@ -401,7 +410,7 @@ static int run_command(char* cmd,
     }
   }
 
-  error= pclose(res_file);
+  error= my_pclose(res_file);
   return WEXITSTATUS(error);
 }
 

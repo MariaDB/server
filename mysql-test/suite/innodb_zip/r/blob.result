@@ -1,0 +1,21 @@
+#
+# MDEV-21259 Assertion 'w != NORMAL || mach_read_from_4(ptr) != val'
+# failed in mtr_t::write(), btr_free_externally_stored_field()
+#
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+CREATE TABLE t1 (c TEXT, f2 INT PRIMARY KEY, f3 INT UNIQUE)
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+SET @level= @@GLOBAL.innodb_compression_level;
+SET GLOBAL innodb_compression_level=0;
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+INSERT INTO t1 VALUES('a',1,0);
+UPDATE t1 SET c= REPEAT('a b ',4096);
+REPLACE INTO t1 SELECT * FROM t1;
+disconnect prevent_purge;
+InnoDB		0 transactions not purged
+DROP TABLE t1;
+SET GLOBAL innodb_compression_level = @level;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

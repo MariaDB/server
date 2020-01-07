@@ -723,6 +723,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
 {
   vers_asof_timestamp_t &in= thd->variables.vers_asof_timestamp;
   type= (vers_system_time_t) in.type;
+  delete_history= false;
   start.unit= VERS_TIMESTAMP;
   if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
   {
@@ -755,6 +756,7 @@ void vers_select_conds_t::print(String *str, enum_query_type query_type) const
     end.print(str, query_type, STRING_WITH_LEN(" AND "));
     break;
   case SYSTEM_TIME_BEFORE:
+  case SYSTEM_TIME_HISTORY:
     DBUG_ASSERT(0);
     break;
   case SYSTEM_TIME_ALL:
@@ -790,10 +792,15 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
     switch (conds->type)
     {
     case SYSTEM_TIME_UNSPECIFIED:
+    case SYSTEM_TIME_HISTORY:
       thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
       max_time.second_part= TIME_MAX_SECOND_PART;
       curr= newx Item_datetime_literal(thd, &max_time, TIME_SECOND_PART_DIGITS);
-      cond1= newx Item_func_eq(thd, conds->field_end, curr);
+      if (conds->type == SYSTEM_TIME_UNSPECIFIED)
+        cond1= newx Item_func_eq(thd, conds->field_end, curr);
+      else
+        cond1= newx Item_func_lt(thd, conds->field_end, curr);
+      break;
       break;
     case SYSTEM_TIME_AS_OF:
       cond1= newx Item_func_le(thd, conds->field_start, conds->start.item);
@@ -837,8 +844,13 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
     switch (conds->type)
     {
     case SYSTEM_TIME_UNSPECIFIED:
+    case SYSTEM_TIME_HISTORY:
       curr= newx Item_int(thd, ULONGLONG_MAX);
-      cond1= newx Item_func_eq(thd, conds->field_end, curr);
+      if (conds->type == SYSTEM_TIME_UNSPECIFIED)
+        cond1= newx Item_func_eq(thd, conds->field_end, curr);
+      else
+        cond1= newx Item_func_lt(thd, conds->field_end, curr);
+      break;
       DBUG_ASSERT(!conds->start.item);
       DBUG_ASSERT(!conds->end.item);
       break;
@@ -881,12 +893,10 @@ bool skip_setup_conds(THD *thd)
          || thd->lex->is_view_context_analysis();
 }
 
-Item* SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables, Item *where)
+int SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables)
 {
   DBUG_ENTER("SELECT_LEX::period_setup_conds");
-
-  if (skip_setup_conds(thd))
-    DBUG_RETURN(where);
+  const bool update_conds= !skip_setup_conds(thd);
 
   Query_arena backup;
   Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
@@ -904,27 +914,29 @@ Item* SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables, Item *where)
       my_error(ER_PERIOD_NOT_FOUND, MYF(0), conds.name.str);
       if (arena)
         thd->restore_active_arena(arena, &backup);
-      DBUG_RETURN(NULL);
+      DBUG_RETURN(-1);
     }
 
-    conds.period= &table->table->s->period;
-    result= and_items(thd, result,
-                      period_get_condition(thd, table, this, &conds, true));
+    if (update_conds)
+    {
+      conds.period= &table->table->s->period;
+      result= and_items(thd, result,
+                        period_get_condition(thd, table, this, &conds, true));
+    }
   }
-  result= and_items(thd, where, result);
+  if (update_conds)
+    where= and_items(thd, where, result);
 
   if (arena)
     thd->restore_active_arena(arena, &backup);
 
-  DBUG_RETURN(result);
+  DBUG_RETURN(0);
 }
 
 int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 {
   DBUG_ENTER("SELECT_LEX::vers_setup_conds");
-
-  if (skip_setup_conds(thd))
-    DBUG_RETURN(0);
+  const bool update_conds= !skip_setup_conds(thd);
 
   if (!versioned_tables)
   {
@@ -968,9 +980,22 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     }
   }
 
+  bool is_select= false;
+  switch (thd->lex->sql_command)
+  {
+  case SQLCOM_SELECT:
+  case SQLCOM_INSERT_SELECT:
+  case SQLCOM_REPLACE_SELECT:
+  case SQLCOM_DELETE_MULTI:
+  case SQLCOM_UPDATE_MULTI:
+    is_select= true;
+  default:
+    break;
+  }
+
   for (TABLE_LIST *table= tables; table; table= table->next_local)
   {
-    if (!table->table || !table->table->versioned())
+    if (!table->table || table->is_view() || !table->table->versioned())
       continue;
 
     vers_select_conds_t &vers_conditions= table->vers_conditions;
@@ -982,13 +1007,15 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       */
       if (table->partition_names && table->table->part_info->vers_info)
       {
-        if (vers_conditions.is_set())
+        /* If the history is stored in partitions, then partitions
+            themselves are not versioned. */
+        if (vers_conditions.was_set())
         {
           my_error(ER_VERS_QUERY_IN_PARTITION, MYF(0), table->alias.str);
           DBUG_RETURN(-1);
         }
-        else
-          vers_conditions.init(SYSTEM_TIME_ALL);
+        else if (!vers_conditions.is_set())
+          vers_conditions.set_all();
       }
 #endif
 
@@ -1000,7 +1027,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     }
 
     // propagate system_time from sysvar
-    if (!vers_conditions.is_set())
+    if (!vers_conditions.is_set() && is_select)
     {
       if (vers_conditions.init_from_sysvar(thd))
         DBUG_RETURN(-1);
@@ -1016,7 +1043,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 
     bool timestamps_only= table->table->versioned(VERS_TIMESTAMP);
 
-    if (vers_conditions.is_set())
+    if (vers_conditions.is_set() && vers_conditions.type != SYSTEM_TIME_HISTORY)
     {
       thd->where= "FOR SYSTEM_TIME";
       /* TODO: do resolve fix_length_and_dec(), fix_fields(). This requires
@@ -1033,13 +1060,27 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       }
     }
 
-    vers_conditions.period = &table->table->s->vers;
-    Item *cond= period_get_condition(thd, table, this, &vers_conditions,
-                                     timestamps_only);
-    if (cond)
-      table->on_expr= and_items(thd, table->on_expr, cond);
-    table->vers_conditions.type= SYSTEM_TIME_ALL;
+    if (update_conds)
+    {
+      vers_conditions.period = &table->table->s->vers;
+      Item *cond= period_get_condition(thd, table, this, &vers_conditions,
+                                      timestamps_only);
+      if (is_select)
+        table->on_expr= and_items(thd, table->on_expr, cond);
+      else
+      {
+        if (join)
+        {
+          where= and_items(thd, join->conds, cond);
+          join->conds= where;
+        }
+        else
+          where= and_items(thd, where, cond);
+        table->where= and_items(thd, table->where, cond);
+      }
 
+      table->vers_conditions.set_all();
+    }
   } // for (table= tables; ...)
 
   DBUG_RETURN(0);
@@ -1608,6 +1649,12 @@ bool JOIN::make_range_rowid_filters()
   {
     if (!tab->range_rowid_filter_info)
       continue;
+
+    DBUG_ASSERT(!(tab->ref.key >= 0 &&
+                  tab->ref.key == (int) tab->range_rowid_filter_info->key_no));
+    DBUG_ASSERT(!(tab->ref.key == -1 && tab->quick &&
+                  tab->quick->index == tab->range_rowid_filter_info->key_no));
+
     int err;
     SQL_SELECT *sel= NULL;
     Rowid_filter_container *filter_container= NULL;
@@ -1939,7 +1986,20 @@ JOIN::optimize_inner()
     }
   }
 
-  conds= optimize_cond(this, conds, join_list, FALSE,
+  bool ignore_on_expr= false;
+  /*
+    PS/SP note: on_expr of versioned table can not be reallocated
+    (see build_equal_items() below) because it can be not rebuilt
+    at second invocation.
+  */
+  if (!thd->stmt_arena->is_conventional() && thd->mem_root != thd->stmt_arena->mem_root)
+    for (TABLE_LIST *tbl= tables_list; tbl; tbl= tbl->next_local)
+      if (tbl->table && tbl->on_expr && tbl->table->versioned())
+      {
+        ignore_on_expr= true;
+        break;
+      }
+  conds= optimize_cond(this, conds, join_list, ignore_on_expr,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
 
   if (thd->is_error())
@@ -2068,6 +2128,7 @@ JOIN::optimize_inner()
         zero_result_cause= "Zero limit";
       }
       table_count= top_join_tab_count= 0;
+      handle_implicit_grouping_with_window_funcs();
       error= 0;
       subq_exit_fl= true;
       goto setup_subq_exit;
@@ -2115,6 +2176,7 @@ JOIN::optimize_inner()
         table_count= top_join_tab_count= 0;
 	error=0;
         subq_exit_fl= true;
+        handle_implicit_grouping_with_window_funcs();
         goto setup_subq_exit;
       }
       if (res > 1)
@@ -2130,6 +2192,7 @@ JOIN::optimize_inner()
       tables_list= 0;				// All tables resolved
       select_lex->min_max_opt_list.empty();
       const_tables= top_join_tab_count= table_count;
+      handle_implicit_grouping_with_window_funcs();
       /*
         Extract all table-independent conditions and replace the WHERE
         clause with them. All other conditions were computed by opt_sum_query
@@ -2278,6 +2341,7 @@ int JOIN::optimize_stage2()
     zero_result_cause= "no matching row in const table";
     DBUG_PRINT("error",("Error: %s", zero_result_cause));
     error= 0;
+    handle_implicit_grouping_with_window_funcs();
     goto setup_subq_exit;
   }
   if (!(thd->variables.option_bits & OPTION_BIG_SELECTS) &&
@@ -2309,6 +2373,7 @@ int JOIN::optimize_stage2()
     zero_result_cause=
       "Impossible WHERE noticed after reading const tables";
     select_lex->mark_const_derived(zero_result_cause);
+    handle_implicit_grouping_with_window_funcs();
     goto setup_subq_exit;
   }
 
@@ -2471,6 +2536,7 @@ int JOIN::optimize_stage2()
     zero_result_cause=
       "Impossible WHERE noticed after reading const tables";
     select_lex->mark_const_derived(zero_result_cause);
+    handle_implicit_grouping_with_window_funcs();
     goto setup_subq_exit;
   }
 
@@ -7668,7 +7734,8 @@ best_access_path(JOIN      *join,
                                               found_ref);
       } /* not ft_key */
 
-      if (records < DBL_MAX)
+      if (records < DBL_MAX &&
+	  (found_part & 1))   // start_key->key can be used for index access
       {
         double rows= record_count * records;
         double access_cost_factor= MY_MIN(tmp / rows, 1.0);
@@ -15685,7 +15752,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
     }	 
   }
   else if (cond->type() == Item::FUNC_ITEM && 
-           ((Item_cond*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
+           ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
   {
     item_equal= (Item_equal *) cond;
     item_equal->sort(&compare_fields_by_table_order, table_join_idx);
@@ -18472,7 +18539,7 @@ bool Create_tmp_table::finalize(THD *thd,
 
     /*
       Test if there is a default field value. The test for ->ptr is to skip
-      'offset' fields generated by initalize_tables
+      'offset' fields generated by initialize_tables
     */
     if (m_default_field[i] && m_default_field[i]->ptr)
     {
@@ -19661,7 +19728,8 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab)
     }
   }
   else if (join->sort_and_group && !tmp_tbl->precomputed_group_by &&
-           !join->sort_and_group_aggr_tab && join->tables_list)
+           !join->sort_and_group_aggr_tab && join->tables_list &&
+           join->top_join_tab_count)
   {
     DBUG_PRINT("info",("Using end_write_group"));
     aggr->set_write_func(end_write_group);
@@ -21209,10 +21277,11 @@ int join_init_read_record(JOIN_TAB *tab)
   */
   if (tab->distinct && tab->remove_duplicates())  // Remove duplicates.
     return 1;
-  if (tab->filesort && tab->sort_table())     // Sort table.
-    return 1;
 
   tab->build_range_rowid_filter_if_needed();
+
+  if (tab->filesort && tab->sort_table())     // Sort table.
+    return 1;
 
   DBUG_EXECUTE_IF("kill_join_init_read_record",
                   tab->join->thd->set_killed(KILL_QUERY););
@@ -21273,6 +21342,9 @@ JOIN_TAB::sort_table()
                                             JOIN::ordered_index_order_by :
                                             JOIN::ordered_index_group_by));
   rc= create_sort_index(join->thd, join, this, NULL);
+  /* Disactivate rowid filter if it was used when creating sort index */
+  if (rowid_filter)
+    table->file->rowid_filter_is_active= false;
   return (rc != 0);
 }
 
@@ -21321,7 +21393,7 @@ join_read_last(JOIN_TAB *tab)
 {
   TABLE *table=tab->table;
   int error= 0;
-  DBUG_ENTER("join_read_first");
+  DBUG_ENTER("join_read_last");
 
   DBUG_ASSERT(table->no_keyread ||
               !table->covering_keys.is_set(tab->index) ||
@@ -25089,7 +25161,8 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   for (uint i= 0; (item= it++); i++)
   {
     Field *field;
-    if (item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM)
+    if ((item->with_sum_func() && item->type() != Item::SUM_FUNC_ITEM) ||
+       item->with_window_func)
       item_field= item;
     else if (item->type() == Item::FIELD_ITEM)
     {
@@ -28628,6 +28701,28 @@ Item *remove_pushed_top_conjuncts(THD *thd, Item *cond)
     }
   }
   return cond;
+}
+
+
+/*
+  There are 5 cases in which we shortcut the join optimization process as we
+  conclude that the join would be a degenerate one
+    1) IMPOSSIBLE WHERE
+    2) MIN/MAX optimization (@see opt_sum_query)
+    3) EMPTY CONST TABLE
+  If a window function is present in any of the above cases then to get the
+  result of the window function, we need to execute it. So we need to
+  create a temporary table for its execution. Here we need to take in mind
+  that aggregate functions and non-aggregate function need not be executed.
+
+*/
+
+void JOIN::handle_implicit_grouping_with_window_funcs()
+{
+  if (select_lex->have_window_funcs() && send_row_on_empty_set())
+  {
+    const_tables= top_join_tab_count= table_count= 0;
+  }
 }
 
 

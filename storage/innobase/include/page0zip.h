@@ -133,12 +133,11 @@ page_zip_set_alloc(
 @retval false on failure; block->page.zip will be left intact. */
 bool
 page_zip_compress(
-	buf_block_t*		block,		/*!< in/out: buffer block */
-	dict_index_t*		index,		/*!< in: index of the B-tree
-						node */
-	ulint			level,		/*!< in: commpression level */
-	mtr_t*			mtr);		/*!< in/out: mini-transaction,
-						or NULL */
+	buf_block_t*		block,	/*!< in/out: buffer block */
+	dict_index_t*		index,	/*!< in: index of the B-tree node */
+	ulint			level,	/*!< in: commpression level */
+	mtr_t*			mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**
 Write the index information for the compressed page.
@@ -257,7 +256,7 @@ page_zip_write_rec(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	const byte*	rec,	/*!< in: record being written */
 	dict_index_t*	index,	/*!< in: the index the record belongs to */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		create)	/*!< in: nonzero=insert, zero=update */
 	MY_ATTRIBUTE((nonnull));
 
@@ -278,14 +277,14 @@ The information must already have been updated on the uncompressed page. */
 void
 page_zip_write_blob_ptr(
 /*====================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	buf_block_t*	block,	/*!< in/out: ROW_FORMAT=COMPRESSED page */
 	const byte*	rec,	/*!< in/out: record whose data is being
 				written */
 	dict_index_t*	index,	/*!< in: index of the page */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		n,	/*!< in: column index */
-	mtr_t*		mtr);	/*!< in: mini-transaction handle,
-				or NULL if no logging is needed */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull));
 
 /***********************************************************//**
 Parses a log record of writing the node pointer of a record.
@@ -303,11 +302,12 @@ Write the node pointer of a record on a non-leaf compressed page. */
 void
 page_zip_write_node_ptr(
 /*====================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	buf_block_t*	block,	/*!< in/out: compressed page */
 	byte*		rec,	/*!< in/out: record */
 	ulint		size,	/*!< in: data size of rec */
 	ulint		ptr,	/*!< in: node pointer */
-	mtr_t*		mtr);	/*!< in: mini-transaction, or NULL */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull));
 
 /** Write the DB_TRX_ID,DB_ROLL_PTR into a clustered index leaf page record.
 @param[in,out]	page_zip	compressed page
@@ -321,7 +321,7 @@ void
 page_zip_write_trx_id_and_roll_ptr(
 	page_zip_des_t*	page_zip,
 	byte*		rec,
-	const ulint*	offsets,
+	const offset_t*	offsets,
 	ulint		trx_id_col,
 	trx_id_t	trx_id,
 	roll_ptr_t	roll_ptr,
@@ -370,8 +370,7 @@ Insert a record to the dense page directory. */
 void
 page_zip_dir_insert(
 /*================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
-	const byte*	prev_rec,/*!< in: record after which to insert */
+	page_cur_t*	cursor,	/*!< in/out: page cursor */
 	const byte*	free_rec,/*!< in: record from which rec was
 				allocated, or NULL */
 	byte*		rec);	/*!< in: record to insert */
@@ -385,7 +384,7 @@ page_zip_dir_delete(
 	page_zip_des_t*		page_zip,	/*!< in/out: compressed page */
 	byte*			rec,		/*!< in: deleted record */
 	const dict_index_t*	index,		/*!< in: index of rec */
-	const ulint*		offsets,	/*!< in: rec_get_offsets(rec) */
+	const offset_t*		offsets,	/*!< in: rec_get_offsets(rec) */
 	const byte*		free)		/*!< in: previous start of
 						the free list */
 	MY_ATTRIBUTE((nonnull(1,2,3,4)));
@@ -410,22 +409,6 @@ page_zip_parse_write_header(
 	const byte*	end_ptr,/*!< in: redo log buffer end */
 	page_t*		page,	/*!< in/out: uncompressed page */
 	page_zip_des_t*	page_zip);/*!< in/out: compressed page */
-
-/**********************************************************************//**
-Write data to the uncompressed header portion of a page.  The data must
-already have been written to the uncompressed page.
-However, the data portion of the uncompressed page may differ from
-the compressed page when a record is being inserted in
-page_cur_insert_rec_low(). */
-UNIV_INLINE
-void
-page_zip_write_header(
-/*==================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
-	const byte*	str,	/*!< in: address on the uncompressed page */
-	ulint		length,	/*!< in: length of the data */
-	mtr_t*		mtr)	/*!< in: mini-transaction, or NULL */
-	MY_ATTRIBUTE((nonnull(1,2)));
 
 /**********************************************************************//**
 Reorganize and compress a page.  This is a low-level operation for
@@ -499,9 +482,10 @@ void
 page_zip_compress_write_log_no_data(
 /*================================*/
 	ulint		level,	/*!< in: compression level */
-	const page_t*	page,	/*!< in: page that is compressed */
+	buf_block_t*	block,	/*!< in: ROW_FORMAT=COMPRESSED index page */
 	dict_index_t*	index,	/*!< in: index */
-	mtr_t*		mtr);	/*!< in: mtr */
+	mtr_t*		mtr)	/*!< in: mtr */
+	MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**
 Reset the counters used for filling

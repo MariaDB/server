@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -97,15 +97,11 @@ dict_create_index_tree(
 	const trx_t*	trx);	/*!< in: InnoDB transaction handle */
 
 /** Drop the index tree associated with a row in SYS_INDEXES table.
-@param[in,out]	rec	SYS_INDEXES record
 @param[in,out]	pcur	persistent cursor on rec
-@param[in,out]	mtr	mini-transaction
-@return	whether freeing the B-tree was attempted */
-bool
-dict_drop_index_tree(
-	rec_t*		rec,
-	btr_pcur_t*	pcur,
-	mtr_t*		mtr);
+@param[in,out]	trx	dictionary transaction
+@param[in,out]	mtr	mini-transaction */
+void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull));
 
 /***************************************************************//**
 Creates an index tree for the index if it is not a member of a cluster.
@@ -200,16 +196,6 @@ dict_replace_tablespace_in_dictionary(
 	const char*	name,
 	ulint		flags,
 	const char*	path,
-	trx_t*		trx);
-
-/** Delete records from SYS_TABLESPACES and SYS_DATAFILES associated
-with a particular tablespace ID.
-@param[in]	space	Tablespace ID
-@param[in,out]	trx	Current transaction
-@return DB_SUCCESS if OK, dberr_t if the operation failed */
-dberr_t
-dict_delete_tablespace_and_datafiles(
-	ulint		space,
 	trx_t*		trx);
 
 /********************************************************************//**

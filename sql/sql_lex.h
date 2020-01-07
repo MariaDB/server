@@ -1316,7 +1316,7 @@ public:
   /* push new Item_field into item_list */
   bool vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name);
 
-  Item* period_setup_conds(THD *thd, TABLE_LIST *table, Item *where);
+  int period_setup_conds(THD *thd, TABLE_LIST *table);
   void init_query();
   void init_select();
   st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }
@@ -1711,28 +1711,6 @@ public:
   SQL_I_List<Sroutine_hash_entry> sroutines_list;
   Sroutine_hash_entry **sroutines_list_own_last;
   uint sroutines_list_own_elements;
-
-  /**
-    Locking state of tables in this particular statement.
-
-    If we under LOCK TABLES or in prelocked mode we consider tables
-    for the statement to be "locked" if there was a call to lock_tables()
-    (which called handler::start_stmt()) for tables of this statement
-    and there was no matching close_thread_tables() call.
-
-    As result this state may differ significantly from one represented
-    by Open_tables_state::lock/locked_tables_mode more, which are always
-    "on" under LOCK TABLES or in prelocked mode.
-  */
-  enum enum_lock_tables_state {
-    LTS_NOT_LOCKED = 0,
-    LTS_LOCKED
-  };
-  enum_lock_tables_state lock_tables_state;
-  bool is_query_tables_locked()
-  {
-    return (lock_tables_state == LTS_LOCKED);
-  }
 
   /**
     Number of tables which were open by open_tables() and to be locked
@@ -3249,7 +3227,6 @@ public:
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
   List<LEX_CSTRING>   view_list; // view list (list of field names in view)
-  List<LEX_CSTRING>   with_column_list; // list of column names in with_list_element
   List<LEX_STRING>   *column_list; // list of column names (in ANALYZE)
   List<LEX_STRING>   *index_list;  // list of index names (in ANALYZE)
   /*
@@ -4509,6 +4486,11 @@ public:
                                        bool distinct,
                                        bool oracle);
   SELECT_LEX_UNIT *
+  add_primary_to_query_expression_body(SELECT_LEX_UNIT *unit,
+                                       SELECT_LEX *sel,
+                                       enum sub_select_type unit_type,
+                                       bool distinct);
+  SELECT_LEX_UNIT *
   add_primary_to_query_expression_body_ext_parens(
                                        SELECT_LEX_UNIT *unit,
                                        SELECT_LEX *sel,
@@ -4597,6 +4579,8 @@ public:
   bool stmt_alter_function_start(sp_name *name);
   bool stmt_alter_procedure_start(sp_name *name);
 
+  sp_condition_value *stmt_signal_value(const Lex_ident_sys_st &ident);
+
   Spvar_definition *row_field_name(THD *thd, const Lex_ident_sys_st &name);
 
   bool set_field_type_udt(Lex_field_type_st *type,
@@ -4606,6 +4590,15 @@ public:
                          const LEX_CSTRING &name);
 
   void mark_first_table_as_inserting();
+
+  bool add_table_foreign_key(const LEX_CSTRING *name,
+                             const LEX_CSTRING *constraint_name,
+                             Table_ident *table_name,
+                             DDL_options ddl_options);
+  bool add_column_foreign_key(const LEX_CSTRING *name,
+                              const LEX_CSTRING *constraint_name,
+                              Table_ident *ref_table_name,
+                              DDL_options ddl_options);
 };
 
 

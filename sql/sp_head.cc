@@ -2625,7 +2625,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       }
       if (bp->instr_type == CPOP)
       {
-        uint n= lab->ctx->diff_cursors(lab_begin_block->ctx, true);
+        uint n= bp->instr->m_ctx->diff_cursors(lab_begin_block->ctx, true);
         if (n == 0)
         {
           // Remove cpop instr
@@ -2642,7 +2642,7 @@ sp_head::backpatch_goto(THD *thd, sp_label *lab,sp_label *lab_begin_block)
       }
       if (bp->instr_type == HPOP)
       {
-        uint n= lab->ctx->diff_handlers(lab_begin_block->ctx, true);
+        uint n= bp->instr->m_ctx->diff_handlers(lab_begin_block->ctx, true);
         if (n == 0)
         {
           // Remove hpop instr
@@ -3147,6 +3147,8 @@ void sp_head::optimize()
   sp_instr *i;
   uint src, dst;
 
+  DBUG_EXECUTE_IF("sp_head_optimize_disable", return; );
+
   opt_mark();
 
   bp.empty();
@@ -3451,11 +3453,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     Update the state of the active arena if no errors on
     open_tables stage.
   */
-  if (likely(!res) || likely(!thd->is_error()) ||
-      (thd->get_stmt_da()->sql_errno() != ER_CANT_REOPEN_TABLE &&
-       thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE &&
-       thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE &&
-       thd->get_stmt_da()->sql_errno() != ER_UPDATE_TABLE_USED))
+  if (likely(!res) || likely(!thd->is_error()))
     thd->stmt_arena->state= Query_arena::STMT_EXECUTED;
 
   /*

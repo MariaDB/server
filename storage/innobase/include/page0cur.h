@@ -27,12 +27,7 @@ Created 10/4/1994 Heikki Tuuri
 #ifndef page0cur_h
 #define page0cur_h
 
-#include "buf0types.h"
 #include "page0page.h"
-#include "rem0rec.h"
-#include "data0data.h"
-#include "mtr0mtr.h"
-#include "gis0type.h"
 
 #ifdef UNIV_DEBUG
 /*********************************************************//**
@@ -152,7 +147,7 @@ page_cur_tuple_insert(
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const dtuple_t*	tuple,	/*!< in: pointer to a data tuple */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	ulint**		offsets,/*!< out: offsets on *rec */
+	offset_t**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
@@ -176,7 +171,7 @@ page_cur_rec_insert(
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const rec_t*	rec,	/*!< in: record to insert */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr);	/*!< in: mini-transaction handle, or NULL */
 /***********************************************************//**
 Inserts a record next to page cursor on an uncompressed page.
@@ -186,13 +181,12 @@ space available, NULL otherwise. The cursor stays at the same position.
 rec_t*
 page_cur_insert_rec_low(
 /*====================*/
-	rec_t*		current_rec,/*!< in: pointer to current record after
-				which the new record is inserted */
+	const page_cur_t*cur,	/*!< in: page cursor */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	const rec_t*	rec,	/*!< in: pointer to a physical record */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
-	MY_ATTRIBUTE((nonnull(1,2,3,4), warn_unused_result));
+	const rec_t*	rec,	/*!< in: record to insert after cur */
+	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /***********************************************************//**
 Inserts a record next to page cursor on a compressed and uncompressed
@@ -212,9 +206,9 @@ page_cur_insert_rec_zip(
 	page_cur_t*	cursor,	/*!< in/out: page cursor */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
-	MY_ATTRIBUTE((nonnull(1,2,3,4), warn_unused_result));
+	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*************************************************************//**
 Copies records from page to a newly created page, from a given record onward,
 including that record. Infimum and supremum records are not copied.
@@ -238,9 +232,10 @@ page_cur_delete_rec(
 /*================*/
 	page_cur_t*		cursor,	/*!< in/out: a page cursor */
 	const dict_index_t*	index,	/*!< in: record descriptor */
-	const ulint*		offsets,/*!< in: rec_get_offsets(
+	const offset_t*		offsets,/*!< in: rec_get_offsets(
 					cursor->rec, index) */
-	mtr_t*			mtr);	/*!< in: mini-transaction handle */
+	mtr_t*			mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull));
 
 /** Search the right position for a page cursor.
 @param[in] block buffer block
@@ -373,27 +368,16 @@ page_cur_parse_delete_rec(
 	const byte*	end_ptr,/*!< in: buffer end */
 	buf_block_t*	block,	/*!< in: page or NULL */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	mtr_t*		mtr);	/*!< in: mtr or NULL */
-/*******************************************************//**
-Removes the record from a leaf page. This function does not log
-any changes. It is used by the IMPORT tablespace functions.
-@return true if success, i.e., the page did not become too empty */
-bool
-page_delete_rec(
-/*============*/
-	const dict_index_t*	index,	/*!< in: The index that the record
-					belongs to */
-	page_cur_t*		pcur,	/*!< in/out: page cursor on record
-					to delete */
-	page_zip_des_t*		page_zip,/*!< in: compressed page descriptor */
-	const ulint*		offsets);/*!< in: offsets for record */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction,
+				or NULL if block=NULL */
+	MY_ATTRIBUTE((warn_unused_result, nonnull(1,2,4)));
 
 /** Index page cursor */
 
 struct page_cur_t{
 	const dict_index_t*	index;
 	rec_t*		rec;	/*!< pointer to a record on page */
-	ulint*		offsets;
+	offset_t*	offsets;
 	buf_block_t*	block;	/*!< pointer to the block containing rec */
 };
 

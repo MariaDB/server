@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,9 +34,13 @@ Created 10/25/1995 Heikki Tuuri
 #include "hash0hash.h"
 #include "log0recv.h"
 #include "dict0types.h"
+#include "intrusive_list.h"
 #ifdef UNIV_LINUX
 # include <set>
 #endif
+
+struct unflushed_spaces_tag_t;
+struct rotation_list_tag_t;
 
 /** whether to reduce redo logging during ALTER TABLE */
 extern	my_bool	innodb_log_optimize_ddl;
@@ -56,8 +60,6 @@ enum fil_type_t {
 	FIL_TYPE_IMPORT,
 	/** persistent tablespace (for system, undo log or tables) */
 	FIL_TYPE_TABLESPACE,
-	/** redo log covering changes to files of FIL_TYPE_TABLESPACE */
-	FIL_TYPE_LOG
 };
 
 /** Check if fil_type is any of FIL_TYPE_TEMPORARY, FIL_TYPE_IMPORT
@@ -80,7 +82,13 @@ struct fil_node_t;
 #endif
 
 /** Tablespace or log data space */
-struct fil_space_t {
+#ifndef UNIV_INNOCHECKSUM
+struct fil_space_t : intrusive::list_node<unflushed_spaces_tag_t>,
+                     intrusive::list_node<rotation_list_tag_t>
+#else
+struct fil_space_t
+#endif
+{
 #ifndef UNIV_INNOCHECKSUM
 	ulint		id;	/*!< space id */
 	hash_node_t	hash;	/*!< hash chain node */
@@ -150,9 +158,6 @@ struct fil_space_t {
 	std::atomic<ulint>		n_pending_ios;
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
-	UT_LIST_NODE_T(fil_space_t) unflushed_spaces;
-				/*!< list of spaces with at least one unflushed
-				file we have written to */
 	UT_LIST_NODE_T(fil_space_t) named_spaces;
 				/*!< list of spaces for which MLOG_FILE_NAME
 				records have been issued */
@@ -161,8 +166,6 @@ struct fil_space_t {
 	bool is_in_unflushed_spaces() const;
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
-	/** other tablespaces needing key rotation */
-	UT_LIST_NODE_T(fil_space_t) rotation_list;
 	/** Checks that this tablespace needs key rotation.
 	@return true if in a rotation list */
 	bool is_in_rotation_list() const;
@@ -270,7 +273,7 @@ struct fil_space_t {
 	void release_for_io() { ut_ad(pending_io()); n_pending_ios--; }
 	/** @return whether I/O is pending */
 	bool pending_io() const { return n_pending_ios; }
-#endif
+#endif /* !UNIV_INNOCHECKSUM */
 	/** FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
 	check fsp0types.h to more info about flags. */
 	ulint		flags;
@@ -632,7 +635,7 @@ inline bool fil_space_t::is_rotational() const
 	return false;
 }
 
-/** Common InnoDB file extentions */
+/** Common InnoDB file extensions */
 enum ib_extention {
 	NO_EXT = 0,
 	IBD = 1,
@@ -672,8 +675,10 @@ typedef	byte	fil_faddr_t;	/*!< 'type' definition in C: an address
 
 /** File space address */
 struct fil_addr_t {
-	ulint	page;		/*!< page number within a space */
-	ulint	boffset;	/*!< byte offset within the page */
+  /** page number within a tablespace */
+  uint32_t page;
+  /** byte offset within the page */
+  uint16_t boffset;
 };
 
 /** The byte offsets on a file page for various variables @{ */
@@ -857,11 +862,6 @@ enum fil_encryption_t {
 
 #ifndef UNIV_INNOCHECKSUM
 
-/** The number of fsyncs done to the log */
-extern ulint	fil_n_log_flushes;
-
-/** Number of pending redo log flushes */
-extern ulint	fil_n_pending_log_flushes;
 /** Number of pending tablespace flushes */
 extern ulint	fil_n_pending_tablespace_flushes;
 
@@ -893,8 +893,6 @@ struct fil_system_t {
   {
     UT_LIST_INIT(LRU, &fil_node_t::LRU);
     UT_LIST_INIT(space_list, &fil_space_t::space_list);
-    UT_LIST_INIT(rotation_list, &fil_space_t::rotation_list);
-    UT_LIST_INIT(unflushed_spaces, &fil_space_t::unflushed_spaces);
     UT_LIST_INIT(named_spaces, &fil_space_t::named_spaces);
   }
 
@@ -946,8 +944,8 @@ public:
 					not put to this list: they are opened
 					after the startup, and kept open until
 					shutdown */
-	UT_LIST_BASE_NODE_T(fil_space_t) unflushed_spaces;
-					/*!< base node for the list of those
+	intrusive::list<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
+					/*!< list of those
 					tablespaces whose files contain
 					unflushed writes; those spaces have
 					at least one file node where
@@ -967,7 +965,7 @@ public:
 					record has been written since
 					the latest redo log checkpoint.
 					Protected only by log_sys.mutex. */
-	UT_LIST_BASE_NODE_T(fil_space_t) rotation_list;
+	intrusive::list<fil_space_t, rotation_list_tag_t> rotation_list;
 					/*!< list of all file spaces needing
 					key rotation.*/
 
@@ -1071,37 +1069,20 @@ ulint
 fil_space_get_size(
 /*===============*/
 	ulint	id);	/*!< in: space id */
-/*******************************************************************//**
-Returns the flags of the space. The tablespace must be cached
-in the memory cache.
-@return flags, ULINT_UNDEFINED if space not found */
-ulint
-fil_space_get_flags(
-/*================*/
-	ulint	id);	/*!< in: space id */
 
-/*******************************************************************//**
-Opens all log files and system tablespace data files. They stay open until the
+/** Opens all system tablespace data files. They stay open until the
 database server shutdown. This should be called at a server startup after the
-space objects for the log and the system tablespace have been created. The
+space objects for the system tablespace have been created. The
 purpose of this operation is to make sure we never run out of file descriptors
-if we need to read from the insert buffer or to write to the log. */
+if we need to read from the insert buffer. */
 void
-fil_open_log_and_system_tablespace_files(void);
+fil_open_system_tablespace_files();
 /*==========================================*/
 /*******************************************************************//**
 Closes all open files. There must not be any pending i/o's or not flushed
 modifications in the files. */
 void
 fil_close_all_files(void);
-/*=====================*/
-/*******************************************************************//**
-Closes the redo log files. There must not be any pending i/o's or not
-flushed modifications in the files. */
-void
-fil_close_log_files(
-/*================*/
-	bool	free);	/*!< in: whether to free the memory object */
 /*******************************************************************//**
 Sets the max tablespace id counter if the given number is bigger than the
 previous value. */
@@ -1460,7 +1441,7 @@ fil_flush(fil_space_t* space);
 
 /** Flush to disk the writes in file spaces of the given type
 possibly cached by the OS.
-@param[in]	purpose	FIL_TYPE_TABLESPACE or FIL_TYPE_LOG */
+@param[in]	purpose	FIL_TYPE_TABLESPACE */
 void
 fil_flush_file_spaces(
 	fil_type_t	purpose);

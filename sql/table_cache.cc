@@ -68,7 +68,6 @@ I_P_List <TDC_element,
           I_P_List_null_counter,
           I_P_List_fast_push_back<TDC_element> > unused_shares;
 
-static tdc_version_t tdc_version;  /* Increments on each reload */
 static bool tdc_inited;
 
 
@@ -324,12 +323,12 @@ static my_bool tc_purge_callback(TDC_element *element, tc_purge_arg *arg)
 }
 
 
-void tc_purge(bool mark_flushed)
+void tc_purge()
 {
   tc_purge_arg argument;
   TABLE *table;
 
-  argument.mark_flushed= mark_flushed;
+  argument.mark_flushed= false;
   tdc_iterate(0, (my_hash_walk_action) tc_purge_callback, &argument);
   while ((table= argument.purge_tables.pop_front()))
     intern_close_table(table);
@@ -624,7 +623,6 @@ bool tdc_init(void)
   tdc_inited= true;
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
                    MY_MUTEX_INIT_FAST);
-  tdc_version= 1L;  /* Increments on each reload */
   lf_hash_init(&tdc_hash, sizeof(TDC_element) +
                           sizeof(Share_free_tables) * (tc_instances - 1),
                LF_HASH_UNIQUE, 0, 0,
@@ -657,7 +655,7 @@ void tdc_start_shutdown(void)
     tdc_size= 0;
     tc_size= 0;
     /* Free all cached but unused TABLEs and TABLE_SHAREs. */
-    purge_tables(true);
+    purge_tables();
   }
   DBUG_VOID_RETURN;
 }
@@ -850,7 +848,6 @@ retry:
     element->share= share;
     share->tdc= element;
     element->ref_count++;
-    element->version= tdc_refresh_version();
     element->flushed= false;
     mysql_mutex_unlock(&element->LOCK_table_share);
 
@@ -965,9 +962,9 @@ void tdc_release_share(TABLE_SHARE *share)
 
   mysql_mutex_lock(&share->tdc->LOCK_table_share);
   DBUG_PRINT("enter",
-             ("share: %p  table: %s.%s  ref_count: %u  version: %lld",
+             ("share: %p  table: %s.%s  ref_count: %u",
               share, share->db.str, share->table_name.str,
-              share->tdc->ref_count, share->tdc->version));
+              share->tdc->ref_count));
   DBUG_ASSERT(share->tdc->ref_count);
 
   if (share->tdc->ref_count > 1)
@@ -1007,47 +1004,6 @@ void tdc_release_share(TABLE_SHARE *share)
 
 
 /**
-   Auxiliary function which allows to kill delayed threads for
-   particular table identified by its share.
-
-   @param share Table share.
-
-   @pre Caller should have TABLE_SHARE::tdc.LOCK_table_share mutex.
-*/
-
-static void kill_delayed_threads_for_table(TDC_element *element)
-{
-  All_share_tables_list::Iterator it(element->all_tables);
-  TABLE *tab;
-
-  mysql_mutex_assert_owner(&element->LOCK_table_share);
-
-  if (!delayed_insert_threads)
-    return;
-
-  while ((tab= it++))
-  {
-    THD *in_use= tab->in_use;
-
-    DBUG_ASSERT(in_use && tab->s->tdc->flushed);
-    if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
-        ! in_use->killed)
-    {
-      in_use->killed= KILL_SYSTEM_THREAD;
-      mysql_mutex_lock(&in_use->mysys_var->mutex);
-      if (in_use->mysys_var->current_cond)
-      {
-        mysql_mutex_lock(in_use->mysys_var->current_mutex);
-        mysql_cond_broadcast(in_use->mysys_var->current_cond);
-        mysql_mutex_unlock(in_use->mysys_var->current_mutex);
-      }
-      mysql_mutex_unlock(&in_use->mysys_var->mutex);
-    }
-  }
-}
-
-
-/**
    Remove all or some (depending on parameter) instances of TABLE and
    TABLE_SHARE from the table definition cache.
 
@@ -1080,15 +1036,13 @@ static void kill_delayed_threads_for_table(TDC_element *element)
                                                 metadata lock on the table.
    @param  db           Name of database
    @param  table_name   Name of table
-   @param  kill_delayed_threads     If TRUE, kill INSERT DELAYED threads
 
    @note It assumes that table instances are already not used by any
    (other) thread (this should be achieved by using meta-data locks).
 */
 
 bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
-                      const char *db, const char *table_name,
-                      bool kill_delayed_threads)
+                      const char *db, const char *table_name)
 {
   Share_free_tables::List purge_tables;
   TABLE *table;
@@ -1131,9 +1085,6 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
 
   tc_remove_all_unused_tables(element, &purge_tables,
                               remove_type != TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE);
-
-  if (kill_delayed_threads)
-    kill_delayed_threads_for_table(element);
 
   if (remove_type == TDC_RT_REMOVE_NOT_OWN ||
       remove_type == TDC_RT_REMOVE_NOT_OWN_KEEP_SHARE)
@@ -1217,7 +1168,7 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
 */
 
 int tdc_wait_for_old_version(THD *thd, const char *db, const char *table_name,
-                             ulong wait_timeout, uint deadlock_weight, tdc_version_t refresh_version)
+                             ulong wait_timeout, uint deadlock_weight)
 {
   TDC_element *element;
 
@@ -1225,7 +1176,7 @@ int tdc_wait_for_old_version(THD *thd, const char *db, const char *table_name,
     return FALSE;
   else if (element == MY_ERRPTR)
     return TRUE;
-  else if (element->flushed && refresh_version > element->version)
+  else if (element->flushed)
   {
     struct timespec abstime;
     set_timespec(abstime, wait_timeout);
@@ -1233,20 +1184,6 @@ int tdc_wait_for_old_version(THD *thd, const char *db, const char *table_name,
   }
   tdc_unlock_share(element);
   return FALSE;
-}
-
-
-tdc_version_t tdc_refresh_version(void)
-{
-  return (tdc_version_t)my_atomic_load64_explicit(&tdc_version, MY_MEMORY_ORDER_RELAXED);
-}
-
-
-tdc_version_t tdc_increment_refresh_version(void)
-{
-  tdc_version_t v= (tdc_version_t)my_atomic_add64_explicit(&tdc_version, 1, MY_MEMORY_ORDER_RELAXED);
-  DBUG_PRINT("tcache", ("incremented global refresh_version to: %lld", v));
-  return v + 1;
 }
 
 

@@ -2013,7 +2013,7 @@ bool fix_partition_func(THD *thd, TABLE *table, bool is_create_table_ind)
     else
     {
       if (part_info->part_type == VERSIONING_PARTITION &&
-        part_info->vers_setup_expression(thd))
+        part_info->vers_fix_field_list(thd))
         goto end;
       if (unlikely(fix_fields_part_func(thd, part_info->part_expr,
                                         table, FALSE, is_create_table_ind)))

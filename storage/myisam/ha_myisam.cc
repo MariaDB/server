@@ -725,10 +725,11 @@ ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
    can_enable_indexes(1)
 {}
 
-handler *ha_myisam::clone(const char *name, MEM_ROOT *mem_root)
+handler *ha_myisam::clone(const char *name __attribute__((unused)),
+                          MEM_ROOT *mem_root)
 {
-  ha_myisam *new_handler= static_cast <ha_myisam *>(handler::clone(name,
-                                                                   mem_root));
+  ha_myisam *new_handler=
+    static_cast <ha_myisam *>(handler::clone(file->filename, mem_root));
   if (new_handler)
     new_handler->file->state= file->state;
   return new_handler;
@@ -882,7 +883,7 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
 
   /*
     For static size rows, tell MariaDB that we will access all bytes
-    in the record when writing it.  This signals MariaDB to initalize
+    in the record when writing it.  This signals MariaDB to initialize
     the full row to ensure we don't get any errors from valgrind and
     that all bytes in the row is properly reset.
   */

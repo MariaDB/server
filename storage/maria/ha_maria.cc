@@ -1024,10 +1024,12 @@ can_enable_indexes(1), bulk_insert_single_undo(BULK_INSERT_NONE)
 {}
 
 
-handler *ha_maria::clone(const char *name, MEM_ROOT *mem_root)
+handler *ha_maria::clone(const char *name __attribute__((unused)),
+                         MEM_ROOT *mem_root)
 {
-  ha_maria *new_handler= static_cast <ha_maria *>(handler::clone(name,
-                                                                 mem_root));
+  ha_maria *new_handler=
+    static_cast <ha_maria *>(handler::clone(file->s->open_file_name.str,
+                                            mem_root));
   if (new_handler)
   {
     new_handler->file->state= file->state;
@@ -1187,7 +1189,7 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
 
   /*
     For static size rows, tell MariaDB that we will access all bytes
-    in the record when writing it.  This signals MariaDB to initalize
+    in the record when writing it.  This signals MariaDB to initialize
     the full row to ensure we don't get any errors from valgrind and
     that all bytes in the row is properly reset.
   */

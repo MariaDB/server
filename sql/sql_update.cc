@@ -206,10 +206,10 @@ static bool check_fields(THD *thd, TABLE_LIST *table, List<Item> &items,
   return FALSE;
 }
 
-static bool check_has_vers_fields(TABLE *table, List<Item> &items)
+bool TABLE::vers_check_update(List<Item> &items)
 {
   List_iterator<Item> it(items);
-  if (!table->versioned())
+  if (!versioned_write())
     return false;
 
   while (Item *item= it++)
@@ -217,8 +217,11 @@ static bool check_has_vers_fields(TABLE *table, List<Item> &items)
     if (Item_field *item_field= item->field_for_view_update())
     {
       Field *field= item_field->field;
-      if (field->table == table && !field->vers_update_unversioned())
+      if (field->table == this && !field->vers_update_unversioned())
+      {
+        no_cache= true;
         return true;
+      }
     }
   }
   return false;
@@ -480,7 +483,7 @@ int mysql_update(THD *thd,
   {
     DBUG_RETURN(1);
   }
-  bool has_vers_fields= check_has_vers_fields(table, fields);
+  bool has_vers_fields= table->vers_check_update(fields);
   if (check_key_in_view(thd, table_list))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
@@ -717,6 +720,11 @@ int mysql_update(THD *thd,
 
     Later we also ensure that we are only using one table (no sub queries)
   */
+  DBUG_PRINT("info", ("HA_CAN_DIRECT_UPDATE_AND_DELETE: %s", (table->file->ha_table_flags() & HA_CAN_DIRECT_UPDATE_AND_DELETE) ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info", ("using_io_buffer: %s", query_plan.using_io_buffer ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info", ("ignore: %s", ignore ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info", ("virtual_columns_marked_for_read: %s", table->check_virtual_columns_marked_for_read() ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info", ("virtual_columns_marked_for_write: %s", table->check_virtual_columns_marked_for_write() ? "TRUE" : "FALSE"));
   if ((table->file->ha_table_flags() & HA_CAN_DIRECT_UPDATE_AND_DELETE) &&
       !has_triggers && !binlog_is_row &&
       !query_plan.using_io_buffer && !ignore &&
@@ -927,11 +935,16 @@ update_begin:
   if (do_direct_update)
   {
     /* Direct updating is supported */
+    ha_rows update_rows= 0, found_rows= 0;
     DBUG_PRINT("info", ("Using direct update"));
     table->reset_default_fields();
-    if (unlikely(!(error= table->file->ha_direct_update_rows(&updated))))
+    if (unlikely(!(error= table->file->ha_direct_update_rows(&update_rows,
+                                                             &found_rows))))
       error= -1;
-    found= updated;
+    updated= update_rows;
+    found= found_rows;
+    if (found < updated)
+      found= updated;
     goto update_end;
   }
 
@@ -959,11 +972,6 @@ update_begin:
   THD_STAGE_INFO(thd, stage_updating);
   while (!(error=info.read_record()) && !thd->killed)
   {
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
-
     explain->tracker.on_record_read();
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
@@ -1372,12 +1380,18 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
 
   thd->lex->allow_sum_func.clear_all();
 
-  if (table_list->has_period())
-  {
-    *conds= select_lex->period_setup_conds(thd, table_list, *conds);
-    if (!*conds)
+  if (table_list->has_period() &&
+      select_lex->period_setup_conds(thd, table_list))
       DBUG_RETURN(true);
-  }
+
+  DBUG_ASSERT(table_list->table);
+  // conds could be cached from previous SP call
+  DBUG_ASSERT(!table_list->vers_conditions.need_setup() ||
+              !*conds || thd->stmt_arena->is_stmt_execute());
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(TRUE);
+
+  *conds= select_lex->where;
 
   /*
     We do not call DT_MERGE_FOR_INSERT because it has no sense for simple
@@ -1899,6 +1913,9 @@ bool mysql_multi_update(THD *thd, TABLE_LIST *table_list, List<Item> *fields,
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
   List<Item> total_list;
 
+  if (select_lex->vers_setup_conds(thd, table_list))
+    DBUG_RETURN(1);
+
   res= mysql_select(thd,
                     table_list, total_list, conds,
                     select_lex->order_list.elements,
@@ -2239,7 +2256,7 @@ multi_update::initialize_tables(JOIN *join)
       if (safe_update_on_fly(thd, join->join_tab, table_ref, all_tables))
       {
 	table_to_update= table;			// Update table on the fly
-        has_vers_fields= check_has_vers_fields(table, *fields);
+        has_vers_fields= table->vers_check_update(*fields);
 	continue;
       }
     }
@@ -2457,11 +2474,6 @@ int multi_update::send_data(List<Item> &not_used_values)
     */
     if (table->status & (STATUS_NULL_ROW | STATUS_UPDATED))
       continue;
-
-    if (table->versioned() && !table->vers_end_field()->is_max())
-    {
-      continue;
-    }
 
     if (table == table_to_update)
     {
@@ -2713,7 +2725,7 @@ int multi_update::do_updates()
     if (table->vfield)
       empty_record(table);
 
-    has_vers_fields= check_has_vers_fields(table, *fields);
+    has_vers_fields= table->vers_check_update(*fields);
 
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)

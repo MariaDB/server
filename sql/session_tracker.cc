@@ -814,7 +814,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
         statement even for a transaction that isn't the first in an
         ongoing chain. Consider
 
-          SET TRANSACTION ISOLATION LEVEL READ UNCOMMITED;
+          SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
           START TRANSACTION READ ONLY, WITH CONSISTENT SNAPSHOT;
           # work
           COMMIT AND CHAIN;
@@ -822,7 +822,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
         If we switch away at this point, the replay in the new session
         needs to be
 
-          SET TRANSACTION ISOLATION LEVEL READ UNCOMMITED;
+          SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
           START TRANSACTION READ ONLY;
 
         When a transaction ends (COMMIT/ROLLBACK sans CHAIN), all

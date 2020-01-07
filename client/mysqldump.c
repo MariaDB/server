@@ -4587,7 +4587,7 @@ static int dump_databases(char **db_names)
 
 
 /*
-View Specific database initalization.
+View Specific database initialization.
 
 SYNOPSIS
   init_dumping_views
@@ -4604,7 +4604,7 @@ int init_dumping_views(char *qdatabase __attribute__((unused)))
 
 
 /*
-Table Specific database initalization.
+Table Specific database initialization.
 
 SYNOPSIS
   init_dumping_tables

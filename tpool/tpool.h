@@ -110,7 +110,6 @@ enum class aio_opcode
   AIO_PWRITE
 };
 const int MAX_AIO_USERDATA_LEN= 40;
-struct aiocb;
 
 /** IO control block, includes parameters for the IO, and the callback*/
 
@@ -129,7 +128,7 @@ struct aiocb
   callback_func m_callback;
   task_group* m_group;
   /* Returned length and error code*/
-  int m_ret_len;
+  size_t m_ret_len;
   int m_err;
   void *m_internal;
   task m_internal_task;
@@ -215,6 +214,8 @@ public:
   int bind(native_file_handle &fd) { return m_aio->bind(fd); }
   void unbind(const native_file_handle &fd) { m_aio->unbind(fd); }
   int submit_io(aiocb *cb) { return m_aio->submit_io(cb); }
+  virtual void wait_begin() {};
+  virtual void wait_end() {};
   virtual ~thread_pool() {}
 };
 const int DEFAULT_MIN_POOL_THREADS= 1;
@@ -222,6 +223,8 @@ const int DEFAULT_MAX_POOL_THREADS= 500;
 extern thread_pool *
 create_thread_pool_generic(int min_threads= DEFAULT_MIN_POOL_THREADS,
                            int max_threads= DEFAULT_MAX_POOL_THREADS);
+extern "C" void tpool_wait_begin();
+extern "C" void tpool_wait_end();
 #ifdef _WIN32
 extern thread_pool *
 create_thread_pool_win(int min_threads= DEFAULT_MIN_POOL_THREADS,

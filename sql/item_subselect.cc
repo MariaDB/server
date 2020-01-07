@@ -125,7 +125,7 @@ void Item_subselect::init(st_select_lex *select_lex,
                     NO_MATTER :
                     outer_select->parsing_place);
     if (unit->is_unit_op() &&
-        (unit->first_select()->next_select() or unit->fake_select_lex))
+        (unit->first_select()->next_select() || unit->fake_select_lex))
       engine= new subselect_union_engine(unit, result, this);
     else
       engine= new subselect_single_select_engine(select_lex, result, this);

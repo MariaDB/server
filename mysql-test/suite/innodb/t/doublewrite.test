@@ -19,8 +19,9 @@ call mtr.add_suppression("InnoDB: New log files created");
 call mtr.add_suppression("InnoDB: Cannot create doublewrite buffer: the first file in innodb_data_file_path must be at least (3|6|12)M\\.");
 call mtr.add_suppression("InnoDB: Database creation was aborted");
 call mtr.add_suppression("Plugin 'InnoDB' (init function returned error|registration as a STORAGE ENGINE failed)");
-call mtr.add_suppression("InnoDB: A bad Space ID was found in datafile.*");
-call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: .*");
+call mtr.add_suppression("InnoDB: A bad Space ID was found in datafile");
+call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: ");
+call mtr.add_suppression("InnoDB: Inconsistent tablespace ID in .*t1\\.ibd");
 --enable_query_log
 --source include/restart_mysqld.inc
 

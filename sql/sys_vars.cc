@@ -67,6 +67,9 @@
 #include "semisync_slave.h"
 #include <ssl_compat.h>
 
+#define PCRE2_STATIC 1             /* Important on Windows */
+#include "pcre2.h"                 /* pcre2 header file */
+
 /*
   The rule for this file: everything should be 'static'. When a sys_var
   variable or a function from this file is - in very rare cases - needed
@@ -2221,7 +2224,7 @@ static Sys_var_slave_parallel_mode Sys_slave_parallel_mode(
        "\"minimal\" only parallelizes the commit steps of transactions. "
        "\"none\" disables parallel apply completely.",
        GLOBAL_VAR(opt_slave_parallel_mode), NO_CMD_LINE,
-       slave_parallel_mode_names, DEFAULT(SLAVE_PARALLEL_CONSERVATIVE));
+       slave_parallel_mode_names, DEFAULT(SLAVE_PARALLEL_OPTIMISTIC));
 
 
 static Sys_var_bit Sys_skip_parallel_replication(
@@ -5994,29 +5997,40 @@ static const char *default_regex_flags_names[]=
   "DOTALL",    // (?s)  . matches anything including NL
   "DUPNAMES",  // (?J)  Allow duplicate names for subpatterns
   "EXTENDED",  // (?x)  Ignore white space and # comments
-  "EXTRA",     // (?X)  extra features (e.g. error on unknown escape character)
+  "EXTENDED_MORE",//(?xx)  Ignore white space and # comments inside cheracter
+  "EXTRA",     // means nothing since PCRE2
   "MULTILINE", // (?m)  ^ and $ match newlines within data
   "UNGREEDY",  // (?U)  Invert greediness of quantifiers
   0
 };
 static const int default_regex_flags_to_pcre[]=
 {
-  PCRE_DOTALL,
-  PCRE_DUPNAMES,
-  PCRE_EXTENDED,
-  PCRE_EXTRA,
-  PCRE_MULTILINE,
-  PCRE_UNGREEDY,
+  PCRE2_DOTALL,
+  PCRE2_DUPNAMES,
+  PCRE2_EXTENDED,
+  PCRE2_EXTENDED_MORE,
+  -1, /* EXTRA flag not available since PCRE2 */
+  PCRE2_MULTILINE,
+  PCRE2_UNGREEDY,
   0
 };
-int default_regex_flags_pcre(const THD *thd)
+int default_regex_flags_pcre(THD *thd)
 {
   ulonglong src= thd->variables.default_regex_flags;
   int i, res;
   for (i= res= 0; default_regex_flags_to_pcre[i]; i++)
   {
     if (src & (1ULL << i))
+    {
+      if (default_regex_flags_to_pcre[i] < 0)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_UNKNOWN_ERROR,
+                            "PCRE2 doens't support the EXTRA flag. Ignored.");
+        continue;
+      }
       res|= default_regex_flags_to_pcre[i];
+    }
   }
   return res;
 }
@@ -6341,7 +6355,7 @@ static Sys_var_enum Sys_session_track_transaction_info(
        "Track changes to the transaction attributes. OFF to disable; "
        "STATE to track just transaction state (Is there an active transaction? "
        "Does it have any data? etc.); CHARACTERISTICS to track transaction "
-       "state and report all statements needed to start a transaction with"
+       "state and report all statements needed to start a transaction with "
        "the same characteristics (isolation level, read only/read write,"
        "snapshot - but not any work done / data modified within the "
        "transaction).",

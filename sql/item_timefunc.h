@@ -166,32 +166,13 @@ public:
 };
 
 
-class Item_func_month :public Item_func
+class Item_func_month :public Item_long_func
 {
 public:
-  Item_func_month(THD *thd, Item *a): Item_func(thd, a)
-  { collation= DTCollation_numeric(); }
+  Item_func_month(THD *thd, Item *a): Item_long_func(thd, a)
+  { }
   longlong val_int();
-  double val_real()
-  { DBUG_ASSERT(fixed == 1); return (double) Item_func_month::val_int(); }
-  String *val_str(String *str)
-  {
-    longlong nr= val_int();
-    if (null_value)
-      return 0;
-    str->set(nr, collation.collation);
-    return str;
-  }
-  my_decimal *val_decimal(my_decimal *decimal_value)
-  {
-    return val_decimal_from_int(decimal_value);
-  }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
-  {
-    return get_date_from_int(thd, ltime, fuzzydate);
-  }
   const char *func_name() const { return "month"; }
-  const Type_handler *type_handler() const { return &type_handler_slong; }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -441,24 +422,13 @@ public:
 };
 
 
-class Item_func_weekday :public Item_func
+class Item_func_weekday :public Item_long_func
 {
   bool odbc_type;
 public:
   Item_func_weekday(THD *thd, Item *a, bool type_arg):
-    Item_func(thd, a), odbc_type(type_arg) { collation= DTCollation_numeric(); }
+    Item_long_func(thd, a), odbc_type(type_arg) { }
   longlong val_int();
-  double val_real() { DBUG_ASSERT(fixed == 1); return (double) val_int(); }
-  String *val_str(String *str)
-  {
-    DBUG_ASSERT(fixed == 1);
-    str->set(val_int(), &my_charset_bin);
-    return null_value ? 0 : str;
-  }
-  my_decimal *val_decimal(my_decimal *decimal_value)
-  {
-    return val_decimal_from_int(decimal_value);
-  }
   const char *func_name() const
   {
      return (odbc_type ? "dayofweek" : "weekday");
@@ -467,7 +437,6 @@ public:
   {
     return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
-  const Type_handler *type_handler() const { return &type_handler_slong; }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -485,11 +454,11 @@ public:
   { return get_item_copy<Item_func_weekday>(thd, this); }
 };
 
-class Item_func_dayname :public Item_func_weekday
+class Item_func_dayname :public Item_str_func
 {
   MY_LOCALE *locale;
  public:
-  Item_func_dayname(THD *thd, Item *a): Item_func_weekday(thd, a, 0) {}
+  Item_func_dayname(THD *thd, Item *a): Item_str_func(thd, a) {}
   const char *func_name() const { return "dayname"; }
   String *val_str(String *str);
   const Type_handler *type_handler() const { return &type_handler_varchar; }
@@ -499,6 +468,12 @@ class Item_func_dayname :public Item_func_weekday
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
+  bool check_valid_arguments_processor(void *int_arg)
+  {
+    return !has_date_args();
+  }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_dayname>(thd, this); }
 };
 
 

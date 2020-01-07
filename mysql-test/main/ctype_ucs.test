@@ -1124,3 +1124,28 @@ SET NAMES utf8;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-8844 Unreadable control characters printed as is in warnings
+--echo #
+
+--echo # control
+SELECT CAST(_ucs2 0x006100000062 AS INT);
+SELECT CAST(_ucs2 0x006100010062 AS INT);
+
+--echo # surrogate halfs
+SELECT CAST(_ucs2 0x0061D8000062 AS INT);
+SELECT CAST(_ucs2 0x0061DFFF0062 AS INT);
+
+--echo # normal characters
+SELECT CAST(_ucs2 0x0061D7000062 AS INT);
+SELECT CAST(_ucs2 0x0061E0030062 AS INT);
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB Corporation.
+   Copyright (c) 2008, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -168,6 +168,10 @@ public:
   void swap(Charset &other)
   {
     swap_variables(CHARSET_INFO*, m_charset, other.m_charset);
+  }
+  bool same_encoding(const Charset &other) const
+  {
+    return !strcmp(m_charset->csname, other.m_charset->csname);
   }
   /*
     Collation name without the character set name.
@@ -519,6 +523,15 @@ public:
   bool copy(const Binary_string &s);            // Allocate new string
   bool copy(const char *s, size_t arg_length);	// Allocate new string
   bool copy_or_move(const char *s,size_t arg_length);
+
+  /**
+    Convert a string to a printable format.
+    All non-convertable and control characters are replaced to 5-character
+    sequences '\hhhh'.
+  */
+  bool copy_printable_hhhh(CHARSET_INFO *to_cs,
+                           CHARSET_INFO *from_cs,
+                           const char *from, size_t from_length);
 
   bool append_ulonglong(ulonglong val);
   bool append_longlong(longlong val);

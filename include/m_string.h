@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -193,6 +194,40 @@ extern ulonglong strtoull(const char *str, char **ptr, int base);
 #define longlong2str(A,B,C) ll2str((A),(B),(C),1)
 
 #if defined(__cplusplus)
+}
+
+# ifdef _MSC_VER
+#  define MY_ASSUME_ALIGNED(x,n) x
+# else
+#  define MY_ASSUME_ALIGNED(x,n) __builtin_assume_aligned(x,n)
+# endif
+
+template <size_t Alignment>
+inline void *memcpy_aligned(void *dest, const void *src, size_t n)
+{
+  static_assert(Alignment && !(Alignment & (Alignment - 1)), "power of 2");
+  return memcpy(MY_ASSUME_ALIGNED(dest, Alignment),
+                MY_ASSUME_ALIGNED(src, Alignment), n);
+}
+template <size_t Alignment>
+inline void *memmove_aligned(void *dest, const void *src, size_t n)
+{
+  static_assert(Alignment && !(Alignment & (Alignment - 1)), "power of 2");
+  return memmove(MY_ASSUME_ALIGNED(dest, Alignment),
+                 MY_ASSUME_ALIGNED(src, Alignment), n);
+}
+template <size_t Alignment>
+inline int memcmp_aligned(const void *s1, const void *s2, size_t n)
+{
+  static_assert(Alignment && !(Alignment & (Alignment - 1)), "power of 2");
+  return memcmp(MY_ASSUME_ALIGNED(s1, Alignment),
+                MY_ASSUME_ALIGNED(s2, Alignment), n);
+}
+template <size_t Alignment>
+inline void *memset_aligned(void *s, int c, size_t n)
+{
+  static_assert(Alignment && !(Alignment & (Alignment - 1)), "power of 2");
+  return memset(MY_ASSUME_ALIGNED(s, Alignment), c, n);
 }
 #endif
 

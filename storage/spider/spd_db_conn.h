@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -745,6 +746,7 @@ int spider_db_bulk_insert_init(
 int spider_db_bulk_insert(
   ha_spider *spider,
   TABLE *table,
+  ha_copy_info *copy_info,
   bool bulk_end
 );
 
@@ -788,13 +790,15 @@ int spider_db_direct_update(
   TABLE *table,
   KEY_MULTI_RANGE *ranges,
   uint range_count,
-  ha_rows *update_rows
+  ha_rows *update_rows,
+  ha_rows *found_rows
 );
 #else
 int spider_db_direct_update(
   ha_spider *spider,
   TABLE *table,
-  ha_rows *update_rows
+  ha_rows *update_rows,
+  ha_rows *found_rows
 );
 #endif
 #endif

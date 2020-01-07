@@ -1481,7 +1481,8 @@ void dict_check_tablespaces_and_store_max_id()
 	/* Initialize the max space_id from sys header */
 	mtr.start();
 	ulint max_space_id = mach_read_from_4(DICT_HDR_MAX_SPACE_ID
-					      + dict_hdr_get(&mtr));
+					      + DICT_HDR
+					      + dict_hdr_get(&mtr)->frame);
 	mtr.commit();
 
 	fil_set_max_space_id_if_bigger(max_space_id);
@@ -1841,7 +1842,6 @@ dict_load_columns(
 			the flag is set before the table is created. */
 			if (table->fts == NULL) {
 				table->fts = fts_create(table);
-				fts_optimize_add_table(table);
 			}
 
 			ut_a(table->fts->doc_col == ULINT_UNDEFINED);
@@ -2764,7 +2764,7 @@ dict_load_tablespace(
 {
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space);
-	ut_ad(table->space_id < SRV_LOG_SPACE_FIRST_ID);
+	ut_ad(table->space_id < SRV_SPACE_ID_UPPER_BOUND);
 	ut_ad(fil_system.sys_space);
 
 	if (table->space_id == TRX_SYS_SPACE) {
@@ -3076,7 +3076,6 @@ func_exit:
 			/* the table->fts could be created in dict_load_column
 			when a user defined FTS_DOC_ID is present, but no
 			FTS */
-			fts_optimize_remove_table(table);
 			fts_free(table);
 		} else if (fts_optimize_wq) {
 			fts_optimize_add_table(table);

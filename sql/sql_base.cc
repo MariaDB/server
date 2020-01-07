@@ -311,13 +311,9 @@ OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild)
 
 /**
    Close all tables that are not in use in table definition cache
-
-   @param purge_flag  Argument for tc_purge. true if we should force all
-                      shares to be deleted. false if it's enough to just
-                      evict those that are not in use.
 */
 
-void purge_tables(bool purge_flag)
+void purge_tables()
 {
   /*
     Force close of all open tables.
@@ -331,7 +327,7 @@ void purge_tables(bool purge_flag)
     Get rid of all unused TABLE and TABLE_SHARE instances. By doing
     this we automatically close all tables which were marked as "old".
   */
-  tc_purge(purge_flag);
+  tc_purge();
   /* Free table shares which were not freed implicitly by loop above. */
   tdc_purge(true);
 }
@@ -360,7 +356,7 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
   if (!tables)
   {
     /* Free tables that are not used */
-    purge_tables(false);
+    purge_tables();
     if (!wait_for_refresh)
       DBUG_RETURN(false);
   }
@@ -450,7 +446,7 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
 
     for (TABLE_LIST *table= tables; table; table= table->next_local)
       tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table->db.str,
-                       table->table_name.str, false);
+                       table->table_name.str);
   }
   DBUG_RETURN(false);
 }
@@ -561,7 +557,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
   flush_tables_error_handler error_handler;
   DBUG_ENTER("flush_tables");
 
-  purge_tables(false);  /* Flush unused tables and shares */
+  purge_tables();  /* Flush unused tables and shares */
 
   /*
     Loop over all shares and collect shares that have open tables
@@ -717,7 +713,7 @@ bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connection)
   for (TABLE_LIST *table= argument.tables; table; table= table->next_local)
     res|= tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
                            table->db.str,
-                           table->table_name.str, TRUE);
+                           table->table_name.str);
 
   /* Return true if we found any open connections */
   DBUG_RETURN(res);
@@ -846,12 +842,9 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
       prev= &table->next;
     }
   }
+  /* Remove the table share from the cache. */
   if (skip_table == NULL)
-  {
-    /* Remove the table share from the cache. */
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, db, table_name,
-                     FALSE);
-  }
+    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, db, table_name);
 }
 
 
@@ -1404,9 +1397,9 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
 {
   DBUG_ENTER("wait_while_table_is_used");
   DBUG_ASSERT(!table->s->tmp_table);
-  DBUG_PRINT("enter", ("table: '%s'  share: %p  db_stat: %u  version: %lld",
+  DBUG_PRINT("enter", ("table: '%s'  share: %p  db_stat: %u",
                        table->s->table_name.str, table->s,
-                       table->db_stat, table->s->tdc->version));
+                       table->db_stat));
 
   if (thd->mdl_context.upgrade_shared_lock(
              table->mdl_ticket, MDL_EXCLUSIVE,
@@ -1414,8 +1407,7 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
     DBUG_RETURN(TRUE);
 
   tdc_remove_table(thd, TDC_RT_REMOVE_NOT_OWN,
-                   table->s->db.str, table->s->table_name.str,
-                   FALSE);
+                   table->s->db.str, table->s->table_name.str);
   /* extra() call must come only after all instances above are closed */
   if (function != HA_EXTRA_NOT_USED)
     (void) table->file->extra(function);
@@ -1456,8 +1448,7 @@ void drop_open_table(THD *thd, TABLE *table, const LEX_CSTRING *db_name,
     table->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
     close_thread_table(thd, &thd->open_tables);
     /* Remove the table share from the table cache. */
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, db_name->str, table_name->str,
-                     FALSE);
+    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, db_name->str, table_name->str);
     /* Remove the table from the storage engine and rm the .frm. */
     quick_rm_table(thd, table_type, db_name, table_name, 0);
  }
@@ -2013,8 +2004,6 @@ retry_share:
   {
     if (share->tdc->flushed)
     {
-      DBUG_PRINT("info", ("Found old share version: %lld  current: %lld",
-                          share->tdc->version, tdc_refresh_version()));
       /*
         We already have an MDL lock. But we have encountered an old
         version of table in the table definition cache which is possible
@@ -3048,8 +3037,7 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
   tdc_release_share(share);
   /* Remove the repaired share from the table cache. */
   tdc_remove_table(thd, TDC_RT_REMOVE_ALL,
-                   table_list->db.str, table_list->table_name.str,
-                   FALSE);
+                   table_list->db.str, table_list->table_name.str);
 end_free:
   my_free(entry);
   return result;
@@ -3221,7 +3209,7 @@ Open_table_context::recover_from_failed_open()
           break;
 
         tdc_remove_table(m_thd, TDC_RT_REMOVE_ALL, m_failed_table->db.str,
-                         m_failed_table->table_name.str, FALSE);
+                         m_failed_table->table_name.str);
 
         m_thd->get_stmt_da()->clear_warning_info(m_thd->query_id);
         m_thd->clear_error();                 // Clear error message
@@ -3257,7 +3245,7 @@ Open_table_context::recover_from_failed_open()
           break;
 
         tdc_remove_table(m_thd, TDC_RT_REMOVE_ALL, m_failed_table->db.str,
-                         m_failed_table->table_name.str, FALSE);
+                         m_failed_table->table_name.str);
 
         result= auto_repair_table(m_thd, m_failed_table);
         /*

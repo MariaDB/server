@@ -2814,3 +2814,18 @@ SET STORAGE_ENGINE=Default;
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-8844 Unreadable control characters printed as is in warnings
+#
+SET NAMES utf8;
+SELECT CAST(_utf16 0x0061D83DDE0E0062 AS INT);
+CAST(_utf16 0x0061D83DDE0E0062 AS INT)
+0
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'a?b'
+#
+# End of 10.5 tests
+#

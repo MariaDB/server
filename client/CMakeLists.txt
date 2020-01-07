@@ -46,7 +46,7 @@ ENDIF(UNIX)
 
 MYSQL_ADD_EXECUTABLE(mysqltest mysqltest.cc COMPONENT Test)
 SET_SOURCE_FILES_PROPERTIES(mysqltest.cc PROPERTIES COMPILE_FLAGS "-DTHREADS")
-TARGET_LINK_LIBRARIES(mysqltest  ${CLIENT_LIB} pcreposix pcre)
+TARGET_LINK_LIBRARIES(mysqltest  ${CLIENT_LIB} pcre2-posix pcre2-8)
 SET_TARGET_PROPERTIES(mysqltest PROPERTIES ENABLE_EXPORTS TRUE)
 
 
@@ -79,6 +79,10 @@ TARGET_LINK_LIBRARIES(mysqladmin ${CLIENT_LIB} mysys_ssl)
 MYSQL_ADD_EXECUTABLE(mysqlslap mysqlslap.c)
 SET_SOURCE_FILES_PROPERTIES(mysqlslap.c PROPERTIES COMPILE_FLAGS "-DTHREADS")
 TARGET_LINK_LIBRARIES(mysqlslap ${CLIENT_LIB})
+
+MYSQL_ADD_EXECUTABLE(mariadb-conv mariadb-conv.cc
+                     ${CMAKE_SOURCE_DIR}/sql/sql_string.cc)
+TARGET_LINK_LIBRARIES(mariadb-conv mysys strings)
 
 # "WIN32" also covers 64 bit. "echo" is used in some files below "mysql-test/".
 IF(WIN32)

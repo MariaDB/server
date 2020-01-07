@@ -121,8 +121,6 @@ struct trx_savept_t{
 
 /** File objects */
 /* @{ */
-/** Rollback segment header */
-typedef byte	trx_rsegf_t;
 /** Undo segment header */
 typedef byte	trx_usegf_t;
 /** Undo log header */

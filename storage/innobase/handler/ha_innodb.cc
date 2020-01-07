@@ -4,7 +4,7 @@ Copyright (c) 2000, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -78,6 +78,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "btr0defragment.h"
 #include "dict0crea.h"
 #include "dict0dict.h"
+#include "dict0priv.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 #include "fil0fil.h"
@@ -112,6 +113,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "trx0trx.h"
 #include "fil0pagecompress.h"
 #include "ut0mem.h"
+#include "ut0mutex.h"
 #include "row0ext.h"
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
@@ -125,6 +127,7 @@ TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 MYSQL_THD create_background_thd();
 void destroy_background_thd(MYSQL_THD thd);
 void reset_thd(MYSQL_THD thd);
+TABLE *get_purge_table(THD *thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 			const char *tb, size_t tblen);
 void close_thread_tables(THD* thd);
@@ -3243,17 +3246,6 @@ trx_is_interrupted(
 	return(trx && trx->mysql_thd && thd_kill_level(trx->mysql_thd));
 }
 
-/**********************************************************************//**
-Determines if the currently running transaction is in strict mode.
-@return TRUE if strict */
-ibool
-trx_is_strict(
-/*==========*/
-	trx_t*	trx)	/*!< in: transaction */
-{
-	return(trx && trx->mysql_thd && THDVAR(trx->mysql_thd, strict_mode));
-}
-
 /**************************************************************//**
 Resets some fields of a m_prebuilt struct. The template is used in fast
 retrieval of just those column values MySQL needs in its processing. */
@@ -5853,14 +5845,6 @@ initialize_auto_increment(dict_table_t* table, const Field* field)
 int
 ha_innobase::open(const char* name, int, uint)
 {
-	/* TODO: If trx_rollback_recovered(bool all=false) is ever
-	removed, the first-time open() must hold (or acquire and release)
-	a table lock that conflicts with trx_resurrect_table_locks(),
-	to ensure that any recovered incomplete ALTER TABLE will have been
-	rolled back. Otherwise, dict_table_t::instant could be cleared by
-	the rollback invoking dict_index_t::clear_instant_alter() while
-	open table handles exist in client connections. */
-
 	char			norm_name[FN_REFLEN];
 
 	DBUG_ENTER("ha_innobase::open");
@@ -6243,7 +6227,7 @@ ha_innobase::clone(
 	DBUG_ENTER("ha_innobase::clone");
 
 	ha_innobase*	new_handler = static_cast<ha_innobase*>(
-		handler::clone(name, mem_root));
+		handler::clone(m_prebuilt->table->name.m_name, mem_root));
 
 	if (new_handler != NULL) {
 		DBUG_ASSERT(new_handler->m_prebuilt != NULL);
@@ -7976,6 +7960,7 @@ report_error:
 	if (!error_result
 	    && wsrep_on(m_user_thd)
 	    && wsrep_thd_is_local(m_user_thd)
+	    && !wsrep_thd_ignore_table(m_user_thd)
 	    && !wsrep_consistency_check(m_user_thd)
 	    && (thd_sql_command(m_user_thd) != SQLCOM_CREATE_TABLE)
 	    && (thd_sql_command(m_user_thd) != SQLCOM_LOAD ||
@@ -8686,7 +8671,8 @@ func_exit:
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS
 	    && wsrep_on(m_user_thd)
-	    && wsrep_thd_is_local(m_user_thd)) {
+	    && wsrep_thd_is_local(m_user_thd)
+	    && !wsrep_thd_ignore_table(m_user_thd)) {
 
 		DBUG_PRINT("wsrep", ("update row key"));
 
@@ -10680,6 +10666,9 @@ create_table_info_t::create_table_def()
 
 	heap = mem_heap_create(1000);
 
+	ut_d(bool have_vers_start = false);
+	ut_d(bool have_vers_end = false);
+
 	for (ulint i = 0, j = 0; j < n_cols; i++) {
 		Field*	field = m_form->field[i];
 		ulint vers_row = 0;
@@ -10687,8 +10676,10 @@ create_table_info_t::create_table_def()
 		if (m_form->versioned()) {
 			if (i == m_form->s->vers.start_fieldno) {
 				vers_row = DATA_VERS_START;
+				ut_d(have_vers_start = true);
 			} else if (i == m_form->s->vers.end_fieldno) {
 				vers_row = DATA_VERS_END;
+				ut_d(have_vers_end = true);
 			} else if (!(field->flags
 				     & VERS_UPDATE_UNVERSIONED_FLAG)) {
 				vers_row = DATA_VERSIONED;
@@ -10808,6 +10799,10 @@ err_col:
 
 		j++;
 	}
+
+	ut_ad(have_vers_start == have_vers_end);
+	ut_ad(table->versioned() == have_vers_start);
+	ut_ad(!table->versioned() || table->vers_start != table->vers_end);
 
 	if (num_v) {
 		for (ulint i = 0, j = 0; i < n_cols; i++) {
@@ -11551,6 +11546,12 @@ create_table_info_t::parse_table_name(
 	DBUG_RETURN(0);
 }
 
+/** @return whether innodb_strict_mode is active */
+bool ha_innobase::is_innodb_strict_mode(THD *thd)
+{
+  return THDVAR(thd, strict_mode);
+}
+
 /** Determine InnoDB table flags.
 If strict_mode=OFF, this will adjust the flags to what should be assumed.
 @retval true on success
@@ -12088,6 +12089,579 @@ int create_table_info_t::prepare_create_table(const char* name, bool strict)
 	DBUG_RETURN(parse_table_name(name));
 }
 
+/** Push warning message to SQL-layer based on foreign key constraint index
+match error.
+@param[in]	trx		Current transaction
+@param[in]	operation	Operation ("Create" or "Alter")
+@param[in]	create_name	Table name as specified in SQL
+@param[in]	columns		Foreign key column names array
+@param[in]	index_error 	Index error code
+@param[in]	err_col	  	Column where error happened
+@param[in]	err_index  	Index where error happened
+@param[in]	table	  	Table object */
+static void
+foreign_push_index_error(trx_t* trx, const char* operation,
+			 const char* create_name, const char* fk_text,
+			 const char** columns, fkerr_t index_error,
+			 ulint err_col, dict_index_t* err_index,
+			 dict_table_t* table)
+{
+	switch (index_error) {
+	case FK_SUCCESS:
+		break;
+	case FK_INDEX_NOT_FOUND:
+		ib_foreign_warn(trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
+				"%s table %s with foreign key %s constraint"
+				" failed. There is no index in the referenced"
+				" table where the referenced columns appear"
+				" as the first columns.",
+				operation, create_name, fk_text);
+		return;
+	case FK_IS_PREFIX_INDEX:
+		ib_foreign_warn(
+			trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
+			"%s table %s with foreign key %s constraint"
+			" failed. There is only prefix index in the referenced"
+			" table where the referenced columns appear"
+			" as the first columns.",
+			operation, create_name, fk_text);
+		return;
+	case FK_COL_NOT_NULL:
+		ib_foreign_warn(
+			trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
+			"%s table %s with foreign key %s constraint"
+			" failed. You have defined a SET NULL condition but "
+			"column '%s' on index is defined as NOT NULL.",
+			operation, create_name, fk_text, columns[err_col]);
+		return;
+	case FK_COLS_NOT_EQUAL:
+		dict_field_t* field;
+		const char*   col_name;
+		field = dict_index_get_nth_field(err_index, err_col);
+
+		col_name = field->col->is_virtual()
+				   ? "(null)"
+				   : dict_table_get_col_name(
+					   table, dict_col_get_no(field->col));
+		ib_foreign_warn(
+			trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
+			"%s table %s with foreign key %s constraint"
+			" failed. Field type or character set for column '%s' "
+			"does not mach referenced column '%s'.",
+			operation, create_name, fk_text, columns[err_col],
+			col_name);
+		return;
+	}
+	DBUG_ASSERT(!"unknown error");
+}
+
+/** Find column or virtual column in table by its name.
+@param[in]	table	Table where column is searched
+@param[in]	name	Name to search for
+@retval		true	if found
+@retval		false	if not found */
+static bool
+find_col(dict_table_t* table, const char** name)
+{
+	ulint i;
+	for (i = 0; i < dict_table_get_n_cols(table); i++) {
+
+		const char* col_name = dict_table_get_col_name(table, i);
+
+		if (0 == innobase_strcasecmp(col_name, *name)) {
+			/* Found */
+			strcpy((char*)*name, col_name);
+			return true;
+		}
+	}
+
+	for (i = 0; i < dict_table_get_n_v_cols(table); i++) {
+
+		const char* col_name = dict_table_get_v_col_name(table, i);
+
+		if (0 == innobase_strcasecmp(col_name, *name)) {
+			/* Found */
+			strcpy((char*)*name, col_name);
+			return true;
+		}
+	}
+	return false;
+}
+
+/** Foreign key printer for error messages. Prints FK name if it exists or
+key part list in the form (col1, col2, col3, ...) */
+class key_text
+{
+	static const size_t MAX_TEXT = 48;
+	char		    buf[MAX_TEXT + 1];
+
+public:
+	key_text(Key* key)
+	{
+		char* ptr = buf;
+		if (key->name.str) {
+			size_t len = std::min(key->name.length, MAX_TEXT - 2);
+			*(ptr++)   = '`';
+			memcpy(ptr, key->name.str, len);
+			ptr	  += len;
+			*(ptr++)   = '`';
+			*ptr	   = '\0';
+			return;
+		}
+		*(ptr++)  = '(';
+		List_iterator_fast<Key_part_spec> it(key->columns);
+		while (Key_part_spec* k = it++) {
+			/* 3 is etc continuation ("...");
+			   2 is comma separator (", ") in case of next exists;
+			   1 is terminating ')' */
+			if (MAX_TEXT - (size_t)(ptr - buf)
+				>= (it.peek() ? 3 + 2 + 1 : 3 + 1)
+				+ k->field_name.length) {
+				memcpy(ptr, k->field_name.str,
+				       k->field_name.length);
+				ptr += k->field_name.length;
+				if (it.peek()) {
+					*(ptr++) = ',';
+					*(ptr++) = ' ';
+				}
+			} else {
+				ut_ad((size_t)(ptr - buf) < MAX_TEXT - 4);
+				memcpy(ptr, "...", 3);
+				ptr += 3;
+				break;
+			}
+		}
+		*(ptr++) = ')';
+		*ptr 	 = '\0';
+	}
+	const char* str() { return buf; }
+};
+
+/** Create InnoDB foreign keys from MySQL alter_info. Collect all
+dict_foreign_t items into local_fk_set and then add into system table.
+@return		DB_SUCCESS or specific error code */
+dberr_t
+create_table_info_t::create_foreign_keys()
+{
+	dict_foreign_set      local_fk_set;
+	dict_foreign_set_free local_fk_set_free(local_fk_set);
+	dberr_t		      error;
+	ulint		      number	      = 1;
+	static const unsigned MAX_COLS_PER_FK = 500;
+	const char*	      column_names[MAX_COLS_PER_FK];
+	const char*	      ref_column_names[MAX_COLS_PER_FK];
+	char		      create_name[MAX_TABLE_NAME_LEN + 1];
+	dict_index_t*	      index	  = NULL;
+	fkerr_t		      index_error = FK_SUCCESS;
+	dict_index_t*	      err_index	  = NULL;
+	ulint		      err_col;
+	const bool	      tmp_table = m_flags2 & DICT_TF2_TEMPORARY;
+	const CHARSET_INFO*   cs	= innobase_get_charset(m_thd);
+	const char*	      operation = "Create ";
+	const char*	      name	= m_table_name;
+
+	enum_sql_command sqlcom = enum_sql_command(thd_sql_command(m_thd));
+
+	if (sqlcom == SQLCOM_ALTER_TABLE) {
+		dict_table_t* table_to_alter;
+		mem_heap_t*   heap = mem_heap_create(10000);
+		ulint	      highest_id_so_far;
+		char*	      n = dict_get_referenced_table(
+			name, LEX_STRING_WITH_LEN(m_form->s->db),
+			LEX_STRING_WITH_LEN(m_form->s->table_name),
+			&table_to_alter, heap, cs);
+
+		/* Starting from 4.0.18 and 4.1.2, we generate foreign key id's
+		in the format databasename/tablename_ibfk_[number], where
+		[number] is local to the table; look for the highest [number]
+		for table_to_alter, so that we can assign to new constraints
+		higher numbers. */
+
+		/* If we are altering a temporary table, the table name after
+		ALTER TABLE does not correspond to the internal table name, and
+		table_to_alter is NULL. TODO: should we fix this somehow? */
+
+		if (table_to_alter) {
+			n		  = table_to_alter->name.m_name;
+			highest_id_so_far = dict_table_get_highest_foreign_id(
+				table_to_alter);
+		} else {
+			highest_id_so_far = 0;
+		}
+
+		char* bufend = innobase_convert_name(
+			create_name, MAX_TABLE_NAME_LEN, n, strlen(n), m_thd);
+		create_name[bufend - create_name] = '\0';
+		number				  = highest_id_so_far + 1;
+		mem_heap_free(heap);
+		operation = "Alter ";
+	} else {
+		char* bufend = innobase_convert_name(create_name,
+						     MAX_TABLE_NAME_LEN, name,
+						     strlen(name), m_thd);
+		create_name[bufend - create_name] = '\0';
+	}
+
+	Alter_info* alter_info = m_create_info->alter_info;
+	ut_ad(alter_info);
+	List_iterator_fast<Key> key_it(alter_info->key_list);
+
+	dict_table_t* table = dict_table_get_low(name);
+	if (!table) {
+		ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
+				"%s table %s foreign key constraint"
+				" failed. Table not found.",
+				operation, create_name);
+
+		return (DB_CANNOT_ADD_CONSTRAINT);
+	}
+
+	while (Key* key = key_it++) {
+		if (key->type != Key::FOREIGN_KEY)
+			continue;
+
+		if (tmp_table) {
+			ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT,
+					create_name,
+					"%s table `%s`.`%s` with foreign key "
+					"constraint failed. "
+					"Temporary tables can't have "
+					"foreign key constraints.",
+					operation, m_form->s->db.str,
+					m_form->s->table_name.str);
+
+			return (DB_CANNOT_ADD_CONSTRAINT);
+		}
+
+		Foreign_key*   fk = static_cast<Foreign_key*>(key);
+		Key_part_spec* col;
+		bool	       success;
+
+		dict_foreign_t* foreign = dict_mem_foreign_create();
+		if (!foreign) {
+			return (DB_OUT_OF_MEMORY);
+		}
+
+		List_iterator_fast<Key_part_spec> col_it(fk->columns);
+		unsigned			  i = 0, j = 0;
+		while ((col = col_it++)) {
+			column_names[i] = mem_heap_strdupl(
+				foreign->heap, col->field_name.str,
+				col->field_name.length);
+			success = find_col(table, column_names + i);
+			if (!success) {
+				key_text k(fk);
+				ib_foreign_warn(
+					m_trx, DB_CANNOT_ADD_CONSTRAINT,
+					create_name,
+					"%s table %s foreign key %s constraint"
+					" failed. Column %s was not found.",
+					operation, create_name, k.str(),
+					column_names[i]);
+
+				return (DB_CANNOT_ADD_CONSTRAINT);
+			}
+			++i;
+			if (i >= MAX_COLS_PER_FK) {
+				key_text k(fk);
+				ib_foreign_warn(
+					m_trx, DB_CANNOT_ADD_CONSTRAINT,
+					create_name,
+					"%s table %s foreign key %s constraint"
+					" failed. Too many columns: %u (%u "
+					"allowed).",
+					operation, create_name, k.str(), i,
+					MAX_COLS_PER_FK);
+				return (DB_CANNOT_ADD_CONSTRAINT);
+			}
+		}
+
+		index = dict_foreign_find_index(
+			table, NULL, column_names, i, NULL, TRUE, FALSE,
+			&index_error, &err_col, &err_index);
+
+		if (!index) {
+			key_text k(fk);
+			foreign_push_index_error(m_trx, operation, create_name,
+						 k.str(), column_names,
+						 index_error, err_col,
+						 err_index, table);
+			return (DB_CANNOT_ADD_CONSTRAINT);
+		}
+
+		if (fk->constraint_name.str) {
+			ulint db_len;
+
+			/* Catenate 'databasename/' to the constraint name
+			specified by the user: we conceive the constraint as
+			belonging to the same MySQL 'database' as the table
+			itself. We store the name to foreign->id. */
+
+			db_len = dict_get_db_name_len(table->name.m_name);
+
+			foreign->id = static_cast<char*>(mem_heap_alloc(
+				foreign->heap,
+				db_len + fk->constraint_name.length + 2));
+
+			memcpy(foreign->id, table->name.m_name, db_len);
+			foreign->id[db_len] = '/';
+			strcpy(foreign->id + db_len + 1,
+			       fk->constraint_name.str);
+		}
+
+		if (foreign->id == NULL) {
+			error = dict_create_add_foreign_id(
+				&number, table->name.m_name, foreign);
+			if (error != DB_SUCCESS) {
+				dict_foreign_free(foreign);
+				return (error);
+			}
+		}
+
+		std::pair<dict_foreign_set::iterator, bool> ret
+			= local_fk_set.insert(foreign);
+
+		if (!ret.second) {
+			/* A duplicate foreign key name has been found */
+			dict_foreign_free(foreign);
+			return (DB_CANNOT_ADD_CONSTRAINT);
+		}
+
+		foreign->foreign_table = table;
+		foreign->foreign_table_name
+			= mem_heap_strdup(foreign->heap, table->name.m_name);
+		if (!foreign->foreign_table_name) {
+			return (DB_OUT_OF_MEMORY);
+		}
+
+		dict_mem_foreign_table_name_lookup_set(foreign, TRUE);
+
+		foreign->foreign_index = index;
+		foreign->n_fields      = (unsigned int)i;
+
+		foreign->foreign_col_names = static_cast<const char**>(
+			mem_heap_alloc(foreign->heap, i * sizeof(void*)));
+		if (!foreign->foreign_col_names) {
+			return (DB_OUT_OF_MEMORY);
+		}
+
+		memcpy(foreign->foreign_col_names, column_names,
+		       i * sizeof(void*));
+
+		foreign->referenced_table_name = dict_get_referenced_table(
+			name, LEX_STRING_WITH_LEN(fk->ref_db),
+			LEX_STRING_WITH_LEN(fk->ref_table),
+			&foreign->referenced_table, foreign->heap, cs);
+
+		if (!foreign->referenced_table_name) {
+			return (DB_OUT_OF_MEMORY);
+		}
+
+		if (!foreign->referenced_table && m_trx->check_foreigns) {
+			char  buf[MAX_TABLE_NAME_LEN + 1] = "";
+			char* bufend;
+
+			bufend = innobase_convert_name(
+				buf, MAX_TABLE_NAME_LEN,
+				foreign->referenced_table_name,
+				strlen(foreign->referenced_table_name), m_thd);
+			buf[bufend - buf] = '\0';
+			key_text k(fk);
+			ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT,
+					create_name,
+					"%s table %s with foreign key %s "
+					"constraint failed. Referenced table "
+					"%s not found in the data dictionary.",
+					operation, create_name, k.str(), buf);
+			return (DB_CANNOT_ADD_CONSTRAINT);
+		}
+
+		/* Don't allow foreign keys on partitioned tables yet. */
+		if (foreign->referenced_table
+		    && dict_table_is_partition(foreign->referenced_table)) {
+			/* How could one make a referenced table to be a
+			 * partition? */
+			ut_ad(0);
+			my_error(ER_FOREIGN_KEY_ON_PARTITIONED, MYF(0));
+			return (DB_CANNOT_ADD_CONSTRAINT);
+		}
+
+		col_it.init(fk->ref_columns);
+		while ((col = col_it++)) {
+			ref_column_names[j] = mem_heap_strdupl(
+				foreign->heap, col->field_name.str,
+				col->field_name.length);
+			if (foreign->referenced_table) {
+				success = find_col(foreign->referenced_table,
+						   ref_column_names + j);
+				if (!success) {
+					key_text k(fk);
+					ib_foreign_warn(
+						m_trx,
+						DB_CANNOT_ADD_CONSTRAINT,
+						create_name,
+						"%s table %s foreign key %s "
+						"constraint failed. "
+						"Column %s was not found.",
+						operation, create_name,
+						k.str(), ref_column_names[j]);
+
+					return (DB_CANNOT_ADD_CONSTRAINT);
+				}
+			}
+			++j;
+		}
+		/* See ER_WRONG_FK_DEF in mysql_prepare_create_table() */
+		ut_ad(i == j);
+
+		/* Try to find an index which contains the columns as the first
+		fields and in the right order, and the types are the same as in
+		foreign->foreign_index */
+
+		if (foreign->referenced_table) {
+			index = dict_foreign_find_index(
+				foreign->referenced_table, NULL,
+				ref_column_names, i, foreign->foreign_index,
+				TRUE, FALSE, &index_error, &err_col,
+				&err_index);
+
+			if (!index) {
+				key_text k(fk);
+				foreign_push_index_error(
+					m_trx, operation, create_name, k.str(),
+					column_names, index_error, err_col,
+					err_index, foreign->referenced_table);
+
+				return (DB_CANNOT_ADD_CONSTRAINT);
+			}
+		} else {
+			ut_a(m_trx->check_foreigns == FALSE);
+			index = NULL;
+		}
+
+		foreign->referenced_index = index;
+		dict_mem_referenced_table_name_lookup_set(foreign, TRUE);
+
+		foreign->referenced_col_names = static_cast<const char**>(
+			mem_heap_alloc(foreign->heap, i * sizeof(void*)));
+		if (!foreign->referenced_col_names) {
+			return (DB_OUT_OF_MEMORY);
+		}
+
+		memcpy(foreign->referenced_col_names, ref_column_names,
+		       i * sizeof(void*));
+
+		if (fk->delete_opt == FK_OPTION_SET_NULL
+		    || fk->update_opt == FK_OPTION_SET_NULL) {
+			for (j = 0; j < foreign->n_fields; j++) {
+				if ((dict_index_get_nth_col(
+					     foreign->foreign_index, j)
+					     ->prtype)
+				    & DATA_NOT_NULL) {
+					const dict_col_t* col
+						= dict_index_get_nth_col(
+							foreign->foreign_index,
+							j);
+					const char* col_name
+						= dict_table_get_col_name(
+							foreign->foreign_index
+								->table,
+							dict_col_get_no(col));
+
+					/* It is not sensible to define SET
+					NULL
+					if the column is not allowed to be
+					NULL! */
+					key_text k(fk);
+					ib_foreign_warn(
+						m_trx,
+						DB_CANNOT_ADD_CONSTRAINT,
+						create_name,
+						"%s table %s with foreign key "
+						"%s constraint failed. You have"
+						" defined a SET NULL condition "
+						"but column '%s' is defined as "
+						"NOT NULL.",
+						operation, create_name,
+						k.str(), col_name);
+
+					return (DB_CANNOT_ADD_CONSTRAINT);
+				}
+			}
+		}
+
+		switch (fk->delete_opt) {
+		case FK_OPTION_UNDEF:
+		case FK_OPTION_RESTRICT:
+			break;
+		case FK_OPTION_CASCADE:
+			foreign->type |= DICT_FOREIGN_ON_DELETE_CASCADE;
+			break;
+		case FK_OPTION_SET_NULL:
+			foreign->type |= DICT_FOREIGN_ON_DELETE_SET_NULL;
+			break;
+		case FK_OPTION_NO_ACTION:
+			foreign->type |= DICT_FOREIGN_ON_DELETE_NO_ACTION;
+			break;
+		case FK_OPTION_SET_DEFAULT:
+			// TODO: MDEV-10393 Foreign keys SET DEFAULT action
+			break;
+		default:
+			ut_ad(0);
+			break;
+		}
+
+		switch (fk->update_opt) {
+		case FK_OPTION_UNDEF:
+		case FK_OPTION_RESTRICT:
+			break;
+		case FK_OPTION_CASCADE:
+			foreign->type |= DICT_FOREIGN_ON_UPDATE_CASCADE;
+			break;
+		case FK_OPTION_SET_NULL:
+			foreign->type |= DICT_FOREIGN_ON_UPDATE_SET_NULL;
+			break;
+		case FK_OPTION_NO_ACTION:
+			foreign->type |= DICT_FOREIGN_ON_UPDATE_NO_ACTION;
+			break;
+		case FK_OPTION_SET_DEFAULT:
+			// TODO: MDEV-10393 Foreign keys SET DEFAULT action
+			break;
+		default:
+			ut_ad(0);
+			break;
+		}
+	}
+
+	if (dict_foreigns_has_s_base_col(local_fk_set, table)) {
+		return (DB_NO_FK_ON_S_BASE_COL);
+	}
+
+	/**********************************************************/
+	/* The following call adds the foreign key constraints
+	to the data dictionary system tables on disk */
+	m_trx->op_info = "adding foreign keys";
+
+	trx_start_if_not_started_xa(m_trx, true);
+
+	trx_set_dict_operation(m_trx, TRX_DICT_OP_TABLE);
+
+	error = dict_create_add_foreigns_to_dictionary(local_fk_set, table,
+						       m_trx);
+
+	if (error == DB_SUCCESS) {
+
+		table->foreign_set.insert(local_fk_set.begin(),
+					  local_fk_set.end());
+		std::for_each(local_fk_set.begin(), local_fk_set.end(),
+			      dict_foreign_add_to_referenced_table());
+		local_fk_set.clear();
+
+		dict_mem_table_fill_foreign_vcol_set(table);
+	}
+	return (error);
+}
+
 /** Create the internal innodb table.
 @param create_fk	whether to add FOREIGN KEY constraints */
 int create_table_info_t::create_table(bool create_fk)
@@ -12207,67 +12781,63 @@ int create_table_info_t::create_table(bool create_fk)
 		dict_table_get_all_fts_indexes(m_table, fts->indexes);
 	}
 
-	size_t stmt_len;
-	if (const char* stmt = innobase_get_stmt_unsafe(m_thd, &stmt_len)) {
-		dberr_t err = create_fk
-			? dict_create_foreign_constraints(
-				m_trx, stmt, stmt_len, m_table_name,
-				m_flags2 & DICT_TF2_TEMPORARY)
-			: DB_SUCCESS;
-		if (err == DB_SUCCESS) {
-			/* Check that also referencing constraints are ok */
-			dict_names_t	fk_tables;
-			err = dict_load_foreigns(m_table_name, NULL,
-						 false, true,
-						 DICT_ERR_IGNORE_NONE,
-						 fk_tables);
-			while (err == DB_SUCCESS && !fk_tables.empty()) {
-				dict_load_table(fk_tables.front(),
-						DICT_ERR_IGNORE_NONE);
-				fk_tables.pop_front();
-			}
-		}
+	dberr_t err = create_fk ? create_foreign_keys() : DB_SUCCESS;
 
-		switch (err) {
-		case DB_PARENT_NO_INDEX:
-			push_warning_printf(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_ERR_CANNOT_ADD_FOREIGN,
-				"Create table '%s' with foreign key constraint"
-				" failed. There is no index in the referenced"
-				" table where the referenced columns appear"
-				" as the first columns.\n", m_table_name);
-			break;
-
-		case DB_CHILD_NO_INDEX:
-			push_warning_printf(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_ERR_CANNOT_ADD_FOREIGN,
-				"Create table '%s' with foreign key constraint"
-				" failed. There is no index in the referencing"
-				" table where referencing columns appear"
-				" as the first columns.\n", m_table_name);
-			break;
-		case DB_NO_FK_ON_S_BASE_COL:
-			push_warning_printf(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_ERR_CANNOT_ADD_FOREIGN,
-				"Create table '%s' with foreign key constraint"
-				" failed. Cannot add foreign key constraint"
-				" placed on the base column of stored"
-				" column. \n",
-				m_table_name);
-		default:
-			break;
-		}
-
-		if (err != DB_SUCCESS) {
-			DBUG_RETURN(convert_error_code_to_mysql(
-					    err, m_flags, NULL));
+	if (err == DB_SUCCESS) {
+		/* Check that also referencing constraints are ok */
+		dict_names_t	fk_tables;
+		err = dict_load_foreigns(m_table_name, NULL,
+						false, true,
+						DICT_ERR_IGNORE_NONE,
+						fk_tables);
+		while (err == DB_SUCCESS && !fk_tables.empty()) {
+			dict_load_table(fk_tables.front(),
+					DICT_ERR_IGNORE_NONE);
+			fk_tables.pop_front();
 		}
 	}
 
-	if (!row_size_is_acceptable(*m_table)) {
+	switch (err) {
+	case DB_PARENT_NO_INDEX:
+		push_warning_printf(
+			m_thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_ERR_CANNOT_ADD_FOREIGN,
+			"Create table '%s' with foreign key constraint"
+			" failed. There is no index in the referenced"
+			" table where the referenced columns appear"
+			" as the first columns.\n", m_table_name);
+		break;
+
+	case DB_CHILD_NO_INDEX:
+		push_warning_printf(
+			m_thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_ERR_CANNOT_ADD_FOREIGN,
+			"Create table '%s' with foreign key constraint"
+			" failed. There is no index in the referencing"
+			" table where referencing columns appear"
+			" as the first columns.\n", m_table_name);
+		break;
+	case DB_NO_FK_ON_S_BASE_COL:
+		push_warning_printf(
+			m_thd, Sql_condition::WARN_LEVEL_WARN,
+			HA_ERR_CANNOT_ADD_FOREIGN,
+			"Create table '%s' with foreign key constraint"
+			" failed. Cannot add foreign key constraint"
+			" placed on the base column of stored"
+			" column. \n",
+			m_table_name);
+	default:
+		break;
+	}
+
+	if (err != DB_SUCCESS) {
+		DBUG_RETURN(convert_error_code_to_mysql(
+					err, m_flags, NULL));
+	}
+
+	/* In TRUNCATE TABLE, we will merely warn about the maximum
+	row size being too large. */
+	if (!row_size_is_acceptable(*m_table, create_fk)) {
 		DBUG_RETURN(convert_error_code_to_mysql(
 			    DB_TOO_BIG_RECORD, m_flags, NULL));
 	}
@@ -12276,18 +12846,12 @@ int create_table_info_t::create_table(bool create_fk)
 }
 
 bool create_table_info_t::row_size_is_acceptable(
-    const dict_table_t &table) const
+  const dict_table_t &table, bool strict) const
 {
   for (dict_index_t *index= dict_table_get_first_index(&table); index;
        index= dict_table_get_next_index(index))
-  {
-
-    if (!row_size_is_acceptable(*index))
-    {
+    if (!row_size_is_acceptable(*index, strict))
       return false;
-    }
-  }
-
   return true;
 }
 
@@ -12465,7 +13029,7 @@ static void ib_warn_row_too_big(THD *thd, const dict_table_t *table)
 }
 
 bool create_table_info_t::row_size_is_acceptable(
-    const dict_index_t &index) const
+    const dict_index_t &index, bool strict) const
 {
   if ((index.type & DICT_FTS) || index.table->is_system_db)
   {
@@ -12474,7 +13038,7 @@ bool create_table_info_t::row_size_is_acceptable(
     return true;
   }
 
-  const bool strict= THDVAR(m_thd, strict_mode);
+  const bool innodb_strict_mode= THDVAR(m_thd, strict_mode);
   dict_index_t::record_size_info_t info= index.record_size_info();
 
   if (info.row_is_too_big())
@@ -12486,20 +13050,21 @@ bool create_table_info_t::row_size_is_acceptable(
     const dict_field_t *field= dict_index_get_nth_field(&index, idx);
 
     ut_ad((!field->name) == field->col->is_dropped());
-    ib::error_or_warn eow(strict);
-    if (field->name)
-      eow << "Cannot add field " << field->name << " in table ";
-    else
-      eow << "Cannot add an instantly dropped column in table ";
-    eow << index.table->name << " because after adding it, the row size is "
-        << info.get_overrun_size()
-        << " which is greater than maximum allowed size ("
-        << info.max_leaf_size << " bytes) for a record on index leaf page.";
-
-    if (strict)
+    if (innodb_strict_mode || global_system_variables.log_warnings > 2)
     {
-      return false;
+      ib::error_or_warn eow(strict && innodb_strict_mode);
+      if (field->name)
+        eow << "Cannot add field " << field->name << " in table ";
+      else
+        eow << "Cannot add an instantly dropped column in table ";
+      eow << index.table->name << " because after adding it, the row size is "
+          << info.get_overrun_size()
+          << " which is greater than maximum allowed size ("
+          << info.max_leaf_size << " bytes) for a record on index leaf page.";
     }
+
+    if (strict && innodb_strict_mode)
+      return false;
 
     ib_warn_row_too_big(m_thd, index.table);
   }
@@ -13177,35 +13742,6 @@ innobase_rename_table(
 		row_mysql_lock_data_dictionary(trx);
 	}
 
-	dict_table_t*   table = dict_table_open_on_name(
-		norm_from, TRUE, FALSE, DICT_ERR_IGNORE_FK_NOKEY);
-
-	/* Since DICT_BG_YIELD has sleep for 250 milliseconds,
-	Convert lock_wait_timeout unit from second to 250 milliseconds */
-	long int lock_wait_timeout = thd_lock_wait_timeout(trx->mysql_thd) * 4;
-	if (table != NULL) {
-		for (dict_index_t* index = dict_table_get_first_index(table);
-		     index != NULL;
-		     index = dict_table_get_next_index(index)) {
-
-			if (index->type & DICT_FTS) {
-				/* Found */
-				while (index->index_fts_syncing
-					&& !trx_is_interrupted(trx)
-					&& (lock_wait_timeout--) > 0) {
-					DICT_BG_YIELD(trx);
-				}
-			}
-		}
-		dict_table_close(table, TRUE, FALSE);
-	}
-
-	/* FTS sync is in progress. We shall timeout this operation */
-	if (lock_wait_timeout < 0) {
-		error = DB_LOCK_WAIT_TIMEOUT;
-		goto func_exit;
-	}
-
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, commit,
 					   use_fk);
 
@@ -13257,7 +13793,6 @@ innobase_rename_table(
 		}
 	}
 
-func_exit:
 	if (commit) {
 		row_mysql_unlock_data_dictionary(trx);
 	}
@@ -14877,8 +15412,8 @@ static
 FOREIGN_KEY_INFO*
 get_foreign_key_info(
 /*=================*/
-	THD*			thd,	/*!< in: user thread handle */
-	dict_foreign_t*		foreign)/*!< in: foreign key constraint */
+	THD*		thd,	/*!< in: user thread handle */
+	dict_foreign_t* foreign)/*!< in: foreign key constraint */
 {
 	FOREIGN_KEY_INFO	f_key_info;
 	FOREIGN_KEY_INFO*	pf_key_info;
@@ -14891,8 +15426,8 @@ get_foreign_key_info(
 	LEX_CSTRING*		name = NULL;
 
 	if (dict_table_t::is_temporary_name(foreign->foreign_table_name)) {
-		return NULL;
-	}
+ 		return NULL;
+ 	}
 
 	ptr = dict_remove_db_name(foreign->id);
 	f_key_info.foreign_id = thd_make_lex_string(
@@ -14983,7 +15518,7 @@ get_foreign_key_info(
 					<< foreign->referenced_table_name
 					<< " not found for foreign table "
 					<< foreign->foreign_table_name;
-			}
+ 			}
 		} else {
 
 			dict_table_close(ref_table, TRUE, FALSE);
@@ -17375,14 +17910,10 @@ func_exit:
 		space->zip_size(), RW_X_LATCH, &mtr);
 
 	if (block != NULL) {
-		byte*	page = block->frame;
-
-		ib::info() << "Dirtying page: " << page_id_t(
-			page_get_space_id(page), page_get_page_no(page));
-
-		mlog_write_ulint(page + FIL_PAGE_TYPE,
-				 fil_page_get_type(page),
-				 MLOG_2BYTES, &mtr);
+		ib::info() << "Dirtying page: " << block->page.id;
+		mtr.write<1,mtr_t::FORCED>(*block,
+					   block->frame + FIL_PAGE_SPACE_ID,
+					   block->frame[FIL_PAGE_SPACE_ID]);
 	}
 	mtr.commit();
 	goto func_exit;
@@ -18180,7 +18711,7 @@ checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 			  ? log_sys.append_on_checkpoint->size() : 0)
 		       < log_sys.lsn) {
 			log_make_checkpoint();
-			fil_flush_file_spaces(FIL_TYPE_LOG);
+			log_sys.log.fdatasync();
 		}
 
 		dberr_t err = fil_write_flushed_lsn(log_sys.lsn);
@@ -20171,126 +20702,6 @@ ha_innobase::multi_range_read_explain_info(
 	return m_ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
 }
 
-/** Parse the table file name into table name and database name.
-@param[in]	tbl_name	InnoDB table name
-@param[out]	dbname		database name buffer (NAME_LEN + 1 bytes)
-@param[out]	tblname		table name buffer (NAME_LEN + 1 bytes)
-@param[out]	dbnamelen	database name length
-@param[out]	tblnamelen	table name length
-@return true if the table name is parsed properly. */
-static bool table_name_parse(
-	const table_name_t&	tbl_name,
-	char*			dbname,
-	char*			tblname,
-	ulint&			dbnamelen,
-	ulint&			tblnamelen)
-{
-	dbnamelen = dict_get_db_name_len(tbl_name.m_name);
-	char db_buf[MAX_DATABASE_NAME_LEN  + 1];
-	char tbl_buf[MAX_TABLE_NAME_LEN + 1];
-
-	ut_ad(dbnamelen > 0);
-	ut_ad(dbnamelen <= MAX_DATABASE_NAME_LEN);
-
-	memcpy(db_buf, tbl_name.m_name, dbnamelen);
-	db_buf[dbnamelen] = 0;
-
-	tblnamelen = strlen(tbl_name.m_name + dbnamelen + 1);
-	memcpy(tbl_buf, tbl_name.m_name + dbnamelen + 1, tblnamelen);
-	tbl_buf[tblnamelen] = 0;
-
-	filename_to_tablename(db_buf, dbname, MAX_DATABASE_NAME_LEN + 1, true);
-
-	if (tblnamelen > TEMP_FILE_PREFIX_LENGTH
-	    && !strncmp(tbl_buf, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH)) {
-		return false;
-	}
-
-	if (char *is_part = strchr(tbl_buf, '#')) {
-		*is_part = '\0';
-		tblnamelen = is_part - tbl_buf;
-	}
-
-	filename_to_tablename(tbl_buf, tblname, MAX_TABLE_NAME_LEN + 1, true);
-	return true;
-}
-
-
-/** Acquire metadata lock and MariaDB table handle for an InnoDB table.
-@param[in,out]	thd	thread handle
-@param[in,out]	table	InnoDB table
-@return MariaDB table handle
-@retval NULL if the table does not exist, is unaccessible or corrupted. */
-static TABLE* innodb_acquire_mdl(THD* thd, dict_table_t* table)
-{
-	char	db_buf[NAME_LEN + 1], db_buf1[NAME_LEN + 1];
-	char	tbl_buf[NAME_LEN + 1], tbl_buf1[NAME_LEN + 1];
-	ulint	db_buf_len, db_buf1_len;
-	ulint	tbl_buf_len, tbl_buf1_len;
-
-	if (!table_name_parse(table->name, db_buf, tbl_buf,
-			      db_buf_len, tbl_buf_len)) {
-		table->release();
-		return NULL;
-	}
-
-	DEBUG_SYNC(thd, "ib_purge_virtual_latch_released");
-
-	const table_id_t table_id = table->id;
-retry_mdl:
-	const bool unaccessible = !table->is_readable() || table->corrupted;
-	table->release();
-
-	if (unaccessible) {
-		return NULL;
-	}
-
-	TABLE*	mariadb_table = open_purge_table(thd, db_buf, db_buf_len,
-						 tbl_buf, tbl_buf_len);
-	if (!mariadb_table)
-		thd_clear_error(thd);
-
-	DEBUG_SYNC(thd, "ib_purge_virtual_got_no_such_table");
-
-	table = dict_table_open_on_id(table_id, false, DICT_TABLE_OP_NORMAL);
-
-	if (table == NULL) {
-		/* Table is dropped. */
-		goto fail;
-	}
-
-	if (!fil_table_accessible(table)) {
-release_fail:
-		table->release();
-fail:
-		if (mariadb_table) {
-			close_thread_tables(thd);
-		}
-
-		return NULL;
-	}
-
-	if (!table_name_parse(table->name, db_buf1, tbl_buf1,
-			      db_buf1_len, tbl_buf1_len)) {
-		goto release_fail;
-	}
-
-	if (!mariadb_table) {
-	} else if (!strcmp(db_buf, db_buf1) && !strcmp(tbl_buf, tbl_buf1)) {
-		return mariadb_table;
-	} else {
-		/* Table is renamed. So release MDL for old name and try
-		to acquire the MDL for new table name. */
-		close_thread_tables(thd);
-	}
-
-	strcpy(tbl_buf, tbl_buf1);
-	strcpy(db_buf, db_buf1);
-	tbl_buf_len = tbl_buf1_len;
-	db_buf_len = db_buf1_len;
-	goto retry_mdl;
-}
-
 /** Find or open a table handle for the virtual column template
 @param[in]	thd	thread handle
 @param[in,out]	table	InnoDB table whose virtual column template
@@ -20314,12 +20725,13 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 			    STRING_WITH_LEN("ib_purge_virtual_got_no_such_table "
 					    "SIGNAL got_no_such_table"))););
 
-	if (THDVAR(thd, background_thread)) {
-		/* Purge thread acquires dict_sys.latch while
-		processing undo log record. Release it
-		before acquiring MDL on the table. */
-		rw_lock_s_unlock(&dict_sys.latch);
-		return innodb_acquire_mdl(thd, table);
+	TABLE *mysql_table;
+	const bool  bg_thread = THDVAR(thd, background_thread);
+
+	if (bg_thread) {
+		if ((mysql_table = get_purge_table(thd))) {
+			return mysql_table;
+		}
 	} else {
 		if (table->vc_templ->mysql_table_query_id
 		    == thd_get_query_id(thd)) {
@@ -20331,15 +20743,17 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	char	tbl_buf[NAME_LEN + 1];
 	ulint	db_buf_len, tbl_buf_len;
 
-	if (!table_name_parse(table->name, db_buf, tbl_buf,
-			      db_buf_len, tbl_buf_len)) {
-		ut_ad(!"invalid table name");
+	if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
 		return NULL;
 	}
 
-	TABLE* mysql_table = find_fk_open_table(thd, db_buf, db_buf_len,
-						tbl_buf, tbl_buf_len);
+	if (bg_thread) {
+		return open_purge_table(thd, db_buf, db_buf_len,
+					tbl_buf, tbl_buf_len);
+	}
 
+	mysql_table = find_fk_open_table(thd, db_buf, db_buf_len,
+					 tbl_buf, tbl_buf_len);
 	table->vc_templ->mysql_table = mysql_table;
 	table->vc_templ->mysql_table_query_id = thd_get_query_id(thd);
 	return mysql_table;
@@ -21292,6 +21706,8 @@ static void innodb_remember_check_sysvar_funcs()
 	check_sysvar_int = MYSQL_SYSVAR_NAME(flush_log_at_timeout).check;
 }
 
+static const size_t MAX_BUF_SIZE = 4 * 1024;
+
 /********************************************************************//**
 Helper function to push warnings from InnoDB internals to SQL-layer. */
 UNIV_INTERN
@@ -21306,7 +21722,6 @@ ib_push_warning(
 		THD *thd = (THD *)trx->mysql_thd;
 		va_list args;
 		char *buf;
-#define MAX_BUF_SIZE 4*1024
 
 		va_start(args, format);
 		buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
@@ -21333,7 +21748,6 @@ ib_push_warning(
 	va_list args;
 	THD *thd = (THD *)ithd;
 	char *buf;
-#define MAX_BUF_SIZE 4*1024
 
 	if (ithd == NULL) {
 		thd = current_thd;
@@ -21350,6 +21764,52 @@ ib_push_warning(
 		my_free(buf);
 		va_end(args);
 	}
+}
+
+/** Helper function to push warnings from InnoDB internals to SQL-layer.
+@param[in]	trx
+@param[in]	error		Error code to push as warning
+@param[in]	table_name	Table name
+@param[in]	format		Warning message
+@param[in]	...		Message arguments */
+UNIV_INTERN
+void
+ib_foreign_warn(trx_t*	    trx,   /*!< in: trx */
+		dberr_t	    error, /*!< in: error code to push as warning */
+		const char* table_name,
+		const char* format, /*!< in: warning message */
+		...)
+{
+	va_list		    args;
+	char*		    buf;
+	static FILE*	    ef		 = dict_foreign_err_file;
+	static const size_t MAX_BUF_SIZE = 4 * 1024;
+	buf = (char*)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+	if (!buf) {
+		return;
+	}
+
+	va_start(args, format);
+	vsprintf(buf, format, args);
+	va_end(args);
+
+	mutex_enter(&dict_foreign_err_mutex);
+	rewind(ef);
+	ut_print_timestamp(ef);
+	fprintf(ef, " Error in foreign key constraint of table %s:\n",
+		table_name);
+	fputs(buf, ef);
+	mutex_exit(&dict_foreign_err_mutex);
+
+	if (trx && trx->mysql_thd) {
+		THD* thd = (THD*)trx->mysql_thd;
+
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
+	}
+
+	my_free(buf);
 }
 
 /********************************************************************//**

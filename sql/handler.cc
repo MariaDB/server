@@ -1515,7 +1515,8 @@ int ha_commit_trans(THD *thd, bool all)
 
 #if 1 // FIXME: This should be done in ha_prepare().
   if (rw_trans || (thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
-                   thd->lex->alter_info.flags & ALTER_ADD_SYSTEM_VERSIONING))
+                   thd->lex->alter_info.flags & ALTER_ADD_SYSTEM_VERSIONING &&
+                   is_real_trans))
   {
     ulonglong trx_start_id= 0, trx_end_id= 0;
     for (Ha_trx_info *ha_info= trans->ha_list; ha_info; ha_info= ha_info->next())
@@ -6795,14 +6796,14 @@ int handler::ha_delete_row(const uchar *buf)
   @retval != 0          Failure.
 */
 
-int handler::ha_direct_update_rows(ha_rows *update_rows)
+int handler::ha_direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
 {
   int error;
 
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
 
-  error = direct_update_rows(update_rows);
+  error = direct_update_rows(update_rows, found_rows);
   MYSQL_UPDATE_ROW_DONE(error);
   return error;
 }

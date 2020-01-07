@@ -30,6 +30,7 @@ Created 10/13/2010 Jimmy Yang
 #include "data0data.h"
 #include "fts0fts.h"
 #include "fts0priv.h"
+#include "rem0types.h"
 #include "row0merge.h"
 #include "btr0bulk.h"
 #include "srv0srv.h"
@@ -80,12 +81,8 @@ struct fts_psort_t {
 						/*!< sort file */
 	row_merge_block_t*	merge_block[FTS_NUM_AUX_INDEX];
 						/*!< buffer to write to file */
-	row_merge_block_t*	block_alloc[FTS_NUM_AUX_INDEX];
-						/*!< buffer to allocated */
 	row_merge_block_t*	crypt_block[FTS_NUM_AUX_INDEX];
 						/*!< buffer to crypt data */
-	row_merge_block_t*	crypt_alloc[FTS_NUM_AUX_INDEX];
-						/*!< buffer to allocated */
 	ulint			child_status;	/*!< child task status */
 	ulint			state;		/*!< parent state */
 	fts_doc_list_t		fts_doc_list;	/*!< doc list to process */
@@ -250,7 +247,7 @@ row_merge_fts_sel_propagate(
 	int*		sel_tree,	/*<! in: selection tree */
 	ulint		level,		/*<! in: selection tree level */
 	const mrec_t**	 mrec,		/*<! in: sort record */
-	ulint**		offsets,	/*<! in: record offsets */
+	offset_t**	offsets,	/*<! in: record offsets */
 	dict_index_t*	index);		/*<! in: FTS index */
 /********************************************************************//**
 Read sorted file containing index data tuples and insert these data

@@ -76,7 +76,7 @@ dberr_t
 row_undo_mod_clust_low(
 /*===================*/
 	undo_node_t*	node,	/*!< in: row undo node */
-	ulint**		offsets,/*!< out: rec_get_offsets() on the record */
+	offset_t**	offsets,/*!< out: rec_get_offsets() on the record */
 	mem_heap_t**	offsets_heap,
 				/*!< in/out: memory heap that can be emptied */
 	mem_heap_t*	heap,	/*!< in/out: memory heap */
@@ -156,26 +156,27 @@ row_undo_mod_clust_low(
 		    && node->ref == &trx_undo_metadata
 		    && btr_cur_get_index(btr_cur)->table->instant
 		    && node->update->info_bits == REC_INFO_METADATA_ADD) {
-			if (page_t* root = btr_root_get(
-				    btr_cur_get_index(btr_cur), mtr)) {
-				byte* infimum;
-				byte *supremum;
-				if (page_is_comp(root)) {
-					infimum = PAGE_NEW_INFIMUM + root;
-					supremum = PAGE_NEW_SUPREMUM + root;
+			if (buf_block_t* root = btr_root_block_get(
+				    btr_cur_get_index(btr_cur), RW_SX_LATCH,
+				    mtr)) {
+				uint16_t infimum, supremum;
+				if (page_is_comp(root->frame)) {
+					infimum = PAGE_NEW_INFIMUM;
+					supremum = PAGE_NEW_SUPREMUM;
 				} else {
-					infimum = PAGE_OLD_INFIMUM + root;
-					supremum = PAGE_OLD_SUPREMUM + root;
+					infimum = PAGE_OLD_INFIMUM;
+					supremum = PAGE_OLD_SUPREMUM;
 				}
 
-				ut_ad(!memcmp(infimum, INFIMUM, 8)
-				      == !memcmp(supremum, SUPREMUM, 8));
+				ut_ad(!memcmp(root->frame + infimum,
+					      INFIMUM, 8)
+				      == !memcmp(root->frame + supremum,
+						 SUPREMUM, 8));
 
-				if (memcmp(infimum, INFIMUM, 8)) {
-					mlog_write_string(infimum, INFIMUM,
-							  8, mtr);
-					mlog_write_string(supremum, SUPREMUM,
-							  8, mtr);
+				if (memcmp(root->frame + infimum, INFIMUM, 8)) {
+					mtr->memcpy(root, infimum, INFIMUM, 8);
+					mtr->memcpy(root, supremum, SUPREMUM,
+						    8);
 				}
 			}
 		}
@@ -209,11 +210,11 @@ static ulint row_trx_id_offset(const rec_t* rec, const dict_index_t* index)
 	if (!trx_id_offset) {
 		/* Reserve enough offsets for the PRIMARY KEY and 2 columns
 		so that we can access DB_TRX_ID, DB_ROLL_PTR. */
-		ulint	offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+		offset_t offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 		rec_offs_init(offsets_);
 		mem_heap_t* heap = NULL;
 		const ulint trx_id_pos = index->n_uniq ? index->n_uniq : 1;
-		ulint* offsets = rec_get_offsets(rec, index, offsets_, true,
+		offset_t* offsets = rec_get_offsets(rec, index, offsets_, true,
 						 trx_id_pos + 1, &heap);
 		ut_ad(!heap);
 		ulint len;
@@ -293,7 +294,7 @@ row_undo_mod_clust(
 
 	mem_heap_t*	heap		= mem_heap_create(1024);
 	mem_heap_t*	offsets_heap	= NULL;
-	ulint*		offsets		= NULL;
+	offset_t*	offsets		= NULL;
 	const dtuple_t*	rebuilt_old_pk;
 	byte		sys[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN];
 
@@ -453,11 +454,11 @@ row_undo_mod_clust(
 		ulint trx_id_pos = index->n_uniq ? index->n_uniq : 1;
 		/* Reserve enough offsets for the PRIMARY KEY and
 		2 columns so that we can access DB_TRX_ID, DB_ROLL_PTR. */
-		ulint	offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+		offset_t offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 		if (trx_id_offset) {
 		} else if (rec_is_metadata(rec, *index)) {
 			ut_ad(!buf_block_get_page_zip(btr_pcur_get_block(
-							      &node->pcur)));
+							      pcur)));
 			for (unsigned i = index->first_user_field(); i--; ) {
 				trx_id_offset += index->fields[i].fixed_len;
 			}
@@ -479,15 +480,21 @@ row_undo_mod_clust(
 			      || rec_is_alter_metadata(rec, *index));
 			index->set_modified(mtr);
 			if (page_zip_des_t* page_zip = buf_block_get_page_zip(
-				    btr_pcur_get_block(&node->pcur))) {
+				    btr_pcur_get_block(pcur))) {
 				page_zip_write_trx_id_and_roll_ptr(
 					page_zip, rec, offsets, trx_id_pos,
 					0, 1ULL << ROLL_PTR_INSERT_FLAG_POS,
 					&mtr);
 			} else {
-				mlog_write_string(rec + trx_id_offset,
-						  reset_trx_id,
-						  sizeof reset_trx_id, &mtr);
+				buf_block_t* block = btr_pcur_get_block(pcur);
+				uint16_t offs = page_offset(rec
+							    + trx_id_offset);
+				mtr.memset(block, offs, DATA_TRX_ID_LEN, 0);
+				offs += DATA_TRX_ID_LEN;
+				mtr.write<1,mtr_t::OPT>(*block, block->frame
+							+ offs, 0x80U);
+				mtr.memset(block, offs + 1,
+					   DATA_ROLL_PTR_LEN - 1, 0);
 			}
 		}
 	} else {
@@ -756,7 +763,7 @@ try_again:
 	switch (search_result) {
 		mem_heap_t*	heap;
 		mem_heap_t*	offsets_heap;
-		ulint*		offsets;
+		offset_t*	offsets;
 	case ROW_BUFFERED:
 	case ROW_NOT_DELETED_REF:
 		/* These are invalid outcomes, because the mode passed

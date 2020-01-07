@@ -125,10 +125,6 @@ my_bool	srv_undo_log_truncate;
 /** Maximum size of undo tablespace. */
 unsigned long long	srv_max_undo_log_size;
 
-/** Default undo tablespace size in UNIV_PAGEs count (10MB). */
-const ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES =
-	((1024 * 1024) * 10) / UNIV_PAGE_SIZE_DEF;
-
 /** Set if InnoDB must operate in read-only mode. We don't do any
 recovery and open all tables in RO mode instead of RW mode. We don't
 sync the max trx id to disk either. */
@@ -1176,7 +1172,7 @@ srv_export_innodb_status(void)
 		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
 
 	export_vars.innodb_data_pending_fsyncs =
-		fil_n_pending_log_flushes
+		log_sys.get_pending_flushes()
 		+ fil_n_pending_tablespace_flushes;
 
 	export_vars.innodb_data_fsyncs = os_n_fsyncs;
@@ -1252,9 +1248,10 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_os_log_written = srv_stats.os_log_written;
 
-	export_vars.innodb_os_log_fsyncs = fil_n_log_flushes;
+	export_vars.innodb_os_log_fsyncs = log_sys.get_flushes();
 
-	export_vars.innodb_os_log_pending_fsyncs = fil_n_pending_log_flushes;
+	export_vars.innodb_os_log_pending_fsyncs
+		= log_sys.get_pending_flushes();
 
 	export_vars.innodb_os_log_pending_writes =
 		srv_stats.os_log_pending_writes;
@@ -2031,7 +2028,6 @@ static bool srv_task_execute()
 	mutex_exit(&srv_sys.tasks_mutex);
 	return false;
 }
-
 
 
 /** Do the actual purge operation.

@@ -699,7 +699,7 @@ bool UNZIPUTL::openEntry(PGLOBAL g)
 	} // endif rc
 
 	if (trace(1))
-		htrc("Openning entry%s %s\n", fn, (entryopen) ? "oked" : "failed");
+		htrc("Opening entry%s %s\n", fn, (entryopen) ? "oked" : "failed");
 
 	return !entryopen;
 }	// end of openEntry

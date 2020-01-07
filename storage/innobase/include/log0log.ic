@@ -28,9 +28,6 @@ Created 12/9/1995 Heikki Tuuri
 #include "srv0mon.h"
 #include "ut0crc32.h"
 
-#ifdef UNIV_LOG_LSN_DEBUG
-#include "mtr0types.h"
-#endif /* UNIV_LOG_LSN_DEBUG */
 extern ulong srv_log_buffer_size;
 
 /************************************************************//**
@@ -288,32 +285,7 @@ log_reserve_and_write_fast(
 	ut_ad(log_mutex_own());
 	ut_ad(len > 0);
 
-#ifdef UNIV_LOG_LSN_DEBUG
-	/* Append a MLOG_LSN record after mtr_commit(), except when
-	the last bytes could be a MLOG_CHECKPOINT marker. We have special
-	handling when the log consists of only a single MLOG_CHECKPOINT
-	record since the latest checkpoint, and appending the
-	MLOG_LSN would ruin that.
-
-	Note that a longer redo log record could happen to end in what
-	looks like MLOG_CHECKPOINT, and we could be omitting MLOG_LSN
-	without reason. This is OK, because writing the MLOG_LSN is
-	just a 'best effort', aimed at finding log corruption due to
-	bugs in the redo log writing logic. */
-	const ulint	lsn_len
-		= len >= SIZE_OF_MLOG_CHECKPOINT
-		&& MLOG_CHECKPOINT == static_cast<const char*>(str)[
-			len - SIZE_OF_MLOG_CHECKPOINT]
-		? 0
-		: 1
-		+ mach_get_compressed_size(log_sys.lsn >> 32)
-		+ mach_get_compressed_size(log_sys.lsn & 0xFFFFFFFFUL);
-#endif /* UNIV_LOG_LSN_DEBUG */
-
 	const ulint	data_len = len
-#ifdef UNIV_LOG_LSN_DEBUG
-		+ lsn_len
-#endif /* UNIV_LOG_LSN_DEBUG */
 		+ log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
 
 	if (data_len >= log_sys.trailer_offset()) {
@@ -326,25 +298,8 @@ log_reserve_and_write_fast(
 
 	*start_lsn = log_sys.lsn;
 
-#ifdef UNIV_LOG_LSN_DEBUG
-	if (lsn_len) {
-		/* Write the LSN pseudo-record. */
-		byte* b = &log_sys.buf[log_sys.buf_free];
-
-		*b++ = MLOG_LSN | (MLOG_SINGLE_REC_FLAG & *(const byte*) str);
-
-		/* Write the LSN in two parts,
-		as a pseudo page number and space id. */
-		b += mach_write_compressed(b, log_sys.lsn >> 32);
-		b += mach_write_compressed(b, log_sys.lsn & 0xFFFFFFFFUL);
-		ut_a(b - lsn_len == &log_sys.buf[log_sys.buf_free]);
-
-		::memcpy(b, str, len);
-
-		len += lsn_len;
-	} else
-#endif /* UNIV_LOG_LSN_DEBUG */
-	memcpy(log_sys.buf + log_sys.buf_free, str, len);
+	memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(log_sys.buf + log_sys.buf_free,
+					       str, len);
 
 	log_block_set_data_len(
                 reinterpret_cast<byte*>(ut_align_down(

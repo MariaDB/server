@@ -1,0 +1,1 @@
+--innodb_autoinc_lock_mode=2 --wsrep-provider=$WSREP_PROVIDER --wsrep-cluster-address=gcomm:// --thread_handling=pool-of-threads --wsrep-on=1

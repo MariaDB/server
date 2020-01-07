@@ -113,7 +113,6 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_reload.h"  // reload_acl_and_cache
-#include "pcre.h"
 
 #ifdef HAVE_POLL_H
 #include <poll.h>
@@ -537,7 +536,7 @@ ulong stored_program_cache_size= 0;
 
 ulong opt_slave_parallel_threads= 0;
 ulong opt_slave_domain_parallel_threads= 0;
-ulong opt_slave_parallel_mode= SLAVE_PARALLEL_CONSERVATIVE;
+ulong opt_slave_parallel_mode;
 ulong opt_binlog_commit_wait_count= 0;
 ulong opt_binlog_commit_wait_usec= 0;
 ulong opt_slave_parallel_max_queued= 131072;
@@ -3260,20 +3259,6 @@ static void init_libstrings()
 #endif
 }
 
-ulonglong my_pcre_frame_size;
-
-static void init_pcre()
-{
-  pcre_malloc= pcre_stack_malloc= my_str_malloc_mysqld;
-  pcre_free= pcre_stack_free= my_free;
-  pcre_stack_guard= check_enough_stack_size_slow;
-  /* See http://pcre.org/original/doc/html/pcrestack.html */
-  my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0);
-  // pcre can underestimate its stack usage. Use a safe value, as in the manual
-  set_if_bigger(my_pcre_frame_size, 500);
-  my_pcre_frame_size += 16; // Again, safety margin, see the manual
-}
-
 
 /**
   Initialize one of the global date/time format variables.
@@ -4130,7 +4115,6 @@ static int init_common_variables()
   if (item_create_init())
     return 1;
   item_init();
-  init_pcre();
   /*
     Process a comma-separated character set list and choose
     the first available character set. This is mostly for
@@ -7050,16 +7034,6 @@ static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff,
 }
 
 
-static int show_flush_commands(THD *thd, SHOW_VAR *var, char *buff,
-                               enum enum_var_type scope)
-{
-  var->type= SHOW_LONGLONG;
-  var->value= buff;
-  *((longlong *) buff)= (longlong)tdc_refresh_version();
-  return 0;
-}
-
-
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 
 /*
@@ -7439,7 +7413,6 @@ SHOW_VAR status_vars[]= {
   {"Feature_trigger",          (char*) offsetof(STATUS_VAR, feature_trigger), SHOW_LONG_STATUS},
   {"Feature_window_functions", (char*) offsetof(STATUS_VAR, feature_window_functions), SHOW_LONG_STATUS},
   {"Feature_xml",              (char*) offsetof(STATUS_VAR, feature_xml), SHOW_LONG_STATUS},
-  {"Flush_commands",           (char*) &show_flush_commands, SHOW_SIMPLE_FUNC},
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
   {"Handler_delete",           (char*) offsetof(STATUS_VAR, ha_delete_count), SHOW_LONG_STATUS},
   {"Handler_discover",         (char*) offsetof(STATUS_VAR, ha_discover_count), SHOW_LONG_STATUS},
@@ -7751,8 +7724,8 @@ static void usage(void)
          "\nbecause execution stopped before plugins were initialized.");
   }
 
-  puts("\nTo see what values a running MySQL server is using, type"
-       "\n'mysqladmin variables' instead of 'mysqld --verbose --help'.");
+    puts("\nTo see what variables a running MySQL server is using, type"
+         "\n'mysqladmin variables' instead of 'mysqld --verbose --help'.");
   }
   DBUG_VOID_RETURN;
 }

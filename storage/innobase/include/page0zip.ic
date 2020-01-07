@@ -369,14 +369,15 @@ void
 page_zip_compress_write_log_no_data(
 /*================================*/
 	ulint		level,	/*!< in: compression level */
-	const page_t*	page,	/*!< in: page that is compressed */
+	buf_block_t*	block,	/*!< in: ROW_FORMAT=COMPRESSED index page */
 	dict_index_t*	index,	/*!< in: index */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	byte* log_ptr = mlog_open_and_write_index(
-		mtr, page, index, MLOG_ZIP_PAGE_COMPRESS_NO_DATA, 1);
-
-	if (log_ptr) {
+	if (byte* log_ptr = mlog_open(mtr, 11 + 1)) {
+		log_ptr = mlog_write_initial_log_record_low(
+			MLOG_ZIP_PAGE_COMPRESS_NO_DATA,
+			block->page.id.space(), block->page.id.page_no(),
+			log_ptr, mtr);
 		mach_write_to_1(log_ptr, level);
 		mlog_close(mtr, log_ptr + 1);
 	}

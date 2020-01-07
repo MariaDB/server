@@ -31,6 +31,7 @@
 #include <m_string.h>
 #include <my_getopt.h>
 #include <my_dir.h>
+#include <ctype.h>
 
 #define MAX_ROWS  3000
 #define ERRORS_PER_RANGE 1000
@@ -749,18 +750,19 @@ static struct message *find_message(struct errors *err, const char *lang,
                    for the format specifiers
 
   RETURN VALUE
-    Returns the checksum for all the characters of the
+    Returns the checksum for all letters of the
     format specifiers
 
     Ex.
-     "text '%-64.s' text part 2 %d'"
-            ^^^^^^              ^^
+     "text '%-.64s' text part 2 %zu'"
+                 ^               ^^
             characters will be xored to form checksum
 
+    Non-letters are skipped, because they do not change the type
+    of the argument.
+
     NOTE:
-      Does not support format specifiers with positional args
-      like "%2$s" but that is not yet supported by my_vsnprintf
-      either.
+      Does not support format specifiers with positional args like "%2$s"
 */
 
 static ha_checksum checksum_format_specifier(const char* msg)
@@ -777,19 +779,16 @@ static ha_checksum checksum_format_specifier(const char* msg)
       start= p+1; /* Entering format specifier */
       num_format_specifiers++;
     }
-    else if (start)
+    else if (start && isalpha(*p))
     {
+      chksum= my_checksum(chksum, p, 1);
       switch(*p) {
       case 'd':
       case 'u':
       case 'x':
       case 's':
       case 'M':
-        chksum= my_checksum(chksum, (uchar*) start, (uint) (p + 1 - start));
         start= 0; /* Not in format specifier anymore */
-        break;
-
-      default:
         break;
       }
     }

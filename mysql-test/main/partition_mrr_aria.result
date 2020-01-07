@@ -1,0 +1,79 @@
+drop table if exists t1,t3;
+#
+# MDEV-20611: MRR scan over partitioned InnoDB table produces "Out of memory" error
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+set @tmp=@@storage_engine;
+set storage_engine=Aria;
+create table t3 (
+ID bigint(20) NOT NULL AUTO_INCREMENT,
+part_id int,
+key_col int,
+col2 int,
+key(key_col),
+PRIMARY KEY (ID,part_id)
+) PARTITION BY RANGE (part_id)
+(PARTITION p1 VALUES LESS THAN (3),
+PARTITION p2 VALUES LESS THAN (7),
+PARTITION p3 VALUES LESS THAN (10)
+);
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `ID` bigint(20) NOT NULL AUTO_INCREMENT,
+  `part_id` int(11) NOT NULL,
+  `key_col` int(11) DEFAULT NULL,
+  `col2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`ID`,`part_id`),
+  KEY `key_col` (`key_col`)
+) ENGINE=Aria DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`part_id`)
+(PARTITION `p1` VALUES LESS THAN (3) ENGINE = Aria,
+ PARTITION `p2` VALUES LESS THAN (7) ENGINE = Aria,
+ PARTITION `p3` VALUES LESS THAN (10) ENGINE = Aria)
+set storage_engine= @tmp;
+insert into t3 select 
+A.a+10*B.a,
+A.a,
+B.a,
+123456
+from t1 A, t1 B;
+set optimizer_switch='mrr=on';
+explain 
+select * from t3 force index (key_col) where key_col < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	range	key_col	key_col	5	NULL	#	Using where; Rowid-ordered scan
+select * from t3 force index (key_col) where key_col < 3;
+ID	part_id	key_col	col2
+1	0	0	123456
+1	1	0	123456
+2	2	0	123456
+10	0	1	123456
+11	1	1	123456
+12	2	1	123456
+20	0	2	123456
+21	1	2	123456
+22	2	2	123456
+3	3	0	123456
+4	4	0	123456
+5	5	0	123456
+6	6	0	123456
+13	3	1	123456
+14	4	1	123456
+15	5	1	123456
+16	6	1	123456
+23	3	2	123456
+24	4	2	123456
+25	5	2	123456
+26	6	2	123456
+7	7	0	123456
+8	8	0	123456
+9	9	0	123456
+17	7	1	123456
+18	8	1	123456
+19	9	1	123456
+27	7	2	123456
+28	8	2	123456
+29	9	2	123456
+drop table t1,t3;

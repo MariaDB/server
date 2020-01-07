@@ -349,6 +349,10 @@ public:
 	protected by fts_optimize_wq mutex */
 	bool		in_queue;
 
+	/** Whether the sync message exists in fts_optimize_wq;
+	protected by fts_optimize_wq mutex */
+	bool		sync_message;
+
 	/** Heap for fts_t allocation. */
 	mem_heap_t*	fts_heap;
 };
@@ -592,7 +596,7 @@ doc_id_t
 fts_get_doc_id_from_rec(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	const ulint*		offsets);
+	const offset_t*		offsets);
 
 /** Add new fts doc id to the update vector.
 @param[in]	table		the table that contains the FTS index.
@@ -983,5 +987,9 @@ fts_add_doc_from_tuple(
 fts_trx_t*
 fts_trx_create(
 	trx_t*  trx);
+
+/** Sync the table during commit phase
+@param[in]	table	table to be synced */
+void fts_sync_during_ddl(dict_table_t* table);
 
 #endif /*!< fts0fts.h */

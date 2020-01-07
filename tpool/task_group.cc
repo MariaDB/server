@@ -20,6 +20,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include <tpool_structs.h>
 #include <thread>
 #include <assert.h>
+#ifndef _WIN32
+#include <unistd.h> // usleep
+#endif
 namespace tpool
 {
   task_group::task_group(unsigned int max_concurrency) :
@@ -79,6 +82,18 @@ namespace tpool
 
   task_group::~task_group()
   {
-    assert(m_queue.empty() && !m_tasks_running);
+    std::unique_lock<std::mutex> lk(m_mtx);
+    assert(m_queue.empty());
+
+    while (m_tasks_running)
+    {
+      lk.unlock();
+#ifndef _WIN32
+      usleep(1000);
+#else
+      Sleep(1);
+#endif
+      lk.lock();
+    }
   }
 }

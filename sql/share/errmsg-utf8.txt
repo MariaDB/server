@@ -3186,13 +3186,13 @@ ER_INVALID_USE_OF_NULL 22004
         swe "Felaktig använding av NULL"
         ukr "Хибне використання значення NULL"
 ER_REGEXP_ERROR 42000 
-        cze "Regulární výraz vrátil chybu '%-.64s'"
+        cze "Regulární výraz vrátil chybu: %s"
         dan "Fik fejl '%-.64s' fra regexp"
         nla "Fout '%-.64s' ontvangen van regexp"
-        eng "Got error '%-.64s' from regexp"
-        est "regexp tagastas vea '%-.64s'"
+        eng "Regex error '%s'"
+        est "regexp tagastas vea: %s"
         fre "Erreur '%-.64s' provenant de regexp"
-        ger "regexp lieferte Fehler '%-.64s'"
+        ger "Regexp Fehler %s"
         hindi "regexp में '%-.64s' त्रुटि हुई"
         hun "'%-.64s' hiba a regularis kifejezes hasznalata soran (regexp)"
         ita "Errore '%-.64s' da regexp"
@@ -3200,11 +3200,11 @@ ER_REGEXP_ERROR 42000
         kor "regexp에서 '%-.64s'가 났습니다."
         por "Obteve erro '%-.64s' em regexp"
         rum "Eroarea '%-.64s' obtinuta din expresia regulara (regexp)"
-        rus "Получена ошибка '%-.64s' от регулярного выражения"
-        serbian "Funkcija regexp je vratila grešku '%-.64s'"
+        rus "Ошибка регулярного выражения: %s"
+        serbian "Funkcija regexp je vratila grešku: %s"
         spa "Obtenido error '%-.64s' de regexp"
         swe "Fick fel '%-.64s' från REGEXP"
-        ukr "Отримано помилку '%-.64s' від регулярного виразу"
+        ukr "Помилка регулярного виразу: %s"
 ER_MIX_OF_GROUP_FUNC_AND_FIELDS 42000 
         cze "Pokud není žádná GROUP BY klauzule, není dovoleno současné použití GROUP položek (MIN(),MAX(),COUNT()...) s ne GROUP položkami"
         dan "Sammenblanding af GROUP kolonner (MIN(),MAX(),COUNT()...) uden GROUP kolonner er ikke tilladt, hvis der ikke er noget GROUP BY prædikat"
@@ -7457,7 +7457,7 @@ ER_GIS_UNSUPPORTED_ARGUMENT
   eng "Calling geometry function %s with unsupported types of arguments."
 
 ER_GIS_UNKNOWN_ERROR
-  eng "Unknown GIS error occured in function %s."
+  eng "Unknown GIS error occurred in function %s."
 
 ER_GIS_UNKNOWN_EXCEPTION
   eng "Unknown exception caught in GIS function %s."
@@ -7871,7 +7871,7 @@ ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
         eng "Can not DROP SYSTEM VERSIONING for table %`s partitioned BY SYSTEM_TIME"
 
 ER_VERS_DB_NOT_SUPPORTED
-      eng "System-versioned tables in the %`s database are not suported"
+      eng "System-versioned tables in the %`s database are not supported"
 
 ER_VERS_TRT_IS_DISABLED
         eng "Transaction registry is disabled"

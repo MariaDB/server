@@ -985,6 +985,100 @@ my_charset_is_ascii_based(CHARSET_INFO *cs)
 }
 
 
+/**
+  Detect if a Unicode code point is printable.
+*/
+static inline my_bool
+my_is_printable(my_wc_t wc)
+{
+  /*
+    Blocks:
+      U+0000 .. U+001F     control
+      U+0020 .. U+007E     printable
+      U+007F .. U+009F     control
+      U+00A0 .. U+00FF     printable
+      U+0100 .. U+10FFFF   As of Unicode-6.1.0, this range does not have any
+                           characters of the "Cc" (Other, control) category.
+                           Should be mostly safe to print.
+                           Except for the surrogate halfs,
+                           which are encoding components, not real characters.
+  */
+  if (wc >= 0x20 && wc <= 0x7E) /* Quickly detect ASCII printable */
+    return TRUE;
+  if (wc <= 0x9F)    /* The rest of U+0000..U+009F are control characters */
+  {
+    /* NL, CR, TAB are Ok */
+    return (wc == '\r' || wc == '\n' || wc == '\t');
+  }
+  /*
+    Surrogate halfs (when alone) print badly in terminals:
+      SELECT _ucs2 0xD800;
+    Let's escape them as well.
+  */
+  if (wc >= 0xD800 && wc <= 0xDFFF)
+    return FALSE;
+  return TRUE;
+}
+
+
+static uint to_printable_8bit(uchar *dst, my_wc_t wc)
+{
+  /*
+    This function is used only in context of error messages for now.
+    All non-BMP characters are currently replaced to question marks
+    when a message is put into diagnostics area.
+  */
+  DBUG_ASSERT(wc < 0x10000);
+  *dst++= '\\';
+  *dst++= _dig_vec_upper[(wc >> 12) & 0x0F];
+  *dst++= _dig_vec_upper[(wc >> 8) & 0x0F];
+  *dst++= _dig_vec_upper[(wc >> 4) & 0x0F];
+  *dst++= _dig_vec_upper[wc & 0x0F];
+  return MY_CS_PRINTABLE_CHAR_LENGTH;
+}
+
+
+/**
+  Encode an Unicode character "wc" into a printable string.
+  This function is suitable for any character set, including
+  ASCII-incompatible multi-byte character sets, e.g. ucs2, utf16, utf32.
+*/
+int
+my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
+                           uchar *str, uchar *end)
+{
+  uchar *str0;
+  uint i, length;
+  uchar tmp[MY_CS_PRINTABLE_CHAR_LENGTH];
+
+  if (my_is_printable(wc))
+  {
+    int mblen= cs->cset->wc_mb(cs, wc, str, end);
+    if (mblen > 0)
+      return mblen;
+  }
+
+  if (str + MY_CS_PRINTABLE_CHAR_LENGTH * cs->mbminlen > end)
+    return MY_CS_TOOSMALLN(MY_CS_PRINTABLE_CHAR_LENGTH * cs->mbminlen);
+
+  if ((cs->state & MY_CS_NONASCII) == 0)
+    return to_printable_8bit(str, wc);
+
+  length= to_printable_8bit(tmp, wc);
+  str0= str;
+  for (i= 0; i < length; i++)
+  {
+    if (cs->cset->wc_mb(cs, tmp[i], str, end) != (int) cs->mbminlen)
+    {
+      DBUG_ASSERT(0);
+      return MY_CS_ILSEQ;
+    }
+    str+= cs->mbminlen;
+  }
+  return (int) (str - str0);
+}
+
+
 /*
   Convert a string between two character sets.
   'to' must be large enough to store (form_length * to_cs->mbmaxlen) bytes.

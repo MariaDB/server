@@ -335,6 +335,11 @@ public:
   );
   int next_result();
   uint affected_rows();
+  uint matched_rows();
+  bool inserted_info(
+    spider_db_handler *handler,
+    spider_copy_info *copy_info
+  );
   ulonglong last_insert_id();
   int set_character_set(
     const char *csname

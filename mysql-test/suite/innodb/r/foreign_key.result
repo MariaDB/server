@@ -262,7 +262,7 @@ ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
 ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 SHOW WARNINGS;
 Level	Code	Message
-Warning	150	Alter  table `test`.`t1` with foreign key constraint failed. Referenced table `test`.`t2` not found in the data dictionary near 'FOREIGN KEY (a) REFERENCES t2 (b)'.
+Warning	150	Alter  table `test`.`t1` with foreign key (a) constraint failed. Referenced table `test`.`t2` not found in the data dictionary.
 Error	1005	Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `t1`
 DROP TABLE t1;
@@ -522,3 +522,47 @@ test.t1	check	status	OK
 DROP TABLE t1;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 # End of 10.2 tests
+#
+# MDEV-20729 Fix REFERENCES constraint in column definition
+#
+set default_storage_engine= innodb;
+create table t1 (x int primary key, y int unique);
+create table t2 (x int references t1(x), y int constraint fk references t1(y));
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  KEY `x` (`x`),
+  KEY `fk` (`y`),
+  CONSTRAINT `fk` FOREIGN KEY (`y`) REFERENCES `t1` (`y`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`x`) REFERENCES `t1` (`x`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+create table t3 (z int);
+alter table t3 add x int references t1(x), add y int constraint fk2 references t1(y);
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `z` int(11) DEFAULT NULL,
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  KEY `x` (`x`),
+  KEY `fk2` (`y`),
+  CONSTRAINT `fk2` FOREIGN KEY (`y`) REFERENCES `t1` (`y`),
+  CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`x`) REFERENCES `t1` (`x`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop tables t3, t2, t1;
+create table t1 (id int primary key);
+create table t2 (id2 int references t1);
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+create table t2 (id int references t1);
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  KEY `id` (`id`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop tables t2, t1;
+set default_storage_engine= default;
+# End of 10.5 tests

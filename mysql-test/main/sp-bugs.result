@@ -1,5 +1,5 @@
 #
-# Bug #47412: Valgrind warnings / user can read uninitalized memory
+# Bug #47412: Valgrind warnings / user can read uninitialized memory
 # using SP variables
 #
 CREATE SCHEMA testdb;

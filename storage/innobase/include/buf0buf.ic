@@ -113,7 +113,17 @@ ulint
 buf_pool_get_n_pages(void)
 /*======================*/
 {
-	return buf_pool_get_curr_size() >> srv_page_size_shift;
+  if (!buf_pool_ptr)
+    return buf_pool_get_curr_size() >> srv_page_size_shift;
+
+  ulint chunk_size= 0;
+  for (uint i= 0; i < srv_buf_pool_instances; i++)
+  {
+    buf_pool_t* buf_pool = buf_pool_from_array(i);
+    for (uint j= 0; j < buf_pool->n_chunks; j++)
+      chunk_size+= buf_pool->chunks[j].size;
+  }
+  return chunk_size;
 }
 
 /********************************************************************//**
@@ -759,25 +769,6 @@ buf_frame_align(
 }
 
 /**********************************************************************//**
-Gets the space id, page offset, and byte offset within page of a
-pointer pointing to a buffer frame containing a file page. */
-UNIV_INLINE
-void
-buf_ptr_get_fsp_addr(
-/*=================*/
-	const void*	ptr,	/*!< in: pointer to a buffer frame */
-	ulint*		space,	/*!< out: space id */
-	fil_addr_t*	addr)	/*!< out: page offset and byte offset */
-{
-	const page_t*	page = (const page_t*) ut_align_down(ptr,
-							     srv_page_size);
-
-	*space = mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-	addr->page = mach_read_from_4(page + FIL_PAGE_OFFSET);
-	addr->boffset = ut_align_offset(ptr, srv_page_size);
-}
-
-/**********************************************************************//**
 Gets the hash value of the page the pointer is pointing to. This can be used
 in searches in the lock hash table.
 @return lock hash value */
@@ -845,50 +836,6 @@ buf_block_free(
 	buf_page_mutex_exit(block);
 
 	buf_pool_mutex_exit(buf_pool);
-}
-
-/*********************************************************************//**
-Copies contents of a buffer frame to a given buffer.
-@return buf */
-UNIV_INLINE
-byte*
-buf_frame_copy(
-/*===========*/
-	byte*			buf,	/*!< in: buffer to copy to */
-	const buf_frame_t*	frame)	/*!< in: buffer frame */
-{
-	ut_ad(buf && frame);
-
-	memcpy(buf, frame, srv_page_size);
-
-	return(buf);
-}
-
-/********************************************************************//**
-Gets the youngest modification log sequence number for a frame.
-Returns zero if not file page or no modification occurred yet.
-@return newest modification to page */
-UNIV_INLINE
-lsn_t
-buf_page_get_newest_modification(
-/*=============================*/
-	const buf_page_t*	bpage)	/*!< in: block containing the
-					page frame */
-{
-	lsn_t		lsn;
-	BPageMutex*	block_mutex = buf_page_get_mutex(bpage);
-
-	mutex_enter(block_mutex);
-
-	if (buf_page_in_file(bpage)) {
-		lsn = bpage->newest_modification;
-	} else {
-		lsn = 0;
-	}
-
-	mutex_exit(block_mutex);
-
-	return(lsn);
 }
 
 /********************************************************************//**

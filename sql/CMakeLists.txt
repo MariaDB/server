@@ -62,6 +62,17 @@ ADD_CUSTOM_COMMAND(
   DEPENDS gen_lex_token
 )
 
+ADD_CUSTOM_COMMAND(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.yy
+  COMMAND ${CMAKE_COMMAND}
+   "-DIN=${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy"
+   "-DOUT=${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.yy"
+   -P ${CMAKE_CURRENT_SOURCE_DIR}/gen_sql_yacc_ora_yy.cmake
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy
+)
+
+ADD_CUSTOM_TARGET(gen_sql_yacc_ora_yy DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.yy)
+
 ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER)
 
 IF(SSL_DEFINES)
@@ -182,10 +193,14 @@ RECOMPILE_FOR_EMBEDDED)
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql
-  mysys mysys_ssl dbug strings vio pcre
+  mysys mysys_ssl dbug strings vio pcre2-8
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT}
   ${SSL_LIBRARIES}
   ${LIBSYSTEMD})
+
+IF(TARGET pcre2)
+  ADD_DEPENDENCIES(sql pcre2)
+ENDIF()
 
 FOREACH(se aria partition perfschema sql_sequence wsrep)
   # These engines are used directly in sql sources.
@@ -367,8 +382,7 @@ IF (NOT BISON_FOUND)
 ELSE()
   BISON_TARGET(gen_sql_yacc ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
              COMPILE_FLAGS "-p MYSQL")
-
-  BISON_TARGET(gen_sql_yacc_ora ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc_ora.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
+  BISON_TARGET(gen_sql_yacc_ora ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
              COMPILE_FLAGS "-p ORA")
 ENDIF()
 
@@ -395,6 +409,8 @@ ADD_CUSTOM_TARGET(
         ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
         ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
 )
+
+ADD_DEPENDENCIES(GenServerSource gen_sql_yacc_ora_yy)
 
 IF(WIN32 OR HAVE_DLOPEN AND NOT DISABLE_SHARED)
   ADD_LIBRARY(udf_example MODULE udf_example.c udf_example.def)
@@ -433,15 +449,18 @@ IF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
   ENDIF()
   MAKE_DIRECTORY(${CMAKE_CURRENT_BINARY_DIR}/data)
   ADD_CUSTOM_COMMAND(
-     OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
-     COMMAND ${CMAKE_COMMAND} ${CONFIG_PARAM}
-       -DTOP_SRCDIR="${CMAKE_SOURCE_DIR}"
-       -DBINDIR="${CMAKE_CURRENT_BINARY_DIR}"
-       -DMYSQLD_EXECUTABLE="$<TARGET_FILE:mysqld>"
-       -DCMAKE_CFG_INTDIR="${CMAKE_CFG_INTDIR}"
-       -P ${CMAKE_SOURCE_DIR}/cmake/create_initial_db.cmake
+     OUTPUT initdb.dep
+     COMMAND ${CMAKE_COMMAND} -E remove_directory data
+     COMMAND ${CMAKE_COMMAND} -E make_directory data
+     COMMAND ${CMAKE_COMMAND} -E chdir data ${CMAKE_COMMAND}
+     ${CONFIG_PARAM}
+     -DTOP_SRCDIR="${CMAKE_SOURCE_DIR}"
+     -DBINDIR="${CMAKE_CURRENT_BINARY_DIR}"
+     -DMYSQLD_EXECUTABLE="$<TARGET_FILE:mysqld>"
+     -DCMAKE_CFG_INTDIR="${CMAKE_CFG_INTDIR}"
+     -P ${CMAKE_SOURCE_DIR}/cmake/create_initial_db.cmake
      COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
-     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
+     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/
      DEPENDS mysqld
   )
   ADD_CUSTOM_TARGET(initial_database  

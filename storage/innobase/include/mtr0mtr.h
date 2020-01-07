@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -135,15 +135,11 @@ struct mtr_t {
 
 	/** Commit a mini-transaction that did not modify any pages,
 	but generated some redo log on a higher level, such as
-	MLOG_FILE_NAME records and a MLOG_CHECKPOINT marker.
+	MLOG_FILE_NAME records and an optional MLOG_CHECKPOINT marker.
 	The caller must invoke log_mutex_enter() and log_mutex_exit().
 	This is to be used at log_checkpoint().
-	@param[in]	checkpoint_lsn		the LSN of the log checkpoint
-	@param[in]	write_mlog_checkpoint	Write MLOG_CHECKPOINT marker
-						if it is enabled. */
-	void commit_checkpoint(
-		lsn_t	checkpoint_lsn,
-		bool	write_mlog_checkpoint);
+	@param[in]	checkpoint_lsn		log checkpoint LSN, or 0 */
+	void commit_files(lsn_t	checkpoint_lsn = 0);
 
 	/** Return current size of the buffer.
 	@return	savepoint */
@@ -425,7 +421,71 @@ struct mtr_t {
 	static inline bool is_block_dirtied(const buf_block_t* block)
 		MY_ATTRIBUTE((warn_unused_result));
 
+  /** Write request types */
+  enum write_type
+  {
+    /** the page is guaranteed to always change */
+    NORMAL= 0,
+    /** optional: the page contents might not change */
+    OPT,
+    /** force a write, even if the page contents is not changing */
+    FORCED
+  };
+
+  /** Write 1, 2, 4, or 8 bytes to a file page.
+  @param[in]      block   file page
+  @param[in,out]  ptr     pointer in file page
+  @param[in]      val     value to write
+  @tparam l       number of bytes to write
+  @tparam w       write request type
+  @tparam V       type of val */
+  template<unsigned l,write_type w= NORMAL,typename V>
+  inline void write(const buf_block_t &block, byte *ptr, V val)
+    MY_ATTRIBUTE((nonnull));
+
+  /** Log a write of a byte string to a page.
+  @param[in]      b       buffer page
+  @param[in]      ofs     byte offset from b->frame
+  @param[in]      str     the data to write
+  @param[in]      len     length of the data to write */
+  void memcpy(const buf_block_t &b, ulint ofs, ulint len);
+
+  /** Write a byte string to a page.
+  @param[in,out]  b       buffer page
+  @param[in]      ofs     byte offset from b->frame
+  @param[in]      str     the data to write
+  @param[in]      len     length of the data to write */
+  inline void memcpy(buf_block_t *b, ulint offset, const void *str, ulint len);
+
+  /** Initialize a string of bytes.
+  @param[in,out]        b       buffer page
+  @param[in]            ofs     byte offset from b->frame
+  @param[in]            len     length of the data to write
+  @param[in]            val     the data byte to write */
+  void memset(const buf_block_t* b, ulint ofs, ulint len, byte val);
+
 private:
+  /**
+  Write a log record for writing 1, 2, or 4 bytes.
+  @param[in]      block   file page
+  @param[in,out]  ptr     pointer in file page
+  @param[in]      l       number of bytes to write
+  @param[in,out]  log_ptr log record buffer
+  @param[in]      val     value to write */
+  void log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
+                 byte *log_ptr, uint32_t val)
+    MY_ATTRIBUTE((nonnull));
+  /**
+  Write a log record for writing 8 bytes.
+  @param[in]      block   file page
+  @param[in,out]  ptr     pointer in file page
+  @param[in]      l       number of bytes to write (8)
+  @param[in,out]  log_ptr log record buffer
+  @param[in]      val     value to write */
+  void log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
+                 byte *log_ptr, uint64_t val)
+    MY_ATTRIBUTE((nonnull));
+
 	/** Prepare to write the mini-transaction log to the redo log buffer.
 	@return number of bytes to write in finish_write() */
 	inline ulint prepare_write();

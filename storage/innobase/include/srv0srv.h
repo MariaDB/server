@@ -321,8 +321,9 @@ extern my_bool	srv_undo_log_truncate;
 /* Enables or disables this prefix optimization.  Disabled by default. */
 extern my_bool	srv_prefix_index_cluster_optimization;
 
-/** Default size of UNDO tablespace while it is created new. */
-extern const ulint	SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
+/** Default size of UNDO tablespace (10MiB for innodb_page_size=16k) */
+constexpr ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES= (10U << 20) /
+  UNIV_PAGE_SIZE_DEF;
 
 extern char*	srv_log_group_home_dir;
 
@@ -888,9 +889,9 @@ struct export_var_t{
 #endif
 	ulint innodb_mem_dictionary;
 	lsn_t innodb_os_log_written;		/*!< srv_os_log_written */
-	ulint innodb_os_log_fsyncs;		/*!< fil_n_log_flushes */
+	ulint innodb_os_log_fsyncs;		/*!< n_log_flushes */
 	ulint innodb_os_log_pending_writes;	/*!< srv_os_log_pending_writes */
-	ulint innodb_os_log_pending_fsyncs;	/*!< fil_n_pending_log_flushes */
+	ulint innodb_os_log_pending_fsyncs;	/*!< n_pending_log_flushes */
 	ulint innodb_pages_created;		/*!< buf_pool->stat.n_pages_created */
 	ulint innodb_pages_read;		/*!< buf_pool->stat.n_pages_read*/
 	ulint innodb_pages_written;		/*!< buf_pool->stat.n_pages_written */

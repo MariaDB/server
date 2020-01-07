@@ -27,9 +27,11 @@ Created May 26, 2009 Vasil Dimov
 #ifndef fsp0types_h
 #define fsp0types_h
 
+#include <cstddef>
+
 /** The fil_space_t::id of the redo log. All persistent tablespaces
 have a smaller fil_space_t::id. */
-#define SRV_LOG_SPACE_FIRST_ID		0xFFFFFFF0U
+static constexpr size_t SRV_SPACE_ID_UPPER_BOUND= 0xFFFFFFF0;
 /** The fil_space_t::id of the innodb_temporary tablespace. */
 #define SRV_TMP_SPACE_ID		0xFFFFFFFEU
 

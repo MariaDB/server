@@ -90,6 +90,7 @@ public:
 
   bool store(I_List<i_string> *str_list);
   bool store(const char *from, CHARSET_INFO *cs);
+  bool store_warning(const char *from, size_t length);
   String *storage_packet() { return packet; }
   inline void free() { packet->free(); }
   virtual bool write();

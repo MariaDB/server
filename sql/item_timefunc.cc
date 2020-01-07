@@ -1101,9 +1101,10 @@ longlong Item_func_weekday::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   THD *thd= current_thd;
-  Datetime d(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
-  return ((null_value= !d.is_valid_datetime())) ? 0 :
-         calc_weekday(d.daynr(), odbc_type) + MY_TEST(odbc_type);
+  Datetime dt(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
+  if ((null_value= !dt.is_valid_datetime()))
+    return 0;
+  return dt.weekday(odbc_type) + MY_TEST(odbc_type);
 }
 
 bool Item_func_dayname::fix_length_and_dec()
@@ -1122,14 +1123,15 @@ bool Item_func_dayname::fix_length_and_dec()
 String* Item_func_dayname::val_str(String* str)
 {
   DBUG_ASSERT(fixed == 1);
-  uint weekday=(uint) val_int();		// Always Item_func_weekday()
   const char *day_name;
   uint err;
+  THD *thd= current_thd;
+  Datetime dt(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
 
-  if (null_value)
+  if ((null_value= !dt.is_valid_datetime()))
     return (String*) 0;
-  
-  day_name= locale->day_names->type_names[weekday];
+
+  day_name= locale->day_names->type_names[dt.weekday(false)];
   str->copy(day_name, (uint) strlen(day_name), &my_charset_utf8mb3_bin,
 	    collation.collation, &err);
   return str;

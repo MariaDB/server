@@ -259,6 +259,7 @@ typedef struct st_spider_transaction SPIDER_TRX;
 typedef struct st_spider_share SPIDER_SHARE;
 class ha_spider;
 class spider_db_copy_table;
+class spider_db_handler;
 
 class spider_string
 {
@@ -1109,6 +1110,11 @@ public:
   ) = 0;
   virtual int next_result() = 0;
   virtual uint affected_rows() = 0;
+  virtual uint matched_rows() = 0;
+  virtual bool inserted_info(
+    spider_db_handler *handler,
+    ha_copy_info *copy_info
+  ) = 0;
   virtual ulonglong last_insert_id() = 0;
   virtual int set_character_set(
     const char *csname

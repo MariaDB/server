@@ -59,15 +59,8 @@ SELECT * FROM t1;
 SELECT COUNT(*) as expect_0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
-SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
-set global wsrep_sync_wait=15;
---let $wait_condition = SELECT COUNT(*) = 6 FROM t1;
---source include/wait_condition.inc
 SELECT COUNT(*) as expect_6 FROM t1;
 SELECT * FROM t1;
---let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
---source include/wait_condition.inc
-
 SELECT COUNT(*) as expect_0 FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t1;

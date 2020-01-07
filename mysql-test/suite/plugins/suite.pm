@@ -4,7 +4,7 @@ use My::Platform;
 
 @ISA = qw(My::Suite);
 
-if (-d '../sql') {
+if (-d '../sql' && !&::using_extern()) {
   my $src = "$::bindir/plugin/auth_pam/auth_pam_tool";
   my $dst = "$::plugindir/auth_pam_tool_dir/auth_pam_tool";
   ::mkpath( "$::plugindir/auth_pam_tool_dir");

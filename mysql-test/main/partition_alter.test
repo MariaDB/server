@@ -86,7 +86,11 @@ show create table t1;
 --error ER_CONSTRAINT_FAILED
 insert t1 values (2, '2020-01-03', 20);
 drop table t1;
---list_files $datadir/test
+--let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
+--list_files_write_file $datadir.files.txt $datadir/test
+--replace_regex $regexp
+--cat_file $datadir.files.txt
+--remove_file $datadir.files.txt
 
 # MyISAM, different execution path
 create table t1(id int, d date not null, b bool not null default 0, primary key(id,d))
@@ -102,7 +106,10 @@ show create table t1;
 --error ER_CONSTRAINT_FAILED
 insert t1 values (2, '2020-01-03', 20);
 drop table t1;
---list_files $datadir/test
+--list_files_write_file $datadir.files.txt $datadir/test
+--replace_regex $regexp
+--cat_file $datadir.files.txt
+--remove_file $datadir.files.txt
 
 #
 # MDEV-13097 Online alter of a partitioned MyISAM table with auto_increment

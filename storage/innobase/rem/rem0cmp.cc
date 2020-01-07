@@ -449,63 +449,18 @@ cmp_data(
 				       data2, (unsigned) len2));
 	}
 
-	ulint	len;
-	int	cmp;
+	ulint len = std::min(len1, len2);
 
-	if (len1 < len2) {
-		len = len1;
-		len2 -= len;
-		len1 = 0;
-	} else {
-		len = len2;
-		len1 -= len;
-		len2 = 0;
+	int cmp = memcmp(data1, data2, len);
+
+	if (cmp) {
+		return (cmp);
 	}
 
-	if (len) {
-#if defined __i386__ || defined __x86_64__ || defined _M_IX86 || defined _M_X64
-		/* Compare the first bytes with a loop to avoid the call
-		overhead of memcmp(). On x86 and x86-64, the GCC built-in
-		(repz cmpsb) seems to be very slow, so we will be calling the
-		libc version. http://gcc.gnu.org/bugzilla/show_bug.cgi?id=43052
-		tracks the slowness of the GCC built-in memcmp().
-
-		We compare up to the first 4..7 bytes with the loop.
-		The (len & 3) is used for "normalizing" or
-		"quantizing" the len parameter for the memcmp() call,
-		in case the whole prefix is equal. On x86 and x86-64,
-		the GNU libc memcmp() of equal strings is faster with
-		len=4 than with len=3.
-
-		On other architectures than the IA32 or AMD64, there could
-		be a built-in memcmp() that is faster than the loop.
-		We only use the loop where we know that it can improve
-		the performance. */
-		for (ulint i = 4 + (len & 3); i > 0; i--) {
-			cmp = int(*data1++) - int(*data2++);
-			if (cmp) {
-				return(cmp);
-			}
-
-			if (!--len) {
-				break;
-			}
-		}
-
-		if (len) {
-#endif /* IA32 or AMD64 */
-			cmp = memcmp(data1, data2, len);
-
-			if (cmp) {
-				return(cmp);
-			}
-
-			data1 += len;
-			data2 += len;
-#if defined __i386__ || defined __x86_64__ || defined _M_IX86 || defined _M_X64
-		}
-#endif /* IA32 or AMD64 */
-	}
+	data1 += len;
+	data2 += len;
+	len1 -= len;
+	len2 -= len;
 
 	cmp = (int) (len1 - len2);
 
@@ -546,7 +501,7 @@ cmp_dtuple_rec_with_gis(
 				dtuple in some of the common fields, or which
 				has an equal number or more fields than
 				dtuple */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
 	page_cur_mode_t	mode)	/*!< in: compare mode */
 {
 	const dfield_t*	dtuple_field;	/* current field in logical record */
@@ -579,7 +534,7 @@ int
 cmp_dtuple_rec_with_gis_internal(
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets)
+	const offset_t*	offsets)
 {
 	const dfield_t*	dtuple_field;	/* current field in logical record */
 	ulint		dtuple_f_len;	/* the length of the current field
@@ -650,7 +605,7 @@ int
 cmp_dtuple_rec_with_match_low(
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets,
+	const offset_t*	offsets,
 	ulint		n_cmp,
 	ulint*		matched_fields)
 {
@@ -784,7 +739,7 @@ cmp_dtuple_rec_with_match_bytes(
 	const dtuple_t*		dtuple,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	const ulint*		offsets,
+	const offset_t*		offsets,
 	ulint*			matched_fields,
 	ulint*			matched_bytes)
 {
@@ -952,7 +907,7 @@ int
 cmp_dtuple_rec(
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets)
+	const offset_t*	offsets)
 {
 	ulint	matched_fields	= 0;
 
@@ -970,7 +925,7 @@ cmp_dtuple_is_prefix_of_rec(
 /*========================*/
 	const dtuple_t*	dtuple,	/*!< in: data tuple */
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ulint	n_fields;
 	ulint	matched_fields	= 0;
@@ -998,8 +953,8 @@ cmp_rec_rec_simple_field(
 /*=====================*/
 	const rec_t*		rec1,	/*!< in: physical record */
 	const rec_t*		rec2,	/*!< in: physical record */
-	const ulint*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
-	const ulint*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
+	const offset_t*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
+	const offset_t*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
 	const dict_index_t*	index,	/*!< in: data dictionary index */
 	ulint			n)	/*!< in: field to compare */
 {
@@ -1029,8 +984,8 @@ cmp_rec_rec_simple(
 /*===============*/
 	const rec_t*		rec1,	/*!< in: physical record */
 	const rec_t*		rec2,	/*!< in: physical record */
-	const ulint*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
-	const ulint*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
+	const offset_t*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
+	const offset_t*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
 	const dict_index_t*	index,	/*!< in: data dictionary index */
 	struct TABLE*		table)	/*!< in: MySQL table, for reporting
 					duplicate key value if applicable,
@@ -1115,8 +1070,8 @@ int
 cmp_rec_rec_with_match(
 	const rec_t*		rec1,
 	const rec_t*		rec2,
-	const ulint*		offsets1,
-	const ulint*		offsets2,
+	const offset_t*		offsets1,
+	const offset_t*		offsets2,
 	const dict_index_t*	index,
 	bool			nulls_unequal,
 	ulint*			matched_fields)

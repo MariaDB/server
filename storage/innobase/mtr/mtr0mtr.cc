@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -451,16 +451,11 @@ mtr_t::commit()
 
 /** Commit a mini-transaction that did not modify any pages,
 but generated some redo log on a higher level, such as
-MLOG_FILE_NAME records and a MLOG_CHECKPOINT marker.
+MLOG_FILE_NAME records and an optional MLOG_CHECKPOINT marker.
 The caller must invoke log_mutex_enter() and log_mutex_exit().
 This is to be used at log_checkpoint().
-@param[in]	checkpoint_lsn		the LSN of the log checkpoint
-@param[in]	write_mlog_checkpoint	Write MLOG_CHECKPOINT marker
-					if it is enabled. */
-void
-mtr_t::commit_checkpoint(
-	lsn_t	checkpoint_lsn,
-	bool	write_mlog_checkpoint)
+@param[in]	checkpoint_lsn		log checkpoint LSN, or 0 */
+void mtr_t::commit_files(lsn_t checkpoint_lsn)
 {
 	ut_ad(log_mutex_own());
 	ut_ad(is_active());
@@ -469,7 +464,7 @@ mtr_t::commit_checkpoint(
 	ut_ad(!m_made_dirty);
 	ut_ad(m_memo.size() == 0);
 	ut_ad(!srv_read_only_mode);
-	ut_ad(write_mlog_checkpoint || m_n_log_recs > 1);
+	ut_ad(checkpoint_lsn || m_n_log_recs > 1);
 
 	switch (m_n_log_recs) {
 	case 0:
@@ -481,7 +476,7 @@ mtr_t::commit_checkpoint(
 		mlog_catenate_ulint(&m_log, MLOG_MULTI_REC_END, MLOG_1BYTE);
 	}
 
-	if (write_mlog_checkpoint) {
+	if (checkpoint_lsn) {
 		byte*	ptr = m_log.push<byte*>(SIZE_OF_MLOG_CHECKPOINT);
 		compile_time_assert(SIZE_OF_MLOG_CHECKPOINT == 1 + 8);
 		*ptr = MLOG_CHECKPOINT;
@@ -491,7 +486,7 @@ mtr_t::commit_checkpoint(
 	finish_write(m_log.size());
 	release_resources();
 
-	if (write_mlog_checkpoint) {
+	if (checkpoint_lsn) {
 		DBUG_PRINT("ib_log",
 			   ("MLOG_CHECKPOINT(" LSN_PF ") written at " LSN_PF,
 			    checkpoint_lsn, log_sys.lsn));

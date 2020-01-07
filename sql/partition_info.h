@@ -385,11 +385,9 @@ private:
                                        uint start_no);
   char *create_default_subpartition_name(THD *thd, uint subpart_no,
                                          const char *part_name);
-  // FIXME: prune_partition_bitmaps() is duplicate of set_read_partitions()
-  bool prune_partition_bitmaps(List<String> *partition_names);
+  bool prune_partition_bitmaps(List<String> *partition_names); // set_read_partitions() in 8.0
   bool add_named_partition(const char *part_name, size_t length);
 public:
-  bool set_read_partitions(List<char> *partition_names);
   bool has_unique_name(partition_element *element);
   bool field_in_partition_expr(Field *field) const;
 
@@ -404,7 +402,8 @@ public:
     return !limit;
   }
   void vers_set_hist_part(THD *thd);
-  bool vers_setup_expression(THD *thd, uint32 alter_add= 0); /* Stage 1. */
+  bool vers_fix_field_list(THD *thd);
+  void vers_update_el_ids();
   partition_element *get_partition(uint part_id)
   {
     List_iterator<partition_element> it(partitions);
@@ -443,6 +442,62 @@ void init_all_partitions_iterator(partition_info *part_info,
   part_iter->ret_null_part= part_iter->ret_null_part_orig= FALSE;
   part_iter->ret_default_part= part_iter->ret_default_part_orig= FALSE;
   part_iter->get_next= get_next_partition_id_range;
+}
+
+
+/**
+  @brief Update part_field_list by row_end field name
+
+  @returns true on error; false on success
+*/
+inline
+bool partition_info::vers_fix_field_list(THD * thd)
+{
+  if (!table->versioned())
+  {
+    // frm must be corrupted, normally CREATE/ALTER TABLE checks for that
+    my_error(ER_FILE_CORRUPT, MYF(0), table->s->path.str);
+    return true;
+  }
+  DBUG_ASSERT(part_type == VERSIONING_PARTITION);
+  DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
+
+  Field *row_end= table->vers_end_field();
+  // needed in handle_list_of_fields()
+  row_end->flags|= GET_FIXED_FIELDS_FLAG;
+  Name_resolution_context *context= &thd->lex->current_select->context;
+  Item *row_end_item= new (thd->mem_root) Item_field(thd, context, row_end);
+  Item *row_end_ts= new (thd->mem_root) Item_func_unix_timestamp(thd, row_end_item);
+  set_part_expr(thd, row_end_ts, false);
+
+  return false;
+}
+
+
+/**
+  @brief Update partition_element's id
+
+  @returns true on error; false on success
+*/
+inline
+void partition_info::vers_update_el_ids()
+{
+  DBUG_ASSERT(part_type == VERSIONING_PARTITION);
+  DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
+
+  List_iterator<partition_element> it(partitions);
+  partition_element *el;
+  for(uint32 id= 0; ((el= it++)); id++)
+  {
+    DBUG_ASSERT(el->type != partition_element::CONVENTIONAL);
+    /* Newly added element is inserted before AS_OF_NOW. */
+    if (el->id == UINT_MAX32 || el->type == partition_element::CURRENT)
+    {
+      el->id= id;
+      if (el->type == partition_element::CURRENT)
+        break;
+    }
+  }
 }
 
 #endif /* PARTITION_INFO_INCLUDED */

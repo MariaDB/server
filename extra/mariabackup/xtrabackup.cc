@@ -102,6 +102,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <srv0srv.h>
 #include <crc_glue.h>
 #include <log.h>
+#include <derror.h>
 #include <thr_timer.h>
 
 int sys_var_init();
@@ -1960,7 +1961,7 @@ static bool innodb_init_param()
 	return false;
 
 error:
-	msg("mariabackup: innodb_init_param(): Error occured.\n");
+	msg("mariabackup: innodb_init_param(): Error occurred.\n");
 	return true;
 }
 
@@ -2675,7 +2676,9 @@ static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn, bool last)
 		}
 	}
 
-	if (more_data && recv_parse_log_recs(0, STORE_NO, false)) {
+	store_t store = STORE_NO;
+
+	if (more_data && recv_parse_log_recs(0, &store, 0, false)) {
 
 		msg("Error: copying the log failed");
 
@@ -2747,7 +2750,7 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		log_mutex_exit();
 
 		if (!start_lsn) {
-			msg(recv_sys.found_corrupt_log
+			die(recv_sys.found_corrupt_log
 			    ? "xtrabackup_copy_logfile() failed: corrupt log."
 			    : "xtrabackup_copy_logfile() failed.");
 			return true;
@@ -3269,8 +3272,6 @@ static dberr_t xb_assign_undo_space_start()
 {
 
 	pfs_os_file_t	file;
-	byte*		buf;
-	byte*		page;
 	bool		ret;
 	dberr_t		error = DB_SUCCESS;
 	ulint		space;
@@ -3289,8 +3290,8 @@ static dberr_t xb_assign_undo_space_start()
 		return DB_ERROR;
 	}
 
-	buf = static_cast<byte*>(ut_malloc_nokey(2U << srv_page_size_shift));
-	page = static_cast<byte*>(ut_align(buf, srv_page_size));
+	byte* page = static_cast<byte*>
+		(aligned_malloc(srv_page_size, srv_page_size));
 
 	if (os_file_read(IORequestRead, file, page, 0, srv_page_size)
 	    != DB_SUCCESS) {
@@ -3337,7 +3338,7 @@ retry:
 	srv_undo_space_id_start = space;
 
 func_exit:
-	ut_free(buf);
+	aligned_free(page);
 	ret = os_file_close(file);
 	ut_a(ret);
 
@@ -3790,14 +3791,14 @@ xb_filters_free()
 	}
 }
 
-/*********************************************************************//**
-Create log file metadata. */
+/**Create log file metadata.
+@param[in]	i		log file number in group
+@param[in,out]	file_names	redo log file names */
 static
 void
 open_or_create_log_file(
-/*====================*/
-	fil_space_t* space,
-	ulint	i)			/*!< in: log file number in group */
+	ulint	i,
+	std::vector<std::string> &file_names)
 {
 	char	name[FN_REFLEN];
 	ulint	dirnamelen;
@@ -3817,9 +3818,7 @@ open_or_create_log_file(
 
 	ut_a(fil_validate());
 
-	space->add(name, OS_FILE_CLOSED,
-		   ulint(srv_log_file_size >> srv_page_size_shift),
-		   false, false);
+	file_names.emplace_back(name);
 }
 
 /***********************************************************************
@@ -4079,13 +4078,15 @@ fail:
 
 	log_sys.create();
 	log_sys.log.create(srv_n_log_files);
-	fil_space_t*	space = fil_space_create(
-		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0,
-		FIL_TYPE_LOG, NULL);
+
+	std::vector<std::string> file_names;
 
 	for (ulint i = 0; i < srv_n_log_files; i++) {
-		open_or_create_log_file(space, i);
+		open_or_create_log_file(i, file_names);
 	}
+
+	log_sys.log.set_file_names(std::move(file_names));
+	log_sys.log.open_files();
 
 	/* create extra LSN dir if it does not exist. */
 	if (xtrabackup_extra_lsndir
@@ -4227,6 +4228,8 @@ fail_before_log_copying_thread_start:
 
 	if (xtrabackup_copy_logfile())
 		goto fail_before_log_copying_thread_start;
+
+	DBUG_MARIABACKUP_EVENT("before_innodb_log_copy_thread_started",0);
 
 	log_copying_stop = os_event_create(0);
 	os_thread_create(log_copying_thread, NULL, &log_copying_thread_id);
@@ -4552,8 +4555,6 @@ xb_space_create_file(
 	pfs_os_file_t*	file)		/*!<out: file handle */
 {
 	bool		ret;
-	byte*		buf;
-	byte*		page;
 
 	*file = os_file_create_simple_no_error_handling(
 		0, path, OS_FILE_CREATE, OS_FILE_READ_WRITE, false, &ret);
@@ -4572,9 +4573,9 @@ xb_space_create_file(
 		return ret;
 	}
 
-	buf = static_cast<byte *>(malloc(3U << srv_page_size_shift));
 	/* Align the memory for file i/o if we might have O_DIRECT set */
-	page = static_cast<byte *>(ut_align(buf, srv_page_size));
+	byte* page = static_cast<byte*>(aligned_malloc(2 * srv_page_size,
+						       srv_page_size));
 
 	memset(page, '\0', srv_page_size);
 
@@ -4585,7 +4586,7 @@ xb_space_create_file(
 
 	if (!zip_size) {
 		buf_flush_init_for_writing(
-			NULL, page, NULL, 0,
+			NULL, page, NULL,
 			fil_space_t::full_crc32(flags));
 
 		ret = os_file_write(IORequestWrite, path, *file, page, 0,
@@ -4602,13 +4603,13 @@ xb_space_create_file(
 			page_zip.m_end = page_zip.m_nonempty =
 			page_zip.n_blobs = 0;
 
-		buf_flush_init_for_writing(NULL, page, &page_zip, 0, false);
+		buf_flush_init_for_writing(NULL, page, &page_zip, false);
 
 		ret = os_file_write(IORequestWrite, path, *file,
 				    page_zip.data, 0, zip_size);
 	}
 
-	free(buf);
+	aligned_free(page);
 
 	if (ret != DB_SUCCESS) {
 		msg("mariabackup: could not write the first page to %s",
@@ -4821,8 +4822,7 @@ xtrabackup_apply_delta(
 	xb_delta_info_t info(srv_page_size, 0, SRV_TMP_SPACE_ID);
 	ulint		page_size;
 	ulint		page_size_shift;
-	byte*		incremental_buffer_base = NULL;
-	byte*		incremental_buffer;
+	byte*		incremental_buffer = NULL;
 
 	size_t		offset;
 
@@ -4890,11 +4890,8 @@ xtrabackup_apply_delta(
 	posix_fadvise(dst_file, 0, 0, POSIX_FADV_DONTNEED);
 
 	/* allocate buffer for incremental backup (4096 pages) */
-	incremental_buffer_base = static_cast<byte *>
-		(malloc((page_size / 4 + 1) * page_size));
 	incremental_buffer = static_cast<byte *>
-		(ut_align(incremental_buffer_base,
-			  page_size));
+		(aligned_malloc(page_size / 4 * page_size, page_size));
 
 	msg("Applying %s to %s...", src_path, dst_path);
 
@@ -5003,7 +5000,7 @@ xtrabackup_apply_delta(
 		incremental_buffers++;
 	}
 
-	free(incremental_buffer_base);
+	aligned_free(incremental_buffer);
 	if (src_file != OS_FILE_CLOSED) {
 		os_file_close(src_file);
 		os_file_delete(0,src_path);
@@ -5013,7 +5010,7 @@ xtrabackup_apply_delta(
 	return TRUE;
 
 error:
-	free(incremental_buffer_base);
+	aligned_free(incremental_buffer);
 	if (src_file != OS_FILE_CLOSED)
 		os_file_close(src_file);
 	if (dst_file != OS_FILE_CLOSED)
@@ -5540,8 +5537,7 @@ static bool xtrabackup_prepare_func(char** argv)
 	}
 
 	/* Check whether the log is applied enough or not. */
-	if ((srv_start_lsn || fil_space_get(SRV_LOG_SPACE_FIRST_ID))
-	    && srv_start_lsn < target_lsn) {
+	if (srv_start_lsn && srv_start_lsn < target_lsn) {
 		msg("mariabackup: error: "
 		    "The log was only applied up to LSN " LSN_PF
 		    ", instead of " LSN_PF,
@@ -5850,41 +5846,12 @@ extern void init_signals(void);
 
 #include <sql_locale.h>
 
-/* Messages . Avoid loading errmsg.sys file */
+
 void setup_error_messages()
 {
-  static const char *my_msgs[ERRORS_PER_RANGE];
-  static const char **all_msgs[] = { my_msgs, my_msgs, my_msgs, my_msgs };
   my_default_lc_messages = &my_locale_en_US;
-  my_default_lc_messages->errmsgs->errmsgs = all_msgs;
-
-  /* Populate the necessary error messages */
-  struct {
-    int id;
-    const char *fmt;
-  }
-  xb_msgs[] =
-  {
-  { ER_DATABASE_NAME,"Database" },
-  { ER_TABLE_NAME,"Table"},
-  { ER_PARTITION_NAME, "Partition" },
-  { ER_SUBPARTITION_NAME, "Subpartition" },
-  { ER_TEMPORARY_NAME, "Temporary"},
-  { ER_RENAMED_NAME, "Renamed"},
-  { ER_CANT_FIND_DL_ENTRY, "Can't find symbol '%-.128s' in library"},
-  { ER_CANT_OPEN_LIBRARY, "Can't open shared library '%-.192s' (errno: %d, %-.128s)" },
-  { ER_OUTOFMEMORY, "Out of memory; restart server and try again (needed %d bytes)" },
-  { ER_CANT_OPEN_LIBRARY, "Can't open shared library '%-.192s' (errno: %d, %-.128s)" },
-  { ER_UDF_NO_PATHS, "No paths allowed for shared library" },
-  { ER_CANT_INITIALIZE_UDF,"Can't initialize function '%-.192s'; %-.80s"},
-  { ER_PLUGIN_IS_NOT_LOADED,"Plugin '%-.192s' is not loaded" }
-  };
-
-  for (int i = 0; i < (int)array_elements(all_msgs); i++)
-    all_msgs[0][i] = "Unknown error";
-
-  for (int i = 0; i < (int)array_elements(xb_msgs); i++)
-    all_msgs[0][xb_msgs[i].id - ER_ERROR_FIRST] = xb_msgs[i].fmt;
+	if (init_errmessage())
+	  die("could not initialize error messages");
 }
 
 void
@@ -6159,6 +6126,8 @@ int main(int argc, char **argv)
 		(void) pthread_key_delete(THR_THD);
 
 	logger.cleanup_base();
+	cleanup_errmsgs();
+	free_error_messages();
 	mysql_mutex_destroy(&LOCK_error_log);
 
 	if (status == EXIT_SUCCESS) {

@@ -142,7 +142,7 @@ xb_fil_cur_open(
 	int err;
 	/* Initialize these first so xb_fil_cur_close() handles them correctly
 	in case of error */
-	cursor->orig_buf = NULL;
+	cursor->buf = NULL;
 	cursor->node = NULL;
 
 	cursor->space_id = node->space->id;
@@ -238,10 +238,8 @@ xb_fil_cur_open(
 
 	/* Allocate read buffer */
 	cursor->buf_size = XB_FIL_CUR_PAGES * cursor->page_size;
-	cursor->orig_buf = static_cast<byte *>
-		(malloc(cursor->buf_size + srv_page_size));
-	cursor->buf = static_cast<byte *>
-		(ut_align(cursor->orig_buf, srv_page_size));
+	cursor->buf = static_cast<byte*>(aligned_malloc(cursor->buf_size,
+							srv_page_size));
 
 	cursor->buf_read = 0;
 	cursor->buf_npages = 0;
@@ -494,7 +492,8 @@ xb_fil_cur_close(
 		cursor->read_filter->deinit(&cursor->read_filter_ctxt);
 	}
 
-	free(cursor->orig_buf);
+	aligned_free(cursor->buf);
+	cursor->buf = NULL;
 
 	if (cursor->node != NULL) {
 		xb_fil_node_close_file(cursor->node);

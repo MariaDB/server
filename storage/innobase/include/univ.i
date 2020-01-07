@@ -78,6 +78,7 @@ support cross-platform development and expose comonly used SQL names. */
 
 #include <my_global.h>
 #include "my_counter.h"
+#include <m_string.h>
 
 /* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_MY_THREAD_H
@@ -85,7 +86,6 @@ support cross-platform development and expose comonly used SQL names. */
 #endif
 
 #ifndef UNIV_INNOCHECKSUM
-# include <m_string.h>
 # include <mysqld_error.h>
 #endif /* !UNIV_INNOCHECKSUM */
 
@@ -199,9 +199,6 @@ using the call command. */
 						assertions. */
 #define UNIV_LRU_DEBUG				/* debug the buffer pool LRU */
 #define UNIV_HASH_DEBUG				/* debug HASH_ macros */
-#define UNIV_LOG_LSN_DEBUG			/* write LSN to the redo log;
-this will break redo log file compatibility, but it may be useful when
-debugging redo log application problems. */
 #define UNIV_IBUF_DEBUG				/* debug the insert buffer */
 #define UNIV_PERF_DEBUG                         /* debug flag that enables
                                                 light weight performance
@@ -632,8 +629,6 @@ typedef void* os_thread_ret_t;
 
 extern ulong	srv_page_size_shift;
 extern ulong	srv_page_size;
-
-static const size_t UNIV_SECTOR_SIZE = 512;
 
 /* Dimension of spatial object we support so far. It has its root in
 myisam/sp_defs.h. We only support 2 dimension data */

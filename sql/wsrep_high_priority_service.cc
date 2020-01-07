@@ -527,6 +527,14 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   DBUG_RETURN(ret);
 }
 
+int Wsrep_applier_service::apply_nbo_begin(const wsrep::ws_meta& ws_meta,
+                                           const wsrep::const_buffer& data,
+                                           wsrep::mutable_buffer& err)
+{
+  DBUG_ENTER("Wsrep_applier_service::apply_nbo_begin");
+  DBUG_RETURN(0);
+}
+
 void Wsrep_applier_service::after_apply()
 {
   DBUG_ENTER("Wsrep_applier_service::after_apply");
@@ -608,9 +616,7 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
   THD* replayer_thd= m_thd;
   THD* orig_thd= m_orig_thd;
 
-  /* Store replay result/state to original thread wsrep client
-     state and switch execution context back to original. */
-  orig_thd->wsrep_cs().after_replay(replayer_thd->wsrep_trx());
+  /* Switch execution context back to original. */
   wsrep_after_apply(replayer_thd);
   wsrep_after_command_ignore_result(replayer_thd);
   wsrep_close(replayer_thd);

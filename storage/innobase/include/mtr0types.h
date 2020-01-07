@@ -52,7 +52,7 @@ enum mtr_log_t {
 
 /** @name Log item types
 The log items are declared 'byte' so that the compiler can warn if val
-and type parameters are switched in a call to mlog_write_ulint. NOTE!
+and type parameters are switched in a call to mlog_write. NOTE!
 For 1 - 8 bytes, the flag value must give the length also! @{ */
 enum mlog_id_t {
 	/** if the mtr contains only one log record for one page,
@@ -122,11 +122,6 @@ enum mlog_id_t {
 
 	/** initialize an ibuf bitmap page (used in MariaDB 10.2 and 10.3) */
 	MLOG_IBUF_BITMAP_INIT = 27,
-
-#ifdef UNIV_LOG_LSN_DEBUG
-	/** Current LSN */
-	MLOG_LSN = 28,
-#endif /* UNIV_LOG_LSN_DEBUG */
 
 	/** write a string to a page */
 	MLOG_WRITE_STRING = 30,

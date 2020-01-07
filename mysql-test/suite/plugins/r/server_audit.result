@@ -212,8 +212,22 @@ select 2;
 2
 2
 drop table t1;
+set global server_audit_events='table';
+set global server_audit_incl_users='user1';
+create user user1@localhost;
+grant all on sa_db.* to user1@localhost;
+connect  cn1,localhost,user1,,sa_db;
+connection cn1;
+create table t1(id int) engine=myisam;
+insert delayed into t1 values (1), (2);
+connection default;
+# Waiting until INSERT DELAYED thread does the insert.
+drop table t1;
 set global server_audit_logging= off;
+set global server_audit_incl_users='root';
 set global server_audit_logging= on;
+disconnect cn1;
+drop user user1@localhost;
 set global server_audit_events='';
 set global server_audit_query_log_limit= 15;
 select (1), (2), (3), (4);
@@ -250,7 +264,7 @@ server_audit_file_path
 server_audit_file_rotate_now	OFF
 server_audit_file_rotate_size	1000000
 server_audit_file_rotations	9
-server_audit_incl_users	odin, root, dva, tri
+server_audit_incl_users	root
 server_audit_logging	ON
 server_audit_mode	1
 server_audit_output_type	file
@@ -393,8 +407,16 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'SET PASSWORD FOR u1=<secret>',ID
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop user u1, u2, u3',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'insert into t1 values (1), (2)',0
+TIME,HOSTNAME,user1,localhost,ID,ID,CREATE,sa_db,t1,
+TIME,HOSTNAME,user1,localhost,ID,ID,WRITE,sa_db,t1,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_logging= off',0
-TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_logging= on',0
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,procs_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_events=\'\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global serv',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'select (1), (2)',0

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -42,6 +42,7 @@ Created 11/11/1995 Heikki Tuuri
 #include "buf0rea.h"
 #include "ibuf0ibuf.h"
 #include "log0log.h"
+#include "log0crypt.h"
 #include "os0file.h"
 #include "trx0sys.h"
 #include "srv0mon.h"
@@ -55,6 +56,13 @@ Created 11/11/1995 Heikki Tuuri
 #include <sys/resource.h>
 static const int buf_flush_page_cleaner_priority = -20;
 #endif /* UNIV_LINUX */
+#ifdef HAVE_LZO
+#include "lzo/lzo1x.h"
+#endif
+
+#ifdef HAVE_SNAPPY
+#include "snappy-c.h"
+#endif
 
 /** Sleep time in microseconds for loop waiting for the oldest
 modification lsn */
@@ -732,25 +740,16 @@ void buf_flush_write_complete(buf_page_t* bpage, bool dblwr)
 	}
 }
 
-/** Calculate the checksum of a page from compressed table and update
-the page.
+/** Calculate a ROW_FORMAT=COMPRESSED page checksum and update the page.
 @param[in,out]	page		page to update
-@param[in]	size		compressed page size
-@param[in]	lsn		LSN to stamp on the page */
-void
-buf_flush_update_zip_checksum(
-	buf_frame_t*	page,
-	ulint		size,
-	lsn_t		lsn)
+@param[in]	size		compressed page size */
+void buf_flush_update_zip_checksum(buf_frame_t *page, ulint size)
 {
-	ut_a(size > 0);
-
-	const uint32_t	checksum = page_zip_calc_checksum(
-		page, size,
-		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm));
-
-	mach_write_to_8(page + FIL_PAGE_LSN, lsn);
-	mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
+  ut_ad(size > 0);
+  mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
+                  page_zip_calc_checksum(page, size,
+                                         static_cast<srv_checksum_algorithm_t>
+                                         (srv_checksum_algorithm)));
 }
 
 /** Assign the full crc32 checksum for non-compressed page.
@@ -774,14 +773,12 @@ void buf_flush_assign_full_crc32_checksum(byte* page)
 @param[in,out]	page			page frame
 @param[in,out]	page_zip_		compressed page, or NULL if
 					uncompressed
-@param[in]	newest_lsn		newest modification LSN to the page
 @param[in]	use_full_checksum	whether tablespace uses full checksum */
 void
 buf_flush_init_for_writing(
 	const buf_block_t*	block,
 	byte*			page,
 	void*			page_zip_,
-	lsn_t			newest_lsn,
 	bool			use_full_checksum)
 {
 	if (block != NULL && block->frame != page) {
@@ -794,9 +791,7 @@ buf_flush_init_for_writing(
 	ut_ad(block == NULL || block->frame == page);
 	ut_ad(block == NULL || page_zip_ == NULL
 	      || &block->page.zip == page_zip_);
-	ut_ad(!block || newest_lsn);
 	ut_ad(page);
-	ut_ad(!newest_lsn || fil_page_get_type(page));
 
 	if (page_zip_) {
 		page_zip_des_t*	page_zip;
@@ -822,10 +817,7 @@ buf_flush_init_for_writing(
 		case FIL_PAGE_TYPE_ZBLOB2:
 		case FIL_PAGE_INDEX:
 		case FIL_PAGE_RTREE:
-
-			buf_flush_update_zip_checksum(
-				page_zip->data, size, newest_lsn);
-
+			buf_flush_update_zip_checksum(page_zip->data, size);
 			return;
 		}
 
@@ -838,16 +830,19 @@ buf_flush_init_for_writing(
 		ut_error;
 	}
 
-	/* Write the newest modification lsn to the page header and trailer */
-	mach_write_to_8(page + FIL_PAGE_LSN, newest_lsn);
-
 	if (use_full_checksum) {
-		mach_write_to_4(page + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
-				static_cast<uint32_t>(newest_lsn));
-	} else {
-		mach_write_to_8(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
-				newest_lsn);
+		static_assert(FIL_PAGE_FCRC32_END_LSN % 4 == 0, "aligned");
+		static_assert(FIL_PAGE_LSN % 4 == 0, "aligned");
+		memcpy_aligned<4>(page + srv_page_size
+				  - FIL_PAGE_FCRC32_END_LSN,
+				  FIL_PAGE_LSN + 4 + page, 4);
+		return buf_flush_assign_full_crc32_checksum(page);
 	}
+
+	static_assert(FIL_PAGE_END_LSN_OLD_CHKSUM % 8 == 0, "aligned");
+	static_assert(FIL_PAGE_LSN % 8 == 0, "aligned");
+	memcpy_aligned<8>(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
+			  FIL_PAGE_LSN + page, 8);
 
 	if (block && srv_page_size == 16384) {
 		/* The page type could be garbage in old files
@@ -913,10 +908,6 @@ buf_flush_init_for_writing(
 
 	uint32_t checksum = BUF_NO_CHECKSUM_MAGIC;
 
-	if (use_full_checksum) {
-		return buf_flush_assign_full_crc32_checksum(page);
-	}
-
 	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
@@ -949,6 +940,184 @@ buf_flush_init_for_writing(
 
 	mach_write_to_4(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
 			checksum);
+}
+
+/** Reserve a buffer for compression.
+@param[in,out]  slot    reserved slot */
+static void buf_tmp_reserve_compression_buf(buf_tmp_buffer_t* slot)
+{
+  if (slot->comp_buf)
+    return;
+  /* Both Snappy and LZO compression methods require that the output
+  buffer be bigger than input buffer. Adjust the allocated size. */
+  ulint size= srv_page_size;
+#ifdef HAVE_LZO
+  size+= LZO1X_1_15_MEM_COMPRESS;
+#elif defined HAVE_SNAPPY
+  size= snappy_max_compressed_length(size);
+#endif
+  slot->comp_buf= static_cast<byte*>(aligned_malloc(size, srv_page_size));
+}
+
+/** Encrypt a buffer of temporary tablespace
+@param[in]      offset  Page offset
+@param[in]      s       Page to encrypt
+@param[in,out]  d       Output buffer
+@return encrypted buffer or NULL */
+static byte* buf_tmp_page_encrypt(ulint offset, const byte* s, byte* d)
+{
+  /* Calculate the start offset in a page */
+  uint srclen= srv_page_size - (FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION +
+                                FIL_PAGE_FCRC32_CHECKSUM);
+  const byte* src= s + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
+  byte* dst= d + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION;
+
+  memcpy(d, s, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+
+  if (!log_tmp_block_encrypt(src, srclen, dst, (offset * srv_page_size), true))
+    return NULL;
+
+  const ulint payload= srv_page_size - FIL_PAGE_FCRC32_CHECKSUM;
+  mach_write_to_4(d + payload, ut_crc32(d, payload));
+
+  srv_stats.pages_encrypted.inc();
+  srv_stats.n_temp_blocks_encrypted.inc();
+  return d;
+}
+
+/** Encryption and page_compression hook that is called just before
+a page is written to disk.
+@param[in,out]  space   tablespace
+@param[in,out]  bpage   buffer page
+@param[in]      s       physical page frame that is being encrypted
+@return page frame to be written to file
+(may be src_frame or an encrypted/compressed copy of it) */
+static byte* buf_page_encrypt(fil_space_t* space, buf_page_t* bpage, byte* s)
+{
+  ut_ad(space->id == bpage->id.space());
+  bpage->real_size = srv_page_size;
+
+  ut_d(fil_page_type_validate(space, s));
+
+  switch (bpage->id.page_no()) {
+  case TRX_SYS_PAGE_NO:
+    if (bpage->id.space() != TRX_SYS_SPACE)
+      break;
+    /* The TRX_SYS page is neither encrypted nor compressed, because
+    it contains the address of the doublewrite buffer. */
+    /* fall through */
+  case 0:
+    /* Page 0 of a tablespace is not encrypted/compressed */
+    return s;
+  }
+
+  fil_space_crypt_t *crypt_data= space->crypt_data;
+  bool encrypted, page_compressed;
+  if (space->purpose == FIL_TYPE_TEMPORARY)
+  {
+    ut_ad(!crypt_data);
+    encrypted= innodb_encrypt_temporary_tables;
+    page_compressed= false;
+  }
+  else
+  {
+    encrypted= crypt_data && !crypt_data->not_encrypted() &&
+      crypt_data->type != CRYPT_SCHEME_UNENCRYPTED &&
+      (!crypt_data->is_default_encryption() || srv_encrypt_tables);
+    page_compressed= space->is_compressed();
+  }
+
+  const bool full_crc32= space->full_crc32();
+
+  if (!encrypted && !page_compressed)
+  {
+    /* No need to encrypt or compress. Clear key-version & crypt-checksum. */
+    static_assert(FIL_PAGE_FCRC32_KEY_VERSION % 4 == 0, "alignment");
+    static_assert(FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION % 4 == 2,
+                  "not perfect alignment");
+    if (full_crc32)
+      memset_aligned<4>(s + FIL_PAGE_FCRC32_KEY_VERSION, 0, 4);
+    else
+      memset_aligned<2>(s + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
+    return s;
+  }
+
+  static_assert(FIL_PAGE_FCRC32_END_LSN % 4 == 0, "alignment");
+  static_assert(FIL_PAGE_LSN % 8 == 0, "alignment");
+  if (full_crc32)
+    memcpy_aligned<4>(s + srv_page_size - FIL_PAGE_FCRC32_END_LSN,
+                      FIL_PAGE_LSN + 4 + s, 4);
+
+  ut_ad(!bpage->zip_size() || !page_compressed);
+  buf_pool_t *buf_pool= buf_pool_from_bpage(bpage);
+  /* Find free slot from temporary memory array */
+  buf_tmp_buffer_t *slot= buf_pool->io_buf.reserve();
+  ut_a(slot);
+  slot->allocate();
+  slot->out_buf= NULL;
+  bpage->slot= slot;
+
+  byte *d= slot->crypt_buf;
+
+  if (!page_compressed)
+  {
+not_compressed:
+    byte *tmp= space->purpose == FIL_TYPE_TEMPORARY
+      ? buf_tmp_page_encrypt(bpage->id.page_no(), s, d)
+      : fil_space_encrypt(space, bpage->id.page_no(), s, d);
+
+    slot->out_buf= d= tmp;
+
+    ut_d(fil_page_type_validate(space, tmp));
+  }
+  else
+  {
+    ut_ad(space->purpose != FIL_TYPE_TEMPORARY);
+    /* First we compress the page content */
+    buf_tmp_reserve_compression_buf(slot);
+    byte *tmp= slot->comp_buf;
+    ulint len= fil_page_compress(s, tmp, space->flags,
+                                 fil_space_get_block_size(space,
+                                                          bpage->id.page_no()),
+                                 encrypted);
+
+    if (!len)
+      goto not_compressed;
+
+    bpage->real_size= len;
+
+    if (full_crc32)
+    {
+      ut_d(bool compressed = false);
+      len= buf_page_full_crc32_size(tmp,
+#ifdef UNIV_DEBUG
+                                    &compressed,
+#else
+                                    NULL,
+#endif
+                                    NULL);
+      ut_ad(compressed);
+    }
+
+    /* Workaround for MDEV-15527. */
+    memset(tmp + len, 0 , srv_page_size - len);
+    ut_d(fil_page_type_validate(space, tmp));
+
+    if (encrypted)
+      tmp = fil_space_encrypt(space, bpage->id.page_no(), tmp, d);
+
+    if (full_crc32)
+    {
+      static_assert(FIL_PAGE_FCRC32_CHECKSUM == 4, "alignment");
+      mach_write_to_4(tmp + len - 4, ut_crc32(tmp, len - 4));
+      ut_ad(!buf_page_is_corrupted(true, tmp, space->flags));
+    }
+
+    slot->out_buf= d= tmp;
+  }
+
+  ut_d(fil_page_type_validate(space, d));
+  return d;
 }
 
 /********************************************************************//**
@@ -998,12 +1167,6 @@ buf_flush_write_block_low(
 	ut_ad(!buf_page_get_mutex(bpage)->is_owned());
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_WRITE);
 	ut_ad(bpage->oldest_modification != 0);
-	ut_ad(bpage->newest_modification != 0);
-
-	/* Force the log to the disk before writing the modified block */
-	if (!srv_read_only_mode) {
-		log_write_up_to(bpage->newest_modification, true);
-	}
 
 	switch (buf_page_get_state(bpage)) {
 	case BUF_BLOCK_POOL_WATCH:
@@ -1016,10 +1179,6 @@ buf_flush_write_block_low(
 		break;
 	case BUF_BLOCK_ZIP_DIRTY:
 		frame = bpage->zip.data;
-
-		mach_write_to_8(frame + FIL_PAGE_LSN,
-				bpage->newest_modification);
-
 		ut_a(page_zip_verify_checksum(frame, bpage->zip_size()));
 		break;
 	case BUF_BLOCK_FILE_PAGE:
@@ -1037,8 +1196,7 @@ buf_flush_write_block_low(
 
 		buf_flush_init_for_writing(
 			reinterpret_cast<const buf_block_t*>(bpage), page,
-			bpage->zip.data ? &bpage->zip : NULL,
-			bpage->newest_modification, full_crc32);
+			bpage->zip.data ? &bpage->zip : NULL, full_crc32);
 		break;
 	}
 
@@ -1046,8 +1204,16 @@ buf_flush_write_block_low(
 		frame = buf_page_encrypt(space, bpage, frame);
 	}
 
-	ut_ad(space->purpose == FIL_TYPE_TABLESPACE
-	      || space->atomic_write_supported);
+	if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE)) {
+		const lsn_t lsn = mach_read_from_8(frame + FIL_PAGE_LSN);
+		ut_ad(lsn);
+		ut_ad(lsn >= bpage->oldest_modification);
+		ut_ad(!srv_read_only_mode);
+		log_write_up_to(lsn, true);
+	} else {
+		ut_ad(space->atomic_write_supported);
+	}
+
 	const bool use_doublewrite = !bpage->init_on_flush
 		&& space->use_doublewrite();
 

@@ -185,7 +185,8 @@ enum vers_system_time_t
   SYSTEM_TIME_AS_OF,
   SYSTEM_TIME_FROM_TO,
   SYSTEM_TIME_BETWEEN,
-  SYSTEM_TIME_BEFORE,
+  SYSTEM_TIME_BEFORE,  // used for DELETE HISTORY ... BEFORE
+  SYSTEM_TIME_HISTORY, // used for DELETE HISTORY
   SYSTEM_TIME_ALL
 };
 
@@ -573,8 +574,6 @@ extern pthread_t signal_thread;
 #ifdef HAVE_OPENSSL
 extern struct st_VioSSLFd * ssl_acceptor_fd;
 #endif /* HAVE_OPENSSL */
-
-extern ulonglong my_pcre_frame_size;
 
 /*
   The following variables were under INNODB_COMPABILITY_HOOKS

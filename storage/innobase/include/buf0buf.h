@@ -323,16 +323,6 @@ buf_block_free(
 /*===========*/
 	buf_block_t*	block);	/*!< in, own: block to be freed */
 
-/*********************************************************************//**
-Copies contents of a buffer frame to a given buffer.
-@return buf */
-UNIV_INLINE
-byte*
-buf_frame_copy(
-/*===========*/
-	byte*			buf,	/*!< in: buffer to copy to */
-	const buf_frame_t*	frame);	/*!< in: buffer frame */
-
 /**************************************************************//**
 NOTE! The following macros should be used instead of buf_page_get_gen,
 to improve debugging. Only values RW_S_LATCH and RW_X_LATCH are allowed
@@ -541,16 +531,6 @@ inline void buf_page_make_young_if_needed(buf_pool_t* buf_pool,
 }
 
 /********************************************************************//**
-Gets the youngest modification log sequence number for a frame.
-Returns zero if not file page or no modification occurred yet.
-@return newest modification to page */
-UNIV_INLINE
-lsn_t
-buf_page_get_newest_modification(
-/*=============================*/
-	const buf_page_t*	bpage);	/*!< in: block containing the
-					page frame */
-/********************************************************************//**
 Increments the modify clock of a frame by 1. The caller must (1) own the
 buf_pool->mutex and block bufferfix count has to be zero, (2) or own an x-lock
 on the block. */
@@ -650,6 +630,27 @@ buf_page_is_corrupted(
 	ulint			fsp_flags)
 	MY_ATTRIBUTE((warn_unused_result));
 
+inline void *aligned_malloc(size_t size, size_t align)
+{
+#ifdef _MSC_VER
+  return _aligned_malloc(size, align);
+#else
+  void *result;
+  if (posix_memalign(&result, align, size))
+    result= NULL;
+  return result;
+#endif
+}
+
+inline void aligned_free(void *ptr)
+{
+#ifdef _MSC_VER
+  _aligned_free(ptr);
+#else
+  free(ptr);
+#endif
+}
+
 /** Read the key version from the page. In full crc32 format,
 key version is stored at {0-3th} bytes. In other format, it is
 stored in 26th position.
@@ -708,16 +709,6 @@ inline uint buf_page_full_crc32_size(const byte* buf, bool* comp, bool* cr)
 }
 
 #ifndef UNIV_INNOCHECKSUM
-/**********************************************************************//**
-Gets the space id, page offset, and byte offset within page of a
-pointer pointing to a buffer frame containing a file page. */
-UNIV_INLINE
-void
-buf_ptr_get_fsp_addr(
-/*=================*/
-	const void*	ptr,	/*!< in: pointer to a buffer frame */
-	ulint*		space,	/*!< out: space id */
-	fil_addr_t*	addr);	/*!< out: page offset and byte offset */
 /**********************************************************************//**
 Gets the hash value of a block. This can be used in searches in the
 lock hash table.
@@ -1086,9 +1077,9 @@ buf_block_get_frame(
 Gets the compressed page descriptor corresponding to an uncompressed page
 if applicable. */
 #define buf_block_get_page_zip(block) \
-	((block)->page.zip.data ? &(block)->page.zip : NULL)
+	(UNIV_LIKELY_NULL((block)->page.zip.data) ? &(block)->page.zip : NULL)
 #define is_buf_block_get_page_zip(block) \
-        ((block)->page.zip.data != 0)
+        UNIV_LIKELY_NULL((block)->page.zip.data)
 
 #ifdef BTR_CUR_HASH_ADAPT
 /** Get a buffer block from an adaptive hash index pointer.
@@ -1363,30 +1354,10 @@ bool buf_page_verify_crypt_checksum(
 	const byte*	page,
 	ulint		fsp_flags);
 
-/** Calculate the checksum of a page from compressed table and update the
-page.
-@param[in,out]	page	page to update
-@param[in]	size	compressed page size
-@param[in]	lsn	LSN to stamp on the page */
-void
-buf_flush_update_zip_checksum(
-	buf_frame_t*	page,
-	ulint		size,
-	lsn_t		lsn);
-
-/** Encryption and page_compression hook that is called just before
-a page is written to disk.
-@param[in,out]	space		tablespace
-@param[in,out]	bpage		buffer page
-@param[in]	src_frame	physical page frame that is being encrypted
-@return	page frame to be written to file
-(may be src_frame or an encrypted/compressed copy of it) */
-UNIV_INTERN
-byte*
-buf_page_encrypt(
-	fil_space_t*	space,
-	buf_page_t*	bpage,
-	byte*		src_frame);
+/** Calculate a ROW_FORMAT=COMPRESSED page checksum and update the page.
+@param[in,out]	page		page to update
+@param[in]	size		compressed page size */
+void buf_flush_update_zip_checksum(buf_frame_t* page, ulint size);
 
 /** @brief The temporary memory structure.
 
@@ -1419,6 +1390,15 @@ public:
 	bool acquire()
 	{
 		return !reserved.exchange(true, std::memory_order_relaxed);
+	}
+
+	/** Allocate a buffer for encryption, decryption or decompression. */
+	void allocate()
+	{
+		if (!crypt_buf) {
+			crypt_buf= static_cast<byte*>(
+				aligned_malloc(srv_page_size, srv_page_size));
+		}
 	}
 };
 
@@ -1548,12 +1528,6 @@ public:
 
 	FlushObserver*	flush_observer;	/*!< flush observer */
 
-	lsn_t		newest_modification;
-					/*!< log sequence number of
-					the youngest modification to
-					this block, zero if not
-					modified. Protected by block
-					mutex */
 	lsn_t		oldest_modification;
 					/*!< log sequence number of
 					the START of the log entry
@@ -2233,7 +2207,15 @@ struct buf_pool_t{
 			memset((void*) slots, 0, n_slots * sizeof *slots);
 		}
 
-		~io_buf_t();
+		~io_buf_t()
+		{
+			for (buf_tmp_buffer_t *s= slots, *e= slots + n_slots;
+			     s != e; s++) {
+				aligned_free(s->crypt_buf);
+				aligned_free(s->comp_buf);
+			}
+			ut_free(slots);
+		}
 
 		/** Reserve a buffer */
 		buf_tmp_buffer_t* reserve()

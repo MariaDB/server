@@ -1,0 +1,49 @@
+#
+# MDEV-17088 Provide tools to encode/decode mysql-encoded file system names
+#
+SET NAMES cp932;
+@6e2c@8a66@8cc7@6599
+‘ªŽŽŽ‘—¿ŒÉ
+@6e2c@8a66@8cc7@6599
+‘ªŽŽŽ‘—¿
+‘ªŽŽŽ‘—¿ŒÉ
+@6e2c@8a66@8cc7@6599@5eab
+# bulk convert with pipe
+CREATE TABLE t1 (id SERIAL, a VARCHAR(64) CHARACTER SET cp932);
+INSERT INTO t1 (a) VALUES ('‘ªŽŽŽ‘—¿'), ('‘ªŽŽŽ‘—¿2');
+a
+@6e2c@8a66@8cc7@6599
+@6e2c@8a66@8cc7@65992
+BINARY CONVERT(a USING filename)
+@6e2c@8a66@8cc7@6599
+@6e2c@8a66@8cc7@65992
+‘ªŽŽŽ‘—¿
+‘ªŽŽŽ‘—¿2
+test/‘ªŽŽŽ‘—¿.frm
+test/‘ªŽŽŽ‘—¿2.frm
+test/‘ªŽŽŽ‘—¿.frm
+test/‘ªŽŽŽ‘—¿2.frm
+DROP TABLE t1;
+# bulk convert with file
+# --- Start of mariadb-conv for mysql-conv-test-cp932.txt ---
+
+@6e2c@8a66@8cc7@6599
+
+@6e2c@8a66@8cc7@65992
+@6e2c@8a66@8cc7@65993
+
+# --- End of mariadb-conv for mysql-conv-test-cp932.txt ---
+# --- Start of mariadb-conv for mysql-conv-test-cp932.txt and mysql-conv-test-cp932-2.txt ---
+
+@6e2c@8a66@8cc7@6599
+
+@6e2c@8a66@8cc7@65992
+@6e2c@8a66@8cc7@65993
+
+
+@6e2c@8a66@8cc7@6599
+
+@6e2c@8a66@8cc7@65992
+@6e2c@8a66@8cc7@65993
+
+# --- Start of mariadb-conv for mysql-conv-test-cp932.txt and mysql-conv-test-cp932-2.txt ---

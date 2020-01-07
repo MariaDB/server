@@ -4255,8 +4255,6 @@ i_s_innodb_buffer_page_get_info(
 
 		page_info->fix_count = bpage->buf_fix_count;
 
-		page_info->newest_mod = bpage->newest_modification;
-
 		page_info->oldest_mod = bpage->oldest_modification;
 
 		page_info->access_time = bpage->access_time;
@@ -4276,6 +4274,7 @@ i_s_innodb_buffer_page_get_info(
 			break;
 		case BUF_IO_READ:
 			page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;
+			page_info->newest_mod = 0;
 			return;
 		}
 
@@ -4296,6 +4295,7 @@ i_s_innodb_buffer_page_get_info(
 			frame = bpage->zip.data;
 		}
 
+		page_info->newest_mod = mach_read_from_8(FIL_PAGE_LSN + frame);
 		i_s_innodb_set_page_type(page_info, frame);
 	} else {
 		page_info->page_type = I_S_PAGE_TYPE_UNKNOWN;

@@ -46,6 +46,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "gis0type.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
+#include "mysql_com.h"
 #include <sql_const.h>
 #include <set>
 #include <algorithm>
@@ -691,18 +692,63 @@ public:
 		def_val.data = NULL;
 	}
 
+  /** @return whether two columns have compatible data type encoding */
+  bool same_type(const dict_col_t &other) const
+  {
+    if (mtype != other.mtype)
+    {
+      /* For latin1_swedish_ci, DATA_CHAR and DATA_VARCHAR
+      will be used instead of DATA_MYSQL and DATA_VARMYSQL.
+      As long as mtype,prtype are being written to InnoDB
+      data dictionary tables, we cannot simplify this. */
+      switch (mtype) {
+      default:
+        return false;
+      case DATA_VARCHAR:
+        if (other.mtype != DATA_VARMYSQL)
+          return false;
+        goto check_encoding;
+      case DATA_VARMYSQL:
+        if (other.mtype != DATA_VARCHAR)
+          return false;
+        goto check_encoding;
+      case DATA_CHAR:
+        if (other.mtype != DATA_MYSQL)
+          return false;
+        goto check_encoding;
+      case DATA_MYSQL:
+        if (other.mtype != DATA_CHAR)
+          return false;
+        goto check_encoding;
+      }
+    }
+    else if (dtype_is_string_type(mtype))
+    {
+    check_encoding:
+      const uint16_t cset= dtype_get_charset_coll(prtype);
+      const uint16_t ocset= dtype_get_charset_coll(other.prtype);
+      return cset == ocset || dict_col_t::same_encoding(cset, ocset);
+    }
+
+    return true;
+  }
+
+  /** @return whether two collations codes have the same character encoding */
+  static bool same_encoding(uint16_t a, uint16_t b);
+
 	/** Determine if the columns have the same format
 	except for is_nullable() and is_versioned().
 	@param[in]	other	column to compare to
 	@return	whether the columns have the same format */
 	bool same_format(const dict_col_t& other) const
 	{
-		return mtype == other.mtype
+		return same_type(other)
 			&& len >= other.len
 			&& mbminlen == other.mbminlen
 			&& mbmaxlen == other.mbmaxlen
 			&& !((prtype ^ other.prtype)
 			     & ~(DATA_NOT_NULL | DATA_VERSIONED
+				 | CHAR_COLL_MASK << 16
 				 | DATA_LONG_TRUE_VARCHAR));
 	}
 };
@@ -918,10 +964,6 @@ a certain index.*/
 system clustered index when there is no primary key. */
 const char innobase_index_reserve_name[] = "GEN_CLUST_INDEX";
 
-/* Estimated number of offsets in records (based on columns)
-to start with. */
-#define OFFS_IN_REC_NORMAL_SIZE		100
-
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
 struct dict_index_t {
@@ -1011,9 +1053,6 @@ struct dict_index_t {
 	bool		has_new_v_col;
 				/*!< whether it has a newly added virtual
 				column in ALTER */
-	bool            index_fts_syncing;/*!< Whether the fts index is
-					still syncing in the background;
-					FIXME: remove this and use MDL */
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
 #ifdef BTR_CUR_ADAPT
@@ -1222,7 +1261,7 @@ struct dict_index_t {
 	@param[in]	offsets	offsets
 	@return true if row is historical */
 	bool
-	vers_history_row(const rec_t* rec, const ulint* offsets);
+	vers_history_row(const rec_t* rec, const offset_t* offsets);
 
 	/** Check if record in secondary index is historical row.
 	@param[in]	rec	record in a secondary index
@@ -1833,10 +1872,14 @@ struct dict_table_t {
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();
 
+	/** @return whether the table is versioned.
+	It is assumed that both vers_start and vers_end set to 0
+	iff table is not versioned. In any other case,
+	these fields correspond to actual positions in cols[]. */
 	bool versioned() const { return vers_start || vers_end; }
 	bool versioned_by_id() const
 	{
-		return vers_start && cols[vers_start].mtype == DATA_INT;
+		return versioned() && cols[vers_start].mtype == DATA_INT;
 	}
 
 	void inc_fk_checks()
@@ -1859,12 +1902,21 @@ struct dict_table_t {
 	/** For overflow fields returns potential max length stored inline */
 	inline size_t get_overflow_field_local_len() const;
 
+	/** Parse the table file name into table name and database name.
+	@tparam		dict_locked	whether dict_sys.mutex is being held
+	@param[in,out]	db_name		database name buffer
+	@param[in,out]	tbl_name	table name buffer
+	@param[out]	db_name_len	database name length
+	@param[out]	tbl_name_len	table name length
+	@return whether the table name is visible to SQL */
+	template<bool dict_locked= false>
+	bool parse_name(char (&db_name)[NAME_LEN + 1],
+			char (&tbl_name)[NAME_LEN + 1],
+			size_t *db_name_len, size_t *tbl_name_len) const;
+
 private:
 	/** Initialize instant->field_map.
-	@tparam	replace_dropped	whether to point clustered index fields
-				to instant->dropped[]
 	@param[in]	table	table definition to copy from */
-	template<bool replace_dropped = false>
 	inline void init_instant(const dict_table_t& table);
 public:
 	/** Id of the table. */

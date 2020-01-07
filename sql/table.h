@@ -326,7 +326,7 @@ typedef struct st_grant_info
 
 enum tmp_table_type
 {
-  NO_TMP_TABLE, NON_TRANSACTIONAL_TMP_TABLE, TRANSACTIONAL_TMP_TABLE,
+  NO_TMP_TABLE= 0, NON_TRANSACTIONAL_TMP_TABLE, TRANSACTIONAL_TMP_TABLE,
   INTERNAL_TMP_TABLE, SYSTEM_TMP_TABLE
 };
 enum release_type { RELEASE_NORMAL, RELEASE_WAIT_FOR_DROP };
@@ -1595,8 +1595,15 @@ public:
     return s->versioned == type;
   }
 
-  bool versioned_write(vers_kind_t type= VERS_UNDEFINED) const
+  bool versioned_write() const
   {
+    DBUG_ASSERT(versioned() || !vers_write);
+    return versioned() ? vers_write : false;
+  }
+
+  bool versioned_write(vers_kind_t type) const
+  {
+    DBUG_ASSERT(type);
     DBUG_ASSERT(versioned() || !vers_write);
     return versioned(type) ? vers_write : false;
   }
@@ -1620,6 +1627,8 @@ public:
   int period_make_insert(Item *src, Field *dst);
   int insert_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
                              ha_rows *rows_inserted);
+  bool vers_check_update(List<Item> &items);
+
   int delete_row();
   void vers_update_fields();
   void vers_update_end();
@@ -1858,7 +1867,9 @@ public:
 struct vers_select_conds_t
 {
   vers_system_time_t type;
+  vers_system_time_t orig_type;
   bool used:1;
+  bool delete_history:1;
   Vers_history_point start;
   Vers_history_point end;
   Lex_ident name;
@@ -1871,7 +1882,9 @@ struct vers_select_conds_t
   void empty()
   {
     type= SYSTEM_TIME_UNSPECIFIED;
+    orig_type= SYSTEM_TIME_UNSPECIFIED;
     used= false;
+    delete_history= false;
     start.empty();
     end.empty();
   }
@@ -1882,10 +1895,19 @@ struct vers_select_conds_t
             Lex_ident          _name= "SYSTEM_TIME")
   {
     type= _type;
+    orig_type= _type;
     used= false;
+    delete_history= (type == SYSTEM_TIME_HISTORY ||
+      type == SYSTEM_TIME_BEFORE);
     start= _start;
     end= _end;
     name= _name;
+  }
+
+  void set_all()
+  {
+    type= SYSTEM_TIME_ALL;
+    name= "SYSTEM_TIME";
   }
 
   void print(String *str, enum_query_type query_type) const;
@@ -1897,6 +1919,14 @@ struct vers_select_conds_t
     return type != SYSTEM_TIME_UNSPECIFIED;
   }
   bool check_units(THD *thd);
+  bool was_set() const
+  {
+    return orig_type != SYSTEM_TIME_UNSPECIFIED;
+  }
+  bool need_setup() const
+  {
+    return type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL;
+  }
   bool eq(const vers_select_conds_t &conds) const;
 };
 
@@ -3112,7 +3142,7 @@ public:
 
      @param[in] timestamp
      @param[in] true if we search for a lesser timestamp, false if greater
-     @retval true if exists, false it not exists or an error occured
+     @retval true if exists, false it not exists or an error occurred
    */
   bool query(MYSQL_TIME &commit_time, bool backwards);
   /**

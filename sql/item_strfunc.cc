@@ -58,25 +58,21 @@ C_MODE_END
 
 size_t username_char_length= 80;
 
+/*
+  Calculate max length of string from length argument to LEFT and RIGHT
+*/
 
-class Repeat_count
+static uint32 max_length_for_string(Item *item)
 {
-  ulonglong m_count;
-public:
-  Repeat_count(Item *item)
-   :m_count(0)
+  ulonglong length= item->val_int();
+  /* Note that if value is NULL, val_int() returned 0 */
+  if (length > (ulonglong) INT_MAX32)
   {
-    Longlong_hybrid nr= item->to_longlong_hybrid();
-    if (!item->null_value && !nr.neg())
-    {
-      // Assume that the maximum length of a String is < INT_MAX32
-      m_count= (ulonglong) nr.value();
-      if (m_count > (ulonglong) INT_MAX32)
-        m_count= (ulonglong) INT_MAX32;
-    }
+    /* Limit string length to maxium string length in MariaDB (2G) */
+    length= item->unsigned_flag ? (ulonglong) INT_MAX32 : 0;
   }
-  ulonglong count() const { return m_count; }
-};
+  return (uint32) length;
+}
 
 
 /*
@@ -1306,13 +1302,6 @@ bool Item_func_replace::fix_length_and_dec()
 
 
 /*********************************************************************/
-bool Item_func_regexp_replace::fix_fields(THD *thd, Item **ref)
-{
-  re.set_recursion_limit(thd);
-  return Item_str_func::fix_fields(thd, ref);
-}
-
-
 bool Item_func_regexp_replace::fix_length_and_dec()
 {
   if (agg_arg_charsets_for_string_result_with_comparison(collation, args, 3))
@@ -1364,7 +1353,7 @@ bool Item_func_regexp_replace::append_replacement(String *str,
       if (n < re.nsubpatterns())
       {
         /* A valid sub-pattern reference found */
-        int pbeg= re.subpattern_start(n), plength= re.subpattern_end(n) - pbeg;
+        size_t pbeg= re.subpattern_start(n), plength= re.subpattern_end(n) - pbeg;
         if (str->append(source->str + pbeg, plength, cs))
           return true;
       }
@@ -1393,7 +1382,7 @@ String *Item_func_regexp_replace::val_str(String *str)
   String *source= args[0]->val_str(&tmp0);
   String *replace= args[2]->val_str(&tmp2);
   LEX_CSTRING src, rpl;
-  int startoffset= 0;
+  size_t startoffset= 0;
 
   if ((null_value= (args[0]->null_value || args[2]->null_value ||
                     re.recompile(args[1]))))
@@ -1422,7 +1411,8 @@ String *Item_func_regexp_replace::val_str(String *str)
         Append the rest of the source string
         starting from startoffset until the end of the source.
       */
-      if (str->append(src.str + startoffset, src.length - startoffset, re.library_charset()))
+      if (str->append(src.str + startoffset, src.length - startoffset,
+                      re.library_charset()))
         goto err;
       return str;
     }
@@ -1431,7 +1421,8 @@ String *Item_func_regexp_replace::val_str(String *str)
       Append prefix, the part before the matching pattern.
       starting from startoffset until the next match
     */
-    if (str->append(src.str + startoffset, re.subpattern_start(0) - startoffset, re.library_charset()))
+    if (str->append(src.str + startoffset,
+          re.subpattern_start(0) - startoffset, re.library_charset()))
       goto err;
 
     // Append replacement
@@ -1446,13 +1437,6 @@ String *Item_func_regexp_replace::val_str(String *str)
 err:
   null_value= true;
   return (String *) 0;
-}
-
-
-bool Item_func_regexp_substr::fix_fields(THD *thd, Item **ref)
-{
-  re.set_recursion_limit(thd);
-  return Item_str_func::fix_fields(thd, ref);
 }
 
 
@@ -1490,8 +1474,7 @@ String *Item_func_regexp_substr::val_str(String *str)
     return str;
 
   if (str->append(source->ptr() + re.subpattern_start(0),
-                  re.subpattern_end(0) - re.subpattern_start(0),
-                  re.library_charset()))
+                  re.subpattern_length(0), re.library_charset()))
     goto err;
 
   return str;
@@ -1656,8 +1639,8 @@ void Item_str_func::left_right_max_length()
   uint32 char_length= args[0]->max_char_length();
   if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    Repeat_count tmp(args[1]);
-    set_if_smaller(char_length, (uint) tmp.count());
+    uint32 length= max_length_for_string(args[1]);
+    set_if_smaller(char_length, length);
   }
   fix_char_length(char_length);
 }
@@ -2402,7 +2385,7 @@ String *Item_func_sqlerrm::val_str(String *str)
               system_charset_info);
     return str;
   }
-  str->copy(STRING_WITH_LEN("normal, successful completition"),
+  str->copy(STRING_WITH_LEN("normal, successful completion"),
             system_charset_info);
   return str;
 }
@@ -3025,8 +3008,8 @@ bool Item_func_repeat::fix_length_and_dec()
   DBUG_ASSERT(collation.collation != NULL);
   if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    Repeat_count tmp(args[1]);
-    ulonglong char_length= (ulonglong) args[0]->max_char_length() * tmp.count();
+    uint32 length= max_length_for_string(args[1]);
+    ulonglong char_length= (ulonglong) args[0]->max_char_length() * length;
     fix_char_length_ulonglong(char_length);
     return false;
   }
@@ -3099,7 +3082,7 @@ bool Item_func_space::fix_length_and_dec()
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   if (args[0]->const_item() && !args[0]->is_expensive())
   {
-    fix_char_length_ulonglong(Repeat_count(args[0]).count());
+    fix_char_length_ulonglong(max_length_for_string(args[0]));
     return false;
   }
   max_length= MAX_BLOB_WIDTH;
@@ -3218,7 +3201,7 @@ bool Item_func_pad::fix_length_and_dec()
   DBUG_ASSERT(collation.collation->mbmaxlen > 0);
   if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    fix_char_length_ulonglong(Repeat_count(args[1]).count());
+    fix_char_length_ulonglong(max_length_for_string(args[1]));
     return false;
   }
   max_length= MAX_BLOB_WIDTH;

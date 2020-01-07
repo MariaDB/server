@@ -52,7 +52,7 @@ row_vers_impl_x_locked(
 	trx_t*		caller_trx,
 	const rec_t*	rec,
 	dict_index_t*	index,
-	const ulint*	offsets);
+	const offset_t*	offsets);
 
 /** Finds out if a version of the record, where the version >= the current
 purge view, should have ientry as its secondary index entry. We check
@@ -70,7 +70,6 @@ this case we return TRUE.
 @param[in]	ientry		secondary index entry
 @param[in]	roll_ptr	roll_ptr for the purge record
 @param[in]	trx_id		transaction ID on the purging record
-@param[in,out]	vcol_info	virtual column information for purge thread.
 @return TRUE if earlier version should have */
 bool
 row_vers_old_has_index_entry(
@@ -80,8 +79,7 @@ row_vers_old_has_index_entry(
 	dict_index_t*		index,
 	const dtuple_t*		ientry,
 	roll_ptr_t		roll_ptr,
-	trx_id_t		trx_id,
-	purge_vcol_info_t*	vcol_info=NULL);
+	trx_id_t		trx_id);
 
 /*****************************************************************//**
 Constructs the version of a clustered index record which a consistent
@@ -98,7 +96,7 @@ row_vers_build_for_consistent_read(
 	mtr_t*		mtr,	/*!< in: mtr holding the latch on rec; it will
 				also hold the latch on purge_view */
 	dict_index_t*	index,	/*!< in: the clustered index */
-	ulint**		offsets,/*!< in/out: offsets returned by
+	offset_t**	offsets,/*!< in/out: offsets returned by
 				rec_get_offsets(rec, index) */
 	ReadView*	view,	/*!< in: the consistent read view */
 	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
@@ -126,7 +124,7 @@ row_vers_build_for_semi_consistent_read(
 				of this records */
 	mtr_t*		mtr,	/*!< in: mtr holding the latch on rec */
 	dict_index_t*	index,	/*!< in: the clustered index */
-	ulint**		offsets,/*!< in/out: offsets returned by
+	offset_t**	offsets,/*!< in/out: offsets returned by
 				rec_get_offsets(rec, index) */
 	mem_heap_t**	offset_heap,/*!< in/out: memory heap from which
 				the offsets are allocated */

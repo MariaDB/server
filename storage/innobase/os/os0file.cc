@@ -84,10 +84,12 @@ class io_slots
 private:
 	tpool::cache<tpool::aiocb> m_cache;
 	tpool::task_group m_group;
+	int m_max_aio;
 public:
 	io_slots(int max_submitted_io, int max_callback_concurrency) :
 		m_cache(max_submitted_io),
-		m_group(max_callback_concurrency)
+		m_group(max_callback_concurrency),
+		m_max_aio(max_submitted_io)
 	{
 	}
 	/* Get cached AIO control block */
@@ -110,6 +112,11 @@ public:
 	void wait()
 	{
 		m_cache.wait();
+	}
+
+	size_t pending_io_count()
+	{
+		return (size_t)m_max_aio - m_cache.size();
 	}
 
 	tpool::task_group* get_task_group()
@@ -3627,12 +3634,8 @@ fallback:
 		<< srv_page_size_shift;
 
 	/* Align the buffer for possible raw i/o */
-	byte*	buf2;
-
-	buf2 = static_cast<byte*>(ut_malloc_nokey(buf_size + srv_page_size));
-
-	byte*	buf = static_cast<byte*>(ut_align(buf2, srv_page_size));
-
+	byte*	buf = static_cast<byte*>(aligned_malloc(buf_size,
+							srv_page_size));
 	/* Write buffer full of zeros */
 	memset(buf, 0, buf_size);
 
@@ -3661,7 +3664,7 @@ fallback:
 		current_size += n_bytes;
 	}
 
-	ut_free(buf2);
+	aligned_free(buf);
 
 	return(current_size >= size && os_file_flush(file));
 }
@@ -3921,6 +3924,10 @@ static bool is_linux_native_aio_supported()
 				<< "Unable to create temp file to check"
 				" native AIO support.";
 
+			int ret = io_destroy(io_ctx);
+			ut_a(ret != -EINVAL);
+			ut_ad(ret != -EFAULT);
+
 			return(false);
 		}
 	}
@@ -3951,6 +3958,10 @@ static bool is_linux_native_aio_supported()
 				<< " \"" << name << "\" to check native"
 				<< " AIO read support.";
 
+			int ret = io_destroy(io_ctx);
+			ut_a(ret != EINVAL);
+			ut_ad(ret != EFAULT);
+
 			return(false);
 		}
 	}
@@ -3959,13 +3970,13 @@ static bool is_linux_native_aio_supported()
 
 	memset(&io_event, 0x0, sizeof(io_event));
 
-	byte* buf = static_cast<byte*>(ut_malloc_nokey(srv_page_size * 2));
-	byte* ptr = static_cast<byte*>(ut_align(buf, srv_page_size));
+	byte* ptr = static_cast<byte*>(aligned_malloc(srv_page_size,
+						      srv_page_size));
 
 	struct iocb	iocb;
 
 	/* Suppress valgrind warning. */
-	memset(buf, 0x00, srv_page_size * 2);
+	memset(ptr, 0, srv_page_size);
 	memset(&iocb, 0x0, sizeof(iocb));
 
 	struct iocb* p_iocb = &iocb;
@@ -3988,12 +3999,18 @@ static bool is_linux_native_aio_supported()
 		err = io_getevents(io_ctx, 1, 1, &io_event, NULL);
 	}
 
-	ut_free(buf);
+	aligned_free(ptr);
 	my_close(fd, MYF(MY_WME));
 
 	switch (err) {
 	case 1:
-		return(true);
+		{
+			int ret = io_destroy(io_ctx);
+			ut_a(ret != -EINVAL);
+			ut_ad(ret != -EFAULT);
+
+			return(true);
+		}
 
 	case -EINVAL:
 	case -ENOSYS:
@@ -4012,6 +4029,10 @@ static bool is_linux_native_aio_supported()
 			<< (srv_read_only_mode ? name : "tmpdir")
 			<< "returned error[" << -err << "]";
 	}
+
+	int ret = io_destroy(io_ctx);
+	ut_a(ret != -EINVAL);
+	ut_ad(ret != -EFAULT);
 
 	return(false);
 }
@@ -4062,7 +4083,12 @@ void os_aio_free()
 be other, synchronous, pending writes. */
 void os_aio_wait_until_no_pending_writes()
 {
-  write_slots->wait();
+  if (write_slots->pending_io_count())
+  {
+    tpool::tpool_wait_begin();
+    write_slots->wait();
+    tpool::tpool_wait_end();
+  }
 }
 
 
@@ -4148,6 +4174,11 @@ os_aio_func(
 	cb->m_opcode = type.is_read() ? tpool::aio_opcode::AIO_PREAD : tpool::aio_opcode::AIO_PWRITE;
 	memcpy(cb->m_userdata, &userdata, sizeof(userdata));
 
+	ut_a(reinterpret_cast<size_t>(cb->m_buffer) % OS_FILE_LOG_BLOCK_SIZE
+	     == 0);
+	ut_a(cb->m_len % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_a(cb->m_offset % OS_FILE_LOG_BLOCK_SIZE == 0);
+
 	if (!srv_thread_pool->submit_io(cb))
 		return DB_SUCCESS;
 
@@ -4189,7 +4220,7 @@ os_aio_print(FILE*	file)
 		ULINTPF " OS file reads, "
 		ULINTPF " OS file writes, "
 		ULINTPF " OS fsyncs\n",
-		fil_n_pending_log_flushes,
+		log_sys.get_pending_flushes(),
 		fil_n_pending_tablespace_flushes,
 		os_n_file_reads,
 		os_n_file_writes,
@@ -4389,9 +4420,14 @@ void fil_node_t::find_metadata(os_file_t file
 		on_ssd = win32_is_ssd(volume_handle);
 		CloseHandle(volume_handle);
 	} else {
-		if (GetLastError() != ERROR_ACCESS_DENIED) {
-			os_file_handle_error_no_exit(volume,
-				"CreateFile()", FALSE);
+		/*
+		Report error, unless it is expected, e.g
+		missing permissions, or error when trying to
+		open volume for UNC share.
+		*/
+		if (GetLastError() != ERROR_ACCESS_DENIED
+		    && GetDriveType(volume) == DRIVE_FIXED) {
+			    os_file_handle_error_no_exit(volume, "CreateFile()", FALSE);
 		}
 	}
 
@@ -4442,7 +4478,6 @@ void fil_node_t::find_metadata(os_file_t file
 bool fil_node_t::read_page0(bool first)
 {
 	ut_ad(mutex_own(&fil_system.mutex));
-	ut_a(space->purpose != FIL_TYPE_LOG);
 	const ulint psize = space->physical_size();
 #ifndef _WIN32
 	struct stat statbuf;
@@ -4464,17 +4499,20 @@ bool fil_node_t::read_page0(bool first)
 		return false;
 	}
 
-	byte* buf2 = static_cast<byte*>(ut_malloc_nokey(2 * psize));
-
-	/* Align the memory for file i/o if we might have O_DIRECT set */
-	byte* page = static_cast<byte*>(ut_align(buf2, psize));
-	IORequest request(IORequest::READ);
-	if (os_file_read(request, handle, page, 0, psize) != DB_SUCCESS) {
+	page_t *page= static_cast<byte*>(aligned_malloc(psize, psize));
+	if (os_file_read(IORequestRead, handle, page, 0, psize)
+	    != DB_SUCCESS) {
 		ib::error() << "Unable to read first page of file " << name;
-		ut_free(buf2);
+corrupted:
+		aligned_free(page);
 		return false;
 	}
-	const ulint space_id = fsp_header_get_space_id(page);
+
+	const ulint space_id = memcmp_aligned<4>(
+		FIL_PAGE_SPACE_ID + page,
+		FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
+		? ULINT_UNDEFINED
+		: mach_read_from_4(FIL_PAGE_SPACE_ID + page);
 	ulint flags = fsp_header_get_flags(page);
 	const ulint size = fsp_header_get_field(page, FSP_SIZE);
 	const ulint free_limit = fsp_header_get_field(page, FSP_FREE_LIMIT);
@@ -4489,8 +4527,7 @@ invalid:
 				<< ib::hex(space->flags)
 				<< " but found " << ib::hex(flags)
 				<< " in the file " << name;
-			ut_free(buf2);
-			return false;
+			goto corrupted;
 		}
 
 		ulint cf = cflags & ~FSP_FLAGS_MEM_MASK;
@@ -4511,7 +4548,7 @@ invalid:
 		space->crypt_data = fil_space_read_crypt_data(
 			fil_space_t::zip_size(flags), page);
 	}
-	ut_free(buf2);
+	aligned_free(page);
 
 	if (UNIV_UNLIKELY(space_id != space->id)) {
 		ib::error() << "Expected tablespace id " << space->id
@@ -4576,4 +4613,25 @@ os_normalize_path(
 			}
 		}
 	}
+}
+
+bool pfs_os_file_flush_data_func(pfs_os_file_t file, const char *src_file,
+                                 uint src_line)
+{
+  PSI_file_locker_state state;
+  struct PSI_file_locker *locker= NULL;
+
+  register_pfs_file_io_begin(&state, locker, file, 0, PSI_FILE_SYNC, src_file,
+                             src_line);
+
+#ifdef _WIN32
+  bool result= os_file_flush_func(file);
+#else
+  bool result= true;
+  if (fdatasync(file) == -1)
+    ib::error() << "fdatasync() errno: " << errno;
+#endif
+
+  register_pfs_file_io_end(locker, 0);
+  return result;
 }

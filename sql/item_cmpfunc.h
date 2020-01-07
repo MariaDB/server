@@ -24,8 +24,6 @@
 #endif
 
 #include "item_func.h"             /* Item_int_func, Item_bool_func */
-#define PCRE_STATIC 1             /* Important on Windows */
-#include "pcre.h"                 /* pcre header file */
 #include "item.h"
 
 extern Item_result item_cmp_type(Item_result a,Item_result b);
@@ -2476,6 +2474,7 @@ public:
   bool to_be_transformed_into_in_subq(THD *thd);
   bool create_value_list_for_tvc(THD *thd, List< List<Item> > *values);
   Item *in_predicate_to_in_subs_transformer(THD *thd, uchar *arg);
+  uint32 max_length_of_left_expr();
 };
 
 class cmp_item_row :public cmp_item
@@ -2801,51 +2800,38 @@ public:
 };
 
 
+typedef struct pcre2_real_code_8 pcre2_code;
+typedef struct pcre2_real_match_data_8 pcre2_match_data;
+#define PCRE2_SIZE size_t
 class Regexp_processor_pcre
 {
-  pcre *m_pcre;
-  pcre_extra m_pcre_extra;
+  pcre2_code *m_pcre;
+  pcre2_match_data *m_pcre_match_data;
   bool m_conversion_is_needed;
   bool m_is_const;
   int m_library_flags;
   CHARSET_INFO *m_library_charset;
   String m_prev_pattern;
   int m_pcre_exec_rc;
-  int m_SubStrVec[30];
+  PCRE2_SIZE *m_SubStrVec;
   void pcre_exec_warn(int rc) const;
-  int pcre_exec_with_warn(const pcre *code, const pcre_extra *extra,
+  int pcre_exec_with_warn(const pcre2_code *code,
+                          pcre2_match_data *data,
                           const char *subject, int length, int startoffset,
-                          int options, int *ovector, int ovecsize);
+                          int options);
 public:
   String *convert_if_needed(String *src, String *converter);
   String subject_converter;
   String pattern_converter;
   String replace_converter;
   Regexp_processor_pcre() :
-    m_pcre(NULL), m_conversion_is_needed(true), m_is_const(0),
+    m_pcre(NULL), m_pcre_match_data(NULL),
+    m_conversion_is_needed(true), m_is_const(0),
     m_library_flags(0),
     m_library_charset(&my_charset_utf8mb3_general_ci)
-  {
-    m_pcre_extra.flags= PCRE_EXTRA_MATCH_LIMIT_RECURSION;
-    m_pcre_extra.match_limit_recursion= 100L;
-  }
+  {}
   int default_regex_flags();
-  void set_recursion_limit(THD *);
-  void init(CHARSET_INFO *data_charset, int extra_flags)
-  {
-    m_library_flags= default_regex_flags() | extra_flags |
-                    (data_charset != &my_charset_bin ?
-                     (PCRE_UTF8 | PCRE_UCP) : 0) |
-                    ((data_charset->state &
-                     (MY_CS_BINSORT | MY_CS_CSSORT)) ? 0 : PCRE_CASELESS);
-
-    // Convert text data to utf-8.
-    m_library_charset= data_charset == &my_charset_bin ?
-                       &my_charset_bin : &my_charset_utf8mb3_general_ci;
-
-    m_conversion_is_needed= (data_charset != &my_charset_bin) &&
-                            !my_charset_same(data_charset, m_library_charset);
-  }
+  void init(CHARSET_INFO *data_charset, int extra_flags);
   void fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
   bool compile(String *pattern, bool send_error);
   bool compile(Item *item, bool send_error);
@@ -2858,28 +2844,25 @@ public:
   bool exec(Item *item, int offset, uint n_result_offsets_to_convert);
   bool match() const { return m_pcre_exec_rc < 0 ? 0 : 1; }
   int nsubpatterns() const { return m_pcre_exec_rc <= 0 ? 0 : m_pcre_exec_rc; }
-  int subpattern_start(int n) const
+  size_t subpattern_start(int n) const
   {
     return m_pcre_exec_rc <= 0 ? 0 : m_SubStrVec[n * 2];
   }
-  int subpattern_end(int n) const
+  size_t subpattern_end(int n) const
   {
     return m_pcre_exec_rc <= 0 ? 0 : m_SubStrVec[n * 2 + 1];
   }
-  int subpattern_length(int n) const
+  size_t subpattern_length(int n) const
   {
     return subpattern_end(n) - subpattern_start(n);
   }
   void reset()
   {
     m_pcre= NULL;
+    m_pcre_match_data= NULL;
     m_prev_pattern.length(0);
   }
-  void cleanup()
-  {
-    pcre_free(m_pcre);
-    reset();
-  }
+  void cleanup();
   bool is_compiled() const { return m_pcre != NULL; }
   bool is_const() const { return m_is_const; }
   void set_const(bool arg) { m_is_const= arg; }
@@ -2902,7 +2885,6 @@ public:
     DBUG_VOID_RETURN;
   }
   longlong val_int();
-  bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
   enum precedence precedence() const { return CMP_PRECEDENCE; }
@@ -2943,7 +2925,6 @@ public:
     DBUG_VOID_RETURN;
   }
   longlong val_int();
-  bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp_instr"; }
   Item *get_copy(THD *thd) { return 0; }

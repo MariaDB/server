@@ -69,6 +69,9 @@ bool init_errmessage(void)
 {
   const char **errmsgs;
   bool error= FALSE;
+  const char *lang= my_default_lc_messages->errmsgs->language;
+  my_bool use_english;
+
   DBUG_ENTER("init_errmessage");
 
   free_error_messages();
@@ -77,35 +80,63 @@ bool init_errmessage(void)
 
   error_message_charset_info= system_charset_info;
 
-  /* Read messages from file. */
-  if (read_texts(ERRMSG_FILE, my_default_lc_messages->errmsgs->language,
-                 &original_error_messages))
+  use_english= !strcmp(lang, "english");
+  if (!use_english)
   {
-    /*
-      No error messages.  Create a temporary empty error message so
-      that we don't get a crash if some code wrongly tries to access
-      a non existing error message.
-    */
-    if (!(original_error_messages= (const char***)
-          my_malloc(MAX_ERROR_RANGES * sizeof(char**) +
-                    (ERRORS_PER_RANGE * sizeof(char*)),
-                     MYF(0))))
-      DBUG_RETURN(TRUE);
-    errmsgs= (const char**) (original_error_messages + MAX_ERROR_RANGES);
-
-    for (uint i=0 ; i < MAX_ERROR_RANGES ; i++)
-    {
-      original_error_messages[i]= errmsgs;
-      errors_per_range[i]= ERRORS_PER_RANGE;
-    }
-    errors_per_range[2]= 0;                     // MYSYS error messages
-
-    for (const char **ptr= errmsgs;
-         ptr < errmsgs + ERRORS_PER_RANGE ;
-         ptr++)
-      *ptr= "";
-
+    /* Read messages from file. */
+    use_english= !read_texts(ERRMSG_FILE,lang, &original_error_messages);
     error= TRUE;
+  }
+
+  if (use_english)
+  {
+    static const struct
+    {
+      const char* name;
+      uint id;
+      const char* fmt;
+    }
+    english_msgs[]=
+    {
+      #include <mysqld_ername.h>
+    };
+
+    memset(errors_per_range, 0, sizeof(errors_per_range));
+    /* Calculate nr of messages per range. */
+    for (size_t i= 0; i < array_elements(english_msgs); i++)
+    {
+      uint id= english_msgs[i].id;
+
+      // We rely on the fact the array is sorted by id.
+      DBUG_ASSERT(i == 0 || english_msgs[i-1].id < id);
+
+      errors_per_range[id/ERRORS_PER_RANGE-1]= id%ERRORS_PER_RANGE + 1;
+    }
+
+    size_t all_errors= 0;
+    for (size_t i= 0; i < MAX_ERROR_RANGES; i++)
+      all_errors+= errors_per_range[i];
+
+    if (!(original_error_messages= (const char***)
+          my_malloc((all_errors + MAX_ERROR_RANGES)* sizeof(void*),
+                     MYF(MY_ZEROFILL))))
+      DBUG_RETURN(TRUE);
+
+    errmsgs= (const char**)(original_error_messages + MAX_ERROR_RANGES);
+
+    original_error_messages[0]= errmsgs;
+    for (uint i= 1; i < MAX_ERROR_RANGES; i++)
+    {
+      original_error_messages[i]=
+        original_error_messages[i-1] + errors_per_range[i-1];
+    }
+
+    for (uint i= 0; i < array_elements(english_msgs); i++)
+    {
+      uint id= english_msgs[i].id;
+      original_error_messages[id/ERRORS_PER_RANGE-1][id%ERRORS_PER_RANGE]=
+         english_msgs[i].fmt;
+    }
   }
 
   /* Register messages for use with my_error(). */

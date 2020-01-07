@@ -417,7 +417,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_AVG_TIME},
 
 	{"buffer_flush_adaptive_avg_pass", "buffer",
-	 "Numner of adaptive flushes passed during the recent Avg period.",
+	 "Number of adaptive flushes passed during the recent Avg period.",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_PASS},
 
@@ -1774,12 +1774,12 @@ srv_mon_process_existing_counter(
 
 	/* innodb_os_log_fsyncs */
 	case MONITOR_OVLD_OS_LOG_FSYNC:
-		value = fil_n_log_flushes;
+		value = log_sys.get_flushes();
 		break;
 
 	/* innodb_os_log_pending_fsyncs */
 	case MONITOR_OVLD_OS_LOG_PENDING_FSYNC:
-		value = fil_n_pending_log_flushes;
+		value = log_sys.get_pending_flushes();
 		update_min = TRUE;
 		break;
 

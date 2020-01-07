@@ -74,7 +74,7 @@ extern struct wsrep_service_st {
   const char*                 (*wsrep_thd_client_mode_str_func)(const MYSQL_THD thd);
   const char*                 (*wsrep_thd_transaction_state_str_func)(const MYSQL_THD thd);
   query_id_t                  (*wsrep_thd_transaction_id_func)(const MYSQL_THD thd);
-  my_bool                     (*wsrep_thd_bf_abort_func)(const MYSQL_THD bf_thd,
+  my_bool                     (*wsrep_thd_bf_abort_func)(MYSQL_THD bf_thd,
                                                          MYSQL_THD victim_thd,
                                                          my_bool signal);
   my_bool                     (*wsrep_thd_order_before_func)(const MYSQL_THD left, const MYSQL_THD right);
@@ -194,7 +194,7 @@ extern "C" void wsrep_handle_SR_rollback(MYSQL_THD BF_thd, MYSQL_THD victim_thd)
 /* Return thd retry counter */
 extern "C" int wsrep_thd_retry_counter(const MYSQL_THD thd);
 /* BF abort victim_thd */
-extern "C" my_bool wsrep_thd_bf_abort(const MYSQL_THD bf_thd,
+extern "C" my_bool wsrep_thd_bf_abort(MYSQL_THD bf_thd,
                                       MYSQL_THD victim_thd,
                                       my_bool signal);
 /* Return true if left thd is ordered before right thd */

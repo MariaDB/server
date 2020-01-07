@@ -105,6 +105,11 @@ public:
       m_cv.wait(lk);
     m_waiters--;
   }
+
+  size_t size()
+  {
+    return m_cache.size();
+  }
 };
 
 

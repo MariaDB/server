@@ -57,7 +57,7 @@ DELETE FROM t WHERE id1=1 AND id2=1 AND id3=0;
 --disable_parsing
 # 
 #  The following is commented out because RocksDB's Transaction API doesn't
-#  "support" READ COMMITED, in particular, it doesn't release row locks 
+#  "support" READ COMMITTED, in particular, it doesn't release row locks 
 #   after each statement. (MyRocks is able to request a new snapshot for 
 #  every statement, but this won't free the locks. TODO: Is the behavior
 #  that is tested below really needed?)

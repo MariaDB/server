@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,6 +29,7 @@ Created 2/2/1994 Heikki Tuuri
 
 #include "dict0types.h"
 #include "mtr0types.h"
+#include "rem0types.h"
 
 #include <map>
 
@@ -162,28 +164,6 @@ page_zip_rec_set_owned(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	const byte*	rec,	/*!< in: record on the uncompressed page */
 	ulint		flag)	/*!< in: the owned flag (nonzero=TRUE) */
-	MY_ATTRIBUTE((nonnull));
-
-/**********************************************************************//**
-Shift the dense page directory when a record is deleted. */
-void
-page_zip_dir_delete(
-/*================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
-	byte*		rec,	/*!< in: deleted record */
-	dict_index_t*	index,	/*!< in: index of rec */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec) */
-	const byte*	free)	/*!< in: previous start of the free list */
-	MY_ATTRIBUTE((nonnull(1,2,3,4)));
-
-/**********************************************************************//**
-Add a slot to the dense page directory. */
-void
-page_zip_dir_add_slot(
-/*==================*/
-	page_zip_des_t*	page_zip,	/*!< in/out: compressed page */
-	ulint		is_clustered)	/*!< in: nonzero for clustered index,
-					zero for others */
 	MY_ATTRIBUTE((nonnull));
 #endif /* !UNIV_INNOCHECKSUM */
 #endif

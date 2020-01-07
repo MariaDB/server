@@ -1602,7 +1602,7 @@ my %exprs = (
 
 my %columns = (
    active_secs                 => { hdr => 'SecsActive',          num => 1, label => 'Seconds transaction has been active', },
-   add_pool_alloc              => { hdr => 'Add\'l Pool',         num => 1, label => 'Additonal pool allocated' },
+   add_pool_alloc              => { hdr => 'Add\'l Pool',         num => 1, label => 'Additional pool allocated' },
    attempted_op                => { hdr => 'Action',              num => 0, label => 'The action that caused the error' },
    awe_mem_alloc               => { hdr => 'AWE Memory',          num => 1, label => '[Windows] AWE memory allocated' },
    binlog_cache_overflow       => { hdr => 'Binlog Cache',        num => 1, label => 'Transactions too big for binlog cache that went to disk' },

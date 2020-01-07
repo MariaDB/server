@@ -69,3 +69,4 @@ CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table
 CALL mtr.add_suppression("WSREP: Event (.*) Write_rows_v1 apply failed: 121, seqno ");
 CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on (.*)");
 CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
+CALL mtr.add_suppression("WSREP: Failed to apply write set: ");

@@ -390,7 +390,8 @@ enum enum_yes_no_unknown
 
 /* sql_yacc.cc */
 #ifndef DBUG_OFF
-extern void turn_parser_debug_on();
+extern void turn_parser_debug_on_MYSQLparse();
+extern void turn_parser_debug_on_ORAparse();
 
 #endif
 
