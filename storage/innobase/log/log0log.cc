@@ -655,7 +655,7 @@ void log_t::files::fsync()
       ib::fatal() << "os_file_flush(" << file_names[idx] << ") failed";
     }
   }
-  log_sys.pending_flushes.fetch_add(1, std::memory_order_release);
+  log_sys.pending_flushes.fetch_sub(1, std::memory_order_release);
   log_sys.flushes.fetch_add(1, std::memory_order_release);
 }
 
@@ -672,7 +672,7 @@ void log_t::files::fdatasync()
       ib::fatal() << "os_file_flush_data(" << file_names[idx] << ") failed";
     }
   }
-  log_sys.pending_flushes.fetch_add(1, std::memory_order_release);
+  log_sys.pending_flushes.fetch_sub(1, std::memory_order_release);
   log_sys.flushes.fetch_add(1, std::memory_order_release);
 }
 
