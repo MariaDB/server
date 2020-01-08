@@ -4615,6 +4615,18 @@ os_normalize_path(
 	}
 }
 
+bool os_file_flush_data_func(os_file_t file) {
+#ifdef _WIN32
+  return os_file_flush_func(file);
+#else
+  bool success= fdatasync(file) != -1;
+  if (!success) {
+    ib::error() << "fdatasync() errno: " << errno;
+  }
+  return success;
+#endif
+}
+
 bool pfs_os_file_flush_data_func(pfs_os_file_t file, const char *src_file,
                                  uint src_line)
 {
@@ -4624,14 +4636,8 @@ bool pfs_os_file_flush_data_func(pfs_os_file_t file, const char *src_file,
   register_pfs_file_io_begin(&state, locker, file, 0, PSI_FILE_SYNC, src_file,
                              src_line);
 
-#ifdef _WIN32
-  bool result= os_file_flush_func(file);
-#else
-  bool result= true;
-  if (fdatasync(file) == -1)
-    ib::error() << "fdatasync() errno: " << errno;
-#endif
+  bool success= os_file_flush_data_func(file);
 
   register_pfs_file_io_end(locker, 0);
-  return result;
+  return success;
 }
