@@ -2803,13 +2803,6 @@ static Sys_var_ulong Sys_range_alloc_block_size(
        VALID_RANGE(RANGE_ALLOC_BLOCK_SIZE, UINT_MAX),
        DEFAULT(RANGE_ALLOC_BLOCK_SIZE), BLOCK_SIZE(1024));
 
-static Sys_var_ulong Sys_multi_range_count(
-       "multi_range_count", "Ignored. Use mrr_buffer_size instead",
-       SESSION_VAR(multi_range_count), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, ULONG_MAX), DEFAULT(256), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
-       DEPRECATED("'@@mrr_buffer_size'"));
-
 static bool fix_thd_mem_root(sys_var *self, THD *thd, enum_var_type type)
 {
   if (type != OPT_GLOBAL)

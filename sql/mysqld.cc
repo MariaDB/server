@@ -5050,6 +5050,8 @@ static int init_server_components()
          compatibility, but do not have any effect otherwise, they behave
          as if supplied with --loose. Whenever a deprecated option is removed
          it should be appended here. */
+      {"multi-range-count", OPT_DEPRECATED_OPTION, "",
+       0, 0, 0, GET_NO_ARG, OPT_ARG, 0, 0, 0, 0, 0, 0},
       {"skip-bdb", OPT_DEPRECATED_OPTION, "",
        0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
       {"thread-concurrency", OPT_DEPRECATED_OPTION, "",

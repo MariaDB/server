@@ -116,6 +116,7 @@ static const char *removed_variables[] =
 "log",
 "log_slow_queries",
 "max_long_data_size",
+"multi_range_count",
 "rpl_recovery_rank",
 "skip_bdb",
 "sql_big_tables",
