@@ -3975,6 +3975,11 @@ bool mysql_show_binlog_events(THD* thd)
   List<Item> field_list;
   const char *errmsg = 0;
   bool ret = TRUE;
+  /*
+     Using checksum validate the correctness of event pos specified in show
+     binlog events command.
+  */
+  bool verify_checksum_once= false;
   IO_CACHE log;
   File file = -1;
   MYSQL_BIN_LOG *binary_log= NULL;
@@ -4029,6 +4034,10 @@ bool mysql_show_binlog_events(THD* thd)
       mi->release();
       mi= 0;
     }
+
+    /* Validate user given position using checksum */
+    if (lex_mi->pos == pos && !opt_master_verify_checksum)
+      verify_checksum_once= true;
 
     unit->set_limit(thd->lex->current_select);
 
@@ -4107,15 +4116,16 @@ bool mysql_show_binlog_events(THD* thd)
     for (event_count = 0;
          (ev = Log_event::read_log_event(&log,
                                          description_event,
-                                         opt_master_verify_checksum)); )
+                                         (opt_master_verify_checksum ||
+                                          verify_checksum_once))); )
     {
       if (!unit->lim.check_offset(event_count) &&
-	  ev->net_send(protocol, linfo.log_file_name, pos))
+	        ev->net_send(protocol, linfo.log_file_name, pos))
       {
-	errmsg = "Net error";
-	delete ev;
+	      errmsg = "Net error";
+	      delete ev;
         mysql_mutex_unlock(log_lock);
-	goto err;
+	      goto err;
       }
 
       if (ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
@@ -4141,10 +4151,11 @@ bool mysql_show_binlog_events(THD* thd)
         delete ev;
       }
 
+      verify_checksum_once= false;
       pos = my_b_tell(&log);
 
       if (++event_count >= unit->lim.get_select_limit())
-	break;
+	      break;
     }
 
     if (unlikely(event_count < unit->lim.get_select_limit() && log.error))
