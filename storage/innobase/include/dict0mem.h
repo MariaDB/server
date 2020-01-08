@@ -2264,8 +2264,11 @@ public:
 	It is protected by lock_sys.mutex. */
 	ulint					n_rec_locks;
 
-	bool                           committed_count_inited;
-	Atomic_counter<ib_uint64_t>    committed_count;
+	/* Whether committed count is initialized. */
+	bool              committed_count_inited;
+
+	/* Count of committed records. */
+	int64_t       committed_count;
 
 private:
 	/** Count of how many handles are opened to this table. Dropping of the

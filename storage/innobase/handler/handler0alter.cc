@@ -8513,10 +8513,9 @@ ok_exit:
 	DBUG_ASSERT(ctx->trx);
 	DBUG_ASSERT(ctx->prebuilt == m_prebuilt);
 
-	if (ctx->persistent_count && !m_prebuilt->table->committed_count_inited) {
+	if (ctx->persistent_count) {
 		enable_persistent_count();
-	} else if (!ctx->persistent_count 
-		&& m_prebuilt->table->committed_count_inited) {
+	} else {
 		disable_persistent_count();
 	}
 

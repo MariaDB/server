@@ -13245,6 +13245,9 @@ ha_innobase::create(
 	}
 
 	dict_table_t* ib_table = info.table();
+	/* No need to acquire index.lock for committed_count_inited and
+	committed_count access since creation is taking place and no other threads
+	can access anyway. */
 	ib_table->committed_count_inited =
 		!!DICT_TF_GET_PERSISTENT_COUNT(info.flags());
 	if (ib_table->committed_count_inited) {
@@ -14004,15 +14007,15 @@ ha_innobase::enable_persistent_count()
 		return -1;  /* Already initialized */
 	}
 
-	ib_table->committed_count = 0;
+	int64_t count = 0;
 	rnd_init(true);
 	do {
 		err = rnd_next(read_buf);
 		if (!err) {
-			ib_table->committed_count++;
+			count++;
 		}
 	} while (!err);
-	ib_table->committed_count -= trx->uncommitted_count(ib_table);
+	ib_table->committed_count = count - trx->uncommitted_count(ib_table);
 	ib_table->committed_count_inited = true;
 
 	rw_lock_sx_unlock(&index->lock);
