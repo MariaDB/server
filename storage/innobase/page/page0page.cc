@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -231,7 +231,8 @@ page_set_autoinc(
                                    MTR_MEMO_PAGE_SX_FIX));
 
   byte *field= PAGE_HEADER + PAGE_ROOT_AUTO_INC + block->frame;
-  if (!reset && mach_read_from_8(field) >= autoinc)
+  ib_uint64_t old= mach_read_from_8(field);
+  if (old == autoinc || (old > autoinc && !reset))
     /* nothing to update */;
   else if (page_zip_des_t* page_zip = buf_block_get_page_zip(block))
   {
@@ -239,7 +240,7 @@ page_set_autoinc(
     page_zip_write_header(page_zip, field, 8, mtr);
   }
   else
-    mtr->write<8,mtr_t::OPT>(*block, field, autoinc);
+    mtr->write<8>(*block, field, autoinc);
 }
 
 /** The page infimum and supremum of an empty page in ROW_FORMAT=REDUNDANT */
