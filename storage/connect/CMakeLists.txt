@@ -40,6 +40,10 @@ user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS -Dconnect_EXPORTS)
 add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT )
 
+macro(DISABLE_WARNING W)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-error=${W}")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-${W}" DEBUG)
+endmacro()
 
 #
 # OS specific C flags, definitions and source files.
@@ -47,14 +51,15 @@ add_definitions( -DHUGE_SUPPORT -DGZ_SUPPORT )
 IF(UNIX)
   MY_CHECK_AND_SET_COMPILER_FLAG("-Wall -Wmissing-declarations")
   if(NOT WITH_WARNINGS)
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-function")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-variable")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-value")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-parentheses")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-strict-aliasing")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-misleading-indentation")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-format-truncation")
-    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
+    DISABLE_WARNING("unused-function")
+    DISABLE_WARNING("unused-variable")
+    DISABLE_WARNING("unused-value")
+    DISABLE_WARNING("parentheses")
+    DISABLE_WARNING("strict-aliasing")
+    DISABLE_WARNING("misleading-indentation")
+    DISABLE_WARNING("format-truncation")
+    DISABLE_WARNING("implicit-fallthrough")
+    DISABLE_WARNING("type-limits")
   endif(NOT WITH_WARNINGS)
 
   add_definitions( -DUNIX -DLINUX -DUBUNTU )
@@ -68,10 +73,6 @@ ELSE(NOT UNIX)
   tabwmi.cpp tabwmi.h tabmac.cpp tabmac.h macutil.cpp macutil.h)
   # Add exception handling to the CONNECT project)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
-  SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
-  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
-  SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MD")
-  SET(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /MD")
   SET(IPHLPAPI_LIBRARY iphlpapi.lib)
   IF(MSVC AND (CMAKE_CXX_COMPILER_ID MATCHES Clang))
     # Connect does not work with clang-cl
@@ -171,7 +172,8 @@ IF(CONNECT_WITH_ODBC)
     # the library 'libiodbc' gets compiled with 'sql'h.
     # This will also need changes in the sources (e.g. #include <isql.h>).
 
-    find_path(ODBC_INCLUDE_DIR sql.h
+    find_file(ODBC_INCLUDES sql.h
+    PATHS
     /usr/include
     /usr/include/odbc
     /usr/local/include
@@ -181,7 +183,7 @@ IF(CONNECT_WITH_ODBC)
     #"C:/Program Files/Microsoft SDKs/Windows/v7.0A/include"
     #"C:/Program Files/Microsoft SDKs/Windows/v6.0a/include"
     #"C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/include"
-    DOC "Specify the directory containing sql.h."
+    DOC "Specify the path to sql.h."
     )
 
     find_library(ODBC_LIBRARY
@@ -200,9 +202,10 @@ IF(CONNECT_WITH_ODBC)
     DOC "Specify the ODBC driver manager library here."
     )
 
-    mark_as_advanced(ODBC_LIBRARY ODBC_INCLUDE_DIR)
+    mark_as_advanced(ODBC_LIBRARY ODBC_INCLUDES)
 
-    IF(ODBC_INCLUDE_DIR AND ODBC_LIBRARY)
+    IF(ODBC_INCLUDES AND ODBC_LIBRARY)
+      get_filename_component(ODBC_INCLUDE_DIR "${ODBC_INCLUDES}" PATH)
       set(CMAKE_REQUIRED_LIBRARIES ${ODBC_LIBRARY})
       set(CMAKE_REQUIRED_INCLUDES ${ODBC_INCLUDE_DIR})
       CHECK_CXX_SOURCE_COMPILES(
@@ -316,19 +319,27 @@ OPTION(CONNECT_WITH_REST "Compile CONNECT storage engine with REST support" ON)
 
 IF(CONNECT_WITH_REST)
   MESSAGE(STATUS "=====> REST support is ON")
-  FIND_PACKAGE(cpprestsdk)
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp tabrest.h)
+  add_definitions(-DREST_SUPPORT)
+  FIND_PACKAGE(cpprestsdk QUIET)
   IF (cpprestsdk_FOUND)
-    MESSAGE(STATUS "=====> cpprestsdk found")
 	IF(UNIX)
 #     INCLUDE_DIRECTORIES(${CPPRESTSDK_INCLUDE_DIR})
 #     If needed edit next line to set the path to libcpprest.so
       SET(REST_LIBRARY -lcpprest)
       MESSAGE (STATUS ${REST_LIBRARY})
+	ELSE(NOT UNIX)
+#     Next line sets debug compile mode matching cpprest_2_10d.dll
+#     when it was binary installed (can be change later in Visual Studio)
+#     Comment it out if not needed depending on your cpprestsdk installation.
+	  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
 	ENDIF(UNIX)
-    SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp restget.cpp tabrest.h)
-    add_definitions(-DREST_SUPPORT)
+#   IF(REST_LIBRARY)     why this? how about Windows
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES} restget.cpp)
+    add_definitions(-DREST_SOURCE)
+#   ENDIF()
   ELSE(NOT cpprestsdk_FOUND)
-    MESSAGE(STATUS "=====> cpprestsdk package not found")
+#    MESSAGE(STATUS "=====> cpprestsdk package not found")
   ENDIF (cpprestsdk_FOUND)
 ENDIF(CONNECT_WITH_REST)
 

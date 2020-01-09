@@ -272,8 +272,8 @@ void XINDEX::Close(void)
 /***********************************************************************/
 int XINDEX::Qcompare(int *i1, int *i2)
   {
-  register int  k;
-  register PXCOL kcp;
+  int  k;
+  PXCOL kcp;
 
   for (kcp = To_KeyCol, k = 0; kcp; kcp = kcp->Next)
     if ((k = kcp->Compare(*i1, *i2)))
@@ -659,7 +659,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*  Not true for DBF tables because of eventual soft deleted lines.  */
   /*  Note: for Num_K = 1 any non null value is Ok.                    */
   /*********************************************************************/
-  if (Srtd && !filp && Tdbp->Ftype != RECFM_VAR 
+  if (Srtd && !filp && Tdbp->Ftype != RECFM_VAR && Tdbp->Ftype != RECFM_CSV
                     && Tdbp->Txfp->GetAmType() != TYPE_AM_DBF) {
     Incr = (Num_K > 1) ? To_Rec[1] : Num_K;
     PlgDBfree(Record);
@@ -745,7 +745,7 @@ int XINDEX::ColMaxSame(PXCOL kp)
 /***********************************************************************/
 bool XINDEX::Reorder(PGLOBAL g __attribute__((unused)))
   {
-  register int i, j, k, n;
+  int i, j, k, n;
   bool          sorted = true;
   PXCOL         kcp;
 #if 0
@@ -837,7 +837,8 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -990,7 +991,8 @@ bool XINDEX::Init(PGLOBAL g)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -1243,7 +1245,8 @@ bool XINDEX::MapInit(PGLOBAL g)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -1457,7 +1460,8 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Tdbp->Ftype);
       return true;
@@ -1870,8 +1874,8 @@ int XINDEX::Fetch(PGLOBAL g)
 /***********************************************************************/
 int XINDEX::FastFind(void)
   {
-  register int  curk, sup, inf, i= 0, k, n = 2;
-  register PXCOL kp, kcp;
+  int  curk, sup, inf, i= 0, k, n = 2;
+  PXCOL kp, kcp;
 
 //assert((int)nv == Nval);
 
@@ -2209,8 +2213,8 @@ int XINDXS::Fetch(PGLOBAL g)
 /***********************************************************************/
 int XINDXS::FastFind(void)
   {
-  register int   sup, inf, i= 0, n = 2;
-  register PXCOL kcp = To_KeyCol;
+  int   sup, inf, i= 0, n = 2;
+  PXCOL kcp = To_KeyCol;
 
   if (Nblk && Op == OP_EQ) {
     // Look in block values to find in which block to search
@@ -3235,7 +3239,7 @@ void KXYCOL::FillValue(PVAL valp)
 int KXYCOL::Compare(int i1, int i2)
   {
   // Do the actual comparison between values.
-  register int k = Kblp->CompVal(i1, i2);
+  int k = Kblp->CompVal(i1, i2);
 
   if (trace(4))
     htrc("Compare done result=%d\n", k);
@@ -3250,7 +3254,7 @@ int KXYCOL::CompVal(int i)
   {
   // Do the actual comparison between numerical values.
   if (trace(4)) {
-    register int k = (int)Kblp->CompVal(Valp, (int)i);
+    int k = (int)Kblp->CompVal(Valp, (int)i);
 
     htrc("Compare done result=%d\n", k);
     return k;

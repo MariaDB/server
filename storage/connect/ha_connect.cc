@@ -170,9 +170,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0010 June 01, 2019";
+       char version[]= "Version 1.07.0001 November 12, 2019";
 #if defined(__WIN__)
-       char compver[]= "Version 1.06.0010 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.07.0001 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -1045,6 +1045,8 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
 				case TAB_REST:
 					type = TAB_NIY;
 					break;
+				default:
+					break;
 			}	// endswitch type
 #endif   // REST_SUPPORT
 
@@ -1341,7 +1343,7 @@ char *ha_connect::GetRealString(PCSZ s)
 {
   char *sv;
 
-  if (IsPartitioned() && s && partname && *partname) {
+  if (IsPartitioned() && s && *partname) {
     sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
     sprintf(sv, s, partname);
     PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
@@ -2964,10 +2966,12 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 			case Item_func::LE_FUNC:     vop= OP_LE;   break;
 			case Item_func::GE_FUNC:     vop= OP_GE;   break;
 			case Item_func::GT_FUNC:     vop= OP_GT;   break;
+#if MYSQL_VERSION_ID > 100200
 			case Item_func::LIKE_FUNC:
-				vop= OP_LIKE; 
-				neg= ((Item_func_opt_neg *)condf)->negated;
-				break;
+				vop = OP_LIKE;
+			  neg= ((Item_func_like*)condf)->negated;
+			  break;
+#endif // VERSION_ID > 100200
 			case Item_func::ISNOTNULL_FUNC:
 				neg= true;	
 				// fall through
@@ -3095,7 +3099,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                 strncat(s, res->ptr(), res->length());
 
                 if (res->length() < 19)
-                  strcat(s, "1970-01-01 00:00:00" + res->length());
+                  strcat(s, &"1970-01-01 00:00:00"[res->length()]);
 
                 strcat(s, "'}");
                 break;
@@ -3125,7 +3129,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                     strncat(s, res->ptr(), res->length());
 
                     if (res->length() < 19)
-                      strcat(s, "1970-01-01 00:00:00" + res->length());
+                      strcat(s, &"1970-01-01 00:00:00"[res->length()]);
 
                     strcat(s, "'}");
                     break;
@@ -3785,9 +3789,9 @@ int ha_connect::index_init(uint idx, bool sorted)
     active_index= MAX_KEY;
     rc= HA_ERR_INTERNAL_ERROR;
   } else if (tdbp->GetKindex()) {
-    if (((PTDBDOX)tdbp)->To_Kindex->GetNum_K()) {
+    if (((PTDBDOS)tdbp)->GetKindex()->GetNum_K()) {
       if (tdbp->GetFtype() != RECFM_NAF)
-        ((PTDBDOX)tdbp)->GetTxfp()->ResetBuffer(g);
+        ((PTDBDOS)tdbp)->GetTxfp()->ResetBuffer(g);
 
       active_index= idx;
 //  } else {        // Void table
@@ -4503,34 +4507,13 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 		case TAB_DIR:
 		case TAB_ZIP:
 		case TAB_OEM:
-#ifdef NO_EMBEDDED_ACCESS_CHECKS
-			return false;
-			#endif
-
-			/*
-			Check FILE_ACL
-			If table or table->mdl_ticket is NULL - it's a DLL, e.g. CREATE TABLE.
-			if the table has an MDL_EXCLUSIVE lock - it's a DDL too, e.g. the
-			insert step of CREATE ... SELECT.
-			
-			Otherwise it's a DML, the table was normally opened, locked,
-			privilege were already checked, and table->grant.privilege is set.
-			With SQL SECURITY DEFINER, table->grant.privilege has definer's privileges.
-			
-			Unless we're in prelocking mode, in this case table->grant.privilege
-			is only checked in start_stmt(), not in external_lock().
-			*/
-			if (!table || !table->mdl_ticket || table->mdl_ticket->get_type() == MDL_EXCLUSIVE)
-			  return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
-
-			if ((!quick && thd->lex->requires_prelocking()) || table->grant.privilege & FILE_ACL)
-			  return false;
-
-			status_var_increment(thd->status_var.access_denied_errors);
-			my_error(access_denied_error_code(thd->password), MYF(0),
-			         thd->security_ctx->priv_user, thd->security_ctx->priv_host,
-			         (thd->password ?  ER(ER_YES) : ER(ER_NO)));
-			return true;
+      if (table && table->pos_in_table_list) // if SELECT
+      {
+        Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
+        return check_global_access(thd, FILE_ACL);
+      }
+      else
+        return check_global_access(thd, FILE_ACL);
     case TAB_ODBC:
 		case TAB_JDBC:
 		case TAB_MONGO:
@@ -5653,6 +5636,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case TAB_CSV:
 					ttp = TAB_REST;
 					break;
+				default:
+					break;
 			}	// endswitch type
 #endif   // REST_SUPPORT
 		} // endif ttp
@@ -6062,7 +6047,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				} // endif !nblin
 
 				for (i= 0; !rc && i < qrp->Nblin; i++) {
-					typ= len= prec= dec= 0;
+					typ= len= prec= dec= flg= 0;
 					tm= NOT_NULL_FLAG;
 					cnm= (char*)"noname";
 					dft= xtra= key= fmt= tn= NULL;
@@ -6102,6 +6087,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 								if (crp->Kdata->GetIntValue(i))
 									tm= 0;               // Nullable
 
+								break;
+							case FLD_FLAG:
+								flg = crp->Kdata->GetIntValue(i);
 								break;
 							case FLD_FORMAT:
 								fmt= (crp->Kdata) ? crp->Kdata->GetCharValue(i) : NULL;
@@ -6233,7 +6221,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 						// Now add the field
 						if (add_field(&sql, cnm, typ, prec, dec, key, tm, rem, dft, xtra,
-							fmt, 0, dbf, v))
+							fmt, flg, dbf, v))
 							rc= HA_ERR_OUT_OF_MEM;
 				} // endfor i
 
@@ -7379,14 +7367,14 @@ maria_declare_plugin(connect)
   &connect_storage_engine,
   "CONNECT",
   "Olivier Bertrand",
-  "Management of External Data (SQL/NOSQL/MED), including many file formats",
+  "Management of External Data (SQL/NOSQL/MED), including Rest query results",
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
-  0x0106,                                       /* version number (1.06) */
+  0x0107,                                       /* version number (1.07) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.06.0010",                                  /* string version */
+  "1.07.0001",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;

@@ -206,6 +206,7 @@ void VALBLK::ChkIndx(int n)
   {
   if (n < 0 || n >= Nval) {
     PGLOBAL& g = Global;
+		xtrc(1, "ChkIndx: n=%d Nval=%d\n", n, Nval);
     strcpy(g->Message, MSG(BAD_VALBLK_INDX));
 		throw Type;
 	} // endif n
@@ -216,7 +217,8 @@ void VALBLK::ChkTyp(PVAL v)
   {
   if (Check && (Type != v->GetType() || Unsigned != v->IsUnsigned())) {
     PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(VALTYPE_NOMATCH));
+		xtrc(1, "ChkTyp: Type=%d valType=%d\n", Type, v->GetType());
+		strcpy(g->Message, MSG(VALTYPE_NOMATCH));
 		throw Type;
 	} // endif Type
 
@@ -511,7 +513,7 @@ void TYPBLK<TYPE>::SetValues(PVBLK pv, int k, int n)
   CheckType(pv)
   TYPE *lp = ((TYPBLK*)pv)->Typp;
 
-  for (register int i = k; i < n; i++)          // TODO
+  for (int i = k; i < n; i++)          // TODO
     Typp[i] = lp[i];
 
   } // end of SetValues
@@ -805,7 +807,7 @@ void CHRBLK::SetValue(const char *sp, uint len, int n)
 
   if (Blanks) {
     // Suppress eventual ending zero and right fill with blanks
-    for (register int i = len; i < Long; i++)
+    for (int i = len; i < Long; i++)
       p[i] = ' ';
 
   } else if ((signed)len < Long)
