@@ -881,7 +881,7 @@ public:
                                struct st_position *pos,
                                struct st_position *loose_scan_pos,
                                table_map sort_nest_tables,
-                               bool nest_created);
+                               bool nest_created, double sort_nest_records);
   friend bool get_best_combination(JOIN *join);
   friend int setup_semijoin_loosescan(JOIN *join);
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
@@ -2291,7 +2291,8 @@ void best_access_path(JOIN *join, JOIN_TAB *s,
                       const POSITION *join_positions, uint idx,
                       bool disable_jbuf, double record_count,
                       POSITION *pos, POSITION *loose_scan_pos,
-                      table_map sort_nest_tables, bool nest_created);
+                      table_map sort_nest_tables, bool nest_created,
+                      double sort_nest_records);
 bool cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref);
 bool error_if_full_join(JOIN *join);
 int report_error(TABLE *table, int error);
@@ -2672,7 +2673,7 @@ bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
 double prev_record_reads(const POSITION *positions, uint idx, table_map found_ref,
                          table_map sort_nest_tables,
-                         double fraction_output_for_nest);
+                         bool nest_created, double sort_nest_records);
 
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
 double get_tmp_table_lookup_cost(THD *thd, double row_count, ulong row_size);

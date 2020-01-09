@@ -1039,7 +1039,7 @@ int get_best_index_for_order_by_limit(JOIN_TAB *tab,
   double save_read_time= *read_time;
   double save_records= *records;
   double est_records= *records;
-  double fanout= MY_MAX(1.0, cardinality / est_records);
+  double fanout= cardinality / est_records;
   int best_index=-1;
   trace_index_for_ordering.add("rows_estimation", est_records);
   Json_writer_array considered_indexes(thd, "considered_indexes");

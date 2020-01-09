@@ -3140,7 +3140,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
       best_access_path(join, join->positions[i].table, rem_tables,
                        join->positions, i,
                        disable_jbuf, prefix_rec_count, &curpos, &dummy,
-                       0, FALSE);
+                       0, FALSE, DBL_MAX);
       prefix_rec_count= COST_MULT(prefix_rec_count, curpos.records_read);
       prefix_cost= COST_ADD(prefix_cost, curpos.read_time);
       prefix_cost= COST_ADD(prefix_cost,
@@ -3839,7 +3839,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         best_access_path(join, join->best_positions[i].table, rem_tables,
                          join->best_positions, i,
                          FALSE, prefix_rec_count,
-                         join->best_positions + i, &dummy, 0, FALSE);
+                         join->best_positions + i, &dummy, 0, FALSE, DBL_MAX);
         join->best_positions[i].sort_nest_operation_here= save_sort_nest_op;
         prefix_rec_count *= join->best_positions[i].records_read;
         rem_tables &= ~join->best_positions[i].table->table->map;
@@ -3882,7 +3882,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
                             rem_tables, join->best_positions, idx,
                             TRUE /* no jbuf */,
                             record_count, join->best_positions + idx, &dummy,
-                            0, FALSE);
+                            0, FALSE, DBL_MAX);
         }
         record_count *= join->best_positions[idx].records_read;
         rem_tables &= ~join->best_positions[idx].table->table->map;
@@ -3922,7 +3922,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
                             rem_tables, join->best_positions, idx,
                             TRUE /* no jbuf */,
                             record_count, join->best_positions + idx,
-                            &loose_scan_pos, 0, FALSE);
+                            &loose_scan_pos, 0, FALSE, DBL_MAX);
            if (idx==first)
            {
              join->best_positions[idx]= loose_scan_pos;
