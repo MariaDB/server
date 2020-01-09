@@ -119,7 +119,8 @@ static bool best_extension_by_limited_search(JOIN *join,
                                              uint use_cond_selectivity,
                                              table_map sort_nest_tables,
                                              bool nest_created,
-                                             bool limit_applied_to_nest);
+                                             bool limit_applied_to_nest,
+                                             double sort_nest_records);
 static uint determine_search_depth(JOIN* join);
 C_MODE_START
 static int join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2);
@@ -7240,7 +7241,8 @@ best_access_path(JOIN      *join,
                  double    record_count,
                  POSITION *pos,
                  POSITION *loose_scan_pos,
-                 table_map sort_nest_tables, bool nest_created)
+                 table_map sort_nest_tables, bool nest_created,
+                 double sort_nest_records)
 {
   THD *thd= join->thd;
   uint use_cond_selectivity= thd->variables.optimizer_use_condition_selectivity;
@@ -7361,9 +7363,9 @@ best_access_path(JOIN      *join,
             double tmp2= prev_record_reads(join_positions, idx,
                                            (found_ref | keyuse->used_tables),
                                            sort_nest_tables,
-                                           nest_created ?
-                                           join->fraction_output_for_nest :
-                                           1.0);
+                                           nest_created,
+                                           nest_created ? sort_nest_records:
+                                           DBL_MAX);
             if (tmp2 < best_prev_record_reads)
             {
               best_part_found_ref= keyuse->used_tables & ~join->const_table_map;
@@ -7405,9 +7407,8 @@ best_access_path(JOIN      *join,
           but 1.0 would be probably safer
         */
         tmp= prev_record_reads(join_positions, idx, found_ref,
-                               sort_nest_tables,
-                               nest_created ?
-                               join->fraction_output_for_nest : 1.0);
+                               sort_nest_tables, nest_created,
+                               nest_created ? sort_nest_records : DBL_MAX);
         records= 1.0;
         type= JT_FT;
         trace_access_idx.add("access_type", join_type_str[type])
@@ -7437,9 +7438,9 @@ best_access_path(JOIN      *join,
             trace_access_idx.add("access_type", join_type_str[type])
                             .add("index", keyinfo->name);
             tmp = prev_record_reads(join_positions, idx, found_ref,
-                                    sort_nest_tables,
+                                    sort_nest_tables, nest_created,
                                     nest_created ?
-                                    join->fraction_output_for_nest : 1.0);
+                                    sort_nest_records : DBL_MAX);
             records=1.0;
           }
           else
@@ -8092,7 +8093,6 @@ best_access_path(JOIN      *join,
     join->sort_by_table= (TABLE*) 1;  // Must use temporary table
   }
   trace_access_scan.end();
-  trace_paths.end();
 
   /*
     Use the estimate of rows read for a table for range/table scan
@@ -8166,6 +8166,8 @@ best_access_path(JOIN      *join,
 
   if (unlikely(thd->trace_started()))
     print_best_access_for_table(thd, pos, best_type);
+
+  trace_paths.end();
 
   DBUG_VOID_RETURN;
 }
@@ -8662,7 +8664,7 @@ optimize_straight_join(JOIN *join, table_map join_tables)
     best_access_path(join, s, join_tables, join->positions, idx,
                      disable_jbuf, record_count,
                      position, &loose_scan_pos,
-                     0, FALSE);
+                     0, FALSE, DBL_MAX);
 
     /* compute the cost of the new plan extended with 's' */
     record_count= COST_MULT(record_count, position->records_read);
@@ -8818,7 +8820,7 @@ greedy_search(JOIN      *join,
                                           prune_level),
                                          use_cond_selectivity,
                                          sort_nest_tables, FALSE,
-                                         FALSE))
+                                         FALSE, DBL_MAX))
       DBUG_RETURN(TRUE);
     /*
       'best_read < DBL_MAX' means that optimizer managed to find
@@ -9568,7 +9570,8 @@ best_extension_by_limited_search(JOIN      *join,
                                  uint      use_cond_selectivity,
                                  table_map sort_nest_tables,
                                  bool      nest_created,
-                                 bool      limit_applied_to_nest)
+                                 bool      limit_applied_to_nest,
+                                 double    sort_nest_records)
 {
   DBUG_ENTER("best_extension_by_limited_search");
 
@@ -9601,6 +9604,7 @@ best_extension_by_limited_search(JOIN      *join,
     double original_record_count= record_count;
     record_count= COST_MULT(record_count, join->fraction_output_for_nest);
     limit_applied_to_nest= TRUE;
+    sort_nest_records= record_count;
 
     if (unlikely(thd->trace_started()))
     {
@@ -9655,7 +9659,7 @@ best_extension_by_limited_search(JOIN      *join,
       POSITION loose_scan_pos;
       best_access_path(join, s, remaining_tables, join->positions, idx,
                        disable_jbuf, record_count, position, &loose_scan_pos,
-                       sort_nest_tables, nest_created);
+                       sort_nest_tables, nest_created, sort_nest_records);
 
       /*
         sort_nest_operation_here is set to TRUE here in the special case
@@ -9759,7 +9763,10 @@ best_extension_by_limited_search(JOIN      *join,
 
         if (join->is_index_with_ordering_allowed(idx) &&
             s->check_if_index_satisfies_ordering(index_used))
+        {
           limit_applied_to_nest= TRUE;
+          sort_nest_records= partial_join_cardinality;
+        }
 
         if (!nest_created &&
             (join->prefix_resolves_ordering ||
@@ -9788,7 +9795,8 @@ best_extension_by_limited_search(JOIN      *join,
                                                prune_level,
                                                use_cond_selectivity,
                                                sort_nest_tables | real_table_bit,
-                                               TRUE, limit_applied_to_nest))
+                                               TRUE, limit_applied_to_nest,
+                                               sort_nest_records))
             DBUG_RETURN(TRUE);
           if (!(join->is_index_with_ordering_allowed(idx) &&
               s->check_if_index_satisfies_ordering(index_used)))
@@ -9806,8 +9814,9 @@ best_extension_by_limited_search(JOIN      *join,
                                              use_cond_selectivity,
                                              nest_created ? sort_nest_tables :
                                              sort_nest_tables | real_table_bit,
-                                             nest_created,
-                                             limit_applied_to_nest))
+                                             nest_created || limit_applied_to_nest,
+                                             limit_applied_to_nest,
+                                             sort_nest_records))
           DBUG_RETURN(TRUE);
         trace_rest.end();
 
@@ -9815,6 +9824,7 @@ best_extension_by_limited_search(JOIN      *join,
         {
           limit_applied_to_nest= FALSE;
           join->positions[idx].sort_nest_operation_here= FALSE;
+          sort_nest_records= DBL_MAX;
         }
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
       }
@@ -10185,8 +10195,8 @@ cache_record_length_for_nest(JOIN *join,uint idx)
 
 double
 prev_record_reads(const POSITION *positions, uint idx, table_map found_ref,
-                  table_map sort_nest_tables,
-                  double fraction_output_for_nest)
+                  table_map sort_nest_tables, bool nest_created,
+                  double sort_nest_records)
 {
   double found=1.0;
   const POSITION *pos_end= positions - 1;
@@ -10196,8 +10206,11 @@ prev_record_reads(const POSITION *positions, uint idx, table_map found_ref,
     if (pos->table->table->map & found_ref)
     {
       found_ref|= pos->ref_depend_map;
-      if (pos->table->table->map & sort_nest_tables)
+      if (nest_created && pos->table->table->map & sort_nest_tables)
+      {
         apply_limit= TRUE;
+        break;
+      }
       /* 
         For the case of "t1 LEFT JOIN t2 ON ..." where t2 is a const table 
         with no matching row we will get position[t2].records_read==0. 
@@ -10218,8 +10231,15 @@ prev_record_reads(const POSITION *positions, uint idx, table_map found_ref,
         found= COST_MULT(found, pos->records_read);
      }
   }
+  /*
+    This needs to be done only once if the nest is created because we
+    would be referring to the context post sorting.
+  */
   if (apply_limit)
-    found= COST_MULT(found, fraction_output_for_nest);
+  {
+    DBUG_ASSERT(sort_nest_records != DBL_MAX);
+    found= COST_MULT(found, sort_nest_records);
+  }
   return found;
 }
 
@@ -17214,7 +17234,7 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
                        join->positions, i,
                        TRUE, rec_count,
                        &pos, &loose_scan_pos,
-                       0, FALSE);
+                       0, FALSE, DBL_MAX);
     }
     else 
       pos= join->positions[i];
