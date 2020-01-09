@@ -212,7 +212,8 @@ ha_clustrixdb_select_handler::~ha_clustrixdb_select_handler()
     if (table__)
       my_bitmap_free(&scan_fields);
 
-    remove_current_table_from_rpl_table_list(rgi);
+    if (rgi)
+        remove_current_table_from_rpl_table_list(rgi);
 }
 
 /*@brief  Initiate the query for select_handler           */
@@ -357,7 +358,8 @@ ha_clustrixdb_derived_handler::~ha_clustrixdb_derived_handler()
     if (table__)
       my_bitmap_free(&scan_fields);
 
-    remove_current_table_from_rpl_table_list(rgi);
+    if (rgi)
+        remove_current_table_from_rpl_table_list(rgi);
 }
 
 /*@brief  Initiate the query for derived_handler           */
