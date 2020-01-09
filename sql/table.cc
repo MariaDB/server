@@ -9014,7 +9014,8 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
         !thd->lex->can_not_use_merged() &&
         !(thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
           thd->lex->sql_command == SQLCOM_DELETE_MULTI) &&
-        !is_recursive_with_table())
+        !is_recursive_with_table() &&
+        !first_select->with_nextval)
       set_merged_derived();
     else
       set_materialized_derived();

@@ -1421,6 +1421,10 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   if (unit->fake_select_lex && unit->fake_select_lex->explicit_limit)
     DBUG_RETURN(false);
 
+  /* Avoid condition pushdown if sequence nextvalue is present */
+  if (sl->with_nextval)
+    DBUG_RETURN(false);
+
   /* Check whether any select of 'unit' allows condition pushdown */
   bool some_select_allows_cond_pushdown= false;
   for (; sl; sl= sl->next_select())

@@ -1309,6 +1309,8 @@ public:
   /* The object used to organize execution of the query by a foreign engine */
   Pushdown_select *pushdown_select;
 
+  bool with_nextval; /* sequence nextval present */
+
   /** System Versioning */
 public:
   uint versioned_tables;

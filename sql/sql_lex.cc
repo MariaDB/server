@@ -2987,6 +2987,7 @@ void st_select_lex::init_select()
   in_tvc= false;
   versioned_tables= 0;
   nest_flags= 0;
+  with_nextval= false;
 }
 
 /*

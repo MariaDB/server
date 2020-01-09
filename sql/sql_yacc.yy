@@ -9751,6 +9751,7 @@ column_default_non_parenthesized_expr:
           }
         | NEXT_SYM VALUE_SYM FOR_SYM table_ident
           {
+            Lex->current_select->with_nextval= true;
             if (!Lex->sequence_nextval_item_found($4->table))
               $$= Lex->create_item_func_nextval(thd, $4);
             else
@@ -9761,6 +9762,7 @@ column_default_non_parenthesized_expr:
           }
         | NEXTVAL_SYM '(' table_ident ')'
           {
+            Lex->current_select->with_nextval= true;
             if (!Lex->sequence_nextval_item_found($3->table))
               $$= Lex->create_item_func_nextval(thd, $3);
             else
