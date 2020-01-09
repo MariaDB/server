@@ -1,5 +1,5 @@
 call mtr.add_suppression("InnoDB: Warning: Index.*");
-set @saved_dbug = @@session.debug_dbug;
+SET @saved_dbug = @@SESSION.debug_dbug;
 set DEBUG_DBUG='+d,ib_ha_innodb_stat_not_initialized';
 create table t1(a int not null primary key, b int, c int, key(b), key(c)) engine=innodb;
 create procedure innodb_insert_proc (repeat_count int)
@@ -30,4 +30,4 @@ count(1)
 781
 drop procedure innodb_insert_proc;
 drop table t1;
-set debug_dbug= @saved_dbug;
+SET debug_dbug= @saved_dbug;

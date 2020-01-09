@@ -26,7 +26,7 @@ call mtr.add_suppression("Fatal error: The slave I/O thread stops because master
 call mtr.add_suppression("Slave I/O thread .* register on master");
 
 #Test case 1: Try to get the value of the UNIX_TIMESTAMP from master under network disconnection
-set @saved_dbug = @@global.debug_dbug;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 
 # set up two parameters to pass into extra/rpl_tests/rpl_get_master_version_and_clock
 let $dbug_sync_point= 'debug_lock.before_get_UNIX_TIMESTAMP';
@@ -42,7 +42,7 @@ source extra/rpl_tests/rpl_get_master_version_and_clock.test;
 
 
 # cleanup
-set @@global.debug_dbug = @saved_dbug;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 # is not really necessary but avoids mtr post-run env check warnings
 SET DEBUG_SYNC= 'RESET';
 

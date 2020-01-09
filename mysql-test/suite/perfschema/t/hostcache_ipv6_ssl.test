@@ -31,7 +31,7 @@ select current_user();
 disconnect con1;
 
 --connection default
-set @saved_dbug = @@global.debug_dbug;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
 
 --disable_query_log
@@ -69,5 +69,5 @@ connect (con2d,"::1",user_ssl_x509,good_password,test,$MASTER_MYPORT,,SSL);
 drop user 'user_ssl'@'santa.claus.ipv6.example.com';
 drop user 'user_ssl_x509'@'santa.claus.ipv6.example.com';
 
-set @@global.debug_dbug = @saved_dbug;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 

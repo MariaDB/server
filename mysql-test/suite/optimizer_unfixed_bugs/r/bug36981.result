@@ -1,4 +1,4 @@
-set @saved_dbug = @@session.debug_dbug;
+SET @saved_dbug = @@SESSION.debug_dbug;
 set session debug_dbug="+d,optimizer_innodb_icp";
 create table `t1` (`c1` char(1) default null,`c2` char(10) default null,
 key (`c1`))
@@ -8,4 +8,4 @@ select * from `t1` where `c1`='3' for update;
 c1	c2
 3	NULL
 drop table `t1`;
-set debug_dbug= @saved_dbug;
+SET debug_dbug= @saved_dbug;

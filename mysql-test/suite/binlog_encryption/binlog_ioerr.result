@@ -2,7 +2,7 @@ CALL mtr.add_suppression("Error writing file 'master-bin'");
 RESET MASTER;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=innodb;
 INSERT INTO t1 VALUES(0);
-set @saved_dbug = @@session.debug_dbug;
+SET @saved_dbug = @@SESSION.debug_dbug;
 SET SESSION debug_dbug='+d,fail_binlog_write_1';
 INSERT INTO t1 VALUES(1);
 ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")

@@ -133,7 +133,7 @@ set @save_dbug = @@session.debug_dbug;
 set @@session.debug_dbug='d,simulate_checksum_test_failure';
 --error ER_ERROR_WHEN_EXECUTING_COMMAND
 show binlog events;
-set debug_dbug= @save_dbug;
+SET debug_dbug= @save_dbug;
 set @@global.master_verify_checksum = default;
 
 #connection master;

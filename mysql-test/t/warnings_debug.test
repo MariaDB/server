@@ -9,7 +9,7 @@ create table t1 (a int primary key) engine=innodb;
 
 # Test that warnings produced during autocommit (after calling
 # set_ok_status()) are still reported to the client.
-set @saved_dbug = @@session.debug_dbug;
+SET @saved_dbug = @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,warn_during_ha_commit_trans";
 INSERT INTO t1 VALUES (1);
 # The warning will be shown automatically by mysqltest; there was a bug where
@@ -18,4 +18,4 @@ INSERT INTO t1 VALUES (1);
 SHOW WARNINGS;
 
 drop table t1;
-set debug_dbug= @saved_dbug;
+SET debug_dbug= @saved_dbug;

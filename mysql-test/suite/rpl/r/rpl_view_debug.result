@@ -21,7 +21,7 @@ Tables_in_test
 t1
 v1
 connection master;
-set @saved_dbug = @@session.debug_dbug;
+SET @saved_dbug = @@SESSION.debug_dbug;
 set @@debug_dbug="d,simulate_register_view_failure";
 CREATE VIEW v2 as SELECT * FROM t1;
 ERROR HY000: Out of memory; check if mysqld or some other process uses all available memory; if not, you may have to use 'ulimit' to allow mysqld to use more memory or you can add more swap space
@@ -37,5 +37,5 @@ v1
 connection master;
 DROP VIEW IF EXISTS v1;
 DROP TABLE t1;
-set debug_dbug= @saved_dbug;
+SET debug_dbug= @saved_dbug;
 include/rpl_end.inc

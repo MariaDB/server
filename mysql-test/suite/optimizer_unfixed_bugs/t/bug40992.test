@@ -5,7 +5,7 @@
 --source include/have_debug.inc
 --source include/have_innodb.inc
 
-set @saved_dbug = @@session.debug_dbug;
+SET @saved_dbug = @@SESSION.debug_dbug;
 # Crash requires that we enable Index Condition Pushdown in InnoDB
 set session debug_dbug="+d,optimizer_innodb_icp";
 
@@ -20,4 +20,4 @@ INSERT INTO t VALUES (1,1,1),(3,3,3),(5,5,5);
 SELECT * FROM t WHERE a > 2 FOR UPDATE;
 
 DROP TABLE t;
-set debug_dbug= @saved_dbug;
+SET debug_dbug= @saved_dbug;

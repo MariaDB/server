@@ -36,7 +36,7 @@ select count(*) from corrupt_bit_test_ā;
 SET @save_dbug = @@SESSION.debug_dbug;
 SET debug_dbug = '+d,dict_set_index_corrupted';
 check table corrupt_bit_test_ā;
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 
 # Cannot create new indexes while corrupted indexes exist
 --error ER_INDEX_CORRUPT

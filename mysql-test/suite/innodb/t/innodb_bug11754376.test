@@ -8,8 +8,8 @@
 CREATE TABLE bug11754376 (c INT) ENGINE=INNODB;
 
 # This will invoke test_normalize_table_name_low() in debug builds
-set @saved_dbug = @@session.debug_dbug;
+SET @saved_dbug = @@SESSION.debug_dbug;
 SET SESSION DEBUG_DBUG='+d,test_normalize_table_name_low';
 
 DROP TABLE bug11754376;
-set debug_dbug= @saved_dbug;
+SET debug_dbug= @saved_dbug;

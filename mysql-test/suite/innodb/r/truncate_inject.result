@@ -7,10 +7,10 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
-SET debug_dbug = '+d,ib_err_trunc_assigning_undo_log';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_assigning_undo_log';
 truncate table t;
 ERROR HY000: Got error 168 "Unknown (generic) error from engine" from storage engine InnoDB
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -20,10 +20,10 @@ i	f	c
 2	2.2	b
 3	3.3	c
 # 2. Error while preparing for truncate
-SET debug_dbug = '+d,ib_err_trunc_preparing_for_truncate';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_preparing_for_truncate';
 truncate table t;
 ERROR HY000: Got error 168 "Unknown (generic) error from engine" from storage engine InnoDB
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -33,10 +33,10 @@ i	f	c
 2	2.2	b
 3	3.3	c
 # 3. Error while dropping/creating indexes
-SET debug_dbug = '+d,ib_err_trunc_drop_index';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_drop_index';
 truncate table t;
 ERROR HY000: Got error 168 "Unknown (generic) error from engine" from storage engine InnoDB
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	Warning	InnoDB: Index PRIMARY is marked as corrupted
@@ -50,10 +50,10 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
-SET debug_dbug = '+d,ib_err_trunc_create_index';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_create_index';
 truncate table t;
 ERROR HY000: Got error 168 "Unknown (generic) error from engine" from storage engine InnoDB
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	Warning	InnoDB: Index PRIMARY is marked as corrupted
@@ -67,9 +67,9 @@ insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
-SET debug_dbug = '+d,ib_err_trunc_temp_recreate_index';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_temp_recreate_index';
 truncate table t;
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -85,9 +85,9 @@ insert into t values (1, 1.1, 'mysql is now oracle company'),
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
-SET debug_dbug = '+d,ib_err_trunc_temp_recreate_index';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_temp_recreate_index';
 truncate table t;
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
@@ -103,9 +103,9 @@ insert into t values (1, 1.1, 'mysql is now oracle company'),
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
-SET debug_dbug = '+d,ib_err_trunc_temp_recreate_index';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_temp_recreate_index';
 truncate table t;
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
