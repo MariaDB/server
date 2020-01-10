@@ -5889,10 +5889,8 @@ ER_PARTITION_MGMT_ON_NONPARTITIONED
         eng "Partition management on a not partitioned table is not possible"
         ger "Partitionsverwaltung einer nicht partitionierten Tabelle ist nicht möglich"
         swe "Partitioneringskommando på en opartitionerad tabell är inte möjligt"
-ER_FOREIGN_KEY_ON_PARTITIONED
-        eng "Foreign key clause is not yet supported in conjunction with partitioning"
-        ger "Fremdschlüssel-Beschränkungen sind im Zusammenhang mit Partitionierung nicht zulässig"
-        swe "Foreign key klausul är inte ännu implementerad i kombination med partitionering"
+ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+        eng "Partitioned tables do not support %s"
 ER_DROP_PARTITION_NON_EXISTENT
         eng "Error in list of partitions to %-.64s"
         ger "Fehler in der Partitionsliste bei %-.64s"
@@ -7944,8 +7942,6 @@ ER_WARN_HISTORY_ROW_START_TIME
 ER_PART_STARTS_BEYOND_INTERVAL
         eng "%`s: STARTS is later than query time, first history partition may exceed INTERVAL value"
 ER_KEY_CONTAINS_PERIOD_FIELDS
-        eng "Key %`s should not contain period fields in order to make it WITHOUT OVERLAPS"
-ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
-        eng "Period WITHOUT OVERLAPS is not implemented for partitioned tables"
+        eng "Key %`s cannot explicitly include column %`s"
 ER_PERIOD_WITHOUT_OVERLAPS_NON_UNIQUE
-        eng "Period WITHOUT OVERLAPS is only allowed for unique keys"
+        eng "Only UNIQUE or PRIMARY keys can be WITHOUT OVERLAPS"

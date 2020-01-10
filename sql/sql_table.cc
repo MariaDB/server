@@ -4587,7 +4587,8 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
       {
         // Unfortunately partitions do not support searching upper/lower bounds
         // (i.e. ha_index_read_map with KEY_OR_PREV, KEY_OR_NEXT)
-        my_error(ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED, MYF(0));
+        my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0),
+                 "WITHOUT OVERLAPS");
         return true;
       }
       const auto &period_start= create_info->period_info.period.start;
@@ -4598,7 +4599,8 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
         if (period_start.streq(key_part->field_name)
             || period_end.streq(key_part->field_name))
         {
-          my_error(ER_KEY_CONTAINS_PERIOD_FIELDS, MYF(0), key->name.str);
+          my_error(ER_KEY_CONTAINS_PERIOD_FIELDS, MYF(0), key->name.str,
+                   key_part->field_name);
           return true;
         }
       }
@@ -4711,7 +4713,7 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
 
     if (create_info->tmp_table())
     {
-      my_error(ER_PARTITION_NO_TEMPORARY, MYF(0));
+      my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "CREATE TEMPORARY TABLE");
       goto err;
     }
     if ((part_engine_type == partition_hton) &&
@@ -4837,7 +4839,8 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
     {
       if (key->type == Key::FOREIGN_KEY)
       {
-        my_error(ER_FOREIGN_KEY_ON_PARTITIONED, MYF(0));
+        my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), 
+                 "FOREIGN KEY");
         goto err;
       }
     }
