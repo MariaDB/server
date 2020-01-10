@@ -725,7 +725,7 @@ int ha_partition::create(const char *name, TABLE *table_arg,
   /* Not allowed to create temporary partitioned tables */
   if (create_info && create_info->tmp_table())
   {
-    my_error(ER_PARTITION_NO_TEMPORARY, MYF(0));
+    my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "CREATE TEMPORARY TABLE");
     DBUG_RETURN(TRUE);
   }
 
