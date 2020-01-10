@@ -42,7 +42,7 @@ SET @save_dbug = @@SESSION.debug_dbug;
 SET debug_dbug='+d,row_merge_ins_spatial_fail';
 create spatial index idx2 on t1(c2);
 ERROR HY000: Got error 1000 "Unknown error 1000" from storage engine InnoDB
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
