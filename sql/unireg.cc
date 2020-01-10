@@ -385,7 +385,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (create_info->period_info.name)
   {
-    // two extra2 sections are taken after 10.5
     extra2_size+= 2 + extra2_str_size(period_info_len)
                     + extra2_str_size(without_overlaps_len);
   }
