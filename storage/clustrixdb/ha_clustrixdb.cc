@@ -162,9 +162,19 @@ static MYSQL_THDVAR_BOOL(
     NULL,
     1
 );
+
 // Per thread derived handler knob
 static MYSQL_THDVAR_BOOL(
     derived_handler,
+    PLUGIN_VAR_NOCMDARG,
+    "",
+    NULL,
+    NULL,
+    1
+);
+
+static MYSQL_THDVAR_BOOL(
+    enable_direct_update,
     PLUGIN_VAR_NOCMDARG,
     "",
     NULL,
@@ -542,8 +552,10 @@ int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
 int ha_clustrixdb::direct_update_rows_init(List<Item> *update_fields)
 {
   DBUG_ENTER("ha_clustrixdb::direct_update_rows_init");
-  int error_code= 0;
-  DBUG_RETURN(error_code);
+  THD *thd= ha_thd();
+  if (!THDVAR(thd, enable_direct_update))
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  DBUG_RETURN(0);
 }
 
 int ha_clustrixdb::direct_update_rows(ha_rows *update_rows)
@@ -1352,6 +1364,7 @@ static struct st_mysql_sys_var* clustrixdb_system_variables[] =
   MYSQL_SYSVAR(row_buffer),
   MYSQL_SYSVAR(select_handler),
   MYSQL_SYSVAR(derived_handler),
+  MYSQL_SYSVAR(enable_direct_update),
   NULL
 };
 
