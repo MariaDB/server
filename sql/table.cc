@@ -2280,6 +2280,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   if (extra2.without_overlaps.str)
   {
+    if (extra2.application_period.str == NULL)
+      DBUG_RETURN(err());
     const uchar *key_pos= extra2.without_overlaps.str;
     period.unique_keys= read_frm_keyno(key_pos);
     for (uint k= 0; k < period.unique_keys; k++)
