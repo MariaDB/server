@@ -902,6 +902,12 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
 }
 
 
+/**
+  Compare base parts (not including the period) of keys with period
+  @return -1,    lhs less than rhs
+           0,    lhs   equals  rhs
+           1,    lhs more than rhs
+ */
 int key_period_compare_bases(const KEY &lhs_key, const KEY &rhs_key,
                              const uchar *lhs, const uchar *rhs)
 {
@@ -917,6 +923,12 @@ int key_period_compare_bases(const KEY &lhs_key, const KEY &rhs_key,
   return cmp_res;
 }
 
+/**
+  Compare periods of two keys
+  @return -1,    lhs preceeds rhs
+           0,    lhs overlaps rhs
+           1,    lhs succeeds rhs
+ */
 int key_period_compare_periods(const KEY &lhs_key, const KEY &rhs_key,
                                const uchar *lhs, const uchar *rhs)
 {

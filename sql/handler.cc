@@ -6993,6 +6993,7 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
                                               + table_share->reclength);
   auto *record_buffer= check_overlaps_buffer + table_share->max_unique_length;
   auto *handler= this;
+  // handler->inited can be NONE on INSERT
   if (handler->inited != NONE)
   {
     create_lookup_handler();
@@ -7030,23 +7031,6 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     if (error)
       return error;
 
-    auto old_row_found= [is_update, old_data, record_buffer, this, handler](){
-      if (!is_update)
-        return false;
-      /* In case of update it could appear that the nearest neighbour is
-       * a record we are updating. It means, that there are no overlaps
-       * from this side.
-       *
-       * An assumption is made that during update we always have the last
-       * fetched row in old_data. Therefore, comparing ref's is enough
-       * */
-      DBUG_ASSERT(handler != this && inited != NONE);
-      DBUG_ASSERT(ref_length == handler->ref_length);
-
-      handler->position(record_buffer);
-      return memcmp(ref, handler->ref, ref_length) == 0;
-    };
-
     error= handler->ha_start_keyread(key_nr);
     DBUG_ASSERT(!error);
 
@@ -7056,8 +7040,8 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     key_copy(check_overlaps_buffer, new_data, &key_info, 0);
 
     /* Copy period_end to period_start.
-     * the value in period_end field is not significant, but anyway let's leave
-     * it defined to avoid uninitialized memory access
+       the value in period_end field is not significant, but anyway let's leave
+       it defined to avoid uninitialized memory access
      */
     memcpy(check_overlaps_buffer + key_base_length,
            check_overlaps_buffer + key_base_length + period_field_length,
@@ -7069,8 +7053,23 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
                                        key_part_map((1 << key_parts) - 1),
                                        HA_READ_BEFORE_KEY);
 
-    if (!error && old_row_found())
-      error= handler->ha_index_prev(record_buffer);
+    if (!error && is_update)
+    {
+      /* In case of update it could happen that the nearest neighbour is
+         a record we are updating. It means, that there are no overlaps
+         from this side.
+        
+         An assumption is made that during update we always have the last
+         fetched row in old_data. Therefore, comparing ref's is enough
+      */
+      DBUG_ASSERT(handler != this);
+      DBUG_ASSERT(inited != NONE);
+      DBUG_ASSERT(ref_length == handler->ref_length);
+
+      handler->position(record_buffer);
+      if (memcmp(ref, handler->ref, ref_length) == 0)
+        error= handler->ha_index_prev(record_buffer);
+    }
 
     if (!error && table->check_period_overlaps(key_info, key_info,
                                         new_data, record_buffer) == 0)
@@ -7092,7 +7091,10 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 
   // Restore keyread of this handler, if it was enabled
   if (old_this_keyread < MAX_KEY)
-    DBUG_ASSERT(this->ha_start_keyread(old_this_keyread) == 0);
+  {
+    error= this->ha_start_keyread(old_this_keyread);
+    DBUG_ASSERT(error == 0);
+  }
 
   return error;
 }

@@ -8628,6 +8628,12 @@ void TABLE::evaluate_update_default_function()
   DBUG_VOID_RETURN;
 }
 
+/**
+  Compare two keys with periods
+  @return -1,    lhs precedes rhs
+           0,    lhs overlaps rhs
+           1,    lhs succeeds rhs
+ */
 int TABLE::check_period_overlaps(const KEY &lhs_key, const KEY &rhs_key,
                                  const uchar *lhs, const uchar *rhs)
 {
