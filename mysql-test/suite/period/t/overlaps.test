@@ -139,7 +139,7 @@ create or replace table t1 like t;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
---error ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
 create or replace table t1 (x int, s date, e date,
                             period for p(s,e),
                             primary key(x, p without overlaps)
@@ -148,12 +148,12 @@ create or replace table t1 (x int, s date, e date,
 create or replace table t1 (x int, s date, e date,
                             period for p(s,e),
                             primary key(x, p without overlaps));
---error ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
 alter table t1 partition by key (x);
 
 create or replace table t1 (x int, s date, e date, period for p (s, e))
                            partition by hash (x);
---error ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
 alter table t1 add primary key (x, p without overlaps);
 
 --error ER_PERIOD_WITHOUT_OVERLAPS_NON_UNIQUE

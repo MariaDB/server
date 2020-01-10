@@ -70,7 +70,7 @@ ERROR HY000: Period `p` is not found in table
 create or replace table t(id int, s date, e date,
 period for p(s,e),
 primary key(id, s, p without overlaps));
-ERROR HY000: Key `(null)` should not contain period fields in order to make it WITHOUT OVERLAPS
+ERROR HY000: Key `(null)` cannot explicitly include column `s`
 create or replace table t(id int, s date, e date,
 period for p(s,e),
 primary key(id));
@@ -155,18 +155,18 @@ create or replace table t1 (x int, s date, e date,
 period for p(s,e),
 primary key(x, p without overlaps)
 ) partition by key (x);
-ERROR HY000: Period WITHOUT OVERLAPS is not implemented for partitioned tables
+ERROR HY000: Partitioned tables do not support WITHOUT OVERLAPS
 create or replace table t1 (x int, s date, e date,
 period for p(s,e),
 primary key(x, p without overlaps));
 alter table t1 partition by key (x);
-ERROR HY000: Period WITHOUT OVERLAPS is not implemented for partitioned tables
+ERROR HY000: Partitioned tables do not support WITHOUT OVERLAPS
 create or replace table t1 (x int, s date, e date, period for p (s, e))
 partition by hash (x);
 alter table t1 add primary key (x, p without overlaps);
-ERROR HY000: Period WITHOUT OVERLAPS is not implemented for partitioned tables
+ERROR HY000: Partitioned tables do not support WITHOUT OVERLAPS
 create or replace table t2 (x int, s date, e date,
 period for p (s, e),
 key(x, p without overlaps));
-ERROR HY000: Period WITHOUT OVERLAPS is only allowed for unique keys
+ERROR HY000: Only UNIQUE or PRIMARY keys can be WITHOUT OVERLAPS
 create or replace database test;

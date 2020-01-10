@@ -12454,7 +12454,8 @@ create_table_info_t::create_foreign_keys()
 			/* How could one make a referenced table to be a
 			 * partition? */
 			ut_ad(0);
-			my_error(ER_FOREIGN_KEY_ON_PARTITIONED, MYF(0));
+			my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING,
+				 MYF(0), "FOREIGN KEY");
 			return (DB_CANNOT_ADD_CONSTRAINT);
 		}
 

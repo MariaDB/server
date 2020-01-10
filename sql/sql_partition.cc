@@ -4815,7 +4815,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
   if (table->part_info && (alter_info->flags & (ALTER_ADD_FOREIGN_KEY |
                                                 ALTER_DROP_FOREIGN_KEY)))
   {
-    my_error(ER_FOREIGN_KEY_ON_PARTITIONED, MYF(0));
+    my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "FOREIGN KEY");
     DBUG_RETURN(TRUE);
   }
   /* Remove partitioning on a not partitioned table is not possible */
