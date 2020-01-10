@@ -6416,11 +6416,11 @@ int handler::ha_external_lock(THD *thd, int lock_type)
       mysql_audit_external_lock(thd, table_share, lock_type);
   }
 
-  if (lock_type == F_UNLCK && check_overlaps_handler)
+  if (lock_type == F_UNLCK && lookup_handler)
   {
-    check_overlaps_handler->ha_external_lock(table->in_use, F_UNLCK);
-    check_overlaps_handler->close();
-    check_overlaps_handler= NULL;
+    lookup_handler->ha_external_lock(table->in_use, F_UNLCK);
+    lookup_handler->close();
+    lookup_handler= NULL;
     overlaps_error_key= -1;
   }
 
@@ -6583,10 +6583,12 @@ exit:
     unique constraint on long columns.
     @returns 0 if no duplicate else returns error
   */
-static int check_duplicate_long_entries(TABLE *table, handler *h,
-                                        const uchar *new_rec)
+int handler::check_duplicate_long_entries(const uchar *new_rec)
 {
-  table->file->errkey= -1;
+  if (this->inited == RND)
+    create_lookup_handler();
+  handler *h= lookup_handler ? lookup_handler : table->file;
+  errkey= -1;
   int result;
   for (uint i= 0; i < table->s->keys; i++)
   {
@@ -6611,7 +6613,7 @@ static int check_duplicate_long_entries(TABLE *table, handler *h,
     key as a parameter in normal insert key should be -1
     @returns 0 if no duplicate else returns error
   */
-static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *new_rec)
+int handler::check_duplicate_long_entries_update(const uchar *new_rec)
 {
   Field *field;
   uint key_parts;
@@ -6623,7 +6625,8 @@ static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *
      with respect to fields in hash_str
    */
   uint reclength= (uint) (table->record[1] - table->record[0]);
-  table->clone_handler_for_update();
+  error= create_lookup_handler();
+  
   for (uint i= 0; i < table->s->keys; i++)
   {
     keyinfo= table->key_info + i;
@@ -6637,8 +6640,8 @@ static int check_duplicate_long_entries_update(TABLE *table, handler *h, uchar *
         /* Compare fields if they are different then check for duplicates*/
         if(field->cmp_binary_offset(reclength))
         {
-          if((error= check_duplicate_long_entry_key(table, table->update_handler,
-                                                 new_rec, i)))
+          if((error= check_duplicate_long_entry_key(table, lookup_handler,
+                                                    new_rec, i)))
             goto exit;
           /*
             break because check_duplicate_long_entries_key will
@@ -6672,10 +6675,7 @@ int handler::ha_write_row(const uchar *buf)
 
   if (table->s->long_unique_table)
   {
-    if (this->inited == RND)
-      table->clone_handler_for_update();
-    handler *h= table->update_handler ? table->update_handler : table->file;
-    if ((error= check_duplicate_long_entries(table, h, buf)))
+    if ((error= check_duplicate_long_entries(buf)))
       DBUG_RETURN(error);
   }
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
@@ -6722,7 +6722,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_update_count);
   if (table->s->long_unique_table &&
-          (error= check_duplicate_long_entries_update(table, table->file, (uchar *)new_data)))
+          (error= check_duplicate_long_entries_update(new_data)))
   {
     return error;
   }
@@ -6963,6 +6963,21 @@ void handler::set_lock_type(enum thr_lock_type lock)
   table->reginfo.lock_type= lock;
 }
 
+/**
+  @brief clone of current handler.
+  Creates a clone of handler used for unique hash key and WITHOUT OVERLAPS.
+  @return error code
+*/
+int handler::create_lookup_handler() 
+{
+  if (lookup_handler)
+    return 0;
+  lookup_handler= clone(table_share->normalized_path.str,
+                        table->in_use->mem_root);
+  int error= lookup_handler->ha_external_lock(table->in_use, F_RDLCK);
+  return error;
+}
+
 int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 {
   DBUG_ASSERT(new_data);
@@ -6980,17 +6995,8 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
   auto *handler= this;
   if (handler->inited != NONE)
   {
-    if (!check_overlaps_handler)
-    {
-      check_overlaps_handler= clone(table_share->normalized_path.str,
-                                    &table_share->mem_root);
-      int error= -1;
-      if (check_overlaps_handler != NULL)
-        error= check_overlaps_handler->ha_external_lock(table->in_use, F_RDLCK);
-      if (error)
-        return error;
-    }
-    handler= check_overlaps_handler;
+    create_lookup_handler();
+    handler= lookup_handler;
 
     // Needs to compare record refs later is old_row_found()
     if (is_update)
