@@ -3138,7 +3138,6 @@ os_file_io(
 			bytes_returned += n_bytes;
 
 			if (offset > 0
-			    && !type.is_log()
 			    && type.is_write()
 			    && type.punch_hole()) {
 				*err = type.punch_hole(file, offset, n);

@@ -3993,19 +3993,12 @@ fil_io(
 	ut_ad(recv_no_ibuf_operations
 	      || req_type.is_write()
 	      || !ibuf_bitmap_page(page_id, zip_size)
-	      || sync
-	      || req_type.is_log());
+	      || sync);
 
 	ulint	mode;
 
 	if (sync) {
-
 		mode = OS_AIO_SYNC;
-
-	} else if (req_type.is_log()) {
-
-		mode = OS_AIO_LOG;
-
 	} else if (req_type.is_read()
 		   && !recv_no_ibuf_operations
 		   && ibuf_page(page_id, zip_size, NULL)) {

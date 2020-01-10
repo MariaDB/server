@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -187,10 +187,6 @@ static const ulint OS_FILE_ERROR_MAX = 200;
 /** No transformations during read/write, write as is. */
 #define IORequestRead		IORequest(IORequest::READ)
 #define IORequestWrite		IORequest(IORequest::WRITE)
-#define IORequestLogRead	IORequest(IORequest::LOG | IORequest::READ)
-#define IORequestLogWrite	IORequest(IORequest::LOG | IORequest::WRITE)
-
-
 
 /**
 The IO Context that is passed down to the low level IO code */
@@ -208,9 +204,6 @@ public:
 
 		/** Data file */
 		DATA_FILE = 8,
-
-		/** Log file request*/
-		LOG = 16,
 
 		/** Disable partial read warnings */
 		DISABLE_PARTIAL_IO_WARNINGS = 32,
@@ -277,13 +270,6 @@ public:
 		MY_ATTRIBUTE((warn_unused_result))
 	{
 		return((m_type & WRITE) == WRITE);
-	}
-
-	/** @return true if it is a redo log write */
-	bool is_log() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return((m_type & LOG) == LOG);
 	}
 
 	/** Clear the punch hole flag */
@@ -416,9 +402,6 @@ static const ulint OS_AIO_NORMAL = 21;
 
 /**  Asynchronous i/o for ibuf pages or ibuf bitmap pages */
 static const ulint OS_AIO_IBUF = 22;
-
-/** Asynchronous i/o for the log */
-static const ulint OS_AIO_LOG = 23;
 
 /**Calling thread will wait for the i/o to complete,
 and perform IO completion routine itself;
