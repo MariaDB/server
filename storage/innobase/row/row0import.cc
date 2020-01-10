@@ -1154,60 +1154,82 @@ row_import::match_table_columns(
 
 			if (cfg_col->prtype != col->prtype) {
 				ib_errf(thd,
-					 IB_LOG_LEVEL_ERROR,
-					 ER_TABLE_SCHEMA_MISMATCH,
-					 "Column %s precise type mismatch.",
-					 col_name);
+					IB_LOG_LEVEL_ERROR,
+					ER_TABLE_SCHEMA_MISMATCH,
+					"Column %s precise type mismatch,"
+					" it's 0X%X in the table and 0X%X"
+					" in the tablespace meta file",
+					col_name, col->prtype, cfg_col->prtype);
 				err = DB_ERROR;
 			}
 
 			if (cfg_col->mtype != col->mtype) {
 				ib_errf(thd,
-					 IB_LOG_LEVEL_ERROR,
-					 ER_TABLE_SCHEMA_MISMATCH,
-					 "Column %s main type mismatch.",
-					 col_name);
+					IB_LOG_LEVEL_ERROR,
+					ER_TABLE_SCHEMA_MISMATCH,
+					"Column %s main type mismatch,"
+					" it's 0X%X in the table and 0X%X"
+					" in the tablespace meta file",
+					col_name, col->mtype, cfg_col->mtype);
 				err = DB_ERROR;
 			}
 
 			if (cfg_col->len != col->len) {
 				ib_errf(thd,
-					 IB_LOG_LEVEL_ERROR,
-					 ER_TABLE_SCHEMA_MISMATCH,
-					 "Column %s length mismatch.",
-					 col_name);
+					IB_LOG_LEVEL_ERROR,
+					ER_TABLE_SCHEMA_MISMATCH,
+					"Column %s length mismatch,"
+					" it's %u in the table and %u"
+					" in the tablespace meta file",
+					col_name, col->len, cfg_col->len);
 				err = DB_ERROR;
 			}
 
 			if (cfg_col->mbminlen != col->mbminlen
 			    || cfg_col->mbmaxlen != col->mbmaxlen) {
 				ib_errf(thd,
-					 IB_LOG_LEVEL_ERROR,
-					 ER_TABLE_SCHEMA_MISMATCH,
-					 "Column %s multi-byte len mismatch.",
-					 col_name);
+					IB_LOG_LEVEL_ERROR,
+					ER_TABLE_SCHEMA_MISMATCH,
+					"Column %s multi-byte len mismatch,"
+					" it's %u-%u in the table and %u-%u"
+					" in the tablespace meta file",
+					col_name, col->mbminlen, col->mbmaxlen,
+					cfg_col->mbminlen, cfg_col->mbmaxlen);
 				err = DB_ERROR;
 			}
 
 			if (cfg_col->ind != col->ind) {
+				ib_errf(thd,
+					IB_LOG_LEVEL_ERROR,
+					ER_TABLE_SCHEMA_MISMATCH,
+					"Column %s position mismatch,"
+					" it's %u in the table and %u"
+					" in the tablespace meta file",
+					col_name, col->ind, cfg_col->ind);
 				err = DB_ERROR;
 			}
 
 			if (cfg_col->ord_part != col->ord_part) {
 				ib_errf(thd,
-					 IB_LOG_LEVEL_ERROR,
-					 ER_TABLE_SCHEMA_MISMATCH,
-					 "Column %s ordering mismatch.",
-					 col_name);
+					IB_LOG_LEVEL_ERROR,
+					ER_TABLE_SCHEMA_MISMATCH,
+					"Column %s ordering mismatch,"
+					" it's %u in the table and %u"
+					" in the tablespace meta file",
+					col_name, col->ord_part,
+					cfg_col->ord_part);
 				err = DB_ERROR;
 			}
 
 			if (cfg_col->max_prefix != col->max_prefix) {
 				ib_errf(thd,
-					 IB_LOG_LEVEL_ERROR,
-					 ER_TABLE_SCHEMA_MISMATCH,
-					 "Column %s max prefix mismatch.",
-					 col_name);
+					IB_LOG_LEVEL_ERROR,
+					ER_TABLE_SCHEMA_MISMATCH,
+					"Column %s max prefix mismatch"
+					" it's %u in the table and %u"
+					" in the tablespace meta file",
+					col_name, col->max_prefix,
+					cfg_col->max_prefix);
 				err = DB_ERROR;
 			}
 		}

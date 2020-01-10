@@ -410,7 +410,7 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Column c2 precise type mismatch.)
+ERROR HY000: Schema mismatch (Column c2 precise type mismatch, it's 0X408 in the table and 0X403 in the tablespace meta file)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
