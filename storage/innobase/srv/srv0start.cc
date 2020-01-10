@@ -1597,8 +1597,6 @@ dberr_t srv_start(bool create_new_db)
 
 		srv_n_log_files_found = i;
 
-		ut_a(srv_log_file_size <= log_group_max_size);
-
 		std::vector<std::string> file_names;
 
 		for (unsigned j = 0; j < srv_n_log_files_found; j++) {

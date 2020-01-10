@@ -116,6 +116,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "ut0mutex.h"
 #include "row0ext.h"
 
+#include <limits>
+
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
 extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all);
@@ -3706,15 +3708,6 @@ static int innodb_init_params()
 
 	if (strchr(srv_log_group_home_dir, ';')) {
 		sql_print_error("syntax error in innodb_log_group_home_dir");
-		DBUG_RETURN(HA_ERR_INITIALIZATION);
-	}
-
-	if (srv_n_log_files * srv_log_file_size >= log_group_max_size) {
-		/* Log group size is limited by the size of page number.
-		Remove this limitation when fil_io() is not used for
-		recovery log io. */
-		ib::error() << "Combined size of log files must be < "
-			<< log_group_max_size;
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
@@ -19725,7 +19718,8 @@ static MYSQL_SYSVAR_ULONG(log_buffer_size, srv_log_buffer_size,
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Size of each log file in a log group.",
-  NULL, NULL, 96 << 20, 1 << 20, log_group_max_size, UNIV_PAGE_SIZE_MAX);
+  NULL, NULL, 96 << 20, 1 << 20, std::numeric_limits<ulonglong>::max(),
+  UNIV_PAGE_SIZE_MAX);
 /* OS_FILE_LOG_BLOCK_SIZE would be more appropriate than UNIV_PAGE_SIZE_MAX,
 but fil_space_t is being used for the redo log, and it uses data pages. */
 
