@@ -6,7 +6,6 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
-CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread.");
 --let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
 
 --connection node_1
@@ -14,32 +13,40 @@ CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
 CREATE TABLE t2 (f1 INT AUTO_INCREMENT PRIMARY KEY) Engine=InnoDB;
 
 --connection node_2
-
+CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread.");
 # Setting wsrep_slave_threads to zero triggers a warning
 SET GLOBAL wsrep_slave_threads = 0;
 SHOW WARNINGS;
 SELECT @@wsrep_slave_threads = 1;
 
+--echo # wsrep_slave_threads = 1
 SET GLOBAL wsrep_slave_threads = 1;
+
 # There is a separate wsrep_aborter thread at all times
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 #
 # Increase the number of slave threads. The change takes effect immediately
 #
 
 SET GLOBAL wsrep_slave_threads = 64;
---sleep 0.5
 
 --connection node_1
 INSERT INTO t1 VALUES (1);
 
 --connection node_2
-SELECT COUNT(*) = 1 FROM t1;
+--let $wait_timeout=600
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
 
-SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+SELECT COUNT(*) FROM t1;
+
+--echo # wsrep_slave_threads = 64
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 #
 # Reduce the number of slave threads. The change is not immediate -- a thread will only exit after a replication event
@@ -49,20 +56,29 @@ SET GLOBAL wsrep_slave_threads = 1;
 
 --connection node_1
 
-# Generate 64 replication events
---let $count = 64
+--disable_result_log
+--disable_query_log
+# Generate 66 replication events
+--let $count = 66
 while ($count)
 {
   INSERT INTO t2 VALUES (DEFAULT);
   --dec $count
 }
+--enable_query_log
+--enable_result_log
 
 --connection node_2
-SELECT COUNT(*) = 64 FROM t2;
+--let $wait_condition = SELECT COUNT(*) = 66 FROM t2;
+--source include/wait_condition.inc
 
-SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+SELECT COUNT(*) FROM t2;
 
+--echo # wsrep_slave_threads = 1
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
 
@@ -78,7 +94,34 @@ CREATE TABLE t1 (i INT AUTO_INCREMENT PRIMARY KEY) ENGINE=INNODB;
 
 --connection node_2
 SET GLOBAL wsrep_slave_threads = 4;
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user'
+--source include/wait_condition.inc
+
 SET GLOBAL wsrep_slave_threads = 1;
+
+--connection node_1
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
 DROP TABLE t1;
+
+--connection node_2
+
+# Wait until above DDL is replicated
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+
+#
+# make sure that we are left with exactly one applier thread before we leaving the test
+#
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user'
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 --echo # End of tests

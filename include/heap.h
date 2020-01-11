@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /* This file should be included when using heap_database_functions */
@@ -144,6 +144,7 @@ typedef struct st_heap_share
   uint key_version;                     /* Updated on key change */
   uint file_version;                    /* Update on clear */
   uint reclength;			/* Length of one record */
+  uint visible;                         /* Offset to the visible/deleted mark */
   uint changed;
   uint keys,max_key_length;
   uint currently_disabled_keys;    /* saved value from "keys" when disabled */
@@ -216,7 +217,7 @@ extern int heap_write(HP_INFO *info,const uchar *buff);
 extern int heap_update(HP_INFO *info,const uchar *old,const uchar *newdata);
 extern int heap_rrnd(HP_INFO *info,uchar *buf,uchar *pos);
 extern int heap_scan_init(HP_INFO *info);
-extern int heap_scan(register HP_INFO *info, uchar *record);
+extern int heap_scan(HP_INFO *info, uchar *record);
 extern int heap_delete(HP_INFO *info,const uchar *buff);
 extern int heap_info(HP_INFO *info,HEAPINFO *x,int flag);
 extern int heap_create(const char *name,
@@ -245,7 +246,7 @@ int hp_panic(enum ha_panic_function flag);
 int heap_rkey(HP_INFO *info, uchar *record, int inx, const uchar *key,
               key_part_map keypart_map, enum ha_rkey_function find_flag);
 extern uchar * heap_find(HP_INFO *info,int inx,const uchar *key);
-extern int heap_check_heap(HP_INFO *info, my_bool print_status);
+extern int heap_check_heap(const HP_INFO *info, my_bool print_status);
 extern uchar *heap_position(HP_INFO *info);
 
 /* The following is for programs that uses the old HEAP interface where

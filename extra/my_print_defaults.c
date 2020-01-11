@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -206,6 +206,9 @@ int main(int argc, char **argv)
   if ((error= load_defaults(config_file, (const char **) load_default_groups,
 			   &count, &arguments)))
   {
+    my_end(0);
+    if (error == 4)
+      return 0;
     if (verbose && opt_defaults_file_used)
     {
       if (error == 1)
@@ -216,8 +219,7 @@ int main(int argc, char **argv)
 	fprintf(stderr, "WARNING: Defaults file '%s' is not a regular file!\n",
 		config_file);
     }
-    error= 2;
-    exit(error);
+    return 2;
   }
 
   for (argument= arguments+1 ; *argument ; argument++)

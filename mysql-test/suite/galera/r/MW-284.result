@@ -14,3 +14,6 @@ STOP SLAVE;
 RESET SLAVE ALL;
 CALL mtr.add_suppression('failed registering on master');
 CALL mtr.add_suppression('You need to use --log-bin to make --binlog-format work');
+RESET MASTER;
+CALL mtr.add_suppression('WSREP: Last Applied Action message in non-primary configuration from member');
+CALL mtr.add_suppression('WSREP: Last Applied Action message in non-primary configuration from member');

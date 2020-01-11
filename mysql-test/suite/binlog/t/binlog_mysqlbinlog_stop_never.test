@@ -1,0 +1,66 @@
+# ==== Purpose ====
+#
+# Test verifies that continuous streaming of binary log content using the
+# "mysqlbinlog --stop-never" option and sourcing it to mysql client works
+# fine.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    1 - Create a table on a server on which binary log is enabled and insert
+#        a row.
+#    2 - Disable the binary log on the server and drop the table.
+#    3 - Capture the binary log output using "mysqlbinlog --stop_never" option
+#        and source it to mysql client.
+#    4 - Query the PROCESSLIST table to ensure that the dump thread which is
+#        serving "stop_never" option has read entire binlog.
+#    5 - Verify that the table is populated on the server.
+#    6 - Cleanup.
+#
+# ==== References ====
+#
+# MDEV-11154: Write_on_release_cache(log_event.cc) function will not write
+#             "COMMIT", if use "mysqlbinlog ... | mysql ..."
+
+--source include/not_windows.inc
+
+# Test is not specific to any binlog format. Hence Running only for 'row'.
+--source include/have_binlog_format_row.inc
+
+# binlog file name is needed in the test. To use master-bin.000001,
+# RESET MASTER is needed.
+RESET MASTER;
+# kill the dump threads if there any dump threads (may be from previous test)
+--source include/stop_dump_threads.inc
+
+--echo # Step-1: Execute some dummy statements.
+CREATE TABLE t1(i int);
+INSERT INTO t1 values (1);
+
+--echo # Step-2: Disable binary log temporarily and drop the table 't1'.
+set @@SESSION.SQL_LOG_BIN = 0;
+DROP TABLE t1;
+set @@SESSION.SQL_LOG_BIN = 1;
+
+--echo # Step-3: Execute MYSQL_BINLOG with --stop-never and source it to mysql client.
+--write_file $MYSQL_TMP_DIR/mysqlbinlog_stop_never.sh
+(`$MYSQL_BINLOG --read-from-remote-server --stop-never --user=root --host=127.0.0.1 --port=$MASTER_MYPORT  master-bin.000001 | $MYSQL --user=root --protocol=tcp --host=127.0.0.1 --port=$MASTER_MYPORT`) < /dev/null > /dev/null 2>&1  &
+EOF
+--exec /bin/bash $MYSQL_TMP_DIR/mysqlbinlog_stop_never.sh
+
+--echo # Step-4: Wait till dump thread transfer is completed.
+let $wait_condition= SELECT id from information_schema.processlist where processlist.command like '%Binlog%' and state like '%Master has sent%';
+--source include/wait_condition.inc
+
+--echo # Step-5: Check that the data is there.
+let $count= 1;
+let $table= test.t1;
+source include/wait_until_rows_count.inc;
+
+--echo # Step-6: Cleanup
+--echo # kill the dump thread serving the mysqlbinlog --stop-never process
+--source include/stop_dump_threads.inc
+
+DROP TABLE t1;
+--remove_file $MYSQL_TMP_DIR/mysqlbinlog_stop_never.sh
+

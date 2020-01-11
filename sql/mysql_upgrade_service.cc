@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   mysql_upgrade_service upgrades mysql service on Windows.
@@ -146,6 +146,12 @@ static void die(const char *fmt, ...)
   exit(1);
 }
 
+#define WRITE_LOG(fmt,...) {\
+  char log_buf[1024]; \
+  DWORD nbytes; \
+  snprintf(log_buf,sizeof(log_buf), fmt, __VA_ARGS__);\
+  WriteFile(logfile_handle,log_buf, strlen(log_buf), &nbytes , 0);\
+}
 
 /*
   spawn-like function to run subprocesses. 
@@ -187,16 +193,21 @@ static intptr_t run_tool(int wait_flag, const char *program,...)
   {
     char tmpdir[FN_REFLEN];
     GetTempPath(FN_REFLEN, tmpdir);
-    sprintf_s(logfile_path, "%s\\mysql_upgrade_service.%s.log", tmpdir, 
+    sprintf_s(logfile_path, "%smysql_upgrade_service.%s.log", tmpdir,
       opt_service);
-    logfile_handle= CreateFile(logfile_path, GENERIC_WRITE,  FILE_SHARE_READ, 
-      NULL, TRUNCATE_EXISTING, 0, NULL);
-    if (!logfile_handle)
+    SECURITY_ATTRIBUTES attr= {0};
+    attr.nLength= sizeof(SECURITY_ATTRIBUTES);
+    attr.bInheritHandle=  TRUE;
+    logfile_handle= CreateFile(logfile_path, FILE_APPEND_DATA,
+      FILE_SHARE_READ|FILE_SHARE_WRITE, &attr, CREATE_ALWAYS, 0, NULL);
+    if (logfile_handle == INVALID_HANDLE_VALUE)
     {
       die("Cannot open log file %s, windows error %u", 
         logfile_path, GetLastError());
     }
   }
+
+  WRITE_LOG("Executing %s\r\n", cmdline);
 
   /* Start child process */
   STARTUPINFO si= {0};
@@ -458,7 +469,7 @@ int main(int argc, char **argv)
   log("Phase 3/8: Starting mysqld for upgrade");
   mysqld_process= (HANDLE)run_tool(P_NOWAIT, mysqld_path,
     defaults_file_param, "--skip-networking",  "--skip-grant-tables", 
-    "--enable-named-pipe",  socket_param, NULL);
+    "--enable-named-pipe",  socket_param,"--skip-slave-start", NULL);
 
   if (mysqld_process == INVALID_HANDLE_VALUE)
   {

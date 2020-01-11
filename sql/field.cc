@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /**
@@ -2725,7 +2725,7 @@ int Field_decimal::store(double nr)
     return 1;
   }
 
-  reg4 uint i;
+  uint i;
   size_t length;
   uchar fyllchar,*to;
   char buff[DOUBLE_TO_STRING_CONVERSION_BUFFER_SIZE];
@@ -4430,7 +4430,8 @@ longlong Field_float::val_int(void)
 {
   float j;
   float4get(j,ptr);
-  return (longlong) rint(j);
+  bool error;
+  return double_to_longlong(j, false, &error);
 }
 
 
@@ -7942,7 +7943,13 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
     return 0;
   }
 
-  if (table->blob_storage)    // GROUP_CONCAT with ORDER BY | DISTINCT
+  /*
+    For min/max fields of statistical data 'table' is set to NULL.
+    It could not be otherwise as this data is shared by many instances
+    of the same base table.
+  */
+
+  if (table && table->blob_storage)    // GROUP_CONCAT with ORDER BY | DISTINCT
   {
     DBUG_ASSERT(!f_is_hex_escape(flags));
     DBUG_ASSERT(field_charset == cs);
@@ -9776,13 +9783,18 @@ void Create_field::create_length_to_internal_length(void)
     }
     break;
   case MYSQL_TYPE_NEWDECIMAL:
-    key_length= pack_length=
-      my_decimal_get_binary_size(my_decimal_length_to_precision(length,
-								decimals,
-								flags &
-								UNSIGNED_FLAG),
-				 decimals);
+  {
+    /*
+      This code must be identical to code in
+      Field_new_decimal::Field_new_decimal as otherwise the record layout
+      gets out of sync.
+    */
+    uint precision= my_decimal_length_to_precision(length, decimals,
+                                                   flags & UNSIGNED_FLAG);
+    set_if_smaller(precision, DECIMAL_MAX_PRECISION);
+    key_length= pack_length= my_decimal_get_binary_size(precision, decimals);
     break;
+  }
   default:
     key_length= pack_length= calc_pack_length(sql_type, length);
     break;

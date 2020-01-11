@@ -42,13 +42,11 @@ CACHEFILE f1;
 
 static void *pin_nonblocking(void *arg) {    
     void* v1;
-    long s1;
     int r = toku_cachetable_get_and_pin_nonblocking(
         f1, 
         make_blocknum(1), 
         toku_cachetable_hash(f1, make_blocknum(1)), 
         &v1, 
-        &s1, 
         def_write_callback(NULL), def_fetch, def_pf_req_callback, def_pf_callback, 
         PL_WRITE_EXPENSIVE,
         NULL, 
@@ -92,12 +90,10 @@ cachetable_test (void) {
   r = toku_cachetable_openf(&f1, ct, fname1, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO); assert(r == 0);
 
   void* v1;
-  long s1;
   r = toku_cachetable_get_and_pin(f1,
                                   make_blocknum(1),
                                   toku_cachetable_hash(f1, make_blocknum(1)),
                                   &v1,
-                                  &s1,
                                   def_write_callback(nullptr),
                                   def_fetch,
                                   def_pf_req_callback,

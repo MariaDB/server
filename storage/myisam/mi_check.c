@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Describe, check and repair of MyISAM tables */
 
@@ -283,7 +283,7 @@ static int check_k_link(HA_CHECK *param, register MI_INFO *info, uint nr)
     /*
       Read the key block with MI_MIN_KEY_BLOCK_LENGTH to find next link.
       If the key cache block size is smaller than block_size, we can so
-      avoid unecessary eviction of cache block.
+      avoid unnecessary eviction of cache block.
     */
     if (!(buff=key_cache_read(info->s->key_cache,
                               info->s->kfile, next_link, DFLT_INIT_HITS,
@@ -1894,7 +1894,7 @@ int flush_blocks(HA_CHECK *param, KEY_CACHE *key_cache, File file,
 } /* flush_blocks */
 
 
-	/* Sort index for more efficent reads */
+	/* Sort index for more efficient reads */
 
 int mi_sort_index(HA_CHECK *param, register MI_INFO *info, char * name)
 {
@@ -3047,13 +3047,13 @@ err:
   /*
     Destroy the write cache. The master thread did already detach from
     the share by remove_io_thread() or it was not yet started (if the
-    error happend before creating the thread).
+    error happened before creating the thread).
   */
   (void) end_io_cache(&info->rec_cache);
   /*
     Destroy the new data cache in case of non-quick repair. All slave
     threads did either detach from the share by remove_io_thread()
-    already or they were not yet started (if the error happend before
+    already or they were not yet started (if the error happened before
     creating the threads).
   */
   if (!rep_quick && my_b_inited(&new_data_cache))
@@ -4470,6 +4470,10 @@ int update_state_info(HA_CHECK *param, MI_INFO *info,uint update)
     int error;
     uint r_locks=share->r_locks,w_locks=share->w_locks;
     share->r_locks= share->w_locks= share->tot_locks= 0;
+
+    DBUG_EXECUTE_IF("simulate_incorrect_share_wlock_value",
+                    DEBUG_SYNC_C("after_share_wlock_set_to_0"););
+
     error=_mi_writeinfo(info,WRITEINFO_NO_UNLOCK);
     share->r_locks=r_locks;
     share->w_locks=w_locks;
@@ -4587,7 +4591,7 @@ void update_auto_increment_key(HA_CHECK *param, MI_INFO *info,
          keypart_k=c_k for arbitrary constants c_1 ... c_k) 
      
      = {assuming that values have uniform distribution and index contains all
-        tuples from the domain (or that {c_1, ..., c_k} tuple is choosen from
+        tuples from the domain (or that {c_1, ..., c_k} tuple is chosen from
         index tuples}
      
      = #tuples-in-the-index / #distinct-tuples-in-the-index.

@@ -72,7 +72,7 @@ select res;
 end|
 create table t3 (a int)|
 insert into t3 values (0)|
-create view v1 as select a from t3;
+create view v1 as select a from t3|
 create procedure bug10100pt(level int, lim int)
 begin
 if level < lim then
@@ -204,8 +204,6 @@ Warnings:
 Warning	1364	Field 'authentication_string' doesn't have a default value
 FLUSH PRIVILEGES;
 CREATE PROCEDURE p1(i INT) BEGIN END;
-Warnings:
-Warning	1404	Failed to grant EXECUTE and ALTER ROUTINE privileges
 DROP PROCEDURE p1;
 DELETE FROM mysql.user WHERE User='mysqltest_1';
 FLUSH PRIVILEGES;
@@ -270,6 +268,8 @@ USE test;
 SET @@SQL_MODE = '';
 CREATE EVENT teste_bug11763507 ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR 
 DO SELECT 1 $
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SHOW EVENTS LIKE 'teste_bug11763507';
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 test	teste_bug11763507	root@localhost	SYSTEM	ONE TIME	#	#	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci

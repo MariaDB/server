@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -48,7 +48,7 @@ number between 0 and 2^64-1 inclusive. The formula and the constants
 being used are:
 X[n+1] = (a * X[n] + c) mod m
 where:
-X[0] = ut_time_us(NULL)
+X[0] = my_interval_timer()
 a = 1103515245 (3^5 * 5 * 7 * 129749)
 c = 12345 (3 * 5 * 823)
 m = 18446744073709551616 (2^64)
@@ -61,12 +61,10 @@ page_cur_lcg_prng(void)
 {
 #define LCG_a	1103515245
 #define LCG_c	12345
-	static ib_uint64_t	lcg_current = 0;
-	static ibool		initialized = FALSE;
+	static uint64_t	lcg_current;
 
-	if (!initialized) {
-		lcg_current = (ib_uint64_t) ut_time_us(NULL);
-		initialized = TRUE;
+	if (!lcg_current) {
+		lcg_current = my_interval_timer();
 	}
 
 	/* no need to "% 2^64" explicitly because lcg_current is

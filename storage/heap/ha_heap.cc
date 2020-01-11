@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -91,15 +91,6 @@ ha_heap::ha_heap(handlerton *hton, TABLE_SHARE *table_arg)
 
 int ha_heap::open(const char *name, int mode, uint test_if_locked)
 {
-  if (table->s->reclength < sizeof (char*))
-  {
-    MEM_UNDEFINED(table->s->default_values + table->s->reclength,
-                  sizeof(char*) - table->s->reclength);
-    table->s->reclength= sizeof(char*);
-    MEM_UNDEFINED(table->record[0], table->s->reclength);
-    MEM_UNDEFINED(table->record[1], table->s->reclength);
-  }
-
   internal_table= MY_TEST(test_if_locked & HA_OPEN_INTERNAL_TABLE);
   if (internal_table || (!(file= heap_open(name, mode)) && my_errno == ENOENT))
   {
@@ -440,6 +431,10 @@ int ha_heap::reset_auto_increment(ulonglong value)
 
 int ha_heap::external_lock(THD *thd, int lock_type)
 {
+#ifndef DBUG_OFF
+  if (lock_type == F_UNLCK && file->s->changed && heap_check_heap(file, 0))
+    return HA_ERR_CRASHED;
+#endif
   return 0;					// No external locking
 }
 
@@ -714,7 +709,7 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
       }
     }
   }
-  mem_per_row+= MY_ALIGN(share->reclength + 1, sizeof(char*));
+  mem_per_row+= MY_ALIGN(MY_MAX(share->reclength, sizeof(char*)) + 1, sizeof(char*));
   if (table_arg->found_next_number_field)
   {
     keydef[share->next_number_index].flag|= HA_AUTO_KEY;

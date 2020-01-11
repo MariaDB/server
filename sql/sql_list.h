@@ -1,6 +1,7 @@
 #ifndef INCLUDES_MYSQL_SQL_LIST_H
 #define INCLUDES_MYSQL_SQL_LIST_H
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
@@ -83,6 +84,14 @@ public:
     elements= tmp.elements;
     first= tmp.first;
     next= elements ? tmp.next : &first;
+  }
+
+  SQL_I_List& operator=(const SQL_I_List &tmp)
+  {
+    elements= tmp.elements;
+    first= tmp.first;
+    next= tmp.next;
+    return *this;
   }
 
   inline void empty()
@@ -175,6 +184,13 @@ public:
       first == rhs.first &&
       last == rhs.last;
   }
+  base_list& operator=(const base_list &rhs)
+  {
+    elements= rhs.elements;
+    first= rhs.first;
+    last= elements ? rhs.last : &first;
+    return *this;
+  }
 
   inline void empty() { elements=0; first= &end_of_list; last=&first;}
   inline base_list() { empty(); }
@@ -189,9 +205,7 @@ public:
   */
   inline base_list(const base_list &tmp) :Sql_alloc()
   {
-    elements= tmp.elements;
-    first= tmp.first;
-    last= elements ? tmp.last : &first;
+    *this= tmp;
   }
   /**
     Construct a deep copy of the argument in memory root mem_root.
@@ -200,7 +214,7 @@ public:
     list_copy_and_replace_each_value after creating a copy.
   */
   base_list(const base_list &rhs, MEM_ROOT *mem_root);
-  inline base_list(bool error) { }
+  inline base_list(bool) { }
   inline bool push_back(void *info)
   {
     if (((*last)=new list_node(info, &end_of_list)))
@@ -309,10 +323,13 @@ public:
   */
   inline void swap(base_list &rhs)
   {
+    list_node **rhs_last=rhs.last;
     swap_variables(list_node *, first, rhs.first);
-    swap_variables(list_node **, last, rhs.last);
     swap_variables(uint, elements, rhs.elements);
+    rhs.last= last == &first ? &rhs.first : last;
+    last = rhs_last == &rhs.first ? &first : rhs_last;
   }
+
   inline list_node* last_node() { return *last; }
   inline list_node* first_node() { return first;}
   inline void *head() { return first->info; }
@@ -509,7 +526,6 @@ template <class T> class List :public base_list
 {
 public:
   inline List() :base_list() {}
-  inline List(const List<T> &tmp) :base_list(tmp) {}
   inline List(const List<T> &tmp, MEM_ROOT *mem_root) :
     base_list(tmp, mem_root) {}
   inline bool push_back(T *a) { return base_list::push_back(a); }

@@ -176,8 +176,16 @@ disconnect con4c;
 --source ../include/wait_for_pfs_thread_count.inc
 
 set global max_user_connections = 0;
-set global max_connections = 3;
+set global max_connections = 10;
 flush user_resources;
+
+connect (tmp_con1,localhost,root,,);
+connect (tmp_con2,localhost,root,,);
+connect (tmp_con3,localhost,root,,);
+connect (tmp_con4,localhost,root,,);
+connect (tmp_con5,localhost,root,,);
+connect (tmp_con6,localhost,root,,);
+connect (tmp_con7,localhost,root,,);
 
 connect (con5a,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 select "Con4a is alive";
@@ -233,6 +241,13 @@ connect (con5d,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 
 disconnect con5a;
 disconnect con5b;
+--disconnect tmp_con1
+--disconnect tmp_con2
+--disconnect tmp_con3
+--disconnect tmp_con4
+--disconnect tmp_con5
+--disconnect tmp_con6
+--disconnect tmp_con7
 
 # Wait for all disconnects
 --source ../include/wait_for_pfs_thread_count.inc

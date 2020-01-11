@@ -5577,8 +5577,8 @@ ER_SP_NO_AGGREGATE 42000
         eng "AGGREGATE is not supported for stored functions"
         ger "AGGREGATE wird bei gespeicherten Funktionen nicht unterstützt"
 ER_MAX_PREPARED_STMT_COUNT_REACHED 42000
-        eng "Can't create more than max_prepared_stmt_count statements (current value: %lu)"
-        ger "Kann nicht mehr Anweisungen als max_prepared_stmt_count erzeugen (aktueller Wert: %lu)"
+        eng "Can't create more than max_prepared_stmt_count statements (current value: %u)"
+        ger "Kann nicht mehr Anweisungen als max_prepared_stmt_count erzeugen (aktueller Wert: %u)"
 ER_VIEW_RECURSIVE
         eng "`%-.192s`.`%-.192s` contains view recursion"
         ger "`%-.192s`.`%-.192s` enthält View-Rekursion"
@@ -5972,8 +5972,8 @@ ER_EVENT_RECURSION_FORBIDDEN
         eng "Recursion of EVENT DDL statements is forbidden when body is present"
         ger "Rekursivität von EVENT-DDL-Anweisungen ist unzulässig wenn ein Hauptteil (Body) existiert"
 ER_EVENTS_DB_ERROR
-        eng "Cannot proceed because system tables used by Event Scheduler were found damaged at server start"
-        ger "Kann nicht weitermachen, weil die Tabellen, die von Events verwendet werden, beim Serverstart als beschädigt markiert wurden"
+        eng "Cannot proceed, because event scheduler is disabled"
+        ger "Die Operation kann nicht fortgesetzt werden, da Event Scheduler deaktiviert ist."
 ER_ONLY_INTEGERS_ALLOWED
         eng "Only integers allowed as number here"
         ger "An dieser Stelle sind nur Ganzzahlen zulässig"
@@ -6978,7 +6978,7 @@ ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
 ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN
   eng "Cannot define foreign key with %s clause on a computed column"
 ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN
-  eng "The value specified for computed column '%s' in table '%s' ignored"
+  eng "The value specified for computed column '%s' in table '%s' has been ignored"
 ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN
   eng "This is not yet supported for computed columns"
 ER_CONST_EXPR_IN_VCOL
@@ -7142,3 +7142,5 @@ ER_NO_EIS_FOR_FIELD
 ER_WARN_AGGFUNC_DEPENDENCE
         eng "Aggregate function '%-.192s)' of SELECT #%d belongs to SELECT #%d"
         ukr "Агрегатна функція '%-.192s)' з SELECTу #%d належить до SELECTу #%d"
+WARN_INNODB_PARTITION_OPTION_IGNORED
+        eng "<%-.64s> option ignored for InnoDB partition"

@@ -185,9 +185,12 @@ toku_ydb_init(void) {
 // Do not clean up resources if env is panicked, just exit ugly
 void 
 toku_ydb_destroy(void) {
+    if (!ydb_layer_status.initialized)
+        return;
     if (env_is_panicked == 0) {
         toku_ft_layer_destroy();
     }
+    ydb_layer_status.initialized = false;
 }
 
 static int

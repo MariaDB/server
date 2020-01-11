@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <my_global.h>
 #include "sql_priv.h"
@@ -542,7 +542,7 @@ bool log_in_use(const char* log_name)
     if ((linfo = tmp->current_linfo))
     {
       mysql_mutex_lock(&linfo->lock);
-      result = !memcmp(log_name, linfo->log_file_name, log_name_len);
+      result = !strncmp(log_name, linfo->log_file_name, log_name_len);
       mysql_mutex_unlock(&linfo->lock);
       if (result)
 	break;
@@ -1904,11 +1904,8 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   */
   if (info->thd->variables.option_bits & OPTION_SKIP_REPLICATION)
   {
-    /*
-      The first byte of the packet is a '\0' to distinguish it from an error
-      packet. So the actual event starts at offset +1.
-    */
-    uint16 event_flags= uint2korr(&((*packet)[FLAGS_OFFSET+1]));
+    uint16 event_flags= uint2korr(&((*packet)[FLAGS_OFFSET + ev_offset]));
+
     if (event_flags & LOG_EVENT_SKIP_REPLICATION_F)
       return NULL;
   }
@@ -2549,6 +2546,7 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
   linfo->pos= my_b_tell(log);
   info->last_pos= my_b_tell(log);
 
+  log->end_of_file= end_pos;
   while (linfo->pos < end_pos)
   {
     if (should_stop(info))
@@ -2727,7 +2725,11 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
      run hook first when all check has been made that slave seems to
      be requesting a reasonable position. i.e when transmit actually starts
   */
-  if (RUN_HOOK(binlog_transmit, transmit_start, (thd, flags, log_ident, pos)))
+
+  DBUG_ASSERT(pos == linfo.pos);
+
+  if (RUN_HOOK(binlog_transmit, transmit_start,
+               (thd, flags, linfo.log_file_name, linfo.pos)))
   {
     info->errmsg= "Failed to run hook 'transmit_start'";
     info->error= ER_UNKNOWN_ERROR;
@@ -3838,6 +3840,11 @@ bool mysql_show_binlog_events(THD* thd)
   List<Item> field_list;
   const char *errmsg = 0;
   bool ret = TRUE;
+  /*
+     Using checksum validate the correctness of event pos specified in show
+     binlog events command.
+  */
+  bool verify_checksum_once= false;
   IO_CACHE log;
   File file = -1;
   MYSQL_BIN_LOG *binary_log= NULL;
@@ -3892,6 +3899,10 @@ bool mysql_show_binlog_events(THD* thd)
       mi->release();
       mi= 0;
     }
+
+    /* Validate user given position using checksum */
+    if (lex_mi->pos == pos && !opt_master_verify_checksum)
+      verify_checksum_once= true;
 
     unit->set_limit(thd->lex->current_select);
     limit_start= unit->offset_limit_cnt;
@@ -3975,15 +3986,16 @@ bool mysql_show_binlog_events(THD* thd)
     for (event_count = 0;
          (ev = Log_event::read_log_event(&log, (mysql_mutex_t*) 0,
                                          description_event,
-                                         opt_master_verify_checksum)); )
+                                         (opt_master_verify_checksum ||
+                                          verify_checksum_once))); )
     {
       if (event_count >= limit_start &&
-	  ev->net_send(protocol, linfo.log_file_name, pos))
+          ev->net_send(protocol, linfo.log_file_name, pos))
       {
-	errmsg = "Net error";
-	delete ev;
+        errmsg = "Net error";
+        delete ev;
         mysql_mutex_unlock(log_lock);
-	goto err;
+        goto err;
       }
 
       if (ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
@@ -4009,10 +4021,11 @@ bool mysql_show_binlog_events(THD* thd)
         delete ev;
       }
 
+      verify_checksum_once= false;
       pos = my_b_tell(&log);
 
       if (++event_count >= limit_end)
-	break;
+        break;
     }
 
     if (event_count < limit_end && log.error)

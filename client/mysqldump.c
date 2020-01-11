@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 /* mysqldump.c  - Dump a tables contents and format to an ASCII file
@@ -976,8 +976,7 @@ static int get_options(int *argc, char ***argv)
   opt_net_buffer_length= *mysql_params->p_net_buffer_length;
 
   md_result_file= stdout;
-  if (load_defaults("my",load_default_groups,argc,argv))
-    return 1;
+  load_defaults_or_exit("my", load_default_groups, argc, argv);
   defaults_argv= *argv;
 
   if (my_hash_init(&ignore_table, charset_info, 16, 0, 0,
@@ -3263,7 +3262,7 @@ static void dump_trigger_old(FILE *sql_file, MYSQL_RES *show_triggers_rs,
 
   char name_buff[NAME_LEN * 4 + 3];
   const char *xml_msg= "\nWarning! mysqldump being run against old server "
-                       "that does not\nsupport 'SHOW CREATE TRIGGERS' "
+                       "that does not\nsupport 'SHOW CREATE TRIGGER' "
                        "statement. Skipping..\n";
 
   DBUG_ENTER("dump_trigger_old");
@@ -3414,12 +3413,14 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
 
   char       db_cl_name[MY_CS_NAME_SIZE];
   int        ret= TRUE;
+  /* Servers below 5.1.21 do not support SHOW CREATE TRIGGER */
+  const int  use_show_create_trigger= mysql_get_server_version(mysql) >= 50121;
 
   DBUG_ENTER("dump_triggers_for_table");
   DBUG_PRINT("enter", ("db: %s, table_name: %s", db_name, table_name));
 
-  if (path && !(sql_file= open_sql_file_for_table(table_name,
-                                                  O_WRONLY | O_APPEND)))
+  if (path &&
+      !(sql_file= open_sql_file_for_table(table_name, O_WRONLY | O_APPEND)))
     DBUG_RETURN(1);
 
   /* Do not use ANSI_QUOTES on triggers in dump */
@@ -3435,11 +3436,15 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
 
   /* Get list of triggers. */
 
-  my_snprintf(query_buff, sizeof(query_buff),
-              "SELECT TRIGGER_NAME FROM INFORMATION_SCHEMA.TRIGGERS "
-              "WHERE EVENT_OBJECT_SCHEMA = DATABASE() AND "
-              "EVENT_OBJECT_TABLE = %s",
-              quote_for_equal(table_name, name_buff));
+  if (use_show_create_trigger)
+    my_snprintf(query_buff, sizeof(query_buff),
+                "SELECT TRIGGER_NAME FROM INFORMATION_SCHEMA.TRIGGERS "
+                "WHERE EVENT_OBJECT_SCHEMA = DATABASE() AND "
+                "EVENT_OBJECT_TABLE = %s",
+                quote_for_equal(table_name, name_buff));
+  else
+    my_snprintf(query_buff, sizeof(query_buff), "SHOW TRIGGERS LIKE %s",
+                quote_for_like(table_name, name_buff));
 
   if (mysql_query_with_error_report(mysql, &show_triggers_rs, query_buff))
     goto done;
@@ -3455,35 +3460,28 @@ static int dump_triggers_for_table(char *table_name, char *db_name)
 
   while ((row= mysql_fetch_row(show_triggers_rs)))
   {
-
-    my_snprintf(query_buff, sizeof (query_buff),
-                "SHOW CREATE TRIGGER %s",
-                quote_name(row[0], name_buff, TRUE));
-
-    if (mysql_query(mysql, query_buff))
+    if (use_show_create_trigger)
     {
-      /*
-        mysqldump is being run against old server, that does not support
-        SHOW CREATE TRIGGER statement. We should use SHOW TRIGGERS output.
+      MYSQL_RES *show_create_trigger_rs;
 
-        NOTE: the dump may be incorrect, as old SHOW TRIGGERS does not
-        provide all the necessary information to restore trigger properly.
-      */
+      my_snprintf(query_buff, sizeof (query_buff), "SHOW CREATE TRIGGER %s",
+                  quote_name(row[0], name_buff, TRUE));
 
-      dump_trigger_old(sql_file, show_triggers_rs, &row, table_name);
+      if (mysql_query_with_error_report(mysql, &show_create_trigger_rs,
+                                        query_buff))
+        goto done;
+      else
+      {
+        int error= (!show_create_trigger_rs ||
+                    dump_trigger(sql_file, show_create_trigger_rs, db_name,
+                                 db_cl_name));
+        mysql_free_result(show_create_trigger_rs);
+        if (error)
+          goto done;
+      }
     }
     else
-    {
-      MYSQL_RES *show_create_trigger_rs= mysql_store_result(mysql);
-
-      int error= (!show_create_trigger_rs ||
-                  dump_trigger(sql_file, show_create_trigger_rs, db_name,
-                               db_cl_name));
-      mysql_free_result(show_create_trigger_rs);
-      if (error)
-        goto done;
-    }
-    
+      dump_trigger_old(sql_file, show_triggers_rs, &row, table_name);
   }
 
   if (opt_xml)
@@ -4995,6 +4993,14 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   if (opt_xml)
     print_xml_tag(md_result_file, "", "\n", "database", "name=", db, NullS);
 
+
+  /* obtain dump of routines (procs/functions) */
+  if (opt_routines && mysql_get_server_version(mysql) >= 50009)
+  {
+    DBUG_PRINT("info", ("Dumping routines for database %s", db));
+    dump_routines_for_db(db);
+  }
+
   if (opt_single_transaction && mysql_get_server_version(mysql) >= 50500)
   {
     verbose_msg("-- Setting savepoint...\n");
@@ -5004,7 +5010,6 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
       DBUG_RETURN(1);
     }
   }
-
   /* Dump each selected table */
   for (pos= dump_tables; pos < end; pos++)
   {
@@ -5065,12 +5070,6 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   {
     DBUG_PRINT("info", ("Dumping events for database %s", db));
     dump_events_for_db(db);
-  }
-  /* obtain dump of routines (procs/functions) */
-  if (opt_routines && mysql_get_server_version(mysql) >= 50009)
-  {
-    DBUG_PRINT("info", ("Dumping routines for database %s", db));
-    dump_routines_for_db(db);
   }
   free_root(&glob_root, MYF(0));
   if (opt_xml)

@@ -23,9 +23,14 @@ SET @@global.wsrep_sst_method=rsync;
 SELECT @@global.wsrep_sst_method;
 SET @@global.wsrep_sst_method=mysqldump;
 SELECT @@global.wsrep_sst_method;
+# The xtrabackup and xtrabackup-v2 methods are obsolete,
+# but we can still select them (they will be automatically
+# replaced to mariabackup in next versions of server):
 SET @@global.wsrep_sst_method=xtrabackup;
 SELECT @@global.wsrep_sst_method;
 SET @@global.wsrep_sst_method="xtrabackup-v2";
+SELECT @@global.wsrep_sst_method;
+SET @@global.wsrep_sst_method="mariabackup";
 SELECT @@global.wsrep_sst_method;
 SET @@global.wsrep_sst_method=default;
 SELECT @@global.wsrep_sst_method;

@@ -32,345 +32,97 @@ INSERT INTO tt_2(ddl_case) VALUES(0);
 --echo #                          CHECK IMPLICT COMMIT
 --echo #########################################################################
 SET AUTOCOMMIT= 0;
-let $ddl_cases= 43;
-while ($ddl_cases >= 1)
-{
-  --echo -b-b-b-b-b-b-b-b-b-b-b- >> << -b-b-b-b-b-b-b-b-b-b-b-
-  let $in_temporary= no;
-  let $ok= yes;
-  #
-  # In SBR and MIXED modes, the commit event is usually the third event in the
-  # binary log:
-  #
-  # 1: BEGIN
-  # 2: INSERT
-  # 3: COMMIT
-  # 4: DDL EVENT which triggered the previous commmit.
-  #
-  if (`select @@binlog_format = 'STATEMENT' || @@binlog_format = 'MIXED'`)
-  {
-    let $commit_event_row_number= 3;
-  }
-  #
-  # In RBR mode, the commit event is usually the fourth event in the binary log:
-  #
-  # 1: BEGIN
-  # 2: TABLE MAP EVENT
-  # 3: ROW EVENT
-  # 4: COMMIT
-  # 5: DDL EVENT which triggered the previous commmit.
-  #
-  if (`select @@binlog_format = 'ROW'`)
-  {
-    let $commit_event_row_number= 4;
-  }
-  
-  let $first_binlog_position= query_get_value("SHOW MASTER STATUS", Position, 1);
-  --enable_query_log
-  eval INSERT INTO tt_1(ddl_case) VALUES ($ddl_cases);
 
-  if ($ddl_cases == 43)
-  {
-    let $cmd= CREATE FUNCTION myfunc_int RETURNS INTEGER SONAME "$UDF_EXAMPLE_SO";
-  }
-  if ($ddl_cases == 42)
-  {
-    let $cmd= DROP FUNCTION myfunc_int;
-  }
-  if ($ddl_cases == 41)
-  {
-    let $cmd= LOAD INDEX INTO CACHE nt_1 IGNORE LEAVES;
-  }
-  if ($ddl_cases == 40)
-  {
-    let $cmd= LOAD INDEX INTO CACHE tt_1, tt_2 IGNORE LEAVES;
-  }
-  if ($ddl_cases == 39)
-  {
-    let $cmd= ANALYZE TABLE nt_1;
-  }
-  if ($ddl_cases == 38)
-  {
-    let $cmd= CHECK TABLE nt_1;
-  }
-  if ($ddl_cases == 37)
-  {
-    let $cmd= OPTIMIZE TABLE nt_1;
-  }
-  if ($ddl_cases == 36)
-  {
-    let $cmd= REPAIR TABLE nt_1;
-  }
-  if ($ddl_cases == 35)
-  {
-    let $cmd= LOCK TABLES tt_1 WRITE;
-  }
-  if ($ddl_cases == 34)
-  {
-    let $cmd= UNLOCK TABLES;
-  }
-  if ($ddl_cases == 33)
-  {
-    let $cmd= CREATE USER 'user'@'localhost';
-  }
-  if ($ddl_cases == 32)
-  {
-    let $cmd= GRANT ALL ON *.* TO 'user'@'localhost';
-  }
-  if ($ddl_cases == 31)
-  {
-    let $cmd= SET PASSWORD FOR 'user'@'localhost' = PASSWORD('newpass');
-  }
-  if ($ddl_cases == 30)
-  {
-    let $cmd= REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'user'@'localhost';
-  }
-  if ($ddl_cases == 29)
-  {
-    let $cmd= RENAME USER 'user'@'localhost' TO 'user_new'@'localhost';
-  }
-  if ($ddl_cases == 28)
-  {
-    let $cmd= DROP USER 'user_new'@'localhost';
-  }
-  if ($ddl_cases == 27)
-  {
-    let $cmd= CREATE EVENT evt ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO SELECT * FROM tt_1;
-  }
-  if ($ddl_cases == 26)
-  {
-    let $cmd= ALTER EVENT evt COMMENT 'evt';
-  }
-  if ($ddl_cases == 25)
-  {
-    let $cmd= DROP EVENT evt;
-  }
-  if ($ddl_cases == 24)
-  {
-    let $cmd= CREATE TRIGGER tr AFTER INSERT ON tt_1 FOR EACH ROW UPDATE tt_2 SET ddl_case = ddl_case WHERE ddl_case= NEW.ddl_case;
-  }
-  if ($ddl_cases == 23)
-  {
-    let $cmd= DROP TRIGGER tr;
-    #
-    # In RBR mode, due to the trigger the tt_2 is also updated:
-    #
-    # 1: BEGIN
-    # 2: TABLE MAP EVENT
-    # 3: TABLE MAP EVENT
-    # 4: ROW EVENT
-    # 5: COMMIT
-    # 6: DDL EVENT which triggered the previous commmit.
-    #
-    if (`select @@binlog_format = 'ROW'`)
-    {
-      let $commit_event_row_number= 5;
-    }
-  }
-  if ($ddl_cases == 22)
-  {
-    let $cmd= CREATE FUNCTION fc () RETURNS VARCHAR(64) RETURN "fc";
-  }
-  if ($ddl_cases == 21)
-  {
-    let $cmd= ALTER FUNCTION fc COMMENT 'fc';
-  }
-  if ($ddl_cases == 20)
-  {
-    let $cmd= DROP FUNCTION fc;
-  }
-  if ($ddl_cases == 19)
-  {
-    let $cmd= CREATE PROCEDURE pc () UPDATE tt_2 SET ddl_case = ddl_case WHERE ddl_case= NEW.ddl_case;
-  }
-  if ($ddl_cases == 18)
-  {
-    let $cmd= ALTER PROCEDURE pc COMMENT 'pc';
-  }
-  if ($ddl_cases == 17)
-  {
-    let $cmd= DROP PROCEDURE pc;
-  }
-  if ($ddl_cases == 16)
-  {
-    let $cmd= CREATE VIEW v AS SELECT * FROM tt_1;
-  }
-  if ($ddl_cases == 15)
-  {
-    let $cmd= ALTER VIEW v AS SELECT * FROM tt_1;
-  }
-  if ($ddl_cases == 14)
-  {
-    let $cmd= DROP VIEW v;
-  }
-  if ($ddl_cases == 13)
-  {
-    let $cmd= CREATE INDEX ix ON tt_1(ddl_case);
-  }
-  if ($ddl_cases == 12)
-  {
-    let $cmd= DROP INDEX ix ON tt_1;
-  }
-  if ($ddl_cases == 11)
-  {
-    let $cmd= CREATE TEMPORARY TABLE tt_xx (a int);
-    let $in_temporary= yes;
-    # In SBR and MIXED modes, the DDL statement is written to the binary log but
-    # does not commit the current transaction.
-    #
-    # 1: BEGIN
-    # 2: CREATE TEMPORARY
-    # 3: INSERT
-    # 4: COMMIT
-    #
-    # In RBR the transaction is not committed either and the statement is not
-    # written to the binary log:
-    #
-    # 1: BEGIN
-    # 2: TABLE MAP EVENT
-    # 3: ROW EVENT
-    # 4: COMMIT
-    #
-    if (`select @@binlog_format = 'STATEMENT' || @@binlog_format = 'MIXED'` )
-    {
-      let $commit_event_row_number= 4;
-    }
-  }
-  if ($ddl_cases == 10)
-  {
-    let $cmd= ALTER TABLE tt_xx ADD COLUMN (b int);
-    #
-    # In MIXED mode, the changes are logged as rows and we have what follows:
-    #
-    # 1: BEGIN
-    # 2: TABLE MAP EVENT
-    # 3: ROW EVENT
-    # 4: COMMIT
-    # 5: DDL EVENT which triggered the previous commmit.
-    #
-    if (`select @@binlog_format = 'MIXED'`)
-    {
-      let $commit_event_row_number= 4;
-    }
-  }
-  if ($ddl_cases == 9)
-  {
-    let $cmd= ALTER TABLE tt_xx RENAME new_tt_xx;
-    #
-    # In MIXED mode, the changes are logged as rows and we have what follows:
-    #
-    # 1: BEGIN
-    # 2: TABLE MAP EVENT
-    # 3: ROW EVENT
-    # 4: COMMIT
-    # 5: DDL EVENT which triggered the previous commmit.
-    #
-    if (`select @@binlog_format = 'MIXED'`)
-    {
-      let $commit_event_row_number= 4;
-    }
-  }
-  if ($ddl_cases == 8)
-  {
-    let $cmd= DROP TEMPORARY TABLE IF EXISTS new_tt_xx;
-    let $in_temporary= yes;
-    #
-    # In SBR and MIXED modes, the DDL statement is written to the binary log
-    # but does not commit the current transaction:
-    #
-    # In SBR, we have what follows:
-    #
-    # 1: BEGIN
-    # 2: INSERT
-    # 3: DROP TEMPORARY
-    # 4: COMMIT
-    #
-    # In RBR the transaction is not committed either and the statement is not
-    # written to the binary log:
-    #
-    # 1: BEGIN
-    # 2: TABLE MAP EVENT
-    # 3: ROW EVENT
-    # 4: COMMIT
-    #
-    if (`select @@binlog_format = 'STATEMENT' || @@binlog_format = 'ROW'`)
-    {
-      let $commit_event_row_number= 4;
-    }
-    # In MIXED mode, the changes are logged as rows and we have what follows:
-    #
-    # 1: BEGIN
-    # 2: TABLE MAP EVENT
-    # 3: ROW EVENT
-    # 4: DROP TEMPORARY
-    # 5: COMMIT
-    #
-    if (`select @@binlog_format = 'MIXED'`)
-    {
-      let $commit_event_row_number= 5;
-    }
-  }
-  if ($ddl_cases == 7)
-  {
-    let $cmd= CREATE TABLE tt_xx (a int);
-  }
-  if ($ddl_cases == 6)
-  {
-    let $cmd= ALTER TABLE tt_xx ADD COLUMN (b int);
-  }
-  if ($ddl_cases == 5)
-  {
-    let $cmd= RENAME TABLE tt_xx TO new_tt_xx;
-  }
-  if ($ddl_cases == 4)
-  {
-    let $cmd= TRUNCATE TABLE new_tt_xx;
-  }
-  if ($ddl_cases == 3)
-  {
-    let $cmd= DROP TABLE IF EXISTS tt_xx, new_tt_xx;
-  }
-  if ($ddl_cases == 2)
-  {
-    let $cmd= CREATE DATABASE db;
-  }
-  if ($ddl_cases == 1)
-  {
-    let $cmd= DROP DATABASE IF EXISTS db;
-  }
-  --replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
-  --eval $cmd
-  --disable_query_log
-  #
-  # When a temporary table is either created or dropped, there is no implicit
-  # commit. The flag in_temporary is used to avoid aborting the test in such
-  # cases. Thus we force the commit.
-  #
-  if ($in_temporary == yes)
-  {
-    --eval COMMIT
-  }
-  let $event_commit= query_get_value("SHOW BINLOG EVENTS FROM $first_binlog_position", Info, $commit_event_row_number);
-  if (`SELECT SUBSTRING("$event_commit",1,6) != "COMMIT"`)
-  {
-    if ($ok == yes)
-    {
-      --echo it *does not* commit the current transaction.
-      --echo $cmd
-      --echo $event_commit
-      SHOW BINLOG EVENTS;
-      exit;
-    }
-  }
+INSERT INTO tt_1(ddl_case) VALUES (43);
+replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB;
+eval CREATE FUNCTION myfunc_int RETURNS INTEGER SONAME "$UDF_EXAMPLE_SO";
+INSERT INTO tt_1(ddl_case) VALUES (42);
+DROP FUNCTION myfunc_int;
+INSERT INTO tt_1(ddl_case) VALUES (41);
+LOAD INDEX INTO CACHE nt_1 IGNORE LEAVES;
+INSERT INTO tt_1(ddl_case) VALUES (40);
+LOAD INDEX INTO CACHE tt_1, tt_2 IGNORE LEAVES;
+INSERT INTO tt_1(ddl_case) VALUES (39);
+ANALYZE TABLE nt_1;
+INSERT INTO tt_1(ddl_case) VALUES (38);
+CHECK TABLE nt_1;
+INSERT INTO tt_1(ddl_case) VALUES (37);
+OPTIMIZE TABLE nt_1;
+INSERT INTO tt_1(ddl_case) VALUES (36);
+REPAIR TABLE nt_1;
+INSERT INTO tt_1(ddl_case) VALUES (35);
+LOCK TABLES tt_1 WRITE;
+INSERT INTO tt_1(ddl_case) VALUES (34);
+UNLOCK TABLES;
+INSERT INTO tt_1(ddl_case) VALUES (33);
+CREATE USER 'user'@'localhost';
+INSERT INTO tt_1(ddl_case) VALUES (32);
+GRANT ALL ON *.* TO 'user'@'localhost';
+INSERT INTO tt_1(ddl_case) VALUES (31);
+SET PASSWORD FOR 'user'@'localhost' = PASSWORD('newpass');
+INSERT INTO tt_1(ddl_case) VALUES (30);
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'user'@'localhost';
+INSERT INTO tt_1(ddl_case) VALUES (29);
+RENAME USER 'user'@'localhost' TO 'user_new'@'localhost';
+INSERT INTO tt_1(ddl_case) VALUES (28);
+DROP USER 'user_new'@'localhost';
+INSERT INTO tt_1(ddl_case) VALUES (27);
+CREATE EVENT evt ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO SELECT * FROM tt_1;
+INSERT INTO tt_1(ddl_case) VALUES (26);
+ALTER EVENT evt COMMENT 'evt';
+INSERT INTO tt_1(ddl_case) VALUES (25);
+DROP EVENT evt;
+INSERT INTO tt_1(ddl_case) VALUES (24);
+CREATE TRIGGER tr AFTER INSERT ON tt_1 FOR EACH ROW UPDATE tt_2 SET ddl_case = ddl_case WHERE ddl_case= NEW.ddl_case;
+INSERT INTO tt_1(ddl_case) VALUES (23);
+DROP TRIGGER tr;
+INSERT INTO tt_1(ddl_case) VALUES (22);
+CREATE FUNCTION fc () RETURNS VARCHAR(64) RETURN "fc";
+INSERT INTO tt_1(ddl_case) VALUES (21);
+ALTER FUNCTION fc COMMENT 'fc';
+INSERT INTO tt_1(ddl_case) VALUES (20);
+DROP FUNCTION fc;
+INSERT INTO tt_1(ddl_case) VALUES (19);
+CREATE PROCEDURE pc () UPDATE tt_2 SET ddl_case = ddl_case WHERE ddl_case= NEW.ddl_case;
+INSERT INTO tt_1(ddl_case) VALUES (18);
+ALTER PROCEDURE pc COMMENT 'pc';
+INSERT INTO tt_1(ddl_case) VALUES (17);
+DROP PROCEDURE pc;
+INSERT INTO tt_1(ddl_case) VALUES (16);
+CREATE VIEW v AS SELECT * FROM tt_1;
+INSERT INTO tt_1(ddl_case) VALUES (15);
+ALTER VIEW v AS SELECT * FROM tt_1;
+INSERT INTO tt_1(ddl_case) VALUES (14);
+DROP VIEW v;
+INSERT INTO tt_1(ddl_case) VALUES (13);
+CREATE INDEX ix ON tt_1(ddl_case);
+INSERT INTO tt_1(ddl_case) VALUES (12);
+DROP INDEX ix ON tt_1;
+INSERT INTO tt_1(ddl_case) VALUES (11);
+CREATE TEMPORARY TABLE tt_xx (a int);
+INSERT INTO tt_1(ddl_case) VALUES (10);
+ALTER TABLE tt_xx ADD COLUMN (b int);
+INSERT INTO tt_1(ddl_case) VALUES (9);
+ALTER TABLE tt_xx RENAME new_tt_xx;
+INSERT INTO tt_1(ddl_case) VALUES (8);
+DROP TEMPORARY TABLE IF EXISTS new_tt_xx;
+INSERT INTO tt_1(ddl_case) VALUES (7);
+CREATE TABLE tt_xx (a int);
+INSERT INTO tt_1(ddl_case) VALUES (6);
+ALTER TABLE tt_xx ADD COLUMN (b int);
+INSERT INTO tt_1(ddl_case) VALUES (5);
+RENAME TABLE tt_xx TO new_tt_xx;
+INSERT INTO tt_1(ddl_case) VALUES (4);
+TRUNCATE TABLE new_tt_xx;
+INSERT INTO tt_1(ddl_case) VALUES (3);
+DROP TABLE IF EXISTS tt_xx, new_tt_xx;
+INSERT INTO tt_1(ddl_case) VALUES (2);
+CREATE DATABASE db;
+INSERT INTO tt_1(ddl_case) VALUES (1);
+DROP DATABASE IF EXISTS db;
 
-  --echo -e-e-e-e-e-e-e-e-e-e-e- >> << -e-e-e-e-e-e-e-e-e-e-e-
-  let $binlog_start= $first_binlog_position;
-  --echo -b-b-b-b-b-b-b-b-b-b-b- >> << -b-b-b-b-b-b-b-b-b-b-b-
-  --source include/show_binlog_events.inc
-  --echo -e-e-e-e-e-e-e-e-e-e-e- >> << -e-e-e-e-e-e-e-e-e-e-e-
-  --echo
-  dec $ddl_cases;
-}
+source include/show_binlog_events.inc;
+
 SET AUTOCOMMIT= 1;
 
 --echo ###################################################################################

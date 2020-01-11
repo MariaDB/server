@@ -1,0 +1,6 @@
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT, c char(200)) ENGINE=InnoDB page_compressed=yes encrypted=yes;
+insert into t1(b, c) values("mariadb", "mariabackup");
+# Corrupt the table
+# xtrabackup backup
+FOUND /Database page corruption detected/ in backup.log
+drop table t1;

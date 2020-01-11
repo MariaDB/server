@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "heapdef.h"
 
@@ -33,6 +33,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
   uint keys= create_info->keys;
   ulong min_records= create_info->min_records;
   ulong max_records= create_info->max_records;
+  uint visible_offset;
   DBUG_ENTER("heap_create");
 
   if (!create_info->internal_table)
@@ -58,9 +59,9 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     
     /*
       We have to store sometimes uchar* del_link in records,
-      so the record length should be at least sizeof(uchar*)
+      so the visible_offset must be least at sizeof(uchar*)
     */
-    set_if_bigger(reclength, sizeof (uchar*));
+    visible_offset= MY_MAX(reclength, sizeof (char*));
     
     for (i= key_segs= max_length= 0, keyinfo= keydef; i < keys; i++, keyinfo++)
     {
@@ -97,7 +98,14 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
           /* fall through */
         case HA_KEYTYPE_VARTEXT1:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;
-          length+= 2;
+          /*
+            For BTREE algorithm, key length, greater than or equal
+            to 255, is packed on 3 bytes.
+          */
+          if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
+            length+= size_to_store_key_length(keyinfo->seg[j].length);
+          else
+            length+= 2;
           /* Save number of bytes used to store length */
           keyinfo->seg[j].bit_start= 1;
           break;
@@ -106,7 +114,14 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
           /* fall_through */
         case HA_KEYTYPE_VARTEXT2:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;
-          length+= 2;
+          /*
+            For BTREE algorithm, key length, greater than or equal
+            to 255, is packed on 3 bytes.
+          */
+          if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
+            length+= size_to_store_key_length(keyinfo->seg[j].length);
+          else
+            length+= 2;
           /* Save number of bytes used to store length */
           keyinfo->seg[j].bit_start= 2;
           /*
@@ -154,7 +169,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->keydef= (HP_KEYDEF*) (share + 1);
     share->key_stat_version= 1;
     keyseg= (HA_KEYSEG*) (share->keydef + keys);
-    init_block(&share->block, reclength + 1, min_records, max_records);
+    init_block(&share->block, visible_offset + 1, min_records, max_records);
 	/* Fix keys */
     memcpy(share->keydef, keydef, (size_t) (sizeof(keydef[0]) * keys));
     for (i= 0, keyinfo= share->keydef; i < keys; i++, keyinfo++)
@@ -196,6 +211,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->max_table_size= create_info->max_table_size;
     share->data_length= share->index_length= 0;
     share->reclength= reclength;
+    share->visible= visible_offset;
     share->blength= 1;
     share->keys= keys;
     share->max_key_length= max_length;

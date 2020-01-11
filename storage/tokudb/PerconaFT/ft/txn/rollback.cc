@@ -276,7 +276,7 @@ void toku_get_and_pin_rollback_log(TOKUTXN txn, BLOCKNUM blocknum, ROLLBACK_LOG_
     FT CAST_FROM_VOIDP(h, toku_cachefile_get_userdata(cf));
     uint32_t hash = toku_cachetable_hash(cf, blocknum);
     int r = toku_cachetable_get_and_pin_with_dep_pairs(cf, blocknum, hash,
-                                        &value, NULL,
+                                        &value,
                                         get_write_callbacks_for_rollback_log(h),
                                         toku_rollback_fetch_callback,
                                         toku_rollback_pf_req_callback,

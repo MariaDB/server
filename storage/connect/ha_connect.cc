@@ -4509,7 +4509,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 		case TAB_OEM:
       if (table && table->pos_in_table_list) // if SELECT
       {
-        Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
+        //Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
         return check_global_access(thd, FILE_ACL);
       }
       else

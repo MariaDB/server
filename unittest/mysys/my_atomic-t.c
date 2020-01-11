@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "thr_template.c"
 
@@ -29,9 +29,6 @@ pthread_handler_t test_atomic_add(void *arg)
     my_atomic_add32(&bad, x);
     my_atomic_add32(&bad, -x);
   }
-  pthread_mutex_lock(&mutex);
-  if (!--running_threads) pthread_cond_signal(&cond);
-  pthread_mutex_unlock(&mutex);
   return 0;
 }
 
@@ -47,13 +44,6 @@ pthread_handler_t test_atomic_add64(void *arg)
     my_atomic_add64(&a64, x);
     my_atomic_add64(&a64, -x);
   }
-  pthread_mutex_lock(&mutex);
-  if (!--running_threads)
-  {
-    bad= (a64 != 0);
-    pthread_cond_signal(&cond);
-  }
-  pthread_mutex_unlock(&mutex);
   return 0;
 }
 
@@ -83,9 +73,6 @@ pthread_handler_t test_atomic_fas(void *arg)
 
   my_atomic_add32(&bad, -x);
 
-  pthread_mutex_lock(&mutex);
-  if (!--running_threads) pthread_cond_signal(&cond);
-  pthread_mutex_unlock(&mutex);
   return 0;
 }
 
@@ -109,9 +96,6 @@ pthread_handler_t test_atomic_cas(void *arg)
       ok= my_atomic_cas32(&bad, &y, y-x);
     } while (!ok) ;
   }
-  pthread_mutex_lock(&mutex);
-  if (!--running_threads) pthread_cond_signal(&cond);
-  pthread_mutex_unlock(&mutex);
   return 0;
 }
 
@@ -146,4 +130,5 @@ void do_tests()
   }
   a64=0;
   test_concurrently("my_atomic_add64", test_atomic_add64, THREADS, CYCLES);
+  bad= (a64 != 0);
 }

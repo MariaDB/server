@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -1650,7 +1650,6 @@ void ha_archive::update_create_info(HA_CREATE_INFO *create_info)
   DBUG_VOID_RETURN;
 }
 
-
 /*
   Hints for optimizer, see ha_tina for more information
 */
@@ -1658,22 +1657,7 @@ int ha_archive::info(uint flag)
 {
   DBUG_ENTER("ha_archive::info");
 
-  mysql_mutex_lock(&share->mutex);
-  if (share->dirty)
-  {
-    DBUG_PRINT("ha_archive", ("archive flushing out rows for scan"));
-    DBUG_ASSERT(share->archive_write_open);
-    azflush(&(share->archive_write), Z_SYNC_FLUSH);
-    share->dirty= FALSE;
-  }
-
-  /* 
-    This should be an accurate number now, though bulk and delayed inserts can
-    cause the number to be inaccurate.
-  */
-  stats.records= share->rows_recorded;
-  mysql_mutex_unlock(&share->mutex);
-
+  flush_and_clear_pending_writes();
   stats.deleted= 0;
 
   DBUG_PRINT("ha_archive", ("Stats rows is %d\n", (int)stats.records));
@@ -1713,6 +1697,38 @@ int ha_archive::info(uint flag)
   }
 
   DBUG_RETURN(0);
+}
+
+
+int ha_archive::external_lock(THD *thd, int lock_type)
+{
+  if (lock_type == F_RDLCK)
+  {
+    // We are going to read from the table. Flush any pending writes that we
+    // may have
+    flush_and_clear_pending_writes();
+  }
+  return 0;
+}
+
+
+void ha_archive::flush_and_clear_pending_writes()
+{
+  mysql_mutex_lock(&share->mutex);
+  if (share->dirty)
+  {
+    DBUG_PRINT("ha_archive", ("archive flushing out rows for scan"));
+    DBUG_ASSERT(share->archive_write_open);
+    azflush(&(share->archive_write), Z_SYNC_FLUSH);
+    share->dirty= FALSE;
+  }
+
+  /* 
+    This should be an accurate number now, though bulk and delayed inserts can
+    cause the number to be inaccurate.
+  */
+  stats.records= share->rows_recorded;
+  mysql_mutex_unlock(&share->mutex);
 }
 
 
@@ -1888,7 +1904,7 @@ maria_declare_plugin(archive)
   &archive_storage_engine,
   "ARCHIVE",
   "Brian Aker, MySQL AB",
-  "Archive storage engine",
+  "gzip-compresses tables for a low storage footprint",
   PLUGIN_LICENSE_GPL,
   archive_db_init, /* Plugin Init */
   NULL, /* Plugin Deinit */

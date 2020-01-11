@@ -196,6 +196,9 @@ DROP TABLE t2,t1;
 --connection node_2
 STOP SLAVE;
 RESET SLAVE ALL;
+--disable_warnings
+set global gtid_slave_pos="";
+--enable_warnings
 reset master;
 
 --echo #Connection 3

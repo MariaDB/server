@@ -563,3 +563,53 @@ DROP TABLE t1,t2,t2c,t2i;
 eval SET GLOBAL innodb_file_format=$innodb_file_format_orig;
 eval SET GLOBAL innodb_file_format_max=$innodb_file_format_max_orig;
 --enable_query_log
+
+SET @save_format = @@GLOBAL.innodb_file_format;
+SET @save_prefix = @@GLOBAL.innodb_large_prefix;
+SET GLOBAL innodb_file_format=barracuda;
+SET GLOBAL innodb_large_prefix=ON;
+CREATE TABLE t1 (c VARCHAR(1024),
+c1 CHAR(255) NOT NULL,c2 CHAR(255) NOT NULL,c3 CHAR(255) NOT NULL,
+c4 CHAR(255) NOT NULL,c5 CHAR(255) NOT NULL,c6 CHAR(255) NOT NULL,
+c7 CHAR(255) NOT NULL,c8 CHAR(255) NOT NULL,c9 CHAR(255) NOT NULL,
+ca CHAR(255) NOT NULL,cb CHAR(255) NOT NULL,cc CHAR(255) NOT NULL,
+cd CHAR(255) NOT NULL,ce CHAR(255) NOT NULL,cf CHAR(255) NOT NULL,
+d0 CHAR(255) NOT NULL,d1 CHAR(255) NOT NULL,d2 CHAR(255) NOT NULL,
+d3 CHAR(255) NOT NULL,d4 CHAR(255) NOT NULL,d5 CHAR(255) NOT NULL,
+d6 CHAR(255) NOT NULL,d7 CHAR(255) NOT NULL,d8 CHAR(255) NOT NULL,
+d9 CHAR(255) NOT NULL,da CHAR(255) NOT NULL,db CHAR(255) NOT NULL,
+dc CHAR(255) NOT NULL,dd CHAR(255) NOT NULL,de CHAR(255) NOT NULL,
+UNIQUE KEY(c))
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES
+(repeat('a',999),'','','','','','','','','','','','','','','','','','','','','','','','','','','','','',''),
+(CONCAT(repeat('a',999),'b'),'','','','','','','','','','','','','','','','','','','','','','','','','','','','','','');
+--error ER_INDEX_COLUMN_TOO_LONG
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT, algorithm=inplace;
+--error ER_INDEX_COLUMN_TOO_LONG
+ALTER TABLE t1 ROW_FORMAT=REDUNDANT, algorithm=copy;
+SELECT COUNT(*) FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+SET GLOBAL innodb_file_format=@save_format;
+SET GLOBAL innodb_large_prefix=@save_prefix;
+
+--echo #
+--echo # Bug#19811005 ALTER TABLE ADD INDEX DOES NOT UPDATE INDEX_LENGTH
+--echo # IN I_S TABLES
+--echo #
+let $i_s_query=SELECT cast(DATA_LENGTH/@@innodb_page_size as int) D,
+cast(INDEX_LENGTH/@@innodb_page_size as int) I
+FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+
+CREATE TABLE t1(a INT, b INT) ENGINE=INNODB, STATS_PERSISTENT=1;
+eval $i_s_query;
+--enable_info
+ALTER TABLE t1 ADD INDEX (a);
+--disable_info
+eval $i_s_query;
+--enable_info
+ALTER TABLE t1 ADD INDEX (b);
+--disable_info
+eval $i_s_query;
+DROP TABLE t1;

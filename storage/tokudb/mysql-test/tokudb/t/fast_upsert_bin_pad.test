@@ -1,21 +1,16 @@
 source include/have_tokudb.inc;
 
-set default_storage_engine='tokudb';
+set tokudb_enable_fast_upsert=1;
+source ../include/setup_fast_update_upsert.inc;
 
-disable_warnings;
-drop table if exists t0, t1;
-enable_warnings;
-
-set tokudb_disable_slow_upsert=1;
-
-create table t0 (id int primary key, b binary(32));
+create table t0 (id int primary key, b binary(32)) engine = tokudb;
 create table t1 like t0;
 
-insert noar into t0 values (1,'hi'),(2,'there');
+insert into t0 values (1,'hi'),(2,'there');
 select * from t0;
-insert noar into t1 values (1,null),(2,null);
-insert noar into t1 values (1,null) on duplicate key update b='hi';
-insert noar into t1 values (2,null) on duplicate key update b='there';
+insert into t1 values (1,null),(2,null);
+insert into t1 values (1,null) on duplicate key update b='hi';
+insert into t1 values (2,null) on duplicate key update b='there';
 select * from t1;
 
 let $diff_tables = test.t0, test.t1;

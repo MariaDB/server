@@ -106,11 +106,10 @@ test_clean (enum cachetable_dirty dirty, bool cloneable) {
     create_dummy_functions(f1);
 
     void* v1;
-    long s1;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     wc.clone_callback = cloneable ? clone_callback : NULL;
     wc.flush_callback = flush;
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, dirty, make_pair_attr(8));
     
     check_flush = true;
@@ -127,13 +126,13 @@ test_clean (enum cachetable_dirty dirty, bool cloneable) {
     gettimeofday(&tstart, NULL);
 
     // test that having a pin that passes false for may_modify_value does not stall behind checkpoint
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, false, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, false, NULL);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, CACHETABLE_CLEAN, make_pair_attr(8));
     gettimeofday(&tend, NULL);
     assert(tdelta_usec(&tend, &tstart) <= 2000000); 
     assert(!clone_called);
     
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
     gettimeofday(&tend, NULL);
     
     // we take 5 seconds for a write

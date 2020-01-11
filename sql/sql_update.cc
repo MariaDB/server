@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /*
@@ -300,6 +300,8 @@ int mysql_update(THD *thd,
   }
   if (lock_tables(thd, table_list, table_count, 0))
     DBUG_RETURN(1);
+
+  (void) read_statistics_for_tables_if_needed(thd, table_list);
 
   if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(1);
@@ -1362,100 +1364,81 @@ static bool multi_update_check_table_access(THD *thd, TABLE_LIST *table,
 }
 
 
-/*
-  make update specific preparation and checks after opening tables
-
-  SYNOPSIS
-    mysql_multi_update_prepare()
-    thd         thread handler
-
-  RETURN
-    FALSE OK
-    TRUE  Error
-*/
-
-int mysql_multi_update_prepare(THD *thd)
+class Multiupdate_prelocking_strategy : public DML_prelocking_strategy
 {
+  bool done;
+  bool has_prelocking_list;
+public:
+  void reset(THD *thd);
+  bool handle_end(THD *thd);
+};
+
+void Multiupdate_prelocking_strategy::reset(THD *thd)
+{
+  done= false;
+  has_prelocking_list= thd->lex->requires_prelocking();
+}
+
+/**
+  Determine what tables could be updated in the multi-update
+
+  For these tables we'll need to open triggers and continue prelocking
+  until all is open.
+*/
+bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
+{
+  DBUG_ENTER("Multiupdate_prelocking_strategy::handle_end");
+  if (done)
+    DBUG_RETURN(0);
+
   LEX *lex= thd->lex;
-  TABLE_LIST *table_list= lex->query_tables;
-  TABLE_LIST *tl;
-  List<Item> *fields= &lex->select_lex.item_list;
-  table_map tables_for_update;
-  bool update_view= 0;
-  /*
-    if this multi-update was converted from usual update, here is table
-    counter else junk will be assigned here, but then replaced with real
-    count in open_tables()
-  */
-  uint  table_count= lex->table_count;
-  const bool using_lock_tables= thd->locked_tables_mode != LTM_NONE;
-  bool original_multiupdate= (thd->lex->sql_command == SQLCOM_UPDATE_MULTI);
-  DBUG_ENTER("mysql_multi_update_prepare");
+  SELECT_LEX *select_lex= &lex->select_lex;
+  TABLE_LIST *table_list= lex->query_tables, *tl;
 
-  /* following need for prepared statements, to run next time multi-update */
-  thd->lex->sql_command= SQLCOM_UPDATE_MULTI;
+  done= true;
 
-  /*
-    Open tables and create derived ones, but do not lock and fill them yet.
+  if (mysql_handle_derived(lex, DT_INIT) ||
+      mysql_handle_derived(lex, DT_MERGE_FOR_INSERT) ||
+      mysql_handle_derived(lex, DT_PREPARE))
+    DBUG_RETURN(1);
 
-    During prepare phase acquire only S metadata locks instead of SW locks to
-    keep prepare of multi-UPDATE compatible with concurrent LOCK TABLES WRITE
-    and global read lock.
-  */
-  if ((original_multiupdate &&
-       open_tables(thd, &table_list, &table_count,
-                   (thd->stmt_arena->is_stmt_prepare() ?
-                    MYSQL_OPEN_FORCE_SHARED_MDL : 0))) ||
-      mysql_handle_derived(lex, DT_INIT))
-    DBUG_RETURN(TRUE);
   /*
     setup_tables() need for VIEWs. JOIN::prepare() will call setup_tables()
     second time, but this call will do nothing (there are check for second
     call in setup_tables()).
   */
 
-  //We need to merge for insert prior to prepare.
-  if (mysql_handle_derived(lex, DT_MERGE_FOR_INSERT))
-    DBUG_RETURN(TRUE);
-  if (mysql_handle_derived(lex, DT_PREPARE))
-    DBUG_RETURN(TRUE);
+  if (setup_tables_and_check_access(thd, &select_lex->context,
+        &select_lex->top_join_list, table_list, select_lex->leaf_tables,
+        FALSE, UPDATE_ACL, SELECT_ACL, FALSE))
+    DBUG_RETURN(1);
 
-  if (setup_tables_and_check_access(thd, &lex->select_lex.context,
-                                    &lex->select_lex.top_join_list,
-                                    table_list,
-                                    lex->select_lex.leaf_tables, FALSE,
-                                    UPDATE_ACL, SELECT_ACL, FALSE))
-    DBUG_RETURN(TRUE);
+  if (select_lex->handle_derived(thd->lex, DT_MERGE))
+    DBUG_RETURN(1);
 
-  if (lex->select_lex.handle_derived(thd->lex, DT_MERGE))  
-    DBUG_RETURN(TRUE);
-
+  List<Item> *fields= &lex->select_lex.item_list;
   if (setup_fields_with_no_wrap(thd, 0, *fields, MARK_COLUMNS_WRITE, 0, 0))
-    DBUG_RETURN(TRUE);
+    DBUG_RETURN(1);
 
   for (tl= table_list; tl ; tl= tl->next_local)
-  {
     if (tl->view)
     {
-      update_view= 1;
-      break;
+      if (check_fields(thd, *fields))
+        DBUG_RETURN(1);
+      else
+        break;
     }
-  }
 
-  if (update_view && check_fields(thd, *fields))
-  {
-    DBUG_RETURN(TRUE);
-  }
+  table_map tables_for_update= thd->table_map_for_update= get_table_map(fields);
 
-  thd->table_map_for_update= tables_for_update= get_table_map(fields);
-
-  if (unsafe_key_update(lex->select_lex.leaf_tables, tables_for_update))
-    DBUG_RETURN(true);
+  if (unsafe_key_update(select_lex->leaf_tables, tables_for_update))
+    DBUG_RETURN(1);
 
   /*
     Setup timestamp handling and locking mode
   */
-  List_iterator<TABLE_LIST> ti(lex->select_lex.leaf_tables);
+  List_iterator<TABLE_LIST> ti(select_lex->leaf_tables);
+  const bool using_lock_tables= thd->locked_tables_mode != LTM_NONE;
   while ((tl= ti++))
   {
     TABLE *table= tl->table;
@@ -1469,7 +1452,7 @@ int mysql_multi_update_prepare(THD *thd)
       if (!tl->single_table_updatable() || check_key_in_view(thd, tl))
       {
         my_error(ER_NON_UPDATABLE_TABLE, MYF(0), tl->alias, "UPDATE");
-        DBUG_RETURN(TRUE);
+        DBUG_RETURN(1);
       }
 
       DBUG_PRINT("info",("setting table `%s` for update", tl->alias));
@@ -1477,6 +1460,11 @@ int mysql_multi_update_prepare(THD *thd)
         If table will be updated we should not downgrade lock for it and
         leave it as is.
       */
+      tl->updating= 1;
+      if (tl->belong_to_view)
+        tl->belong_to_view->updating= 1;
+      if (extend_table_list(thd, tl, this, has_prelocking_list))
+        DBUG_RETURN(1);
     }
     else
     {
@@ -1499,7 +1487,6 @@ int mysql_multi_update_prepare(THD *thd)
         tl->lock_type= lock_type;
       else
         tl->set_lock_type(thd, lock_type);
-      tl->updating= 0;
     }
   }
 
@@ -1508,6 +1495,7 @@ int mysql_multi_update_prepare(THD *thd)
     Note that unlike in the above loop we need to iterate here not only
     through all leaf tables but also through all view hierarchy.
   */
+
   for (tl= table_list; tl; tl= tl->next_local)
   {
     bool not_used= false;
@@ -1520,18 +1508,62 @@ int mysql_multi_update_prepare(THD *thd)
   /* check single table update for view compound from several tables */
   for (tl= table_list; tl; tl= tl->next_local)
   {
+    TABLE_LIST *for_update= 0;
     if (tl->is_jtbm())
       continue;
-    if (tl->is_merged_derived())
+    if (tl->is_merged_derived() &&
+        tl->check_single_table(&for_update, tables_for_update, tl))
     {
-      TABLE_LIST *for_update= 0;
-      if (tl->check_single_table(&for_update, tables_for_update, tl))
-      {
-	my_error(ER_VIEW_MULTIUPDATE, MYF(0),
-		 tl->view_db.str, tl->view_name.str);
-	DBUG_RETURN(-1);
-      }
+      my_error(ER_VIEW_MULTIUPDATE, MYF(0), tl->view_db.str, tl->view_name.str);
+      DBUG_RETURN(-1);
     }
+  }
+
+  DBUG_RETURN(0);
+}
+
+/*
+  make update specific preparation and checks after opening tables
+
+  SYNOPSIS
+    mysql_multi_update_prepare()
+    thd         thread handler
+
+  RETURN
+    FALSE OK
+    TRUE  Error
+*/
+
+int mysql_multi_update_prepare(THD *thd)
+{
+  LEX *lex= thd->lex;
+  TABLE_LIST *table_list= lex->query_tables;
+  TABLE_LIST *tl;
+  Multiupdate_prelocking_strategy prelocking_strategy;
+  uint table_count= lex->table_count;
+  DBUG_ENTER("mysql_multi_update_prepare");
+
+  /*
+    Open tables and create derived ones, but do not lock and fill them yet.
+
+    During prepare phase acquire only S metadata locks instead of SW locks to
+    keep prepare of multi-UPDATE compatible with concurrent LOCK TABLES WRITE
+    and global read lock.
+  */
+  if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI)
+  {
+    if (open_tables(thd, &table_list, &table_count,
+        thd->stmt_arena->is_stmt_prepare() ? MYSQL_OPEN_FORCE_SHARED_MDL : 0,
+        &prelocking_strategy))
+      DBUG_RETURN(TRUE);
+  }
+  else
+  {
+    /* following need for prepared statements, to run next time multi-update */
+    thd->lex->sql_command= SQLCOM_UPDATE_MULTI;
+    prelocking_strategy.reset(thd);
+    if (prelocking_strategy.handle_end(thd))
+      DBUG_RETURN(TRUE);
   }
 
   /* now lock and fill tables */
@@ -1540,6 +1572,7 @@ int mysql_multi_update_prepare(THD *thd)
   {
     DBUG_RETURN(TRUE);
   }
+  (void) read_statistics_for_tables_if_needed(thd, table_list);
   /* @todo: downgrade the metadata locks here. */
 
   /*
@@ -1548,7 +1581,7 @@ int mysql_multi_update_prepare(THD *thd)
   */
   lex->select_lex.exclude_from_table_unique_test= TRUE;
   /* We only need SELECT privilege for columns in the values list */
-  ti.rewind();
+  List_iterator<TABLE_LIST> ti(lex->select_lex.leaf_tables);
   while ((tl= ti++))
   {
     if (tl->is_jtbm())
@@ -1591,25 +1624,18 @@ int mysql_multi_update_prepare(THD *thd)
   Setup multi-update handling and call SELECT to do the join
 */
 
-bool mysql_multi_update(THD *thd,
-                        TABLE_LIST *table_list,
-                        List<Item> *fields,
-                        List<Item> *values,
-                        COND *conds,
-                        ulonglong options,
+bool mysql_multi_update(THD *thd, TABLE_LIST *table_list, List<Item> *fields,
+                        List<Item> *values, COND *conds, ulonglong options,
                         enum enum_duplicates handle_duplicates,
-                        bool ignore,
-                        SELECT_LEX_UNIT *unit,
-                        SELECT_LEX *select_lex,
-                        multi_update **result)
+                        bool ignore, SELECT_LEX_UNIT *unit,
+                        SELECT_LEX *select_lex, multi_update **result)
 {
   bool res;
   DBUG_ENTER("mysql_multi_update");
-  
+
   if (!(*result= new (thd->mem_root) multi_update(thd, table_list,
                                  &thd->lex->select_lex.leaf_tables,
-                                 fields, values,
-                                 handle_duplicates, ignore)))
+                                 fields, values, handle_duplicates, ignore)))
   {
     DBUG_RETURN(TRUE);
   }
@@ -1617,11 +1643,9 @@ bool mysql_multi_update(THD *thd,
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
   List<Item> total_list;
 
-  res= mysql_select(thd, &select_lex->ref_pointer_array,
-                    table_list, select_lex->with_wild,
-                    total_list,
-                    conds, 0, (ORDER *) NULL, (ORDER *)NULL, (Item *) NULL,
-                    (ORDER *)NULL,
+  res= mysql_select(thd, &select_lex->ref_pointer_array, table_list,
+                    select_lex->with_wild, total_list, conds, 0, NULL, NULL,
+                    NULL, NULL,
                     options | SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
                     OPTION_SETUP_TABLES_DONE,
                     *result, unit, select_lex);
@@ -2067,7 +2091,7 @@ multi_update::~multi_update()
   TABLE_LIST *table;
   for (table= update_tables ; table; table= table->next_local)
   {
-    table->table->no_keyread= table->table->no_cache= 0;
+    table->table->no_keyread= 0;
     if (ignore)
       table->table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   }
@@ -2347,7 +2371,7 @@ int multi_update::do_updates()
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)
     {
-      if ((local_error= tbl->file->ha_rnd_init(1)))
+      if ((local_error= tbl->file->ha_rnd_init(0)))
       {
         err_table= tbl;
         goto err;

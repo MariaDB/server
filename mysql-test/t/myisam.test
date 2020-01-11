@@ -1216,13 +1216,14 @@ DROP TABLE t1;
 --echo #
 --echo # BUG#48438 - crash with error in unioned query against merge table and view...
 --echo #
-SET GLOBAL table_open_cache=3;
+SET @save_table_open_cache=@@table_open_cache;
+SET GLOBAL table_open_cache=10;
 CREATE TABLE t1(a INT);
-SELECT 1 FROM t1 AS a1, t1 AS a2, t1 AS a3, t1 AS a4 FOR UPDATE;
+SELECT 1 FROM t1 AS a1, t1 AS a2, t1 AS a3, t1 AS a4, t1 AS a5, t1 AS a6, t1 AS a7, t1 AS a8, t1 AS a9, t1 AS a10, t1 AS a11 FOR UPDATE;
 SELECT TABLE_ROWS, DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES
   WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
 DROP TABLE t1;
-SET GLOBAL table_open_cache=DEFAULT;
+SET GLOBAL table_open_cache=@save_table_open_cache;
 
 --echo End of 5.0 tests
 
@@ -1763,7 +1764,39 @@ OPTIMIZE TABLE t1;
 DROP TABLE t1;
 
 #
+# Check FLUSH FOR EXPORT
+#
+
+CREATE TABLE t1(a INT, b CHAR(10), KEY(a), KEY(b)) engine=myisam;
+INSERT INTO t1 VALUES(1,'0'),(2,'0'),(3,'0'),(4,'0'),(5,'0'),
+                     (6,'0'),(7,'0');
+flush tables test.t1 for export;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+insert into t1 values (8,'0');
+unlock tables;
+drop table t1;
+
+#
 # Check some variables
 #
 show variables like 'myisam_block_size';
 select @@global.myisam_block_size;
+
+
+--echo #
+--echo # MDEV-20704 An index on a double column erroneously uses prefix compression
+--echo #
+
+CREATE TABLE t1 (
+  id INT NOT NULL PRIMARY KEY,
+  d  DOUBLE,
+  KEY (d)
+) ENGINE=MyISAM;
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+--exec $MYISAMCHK -d $MYSQLD_DATADIR/test/t1
+DROP TABLE t1;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #

@@ -49,10 +49,10 @@ SET DEBUG_SYNC = 'now WAIT_FOR query_done';
 select command, time < 5 from information_schema.processlist where id != connection_id();
 
 disconnect con1;
+connection default;
 set debug_sync='reset';
 
-connection default;
-
+--echo End of 5.5 tests
 
 --echo #
 --echo # 10.1 tests

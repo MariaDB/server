@@ -1,0 +1,2 @@
+show create table information_schema.disks;
+select sum(Total) > sum(Available), sum(Total)>sum(Used) from information_schema.disks;

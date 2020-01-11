@@ -1,6 +1,12 @@
 # Test fragmentation over configuration changes
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source suite/galera/include/galera_have_debug_sync.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
 
 # Prepare table
 CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 TEXT);
@@ -64,3 +70,5 @@ SELECT * FROM t1;
 --connection node_1
 
 DROP TABLE t1;
+
+--source include/auto_increment_offset_restore.inc

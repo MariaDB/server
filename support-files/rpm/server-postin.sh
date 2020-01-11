@@ -16,10 +16,9 @@ fi
 # Make MySQL start/shutdown automatically when the machine does it.
 if [ $1 = 1 ] ; then
   if [ -x /usr/bin/systemctl ] ; then
-          /usr/bin/systemctl daemon-reload >/dev/null 2>&1
-  fi
-
-  if [ -x /sbin/chkconfig ] ; then
+          /usr/bin/systemctl daemon-reload >/dev/null 2>&1 || :
+          /usr/bin/systemctl preset mariadb.service >/dev/null 2>&1 || :
+  elif [ -x /sbin/chkconfig ] ; then
           /sbin/chkconfig --add mysql
   fi
 
@@ -52,11 +51,11 @@ if [ $1 = 1 ] ; then
 
   # Change permissions so that the user that will run the MySQL daemon
   # owns all database files.
-  chown -R %{mysqld_user}:%{mysqld_group} $datadir
+  chown -R -f %{mysqld_user}:%{mysqld_group} $datadir
 
   if [ ! -e $datadir/mysql ]; then
     # Create data directory
-    mkdir -p $datadir/{mysql,test}
+    mkdir -p $datadir
 
     # Initiate databases
     %{_bindir}/mysql_install_db --rpm --user=%{mysqld_user}

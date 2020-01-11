@@ -5,3 +5,16 @@
 --source include/have_innodb.inc
 set default_storage_engine=innodb;
 --source auto_increment_ranges.inc
+
+#
+# MDEV-17377 invalid gap in auto-increment values after LOAD DATA
+#
+create table t1 (pk int auto_increment primary key, f varchar(20));
+insert t1 (f) values ('a'), ('b'), ('c'), ('d');
+select null, f into outfile 'load.data' from t1 limit 1;
+load data infile 'load.data' into table t1;
+insert t1 (f) values ('<===');
+select * from t1;
+drop table t1;
+--let $datadir=`select @@datadir`
+--remove_file $datadir/test/load.data

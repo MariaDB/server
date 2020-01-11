@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 #include "ts_expr_node.h"
@@ -562,7 +562,7 @@ inline static grn_ts_bool
 grn_ts_op_not_equal_float(grn_ts_float lhs, grn_ts_float rhs)
 {
   /* To suppress warnings, "lhs != rhs" is not used. */
-  return (lhs < rhs) || (lhs > rhs);
+  return !grn_ts_op_equal_float(lhs, rhs);
 }
 
 /* grn_ts_op_not_equal_time() returns lhs != rhs. */

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "azlib.h"
 #include <string.h>
@@ -408,8 +408,7 @@ static void print_version(void)
 
 static void get_options(int *argc, char ***argv)
 {
-  if (load_defaults("my", load_default_groups, argc, argv))
-    exit(1);
+  load_defaults_or_exit("my", load_default_groups, argc, argv);
   default_argv= *argv;
 
   handle_options(argc, argv, my_long_options, get_one_option);

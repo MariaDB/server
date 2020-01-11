@@ -12,7 +12,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
 #
 # Check cpu of current machine and find the
@@ -40,6 +40,12 @@ check_compiler_cpu_flags () {
     cc_major=$1
     cc_minor=$2
     cc_patch=$3
+    if test -z "$cc_minor"; then
+      cc_minor="0";
+    fi
+    if test -z "$cc_patch"; then
+      cc_minor="0";
+    fi
     cc_comp=`expr $cc_major '*' 100 '+' $cc_minor`
   fi
 

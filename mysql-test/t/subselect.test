@@ -6098,6 +6098,45 @@ and t1.a in (select `test`.`t3`.`c` from `test`.`t3`);
 SET @@optimizer_switch= @optimiser_switch_save;
 DROP TABLE t1, t2, t3;
 
+--echo #
+--echo # MDEV-16820: impossible where with inexpensive subquery
+--echo #
+
+create table t1 (a int) engine=myisam;
+insert into t1 values (3), (1), (7);
+
+create table t2 (b int, index idx(b));
+insert into t2 values (2), (5), (3), (2);
+
+explain select * from t1 where (select max(b) from t2) = 10;
+explain select * from t1 where (select max(b) from t2) = 10 and t1.a > 3;
+
+drop table t1,t2;
+
+
+--echo #
+--echo # MDEV-19429: Wrong query result with EXISTS and LIMIT 0
+--echo #
+create table t10 (a int);
+insert into t10 values (1),(2),(3);
+create table t12 (a int);
+insert into t12 values (1),(2),(3);
+select * from t10 where exists (select * from t12 order by a limit 0);
+explain select * from t10 where exists (select * from t12 order by a limit 0);
+
+prepare stmt1 from "select * from t10 where exists (select * from t12 order by a limit ?)";
+
+set @l=1;
+execute stmt1 using @l;
+set @l=2;
+execute stmt1 using @l;
+set @l=0;
+execute stmt1 using @l;
+
+deallocate prepare stmt1;
+
+drop table t10, t12;
+
 --echo End of 5.5 tests
 --echo # End of 10.0 tests
 

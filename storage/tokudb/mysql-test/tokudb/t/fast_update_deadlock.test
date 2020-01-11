@@ -1,31 +1,31 @@
 source include/have_tokudb.inc;
 
-disable_warnings;
-drop table if exists t;
-enable_warnings;
+set tokudb_enable_fast_update=1;
+source ../include/setup_fast_update_upsert.inc;
 
-set default_storage_engine='tokudb';
-
-create table t (id bigint primary key, b bigint not null default 0);
+create table t (id bigint primary key,
+                b bigint not null default 0) engine = tokudb;
 insert into t (id) values (1),(2);
 
 connect (conn1,localhost,root,,);
+set tokudb_enable_fast_update=1;
+source ../include/setup_fast_update_upsert.inc;
 
 connection default;
 begin;
-update noar t set b=b+1 where id=1;
+update t set b=b+1 where id=1;
 
 connection conn1;
 begin;
-update noar t set b=b-1 where id=2;
+update t set b=b-1 where id=2;
 
 connection default;
-send update noar t set b=b+1 where id=2;
+send update t set b=b+1 where id=2;
 
 connection conn1;
 sleep 1;
 error 1205,1213;
-update noar t set b=b-1 where id=1;
+update t set b=b-1 where id=1;
 rollback;
 
 connection default;
@@ -38,4 +38,3 @@ disconnect conn1;
 select * from t;
 
 drop table t;
-

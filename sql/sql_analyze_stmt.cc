@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation				// gcc: Class implementation
@@ -39,7 +39,7 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
     if (r_limit == 0)
       writer->add_str(varied_str);
     else
-      writer->add_ll((longlong) rint(r_limit/get_r_loops()));
+      writer->add_ll((longlong) rint(r_limit));
   }
 
   writer->add_member("r_used_priority_queue"); 

@@ -273,18 +273,21 @@ WHERE EVENT_NAME LIKE '%client_connection%'
 --echo
 --echo # 6.1 Verify that there are no TCP/IP connections in the socket instance table
 --echo
-eval SELECT COUNT(*) = 0 AS 'Expect 1'
+let $wait_condition=
+SELECT COUNT(*) = 0 AS 'Expect 1'
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME LIKE '%client_connection%'
   AND OBJECT_INSTANCE_BEGIN <> @default_object_instance_begin
   AND $ip_localhost;
+--source include/wait_condition.inc
 
 --echo
 --echo # 6.2 Verify that there are no TCP/IP connections in the summary instance table
 --echo
-eval SELECT COUNT(*) = 0 AS 'Expect 1'
+let $wait_condition=
+SELECT COUNT(*) = 0 AS 'Expect 1'
 FROM performance_schema.socket_summary_by_instance
 WHERE EVENT_NAME LIKE '%client_connection%'
   AND OBJECT_INSTANCE_BEGIN <> @default_object_instance_begin;
-
+--source include/wait_condition.inc
 exit;

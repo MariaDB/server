@@ -19,7 +19,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -453,7 +453,8 @@ rw_lock_higher_prio_waiters_exist(
 		return(false);
 	}
 
-	ut_ad(priority_lock && !high_priority);
+	ut_ad(priority_lock);
+	ut_ad(!high_priority);
 
 	prio_rw_lock_t *prio_rw_lock = (prio_rw_lock_t *) lock;
 	return prio_rw_lock->high_priority_wait_ex_waiter > 0

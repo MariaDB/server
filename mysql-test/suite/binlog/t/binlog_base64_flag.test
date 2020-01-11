@@ -67,6 +67,28 @@ TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA==
 # The above line should succeed and 3 should be in the table
 select * from t1;
 
+# The same as above with one-fragment BINLOG to prove
+# equivalency with the fragmented BINLOG @frag_0, @frag_1.
+DELETE FROM t1 WHERE a=3;
+# This is a binlog statement containing a Format_description_log_event
+# from the same version as the Table_map and Write_rows_log_event.
+BINLOG '
+ODdYRw8BAAAAZgAAAGoAAAABAAQANS4xLjIzLXJjLWRlYnVnLWxvZwAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAA4N1hHEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
+';
+
+# This is a Table_map_log_event+Write_rows_log_event corresponding to:
+# INSERT INTO TABLE test.t1 VALUES (3)
+SET @binlog_fragment_0='
+TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=
+TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA==
+';
+SET @binlog_fragment_1='';
+BINLOG @binlog_fragment_0, @binlog_fragment_1;
+# The above line should succeed and 3 should be in the table:
+select * from t1;
+# show "one-shot" feature of binlog_fragment variables
+SELECT @binlog_fragment_0, @binlog_fragment_1 as 'NULL','NULL';
 
 # Test that mysqlbinlog stops with an error message when the
 # --base64-output=never flag is used on a binlog with base64 events.

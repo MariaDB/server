@@ -53,14 +53,22 @@ drop table t1;
 
 #
 # Bug#17939 Wrong table format when using UTF8 strings
-#
---exec $MYSQL --default-character-set=utf8 --table -e "SELECT 'John Doe' as '__tañgè Ñãmé'" 2>&1
---exec $MYSQL --default-character-set=utf8 --table -e "SELECT '__tañgè Ñãmé' as 'John Doe'" 2>&1
+write_file $MYSQL_TMP_DIR/mysql_in;
+SELECT 'John Doe' as '__tañgè Ñãmé';
+SELECT '__tañgè Ñãmé' as 'John Doe';
+EOF
+--exec $MYSQL --default-character-set=utf8 --table < $MYSQL_TMP_DIR/mysql_in 2>&1
+remove_file $MYSQL_TMP_DIR/mysql_in;
 
 #
 # Bug#18265 -- mysql client: No longer right-justifies numeric columns
 #
---exec $MYSQL -t --default-character-set utf8 test -e "create table t1 (i int, j int, k char(25) charset utf8); insert into t1 (i) values (1); insert into t1 (k) values ('<----------------------->'); insert into t1 (k) values ('<-----'); insert into t1 (k) values ('Τη γλώσσα'); insert into t1 (k) values ('ᛖᚴ ᚷᛖᛏ'); select * from t1; DROP TABLE t1;"
+write_file $MYSQL_TMP_DIR/mysql_in;
+create table t1 (i int, j int, k char(25) charset utf8); insert into t1 (i) values (1); insert into t1 (k) values ('<----------------------->'); insert into t1 (k) values ('<-----'); insert into t1 (k) values ('Τη γλώσσα'); insert into t1 (k) values ('ᛖᚴ ᚷᛖᛏ'); select * from t1; DROP TABLE t1;
+EOF
+--exec $MYSQL -t --default-character-set utf8 test < $MYSQL_TMP_DIR/mysql_in
+remove_file $MYSQL_TMP_DIR/mysql_in;
+
 
 #
 # "DESCRIBE" commands may return strange NULLness flags.
@@ -630,10 +638,7 @@ EOF
 --echo # End of 10.1 tests
 --echo #
 
---error 1
---exec $MYSQL --default-character-set=utf8 -e "select 1" "test😁 " 2>&1
---error 1
---exec $MYSQL --default-character-set=binary -e "select 1" "test😁 " 2>&1
+
 --write_file $MYSQLTEST_VARDIR/tmp/mdev-6572.sql
 SET NAMES utf8;
 USE test😁 ;
@@ -675,3 +680,31 @@ show create table "a1\""b1";
 select * from "a1\""b1";
 drop table "a1\""b1";
 set sql_mode=default;
+
+#
+# mysql --local-infile
+#
+--let $ldli = load data local infile '$MYSQLTEST_VARDIR/tmp/bug.sql' into table test.t1;
+create table t1 (a text);
+--exec $MYSQL -e "$ldli"
+select count(*) from t1; truncate table t1;
+--exec $MYSQL --enable-local-infile -e "$ldli"
+select count(*) from t1; truncate table t1;
+--error 1
+--exec $MYSQL --disable-local-infile -e "$ldli"
+select count(*) from t1; truncate table t1;
+--error 1
+--exec $MYSQL -e "/*q*/$ldli"
+select count(*) from t1; truncate table t1;
+--exec $MYSQL --enable-local-infile -e "/*q*/$ldli"
+select count(*) from t1; truncate table t1;
+--error 1
+--exec $MYSQL --disable-local-infile -e "/*q*/$ldli"
+select count(*) from t1; truncate table t1;
+drop table t1;
+
+
+--echo #
+--echo # MDEV-15538 '-N' Produce html output wrong
+--echo #
+--exec $MYSQL -NHe "select 1 as a"

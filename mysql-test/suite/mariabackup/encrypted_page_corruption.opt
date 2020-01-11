@@ -1,0 +1,6 @@
+--innodb-encrypt-log=ON
+--plugin-load-add=$FILE_KEY_MANAGEMENT_SO
+--loose-file-key-management
+--loose-file-key-management-filekey=FILE:$MTR_SUITE_DIR/filekeys-data.key
+--loose-file-key-management-filename=$MTR_SUITE_DIR/filekeys-data.enc
+--loose-file-key-management-encryption-algorithm=aes_cbc

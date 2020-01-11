@@ -92,7 +92,7 @@ CREATE DATABASE i_s_parameters_test;
 USE i_s_parameters_test;
 
 delimiter //;
-CREATE PROCEDURE testproc (OUT param1 INT)
+CREATE PROCEDURE testproc (IN param1 INT)
   BEGIN
    SELECT 2+2 as param1;
   END;

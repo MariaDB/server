@@ -6,3 +6,16 @@ insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 select * from t1 order by now(), cast(pk as char(0));
 drop table t1;
 
+--echo #
+--echo # MDEV-17020: Assertion `length > 0' failed in ptr_compare upon ORDER BY with bad conversion
+--echo #
+
+set @save_sql_mode= @@sql_mode;
+SET @@sql_mode= '';
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+explain
+SELECT * FROM t1 ORDER BY 'foo', CONVERT(pk, CHAR(0)) LIMIT 2;
+SELECT * FROM t1 ORDER BY 'foo', Cast(pk as CHAR(0)) LIMIT 2;
+set @@sql_mode= @save_sql_mode;
+drop table t1;

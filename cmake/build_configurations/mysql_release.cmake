@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 # This file includes build settings used for MySQL release
 
@@ -83,15 +83,14 @@ IF(FEATURE_SET)
   ENDIF()
 ENDIF()
 
-OPTION(ENABLED_LOCAL_INFILE "" ON)
 SET(WITH_INNODB_SNAPPY OFF CACHE STRING "")
 IF(WIN32)
   SET(WITH_LIBARCHIVE STATIC CACHE STRING "")
 ELSEIF(RPM)
   SET(WITH_SSL system CACHE STRING "")
   SET(WITH_ZLIB system CACHE STRING "")
-  SET(CHECKMODULE /usr/bin/checkmodule CACHE STRING "")
-  SET(SEMODULE_PACKAGE /usr/bin/semodule_package CACHE STRING "")
+  SET(CHECKMODULE /usr/bin/checkmodule CACHE FILEPATH "")
+  SET(SEMODULE_PACKAGE /usr/bin/semodule_package CACHE FILEPATH "")
   SET(WITH_LIBARCHIVE ON CACHE STRING "")
 ELSEIF(DEB)
   SET(WITH_SSL system CACHE STRING "")
@@ -119,6 +118,7 @@ ENDIF()
 
 IF(UNIX)
   SET(WITH_EXTRA_CHARSETS all CACHE STRING "")
+  SET(PLUGIN_AUTH_PAM YES)
 
   IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     IF(NOT IGNORE_AIO_CHECK)

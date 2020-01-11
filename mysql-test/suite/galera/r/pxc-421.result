@@ -6,7 +6,6 @@ set GLOBAL wsrep_slave_threads=16;
 SET GLOBAL wsrep_provider='none';
 INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
-set SESSION wsrep_sync_wait=0;
 INSERT INTO t1 VALUES (4);
 set GLOBAL wsrep_slave_threads=5;
 SELECT COUNT(*) = 5 FROM t1;
@@ -26,7 +25,6 @@ SET GLOBAL wsrep_slave_threads = 1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 16
-SET GLOBAL auto_increment_offset = 2;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 15
@@ -35,4 +33,3 @@ Variable_name	Value
 wsrep_slave_threads	12
 SET GLOBAL wsrep_slave_threads = 1;
 DROP TABLE t1;
-SET GLOBAL auto_increment_offset = 1;

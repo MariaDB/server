@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -51,9 +52,6 @@ Created 1/20/1994 Heikki Tuuri
 #define	TEMP_INDEX_PREFIX	'\377'
 /** Index name prefix in fast index creation, as a string constant */
 #define TEMP_INDEX_PREFIX_STR	"\377"
-
-/** Time stamp */
-typedef time_t	ib_time_t;
 
 /* In order to call a piece of code, when a function returns or when the
 scope ends, use this utility class.  It will invoke the given function
@@ -111,22 +109,6 @@ private:
 #  define UT_LOW_PRIORITY_CPU() ((void)0)
 #  define UT_RESUME_PRIORITY_CPU() ((void)0)
 # endif
-
-/*********************************************************************//**
-Delays execution for at most max_wait_us microseconds or returns earlier
-if cond becomes true.
-@param cond		in: condition to wait for; evaluated every 2 ms
-@param max_wait_us	in: maximum delay to wait, in microseconds */
-#define UT_WAIT_FOR(cond, max_wait_us)				\
-do {								\
-	ullint	start_us;					\
-	start_us = ut_time_us(NULL);				\
-	while (!(cond) 						\
-	       && ut_time_us(NULL) - start_us < (max_wait_us)) {\
-								\
-		os_thread_sleep(2000 /* 2 ms */);		\
-	}							\
-} while (0)
 #endif /* !UNIV_HOTBACKUP */
 
 template <class T> T ut_min(T a, T b) { return(a < b ? a : b); }
@@ -251,50 +233,6 @@ store the given number of bits.
 
 #ifndef UNIV_INNOCHECKSUM
 /**********************************************************//**
-Returns system time. We do not specify the format of the time returned:
-the only way to manipulate it is to use the function ut_difftime.
-@return	system time */
-UNIV_INTERN
-ib_time_t
-ut_time(void);
-/*=========*/
-#ifndef UNIV_HOTBACKUP
-/**********************************************************//**
-Returns system time.
-Upon successful completion, the value 0 is returned; otherwise the
-value -1 is returned and the global variable errno is set to indicate the
-error.
-@return	0 on success, -1 otherwise */
-UNIV_INTERN
-int
-ut_usectime(
-/*========*/
-	ulint*	sec,	/*!< out: seconds since the Epoch */
-	ulint*	ms);	/*!< out: microseconds since the Epoch+*sec */
-
-/**********************************************************//**
-Returns the number of microseconds since epoch. Similar to
-time(3), the return value is also stored in *tloc, provided
-that tloc is non-NULL.
-@return	us since epoch */
-UNIV_INTERN
-ullint
-ut_time_us(
-/*=======*/
-	ullint*	tloc);	/*!< out: us since epoch, if non-NULL */
-/**********************************************************//**
-Returns the number of milliseconds since some epoch.  The
-value may wrap around.  It should only be used for heuristic
-purposes.
-@return	ms since epoch */
-UNIV_INTERN
-ulint
-ut_time_ms(void);
-/*============*/
-
-#endif /* !UNIV_HOTBACKUP */
-
-/**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
 value may wrap around.  It should only be used for heuristic
 purposes.
@@ -303,17 +241,6 @@ UNIV_INTERN
 ulint
 ut_time_ms(void);
 /*============*/
-
-/**********************************************************//**
-Returns the difference of two times in seconds.
-@return	time2 - time1 expressed in seconds */
-UNIV_INTERN
-double
-ut_difftime(
-/*========*/
-	ib_time_t	time2,	/*!< in: time */
-	ib_time_t	time1);	/*!< in: time */
-
 #endif /* !UNIV_INNOCHECKSUM */
 
 /**********************************************************//**
@@ -343,15 +270,6 @@ void
 ut_sprintf_timestamp_without_extra_chars(
 /*=====================================*/
 	char*	buf); /*!< in: buffer where to sprintf */
-/**********************************************************//**
-Returns current year, month, day. */
-UNIV_INTERN
-void
-ut_get_year_month_day(
-/*==================*/
-	ulint*	year,	/*!< out: current year */
-	ulint*	month,	/*!< out: month */
-	ulint*	day);	/*!< out: day */
 #else /* UNIV_HOTBACKUP */
 /*************************************************************//**
 Runs an idle loop on CPU. The argument gives the desired delay

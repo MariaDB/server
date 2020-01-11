@@ -9,12 +9,16 @@ create view v2 as select a from t2;
 
 flush status;
 select * from v2;
+--disable_ps_protocol
 show status like '%Created_tmp%';
+--enable_ps_protocol
 
 explain select * from v2;
 
 select * from (select * from t2) T1;
+--disable_ps_protocol
 show status like '%Created_tmp%';
+--enable_ps_protocol
 
 explain select * from (select * from t2) T1;
 

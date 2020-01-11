@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifndef _ma_loghandler_lsn_h
 #define _ma_loghandler_lsn_h
@@ -47,7 +47,8 @@ typedef TRANSLOG_ADDRESS LSN;
 #define LSN_FILE_NO_PART(L) ((L) & ((int64)0xFFFFFF00000000LL))
 
 /* Parts of LSN for printing */
-#define LSN_IN_PARTS(L) (ulong)LSN_FILE_NO(L),(ulong)LSN_OFFSET(L)
+#define LSN_IN_PARTS(L) (uint)LSN_FILE_NO(L),(uint)LSN_OFFSET(L)
+#define LSN_FMT "(%u,0x%x)"
 
 /* Gets record offset of a LSN/log address */
 #define LSN_OFFSET(L) (ulong) ((L) & 0xFFFFFFFFL)

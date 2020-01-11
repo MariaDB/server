@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2013, 2015, MariaDB
+   Copyright (c) 2012, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "debug_sync.h"  // DEBUG_SYNC
 #include "table.h"       // TABLE, FOREIGN_KEY_INFO
@@ -150,15 +150,11 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
   /* Loop over the set of foreign keys for which this table is a parent. */
   while ((fk_info= it++))
   {
-    DBUG_ASSERT(!my_strcasecmp(system_charset_info,
-                               fk_info->referenced_db->str,
-                               table->s->db.str));
-
-    DBUG_ASSERT(!my_strcasecmp(system_charset_info,
-                               fk_info->referenced_table->str,
-                               table->s->table_name.str));
-
-    if (my_strcasecmp(system_charset_info, fk_info->foreign_db->str,
+    if (my_strcasecmp(system_charset_info, fk_info->referenced_db->str,
+                      table->s->db.str) ||
+        my_strcasecmp(system_charset_info, fk_info->referenced_table->str,
+                      table->s->table_name.str) ||
+        my_strcasecmp(system_charset_info, fk_info->foreign_db->str,
                       table->s->db.str) ||
         my_strcasecmp(system_charset_info, fk_info->foreign_table->str,
                       table->s->table_name.str))
@@ -302,7 +298,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
   if (thd->locked_tables_mode)
   {
     if (!(table= find_table_for_mdl_upgrade(thd, table_ref->db,
-                                            table_ref->table_name, FALSE)))
+                                            table_ref->table_name, NULL)))
       DBUG_RETURN(TRUE);
 
     *hton_can_recreate= ha_check_storage_engine_flag(table->s->db_type(),
@@ -349,7 +345,8 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
   {
     DEBUG_SYNC(thd, "upgrade_lock_for_truncate");
     /* To remove the table from the cache we need an exclusive lock. */
-    if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_DROP))
+    if (wait_while_table_is_used(thd, table,
+          *hton_can_recreate ? HA_EXTRA_PREPARE_FOR_DROP : HA_EXTRA_NOT_USED))
       DBUG_RETURN(TRUE);
     m_ticket_downgrade= table->mdl_ticket;
     /* Close if table is going to be recreated. */
@@ -426,7 +423,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       */
       error= dd_recreate_table(thd, table_ref->db, table_ref->table_name);
 
-      if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd))
+      if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd, false))
           thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
 
       /* No need to binlog a failed truncate-by-recreate. */
@@ -500,4 +497,3 @@ bool Sql_cmd_truncate_table::execute(THD *thd)
 
   DBUG_RETURN(res);
 }
-

@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 # This is a library file used by the Perl version of mysql-test-run,
 # and is part of the translation of the Bourne shell script with the
@@ -35,6 +35,21 @@ use My::Platform;
 use POSIX qw[ _exit ];
 use IO::Handle qw[ flush ];
 use mtr_results;
+
+use Term::ANSIColor;
+
+my %color_map = qw/pass green
+                   retry-pass green
+                   fail red
+                   retry-fail red
+                   disabled bright_black
+                   skipped yellow
+                   reset reset/;
+sub xterm_color {
+  if (-t STDOUT and defined $ENV{TERM} and $ENV{TERM} =~ /xterm/) {
+    syswrite STDOUT, color($color_map{$_[0]});
+  }
+}
 
 my $tot_real_time= 0;
 
@@ -498,7 +513,16 @@ sub mtr_print (@) {
 sub mtr_report (@) {
   if (defined $verbose)
   {
-    print _name(). join(" ", @_). "\n";
+    my @s = split /\[ (\S+) \]/, _name() . "@_\n";
+    if (@s > 1) {
+      print $s[0];
+      xterm_color($s[1]);
+      print "[ $s[1] ]";
+      xterm_color('reset');
+      print $s[2];
+    } else {
+      print $s[0];
+    }
   }
 }
 

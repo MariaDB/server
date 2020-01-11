@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include "mysql_version.h"
@@ -371,6 +371,14 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   if (direct_sql->access_mode == 0)
   {
 #endif
+    if (direct_sql->dbton_id == SPIDER_DBTON_SIZE)
+    {
+      /* Invalid target wrapper */
+      *error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
+      my_printf_error(*error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
+                      MYF(0), direct_sql->tgt_wrapper);
+      goto error_alloc_conn;
+    }
     if (!(conn = (SPIDER_CONN *)
       spider_bulk_malloc(spider_current_trx, 32, MYF(MY_WME | MY_ZEROFILL),
         &conn, sizeof(*conn),
@@ -398,6 +406,14 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
     conn->default_database.init_calc_mem(138);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   } else {
+    if (direct_sql->dbton_id == SPIDER_DBTON_SIZE)
+    {
+      /* Invalid target wrapper */
+      *error_num = ER_SPIDER_NOSQL_WRAPPER_IS_INVALID_NUM;
+      my_printf_error(*error_num, ER_SPIDER_NOSQL_WRAPPER_IS_INVALID_STR,
+                      MYF(0), direct_sql->tgt_wrapper);
+      goto error_alloc_conn;
+    }
     if (!(conn = (SPIDER_CONN *)
       spider_bulk_malloc(spider_current_trx, 33, MYF(MY_WME | MY_ZEROFILL),
         &conn, sizeof(*conn),

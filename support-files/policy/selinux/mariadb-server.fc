@@ -1,4 +1,4 @@
-# This SELinux file contexts (.fc) file has been copied under BSD License from
+# This SELinux file contexts (.fc) file has been copied under New BSD License from
 # Percona XtraDB Cluster.
 
 /etc/init\.d/rc\.d/mysql -- gen_context(system_u:object_r:mysqld_initrc_exec_t,s0)
@@ -7,4 +7,5 @@
 /var/lib/mysql/.*\.pid -- gen_context(system_u:object_r:mysqld_var_run_t,s0)
 /var/lib/mysql/.*\.cnf	--  gen_context(system_u:object_r:mysqld_etc_t,s0)
 /usr/bin/xtrabackup.* -- gen_context(system_u:object_r:mysqld_exec_t,s0)
+/usr/bin/mariabackup.* -- gen_context(system_u:object_r:mysqld_exec_t,s0)
 /usr/bin/wsrep.*  -- gen_context(system_u:object_r:mysqld_safe_exec_t,s0)

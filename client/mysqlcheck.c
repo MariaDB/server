@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
@@ -953,7 +953,8 @@ static int handle_request_for_tables(char *tables, size_t length,
     puts(query);
   if (mysql_real_query(sock, query, query_length))
   {
-    sprintf(message, "when executing '%s%s... %s'", op, tab_view, options);
+    my_snprintf(message, sizeof(message), "when executing '%s%s... %s'",
+                op, tab_view, options);
     DBerror(sock, message);
     my_free(query);
     DBUG_RETURN(1);
@@ -1165,9 +1166,7 @@ int main(int argc, char **argv)
   /*
   ** Check out the args
   */
-  if (load_defaults("my", load_default_groups, &argc, &argv))
-    goto end2;
-
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   defaults_argv= argv;
   if (get_options(&argc, &argv))
     goto end1;
@@ -1243,7 +1242,6 @@ int main(int argc, char **argv)
   my_free(shared_memory_base_name);
   mysql_library_end();
   free_defaults(defaults_argv);
- end2:
   my_end(my_end_arg);
   return ret;
 } /* main */

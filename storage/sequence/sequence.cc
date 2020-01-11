@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -348,7 +348,9 @@ static int discover_table_existence(handlerton *hton, const char *db,
   return !parse_table_name(table_name, strlen(table_name), &from, &to, &step);
 }
 
-static int dummy_ret_int() { return 0; }
+static int dummy_commit_rollback(handlerton *, THD *, bool) { return 0; }
+
+static int dummy_savepoint(handlerton *, THD *, void *) { return 0; }
 
 /*****************************************************************************
   Example of a simple group by handler for queries like:
@@ -487,10 +489,9 @@ static int init(void *p)
   hton->create= create_handler;
   hton->discover_table= discover_table;
   hton->discover_table_existence= discover_table_existence;
-  hton->commit= hton->rollback=
-   (int (*)(handlerton *, THD *, bool)) &dummy_ret_int;
+  hton->commit= hton->rollback= dummy_commit_rollback;
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=
-   (int  (*)(handlerton *, THD *, void *)) &dummy_ret_int;
+    dummy_savepoint;
   hton->create_group_by= create_group_by_handler;
   return 0;
 }

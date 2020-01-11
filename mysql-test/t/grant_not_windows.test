@@ -1,0 +1,14 @@
+ # UTF8 parameters to mysql client do not work on Windows
+--source include/not_windows.inc
+--source include/not_embedded.inc
+
+#
+# Bug#21432 Database/Table name limited to 64 bytes, not chars, problems with multi-byte
+#
+set names utf8;
+create user юзер_юзер@localhost;
+grant select on test.* to юзер_юзер@localhost;
+--exec $MYSQL --default-character-set=utf8 --user=юзер_юзер -e "select user()"
+revoke all on test.* from юзер_юзер@localhost;
+drop user юзер_юзер@localhost;
+set names default;

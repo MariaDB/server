@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifndef PFS_TIMER_H
 #define PFS_TIMER_H
@@ -102,7 +102,7 @@ extern enum_timer_name statement_timer;
   Timer information data.
   Characteristics about each suported timer.
 */
-extern MY_TIMER_INFO pfs_timer_info;
+extern MYSQL_PLUGIN_IMPORT MY_TIMER_INFO sys_timer_info;
 
 /** Initialize the timer component. */
 void init_timers();

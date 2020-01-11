@@ -86,3 +86,11 @@ int main (int argc __attribute__((unused)),
   return 0;
 #endif /* DBUG_OFF */
 }
+
+#ifdef __SANITIZE_ADDRESS__
+/* Disable LeakSanitizer in this executable */
+const char* __asan_default_options()
+{
+  return "detect_leaks=0";
+}
+#endif

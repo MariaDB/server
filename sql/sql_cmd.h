@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file Representation of an SQL command.
@@ -102,6 +102,31 @@ enum enum_sql_command {
   SQLCOM_END
 };
 
+
+class Storage_engine_name
+{
+protected:
+  LEX_CSTRING m_storage_engine_name;
+public:
+  Storage_engine_name()
+  {
+    m_storage_engine_name.str= NULL;
+    m_storage_engine_name.length= 0;
+  }
+  Storage_engine_name(const LEX_CSTRING &name)
+   :m_storage_engine_name(name)
+  { }
+  Storage_engine_name(const LEX_STRING &name)
+  {
+    m_storage_engine_name.str= name.str;
+    m_storage_engine_name.length= name.length;
+  }
+  bool resolve_storage_engine_with_error(THD *thd,
+                                         handlerton **ha,
+                                         bool tmp_table);
+};
+
+
 /**
   @class Sql_cmd - Representation of an SQL command.
 
@@ -145,6 +170,11 @@ public:
   */
   virtual bool execute(THD *thd) = 0;
 
+  virtual Storage_engine_name *option_storage_engine_name()
+  {
+    return NULL;
+  }
+
 protected:
   Sql_cmd()
   {}
@@ -160,5 +190,16 @@ protected:
     DBUG_ASSERT(FALSE);
   }
 };
+
+
+class Sql_cmd_create_table: public Sql_cmd,
+                            public Storage_engine_name
+{
+public:
+  enum_sql_command sql_command_code() const { return SQLCOM_CREATE_TABLE; }
+  Storage_engine_name *option_storage_engine_name() { return this; }
+  bool execute(THD *thd);
+};
+
 
 #endif // SQL_CMD_INCLUDED

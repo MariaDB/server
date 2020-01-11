@@ -107,13 +107,11 @@ static void cachetable_prefetch_full_test (bool partial_fetch) {
     if (partial_fetch) {
         expect_pf = true;
         void* value;
-        long size;
         r = toku_cachetable_get_and_pin(
             f1, 
             key, 
             fullhash, 
             &value, 
-            &size, 
             wc, 
             fetch,
             def_pf_req_callback,

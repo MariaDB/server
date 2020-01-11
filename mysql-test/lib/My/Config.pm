@@ -13,7 +13,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335 USA
 
 package My::Config::Option;
 
@@ -195,14 +195,10 @@ sub value {
   my ($self, $option_name)= @_;
   my $option= $self->option($option_name);
 
-  if (! defined($option) and defined $ENV{$option_name}) {
+  if (! defined($option)) {
     my $value= $ENV{$option_name};
     $option= My::Config::Option->new($option_name, $value);
   }
-
-  croak "No option named '$option_name' in group '$self->{name}'"
-    if ! defined($option);
-
   return $option->value();
 }
 
@@ -331,7 +327,13 @@ sub new {
       # Skip comment
       next;
     }
-    
+    # Correctly process Replication Filter when they are defined
+    # with connection name.
+    elsif ( $line =~ /^([\w]+.[\w]+)\s*=\s*(.*)\s*/){
+       my $option= $1;
+       my $value= $2;
+       $self->insert($group_name, $option, $value);
+    }
     else {
       croak "Unexpected line '$line' found in '$path'";
     }

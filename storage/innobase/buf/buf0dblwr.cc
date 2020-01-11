@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -291,6 +291,13 @@ too_small:
 
 		ut_ad(rw_lock_get_x_lock_count(&new_block->lock) == 1);
 		page_no = buf_block_get_page_no(new_block);
+		/* We only do this in the debug build, to ensure that
+		both the check in buf_flush_init_for_writing() and
+		recv_parse_or_apply_log_rec_body() will see a valid
+		page type. The flushes of new_block are actually
+		unnecessary here.  */
+		ut_d(mlog_write_ulint(FIL_PAGE_TYPE + new_block->frame,
+				      FIL_PAGE_TYPE_SYS, MLOG_2BYTES, &mtr));
 
 		if (i == FSP_EXTENT_SIZE / 2) {
 			ut_a(page_no == FSP_EXTENT_SIZE);
@@ -353,6 +360,7 @@ too_small:
 
 	/* Flush the modified pages to disk and make a checkpoint */
 	log_make_checkpoint_at(LSN_MAX, TRUE);
+	buf_dblwr_being_created = FALSE;
 
 	/* Remove doublewrite pages from LRU */
 	buf_pool_invalidate();
@@ -360,6 +368,22 @@ too_small:
 	ib_logf(IB_LOG_LEVEL_INFO, "Doublewrite buffer created");
 
 	goto start_again;
+}
+
+/** Check if a page is all zeroes.
+@param[in]	read_buf	database page
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@return	whether the page is all zeroes */
+static bool buf_page_is_zeroes(const byte* read_buf, ulint zip_size)
+{
+	const ulint page_size = zip_size ? zip_size : UNIV_PAGE_SIZE;
+
+	for (ulint i = 0; i < page_size; i++) {
+		if (read_buf[i] != 0) {
+			return false;
+		}
+	}
+	return true;
 }
 
 /****************************************************************//**
@@ -510,10 +534,11 @@ buf_dblwr_process()
 		"Restoring possible half-written data pages "
 		"from the doublewrite buffer...");
 
-	unaligned_read_buf = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE));
+	unaligned_read_buf = static_cast<byte*>(ut_malloc(3 * UNIV_PAGE_SIZE));
 
 	read_buf = static_cast<byte*>(
 		ut_align(unaligned_read_buf, UNIV_PAGE_SIZE));
+	byte* const buf = read_buf + UNIV_PAGE_SIZE;
 
 	for (std::list<byte*>::iterator i = recv_dblwr.pages.begin();
 	     i != recv_dblwr.pages.end(); ++i, ++page_no_dblwr ) {
@@ -555,6 +580,9 @@ buf_dblwr_process()
 
 		const bool is_all_zero = buf_page_is_zeroes(
 			read_buf, zip_size);
+		const bool expect_encrypted = space()->crypt_data
+			&& space()->crypt_data->type
+			!= CRYPT_SCHEME_UNENCRYPTED;
 
 		if (is_all_zero) {
 			/* We will check if the copy in the
@@ -562,24 +590,26 @@ buf_dblwr_process()
 			ignore this page (there should be redo log
 			records to initialize it). */
 		} else {
-			if (fil_page_is_compressed_encrypted(read_buf) ||
-			    fil_page_is_compressed(read_buf)) {
-				/* Decompress the page before
-				validating the checksum. */
-				fil_decompress_page(
-					NULL, read_buf, srv_page_size,
-					NULL, true);
+			/* Decompress the page before
+			validating the checksum. */
+			ulint decomp = fil_page_decompress(buf, read_buf);
+			if (!decomp || (decomp != srv_page_size && zip_size)) {
+				goto bad;
 			}
 
-			if (fil_space_verify_crypt_checksum(
-					read_buf, zip_size, NULL, page_no)
-			   || !buf_page_is_corrupted(
-				   true, read_buf, zip_size, space())) {
+			if (expect_encrypted && mach_read_from_4(
+				    read_buf
+				    + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
+			    ? fil_space_verify_crypt_checksum(read_buf,
+							      zip_size)
+			    : !buf_page_is_corrupted(true, read_buf,
+						     zip_size, space())) {
 				/* The page is good; there is no need
 				to consult the doublewrite buffer. */
 				continue;
 			}
 
+bad:
 			/* We intentionally skip this message for
 			is_all_zero pages. */
 			ib_logf(IB_LOG_LEVEL_INFO,
@@ -588,23 +618,15 @@ buf_dblwr_process()
 				space_id, page_no);
 		}
 
-		/* Next, validate the doublewrite page. */
-		if (fil_page_is_compressed_encrypted(page) ||
-		    fil_page_is_compressed(page)) {
-			/* Decompress the page before
-			validating the checksum. */
-			fil_decompress_page(
-				NULL, page, srv_page_size, NULL, true);
+		ulint decomp = fil_page_decompress(buf, page);
+		if (!decomp || (decomp != srv_page_size && zip_size)) {
+			continue;
 		}
 
-		if (!fil_space_verify_crypt_checksum(page, zip_size, NULL, page_no)
-		    && buf_page_is_corrupted(true, page, zip_size, space)) {
-			if (!is_all_zero) {
-				ib_logf(IB_LOG_LEVEL_WARN,
-					"A doublewrite copy of page "
-					ULINTPF ":" ULINTPF " is corrupted.",
-					space_id, page_no);
-			}
+		if (expect_encrypted && mach_read_from_4(
+			    page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)
+		    ? !fil_space_verify_crypt_checksum(page, zip_size)
+		    : buf_page_is_corrupted(true, page, zip_size, space())) {
 			/* Theoretically we could have another good
 			copy for this page in the doublewrite
 			buffer. If not, we will report a fatal error

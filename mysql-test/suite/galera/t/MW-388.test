@@ -1,6 +1,4 @@
 --source include/galera_cluster.inc
---source include/have_innodb.inc
---source include/have_debug.inc
 --source include/have_debug_sync.inc
 
 --connection node_1
@@ -29,8 +27,9 @@ DELIMITER ;|
 # that of the INSERT. Because there is only one slave thread,
 # commit cut is not processed and therefore does not advance
 # local monitor, and our INSERT remains stuck there.
+
 SET GLOBAL wsrep_slave_threads = 2;
-SET GLOBAL DEBUG = "d,sync.wsrep_apply_cb";
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
 
 --connection node_2
 --send INSERT INTO t1 VALUES (1, 'node 2');
@@ -47,8 +46,7 @@ SET SESSION DEBUG_SYNC = 'wsrep_after_replication SIGNAL wsrep_after_replication
 --connection node_1a
 SET SESSION DEBUG_SYNC = "now WAIT_FOR wsrep_after_replication_reached";
 
-
-SET GLOBAL DEBUG = "";
+SET GLOBAL debug_dbug = "";
 SET DEBUG_SYNC = "now SIGNAL wsrep_after_replication_continue";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 
@@ -69,7 +67,7 @@ SET GLOBAL wsrep_slave_threads = DEFAULT;
 DROP TABLE t1;
 DROP PROCEDURE insert_proc;
 
-SET GLOBAL debug = NULL;
+SET GLOBAL debug_dbug = "";
 SET debug_sync='RESET';
 
 # Make sure no pending signals are leftover to surprise subsequent tests.

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -63,6 +63,9 @@ Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 #include "sync0arr.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
+
+/** The latest successfully looked up innodb_fts_aux_table */
+UNIV_INTERN table_id_t innodb_ft_aux_table_id;
 
 /** structure associates a name string with a file page type and/or buffer
 page state. */
@@ -1428,19 +1431,16 @@ i_s_cmp_fill_low(
 		clear it.  We could introduce mutex protection, but it
 		could cause a measureable performance hit in
 		page0zip.cc. */
-		table->field[1]->store(
-			static_cast<double>(zip_stat->compressed));
-		table->field[2]->store(
-			static_cast<double>(zip_stat->compressed_ok));
-		table->field[3]->store(
-			static_cast<double>(zip_stat->compressed_usec / 1000000));
-		table->field[4]->store(
-			static_cast<double>(zip_stat->decompressed));
-		table->field[5]->store(
-			static_cast<double>(zip_stat->decompressed_usec / 1000000));
+		table->field[1]->store(zip_stat->compressed, true);
+		table->field[2]->store(zip_stat->compressed_ok, true);
+		table->field[3]->store(zip_stat->compressed_usec / 1000000,
+				       true);
+		table->field[4]->store(zip_stat->decompressed, true);
+		table->field[5]->store(zip_stat->decompressed_usec / 1000000,
+				       true);
 
 		if (reset) {
-			memset(zip_stat, 0, sizeof *zip_stat);
+			new (zip_stat) page_zip_stat_t();
 		}
 
 		if (schema_table_store_record(thd, table)) {
@@ -2937,25 +2937,21 @@ i_s_fts_deleted_generic_fill(
 		DBUG_RETURN(0);
 	}
 
-	if (!fts_internal_tbl_name) {
-		DBUG_RETURN(0);
-	}
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
-	/* Prevent DDL to drop fts aux tables. */
+	/* Prevent DROP of the internal tables for fulltext indexes.
+	FIXME: acquire DDL-blocking MDL on the user table name! */
 	rw_lock_s_lock(&dict_operation_lock);
 
-	user_table = dict_table_open_on_name(
-		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	user_table = dict_table_open_on_id(
+		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
 		rw_lock_s_unlock(&dict_operation_lock);
-
 		DBUG_RETURN(0);
 	} else if (!dict_table_has_fts_index(user_table)) {
 		dict_table_close(user_table, FALSE, FALSE);
-
 		rw_lock_s_unlock(&dict_operation_lock);
-
 		DBUG_RETURN(0);
 	}
 
@@ -2969,6 +2965,12 @@ i_s_fts_deleted_generic_fill(
 			   FTS_COMMON_TABLE, user_table);
 
 	fts_table_fetch_doc_ids(trx, &fts_table, deleted);
+
+	dict_table_close(user_table, FALSE, FALSE);
+
+	rw_lock_s_unlock(&dict_operation_lock);
+
+	trx_free_for_background(trx);
 
 	fields = table->field;
 
@@ -2984,13 +2986,7 @@ i_s_fts_deleted_generic_fill(
 		BREAK_IF(ret = schema_table_store_record(thd, table));
 	}
 
-	trx_free_for_background(trx);
-
 	fts_doc_ids_free(deleted);
-
-	dict_table_close(user_table, FALSE, FALSE);
-
-	rw_lock_s_unlock(&dict_operation_lock);
 
 	DBUG_RETURN(ret);
 }
@@ -3351,32 +3347,33 @@ i_s_fts_index_cache_fill(
 		DBUG_RETURN(0);
 	}
 
-	if (!fts_internal_tbl_name) {
-		DBUG_RETURN(0);
-	}
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
-	user_table = dict_table_open_on_name(
-		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	/* Prevent DROP of the internal tables for fulltext indexes.
+	FIXME: acquire DDL-blocking MDL on the user table name! */
+	rw_lock_s_lock(&dict_operation_lock);
+
+	user_table = dict_table_open_on_id(
+		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
+no_fts:
+		rw_lock_s_unlock(&dict_operation_lock);
 		DBUG_RETURN(0);
 	}
 
-	if (user_table->fts == NULL || user_table->fts->cache == NULL) {
+	if (!user_table->fts || !user_table->fts->cache) {
 		dict_table_close(user_table, FALSE, FALSE);
-
-		DBUG_RETURN(0);
+		goto no_fts;
 	}
 
 	cache = user_table->fts->cache;
 
-	ut_a(cache);
-
 	int			ret = 0;
 	fts_string_t		conv_str;
-	conv_str.f_len = system_charset_info->mbmaxlen
-		* FTS_MAX_WORD_LEN_IN_CHAR;
-	conv_str.f_str = static_cast<byte*>(ut_malloc(conv_str.f_len));
+	byte			word[HA_FT_MAXBYTELEN + 1];
+	conv_str.f_len = sizeof word;
+	conv_str.f_str = word;
 
 	for (ulint i = 0; i < ib_vector_size(cache->indexes); i++) {
 		fts_index_cache_t*      index_cache;
@@ -3388,9 +3385,8 @@ i_s_fts_index_cache_fill(
 				 index_cache, thd, &conv_str, tables));
 	}
 
-	ut_free(conv_str.f_str);
-
 	dict_table_close(user_table, FALSE, FALSE);
+	rw_lock_s_unlock(&dict_operation_lock);
 
 	DBUG_RETURN(ret);
 }
@@ -3482,6 +3478,7 @@ i_s_fts_index_table_fill_selected(
 	que_t*			graph;
 	dberr_t			error;
 	fts_fetch_t		fetch;
+	char			table_name[MAX_FULL_NAME_LEN];
 
 	info = pars_info_create();
 
@@ -3502,6 +3499,8 @@ i_s_fts_index_table_fill_selected(
 
 	FTS_INIT_INDEX_TABLE(&fts_table, fts_get_suffix(selected),
 			     FTS_INDEX_TABLE, index);
+	fts_get_table_name(&fts_table, table_name);
+	pars_info_bind_id(info, true, "table_name", table_name);
 
 	graph = fts_parse_sql(
 		&fts_table, info,
@@ -3509,7 +3508,7 @@ i_s_fts_index_table_fill_selected(
 		"DECLARE CURSOR c IS"
 		" SELECT word, doc_count, first_doc_id, last_doc_id, "
 		"ilist\n"
-		" FROM %s WHERE word >= :word;\n"
+		" FROM $table_name WHERE word >= :word;\n"
 		"BEGIN\n"
 		"\n"
 		"OPEN c;\n"
@@ -3801,19 +3800,17 @@ i_s_fts_index_table_fill(
 		DBUG_RETURN(0);
 	}
 
-	if (!fts_internal_tbl_name) {
-		DBUG_RETURN(0);
-	}
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
-	/* Prevent DDL to drop fts aux tables. */
+	/* Prevent DROP of the internal tables for fulltext indexes.
+	FIXME: acquire DDL-blocking MDL on the user table name! */
 	rw_lock_s_lock(&dict_operation_lock);
 
-	user_table = dict_table_open_on_name(
-		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	user_table = dict_table_open_on_id(
+		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
 		rw_lock_s_unlock(&dict_operation_lock);
-
 		DBUG_RETURN(0);
 	}
 
@@ -3966,31 +3963,27 @@ i_s_fts_config_fill(
 		DBUG_RETURN(0);
 	}
 
-	if (!fts_internal_tbl_name) {
-		DBUG_RETURN(0);
-	}
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
-	DEBUG_SYNC_C("i_s_fts_config_fille_check");
-
-	fields = table->field;
-
-	/* Prevent DDL to drop fts aux tables. */
+	/* Prevent DROP of the internal tables for fulltext indexes.
+	FIXME: acquire DDL-blocking MDL on the user table name! */
 	rw_lock_s_lock(&dict_operation_lock);
 
-	user_table = dict_table_open_on_name(
-		fts_internal_tbl_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+	user_table = dict_table_open_on_id(
+		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
+no_fts:
 		rw_lock_s_unlock(&dict_operation_lock);
-
-		DBUG_RETURN(0);
-	} else if (!dict_table_has_fts_index(user_table)) {
-		dict_table_close(user_table, FALSE, FALSE);
-
-		rw_lock_s_unlock(&dict_operation_lock);
-
 		DBUG_RETURN(0);
 	}
+
+	if (!dict_table_has_fts_index(user_table)) {
+		dict_table_close(user_table, FALSE, FALSE);
+		goto no_fts;
+	}
+
+	fields = table->field;
 
 	trx = trx_allocate_for_background();
 	trx->op_info = "Select for FTS CONFIG TABLE";
@@ -4043,11 +4036,11 @@ i_s_fts_config_fill(
 
 	fts_sql_commit(trx);
 
-	trx_free_for_background(trx);
-
 	dict_table_close(user_table, FALSE, FALSE);
 
 	rw_lock_s_unlock(&dict_operation_lock);
+
+	trx_free_for_background(trx);
 
 	DBUG_RETURN(ret);
 }
@@ -4935,9 +4928,11 @@ i_s_innodb_buffer_page_fill(
 
 			mutex_enter(&dict_sys->mutex);
 
-			if (const dict_index_t*	index =
-			    dict_index_get_if_in_cache_low(
-				    page_info->index_id)) {
+			const dict_index_t* index =
+				dict_index_get_if_in_cache_low(
+					page_info->index_id);
+
+			if (index) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
 					index->table_name,
@@ -4960,7 +4955,10 @@ i_s_innodb_buffer_page_fill(
 
 			OK(ret);
 
-			fields[IDX_BUFFER_PAGE_TABLE_NAME]->set_notnull();
+			if (index) {
+				fields[IDX_BUFFER_PAGE_TABLE_NAME]
+					->set_notnull();
+			}
 		}
 
 		OK(fields[IDX_BUFFER_PAGE_NUM_RECS]->store(
@@ -5637,9 +5635,11 @@ i_s_innodb_buf_page_lru_fill(
 
 			mutex_enter(&dict_sys->mutex);
 
-			if (const dict_index_t* index =
-			    dict_index_get_if_in_cache_low(
-				    page_info->index_id)) {
+			const dict_index_t* index =
+				dict_index_get_if_in_cache_low(
+					page_info->index_id);
+
+			if (index) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
 					index->table_name,
@@ -5662,7 +5662,10 @@ i_s_innodb_buf_page_lru_fill(
 
 			OK(ret);
 
-			fields[IDX_BUF_LRU_PAGE_TABLE_NAME]->set_notnull();
+			if (index) {
+				fields[IDX_BUF_LRU_PAGE_TABLE_NAME]
+					->set_notnull();
+			}
 		}
 
 		OK(fields[IDX_BUF_LRU_PAGE_NUM_RECS]->store(
@@ -8499,15 +8502,6 @@ static ST_FIELD_INFO	innodb_tablespaces_scrubbing_fields_info[] =
 	 STRUCT_FLD(old_name,		""),
 	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
 
-#define TABLESPACES_ENCRYPTION_ROTATING_OR_FLUSHING 9
-	{STRUCT_FLD(field_name,		"ROTATING_OR_FLUSHING"),
-	 STRUCT_FLD(field_length,	MY_INT32_NUM_DECIMAL_DIGITS),
-	 STRUCT_FLD(field_type,		MYSQL_TYPE_LONG),
-	 STRUCT_FLD(value,		0),
-	 STRUCT_FLD(field_flags,	MY_I_S_UNSIGNED),
-	 STRUCT_FLD(old_name,		""),
-	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)},
-
 	END_OF_ST_FIELD_INFO
 };
 
@@ -8812,77 +8806,104 @@ i_s_innodb_mutexes_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	mutex_enter(&mutex_list_mutex);
+	{
+		struct Locking
+		{
+			Locking() { mutex_enter(&mutex_list_mutex); }
+			~Locking() { mutex_exit(&mutex_list_mutex); }
+		} locking;
 
-	for (mutex = UT_LIST_GET_FIRST(mutex_list); mutex != NULL;
-	     mutex = UT_LIST_GET_NEXT(list, mutex)) {
-		if (mutex->count_os_wait == 0) {
-			continue;
+		for (mutex = UT_LIST_GET_FIRST(mutex_list); mutex != NULL;
+		     mutex = UT_LIST_GET_NEXT(list, mutex)) {
+			if (mutex->count_os_wait == 0) {
+				continue;
+			}
+
+			if (buf_pool_is_block_mutex(mutex)) {
+				block_mutex = mutex;
+				block_mutex_oswait_count
+					+= mutex->count_os_wait;
+				continue;
+			}
+
+			OK(field_store_string(fields[MUTEXES_NAME],
+					      mutex->cmutex_name));
+			OK(field_store_string(
+				   fields[MUTEXES_CREATE_FILE],
+				   innobase_basename(mutex->cfile_name)));
+			OK(field_store_ulint(fields[MUTEXES_CREATE_LINE],
+					     mutex->cline));
+			OK(field_store_ulint(fields[MUTEXES_OS_WAITS],
+					     mutex->count_os_wait));
+			OK(schema_table_store_record(thd, tables->table));
 		}
 
-		if (buf_pool_is_block_mutex(mutex)) {
-			block_mutex = mutex;
-			block_mutex_oswait_count += mutex->count_os_wait;
-			continue;
+		if (block_mutex) {
+			char buf1[IO_SIZE];
+
+			my_snprintf(buf1, sizeof buf1, "combined %s",
+				    innobase_basename(block_mutex->cfile_name));
+
+			OK(field_store_string(fields[MUTEXES_NAME],
+					      block_mutex->cmutex_name));
+			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
+					      buf1));
+			OK(field_store_ulint(fields[MUTEXES_CREATE_LINE],
+					     block_mutex->cline));
+			OK(field_store_ulint(fields[MUTEXES_OS_WAITS],
+					     block_mutex_oswait_count));
+			OK(schema_table_store_record(thd, tables->table));
+		}
+	}
+
+	{
+		struct Locking
+		{
+			Locking() { mutex_enter(&rw_lock_list_mutex); }
+			~Locking() { mutex_exit(&rw_lock_list_mutex); }
+		} locking;
+
+		for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
+		     lock = UT_LIST_GET_NEXT(list, lock)) {
+			if (lock->count_os_wait == 0) {
+				continue;
+			}
+
+			if (buf_pool_is_block_lock(lock)) {
+				block_lock = lock;
+				block_lock_oswait_count += lock->count_os_wait;
+				continue;
+			}
+
+			OK(field_store_string(fields[MUTEXES_NAME],
+					      lock->lock_name));
+			OK(field_store_string(
+				   fields[MUTEXES_CREATE_FILE],
+				   innobase_basename(lock->cfile_name)));
+			OK(field_store_ulint(fields[MUTEXES_CREATE_LINE],
+					     lock->cline));
+			OK(field_store_ulint(fields[MUTEXES_OS_WAITS],
+					     lock->count_os_wait));
+			OK(schema_table_store_record(thd, tables->table));
 		}
 
-		OK(field_store_string(fields[MUTEXES_NAME], mutex->cmutex_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(mutex->cfile_name)));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], mutex->cline));
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)mutex->count_os_wait));
-		OK(schema_table_store_record(thd, tables->table));
-	}
+		if (block_lock) {
+			char buf1[IO_SIZE];
 
-	if (block_mutex) {
-		char buf1[IO_SIZE];
+			my_snprintf(buf1, sizeof buf1, "combined %s",
+				    innobase_basename(block_lock->cfile_name));
 
-		my_snprintf(buf1, sizeof buf1, "combined %s",
-			    innobase_basename(block_mutex->cfile_name));
-
-		OK(field_store_string(fields[MUTEXES_NAME], block_mutex->cmutex_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], block_mutex->cline));
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_mutex_oswait_count));
-		OK(schema_table_store_record(thd, tables->table));
-	}
-
-	mutex_exit(&mutex_list_mutex);
-
-	mutex_enter(&rw_lock_list_mutex);
-
-	for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
-	     lock = UT_LIST_GET_NEXT(list, lock)) {
-		if (lock->count_os_wait == 0) {
-			continue;
+			OK(field_store_string(fields[MUTEXES_NAME],
+					      block_lock->lock_name));
+			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
+					      buf1));
+			OK(field_store_ulint(fields[MUTEXES_CREATE_LINE],
+					     block_lock->cline));
+			OK(field_store_ulint(fields[MUTEXES_OS_WAITS],
+					     block_lock_oswait_count));
+			OK(schema_table_store_record(thd, tables->table));
 		}
-
-		if (buf_pool_is_block_lock(lock)) {
-			block_lock = lock;
-			block_lock_oswait_count += lock->count_os_wait;
-			continue;
-		}
-
-		OK(field_store_string(fields[MUTEXES_NAME], lock->lock_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], innobase_basename(lock->cfile_name)));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], lock->cline));
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)lock->count_os_wait));
-		OK(schema_table_store_record(thd, tables->table));
 	}
-
-	if (block_lock) {
-		char buf1[IO_SIZE];
-
-		my_snprintf(buf1, sizeof buf1, "combined %s",
-			    innobase_basename(block_lock->cfile_name));
-
-		OK(field_store_string(fields[MUTEXES_NAME], block_lock->lock_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE], buf1));
-		OK(field_store_ulint(fields[MUTEXES_CREATE_LINE], block_lock->cline));
-		OK(field_store_ulint(fields[MUTEXES_OS_WAITS], (longlong)block_lock_oswait_count));
-		OK(schema_table_store_record(thd, tables->table));
-	}
-
-	mutex_exit(&rw_lock_list_mutex);
 
 	DBUG_RETURN(0);
 }

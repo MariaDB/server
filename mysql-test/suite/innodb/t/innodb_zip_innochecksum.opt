@@ -1,4 +1,4 @@
 --skip-innodb-doublewrite
 --innodb-file-per-table
 --innodb-file-format=Barracuda
-
+--innodb_checksum_algorithm=crc32

@@ -2489,8 +2489,39 @@ FROM t2 WHERE b <= 'quux' GROUP BY field;
 field	COUNT(DISTINCT c)
 0	1
 drop table t1,t2;
+#
+# MDEV-15555: select from DUAL where false yielding wrong result when in a IN
+#
+explain 
+SELECT 2 IN (SELECT 2 from DUAL WHERE 1 != 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+SELECT 2 IN (SELECT 2 from DUAL WHERE 1 != 1);
+2 IN (SELECT 2 from DUAL WHERE 1 != 1)
+0
 SET optimizer_switch= @@global.optimizer_switch;
 set @@tmp_table_size= @@global.tmp_table_size;
+#
+# MDEV-14515: Wrong results for tableless query with subquery in WHERE
+#             and implicit aggregation
+#
+create table t1 (i1 int, i2 int);
+insert into t1 values (1314, 1084),(1330, 1084),(1401, 1084),(580, 1084);
+create table t2 (cd int);
+insert into t2 values
+(1330), (1330), (1330), (1330), (1330), (1330), (1330), (1330),
+(1330), (1330), (1330), (1330), (1330), (1330), (1330), (1330);
+select max(10) from dual
+where exists (select 1 from t2 join t1 on t1.i1 = t2.cd  and t1.i2 = 345);
+max(10)
+NULL
+insert into t2 select * from t2;
+select max(10) from dual
+where exists (select 1 from t2 join t1 on t1.i1 = t2.cd  and t1.i2 = 345);
+max(10)
+NULL
+DROP TABLE t1,t2;
 #
 # MDEV-10232 Scalar result of subquery changes after adding an outer select stmt
 #

@@ -27,20 +27,24 @@ SELECT @@global.max_connections;
 @@global.max_connections
 65536
 SET @@global.max_connections = 1;
+Warnings:
+Warning	1292	Truncated incorrect max_connections value: '1'
 SELECT @@global.max_connections;
 @@global.max_connections
-1
+10
 SET @@global.max_connections = 2;
+Warnings:
+Warning	1292	Truncated incorrect max_connections value: '2'
 SELECT @@global.max_connections;
 @@global.max_connections
-2
+10
 '#--------------------FN_DYNVARS_074_04-------------------------#'
 SET @@global.max_connections = -1;
 Warnings:
 Warning	1292	Truncated incorrect max_connections value: '-1'
 SELECT @@global.max_connections;
 @@global.max_connections
-1
+10
 SET @@global.max_connections = 100000000000;
 Warnings:
 Warning	1292	Truncated incorrect max_connections value: '100000000000'
@@ -57,13 +61,13 @@ Warnings:
 Warning	1292	Truncated incorrect max_connections value: '-1024'
 SELECT @@global.max_connections;
 @@global.max_connections
-1
+10
 SET @@global.max_connections = 0;
 Warnings:
 Warning	1292	Truncated incorrect max_connections value: '0'
 SELECT @@global.max_connections;
 @@global.max_connections
-1
+10
 SET @@global.max_connections = 100001;
 Warnings:
 Warning	1292	Truncated incorrect max_connections value: '100001'
@@ -98,15 +102,17 @@ WHERE VARIABLE_NAME='max_connections';
 1
 '#---------------------FN_DYNVARS_074_07----------------------#'
 SET @@global.max_connections = TRUE;
+Warnings:
+Warning	1292	Truncated incorrect max_connections value: '1'
 SELECT @@global.max_connections;
 @@global.max_connections
-1
+10
 SET @@global.max_connections = FALSE;
 Warnings:
 Warning	1292	Truncated incorrect max_connections value: '0'
 SELECT @@global.max_connections;
 @@global.max_connections
-1
+10
 '#---------------------FN_DYNVARS_074_08----------------------#'
 SET @@global.max_connections = 5000;
 SELECT @@max_connections = @@global.max_connections;

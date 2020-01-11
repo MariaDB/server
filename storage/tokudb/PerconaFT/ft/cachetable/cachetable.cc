@@ -1290,7 +1290,6 @@ int toku_cachetable_get_and_pin (
     CACHEKEY key, 
     uint32_t fullhash, 
     void**value, 
-    long *sizep,
     CACHETABLE_WRITE_CALLBACK write_callback,
     CACHETABLE_FETCH_CALLBACK fetch_callback, 
     CACHETABLE_PARTIAL_FETCH_REQUIRED_CALLBACK pf_req_callback,
@@ -1311,7 +1310,6 @@ int toku_cachetable_get_and_pin (
         key, 
         fullhash, 
         value, 
-        sizep,
         write_callback,
         fetch_callback, 
         pf_req_callback,
@@ -1559,7 +1557,6 @@ int toku_cachetable_get_and_pin_with_dep_pairs (
     CACHEKEY key,
     uint32_t fullhash,
     void**value,
-    long *sizep,
     CACHETABLE_WRITE_CALLBACK write_callback,
     CACHETABLE_FETCH_CALLBACK fetch_callback,
     CACHETABLE_PARTIAL_FETCH_REQUIRED_CALLBACK pf_req_callback,
@@ -1743,7 +1740,6 @@ beginning:
     }
 got_value:
     *value = p->value_data;
-    if (sizep) *sizep = p->attr.size;
     return 0;
 }
 
@@ -1853,6 +1849,22 @@ int toku_cachetable_maybe_get_and_pin_clean (CACHEFILE cachefile, CACHEKEY key, 
     } else {
         ct->list.pair_unlock_by_fullhash(fullhash);
     }
+    return r;
+}
+
+int toku_cachetable_get_attr (CACHEFILE cachefile, CACHEKEY key, uint32_t fullhash, PAIR_ATTR *attr) {
+    CACHETABLE ct = cachefile->cachetable;
+    int r;
+    ct->list.pair_lock_by_fullhash(fullhash);
+    PAIR p = ct->list.find_pair(cachefile, key, fullhash);
+    if (p) {
+        // Assumes pair lock and full hash lock are the same mutex
+        *attr = p->attr;
+        r = 0;
+    } else {
+        r = -1;
+    }
+    ct->list.pair_unlock_by_fullhash(fullhash);
     return r;
 }
 
@@ -1997,7 +2009,6 @@ int toku_cachetable_get_and_pin_nonblocking(
     CACHEKEY key,
     uint32_t fullhash,
     void**value,
-    long* UU(sizep),
     CACHETABLE_WRITE_CALLBACK write_callback,
     CACHETABLE_FETCH_CALLBACK fetch_callback,
     CACHETABLE_PARTIAL_FETCH_REQUIRED_CALLBACK pf_req_callback,

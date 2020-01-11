@@ -146,3 +146,19 @@ a
 16
 DROP TABLE t1;
 End of 5.1 tests
+#
+# mdev-16235: SELECT over a table with LIMIT 0
+#
+EXPLAIN
+SELECT * FROM mysql.slow_log WHERE sql_text != 'foo' LIMIT 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
+SELECT * FROM mysql.slow_log WHERE sql_text != 'foo' LIMIT 0;
+start_time	user_host	query_time	lock_time	rows_sent	rows_examined	db	last_insert_id	insert_id	server_id	sql_text	thread_id	rows_affected
+EXPLAIN
+SELECT * FROM mysql.help_topic WHERE help_category_id != example LIMIT 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
+SELECT * FROM mysql.help_topic WHERE help_category_id != example LIMIT 0;
+help_topic_id	name	help_category_id	description	example	url
+End of 5.5 tests

@@ -16,7 +16,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -381,6 +381,7 @@ log_online_setup_bitmap_file_range(
 
 			msg("InnoDB: Error: inconsistent bitmap file "
 			    "directory\n");
+			os_file_closedir(bitmap_dir);
 			free(bitmap_files->files);
 			return FALSE;
 		}
@@ -389,7 +390,7 @@ log_online_setup_bitmap_file_range(
 
 			bitmap_files->files[array_pos].seq_num = file_seq_num;
 			strncpy(bitmap_files->files[array_pos].name,
-				bitmap_dir_file_info.name, FN_REFLEN);
+				bitmap_dir_file_info.name, FN_REFLEN - 1);
 			bitmap_files->files[array_pos].name[FN_REFLEN - 1]
 				= '\0';
 			bitmap_files->files[array_pos].start_lsn

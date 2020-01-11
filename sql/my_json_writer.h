@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 class Json_writer;
 
@@ -108,6 +108,7 @@ public:
   void add_str(const String &str);
 
   void add_ll(longlong val);
+  void add_ull(ulonglong val);
   void add_size(longlong val);
   void add_double(double val);
   void add_bool(bool val);

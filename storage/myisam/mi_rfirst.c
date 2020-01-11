@@ -12,11 +12,11 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "myisamdef.h"
 
-	/*  Read first row through  a specfic key */
+	/*  Read first row through a specific key */
 
 int mi_rfirst(MI_INFO *info, uchar *buf, int inx)
 {

@@ -771,17 +771,21 @@ DROP VIEW  IF EXISTS v1;
 --echo #
 --echo # Test 1: LOCK TABLES v1 WRITE, t1 READ;
 --echo #
---echo # Thanks to the fact that we no longer allow DDL on tables
---echo # which are locked for write implicitly, the exact scenario
---echo # in which assert was failing is no longer repeatable.
 
 CREATE TABLE t1 ( f1 integer );
 CREATE VIEW v1 AS SELECT f1 FROM t1 ;
 
+--echo # Connection 2
+connect (con2,localhost,root);
 LOCK TABLES v1 WRITE, t1 READ;
---error ER_TABLE_NOT_LOCKED_FOR_WRITE
 FLUSH TABLE t1;
-UNLOCK TABLES;
+disconnect con2;
+--source include/wait_until_disconnected.inc
+
+--echo # Connection 1
+connection default;
+LOCK TABLES t1 WRITE;
+FLUSH TABLE t1;                                    # Assertion happened here
 
 # Cleanup
 DROP TABLE t1;

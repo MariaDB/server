@@ -29,6 +29,13 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 	exit(0);
 EOF
 
+SET SESSION wsrep_sync_wait = 0;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+SET SESSION wsrep_sync_wait = 15;
+
 --error ER_UNKNOWN_COM_ERROR,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK,ER_ERROR_DURING_COMMIT
 INSERT INTO t1 VALUES (1);
 
@@ -41,8 +48,7 @@ INSERT INTO t1 VALUES (1);
 	exit(0);
 EOF
 
-SET SESSION wsrep_sync_wait = 1;
---sleep 10
+SET SESSION wsrep_sync_wait = 0;
 --source include/wait_until_ready.inc
 INSERT INTO t1 VALUES (1);
 
@@ -51,7 +57,7 @@ INSERT INTO t1 VALUES (1);
 --source include/galera_connect.inc
 --connection node_2a
 
-SET SESSION wsrep_sync_wait = 1;
+SET SESSION wsrep_sync_wait = 0;
 --source include/wait_until_ready.inc
 SELECT COUNT(*) = 1 FROM t1;
 

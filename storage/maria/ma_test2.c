@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Test av isam-databas: stor test */
 
@@ -1006,8 +1006,8 @@ w_requests: %10lu\n\
 writes:     %10lu\n\
 r_requests: %10lu\n\
 reads:      %10lu\n",
-           maria_pagecache->blocks_used,
-           maria_pagecache->global_blocks_changed,
+           (ulong) maria_pagecache->blocks_used,
+           (ulong) maria_pagecache->global_blocks_changed,
            (ulong) maria_pagecache->global_cache_w_requests,
            (ulong) maria_pagecache->global_cache_write,
            (ulong) maria_pagecache->global_cache_r_requests,

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <my_global.h>
 #include "sql_priv.h"
@@ -1680,6 +1680,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
   gtid_ev_flags2= 0;
+  pending_gtid_delete_list= NULL;
   last_master_timestamp = 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
@@ -1804,6 +1805,12 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
       erroneously update the GTID position.
     */
     gtid_pending= false;
+
+    /*
+      Rollback will have undone any deletions of old rows we might have made
+      in mysql.gtid_slave_pos. Put those rows back on the list to be deleted.
+    */
+    pending_gtid_deletes_put_back();
   }
   m_table_map.clear_tables();
   slave_close_thread_tables(thd);
@@ -2024,6 +2031,78 @@ rpl_group_info::unmark_start_commit()
   mysql_mutex_lock(&e->LOCK_parallel_entry);
   --e->count_committing_event_groups;
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
+}
+
+
+/*
+  When record_gtid() has deleted any old rows from the table
+  mysql.gtid_slave_pos as part of a replicated transaction, save the list of
+  rows deleted here.
+
+  If later the transaction fails (eg. optimistic parallel replication), the
+  deletes will be undone when the transaction is rolled back. Then we can
+  put back the list of rows into the rpl_global_gtid_slave_state, so that
+  we can re-do the deletes and avoid accumulating old rows in the table.
+*/
+void
+rpl_group_info::pending_gtid_deletes_save(uint32 domain_id,
+                                          rpl_slave_state::list_element *list)
+{
+  /*
+    We should never get to a state where we try to save a new pending list of
+    gtid deletes while we still have an old one. But make sure we handle it
+    anyway just in case, so we avoid leaving stray entries in the
+    mysql.gtid_slave_pos table.
+  */
+  DBUG_ASSERT(!pending_gtid_delete_list);
+  if (unlikely(pending_gtid_delete_list))
+    pending_gtid_deletes_put_back();
+
+  pending_gtid_delete_list= list;
+  pending_gtid_delete_list_domain= domain_id;
+}
+
+
+/*
+  Take the list recorded by pending_gtid_deletes_save() and put it back into
+  rpl_global_gtid_slave_state. This is needed if deletion of the rows was
+  rolled back due to transaction failure.
+*/
+void
+rpl_group_info::pending_gtid_deletes_put_back()
+{
+  if (pending_gtid_delete_list)
+  {
+    rpl_global_gtid_slave_state->put_back_list(pending_gtid_delete_list_domain,
+                                               pending_gtid_delete_list);
+    pending_gtid_delete_list= NULL;
+  }
+}
+
+
+/*
+  Free the list recorded by pending_gtid_deletes_save(). Done when the deletes
+  in the list have been permanently committed.
+*/
+void
+rpl_group_info::pending_gtid_deletes_clear()
+{
+  pending_gtid_deletes_free(pending_gtid_delete_list);
+  pending_gtid_delete_list= NULL;
+}
+
+
+void
+rpl_group_info::pending_gtid_deletes_free(rpl_slave_state::list_element *list)
+{
+  rpl_slave_state::list_element *next;
+
+  while (list)
+  {
+    next= list->next;
+    my_free(list);
+    list= next;
+  }
 }
 
 

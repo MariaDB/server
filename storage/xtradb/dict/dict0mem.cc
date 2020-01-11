@@ -1,8 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -276,7 +276,6 @@ dict_mem_table_add_col(
 	dict_col_t*	col;
 	ulint		i;
 
-	ut_ad(table);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(!heap == !name);
 
@@ -321,7 +320,8 @@ dict_mem_table_col_rename_low(
 	ut_ad(to_len <= NAME_LEN);
 
 	char from[NAME_LEN + 1];
-	strncpy(from, s, NAME_LEN + 1);
+	strncpy(from, s, sizeof from - 1);
+	from[sizeof from - 1] = '\0';
 
 	if (from_len == to_len) {
 		/* The easy case: simply replace the column name in
@@ -499,9 +499,7 @@ dict_mem_table_col_rename(
 		s += len + 1;
 	}
 
-	/* This could fail if the data dictionaries are out of sync.
-	Proceed with the renaming anyway. */
-	ut_ad(!strcmp(from, s));
+	ut_ad(!my_strcasecmp(system_charset_info, from, s));
 
 	dict_mem_table_col_rename_low(table, nth_col, to, s);
 }
@@ -753,7 +751,7 @@ void
 dict_mem_init(void)
 {
 	/* Initialize a randomly distributed temporary file number */
-	ib_uint32_t now = static_cast<ib_uint32_t>(ut_time());
+	ib_uint32_t now = static_cast<ib_uint32_t>(time(NULL));
 
 	const byte* buf = reinterpret_cast<const byte*>(&now);
 	ut_ad(ut_crc32 != NULL);

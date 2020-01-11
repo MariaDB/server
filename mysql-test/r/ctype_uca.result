@@ -6233,6 +6233,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+utf8_unicode_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 "BEGIN ctype_german.inc"
 drop table if exists t1;
 create table t1 as select repeat(' ', 64) as s1;
@@ -13950,6 +13956,27 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 'oe') and (`test`.`t1`.`a` = 'oe'))
+DROP TABLE t1;
+#
+# MDEV-17064 LIKE function has error behavior on the fields in which the collation is xxx_unicode_xx
+#
+CREATE TABLE t1 (name VARCHAR(20) CHARACTER SET utf8 COLLATE utf8_unicode_ci);
+INSERT INTO t1 VALUES ('radio! test');
+SELECT * FROM t1 WHERE name LIKE '%!!%' ESCAPE '!';
+name
+radio! test
+ALTER TABLE t1 CHANGE COLUMN name name VARCHAR(20) CHARACTER SET 'utf8' COLLATE 'utf8_general_ci';
+SELECT * FROM t1 WHERE name LIKE '%!!%' ESCAPE '!';
+name
+radio! test
+DROP TABLE t1;
+CREATE TABLE t1 (name VARCHAR(20) CHARACTER SET utf8 COLLATE utf8_unicode_ci);
+INSERT INTO t1 VALUES ('radio! test');
+SELECT name LIKE '%!!%' ESCAPE '!' AS c1,
+name LIKE '%!!%' COLLATE utf8_general_ci ESCAPE '!' AS c2
+FROM t1;
+c1	c2
+1	1
 DROP TABLE t1;
 #
 # End of MariaDB-10.0 tests

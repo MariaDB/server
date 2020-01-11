@@ -1,0 +1,136 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-12669 Circular foreign keys cause a loop and OOM upon LOCK TABLE
+#
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE staff (
+  staff_id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  store_id TINYINT UNSIGNED NOT NULL,
+  PRIMARY KEY  (staff_id),
+  KEY idx_fk_store_id (store_id),
+  CONSTRAINT fk_staff_store FOREIGN KEY (store_id) REFERENCES store (store_id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE store (
+  store_id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  manager_staff_id TINYINT UNSIGNED NOT NULL,
+  PRIMARY KEY  (store_id),
+  UNIQUE KEY idx_unique_manager (manager_staff_id),
+  CONSTRAINT fk_store_staff FOREIGN KEY (manager_staff_id) REFERENCES staff (staff_id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+SET FOREIGN_KEY_CHECKS=DEFAULT;
+
+LOCK TABLE staff WRITE;
+UNLOCK TABLES;
+DROP TABLES staff, store;
+
+SET FOREIGN_KEY_CHECKS=1;
+
+--echo #
+--echo # MDEV-17531 Crash in RENAME TABLE with FOREIGN KEY and FULLTEXT INDEX
+--echo #
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Error; possible reasons:");
+--enable_query_log
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE DATABASE best;
+CREATE TABLE t3 (a INT PRIMARY KEY,
+CONSTRAINT t2_ibfk_1 FOREIGN KEY (a) REFERENCES t1(a)) ENGINE=InnoDB;
+CREATE TABLE best.t2 (a INT PRIMARY KEY, b TEXT, FULLTEXT INDEX(b),
+FOREIGN KEY (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
+--replace_regex /Table '.*t2'/Table 't2'/
+--error ER_TABLE_EXISTS_ERROR
+RENAME TABLE best.t2 TO test.t2;
+SHOW CREATE TABLE best.t2;
+DROP DATABASE best;
+
+--echo #
+--echo # MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
+--echo #
+connect (fk, localhost, root,,);
+INSERT INTO t1 SET a=1;
+BEGIN;
+DELETE FROM t1;
+
+connection default;
+let $ID= `SELECT @id := CONNECTION_ID()`;
+send INSERT INTO t3 SET a=1;
+
+connection fk;
+# Check that the above SELECT is blocked
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = 'update' and info = 'INSERT INTO t3 SET a=1';
+--source include/wait_condition.inc
+let $ignore= `SELECT @id := $ID`;
+kill query @id;
+
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+disconnect fk;
+
+DROP TABLE t3,t1;
+
+--echo #
+--echo # MDEV-18222 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
+--echo # or ASAN heap-use-after-free in dict_foreign_remove_from_cache upon CHANGE COLUMN
+--echo #
+CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a);
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 CHANGE COLUMN a a TIME NOT NULL;
+ALTER TABLE t1 ADD pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
+ALTER TABLE t1 CHANGE COLUMN a b TIME;
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18256 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
+--echo # upon DROP FOREIGN KEY
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (b INT PRIMARY KEY, FOREIGN KEY fk1 (b) REFERENCES t1 (a))
+ENGINE=InnoDB;
+ALTER TABLE t2 DROP FOREIGN KEY fk1, DROP FOREIGN KEY fk1;
+DROP TABLE t2, t1;
+
+CREATE TABLE t1 (f VARCHAR(256)) ENGINE=InnoDB;
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
+ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+DROP TABLE t1;
+
+CREATE TABLE t1 (f VARCHAR(256), FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY)
+ENGINE=InnoDB;
+SET SESSION FOREIGN_KEY_CHECKS = OFF;
+ALTER TABLE t1 ADD FOREIGN KEY (f) REFERENCES non_existing_table (x);
+SET SESSION FOREIGN_KEY_CHECKS = ON;
+ALTER TABLE t1 ADD FULLTEXT INDEX ft1 (f);
+ALTER TABLE t1 ADD FULLTEXT INDEX ft2 (f);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18630 Conditional jump or move depends on uninitialised value
+--echo # in ib_push_warning / dict_create_foreign_constraints_low
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+--replace_regex /#sql-[0-9_a-f-]*/#sql-temporary/
+--error ER_CANT_CREATE_TABLE
+ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
+--replace_regex /#sql-[0-9_a-f-]*/#sql-temporary/
+SHOW WARNINGS;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18139 ALTER IGNORE ... ADD FOREIGN KEY causes bogus error
+--echo #
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT, KEY(f1)) ENGINE=InnoDB;
+CREATE TABLE t2 (f INT, KEY(f)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FOREIGN KEY (f2) REFERENCES t2 (f);
+ALTER IGNORE TABLE t1 ADD FOREIGN KEY (f3) REFERENCES t1 (f1);
+DROP TABLE t1, t2;

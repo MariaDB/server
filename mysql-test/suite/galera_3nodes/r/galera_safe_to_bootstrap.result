@@ -16,7 +16,17 @@ Killing server ...
 safe_to_bootstrap: 1
 safe_to_bootstrap: 0
 safe_to_bootstrap: 0
+CALL mtr.add_suppression("WSREP: no nodes coming from prim view, prim not possible");
+CALL mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("WSREP: wsrep::connect(.*) failed: 7");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("WSREP: moving position backwards: [0-9]+ -> 0");
 CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
+CALL mtr.add_suppression("WSREP: no nodes coming from prim view, prim not possible");
+CALL mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("WSREP: wsrep::connect(.*) failed: 7");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("WSREP: moving position backwards: [0-9]+ -> 0");
 CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
 SHOW CREATE TABLE t1;
 Table	Create Table

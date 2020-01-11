@@ -51,3 +51,41 @@ WHERE NAME='test/t';
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	FILE_FORMAT	ROW_FORMAT	ZIP_PAGE_SIZE
 #	test/t	1	6	#	Antelope	Compact	0
 DROP TABLE t;
+CREATE TABLE t1(c1 INT) ENGINE=InnoDB;
+ALTER TABLE t1 ADD CONSTRAINT UNIQUE KEY i1(c1);
+ALTER TABLE t1 CHANGE c1 c1 INT NOT NULL,ADD KEY(c1);
+DROP TABLE t1;
+#
+# MDEV-18732 InnoDB: ALTER IGNORE returns error for NULL
+#
+SET @mode = @@sql_mode;
+SET sql_mode = STRICT_TRANS_TABLES;
+CREATE TABLE t1(c INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL);
+ALTER IGNORE TABLE t1 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+INSERT INTO t1 VALUES (NULL);
+ERROR 23000: Column 'c' cannot be null
+SELECT * FROM t1;
+c
+0
+DROP TABLE t1;
+CREATE TABLE t1(c INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL),(1),(1);
+ALTER IGNORE TABLE t1 ADD UNIQUE(c);
+affected rows: 3
+info: Records: 3  Duplicates: 1  Warnings: 0
+ALTER IGNORE TABLE t1 ADD PRIMARY KEY(c);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+SELECT * FROM t1;
+c
+0
+1
+DROP TABLE t1;
+SET sql_mode = @mode;

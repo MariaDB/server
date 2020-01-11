@@ -766,3 +766,79 @@ b
 NULL
 DROP TABLE t1, t2;
 End of 5.0 tests
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-16190 Server crashes in Item_null_result::field_type on SELECT with time field, ROLLUP and HAVING
+#
+CREATE TABLE t1 (t TIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('12:12:12');
+SELECT t, COUNT(*) FROM t1 GROUP BY t WITH ROLLUP HAVING t > '00:00:00';
+t	COUNT(*)
+12:12:12	1
+DROP TABLE t1;
+CREATE TABLE t1 (t TIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('12:12:12'),('12:12:13');
+SELECT t, COUNT(*) FROM t1 GROUP BY t WITH ROLLUP HAVING t > '00:00:00';
+t	COUNT(*)
+12:12:12	1
+12:12:13	1
+DROP TABLE t1;
+#
+# MDEV-17830 Server crashes in Item_null_result::field_type upon SELECT with CHARSET(date) and ROLLUP
+#
+# Note, returning "latin1" in the first row vs "binary" in the second row is wrong here.
+# Both lines should return equal values.
+# The point in this test is to make sure it does not crash.
+# Bad result will be fixed in a later version.
+CREATE TABLE t (d DATE) ENGINE=MyISAM;
+INSERT INTO t VALUES ('2018-12-12');
+SELECT CHARSET(d) AS f FROM t GROUP BY d WITH ROLLUP;
+f
+latin1
+binary
+DROP TABLE t;
+#
+# MDEV-14041 Server crashes in String::length on queries with functions and ROLLUP
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT GET_LOCK( 'foo', 0 );
+GET_LOCK( 'foo', 0 )
+1
+SELECT HEX( RELEASE_LOCK( 'foo' ) ) AS f FROM t1 GROUP BY f WITH ROLLUP;
+f
+NULL
+1
+NULL
+DROP TABLE t1;
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT i FROM t1 GROUP BY i WITH ROLLUP
+UNION ALL
+SELECT ELT( FOUND_ROWS(), 1 ) f FROM t1 GROUP BY f WITH ROLLUP;
+i
+1
+2
+NULL
+NULL
+NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT a FROM t1 GROUP BY NULLIF( CONVERT('', DATE), '2015-10-15' ) WITH ROLLUP;
+a
+1
+1
+Warnings:
+Warning	1292	Incorrect datetime value: ''
+Warning	1292	Incorrect datetime value: ''
+Warning	1292	Incorrect datetime value: ''
+Warning	1292	Incorrect datetime value: ''
+Warning	1292	Incorrect datetime value: ''
+Warning	1292	Incorrect datetime value: ''
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

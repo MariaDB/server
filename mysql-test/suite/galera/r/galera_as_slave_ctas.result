@@ -1,0 +1,14 @@
+START SLAVE;
+SHOW VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+CREATE TABLE source (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE target AS SELECT * FROM source;
+DROP TABLE target;
+INSERT INTO source VALUES(1);
+CREATE TABLE target AS SELECT * FROM source;
+DROP TABLE source;
+DROP TABLE target;
+STOP SLAVE;
+RESET SLAVE ALL;
+RESET MASTER;

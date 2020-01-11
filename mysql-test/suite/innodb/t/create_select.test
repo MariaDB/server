@@ -1,0 +1,28 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/count_sessions.inc
+
+let $ID= `SELECT @id := CONNECTION_ID()`;
+
+connect (con1, localhost, root,,);
+let $ignore= `SELECT @id := $ID`;
+
+connection default;
+send CREATE TABLE t1 ENGINE=InnoDB SELECT * FROM seq_1_to_100000000;
+
+connection con1;
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = 'Sending data'
+  and info = 'CREATE TABLE t1 ENGINE=InnoDB SELECT * FROM seq_1_to_100000000';
+--source include/wait_condition.inc
+KILL QUERY @id;
+disconnect con1;
+
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+
+CREATE TABLE t1 (a SERIAL) ENGINE=InnoDB;
+DROP TABLE t1;
+--source include/wait_until_count_sessions.inc

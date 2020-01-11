@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -65,7 +65,7 @@ extern ulonglong	xtrabackup_compress_chunk_size;
 static ds_ctxt_t *compress_init(const char *root);
 static ds_file_t *compress_open(ds_ctxt_t *ctxt, const char *path,
 				MY_STAT *mystat);
-static int compress_write(ds_file_t *file, const void *buf, size_t len);
+static int compress_write(ds_file_t *file, const uchar *buf, size_t len);
 static int compress_close(ds_file_t *file);
 static void compress_deinit(ds_ctxt_t *ctxt);
 
@@ -178,7 +178,7 @@ err:
 
 static
 int
-compress_write(ds_file_t *file, const void *buf, size_t len)
+compress_write(ds_file_t *file, const uchar *buf, size_t len)
 {
 	ds_compress_file_t	*comp_file;
 	ds_compress_ctxt_t	*comp_ctxt;
@@ -384,6 +384,7 @@ create_worker_threads(uint n)
 	return threads;
 
 err:
+	my_free(threads);
 	return NULL;
 }
 

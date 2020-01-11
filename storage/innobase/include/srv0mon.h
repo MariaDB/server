@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -15,7 +15,7 @@ Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 ***********************************************************************/
 
@@ -58,9 +58,9 @@ create the internal counter ID in "monitor_id_t". */
 
 /** Structure containing the actual values of a monitor counter. */
 struct monitor_value_t {
-	ib_time_t	mon_start_time;	/*!< Start time of monitoring  */
-	ib_time_t	mon_stop_time;	/*!< Stop time of monitoring */
-	ib_time_t	mon_reset_time;	/*!< Time counter resetted */
+	time_t	mon_start_time;	/*!< Start time of monitoring  */
+	time_t	mon_stop_time;	/*!< Stop time of monitoring */
+	time_t	mon_reset_time;	/*!< Time of resetting the counter */
 	mon_type_t	mon_value;	/*!< Current counter Value */
 	mon_type_t	mon_max_value;	/*!< Current Max value */
 	mon_type_t	mon_min_value;	/*!< Current Min value */
@@ -761,7 +761,7 @@ monitor counter
 	MONITOR_CHECK_DEFINED(value);					\
 	if (MONITOR_IS_ON(monitor)) {					\
 		ullint	old_time = (value);				\
-		value = ut_time_us(NULL);				\
+		value = microsecond_interval_timer();			\
 		MONITOR_VALUE(monitor) += (mon_type_t) (value - old_time);\
 	}
 

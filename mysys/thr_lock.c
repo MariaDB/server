@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
 Read and write locks for Posix threads. All tread must acquire
@@ -493,17 +493,6 @@ has_old_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner)
   {
     if (thr_lock_owner_equal(data->owner, owner))
       return 1;					/* Already locked by thread */
-  }
-  return 0;
-}
-
-static inline my_bool have_specific_lock(THR_LOCK_DATA *data,
-					 enum thr_lock_type type)
-{
-  for ( ; data ; data=data->next)
-  {
-    if (data->type == type)
-      return 1;
   }
   return 0;
 }

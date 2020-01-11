@@ -849,6 +849,28 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-15624 Changing the default character set to utf8mb4 changes query evaluation in a very surprising way
+--echo #
+
+SET NAMES utf8;
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+SELECT COUNT(DISTINCT c) FROM (SELECT id, REPLACE(uuid_short(), '0', CAST('o' AS CHAR CHARACTER SET ucs2)) AS c FROM t1) AS d1;
+--replace_column 1 xxxxxxxxxxxxxxxxx
+SELECT DISTINCT REPLACE(uuid_short(), '0', CAST('o' AS CHAR CHARACTER SET ucs2)) AS c FROM t1;
+
+SELECT COUNT(DISTINCT c) FROM (SELECT id, INSERT(uuid_short(), 1, 1, CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1) AS d1;
+--replace_column 1 xxxxxxxxxxxxxxxxx
+SELECT DISTINCT INSERT(uuid_short(), 1, 1, CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1;
+
+SELECT COUNT(DISTINCT c) FROM (SELECT id, CONCAT(uuid_short(), CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1) AS d1;
+--replace_column 1 xxxxxxxxxxxxxxxxx
+SELECT DISTINCT CONCAT(uuid_short(), CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 
@@ -964,6 +986,10 @@ SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT HEX(t) t2 FROM t1) sub;
 SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT TO_BASE64(t) t2 FROM t1) sub;
 DROP TABLE t1;
 SET optimizer_switch=@save_optimizer_switch;
+
+
+SET NAMES utf8, character_set_connection=ucs2;
+--source include/ctype_mdev13118.inc
 
 
 --echo #

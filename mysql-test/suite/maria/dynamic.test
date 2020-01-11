@@ -1,0 +1,7 @@
+#
+# MDEV-13748 Assertion `status_var.local_memory_used == 0 || !debug_assert_on_not_freed_memory' failed in virtual THD::~THD after query with INTERSECT
+#
+create table t1 (a blob, b varchar(20000)) engine=aria row_format=dynamic;
+insert t1 (b) values (repeat('a', 20000));
+update t1 set b='b';
+drop table t1;

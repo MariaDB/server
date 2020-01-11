@@ -320,3 +320,18 @@ term	uw_id	plan	wdraw_rsn	admit_term
 1035	2	CSM	ACAD	1009
 drop table grad_degree;
 drop table gso_grad_supr;
+CREATE TABLE t1 (a INT, b CHAR(12), c INT AS (a) VIRTUAL, FULLTEXT KEY(b)) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo');
+SELECT * FROM t1;
+a	b	c
+1	foo	1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b CHAR(12), c INT AS (a) VIRTUAL) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo');
+ALTER TABLE t1 ADD FULLTEXT KEY(b);
+Warnings:
+Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
+SELECT * FROM t1;
+a	b	c
+1	foo	1
+DROP TABLE t1;

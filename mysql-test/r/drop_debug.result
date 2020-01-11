@@ -3,13 +3,12 @@
 # -- Bug#43138: DROP DATABASE failure does not clean up message list.
 # --
 
-DROP DATABASE IF EXISTS mysql_test;
-
 CREATE DATABASE mysql_test;
 CREATE TABLE mysql_test.t1(a INT);
 CREATE TABLE mysql_test.t2(b INT);
 CREATE TABLE mysql_test.t3(c INT);
 
+SET @save_dbug = @@debug_dbug;
 SET SESSION debug_dbug= "+d,bug43138";
 
 DROP DATABASE mysql_test;
@@ -18,7 +17,7 @@ Error	1051	Unknown table 't1'
 Error	1051	Unknown table 't2'
 Error	1051	Unknown table 't3'
 
-SET SESSION debug_dbug= "-d,bug43138";
+SET SESSION debug_dbug=@save_dbug;
 
 # --
 # -- End of Bug#43138.

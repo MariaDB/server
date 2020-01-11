@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Function to handle quick removal of duplicates
@@ -208,7 +208,7 @@ static double get_merge_many_buffs_cost(uint *buffer,
                                         uint last_n_elems, int elem_size,
                                         uint compare_factor)
 {
-  register int i;
+  int i;
   double total_cost= 0.0;
   uint *buff_elems= buffer; /* #s of elements in each of merged sequences */
 

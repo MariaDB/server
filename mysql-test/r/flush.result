@@ -496,3 +496,26 @@ flush relay logs,relay logs;
 ERROR HY000: Incorrect usage of FLUSH and RELAY LOGS
 flush slave,slave;
 ERROR HY000: Incorrect usage of FLUSH and SLAVE
+#
+# MDEV-15890 Strange error message if you try to
+#     FLUSH TABLES <view> after LOCK TABLES <view>.
+#
+CREATE TABLE t1 (qty INT, price INT);
+CREATE VIEW v1 AS SELECT qty, price, qty*price AS value FROM t1;
+LOCK TABLES v1 READ;
+FLUSH TABLES v1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+UNLOCK TABLES;
+LOCK TABLES v1 WRITE;
+FLUSH TABLES v1;
+UNLOCK TABLES;
+LOCK TABLES v1 READ;
+FLUSH TABLES t1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+UNLOCK TABLES;
+LOCK TABLES t1 READ;
+FLUSH TABLES v1;
+ERROR HY000: Table 'v1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+DROP VIEW v1;
+DROP TABLE t1;

@@ -377,7 +377,9 @@ send optimize table t1;
 # client 1
 --echo proceed with the normal connection
 connection default;
+--disable_ps_protocol
 handler t1 read next;
+--enable_ps_protocol
 handler t1 close;
 # client 2
 --echo read the result from the other connection

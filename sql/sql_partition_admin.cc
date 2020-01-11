@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "sql_parse.h"                      // check_one_table_access
                                             // check_merge_table_access
@@ -89,7 +89,6 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
   /* Not allowed with EXCHANGE PARTITION */
   DBUG_ASSERT(!create_info.data_file_name && !create_info.index_file_name);
 
-  thd->enable_slow_log= opt_log_slow_admin_statements;
   DBUG_RETURN(exchange_partition(thd, first_table, &alter_info));
 }
 
@@ -652,7 +651,7 @@ bool Sql_cmd_alter_table_exchange_partition::
     better to keep master/slave in consistent state. Alternative would be to
     try to revert the exchange operation and issue error.
   */
-  (void) thd->locked_tables_list.reopen_tables(thd);
+  (void) thd->locked_tables_list.reopen_tables(thd, false);
 
   if ((error= write_bin_log(thd, TRUE, thd->query(), thd->query_length())))
   {

@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
@@ -169,5 +169,8 @@ public:
   int unpack_row(azio_stream *file_to_read, uchar *record);
   unsigned int pack_row(uchar *record, azio_stream *writer);
   bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes);
+  int external_lock(THD *thd, int lock_type);
+private:
+  void flush_and_clear_pending_writes();
 };
 

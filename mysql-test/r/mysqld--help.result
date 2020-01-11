@@ -1,9 +1,11 @@
-Windows bug: happens when a new line is exactly at the right offset.
+Windows bug: new line disappears when it is exactly at the right offset.
 The following options may be given as the first argument:
 --print-defaults Print the program argument list and exit.
 --no-defaults Don't read default options from any option file.
+The following specify which files/extra groups are read (specified before remaining options):
 --defaults-file=# Only read default options from the given file #.
 --defaults-extra-file=# Read this file after the global files are read.
+--defaults-group-suffix=# Additionally read default groups with # appended as a suffix.
 
  --allow-suspicious-udfs 
  Allows use of UDFs consisting of only one symbol xxx()
@@ -113,7 +115,9 @@ The following options may be given as the first argument:
  that this is a limit per thread!
  --changed-page-bitmaps[=name] 
  Enable or disable CHANGED_PAGE_BITMAPS plugin. One of:
- ON, OFF, FORCE (don't start if the plugin fails to load).
+ ON, OFF, FORCE (don't start if the plugin fails to load),
+ FORCE_PLUS_PERMANENT (like FORCE, but the plugin can not
+ be uninstalled).
  --character-set-client-handshake 
  Don't ignore client side character set value sent during
  handshake.
@@ -1438,16 +1442,16 @@ sync-master-info 10000
 sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
-table-cache 431
+table-cache 421
 table-definition-cache 400
-table-open-cache 431
+table-open-cache 421
 tc-heuristic-recover OFF
 thread-cache-size 0
 thread-pool-idle-timeout 60
 thread-pool-max-threads 1000
 thread-pool-oversubscribe 3
 thread-pool-stall-limit 500
-thread-stack 295936
+thread-stack 299008
 time-format %H:%i:%s
 timed-mutexes FALSE
 tmp-table-size 16777216
@@ -1461,5 +1465,5 @@ userstat FALSE
 verbose TRUE
 wait-timeout 28800
 
-To see what values a running MySQL server is using, type
+To see what variables a running MySQL server is using, type
 'mysqladmin variables' instead of 'mysqld --verbose --help'.

@@ -1655,3 +1655,201 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	11	func	1	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 DROP TABLE t1,t2;
+#
+# MDEV-16225: wrong resultset from query with semijoin=on
+#
+CREATE TABLE t1 (
+`id` int(10)  NOT NULL AUTO_INCREMENT,
+`local_name` varchar(64) NOT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=latin1;
+insert  into t1(`id`,`local_name`) values
+(1,'Cash Advance'),
+(2,'Cash Advance'),
+(3,'Rollover'),
+(4,'AL Installment'),
+(5,'AL Installment'),
+(6,'AL Installment'),
+(7,'AL Installment'),
+(8,'AL Installment'),
+(9,'AL Installment'),
+(10,'Internet Payday'),
+(11,'Rollover - Internet Payday'),
+(12,'AL Monthly Installment'),
+(13,'AL Semi-Monthly Installment');
+explain
+SELECT SQL_NO_CACHE t.id
+FROM t1 t
+WHERE (
+t.id IN (SELECT A.id FROM t1 AS A WHERE A.local_name IN (SELECT B.local_name FROM t1 AS B WHERE B.id IN (0,4,12,13,1,10,3,11)))
+OR
+(t.id IN (0,4,12,13,1,10,3,11))
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t	index	PRIMARY	PRIMARY	4	NULL	13	Using where; Using index
+2	MATERIALIZED	<subquery3>	ALL	distinct_key	NULL	NULL	NULL	8	
+2	MATERIALIZED	A	ALL	PRIMARY	NULL	NULL	NULL	13	Using where; Using join buffer (flat, BNL join)
+3	MATERIALIZED	B	ALL	PRIMARY	NULL	NULL	NULL	13	Using where
+SELECT SQL_NO_CACHE t.id
+FROM t1 t
+WHERE (
+t.id IN (SELECT A.id FROM t1 AS A WHERE A.local_name IN (SELECT B.local_name FROM t1 AS B WHERE B.id IN (0,4,12,13,1,10,3,11)))
+OR
+(t.id IN (0,4,12,13,1,10,3,11))
+);
+id
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+drop table t1;
+#
+# MDEV-15982: Incorrect results when subquery is materialized
+#
+CREATE TABLE `t1` (`id` int(32)  NOT NULL  primary key);
+INSERT INTO `t1` VALUES
+(45), (46), (47), (48), (49), (50), (51), (52), (53), (54), (55), (56), (57), (58), (59), (60), (61), (62),
+(63), (64), (65), (66), (67), (68), (69), (70), (71), (72), (73), (74), (75), (76), (77), (78), (79), (80),
+(81), (82), (83), (84), (85), (86), (87), (88), (89), (90), (91), (92),(93),(94),(95),(96), (97), (98),
+(99), (100), (101), (102), (103), (104), (105), (106), (107), (108), (109), (110), (111), (112), (113),
+(114), (115), (116), (117), (118), (119), (120), (121), (122), (123), (124), (125), (126), (127), (128),
+(129), (130), (131), (132), (133), (134), (135), (136), (137), (138), (139), (140), (141), (142), (143), (144), (145), (146),
+(147), (148), (149), (150), (151), (152), (153), (154), (155), (156), (157), (158), (159), (160), (161),
+(162), (163), (164), (165), (166), (167), (168), (169), (170), (171), (172), (173),
+(174), (175), (176), (177), (178), (179), (180), (181), (182), (183), (2), (3), (4), (5), (6), (19), (35),
+(7), (20), (8), (36), (219), (22), (10), (23), (37), (11), (24);
+CREATE TABLE `t2` (`type` int , `id` int(32) NOT NULL  primary key);
+INSERT INTO `t2` VALUES
+(2,2),(2,3),(1,4),(2,5),(1,6),(1,19),(5,7),(1,20),(1,8),(1,21),(1,9),
+(1,22),(2,10),(1,23),(2,11),(1,24),(1,12),(1,25),(2,13),(2,26),(2,14),
+(2,27),(1,15),(1,28),(3,16),(1,29),(2,17),(1,30),(5,18),(2,1);
+CREATE TABLE `t3` (`ref_id`  int(32) unsigned ,`type` varchar(80),`id` int(32) NOT NULL );
+INSERT INTO `t3` VALUES
+(1,'incident',31),(2,'faux pas',32),
+(5,'oopsies',33),(3,'deniable',34),
+(11,'wasntme',35),(10,'wasntme',36),
+(17,'faux pas',37),(13,'unlikely',38),
+(13,'improbable',39),(14,'incident',40),
+(26,'problem',41),(14,'problem',42),
+(26,'incident',43),(27,'incident',44);
+explain
+SELECT t2.id FROM t2,t1
+WHERE  t2.id IN (SELECT t3.ref_id FROM t3,t1 where t3.id = t1.id) and t2.id = t1.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	index	PRIMARY	PRIMARY	4	NULL	30	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.id	1	Using index
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	14	
+2	MATERIALIZED	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.id	1	Using index
+SELECT t2.id FROM t2,t1
+WHERE  t2.id IN (SELECT t3.ref_id FROM t3,t1 where t3.id = t1.id) and t2.id = t1.id;
+id
+10
+11
+set optimizer_switch='materialization=off';
+SELECT t2.id FROM t2,t1
+WHERE  t2.id IN (SELECT t3.ref_id FROM t3,t1 where t3.id = t1.id) and t2.id = t1.id;
+id
+11
+10
+set optimizer_switch='materialization=on';
+DROP TABLE t1,t2,t3;
+#
+# MDEV-15247: Crash when SET NAMES 'utf8' is set
+#
+CREATE TABLE t1 (
+id_category int unsigned,
+id_product int unsigned,
+PRIMARY KEY (id_category,id_product)
+) ENGINE=MyISAM;
+INSERT INTO `t1` VALUES (31,216), (31,215), (31,214), (31,213), (31,212), (32,211), (32,210), (32,209), (32,208), (29,207), (30,315372), (2,161), (2,132), (33,315380), (31,315371), (29,315370), (29,315373), (29,315369), (29,315374), (29,315368), (29,315375), (29,315367), (29,183), (29,182), (30,177), (29,315376), (13,315365), (2,167), (2,315357), (2,164), (2,159), (2,131), (2,127), (14,315364), (27,315363), (29,205), (29,204), (29,203), (29,202), (29,201), (29,200), (29,199), (29,198), (29,197), (29,196), (29,195), (29,194), (29,193), (29,192), (29,191), (29,190), (29,189), (14,188), (29,187), (29,186), (29,185), (29,184), (29,315377), (29,315378), (29,181), (33,315379), (29,179), (30,178), (29,180), (30,176), (30,175), (30,174), (30,173), (30,172), (11,171), (27,315357), (23,108), (23,102);
+CREATE TABLE t2 (
+id_product int,
+id_t2 int,
+KEY id_t2 (id_t2),
+KEY id_product (id_product)
+) ENGINE=MyISAM;
+INSERT INTO `t2` VALUES (11,31), (11,31), (11,31), (11,32), (11,32),
+(11,32), (10,26), (11,32), (10,28), (11,32), (10,29), (11,33), (10,26),
+(11,33), (10,27), (9,23), (11,32), (10,26), (8,18), (7,15), (11,32),
+(10,28), (11,32), (10,28), (11,32), (10,29), (11,32), (10,29), (8,19),
+(7,16), (8,18), (7,16), (8,20), (7,16), (11,32), (10,28), (8,19),
+(7,16), (8,20), (7,16), (11,32), (10,29), (8,19), (7,16), (8,20),
+(7,16), (10,27), (9,23), (10,27), (9,23), (10,27), (9,23), (11,32),
+(10,27), (11,32), (10,27), (8,18), (7,15), (10,26), (9,24), (8,19),
+(7,16), (10,26), (9,23), (8,19), (7,16), (8,18), (7,16), (8,18), (7,16),
+(9,23), (8,18), (9,23), (8,19), (7,16), (7,16), (8,19), (7,16), (11,31),
+(10,27), (9,24), (11,31), (10,27), (9,23), (8,19), (11,31), (10,26), (9,24),
+(8,19), (11,31), (10,26), (9,25), (8,18), (11,31), (10,26), (9,23), (8,19),
+(11,31), (10,26), (9,23), (8,18), (11,31), (10,30), (9,23), (8,18), (11,31),
+(10,30), (9,23), (8,19), (11,31), (10,26), (9,25), (8,19), (8,21), (11,32),
+(10,26), (9,22), (8,19), (11,32), (10,26), (9,22), (8,18), (11,32), (10,26),
+(9,22), (8,20), (11,33), (10,26), (9,22), (8,19), (11,33), (10,26), (9,22),
+(8,18), (11,33), (10,26), (9,22), (8,20), (11,32), (10,26), (9,24), (8,19),
+(11,32), (10,26), (9,25), (8,19), (11,32), (10,26), (9,25), (8,18), (11,32),
+(10,26), (9,23), (8,18), (11,32), (10,30), (9,23), (8,18), (11,32), (10,30),
+(9,23), (8,19), (11,32), (10,26), (9,23), (8,19), (11,32), (10,27), (9,23),
+(11,32), (10,27), (9,23), (11,32), (10,27), (9,23), (10,26), (9,22), (8,19),
+(7,15), (10,26), (9,22), (8,20), (7,15), (10,26), (9,22), (8,18), (7,15),
+(8,19), (10,26), (10,26), (11,33), (10,26), (11,33), (10,26), (11,33),
+(10,27), (11,33), (10,27), (11,31), (10,26), (11,31), (10,26), (8,18),
+(7,15), (9,23), (9,23), (9,24), (8,21), (7,15), (7,15), (7,15), (7,15),
+(7,15), (7,15), (7,15), (7,15), (7,15), (8,18), (7,17), (8,18), (7,17), (8,19), (8,19);
+CREATE TABLE t3 (
+id_product int unsigned,
+PRIMARY KEY (id_product)
+) ENGINE=MyISAM;
+INSERT INTO t3 VALUES 
+(102),(103),(104),(105),(106),(107),(108),(109),(110),
+(315371),(315373),(315374),(315375),(315376),(315377),
+(315378),(315379),(315380);
+CREATE TABLE t4 (
+id_product int  not null,
+id_shop int,
+PRIMARY KEY (id_product,id_shop)
+) ENGINE=MyISAM ;
+INSERT INTO t4 VALUES 
+(202,1),(201,1),(200,1),(199,1),(198,1),(197,1),(196,1),(195,1),
+(194,1),(193,1),(192,1),(191,1),(190,1),(189,1),(188,1),(187,1),
+(186,1),(185,1),(184,1),(183,1),(182,1),(181,1),(179,1),(178,1),
+(177,1),(176,1),(126,1),(315380,1);
+CREATE TABLE t5 (id_product int) ENGINE=MyISAM;
+INSERT INTO `t5` VALUES 
+(652),(668),(669),(670),(671),(673),(674),(675),(676),
+(677),(679),(680),(681),(682),(683),(684),(685),(686);
+explain
+SELECT * FROM t3 
+JOIN t4 ON (t4.id_product = t3.id_product AND t4.id_shop = 1)
+JOIN t1 ON (t1.id_product = t3.id_product)
+LEFT JOIN t5 ON (t5.id_product = t3.id_product)
+WHERE 1=1
+AND t3.id_product IN (SELECT id_product FROM t2 t2_1 WHERE t2_1.id_t2 = 32) 
+AND t3.id_product IN (SELECT id_product FROM t2 t2_2 WHERE t2_2.id_t2 = 15)  
+AND t3.id_product IN (SELECT id_product FROM t2 t2_3 WHERE t2_3.id_t2 = 18 OR t2_3.id_t2 = 19)
+AND t3.id_product IN (SELECT id_product FROM t2 t2_4 WHERE t2_4.id_t2 = 34 OR t2_4.id_t2 = 23) 
+AND t3.id_product IN (SELECT id_product FROM t2 t2_5 WHERE t2_5.id_t2 = 29 OR t2_5.id_t2 = 28 OR t2_5.id_t2 = 26);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	PRIMARY	8	NULL	73	Using index
+1	PRIMARY	t3	eq_ref	PRIMARY	PRIMARY	4	test.t1.id_product	1	Using index
+1	PRIMARY	<subquery5>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	t4	eq_ref	PRIMARY	PRIMARY	8	test.t1.id_product,const	1	Using where; Using index
+1	PRIMARY	<subquery6>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+1	PRIMARY	t5	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+5	MATERIALIZED	t2_4	range	id_t2,id_product	id_t2	5	NULL	18	Using index condition; Using where
+4	MATERIALIZED	t2_3	range	id_t2,id_product	id_t2	5	NULL	32	Using index condition; Using where
+3	MATERIALIZED	t2_2	ref	id_t2,id_product	id_t2	5	const	12	
+2	MATERIALIZED	t2_1	ref	id_t2,id_product	id_t2	5	const	50	
+6	MATERIALIZED	t2_5	range	id_t2,id_product	id_t2	5	NULL	30	Using index condition; Using where
+drop table t1,t2,t3,t4,t5;

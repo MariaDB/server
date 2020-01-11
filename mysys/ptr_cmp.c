@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   get_ptr_compare(len) returns a pointer to a optimal byte-compare function
@@ -52,6 +52,11 @@ static int ptr_compare_0(size_t *compare_length, uchar **a, uchar **b);
 static int ptr_compare_1(size_t *compare_length, uchar **a, uchar **b);
 static int ptr_compare_2(size_t *compare_length, uchar **a, uchar **b);
 static int ptr_compare_3(size_t *compare_length, uchar **a, uchar **b);
+static int degenerate_compare_func(size_t *compare_length, uchar **a, uchar **b)
+{
+  DBUG_ASSERT(*compare_length == 0);
+  return 0;
+}
 #endif	/* __sun */
 
 	/* Get a pointer to a optimal byte-compare function for a given size */
@@ -64,6 +69,8 @@ qsort2_cmp get_ptr_compare (size_t size __attribute__((unused)))
 #else
 qsort2_cmp get_ptr_compare (size_t size)
 {
+  if (size == 0)
+    return (qsort2_cmp) degenerate_compare_func;
   if (size < 4)
     return (qsort2_cmp) ptr_compare;
   switch (size & 3) {

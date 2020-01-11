@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   WL#3072 Maria recovery
@@ -531,8 +531,6 @@ end:
 
   if (error && !abort_message_printed)
   {
-    if (!trace_file)
-      fputc('\n', stderr);
     my_message(HA_ERR_INITIALIZATION,
                "Aria recovery failed. Please run aria_chk -r on all Aria "
                "tables and delete all aria_log.######## files", MYF(0));
@@ -558,7 +556,7 @@ static void display_record_position(const LOG_DESC *log_desc,
     form a group, so we indent below the group's end record
   */
   tprint(tracef,
-         "%sRec#%u LSN (%lu,0x%lx) short_trid %u %s(num_type:%u) len %lu\n",
+         "%sRec#%u LSN " LSN_FMT " short_trid %u %s(num_type:%u) len %lu\n",
          number ? "" : "   ", number, LSN_IN_PARTS(rec->lsn),
          rec->short_trid, log_desc->name, rec->type,
          (ulong)rec->record_length);
@@ -617,7 +615,7 @@ prototype_redo_exec_hook(LONG_TRANSACTION_ID)
       llstr(long_trid, llbuf);
       eprint(tracef, "Found an old transaction long_trid %s short_trid %u"
              " with same short id as this new transaction, and has neither"
-             " committed nor rollback (undo_lsn: (%lu,0x%lx))",
+             " committed nor rollback (undo_lsn: " LSN_FMT ")",
              llbuf, sid, LSN_IN_PARTS(ulsn));
       goto err;
     }
@@ -640,7 +638,7 @@ static void new_transaction(uint16 sid, TrID long_id, LSN undo_lsn,
   all_active_trans[sid].long_trid= long_id;
   llstr(long_id, llbuf);
   tprint(tracef, "Transaction long_trid %s short_trid %u starts,"
-         " undo_lsn (%lu,0x%lx) first_undo_lsn (%lu,0x%lx)\n",
+         " undo_lsn " LSN_FMT " first_undo_lsn " LSN_FMT "\n",
          llbuf, sid, LSN_IN_PARTS(undo_lsn), LSN_IN_PARTS(first_undo_lsn));
   all_active_trans[sid].undo_lsn= undo_lsn;
   all_active_trans[sid].first_undo_lsn= first_undo_lsn;
@@ -667,13 +665,16 @@ prototype_redo_exec_hook(INCOMPLETE_LOG)
 {
   MARIA_HA *info;
 
+  /* We try to get table first, so that we get the table in in the trace log */
+  info= get_MARIA_HA_from_REDO_record(rec);
+
   if (skip_DDLs)
   {
     tprint(tracef, "we skip DDLs\n");
     return 0;
   }
 
-  if ((info= get_MARIA_HA_from_REDO_record(rec)) == NULL)
+  if (!info)
   {
     /* no such table, don't need to warn */
     return 0;
@@ -833,7 +834,7 @@ prototype_redo_exec_hook(REDO_CREATE_TABLE)
     }
     if (cmp_translog_addr(share->state.create_rename_lsn, rec->lsn) >= 0)
     {
-      tprint(tracef, "Table '%s' has create_rename_lsn (%lu,0x%lx) more "
+      tprint(tracef, "Table '%s' has create_rename_lsn " LSN_FMT " more "
              "recent than record, ignoring creation",
              name, LSN_IN_PARTS(share->state.create_rename_lsn));
       error= 0;
@@ -1009,7 +1010,7 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
     }
     if (cmp_translog_addr(share->state.create_rename_lsn, rec->lsn) >= 0)
     {
-      tprint(tracef, ", has create_rename_lsn (%lu,0x%lx) more recent than"
+      tprint(tracef, ", has create_rename_lsn " LSN_FMT " more recent than"
              " record, ignoring renaming",
              LSN_IN_PARTS(share->state.create_rename_lsn));
       error= 0;
@@ -1064,7 +1065,7 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
     }
     if (cmp_translog_addr(share->state.create_rename_lsn, rec->lsn) >= 0)
     {
-      tprint(tracef, ", has create_rename_lsn (%lu,0x%lx) more recent than"
+      tprint(tracef, ", has create_rename_lsn " LSN_FMT " more recent than"
              " record, ignoring renaming",
              LSN_IN_PARTS(share->state.create_rename_lsn));
       /*
@@ -1144,6 +1145,9 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
   my_bool quick_repair;
   DBUG_ENTER("exec_REDO_LOGREC_REDO_REPAIR_TABLE");
 
+  /* We try to get table first, so that we get the table in in the trace log */
+  info= get_MARIA_HA_from_REDO_record(rec);
+
   if (skip_DDLs)
   {
     /*
@@ -1153,8 +1157,13 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
     tprint(tracef, "we skip DDLs\n");
     DBUG_RETURN(0);
   }
-  if ((info= get_MARIA_HA_from_REDO_record(rec)) == NULL)
-    DBUG_RETURN(0);
+
+  if (!info)
+  {
+    /* no such table, don't need to warn */
+    return 0;
+  }
+
   if (maria_is_crashed(info))
   {
     tprint(tracef, "we skip repairing crashed table\n");
@@ -1233,7 +1242,7 @@ prototype_redo_exec_hook(REDO_DROP_TABLE)
     }
     if (cmp_translog_addr(share->state.create_rename_lsn, rec->lsn) >= 0)
     {
-      tprint(tracef, ", has create_rename_lsn (%lu,0x%lx) more recent than"
+      tprint(tracef, ", has create_rename_lsn " LSN_FMT " more recent than"
              " record, ignoring removal",
              LSN_IN_PARTS(share->state.create_rename_lsn));
       error= 0;
@@ -1403,8 +1412,8 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
   }
   if (cmp_translog_addr(lsn_of_file_id, share->state.create_rename_lsn) <= 0)
   {
-    tprint(tracef, ", has create_rename_lsn (%lu,0x%lx) more recent than"
-           " LOGREC_FILE_ID's LSN (%lu,0x%lx), ignoring open request",
+    tprint(tracef, ", has create_rename_lsn " LSN_FMT " more recent than"
+           " LOGREC_FILE_ID's LSN " LSN_FMT ", ignoring open request",
            LSN_IN_PARTS(share->state.create_rename_lsn),
            LSN_IN_PARTS(lsn_of_file_id));
     recovery_warnings++;
@@ -1443,17 +1452,21 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
   }
   if (share->state.state.data_file_length != dfile_len)
   {
-    tprint(tracef, ", has wrong state.data_file_length (fixing it)");
+    tprint(tracef, ", has wrong state.data_file_length "
+           "(fixing it from %llu to %llu)",
+           (ulonglong) share->state.state.data_file_length, (ulonglong) dfile_len);
     share->state.state.data_file_length= dfile_len;
   }
   if (share->state.state.key_file_length != kfile_len)
   {
-    tprint(tracef, ", has wrong state.key_file_length (fixing it)");
+    tprint(tracef, ", has wrong state.key_file_length "
+           "(fixing it from %llu to %llu)",
+           (ulonglong) share->state.state.key_file_length, (ulonglong) kfile_len);
     share->state.state.key_file_length= kfile_len;
   }
   if ((dfile_len % share->block_size) || (kfile_len % share->block_size))
   {
-    tprint(tracef, ", has too short last page\n");
+    tprint(tracef, ", has too short last page");
     /* Recovery will fix this, no error */
     ALERT_USER();
   }
@@ -1873,7 +1886,7 @@ prototype_redo_exec_hook(UNDO_ROW_INSERT)
   share= info->s;
   if (cmp_translog_addr(rec->lsn, share->state.is_of_horizon) >= 0)
   {
-    tprint(tracef, "   state has LSN (%lu,0x%lx) older than record, updating"
+    tprint(tracef, "   state has LSN " LSN_FMT " older than record, updating"
            " rows' count\n", LSN_IN_PARTS(share->state.is_of_horizon));
     share->state.state.records++;
     if (share->calc_checksum)
@@ -2136,7 +2149,7 @@ prototype_redo_exec_hook(CLR_END)
   if (info == NULL)
     DBUG_RETURN(0);
   share= info->s;
-  tprint(tracef, "   CLR_END was about %s, undo_lsn now LSN (%lu,0x%lx)\n",
+  tprint(tracef, "   CLR_END was about %s, undo_lsn now LSN " LSN_FMT "\n",
          log_desc->name, LSN_IN_PARTS(previous_undo_lsn));
 
   enlarge_buffer(rec);
@@ -2296,7 +2309,7 @@ prototype_undo_exec_hook(UNDO_ROW_INSERT)
   info->trn= 0;
   /* trn->undo_lsn is updated in an inwrite_hook when writing the CLR_END */
   tprint(tracef, "   rows' count %lu\n", (ulong)info->s->state.state.records);
-  tprint(tracef, "   undo_lsn now LSN (%lu,0x%lx)\n",
+  tprint(tracef, "   undo_lsn now LSN " LSN_FMT "\n",
          LSN_IN_PARTS(trn->undo_lsn));
   return error;
 }
@@ -2335,7 +2348,7 @@ prototype_undo_exec_hook(UNDO_ROW_DELETE)
                                    rec->record_length -
                                    (LSN_STORE_SIZE + FILEID_STORE_SIZE));
   info->trn= 0;
-  tprint(tracef, "   rows' count %lu\n   undo_lsn now LSN (%lu,0x%lx)\n",
+  tprint(tracef, "   rows' count %lu\n   undo_lsn now LSN " LSN_FMT "\n",
          (ulong)share->state.state.records, LSN_IN_PARTS(trn->undo_lsn));
   return error;
 }
@@ -2374,7 +2387,7 @@ prototype_undo_exec_hook(UNDO_ROW_UPDATE)
                                    rec->record_length -
                                    (LSN_STORE_SIZE + FILEID_STORE_SIZE));
   info->trn= 0;
-  tprint(tracef, "   undo_lsn now LSN (%lu,0x%lx)\n",
+  tprint(tracef, "   undo_lsn now LSN " LSN_FMT "\n",
          LSN_IN_PARTS(trn->undo_lsn));
   return error;
 }
@@ -2415,7 +2428,7 @@ prototype_undo_exec_hook(UNDO_KEY_INSERT)
                                    FILEID_STORE_SIZE);
   info->trn= 0;
   /* trn->undo_lsn is updated in an inwrite_hook when writing the CLR_END */
-  tprint(tracef, "   undo_lsn now LSN (%lu,0x%lx)\n",
+  tprint(tracef, "   undo_lsn now LSN " LSN_FMT "\n",
          LSN_IN_PARTS(trn->undo_lsn));
   return error;
 }
@@ -2456,7 +2469,7 @@ prototype_undo_exec_hook(UNDO_KEY_DELETE)
                                    FILEID_STORE_SIZE, FALSE);
   info->trn= 0;
   /* trn->undo_lsn is updated in an inwrite_hook when writing the CLR_END */
-  tprint(tracef, "   undo_lsn now LSN (%lu,0x%lx)\n",
+  tprint(tracef, "   undo_lsn now LSN " LSN_FMT "\n",
          LSN_IN_PARTS(trn->undo_lsn));
   return error;
 }
@@ -2497,7 +2510,7 @@ prototype_undo_exec_hook(UNDO_KEY_DELETE_WITH_ROOT)
                                    FILEID_STORE_SIZE, TRUE);
   info->trn= 0;
   /* trn->undo_lsn is updated in an inwrite_hook when writing the CLR_END */
-  tprint(tracef, "   undo_lsn now LSN (%lu,0x%lx)\n",
+  tprint(tracef, "   undo_lsn now LSN " LSN_FMT "\n",
          LSN_IN_PARTS(trn->undo_lsn));
   return error;
 }
@@ -2525,7 +2538,7 @@ prototype_undo_exec_hook(UNDO_BULK_INSERT)
   error= _ma_apply_undo_bulk_insert(info, previous_undo_lsn);
   info->trn= 0;
   /* trn->undo_lsn is updated in an inwrite_hook when writing the CLR_END */
-  tprint(tracef, "   undo_lsn now LSN (%lu,0x%lx)\n",
+  tprint(tracef, "   undo_lsn now LSN " LSN_FMT "\n",
          LSN_IN_PARTS(trn->undo_lsn));
   return error;
 }
@@ -2663,7 +2676,7 @@ static int run_redo_phase(LSN lsn, LSN lsn_end, enum maria_apply_log_way apply)
           if (lsn_end != LSN_IMPOSSIBLE && rec2.lsn >= lsn_end)
           {
             tprint(tracef,
-                   "lsn_end reached at (%lu,0x%lx). "
+                   "lsn_end reached at " LSN_FMT ". "
                    "Skipping rest of redo entries",
                    LSN_IN_PARTS(rec2.lsn));
             translog_destroy_scanner(&scanner);
@@ -2764,7 +2777,7 @@ static int run_redo_phase(LSN lsn, LSN lsn_end, enum maria_apply_log_way apply)
   {
     fprintf(stderr, " 100%%");
     fflush(stderr);
-    procent_printed= 1;
+    procent_printed= 1;                         /* Will be follwed by time */
   }
   DBUG_RETURN(0);
 
@@ -2818,7 +2831,7 @@ static uint end_of_redo_phase(my_bool prepare_for_undo_phase)
     TRN *trn;
     if (gslsn != LSN_IMPOSSIBLE)
     {
-      tprint(tracef, "Group at LSN (%lu,0x%lx) short_trid %u incomplete\n",
+      tprint(tracef, "Group at LSN " LSN_FMT " short_trid %u incomplete\n",
              LSN_IN_PARTS(gslsn), sid);
       all_active_trans[sid].group_start_lsn= LSN_IMPOSSIBLE;
     }
@@ -2914,7 +2927,6 @@ static int run_undo_phase(uint uncommitted)
       recovery_message_printed= REC_MSG_UNDO;
     }
     tprint(tracef, "%u transactions will be rolled back\n", uncommitted);
-    procent_printed= 1;
     for( ; ; )
     {
       char llbuf[22];
@@ -2967,7 +2979,6 @@ static int run_undo_phase(uint uncommitted)
       /* In the future, we want to have this phase *online* */
     }
   }
-  procent_printed= 0;
   DBUG_RETURN(0);
 }
 
@@ -3109,7 +3120,7 @@ static MARIA_HA *get_MARIA_HA_from_REDO_record(const
       table was).
     */
     DBUG_ASSERT(cmp_translog_addr(rec->lsn, checkpoint_start) < 0);
-    tprint(tracef, ", table's LOGREC_FILE_ID has LSN (%lu,0x%lx) more recent"
+    tprint(tracef, ", table's LOGREC_FILE_ID has LSN " LSN_FMT " more recent"
            " than record, skipping record",
            LSN_IN_PARTS(share->lsn_of_file_id));
     return NULL;
@@ -3117,7 +3128,7 @@ static MARIA_HA *get_MARIA_HA_from_REDO_record(const
   if (cmp_translog_addr(rec->lsn, share->state.skip_redo_lsn) <= 0)
   {
     /* probably a bulk insert repair */
-    tprint(tracef, ", has skip_redo_lsn (%lu,0x%lx) more recent than"
+    tprint(tracef, ", has skip_redo_lsn " LSN_FMT " more recent than"
            " record, skipping record\n",
            LSN_IN_PARTS(share->state.skip_redo_lsn));
     return NULL;
@@ -3176,7 +3187,7 @@ static MARIA_HA *get_MARIA_HA_from_UNDO_record(const
 
   if (cmp_translog_addr(rec->lsn, share->lsn_of_file_id) <= 0)
   {
-    tprint(tracef, ", table's LOGREC_FILE_ID has LSN (%lu,0x%lx) more recent"
+    tprint(tracef, ", table's LOGREC_FILE_ID has LSN " LSN_FMT " more recent"
            " than record, skipping record",
            LSN_IN_PARTS(share->lsn_of_file_id));
     return NULL;
@@ -3185,7 +3196,7 @@ static MARIA_HA *get_MARIA_HA_from_UNDO_record(const
       cmp_translog_addr(rec->lsn, share->state.skip_redo_lsn) <= 0)
   {
     /* probably a bulk insert repair */
-    tprint(tracef, ", has skip_redo_lsn (%lu,0x%lx) more recent than"
+    tprint(tracef, ", has skip_redo_lsn " LSN_FMT " more recent than"
            " record, skipping record\n",
            LSN_IN_PARTS(share->state.skip_redo_lsn));
     return NULL;
@@ -3220,12 +3231,12 @@ static LSN parse_checkpoint_record(LSN lsn)
   LSN minimum_rec_lsn_of_active_transactions, minimum_rec_lsn_of_dirty_pages;
   struct st_dirty_page *next_dirty_page_in_pool;
 
-  tprint(tracef, "Loading data from checkpoint record at LSN (%lu,0x%lx)\n",
+  tprint(tracef, "Loading data from checkpoint record at LSN " LSN_FMT "\n",
          LSN_IN_PARTS(lsn));
   if ((len= translog_read_record_header(lsn, &rec)) == RECHEADER_READ_ERROR ||
       rec.type != LOGREC_CHECKPOINT)
   {
-    eprint(tracef, "Cannot find checkpoint record at LSN (%lu,0x%lx)",
+    eprint(tracef, "Cannot find checkpoint record at LSN " LSN_FMT "",
            LSN_IN_PARTS(lsn));
     return LSN_ERROR;
   }
@@ -3243,7 +3254,7 @@ static LSN parse_checkpoint_record(LSN lsn)
   ptr= log_record_buffer.str;
   start_address= lsn_korr(ptr);
   ptr+= LSN_STORE_SIZE;
-  tprint(tracef, "Checkpoint record has start_horizon at (%lu,0x%lx)\n",
+  tprint(tracef, "Checkpoint record has start_horizon at " LSN_FMT "\n",
          LSN_IN_PARTS(start_address));
 
   /* transactions */
@@ -3261,7 +3272,7 @@ static LSN parse_checkpoint_record(LSN lsn)
     takes to write one or a few rows, roughly).
   */
   tprint(tracef, "Checkpoint record has min_rec_lsn of active transactions"
-         " at (%lu,0x%lx)\n",
+         " at " LSN_FMT "\n",
          LSN_IN_PARTS(minimum_rec_lsn_of_active_transactions));
   set_if_smaller(start_address, minimum_rec_lsn_of_active_transactions);
 
@@ -3349,7 +3360,7 @@ static LSN parse_checkpoint_record(LSN lsn)
                  page_id, rec_lsn, next_dirty_page_in_pool++))
       return LSN_ERROR;
     if (maria_recovery_verbose)
-      tprint(tracef, "%8u  %8u  %12lu    %lu,0x%lx\n", (uint) table_id,
+      tprint(tracef, "%8u  %8u  %12lu    " LSN_FMT "\n", (uint) table_id,
              (uint) is_index, (ulong) page_id, LSN_IN_PARTS(rec_lsn));
     set_if_smaller(minimum_rec_lsn_of_dirty_pages, rec_lsn);
   }
@@ -3372,7 +3383,7 @@ static LSN parse_checkpoint_record(LSN lsn)
   start_address= checkpoint_start=
     translog_next_LSN(start_address, LSN_IMPOSSIBLE);
   tprint(tracef, "Checkpoint record start_horizon now adjusted to"
-         " LSN (%lu,0x%lx)\n", LSN_IN_PARTS(start_address));
+         " LSN " LSN_FMT "\n", LSN_IN_PARTS(start_address));
   if (checkpoint_start == LSN_IMPOSSIBLE)
   {
     /*
@@ -3383,10 +3394,10 @@ static LSN parse_checkpoint_record(LSN lsn)
   }
   /* now, where the REDO phase should start reading log: */
   tprint(tracef, "Checkpoint has min_rec_lsn of dirty pages at"
-         " LSN (%lu,0x%lx)\n", LSN_IN_PARTS(minimum_rec_lsn_of_dirty_pages));
+         " LSN " LSN_FMT "\n", LSN_IN_PARTS(minimum_rec_lsn_of_dirty_pages));
   set_if_smaller(start_address, minimum_rec_lsn_of_dirty_pages);
   DBUG_PRINT("info",
-             ("checkpoint_start: (%lu,0x%lx) start_address: (%lu,0x%lx)",
+             ("checkpoint_start: " LSN_FMT " start_address: " LSN_FMT "",
               LSN_IN_PARTS(checkpoint_start), LSN_IN_PARTS(start_address)));
   return start_address;
 }
@@ -3467,6 +3478,11 @@ static int close_all_tables(void)
     }
   }
 end:
+  if (recovery_message_printed == REC_MSG_FLUSH)
+  {
+    fputc('\n', stderr);
+    fflush(stderr);
+  }
   mysql_mutex_unlock(&THR_LOCK_maria);
   DBUG_RETURN(error);
 }
@@ -3520,6 +3536,14 @@ void _ma_tmp_disable_logging_for_table(MARIA_HA *info,
 {
   MARIA_SHARE *share= info->s;
   DBUG_ENTER("_ma_tmp_disable_logging_for_table");
+
+  /*
+    We have to ensure that bitmap is flushed, as it's checking
+    that share->now_transactional is set
+  */
+  if (share->now_transactional && share->data_file_type == BLOCK_RECORD)
+    _ma_bitmap_flush_all(share);
+
   if (log_incomplete)
   {
     uchar log_data[FILEID_STORE_SIZE];
@@ -3543,8 +3567,8 @@ void _ma_tmp_disable_logging_for_table(MARIA_HA *info,
     info->state may point to a state that was deleted by
     _ma_trnman_end_trans_hook()
    */
-  share->state.common= *info->state;
-  info->state= &share->state.common;
+  share->state.no_logging= *info->state;
+  info->state= &share->state.no_logging;
   info->switched_transactional= TRUE;
 
   /*
@@ -3583,7 +3607,10 @@ my_bool _ma_reenable_logging_for_table(MARIA_HA *info, my_bool flush_pages)
 
   if (share->now_transactional == share->base.born_transactional ||
       !info->switched_transactional)
+  {
+    info->switched_transactional= FALSE;
     DBUG_RETURN(0);
+  }
   info->switched_transactional= FALSE;
 
   if ((share->now_transactional= share->base.born_transactional))
@@ -3596,6 +3623,10 @@ my_bool _ma_reenable_logging_for_table(MARIA_HA *info, my_bool flush_pages)
     */
     _ma_copy_nontrans_state_information(info);
     _ma_reset_history(info->s);
+
+    /* Reset state to point to state.common, as on open() */
+    info->state=  &share->state.common;
+    *info->state=  share->state.state;
 
     if (flush_pages)
     {

@@ -275,16 +275,14 @@ create table t6 (id int primary key) engine = innodb row_format = compressed;
 --replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 --replace_regex / - .*[0-9]*[)]/)/
---error ER_CANT_CREATE_TABLE
 create table t7 (id int primary key) engine = innodb row_format = dynamic;
---replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 create table t8 (id int primary key) engine = innodb row_format = compact;
 create table t9 (id int primary key) engine = innodb row_format = redundant;
 
 --replace_result 16384 {valid} 8192 {valid} 4096 {valid}
 --eval $query_i_s
-drop table t8, t9;
+drop table t7, t8, t9;
 
 #test valid values with innodb_file_format unset
 set global innodb_file_per_table = on;
@@ -312,17 +310,14 @@ show warnings;
 create table t6 (id int primary key) engine = innodb row_format = compressed;
 --replace_regex / - .*[0-9]*[)]/)/
 show warnings;
---replace_regex / - .*[0-9]*[)]/)/
---error ER_CANT_CREATE_TABLE
 create table t7 (id int primary key) engine = innodb row_format = dynamic;
---replace_regex / - .*[0-9]*[)]/)/
 show warnings;
 create table t8 (id int primary key) engine = innodb row_format = compact;
 create table t9 (id int primary key) engine = innodb row_format = redundant;
 
 --replace_result 16384 {valid} 8192 {valid} 4096 {valid}
 --eval $query_i_s
-drop table t8, t9;
+drop table t7, t8, t9;
 
 eval set global innodb_file_per_table=$per_table;
 eval set global innodb_file_format=$format;

@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -1326,7 +1326,8 @@ void do_handle_one_connection(THD *thd_arg)
 
     while (thd_is_connection_alive(thd))
     {
-      mysql_audit_release(thd);
+      if (mysql_audit_release_required(thd))
+        mysql_audit_release(thd);
       if (do_command(thd))
 	break;
     }
@@ -1335,9 +1336,9 @@ void do_handle_one_connection(THD *thd_arg)
 #ifdef WITH_WSREP
   if (WSREP(thd))
   {
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->wsrep_query_state= QUERY_EXITING;
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
 #endif
 end_thread:

@@ -587,6 +587,69 @@ INSERT INTO t1 VALUES (1),(2);
 SELECT STDDEV_SAMP(ROUND('0', 309)) FROM t1;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-20495 Assertion `precision > 0' failed in decimal_bin_size upon CREATE .. SELECT with zerofilled decimal
+--echo #
+
+--echo # Testing that dyadic arithmetic operations are symmetric
+--echo # for (+1) and (-1) and produce the same length in CONCAT(),
+--echo # because (+1) and (-1) have the same data type: signed int.
+
+CREATE TABLE t1 AS SELECT
+  CONCAT(+1%2.0),
+  CONCAT(-1%2.0),
+  CONCAT(+1/2.0),
+  CONCAT(-1/2.0),
+  CONCAT(+1*2.0),
+  CONCAT(-1*2.0),
+  CONCAT(+1+2.0),
+  CONCAT(-1+2.0),
+  CONCAT(+1-2.0),
+  CONCAT(-1-2.0);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT
+  CONCAT(+1%2),
+  CONCAT(-1%2),
+  CONCAT(+1/2),
+  CONCAT(-1/2),
+  CONCAT(+1*2),
+  CONCAT(-1*2),
+  CONCAT(+1+2),
+  CONCAT(-1+2),
+  CONCAT(+1-2),
+  CONCAT(-1-2);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Bug #29723340: MYSQL SERVER CRASH AFTER SQL QUERY WITH DATA ?AST
+--echo #
+
+create table t1(a int);
+insert t1 values("1e-214748364");
+insert t1 values("1e-2147483648");
+insert t1 values("1e-21474836480");
+insert t1 values("1e+214748364");
+insert t1 values("1e+2147483647");
+insert t1 values("1e+21474836470");
+
+# if max max_allowed_packet will ever be increased beyond 2GB, this could
+# break again:
+set global max_allowed_packet= cast(2*1024*1024*1024+1024 as unsigned);
+connect foo,localhost,root;
+set @a=2147483647;
+insert t1 values (concat('1', repeat('0', @a+18), 'e-', @a-1, '0'));
+disconnect foo;
+connection default;
+set global max_allowed_packet=default;
+
+select * from t1;
+drop table t1;
+
 --echo #
 --echo # End of 5.5 tests
 --echo #
@@ -598,4 +661,37 @@ SELECT STDDEV_POP(ROUND(0,@A:=2009)) FROM (SELECT 1 UNION SELECT 2) fake_table;
 
 --echo #
 --echo # End of 10.0 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-17643 Assertion `nr >= 0.0' failed in Item_sum_std::val_real()
+--echo #
+
+CREATE TABLE t1 ( pk int NOT NULL, i1 int NOT NULL, d1 date NOT NULL, t1 time);
+INSERT INTO t1 VALUES (7,9,'2007-08-15','03:55:02'),(8,7,'1993-06-05','04:17:51'),(9,7,'2034-07-01','17:31:12'),(10,0,'1998-08-24','08:09:27');
+SELECT DISTINCT  STDDEV_SAMP(EXPORT_SET(t1, -1379790335835635712, (i1 + 'o'), (MD5(d1)))) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(128));
+INSERT INTO t1 VALUES ('1e310');
+INSERT INTO t1 VALUES ('-1e310');
+INSERT INTO t1 VALUES ('0');
+SELECT STDDEV_SAMP(a) FROM t1;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (1.7e+308);
+INSERT INTO t1 VALUES (-1.7e+308);
+INSERT INTO t1 VALUES (0);
+SELECT STDDEV_SAMP(a) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.1 tests
 --echo #

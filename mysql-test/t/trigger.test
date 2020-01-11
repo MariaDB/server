@@ -2656,5 +2656,17 @@ insert into t2 value (2);
 DROP VIEW v1;
 DROP TABLE t1,t2,t3;
 
+--echo #
+--echo # MDEV-16093
+--echo # Assertion `global_status_var.global_memory_used == 0' failed or
+--echo # bytes lost after inserting into table with non-null blob and trigger
+--echo #
 
---echo End of 10.1 tests.
+CREATE TABLE t1 (b BLOB NOT NULL);
+CREATE TRIGGER tr BEFORE UPDATE ON t1 FOR EACH ROW BEGIN END;
+INSERT INTO t1 VALUES ('foo');
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests.
+--echo #

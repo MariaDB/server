@@ -268,3 +268,23 @@ SET optimizer_switch=@save_optimizer_switch;
 SELECT UNHEX(CONCAT('414C2', HEX(8 + ROUND(RAND()*7)), SUBSTR(SHA(UUID()),6,33),HEX(2+ROUND(RAND()*8)))) IS NULL AS c1;
 c1
 0
+#
+# MDEV-13119 Wrong results with CAST(AS CHAR) and subquery
+#
+SET optimizer_switch=_utf8'derived_merge=on';
+CREATE TABLE t1 (t VARCHAR(10) CHARSET latin1);
+INSERT INTO t1 VALUES('abcdefghi');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT CAST(t AS CHAR CHARACTER SET utf8) t2 FROM t1) sub;
+c2
+abcdefghi-abcdefghi
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
+#
+# MDEV-13120 Wrong results with MAKE_SET() and subquery
+#
+CREATE TABLE t1 (t VARCHAR(10) CHARSET latin1);
+INSERT INTO t1 VALUES('abcdefghi');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT MAKE_SET(3,t,t) t2 FROM t1) sub;
+c2
+abcdefghi,abcdefghi-abcdefghi,abcdefghi
+DROP TABLE t1;

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* remove current record in heap-database */
 
@@ -45,7 +45,7 @@ int heap_delete(HP_INFO *info, const uchar *record)
   info->update=HA_STATE_DELETED;
   *((uchar**) pos)=share->del_link;
   share->del_link=pos;
-  pos[share->reclength]=0;		/* Record deleted */
+  pos[share->visible]=0;		/* Record deleted */
   share->deleted++;
   share->key_version++;
 #if !defined(DBUG_OFF) && defined(EXTRA_HEAP_DEBUG)

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -132,16 +133,15 @@ fts_eval_sql(
 	trx_t*		trx,		/*!< in: transaction */
 	que_t*		graph)		/*!< in: Parsed statement */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/******************************************************************//**
-Construct the name of an ancillary FTS table for the given table.
-@return own: table name, must be freed with mem_free() */
+
+/** Construct the name of an internal FTS table for the given table.
+@param[in]	fts_table	metadata on fulltext-indexed table
+@param[out]	table_name	a name up to MAX_FULL_NAME_LEN
+@param[in]	dict_locked	whether dict_sys->mutex is being held */
 UNIV_INTERN
-char*
-fts_get_table_name(
-/*===============*/
-	const fts_table_t*
-			fts_table)	/*!< in: FTS aux table info */
-	MY_ATTRIBUTE((nonnull, malloc, warn_unused_result));
+void fts_get_table_name(const fts_table_t* fts_table, char* table_name,
+			bool dict_locked = false)
+	MY_ATTRIBUTE((nonnull));
 /******************************************************************//**
 Construct the column specification part of the SQL string for selecting the
 indexed FTS columns for the given table. Adds the necessary bound
@@ -521,20 +521,6 @@ fts_cache_append_deleted_doc_ids(
 	const fts_cache_t*
 			cache,		/*!< in: cache to use */
 	ib_vector_t*	vector);	/*!< in: append to this vector */
-/******************************************************************//**
-Wait for the background thread to start. We poll to detect change
-of state, which is acceptable, since the wait should happen only
-once during startup.
-@return true if the thread started else FALSE (i.e timed out) */
-UNIV_INTERN
-ibool
-fts_wait_for_background_thread_to_start(
-/*====================================*/
-	dict_table_t*	table,		/*!< in: table to which the thread
-					is attached */
-	ulint		max_wait);	/*!< in: time in microseconds, if set
-					to 0 then it disables timeout
-					checking */
 #ifdef FTS_DOC_STATS_DEBUG
 /******************************************************************//**
 Get the total number of words in the FTS for a particular FTS index.
@@ -597,31 +583,11 @@ fts_get_table_id(
 					FTS_AUX_MIN_TABLE_ID_LENGTH bytes
 					long */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/******************************************************************//**
-Add the table to add to the OPTIMIZER's list. */
-UNIV_INTERN
-void
-fts_optimize_add_table(
-/*===================*/
-	dict_table_t*	table)		/*!< in: table to add */
-	MY_ATTRIBUTE((nonnull));
-/******************************************************************//**
-Optimize a table. */
-UNIV_INTERN
-void
-fts_optimize_do_table(
-/*==================*/
-	dict_table_t*	table)		/*!< in: table to optimize */
-	MY_ATTRIBUTE((nonnull));
-/******************************************************************//**
-Construct the prefix name of an FTS table.
-@return own: table name, must be freed with mem_free() */
-UNIV_INTERN
-char*
-fts_get_table_name_prefix(
-/*======================*/
-	const fts_table_t*
-			fts_table)	/*!< in: Auxiliary table type */
+/** Construct the name of an internal FTS table for the given table.
+@param[in]	fts_table	metadata on fulltext-indexed table
+@param[in]	dict_locked	whether dict_sys->mutex is being held
+@return	the prefix, must be freed with ut_free() */
+UNIV_INTERN char* fts_get_table_name_prefix(const fts_table_t* fts_table)
 	MY_ATTRIBUTE((nonnull, malloc, warn_unused_result));
 /******************************************************************//**
 Add node positions. */

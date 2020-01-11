@@ -158,7 +158,7 @@ do_args(int argc, char * const argv[]) {
         choices[i] = -1;
     }
 
-    char c;
+    signed char c;
     while ((c = getopt(argc, argv, "vqhcrO:A:B:C:D:E:F:G:H:I:J:X:")) != -1) {
         switch (c) {
             case 'v':
@@ -217,7 +217,7 @@ do_args(int argc, char * const argv[]) {
                     // arg that suppresses valgrind on this child process
                     break;
                 }
-            // otherwise, fall through to an error
+                /* fall through */ // otherwise, fall through to an error
 	default:
             usage();
             break;

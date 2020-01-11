@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -140,17 +140,6 @@ UNIV_INTERN
 void
 buf_flush_wait_batch_end(
 /*=====================*/
-	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	buf_flush_t	type);		/*!< in: BUF_FLUSH_LRU
-					or BUF_FLUSH_LIST */
-/******************************************************************//**
-Waits until a flush batch of the given type ends. This is called by
-a thread that only wants to wait for a flush to end but doesn't do
-any flushing itself. */
-UNIV_INTERN
-void
-buf_flush_wait_batch_end_wait_only(
-/*===============================*/
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
 	buf_flush_t	type);		/*!< in: BUF_FLUSH_LRU
 					or BUF_FLUSH_LIST */

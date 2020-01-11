@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 #include "client_priv.h"
@@ -1133,6 +1133,8 @@ int main(int argc, char **argv)
   char self_name[FN_REFLEN + 1];
 
   MY_INIT(argv[0]);
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
+  defaults_argv= argv; /* Must be freed by 'free_defaults' */
 
 #if __WIN__
   if (GetModuleFileName(NULL, self_name, FN_REFLEN) == 0)
@@ -1144,10 +1146,6 @@ int main(int argc, char **argv)
   if (init_dynamic_string(&ds_args, "", 512, 256) ||
       init_dynamic_string(&conn_args, "", 512, 256))
     die("Out of memory");
-
-  if (load_defaults("my", load_default_groups, &argc, &argv))
-    die(NULL);
-  defaults_argv= argv; /* Must be freed by 'free_defaults' */
 
   if (handle_options(&argc, &argv, my_long_options, get_one_option))
     die(NULL);

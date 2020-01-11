@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "../maria_def.h"
 #include <stdio.h>
@@ -116,7 +116,7 @@ int main(int argc __attribute__((unused)), char *argv[])
             "data read(0)\n"
             "type: %u (%d)  strid: %u (%d)  len: %u (%d)  i: %u (%d), "
             "4: %u (%d)  5: %u (%d)  "
-            "lsn(%lu,0x%lx) (%d)\n",
+            "lsn" LSN_FMT " (%d)\n",
             (uint) rec.type, (rec.type !=LOGREC_FIXED_RECORD_0LSN_EXAMPLE),
             (uint) rec.short_trid, (rec.short_trid != 0),
             (uint) rec.record_length, (rec.record_length != 6),

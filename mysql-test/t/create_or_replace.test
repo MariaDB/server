@@ -396,3 +396,73 @@ CREATE OR REPLACE TABLE t1 AS SELECT f1();
 UNLOCK TABLES;
 DROP FUNCTION f1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11129
+--echo # CREATE OR REPLACE TABLE t1 AS SELECT spfunc() crashes if spfunc()
+--echo # references t1
+--echo #
+
+CREATE OR REPLACE TABLE t1(a INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS VARCHAR(16383)
+BEGIN
+  INSERT INTO t1 VALUES(1);
+  RETURN 'test';
+END;
+$$
+DELIMITER ;$$
+--error ER_UPDATE_TABLE_USED
+CREATE OR REPLACE TABLE t1 AS SELECT f1();
+LOCK TABLE t1 WRITE;
+--error ER_TABLE_NOT_LOCKED
+CREATE OR REPLACE TABLE t1 AS SELECT f1();
+UNLOCK TABLES;
+
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-14410 - Assertion `table->pos_in_locked_tables == __null ||
+--echo #              table->pos_in_locked_tables->table == table' failed in
+--echo #              mark_used_tables_as_free_for_reuse
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT);
+
+CREATE TRIGGER tr1 BEFORE INSERT ON t3 FOR EACH ROW INSERT INTO t1 VALUES ();
+CREATE TRIGGER tr2 BEFORE INSERT ON t2 FOR EACH ROW INSERT INTO t3 SELECT * FROM t1;
+
+LOCK TABLE t1 WRITE, t2 WRITE;
+CREATE OR REPLACE TABLE t1 (i INT);
+UNLOCK TABLES;
+INSERT INTO t2 VALUES (1);
+
+# Cleanup
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # MDEV-11071 - Assertion `thd->transaction.stmt.is_empty()' failed in
+--echo #              Locked_tables_list::unlock_locked_tables
+--echo #
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t2(a INT);
+CREATE TABLE t3(a INT);
+LOCK TABLE t2 WRITE;
+SELECT * FROM t2;
+# drops t2
+--error ER_INVALID_DEFAULT
+CREATE OR REPLACE TEMPORARY TABLE t1(c INT DEFAULT '');
+# make sure we didn't leave locked tables mode
+--error ER_TABLE_NOT_LOCKED
+SELECT * FROM t3;
+# drops t1
+--error ER_INVALID_DEFAULT
+CREATE OR REPLACE TEMPORARY TABLE t2(c INT DEFAULT '');
+# make sure we didn't leave locked tables mode
+--error ER_TABLE_NOT_LOCKED
+SELECT * FROM t3;
+UNLOCK TABLES;
+DROP TABLE t3;

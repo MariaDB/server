@@ -16,7 +16,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* This file is originally from the mysql distribution. Coded by monty */
 
@@ -648,11 +648,6 @@ public:
   explicit StringBuffer(CHARSET_INFO *cs) : String(buff, buff_sz, cs)
   {
     length(0);
-  }
-  StringBuffer(const char *str, size_t length_arg, CHARSET_INFO *cs)
-    : String(buff, buff_sz, cs)
-  {
-    set(str, length_arg, cs);
   }
 };
 

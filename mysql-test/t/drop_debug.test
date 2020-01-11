@@ -10,17 +10,13 @@
 --echo # --
 --echo
 
---disable_warnings
-DROP DATABASE IF EXISTS mysql_test;
---enable_warnings
-
---echo
 CREATE DATABASE mysql_test;
 CREATE TABLE mysql_test.t1(a INT);
 CREATE TABLE mysql_test.t2(b INT);
 CREATE TABLE mysql_test.t3(c INT);
 
 --echo
+SET @save_dbug = @@debug_dbug;
 SET SESSION debug_dbug= "+d,bug43138";
 
 --echo
@@ -28,7 +24,7 @@ SET SESSION debug_dbug= "+d,bug43138";
 DROP DATABASE mysql_test;
 
 --echo
-SET SESSION debug_dbug= "-d,bug43138";
+SET SESSION debug_dbug=@save_dbug;
 
 --echo
 --echo # --

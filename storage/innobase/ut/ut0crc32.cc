@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -59,7 +59,7 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 
    You should have received a copy of the GNU General Public License along with
    this program; if not, write to the Free Software Foundation, Inc.,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* The below CRC32 implementation is based on the implementation included with
  * zlib with modifications to process 8 bytes at a time and using SSE 4.2
@@ -316,26 +316,7 @@ ut_crc32_init()
 	ut_cpuid(vend, &model, &family, &stepping,
 		 &features_ecx, &features_edx);
 
-	/* Valgrind does not understand the CRC32 instructions:
-
-	vex amd64->IR: unhandled instruction bytes: 0xF2 0x48 0xF 0x38 0xF0 0xA
-	valgrind: Unrecognised instruction at address 0xad3db5.
-	Your program just tried to execute an instruction that Valgrind
-	did not recognise.  There are two possible reasons for this.
-	1. Your program has a bug and erroneously jumped to a non-code
-	   location.  If you are running Memcheck and you just saw a
-	   warning about a bad jump, it's probably your program's fault.
-	2. The instruction is legitimate but Valgrind doesn't handle it,
-	   i.e. it's Valgrind's fault.  If you think this is the case or
-	   you are not sure, please let us know and we'll try to fix it.
-	Either way, Valgrind will now raise a SIGILL signal which will
-	probably kill your program.
-
-	*/
-#ifndef UNIV_DEBUG_VALGRIND
 	ut_crc32_sse2_enabled = (features_ecx >> 20) & 1;
-#endif /* UNIV_DEBUG_VALGRIND */
-
 #endif /* defined(__GNUC__) && defined(__x86_64__) */
 
 #if defined(__linux__) && defined(__powerpc__) && defined(AT_HWCAP2) \

@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -199,7 +199,6 @@ class SJ_TMP_TABLE;
 class JOIN_TAB_RANGE;
 
 typedef struct st_join_table {
-  st_join_table() {}                          /* Remove gcc warning */
   TABLE		*table;
   KEYUSE	*keyuse;			/**< pointer to first used key */
   KEY           *hj_key;       /**< descriptor of the used best hash join key

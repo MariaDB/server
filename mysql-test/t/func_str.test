@@ -1611,6 +1611,36 @@ drop table t1,t2;
 select md5(_filename "a"), sha(_filename "a");
 
 --echo #
+--echo # MDEV-18881 Assertion `0' failed in make_sortkey upon SELECT with GROUP BY after LOAD DATA
+--echo #
+
+CREATE TABLE t1 (a BIT(22), b CHAR(8) NOT NULL, c CHAR(8));
+INSERT INTO t1 VALUES (0xA4B,'foo','qux');
+INSERT INTO t1 VALUES (0x8F5,'bar','foobar');
+INSERT INTO t1 VALUES (0x0, '', NULL);
+INSERT INTO t1 VALUES (0x4B, 'foo','qux');
+INSERT INTO t1 VALUES (0x8F5, 'bar', 'foobar');
+SET SESSION SQL_MODE= '';
+SELECT GROUP_CONCAT(c) AS f FROM t1 GROUP BY LPAD('foo', 20, b);
+DROP TABLE t1;
+SET SESSION SQL_MODE=DEFAULT;
+
+CREATE TABLE t1 AS SELECT
+  LPAD('a',10,' '),
+  RPAD('a',10,' '),
+  LPAD('a',10,'  '),
+  RPAD('a',10,'  '),
+  LPAD('a',10,NULL),
+  RPAD('a',10,NULL),
+  LPAD('a',10,''),
+  RPAD('a',10,''),
+  LPAD('a',10,RAND()),
+  RPAD('a',10,RAND());
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 
@@ -1769,6 +1799,41 @@ EXPLAIN EXTENDED SELECT CHAR(0xDF USING `binary`);
 EXPLAIN EXTENDED SELECT CHAR(0xDF);
 
 --echo #
+--echo # MDEV-15619 using CONVERT() inside AES_ENCRYPT() in an UPDATE corrupts data
+--echo #
+
+CREATE TABLE t1 (
+  id int(11) NOT NULL,
+  session_id varchar(255) DEFAULT NULL,
+  directory mediumtext,
+  checksum int(10) DEFAULT NULL,
+  last_update datetime DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY lastupdate (last_update)
+) DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES (1,'',NULL,38391,'2017-06-24 07:35:28');
+UPDATE t1 SET directory = AES_ENCRYPT(CONVERT('test stringrererejrjerjehrjekhrjkehrjkehrkjehrjkerhkjehrjekrhkjehrkjerhjkehrkjehrkjehrjkehrjkehrjkehrjkerjkehrjkehrjkehrjke rekjhrejrejhrjehgrehjgrhjerjhegrjherejhgrjhegrjehgrjhegrejhrgjehgrjhegrjhegrjhergjhegrjhegrhjegrjerhthkjjkdhjkgdfjkgjkdgdjkfjkhgjkfdhjgjkfdghkjdfghkjfdghfjkdghkdjfghdkjfghfjkdghfkjdghkjfdghfkjdghfkdjghfkjdghfdjkghjkdfhgdfjkghfjkdghfjkdghfjdkghfjkdghkfjdghfkjdghfkjdghkjdfghfjdkghjkfdghkjdfhgjkdfhgjkfdhgkjfdghkfjdhgkjfdgdjkejktjherjthkjrethkjrethjkerthjkerhtjkerhtkjerhtjkerhtjkerhtjkrehtkjerhtkjrehtjkrehtkjrehtkjerhtkjerhtjkrehtkjrehtjkrehtkjrethjkrethkjrehtkjethjkerhtjkrehtjkretkjerhtkjrehtjkerhtjkrehtjrehtkjrekjtrfgdsfgdhjsghjgfdhjsfhjdfgdhjshjdshjfghjdsfgjhsfgjhsdfgjhdsfgjdhsfgsjhfgjhsdfgsdjhfgjdhsfdjshfgdsjhfgjsdhfdjshfgdjhsfgdjshfgjdhsfgjhsdfgjhsdgfjhsdgfjhdsgfjhsgfjhsdgfjhdsgfhjsdehkjthrkjethjkre' USING latin1), '95F5A1F52A554'), last_update= NOW();
+SELECT directory IS NULL FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  id int(11) NOT NULL PRIMARY KEY,
+  directory mediumtext
+) DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES (1,AES_ENCRYPT(CONVERT(REPEAT('a',800) USING latin1),'95F5A1F52A554'));
+SELECT AES_DECRYPT(directory,'95F5A1F52A554') FROM t1;
+DROP TABLE t1;
+
+SET @enc=AES_ENCRYPT(REPEAT(_latin1'a',800),'95F5A1F52A554');
+CREATE TABLE t1 (
+  id int(11) NOT NULL PRIMARY KEY,
+  directory mediumtext
+) DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES (1,AES_DECRYPT(CONVERT(@enc USING binary),'95F5A1F52A554'));
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # Start of 10.1 tests
 --echo #
 
@@ -1811,6 +1876,42 @@ SELECT f1,HEX(f2) FROM t1 ignore index(k1) WHERE f1='YQ==' AND (f2= from_base64(
 SELECT f1,HEX(f2) FROM t1                  WHERE f1='YQ==' AND (f2= from_base64("YQ==") OR f2= from_base64("Yq=="));
 SELECT f1,HEX(f2) FROM t1                  WHERE f1='YQ==' AND (f2= from_base64("Yq==") OR f2= from_base64("YQ=="));
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-18738 ASAN heap-use-after-free in copy_if_not_alloced / copy_fields
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT REPLACE( CAST( CURDATE() AS BINARY ), CURDATE(), REPEAT('a',32) ) AS f FROM t1 GROUP BY f;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT REPLACE( LEFT( CURDATE(), 4), LEFT(CURDATE(),4), REPEAT('a',32) ) AS f FROM t1 GROUP BY f;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT REPLACE(RIGHT(CURDATE(), 4), RIGHT(CURDATE(),4), REPEAT('a',32)) AS f FROM t1 GROUP BY f;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT REPLACE(SUBSTR(CURDATE(),2,3), SUBSTR(CURDATE(),2,3), REPEAT('a',32)) AS f FROM t1 GROUP BY f;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-19359 ASAN heap-use-after-free in copy_if_not_alloced / make_sortkey
+--echo #
+
+CREATE TABLE t1 (a INT, b TIME, c TIME);
+INSERT INTO t1 VALUES (NULL,'22:56:45','22:56:45'),(4,'12:51:42','12:51:42');
+SELECT REPLACE( BINARY c, a, b ) f FROM t1 GROUP BY f WITH ROLLUP;
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of 10.1 tests

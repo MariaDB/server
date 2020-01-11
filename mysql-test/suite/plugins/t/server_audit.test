@@ -42,8 +42,10 @@ select 1,
         3;
 insert into t2 values (1), (2);
 select * from t2;
+--disable_ps_protocol
 --error ER_NO_SUCH_TABLE
 select * from t_doesnt_exist;
+--enable_ps_protocol
 --error 1064
 syntax_error_query;
 drop table renamed_t1, t2;
@@ -119,6 +121,13 @@ select 2;
 /*! select 2*/;
 /*comment*/ select 2;
 drop table t1;
+set global server_audit_events='query_dml_no_select';
+create table t1(id int);
+insert into t1 values (1), (2);
+select * from t1;
+select 2;
+drop table t1;
+
 set global server_audit_events='';
 
 set global server_audit_query_log_limit= 15;

@@ -1,9 +1,12 @@
-SET(TOKUDB_VERSION 5.6.38-83.0)
+SET(TOKUDB_VERSION 5.6.41-84.1)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(CMAKE_VERSION VERSION_LESS "2.8.9")
   MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
 ELSEIF(NOT HAVE_DLOPEN)
   MESSAGE(STATUS "dlopen is required by TokuDB")
+ELSEIF(PLUGIN_PERFSCHEMA MATCHES "^NO$")
+  MESSAGE(STATUS "Performance Schema is required by TokuDB")
+  RETURN()
 ELSEIF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" OR
        CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
 # tokudb requires F_NOCACHE or O_DIRECT, and designated initializers
@@ -41,8 +44,10 @@ IF(NOT LIBJEMALLOC)
   MESSAGE(WARNING "TokuDB is enabled, but jemalloc is not. This configuration is not supported")
 ENDIF()
 
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-shadow")
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla" DEBUG)
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-cpp" DEBUG)
 
 ############################################
 SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump" PARENT_SCOPE)
@@ -101,7 +106,11 @@ ELSEIF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ft-index/")
     MESSAGE(WARNING "Found ft-index sources, ft-index is deprecated and replaced with PerconaFT.")
     SET(TOKU_FT_DIR_NAME "ft-index")
 ELSE ()
-        MESSAGE(FATAL_ERROR "Could not find PerconaFT sources.")
+    MESSAGE(FATAL_ERROR "Could not find PerconaFT sources.")
+ENDIF ()
+
+IF (WITH_VALGRIND)
+    SET(USE_VALGRIND "ON")
 ENDIF ()
 
 ADD_SUBDIRECTORY(${TOKU_FT_DIR_NAME})

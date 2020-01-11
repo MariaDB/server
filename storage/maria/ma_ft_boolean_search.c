@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Written by Sergei A. Golubchik, who has a shared copyright to this code */
 
@@ -457,7 +457,7 @@ static int _ft2_search_no_lock(FTB *ftb, FTB_WORD *ftbw, my_bool init_search)
     */
     ftbw->off=off;
     ftbw->key_root= info->cur_row.lastpos;
-    ftbw->keyinfo=& info->s->ft2_keyinfo;
+    ftbw->keyinfo= info->last_key.keyinfo= & info->s->ft2_keyinfo;
     r= _ma_search_first(info, ftbw->keyinfo, ftbw->key_root);
     DBUG_ASSERT(r==0);  /* found something */
     memcpy(lastkey_buf+off, info->last_key.data,

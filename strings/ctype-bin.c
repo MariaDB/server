@@ -15,7 +15,7 @@
    You should have received a copy of the GNU Library General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-   MA 02110-1301, USA */
+   MA 02110-1335  USA */
 
 /* This file is for binary pseudo charset, created by bar@mysql.com */
 
@@ -220,11 +220,11 @@ static size_t my_case_str_bin(CHARSET_INFO *cs __attribute__((unused)),
 
 
 static size_t my_case_bin(CHARSET_INFO *cs __attribute__((unused)),
-                          char *src __attribute__((unused)),
-                          size_t srclen,
-                          char *dst __attribute__((unused)),
-                          size_t dstlen __attribute__((unused)))
+                          const char *src, size_t srclen,
+                          char *dst, size_t dstlen)
 {
+  DBUG_ASSERT(srclen <= dstlen);
+  memcpy(dst, src, srclen);
   return srclen;
 }
 

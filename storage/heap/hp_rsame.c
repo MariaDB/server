@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* re-read current record */
 
@@ -32,7 +32,7 @@ int heap_rsame(register HP_INFO *info, uchar *record, int inx)
   DBUG_ENTER("heap_rsame");
 
   test_active(info);
-  if (info->current_ptr[share->reclength])
+  if (info->current_ptr[share->visible])
   {
     if (inx < -1 || inx >= (int) share->keys)
     {

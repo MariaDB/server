@@ -1411,6 +1411,56 @@ t1	CREATE TABLE `t1` (
   `consultant_id` bigint(20) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8
 DROP TABLE t1;
+#
+# BUG#27788685: NO WARNING WHEN TRUNCATING A STRING WITH DATA LOSS
+#
+SET GLOBAL max_allowed_packet=17825792;
+CREATE TABLE t1 (t1_fld1 TEXT);
+CREATE TABLE t2 (t2_fld1 MEDIUMTEXT);
+CREATE TABLE t3 (t3_fld1 LONGTEXT);
+INSERT INTO t1 VALUES (REPEAT('a',300));
+INSERT INTO t2 VALUES (REPEAT('b',65680));
+INSERT INTO t3 VALUES (REPEAT('c',16777300));
+SELECT LENGTH(t1_fld1) FROM t1;
+LENGTH(t1_fld1)
+300
+SELECT LENGTH(t2_fld1) FROM t2;
+LENGTH(t2_fld1)
+65680
+SELECT LENGTH(t3_fld1) FROM t3;
+LENGTH(t3_fld1)
+16777300
+# With strict mode
+SET SQL_MODE='STRICT_ALL_TABLES';
+ALTER TABLE t1 CHANGE `t1_fld1` `my_t1_fld1` TINYTEXT;
+ERROR 22001: Data too long for column 'my_t1_fld1' at row 1
+ALTER TABLE t2 CHANGE `t2_fld1` `my_t2_fld1` TEXT;
+ERROR 22001: Data too long for column 'my_t2_fld1' at row 1
+ALTER TABLE t3 CHANGE `t3_fld1` `my_t3_fld1` MEDIUMTEXT;
+ERROR 22001: Data too long for column 'my_t3_fld1' at row 1
+# With non-strict mode
+SET SQL_MODE='';
+ALTER TABLE t1 CHANGE `t1_fld1` `my_t1_fld1` TINYTEXT;
+Warnings:
+Warning	1265	Data truncated for column 'my_t1_fld1' at row 1
+ALTER TABLE t2 CHANGE `t2_fld1` `my_t2_fld1` TEXT;
+Warnings:
+Warning	1265	Data truncated for column 'my_t2_fld1' at row 1
+ALTER TABLE t3 CHANGE `t3_fld1` `my_t3_fld1` MEDIUMTEXT;
+Warnings:
+Warning	1265	Data truncated for column 'my_t3_fld1' at row 1
+SELECT LENGTH(my_t1_fld1) FROM t1;
+LENGTH(my_t1_fld1)
+255
+SELECT LENGTH(my_t2_fld1) FROM t2;
+LENGTH(my_t2_fld1)
+65535
+SELECT LENGTH(my_t3_fld1) FROM t3;
+LENGTH(my_t3_fld1)
+16777215
+DROP TABLE t1, t2, t3;
+SET SQL_MODE=default;
+SET GLOBAL max_allowed_packet=default;
 CREATE TABLE t1 (
 id INT(11) NOT NULL,
 x_param INT(11) DEFAULT NULL,
@@ -2172,6 +2222,89 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
+DROP TABLE t1;
+#
+# MDEV-15308
+# Assertion `ha_alter_info->alter_info->drop_list.elements > 0' failed
+# in ha_innodb::prepare_inplace_alter_table
+#
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP COLUMN b;
+Warnings:
+Note	1091	Can't DROP 'fk'; check that column/key exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP INDEX IF EXISTS fk, DROP COLUMN b;
+Warnings:
+Note	1091	Can't DROP 'fk'; check that column/key exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, c INT, KEY(c)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP COLUMN c;
+Warnings:
+Note	1091	Can't DROP 'fk'; check that column/key exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, c INT, KEY c1(c)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP INDEX c1;
+Warnings:
+Note	1091	Can't DROP 'fk'; check that column/key exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP INDEX IF EXISTS fk, DROP COLUMN IF EXISTS c;
+Warnings:
+Note	1091	Can't DROP 'fk'; check that column/key exists
+Note	1091	Can't DROP 'c'; check that column/key exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# MDEV-14668 ADD PRIMARY KEY IF NOT EXISTS on composite key
+#
+CREATE TABLE t1 (
+`ID` BIGINT(20) NOT NULL,
+`RANK` MEDIUMINT(4) NOT NULL,
+`CHECK_POINT` BIGINT(20) NOT NULL,
+UNIQUE INDEX `HORIZON_UIDX01` (`ID`, `RANK`)
+) ENGINE=InnoDB;
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `ID` bigint(20) NOT NULL,
+  `RANK` mediumint(4) NOT NULL,
+  `CHECK_POINT` bigint(20) NOT NULL,
+  PRIMARY KEY (`ID`,`CHECK_POINT`),
+  UNIQUE KEY `HORIZON_UIDX01` (`ID`,`RANK`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
+Warnings:
+Note	1061	Multiple primary key defined
 DROP TABLE t1;
 #
 # End of 10.0 tests

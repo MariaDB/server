@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011-2012 Percona Inc. All Rights Reserved.
-Copyright (C) 2016, MariaDB Corporation.
+Copyright (C) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
-Street, Fifth Floor, Boston, MA 02110-1301, USA
+Street, Fifth Floor, Boston, MA 02110-1335  USA
 
 *****************************************************************************/
 
@@ -91,7 +91,7 @@ static const char* bmp_file_name_stem = "ib_modified_log_";
 /** File name template for bitmap files.  The 1st format tag is a directory
 name, the 2nd tag is the stem, the 3rd tag is a file sequence number, the 4th
 tag is the start LSN for the file. */
-static const char* bmp_file_name_template = "%s%s%lu_%llu.xdb";
+static const char* bmp_file_name_template = "%s%s%lu_" LSN_PF ".xdb";
 
 /* On server startup with empty database srv_start_lsn == 0, in
 which case the first LSN of actual log records will be this. */
@@ -586,9 +586,8 @@ log_online_is_bitmap_file(
 
 	return ((file_info->type == OS_FILE_TYPE_FILE
 		 || file_info->type == OS_FILE_TYPE_LINK)
-		&& (sscanf(file_info->name, "%[a-z_]%lu_%llu.xdb", stem,
-			   bitmap_file_seq_num,
-			   (unsigned long long *)bitmap_file_start_lsn) == 3)
+		&& (sscanf(file_info->name, "%[a-z_]%lu_" LSN_PF ".xdb", stem,
+			   bitmap_file_seq_num, bitmap_file_start_lsn) == 3)
 		&& (!strcmp(stem, bmp_file_name_stem)));
 }
 
@@ -1453,8 +1452,9 @@ log_online_setup_bitmap_file_range(
 
 			bitmap_files->files[array_pos].seq_num = file_seq_num;
 			strncpy(bitmap_files->files[array_pos].name,
-				bitmap_dir_file_info.name, FN_REFLEN);
-			bitmap_files->files[array_pos].name[FN_REFLEN - 1]
+				bitmap_dir_file_info.name,
+				OS_FILE_MAX_PATH);
+			bitmap_files->files[array_pos].name[OS_FILE_MAX_PATH]
 				= '\0';
 			bitmap_files->files[array_pos].start_lsn
 				= file_start_lsn;
@@ -1522,10 +1522,10 @@ log_online_open_bitmap_file_read_only(
 	if (srv_data_home_len
 			&& srv_data_home[srv_data_home_len-1]
 			!= SRV_PATH_SEPARATOR) {
-		ut_snprintf(bitmap_file->name, FN_REFLEN, "%s%c%s",
+		ut_snprintf(bitmap_file->name, sizeof(bitmap_file->name), "%s%c%s",
 				srv_data_home, SRV_PATH_SEPARATOR, name);
 	} else {
-		ut_snprintf(bitmap_file->name, FN_REFLEN, "%s%s",
+		ut_snprintf(bitmap_file->name, sizeof(bitmap_file->name), "%s%s",
 				srv_data_home, name);
 	}
 	bitmap_file->file
@@ -1864,6 +1864,8 @@ log_online_purge_changed_page_bitmaps(
 
 	for (i = 0; i < bitmap_files.count; i++) {
 
+		char	full_bmp_file_name[2 * FN_REFLEN + 2];
+
 		/* We consider the end LSN of the current bitmap, derived from
 		the start LSN of the subsequent bitmap file, to determine
 		whether to remove the current bitmap.  Note that bitmap_files
@@ -1879,8 +1881,45 @@ log_online_purge_changed_page_bitmaps(
 
 			break;
 		}
+
+		/* In some non-trivial cases the sequence of .xdb files may
+		have gaps. For instance:
+			ib_modified_log_1_0.xdb
+			ib_modified_log_2_<mmm>.xdb
+			ib_modified_log_4_<nnn>.xdb
+		Adding this check as a safety precaution. */
+		if (bitmap_files.files[i].name[0] == '\0')
+			continue;
+
+		/* If redo log tracking is enabled, reuse 'bmp_file_home'
+		from 'log_bmp_sys'. Otherwise, compose the full '.xdb' file
+		path from 'srv_data_home', adding a path separator if
+		necessary. */
+		if (log_bmp_sys != NULL) {
+			ut_snprintf(full_bmp_file_name,
+				sizeof(full_bmp_file_name),
+				"%s%s", log_bmp_sys->bmp_file_home,
+				bitmap_files.files[i].name);
+		}
+		else {
+			char		separator[2] = {0, 0};
+			const size_t	srv_data_home_len =
+				strlen(srv_data_home);
+
+			ut_a(srv_data_home_len < FN_REFLEN);
+			if (srv_data_home_len != 0 &&
+				srv_data_home[srv_data_home_len - 1] !=
+				SRV_PATH_SEPARATOR) {
+				separator[0] = SRV_PATH_SEPARATOR;
+			}
+			ut_snprintf(full_bmp_file_name,
+				sizeof(full_bmp_file_name), "%s%s%s",
+				srv_data_home, separator,
+				bitmap_files.files[i].name);
+		}
+
 		if (!os_file_delete_if_exists(innodb_file_bmp_key,
-					      bitmap_files.files[i].name)) {
+					      full_bmp_file_name)) {
 
 			os_file_get_last_error(TRUE);
 			result = TRUE;

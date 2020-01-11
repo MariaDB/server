@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -58,7 +58,8 @@ UNIV_INTERN
 void*
 os_mem_alloc_large(
 /*===============*/
-	ulint*	n);			/*!< in/out: number of bytes */
+	ulint*	n,			/*!< in/out: number of bytes */
+	bool	populate);		/*!< in: virtual page preallocation */
 /****************************************************************//**
 Frees large pages memory. */
 UNIV_INTERN

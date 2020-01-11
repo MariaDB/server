@@ -12,7 +12,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING. If not, write to the
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
-# MA  02110-1301  USA.
+# MA  02110-1335  USA.
 
 # This is a common command line parser to be sourced by other SST scripts
 
@@ -20,6 +20,7 @@ set -u
 
 WSREP_SST_OPT_BYPASS=0
 WSREP_SST_OPT_BINLOG=""
+WSREP_SST_OPT_BINLOG_INDEX=""
 WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH=${WSREP_SST_OPT_AUTH:-}
 WSREP_SST_OPT_USER=${WSREP_SST_OPT_USER:-}
@@ -27,6 +28,12 @@ WSREP_SST_OPT_PSWD=${WSREP_SST_OPT_PSWD:-}
 WSREP_SST_OPT_DEFAULT=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_DEFAULT=""
+WSREP_SST_OPT_SUFFIX_VALUE=""
+WSREP_SST_OPT_MYSQLD=""
+INNODB_DATA_HOME_DIR_ARG=""
+INNODB_LOG_GROUP_HOME_ARG=""
+INNODB_UNDO_DIR_ARG=""
+LOG_BIN_ARG=""
 
 while [ $# -gt 0 ]; do
 case "$1" in
@@ -35,22 +42,39 @@ case "$1" in
         #
         # Break address string into host:port/path parts
         #
-        readonly WSREP_SST_OPT_HOST=${WSREP_SST_OPT_ADDR%%[:/]*}
-        if [ ${WSREP_SST_OPT_HOST:0:1} = '[' ]
-        then
-            # IPv6 notation
-            readonly WSREP_SST_OPT_HOST_UNESCAPED=${WSREP_SST_OPT_HOST:1:-1}
-        else
-            readonly WSREP_SST_OPT_HOST_UNESCAPED=${WSREP_SST_OPT_HOST}
-        fi
-        readonly WSREP_SST_OPT_PORT=$(echo $WSREP_SST_OPT_ADDR | \
-                cut -d ']' -f 2 | cut -s -d ':' -f 2 | cut -d '/' -f 1)
-        readonly WSREP_SST_OPT_PATH=${WSREP_SST_OPT_ADDR#*/}
-        readonly WSREP_SST_OPT_MODULE=${WSREP_SST_OPT_PATH%%/*}
-        remain=${WSREP_SST_OPT_PATH#*/}
-        readonly WSREP_SST_OPT_LSN=${remain%%/*}
+        case "${WSREP_SST_OPT_ADDR}" in
+        \[*)
+            # IPv6
+            addr_no_bracket=${WSREP_SST_OPT_ADDR#\[}
+            readonly WSREP_SST_OPT_HOST_UNESCAPED=${addr_no_bracket%%\]*}
+            readonly WSREP_SST_OPT_HOST="[${WSREP_SST_OPT_HOST_UNESCAPED}]"
+            readonly WSREP_SST_OPT_HOST_ESCAPED="\\[${WSREP_SST_OPT_HOST_UNESCAPED}\\]"
+            ;;
+        *)
+            readonly WSREP_SST_OPT_HOST=${WSREP_SST_OPT_ADDR%%[:/]*}
+            readonly WSREP_SST_OPT_HOST_UNESCAPED=$WSREP_SST_OPT_HOST
+            readonly WSREP_SST_OPT_HOST_ESCAPED=$WSREP_SST_OPT_HOST
+            ;;
+        esac
+        remain=${WSREP_SST_OPT_ADDR#${WSREP_SST_OPT_HOST_ESCAPED}}
+        remain=${remain#:}
+        readonly WSREP_SST_OPT_ADDR_PORT=${remain%%/*}
         remain=${remain#*/}
-        readonly WSREP_SST_OPT_SST_VER=${remain%%/*}
+        readonly WSREP_SST_OPT_MODULE=${remain%%/*}
+        readonly WSREP_SST_OPT_PATH=${WSREP_SST_OPT_ADDR#*/}
+        remain=${WSREP_SST_OPT_PATH#*/}
+        if [ "$remain" != "${WSREP_SST_OPT_PATH}" ]; then
+            readonly WSREP_SST_OPT_LSN=${remain%%/*}
+            remain=${remain#*/}
+            if [ "$remain" != "${WSREP_SST_OPT_LSN}" ]; then
+                readonly WSREP_SST_OPT_SST_VER=${remain%%/*}
+            else
+                readonly WSREP_SST_OPT_SST_VER=""
+            fi
+        else
+            readonly WSREP_SST_OPT_LSN=""
+            readonly WSREP_SST_OPT_SST_VER=""
+        fi
         shift
         ;;
     '--bypass')
@@ -58,6 +82,22 @@ case "$1" in
         ;;
     '--datadir')
         readonly WSREP_SST_OPT_DATA="$2"
+        shift
+        ;;
+    '--innodb-data-home-dir')
+        readonly INNODB_DATA_HOME_DIR_ARG="$2"
+        shift
+        ;;
+    '--innodb-log-group-home-dir')
+        readonly INNODB_LOG_GROUP_HOME_ARG="$2"
+        shift
+        ;;
+    '--innodb-undo-directory')
+        readonly INNODB_UNDO_DIR_ARG="$2"
+        shift
+        ;;
+    '--log-bin')
+        readonly LOG_BIN_ARG="$2"
         shift
         ;;
     '--defaults-file')
@@ -70,6 +110,7 @@ case "$1" in
         ;;
     '--defaults-group-suffix')
         readonly WSREP_SST_OPT_SUFFIX_DEFAULT="$1=$2"
+        readonly WSREP_SST_OPT_SUFFIX_VALUE="$2"
         shift
         ;;
     '--host')
@@ -112,9 +153,57 @@ case "$1" in
         WSREP_SST_OPT_BINLOG="$2"
         shift
         ;;
+    '--binlog-index')
+	WSREP_SST_OPT_BINLOG_INDEX="$2"
+	shift
+	;;
     '--gtid-domain-id')
         readonly WSREP_SST_OPT_GTID_DOMAIN_ID="$2"
         shift
+        ;;
+    '--mysqld-args')
+        original_cmd=""
+        shift
+        while [ $# -gt 0 ]; do
+           option=${1%%=*}
+           if [[ "$option" != "--defaults-file" && \
+                 "$option" != "--defaults-extra-file" && \
+                 "$option" != "--defaults-group-suffix" && \
+                 "$option" != "--port" && \
+                 "$option" != "--socket" ]]; then
+              value=${1#*=}
+              case "$option" in
+                  '--innodb-data-home-dir')
+                      if [ -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
+                          readonly INNODB_DATA_HOME_DIR_ARG="$value"
+                      fi
+                      ;;
+                  '--innodb-log-group-home-dir')
+                      if [ -z "$INNODB_LOG_GROUP_HOME_ARG" ]; then
+                          readonly INNODB_LOG_GROUP_HOME_ARG="$value"
+                      fi
+                      ;;
+                  '--innodb-undo-directory')
+                      if [ -z "$INNODB_UNDO_DIR_ARG" ]; then
+                          readonly INNODB_UNDO_DIR_ARG="$value"
+                      fi
+                      ;;
+                  '--log-bin')
+                      if [ -z "$LOG_BIN_ARG" ]; then
+                          readonly LOG_BIN_ARG="$value"
+                      fi
+                      ;;
+              esac
+              if [ -z "$original_cmd" ]; then
+                  original_cmd="$1"
+              else
+                  original_cmd="$original_cmd $1"
+              fi
+           fi
+           shift
+        done
+        readonly WSREP_SST_OPT_MYSQLD="$original_cmd"
+        break
         ;;
     *) # must be command
        # usage
@@ -125,6 +214,18 @@ shift
 done
 readonly WSREP_SST_OPT_BYPASS
 readonly WSREP_SST_OPT_BINLOG
+readonly WSREP_SST_OPT_BINLOG_INDEX
+
+if [ -n "${WSREP_SST_OPT_ADDR_PORT:-}" ]; then
+  if [ -n "${WSREP_SST_OPT_PORT:-}" ]; then
+    if [ "$WSREP_SST_OPT_PORT" != "$WSREP_SST_OPT_ADDR_PORT" ]; then
+      echo "WSREP_SST: [ERROR] port in --port=$WSREP_SST_OPT_PORT differs from port in --address=$WSREP_SST_OPT_ADDR" >&2
+      exit 2
+    fi
+  else
+    readonly WSREP_SST_OPT_PORT="$WSREP_SST_OPT_ADDR_PORT"
+  fi
+fi
 
 # try to use my_print_defaults, mysql and mysqldump that come with the sources
 # (for MTR suite)
@@ -152,7 +253,15 @@ else
     MY_PRINT_DEFAULTS=$(which my_print_defaults)
 fi
 
-readonly WSREP_SST_OPT_CONF="$WSREP_SST_OPT_DEFAULT $WSREP_SST_OPT_EXTRA_DEFAULT $WSREP_SST_OPT_SUFFIX_DEFAULT"
+wsrep_defaults="$WSREP_SST_OPT_DEFAULT"
+if [ -n "$wsrep_defaults" ]; then
+   wsrep_defaults="$wsrep_defaults "
+fi
+wsrep_defaults="$wsrep_defaults$WSREP_SST_OPT_EXTRA_DEFAULT"
+if [ -n "$wsrep_defaults" ]; then
+   wsrep_defaults="$wsrep_defaults "
+fi
+readonly WSREP_SST_OPT_CONF="$wsrep_defaults$WSREP_SST_OPT_SUFFIX_DEFAULT"
 readonly MY_PRINT_DEFAULTS="$MY_PRINT_DEFAULTS $WSREP_SST_OPT_CONF"
 
 wsrep_auth_not_set()
@@ -238,7 +347,7 @@ wsrep_check_programs()
 }
 
 #
-# user can specify xtrabackup specific settings that will be used during sst
+# user can specify mariabackup specific settings that will be used during sst
 # process like encryption, etc.....
 # parse such configuration option. (group for xb settings is [sst] in my.cnf
 #
@@ -258,8 +367,8 @@ parse_cnf()
     reval=$($MY_PRINT_DEFAULTS "${group}" | awk -v var="${var}" 'BEGIN { OFS=FS="=" } { gsub(/_/,"-",$1); if ( $1=="--"var) lastval=substr($0,length($1)+2) } END { print lastval}')
 
     # use default if we haven't found a value
-    if [ -z $reval ]; then
-        [ -n $3 ] && reval=$3
+    if [ -z "$reval" ]; then
+        [ -n "$3" ] && reval=$3
     fi
     echo $reval
 }

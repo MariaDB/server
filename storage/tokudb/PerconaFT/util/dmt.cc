@@ -80,8 +80,8 @@ void dmt<dmtdata_t, dmtdataout_t, dmtwriter_t>::create_from_sorted_memory_of_fix
         paranoid_invariant(numvalues > 0);
         void *ptr = toku_mempool_malloc(&this->mp, aligned_memsize);
         paranoid_invariant_notnull(ptr);
-        uint8_t * const CAST_FROM_VOIDP(dest, ptr);
-        const uint8_t * const CAST_FROM_VOIDP(src, mem);
+        uint8_t * const dest = static_cast<uint8_t *>(ptr);
+        const uint8_t * const src = static_cast<const uint8_t *>(mem);
         if (pad_bytes == 0) {
             paranoid_invariant(aligned_memsize == mem_length);
             memcpy(dest, src, aligned_memsize);

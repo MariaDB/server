@@ -32,6 +32,10 @@
 #                     is any
 # Drop-Temp-TT-Temp - Drops two temporary T-tables if there is any
 # Drop-Temp-NN-Temp - Drops two temporary N-tables if there is any
+#
+# Note: MDEV-20091: DROP TEMPORARY TABLE IF EXISTS statements will be written
+#                   to binlog only if the corresponding temporary table exists.
+#
 # Drop-Temp-Xe-Temp - Tries to drop a temporary table that does not exist
 # Drop-Temp-NXe-Temp - Drops a temporary N-table if there is any and
 #                      a temporary table that does not exist

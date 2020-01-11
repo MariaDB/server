@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -46,6 +46,7 @@ Created 4/24/1996 Heikki Tuuri
 #include "dict0priv.h"
 #include "ha_prototypes.h" /* innobase_casedn_str() */
 #include "fts0priv.h"
+#include "fts0opt.h"
 
 /** Following are the InnoDB system tables. The positions in
 this array are referenced by enum dict_system_table_id. */
@@ -2067,10 +2068,12 @@ dict_load_table_low(
 	ulint		flags2;
 
 	if (rec_get_deleted_flag(rec, 0)) {
+		*table = NULL;
 		return("delete-marked record in SYS_TABLES");
 	}
 
 	if (rec_get_n_fields_old(rec) != DICT_NUM_FIELDS__SYS_TABLES) {
+		*table = NULL;
 		return("wrong number of columns in SYS_TABLES record");
 	}
 
@@ -2078,6 +2081,7 @@ dict_load_table_low(
 		rec, DICT_FLD__SYS_TABLES__NAME, &len);
 	if (len == 0 || len == UNIV_SQL_NULL) {
 err_len:
+		*table = NULL;
 		return("incorrect column length in SYS_TABLES");
 	}
 	rec_get_nth_field_offs_old(
@@ -2157,6 +2161,7 @@ err_len:
 			"InnoDB: in InnoDB data dictionary"
 			" has unknown type %lx.\n",
 			(ulong) flags);
+		*table = NULL;
 		return("incorrect flags in SYS_TABLES");
 	}
 
@@ -2544,8 +2549,12 @@ func_exit:
 			FTS */
 			fts_optimize_remove_table(table);
 			fts_free(table);
-		} else {
+		} else if (fts_optimize_wq) {
 			fts_optimize_add_table(table);
+		} else if (table->can_be_evicted) {
+			/* fts_optimize_thread is not started yet.
+			So make the table as non-evictable from cache. */
+			dict_table_move_from_lru_to_non_lru(table);
 		}
 	}
 

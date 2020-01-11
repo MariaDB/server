@@ -1733,6 +1733,22 @@ c2
 DROP TABLE t1;
 SET optimizer_switch=@save_optimizer_switch;
 #
+# MDEV-16995: ER_CANT_CREATE_GEOMETRY_OBJECT encountered for a query with
+# optimizer_use_condition_selectivity>=3
+#
+CREATE TABLE t1 (a POINT);
+INSERT INTO t1 VALUES (POINT(1,1)),(POINT(1,2)),(POINT(1,3));
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @@use_stat_tables= PREFERABLY;
+set @@optimizer_use_condition_selectivity=3;
+SELECT COUNT(*) FROM t1 WHERE a IN ('test','test1');
+COUNT(*)
+0
+set @@use_stat_tables= @save_use_stat_tables;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1;
+#
 # End 10.0 tests
 #
 SHOW CREATE TABLE information_schema.geometry_columns;
@@ -1861,3 +1877,17 @@ t2	CREATE TABLE `t2` (
   `w2` int(1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1,t2;
+CREATE TABLE t1 (
+id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+point_data POINT NOT NULL,
+PRIMARY KEY (id),
+KEY idx_point_data(point_data)
+) ENGINE=MyISAM;
+INSERT t1 (point_data) VALUES
+(GeomFromText('Point(37.0248492 23.8512726)')),
+(GeomFromText('Point(38.0248492 23.8512726)'));
+SELECT id FROM t1
+WHERE ST_Contains(point_data, GeomFromText('Point(38.0248492 23.8512726)'));
+id
+2
+DROP TABLE t1;

@@ -184,11 +184,11 @@ static void test2(int fd, FT ft_h, FTNODE *dn) {
     PAIR_ATTR attr;
     memset(&attr, 0, sizeof(attr));
     toku_ftnode_pe_callback(*dn, attr, ft_h, def_pe_finalize_impl, nullptr);
-    invariant(BP_STATE(*dn, 0) == (is_leaf) ? PT_ON_DISK : PT_COMPRESSED);
+    invariant(BP_STATE(*dn, 0) == ((is_leaf) ? PT_ON_DISK : PT_COMPRESSED));
     invariant(BP_STATE(*dn, 1) == PT_AVAIL);
     invariant(BP_SHOULD_EVICT(*dn, 1));
     toku_ftnode_pe_callback(*dn, attr, ft_h, def_pe_finalize_impl, nullptr);
-    invariant(BP_STATE(*dn, 1) == (is_leaf) ? PT_ON_DISK : PT_COMPRESSED);
+    invariant(BP_STATE(*dn, 1) == ((is_leaf) ? PT_ON_DISK : PT_COMPRESSED));
 
     bool req = toku_ftnode_pf_req_callback(*dn, &bfe_subset);
     invariant(req);

@@ -260,6 +260,21 @@ SELECT * FROM v1;
 DROP VIEW v1;
 DROP TABLE t1;
 
+SET NAMES latin1;
+--source include/ctype_mdev13118.inc
+
+
+--echo #
+--echo # MDEV-17298 ASAN unknown-crash / READ of size 1 in my_strntoul_8bit upon INSERT .. SELECT
+--echo #
+
+SET NAMES latin1;
+CREATE TABLE t1 (a CHAR);
+CREATE TABLE t2 (b ENUM('foo','bar'));
+INSERT INTO t1 VALUES ('1');
+INSERT INTO t2 SELECT * FROM t1;
+DROP TABLE t1, t2;
+
 
 --echo #
 --echo # End of 10.0 tests
@@ -388,6 +403,15 @@ INSERT INTO t1 VALUES (1.5,1.5,'1','1'),(3.5,3.5,'3','3');
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(c,0)='3 ' AND COALESCE(d,0)=COALESCE(c,0);
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15005 ASAN: stack-buffer-overflow in my_strnncollsp_simple
+--echo #
+
+SET NAMES latin1;
+SELECT CONVERT(1, CHAR) IN ('100', 10, '101');
+SELECT CONVERT(1, CHAR) IN ('100', 10, '1');
+SELECT CONVERT(1, CHAR) IN ('100', '10', '1');
 
 --echo #
 --echo # End of 10.1 tests

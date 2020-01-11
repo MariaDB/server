@@ -116,18 +116,15 @@ cachetable_test (bool write_first, bool write_second, bool start_checkpoint) {
     void* v1;
     void* v2;
     void* v3;
-    long s1;
-    long s2;
-    long s3;
     PAIR dependent_pairs[2];
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(&val1);
     wc.flush_callback = flush;
     wc.write_extraargs = &val1;
     dest_pair = &dependent_pairs[0];
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, fetch, def_pf_req_callback, def_pf_callback, true, &val1);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, fetch, def_pf_req_callback, def_pf_callback, true, &val1);
     dest_pair = &dependent_pairs[1];
     wc.write_extraargs = &val2;
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(2), 2, &v2, &s2, wc, fetch, def_pf_req_callback, def_pf_callback, true, &val2);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(2), 2, &v2, wc, fetch, def_pf_req_callback, def_pf_callback, true, &val2);
 
     // now we set the dirty state of these two.
     enum cachetable_dirty cd[2];
@@ -152,7 +149,6 @@ cachetable_test (bool write_first, bool write_second, bool start_checkpoint) {
         make_blocknum(3),
         3,
         &v3,
-        &s3,
         wc, fetch, def_pf_req_callback, def_pf_callback,
         PL_WRITE_EXPENSIVE,
         &val3,

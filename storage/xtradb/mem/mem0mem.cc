@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -405,6 +405,11 @@ mem_heap_create_block_func(
 
 		heap->total_size += len;
 	}
+
+	/* Poison all available memory. Individual chunks will be unpoisoned on
+	every mem_heap_alloc() call. */
+	compile_time_assert(MEM_BLOCK_HEADER_SIZE >= sizeof *block);
+	UNIV_MEM_FREE(block + 1, len - sizeof *block);
 
 	ut_ad((ulint)MEM_BLOCK_HEADER_SIZE < len);
 

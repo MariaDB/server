@@ -16,7 +16,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************
 
@@ -34,8 +34,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
+Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *******************************************************/
 
@@ -255,7 +255,7 @@ static struct my_option ibx_long_options[] =
 	{"galera-info", OPT_GALERA_INFO, "This options creates the "
 	 "xtrabackup_galera_info file which contains the local node state at "
 	 "the time of the backup. Option should be used when performing the "
-	 "backup of Percona-XtraDB-Cluster. Has no effect when backup locks "
+	 "backup of MariaDB Galera Cluster. Has no effect when backup locks "
 	 "are used to create the backup.",
 	 (uchar *) &opt_ibx_galera_info, (uchar *) &opt_ibx_galera_info, 0,
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},

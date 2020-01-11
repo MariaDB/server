@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <my_global.h>
 #include "sql_reload.h"
@@ -288,9 +288,18 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         */
         if (tables)
         {
+          int err;
           for (TABLE_LIST *t= tables; t; t= t->next_local)
-            if (!find_table_for_mdl_upgrade(thd, t->db, t->table_name, false))
-              return 1;
+            if (!find_table_for_mdl_upgrade(thd, t->db, t->table_name, &err))
+            {
+              if (is_locked_view(thd, t))
+                t->next_local= t->next_global;
+              else
+              {
+                my_error(err, MYF(0), t->table_name);
+                return 1;
+              }
+            }
         }
         else
         {

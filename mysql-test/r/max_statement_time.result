@@ -181,3 +181,6 @@ ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 set max_statement_time = 0;
 drop procedure pr;
 drop table t1;
+SET max_statement_time= 1;
+CREATE TABLE t ENGINE=InnoDB SELECT * FROM seq_1_to_50000;
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)

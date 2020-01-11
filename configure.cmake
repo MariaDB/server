@@ -11,7 +11,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 #
 
 INCLUDE (CheckCSourceCompiles)
@@ -258,7 +258,7 @@ SET(CMAKE_REQUIRED_DEFINITIONS ${CMAKE_REQUIRED_DEFINITIONS} -DPACKAGE=test) # b
 CHECK_INCLUDE_FILES (bfd.h BFD_H_EXISTS)
 IF(BFD_H_EXISTS)
   IF(NOT_FOR_DISTRIBUTION)
-    SET(NON_DISTRIBUTABLE_WARNING 1)
+    SET(NON_DISTRIBUTABLE_WARNING "GPLv3")
     SET(HAVE_BFD_H 1)
   ENDIF()
 ENDIF()
@@ -1107,9 +1107,12 @@ SET(CMAKE_EXTRA_INCLUDE_FILES)
 CHECK_STRUCT_HAS_MEMBER("struct dirent" d_ino "dirent.h"  STRUCT_DIRENT_HAS_D_INO)
 CHECK_STRUCT_HAS_MEMBER("struct dirent" d_namlen "dirent.h"  STRUCT_DIRENT_HAS_D_NAMLEN)
 SET(SPRINTF_RETURNS_INT 1)
-CHECK_INCLUDE_FILE(ucontext.h HAVE_UCONTEXT_H)
-IF(NOT HAVE_UCONTEXT_H)
-  CHECK_INCLUDE_FILE(sys/ucontext.h HAVE_UCONTEXT_H)
+CHECK_INCLUDE_FILE(ucontext.h HAVE_FILE_UCONTEXT_H)
+IF(NOT HAVE_FILE_UCONTEXT_H)
+  CHECK_INCLUDE_FILE(sys/ucontext.h HAVE_FILE_UCONTEXT_H)
+ENDIF()
+IF(HAVE_FILE_UCONTEXT_H)
+  CHECK_FUNCTION_EXISTS(makecontext HAVE_UCONTEXT_H)
 ENDIF()
 
 CHECK_STRUCT_HAS_MEMBER("struct timespec" tv_sec "time.h" STRUCT_TIMESPEC_HAS_TV_SEC)

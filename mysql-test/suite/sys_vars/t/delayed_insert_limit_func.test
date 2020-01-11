@@ -61,13 +61,11 @@ INSERT INTO t1 VALUES('4','1','1');
 INSERT INTO t1 VALUES('5','1','1');
 INSERT INTO t1 VALUES('6','1','1');
 
-LOCK TABLE v1 WRITE;
+LOCK TABLE v1 READ;
 
 --echo ** Connection con1 **
 connection con1;
 
-delimiter |;
-send
 INSERT DELAYED INTO t1 VALUES('7','1','1');
 INSERT DELAYED INTO t1 VALUES('8','1','1');
 INSERT DELAYED INTO t1 VALUES('9','1','1');
@@ -104,15 +102,13 @@ INSERT DELAYED INTO t1 VALUES('39','1','1');
 INSERT DELAYED INTO t1 VALUES('40','1','1');
 INSERT DELAYED INTO t1 VALUES('41','1','1');
 INSERT DELAYED INTO t1 VALUES('42','1','1');
-INSERT DELAYED INTO t1 VALUES('43','1','1');|
-delimiter ;|
+INSERT DELAYED INTO t1 VALUES('43','1','1');
 
 --echo ** Connection con0 **
 connection con0;
 let $wait_condition=
-   SELECT variable_value > @@global.delayed_insert_limit
-   FROM information_schema.global_status
-   WHERE variable_name like 'Not_flushed_delayed_rows';
+   SELECT COUNT(*) = 1 FROM information_schema.processlist
+   WHERE state = 'Waiting for table level lock' AND user='delayed';
 --source include/wait_condition.inc
 let $my_select= SELECT COUNT(*) FROM t1;
 send;
@@ -127,23 +123,11 @@ let $wait_condition=
 --source include/wait_condition.inc
 UNLOCK TABLES;
 
---echo ** Connection con1 **
-connection con1;
---echo Asynchronous "reap" result
-reap;
-
 --echo ** Connection con0 **
 connection con0;
 --echo Asynchronous "reap" result
 --echo The next result suffers from
 --echo '# Bug#35386 insert delayed inserts 1 + limit rows instead of just limit rows'
-#
-# on UNLOCK TABLES both SELECT in the con0 and delayed insert thread in the
-# con1 were awaken. There's no FIFO for TL_WRITE_DELAYED and TL_READ,
-# so either the first delayed_insert_limit rows will be inserted
-# before select (which will see 21 row) or select will go first (and see 6 rows)
-#
---replace_result 6 21
 reap;
 
 --echo ** Connection default **
@@ -173,15 +157,11 @@ INSERT INTO t1 VALUES('4');
 INSERT INTO t1 VALUES('5');
 INSERT INTO t1 VALUES('6');
 
-LOCK TABLE v1 WRITE;
+LOCK TABLE v1 READ;
 
 --echo ** Connection con1 **
 connection con1;
 
---echo Asynchronous execute
-delimiter |;
-
-send
 INSERT DELAYED INTO t1 VALUES('7');
 INSERT DELAYED INTO t1 VALUES('8');
 INSERT DELAYED INTO t1 VALUES('9');
@@ -197,20 +177,18 @@ INSERT DELAYED INTO t1 VALUES('18');
 INSERT DELAYED INTO t1 VALUES('19');
 INSERT DELAYED INTO t1 VALUES('20');
 INSERT DELAYED INTO t1 VALUES('21');
-INSERT DELAYED INTO t1 VALUES('22');|
-
-delimiter ;|
+INSERT DELAYED INTO t1 VALUES('22');
 
 --echo ** Connection con0 **
 connection con0;
 let $wait_condition=
-   SELECT variable_value > 0 FROM information_schema.global_status
-   WHERE variable_name like 'Not_flushed_delayed_rows';
+   SELECT COUNT(*) = 1 FROM information_schema.processlist
+   WHERE state = 'Waiting for table level lock' AND user='delayed';
 --source include/wait_condition.inc
 --echo Asynchronous execute
 # Due to performance and server behaveiour the test observes values between 6 and 22.
 # In any case the value must not be outside of that range.
-let $my_select= SELECT COUNT(*) BETWEEN 6 AND 22 FROM t1;
+let $my_select= SELECT COUNT(*) FROM t1;
 send;
 eval $my_select;
 
@@ -222,10 +200,6 @@ let $wait_condition=
    WHERE state = 'Waiting for table level lock' AND info = '$my_select';
 --source include/wait_condition.inc
 UNLOCK TABLES;
-
---echo ** Connection con1 **
-connection con1;
-reap;
 
 --echo ** Connection con0 **
 connection con0;

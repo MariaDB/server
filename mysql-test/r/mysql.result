@@ -538,8 +538,6 @@ a
 #
 # End of 10.1 tests
 #
-ERROR 1300 (HY000): Invalid utf8 character string: 'test\xF0\x9F\x98\x81 '
-ERROR 1300 (HY000): Invalid binary character string: 'test\xF0\x9F\x98\x81 '
 ERROR 1300 (HY000) at line 2: Invalid utf8 character string: 'test\xF0\x9F\x98\x81'
 set GLOBAL sql_mode=default;
 
@@ -602,3 +600,33 @@ a
 2
 drop table "a1\""b1";
 set sql_mode=default;
+create table t1 (a text);
+select count(*) from t1;
+count(*)
+41
+truncate table t1;
+select count(*) from t1;
+count(*)
+41
+truncate table t1;
+select count(*) from t1;
+count(*)
+0
+truncate table t1;
+select count(*) from t1;
+count(*)
+0
+truncate table t1;
+select count(*) from t1;
+count(*)
+41
+truncate table t1;
+select count(*) from t1;
+count(*)
+0
+truncate table t1;
+drop table t1;
+#
+# MDEV-15538 '-N' Produce html output wrong
+#
+<TABLE BORDER=1><TR><TD>1</TD></TR></TABLE>

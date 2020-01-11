@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2017, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates. All rights reserved.
    Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   locking of isam-tables.
@@ -236,6 +236,10 @@ int mi_lock_database(MI_INFO *info, int lock_type)
       info->invalidator=info->s->invalidator;
       share->w_locks++;
       share->tot_locks++;
+
+      DBUG_EXECUTE_IF("simulate_incorrect_share_wlock_value",
+                      DEBUG_SYNC_C("after_share_wlock_increment"););
+
       info->s->in_use= list_add(info->s->in_use, &info->in_use);
       break;
     default:
@@ -442,7 +446,7 @@ my_bool mi_check_status(void *param)
 
   @param  org_table
   @param  new_table that should point on org_lock.  new_table is 0
-          in case this is the first occurence of the table in the lock
+          in case this is the first occurrence of the table in the lock
           structure.
 */
 

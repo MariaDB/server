@@ -1,1 +1,2 @@
 --loose-innodb-flush-log-at-timeout=3
+--table_open_cache=200

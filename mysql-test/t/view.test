@@ -2437,6 +2437,7 @@ DROP TABLE t1;
 # Bug#15943 mysql_next_result hangs on invalid SHOW CREATE VIEW
 #
 
+--disable_ps_protocol
 delimiter //;
 drop table if exists t1;
 drop view if exists v1;
@@ -2447,6 +2448,7 @@ show create view v1;
 drop view v1;
 //
 delimiter ;//
+--enable_ps_protocol
 
 
 #
@@ -3957,7 +3959,9 @@ CREATE VIEW v1 AS SELECT f1() FROM t1;
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 copy_file std_data/bug48449.frm $MYSQLD_DATADIR/test/v2.frm;
 
+enable_prepare_warnings;
 SHOW CREATE VIEW v1;
+disable_prepare_warnings;
 
 DROP VIEW v1,v2;
 DROP TABLE t1,t2;
@@ -5182,118 +5186,6 @@ deallocate prepare stmt1;
 drop view v1,v2;
 drop table t1,t2;
 
---echo #
---echo # MDEV-6251: SIGSEGV in query optimizer (in set_check_materialized 
---echo # with MERGE view)
---echo #
-
-CREATE TABLE t1 (a1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
-CREATE TABLE t2 (b1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
-CREATE TABLE t3 (c1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
-CREATE TABLE t4 (d1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
-CREATE TABLE t5 (e1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
-CREATE TABLE t6 (f1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
-  
-CREATE OR REPLACE view v1 AS
-  SELECT 1
-  FROM t1 a_alias_1
-    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-;
-
-SELECT 1
-FROM ((  SELECT 1
-  FROM t1 a_alias_1
-    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t1)
-LEFT OUTER JOIN ((  SELECT 1
-  FROM t1 a_alias_1
-    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t2) ON 1=1
-LEFT OUTER JOIN ((  SELECT 1
-  FROM t1 a_alias_1
-    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t3) ON 1=1
-LEFT OUTER JOIN ((  SELECT 1
-  FROM t1 a_alias_1
-    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t4) ON 1=1
-LEFT OUTER JOIN ((  SELECT 1
-  FROM t1 a_alias_1
-    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t5) ON 1=1
-LEFT OUTER JOIN ((  SELECT 1
-  FROM t1 a_alias_1
-    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t6) ON 1=1
-LEFT OUTER JOIN ((  SELECT 1
-  FROM t1 a_alias_1
-    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t7) ON 1=1
-LEFT OUTER JOIN ((  SELECT 1
-  FROM t1 a_alias_1
-    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t8) ON 1=1
-;
-
-SELECT 1
-FROM (v1 t1)
-LEFT OUTER JOIN (v1 t2) ON 1=1
-LEFT OUTER JOIN (v1 t3) ON 1=1
-LEFT OUTER JOIN (v1 t4) ON 1=1
-LEFT OUTER JOIN (v1 t5) ON 1=1
-LEFT OUTER JOIN (v1 t6) ON 1=1
-LEFT OUTER JOIN (v1 t7) ON 1=1
-LEFT OUTER JOIN (v1 t8) ON 1=1
-;
-
-drop view v1;
-drop table t1,t2,t3,t4,t5,t6;
-
 --echo # -----------------------------------------------------------------
 --echo # -- End of 5.3 tests.
 --echo # -----------------------------------------------------------------
@@ -5602,6 +5494,222 @@ SELECT * FROM v1;
 SHOW CREATE VIEW v1;
 drop view v1;
 drop table t1;
+
+CREATE TABLE IF NOT EXISTS t0 (f0 INT);
+CREATE TABLE IF NOT EXISTS t1 (f1 INT);
+CREATE TABLE IF NOT EXISTS t2 (f2 INT);
+CREATE TABLE IF NOT EXISTS t3 (f3 INT);
+CREATE TABLE IF NOT EXISTS t4 (f4 INT);
+CREATE TABLE IF NOT EXISTS t5 (f5 INT);
+CREATE TABLE IF NOT EXISTS t6 (f6 INT);
+CREATE TABLE IF NOT EXISTS t7 (f7 INT);
+CREATE TABLE IF NOT EXISTS t8 (f8 INT);
+CREATE TABLE IF NOT EXISTS t9 (f9 INT);
+CREATE TABLE IF NOT EXISTS t10 (f10 INT);
+CREATE TABLE IF NOT EXISTS t11 (f11 INT);
+CREATE TABLE IF NOT EXISTS t12 (f12 INT);
+CREATE TABLE IF NOT EXISTS t13 (f13 INT);
+CREATE TABLE IF NOT EXISTS t14 (f14 INT);
+CREATE TABLE IF NOT EXISTS t15 (f15 INT);
+CREATE TABLE IF NOT EXISTS t16 (f16 INT);
+CREATE TABLE IF NOT EXISTS t17 (f17 INT);
+CREATE TABLE IF NOT EXISTS t18 (f18 INT);
+CREATE TABLE IF NOT EXISTS t19 (f19 INT);
+CREATE TABLE IF NOT EXISTS t20 (f20 INT);
+CREATE TABLE IF NOT EXISTS t21 (f21 INT);
+CREATE TABLE IF NOT EXISTS t22 (f22 INT);
+CREATE TABLE IF NOT EXISTS t23 (f23 INT);
+CREATE TABLE IF NOT EXISTS t24 (f24 INT);
+CREATE TABLE IF NOT EXISTS t25 (f25 INT);
+CREATE TABLE IF NOT EXISTS t26 (f26 INT);
+CREATE TABLE IF NOT EXISTS t27 (f27 INT);
+CREATE TABLE IF NOT EXISTS t28 (f28 INT);
+CREATE TABLE IF NOT EXISTS t29 (f29 INT);
+CREATE TABLE IF NOT EXISTS t30 (f30 INT);
+CREATE TABLE IF NOT EXISTS t31 (f31 INT);
+CREATE TABLE IF NOT EXISTS t32 (f32 INT);
+CREATE TABLE IF NOT EXISTS t33 (f33 INT);
+CREATE TABLE IF NOT EXISTS t34 (f34 INT);
+CREATE TABLE IF NOT EXISTS t35 (f35 INT);
+CREATE TABLE IF NOT EXISTS t36 (f36 INT);
+CREATE TABLE IF NOT EXISTS t37 (f37 INT);
+CREATE TABLE IF NOT EXISTS t38 (f38 INT);
+CREATE TABLE IF NOT EXISTS t39 (f39 INT);
+CREATE TABLE IF NOT EXISTS t40 (f40 INT);
+CREATE TABLE IF NOT EXISTS t41 (f41 INT);
+CREATE TABLE IF NOT EXISTS t42 (f42 INT);
+CREATE TABLE IF NOT EXISTS t43 (f43 INT);
+CREATE TABLE IF NOT EXISTS t44 (f44 INT);
+CREATE TABLE IF NOT EXISTS t45 (f45 INT);
+CREATE TABLE IF NOT EXISTS t46 (f46 INT);
+CREATE TABLE IF NOT EXISTS t47 (f47 INT);
+CREATE TABLE IF NOT EXISTS t48 (f48 INT);
+CREATE TABLE IF NOT EXISTS t49 (f49 INT);
+CREATE TABLE IF NOT EXISTS t50 (f50 INT);
+CREATE TABLE IF NOT EXISTS t51 (f51 INT);
+CREATE TABLE IF NOT EXISTS t52 (f52 INT);
+CREATE TABLE IF NOT EXISTS t53 (f53 INT);
+CREATE TABLE IF NOT EXISTS t54 (f54 INT);
+CREATE TABLE IF NOT EXISTS t55 (f55 INT);
+CREATE TABLE IF NOT EXISTS t56 (f56 INT);
+CREATE TABLE IF NOT EXISTS t57 (f57 INT);
+CREATE TABLE IF NOT EXISTS t58 (f58 INT);
+CREATE TABLE IF NOT EXISTS t59 (f59 INT);
+CREATE TABLE IF NOT EXISTS t60 (f60 INT);
+CREATE OR REPLACE VIEW v60 AS SELECT * FROM t60;
+
+EXPLAIN
+ SELECT t0.*
+FROM t0
+JOIN t1
+    ON t1.f1 = t0.f0
+LEFT JOIN t2
+    ON t0.f0 = t2.f2
+LEFT JOIN t3
+    ON t0.f0 = t3.f3
+LEFT JOIN t4
+    ON t0.f0 = t4.f4
+LEFT JOIN t5
+    ON t4.f4 = t5.f5
+LEFT JOIN t6
+    ON t0.f0 = t6.f6
+LEFT JOIN t7
+    ON t0.f0 = t7.f7
+LEFT JOIN t8
+    ON t0.f0 = t8.f8
+LEFT JOIN t9
+    ON t0.f0 = t9.f9
+LEFT JOIN t10
+    ON t0.f0 = t10.f10
+LEFT JOIN t11
+    ON t0.f0 = t11.f11
+LEFT JOIN t12
+    ON t0.f0 = t12.f12
+LEFT JOIN t13
+    ON t0.f0 = t13.f13
+LEFT JOIN t14
+    ON t0.f0 = t14.f14
+LEFT JOIN t15
+    ON t0.f0 = t15.f15
+LEFT JOIN t16
+    ON t0.f0 = t16.f16
+LEFT JOIN t17
+    ON t0.f0 = t17.f17
+LEFT JOIN t18
+    ON t0.f0 = t18.f18
+LEFT JOIN t19
+    ON t18.f18 = t19.f19
+LEFT JOIN t20
+    ON t20.f20 = t19.f19
+LEFT JOIN t21
+    ON t20.f20 = t21.f21
+LEFT JOIN t22
+    ON t19.f19 = t22.f22
+LEFT JOIN t23
+    ON t23.f23 = t0.f0
+LEFT JOIN t24
+    ON t24.f24 = t23.f23
+LEFT JOIN t25
+    ON t0.f0 = t25.f25
+LEFT JOIN t26
+    ON t26.f26 = t0.f0
+LEFT JOIN t27
+    ON t27.f27 = t0.f0
+LEFT JOIN t28
+    ON t0.f0 = t28.f28
+LEFT JOIN t29
+    ON t0.f0 = t29.f29
+LEFT JOIN t30
+    ON t30.f30 = t0.f0
+LEFT JOIN t31
+    ON t0.f0 = t31.f31
+LEFT JOIN t32
+    ON t32.f32 = t31.f31
+LEFT JOIN t33
+    ON t33.f33 = t0.f0
+LEFT JOIN t34
+    ON t33.f33 = t34.f34
+LEFT JOIN t35
+    ON t33.f33 = t35.f35
+LEFT JOIN t36
+    ON t36.f36 = t0.f0
+LEFT JOIN t37
+    ON t32.f32 = t37.f37
+LEFT JOIN t38
+    ON t31.f31 = t38.f38
+LEFT JOIN t39
+    ON t39.f39 = t0.f0
+LEFT JOIN t40
+    ON t40.f40 = t39.f39
+LEFT JOIN t41
+    ON t41.f41 = t0.f0
+LEFT JOIN t42
+    ON t42.f42 = t41.f41
+LEFT JOIN t43
+    ON t43.f43 = t41.f41
+LEFT JOIN t44
+    ON t44.f44 = t0.f0
+LEFT JOIN t45
+    ON t45.f45 = t0.f0
+LEFT JOIN t46
+    ON t46.f46 = t0.f0
+LEFT JOIN t47
+    ON t47.f47 = t0.f0
+LEFT JOIN t48
+    ON t48.f48 = t0.f0
+LEFT JOIN t49
+    ON t0.f0 = t49.f49
+LEFT JOIN t50
+    ON t0.f0 = t50.f50
+LEFT JOIN t51
+    ON t0.f0 = t51.f51
+LEFT JOIN t52
+    ON t52.f52 = t0.f0
+LEFT JOIN t53
+    ON t53.f53 = t0.f0
+LEFT JOIN t54
+    ON t54.f54 = t0.f0
+LEFT JOIN t55
+    ON t55.f55 = t0.f0
+LEFT JOIN t56
+    ON t56.f56 = t0.f0
+LEFT JOIN t57
+    ON t57.f57 = t0.f0
+LEFT JOIN t58
+    ON t58.f58 = t57.f57
+LEFT JOIN t59
+    ON t36.f36 = t59.f59
+LEFT JOIN v60
+    ON t36.f36 = v60.f60
+;
+drop table t0, t1, t2, t3, t4, t5, t6, t7, t8, t9,
+t10, t11, t12, t13, t14, t15, t16, t17, t18,
+t19, t20, t21, t22, t23, t24, t25, t26, t27,
+t28, t29, t30, t31, t32, t33, t34, t35, t36,
+t37, t38, t39, t40, t41, t42, t43, t44, t45,
+t46, t47, t48, t49, t50, t51, t52, t53, t54,
+t55, t56, t57, t58, t59,t60;
+drop view v60;
+
+--echo #
+--echo # MDEV-15572: view.test, server crash with --big-tables=1
+--echo #
+
+set @save_big_tables=@@big_tables;
+set big_tables=ON;
+CREATE TABLE t1 ( f1 int , f2 int , f3 int , f4 int);
+CREATE TABLE t2 ( f1 int , f2 int , f3 int , f4 int);
+
+CREATE VIEW v1 AS
+	SELECT t2.f1, t1.f2, t2.f3, t2.f4 FROM (t1 JOIN t2);
+
+--error ER_VIEW_MULTIUPDATE
+REPLACE INTO v1 (f1, f2, f3, f4)
+	SELECT f1, f2, f3, f4 FROM t1;
+
+drop view v1;
+drop table t1, t2;
+set big_tables=@save_big_tables;
 
 --echo # -----------------------------------------------------------------
 --echo # -- End of 5.5 tests.

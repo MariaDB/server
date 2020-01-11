@@ -108,10 +108,10 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (p int, a double NOT NULL, v double AS (ROUND(a,p)) VIRTUAL);
 INSERT INTO t1 VALUES (0,1,0);
 Warnings:
-Warning	1906	The value specified for computed column 'v' in table 't1' ignored
+Warning	1906	The value specified for computed column 'v' in table 't1' has been ignored
 INSERT INTO t1 VALUES (NULL,0,0);
 Warnings:
-Warning	1906	The value specified for computed column 'v' in table 't1' ignored
+Warning	1906	The value specified for computed column 'v' in table 't1' has been ignored
 SELECT a, p, v, ROUND(a,p), ROUND(a,p+NULL) FROM t1;
 a	p	v	ROUND(a,p)	ROUND(a,p+NULL)
 1	0	1	1	NULL
@@ -306,15 +306,15 @@ d	varchar(5)	latin1_swedish_ci	YES		NULL	PERSISTENT	#
 INSERT INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,NULL);
 UPDATE `test`.`t1` SET `d`='b' WHERE `a`='1' AND `b`='a' AND `c`='1' AND  `d`='a';
 Warnings:
-Warning	1906	The value specified for computed column 'd' in table 't1' ignored
+Warning	1906	The value specified for computed column 'd' in table 't1' has been ignored
 INSERT INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,'a');
 Warnings:
-Warning	1906	The value specified for computed column 'd' in table 't1' ignored
+Warning	1906	The value specified for computed column 'd' in table 't1' has been ignored
 set sql_mode='strict_all_tables';
 UPDATE `test`.`t1` SET `d`='b' WHERE `a`='1' AND `b`='a' AND `c`='1' AND  `d`='a';
-ERROR HY000: The value specified for computed column 'd' in table 't1' ignored
+ERROR HY000: The value specified for computed column 'd' in table 't1' has been ignored
 INSERT INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,'a');
-ERROR HY000: The value specified for computed column 'd' in table 't1' ignored
+ERROR HY000: The value specified for computed column 'd' in table 't1' has been ignored
 drop table t1;
 #
 # MDEV-5611: self-referencing virtual column
@@ -353,6 +353,16 @@ a	b	c
 2008-12-31 23:59:59	2008-12-30 01:01:01	46:58:58
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+#
+# MDEV-15834 The code in TABLE_SHARE::init_from_binary_frm_image() is not safe
+#
+SHOW TABLES;
+Tables_in_test
+t1
+SHOW CREATE TABLE t1;
+ERROR HY000: Incorrect information in file: './test/t1.frm'
+ALTER TABLE t1;
+ERROR HY000: Incorrect information in file: './test/t1.frm'
 #
 # End of 5.5 tests
 #

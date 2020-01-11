@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -522,7 +522,17 @@ is_page_corrupted(
 	normal method. */
 	if (is_encrypted && key_version != 0) {
 		is_corrupted = !fil_space_verify_crypt_checksum(buf,
-			page_size.is_compressed() ? page_size.physical() : 0, NULL, cur_page_num);
+			page_size.is_compressed() ? page_size.physical() : 0);
+		if (is_corrupted && log_file) {
+			fprintf(log_file,
+				"[page id: space=" ULINTPF
+				", page_number=%llu] may be corrupted;"
+				" key_version=" ULINTPF "\n",
+				space_id, cur_page_num,
+				mach_read_from_4(
+					FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+					+ buf));
+		}
 	} else {
 		is_corrupted = true;
 	}

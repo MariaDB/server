@@ -1,0 +1,10 @@
+set @old_dbug=@@global.debug_dbug;
+set global debug_dbug='+d,auth_disconnect';
+create user 'bad' identified by 'worse';
+set global debug_dbug=@old_dbug;
+drop user bad;
+set global debug_dbug='+d,auth_invalid_plugin';
+create user 'bad' identified by 'worse';
+ERROR 2059 (HY000): Authentication plugin 'foo/bar' cannot be loaded: invalid plugin name
+set global debug_dbug=@old_dbug;
+drop user bad;

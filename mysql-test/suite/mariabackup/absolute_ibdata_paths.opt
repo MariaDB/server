@@ -1,0 +1,1 @@
+--innodb --innodb-data-home-dir= --innodb-data-file-path=$MYSQLTEST_VARDIR/tmp/absolute_path_ibdata1:6M;ibdata_second:1M:autoextend

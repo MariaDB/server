@@ -83,3 +83,5 @@ DROP TABLE t1;
 
 # Due to MW-330, Multiple "conflict state 3 after post commit" warnings if table is dropped while SP is running
 CALL mtr.add_suppression("conflict state 3 after post commit");
+
+set global innodb_status_output=Default;

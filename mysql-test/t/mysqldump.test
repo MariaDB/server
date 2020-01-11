@@ -1807,7 +1807,7 @@ show create event ee1;
 
 ## prove three works (with spaces and tabs on the end)
 # start with one from the previous restore
-create event ee2 on schedule at '2018-12-31 21:01:23' do set @a=5;	      
+create event ee2 on schedule at '2030-12-31 21:01:22' do set @a=5;	      
 create event ee3 on schedule at '2030-12-31 22:01:23' do set @a=5;    		
 show events;
 --exec $MYSQL_DUMP --events second > $MYSQLTEST_VARDIR/tmp/bug16853-2.sql
@@ -2484,6 +2484,7 @@ DROP TABLE t1;
 DROP TABLE t2;
 DROP DATABASE db_20772273;
 USE test;
+--remove_file $MYSQLTEST_VARDIR/tmp/t2.txt
 
 --echo #
 --echo # Bug #25717383: MYSQLDUMP MAY EXECUTE ANY ARBITRARY QUERY
@@ -2627,3 +2628,53 @@ let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/bug11505.sql;
 let SEARCH_PATTERN=Database: mysql;
 exec $MYSQL_DUMP mysql func  > $SEARCH_FILE;
 source include/search_pattern_in_file.inc;
+
+--echo #
+--echo # MDEV-15021: Fix the order in which routines are called
+--echo #
+use test;
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+CREATE VIEW v1 AS SELECT f();
+
+--echo # Running mysqldump -uroot test --routines --tables v1 > **vardir**/test.dmp
+--exec $MYSQL_DUMP -uroot test --routines --tables v1 > $MYSQLTEST_VARDIR/test.dmp
+
+DROP VIEW v1;
+DROP FUNCTION f;
+
+--echo # Running mysql -uroot test < **vardir**/test.dmp
+--exec $MYSQL -uroot test < $MYSQLTEST_VARDIR/test.dmp
+
+--echo #
+--echo # Cleanup after succesful import.
+--echo #
+DROP VIEW v1;
+DROP FUNCTION f;
+
+--echo #
+--echo # MDEV-788 New option to ignore foreign key contraints in mysqlimport
+--echo #
+create table t1 (
+  id int primary key
+) engine=InnoDB;
+
+create table t2 (
+  t1_id int,
+  CONSTRAINT fk
+    FOREIGN KEY (t1_id) REFERENCES t1 (id)
+) ENGINE = InnoDB;
+
+--write_file $MYSQLTEST_VARDIR/tmp/t2.txt
+0
+EOF
+
+--error 1
+--exec $MYSQL_IMPORT --silent test $MYSQLTEST_VARDIR/tmp/t2.txt
+--exec $MYSQL_IMPORT --silent -k test $MYSQLTEST_VARDIR/tmp/t2.txt
+select count(*) from t2;
+
+--exec $MYSQL_IMPORT --silent --ignore-foreign-keys test $MYSQLTEST_VARDIR/tmp/t2.txt
+select count(*) from t2;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/t2.txt
+drop tables t2, t1;

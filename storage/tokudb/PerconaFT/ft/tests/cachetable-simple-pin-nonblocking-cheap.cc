@@ -78,15 +78,14 @@ static void reset_unlockers(UNLOCKERS unlockers) {
 static void
 run_case_that_should_succeed(CACHEFILE f1, pair_lock_type first_lock, pair_lock_type second_lock) {
     void* v1;
-    long s1;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     wc.flush_callback = flush;
     struct unlockers unlockers = {true, unlock_dummy, NULL, NULL};
-    int r = toku_cachetable_get_and_pin_nonblocking(f1, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, first_lock, NULL, NULL);
+    int r = toku_cachetable_get_and_pin_nonblocking(f1, make_blocknum(1), 1, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, first_lock, NULL, NULL);
     assert(r==0);
     cachefile_kibbutz_enq(f1, kibbutz_work, f1);
     reset_unlockers(&unlockers);
-    r = toku_cachetable_get_and_pin_nonblocking(f1, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, second_lock, NULL, &unlockers);
+    r = toku_cachetable_get_and_pin_nonblocking(f1, make_blocknum(1), 1, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, second_lock, NULL, &unlockers);
     assert(r==0); assert(unlockers.locked);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, CACHETABLE_CLEAN, make_pair_attr(8)); assert(r==0);
 }
@@ -94,22 +93,25 @@ run_case_that_should_succeed(CACHEFILE f1, pair_lock_type first_lock, pair_lock_
 static void
 run_case_that_should_fail(CACHEFILE f1, pair_lock_type first_lock, pair_lock_type second_lock) {
     void* v1;
-    long s1;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     wc.flush_callback = flush;
     struct unlockers unlockers = {true, unlock_dummy, NULL, NULL};
-    int r = toku_cachetable_get_and_pin_nonblocking(f1, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, first_lock, NULL, NULL);
+    int r = toku_cachetable_get_and_pin_nonblocking(f1, make_blocknum(1), 1, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, first_lock, NULL, NULL);
     assert(r==0);
     cachefile_kibbutz_enq(f1, kibbutz_work, f1);
     reset_unlockers(&unlockers);
-    r = toku_cachetable_get_and_pin_nonblocking(f1, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, second_lock, NULL, &unlockers);
+    r = toku_cachetable_get_and_pin_nonblocking(f1, make_blocknum(1), 1, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, second_lock, NULL, &unlockers);
     assert(r == TOKUDB_TRY_AGAIN); assert(!unlockers.locked);
 }
 
 
 static void
 run_test (void) {
-    const int test_limit = 12;
+    // sometimes the cachetable evictor runs during the test.  this sometimes causes cachetable pair locking contention,
+    // which results with a TOKUDB_TRY_AGAIN error occurring.  unfortunately, the test does not expect this and fails.
+    // set cachetable size limit to a value big enough so that the cachetable evictor is not triggered during the test.
+    const int test_limit = 100;
+
     int r;
     CACHETABLE ct;
     toku_cachetable_create(&ct, test_limit, ZERO_LSN, nullptr);
@@ -119,14 +121,13 @@ run_test (void) {
     r = toku_cachetable_openf(&f1, ct, fname1, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO); assert(r == 0);
     
     void* v1;
-    long s1;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     wc.flush_callback = flush;
     //
     // test that if we are getting a PAIR for the first time that TOKUDB_TRY_AGAIN is returned
     // because the PAIR was not in the cachetable.
     //
-    r = toku_cachetable_get_and_pin_nonblocking(f1, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, PL_WRITE_EXPENSIVE, NULL, NULL);
+    r = toku_cachetable_get_and_pin_nonblocking(f1, make_blocknum(1), 1, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, PL_WRITE_EXPENSIVE, NULL, NULL);
     assert(r==TOKUDB_TRY_AGAIN);
 
 

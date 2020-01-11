@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -921,7 +921,7 @@ fsp_flags_convert_from_101(ulint flags)
 
 	/* Bits 13..16 are the wrong position for PAGE_SSIZE, and they
 	should contain one of the values 3,4,6,7, that is, be of the form
-	0b0011 or 0b01xx (except 0b0110).
+	0b0011 or 0b01xx (except 0b0101).
 	In correct versions, these bits should be 0bc0se
 	where c is the MariaDB COMPRESSED flag
 	and e is the MySQL 5.7 ENCRYPTION flag

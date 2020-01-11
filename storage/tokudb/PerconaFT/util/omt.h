@@ -32,6 +32,20 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
     You should have received a copy of the GNU Affero General Public License
     along with PerconaFT.  If not, see <http://www.gnu.org/licenses/>.
+
+----------------------------------------
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
 ======= */
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
@@ -127,7 +141,7 @@ public:
         paranoid_invariant(index != NODE_NULL);
         m_index = index;
     }
-} __attribute__((__packed__,aligned(4)));
+} ;
 
 template<>
 class subtree_templated<true> {
@@ -184,7 +198,7 @@ public:
     inline void disable_bit(void) {
         m_bitfield &= MASK_INDEX;
     }
-} __attribute__((__packed__)) ;
+} ;
 
 template<typename omtdata_t, bool subtree_supports_marks>
 class omt_node_templated {
@@ -197,7 +211,7 @@ public:
     // this needs to be in both implementations because we don't have
     // a "static if" the caller can use
     inline void clear_stolen_bits(void) {}
-} __attribute__((__packed__,aligned(4)));
+} ;
 
 template<typename omtdata_t>
 class omt_node_templated<omtdata_t, true> {
@@ -234,7 +248,7 @@ public:
         this->unset_marked_bit();
         this->unset_marks_below_bit();
     }
-} __attribute__((__packed__,aligned(4)));
+} ;
 
 }
 

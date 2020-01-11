@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -41,7 +41,7 @@ General streaming interface */
 static ds_ctxt_t *xbstream_init(const char *root);
 static ds_file_t *xbstream_open(ds_ctxt_t *ctxt, const char *path,
 			      MY_STAT *mystat);
-static int xbstream_write(ds_file_t *file, const void *buf, size_t len);
+static int xbstream_write(ds_file_t *file, const uchar *buf, size_t len);
 static int xbstream_close(ds_file_t *file);
 static void xbstream_deinit(ds_ctxt_t *ctxt);
 
@@ -166,7 +166,7 @@ err:
 
 static
 int
-xbstream_write(ds_file_t *file, const void *buf, size_t len)
+xbstream_write(ds_file_t *file, const uchar *buf, size_t len)
 {
 	ds_stream_file_t	*stream_file;
 	xb_wstream_file_t	*xbstream_file;

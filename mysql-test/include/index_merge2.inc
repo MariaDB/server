@@ -2,10 +2,6 @@
 #
 # Index merge tests
 #
-# The variable
-#     $engine_type       -- storage engine to be tested
-# has to be set before sourcing this script.
-#
 # Note: The comments/expectations refer to InnoDB.
 #       They might be not valid for other storage engines.
 #
@@ -14,14 +10,9 @@
 #               old name was t/index_merge_innodb.test
 #               main code went into include/index_merge2.inc
 #
+--source include/have_sequence.inc
 
 --echo #---------------- Index merge test 2 -------------------------------------------
-
-eval SET SESSION STORAGE_ENGINE = $engine_type;
-
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
 
 create table t1
 (
@@ -32,14 +23,7 @@ create table t1
   INDEX i2(key2)
 );
 
---disable_query_log
-let $1=200;
-while ($1)
-{
-  eval insert into t1 values (200-$1, $1);
-  dec $1;
-}
---enable_query_log
+INSERT INTO t1 SELECT seq,200-seq FROM seq_0_to_200;
 
 # No primary key
 explain select * from t1 where key1 < 5 or key2 > 197;
@@ -78,14 +62,8 @@ create table t1 (
   index (key2)
 );
 show warnings;
---disable_query_log
-let $1=30;
-while ($1)
-{
-  eval insert into t1 (key1, key2, filler) values ($1/4, $1/8, 'filler-data');
-  dec $1;
-}
---enable_query_log
+INSERT INTO t1 (key1, key2, filler)
+SELECT seq/4, seq/8, 'filler-data' FROM seq_30_to_0;
 explain select pk from t1 where key1 = 1 and key2 = 1;
 select pk from t1 where key2 = 1 and key1 = 1;
 select pk from t1 ignore index(key1,key2) where key2 = 1 and key1 = 1;
@@ -327,20 +305,12 @@ create table t1
   key3 int not null default 0
 );
 
-insert into t1(key1) values (1),(2),(3),(4),(5),(6),(7),(8);
-
-let $1=7;
-set @d=8;
-while ($1)
-{
-  eval insert into t1 (key1) select key1+@d from t1;
-  eval set @d=@d*2;
-  dec $1;
-}
-
+insert into t1(key1) select seq from seq_1_to_1024;
 alter table t1 add index i2(key2);
 alter table t1 add index i3(key3);
 update t1 set key2=key1,key3=key1;
+
+insert into t1 select 10000+key1, 10000+key2,10000+key3 from t1;
 analyze table t1;
 
 # to test the bug, the following must use "sort_union":

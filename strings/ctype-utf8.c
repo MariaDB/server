@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2019, MariaDB
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -14,7 +14,7 @@
    You should have received a copy of the GNU Library General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-   MA 02110-1301, USA */
+   MA 02110-1335  USA */
 
 /* UTF8 according RFC 2279 */
 /* Written by Alexander Barkov <bar@udm.net> */
@@ -4477,9 +4477,7 @@ int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
   int result= -1;                             /* Not found, using wildcards */
   my_wc_t s_wc, w_wc;
   int scan;
-  int (*mb_wc)(CHARSET_INFO *, my_wc_t *,
-               const uchar *, const uchar *);
-  mb_wc= cs->cset->mb_wc;
+  my_charset_conv_mb_wc mb_wc= cs->cset->mb_wc;
 
   if (my_string_stack_guard && my_string_stack_guard(recurse_level))
     return 1;
@@ -4507,12 +4505,12 @@ int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
         wildstr+= scan;
         escaped= 1;
       }
-      
+
       if ((scan= mb_wc(cs, &s_wc, (const uchar*)str,
                        (const uchar*)str_end)) <= 0)
         return 1;
       str+= scan;
-      
+
       if (!escaped && w_wc == (my_wc_t) w_one)
       {
         result= 1;                                /* Found an anchor char */
@@ -4530,86 +4528,84 @@ int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
       if (wildstr == wildend)
         return (str != str_end);                  /* Match if both are at end */
     }
-    
-    
+
     if (w_wc == (my_wc_t) w_many)
     {                                             /* Found w_many */
-    
       /* Remove any '%' and '_' from the wild search string */
       for ( ; wildstr != wildend ; )
       {
         if ((scan= mb_wc(cs, &w_wc, (const uchar*)wildstr,
                          (const uchar*)wildend)) <= 0)
           return 1;
-        
-        if (w_wc == (my_wc_t)w_many)
+
+        if (w_wc == (my_wc_t) w_many)
         {
           wildstr+= scan;
           continue;
         } 
-        
-        if (w_wc == (my_wc_t)w_one)
+
+        if (w_wc == (my_wc_t) w_one)
         {
           wildstr+= scan;
           if ((scan= mb_wc(cs, &s_wc, (const uchar*)str,
-                           (const uchar*)str_end)) <=0)
+                           (const uchar*)str_end)) <= 0)
             return 1;
           str+= scan;
           continue;
         }
         break;                                        /* Not a wild character */
       }
-      
+
       if (wildstr == wildend)
         return 0;                                /* Ok if w_many is last */
-      
+
       if (str == str_end)
         return -1;
-      
+
       if ((scan= mb_wc(cs, &w_wc, (const uchar*)wildstr,
-                       (const uchar*)wildend)) <=0)
+                       (const uchar*)wildend)) <= 0)
         return 1;
       wildstr+= scan;
-      
-      if (w_wc ==  (my_wc_t)escape)
+
+      if (w_wc ==  (my_wc_t) escape)
       {
         if (wildstr < wildend)
         {
           if ((scan= mb_wc(cs, &w_wc, (const uchar*)wildstr,
-                           (const uchar*)wildend)) <=0)
+                           (const uchar*)wildend)) <= 0)
             return 1;
           wildstr+= scan;
         }
       }
-      
+
       while (1)
       {
         /* Skip until the first character from wildstr is found */
         while (str != str_end)
         {
           if ((scan= mb_wc(cs, &s_wc, (const uchar*)str,
-                           (const uchar*)str_end)) <=0)
+                           (const uchar*)str_end)) <= 0)
             return 1;
           if (weights)
           {
             my_tosort_unicode(weights, &s_wc, cs->state);
             my_tosort_unicode(weights, &w_wc, cs->state);
           }
-          
+
           if (s_wc == w_wc)
             break;
           str+= scan;
         }
         if (str == str_end)
           return -1;
-        
+
         str+= scan;
         result= my_wildcmp_unicode_impl(cs, str, str_end, wildstr, wildend,
                                         escape, w_one, w_many,
                                         weights, recurse_level + 1);
         if (result <= 0)
           return result;
-      } 
+      }
     }
   }
   return (str != str_end ? 1 : 0);
@@ -4891,16 +4887,6 @@ static const uchar to_upper_utf8[] = {
   240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255
 };
 
-static inline int bincmp(const uchar *s, const uchar *se,
-                         const uchar *t, const uchar *te)
-{
-  int slen= (int) (se-s), tlen= (int) (te-t);
-  int len=MY_MIN(slen,tlen);
-  int cmp= memcmp(s,t,len);
-  return cmp ? cmp : slen-tlen;
-}
-
-
 static int my_utf8_uni(CHARSET_INFO *cs __attribute__((unused)),
                        my_wc_t * pwc, const uchar *s, const uchar *e)
 {
@@ -5063,20 +5049,13 @@ my_toupper_utf8mb3(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
 }
 
 
-static inline void
-my_tosort_utf8mb3(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
-{
-  MY_UNICASE_CHARACTER *page;
-  if ((page= uni_plane->page[(*wc >> 8) & 0xFF]))
-    *wc= page[*wc & 0xFF].sort;
-}
-
-static size_t my_caseup_utf8(CHARSET_INFO *cs, char *src, size_t srclen,
+static size_t my_caseup_utf8(CHARSET_INFO *cs, const char *src, size_t srclen,
                              char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int srcres, dstres;
-  char *srcend= src + srclen, *dstend= dst + dstlen, *dst0= dst;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen, *dst0= dst;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(src != dst || cs->caseup_multiply == 1);
 
@@ -5142,12 +5121,13 @@ static size_t my_caseup_str_utf8(CHARSET_INFO *cs, char *src)
 }
 
 
-static size_t my_casedn_utf8(CHARSET_INFO *cs, char *src, size_t srclen,
+static size_t my_casedn_utf8(CHARSET_INFO *cs, const char *src, size_t srclen,
                              char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int srcres, dstres;
-  char *srcend= src + srclen, *dstend= dst + dstlen, *dst0= dst;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen, *dst0= dst;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(src != dst || cs->casedn_multiply == 1);
 
@@ -7308,17 +7288,6 @@ static uchar to_upper_utf8mb4[]=
 };
 
 
-static inline int
-bincmp_utf8mb4(const uchar *s, const uchar *se,
-               const uchar *t, const uchar *te)
-{
-  int slen= (int) (se - s), tlen= (int) (te - t);
-  int len= MY_MIN(slen, tlen);
-  int cmp= memcmp(s, t, len);
-  return cmp ? cmp : slen - tlen;
-}
-
-
 static int
 my_mb_wc_utf8mb4(CHARSET_INFO *cs __attribute__((unused)),
                  my_wc_t * pwc, const uchar *s, const uchar *e)
@@ -7513,12 +7482,13 @@ my_toupper_utf8mb4(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
 
 
 static size_t
-my_caseup_utf8mb4(CHARSET_INFO *cs, char *src, size_t srclen,
+my_caseup_utf8mb4(CHARSET_INFO *cs, const char *src, size_t srclen,
                   char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int srcres, dstres;
-  char *srcend= src + srclen, *dstend= dst + dstlen, *dst0= dst;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen, *dst0= dst;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(src != dst || cs->caseup_multiply == 1);
 
@@ -7600,12 +7570,13 @@ my_caseup_str_utf8mb4(CHARSET_INFO *cs, char *src)
 
 static size_t
 my_casedn_utf8mb4(CHARSET_INFO *cs,
-                  char *src, size_t srclen,
+                  const char *src, size_t srclen,
                   char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int srcres, dstres;
-  char *srcend= src + srclen, *dstend= dst + dstlen, *dst0= dst;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen, *dst0= dst;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(src != dst || cs->casedn_multiply == 1);
 

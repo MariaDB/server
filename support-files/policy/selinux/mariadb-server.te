@@ -1,4 +1,4 @@
-# This SELinux type enforcement (.te) file has been copied under BSD License
+# This SELinux type enforcement (.te) file has been copied under New BSD License
 # from Percona XtraDB Cluster, along with some additions.
 
 module mariadb-server 1.0;

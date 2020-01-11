@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   A better inplementation of the UNIX ctype(3) library.
@@ -369,7 +369,7 @@ typedef int (*my_charset_conv_mb_wc)(CHARSET_INFO *, my_wc_t *,
 typedef int (*my_charset_conv_wc_mb)(CHARSET_INFO *, my_wc_t,
                                      uchar *, uchar *);
 typedef size_t (*my_charset_conv_case)(CHARSET_INFO *,
-                                       char *, size_t, char *, size_t);
+                                       const char *, size_t, char *, size_t);
 
 /*
   A structure to return the statistics of a native string copying,
@@ -678,9 +678,11 @@ size_t my_copy_fix_mb(CHARSET_INFO *cs,
 /* Functions for 8bit */
 extern size_t my_caseup_str_8bit(CHARSET_INFO *, char *);
 extern size_t my_casedn_str_8bit(CHARSET_INFO *, char *);
-extern size_t my_caseup_8bit(CHARSET_INFO *, char *src, size_t srclen,
+extern size_t my_caseup_8bit(CHARSET_INFO *,
+                             const char *src, size_t srclen,
                              char *dst, size_t dstlen);
-extern size_t my_casedn_8bit(CHARSET_INFO *, char *src, size_t srclen,
+extern size_t my_casedn_8bit(CHARSET_INFO *,
+                             const char *src, size_t srclen,
                              char *dst, size_t dstlen);
 
 extern int my_strcasecmp_8bit(CHARSET_INFO * cs, const char *, const char *);
@@ -777,17 +779,17 @@ uint my_mbcharlen_8bit(CHARSET_INFO *, uint c);
 /* Functions for multibyte charsets */
 extern size_t my_caseup_str_mb(CHARSET_INFO *, char *);
 extern size_t my_casedn_str_mb(CHARSET_INFO *, char *);
-extern size_t my_caseup_mb(CHARSET_INFO *, char *src, size_t srclen,
-                                         char *dst, size_t dstlen);
-extern size_t my_casedn_mb(CHARSET_INFO *, char *src, size_t srclen,
-                                         char *dst, size_t dstlen);
-extern size_t my_caseup_mb_varlen(CHARSET_INFO *, char *src, size_t srclen,
-                                  char *dst, size_t dstlen);
-extern size_t my_casedn_mb_varlen(CHARSET_INFO *, char *src, size_t srclen,
-                                  char *dst, size_t dstlen);
-extern size_t my_caseup_ujis(CHARSET_INFO *, char *src, size_t srclen,
+extern size_t my_caseup_mb(CHARSET_INFO *,
+                           const char *src, size_t srclen,
+                           char *dst, size_t dstlen);
+extern size_t my_casedn_mb(CHARSET_INFO *,
+                           const char *src, size_t srclen,
+                           char *dst, size_t dstlen);
+extern size_t my_caseup_ujis(CHARSET_INFO *,
+                             const char *src, size_t srclen,
                              char *dst, size_t dstlen);
-extern size_t my_casedn_ujis(CHARSET_INFO *, char *src, size_t srclen,
+extern size_t my_casedn_ujis(CHARSET_INFO *,
+                             const char *src, size_t srclen,
                              char *dst, size_t dstlen);
 extern int my_strcasecmp_mb(CHARSET_INFO * cs,const char *, const char *);
 

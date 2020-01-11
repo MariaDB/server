@@ -1,0 +1,2 @@
+lock : MDEV-17145 (Unexpected ER_LOCK_WAIT_TIMEOUT)
+select_high_prio : MDEV-17145 (Unexpected ER_LOCK_WAIT_TIMEOUT)

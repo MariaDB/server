@@ -1,11 +1,14 @@
+call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to'");
+call mtr.add_suppression("Failed to load slave replication state from table mysql.gtid_slave_pos");
+CREATE USER 'sst';
 GRANT ALL PRIVILEGES ON *.* TO 'sst';
 SET GLOBAL wsrep_sst_auth = 'sst:';
 SET GLOBAL wsrep_sst_method = 'mysqldump';
-Unloading wsrep provider ...
-SET GLOBAL wsrep_provider = 'none';
+Shutting down server ...
+Cleaning var directory ...
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
-Loading wsrep provider ...
+Starting server ...
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1

@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING. If not, write to the
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
-# MA  02110-1301  USA.
+# MA  02110-1335  USA.
 
 # Optional dependencies and options documented here: http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html 
 # Make sure to read that before proceeding!
@@ -49,7 +49,7 @@ rebuild=0
 rebuildcmd=""
 payload=0
 pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p' "
-pvopts="-f  -i 10 -N $WSREP_SST_OPT_ROLE "
+pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE "
 uextra=0
 
 if which pv &>/dev/null && pv --help | grep -q FORMAT;then 
@@ -144,12 +144,26 @@ get_transfer()
         wsrep_log_info "Using netcat as streamer"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             if nc -h 2>&1 | grep -q ncat;then 
+                # Ncat
                 tcmd="nc -l ${TSST_PORT}"
-            else 
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
                 tcmd="nc -dl ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc -l -p ${TSST_PORT}"
             fi
         else
-            tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            if nc -h 2>&1 | grep -q ncat;then
+                # Ncat
+                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
+                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc -q0 ${REMOTEIP} ${TSST_PORT}"
+            fi
         fi
     else
         tfmt='socat'
@@ -366,7 +380,7 @@ check_extra()
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
                 wsrep_log_info "SST through extra_port $eport"
-                INNOEXTRA+=" --host=127.0.0.1 --port=$eport "
+                INNOEXTRA+=" --host=127.0.0.1 --port=$eport"
                 use_socket=0
             else 
                 wsrep_log_error "Extra port $eport null, failing"
@@ -376,8 +390,8 @@ check_extra()
             wsrep_log_info "Thread pool not set, ignore the option use_extra"
         fi
     fi
-    if [[ $use_socket -eq 1 ]] && [[ -n "${WSREP_SST_OPT_SOCKET}" ]];then
-        INNOEXTRA+=" --socket=${WSREP_SST_OPT_SOCKET}"
+    if [[ $use_socket -eq 1 ]] && [[ -n "$WSREP_SST_OPT_SOCKET" ]];then
+        INNOEXTRA+=" --socket=$WSREP_SST_OPT_SOCKET"
     fi
 }
 
@@ -394,7 +408,6 @@ if [[ ! ${WSREP_SST_OPT_ROLE} == 'joiner' && ! ${WSREP_SST_OPT_ROLE} == 'donor' 
 fi
 
 read_cnf
-setup_ports
 get_stream
 get_transfer
 
@@ -426,14 +439,14 @@ then
         get_keys
         if [[ $encrypt -eq 1 ]];then
             if [[ -n $ekey ]];then
-                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key=$ekey "
+                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key=$ekey"
             else 
-                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key-file=$ekeyfile "
+                INNOEXTRA+=" --encrypt=$ealgo --encrypt-key-file=$ekeyfile"
             fi
         fi
 
         if [[ -n $lsn ]];then 
-                INNOEXTRA+=" --incremental --incremental-lsn=$lsn "
+                INNOEXTRA+=" --incremental --incremental-lsn=$lsn"
         fi
 
         check_extra

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 #include <my_dir.h>
@@ -39,7 +39,10 @@ int my_rename(const char *from, const char *to, myf MyFlags)
   if (link(from, to) || unlink(from))
   {
 #endif
-    my_errno=errno;
+    if (errno == ENOENT && !access(from, F_OK))
+      my_errno= ENOTDIR;
+    else
+      my_errno= errno;
     error = -1;
     if (MyFlags & (MY_FAE+MY_WME))
       my_error(EE_LINK, MYF(ME_BELL+ME_WAITTANG),from,to,my_errno);

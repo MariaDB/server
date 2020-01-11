@@ -1906,16 +1906,17 @@ DROP TABLE t1;
 #
 # BUG#48438 - crash with error in unioned query against merge table and view...
 #
-SET GLOBAL table_open_cache=3;
+SET @save_table_open_cache=@@table_open_cache;
+SET GLOBAL table_open_cache=10;
 CREATE TABLE t1(a INT);
-SELECT 1 FROM t1 AS a1, t1 AS a2, t1 AS a3, t1 AS a4 FOR UPDATE;
+SELECT 1 FROM t1 AS a1, t1 AS a2, t1 AS a3, t1 AS a4, t1 AS a5, t1 AS a6, t1 AS a7, t1 AS a8, t1 AS a9, t1 AS a10, t1 AS a11 FOR UPDATE;
 1
 SELECT TABLE_ROWS, DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
 TABLE_ROWS	DATA_LENGTH
 0	0
 DROP TABLE t1;
-SET GLOBAL table_open_cache=DEFAULT;
+SET GLOBAL table_open_cache=@save_table_open_cache;
 End of 5.0 tests
 create table t1 (a int not null, key `a` (a) key_block_size=1024);
 show create table t1;
@@ -2545,9 +2546,40 @@ OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 DROP TABLE t1;
+CREATE TABLE t1(a INT, b CHAR(10), KEY(a), KEY(b)) engine=myisam;
+INSERT INTO t1 VALUES(1,'0'),(2,'0'),(3,'0'),(4,'0'),(5,'0'),
+(6,'0'),(7,'0');
+flush tables test.t1 for export;
+insert into t1 values (8,'0');
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+unlock tables;
+drop table t1;
 show variables like 'myisam_block_size';
 Variable_name	Value
 myisam_block_size	1024
 select @@global.myisam_block_size;
 @@global.myisam_block_size
 1024
+#
+# MDEV-20704 An index on a double column erroneously uses prefix compression
+#
+CREATE TABLE t1 (
+id INT NOT NULL PRIMARY KEY,
+d  DOUBLE,
+KEY (d)
+) ENGINE=MyISAM;
+
+MyISAM file:         MYSQLD_DATADIR/test/t1
+Record format:       Fixed length
+Character set:       latin1_swedish_ci (8)
+Data records:                    0  Deleted blocks:                 0
+Recordlength:                   13
+
+table description:
+Key Start Len Index   Type
+1   2     4   unique  long                 
+2   6     8   multip. double NULL          
+DROP TABLE t1;
+#
+# End of 5.5 tests
+#

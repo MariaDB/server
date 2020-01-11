@@ -1568,15 +1568,7 @@ drop database mysqltest1;
 
 
 --echo End of 5.0 tests
-
-#
-# Bug#21432 Database/Table name limited to 64 bytes, not chars, problems with multi-byte
-#
 set names utf8;
-grant select on test.* to юзер_юзер@localhost;
---exec $MYSQL --default-character-set=utf8 --user=юзер_юзер -e "select user()"
-revoke all on test.* from юзер_юзер@localhost;
-drop user юзер_юзер@localhost;
 --error ER_WRONG_STRING_LENGTH
 grant select on test.* to очень_длинный_юзер890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890@localhost;
 set names default;
@@ -1661,6 +1653,9 @@ use test;
 #
 # Bug#16470 crash on grant if old grant tables
 #
+
+call mtr.add_suppression("Can't open and lock privilege tables");
+
 --echo FLUSH PRIVILEGES without procs_priv table.
 RENAME TABLE mysql.procs_priv TO mysql.procs_gone;
 FLUSH PRIVILEGES;
@@ -2238,6 +2233,28 @@ disconnect conn3;
 DROP USER foo@'127.0.0.1';
 
 --echo # End of Bug#12766319
+
+#
+# Bug#27230925: HANDLE_FATAL_SIGNAL (SIG=11) IN SHOW_ROUTINE_GRANTS
+#
+create user foo@localhost;
+create database foodb;
+grant create routine on foodb.* to foo@localhost;
+connect con1,localhost,foo;
+create procedure fooproc() select 'i am fooproc';
+show grants;
+disconnect con1;
+connection default;
+rename table mysql.procs_priv to mysql.procs_priv1;
+flush privileges;
+show grants for foo@localhost;
+rename table mysql.procs_priv1 to mysql.procs_priv;
+show grants for foo@localhost;
+flush privileges;
+show grants for foo@localhost;
+drop user foo@localhost;
+drop procedure fooproc;
+drop database foodb;
 
 
 --echo #

@@ -61,3 +61,27 @@ from t1
 where key1<3 or key2<3;
 
 drop table t0, t1;
+
+--echo #
+--echo # MDEV-18094: Query with order by limit picking index scan over filesort
+--echo #
+
+create table t0 (a int);
+INSERT INTO t0 VALUES (0),(0),(0),(0),(2),(0),(0),(1),(1),(0);
+
+CREATE TABLE t1 (
+a int(11),
+b int(11),
+c int(11),
+KEY a_c (a,c),
+KEY a_b (a,b)
+) ENGINE=InnoDB;
+insert into t1 select A.a , B.a, C.a from t0 A, t0 B, t0 C;
+
+--echo # should use ref access
+explain select a,b,c from t1 where a=1 and c=2 order by b;
+
+--echo # both should use range access
+explain select a,b,c from t1 where a=1 and c=2 order by b limit 1000;
+explain select a,b,c from t1 where a=1 and c=2 order by b limit 2000;
+drop table t1,t0;

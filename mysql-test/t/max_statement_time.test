@@ -5,6 +5,7 @@
 
 --source include/not_embedded.inc
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 --source include/not_valgrind.inc
 
 --echo
@@ -226,3 +227,10 @@ call pr();
 set max_statement_time = 0;
 drop procedure pr;
 drop table t1;
+
+#
+# MDEV-16615 ASAN SEGV in handler::print_error or server crash after error upon CREATE TABLE
+#
+SET max_statement_time= 1;
+--error ER_STATEMENT_TIMEOUT
+CREATE TABLE t ENGINE=InnoDB SELECT * FROM seq_1_to_50000;

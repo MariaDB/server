@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifndef PFS_GLOBAL_H
 #define PFS_GLOBAL_H
@@ -80,7 +80,7 @@ inline uint randomized_index(const void *ptr, uint max_size)
   static uint seed1= 0;
   static uint seed2= 0;
   uint result;
-  register intptr value;
+  intptr value;
 
   if (unlikely(max_size == 0))
     return 0;

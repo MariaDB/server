@@ -1,0 +1,5 @@
+[debug]
+--enable-gdb
+
+[release]
+--disable-gdb

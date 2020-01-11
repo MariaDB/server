@@ -1,5 +1,5 @@
 --source include/galera_cluster.inc
---source include/have_ipv6.inc
+--source include/check_ipv6.inc
 
 # Confirm that initial handshake happened over ipv6
 
@@ -56,7 +56,3 @@ DROP TABLE t1;
 --let $assert_text = Prepared IST receiver, listening at: tcp://\[::1\]
 --let $assert_select = Prepared IST receiver, listening at: tcp://\[::1\]
 --source include/assert_grep.inc
-
-
-
-

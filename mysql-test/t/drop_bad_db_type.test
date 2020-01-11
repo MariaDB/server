@@ -7,6 +7,7 @@ if (!$HA_ARCHIVE_SO) {
 
 let $mysqld_datadir= `select @@datadir`;
 
+SET @save_dbug = @@debug_dbug;
 set debug_dbug='+d,unstable_db_type';
 
 install soname 'ha_archive';
@@ -27,5 +28,4 @@ drop table t1;
 --list_files $mysqld_datadir/test
 uninstall soname 'ha_archive';
 
-set debug_dbug='-d,unstable_db_type';
-
+set debug_dbug=@save_dbug;

@@ -1,0 +1,21 @@
+ALTER TABLE mysql.gtid_slave_pos engine = InnoDB;
+START SLAVE;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t1 VALUES(1);
+SELECT LENGTH(@@global.gtid_binlog_state) > 1;
+LENGTH(@@global.gtid_binlog_state) > 1
+1
+gtid_binlog_state_equal
+0
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+gtid_binlog_state_equal
+0
+#cleanup
+DROP TABLE t1;
+reset master;
+STOP SLAVE;
+RESET SLAVE ALL;
+reset master;
+reset master;

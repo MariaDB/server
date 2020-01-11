@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef MY_BIT_INCLUDED
 #define MY_BIT_INCLUDED
@@ -115,10 +115,10 @@ static inline uint32 my_clear_highest_bit(uint32 v)
 static inline uint32 my_reverse_bits(uint32 key)
 {
   return
-    (_my_bits_reverse_table[ key      & 255] << 24) |
-    (_my_bits_reverse_table[(key>> 8) & 255] << 16) |
-    (_my_bits_reverse_table[(key>>16) & 255] <<  8) |
-     _my_bits_reverse_table[(key>>24)      ];
+    ((uint32)_my_bits_reverse_table[ key      & 255] << 24) |
+    ((uint32)_my_bits_reverse_table[(key>> 8) & 255] << 16) |
+    ((uint32)_my_bits_reverse_table[(key>>16) & 255] <<  8) |
+     (uint32)_my_bits_reverse_table[(key>>24)      ];
 }
 
 /*

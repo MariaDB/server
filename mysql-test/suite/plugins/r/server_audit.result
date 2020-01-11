@@ -182,6 +182,17 @@ select 2;
 2
 2
 drop table t1;
+set global server_audit_events='query_dml_no_select';
+create table t1(id int);
+insert into t1 values (1), (2);
+select * from t1;
+id
+1
+2
+select 2;
+2
+2
+drop table t1;
 set global server_audit_events='';
 set global server_audit_query_log_limit= 15;
 select (1), (2), (3), (4);
@@ -343,6 +354,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'SET PASSWORD \n# comment\nFOR u1
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'SET PASSWORD FOR u1=<secret>',ID
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop user u1, u2, u3',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'insert into t1 values (1), (2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_events=\'\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global serv',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'select (1), (2)',0

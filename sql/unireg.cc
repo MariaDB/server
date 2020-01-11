@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -297,7 +297,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   pos+= reclength;
   int2store(pos, create_info->connect_string.length);
   pos+= 2;
-  memcpy(pos, create_info->connect_string.str, create_info->connect_string.length);
+  if (create_info->connect_string.length)
+    memcpy(pos, create_info->connect_string.str, create_info->connect_string.length);
   pos+= create_info->connect_string.length;
   int2store(pos, str_db_type.length);
   pos+= 2;
@@ -751,7 +752,6 @@ static bool pack_fields(uchar *buff, List<Create_field> &create_fields,
     recpos= field->offset+1 + (uint) data_offset;
     int3store(buff+5,recpos);
     int2store(buff+8,field->pack_flag);
-    DBUG_ASSERT(field->unireg_check < 256);
     buff[10]= (uchar) field->unireg_check;
     buff[12]= (uchar) field->interval_id;
     buff[13]= (uchar) field->sql_type; 

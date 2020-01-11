@@ -44,7 +44,8 @@ static void test_vlq_uint32(void) {
         assert(out_s == 1);
         uint32_t n;
         size_t in_s = tokudb::vlq_decode_ui<uint32_t>(&n, b, out_s);
-        assert(in_s == 1 && n == v);
+        assert(in_s == 1);
+        assert(n == v);
     }
 
     printf("%u\n", 1<<7);
@@ -54,7 +55,8 @@ static void test_vlq_uint32(void) {
         assert(out_s == 2);
         uint32_t n;
         size_t in_s = tokudb::vlq_decode_ui<uint32_t>(&n, b, out_s);
-        assert(in_s == 2 && n == v);
+        assert(in_s == 2);
+        assert(n == v);
     }
 
     printf("%u\n", 1<<14);
@@ -64,7 +66,8 @@ static void test_vlq_uint32(void) {
         assert(out_s == 3);
         uint32_t n;
         size_t in_s = tokudb::vlq_decode_ui<uint32_t>(&n, b, out_s);
-        assert(in_s == 3 && n == v);
+        assert(in_s == 3);
+        assert(n == v);
     }
 
     printf("%u\n", 1<<21);
@@ -74,7 +77,8 @@ static void test_vlq_uint32(void) {
         assert(out_s == 4);
         uint32_t n;
         size_t in_s = tokudb::vlq_decode_ui<uint32_t>(&n, b, out_s);
-        assert(in_s == 4 && n == v);
+        assert(in_s == 4);
+        assert(n == v);
     }
 
     printf("%u\n", 1<<28);
@@ -84,7 +88,8 @@ static void test_vlq_uint32(void) {
         assert(out_s == 5);
         uint32_t n;
         size_t in_s = tokudb::vlq_decode_ui<uint32_t>(&n, b, out_s);
-        assert(in_s == 5 && n == v);
+        assert(in_s == 5);
+        assert(n == v);
     }
 }
 

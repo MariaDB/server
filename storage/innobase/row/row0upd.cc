@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -1803,6 +1803,23 @@ row_upd_store_row(
 	}
 }
 
+#ifdef WITH_WSREP
+/** Determine if a FOREIGN KEY constraint needs to be processed.
+@param[in]	node	query node
+@param[in]	trx	transaction
+@return	whether the node cannot be ignored */
+
+inline bool wsrep_must_process_fk(const upd_node_t* node, const trx_t* trx)
+{
+	if (!wsrep_on_trx(trx)) {
+		return false;
+	}
+	return que_node_get_type(node->common.parent) != QUE_NODE_UPDATE
+		|| static_cast<upd_node_t*>(node->common.parent)->cascade_node
+		!= node;
+}
+#endif /* WITH_WSREP */
+
 /***********************************************************//**
 Updates a secondary index entry of a row.
 @return DB_SUCCESS if operation successfully completed, else error
@@ -1833,7 +1850,7 @@ row_upd_sec_index_entry(
 
 	referenced = row_upd_index_is_referenced(index, trx);
 #ifdef WITH_WSREP
-	ibool foreign = wsrep_row_upd_index_is_foreign(index, trx);
+	bool foreign = wsrep_row_upd_index_is_foreign(index, trx);
 #endif /* WITH_WSREP */
 
 	heap = mem_heap_create(1024);
@@ -1962,61 +1979,61 @@ row_upd_sec_index_entry(
 		row_ins_sec_index_entry() below */
 		if (!rec_get_deleted_flag(
 			    rec, dict_table_is_comp(index->table))) {
-#ifdef WITH_WSREP
-			que_node_t *parent = que_node_get_parent(node);
-#endif /* WITH_WSREP */
 			err = btr_cur_del_mark_set_sec_rec(
 				0, btr_cur, TRUE, thr, &mtr);
 
-			if (err == DB_SUCCESS && referenced) {
-
-				ulint*	offsets;
-
-				offsets = rec_get_offsets(
-					rec, index, NULL, ULINT_UNDEFINED,
-					&heap);
-
-				/* NOTE that the following call loses
-				the position of pcur ! */
-				err = row_upd_check_references_constraints(
-					node, &pcur, index->table,
-					index, offsets, thr, &mtr);
+			if (err != DB_SUCCESS) {
+				break;
 			}
+
 #ifdef WITH_WSREP
-			if (err == DB_SUCCESS && !referenced                  &&
-			    wsrep_on_trx(trx)                                 &&
-			    !wsrep_thd_is_BF(trx->mysql_thd, FALSE)           &&
-			    !(parent && que_node_get_type(parent) ==
-				QUE_NODE_UPDATE                               &&
-			      ((upd_node_t*)parent)->cascade_node == node)    &&
-			    foreign
-			) {
-				ulint*	offsets =
-					rec_get_offsets(
+			if (!referenced && foreign
+			    && wsrep_must_process_fk(node, trx)
+			    && !wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+				ulint*	offsets = rec_get_offsets(
 						rec, index, NULL, ULINT_UNDEFINED,
 						&heap);
+
 				err = wsrep_row_upd_check_foreign_constraints(
 					node, &pcur, index->table,
 					index, offsets, thr, &mtr);
+
 				switch (err) {
 				case DB_SUCCESS:
 				case DB_NO_REFERENCED_ROW:
 					err = DB_SUCCESS;
 					break;
 				case DB_DEADLOCK:
-					if (wsrep_debug) fprintf (stderr, 
-						"WSREP: sec index FK check fail for deadlock");
+					if (wsrep_debug) {
+						ib_logf(IB_LOG_LEVEL_WARN,
+							"WSREP: sec index FK check fail for deadlock: "
+							" index %s table %s", index->name, index->table->name);
+					}
 					break;
 				default:
-					fprintf (stderr, 
-						 "WSREP: referenced FK check fail: %d", 
-						 (int)err);
+					ib_logf(IB_LOG_LEVEL_ERROR,
+						"WSREP: referenced FK check fail: %s index %s table %s",
+						ut_strerr(err), index->name, index->table->name);
 					break;
 				}
 			}
 #endif /* WITH_WSREP */
 		}
-		break;
+
+		if (referenced) {
+
+			ulint*	offsets;
+
+			offsets = rec_get_offsets(
+				rec, index, NULL, ULINT_UNDEFINED,
+				&heap);
+
+			/* NOTE that the following call loses
+			the position of pcur ! */
+			err = row_upd_check_references_constraints(
+				node, &pcur, index->table,
+				index, offsets, thr, &mtr);
+		}
 	}
 
 	btr_pcur_close(&pcur);
@@ -2185,10 +2202,6 @@ row_upd_clust_rec_by_insert(
 	rec_t*		rec;
 	ulint*		offsets			= NULL;
 
-#ifdef WITH_WSREP
-	que_node_t *parent = que_node_get_parent(node);
-#endif /* WITH_WSREP */
-	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 
 	trx = thr_get_trx(thr);
@@ -2269,35 +2282,31 @@ err_exit:
 			if (err != DB_SUCCESS) {
 				goto err_exit;
 			}
-		}
 #ifdef WITH_WSREP
-		if (!referenced && wsrep_on_trx(trx) &&
-		    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
-		      ((upd_node_t*)parent)->cascade_node == node)           &&
-		    foreign
-		) {
+		} else if ((foreign && wsrep_must_process_fk(node, trx))) {
 			err = wsrep_row_upd_check_foreign_constraints(
 				node, pcur, table, index, offsets, thr, mtr);
+
 			switch (err) {
 			case DB_SUCCESS:
 			case DB_NO_REFERENCED_ROW:
 				err = DB_SUCCESS;
 				break;
 			case DB_DEADLOCK:
-				if (wsrep_debug) fprintf (stderr, 
-					"WSREP: insert FK check fail for deadlock");
+				if (wsrep_debug) {
+					ib_logf(IB_LOG_LEVEL_WARN,
+						"WSREP: sec index FK check fail for deadlock: "
+						" index %s table %s", index->name, index->table->name);
+				}
 				break;
 			default:
-				fprintf (stderr, 
-					"WSREP: referenced FK check fail: %d", 
-					 (int)err);
+				ib_logf(IB_LOG_LEVEL_ERROR,
+					"WSREP: referenced FK check fail: %s index %s table %s",
+					ut_strerr(err), index->name, index->table->name);
 				break;
 			}
-			if (err != DB_SUCCESS) {
-				goto err_exit;
-			}
-		}
 #endif /* WITH_WSREP */
+		}
 	}
 
 	mtr_commit(mtr);
@@ -2338,7 +2347,6 @@ row_upd_clust_rec(
 	dberr_t		err;
 	const dtuple_t*	rebuilt_old_pk	= NULL;
 
-	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 
 	pcur = node->pcur;
@@ -2500,10 +2508,9 @@ row_upd_del_mark_clust_rec(
 	dberr_t		err;
 #ifdef WITH_WSREP
 	rec_t*		rec;
-	que_node_t *parent = que_node_get_parent(node);
+	trx_t* trx = thr_get_trx(thr) ;
 #endif /* WITH_WSREP */
 
-	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(node->is_delete);
 
@@ -2529,38 +2536,37 @@ row_upd_del_mark_clust_rec(
 		btr_cur_get_block(btr_cur), btr_cur_get_rec(btr_cur),
 #endif /* WITH_WSREP */
 		index, offsets, thr, mtr);
-	if (err == DB_SUCCESS && referenced) {
+	if (err != DB_SUCCESS) {
+	} else if (referenced) {
 		/* NOTE that the following call loses the position of pcur ! */
 
 		err = row_upd_check_references_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
-	}
 #ifdef WITH_WSREP
-	trx_t* trx = thr_get_trx(thr) ;
-	if (err == DB_SUCCESS && !referenced && wsrep_on_trx(trx) &&
-	    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
-	      ((upd_node_t*)parent)->cascade_node == node)           &&
-	    foreign
-	) {
+	} else if (foreign && wsrep_must_process_fk(node, trx)) {
 		err = wsrep_row_upd_check_foreign_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
+
 		switch (err) {
 		case DB_SUCCESS:
 		case DB_NO_REFERENCED_ROW:
 			err = DB_SUCCESS;
 			break;
 		case DB_DEADLOCK:
-			if (wsrep_debug) fprintf (stderr, 
-				"WSREP: clust rec FK check fail for deadlock");
+			if (wsrep_debug) {
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"WSREP: sec index FK check fail for deadlock: "
+					" index %s table %s", index->name, index->table->name);
+			}
 			break;
 		default:
-			fprintf (stderr, 
-				"WSREP: clust rec referenced FK check fail: %d", 
-				 (int)err);
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"WSREP: referenced FK check fail: %s index %s table %s",
+				ut_strerr(err), index->name, index->table->name);
 			break;
 		}
-	}
 #endif /* WITH_WSREP */
+	}
 
 	mtr_commit(mtr);
 

@@ -673,6 +673,13 @@ PREPARE stmt FROM 'CREATE TRIGGER tr AFTER DELETE ON t1 FOR EACH ROW SET @a = 1\
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '\' at line 1
 DROP TABLE t1;
 #
+# MDEV-15620 Crash when using "SET @@NEW.a=expr" inside a trigger
+#
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @@NEW.a=0;
+ERROR HY000: Unknown system variable 'NEW'
+DROP TABLE t1;
+#
 # MDEV-7792 - SQL Parsing Error - UNION AND ORDER BY WITH JOIN
 #
 CREATE TABLE t1(a INT);

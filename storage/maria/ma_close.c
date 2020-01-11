@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* close a isam-database */
 /*
@@ -37,6 +37,8 @@ int maria_close(register MARIA_HA *info)
 
   /* Check that we have unlocked key delete-links properly */
   DBUG_ASSERT(info->key_del_used == 0);
+  /* Check that file is not part of any uncommited transactions */
+  DBUG_ASSERT(info->trn == 0 || info->trn == &dummy_transaction_object);
 
   if (share->reopen == 1)
   {

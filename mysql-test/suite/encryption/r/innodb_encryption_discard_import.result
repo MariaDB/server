@@ -73,6 +73,8 @@ NOT FOUND /foobar/ in t1.ibd
 NOT FOUND /temp/ in t2.ibd
 # t3 ... on expecting NOT FOUND
 NOT FOUND /barfoo/ in t3.ibd
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
 ALTER TABLE t1 ENGINE InnoDB;
 SHOW CREATE TABLE t1;
 Table	Create Table

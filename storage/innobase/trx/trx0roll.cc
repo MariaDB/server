@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,7 +25,7 @@ Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
 #include "my_config.h"
-#include <my_systemd.h>
+#include <my_service_manager.h>
 
 #include "trx0roll.h"
 
@@ -203,6 +203,7 @@ trx_rollback_for_mysql(
 		return(trx_rollback_for_mysql_low(trx));
 
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		ut_ad(!trx_is_autocommit_non_locking(trx));
 		return(trx_rollback_for_mysql_low(trx));
 
@@ -255,6 +256,7 @@ trx_rollback_last_sql_stat_for_mysql(
 
 		return(err);
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		/* The statement rollback is only allowed on an ACTIVE
 		transaction, not a PREPARED or COMMITTED one. */
@@ -421,6 +423,7 @@ trx_rollback_to_savepoint_for_mysql(
 		return(trx_rollback_to_savepoint_for_mysql_low(
 				trx, savep, mysql_binlog_cache_pos));
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		/* The savepoint rollback is only allowed on an ACTIVE
 		transaction, not a PREPARED or COMMITTED one. */
@@ -710,6 +713,7 @@ fake_prepared:
 		}
 		return(FALSE);
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		goto func_exit;
 	case TRX_STATE_NOT_STARTED:
 		break;
@@ -734,11 +738,11 @@ trx_roll_must_shutdown()
 		return true;
 	}
 
-	ib_time_t time = ut_time();
+	time_t now = time(NULL);
 	mutex_enter(&trx_sys->mutex);
 	mutex_enter(&recv_sys->mutex);
 
-	if (recv_sys->report(time)) {
+	if (recv_sys->report(now)) {
 		ulint n_trx = 0;
 		ulonglong n_rows = 0;
 		for (const trx_t* t = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
@@ -752,11 +756,17 @@ trx_roll_must_shutdown()
 				n_rows += t->undo_no;
 			}
 		}
+
+		if (n_rows > 0) {
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL,
+				"To roll back: " ULINTPF " transactions, "
+				"%llu rows", n_trx, n_rows);
+		}
+
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"To roll back: " ULINTPF " transactions, "
 			"%llu rows", n_trx, n_rows);
-		sd_notifyf(0, "STATUS=To roll back: " ULINTPF " transactions, "
-			   "%llu rows", n_trx, n_rows);
 	}
 
 	mutex_exit(&recv_sys->mutex);

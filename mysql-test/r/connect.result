@@ -82,8 +82,20 @@ connect(localhost,test,zorro,test2,MASTER_PORT,MASTER_SOCKET);
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
 connect(localhost,test,zorro,test,MASTER_PORT,MASTER_SOCKET);
 ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
+select user,host,password,plugin,authentication_string from mysql.user where user='test';
+user	host	password	plugin	authentication_string
+test	localhost	*5FDFF3268A50F41C5D18D2CA2F754D7BDB9B3E59		
+test	127.0.0.1	*5FDFF3268A50F41C5D18D2CA2F754D7BDB9B3E59		
 update mysql.user set password=old_password("gambling2") where user=_binary"test";
 flush privileges;
+show grants for test@localhost;
+Grants for test@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'test'@'localhost' IDENTIFIED BY PASSWORD '2f27438961437573'
+update mysql.user set plugin='mysql_old_password' where user='test';
+flush privileges;
+show grants for test@localhost;
+Grants for test@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'test'@'localhost' IDENTIFIED BY PASSWORD '2f27438961437573'
 set password="";
 set password='gambling3';
 ERROR HY000: Password hash should be a 41-digit hexadecimal number
@@ -147,7 +159,7 @@ drop table t1;
 CREATE USER mysqltest_u1@localhost;
 GRANT USAGE ON *.* TO mysqltest_u1@localhost;
 
-SET GLOBAL max_connections = 3;
+SET GLOBAL max_connections = 10;
 SET GLOBAL event_scheduler = ON;
 
 # -- Waiting for Event Scheduler to start...
@@ -188,6 +200,13 @@ SET GLOBAL event_scheduler = ON;
 SELECT user FROM information_schema.processlist ORDER BY id;
 user
 event_scheduler
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
 mysqltest_u1
 mysqltest_u1
 mysqltest_u1

@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2004, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #define MYSQL_LEX 1
@@ -441,7 +442,6 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     my_error(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER, MYF(0));
     DBUG_RETURN(TRUE);
   }
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
   if (!create)
   {
@@ -504,6 +504,11 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
       goto end;
   }
 
+#ifdef WITH_WSREP
+  if (thd->wsrep_exec_mode == LOCAL_STATE)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+#endif
+
   /* We should have only one table in table list. */
   DBUG_ASSERT(tables->next_global == 0);
 
@@ -530,7 +535,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     /* Under LOCK TABLES we must only accept write locked tables. */
     if (!(tables->table= find_table_for_mdl_upgrade(thd, tables->db,
                                                     tables->table_name,
-                                                    FALSE)))
+                                                    NULL)))
       goto end;
   }
   else
@@ -576,7 +581,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     Ignore the return value for now. It's better to
     keep master/slave in consistent state.
   */
-  if (thd->locked_tables_list.reopen_tables(thd))
+  if (thd->locked_tables_list.reopen_tables(thd, false))
     thd->clear_error();
 
   /*
@@ -607,11 +612,11 @@ end:
     my_ok(thd);
 
   DBUG_RETURN(result);
-#ifdef WITH_WSREP
- error:
+
+WSREP_ERROR_LABEL:
   DBUG_RETURN(true);
-#endif /* WITH_WSREP */
 }
+
 
 /**
   Build stmt_query to write it in the bin-log
@@ -1060,6 +1065,11 @@ Table_triggers_list::~Table_triggers_list()
     for (int j= 0; j < (int)TRG_ACTION_MAX; j++)
       delete bodies[i][j];
 
+  /* Free blobs used in insert */
+  if (record0_field)
+    for (Field **fld_ptr= record0_field; *fld_ptr; fld_ptr++)
+      (*fld_ptr)->free();
+
   if (record1_field)
     for (Field **fld_ptr= record1_field; *fld_ptr; fld_ptr++)
       delete *fld_ptr;
@@ -1373,13 +1383,13 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
       List_iterator_fast<LEX_STRING> it_client_cs_name(triggers->client_cs_names);
       List_iterator_fast<LEX_STRING> it_connection_cl_name(triggers->connection_cl_names);
       List_iterator_fast<LEX_STRING> it_db_cl_name(triggers->db_cl_names);
-      LEX *old_lex= thd->lex, *old_stmt_lex= thd->stmt_lex;
+      LEX *old_lex= thd->lex;
       LEX lex;
       sp_rcontext *save_spcont= thd->spcont;
       ulonglong save_sql_mode= thd->variables.sql_mode;
       LEX_STRING *on_table_name;
 
-      thd->lex= thd->stmt_lex= &lex;
+      thd->lex= &lex;
 
       save_db.str= thd->db;
       save_db.length= thd->db_length;
@@ -1578,7 +1588,6 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
       }
       thd->reset_db(save_db.str, save_db.length);
       thd->lex= old_lex;
-      thd->stmt_lex= old_stmt_lex;
       thd->spcont= save_spcont;
       thd->variables.sql_mode= save_sql_mode;
 
@@ -1591,7 +1600,6 @@ err_with_lex_cleanup:
       // QQ: anything else ?
       lex_end(&lex);
       thd->lex= old_lex;
-      thd->stmt_lex= old_stmt_lex;
       thd->spcont= save_spcont;
       thd->variables.sql_mode= save_sql_mode;
       thd->reset_db(save_db.str, save_db.length);
@@ -1810,7 +1818,7 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, char *db, char *name)
   bool result= 0;
   DBUG_ENTER("drop_all_triggers");
 
-  bzero(&table, sizeof(table));
+  table.reset();
   init_sql_alloc(&table.mem_root, 8192, 0, MYF(0));
 
   if (Table_triggers_list::check_n_load(thd, db, name, &table, 1))
@@ -2030,7 +2038,7 @@ bool Table_triggers_list::change_table_name(THD *thd, const char *db,
   LEX_STRING *err_trigname;
   DBUG_ENTER("change_table_name");
 
-  bzero(&table, sizeof(table));
+  table.reset();
   init_sql_alloc(&table.mem_root, 8192, 0, MYF(0));
 
   /*

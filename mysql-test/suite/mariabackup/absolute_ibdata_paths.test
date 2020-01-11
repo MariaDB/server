@@ -1,0 +1,51 @@
+# This test just backs up and restores empty database
+# Innodb system tablespace is specified with absolute path in  the .opt file
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR= `SELECT @@datadir`;
+--source include/shutdown_mysqld.inc
+perl;
+my $file= "$ENV{MYSQLD_DATADIR}/ibdata_second";
+open(FILE, "+<", $file) or die "Unable to open $file\n";
+binmode FILE;
+my $ps= $ENV{INNODB_PAGE_SIZE};
+my $page;
+my $pos = $ps * 0;
+sysseek(FILE, $pos, 0) || die "Unable to seek $file\n";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+substr($page,26,8) = pack("NN", 1, 1);
+sysseek(FILE, $pos, 0) || die "Unable to rewind $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close(FILE) || die "Unable to close $file\n";
+EOF
+
+--source include/start_mysqld.inc
+
+echo # xtrabackup backup;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+let $_innodb_data_file_path=`select @@innodb_data_file_path`;
+let $_innodb_data_home_dir=`select @@innodb_data_home_dir`;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+
+--source include/shutdown_mysqld.inc
+echo # remove datadir;
+rmdir $MYSQLD_DATADIR;
+#remove out-of-datadir ibdata1
+remove_file $MYSQLTEST_VARDIR/tmp/absolute_path_ibdata1;
+echo # xtrabackup copy back;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --copy-back --datadir=$MYSQLD_DATADIR --target-dir=$targetdir "--innodb_data_file_path=$_innodb_data_file_path" --innodb_data_home_dir=$_innodb_data_home_dir;
+echo # restart server;
+--source include/start_mysqld.inc
+--enable_result_log
+
+SELECT * from t;
+DROP TABLE t;
+rmdir $targetdir;
+

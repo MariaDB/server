@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 /*
@@ -91,7 +91,7 @@ recursion_point:
   }
 
   {
-    register struct LS_STRUCT_NAME *sp0= sp++;
+    struct LS_STRUCT_NAME *sp0= sp++;
     sp->list_len= sp0->list_len >> 1;
     sp0->list_len-= sp->list_len;
     sp->return_point= 0;
@@ -100,7 +100,7 @@ recursion_point:
 return_point0:
   sp->list1= sorted_list;
   {
-    register struct LS_STRUCT_NAME *sp0= sp++;
+    struct LS_STRUCT_NAME *sp0= sp++;
     list= list_end;
     sp->list_len= sp0->list_len;
     sp->return_point= 1;
@@ -108,9 +108,9 @@ return_point0:
   goto recursion_point;
 return_point1:
   {
-    register LS_LIST_ITEM **hook= &sorted_list;
-    register LS_LIST_ITEM *list1= sp->list1;
-    register LS_LIST_ITEM *list2= sorted_list;
+    LS_LIST_ITEM **hook= &sorted_list;
+    LS_LIST_ITEM *list1= sp->list1;
+    LS_LIST_ITEM *list2= sorted_list;
 
     if (LS_COMPARE_FUNC_CALL(list1, list2))
     {

@@ -256,6 +256,32 @@ FROM t1;
 drop table t1, t2;
 
 --echo #
+--echo # MDEV-15235: Assertion `length > 0' failed in create_ref_for_key
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (f CHAR(1));
+INSERT INTO t2 VALUES ('a'),('b');
+explain
+SELECT * FROM t2 WHERE f IN ( SELECT LEFT('foo',0) FROM t1 ORDER BY 1 );
+SELECT * FROM t2 WHERE f IN ( SELECT LEFT('foo',0) FROM t1 ORDER BY 1 );
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-18255: Server crashes in Bitmap<64u>::intersect
+--echo #
+create table t1 (v1 varchar(1)) engine=myisam ;
+create table t2 (v1 varchar(1)) engine=myisam ;
+
+explain
+select 1 from t1 where exists
+	(select 1 from t1 where t1.v1 in (select t2.v1 from t2 having t2.v1 < 'j')) ;
+select 1 from t1 where exists
+	(select 1 from t1 where t1.v1 in (select t2.v1 from t2 having t2.v1 < 'j')) ;
+drop table t1,t2;
+
+--echo #
 --echo # MDEV-9489: Assertion `0' failed in Protocol::end_statement() on
 --echo # UNION ALL
 --echo #

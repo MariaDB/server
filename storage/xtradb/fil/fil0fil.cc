@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,8 +25,6 @@ Created 10/25/1995 Heikki Tuuri
 *******************************************************/
 
 #include "fil0fil.h"
-#include "fil0pagecompress.h"
-#include "fsp0pagecompress.h"
 #include "fil0crypt.h"
 
 #include <debug_sync.h>
@@ -49,12 +47,10 @@ Created 10/25/1995 Heikki Tuuri
 #include "page0zip.h"
 #include "trx0sys.h"
 #include "row0mysql.h"
-#include "os0file.h"
 #ifndef UNIV_HOTBACKUP
 # include "buf0lru.h"
 # include "ibuf0ibuf.h"
 # include "sync0sync.h"
-# include "os0sync.h"
 #else /* !UNIV_HOTBACKUP */
 # include "srv0srv.h"
 static ulint srv_data_read, srv_data_written;
@@ -353,19 +349,6 @@ fil_space_get_by_id(
 	/* The system tablespace must always be found */
 	ut_ad(space || id != 0 || srv_is_being_started);
 	return(space);
-}
-
-/****************************************************************//**
-Get space id from fil node */
-ulint
-fil_node_get_space_id(
-/*==================*/
-        fil_node_t*     node)           /*!< in: Compressed node*/
-{
-	ut_ad(node);
-	ut_ad(node->space);
-
-	return (node->space->id);
 }
 
 /*******************************************************************//**
@@ -704,7 +687,7 @@ add_size:
 		space->size += node->size;
 	}
 
-	ulint atomic_writes = fsp_flags_get_atomic_writes(space->flags);
+	ulint atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(space->flags);
 
 	/* printf("Opening file %s\n", node->name); */
 
@@ -863,10 +846,9 @@ fil_try_to_close_file_in_LRU(
 }
 
 /** Flush any writes cached by the file system.
-@param[in,out]	space	tablespace */
-static
-void
-fil_flush_low(fil_space_t* space)
+@param[in,out]	space		tablespace
+@param[in]	metadata	whether to update file system metadata */
+static void fil_flush_low(fil_space_t* space, bool metadata = false)
 {
 	ut_ad(mutex_own(&fil_system->mutex));
 	ut_ad(space);
@@ -890,7 +872,7 @@ fil_flush_low(fil_space_t* space)
 		}
 #endif /* UNIV_DEBUG */
 
-		return;
+		if (!metadata) return;
 	}
 
 	/* Prevent dropping of the space while we are flushing */
@@ -1054,15 +1036,16 @@ fil_space_extend_must_retry(
 	*success = os_file_set_size(node->name, node->handle, new_size,
 		FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags));
 
-
 	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
 		*success = FALSE;
 		os_has_said_disk_full = TRUE;);
 
 	if (*success) {
+		os_file_flush(node->handle);
 		os_has_said_disk_full = FALSE;
 		start_page_no = size;
 	}
+
 	mutex_enter(&fil_system->mutex);
 
 	ut_a(node->being_extended);
@@ -1086,7 +1069,7 @@ fil_space_extend_must_retry(
 			= (node->size / pages_per_mb) * pages_per_mb;
 	}
 
-	fil_flush_low(space);
+	fil_flush_low(space, true);
 	return(false);
 }
 
@@ -1102,7 +1085,6 @@ fil_mutex_enter_and_prepare_for_io(
 {
 	fil_space_t*	space;
 	ulint		count		= 0;
-	ulint		count2		= 0;
 
 retry:
 	mutex_enter(&fil_system->mutex);
@@ -1116,47 +1098,6 @@ retry:
 
 	if (space == NULL) {
 		return;
-	}
-
-	if (space->stop_ios) {
-		ut_ad(space->id != 0);
-		/* We are going to do a rename file and want to stop new i/o's
-		for a while */
-
-		if (count2 > 20000) {
-			fputs("InnoDB: Warning: tablespace ", stderr);
-			ut_print_filename(stderr, space->name);
-			fprintf(stderr,
-				" has i/o ops stopped for a long time %lu\n",
-				(ulong) count2);
-		}
-
-		mutex_exit(&fil_system->mutex);
-
-#ifndef UNIV_HOTBACKUP
-
-		/* Wake the i/o-handler threads to make sure pending
-		i/o's are performed */
-		os_aio_simulated_wake_handler_threads();
-
-		/* The sleep here is just to give IO helper threads a
-		bit of time to do some work. It is not required that
-		all IO related to the tablespace being renamed must
-		be flushed here as we do fil_flush() in
-		fil_rename_tablespace() as well. */
-		os_thread_sleep(20000);
-
-#endif /* UNIV_HOTBACKUP */
-
-		/* Flush tablespaces so that we can close modified
-		files in the LRU list */
-		fil_flush_file_spaces(FIL_TABLESPACE);
-
-		os_thread_sleep(20000);
-
-		count2++;
-
-		goto retry;
 	}
 
 	fil_node_t*	node = UT_LIST_GET_LAST(space->chain);
@@ -2878,6 +2819,29 @@ fil_close_tablespace(
 	return(err);
 }
 
+/** Determine whether a table can be accessed in operations that are
+not (necessarily) protected by meta-data locks.
+(Rollback would generally be protected, but rollback of
+FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
+but only by InnoDB table locks, which may be broken by
+lock_remove_all_on_table().)
+@param[in]	table	persistent table
+checked @return whether the table is accessible */
+UNIV_INTERN bool fil_table_accessible(const dict_table_t* table)
+{
+	if (UNIV_UNLIKELY(!table->is_readable() || table->corrupted)) {
+		return(false);
+	}
+
+	if (fil_space_t* space = fil_space_acquire(table->space)) {
+		bool accessible = !space->is_stopping();
+		fil_space_release(space);
+		return(accessible);
+	} else {
+		return(false);
+	}
+}
+
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	drop_ahi	whether to drop the adaptive hash index
@@ -2940,7 +2904,7 @@ fil_delete_tablespace(ulint id, bool drop_ahi)
 	To deal with potential read requests by checking the
 	::stop_new_ops flag in fil_io() */
 
-	buf_LRU_flush_or_remove_pages(id, NULL, drop_ahi);
+	buf_LRU_flush_or_remove_pages(id, NULL);
 
 #endif /* !UNIV_HOTBACKUP */
 
@@ -3051,7 +3015,7 @@ fil_discard_tablespace(
 {
 	dberr_t	err;
 
-	switch (err = fil_delete_tablespace(id, true)) {
+	switch (err = fil_delete_tablespace(id)) {
 	case DB_SUCCESS:
 		break;
 
@@ -3253,7 +3217,6 @@ fil_rename_tablespace(
 	ibool		success;
 	fil_space_t*	space;
 	fil_node_t*	node;
-	ulint		count		= 0;
 	char*		new_path;
 	char*		old_name;
 	char*		old_path;
@@ -3261,24 +3224,9 @@ fil_rename_tablespace(
 
 	ut_a(id != 0);
 
-retry:
-	count++;
-
-	if (!(count % 1000)) {
-		ut_print_timestamp(stderr);
-		fputs("  InnoDB: Warning: problems renaming ", stderr);
-		ut_print_filename(stderr,
-				  old_name_in ? old_name_in : not_given);
-		fputs(" to ", stderr);
-		ut_print_filename(stderr, new_name);
-		fprintf(stderr, ", %lu iterations\n", (ulong) count);
-	}
-
 	mutex_enter(&fil_system->mutex);
 
 	space = fil_space_get_by_id(id);
-
-	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_1", space = NULL; );
 
 	if (space == NULL) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
@@ -3291,53 +3239,10 @@ retry:
 		return(FALSE);
 	}
 
-	if (count > 25000) {
-		space->stop_ios = FALSE;
-		mutex_exit(&fil_system->mutex);
-
-		return(FALSE);
-	}
-
-	/* We temporarily close the .ibd file because we do not trust that
-	operating systems can rename an open file. For the closing we have to
-	wait until there are no pending i/o's or flushes on the file. */
-
-	space->stop_ios = TRUE;
-
 	/* The following code must change when InnoDB supports
 	multiple datafiles per tablespace. */
 	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
 	node = UT_LIST_GET_FIRST(space->chain);
-
-	if (node->n_pending > 0
-	    || node->n_pending_flushes > 0
-	    || node->being_extended) {
-		/* There are pending i/o's or flushes or the file is
-		currently being extended, sleep for a while and
-		retry */
-
-		mutex_exit(&fil_system->mutex);
-
-		os_thread_sleep(20000);
-
-		goto retry;
-
-	} else if (node->modification_counter > node->flush_counter) {
-		/* Flush the space */
-
-		mutex_exit(&fil_system->mutex);
-
-		os_thread_sleep(20000);
-
-		fil_flush(id);
-
-		goto retry;
-
-	} else if (node->open) {
-		/* Close the file */
-
-		fil_node_close_file(node, fil_system);
-	}
 
 	/* Check that the old name in the space is right */
 
@@ -3357,16 +3262,13 @@ retry:
 		space, node, new_name, new_path);
 
 	if (success) {
-
 		DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
-			goto skip_second_rename; );
-
+				goto skip_second_rename; );
 		success = os_file_rename(
 			innodb_file_data_key, old_path, new_path);
-
 		DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
 skip_second_rename:
-			success = FALSE; );
+				success = FALSE; );
 
 		if (!success) {
 			/* We have to revert the changes we made
@@ -3376,8 +3278,6 @@ skip_second_rename:
 					space, node, old_name, old_path));
 		}
 	}
-
-	space->stop_ios = FALSE;
 
 	mutex_exit(&fil_system->mutex);
 
@@ -4110,7 +4010,6 @@ fil_open_single_table_tablespace(
 	fsp_open_info	remote;
 	ulint		tablespaces_found = 0;
 	ulint		valid_tablespaces_found = 0;
-	ulint           atomic_writes = 0;
 	fil_space_crypt_t* crypt_data = NULL;
 
 #ifdef UNIV_SYNC_DEBUG
@@ -4125,7 +4024,7 @@ fil_open_single_table_tablespace(
 	}
 
 	ut_ad(fsp_flags_is_valid(flags & ~FSP_FLAGS_MEM_MASK, id));
-	atomic_writes = fsp_flags_get_atomic_writes(flags);
+	const ulint atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
 
 	memset(&def, 0, sizeof(def));
 	memset(&dict, 0, sizeof(dict));
@@ -4468,17 +4367,7 @@ cleanup_and_exit:
 
 	mem_free(def.filepath);
 
-	/* We need to check fsp flags when no errors has happened and
-	server was not started on read only mode and tablespace validation
-	was requested or flags contain other table options except
-	low order bits to FSP_FLAGS_POS_PAGE_SSIZE position.
-	Note that flag comparison is pessimistic. Adjust is required
-	only when flags contain buggy MariaDB 10.1.0 -
-	MariaDB 10.1.20 flags.  */
-	if (err == DB_SUCCESS
-	    && !srv_read_only_mode
-	    && (validate
-		|| flags >= (1U << FSP_FLAGS_POS_PAGE_SSIZE))) {
+	if (err == DB_SUCCESS && validate && !srv_read_only_mode) {
 		fsp_flags_try_adjust(id, flags & ~FSP_FLAGS_MEM_MASK);
 	}
 
@@ -4966,12 +4855,6 @@ will_not_choose:
 				srv_force_recovery);
 			return;
 		}
-
-		/* In mariabackup lets not crash. */
-		if (IS_XTRABACKUP()) {
-			return;
-		}
-
 		abort();
 	}
 
@@ -5245,7 +5128,7 @@ fil_load_single_table_tablespaces(ibool (*pred)(const char*, const char*))
 	ulint		dbpath_len	= 100;
         ulint 		files_read	= 0;
         ulint 		files_read_at_last_check	= 0;
-        ib_time_t 	prev_report_time = ut_time();
+	time_t		prev_report_time = time(NULL);
 	os_file_dir_t	dir;
 	os_file_dir_t	dbdir;
 	os_file_stat_t	dbinfo;
@@ -5345,11 +5228,10 @@ fil_load_single_table_tablespaces(ibool (*pred)(const char*, const char*))
 					files_read++;
 					if (files_read - files_read_at_last_check >
 					    CHECK_TIME_EVERY_N_FILES) {
-						ib_time_t cur_time= ut_time();
+						time_t cur_time= time(NULL);
 						files_read_at_last_check= files_read;
-						double time_elapsed= ut_difftime(cur_time, 
-						                                 prev_report_time);
-						if (time_elapsed > 15) {
+						if (cur_time - prev_report_time
+						    > 15) {
 							ib_logf(IB_LOG_LEVEL_INFO, 
 								"Processed %ld .ibd/.isl files",
 								files_read);
@@ -6161,7 +6043,8 @@ fil_io(
 	} else if (type == OS_FILE_WRITE) {
 		ut_ad(!srv_read_only_mode);
 		srv_stats.data_written.add(len);
-		if (fil_page_is_index_page((byte *)buf)) {
+		if (mach_read_from_2(static_cast<const byte*>(buf)
+				     + FIL_PAGE_TYPE) == FIL_PAGE_INDEX) {
 			srv_stats.index_pages_written.inc();
 		} else {
 			srv_stats.non_index_pages_written.inc();
@@ -6691,479 +6574,6 @@ fil_close(void)
 	mem_free(fil_system);
 
 	fil_system = NULL;
-}
-
-/********************************************************************//**
-Initializes a buffer control block when the buf_pool is created. */
-static
-void
-fil_buf_block_init(
-/*===============*/
-	buf_block_t*	block,		/*!< in: pointer to control block */
-	byte*		frame)		/*!< in: pointer to buffer frame */
-{
-	UNIV_MEM_DESC(frame, UNIV_PAGE_SIZE);
-
-	block->frame = frame;
-
-	block->page.io_fix = BUF_IO_NONE;
-	/* There are assertions that check for this. */
-	block->page.buf_fix_count = 1;
-	block->page.state = BUF_BLOCK_READY_FOR_USE;
-
-	page_zip_des_init(&block->page.zip);
-}
-
-struct fil_iterator_t {
-	pfs_os_file_t	file;			/*!< File handle */
-	const char*	filepath;		/*!< File path name */
-	os_offset_t	start;			/*!< From where to start */
-	os_offset_t	end;			/*!< Where to stop */
-	os_offset_t	file_size;		/*!< File size in bytes */
-	ulint		page_size;		/*!< Page size */
-	ulint		n_io_buffers;		/*!< Number of pages to use
-						for IO */
-	byte*		io_buffer;		/*!< Buffer to use for IO */
-	fil_space_crypt_t *crypt_data;		/*!< Crypt data (if encrypted) */
-	byte*           crypt_io_buffer;        /*!< IO buffer when encrypted */
-};
-
-/********************************************************************//**
-TODO: This can be made parallel trivially by chunking up the file and creating
-a callback per thread. . Main benefit will be to use multiple CPUs for
-checksums and compressed tables. We have to do compressed tables block by
-block right now. Secondly we need to decompress/compress and copy too much
-of data. These are CPU intensive.
-
-Iterate over all the pages in the tablespace.
-@param iter - Tablespace iterator
-@param block - block to use for IO
-@param callback - Callback to inspect and update page contents
-@retval DB_SUCCESS or error code */
-static
-dberr_t
-fil_iterate(
-/*========*/
-	const fil_iterator_t&	iter,
-	buf_block_t*		block,
-	PageCallback&		callback)
-{
-	os_offset_t		offset;
-	ulint			page_no = 0;
-	ulint			space_id = callback.get_space_id();
-	ulint			n_bytes = iter.n_io_buffers * iter.page_size;
-
-	ut_ad(!srv_read_only_mode);
-
-	/* TODO: For compressed tables we do a lot of useless
-	copying for non-index pages. Unfortunately, it is
-	required by buf_zip_decompress() */
-	const bool	row_compressed = callback.get_zip_size() > 0;
-
-	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
-
-		byte*		io_buffer = iter.io_buffer;
-
-		block->frame = io_buffer;
-
-		if (row_compressed) {
-			page_zip_des_init(&block->page.zip);
-			page_zip_set_size(&block->page.zip, iter.page_size);
-			block->page.zip.data = block->frame + UNIV_PAGE_SIZE;
-			ut_d(block->page.zip.m_external = true);
-			ut_ad(iter.page_size == callback.get_zip_size());
-
-			/* Zip IO is done in the compressed page buffer. */
-			io_buffer = block->page.zip.data;
-		}
-
-		/* We have to read the exact number of bytes. Otherwise the
-		InnoDB IO functions croak on failed reads. */
-
-		n_bytes = static_cast<ulint>(
-			ut_min(static_cast<os_offset_t>(n_bytes),
-			       iter.end - offset));
-
-		ut_ad(n_bytes > 0);
-		ut_ad(!(n_bytes % iter.page_size));
-
-		const bool encrypted = iter.crypt_data != NULL
-			&& iter.crypt_data->should_encrypt();
-		/* Use additional crypt io buffer if tablespace is encrypted */
-		byte* const readptr = encrypted
-			? iter.crypt_io_buffer : io_buffer;
-		byte* const writeptr = readptr;
-
-		if (!os_file_read(iter.file, readptr, offset, (ulint) n_bytes)) {
-
-			ib_logf(IB_LOG_LEVEL_ERROR, "os_file_read() failed");
-
-			return(DB_IO_ERROR);
-		}
-
-		bool		updated = false;
-		os_offset_t	page_off = offset;
-		ulint		n_pages_read = (ulint) n_bytes / iter.page_size;
-		bool		decrypted = false;
-
-		for (ulint i = 0; i < n_pages_read; ++i) {
-			ulint 	size = iter.page_size;
-			dberr_t	err = DB_SUCCESS;
-			byte*	src = readptr + (i * size);
-			byte*	dst = io_buffer + (i * size);
-			bool frame_changed = false;
-
-			ulint page_type = mach_read_from_2(src+FIL_PAGE_TYPE);
-
-			const bool page_compressed
-				= page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
-				|| page_type == FIL_PAGE_PAGE_COMPRESSED;
-
-			/* If tablespace is encrypted, we need to decrypt
-			the page. Note that tablespaces are not in
-			fil_system during import. */
-			if (encrypted) {
-				decrypted = fil_space_decrypt(
-							iter.crypt_data,
-							dst, //dst
-							iter.page_size,
-							src, // src
-							&err); // src
-
-				if (err != DB_SUCCESS) {
-					return(err);
-				}
-
-				if (decrypted) {
-					updated = true;
-				} else {
-					if (!page_compressed && !row_compressed) {
-						block->frame = src;
-						frame_changed = true;
-					} else {
-						memcpy(dst, src, size);
-					}
-				}
-			}
-
-			/* If the original page is page_compressed, we need
-			to decompress page before we can update it. */
-			if (page_compressed) {
-				fil_decompress_page(NULL, dst, ulong(size),
-						    NULL);
-				updated = true;
-			}
-
-			buf_block_set_file_page(block, space_id, page_no++);
-
-			if ((err = callback(page_off, block)) != DB_SUCCESS) {
-
-				return(err);
-
-			} else if (!updated) {
-				updated = buf_block_get_state(block)
-					== BUF_BLOCK_FILE_PAGE;
-			}
-
-			buf_block_set_state(block, BUF_BLOCK_NOT_USED);
-			buf_block_set_state(block, BUF_BLOCK_READY_FOR_USE);
-
-			/* If tablespace is encrypted we use additional
-			temporary scratch area where pages are read
-			for decrypting readptr == crypt_io_buffer != io_buffer.
-
-			Destination for decryption is a buffer pool block
-			block->frame == dst == io_buffer that is updated.
-			Pages that did not require decryption even when
-			tablespace is marked as encrypted are not copied
-			instead block->frame is set to src == readptr.
-
-			For encryption we again use temporary scratch area
-			writeptr != io_buffer == dst
-			that is then written to the tablespace
-
-			(1) For normal tables io_buffer == dst == writeptr
-			(2) For only page compressed tables
-			io_buffer == dst == writeptr
-			(3) For encrypted (and page compressed)
-			readptr != io_buffer == dst != writeptr
-			*/
-
-			ut_ad(!encrypted && !page_compressed ?
-			      src == dst && dst == writeptr + (i * size):1);
-			ut_ad(page_compressed && !encrypted ?
-			      src == dst && dst == writeptr + (i * size):1);
-			ut_ad(encrypted ?
-			      src != dst && dst != writeptr + (i * size):1);
-
-			if (encrypted) {
-				memcpy(writeptr + (i * size),
-					row_compressed ? block->page.zip.data :
-					block->frame, size);
-			}
-
-			if (frame_changed) {
-				block->frame = dst;
-			}
-
-			src =  io_buffer + (i * size);
-
-			if (page_compressed) {
-				ulint len = 0;
-
-				fil_compress_page(
-					NULL,
-					src,
-					NULL,
-					size,
-					0,/* FIXME: compression level */
-					512,/* FIXME: use proper block size */
-					encrypted,
-					&len);
-
-				updated = true;
-			}
-
-			/* If tablespace is encrypted, encrypt page before we
-			write it back. Note that we should not encrypt the
-			buffer that is in buffer pool. */
-			/* NOTE: At this stage of IMPORT the
-			buffer pool is not being used at all! */
-			if (decrypted && encrypted) {
-				byte *dest = writeptr + (i * size);
-				ulint space = mach_read_from_4(
-					src + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-				ulint offset = mach_read_from_4(src + FIL_PAGE_OFFSET);
-				ib_uint64_t lsn = mach_read_from_8(src + FIL_PAGE_LSN);
-
-				byte* tmp = fil_encrypt_buf(
-							iter.crypt_data,
-							space,
-							offset,
-							lsn,
-							src,
-							iter.page_size == UNIV_PAGE_SIZE ? 0 : iter.page_size,
-							dest);
-
-				if (tmp == src) {
-					/* TODO: remove unnecessary memcpy's */
-					memcpy(dest, src, size);
-				}
-
-				updated = true;
-			}
-
-			page_off += iter.page_size;
-			block->frame += iter.page_size;
-		}
-
-		/* A page was updated in the set, write back to disk. */
-		if (updated
-		    && !os_file_write(
-				iter.filepath, iter.file, writeptr,
-				offset, (ulint) n_bytes)) {
-
-			ib_logf(IB_LOG_LEVEL_ERROR, "os_file_write() failed");
-
-			return(DB_IO_ERROR);
-		}
-	}
-
-	return(DB_SUCCESS);
-}
-
-/********************************************************************//**
-Iterate over all the pages in the tablespace.
-@param table - the table definiton in the server
-@param n_io_buffers - number of blocks to read and write together
-@param callback - functor that will do the page updates
-@return	DB_SUCCESS or error code */
-UNIV_INTERN
-dberr_t
-fil_tablespace_iterate(
-/*===================*/
-	dict_table_t*	table,
-	ulint		n_io_buffers,
-	PageCallback&	callback)
-{
-	dberr_t		err;
-	pfs_os_file_t	file;
-	char*		filepath;
-
-	ut_a(n_io_buffers > 0);
-	ut_ad(!srv_read_only_mode);
-
-	DBUG_EXECUTE_IF("ib_import_trigger_corruption_1",
-			return(DB_CORRUPTION););
-
-	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-		dict_get_and_save_data_dir_path(table, false);
-		ut_a(table->data_dir_path);
-
-		filepath = os_file_make_remote_pathname(
-			table->data_dir_path, table->name, "ibd");
-	} else {
-		filepath = fil_make_ibd_name(table->name, false);
-	}
-
-	{
-		ibool	success;
-
-		file = os_file_create_simple_no_error_handling(
-			innodb_file_data_key, filepath,
-			OS_FILE_OPEN, OS_FILE_READ_WRITE, &success, FALSE);
-
-		DBUG_EXECUTE_IF("fil_tablespace_iterate_failure",
-		{
-			static bool once;
-
-			if (!once || ut_rnd_interval(0, 10) == 5) {
-				once = true;
-				success = FALSE;
-				os_file_close(file);
-			}
-		});
-
-		if (!success) {
-			/* The following call prints an error message */
-			os_file_get_last_error(true);
-
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"Trying to import a tablespace, but could not "
-				"open the tablespace file %s", filepath);
-
-			mem_free(filepath);
-
-			return(DB_TABLESPACE_NOT_FOUND);
-
-		} else {
-			err = DB_SUCCESS;
-		}
-	}
-
-	callback.set_file(filepath, file);
-
-	os_offset_t	file_size = os_file_get_size(file);
-	ut_a(file_size != (os_offset_t) -1);
-
-	/* The block we will use for every physical page */
-	buf_block_t	block;
-
-	memset(&block, 0x0, sizeof(block));
-
-	/* Allocate a page to read in the tablespace header, so that we
-	can determine the page size and zip_size (if it is compressed).
-	We allocate an extra page in case it is a compressed table. One
-	page is to ensure alignement. */
-
-	void*	page_ptr = mem_alloc(3 * UNIV_PAGE_SIZE);
-	byte*	page = static_cast<byte*>(ut_align(page_ptr, UNIV_PAGE_SIZE));
-
-	fil_buf_block_init(&block, page);
-
-	/* Read the first page and determine the page and zip size. */
-
-	if (!os_file_read(file, page, 0, UNIV_PAGE_SIZE)) {
-
-		err = DB_IO_ERROR;
-
-	} else if ((err = callback.init(file_size, &block)) == DB_SUCCESS) {
-		fil_iterator_t	iter;
-
-		iter.file = file;
-		iter.start = 0;
-		iter.end = file_size;
-		iter.filepath = filepath;
-		iter.file_size = file_size;
-		iter.n_io_buffers = n_io_buffers;
-		iter.page_size = callback.get_page_size();
-
-		/* In MariaDB/MySQL 5.6 tablespace does not exist
-		during import, therefore we can't use space directly
-		here. */
-		ulint crypt_data_offset = fsp_header_get_crypt_offset(
-			callback.get_zip_size());
-
-		/* read (optional) crypt data */
-		iter.crypt_data = fil_space_read_crypt_data(
-			0, page, crypt_data_offset);
-
-		/* Compressed pages can't be optimised for block IO for now.
-		We do the IMPORT page by page. */
-
-		if (callback.get_zip_size() > 0) {
-			iter.n_io_buffers = 1;
-			ut_a(iter.page_size == callback.get_zip_size());
-		}
-
-		/** If tablespace is encrypted, it needs extra buffers */
-		if (iter.crypt_data != NULL) {
-			/* decrease io buffers so that memory
-			* consumption doesnt double
-			* note: the +1 is to avoid n_io_buffers getting down to 0 */
-			iter.n_io_buffers = (iter.n_io_buffers + 1) / 2;
-		}
-
-		/** Add an extra page for compressed page scratch area. */
-
-		void*	io_buffer = mem_alloc(
-			(2 + iter.n_io_buffers) * UNIV_PAGE_SIZE);
-
-		iter.io_buffer = static_cast<byte*>(
-			ut_align(io_buffer, UNIV_PAGE_SIZE));
-
-		void* crypt_io_buffer = NULL;
-		if (iter.crypt_data != NULL) {
-			crypt_io_buffer = mem_alloc(
-				(2 + iter.n_io_buffers) * UNIV_PAGE_SIZE);
-			iter.crypt_io_buffer = static_cast<byte*>(
-				ut_align(crypt_io_buffer, UNIV_PAGE_SIZE));
-		}
-
-		err = fil_iterate(iter, &block, callback);
-
-		mem_free(io_buffer);
-
-		if (crypt_io_buffer != NULL) {
-			mem_free(crypt_io_buffer);
-			iter.crypt_io_buffer = NULL;
-			fil_space_destroy_crypt_data(&iter.crypt_data);
-		}
-	}
-
-	if (err == DB_SUCCESS) {
-
-		ib_logf(IB_LOG_LEVEL_INFO, "Sync to disk");
-
-		if (!os_file_flush(file)) {
-			ib_logf(IB_LOG_LEVEL_INFO, "os_file_flush() failed!");
-			err = DB_IO_ERROR;
-		} else {
-			ib_logf(IB_LOG_LEVEL_INFO, "Sync to disk - done!");
-		}
-	}
-
-	os_file_close(file);
-
-	mem_free(page_ptr);
-	mem_free(filepath);
-
-	return(err);
-}
-
-/**
-Set the tablespace compressed table size.
-@return DB_SUCCESS if it is valie or DB_CORRUPTION if not */
-dberr_t
-PageCallback::set_zip_size(const buf_frame_t* page) UNIV_NOTHROW
-{
-	m_zip_size = fsp_header_get_zip_size(page);
-
-	if (!ut_is_2pow(m_zip_size) || m_zip_size > UNIV_ZIP_SIZE_MAX) {
-		return(DB_CORRUPTION);
-	}
-
-	return(DB_SUCCESS);
 }
 
 /********************************************************************//**

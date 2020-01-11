@@ -26,7 +26,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -285,6 +285,7 @@ srv_conc_enter_innodb_with_atomics(
 			notified_mysql = TRUE;
 		}
 
+		DEBUG_SYNC_C("user_thread_waiting");
 		trx->op_info = "sleeping before entering InnoDB";
 
 		sleep_in_us = srv_thread_sleep_delay;
@@ -400,8 +401,6 @@ srv_conc_enter_innodb_without_atomics(
 	ulint			i;
 	srv_conc_slot_t*	slot = NULL;
 	ibool			has_slept = FALSE;
-	ib_uint64_t		start_time = 0L;
-	ib_uint64_t		finish_time = 0L;
 	ulint			sec;
 	ulint			ms;
 
@@ -536,12 +535,9 @@ retry:
 	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
 #endif /* UNIV_SYNC_DEBUG */
 
-	if (UNIV_UNLIKELY(trx->take_stats)) {
-		ut_usectime(&sec, &ms);
-		start_time = (ib_uint64_t)sec * 1000000 + ms;
-	} else {
-		start_time = 0;
-	}
+	const ulonglong start_time = UNIV_UNLIKELY(trx->take_stats)
+		? my_interval_timer()
+		: 0;
 
 	trx->op_info = "waiting in InnoDB queue";
 
@@ -556,9 +552,8 @@ retry:
 	trx->op_info = "";
 
 	if (UNIV_UNLIKELY(start_time != 0)) {
-		ut_usectime(&sec, &ms);
-		finish_time = (ib_uint64_t)sec * 1000000 + ms;
-		trx->innodb_que_wait_timer += (ulint)(finish_time - start_time);
+		trx->innodb_que_wait_timer += ulint((my_interval_timer()
+						     - start_time) / 1000);
 	}
 
 	os_fast_mutex_lock(&srv_conc_mutex);

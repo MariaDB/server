@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "maria_def.h"
 #ifdef HAVE_SYS_MMAN_H
@@ -345,7 +345,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       _ma_decrement_open_count(info, 0);
     if (info->trn)
     {
-      _ma_remove_table_from_trnman(share, info->trn);
+      _ma_remove_table_from_trnman(info);
       /* Ensure we don't point to the deleted data in trn */
       info->state= info->state_start= &share->state.state;
     }
@@ -408,7 +408,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     if (info->trn)
     {
       mysql_mutex_lock(&share->intern_lock);
-      _ma_remove_table_from_trnman(share, info->trn);
+      _ma_remove_table_from_trnman(info);
       /* Ensure we don't point to the deleted data in trn */
       info->state= info->state_start= &share->state.state;
       mysql_mutex_unlock(&share->intern_lock);    

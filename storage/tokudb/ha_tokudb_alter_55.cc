@@ -35,7 +35,11 @@ bool ha_tokudb::try_hot_alter_table() {
 }
 
 int ha_tokudb::new_alter_table_frm_data(const uchar *frm_data, size_t frm_len) {
+#if defined(TOKU_INCLUDE_WRITE_FRM_DATA) && TOKU_INCLUDE_WRITE_FRM_DATA
     return write_frm_data(frm_data, frm_len);
+#else
+    return 0;
+#endif  // defined(TOKU_INCLUDE_WRITE_FRM_DATA) && TOKU_INCLUDE_WRITE_FRM_DATA
 }
 
 #endif

@@ -26,7 +26,7 @@ delete from foo where a < 10;
 # number of rows should be 9
 explain select * from foo where a < 50;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	foo	range	PRIMARY	PRIMARY	4	NULL	9	Using where
+1	SIMPLE	foo	range	PRIMARY	PRIMARY	4	NULL	5	Using where
 # should have just 4 values
 select * from foo where a < 50;
 a	b
@@ -37,7 +37,7 @@ a	b
 # number of rows should be 9
 explain select * from foo where a < 50;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	foo	range	PRIMARY	PRIMARY	4	NULL	9	Using where
+1	SIMPLE	foo	range	PRIMARY	PRIMARY	4	NULL	5	Using where
 # 9 values
 select * From foo where a < 50;
 a	b

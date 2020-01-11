@@ -12,7 +12,7 @@
 SELECT @@debug_sync;
 
 SET SESSION wsrep_sync_wait = 1;
-SET GLOBAL debug = "+d,sync.wsrep_apply_cb";
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
 
 --connection node_1
 CREATE TABLE t_wait1 (f1 INTEGER) ENGINE=InnoDB;
@@ -90,7 +90,7 @@ SHOW WARNINGS;
 --enable_result_log
 
 # Unblock the background INSERT and remove the sync point.
-SET GLOBAL debug = "-d,sync.wsrep_apply_cb";
+SET GLOBAL debug_dbug = "";
 SET SESSION debug_sync = "now SIGNAL signal.wsrep_apply_cb";
 
 SET SESSION wsrep_sync_wait = default;
@@ -99,7 +99,6 @@ SET SESSION wsrep_sync_wait = default;
 # from the test.
 DROP TABLE t_wait1;
 
-SET GLOBAL debug = NULL;
 SET debug_sync='RESET';
 
 # Make sure no pending signals are leftover to surprise subsequent tests.

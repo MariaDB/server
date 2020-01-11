@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -431,7 +431,7 @@ struct recv_sys_t{
 				log record, or there is a log parsing
 				buffer overflow */
 	/** the time when progress was last reported */
-	ib_time_t	progress_time;
+	time_t		progress_time;
 #ifdef UNIV_LOG_ARCHIVE
 	log_group_t*	archive_group;
 				/*!< in archive recovery: the log group whose
@@ -449,7 +449,7 @@ struct recv_sys_t{
 	@param[in]	time	the current time
 	@return	whether progress should be reported
 		(the last report was at least 15 seconds ago) */
-	bool report(ib_time_t time)
+	bool report(time_t time)
 	{
 		if (time - progress_time < 15) {
 			return false;

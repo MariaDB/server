@@ -1,4 +1,4 @@
-call mtr.add_suppression("InnoDB: The page \[page id: space=[0-9]+, page number=[0-9]+\] in file test/t1 cannot be decrypted.");
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[0-9]+\\] in file '.*test.t1\\.ibd' cannot be decrypted\\.");
 call mtr.add_suppression("InnoDB: Cannot open table .*");
 call mtr.add_suppression("InnoDB: .ibd file is missing for table test/.*");
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management.*");

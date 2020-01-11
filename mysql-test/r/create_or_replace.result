@@ -451,3 +451,58 @@ CREATE OR REPLACE TABLE t1 AS SELECT f1();
 UNLOCK TABLES;
 DROP FUNCTION f1;
 DROP TABLE t1;
+#
+# MDEV-11129
+# CREATE OR REPLACE TABLE t1 AS SELECT spfunc() crashes if spfunc()
+# references t1
+#
+CREATE OR REPLACE TABLE t1(a INT);
+CREATE FUNCTION f1() RETURNS VARCHAR(16383)
+BEGIN
+INSERT INTO t1 VALUES(1);
+RETURN 'test';
+END;
+$$
+CREATE OR REPLACE TABLE t1 AS SELECT f1();
+ERROR HY000: Table 't1' is specified twice, both as a target for 'CREATE' and as a separate source for data
+LOCK TABLE t1 WRITE;
+CREATE OR REPLACE TABLE t1 AS SELECT f1();
+ERROR HY000: Table 't1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# MDEV-14410 - Assertion `table->pos_in_locked_tables == __null ||
+#              table->pos_in_locked_tables->table == table' failed in
+#              mark_used_tables_as_free_for_reuse
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t3 FOR EACH ROW INSERT INTO t1 VALUES ();
+CREATE TRIGGER tr2 BEFORE INSERT ON t2 FOR EACH ROW INSERT INTO t3 SELECT * FROM t1;
+LOCK TABLE t1 WRITE, t2 WRITE;
+CREATE OR REPLACE TABLE t1 (i INT);
+UNLOCK TABLES;
+INSERT INTO t2 VALUES (1);
+DROP TABLE t1, t2, t3;
+#
+# MDEV-11071 - Assertion `thd->transaction.stmt.is_empty()' failed in
+#              Locked_tables_list::unlock_locked_tables
+#
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t2(a INT);
+CREATE TABLE t3(a INT);
+LOCK TABLE t2 WRITE;
+SELECT * FROM t2;
+a
+CREATE OR REPLACE TEMPORARY TABLE t1(c INT DEFAULT '');
+ERROR 42000: Invalid default value for 'c'
+SELECT * FROM t3;
+ERROR HY000: Table 't3' was not locked with LOCK TABLES
+CREATE OR REPLACE TEMPORARY TABLE t2(c INT DEFAULT '');
+ERROR 42000: Invalid default value for 'c'
+SELECT * FROM t3;
+ERROR HY000: Table 't3' was not locked with LOCK TABLES
+UNLOCK TABLES;
+DROP TABLE t3;

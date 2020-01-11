@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -173,8 +173,7 @@ extern fil_addr_t	fil_addr_null;
 #define FIL_PAGE_TYPE_BLOB	10	/*!< Uncompressed BLOB page */
 #define FIL_PAGE_TYPE_ZBLOB	11	/*!< First compressed BLOB page */
 #define FIL_PAGE_TYPE_ZBLOB2	12	/*!< Subsequent compressed BLOB page */
-#define FIL_PAGE_TYPE_COMPRESSED	13	/*!< Compressed page */
-#define FIL_PAGE_TYPE_LAST	FIL_PAGE_TYPE_COMPRESSED
+#define FIL_PAGE_TYPE_LAST	FIL_PAGE_TYPE_ZBLOB2
 					/*!< Last page type */
 /* @} */
 
@@ -274,17 +273,15 @@ struct fil_node_t {
 struct fil_space_t {
 	char*		name;	/*!< space name = the path to the first file in
 				it */
+	hash_node_t	name_hash;/*!< hash chain the name_hash table */
 	ulint		id;	/*!< space id */
+	hash_node_t	hash;	/*!< hash chain node */
 	ib_int64_t	tablespace_version;
 				/*!< in DISCARD/IMPORT this timestamp
 				is used to check if we should ignore
 				an insert buffer merge request for a
 				page because it actually was for the
 				previous incarnation of the space */
-	ibool		stop_ios;/*!< TRUE if we want to rename the
-				.ibd file of tablespace and want to
-				stop temporarily posting of new i/o
-				requests on the file */
 	bool		stop_new_ops;
 				/*!< we set this TRUE when we start
 				deleting a single-table tablespace.
@@ -334,8 +331,6 @@ struct fil_space_t {
 	Note that fil_node_t::n_pending tracks actual pending I/O requests.
 	Protected by fil_system->mutex. */
 	ulint		n_pending_ios;
-	hash_node_t	hash;	/*!< hash chain node */
-	hash_node_t	name_hash;/*!< hash chain the name_hash table */
 #ifndef UNIV_HOTBACKUP
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
@@ -346,9 +341,6 @@ struct fil_space_t {
 	bool		is_in_unflushed_spaces;
 				/*!< true if this space is currently in
 				unflushed_spaces */
-	bool		printed_compression_failure;
-				/*!< true if we have already printed
-				compression failure */
 	fil_space_crypt_t* crypt_data;
 				/*!< tablespace crypt data or NULL */
 	ulint		file_block_size;
@@ -851,6 +843,18 @@ fil_op_log_parse_or_replay(
 				only be parsed but not replayed */
 	ulint	log_flags);	/*!< in: redo log flags
 				(stored in the page number parameter) */
+
+/** Determine whether a table can be accessed in operations that are
+not (necessarily) protected by meta-data locks.
+(Rollback would generally be protected, but rollback of
+FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
+but only by InnoDB table locks, which may be broken by
+lock_remove_all_on_table().)
+@param[in]	table	persistent table
+checked @return whether the table is accessible */
+UNIV_INTERN bool fil_table_accessible(const dict_table_t* table)
+	MY_ATTRIBUTE((warn_unused_result, nonnull));
+
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	drop_ahi	whether to drop the adaptive hash index
@@ -1291,107 +1295,6 @@ void
 fil_delete_file(
 /*============*/
 	const char*	path);	/*!< in: filepath of the ibd tablespace */
-
-/** Callback functor. */
-struct PageCallback {
-
-	/**
-	Default constructor */
-	PageCallback()
-		:
-		m_zip_size(),
-		m_page_size(),
-		m_filepath() UNIV_NOTHROW {}
-
-	virtual ~PageCallback() UNIV_NOTHROW {}
-
-	/**
-	Called for page 0 in the tablespace file at the start.
-	@param file_size - size of the file in bytes
-	@param block - contents of the first page in the tablespace file
-	@retval DB_SUCCESS or error code.*/
-	virtual dberr_t init(
-		os_offset_t		file_size,
-		const buf_block_t*	block) UNIV_NOTHROW = 0;
-
-	/**
-	Called for every page in the tablespace. If the page was not
-	updated then its state must be set to BUF_PAGE_NOT_USED. For
-	compressed tables the page descriptor memory will be at offset:
-		block->frame + UNIV_PAGE_SIZE;
-	@param offset - physical offset within the file
-	@param block - block read from file, note it is not from the buffer pool
-	@retval DB_SUCCESS or error code. */
-	virtual dberr_t operator()(
-		os_offset_t	offset,
-		buf_block_t*	block) UNIV_NOTHROW = 0;
-
-	/**
-	Set the name of the physical file and the file handle that is used
-	to open it for the file that is being iterated over.
-	@param filename - then physical name of the tablespace file.
-	@param file - OS file handle */
-	void set_file(const char* filename, pfs_os_file_t file) UNIV_NOTHROW
-	{
-		m_file = file;
-		m_filepath = filename;
-	}
-
-	/**
-	@return the space id of the tablespace */
-	virtual ulint get_space_id() const UNIV_NOTHROW = 0;
-
-	/** The compressed page size
-	@return the compressed page size */
-	ulint get_zip_size() const
-	{
-		return(m_zip_size);
-	}
-
-	/**
-	Set the tablespace compressed table size.
-	@return DB_SUCCESS if it is valie or DB_CORRUPTION if not */
-	dberr_t set_zip_size(const buf_frame_t* page) UNIV_NOTHROW;
-
-	/** The compressed page size
-	@return the compressed page size */
-	ulint get_page_size() const
-	{
-		return(m_page_size);
-	}
-
-	/** Compressed table page size */
-	ulint			m_zip_size;
-
-	/** The tablespace page size. */
-	ulint			m_page_size;
-
-	/** File handle to the tablespace */
-	pfs_os_file_t		m_file;
-
-	/** Physical file path. */
-	const char*		m_filepath;
-
-protected:
-	// Disable copying
-	PageCallback(const PageCallback&);
-	PageCallback& operator=(const PageCallback&);
-};
-
-/********************************************************************//**
-Iterate over all the pages in the tablespace.
-@param table - the table definiton in the server
-@param n_io_buffers - number of blocks to read and write together
-@param callback - functor that will do the page updates
-@return	DB_SUCCESS or error code */
-UNIV_INTERN
-dberr_t
-fil_tablespace_iterate(
-/*===================*/
-	dict_table_t*		table,
-	ulint			n_io_buffers,
-	PageCallback&		callback)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*******************************************************************//**
 Checks if a single-table tablespace for a given table name exists in the

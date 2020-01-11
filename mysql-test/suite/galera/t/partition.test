@@ -129,7 +129,10 @@ CREATE TABLE t1 (pk INT PRIMARY KEY)
 --let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
 
 --connection node_2
-SELECT COUNT(*) = 20002 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 20002 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM t1;
 
 # LOAD-ing 20002 rows causes 3 commits to be registered
 --disable_query_log
@@ -157,7 +160,10 @@ CREATE TABLE t1 (pk INT PRIMARY KEY)
 --let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
 
 --connection node_2
-SELECT COUNT(*) = 101 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 101 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM t1;
 
 # LOAD-ing 101 rows causes 1 commit to be registered
 --disable_query_log
@@ -186,7 +192,9 @@ CREATE TABLE t1 (pk INT PRIMARY KEY)
 --let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
 
 --connection node_2
-SELECT COUNT(*) = 20002 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 20002 FROM t1;
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
 
 # LOAD-ing 20002 rows causes 1 commit to be registered
 --disable_query_log

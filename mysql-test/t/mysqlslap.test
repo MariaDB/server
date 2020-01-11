@@ -80,3 +80,11 @@ DROP DATABASE bug58090;
 
 --exec $MYSQL_SLAP --create-schema=test --init-command="CREATE TABLE t1(a INT)" --silent --concurrency=1 --iterations=1
 DROP TABLE t1;
+
+--echo #
+--echo # Bug MDEV-15789 (Upstream: #80329): MYSQLSLAP OPTIONS --AUTO-GENERATE-SQL-GUID-PRIMARY and --AUTO-GENERATE-SQL-SECONDARY-INDEXES DONT WORK
+--echo #
+
+--exec $MYSQL_SLAP --concurrency=1 --silent --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-guid-primary --create-schema=slap
+
+--exec $MYSQL_SLAP --concurrency=1 --silent --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-secondary-indexes=1 --create-schema=slap

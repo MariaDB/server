@@ -12,7 +12,7 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   This is a private header of sql-common library, containing
@@ -118,7 +118,7 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
 static inline
 longlong double_to_datetime(double nr, MYSQL_TIME *ltime, uint flags, int *cut)
 {
-  if (nr < 0 || nr > LONGLONG_MAX)
+  if (nr < 0 || nr > (double)LONGLONG_MAX)
     nr= (double)LONGLONG_MAX;
   return number_to_datetime((longlong) floor(nr),
                             (ulong)((nr-floor(nr))*TIME_SECOND_PART_FACTOR),

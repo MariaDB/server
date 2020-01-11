@@ -32,6 +32,20 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
     You should have received a copy of the GNU Affero General Public License
     along with PerconaFT.  If not, see <http://www.gnu.org/licenses/>.
+
+----------------------------------------
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
 ======= */
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
@@ -40,7 +54,12 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include <portability/toku_config.h>
 
-#if defined(__linux__) && USE_VALGRIND
+#ifdef HAVE_valgrind
+#undef USE_VALGRIND
+#define USE_VALGRIND 1
+#endif
+
+#if defined(__linux__) && defined(USE_VALGRIND) && USE_VALGRIND
 
 # include <valgrind/helgrind.h>
 # include <valgrind/drd.h>
@@ -90,8 +109,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 # define TOKU_ANNOTATE_IGNORE_WRITES_BEGIN() ((void) 0)
 # define TOKU_ANNOTATE_IGNORE_WRITES_END() ((void) 0)
 # define TOKU_VALGRIND_RESET_MUTEX_ORDERING_INFO(mutex)
+#undef RUNNING_ON_VALGRIND
 # define RUNNING_ON_VALGRIND (0U)
-
 #endif
 
 // Valgrind 3.10.1 (and previous versions).

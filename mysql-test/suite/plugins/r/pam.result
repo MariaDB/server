@@ -22,4 +22,24 @@ Now, the magic number!
 PIN: ****
 drop user test_pam;
 drop user pam_test;
+create user PAM_TEST identified via pam using 'mariadb_mtr';
+#
+# athentication is unsuccessful
+#
+Challenge input first.
+Enter: not very secret challenge
+Now, the magic number!
+PIN: ****
+set global pam_winbind_workaround=1;
+#
+# athentication is successful
+#
+Challenge input first.
+Enter: not very secret challenge
+Now, the magic number!
+PIN: ****
+select user(), current_user(), database();
+user()	current_user()	database()
+PAM_TEST@localhost	PAM_TEST@%	test
+drop user PAM_TEST;
 uninstall plugin pam;

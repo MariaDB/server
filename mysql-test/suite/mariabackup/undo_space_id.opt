@@ -1,0 +1,2 @@
+--debug=d,innodb_undo_upgrade
+--innodb_undo_tablespaces=2

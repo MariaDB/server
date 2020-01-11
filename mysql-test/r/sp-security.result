@@ -628,6 +628,29 @@ SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
 # Connection default
 DROP USER user2@localhost;
 DROP DATABASE db1;
+create user foo@local_ost;
+create user foo@`local\_ost`;
+update mysql.user set plugin='foobar' where host='local\\_ost';
+flush privileges;
+create database foodb;
+grant create routine on foodb.* to foo@local_ost;
+select user(), current_user();
+user()	current_user()
+foo@localhost	foo@local_ost
+show grants;
+Grants for foo@local_ost
+GRANT USAGE ON *.* TO 'foo'@'local_ost'
+GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'local_ost'
+create procedure fooproc() select 'i am fooproc';
+show grants;
+Grants for foo@local_ost
+GRANT USAGE ON *.* TO 'foo'@'local_ost'
+GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'local_ost'
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO 'foo'@'local_ost'
+drop user foo@local_ost;
+drop user foo@`local\_ost`;
+drop procedure fooproc;
+drop database foodb;
 #
 # Test for bug#12602983 - User without privilege on routine can discover
 # its existence by executing "select non_existing_func();" or by 

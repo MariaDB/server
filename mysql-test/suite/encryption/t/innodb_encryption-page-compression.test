@@ -81,6 +81,15 @@ select count(*) from innodb_page_compressed7 where c1 < 500000;
 select count(*) from innodb_page_compressed8 where c1 < 500000;
 select count(*) from innodb_page_compressed9 where c1 < 500000;
 
+flush tables innodb_page_compressed1, innodb_page_compressed2,
+innodb_page_compressed3, innodb_page_compressed4,
+innodb_page_compressed5, innodb_page_compressed6,
+innodb_page_compressed7, innodb_page_compressed8,
+innodb_page_compressed9 for export;
+
+unlock tables;
+
+--echo # Wait until dirty pages are compressed and encrypted
 let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_PAGE_COMPRESSED';
 --source include/wait_condition.inc
 let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_ENCRYPTED';
@@ -104,12 +113,20 @@ update innodb_page_compressed7 set c1 = c1 + 1;
 update innodb_page_compressed8 set c1 = c1 + 1;
 update innodb_page_compressed9 set c1 = c1 + 1;
 
-let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_ENCRYPTED';
---source include/wait_condition.inc
+flush tables innodb_page_compressed1, innodb_page_compressed2,
+innodb_page_compressed3, innodb_page_compressed4,
+innodb_page_compressed5, innodb_page_compressed6,
+innodb_page_compressed7, innodb_page_compressed8,
+innodb_page_compressed9 for export;
+unlock tables;
+
+--echo # Wait until dirty pages are compressed and encrypted 2
 let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_PAGE_COMPRESSED';
 --source include/wait_condition.inc
+unlock tables;
+let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_DECRYPTED';
+--source include/wait_condition.inc
 
-SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
 SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
 SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_compressed';
 SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_decompressed';

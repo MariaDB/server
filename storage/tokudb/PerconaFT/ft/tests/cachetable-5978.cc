@@ -125,13 +125,11 @@ static void *repin_one(void *UU(arg)) {
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     struct unlockers unlockers = {true, unpin_four, NULL, NULL};
     void* v1;
-    long s1;
     int r = toku_cachetable_get_and_pin_nonblocking(
         f1,
         make_blocknum(1),
         1,
         &v1,
-        &s1,
         wc,
         def_fetch,
         def_pf_req_callback,
@@ -149,13 +147,11 @@ static void *repin_two(void *UU(arg)) {
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     struct unlockers unlockers = {true, unpin_three, NULL, NULL};
     void* v1;
-    long s1;
     int r = toku_cachetable_get_and_pin_nonblocking(
         f1,
         make_blocknum(2),
         2,
         &v1,
-        &s1,
         wc,
         def_fetch,
         def_pf_req_callback,
@@ -181,20 +177,19 @@ cachetable_test (void) {
     r = toku_cachetable_openf(&f1, ct, fname1, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO); assert(r == 0);
 
     void* v1;
-    long s1;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
 
     // bring pairs 1 and 2 into memory, then unpin
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
     assert_zero(r);
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(2), 2, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(2), 2, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
     assert_zero(r);
 
 
     // now pin pairs 3 and 4
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(3), 3, &v1, &s1, wc, fetch_three, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(3), 3, &v1, wc, fetch_three, def_pf_req_callback, def_pf_callback, true, NULL);
     assert_zero(r);
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(4), 4, &v1, &s1, wc, fetch_four, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(4), 4, &v1, wc, fetch_four, def_pf_req_callback, def_pf_callback, true, NULL);
     assert_zero(r);
 
     toku_pthread_t tid1;

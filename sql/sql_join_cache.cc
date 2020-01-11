@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file
@@ -2156,7 +2156,8 @@ enum_nested_loop_state JOIN_CACHE::join_records(bool skip_last)
   }
 
 finish:
-  if (outer_join_first_inner)
+  if (outer_join_first_inner &&
+      join_tab->first_inner == join_tab->first_unmatched)
   {
     /* 
       All null complemented rows have been already generated for all

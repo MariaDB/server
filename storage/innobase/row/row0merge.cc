@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,6 +27,7 @@ Completed by Sunny Bains and Marko Makela
 #include <my_config.h>
 #include <log.h>
 #include <sql_class.h>
+#include <math.h>
 
 #include "row0merge.h"
 #include "row0ext.h"
@@ -42,14 +43,7 @@ Completed by Sunny Bains and Marko Makela
 #include "row0import.h"
 #include "handler0alter.h"
 #include "ha_prototypes.h"
-#include "math.h" /* log() */
 #include "fil0crypt.h"
-
-float my_log2f(float n)
-{
-	/* log(n) / log(2) is log2. */
-	return (float)(log((double)n) / log((double)2));
-}
 
 /* Ignore posix_fadvise() on those platforms where it does not exist */
 #if defined __WIN__
@@ -1922,6 +1916,7 @@ write_buffers:
 			UNIV_MEM_INVALID(&block[0], srv_sort_buf_size);
 
 			merge_buf[i] = row_merge_buf_empty(buf);
+			buf = merge_buf[i];
 
 			if (UNIV_LIKELY(row != NULL)) {
 				/* Try writing the record again, now
@@ -2070,8 +2065,7 @@ wait_again:
 				     false, true, false);
 
 		if (err == DB_SUCCESS) {
-			fts_update_next_doc_id(
-				0, new_table, old_table->name, max_doc_id);
+			fts_update_next_doc_id(NULL, new_table, max_doc_id);
 		}
 	}
 
@@ -2504,17 +2498,12 @@ row_merge_sort(
 	/* Record the number of merge runs we need to perform */
 	num_runs = file->offset;
 
-	/* Find the number N which 2^N is greater or equal than num_runs */
-	/* N is merge sort running count */
-	total_merge_sort_count = ceil(my_log2f(num_runs));
-	if(total_merge_sort_count <= 0) {
-		total_merge_sort_count=1;
-	}
-
 	/* If num_runs are less than 1, nothing to merge */
 	if (num_runs <= 1) {
 		DBUG_RETURN(error);
 	}
+
+	total_merge_sort_count = ceil(log2f(num_runs));
 
 	/* "run_offset" records each run's first offset number */
 	run_offset = (ulint*) mem_alloc(file->offset * sizeof(ulint));
@@ -3108,7 +3097,8 @@ row_merge_drop_indexes(
 
 	A concurrent purge will be prevented by dict_operation_lock. */
 
-	if (!locked && table->n_ref_count > 1) {
+	if (!locked && (table->n_ref_count > 1
+			|| UT_LIST_GET_FIRST(table->locks))) {
 		/* We will have to drop the indexes later, when the
 		table is guaranteed to be no longer in use.  Mark the
 		indexes as incomplete and corrupted, so that other
@@ -3339,9 +3329,17 @@ row_merge_file_create_low(
 	performance schema */
 	struct PSI_file_locker*	locker = NULL;
 	PSI_file_locker_state	state;
+	if (!path) {
+		path = mysql_tmpdir;
+	}
+	static const char label[] = "/Innodb Merge Temp File";
+	char* name = static_cast<char*>(
+		ut_malloc(strlen(path) + sizeof label));
+	strcpy(name, path);
+	strcat(name, label);
 	locker = PSI_FILE_CALL(get_thread_file_name_locker)(
 			       &state, innodb_file_temp_key, PSI_FILE_OPEN,
-			       "Innodb Merge Temp File", &locker);
+			       path ? name : label, &locker);
 	if (locker != NULL) {
 		PSI_FILE_CALL(start_file_open_wait)(locker,
 						    __FILE__,
@@ -3354,6 +3352,7 @@ row_merge_file_create_low(
 		PSI_FILE_CALL(end_file_open_wait_and_bind_to_descriptor)(
 			      locker, fd);
 	}
+	ut_free(name);
 #endif
 
 	if (fd < 0) {
@@ -3458,7 +3457,6 @@ row_merge_rename_index_to_add(
 		"WHERE TABLE_ID = :tableid AND ID = :indexid;\n"
 		"END;\n";
 
-	ut_ad(trx);
 	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 
@@ -3515,7 +3513,6 @@ row_merge_rename_index_to_drop(
 		"WHERE TABLE_ID = :tableid AND ID = :indexid;\n"
 		"END;\n";
 
-	ut_ad(trx);
 	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 
@@ -3692,7 +3689,7 @@ row_merge_create_index_graph(
 /*=========================*/
 	trx_t*		trx,		/*!< in: trx */
 	dict_table_t*	table,		/*!< in: table */
-	dict_index_t*	index)		/*!< in: index */
+	dict_index_t*&	index)		/*!< in,out: index */
 {
 	ind_node_t*	node;		/*!< Index creation node */
 	mem_heap_t*	heap;		/*!< Memory heap */
@@ -3715,6 +3712,8 @@ row_merge_create_index_graph(
 	que_run_threads(thr);
 
 	err = trx->error_state;
+
+	index = node->index;
 
 	que_graph_free((que_t*) que_node_get_parent(thr));
 
@@ -3757,20 +3756,21 @@ row_merge_create_index(
 			ifield->prefix_len);
 	}
 
+	ut_d(const dict_index_t* const index_template = index);
 	/* Add the index to SYS_INDEXES, using the index prototype. */
 	err = row_merge_create_index_graph(trx, table, index);
 
 	if (err == DB_SUCCESS) {
-
-		index = dict_table_get_index_on_name(table, index_def->name);
-
-		ut_a(index);
-
+		ut_ad(index != index_template);
 		/* Note the id of the transaction that created this
 		index, we use it to restrict readers from accessing
 		this index, to ensure read consistency. */
 		ut_ad(index->trx_id == trx->id);
 	} else {
+		ut_ad(!index || index == index_template);
+		if (index) {
+			dict_mem_index_free(index);
+		}
 		index = NULL;
 	}
 

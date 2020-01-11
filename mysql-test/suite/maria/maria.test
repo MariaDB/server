@@ -1983,6 +1983,40 @@ ALTER TABLE t1 ENABLE KEYS;
 DROP TABLE t1;
 
 --echo #
+--echo # Start of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-16534 PPC64: Unexpected error with a negative values into auto-increment columns in HEAP, MyISAM, ARIA
+--echo #
+
+CREATE TABLE t1 (
+  id TINYINT NOT NULL AUTO_INCREMENT,
+  name CHAR(30) NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=ARIA;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (name) VALUES ('dog');
+UPDATE t1 SET id=-1 WHERE id=1;
+INSERT INTO t1 (name) VALUES ('cat');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# MDEV-16682
+# Assertion `(buff[7] & 7) == HEAD_PAGE' failed.
+#
+
+CREATE TABLE t1 (pk int, i2 int) ENGINE=Aria;
+INSERT INTO t1 VALUES (1,2), (2,3),(3,4);
+DELETE FROM tt.*, t1.* USING t1 AS tt LEFT JOIN t1 ON (tt.i2 = t1.pk);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+--echo #
 --echo # BUG#47444 - --myisam_repair_threads > 1 can result in all index
 --echo #             cardinalities=1
 --echo #
@@ -2027,6 +2061,19 @@ CHECK TABLE t1;
 SET aria_repair_threads=@@global.aria_repair_threads;
 SET aria_sort_buffer_size=@@global.aria_sort_buffer_size;
 DROP TABLE t1;
+
+#
+# Check FLUSH FOR EXPORT
+#
+
+CREATE TABLE t1(a INT, b CHAR(10), KEY(a), KEY(b));
+INSERT INTO t1 VALUES(1,'0'),(2,'0'),(3,'0'),(4,'0'),(5,'0'),
+                     (6,'0'),(7,'0');
+flush tables test.t1 for export;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+insert into t1 values (8,'0');
+unlock tables;
+drop table t1;
 
 #
 # End of test

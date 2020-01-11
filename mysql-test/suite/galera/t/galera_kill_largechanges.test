@@ -4,7 +4,11 @@
 
 --source include/big_test.inc
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
 
 --connection node_1
 # Enable the master to continue running during the split-brain situation that
@@ -12,8 +16,8 @@
 --let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
 SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
 
-CREATE TABLE ten (f1 INTEGER);
-INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),(11);
 CREATE TABLE t1 (f1 VARCHAR(128)) ENGINE=InnoDB;
 
 --connection node_2
@@ -31,13 +35,16 @@ INSERT INTO t1 SELECT REPEAT('a', 128) FROM ten AS a1, ten AS a2, ten AS a3, ten
 --source include/galera_connect.inc
 --connection node_2a
 
-SELECT COUNT(*) = 1000000 FROM t1;
-SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT COUNT(*) FROM t1;
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
 --connection node_1
 --disable_query_log
 --eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_orig';
 --enable_query_log
+
+--let $node_2=node_2a
+--source include/auto_increment_offset_restore.inc
 
 DROP TABLE t1;
 DROP TABLE ten;

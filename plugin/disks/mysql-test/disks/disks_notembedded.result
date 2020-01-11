@@ -1,0 +1,15 @@
+#
+# MDEV-18328: Make DISKS plugin check some privilege to access
+# information_schema.DISKS table
+#
+CREATE USER user1@localhost;
+GRANT SELECT ON *.* TO user1@localhost;
+select sum(Total) > sum(Available), sum(Total)>sum(Used) from information_schema.disks;
+sum(Total) > sum(Available)	sum(Total)>sum(Used)
+NULL	NULL
+GRANT FILE ON *.* TO user1@localhost;
+select sum(Total) > sum(Available), sum(Total)>sum(Used) from information_schema.disks;
+sum(Total) > sum(Available)	sum(Total)>sum(Used)
+1	1
+DROP USER user1@localhost;
+# End of 10.1 tests

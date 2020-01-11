@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* This file includes all reserved words and functions */
@@ -633,7 +633,7 @@ static SYMBOL symbols[] = {
   { "UPGRADE",          SYM(UPGRADE_SYM)},
   { "USAGE",		SYM(USAGE)},
   { "USE",		SYM(USE_SYM)},
-  { "USER",		SYM(USER)},
+  { "USER",		SYM(USER_SYM)},
   { "USER_RESOURCES",	SYM(RESOURCES)},
   { "USE_FRM",		SYM(USE_FRM)},
   { "USING",		SYM(USING)},
@@ -690,7 +690,7 @@ static SYMBOL sql_functions[] = {
   { "MIN",		SYM(MIN_SYM)},
   { "NOW",		SYM(NOW_SYM)},
   { "POSITION",		SYM(POSITION_SYM)},
-  { "SESSION_USER",     SYM(USER)},
+  { "SESSION_USER",     SYM(USER_SYM)},
   { "STD",		SYM(STD_SYM)},
   { "STDDEV",		SYM(STD_SYM)},
   { "STDDEV_POP",	SYM(STD_SYM)},
@@ -700,7 +700,7 @@ static SYMBOL sql_functions[] = {
   { "SUBSTRING",	SYM(SUBSTRING)},
   { "SUM",		SYM(SUM_SYM)},
   { "SYSDATE",		SYM(SYSDATE)},
-  { "SYSTEM_USER",      SYM(USER)},
+  { "SYSTEM_USER",      SYM(USER_SYM)},
   { "TRIM",		SYM(TRIM)},
   { "VARIANCE",		SYM(VARIANCE_SYM)},
   { "VAR_POP",		SYM(VARIANCE_SYM)},

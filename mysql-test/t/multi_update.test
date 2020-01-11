@@ -371,7 +371,6 @@ drop table t1, t2;
 #
 
 connect (root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
-connection root;
 --disable_warnings
 create database mysqltest;
 --enable_warnings
@@ -382,7 +381,6 @@ create user mysqltest_1@localhost;
 grant select on mysqltest.* to mysqltest_1@localhost;
 grant update on mysqltest.t1 to mysqltest_1@localhost;
 connect (user1,localhost,mysqltest_1,,mysqltest,$MASTER_MYPORT,$MASTER_MYSOCK);
-connection user1;
 update t1, t2 set t1.b=1 where t1.a=t2.a;
 update t1, t2 set t1.b=(select t3.b from t3 where t1.a=t3.a) where t1.a=t2.a;
 connection root;
@@ -495,15 +493,12 @@ insert into t2 values (10), (20), (30);
 create view v1 as select a as b, a/10 as a from t2;
 
 connect (locker,localhost,root,,test);
-connection locker;
 lock table t1 write;
 
 connect (changer,localhost,root,,test);
-connection changer;
 send alter table t1 add column c int default 100 after a;
 
 connect (updater,localhost,root,,test);
-connection updater;
 # Wait till "alter table t1 ..." of session changer is in work.
 # = There is one session waiting.
 let $wait_condition= select count(*)= 1 from information_schema.processlist
@@ -1056,7 +1051,69 @@ deallocate prepare stmt1;
 
 drop view v3,v2,v1;
 drop table t1,t2,t3;
---echo end of 5.5 tests
+
+#
+# MDEV-18507 can't update temporary table when joined with table with triggers on read-only
+#
+create table t1 (id int not null, v1 varchar(10) not null);
+insert into t1 values (1,1),(2,2);
+create table t2 (log varchar(10) not null);
+create trigger t1_after_update after update on t1
+	for each row insert into t2 values ('triggered');
+
+create user foo;
+grant select, insert, update, delete, create, drop, reload, index, alter, show databases, create temporary tables, lock tables, execute, create view, show view, create routine, alter routine, trigger on *.* to 'foo'@'%';
+
+set global read_only=1;
+connect a, localhost, foo;
+
+create temporary table temp_t1 (id int not null, update_me varchar(10));
+insert into temp_t1 values (1,1),(2,2),(3,3);
+update temp_t1 left join t1 on temp_t1.id = t1.id set temp_t1.update_me = 'hello';
+
+connection default;
+set global read_only = 0;
+
+create table t3 (id int not null);
+insert t3 values (2);
+update t1 left join t3 on t1.id = t3.id set t1.v1 = 'hello';
+select * from t2;
+
+drop table t1,t2, t3;
+drop user foo;
+
+#
+# Another test on not-opening tables unnecessary
+#
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+insert t1 values (1,2),(3,4);
+insert t2 values (5,6),(7,8);
+create table t0 (x int);
+insert t0 values (11), (22);
+create trigger tr1 before update on t2 for each row insert t0 values (new.c);
+connect con1, localhost, root;
+lock table t0 write;
+connection default;
+update t1 join t2 on (a=c+4) set b=d;
+disconnect con1;
+drop table t1, t2, t0;
+
+#
+# MDEV-19521 Update Table Fails with Trigger and Stored Function
+#
+create table t1 (a int, b varchar(50), c varchar(50));
+insert t1 (a,b) values (1,'1'), (2,'2'), (3,'3');
+create function f1() returns varchar(50) return 'result';
+create trigger tr before update on t1 for each row set new.c = (select f1());
+create table t2 select a, b from t1;
+update t1 join t2 using (a) set t1.b = t2.b;
+drop table t1, t2;
+drop function f1;
+
+--echo #
+--echo # end of 5.5 tests
+--echo #
 
 
 --source include/have_xtradb.inc

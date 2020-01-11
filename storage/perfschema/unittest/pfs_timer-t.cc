@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <my_global.h>
 #include <my_pthread.h>
@@ -32,6 +32,8 @@ void test_timers()
   ulonglong t3_b;
   ulonglong t4_b;
   ulonglong t5_b;
+
+  my_timer_init(&sys_timer_info);
 
   init_timers();
 

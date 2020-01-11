@@ -27,8 +27,8 @@ Build-Depends: bison,
                libjemalloc-dev (>= 3.0.0~) [linux-any]
 Standards-Version: 3.8.2
 Homepage: http://mariadb.org/
-Vcs-Git: https://github.com/MariaDB/server.git
 Vcs-Browser: https://github.com/MariaDB/server/
+Vcs-Git: https://github.com/MariaDB/server.git
 
 Package: libmariadbclient18
 Architecture: any
@@ -316,7 +316,7 @@ Depends: bsdutils,
          galera-3 (>=25.3),
          gawk,
          grep,
-         iproute,
+         iproute | iproute2,
          libdbi-perl,
          lsb-base (>= 3.0-10),
          lsof,
@@ -449,5 +449,7 @@ Description: GSSAPI authentication plugin for MariaDB client
 Package: mariadb-backup-10.1
 Section: database
 Architecture: any
-Depends: libarchive12 | libarchive13
+Depends: mariadb-client-core-10.1 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Description: Backup tool for MariaDB server

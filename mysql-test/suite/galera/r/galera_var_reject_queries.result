@@ -1,0 +1,20 @@
+CREATE TABLE t1 (f1 INTEGER);
+SET SESSION wsrep_reject_queries = ALL;
+ERROR HY000: Variable 'wsrep_reject_queries' is a GLOBAL variable and should be set with SET GLOBAL
+SET GLOBAL wsrep_reject_queries = ALL;
+SELECT * FROM t1;
+ERROR 08S01: WSREP has not yet prepared node for application use
+SET GLOBAL wsrep_reject_queries = ALL_KILL;
+SELECT * FROM t1;
+Got one of the listed errors
+SELECT * FROM t1;
+ERROR 08S01: WSREP has not yet prepared node for application use
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+INSERT INTO t1 VALUES (1);
+SET GLOBAL wsrep_reject_queries = NONE;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+DROP TABLE t1;

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   These functions handle page caching for Maria tables.
@@ -2793,7 +2793,7 @@ static void check_and_set_lsn(PAGECACHE *pagecache,
   */
   DBUG_ASSERT((block->type == PAGECACHE_LSN_PAGE) || maria_in_recovery);
   old= lsn_korr(block->buffer);
-  DBUG_PRINT("info", ("old lsn: (%lu, 0x%lx)  new lsn: (%lu, 0x%lx)",
+  DBUG_PRINT("info", ("old lsn: " LSN_FMT "  new lsn: " LSN_FMT,
                       LSN_IN_PARTS(old), LSN_IN_PARTS(lsn)));
   if (cmp_translog_addr(lsn, old) > 0)
   {

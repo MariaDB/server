@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQLIMPORT\FR" "1" "14/12/2015" "MariaDB 10\&.1" "MariaDB Database System"
+.TH "\FBMYSQLIMPORT\FR" "1" "21 May 2019" "MariaDB 10\&.1" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -336,6 +336,22 @@ localhost\&.
 See the description for the
 \fB\-\-replace\fR
 option\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlimport: ignore-foreign-keys option
+.\" ignore-foreign-keys option: mysqlimport
+\fB\-\-ignore\-foreign\-keys\fR,
+\fB\-k\fR
+.sp
+Disable foreign key checks while importing the data\&.
 .RE
 .sp
 .RS 4
@@ -853,7 +869,7 @@ This documentation is free software; you can redistribute it and/or modify it on
 .PP
 This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 .PP
-You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
 For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/

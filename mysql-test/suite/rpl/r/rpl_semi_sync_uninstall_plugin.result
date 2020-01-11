@@ -25,10 +25,6 @@ select plugin_name,plugin_status from information_schema.plugins where plugin_na
 plugin_name	plugin_status
 rpl_semi_sync_slave	DELETED
 [connection master]
-show global status like "Slave%_connect%";
-Variable_name	Value
-Slave_connections	2
-Slaves_connected	1
 UNINSTALL PLUGIN rpl_semi_sync_master;
 Warnings:
 Warning	1620	Plugin is busy and will be uninstalled on shutdown

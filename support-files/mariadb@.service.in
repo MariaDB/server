@@ -1,5 +1,5 @@
 # Multi instance version of mariadb. For if you run multiple versions at once.
-# Also used for mariadb@bootstrap to bootstrap Galera.
+# Also used for mariadb@bootstrap to tell you to use galera_new_cluster.
 #
 # create config file @sysconf2dir@/my{instancename}.cnf
 #
@@ -18,7 +18,7 @@
 # Inspired from https://gitweb.gentoo.org/repo/gentoo.git/tree/dev-db/mysql-init-scripts/files/mysqld_at.service
 
 [Unit]
-Description=MariaDB @VERSION@ database server (multi-instance)
+Description=MariaDB @VERSION@ database server (multi-instance %I)
 Documentation=man:mysqld(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
@@ -140,6 +140,13 @@ UMask=007
 # If you don't use the /tmp directory for SELECT ... OUTFILE and
 # LOAD DATA INFILE you can enable PrivateTmp=true for a little more security.
 PrivateTmp=false
+
+# Set an explicit Start and Stop timeout of 900 seconds (15 minutes!)
+# this is the same value as used in SysV init scripts in the past
+# if you need a longer timeout, check the KB:
+# https://mariadb.com/kb/en/library/systemd/#configuring-the-systemd-service-timeout
+TimeoutStartSec=900
+TimeoutStopSec=900
 
 ##
 ## Options previously available to be set via [mysqld_safe]

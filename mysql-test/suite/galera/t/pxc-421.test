@@ -6,6 +6,11 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
 --connection node_1
 --let $wsrep_slave_1 = `SELECT @@wsrep_slave_threads`
 set GLOBAL wsrep_slave_threads=26;
@@ -31,9 +36,7 @@ INSERT INTO t1 VALUES (3);
 --eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig';
 --enable_query_log
 
-set SESSION wsrep_sync_wait=0;
 --source include/wait_until_connected_again.inc
---source include/galera_wait_ready.inc
 
 INSERT INTO t1 VALUES (4);
 set GLOBAL wsrep_slave_threads=5;
@@ -54,12 +57,11 @@ show global variables like 'wsrep_slave_threads';
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_2
 SELECT COUNT(*) FROM t1;
 
-SET GLOBAL auto_increment_offset = 2;
-
 --connection node_1
 SELECT COUNT(*) FROM t1;
 show global variables like 'wsrep_slave_threads';
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_1
 DROP TABLE t1;
 
-SET GLOBAL auto_increment_offset = 1;
+--source include/auto_increment_offset_restore.inc
+

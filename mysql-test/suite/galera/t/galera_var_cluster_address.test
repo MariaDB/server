@@ -24,7 +24,6 @@ SET GLOBAL wsrep_cluster_address = 'foo://';
 
 SET SESSION wsrep_sync_wait=0;
 
---error ER_UNKNOWN_COM_ERROR
 SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
 
 # Must return 'OFF'

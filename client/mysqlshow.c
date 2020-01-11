@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /* Show databases, tables or columns */
@@ -71,8 +71,7 @@ int main(int argc, char **argv)
   static char **defaults_argv;
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
-  if (load_defaults("my",load_default_groups,&argc,&argv))
-    exit(1);
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   defaults_argv=argv;
 
   get_options(&argc,&argv);

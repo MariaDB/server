@@ -68,8 +68,13 @@ select plugin_name,plugin_status from information_schema.plugins where plugin_na
 --echo [connection master]
 
 # The following is to catch errors if the next uninstall plugin would succeed
-show global status like "Slave%_connect%";
-
+let $slaves_connected_value= query_get_value(SHOW GLOBAL STATUS LIKE 'Slaves_connected', Value, 1);
+if (`SELECT $slaves_connected_value <> 1`)
+{
+  SHOW GLOBAL STATUS LIKE 'Slave_connections';
+  SHOW GLOBAL STATUS LIKE 'Slaves_connected';
+  --die *** Unexpected number of connected slaves ***
+}
 UNINSTALL PLUGIN rpl_semi_sync_master;
 select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
 

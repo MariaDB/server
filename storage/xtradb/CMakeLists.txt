@@ -1,4 +1,4 @@
-# Copyright (c) 2006, 2015, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2006, 2017, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 # This is the CMakeLists for XtraDB
 
@@ -62,9 +62,6 @@ IF(UNIX)
       LINK_LIBRARIES(${AIO_LIBRARY})
     ENDIF()
     ADD_DEFINITIONS("-DUNIV_LINUX -D_GNU_SOURCE=1")
-    IF(HAVE_LIBNUMA)
-      LINK_LIBRARIES(numa)
-    ENDIF()
   ELSEIF(CMAKE_SYSTEM_NAME MATCHES "HP*")
     ADD_DEFINITIONS("-DUNIV_HPUX")
   ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "AIX")
@@ -92,12 +89,9 @@ SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DUNIV_DEBUG -DUNIV_SYNC_DEB
 
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 
-IF(NOT MSVC)
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-class-memaccess")
 
-  CHECK_FUNCTION_EXISTS(posix_memalign HAVE_POSIX_MEMALIGN)
-  IF(HAVE_POSIX_MEMALIGN)
-    ADD_DEFINITIONS(-DHAVE_POSIX_MEMALIGN)
-  ENDIF()
+IF(NOT MSVC)
 
   # either define HAVE_IB_GCC_ATOMIC_BUILTINS or not
   # workaround for old gcc on x86, gcc atomic ops only work under -march=i686
@@ -494,8 +488,7 @@ SET(INNOBASE_SOURCES
 	ut/ut0rnd.cc
 	ut/ut0ut.cc
 	ut/ut0vec.cc
-	ut/ut0wqueue.cc
-	ut/ut0timer.cc)
+	ut/ut0wqueue.cc)
 
 IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le")
     enable_language(ASM)
@@ -505,13 +498,21 @@ IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le")
        )
 ENDIF()
 
-MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
-  DEFAULT RECOMPILE_FOR_EMBEDDED
-  LINK_LIBRARIES ${ZLIB_LIBRARY} ${LINKER_SCRIPT})
+UNSET(NUMA_LIBRARY)
+IF(HAVE_LIBNUMA)
+   SET(NUMA_LIBRARY "numa")
+ENDIF()
 
-IF(TARGET xtradb AND NOT XTRADB_OK)
-  MESSAGE(FATAL_ERROR "Percona XtraDB is not supported on this platform")
+MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
+  DEFAULT
+  RECOMPILE_FOR_EMBEDDED
+  LINK_LIBRARIES ${ZLIB_LIBRARY} ${NUMA_LIBRARY} ${LINKER_SCRIPT})
+
+IF(TARGET xtradb)
+  IF(NOT XTRADB_OK)
+    MESSAGE(FATAL_ERROR "Percona XtraDB is not supported on this platform")
+  ENDIF()
+  ADD_DEPENDENCIES(xtradb GenError)
 ENDIF()
 
 ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
-

@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 #include <mysql_version.h>                      /* FRM_VER */
@@ -203,7 +203,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 
 #define FRM_HEADER_SIZE 64
 #define FRM_FORMINFO_SIZE 288
-#define FRM_MAX_SIZE (512*1024)
+#define FRM_MAX_SIZE (1024*1024)
 
 static inline bool is_binary_frm_header(uchar *head)
 {

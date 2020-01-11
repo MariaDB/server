@@ -13,7 +13,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 # This scripts creates the MariaDB Server system tables
 #
@@ -35,9 +35,14 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
-install_params=""
+install_params="create database if not exists mysql;
+create database if not exists test;
+use mysql;"
 auth_root_authentication_method=normal
 auth_root_socket_user='root'
+
+dirname0=`dirname $0 2>/dev/null`
+dirname0=`dirname $dirname0 2>/dev/null`
 
 usage()
 {
@@ -238,8 +243,8 @@ cannot_find_file()
   echo
   echo "If you compiled from source, you need to either run 'make install' to"
   echo "copy the software into the correct location ready for operation."
-  echo "If you don't want to do a full install, you can use the --srcddir"
-  echo "option to only install the mysql database and privilege tables"
+  echo "If you don't want to do a full install, you can use the --srcdir"
+  echo "option to only install the mysql database and privilege tables."
   echo
   echo "If you are using a binary release, you must either be at the top"
   echo "level of the extracted archive, or pass the --basedir option"
@@ -268,9 +273,16 @@ then
 fi
 if test -n "$srcdir"
 then
+  # In an out-of-source build, builddir is not srcdir. Try to guess where
+  # builddir is by looking for my_print_defaults.
   if test -z "$builddir"
   then
-    builddir="$srcdir"
+    if test -x "$dirname0/extra/my_print_defaults"
+    then
+      builddir="$dirname0"
+    else
+      builddir="$srcdir"
+    fi
   fi
   print_defaults="$builddir/extra/my_print_defaults"
 elif test -n "$basedir"
@@ -281,6 +293,9 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
+elif test -n "$dirname0" -a -x "$dirname0/@bindir@/my_print_defaults"
+then
+  print_defaults="$dirname0/@bindir@/my_print_defaults"
 else
   print_defaults="@bindir@/my_print_defaults"
 fi
@@ -295,6 +310,8 @@ fi
 # in the my.cfg file, then re-run to merge with command line arguments.
 parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mysql_install_db`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
+
+rel_mysqld="$dirname0/@INSTALL_SBINDIR@/mysqld"
 
 # Configure paths to support files
 if test -n "$srcdir"
@@ -334,11 +351,20 @@ then
     cannot_find_file fill_help_tables.sql @pkgdata_locations@
     exit 1
   fi
+# relative from where the script was run for a relocatable install
+elif test -n "$dirname0" -a -x "$rel_mysqld" -a ! "$rel_mysqld" -ef "@sbindir@/mysqld"
+then
+  basedir="$dirname0"
+  bindir="$basedir/@INSTALL_BINDIR@"
+  resolveip="$bindir/resolveip"
+  mysqld="$rel_mysqld"
+  srcpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
+  buildpkgdatadir="$basedir/@INSTALL_MYSQLSHAREDIR@"
 else
   basedir="@prefix@"
   bindir="@bindir@"
   resolveip="$bindir/resolveip"
-  mysqld="@libexecdir@/mysqld"
+  mysqld="@sbindir@/mysqld"
   srcpkgdatadir="@pkgdatadir@"
   buildpkgdatadir="@pkgdatadir@"
 fi
@@ -414,7 +440,7 @@ then
 fi
 
 # Create database directories
-for dir in "$ldata" "$ldata/mysql" "$ldata/test"
+for dir in "$ldata"
 do
   if test ! -d "$dir"
   then
@@ -476,7 +502,7 @@ SET @auth_root_socket=NULL;" ;;
 SET @skip_auth_root_nopasswd=1;
 SET @auth_root_socket='$auth_root_socket_user';" ;;
 esac
-if { echo "use mysql;$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+if { echo "$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
   s_echo "OK"
 else

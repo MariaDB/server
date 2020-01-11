@@ -396,7 +396,14 @@ a
 drop table t1;
 drop function y2k;
 #
-# Start of 10.1 tests
+# MDEV-17257 Server crashes in Item::field_type_for_temporal_comparison or in get_datetime_value on SELECT with YEAR field and IN
+#
+CREATE TABLE t1 (y YEAR);
+SELECT * FROM t1 WHERE y IN ( CAST( '1993-03-26 10:14:20' AS DATE ), NULL );
+y
+DROP TABLE t1;
+#
+# End of 10.0 tests
 #
 #
 # MDEV-8741 Equal field propagation leaves some remainders after simplifying WHERE zerofill_column=2010 AND zerofill_column>=2010
@@ -435,6 +442,15 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 2010)
+DROP TABLE t1;
+#
+# MDEV-16958 Assertion `field_length < 5' failed in Field_year::val_str or data corruption upon SELECT with UNION and aggregate functions
+#
+CREATE TABLE t1 (f YEAR);
+INSERT IGNORE INTO t1 VALUES (1971),(1972);
+SELECT MAX( NULLIF( f, '1900' ) ) AS f FROM t1 UNION SELECT MAX( NULLIF( f, '1900' ) ) AS f FROM t1;
+f
+1972
 DROP TABLE t1;
 #
 # End of 10.1 tests

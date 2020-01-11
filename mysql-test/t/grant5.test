@@ -23,3 +23,13 @@ show grants for foo@'%'; # user
 drop user test, foo;
 drop role foo;
 
+#
+# MDEV-17975 Assertion `! is_set()' or `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' failed upon REVOKE under LOCK TABLE
+#
+CREATE TABLE t1 (a INT);
+LOCK TABLE t1 WRITE;
+--error ER_TABLE_NOT_LOCKED
+REVOKE EXECUTE ON PROCEDURE sp FROM u;
+--error ER_TABLE_NOT_LOCKED
+REVOKE PROCESS ON *.* FROM u;
+DROP TABLE t1;

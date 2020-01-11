@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /**
   @file
@@ -33,7 +33,17 @@
 #define MAX_SYS_VAR_LENGTH 32
 #define MAX_KEY MAX_INDEXES                     /* Max used keys */
 #define MAX_REF_PARTS 32			/* Max parts used as ref */
-#define MAX_KEY_LENGTH 3072			/* max possible key */
+
+/*
+  Maximum length of the data part of an index lookup key.
+
+  The "data part" is defined as the value itself, not including the
+  NULL-indicator bytes or varchar length bytes ("the Extras"). We need this
+  value because there was a bug where length of the Extras were not counted.
+
+  You probably need MAX_KEY_LENGTH, not this constant.
+*/
+#define MAX_DATA_LENGTH_FOR_KEY 3072
 #if SIZEOF_OFF_T > 4
 #define MAX_REFLENGTH 8				/* Max length for record ref */
 #else
@@ -124,7 +134,7 @@
 #define MAX_ACCEPT_RETRY	10	// Test accept this many times
 #define MAX_FIELDS_BEFORE_HASH	32
 #define USER_VARS_HASH_SIZE     16
-#define TABLE_OPEN_CACHE_MIN    400
+#define TABLE_OPEN_CACHE_MIN    200
 #define TABLE_OPEN_CACHE_DEFAULT 2000
 #define TABLE_DEF_CACHE_DEFAULT 400
 /**
@@ -223,6 +233,14 @@
 */
 #define HEAP_TEMPTABLE_LOOKUP_COST 0.05
 #define DISK_TEMPTABLE_LOOKUP_COST 1.0
+
+
+#define COST_MAX (DBL_MAX * (1.0 - DBL_EPSILON))
+
+#define COST_ADD(c,d) (COST_MAX - (d) > (c) ? (c) + (d) : COST_MAX)
+
+#define COST_MULT(c,f) (COST_MAX / (f) > (c) ? (c) * (f) : COST_MAX)
+
 
 #define MY_CHARSET_BIN_MB_MAXLEN 1
 

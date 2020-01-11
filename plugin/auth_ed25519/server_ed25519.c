@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <mysql/plugin_auth.h>
 #include "common.h"
@@ -101,8 +101,8 @@ maria_declare_plugin(ed25519)
   0x0100,
   NULL,
   NULL,
-  "1.0-alpha",
-  MariaDB_PLUGIN_MATURITY_BETA
+  "1.0",
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
 

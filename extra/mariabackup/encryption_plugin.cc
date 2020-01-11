@@ -67,7 +67,8 @@ void encryption_plugin_backup_init(MYSQL *mysql)
 
   /* Required  to load the plugin later.*/
   add_to_plugin_load_list(plugin_load.c_str());
-  strncpy(opt_plugin_dir, dir, FN_REFLEN);
+  strncpy(opt_plugin_dir, dir, FN_REFLEN - 1);
+  opt_plugin_dir[FN_REFLEN - 1] = '\0';
 
   oss << "plugin_dir=" << '"' << dir << '"' << endl;
 
@@ -133,7 +134,10 @@ void encryption_plugin_prepare_init(int argc, char **argv)
   add_to_plugin_load_list(xb_plugin_load);
 
   if (xb_plugin_dir)
-    strncpy(opt_plugin_dir, xb_plugin_dir, FN_REFLEN);
+  {
+    strncpy(opt_plugin_dir, xb_plugin_dir, FN_REFLEN - 1);
+    opt_plugin_dir[FN_REFLEN - 1] = '\0';
+  }
 
   char **new_argv = new char *[argc + 1];
   new_argv[0] = XTRABACKUP_EXE;

@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_COMPILER_IS_GNUCXX
   AND CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -45,6 +45,10 @@ MACRO(CHECK_DTRACE)
      AND NOT BUGGY_LINUX_DTRACE
      AND NOT CMAKE_SYSTEM_NAME MATCHES "SunOS")
    SET(ENABLE_DTRACE ON CACHE BOOL "Enable dtrace")
+ ENDIF()
+ # On GNU/Hurd, dtrace is not supported
+ IF(DTRACE AND CMAKE_SYSTEM_NAME MATCHES "GNU")
+   SET(ENABLE_DTRACE OFF CACHE BOOL "Disable dtrace")
  ENDIF()
  SET(HAVE_DTRACE ${ENABLE_DTRACE})
  IF(CMAKE_SYSTEM_NAME MATCHES "SunOS")

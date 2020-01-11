@@ -276,15 +276,14 @@ DROP VIEW  IF EXISTS v1;
 #
 # Test 1: LOCK TABLES v1 WRITE, t1 READ;
 #
-# Thanks to the fact that we no longer allow DDL on tables
-# which are locked for write implicitly, the exact scenario
-# in which assert was failing is no longer repeatable.
 CREATE TABLE t1 ( f1 integer );
 CREATE VIEW v1 AS SELECT f1 FROM t1 ;
+# Connection 2
 LOCK TABLES v1 WRITE, t1 READ;
 FLUSH TABLE t1;
-ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
-UNLOCK TABLES;
+# Connection 1
+LOCK TABLES t1 WRITE;
+FLUSH TABLE t1;
 DROP TABLE t1;
 DROP VIEW v1;
 #

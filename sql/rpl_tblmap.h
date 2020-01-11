@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef TABLE_MAPPING_H
 #define TABLE_MAPPING_H
@@ -70,10 +70,10 @@ public:
   table_mapping();
   ~table_mapping();
 
-  TABLE* get_table(ulong table_id);
+  TABLE* get_table(ulonglong table_id);
 
-  int       set_table(ulong table_id, TABLE* table);
-  int       remove_table(ulong table_id);
+  int       set_table(ulonglong table_id, TABLE* table);
+  int       remove_table(ulonglong table_id);
   void      clear_tables();
   ulong     count() const { return m_table_ids.records; }
 
@@ -83,14 +83,14 @@ private:
     it, which only works for PODs)
   */
   struct entry { 
-    ulong table_id;
+    ulonglong table_id;
     union {
       TABLE *table;
       entry *next;
     };
   };
 
-  entry *find_entry(ulong table_id)
+  entry *find_entry(ulonglong table_id)
   {
     return (entry *) my_hash_search(&m_table_ids,
                                     (uchar*)&table_id,

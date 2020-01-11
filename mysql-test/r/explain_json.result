@@ -1030,10 +1030,10 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Table is already up to date
 explain select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	idx_t1_2	147	NULL	128	Using where; Using index
+1	SIMPLE	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
 explain select count(distinct a1,a2,b,c) from t1 where (a2 >= 'b') and (b = 'a') and (c = 'i121');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
+1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	65	Using where; Using index for group-by (scanning)
 explain format=json select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 EXPLAIN
 {
@@ -1041,14 +1041,14 @@ EXPLAIN
     "select_id": 1,
     "table": {
       "table_name": "t1",
-      "access_type": "index",
-      "key": "idx_t1_2",
+      "access_type": "range",
+      "key": "idx_t1_1",
       "key_length": "147",
       "used_key_parts": ["a1", "a2", "b"],
-      "rows": 128,
+      "rows": 17,
       "filtered": 100,
       "attached_condition": "((t1.b = 'a') and (t1.a2 >= 'b'))",
-      "using_index": true
+      "using_index_for_group_by": true
     }
   }
 }
@@ -1059,14 +1059,14 @@ EXPLAIN
     "select_id": 1,
     "table": {
       "table_name": "t1",
-      "access_type": "index",
+      "access_type": "range",
       "key": "idx_t1_1",
       "key_length": "163",
       "used_key_parts": ["a1", "a2", "b", "c"],
-      "rows": 128,
+      "rows": 65,
       "filtered": 100,
       "attached_condition": "((t1.b = 'a') and (t1.c = 'i121') and (t1.a2 >= 'b'))",
-      "using_index": true
+      "using_index_for_group_by": "scanning"
     }
   }
 }

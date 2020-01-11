@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -74,10 +74,14 @@ struct lock_t {
 					lock */
 	dict_index_t*	index;		/*!< index for a record lock */
 
-	/* Statistics for how long lock has been held and time
-	how long this lock had to be waited before it was granted */
-	time_t		requested_time; /*!< Lock request time */
-	ulint		wait_time;	/*!< Time waited this lock or 0 */
+	/** time(NULL) of the lock request creation.
+	Used for computing wait_time and diagnostics only.
+	Note: bogus durations may be reported
+	when the system time is adjusted! */
+	time_t		requested_time;
+	/** Cumulated wait time in seconds.
+	Note: may be bogus when the system time is adjusted! */
+	ulint		wait_time;
 
 	union {
 		lock_table_t	tab_lock;/*!< table lock */

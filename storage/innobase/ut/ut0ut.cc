@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -43,142 +44,6 @@ Created 5/11/1994 Heikki Tuuri
 # include "ha_prototypes.h"
 # include "mysql_com.h" /* NAME_LEN */
 # include <string>
-#endif /* UNIV_HOTBACKUP */
-
-#ifdef __WIN__
-typedef VOID(WINAPI *time_fn)(LPFILETIME);
-static time_fn ut_get_system_time_as_file_time = GetSystemTimeAsFileTime;
-
-/*****************************************************************//**
-NOTE: The Windows epoch starts from 1601/01/01 whereas the Unix
-epoch starts from 1970/1/1. For selection of constant see:
-http://support.microsoft.com/kb/167296/ */
-#define WIN_TO_UNIX_DELTA_USEC  ((ib_int64_t) 11644473600000000ULL)
-
-
-/*****************************************************************//**
-This is the Windows version of gettimeofday(2).
-@return	0 if all OK else -1 */
-static
-int
-ut_gettimeofday(
-/*============*/
-	struct timeval*	tv,	/*!< out: Values are relative to Unix epoch */
-	void*		tz)	/*!< in: not used */
-{
-	FILETIME	ft;
-	ib_int64_t	tm;
-
-	if (!tv) {
-		errno = EINVAL;
-		return(-1);
-	}
-
-	ut_get_system_time_as_file_time(&ft);
-
-	tm = (ib_int64_t) ft.dwHighDateTime << 32;
-	tm |= ft.dwLowDateTime;
-
-	ut_a(tm >= 0);	/* If tm wraps over to negative, the quotient / 10
-			does not work */
-
-	tm /= 10;	/* Convert from 100 nsec periods to usec */
-
-	/* If we don't convert to the Unix epoch the value for
-	struct timeval::tv_sec will overflow.*/
-	tm -= WIN_TO_UNIX_DELTA_USEC;
-
-	tv->tv_sec  = (long) (tm / 1000000L);
-	tv->tv_usec = (long) (tm % 1000000L);
-
-	return(0);
-}
-#else
-/** An alias for gettimeofday(2).  On Microsoft Windows, we have to
-reimplement this function. */
-#define	ut_gettimeofday		gettimeofday
-#endif
-
-/**********************************************************//**
-Returns system time. We do not specify the format of the time returned:
-the only way to manipulate it is to use the function ut_difftime.
-@return	system time */
-UNIV_INTERN
-ib_time_t
-ut_time(void)
-/*=========*/
-{
-	return(time(NULL));
-}
-
-#ifndef UNIV_HOTBACKUP
-/**********************************************************//**
-Returns system time.
-Upon successful completion, the value 0 is returned; otherwise the
-value -1 is returned and the global variable errno is set to indicate the
-error.
-@return	0 on success, -1 otherwise */
-UNIV_INTERN
-int
-ut_usectime(
-/*========*/
-	ulint*	sec,	/*!< out: seconds since the Epoch */
-	ulint*	ms)	/*!< out: microseconds since the Epoch+*sec */
-{
-	struct timeval	tv;
-	int		ret;
-	int		errno_gettimeofday;
-	int		i;
-
-	for (i = 0; i < 10; i++) {
-
-		ret = ut_gettimeofday(&tv, NULL);
-
-		if (ret == -1) {
-			errno_gettimeofday = errno;
-			ut_print_timestamp(stderr);
-			fprintf(stderr, "  InnoDB: gettimeofday(): %s\n",
-				strerror(errno_gettimeofday));
-			os_thread_sleep(100000);  /* 0.1 sec */
-			errno = errno_gettimeofday;
-		} else {
-			break;
-		}
-	}
-
-	if (ret != -1) {
-		*sec = (ulint) tv.tv_sec;
-		*ms  = (ulint) tv.tv_usec;
-	}
-
-	return(ret);
-}
-
-/**********************************************************//**
-Returns the number of microseconds since epoch. Similar to
-time(3), the return value is also stored in *tloc, provided
-that tloc is non-NULL.
-@return	us since epoch */
-UNIV_INTERN
-ullint
-ut_time_us(
-/*=======*/
-	ullint*	tloc)	/*!< out: us since epoch, if non-NULL */
-{
-	struct timeval	tv;
-	ullint		us;
-
-	ut_gettimeofday(&tv, NULL);
-
-	us = (ullint) tv.tv_sec * 1000000 + tv.tv_usec;
-
-	if (tloc != NULL) {
-		*tloc = us;
-	}
-
-	return(us);
-}
-
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
 value may wrap around.  It should only be used for heuristic
@@ -189,27 +54,9 @@ ulint
 ut_time_ms(void)
 /*============*/
 {
-	struct timeval	tv;
-
-	ut_gettimeofday(&tv, NULL);
-
-	return((ulint) tv.tv_sec * 1000 + tv.tv_usec / 1000);
+	return static_cast<ulint>(my_interval_timer() / 1000000);
 }
 #endif /* !UNIV_HOTBACKUP */
-
-/**********************************************************//**
-Returns the difference of two times in seconds.
-@return	time2 - time1 expressed in seconds */
-UNIV_INTERN
-double
-ut_difftime(
-/*========*/
-	ib_time_t	time2,	/*!< in: time */
-	ib_time_t	time1)	/*!< in: time */
-{
-	return(difftime(time2, time1));
-}
-
 #endif /* !UNIV_INNOCHECKSUM */
 
 /**********************************************************//**
@@ -350,43 +197,6 @@ ut_sprintf_timestamp_without_extra_chars(
 		cal_tm_ptr->tm_hour,
 		cal_tm_ptr->tm_min,
 		cal_tm_ptr->tm_sec);
-#endif
-}
-
-/**********************************************************//**
-Returns current year, month, day. */
-UNIV_INTERN
-void
-ut_get_year_month_day(
-/*==================*/
-	ulint*	year,	/*!< out: current year */
-	ulint*	month,	/*!< out: month */
-	ulint*	day)	/*!< out: day */
-{
-#ifdef __WIN__
-	SYSTEMTIME cal_tm;
-
-	GetLocalTime(&cal_tm);
-
-	*year = (ulint) cal_tm.wYear;
-	*month = (ulint) cal_tm.wMonth;
-	*day = (ulint) cal_tm.wDay;
-#else
-	struct tm* cal_tm_ptr;
-	time_t	   tm;
-
-#ifdef HAVE_LOCALTIME_R
-	struct tm  cal_tm;
-	time(&tm);
-	localtime_r(&tm, &cal_tm);
-	cal_tm_ptr = &cal_tm;
-#else
-	time(&tm);
-	cal_tm_ptr = localtime(&tm);
-#endif
-	*year = (ulint) cal_tm_ptr->tm_year + 1900;
-	*month = (ulint) cal_tm_ptr->tm_mon + 1;
-	*day = (ulint) cal_tm_ptr->tm_mday;
 #endif
 }
 #endif /* UNIV_HOTBACKUP */

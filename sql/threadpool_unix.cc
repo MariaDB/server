@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <my_global.h>
 #include <violite.h>
@@ -1176,7 +1176,7 @@ void wait_begin(thread_group_t *thread_group)
   DBUG_ASSERT(thread_group->connection_count > 0);
  
   if ((thread_group->active_thread_count == 0) && 
-     (thread_group->queue.is_empty() || !thread_group->listener))
+     (!thread_group->queue.is_empty() || !thread_group->listener))
   {
     /* 
       Group might stall while this thread waits, thus wake 

@@ -1,0 +1,12 @@
+#
+# Bug#28867993: POSSIBLE ISSUE WITH MYSQL SERVER RESTART
+#
+
+source include/have_innodb.inc;
+create table t1 (a int) engine=innodb;
+insert t1 values (1),(2);
+create database ib_logfile2;
+source include/restart_mysqld.inc;
+select * from t1;
+drop table t1;
+drop database ib_logfile2;

@@ -285,3 +285,13 @@ create database mysqltest1;
 create procedure mysqltest1.foo() select "foo";
 update mysql.proc set name='' where db='mysqltest1';
 drop database mysqltest1;
+
+#
+# BUG#26881798: SERVER EXITS WHEN PRIMARY KEY IN MYSQL.PROC IS DROPPED
+#
+create procedure p1() set @foo = 10;
+alter table mysql.proc drop primary key;
+--error ER_CANNOT_LOAD_FROM_TABLE_V2
+drop procedure p1;
+alter table mysql.proc add primary key (db,name,type);
+drop procedure p1;

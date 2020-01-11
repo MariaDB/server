@@ -60,7 +60,7 @@ CONTENTS:
 Wsrep API developed by Codership Oy is a modern generic (database-agnostic)
 replication API for transactional databases with a goal to make database
 replication/logging subsystem completely modular and pluggable. It is developed
-with flexibility and completeness in mind to satisfy broad range of modern
+with flexibility and completeness in mind to satisfy a broad range of modern
 replication scenarios. It is equally suitable for synchronous and asynchronous,
 master-slave and multi-master replication.
 
@@ -87,7 +87,7 @@ Upgrade from mysql-server-5.0 to mysql-wsrep is not supported yet, please
 upgrade to mysql-server-5.1 first.
 
 If you're installing over an existing mysql installation, mysql-server-wsrep
-will conflict with mysql-server-5.1 package, so remove it first:
+will conflict with the mysql-server-5.1 package, so remove it first:
 
 $ sudo apt-get remove mysql-server-5.1 mysql-server-core-5.1
 
@@ -105,7 +105,7 @@ For example, installation of required packages on Debian Lenny:
 $ sudo apt-get install psmisc
 $ sudo apt-get -t lenny-backports install mysql-client-5.1
 
-Now you should be able to install mysql-wsrep package:
+Now you should be able to install the mysql-wsrep package:
 
 $ sudo dpkg -i <mysql-server-wsrep DEB>
 
@@ -150,7 +150,7 @@ and can be ignored unless specific functionality is needed.
 3. FIRST TIME SETUP
 
 Unless you're upgrading an already installed mysql-wsrep package, you will need
-to set up a few things to prepare server for operation.
+to set up a few things to prepare the server for operation.
 
 3.1 CONFIGURATION FILES
 
@@ -162,7 +162,7 @@ to set up a few things to prepare server for operation.
 * Make sure system-wide my.cnf contains "!includedir /etc/mysql/conf.d/" line.
 
 * Edit /etc/mysql/conf.d/wsrep.cnf and set wsrep_provider option by specifying
-  a path to provider library. If you don't have a provider, leave it as it is.
+  a path to the provider library. If you don't have a provider, leave it as it is.
 
 * When a new node joins the cluster it'll have to receive a state snapshot from
   one of the peers. This requires a privileged MySQL account with access from
@@ -267,10 +267,7 @@ innodb_autoinc_lock_mode=2
    This is a required parameter. Without it INSERTs into tables with
    AUTO_INCREMENT column may fail.
    autoinc lock modes 0 and 1 can cause unresolved deadlock, and make
-   system unresponsive.
-
-innodb_locks_unsafe_for_binlog=1
-   This option is required for parallel applying.
+   the system unresponsive.
 
 5.2 WSREP OPTIONS
 
@@ -299,14 +296,14 @@ wsrep_node_address=
    results (multiple network interfaces, NAT, etc.)
    If not explicitly overridden by wsrep_sst_receive_address, the <address> part
    will be used to listen for SST (see below). And the whole <address>[:port]
-   will be passed to wsrep provider to be used as a base address in its
+   will be passed to the wsrep provider to be used as a base address in its
    communications.
 
 wsrep_node_name=
    Human readable node name (for easier log reading only). Defaults to hostname.
 
 wsrep_slave_threads=1
-   Number of threads dedicated to processing of writesets from other nodes.
+   The number of threads dedicated to the processing of writesets from other nodes.
    For best performance should be few per CPU core.
 
 wsrep_dbug_option
@@ -326,7 +323,7 @@ wsrep_convert_LOCK_to_trx=0
 wsrep_retry_autocommit=1
    Retry autocommit queries and single statement transactions should they fail
    certification test. This is analogous to rescheduling an autocommit query
-   should it go into deadlock with other transactions in the database lock
+   should it go into a deadlock with other transactions in the database lock
    manager.
 
 wsrep_auto_increment_control=1
@@ -357,7 +354,7 @@ wsrep_OSU_method=TOI
    is not replicating and may be unable to process replication events (due to
    table lock). Once DDL operation is complete, the node will catch up and sync
    with the cluster to become fully operational again. The DDL statement or
-   its effects are not replicated, so it is user's responsibility to manually
+   its effects are not replicated, so it is the user's responsibility to manually
    perform this operation on each of the nodes.
 
 wsrep_forced_binlog_format=none
@@ -366,7 +363,7 @@ wsrep_forced_binlog_format=none
    format, regardless of what the client session has specified in binlog_format.
    Valid choices for wsrep_forced_binlog_format are: ROW, STATEMENT, MIXED and
    special value NONE, meaning that there is no forced binlog format in effect.
-   This variable was intruduced to support STATEMENT format replication during
+   This variable was introduced to support STATEMENT format replication during
    rolling schema upgrade processing. However, in most cases ROW replication 
    is valid for asymmetrict schema replication.
 
@@ -412,8 +409,8 @@ wsrep_sst_auth=
 
 wsrep_sst_donor=
    A name of the node which should serve as state snapshot donor. This allows
-   to control which node will serve state snapshot request. By default the
-   most suitable node is chosen by wsrep provider. This is the same as given in
+   controlling which node will serve the state snapshot request. By default the
+   most suitable node is chosen by the wsrep provider. This is the same as given in
    wsrep_node_name.
 
 
@@ -423,7 +420,7 @@ wsrep_sst_donor=
    for the database. They change the database structure and are non-
    transactional.
 
-   Release 22.3 brings a new method for performing schema upgrades. User can
+   Release 22.3 brings a new method for performing schema upgrades. A user can
    now choose whether to use the traditional total order isolation or new
    rolling schema upgrade method. The OSU method choice is done by global
    parameter: 'wsrep_OSU_method'.
@@ -439,7 +436,7 @@ wsrep_sst_donor=
 
 6.2 Rolling Schema Upgrade (RSU)
 
-   Rolling schema upgrade is new DDL processing method, where DDL will be
+   Rolling schema upgrade is a new DDL processing method, where DDL will be
    processed locally for the node. The node is disconnected of the replication
    for the duration of the DDL processing, so that there is only DDL statement
    processing in the node and it does not block the rest of the cluster. When
@@ -468,7 +465,7 @@ wsrep_sst_donor=
     * LOCK/UNLOCK TABLES cannot be supported in multi-master setups.
     * lock functions (GET_LOCK(), RELEASE_LOCK()... )
 
-4) Query log cannot be directed to table. If you enable query logging,
+4) Query log cannot be directed to a table. If you enable query logging,
    you must forward the log to a file:
        log_output = FILE
    Use general_log and general_log_file to choose query logging and the 
@@ -480,7 +477,7 @@ wsrep_sst_donor=
 6) Due to cluster level optimistic concurrency control, transaction issuing
    COMMIT may still be aborted at that stage. There can be two transactions.
    writing to same rows and committing in separate cluster nodes, and only one
-   of the them can successfully commit. The failing one will be aborted.
+   of them can successfully commit. The failing one will be aborted.
    For cluster level aborts, MySQL/galera cluster gives back deadlock error.
    code (Error: 1213 SQLSTATE: 40001  (ER_LOCK_DEADLOCK)).
 

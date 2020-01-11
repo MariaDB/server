@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -418,7 +418,7 @@ innobase_get_table_cache_size(void);
 ulong
 thd_flush_log_at_trx_commit(
 /*================================*/
-	void*	thd);
+	THD*	thd);
 
 /**********************************************************************//**
 Get the current setting of the lower_case_table_names global parameter from

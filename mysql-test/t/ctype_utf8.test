@@ -1881,6 +1881,13 @@ SELECT * FROM v1;
 DROP VIEW v1;
 
 
+#
+# MDEV-13118 Wrong results with LOWER and UPPER and subquery
+#
+SET NAMES utf8;
+--source include/ctype_mdev13118.inc
+
+
 --echo #
 --echo # End of 10.0 tests
 --echo #
@@ -2022,6 +2029,16 @@ SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
 SET sql_mode=default;
 SELECT CONVERT(_utf8 0xC499 USING latin1);
 SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
+
+
+--echo #
+--echo # MDEV-15005 ASAN: stack-buffer-overflow in my_strnncollsp_simple
+--echo #
+
+SET NAMES utf8;
+SELECT CONVERT(1, CHAR) IN ('100', 10, '101');
+SELECT CONVERT(1, CHAR) IN ('100', 10, '1');
+SELECT CONVERT(1, CHAR) IN ('100', '10', '1');
 
 
 --echo #

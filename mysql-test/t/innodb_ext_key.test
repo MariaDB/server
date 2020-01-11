@@ -726,6 +726,7 @@ if ($rows < 2)
 drop table t0,t1;
 
 --echo # 
+--echo # 
 --echo # MDEV-10360: Extended keys: index properties depend on index order
 --echo # 
 create table t0 (a int);

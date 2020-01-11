@@ -1,6 +1,7 @@
 #!/bin/bash
 #
 # Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+# Copyright (c) 2017, 2019, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License along with
 # this program; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 #
 # generate lexer files from flex input files.
 
@@ -31,6 +32,7 @@ echo '#include "univ.i"' > $OUTFILE
 # a warning on Win64.  Add the cast.  Also define some symbols as static.
 sed -e '
 s/'"$TMPFILE"'/'"$OUTFILE"'/;
+s/^void  *yyset_extra *( *YY_EXTRA_TYPE  *user_defined *) *;//
 s/\(int offset = \)\((yy_c_buf_p) - (yytext_ptr)\);/\1(int)(\2);/;
 s/\(void yy\(restart\|_\(delete\|flush\)_buffer\)\)/static \1/;
 s/\(void yy_switch_to_buffer\)/MY_ATTRIBUTE((unused)) static \1/;
@@ -38,11 +40,12 @@ s/\(void yy\(push\|pop\)_buffer_state\)/MY_ATTRIBUTE((unused)) static \1/;
 s/\(YY_BUFFER_STATE yy_create_buffer\)/static \1/;
 s/\(\(int\|void\) yy[gs]et_\)/MY_ATTRIBUTE((unused)) static \1/;
 s/\(void \*\?yy\(\(re\)\?alloc\|free\)\)/static \1/;
-s/\(extern \)\?\(int yy\(leng\|lineno\|_flex_debug\)\)/static \2/;
+s/extern int yy\(leng\|_flex_debug\|lineno\);//;
+s/\(int yy\(leng\|lineno\|_flex_debug\)\)/static \1/;
 s/\(int yylex_destroy\)/MY_ATTRIBUTE((unused)) static \1/;
-s/\(extern \)\?\(int yylex \)/UNIV_INTERN \2/;
 s/^\(\(FILE\|char\) *\* *yyget\)/MY_ATTRIBUTE((unused)) static \1/;
-s/^\(extern \)\?\(\(FILE\|char\) *\* *yy\)/static \2/;
+s/^extern \(\(FILE\|char\) *\* *yy\).*//;
+s/^\(FILE\|char\) *\* *yy/static &/;
 ' < $TMPFILE >> $OUTFILE
 
 rm $TMPFILE

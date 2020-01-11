@@ -66,8 +66,13 @@ connect (fail_con,localhost,test,zorro,test2);
 connect (fail_con,localhost,test,zorro,);
 
 # check if old password version also works
+select user,host,password,plugin,authentication_string from mysql.user where user='test';
 update mysql.user set password=old_password("gambling2") where user=_binary"test";
 flush privileges;
+show grants for test@localhost;
+update mysql.user set plugin='mysql_old_password' where user='test';
+flush privileges;
+show grants for test@localhost;
 
 connect (con10,localhost,test,gambling2,);
 connect (con5,localhost,test,gambling2,mysql);
@@ -143,8 +148,17 @@ GRANT USAGE ON *.* TO mysqltest_u1@localhost;
 
 --echo
 let $saved_max_connections = `SELECT @@global.max_connections`;
-SET GLOBAL max_connections = 3;
+SET GLOBAL max_connections = 10;
 SET GLOBAL event_scheduler = ON;
+
+connect (tmp_con1,localhost,mysqltest_u1,,);
+connect (tmp_con2,localhost,mysqltest_u1,,);
+connect (tmp_con3,localhost,mysqltest_u1,,);
+connect (tmp_con4,localhost,mysqltest_u1,,);
+connect (tmp_con5,localhost,mysqltest_u1,,);
+connect (tmp_con6,localhost,mysqltest_u1,,);
+connect (tmp_con7,localhost,mysqltest_u1,,);
+connection default;
 
 --echo
 --echo # -- Waiting for Event Scheduler to start...
@@ -230,6 +244,13 @@ let $wait_condition =
 --disconnect con_2
 --disconnect con_3
 --disconnect con_super_1
+--disconnect tmp_con1
+--disconnect tmp_con2
+--disconnect tmp_con3
+--disconnect tmp_con4
+--disconnect tmp_con5
+--disconnect tmp_con6
+--disconnect tmp_con7
 
 --echo
 --echo # -- Restoring default connection...
@@ -237,11 +258,8 @@ let $wait_condition =
 
 --echo
 --echo # -- Waiting for connections to close...
-let $wait_condition =
-  SELECT COUNT(*) = 1
-  FROM information_schema.processlist
-  WHERE db = 'test';
---source include/wait_condition.inc
+let $count_sessions=1;
+--source include/wait_until_count_sessions.inc
 
 --echo
 DROP USER mysqltest_u1@localhost;

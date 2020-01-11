@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* Read a record from a random position */
 
@@ -37,7 +37,7 @@ int heap_rrnd(register HP_INFO *info, uchar *record, uchar *pos)
     info->update= 0;
     DBUG_RETURN(my_errno= HA_ERR_END_OF_FILE);
   }
-  if (!info->current_ptr[share->reclength])
+  if (!info->current_ptr[share->visible])
   {
     info->update= HA_STATE_PREV_FOUND | HA_STATE_NEXT_FOUND;
     DBUG_RETURN(my_errno=HA_ERR_RECORD_DELETED);

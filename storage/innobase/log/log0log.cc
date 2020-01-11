@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -39,7 +39,7 @@ Created 12/9/1995 Heikki Tuuri
 
 #ifndef UNIV_HOTBACKUP
 #if MYSQL_VERSION_ID < 100200
-# include <my_systemd.h> /* sd_notifyf() */
+# include <my_service_manager.h>
 #endif
 
 #include "mem0mem.h"
@@ -1197,7 +1197,6 @@ log_io_complete(
 
 	group->n_pending_writes--;
 	log_sys->n_pending_writes--;
-	MONITOR_DEC(MONITOR_PENDING_LOG_WRITE);
 
 	unlock = log_group_check_flush_completion(group);
 	unlock = unlock | log_sys_check_flush_completion();
@@ -1245,8 +1244,6 @@ log_group_file_header_flush(
 #endif /* UNIV_DEBUG */
 	if (log_do_write) {
 		log_sys->n_log_ios++;
-
-		MONITOR_INC(MONITOR_LOG_IO);
 
 		srv_stats.os_log_pending_writes.inc();
 
@@ -1372,8 +1369,6 @@ loop:
 
 	if (log_do_write) {
 		log_sys->n_log_ios++;
-
-		MONITOR_INC(MONITOR_LOG_IO);
 
 		srv_stats.os_log_pending_writes.inc();
 
@@ -1514,7 +1509,6 @@ loop:
 	}
 #endif /* UNIV_DEBUG */
 	log_sys->n_pending_writes++;
-	MONITOR_INC(MONITOR_PENDING_LOG_WRITE);
 
 	group = UT_LIST_GET_FIRST(log_sys->log_groups);
 	group->n_pending_writes++;	/*!< We assume here that we have only
@@ -1554,6 +1548,13 @@ loop:
 
 	log_sys->buf_free += OS_FILE_LOG_BLOCK_SIZE;
 	log_sys->write_end_offset = log_sys->buf_free;
+
+	if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE)) {
+		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+					       "InnoDB log write: "
+					       LSN_PF "," LSN_PF,
+					       log_sys->write_lsn, lsn);
+	}
 
 	group = UT_LIST_GET_FIRST(log_sys->log_groups);
 
@@ -1597,7 +1598,6 @@ loop:
 
 	group->n_pending_writes--;
 	log_sys->n_pending_writes--;
-	MONITOR_DEC(MONITOR_PENDING_LOG_WRITE);
 
 	unlock = log_group_check_flush_completion(group);
 	unlock = unlock | log_sys_check_flush_completion();
@@ -1781,7 +1781,6 @@ log_io_complete_checkpoint(void)
 	ut_ad(log_sys->n_pending_checkpoint_writes > 0);
 
 	log_sys->n_pending_checkpoint_writes--;
-	MONITOR_DEC(MONITOR_PENDING_CHECKPOINT_WRITE);
 
 	if (log_sys->n_pending_checkpoint_writes == 0) {
 		log_complete_checkpoint();
@@ -1929,11 +1928,8 @@ log_group_checkpoint(
 		}
 
 		log_sys->n_pending_checkpoint_writes++;
-		MONITOR_INC(MONITOR_PENDING_CHECKPOINT_WRITE);
 
 		log_sys->n_log_ios++;
-
-		MONITOR_INC(MONITOR_LOG_IO);
 
 		/* We send as the last parameter the group machine address
 		added with 1, as we want to distinguish between a normal log
@@ -2020,8 +2016,6 @@ log_group_read_checkpoint_info(
 	ut_ad(mutex_own(&(log_sys->mutex)));
 
 	log_sys->n_log_ios++;
-
-	MONITOR_INC(MONITOR_LOG_IO);
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, group->space_id, 0,
 	       field / UNIV_PAGE_SIZE, field % UNIV_PAGE_SIZE,
@@ -2318,8 +2312,6 @@ loop:
 
 	log_sys->n_log_ios++;
 
-	MONITOR_INC(MONITOR_LOG_IO);
-
 	ut_a(source_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, sync, group->space_id, 0,
@@ -2348,11 +2340,12 @@ loop:
 	start_lsn += len;
 	buf += len;
 
-	if (recv_sys->report(ut_time())) {
+	if (recv_sys->report(time(NULL))) {
 		ib_logf(IB_LOG_LEVEL_INFO, "Read redo log up to LSN=" LSN_PF,
 			start_lsn);
-		sd_notifyf(0, "STATUS=Read redo log up to LSN=" LSN_PF,
-			   start_lsn);
+		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"Read redo log up to LSN=" LSN_PF,
+			start_lsn);
 	}
 
 	if (start_lsn != end_lsn) {
@@ -2409,8 +2402,6 @@ log_group_archive_file_header_write(
 
 	log_sys->n_log_ios++;
 
-	MONITOR_INC(MONITOR_LOG_IO);
-
 	fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->archive_space_id,
 	       dest_offset / UNIV_PAGE_SIZE,
 	       dest_offset % UNIV_PAGE_SIZE,
@@ -2443,8 +2434,6 @@ log_group_archive_completed_header_write(
 	dest_offset = nth_file * group->file_size + LOG_FILE_ARCH_COMPLETED;
 
 	log_sys->n_log_ios++;
-
-	MONITOR_INC(MONITOR_LOG_IO);
 
 	fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->archive_space_id,
 	       dest_offset / UNIV_PAGE_SIZE,
@@ -2572,8 +2561,6 @@ loop:
 	log_sys->n_pending_archive_ios++;
 
 	log_sys->n_log_ios++;
-
-	MONITOR_INC(MONITOR_LOG_IO);
 
 	//TODO (jonaso): This must be dead code??
 	log_encrypt_before_write(log_sys->next_checkpoint_no,
@@ -3237,7 +3224,9 @@ loop:
 		os_event_set(lock_sys->timeout_event);
 		os_event_set(dict_stats_event);
 	}
-	os_thread_sleep(100000);
+#define COUNT_INTERVAL 600U
+#define CHECK_INTERVAL 100000U
+	os_thread_sleep(CHECK_INTERVAL);
 
 	count++;
 
@@ -3249,7 +3238,11 @@ loop:
 	if (ulint total_trx = srv_was_started && !srv_read_only_mode
 	    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
 	    ? trx_sys_any_active_transactions() : 0) {
-		if (srv_print_verbose_log && count > 600) {
+		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
+			service_manager_extend_timeout(
+				COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
+				"Waiting for %lu active transactions to finish",
+				(ulong) total_trx);
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Waiting for %lu active transactions to finish",
 				(ulong) total_trx);
@@ -3284,7 +3277,10 @@ loop:
 	if (thread_name) {
 		ut_ad(!srv_read_only_mode);
 wait_suspend_loop:
-		if (srv_print_verbose_log && count > 600) {
+		service_manager_extend_timeout(
+			COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
+			"Waiting for %s to exit", thread_name);
+		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Waiting for %s to exit", thread_name);
 			count = 0;
@@ -3320,10 +3316,14 @@ wait_suspend_loop:
 	before proceeding further. */
 
 	count = 0;
+	service_manager_extend_timeout(COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
+		"Waiting for page cleaner");
 	while (buf_page_cleaner_is_active) {
 		++count;
-		os_thread_sleep(100000);
-		if (srv_print_verbose_log && count > 600) {
+		os_thread_sleep(CHECK_INTERVAL);
+		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
+			service_manager_extend_timeout(COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
+				"Waiting for page cleaner");
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Waiting for page_cleaner to "
 				"finish flushing of buffer pool");
@@ -3408,6 +3408,8 @@ wait_suspend_loop:
 	}
 
 	if (!srv_read_only_mode) {
+		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"ensuring dirty buffer pool are written to log");
 		log_make_checkpoint_at(LSN_MAX, TRUE);
 
 		mutex_enter(&log_sys->mutex);
@@ -3441,23 +3443,9 @@ wait_suspend_loop:
 
 		mutex_exit(&log_sys->mutex);
 
-		fil_flush_file_spaces(FIL_TABLESPACE);
+		/* Ensure that all buffered changes are written to the
+		redo log before fil_close_all_files(). */
 		fil_flush_file_spaces(FIL_LOG);
-
-		/* The call fil_write_flushed_lsn_to_data_files() will
-		bypass the buffer pool: therefore it is essential that
-		the buffer pool has been completely flushed to disk! */
-
-		if (!buf_all_freed()) {
-			if (srv_print_verbose_log && count > 600) {
-				ib_logf(IB_LOG_LEVEL_INFO,
-					"Waiting for dirty buffer pages"
-					" to be flushed");
-				count = 0;
-			}
-
-			goto loop;
-		}
 	} else {
 		lsn = srv_start_lsn;
 	}
@@ -3468,8 +3456,9 @@ wait_suspend_loop:
 	srv_thread_type	type = srv_get_active_thread_type();
 	ut_a(type == SRV_NONE);
 
-	bool	freed = buf_all_freed();
-	ut_a(freed);
+	service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+				       "Free innodb buffer pool");
+	buf_all_freed();
 
 	ut_a(lsn == log_sys->lsn);
 
@@ -3498,9 +3487,6 @@ wait_suspend_loop:
 	/* Make some checks that the server really is quiet */
 	type = srv_get_active_thread_type();
 	ut_a(type == SRV_NONE);
-
-	freed = buf_all_freed();
-	ut_a(freed);
 
 	ut_a(lsn == log_sys->lsn);
 }

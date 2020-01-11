@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -347,7 +347,7 @@ trx_sys_update_wsrep_checkpoint(
 	mtr_t*		mtr)
 {
 #ifdef UNIV_DEBUG
-	if (xid->formatID != -1
+	if (!xid->is_null()
 	    && mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
 			+ TRX_SYS_WSREP_XID_MAGIC_N_FLD)
 		== TRX_SYS_WSREP_XID_MAGIC_N) {
@@ -368,7 +368,7 @@ trx_sys_update_wsrep_checkpoint(
 #endif /* UNIV_DEBUG */
 
 	ut_ad(xid && mtr);
-	ut_a(xid->formatID == -1 || wsrep_is_wsrep_xid((const XID *)xid));
+	ut_a(xid->is_null() || wsrep_is_wsrep_xid((const XID *)xid));
 
 	if (mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
 			+ TRX_SYS_WSREP_XID_MAGIC_N_FLD)
@@ -417,8 +417,10 @@ trx_sys_read_wsrep_checkpoint(XID* xid)
 	if ((magic = mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
 				+ TRX_SYS_WSREP_XID_MAGIC_N_FLD))
 		!= TRX_SYS_WSREP_XID_MAGIC_N) {
-		memset(xid, 0, sizeof(*xid));
-		xid->formatID = -1;
+		xid->null();
+		xid->gtrid_length = 0;
+		xid->bqual_length = 0;
+		memset(xid->data, 0, sizeof xid->data);
 		trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
 		mtr_commit(&mtr);
 		return false;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -95,10 +95,7 @@ dict_stats_pool_init()
 /*****************************************************************//**
 Free the resources occupied by the recalc pool, called once during
 thread de-initialization. */
-static
-void
-dict_stats_pool_deinit()
-/*====================*/
+static void dict_stats_pool_deinit()
 {
 	ut_ad(!srv_read_only_mode);
 
@@ -114,9 +111,7 @@ dict_stats_pool_deinit()
         */
 	recalc_pool_t recalc_empty_pool;
 	defrag_pool_t defrag_empty_pool;
-	memset(&recalc_empty_pool, 0, sizeof(recalc_pool_t));
-	memset(&defrag_empty_pool, 0, sizeof(defrag_pool_t));
-        recalc_pool.swap(recalc_empty_pool);
+	recalc_pool.swap(recalc_empty_pool);
 	defrag_pool.swap(defrag_empty_pool);
 }
 
@@ -442,14 +437,14 @@ dict_stats_process_entry_from_recalc_pool()
 
 	mutex_exit(&dict_sys->mutex);
 
-	/* ut_time() could be expensive, the current function
+	/* time() could be expensive, the current function
 	is called once every time a table has been changed more than 10% and
 	on a system with lots of small tables, this could become hot. If we
 	find out that this is a problem, then the check below could eventually
 	be replaced with something else, though a time interval is the natural
 	approach. */
 
-	if (ut_difftime(ut_time(), table->stats_last_recalc)
+	if (difftime(time(NULL), table->stats_last_recalc)
 	    < MIN_RECALC_INTERVAL) {
 
 		/* Stats were (re)calculated not long ago. To avoid

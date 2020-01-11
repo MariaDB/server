@@ -1,0 +1,30 @@
+# ==== Purpose ====
+#
+# Test if statements used temporary tables are not binlogged in the case of
+# binlog_format=row
+#
+# ==== Method ====
+#
+# We will see if binlog file size is increased or not, It should be constant for the
+# entire period of test.
+#
+# ==== Related bugs ====
+#
+# Mdev-9266
+#
+source include/have_log_bin.inc;
+source include/have_binlog_format_row.inc;
+
+RESET MASTER;
+
+--echo #Create table test
+--let $sql_query= create temporary table t1(a int, b int)
+--source suite/binlog/include/check_binlog_size.inc
+
+--echo #Add index test
+--let $sql_query= create index index_a on t1(a)
+--source suite/binlog/include/check_binlog_size.inc
+
+--echo #drop index test
+--let $sql_query= drop index index_a on t1
+--source suite/binlog/include/check_binlog_size.inc

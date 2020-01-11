@@ -1,1 +1,3 @@
+set global max_allowed_packet=1024*1024*10;
 ERROR HY000: The definition for table `t1` is too big
+set global max_allowed_packet=default;

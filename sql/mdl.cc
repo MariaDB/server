@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 #include "sql_class.h"
@@ -674,7 +674,7 @@ int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
 my_hash_value_type mdl_hash_function(CHARSET_INFO *cs,
                                      const uchar *key, size_t length)
 {
-  MDL_key *mdl_key= (MDL_key*) (key - offsetof(MDL_key, m_ptr));
+  MDL_key *mdl_key= (MDL_key*) (key - my_offsetof(MDL_key, m_ptr));
   return mdl_key->hash_value();
 }
 

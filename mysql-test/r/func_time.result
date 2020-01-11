@@ -2152,7 +2152,7 @@ Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `f2` varchar(26) DEFAULT NULL
+  `f2` varchar(28) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT * FROM t2;
 f2
@@ -2796,6 +2796,169 @@ SEC_TO_TIME(MAKEDATE(0,RAND(~0)))
 838:59:59
 Warnings:
 Warning	1292	Truncated incorrect time value: '20000101'
+SELECT PERIOD_DIFF(2018, AES_ENCRYPT('Rae Bareli', 'Rae Bareli'));
+PERIOD_DIFF(2018, AES_ENCRYPT('Rae Bareli', 'Rae Bareli'))
+24257
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '-3S\xFA\xDE?\x00\x00\xCA\xB3\xEEE\xA4\xD1\xC1\xA8'
+#
+# MDEV-17249 MAKETIME(-1e50,0,0) returns a wrong result
+#
+SELECT
+MAKETIME(1e10,0,0),
+MAKETIME(-1e10,0,0),
+MAKETIME(1e50,0,0),
+MAKETIME(-1e50,0,0),
+MAKETIME(COALESCE(1e50),0,0),
+MAKETIME(COALESCE(-1e50),0,0);
+MAKETIME(1e10,0,0)	838:59:59
+MAKETIME(-1e10,0,0)	-838:59:59
+MAKETIME(1e50,0,0)	838:59:59
+MAKETIME(-1e50,0,0)	-838:59:59
+MAKETIME(COALESCE(1e50),0,0)	838:59:59
+MAKETIME(COALESCE(-1e50),0,0)	-838:59:59
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '10000000000:00:00'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '-10000000000:00:00'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '9223372036854775807:00:00'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '-9223372036854775808:00:00'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '9223372036854775807:00:00'
+Level	Warning
+Code	1292
+Message	Truncated incorrect time value: '-9223372036854775808:00:00'
+CREATE TABLE t1 (a FLOAT);
+INSERT INTO t1 VALUES (1e30),(-1e30);
+SELECT MAKETIME(a,0,0) FROM t1;
+MAKETIME(a,0,0)
+838:59:59
+-838:59:59
+Warnings:
+Warning	1292	Truncated incorrect time value: '9223372036854775807:00:00'
+Warning	1292	Truncated incorrect time value: '-9223372036854775808:00:00'
+DROP TABLE t1;
+#
+# MDEV-17244 MAKETIME(900,0,0.111) returns a wrong result
+#
+SELECT MAKETIME(900,0,0);
+MAKETIME(900,0,0)
+838:59:59
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.1);
+MAKETIME(900,0,0.1)
+838:59:59.9
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.11);
+MAKETIME(900,0,0.11)
+838:59:59.99
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.111);
+MAKETIME(900,0,0.111)
+838:59:59.999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.1111);
+MAKETIME(900,0,0.1111)
+838:59:59.9999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.11111);
+MAKETIME(900,0,0.11111)
+838:59:59.99999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.111111);
+MAKETIME(900,0,0.111111)
+838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.1111111);
+MAKETIME(900,0,0.1111111)
+838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.11111111);
+MAKETIME(900,0,0.11111111)
+838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,0.111111111);
+MAKETIME(900,0,0.111111111)
+838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:00'
+SELECT MAKETIME(900,0,EXP(1));
+MAKETIME(900,0,EXP(1))
+838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '900:00:02'
+SELECT MAKETIME(-900,0,0);
+MAKETIME(-900,0,0)
+-838:59:59
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.1);
+MAKETIME(-900,0,0.1)
+-838:59:59.9
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.11);
+MAKETIME(-900,0,0.11)
+-838:59:59.99
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.111);
+MAKETIME(-900,0,0.111)
+-838:59:59.999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.1111);
+MAKETIME(-900,0,0.1111)
+-838:59:59.9999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.11111);
+MAKETIME(-900,0,0.11111)
+-838:59:59.99999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.111111);
+MAKETIME(-900,0,0.111111)
+-838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.1111111);
+MAKETIME(-900,0,0.1111111)
+-838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.11111111);
+MAKETIME(-900,0,0.11111111)
+-838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,0.111111111);
+MAKETIME(-900,0,0.111111111)
+-838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:00'
+SELECT MAKETIME(-900,0,EXP(1));
+MAKETIME(-900,0,EXP(1))
+-838:59:59.999999
+Warnings:
+Warning	1292	Truncated incorrect time value: '-900:00:02'
 #
 # End of 5.5 tests
 #
@@ -2900,6 +3063,30 @@ Warnings:
 Warning	1441	Datetime function: datetime field overflow
 SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:0:5259490559:315569433599' DAY_SECOND);
 ADDDATE(DATE'0000-01-01', INTERVAL '0:0:5259490559:315569433599' DAY_SECOND)
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+#
+# MDEV-13202 Assertion `ltime->neg == 0' failed in date_to_datetime
+#
+CREATE TABLE t1 (i INT, d DATE);
+INSERT INTO t1 VALUES (1, '1970-01-01');
+SELECT MAX(NULLIF(i,1)) FROM t1 ORDER BY DATE_SUB(d,INTERVAL 17300000 HOUR);
+MAX(NULLIF(i,1))
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+DROP TABLE t1;
+CREATE TABLE t1 (i INT, d DATE);
+INSERT INTO t1 VALUES (1, '1970-01-01');
+SELECT CONCAT(DATE_SUB(d, INTERVAL 17300000 HOUR)) FROM t1;
+CONCAT(DATE_SUB(d, INTERVAL 17300000 HOUR))
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+DROP TABLE t1;
+SELECT CONCAT(DATE_SUB(TIMESTAMP'1970-01-01 00:00:00', INTERVAL 17300000 HOUR));
+CONCAT(DATE_SUB(TIMESTAMP'1970-01-01 00:00:00', INTERVAL 17300000 HOUR))
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
@@ -3232,6 +3419,36 @@ t2	CREATE TABLE `t2` (
   `EXTRACT(SECOND_MICROSECOND FROM a)` int(9) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1,t2;
+#
+# MDEV-14926 AddressSanitizer: heap-use-after-free in make_date_time on weird combination of functions
+#
+DO INET_ATON( FROM_UNIXTIME( @@timestamp, ( TRIM( UNHEX(HEX('%m.%d.%Y') ) ) ) ) );
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1989-03-10');
+SELECT TIME_FORMAT('23:59:43', BINARY d) AS f FROM t1 GROUP BY 'foo';
+f
+1989-03-10
+DROP TABLE t1;
+CREATE TABLE t1 (d DATE) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('1900-01-01');
+SELECT LENGTH( DATE_FORMAT( d, BINARY DATABASE() ) ) AS f FROM t1 GROUP BY d;
+f
+4
+DROP TABLE t1;
+#
+# MDEV-18667 ASAN heap-use-after-free in make_date_time / Arg_comparator::compare_string / Item_func_nullif::compare
+#
+SELECT NULLIF('foo', FROM_UNIXTIME('2012-12-12 12:12:12', TRIM(0)));
+NULLIF('foo', FROM_UNIXTIME('2012-12-12 12:12:12', TRIM(0)))
+foo
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2012-12-12 12:12:12'
+#
+# MDEV-18626 ASAN stack-buffer-overflow in int10_to_str / make_date_time upon DATE_FORMAT
+#
+SELECT DATE_FORMAT(100000000000, '%j');
+DATE_FORMAT(100000000000, '%j')
+NULL
 #
 # End of 10.1 tests
 #

@@ -1,0 +1,103 @@
+--source include/have_tokudb.inc
+--source include/have_binlog_format_mixed_or_row.inc
+--source include/master-slave.inc
+
+CREATE TABLE t1(`a` INT) ENGINE=TokuDB;
+
+## XA interleave commit
+--connection master
+XA START 'x1';
+INSERT INTO t1 VALUES (1);
+XA END 'x1';
+XA PREPARE 'x1';
+
+--connection master1
+BEGIN;
+INSERT INTO t1 VALUES (10);
+COMMIT;
+XA START 'y1';
+INSERT INTO t1 VALUES (2);
+XA END 'y1';
+XA PREPARE 'y1';
+
+--connection master
+XA COMMIT 'x1';
+
+--connection master1
+XA COMMIT 'y1';
+
+--connection master
+BEGIN;
+INSERT INTO t1 VALUES (11);
+COMMIT;
+XA START 'x2';
+INSERT INTO t1 VALUES (3);
+XA END 'x2';
+XA PREPARE 'x2';
+
+--connection master1
+XA START 'y2';
+INSERT INTO t1 VALUES (4);
+XA END 'y2';
+XA PREPARE 'y2';
+
+--connection master
+XA COMMIT 'x2';
+
+--connection master1
+XA COMMIT 'y2';
+
+## XA interleave rollback
+--connection master
+XA START 'x1';
+INSERT INTO t1 VALUES (1);
+XA END 'x1';
+XA PREPARE 'x1';
+
+--connection master1
+BEGIN;
+INSERT INTO t1 VALUES (10);
+COMMIT;
+XA START 'y1';
+INSERT INTO t1 VALUES (2);
+XA END 'y1';
+XA PREPARE 'y1';
+
+--connection master
+XA ROLLBACK 'x1';
+
+--connection master1
+XA ROLLBACK 'y1';
+
+--connection master
+BEGIN;
+INSERT INTO t1 VALUES (11);
+COMMIT;
+XA START 'x2';
+INSERT INTO t1 VALUES (3);
+XA END 'x2';
+XA PREPARE 'x2';
+
+--connection master1
+XA START 'y2';
+INSERT INTO t1 VALUES (4);
+XA END 'y2';
+XA PREPARE 'y2';
+
+--connection master
+XA ROLLBACK 'x2';
+
+--connection master1
+XA ROLLBACK 'y2';
+
+--connection master
+
+--sync_slave_with_master
+
+--echo TABLES t1 and t2 must be equal otherwise an error will be thrown.
+--let $diff_tables= master:test.t1, slave:test.t1
+--source include/diff_tables.inc
+
+--connection master
+DROP TABLE t1;
+--source include/rpl_end.inc

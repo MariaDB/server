@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -1314,8 +1314,7 @@ trx_undo_mem_create_at_db_start(
 	/* Read X/Open XA transaction identification if it exists, or
 	set it to NULL. */
 
-	memset(&xid, 0, sizeof(xid));
-	xid.formatID = -1;
+	xid.null();
 
 	if (xid_exists == TRUE) {
 		trx_undo_read_xid(undo_header, &xid);

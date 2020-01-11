@@ -821,7 +821,7 @@ Warnings:
 Warning	1292	Truncated incorrect max_prepared_stmt_count value: '10000000000000000'
 select @@max_prepared_stmt_count;
 @@max_prepared_stmt_count
-1048576
+4294967295
 set global max_prepared_stmt_count=default;
 select @@max_prepared_stmt_count;
 @@max_prepared_stmt_count
@@ -2706,9 +2706,13 @@ create procedure proc_1() alter event xyz comment 'xyz';
 call proc_1();
 drop event xyz;
 create event xyz on schedule every 5 minute disable do select 123;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 call proc_1();
 drop event xyz;
 create event xyz on schedule every 5 minute disable do select 123;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 call proc_1();
 drop event xyz;
 drop procedure proc_1;
@@ -2723,6 +2727,8 @@ create event xyz on schedule every 5 minute disable do select 123;
 create procedure proc_1() drop event xyz;
 call proc_1();
 create event xyz on schedule every 5 minute disable do select 123;
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 call proc_1();
 call proc_1();
 ERROR HY000: Unknown event 'xyz'
@@ -4350,4 +4356,126 @@ LINE1	1
 LINE2	2
 LINE3	3
 drop table t1;
+#
+# MDEV-17042: prepared statement does not return error with
+# SQL_MODE STRICT_TRANS_TABLES. (Part 1)
+#
+set @save_sql_mode=@@sql_mode;
+set sql_mode='STRICT_ALL_TABLES';
+CREATE TABLE t1 (id int, count int);
+insert into t1 values (1,1),(0,2);
+update t1 set count = count + 1 where id = '1bad';
+ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+execute stmt;
+ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+deallocate prepare stmt;
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+execute stmt using @a;
+ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+deallocate prepare stmt;
+drop table t1;
+CREATE TABLE t1 (id decimal(10,5), count int);
+insert into t1 values (1,1),(0,2);
+update t1 set count = count + 1 where id = '1bad';
+ERROR 22007: Truncated incorrect DECIMAL value: '1bad'
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+execute stmt;
+ERROR 22007: Truncated incorrect DECIMAL value: '1bad'
+deallocate prepare stmt;
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+execute stmt using @a;
+ERROR 22007: Truncated incorrect DECIMAL value: '1bad'
+deallocate prepare stmt;
+drop table t1;
+CREATE TABLE t1 (id double, count int);
+insert into t1 values (1,1),(0,2);
+update t1 set count = count + 1 where id = '1bad';
+ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+execute stmt;
+ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+deallocate prepare stmt;
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+execute stmt using @a;
+ERROR 22007: Truncated incorrect DOUBLE value: '1bad'
+deallocate prepare stmt;
+drop table t1;
+CREATE TABLE t1 (id date, count int);
+insert into t1 values ("2019-06-11",1),("2019-06-12",2);
+update t1 set count = count + 1 where id = '1bad';
+ERROR 22007: Incorrect datetime value: '1bad'
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+execute stmt;
+ERROR 22007: Incorrect datetime value: '1bad'
+deallocate prepare stmt;
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+execute stmt using @a;
+ERROR 22007: Incorrect datetime value: '1bad'
+deallocate prepare stmt;
+drop table t1;
+set sql_mode=@save_sql_mode;
 # End of 5.5 tests
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-12060 Crash in EXECUTE IMMEDIATE with an expression returning a GRANT command
+# (the 10.1 part)
+#
+CREATE PROCEDURE p2 ()
+BEGIN
+SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR PREPARE stmt FROM 'SELECT 1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+END;
+/
+CALL p2();
+1
+1
+DROP PROCEDURE p2;
+BEGIN NOT ATOMIC
+SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR PREPARE stmt FROM 'SELECT 1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+END;
+/
+1
+1
+BEGIN NOT ATOMIC
+SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR PREPARE stmt FROM 'SELECT 1';
+DEALLOCATE PREPARE stmt;
+END;
+/
+BEGIN NOT ATOMIC
+PREPARE stmt FROM 'SELECT 1';
+SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+END;
+/
+1
+1
+#
+# MDEV-14572: Assertion `! is_set()' failed in
+# Diagnostics_area::set_eof_status upon EXPLAIN UPDATE in PS
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+PREPARE stmt FROM 'EXPLAIN UPDATE t1, t2 SET a = 1';
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	const row not found
+1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	0	const row not found
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	const row not found
+1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	0	const row not found
+deallocate prepare stmt;
+DROP TABLE t1, t2;
+#
+# End of 10.1 tests
+#

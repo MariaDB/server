@@ -1296,6 +1296,56 @@ MODIFY COLUMN `consultant_id` BIGINT;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+--echo #
+--echo # BUG#27788685: NO WARNING WHEN TRUNCATING A STRING WITH DATA LOSS
+--echo #
+
+SET GLOBAL max_allowed_packet=17825792;
+
+--connect(con1, localhost, root,,)
+CREATE TABLE t1 (t1_fld1 TEXT);
+CREATE TABLE t2 (t2_fld1 MEDIUMTEXT);
+CREATE TABLE t3 (t3_fld1 LONGTEXT);
+
+INSERT INTO t1 VALUES (REPEAT('a',300));
+INSERT INTO t2 VALUES (REPEAT('b',65680));
+INSERT INTO t3 VALUES (REPEAT('c',16777300));
+
+SELECT LENGTH(t1_fld1) FROM t1;
+SELECT LENGTH(t2_fld1) FROM t2;
+SELECT LENGTH(t3_fld1) FROM t3;
+
+--echo # With strict mode
+SET SQL_MODE='STRICT_ALL_TABLES';
+
+--error ER_DATA_TOO_LONG
+ALTER TABLE t1 CHANGE `t1_fld1` `my_t1_fld1` TINYTEXT;
+--error ER_DATA_TOO_LONG
+ALTER TABLE t2 CHANGE `t2_fld1` `my_t2_fld1` TEXT;
+--error ER_DATA_TOO_LONG
+ALTER TABLE t3 CHANGE `t3_fld1` `my_t3_fld1` MEDIUMTEXT;
+
+--echo # With non-strict mode
+SET SQL_MODE='';
+
+ALTER TABLE t1 CHANGE `t1_fld1` `my_t1_fld1` TINYTEXT;
+ALTER TABLE t2 CHANGE `t2_fld1` `my_t2_fld1` TEXT;
+ALTER TABLE t3 CHANGE `t3_fld1` `my_t3_fld1` MEDIUMTEXT;
+
+SELECT LENGTH(my_t1_fld1) FROM t1;
+SELECT LENGTH(my_t2_fld1) FROM t2;
+SELECT LENGTH(my_t3_fld1) FROM t3;
+
+# Cleanup
+--disconnect con1
+--source include/wait_until_disconnected.inc
+
+--connection default
+DROP TABLE t1, t2, t3;
+
+SET SQL_MODE=default;
+SET GLOBAL max_allowed_packet=default;
+
 #
 # Test of ALTER TABLE IF [NOT] EXISTS
 #
@@ -1807,6 +1857,52 @@ CREATE TABLE t1 (id int(11) NOT NULL, a int(11) NOT NULL, b int(11))
 SHOW CREATE TABLE t1;
 ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
 SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15308
+--echo # Assertion `ha_alter_info->alter_info->drop_list.elements > 0' failed
+--echo # in ha_innodb::prepare_inplace_alter_table
+--echo #
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP COLUMN b;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP INDEX IF EXISTS fk, DROP COLUMN b;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT, c INT, KEY(c)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP COLUMN c;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT, c INT, KEY c1(c)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP INDEX c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP INDEX IF EXISTS fk, DROP COLUMN IF EXISTS c;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14668 ADD PRIMARY KEY IF NOT EXISTS on composite key
+--echo #
+CREATE TABLE t1 (
+        `ID` BIGINT(20) NOT NULL,
+            `RANK` MEDIUMINT(4) NOT NULL,
+                `CHECK_POINT` BIGINT(20) NOT NULL,
+                    UNIQUE INDEX `HORIZON_UIDX01` (`ID`, `RANK`)
+    ) ENGINE=InnoDB;
+
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
+SHOW CREATE TABLE t1;
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
 DROP TABLE t1;
 
 --echo #

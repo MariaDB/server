@@ -67,6 +67,31 @@ INSERT INTO articles VALUES
 BEGIN;
 INSERT INTO articles VALUES
 (100, 200, 'MySQL Tutorial','DBMS stands for DataBase ...');
+#
+# MDEV-19073 FTS row mismatch after crash recovery
+#
+CREATE TABLE mdev19073(id SERIAL, title VARCHAR(200), body TEXT,
+FULLTEXT(title,body)) ENGINE=InnoDB;
+INSERT INTO mdev19073 (title, body) VALUES
+('MySQL Tutorial', 'DBMS stands for Database...');
+CREATE FULLTEXT INDEX idx ON mdev19073(title, body);
+CREATE TABLE mdev19073_2 LIKE mdev19073;
+INSERT INTO mdev19073_2 (title, body) VALUES
+('MySQL Tutorial', 'DBMS stands for Database...');
+INSERT INTO mdev19073 (title, body) VALUES
+('MariaDB Tutorial', 'DB means Database ...');
+INSERT INTO mdev19073_2 (title, body) VALUES
+('MariaDB Tutorial', 'DB means Database ...');
+SELECT * FROM mdev19073 WHERE MATCH (title, body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+id	title	body
+1	MySQL Tutorial	DBMS stands for Database...
+2	MariaDB Tutorial	DB means Database ...
+SELECT * FROM mdev19073_2 WHERE MATCH (title, body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+id	title	body
+1	MySQL Tutorial	DBMS stands for Database...
+2	MariaDB Tutorial	DB means Database ...
 # Kill and restart
 INSERT INTO articles VALUES         (8, 12, 'MySQL Tutorial','DBMS stands for DataBase ...');
 SELECT * FROM articles WHERE MATCH (title, body)
@@ -76,3 +101,14 @@ id	FTS_DOC_ID	title	body
 1	10	MySQL Tutorial	DBMS stands for DataBase ...
 8	12	MySQL Tutorial	DBMS stands for DataBase ...
 DROP TABLE articles;
+SELECT * FROM mdev19073 WHERE MATCH (title, body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+id	title	body
+1	MySQL Tutorial	DBMS stands for Database...
+2	MariaDB Tutorial	DB means Database ...
+SELECT * FROM mdev19073_2 WHERE MATCH (title, body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+id	title	body
+1	MySQL Tutorial	DBMS stands for Database...
+2	MariaDB Tutorial	DB means Database ...
+DROP TABLE mdev19073, mdev19073_2;

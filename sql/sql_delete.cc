@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2000, 2019, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Delete of records tables.
@@ -39,7 +39,7 @@
 #include "sql_statistics.h"
 #include "transaction.h"
 #include "records.h"                            // init_read_record,
-#include "sql_derived.h"                        // mysql_handle_list_of_derived
+#include "sql_derived.h"                        // mysql_handle_derived
                                                 // end_read_record
 #include "sql_partition.h"       // make_used_partitions_str
 
@@ -248,9 +248,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
     DBUG_RETURN(TRUE);
 
-  if (mysql_handle_list_of_derived(thd->lex, table_list, DT_MERGE_FOR_INSERT))
+  if (thd->lex->handle_list_of_derived(table_list, DT_MERGE_FOR_INSERT))
     DBUG_RETURN(TRUE);
-  if (mysql_handle_list_of_derived(thd->lex, table_list, DT_PREPARE))
+  if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
     DBUG_RETURN(TRUE);
 
   if (!table_list->single_table_updatable())
@@ -945,7 +945,7 @@ multi_delete::initialize_tables(JOIN *join)
     TABLE_LIST *tbl= walk->correspondent_table->find_table_for_update();
     tables_to_delete_from|= tbl->table->map;
     if (delete_while_scanning &&
-        unique_table(thd, tbl, join->tables_list, false))
+        unique_table(thd, tbl, join->tables_list, 0))
     {
       /*
         If the table we are going to delete from appears
@@ -1021,6 +1021,7 @@ multi_delete::~multi_delete()
   {
     TABLE *table= table_being_deleted->table;
     table->no_keyread=0;
+    table->no_cache= 0;
   }
 
   for (uint counter= 0; counter < num_of_tables; counter++)
@@ -1323,6 +1324,7 @@ bool multi_delete::send_eof()
         thd->clear_error();
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
+      thd->thread_specific_used= TRUE;
       if (thd->binlog_query(THD::ROW_QUERY_TYPE,
                             thd->query(), thd->query_length(),
                             transactional_tables, FALSE, FALSE, errcode) &&

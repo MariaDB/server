@@ -124,13 +124,11 @@ static void cachetable_prefetch_maybegetandpin_test (bool do_partial_fetch) {
     if (do_partial_fetch) {
         expect_pf = true;
         void* value;
-        long size;
         r = toku_cachetable_get_and_pin(
             f1, 
             key, 
             fullhash, 
             &value, 
-            &size, 
             wc, 
             fetch,
             pf_req_callback,
@@ -152,12 +150,14 @@ static void cachetable_prefetch_maybegetandpin_test (bool do_partial_fetch) {
 
     // verify that get_and_pin waits while the prefetch is in progress
     void *v = 0;
-    long size = 0;
     do_pf = false;
-    r = toku_cachetable_get_and_pin_nonblocking(f1, key, fullhash, &v, &size, wc, fetch, pf_req_callback, pf_callback, PL_WRITE_EXPENSIVE, NULL, NULL);
+    r = toku_cachetable_get_and_pin_nonblocking(f1, key, fullhash, &v, wc, fetch, pf_req_callback, pf_callback, PL_WRITE_EXPENSIVE, NULL, NULL);
     assert(r==TOKUDB_TRY_AGAIN);
-    r = toku_cachetable_get_and_pin(f1, key, fullhash, &v, &size, wc, fetch, pf_req_callback, pf_callback, true, NULL);
-    assert(r == 0 && v == 0 && size == 2);
+    r = toku_cachetable_get_and_pin(f1, key, fullhash, &v, wc, fetch, pf_req_callback, pf_callback, true, NULL);
+    assert(r == 0 && v == 0);
+    PAIR_ATTR attr;
+    r = toku_cachetable_get_attr(f1, key, fullhash, &attr);
+    assert(r == 0 && attr.size == 2);
 
     struct timeval tend;
     gettimeofday(&tend, NULL);

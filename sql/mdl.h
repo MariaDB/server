@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #if defined(__IBMC__) || defined(__IBMCPP__)
 /* Further down, "next_in_lock" and "next_in_context" have the same type,
@@ -474,6 +474,16 @@ public:
   {
     DBUG_ASSERT(ticket == NULL);
     type= type_arg;
+  }
+  void move_from(MDL_request &from)
+  {
+    type= from.type;
+    duration= from.duration;
+    ticket= from.ticket;
+    next_in_list= from.next_in_list;
+    prev_in_list= from.prev_in_list;
+    key.mdl_key_init(&from.key);
+    from.ticket=  NULL; // that's what "move" means
   }
 
   /*

@@ -1644,11 +1644,6 @@ drop user mysqluser11@localhost;
 drop database mysqltest1;
 End of 5.0 tests
 set names utf8;
-grant select on test.* to юзер_юзер@localhost;
-user()
-юзер_юзер@localhost
-revoke all on test.* from юзер_юзер@localhost;
-drop user юзер_юзер@localhost;
 grant select on test.* to очень_длинный_юзер890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890@localhost;
 ERROR HY000: String 'очень_длинный_юзер890123456789012345678901234567890123' is too long for user name (should be no longer than 80)
 set names default;
@@ -1690,6 +1685,7 @@ revoke create, insert on mysqltest.t6 from mysqltest@localhost;
 drop user mysqltest@localhost;
 drop database mysqltest;
 use test;
+call mtr.add_suppression("Can't open and lock privilege tables");
 FLUSH PRIVILEGES without procs_priv table.
 RENAME TABLE mysql.procs_priv TO mysql.procs_gone;
 FLUSH PRIVILEGES;
@@ -1778,8 +1774,6 @@ BEGIN
 SET @x = 0;
 REPEAT SET @x = @x + 1; UNTIL @x > p1 END REPEAT;
 END ;||
-Warnings:
-Warning	1404	Failed to grant EXECUTE and ALTER ROUTINE privileges
 SHOW GRANTS FOR 'user1'@'localhost';
 Grants for user1@localhost
 GRANT USAGE ON *.* TO 'user1'@'localhost'
@@ -1789,6 +1783,7 @@ SHOW GRANTS FOR 'user2';
 Grants for user2@%
 GRANT USAGE ON *.* TO 'user2'@'%'
 GRANT CREATE, CREATE ROUTINE ON `db1`.* TO 'user2'@'%'
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `db1`.`proc2` TO 'user2'@'%'
 DROP PROCEDURE db1.proc1;
 DROP PROCEDURE db1.proc2;
 REVOKE ALL ON db1.* FROM 'user1'@'localhost';
@@ -2582,6 +2577,35 @@ foo@localhost	foo@127.0.0.1
 # Clean-up
 DROP USER foo@'127.0.0.1';
 # End of Bug#12766319
+create user foo@localhost;
+create database foodb;
+grant create routine on foodb.* to foo@localhost;
+create procedure fooproc() select 'i am fooproc';
+show grants;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'localhost'
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO 'foo'@'localhost'
+rename table mysql.procs_priv to mysql.procs_priv1;
+flush privileges;
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'localhost'
+rename table mysql.procs_priv1 to mysql.procs_priv;
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'localhost'
+flush privileges;
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO 'foo'@'localhost'
+GRANT CREATE ROUTINE ON `foodb`.* TO 'foo'@'localhost'
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`fooproc` TO 'foo'@'localhost'
+drop user foo@localhost;
+drop procedure fooproc;
+drop database foodb;
 #
 # Bug#11756966 - 48958: STORED PROCEDURES CAN BE LEVERAGED TO BYPASS
 #                DATABASE SECURITY

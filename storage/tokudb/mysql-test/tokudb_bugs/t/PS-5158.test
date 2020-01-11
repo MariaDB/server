@@ -1,0 +1,27 @@
+# Test for PS-5163 : [PS8QA] handle_fatal_signal (sig=11) in DsMrr_impl::dsmrr_init
+# and PS-4828 : Inserting data into TokuDB database with name that contains non-alphanumerical characters can lead to the ZN9ha_tokudb16bulk_insert_pollEPvf assertion
+#
+# The cause is a buffer overrun in LOADER_CONTEXT where the char buffer used for
+# maintaining the proc info string was too small and no validation or prevention
+# was being done to ensure the string stayed within the limits of the buffer.
+# Normally this would have been difficult to hit, but, now with the combination
+# of tokudb_dir_per_db=ON and the expansion of the database name from latin1
+# (or whatever) to the fscs encoding the space required for a max length
+# db.table name could be quite larger than the buffer was originally sized.
+
+--source include/have_tokudb.inc
+
+if (`SELECT @@tokudb_dir_per_db != 1`) {
+  skip Requires tokudb_dir_per_db=1;
+}
+
+CREATE DATABASE `new..............................................end`;
+USE `new..............................................end`;
+CREATE TABLE t1(a INT KEY,b INT)ENGINE=TokuDB;
+
+#
+# TokuDB bulk_insert_poll would crash here
+#
+INSERT INTO t1 VALUES(1,11),(2,12),(3,13),(4,14),(5,15);
+USE test;
+DROP DATABASE `new..............................................end`;

@@ -83,6 +83,22 @@ SELECT * FROM t2 LEFT JOIN v1 ON t2.d1=v1.d1 WHERE v1.d1 IS NULL;
 DROP VIEW v1;
 DROP TABLE t1,t2;
 
+
+--echo #
+--echo # MDEV-15475: Assertion `!table || (!table->read_set ||
+--echo # bitmap_is_set(table->read_set, field_index))'
+--echo # failed on EXPLAIN EXTENDED with constant table and view
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=MyISAM;
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1);
+EXPLAIN EXTENDED SELECT ISNULL(pk) FROM v1;
+EXPLAIN EXTENDED SELECT IFNULL(pk,0) FROM v1;
+# Cleanup
+DROP VIEW v1;
+DROP TABLE t1;
+
 --echo #
 --echo # End of 5.5 tests
 --echo #

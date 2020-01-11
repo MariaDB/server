@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -28,7 +28,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -71,7 +71,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "srv0srv.h"
 #include "buf0flu.h"
 #include "btr0defragment.h"
-#include "ut0timer.h"
 #include "btr0scrub.h"
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
 
@@ -1505,14 +1504,12 @@ srv_undo_tablespaces_init(
 
 		if (backup_mode) {
 			ut_ad(!create_new_db);
-			/* MDEV-13561 FIXME: Determine srv_undo_space_id_start
-			from the undo001 file. */
-			srv_undo_space_id_start = 1;
-
 			for (i = 0; i < n_undo_tablespaces; i++) {
 				undo_tablespace_ids[i]
 					= i + srv_undo_space_id_start;
 			}
+
+			prev_space_id = srv_undo_space_id_start - 1;
 		}
 	}
 
@@ -1744,9 +1741,6 @@ innobase_start_or_create_for_mysql()
 	os_fast_mutex_unlock(&srv_os_test_mutex);
 
 	os_fast_mutex_free(&srv_os_test_mutex);
-
-	/* This should be initialized early */
-	ut_init_timer();
 
 	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
 		srv_read_only_mode = 1;
@@ -2186,7 +2180,8 @@ innobase_start_or_create_for_mysql()
 	ib_logf(IB_LOG_LEVEL_INFO,
 		"Initializing buffer pool, size = %.1f%c", size, unit);
 
-	err = buf_pool_init(srv_buf_pool_size, srv_buf_pool_instances);
+	err = buf_pool_init(srv_buf_pool_size, static_cast<bool>(srv_numa_interleave),
+			    srv_buf_pool_instances);
 
 	if (err != DB_SUCCESS) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
@@ -2409,6 +2404,9 @@ innobase_start_or_create_for_mysql()
 				break;
 			}
 
+			if (stat_info.type != OS_FILE_TYPE_FILE) {
+				break;
+			}
 			if (!srv_file_check_mode(logfilename)) {
 				return(DB_ERROR);
 			}
@@ -3474,9 +3472,8 @@ srv_get_meta_data_filename(
 	if (strncmp(suffix, ".cfg", suffix_len) == 0) {
 		strcpy(filename, path);
 	} else {
-		ut_ad(strncmp(suffix, ".ibd", suffix_len) == 0);
-
-		strncpy(filename, path, len - suffix_len);
+		ut_ad(!strcmp(suffix, ".ibd"));
+		memcpy(filename, path, len - suffix_len);
 		suffix = filename + (len - suffix_len);
 		strcpy(suffix, ".cfg");
 	}

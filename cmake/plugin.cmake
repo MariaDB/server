@@ -1,4 +1,5 @@
-# Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2018, Oracle and/or its affiliates.
+# Copyright (c) 2011, 2018, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 
 GET_FILENAME_COMPONENT(MYSQL_CMAKE_SCRIPT_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
@@ -208,7 +209,7 @@ MACRO(MYSQL_ADD_PLUGIN)
       ELSEIF(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
         TARGET_LINK_LIBRARIES (${target} mysqld)
       ENDIF()
-    ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT WITH_ASAN AND NOT WITH_UBSAN)
       TARGET_LINK_LIBRARIES (${target} "-Wl,--no-undefined")
     ENDIF()
 
@@ -235,9 +236,6 @@ MACRO(MYSQL_ADD_PLUGIN)
         IF (NOT ARG_CLIENT)
           SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES "MariaDB${ver}" PARENT_SCOPE)
         ENDIF()
-        # workarounds for cmake issues #13248 and #12864:
-        SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_PROVIDES "cmake_bug_13248" PARENT_SCOPE)
-        SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_OBSOLETES "cmake_bug_13248" PARENT_SCOPE)
         SET(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} PARENT_SCOPE)
         IF(NOT ARG_CLIENT AND NOT ARG_CONFIG AND UNIX)
           SET(ARG_CONFIG "${CMAKE_CURRENT_BINARY_DIR}/${target}.cnf")

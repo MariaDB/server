@@ -318,6 +318,15 @@ UNUSABLE
 uninstall soname 'ha_example';
 select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
 plugin_name
+set names utf8;
+select convert('admin𝌆' using utf8);
+convert('admin𝌆' using utf8)
+admin????
+Warnings:
+Warning	1300	Invalid utf8 character string: '\xF0\x9D\x8C\x86'
+install plugin foo soname 'admin𝌆';
+ERROR HY000: No paths allowed for shared library
+# End of 5.5 test
 #
 # MDEV-5309 - RENAME TABLE does not check for existence of the table's
 #             engine
@@ -331,3 +340,4 @@ UNINSTALL PLUGIN example;
 RENAME TABLE t1 TO t2;
 ERROR 42S02: Table 'test.t1' doesn't exist
 DROP TABLE t1;
+# End of 10.1 test

@@ -122,11 +122,11 @@ SET GLOBAL master_verify_checksum=0;
 SET GLOBAL debug_dbug="+d,corrupt_read_log_event2_set";
 --connection slave
 START SLAVE IO_THREAD;
-# When the checksum error is detected, the slave sets error code 1913
+# When the checksum error is detected, the slave sets error code 1743
 # (ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE) in queue_event(), then immediately
 # sets error 1595 (ER_SLAVE_RELAY_LOG_WRITE_FAILURE) in handle_slave_io().
-# So we usually get 1595, but it is occasionally possible to get 1913.
-let $slave_io_errno= 1595,1913;
+# So we usually get 1595, but it is occasionally possible to get 1743.
+let $slave_io_errno= 1595,1743; # ER_SLAVE_RELAY_LOG_WRITE_FAILURE, ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE
 --source include/wait_for_slave_io_error.inc
 --connection master
 SET GLOBAL debug_dbug="-d,corrupt_read_log_event2_set";
@@ -138,7 +138,7 @@ SET GLOBAL master_verify_checksum=1;
 --connection slave
 SET GLOBAL debug_dbug="+d,corrupt_queue_event";
 START SLAVE IO_THREAD;
-let $slave_io_errno= 1595,1913;
+let $slave_io_errno= 1595,1743; # ER_SLAVE_RELAY_LOG_WRITE_FAILURE, ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE
 --source include/wait_for_slave_io_error.inc
 SET GLOBAL debug_dbug="-d,corrupt_queue_event";
 

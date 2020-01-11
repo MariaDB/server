@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -325,11 +325,7 @@ int main(int argc, char **argv)
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
 
-  if (load_defaults("my",load_default_groups,&argc,&argv))
-  {
-    my_end(0);
-    exit(1);
-  }
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   defaults_argv=argv;
   if (get_options(&argc,&argv))
   {
@@ -857,7 +853,7 @@ build_table_string(void)
 
   if (auto_generate_sql_guid_primary)
   {
-    dynstr_append(&table_string, "id varchar(32) primary key");
+    dynstr_append(&table_string, "id varchar(36) primary key");
 
     if (num_int_cols || num_char_cols || auto_generate_sql_guid_primary)
       dynstr_append(&table_string, ",");
@@ -872,7 +868,7 @@ build_table_string(void)
       if (count) /* Except for the first pass we add a comma */
         dynstr_append(&table_string, ",");
 
-      if (snprintf(buf, HUGE_STRING_LENGTH, "id%d varchar(32) unique key", count) 
+      if (snprintf(buf, HUGE_STRING_LENGTH, "id%d varchar(36) unique key", count)
           > HUGE_STRING_LENGTH)
       {
         fprintf(stderr, "Memory Allocation error in create table\n");

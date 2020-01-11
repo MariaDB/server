@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -28,7 +28,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -43,7 +43,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "pars0pars.h"
 #include "row0ftsort.h"
 #include "ut0mem.h"
-#include "ut0timer.h"
 #include "mem0mem.h"
 #include "data0data.h"
 #include "data0type.h"
@@ -1669,9 +1668,6 @@ innobase_start_or_create_for_mysql()
 
 	os_fast_mutex_free(&srv_os_test_mutex);
 
-	/* This should be initialized early */
-	ut_init_timer();
-
 	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
 		srv_read_only_mode = 1;
 	}
@@ -2309,6 +2305,10 @@ innobase_start_or_create_for_mysql()
 				}
 
 				/* opened all files */
+				break;
+			}
+
+			if (stat_info.type != OS_FILE_TYPE_FILE) {
 				break;
 			}
 
@@ -3350,9 +3350,8 @@ srv_get_meta_data_filename(
 	if (strncmp(suffix, ".cfg", suffix_len) == 0) {
 		strcpy(filename, path);
 	} else {
-		ut_ad(strncmp(suffix, ".ibd", suffix_len) == 0);
-
-		strncpy(filename, path, len - suffix_len);
+		ut_ad(!strcmp(suffix, ".ibd"));
+		memcpy(filename, path, len - suffix_len);
 		suffix = filename + (len - suffix_len);
 		strcpy(suffix, ".cfg");
 	}

@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB
+   Copyright (c) 2011, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "sql_class.h"                       // THD and my_global.h
 #include "keycaches.h"                       // get_key_cache
@@ -238,7 +238,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 
   if (thd->locked_tables_list.locked_tables())
   {
-    if (thd->locked_tables_list.reopen_tables(thd))
+    if (thd->locked_tables_list.reopen_tables(thd, false))
       goto end;
     /* Restore the table in the table list with the new opened table */
     table_list->table= pos_in_locked_tables->table;
@@ -302,7 +302,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                               HA_CHECK_OPT* check_opt,
                               const char *operator_name,
                               thr_lock_type lock_type,
-                              bool open_for_modify,
+                              bool org_open_for_modify,
                               bool repair_table_use_frm,
                               uint extra_open_options,
                               int (*prepare_func)(THD *, TABLE_LIST *,
@@ -365,10 +365,11 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   for (table= tables; table; table= table->next_local)
   {
     char table_name[SAFE_NAME_LEN*2+2];
-    char* db = table->db;
+    char *db= table->db;
     bool fatal_error=0;
     bool open_error;
     bool collect_eis=  FALSE;
+    bool open_for_modify= org_open_for_modify;
 
     DBUG_PRINT("admin", ("table: '%s'.'%s'", table->db, table->table_name));
     strxmov(table_name, db, ".", table->table_name, NullS);
@@ -406,8 +407,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
       /*
         CHECK TABLE command is allowed for views as well. Check on alter flags
-        to differentiate from ALTER TABLE...CHECK PARTITION on which view is not
-        allowed.
+        to differentiate from ALTER TABLE...CHECK PARTITION on which view is
+        not allowed.
       */
       if (lex->alter_info.flags & Alter_info::ALTER_ADMIN_PARTITION ||
           view_operator_func == NULL)
@@ -527,7 +528,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           if (!table->table->part_info)
           {
             my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
-            goto err2;
+            thd->resume_subsequent_commits(suspended_wfc);
+            DBUG_RETURN(TRUE);
           }
           if (set_part_state(alter_info, table->table->part_info, PART_ADMIN))
           {
@@ -1102,7 +1104,7 @@ send_result_message:
       }
     }
     /* Error path, a admin command failed. */
-    if (thd->transaction_rollback_request)
+    if (thd->transaction_rollback_request || fatal_error)
     {
       /*
         Unlikely, but transaction rollback was requested by one of storage
@@ -1113,7 +1115,9 @@ send_result_message:
     }
     else
     {
-      if (trans_commit_stmt(thd) || trans_commit_implicit(thd))
+      if (trans_commit_stmt(thd) ||
+          (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END) &&
+           trans_commit_implicit(thd)))
         goto err;
     }
     close_thread_tables(thd);
@@ -1147,7 +1151,8 @@ send_result_message:
 err:
   /* Make sure this table instance is not reused after the failure. */
   trans_rollback_stmt(thd);
-  trans_rollback(thd);
+  if (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END))
+    trans_rollback(thd);
   if (table && table->table)
   {
     table->table->m_needs_reopen= true;
@@ -1155,7 +1160,6 @@ err:
   }
   close_thread_tables(thd);			// Shouldn't be needed
   thd->mdl_context.release_transactional_locks();
-err2:
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_RETURN(TRUE);
 }
@@ -1242,7 +1246,6 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error;
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
-  thd->enable_slow_log= opt_log_slow_admin_statements;
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt,
                          "analyze", lock_type, 1, 0, 0, 0,
                          &handler::ha_analyze, 0);
@@ -1258,6 +1261,7 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
+WSREP_ERROR_LABEL:
   DBUG_RETURN(res);
 }
 
@@ -1273,8 +1277,6 @@ bool Sql_cmd_check_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL, first_table,
                          TRUE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
-  thd->enable_slow_log= opt_log_slow_admin_statements;
-
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "check",
                          lock_type, 0, 0, HA_OPEN_FOR_REPAIR, 0,
                          &handler::ha_check, &view_check);
@@ -1298,7 +1300,6 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
-  thd->enable_slow_log= opt_log_slow_admin_statements;
   res= (specialflag & SPECIAL_NO_NEW_FUNC) ?
     mysql_recreate_table(thd, first_table, true) :
     mysql_admin_table(thd, first_table, &m_lex->check_opt,
@@ -1316,6 +1317,7 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
+WSREP_ERROR_LABEL:
   DBUG_RETURN(res);
 }
 
@@ -1330,7 +1332,6 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
-  thd->enable_slow_log= opt_log_slow_admin_statements;
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "repair",
                          TL_WRITE, 1,
@@ -1350,5 +1351,6 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
+WSREP_ERROR_LABEL:
   DBUG_RETURN(res);
 }

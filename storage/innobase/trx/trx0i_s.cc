@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -152,9 +153,8 @@ struct i_s_table_cache_t {
 struct trx_i_s_cache_t {
 	rw_lock_t	rw_lock;	/*!< read-write lock protecting
 					the rest of this structure */
-	ullint		last_read;	/*!< last time the cache was read;
-					measured in microseconds since
-					epoch */
+	ulonglong	last_read;	/*!< last time the cache was read;
+					measured in nanoseconds */
 	i_s_table_cache_t innodb_trx;	/*!< innodb_trx table */
 	i_s_table_cache_t innodb_locks;	/*!< innodb_locks table */
 	i_s_table_cache_t innodb_lock_waits;/*!< innodb_lock_waits table */
@@ -475,7 +475,7 @@ fill_trx_row(
 	ut_ad(lock_mutex_own());
 
 	row->trx_id = trx->id;
-	row->trx_started = (ib_time_t) trx->start_time;
+	row->trx_started = trx->start_time;
 	row->trx_state = trx_get_que_state_str(trx);
 	row->requested_lock_row = requested_lock_row;
 	ut_ad(requested_lock_row == NULL
@@ -484,7 +484,7 @@ fill_trx_row(
 	if (trx->lock.wait_lock != NULL) {
 
 		ut_a(requested_lock_row != NULL);
-		row->trx_wait_started = (ib_time_t) trx->lock.wait_started;
+		row->trx_wait_started = trx->lock.wait_started;
 	} else {
 		ut_a(requested_lock_row == NULL);
 		row->trx_wait_started = 0;
@@ -1217,33 +1217,20 @@ add_trx_relevant_locks_to_cache(
 }
 
 /** The minimum time that a cache must not be updated after it has been
-read for the last time; measured in microseconds. We use this technique
+read for the last time; measured in nanoseconds. We use this technique
 to ensure that SELECTs which join several INFORMATION SCHEMA tables read
 the same version of the cache. */
-#define CACHE_MIN_IDLE_TIME_US	100000 /* 0.1 sec */
+#define CACHE_MIN_IDLE_TIME_NS	100000000 /* 0.1 sec */
 
 /*******************************************************************//**
 Checks if the cache can safely be updated.
-@return	TRUE if can be updated */
-static
-ibool
-can_cache_be_updated(
-/*=================*/
-	trx_i_s_cache_t*	cache)	/*!< in: cache */
+@return whether the cache can be updated */
+static bool can_cache_be_updated(trx_i_s_cache_t* cache)
 {
-	ullint	now;
-
 #ifdef UNIV_SYNC_DEBUG
 	ut_a(rw_lock_own(&cache->rw_lock, RW_LOCK_EX));
 #endif
-
-	now = ut_time_us(NULL);
-	if (now - cache->last_read > CACHE_MIN_IDLE_TIME_US) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
+	return my_interval_timer() - cache->last_read > CACHE_MIN_IDLE_TIME_NS;
 }
 
 /*******************************************************************//**
@@ -1375,8 +1362,6 @@ trx_i_s_possibly_fetch_data_into_cache(
 /*===================================*/
 	trx_i_s_cache_t*	cache)	/*!< in/out: cache */
 {
-	ullint	now;
-
 #ifdef UNIV_SYNC_DEBUG
 	ut_a(rw_lock_own(&cache->rw_lock, RW_LOCK_EX));
 #endif
@@ -1399,8 +1384,7 @@ trx_i_s_possibly_fetch_data_into_cache(
 	lock_mutex_exit();
 
 	/* update cache last read time */
-	now = ut_time_us(NULL);
-	cache->last_read = now;
+	cache->last_read = my_interval_timer();
 
 	return(0);
 }

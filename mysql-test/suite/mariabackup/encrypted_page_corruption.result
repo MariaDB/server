@@ -1,0 +1,7 @@
+call mtr.add_suppression("\\[ERROR\\] InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=3\\] in file '.*test.t1\\.ibd' cannot be decrypted.");
+CREATE TABLE t1(c VARCHAR(128)) ENGINE INNODB, encrypted=yes;
+insert into t1 select repeat('a',100);
+# Corrupt the table
+# xtrabackup backup
+FOUND /Database page corruption detected/ in backup.log
+drop table t1;

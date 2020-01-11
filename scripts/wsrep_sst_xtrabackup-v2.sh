@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING. If not, write to the
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
-# MA  02110-1301  USA.
+# MA  02110-1335  USA.
 
 # Documentation: http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html 
 # Make sure to read that before proceeding!
@@ -56,7 +56,7 @@ rebuild=0
 rebuildcmd=""
 payload=0
 pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p' "
-pvopts="-f  -i 10 -N $WSREP_SST_OPT_ROLE "
+pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE "
 STATDIR=""
 uextra=0
 disver=""
@@ -268,13 +268,26 @@ get_transfer()
         wsrep_log_info "Using netcat as streamer"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             if nc -h 2>&1 | grep -q ncat; then
+                # Ncat
                 tcmd="nc $sockopt -l ${TSST_PORT}"
-            else 
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
                 tcmd="nc $sockopt -dl ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc $sockopt -l -p ${TSST_PORT}"
             fi
         else
-            # netcat doesn't understand [] around IPv6 address
-            tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            if nc -h 2>&1 | grep -q ncat;then
+                # Ncat
+                tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
+                tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc -q0 ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            fi
         fi
     else
         tfmt='socat'
@@ -644,7 +657,7 @@ wait_for_listen()
 
     for i in {1..300}
     do
-        LSOF_OUT=$(lsof -sTCP:LISTEN -i TCP:${PORT} -a -c nc -c socat -F c)
+        LSOF_OUT=$(lsof -sTCP:LISTEN -i TCP:${PORT} -a -c nc -c socat -F c 2> /dev/null || :)
         [ -n "${LSOF_OUT}" ] && break
         sleep 0.2
     done
@@ -662,7 +675,7 @@ check_extra()
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
                 wsrep_log_info "SST through extra_port $eport"
-                INNOEXTRA+=" --host=127.0.0.1 --port=$eport "
+                INNOEXTRA+=" --host=127.0.0.1 --port=$eport"
                 use_socket=0
             else 
                 wsrep_log_error "Extra port $eport null, failing"
@@ -672,8 +685,8 @@ check_extra()
             wsrep_log_info "Thread pool not set, ignore the option use_extra"
         fi
     fi
-    if [[ $use_socket -eq 1 ]] && [[ -n "${WSREP_SST_OPT_SOCKET}" ]];then
-        INNOEXTRA+=" --socket=${WSREP_SST_OPT_SOCKET}"
+    if [[ $use_socket -eq 1 ]] && [[ -n "$WSREP_SST_OPT_SOCKET" ]];then
+        INNOEXTRA+=" --socket=$WSREP_SST_OPT_SOCKET"
     fi
 }
 
@@ -788,6 +801,27 @@ check_for_version()
     fi
 }
 
+monitor_process()
+{
+    local sst_stream_pid=$1
+
+    while true ; do
+
+        if ! ps --pid "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
+            wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly." 
+            kill -- -"${WSREP_SST_OPT_PARENT}"
+            exit 32
+        fi
+
+        if ! ps --pid "${sst_stream_pid}" &>/dev/null; then 
+            break
+        fi
+
+        sleep 0.1
+
+    done
+}
+
 
 if [[ ! -x `which $INNOBACKUPEX_BIN` ]];then 
     wsrep_log_error "innobackupex not in path: $PATH"
@@ -865,7 +899,31 @@ fi
 get_stream
 get_transfer
 
-INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts --apply-log \$rebuildcmd \${DATA} ${INNOAPPLY}"
+INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
+# Try to set INNODB_DATA_HOME_DIR from the command line:
+if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
+    INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
+fi
+# if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
+fi
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir '')
+fi
+if [ ! -z "$INNODB_DATA_HOME_DIR" ]; then
+   INNOEXTRA+=" --innodb-data-home-dir=$INNODB_DATA_HOME_DIR"
+fi
+
+if [ -n "$INNODB_DATA_HOME_DIR" ]; then
+    # handle both relative and absolute paths
+    INNODB_DATA_HOME_DIR=$(cd $DATA; mkdir -p "$INNODB_DATA_HOME_DIR"; cd $INNODB_DATA_HOME_DIR; pwd -P)
+else
+    # default to datadir
+    INNODB_DATA_HOME_DIR=$(cd $DATA; pwd -P)
+fi
+
+INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} ${INNOAPPLY}"
 INNOMOVE="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} ${INNOMOVE}"
 INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir ${INNOBACKUP}"
 
@@ -882,9 +940,11 @@ then
             exit 93
         fi
 
-        if [[ -z $(parse_cnf --mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
+        if [[ -z $(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE tmpdir "") && \
+              -z $(parse_cnf --mysqld tmpdir "") && \
+              -z $(parse_cnf xtrabackup tmpdir "") ]]; then
             xtmpdir=$(mktemp -d)
-            tmpopts=" --tmpdir=$xtmpdir "
+            tmpopts=" --tmpdir=$xtmpdir"
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
         fi
 
@@ -1001,9 +1061,25 @@ then
     [[ -e $SST_PROGRESS_FILE ]] && wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
     [[ -n $SST_PROGRESS_FILE ]] && touch $SST_PROGRESS_FILE
 
-    ib_home_dir=$(parse_cnf --mysqld innodb-data-home-dir "")
-    ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
-    ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
+    ib_home_dir=$INNODB_DATA_HOME_DIR
+
+    # Try to set ib_log_dir from the command line:
+    ib_log_dir=$INNODB_LOG_GROUP_HOME_ARG
+    if [ -z "$ib_log_dir" ]; then
+        ib_log_dir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-log-group-home-dir "")
+    fi
+    if [ -z "$ib_log_dir" ]; then
+        ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
+    fi
+
+    # Try to set ib_undo_dir from the command line:
+    ib_undo_dir=$INNODB_UNDO_DIR_ARG
+    if [ -z "$ib_undo_dir" ]; then
+        ib_undo_dir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-undo-directory "")
+    fi
+    if [ -z "$ib_undo_dir" ]; then
+        ib_undo_dir=$(parse_cnf --mysqld innodb-undo-directory "")
+    fi
 
     stagemsg="Joiner-Recv"
 
@@ -1069,7 +1145,13 @@ then
             find $ib_home_dir $ib_log_dir $ib_undo_dir $DATA -mindepth 1 -prune -regex $cpat -o -exec rm -rfv {} 1>&2 \+
         fi
 
-        tempdir=$(parse_cnf --mysqld log-bin "")
+        tempdir=$LOG_BIN_ARG
+        if [ -z "$tempdir" ]; then
+            tempdir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE log-bin "")
+        fi
+        if [ -z "$tempdir" ]; then
+            tempdir=$(parse_cnf --mysqld log-bin "")
+        fi
         if [[ -n ${tempdir:-} ]];then
             binlog_dir=$(dirname $tempdir)
             binlog_file=$(basename $tempdir)
@@ -1089,7 +1171,7 @@ then
 
         MAGIC_FILE="${DATA}/${INFO_FILE}"
         wsrep_log_info "Waiting for SST streaming to complete!"
-        wait $jpid
+        monitor_process $jpid
 
         get_proc
 

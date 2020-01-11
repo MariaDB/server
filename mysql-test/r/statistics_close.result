@@ -1,0 +1,6 @@
+CREATE TABLE t1 (i int);
+RENAME TABLE t1 TO t2;
+FLUSH TABLES;
+DROP TABLE IF EXISTS t1, t2;
+Warnings:
+Note	1051	Unknown table 'test.t1'

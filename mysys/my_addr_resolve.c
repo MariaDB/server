@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 #include <m_string.h>
@@ -214,7 +214,7 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
     strnmov(addr2line_binary, info.dli_fname, sizeof(addr2line_binary));
   }
   offset = info.dli_fbase;
-  len= my_snprintf(input, sizeof(input), "%p\n", ptr - offset);
+  len= my_snprintf(input, sizeof(input), "%08x\n", (ulonglong)(ptr - offset));
   if (write(in[1], input, len) <= 0)
     return 1;
 

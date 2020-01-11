@@ -1842,6 +1842,25 @@ SELECT LENGTH(data) AS len FROM (SELECT REPEAT('☃', 65535) AS data ) AS sub;
 SELECT LENGTH(data) AS len FROM (SELECT REPEAT('☃', 65536) AS data ) AS sub;
 
 --echo #
+--echo # MDEV-15624 Changing the default character set to utf8mb4 changes query evaluation in a very surprising way
+--echo #
+
+SET NAMES utf8mb4;
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+SELECT COUNT(DISTINCT c) FROM (SELECT id, REPLACE(UUID(), "-", "") AS c FROM t1) AS d1;
+--replace_column 1 xxxxxxxxxxxxx-xxxx-xxxx-xxxxxxxxxxxx
+SELECT DISTINCT INSERT(uuid(), 9, 1, "X") AS c FROM t1;
+
+SELECT COUNT(DISTINCT c) FROM (SELECT id, INSERT(UUID(), 9, 1, "X") AS c FROM t1) AS d1;
+--replace_column 1 xxxxxxxxxxxxx-xxxx-xxxx-xxxxxxxxxxxx
+SELECT DISTINCT INSERT(UUID(), 9, 1, "X") AS c FROM t1;
+
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 
@@ -1930,6 +1949,14 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 SET NAMES default;
+
+
+#
+# MDEV-13118 Wrong results with LOWER and UPPER and subquery
+#
+SET NAMES utf8mb4;
+--source include/ctype_mdev13118.inc
+
 
 --echo #
 --echo # End of 10.0 tests

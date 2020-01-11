@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Functions to handle keys */
 
@@ -728,7 +728,7 @@ ulonglong ma_retrieve_auto_increment(const uchar *key, uint8 key_type)
 
   switch (key_type) {
   case HA_KEYTYPE_INT8:
-    s_value= (longlong) *(const char*)key;
+    s_value= (longlong) *(const signed char*) key;
     break;
   case HA_KEYTYPE_BINARY:
     value=(ulonglong)  *key;

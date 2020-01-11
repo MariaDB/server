@@ -71,6 +71,37 @@ WHERE NAME='test/t';
 
 DROP TABLE t;
 
+CREATE TABLE t1(c1 INT) ENGINE=InnoDB;
+ALTER TABLE t1 ADD CONSTRAINT UNIQUE KEY i1(c1);
+ALTER TABLE t1 CHANGE c1 c1 INT NOT NULL,ADD KEY(c1);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18732 InnoDB: ALTER IGNORE returns error for NULL
+--echo #
+
+SET @mode = @@sql_mode;
+SET sql_mode = STRICT_TRANS_TABLES;
+CREATE TABLE t1(c INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL);
+--enable_info
+ALTER IGNORE TABLE t1 MODIFY c INT NOT NULL;
+--disable_info
+--error ER_BAD_NULL_ERROR
+INSERT INTO t1 VALUES (NULL);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(c INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL),(1),(1);
+--enable_info
+ALTER IGNORE TABLE t1 ADD UNIQUE(c);
+ALTER IGNORE TABLE t1 ADD PRIMARY KEY(c);
+--disable_info
+SELECT * FROM t1;
+DROP TABLE t1;
+SET sql_mode = @mode;
+
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc

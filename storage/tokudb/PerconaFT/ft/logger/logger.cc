@@ -667,12 +667,8 @@ int toku_logger_find_logfiles (const char *directory, char ***resultp, int *n_lo
         snprintf(fname, fnamelen, "%s/%s", directory, de->d_name);
         result[n_results++] = fname;
     }
-    // Return them in increasing order.  Set width to allow for newer log file names ("xxx.tokulog13")
-    // which are one character longer than old log file names ("xxx.tokulog2").  The comparison function
-    // won't look beyond the terminating NUL, so an extra character in the comparison string doesn't matter.
-    // Allow room for terminating NUL after "xxx.tokulog13" even if result[0] is of form "xxx.tokulog2."
-    int width = sizeof(result[0]+2);
-    qsort(result, n_results, width, logfilenamecompare);
+    // Return them in increasing order.
+    qsort(result, n_results, sizeof(result[0]), logfilenamecompare);
     *resultp    = result;
     *n_logfiles = n_results;
     result[n_results]=0; // make a trailing null

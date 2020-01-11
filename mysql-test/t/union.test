@@ -1455,6 +1455,56 @@ DROP VIEW v1;
 UNION
 (SELECT 2, 2);
 
+--echo #
+--echo # Bug#27197235 USER VARIABLE + UINON + DECIMAL COLUMN RETURNS
+--echo #              WRONG VALUES
+--echo #
+
+let $old_charset= `SELECT @@character_set_client`;
+
+SET NAMES utf8;
+SET @advertAcctId = 1000003;
+select @advertAcctId as a from dual union all select 1.0 from dual;
+
+eval SET NAMES $old_charset;
+SET @advertAcctId = 1000003;
+select @advertAcctId as a from dual union all select 1.0 from dual;
+
+--echo #
+--echo # MDEV-13784: query causes seg fault
+--echo #
+
+CREATE TABLE t1 (`bug_id` int NOT NULL PRIMARY KEY, `product_id` int NOT NULL);
+INSERT INTO t1 VALUES (45199,1184);
+
+CREATE TABLE t2 (`product_id` int NOT NULL,`userid` int NOT NULL, PRIMARY KEY (`product_id`,`userid`));
+INSERT INTO t2 VALUES (1184,103),(1184,624),(1184,1577),(1184,1582);
+
+CREATE TABLE t3 (`id` int NOT NULL  PRIMARY KEY,`name` varchar(64));
+
+
+CREATE TABLE t4 ( `userid` int NOT NULL PRIMARY KEY, `login_name` varchar(255));
+INSERT INTO t4 VALUES (103,'foo'),(624,'foo'),(1577,'foo'),(1582,'foo');
+CREATE TABLE t5 (`id` int NOT NULL PRIMARY KEY, `name` varchar(64));
+
+explain select
+(
+  select login_name from t4 where userId = (
+    select userid from t2 where product_id = t1.product_id
+    union
+    select userid from t2 where product_id = (
+      select id from t5 where name = (select name from t3 where id = t1.product_id)) limit 1 )
+) as x  from t1 where (t1.bug_id=45199);
+select
+(
+  select login_name from t4 where userId = (
+    select userid from t2 where product_id = t1.product_id
+    union
+    select userid from t2 where product_id = (
+      select id from t5 where name = (select name from t3 where id = t1.product_id)) limit 1 )
+) as x  from t1 where (t1.bug_id=45199);
+drop table t1, t2, t3, t4, t5;
+
 --echo End of 5.5 tests
 
 --echo #

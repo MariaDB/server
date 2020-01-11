@@ -16,7 +16,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 #ifndef HA_MROONGA_HPP_
@@ -209,10 +209,6 @@ extern "C" {
 
 #if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
 #  define MRN_FOREIGN_KEY_USE_CONST_STRING
-#endif
-
-#if MYSQL_VERSION_ID >= 100203 && defined(MRN_MARIADB_P)
-#  define MRN_FOREIGN_KEY_USE_METHOD_ENUM
 #endif
 
 #if MYSQL_VERSION_ID < 50706 || defined(MRN_MARIADB_P)
@@ -800,7 +796,7 @@ private:
                                     uchar *buf, uint *size);
 #endif
 #ifdef MRN_HAVE_MYSQL_TYPE_DATETIME2
-  int storage_encode_key_datetime2(Field *field, const uchar *key,
+  int storage_encode_key_datetime2(Field *field, bool is_null, const uchar *key,
                                    uchar *buf, uint *size);
 #endif
 #ifdef MRN_HAVE_MYSQL_TYPE_TIME2

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef RPL_RLI_H
 #define RPL_RLI_H
@@ -676,6 +676,11 @@ struct rpl_group_info
   /* Needs room for "Gtid D-S-N\x00". */
   char gtid_info_buf[5+10+1+10+1+20+1];
 
+  /* List of not yet committed deletions in mysql.gtid_slave_pos. */
+  rpl_slave_state::list_element *pending_gtid_delete_list;
+  /* Domain associated with pending_gtid_delete_list. */
+  uint32 pending_gtid_delete_list_domain;
+
   /*
     The timestamp, from the master, of the commit event.
     Used to do delayed update of rli->last_master_timestamp, for getting
@@ -816,6 +821,12 @@ struct rpl_group_info
   void mark_start_commit();
   char *gtid_info();
   void unmark_start_commit();
+
+  static void pending_gtid_deletes_free(rpl_slave_state::list_element *list);
+  void pending_gtid_deletes_save(uint32 domain_id,
+                                 rpl_slave_state::list_element *list);
+  void pending_gtid_deletes_put_back();
+  void pending_gtid_deletes_clear();
 
   time_t get_row_stmt_start_timestamp()
   {

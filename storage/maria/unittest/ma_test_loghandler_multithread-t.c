@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "../maria_def.h"
 #include <stdio.h>
@@ -486,7 +486,7 @@ int main(int argc __attribute__((unused)),
           fprintf(stderr, "Incorrect LOGREC_FIXED_RECORD_0LSN_EXAMPLE "
                   "data read(%d)\n"
                   "type %u, strid %u %u, len %u, i: %u %u, "
-                  "lsn(%lu,0x%lx) (%lu,0x%lx)\n",
+                  "lsn" LSN_FMT " " LSN_FMT "\n",
                   i, (uint) rec.type,
                   (uint) rec.short_trid, (uint) uint2korr(rec.header),
                   (uint) rec.record_length,
@@ -510,7 +510,7 @@ int main(int argc __attribute__((unused)),
                   "data read(%d) "
                   "thread: %d, iteration %d, stage %d\n"
                   "type %u (%d), len %d, length %lu %lu (%d) "
-                  "lsn(%lu,0x%lx) (%lu,0x%lx)\n",
+                  "lsn" LSN_FMT " " LSN_FMT "\n",
                   i, (uint) rec.short_trid, index, stage,
                   (uint) rec.type, (rec.type !=
                                     LOGREC_VARIABLE_RECORD_0LSN_EXAMPLE),
@@ -526,7 +526,7 @@ int main(int argc __attribute__((unused)),
         {
           fprintf(stderr,
                   "Incorrect LOGREC_VARIABLE_RECORD_0LSN_EXAMPLE "
-                  "in whole rec read lsn(%lu,0x%lx)\n",
+                  "in whole rec read lsn" LSN_FMT "\n",
                   LSN_IN_PARTS(rec.lsn));
           translog_free_record_header(&rec);
           goto err;

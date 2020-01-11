@@ -15,7 +15,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 #include <mrn_mysql.h>
@@ -89,11 +89,13 @@ namespace mrn {
     for (int i = 0; i < n_key_parts && current_mysql_key < mysql_key_end; i++) {
       KEY_PART_INFO *key_part = &(key_info_->key_part[i]);
       Field *field = key_part->field;
+      bool is_null = false;
       DBUG_PRINT("info", ("mroonga: key_part->length=%u", key_part->length));
 
       if (field->null_bit) {
         DBUG_PRINT("info", ("mroonga: field has null bit"));
         *current_grn_key = 0;
+        is_null = *current_mysql_key;
         current_mysql_key += 1;
         current_grn_key += 1;
         (*grn_key_length)++;
@@ -164,7 +166,7 @@ namespace mrn {
         {
           Field_datetimef *datetimef_field =
             static_cast<Field_datetimef *>(field);
-          long long int mysql_datetime_packed =
+          long long int mysql_datetime_packed = is_null ? 0 :
             my_datetime_packed_from_binary(current_mysql_key,
                                            datetimef_field->decimals());
           MYSQL_TIME mysql_time;

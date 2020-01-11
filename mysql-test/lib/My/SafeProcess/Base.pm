@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 # This is a library file used by the Perl version of mysql-test-run,
 # and is part of the translation of the Bourne shell script with the
@@ -186,8 +186,10 @@ sub create_process {
   # it and any childs(that hasn't changed group themself)
   setpgrp(0,0) if $opts{setpgrp};
 
-  if ( $output and !open(STDOUT, $open_mode, $output) ) {
-    croak("can't redirect STDOUT to '$output': $!");
+  if ( $output ) {
+    close STDOUT;
+    open(STDOUT, $open_mode, $output)
+      or croak "can't redirect STDOUT to '$output': $!";
   }
 
   if ( $error ) {
@@ -196,8 +198,10 @@ sub create_process {
 	croak("can't dup STDOUT: $!");
       }
     }
-    elsif ( ! open(STDERR, $open_mode, $error) ) {
-      croak("can't redirect STDERR to '$error': $!");
+    else {
+      close STDERR;
+      open(STDERR, $open_mode, $error)
+        or croak "can't redirect STDERR to '$error': $!";
     }
   }
 

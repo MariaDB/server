@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "../maria_def.h"
 #include <stdio.h>
@@ -94,7 +94,7 @@ int main(int argc __attribute__((unused)), char *argv[])
   }
   if (max_lsn != LSN_IMPOSSIBLE)
   {
-    fprintf(stderr, "Incorrect first lsn response (%lu,0x%lx).",
+    fprintf(stderr, "Incorrect first lsn response " LSN_FMT ".",
             LSN_IN_PARTS(max_lsn));
     translog_destroy();
     exit(1);
@@ -138,8 +138,8 @@ int main(int argc __attribute__((unused)), char *argv[])
   }
   if (max_lsn != last_lsn)
   {
-    fprintf(stderr, "Incorrect max lsn: (%lu,0x%lx)  "
-            " last lsn on first file: (%lu,0x%lx)\n",
+    fprintf(stderr, "Incorrect max lsn: " LSN_FMT "  "
+            " last lsn on first file: " LSN_FMT "\n",
             LSN_IN_PARTS(max_lsn), LSN_IN_PARTS(last_lsn));
     translog_destroy();
     exit(1);

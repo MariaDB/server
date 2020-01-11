@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Pack MyISAM file */
 
@@ -110,7 +110,7 @@ typedef struct st_isam_mrg {
   MI_INFO **file,**current,**end;
   uint free_file;
   uint count;
-  uint	min_pack_length;		/* Theese is used by packed data */
+  uint	min_pack_length;		/* These are used by packed data */
   uint	max_pack_length;
   uint	ref_length;
   uint	max_blob_length;
@@ -209,9 +209,7 @@ int main(int argc, char **argv)
   char **default_argv;
   MY_INIT(argv[0]);
 
-  if (load_defaults("my",load_default_groups,&argc,&argv))
-    exit(1);
-
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   default_argv= argv;
   get_options(&argc,&argv);
 
@@ -1239,7 +1237,7 @@ static void check_counts(HUFF_COUNTS *huff_counts, uint trees,
 	huff_counts->counts[0]=0;
 	goto found_pack;
       }
-      /* Remeber the number of significant spaces. */
+      /* Remember the number of significant spaces. */
       old_space_count=huff_counts->counts[' '];
       /* Add all leading and trailing spaces. */
       huff_counts->counts[' ']+= (huff_counts->tot_end_space +

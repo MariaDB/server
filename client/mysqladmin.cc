@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* maintaince of mysql databases */
 
@@ -319,8 +319,7 @@ int main(int argc,char *argv[])
   MY_INIT(argv[0]);
   mysql_init(&mysql);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
-  if ((error= load_defaults("my",load_default_groups,&argc,&argv)))
-    goto err1;
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   save_argv = argv;				/* Save for free_defaults */
 
   if ((error=handle_options(&argc, &argv, my_long_options, get_one_option)))
@@ -500,10 +499,8 @@ err2:
   my_free(shared_memory_base_name);
 #endif
   free_defaults(save_argv);
-err1:
   my_end(my_end_arg);
-  exit(error);
-  return 0;
+  return error;
 }
 
 

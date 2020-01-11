@@ -562,7 +562,7 @@ INSERT INTO db1.trans (a) VALUES (1);
 cache index t3 in keycache;
 CALL db1.test_if_commit();
 IMPLICIT COMMIT
-YES
+NO
 set global keycache.key_buffer_size=0;
 #
 # SQLCOM_PRELOAD_KEYS
@@ -571,7 +571,7 @@ INSERT INTO db1.trans (a) VALUES (1);
 load index into cache t3;
 CALL db1.test_if_commit();
 IMPLICIT COMMIT
-YES
+NO
 #
 # SQLCOM_FLUSH
 #

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Storage of records in block
@@ -190,8 +190,7 @@ MARIA_RECORD_POS _ma_write_init_block_record(MARIA_HA *info,
                                              const uchar *record);
 my_bool _ma_write_block_record(MARIA_HA *info, const uchar *record);
 my_bool _ma_write_abort_block_record(MARIA_HA *info);
-my_bool _ma_compare_block_record(register MARIA_HA *info,
-                                 register const uchar *record);
+my_bool _ma_compare_block_record(MARIA_HA *info, const uchar *record);
 void    _ma_compact_block_page(MARIA_SHARE *share, uchar *buff, uint rownr,
                                my_bool extend_block, TrID min_read_from,
                                uint min_row_length);

@@ -13,7 +13,7 @@
    You should have received a copy of the GNU General Public License
    along with this program; see the file COPYING. If not, write to the
    Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-   MA  02110-1301  USA.
+   MA  02110-1335  USA.
 */
 
 
@@ -788,6 +788,16 @@ int DoProcessReply(SSL& ssl)
             needHdr = true;
         else {
             buffer >> hdr;
+            /*
+              According to RFC 4346 (see "7.4.1.3. Server Hello"), the Server Hello
+              packet needs to specify the highest supported TLS version, but not
+              higher than what client requests. YaSSL highest supported version is
+              TLSv1.1 (=3.2) - if the client requests a higher version, downgrade it
+              here to 3.2.
+              See also Appendix E of RFC 5246 (TLS 1.2)
+            */
+            if (hdr.version_.major_ == 3 && hdr.version_.minor_ > 2)
+              hdr.version_.minor_ = 2;
             ssl.verifyState(hdr);
         }
 

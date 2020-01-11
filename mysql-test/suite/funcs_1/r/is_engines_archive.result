@@ -2,7 +2,7 @@ SELECT * FROM information_schema.engines
 WHERE ENGINE = 'ARCHIVE';
 ENGINE	ARCHIVE
 SUPPORT	YES
-COMMENT	Archive storage engine
+COMMENT	gzip-compresses tables for a low storage footprint
 TRANSACTIONS	NO
 XA	NO
 SAVEPOINTS	NO

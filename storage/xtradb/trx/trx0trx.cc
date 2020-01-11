@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -278,7 +278,7 @@ trx_create(void)
 	trx->distinct_page_access_hash = NULL;
 	trx->take_stats = FALSE;
 
-	trx->xid.formatID = -1;
+	trx->xid.null();
 
 	trx->op_info = "";
 
@@ -480,6 +480,7 @@ trx_free_prepared(
 	trx_t*	trx)	/*!< in, own: trx object */
 {
 	ut_a(trx_state_eq(trx, TRX_STATE_PREPARED)
+	     || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
 	     || (trx->is_recovered
 		 && (trx_state_eq(trx, TRX_STATE_ACTIVE)
 		     || trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY))
@@ -747,9 +748,9 @@ trx_resurrect_insert(
 
 	/* trx_start_low() is not called with resurrect, so need to initialize
 	start time here.*/
-	if (trx->state == TRX_STATE_ACTIVE
-	    || trx->state == TRX_STATE_PREPARED) {
-		trx->start_time = ut_time();
+	if (trx->state != TRX_STATE_COMMITTED_IN_MEMORY) {
+		trx->start_time = time(NULL);
+		trx->start_time_micro = microsecond_interval_timer();
 	}
 
 	if (undo->dict_operation) {
@@ -835,7 +836,8 @@ trx_resurrect_update(
 	start time here.*/
 	if (trx->state == TRX_STATE_ACTIVE
 	    || trx->state == TRX_STATE_PREPARED) {
-		trx->start_time = ut_time();
+		trx->start_time = time(NULL);
+		trx->start_time_micro = microsecond_interval_timer();
 	}
 
 	if (undo->dict_operation) {
@@ -1041,8 +1043,7 @@ trx_start_low(
 	}
 
 #ifdef WITH_WSREP
-        memset(&trx->xid, 0, sizeof(trx->xid));
-        trx->xid.formatID = -1;
+        trx->xid.null();
 #endif /* WITH_WSREP */
 
 	/* The initial value for trx->no: TRX_ID_MAX is used in
@@ -1105,10 +1106,11 @@ trx_start_low(
 
 	mutex_exit(&trx_sys->mutex);
 
-	trx->start_time = ut_time();
+	trx->start_time = time(NULL);
 
-	trx->start_time_micro =
-		trx->mysql_thd ? thd_query_start_micro(trx->mysql_thd) : 0;
+	trx->start_time_micro = trx->mysql_thd
+		? thd_query_start_micro(trx->mysql_thd)
+		: microsecond_interval_timer();
 
 	MONITOR_INC(MONITOR_TRX_ACTIVE);
 }
@@ -1267,27 +1269,16 @@ trx_finalize_for_fts_table(
 {
 	fts_t*                  fts = ftt->table->fts;
 	fts_doc_ids_t*          doc_ids = ftt->added_doc_ids;
+	mem_heap_t*		heap;
 
-	mutex_enter(&fts->bg_threads_mutex);
+	ut_a(fts->add_wq);
 
-	if (fts->fts_status & BG_THREAD_STOP) {
-		/* The table is about to be dropped, no use
-		adding anything to its work queue. */
+	heap = static_cast<mem_heap_t*>(doc_ids->self_heap->arg);
 
-		mutex_exit(&fts->bg_threads_mutex);
-	} else {
-		mem_heap_t*     heap;
-		mutex_exit(&fts->bg_threads_mutex);
+	ib_wqueue_add(fts->add_wq, doc_ids, heap);
 
-		ut_a(fts->add_wq);
-
-		heap = static_cast<mem_heap_t*>(doc_ids->self_heap->arg);
-
-		ib_wqueue_add(fts->add_wq, doc_ids, heap);
-
-		/* fts_trx_table_t no longer owns the list. */
-		ftt->added_doc_ids = NULL;
-	}
+	/* fts_trx_table_t no longer owns the list. */
+	ftt->added_doc_ids = NULL;
 }
 
 /******************************************************************//**
@@ -1791,25 +1782,20 @@ trx_commit_or_rollback_prepare(
 		/* fall through */
 	case TRX_STATE_ACTIVE:
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		/* If the trx is in a lock wait state, moves the waiting
 		query thread to the suspended state */
 
 		if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
-
-			ulint		sec;
-			ulint		ms;
-			ib_uint64_t	now;
-
 			ut_a(trx->lock.wait_thr != NULL);
 			trx->lock.wait_thr->state = QUE_THR_SUSPENDED;
 			trx->lock.wait_thr = NULL;
 
 			if (UNIV_UNLIKELY(trx->take_stats)) {
-				ut_usectime(&sec, &ms);
-				now = (ib_uint64_t)sec * 1000000 + ms;
-				trx->lock_que_wait_timer
-					+= (ulint)
-					(now - trx->lock_que_wait_ustarted);
+				trx->lock_que_wait_timer += static_cast<ulint>(
+					(my_interval_timer()
+					 - trx->lock_que_wait_nstarted)
+					/ 1000);
 			}
 
 			trx->lock.que_state = TRX_QUE_RUNNING;
@@ -1928,6 +1914,7 @@ trx_commit_for_mysql(
 		/* fall through */
 	case TRX_STATE_ACTIVE:
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		trx->op_info = "committing";
 		trx_commit(trx);
 		MONITOR_DEC(MONITOR_TRX_ACTIVE);
@@ -1984,6 +1971,7 @@ trx_mark_sql_stat_end(
 
 	switch (trx->state) {
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;
 	case TRX_STATE_NOT_STARTED:
@@ -2042,6 +2030,7 @@ trx_print_low(
 			(ulong) difftime(time(NULL), trx->start_time));
 		goto state_ok;
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		fprintf(f, ", ACTIVE (PREPARED) %lu sec",
 			(ulong) difftime(time(NULL), trx->start_time));
 		goto state_ok;
@@ -2186,6 +2175,7 @@ wsrep_trx_print_locking(
 			(ulong) difftime(time(NULL), trx->start_time));
 		goto state_ok;
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		fprintf(f, ", ACTIVE (PREPARED) %lu sec",
 			(ulong) difftime(time(NULL), trx->start_time));
 		goto state_ok;
@@ -2314,6 +2304,7 @@ trx_assert_started(
 
 	switch (trx->state) {
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 		return(TRUE);
 
 	case TRX_STATE_ACTIVE:
@@ -2479,7 +2470,7 @@ trx_recover_for_mysql(
 	XID*	xid_list,	/*!< in/out: prepared transactions */
 	ulint	len)		/*!< in: number of slots in xid_list */
 {
-	const trx_t*	trx;
+	trx_t*		trx;
 	ulint		count = 0;
 
 	ut_ad(xid_list);
@@ -2501,6 +2492,7 @@ trx_recover_for_mysql(
 		trx_sys->mutex. It may change to PREPARED, but not if
 		trx->is_recovered. It may also change to COMMITTED. */
 		if (trx_state_eq(trx, TRX_STATE_PREPARED)) {
+			trx->state = TRX_STATE_PREPARED_RECOVERED;
 			xid_list[count] = trx->xid;
 
 			if (count == 0) {
@@ -2525,11 +2517,22 @@ trx_recover_for_mysql(
 			count++;
 
 			if (count == len) {
-				break;
+				goto partial;
 			}
 		}
 	}
 
+	/* After returning the full list, reset the state, because
+	there will be a second call to recover the transactions. */
+	for (trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
+	     trx != NULL;
+	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
+		if (trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)) {
+			trx->state = TRX_STATE_PREPARED;
+		}
+	}
+
+partial:
 	mutex_exit(&trx_sys->mutex);
 
 	if (count > 0){
@@ -2572,16 +2575,23 @@ trx_get_trx_by_xid_low(
 		the same */
 
 		if (trx->is_recovered
-		    && trx_state_eq(trx, TRX_STATE_PREPARED)
+		    && (trx_state_eq(trx, TRX_STATE_PREPARED)
+			|| trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED))
+		    && !trx->xid.is_null()
 		    && xid->gtrid_length == trx->xid.gtrid_length
 		    && xid->bqual_length == trx->xid.bqual_length
 		    && memcmp(xid->data, trx->xid.data,
 			      xid->gtrid_length + xid->bqual_length) == 0) {
 
+#ifdef WITH_WSREP
+			/* The commit of a prepared recovered Galera
+			transaction needs a valid trx->xid for
+			invoking trx_sys_update_wsrep_checkpoint(). */
+			if (wsrep_is_wsrep_xid(&trx->xid)) break;
+#endif
 			/* Invalidate the XID, so that subsequent calls
 			will not find it. */
-			memset(&trx->xid, 0, sizeof(trx->xid));
-			trx->xid.formatID = -1;
+			trx->xid.null();
 			break;
 		}
 	}
@@ -2646,6 +2656,7 @@ trx_start_if_not_started_xa_low(
 	case TRX_STATE_ACTIVE:
 		return;
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;
 	}
@@ -2672,6 +2683,7 @@ trx_start_if_not_started_low(
 	case TRX_STATE_ACTIVE:
 		return;
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;
 	}
@@ -2717,6 +2729,7 @@ trx_start_for_ddl_low(
 		ut_ad(trx->will_lock > 0);
 		return;
 	case TRX_STATE_PREPARED:
+	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
 		break;
 	}

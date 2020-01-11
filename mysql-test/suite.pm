@@ -20,8 +20,14 @@ sub skip_combinations {
   my %skip = ( 'include/have_innodb.combinations' => [ @combinations ],
                'include/have_xtradb.combinations' => [ @combinations ]);
 
+  $skip{'include/innodb_encrypt_log.combinations'} = [ 'crypt' ]
+                unless $ENV{DEBUG_KEY_MANAGEMENT_SO};
+
   # don't run tests for the wrong platform
   $skip{'include/platform.combinations'} = [ (IS_WINDOWS) ? 'unix' : 'win' ];
+
+  $skip{'include/maybe_debug.combinations'} =
+    [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
 
   # and for the wrong word size
   # check for exact values, in case the default changes to be small everywhere
@@ -66,7 +72,12 @@ sub skip_combinations {
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
        and $1 ge "1.0.1d";
 
+
   $skip{'t/ssl_7937.combinations'} = [ 'x509v3' ]
+    unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
+       and $1 ge "1.0.2";
+
+  $skip{'t/ssl_verify_ip.test'} = 'x509v3 support required'
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
        and $1 ge "1.0.2";
 

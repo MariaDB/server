@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -74,7 +74,7 @@ lock_wait_table_print(void)
 			(ulong) slot->in_use,
 			(ulong) slot->suspended,
 			slot->wait_timeout,
-			(ulong) difftime(ut_time(), slot->suspend_time));
+			(ulong) difftime(time(NULL), slot->suspend_time));
 	}
 }
 
@@ -171,7 +171,7 @@ lock_wait_table_reserve_slot(
 
 			os_event_reset(slot->event);
 			slot->suspended = TRUE;
-			slot->suspend_time = ut_time();
+			slot->suspend_time = time(NULL);
 			slot->wait_timeout = wait_timeout;
 
 			if (slot == lock_sys->last_slot) {
@@ -207,6 +207,7 @@ functions to get some info from THD.
 @param[in]	trx	requested trx
 @param[in]	blocking	blocking info array
 @param[in]	blocking_count	blocking info array size */
+static
 void
 print_lock_wait_timeout(
 	const trx_t &trx,
@@ -280,14 +281,9 @@ lock_wait_suspend_thread(
 				user OS thread */
 {
 	srv_slot_t*	slot;
-	double		wait_time;
 	trx_t*		trx;
 	ulint		had_dict_lock;
 	ibool		was_declared_inside_innodb;
-	ib_int64_t	start_time			= 0;
-	ib_int64_t	finish_time;
-	ulint		sec;
-	ulint		ms;
 	ulong		lock_wait_timeout;
 	blocking_trx_info blocking[MAX_BLOCKING_TRX_IN_REPORT];
 	size_t blocking_count = 0;
@@ -335,15 +331,12 @@ lock_wait_suspend_thread(
 	lock_wait_mutex_exit();
 	trx_mutex_exit(trx);
 
+	ulonglong start_time = 0;
+
 	if (thr->lock_state == QUE_THR_LOCK_ROW) {
 		srv_stats.n_lock_wait_count.inc();
 		srv_stats.n_lock_wait_current_count.inc();
-
-		if (ut_usectime(&sec, &ms) == -1) {
-			start_time = -1;
-		} else {
-			start_time = (ib_int64_t) sec * 1000000 + ms;
-		}
+		start_time = my_interval_timer();
 	}
 
 	ulint	lock_type = ULINT_UNDEFINED;
@@ -423,39 +416,32 @@ lock_wait_suspend_thread(
 		row_mysql_freeze_data_dictionary(trx);
 	}
 
-	wait_time = ut_difftime(ut_time(), slot->suspend_time);
+	double wait_time = difftime(time(NULL), slot->suspend_time);
 
 	/* Release the slot for others to use */
 
 	lock_wait_table_release_slot(slot);
 
 	if (thr->lock_state == QUE_THR_LOCK_ROW) {
-		ulint	diff_time;
-
-		if (ut_usectime(&sec, &ms) == -1) {
-			finish_time = -1;
-		} else {
-			finish_time = (ib_int64_t) sec * 1000000 + ms;
-		}
-
-		diff_time = (finish_time > start_time) ?
-			    (ulint) (finish_time - start_time) : 0;
-
 		srv_stats.n_lock_wait_current_count.dec();
-		srv_stats.n_lock_wait_time.add(diff_time);
 
-		/* Only update the variable if we successfully
-		retrieved the start and finish times. See Bug#36819. */
-		if (diff_time > lock_sys->n_lock_max_wait_time
-		    && start_time != -1
-		    && finish_time != -1) {
+		const ulonglong finish_time = my_interval_timer();
+		ulint diff_time;
 
-			lock_sys->n_lock_max_wait_time = diff_time;
+		if (finish_time < start_time) {
+			diff_time = 0;
+		} else {
+			diff_time = ulint((finish_time - start_time) / 1000);
+			srv_stats.n_lock_wait_time.add(diff_time);
+			/* Only update the variable if we successfully
+			retrieved the start and finish times. See Bug#36819. */
+			if (diff_time > lock_sys->n_lock_max_wait_time) {
+				lock_sys->n_lock_max_wait_time = diff_time;
+			}
 		}
 
 		/* Record the lock wait time for this thread */
 		thd_set_lock_wait_time(trx->mysql_thd, diff_time);
-
 	}
 
 	if (lock_wait_timeout < 100000000
@@ -523,19 +509,12 @@ lock_wait_check_and_cancel(
 	const srv_slot_t*	slot)	/*!< in: slot reserved by a user
 					thread when the wait started */
 {
-	trx_t*		trx;
-	double		wait_time;
-	ib_time_t	suspend_time = slot->suspend_time;
-
 	ut_ad(lock_wait_mutex_own());
-
 	ut_ad(slot->in_use);
-
 	ut_ad(slot->suspended);
 
-	wait_time = ut_difftime(ut_time(), suspend_time);
-
-	trx = thr_get_trx(slot->thr);
+	double wait_time = difftime(time(NULL), slot->suspend_time);
+	trx_t* trx = thr_get_trx(slot->thr);
 
 	if (trx_is_interrupted(trx)
 	    || (slot->wait_timeout < 100000000
@@ -569,7 +548,6 @@ lock_wait_check_and_cancel(
 
 		trx_mutex_exit(trx);
 	}
-
 }
 
 /*********************************************************************//**

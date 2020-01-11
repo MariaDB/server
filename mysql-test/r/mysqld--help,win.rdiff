@@ -121,10 +121,10 @@
  sync-relay-log 10000
  sync-relay-log-info 10000
  sysdate-is-now FALSE
--table-cache 431
+-table-cache 421
 +table-cache 2000
  table-definition-cache 400
--table-open-cache 431
+-table-open-cache 421
 +table-open-cache 2000
  tc-heuristic-recover OFF
  thread-cache-size 0
@@ -133,6 +133,6 @@
 -thread-pool-oversubscribe 3
 -thread-pool-stall-limit 500
 +thread-pool-min-threads 1
- thread-stack 295936
+ thread-stack 299008
  time-format %H:%i:%s
  timed-mutexes FALSE

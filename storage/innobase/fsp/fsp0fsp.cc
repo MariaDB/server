@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -3027,7 +3027,7 @@ fseg_free_page_low(
 	/* Drop search system page hash index if the page is found in
 	the pool and is hashed */
 
-	btr_search_drop_page_hash_when_freed(space, zip_size, page);
+	btr_search_drop_page_hash_when_freed(space, page);
 
 	descr = xdes_get_descriptor(space, zip_size, page, mtr);
 
@@ -3247,7 +3247,7 @@ fseg_free_extent(
 			found in the pool and is hashed */
 
 			btr_search_drop_page_hash_when_freed(
-				space, zip_size, first_page_in_extent + i);
+				space, first_page_in_extent + i);
 		}
 	}
 

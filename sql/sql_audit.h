@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #include <my_global.h>
@@ -60,6 +60,7 @@ static inline void mysql_audit_notify(THD *thd, uint event_class,
 #define mysql_audit_connection_enabled() 0
 #define mysql_audit_table_enabled() 0
 #endif
+extern my_bool mysql_audit_release_required(THD *thd);
 extern void mysql_audit_release(THD *thd);
 
 #define MAX_USER_HOST_SIZE 512

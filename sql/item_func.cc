@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -69,18 +69,6 @@ bool check_reserved_words(LEX_STRING *name)
 
 
 /**
-  @return
-    TRUE if item is a constant
-*/
-
-bool
-eval_const_cond(COND *cond)
-{
-  return ((Item_func*) cond)->val_int() ? TRUE : FALSE;
-}
-
-
-/**
    Test if the sum of arguments overflows the ulonglong range.
 */
 static inline bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)
@@ -133,6 +121,7 @@ void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
   {
     with_sum_func|= item->with_sum_func;
     with_field|= item->with_field;
+    with_param|= item->with_param;
   }
 }
 
@@ -226,8 +215,10 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	maybe_null=1;
 
       with_sum_func= with_sum_func || item->with_sum_func;
+      with_param= with_param || item->with_param;
       with_field= with_field || item->with_field;
       used_tables_and_const_cache_join(item);
+      not_null_tables_cache|= item->not_null_tables();
       with_subselect|=        item->has_subquery();
     }
   }
@@ -938,7 +929,10 @@ longlong Item_func_hybrid_field_type::val_int()
   case INT_RESULT:
     return int_op();
   case REAL_RESULT:
-    return (longlong) rint(real_op());
+  {
+    bool error;
+    return double_to_longlong(real_op(), unsigned_flag, &error);
+  }
   case TIME_RESULT:
   {
     MYSQL_TIME ltime;
@@ -1957,8 +1951,11 @@ my_decimal *Item_func_mod::decimal_op(my_decimal *decimal_value)
 
 void Item_func_mod::result_precision()
 {
+  unsigned_flag= args[0]->unsigned_flag;
   decimals= MY_MAX(args[0]->decimal_scale(), args[1]->decimal_scale());
-  max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
+  uint prec= MY_MAX(args[0]->decimal_precision(), args[1]->decimal_precision());
+  fix_char_length(my_decimal_precision_to_length_no_truncation(prec, decimals,
+                                                               unsigned_flag));
 }
 
 
@@ -1966,6 +1963,10 @@ void Item_func_mod::fix_length_and_dec()
 {
   Item_num_op::fix_length_and_dec();
   maybe_null= 1;
+  /*
+    result_precision() sets unsigned_flag for INT_RESULT and DECIMAL_RESULT.
+    Here we need to set it in case of REAL_RESULT.
+  */
   unsigned_flag= args[0]->unsigned_flag;
 }
 
@@ -2800,15 +2801,21 @@ void Item_func_min_max::fix_length_and_dec()
 
   switch (tmp_cmp_type) {
   case TIME_RESULT:
+  {
     // At least one temporal argument was found.
+    if (temporal_type_count < arg_count)
+      maybe_null= true; // Non-temporal-to-temporal conversion can return NULL
     collation.set_numeric();
     set_handler_by_field_type(temporal_field_type);
     if (is_temporal_type_with_time(temporal_field_type))
       set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
     else
       decimals= 0;
+    uint len= decimals ? (decimals + 1) : 0;
+    len+= mysql_temporal_int_part_length(temporal_field_type);
+    fix_char_length(len);
     break;
-
+  }
   case STRING_RESULT:
     /*
       All arguments are of string-alike types:
@@ -3283,8 +3290,8 @@ longlong Item_func_ord::val_int()
 #ifdef USE_MB
   if (use_mb(res->charset()))
   {
-    register const char *str=res->ptr();
-    register uint32 n=0, l=my_ismbchar(res->charset(),str,str+res->length());
+    const char *str=res->ptr();
+    uint32 n=0, l=my_ismbchar(res->charset(),str,str+res->length());
     if (!l)
       return (longlong)((uchar) *str);
     while (l--)
@@ -3506,6 +3513,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 	func->maybe_null=1;
       func->with_sum_func= func->with_sum_func || item->with_sum_func;
       func->with_field= func->with_field || item->with_field;
+      func->with_param= func->with_param || item->with_param;
       func->with_subselect|= item->with_subselect;
       func->used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();
@@ -4822,7 +4830,7 @@ bool Item_func_set_user_var::register_field_in_bitmap(uchar *arg)
     true    failure
 */
 
-static bool
+bool
 update_hash(user_var_entry *entry, bool set_null, void *ptr, uint length,
             Item_result type, CHARSET_INFO *cs,
             bool unsigned_arg)

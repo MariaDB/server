@@ -12,7 +12,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 # Build comp_sql - used for embedding SQL in C or C++ programs
 IF(NOT CMAKE_CROSSCOMPILING)
@@ -91,6 +91,7 @@ SET(ADD_GIS_SP_EOL ";")
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/maria_add_gis_sp.sql.in
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql ESCAPE_QUOTES @ONLY)
 
+IF (NOT WITHOUT_SERVER)
 INSTALL(FILES 
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables.sql 
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables_data.sql
@@ -103,6 +104,7 @@ INSTALL(FILES
   ${FIX_PRIVILEGES_SQL}
   DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT Server
 )
+ENDIF()
 
 # TCMalloc hacks
 IF(MALLOC_LIB)
@@ -366,6 +368,22 @@ ELSE()
       COMPONENT ${${file}_COMPONENT}
      )
   ENDFOREACH()
+  SET (wsrep_sst_rsync_wan ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_rsync_wan)
+  ADD_CUSTOM_COMMAND(
+    OUTPUT ${wsrep_sst_rsync_wan}
+    COMMAND ${CMAKE_COMMAND} ARGS -E create_symlink
+      wsrep_sst_rsync
+      wsrep_sst_rsync_wan
+  )
+  ADD_CUSTOM_TARGET(symlink_wsrep_sst_rsync
+      ALL
+      DEPENDS ${wsrep_sst_rsync_wan}
+  )
+  INSTALL(
+    FILES  ${wsrep_sst_rsync_wan}
+    DESTINATION ${INSTALL_BINDIR}
+    COMPONENT Server
+  )
 
   FOREACH(file ${WSREP_SOURCE})
     CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
@@ -379,7 +397,6 @@ ELSE()
       COMPONENT ${${file}_COMPONENT}
      )
   ENDFOREACH()
-
 ENDIF()
 
 # Install libgcc as  mylibgcc.a

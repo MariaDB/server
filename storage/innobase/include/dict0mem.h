@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -593,6 +593,9 @@ struct dict_field_t{
 	unsigned	fixed_len:10;	/*!< 0 or the fixed length of the
 					column if smaller than
 					DICT_ANTELOPE_MAX_INDEX_COL_LEN */
+
+	/** Zero-initialize all fields */
+	dict_field_t() : col(NULL), name(NULL), prefix_len(0), fixed_len(0) {}
 };
 
 /**********************************************************************//**
@@ -1031,8 +1034,10 @@ struct dict_table_t{
 
 
 	table_id_t	id;	/*!< id of the table */
+	hash_node_t	id_hash; /*!< hash chain node */
 	mem_heap_t*	heap;	/*!< memory heap */
 	char*		name;	/*!< table name */
+	hash_node_t	name_hash; /*!< hash chain node */
 	const char*	dir_path_of_temp_table;/*!< NULL or the directory path
 				where a TEMPORARY table that was explicitly
 				created by a user should be placed if
@@ -1089,8 +1094,6 @@ struct dict_table_t{
 				dictionary information and
 				MySQL FRM information mismatch. */
 #ifndef UNIV_HOTBACKUP
-	hash_node_t	name_hash; /*!< hash chain node */
-	hash_node_t	id_hash; /*!< hash chain node */
 	UT_LIST_BASE_NODE_T(dict_index_t)
 			indexes; /*!< list of indexes of the table */
 
@@ -1178,7 +1181,7 @@ struct dict_table_t{
 				goes to zero. If it's -1, means there's DDL
 		                on the table, DML from memcached will be
 				blocked. */
-	ib_time_t	stats_last_recalc;
+	time_t		stats_last_recalc;
 				/*!< Timestamp of last recalc of the stats */
 	ib_uint32_t	stat_persistent;
 				/*!< The two bits below are set in the

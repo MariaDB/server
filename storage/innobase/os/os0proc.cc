@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -192,7 +192,6 @@ os_mem_free_large(
 		ut_a(ut_total_allocated_memory >= size);
 		ut_total_allocated_memory -= size;
 		os_fast_mutex_unlock(&ut_list_mutex);
-		UNIV_MEM_FREE(ptr, size);
 		return;
 	}
 #endif /* HAVE_LARGE_PAGES && UNIV_LINUX */
@@ -208,7 +207,6 @@ os_mem_free_large(
 		ut_a(ut_total_allocated_memory >= size);
 		ut_total_allocated_memory -= size;
 		os_fast_mutex_unlock(&ut_list_mutex);
-		UNIV_MEM_FREE(ptr, size);
 	}
 #elif !defined OS_MAP_ANON
 	ut_free(ptr);
@@ -226,7 +224,6 @@ os_mem_free_large(
 		ut_a(ut_total_allocated_memory >= size);
 		ut_total_allocated_memory -= size;
 		os_fast_mutex_unlock(&ut_list_mutex);
-		UNIV_MEM_FREE(ptr, size);
 	}
 #endif
 }

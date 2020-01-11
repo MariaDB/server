@@ -6790,7 +6790,7 @@ ERROR 42S02: Table 'test.t1' doesn't exist
 create table t1 (a integer)$
 call p1$
 a
-alter table t1 add b integer;
+alter table t1 add b integer$
 call p1$
 a
 drop table t1;
@@ -7635,6 +7635,22 @@ c1	c2	count(c3)
 2012-03-01 02:00:00	3	1
 DROP PROCEDURE p1;
 # End of 5.5 test
+CREATE PROCEDURE sp() ALTER TABLE non_existing_table OPTIMIZE PARTITION p0;
+CALL sp;
+Table	Op	Msg_type	Msg_text
+test.non_existing_table	optimize	Error	Table 'test.non_existing_table' doesn't exist
+test.non_existing_table	optimize	status	Operation failed
+SELECT 1;
+1
+1
+DROP PROCEDURE sp;
+CREATE PROCEDURE sp() SET STATEMENT SQL_SELECT_LIMIT=0 FOR SHOW USER_STATISTICS;
+CALL sp;
+User	Total_connections	Concurrent_connections	Connected_time	Busy_time	Cpu_time	Bytes_received	Bytes_sent	Binlog_bytes_written	Rows_read	Rows_sent	Rows_deleted	Rows_inserted	Rows_updated	Select_commands	Update_commands	Other_commands	Commit_transactions	Rollback_transactions	Denied_connections	Lost_connections	Access_denied	Empty_queries	Total_ssl_connections	Max_statement_time_exceeded
+SELECT 1;
+1
+1
+DROP PROCEDURE sp;
 #
 # Bug#12663165 SP DEAD CODE REMOVAL DOESN'T UNDERSTAND CONTINUE HANDLERS
 #
@@ -7901,6 +7917,56 @@ SET S.CLOSE_YN = ''
 where 1=1;
 drop function if exists f1;
 drop table t1,t2;
+#
+# MDEV-16957: Server crashes in Field_iterator_natural_join::next
+# upon 2nd execution of SP
+#
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+CREATE PROCEDURE sp() SELECT * FROM t1 AS t1x JOIN t1 AS t1y USING (c);
+CALL sp;
+ERROR 42S22: Unknown column 'c' in 'from clause'
+CALL sp;
+ERROR 42S22: Unknown column 'c' in 'from clause'
+CALL sp;
+ERROR 42S22: Unknown column 'c' in 'from clause'
+alter table t1 add column c int;
+CALL sp;
+c	a	b	a	b
+DROP PROCEDURE sp;
+DROP TABLE t1;
+#
+# MDEV-17055: Server crashes in find_order_in_list upon
+# 2nd (3rd) execution of SP with UPDATE
+#
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (c INT);
+CREATE PROCEDURE sp() UPDATE v1 SET a = 1 ORDER BY a, b LIMIT 1;
+LOCK TABLE t2 READ;
+CALL sp;
+ERROR HY000: Table 'v1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'order clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'order clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'order clause'
+DROP PROCEDURE sp;
+CREATE PROCEDURE sp() UPDATE v1 SET a = 1 WHERE a=1 and b=2;
+LOCK TABLE t2 READ;
+CALL sp;
+ERROR HY000: Table 'v1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'where clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'where clause'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'where clause'
+DROP PROCEDURE sp;
+DROP VIEW v1;
+DROP TABLE t1, t2;
 # End of 5.5 test
 #
 #  MDEV-7040: Crash in field_conv, memcpy_field_possible, part#2
@@ -7946,7 +8012,7 @@ CLOSE cur1;
 end|
 set @tmp_toc= @@table_open_cache;
 set @tmp_tdc= @@table_definition_cache;
-set global table_open_cache=1;
+set global table_open_cache=10;
 set global table_definition_cache=1;
 Warnings:
 Warning	1292	Truncated incorrect table_definition_cache value: '1'
@@ -8242,4 +8308,29 @@ DROP PROCEDURE proc_13;
 DROP PROCEDURE proc_select;
 DROP TABLE t1, t2;
 SET max_sp_recursion_depth=default;
+#
+# MDEV-15347: Valgrind or ASAN errors in mysql_make_view on query
+# from information_schema
+#
+CREATE VIEW v AS SELECT 1;
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+SELECT * FROM INFORMATION_SCHEMA.TABLES JOIN INFORMATION_SCHEMA.PARAMETERS
+UNION
+SELECT * FROM INFORMATION_SCHEMA.TABLES JOIN INFORMATION_SCHEMA.PARAMETERS;
+DROP FUNCTION f;
+DROP VIEW v;
+#
+# MDEV-17963: Assertion `field_pos < field_count' failed in Protocol_text::store,
+# Assertion `field_handlers == 0 || field_pos < field_count'
+#
+CREATE TABLE t1 (ct time);
+INSERT INTO t1 VALUES ('16:11:28');
+CREATE FUNCTION f1 () RETURNS varchar(100)
+BEGIN
+DECLARE xxx varchar(100);
+ANALYZE SELECT sum(ct) FROM t1 INTO xxx ;
+RETURN xxx;
+END|
+ERROR 0A000: Not allowed to return a result set from a function
+drop table t1;
 #End of 10.1 tests

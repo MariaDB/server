@@ -94,7 +94,7 @@ namespace toku {
         }
 
         void destroy() {
-#if TOKU_SCOPED_MALLOC_DEBUG
+#if defined(TOKU_SCOPED_MALLOC_DEBUG) && TOKU_SCOPED_MALLOC_DEBUG
             printf("%s %p %p\n", __FUNCTION__, this, m_stack);
 #endif
             if (m_stack != NULL) {

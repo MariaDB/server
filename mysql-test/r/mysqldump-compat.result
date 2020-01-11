@@ -2,3 +2,7 @@ CREATE DATABASE mysqldump_30126;
 USE mysqldump_30126;
 CREATE TABLE t1 (c1 int);
 DROP DATABASE mysqldump_30126;
+use test;
+create table t1 (a int);
+create trigger tr after insert on t1 for each row set @a=1;
+drop table t1;

@@ -16,7 +16,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************
 
@@ -36,7 +36,7 @@ permission notice:
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -179,8 +179,7 @@ xb_write_galera_info(bool incremental_prepare)
 		return;
 	}
 
-	memset(&xid, 0, sizeof(xid));
-	xid.formatID = -1;
+	xid.null();
 
 	if (!trx_sys_read_wsrep_checkpoint(&xid)) {
 

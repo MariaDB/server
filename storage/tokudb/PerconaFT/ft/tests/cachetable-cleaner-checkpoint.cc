@@ -103,13 +103,10 @@ cachetable_test (void) {
   create_dummy_functions(f1);
 
   void* v1;
-  //void* v2;
-  long s1;
-  //long s2;
   CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
   wc.flush_callback = flush;
   wc.cleaner_callback = cleaner_callback;
-  r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+  r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
   PAIR_ATTR attr = make_pair_attr(8);
   attr.cache_pressure_size = 8;
   r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, CACHETABLE_DIRTY, attr);

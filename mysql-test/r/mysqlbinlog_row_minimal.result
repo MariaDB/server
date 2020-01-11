@@ -54,9 +54,9 @@ CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMIN
 BEGIN
 /*!*/;
 # at 781
-#<date> server id 1  end_log_pos 833 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 833 	Table_map: `test`.`t1` mapped to number 31
 # at 833
-#<date> server id 1  end_log_pos 898 	Write_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 898 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -79,9 +79,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1005
-#<date> server id 1  end_log_pos 1057 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 1057 	Table_map: `test`.`t1` mapped to number 31
 # at 1057
-#<date> server id 1  end_log_pos 1121 	Write_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1121 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=11 /* INT meta=0 nullable=0 is_null=0 */
@@ -104,9 +104,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1228
-#<date> server id 1  end_log_pos 1280 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 1280 	Table_map: `test`.`t1` mapped to number 31
 # at 1280
-#<date> server id 1  end_log_pos 1343 	Write_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1343 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
@@ -129,9 +129,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1450
-#<date> server id 1  end_log_pos 1502 	Table_map: `test`.`t1` mapped to number 30
+#<date> server id 1  end_log_pos 1502 	Table_map: `test`.`t1` mapped to number 31
 # at 1502
-#<date> server id 1  end_log_pos 1568 	Write_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1568 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
@@ -154,9 +154,9 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1675
-#<date> server id 1  end_log_pos 1727 	Table_map: `test`.`t2` mapped to number 31
+#<date> server id 1  end_log_pos 1727 	Table_map: `test`.`t2` mapped to number 32
 # at 1727
-#<date> server id 1  end_log_pos 1890 	Write_rows: table id 31 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1890 	Write_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t2`
 ### SET
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -212,41 +212,38 @@ COMMIT
 BEGIN
 /*!*/;
 # at 1997
-#<date> server id 1  end_log_pos 2049 	Table_map: `test`.`t2` mapped to number 31
+#<date> server id 1  end_log_pos 2049 	Table_map: `test`.`t2` mapped to number 32
 # at 2049
-#<date> server id 1  end_log_pos 2119 	Update_rows: table id 31 flags: STMT_END_F
+#<date> server id 1  end_log_pos 2111 	Update_rows: table id 32 flags: STMT_END_F
 ### UPDATE `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
-###   @5=4 /* INT meta=0 nullable=1 is_null=0 */
 ### SET
 ###   @5=5 /* INT meta=0 nullable=1 is_null=0 */
 ### UPDATE `test`.`t2`
 ### WHERE
 ###   @1=11 /* INT meta=0 nullable=0 is_null=0 */
-###   @5=4 /* INT meta=0 nullable=1 is_null=0 */
 ### SET
 ###   @5=5 /* INT meta=0 nullable=1 is_null=0 */
 ### UPDATE `test`.`t2`
 ### WHERE
 ###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
-###   @5=NULL /* INT meta=0 nullable=1 is_null=1 */
 ### SET
 ###   @5=5 /* INT meta=0 nullable=1 is_null=0 */
-# at 2119
-#<date> server id 1  end_log_pos 2188 	Query	thread_id=4	exec_time=x	error_code=0
+# at 2111
+#<date> server id 1  end_log_pos 2180 	Query	thread_id=4	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
-# at 2188
-#<date> server id 1  end_log_pos 2226 	GTID 0-1-9
+# at 2180
+#<date> server id 1  end_log_pos 2218 	GTID 0-1-9
 /*!100001 SET @@session.gtid_seq_no=9*//*!*/;
 BEGIN
 /*!*/;
-# at 2226
-#<date> server id 1  end_log_pos 2278 	Table_map: `test`.`t1` mapped to number 30
-# at 2278
-#<date> server id 1  end_log_pos 2328 	Delete_rows: table id 30 flags: STMT_END_F
+# at 2218
+#<date> server id 1  end_log_pos 2270 	Table_map: `test`.`t1` mapped to number 31
+# at 2270
+#<date> server id 1  end_log_pos 2320 	Delete_rows: table id 31 flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -259,20 +256,20 @@ BEGIN
 ### DELETE FROM `test`.`t1`
 ### WHERE
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
-# at 2328
-#<date> server id 1  end_log_pos 2397 	Query	thread_id=4	exec_time=x	error_code=0
+# at 2320
+#<date> server id 1  end_log_pos 2389 	Query	thread_id=4	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
-# at 2397
-#<date> server id 1  end_log_pos 2435 	GTID 0-1-10
+# at 2389
+#<date> server id 1  end_log_pos 2427 	GTID 0-1-10
 /*!100001 SET @@session.gtid_seq_no=10*//*!*/;
 BEGIN
 /*!*/;
-# at 2435
-#<date> server id 1  end_log_pos 2487 	Table_map: `test`.`t2` mapped to number 31
-# at 2487
-#<date> server id 1  end_log_pos 2537 	Delete_rows: table id 31 flags: STMT_END_F
+# at 2427
+#<date> server id 1  end_log_pos 2479 	Table_map: `test`.`t2` mapped to number 32
+# at 2479
+#<date> server id 1  end_log_pos 2529 	Delete_rows: table id 32 flags: STMT_END_F
 ### DELETE FROM `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -285,13 +282,76 @@ BEGIN
 ### DELETE FROM `test`.`t2`
 ### WHERE
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
-# at 2537
-#<date> server id 1  end_log_pos 2606 	Query	thread_id=4	exec_time=x	error_code=0
+# at 2529
+#<date> server id 1  end_log_pos 2598 	Query	thread_id=4	exec_time=x	error_code=0
 SET TIMESTAMP=X/*!*/;
 COMMIT
 /*!*/;
-# at 2606
-#<date> server id 1  end_log_pos 2650 	Rotate to master-bin.000002  pos: 4
+# at 2598
+#<date> server id 1  end_log_pos 2642 	Rotate to master-bin.000002  pos: 4
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+DROP TABLE t1,t2;
+CREATE TABLE `t1` (
+`id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+`is_deleted` BIT(1) DEFAULT b'0',
+`last_updated` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+`ref_id` BIGINT(20) UNSIGNED NOT NULL,
+PRIMARY KEY (`id`),
+KEY `last_updated_KEY` (`last_updated`)
+);
+CREATE TABLE `t2` (
+`id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+`short_desc` VARCHAR(50) NOT NULL,
+PRIMARY KEY (`id`)
+);
+INSERT INTO t2 (id, short_desc) VALUES (1, 'test');
+INSERT INTO t1 (id, is_deleted, ref_id) VALUES (1, b'0', 1);
+FLUSH BINARY LOGS;
+UPDATE t1 t1 INNER JOIN t2 t2 ON t1.ref_id = t2.id
+SET t1.is_deleted = TRUE
+WHERE t1.id = 1;
+FLUSH BINARY LOGS;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+# at 368
+#<date> server id 1  end_log_pos 406 	GTID 0-1-16
+/*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
+/*!100001 SET @@session.gtid_domain_id=0*//*!*/;
+/*!100001 SET @@session.server_id=1*//*!*/;
+/*!100001 SET @@session.gtid_seq_no=16*//*!*/;
+BEGIN
+/*!*/;
+# at 406
+#<date> server id 1  end_log_pos 453 	Table_map: `test`.`t1` mapped to number 34
+# at 453
+#<date> server id 1  end_log_pos 498 	Update_rows: table id 34 flags: STMT_END_F
+### UPDATE `test`.`t1`
+### WHERE
+###   @1=1 /* LONGINT meta=0 nullable=0 is_null=0 */
+### SET
+###   @2=b'1' /* BIT(1) meta=1 nullable=1 is_null=0 */
+###   @3=X /* TIMESTAMP(0) meta=0 nullable=0 is_null=0 */
+# at 498
+#<date> server id 1  end_log_pos 576 	Query	thread_id=4	exec_time=x	error_code=0
+SET TIMESTAMP=X/*!*/;
+SET @@session.pseudo_thread_id=4/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
+SET @@session.sql_mode=1342177280/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C latin1 *//*!*/;
+SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+COMMIT
+/*!*/;
+# at 576
+#<date> server id 1  end_log_pos 620 	Rotate to master-bin.000004  pos: 4
 DELIMITER ;
 # End of log file
 ROLLBACK /* added by mysqlbinlog */;

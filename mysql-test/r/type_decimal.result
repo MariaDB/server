@@ -1019,3 +1019,23 @@ cast('-0.0' as decimal(5,1)) < 0
 #
 # End of 5.5 tests
 #
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-18968 Both (WHERE 0.1) and (WHERE NOT 0.1) return empty set
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT CASE WHEN 0.1 THEN 'TRUE' ELSE 'FALSE' END FROM t1;
+CASE WHEN 0.1 THEN 'TRUE' ELSE 'FALSE' END
+TRUE
+SELECT * FROM t1 WHERE 0.1;
+a
+10
+SELECT * FROM t1 WHERE NOT 0.1;
+a
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

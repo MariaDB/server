@@ -10,7 +10,7 @@
 #               include/index_merge*.inc files
 #
 
-let $engine_type= MyISAM;
+SET STORAGE_ENGINE = MyISAM;
 # MyISAM supports Merge tables
 let $merge_table_support= 1;
 
@@ -33,7 +33,7 @@ insert into t1 select
   A.a * B.a*10 + C.a*100,
   A.a, 
   'filler'
-from t0 A, t0 B, t0 C; 
+from t0 A, t0 B, t0 C;
 
 --echo This should use union:
 explain select * from t1 where a=1 or b=1;
@@ -243,3 +243,30 @@ DROP TABLE t1;
 
 set optimizer_switch= @optimizer_switch_save;
 
+--echo #
+--echo # MDEV-16695: Estimate for rows of derived tables is very high when we are using index_merge union
+--echo #
+
+create table t0
+(
+  key1 int not null,
+  INDEX i1(key1)
+);
+
+insert into t0 select * from seq_1_to_1024;
+alter table t0 add key2 int not null, add index i2(key2);
+alter table t0 add key3 int not null, add index i3(key3);
+alter table t0 add key8 int not null, add index i8(key8);
+
+update t0 set key2=key1,key3=key1,key8=1024-key1;
+analyze table t0;
+
+set @optimizer_switch_save=@@optimizer_switch;
+set optimizer_switch='derived_merge=off,derived_with_keys=off';
+explain select * from (select * from t0 where key1 = 3 or key2 =3) as Z where Z.key8 > 5;
+select * from (select * from t0 where key1 = 3 or key2 =3) as Z where Z.key8 > 5;
+set optimizer_use_condition_selectivity=2;
+explain select * from (select * from t0 where key1 = 3 or key2 =3) as Z where Z.key8 > 5;
+select * from (select * from t0 where key1 = 3 or key2 =3) as Z where Z.key8 > 5;
+set @@optimizer_switch= @optimizer_switch_save;
+drop table t0;

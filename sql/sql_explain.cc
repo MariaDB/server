@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation				// gcc: Class implementation
@@ -895,7 +895,7 @@ void Explain_select::print_explain_json(Explain_query *query,
       {
         Sort_and_group_tracker::Iterator iter(&ops_tracker);
         enum_qep_action action;
-        Filesort_tracker *fs_tracker;
+        Filesort_tracker *fs_tracker= NULL;
 
         while ((action= iter.get_next(&fs_tracker)) != EXPL_ACTION_EOF)
         {
@@ -1223,7 +1223,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   if (rows_set)
   {
     item_list.push_back(new (mem_root)
-                        Item_int(thd, (longlong) (ulonglong) rows,
+                        Item_int(thd, (ulonglong) rows,
                                  MY_INT64_NUM_DECIMAL_DIGITS),
                         mem_root);
   }
@@ -1601,7 +1601,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   
   /* `rows` */
   if (rows_set)
-    writer->add_member("rows").add_ll(rows);
+    writer->add_member("rows").add_ull(rows);
 
   /* `r_rows` */
   if (is_analyze)
@@ -1642,7 +1642,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     {
       /* Get r_filtered value from filesort */
       if (fs_tracker->get_r_loops())
-        writer->add_double(fs_tracker->get_r_filtered());
+        writer->add_double(fs_tracker->get_r_filtered()*100);
       else
         writer->add_null();
     }
@@ -2239,7 +2239,7 @@ void Explain_update::print_explain_json(Explain_query *query,
   }
   
   /* `rows` */
-  writer->add_member("rows").add_ll(rows);
+  writer->add_member("rows").add_ull(rows);
 
 
   if (mrr_type.length() != 0)
@@ -2268,7 +2268,7 @@ void Explain_update::print_explain_json(Explain_query *query,
           r_rows= 0;
         r_filtered= buf_tracker.get_filtered_after_where() * 100.0;
       }
-      writer->add_member("r_rows").add_ll(r_rows);
+      writer->add_member("r_rows").add_ull(r_rows);
       writer->add_member("r_filtered").add_double(r_filtered);
     }
     else /* Not doing buffering */

@@ -4,23 +4,23 @@ INSERT INTO t1 VALUES ('one'), ('two');
 INSERT INTO t1 VALUES (0), (1), (2);
 Warnings:
 Warning	1265	Data truncated for column 'f1' at row 1
-SELECT COUNT(*) = 6 FROM t1;
-COUNT(*) = 6
-1
-SELECT COUNT(*) = 2 FROM t1 where f1 = '';
-COUNT(*) = 2
-1
-SELECT COUNT(*) = 2 FROM t1 where f1 = 'one';
-COUNT(*) = 2
-1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+6
+SELECT COUNT(*) FROM t1 where f1 = '';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 where f1 = 'one';
+COUNT(*)
+2
 DROP TABLE t1;
 CREATE TABLE t1 (f1 ENUM('', 'one', 'two', 'three', 'four') PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (''), ('one'), ('two');
-SELECT COUNT(*) = 3 FROM t1;
-COUNT(*) = 3
-1
-SELECT COUNT(*) = 1 FROM t1 WHERE f1 = '';
-COUNT(*) = 1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+3
+SELECT COUNT(*) FROM t1 WHERE f1 = '';
+COUNT(*)
 1
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -31,7 +31,12 @@ UPDATE t1 SET f1 = 'four' where f1 = '';
 COMMIT;
 COMMIT;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
-SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 'three';
-COUNT(*) = 1
+SELECT COUNT(*) FROM t1 WHERE f1 = 'three';
+COUNT(*)
 1
+SELECT * FROM t1;
+f1
+one
+two
+three
 DROP TABLE t1;

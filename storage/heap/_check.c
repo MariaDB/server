@@ -12,16 +12,14 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* Check that heap-structure is ok */
 
 #include "heapdef.h"
 
-static int check_one_key(HP_KEYDEF *keydef, uint keynr, ulong records,
-			 ulong blength, my_bool print_status);
-static int check_one_rb_key(HP_INFO *info, uint keynr, ulong records,
-			    my_bool print_status);
+static int check_one_key(HP_KEYDEF *, uint, ulong, ulong, my_bool);
+static int check_one_rb_key(const HP_INFO *, uint, ulong, my_bool);
 
 
 /*
@@ -40,13 +38,13 @@ static int check_one_rb_key(HP_INFO *info, uint keynr, ulong records,
     1 error
 */
 
-int heap_check_heap(HP_INFO *info, my_bool print_status)
+int heap_check_heap(const HP_INFO *info, my_bool print_status)
 {
   int error;
   uint key;
   ulong records=0, deleted=0, pos, next_block;
   HP_SHARE *share=info->s;
-  HP_INFO save_info= *info;			/* Needed because scan_init */
+  uchar *current_ptr= info->current_ptr;
   DBUG_ENTER("heap_check_heap");
 
   for (error=key= 0 ; key < share->keys ; key++)
@@ -65,7 +63,7 @@ int heap_check_heap(HP_INFO *info, my_bool print_status)
   {
     if (pos < next_block)
     {
-      info->current_ptr+= share->block.recbuffer;
+      current_ptr+= share->block.recbuffer;
     }
     else
     {
@@ -77,9 +75,9 @@ int heap_check_heap(HP_INFO *info, my_bool print_status)
 	  break;				/* End of file */
       }
     }
-    hp_find_record(info,pos);
+    current_ptr= hp_find_block(&share->block, pos);
 
-    if (!info->current_ptr[share->reclength])
+    if (!current_ptr[share->visible])
       deleted++;
     else
       records++;
@@ -92,7 +90,6 @@ int heap_check_heap(HP_INFO *info, my_bool print_status)
                         deleted, (ulong) share->deleted));
     error= 1;
   }
-  *info= save_info;
   DBUG_RETURN(error);
 }
 
@@ -165,7 +162,7 @@ static int check_one_key(HP_KEYDEF *keydef, uint keynr, ulong records,
   return error;
 }
 
-static int check_one_rb_key(HP_INFO *info, uint keynr, ulong records,
+static int check_one_rb_key(const HP_INFO *info, uint keynr, ulong records,
 			    my_bool print_status)
 {
   HP_KEYDEF *keydef= info->s->keydef + keynr;
@@ -174,9 +171,11 @@ static int check_one_rb_key(HP_INFO *info, uint keynr, ulong records,
   uchar *key, *recpos;
   uint key_length;
   uint not_used[2];
+  TREE_ELEMENT **last_pos;
+  TREE_ELEMENT *parents[MAX_TREE_HEIGHT+1];
   
-  if ((key= tree_search_edge(&keydef->rb_tree, info->parents,
-			     &info->last_pos, offsetof(TREE_ELEMENT, left))))
+  if ((key= tree_search_edge(&keydef->rb_tree, parents,
+			     &last_pos, offsetof(TREE_ELEMENT, left))))
   {
     do
     {
@@ -191,7 +190,7 @@ static int check_one_rb_key(HP_INFO *info, uint keynr, ulong records,
       }
       else
 	found++;
-      key= tree_search_next(&keydef->rb_tree, &info->last_pos,
+      key= tree_search_next(&keydef->rb_tree, &last_pos,
 			    offsetof(TREE_ELEMENT, left), 
 			    offsetof(TREE_ELEMENT, right));
     } while (key);

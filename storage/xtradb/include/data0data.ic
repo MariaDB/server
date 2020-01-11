@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -41,8 +42,6 @@ dfield_get_type(
 /*============*/
 	const dfield_t*	field)	/*!< in: SQL data field */
 {
-	ut_ad(field);
-
 	return((dtype_t*) &(field->type));
 }
 #endif /* UNIV_DEBUG */
@@ -72,7 +71,6 @@ dfield_get_data(
 /*============*/
 	const dfield_t* field)	/*!< in: field */
 {
-	ut_ad(field);
 	ut_ad((field->len == UNIV_SQL_NULL)
 	      || (field->data != &data_error));
 
@@ -89,7 +87,6 @@ dfield_get_len(
 /*===========*/
 	const dfield_t*	field)	/*!< in: field */
 {
-	ut_ad(field);
 	ut_ad((field->len == UNIV_SQL_NULL)
 	      || (field->data != &data_error));
 
@@ -105,7 +102,6 @@ dfield_set_len(
 	dfield_t*	field,	/*!< in: field */
 	ulint		len)	/*!< in: length or UNIV_SQL_NULL */
 {
-	ut_ad(field);
 #ifdef UNIV_VALGRIND_DEBUG
 	if (len != UNIV_SQL_NULL) UNIV_MEM_ASSERT_RW(field->data, len);
 #endif /* UNIV_VALGRIND_DEBUG */
@@ -123,8 +119,6 @@ dfield_is_null(
 /*===========*/
 	const dfield_t* field)	/*!< in: field */
 {
-	ut_ad(field);
-
 	return(field->len == UNIV_SQL_NULL);
 }
 
@@ -137,8 +131,6 @@ dfield_is_ext(
 /*==========*/
 	const dfield_t* field)	/*!< in: field */
 {
-	ut_ad(field);
-
 	return(field->ext);
 }
 
@@ -150,8 +142,6 @@ dfield_set_ext(
 /*===========*/
 	dfield_t*	field)	/*!< in/out: field */
 {
-	ut_ad(field);
-
 	field->ext = 1;
 }
 
@@ -165,8 +155,6 @@ dfield_set_data(
 	const void*	data,	/*!< in: data */
 	ulint		len)	/*!< in: length or UNIV_SQL_NULL */
 {
-	ut_ad(field);
-
 #ifdef UNIV_VALGRIND_DEBUG
 	if (len != UNIV_SQL_NULL) UNIV_MEM_ASSERT_RW(data, len);
 #endif /* UNIV_VALGRIND_DEBUG */
@@ -286,8 +274,6 @@ dtuple_get_info_bits(
 /*=================*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
 {
-	ut_ad(tuple);
-
 	return(tuple->info_bits);
 }
 
@@ -300,8 +286,6 @@ dtuple_set_info_bits(
 	dtuple_t*	tuple,		/*!< in: tuple */
 	ulint		info_bits)	/*!< in: info bits */
 {
-	ut_ad(tuple);
-
 	tuple->info_bits = info_bits;
 }
 
@@ -314,8 +298,6 @@ dtuple_get_n_fields_cmp(
 /*====================*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
 {
-	ut_ad(tuple);
-
 	return(tuple->n_fields_cmp);
 }
 
@@ -329,9 +311,7 @@ dtuple_set_n_fields_cmp(
 	ulint		n_fields_cmp)	/*!< in: number of fields used in
 					comparisons in rem0cmp.* */
 {
-	ut_ad(tuple);
 	ut_ad(n_fields_cmp <= tuple->n_fields);
-
 	tuple->n_fields_cmp = n_fields_cmp;
 }
 
@@ -344,8 +324,6 @@ dtuple_get_n_fields(
 /*================*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
 {
-	ut_ad(tuple);
-
 	return(tuple->n_fields);
 }
 
@@ -483,7 +461,6 @@ dtuple_get_data_size(
 	ulint		i;
 	ulint		sum	= 0;
 
-	ut_ad(tuple);
 	ut_ad(dtuple_check_typed(tuple));
 	ut_ad(tuple->magic_n == DATA_TUPLE_MAGIC_N);
 
@@ -517,7 +494,6 @@ dtuple_get_n_ext(
 	ulint	n_fields	= tuple->n_fields;
 	ulint	i;
 
-	ut_ad(tuple);
 	ut_ad(dtuple_check_typed(tuple));
 	ut_ad(tuple->magic_n == DATA_TUPLE_MAGIC_N);
 

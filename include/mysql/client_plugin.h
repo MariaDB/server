@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -32,17 +32,18 @@
 */
 #undef MYSQL_PLUGIN_EXPORT
 #if defined(_MSC_VER)
-  #ifdef __cplusplus
-    #define MYSQL_PLUGIN_EXPORT extern "C" __declspec(dllexport)
-  #else
-    #define MYSQL_PLUGIN_EXPORT __declspec(dllexport)
-  #endif
+  #define MYSQL_PLUGIN_EXPORT_C __declspec(dllexport)
 #else /*_MSC_VER */
-  #ifdef __cplusplus
-    #define  MYSQL_PLUGIN_EXPORT extern "C"
-  #else
-    #define MYSQL_PLUGIN_EXPORT 
-  #endif
+  #define MYSQL_PLUGIN_EXPORT_C
+#endif
+#ifdef __cplusplus
+#define MYSQL_PLUGIN_EXPORT extern "C" MYSQL_PLUGIN_EXPORT_C
+#define C_MODE_START    extern "C" {
+#define C_MODE_END }
+#else
+#define MYSQL_PLUGIN_EXPORT MYSQL_PLUGIN_EXPORT_C
+#define C_MODE_START
+#define C_MODE_END
 #endif
 
 #ifndef MYSQL_ABI_CHECK
@@ -60,11 +61,12 @@
 #define MYSQL_CLIENT_MAX_PLUGINS             3
 
 #define mysql_declare_client_plugin(X)          \
-     MYSQL_PLUGIN_EXPORT struct st_mysql_client_plugin_ ## X        \
+     C_MODE_START MYSQL_PLUGIN_EXPORT_C         \
+        struct st_mysql_client_plugin_ ## X        \
         _mysql_client_plugin_declaration_ = {   \
           MYSQL_CLIENT_ ## X ## _PLUGIN,        \
           MYSQL_CLIENT_ ## X ## _PLUGIN_INTERFACE_VERSION,
-#define mysql_end_client_plugin             }
+#define mysql_end_client_plugin             }; C_MODE_END
 
 /* generic plugin header structure */
 #define MYSQL_CLIENT_PLUGIN_HEADER                      \

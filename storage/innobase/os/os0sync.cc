@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -71,9 +71,6 @@ static UT_LIST_BASE_NODE_T(os_mutex_t)		os_mutex_list;
 UNIV_INTERN ulint	os_event_count		= 0;
 UNIV_INTERN ulint	os_mutex_count		= 0;
 UNIV_INTERN ulint	os_fast_mutex_count	= 0;
-
-/* The number of microsecnds in a second. */
-static const ulint MICROSECS_IN_A_SECOND = 1000000;
 
 #ifdef UNIV_PFS_MUTEX
 UNIV_INTERN mysql_pfs_key_t	event_os_mutex_key;
@@ -654,26 +651,9 @@ os_event_wait_time_low(
 	struct timespec	abstime;
 
 	if (time_in_usec != OS_SYNC_INFINITE_TIME) {
-		struct timeval	tv;
-		int		ret;
-		ulint		sec;
-		ulint		usec;
-
-		ret = ut_usectime(&sec, &usec);
-		ut_a(ret == 0);
-
-		tv.tv_sec = sec;
-		tv.tv_usec = usec;
-
-		tv.tv_usec += time_in_usec;
-
-		if ((ulint) tv.tv_usec >= MICROSECS_IN_A_SECOND) {
-			tv.tv_sec += tv.tv_usec / MICROSECS_IN_A_SECOND;
-			tv.tv_usec %= MICROSECS_IN_A_SECOND;
-		}
-
-		abstime.tv_sec  = tv.tv_sec;
-		abstime.tv_nsec = tv.tv_usec * 1000;
+		ulonglong usec = ulonglong(time_in_usec) + my_hrtime().val;
+		abstime.tv_sec = usec / 1000000;
+		abstime.tv_nsec = (usec % 1000000) * 1000;
 	} else {
 		abstime.tv_nsec = 999999999;
 		abstime.tv_sec = (time_t) ULINT_MAX;

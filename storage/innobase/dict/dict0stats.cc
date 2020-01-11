@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2009, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2009, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2015, 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -45,7 +45,7 @@ Created Jan 06, 2010 Vasil Dimov
 #include "trx0trx.h" /* trx_create() */
 #include "trx0roll.h" /* trx_rollback_to_savepoint() */
 #include "ut0rnd.h" /* ut_rnd_interval() */
-#include "ut0ut.h" /* ut_format_name(), ut_time() */
+#include "ut0ut.h" /* ut_format_name() */
 
 #include <algorithm>
 #include <map>
@@ -1000,7 +1000,7 @@ dict_stats_update_transient(
 	table->stat_sum_of_other_index_sizes = sum_of_index_sizes
 		- index->stat_index_size;
 
-	table->stats_last_recalc = ut_time();
+	table->stats_last_recalc = time(NULL);
 
 	table->stat_modified_counter = 0;
 
@@ -2325,7 +2325,7 @@ dict_stats_update_persistent(
 			+= index->stat_index_size;
 	}
 
-	table->stats_last_recalc = ut_time();
+	table->stats_last_recalc = time(NULL);
 
 	table->stat_modified_counter = 0;
 
@@ -2499,7 +2499,6 @@ dict_stats_report_error(
 	return (err);
 }
 
-
 /** Save the table's statistics into the persistent statistics storage.
 @param[in] table_orig	table whose stats to save
 @param[in] only_for_index if this is non-NULL, then stats for indexes
@@ -2536,7 +2535,7 @@ dict_stats_save(
 	/* MySQL's timestamp is 4 byte, so we use
 	pars_info_add_int4_literal() which takes a lint arg, so "now" is
 	lint */
-	now = (lint) ut_time();
+	now = (lint) time(NULL);
 
 	pinfo = pars_info_create();
 
@@ -3208,6 +3207,8 @@ dict_stats_update_for_index(
 		if (dict_stats_persistent_storage_check(false)) {
 			dict_table_stats_lock(index->table, RW_X_LATCH);
 			dict_stats_analyze_index(index);
+			index->table->stat_sum_of_other_index_sizes
+				+= index->stat_index_size;
 			dict_table_stats_unlock(index->table, RW_X_LATCH);
 			dict_stats_save(index->table, &index->id);
 			DBUG_VOID_RETURN;
@@ -3979,7 +3980,7 @@ dict_stats_save_defrag_summary(
 	dict_index_t*	index)	/*!< in: index */
 {
 	dberr_t	ret;
-	lint	now = (lint) ut_time();
+	lint	now = (lint) time(NULL);
 	if (dict_index_is_univ(index)) {
 		return DB_SUCCESS;
 	}
@@ -4016,7 +4017,7 @@ dict_stats_save_defrag_stats(
 		return DB_SUCCESS;
 	}
 
-	lint	now = (lint) ut_time();
+	lint	now = (lint) time(NULL);
 	mtr_t	mtr;
 	ulint	n_leaf_pages;
 	ulint	n_leaf_reserved;

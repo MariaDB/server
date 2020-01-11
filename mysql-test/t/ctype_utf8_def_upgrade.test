@@ -1,0 +1,61 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-19675 Wrong charset is chosen when opening a pre-4.1 table
+--echo #
+
+--echo # Test with a saved table from 3.23
+
+SELECT @@character_set_database;
+SET @@character_set_database="latin1";
+--copy_file std_data/host_old.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/host_old.MYD $MYSQLD_DATADIR/test/t1.MYD
+--copy_file std_data/host_old.MYI $MYSQLD_DATADIR/test/t1.MYI
+
+--error ER_GET_ERRNO
+SELECT COUNT(*) FROM t1;
+CHECK TABLE t1;
+REPAIR TABLE t1;
+REPAIR TABLE t1 USE_FRM;
+SELECT COUNT(*) FROM t1;
+CHECK TABLE t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET @@character_set_database=DEFAULT;
+
+
+--echo # Now do the same, but doing 'ALTER DATABASE' to create the db.opt file,
+--echo # instead of setting variables directly.
+
+--echo # Emulate a pre-4.1 database without db.opt
+--mkdir $MYSQLD_DATADIR/db1
+SHOW CREATE DATABASE db1;
+USE db1;
+SELECT @@character_set_database, 'taken from defaults' AS comment;
+USE test;
+ALTER DATABASE db1 DEFAULT CHARACTER SET latin1;
+USE db1;
+SELECT @@character_set_database, 'taken from db.opt' AS comment;
+
+--copy_file std_data/host_old.frm $MYSQLD_DATADIR/db1/t1.frm
+--copy_file std_data/host_old.MYD $MYSQLD_DATADIR/db1/t1.MYD
+--copy_file std_data/host_old.MYI $MYSQLD_DATADIR/db1/t1.MYI
+
+--error ER_GET_ERRNO
+SELECT COUNT(*) FROM t1;
+REPAIR TABLE t1 USE_FRM;
+SELECT COUNT(*) FROM t1;
+CHECK TABLE t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DROP DATABASE db1;
+USE test;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #

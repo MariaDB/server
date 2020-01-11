@@ -20,7 +20,7 @@ CREATE TABLE child (
     parent_id INT
 ) ENGINE=InnoDB;
 
-INSERT INTO parent VALUES (DEFAULT, 0);
+INSERT INTO parent VALUES (1, 0);
 
 --connection node_2
 --send INSERT INTO child (parent_id) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;

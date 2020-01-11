@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -48,7 +49,11 @@ enum trx_que_t {
 enum trx_state_t {
 	TRX_STATE_NOT_STARTED,
 	TRX_STATE_ACTIVE,
-	TRX_STATE_PREPARED,			/* Support for 2PC/XA */
+	/** XA PREPARE has been executed; only XA COMMIT or XA ROLLBACK
+	are possible */
+	TRX_STATE_PREPARED,
+	/** XA PREPARE transaction that was returned to ha_recover() */
+	TRX_STATE_PREPARED_RECOVERED,
 	TRX_STATE_COMMITTED_IN_MEMORY
 };
 

@@ -998,3 +998,57 @@ SELECT b FROM t1 WHERE b = 0;
 SELECT b FROM t1 WHERE b = 0;
 --disconnect con1
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11167: InnoDB: Warning: using a partial-field key prefix
+--echo # in search, results in assertion failure or "Can't find record" error
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (b INT, c INT, KEY(b)) ENGINE=InnoDB PARTITION BY HASH(c) PARTITIONS 2;
+CREATE ALGORITHM = MERGE VIEW v AS SELECT a, b FROM t1 STRAIGHT_JOIN t2 WHERE b = 'foo' WITH CHECK OPTION;
+ 
+INSERT INTO t1 VALUES (1),(2);
+INSERT IGNORE INTO t2 VALUES (2,2),('three',3),(4,4);
+UPDATE v SET a = NULL;
+ 
+DROP view v;
+DROP TABLE t1, t2;
+
+SET @save_isp=@@innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= ON;
+
+CREATE TABLE t (f1 INT, f2 INT, KEY(f2)) ENGINE=InnoDB PARTITION BY HASH (f1) PARTITIONS 2;
+INSERT IGNORE INTO t VALUES (NULL,0),(NULL,0),(0,21),(4,0),(1,8),(5,66);
+CREATE ALGORITHM=MERGE VIEW v AS SELECT t1.* FROM t t1 JOIN t t2 WHERE t1.f1 < t2.f2 WITH LOCAL CHECK OPTION;
+--error ER_VIEW_CHECK_FAILED
+UPDATE v SET f2 = NULL;
+
+SET GLOBAL innodb_stats_persistent= @save_isp;
+DROP view v;
+DROP TABLE t;
+
+--echo #
+--echo # Bug#28573894 ALTER PARTITIONED TABLE ADD AUTO_INCREMENT DIFF RESULT
+--echo #
+CREATE TABLE t (a VARCHAR(10) NOT NULL,b INT,PRIMARY KEY (b)) ENGINE=INNODB
+PARTITION BY RANGE (b)
+(PARTITION pa VALUES LESS THAN (2),
+ PARTITION pb VALUES LESS THAN (20),
+ PARTITION pc VALUES LESS THAN (30),
+ PARTITION pd VALUES LESS THAN (40));
+
+INSERT INTO t
+VALUES('A',0),('B',1),('C',2),('D',3),('E',4),('F',5),('G',25),('H',35);
+CREATE TABLE t_copy LIKE t;
+INSERT INTO t_copy SELECT * FROM t;
+
+--enable_info
+ALTER TABLE t ADD COLUMN r INT UNSIGNED NOT NULL AUTO_INCREMENT,
+ADD UNIQUE KEY (r,b);
+ALTER TABLE t_copy ADD COLUMN r INT UNSIGNED NOT NULL AUTO_INCREMENT,
+ADD UNIQUE KEY (r,b), ALGORITHM=COPY;
+--disable_info
+SELECT * FROM t;
+SELECT * FROM t_copy;
+DROP TABLE t,t_copy;

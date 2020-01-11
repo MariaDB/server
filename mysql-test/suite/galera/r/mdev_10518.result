@@ -71,4 +71,7 @@ wsrep_gtid_domain_id	4294967295
 wsrep_gtid_mode	1
 # On node_1
 DROP TABLE t1, t2;
+#cleanup
+reset master;
+reset master;
 # End of test

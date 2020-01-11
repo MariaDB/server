@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* Functions to handle date and time */
@@ -190,7 +190,7 @@ bool get_date_from_daynr(long daynr,uint *ret_year,uint *ret_month,
 ulong convert_period_to_month(ulong period)
 {
   ulong a,b;
-  if (period == 0)
+  if (period == 0 || period > 999912)
     return 0L;
   if ((a=period/100) < YY_PART_YEAR)
     a+=2000;
@@ -959,6 +959,8 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
       ltime->day= 0;
       return 0;
     }
+    else if (ltime->neg)
+      goto invalid_date;
 
     if (int_type != INTERVAL_DAY)
       ltime->time_type= MYSQL_TIMESTAMP_DATETIME; // Return full date

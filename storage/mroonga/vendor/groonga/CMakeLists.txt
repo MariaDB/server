@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 # https://buildbot.askmonty.org/buildbot/builders/work-amd64-valgrind/builds/5263/steps/compile/logs/stdio
 # says CMake 2.6.2... We want to drop old software support...
@@ -361,10 +361,18 @@ if(NOT ${GRN_WITH_LZ4} STREQUAL "no")
       pkg_check_modules(LIBLZ4 liblz4)
     endif()
     if(LIBLZ4_FOUND)
+      # According to CMake documentation, this is the recommended way to force
+      # looking in LIBRARY_DIRS first and in regular system paths otherwise.
+      #
+      # pkg_check_modules does not guarantee that LIBLZ4_LIBRARY_DIRS will be
+      # set. If it's not set we won't find the library without looking through
+      # the regular system paths.
       find_library(LZ4_LIBS
-	NAMES ${LIBLZ4_LIBRARIES}
-	PATHS ${LIBLZ4_LIBRARY_DIRS}
-	NO_DEFAULT_PATH)
+        NAMES ${LIBLZ4_LIBRARIES}
+        PATHS ${LIBLZ4_LIBRARY_DIRS}
+        NO_DEFAULT_PATH)
+      find_library(LZ4_LIBS
+        NAMES ${LIBLZ4_LIBRARIES})
       set(GRN_WITH_LZ4 TRUE)
     else()
       if(${GRN_WITH_LZ4} STREQUAL "yes")

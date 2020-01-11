@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef _my_sys_h
 #define _my_sys_h
@@ -602,7 +602,9 @@ static inline size_t my_b_bytes_in_cache(const IO_CACHE *info)
   return *info->current_end - *info->current_pos;
 }
 
-int      my_b_copy_to_file(IO_CACHE *cache, FILE *file);
+int my_b_copy_to_file    (IO_CACHE *cache, FILE *file, size_t count);
+int my_b_copy_all_to_file(IO_CACHE *cache, FILE *file);
+
 my_off_t my_b_append_tell(IO_CACHE* info);
 my_off_t my_b_safe_tell(IO_CACHE* info); /* picks the correct tell() */
 int my_b_pread(IO_CACHE *info, uchar *Buffer, size_t Count, my_off_t pos);

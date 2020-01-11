@@ -3,6 +3,7 @@
 [mysqld]
 wsrep_sst_method=xtrabackup-v2
 wsrep_sst_auth="root:"
+wsrep_node_address=::1
 
 [mysqld.1]
 wsrep-cluster-address=gcomm://
@@ -23,4 +24,6 @@ wsrep_sst_receive_address='[::1]:@mysqld.3.#sst_port'
 wsrep_node_incoming_address='[::1]:@mysqld.3.port'
 
 [SST]
+transferfmt=@ENV.MTR_GALERA_TFMT
+streamfmt=xbstream
 sockopt=",pf=ip6"

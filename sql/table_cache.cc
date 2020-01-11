@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -328,6 +328,7 @@ bool tc_release_table(TABLE *table)
 {
   DBUG_ASSERT(table->in_use);
   DBUG_ASSERT(table->file);
+  DBUG_ASSERT(!table->pos_in_locked_tables);
 
   if (table->needs_reopen() || tc_records() > tc_size)
   {
@@ -1133,6 +1134,9 @@ void tdc_assign_new_table_id(TABLE_SHARE *share)
   DBUG_ASSERT(share);
   DBUG_ASSERT(tdc_inited);
 
+  DBUG_EXECUTE_IF("simulate_big_table_id",
+                  if (last_table_id < UINT_MAX32)
+                    last_table_id= UINT_MAX32 - 1;);
   /*
     There is one reserved number that cannot be used.  Remember to
     change this when 6-byte global table id's are introduced.
@@ -1140,7 +1144,7 @@ void tdc_assign_new_table_id(TABLE_SHARE *share)
   do
   {
     tid= my_atomic_add64_explicit(&last_table_id, 1, MY_MEMORY_ORDER_RELAXED);
-  } while (unlikely(tid == ~0UL));
+  } while (unlikely(tid == ~0UL || tid == 0));
 
   share->table_map_id= tid;
   DBUG_PRINT("info", ("table_id= %lu", share->table_map_id));

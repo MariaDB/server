@@ -279,3 +279,12 @@ explain select 0+a from t1 where a in (869751,736494,226312,802616);
 drop table t1;
 
 --echo End of 5.3 tests
+
+#
+# Bug#27799513: POTENTIAL DOUBLE FREE OR CORRUPTION OF HEAP INFO (HP_INFO)
+#
+create table t1 (id int, a varchar(300) not null, key using btree(a)) engine=heap;
+insert t1 values (1, repeat('a', 300));
+drop table t1;
+
+--echo End of 5.5 tests

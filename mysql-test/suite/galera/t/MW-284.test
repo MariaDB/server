@@ -24,7 +24,6 @@ SET global wsrep_sync_wait=0;
 
 --connection node_3
 START SLAVE;
---sleep 1
 --let $slave_param= Slave_IO_Running
 --let $slave_param_value= Connecting
 --source include/wait_for_slave_param.inc
@@ -38,6 +37,7 @@ SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
 --source include/wait_for_slave_to_start.inc
 
 --connection node_1
+--source include/galera_wait_ready.inc
 INSERT INTO t1 VALUES (1);
 
 --connection node_3
@@ -61,3 +61,10 @@ RESET SLAVE ALL;
 
 CALL mtr.add_suppression('failed registering on master');
 CALL mtr.add_suppression('You need to use --log-bin to make --binlog-format work');
+
+--connection node_1
+RESET MASTER;
+CALL mtr.add_suppression('WSREP: Last Applied Action message in non-primary configuration from member');
+
+--connection node_2
+CALL mtr.add_suppression('WSREP: Last Applied Action message in non-primary configuration from member');

@@ -14,45 +14,6 @@ source include/have_binlog_checksum_off.inc;
 
 source include/master-slave.inc;
 
-call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
-
-#
-# This is to test that slave properly detects if
-# master may suffer from:
-# BUG#24432 "INSERT... ON DUPLICATE KEY UPDATE skips auto_increment values"
-# (i.e. on master, INSERT ON DUPLICATE KEY UPDATE is used and manipulates
-# an auto_increment column, and is binlogged statement-based).
-#
-
-# testcase with INSERT VALUES
-CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b INT,
-UNIQUE(b));
-sync_slave_with_master;
-connection master;
-INSERT INTO t1(b) VALUES(1),(1),(2) ON DUPLICATE KEY UPDATE t1.b=10;
-SELECT * FROM t1;
-connection slave;
-
-# show the error message 
-#1105 = ER_UNKNOWN_ERROR
---let $slave_sql_errno= 1105
---let $show_slave_sql_error= 1
-call mtr.add_suppression("Slave SQL.*suffer.*http:..bugs.mysql.com.bug.php.id=24432");
---source include/wait_for_slave_sql_error.inc
-# show that it was not replicated
-SELECT * FROM t1;
-
-# restart replication for the next testcase
-stop slave;
---source include/wait_for_slave_to_stop.inc
-reset slave;
-connection master;
-reset master;
-drop table t1;
-connection slave;
-start slave;
---source include/wait_for_slave_to_start.inc
-
 # testcase with INSERT SELECT
 connection master;
 CREATE TABLE t1 (

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -1500,13 +1500,20 @@ void Item_exists_subselect::fix_length_and_dec()
 {
   DBUG_ENTER("Item_exists_subselect::fix_length_and_dec");
   init_length_and_dec();
-  /*
-    We need only 1 row to determine existence (i.e. any EXISTS that is not
-    an IN always requires LIMIT 1)
-  */
-  thd->change_item_tree(&unit->global_parameters()->select_limit,
-                        new (thd->mem_root) Item_int(thd, (int32) 1));
-  DBUG_PRINT("info", ("Set limit to 1"));
+  // If limit is not set or it is constant more than 1
+  if (!unit->global_parameters()->select_limit ||
+      (unit->global_parameters()->select_limit->basic_const_item() &&
+       unit->global_parameters()->select_limit->val_int() > 1))
+  {
+    /*
+      We need only 1 row to determine existence (i.e. any EXISTS that is not
+      an IN always requires LIMIT 1)
+    */
+    thd->change_item_tree(&unit->global_parameters()->select_limit,
+                          new (thd->mem_root) Item_int(thd, (int32) 1));
+    unit->global_parameters()->explicit_limit= 1; // we set the limit
+    DBUG_PRINT("info", ("Set limit to 1"));
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -1818,7 +1825,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
   Item* join_having= join->having ? join->having : join->tmp_having;
   if (!(join_having || select_lex->with_sum_func ||
         select_lex->group_list.elements) &&
-      select_lex->table_list.elements == 0 &&
+      select_lex->table_list.elements == 0 && !join->conds &&
       !select_lex->master_unit()->is_union())
   {
     Item *where_item= (Item*) select_lex->item_list.head();

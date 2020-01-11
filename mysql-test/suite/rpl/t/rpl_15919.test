@@ -1,0 +1,18 @@
+--source include/have_case_sensitive_file_system.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection master
+create table RPL(a int);
+insert into RPL values(1);
+
+--sync_slave_with_master
+select * from rpl;
+insert into RPL values(3);
+insert into rpl values(4);
+select * from rpl;
+
+--connection master
+drop table RPL;
+
+--source include/rpl_end.inc

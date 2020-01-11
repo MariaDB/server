@@ -15,7 +15,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -545,21 +545,6 @@ from outside the buffer pool.
 # undef UNIV_INLINE
 # define UNIV_INLINE	UNIV_INLINE_ORIGINAL
 #endif
-
-#ifdef UNIV_INNOCHECKSUM
-/** Issue a warning when the checksum that is stored in the page is valid,
-but different than the global setting innodb_checksum_algorithm.
-@param[in]	current_algo	current checksum algorithm
-@param[in]	page_checksum	page valid checksum
-@param[in]	space_id	tablespace id
-@param[in]	page_no		page number */
-void
-page_warn_strict_checksum(
-	srv_checksum_algorithm_t	curr_algo,
-	srv_checksum_algorithm_t	page_checksum,
-	ulint				space_id,
-	ulint				page_no);
-#endif /* UNIV_INNOCHECKSUM */
 
 #ifndef UNIV_INNOCHECKSUM
 #ifndef UNIV_NONINL

@@ -6,59 +6,108 @@
 --source include/have_innodb.inc
 
 CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+INSERT INTO t1 values(0);
 
 --connection node_1
+
 SET GLOBAL wsrep_slave_threads = 10;
 SET GLOBAL wsrep_slave_threads = 1;
 
+--echo # Wait 10 slave threads to start 1
+--let $wait_timeout=600
+--let $wait_condition = SELECT COUNT(*) = 11 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
+
 --connection node_2
-INSERT INTO t1 VALUES (1);
+SET SESSION wsrep_sync_wait=15;
+# Wait until inserts are replicated
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+--echo # Generate 100 replication events
+--disable_query_log
+--disable_result_log
+--let $count = 100
+while ($count)
+{
+  INSERT INTO t1 VALUES (1);
+  --dec $count
+}
+--enable_result_log
+--enable_query_log
 
 --connection node_1
---sleep 0.5
+SET SESSION wsrep_sync_wait=15;
+
+SELECT COUNT(*) FROM t1;
+
+--echo # Wait 9 slave threads to exit 1
+# Wait until appliers exit
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
+
 SET GLOBAL wsrep_slave_threads = 10;
---sleep 0.5
-SELECT COUNT(*) = 11 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+
+--echo # Wait 10 slave threads to start 2
+--let $wait_condition = SELECT COUNT(*) = 11 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+--source include/wait_condition.inc
 
 SET GLOBAL wsrep_slave_threads = 20;
---sleep 0.5
-SELECT COUNT(*) = 21 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
 
+--echo # Wait 20 slave threads to start 3
+--let $wait_condition = SELECT COUNT(*) = 21 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+--source include/wait_condition.inc
 
 SET GLOBAL wsrep_slave_threads = 1;
 
 --connection node_2
-INSERT INTO t1 VALUES (1);
-INSERT INTO t1 VALUES (2);
-INSERT INTO t1 VALUES (3);
-INSERT INTO t1 VALUES (4);
-INSERT INTO t1 VALUES (5);
-INSERT INTO t1 VALUES (6);
-INSERT INTO t1 VALUES (7);
-INSERT INTO t1 VALUES (8);
-INSERT INTO t1 VALUES (9);
-
+--echo # Generate 100 replication events
+--disable_query_log
+--disable_result_log
+--let $count = 100
+while ($count)
+{
+  INSERT INTO t1 VALUES (1);
+  --dec $count
+}
+--enable_query_log
+--enable_result_log
 
 --connection node_1
+SELECT COUNT(*) FROM t1;
+
+--echo # Wait 10 slave threads to exit 3
+# Wait until appliers exit
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
+
 SET GLOBAL wsrep_slave_threads = 10;
-SET GLOBAL wsrep_slave_threads = 0;
+SET GLOBAL wsrep_slave_threads = 1;
+
+--echo # Wait 10 slave threads to start 3
+--let $wait_timeout=600
+--let $wait_condition = SELECT COUNT(*) = 11 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
 
 --connection node_2
-INSERT INTO t1 VALUES (10);
-INSERT INTO t1 VALUES (11);
-INSERT INTO t1 VALUES (12);
-INSERT INTO t1 VALUES (13);
-INSERT INTO t1 VALUES (14);
-INSERT INTO t1 VALUES (15);
-INSERT INTO t1 VALUES (16);
-INSERT INTO t1 VALUES (17);
-INSERT INTO t1 VALUES (18);
-INSERT INTO t1 VALUES (19);
-INSERT INTO t1 VALUES (20);
+--echo # Generate 100 replication events
+--disable_query_log
+--disable_result_log
+--let $count = 100
+while ($count)
+{
+  INSERT INTO t1 VALUES (1);
+  --dec $count
+}
+--enable_result_log
+--enable_query_log
 
 --connection node_1
---sleep 0.5
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+SELECT COUNT(*) FROM t1;
 
-SET GLOBAL wsrep_slave_threads = 1;
+--echo # Wait 10 slave threads to exit 4
+# Wait until appliers exit
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
+
+--connection node_1
 DROP TABLE t1;

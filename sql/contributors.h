@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* Structure of the name list */
 
@@ -41,17 +41,18 @@ struct show_table_contributors_st show_table_contributors[]= {
   {"Alibaba Cloud", "https://www.alibabacloud.com/", "Platinum Sponsor of the MariaDB Foundation"},
   {"Tencent Cloud", "https://cloud.tencent.com", "Platinum Sponsor of the MariaDB Foundation"},
   {"Microsoft", "https://microsoft.com/", "Platinum Sponsor of the MariaDB Foundation"},
-  {"MariaDB Corporation", "https://mariadb.com", "Founding member, Gold Sponsor of the MariaDB Foundation"},
+  {"MariaDB Corporation", "https://mariadb.com", "Founding member, Platinum Sponsor of the MariaDB Foundation"},
   {"Visma", "https://visma.com", "Gold Sponsor of the MariaDB Foundation"},
   {"DBS", "https://dbs.com", "Gold Sponsor of the MariaDB Foundation"},
   {"IBM", "https://www.ibm.com", "Gold Sponsor of the MariaDB Foundation"},
+  {"Tencent Games", "http://game.qq.com/", "Gold Sponsor of the MariaDB Foundation"},
   {"Nexedi", "https://www.nexedi.com", "Silver Sponsor of the MariaDB Foundation"},
-  {"Acronis", "http://www.acronis.com", "Silver Sponsor of the MariaDB Foundation"},
-  {"Auttomattic", "https://automattic.com", "Bronze Sponsor of the MariaDB Foundation"},
+  {"Acronis", "https://www.acronis.com", "Silver Sponsor of the MariaDB Foundation"},
   {"Verkkokauppa.com", "https://www.verkkokauppa.com", "Bronze Sponsor of the MariaDB Foundation"},
   {"Virtuozzo", "https://virtuozzo.com", "Bronze Sponsor of the MariaDB Foundation"},
   {"Tencent Game DBA", "http://tencentdba.com/about", "Bronze Sponsor of the MariaDB Foundation"},
   {"Tencent TDSQL", "http://tdsql.org", "Bronze Sponsor of the MariaDB Foundation"},
+  {"Percona", "https://www.percona.com/", "Bronze Sponsor of the MariaDB Foundation"},
 
   /* Sponsors of important features */
   {"Google", "USA", "Sponsoring encryption, parallel replication and GTID"},

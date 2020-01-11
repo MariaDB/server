@@ -1,0 +1,77 @@
+#
+# test of new fulltext search features
+#
+
+let collation=utf8_unicode_ci;
+source include/have_collation.inc;
+
+#
+# two-level tree
+#
+
+CREATE TABLE t1 (
+  i int(10) unsigned not null auto_increment primary key,
+  a varchar(255) not null,
+  FULLTEXT KEY (a)
+) ENGINE=Aria ROW_FORMAT=DYNAMIC MAX_ROWS=2000000000000;
+
+# two-level entry, second-level tree with depth 2
+disable_query_log;
+let $1=1024;
+while ($1)
+{
+  eval insert t1 (a) values ('aaaxxx');
+  dec $1;
+}
+
+# one-level entry (entries)
+let $1=150;
+while ($1)
+{
+  eval insert t1 (a) values ('aaayyy');
+  dec $1;
+}
+enable_query_log;
+
+repair table t1 quick;
+check table t1;
+repair table t1;
+check table t1;
+repair table t1;
+
+select count(*) from t1 where match a against ('aaaxxx');
+select count(*) from t1 where match a against ('aaayyy');
+select count(*) from t1 where match a against ('aaaxxx' in boolean mode);
+select count(*) from t1 where match a against ('aaayyy' in boolean mode);
+
+select count(*) from t1 where match a against ('aaax*' in boolean mode);
+select count(*) from t1 where match a against ('aaay*' in boolean mode);
+select count(*) from t1 where match a against ('aaa*' in boolean mode);
+
+# mi_write:
+insert t1 (a) values ('aaaxxx'),('aaayyy');
+# call to enlarge_root() below
+select count(*) from t1 where match a against ('aaaxxx' in boolean mode);
+select count(*) from t1 where match a against ('aaayyy');
+
+# mi_delete
+insert t1 (a) values ('aaaxxx 000000');
+select count(*) from t1 where match a against ('000000');
+delete from t1 where match a against ('000000');
+select count(*) from t1 where match a against ('000000');
+select count(*) from t1 where match a against ('aaaxxx');
+select count(*) from t1 where match a against ('aaaxxx' in boolean mode);
+select count(*) from t1 where match a against ('aaayyy' in boolean mode);
+# double-check without index
+select count(*) from t1 where a = 'aaaxxx';
+select count(*) from t1 where a = 'aaayyy';
+
+# update
+insert t1 (a) values ('aaaxxx 000000');
+select count(*) from t1 where match a against ('000000');
+select count(*) from t1 where match a against ('aaaxxx' in boolean mode);
+update t1 set a='aaaxxx' where a = 'aaayyy';
+select count(*) from t1 where match a against ('aaaxxx' in boolean mode);
+select count(*) from t1 where match a against ('aaayyy' in boolean mode);
+
+drop table t1;

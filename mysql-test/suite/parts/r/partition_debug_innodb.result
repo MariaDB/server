@@ -1,4 +1,3 @@
-DROP TABLE IF EXISTS t1;
 call mtr.add_suppression("InnoDB: Warning: allocated tablespace .*, old maximum was");
 call mtr.add_suppression("InnoDB: Error: table .* does not exist in the InnoDB internal");
 call mtr.add_suppression("InnoDB: Warning: MySQL is trying to drop table ");
@@ -12,6 +11,7 @@ call mtr.add_suppression("InnoDB: Warning: MySQL is trying to drop table ");
 call mtr.add_suppression("Attempting backtrace. You can use the following information to find out");
 flush tables;
 # Crash testing ADD PARTITION
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_1";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -76,7 +76,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_2";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -143,7 +143,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_3";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -210,7 +210,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_4";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -277,7 +277,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_5";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -345,7 +345,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_6";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -413,7 +413,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_7";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -481,7 +481,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_8";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -551,7 +551,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_9";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -619,7 +619,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_9";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_add_partition_10";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -687,8 +687,9 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_add_partition_10";
+SET SESSION debug_dbug=@save_dbug;
 # Error recovery testing ADD PARTITION
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_1";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -809,7 +810,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_2";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -930,7 +931,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_3";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -1051,7 +1052,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_4";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -1172,7 +1173,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_5";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -1293,7 +1294,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_6";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -1414,7 +1415,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_7";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -1535,7 +1536,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_8";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -1660,7 +1661,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_9";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -1785,7 +1786,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_9";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_add_partition_10";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -1910,8 +1911,9 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_add_partition_10";
+SET SESSION debug_dbug=@save_dbug;
 # Test DROP PARTITION
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_1";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -1975,7 +1977,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_2";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -2041,7 +2043,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_3";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -2107,7 +2109,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_4";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -2167,7 +2169,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_5";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -2227,7 +2229,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_6";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -2287,7 +2289,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_7";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -2345,7 +2347,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_8";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -2402,7 +2404,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_drop_partition_9";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -2459,8 +2461,9 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_drop_partition_9";
+SET SESSION debug_dbug=@save_dbug;
 # Error recovery DROP PARTITION
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_1";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -2579,7 +2582,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_2";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -2698,7 +2701,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_3";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -2817,7 +2820,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_4";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -2924,7 +2927,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_5";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -3031,7 +3034,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_6";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -3138,7 +3141,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_7";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -3245,7 +3248,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_8";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -3352,7 +3355,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_drop_partition_9";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -3459,9 +3462,10 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_drop_partition_9";
+SET SESSION debug_dbug=@save_dbug;
 # Test change partition (REORGANIZE/REBUILD/COALESCE
 # or ADD HASH PARTITION).
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_1";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -3527,7 +3531,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_2";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -3595,7 +3599,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_3";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -3663,7 +3667,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_4";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -3733,7 +3737,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_5";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -3803,7 +3807,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_6";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -3873,7 +3877,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_7";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -3945,7 +3949,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_8";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -4017,7 +4021,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_9";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -4087,7 +4091,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_9";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_10";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -4157,7 +4161,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_10";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_11";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -4226,7 +4230,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_11";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,crash_change_partition_12";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -4295,9 +4299,10 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,crash_change_partition_12";
+SET SESSION debug_dbug=@save_dbug;
 # Error recovery change partition (REORGANIZE/REBUILD/COALESCE
 # or ADD HASH PARTITION).
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_1";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -4420,7 +4425,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_2";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -4543,7 +4548,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_3";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -4666,7 +4671,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_4";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -4789,7 +4794,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_5";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -4912,7 +4917,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_6";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -5035,7 +5040,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_7";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -5162,7 +5167,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_8";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -5289,7 +5294,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_9";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -5416,7 +5421,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_9";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_10";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -5543,7 +5548,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_10";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_11";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -5670,7 +5675,7 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_11";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,fail_change_partition_12";
 CREATE TABLE t1 (a INT, b VARCHAR(64))
 ENGINE = 'InnoDB'
@@ -5797,13 +5802,14 @@ a	b
 4	Original from partition p0
 UNLOCK TABLES;
 DROP TABLE t1;
-SET SESSION debug_dbug="-d,fail_change_partition_12";
+SET SESSION debug_dbug=@save_dbug;
 #
 # WL#4445: EXCHANGE PARTITION WITH TABLE
 # Verify ddl_log and InnoDB in case of crashing.
 call mtr.add_suppression("InnoDB: Warning: allocated tablespace .*, old maximum was ");
 call mtr.add_suppression("Attempting backtrace. You can use the following information to find out");
 call mtr.add_suppression("table .* does not exist in the InnoDB internal");
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_1";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -5908,7 +5914,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_2";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -6013,7 +6019,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_3";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -6118,7 +6124,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_4";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -6223,7 +6229,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_5";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -6328,7 +6334,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_6";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -6433,7 +6439,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_7";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -6538,7 +6544,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_8";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -6643,7 +6649,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_9";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -6748,7 +6754,8 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_9";
+SET SESSION debug_dbug=@save_dbug;
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_1";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -6846,7 +6853,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_2";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -6944,7 +6951,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_3";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -7042,7 +7049,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_4";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -7140,7 +7147,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_5";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -7238,7 +7245,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_6";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -7336,7 +7343,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_7";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -7434,7 +7441,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_8";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -7532,7 +7539,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_9";
 CREATE TABLE t2 (a INT, b VARCHAR(64)) ENGINE = InnoDB;
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -7630,4 +7637,4 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_9";
+SET SESSION debug_dbug=@save_dbug;

@@ -839,6 +839,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+ucs2_general_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 "BEGIN ctype_german.inc"
 drop table if exists t1;
 create table t1 as select repeat(' ', 64) as s1;
@@ -1100,6 +1106,12 @@ select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
 c2h
 ab_def
 drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+ucs2_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
 CREATE TABLE t1 AS
 SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
 ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
@@ -1711,7 +1723,7 @@ create table t1 as select concat(1 % 2) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(1) CHARACTER SET ucs2 DEFAULT NULL
+  `c1` varchar(2) CHARACTER SET ucs2 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select hex(concat(-1));
@@ -4616,6 +4628,37 @@ Field	Type	Null	Key	Default	Extra
 c1	mediumtext	YES		NULL	
 DROP TABLE t1;
 #
+# MDEV-15624 Changing the default character set to utf8mb4 changes query evaluation in a very surprising way
+#
+SET NAMES utf8;
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT COUNT(DISTINCT c) FROM (SELECT id, REPLACE(uuid_short(), '0', CAST('o' AS CHAR CHARACTER SET ucs2)) AS c FROM t1) AS d1;
+COUNT(DISTINCT c)
+3
+SELECT DISTINCT REPLACE(uuid_short(), '0', CAST('o' AS CHAR CHARACTER SET ucs2)) AS c FROM t1;
+c
+xxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxx
+SELECT COUNT(DISTINCT c) FROM (SELECT id, INSERT(uuid_short(), 1, 1, CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1) AS d1;
+COUNT(DISTINCT c)
+3
+SELECT DISTINCT INSERT(uuid_short(), 1, 1, CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1;
+c
+xxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxx
+SELECT COUNT(DISTINCT c) FROM (SELECT id, CONCAT(uuid_short(), CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1) AS d1;
+COUNT(DISTINCT c)
+3
+SELECT DISTINCT CONCAT(uuid_short(), CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1;
+c
+xxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxx
+DROP TABLE t1;
+#
 # End of 5.5 tests
 #
 #
@@ -5672,6 +5715,29 @@ c2
 SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT TO_BASE64(t) t2 FROM t1) sub;
 c2
 YWJjZGVmZ2hp-YWJjZGVmZ2hp
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
+SET NAMES utf8, character_set_connection=ucs2;
+#
+# MDEV-13118 Wrong results with LOWER and UPPER and subquery
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch=_latin1'derived_merge=on';
+CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS t LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` varchar(10) CHARACTER SET ucs2 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('abcdefghi'),('ABCDEFGHI');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT LOWER(t) t2 FROM t1) sub;
+c2
+abcdefghi-abcdefghi
+abcdefghi-abcdefghi
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT UPPER(t) t2 FROM t1) sub;
+c2
+ABCDEFGHI-ABCDEFGHI
+ABCDEFGHI-ABCDEFGHI
 DROP TABLE t1;
 SET optimizer_switch=@save_optimizer_switch;
 #

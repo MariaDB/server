@@ -32,6 +32,20 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
     You should have received a copy of the GNU Affero General Public License
     along with PerconaFT.  If not, see <http://www.gnu.org/licenses/>.
+
+----------------------------------------
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
 ======= */
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
@@ -43,6 +57,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include <time.h>
 #include <sys/time.h>
 #include <stdint.h>
+#if defined(__powerpc__)
+# include <sys/platform/ppc.h>
+#endif
 
 static inline float toku_tdiff (struct timeval *a, struct timeval *b) {
     return (float)((a->tv_sec - b->tv_sec) + 1e-6 * (a->tv_usec - b->tv_usec));
@@ -106,6 +123,8 @@ static inline tokutime_t toku_time_now(void) {
     uint64_t result;
     __asm __volatile__ ("mrs %[rt], cntvct_el0" : [rt] "=r" (result));
     return result;
+#elif defined(__powerpc__)
+    return __ppc_get_timebase();
 #else
 #error No timer implementation for this platform
 #endif

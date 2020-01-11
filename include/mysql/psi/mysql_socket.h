@@ -13,7 +13,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
-02110-1301  USA
+02110-1335  USA
 */
 
 #ifndef MYSQL_SOCKET_H
@@ -562,6 +562,12 @@ inline_mysql_socket_socket
       (key, (const my_socket*)&mysql_socket.fd, NULL, 0);
   }
 #endif
+
+  /* SOCK_CLOEXEC isn't always a number - can't preprocessor compare */
+#if defined(HAVE_FCNTL) && defined(FD_CLOEXEC) && !defined(HAVE_SOCK_CLOEXEC)
+  (void) fcntl(mysql_socket.fd, F_SETFD, FD_CLOEXEC);
+#endif
+
   return mysql_socket;
 }
 

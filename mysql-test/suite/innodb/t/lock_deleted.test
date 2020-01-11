@@ -1,0 +1,72 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--source include/count_sessions.inc
+
+connect(stop_purge, localhost, root,,);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connect(delete, localhost, root,,);
+connection default;
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,1);
+DELETE FROM t1;
+
+let $i=2;
+while ($i) {
+let $iso= `SELECT CASE $i WHEN 1 THEN 'UNCOMMITTED' ELSE 'COMMITTED' END`;
+
+SET DEBUG_SYNC='row_ins_sec_index_unique SIGNAL inserted WAIT_FOR locked';
+BEGIN;
+send INSERT INTO t1 VALUES(1,1);
+
+connection delete;
+SET DEBUG_SYNC='now WAIT_FOR inserted';
+SET DEBUG_SYNC='innodb_row_search_for_mysql_exit SIGNAL locked';
+eval SET SESSION TRANSACTION ISOLATION LEVEL READ $iso;
+BEGIN;
+send DELETE FROM t1 WHERE b=1;
+
+connection default;
+reap;
+connection delete;
+reap;
+COMMIT;
+
+connection default;
+SET DEBUG_SYNC='RESET';
+ROLLBACK;
+
+dec $i;
+}
+
+SET DEBUG_SYNC='row_ins_sec_index_unique SIGNAL inserted WAIT_FOR locked';
+BEGIN;
+SET innodb_lock_wait_timeout=1;
+send INSERT INTO t1 VALUES(1,1);
+
+connection delete;
+SET DEBUG_SYNC='now WAIT_FOR inserted';
+SET DEBUG_SYNC='innodb_row_search_for_mysql_exit SIGNAL locked';
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+BEGIN;
+send DELETE FROM t1 WHERE b=1;
+
+connection default;
+--error ER_LOCK_WAIT_TIMEOUT
+reap;
+COMMIT;
+SET DEBUG_SYNC='RESET';
+
+connection delete;
+reap;
+COMMIT;
+
+disconnect delete;
+disconnect stop_purge;
+
+connection default;
+DROP TABLE t1;
+
+--source include/wait_until_count_sessions.inc

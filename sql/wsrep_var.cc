@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "wsrep_var.h"
 
@@ -34,6 +34,7 @@ const  char* wsrep_node_name        = 0;
 const  char* wsrep_node_address     = 0;
 const  char* wsrep_node_incoming_address = 0;
 const  char* wsrep_start_position   = 0;
+ulong   wsrep_reject_queries;
 
 static long wsrep_prev_slave_threads = wsrep_slave_threads;
 
@@ -67,6 +68,9 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
 {
   bool new_wsrep_on= (bool)var->save_result.ulonglong_value;
+
+  if (check_has_super(self, thd, var))
+    return true;
 
   if (new_wsrep_on && innodb_lock_schedule_algorithm != 0) {
     my_message(ER_WRONG_ARGUMENTS, " WSREP (galera) can't be enabled "
@@ -384,6 +388,28 @@ void wsrep_provider_options_init(const char* value)
   wsrep_provider_options = (value) ? my_strdup(value, MYF(0)) : NULL;
 }
 
+bool wsrep_reject_queries_update(sys_var *self, THD* thd, enum_var_type type)
+{
+    switch (wsrep_reject_queries) {
+        case WSREP_REJECT_NONE:
+            WSREP_INFO("Allowing client queries due to manual setting");
+            break;
+        case WSREP_REJECT_ALL:
+            WSREP_INFO("Rejecting client queries due to manual setting");
+            break;
+        case WSREP_REJECT_ALL_KILL:
+            /* close all client connections, but this one */
+            wsrep_close_client_connections(FALSE, thd);
+            WSREP_INFO("Rejecting client queries and killing connections due to manual setting");
+            break;
+        default:
+          WSREP_INFO("Unknown value for wsrep_reject_queries: %lu",
+                     wsrep_reject_queries);
+            return true;
+    }
+    return false;
+}
+
 static int wsrep_cluster_address_verify (const char* cluster_address_str)
 {
   /* There is no predefined address format, it depends on provider. */
@@ -539,7 +565,9 @@ void wsrep_node_address_init (const char* value)
 
 static void wsrep_slave_count_change_update ()
 {
-  wsrep_slave_count_change += (wsrep_slave_threads - wsrep_prev_slave_threads);
+  wsrep_slave_count_change = (wsrep_slave_threads - wsrep_prev_slave_threads);
+  WSREP_DEBUG("Change on slave threads: New %lu old %lu difference %d",
+	  wsrep_slave_threads, wsrep_prev_slave_threads, wsrep_slave_count_change);
   wsrep_prev_slave_threads = wsrep_slave_threads;
 }
 
@@ -559,6 +587,12 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
   if (wsrep == NULL)
   {
     my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+
+  if (thd->global_read_lock.is_acquired())
+  {
+    my_message (ER_CANNOT_USER, "Global read lock acquired. Can't set 'wsrep_desync'", MYF(0));
     return true;
   }
 

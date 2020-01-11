@@ -781,6 +781,15 @@ CREATE TRIGGER tr AFTER DELETE ON t1 FOR EACH ROW SET @a = 1\;
 PREPARE stmt FROM 'CREATE TRIGGER tr AFTER DELETE ON t1 FOR EACH ROW SET @a = 1\\';
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-15620 Crash when using "SET @@NEW.a=expr" inside a trigger
+--echo #
+
+CREATE TABLE t1 (a INT);
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @@NEW.a=0;
+DROP TABLE t1;
+
 #
 # start of 10.1 tests
 #

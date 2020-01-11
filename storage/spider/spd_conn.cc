@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include "mysql_version.h"
@@ -69,9 +69,6 @@ extern PSI_thread_key spd_key_thd_bg_crd;
 extern PSI_thread_key spd_key_thd_bg_mon;
 #endif
 #endif
-
-extern pthread_mutex_t spider_global_trx_mutex;
-extern SPIDER_TRX *spider_global_trx;
 #endif
 
 HASH spider_open_connections;
@@ -2807,9 +2804,6 @@ void *spider_bg_sts_action(
     DBUG_RETURN(NULL);
   }
   share->bg_sts_thd = thd;
-/*
-  spider.trx = spider_global_trx;
-*/
   spider.trx = trx;
   spider.share = share;
   spider.conns = conns;
@@ -2922,13 +2916,11 @@ void *spider_bg_sts_action(
       {
         if (!conns[spider.search_link_idx])
         {
-          pthread_mutex_lock(&spider_global_trx_mutex);
           spider_get_conn(share, spider.search_link_idx,
             share->conn_keys[spider.search_link_idx],
-            spider_global_trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
+            trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
             &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
-          pthread_mutex_unlock(&spider_global_trx_mutex);
 /*
           if (
             error_num &&
@@ -2937,7 +2929,7 @@ void *spider_bg_sts_action(
           ) {
             lex_start(thd);
             error_num = spider_ping_table_mon_from_table(
-                spider_global_trx,
+                trx,
                 thd,
                 share,
                 (uint32) share->monitoring_sid[spider.search_link_idx],
@@ -2958,7 +2950,6 @@ void *spider_bg_sts_action(
         }
         if (spider.search_link_idx != -1 && conns[spider.search_link_idx])
         {
-          DBUG_ASSERT(!conns[spider.search_link_idx]->thd);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           if (spider_get_sts(share, spider.search_link_idx,
             share->bg_sts_try_time, &spider,
@@ -2979,7 +2970,7 @@ void *spider_bg_sts_action(
             ) {
               lex_start(thd);
               error_num = spider_ping_table_mon_from_table(
-                  spider_global_trx,
+                  trx,
                   thd,
                   share,
                   (uint32) share->monitoring_sid[spider.search_link_idx],
@@ -3192,9 +3183,6 @@ void *spider_bg_crd_action(
   table.s = share->table_share;
   table.field = share->table_share->field;
   table.key_info = share->table_share->key_info;
-/*
-  spider.trx = spider_global_trx;
-*/
   spider.trx = trx;
   spider.change_table_ptr(&table, share->table_share);
   spider.share = share;
@@ -3308,13 +3296,11 @@ void *spider_bg_crd_action(
       {
         if (!conns[spider.search_link_idx])
         {
-          pthread_mutex_lock(&spider_global_trx_mutex);
           spider_get_conn(share, spider.search_link_idx,
             share->conn_keys[spider.search_link_idx],
-            spider_global_trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
+            trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
             &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
-          pthread_mutex_unlock(&spider_global_trx_mutex);
 /*
           if (
             error_num &&
@@ -3323,7 +3309,7 @@ void *spider_bg_crd_action(
           ) {
             lex_start(thd);
             error_num = spider_ping_table_mon_from_table(
-                spider_global_trx,
+                trx,
                 thd,
                 share,
                 (uint32) share->monitoring_sid[spider.search_link_idx],
@@ -3344,7 +3330,6 @@ void *spider_bg_crd_action(
         }
         if (spider.search_link_idx != -1 && conns[spider.search_link_idx])
         {
-          DBUG_ASSERT(!conns[spider.search_link_idx]->thd);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           if (spider_get_crd(share, spider.search_link_idx,
             share->bg_crd_try_time, &spider, &table,
@@ -3365,7 +3350,7 @@ void *spider_bg_crd_action(
             ) {
               lex_start(thd);
               error_num = spider_ping_table_mon_from_table(
-                  spider_global_trx,
+                  trx,
                   thd,
                   share,
                   (uint32) share->monitoring_sid[spider.search_link_idx],
@@ -3717,7 +3702,7 @@ void *spider_bg_mon_action(
     {
       lex_start(thd);
       error_num = spider_ping_table_mon_from_table(
-        spider_global_trx,
+        trx,
         thd,
         share,
         (uint32) share->monitoring_sid[link_idx],

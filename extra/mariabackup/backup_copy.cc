@@ -17,7 +17,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************
 
@@ -35,8 +35,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
+Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *******************************************************/
 
@@ -460,6 +460,21 @@ struct datafile_cur_t {
 	size_t		buf_size;
 	size_t		buf_read;
 	size_t		buf_offset;
+
+	explicit datafile_cur_t(const char* filename = NULL) :
+		file(), thread_n(0), orig_buf(NULL), buf(NULL), buf_size(0),
+		buf_read(0), buf_offset(0)
+	{
+		memset(rel_path, 0, sizeof rel_path);
+		if (filename) {
+			strncpy(abs_path, filename, sizeof abs_path - 1);
+			abs_path[(sizeof abs_path) - 1] = 0;
+		} else {
+			abs_path[0] = '\0';
+		}
+		rel_path[0] = '\0';
+		memset(&statinfo, 0, sizeof statinfo);
+	}
 };
 
 static
@@ -478,9 +493,7 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 {
 	ulint		success;
 
-	memset(cursor, 0, sizeof(datafile_cur_t));
-
-	strncpy(cursor->abs_path, file, sizeof(cursor->abs_path));
+	new (cursor) datafile_cur_t(file);
 
 	/* Get the relative path for the destination tablespace name, i.e. the
 	one that can be appended to the backup root directory. Non-system
@@ -488,7 +501,8 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 	5.6+. We want to make "local" copies for the backup. */
 	strncpy(cursor->rel_path,
 		xb_get_relative_path(cursor->abs_path, FALSE),
-		sizeof(cursor->rel_path));
+		(sizeof cursor->rel_path) - 1);
+	cursor->rel_path[(sizeof cursor->rel_path) - 1] = '\0';
 
 	cursor->file = os_file_create_simple_no_error_handling(0,
 							cursor->abs_path,
@@ -623,11 +637,13 @@ static
 int
 mkdirp(const char *pathname, int Flags, myf MyFlags)
 {
-	char parent[PATH_MAX], *p;
+	char *parent, *p;
+	int len = strlen(pathname) + 1;
 
 	/* make a parent directory path */
-	strncpy(parent, pathname, sizeof(parent));
-	parent[sizeof(parent) - 1] = 0;
+	if (!(parent= (char *)malloc(len)))
+          return(-1);
+	memcpy(parent, pathname, len);
 
 	for (p = parent + strlen(parent);
 	    !is_path_separator(*p) && p != parent; p--);
@@ -636,19 +652,23 @@ mkdirp(const char *pathname, int Flags, myf MyFlags)
 
 	/* try to make parent directory */
 	if (p != parent && mkdirp(parent, Flags, MyFlags) != 0) {
+		free(parent);
 		return(-1);
 	}
 
 	/* make this one if parent has been made */
 	if (my_mkdir(pathname, Flags, MyFlags) == 0) {
+		free(parent);
 		return(0);
 	}
 
 	/* if it already exists that is fine */
 	if (errno == EEXIST) {
+		free(parent);
 		return(0);
 	}
 
+	free(parent);
 	return(-1);
 }
 
@@ -658,17 +678,24 @@ bool
 equal_paths(const char *first, const char *second)
 {
 #ifdef HAVE_REALPATH
-	char real_first[PATH_MAX];
-	char real_second[PATH_MAX];
+	char *real_first, *real_second;
+	int result;
 
-	if (realpath(first, real_first) == NULL) {
-		return false;
-	}
-	if (realpath(second, real_second) == NULL) {
+	real_first = realpath(first, 0);
+	if (real_first == NULL) {
 		return false;
 	}
 
-	return (strcmp(real_first, real_second) == 0);
+	real_second = realpath(second, 0);
+	if (real_second == NULL) {
+		free(real_first);
+		return false;
+	}
+
+	result = strcmp(real_first, real_second);
+	free(real_first);
+	free(real_second);
+	return result == 0;
 #else
 	return strcmp(first, second) == 0;
 #endif
@@ -975,6 +1002,9 @@ copy_file(ds_ctxt_t *datasink,
 	datafile_cur_t		 cursor;
 	xb_fil_cur_result_t	 res;
 	const char		*action;
+	const char	*dst_path =
+		(xtrabackup_copy_back || xtrabackup_move_back)?
+		dst_file_path : trim_dotslash(dst_file_path);
 
 	if (!datafile_open(src_file_path, &cursor, thread_n)) {
 		goto error_close;
@@ -982,8 +1012,7 @@ copy_file(ds_ctxt_t *datasink,
 
 	strncpy(dst_name, cursor.rel_path, sizeof(dst_name));
 
-	dstfile = ds_open(datasink, trim_dotslash(dst_file_path),
-			  &cursor.statinfo);
+	dstfile = ds_open(datasink, dst_path, &cursor.statinfo);
 	if (dstfile == NULL) {
 		msg("[%02u] error: "
 			"cannot open the destination stream for %s\n",
@@ -1187,6 +1216,7 @@ copy_or_move_file(const char *src_file_path,
 
 			if (!directory_exists(dst_dir, true)) {
 				ret = false;
+				free(link_filepath);
 				goto cleanup;
 			}
 

@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -30,7 +30,7 @@ Created 9/20/1997 Heikki Tuuri
 #include <stdio.h>                              // Solaris/x86 header file bug
 
 #include <vector>
-#include <my_systemd.h>
+#include <my_service_manager.h>
 
 #include "log0recv.h"
 
@@ -423,7 +423,7 @@ recv_sys_init(
 		recv_sys->last_block_buf_start, OS_FILE_LOG_BLOCK_SIZE));
 
 	recv_sys->found_corrupt_log = FALSE;
-	recv_sys->progress_time = ut_time();
+	recv_sys->progress_time = time(NULL);
 
 	recv_max_page_lsn = 0;
 
@@ -1702,7 +1702,7 @@ recv_recover_page_func(
 
 	mtr_commit(&mtr);
 
-	ib_time_t time = ut_time();
+	time_t now = time(NULL);
 
 	mutex_enter(&recv_sys->mutex);
 
@@ -1714,11 +1714,11 @@ recv_recover_page_func(
 
 	ut_a(recv_sys->n_addrs > 0);
 	if (ulint n = --recv_sys->n_addrs) {
-		if (recv_sys->report(time)) {
+		if (recv_sys->report(now)) {
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"To recover: " ULINTPF " pages from log", n);
-			sd_notifyf(0, "STATUS=To recover: " ULINTPF
-				   " pages from log", n);
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL, "To recover: " ULINTPF " pages from log", n);
 		}
 	}
 
@@ -2631,29 +2631,29 @@ recv_scan_log_recs(
 		fprintf(stderr, "Scanned lsn no %lu\n",
 		log_block_convert_lsn_to_no(scanned_lsn));
 		*/
-		if (no != log_block_convert_lsn_to_no(scanned_lsn)
-		    || !log_block_checksum_is_ok_or_old_format(log_block, true)) {
+		if (no != log_block_convert_lsn_to_no(scanned_lsn)) {
+			/* Garbage or an incompletely written log block.
+			We will not report any error; because this can happen
+			when InnoDB was killed while it was writing
+			redo log. We simply treat this as an abrupt end of the
+			redo log. */
+			finished = true;
+			break;
+		} else if (!log_block_checksum_is_ok_or_old_format(
+					log_block, true)) {
 
-			if (no == log_block_convert_lsn_to_no(scanned_lsn)
-			    && !log_block_checksum_is_ok_or_old_format(
-				    log_block, true)) {
-				fprintf(stderr,
-					"InnoDB: Log block no %lu at"
-					" lsn " LSN_PF " has\n"
-					"InnoDB: ok header, but checksum field"
-					" contains %lu, should be %lu\n",
-					(ulong) no,
-					scanned_lsn,
-					(ulong) log_block_get_checksum(
-						log_block),
-					(ulong) log_block_calc_checksum(
-						log_block));
-			}
+			fprintf(stderr,
+				"InnoDB: Log block no %lu at"
+				" lsn " LSN_PF " has\n"
+				"InnoDB: ok header, but checksum field"
+				" contains %lu, should be %lu\n",
+				(ulong) no,
+				scanned_lsn,
+				(ulong) log_block_get_checksum(log_block),
+				(ulong) log_block_calc_checksum(log_block));
 
 			maybe_encrypted = log_crypt_block_maybe_encrypted(log_block,
 					&log_crypt_err);
-
-			/* Garbage or an incompletely written log block */
 
 			/* Print checkpoint encryption keys if present */
 			log_crypt_print_checkpoint_keys(log_block);
@@ -2910,6 +2910,9 @@ recv_init_crash_recovery(void)
 	check if there are half-written pages in data files,
 	and restore them from the doublewrite buffer if
 	possible */
+
+	service_manager_extend_timeout(
+		INNODB_EXTEND_TIMEOUT_INTERVAL, "Starting Innodb crash recovery");
 
 	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 		buf_dblwr_process();

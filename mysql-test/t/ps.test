@@ -3875,4 +3875,152 @@ FROM
        FROM  t1 A, (SELECT @cnt := 0) C) T
   ) X;
 drop table t1;
+
+--echo #
+--echo # MDEV-17042: prepared statement does not return error with
+--echo # SQL_MODE STRICT_TRANS_TABLES. (Part 1)
+--echo #
+
+set @save_sql_mode=@@sql_mode;
+set sql_mode='STRICT_ALL_TABLES';
+
+CREATE TABLE t1 (id int, count int);
+insert into t1 values (1,1),(0,2);
+--error ER_TRUNCATED_WRONG_VALUE
+update t1 set count = count + 1 where id = '1bad';
+
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+deallocate prepare stmt;
+
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt using @a;
+deallocate prepare stmt;
+drop table t1;
+
+CREATE TABLE t1 (id decimal(10,5), count int);
+insert into t1 values (1,1),(0,2);
+--error ER_TRUNCATED_WRONG_VALUE
+update t1 set count = count + 1 where id = '1bad';
+
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+deallocate prepare stmt;
+
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt using @a;
+deallocate prepare stmt;
+drop table t1;
+
+CREATE TABLE t1 (id double, count int);
+insert into t1 values (1,1),(0,2);
+--error ER_TRUNCATED_WRONG_VALUE
+update t1 set count = count + 1 where id = '1bad';
+
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+deallocate prepare stmt;
+
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt using @a;
+deallocate prepare stmt;
+drop table t1;
+
+CREATE TABLE t1 (id date, count int);
+insert into t1 values ("2019-06-11",1),("2019-06-12",2);
+--error ER_TRUNCATED_WRONG_VALUE
+update t1 set count = count + 1 where id = '1bad';
+
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+deallocate prepare stmt;
+
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt using @a;
+deallocate prepare stmt;
+drop table t1;
+set sql_mode=@save_sql_mode;
 --echo # End of 5.5 tests
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-12060 Crash in EXECUTE IMMEDIATE with an expression returning a GRANT command
+--echo # (the 10.1 part)
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p2 ()
+BEGIN
+  SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR PREPARE stmt FROM 'SELECT 1';
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+CALL p2();
+DROP PROCEDURE p2;
+
+
+DELIMITER /;
+BEGIN NOT ATOMIC
+  SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR PREPARE stmt FROM 'SELECT 1';
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN NOT ATOMIC
+  SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR PREPARE stmt FROM 'SELECT 1';
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN NOT ATOMIC
+  PREPARE stmt FROM 'SELECT 1';
+  SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+
+--echo #
+--echo # MDEV-14572: Assertion `! is_set()' failed in
+--echo # Diagnostics_area::set_eof_status upon EXPLAIN UPDATE in PS
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+
+#EXPLAIN UPDATE t1, t2 SET a = 1;
+PREPARE stmt FROM 'EXPLAIN UPDATE t1, t2 SET a = 1';
+EXECUTE stmt;
+EXECUTE stmt;
+deallocate prepare stmt;
+
+# Cleanup
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
