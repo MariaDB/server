@@ -35,7 +35,9 @@
 #include "filamtxt.h"
 #include "tabdos.h"
 #include "plgxml.h"
+#if defined(XML_SUPPORT)
 #include "tabxml.h"
+#endif   // XML_SUPPORT
 #include "tabjson.h"
 #include "tabfmt.h"
 #include "tabrest.h"
@@ -171,13 +173,15 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
   // Retrieve the file from the web and copy it locally
 	if (http && grf(g->Message, trace(515), http, uri, filename)) {
 			// sprintf(g->Message, "Failed to get file at %s", http);
-  } else if (!stricmp(ftype, "XML"))
-    qrp = XMLColumns(g, db, tab, tp, info);
-  else if (!stricmp(ftype, "JSON"))
+  } else if (!stricmp(ftype, "JSON"))
     qrp = JSONColumns(g, db, NULL, tp, info);
   else if (!stricmp(ftype, "CSV"))
     qrp = CSVColumns(g, NULL, tp, info);
-  else
+#if defined(XML_SUPPORT)
+	else if (!stricmp(ftype, "XML"))
+		qrp = XMLColumns(g, db, tab, tp, info);
+#endif   // XML_SUPPORT
+	else
     sprintf(g->Message, "Usupported file type %s", ftype);
 
   return qrp;
@@ -210,7 +214,9 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     htrc("ftype = %s am = %s\n", ftype, SVP(am));
 
   n = (!stricmp(ftype, "JSON")) ? 1
+#if defined(XML_SUPPORT)
     : (!stricmp(ftype, "XML"))  ? 2
+#endif   // XML_SUPPORT
     : (!stricmp(ftype, "CSV"))  ? 3 : 0;
 
   if (n == 0) {
@@ -238,7 +244,9 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     return true;
   else switch (n) {
     case 1: Tdp = new (g) JSONDEF; break;
-    case 2: Tdp = new (g) XMLDEF;  break;
+#if defined(XML_SUPPORT)
+		case 2: Tdp = new (g) XMLDEF;  break;
+#endif   // XML_SUPPORT
     case 3: Tdp = new (g) CSVDEF;  break;
     default: Tdp = NULL;
   } // endswitch n
