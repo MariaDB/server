@@ -46,6 +46,15 @@ private:
   MY_BITMAP scan_fields;
   bool sorted_scan;
 
+  uint last_dup_errkey;
+
+  typedef enum clustrix_upsert_flags {
+    CLUSTRIX_HAS_UPSERT= 1,
+    CLUSTRIX_BULK_UPSERT= 2,
+    CLUSTRIX_UPSERT_SENT= 4
+  } clx_upsert_flags_t;
+  int upsert_flag;
+
 public:
   ha_clustrixdb(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_clustrixdb();
@@ -55,6 +64,7 @@ public:
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
   int reset();
+  int extra(enum ha_extra_function operation);
   int write_row(const uchar *buf);
   // start_bulk_update exec_bulk_update
   int update_row(const uchar *old_data, const uchar *new_data);
@@ -74,7 +84,6 @@ public:
                            key_range *max_key);
 
   int info(uint flag); // see my_base.h for full description
-  int extra(enum ha_extra_function operation);
 
   // multi_read_range
   // read_range
