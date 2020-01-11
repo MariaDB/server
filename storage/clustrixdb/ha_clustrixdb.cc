@@ -282,6 +282,7 @@ ha_clustrixdb::ha_clustrixdb(handlerton *hton, TABLE_SHARE *table_arg)
   rgi = NULL;
   scan_cur = NULL;
   clustrix_table_oid = 0;
+  upsert_flag = 0;
   DBUG_VOID_RETURN;
 }
 
@@ -430,22 +431,17 @@ int ha_clustrixdb::close(void)
 
 int ha_clustrixdb::reset()
 {
+  upsert_flag &= ~CLUSTRIX_BULK_UPSERT;
+  upsert_flag &= ~CLUSTRIX_HAS_UPSERT;
+  upsert_flag &= ~CLUSTRIX_UPSERT_SENT;
   return 0;
 }
 
 int ha_clustrixdb::extra(enum ha_extra_function operation)
 {
   DBUG_ENTER("ha_clustrixdb::extra");
-  int error_code = 0;
-  THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
-  if (!trx)
-    return error_code;
-
-  if (operation == HA_EXTRA_INSERT_WITH_UPDATE) {
-    trx->set_upsert(CLUSTRIX_HAS_UPSERT);
-  }
-
+  if (operation == HA_EXTRA_INSERT_WITH_UPDATE)
+    upsert_flag |= CLUSTRIX_HAS_UPSERT;
   DBUG_RETURN(0);
 }
 
@@ -468,8 +464,8 @@ int ha_clustrixdb::write_row(const uchar *buf)
   if (!trx)
     return error_code;
 
-  if (trx->check_upsert(CLUSTRIX_HAS_UPSERT)) {
-    if (!trx->check_upsert(CLUSTRIX_UPSERT_SENT)) {
+  if (upsert_flag & CLUSTRIX_HAS_UPSERT) {
+    if (!(upsert_flag & CLUSTRIX_UPSERT_SENT)) {
       ha_rows update_rows;
       String update_stmt;
       update_stmt.append(thd->query_string.str());
@@ -478,11 +474,12 @@ int ha_clustrixdb::write_row(const uchar *buf)
         trx->auto_commit_next();
 
       error_code= trx->update_query(update_stmt, table->s->db, &update_rows);
-      if (trx->check_upsert(CLUSTRIX_BULK_UPSERT))
-        trx->set_upsert(CLUSTRIX_UPSERT_SENT);
+      if (upsert_flag & CLUSTRIX_BULK_UPSERT)
+        upsert_flag |= CLUSTRIX_UPSERT_SENT;
       else
-        trx->unset_upsert(CLUSTRIX_HAS_UPSERT);
+        upsert_flag &= ~CLUSTRIX_HAS_UPSERT;
     }
+
     return error_code;
   }
 
@@ -586,7 +583,7 @@ void ha_clustrixdb::start_bulk_insert(ha_rows rows, uint flags)
     DBUG_VOID_RETURN;
   }
 
-  trx->set_upsert(CLUSTRIX_BULK_UPSERT);
+  upsert_flag |= CLUSTRIX_BULK_UPSERT;
 
   DBUG_VOID_RETURN;
 }
@@ -594,17 +591,9 @@ void ha_clustrixdb::start_bulk_insert(ha_rows rows, uint flags)
 int ha_clustrixdb::end_bulk_insert()
 {
   DBUG_ENTER("ha_clustrixdb::end_bulk_insert");
-  int error_code= 0;
-  THD *thd= ha_thd();
-  clustrix_connection *trx= get_trx(thd, &error_code);
-  if (!trx) {
-    DBUG_RETURN(error_code);
-  }
-
-  trx->unset_upsert(CLUSTRIX_BULK_UPSERT);
-  trx->unset_upsert(CLUSTRIX_HAS_UPSERT);
-  trx->unset_upsert(CLUSTRIX_UPSERT_SENT);
-
+  upsert_flag &= ~CLUSTRIX_BULK_UPSERT;
+  upsert_flag &= ~CLUSTRIX_HAS_UPSERT;
+  upsert_flag &= ~CLUSTRIX_UPSERT_SENT;
   DBUG_RETURN(0);
 }
 
