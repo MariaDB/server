@@ -445,7 +445,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 
 --let $ibp=--innodb-log-group-home-dir=$bugdir --innodb-data-home-dir=$bugdir
---let $ibd=$ibp --innodb-undo-tablespaces=0 --innodb-log-files-in-group=2
+--let $ibd=$ibp --innodb-undo-tablespaces=0
 --let $ibp=$ibp --innodb-data-file-path=ibdata1:1M;ibdata2:1M:autoextend
 
 --let $restart_parameters= $ibp

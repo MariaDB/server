@@ -2136,8 +2136,8 @@ os_file_create_simple_func(
 
 		file = CreateFile(
 			(LPCTSTR) name, access,
-			FILE_SHARE_READ | FILE_SHARE_DELETE, NULL,
-			create_flag, attributes, NULL);
+			FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+			NULL, create_flag, attributes, NULL);
 
 		if (file == INVALID_HANDLE_VALUE) {
 
@@ -2404,9 +2404,8 @@ os_file_create_func(
 	);
 
 	DWORD		create_flag;
-	DWORD		share_mode = srv_operation != SRV_OPERATION_NORMAL
-		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
-		: FILE_SHARE_READ | FILE_SHARE_DELETE;
+	const DWORD	share_mode =
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
 
 	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
 		WAIT_ALLOW_WRITES();
@@ -2425,12 +2424,6 @@ os_file_create_func(
 		ut_a(!read_only);
 
 		create_flag = OPEN_EXISTING;
-
-		/* On Windows Physical devices require admin privileges and
-		have to have the write-share mode set. See the remarks
-		section for the CreateFile() function documentation in MSDN. */
-
-		share_mode |= FILE_SHARE_WRITE;
 
 	} else if (create_mode == OS_FILE_OPEN
 		   || create_mode == OS_FILE_OPEN_RETRY) {
@@ -2612,9 +2605,8 @@ os_file_create_simple_no_error_handling_func(
 	DWORD		access;
 	DWORD		create_flag;
 	DWORD		attributes	= 0;
-	DWORD		share_mode = srv_operation != SRV_OPERATION_NORMAL
-		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
-		: FILE_SHARE_READ | FILE_SHARE_DELETE;
+	const DWORD	share_mode =
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
 
 	ut_a(name);
 
@@ -2660,11 +2652,6 @@ os_file_create_simple_no_error_handling_func(
 
 		access = GENERIC_READ;
 
-		/*!< A backup program has to give mysqld the maximum
-		freedom to do what it likes with the file */
-
-		share_mode |= FILE_SHARE_DELETE | FILE_SHARE_WRITE
-			| FILE_SHARE_READ;
 	} else {
 
 		ib::error()
@@ -3911,7 +3898,7 @@ static bool is_linux_native_aio_supported()
 {
 	File		fd;
 	io_context_t	io_ctx;
-	char		name[1000];
+	std::string log_file_path = get_log_file_path();
 
 	memset(&io_ctx, 0, sizeof(io_ctx));
 	if (io_setup(1, &io_ctx)) {
@@ -3939,31 +3926,14 @@ static bool is_linux_native_aio_supported()
 		}
 	}
 	else {
-
-		os_normalize_path(srv_log_group_home_dir);
-
-		ulint	dirnamelen = strlen(srv_log_group_home_dir);
-
-		ut_a(dirnamelen < (sizeof name) - 10 - sizeof "ib_logfile");
-
-		memcpy(name, srv_log_group_home_dir, dirnamelen);
-
-		/* Add a path separator if needed. */
-		if (dirnamelen && name[dirnamelen - 1] != OS_PATH_SEPARATOR) {
-
-			name[dirnamelen++] = OS_PATH_SEPARATOR;
-		}
-
-		strcpy(name + dirnamelen, "ib_logfile0");
-
-		fd = my_open(name, O_RDONLY | O_CLOEXEC, MYF(0));
+		fd = my_open(log_file_path.c_str(), O_RDONLY | O_CLOEXEC,
+			     MYF(0));
 
 		if (fd == -1) {
 
-			ib::warn()
-				<< "Unable to open"
-				<< " \"" << name << "\" to check native"
-				<< " AIO read support.";
+			ib::warn() << "Unable to open \"" << log_file_path
+				   << "\" to check native"
+				   << " AIO read support.";
 
 			int ret = io_destroy(io_ctx);
 			ut_a(ret != EINVAL);
@@ -4024,7 +3994,7 @@ static bool is_linux_native_aio_supported()
 		ib::error()
 			<< "Linux Native AIO not supported. You can either"
 			" move "
-			<< (srv_read_only_mode ? name : "tmpdir")
+			<< (srv_read_only_mode ? log_file_path : "tmpdir")
 			<< " to a file system that supports native"
 			" AIO or you can set innodb_use_native_aio to"
 			" FALSE to avoid this message.";
@@ -4033,7 +4003,7 @@ static bool is_linux_native_aio_supported()
 	default:
 		ib::error()
 			<< "Linux Native AIO check on "
-			<< (srv_read_only_mode ? name : "tmpdir")
+			<< (srv_read_only_mode ? log_file_path : "tmpdir")
 			<< "returned error[" << -err << "]";
 	}
 

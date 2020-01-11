@@ -86,7 +86,7 @@ to file pages already before the recovery is finished: in this case no
 ibuf operations are allowed, as they could modify the pages read in the
 buffer pool before the pages have been recovered to the up-to-date state.
 
-TRUE means that recovery is running and no operations on the log files
+true means that recovery is running and no operations on the log file
 are allowed yet: the variable name is misleading. */
 bool	recv_no_ibuf_operations;
 
@@ -544,6 +544,34 @@ inline void recv_sys_t::trim(const page_id_t page_id, lsn_t lsn)
 	DBUG_VOID_RETURN;
 }
 
+void recv_sys_t::open_log_files_if_needed()
+{
+  if (!recv_sys.files.empty())
+    return;
+
+  for (auto &&path : get_existing_log_files_paths())
+  {
+    recv_sys.files.emplace_back(std::move(path));
+    ut_a(recv_sys.files.back().open() == DB_SUCCESS);
+  }
+}
+
+void recv_sys_t::read(os_offset_t total_offset, span<byte> buf)
+{
+  open_log_files_if_needed();
+
+  size_t file_idx= static_cast<size_t>(total_offset / log_sys.log.file_size);
+  os_offset_t offset= total_offset % log_sys.log.file_size;
+  dberr_t err= recv_sys.files[file_idx].read(offset, buf);
+  ut_a(err == DB_SUCCESS);
+}
+
+size_t recv_sys_t::files_size()
+{
+  open_log_files_if_needed();
+  return files.size();
+}
+
 /** Process a file name from a FILE_* record.
 @param[in,out]	name		file name
 @param[in]	len		length of the file name
@@ -708,6 +736,8 @@ void recv_sys_t::close()
 
 	recv_spaces.clear();
 	mlog_init.clear();
+
+	files.clear();
 }
 
 /************************************************************
@@ -951,7 +981,7 @@ inline void recv_sys_t::free(const void *data)
 out: the last read valid lsn
 @param[in]	end_lsn		read area end
 @return	whether no invalid blocks (e.g checksum mismatch) were found */
-bool log_t::files::read_log_seg(lsn_t* start_lsn, lsn_t end_lsn)
+bool log_t::file::read_log_seg(lsn_t* start_lsn, lsn_t end_lsn)
 {
 	ulint	len;
 	bool success = true;
@@ -960,7 +990,7 @@ bool log_t::files::read_log_seg(lsn_t* start_lsn, lsn_t end_lsn)
 	ut_ad(!(end_lsn % OS_FILE_LOG_BLOCK_SIZE));
 	byte* buf = log_sys.buf;
 loop:
-	lsn_t source_offset = calc_lsn_offset(*start_lsn);
+	lsn_t source_offset = calc_lsn_offset_old(*start_lsn);
 
 	ut_a(end_lsn - *start_lsn <= ULINT_MAX);
 	len = (ulint) (end_lsn - *start_lsn);
@@ -980,7 +1010,7 @@ loop:
 
 	ut_a((source_offset >> srv_page_size_shift) <= ULINT_MAX);
 
-	log_sys.log.read(static_cast<size_t>(source_offset), {buf, len});
+	recv_sys.read(source_offset, {buf, len});
 
 	for (ulint l = 0; l < len; l += OS_FILE_LOG_BLOCK_SIZE,
 		     buf += OS_FILE_LOG_BLOCK_SIZE,
@@ -1094,6 +1124,28 @@ recv_check_log_header_checksum(
 	       == log_block_calc_checksum_crc32(buf));
 }
 
+static bool redo_file_sizes_are_correct()
+{
+  auto paths= get_existing_log_files_paths();
+  auto get_size= [](const std::string &path) {
+    return os_file_get_size(path.c_str()).m_total_size;
+  };
+  os_offset_t size= get_size(paths[0]);
+
+  auto it=
+      std::find_if(paths.begin(), paths.end(), [&](const std::string &path) {
+        return get_size(path) != size;
+      });
+
+  if (it == paths.end())
+    return true;
+
+  ib::error() << "Log file " << *it << " is of different size "
+              << get_size(*it) << " bytes than other log files " << size
+              << " bytes!";
+  return false;
+}
+
 /** Find the latest checkpoint in the format-0 log header.
 @param[out]	max_field	LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2
 @return error code or DB_SUCCESS */
@@ -1104,6 +1156,10 @@ recv_find_max_checkpoint_0(ulint* max_field)
 	ib_uint64_t	max_no = 0;
 	ib_uint64_t	checkpoint_no;
 	byte*		buf	= log_sys.checkpoint_buf;
+
+	if (!redo_file_sizes_are_correct()) {
+		return DB_CORRUPTION;
+	}
 
 	ut_ad(log_sys.log.format == 0);
 
@@ -1172,6 +1228,44 @@ recv_find_max_checkpoint_0(ulint* max_field)
 	return(DB_ERROR);
 }
 
+/** Return number of ib_logfile0..100 files */
+static size_t count_log_files()
+{
+  size_t counter= 0;
+  for (int i= 0; i < 101; i++)
+  {
+    auto path=
+        get_log_file_path(LOG_FILE_NAME_PREFIX).append(std::to_string(i));
+    os_file_stat_t stat;
+    dberr_t err= os_file_get_status(path.c_str(), &stat, false, true);
+    if (err)
+      break;
+
+    if (stat.type != OS_FILE_TYPE_FILE)
+      break;
+
+    counter++;
+  }
+  return counter;
+}
+
+/** Same as cals_lsn_offset() except that it supports multiple files */
+lsn_t log_t::file::calc_lsn_offset_old(lsn_t lsn) const
+{
+  ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+  const lsn_t size= capacity() * recv_sys.files_size();
+  lsn_t l= lsn - this->lsn;
+  if (longlong(l) < 0)
+  {
+    l= lsn_t(-longlong(l)) % size;
+    l= size - l;
+  }
+
+  l+= lsn_offset - LOG_FILE_HDR_SIZE * (1 + lsn_offset / file_size);
+  l%= size;
+  return l + LOG_FILE_HDR_SIZE * (1 + l / (file_size - LOG_FILE_HDR_SIZE));
+}
+
 /** Determine if a pre-MySQL 5.7.9/MariaDB 10.2.2 redo log is clean.
 @param[in]	lsn	checkpoint LSN
 @param[in]	crypt	whether the log might be encrypted
@@ -1181,7 +1275,7 @@ recv_find_max_checkpoint_0(ulint* max_field)
 static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 {
 	log_mutex_enter();
-	const lsn_t	source_offset = log_sys.log.calc_lsn_offset(lsn);
+	const lsn_t source_offset = log_sys.log.calc_lsn_offset_old(lsn);
 	log_mutex_exit();
 	byte*		buf = log_sys.buf;
 
@@ -1189,8 +1283,8 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 		"Upgrade after a crash is not supported."
 		" This redo log was created before MariaDB 10.2.2";
 
-	log_sys.log.read(source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1),
-			 {buf, OS_FILE_LOG_BLOCK_SIZE});
+	recv_sys.read(source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1),
+		      {buf, OS_FILE_LOG_BLOCK_SIZE});
 
 	if (log_block_calc_checksum_format_0(buf)
 	    != log_block_get_checksum(buf)
@@ -1222,6 +1316,7 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 		= log_sys.current_flush_lsn = log_sys.flushed_to_disk_lsn
 		= lsn;
 	log_sys.next_checkpoint_no = 0;
+	recv_sys.remove_extra_log_files = true;
 	return(DB_SUCCESS);
 }
 
@@ -1233,11 +1328,15 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 static dberr_t recv_log_recover_10_4()
 {
 	const lsn_t	lsn = log_sys.log.get_lsn();
-	const lsn_t	source_offset = log_sys.log.calc_lsn_offset(lsn);
+	const lsn_t	source_offset =	log_sys.log.calc_lsn_offset_old(lsn);
 	byte*		buf = log_sys.buf;
 
-	log_sys.log.read(source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1),
-			 {buf, OS_FILE_LOG_BLOCK_SIZE});
+	if (!redo_file_sizes_are_correct()) {
+		return DB_CORRUPTION;
+	}
+
+	recv_sys.read(source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1),
+		      {buf, OS_FILE_LOG_BLOCK_SIZE});
 
 	ulint crc = log_block_calc_checksum_crc32(buf);
 	ulint cksum = log_block_get_checksum(buf);
@@ -1277,6 +1376,7 @@ static dberr_t recv_log_recover_10_4()
 		= log_sys.current_flush_lsn = log_sys.flushed_to_disk_lsn
 		= lsn;
 	log_sys.next_checkpoint_no = 0;
+	recv_sys.remove_extra_log_files = true;
 	return DB_SUCCESS;
 }
 
@@ -1379,7 +1479,7 @@ recv_find_max_checkpoint(ulint* max_field)
 
 	if (*max_field == 0) {
 		/* Before 10.2.2, we could get here during database
-		initialization if we created an ib_logfile0 file that
+		initialization if we created an LOG_FILE_NAME file that
 		was filled with zeroes, and were killed. After
 		10.2.2, we would reject such a file already earlier,
 		when checking the file header. */
@@ -2661,7 +2761,7 @@ static bool recv_scan_log_recs(
 		}
 
 		if (scanned_lsn > recv_sys.scanned_lsn) {
-			ut_ad(!srv_log_files_created);
+			ut_ad(!srv_log_file_created);
 			if (!recv_needed_recovery) {
 				recv_needed_recovery = true;
 
@@ -3146,23 +3246,28 @@ completed:
 	    && recv_sys.mlog_checkpoint_lsn == checkpoint_lsn) {
 		/* The redo log is logically empty. */
 	} else if (checkpoint_lsn != flush_lsn) {
-		ut_ad(!srv_log_files_created);
+		ut_ad(!srv_log_file_created);
 
 		if (checkpoint_lsn + sizeof_checkpoint < flush_lsn) {
-			ib::warn() << "Are you sure you are using the"
-				" right ib_logfiles to start up the database?"
-				" Log sequence number in the ib_logfiles is "
-				<< checkpoint_lsn << ", less than the"
-				" log sequence number in the first system"
-				" tablespace file header, " << flush_lsn << ".";
+			ib::warn()
+				<< "Are you sure you are using the right "
+				<< LOG_FILE_NAME
+				<< " to start up the database? Log sequence "
+				   "number in the "
+				<< LOG_FILE_NAME << " is " << checkpoint_lsn
+				<< ", less than the log sequence number in "
+				   "the first system tablespace file header, "
+				<< flush_lsn << ".";
 		}
 
-		if (log_sys.log.is_physical()
-		    && !recv_needed_recovery) {
-			ib::info() << "The log sequence number " << flush_lsn
+		if (!recv_needed_recovery) {
+
+			ib::info()
+				<< "The log sequence number " << flush_lsn
 				<< " in the system tablespace does not match"
-				" the log sequence number " << checkpoint_lsn
-				<< " in the ib_logfiles!";
+				   " the log sequence number "
+				<< checkpoint_lsn << " in the "
+				<< LOG_FILE_NAME << "!";
 
 			if (srv_read_only_mode) {
 				ib::error() << "innodb_read_only"

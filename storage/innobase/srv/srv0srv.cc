@@ -162,7 +162,6 @@ static os_event_t	srv_master_thread_disabled_event;
 /*------------------------- LOG FILES ------------------------ */
 char*	srv_log_group_home_dir;
 
-ulong	srv_n_log_files;
 /** The InnoDB redo log file size, or 0 when changing the redo log format
 at startup (while disallowing writes to the redo log). */
 ulonglong	srv_log_file_size;

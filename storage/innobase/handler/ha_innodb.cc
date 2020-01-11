@@ -195,11 +195,6 @@ static char*	innobase_reset_all_monitor_counter;
 
 static ulong	innodb_flush_method;
 
-/** Deprecated; no effect other than issuing a deprecation warning. */
-static char* innodb_file_format;
-/** Deprecated; no effect other than issuing a deprecation warning. */
-static char* innodb_large_prefix;
-
 /* This variable can be set in the server configure file, specifying
 stopword table to be used */
 static char*	innobase_server_stopword_table;
@@ -3417,32 +3412,41 @@ static void innodb_buffer_pool_size_init()
 	innobase_buffer_pool_size = srv_buf_pool_size;
 }
 
+namespace deprecated {
+/** Deprecated; no effect other than issuing a deprecation warning. */
+char* innodb_file_format;
+/** Deprecated; no effect other than issuing a deprecation warning. */
+char* innodb_large_prefix;
+
 /** Deprecated parameter with no effect */
 static my_bool innodb_log_checksums;
 /** Deprecation message for innodb_log_checksums */
-static const char* innodb_log_checksums_deprecated
+static const char* innodb_log_checksums_msg
 = "The parameter innodb_log_checksums is deprecated and has no effect.";
 /** Deprecated parameter with no effect */
 static my_bool innodb_log_compressed_pages;
 /** Deprecation message for innodb_log_compressed_pages */
-static const char* innodb_log_compressed_pages_deprecated
+static const char* innodb_log_compressed_pages_msg
 = "The parameter innodb_log_compressed_pages is deprecated and has no effect.";
 /** Deprecated parameter with no effect */
 static my_bool	innodb_log_optimize_ddl;
-static const char* innodb_log_optimize_ddl_deprecated
+static const char* innodb_log_optimize_ddl_msg
 = "The parameter innodb_log_optimize_ddl is deprecated and has no effect.";
 
 /** Deprecated parameter with no effect */
 static ulong innodb_undo_logs;
 /** Deprecation message for innodb_undo_logs */
-static const char* innodb_undo_logs_deprecated
+static const char* innodb_undo_logs_msg
 = "The parameter innodb_undo_logs is deprecated and has no effect.";
 /** Deprecated parameter with no effect */
 static ulong innodb_buffer_pool_instances;
 /** Deprecated parameter with no effect */
 static ulong innodb_page_cleaners;
-static const char* innodb_page_cleaners_deprecated
+static const char* innodb_page_cleaners_msg
 = "The parameter innodb_page_cleaners is deprecated and has no effect.";
+
+ulong srv_n_log_files;
+} // namespace deprecated
 
 /** Initialize, validate and normalize the InnoDB startup parameters.
 @return failure code
@@ -3457,8 +3461,8 @@ static int innodb_init_params()
 	char		*default_path;
 	ulong		num_pll_degree;
 
-	if (innodb_large_prefix || innodb_file_format) {
-		const char* p = innodb_file_format
+	if (deprecated::innodb_large_prefix || deprecated::innodb_file_format) {
+		const char* p = deprecated::innodb_file_format
 			? "file_format"
 			: "large_prefix";
 		sql_print_warning("The parameter innodb_%s is deprecated"
@@ -3742,37 +3746,37 @@ static int innodb_init_params()
 
 	srv_buf_pool_size = ulint(innobase_buffer_pool_size);
 
-	if (UNIV_UNLIKELY(!innodb_log_checksums)) {
-		sql_print_warning(innodb_log_checksums_deprecated);
-		innodb_log_checksums = TRUE;
+	if (UNIV_UNLIKELY(!deprecated::innodb_log_checksums)) {
+		sql_print_warning(deprecated::innodb_log_checksums_msg);
+		deprecated::innodb_log_checksums = TRUE;
 	}
 
-	if (UNIV_UNLIKELY(!innodb_log_compressed_pages)) {
-		sql_print_warning(innodb_log_compressed_pages_deprecated);
-		innodb_log_compressed_pages = TRUE;
+	if (UNIV_UNLIKELY(!deprecated::innodb_log_compressed_pages)) {
+		sql_print_warning(deprecated::innodb_log_compressed_pages_msg);
+		deprecated::innodb_log_compressed_pages = TRUE;
 	}
 
-	if (UNIV_UNLIKELY(innodb_log_optimize_ddl)) {
-		sql_print_warning(innodb_log_optimize_ddl_deprecated);
-		innodb_log_optimize_ddl = FALSE;
+	if (UNIV_UNLIKELY(deprecated::innodb_log_optimize_ddl)) {
+		sql_print_warning(deprecated::innodb_log_optimize_ddl_msg);
+		deprecated::innodb_log_optimize_ddl = FALSE;
 	}
 
-	if (UNIV_UNLIKELY(innodb_buffer_pool_instances)) {
+	if (UNIV_UNLIKELY(deprecated::innodb_buffer_pool_instances)) {
 		sql_print_warning("The parameter innodb_buffer_pool_instances"
 				  " is deprecated and has no effect.");
 	}
 
-	if (UNIV_UNLIKELY(innodb_page_cleaners)) {
-		sql_print_warning(innodb_page_cleaners_deprecated);
+	if (UNIV_UNLIKELY(deprecated::innodb_page_cleaners)) {
+		sql_print_warning(deprecated::innodb_page_cleaners_msg);
 	}
 
-	innodb_buffer_pool_instances = 1;
+	deprecated::innodb_buffer_pool_instances = 1;
 
-	innodb_page_cleaners = 1;
+	deprecated::innodb_page_cleaners = 1;
 
-	if (UNIV_UNLIKELY(innodb_undo_logs != TRX_SYS_N_RSEGS)) {
-		sql_print_warning(innodb_undo_logs_deprecated);
-		innodb_undo_logs = TRX_SYS_N_RSEGS;
+	if (UNIV_UNLIKELY(deprecated::innodb_undo_logs != TRX_SYS_N_RSEGS)) {
+		sql_print_warning(deprecated::innodb_undo_logs_msg);
+		deprecated::innodb_undo_logs = TRX_SYS_N_RSEGS;
 	}
 
 	row_rollback_on_timeout = (ibool) innobase_rollback_on_timeout;
@@ -18860,7 +18864,7 @@ innodb_log_checksums_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 {
 	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			    HA_ERR_UNSUPPORTED,
-			    innodb_log_checksums_deprecated);
+			    deprecated::innodb_log_checksums_msg);
 }
 
 /** Issue a deprecation warning for SET GLOBAL innodb_log_compressed_pages.
@@ -18871,7 +18875,7 @@ innodb_log_compressed_pages_warn(THD* thd, st_mysql_sys_var*, void*,
 {
 	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			    HA_ERR_UNSUPPORTED,
-			    innodb_log_compressed_pages_deprecated);
+			    deprecated::innodb_log_compressed_pages_msg);
 }
 
 /** Issue a deprecation warning for SET GLOBAL innodb_log_optimize_ddl.
@@ -18881,7 +18885,7 @@ innodb_log_optimize_ddl_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 {
 	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			    HA_ERR_UNSUPPORTED,
-			    innodb_log_optimize_ddl_deprecated);
+			    deprecated::innodb_log_optimize_ddl_msg);
 }
 
 /** Issue a deprecation warning for SET GLOBAL innodb_page_cleaners.
@@ -18891,7 +18895,7 @@ innodb_page_cleaners_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 {
 	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			    HA_ERR_UNSUPPORTED,
-			    innodb_page_cleaners_deprecated);
+			    deprecated::innodb_page_cleaners_msg);
 }
 
 /** Issue a deprecation warning for SET GLOBAL innodb_undo_logs.
@@ -18901,7 +18905,7 @@ innodb_undo_logs_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 {
 	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			    HA_ERR_UNSUPPORTED,
-			    innodb_undo_logs_deprecated);
+			    deprecated::innodb_undo_logs_msg);
 }
 
 static SHOW_VAR innodb_status_variables_export[]= {
@@ -19102,7 +19106,7 @@ static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
 static const char* innodb_deprecated_ignored
 = "Deprecated parameter with no effect.";
 
-static MYSQL_SYSVAR_BOOL(log_checksums, innodb_log_checksums,
+static MYSQL_SYSVAR_BOOL(log_checksums, deprecated::innodb_log_checksums,
   PLUGIN_VAR_RQCMDARG,
   innodb_deprecated_ignored, NULL, innodb_log_checksums_warn, TRUE);
 
@@ -19246,10 +19250,10 @@ static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
   NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_FSYNC),
   &innodb_flush_method_typelib);
 
-static MYSQL_SYSVAR_STR(file_format, innodb_file_format,
+static MYSQL_SYSVAR_STR(file_format, deprecated::innodb_file_format,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   innodb_deprecated_ignored, NULL, NULL, NULL);
-static MYSQL_SYSVAR_STR(large_prefix, innodb_large_prefix,
+static MYSQL_SYSVAR_STR(large_prefix, deprecated::innodb_large_prefix,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   innodb_deprecated_ignored, NULL, NULL, NULL);
 
@@ -19262,7 +19266,7 @@ static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Path to InnoDB log files.", NULL, NULL, NULL);
 
-static MYSQL_SYSVAR_ULONG(page_cleaners, innodb_page_cleaners,
+static MYSQL_SYSVAR_ULONG(page_cleaners, deprecated::innodb_page_cleaners,
   PLUGIN_VAR_RQCMDARG,
   innodb_deprecated_ignored, NULL, innodb_page_cleaners_warn, 0, 0, 64, 0);
 
@@ -19393,11 +19397,12 @@ static MYSQL_SYSVAR_UINT(compression_level, page_zip_level,
   ", 1 is fastest, 9 is best compression and default is 6.",
   NULL, NULL, DEFAULT_COMPRESSION_LEVEL, 0, 9, 0);
 
-static MYSQL_SYSVAR_BOOL(log_compressed_pages, innodb_log_compressed_pages,
+static MYSQL_SYSVAR_BOOL(log_compressed_pages,
+  deprecated::innodb_log_compressed_pages,
   PLUGIN_VAR_OPCMDARG,
   innodb_deprecated_ignored, NULL, innodb_log_compressed_pages_warn, TRUE);
 
-static MYSQL_SYSVAR_BOOL(log_optimize_ddl, innodb_log_optimize_ddl,
+static MYSQL_SYSVAR_BOOL(log_optimize_ddl, deprecated::innodb_log_optimize_ddl,
   PLUGIN_VAR_OPCMDARG,
   innodb_deprecated_ignored, NULL, innodb_log_optimize_ddl_warn, FALSE);
 
@@ -19464,7 +19469,8 @@ static MYSQL_SYSVAR_ENUM(lock_schedule_algorithm, innodb_lock_schedule_algorithm
   NULL, NULL, INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS,
   &innodb_lock_schedule_algorithm_typelib);
 
-static MYSQL_SYSVAR_ULONG(buffer_pool_instances, innodb_buffer_pool_instances,
+static MYSQL_SYSVAR_ULONG(buffer_pool_instances,
+  deprecated::innodb_buffer_pool_instances,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   innodb_deprecated_ignored, NULL, NULL, 0, 0, 64, 0);
 
@@ -19705,10 +19711,9 @@ static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
 /* OS_FILE_LOG_BLOCK_SIZE would be more appropriate than UNIV_PAGE_SIZE_MAX,
 but fil_space_t is being used for the redo log, and it uses data pages. */
 
-static MYSQL_SYSVAR_ULONG(log_files_in_group, srv_n_log_files,
+static MYSQL_SYSVAR_ULONG(log_files_in_group, deprecated::srv_n_log_files,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Number of log files in the log group. InnoDB writes to the files in a circular fashion.",
-  NULL, NULL, 1, 1, SRV_N_LOG_FILES_MAX, 0);
+  innodb_deprecated_ignored, NULL, NULL, 1, 1, 100, 0);
 
 static MYSQL_SYSVAR_ULONG(log_write_ahead_size, srv_log_write_ahead_size,
   PLUGIN_VAR_RQCMDARG,
@@ -19796,7 +19801,7 @@ static MYSQL_SYSVAR_ULONG(undo_tablespaces, srv_undo_tablespaces,
   0L,			/* Minimum value */
   TRX_SYS_MAX_UNDO_SPACES, 0); /* Maximum value */
 
-static MYSQL_SYSVAR_ULONG(undo_logs, innodb_undo_logs,
+static MYSQL_SYSVAR_ULONG(undo_logs, deprecated::innodb_undo_logs,
   PLUGIN_VAR_OPCMDARG,
   innodb_deprecated_ignored, NULL, innodb_undo_logs_warn,
   TRX_SYS_N_RSEGS, 0, TRX_SYS_N_RSEGS, 0);

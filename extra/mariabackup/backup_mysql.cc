@@ -483,9 +483,7 @@ get_mysql_vars(MYSQL *connection)
 	}
 
 	if (innodb_log_files_in_group_var) {
-		srv_n_log_files = strtol(
-			innodb_log_files_in_group_var, &endptr, 10);
-		ut_ad(*endptr == 0);
+		// deprecated
 	}
 
 	if (innodb_log_file_size_var) {
@@ -1573,7 +1571,6 @@ bool write_backup_config_file()
 		"[mysqld]\n"
 		"innodb_checksum_algorithm=%s\n"
 		"innodb_data_file_path=%s\n"
-		"innodb_log_files_in_group=%lu\n"
 		"innodb_log_file_size=%llu\n"
 		"innodb_page_size=%lu\n"
 		"innodb_undo_directory=%s\n"
@@ -1583,7 +1580,6 @@ bool write_backup_config_file()
 		"%s\n",
 		innodb_checksum_algorithm_names[srv_checksum_algorithm],
 		make_local_paths(innobase_data_file_path).c_str(),
-		srv_n_log_files,
 		srv_log_file_size,
 		srv_page_size,
 		srv_undo_dir,

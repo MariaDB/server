@@ -376,18 +376,6 @@ log_get_lsn_nowait(void)
 }
 
 /****************************************************************
-Gets the log group capacity. It is OK to read the value without
-holding log_sys.mutex because it is constant.
-@return log group capacity */
-UNIV_INLINE
-lsn_t
-log_get_capacity(void)
-/*==================*/
-{
-	return(log_sys.log_group_capacity);
-}
-
-/****************************************************************
 Get log_sys::max_modified_age_async. It is OK to read the value without
 holding log_sys::mutex because it is constant.
 @return max_modified_age_async */

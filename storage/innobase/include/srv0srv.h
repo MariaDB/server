@@ -327,7 +327,6 @@ constexpr ulint SRV_UNDO_TABLESPACE_SIZE_IN_PAGES= (10U << 20) /
 
 extern char*	srv_log_group_home_dir;
 
-extern ulong	srv_n_log_files;
 /** The InnoDB redo log file size, or 0 when changing the redo log format
 at startup (while disallowing writes to the redo log). */
 extern ulonglong	srv_log_file_size;
@@ -511,8 +510,8 @@ extern my_bool	srv_purge_view_update_only_debug;
 extern my_bool	srv_master_thread_disabled_debug;
 /** InnoDB system tablespace to set during recovery */
 extern uint	srv_sys_space_size_debug;
-/** whether redo log files have been created at startup */
-extern bool	srv_log_files_created;
+/** whether redo log file has been created at startup */
+extern bool	srv_log_file_created;
 #endif /* UNIV_DEBUG */
 
 extern ulint	srv_dml_needed_delay;

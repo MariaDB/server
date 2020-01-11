@@ -1166,6 +1166,10 @@ uint xb_client_options_count = array_elements(xb_client_options);
 static const char *dbug_option;
 #endif
 
+namespace deprecated {
+extern ulong srv_n_log_files;
+}
+
 struct my_option xb_server_options[] =
 {
   {"datadir", 'h', "Path to the database root.", (G_PTR*) &mysql_data_home,
@@ -1274,7 +1278,7 @@ struct my_option xb_server_options[] =
    UNIV_PAGE_SIZE_MAX, 0},
   {"innodb_log_files_in_group", OPT_INNODB_LOG_FILES_IN_GROUP,
    "Ignored for mysqld option compatibility",
-   &srv_n_log_files, &srv_n_log_files,
+   &deprecated::srv_n_log_files, &deprecated::srv_n_log_files,
    0, GET_LONG, REQUIRED_ARG, 1, 1, 100, 0, 1, 0},
   {"innodb_log_group_home_dir", OPT_INNODB_LOG_GROUP_HOME_DIR,
    "Path to InnoDB log files.", &srv_log_group_home_dir,
@@ -2894,7 +2898,7 @@ Initialize the appropriate datasink(s). Both local backups and streaming in the
 
 Otherwise (i.e. when streaming in the 'tar' format) we need 2 separate datasinks
 for the data stream (and don't allow parallel data copying) and for metainfo
-files (including ib_logfile0). The second datasink writes to temporary
+files (including LOG_FILE_NAME). The second datasink writes to temporary
 files first, and then streams them in a serialized way when closed. */
 static void
 xtrabackup_init_datasinks(void)
@@ -3760,36 +3764,6 @@ xb_filters_free()
 	}
 }
 
-/**Create log file metadata.
-@param[in]	i		log file number in group
-@param[in,out]	file_names	redo log file names */
-static
-void
-open_or_create_log_file(
-	ulint	i,
-	std::vector<std::string> &file_names)
-{
-	char	name[FN_REFLEN];
-	ulint	dirnamelen;
-
-	os_normalize_path(srv_log_group_home_dir);
-
-	dirnamelen = strlen(srv_log_group_home_dir);
-	ut_a(dirnamelen < (sizeof name) - 10 - sizeof "ib_logfile");
-	memcpy(name, srv_log_group_home_dir, dirnamelen);
-
-	/* Add a path separator if needed. */
-	if (dirnamelen && name[dirnamelen - 1] != OS_PATH_SEPARATOR) {
-		name[dirnamelen++] = OS_PATH_SEPARATOR;
-	}
-
-	sprintf(name + dirnamelen, "%s%zu", "ib_logfile", i);
-
-	ut_a(fil_validate());
-
-	file_names.emplace_back(name);
-}
-
 /***********************************************************************
 Set the open files limit. Based on set_max_open_files().
 
@@ -4046,15 +4020,8 @@ fail:
 		    SRV_MAX_N_PENDING_SYNC_IOS);
 
 	log_sys.create();
-	log_sys.log.create(srv_n_log_files);
-
-	std::vector<std::string> file_names;
-
-	for (ulint i = 0; i < srv_n_log_files; i++) {
-		open_or_create_log_file(i, file_names);
-	}
-
-	log_sys.log.open_files(std::move(file_names));
+	log_sys.log.create();
+	log_sys.log.open_file(get_log_file_path());
 
 	/* create extra LSN dir if it does not exist. */
 	if (xtrabackup_extra_lsndir
@@ -4123,10 +4090,10 @@ reread_log_header:
 
 	/* open the log file */
 	memset(&stat_info, 0, sizeof(MY_STAT));
-	dst_log_file = ds_open(ds_redo, "ib_logfile0", &stat_info);
+	dst_log_file = ds_open(ds_redo, LOG_FILE_NAME, &stat_info);
 	if (dst_log_file == NULL) {
-		msg("Error: failed to open the target stream for "
-		    "'ib_logfile0'.");
+		msg("Error: failed to open the target stream for '%s'.",
+		    LOG_FILE_NAME);
 		goto fail;
 	}
 
@@ -4147,7 +4114,7 @@ reread_log_header:
 	log_hdr_field +=
 		(log_sys.next_checkpoint_no & 1) ? LOG_CHECKPOINT_2 : LOG_CHECKPOINT_1;
 	/* The least significant bits of LOG_CHECKPOINT_OFFSET must be
-	stored correctly in the copy of the ib_logfile. The most significant
+	stored correctly in the copy of the LOG_FILE_NAME. The most significant
 	bits, which identify the start offset of the log block in the file,
 	we did choose freely, as LOG_FILE_HDR_SIZE. */
 	ut_ad(!((log_sys.log.get_lsn() ^ checkpoint_lsn_start)

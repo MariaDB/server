@@ -863,8 +863,7 @@ fil_space_get(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** The tablespace memory cache; also the totality of logs (the log
-data space) is stored here; below we talk about tablespaces, but also
-the ib_logfiles form a 'space' and it is handled here */
+data space) is stored here; below we talk about tablespaces */
 struct fil_system_t {
   /**
     Constructor.

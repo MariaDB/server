@@ -296,7 +296,21 @@ struct recv_sys_t{
   /** Last added LSN to pages. */
   lsn_t last_stored_lsn;
 
+  /** After successful upgrade from multiple redo log files we'd like
+  to remove extra ones */
+  bool remove_extra_log_files{false};
+
+  void read(os_offset_t offset, span<byte> buf);
+  size_t files_size();
+  void close_files() { files.clear(); }
+
 private:
+  /** All found log files (more that one is possible if we're upgrading
+  from older MariaDB version */
+  std::vector<log_file_t> files;
+
+  void open_log_files_if_needed();
+
   /** Maximum number of buffer pool blocks to allocate for redo log records */
   ulint max_log_blocks;
 

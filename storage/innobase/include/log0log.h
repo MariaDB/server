@@ -43,19 +43,35 @@ Created 12/9/1995 Heikki Tuuri
 
 using st_::span;
 
-/** Maximum number of srv_n_log_files, or innodb_log_files_in_group */
-#define SRV_N_LOG_FILES_MAX 100
-
 /** Magic value to use instead of log checksums when they are disabled */
 #define LOG_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
 
-/* Margin for the free space in the smallest log group, before a new query
+/* Margin for the free space in the smallest log, before a new query
 step which modifies the database, is started */
 
 #define LOG_CHECKPOINT_FREE_PER_THREAD	(4U << srv_page_size_shift)
 #define LOG_CHECKPOINT_EXTRA_FREE	(8U << srv_page_size_shift)
 
 typedef ulint (*log_checksum_func_t)(const byte* log_block);
+
+static const char LOG_FILE_NAME_PREFIX[] = "ib_logfile";
+static const char LOG_FILE_NAME[] = "ib_logfile0";
+
+/** Composes full path for a redo log file
+@param[in]	filename	name of the redo log file
+@return path with log file name*/
+std::string get_log_file_path(const char *filename= LOG_FILE_NAME);
+
+/** Returns paths for all existing log files */
+std::vector<std::string> get_existing_log_files_paths();
+
+/** Delete log file.
+@param[in]	suffix	suffix of the file name */
+static inline void delete_log_file(const char* suffix)
+{
+  auto path = get_log_file_path(LOG_FILE_NAME_PREFIX).append(suffix);
+  os_file_delete_if_exists(innodb_log_file_key, path.c_str(), nullptr);
+}
 
 /** Append a string to the log.
 @param[in]	str		string
@@ -83,7 +99,7 @@ log_free_check(void);
 void log_buffer_extend(ulong len);
 
 /** Check margin not to overwrite transaction log from the last checkpoint.
-If would estimate the log write to exceed the log_group_capacity,
+If would estimate the log write to exceed the log_capacity,
 waits for the checkpoint is done enough.
 @param[in]	len	length of the data to be written */
 
@@ -132,14 +148,7 @@ UNIV_INLINE
 ib_uint64_t
 log_get_flush_lsn(void);
 /*=============*/
-/****************************************************************
-Gets the log group capacity. It is OK to read the value without
-holding log_sys.mutex because it is constant.
-@return log group capacity */
-UNIV_INLINE
-lsn_t
-log_get_capacity(void);
-/*==================*/
+
 /****************************************************************
 Get log_sys::max_modified_age_async. It is OK to read the value without
 holding log_sys::mutex because it is constant.
@@ -153,7 +162,7 @@ log_get_max_modified_age_async(void);
 and lsn - buf_get_oldest_modification().
 @param[in]	file_size	requested innodb_log_file_size
 @retval true on success
-@retval false if the smallest log group is too small to
+@retval false if the smallest log is too small to
 accommodate the number of OS threads in the database server */
 bool
 log_set_capacity(ulonglong file_size)
@@ -187,7 +196,7 @@ log_buffer_sync_in_background(
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
-log files. Use log_make_checkpoint() to flush also the pool.
+log file. Use log_make_checkpoint() to flush also the pool.
 @return true if success, false if a checkpoint write was already running */
 bool log_checkpoint();
 
@@ -198,7 +207,7 @@ void log_make_checkpoint();
 Makes a checkpoint at the latest lsn and writes it to first page of each
 data file in the database, so that we know that the file spaces contain
 all modifications up to that lsn. This can only be called at database
-shutdown. This function also writes all log in log files to the log archive. */
+shutdown. This function also writes all log in log file to the log archive. */
 void
 logs_empty_and_mark_files_at_shutdown(void);
 /*=======================================*/
@@ -414,7 +423,7 @@ because InnoDB never supported more than one copy of the redo log. */
 LOG_FILE_START_LSN started here, 4 bytes earlier than LOG_HEADER_START_LSN,
 which the LOG_FILE_START_LSN was renamed to.
 Subformat 1 is for the fully redo-logged TRUNCATE
-(no MLOG_TRUNCATE records or extra log checkpoints or log files) */
+(no MLOG_TRUNCATE records or extra log checkpoints or log file) */
 #define LOG_HEADER_SUBFORMAT	4
 /** LSN of the start of data in this log file (with format version 1;
 in format version 0, it was called LOG_FILE_START_LSN and at offset 4). */
@@ -439,7 +448,7 @@ or the MySQL version that created the redo log file. */
 					header; we write alternately to the
 					checkpoint fields when we make new
 					checkpoints; this field is only defined
-					in the first log file of a log group */
+					in the first log file of a log */
 #define LOG_CHECKPOINT_2	(3 * OS_FILE_LOG_BLOCK_SIZE)
 					/* second checkpoint field in the log
 					header */
@@ -603,10 +612,8 @@ struct log_t{
 					peeked at by log_free_check(), which
 					does not reserve the log mutex */
 
-  /** Log files. Protected by mutex or write_mutex. */
-  struct files {
-    /** number of files */
-    ulint				n_files;
+  /** Log file stuff. Protected by mutex or write_mutex. */
+  struct file {
     /** format of the redo log: e.g., FORMAT_10_5 */
     uint32_t				format;
     /** redo log subformat: 0 with separately logged TRUNCATE,
@@ -619,31 +626,32 @@ struct log_t{
     lsn_t				lsn;
     /** the byte offset of the above lsn */
     lsn_t				lsn_offset;
+    /** log file */
+    log_file_t				fd;
 
   public:
     /** used only in recovery: recovery scan succeeded up to this
     lsn in this log group */
     lsn_t				scanned_lsn;
 
-    /** file descriptors for all log files */
-    std::vector<log_file_t> files;
-
-    /** opens log files which must be closed prior this call */
-    void open_files(std::vector<std::string> paths);
-    /** reads buffer from log files
-    @param[in]	total_offset	offset in log files treated as a single file
+    /** opens log file which must be closed prior this call */
+    void open_file(std::string path);
+    /** opens log file which must be closed prior this call */
+    dberr_t rename(std::string path) { return fd.rename(path); }
+    /** reads buffer from log file
+    @param[in]	offset		offset in log file
     @param[in]	buf		buffer where to read */
-    void read(os_offset_t total_offset, span<byte> buf);
+    void read(os_offset_t offset, span<byte> buf);
     /** Tells whether writes require calling flush_data_only() */
     bool writes_are_durable() const noexcept;
-    /** writes buffer to log files
-    @param[in]	total_offset	offset in log files treated as a single file
+    /** writes buffer to log file
+    @param[in]	offset		offset in log file
     @param[in]	buf		buffer from which to write */
-    void write(os_offset_t total_offset, span<byte> buf);
-    /** flushes OS page cache (excluding metadata!) for all log files */
+    void write(os_offset_t offset, span<byte> buf);
+    /** flushes OS page cache (excluding metadata!) for log file */
     void flush_data_only();
-    /** closes all log files */
-    void close_files();
+    /** closes log file */
+    void close_file();
 
     /** @return whether the redo log is encrypted */
     bool is_encrypted() const { return format & FORMAT_ENCRYPTED; }
@@ -651,11 +659,12 @@ struct log_t{
     bool is_physical() const
     { return (format & ~FORMAT_ENCRYPTED) == FORMAT_10_5; }
     /** @return capacity in bytes */
-    lsn_t capacity() const{ return (file_size - LOG_FILE_HDR_SIZE) * n_files; }
+    lsn_t capacity() const{ return file_size - LOG_FILE_HDR_SIZE; }
     /** Calculate the offset of a log sequence number.
     @param[in]	lsn	log sequence number
     @return offset within the log */
     inline lsn_t calc_lsn_offset(lsn_t lsn) const;
+    lsn_t calc_lsn_offset_old(lsn_t lsn) const;
 
     /** Set the field values to correspond to a given lsn. */
     void set_fields(lsn_t lsn)
@@ -672,16 +681,11 @@ struct log_t{
     @return	whether no invalid blocks (e.g checksum mismatch) were found */
     bool read_log_seg(lsn_t* start_lsn, lsn_t end_lsn);
 
-    /** Initialize the redo log buffer.
-    @param[in]	n_files		number of files */
-    void create(ulint n_files);
+    /** Initialize the redo log buffer. */
+    void create();
 
     /** Close the redo log buffer. */
-    void close()
-    {
-      n_files = 0;
-      close_files();
-    }
+    void close() { close_file(); }
     void set_lsn(lsn_t a_lsn);
     lsn_t get_lsn() const { return lsn; }
     void set_lsn_offset(lsn_t a_lsn);
@@ -721,7 +725,7 @@ struct log_t{
 	/* @} */
 
 	/** Fields involved in checkpoints @{ */
-	lsn_t		log_group_capacity; /*!< capacity of the log group; if
+	lsn_t		log_capacity;	/*!< capacity of the log; if
 					the checkpoint age exceeds this, it is
 					a serious error because it is possible
 					we will then overwrite log and spoil
@@ -830,33 +834,38 @@ public:
 /** Redo log system */
 extern log_t	log_sys;
 
+/** Gets the log capacity. It is OK to read the value without
+holding log_sys.mutex because it is constant.
+@return log capacity */
+inline lsn_t log_get_capacity(void) { return log_sys.log_capacity; }
+
 /** Calculate the offset of a log sequence number.
 @param[in]     lsn     log sequence number
 @return offset within the log */
-inline lsn_t log_t::files::calc_lsn_offset(lsn_t lsn) const
+inline lsn_t log_t::file::calc_lsn_offset(lsn_t lsn) const
 {
   ut_ad(this == &log_sys.log);
   /* The lsn parameters are updated while holding both the mutexes
   and it is ok to have either of them while reading */
   ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
-  const lsn_t group_size= capacity();
+  const lsn_t size = capacity();
   lsn_t l= lsn - this->lsn;
   if (longlong(l) < 0) {
-    l= lsn_t(-longlong(l)) % group_size;
-    l= group_size - l;
+	  l = lsn_t(-longlong(l)) % size;
+	  l = size - l;
   }
 
   l+= lsn_offset - LOG_FILE_HDR_SIZE * (1 + lsn_offset / file_size);
-  l%= group_size;
+  l %= size;
   return l + LOG_FILE_HDR_SIZE * (1 + l / (file_size - LOG_FILE_HDR_SIZE));
 }
 
-inline void log_t::files::set_lsn(lsn_t a_lsn) {
+inline void log_t::file::set_lsn(lsn_t a_lsn) {
       ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
       lsn = a_lsn;
 }
 
-inline void log_t::files::set_lsn_offset(lsn_t a_lsn) {
+inline void log_t::file::set_lsn_offset(lsn_t a_lsn) {
       ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
       ut_ad((lsn % OS_FILE_LOG_BLOCK_SIZE) == (a_lsn % OS_FILE_LOG_BLOCK_SIZE));
       lsn_offset = a_lsn;

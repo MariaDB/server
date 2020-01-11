@@ -54,7 +54,6 @@ loose-innodb_write_io_threads=    2
 loose-innodb_read_io_threads=     2
 loose-innodb_log_buffer_size=     1M
 loose-innodb_log_file_size=       10M
-loose-innodb_log_files_in_group=  1
 loose-innodb-stats-persistent=    OFF
 
 slave-net-timeout=120
