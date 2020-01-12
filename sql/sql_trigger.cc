@@ -1063,7 +1063,7 @@ Table_triggers_list::~Table_triggers_list()
 {
   for (int i= 0; i < (int)TRG_EVENT_MAX; i++)
     for (int j= 0; j < (int)TRG_ACTION_MAX; j++)
-      delete bodies[i][j];
+      sp_head::destroy(bodies[i][j]);
 
   /* Free blobs used in insert */
   if (record0_field)

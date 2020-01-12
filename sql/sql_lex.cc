@@ -785,7 +785,7 @@ void lex_end_stage1(LEX *lex)
   }
   else
   {
-    delete lex->sphead;
+    sp_head::destroy(lex->sphead);
     lex->sphead= NULL;
   }
 
@@ -2781,7 +2781,7 @@ void LEX::cleanup_lex_after_parse_error(THD *thd)
   if (thd->lex->sphead)
   {
     thd->lex->sphead->restore_thd_mem_root(thd);
-    delete thd->lex->sphead;
+    sp_head::destroy(thd->lex->sphead);
     thd->lex->sphead= NULL;
   }
 }

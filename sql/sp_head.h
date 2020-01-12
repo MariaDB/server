@@ -142,7 +142,7 @@ public:
 bool
 check_routine_name(LEX_STRING *ident);
 
-class sp_head :private Query_arena
+class sp_head :private Query_arena, public Sql_alloc
 {
   sp_head(const sp_head &);	/**< Prevent use of these */
   void operator=(sp_head &);
@@ -301,14 +301,16 @@ public:
     being opened is probably enough).
   */
   SQL_I_List<Item_trigger_field> m_trg_table_fields;
+private:
+  // users must use sp= sp_head::create()
+  sp_head(MEM_ROOT *mem_root_arg);
 
-  static void *
-  operator new(size_t size) throw ();
+  // users must use sp_head::destroy(sp)
+  virtual ~sp_head();
 
-  static void
-  operator delete(void *ptr, size_t size) throw ();
-
-  sp_head();
+public:
+  static sp_head* create();
+  static void destroy(sp_head *sp);
 
   /// Initialize after we have reset mem_root
   void
@@ -326,7 +328,6 @@ public:
   void
   set_stmt_end(THD *thd);
 
-  virtual ~sp_head();
 
   bool
   execute_trigger(THD *thd,

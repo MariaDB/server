@@ -4347,7 +4347,7 @@ mysql_execute_command(THD *thd)
   /* Don't do it, if we are inside a SP */
   if (!thd->spcont)
   {
-    delete lex->sphead;
+    sp_head::destroy(lex->sphead);
     lex->sphead= NULL;
   }
   /* lex->unit.cleanup() is called outside, no need to call it here */

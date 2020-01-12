@@ -550,51 +550,41 @@ check_routine_name(LEX_STRING *ident)
 }
 
 
+sp_head* sp_head::create()
+{
+  MEM_ROOT own_root;
+  init_sql_alloc(&own_root, MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
+  sp_head *sp;
+  if (!(sp= new (&own_root) sp_head(&own_root)))
+    free_root(&own_root, MYF(0));
+
+  return sp;
+}
+
+
+void sp_head::destroy(sp_head *sp)
+{
+  if (sp)
+  {
+    /* Make a copy of main_mem_root as free_root will free the sp */
+    MEM_ROOT own_root= sp->main_mem_root;
+    delete sp;
+
+    DBUG_PRINT("info", ("mem_root 0x%lx moved to 0x%lx",
+                        (ulong) &sp->mem_root, (ulong) &own_root));
+    free_root(&own_root, MYF(0));
+  }
+}
+
 /*
  *
  *  sp_head
  *
  */
 
-void *
-sp_head::operator new(size_t size) throw()
-{
-  DBUG_ENTER("sp_head::operator new");
-  MEM_ROOT own_root;
-  sp_head *sp;
-
-  init_sql_alloc(&own_root, MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
-  sp= (sp_head *) alloc_root(&own_root, size);
-  if (sp == NULL)
-    DBUG_RETURN(NULL);
-  sp->main_mem_root= own_root;
-  DBUG_PRINT("info", ("mem_root 0x%lx", (ulong) &sp->mem_root));
-  DBUG_RETURN(sp);
-}
-
-void
-sp_head::operator delete(void *ptr, size_t size) throw()
-{
-  DBUG_ENTER("sp_head::operator delete");
-  MEM_ROOT own_root;
-
-  if (ptr == NULL)
-    DBUG_VOID_RETURN;
-
-  sp_head *sp= (sp_head *) ptr;
-
-  /* Make a copy of main_mem_root as free_root will free the sp */
-  own_root= sp->main_mem_root;
-  DBUG_PRINT("info", ("mem_root 0x%lx moved to 0x%lx",
-                      (ulong) &sp->mem_root, (ulong) &own_root));
-  free_root(&own_root, MYF(0));
-
-  DBUG_VOID_RETURN;
-}
-
-
-sp_head::sp_head()
-  :Query_arena(&main_mem_root, STMT_INITIALIZED_FOR_SP),
+sp_head::sp_head(MEM_ROOT *mem_root_arg)
+  :Query_arena(NULL, STMT_INITIALIZED_FOR_SP),
+   main_mem_root(*mem_root_arg), // todo: std::move operator.
    m_flags(0),
    m_sp_cache_version(0),
    m_creation_ctx(0),
@@ -603,6 +593,8 @@ sp_head::sp_head()
    m_next_cached_sp(0),
    m_cont_level(0)
 {
+  mem_root= &main_mem_root;
+
   m_first_instance= this;
   m_first_free_instance= this;
   m_last_cached_sp= this;
@@ -848,7 +840,7 @@ sp_head::~sp_head()
   my_hash_free(&m_sptabs);
   my_hash_free(&m_sroutines);
 
-  delete m_next_cached_sp;
+  sp_head::destroy(m_next_cached_sp);
 
   DBUG_VOID_RETURN;
 }

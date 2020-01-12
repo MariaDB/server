@@ -224,7 +224,7 @@ static sp_head *make_sp_head(THD *thd, sp_name *name,
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if ((sp= new sp_head()))
+  if ((sp= sp_head::create()))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(lex);

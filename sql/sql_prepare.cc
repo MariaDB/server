@@ -3607,7 +3607,7 @@ Prepared_statement::~Prepared_statement()
   free_items();
   if (lex)
   {
-    delete lex->sphead;
+    sp_head::destroy(lex->sphead);
     delete lex->result;
     delete (st_lex_local *) lex;
   }
