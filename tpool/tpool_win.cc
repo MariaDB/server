@@ -93,6 +93,7 @@ class thread_pool_win : public thread_pool
         return;
       }
       timer->m_func(timer->m_data);
+      dbug_execute_after_task_callback();
       if (timer->m_period)
         timer->set_time(timer->m_period, timer->m_period);
     }

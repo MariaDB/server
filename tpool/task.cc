@@ -21,6 +21,21 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
 namespace tpool
 {
+
+#ifndef DBUG_OFF
+static callback_func_np after_task_callback;
+void set_after_task_callback(callback_func_np cb)
+{
+  after_task_callback= cb;
+}
+
+void execute_after_task_callback()
+{
+  if (after_task_callback)
+    after_task_callback();
+}
+#endif
+
   task::task(callback_func func, void* arg, task_group* group) :
     m_func(func), m_arg(arg), m_group(group) {}
 
@@ -35,6 +50,7 @@ namespace tpool
     {
       /* Execute directly. */
       m_func(m_arg);
+      dbug_execute_after_task_callback();
       release();
     }
   }

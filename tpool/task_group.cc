@@ -53,6 +53,7 @@ namespace tpool
       if (t)
       {
         t->m_func(t->m_arg);
+        dbug_execute_after_task_callback();
         t->release();
       }
       lk.lock();

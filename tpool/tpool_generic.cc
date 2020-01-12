@@ -293,7 +293,7 @@ public:
         return;
 
       m_callback(m_data);
-
+      dbug_execute_after_task_callback();
       m_running = false;
 
       if (m_pool && m_period)
