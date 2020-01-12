@@ -819,8 +819,11 @@ SET default_regex_flags=DEFAULT;
 SELECT 'Aq' RLIKE 'A\\q';
 ERROR 42000: Regex error 'unrecognized character follows \ at offset 2'
 SET default_regex_flags='EXTRA';
-SELECT 'Aq' RLIKE 'A\\q';
-ERROR 42000: Regex error 'unrecognized character follows \ at offset 2'
+SELECT 'A' RLIKE 'B';
+'A' RLIKE 'B'
+0
+Warnings:
+Warning	1105	PCRE2 doesn't support the EXTRA flag. Ignored.
 SET default_regex_flags=DEFAULT;
 SELECT 'a\nb\nc' RLIKE '^b$';
 'a\nb\nc' RLIKE '^b$'

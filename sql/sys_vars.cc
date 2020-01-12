@@ -5992,6 +5992,11 @@ static Sys_var_set Sys_log_disabled_statements(
        DEFAULT(LOG_DISABLE_SP),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_has_super));
 
+#define NOT_SUPPORTED_YET -2
+#ifndef PCRE2_EXTENDED_MORE
+#define PCRE2_EXTENDED_MORE NOT_SUPPORTED_YET
+#endif
+
 static const char *default_regex_flags_names[]= 
 {
   "DOTALL",    // (?s)  . matches anything including NL
@@ -6024,9 +6029,11 @@ int default_regex_flags_pcre(THD *thd)
     {
       if (default_regex_flags_to_pcre[i] < 0)
       {
+        const char *msg= default_regex_flags_to_pcre[i] == NOT_SUPPORTED_YET
+          ? "Your version of PCRE2 does not support the %s flag. Ignored."
+          : "PCRE2 doesn't support the %s flag. Ignored.";
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_UNKNOWN_ERROR,
-                            "PCRE2 doens't support the EXTRA flag. Ignored.");
+                          ER_UNKNOWN_ERROR, msg, default_regex_flags_names[i]);
         continue;
       }
       res|= default_regex_flags_to_pcre[i];

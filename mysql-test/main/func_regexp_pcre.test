@@ -384,9 +384,10 @@ SET default_regex_flags=DEFAULT;
 
 --error ER_REGEXP_ERROR
 SELECT 'Aq' RLIKE 'A\\q';
+
 SET default_regex_flags='EXTRA';
---error ER_REGEXP_ERROR
-SELECT 'Aq' RLIKE 'A\\q';
+SELECT 'A' RLIKE 'B';
+
 SET default_regex_flags=DEFAULT;
 
 SELECT 'a\nb\nc' RLIKE '^b$';
