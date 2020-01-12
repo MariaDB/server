@@ -127,7 +127,8 @@ bool
 check_routine_name(const LEX_CSTRING *ident);
 
 class sp_head :private Query_arena,
-               public Database_qualified_name
+               public Database_qualified_name,
+               public Sql_alloc
 {
   sp_head(const sp_head &);	/**< Prevent use of these */
   void operator=(sp_head &);
@@ -316,13 +317,14 @@ public:
   */
   SQL_I_List<Item_trigger_field> m_trg_table_fields;
 
-  static void *
-  operator new(size_t size) throw ();
+protected:
+  sp_head(MEM_ROOT *mem_root, sp_package *parent, const Sp_handler *handler);
+  virtual ~sp_head();
 
-  static void
-  operator delete(void *ptr, size_t size) throw ();
+public:
+  static void destroy(sp_head *sp);
+  static sp_head *create(sp_package *parent, const Sp_handler *handler);
 
-  sp_head(sp_package *parent, const Sp_handler *handler);
 
   /// Initialize after we have reset mem_root
   void
@@ -340,7 +342,6 @@ public:
   void
   set_stmt_end(THD *thd);
 
-  virtual ~sp_head();
 
   bool
   execute_trigger(THD *thd,
@@ -964,10 +965,16 @@ public:
   bool m_is_instantiated;
   bool m_is_cloning_routine;
 
-  sp_package(LEX *top_level_lex,
+private:
+  sp_package(MEM_ROOT *mem_root,
+             LEX *top_level_lex,
              const sp_name *name,
              const Sp_handler *sph);
   ~sp_package();
+public:
+  static sp_package *create(LEX *top_level_lex, const sp_name *name,
+                            const Sp_handler *sph);
+
   bool add_routine_declaration(LEX *lex)
   {
     return m_routine_declarations.check_dup_qualified(lex->sphead) ||
