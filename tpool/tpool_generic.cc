@@ -742,17 +742,14 @@ void thread_pool_generic::submit_task(task* task)
 /* Notify thread pool that current thread is going to wait */
 void thread_pool_generic::wait_begin()
 {
-  if (!tls_worker_data || tls_worker_data->is_long_task() || tls_worker_data->is_waiting())
+  if (!tls_worker_data || tls_worker_data->is_long_task())
     return;
   std::unique_lock<std::mutex> lk(m_mtx);
   tls_worker_data->m_state |= worker_data::WAITING;
   m_waiting_task_count++;
 
   /* Maintain concurrency */
-  if (m_task_queue.empty())
-    return;
-  if (m_active_threads.size() - m_long_tasks_count - m_waiting_task_count < m_concurrency)
-    maybe_wake_or_create_thread();
+  maybe_wake_or_create_thread();
 }
 
 
