@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -318,9 +318,10 @@ ibuf_insert(
 	que_thr_t*		thr);
 
 /** Check whether buffered changes exist for a page.
-@param[in,out]	bpage	buffer page
+@param[in]	id		page identifier
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @return whether buffered changes exist */
-bool ibuf_page_exists(const buf_page_t& bpage);
+bool ibuf_page_exists(const page_id_t id, ulint zip_size);
 
 /** When an index page is read from a disk to the buffer pool, this function
 applies any buffered operations to the page and deletes the entries from the

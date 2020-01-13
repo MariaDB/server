@@ -4176,24 +4176,17 @@ func_exit:
 }
 
 /** Check whether buffered changes exist for a page.
-@param[in,out]	block		page
+@param[in]	id		page identifier
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @return whether buffered changes exist */
-bool ibuf_page_exists(const buf_page_t& bpage)
+bool ibuf_page_exists(const page_id_t id, ulint zip_size)
 {
-	ut_ad(buf_page_get_io_fix(&bpage) == BUF_IO_READ
-	      || recv_recovery_is_on());
-	ut_ad(!fsp_is_system_temporary(bpage.id.space()));
-	ut_ad(buf_page_in_file(&bpage));
-	ut_ad(buf_page_get_state(&bpage) != BUF_BLOCK_FILE_PAGE
-	      || bpage.io_fix == BUF_IO_READ
-	      || rw_lock_own(&const_cast<buf_block_t&>
-			     (reinterpret_cast<const buf_block_t&>
-			      (bpage)).lock, RW_LOCK_X));
+	ut_ad(!fsp_is_system_temporary(id.space()));
 
-	const ulint physical_size = bpage.physical_size();
+	const ulint physical_size = zip_size ? zip_size : srv_page_size;
 
-	if (ibuf_fixed_addr_page(bpage.id, physical_size)
-	    || fsp_descr_page(bpage.id, physical_size)) {
+	if (ibuf_fixed_addr_page(id, physical_size)
+	    || fsp_descr_page(id, physical_size)) {
 		return false;
 	}
 
@@ -4202,9 +4195,9 @@ bool ibuf_page_exists(const buf_page_t& bpage)
 
 	ibuf_mtr_start(&mtr);
 	if (const buf_block_t* bitmap_page = ibuf_bitmap_get_map_page(
-		    bpage.id, bpage.zip_size(), &mtr)) {
+		    id, zip_size, &mtr)) {
 		bitmap_bits = ibuf_bitmap_page_get_bits(
-			bitmap_page->frame, bpage.id, bpage.zip_size(),
+			bitmap_page->frame, id, zip_size,
 			IBUF_BITMAP_BUFFERED, &mtr) != 0;
 	}
 	ibuf_mtr_commit(&mtr);

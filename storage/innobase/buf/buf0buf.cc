@@ -4133,7 +4133,7 @@ evict_from_pool:
 		buf_page_mutex_exit(block);
 
 		if (!access_time && !recv_no_ibuf_operations
-		    && ibuf_page_exists(block->page)) {
+		    && ibuf_page_exists(block->page.id, zip_size)) {
 			block->page.ibuf_exist = true;
 		}
 
@@ -5502,7 +5502,7 @@ release_page:
 			|| !is_predefined_tablespace(bpage->id.space()))
 		    && fil_page_get_type(frame) == FIL_PAGE_INDEX
 		    && page_is_leaf(frame)
-		    && ibuf_page_exists(*bpage)) {
+		    && ibuf_page_exists(bpage->id, bpage->zip_size())) {
 			bpage->ibuf_exist = true;
 		}
 
