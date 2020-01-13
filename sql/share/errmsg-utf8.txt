@@ -7957,3 +7957,5 @@ ER_SLAVE_IGNORED_SHARED_TABLE
         por "Slave SQL thread ignorado a consulta devido '%s'"
         spa "Slave SQL thread ignorado el query '%s'"
         swe "Slav SQL tråden ignorerade '%s' pga tabellen är delad"
+ER_NO_AUTOINCREMENT_WITH_UNIQUE
+        eng  "AUTO_INCREMENT column %`s cannot be used in the UNIQUE index %`s"

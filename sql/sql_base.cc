@@ -889,9 +889,6 @@ void close_thread_tables(THD *thd)
 
   for (table= thd->open_tables; table; table= table->next)
   {
-    if (table->update_handler)
-      table->delete_update_handler();
-
     /* Table might be in use by some outer statement. */
     DBUG_PRINT("tcache", ("table: '%s'  query_id: %lu",
                           table->s->table_name.str, (ulong) table->query_id));
@@ -8725,8 +8722,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
 
     if (unlikely(field->invisible))
       continue;
-    else
-      value=v++;
+
+    value=v++;
 
     bool vers_sys_field= table->versioned() && field->vers_sys_field();
 

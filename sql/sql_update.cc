@@ -968,6 +968,9 @@ update_begin:
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
 
+  if (table->versioned(VERS_TIMESTAMP) || table_list->has_period())
+    table->file->prepare_for_insert(1);
+
   THD_STAGE_INFO(thd, stage_updating);
   while (!(error=info.read_record()) && !thd->killed)
   {
@@ -1848,9 +1851,8 @@ int mysql_multi_update_prepare(THD *thd)
   /* now lock and fill tables */
   if (!thd->stmt_arena->is_stmt_prepare() &&
       lock_tables(thd, table_list, table_count, 0))
-  {
     DBUG_RETURN(TRUE);
-  }
+
   (void) read_statistics_for_tables_if_needed(thd, table_list);
   /* @todo: downgrade the metadata locks here. */
 
@@ -2026,6 +2028,8 @@ int multi_update::prepare(List<Item> &not_used_values,
     {
       table->read_set= &table->def_read_set;
       bitmap_union(table->read_set, &table->tmp_set);
+      if (table->versioned(VERS_TIMESTAMP))
+        table->file->prepare_for_insert(1);
     }
   }
   if (unlikely(error))

@@ -4344,7 +4344,6 @@ int ha_partition::write_row(const uchar * buf)
       thd->variables.sql_mode|= MODE_NO_AUTO_VALUE_ON_ZERO;
     }
   }
-
   old_map= dbug_tmp_use_all_columns(table, table->read_set);
   error= m_part_info->get_partition_id(m_part_info, &part_id, &func_value);
   dbug_tmp_restore_column_map(table->read_set, old_map);
@@ -4362,6 +4361,17 @@ int ha_partition::write_row(const uchar * buf)
   }
   m_last_part= part_id;
   DBUG_PRINT("info", ("Insert in partition %u", part_id));
+  /*
+    We have to call prepare_for_insert() if we have an update handler
+    in the underlying table (to clone the handler). This is because for
+    INSERT's prepare_for_insert() is only called for the main table,
+    not for all partitions. This is to reduce the huge overhead of cloning
+    a possible not needed handler if there are many partitions.
+  */
+  if (table->s->long_unique_table &&
+      m_file[part_id]->update_handler == m_file[part_id] && inited == RND)
+    m_file[part_id]->prepare_for_insert(0);
+
   start_part_bulk_insert(thd, part_id);
 
   tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */

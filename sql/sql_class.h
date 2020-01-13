@@ -6964,6 +6964,11 @@ inline int handler::ha_update_tmp_row(const uchar *old_data, uchar *new_data)
   return error;
 }
 
+inline bool handler::has_long_unique()
+{
+  return table->s->long_unique_table;
+}
+
 extern pthread_attr_t *get_connection_attrib(void);
 
 /**

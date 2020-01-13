@@ -2120,7 +2120,8 @@ int ha_myisam::info(uint flag)
 
 int ha_myisam::extra(enum ha_extra_function operation)
 {
-  if (operation == HA_EXTRA_MMAP && !opt_myisam_use_mmap)
+  if ((operation == HA_EXTRA_MMAP && !opt_myisam_use_mmap) ||
+      (operation == HA_EXTRA_WRITE_CACHE && has_long_unique()))
     return 0;
   return mi_extra(file, operation, 0);
 }

@@ -18316,7 +18316,6 @@ TABLE *Create_tmp_table::start(THD *thd,
   table->copy_blobs= 1;
   table->in_use= thd;
   table->no_rows_with_nulls= param->force_not_null_cols;
-  table->update_handler= NULL;
   table->check_unique_buf= NULL;
 
   table->s= share;

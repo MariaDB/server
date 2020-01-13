@@ -882,9 +882,12 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     if (duplic != DUP_ERROR || ignore)
     {
       table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-      if (table->file->ha_table_flags() & HA_DUPLICATE_POS &&
-          table->file->ha_rnd_init_with_error(0))
-        goto abort;
+      if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+      {
+        if (table->file->ha_rnd_init_with_error(0))
+          goto abort;
+        table->file->prepare_for_insert();
+      }
     }
     /**
       This is a simple check for the case when the table has a trigger
@@ -2541,6 +2544,11 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   uchar *bitmap;
   char *copy_tmp;
   uint bitmaps_used;
+  KEY_PART_INFO *key_part, *end_part;
+  Field **default_fields, **virtual_fields;
+  KEY *keys;
+  KEY_PART_INFO *key_parts;
+  uchar *record;
   DBUG_ENTER("Delayed_insert::get_local_table");
 
   /* First request insert thread to get a lock */
@@ -2587,18 +2595,32 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   share= table->s;
 
   /*
-    Allocate memory for the TABLE object, the field pointers array, and
-    one record buffer of reclength size. Normally a table has three
-    record buffers of rec_buff_length size, which includes alignment
-    bytes. Since the table copy is used for creating one record only,
-    the other record buffers and alignment are unnecessary.
+    Allocate memory for the TABLE object, the field pointers array,
+    and one record buffer of reclength size.
+    Normally a table has three record buffers of rec_buff_length size,
+    which includes alignment bytes. Since the table copy is used for
+    creating one record only, the other record buffers and alignment
+    are unnecessary.
+    As the table will also need to calculate default values and
+    expresions, we have to allocate own version of fields. keys and key
+    parts. The key and key parts are needed as parse_vcol_defs() changes
+    them in case of long hash keys.
   */
   THD_STAGE_INFO(client_thd, stage_allocating_local_table);
-  copy_tmp= (char*) client_thd->alloc(sizeof(*copy)+
-                                      (share->fields+1)*sizeof(Field**)+
-                                      share->reclength +
-                                      share->column_bitmap_size*4);
-  if (!copy_tmp)
+  if (!multi_alloc_root(client_thd->mem_root,
+                        &copy_tmp, sizeof(*table),
+                        &field, (uint) (share->fields+1)*sizeof(Field**),
+                        &default_fields,
+                        (share->default_fields +
+                         share->default_expressions + 1) * sizeof(Field*),
+                        &virtual_fields,
+                        (share->virtual_fields + 1) * sizeof(Field*),
+                        &keys, share->keys * sizeof(KEY),
+                        &key_parts,
+                        share->ext_key_parts * sizeof(KEY_PART_INFO),
+                        &record, (uint) share->reclength,
+                        &bitmap, (uint) share->column_bitmap_size*4,
+                        NullS))
     goto error;
 
   /* Copy the TABLE object. */
@@ -2607,27 +2629,21 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
 
   /* We don't need to change the file handler here */
   /* Assign the pointers for the field pointers array and the record. */
-  field= copy->field= (Field**) (copy + 1);
-  bitmap= (uchar*) (field + share->fields + 1);
-  copy->record[0]= (bitmap + share->column_bitmap_size*4);
+  copy->field= field;
+  copy->record[0]= record;
   memcpy((char*) copy->record[0], (char*) table->record[0], share->reclength);
   if (share->default_fields || share->default_expressions)
-  {
-    copy->default_field= (Field**)
-      client_thd->alloc((share->default_fields +
-                         share->default_expressions + 1)*
-                        sizeof(Field*));
-    if (!copy->default_field)
-      goto error;
-  }
-
+    copy->default_field= default_fields;
   if (share->virtual_fields)
-  {
-    copy->vfield= (Field **) client_thd->alloc((share->virtual_fields+1)*
-                                               sizeof(Field*));
-    if (!copy->vfield)
-      goto error;
-  }
+    copy->vfield= virtual_fields;
+  copy->key_info= keys;
+  copy->base_key_part= key_parts;
+
+  /* Copy key and key parts from original table */
+  memcpy(keys, table->key_info, sizeof(KEY) * share->keys);
+  memcpy(key_parts, table->base_key_part,
+         sizeof(KEY_PART_INFO) *share->ext_key_parts);
+
   copy->expr_arena= NULL;
 
   /* Ensure we don't use the table list of the original table */
@@ -2649,6 +2665,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     (*field)->unireg_check= (*org_field)->unireg_check;
     (*field)->orig_table= copy;			// Remove connection
     (*field)->move_field_offset(adjust_ptrs);	// Point at copy->record[0]
+    (*field)->flags|= ((*org_field)->flags & LONG_UNIQUE_HASH_FIELD);
+    (*field)->invisible= (*org_field)->invisible;
     memdup_vcol(client_thd, (*field)->vcol_info);
     memdup_vcol(client_thd, (*field)->default_value);
     memdup_vcol(client_thd, (*field)->check_constraint);
@@ -2656,6 +2674,35 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
       (*field)->table->found_next_number_field= *field;
   }
   *field=0;
+
+  /* The following is needed for long hash key */
+  key_part= copy->base_key_part;
+  for (KEY *key= copy->key_info, *end_key= key + share->keys ;
+       key < end_key;
+       key++)
+  {
+    key->key_part= key_part;
+    key_part+= key->ext_key_parts;
+    if (key->algorithm == HA_KEY_ALG_LONG_HASH)
+      key_part++;
+  }
+
+  for (key_part= copy->base_key_part,
+         end_part= key_part + share->ext_key_parts ;
+       key_part < end_part ;
+       key_part++)
+  {
+    Field *field= key_part->field= copy->field[key_part->fieldnr - 1];
+
+    /* Fix partial fields, like in open_table_from_share() */
+    if (field->key_length() != key_part->length &&
+        !(field->flags & BLOB_FLAG))
+    {
+      field= key_part->field= field->make_new_field(client_thd->mem_root,
+                                                    copy, 0);
+      field->field_length= key_part->length;
+    }
+  }
 
   if (share->virtual_fields || share->default_expressions ||
       share->default_fields)
@@ -3259,6 +3306,12 @@ pthread_handler_t handle_delayed_insert(void *arg)
         di->table->file->ha_release_auto_increment();
         mysql_unlock_tables(thd, lock);
         trans_commit_stmt(thd);
+        /*
+          We have to delete update handler as we need to create a new one
+          for the next lock table to ensure they have both the same read
+          view.
+        */
+        di->table->file->delete_update_handler();
         di->group_count=0;
         mysql_audit_release(thd);
         mysql_mutex_lock(&di->mutex);
@@ -3390,6 +3443,7 @@ bool Delayed_insert::handle_inserts(void)
 
   if (table->file->ha_rnd_init_with_error(0))
     goto err;
+  table->file->prepare_for_insert();
 
   /*
     We can't use row caching when using the binary log because if
@@ -3876,9 +3930,12 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
   {
     table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-    if (table->file->ha_table_flags() & HA_DUPLICATE_POS &&
-        table->file->ha_rnd_init_with_error(0))
-      DBUG_RETURN(1);
+    if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+    {
+      if (table->file->ha_rnd_init_with_error(0))
+        DBUG_RETURN(1);
+      table->file->prepare_for_insert();
+    }
   }
   if (info.handle_duplicates == DUP_REPLACE &&
       (!table->triggers || !table->triggers->has_delete_triggers()))
@@ -4628,9 +4685,12 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
   {
     table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-    if (table->file->ha_table_flags() & HA_DUPLICATE_POS &&
-        table->file->ha_rnd_init_with_error(0))
-      DBUG_RETURN(1);
+    if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+    {
+      if (table->file->ha_rnd_init_with_error(0))
+        DBUG_RETURN(1);
+      table->file->prepare_for_insert();
+    }
   }
   if (info.handle_duplicates == DUP_REPLACE &&
       (!table->triggers || !table->triggers->has_delete_triggers()))

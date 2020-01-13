@@ -1243,31 +1243,46 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
       Item *list_item;
       KEY *key= 0;
       uint key_index, parts= 0;
+      KEY_PART_INFO *key_part= table->base_key_part;
+
       for (key_index= 0; key_index < table->s->keys; key_index++)
       {
-        key=table->key_info + key_index;
-        parts= key->user_defined_key_parts;
-        if (key->key_part[parts].fieldnr == field->field_index + 1)
-          break;
-      }
-      if (!key || key->algorithm != HA_KEY_ALG_LONG_HASH)
-        goto end;
-      KEY_PART_INFO *keypart;
-      for (uint i=0; i < parts; i++)
-      {
-        keypart= key->key_part + i;
-        if (keypart->key_part_flag & HA_PART_KEY_SEG)
+        /*
+          We have to use key from share as this function may have changed
+          table->key_info if it was ever invoked before. This could happen
+          in case of INSERT DELAYED.
+        */
+        key= table->s->key_info + key_index;
+        if (key->algorithm == HA_KEY_ALG_LONG_HASH)
         {
-          int length= keypart->length/keypart->field->charset()->mbmaxlen;
+          parts= key->user_defined_key_parts;
+          if (key_part[parts].fieldnr == field->field_index + 1)
+            break;
+          key_part++;
+        }
+        key_part+= key->ext_key_parts;
+      }
+      if (key_index == table->s->keys)
+        goto end;
+
+      /* Correct the key & key_parts if this function has been called before */
+      key= table->key_info + key_index;
+      key->key_part= key_part;
+
+      for (uint i=0; i < parts; i++, key_part++)
+      {
+        if (key_part->key_part_flag & HA_PART_KEY_SEG)
+        {
+          int length= key_part->length/key_part->field->charset()->mbmaxlen;
           list_item= new (mem_root) Item_func_left(thd,
-                       new (mem_root) Item_field(thd, keypart->field),
+                       new (mem_root) Item_field(thd, key_part->field),
                        new (mem_root) Item_int(thd, length));
           list_item->fix_fields(thd, NULL);
-          keypart->field->vcol_info=
-            table->field[keypart->field->field_index]->vcol_info;
+          key_part->field->vcol_info=
+            table->field[key_part->field->field_index]->vcol_info;
         }
         else
-          list_item= new (mem_root) Item_field(thd, keypart->field);
+          list_item= new (mem_root) Item_field(thd, key_part->field);
         field_list->push_back(list_item, mem_root);
       }
       Item_func_hash *hash_item= new(mem_root)Item_func_hash(thd, *field_list);
@@ -3871,6 +3886,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
       goto err;
     outparam->key_info= key_info;
     key_part= (reinterpret_cast<KEY_PART_INFO*>(key_info+share->keys));
+    outparam->base_key_part= key_part;
 
     memcpy(key_info, share->key_info, sizeof(*key_info)*share->keys);
     memcpy(key_part, share->key_info[0].key_part, (sizeof(*key_part) *
@@ -5244,7 +5260,6 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   range_rowid_filter_cost_info_elems= 0;
   range_rowid_filter_cost_info_ptr= NULL;
   range_rowid_filter_cost_info= NULL;
-  update_handler= NULL;
   check_unique_buf= NULL;
   vers_write= s->versioned;
   quick_condition_rows=0;
@@ -9245,35 +9260,6 @@ void re_setup_keyinfo_hash(KEY *key_info)
   key_info->user_defined_key_parts= key_info->usable_key_parts=
                key_info->ext_key_parts= 1;
   key_info->flags&= ~HA_NOSAME;
-}
-/**
-  @brief clone of current handler.
-  Creates a clone of handler used in update for
-  unique hash key.
-*/
-void TABLE::clone_handler_for_update()
-{
-  if (this->update_handler)
-    return;
-  handler *update_handler= NULL;
-  if (!s->long_unique_table)
-    return;
-  update_handler= file->clone(s->normalized_path.str,
-                                     in_use->mem_root);
-  update_handler->ha_external_lock(in_use, F_RDLCK);
-  this->update_handler= update_handler;
-  return;
-}
-
-/**
- @brief Deletes update handler object
-*/
-void TABLE::delete_update_handler()
-{
-  update_handler->ha_external_lock(in_use, F_UNLCK);
-  update_handler->ha_close();
-  delete update_handler;
-  this->update_handler= NULL;
 }
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt)

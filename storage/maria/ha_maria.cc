@@ -2605,6 +2605,8 @@ int ha_maria::extra(enum ha_extra_function operation)
   if (operation == HA_EXTRA_MMAP && !opt_maria_use_mmap)
     return 0;
 #endif
+  if (operation == HA_EXTRA_WRITE_CACHE && has_long_unique())
+    return 0;
 
   /*
     We have to set file->trn here because in some cases we call

@@ -3820,6 +3820,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   for (; (key=key_iterator++) ; key_number++)
   {
     uint key_length=0;
+    Create_field *auto_increment_key= 0;
     Key_part_spec *column;
 
     is_hash_field_needed= false;
@@ -4069,6 +4070,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         DBUG_ASSERT(key->type != Key::SPATIAL);
         if (column_nr == 0 || (file->ha_table_flags() & HA_AUTO_PART_KEY))
          auto_increment--;                        // Field is used
+        auto_increment_key= sql_field;
       }
 
       key_part_info->fieldnr= field;
@@ -4157,6 +4159,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
           }
         }
       }
+
       /* We can not store key_part_length more then 2^16 - 1 in frm */
       if (is_hash_field_needed && column->length > UINT_MAX16)
       {
@@ -4223,11 +4226,22 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       DBUG_RETURN(TRUE);
     }
 
-    if (is_hash_field_needed && key_info->algorithm != HA_KEY_ALG_UNDEF &&
-       key_info->algorithm != HA_KEY_ALG_HASH )
+    /* Check long unique keys */
+    if (is_hash_field_needed)
     {
-      my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
-      DBUG_RETURN(TRUE);
+      if (auto_increment_key)
+      {
+        my_error(ER_NO_AUTOINCREMENT_WITH_UNIQUE, MYF(0),
+                 sql_field->field_name.str,
+                 key_info->name.str);
+        DBUG_RETURN(TRUE);
+      }
+      if (key_info->algorithm != HA_KEY_ALG_UNDEF &&
+          key_info->algorithm != HA_KEY_ALG_HASH )
+      {
+        my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
+        DBUG_RETURN(TRUE);
+      }
     }
     if (is_hash_field_needed ||
         (key_info->algorithm == HA_KEY_ALG_HASH &&
