@@ -3959,6 +3959,28 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         DBUG_RETURN(TRUE);
       }
 
+      switch (key->type) {
+        case Key::UNIQUE:
+          if (!key->period)
+            break;
+          /* Fall through:
+             WITHOUT OVERLAPS forces fields to be NOT NULL
+           */
+        case Key::PRIMARY:
+          /* Implicitly set primary key fields to NOT NULL for ISO conf. */
+          if (!(sql_field->flags & NOT_NULL_FLAG))
+          {
+            /* Implicitly set primary key fields to NOT NULL for ISO conf. */
+            sql_field->flags|= NOT_NULL_FLAG;
+            sql_field->pack_flag&= ~FIELDFLAG_MAYBE_NULL;
+            null_fields--;
+          }
+          break;
+        default:
+          // Fall through
+          break;
+      }
+
       cols2.rewind();
       switch(key->type) {
 
@@ -3996,13 +4018,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	                                                          *sql_field,
 	                                                          file))
           DBUG_RETURN(TRUE);
-        if (!(sql_field->flags & NOT_NULL_FLAG))
-        {
-          /* Implicitly set primary key fields to NOT NULL for ISO conf. */
-          sql_field->flags|= NOT_NULL_FLAG;
-          sql_field->pack_flag&= ~FIELDFLAG_MAYBE_NULL;
-          null_fields--;
-        }
         break;
 
       case Key::MULTIPLE:
