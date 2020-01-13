@@ -3050,6 +3050,7 @@ public:
   /** Length of ref (1-8 or the clustered key length) */
   uint ref_length;
   FT_INFO *ft_handler;
+  handler *update_handler;  /* Handler used in case of update */
   enum init_stat { NONE=0, INDEX, RND };
   init_stat inited, pre_inited;
 
@@ -3184,6 +3185,8 @@ public:
     DBUG_ASSERT(inited == NONE);
   }
   virtual handler *clone(const char *name, MEM_ROOT *mem_root);
+  bool clone_handler_for_update();
+  void delete_update_handler();
   /** This is called after create to allow us to set up cached variables */
   void init()
   {
@@ -4546,6 +4549,7 @@ protected:
 
 public:
   bool check_table_binlog_row_based(bool binlog_row);
+  int prepare_for_insert(bool force_update_handler= 0);
 
   inline void clear_cached_table_binlog_row_based_flag()
   {
@@ -4887,6 +4891,8 @@ public:
   {
     return false;
   }
+  /* If the table is using sql level unique constraints on some column */
+  inline bool has_long_unique();
 
   /* Used for ALTER TABLE.
   Some engines can handle some differences in indexes by themself. */

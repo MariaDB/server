@@ -18275,7 +18275,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->copy_blobs= 1;
   table->in_use= thd;
   table->no_rows_with_nulls= param->force_not_null_cols;
-  table->update_handler= NULL;
   table->check_unique_buf= NULL;
 
   table->s= share;

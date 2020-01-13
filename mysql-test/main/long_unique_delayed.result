@@ -1,0 +1,19 @@
+#
+# Test insert delayed with long unique keys
+#
+create table t1(a blob unique) engine=myisam;
+insert delayed into t1 values(1),(2),(3),(56),('sachin'),('maria'),(123456789034567891),(null),(null),(123456789034567890),('maria');
+insert delayed into t1 values(1),(9);
+flush tables t1;
+select count(*) from t1;
+count(*)
+11
+drop table t1;
+#
+# MDEV-19848
+# Server crashes in check_vcol_forward_refs upon INSERT DELAYED into
+# table with long blob key
+#
+CREATE  TABLE t1 (a BLOB, UNIQUE(a)) ENGINE=MyISAM;
+INSERT DELAYED t1 () VALUES ();
+DROP TABLE t1;

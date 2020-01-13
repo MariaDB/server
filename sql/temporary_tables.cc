@@ -748,11 +748,7 @@ void THD::mark_tmp_tables_as_free_for_reuse()
     while ((table= tables_it++))
     {
       if ((table->query_id == query_id) && !table->open_by_handler)
-      {
-        if (table->update_handler)
-          table->delete_update_handler();
         mark_tmp_table_as_free_for_reuse(table);
-      }
     }
   }
 
