@@ -104,7 +104,7 @@ show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `id` int(11) NOT NULL,
-  `u` int(11) DEFAULT NULL,
+  `u` int(11) NOT NULL,
   `s` date NOT NULL,
   `e` date NOT NULL,
   PERIOD FOR `p` (`s`, `e`),
