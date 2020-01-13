@@ -2251,6 +2251,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     if (init_period_from_extra2(&period, pos, end))
       goto err;
+    if (extra2_str_size(period.name.length)
+         + extra2_str_size(period.constr_name.length)
+         + 2 * frm_fieldno_size
+        != extra2.application_period.length)
+      goto err;
     status_var_increment(thd->status_var.feature_application_time_periods);
   }
 
