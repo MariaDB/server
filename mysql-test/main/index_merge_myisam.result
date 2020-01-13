@@ -1,4 +1,4 @@
-SET STORAGE_ENGINE = MyISAM;
+SET DEFAULT_STORAGE_ENGINE = MyISAM;
 set @optimizer_switch_save= @@optimizer_switch;
 set optimizer_switch='rowid_filter=off';
 set optimizer_switch='index_merge_sort_intersection=off';

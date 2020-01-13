@@ -1,6 +1,6 @@
 --source include/have_innodb.inc
 
-SET SESSION STORAGE_ENGINE='InnoDB';
+SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 
 --source rowid_filter.test
 --source include/have_sequence.inc
@@ -95,7 +95,7 @@ eval $q1;
 drop table t1;
 set optimizer_switch=@save_optimizer_switch;
 
-SET SESSION STORAGE_ENGINE=DEFAULT;
+SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;
 
 --echo #
 --echo # MDEV-19919: use of rowid filter for innodb table + ORDER BY

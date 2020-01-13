@@ -1,5 +1,5 @@
-set @save_storage_engine= @@storage_engine;
-set storage_engine=InnoDB;
+set @save_storage_engine= @@default_storage_engine;
+set default_storage_engine=InnoDB;
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
 set @innodb_stats_persistent_sample_pages_save=
 @@innodb_stats_persistent_sample_pages;
@@ -963,7 +963,7 @@ pk	key1	key2
 142	frequent-val	rare-42
 drop table t1, t2;
 set optimizer_switch=@innodb_icp_tmp;
-set storage_engine= @save_storage_engine;
+set default_storage_engine= @save_storage_engine;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
 @innodb_stats_persistent_sample_pages_save;

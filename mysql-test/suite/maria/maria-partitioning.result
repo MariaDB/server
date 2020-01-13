@@ -1,5 +1,5 @@
-set global storage_engine=aria;
-set session storage_engine=aria;
+set global default_storage_engine=aria;
+set session default_storage_engine=aria;
 DROP TABLE if exists t1,t2;
 Warnings:
 Note	1051	Unknown table 'test.t1'

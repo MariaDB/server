@@ -1,6 +1,6 @@
 --source include/have_innodb.inc
 
-SET SESSION STORAGE_ENGINE='InnoDB';
+SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 
 set @save_optimizer_switch_for_stat_tables_test=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
@@ -18,4 +18,4 @@ set global innodb_stats_persistent_sample_pages=
 
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
 
-SET SESSION STORAGE_ENGINE=DEFAULT;
+SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;

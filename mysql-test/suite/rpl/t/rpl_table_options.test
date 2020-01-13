@@ -4,7 +4,7 @@
 
 --replace_regex /\.dll/.so/
 eval install plugin example soname '$HA_EXAMPLE_SO';
-set storage_engine=example;
+set default_storage_engine=example;
 
 sync_slave_with_master;
 connection master;
@@ -28,7 +28,7 @@ show create table t1;
 
 connection master;
 drop table t1;
-set storage_engine=default;
+set default_storage_engine=default;
 select 1;
 
 # Cleanup

@@ -1,7 +1,7 @@
 include/master-slave.inc
 [connection master]
 install plugin example soname 'ha_example.so';
-set storage_engine=example;
+set default_storage_engine=example;
 connection slave;
 connection master;
 create table t1 (a int not null) ull=12340;
@@ -25,7 +25,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 `ull`=12340
 connection master;
 drop table t1;
-set storage_engine=default;
+set default_storage_engine=default;
 select 1;
 1
 1

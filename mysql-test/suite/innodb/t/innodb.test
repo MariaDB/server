@@ -1339,8 +1339,8 @@ SELECT variable_value - @innodb_row_lock_time_avg_orig FROM information_schema.g
 # Test varchar
 #
 
-let $default=`select @@storage_engine`;
-set storage_engine=INNODB;
+let $default=`select @@default_storage_engine`;
+set default_storage_engine=INNODB;
 source include/varchar.inc;
 
 #

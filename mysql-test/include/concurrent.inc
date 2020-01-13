@@ -58,7 +58,7 @@ GRANT USAGE ON test.* TO mysqltest@localhost;
   connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -148,7 +148,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -237,7 +237,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1 (a int not null, b int not null);
   insert into t1 values (1,1),(2,1),(3,1),(4,1);
   --echo ** Create ULL 'hello2'
@@ -287,7 +287,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -349,7 +349,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -420,7 +420,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -478,7 +478,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -533,7 +533,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");

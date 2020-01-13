@@ -155,7 +155,7 @@ select * from mysql.index_stats where table_name='lineitem'
 set debug_sync='RESET';
 
 let $innodb_storage_engine= 0;
-if (`SELECT UPPER(@@storage_engine) = 'INNODB'`)
+if (`SELECT UPPER(@@default_storage_engine) = 'INNODB'`)
 {
   let $innodb_storage_engine= 1;
 }

@@ -1,4 +1,4 @@
-SET SESSION STORAGE_ENGINE = InnoDB;
+SET SESSION DEFAULT_STORAGE_ENGINE = InnoDB;
 drop table if exists t1,t3,t4,t5;
 create table t1 (a int, b char(10), key a using btree (a), key b using btree (a,b));
 insert into t1 values

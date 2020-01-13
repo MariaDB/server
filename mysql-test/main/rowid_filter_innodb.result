@@ -1,4 +1,4 @@
-SET SESSION STORAGE_ENGINE='InnoDB';
+SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 DROP DATABASE IF EXISTS dbt3_s001;
 CREATE DATABASE dbt3_s001;
 use dbt3_s001;
@@ -2235,7 +2235,7 @@ a	b
 22	2
 drop table t1;
 set optimizer_switch=@save_optimizer_switch;
-SET SESSION STORAGE_ENGINE=DEFAULT;
+SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;
 #
 # MDEV-19919: use of rowid filter for innodb table + ORDER BY
 #

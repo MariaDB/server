@@ -178,7 +178,7 @@ static LEX_STRING vars_filter[]= {
   {C_STRING_WITH_LEN("secure_auth")},
   {C_STRING_WITH_LEN("slow_launch_time")},
   {C_STRING_WITH_LEN("sql%")},
-  {C_STRING_WITH_LEN("storage_engine")},
+  {C_STRING_WITH_LEN("default_storage_engine")},
   {C_STRING_WITH_LEN("sync_binlog")},
   {C_STRING_WITH_LEN("table_definition_cache")},
   {C_STRING_WITH_LEN("table_open_cache")},

@@ -25,7 +25,7 @@
 # adding a 'SHOW WARNINGS' after the statement.
 
 set sql_mode='';
-set storage_engine=Aria;
+set default_storage_engine=Aria;
 set enforce_storage_engine=NULL;
 
 set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');

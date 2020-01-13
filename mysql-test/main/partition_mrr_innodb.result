@@ -4,8 +4,8 @@ drop table if exists t1,t3;
 #
 create table t1(a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-set @tmp=@@storage_engine;
-set storage_engine=InnoDB;
+set @tmp=@@default_storage_engine;
+set default_storage_engine=InnoDB;
 create table t3 (
 ID bigint(20) NOT NULL AUTO_INCREMENT,
 part_id int,
@@ -32,7 +32,7 @@ t3	CREATE TABLE `t3` (
 (PARTITION `p1` VALUES LESS THAN (3) ENGINE = InnoDB,
  PARTITION `p2` VALUES LESS THAN (7) ENGINE = InnoDB,
  PARTITION `p3` VALUES LESS THAN (10) ENGINE = InnoDB)
-set storage_engine= @tmp;
+set default_storage_engine= @tmp;
 insert into t3 select 
 A.a+10*B.a,
 A.a,

@@ -1,4 +1,4 @@
-SET @@session.storage_engine = 'MyISAM';
+SET @@session.default_storage_engine = 'MyISAM';
 #
 # Section 1. Wrong column definition options
 #            - NOT NULL

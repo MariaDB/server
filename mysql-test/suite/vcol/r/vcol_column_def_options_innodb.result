@@ -1,4 +1,4 @@
-SET @@session.storage_engine = 'InnoDB';
+SET @@session.default_storage_engine = 'InnoDB';
 #
 # Section 1. Wrong column definition options
 #            - NOT NULL
