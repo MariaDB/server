@@ -596,6 +596,37 @@ Description: RocksDB storage engine for MariaDB
  at maximising storage efficiency while maintaining InnoDB-like performance.
  This package contains the RocksDB plugin for MariaDB.
 
+Package: mariadb-columnstore-libs
+Architecture: amd64
+Depends: ${misc:Depends},
+         ${shlibs:Depends}
+Description: Required libraries for the MariaDB ColumnStore storage engine
+
+Package: mariadb-columnstore-platform
+Architecture: amd64
+Depends: mariadb-columnstore-libs (= ${binary:Version}),
+         expect,
+         net-tools,
+         libsnappy1 | libsnappy1v5,
+         libjemalloc1 | libjemalloc2,
+         libboost-all-dev,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: The platform binaries for MariaDB ColumnStore
+
+Package: mariadb-plugin-columnstore
+Architecture: amd64
+Depends: mariadb-server-10.4 (= ${binary:Version}),
+         mariadb-columnstore-libs (= ${binary:Version}),
+         mariadb-columnstore-platform (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Recommends: python-mysqldb
+Description: MariaDB ColumnStore storage engine
+ The MariaDB ColumnStore storage engine is a high-performance columnar
+ analytical engine, aimed at rapid processing of analytical queries on very
+ large amounts of data.
+
 Package: mariadb-plugin-oqgraph
 Architecture: any
 Depends: libjudydebian1,

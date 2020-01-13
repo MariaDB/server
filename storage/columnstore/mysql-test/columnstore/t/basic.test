@@ -1,0 +1,20 @@
+--source include/have_columnstore.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (a INT, b VARCHAR(255)) ENGINE=columnstore;
+
+INSERT INTO t1 (a, b) VALUES (1, 'columnstore'), (2, 'test');
+SELECT * FROM t1;
+
+UPDATE t1 SET a=a+100;
+SELECT * FROM t1;
+
+DELETE FROM t1 WHERE a=101;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+--source include/cleanup_columnstore.inc
