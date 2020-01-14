@@ -1215,7 +1215,12 @@ bool dict_table_t::deserialise_mblob(const byte* metadata, ulint len)
 	DBUG_ASSERT(!instant);
 
 	unsigned num_non_pk_fields = mach_read_from_4(metadata);
-	metadata += 4;
+	metadata += NUM_NON_PK_FIELDS_SIZE;
+
+	DBUG_ASSERT((NUM_NON_PK_FIELDS_SIZE + num_non_pk_fields * NON_PK_FIELD_SIZE
+			== len)
+		|| (NUM_NON_PK_FIELDS_SIZE + num_non_pk_fields * NON_PK_FIELD_SIZE
+			+ COMMITTED_COUNT_SIZE == len));
 
 	if (num_non_pk_fields >= REC_MAX_N_FIELDS - 3) {
 		return true;
@@ -1236,7 +1241,7 @@ bool dict_table_t::deserialise_mblob(const byte* metadata, ulint len)
 
 	for (unsigned i = 0; i < num_non_pk_fields; i++) {
 		auto c = field_map[i] = mach_read_from_2(metadata);
-		metadata += 2;
+		metadata += NON_PK_FIELD_SIZE;
 
 		if (field_map[i].is_dropped()) {
 			if (c.ind() > DICT_MAX_FIXED_COL_LEN + 1) {
@@ -1271,10 +1276,11 @@ bool dict_table_t::deserialise_mblob(const byte* metadata, ulint len)
 	UT_LIST_GET_FIRST(indexes)->reconstruct_fields();
 
 	rw_lock_x_lock(&index->lock);
-	committed_count_inited = (12 + num_non_pk_fields * 2 == len);
+	committed_count_inited = (NUM_NON_PK_FIELDS_SIZE +
+		num_non_pk_fields * NON_PK_FIELD_SIZE + COMMITTED_COUNT_SIZE == len);
 	if (committed_count_inited) {
 		committed_count = mach_read_from_8(metadata);
-		metadata += 8;
+		metadata += COMMITTED_COUNT_SIZE;
 	}
 	rw_lock_x_unlock(&index->lock);
 

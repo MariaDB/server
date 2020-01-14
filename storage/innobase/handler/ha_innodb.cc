@@ -14007,7 +14007,7 @@ ha_innobase::enable_persistent_count()
 		return -1;  /* Already initialized */
 	}
 
-	int64_t count = 0;
+	uint64_t count = 0;
 	rnd_init(true);
 	do {
 		err = rnd_next(read_buf);

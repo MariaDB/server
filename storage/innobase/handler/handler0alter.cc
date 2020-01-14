@@ -5427,8 +5427,10 @@ void dict_table_t::serialise_mblob(mem_heap_t* heap, dfield_t* field) const
 
 	rw_lock_s_lock(&index.lock);
 
-	ulint len = committed_count_inited ? 12 + num_non_pk_fields * 2 :
-		4 + num_non_pk_fields * 2;
+	ulint len = NUM_NON_PK_FIELDS_SIZE + num_non_pk_fields * NON_PK_FIELD_SIZE;
+	if (committed_count_inited) {
+		len += COMMITTED_COUNT_SIZE;
+	}
 
 	byte* data = static_cast<byte*>(mem_heap_alloc(heap, len));
 
@@ -5436,16 +5438,16 @@ void dict_table_t::serialise_mblob(mem_heap_t* heap, dfield_t* field) const
 
 	mach_write_to_4(data, num_non_pk_fields);
 
-	data += 4;
+	data += NUM_NON_PK_FIELDS_SIZE;
 
 	for (ulint i = n_fixed; i < index.n_fields; i++) {
 		mach_write_to_2(data, instant->field_map[i - n_fixed]);
-		data += 2;
+		data += NON_PK_FIELD_SIZE;
 	}
 
 	if (committed_count_inited) {
 		mach_write_to_8(data, committed_count);
-		data += 8;
+		data += COMMITTED_COUNT_SIZE;
 	}
 
 	rw_lock_s_unlock(&index.lock);

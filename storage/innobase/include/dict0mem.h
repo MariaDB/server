@@ -1813,6 +1813,11 @@ struct dict_table_t {
 		return NULL;
 	}
 
+	/** Metadata BLOB structure. */
+	#define NUM_NON_PK_FIELDS_SIZE 4
+	#define NON_PK_FIELD_SIZE 2
+	#define COMMITTED_COUNT_SIZE 8
+
 	/** Serialise metadata BLOB, consisting of dropped or reordered columns,
 	and committed count.
 	@param[in,out]	heap	memory heap for allocation
@@ -2265,10 +2270,10 @@ public:
 	ulint					n_rec_locks;
 
 	/* Whether committed count is initialized. */
-	bool              committed_count_inited;
+	bool           committed_count_inited;
 
 	/* Count of committed records. */
-	int64_t       committed_count;
+	uint64_t       committed_count;
 
 private:
 	/** Count of how many handles are opened to this table. Dropping of the
