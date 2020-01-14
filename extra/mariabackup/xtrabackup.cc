@@ -675,7 +675,7 @@ struct my_option xb_client_options[] =
 
   {"stream", OPT_XTRA_STREAM, "Stream all backup files to the standard output "
    "in the specified format." 
-   "Supported format is 'xbstream'."
+   "Supported format is 'mbstream' or 'xbstream'."
    ,
    (G_PTR*) &xtrabackup_stream_str, (G_PTR*) &xtrabackup_stream_str, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1398,7 +1398,8 @@ xb_get_one_option(int optid,
     xtrabackup_target_dir= xtrabackup_real_target_dir;
     break;
   case OPT_XTRA_STREAM:
-    if (!strcasecmp(argument, "xbstream"))
+    if (!strcasecmp(argument, "mbstream") ||
+        !strcasecmp(argument, "xbstream"))
       xtrabackup_stream_fmt = XB_STREAM_FMT_XBSTREAM;
     else
     {
