@@ -1,0 +1,36 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(255)) Engine=InnoDB;
+SET GLOBAL wsrep_slave_threads = 2;
+SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_cb";
+connection node_2;
+INSERT INTO t1 VALUES (1, 'node_2');;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET SESSION wsrep_sync_wait=0;
+SET DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_retry_autocommit = 0;
+INSERT INTO t1 VALUES (1, 'node_1');;
+connection node_1a;
+SET GLOBAL DEBUG_DBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_2;
+connection node_2;
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+Performing --wsrep-recover ...
+connection node_2;
+Using --wsrep-start-position when starting mysqld ...
+connection node_1;
+DROP TABLE t1;
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+connection node_1a;
+SET GLOBAL DEBUG_DBUG=NULL;
+SET DEBUG_SYNC = "RESET";
