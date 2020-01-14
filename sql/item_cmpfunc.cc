@@ -5898,9 +5898,18 @@ bool Regexp_processor_pcre::compile(String *pattern, bool send_error)
   if (!(pattern= convert_if_needed(pattern, &pattern_converter)))
     return true;
 
+  pcre2_compile_context *cctx= NULL;
+#ifndef pcre2_set_depth_limit
+  // old pcre2 uses stack - put a limit on that (new pcre2 prefers heap)
+  cctx= pcre2_compile_context_create(NULL);
+  pcre2_set_compile_recursion_guard(cctx, [](uint32_t cur, void *end) -> int
+    { return available_stack_size(&cur, end) < STACK_MIN_SIZE; },
+    current_thd->mysys_var->stack_ends_here);
+#endif
   m_pcre= pcre2_compile((PCRE2_SPTR8) pattern->ptr(), pattern->length(),
                         m_library_flags,
-                        &pcreErrorNumber, &pcreErrorOffset, NULL);
+                        &pcreErrorNumber, &pcreErrorOffset, cctx);
+  pcre2_compile_context_free(cctx); // NULL is ok here
 
   if (unlikely(m_pcre == NULL))
   {
@@ -5964,8 +5973,16 @@ int Regexp_processor_pcre::pcre_exec_with_warn(const pcre2_code *code,
                                                int length, int startoffset,
                                                int options)
 {
+  pcre2_match_context *mctx= NULL;
+#ifndef pcre2_set_depth_limit
+  // old pcre2 uses stack - put a limit on that (new pcre2 prefers heap)
+  mctx= pcre2_match_context_create(NULL);
+  pcre2_set_recursion_limit(mctx,
+    available_stack_size(&mctx, current_thd->mysys_var->stack_ends_here)/544);
+#endif
   int rc= pcre2_match(code, (PCRE2_SPTR8) subject, (PCRE2_SIZE) length,
-                      (PCRE2_SIZE) startoffset, options, data, NULL);
+                      (PCRE2_SIZE) startoffset, options, data, mctx);
+  pcre2_match_context_free(mctx); // NULL is ok here
   DBUG_EXECUTE_IF("pcre_exec_error_123", rc= -123;);
   if (unlikely(rc < PCRE2_ERROR_NOMATCH))
   {
