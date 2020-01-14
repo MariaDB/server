@@ -451,7 +451,7 @@ struct mtr_t {
 
   /** Write a byte string to a page.
   @param[in,out]  b       buffer page
-  @param[in]      ofs     byte offset from b->frame
+  @param[in]      offset  byte offset from b->frame
   @param[in]      str     the data to write
   @param[in]      len     length of the data to write */
   inline void memcpy(buf_block_t *b, ulint offset, const void *str, ulint len);
