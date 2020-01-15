@@ -13669,12 +13669,16 @@ static int compare_fields_by_table_order(Item *field1,
 {
   int cmp= 0;
   bool outer_ref= 0;
-  Item_field *f1= (Item_field *) (field1->real_item());
-  Item_field *f2= (Item_field *) (field2->real_item());
-  if (field1->const_item() || f1->const_item())
+  Item *field1_real= field1->real_item();
+  Item *field2_real= field2->real_item();
+
+  if (field1->const_item() || field1_real->const_item())
     return 1;
-  if (field2->const_item() || f2->const_item())
+  if (field2->const_item() || field2_real->const_item())
     return -1;
+
+  Item_field *f1= (Item_field *) field1_real;
+  Item_field *f2= (Item_field *) field2_real;
   if (f2->used_tables() & OUTER_REF_TABLE_BIT)
   {  
     outer_ref= 1;
