@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1155,7 +1155,10 @@ rec_get_converted_size_comp_prefix_low(
 	for (ulint i = 0; dfield < end; i++, dfield++) {
 		if (mblob && i == index->first_user_field()) {
 			data_size += FIELD_REF_SIZE;
-			++dfield;
+			if (++dfield == end) {
+				ut_ad(i == index->n_fields);
+				break;
+			}
 		}
 
 		ulint len = dfield_get_len(dfield);
@@ -1597,7 +1600,11 @@ start:
 				ut_ad(dfield_is_ext(field));
 				memcpy(end, dfield_get_data(field), len);
 				end += len;
-				len = dfield_get_len(++field);
+				if (++field == fend) {
+					ut_ad(i == index->n_fields);
+					break;
+				}
+				len = dfield_get_len(field);
 			}
 		} else if (UNIV_UNLIKELY(i == n_node_ptr_field)) {
 			ut_ad(field->type.prtype & DATA_NOT_NULL);
