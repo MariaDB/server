@@ -109,7 +109,8 @@ Item_args::Item_args(THD *thd, const Item_args *other)
     arg_count= 0;
     return;
   }
-  memcpy(args, other->args, sizeof(Item*) * arg_count);
+  if (arg_count)
+    memcpy(args, other->args, sizeof(Item*) * arg_count);
 }
 
 
