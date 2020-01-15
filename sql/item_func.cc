@@ -4029,7 +4029,7 @@ longlong Item_func_get_lock::val_int()
   MDL_request ull_request;
   ull_request.init(MDL_key::USER_LOCK, res->c_ptr_safe(), "",
                    MDL_SHARED_NO_WRITE, MDL_EXPLICIT);
-  MDL_key *ull_key = &ull_request.key;
+  MDL_key *ull_key= &ull_request.key;
 
 
   if ((ull= (User_level_lock*)
@@ -4037,7 +4037,7 @@ longlong Item_func_get_lock::val_int()
   {
     /* Recursive lock */
     ull->refs++;
-    null_value = 0;
+    null_value= 0;
     DBUG_PRINT("info", ("recursive lock, ref-count: %d", (int) ull->refs));
     DBUG_RETURN(1);
   }
@@ -4073,6 +4073,30 @@ longlong Item_func_get_lock::val_int()
   null_value= 0;
 
   DBUG_RETURN(1);
+}
+
+
+/**
+  Release all user level locks.
+  @return
+    - N if N-lock released
+    - 0 if lock wasn't held
+*/
+longlong Item_func_release_all_locks::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  THD *thd= current_thd;
+  ulong num_unlocked= 0;
+  DBUG_ENTER("Item_func_release_all_locks::val_int");
+  for (size_t i= 0; i < thd->ull_hash.records; i++)
+  {
+    auto ull= (User_level_lock *) my_hash_element(&thd->ull_hash, i);
+    thd->mdl_context.release_lock(ull->lock);
+    num_unlocked+= ull->refs;
+    my_free(ull);
+  }
+  my_hash_free(&thd->ull_hash);
+  DBUG_RETURN(num_unlocked);
 }
 
 
