@@ -13245,9 +13245,7 @@ ha_innobase::create(
 	}
 
 	dict_table_t* ib_table = info.table();
-	/* No need to acquire index.lock for committed_count_inited and
-	committed_count access since creation is taking place and no other threads
-	can access anyway. */
+
 	ib_table->committed_count_inited =
 		!!DICT_TF_GET_PERSISTENT_COUNT(info.flags());
 	if (ib_table->committed_count_inited) {
@@ -13999,11 +13997,7 @@ ha_innobase::enable_persistent_count()
 	trx_t* trx = m_prebuilt->trx;
 	int err;
 
-	dict_index_t* index = UT_LIST_GET_FIRST(ib_table->indexes);
-	rw_lock_sx_lock(&index->lock);
-
 	if (ib_table->committed_count_inited) {
-		rw_lock_sx_unlock(&index->lock);
 		return -1;  /* Already initialized */
 	}
 
@@ -14018,8 +14012,6 @@ ha_innobase::enable_persistent_count()
 	ib_table->committed_count = count - trx->uncommitted_count(ib_table);
 	ib_table->committed_count_inited = true;
 
-	rw_lock_sx_unlock(&index->lock);
-
 	return 0;
 }
 
@@ -14029,11 +14021,7 @@ int
 ha_innobase::disable_persistent_count()
 {
 	dict_table_t* ib_table = m_prebuilt->table;
-	dict_index_t* index = UT_LIST_GET_FIRST(ib_table->indexes);
-
-	rw_lock_x_lock(&index->lock);
 	ib_table->committed_count_inited = false;
-	rw_lock_x_unlock(&index->lock);
 
 	return 0;
 }
@@ -14049,15 +14037,11 @@ ha_innobase::records2(ha_rows* num_rows)
 {	
     trx_t* trx = m_prebuilt->trx;
     dict_table_t* ib_table = m_prebuilt->table;
-    dict_index_t* index = UT_LIST_GET_FIRST(ib_table->indexes);
 
-    rw_lock_s_lock(&index->lock);
     if (!ib_table->committed_count_inited) {
-        rw_lock_s_unlock(&index->lock);
         return 1;
     }
     *num_rows = ib_table->committed_count + trx->uncommitted_count(ib_table);
-    rw_lock_s_unlock(&index->lock);
 
     return 0;
 }

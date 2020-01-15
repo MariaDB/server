@@ -5425,8 +5425,6 @@ void dict_table_t::serialise_mblob(mem_heap_t* heap, dfield_t* field) const
 	unsigned n_fixed = index.first_user_field();
 	unsigned num_non_pk_fields = index.n_fields - n_fixed;
 
-	rw_lock_s_lock(&index.lock);
-
 	ulint len = NUM_NON_PK_FIELDS_SIZE + num_non_pk_fields * NON_PK_FIELD_SIZE;
 	if (committed_count_inited) {
 		len += COMMITTED_COUNT_SIZE;
@@ -5449,8 +5447,6 @@ void dict_table_t::serialise_mblob(mem_heap_t* heap, dfield_t* field) const
 		mach_write_to_8(data, committed_count);
 		data += COMMITTED_COUNT_SIZE;
 	}
-
-	rw_lock_s_unlock(&index.lock);
 }
 
 /** Construct the metadata record for instant ALTER TABLE.

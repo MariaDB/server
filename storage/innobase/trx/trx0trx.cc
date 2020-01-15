@@ -1567,24 +1567,18 @@ void trx_update_persistent_counts(trx_t* trx)
     uncommitted_counts maps table ID to uncommitted count.
     mod_tables_by_id maps table ID to dict_table_t. */
     dict_table_t* ib_table;
-    dict_index_t* index;
     std::map<table_id_t, int64_t> uncommitted_counts;
     std::map<table_id_t, dict_table_t* const> mod_tables_by_id;
     for (trx_mod_tables_t::const_iterator it = trx->mod_tables.begin();
          it != trx->mod_tables.end(); it++) {
         ib_table = it->first;
-        index = UT_LIST_GET_FIRST(ib_table->indexes);
-        rw_lock_s_lock(&index->lock);
         if (ib_table->committed_count_inited) {
-            rw_lock_s_unlock(&index->lock);
             uncommitted_counts.insert(
                 std::pair<table_id_t, int64_t>
                     (ib_table->id, 0));
             mod_tables_by_id.insert(
                 std::pair<table_id_t, dict_table_t* const>
                     (ib_table->id, ib_table));
-        } else {
-            rw_lock_s_unlock(&index->lock);
         }
     }
 
@@ -1628,18 +1622,13 @@ void trx_update_persistent_counts(trx_t* trx)
         ut_ad(it_mod_tables_by_id != mod_tables_by_id.end());
         ib_table = it_mod_tables_by_id->second;
 
-        index = UT_LIST_GET_FIRST(ib_table->indexes);
-        rw_lock_sx_lock(&index->lock);
         /* No guarantee that persistent count wasn't disabled between this
         function's initial check and now */
         if (ib_table->committed_count_inited) {
             ib_table->committed_count += it_uncommitted_counts->second;
-            rw_lock_sx_unlock(&index->lock);
             if (it_uncommitted_counts->second != 0) {
                 innobase_update_persistent_count(ib_table, trx);
             }
-        } else {
-            rw_lock_sx_unlock(&index->lock);
         }
     }
 }

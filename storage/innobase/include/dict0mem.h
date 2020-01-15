@@ -2270,10 +2270,10 @@ public:
 	ulint					n_rec_locks;
 
 	/* Whether committed count is initialized. */
-	bool           committed_count_inited;
+	std::atomic<bool>       committed_count_inited;
 
 	/* Count of committed records. */
-	uint64_t       committed_count;
+	Atomic_counter<uint64_t>       committed_count;
 
 private:
 	/** Count of how many handles are opened to this table. Dropping of the

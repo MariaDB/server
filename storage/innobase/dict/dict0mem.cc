@@ -1275,14 +1275,12 @@ bool dict_table_t::deserialise_mblob(const byte* metadata, ulint len)
 
 	UT_LIST_GET_FIRST(indexes)->reconstruct_fields();
 
-	rw_lock_x_lock(&index->lock);
 	committed_count_inited = (NUM_NON_PK_FIELDS_SIZE +
 		num_non_pk_fields * NON_PK_FIELD_SIZE + COMMITTED_COUNT_SIZE == len);
 	if (committed_count_inited) {
 		committed_count = mach_read_from_8(metadata);
 		metadata += COMMITTED_COUNT_SIZE;
 	}
-	rw_lock_x_unlock(&index->lock);
 
 	return false;
 }
