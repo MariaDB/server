@@ -1243,13 +1243,16 @@ extern tpool::waitable_task purge_worker_task;
 /** Wait for pending purge jobs to complete. */
 static void trx_purge_wait_for_workers_to_complete()
 {
-  if (purge_worker_task.get_ref_count())
-  {
-    tpool::tpool_wait_begin();
-    purge_worker_task.wait();
+  bool notify_wait = purge_worker_task.is_running();
+
+  if (notify_wait)
+   tpool::tpool_wait_begin();
+
+  purge_worker_task.wait();
+
+  if(notify_wait)
     tpool::tpool_wait_end();
-  }
-  
+
   /* There should be no outstanding tasks as long
   as the worker threads are active. */
   ut_ad(srv_get_task_queue_length() == 0);
@@ -1349,7 +1352,7 @@ void purge_sys_t::resume()
      ut_ad(!srv_undo_sources);
      return;
    }
-
+   ut_ad(!sync_check_iterate(sync_check()));
    rw_lock_x_lock(&latch);
    int32_t paused= m_paused--;
    ut_a(paused);

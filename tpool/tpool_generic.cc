@@ -121,6 +121,10 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
   {
     return m_state & LONG_TASK;
   }
+  bool is_waiting()
+  {
+    return m_state & WAITING;
+  }
   std::chrono::system_clock::time_point m_task_start_time;
   worker_data() :
     m_cv(),
@@ -293,7 +297,7 @@ public:
         return;
 
       m_callback(m_data);
-
+      dbug_execute_after_task_callback();
       m_running = false;
 
       if (m_pool && m_period)
@@ -740,24 +744,21 @@ void thread_pool_generic::wait_begin()
 {
   if (!tls_worker_data || tls_worker_data->is_long_task())
     return;
-  tls_worker_data->m_state |= worker_data::WAITING;
   std::unique_lock<std::mutex> lk(m_mtx);
+  tls_worker_data->m_state |= worker_data::WAITING;
   m_waiting_task_count++;
 
   /* Maintain concurrency */
-  if (m_task_queue.empty())
-    return;
-  if (m_active_threads.size() - m_long_tasks_count - m_waiting_task_count < m_concurrency)
-    maybe_wake_or_create_thread();
+  maybe_wake_or_create_thread();
 }
 
 
 void thread_pool_generic::wait_end()
 {
-  if (tls_worker_data && (tls_worker_data->m_state & worker_data::WAITING))
+  if (tls_worker_data && tls_worker_data->is_waiting())
   {
-    tls_worker_data->m_state &= ~worker_data::WAITING;
     std::unique_lock<std::mutex> lk(m_mtx);
+    tls_worker_data->m_state &= ~worker_data::WAITING;
     m_waiting_task_count--;
   }
 }

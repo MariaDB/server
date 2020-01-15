@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -134,7 +134,7 @@ inline void mtr_t::write(const buf_block_t &block, byte *ptr, V val)
 
 /** Write a byte string to a page.
 @param[in,out]  b       buffer page
-@param[in]      ofs     byte offset from b->frame
+@param[in]      offset  byte offset from b->frame
 @param[in]      str     the data to write
 @param[in]      len     length of the data to write */
 inline

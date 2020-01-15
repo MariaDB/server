@@ -3138,7 +3138,6 @@ os_file_io(
 			bytes_returned += n_bytes;
 
 			if (offset > 0
-			    && !type.is_log()
 			    && type.is_write()
 			    && type.punch_hole()) {
 				*err = type.punch_hole(file, offset, n);
@@ -4083,12 +4082,15 @@ void os_aio_free()
 be other, synchronous, pending writes. */
 void os_aio_wait_until_no_pending_writes()
 {
-  if (write_slots->pending_io_count())
-  {
+  bool notify_wait = write_slots->pending_io_count() > 0;
+
+  if (notify_wait)
     tpool::tpool_wait_begin();
-    write_slots->wait();
-    tpool::tpool_wait_end();
-  }
+
+   write_slots->wait();
+
+   if (notify_wait)
+     tpool::tpool_wait_end();
 }
 
 
@@ -4615,6 +4617,18 @@ os_normalize_path(
 	}
 }
 
+bool os_file_flush_data_func(os_file_t file) {
+#ifdef _WIN32
+  return os_file_flush_func(file);
+#else
+  bool success= fdatasync(file) != -1;
+  if (!success) {
+    ib::error() << "fdatasync() errno: " << errno;
+  }
+  return success;
+#endif
+}
+
 bool pfs_os_file_flush_data_func(pfs_os_file_t file, const char *src_file,
                                  uint src_line)
 {
@@ -4624,14 +4638,8 @@ bool pfs_os_file_flush_data_func(pfs_os_file_t file, const char *src_file,
   register_pfs_file_io_begin(&state, locker, file, 0, PSI_FILE_SYNC, src_file,
                              src_line);
 
-#ifdef _WIN32
-  bool result= os_file_flush_func(file);
-#else
-  bool result= true;
-  if (fdatasync(file) == -1)
-    ib::error() << "fdatasync() errno: " << errno;
-#endif
+  bool success= os_file_flush_data_func(file);
 
   register_pfs_file_io_end(locker, 0);
-  return result;
+  return success;
 }

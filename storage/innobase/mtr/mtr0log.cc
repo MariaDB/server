@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -270,7 +270,6 @@ void mtr_t::log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
 /** Log a write of a byte string to a page.
 @param[in]      b       buffer page
 @param[in]      ofs     byte offset from b->frame
-@param[in]      str     the data to write
 @param[in]      len     length of the data to write */
 void mtr_t::memcpy(const buf_block_t &b, ulint ofs, ulint len)
 {

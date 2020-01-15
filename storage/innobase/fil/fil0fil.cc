@@ -711,15 +711,8 @@ static void fil_flush_low(fil_space_t* space, bool metadata = false)
 
 		ut_a(node->is_open());
 
-		switch (space->purpose) {
-		case FIL_TYPE_TEMPORARY:
-			ut_ad(0); // we already checked for this
-			/* fall through */
-		case FIL_TYPE_TABLESPACE:
-		case FIL_TYPE_IMPORT:
-			fil_n_pending_tablespace_flushes++;
-			break;
-		}
+		fil_n_pending_tablespace_flushes++;
+
 #ifdef _WIN32
 		if (node->is_raw_disk) {
 
@@ -749,16 +742,7 @@ skip_flush:
 			}
 		}
 
-		switch (space->purpose) {
-		case FIL_TYPE_TEMPORARY:
-			break;
-		case FIL_TYPE_TABLESPACE:
-		case FIL_TYPE_IMPORT:
-			fil_n_pending_tablespace_flushes--;
-			continue;
-		}
-
-		ut_ad(0);
+		fil_n_pending_tablespace_flushes--;
 	}
 
 	space->n_pending_flushes--;
@@ -1387,13 +1371,7 @@ fil_space_get_space(
 		return(space);
 	}
 
-	switch (space->purpose) {
-	case FIL_TYPE_TEMPORARY:
-	case FIL_TYPE_TABLESPACE:
-	case FIL_TYPE_IMPORT:
-		space = fil_system.read_page0(id);
-	}
-
+	space = fil_system.read_page0(id);
 	return(space);
 }
 
@@ -4015,19 +3993,12 @@ fil_io(
 	ut_ad(recv_no_ibuf_operations
 	      || req_type.is_write()
 	      || !ibuf_bitmap_page(page_id, zip_size)
-	      || sync
-	      || req_type.is_log());
+	      || sync);
 
 	ulint	mode;
 
 	if (sync) {
-
 		mode = OS_AIO_SYNC;
-
-	} else if (req_type.is_log()) {
-
-		mode = OS_AIO_LOG;
-
 	} else if (req_type.is_read()
 		   && !recv_no_ibuf_operations
 		   && ibuf_page(page_id, zip_size, NULL)) {

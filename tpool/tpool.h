@@ -51,6 +51,7 @@ namespace tpool
  Task callback function
  */
 typedef void (*callback_func)(void *);
+typedef void (*callback_func_np)(void);
 class task;
 
 /** A class that can be used e.g. for
@@ -99,8 +100,8 @@ public:
   waitable_task(callback_func func, void* arg, task_group* group = nullptr);
   void add_ref() override;
   void release() override;
-  bool is_running() { return m_ref_count > 0; }
-  bool get_ref_count() {return m_ref_count;}
+  TPOOL_SUPPRESS_TSAN bool is_running() { return get_ref_count() > 0; }
+  TPOOL_SUPPRESS_TSAN int get_ref_count() {return m_ref_count;}
   void wait();
   virtual ~waitable_task() {};
 };
@@ -173,6 +174,18 @@ public:
 class thread_pool;
 
 extern aio *create_simulated_aio(thread_pool *tp);
+
+#ifndef DBUG_OFF
+/*
+  This function is useful for debugging to make sure all mutexes are released
+  inside a task callback
+*/
+void set_after_task_callback(callback_func_np cb);
+void execute_after_task_callback();
+#define dbug_execute_after_task_callback() execute_after_task_callback()
+#else
+#define dbug_execute_after_task_callback() do{}while(0)
+#endif
 
 class thread_pool
 {

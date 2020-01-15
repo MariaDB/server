@@ -1104,13 +1104,6 @@ loop:
 	srv_stats.log_padded.add(pad_size);
 	log_sys.write_lsn = write_lsn;
 
-
-	if (srv_file_flush_method == SRV_O_DSYNC) {
-		/* O_SYNC means the OS did not buffer the log file at all:
-		so we have also flushed to disk what we have written */
-		log_sys.flushed_to_disk_lsn = log_sys.write_lsn;
-	}
-
 	log_write_mutex_exit();
 
 	if (flush_to_disk) {

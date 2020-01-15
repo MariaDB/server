@@ -714,6 +714,13 @@ static void thread_pool_thread_end()
 }
 
 
+#ifndef DBUG_OFF
+static void dbug_after_task_callback()
+{
+  ut_ad(!sync_check_iterate(sync_check()));
+}
+#endif
+
 void srv_thread_pool_init()
 {
   DBUG_ASSERT(!srv_thread_pool);
@@ -725,6 +732,9 @@ void srv_thread_pool_init()
 #endif
   srv_thread_pool->set_thread_callbacks(thread_pool_thread_init,
                                         thread_pool_thread_end);
+#ifndef DBUG_OFF
+  tpool::set_after_task_callback(dbug_after_task_callback);
+#endif
 }
 
 
@@ -2280,8 +2290,6 @@ void
 srv_purge_wakeup()
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(!sync_check_iterate(sync_check()));
-
 	if (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND) {
 		return;
 	}
