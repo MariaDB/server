@@ -487,7 +487,7 @@ then
     if test $? -ne 0
     then
         echo "Couldn't set an owner to '$pamtooldir/auth_pam_tool_dir/auth_pam_tool'."
-        echo " It must be root, the PAM authentication plugin doesn't work otherwise.."
+        echo "It must be root, the PAM authentication plugin doesn't work otherwise.."
         echo
     fi
   fi
@@ -496,8 +496,8 @@ then
   if test $? -ne 0
   then
       echo "Cannot change ownership of the '$pamtooldir/auth_pam_tool_dir' directory"
-      echo " to the '$user' user. Check that you have the necessary permissions and try again."
-      exit 1
+      echo "to the '$user' user. Check that you have the necessary permissions and try again."
+      echo
   fi
   args="$args --user=$user"
 fi
