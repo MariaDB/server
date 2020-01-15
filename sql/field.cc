@@ -5026,8 +5026,8 @@ int Field_timestamp::save_in_field(Field *to)
   return to->store_timestamp_dec(Timeval(ts, sec_part), decimals());
 }
 
-my_time_t Field_timestamp::get_timestamp(const uchar *pos,
-                                         ulong *sec_part) const
+my_time_t Field_timestamp0::get_timestamp(const uchar *pos,
+                                          ulong *sec_part) const
 {
   DBUG_ASSERT(marked_for_read());
   *sec_part= 0;
@@ -5035,7 +5035,7 @@ my_time_t Field_timestamp::get_timestamp(const uchar *pos,
 }
 
 
-bool Field_timestamp::val_native(Native *to)
+bool Field_timestamp0::val_native(Native *to)
 {
   DBUG_ASSERT(marked_for_read());
   my_time_t sec= (my_time_t) sint4korr(ptr);
@@ -5200,12 +5200,6 @@ int Field_timestamp::store_native(const Native &value)
 }
 
 
-double Field_timestamp::val_real(void)
-{
-  return (double) Field_timestamp::val_int();
-}
-
-
 longlong Field_timestamp::val_int(void)
 {
   MYSQL_TIME ltime;
@@ -5309,15 +5303,15 @@ bool Field_timestamp::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
 }
 
 
-bool Field_timestamp::send_binary(Protocol *protocol)
+bool Field_timestamp0::send_binary(Protocol *protocol)
 {
   MYSQL_TIME ltime;
-  Field_timestamp::get_date(&ltime, date_mode_t(0));
+  Field_timestamp0::get_date(&ltime, date_mode_t(0));
   return protocol->store(&ltime, 0);
 }
 
 
-int Field_timestamp::cmp(const uchar *a_ptr, const uchar *b_ptr) const
+int Field_timestamp0::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   int32 a,b;
   a=sint4korr(a_ptr);
@@ -5326,7 +5320,7 @@ int Field_timestamp::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 }
 
 
-void Field_timestamp::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_timestamp0::sort_string(uchar *to,uint length __attribute__((unused)))
 {
   to[0] = ptr[3];
   to[1] = ptr[2];
@@ -5348,7 +5342,7 @@ void Field_timestamp::sql_type(String &res) const
 }
 
 
-int Field_timestamp::set_time()
+int Field_timestamp0::set_time()
 {
   set_notnull();
   store_TIMESTAMP(Timestamp(get_thd()->query_start(), 0));
@@ -5808,7 +5802,7 @@ int Field_time::store_TIME_with_warning(const Time *t,
 }
 
 
-void Field_time::store_TIME(const MYSQL_TIME *ltime)
+void Field_time0::store_TIME(const MYSQL_TIME *ltime)
 {
   DBUG_ASSERT(ltime->year == 0);
   DBUG_ASSERT(ltime->month == 0);
@@ -5896,14 +5890,14 @@ Field *Field_time::new_key_field(MEM_ROOT *root, TABLE *new_table,
 }
 
 
-double Field_time::val_real(void)
+double Field_time0::val_real(void)
 {
   DBUG_ASSERT(marked_for_read());
   uint32 j= (uint32) uint3korr(ptr);
   return (double) j;
 }
 
-longlong Field_time::val_int(void)
+longlong Field_time0::val_int(void)
 {
   DBUG_ASSERT(marked_for_read());
   return (longlong) sint3korr(ptr);
@@ -5952,7 +5946,7 @@ bool Field_time::check_zero_in_date_with_warn(date_mode_t fuzzydate)
   DATE_FORMAT(time, "%l.%i %p")
 */
  
-bool Field_time::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
+bool Field_time0::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   if (check_zero_in_date_with_warn(fuzzydate))
     return true;
@@ -5982,7 +5976,7 @@ bool Field_time::send_binary(Protocol *protocol)
 }
 
 
-int Field_time::cmp(const uchar *a_ptr, const uchar *b_ptr) const
+int Field_time0::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   int32 a,b;
   a=(int32) sint3korr(a_ptr);
@@ -5990,7 +5984,7 @@ int Field_time::cmp(const uchar *a_ptr, const uchar *b_ptr) const
   return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void Field_time::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_time0::sort_string(uchar *to,uint length __attribute__((unused)))
 {
   to[0] = (uchar) (ptr[2] ^ 128);
   to[1] = ptr[1];
@@ -6695,7 +6689,7 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
 ** Stored as a 8 byte unsigned int. Should sometimes be change to a 6 byte int.
 ****************************************************************************/
 
-void Field_datetime::store_TIME(const MYSQL_TIME *ltime)
+void Field_datetime0::store_TIME(const MYSQL_TIME *ltime)
 {
   ulonglong tmp= TIME_to_ulonglong_datetime(ltime);
   int8store(ptr,tmp);
@@ -6710,20 +6704,15 @@ Field_datetime::conversion_depends_on_sql_mode(THD *thd, Item *expr) const
 }
 
 
-bool Field_datetime::send_binary(Protocol *protocol)
+bool Field_datetime0::send_binary(Protocol *protocol)
 {
   MYSQL_TIME tm;
-  Field_datetime::get_date(&tm, date_mode_t(0));
+  Field_datetime0::get_date(&tm, date_mode_t(0));
   return protocol->store(&tm, 0);
 }
 
 
-double Field_datetime::val_real(void)
-{
-  return (double) Field_datetime::val_int();
-}
-
-longlong Field_datetime::val_int(void)
+longlong Field_datetime0::val_int(void)
 {
   DBUG_ASSERT(marked_for_read());
   longlong j;
@@ -6732,8 +6721,8 @@ longlong Field_datetime::val_int(void)
 }
 
 
-String *Field_datetime::val_str(String *val_buffer,
-				String *val_ptr __attribute__((unused)))
+String *Field_datetime0::val_str(String *val_buffer,
+                                 String *val_ptr __attribute__((unused)))
 {
   val_buffer->alloc(field_length);
   val_buffer->length(field_length);
@@ -6744,7 +6733,7 @@ String *Field_datetime::val_str(String *val_buffer,
   char *pos;
   int part3;
 
-  tmp= Field_datetime::val_int();
+  tmp= Field_datetime0::val_int();
 
   /*
     Avoid problem with slow longlong arithmetic and sprintf
@@ -6778,8 +6767,8 @@ String *Field_datetime::val_str(String *val_buffer,
   return val_buffer;
 }
 
-bool Field_datetime::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
-                              date_mode_t fuzzydate) const
+bool Field_datetime0::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
+                               date_mode_t fuzzydate) const
 {
   DBUG_ASSERT(marked_for_read());
   longlong tmp= sint8korr(pos);
@@ -6800,7 +6789,7 @@ bool Field_datetime::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
 }
 
 
-int Field_datetime::cmp(const uchar *a_ptr, const uchar *b_ptr) const
+int Field_datetime0::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   longlong a,b;
   a=sint8korr(a_ptr);
@@ -6809,7 +6798,7 @@ int Field_datetime::cmp(const uchar *a_ptr, const uchar *b_ptr) const
     ((ulonglong) a > (ulonglong) b) ? 1 : 0;
 }
 
-void Field_datetime::sort_string(uchar *to,uint length __attribute__((unused)))
+void Field_datetime0::sort_string(uchar *to,uint length __attribute__((unused)))
 {
   to[0] = ptr[7];
   to[1] = ptr[6];

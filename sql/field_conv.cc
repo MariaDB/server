@@ -168,7 +168,7 @@ int convert_null_to_field_value_or_error(Field *field)
 {
   if (field->type() == MYSQL_TYPE_TIMESTAMP)
   {
-    ((Field_timestamp*) field)->set_time();
+    field->set_time();
     return 0;
   }
 
@@ -315,7 +315,7 @@ static void do_copy_timestamp(Copy_field *copy)
   if (*copy->from_null_ptr & copy->from_bit)
   {
     /* Same as in set_field_to_null_with_conversions() */
-    ((Field_timestamp*) copy->to_field)->set_time();
+    copy->to_field->set_time();
   }
   else
     (copy->do_copy2)(copy);

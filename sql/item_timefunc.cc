@@ -1214,7 +1214,7 @@ bool Item_func_unix_timestamp::get_timestamp_value(my_time_t *seconds,
     {
       if ((null_value= field->is_null()))
         return 1;
-      *seconds= ((Field_timestamp*)field)->get_timestamp(second_part);
+      *seconds= field->get_timestamp(second_part);
       return 0;
     }
   }
@@ -1270,7 +1270,7 @@ longlong Item_func_unix_timestamp::val_int_endpoint(bool left_endp, bool *incl_e
   DBUG_ASSERT(arg_count == 1 &&
               args[0]->type() == Item::FIELD_ITEM &&
               args[0]->field_type() == MYSQL_TYPE_TIMESTAMP);
-  Field_timestamp *field=(Field_timestamp *)(((Item_field*)args[0])->field);
+  Field *field= ((Item_field*)args[0])->field;
   /* Leave the incl_endp intact */
   ulong unused;
   my_time_t ts= field->get_timestamp(&unused);
@@ -1644,7 +1644,7 @@ int Item_func_now_local::save_in_field(Field *field, bool no_conversions)
     ulong sec_part= decimals ? thd->query_start_sec_part() : 0;
     sec_part-= my_time_fraction_remainder(sec_part, decimals);
     field->set_notnull();
-    ((Field_timestamp*)field)->store_TIME(ts, sec_part);
+    field->store_timestamp(ts, sec_part);
     return 0;
   }
   else

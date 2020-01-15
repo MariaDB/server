@@ -3040,10 +3040,7 @@ class Field_timestamp :public Field_temporal {
 protected:
   int store_TIME_with_warning(THD *, const Datetime *,
                               const ErrConv *, int warn);
-  virtual void store_TIMEVAL(const timeval &tv)
-  {
-    int4store(ptr, tv.tv_sec);
-  }
+  virtual void store_TIMEVAL(const timeval &tv)= 0;
   void store_TIMESTAMP(const Timestamp &ts)
   {
     store_TIMEVAL(ts.tv());
@@ -3057,8 +3054,6 @@ public:
 		  TABLE_SHARE *share);
   const Type_handler *type_handler() const override
   { return &type_handler_timestamp; }
-  enum ha_base_keytype key_type() const override
-  { return HA_KEYTYPE_ULONG_INT; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const override;
@@ -3071,22 +3066,10 @@ public:
   int  store_decimal(const my_decimal *) override;
   int  store_timestamp_dec(const timeval &ts, uint dec) override;
   int  save_in_field(Field *to) override;
-  double val_real() override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
-  bool send_binary(Protocol *protocol) override;
-  int cmp(const uchar *,const uchar *) const override;
-  void sort_string(uchar *buff,uint length) override;
-  uint32 pack_length() const override { return 4; }
   void sql_type(String &str) const override;
   bool zero_pack() const override { return false; }
-  int set_time() override;
-  /* Get TIMESTAMP field value as seconds since begging of Unix Epoch */
-  my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const override;
-  my_time_t get_timestamp(ulong *sec_part) const
-  {
-    return get_timestamp(ptr, sec_part);
-  }
   /*
     This method is used by storage/perfschema and
     Item_func_now_local::save_in_field().
@@ -3099,6 +3082,45 @@ public:
   }
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   int store_native(const Native &value) override;
+  bool validate_value_in_record(THD *thd, const uchar *record) const override;
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
+    override
+  {
+    return get_equal_const_item_datetime(thd, ctx, const_item);
+  }
+  bool load_data_set_null(THD *thd) override;
+  bool load_data_set_no_data(THD *thd, bool fixed_format) override;
+};
+
+
+class Field_timestamp0 :public Field_timestamp
+{
+  void store_TIMEVAL(const timeval &tv) override
+  {
+    int4store(ptr, tv.tv_sec);
+  }
+public:
+  Field_timestamp0(uchar *ptr_arg, uint32 len_arg,
+                   uchar *null_ptr_arg, uchar null_bit_arg,
+		   enum utype unireg_check_arg,
+                   const LEX_CSTRING *field_name_arg,
+		   TABLE_SHARE *share)
+   :Field_timestamp(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+                    unireg_check_arg, field_name_arg, share)
+  { }
+  enum ha_base_keytype key_type() const override
+  { return HA_KEYTYPE_ULONG_INT; }
+  double val_real() override
+  {
+    return (double) Field_timestamp0::val_int();
+  }
+  bool send_binary(Protocol *protocol) override;
+  int cmp(const uchar *,const uchar *) const override;
+  void sort_string(uchar *buff,uint length) override;
+  uint32 pack_length() const override { return 4; }
+  int set_time() override;
+  /* Get TIMESTAMP field value as seconds since begging of Unix Epoch */
+  my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const override;
   bool val_native(Native *to) override;
   uchar *pack(uchar *to, const uchar *from, uint) override
   {
@@ -3109,14 +3131,6 @@ public:
   {
     return unpack_int32(to, from, from_end);
   }
-  bool validate_value_in_record(THD *thd, const uchar *record) const override;
-  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
-    override
-  {
-    return get_equal_const_item_datetime(thd, ctx, const_item);
-  }
-  bool load_data_set_null(THD *thd) override;
-  bool load_data_set_no_data(THD *thd, bool fixed_format) override;
   uint size_of() const override { return sizeof *this; }
 };
 
@@ -3226,10 +3240,6 @@ public:
   void set_max() override;
   bool is_max() override;
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const override;
-  my_time_t get_timestamp(ulong *sec_part) const
-  {
-    return get_timestamp(ptr, sec_part);
-  }
   bool val_native(Native *to) override;
   uint size_of() const override { return sizeof *this; }
   Binlog_type_info binlog_type_info() const override;
@@ -3405,7 +3415,7 @@ class Field_time :public Field_temporal {
   */
   long curdays;
 protected:
-  virtual void store_TIME(const MYSQL_TIME *ltime);
+  virtual void store_TIME(const MYSQL_TIME *ltime)= 0;
   void store_TIME(const Time &t) { return store_TIME(t.get_mysql_time()); }
   int store_TIME_with_warning(const Time *ltime, const ErrConv *str, int warn);
   bool check_zero_in_date_with_warn(date_mode_t fuzzydate);
@@ -3421,7 +3431,6 @@ public:
                                         const Item_equal *item_equal) override;
   const Type_handler *type_handler() const override
   { return &type_handler_time; }
-  enum ha_base_keytype key_type() const override { return HA_KEYTYPE_INT24; }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const override;
@@ -3444,22 +3453,37 @@ public:
   int store(double nr) override;
   int store(longlong nr, bool unsigned_val) override;
   int  store_decimal(const my_decimal *) override;
-  double val_real() override;
-  longlong val_int() override;
   String *val_str(String *, String *) override;
-  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   bool send_binary(Protocol *protocol) override;
-  int cmp(const uchar *,const uchar *) const override;
-  void sort_string(uchar *buff,uint length) override;
-  uint32 pack_length() const override { return 3; }
   void sql_type(String &str) const override;
-  uint size_of() const override { return sizeof *this; }
   void set_curdays(THD *thd);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
     override;
+};
+
+
+class Field_time0: public Field_time
+{
+protected:
+  void store_TIME(const MYSQL_TIME *ltime) override;
+public:
+  Field_time0(uchar *ptr_arg, uint length_arg, uchar *null_ptr_arg,
+             uchar null_bit_arg, enum utype unireg_check_arg,
+             const LEX_CSTRING *field_name_arg)
+    :Field_time(ptr_arg, length_arg, null_ptr_arg, null_bit_arg,
+                unireg_check_arg, field_name_arg)
+  { }
+  enum ha_base_keytype key_type() const override { return HA_KEYTYPE_INT24; }
+  double val_real() override;
+  longlong val_int() override;
+  bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  int cmp(const uchar *,const uchar *) const override;
+  void sort_string(uchar *buff,uint length) override;
+  uint32 pack_length() const override { return 3; }
+  uint size_of() const override { return sizeof *this; }
 };
 
 
@@ -3567,9 +3591,6 @@ public:
 
 
 class Field_datetime :public Field_temporal_with_date {
-  void store_TIME(const MYSQL_TIME *ltime) override;
-  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, date_mode_t fuzzydate)
-    const override;
 protected:
   int store_TIME_with_warning(const Datetime *ltime, const ErrConv *str,
                               int was_cut);
@@ -3586,8 +3607,6 @@ public:
     }
   const Type_handler *type_handler() const override
   { return &type_handler_datetime; }
-  enum ha_base_keytype key_type() const override
-  { return HA_KEYTYPE_ULONGLONG; }
   sql_mode_t conversion_depends_on_sql_mode(THD *, Item *) const override;
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
@@ -3597,17 +3616,42 @@ public:
   int  store(longlong nr, bool unsigned_val) override;
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec) override;
   int  store_decimal(const my_decimal *) override;
-  double val_real() override;
+  void sql_type(String &str) const override;
+  int set_time() override;
+  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
+    override
+  {
+    return get_equal_const_item_datetime(thd, ctx, const_item);
+  }
+};
+
+
+class Field_datetime0 :public Field_datetime
+{
+  void store_TIME(const MYSQL_TIME *ltime) override;
+  bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, date_mode_t fuzzydate)
+    const override;
+public:
+  Field_datetime0(uchar *ptr_arg, uint length_arg, uchar *null_ptr_arg,
+                 uchar null_bit_arg, enum utype unireg_check_arg,
+                 const LEX_CSTRING *field_name_arg)
+    :Field_datetime(ptr_arg, length_arg, null_ptr_arg, null_bit_arg,
+                    unireg_check_arg, field_name_arg)
+  {}
+  enum ha_base_keytype key_type() const override
+  { return HA_KEYTYPE_ULONGLONG; }
+  double val_real() override
+  {
+    return (double) Field_datetime0::val_int();
+  }
   longlong val_int() override;
   String *val_str(String *, String *) override;
   bool send_binary(Protocol *protocol) override;
   int cmp(const uchar *,const uchar *) const override;
   void sort_string(uchar *buff,uint length) override;
   uint32 pack_length() const override { return 8; }
-  void sql_type(String &str) const override;
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate) override
-  { return Field_datetime::get_TIME(ltime, ptr, fuzzydate); }
-  int set_time() override;
+  { return Field_datetime0::get_TIME(ltime, ptr, fuzzydate); }
   uchar *pack(uchar* to, const uchar *from, uint) override
   {
     return pack_int64(to, from);
@@ -3616,11 +3660,6 @@ public:
 		      uint) override
   {
     return unpack_int64(to, from, from_end);
-  }
-  Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
-    override
-  {
-    return get_equal_const_item_datetime(thd, ctx, const_item);
   }
   uint size_of() const override { return sizeof *this; }
 };
@@ -3741,8 +3780,8 @@ new_Field_timestamp(MEM_ROOT *root,uchar *ptr, uchar *null_ptr, uchar null_bit,
 {
   if (dec==0)
     return new (root)
-      Field_timestamp(ptr, MAX_DATETIME_WIDTH, null_ptr,
-                      null_bit, unireg_check, field_name, share);
+      Field_timestamp0(ptr, MAX_DATETIME_WIDTH, null_ptr,
+                       null_bit, unireg_check, field_name, share);
   if (dec >= FLOATING_POINT_DECIMALS)
     dec= MAX_DATETIME_PRECISION;
   return new (root)
@@ -3757,8 +3796,8 @@ new_Field_time(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
 {
   if (dec == 0)
     return new (root)
-      Field_time(ptr, MIN_TIME_WIDTH, null_ptr, null_bit, unireg_check,
-                 field_name);
+      Field_time0(ptr, MIN_TIME_WIDTH, null_ptr, null_bit, unireg_check,
+                  field_name);
   if (dec >= FLOATING_POINT_DECIMALS)
     dec= MAX_DATETIME_PRECISION;
   return new (root)
@@ -3772,8 +3811,8 @@ new_Field_datetime(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
 {
   if (dec == 0)
     return new (root)
-      Field_datetime(ptr, MAX_DATETIME_WIDTH, null_ptr, null_bit,
-                     unireg_check, field_name);
+      Field_datetime0(ptr, MAX_DATETIME_WIDTH, null_ptr, null_bit,
+                      unireg_check, field_name);
   if (dec >= FLOATING_POINT_DECIMALS)
     dec= MAX_DATETIME_PRECISION;
   return new (root)

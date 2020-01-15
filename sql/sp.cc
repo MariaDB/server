@@ -1360,8 +1360,8 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
       table->field[MYSQL_PROC_FIELD_DEFINER]->
         store(definer, system_charset_info);
 
-    ((Field_timestamp *)table->field[MYSQL_PROC_FIELD_CREATED])->set_time();
-    ((Field_timestamp *)table->field[MYSQL_PROC_FIELD_MODIFIED])->set_time();
+    table->field[MYSQL_PROC_FIELD_CREATED]->set_time();
+    table->field[MYSQL_PROC_FIELD_MODIFIED]->set_time();
 
     store_failed= store_failed ||
       table->field[MYSQL_PROC_FIELD_SQL_MODE]->
@@ -1651,7 +1651,7 @@ Sp_handler::sp_update_routine(THD *thd, const Database_qualified_name *name,
     }
 
     store_record(table,record[1]);
-    ((Field_timestamp *)table->field[MYSQL_PROC_FIELD_MODIFIED])->set_time();
+    table->field[MYSQL_PROC_FIELD_MODIFIED]->set_time();
     if (chistics->suid != SP_IS_DEFAULT_SUID)
       table->field[MYSQL_PROC_FIELD_SECURITY_TYPE]->
 	store((longlong)chistics->suid, TRUE);
