@@ -1226,7 +1226,6 @@ a
 45
 46
 include/stop_slave.inc
-SET GLOBAL debug_dbug=@old_dbug;
 SET DEBUG_SYNC= 'RESET';
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
@@ -1512,7 +1511,7 @@ SET GLOBAL slave_parallel_threads=10;
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug= '+d,inject_analyze_table_sleep';
 connection server_1;
-SET @old_dbug= @@SESSION.debug_dbug;
+SET @old_dbug_slave= @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,binlog_force_commit_id";
 SET @commit_id= 10000;
 ANALYZE TABLE t2;
@@ -1521,7 +1520,7 @@ test.t2	analyze	status	OK
 INSERT INTO t3 VALUES (120, 0);
 SET @commit_id= 10001;
 INSERT INTO t3 VALUES (121, 0);
-SET SESSION debug_dbug=@old_dbug;
+SET SESSION debug_dbug=@old_dbug_slave;
 SELECT * FROM t3 WHERE a >= 120 ORDER BY a;
 a	b
 120	0
@@ -1543,7 +1542,7 @@ include/stop_slave.inc
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug= '+d,inject_record_gtid_serverid_100_sleep';
 connection server_1;
-SET @old_dbug= @@SESSION.debug_dbug;
+SET @old_dbug_slave= @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,binlog_force_commit_id";
 SET @old_server_id= @@SESSION.server_id;
 SET SESSION server_id= 100;
@@ -1553,7 +1552,7 @@ SET SESSION server_id= @old_server_id;
 INSERT INTO t3 VALUES (130, 0);
 SET @commit_id= 10011;
 INSERT INTO t3 VALUES (131, 0);
-SET SESSION debug_dbug=@old_dbug;
+SET SESSION debug_dbug=@old_dbug_slave;
 SELECT * FROM t3 WHERE a >= 130 ORDER BY a;
 a	b
 130	0
@@ -1579,7 +1578,7 @@ include/stop_slave.inc
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug= '+d,inject_mdev8031';
 connection server_1;
-SET @old_dbug= @@SESSION.debug_dbug;
+SET @old_dbug_slave= @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,binlog_force_commit_id";
 SET @commit_id= 10200;
 INSERT INTO t3 VALUES (203, 1);
@@ -1600,7 +1599,7 @@ UPDATE t3 SET b=b+1 WHERE a=204;
 UPDATE t3 SET b=b+1 WHERE a=203;
 UPDATE t3 SET b=b+1 WHERE a=205;
 UPDATE t3 SET b=b+1 WHERE a=205;
-SET SESSION debug_dbug=@old_dbug;
+SET SESSION debug_dbug=@old_dbug_slave;
 SELECT * FROM t3 WHERE a>=200 ORDER BY a;
 a	b
 201	3
@@ -1630,11 +1629,11 @@ SET GLOBAL debug_dbug= '+d,inject_retry_event_group_open_binlog_kill';
 SET @old_max= @@GLOBAL.max_relay_log_size;
 SET GLOBAL max_relay_log_size= 4096;
 connection server_1;
-SET @old_dbug= @@SESSION.debug_dbug;
+SET @old_dbug_slave= @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,binlog_force_commit_id";
 SET @commit_id= 10210;
 Omit long queries that cause relaylog rotations and transaction retries...
-SET SESSION debug_dbug=@old_dbug;
+SET SESSION debug_dbug=@old_dbug_slave;
 SELECT * FROM t3 WHERE a>=200 ORDER BY a;
 a	b
 201	6
@@ -1654,7 +1653,7 @@ a	b
 204	7
 205	5
 include/stop_slave.inc
-SET GLOBAL debug_dbug= @old_debg;
+SET GLOBAL debug_dbug= @old_dbug;
 SET GLOBAL max_relay_log_size= @old_max;
 include/start_slave.inc
 *** MDEV-8725: Assertion on ROLLBACK statement in the binary log ***

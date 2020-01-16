@@ -1651,7 +1651,6 @@ SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
 --sync_with_master
 SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
 --source include/stop_slave.inc
-SET GLOBAL debug_dbug=@old_dbug;
 SET DEBUG_SYNC= 'RESET';
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
@@ -1951,7 +1950,6 @@ SELECT * FROM t2 WHERE a >= 1040 ORDER BY a;
 --source include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 
-
 --echo *** MDEV-6676 - test disabling domain-based parallel replication ***
 --connection server_1
 # Let's do a bunch of transactions that will conflict if run out-of-order in
@@ -2000,7 +1998,7 @@ SET GLOBAL debug_dbug= '+d,inject_analyze_table_sleep';
 # so sleep is ok here. And it's in general not possible to trigger reliably
 # the race with debug_sync, since the bugfix makes the race impossible).
 
-SET @old_dbug= @@SESSION.debug_dbug;
+SET @old_dbug_slave= @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,binlog_force_commit_id";
 
 # Group commit with cid=10000, two event groups.
@@ -2012,7 +2010,7 @@ INSERT INTO t3 VALUES (120, 0);
 SET @commit_id= 10001;
 INSERT INTO t3 VALUES (121, 0);
 
-SET SESSION debug_dbug=@old_dbug;
+SET SESSION debug_dbug=@old_dbug_slave;
 
 SELECT * FROM t3 WHERE a >= 120 ORDER BY a;
 --source include/save_master_gtid.inc
@@ -2044,7 +2042,7 @@ SET GLOBAL debug_dbug= '+d,inject_record_gtid_serverid_100_sleep';
 # We inject a small sleep in the corresponding record_gtid() to make the race
 # easier to hit.
 
-SET @old_dbug= @@SESSION.debug_dbug;
+SET @old_dbug_slave= @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,binlog_force_commit_id";
 
 # Group commit with cid=10010, two event groups.
@@ -2059,8 +2057,7 @@ INSERT INTO t3 VALUES (130, 0);
 SET @commit_id= 10011;
 INSERT INTO t3 VALUES (131, 0);
 
-SET SESSION debug_dbug=@old_dbug;
-
+SET SESSION debug_dbug=@old_dbug_slave;
 SELECT * FROM t3 WHERE a >= 130 ORDER BY a;
 --source include/save_master_gtid.inc
 
@@ -2097,7 +2094,7 @@ SET GLOBAL debug_dbug= '+d,inject_mdev8031';
 # complete. Finally an extra KILL check catches an unhandled, lingering
 # deadlock kill. So rather artificial, but at least it exercises the
 # relevant code paths.
-SET @old_dbug= @@SESSION.debug_dbug;
+SET @old_dbug_slave= @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,binlog_force_commit_id";
 
 SET @commit_id= 10200;
@@ -2119,7 +2116,7 @@ UPDATE t3 SET b=b+1 WHERE a=204;
 UPDATE t3 SET b=b+1 WHERE a=203;
 UPDATE t3 SET b=b+1 WHERE a=205;
 UPDATE t3 SET b=b+1 WHERE a=205;
-SET SESSION debug_dbug=@old_dbug;
+SET SESSION debug_dbug=@old_dbug_slave;
 
 SELECT * FROM t3 WHERE a>=200 ORDER BY a;
 --source include/save_master_gtid.inc
@@ -2144,7 +2141,7 @@ SET @old_max= @@GLOBAL.max_relay_log_size;
 SET GLOBAL max_relay_log_size= 4096;
 
 --connection server_1
-SET @old_dbug= @@SESSION.debug_dbug;
+SET @old_dbug_slave= @@SESSION.debug_dbug;
 SET SESSION debug_dbug="+d,binlog_force_commit_id";
 
 --let $large= `SELECT REPEAT("*", 8192)`
@@ -2167,7 +2164,7 @@ eval UPDATE t3 SET b=b+1 WHERE a=203 /* $large */;
 eval UPDATE t3 SET b=b+1 WHERE a=205 /* $large */;
 eval UPDATE t3 SET b=b+1 WHERE a=205 /* $large */;
 --enable_query_log
-SET SESSION debug_dbug=@old_dbug;
+SET SESSION debug_dbug=@old_dbug_slave;
 
 SELECT * FROM t3 WHERE a>=200 ORDER BY a;
 --source include/save_master_gtid.inc
@@ -2178,7 +2175,7 @@ SELECT * FROM t3 WHERE a>=200 ORDER BY a;
 
 SELECT * FROM t3 WHERE a>=200 ORDER BY a;
 --source include/stop_slave.inc
-SET GLOBAL debug_dbug= @old_debg;
+SET GLOBAL debug_dbug= @old_dbug;
 SET GLOBAL max_relay_log_size= @old_max;
 --source include/start_slave.inc
 
