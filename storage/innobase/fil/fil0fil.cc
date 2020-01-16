@@ -4184,15 +4184,13 @@ fil_io(
 /**********************************************************************/
 
 /** Callback for AIO completion */
-void fil_aio_callback(const tpool::aiocb *cb)
+void fil_aio_callback(os_aio_userdata_t *data)
 {
-	os_aio_userdata_t *data=(os_aio_userdata_t *)cb->m_userdata;
 	fil_node_t* node= data->node;
 	void* message = data->message;
 
 	ut_ad(fil_validate_skip());
 
-	ut_a(cb->m_err == DB_SUCCESS);
 
 	if (node == NULL) {
 		ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
