@@ -337,7 +337,7 @@ public:
 
 Trigger::~Trigger()
 {
-  delete body;
+  sp_head::destroy(body);
 }
 
 

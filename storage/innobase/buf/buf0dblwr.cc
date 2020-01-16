@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -992,6 +992,7 @@ try_again:
 		int64_t	sig_count = os_event_reset(buf_dblwr->b_event);
 		mutex_exit(&buf_dblwr->mutex);
 
+		os_aio_simulated_wake_handler_threads();
 		os_event_wait_low(buf_dblwr->b_event, sig_count);
 		goto try_again;
 	}
@@ -1121,6 +1122,7 @@ try_again:
 		checkpoint. */
 		int64_t	sig_count = os_event_reset(buf_dblwr->b_event);
 		mutex_exit(&buf_dblwr->mutex);
+		os_aio_simulated_wake_handler_threads();
 
 		os_event_wait_low(buf_dblwr->b_event, sig_count);
 		goto try_again;
