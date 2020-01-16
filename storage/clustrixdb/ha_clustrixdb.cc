@@ -781,7 +781,6 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
     is_scan = false;
     ulong rowdata_length;
     if ((error_code = trx->key_read(clustrix_table_oid, 0,
-                                    clustrix_connection::CLUSTRIX_SHARED,
                                     table->read_set, packed_key, packed_key_len,
                                     &rowdata, &rowdata_length)))
       goto err;
