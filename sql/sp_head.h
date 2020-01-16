@@ -320,11 +320,9 @@ public:
 protected:
   sp_head(MEM_ROOT *mem_root, sp_package *parent, const Sp_handler *handler);
   virtual ~sp_head();
-
 public:
   static void destroy(sp_head *sp);
   static sp_head *create(sp_package *parent, const Sp_handler *handler);
-
 
   /// Initialize after we have reset mem_root
   void

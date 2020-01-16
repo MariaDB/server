@@ -24,6 +24,7 @@ current_user()
 root@localhost
 disconnect con1;
 connection default;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
 uninstall plugin test_plugin_server;
 ERROR HY000: Plugin 'test_plugin_server' is not loaded
@@ -194,5 +195,5 @@ REVOKE PROXY ON 'plug_dest'@'santa.claus.ipv4.example.com'
   FROM 'plug'@'santa.claus.ipv4.example.com';
 DROP USER 'plug'@'santa.claus.ipv4.example.com';
 DROP USER 'plug_dest'@'santa.claus.ipv4.example.com';
-set global debug_dbug= default;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 delete from mysql.plugin where name='test_plugin_server';

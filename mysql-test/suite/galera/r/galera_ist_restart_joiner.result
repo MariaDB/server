@@ -13,7 +13,6 @@ Loading wsrep_provider ...
 SET SESSION wsrep_on=OFF;
 SET SESSION wsrep_on=ON;
 connection node_1;
-connection node_1;
 UPDATE t1 SET f2 = 'd' WHERE f1 > 3;
 connection node_2;
 connection node_1;

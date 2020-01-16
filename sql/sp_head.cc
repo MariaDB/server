@@ -473,7 +473,7 @@ check_routine_name(const LEX_CSTRING *ident)
  *  sp_head
  *
  */
-
+ 
 sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler)
 {
   MEM_ROOT own_root;
@@ -493,14 +493,20 @@ void sp_head::destroy(sp_head *sp)
   {
     /* Make a copy of main_mem_root as free_root will free the sp */
     MEM_ROOT own_root= sp->main_mem_root;
-    delete sp;
- 
     DBUG_PRINT("info", ("mem_root 0x%lx moved to 0x%lx",
                         (ulong) &sp->mem_root, (ulong) &own_root));
+    delete sp;
+
+ 
     free_root(&own_root, MYF(0));
   }
 }
 
+/*
+ *
+ *  sp_head
+ *
+ */
 
 sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent, 
                  const Sp_handler *sph)

@@ -1,13 +1,13 @@
 SET @old_debug = @@GLOBAL.debug;
-set debug_dbug= 'T';
+SET debug_dbug= 'T';
 select @@debug;
 @@debug
 T
-set debug_dbug= '+P';
+SET debug_dbug= '+P';
 select @@debug;
 @@debug
 P:T
-set debug_dbug= '-P';
+SET debug_dbug= '-P';
 select @@debug;
 @@debug
 T
