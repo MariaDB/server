@@ -3923,16 +3923,21 @@ class user_var_entry
 class Unique :public Sql_alloc
 {
   DYNAMIC_ARRAY file_ptrs;
-  ulong max_elements;
+  ulong max_elements;   /* Total number of elements that will be stored in-memory */
   ulonglong max_in_memory_size;
   IO_CACHE file;
   TREE tree;
   uchar *record_pointers;
+  /* Number of elements filtered out due to min_dupl_count when storing results
+     to table. See Unique::get */
   ulong filtered_out_elems;
   bool flush();
-  uint size;
-  uint full_size;
-  uint min_dupl_count;   /* always 0 for unions, > 0 for intersections */
+  uint size;   /* Size of element stored in unique object. */
+  uint full_size;   /* Size of element + space needed to store the number of
+                       duplicates found for the element. */
+  uint min_dupl_count;   /* Minimum number of occurences of element required for
+                            it to be written to record_pointers.
+                            always 0 for unions, > 0 for intersections */
 
   bool merge(TABLE *table, uchar *buff, bool without_last_merge);
 
