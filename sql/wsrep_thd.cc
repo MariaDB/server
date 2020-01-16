@@ -84,42 +84,59 @@ static void wsrep_replication_process(THD *thd,
   DBUG_VOID_RETURN;
 }
 
-static bool create_wsrep_THD(Wsrep_thd_args* args)
+static bool create_wsrep_THD(Wsrep_thd_args* args, bool mutex_protected)
 {
+  if (!mutex_protected)
+    mysql_mutex_lock(&LOCK_wsrep_slave_threads);
+
   ulong old_wsrep_running_threads= wsrep_running_threads;
+
   DBUG_ASSERT(args->thread_type() == WSREP_APPLIER_THREAD ||
               args->thread_type() == WSREP_ROLLBACKER_THREAD);
+
   bool res= mysql_thread_create(args->thread_type() == WSREP_APPLIER_THREAD
                                 ? key_wsrep_applier : key_wsrep_rollbacker,
                                 args->thread_id(), &connection_attrib,
                                 start_wsrep_THD, (void*)args);
+
+  if (res)
+  {
+    WSREP_ERROR("Canät create wsrep thread");
+  }
+
   /*
     if starting a thread on server startup, wait until the this thread's THD
     is fully initialized (otherwise a THD initialization code might
     try to access a partially initialized server data structure - MDEV-8208).
   */
-  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
   if (!mysqld_server_initialized)
+  {
     while (old_wsrep_running_threads == wsrep_running_threads)
+    {
       mysql_cond_wait(&COND_wsrep_slave_threads, &LOCK_wsrep_slave_threads);
-  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
+    }
+  }
+
+  if (!mutex_protected)
+    mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
+
   return res;
 }
 
-void wsrep_create_appliers(long threads)
+bool wsrep_create_appliers(long threads, bool mutex_protected)
 {
   /*  Dont' start slave threads if wsrep-provider or wsrep-cluster-address
       is not set.
   */
   if (!WSREP_PROVIDER_EXISTS)
   {
-    return;
+    return false;
   }
 
   if (!wsrep_cluster_address || wsrep_cluster_address[0]== 0)
   {
     WSREP_DEBUG("wsrep_create_appliers exit due to empty address");
-    return;
+    return false;
   }
 
   long wsrep_threads=0;
@@ -129,11 +146,14 @@ void wsrep_create_appliers(long threads)
     Wsrep_thd_args* args(new Wsrep_thd_args(wsrep_replication_process,
                                             WSREP_APPLIER_THREAD,
                                             pthread_self()));
-    if (create_wsrep_THD(args))
+    if (create_wsrep_THD(args, mutex_protected))
     {
       WSREP_WARN("Can't create thread to manage wsrep replication");
+      return true;
     }
   }
+
+  return false;
 }
 
 static void wsrep_remove_streaming_fragments(THD* thd, const char* ctx)
@@ -279,7 +299,7 @@ void wsrep_create_rollbacker()
                                             pthread_self()));
 
     /* create rollbacker */
-    if (create_wsrep_THD(args))
+    if (create_wsrep_THD(args, false))
       WSREP_WARN("Can't create thread to manage wsrep rollback");
    }
 }

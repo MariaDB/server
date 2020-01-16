@@ -18,7 +18,6 @@ MW-286 : MDEV-18464 Killing thread can cause mutex deadlock if done concurrently
 MW-328A : MDEV-21483 galera.MW-328A galera.MW-328B
 MW-328B : MDEV-21483 galera.MW-328A galera.MW-328B
 MW-329 : MDEV-19962 Galera test failure on MW-329
-MW-336 : MDEV-21409: Galera test failure on MW-336
 MW-360 : needs rewrite to be MariaDB gtid compatible
 galera.galera_defaults : MDEV-21494 Galera test sporadic failure on galera.galera_defaults
 galera_account_management : MariaDB 10.0 does not support ALTER USER
