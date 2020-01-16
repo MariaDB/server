@@ -5329,19 +5329,6 @@ void Field_timestamp0::sort_string(uchar *to,uint length __attribute__((unused))
 }
 
 
-void Field_timestamp::sql_type(String &res) const
-{
-  if (!decimals())
-  {
-    res.set_ascii(STRING_WITH_LEN("timestamp"));
-    return;
-  }
-  CHARSET_INFO *cs=res.charset();
-  res.length(cs->cset->snprintf(cs, (char*) res.ptr(), res.alloced_length(),
-                                "timestamp(%u)", decimals()));
-}
-
-
 int Field_timestamp0::set_time()
 {
   set_notnull();
@@ -5618,6 +5605,44 @@ void Field_temporal::set_warnings(Sql_condition::enum_warning_level trunc_level,
     set_datetime_warning(trunc_level, WARN_DATA_TRUNCATED, str, typestr, 1);
   if (was_cut & MYSQL_TIME_WARN_OUT_OF_RANGE)
     set_datetime_warning(ER_WARN_DATA_OUT_OF_RANGE, str, typestr, 1);
+}
+
+
+void Field_temporal::sql_type_dec_comment(String &res,
+                                          const Name &name,
+                                          uint dec,
+                                          const Name &comment) const
+{
+  CHARSET_INFO *cs=res.charset();
+  res.length(cs->cset->snprintf(cs, (char*) res.ptr(), res.alloced_length(),
+                                "%.*s(%u)%s%.*s%s",
+                                (uint) name.length(), name.ptr(),
+                                dec,
+                                comment.length() ? " /* " : "",
+                                (uint) comment.length(), comment.ptr(),
+                                comment.length() ? " */" : ""));
+}
+
+
+void Field_temporal::sql_type_comment(String &res,
+                                      const Name &name,
+                                      const Name &comment) const
+{
+  CHARSET_INFO *cs=res.charset();
+  res.length(cs->cset->snprintf(cs, (char*) res.ptr(), res.alloced_length(),
+                                "%.*s%s%.*s%s",
+                                (uint) name.length(), name.ptr(),
+                                comment.length() ? " /* " : "",
+                                (uint) comment.length(), comment.ptr(),
+                                comment.length() ? " */" : ""));
+}
+
+
+const Name & Field_temporal::type_version_mysql56()
+{
+  DBUG_EXECUTE_IF("sql_type", return Type_handler::version_mysql56(); );
+  static Name none(NULL, 0);
+  return none;
 }
 
 
@@ -5991,17 +6016,6 @@ void Field_time0::sort_string(uchar *to,uint length __attribute__((unused)))
   to[2] = ptr[0];
 }
 
-void Field_time::sql_type(String &res) const
-{
-  if (decimals() == 0)
-  {
-    res.set_ascii(STRING_WITH_LEN("time"));
-    return;
-  }
-  CHARSET_INFO *cs= res.charset();
-  res.length(cs->cset->snprintf(cs, (char*) res.ptr(), res.alloced_length(),
-                               "time(%d)", decimals()));
-}
 
 int Field_time_hires::reset()
 {
@@ -6808,19 +6822,6 @@ void Field_datetime0::sort_string(uchar *to,uint length __attribute__((unused)))
   to[5] = ptr[2];
   to[6] = ptr[1];
   to[7] = ptr[0];
-}
-
-
-void Field_datetime::sql_type(String &res) const
-{
-  if (decimals() == 0)
-  {
-    res.set_ascii(STRING_WITH_LEN("datetime"));
-    return;
-  }
-  CHARSET_INFO *cs= res.charset();
-  res.length(cs->cset->snprintf(cs, (char*) res.ptr(), res.alloced_length(),
-                                "datetime(%u)", decimals()));
 }
 
 

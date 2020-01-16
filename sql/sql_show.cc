@@ -2116,12 +2116,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     field->sql_type(type);
     packet->append(type.ptr(), type.length(), system_charset_info);
 
-    DBUG_EXECUTE_IF("sql_type",
-                    packet->append(" /* ");
-                    packet->append(field->type_handler()->version().ptr());
-                    packet->append(" */");
-                    );
-
     if (field->has_charset() && !(sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)))
     {
       if (field->charset() != share->table_charset)

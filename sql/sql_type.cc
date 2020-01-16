@@ -1469,13 +1469,13 @@ const Name Type_handler::version() const
   return ver;
 }
 
-const Name Type_handler::version_mariadb53() const
+const Name & Type_handler::version_mariadb53()
 {
   static const Name ver(STRING_WITH_LEN("mariadb-5.3"));
   return ver;
 }
 
-const Name Type_handler::version_mysql56() const
+const Name & Type_handler::version_mysql56()
 {
   static const Name ver(STRING_WITH_LEN("mysql-5.6"));
   return ver;
@@ -3986,9 +3986,9 @@ Field *Type_handler_datetime_common::make_schema_field(MEM_ROOT *root,
                                                        bool show_field) const
 {
   LEX_CSTRING name= def.name();
-  return new_Field_datetime(root,
-                            addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                            Field::NONE, &name, def.fsp());
+  return new (root) Field_datetimef(addr.ptr(),
+                                    addr.null_ptr(), addr.null_bit(),
+                                    Field::NONE, &name, def.fsp());
 }
 
 

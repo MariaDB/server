@@ -3326,8 +3326,6 @@ class Type_handler
 {
   Name m_name;
 protected:
-  const Name version_mysql56() const;
-  const Name version_mariadb53() const;
   String *print_item_value_csstr(THD *thd, Item *item, String *str) const;
   String *print_item_value_temporal(THD *thd, Item *item, String *str,
                                      const Name &type_name, String *buf) const;
@@ -3390,6 +3388,8 @@ public:
   static void partition_field_type_not_allowed(const LEX_CSTRING &field_name);
   static bool partition_field_check_result_type(Item *item,
                                                 Item_result expected_type);
+  static const Name & version_mysql56();
+  static const Name & version_mariadb53();
 
   void set_name(Name n) { DBUG_ASSERT(!m_name.ptr()); m_name= n; }
   const Name name() const { return m_name; }

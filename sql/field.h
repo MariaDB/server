@@ -2938,6 +2938,22 @@ protected:
     set_warnings(level, str, MYSQL_TIME_WARN_TRUNCATED, typestr);
     return 1;
   }
+  void sql_type_comment(String &str,
+                        const Name &name,
+                        const Name &comment) const;
+  void sql_type_dec_comment(String &str,
+                            const Name &name, uint dec,
+                            const Name &comment) const;
+  void sql_type_opt_dec_comment(String &str,
+                                const Name &name, uint dec,
+                                const Name &comment) const
+  {
+    if (dec)
+      sql_type_dec_comment(str, name, dec, comment);
+    else
+      sql_type_comment(str, name, comment);
+  }
+  static const Name &type_version_mysql56();
 public:
   Field_temporal(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                  uchar null_bit_arg, utype unireg_check_arg,
@@ -3068,7 +3084,6 @@ public:
   int  save_in_field(Field *to) override;
   longlong val_int() override;
   String *val_str(String *, String *) override;
-  void sql_type(String &str) const override;
   bool zero_pack() const override { return false; }
   /*
     This method is used by storage/perfschema and
@@ -3110,6 +3125,11 @@ public:
   { }
   enum ha_base_keytype key_type() const override
   { return HA_KEYTYPE_ULONG_INT; }
+  void sql_type(String &str) const override
+  {
+    sql_type_comment(str, Field_timestamp0::type_handler()->name(),
+                     Type_handler::version_mariadb53());
+  }
   double val_real() override
   {
     return (double) Field_timestamp0::val_int();
@@ -3193,6 +3213,11 @@ public:
   {
     DBUG_ASSERT(dec);
   }
+  void sql_type(String &str) const override
+  {
+    sql_type_dec_comment(str, Field_timestamp_hires::type_handler()->name(),
+                         dec, Type_handler::version_mariadb53());
+  }
   bool val_native(Native *to) override;
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const override;
   int cmp(const uchar *,const uchar *) const override;
@@ -3219,6 +3244,12 @@ public:
   { return &type_handler_timestamp2; }
   enum_field_types binlog_type() const override
   { return MYSQL_TYPE_TIMESTAMP2; }
+  void sql_type(String &str) const override
+  {
+    sql_type_opt_dec_comment(str, Field_timestampf::type_handler()->name(),
+                             dec, type_version_mysql56());
+
+  }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const override;
@@ -3455,7 +3486,6 @@ public:
   int  store_decimal(const my_decimal *) override;
   String *val_str(String *, String *) override;
   bool send_binary(Protocol *protocol) override;
-  void sql_type(String &str) const override;
   void set_curdays(THD *thd);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
@@ -3477,6 +3507,11 @@ public:
                 unireg_check_arg, field_name_arg)
   { }
   enum ha_base_keytype key_type() const override { return HA_KEYTYPE_INT24; }
+  void sql_type(String &str) const override
+  {
+    sql_type_comment(str, Field_time0::type_handler()->name(),
+                     Type_handler::version_mariadb53());
+  }
   double val_real() override;
   longlong val_int() override;
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
@@ -3532,6 +3567,11 @@ public:
     zero_point= sec_part_shift(
                    ((TIME_MAX_VALUE_SECONDS+1LL)*TIME_SECOND_PART_FACTOR), dec);
   }
+  void sql_type(String &str) const override
+  {
+    sql_type_dec_comment(str, Field_time_hires::type_handler()->name(),
+                         dec, Type_handler::version_mariadb53());
+  }
   int reset() override;
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   int cmp(const uchar *,const uchar *) const override;
@@ -3560,6 +3600,11 @@ public:
   const Type_handler *type_handler() const override
   { return &type_handler_time2; }
   enum_field_types binlog_type() const override { return MYSQL_TYPE_TIME2; }
+  void sql_type(String &str) const override
+  {
+    sql_type_opt_dec_comment(str, Field_timef::type_handler()->name(),
+                             dec, type_version_mysql56());
+  }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const override;
@@ -3616,7 +3661,6 @@ public:
   int  store(longlong nr, bool unsigned_val) override;
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec) override;
   int  store_decimal(const my_decimal *) override;
-  void sql_type(String &str) const override;
   int set_time() override;
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
     override
@@ -3640,6 +3684,11 @@ public:
   {}
   enum ha_base_keytype key_type() const override
   { return HA_KEYTYPE_ULONGLONG; }
+  void sql_type(String &str) const override
+  {
+    sql_type_comment(str, Field_datetime0::type_handler()->name(),
+                     Type_handler::version_mariadb53());
+  }
   double val_real() override
   {
     return (double) Field_datetime0::val_int();
@@ -3719,6 +3768,11 @@ public:
   {
     DBUG_ASSERT(dec);
   }
+  void sql_type(String &str) const override
+  {
+    sql_type_dec_comment(str, Field_datetime_hires::type_handler()->name(),
+                         dec, Type_handler::version_mariadb53());
+  }
   int cmp(const uchar *,const uchar *) const override;
   uint32 pack_length() const override
   { return Type_handler_datetime::hires_bytes(dec); }
@@ -3746,6 +3800,11 @@ public:
   { return &type_handler_datetime2; }
   enum_field_types binlog_type() const override
   { return MYSQL_TYPE_DATETIME2; }
+  void sql_type(String &str) const override
+  {
+    sql_type_opt_dec_comment(str, Field_datetimef::type_handler()->name(),
+                             dec, type_version_mysql56());
+  }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
                                     const Conv_param &param) const override;
