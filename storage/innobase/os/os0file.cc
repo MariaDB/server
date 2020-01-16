@@ -4631,6 +4631,7 @@ bool os_file_flush_data_func(os_file_t file) {
 #endif
 }
 
+#ifdef UNIV_PFS_IO
 bool pfs_os_file_flush_data_func(pfs_os_file_t file, const char *src_file,
                                  uint src_line)
 {
@@ -4645,3 +4646,4 @@ bool pfs_os_file_flush_data_func(pfs_os_file_t file, const char *src_file,
   register_pfs_file_io_end(locker, 0);
   return success;
 }
+#endif
