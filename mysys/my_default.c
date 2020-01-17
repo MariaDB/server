@@ -322,17 +322,13 @@ int get_defaults_options(char **argv)
 
   if (my_defaults_extra_file && my_defaults_extra_file != extra_file_buffer)
   {
-    int error= my_realpath(extra_file_buffer, my_defaults_extra_file, MYF(0));
-    if (error)
-      return error;
+    my_realpath(extra_file_buffer, my_defaults_extra_file, MYF(0));
     my_defaults_extra_file= extra_file_buffer;
   }
 
   if (my_defaults_file && my_defaults_file != file_buffer)
   {
-    int error= my_realpath(file_buffer, my_defaults_file, MYF(0));
-    if (error)
-      return error;
+    my_realpath(file_buffer, my_defaults_file, MYF(0));
     my_defaults_file= file_buffer;
   }
 
