@@ -1826,9 +1826,9 @@ need_opposite_intention:
 				offsets2 = rec_get_offsets(
 					first_rec, index, offsets2,
 					false, ULINT_UNDEFINED, &heap);
-				cmp_rec_rec_with_match(node_ptr, first_rec,
-					offsets, offsets2, index, FALSE,
-					&matched_fields);
+				cmp_rec_rec(node_ptr, first_rec,
+					    offsets, offsets2, index, false,
+					    &matched_fields);
 
 				if (matched_fields
 				    >= rec_offs_n_fields(offsets) - 1) {
@@ -1844,10 +1844,10 @@ need_opposite_intention:
 					offsets2 = rec_get_offsets(
 						last_rec, index, offsets2,
 						false, ULINT_UNDEFINED, &heap);
-					cmp_rec_rec_with_match(
+					cmp_rec_rec(
 						node_ptr, last_rec,
 						offsets, offsets2, index,
-						FALSE, &matched_fields);
+						false, &matched_fields);
 					if (matched_fields
 					    >= rec_offs_n_fields(offsets) - 1) {
 						detected_same_key_root = true;
@@ -6307,10 +6307,10 @@ btr_estimate_number_of_different_key_vals(
 							   ULINT_UNDEFINED,
 							   &heap);
 
-			cmp_rec_rec_with_match(rec, next_rec,
-					       offsets_rec, offsets_next_rec,
-					       index, stats_null_not_equal,
-					       &matched_fields);
+			cmp_rec_rec(rec, next_rec,
+				    offsets_rec, offsets_next_rec,
+				    index, stats_null_not_equal,
+				    &matched_fields);
 
 			for (j = matched_fields; j < n_cols; j++) {
 				/* We add one if this index record has
