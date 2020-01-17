@@ -13874,7 +13874,7 @@ static int compare_fields_by_table_order(Item *field1,
   Item_field *f2= (Item_field *) field2_real;
   if (f1->used_tables() & OUTER_REF_TABLE_BIT)
   {
-    outer_ref= -1;
+    outer_ref= 1;
     cmp= -1;
   }
   if (f2->used_tables() & OUTER_REF_TABLE_BIT)
