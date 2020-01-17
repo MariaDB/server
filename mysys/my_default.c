@@ -151,7 +151,7 @@ static char *remove_end_comment(char *ptr);
     --defaults_group_suffix
 */
 
-static int my_search_option_files(const char *conf_file, int *argc, char ***argv,
+static int my_search_option_files(const char *conf_file,
                                   struct handle_option_ctx *ctx,
                                   const char **default_directories)
 {
@@ -444,8 +444,7 @@ int my_load_defaults(const char *conf_file, const char **groups, int *argc,
     ctx.args= &args;
     ctx.group= &group;
 
-    if ((error= my_search_option_files(conf_file, argc - args_used,
-                                       argv + args_used, &ctx, dirs)))
+    if ((error= my_search_option_files(conf_file, &ctx, dirs)))
     {
       delete_dynamic(&args);
       free_root(&alloc,MYF(0));
