@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1720,7 +1720,6 @@ row_fts_merge_insert(
 	corresponding FTS index auxiliary tables */
 	for (;;) {
 		dtuple_t*	dtuple;
-		ulint		n_ext;
 		int		min_rec = 0;
 
 		if (fts_sort_pll_degree <= 2) {
@@ -1763,7 +1762,7 @@ row_fts_merge_insert(
 		}
 
 		dtuple = row_rec_to_index_entry_low(
-			mrec[min_rec], index, offsets[min_rec], &n_ext,
+			mrec[min_rec], index, offsets[min_rec],
 			tuple_heap);
 
 		row_fts_insert_tuple(

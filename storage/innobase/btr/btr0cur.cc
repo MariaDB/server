@@ -3969,7 +3969,6 @@ btr_cur_optimistic_update(
 	dtuple_t*	new_entry;
 	roll_ptr_t	roll_ptr;
 	ulint		i;
-	ulint		n_ext;
 
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
@@ -4042,10 +4041,8 @@ any_extern:
 			+ DTUPLE_EST_ALLOC(rec_offs_n_fields(*offsets)));
 	}
 
-	new_entry = row_rec_to_index_entry(rec, index, *offsets,
-					   &n_ext, *heap);
-	/* We checked above that there are no externally stored fields. */
-	ut_a(!n_ext);
+	new_entry = row_rec_to_index_entry(rec, index, *offsets, *heap);
+	ut_ad(!dtuple_get_n_ext(new_entry));
 
 	/* The page containing the clustered index record
 	corresponding to new_entry is latched in mtr.
@@ -4293,7 +4290,6 @@ btr_cur_pessimistic_update(
 	roll_ptr_t	roll_ptr;
 	ibool		was_first;
 	ulint		n_reserved	= 0;
-	ulint		n_ext;
 	ulint		max_ins_size	= 0;
 
 	*offsets = NULL;
@@ -4358,7 +4354,7 @@ btr_cur_pessimistic_update(
 	ut_ad(rec_offs_validate(rec, index, *offsets));
 
 	dtuple_t*	new_entry = row_rec_to_index_entry(
-		rec, index, *offsets, &n_ext, entry_heap);
+		rec, index, *offsets, entry_heap);
 
 	/* The page containing the clustered index record
 	corresponding to new_entry is latched in mtr.  If the
@@ -4374,9 +4370,6 @@ btr_cur_pessimistic_update(
 
 	ut_ad(!page_is_comp(page) || !rec_get_node_ptr_flag(rec));
 	ut_ad(rec_offs_validate(rec, index, *offsets));
-
-	/* Get number of externally stored columns in updated record */
-	n_ext = dtuple_get_n_ext(new_entry);
 
 	if ((flags & BTR_NO_UNDO_LOG_FLAG)
 	    && rec_offs_any_extern(*offsets)) {
@@ -4396,6 +4389,8 @@ btr_cur_pessimistic_update(
 		btr_rec_free_updated_extern_fields(
 			index, rec, page_zip, *offsets, update, true, mtr);
 	}
+
+	ulint n_ext = dtuple_get_n_ext(new_entry);
 
 	if (page_zip_rec_needs_ext(
 			rec_get_converted_size(index, new_entry, n_ext),

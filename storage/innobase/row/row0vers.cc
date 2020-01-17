@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -136,15 +136,13 @@ row_vers_impl_x_locked_low(
 	const ulint rec_del = rec_get_deleted_flag(rec, comp);
 
 	if (dict_index_has_virtual(index)) {
-		ulint	n_ext;
 		ulint	est_size = DTUPLE_EST_ALLOC(index->n_fields);
 
 		/* Allocate the dtuple for virtual columns extracted from undo
 		log with its own heap, so to avoid it being freed as we
 		iterating in the version loop below. */
 		v_heap = mem_heap_create(est_size);
-		ientry = row_rec_to_index_entry(
-			rec, index, offsets, &n_ext, v_heap);
+		ientry = row_rec_to_index_entry(rec, index, offsets, v_heap);
 	}
 
 	/* We look up if some earlier version, which was modified by

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -223,7 +223,6 @@ row_upd_check_references_constraints(
 	dtuple_t*	entry;
 	trx_t*		trx;
 	const rec_t*	rec;
-	ulint		n_ext;
 	dberr_t		err;
 	ibool		got_s_lock	= FALSE;
 
@@ -240,7 +239,7 @@ row_upd_check_references_constraints(
 
 	heap = mem_heap_create(500);
 
-	entry = row_rec_to_index_entry(rec, index, offsets, &n_ext, heap);
+	entry = row_rec_to_index_entry(rec, index, offsets, heap);
 
 	mtr_commit(mtr);
 
@@ -373,7 +372,6 @@ wsrep_row_upd_check_foreign_constraints(
 	dtuple_t*	entry;
 	trx_t*		trx;
 	const rec_t*	rec;
-	ulint		n_ext;
 	dberr_t		err;
 	ibool		got_s_lock	= FALSE;
 	ibool		opened     	= FALSE;
@@ -391,8 +389,7 @@ wsrep_row_upd_check_foreign_constraints(
 
 	heap = mem_heap_create(500);
 
-	entry = row_rec_to_index_entry(rec, index, offsets,
-				       &n_ext, heap);
+	entry = row_rec_to_index_entry(rec, index, offsets, heap);
 
 	mtr_commit(mtr);
 
