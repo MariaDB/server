@@ -1,8 +1,8 @@
 /***********************************************************************
 
-Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -1472,6 +1472,12 @@ os_file_get_parent_dir(
 	/* Check for the root of a drive. */
 	if (os_file_is_root(path, last_slash)) {
 		return(NULL);
+	}
+
+	if (last_slash - path < 0) {
+		/* Sanity check, it prevents gcc from trying to handle this case which
+		 * results in warnings for some optimized builds */
+		return (NULL);
 	}
 
 	/* Non-trivial directory component */
