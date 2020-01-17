@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1524,13 +1524,70 @@ IndexPurge::next() UNIV_NOTHROW
 	mtr_set_log_mode(&m_mtr, MTR_LOG_NO_REDO);
 
 	btr_pcur_restore_position(BTR_MODIFY_LEAF, &m_pcur, &m_mtr);
+	/* The following is based on btr_pcur_move_to_next_user_rec(). */
+	m_pcur.old_stored = false;
+	ut_ad(m_pcur.latch_mode == BTR_MODIFY_LEAF);
+	do {
+		if (btr_pcur_is_after_last_on_page(&m_pcur)) {
+			if (btr_pcur_is_after_last_in_tree(&m_pcur, &m_mtr)) {
+				return DB_END_OF_INDEX;
+			}
 
-	if (!btr_pcur_move_to_next_user_rec(&m_pcur, &m_mtr)) {
+			buf_block_t* block = btr_pcur_get_block(&m_pcur);
+			uint32_t next_page = btr_page_get_next(block->frame);
 
-		return(DB_END_OF_INDEX);
-	}
+			/* MDEV-13542 FIXME: Make these checks part of
+			btr_pcur_move_to_next_page(), and introduce a
+			return status that will be checked in all callers! */
+			switch (next_page) {
+			default:
+				if (next_page != block->page.id.page_no()) {
+					break;
+				}
+				/* MDEV-20931 FIXME: Check that
+				next_page is within the tablespace
+				bounds! Also check that it is not a
+				change buffer bitmap page. */
+				/* fall through */
+			case 0:
+			case 1:
+			case FIL_NULL:
+				return DB_CORRUPTION;
+			}
 
-	return(DB_SUCCESS);
+			dict_index_t* index = m_pcur.btr_cur.index;
+			buf_block_t* next_block = btr_block_get(
+				page_id_t(block->page.id.space(), next_page),
+				block->page.size, BTR_MODIFY_LEAF, index,
+				&m_mtr);
+
+			if (UNIV_UNLIKELY(!next_block
+					  || !fil_page_index_page_check(
+						  next_block->frame)
+					  || !!dict_index_is_spatial(index)
+					  != (fil_page_get_type(
+						      next_block->frame)
+					      == FIL_PAGE_RTREE)
+					  || page_is_comp(next_block->frame)
+					  != page_is_comp(block->frame)
+					  || btr_page_get_prev(
+						  next_block->frame)
+					  != block->page.id.page_no())) {
+				return DB_CORRUPTION;
+			}
+
+			btr_leaf_page_release(block, BTR_MODIFY_LEAF, &m_mtr);
+
+			page_cur_set_before_first(next_block,
+						  &m_pcur.btr_cur.page_cur);
+
+			ut_d(page_check_dir(next_block->frame));
+		} else {
+			btr_pcur_move_to_next_on_page(&m_pcur);
+		}
+	} while (!btr_pcur_is_on_user_rec(&m_pcur));
+
+	return DB_SUCCESS;
 }
 
 /**
