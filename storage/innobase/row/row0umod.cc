@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -169,12 +169,15 @@ row_undo_mod_remove_clust_low(
 	/* Find out if the record has been purged already
 	or if we can remove it. */
 
-	if (!btr_pcur_restore_position(mode, &node->pcur, mtr)
-	    || row_vers_must_preserve_del_marked(node->new_trx_id,
-						 node->table->name,
-						 mtr)) {
+	if (!btr_pcur_restore_position(mode, &node->pcur, mtr)) {
+		return DB_SUCCESS;
+	}
 
-		return(DB_SUCCESS);
+	DEBUG_SYNC_C("rollback_purge_clust");
+
+	if (row_vers_must_preserve_del_marked(node->new_trx_id,
+					      node->table->name, mtr)) {
+		return DB_SUCCESS;
 	}
 
 	btr_cur = btr_pcur_get_btr_cur(&node->pcur);
@@ -361,6 +364,7 @@ row_undo_mod_clust(
 	      == node->new_trx_id);
 
 	btr_pcur_commit_specify_mtr(pcur, &mtr);
+	DEBUG_SYNC_C("rollback_undo_pk");
 
 	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_UPD_DEL_REC) {
 
