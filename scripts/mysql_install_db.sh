@@ -478,9 +478,9 @@ do
   fi
 done
 
-if test -n "$user" -a "$in_rpm" -eq 0
+if test -n "$user"
 then
-  if test -z "$srcdir"
+  if test -z "$srcdir" -a "$in_rpm" -eq 0
   then
     chown 0 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool" && \
     chmod 04755 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool"
@@ -490,14 +490,14 @@ then
         echo "It must be root, the PAM authentication plugin doesn't work otherwise.."
         echo
     fi
-  fi
-  chown $user "$pamtooldir/auth_pam_tool_dir" && \
-  chmod 0700 "$pamtooldir/auth_pam_tool_dir"
-  if test $? -ne 0
-  then
-      echo "Cannot change ownership of the '$pamtooldir/auth_pam_tool_dir' directory"
-      echo "to the '$user' user. Check that you have the necessary permissions and try again."
-      echo
+    chown $user "$pamtooldir/auth_pam_tool_dir" && \
+    chmod 0700 "$pamtooldir/auth_pam_tool_dir"
+    if test $? -ne 0
+    then
+        echo "Cannot change ownership of the '$pamtooldir/auth_pam_tool_dir' directory"
+        echo "to the '$user' user. Check that you have the necessary permissions and try again."
+        echo
+    fi
   fi
   args="$args --user=$user"
 fi
