@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -685,7 +685,6 @@ row_rec_to_index_entry_impl(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	const offset_t*		offsets,
-	ulint*			n_ext,
 	mem_heap_t*		heap)
 {
 	dtuple_t*	entry;
@@ -703,8 +702,6 @@ row_rec_to_index_entry_impl(
 	/* Because this function may be invoked by row0merge.cc
 	on a record whose header is in different format, the check
 	rec_offs_validate(rec, index, offsets) must be avoided here. */
-	ut_ad(n_ext);
-	*n_ext = 0;
 
 	rec_len = rec_offs_n_fields(offsets);
 
@@ -731,7 +728,6 @@ row_rec_to_index_entry_impl(
 
 		if (rec_offs_nth_extern(offsets, i)) {
 			dfield_set_ext(dfield);
-			(*n_ext)++;
 		}
 	}
 
@@ -743,18 +739,15 @@ row_rec_to_index_entry_impl(
 @param[in]	rec	index record
 @param[in]	index	index
 @param[in]	offsets	rec_get_offsets(rec, index)
-@param[out]	n_ext	number of externally stored columns
 @param[in,out]	heap	memory heap for allocations */
 dtuple_t*
 row_rec_to_index_entry_low(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	const offset_t*		offsets,
-	ulint*			n_ext,
 	mem_heap_t*		heap)
 {
-	return row_rec_to_index_entry_impl<false>(
-		rec, index, offsets, n_ext, heap);
+	return row_rec_to_index_entry_impl<false>(rec, index, offsets, heap);
 }
 
 /*******************************************************************//**
@@ -767,8 +760,6 @@ row_rec_to_index_entry(
 	const rec_t*		rec,	/*!< in: record in the index */
 	const dict_index_t*	index,	/*!< in: index */
 	const offset_t*		offsets,/*!< in: rec_get_offsets(rec) */
-	ulint*			n_ext,	/*!< out: number of externally
-					stored columns */
 	mem_heap_t*		heap)	/*!< in: memory heap from which
 					the memory needed is allocated */
 {
@@ -790,7 +781,7 @@ row_rec_to_index_entry(
 	rec_offs_make_valid(copy_rec, index, true,
 			    const_cast<offset_t*>(offsets));
 	entry = row_rec_to_index_entry_impl<true>(
-		copy_rec, index, offsets, n_ext, heap);
+		copy_rec, index, offsets, heap);
 	rec_offs_make_valid(rec, index, true,
 			    const_cast<offset_t*>(offsets));
 

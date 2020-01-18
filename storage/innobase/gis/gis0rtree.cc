@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1436,10 +1436,9 @@ rtr_page_copy_rec_list_end_no_locks(
 			offsets2 = rec_get_offsets(cur_rec, index, offsets2,
 						   is_leaf,
 						   ULINT_UNDEFINED, &heap);
-			cmp = cmp_rec_rec_with_match(cur1_rec, cur_rec,
-						     offsets1, offsets2,
-						     index, FALSE,
-						     &cur_matched_fields);
+			cmp = cmp_rec_rec(cur1_rec, cur_rec,
+					  offsets1, offsets2, index, false,
+					  &cur_matched_fields);
 			if (cmp < 0) {
 				page_cur_move_to_prev(&page_cur);
 				break;
@@ -1551,15 +1550,13 @@ rtr_page_copy_rec_list_start_no_locks(
 
 		while (!page_rec_is_supremum(cur_rec)) {
 			ulint		cur_matched_fields = 0;
-			int		cmp;
 
 			offsets2 = rec_get_offsets(cur_rec, index, offsets2,
 						   is_leaf,
 						   ULINT_UNDEFINED, &heap);
-			cmp = cmp_rec_rec_with_match(cur1_rec, cur_rec,
-						     offsets1, offsets2,
-						     index, FALSE,
-						     &cur_matched_fields);
+			int cmp = cmp_rec_rec(cur1_rec, cur_rec,
+					      offsets1, offsets2, index, false,
+					      &cur_matched_fields);
 			if (cmp < 0) {
 				page_cur_move_to_prev(&page_cur);
 				cur_rec = page_cur_get_rec(&page_cur);

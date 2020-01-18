@@ -1,9 +1,9 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -804,46 +804,66 @@ btr_cur_will_modify_tree(
 	const ulint n_recs = page_get_n_recs(page);
 
 	if (lock_intention <= BTR_INTENTION_BOTH) {
-		ulint	margin;
+		compile_time_assert(BTR_INTENTION_DELETE < BTR_INTENTION_BOTH);
+		compile_time_assert(BTR_INTENTION_BOTH < BTR_INTENTION_INSERT);
 
-		/* check delete will cause. (BTR_INTENTION_BOTH
-		or BTR_INTENTION_DELETE) */
-		/* first, 2nd, 2nd-last and last records are 4 records */
-		if (n_recs < 5) {
-			return(true);
+		if (!page_has_siblings(page)) {
+			return true;
 		}
 
-		/* is first, 2nd or last record */
-		if (page_rec_is_first(rec, page)
-		    || (page_has_next(page)
-			&& (page_rec_is_last(rec, page)
-			    || page_rec_is_second_last(rec, page)))
-		    || (page_has_prev(page)
-			&& page_rec_is_second(rec, page))) {
-			return(true);
-		}
+		ulint margin = rec_size;
 
 		if (lock_intention == BTR_INTENTION_BOTH) {
+			ulint	level = btr_page_get_level(page);
+
+			/* This value is the worst expectation for the node_ptr
+			records to be deleted from this page. It is used to
+			expect whether the cursor position can be the left_most
+			record in this page or not. */
+			ulint   max_nodes_deleted = 0;
+
+			/* By modifying tree operations from the under of this
+			level, logically (2 ^ (level - 1)) opportunities to
+			deleting records in maximum even unreally rare case. */
+			if (level > 7) {
+				/* TODO: adjust this practical limit. */
+				max_nodes_deleted = 64;
+			} else if (level > 0) {
+				max_nodes_deleted = (ulint)1 << (level - 1);
+			}
+			/* check delete will cause. (BTR_INTENTION_BOTH
+			or BTR_INTENTION_DELETE) */
+			if (n_recs <= max_nodes_deleted * 2
+			    || page_rec_is_first(rec, page)) {
+				/* The cursor record can be the left most record
+				in this page. */
+				return true;
+			}
+
+			if (page_has_prev(page)
+			    && page_rec_distance_is_at_most(
+				    page_get_infimum_rec(page), rec,
+				    max_nodes_deleted)) {
+				return true;
+			}
+
+			if (page_has_next(page)
+			    && page_rec_distance_is_at_most(
+				    rec, page_get_supremum_rec(page),
+				    max_nodes_deleted)) {
+				return true;
+			}
+
 			/* Delete at leftmost record in a page causes delete
 			& insert at its parent page. After that, the delete
 			might cause btr_compress() and delete record at its
-			parent page. Thus we should consider max 2 deletes. */
-
-			margin = rec_size * 2;
-		} else {
-			ut_ad(lock_intention == BTR_INTENTION_DELETE);
-
-			margin = rec_size;
+			parent page. Thus we should consider max deletes. */
+			margin *= max_nodes_deleted;
 		}
-		/* NOTE: call mach_read_from_4() directly to avoid assertion
-		failure. It is safe because we already have SX latch of the
-		index tree */
+
+		/* Safe because we already have SX latch of the index tree */
 		if (page_get_data_size(page)
-			< margin + BTR_CUR_PAGE_COMPRESS_LIMIT(index)
-		    || (mach_read_from_4(page + FIL_PAGE_NEXT)
-				== FIL_NULL
-			&& mach_read_from_4(page + FIL_PAGE_PREV)
-				== FIL_NULL)) {
+		    < margin + BTR_CUR_PAGE_COMPRESS_LIMIT(index)) {
 			return(true);
 		}
 	}
@@ -2025,9 +2045,9 @@ need_opposite_intention:
 				offsets2 = rec_get_offsets(
 					first_rec, index, offsets2,
 					false, ULINT_UNDEFINED, &heap);
-				cmp_rec_rec_with_match(node_ptr, first_rec,
-					offsets, offsets2, index, FALSE,
-					&matched_fields);
+				cmp_rec_rec(node_ptr, first_rec,
+					    offsets, offsets2, index, false,
+					    &matched_fields);
 
 				if (matched_fields
 				    >= rec_offs_n_fields(offsets) - 1) {
@@ -2043,10 +2063,10 @@ need_opposite_intention:
 					offsets2 = rec_get_offsets(
 						last_rec, index, offsets2,
 						false, ULINT_UNDEFINED, &heap);
-					cmp_rec_rec_with_match(
+					cmp_rec_rec(
 						node_ptr, last_rec,
 						offsets, offsets2, index,
-						FALSE, &matched_fields);
+						false, &matched_fields);
 					if (matched_fields
 					    >= rec_offs_n_fields(offsets) - 1) {
 						detected_same_key_root = true;
@@ -4242,7 +4262,6 @@ btr_cur_optimistic_update(
 	dtuple_t*	new_entry;
 	roll_ptr_t	roll_ptr;
 	ulint		i;
-	ulint		n_ext;
 
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
@@ -4319,10 +4338,8 @@ any_extern:
 			+ DTUPLE_EST_ALLOC(rec_offs_n_fields(*offsets)));
 	}
 
-	new_entry = row_rec_to_index_entry(rec, index, *offsets,
-					   &n_ext, *heap);
-	/* We checked above that there are no externally stored fields. */
-	ut_a(!n_ext);
+	new_entry = row_rec_to_index_entry(rec, index, *offsets, *heap);
+	ut_ad(!dtuple_get_n_ext(new_entry));
 
 	/* The page containing the clustered index record
 	corresponding to new_entry is latched in mtr.
@@ -4586,7 +4603,6 @@ btr_cur_pessimistic_update(
 	roll_ptr_t	roll_ptr;
 	ibool		was_first;
 	ulint		n_reserved	= 0;
-	ulint		n_ext;
 	ulint		max_ins_size	= 0;
 
 	*offsets = NULL;
@@ -4651,7 +4667,7 @@ btr_cur_pessimistic_update(
 	ut_ad(rec_offs_validate(rec, index, *offsets));
 
 	dtuple_t*	new_entry = row_rec_to_index_entry(
-		rec, index, *offsets, &n_ext, entry_heap);
+		rec, index, *offsets, entry_heap);
 
 	/* The page containing the clustered index record
 	corresponding to new_entry is latched in mtr.  If the
@@ -4671,7 +4687,6 @@ btr_cur_pessimistic_update(
 
 	ut_ad(!page_is_comp(page) || !rec_get_node_ptr_flag(rec));
 	ut_ad(rec_offs_validate(rec, index, *offsets));
-	n_ext += btr_push_update_extern_fields(new_entry, update, entry_heap);
 
 	if ((flags & BTR_NO_UNDO_LOG_FLAG)
 	    && rec_offs_any_extern(*offsets)) {
@@ -4691,6 +4706,8 @@ btr_cur_pessimistic_update(
 		btr_rec_free_updated_extern_fields(
 			index, rec, page_zip, *offsets, update, true, mtr);
 	}
+
+	ulint n_ext = dtuple_get_n_ext(new_entry);
 
 	if (page_zip_rec_needs_ext(
 			rec_get_converted_size(index, new_entry, n_ext),
@@ -6722,10 +6739,10 @@ btr_estimate_number_of_different_key_vals(
 							   ULINT_UNDEFINED,
 							   &heap);
 
-			cmp_rec_rec_with_match(rec, next_rec,
-					       offsets_rec, offsets_next_rec,
-					       index, stats_null_not_equal,
-					       &matched_fields);
+			cmp_rec_rec(rec, next_rec,
+				    offsets_rec, offsets_next_rec,
+				    index, stats_null_not_equal,
+				    &matched_fields);
 
 			for (j = matched_fields; j < n_cols; j++) {
 				/* We add one if this index record has
@@ -7003,84 +7020,6 @@ btr_cur_unmark_extern_fields(
 				page_zip, rec, index, offsets, i, TRUE, mtr);
 		}
 	}
-}
-
-/*******************************************************************//**
-Flags the data tuple fields that are marked as extern storage in the
-update vector.  We use this function to remember which fields we must
-mark as extern storage in a record inserted for an update.
-@return number of flagged external columns */
-ulint
-btr_push_update_extern_fields(
-/*==========================*/
-	dtuple_t*	tuple,	/*!< in/out: data tuple */
-	const upd_t*	update,	/*!< in: update vector */
-	mem_heap_t*	heap)	/*!< in: memory heap */
-{
-	ulint			n_pushed	= 0;
-	ulint			n;
-	const upd_field_t*	uf;
-
-	uf = update->fields;
-	n = upd_get_n_fields(update);
-
-	for (; n--; uf++) {
-		if (dfield_is_ext(&uf->new_val)) {
-			dfield_t*	field
-				= dtuple_get_nth_field(tuple, uf->field_no);
-
-			if (!dfield_is_ext(field)) {
-				dfield_set_ext(field);
-				n_pushed++;
-			}
-
-			switch (uf->orig_len) {
-				byte*	data;
-				ulint	len;
-				byte*	buf;
-			case 0:
-				break;
-			case BTR_EXTERN_FIELD_REF_SIZE:
-				/* Restore the original locally stored
-				part of the column.  In the undo log,
-				InnoDB writes a longer prefix of externally
-				stored columns, so that column prefixes
-				in secondary indexes can be reconstructed. */
-				dfield_set_data(field,
-						(byte*) dfield_get_data(field)
-						+ dfield_get_len(field)
-						- BTR_EXTERN_FIELD_REF_SIZE,
-						BTR_EXTERN_FIELD_REF_SIZE);
-				dfield_set_ext(field);
-				break;
-			default:
-				/* Reconstruct the original locally
-				stored part of the column.  The data
-				will have to be copied. */
-				ut_a(uf->orig_len > BTR_EXTERN_FIELD_REF_SIZE);
-
-				data = (byte*) dfield_get_data(field);
-				len = dfield_get_len(field);
-
-				buf = (byte*) mem_heap_alloc(heap,
-							     uf->orig_len);
-				/* Copy the locally stored prefix. */
-				memcpy(buf, data,
-				       unsigned(uf->orig_len)
-				       - BTR_EXTERN_FIELD_REF_SIZE);
-				/* Copy the BLOB pointer. */
-				memcpy(buf + unsigned(uf->orig_len)
-				       - BTR_EXTERN_FIELD_REF_SIZE,
-				       data + len - BTR_EXTERN_FIELD_REF_SIZE,
-				       BTR_EXTERN_FIELD_REF_SIZE);
-
-				dfield_set_data(field, buf, uf->orig_len);
-				dfield_set_ext(field);
-			}
-		}
-	}
-
-	return(n_pushed);
 }
 
 /*******************************************************************//**

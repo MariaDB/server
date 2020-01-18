@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3559,7 +3559,6 @@ row_log_apply_op(
 	enum row_op	op;
 	ulint		extra_size;
 	ulint		data_size;
-	ulint		n_ext;
 	dtuple_t*	entry;
 	trx_id_t	trx_id;
 
@@ -3637,10 +3636,10 @@ corrupted:
 	}
 
 	entry = row_rec_to_index_entry_low(
-		mrec - data_size, index, offsets, &n_ext, heap);
+		mrec - data_size, index, offsets, heap);
 	/* Online index creation is only implemented for secondary
 	indexes, which never contain off-page columns. */
-	ut_ad(n_ext == 0);
+	ut_ad(dtuple_get_n_ext(entry) == 0);
 
 	row_log_apply_op_low(index, dup, error, offsets_heap,
 			     has_index_lock, op, trx_id, entry);

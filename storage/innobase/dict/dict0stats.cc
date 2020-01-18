@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1169,13 +1169,9 @@ dict_stats_analyze_index_level(
 				prev_rec, index, prev_rec_offsets, !level,
 				n_uniq, &heap);
 
-			cmp_rec_rec_with_match(rec,
-					       prev_rec,
-					       rec_offsets,
-					       prev_rec_offsets,
-					       index,
-					       FALSE,
-					       &matched_fields);
+			cmp_rec_rec(prev_rec, rec,
+				    prev_rec_offsets, rec_offsets, index,
+				    false, &matched_fields);
 
 			for (i = matched_fields; i < n_uniq; i++) {
 
@@ -1395,9 +1391,8 @@ dict_stats_scan_page(
 
 		/* check whether rec != next_rec when looking at
 		the first n_prefix fields */
-		cmp_rec_rec_with_match(rec, next_rec,
-				       offsets_rec, offsets_next_rec,
-				       index, FALSE, &matched_fields);
+		cmp_rec_rec(rec, next_rec, offsets_rec, offsets_next_rec,
+			    index, false, &matched_fields);
 
 		if (matched_fields < n_prefix) {
 			/* rec != next_rec, => rec is non-boring */

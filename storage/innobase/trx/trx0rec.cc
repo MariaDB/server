@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 1996, 2019, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2335,8 +2335,6 @@ trx_undo_prev_version_build(
 	ut_a(ptr);
 
 	if (row_upd_changes_field_size_or_external(index, offsets, update)) {
-		ulint	n_ext;
-
 		/* We should confirm the existence of disowned external data,
 		if the previous version record is delete marked. If the trx_id
 		of the previous record is seen by purge view, we should treat
@@ -2377,13 +2375,14 @@ trx_undo_prev_version_build(
 		those fields that update updates to become externally stored
 		fields. Store the info: */
 
-		entry = row_rec_to_index_entry(
-			rec, index, offsets, &n_ext, heap);
-		n_ext += btr_push_update_extern_fields(entry, update, heap);
+		entry = row_rec_to_index_entry(rec, index, offsets, heap);
 		/* The page containing the clustered index record
 		corresponding to entry is latched in mtr.  Thus the
 		following call is safe. */
 		row_upd_index_replace_new_col_vals(entry, index, update, heap);
+
+		/* Get number of externally stored columns in updated record */
+		const ulint n_ext = dtuple_get_n_ext(entry);
 
 		buf = static_cast<byte*>(mem_heap_alloc(
 			heap, rec_get_converted_size(index, entry, n_ext)));
