@@ -19,6 +19,7 @@
 #include "sql_select.h"
 #include "key.h"
 #include "sql_statistics.h"
+#include "rowid_filter.h"
 
 static ulonglong key_block_no(TABLE *table, uint keyno, ha_rows keyentry_pos)
 {
@@ -709,6 +710,20 @@ int Mrr_ordered_rndpos_reader::init(handler *h_arg,
   is_mrr_assoc= !MY_TEST(mode & HA_MRR_NO_ASSOCIATION);
   index_reader_exhausted= FALSE;
   index_reader_needs_refill= TRUE;
+
+  /*
+    Currently usage of a rowid filter within InnoDB engine is not supported
+    if the table is accessed by the primary key.
+    With optimizer switches ''mrr' and 'mrr_sort_keys' are both enabled
+    any access by a secondary index is converted to the rndpos access. In
+    InnoDB the rndpos access is always uses the primary key.
+    Do not use pushed rowid filter if the table is accessed actually by the
+    primary key. Use the rowid filter outside the engine code (see
+    Mrr_ordered_rndpos_reader::refill_from_index_reader).
+  */
+  if (file->pushed_rowid_filter && file->primary_key_is_clustered())
+    file->cancel_pushed_rowid_filter();
+
   return 0;
 }
 
@@ -800,6 +815,15 @@ int Mrr_ordered_rndpos_reader::refill_from_index_reader()
     }
 
     index_reader->position();
+
+    /*
+      If the built rowid filter cannot be used at the engine level use it here.
+    */
+    Rowid_filter *rowid_filter=
+                    file->get_table()->reginfo.join_tab->rowid_filter;
+    if (rowid_filter && !file->pushed_rowid_filter &&
+        !rowid_filter->check((char *)index_rowid))
+      continue;
 
     /* Put rowid, or {rowid, range_id} pair into the buffer */
     rowid_buffer->write_ptr1= index_rowid;
