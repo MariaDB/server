@@ -5044,8 +5044,12 @@ static int init_server_components()
   if (remaining_argc > 1)
   {
     int ho_error;
-    struct my_option no_opts[]=
+    struct my_option removed_opts[]=
     {
+      /* All options in this list are accepted by the server for backwards
+         compatibility, but do not have any effect otherwise, they behave
+         as if supplied with --loose. Whenever a deprecated option is removed
+         it should be appended here. */
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
     /*
@@ -5054,7 +5058,7 @@ static int init_server_components()
     */
     my_getopt_skip_unknown= 0;
 
-    if ((ho_error= handle_options(&remaining_argc, &remaining_argv, no_opts,
+    if ((ho_error= handle_options(&remaining_argc, &remaining_argv, removed_opts,
                                   mysqld_get_one_option)))
       unireg_abort(ho_error);
     /* Add back the program name handle_options removes */
@@ -6385,6 +6389,10 @@ int handle_early_options()
 
 #define MYSQL_SUGGEST_ANALOG_OPTION(option, str) \
   { option, OPT_MYSQL_COMPATIBILITY, \
+   0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
+
+#define MARIADB_REMOVED_OPTION(option) \
+  { option, OPT_REMOVED_OPTION, \
    0, 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0 }
 
 
@@ -8008,6 +8016,8 @@ mysqld_get_one_option(const struct my_option *opt, char *argument,
     sql_print_warning("'%s' is deprecated. It does nothing and exists only "
                       "for compatibility with old my.cnf files.",
                       opt->name);
+    break;
+  case OPT_REMOVED_OPTION:
     break;
   case OPT_MYSQL_COMPATIBILITY:
     sql_print_warning("'%s' is MySQL 5.6 / 5.7 compatible option. Not used or "
