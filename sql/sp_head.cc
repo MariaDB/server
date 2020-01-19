@@ -493,8 +493,8 @@ void sp_head::destroy(sp_head *sp)
   {
     /* Make a copy of main_mem_root as free_root will free the sp */
     MEM_ROOT own_root= sp->main_mem_root;
-    DBUG_PRINT("info", ("mem_root 0x%lx moved to 0x%lx",
-                        (ulong) &sp->mem_root, (ulong) &own_root));
+    DBUG_PRINT("info", ("mem_root %p moved to %p",
+                        &sp->mem_root, &own_root));
     delete sp;
 
  
