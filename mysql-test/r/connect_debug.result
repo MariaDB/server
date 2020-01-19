@@ -8,3 +8,11 @@ create user 'bad' identified by 'worse';
 ERROR 2059 (HY000): Authentication plugin 'foo/bar' cannot be loaded: invalid plugin name
 set global debug_dbug=@old_dbug;
 drop user bad;
+set global debug_dbug='+d,increase_srv_handshake_scramble_len';
+connect(localhost,root,,test,MASTER_MYPORT,MYSQL_TMP_DIR/mysqld.1.sock);
+ERROR HY000: Malformed packet
+set global debug_dbug=@old_dbug;
+set global debug_dbug='+d,poison_srv_handshake_scramble_len';
+connect(localhost,root,,test,MASTER_MYPORT,MYSQL_TMP_DIR/mysqld.1.sock);
+ERROR HY000: Malformed packet
+set global debug_dbug=@old_dbug;
