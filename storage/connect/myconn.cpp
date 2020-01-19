@@ -472,7 +472,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
                             int pt, const char *csname)
   {
   const char *pipe = NULL;
-  uint        cto = 10, nrt = 20;
+  //uint      cto = 10, nrt = 20;
   my_bool     my_true= 1;
 
   m_DB = mysql_init(NULL);
@@ -485,11 +485,11 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
 	if (trace(1))
 		htrc("MYSQLC Open: m_DB=%.4X size=%d\n", m_DB, (int)sizeof(*m_DB));
 
-	// Removed to do like FEDERATED do
+	// Removed to do like FEDERATED does
 //mysql_options(m_DB, MYSQL_READ_DEFAULT_GROUP, "client-mariadb");
-  mysql_options(m_DB, MYSQL_OPT_USE_REMOTE_CONNECTION, NULL);
-  mysql_options(m_DB, MYSQL_OPT_CONNECT_TIMEOUT, &cto);
-  mysql_options(m_DB, MYSQL_OPT_READ_TIMEOUT, &nrt);
+//mysql_options(m_DB, MYSQL_OPT_USE_REMOTE_CONNECTION, NULL);
+//mysql_options(m_DB, MYSQL_OPT_CONNECT_TIMEOUT, &cto);
+//mysql_options(m_DB, MYSQL_OPT_READ_TIMEOUT, &nrt);
 //mysql_options(m_DB, MYSQL_OPT_WRITE_TIMEOUT, ...);
 
 #if defined(__WIN__)
@@ -879,7 +879,7 @@ MYSQL_FIELD *MYSQLC::GetNextField(void)
 PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   {
 	PCSZ         fmt;
-  char        *name, v;
+  char        *name, v= 0;
   int          n;
   bool         uns;
   PCOLRES     *pcrp, crp;
