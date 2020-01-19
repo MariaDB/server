@@ -359,7 +359,16 @@ void toku_instr_rwlock_wrlock_wait_end(
 
 void toku_instr_rwlock_unlock(toku_pthread_rwlock_t &rwlock) {
     if (rwlock.psi_rwlock)
+
+// Due to change introduced in e4148f2a22922687f7652c4e3d21a22da07c9e78
+// PSI rwlock version and interface changed
+// PSI_CURRENT_RWLOCK_VERSION is not defined in MySQL 5.6 and is defined
+// as 1 in 5.7 and < 8.0.17
+#if defined(PSI_CURRENT_RWLOCK_VERSION) && (PSI_CURRENT_RWLOCK_VERSION == 2)
+        PSI_RWLOCK_CALL(unlock_rwlock)(rwlock.psi_rwlock, PSI_RWLOCK_UNLOCK);
+#else
         PSI_RWLOCK_CALL(unlock_rwlock)(rwlock.psi_rwlock);
+#endif
 }
 
 #endif  // TOKU_MYSQL_WITH_PFS

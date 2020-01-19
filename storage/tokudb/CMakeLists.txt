@@ -21,7 +21,9 @@ include(CheckCXXCompilerFlag)
 # pick language dialect
 check_cxx_compiler_flag(-std=c++11 HAVE_STDCXX11)
 if (HAVE_STDCXX11)
-  set(CMAKE_CXX_FLAGS "-std=c++11 -Wno-deprecated-declarations ${CMAKE_CXX_FLAGS}")
+  # compiler_options.cmake sets -std=gnu++03 for clang-6 or newer
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -std=c++11 -Wno-deprecated-declarations")
+  set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -std=c++11 -Wno-deprecated-declarations")
 else ()
   message(FATAL_ERROR "${CMAKE_CXX_COMPILER} doesn't support -std=c++11, you need one that does.")
 endif ()
@@ -82,6 +84,13 @@ endmacro(append_cflags_if_supported)
 
 set_cflags_if_supported(-Wno-missing-field-initializers)
 append_cflags_if_supported(-Wno-vla)
+
+# Disable warnings for gcc-9 or higher
+IF(CMAKE_COMPILER_IS_GNUCXX AND
+    (CMAKE_CXX_COMPILER_VERSION VERSION_EQUAL 9.0 OR
+     CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9.0))
+  append_cflags_if_supported(-Wno-address-of-packed-member)
+ENDIF()
 
 IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/PerconaFT/")
     IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ft-index/")
