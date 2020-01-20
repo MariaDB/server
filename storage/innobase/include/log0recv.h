@@ -106,14 +106,12 @@ bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn);
 to wait merging to file pages.
 @param[in]	checkpoint_lsn		the LSN of the latest checkpoint
 @param[in]	store			whether to store page operations
-@param[in]	available_memory	memory to read the redo logs
 @param[in]	apply			whether to apply the records
 @return whether MLOG_CHECKPOINT record was seen the first time,
 or corruption was noticed */
 bool recv_parse_log_recs(
 	lsn_t		checkpoint_lsn,
 	store_t*	store,
-	ulint		available_memory,
 	bool		apply);
 
 /** Moves the parsing buffer data left to the buffer start */
@@ -284,13 +282,9 @@ struct recv_sys_t{
 				record, or 0 if none was parsed */
 	/** the time when progress was last reported */
 	time_t		progress_time;
-	mem_heap_t*	heap;	/*!< memory heap of log records and file
-				addresses*/
 
 	using map = std::map<const page_id_t, page_recv_t,
-			     std::less<const page_id_t>,
-			     ut_allocator
-			     <std::pair<const page_id_t, page_recv_t>>>;
+			     std::less<const page_id_t>>;
 	/** buffered records waiting to be applied to pages */
 	map pages;
 
@@ -313,6 +307,14 @@ struct recv_sys_t{
 
 	/** Last added LSN to pages. */
 	lsn_t		last_stored_lsn;
+
+	/** Maximum number of buffer pool blocks to allocate for redo
+	log records */
+	ulint		max_log_blocks;
+
+	/** Base node of the redo block list (up to max_log_blocks)
+	List elements are linked via buf_block_t::unzip_LRU. */
+	UT_LIST_BASE_NODE_T(buf_block_t) redo_list;
 
 	/** Initialize the redo log recovery subsystem. */
 	void create();
@@ -352,6 +354,26 @@ struct recv_sys_t{
 		progress_time = time;
 		return true;
 	}
+
+	/** Get the memory block for storing recv_t and redo log data
+	@param[in] len length of the data to be stored
+	@param[in] store_data whether to store overflow block (recv_t::datat)
+	@return pointer to len bytes of memory (never NULL) */
+	byte *alloc(uint32_t len
+#ifdef UNIV_DEBUG
+		    , bool store_data=false
+#endif
+		    );
+
+	/** Get the free length of the latest block which is the
+	first block of redo list. Blocks are allocated by alloc().
+	@return free length */
+	inline ulong get_free_len() const;
+
+	/** Find the redo_list element corresponding to a redo log record.
+	@param[in] data redo log record
+	@return redo list element */
+	buf_block_t *get_block(const void *data) const;
 };
 
 /** The recovery system */
@@ -391,11 +413,5 @@ times! */
 /** Size of block reads when the log groups are scanned forward to do a
 roll-forward */
 #define RECV_SCAN_SIZE		(4U << srv_page_size_shift)
-
-/** This many frames must be left free in the buffer pool when we scan
-the log and store the scanned log records in the buffer pool: we will
-use these free frames to read in pages when we start applying the
-log records to the database. */
-extern ulint	recv_n_pool_free_frames;
 
 #endif

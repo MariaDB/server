@@ -55,10 +55,6 @@ Created 9/20/1997 Heikki Tuuri
 #include "srv0srv.h"
 #include "srv0start.h"
 
-/** Log records are stored in the hash table in chunks at most of this size;
-this must be less than srv_page_size as it is stored in the buffer pool */
-#define RECV_DATA_BLOCK_SIZE	(MEM_MAX_ALLOC_IN_BUF - sizeof(recv_t::data_t) - REDZONE_SIZE)
-
 /** Read-ahead area in applying log records to file pages */
 #define RECV_READ_AHEAD_AREA	32U
 
@@ -100,14 +96,6 @@ static ulint	recv_previous_parsed_rec_offset;
 /** The 'multi' flag of the previous parsed redo log record */
 static ulint	recv_previous_parsed_rec_is_multi;
 
-/** This many frames must be left free in the buffer pool when we scan
-the log and store the scanned log records in the buffer pool: we will
-use these free frames to read in pages when we start applying the
-log records to the database.
-This is the default value. If the actual size of the buffer pool is
-larger than 10 MB we'll set this value to 512. */
-ulint	recv_n_pool_free_frames;
-
 /** The maximum lsn we see for a page during the recovery process. If this
 is bigger than the lsn we are able to scan up to, that is an indication that
 the recovery failed and the database may be corrupt. */
@@ -145,8 +133,7 @@ struct recv_t : public log_rec_t
   struct data_t
   {
     /** pointer to the next chunk, or NULL for the last chunk.  The
-    log record data (at most RECV_DATA_BLOCK_SIZE bytes per chunk)
-    is stored immediately after this field. */
+    log record data is stored immediately after this field. */
     data_t *next= NULL;
 
     data_t() {}
@@ -689,11 +676,6 @@ void recv_sys_t::close()
 		dblwr.pages.clear();
 		pages.clear();
 
-		if (heap) {
-			mem_heap_free(heap);
-			heap = NULL;
-		}
-
 		if (flush_start) {
 			os_event_destroy(flush_start);
 		}
@@ -800,8 +782,6 @@ void recv_sys_t::create()
 	mutex_create(LATCH_ID_RECV_SYS, &mutex);
 	mutex_create(LATCH_ID_RECV_WRITER, &writer_mutex);
 
-	heap = mem_heap_create_typed(256, MEM_HEAP_FOR_RECV_SYS);
-
 	if (!srv_read_only_mode) {
 		flush_start = os_event_create(0);
 		flush_end = os_event_create(0);
@@ -811,8 +791,7 @@ void recv_sys_t::create()
 	apply_log_recs = false;
 	apply_batch_on = false;
 
-	recv_n_pool_free_frames = buf_pool_get_n_pages() / 3;
-
+	max_log_blocks = buf_pool_get_n_pages() / 3;
 	buf = static_cast<byte*>(ut_malloc_dontdump(RECV_PARSING_BUF_SIZE));
 	buf_size = RECV_PARSING_BUF_SIZE;
 	len = 0;
@@ -830,14 +809,24 @@ void recv_sys_t::create()
 
 	memset(truncated_undo_spaces, 0, sizeof truncated_undo_spaces);
 	last_stored_lsn = 0;
+	UT_LIST_INIT(redo_list, &buf_block_t::unzip_LRU);
 }
 
 /** Clear a fully processed set of stored redo log records. */
 inline void recv_sys_t::clear()
 {
-	ut_ad(mutex_own(&mutex));
-	pages.clear();
-	mem_heap_empty(heap);
+  ut_ad(mutex_own(&mutex));
+  pages.clear();
+
+  buf_block_t *prev_block= nullptr;
+  for (buf_block_t *block= UT_LIST_GET_LAST(redo_list);
+       block; block= prev_block)
+  {
+    prev_block= UT_LIST_GET_PREV(unzip_LRU, block);
+    ut_ad(buf_block_get_state(block) == BUF_BLOCK_MEMORY);
+    UT_LIST_REMOVE(redo_list, block);
+    buf_block_free(block);
+  }
 }
 
 /** Free most recovery data structures. */
@@ -848,11 +837,9 @@ void recv_sys_t::debug_free()
 	mutex_enter(&mutex);
 
 	pages.clear();
-	mem_heap_free(heap);
 	ut_free_dodump(buf, buf_size);
 
 	buf = NULL;
-	heap = NULL;
 
 	/* wake page cleaner up to progress */
 	if (!srv_read_only_mode) {
@@ -863,6 +850,88 @@ void recv_sys_t::debug_free()
 	}
 
 	mutex_exit(&mutex);
+}
+
+inline ulong recv_sys_t::get_free_len() const
+{
+  if (UT_LIST_GET_LEN(redo_list) == 0)
+    return 0;
+
+  return srv_page_size - UT_LIST_GET_FIRST(redo_list)->modify_clock;
+}
+
+byte* recv_sys_t::alloc(uint32_t len
+#ifdef UNIV_DEBUG
+                        ,bool store_data
+#endif
+		        )
+{
+  buf_block_t *block= UT_LIST_GET_FIRST(redo_list);
+  uint64_t free_offset= !block ? 0:block->modify_clock;
+
+  if (!store_data &&
+      (free_offset + len + sizeof(recv_t::data) + 1) >= srv_page_size)
+     goto create_block;
+
+  if (!UT_LIST_GET_LEN(redo_list))
+    goto create_block;
+  if (free_offset + len <= srv_page_size)
+  {
+#ifdef UNIV_DEBUG
+    if (store_data)
+      block->page.fix();
+#endif
+    block->modify_clock+= len;
+  }
+  else
+  {
+create_block:
+    buf_block_t *new_block= buf_block_alloc(nullptr);
+    new_block->modify_clock= 0;
+    UT_LIST_ADD_FIRST(redo_list, new_block);
+
+#ifdef UNIV_DEBUG
+    if (store_data)
+      new_block->page.fix();
+#endif
+    if (len < srv_page_size)
+      new_block->modify_clock+= len;
+    else
+      new_block->modify_clock= srv_page_size;
+
+    return new_block->frame;
+  }
+  return block->frame + free_offset;
+}
+
+#ifdef UNIV_DEBUG
+static void validate_redo_blocks()
+{
+  buf_block_t *prev_block= nullptr;
+  for (buf_block_t *block= UT_LIST_GET_LAST(recv_sys.redo_list);
+       block != nullptr;)
+  {
+    prev_block= UT_LIST_GET_PREV(unzip_LRU, block);
+    if (0 == Atomic_counter<uint32_t>(block->page.buf_fix_count))
+    {
+      UT_LIST_REMOVE(recv_sys.redo_list, block);
+      buf_block_free(block);
+    }
+
+    block= prev_block;
+  }
+}
+#endif
+
+buf_block_t *recv_sys_t::get_block(const void* page) const
+{
+  for (buf_block_t *block= UT_LIST_GET_LAST(redo_list);
+       block; block = UT_LIST_GET_PREV(unzip_LRU, block))
+    if (block->frame == page_align(page))
+      return block;
+
+  ut_ad(0);
+  return nullptr;
 }
 
 /** Read a log segment to log_sys.buf.
@@ -1759,16 +1828,19 @@ inline void recv_sys_t::add(mlog_id_t type, const page_id_t page_id,
   /* Store the log record body in limited-size chunks, because the
   heap grows into the buffer pool. */
   uint32_t len= uint32_t(rec_end - body);
-  const uint32_t chunk_limit= static_cast<uint32_t>(RECV_DATA_BLOCK_SIZE);
 
-  recv_t *recv= new (mem_heap_alloc(heap, sizeof(recv_t)))
-    recv_t(len, type, lsn, end_lsn);
+  recv_t* recv = new (alloc(sizeof(recv_t)))
+	   recv_t(len, type, lsn, end_lsn);
   recs.log.append(recv);
 
   for (recv_t::data_t *prev= NULL;;) {
-    const uint32_t l= std::min(len, chunk_limit);
-    recv_t::data_t *d= new (mem_heap_alloc(heap, sizeof(recv_t::data_t) + l))
-      recv_t::data_t(body, l);
+    uint32_t data_free_limit = get_free_len() - sizeof(recv_t::data);
+    const uint32_t l= std::min(len, data_free_limit);
+    recv_t::data_t *d= new (alloc(sizeof(recv_t::data) + l
+#ifdef UNIV_DEBUG
+			    , true
+#endif
+			    ))recv_t::data_t(body, l);
     if (prev)
       prev->append(d);
     else
@@ -1819,15 +1891,24 @@ recv_data_copy_to_buf(
 	const recv_t& recv)	/*!< in: log record */
 {
 	const recv_t::data_t* recv_data = recv.data;
+	page_t* initial_page = page_align(recv_data);
 	ulint len = recv.len;
-	const ulint chunk_limit = static_cast<ulint>(RECV_DATA_BLOCK_SIZE);
 
 	do {
+		ulint offset = page_offset(recv_data + 1);
+		buf_block_t* block = recv_sys.get_block(recv_data);
+		const ulint chunk_limit = (srv_page_size - offset);
 		const ulint l = std::min(len, chunk_limit);
 		memcpy(buf, reinterpret_cast<const byte*>(recv_data + 1), l);
 		recv_data = recv_data->next;
 		buf += l;
 		len -= l;
+
+#ifdef UNIV_DEBUG
+		if (initial_page != block->frame) {
+			block->page.unfix();
+		}
+#endif
 	} while (len);
 }
 
@@ -1870,7 +1951,6 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 	lsn_t start_lsn = 0, end_lsn = 0;
 	ut_d(lsn_t recv_start_lsn = 0);
 	const lsn_t init_lsn = init ? init->lsn : 0;
-	const ulint chunk_limit = static_cast<ulint>(RECV_DATA_BLOCK_SIZE);
 
 	for (const log_rec_t* l : p->second.log) {
 		ut_ad(l->lsn);
@@ -1915,10 +1995,13 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 				 << " len " << recv->len
 				 << " page " << block->page.id);
 
+			ulint data_offset = page_offset(recv->data + 1);
 			byte* buf;
 			const byte* recs;
+			ut_d(buf_block_t* first_block = recv_sys.get_block(
+					recv->data + 1););
 
-			if (UNIV_UNLIKELY(recv->len > chunk_limit)) {
+			if (srv_page_size - data_offset < recv->len) {
 				/* We have to copy the record body to
 				a separate buffer */
 				recs = buf = static_cast<byte*>
@@ -1933,6 +2016,8 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 			recv_parse_or_apply_log_rec_body(
 				recv->type, recs, recs + recv->len,
 				block->page.id, true, block, &mtr);
+
+			ut_d(first_block->page.unfix());
 			ut_free(buf);
 
 			end_lsn = recv->start_lsn + recv->len;
@@ -2301,6 +2386,10 @@ done:
 
 	recv_sys.clear();
 
+#ifdef UNIV_DEBUG
+	validate_redo_blocks();
+#endif
+
 	mutex_exit(&recv_sys.mutex);
 }
 
@@ -2493,14 +2582,13 @@ recv_mlog_index_load(ulint space_id, ulint page_no, lsn_t lsn)
 	}
 }
 
-/** Check whether read redo log memory exceeds the available memory
-of buffer pool. Store last_stored_lsn if it is not in last phase
-@param[in]	store		whether to store page operations
-@param[in]	available_mem	Available memory in buffer pool to
-				read redo logs. */
-static bool recv_sys_heap_check(store_t* store, ulint available_mem)
+/** Check whether read redo log blocks exceeds the recv_sys.num_max_blocks.
+Store last_stored_lsn if it is not in last phase
+@param[in]	store		whether to store page operations */
+static bool recv_sys_heap_check(store_t *store)
 {
-  if (*store != STORE_NO && mem_heap_get_size(recv_sys.heap) >= available_mem)
+  if (*store != STORE_NO
+      && UT_LIST_GET_LEN(recv_sys.redo_list) >= recv_sys.max_log_blocks)
   {
     if (*store == STORE_YES)
       recv_sys.last_stored_lsn= recv_sys.recovered_lsn;
@@ -2520,12 +2608,10 @@ static bool recv_sys_heap_check(store_t* store, ulint available_mem)
 hash table to wait merging to file pages.
 @param[in]	checkpoint_lsn		the LSN of the latest checkpoint
 @param[in]	store			whether to store page operations
-@param[in]	available_mem		memory to read the redo logs
 @param[in]	apply			whether to apply the records
 @return whether MLOG_CHECKPOINT record was seen the first time,
 or corruption was noticed */
-bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t* store,
-			 ulint available_mem, bool apply)
+bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t* store, bool apply)
 {
 	bool		single_rec;
 	ulint		len;
@@ -2551,7 +2637,7 @@ loop:
 
 	/* Check for memory overflow and ignore the parsing of remaining
 	redo log records if InnoDB ran out of memory */
-	if (recv_sys_heap_check(store, available_mem) && last_phase) {
+	if (recv_sys_heap_check(store) && last_phase) {
 		return false;
 	}
 
@@ -2925,13 +3011,11 @@ void recv_sys_justify_left_parsing_buf()
 /** Scan redo log from a buffer and stores new log data to the parsing buffer.
 Parse and hash the log records if new data found.
 Apply log records automatically when the hash table becomes full.
-@param[in]	available_mem		we let the hash table of recs to
-					grow to this size, at the maximum
 @param[in,out]	store_to_hash		whether the records should be
 					stored to the hash table; this is
 					reset if just debug checking is
-					needed, or when the available_mem
-					runs out
+					needed, or when the num_max_blocks in
+					recv_sys runs out
 @param[in]	log_block		log segment
 @param[in]	checkpoint_lsn		latest checkpoint LSN
 @param[in]	start_lsn		buffer start LSN
@@ -2941,7 +3025,6 @@ Apply log records automatically when the hash table becomes full.
 @param[out]	group_scanned_lsn	scanning succeeded upto this lsn
 @return true if not able to scan any more in this log group */
 static bool recv_scan_log_recs(
-	ulint		available_mem,
 	store_t*	store_to_hash,
 	const byte*	log_block,
 	lsn_t		checkpoint_lsn,
@@ -3097,8 +3180,7 @@ static bool recv_scan_log_recs(
 		/* Try to parse more log records */
 
 		if (recv_parse_log_recs(checkpoint_lsn,
-					store_to_hash, available_mem,
-					apply)) {
+					store_to_hash, apply)) {
 			ut_ad(recv_sys.found_corrupt_log
 			      || recv_sys.found_corrupt_fs
 			      || recv_sys.mlog_checkpoint_lsn
@@ -3107,7 +3189,7 @@ static bool recv_scan_log_recs(
 			goto func_exit;
 		}
 
-		recv_sys_heap_check(store_to_hash, available_mem);
+		recv_sys_heap_check(store_to_hash);
 
 		if (recv_sys.recovered_offset > recv_parsing_buf_size / 4) {
 			/* Move parsing buffer data to the buffer start */
@@ -3164,9 +3246,6 @@ recv_group_scan_log_recs(
 	lsn_t	end_lsn;
 	store_t	store_to_hash	= recv_sys.mlog_checkpoint_lsn == 0
 		? STORE_NO : (last_phase ? STORE_IF_EXISTS : STORE_YES);
-	ulint	available_mem	= srv_page_size
-		* (buf_pool_get_n_pages()
-		   - (recv_n_pool_free_frames * srv_buf_pool_instances));
 
 	log_sys.log.scanned_lsn = end_lsn = *contiguous_lsn =
 		ut_uint64_align_down(*contiguous_lsn, OS_FILE_LOG_BLOCK_SIZE);
@@ -3185,7 +3264,7 @@ recv_group_scan_log_recs(
 		log_sys.log.read_log_seg(&end_lsn, start_lsn + RECV_SCAN_SIZE);
 	} while (end_lsn != start_lsn
 		 && !recv_scan_log_recs(
-			 available_mem, &store_to_hash, log_sys.buf,
+			 &store_to_hash, log_sys.buf,
 			 checkpoint_lsn,
 			 start_lsn, end_lsn,
 			 contiguous_lsn, &log_sys.log.scanned_lsn));

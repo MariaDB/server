@@ -2679,7 +2679,7 @@ static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn, bool last)
 
 	store_t store = STORE_NO;
 
-	if (more_data && recv_parse_log_recs(0, &store, 0, false)) {
+	if (more_data && recv_parse_log_recs(0, &store, false)) {
 
 		msg("Error: copying the log failed");
 
