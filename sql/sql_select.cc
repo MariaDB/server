@@ -23241,6 +23241,19 @@ check_reverse_order:
                                 join_read_first:join_read_last;
         tab->type=JT_NEXT;           // Read with index_first(), index_next()
 
+        /*
+          Currently usage of rowid filters is not supported in InnoDB
+          if the table is accessed by the primary key
+        */
+        if (tab->rowid_filter &&
+            tab->index == table->s->primary_key &&
+            table->file->primary_key_is_clustered())
+	{
+          tab->range_rowid_filter_info= 0;
+          delete tab->rowid_filter;
+          tab->rowid_filter= 0;
+        }
+
         if (tab->pre_idx_push_select_cond)
         {
           tab->set_cond(tab->pre_idx_push_select_cond);
