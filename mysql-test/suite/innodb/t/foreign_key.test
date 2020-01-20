@@ -243,7 +243,7 @@ DROP TABLE t1;
 --echo # in ib_push_warning / dict_create_foreign_constraints_low
 --echo #
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
 SHOW WARNINGS;
 DROP TABLE t1;

@@ -64,7 +64,7 @@ drop table t2, t1;
 #
 
 create table t1 (f1 integer primary key) engine=innodb;
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 alter table t1 add constraint c1 foreign key (f1) references t11(f1);
 show warnings;
 drop table t1;

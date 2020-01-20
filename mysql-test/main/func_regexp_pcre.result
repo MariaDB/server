@@ -526,16 +526,20 @@ c
 b
 SELECT REGEXP_REPLACE('a\rb','(*LF)(?m)^a$','c');
 REGEXP_REPLACE('a\rb','(*LF)(?m)^a$','c')
-ab
+a
+b
 SELECT REGEXP_REPLACE('a\rb','(*CR)(?m)^a$','c');
 REGEXP_REPLACE('a\rb','(*CR)(?m)^a$','c')
-cb
+c
+b
 SELECT REGEXP_REPLACE('a\rb','(*CRLF)(?m)^a$','c');
 REGEXP_REPLACE('a\rb','(*CRLF)(?m)^a$','c')
-ab
+a
+b
 SELECT REGEXP_REPLACE('a\rb','(*ANYCRLF)(?m)^a$','c');
 REGEXP_REPLACE('a\rb','(*ANYCRLF)(?m)^a$','c')
-cb
+c
+b
 SELECT REGEXP_REPLACE('a\r\nb','(*LF)(?m)^a$','c');
 REGEXP_REPLACE('a\r\nb','(*LF)(?m)^a$','c')
 a
