@@ -1651,6 +1651,7 @@ SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
 --sync_with_master
 SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
 --source include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
 SET DEBUG_SYNC= 'RESET';
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
