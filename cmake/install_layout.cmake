@@ -139,11 +139,10 @@ SET(INSTALL_SYSCONF2DIR_RPM             "/etc/my.cnf.d")
 #
 IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
   SET(INSTALL_LIBDIR_RPM                "lib64")
-  SET(INSTALL_PLUGINDIR_RPM             "lib64/mysql/plugin")
 ELSE()
   SET(INSTALL_LIBDIR_RPM                "lib")
-  SET(INSTALL_PLUGINDIR_RPM             "lib/mysql/plugin")
 ENDIF()
+SET(INSTALL_PLUGINDIR_RPM               "${INSTALL_LIBDIR_RPM}/mysql/plugin")
 #
 SET(INSTALL_INCLUDEDIR_RPM              "include/mysql")
 #
@@ -235,17 +234,18 @@ SET(OLD_INSTALL_LAYOUT ${INSTALL_LAYOUT} CACHE INTERNAL "")
 # Set INSTALL_FOODIR variables for chosen layout (for example, INSTALL_BINDIR
 # will be defined  as ${INSTALL_BINDIR_STANDALONE} by default if STANDALONE
 # layout is chosen)
-FOREACH(var BIN SBIN LIB MYSQLSHARE SHARE PLUGIN INCLUDE SCRIPT DOC MAN SYSCONF SYSCONF2
-    INFO MYSQLTEST SQLBENCH DOCREADME SUPPORTFILES MYSQLDATA UNIX_ADDR
-    SYSTEMD_UNIT SYSTEMD_SYSUSERS SYSTEMD_TMPFILES)
-  SET(INSTALL_${var}DIR  ${INSTALL_${var}DIR_${INSTALL_LAYOUT}}
-  CACHE STRING "${var} installation directory" ${FORCE})
-  MARK_AS_ADVANCED(INSTALL_${var}DIR)
+GET_CMAKE_PROPERTY(ALL_VARS VARIABLES)
+FOREACH (V ${ALL_VARS})
+  IF (V MATCHES "^(INSTALL_([A-Z_0-9]+)DIR)_${INSTALL_LAYOUT}$")
+    SET(var ${CMAKE_MATCH_1})
+    SET(${var} "${${V}}" CACHE STRING "${CMAKE_MATCH_2} installation directory" ${FORCE})
+    MARK_AS_ADVANCED(${var})
 
-  IF(IS_ABSOLUTE ${INSTALL_${var}DIR})
-    SET(INSTALL_${var}DIRABS ${INSTALL_${var}DIR})
-  ELSE()
-    SET(INSTALL_${var}DIRABS "${CMAKE_INSTALL_PREFIX}/${INSTALL_${var}DIR}")
+    IF(IS_ABSOLUTE "${${var}}")
+      SET(${var}ABS "${${var}}")
+    ELSE()
+      SET(${var}ABS "${CMAKE_INSTALL_PREFIX}/${${var}}")
+    ENDIF()
   ENDIF()
 ENDFOREACH()
 
