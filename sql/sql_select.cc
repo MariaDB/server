@@ -13997,7 +13997,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
     *simple_order= head->on_expr_ref[0] == NULL;
     if (*simple_order && head->table->file->ha_table_flags() & HA_SLOW_RND_POS)
     {
-      uint u1, u2, u3;
+      uint u1, u2, u3, u4;
       /*
         normally the condition is (see filesort_use_addons())
 
@@ -14008,7 +14008,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
 
         TODO proper cost estimations
       */
-      *simple_order= filesort_use_addons(head->table, 0, &u1, &u2, &u3);
+      *simple_order= filesort_use_addons(head->table, 0, &u1, &u2, &u3, &u4);
     }
   }
   else

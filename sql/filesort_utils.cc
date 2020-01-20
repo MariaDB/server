@@ -96,82 +96,92 @@ double get_merge_many_buffs_cost_fast(ha_rows num_rows,
     #   Pointer to allocated buffer
 */
 
-uchar **Filesort_buffer::alloc_sort_buffer(uint num_records,
-                                           uint record_length)
+uchar *Filesort_buffer::alloc_sort_buffer(uint num_records,
+                                          uint record_length)
 {
   size_t buff_size;
-  uchar **sort_keys, **start_of_data;
   DBUG_ENTER("alloc_sort_buffer");
   DBUG_EXECUTE_IF("alloc_sort_buffer_fail",
                   DBUG_SET("+d,simulate_out_of_memory"););
 
-  buff_size= ((size_t)num_records) * (record_length + sizeof(uchar*));
-  set_if_bigger(buff_size, record_length * MERGEBUFF2); 
+  buff_size= ALIGN_SIZE(num_records * (record_length + sizeof(uchar*)));
 
-  if (!m_idx_array.is_null())
+  /*
+    The minimum memory required should be each merge buffer can hold atmost
+    one key.
+    TODO varun: move this to the place where min_sort_memory is used.
+  */
+  set_if_bigger(buff_size, (record_length +sizeof(uchar*)) * MERGEBUFF2);
+
+  if (m_rawmem)
   {
     /*
       Reuse old buffer if exists and is large enough
       Note that we don't make the buffer smaller, as we want to be
       prepared for next subquery iteration.
     */
-
-    sort_keys= m_idx_array.array();
-    if (buff_size > allocated_size)
+    if (buff_size > m_size_in_bytes)
     {
       /*
         Better to free and alloc than realloc as we don't have to remember
         the old values
       */
-      my_free(sort_keys);
-      if (!(sort_keys= (uchar**) my_malloc(buff_size,
-                                           MYF(MY_THREAD_SPECIFIC))))
+      my_free(m_rawmem);
+      if (!(m_rawmem= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))))
       {
-        reset();
+        m_size_in_bytes= 0;
         DBUG_RETURN(0);
       }
-      allocated_size= buff_size;
     }
   }
   else
   {
-    if (!(sort_keys= (uchar**) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))))
+    if (!(m_rawmem= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))))
+    {
+      m_size_in_bytes= 0;
       DBUG_RETURN(0);
-    allocated_size= buff_size;
+    }
+
   }
 
-  m_idx_array= Idx_array(sort_keys, num_records);
+  m_size_in_bytes= buff_size;
+  m_record_pointers= reinterpret_cast<uchar**>(m_rawmem) +
+                     ((m_size_in_bytes / sizeof(uchar*)) - 1);
+  m_num_records= num_records;
   m_record_length= record_length;
-  start_of_data= m_idx_array.array() + m_idx_array.size();
-  m_start_of_data= reinterpret_cast<uchar*>(start_of_data);
-
-  DBUG_RETURN(m_idx_array.array());
+  m_idx= 0;
+  DBUG_RETURN(m_rawmem);
 }
 
 
 void Filesort_buffer::free_sort_buffer()
 {
-  my_free(m_idx_array.array());
-  m_idx_array.reset();
-  m_start_of_data= NULL;
+  my_free(m_rawmem);
+  *this= Filesort_buffer();
 }
 
 
 void Filesort_buffer::sort_buffer(const Sort_param *param, uint count)
 {
   size_t size= param->sort_length;
+  m_sort_keys= get_sort_keys();
+
   if (count <= 1 || size == 0)
     return;
-  uchar **keys= get_sort_keys();
+
+  // dont reverse for PQ, it is already done
+  if (!param->using_pq)
+    reverse_record_pointers();
+
   uchar **buffer= NULL;
   if (radixsort_is_appliccable(count, param->sort_length) &&
       (buffer= (uchar**) my_malloc(count*sizeof(char*),
                                    MYF(MY_THREAD_SPECIFIC))))
   {
-    radixsort_for_str_ptr(keys, count, param->sort_length, buffer);
+    radixsort_for_str_ptr(m_sort_keys, count, param->sort_length, buffer);
     my_free(buffer);
     return;
   }
   
-  my_qsort2(keys, count, sizeof(uchar*), get_ptr_compare(size), &size);
+  my_qsort2(m_sort_keys, count, sizeof(uchar*), get_ptr_compare(size), &size);
 }

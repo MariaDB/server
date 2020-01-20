@@ -120,7 +120,7 @@ SELECT matricule, nom, prenom FROM t2 WHERE nom <= 'ABEL' OR nom > 'YVON';
 SELECT matricule, nom, prenom FROM t2 WHERE nom > 'HELEN' AND nom < 'HEROS';
 SELECT matricule, nom, prenom FROM t2 WHERE nom BETWEEN 'HELEN' AND 'HEROS';
 SELECT matricule, nom, prenom FROM t2 WHERE nom BETWEEN 'HELEN' AND 'HEROS' AND prenom = 'PHILIPPE';
-SELECT matricule, nom, prenom FROM t2 ORDER BY nom LIMIT 10;
+SELECT matricule, nom, prenom FROM t2 ORDER BY nom,prenom LIMIT 10;
 SELECT a.nom, a.prenom, b.nom FROM t1 a STRAIGHT_JOIN t2 b ON a.prenom = b.prenom WHERE a.nom = 'FOCH' AND a.nom != b.nom;
 
 DROP TABLE t2;

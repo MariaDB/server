@@ -1,0 +1,328 @@
+set @save_rand_seed1=  @@RAND_SEED1;
+set @save_rand_seed2=  @@RAND_SEED2;
+set @@RAND_SEED1=810763568, @@RAND_SEED2=600681772;
+create table t1(a int);
+insert into t1 select seq from seq_1_to_10000 order by rand();
+#
+# parameters:
+# mean           mean for the column to be considered
+# max_val        max_value for the column to be considered
+#
+# This function generate a sample of a normal distribution
+# This function return a point
+# of the normal distribution with a given mean.
+#
+CREATE FUNCTION
+generate_normal_distribution_sample(mean DOUBLE, max_val DOUBLE)RETURNS DOUBLE
+BEGIN
+DECLARE z DOUBLE DEFAULT 0;
+SET z= (rand() + rand() + rand() + rand() + rand() + rand())/6;
+SET z= 2*(max_val-mean)*z;
+SET z= z + mean - (max_val-mean);
+return z;
+END|
+#
+# parameters:
+# len      length of the random string to be generated
+#
+# This function generates a random string for the length passed
+# as an argument with characters in the range of [A,Z]
+#
+CREATE FUNCTION generate_random_string(len INT) RETURNS varchar(128)
+BEGIN
+DECLARE str VARCHAR(256) DEFAULT '';
+DECLARE x INT DEFAULT 0;
+WHILE (len > 0) DO
+SET x =round(rand()*25);
+SET str= CONCAT(str, CHAR(65 + x));
+SET len= len-1;
+END WHILE;
+RETURN str;
+END|
+#
+# parameters:
+# mean      mean for the column to be considered
+# min_val   min_value for the column to be considered
+# max_val   max_value for the column to be considered
+#
+# This function generate a normal distribution sample in the range of
+# [min_val, max_val]
+#
+CREATE FUNCTION
+clipped_normal_distribution(mean DOUBLE, min_val DOUBLE, max_val DOUBLE)
+RETURNS INT
+BEGIN
+DECLARE r DOUBLE DEFAULT 0;
+WHILE 1=1 DO
+set r= generate_normal_distribution_sample(mean, max_val);
+IF (r >= min_val AND r <= max_val) THEN
+RETURN round(r);
+end if;
+END WHILE;
+RETURN 0;
+END|
+create table t2 (id INT NOT NULL, a INT, b int);
+insert into t2
+select a, clipped_normal_distribution(12, 0, 64),
+clipped_normal_distribution(32, 0, 128)
+from t1;
+CREATE TABLE t3(
+id INT NOT NULL,
+names VARCHAR(64),
+address VARCHAR(128),
+PRIMARY KEY (id)
+);
+#
+# table t3 stores random strings calculated from the length stored in
+# table t2
+#
+insert into t3
+select id, generate_random_string(a), generate_random_string(b) from t2;
+#
+# All records fit in memory
+#
+set sort_buffer_size=262144*10;
+flush status;
+select id DIV 100 as x,
+MD5(group_concat(substring(names,1,3), substring(address,1,3)
+order by substring(names,1,3), substring(address,1,3)))
+FROM t3
+GROUP BY x;
+x	MD5(group_concat(substring(names,1,3), substring(address,1,3)
+order by substring(names,1,3), substring(address,1,3)))
+0	c2ecc41f0e37144931dbd51c286d3169
+1	65104765025a5550d2070c320c896660
+2	d2d10899abcc3be7de55092b260afbfa
+3	a44e5be670968b49b0cb1b5665f53cc5
+4	c906c31cc6f40c63f1901d257680d71f
+5	07ded386a3d789b64462eb9a9525aee1
+6	760ff88f2409ccb3319c57c3a38fe7d2
+7	320d65f718acf0876c0dbda053129d24
+8	73ace6baf48996f86b741105957ce46b
+9	cf80b0efda4108abd584ba47fea0158d
+10	6f8db75fbae31d381472c16d91c1f52b
+11	762315d05abf1d8589eb15238d03d0f3
+12	2948a913b6dfea8499605ac342c897a1
+13	789c300f6576c27d7f9ed5694b0d8fba
+14	8c83fad606cb84de677520dc6fb895f2
+15	37f499f1e50d6fb5ecb09e78d1e2e692
+16	2a953b23c198cf922a58d5ea5e12db0e
+17	ebc1145c9f4324194fc8d85d6e29ed1b
+18	2662c807f21177eb6fcdaf4688641819
+19	a423cee02d23022f9e2ffbd8a3627a7c
+20	0418584d7634ffde4f6988d93f5e2a0f
+21	f832993560565217e6dd30f8300c1c11
+22	b2ffce93f4fc478e0c1ca96fd4accee3
+23	85c7299ac9207a88b6fd9bb69fbf43aa
+24	ab2b9e611e3a8c2f470b05552cb82a4d
+25	2cb134bd2ecf3d07b702ac1f3f171a9c
+26	2e60abcf5605e65075b7e7587f2294a5
+27	705872095781fd7a87882606bb8ab423
+28	78a7e8ab78c35dae4ddf4c4f593c8cf4
+29	943c1fbf466257bb7a4d7af6b6a19165
+30	691c2ce1c6d20fdcfbf65b132c80b7a0
+31	4854dd9d208e0b45cb2e5b6d0fefe6c8
+32	f43993c3d59c03c5cf4c8e2a1ab95533
+33	4c5d5e658aba5bd8aa770a86bff05200
+34	f531b17fba7abce233f95941b42aad58
+35	f44e1f990acfcd7902c5743409412563
+36	a7d39877de8502cce6ffbc4809749eba
+37	49062ade86448805b6a222707bf45ad0
+38	c94368aa13843cc892b75eb71683aaba
+39	483247b82751113caab96ea183a9ca3b
+40	f6cf9046d05c13ae88ba7a5676b81f89
+41	1ca6c62cd730db36d49daca2d1b0ec7c
+42	2b519acd4877e780e7200659d01d43af
+43	eb59acd9a1bf374468b4986325ec2b83
+44	20137caed121517632937703d1011c18
+45	72437c79e41164c2b759702cbb36b179
+46	3c5479be06f2262e8867e967299bbb3b
+47	2084e6be3e7b18019bd874cded1c8bd6
+48	efc7de387fa2399a35a59318052a06f4
+49	8a734e334febc6f2ca45db6b846be5d4
+50	f53fafc0e8d431be62de75e0f16ee745
+51	53a0f5f1b88776c84fe22e2c3254444c
+52	9b53bc61795233850e5d958a9ba415f5
+53	a703edddf3cedbca2d331c96199cf663
+54	0e05181a4a223f43e36742021ac012ad
+55	04dad2a66800104ed8c7fad8c05135a6
+56	913795d9c8c3ddb865b81039a662ba0f
+57	fd84229b981c0dcf9f2a79e9d94cf154
+58	9ae667ec6ab7c2eb0bf5a06807042e59
+59	2e445d3921c94fe2faf400708ea83e8b
+60	dcd5f407001d00f8224bb1449254b3a3
+61	1aaacf09ce7209ed23fa0875be09a133
+62	e5face2b007eeaaa837895a6e32c63f0
+63	43a38c4b0243555e9cf655ce60c8403a
+64	6b3ca212cd7cf131f4bd8bdd9085618b
+65	ffda0a086d4259b9c48bd26391f7ebaf
+66	1f392bbb0662c3e1cb97073a5e119570
+67	33c8041b5a8341f1b117e40b2f8bd0ee
+68	b203f57d48d584ff5479f76ce76e6eba
+69	72a6172c2b14abbf64ab74a27f03fc89
+70	12a05415f69f217712ac65a0858ddfdc
+71	8bdd033aa314600e78585dc42a88c28b
+72	b2b70633781346cfa203e243319f6409
+73	cb158a725e4f3f1ef6f2053751db07d0
+74	82f3963cfebe83618ea21af5fd38d164
+75	cfb9e6e451c6855e1a7dce78d7b4cc5a
+76	eab0e37d16bbc78b21e234767f5056eb
+77	c76407fe3c50d02fba700da0011167cc
+78	1339da94058abc3fcfcf61a81e1597b7
+79	3c58d27f69d6e927bd0cb1b16bdb30ba
+80	1e500d97a85b3dd3a0b4048fe6ad54ae
+81	d03d3e0bc34d1aec0569567d0ca25365
+82	55d7ddafa551c8b7e0f6aec128ca6442
+83	8ee668de06a360b26af96902edd1c12f
+84	3b8914e6a79a67037057781cf25b6825
+85	37039d22b6e3fb8e26c29eb459ca81ae
+86	707da7bd7982b4ba685981bf32b20103
+87	c3bf51c8c12289d200c2aa0532b3b6c3
+88	5a20abf3322051f8cbc5c0d1d96724e1
+89	1e3e3e730c8447afb79331f6740d379d
+90	0414da13cd7ac8cc53ed97f9c12f52a8
+91	b862c11cc516d750ccac6e10436c6746
+92	0e7febc44370fd57a370d3fbdd9bf16c
+93	85488f13dd47b028a9db94e136eae19d
+94	f9605bb472f52d1775e669b86691e848
+95	33b4d6bc8f327e1a48328d5f5071d7e7
+96	917e41d300faaedfb5d1a67eafa85ef4
+97	b7764a86130d50379833b9606460c2d2
+98	f1b5d819e4441898a6278b99859a1774
+99	1a4bcfaa64467f4bc03f0f00b27cf063
+100	cbd5cef546acc0bfa33117d7c1ae58a8
+show status like '%sort%';
+Variable_name	Value
+Sort_merge_passes	0
+Sort_priority_queue_sorts	0
+Sort_range	0
+Sort_rows	10000
+Sort_scan	1
+set sort_buffer_size=default;
+#
+# Test for merge_many_buff
+#
+set sort_buffer_size=32768;
+flush status;
+select id DIV 100 as x,
+MD5(group_concat(substring(names,1,3), substring(address,1,3)
+order by substring(names,1,3), substring(address,1,3)))
+FROM t3
+GROUP BY x;
+x	MD5(group_concat(substring(names,1,3), substring(address,1,3)
+order by substring(names,1,3), substring(address,1,3)))
+0	c2ecc41f0e37144931dbd51c286d3169
+1	65104765025a5550d2070c320c896660
+2	d2d10899abcc3be7de55092b260afbfa
+3	a44e5be670968b49b0cb1b5665f53cc5
+4	c906c31cc6f40c63f1901d257680d71f
+5	07ded386a3d789b64462eb9a9525aee1
+6	760ff88f2409ccb3319c57c3a38fe7d2
+7	320d65f718acf0876c0dbda053129d24
+8	73ace6baf48996f86b741105957ce46b
+9	cf80b0efda4108abd584ba47fea0158d
+10	6f8db75fbae31d381472c16d91c1f52b
+11	762315d05abf1d8589eb15238d03d0f3
+12	2948a913b6dfea8499605ac342c897a1
+13	789c300f6576c27d7f9ed5694b0d8fba
+14	8c83fad606cb84de677520dc6fb895f2
+15	37f499f1e50d6fb5ecb09e78d1e2e692
+16	2a953b23c198cf922a58d5ea5e12db0e
+17	ebc1145c9f4324194fc8d85d6e29ed1b
+18	2662c807f21177eb6fcdaf4688641819
+19	a423cee02d23022f9e2ffbd8a3627a7c
+20	0418584d7634ffde4f6988d93f5e2a0f
+21	f832993560565217e6dd30f8300c1c11
+22	b2ffce93f4fc478e0c1ca96fd4accee3
+23	85c7299ac9207a88b6fd9bb69fbf43aa
+24	ab2b9e611e3a8c2f470b05552cb82a4d
+25	2cb134bd2ecf3d07b702ac1f3f171a9c
+26	2e60abcf5605e65075b7e7587f2294a5
+27	705872095781fd7a87882606bb8ab423
+28	78a7e8ab78c35dae4ddf4c4f593c8cf4
+29	943c1fbf466257bb7a4d7af6b6a19165
+30	691c2ce1c6d20fdcfbf65b132c80b7a0
+31	4854dd9d208e0b45cb2e5b6d0fefe6c8
+32	f43993c3d59c03c5cf4c8e2a1ab95533
+33	4c5d5e658aba5bd8aa770a86bff05200
+34	f531b17fba7abce233f95941b42aad58
+35	f44e1f990acfcd7902c5743409412563
+36	a7d39877de8502cce6ffbc4809749eba
+37	49062ade86448805b6a222707bf45ad0
+38	c94368aa13843cc892b75eb71683aaba
+39	483247b82751113caab96ea183a9ca3b
+40	f6cf9046d05c13ae88ba7a5676b81f89
+41	1ca6c62cd730db36d49daca2d1b0ec7c
+42	2b519acd4877e780e7200659d01d43af
+43	eb59acd9a1bf374468b4986325ec2b83
+44	20137caed121517632937703d1011c18
+45	72437c79e41164c2b759702cbb36b179
+46	3c5479be06f2262e8867e967299bbb3b
+47	2084e6be3e7b18019bd874cded1c8bd6
+48	efc7de387fa2399a35a59318052a06f4
+49	8a734e334febc6f2ca45db6b846be5d4
+50	f53fafc0e8d431be62de75e0f16ee745
+51	53a0f5f1b88776c84fe22e2c3254444c
+52	9b53bc61795233850e5d958a9ba415f5
+53	a703edddf3cedbca2d331c96199cf663
+54	0e05181a4a223f43e36742021ac012ad
+55	04dad2a66800104ed8c7fad8c05135a6
+56	913795d9c8c3ddb865b81039a662ba0f
+57	fd84229b981c0dcf9f2a79e9d94cf154
+58	9ae667ec6ab7c2eb0bf5a06807042e59
+59	2e445d3921c94fe2faf400708ea83e8b
+60	dcd5f407001d00f8224bb1449254b3a3
+61	1aaacf09ce7209ed23fa0875be09a133
+62	e5face2b007eeaaa837895a6e32c63f0
+63	43a38c4b0243555e9cf655ce60c8403a
+64	6b3ca212cd7cf131f4bd8bdd9085618b
+65	ffda0a086d4259b9c48bd26391f7ebaf
+66	1f392bbb0662c3e1cb97073a5e119570
+67	33c8041b5a8341f1b117e40b2f8bd0ee
+68	b203f57d48d584ff5479f76ce76e6eba
+69	72a6172c2b14abbf64ab74a27f03fc89
+70	12a05415f69f217712ac65a0858ddfdc
+71	8bdd033aa314600e78585dc42a88c28b
+72	b2b70633781346cfa203e243319f6409
+73	cb158a725e4f3f1ef6f2053751db07d0
+74	82f3963cfebe83618ea21af5fd38d164
+75	cfb9e6e451c6855e1a7dce78d7b4cc5a
+76	eab0e37d16bbc78b21e234767f5056eb
+77	c76407fe3c50d02fba700da0011167cc
+78	1339da94058abc3fcfcf61a81e1597b7
+79	3c58d27f69d6e927bd0cb1b16bdb30ba
+80	1e500d97a85b3dd3a0b4048fe6ad54ae
+81	d03d3e0bc34d1aec0569567d0ca25365
+82	55d7ddafa551c8b7e0f6aec128ca6442
+83	8ee668de06a360b26af96902edd1c12f
+84	3b8914e6a79a67037057781cf25b6825
+85	37039d22b6e3fb8e26c29eb459ca81ae
+86	707da7bd7982b4ba685981bf32b20103
+87	c3bf51c8c12289d200c2aa0532b3b6c3
+88	5a20abf3322051f8cbc5c0d1d96724e1
+89	1e3e3e730c8447afb79331f6740d379d
+90	0414da13cd7ac8cc53ed97f9c12f52a8
+91	b862c11cc516d750ccac6e10436c6746
+92	0e7febc44370fd57a370d3fbdd9bf16c
+93	85488f13dd47b028a9db94e136eae19d
+94	f9605bb472f52d1775e669b86691e848
+95	33b4d6bc8f327e1a48328d5f5071d7e7
+96	917e41d300faaedfb5d1a67eafa85ef4
+97	b7764a86130d50379833b9606460c2d2
+98	f1b5d819e4441898a6278b99859a1774
+99	1a4bcfaa64467f4bc03f0f00b27cf063
+100	cbd5cef546acc0bfa33117d7c1ae58a8
+show status like '%sort%';
+Variable_name	Value
+Sort_merge_passes	4
+Sort_priority_queue_sorts	0
+Sort_range	0
+Sort_rows	10000
+Sort_scan	1
+set sort_buffer_size=default;
+set @@RAND_SEED1= @save_rand_seed1;
+set @@RAND_SEED2= @save_rand_seed2;
+drop function generate_normal_distribution_sample;
+drop function generate_random_string;
+drop function clipped_normal_distribution;
+drop table t1, t2, t3;

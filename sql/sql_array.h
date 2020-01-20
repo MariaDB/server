@@ -85,6 +85,10 @@ public:
 
   Element_type *array() const { return m_array; }
 
+  Element_type *begin() const { return array(); }
+  Element_type *end() const { return array() + m_size; }
+
+
   bool operator==(const Bounds_checked_array<Element_type>&rhs) const
   {
     return m_array == rhs.m_array && m_size == rhs.m_size;
