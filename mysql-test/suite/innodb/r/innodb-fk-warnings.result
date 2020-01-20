@@ -57,12 +57,10 @@ Warning	1215	Cannot add foreign key constraint for `t2`
 drop table t2, t1;
 create table t1 (f1 integer primary key) engine=innodb;
 alter table t1 add constraint c1 foreign key (f1) references t11(f1);
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42S02: Table 'test.t11' doesn't exist
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`t1` with foreign key `c1` constraint failed. Referenced table `test`.`t11` not found in the data dictionary.
-Error	1005	Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `t1`
+Error	1146	Table 'test.t11' doesn't exist
 drop table t1;
 create temporary table t1(a int not null primary key, b int, key(b)) engine=innodb;
 create temporary table t2(a int, foreign key(a) references t1(a)) engine=innodb;

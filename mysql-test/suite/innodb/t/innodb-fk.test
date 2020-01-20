@@ -95,7 +95,7 @@ CREATE TABLE t1 (
   CONSTRAINT fk1 FOREIGN KEY (f1) REFERENCES t1 (id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
---error 1005
+--error ER_NO_SUCH_TABLE
 CREATE TABLE t2 (
   id int(11) NOT NULL AUTO_INCREMENT,
   f2 int(11) NOT NULL,
@@ -115,7 +115,7 @@ CREATE TABLE t2 (
   CONSTRAINT fk2 FOREIGN KEY (f2) REFERENCES t1 (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
---error 1005
+--error ER_NO_SUCH_TABLE
 ALTER TABLE t2 ADD CONSTRAINT fk3 FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE;
 
 show warnings;
@@ -143,7 +143,7 @@ CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES `group` (`Id`)
 
 show create table `kg_test1`.`person`;
 
---error 1005
+--error ER_NO_SUCH_TABLE
 CREATE TABLE `kg_test2`.`person2` (
 `Id` INT(11) NOT NULL AUTO_INCREMENT,
 `Name` VARCHAR(50) NOT NULL,

@@ -193,6 +193,7 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
   constraint_name(rhs.constraint_name),
   ref_db(rhs.ref_db),
   ref_table(rhs.ref_table),
+  ref_table_list(rhs.ref_table_list),
   ref_columns(rhs.ref_columns,mem_root),
   delete_opt(rhs.delete_opt),
   update_opt(rhs.update_opt),

@@ -147,11 +147,11 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
       }
     }
 
+    if (t->s->table_category == TABLE_CATEGORY_SYSTEM)
+      system_count++;
+
     if (t->reginfo.lock_type >= TL_WRITE_ALLOW_WRITE)
     {
-      if (t->s->table_category == TABLE_CATEGORY_SYSTEM)
-        system_count++;
-
       if (t->db_stat & HA_READ_ONLY)
       {
         my_error(ER_OPEN_AS_READONLY, MYF(0), t->alias.c_ptr_safe());

@@ -1,4 +1,6 @@
 drop table if exists t1,t2;
+create table t2(c int);
+create table t3(c int, d int);
 create table t1 (
 a int not null references t2,
 b int not null constraint t2_c references t2 (c),
@@ -12,7 +14,7 @@ foreign key (a,b) references t3 (c,d) on delete set default,
 foreign key (a,b) references t3 (c,d) on update set null);
 create index a on t1 (a);
 create unique index b on t1 (a,b);
-drop table t1;
+drop table t1, t2, t3;
 create table t1 (id int primary key) engine = innodb;
 create table t2 (id int PRIMARY KEY, FOREIGN KEY (id) REFERENCES t1(id)) engine=innodb;
 insert into t1 values (1), (2), (3), (4), (5), (6);
