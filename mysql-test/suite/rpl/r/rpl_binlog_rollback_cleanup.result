@@ -1,0 +1,9 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET GLOBAL max_binlog_cache_size = 65536;
+CREATE TABLE t1(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=INNODB;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mysqld variable and try again
+SET GLOBAL max_binlog_cache_size= ORIGINAL_VALUE;
+DROP TABLE t1;
+include/rpl_end.inc

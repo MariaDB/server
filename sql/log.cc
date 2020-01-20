@@ -488,6 +488,7 @@ private:
   void truncate(my_off_t pos, bool reset_cache=0)
   {
     DBUG_PRINT("info", ("truncating to position %lu", (ulong) pos));
+    cache_log.error=0;
     if (pending())
     {
       delete pending();
@@ -496,7 +497,7 @@ private:
     reinit_io_cache(&cache_log, WRITE_CACHE, pos, 0, reset_cache);
     cache_log.end_of_file= saved_max_binlog_cache_size;
   }
- 
+
   binlog_cache_data& operator=(const binlog_cache_data& info);
   binlog_cache_data(const binlog_cache_data& info);
 };

@@ -22,7 +22,7 @@ source include/stop_slave.inc;
 --echo # Suspend the INSERT statement in current transaction on SQL thread.
 --echo # It guarantees that SQL thread is applying the transaction when
 --echo # STOP SLAVE command launchs.
-set @old_debug=@@global.debug;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= '+d,after_mysql_insert';
 source include/start_slave.inc;
 
@@ -44,9 +44,7 @@ source include/rpl_stop_slave.test;
 
 --echo
 --echo # Test end
---disable_query_log
-set global debug_dbug= @old_debug;
---enable_query_log
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 source include/restart_slave_sql.inc;
 
 connection slave;
@@ -79,7 +77,7 @@ connection master;
 # make sure that there are no zombie threads
 --source include/stop_dump_threads.inc
 
-set @old_debug=@@global.debug;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= '+d,dump_thread_wait_before_send_xid';
 
 connection slave;
@@ -126,9 +124,7 @@ reap;
 # sure that we disable the DBUG_EXECUTE_IF
 # that would set the dump thread to wait
 connection master;
---disable_query_log
-set global debug_dbug= @old_debug;
---enable_query_log
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 # make sure that there are no zombie threads
 --source include/stop_dump_threads.inc
 

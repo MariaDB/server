@@ -6367,7 +6367,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       {
         free_table_share(&share);
         if (free_sp_head)
-          delete sp;
+          sp_head::destroy(sp);
         DBUG_RETURN(1);
       }
     }
@@ -6414,7 +6414,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       }
     }
     if (free_sp_head)
-      delete sp;
+      sp_head::destroy(sp);
   }
   free_table_share(&share);
   DBUG_RETURN(error);
@@ -6492,7 +6492,7 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
           store_column_type(table, field, cs, 5);
           free_table_share(&share);
           if (free_sp_head)
-            delete sp;
+            sp_head::destroy(sp);
         }
       }
 

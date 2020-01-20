@@ -73,6 +73,7 @@ while ($i) {
 
 # Emulate corruption in binlog file when SHOW BINLOG EVENTS is executing
 --echo # 2. Corruption in master binlog and SHOW BINLOG EVENTS
+set @saved_dbug = @@global.debug_dbug;
 SET GLOBAL debug_dbug="+d,corrupt_read_log_event_char";
 --echo SHOW BINLOG EVENTS;
 --disable_query_log
@@ -167,10 +168,10 @@ let $diff_tables= master:test.t1, slave:test.t1;
 # Clean up
 --echo # 8. Clean up
 --connection master
-SET GLOBAL debug_dbug= "";
+set @@global.debug_dbug = @saved_dbug;
 SET GLOBAL master_verify_checksum = @old_master_verify_checksum;
 DROP TABLE t1;
 --sync_slave_with_master
-SET GLOBAL debug_dbug= "";
+set @@global.debug_dbug = @saved_dbug;
 
 --source include/rpl_end.inc

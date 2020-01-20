@@ -14,7 +14,7 @@ call mtr.add_suppression("Index for table .*crashed' is corrupt; try to repair i
 drop table if exists crashed,t2,t3,t4;
 --enable_warnings
 
-SET @orig_debug=@@debug;
+SET @orig_debug=@@global.debug_dbug;
 
 #
 # Check that MariaDB handles reopen that fails without crashing

@@ -11,6 +11,7 @@ SET @@GLOBAL.rpl_semi_sync_slave_enabled = 1;
 include/start_slave.inc
 connection master;
 CREATE TABLE t1 (a INT) ENGINE=innodb;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 SET @@GLOBAL.debug_dbug="d,dbug_master_binlog_over_2GB";
 SET @@SESSION.skip_replication=1;
 INSERT INTO t1 SET a=1;
@@ -20,7 +21,7 @@ SET @@GLOBAL.debug_dbug="";
 FLUSH LOGS;
 connection slave;
 connection master;
-SET @@GLOBAL.debug_dbug=@@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 SET @@GLOBAL.rpl_semi_sync_master_timeout = 10000;
 SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
 connection master;
