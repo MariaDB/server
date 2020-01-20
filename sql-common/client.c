@@ -3348,7 +3348,10 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
       scramble_data_len= pkt_scramble_len;
       scramble_plugin= scramble_data + scramble_data_len;
       if (scramble_data + scramble_data_len > pkt_end)
-        scramble_data_len= (int)(pkt_end - scramble_data);
+      {
+        set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
+        goto error;
+      }
     }
     else
     {

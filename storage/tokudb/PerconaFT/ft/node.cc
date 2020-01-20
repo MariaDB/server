@@ -78,7 +78,7 @@ void toku_initialize_empty_ftnode(FTNODE n, BLOCKNUM blocknum, int height, int n
             }
         }
     }
-    n->dirty = 1;  // special case exception, it's okay to mark as dirty because the basements are empty
+    n->set_dirty();  // special case exception, it's okay to mark as dirty because the basements are empty
 
     toku_ft_status_note_ftnode(height, true);
 }
@@ -154,7 +154,7 @@ void toku_ftnode_clone_partitions(FTNODE node, FTNODE cloned_node) {
 
 void toku_evict_bn_from_memory(FTNODE node, int childnum, FT ft) {
     // free the basement node
-    assert(!node->dirty);
+    assert(!node->dirty());
     BASEMENTNODE bn = BLB(node, childnum);
     toku_ft_decrease_stats(&ft->in_memory_stats, bn->stat64_delta);
     toku_ft_adjust_logical_row_count(ft, -BLB_LRD(node, childnum));
@@ -596,7 +596,7 @@ toku_apply_ancestors_messages_to_node (
                         oldest_referenced_xid_for_simple_gc,
                         node->oldest_referenced_xid_known,
                         true);
-    if (!node->dirty && child_to_read >= 0) {
+    if (!node->dirty() && child_to_read >= 0) {
         paranoid_invariant(BP_STATE(node, child_to_read) == PT_AVAIL);
         apply_ancestors_messages_to_bn(
             t,
@@ -713,7 +713,7 @@ bool toku_ft_leaf_needs_ancestors_messages(
     paranoid_invariant(node->height == 0);
     bool needs_ancestors_messages = false;
     // child_to_read may be -1 in test cases
-    if (!node->dirty && child_to_read >= 0) {
+    if (!node->dirty() && child_to_read >= 0) {
         paranoid_invariant(BP_STATE(node, child_to_read) == PT_AVAIL);
         needs_ancestors_messages = bn_needs_ancestors_messages(
             ft,
@@ -746,7 +746,7 @@ cleanup:
 
 void toku_ft_bn_update_max_msn(FTNODE node, MSN max_msn_applied, int child_to_read) {
     invariant(node->height == 0);
-    if (!node->dirty && child_to_read >= 0) {
+    if (!node->dirty() && child_to_read >= 0) {
         paranoid_invariant(BP_STATE(node, child_to_read) == PT_AVAIL);
         BASEMENTNODE bn = BLB(node, child_to_read);
         if (max_msn_applied.msn > bn->max_msn_applied.msn) {
@@ -833,7 +833,7 @@ struct rebalance_array_info {
 void toku_ftnode_leaf_rebalance(FTNODE node, unsigned int basementnodesize) {
 
     assert(node->height == 0);
-    assert(node->dirty);
+    assert(node->dirty());
 
     uint32_t num_orig_basements = node->n_children;
     // Count number of leaf entries in this leaf (num_le).
@@ -1142,7 +1142,7 @@ void toku_ft_nonleaf_append_child(FTNODE node, FTNODE child, const DBT *pivotkey
         invariant(childnum > 0);
         node->pivotkeys.insert_at(pivotkey, childnum - 1);
     }
-    node->dirty = 1;
+    node->set_dirty();
 }
 
 void
@@ -1745,7 +1745,7 @@ static void ft_append_msg_to_child_buffer(const toku::comparator &cmp, FTNODE no
                                           int childnum, const ft_msg &msg, bool is_fresh) {
     paranoid_invariant(BP_STATE(node,childnum) == PT_AVAIL);
     bnc_insert_msg(BNC(node, childnum), msg, is_fresh, cmp);
-    node->dirty = 1;
+    node->set_dirty();
 }
 
 // This is only exported for tests.
@@ -2090,7 +2090,7 @@ void toku_ft_leaf_apply_msg(
     // be reapplied later), we mark the node as dirty and
     // take the opportunity to update node->max_msn_applied_to_node_on_disk.
     //
-    node->dirty = 1;
+    node->set_dirty();
 
     //
     // we cannot blindly update node->max_msn_applied_to_node_on_disk,
