@@ -21,6 +21,7 @@ set tmp_table_size=1024;
 
 # Set debug flag so an error is returned when
 # tmp table in query is converted from heap to myisam
+SET @saved_dbug = @@SESSION.debug_dbug;
 set session debug_dbug="+d,raise_error";
 
 --error ER_DUP_KEY
@@ -36,7 +37,7 @@ CREATE TABLE t1 (a INT(100) NOT NULL);
 INSERT INTO t1 VALUES (1), (0), (2);
 SET SESSION debug_dbug='+d,alter_table_only_index_change';
 ALTER TABLE t1 ADD INDEX a(a);
-SET SESSION debug_dbug=DEFAULT;
+SET debug_dbug= @saved_dbug;
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
 DROP TABLE t1;
@@ -51,7 +52,7 @@ SET SESSION debug_dbug="+d,bug42064_simulate_oom";
 # May fail with either ER_OUT_OF_RESOURCES or EE_OUTOFMEMORY
 --error ER_OUT_OF_RESOURCES, 5
 INSERT INTO t1 VALUES("");
-SET SESSION debug_dbug=DEFAULT;
+SET debug_dbug= @saved_dbug;
 
 DROP TABLE t1;
 
@@ -84,7 +85,7 @@ EXPLAIN
 SELECT * FROM t1 LEFT JOIN t2 ON ( t2.a < 10 OR t2.b < 10 );
 SELECT * FROM t1 LEFT JOIN t2 ON ( t2.a < 10 OR t2.b < 10 );
 
-SET SESSION debug_dbug= DEFAULT;
+SET debug_dbug= @saved_dbug;
 
 SET optimizer_switch=@save_optimizer_switch;
 
@@ -101,7 +102,7 @@ INSERT INTO t2 VALUES (1),(2);
 SET SESSION debug_dbug="+d,bug11747970_raise_error";
 --error ER_QUERY_INTERRUPTED
 INSERT IGNORE INTO t2 SELECT f1 FROM t1 a WHERE NOT EXISTS (SELECT 1 FROM t2 b WHERE a.f1 = b.f1);
-SET SESSION debug_dbug = DEFAULT;
+SET debug_dbug= @saved_dbug;
 DROP TABLE t1,t2;
 
 
@@ -156,4 +157,4 @@ SET SESSION debug_dbug="+d,simulate_create_virtual_tmp_table_out_of_memory";
 --error ER_OUT_OF_RESOURCES, 5
 SELECT f1(1);
 DROP FUNCTION f1;
-SET SESSION debug_dbug=DEFAULT;
+SET debug_dbug= @saved_dbug;

@@ -7363,7 +7363,7 @@ Item *Item::build_pushable_cond(THD *thd,
     List<Item> equalities;
     Item *new_cond= NULL;
     if (((Item_equal *)this)->create_pushable_equalities(thd, &equalities,
-                                                         checker, arg) ||
+                                                         checker, arg, true) ||
         (equalities.elements == 0))
       return 0;
 
@@ -10563,4 +10563,16 @@ void Item::register_in(THD *thd)
 {
   next= thd->free_list;
   thd->free_list= this;
+}
+
+
+bool Item::cleanup_excluding_immutables_processor (void *arg)
+{
+  if (!(get_extraction_flag() == IMMUTABLE_FL))
+    return cleanup_processor(arg);
+  else
+  {
+    clear_extraction_flag();
+    return false;
+  }
 }

@@ -5606,6 +5606,8 @@ public:
   uint32 max_display_length(const Item *item) const override { return 25; }
   uint32 max_display_length_for_field(const Conv_source &src) const override
   { return 12; }
+  uint32 Item_decimal_notation_int_digits(const Item *item) const override
+  { return 39; }
   uint32 calc_pack_length(uint32 length) const override { return sizeof(float); }
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const override;

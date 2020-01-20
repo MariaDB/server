@@ -302,6 +302,12 @@ wsrep::gtid Wsrep_server_service::get_position(wsrep::client_service&)
   return wsrep_get_SE_checkpoint();
 }
 
+void Wsrep_server_service::set_position(wsrep::client_service&,
+                                        const wsrep::gtid& gtid)
+{
+  wsrep_set_SE_checkpoint(gtid);
+}
+
 void Wsrep_server_service::log_state_change(
   enum Wsrep_server_state::state prev_state,
   enum Wsrep_server_state::state current_state)

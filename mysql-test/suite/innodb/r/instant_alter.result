@@ -932,6 +932,9 @@ SELECT * FROM t1;
 a	b	vb
 fubar	42	42
 DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 MODIFY b INT FIRST;
+DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -1808,6 +1811,9 @@ ALTER TABLE t1 ADD vb INT AS (b);
 SELECT * FROM t1;
 a	b	vb
 fubar	42	42
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 MODIFY b INT FIRST;
 DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
@@ -2686,12 +2692,15 @@ SELECT * FROM t1;
 a	b	vb
 fubar	42	42
 DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 MODIFY b INT FIRST;
+DROP TABLE t1;
 disconnect analyze;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-196
+199
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
 #
 # MDEV-18266: Changing an index comment unnecessarily rebuilds index

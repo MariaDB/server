@@ -1334,7 +1334,7 @@ void lex_end_stage1(LEX *lex)
   }
   else
   {
-    delete lex->sphead;
+    sp_head::destroy(lex->sphead);
     lex->sphead= NULL;
   }
 
@@ -3650,13 +3650,13 @@ void LEX::cleanup_lex_after_parse_error(THD *thd)
       DBUG_ASSERT(pkg == pkg->m_top_level_lex->sphead);
       pkg->restore_thd_mem_root(thd);
       LEX *top= pkg->m_top_level_lex;
-      delete pkg;
+      sp_package::destroy(pkg);
       thd->lex= top;
       thd->lex->sphead= NULL;
     }
     else
     {
-      delete thd->lex->sphead;
+      sp_head::destroy(thd->lex->sphead);
       thd->lex->sphead= NULL;
     }
   }
@@ -7042,7 +7042,7 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if (likely((sp= new sp_head(package, sph, agg_type))))
+  if (likely((sp= sp_head::create(package, sph, agg_type))))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(this);
@@ -8539,7 +8539,7 @@ st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond)
   }
   else
   {
-    int fl= cond->excl_dep_on_grouping_fields(this) ?
+    int fl= cond->excl_dep_on_grouping_fields(this) && !cond->is_expensive() ?
       FULL_EXTRACTION_FL : NO_EXTRACTION_FL;
     cond->set_extraction_flag(fl);
   }
@@ -8962,7 +8962,7 @@ sp_package *LEX::create_package_start(THD *thd,
       return 0;
     }
   }
-  if (unlikely(!(pkg= new sp_package(this, name_arg, sph))))
+  if (unlikely(!(pkg= sp_package::create(this, name_arg, sph))))
     return NULL;
   pkg->reset_thd_mem_root(thd);
   pkg->init(this);
@@ -10394,7 +10394,7 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
     {
       List_iterator<Item> li(*((Item_cond*) result)->argument_list());
       Item *item;
-      while ((item=li++))
+      while ((item= li++))
       {
         if (attach_to_conds.push_back(item, thd->mem_root))
           return true;
@@ -10414,8 +10414,13 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
   */
   if (cond->type() != Item::COND_ITEM)
     return false;
+
   if (((Item_cond *)cond)->functype() != Item_cond::COND_AND_FUNC)
   {
+    /*
+      cond is not a conjunctive formula and it cannot be pushed into WHERE.
+      Try to extract a formula that can be pushed.
+    */
     Item *fix= cond->build_pushable_cond(thd, 0, 0);
     if (!fix)
       return false;
@@ -10435,7 +10440,6 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
         Item *result= item->transform(thd,
                                       &Item::multiple_equality_transformer,
                                       (uchar *)item);
-
         if (!result)
           return true;
         if (result->type() == Item::COND_ITEM &&
@@ -10763,8 +10767,8 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
                           &Item::field_transformer_for_having_pushdown,
                           (uchar *)this);
 
-    if (item->walk(&Item:: cleanup_processor, 0, STOP_PTR) ||
-        item->fix_fields(thd, NULL))
+    if (item->walk(&Item::cleanup_excluding_immutables_processor, 0, STOP_PTR)
+        || item->fix_fields(thd, NULL))
     {
       attach_to_conds.empty();
       goto exit;

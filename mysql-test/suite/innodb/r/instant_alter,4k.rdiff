@@ -1,5 +1,5 @@
---- suite/innodb/r/instant_alter.result	2019-12-05 10:54:59.611505580 +0100
-+++ suite/innodb/r/instant_alter,4k.reject	2019-12-05 11:47:54.013615820 +0100
+--- instant_alter.result
++++ instant_alter,4k.result
 @@ -242,7 +242,7 @@
  SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
  WHERE name = 'test/t2';
@@ -318,8 +318,8 @@
  FROM information_schema.global_status
  WHERE variable_name = 'innodb_instant_alter_column';
  instants
--196
-+198
+-199
++201
  SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
  #
  # MDEV-18266: Changing an index comment unnecessarily rebuilds index

@@ -2381,3 +2381,170 @@ count(0)
 0
 drop table t1;
 set global innodb_stats_persistent= @stats.save;
+#
+# MDEV-21356: usage of range filter with range access employing
+#             optimizer_switch='mrr=on,mrr_sort_keys=on';
+#
+CREATE TABLE t1 (
+id int(11) unsigned NOT NULL AUTO_INCREMENT,
+domain varchar(255) NOT NULL,
+registrant_name varchar(255) DEFAULT NULL,
+registrant_organization varchar(255) DEFAULT NULL,
+registrant_street1 varchar(255) DEFAULT NULL,
+registrant_street2 varchar(255) DEFAULT NULL,
+registrant_street3 varchar(255) DEFAULT NULL,
+registrant_street4 varchar(255) DEFAULT NULL,
+registrant_street5 varchar(255) DEFAULT NULL,
+registrant_city varchar(255) DEFAULT NULL,
+registrant_postal_code varchar(255) DEFAULT NULL,
+registrant_country varchar(255) DEFAULT NULL,
+registrant_email varchar(255) DEFAULT NULL,
+registrant_telephone varchar(255) DEFAULT NULL,
+administrative_name varchar(255) DEFAULT NULL,
+administrative_organization varchar(255) DEFAULT NULL,
+administrative_street1 varchar(255) DEFAULT NULL,
+administrative_street2 varchar(255) DEFAULT NULL,
+administrative_street3 varchar(255) DEFAULT NULL,
+administrative_street4 varchar(255) DEFAULT NULL,
+administrative_street5 varchar(255) DEFAULT NULL,
+administrative_city varchar(255) DEFAULT NULL,
+administrative_postal_code varchar(255) DEFAULT NULL,
+administrative_country varchar(255) DEFAULT NULL,
+administrative_email varchar(255) DEFAULT NULL,
+administrative_telephone varchar(255) DEFAULT NULL,
+technical_name varchar(255) DEFAULT NULL,
+technical_organization varchar(255) DEFAULT NULL,
+technical_street1 varchar(255) DEFAULT NULL,
+technical_street2 varchar(255) DEFAULT NULL,
+technical_street3 varchar(255) DEFAULT NULL,
+technical_street4 varchar(255) DEFAULT NULL,
+technical_street5 varchar(255) DEFAULT NULL,
+technical_city varchar(255) DEFAULT NULL,
+technical_postal_code varchar(255) DEFAULT NULL,
+technical_country varchar(255) DEFAULT NULL,
+technical_email varchar(255) DEFAULT NULL,
+technical_telephone varchar(255) DEFAULT NULL,
+json longblob NOT NULL,
+timestamp timestamp NOT NULL DEFAULT current_timestamp(),
+PRIMARY KEY (id),
+KEY ixEventWhoisDomainDomain (domain),
+KEY ixEventWhoisDomainTimestamp (timestamp)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO t1 (
+id, domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp) VALUES
+(60380, 'www.mailhost.i-dev.fr', null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, '', '2016-12-22 09:18:28'),
+(60383, 'www.bestwestern.fr', null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, '', '2016-12-22 09:27:06'),
+(80392, 'www.dfinitions.fr', null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, '', '2017-01-30 08:02:01'),
+(80407, 'www.firma.o2.pl', null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, 'AZ.pl Sp. z o.o.', 'Al. Papieza Jana Pawla II 19/2',
+null, null, null, null, '70-453 Szczecin', null, 'POLAND', null,
+'48914243780', '', '2017-01-30 08:24:51'),
+(80551, 'www.mailhost.i-dev.fr', null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, null, null, null, null, null, null, null,
+null, null, null, null, null, '', '2017-01-30 10:00:56'),
+(80560, 'www.blackmer-mouvex.com', 'MARIE-PIERRE PRODEAU', 'MOUVEX',
+'2 RUE DES CAILLOTES', null, null, null, null, 'AUXERRE', '89000', 'FRANCE',
+'PRODEAU@MOUVEX.COM', null, 'MARIE-PIERRE PRODEAU', 'MOUVEX',
+'2 RUE DES CAILLOTES', null, null, null, null, 'AUXERRE', '89000', 'FRANCE',
+'PRODEAU@MOUVEX.COM', '33 386498630', 'LAURENT SOUCHELEAU', 'MOUVEX',
+'2 RUE DES CAILLOTES', null, null, null, null, 'AUXERRE', '89000', 'FRANCE',
+'SOUCHELEAU@MOUVEX.COM', '33 386498643', '', '2017-01-30 10:04:38'),
+(80566, 'www.inup.com', 'MAXIMILIAN V. KETELHODT', null,
+'SUELZBURGSTRASSE 158A', null, null, null, null, 'KOELN', '50937', 'GERMANY',
+'ICANN@EXPIRES-2009.WEBCARE24.COM', '492214307580', 'MAXIMILIAN V. KETELHODT',
+null, 'SUELZBURGSTRASSE 158A', null, null, null, null, 'KOELN', '50937',
+'GERMANY', 'ICANN@EXPIRES-2009.WEBCARE24.COM', '492214307580',
+'MAXIMILIAN V. KETELHODT', null, 'SUELZBURGSTRASSE 158A', null, null, null,
+null, 'KOELN', '50937', 'GERMANY', 'ICANN@EXPIRES-2009.WEBCARE24.COM',
+'492214307580', '', '2017-01-30 10:08:29');
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='mrr=on,mrr_sort_keys=on';
+SELECT * FROM t1
+WHERE 1 = 1 AND domain = 'www.mailhost.i-dev.fr' AND
+timestamp >= DATE_ADD(CURRENT_TIMESTAMP, INTERVAL -1 MONTH)
+ORDER BY timestamp DESC;
+id	domain	registrant_name	registrant_organization	registrant_street1	registrant_street2	registrant_street3	registrant_street4	registrant_street5	registrant_city	registrant_postal_code	registrant_country	registrant_email	registrant_telephone	administrative_name	administrative_organization	administrative_street1	administrative_street2	administrative_street3	administrative_street4	administrative_street5	administrative_city	administrative_postal_code	administrative_country	administrative_email	administrative_telephone	technical_name	technical_organization	technical_street1	technical_street2	technical_street3	technical_street4	technical_street5	technical_city	technical_postal_code	technical_country	technical_email	technical_telephone	json	timestamp
+EXPLAIN EXTENDED SELECT * FROM t1
+WHERE 1 = 1 AND domain = 'www.mailhost.i-dev.fr' AND
+timestamp >= DATE_ADD(CURRENT_TIMESTAMP, INTERVAL -1 MONTH)
+ORDER BY timestamp DESC;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref|filter	ixEventWhoisDomainDomain,ixEventWhoisDomainTimestamp	ixEventWhoisDomainDomain|ixEventWhoisDomainTimestamp	767|4	const	2 (14%)	14.29	Using index condition; Using where; Using filesort; Using rowid filter
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`domain` AS `domain`,`test`.`t1`.`registrant_name` AS `registrant_name`,`test`.`t1`.`registrant_organization` AS `registrant_organization`,`test`.`t1`.`registrant_street1` AS `registrant_street1`,`test`.`t1`.`registrant_street2` AS `registrant_street2`,`test`.`t1`.`registrant_street3` AS `registrant_street3`,`test`.`t1`.`registrant_street4` AS `registrant_street4`,`test`.`t1`.`registrant_street5` AS `registrant_street5`,`test`.`t1`.`registrant_city` AS `registrant_city`,`test`.`t1`.`registrant_postal_code` AS `registrant_postal_code`,`test`.`t1`.`registrant_country` AS `registrant_country`,`test`.`t1`.`registrant_email` AS `registrant_email`,`test`.`t1`.`registrant_telephone` AS `registrant_telephone`,`test`.`t1`.`administrative_name` AS `administrative_name`,`test`.`t1`.`administrative_organization` AS `administrative_organization`,`test`.`t1`.`administrative_street1` AS `administrative_street1`,`test`.`t1`.`administrative_street2` AS `administrative_street2`,`test`.`t1`.`administrative_street3` AS `administrative_street3`,`test`.`t1`.`administrative_street4` AS `administrative_street4`,`test`.`t1`.`administrative_street5` AS `administrative_street5`,`test`.`t1`.`administrative_city` AS `administrative_city`,`test`.`t1`.`administrative_postal_code` AS `administrative_postal_code`,`test`.`t1`.`administrative_country` AS `administrative_country`,`test`.`t1`.`administrative_email` AS `administrative_email`,`test`.`t1`.`administrative_telephone` AS `administrative_telephone`,`test`.`t1`.`technical_name` AS `technical_name`,`test`.`t1`.`technical_organization` AS `technical_organization`,`test`.`t1`.`technical_street1` AS `technical_street1`,`test`.`t1`.`technical_street2` AS `technical_street2`,`test`.`t1`.`technical_street3` AS `technical_street3`,`test`.`t1`.`technical_street4` AS `technical_street4`,`test`.`t1`.`technical_street5` AS `technical_street5`,`test`.`t1`.`technical_city` AS `technical_city`,`test`.`t1`.`technical_postal_code` AS `technical_postal_code`,`test`.`t1`.`technical_country` AS `technical_country`,`test`.`t1`.`technical_email` AS `technical_email`,`test`.`t1`.`technical_telephone` AS `technical_telephone`,`test`.`t1`.`json` AS `json`,`test`.`t1`.`timestamp` AS `timestamp` from `test`.`t1` where `test`.`t1`.`domain` = 'www.mailhost.i-dev.fr' and `test`.`t1`.`timestamp` >= <cache>(current_timestamp() + interval -1 month) order by `test`.`t1`.`timestamp` desc
+SET optimizer_switch=@save_optimizer_switch;
+DROP TABLE t1;
+#
+# MDEV-21446: index to access the table is changed for primary key
+#
+SET @stats.save= @@innodb_stats_persistent;
+SET global innodb_stats_persistent=on;
+CREATE TABLE t1 (
+pk int auto_increment,
+a int,
+b int,
+primary key (pk),
+key (a),
+key (b)
+) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES
+(0,0), (0,9), (0,NULL), (1,2), (4,0), (2,9), (1,0), (NULL,0), (5,NULL), (5,1),
+(0,7), (NULL,5), (NULL,0), (2,1), (2,5), (6,NULL), (0,NULL), (NULL,8), (8,5),
+(2,NULL), (2,3), (NULL,8), (NULL,6), (1,1), (5,1), (NULL,5), (4,4), (2,4),
+(2,5), (1,9), (NULL,0), (3,7), (0,4), (2,8), (1,2), (1,4), (2,1),
+(NULL,7), (6,6), (3,0), (4,5), (5,2), (8,2), (NULL,NULL), (8,NULL),
+(0,1),(0,7);
+INSERT INTO t1(a,b) SELECT a, b FROM t1;
+INSERT INTO t1(a,b) SELECT a, b FROM t1;
+INSERT INTO t1(a,b) SELECT a, b FROM t1;
+INSERT INTO t1(a,b) SELECT a, b FROM t1;
+INSERT INTO t1(a,b) SELECT a, b FROM t1;
+INSERT INTO t1(a,b) SELECT a, b FROM t1;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN EXTENDED
+SELECT * FROM t1
+WHERE (a BETWEEN 9 AND 10 OR a IS NULL) AND (b BETWEEN 9 AND 10 OR b = 9);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	range|filter	a,b	b|a	5|5	NULL	192 (21%)	21.31	Using index condition; Using where; Using rowid filter
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where (`test`.`t1`.`a` between 9 and 10 or `test`.`t1`.`a` is null) and (`test`.`t1`.`b` between 9 and 10 or `test`.`t1`.`b` = 9)
+EXPLAIN EXTENDED
+SELECT * FROM t1
+WHERE (a BETWEEN 9 AND 10 OR a IS NULL) AND (b BETWEEN 9 AND 10 OR b = 9)
+ORDER BY pk LIMIT 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	a,b	PRIMARY	4	NULL	75	54.55	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where (`test`.`t1`.`a` between 9 and 10 or `test`.`t1`.`a` is null) and (`test`.`t1`.`b` between 9 and 10 or `test`.`t1`.`b` = 9) order by `test`.`t1`.`pk` limit 1
+ANALYZE
+SELECT * FROM t1
+WHERE (a BETWEEN 9 AND 10 OR a IS NULL) AND (b BETWEEN 9 AND 10 OR b = 9)
+ORDER BY pk LIMIT 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	index	a,b	PRIMARY	4	NULL	3008	3008.00	1.36	0.00	Using where
+DROP TABLE t1;
+SET global innodb_stats_persistent= @stats.save;

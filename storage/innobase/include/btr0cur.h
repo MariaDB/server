@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -784,18 +784,6 @@ btr_rec_copy_externally_stored_field(
 	ulint*			len,
 	mem_heap_t*		heap);
 
-/** Flag the data tuple fields that are marked as extern storage in the
-update vector.  We use this function to remember which fields we must
-mark as extern storage in a record inserted for an update.
-@param[in,out]	tuple	clustered index record
-@param[in]	n	number of fields in tuple, before any btr_cur_trim()
-@param[in]	update	update vector
-@param[in,out]	heap	memory heap
-@return number of flagged external columns */
-ulint
-btr_push_update_extern_fields(dtuple_t* tuple, ulint n, const upd_t* update,
-			      mem_heap_t* heap)
-	MY_ATTRIBUTE((nonnull));
 /***********************************************************//**
 Sets a secondary index record's delete mark to the given value. This
 function is only used by the insert buffer merge mechanism. */

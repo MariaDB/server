@@ -6,11 +6,11 @@ SET @old_debug = @@GLOBAL.debug;
 # Bug#34678 @@debug variable's incremental mode
 #
 
-set debug_dbug= 'T';
+SET debug_dbug= 'T';
 select @@debug;
-set debug_dbug= '+P';
+SET debug_dbug= '+P';
 select @@debug;
-set debug_dbug= '-P';
+SET debug_dbug= '-P';
 select @@debug;
 
 #

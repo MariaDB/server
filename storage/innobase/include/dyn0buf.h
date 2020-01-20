@@ -303,8 +303,7 @@ public:
 #ifdef UNIV_DEBUG
 		ulint	total_size = 0;
 
-		for (typename list_t::iterator it = m_list.begin(),
-					       end = m_list.end();
+		for (list_t::iterator it = m_list.begin(), end = m_list.end();
 		     it != end; ++it) {
 			total_size += it->used();
 		}
@@ -320,8 +319,7 @@ public:
 	template <typename Functor>
 	bool for_each_block(Functor& functor) const
 	{
-		for (typename list_t::iterator it = m_list.begin(),
-					       end = m_list.end();
+		for (list_t::iterator it = m_list.begin(), end = m_list.end();
 		     it != end; ++it) {
 
 			if (!functor(&*it)) {
@@ -338,8 +336,8 @@ public:
 	template <typename Functor>
 	bool for_each_block_in_reverse(Functor& functor) const
 	{
-		for (typename list_t::reverse_iterator it = m_list.rbegin(),
-						       end = m_list.rend();
+		for (list_t::reverse_iterator it = m_list.rbegin(),
+					      end = m_list.rend();
 		     it != end; ++it) {
 
 			if (!functor(&*it)) {
@@ -356,8 +354,8 @@ public:
 	template <typename Functor>
 	bool for_each_block_in_reverse(const Functor& functor) const
 	{
-		for (typename list_t::reverse_iterator it = m_list.rbegin(),
-						       end = m_list.rend();
+		for (list_t::reverse_iterator it = m_list.rbegin(),
+					      end = m_list.rend();
 		     it != end; ++it) {
 
 			if (!functor(&*it)) {
@@ -425,8 +423,7 @@ private:
 	{
 		ut_ad(!m_list.empty());
 
-		for (typename list_t::iterator it = m_list.begin(),
-					       end = m_list.end();
+		for (list_t::iterator it = m_list.begin(), end = m_list.end();
 		     it != end; ++it) {
 
 			if (pos < it->used()) {

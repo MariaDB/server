@@ -8937,13 +8937,13 @@ EXPLAIN
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "having_condition": "t1.b = 1 and max_c > 37 and max_c > 30",
+          "having_condition": "max_c > 37 and max_c > 30",
           "table": {
             "table_name": "t1",
             "access_type": "ALL",
             "rows": 3,
             "filtered": 100,
-            "attached_condition": "t1.a = 1"
+            "attached_condition": "t1.a = 1 and t1.b = 1"
           }
         }
       }
@@ -9012,13 +9012,13 @@ EXPLAIN
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "having_condition": "t1.b = 1 and max_c > 37 and max_c > 30",
+          "having_condition": "max_c > 37 and max_c > 30",
           "table": {
             "table_name": "t1",
             "access_type": "ALL",
             "rows": 3,
             "filtered": 100,
-            "attached_condition": "t1.a = 1 and t1.d = 1"
+            "attached_condition": "t1.a = 1 and t1.b = 1 and t1.d = 1"
           }
         }
       }

@@ -207,10 +207,11 @@ retry :
       &m_overlapped);
 
     DWORD last_error=  ret? 0: WSAGetLastError();
-    if (last_error == WSAECONNRESET)
+    if (last_error == WSAECONNRESET || last_error == ERROR_NETNAME_DELETED)
     {
       if (m_tp_io)
         CancelThreadpoolIo(m_tp_io);
+      closesocket(m_client_socket);
       goto retry;
     }
 

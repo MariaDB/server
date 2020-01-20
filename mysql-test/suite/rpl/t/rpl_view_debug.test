@@ -18,6 +18,7 @@ sync_slave_with_master;
 # view already has to be on slave
 show tables;
 connection master;
+SET @saved_dbug = @@SESSION.debug_dbug;
 set @@debug_dbug="d,simulate_register_view_failure";
 
 --error ER_OUT_OF_RESOURCES
@@ -30,5 +31,5 @@ show tables;
 connection master;
 DROP VIEW IF EXISTS v1;
 DROP TABLE t1;
-
+SET debug_dbug= @saved_dbug;
 --source include/rpl_end.inc

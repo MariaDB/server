@@ -4776,3 +4776,151 @@ WHERE t1.a = 3 AND (t1.a < 2 AND t1.b > 3) GROUP BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 DROP TABLE t1;
+#
+# MDEV-21184: Constant subquery in condition movable to WHERE
+#
+CREATE TABLE t1(a int, b int);
+INSERT INTO t1 VALUES
+(1,10), (2,20), (1,11), (1,15), (2,20), (1,10), (2,21);
+CREATE TABLE t2 (c INT);
+INSERT INTO t2 VALUES (2),(3);
+EXPLAIN FORMAT=JSON SELECT a FROM t1 GROUP BY a HAVING a = 8 OR a = ( SELECT MIN(c) FROM t2 );
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "sort_key": "t1.a",
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 7,
+          "filtered": 100,
+          "attached_condition": "t1.a = 8 or t1.a = (subquery#2)"
+        },
+        "subqueries": [
+          {
+            "query_block": {
+              "select_id": 2,
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 2,
+                "filtered": 100
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+SELECT a FROM t1 GROUP BY a HAVING a = 8 OR a = ( SELECT MIN(c) FROM t2 );
+a
+2
+EXPLAIN FORMAT=JSON SELECT a FROM t1 GROUP BY a,b
+HAVING ( a = 8 OR a = ( SELECT MIN(c) FROM t2 ) ) and b < 20;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "sort_key": "t1.a, t1.b",
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 7,
+          "filtered": 100,
+          "attached_condition": "(t1.a = 8 or t1.a = (subquery#2)) and t1.b < 20"
+        },
+        "subqueries": [
+          {
+            "query_block": {
+              "select_id": 2,
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 2,
+                "filtered": 100
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+SELECT a FROM t1 GROUP BY a,b
+HAVING ( a = 8 OR a = ( SELECT MIN(c) FROM t2 ) ) and b < 20;
+a
+EXPLAIN FORMAT=JSON SELECT a FROM t1 GROUP BY a
+HAVING ( a = 8 OR a = ( SELECT MIN(c) FROM t2 ) ) and SUM(b) > 20;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "having_condition": "sum(t1.b) > 20",
+    "filesort": {
+      "sort_key": "t1.a",
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 7,
+          "filtered": 100,
+          "attached_condition": "t1.a = 8 or t1.a = (subquery#2)"
+        },
+        "subqueries": [
+          {
+            "query_block": {
+              "select_id": 2,
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 2,
+                "filtered": 100
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+SELECT a FROM t1 GROUP BY a
+HAVING ( a = 8 OR a = ( SELECT MIN(c) FROM t2 ) ) and SUM(b) > 20;
+a
+2
+EXPLAIN FORMAT=JSON SELECT a FROM t1 GROUP BY a HAVING a = ( SELECT MIN(c) FROM t2 );
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 7,
+      "filtered": 100,
+      "attached_condition": "t1.a = (subquery#2)"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "rows": 2,
+            "filtered": 100
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT a FROM t1 GROUP BY a HAVING a = ( SELECT MIN(c) FROM t2 );
+a
+2
+DROP TABLE t1,t2;

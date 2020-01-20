@@ -11,3 +11,5 @@
 ##############################################################################
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
+innodb_wl6326 : MDEV-21535 Too broad ha_innobase::records_in_range()
+innodb_wl6326_big : MDEV-21537 invalid DEFAULT for ENUM NOT NULL column

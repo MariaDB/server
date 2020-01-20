@@ -7,6 +7,7 @@ create table t1 (a int);
 --sync_slave_with_master
 
 connection slave;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug='d,rows_log_event_before_open_table';
 
 connection master;
@@ -22,7 +23,7 @@ set debug_sync='now SIGNAL go_ahead_sql';
 --source include/wait_for_slave_sql_error.inc
 let $error= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1);
 --echo Last_SQL_Error = $error
-set global debug_dbug='';
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 set debug_sync='RESET';
 connection master;
 drop table t1;

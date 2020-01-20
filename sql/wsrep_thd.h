@@ -84,7 +84,7 @@ private:
 
 int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
                           enum enum_var_type scope);
-void wsrep_create_appliers(long threads);
+bool wsrep_create_appliers(long threads, bool mutex_protected=false);
 void wsrep_create_rollbacker();
 
 bool wsrep_bf_abort(const THD*, THD*);

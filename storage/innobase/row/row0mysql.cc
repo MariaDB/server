@@ -4659,7 +4659,6 @@ row_scan_index_for_mysql(
 	ulint		i;
 	ulint		cnt;
 	mem_heap_t*	heap		= NULL;
-	ulint		n_ext;
 	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
 	offset_t*	offsets;
 	rec_offs_init(offsets_);
@@ -4801,7 +4800,7 @@ not_ok:
 		mem_heap_empty(heap);
 
 		prev_entry = row_rec_to_index_entry(
-			rec, index, offsets, &n_ext, heap);
+			rec, index, offsets, heap);
 
 		if (UNIV_LIKELY_NULL(tmp_heap)) {
 			mem_heap_free(tmp_heap);

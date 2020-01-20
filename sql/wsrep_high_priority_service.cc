@@ -448,6 +448,7 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
       cs.before_rollback();
       cs.after_rollback();
     }
+    wsrep_set_SE_checkpoint(ws_meta.gtid());
     ret= ret || cs.provider().commit_order_leave(ws_handle, ws_meta, err);
     cs.after_applying();
   }

@@ -1,0 +1,46 @@
+# ==== Purpose ====
+#
+# Test verifies that when flushing an event to binary log fails the transaction
+# is successfully rolled back and following COMMIT command doesn't report any
+# assert.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - SET max_binlog_cache_size=64K
+#    1 - Create an Innodb table and insert required amount of data. Execute an
+#        UPDATE operation which generates a big update event whose size exceeds
+#        max_binlog_cache_size.
+#    2 - Wait for error 1197. Execute COMMIT command.
+#    3 - COMMIT should be successful.
+#
+# ==== References ====
+#
+# MDEV-18514: Assertion `!writer.checksum_len || writer.remains == 0' failed
+#
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--connection master
+let $old_max_binlog_cache_size= query_get_value(SHOW VARIABLES LIKE "max_binlog_cache_size", Value, 1);
+SET GLOBAL max_binlog_cache_size = 65536;
+CREATE TABLE t1(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=INNODB;
+let $data = `select concat('"', repeat('a',6000), '"')`;
+let $data1 = `select concat('"', repeat('b',6000), '"')`;
+--disable_query_log
+eval INSERT INTO t1 (a, data) VALUES (1, CONCAT($data, $data));
+eval INSERT INTO t1 (a, data) VALUES (2, CONCAT($data, $data));
+eval INSERT INTO t1 (a, data) VALUES (3, CONCAT($data, $data));
+eval INSERT INTO t1 (a, data) VALUES (4, CONCAT($data, $data));
+eval INSERT INTO t1 (a, data) VALUES (5, CONCAT($data, $data));
+START TRANSACTION;
+--error ER_TRANS_CACHE_FULL
+eval UPDATE t1 SET data=$data1;
+COMMIT;
+--enable_query_log
+
+--replace_result $old_max_binlog_cache_size ORIGINAL_VALUE
+--eval SET GLOBAL max_binlog_cache_size= $old_max_binlog_cache_size
+DROP TABLE t1;
+
+--source include/rpl_end.inc

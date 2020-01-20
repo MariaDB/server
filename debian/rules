@@ -146,6 +146,10 @@ endif
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.19
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.20
 
+override_dh_fixperms:
+	dh_fixperms
+	chmod 04755 debian/mariadb-server-10.4/usr/lib/mysql/plugin/auth_pam_tool_dir/auth_pam_tool
+	chmod  0700 debian/mariadb-server-10.4/usr/lib/mysql/plugin/auth_pam_tool_dir
 
 override_dh_installlogrotate-arch:
 	dh_installlogrotate --name mysql-server

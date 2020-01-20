@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3510,7 +3510,6 @@ row_merge_insert_index_tuples(
 	double			curr_progress = 0;
 	dict_index_t*		old_index = NULL;
 	const mrec_t*		mrec  = NULL;
-	ulint			n_ext = 0;
 	mtr_t			mtr;
 
 
@@ -3576,8 +3575,6 @@ row_merge_insert_index_tuples(
 			row buffer to data tuple record */
 			row_merge_mtuple_to_dtuple(
 				index, dtuple, &row_buf->tuples[n_rows]);
-
-			n_ext = dtuple_get_n_ext(dtuple);
 			n_rows++;
 			/* BLOB pointers must be copied from dtuple */
 			mrec = NULL;
@@ -3596,7 +3593,7 @@ row_merge_insert_index_tuples(
 			}
 
 			dtuple = row_rec_to_index_entry_low(
-				mrec, index, offsets, &n_ext, tuple_heap);
+				mrec, index, offsets, tuple_heap);
 		}
 
 		old_index	= dict_table_get_first_index(old_table);
@@ -3609,10 +3606,7 @@ row_merge_insert_index_tuples(
 			}
 		}
 
-		if (!n_ext) {
-			/* There are no externally stored columns. */
-		} else {
-			ut_ad(dict_index_is_clust(index));
+		if (dict_index_is_clust(index) && dtuple_get_n_ext(dtuple)) {
 			/* Off-page columns can be fetched safely
 			when concurrent modifications to the table
 			are disabled. (Purge can process delete-marked
