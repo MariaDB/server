@@ -100,9 +100,7 @@ static bool create_wsrep_THD(Wsrep_thd_args* args, bool mutex_protected)
                                 start_wsrep_THD, (void*)args);
 
   if (res)
-  {
-    WSREP_ERROR("Canät create wsrep thread");
-  }
+    WSREP_ERROR("Can't create wsrep thread");
 
   /*
     if starting a thread on server startup, wait until the this thread's THD
