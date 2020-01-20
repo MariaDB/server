@@ -163,6 +163,7 @@ SET(INSTALL_UNIX_ADDRDIR_RPM            "${INSTALL_MYSQLDATADIR_RPM}/mysql.sock"
 SET(INSTALL_SYSTEMD_UNITDIR_RPM         "/usr/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_RPM     "/usr/lib/sysusers.d")
 SET(INSTALL_SYSTEMD_TMPFILESDIR_RPM     "/usr/lib/tmpfiles.d")
+SET(INSTALL_PAMDIR_RPM                  "/lib/security")
 
 #
 # DEB layout
@@ -195,6 +196,11 @@ SET(INSTALL_UNIX_ADDRDIR_DEB            "/var/run/mysqld/mysqld.sock")
 SET(INSTALL_SYSTEMD_UNITDIR_DEB         "/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_DEB     "/usr/lib/sysusers.d")
 SET(INSTALL_SYSTEMD_TMPFILESDIR_DEB     "/usr/lib/tmpfiles.d")
+IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  SET(INSTALL_PAMDIR_DEB                  "/lib/x86_64-linux-gnu/security")
+ELSE()
+  SET(INSTALL_PAMDIR_DEB                  "/lib/i386-linux-gnu/security")
+ENDIF()
 
 #
 # SVR4 layout
