@@ -2966,10 +2966,12 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
 			case Item_func::LE_FUNC:     vop= OP_LE;   break;
 			case Item_func::GE_FUNC:     vop= OP_GE;   break;
 			case Item_func::GT_FUNC:     vop= OP_GT;   break;
+#if MYSQL_VERSION_ID > 100200
 			case Item_func::LIKE_FUNC:
 				vop = OP_LIKE;
 			  neg= ((Item_func_like*)condf)->negated;
 			  break;
+#endif // VERSION_ID > 100200
 			case Item_func::ISNOTNULL_FUNC:
 				neg= true;	
 				// fall through
@@ -4507,7 +4509,9 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 		case TAB_OEM:
       if (table && table->pos_in_table_list) // if SELECT
       {
-        Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
+#if MYSQL_VERSION_ID > 100200
+				Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
+#endif // VERSION_ID > 100200
         return check_global_access(thd, FILE_ACL);
       }
       else
