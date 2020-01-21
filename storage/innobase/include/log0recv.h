@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -284,7 +284,9 @@ struct recv_sys_t{
 	time_t		progress_time;
 
 	using map = std::map<const page_id_t, page_recv_t,
-			     std::less<const page_id_t>>;
+			     std::less<const page_id_t>,
+			     ut_allocator
+			     <std::pair<const page_id_t, page_recv_t>>>;
 	/** buffered records waiting to be applied to pages */
 	map pages;
 
@@ -355,25 +357,20 @@ struct recv_sys_t{
 		return true;
 	}
 
-	/** Get the memory block for storing recv_t and redo log data
-	@param[in] len length of the data to be stored
-	@param[in] store_data whether to store overflow block (recv_t::datat)
-	@return pointer to len bytes of memory (never NULL) */
-	byte *alloc(uint32_t len
+  /** Get the memory block for storing recv_t and redo log data
+  @param[in] len length of the data to be stored
+  @return pointer to len bytes of memory (never NULL) */
+  inline byte *alloc(uint32_t len);
+
 #ifdef UNIV_DEBUG
-		    , bool store_data=false
+  /** Find the redo_list element corresponding to a redo log record.
+  @param[in] data   pointer to buffer returned by alloc()
+  @return redo list element */
+  buf_block_t *find_block(const void *data) const;
 #endif
-		    );
 
-	/** Get the free length of the latest block which is the
-	first block of redo list. Blocks are allocated by alloc().
-	@return free length */
-	inline ulong get_free_len() const;
-
-	/** Find the redo_list element corresponding to a redo log record.
-	@param[in] data redo log record
-	@return redo list element */
-	buf_block_t *get_block(const void *data) const;
+  /** @return the free length of the latest alloc() block, in bytes */
+  inline ulong get_free_len() const;
 };
 
 /** The recovery system */

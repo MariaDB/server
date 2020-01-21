@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -816,6 +816,8 @@ void recv_sys_t::create()
 inline void recv_sys_t::clear()
 {
   ut_ad(mutex_own(&mutex));
+  apply_log_recs= false;
+  apply_batch_on= false;
   pages.clear();
 
   buf_block_t *prev_block= nullptr;
@@ -824,6 +826,7 @@ inline void recv_sys_t::clear()
   {
     prev_block= UT_LIST_GET_PREV(unzip_LRU, block);
     ut_ad(buf_block_get_state(block) == BUF_BLOCK_MEMORY);
+    ut_ad(block->page.buf_fix_count == 0);
     UT_LIST_REMOVE(redo_list, block);
     buf_block_free(block);
   }
@@ -860,79 +863,42 @@ inline ulong recv_sys_t::get_free_len() const
   return srv_page_size - UT_LIST_GET_FIRST(redo_list)->modify_clock;
 }
 
-byte* recv_sys_t::alloc(uint32_t len
-#ifdef UNIV_DEBUG
-                        ,bool store_data
-#endif
-		        )
+inline byte* recv_sys_t::alloc(uint32_t len)
 {
+  ut_ad(mutex_own(&mutex));
+  ut_ad(len);
+  ut_ad(len <= srv_page_size);
+
   buf_block_t *block= UT_LIST_GET_FIRST(redo_list);
-  uint64_t free_offset= !block ? 0:block->modify_clock;
-
-  if (!store_data &&
-      (free_offset + len + sizeof(recv_t::data) + 1) >= srv_page_size)
-     goto create_block;
-
-  if (!UT_LIST_GET_LEN(redo_list))
-    goto create_block;
-  if (free_offset + len <= srv_page_size)
-  {
-#ifdef UNIV_DEBUG
-    if (store_data)
-      block->page.fix();
-#endif
-    block->modify_clock+= len;
-  }
-  else
+  if (UNIV_UNLIKELY(!block))
   {
 create_block:
-    buf_block_t *new_block= buf_block_alloc(nullptr);
-    new_block->modify_clock= 0;
-    UT_LIST_ADD_FIRST(redo_list, new_block);
-
-#ifdef UNIV_DEBUG
-    if (store_data)
-      new_block->page.fix();
-#endif
-    if (len < srv_page_size)
-      new_block->modify_clock+= len;
-    else
-      new_block->modify_clock= srv_page_size;
-
-    return new_block->frame;
+    block= buf_block_alloc(nullptr);
+    block->modify_clock= len;
+    UT_LIST_ADD_FIRST(redo_list, block);
+    return block->frame;
   }
+
+  uint64_t free_offset= block->modify_clock;
+  ut_ad(free_offset <= srv_page_size);
+  free_offset+= len;
+  if (free_offset > srv_page_size)
+    goto create_block;
+  block->modify_clock+= len;
   return block->frame + free_offset;
 }
 
 #ifdef UNIV_DEBUG
-static void validate_redo_blocks()
+inline buf_block_t *recv_sys_t::find_block(const void* data) const
 {
-  buf_block_t *prev_block= nullptr;
-  for (buf_block_t *block= UT_LIST_GET_LAST(recv_sys.redo_list);
-       block != nullptr;)
-  {
-    prev_block= UT_LIST_GET_PREV(unzip_LRU, block);
-    if (0 == Atomic_counter<uint32_t>(block->page.buf_fix_count))
-    {
-      UT_LIST_REMOVE(recv_sys.redo_list, block);
-      buf_block_free(block);
-    }
-
-    block= prev_block;
-  }
-}
-#endif
-
-buf_block_t *recv_sys_t::get_block(const void* page) const
-{
+  data= page_align(data);
   for (buf_block_t *block= UT_LIST_GET_LAST(redo_list);
        block; block = UT_LIST_GET_PREV(unzip_LRU, block))
-    if (block->frame == page_align(page))
+    if (block->frame == data)
       return block;
-
-  ut_ad(0);
   return nullptr;
 }
+#endif
 
 /** Read a log segment to log_sys.buf.
 @param[in,out]	start_lsn	in: read area start,
@@ -1829,18 +1795,15 @@ inline void recv_sys_t::add(mlog_id_t type, const page_id_t page_id,
   heap grows into the buffer pool. */
   uint32_t len= uint32_t(rec_end - body);
 
-  recv_t* recv = new (alloc(sizeof(recv_t)))
-	   recv_t(len, type, lsn, end_lsn);
+  recv_t *recv= new (alloc(sizeof(recv_t))) recv_t(len, type, lsn, end_lsn);
   recs.log.append(recv);
 
-  for (recv_t::data_t *prev= NULL;;) {
+  for (recv_t::data_t *prev= nullptr;;) {
     uint32_t data_free_limit = get_free_len() - sizeof(recv_t::data);
     const uint32_t l= std::min(len, data_free_limit);
-    recv_t::data_t *d= new (alloc(sizeof(recv_t::data) + l
-#ifdef UNIV_DEBUG
-			    , true
-#endif
-			    ))recv_t::data_t(body, l);
+    recv_t::data_t *d= new (alloc(sizeof(recv_t::data) + l))
+      recv_t::data_t(body, l);
+    ut_d(find_block(d)->fix());
     if (prev)
       prev->append(d);
     else
@@ -1891,24 +1854,22 @@ recv_data_copy_to_buf(
 	const recv_t& recv)	/*!< in: log record */
 {
 	const recv_t::data_t* recv_data = recv.data;
-	page_t* initial_page = page_align(recv_data);
 	ulint len = recv.len;
 
 	do {
 		ulint offset = page_offset(recv_data + 1);
-		buf_block_t* block = recv_sys.get_block(recv_data);
 		const ulint chunk_limit = (srv_page_size - offset);
 		const ulint l = std::min(len, chunk_limit);
 		memcpy(buf, reinterpret_cast<const byte*>(recv_data + 1), l);
+#ifdef UNIV_DEBUG
+		if ((ulint(recv.data) ^ ulint(recv_data))
+		    & (srv_page_size - 1)) {
+			recv_sys.find_block(recv_data)->unfix();
+		}
+#endif
 		recv_data = recv_data->next;
 		buf += l;
 		len -= l;
-
-#ifdef UNIV_DEBUG
-		if (initial_page != block->frame) {
-			block->page.unfix();
-		}
-#endif
 	} while (len);
 }
 
@@ -1998,8 +1959,6 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 			ulint data_offset = page_offset(recv->data + 1);
 			byte* buf;
 			const byte* recs;
-			ut_d(buf_block_t* first_block = recv_sys.get_block(
-					recv->data + 1););
 
 			if (srv_page_size - data_offset < recv->len) {
 				/* We have to copy the record body to
@@ -2017,7 +1976,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 				recv->type, recs, recs + recv->len,
 				block->page.id, true, block, &mtr);
 
-			ut_d(first_block->page.unfix());
+			ut_d(recv_sys.find_block(recv)->unfix());
 			ut_free(buf);
 
 			end_lsn = recv->start_lsn + recv->len;
@@ -2381,14 +2340,7 @@ done:
 		mlog_init.mark_ibuf_exist(mtr);
 	}
 
-	recv_sys.apply_log_recs = false;
-	recv_sys.apply_batch_on = false;
-
 	recv_sys.clear();
-
-#ifdef UNIV_DEBUG
-	validate_redo_blocks();
-#endif
 
 	mutex_exit(&recv_sys.mutex);
 }

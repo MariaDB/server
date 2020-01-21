@@ -4,7 +4,7 @@ MariaBackup: hot backup tool for InnoDB
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
-(c) 2017, 2019, MariaDB Corporation.
+(c) 2017, 2020, MariaDB Corporation.
 Portions written by Marko Mäkelä.
 
 This program is free software; you can redistribute it and/or modify
