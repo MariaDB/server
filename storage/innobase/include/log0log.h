@@ -40,6 +40,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "os0file.h"
 #include "span.h"
 #include <atomic>
+#include <memory>
 
 using st_::span;
 
@@ -449,6 +450,7 @@ typedef ib_mutex_t	LogSysMutex;
 typedef ib_mutex_t	FlushOrderMutex;
 
 extern my_bool	srv_read_only_mode;
+extern ulong innodb_log_io_method;
 
 /** Redo log buffer */
 struct log_t{
@@ -516,6 +518,22 @@ struct log_t{
 
   /** Log files. Protected by mutex or write_mutex. */
   struct files {
+    class file_io
+    {
+    protected:
+      bool durable_writes;
+    public:
+      virtual ~file_io() {}
+      virtual dberr_t open(const char *path)= 0;
+      virtual dberr_t close()= 0;
+      virtual dberr_t read(os_offset_t offset, span<byte> buf)= 0;
+      virtual dberr_t write(const char *path, os_offset_t offset,
+                            span<byte> buf)= 0;
+      virtual dberr_t flush_data_only()= 0;
+
+      bool writes_are_durable() const { return durable_writes; }
+    };
+
     /** number of files */
     ulint				n_files;
     /** format of the redo log: e.g., FORMAT_10_4 */
@@ -530,14 +548,14 @@ struct log_t{
     lsn_t				lsn;
     /** the byte offset of the above lsn */
     lsn_t				lsn_offset;
+    /** file descriptors for all log files */
+    std::vector<std::unique_ptr<file_io>> files;
 
   public:
     /** used only in recovery: recovery scan succeeded up to this
     lsn in this log group */
     lsn_t				scanned_lsn;
 
-    /** file descriptors for all log files */
-    std::vector<pfs_os_file_t> files;
     /** file names for all log files */
     std::vector<std::string> file_names;
 
@@ -553,6 +571,11 @@ struct log_t{
     @param[in]	total_offset	offset in log files treated as a single file
     @param[in]	buf		buffer from which to write */
     void write(size_t total_offset, span<byte> buf);
+    /** checks whether flush_data_only() is needed to make data persistend */
+    bool writes_are_durable() const
+    {
+      return files.front()->writes_are_durable();
+    }
     /** flushes OS page cache (excluding metadata!) for all log files */
     void flush_data_only();
     /** closes all log files */

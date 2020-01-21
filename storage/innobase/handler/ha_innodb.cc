@@ -406,6 +406,21 @@ static TYPELIB innodb_change_buffering_typelib = {
 	NULL
 };
 
+static const char *innodb_log_io_method_names[]=
+{
+  "normal",
+  "mmap",
+  NullS
+};
+
+static TYPELIB innodb_log_io_method_typelib=
+{
+  array_elements(innodb_log_io_method_names) - 1,
+  "innodb_log_io_method_typelib",
+  innodb_log_io_method_names,
+  NULL
+};
+
 /** Retrieve the FTS Relevance Ranking result for doc with doc_id
 of m_prebuilt->fts_doc_id
 @param[in,out]	fts_hdl	FTS handler
@@ -19413,6 +19428,12 @@ static MYSQL_SYSVAR_BOOL(log_optimize_ddl, innodb_log_optimize_ddl,
   " allows concurrent backup.",
   NULL, NULL, TRUE);
 
+static MYSQL_SYSVAR_ENUM(log_io_method, innodb_log_io_method,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "InnoDB redo log IO method: normal (default), mmap.",
+  NULL, NULL, 0,
+  &innodb_log_io_method_typelib);
+
 static MYSQL_SYSVAR_ULONG(autoextend_increment,
   sys_tablespace_auto_extend_increment,
   PLUGIN_VAR_RQCMDARG,
@@ -20303,6 +20324,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_group_home_dir),
   MYSQL_SYSVAR(log_compressed_pages),
   MYSQL_SYSVAR(log_optimize_ddl),
+  MYSQL_SYSVAR(log_io_method),
   MYSQL_SYSVAR(max_dirty_pages_pct),
   MYSQL_SYSVAR(max_dirty_pages_pct_lwm),
   MYSQL_SYSVAR(adaptive_flushing_lwm),
