@@ -225,6 +225,9 @@ uint32_t toku_get_checkpoint_period_unlocked (CACHETABLE ct) {
 }
 
 void toku_set_cleaner_period (CACHETABLE ct, uint32_t new_period) {
+    if(force_recovery) {
+        return;
+    }
     ct->cl.set_period(new_period);
 }
 
@@ -3026,9 +3029,12 @@ int toku_cleaner_thread (void *cleaner_v) {
 //
 ENSURE_POD(cleaner);
 
+extern uint force_recovery;
+
 int cleaner::init(uint32_t _cleaner_iterations, pair_list* _pl, CACHETABLE _ct) {
     // default is no cleaner, for now
     m_cleaner_cron_init = false;
+    if (force_recovery) return 0;
     int r = toku_minicron_setup(&m_cleaner_cron, 0, toku_cleaner_thread, this);
     if (r == 0) {
         m_cleaner_cron_init = true;

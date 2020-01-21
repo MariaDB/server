@@ -20,7 +20,7 @@
 #if defined(__WIN__)
 #include <sqlext.h>
 #else
-#include <dlfcn.h>          // dlopen(), dlclose(), dlsym() ...
+//#include <dlfcn.h>          // dlopen(), dlclose(), dlsym() ...
 #include "osutil.h"
 //#include "sqlext.h"
 #endif
@@ -324,11 +324,11 @@ RECFM TABDEF::GetTableFormat(const char* type)
 {
 	RECFM recfm = Recfm;
 
-	if (recfm == RECFM_DFLT) {
+	if (Catfunc != FNC_NO)
+		recfm = RECFM_NAF;
+	else if (recfm == RECFM_DFLT)
 		// Default format depends on the table type
-		TABTYPE tc = (Catfunc == FNC_NO) ? GetTypeID(type) : TAB_PRX;
-
-		switch (tc) {
+		switch (GetTypeID(type)) {
 		case TAB_DOS: recfm = RECFM_VAR; break;
 		case TAB_CSV: recfm = RECFM_CSV; break;
 		case TAB_FMT: recfm = RECFM_FMT; break;
@@ -340,8 +340,6 @@ RECFM TABDEF::GetTableFormat(const char* type)
 		case TAB_DIR: recfm = RECFM_DIR; break;
 		default:			recfm = RECFM_NAF; break;
 		} // endswitch type
-
-	} // endif recfm
 
 	return recfm;
 } // end of GetTableFormat

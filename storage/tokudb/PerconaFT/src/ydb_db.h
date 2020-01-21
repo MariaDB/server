@@ -67,6 +67,7 @@ void ydb_db_layer_get_status(YDB_DB_LAYER_STATUS statp);
 struct lt_on_create_callback_extra {
     DB_TXN *txn;
     FT_HANDLE ft_handle;
+    bool open_rw;
 };
 int toku_db_lt_on_create_callback(toku::locktree *lt, void *extra);
 void toku_db_lt_on_destroy_callback(toku::locktree *lt);
