@@ -361,66 +361,66 @@ page_zip_dir_get(
 				- PAGE_ZIP_DIR_SLOT_SIZE * (slot + 1)));
 }
 
-/** Write a MLOG_ZIP_PAGE_COMPRESS record of compressing an index page.
+/** Write redo log for compressing a ROW_FORMAT=COMPRESSED index page.
 @param[in,out]	block	ROW_FORMAT=COMPRESSED index page
 @param[in]	index	the index that the block belongs to
 @param[in,out]	mtr	mini-transaction */
-static void page_zip_compress_write_log(buf_block_t* block,
-					dict_index_t* index, mtr_t* mtr)
+static void page_zip_compress_write_log(buf_block_t *block,
+                                        dict_index_t *index, mtr_t *mtr)
 {
-	byte*	log_ptr;
-	ulint	trailer_size;
+  ut_ad(!index->is_ibuf());
 
-	ut_ad(!dict_index_is_ibuf(index));
+  byte *log_ptr= mlog_open(mtr, 11 + 11 + 2 + 2);
 
-	log_ptr = mlog_open(mtr, 11 + 2 + 2);
+  if (!log_ptr)
+    return;
 
-	if (!log_ptr) {
+  const page_t *page= block->frame;
+  const page_zip_des_t *page_zip= &block->page.zip;
+  /* Read the number of user records. */
+  ulint trailer_size= ulint(page_dir_get_n_heap(page_zip->data)) -
+    PAGE_HEAP_NO_USER_LOW;
+  /* Multiply by uncompressed of size stored per record */
+  if (!page_is_leaf(page))
+    trailer_size*= PAGE_ZIP_DIR_SLOT_SIZE + REC_NODE_PTR_SIZE;
+  else if (index->is_clust())
+    trailer_size*= PAGE_ZIP_DIR_SLOT_SIZE + DATA_TRX_ID_LEN +
+      DATA_ROLL_PTR_LEN;
+  else
+    trailer_size*= PAGE_ZIP_DIR_SLOT_SIZE;
+  /* Add the space occupied by BLOB pointers. */
+  trailer_size+= page_zip->n_blobs * BTR_EXTERN_FIELD_REF_SIZE;
+  ut_a(page_zip->m_end > PAGE_DATA);
+  compile_time_assert(FIL_PAGE_DATA <= PAGE_DATA);
+  ut_a(page_zip->m_end + trailer_size <= page_zip_get_size(page_zip));
 
-		return;
-	}
-
-	const page_t* page = block->frame;
-	const page_zip_des_t* page_zip = &block->page.zip;
-	/* Read the number of user records. */
-	trailer_size = ulint(page_dir_get_n_heap(page_zip->data))
-		- PAGE_HEAP_NO_USER_LOW;
-	/* Multiply by uncompressed of size stored per record */
-	if (!page_is_leaf(page)) {
-		trailer_size *= PAGE_ZIP_DIR_SLOT_SIZE + REC_NODE_PTR_SIZE;
-	} else if (dict_index_is_clust(index)) {
-		trailer_size *= PAGE_ZIP_DIR_SLOT_SIZE
-			+ DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
-	} else {
-		trailer_size *= PAGE_ZIP_DIR_SLOT_SIZE;
-	}
-	/* Add the space occupied by BLOB pointers. */
-	trailer_size += page_zip->n_blobs * BTR_EXTERN_FIELD_REF_SIZE;
-	ut_a(page_zip->m_end > PAGE_DATA);
-	compile_time_assert(FIL_PAGE_DATA <= PAGE_DATA);
-	ut_a(page_zip->m_end + trailer_size <= page_zip_get_size(page_zip));
-
-	log_ptr = mlog_write_initial_log_record_low(MLOG_ZIP_PAGE_COMPRESS,
-						    block->page.id.space(),
-						    block->page.id.page_no(),
-						    log_ptr, mtr);
-	mach_write_to_2(log_ptr, ulint(page_zip->m_end - FIL_PAGE_TYPE));
-	log_ptr += 2;
-	mach_write_to_2(log_ptr, trailer_size);
-	log_ptr += 2;
-	mlog_close(mtr, log_ptr);
-
-	/* Write FIL_PAGE_PREV and FIL_PAGE_NEXT */
-	mlog_catenate_string(mtr, page_zip->data + FIL_PAGE_PREV, 4);
-	mlog_catenate_string(mtr, page_zip->data + FIL_PAGE_NEXT, 4);
-	/* Write most of the page header, the compressed stream and
-	the modification log. */
-	mlog_catenate_string(mtr, page_zip->data + FIL_PAGE_TYPE,
-			     ulint(page_zip->m_end - FIL_PAGE_TYPE));
-	/* Write the uncompressed trailer of the compressed page. */
-	mlog_catenate_string(mtr, page_zip->data + page_zip_get_size(page_zip)
-			     - trailer_size, trailer_size);
-	block->page.init_on_flush = true;
+  log_ptr= mlog_write_initial_log_record_low(MLOG_INIT_FILE_PAGE2,
+                                             block->page.id.space(),
+                                             block->page.id.page_no(),
+                                             log_ptr, mtr);
+  log_ptr = mlog_write_initial_log_record_low(MLOG_ZIP_WRITE_STRING,
+                                              block->page.id.space(),
+                                              block->page.id.page_no(),
+                                              log_ptr, mtr);
+  mach_write_to_2(log_ptr, FIL_PAGE_PREV);
+  mach_write_to_2(log_ptr + 2, page_zip->m_end - FIL_PAGE_PREV);
+  mlog_close(mtr, log_ptr + 4);
+  mlog_catenate_string(mtr, page_zip->data + FIL_PAGE_PREV,
+                       page_zip->m_end - FIL_PAGE_PREV);
+  if (trailer_size)
+  {
+    log_ptr= mlog_open(mtr, 11 + 2 + 2);
+    log_ptr= mlog_write_initial_log_record_low(MLOG_ZIP_WRITE_STRING,
+                                               block->page.id.space(),
+                                               block->page.id.page_no(),
+                                               log_ptr, mtr);
+    mach_write_to_2(log_ptr, page_zip_get_size(page_zip) - trailer_size);
+    mach_write_to_2(log_ptr + 2, trailer_size);
+    mlog_close(mtr, log_ptr + 4);
+    mlog_catenate_string(mtr, page_zip->data + page_zip_get_size(page_zip) -
+                         trailer_size, trailer_size);
+  }
+  block->page.init_on_flush= true; /* because of MLOG_INIT_FILE_PAGE2 */
 }
 
 /******************************************************//**
