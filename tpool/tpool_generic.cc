@@ -559,6 +559,7 @@ void thread_pool_generic::maintainence()
     thread_data = thread_data->m_next)
   {
     if (thread_data->is_executing_task() &&
+       !thread_data->is_waiting() &&
       (thread_data->is_long_task()
       || (m_timestamp - thread_data->m_task_start_time > LONG_TASK_DURATION)))
     {
@@ -708,6 +709,7 @@ void thread_pool_generic::maybe_wake_or_create_thread()
 {
   if (m_task_queue.empty())
     return;
+  DBUG_ASSERT(m_active_threads.size() >= m_long_tasks_count + m_waiting_task_count);
   if (m_active_threads.size() - m_long_tasks_count - m_waiting_task_count > m_concurrency)
     return;
   if (!m_standby_threads.empty())
