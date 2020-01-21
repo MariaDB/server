@@ -980,7 +980,6 @@ write_keys(Sort_param *param,  SORT_INFO *fs_info, uint count,
   if (my_b_tell(buffpek_pointers) + sizeof(Merge_chunk) > (ulonglong)UINT_MAX)
     DBUG_RETURN(1);
 
-  bzero(&buffpek, sizeof(buffpek));
   buffpek.set_file_position(my_b_tell(tempfile));
   if ((ha_rows) count > param->max_rows)
     count=(uint) param->max_rows;               /* purecov: inspected */
