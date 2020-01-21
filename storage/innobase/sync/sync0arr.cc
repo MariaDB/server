@@ -468,7 +468,9 @@ sync_array_wait_event(
 #endif /* UNIV_DEBUG */
 	sync_array_exit(arr);
 
+	tpool::tpool_wait_begin();
 	os_event_wait_low(sync_cell_get_event(cell), cell->signal_count);
+	tpool::tpool_wait_end();
 
 	sync_array_free_cell(arr, cell);
 
