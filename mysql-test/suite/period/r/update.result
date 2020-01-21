@@ -241,7 +241,8 @@ id	x	s	e
 1	6	2000-01-01	2018-01-01
 2	1	1999-01-01	2000-01-01
 3	1	2018-01-01	2018-12-12
-truncate t;
+create or replace table t (id int primary key auto_increment, x int,
+s date, e date, period for apptime(s, e));
 insert into t values (default, 1, '1999-01-01', '2018-12-12');
 update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= 1;
 select * from t;

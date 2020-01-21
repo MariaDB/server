@@ -1,4 +1,6 @@
 --source include/have_innodb.inc
+--source suite/period/versioning.inc
+
 set default_storage_engine= innodb;
 
 create or replace table t (id int, x int, s date, e date, period for p(s,e),
@@ -9,6 +11,7 @@ create or replace table s (id int, x int, s date, e date, period for fp(s,e),
                              references t(id, x, period p)
                              on delete restrict);
 
+--replace_result " WITH SYSTEM VERSIONING" ""
 show create table s;
 
 flush tables;
@@ -143,6 +146,7 @@ insert into t values(1, 1, '2017-01-03', '2017-01-20');
 delete from t;
 insert into t values(1, 1, '2017-01-03', '2017-01-20');
 
+--replace_result " WITH SYSTEM VERSIONING" ""
 show create table s;
 select * from t;
 insert into s values (-1, 1, '0', 1, '2017-01-15', '2017-01-05');

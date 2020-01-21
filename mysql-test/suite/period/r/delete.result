@@ -209,7 +209,8 @@ select * from t;
 id	s	e
 2	1999-01-01	2000-01-01
 3	2018-01-01	2018-12-12
-truncate t;
+create or replace table t (id int primary key auto_increment, s date, e date,
+period for apptime(s, e));
 # same for trigger case
 insert into t values (default, '1999-01-01', '2018-12-12');
 create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
@@ -253,7 +254,7 @@ select * from t;
 s	e	xs	xe
 1999-01-01	2000-01-01	1999-01-01	2000-01-01
 2018-01-01	2018-12-12	2018-01-01	2018-12-12
-truncate t;
+delete from t;
 # same for trigger case
 insert into t values('1999-01-01', '2018-12-12', default, default);
 create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
@@ -322,7 +323,7 @@ replace into t values(127, '1999-01-01', '2018-12-12');
 select * from t;
 id	s	e
 127	1999-01-01	2018-12-12
-truncate table log_tbl;
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
 delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
 ERROR 22003: Out of range value for column 'id' at row 1
 select * from t;
@@ -339,12 +340,12 @@ insert into t values(1, '1999-01-01', '2018-12-12'),
 delete from t for portion of apptime from '1999-01-02' to '2018-12-12';
 ERROR 23000: CONSTRAINT `dist2days` failed for `test`.`t`
 # negotiate side effects of non-transactional MyISAM engine
-truncate t;
+delete from t;
 insert into t values(1, '1999-01-01', '2018-12-12'),
 (2, '1999-01-01', '1999-12-12');
 delete from t for portion of apptime from '1999-01-01' to '2018-12-11';
 ERROR 23000: CONSTRAINT `dist2days` failed for `test`.`t`
-truncate t;
+delete from t;
 insert into t values(1, '1999-01-01', '2018-12-12'),
 (2, '1999-01-01', '1999-12-12');
 delete from t for portion of apptime from '1999-01-03' to '2018-12-10';

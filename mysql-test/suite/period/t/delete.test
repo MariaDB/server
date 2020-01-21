@@ -1,5 +1,6 @@
-source suite/period/engines.inc;
-source include/have_log_bin.inc;
+--source suite/period/engines.inc
+--source include/have_log_bin.inc
+--source suite/period/versioning.inc
 
 create table t (id int, s date, e date, period for apptime(s,e));
 
@@ -95,7 +96,8 @@ select * from t;
 delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
 --sorted_result
 select * from t;
-truncate t;
+create or replace table t (id int primary key auto_increment, s date, e date,
+                           period for apptime(s, e));
 --echo # same for trigger case
 insert into t values (default, '1999-01-01', '2018-12-12');
 --let $trig_table=t
@@ -116,7 +118,7 @@ select * from t;
 delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
 --sorted_result
 select * from t;
-truncate t;
+delete from t;
 --echo # same for trigger case
 insert into t values('1999-01-01', '2018-12-12', default, default);
 --let $trig_table=t
@@ -153,7 +155,7 @@ select * from t;
 --echo # negotiate side effects of non-transactional MyISAM engine
 replace into t values(127, '1999-01-01', '2018-12-12');
 select * from t;
-truncate table log_tbl;
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
 
 --error HA_ERR_AUTOINC_ERANGE
 delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
@@ -168,12 +170,12 @@ insert into t values(1, '1999-01-01', '2018-12-12'),
 --error ER_CONSTRAINT_FAILED
 delete from t for portion of apptime from '1999-01-02' to '2018-12-12';
 --echo # negotiate side effects of non-transactional MyISAM engine
-truncate t;
+delete from t;
 insert into t values(1, '1999-01-01', '2018-12-12'),
                     (2, '1999-01-01', '1999-12-12');
 --error ER_CONSTRAINT_FAILED
 delete from t for portion of apptime from '1999-01-01' to '2018-12-11';
-truncate t;
+delete from t;
 insert into t values(1, '1999-01-01', '2018-12-12'),
                     (2, '1999-01-01', '1999-12-12');
 
@@ -198,3 +200,5 @@ drop procedure sp;
 drop table t,t2,t3,log_tbl;
 drop view v;
 drop procedure log;
+
+--source suite/period/versioning_finish.inc
