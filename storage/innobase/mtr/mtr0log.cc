@@ -33,24 +33,7 @@ Created 12/7/1995 Heikki Tuuri
 #include "dict0boot.h"
 
 /********************************************************//**
-Catenates n bytes to the mtr log. */
-void
-mlog_catenate_string(
-/*=================*/
-	mtr_t*		mtr,	/*!< in: mtr */
-	const byte*	str,	/*!< in: string to write */
-	ulint		len)	/*!< in: string length */
-{
-	if (mtr_get_log_mode(mtr) == MTR_LOG_NONE) {
-
-		return;
-	}
-
-	mtr->get_log()->push(str, ib_uint32_t(len));
-}
-
-/********************************************************//**
-Parses an initial log record written by mlog_write_initial_log_record_low().
+Parses an initial log record written by mtr_t::write_low().
 @return parsed record end, NULL if not a complete record */
 const byte*
 mlog_parse_initial_log_record(
@@ -215,24 +198,23 @@ mlog_parse_nbytes(
 
 /**
 Write a log record for writing 1, 2, 4, or 8 bytes.
+@param[in]      type    number of bytes to write
 @param[in]      block   file page
-@param[in,out]  ptr     pointer in file page
-@param[in]      l       number of bytes to write
-@param[in,out]  log_ptr log record buffer
-@param[in,out]  mtr     mini-transaction */
-static byte *
-mlog_log_write_low(const buf_block_t &block, byte *ptr, mlog_id_t l,
-                   byte *log_ptr, mtr_t &mtr)
+@param[in]      ptr     pointer within block.frame
+@param[in,out]  l       log record buffer
+@return new end of mini-transaction log */
+byte *mtr_t::log_write_low(mlog_id_t type, const buf_block_t &block,
+                           const byte *ptr, byte *l)
 {
+  ut_ad(type == MLOG_1BYTE || type == MLOG_2BYTES || type == MLOG_4BYTES ||
+        type == MLOG_8BYTES);
   ut_ad(block.page.state == BUF_BLOCK_FILE_PAGE);
   ut_ad(ptr >= block.frame + FIL_PAGE_OFFSET);
-  ut_ad(ptr + unsigned(l) <= &block.frame[srv_page_size - FIL_PAGE_DATA_END]);
-  log_ptr= mlog_write_initial_log_record_low(l,
-                                             block.page.id.space(),
-                                             block.page.id.page_no(),
-                                             log_ptr, &mtr);
-  mach_write_to_2(log_ptr, page_offset(ptr));
-  return log_ptr + 2;
+  ut_ad(ptr + unsigned(type) <=
+        &block.frame[srv_page_size - FIL_PAGE_DATA_END]);
+  l= log_write_low(type, block.page.id, l);
+  mach_write_to_2(l, page_offset(ptr));
+  return l + 2;
 }
 
 /**
@@ -246,9 +228,9 @@ void mtr_t::log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
                       byte *log_ptr, uint32_t val)
 {
   ut_ad(l == MLOG_1BYTE || l == MLOG_2BYTES || l == MLOG_4BYTES);
-  log_ptr= mlog_log_write_low(block, ptr, l, log_ptr, *this);
+  log_ptr= log_write_low(l, block, ptr, log_ptr);
   log_ptr+= mach_write_compressed(log_ptr, val);
-  mlog_close(this, log_ptr);
+  m_log.close(log_ptr);
 }
 
 /**
@@ -262,9 +244,9 @@ void mtr_t::log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
                       byte *log_ptr, uint64_t val)
 {
   ut_ad(l == MLOG_8BYTES);
-  log_ptr= mlog_log_write_low(block, ptr, l, log_ptr, *this);
+  log_ptr= log_write_low(l, block, ptr, log_ptr);
   log_ptr+= mach_u64_write_compressed(log_ptr, val);
-  mlog_close(this, log_ptr);
+  m_log.close(log_ptr);
 }
 
 /** Log a write of a byte string to a page.
@@ -278,23 +260,20 @@ void mtr_t::memcpy(const buf_block_t &b, ulint ofs, ulint len)
   ut_ad(ofs + len <= ulint(srv_page_size));
 
   set_modified();
-  if (get_log_mode() != MTR_LOG_ALL)
+  if (m_log_mode != MTR_LOG_ALL)
   {
-    ut_ad(get_log_mode() == MTR_LOG_NONE ||
-          get_log_mode() == MTR_LOG_NO_REDO);
+    ut_ad(m_log_mode == MTR_LOG_NONE || m_log_mode == MTR_LOG_NO_REDO);
     return;
   }
 
   ut_ad(ofs + len < PAGE_DATA || !b.page.zip.data ||
         mach_read_from_2(b.frame + FIL_PAGE_TYPE) <= FIL_PAGE_TYPE_ZBLOB2);
 
-  byte *l= get_log()->open(11 + 2 + 2);
-  l= mlog_write_initial_log_record_low(MLOG_WRITE_STRING, b.page.id.space(),
-                                       b.page.id.page_no(), l, this);
+  byte *l= log_write_low(MLOG_WRITE_STRING, b.page.id, m_log.open(11 + 2 + 2));
   mach_write_to_2(l, ofs);
   mach_write_to_2(l + 2, len);
-  mlog_close(this, l + 4);
-  mlog_catenate_string(this, b.frame + ofs, len);
+  m_log.close(l + 4);
+  m_log.push(b.frame + ofs, static_cast<uint32_t>(len));
 }
 
 /** Write a byte string to a ROW_FORMAT=COMPRESSED page.
@@ -310,20 +289,17 @@ void mtr_t::zmemcpy(const buf_page_t &b, ulint offset, ulint len)
         mach_read_from_2(b.zip.data + FIL_PAGE_TYPE) == FIL_PAGE_RTREE);
 
   set_modified();
-  if (get_log_mode() != MTR_LOG_ALL)
+  if (m_log_mode != MTR_LOG_ALL)
   {
-    ut_ad(get_log_mode() == MTR_LOG_NONE ||
-          get_log_mode() == MTR_LOG_NO_REDO);
+    ut_ad(m_log_mode == MTR_LOG_NONE || m_log_mode == MTR_LOG_NO_REDO);
     return;
   }
 
-  byte *l= get_log()->open(11 + 2 + 2);
-  l= mlog_write_initial_log_record_low(MLOG_ZIP_WRITE_STRING, b.id.space(),
-                                       b.id.page_no(), l, this);
+  byte *l= log_write_low(MLOG_ZIP_WRITE_STRING, b.id, m_log.open(11 + 2 + 2));
   mach_write_to_2(l, offset);
   mach_write_to_2(l + 2, len);
-  mlog_close(this, l + 4);
-  mlog_catenate_string(this, b.zip.data + offset, len);
+  m_log.close(l + 4);
+  m_log.push(b.zip.data + offset, static_cast<uint32_t>(len));
 }
 
 /********************************************************//**
@@ -392,20 +368,17 @@ void mtr_t::memset(const buf_block_t* b, ulint ofs, ulint len, byte val)
   ::memset(ofs + b->frame, val, len);
 
   set_modified();
-  if (get_log_mode() != MTR_LOG_ALL)
+  if (m_log_mode != MTR_LOG_ALL)
   {
-    ut_ad(get_log_mode() == MTR_LOG_NONE ||
-          get_log_mode() == MTR_LOG_NO_REDO);
+    ut_ad(m_log_mode == MTR_LOG_NONE || m_log_mode == MTR_LOG_NO_REDO);
     return;
   }
 
-  byte *l= get_log()->open(11 + 2 + 2 + 1);
-  l= mlog_write_initial_log_record_low(MLOG_MEMSET, b->page.id.space(),
-                                       b->page.id.page_no(), l, this);
+  byte *l= log_write_low(MLOG_MEMSET, b->page.id, m_log.open(11 + 2 + 2 + 1));
   mach_write_to_2(l, ofs);
   mach_write_to_2(l + 2, len);
   l[4]= val;
-  mlog_close(this, l + 5);
+  m_log.close(l + 5);
 }
 
 /********************************************************//**

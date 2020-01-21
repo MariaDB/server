@@ -33,52 +33,6 @@ Created 12/7/1995 Heikki Tuuri
 // Forward declaration
 struct dict_index_t;
 
-/********************************************************//**
-Catenates 1 - 4 bytes to the mtr log. The value is not compressed. */
-UNIV_INLINE
-void
-mlog_catenate_ulint(
-/*================*/
-	mtr_buf_t*	dyn_buf,	/*!< in/out: buffer to write */
-	ulint		val,		/*!< in: value to write */
-	mlog_id_t	type);		/*!< in: type of value to write */
-/********************************************************//**
-Catenates 1 - 4 bytes to the mtr log. */
-UNIV_INLINE
-void
-mlog_catenate_ulint(
-/*================*/
-	mtr_t*		mtr,	/*!< in: mtr */
-	ulint		val,	/*!< in: value to write */
-	mlog_id_t	type);	/*!< in: MLOG_1BYTE, MLOG_2BYTES, MLOG_4BYTES */
-/********************************************************//**
-Catenates n bytes to the mtr log. */
-void
-mlog_catenate_string(
-/*=================*/
-	mtr_t*		mtr,	/*!< in: mtr */
-	const byte*	str,	/*!< in: string to write */
-	ulint		len);	/*!< in: string length */
-/********************************************************//**
-Opens a buffer to mlog. It must be closed with mlog_close.
-@return buffer, NULL if log mode MTR_LOG_NONE */
-UNIV_INLINE
-byte*
-mlog_open(
-/*======*/
-	mtr_t*		mtr,	/*!< in: mtr */
-	ulint		size);	/*!< in: buffer size in bytes; MUST be
-				smaller than DYN_ARRAY_DATA_SIZE! */
-/********************************************************//**
-Closes a buffer opened to mlog. */
-UNIV_INLINE
-void
-mlog_close(
-/*=======*/
-	mtr_t*		mtr,	/*!< in: mtr */
-	byte*		ptr);	/*!< in: buffer space from ptr up was
-				not used */
-
 /** Write 1, 2, 4, or 8 bytes to a file page.
 @param[in]      block   file page
 @param[in,out]  ptr     pointer in file page
@@ -122,9 +76,10 @@ inline void mtr_t::write(const buf_block_t &block, byte *ptr, V val)
     mach_write_to_8(ptr, val);
     break;
   }
-  byte *log_ptr= mlog_open(this, 11 + 2 + (l == 8 ? 9 : 5));
-  if (!log_ptr)
+  set_modified();
+  if (m_log_mode != MTR_LOG_ALL)
     return;
+  byte *log_ptr= m_log.open(11 + 2 + (l == 8 ? 9 : 5));
   if (l == 8)
     log_write(block, ptr, static_cast<mlog_id_t>(l), log_ptr, uint64_t{val});
   else
@@ -156,24 +111,22 @@ void mtr_t::zmemcpy(buf_page_t *b, ulint offset, const void *str, ulint len)
   zmemcpy(*b, offset, len);
 }
 
-/** Writes a log record about an operation.
-@param[in]	type		redo log record type
-@param[in]	space_id	tablespace identifier
-@param[in]	page_no		page number
-@param[in,out]	log_ptr		current end of mini-transaction log
-@param[in,out]	mtr		mini-transaction
-@return	end of mini-transaction log */
-UNIV_INLINE
-byte*
-mlog_write_initial_log_record_low(
-	mlog_id_t	type,
-	ulint		space_id,
-	ulint		page_no,
-	byte*		log_ptr,
-	mtr_t*		mtr);
+/** Initialize an entire page.
+@param[in,out]        b       buffer page */
+inline void mtr_t::init(buf_block_t *b)
+{
+  if (m_log_mode != MTR_LOG_ALL)
+  {
+    ut_ad(m_log_mode == MTR_LOG_NONE || m_log_mode == MTR_LOG_NO_REDO);
+    return;
+  }
+
+  m_log.close(log_write_low(MLOG_INIT_FILE_PAGE2, b->page.id, m_log.open(11)));
+  b->page.init_on_flush= true;
+}
 
 /********************************************************//**
-Parses an initial log record written by mlog_write_initial_log_record_low().
+Parses an initial log record written by mtr_t::log_write_low().
 @return parsed record end, NULL if not a complete record */
 const byte*
 mlog_parse_initial_log_record(
@@ -218,7 +171,5 @@ mlog_parse_index(
 	const byte*	end_ptr,/*!< in: buffer end */
 	bool		comp,	/*!< in: TRUE=compact record format */
 	dict_index_t**	index);	/*!< out, own: dummy index */
-
-#include "mtr0log.ic"
 
 #endif /* mtr0log_h */

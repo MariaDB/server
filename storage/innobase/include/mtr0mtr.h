@@ -46,10 +46,6 @@ savepoint. */
 #define mtr_release_s_latch_at_savepoint(m, s, l)			\
 				(m)->release_s_latch_at_savepoint((s), (l))
 
-/** Get the logging mode of a mini-transaction.
-@return	logging mode: MTR_LOG_NONE, ... */
-#define mtr_get_log_mode(m)	(m)->get_log_mode()
-
 /** Change the logging mode of a mini-transaction.
 @return	old mode */
 #define mtr_set_log_mode(m, d)	(m)->set_log_mode((d))
@@ -375,9 +371,6 @@ struct mtr_t {
 	/** @return true if a record was added to the mini-transaction */
 	bool is_dirty() const { return m_made_dirty; }
 
-	/** Note that a record has been added to the log */
-	void added_rec() { ++m_n_log_recs; }
-
 	/** Get the buffered redo log of this mini-transaction.
 	@return	redo log */
 	const mtr_buf_t* get_log() const { return &m_log; }
@@ -452,7 +445,78 @@ struct mtr_t {
   @param[in]            val     the data byte to write */
   void memset(const buf_block_t* b, ulint ofs, ulint len, byte val);
 
+  /** Initialize an entire page.
+  @param[in,out]        b       buffer page */
+  void init(buf_block_t *b);
+  /** Free a page.
+  @param id      page identifier */
+  void free(const page_id_t id) { log_page_write(id, MLOG_INIT_FREE_PAGE); }
+
+  /** Partly initialize a B-tree page.
+  @param id       page identifier
+  @param comp     false=ROW_FORMAT=REDUNDANT, true=COMPACT or DYNAMIC */
+  void page_create(const page_id_t id, bool comp)
+  {
+    set_modified();
+    log_page_write(id, comp ? MLOG_COMP_PAGE_CREATE : MLOG_PAGE_CREATE);
+  }
+
+  /** Write a log record about a file operation.
+  @param type           file operation
+  @param space_id       tablespace identifier
+  @param first_page_no  first page number in the file
+  @param path           file path
+  @param new_path       new file path for type=MLOG_FILE_RENAME2
+  @param flags          tablespace flags for type=MLOG_FILE_CREATE2 */
+  inline void log_file_op(mlog_id_t type, ulint space_id, ulint first_page_no,
+                          const char *path,
+                          const char *new_path= nullptr, ulint flags= 0);
+
 private:
+  /**
+  Write a complex page operation.
+  @param id      page identifier
+  @param type    type of operation */
+  void log_page_write(const page_id_t id, mlog_id_t type)
+  {
+    ut_ad(type == MLOG_INIT_FREE_PAGE || type == MLOG_COMP_PAGE_CREATE ||
+          type == MLOG_PAGE_CREATE);
+
+    if (m_log_mode == MTR_LOG_ALL)
+      m_log.close(log_write_low(type, id, m_log.open(11)));
+  }
+  /**
+  Write a log record.
+  @param type   redo log record type
+  @param id     persistent page identifier
+  @param l      current end of mini-transaction log
+  @return new end of mini-transaction log */
+  inline byte *log_write_low(mlog_id_t type, const page_id_t id, byte *l)
+  {
+    ut_ad(type <= MLOG_BIGGEST_TYPE);
+    ut_ad(type == MLOG_FILE_NAME || type == MLOG_FILE_DELETE ||
+          type == MLOG_FILE_CREATE2 || type == MLOG_FILE_RENAME2 ||
+          is_named_space(id.space()));
+
+    *l++= type;
+
+    l+= mach_write_compressed(l, id.space());
+    l+= mach_write_compressed(l, id.page_no());
+
+    ++m_n_log_recs;
+    return l;
+  }
+
+  /**
+  Write a log record for writing 1, 2, 4, or 8 bytes.
+  @param[in]      type    number of bytes to write
+  @param[in]      block   file page
+  @param[in]      ptr     pointer within block.frame
+  @param[in,out]  l       log record buffer
+  @return new end of mini-transaction log */
+  byte *log_write_low(mlog_id_t type, const buf_block_t &block,
+                      const byte *ptr, byte *l);
+
   /**
   Write a log record for writing 1, 2, or 4 bytes.
   @param[in]      block   file page

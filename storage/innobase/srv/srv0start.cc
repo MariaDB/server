@@ -52,6 +52,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "data0type.h"
 #include "dict0dict.h"
 #include "buf0buf.h"
+#include "buf0dblwr.h"
 #include "buf0dump.h"
 #include "os0file.h"
 #include "os0thread.h"

@@ -31,6 +31,7 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #ifdef UNIV_INNOCHECKSUM
 # include "buf0buf.h"
 #else
+#include "buf0dblwr.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "mtr0mtr.h"

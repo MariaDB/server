@@ -40,6 +40,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "log0crypt.h"
 #include "mem0mem.h"
 #include "buf0buf.h"
+#include "buf0dblwr.h"
 #include "buf0flu.h"
 #include "mtr0mtr.h"
 #include "mtr0log.h"

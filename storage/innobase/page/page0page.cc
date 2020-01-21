@@ -329,20 +329,7 @@ void page_create_low(const buf_block_t* block, bool comp)
 @param[in]	comp	set unless ROW_FORMAT=REDUNDANT */
 void page_create(buf_block_t* block, mtr_t* mtr, bool comp)
 {
-	ut_ad(mtr->is_named_space(block->page.id.space()));
-	mtr->set_modified();
-	if (mtr->get_log_mode() != MTR_LOG_ALL) {
-		ut_ad(mtr->get_log_mode() == MTR_LOG_NONE
-		      || mtr->get_log_mode() == MTR_LOG_NO_REDO);
-	} else {
-		mlog_id_t type = comp
-			? MLOG_COMP_PAGE_CREATE : MLOG_PAGE_CREATE;
-		byte *l= mtr->get_log()->open(11);
-		l = mlog_write_initial_log_record_low(
-			type, block->page.id.space(), block->page.id.page_no(),
-			l, mtr);
-		mlog_close(mtr, l);
-	}
+	mtr->page_create(block->page.id, comp);
 	buf_block_modify_clock_inc(block);
 	page_create_low(block, comp);
 }

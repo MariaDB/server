@@ -454,7 +454,7 @@ void mtr_t::commit_files(lsn_t checkpoint_lsn)
 	ut_ad(log_mutex_own());
 	ut_ad(is_active());
 	ut_ad(!is_inside_ibuf());
-	ut_ad(get_log_mode() == MTR_LOG_ALL);
+	ut_ad(m_log_mode == MTR_LOG_ALL);
 	ut_ad(!m_made_dirty);
 	ut_ad(m_memo.size() == 0);
 	ut_ad(!srv_read_only_mode);
@@ -467,7 +467,7 @@ void mtr_t::commit_files(lsn_t checkpoint_lsn)
 		*m_log.front()->begin() |= MLOG_SINGLE_REC_FLAG;
 		break;
 	default:
-		mlog_catenate_ulint(&m_log, MLOG_MULTI_REC_END, MLOG_1BYTE);
+		*m_log.push<byte*>(1) = MLOG_MULTI_REC_END;
 	}
 
 	if (checkpoint_lsn) {
@@ -497,7 +497,7 @@ mtr_t::is_named_space(ulint space) const
 {
 	ut_ad(!m_user_space || m_user_space->id != TRX_SYS_SPACE);
 
-	switch (get_log_mode()) {
+	switch (m_log_mode) {
 	case MTR_LOG_NONE:
 	case MTR_LOG_NO_REDO:
 		return(true);
@@ -517,7 +517,7 @@ bool mtr_t::is_named_space(const fil_space_t* space) const
 {
   ut_ad(!m_user_space || m_user_space->id != TRX_SYS_SPACE);
 
-  switch (get_log_mode()) {
+  switch (m_log_mode) {
   case MTR_LOG_NONE:
   case MTR_LOG_NO_REDO:
     return true;
@@ -548,7 +548,7 @@ mtr_t::x_lock_space(ulint space_id, const char* file, unsigned line)
 	} else if ((space = m_user_space) && space_id == space->id) {
 	} else {
 		space = fil_space_get(space_id);
-		ut_ad(get_log_mode() != MTR_LOG_NO_REDO
+		ut_ad(m_log_mode != MTR_LOG_NO_REDO
 		      || space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT);
 	}
@@ -642,7 +642,7 @@ inline ulint mtr_t::prepare_write()
 		this tablespace since the latest checkpoint, so
 		some MLOG_FILE_NAME records were appended to m_log. */
 		ut_ad(m_n_log_recs > n_recs);
-		mlog_catenate_ulint(&m_log, MLOG_MULTI_REC_END, MLOG_1BYTE);
+		*m_log.push<byte*>(1) = MLOG_MULTI_REC_END;
 		len = m_log.size();
 	} else {
 		/* This was not the first time of dirtying a
@@ -660,9 +660,7 @@ inline ulint mtr_t::prepare_write()
 			/* Because this mini-transaction comprises
 			multiple log records, append MLOG_MULTI_REC_END
 			at the end. */
-
-			mlog_catenate_ulint(&m_log, MLOG_MULTI_REC_END,
-					    MLOG_1BYTE);
+			*m_log.push<byte*>(1) = MLOG_MULTI_REC_END;
 			len++;
 		}
 	}

@@ -44,6 +44,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "buf0buddy.h"
+#include "buf0dblwr.h"
 #include "lock0lock.h"
 #include "sync0rw.h"
 #include "btr0sea.h"

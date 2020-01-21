@@ -1274,11 +1274,7 @@ static void fsp_free_page(fil_space_t* space, page_no_t offset, mtr_t* mtr)
 		return;
 	}
 
-	if (byte* log_ptr = mlog_open(mtr, 11)) {
-		log_ptr = mlog_write_initial_log_record_low(
-			MLOG_INIT_FREE_PAGE, space->id, offset, log_ptr, mtr);
-		mlog_close(mtr, log_ptr);
-	}
+	mtr->free(page_id_t(space->id, offset));
 
 	const ulint	bit = offset % FSP_EXTENT_SIZE;
 

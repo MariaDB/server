@@ -627,15 +627,7 @@ inline void fsp_init_file_page(
 	ut_d(space->modify_check(*mtr));
 	ut_ad(space->id == block->page.id.space());
 	fsp_apply_init_file_page(block);
-
-	if (byte* log_ptr = mlog_open(mtr, 11)) {
-		log_ptr = mlog_write_initial_log_record_low(
-			MLOG_INIT_FILE_PAGE2,
-			block->page.id.space(), block->page.id.page_no(),
-			log_ptr, mtr);
-		mlog_close(mtr, log_ptr);
-		block->page.init_on_flush = true;
-	}
+	mtr->init(block);
 }
 
 #ifndef UNIV_DEBUG

@@ -32,6 +32,7 @@ Created 11/11/1995 Heikki Tuuri
 #include "buf0flu.h"
 #include "buf0buf.h"
 #include "buf0checksum.h"
+#include "buf0dblwr.h"
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "page0zip.h"
