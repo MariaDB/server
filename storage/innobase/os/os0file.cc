@@ -4518,7 +4518,7 @@ corrupted:
 		return false;
 	}
 
-	const ulint space_id = memcmp_aligned<4>(
+	const ulint space_id = memcmp_aligned<2>(
 		FIL_PAGE_SPACE_ID + page,
 		FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
 		? ULINT_UNDEFINED

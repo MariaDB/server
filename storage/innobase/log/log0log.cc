@@ -355,8 +355,7 @@ part_loop:
 			- log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
 	}
 
-	memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(log_sys.buf + log_sys.buf_free,
-					       str, len);
+	memcpy(log_sys.buf + log_sys.buf_free, str, len);
 
 	str_len -= len;
 	str = str + len;

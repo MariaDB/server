@@ -84,7 +84,7 @@ static const byte infimum_data[] = {
 	0x6d, 0x75, 0x6d, 0x00	/* "infimum\0" */
 };
 /** Extra bytes and data bytes of a supremum record */
-static const byte supremum_extra_data[] = {
+static const byte supremum_extra_data alignas(4) [] = {
 	/* 0x0?, */		/* info_bits=0, n_owned=1..8 */
 	0x00, 0x0b,		/* heap_no=1, status=3 */
 	0x00, 0x00,		/* next=0 */
@@ -4573,8 +4573,7 @@ page_zip_dir_add_slot(
 
 	/* Move the uncompressed area backwards to make space
 	for one directory slot. */
-	memmove_aligned<2>(stored - PAGE_ZIP_DIR_SLOT_SIZE, stored,
-			   ulint(dir - stored));
+	memmove(stored - PAGE_ZIP_DIR_SLOT_SIZE, stored, ulint(dir - stored));
 }
 
 /***********************************************************//**

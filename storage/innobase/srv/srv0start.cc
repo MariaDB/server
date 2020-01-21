@@ -619,7 +619,7 @@ err_exit:
 
     uint32_t id= mach_read_from_4(FIL_PAGE_SPACE_ID + page);
     if (id == 0 || id >= SRV_SPACE_ID_UPPER_BOUND ||
-        memcmp_aligned<4>(FIL_PAGE_SPACE_ID + page,
+        memcmp_aligned<2>(FIL_PAGE_SPACE_ID + page,
                           FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4))
     {
       ib::error() << "Inconsistent tablespace ID in file " << name;

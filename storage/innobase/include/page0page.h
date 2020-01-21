@@ -398,8 +398,7 @@ page_rec_is_infimum(const rec_t* rec);
 inline trx_id_t page_get_max_trx_id(const page_t *page)
 {
   static_assert((PAGE_HEADER + PAGE_MAX_TRX_ID) % 8 == 0, "alignment");
-  const byte *p= static_cast<const byte*>
-    (MY_ASSUME_ALIGNED(page + PAGE_HEADER + PAGE_MAX_TRX_ID, 8));
+  const auto *p= my_assume_aligned<8>(page + PAGE_HEADER + PAGE_MAX_TRX_ID);
   return mach_read_from_8(p);
 }
 

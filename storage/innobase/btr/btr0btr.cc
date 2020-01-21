@@ -1967,9 +1967,8 @@ btr_root_raise_and_insert(
 		the field only matters on leaf pages, and the root no
 		longer is a leaf page. (Older versions of InnoDB did
 		set PAGE_MAX_TRX_ID on all secondary index pages.) */
-		byte* p = static_cast<byte*>(
-			MY_ASSUME_ALIGNED(PAGE_HEADER + PAGE_MAX_TRX_ID
-					  + root->frame, 8));
+		byte* p = my_assume_aligned<8>(
+			PAGE_HEADER + PAGE_MAX_TRX_ID + root->frame);
 		if (UNIV_LIKELY_NULL(root_page_zip)) {
 			memset_aligned<8>(p, 0, 8);
 			page_zip_write_header(root_page_zip, p, 8, mtr);
@@ -1980,9 +1979,8 @@ btr_root_raise_and_insert(
 		/* PAGE_ROOT_AUTO_INC is only present in the clustered index
 		root page; on other clustered index pages, we want to reserve
 		the field PAGE_MAX_TRX_ID for future use. */
-		byte* p = static_cast<byte*>(
-			MY_ASSUME_ALIGNED(PAGE_HEADER + PAGE_MAX_TRX_ID
-					  + new_block->frame, 8));
+		byte* p = my_assume_aligned<8>(
+			PAGE_HEADER + PAGE_MAX_TRX_ID + new_block->frame);
 		if (UNIV_LIKELY_NULL(new_page_zip)) {
 			memset_aligned<8>(p, 0, 8);
 			page_zip_write_header(new_page_zip, p, 8, mtr);

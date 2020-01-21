@@ -199,9 +199,8 @@ page_set_max_trx_id(
 {
   ut_ad(!mtr || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
   static_assert((PAGE_HEADER + PAGE_MAX_TRX_ID) % 8 == 0, "alignment");
-  byte *max_trx_id= static_cast<byte*>(MY_ASSUME_ALIGNED(PAGE_MAX_TRX_ID
-                                                         + PAGE_HEADER
-                                                         + block->frame, 8));
+  byte *max_trx_id= my_assume_aligned<8>(PAGE_MAX_TRX_ID +
+                                         PAGE_HEADER + block->frame);
 
   if (UNIV_LIKELY_NULL(page_zip))
   {

@@ -2015,7 +2015,7 @@ clear_page_max_trx_id:
 inline dberr_t PageConverter::update_header(buf_block_t* block) UNIV_NOTHROW
 {
   byte *frame= get_frame(block);
-  if (memcmp_aligned<4>(FIL_PAGE_SPACE_ID + frame,
+  if (memcmp_aligned<2>(FIL_PAGE_SPACE_ID + frame,
                         FSP_HEADER_OFFSET + FSP_SPACE_ID + frame, 4))
     ib::warn() << "Space id check in the header failed: ignored";
   else if (!mach_read_from_4(FIL_PAGE_SPACE_ID + frame))
@@ -2025,7 +2025,7 @@ inline dberr_t PageConverter::update_header(buf_block_t* block) UNIV_NOTHROW
 
   /* Write space_id to the tablespace header, page 0. */
   mach_write_to_4(FIL_PAGE_SPACE_ID + frame, get_space_id());
-  memcpy_aligned<4>(FSP_HEADER_OFFSET + FSP_SPACE_ID + frame,
+  memcpy_aligned<2>(FSP_HEADER_OFFSET + FSP_SPACE_ID + frame,
                     FIL_PAGE_SPACE_ID + frame, 4);
   /* Write back the adjusted flags. */
   mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + frame, m_space_flags);

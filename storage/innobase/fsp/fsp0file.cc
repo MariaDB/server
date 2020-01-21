@@ -338,7 +338,7 @@ Datafile::read_first_page(bool read_only_mode)
 	}
 
 	if (m_order == 0) {
-		if (memcmp_aligned<4>(FIL_PAGE_SPACE_ID + m_first_page,
+		if (memcmp_aligned<2>(FIL_PAGE_SPACE_ID + m_first_page,
 				      FSP_HEADER_OFFSET + FSP_SPACE_ID
 				      + m_first_page, 4)) {
 			ib::error()
