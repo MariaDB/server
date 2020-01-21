@@ -119,7 +119,9 @@ static const char *removed_variables[] =
 "rpl_recovery_rank",
 "sql_big_tables",
 "sql_low_priority_updates",
-"sql_max_join_size"
+"sql_max_join_size",
+"thread_concurrency",
+"timed_mutexes"
 };
 
 

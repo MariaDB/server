@@ -459,7 +459,7 @@ Atomic_counter<uint32_t> thread_count;
 bool shutdown_wait_for_slaves;
 int32 slave_open_temp_tables;
 ulong thread_created;
-ulong back_log, connect_timeout, concurrency, server_id;
+ulong back_log, connect_timeout, server_id;
 ulong what_to_log;
 ulong slow_launch_time;
 ulong open_files_limit, max_binlog_size;
@@ -5050,6 +5050,10 @@ static int init_server_components()
          compatibility, but do not have any effect otherwise, they behave
          as if supplied with --loose. Whenever a deprecated option is removed
          it should be appended here. */
+      {"thread-concurrency", OPT_DEPRECATED_OPTION, "",
+       0, 0, 0, GET_NO_ARG, OPT_ARG, 0, 0, 0, 0, 0, 0},
+      {"timed-mutexes", OPT_DEPRECATED_OPTION, "",
+       0, 0, 0, GET_NO_ARG, OPT_ARG, 0, 0, 0, 0, 0, 0},
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
     /*

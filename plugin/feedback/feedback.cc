@@ -184,7 +184,6 @@ static LEX_STRING vars_filter[]= {
   {C_STRING_WITH_LEN("table_open_cache")},
   {C_STRING_WITH_LEN("thread_handling")},
   {C_STRING_WITH_LEN("time_zone")},
-  {C_STRING_WITH_LEN("timed_mutexes")},
   {C_STRING_WITH_LEN("version%")},
   {0, 0}
 };

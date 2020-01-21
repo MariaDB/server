@@ -1364,8 +1364,6 @@ The following specify which files/extra groups are read (specified before remain
  created to handle remaining clients.
  --thread-stack=#    The stack size for each thread
  --time-format=name  The TIME format (ignored)
- --timed-mutexes     Specify whether to time mutexes. Deprecated, has no
- effect.
  --tls-version=name  TLS protocol version for secure connections.. Any
  combination of: TLSv1.0, TLSv1.1, TLSv1.2, TLSv1.3
  --tmp-disk-table-size=# 
@@ -1772,7 +1770,6 @@ thread-pool-priority auto
 thread-pool-stall-limit 500
 thread-stack 299008
 time-format %H:%i:%s
-timed-mutexes FALSE
 tmp-disk-table-size 18446744073709551615
 tmp-memory-table-size 16777216
 tmp-table-size 16777216

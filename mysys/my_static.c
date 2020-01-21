@@ -23,7 +23,6 @@
 #include "my_static.h"
 #include "my_alarm.h"
 
-my_bool timed_mutexes= 0;
 
 	/* from my_init */
 char *	home_dir=0;

@@ -287,7 +287,6 @@ extern my_bool  my_disable_locking, my_disable_async_io,
 extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;
 extern const char *charsets_dir;
-extern my_bool timed_mutexes;
 
 enum cache_type
 {
