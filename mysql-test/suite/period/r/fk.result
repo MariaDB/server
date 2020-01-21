@@ -14,7 +14,7 @@ s	CREATE TABLE `s` (
   `e` date NOT NULL,
   PERIOD FOR `fp` (`s`, `e`),
   KEY `id` (`id`,`x`,`s`,`e`),
-  CONSTRAINT `s_ibfk_1` FOREIGN KEY (`id`, `x`, `s`, `e`) REFERENCES `t` (`id`, `x`, `s`, `e`)
+  CONSTRAINT `s_ibfk_1` FOREIGN KEY (`id`, `x`, period `fp`) REFERENCES `t` (`id`, `x`, period `p`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 flush tables;
 Warnings:
@@ -173,7 +173,7 @@ s	CREATE TABLE `s` (
   UNIQUE KEY `x` (`x`),
   UNIQUE KEY `z` (`z`),
   KEY `pk` (`pk`,`y`,`s`,`e`),
-  CONSTRAINT `s_ibfk_1` FOREIGN KEY (`pk`, `y`, `s`, `e`) REFERENCES `t` (`id`, `x`, `s`, `e`)
+  CONSTRAINT `s_ibfk_1` FOREIGN KEY (`pk`, `y`, period `fp`) REFERENCES `t` (`id`, `x`, period `p`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 select * from t;
 id	x	s	e

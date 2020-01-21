@@ -4925,6 +4925,11 @@ unsigned long long thd_get_query_id(const MYSQL_THD thd)
   return((unsigned long long)thd->query_id);
 }
 
+TABLE *thd_get_open_tables(const MYSQL_THD thd)
+{
+  return thd->open_tables;
+}
+
 void thd_clear_error(MYSQL_THD thd)
 {
   thd->clear_error();

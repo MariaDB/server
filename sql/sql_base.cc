@@ -3544,7 +3544,8 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
 static bool table_can_need_prelocking(THD *thd, TABLE_LIST *table)
 {
   return (table->updating && table->lock_type >= TL_WRITE_ALLOW_WRITE)
-         || thd->lex->default_used;
+         || thd->lex->default_used
+         || thd->lex->sql_command == SQLCOM_SHOW_CREATE;
 }
 
 /*
@@ -4813,10 +4814,9 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
   DBUG_ENTER("handle_table");
   TABLE *table= table_list->table;
   /* We rely on a caller to check that table is going to be changed. */
-  DBUG_ASSERT(table_list->lock_type >= TL_WRITE_ALLOW_WRITE ||
-              thd->lex->default_used);
+  DBUG_ASSERT(table_can_need_prelocking(thd, table_list));
 
-  if (table_list->trg_event_map)
+  if (table_list->trg_event_map || thd->lex->sql_command == SQLCOM_SHOW_CREATE)
   {
     if (table->triggers)
     {
