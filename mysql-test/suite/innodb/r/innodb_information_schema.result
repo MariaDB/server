@@ -38,7 +38,7 @@ trx_lock_memory_bytes	bigint(21) unsigned	NO		0
 trx_rows_locked	bigint(21) unsigned	NO		0	
 trx_rows_modified	bigint(21) unsigned	NO		0	
 trx_concurrency_tickets	bigint(21) unsigned	NO		0	
-trx_isolation_level	enum('READ UNCOMMITTED','READ COMMITTED','REPEATABLE READ','SERIALIZABLE')	NO			
+trx_isolation_level	enum('READ UNCOMMITTED','READ COMMITTED','REPEATABLE READ','SERIALIZABLE')	NO		NULL	
 trx_unique_checks	int(1)	NO		0	
 trx_foreign_key_checks	int(1)	NO		0	
 trx_last_foreign_key_error	varchar(256)	YES		NULL	

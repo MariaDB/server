@@ -45,6 +45,13 @@ enum enum_show_open_table
 };
 
 
+enum enum_show_default
+{
+  DEFAULT_TYPE_IMPLICIT= 0,
+  DEFAULT_NONE
+};
+
+
 namespace Show {
 class Type
 {
@@ -88,21 +95,30 @@ class ST_FIELD_INFO: public Show::Type
 protected:
   LEX_CSTRING m_name;                 // I_S column name
   enum_nullability m_nullability;     // NULLABLE or NOT NULL
+  enum_show_default m_def;            // Whether has a DEFAULT value
   LEX_CSTRING m_old_name;             // SHOW column name
   enum_show_open_table m_open_method;
 public:
   ST_FIELD_INFO(const LEX_CSTRING &name, const Type &type,
                 enum_nullability nullability,
+                enum_show_default def,
                 LEX_CSTRING &old_name,
                 enum_show_open_table open_method)
-   :Type(type), m_name(name), m_nullability(nullability), m_old_name(old_name),
+   :Type(type), m_name(name),
+    m_nullability(nullability),
+    m_def(def),
+    m_old_name(old_name),
     m_open_method(open_method)
   { }
   ST_FIELD_INFO(const char *name, const Type &type,
                 enum_nullability nullability,
+                enum_show_default def,
                 const char *old_name,
                 enum_show_open_table open_method)
-   :Type(type), m_nullability(nullability), m_open_method(open_method)
+   :Type(type),
+    m_nullability(nullability),
+    m_def(def),
+    m_open_method(open_method)
   {
     m_name.str= name;
     m_name.length= safe_strlen(name);
@@ -111,6 +127,7 @@ public:
   }
   const LEX_CSTRING &name() const { return m_name; }
   bool nullable() const { return m_nullability == NULLABLE; }
+  enum_show_default def() const { return m_def; }
   const LEX_CSTRING &old_name() const { return m_old_name; }
   enum_show_open_table open_method() const { return  m_open_method; }
   bool end_marker() const { return m_name.str == NULL; }
@@ -279,14 +296,30 @@ public:
 class Column: public ST_FIELD_INFO
 {
 public:
-  Column(const char *name, const Type &type, enum_nullability nullability,
+  Column(const char *name, const Type &type,
+         enum_nullability nullability,
+         enum_show_default def,
          const char *old_name,
          enum_show_open_table open_method= SKIP_OPEN_TABLE)
-   :ST_FIELD_INFO(name, type, nullability, old_name, open_method)
+   :ST_FIELD_INFO(name, type, nullability, def, old_name, open_method)
   { }
   Column(const char *name, const Type &type, enum_nullability nullability,
+         enum_show_default def,
          enum_show_open_table open_method= SKIP_OPEN_TABLE)
-   :Column(name, type, nullability, NullS, open_method)
+   :ST_FIELD_INFO(name, type, nullability, def, NullS, open_method)
+  { }
+  Column(const char *name, const Type &type,
+         enum_nullability nullability,
+         const char *old_name,
+         enum_show_open_table open_method= SKIP_OPEN_TABLE)
+   :ST_FIELD_INFO(name, type, nullability, DEFAULT_TYPE_IMPLICIT,
+                  old_name, open_method)
+  { }
+  Column(const char *name, const Type &type,
+         enum_nullability nullability,
+         enum_show_open_table open_method= SKIP_OPEN_TABLE)
+   :ST_FIELD_INFO(name, type, nullability, DEFAULT_TYPE_IMPLICIT,
+                  NullS, open_method)
   { }
 };
 

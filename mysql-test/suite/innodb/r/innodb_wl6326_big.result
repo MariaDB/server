@@ -229,7 +229,7 @@ INSERT INTO my_metrics
 SELECT NAME, COUNT, MAX_COUNT, MIN_COUNT, AVG_COUNT,
 COUNT_RESET, MAX_COUNT_RESET, MIN_COUNT_RESET, AVG_COUNT_RESET,
 TIME_ENABLED, TIME_DISABLED, TIME_ELAPSED, TIME_RESET,
-STATUS, 'before'
+ENABLED, 'before'
 FROM information_schema.innodb_metrics
 WHERE NAME LIKE 'innodb_rwlock_sx_%';
 # TC-01 There are exact three entries "innodb_rwlock_sx_%" with the
@@ -254,7 +254,7 @@ INSERT INTO my_metrics
 SELECT NAME, COUNT, MAX_COUNT, MIN_COUNT, AVG_COUNT,
 COUNT_RESET, MAX_COUNT_RESET, MIN_COUNT_RESET, AVG_COUNT_RESET,
 TIME_ENABLED, TIME_DISABLED, TIME_ELAPSED, TIME_RESET,
-STATUS, 'before'
+ENABLED, 'before'
 FROM information_schema.innodb_metrics
 WHERE NAME LIKE 'innodb_rwlock_sx_%';
 SET @extra_string = '__0_';
@@ -369,7 +369,7 @@ INSERT INTO my_metrics
 SELECT NAME, COUNT, MAX_COUNT, MIN_COUNT, AVG_COUNT,
 COUNT_RESET, MAX_COUNT_RESET, MIN_COUNT_RESET, AVG_COUNT_RESET,
 TIME_ENABLED, TIME_DISABLED, TIME_ELAPSED, TIME_RESET,
-STATUS, 'after'
+ENABLED, 'after'
 FROM information_schema.innodb_metrics
 WHERE NAME LIKE 'innodb_rwlock_sx_%';
 # TC-16 The following activities happend after reset in innodb_metrics
@@ -389,7 +389,7 @@ INSERT INTO my_metrics
 SELECT NAME, COUNT, MAX_COUNT, MIN_COUNT, AVG_COUNT,
 COUNT_RESET, MAX_COUNT_RESET, MIN_COUNT_RESET, AVG_COUNT_RESET,
 TIME_ENABLED, TIME_DISABLED, TIME_ELAPSED, TIME_RESET,
-STATUS, 'before'
+ENABLED, 'before'
 FROM information_schema.innodb_metrics
 WHERE NAME LIKE 'innodb_rwlock_sx_%';
 SET GLOBAL innodb_monitor_reset = "innodb_rwlock_sx_%";
@@ -397,7 +397,7 @@ INSERT INTO my_metrics
 SELECT NAME, COUNT, MAX_COUNT, MIN_COUNT, AVG_COUNT,
 COUNT_RESET, MAX_COUNT_RESET, MIN_COUNT_RESET, AVG_COUNT_RESET,
 TIME_ENABLED, TIME_DISABLED, TIME_ELAPSED, TIME_RESET,
-STATUS, 'after'
+ENABLED, 'after'
 FROM information_schema.innodb_metrics
 WHERE NAME LIKE 'innodb_rwlock_sx_%';
 # TC-08 There was a reset. COUNT_RESET = MAX_COUNT_RESET for ALL

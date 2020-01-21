@@ -17,10 +17,14 @@ INNODB_TRX	CREATE TEMPORARY TABLE `INNODB_TRX` (
   `trx_rows_locked` bigint(21) unsigned NOT NULL DEFAULT 0,
   `trx_rows_modified` bigint(21) unsigned NOT NULL DEFAULT 0,
   `trx_concurrency_tickets` bigint(21) unsigned NOT NULL DEFAULT 0,
-  `trx_isolation_level` enum('READ UNCOMMITTED','READ COMMITTED','REPEATABLE READ','SERIALIZABLE') NOT NULL DEFAULT '',
+  `trx_isolation_level` enum('READ UNCOMMITTED','READ COMMITTED','REPEATABLE READ','SERIALIZABLE') NOT NULL,
   `trx_unique_checks` int(1) NOT NULL DEFAULT 0,
   `trx_foreign_key_checks` int(1) NOT NULL DEFAULT 0,
   `trx_last_foreign_key_error` varchar(256) DEFAULT NULL,
   `trx_is_read_only` int(1) NOT NULL DEFAULT 0,
   `trx_autocommit_non_locking` int(1) NOT NULL DEFAULT 0
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8
+CREATE TEMPORARY TABLE t1 LIKE INFORMATION_SCHEMA.INNODB_TRX;
+DROP TEMPORARY TABLE t1;
+CREATE TEMPORARY TABLE t1 AS SELECT * FROM INFORMATION_SCHEMA.INNODB_TRX LIMIT 0;
+DROP TEMPORARY TABLE t1;

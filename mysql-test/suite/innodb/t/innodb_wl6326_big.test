@@ -163,19 +163,19 @@ let $before_my_metrics= INSERT INTO my_metrics
 SELECT NAME, COUNT, MAX_COUNT, MIN_COUNT, AVG_COUNT,
 COUNT_RESET, MAX_COUNT_RESET, MIN_COUNT_RESET, AVG_COUNT_RESET,
 TIME_ENABLED, TIME_DISABLED, TIME_ELAPSED, TIME_RESET,
-STATUS, 'before'
+ENABLED, 'before'
 FROM information_schema.innodb_metrics
 WHERE NAME LIKE 'innodb_rwlock_sx_%';
 let $after_my_metrics= INSERT INTO my_metrics
 SELECT NAME, COUNT, MAX_COUNT, MIN_COUNT, AVG_COUNT,
 COUNT_RESET, MAX_COUNT_RESET, MIN_COUNT_RESET, AVG_COUNT_RESET,
 TIME_ENABLED, TIME_DISABLED, TIME_ELAPSED, TIME_RESET,
-STATUS, 'after'
+ENABLED, 'after'
 FROM information_schema.innodb_metrics
 WHERE NAME LIKE 'innodb_rwlock_sx_%';
 let $print_metrics= SELECT NAME, COUNT, MAX_COUNT, MIN_COUNT, AVG_COUNT,
 COUNT_RESET, MAX_COUNT_RESET, MIN_COUNT_RESET, AVG_COUNT_RESET,
-TIME_ENABLED, TIME_DISABLED, TIME_ELAPSED, TIME_RESET, STATUS
+TIME_ENABLED, TIME_DISABLED, TIME_ELAPSED, TIME_RESET, ENABLED
 FROM information_schema.innodb_metrics
 WHERE NAME LIKE 'innodb_rwlock_sx_%'
 ORDER BY NAME;
@@ -315,12 +315,12 @@ SELECT COUNT(*) INTO @sx_count FROM my_metrics;
 --echo # TC-02 Counting is now enabled. ALL = @sx_count entries show that.
 let $check_statement=
 SELECT COUNT(*) <> @sx_count FROM my_metrics
-WHERE STATUS = 'enabled';
+WHERE ENABLED;
 if(`$check_statement`)
 {
    --echo #    fail
    eval $check_statement;
-   SELECT NAME, STATUS FROM my_metrics
+   SELECT NAME, ENABLED FROM my_metrics
    ORDER BY NAME;
    exit;
 }
