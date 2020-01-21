@@ -1,5 +1,6 @@
-source suite/period/engines.inc;
-source include/have_log_bin.inc;
+--source suite/period/engines.inc
+--source include/have_log_bin.inc
+--source suite/period/versioning.inc
 
 create table t (id int, s date, e date, period for apptime(s,e));
 
@@ -134,7 +135,8 @@ update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= x + 5;
 --sorted_result
 select * from t;
 
-truncate t;
+create or replace table t (id int primary key auto_increment, x int,
+                           s date, e date, period for apptime(s, e));
 insert into t values (default, 1, '1999-01-01', '2018-12-12');
 update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= 1;
 --sorted_result
@@ -163,3 +165,5 @@ drop function f;
 drop function g;
 drop function h;
 drop procedure log;
+
+--source suite/period/versioning_finish.inc
