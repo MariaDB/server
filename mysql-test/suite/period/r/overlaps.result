@@ -137,13 +137,10 @@ insert into t values (1, '2003-01-01', '2003-03-01'),
 (1, '2003-02-01', '2003-04-01');
 alter table t add primary key(id, p without overlaps);
 ERROR 23000: Duplicate entry '1-2003-04-01-2003-02-01' for key 'PRIMARY'
-# Historical rows are not checked against constraints
-set @@system_versioning_alter_history= keep;
-alter table t add system versioning;
 delete from t;
-alter table t add primary key(id, p without overlaps);
 insert into t values (1, '2003-01-01', '2003-03-01'),
 (1, '2003-03-01', '2003-05-01');
+alter table t add primary key(id, p without overlaps);
 # `without overlaps` is not lost on alter table
 alter table t add y int;
 show create table t;
@@ -155,7 +152,7 @@ t	CREATE TABLE `t` (
   `y` int(11) DEFAULT NULL,
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
 alter table t drop y;
 create or replace table t1 like t;
 show create table t1;
@@ -166,7 +163,7 @@ t1	CREATE TABLE `t1` (
   `e` date NOT NULL,
   PERIOD FOR `p` (`s`, `e`),
   PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
 create or replace table t1 (x int, s date, e date,
 period for p(s,e),
 primary key(x, p without overlaps));

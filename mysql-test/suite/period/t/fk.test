@@ -1,4 +1,6 @@
 --source include/have_innodb.inc
+--source suite/period/versioning.inc
+
 set default_storage_engine= innodb;
 
 create or replace table t (id int, x int, s date, e date, period for p(s,e),
@@ -9,6 +11,7 @@ create or replace table s (id int, x int, s date, e date, period for fp(s,e),
                              references t(id, x, period p)
                              on delete restrict);
 
+--replace_result " WITH SYSTEM VERSIONING" ""
 show create table s;
 
 flush tables;
@@ -149,6 +152,7 @@ create or replace table s (x int, y int, z char(200), pk int,
 delete from t;
 insert into t values(1, 1, '2017-01-03', '2017-01-20');
 
+--replace_result " WITH SYSTEM VERSIONING" ""
 show create table s;
 --sorted_result
 select * from t;
@@ -166,15 +170,18 @@ call mtr.add_suppression("In ALTER TABLE .* has or is referenced in foreign key 
 --error ER_ERROR_ON_RENAME
 alter table t drop period for p, drop constraint id;
 
+--replace_result " WITH SYSTEM VERSIONING" ""
 show create table s;
 alter table t drop period for p, drop constraint id, add period for pop(s, e),
               add unique(id, x, pop without overlaps);
+--replace_result " WITH SYSTEM VERSIONING" ""
 show create table s;
 
 --replace_regex  /Error on rename of '.*' to '.*'/Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME'/
 --error ER_ERROR_ON_RENAME
 alter table t drop period for pop, drop constraint id,
               add unique(id, x, s, e);
+--replace_result " WITH SYSTEM VERSIONING" ""
 show create table s;
 
 --error ER_PERIOD_NOT_FOUND
