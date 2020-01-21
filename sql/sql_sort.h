@@ -2,6 +2,7 @@
 #define SQL_SORT_INCLUDED
 
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -76,15 +77,6 @@ struct BUFFPEK_COMPARE_CONTEXT
 
 struct Merge_chunk {
 public:
-  Merge_chunk(): m_current_key(NULL),
-                 m_file_position(0),
-                 m_buffer_start(NULL),
-                 m_buffer_end(NULL),
-                 m_rowcount(0),
-                 m_mem_count(0),
-                 m_max_keys(0)
-  {}
-
   my_off_t file_position() const { return m_file_position; }
   void set_file_position(my_off_t val) { m_file_position= val; }
   void advance_file_position(my_off_t val) { m_file_position+= val; }
@@ -147,14 +139,20 @@ public:
     return false;
   }
 
-  uchar   *m_current_key;  /// The current key for this chunk.
-  my_off_t m_file_position;/// Current position in the file to be sorted.
-  uchar   *m_buffer_start; /// Start of main-memory buffer for this chunk.
-  uchar   *m_buffer_end;   /// End of main-memory buffer for this chunk.
-  ha_rows  m_rowcount;     /// Number of unread rows in this chunk.
-  ha_rows  m_mem_count;    /// Number of rows in the main-memory buffer.
-  ha_rows  m_max_keys;     /// If we have fixed-size rows:
-                           ///    max number of rows in buffer.
+  /// The current key for this chunk
+  uchar *m_current_key= nullptr;
+  /// Current position in the file to be sorted.
+  my_off_t m_file_position= 0;
+  /// Start of main-memory buffer for this chunk.
+  uchar *m_buffer_start= nullptr;
+  /// End of main-memory buffer for this chunk.
+  uchar *m_buffer_end= nullptr;
+  /// Number of unread rows in this chunk.
+  ha_rows m_rowcount= 0;
+  /// Number of rows in the main-memory buffer.
+  ha_rows m_mem_count= 0;
+  /// If we have fixed-size rows: max number of rows in buffer.
+  ha_rows m_max_keys= 0;
 };
 
 typedef Bounds_checked_array<SORT_ADDON_FIELD> Addon_fields_array;
