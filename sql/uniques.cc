@@ -528,8 +528,8 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
   */
   for (top= begin; top != end; ++top)
   {
-    top->set_buffer_start(merge_buffer + (top - begin) * piece_size);
-    top->set_buffer_end(top->buffer_start() + piece_size);
+    top->set_buffer(merge_buffer + (top - begin) * piece_size,
+                    merge_buffer + (top - begin) * piece_size + piece_size);
     top->set_max_keys(max_key_count_per_piece);
     bytes_read= read_to_buffer(file, top, &sort_param);
     if (unlikely(bytes_read == (ulong) -1))
