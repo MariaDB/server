@@ -300,7 +300,7 @@ public:
 
   Sort_param()
   {
-    memset(this, 0, sizeof(*this));
+    memset(reinterpret_cast<void*>(this), 0, sizeof(*this));
   }
   void init_for_filesort(uint sortlen, TABLE *table,
                          ha_rows maxrows, bool sort_positions);
