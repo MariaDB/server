@@ -3,6 +3,7 @@
 
 /* Copyright (c) 2003, 2005-2007 MySQL AB, 2009 Sun Microsystems, Inc.
    Use is subject to license terms.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,7 +35,7 @@
 template <typename Element_type> class Bounds_checked_array
 {
 public:
-  Bounds_checked_array() : m_array(NULL), m_size(0) {}
+  Bounds_checked_array()= default;
 
   Bounds_checked_array(Element_type *el, size_t size_arg)
     : m_array(el), m_size(size_arg)
@@ -99,8 +100,8 @@ public:
   }
 
 private:
-  Element_type *m_array;
-  size_t        m_size;
+  Element_type *m_array= nullptr;
+  size_t        m_size= 0;
 };
 
 /*
