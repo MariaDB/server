@@ -42,7 +42,6 @@ PageBulk::init()
 {
 	buf_block_t*	new_block;
 	page_t*		new_page;
-	page_zip_des_t*	new_page_zip;
 	ulint		new_page_no;
 
 	ut_ad(m_heap == NULL);
@@ -81,22 +80,20 @@ PageBulk::init()
 		alloc_mtr.commit();
 
 		new_page = buf_block_get_frame(new_block);
-		new_page_zip = buf_block_get_page_zip(new_block);
 		new_page_no = page_get_page_no(new_page);
 
 		byte* index_id = PAGE_HEADER + PAGE_INDEX_ID + new_page;
 
-		if (new_page_zip) {
+		if (UNIV_LIKELY_NULL(new_block->page.zip.data)) {
 			page_create_zip(new_block, m_index, m_level, 0,
 					&m_mtr);
 			static_assert(FIL_PAGE_PREV % 8 == 0, "alignment");
 			memset_aligned<8>(FIL_PAGE_PREV + new_page, 0xff, 8);
-			page_zip_write_header(new_page_zip,
+			page_zip_write_header(new_block,
 					      FIL_PAGE_PREV + new_page,
 					      8, &m_mtr);
 			mach_write_to_8(index_id, m_index->id);
-			page_zip_write_header(new_page_zip, index_id,
-					      8, &m_mtr);
+			page_zip_write_header(new_block, index_id, 8, &m_mtr);
 		} else {
 			ut_ad(!m_index->is_spatial());
 			page_create(new_block, &m_mtr,
@@ -115,7 +112,6 @@ PageBulk::init()
 					  false, &m_mtr);
 
 		new_page = buf_block_get_frame(new_block);
-		new_page_zip = buf_block_get_page_zip(new_block);
 		new_page_no = page_get_page_no(new_page);
 		ut_ad(m_page_no == new_page_no);
 
@@ -124,15 +120,16 @@ PageBulk::init()
 		btr_page_set_level(new_block, m_level, &m_mtr);
 	}
 
+	m_page_zip = buf_block_get_page_zip(new_block);
+
 	if (!m_level && dict_index_is_sec_or_ibuf(m_index)) {
-		page_update_max_trx_id(new_block, new_page_zip, m_trx_id,
+		page_update_max_trx_id(new_block, m_page_zip, m_trx_id,
 				       &m_mtr);
 	}
 
 	m_block = new_block;
 	m_block->skip_flush_check = true;
 	m_page = new_page;
-	m_page_zip = new_page_zip;
 	m_page_no = new_page_no;
 	m_cur_rec = page_get_infimum_rec(new_page);
 	ut_ad(m_is_comp == !!page_is_comp(new_page));

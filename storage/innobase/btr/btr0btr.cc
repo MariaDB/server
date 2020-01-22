@@ -444,7 +444,7 @@ btr_page_create(
 	if (UNIV_LIKELY_NULL(page_zip)) {
 		page_create_zip(block, index, level, 0, mtr);
 		mach_write_to_8(index_id, index->id);
-		page_zip_write_header(page_zip, index_id, 8, mtr);
+		page_zip_write_header(block, index_id, 8, mtr);
 	} else {
 		page_create(block, mtr, dict_table_is_comp(index->table));
 		if (index->is_spatial()) {
@@ -988,7 +988,7 @@ static void btr_free_root(buf_block_t *block, mtr_t *mtr, bool invalidate)
     if (UNIV_LIKELY_NULL(block->page.zip.data))
     {
       mach_write_to_8(page_index_id, BTR_FREED_INDEX_ID);
-      page_zip_write_header(&block->page.zip, page_index_id, 8, mtr);
+      page_zip_write_header(block, page_index_id, 8, mtr);
     }
     else
       mtr->write<8,mtr_t::OPT>(*block, page_index_id, BTR_FREED_INDEX_ID);
@@ -1126,7 +1126,7 @@ btr_create(
 	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 		page_create_zip(block, index, 0, 0, mtr);
 		mach_write_to_8(page_index_id, index_id);
-		page_zip_write_header(&block->page.zip, page_index_id, 8, mtr);
+		page_zip_write_header(block, page_index_id, 8, mtr);
 		static_assert(FIL_PAGE_PREV % 8 == 0, "alignment");
 		memset_aligned<8>(FIL_PAGE_PREV + block->page.zip.data,
 				  0xff, 8);
@@ -1910,9 +1910,9 @@ btr_root_raise_and_insert(
 		set PAGE_MAX_TRX_ID on all secondary index pages.) */
 		byte* p = my_assume_aligned<8>(
 			PAGE_HEADER + PAGE_MAX_TRX_ID + root->frame);
-		if (UNIV_LIKELY_NULL(root_page_zip)) {
+		if (UNIV_LIKELY_NULL(root->page.zip.data)) {
 			memset_aligned<8>(p, 0, 8);
-			page_zip_write_header(root_page_zip, p, 8, mtr);
+			page_zip_write_header(root, p, 8, mtr);
 		} else if (mach_read_from_8(p)) {
 			mtr->memset(root, PAGE_HEADER + PAGE_MAX_TRX_ID, 8, 0);
 		}
@@ -1922,9 +1922,9 @@ btr_root_raise_and_insert(
 		the field PAGE_MAX_TRX_ID for future use. */
 		byte* p = my_assume_aligned<8>(
 			PAGE_HEADER + PAGE_MAX_TRX_ID + new_block->frame);
-		if (UNIV_LIKELY_NULL(new_page_zip)) {
+		if (UNIV_LIKELY_NULL(new_block->page.zip.data)) {
 			memset_aligned<8>(p, 0, 8);
-			page_zip_write_header(new_page_zip, p, 8, mtr);
+			page_zip_write_header(new_block, p, 8, mtr);
 		} else if (mach_read_from_8(p)) {
 			mtr->memset(new_block, PAGE_HEADER + PAGE_MAX_TRX_ID,
 				    8, 0);

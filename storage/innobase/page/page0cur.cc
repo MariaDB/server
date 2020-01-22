@@ -1000,7 +1000,7 @@ inline void page_direction_reset(buf_block_t *block, byte *ptr, mtr_t *mtr)
   {
     *ptr= PAGE_NO_DIRECTION; /* no instant ALTER bits */
     memset_aligned<2>(ptr + 1, 0, 2);
-    page_zip_write_header(&block->page.zip, ptr, 3, mtr);
+    page_zip_write_header(block, ptr, 3, mtr);
   }
   else
   {
@@ -1028,7 +1028,7 @@ inline void page_direction_increment(buf_block_t *block, byte *ptr, uint dir,
   {
     *ptr= static_cast<byte>(dir);
     mach_write_to_2(ptr + 1, 1 + mach_read_from_2(ptr + 1));
-    page_zip_write_header(&block->page.zip, ptr, 3, mtr);
+    page_zip_write_header(block, ptr, 3, mtr);
   }
   else
   {
@@ -1098,7 +1098,7 @@ static void page_dir_split_slot(buf_block_t *block, ulint s, mtr_t* mtr)
     /* Log changes to the compressed page header and the dense page
     directory. */
     mach_write_to_2(n_slots_p, n_slots + 1);
-    page_zip_write_header(&block->page.zip, n_slots_p, 2, mtr);
+    page_zip_write_header(block, n_slots_p, 2, mtr);
     mach_write_to_2(slot, page_offset(rec));
     page_rec_set_n_owned<true>(block, page_dir_slot_get_rec(slot), half_owned,
                                true, mtr);
@@ -1146,7 +1146,6 @@ static void page_dir_balance_slot(buf_block_t *block, ulint s, mtr_t *mtr)
 	page_dir_slot_t* slot = page_dir_get_nth_slot(block->frame, s);
 	page_dir_slot_t* up_slot = slot - PAGE_DIR_SLOT_SIZE;
 	const ulint up_n_owned = page_dir_slot_get_n_owned(up_slot);
-	page_zip_des_t* page_zip = buf_block_get_page_zip(block);
 
 	ut_ad(page_dir_slot_get_n_owned(slot)
 	      == PAGE_DIR_SLOT_MIN_N_OWNED - 1);
@@ -1165,11 +1164,11 @@ static void page_dir_balance_slot(buf_block_t *block, ulint s, mtr_t *mtr)
 			block->frame, n_slots - 1);
 		memmove_aligned<2>(last_slot + PAGE_DIR_SLOT_SIZE, last_slot,
 				   slot - last_slot);
-		if (UNIV_LIKELY_NULL(page_zip)) {
+		if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 			memset_aligned<2>(last_slot, 0, 2);
 			mach_write_to_2(PAGE_N_DIR_SLOTS + PAGE_HEADER
 					+ block->frame, n_slots - 1);
-			page_zip_write_header(page_zip,
+			page_zip_write_header(block,
 					      PAGE_N_DIR_SLOTS + PAGE_HEADER
 					      + block->frame, 2, mtr);
 		} else {
@@ -1197,7 +1196,7 @@ static void page_dir_balance_slot(buf_block_t *block, ulint s, mtr_t *mtr)
 		page_rec_set_n_owned<true>(block, new_rec,
 					   PAGE_DIR_SLOT_MIN_N_OWNED,
 					   true, mtr);
-		if (UNIV_LIKELY_NULL(page_zip)) {
+		if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 			mach_write_to_2(slot, page_offset(new_rec));
 			goto func_exit;
 		}
@@ -1250,7 +1249,7 @@ static byte* page_mem_alloc_heap(buf_block_t *block, ulint need,
   if (compressed)
   {
     ut_ad(h & 0x8000);
-    page_zip_write_header(&block->page.zip, heap_top, 4, mtr);
+    page_zip_write_header(block, heap_top, 4, mtr);
   }
   else
     mtr->memcpy(*block, PAGE_HEAP_TOP + PAGE_HEADER, 4);
@@ -1859,7 +1858,7 @@ too_small:
 		ut_ad(mach_read_from_2(garbage) >= rec_size);
 		mach_write_to_2(garbage, mach_read_from_2(garbage) - rec_size);
 		compile_time_assert(PAGE_GARBAGE == PAGE_FREE + 2);
-		page_zip_write_header(page_zip,
+		page_zip_write_header(cursor->block,
 				      PAGE_HEADER + PAGE_FREE + page, 4, mtr);
 		/* TODO: group with PAGE_LAST_INSERT */
 
@@ -1941,7 +1940,7 @@ use_heap:
 			(insert_rec - cursor->rec));
 	byte* n_recs = PAGE_N_RECS + PAGE_HEADER + page;
 	mach_write_to_2(n_recs, mach_read_from_2(n_recs) + 1);
-	page_zip_write_header(page_zip, n_recs, 2, mtr);
+	page_zip_write_header(cursor->block, n_recs, 2, mtr);
 
 	/* 5. Set the n_owned field in the inserted record to zero,
 	and set the heap_no field */
@@ -1963,7 +1962,7 @@ use_heap:
 	      == rec_get_node_ptr_flag(insert_rec));
 	/* TODO: combine with PAGE_DIRECTION changes */
 	mach_write_to_2(last_insert, page_offset(insert_rec));
-	page_zip_write_header(page_zip, last_insert, 2, mtr);
+	page_zip_write_header(cursor->block, last_insert, 2, mtr);
 
 	if (!index->is_spatial()) {
 		byte* ptr = PAGE_HEADER + PAGE_DIRECTION_B + page;
@@ -2004,7 +2003,7 @@ no_direction:
 		}
 	}
 
-	page_zip_write_rec(page_zip, insert_rec, index, offsets, 1, mtr);
+	page_zip_write_rec(cursor->block, insert_rec, index, offsets, 1, mtr);
 	return insert_rec;
 }
 
@@ -2319,7 +2318,7 @@ static void page_mem_free(buf_block_t *block, rec_t *rec,
   const rec_t *free= page_header_get_ptr(block->frame, PAGE_FREE);
 
   if (UNIV_LIKELY_NULL(block->page.zip.data))
-    page_zip_dir_delete(&block->page.zip, rec, index, offsets, free, mtr);
+    page_zip_dir_delete(block, rec, index, offsets, free, mtr);
   else
   {
     if (srv_immediate_scrub_data_uncompressed)

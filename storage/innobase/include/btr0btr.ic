@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -55,7 +55,7 @@ void btr_page_set_level(buf_block_t *block, ulint level, mtr_t *mtr)
   if (UNIV_LIKELY_NULL(block->page.zip.data))
   {
     mach_write_to_2(page_level, level);
-    page_zip_write_header(&block->page.zip, page_level, 2, mtr);
+    page_zip_write_header(block, page_level, 2, mtr);
   }
   else
     mtr->write<2,mtr_t::OPT>(*block, page_level, level);
@@ -71,7 +71,7 @@ inline void btr_page_set_next(buf_block_t *block, ulint next, mtr_t *mtr)
   if (UNIV_LIKELY_NULL(block->page.zip.data))
   {
     mach_write_to_4(fil_page_next, next);
-    page_zip_write_header(&block->page.zip, fil_page_next, 4, mtr);
+    page_zip_write_header(block, fil_page_next, 4, mtr);
   }
   else
     mtr->write<4>(*block, fil_page_next, next);
@@ -87,7 +87,7 @@ inline void btr_page_set_prev(buf_block_t *block, ulint prev, mtr_t *mtr)
   if (UNIV_LIKELY_NULL(block->page.zip.data))
   {
     mach_write_to_4(fil_page_prev, prev);
-    page_zip_write_header(&block->page.zip, fil_page_prev, 4, mtr);
+    page_zip_write_header(block, fil_page_prev, 4, mtr);
   }
   else
     mtr->write<4>(*block, fil_page_prev, prev);

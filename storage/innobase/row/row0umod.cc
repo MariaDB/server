@@ -496,14 +496,13 @@ row_undo_mod_clust(
 				      rec, dict_table_is_comp(node->table))
 			      || rec_is_alter_metadata(rec, *index));
 			index->set_modified(mtr);
-			if (page_zip_des_t* page_zip = buf_block_get_page_zip(
-				    btr_pcur_get_block(pcur))) {
+			buf_block_t* block = btr_pcur_get_block(pcur);
+			if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 				page_zip_write_trx_id_and_roll_ptr(
-					page_zip, rec, offsets, trx_id_pos,
+					block, rec, offsets, trx_id_pos,
 					0, 1ULL << ROLL_PTR_INSERT_FLAG_POS,
 					&mtr);
 			} else {
-				buf_block_t* block = btr_pcur_get_block(pcur);
 				uint16_t offs = page_offset(rec
 							    + trx_id_offset);
 				mtr.memset(block, offs, DATA_TRX_ID_LEN, 0);

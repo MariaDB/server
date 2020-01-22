@@ -96,7 +96,7 @@ page_set_ssn_id(
 	byte* ssn = block->frame + FIL_RTREE_SPLIT_SEQ_NUM;
 	if (UNIV_LIKELY_NULL(page_zip)) {
 		mach_write_to_8(ssn, ssn_id);
-		page_zip_write_header(page_zip, ssn, 8, mtr);
+		page_zip_write_header(block, ssn, 8, mtr);
 	} else {
 		mtr->write<8,mtr_t::OPT>(*block, ssn, ssn_id);
 	}
@@ -138,7 +138,7 @@ inline void page_header_reset_last_insert(buf_block_t *block, mtr_t *mtr)
   if (UNIV_LIKELY_NULL(block->page.zip.data))
   {
     mach_write_to_2(b, 0);
-    page_zip_write_header(&block->page.zip, b, 2, mtr);
+    page_zip_write_header(block, b, 2, mtr);
   }
   else
     mtr->write<2,mtr_t::OPT>(*block, b, 0U);

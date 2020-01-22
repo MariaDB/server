@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -693,11 +693,10 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 						    rec, index, offsets)));
 
 			index->set_modified(*mtr);
-			if (page_zip_des_t* page_zip
-			    = buf_block_get_page_zip(
-				    btr_pcur_get_block(&node->pcur))) {
+			buf_block_t* block = btr_pcur_get_block(&node->pcur);
+			if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 				page_zip_write_trx_id_and_roll_ptr(
-					page_zip, rec, offsets, trx_id_pos,
+					block, rec, offsets, trx_id_pos,
 					0, 1ULL << ROLL_PTR_INSERT_FLAG_POS,
 					mtr);
 			} else {
@@ -705,8 +704,6 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 				byte*	ptr = rec_get_nth_field(
 					rec, offsets, trx_id_pos, &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
-				buf_block_t* block = btr_pcur_get_block(
-					&node->pcur);
 				uint16_t offs = page_offset(ptr);
 				mtr->memset(block, offs, DATA_TRX_ID_LEN, 0);
 				offs += DATA_TRX_ID_LEN;

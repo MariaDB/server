@@ -237,24 +237,24 @@ UNIV_INLINE
 void
 page_zip_write_header(
 /*==================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	buf_block_t*	block,	/*!< in/out: compressed page */
 	const byte*	str,	/*!< in: address on the uncompressed page */
 	ulint		length,	/*!< in: length of the data */
-	mtr_t*		mtr)	/*!< in: mini-transaction, or NULL */
-	MY_ATTRIBUTE((nonnull(1,2)));
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull));
 
 /** Write an entire record to the ROW_FORMAT=COMPRESSED page.
 The data must already have been written to the uncompressed page.
-@param[in,out]	page_zip	ROW_FORMAT=COMPRESSED page
+@param[in,out]	block		ROW_FORMAT=COMPRESSED page
 @param[in]	rec		record in the uncompressed page
 @param[in]	index		the index that the page belongs to
 @param[in]	offsets		rec_get_offsets(rec, index)
 @param[in]	create		nonzero=insert, zero=update
 @param[in,out]	mtr		mini-transaction */
-void page_zip_write_rec(page_zip_des_t *page_zip, const byte *rec,
+void page_zip_write_rec(buf_block_t *block, const byte *rec,
                         const dict_index_t *index, const offset_t *offsets,
                         ulint create, mtr_t *mtr)
-	MY_ATTRIBUTE((nonnull));
+  MY_ATTRIBUTE((nonnull));
 
 /***********************************************************//**
 Parses a log record of writing a BLOB pointer of a record.
@@ -308,23 +308,23 @@ page_zip_write_node_ptr(
 	MY_ATTRIBUTE((nonnull));
 
 /** Write the DB_TRX_ID,DB_ROLL_PTR into a clustered index leaf page record.
-@param[in,out]	page_zip	compressed page
+@param[in,out]	block		ROW_FORMAT=COMPRESSED page
 @param[in,out]	rec		record
 @param[in]	offsets		rec_get_offsets(rec, index)
 @param[in]	trx_id_field	field number of DB_TRX_ID (number of PK fields)
 @param[in]	trx_id		DB_TRX_ID value (transaction identifier)
 @param[in]	roll_ptr	DB_ROLL_PTR value (undo log pointer)
-@param[in,out]	mtr		mini-transaction, or NULL to skip logging */
+@param[in,out]	mtr		mini-transaction */
 void
 page_zip_write_trx_id_and_roll_ptr(
-	page_zip_des_t*	page_zip,
+	buf_block_t*	block,
 	byte*		rec,
 	const offset_t*	offsets,
 	ulint		trx_id_col,
 	trx_id_t	trx_id,
 	roll_ptr_t	roll_ptr,
 	mtr_t*		mtr)
-	MY_ATTRIBUTE((nonnull(1,2,3)));
+	MY_ATTRIBUTE((nonnull));
 
 /** Parse a MLOG_ZIP_WRITE_TRX_ID record.
 @param[in]	ptr		redo log buffer
@@ -348,22 +348,10 @@ already have been written on the uncompressed page. */
 void
 page_zip_rec_set_deleted(
 /*=====================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	buf_block_t*	block,	/*!< in/out: ROW_FORMAT=COMPRESSED page */
 	const byte*	rec,	/*!< in: record on the uncompressed page */
 	ulint		flag,	/*!< in: the deleted flag (nonzero=TRUE) */
 	mtr_t*		mtr)	/*!< in,out: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
-
-/**********************************************************************//**
-Write the "owned" flag of a record on a compressed page.  The n_owned field
-must already have been written on the uncompressed page. */
-void
-page_zip_rec_set_owned(
-/*===================*/
-	buf_block_t*	block,	/*!< in/out: ROW_FORMAT=COMPRESSED page */
-	const byte*	rec,	/*!< in: record on the uncompressed page */
-	ulint		flag,	/*!< in: the owned flag (nonzero=TRUE) */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**
@@ -378,20 +366,18 @@ page_zip_dir_insert(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull(1,3,4)));
 
-/**********************************************************************//**
-Shift the dense page directory and the array of BLOB pointers
-when a record is deleted. */
-void
-page_zip_dir_delete(
-/*================*/
-	page_zip_des_t*		page_zip,	/*!< in/out: compressed page */
-	byte*			rec,		/*!< in: deleted record */
-	const dict_index_t*	index,		/*!< in: index of rec */
-	const offset_t*		offsets,	/*!< in: rec_get_offsets(rec) */
-	const byte*		free,		/*!< in: previous start of
-						the free list */
-	mtr_t*			mtr)		/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull(1,2,3,4,6)));
+/** Shift the dense page directory and the array of BLOB pointers
+when a record is deleted.
+@param[in,out]  block   index page
+@param[in,out]  rec     record being deleted
+@param[in]      index   the index that the page belongs to
+@param[in]      offsets rec_get_offsets(rec, index)
+@param[in]	free	previous start of the free list
+@param[in,out]  mtr     mini-transaction */
+void page_zip_dir_delete(buf_block_t *block, byte *rec,
+                         const dict_index_t *index, const offset_t *offsets,
+                         const byte *free, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull(1,2,3,4,6)));
 
 /***********************************************************//**
 Parses a log record of writing to the header of a page.

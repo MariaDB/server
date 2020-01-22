@@ -161,22 +161,6 @@ mlog_write_initial_log_record_low(
 	mtr_t*		mtr);
 
 /********************************************************//**
-Writes the initial part of a log record (3..11 bytes).
-If the implementation of this function is changed, all
-size parameters to mlog_open() should be adjusted accordingly!
-@return new value of log_ptr */
-UNIV_INLINE
-byte*
-mlog_write_initial_log_record_fast(
-/*===============================*/
-	const byte*	ptr,	/*!< in: pointer to (inside) a buffer
-				frame holding the file page where
-				modification is made */
-	mlog_id_t	type,	/*!< in: log item type: MLOG_1BYTE, ... */
-	byte*		log_ptr,/*!< in: pointer to mtr log which has
-				been opened */
-	mtr_t*		mtr);	/*!< in: mtr */
-/********************************************************//**
 Parses an initial log record written by mlog_write_initial_log_record_low().
 @return parsed record end, NULL if not a complete record */
 const byte*

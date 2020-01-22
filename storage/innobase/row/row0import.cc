@@ -1801,7 +1801,7 @@ PageConverter::adjust_cluster_record(
 		if (UNIV_LIKELY_NULL(m_rec_iter.current_block()
 				     ->page.zip.data)) {
 			page_zip_write_trx_id_and_roll_ptr(
-				&m_rec_iter.current_block()->page.zip,
+				m_rec_iter.current_block(),
 				rec, m_offsets, trx_id_pos,
 				0, roll_ptr_t(1) << ROLL_PTR_INSERT_FLAG_POS,
 				&m_rec_iter.m_mtr);

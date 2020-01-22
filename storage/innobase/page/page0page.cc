@@ -205,7 +205,7 @@ page_set_max_trx_id(
   if (UNIV_LIKELY_NULL(page_zip))
   {
     mach_write_to_8(max_trx_id, trx_id);
-    page_zip_write_header(page_zip, max_trx_id, 8, mtr);
+    page_zip_write_header(block, max_trx_id, 8, mtr);
   }
   else
     mtr->write<8>(*block, max_trx_id, trx_id);
@@ -233,10 +233,10 @@ page_set_autoinc(
   ib_uint64_t old= mach_read_from_8(field);
   if (old == autoinc || (old > autoinc && !reset))
     /* nothing to update */;
-  else if (page_zip_des_t* page_zip = buf_block_get_page_zip(block))
+  else if (UNIV_LIKELY_NULL(block->page.zip.data))
   {
     mach_write_to_8(field, autoinc);
-    page_zip_write_header(page_zip, field, 8, mtr);
+    page_zip_write_header(block, field, 8, mtr);
   }
   else
     mtr->write<8>(*block, field, autoinc);
@@ -981,7 +981,7 @@ delete_all:
 		ut_ad(page_is_comp(block->frame));
 
 		memset(last_insert, 0, 2);
-		page_zip_write_header(page_zip, last_insert, 2, mtr);
+		page_zip_write_header(block, last_insert, 2, mtr);
 
 		do {
 			page_cur_t	cur;

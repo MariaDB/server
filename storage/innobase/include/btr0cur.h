@@ -564,8 +564,7 @@ btr_cur_parse_update_in_place(
 /*==========================*/
 	const byte*	ptr,	/*!< in: buffer */
 	const byte*	end_ptr,/*!< in: buffer end */
-	page_t*		page,	/*!< in/out: page or NULL */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
+	buf_block_t*	block,	/*!< in/out: page or NULL */
 	dict_index_t*	index,	/*!< in: index corresponding to page */
 	mtr_t*		mtr);	/*!< in/out: mini-transaction */
 /****************************************************************//**
@@ -578,8 +577,7 @@ btr_cur_parse_del_mark_set_clust_rec(
 /*=================================*/
 	const byte*	ptr,	/*!< in: buffer */
 	const byte*	end_ptr,/*!< in: buffer end */
-	page_t*		page,	/*!< in/out: page or NULL */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
+	buf_block_t*	block,	/*!< in/out: page or NULL */
 	dict_index_t*	index,	/*!< in: index corresponding to page */
 	mtr_t*		mtr);	/*!< in/out: mini-transaction */
 /****************************************************************//**
@@ -592,8 +590,7 @@ btr_cur_parse_del_mark_set_sec_rec(
 /*===============================*/
 	const byte*	ptr,	/*!< in: buffer */
 	const byte*	end_ptr,/*!< in: buffer end */
-	page_t*		page,	/*!< in/out: page or NULL */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
+	buf_block_t*	block,	/*!< in/out: page or NULL */
 	mtr_t*		mtr);	/*!< in/out: mini-transaction */
 
 /** Estimates the number of rows in a given index range.

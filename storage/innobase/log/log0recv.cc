@@ -1620,17 +1620,17 @@ parse_log:
 				     ptr, end_ptr,
 				     type == MLOG_COMP_REC_CLUST_DELETE_MARK,
 				     &index))) {
-			ut_a(!page
-			     || (ibool)!!page_is_comp(page)
-			     == dict_table_is_comp(index->table));
+			ut_a(!block
+			     || !!page_is_comp(block->frame)
+			     == index->table->not_redundant());
 			ptr = btr_cur_parse_del_mark_set_clust_rec(
-				ptr, end_ptr, page, page_zip, index, mtr);
+				ptr, end_ptr, block, index, mtr);
 		}
 		break;
 	case MLOG_REC_SEC_DELETE_MARK:
 		ut_ad(!page || fil_page_type_is_index(page_type));
 		ptr = btr_cur_parse_del_mark_set_sec_rec(ptr, end_ptr,
-							 page, page_zip, mtr);
+							 block, mtr);
 		break;
 	case MLOG_REC_UPDATE_IN_PLACE: case MLOG_COMP_REC_UPDATE_IN_PLACE:
 		if (!page_zip) {
@@ -1649,8 +1649,8 @@ parse_log:
 			ut_a(!page
 			     || (ibool)!!page_is_comp(page)
 			     == dict_table_is_comp(index->table));
-			ptr = btr_cur_parse_update_in_place(ptr, end_ptr, page,
-							    page_zip, index,
+			ptr = btr_cur_parse_update_in_place(ptr, end_ptr,
+							    block, index,
 							    mtr);
 		}
 		break;

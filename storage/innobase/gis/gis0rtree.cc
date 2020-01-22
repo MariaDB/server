@@ -298,8 +298,7 @@ rtr_update_mbr_field(
 			ut_ad(rec_info & REC_INFO_MIN_REC_FLAG);
 #endif /* UNIV_DEBUG */
 			memcpy(rec, node_ptr->fields[0].data, DATA_MBR_LEN);
-			page_zip_write_rec(page_zip, rec, index, offsets, 0,
-					   mtr);
+			page_zip_write_rec(block, rec, index, offsets, 0, mtr);
 		} else {
 			mtr->memcpy(block, page_offset(rec),
 				    node_ptr->fields[0].data, DATA_MBR_LEN);
