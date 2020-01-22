@@ -150,6 +150,10 @@ mysql_mutex_t LOCK_wsrep_config_state;
 mysql_mutex_t LOCK_wsrep_group_commit;
 mysql_mutex_t LOCK_wsrep_SR_pool;
 mysql_mutex_t LOCK_wsrep_SR_store;
+mysql_mutex_t LOCK_wsrep_joiner_monitor;
+mysql_mutex_t LOCK_wsrep_donor_monitor;
+mysql_cond_t  COND_wsrep_joiner_monitor;
+mysql_cond_t  COND_wsrep_donor_monitor;
 
 int wsrep_replaying= 0;
 ulong  wsrep_running_threads = 0; // # of currently running wsrep
@@ -160,7 +164,7 @@ ulong  wsrep_running_rollbacker_threads = 0; // # of running
 ulong  my_bind_addr;
 
 #ifdef HAVE_PSI_INTERFACE
-PSI_mutex_key 
+PSI_mutex_key
   key_LOCK_wsrep_replaying, key_LOCK_wsrep_ready, key_LOCK_wsrep_sst,
   key_LOCK_wsrep_sst_thread, key_LOCK_wsrep_sst_init,
   key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync,
@@ -168,13 +172,15 @@ PSI_mutex_key
   key_LOCK_wsrep_group_commit,
   key_LOCK_wsrep_SR_pool,
   key_LOCK_wsrep_SR_store,
-  key_LOCK_wsrep_thd_queue;
+  key_LOCK_wsrep_thd_queue,
+  key_LOCK_wsrep_joiner_monitor,
+  key_LOCK_wsrep_donor_monitor;
 
 PSI_cond_key key_COND_wsrep_thd,
   key_COND_wsrep_replaying, key_COND_wsrep_ready, key_COND_wsrep_sst,
   key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread,
-  key_COND_wsrep_thd_queue, key_COND_wsrep_slave_threads;
-  
+  key_COND_wsrep_thd_queue, key_COND_wsrep_slave_threads,
+  key_COND_wsrep_joiner_monitor, key_COND_wsrep_donor_monitor;
 
 PSI_file_key key_file_wsrep_gra_log;
 
@@ -192,7 +198,9 @@ static PSI_mutex_info wsrep_mutexes[]=
   { &key_LOCK_wsrep_config_state, "LOCK_wsrep_config_state", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_group_commit, "LOCK_wsrep_group_commit", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_SR_pool, "LOCK_wsrep_SR_pool", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_SR_store, "LOCK_wsrep_SR_store", PSI_FLAG_GLOBAL}
+  { &key_LOCK_wsrep_SR_store, "LOCK_wsrep_SR_store", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_joiner_monitor, "LOCK_wsrep_joiner_monitor", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_donor_monitor, "LOCK_wsrep_donor_monitor", PSI_FLAG_GLOBAL}
 };
 
 static PSI_cond_info wsrep_conds[]=
@@ -203,7 +211,9 @@ static PSI_cond_info wsrep_conds[]=
   { &key_COND_wsrep_sst_thread, "wsrep_sst_thread", 0},
   { &key_COND_wsrep_thd, "THD::COND_wsrep_thd", 0},
   { &key_COND_wsrep_replaying, "COND_wsrep_replaying", PSI_FLAG_GLOBAL},
-  { &key_COND_wsrep_slave_threads, "COND_wsrep_wsrep_slave_threads", PSI_FLAG_GLOBAL}
+  { &key_COND_wsrep_slave_threads, "COND_wsrep_wsrep_slave_threads", PSI_FLAG_GLOBAL},
+  { &key_COND_wsrep_joiner_monitor, "COND_wsrep_joiner_monitor", PSI_FLAG_GLOBAL},
+  { &key_COND_wsrep_donor_monitor, "COND_wsrep_donor_monitor", PSI_FLAG_GLOBAL}
 };
 
 static PSI_file_info wsrep_files[]=
@@ -212,14 +222,17 @@ static PSI_file_info wsrep_files[]=
 };
 
 PSI_thread_key key_wsrep_sst_joiner, key_wsrep_sst_donor,
-  key_wsrep_rollbacker, key_wsrep_applier;
+  key_wsrep_rollbacker, key_wsrep_applier,
+  key_wsrep_sst_joiner_monitor, key_wsrep_sst_donor_monitor;
 
 static PSI_thread_info wsrep_threads[]=
 {
  {&key_wsrep_sst_joiner, "wsrep_sst_joiner_thread", PSI_FLAG_GLOBAL},
  {&key_wsrep_sst_donor, "wsrep_sst_donor_thread", PSI_FLAG_GLOBAL},
  {&key_wsrep_rollbacker, "wsrep_rollbacker_thread", PSI_FLAG_GLOBAL},
- {&key_wsrep_applier, "wsrep_applier_thread", PSI_FLAG_GLOBAL}
+ {&key_wsrep_applier, "wsrep_applier_thread", PSI_FLAG_GLOBAL},
+ {&key_wsrep_sst_joiner_monitor, "wsrep_sst_joiner_monitor", PSI_FLAG_GLOBAL},
+ {&key_wsrep_sst_donor_monitor, "wsrep_sst_donor_monitor", PSI_FLAG_GLOBAL}
 };
 
 #endif /* HAVE_PSI_INTERFACE */
@@ -788,6 +801,13 @@ void wsrep_thr_init()
                    &LOCK_wsrep_SR_pool, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_SR_store,
                    &LOCK_wsrep_SR_store, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_wsrep_joiner_monitor,
+                   &LOCK_wsrep_joiner_monitor, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_wsrep_donor_monitor,
+                   &LOCK_wsrep_donor_monitor, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_joiner_monitor, &COND_wsrep_joiner_monitor, NULL);
+  mysql_cond_init(key_COND_wsrep_donor_monitor, &COND_wsrep_donor_monitor, NULL);
+
   DBUG_VOID_RETURN;
 }
 
@@ -891,6 +911,10 @@ void wsrep_thr_deinit()
   mysql_mutex_destroy(&LOCK_wsrep_group_commit);
   mysql_mutex_destroy(&LOCK_wsrep_SR_pool);
   mysql_mutex_destroy(&LOCK_wsrep_SR_store);
+  mysql_mutex_destroy(&LOCK_wsrep_joiner_monitor);
+  mysql_mutex_destroy(&LOCK_wsrep_donor_monitor);
+  mysql_cond_destroy(&COND_wsrep_joiner_monitor);
+  mysql_cond_destroy(&COND_wsrep_donor_monitor);
 
   delete wsrep_config_state;
   wsrep_config_state= 0;                        // Safety
