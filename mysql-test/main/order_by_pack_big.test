@@ -7,7 +7,7 @@ set @save_rand_seed2=  @@RAND_SEED2;
 set @@RAND_SEED1=810763568, @@RAND_SEED2=600681772;
 
 create table t1(a int);
-insert into t1 select seq from seq_1_to_10000 order by rand();
+insert into t1 select seq from seq_1_to_10000 order by rand(),seq;
 delimiter |;
 
 --echo #
@@ -100,7 +100,7 @@ select id, generate_random_string(a), generate_random_string(b) from t2;
 
 let $query= select id DIV 100 as x,
             MD5(group_concat(substring(names,1,3), substring(address,1,3)
-                order by substring(names,1,3), substring(address,1,3)))
+                order by id))
             FROM t3
             GROUP BY x;
 
