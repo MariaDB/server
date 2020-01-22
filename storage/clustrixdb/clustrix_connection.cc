@@ -731,13 +731,12 @@ int clustrix_connection::update_query(String &stmt, LEX_CSTRING &dbname,
   if ((error_code = send_command()))
     return error_code;
 
-  if ((error_code = read_query_response()))
-    return error_code;
-
+  error_code = read_query_response();
   auto_commit_closed();
-  *affected_rows = clustrix_net.affected_rows;
+  if (!error_code)
+    *affected_rows = clustrix_net.affected_rows;
 
-  return 0;
+  return error_code;
 }
 
 

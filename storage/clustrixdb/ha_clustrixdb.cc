@@ -573,10 +573,7 @@ int ha_clustrixdb::direct_update_rows(ha_rows *update_rows)
   if (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
     trx->auto_commit_next();
 
-  trx->update_query(update_stmt, table->s->db, update_rows);
-
-  thd->get_stmt_da()->set_overwrite_status(true);
-
+  error_code = trx->update_query(update_stmt, table->s->db, update_rows);
   DBUG_RETURN(error_code);
 }
 
