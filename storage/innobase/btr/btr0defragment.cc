@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2012, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2019, MariaDB Corporation.
+Copyright (C) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -444,7 +444,7 @@ btr_defragment_merge_pages(
 	// reorganizing the page, otherwise we need to reorganize the page
 	// first to release more space.
 	if (move_size > max_ins_size) {
-		if (!btr_page_reorganize_block(false, page_zip_level,
+		if (!btr_page_reorganize_block(page_zip_level,
 					       to_block, index,
 					       mtr)) {
 			if (!dict_index_is_clust(index)

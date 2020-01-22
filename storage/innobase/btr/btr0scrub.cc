@@ -1,5 +1,5 @@
 // Copyright (c) 2014, Google Inc.
-// Copyright (c) 2017, 2019, MariaDB Corporation.
+// Copyright (c) 2017, 2020, MariaDB Corporation.
 
 /**************************************************//**
 @file btr/btr0scrub.cc
@@ -369,7 +369,7 @@ btr_optimistic_scrub(
 		return DB_OVERFLOW;
 	}
 #endif
-	if (!btr_page_reorganize_block(false, scrub_compression_level, block,
+	if (!btr_page_reorganize_block(scrub_compression_level, block,
 				       index, mtr)) {
 		return DB_OVERFLOW;
 	}

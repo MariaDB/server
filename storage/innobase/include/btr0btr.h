@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -577,7 +577,8 @@ btr_discard_page(
 Parses the redo log record for setting an index record as the predefined
 minimum record.
 @return end of log record or NULL */
-ATTRIBUTE_COLD MY_ATTRIBUTE((nonnull(1,2), warn_unused_result))
+ATTRIBUTE_COLD /* only used when crash-upgrading */
+MY_ATTRIBUTE((nonnull(1,2), warn_unused_result))
 const byte*
 btr_parse_set_min_rec_mark(
 /*=======================*/
@@ -589,6 +590,7 @@ btr_parse_set_min_rec_mark(
 /***********************************************************//**
 Parses a redo log record of reorganizing a page.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 btr_parse_page_reorganize(
 /*======================*/
@@ -704,15 +706,7 @@ IBUF_BITMAP_FREE is unaffected by reorganization.
 
 @retval true if the operation was successful
 @retval false if it is a compressed page, and recompression failed */
-UNIV_INTERN
-bool
-btr_page_reorganize_block(
-/*======================*/
-	bool		recovery,/*!< in: true if called in recovery:
-				locks should not be updated, i.e.,
-				there cannot exist locks on the
-				page, and a hash index should not be
-				dropped: it cannot exist */
+bool btr_page_reorganize_block(
 	ulint		z_level,/*!< in: compression level to be used
 				if dealing with compressed page */
 	buf_block_t*	block,	/*!< in/out: B-tree page */
