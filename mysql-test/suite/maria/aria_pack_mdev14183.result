@@ -3,7 +3,7 @@ CREATE TABLE `t` (
 `col_2` varchar(255) NOT NULL,
 `col_3` int(11) NOT NULL DEFAULT '0',
 `col_4` int(11) NOT NULL DEFAULT '0'
-) ENGINE=Aria;
+) ENGINE=Aria TRANSACTIONAL=0 PAGE_CHECKSUM=0;
 insert into t values
 ('foobar','qux',0,0),('abcdef','qux',0,0);
 Compressing test/t.MAD: (2 records)
