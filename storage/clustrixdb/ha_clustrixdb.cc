@@ -478,8 +478,6 @@ int ha_clustrixdb::write_row(const uchar *buf)
         trx->auto_commit_next();
 
       error_code= trx->update_query(update_stmt, table->s->db, &update_rows);
-
-      thd->get_stmt_da()->set_overwrite_status(true);
       if (trx->check_upsert(CLUSTRIX_BULK_UPSERT))
         trx->set_upsert(CLUSTRIX_UPSERT_SENT);
       else
