@@ -454,9 +454,12 @@ bool thread_pool_generic::get_task(worker_data *thread_var, task **t)
 {
   std::unique_lock<std::mutex> lk(m_mtx);
 
-  if (thread_var->is_long_task() && m_long_tasks_count)
+  if (thread_var->is_long_task())
+  {
+    DBUG_ASSERT(m_long_tasks_count);
     m_long_tasks_count--;
-
+  }
+  DBUG_ASSERT(!thread_var->is_waiting());
   thread_var->m_state = worker_data::NONE;
 
   while (m_task_queue.empty())
@@ -747,6 +750,15 @@ void thread_pool_generic::wait_begin()
   if (!tls_worker_data || tls_worker_data->is_long_task())
     return;
   std::unique_lock<std::mutex> lk(m_mtx);
+  if(tls_worker_data->is_long_task())
+  {
+    /*
+     Current task flag could have become "long-running"
+     while waiting for the lock, thus recheck.
+    */
+    return;
+  }
+  DBUG_ASSERT(!tls_worker_data->is_waiting());
   tls_worker_data->m_state |= worker_data::WAITING;
   m_waiting_task_count++;
 
