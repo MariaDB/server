@@ -1,4 +1,4 @@
-/* Copyright(C) 2019 MariaDB Corporation.
+/* Copyright (C) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -217,9 +217,9 @@ class thread_pool_generic : public thread_pool
 
   /** Number of long running tasks. The long running tasks are excluded when
   adjusting concurrency */
-  int m_long_tasks_count;
+  unsigned int m_long_tasks_count;
 
-  int m_waiting_task_count;
+  unsigned int m_waiting_task_count;
 
   /** Last time thread was created*/
   std::chrono::system_clock::time_point m_last_thread_creation;
