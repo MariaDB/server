@@ -332,6 +332,10 @@ int clustrix_connection::write_row(ulonglong clustrix_table_oid,
   int error_code;
   command_length = 0;
 
+  // row based commands should not be called with auto commit.
+  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH)
+    return HA_ERR_INTERNAL_ERROR;
+
   if ((error_code = begin_command(CLUSTRIX_WRITE_ROW)))
     return error_code;
 
@@ -347,7 +351,6 @@ int clustrix_connection::write_row(ulonglong clustrix_table_oid,
   if ((error_code = read_query_response()))
     return error_code;
 
-  auto_commit_closed();
   *last_insert_id = clustrix_net.insert_id;
   return error_code;
 }
@@ -360,6 +363,10 @@ int clustrix_connection::key_update(ulonglong clustrix_table_oid,
 {
   int error_code;
   command_length = 0;
+
+  // row based commands should not be called with auto commit.
+  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH)
+    return HA_ERR_INTERNAL_ERROR;
 
   if ((error_code = begin_command(CLUSTRIX_KEY_UPDATE)))
     return error_code;
@@ -383,9 +390,7 @@ int clustrix_connection::key_update(ulonglong clustrix_table_oid,
   if ((error_code = read_query_response()))
     return error_code;
 
-  auto_commit_closed();
   return error_code;
-
 }
 
 int clustrix_connection::key_delete(ulonglong clustrix_table_oid,
@@ -393,6 +398,10 @@ int clustrix_connection::key_delete(ulonglong clustrix_table_oid,
 {
   int error_code;
   command_length = 0;
+
+  // row based commands should not be called with auto commit.
+  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH)
+    return HA_ERR_INTERNAL_ERROR;
 
   if ((error_code = begin_command(CLUSTRIX_KEY_DELETE)))
     return error_code;
@@ -409,7 +418,6 @@ int clustrix_connection::key_delete(ulonglong clustrix_table_oid,
   if ((error_code = read_query_response()))
     return error_code;
 
-  auto_commit_closed();
   return error_code;
 }
 
@@ -420,6 +428,10 @@ int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
 {
   int error_code;
   command_length = 0;
+
+  // row based commands should not be called with auto commit.
+  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH)
+    return HA_ERR_INTERNAL_ERROR;
 
   if ((error_code = begin_command(CLUSTRIX_KEY_READ)))
     return error_code;
@@ -443,7 +455,6 @@ int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
   if (packet_length == packet_error)
     return mysql_errno(&clustrix_net);
 
-  auto_commit_closed();
   uchar *data = clustrix_net.net.read_pos;
   *rowdata_length = safe_net_field_length_ll(&data, packet_length);
   *rowdata = (uchar *)my_malloc(*rowdata_length, MYF(MY_WME));
@@ -616,6 +627,10 @@ int clustrix_connection::scan_table(ulonglong clustrix_table_oid, uint index,
   int error_code;
   command_length = 0;
 
+  // row based commands should not be called with auto commit.
+  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH)
+    return HA_ERR_INTERNAL_ERROR;
+
   if ((error_code = begin_command(CLUSTRIX_SCAN_TABLE)))
     return error_code;
 
@@ -638,11 +653,8 @@ int clustrix_connection::scan_table(ulonglong clustrix_table_oid, uint index,
     return error_code;
 
   bool stmt_completed = FALSE;
-  error_code = allocate_clustrix_connection_cursor(&clustrix_net, row_req,
-                                                   &stmt_completed, scan);
-  if (stmt_completed)
-    auto_commit_closed();
-  return error_code;
+  return allocate_clustrix_connection_cursor(&clustrix_net, row_req,
+                                             &stmt_completed, scan);
 }
 
 /**
@@ -752,6 +764,10 @@ int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
   int error_code;
   command_length = 0;
 
+  // row based commands should not be called with auto commit.
+  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH)
+    return HA_ERR_INTERNAL_ERROR;
+
   if ((error_code = begin_command(CLUSTRIX_SCAN_FROM_KEY)))
     return error_code;
 
@@ -780,11 +796,8 @@ int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
     return error_code;
 
   bool stmt_completed = FALSE;
-  error_code = allocate_clustrix_connection_cursor(&clustrix_net, row_req,
-                                                   &stmt_completed, scan);
-  if (stmt_completed)
-    auto_commit_closed();
-  return error_code;
+  return allocate_clustrix_connection_cursor(&clustrix_net, row_req,
+                                             &stmt_completed, scan);
 }
 
 int clustrix_connection::scan_next(clustrix_connection_cursor *scan,
@@ -846,11 +859,9 @@ int clustrix_connection::scan_end(clustrix_connection_cursor *scan)
   if ((error_code = send_command()))
     return error_code;
 
-  if ((error_code = read_query_response()))
-    return error_code;
-
+  error_code = read_query_response();
   auto_commit_closed();
-  return 0;
+  return error_code;
 }
 
 int clustrix_connection::populate_table_list(LEX_CSTRING *db,
