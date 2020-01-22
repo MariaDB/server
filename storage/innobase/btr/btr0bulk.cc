@@ -98,7 +98,7 @@ PageBulk::init()
 			page_zip_write_header(new_page_zip, index_id,
 					      8, &m_mtr);
 		} else {
-			ut_ad(!dict_index_is_spatial(m_index));
+			ut_ad(!m_index->is_spatial());
 			page_create(new_block, &m_mtr,
 				    m_index->table->not_redundant(),
 				    false);
@@ -153,9 +153,6 @@ PageBulk::init()
 	m_rec_no = page_header_get_field(new_page, PAGE_N_RECS);
 
 	ut_d(m_total_data = 0);
-	/* See page_copy_rec_list_end_to_created_page() */
-	ut_d(page_header_set_field(m_page, NULL, PAGE_HEAP_TOP,
-				   srv_page_size - 1));
 
 	return(DB_SUCCESS);
 }
@@ -178,7 +175,7 @@ inline void PageBulk::insertPage(const rec_t *rec, offset_t *offsets)
 
 #ifdef UNIV_DEBUG
 	/* Check whether records are in order. */
-	if (!page_rec_is_infimum(m_cur_rec)) {
+	if (!page_rec_is_infimum_low(page_offset(m_cur_rec))) {
 		rec_t*	old_rec = m_cur_rec;
 		offset_t* old_offsets = rec_get_offsets(
 			old_rec, m_index, NULL,	is_leaf,
@@ -193,21 +190,26 @@ inline void PageBulk::insertPage(const rec_t *rec, offset_t *offsets)
 
 	/* 1. Copy the record to page. */
 	rec_t*	insert_rec = rec_copy(m_heap_top, rec, offsets);
+	ut_ad(page_align(insert_rec) == m_page);
 	rec_offs_make_valid(insert_rec, m_index, is_leaf, offsets);
 
 	/* 2. Insert the record in the linked list. */
-	rec_t*	next_rec = page_rec_get_next(m_cur_rec);
-
-	page_rec_set_next(insert_rec, next_rec);
-	page_rec_set_next(m_cur_rec, insert_rec);
-
-	/* 3. Set the n_owned field in the inserted record to zero,
-	and set the heap_no field. */
 	if (fmt != REDUNDANT) {
+		rec_t* next_rec = m_page
+			+ page_offset(m_cur_rec
+				      + mach_read_from_2(m_cur_rec
+							 - REC_NEXT));
+		mach_write_to_2(insert_rec - REC_NEXT,
+				static_cast<uint16_t>(next_rec - insert_rec));
+		mach_write_to_2(m_cur_rec - REC_NEXT,
+				static_cast<uint16_t>(insert_rec - m_cur_rec));
 		rec_set_n_owned_new(insert_rec, NULL, 0);
 		rec_set_heap_no_new(insert_rec,
 				    PAGE_HEAP_NO_USER_LOW + m_rec_no);
 	} else {
+		mach_write_to_2(insert_rec - REC_NEXT,
+				mach_read_from_2(m_cur_rec - REC_NEXT));
+		mach_write_to_2(m_cur_rec - REC_NEXT, page_offset(insert_rec));
 		rec_set_n_owned_old(insert_rec, 0);
 		rec_set_heap_no_old(insert_rec,
 				    PAGE_HEAP_NO_USER_LOW + m_rec_no);
@@ -225,7 +227,7 @@ inline void PageBulk::insertPage(const rec_t *rec, offset_t *offsets)
 	m_heap_top += rec_size;
 	m_rec_no += 1;
 
-	if (!m_page_zip) {
+	if (fmt != COMPRESSED) {
 		/* For ROW_FORMAT=COMPRESSED, redo log may be written
 		in PageBulk::compress(). */
 		page_cur_insert_rec_write_log(insert_rec, rec_size,
@@ -250,110 +252,137 @@ inline void PageBulk::insert(const rec_t *rec, offset_t *offsets)
 
 /** Mark end of insertion to the page. Scan all records to set page dirs,
 and set page header members.
-@tparam fmt     the page format */
+@tparam fmt  page format */
 template<PageBulk::format fmt>
 inline void PageBulk::finishPage()
 {
-	ut_ad(m_rec_no > 0);
-	ut_ad((m_page_zip != nullptr) == (fmt == COMPRESSED));
-	ut_ad((fmt != REDUNDANT) == m_is_comp);
-	ut_ad(m_total_data + page_dir_calc_reserved_space(m_rec_no)
-	      <= page_get_free_space_of_empty(fmt != REDUNDANT));
-	/* See page_copy_rec_list_end_to_created_page() */
-	ut_d(page_dir_set_n_slots(m_page, NULL, srv_page_size / 2));
+  ut_ad(m_rec_no > 0);
+  ut_ad((m_page_zip != nullptr) == (fmt == COMPRESSED));
+  ut_ad((fmt != REDUNDANT) == m_is_comp);
 
-	ulint	count = 0;
-	ulint	n_recs = 0;
-	ulint	slot_index = 0;
-	rec_t*	insert_rec = page_rec_get_next(page_get_infimum_rec(m_page));
-	page_dir_slot_t* slot = NULL;
+  ulint count= 0;
+  ulint n_recs= 0;
+  byte *slot= my_assume_aligned<2>(m_page + srv_page_size -
+                                   (PAGE_DIR + PAGE_DIR_SLOT_SIZE));
+  const page_dir_slot_t *const slot0 = slot;
+  compile_time_assert(PAGE_DIR_SLOT_SIZE == 2);
+  if (fmt != REDUNDANT)
+  {
+    uint16_t offset= mach_read_from_2(PAGE_NEW_INFIMUM - REC_NEXT + m_page);
+    ut_ad(offset >= PAGE_NEW_SUPREMUM - PAGE_NEW_INFIMUM);
+    offset += PAGE_NEW_INFIMUM;
+    /* Set owner & dir. */
+    do
+    {
+      ut_ad(offset >= PAGE_NEW_SUPREMUM);
+      ut_ad(offset < page_offset(slot));
+      count++;
+      n_recs++;
 
-	/* Set owner & dir. */
-	do {
+      if (count == (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2)
+      {
+        slot-= PAGE_DIR_SLOT_SIZE;
+        mach_write_to_2(slot, offset);
+        rec_set_n_owned_new(m_page + offset, nullptr, count);
+        count = 0;
+      }
 
-		count++;
-		n_recs++;
+      uint16_t next= (mach_read_from_2(m_page + offset - REC_NEXT) + offset) &
+        (srv_page_size - 1);
+      ut_ad(next);
+      offset= next;
+    }
+    while (offset != PAGE_NEW_SUPREMUM);
+  }
+  else
+  {
+    rec_t *insert_rec= m_page +
+      mach_read_from_2(PAGE_OLD_INFIMUM - REC_NEXT + m_page);
 
-		if (count == (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2) {
+    /* Set owner & dir. */
+    do
+    {
+      count++;
+      n_recs++;
 
-			slot_index++;
+      if (count == (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2)
+      {
+        slot-= PAGE_DIR_SLOT_SIZE;
+        mach_write_to_2(slot, page_offset(insert_rec));
+        rec_set_n_owned_old(insert_rec, count);
 
-			slot = page_dir_get_nth_slot(m_page, slot_index);
+        count= 0;
+      }
 
-			page_dir_slot_set_rec(slot, insert_rec);
-			page_dir_slot_set_n_owned(slot, NULL, count);
+      insert_rec= m_page + mach_read_from_2(insert_rec - REC_NEXT);
+    }
+    while (insert_rec != m_page + PAGE_OLD_SUPREMUM);
+  }
 
-			count = 0;
-		}
+  if (slot0 != slot && (count + 1 + (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2 <=
+                        PAGE_DIR_SLOT_MAX_N_OWNED)) {
+    /* We can merge the two last dir slots. This operation is here to
+    make this function imitate exactly the equivalent task made using
+    page_cur_insert_rec(), which we use in database recovery to
+    reproduce the task performed by this function. To be able to
+    check the correctness of recovery, it is good that it imitates exactly. */
 
-		insert_rec = page_rec_get_next(insert_rec);
-	} while (!page_rec_is_supremum(insert_rec));
+    count+= (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2;
 
-	if (slot_index > 0
-	    && (count + 1 + (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2
-		<= PAGE_DIR_SLOT_MAX_N_OWNED)) {
-		/* We can merge the two last dir slots. This operation is
-		here to make this function imitate exactly the equivalent
-		task made using page_cur_insert_rec, which we use in database
-		recovery to reproduce the task performed by this function.
-		To be able to check the correctness of recovery, it is good
-		that it imitates exactly. */
+    page_dir_slot_set_n_owned(slot, nullptr, 0);
+    slot+= PAGE_DIR_SLOT_SIZE;
+  }
 
-		count += (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2;
+  slot-= PAGE_DIR_SLOT_SIZE;
+  page_dir_slot_set_rec(slot, page_get_supremum_rec(m_page));
+  page_dir_slot_set_n_owned(slot, nullptr, count + 1);
 
-		page_dir_slot_set_n_owned(slot, NULL, 0);
+  ut_ad(!dict_index_is_spatial(m_index));
+  ut_ad(!page_get_instant(m_page));
+  ut_ad(!mach_read_from_2(PAGE_HEADER + PAGE_N_DIRECTION + m_page));
 
-		slot_index--;
-	}
+  if (fmt != COMPRESSED)
+  {
+    m_mtr.write<2,mtr_t::OPT>(*m_block,
+                              PAGE_HEADER + PAGE_N_DIR_SLOTS + m_page,
+                              1 + static_cast<ulint>(slot0 - slot) /
+                              PAGE_DIR_SLOT_SIZE);
+    m_mtr.write<2>(*m_block, PAGE_HEADER + PAGE_HEAP_TOP + m_page,
+                   static_cast<ulint>(m_heap_top - m_page));
+    m_mtr.write<2>(*m_block, PAGE_HEADER + PAGE_N_HEAP + m_page,
+                   (PAGE_HEAP_NO_USER_LOW + m_rec_no) |
+                   uint16_t{fmt != REDUNDANT} << 15);
+    m_mtr.write<2>(*m_block, PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
+    m_mtr.write<2>(*m_block, PAGE_HEADER + PAGE_LAST_INSERT + m_page,
+                   static_cast<ulint>(m_cur_rec - m_page));
+    m_mtr.write<2>(*m_block, PAGE_HEADER + PAGE_DIRECTION_B - 1 + m_page,
+                   PAGE_RIGHT);
+  }
+  else
+  {
+    /* For ROW_FORMAT=COMPRESSED, redo log may be written in
+    PageBulk::compress(). */
+    mach_write_to_2(PAGE_HEADER + PAGE_N_DIR_SLOTS + m_page,
+                    1 + (slot0 - slot) / PAGE_DIR_SLOT_SIZE);
+    mach_write_to_2(PAGE_HEADER + PAGE_HEAP_TOP + m_page,
+                    static_cast<ulint>(m_heap_top - m_page));
+    mach_write_to_2(PAGE_HEADER + PAGE_N_HEAP + m_page,
+                    (PAGE_HEAP_NO_USER_LOW + m_rec_no) |
+                    uint16_t{fmt != REDUNDANT} << 15);
+    mach_write_to_2(PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
+    mach_write_to_2(PAGE_HEADER + PAGE_LAST_INSERT + m_page,
+                    static_cast<ulint>(m_cur_rec - m_page));
+    mach_write_to_2(PAGE_HEADER + PAGE_DIRECTION_B - 1 + m_page, PAGE_RIGHT);
+  }
 
-	slot = page_dir_get_nth_slot(m_page, 1 + slot_index);
-	page_dir_slot_set_rec(slot, page_get_supremum_rec(m_page));
-	page_dir_slot_set_n_owned(slot, NULL, count + 1);
-
-	ut_ad(!dict_index_is_spatial(m_index));
-	ut_ad(!page_get_instant(m_page));
-	ut_ad(!mach_read_from_2(PAGE_HEADER + PAGE_N_DIRECTION + m_page));
-
-	if (fmt != COMPRESSED) {
-		m_mtr.write<2,mtr_t::OPT>(*m_block,
-					  PAGE_HEADER + PAGE_N_DIR_SLOTS
-					  + m_page, 2 + slot_index);
-		m_mtr.write<2>(*m_block, PAGE_HEADER + PAGE_HEAP_TOP + m_page,
-			       ulint(m_heap_top - m_page));
-		m_mtr.write<2>(*m_block,
-			       PAGE_HEADER + PAGE_N_HEAP + m_page,
-			       (PAGE_HEAP_NO_USER_LOW + m_rec_no)
-			       | uint16_t{fmt != REDUNDANT} << 15);
-		m_mtr.write<2>(*m_block,
-			       PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
-		m_mtr.write<2>(*m_block,
-			       PAGE_HEADER + PAGE_LAST_INSERT + m_page,
-			       ulint(m_cur_rec - m_page));
-		m_mtr.write<2>(*m_block,
-			       PAGE_HEADER + PAGE_DIRECTION_B - 1 + m_page,
-			       PAGE_RIGHT);
-	} else {
-		/* For ROW_FORMAT=COMPRESSED, redo log may be written
-		in PageBulk::compress(). */
-		mach_write_to_2(PAGE_HEADER + PAGE_N_DIR_SLOTS + m_page,
-				2 + slot_index);
-		mach_write_to_2(PAGE_HEADER + PAGE_HEAP_TOP + m_page,
-				ulint(m_heap_top - m_page));
-		mach_write_to_2(PAGE_HEADER + PAGE_N_HEAP + m_page,
-				(PAGE_HEAP_NO_USER_LOW + m_rec_no)
-				| uint16_t{fmt != REDUNDANT} << 15);
-		mach_write_to_2(PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
-		mach_write_to_2(PAGE_HEADER + PAGE_LAST_INSERT + m_page,
-				ulint(m_cur_rec - m_page));
-		mach_write_to_2(PAGE_HEADER + PAGE_DIRECTION_B - 1 + m_page,
-				PAGE_RIGHT);
-	}
-
-	m_block->skip_flush_check = false;
+  ut_ad(m_total_data + page_dir_calc_reserved_space(m_rec_no) <=
+        page_get_free_space_of_empty(m_is_comp));
+  m_block->skip_flush_check= false;
 }
 
 /** Mark end of insertion to the page. Scan all records to set page dirs,
-and set page header members. */
+and set page header members.
+@tparam compressed  whether the page is in ROW_FORMAT=COMPRESSED */
 inline void PageBulk::finish()
 {
   if (UNIV_LIKELY_NULL(m_page_zip))

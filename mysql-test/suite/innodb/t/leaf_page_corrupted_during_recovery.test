@@ -3,8 +3,8 @@
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed file read of tablespace test/t1 page ");
-call mtr.add_suppression("InnoDB: Background Page read failed to read or decrypt \\[page id: space=\\d+, page number=19\\]");
-call mtr.add_suppression("\\[ERROR\\] InnoDB: Failed to read file '.*test.t1\\.ibd' at offset 19: Page read from tablespace is corrupted\\.");
+call mtr.add_suppression("InnoDB: Background Page read failed to read or decrypt \\[page id: space=\\d+, page number=14\\]");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Failed to read file '.*test.t1\\.ibd' at offset 14: Page read from tablespace is corrupted\\.");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Plugin initialization aborted at srv0start\\.cc.* with error Data structure corruption");
 call mtr.add_suppression("\\[ERROR\\] Plugin 'InnoDB' (init function|registration)");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: We detected index corruption");
@@ -20,8 +20,12 @@ INSERT INTO t1 VALUES(1, 'sql'), (2, 'server'), (3, 'mariadb'),
 	(8, 'test4'), (9, 'test5'), (10, 'test6'), (11, 'test7'),
 	(12, 'test8');
 
-let $restart_noprint=2;
---source include/restart_mysqld.inc
+# Flush all pages of the table, and perform log checkpoint,
+# so that no page initialization can be replayed from the redo log
+# to undo the page corruption that we are going to inject.
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+SET GLOBAL innodb_log_checkpoint_now=ON;
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 let MYSQLD_DATADIR=`select @@datadir`;
@@ -38,7 +42,7 @@ perl;
 my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
 open(FILE, "+<$file") || die "Unable to open $file";
 binmode FILE;
-seek (FILE, $ENV{INNODB_PAGE_SIZE} * 19 + 38, SEEK_SET) or die "seek";
+seek (FILE, $ENV{INNODB_PAGE_SIZE} * 14 + 38, SEEK_SET) or die "seek";
 print FILE "junk";
 close FILE or die "close";
 EOF
@@ -50,7 +54,7 @@ SELECT * FROM t1 WHERE PK = 1;
 let $restart_parameters=--innodb-force-recovery=1;
 --source include/restart_mysqld.inc
 SELECT * FROM t1 WHERE PK = 1;
---error ER_NOT_KEYFILE
+--error ER_GET_ERRNO
 SELECT * FROM t1 WHERE pk = 12;
 
 DROP TABLE t1;

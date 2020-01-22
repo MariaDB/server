@@ -2041,6 +2041,7 @@ IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
 if this is a compressed leaf page in a secondary index.
 This has to be done either within the same mini-transaction,
 or by invoking ibuf_reset_free_bits() before mtr_commit(). */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 void
 page_copy_rec_list_end_to_created_page(
 /*===================================*/

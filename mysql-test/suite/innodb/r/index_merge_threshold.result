@@ -204,9 +204,10 @@ INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
 where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
-3	2
+3	3
 4	7
-5	7
+5	3
+6	4
 begin;
 delete from tab1 where a = 12;
 delete from tab1 where a = 13;
@@ -220,8 +221,8 @@ InnoDB		0 transactions not purged
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
@@ -230,31 +231,32 @@ and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	4
-5	4
+5	2
+6	4
 delete from tab1 where a = 11;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 delete from tab1 where a = 10;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	2
-index_page_merge_successful	2
+index_page_merge_attempts	3
+index_page_merge_successful	3
 delete from tab1 where a = 9;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	2
-index_page_merge_successful	2
+index_page_merge_attempts	3
+index_page_merge_successful	3
 DROP TABLE tab1;
 # test to confirm behavior (MERGE_THRESHOLD=35)
 CREATE TABLE tab1 (a bigint primary key, b varchar(2048)) engine=InnoDB
@@ -285,9 +287,10 @@ INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
 where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
-3	2
+3	3
 4	7
-5	7
+5	3
+6	4
 begin;
 delete from tab1 where a = 12;
 delete from tab1 where a = 13;
@@ -301,8 +304,8 @@ InnoDB		0 transactions not purged
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
@@ -311,31 +314,32 @@ and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	4
-5	4
+5	2
+6	4
 delete from tab1 where a = 11;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 delete from tab1 where a = 10;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 delete from tab1 where a = 9;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	2
-index_page_merge_successful	2
+index_page_merge_attempts	3
+index_page_merge_successful	3
 DROP TABLE tab1;
 # test to confirm behavior (MERGE_THRESHOLD=25)
 CREATE TABLE tab1 (a bigint primary key, b varchar(2048)) engine=InnoDB
@@ -366,9 +370,10 @@ INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
 where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
-3	2
+3	3
 4	7
-5	7
+5	3
+6	4
 begin;
 delete from tab1 where a = 12;
 delete from tab1 where a = 13;
@@ -382,8 +387,8 @@ InnoDB		0 transactions not purged
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
@@ -392,31 +397,32 @@ and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	4
-5	4
+5	1
+6	4
 delete from tab1 where a = 11;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 delete from tab1 where a = 10;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 delete from tab1 where a = 9;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 DROP TABLE tab1;
 # test to confirm partitioned table (MERGE_THRESHOLD=35)
 CREATE TABLE tab1 (a bigint primary key, b varchar(2048))
@@ -452,9 +458,10 @@ where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
 3	0
-3	2
+3	3
 4	7
-5	7
+5	3
+6	4
 begin;
 delete from tab1 where a = 12;
 delete from tab1 where a = 13;
@@ -468,8 +475,8 @@ InnoDB		0 transactions not purged
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
@@ -479,31 +486,32 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	0
 3	2
 4	4
-5	4
+5	2
+6	4
 delete from tab1 where a = 11;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 delete from tab1 where a = 10;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 delete from tab1 where a = 9;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	2
-index_page_merge_successful	2
+index_page_merge_attempts	3
+index_page_merge_successful	3
 DROP TABLE tab1;
 #
 # behavior for updating to smaller records
@@ -536,9 +544,10 @@ INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
 where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
-3	2
+3	3
 4	7
-5	7
+5	3
+6	4
 update tab1 set b='' where a = 12;
 update tab1 set b='' where a = 13;
 update tab1 set b='' where a = 14;
@@ -549,8 +558,8 @@ update tab1 set b='' where a = 7;
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
@@ -559,28 +568,29 @@ and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	7
-5	7
+5	3
+6	7
 update tab1 set b='' where a = 11;
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 update tab1 set b='' where a = 10;
 # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 update tab1 set b='' where a = 9;
 # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 DROP TABLE tab1;
 # test to confirm behavior (MERGE_THRESHOLD=35)
 CREATE TABLE tab1 (a bigint primary key, b varchar(2048)) engine=InnoDB
@@ -611,9 +621,10 @@ INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
 where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
-3	2
+3	3
 4	7
-5	7
+5	3
+6	4
 update tab1 set b='' where a = 12;
 update tab1 set b='' where a = 13;
 update tab1 set b='' where a = 14;
@@ -624,8 +635,8 @@ update tab1 set b='' where a = 7;
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
@@ -634,28 +645,29 @@ and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	7
-5	7
+5	3
+6	7
 update tab1 set b='' where a = 11;
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 update tab1 set b='' where a = 10;
 # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 update tab1 set b='' where a = 9;
 # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 DROP TABLE tab1;
 # test to confirm behavior (MERGE_THRESHOLD=25)
 CREATE TABLE tab1 (a bigint primary key, b varchar(2048)) engine=InnoDB
@@ -686,9 +698,10 @@ INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
 where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
-3	2
+3	3
 4	7
-5	7
+5	3
+6	4
 update tab1 set b='' where a = 12;
 update tab1 set b='' where a = 13;
 update tab1 set b='' where a = 14;
@@ -699,8 +712,8 @@ update tab1 set b='' where a = 7;
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
@@ -709,28 +722,29 @@ and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
 3	2
 4	7
-5	7
+5	3
+6	7
 update tab1 set b='' where a = 11;
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 update tab1 set b='' where a = 10;
 # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 update tab1 set b='' where a = 9;
 # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 DROP TABLE tab1;
 # test to confirm explicit temporary table (MERGE_THRESHOLD=35)
 # (though not registered to SYS_TABLES,SYS_INDEXES, it works correctly)
@@ -771,8 +785,8 @@ update tab1 set b='' where a = 7;
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
@@ -784,22 +798,22 @@ update tab1 set b='' where a = 11;
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 update tab1 set b='' where a = 10;
 # check page merge happens (MERGE_THRESHOLD=35 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 update tab1 set b='' where a = 9;
 # check page merge happens (MERGE_THRESHOLD=25 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 DROP TABLE tab1;
 #
 # behavior for secondary index with blob
@@ -863,9 +877,10 @@ where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
 3	42
-4	2
+4	3
 27	21
-28	21
+28	10
+30	11
 begin;
 delete from tab1 where a = 33;
 delete from tab1 where a = 34;
@@ -893,8 +908,8 @@ InnoDB		0 transactions not purged
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
@@ -904,31 +919,32 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	22
 4	2
 27	11
-28	11
+28	9
+30	11
 delete from tab1 where a = 32;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 delete from tab1 where a = 31;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=45 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	2
-index_page_merge_successful	2
+index_page_merge_attempts	3
+index_page_merge_successful	3
 delete from tab1 where a = 30;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=40 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	2
-index_page_merge_successful	2
+index_page_merge_attempts	3
+index_page_merge_successful	3
 DROP TABLE tab1;
 # test to confirm behavior (MERGE_THRESHOLD=45)
 CREATE TABLE tab1 (a bigint primary key, b blob) engine=InnoDB row_format=dynamic;
@@ -989,9 +1005,10 @@ where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
 3	42
-4	2
+4	3
 27	21
-28	21
+28	10
+30	11
 begin;
 delete from tab1 where a = 33;
 delete from tab1 where a = 34;
@@ -1019,8 +1036,8 @@ InnoDB		0 transactions not purged
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
@@ -1030,31 +1047,32 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	22
 4	2
 27	11
-28	11
+28	9
+30	11
 delete from tab1 where a = 32;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 delete from tab1 where a = 31;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=45 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 delete from tab1 where a = 30;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=40 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	2
-index_page_merge_successful	2
+index_page_merge_attempts	3
+index_page_merge_successful	3
 DROP TABLE tab1;
 # test to confirm behavior (MERGE_THRESHOLD=40)
 CREATE TABLE tab1 (a bigint primary key, b blob) engine=InnoDB row_format=dynamic;
@@ -1115,9 +1133,10 @@ where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
 3	42
-4	2
+4	3
 27	21
-28	21
+28	10
+30	11
 begin;
 delete from tab1 where a = 33;
 delete from tab1 where a = 34;
@@ -1145,8 +1164,8 @@ InnoDB		0 transactions not purged
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
@@ -1156,31 +1175,32 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	22
 4	2
 27	11
-28	11
+28	8
+30	11
 delete from tab1 where a = 32;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 delete from tab1 where a = 31;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=45 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 delete from tab1 where a = 30;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=40 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 DROP TABLE tab1;
 # compressed table behaves same (MERGE_THRESHOLD=45)
 CREATE TABLE tab1 (a bigint primary key, b blob) engine=InnoDB
@@ -1242,9 +1262,10 @@ where s1.SPACE = s2.SPACE AND NAME like 'test/tab1%'
 and PAGE_TYPE = "INDEX" order by PAGE_NUMBER, NUMBER_RECORDS;
 PAGE_NUMBER	NUMBER_RECORDS
 3	42
-4	2
+4	3
 27	21
-28	21
+28	10
+30	11
 begin;
 delete from tab1 where a = 33;
 delete from tab1 where a = 34;
@@ -1272,8 +1293,8 @@ InnoDB		0 transactions not purged
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 select PAGE_NUMBER, NUMBER_RECORDS
 from INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES s1,
 INFORMATION_SCHEMA.INNODB_BUFFER_PAGE s2
@@ -1283,30 +1304,31 @@ PAGE_NUMBER	NUMBER_RECORDS
 3	22
 4	2
 27	11
-28	11
+28	9
+30	11
 delete from tab1 where a = 32;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=50 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	0
-index_page_merge_successful	0
+index_page_merge_attempts	1
+index_page_merge_successful	1
 delete from tab1 where a = 31;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=45 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	1
-index_page_merge_successful	1
+index_page_merge_attempts	2
+index_page_merge_successful	2
 delete from tab1 where a = 30;
 InnoDB		0 transactions not purged
 # check page merge happens (MERGE_THRESHOLD=40 causes merge here)
 SELECT name,count_reset FROM information_schema.innodb_metrics
 WHERE name like 'index_page_merge_%';
 name	count_reset
-index_page_merge_attempts	2
-index_page_merge_successful	2
+index_page_merge_attempts	3
+index_page_merge_successful	3
 DROP TABLE tab1;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

@@ -117,7 +117,7 @@
  WHERE name = 'test/big';
  clust_index_size
 -7
-+28
++27
  connection default;
  ROLLBACK;
  CHECKSUM TABLE big;

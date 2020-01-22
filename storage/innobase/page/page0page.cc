@@ -599,37 +599,30 @@ page_copy_rec_list_end(
 	/* Here, "ret" may be pointing to a user record or the
 	predefined supremum record. */
 
-	mtr_log_t	log_mode = MTR_LOG_NONE;
+	const mtr_log_t log_mode = new_page_zip
+		? mtr->set_log_mode(MTR_LOG_NONE) : MTR_LOG_NONE;
+	ut_d(const bool was_empty = page_dir_get_n_heap(new_page)
+	     == PAGE_HEAP_NO_USER_LOW);
 
-	if (new_page_zip) {
-		log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
-	}
+	if (index->is_spatial()) {
+		ulint	max_to_move = page_get_n_recs(
+			buf_block_get_frame(block));
+		heap = mem_heap_create(256);
 
-	if (page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW) {
-		page_copy_rec_list_end_to_created_page(new_page, rec,
-						       index, mtr);
+		rec_move = static_cast<rtr_rec_move_t*>(
+			mem_heap_alloc(heap, max_to_move * sizeof *rec_move));
+
+		/* For spatial index, we need to insert recs one by one
+		to keep recs ordered. */
+		rtr_page_copy_rec_list_end_no_locks(new_block,
+						    block, rec, index,
+						    heap, rec_move,
+						    max_to_move,
+						    &num_moved,
+						    mtr);
 	} else {
-		if (dict_index_is_spatial(index)) {
-			ulint	max_to_move = page_get_n_recs(
-						buf_block_get_frame(block));
-			heap = mem_heap_create(256);
-
-			rec_move = static_cast<rtr_rec_move_t*>(mem_heap_alloc(
-					heap,
-					sizeof (*rec_move) * max_to_move));
-
-			/* For spatial index, we need to insert recs one by one
-			to keep recs ordered. */
-			rtr_page_copy_rec_list_end_no_locks(new_block,
-							    block, rec, index,
-							    heap, rec_move,
-							    max_to_move,
-							    &num_moved,
-							    mtr);
-		} else {
-			page_copy_rec_list_end_no_locks(new_block, block, rec,
-							index, mtr);
-		}
+		page_copy_rec_list_end_no_locks(new_block, block, rec,
+						index, mtr);
 	}
 
 	/* Update PAGE_MAX_TRX_ID on the uncompressed page.
@@ -642,6 +635,9 @@ page_copy_rec_list_end(
 	if (dict_index_is_sec_or_ibuf(index)
 	    && page_is_leaf(page)
 	    && !index->table->is_temporary()) {
+		ut_ad(!was_empty || page_dir_get_n_heap(new_page)
+		      == PAGE_HEAP_NO_USER_LOW
+		      + page_header_get_field(new_page, PAGE_N_RECS));
 		page_update_max_trx_id(new_block, NULL,
 				       page_get_max_trx_id(page), mtr);
 	}
