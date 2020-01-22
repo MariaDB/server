@@ -432,6 +432,19 @@ struct mtr_t {
   @param[in]      len     length of the data to write */
   inline void memcpy(buf_block_t *b, ulint offset, const void *str, ulint len);
 
+  /** Write a byte string to a ROW_FORMAT=COMPRESSED page.
+  @param[in]      b       ROW_FORMAT=COMPRESSED index page
+  @param[in]      ofs     byte offset from b.zip.data
+  @param[in]      len     length of the data to write */
+  void zmemcpy(const buf_page_t &b, ulint offset, ulint len);
+
+  /** Write a byte string to a ROW_FORMAT=COMPRESSED page.
+  @param[in,out]  b       ROW_FORMAT=COMPRESSED index page
+  @param[in]      ofs     byte offset from b->zip.data
+  @param[in]      str     the data to write
+  @param[in]      len     length of the data to write */
+  inline void zmemcpy(buf_page_t *b, ulint offset, const void *str, ulint len);
+
   /** Initialize a string of bytes.
   @param[in,out]        b       buffer page
   @param[in]            ofs     byte offset from b->frame

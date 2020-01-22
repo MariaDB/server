@@ -297,6 +297,35 @@ void mtr_t::memcpy(const buf_block_t &b, ulint ofs, ulint len)
   mlog_catenate_string(this, b.frame + ofs, len);
 }
 
+/** Write a byte string to a ROW_FORMAT=COMPRESSED page.
+@param[in]      b       ROW_FORMAT=COMPRESSED index page
+@param[in]      ofs     byte offset from b.zip.data
+@param[in]      len     length of the data to write */
+void mtr_t::zmemcpy(const buf_page_t &b, ulint offset, ulint len)
+{
+  ut_ad(page_zip_simple_validate(&b.zip));
+  ut_ad(len);
+  ut_ad(offset + len <= page_zip_get_size(&b.zip));
+  ut_ad(mach_read_from_2(b.zip.data + FIL_PAGE_TYPE) == FIL_PAGE_INDEX ||
+        mach_read_from_2(b.zip.data + FIL_PAGE_TYPE) == FIL_PAGE_RTREE);
+
+  set_modified();
+  if (get_log_mode() != MTR_LOG_ALL)
+  {
+    ut_ad(get_log_mode() == MTR_LOG_NONE ||
+          get_log_mode() == MTR_LOG_NO_REDO);
+    return;
+  }
+
+  byte *l= get_log()->open(11 + 2 + 2);
+  l= mlog_write_initial_log_record_low(MLOG_ZIP_WRITE_STRING, b.id.space(),
+                                       b.id.page_no(), l, this);
+  mach_write_to_2(l, offset);
+  mach_write_to_2(l + 2, len);
+  mlog_close(this, l + 4);
+  mlog_catenate_string(this, b.zip.data + offset, len);
+}
+
 /********************************************************//**
 Parses a log record written by mtr_t::memcpy().
 @return parsed record end, NULL if not a complete record */

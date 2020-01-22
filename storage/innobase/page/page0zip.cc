@@ -370,7 +370,7 @@ static void page_zip_compress_write_log(buf_block_t *block,
 {
   ut_ad(!index->is_ibuf());
 
-  byte *log_ptr= mlog_open(mtr, 11 + 11 + 2 + 2);
+  byte *log_ptr= mlog_open(mtr, 11);
 
   if (!log_ptr)
     return;
@@ -398,28 +398,12 @@ static void page_zip_compress_write_log(buf_block_t *block,
                                              block->page.id.space(),
                                              block->page.id.page_no(),
                                              log_ptr, mtr);
-  log_ptr = mlog_write_initial_log_record_low(MLOG_ZIP_WRITE_STRING,
-                                              block->page.id.space(),
-                                              block->page.id.page_no(),
-                                              log_ptr, mtr);
-  mach_write_to_2(log_ptr, FIL_PAGE_PREV);
-  mach_write_to_2(log_ptr + 2, page_zip->m_end - FIL_PAGE_PREV);
-  mlog_close(mtr, log_ptr + 4);
-  mlog_catenate_string(mtr, page_zip->data + FIL_PAGE_PREV,
-                       page_zip->m_end - FIL_PAGE_PREV);
+  mlog_close(mtr, log_ptr);
+  mtr->zmemcpy(block->page, FIL_PAGE_PREV, page_zip->m_end - FIL_PAGE_PREV);
+
   if (trailer_size)
-  {
-    log_ptr= mlog_open(mtr, 11 + 2 + 2);
-    log_ptr= mlog_write_initial_log_record_low(MLOG_ZIP_WRITE_STRING,
-                                               block->page.id.space(),
-                                               block->page.id.page_no(),
-                                               log_ptr, mtr);
-    mach_write_to_2(log_ptr, page_zip_get_size(page_zip) - trailer_size);
-    mach_write_to_2(log_ptr + 2, trailer_size);
-    mlog_close(mtr, log_ptr + 4);
-    mlog_catenate_string(mtr, page_zip->data + page_zip_get_size(page_zip) -
-                         trailer_size, trailer_size);
-  }
+    mtr->zmemcpy(block->page, page_zip_get_size(page_zip) - trailer_size,
+                 trailer_size);
   block->page.init_on_flush= true; /* because of MLOG_INIT_FILE_PAGE2 */
 }
 
@@ -3564,19 +3548,8 @@ page_zip_write_rec_ext(
 					- n_ext * FIELD_REF_SIZE;
 				memmove(ext_start, ext_end, len);
 				/* TODO: write MEMMOVE record */
-				if (byte* l = mlog_open(mtr, 11 + 2 + 2)) {
-					l = mlog_write_initial_log_record_low(
-						MLOG_ZIP_WRITE_STRING,
-						block->page.id.space(),
-						block->page.id.page_no(),
-						l, mtr);
-					mach_write_to_2(l, ext_start
-							- page_zip->data);
-					mach_write_to_2(l + 2, len);
-					mlog_close(mtr, l + 4);
-					mlog_catenate_string(mtr, ext_start,
-							     len);
-				}
+				mtr->zmemcpy(block->page, ext_start
+					     - page_zip->data, len);
 			}
 		}
 
@@ -3614,19 +3587,8 @@ page_zip_write_rec_ext(
 			byte* sys = storage - sys_len * (heap_no - 1);
 			memcpy(sys, src, sys_len);
 			i++; /* skip also roll_ptr */
-			if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2
-						      + sys_len)) {
-				log_ptr = mlog_write_initial_log_record_low(
-					MLOG_ZIP_WRITE_STRING,
-					block->page.id.space(),
-					block->page.id.page_no(),
-					log_ptr,
-					mtr);
-				mach_write_to_2(log_ptr, sys - page_zip->data);
-				mach_write_to_2(log_ptr + 2, sys_len);
-				memcpy(log_ptr + 4, sys, sys_len);
-				mlog_close(mtr, log_ptr + 4 + sys_len);
-			}
+			mtr->zmemcpy(block->page, sys - page_zip->data,
+				     sys_len);
 		} else if (rec_offs_nth_extern(offsets, i)) {
 			src = rec_get_nth_field(rec, offsets,
 						i, &len);
@@ -3644,20 +3606,8 @@ page_zip_write_rec_ext(
 			externs -= FIELD_REF_SIZE;
 			ut_ad(data < externs);
 			memcpy(externs, src, FIELD_REF_SIZE);
-			if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2
-						      + FIELD_REF_SIZE)) {
-				log_ptr = mlog_write_initial_log_record_low(
-					MLOG_ZIP_WRITE_STRING,
-					block->page.id.space(),
-					block->page.id.page_no(),
-					log_ptr,
-					mtr);
-				mach_write_to_2(log_ptr, externs
-						- page_zip->data);
-				mach_write_to_2(log_ptr + 2, FIELD_REF_SIZE);
-				memcpy(log_ptr + 4, externs, FIELD_REF_SIZE);
-				mlog_close(mtr, log_ptr + 4 + FIELD_REF_SIZE);
-			}
+			mtr->zmemcpy(block->page, externs - page_zip->data,
+				     FIELD_REF_SIZE);
 		}
 	}
 
@@ -3797,21 +3747,8 @@ void page_zip_write_rec(buf_block_t *block, const byte *rec,
 				memcpy(sys, src, sys_len);
 
 				src += sys_len;
-
-				if (byte* l = mlog_open(mtr, 11 + 2 + 2
-							      + sys_len)) {
-					l = mlog_write_initial_log_record_low(
-						MLOG_ZIP_WRITE_STRING,
-						block->page.id.space(),
-						block->page.id.page_no(),
-						l,
-						mtr);
-					mach_write_to_2(l, sys
-							- page_zip->data);
-					mach_write_to_2(l + 2, sys_len);
-					memcpy(l + 4, sys, sys_len);
-					mlog_close(mtr, l + 4 + sys_len);
-				}
+				mtr->zmemcpy(block->page, sys - page_zip->data,
+					     sys_len);
 				/* Log the last bytes of the record. */
 				len = rec_offs_data_size(offsets)
 					- ulint(src - rec);
@@ -3848,36 +3785,14 @@ void page_zip_write_rec(buf_block_t *block, const byte *rec,
 
 		/* Copy the node pointer to the uncompressed area. */
 		byte* node_ptr = storage - REC_NODE_PTR_SIZE * (heap_no - 1);
-		memcpy(node_ptr, rec + len, REC_NODE_PTR_SIZE);
-		if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2
-					      + REC_NODE_PTR_SIZE)) {
-			log_ptr = mlog_write_initial_log_record_low(
-				MLOG_ZIP_WRITE_STRING,
-				block->page.id.space(),
-				block->page.id.page_no(),
-				log_ptr, mtr);
-			mach_write_to_2(log_ptr, node_ptr - page_zip->data);
-			mach_write_to_2(log_ptr + 2, REC_NODE_PTR_SIZE);
-			memcpy(log_ptr + 4, node_ptr, REC_NODE_PTR_SIZE);
-			mlog_close(mtr, log_ptr + 4 + REC_NODE_PTR_SIZE);
-		}
+		mtr->zmemcpy(&block->page, node_ptr - page_zip->data,
+			     rec + len, REC_NODE_PTR_SIZE);
 	}
 
 	ut_a(!*data);
 	ut_ad((ulint) (data - page_zip->data) < page_zip_get_size(page_zip));
-	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2)) {
-		log_ptr = mlog_write_initial_log_record_low(
-			MLOG_ZIP_WRITE_STRING,
-			block->page.id.space(), block->page.id.page_no(),
-			log_ptr, mtr);
-		mach_write_to_2(log_ptr, page_zip->m_end);
-		mach_write_to_2(log_ptr + 2,
-				data - page_zip->data - page_zip->m_end);
-		mlog_close(mtr, log_ptr + 4);
-		mlog_catenate_string(mtr, page_zip->data + page_zip->m_end,
-				     data - page_zip->data - page_zip->m_end);
-	}
-
+	mtr->zmemcpy(block->page, page_zip->m_end,
+		     data - page_zip->data - page_zip->m_end);
 	page_zip->m_end = unsigned(data - page_zip->data);
 	page_zip->m_nonempty = TRUE;
 
@@ -4004,22 +3919,12 @@ page_zip_write_blob_ptr(
 	externs -= (blob_no + 1) * BTR_EXTERN_FIELD_REF_SIZE;
 	field += len - BTR_EXTERN_FIELD_REF_SIZE;
 
-	memcpy(externs, field, BTR_EXTERN_FIELD_REF_SIZE);
+	mtr->zmemcpy(&block->page, ulint(externs - page_zip->data),
+		     field, BTR_EXTERN_FIELD_REF_SIZE);
 
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
-
-	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + FIELD_REF_SIZE)) {
-		log_ptr = mlog_write_initial_log_record_low(
-			MLOG_ZIP_WRITE_STRING,
-			block->page.id.space(), block->page.id.page_no(),
-			log_ptr, mtr);
-		mach_write_to_2(log_ptr, ulint(externs - page_zip->data));
-		mach_write_to_2(log_ptr + 2, BTR_EXTERN_FIELD_REF_SIZE);
-		memcpy(log_ptr + 4, externs, BTR_EXTERN_FIELD_REF_SIZE);
-		mlog_close(mtr, log_ptr + 4 + BTR_EXTERN_FIELD_REF_SIZE);
-	}
 }
 
 /***********************************************************//**
@@ -4137,18 +4042,8 @@ page_zip_write_node_ptr(
 #endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
 	compile_time_assert(REC_NODE_PTR_SIZE == 4);
 	mach_write_to_4(field, ptr);
-	memcpy(storage, field, REC_NODE_PTR_SIZE);
-
-	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + REC_NODE_PTR_SIZE)) {
-		log_ptr = mlog_write_initial_log_record_low(
-			MLOG_ZIP_WRITE_STRING,
-			block->page.id.space(), block->page.id.page_no(),
-			log_ptr, mtr);
-		mach_write_to_2(log_ptr, ulint(storage - page_zip->data));
-		mach_write_to_2(log_ptr + 2, REC_NODE_PTR_SIZE);
-		memcpy(log_ptr + 4, storage, REC_NODE_PTR_SIZE);
-		mlog_close(mtr, log_ptr + 4 + REC_NODE_PTR_SIZE);
-	}
+	mtr->zmemcpy(&block->page, ulint(storage - page_zip->data),
+		     field, REC_NODE_PTR_SIZE);
 }
 
 /** Write the DB_TRX_ID,DB_ROLL_PTR into a clustered index leaf page record.
@@ -4208,23 +4103,13 @@ page_zip_write_trx_id_and_roll_ptr(
 	mach_write_to_6(field, trx_id);
 	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
 	mach_write_to_7(field + DATA_TRX_ID_LEN, roll_ptr);
-	memcpy(storage, field, sys_len);
+	mtr->zmemcpy(&block->page, ulint(storage - page_zip->data),
+		     field, sys_len);
 
 	UNIV_MEM_ASSERT_RW(rec, rec_offs_data_size(offsets));
 	UNIV_MEM_ASSERT_RW(rec - rec_offs_extra_size(offsets),
 			   rec_offs_extra_size(offsets));
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
-
-	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2 + sys_len)) {
-		log_ptr = mlog_write_initial_log_record_low(
-			MLOG_ZIP_WRITE_STRING,
-			block->page.id.space(), block->page.id.page_no(),
-			log_ptr, mtr);
-		mach_write_to_2(log_ptr, ulint(storage - page_zip->data));
-		mach_write_to_2(log_ptr + 2, sys_len);
-		memcpy(log_ptr + 4, field, sys_len);
-		mlog_close(mtr, log_ptr + 4 + sys_len);
-	}
 }
 
 /** Parse a MLOG_ZIP_WRITE_TRX_ID record.
@@ -4341,17 +4226,7 @@ page_zip_clear_rec(
 clear_page_zip:
 		/* TODO: write MEMSET record */
 		memset(storage, 0, len);
-		if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2 + len)) {
-			log_ptr = mlog_write_initial_log_record_low(
-				MLOG_ZIP_WRITE_STRING,
-				block->page.id.space(),
-				block->page.id.page_no(),
-				log_ptr, mtr);
-			mach_write_to_2(log_ptr, storage - page_zip->data);
-			mach_write_to_2(log_ptr + 2, len);
-			memcpy(log_ptr + 4, storage, len);
-			mlog_close(mtr, log_ptr + 4 + len);
-		}
+		mtr->zmemcpy(block->page, storage - page_zip->data, len);
 	} else if (index->is_clust()) {
 		/* Clear trx_id and roll_ptr. On the compressed page,
 		there is an array of these fields immediately before the
@@ -4408,24 +4283,18 @@ page_zip_rec_set_deleted(
 	byte*	slot = page_zip_dir_find(&block->page.zip, page_offset(rec));
 	ut_a(slot);
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
+	byte b = *slot;
 	if (flag) {
-		*slot |= (PAGE_ZIP_DIR_SLOT_DEL >> 8);
+		b |= (PAGE_ZIP_DIR_SLOT_DEL >> 8);
 	} else {
-		*slot &= ~(PAGE_ZIP_DIR_SLOT_DEL >> 8);
+		b &= ~(PAGE_ZIP_DIR_SLOT_DEL >> 8);
+	}
+	if (b != *slot) {
+		mtr->zmemcpy(&block->page, slot - page_zip->data, &b, 1);
 	}
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(page_zip_validate(page_zip, page_align(rec), NULL));
 #endif /* UNIV_ZIP_DEBUG */
-	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2 + 1)) {
-		log_ptr = mlog_write_initial_log_record_low(
-			MLOG_ZIP_WRITE_STRING,
-			block->page.id.space(), block->page.id.page_no(),
-			log_ptr, mtr);
-		mach_write_to_2(log_ptr, slot - page_zip->data);
-		mach_write_to_2(log_ptr + 2, 1);
-		log_ptr[4] = *slot;
-		mlog_close(mtr, log_ptr + 5);
-	}
 }
 
 /**********************************************************************//**
@@ -4444,22 +4313,14 @@ page_zip_rec_set_owned(
 	byte*	slot = page_zip_dir_find(page_zip, page_offset(rec));
 	ut_a(slot);
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
-	const byte b = *slot;
+	byte b = *slot;
 	if (flag) {
-		*slot |= (PAGE_ZIP_DIR_SLOT_OWNED >> 8);
+		b |= (PAGE_ZIP_DIR_SLOT_OWNED >> 8);
 	} else {
-		*slot &= ~(PAGE_ZIP_DIR_SLOT_OWNED >> 8);
+		b &= ~(PAGE_ZIP_DIR_SLOT_OWNED >> 8);
 	}
-	if (b == *slot) {
-	} else if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2 + 1)) {
-		log_ptr = mlog_write_initial_log_record_low(
-			MLOG_ZIP_WRITE_STRING,
-			block->page.id.space(), block->page.id.page_no(),
-			log_ptr, mtr);
-		mach_write_to_2(log_ptr, slot - page_zip->data);
-		mach_write_to_2(log_ptr + 2, 1);
-		log_ptr[4] = *slot;
-		mlog_close(mtr, log_ptr + 5);
+	if (b != *slot) {
+		mtr->zmemcpy(&block->page, slot - page_zip->data, &b, 1);
 	}
 }
 
@@ -4544,20 +4405,8 @@ page_zip_dir_insert(
 	The "owned" and "deleted" flags must be zero. */
 	mach_write_to_2(slot_rec - PAGE_ZIP_DIR_SLOT_SIZE, page_offset(rec));
 	/* TODO: issue MEMMOVE record to reduce log volume */
-	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2)) {
-		log_ptr = mlog_write_initial_log_record_low(
-			MLOG_ZIP_WRITE_STRING,
-			cursor->block->page.id.space(),
-			cursor->block->page.id.page_no(),
-			log_ptr, mtr);
-		mach_write_to_2(log_ptr, slot_free - PAGE_ZIP_DIR_SLOT_SIZE
-				- page_zip->data);
-		mach_write_to_2(log_ptr + 2,
-				PAGE_ZIP_DIR_SLOT_SIZE + slot_len);
-		mlog_close(mtr, log_ptr + 4);
-		mlog_catenate_string(mtr, slot_free - PAGE_ZIP_DIR_SLOT_SIZE,
-				     PAGE_ZIP_DIR_SLOT_SIZE + slot_len);
-	}
+	mtr->zmemcpy(cursor->block->page, slot_free - PAGE_ZIP_DIR_SLOT_SIZE
+		     - page_zip->data, PAGE_ZIP_DIR_SLOT_SIZE + slot_len);
 }
 
 /** Shift the dense page directory and the array of BLOB pointers
@@ -4629,17 +4478,8 @@ void page_zip_dir_delete(buf_block_t *block, byte *rec,
   The "owned" and "deleted" flags will be cleared. */
   mach_write_to_2(slot_free, page_offset(rec));
 
-  if (byte *log_ptr= mlog_open(mtr, 11 + 2 + 2))
-  {
-    log_ptr= mlog_write_initial_log_record_low(MLOG_ZIP_WRITE_STRING,
-                                               block->page.id.space(),
-                                               block->page.id.page_no(),
-                                               log_ptr, mtr);
-    mach_write_to_2(log_ptr, slot_free - page_zip->data);
-    mach_write_to_2(log_ptr + 2, slot_len + PAGE_ZIP_DIR_SLOT_SIZE);
-    mlog_close(mtr, log_ptr + 4);
-    mlog_catenate_string(mtr, slot_free, slot_len + PAGE_ZIP_DIR_SLOT_SIZE);
-  }
+  mtr->zmemcpy(block->page, slot_free - page_zip->data,
+               slot_len + PAGE_ZIP_DIR_SLOT_SIZE);
 
   if (const ulint n_ext= rec_offs_n_extern(offsets))
   {
@@ -4664,18 +4504,7 @@ void page_zip_dir_delete(buf_block_t *block, byte *rec,
     /* TODO: use MEMMOVE and MEMSET records to reduce volume */
     const ulint ext_len= ulint(page_zip->n_blobs - blob_no) * FIELD_REF_SIZE;
 
-    if (byte *log_ptr= mlog_open(mtr, 11 + 2 + 2))
-    {
-      log_ptr= mlog_write_initial_log_record_low(MLOG_ZIP_WRITE_STRING,
-                                                 block->page.id.space(),
-                                                 block->page.id.page_no(),
-                                                 log_ptr, mtr);
-      mach_write_to_2(log_ptr, ext_end - page_zip->data);
-      mach_write_to_2(log_ptr + 2, ext_len);
-      mlog_close(mtr, log_ptr + 4);
-      mlog_catenate_string(mtr, ext_end, ext_len);
-    }
-
+    mtr->zmemcpy(block->page, ext_end - page_zip->data, ext_len);
     page_zip->n_blobs -= static_cast<unsigned>(n_ext);
   }
 

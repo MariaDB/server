@@ -332,35 +332,14 @@ page_zip_write_header(
 	buf_block_t*	block,	/*!< in/out: compressed page */
 	const byte*	str,	/*!< in: address on the uncompressed page */
 	ulint		length,	/*!< in: length of the data */
-	mtr_t*		mtr)	/*!< in: mini-transaction, or NULL */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	ut_ad(page_align(str) == block->frame);
-
 	const uint16_t pos = page_offset(str);
 
 	ut_ad(pos < PAGE_DATA);
 	ut_ad(pos + length < PAGE_DATA);
-
-	page_zip_des_t* page_zip = &block->page.zip;
-
-	ut_ad(page_zip_simple_validate(page_zip));
-	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
-
-	memcpy(page_zip->data + pos, str, length);
-
-	/* The following would fail in page_cur_insert_rec_zip(). */
-	/* ut_ad(page_zip_validate(page_zip, str - pos)); */
-
-	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2 + length)) {
-		log_ptr = mlog_write_initial_log_record_low(
-			MLOG_ZIP_WRITE_STRING,
-			block->page.id.space(), block->page.id.page_no(),
-			log_ptr, mtr);
-		mach_write_to_2(log_ptr, pos);
-		mach_write_to_2(log_ptr + 2, length);
-		memcpy(log_ptr + 4, str, length);
-		mlog_close(mtr, log_ptr + 4 + length);
-	}
+	mtr->zmemcpy(&block->page, pos, str, length);
 }
 
 /**********************************************************************//**

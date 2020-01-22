@@ -144,6 +144,18 @@ void mtr_t::memcpy(buf_block_t *b, ulint offset, const void *str, ulint len)
   memcpy(*b, offset, len);
 }
 
+/** Write a byte string to a page.
+@param[in,out]  b       ROW_FORMAT=COMPRESSED index page
+@param[in]      ofs     byte offset from b->zip.data
+@param[in]      str     the data to write
+@param[in]      len     length of the data to write */
+inline
+void mtr_t::zmemcpy(buf_page_t *b, ulint offset, const void *str, ulint len)
+{
+  ::memcpy(b->zip.data + offset, str, len);
+  zmemcpy(*b, offset, len);
+}
+
 /** Writes a log record about an operation.
 @param[in]	type		redo log record type
 @param[in]	space_id	tablespace identifier
