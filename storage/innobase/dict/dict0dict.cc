@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -754,7 +754,6 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
     mutex_exit(&dict_sys.mutex);
 
   *db_name_len= db_len;
-  *tbl_name_len= tbl_len;
 
   filename_to_tablename(db_buf, db_name, MAX_DATABASE_NAME_LEN + 1, true);
 
@@ -763,12 +762,10 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
     return false;
 
   if (char* is_part= strchr(tbl_buf, '#'))
-  {
-    *is_part = '\0';
-    *tbl_name_len= is_part - tbl_buf;
-  }
+    *is_part= '\0';
 
   filename_to_tablename(tbl_buf, tbl_name, MAX_TABLE_NAME_LEN + 1, true);
+  *tbl_name_len= strlen(tbl_name);
   return true;
 }
 
