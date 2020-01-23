@@ -5,6 +5,8 @@
 # They only work for openssl, because the following line works only there:
 let SSL_CERT_DIR=$MYSQL_TMP_DIR;
 
+source include/not_embedded.inc;
+
 if (`select @@version_ssl_library not like 'OpenSSL%'`) {
   skip Needs OpenSSL;
 }
