@@ -553,10 +553,8 @@ struct log_t{
     @param[in]	total_offset	offset in log files treated as a single file
     @param[in]	buf		buffer from which to write */
     void write(size_t total_offset, span<byte> buf);
-    /** flushes OS page cache for all log files */
-    void fsync();
     /** flushes OS page cache (excluding metadata!) for all log files */
-    void fdatasync();
+    void flush_data_only();
     /** closes all log files */
     void close_files();
 

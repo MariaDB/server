@@ -4626,7 +4626,7 @@ os_normalize_path(
 }
 
 bool os_file_flush_data_func(os_file_t file) {
-#ifdef _WIN32
+#if defined(_WIN32) || !defined(HAVE_FDATASYNC) || HAVE_DECL_FDATASYNC == 0
   return os_file_flush_func(file);
 #else
   bool success= fdatasync(file) != -1;

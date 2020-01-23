@@ -421,7 +421,7 @@ MY_ATTRIBUTE((warn_unused_result, nonnull))
 static dberr_t create_log_files_rename(char *logfilename, size_t dirnamelen,
                                        lsn_t lsn, std::string &logfile0)
 {
-  log_sys.log.fsync();
+  log_sys.log.flush_data_only();
 
   ut_ad(!srv_log_files_created);
   ut_d(srv_log_files_created= true);
@@ -1132,7 +1132,7 @@ srv_prepare_to_delete_redo_log_files(
 
 		log_write_up_to(flushed_lsn, true);
 
-		log_sys.log.fsync();
+		log_sys.log.flush_data_only();
 
 		ut_ad(flushed_lsn == log_get_lsn());
 
