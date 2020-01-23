@@ -441,6 +441,7 @@ bool thread_pool_generic::wait_for_tasks(std::unique_lock<std::mutex> &lk,
   }
 }
 
+
 /**
  Workers "get next task" routine.
 
@@ -489,6 +490,7 @@ bool thread_pool_generic::get_task(worker_data *thread_var, task **t)
 void thread_pool_generic::worker_end(worker_data* thread_data)
 {
   std::lock_guard<std::mutex> lk(m_mtx);
+  DBUG_ASSERT(!thread_data->is_long_task());
   m_active_threads.erase(thread_data);
   m_thread_data_cache.put(thread_data);
 
@@ -549,14 +551,13 @@ void thread_pool_generic::maintainence()
 
   m_timestamp = std::chrono::system_clock::now();
 
-  m_long_tasks_count = 0;
-
   if (m_task_queue.empty())
   {
     m_last_activity = m_tasks_dequeued + m_wakeups;
     return;
   }
 
+  m_long_tasks_count = 0;
   for (auto thread_data = m_active_threads.front();
     thread_data;
     thread_data = thread_data->m_next)
