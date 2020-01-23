@@ -3715,18 +3715,25 @@ void ha_partition::unbind_psi()
   DBUG_VOID_RETURN;
 }
 
-void ha_partition::rebind_psi()
+int ha_partition::rebind()
 {
   uint i;
 
-  DBUG_ENTER("ha_partition::rebind_psi");
-  handler::rebind_psi();
+  DBUG_ENTER("ha_partition::rebind");
+  if (int error= handler::rebind())
+    DBUG_RETURN(error);
   for (i= 0; i < m_tot_parts; i++)
   {
     DBUG_ASSERT(m_file[i] != NULL);
-    m_file[i]->rebind_psi();
+    if (int error= m_file[i]->rebind())
+    {
+      while (i)
+        m_file[--i]->unbind_psi();
+      handler::unbind_psi();
+      DBUG_RETURN(error);
+    }
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 #endif /* HAVE_M_PSI_PER_PARTITION */
 

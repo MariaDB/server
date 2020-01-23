@@ -685,7 +685,7 @@ public:
     Bind the table/handler thread to track table i/o.
   */
   virtual void unbind_psi();
-  virtual void rebind_psi();
+  virtual int rebind();
 #endif
   /*
     -------------------------------------------------------------------------

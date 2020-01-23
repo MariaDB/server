@@ -2806,13 +2806,14 @@ void handler::unbind_psi()
   PSI_CALL_unbind_table(m_psi);
 }
 
-void handler::rebind_psi()
+int handler::rebind()
 {
   /*
     Notify the instrumentation that this table is now owned
     by this thread.
   */
   m_psi= PSI_CALL_rebind_table(ha_table_share_psi(), this, m_psi);
+  return 0;
 }
 
 

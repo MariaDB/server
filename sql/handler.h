@@ -3160,7 +3160,7 @@ private:
 
 public:
   virtual void unbind_psi();
-  virtual void rebind_psi();
+  virtual int rebind();
   /**
     Put the handler in 'batch' mode when collecting
     table io instrumented events.
