@@ -757,10 +757,9 @@ int clustrix_connection::update_query(String &stmt, LEX_CSTRING &dbname,
 int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
                                        clustrix_lock_mode_t lock_mode,
                                        enum scan_type scan_dir,
-                                       bool sorted_scan, MY_BITMAP *read_set,
-                                       uchar *packed_key,
-                                       ulong packed_key_length,
-                                       ushort row_req,
+                                       int no_key_cols, bool sorted_scan,
+                                       MY_BITMAP *read_set, uchar *packed_key,
+                                       ulong packed_key_length, ushort row_req,
                                        clustrix_connection_cursor **scan)
 {
   int error_code;
@@ -786,6 +785,9 @@ int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
     return error_code;
 
   if ((error_code = add_command_operand_uchar(scan_dir)))
+    return error_code;
+
+  if ((error_code = add_command_operand_uint(no_key_cols)))
     return error_code;
 
   if ((error_code = add_command_operand_uchar(sorted_scan)))

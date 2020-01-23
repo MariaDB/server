@@ -642,7 +642,8 @@ ulong ha_clustrixdb::index_flags(uint idx, uint part, bool all_parts) const
 {
   ulong flags = HA_READ_NEXT |
                 HA_READ_PREV |
-                HA_READ_ORDER;
+                HA_READ_ORDER |
+                HA_READ_RANGE;
 
   return flags;
 }
@@ -787,7 +788,7 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
   } else {
     is_scan = true;
     error_code = trx->scan_from_key(clustrix_table_oid, active_index,
-                                    clx_lock_type, st, sorted_scan,
+                                    clx_lock_type, st, -1, sorted_scan,
                                     &scan_fields, packed_key, packed_key_len,
                                     THDVAR(thd, row_buffer), &scan_cur);
     if (!error_code)
@@ -818,7 +819,7 @@ int ha_clustrixdb::index_first(uchar *buf)
   error_code = trx->scan_from_key(clustrix_table_oid, active_index,
                                   clx_lock_type,
                                   clustrix_connection::READ_FROM_START,
-                                  sorted_scan, &scan_fields, NULL, 0,
+                                  -1, sorted_scan, &scan_fields, NULL, 0,
                                   THDVAR(thd, row_buffer), &scan_cur);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
@@ -842,7 +843,7 @@ int ha_clustrixdb::index_last(uchar *buf)
   error_code = trx->scan_from_key(clustrix_table_oid, active_index,
                                   clx_lock_type,
                                   clustrix_connection::READ_FROM_LAST,
-                                  sorted_scan, &scan_fields, NULL, 0,
+                                  -1, sorted_scan, &scan_fields, NULL, 0,
                                   THDVAR(thd, row_buffer), &scan_cur);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
