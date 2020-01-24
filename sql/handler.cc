@@ -6752,7 +6752,7 @@ int handler::ha_write_row(const uchar *buf)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
 
-  if (table->s->long_unique_table)
+  if (table->s->long_unique_table && this == table->file)
   {
     DBUG_ASSERT(inited == NONE || lookup_handler != this);
     if ((error= check_duplicate_long_entries(buf)))
