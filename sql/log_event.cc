@@ -6731,7 +6731,7 @@ int Load_log_event::copy_log_event(const char *buf, ulong event_len,
 {
   DBUG_ENTER("Load_log_event::copy_log_event");
   uint data_len;
-  if ((int) event_len < body_offset)
+  if ((int) event_len <= body_offset)
     DBUG_RETURN(1);
   char* buf_end = (char*)buf + event_len;
   /* this is the beginning of the post-header */
@@ -10373,6 +10373,12 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
 
   uint8 const post_header_len= description_event->post_header_len[event_type-1];
 
+  if (event_len < (uint)(common_header_len + post_header_len))
+  {
+    m_cols.bitmap= 0;
+    DBUG_VOID_RETURN;
+  }
+
   DBUG_PRINT("enter",("event_len: %u  common_header_len: %d  "
 		      "post_header_len: %d",
 		      event_len, common_header_len,
@@ -11994,6 +12000,7 @@ Table_map_log_event::Table_map_log_event(const char *buf, uint event_len,
   const char *post_start= buf + common_header_len;
 
   post_start+= TM_MAPID_OFFSET;
+  VALIDATE_BYTES_READ(post_start, buf, event_len);
   if (post_header_len == 6)
   {
     /* Master is of an intermediate source tree before 5.1.4. Id is 4 bytes */
