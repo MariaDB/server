@@ -360,7 +360,6 @@ create_log_files(
 	}
 
 	logfile0 = file_names[0];
-	log_sys.log.set_file_names(std::move(file_names));
 
 	DBUG_EXECUTE_IF("innodb_log_abort_8", return(DB_ERROR););
 	DBUG_PRINT("ib_log", ("After innodb_log_abort_8"));
@@ -374,6 +373,7 @@ create_log_files(
 		return(DB_ERROR);
 	}
 
+	log_sys.log.set_file_names(std::move(file_names));
 	log_sys.log.open_files();
 	fil_open_system_tablespace_files();
 
@@ -447,7 +447,7 @@ static dberr_t create_log_files_rename(char *logfilename, size_t dirnamelen,
 
   /* Replace the first file with ib_logfile0. */
   logfile0= logfilename;
-  log_sys.log.file_names[0]= logfilename;
+  log_sys.log.files[0]= log_file_t(logfilename);
   log_mutex_exit();
 
   DBUG_EXECUTE_IF("innodb_log_abort_10", err= DB_ERROR;);

@@ -448,7 +448,36 @@ or the MySQL version that created the redo log file. */
 typedef ib_mutex_t	LogSysMutex;
 typedef ib_mutex_t	FlushOrderMutex;
 
-extern my_bool	srv_read_only_mode;
+/** RAII wrapper over path and file descriptor. Supposed to be used for log
+files only */
+class log_file_t
+{
+public:
+  log_file_t()= default;
+  log_file_t(std::string path) : m_path{std::move(path)} {}
+
+  log_file_t(const log_file_t &)= delete;
+  log_file_t &operator=(const log_file_t &)= delete;
+
+  log_file_t(log_file_t &&rhs);
+  log_file_t &operator=(log_file_t &&rhs);
+
+  ~log_file_t();
+
+  bool open();
+
+  bool is_opened() const { return m_fd != OS_FILE_CLOSED; }
+  const std::string get_path() const { return m_path; }
+
+  bool close();
+  dberr_t read(size_t offset, span<byte> buf);
+  dberr_t write(size_t offset, span<const byte> buf);
+  bool flush_data_only();
+
+private:
+  pfs_os_file_t m_fd;
+  std::string m_path;
+};
 
 /** Redo log buffer */
 struct log_t{
@@ -537,9 +566,7 @@ struct log_t{
     lsn_t				scanned_lsn;
 
     /** file descriptors for all log files */
-    std::vector<pfs_os_file_t> files;
-    /** file names for all log files */
-    std::vector<std::string> file_names;
+    std::vector<log_file_t> files;
 
     /** simple setter, does not close or open log files */
     void set_file_names(std::vector<std::string> names);
