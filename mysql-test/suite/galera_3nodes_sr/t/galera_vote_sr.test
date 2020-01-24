@@ -33,6 +33,7 @@ CALL mtr.add_suppression("Write_rows_v1 apply failed");
 CALL mtr.add_suppression("Inconsistent by consensus");
 CALL mtr.add_suppression("WSREP: Failed to apply write set: ");
 #CALL mtr.add_suppression("no THD for trx");
+CALL mtr.add_suppression("WSREP: Failed to report last committed");
 
 # Restore original auto_increment_offset values.
 --source ../galera/include/auto_increment_offset_restore.inc
