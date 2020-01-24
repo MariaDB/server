@@ -15,6 +15,7 @@ Original trees:  4  After join: 1
 - Compressing file
 Min record length:      5   Max length:      5   Mean total length:     35
 99.57%     
+# restart
 SELECT * FROM t;
 col_1	col_2	col_3	col_4
 foobar	qux	0	0

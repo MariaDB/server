@@ -1626,7 +1626,7 @@ performance-schema-events-waits-history-long-size -1
 performance-schema-events-waits-history-size -1
 performance-schema-hosts-size -1
 performance-schema-instrument 
-performance-schema-max-cond-classes 80
+performance-schema-max-cond-classes 90
 performance-schema-max-cond-instances -1
 performance-schema-max-digest-length 1024
 performance-schema-max-file-classes 50
