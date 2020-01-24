@@ -35,7 +35,7 @@
   #define PFS_MAX_RWLOCK_CLASS 40
 #endif
 #ifndef PFS_MAX_COND_CLASS
-  #define PFS_MAX_COND_CLASS 80
+  #define PFS_MAX_COND_CLASS 90
 #endif
 #ifndef PFS_MAX_THREAD_CLASS
   #define PFS_MAX_THREAD_CLASS 50
