@@ -6647,7 +6647,7 @@ int handler::ha_write_row(const uchar *buf)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
 
-  if (table->s->long_unique_table)
+  if (table->s->long_unique_table && this == table->file)
   {
     if (this->inited == RND)
       table->clone_handler_for_update();
