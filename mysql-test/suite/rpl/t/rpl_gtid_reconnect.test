@@ -42,7 +42,7 @@ SELECT * FROM t1 ORDER BY a;
 # interfere with our DBUG error injection.
 --source include/kill_binlog_dump_threads.inc
 INSERT INTO t1 VALUES (10);
-SET @old_dbug= @@GLOBAL.debug_dbug;
+SET @old_debug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
 SET GLOBAL debug_dbug="+d,gtid_force_reconnect_at_10_1_100";
 --save_master_pos

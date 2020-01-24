@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3338,7 +3338,19 @@ page_zip_validate_low(
 		   FIL_PAGE_LSN - FIL_PAGE_PREV)
 	    || memcmp(page_zip->data + FIL_PAGE_TYPE, page + FIL_PAGE_TYPE, 2)
 	    || memcmp(page_zip->data + FIL_PAGE_DATA, page + FIL_PAGE_DATA,
-		      PAGE_DATA - FIL_PAGE_DATA)) {
+		      PAGE_ROOT_AUTO_INC)
+	    /* The PAGE_ROOT_AUTO_INC can be updated while holding an SX-latch
+	    on the clustered index root page (page number 3 in .ibd files).
+	    That allows concurrent readers (holding buf_block_t::lock S-latch).
+	    Because we do not know what type of a latch our caller is holding,
+	    we will ignore the field on clustered index root pages in order
+	    to avoid false positives. */
+	    || (page_get_page_no(page) != 3/* clustered index root page */
+		&& memcmp(&page_zip->data[FIL_PAGE_DATA + PAGE_ROOT_AUTO_INC],
+			  &page[FIL_PAGE_DATA + PAGE_ROOT_AUTO_INC], 8))
+	    || memcmp(&page_zip->data[FIL_PAGE_DATA + PAGE_HEADER_PRIV_END],
+		      &page[FIL_PAGE_DATA + PAGE_HEADER_PRIV_END],
+		      PAGE_DATA - FIL_PAGE_DATA - PAGE_HEADER_PRIV_END)) {
 		page_zip_fail(("page_zip_validate: page header\n"));
 		page_zip_hexdump(page_zip, sizeof *page_zip);
 		page_zip_hexdump(page_zip->data, page_zip_get_size(page_zip));

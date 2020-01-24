@@ -63,11 +63,11 @@ SET DEBUG_SYNC = 'now WAIT_FOR roll1_wait';
 COMMIT;
 SET DEBUG_SYNC = 'now SIGNAL roll2';
 connect  con1,localhost,root,,;
-SET DEBUG_SYNC = 'now WAIT_FOR rollback_waiting';
+SET DEBUG_SYNC = 'now WAIT_FOR rollback_waiting TIMEOUT 1';
 SET DEBUG_SYNC = 'rw_s_lock_waiting SIGNAL lockwait1';
 SELECT a00 FROM t1 WHERE a00 = 'bii';
 connection default;
-SET DEBUG_SYNC = 'now WAIT_FOR lockwait1';
+SET DEBUG_SYNC = 'now WAIT_FOR lockwait1 TIMEOUT 1';
 SET DEBUG_SYNC = 'now SIGNAL resume';
 connection con1;
 a00

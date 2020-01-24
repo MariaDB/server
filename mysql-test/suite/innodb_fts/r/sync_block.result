@@ -39,7 +39,7 @@ SLEEP(2)
 SELECT sql_text FROM mysql.slow_log WHERE query_time >= '00:00:02';
 sql_text
 INSERT INTO t1(title) VALUES('mysql database')
-SET GLOBAL debug_dbug = @old_debug_dbug;
+SET GLOBAL debug_dbug = @old_debug;
 TRUNCATE TABLE mysql.slow_log;
 DROP TABLE t1;
 # Case 2: Sync blocks DML(insert) on other tables.
@@ -71,7 +71,7 @@ SLEEP(2)
 # slow log results should be empty here.
 SELECT sql_text FROM mysql.slow_log WHERE query_time >= '00:00:02';
 sql_text
-SET GLOBAL debug_dbug = @old_debug_dbug;
+SET GLOBAL debug_dbug = @old_debug;
 TRUNCATE TABLE mysql.slow_log;
 DROP TABLE t1,t2;
 disconnect con1;

@@ -2223,7 +2223,15 @@ public:
  ****************************************************************************/
 struct sql_ex_info
 {
-  sql_ex_info() {}                            /* Remove gcc warning */
+  sql_ex_info():
+    cached_new_format(-1),
+    field_term_len(0),
+    enclosed_len(0),
+    line_term_len(0),
+    line_start_len(0),
+    escaped_len(0),
+    empty_flags(0)
+  {}                            /* Remove gcc warning */
   const char* field_term;
   const char* enclosed;
   const char* line_term;

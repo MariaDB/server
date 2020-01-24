@@ -385,8 +385,8 @@ read_cnf()
 
 get_stream()
 {
-    if [[ $sfmt == 'xbstream' ]];then 
-        wsrep_log_info "Streaming with xbstream"
+    if [[ $sfmt == 'mbstream' || $sfmt == 'xbstream' ]];then
+        wsrep_log_info "Streaming with ${sfmt}"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             strmcmd="${XBSTREAM_BIN} -x"
         else

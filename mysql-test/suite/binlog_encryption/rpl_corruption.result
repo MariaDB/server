@@ -34,10 +34,11 @@ START SLAVE IO_THREAD;
 include/wait_for_slave_io_error.inc [errno=1595,1743]
 connection master;
 SET GLOBAL debug_dbug="-d,corrupt_read_log_event2_set";
-SET GLOBAL debug_dbug= "";
+SET GLOBAL debug_dbug=@saved_dbug;
 SET GLOBAL master_verify_checksum=1;
 # 5. Slave. Corruption in network
 connection slave;
+SET @saved_dbug_slave = @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,corrupt_queue_event";
 START SLAVE IO_THREAD;
 include/wait_for_slave_io_error.inc [errno=1595,1743]
@@ -47,7 +48,7 @@ SET GLOBAL debug_dbug="+d,corrupt_read_log_event_char";
 START SLAVE SQL_THREAD;
 include/wait_for_slave_sql_error.inc [errno=1593]
 SET GLOBAL debug_dbug="-d,corrupt_read_log_event_char";
-SET GLOBAL debug_dbug= "";
+SET GLOBAL debug_dbug=@saved_dbug_slave;
 # 7. Seek diff for tables on master and slave
 connection slave;
 include/start_slave.inc
@@ -60,5 +61,4 @@ set @@global.debug_dbug = @saved_dbug;
 SET GLOBAL master_verify_checksum = @old_master_verify_checksum;
 DROP TABLE t1;
 connection slave;
-set @@global.debug_dbug = @saved_dbug;
 include/rpl_end.inc
