@@ -13,6 +13,7 @@ create table tm (a int auto_increment primary key) engine=myisam;
 create table ti (a int auto_increment primary key) engine=innodb;
 
 sync_slave_with_master;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set @@global.debug_dbug="+d,stop_slave_middle_group";
 
 connection master;
@@ -135,8 +136,7 @@ eval SELECT "$error" AS Last_SQL_Error, @check as `true`;
 select max(a) as two from tm;
 select max(a) as one from ti;
 
-set @@global.debug_dbug="-d";
-
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 #
 # clean-up
 #

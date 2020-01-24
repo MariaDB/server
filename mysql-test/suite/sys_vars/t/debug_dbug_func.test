@@ -1,27 +1,27 @@
 --source include/have_debug.inc
 
-SET @old_debug = @@GLOBAL.debug;
+SET @old_debug = @@GLOBAL.debug_dbug;
 
 #
-# Bug#34678 @@debug variable's incremental mode
+# Bug#34678 @@debug_dbug variable's incremental mode
 #
 
 SET debug_dbug= 'T';
-select @@debug;
+select @@debug_dbug;
 SET debug_dbug= '+P';
-select @@debug;
+select @@debug_dbug;
 SET debug_dbug= '-P';
-select @@debug;
+select @@debug_dbug;
 
 #
-# Bug#38054: "SET SESSION debug" modifies @@global.debug variable
+# Bug#38054: "SET SESSION debug" modifies @@global.debug_dbug variable
 #
 
-SELECT @@session.debug, @@global.debug;
+SELECT @@session.debug_dbug, @@global.debug_dbug;
 
 SET SESSION debug_dbug= '';
 
-SELECT @@session.debug, @@global.debug;
+SELECT @@session.debug_dbug, @@global.debug_dbug;
 
 --echo #
 --echo # Bug #52629: memory leak from sys_var_thd_dbug in 
@@ -29,9 +29,9 @@ SELECT @@session.debug, @@global.debug;
 --echo #
 
 SET GLOBAL debug_dbug='d,injecting_fault_writing';
-SELECT @@global.debug;
+SELECT @@global.debug_dbug;
 SET GLOBAL debug_dbug='';
-SELECT @@global.debug;
+SELECT @@global.debug_dbug;
 
 SET GLOBAL debug_dbug=@old_debug;
 
@@ -39,12 +39,12 @@ SET GLOBAL debug_dbug=@old_debug;
 --echo # Bug #56709: Memory leaks at running the 5.1 test suite
 --echo # 
 
-SET @old_local_debug = @@debug;
+SET @old_local_debug = @@debug_dbug;
 
 SET @@debug_dbug='d,foo';
-SELECT @@debug;
+SELECT @@debug_dbug;
 SET @@debug_dbug='';
-SELECT @@debug;
+SELECT @@debug_dbug;
 
 SET @@debug_dbug= @old_local_debug;
 
@@ -55,8 +55,8 @@ SET @@debug_dbug= @old_local_debug;
 --echo # Bug#46165 server crash in dbug
 --echo #
 
-SET @old_globaldebug = @@global.debug;
-SET @old_sessiondebug= @@session.debug;
+SET @old_globaldebug = @@global.debug_dbug;
+SET @old_sessiondebug= @@session.debug_dbug;
 
 --echo # Test 1 - Bug test case, single connection
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR

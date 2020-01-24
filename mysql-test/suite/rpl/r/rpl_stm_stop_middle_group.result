@@ -6,6 +6,7 @@ call mtr.add_suppression("Unsafe statement written to the binary log using state
 create table tm (a int auto_increment primary key) engine=myisam;
 create table ti (a int auto_increment primary key) engine=innodb;
 connection slave;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set @@global.debug_dbug="+d,stop_slave_middle_group";
 connection master;
 begin;
@@ -74,7 +75,7 @@ two
 select max(a) as one from ti;
 one
 1
-set @@global.debug_dbug="-d";
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 include/rpl_reset.inc
 connection master;
 drop table tm, ti;

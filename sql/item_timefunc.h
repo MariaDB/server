@@ -857,6 +857,10 @@ class Item_func_from_unixtime :public Item_datetimefunc
   const char *func_name() const { return "from_unixtime"; }
   bool fix_length_and_dec();
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_from_unixtime>(thd, this); }
 };

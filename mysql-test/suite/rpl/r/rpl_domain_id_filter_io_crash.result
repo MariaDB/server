@@ -26,6 +26,7 @@ CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
 include/start_slave.inc
 DO_DOMAIN_IDS (AFTER)     : 
 IGNORE_DOMAIN_IDS (AFTER) : 
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 SET @@global.debug_dbug="+d,kill_slave_io_before_commit";
 connection master;
 START TRANSACTION;
@@ -414,4 +415,5 @@ connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();
 include/start_slave.inc
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 include/rpl_end.inc

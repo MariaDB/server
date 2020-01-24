@@ -61,7 +61,7 @@ SELECT SLEEP(2);
 -- echo # slow log results should only contain INSERT INTO t1.
 SELECT sql_text FROM mysql.slow_log WHERE query_time >= '00:00:02';
 
-SET GLOBAL debug_dbug = @old_debug_dbug;
+SET GLOBAL debug_dbug = @old_debug;
 TRUNCATE TABLE mysql.slow_log;
 
 DROP TABLE t1;
@@ -107,7 +107,7 @@ SELECT SLEEP(2);
 -- echo # slow log results should be empty here.
 SELECT sql_text FROM mysql.slow_log WHERE query_time >= '00:00:02';
 
-SET GLOBAL debug_dbug = @old_debug_dbug;
+SET GLOBAL debug_dbug = @old_debug;
 TRUNCATE TABLE mysql.slow_log;
 
 DROP TABLE t1,t2;

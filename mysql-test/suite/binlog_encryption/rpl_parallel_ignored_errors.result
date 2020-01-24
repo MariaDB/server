@@ -4,7 +4,7 @@ connection server_2;
 include/stop_slave.inc
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
-SET @old_dbug= @@GLOBAL.debug_dbug;
+SET @old_debug= @@GLOBAL.debug_dbug;
 SET GLOBAL slave_parallel_mode='optimistic';
 SET GLOBAL slave_parallel_threads= 3;
 CHANGE MASTER TO master_use_gtid=slave_pos;

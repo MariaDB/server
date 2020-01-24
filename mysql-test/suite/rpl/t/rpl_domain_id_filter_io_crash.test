@@ -35,6 +35,7 @@ let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignor
 --echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
 --echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
 
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 SET @@global.debug_dbug="+d,kill_slave_io_before_commit";
 
 connection master;
@@ -379,5 +380,5 @@ connection slave;
 --source include/stop_slave.inc
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();
 --source include/start_slave.inc
-
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 --source include/rpl_end.inc
