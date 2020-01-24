@@ -152,6 +152,18 @@ struct recv_t : public log_rec_t
       @param d  log snippet
     */
     void append(data_t *d) { ut_ad(!next); ut_ad(!d->next); next= d; }
+#ifdef UNIV_DEBUG
+    /** Unfix all the block which contains the data */
+    void unfix()
+    {
+      data_t* recv_data= this;
+      while(recv_data)
+      {
+        recv_sys.find_block(recv_data)->unfix();
+	recv_data= recv_data->next;
+      }
+    }
+#endif
   }* data;
 };
 
@@ -826,8 +838,11 @@ inline void recv_sys_t::clear()
   {
     prev_block= UT_LIST_GET_PREV(unzip_LRU, block);
     ut_ad(buf_block_get_state(block) == BUF_BLOCK_MEMORY);
-    ut_ad(block->page.buf_fix_count == 0);
+    /* Check buf_fix_count after applying all buffered redo log records */
+    ut_ad(!recv_sys.after_apply
+          || block->page.buf_fix_count == 0);
     UT_LIST_REMOVE(redo_list, block);
+    ut_d(block->page.buf_fix_count= 0;);
     buf_block_free(block);
   }
 }
@@ -855,15 +870,16 @@ void recv_sys_t::debug_free()
 	mutex_exit(&mutex);
 }
 
-inline ulong recv_sys_t::get_free_len() const
+inline ulint recv_sys_t::get_free_len() const
 {
   if (UT_LIST_GET_LEN(redo_list) == 0)
     return 0;
 
-  return srv_page_size - UT_LIST_GET_FIRST(redo_list)->modify_clock;
+  return srv_page_size -
+	 static_cast<ulint>(UT_LIST_GET_FIRST(redo_list)->modify_clock);
 }
 
-inline byte* recv_sys_t::alloc(uint32_t len)
+inline byte* recv_sys_t::alloc(uint32_t len,bool store_recv)
 {
   ut_ad(mutex_own(&mutex));
   ut_ad(len);
@@ -881,8 +897,12 @@ create_block:
 
   uint64_t free_offset= block->modify_clock;
   ut_ad(free_offset <= srv_page_size);
-  free_offset+= len;
-  if (free_offset > srv_page_size)
+
+  if (store_recv
+      && (free_offset + len + sizeof(recv_t::data) + 1) > srv_page_size)
+    goto create_block;
+
+  if (free_offset + len > srv_page_size)
     goto create_block;
   block->modify_clock+= len;
   return block->frame + free_offset;
@@ -1795,7 +1815,8 @@ inline void recv_sys_t::add(mlog_id_t type, const page_id_t page_id,
   heap grows into the buffer pool. */
   uint32_t len= uint32_t(rec_end - body);
 
-  recv_t *recv= new (alloc(sizeof(recv_t))) recv_t(len, type, lsn, end_lsn);
+  recv_t *recv= new (alloc(sizeof(recv_t), true))
+    recv_t(len, type, lsn, end_lsn);
   recs.log.append(recv);
 
   for (recv_t::data_t *prev= nullptr;;) {
@@ -1829,8 +1850,22 @@ inline bool page_recv_t::recs_t::trim(lsn_t start_lsn)
   }
 }
 
+#ifdef UNIV_DEBUG
+inline void page_recv_t::recs_t::unfix()
+{
+  log_rec_t *prev= head;
+  while (prev)
+  {
+    const recv_t *recv= static_cast<const recv_t*>(prev);
+    recv->data->unfix();
+    prev= prev->next;
+  }
+}
+#endif
+
 inline void page_recv_t::recs_t::clear()
 {
+  ut_d(unfix());
   head= tail= NULL;
 }
 
@@ -1861,12 +1896,6 @@ recv_data_copy_to_buf(
 		const ulint chunk_limit = (srv_page_size - offset);
 		const ulint l = std::min(len, chunk_limit);
 		memcpy(buf, reinterpret_cast<const byte*>(recv_data + 1), l);
-#ifdef UNIV_DEBUG
-		if ((ulint(recv.data) ^ ulint(recv_data))
-		    & (srv_page_size - 1)) {
-			recv_sys.find_block(recv_data)->unfix();
-		}
-#endif
 		recv_data = recv_data->next;
 		buf += l;
 		len -= l;
@@ -1976,7 +2005,6 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 				recv->type, recs, recs + recv->len,
 				block->page.id, true, block, &mtr);
 
-			ut_d(recv_sys.find_block(recv)->unfix());
 			ut_free(buf);
 
 			end_lsn = recv->start_lsn + recv->len;
@@ -1990,6 +2018,8 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 						end_lsn);
 			}
 		}
+
+		ut_d(recv->data->unfix(););
 	}
 
 #ifdef UNIV_ZIP_DEBUG
@@ -2043,6 +2073,12 @@ This function should called when srv_force_recovery > 0.
 void recv_recover_corrupt_page(page_id_t page_id)
 {
 	mutex_enter(&recv_sys.mutex);
+#ifdef UNIV_DEBUG
+	recv_sys_t::map::iterator p = recv_sys.pages.find(page_id);
+	if (p != recv_sys.pages.end()) {
+		p->second.log.unfix();
+	}
+#endif
 	recv_sys.pages.erase(page_id);
 	mutex_exit(&recv_sys.mutex);
 }
@@ -2340,6 +2376,7 @@ done:
 		mlog_init.mark_ibuf_exist(mtr);
 	}
 
+	ut_d(recv_sys.after_apply= true;);
 	recv_sys.clear();
 
 	mutex_exit(&recv_sys.mutex);
@@ -3201,6 +3238,7 @@ recv_group_scan_log_recs(
 
 	log_sys.log.scanned_lsn = end_lsn = *contiguous_lsn =
 		ut_uint64_align_down(*contiguous_lsn, OS_FILE_LOG_BLOCK_SIZE);
+	ut_d(recv_sys.after_apply = last_phase);
 
 	do {
 		if (last_phase && store_to_hash == STORE_NO) {
@@ -3305,6 +3343,7 @@ next:
 			/* fall through */
 		case file_name_t::DELETED:
 			recv_sys_t::map::iterator r = p++;
+			ut_d(r->second.log.unfix(););
 			recv_sys.pages.erase(r);
 			continue;
 		}

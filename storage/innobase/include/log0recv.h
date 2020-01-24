@@ -221,12 +221,16 @@ struct page_recv_t
     iterator end() { return NULL; }
     bool empty() const { ut_ad(!head == !tail); return !head; }
     inline void clear();
+#ifdef UNIV_DEBUG
+    inline void unfix();
+#endif
   } log;
 
   /** Ignore any earlier redo log records for this page. */
   inline void will_not_read();
   /** @return whether the log records for the page are being processed */
   bool is_being_processed() const { return state == RECV_BEING_PROCESSED; }
+
 };
 
 /** Recovery system data structure */
@@ -318,6 +322,9 @@ struct recv_sys_t{
 	List elements are linked via buf_block_t::unzip_LRU. */
 	UT_LIST_BASE_NODE_T(buf_block_t) redo_list;
 
+#ifdef UNIV_DEBUG
+	bool	after_apply= false;
+#endif
 	/** Initialize the redo log recovery subsystem. */
 	void create();
 
@@ -359,8 +366,9 @@ struct recv_sys_t{
 
   /** Get the memory block for storing recv_t and redo log data
   @param[in] len length of the data to be stored
+  @param[in] store_recv whether to store recv_t object
   @return pointer to len bytes of memory (never NULL) */
-  inline byte *alloc(uint32_t len);
+  inline byte *alloc(uint32_t len, bool store_recv=false);
 
 #ifdef UNIV_DEBUG
   /** Find the redo_list element corresponding to a redo log record.
@@ -370,7 +378,7 @@ struct recv_sys_t{
 #endif
 
   /** @return the free length of the latest alloc() block, in bytes */
-  inline ulong get_free_len() const;
+  inline ulint get_free_len() const;
 };
 
 /** The recovery system */
