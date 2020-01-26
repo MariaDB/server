@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4533,8 +4533,8 @@ fts_get_token_size(
 		int	ctype;
 		int	mbl;
 
-		mbl = cs->cset->ctype(
-			cs, &ctype,
+		mbl = cs->ctype(
+			&ctype,
 			reinterpret_cast<uchar*>(start),
 			reinterpret_cast<uchar*>(end));
 

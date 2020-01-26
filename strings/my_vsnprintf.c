@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2011, Monty Program Ab
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -167,7 +167,7 @@ static char *backtick_string(CHARSET_INFO *cs, char *to, const char *end,
   for ( ; par < par_end; par+= char_len)
   {
     uchar c= *(uchar *) par;
-    char_len= my_charlen_fix(cs, par, par_end);
+    char_len= my_ci_charlen_fix(cs, (const uchar *) par, (const uchar *) par_end);
     if (char_len == 1 && c == (uchar) quote_char )
     {
       if (start + 1 >= end)

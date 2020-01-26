@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -8604,13 +8604,12 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
 
   size_t min_length, max_length;
   field_length-= maybe_null;
-  if (my_like_range(field->charset(),
-                                 res->ptr(), res->length(),
-                                 escape, wild_one, wild_many,
-                                 field_length,
-                                 (char*) min_str + offset,
-                                 (char*) max_str + offset,
-                                 &min_length, &max_length))
+  if (field->charset()->like_range(res->ptr(), res->length(),
+                                   escape, wild_one, wild_many,
+                                   field_length,
+                                   (char*) min_str + offset,
+                                   (char*) max_str + offset,
+                                   &min_length, &max_length))
     DBUG_RETURN(0);              // Can't optimize with LIKE
 
   if (offset != maybe_null)			// BLOB or VARCHAR

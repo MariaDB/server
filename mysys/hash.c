@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2013, Monty Program Ab.
+   Copyright (c) 2011, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,7 +45,7 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
                                 size_t length)
 {
   ulong nr1= 1, nr2= 4;
-  cs->coll->hash_sort(cs, (uchar*) key, length, &nr1, &nr2);
+  my_ci_hash_sort(cs, (uchar*) key, length, &nr1, &nr2);
   return (my_hash_value_type) nr1;
 }
 

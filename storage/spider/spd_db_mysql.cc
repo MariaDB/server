@@ -1,4 +1,5 @@
 /* Copyright (C) 2012-2018 Kentoku Shiba
+   Copyright (c) 2020, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11641,13 +11642,13 @@ int spider_mbase_handler::append_limit(
     str->q_append(SPIDER_SQL_LIMIT_STR, SPIDER_SQL_LIMIT_LEN);
     if (offset)
     {
-      length = (uint32) (my_charset_bin.cset->longlong10_to_str)(
-        &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, offset);
+      length = (uint32) (my_charset_bin.longlong10_to_str)(
+        buf, SPIDER_LONGLONG_LEN + 1, -10, offset);
       str->q_append(buf, length);
       str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
     }
-    length = (uint32) (my_charset_bin.cset->longlong10_to_str)(
-      &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, limit);
+    length = (uint32) (my_charset_bin.longlong10_to_str)(
+      buf, SPIDER_LONGLONG_LEN + 1, -10, limit);
     str->q_append(buf, length);
   }
   DBUG_RETURN(0);
@@ -15783,13 +15784,13 @@ int spider_mbase_copy_table::append_limit(
     sql.q_append(SPIDER_SQL_LIMIT_STR, SPIDER_SQL_LIMIT_LEN);
     if (offset)
     {
-      length = (uint32) (my_charset_bin.cset->longlong10_to_str)(
-        &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, offset);
+      length = (uint32) (my_charset_bin.longlong10_to_str)(
+        buf, SPIDER_LONGLONG_LEN + 1, -10, offset);
       sql.q_append(buf, length);
       sql.q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
     }
-    length = (uint32) (my_charset_bin.cset->longlong10_to_str)(
-      &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, limit);
+    length = (uint32) (my_charset_bin.longlong10_to_str)(
+      buf, SPIDER_LONGLONG_LEN + 1, -10, limit);
     sql.q_append(buf, length);
   }
   DBUG_RETURN(0);

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -434,7 +434,7 @@ scan_one_character(const char *s, const char *e, my_wc_t *wc)
   }
   else /* Non-escaped character */
   {
-    int rc= cs->cset->mb_wc(cs, wc, (uchar *) s, (uchar *) e);
+    int rc= my_ci_mb_wc(cs, wc, (uchar *) s, (uchar *) e);
     if (rc > 0)
       return (size_t) rc;
   }
@@ -639,7 +639,7 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
     break;
   case _CS_CTYPEMAP:
     fill_uchar(i->ctype,MY_CS_CTYPE_TABLE_SIZE,attr,len);
-    i->cs.ctype=i->ctype;
+    i->cs.m_ctype=i->ctype;
     break;
 
   /* Special purpose commands */
@@ -867,8 +867,7 @@ my_string_metadata_get_mb(MY_STRING_METADATA *metadata,
        metadata->char_length++)
   {
     my_wc_t wc;
-    int mblen= cs->cset->mb_wc(cs, &wc, (const uchar *) str,
-                                        (const uchar *) strend);
+    int mblen= my_ci_mb_wc(cs, &wc, (const uchar *) str, (const uchar *) strend);
     if (mblen > 0) /* Assigned character */
     {
       if (wc > 0x7F)
@@ -929,7 +928,7 @@ my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t length)
     my_wc_t wc;
     int chlen;
     for (;
-         (chlen= cs->cset->mb_wc(cs, &wc, (uchar*) str, (uchar*) strend)) > 0;
+         (chlen= my_ci_mb_wc(cs, &wc, (uchar*) str, (uchar*) strend)) > 0;
          str+= chlen)
     {
       if (wc > 0x7F)
@@ -1053,7 +1052,7 @@ my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
 
   if (my_is_printable(wc))
   {
-    int mblen= cs->cset->wc_mb(cs, wc, str, end);
+    int mblen= my_ci_wc_mb(cs, wc, str, end);
     if (mblen > 0)
       return mblen;
   }
@@ -1068,7 +1067,7 @@ my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
   str0= str;
   for (i= 0; i < length; i++)
   {
-    if (cs->cset->wc_mb(cs, tmp[i], str, end) != (int) cs->mbminlen)
+    if (my_ci_wc_mb(cs, tmp[i], str, end) != (int) cs->mbminlen)
     {
       DBUG_ASSERT(0);
       return MY_CS_ILSEQ;

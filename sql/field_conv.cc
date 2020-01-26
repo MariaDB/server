@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation
+   Copyright (c) 2010, 2020, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -465,10 +465,9 @@ static void do_cut_string(Copy_field *copy)
   memcpy(copy->to_ptr,copy->from_ptr,copy->to_length);
 
   /* Check if we loosed any important characters */
-  if (cs->cset->scan(cs,
-                     (char*) copy->from_ptr + copy->to_length,
-                     (char*) copy->from_ptr + copy->from_length,
-                     MY_SEQ_SPACES) < copy->from_length - copy->to_length)
+  if (cs->scan((char*) copy->from_ptr + copy->to_length,
+               (char*) copy->from_ptr + copy->from_length,
+               MY_SEQ_SPACES) < copy->from_length - copy->to_length)
   {
     copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                 WARN_DATA_TRUNCATED, 1);
@@ -496,9 +495,9 @@ static void do_cut_string_complex(Copy_field *copy)
 
   /* Check if we lost any important characters */
   if (unlikely(prefix.well_formed_error_pos() ||
-               cs->cset->scan(cs, (char*) copy->from_ptr + copy_length,
-                              (char*) from_end,
-                              MY_SEQ_SPACES) <
+               cs->scan((char*) copy->from_ptr + copy_length,
+                        (char*) from_end,
+                        MY_SEQ_SPACES) <
                (copy->from_length - copy_length)))
   {
     copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
@@ -506,8 +505,8 @@ static void do_cut_string_complex(Copy_field *copy)
   }
 
   if (copy_length < copy->to_length)
-    cs->cset->fill(cs, (char*) copy->to_ptr + copy_length,
-                   copy->to_length - copy_length, ' ');
+    cs->fill((char*) copy->to_ptr + copy_length,
+             copy->to_length - copy_length, ' ');
 }
 
 
@@ -517,8 +516,8 @@ static void do_expand_binary(Copy_field *copy)
 {
   CHARSET_INFO *cs= copy->from_field->charset();
   memcpy(copy->to_ptr,copy->from_ptr,copy->from_length);
-  cs->cset->fill(cs, (char*) copy->to_ptr+copy->from_length,
-                     copy->to_length-copy->from_length, '\0');
+  cs->fill((char*) copy->to_ptr+copy->from_length,
+           copy->to_length-copy->from_length, '\0');
 }
 
 
@@ -527,8 +526,8 @@ static void do_expand_string(Copy_field *copy)
 {
   CHARSET_INFO *cs= copy->from_field->charset();
   memcpy(copy->to_ptr,copy->from_ptr,copy->from_length);
-  cs->cset->fill(cs, (char*) copy->to_ptr+copy->from_length,
-                     copy->to_length-copy->from_length, ' ');
+  cs->fill((char*) copy->to_ptr+copy->from_length,
+           copy->to_length-copy->from_length, ' ');
 }
 
 

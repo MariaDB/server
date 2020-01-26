@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19086,10 +19086,8 @@ bool Virtual_tmp_table::sp_find_field_by_name(uint *idx,
   for (uint i= 0; (f= field[i]); i++)
   {
     // Use the same comparison style with sp_context::find_variable()
-    if (!my_strnncoll(system_charset_info,
-                      (const uchar *) f->field_name.str,
-                      f->field_name.length,
-                      (const uchar *) name.str, name.length))
+    if (!system_charset_info->strnncoll(f->field_name.str, f->field_name.length,
+                                        name.str, name.length))
     {
       *idx= i;
       return false;
@@ -27163,7 +27161,7 @@ Index_hint::print(THD *thd, String *str)
   str->append (STRING_WITH_LEN(" ("));
   if (key_name.length)
   {
-    if (thd && !my_strnncoll(system_charset_info,
+    if (thd && !system_charset_info->strnncoll(
                              (const uchar *)key_name.str, key_name.length, 
                              (const uchar *)primary_key_name, 
                              strlen(primary_key_name)))

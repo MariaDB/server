@@ -1,6 +1,6 @@
 /*
   Copyright (c) 2005, 2019, Oracle and/or its affiliates.
-  Copyright (c) 2009, 2019, MariaDB
+  Copyright (c) 2009, 2020, MariaDB
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -9697,8 +9697,7 @@ uint32 ha_partition::calculate_key_hash_value(Field **field_array)
           }
           /* Force this to my_hash_sort_bin, which was used in 5.1! */
           uint len= field->pack_length();
-          my_charset_bin.coll->hash_sort(&my_charset_bin, field->ptr, len,
-                                         &nr1, &nr2);
+          my_charset_bin.hash_sort(field->ptr, len, &nr1, &nr2);
           /* Done with this field, continue with next one. */
           continue;
         }
@@ -9721,8 +9720,7 @@ uint32 ha_partition::calculate_key_hash_value(Field **field_array)
           }
           /* Force this to my_hash_sort_bin, which was used in 5.1! */
           uint len= field->pack_length();
-          my_charset_latin1.coll->hash_sort(&my_charset_latin1, field->ptr,
-                                            len, &nr1, &nr2);
+          my_charset_latin1.hash_sort(field->ptr, len, &nr1, &nr2);
           continue;
         }
       /* New types in mysql-5.6. */

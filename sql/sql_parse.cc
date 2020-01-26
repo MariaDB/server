@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10133,10 +10133,10 @@ int path_starts_from_data_home_dir(const char *path)
 
     if (lower_case_file_system)
     {
-      if (!my_strnncoll(default_charset_info, (const uchar*) path,
-                        mysql_unpacked_real_data_home_len,
-                        (const uchar*) mysql_unpacked_real_data_home,
-                        mysql_unpacked_real_data_home_len))
+      if (!default_charset_info->strnncoll(path,
+                                           mysql_unpacked_real_data_home_len,
+                                           mysql_unpacked_real_data_home,
+                                           mysql_unpacked_real_data_home_len))
       {
         DBUG_PRINT("error", ("Path is part of mysql_real_data_home"));
         DBUG_RETURN(1);

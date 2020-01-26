@@ -2257,11 +2257,10 @@ static bool is_mysql_datadir_path(const char *path)
   if (!lower_case_file_system)
     return(memcmp(mysql_data_dir, path_dir, mysql_data_home_len));
 
-  return(files_charset_info->coll->strnncoll(files_charset_info,
-                                            (uchar *) path_dir, path_len,
-                                            (uchar *) mysql_data_dir,
-                                            mysql_data_home_len,
-                                            TRUE));
+  return(files_charset_info->strnncoll((uchar *) path_dir, path_len,
+                                       (uchar *) mysql_data_dir,
+                                       mysql_data_home_len,
+                                       TRUE));
 }
 
 /*********************************************************************//**
@@ -6325,13 +6324,13 @@ wsrep_innobase_mysql_sort(
 		ut_a(str_length <= tmp_length);
 		memcpy(tmp_str, str, str_length);
 
-		tmp_length = charset->coll->strnxfrm(charset, str, str_length,
-						     str_length, tmp_str,
-						     tmp_length, 0);
+		tmp_length = charset->strnxfrm(str, str_length,
+					       str_length, tmp_str,
+					       tmp_length, 0);
 		DBUG_ASSERT(tmp_length <= str_length);
 		if (wsrep_protocol_version < 3) {
-			tmp_length = charset->coll->strnxfrm(
-				charset, str, str_length,
+			tmp_length = charset->strnxfrm(
+				str, str_length,
 				str_length, tmp_str, tmp_length, 0);
 			DBUG_ASSERT(tmp_length <= str_length);
 		} else {
@@ -6339,8 +6338,8 @@ wsrep_innobase_mysql_sort(
 			   protocols < 3 truncated the sorted sring
 			   protocols >= 3 gets full sorted sring
 			*/
-			tmp_length = charset->coll->strnxfrm(
-				charset, str, buf_length,
+			tmp_length = charset->strnxfrm(
+				str, buf_length,
 				str_length, tmp_str, str_length, 0);
 			DBUG_ASSERT(tmp_length <= buf_length);
 			ret_length = tmp_length;
@@ -6434,7 +6433,7 @@ innobase_strnxfrm(
 		return(0);
 	}
 
-	my_strnxfrm(cs, (uchar*) mystr, 2, str, len);
+	cs->strnxfrm((uchar*) mystr, 2, str, len);
 
 	value = mach_read_from_2(mystr);
 
@@ -6486,7 +6485,7 @@ innobase_fts_casedn_str(
 
 		return(strlen(dst));
 	} else {
-		return(cs->cset->casedn(cs, src, src_len, dst, dst_len));
+		return(cs->casedn(src, src_len, dst, dst_len));
 	}
 }
 
@@ -6523,8 +6522,7 @@ innobase_mysql_fts_get_token(
 
 		int	ctype;
 
-		mbl = cs->cset->ctype(
-			cs, &ctype, doc, (const uchar*) end);
+		mbl = cs->ctype(&ctype, doc, (const uchar*) end);
 
 		if (true_word_char(ctype, *doc)) {
 			break;
@@ -6542,8 +6540,7 @@ innobase_mysql_fts_get_token(
 
 		int	ctype;
 
-		mbl = cs->cset->ctype(
-			cs, &ctype, (uchar*) doc, (uchar*) end);
+		mbl = cs->ctype(&ctype, (uchar*) doc, (uchar*) end);
 		if (true_word_char(ctype, *doc)) {
 			mwc = 0;
 		} else if (!misc_word_char(*doc) || mwc) {
@@ -17198,7 +17195,7 @@ innobase_get_at_most_n_mbchars(
 	character. */
 
 	if (charset->mbmaxlen > 1) {
-		/* my_charpos() returns the byte length of the first n_chars
+		/* charpos() returns the byte length of the first n_chars
 		characters, or a value bigger than the length of str, if
 		there were not enough full characters in str.
 
@@ -17216,7 +17213,7 @@ innobase_get_at_most_n_mbchars(
 		characters, and we can store in the column prefix index the
 		whole string. */
 
-		char_length= my_charpos(charset, str, str + data_len, n_chars);
+		char_length= charset->charpos(str, str + data_len, n_chars);
 		if (char_length > data_len) {
 			char_length = data_len;
 		}

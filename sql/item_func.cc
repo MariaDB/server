@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1753,9 +1753,9 @@ static void calc_hash_for_unique(ulong &nr1, ulong &nr2, String *str)
   uchar l[4];
   int4store(l, str->length());
   cs= str->charset();
-  cs->coll->hash_sort(cs, l, sizeof(l), &nr1, &nr2);
+  cs->hash_sort(l, sizeof(l), &nr1, &nr2);
   cs= str->charset();
-  cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
+  cs->hash_sort((uchar *)str->ptr(), str->length(), &nr1, &nr2);
 }
 
 longlong  Item_func_hash::val_int()
@@ -2962,11 +2962,10 @@ longlong Item_func_locate::val_int()
   if (!b->length())				// Found empty string at start
     return start + 1;
   
-  if (!cmp_collation.collation->coll->instr(cmp_collation.collation,
-                                            a->ptr()+start,
-                                            (uint) (a->length()-start),
-                                            b->ptr(), b->length(),
-                                            &match, 1))
+  if (!cmp_collation.collation->instr(a->ptr() + start,
+                                      (uint) (a->length() - start),
+                                      b->ptr(), b->length(),
+                                      &match, 1))
     return 0;
   return (longlong) match.mb_len + start0 + 1;
 }
@@ -3079,7 +3078,7 @@ longlong Item_func_ord::val_int()
   null_value=0;
   if (!res->length()) return 0;
 #ifdef USE_MB
-  if (use_mb(res->charset()))
+  if (res->use_mb())
   {
     const char *str=res->ptr();
     uint32 n=0, l=my_ismbchar(res->charset(),str,str+res->length());
@@ -3165,14 +3164,14 @@ longlong Item_func_find_in_set::val_int()
     const char *str_begin= buffer->ptr();
     const char *str_end= buffer->ptr();
     const char *real_end= str_end+buffer->length();
-    const uchar *find_str= (const uchar *) find->ptr();
+    const char *find_str= find->ptr();
     uint find_str_len= find->length();
     int position= 0;
     while (1)
     {
       int symbol_len;
-      if ((symbol_len= cs->cset->mb_wc(cs, &wc, (uchar*) str_end, 
-                                       (uchar*) real_end)) > 0)
+      if ((symbol_len= cs->mb_wc(&wc, (uchar*) str_end,
+                                 (uchar*) real_end)) > 0)
       {
         const char *substr_end= str_end + symbol_len;
         bool is_last_item= (substr_end == real_end);
@@ -3182,9 +3181,8 @@ longlong Item_func_find_in_set::val_int()
           position++;
           if (is_last_item && !is_separator)
             str_end= substr_end;
-          if (!my_strnncoll(cs, (const uchar *) str_begin,
-                            (uint) (str_end - str_begin),
-                            find_str, find_str_len))
+          if (!cs->strnncoll(str_begin, (uint) (str_end - str_begin),
+                             find_str, find_str_len))
             return (longlong) position;
           else
             str_begin= substr_end;
@@ -5645,9 +5643,8 @@ bool Item_func_get_system_var::fix_length_and_dec()
         (char*) var->value_ptr(current_thd, var_type, &component) :
         *(char**) var->value_ptr(current_thd, var_type, &component);
       if (cptr)
-        max_length= (uint32)system_charset_info->cset->numchars(system_charset_info,
-                                                        cptr,
-                                                        cptr + strlen(cptr));
+        max_length= (uint32) system_charset_info->numchars(cptr,
+                                                           cptr + strlen(cptr));
       mysql_mutex_unlock(&LOCK_global_system_variables);
       collation.set(system_charset_info, DERIVATION_SYSCONST);
       max_length*= system_charset_info->mbmaxlen;
@@ -5657,9 +5654,8 @@ bool Item_func_get_system_var::fix_length_and_dec()
       {
         mysql_mutex_lock(&LOCK_global_system_variables);
         LEX_STRING *ls= ((LEX_STRING*)var->value_ptr(current_thd, var_type, &component));
-        max_length= (uint32)system_charset_info->cset->numchars(system_charset_info,
-                                                        ls->str,
-                                                        ls->str + ls->length);
+        max_length= (uint32) system_charset_info->numchars(ls->str,
+                                                           ls->str + ls->length);
         mysql_mutex_unlock(&LOCK_global_system_variables);
         collation.set(system_charset_info, DERIVATION_SYSCONST);
         max_length*= system_charset_info->mbmaxlen;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation
+   Copyright (c) 2009, 2020, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1535,7 +1535,7 @@ my_unescape(CHARSET_INFO *cs, char *to, const char *str, const char *end,
   {
 #ifdef USE_MB
     int l;
-    if (use_mb(cs) && (l= my_ismbchar(cs, str, end)))
+    if (cs->use_mb() && (l= my_ismbchar(cs, str, end)))
     {
       while (l--)
         *to++ = *str++;
@@ -1613,7 +1613,7 @@ bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
 #ifdef USE_MB
     {
       int l;
-      if (use_mb(cs) &&
+      if (cs->use_mb() &&
           (l = my_ismbchar(cs,
                            get_ptr() -1,
                            get_end_of_query()))) {
@@ -2644,12 +2644,12 @@ int Lex_input_stream::scan_ident_start(THD *thd, Lex_ident_cli_st *str)
   const uchar *const ident_map= cs->ident_map;
   DBUG_ASSERT(m_tok_start <= m_ptr);
 
-  if (use_mb(cs))
+  if (cs->use_mb())
   {
     is_8bit= true;
     while (ident_map[c= yyGet()])
     {
-      int char_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
+      int char_length= cs->charlen(get_ptr() - 1, get_end_of_query());
       if (char_length <= 0)
         break;
       skip_binary(char_length - 1);
@@ -2687,10 +2687,10 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
   bool resolve_introducer= true;
   DBUG_ASSERT(m_ptr == m_tok_start + 1); // m_ptr points to the second byte
 
-  if (use_mb(cs))
+  if (cs->use_mb())
   {
     is_8bit= true;
-    int char_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
+    int char_length= cs->charlen(get_ptr() - 1, get_end_of_query());
     if (char_length <= 0)
     {
       *st= MY_LEX_CHAR;
@@ -2700,7 +2700,7 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
 
     while (ident_map[c= yyGet()])
     {
-      char_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
+      char_length= cs->charlen(get_ptr() - 1, get_end_of_query());
       if (char_length <= 0)
         break;
       if (char_length > 1 || (c & 0x80))
@@ -2789,7 +2789,7 @@ int Lex_input_stream::scan_ident_delimited(THD *thd,
 
   while ((c= yyGet()))
   {
-    int var_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
+    int var_length= cs->charlen(get_ptr() - 1, get_end_of_query());
     if (var_length == 1)
     {
       if (c == quote_char)
@@ -7940,11 +7940,11 @@ Item *LEX::create_item_ident(THD *thd,
 
   if ((thd->variables.sql_mode & MODE_ORACLE) && b.length == 7)
   {
-    if (!my_strnncoll(system_charset_info,
+    if (!system_charset_info->strnncoll(
                       (const uchar *) b.str, 7,
                       (const uchar *) "NEXTVAL", 7))
       return create_item_func_nextval(thd, &null_clex_str, &a);
-    else if (!my_strnncoll(system_charset_info,
+    else if (!system_charset_info->strnncoll(
                           (const uchar *) b.str, 7,
                           (const uchar *) "CURRVAL", 7))
       return create_item_func_lastval(thd, &null_clex_str, &a);
@@ -7963,11 +7963,11 @@ Item *LEX::create_item_ident(THD *thd,
                            Lex_ident_sys() : *a;
   if ((thd->variables.sql_mode & MODE_ORACLE) && c->length == 7)
   {
-    if (!my_strnncoll(system_charset_info,
+    if (!system_charset_info->strnncoll(
                       (const uchar *) c->str, 7,
                       (const uchar *) "NEXTVAL", 7))
       return create_item_func_nextval(thd, a, b);
-    else if (!my_strnncoll(system_charset_info,
+    else if (!system_charset_info->strnncoll(
                           (const uchar *) c->str, 7,
                           (const uchar *) "CURRVAL", 7))
       return create_item_func_lastval(thd, a, b);

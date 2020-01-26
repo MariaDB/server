@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3790,7 +3790,7 @@ public:
                           const char *src, size_t src_length);
   /*
     If either "dstcs" or "srccs" is &my_charset_bin,
-    then performs native copying using cs->cset->copy_fix().
+    then performs native copying using copy_fix().
     Otherwise, performs Unicode conversion using convert_fix().
   */
   bool copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
@@ -6999,12 +6999,10 @@ public:
     return
       m_db.length == other->m_db.length &&
       m_name.length == other->m_name.length &&
-      !my_strnncoll(cs,
-                    (const uchar *) m_db.str, m_db.length,
-                    (const uchar *) other->m_db.str, other->m_db.length) &&
-      !my_strnncoll(cs,
-                    (const uchar *) m_name.str, m_name.length,
-                    (const uchar *) other->m_name.str, other->m_name.length);
+      !cs->strnncoll(m_db.str, m_db.length,
+                     other->m_db.str, other->m_db.length) &&
+      !cs->strnncoll(m_name.str, m_name.length,
+                     other->m_name.str, other->m_name.length);
   }
   void copy(MEM_ROOT *mem_root, const LEX_CSTRING &db,
                                 const LEX_CSTRING &name);

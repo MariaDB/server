@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -514,7 +515,8 @@ find_savepoint(THD *thd, LEX_CSTRING name)
 
   while (*sv)
   {
-    if (my_strnncoll(system_charset_info, (uchar *) name.str, name.length,
+    if (system_charset_info->strnncoll(
+                     (uchar *) name.str, name.length,
                      (uchar *) (*sv)->name, (*sv)->length) == 0)
       break;
     sv= &(*sv)->prev;

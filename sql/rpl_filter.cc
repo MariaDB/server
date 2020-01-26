@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
    
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -595,10 +596,10 @@ Rpl_filter::find_wild(DYNAMIC_ARRAY *a, const char* key, int len)
   {
     TABLE_RULE_ENT* e ;
     get_dynamic(a, (uchar*)&e, i);
-    if (!my_wildcmp(system_charset_info, key, key_end, 
-		    (const char*)e->db,
-		    (const char*)(e->db + e->key_len),
-		    '\\',wild_one,wild_many))
+    if (!system_charset_info->wildcmp(key, key_end, 
+                                      (const char*)e->db,
+                                      (const char*)(e->db + e->key_len),
+                                      '\\', wild_one, wild_many))
       return e;
   }
   

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation.
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -93,7 +93,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
 	  keyinfo->seg[j].flag|= HA_SWAP_KEY;
           break;
         case HA_KEYTYPE_VARBINARY1:
-          /* Case-insensitiveness is handled in coll->hash_sort */
+          /* Case-insensitiveness is handled in hash_sort */
           keyinfo->seg[j].type= HA_KEYTYPE_VARTEXT1;
           /* fall through */
         case HA_KEYTYPE_VARTEXT1:
@@ -110,7 +110,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
           keyinfo->seg[j].bit_start= 1;
           break;
         case HA_KEYTYPE_VARBINARY2:
-          /* Case-insensitiveness is handled in coll->hash_sort */
+          /* Case-insensitiveness is handled in hash_sort */
           /* fall_through */
         case HA_KEYTYPE_VARTEXT2:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;

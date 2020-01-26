@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, Monty Program Ab.
+/* Copyright (c) 2016, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ static bool eq_ascii_string(const CHARSET_INFO *cs,
     my_wc_t wc;
     int wc_len;
 
-    wc_len= cs->cset->mb_wc(cs, &wc, (uchar *) s, (uchar *) s_end);
+    wc_len= cs->mb_wc(&wc, (uchar *) s, (uchar *) s_end);
     if (wc_len <= 0 || (wc | 0x20) != (my_wc_t) *ascii)
       return 0;
 
@@ -905,7 +905,7 @@ longlong Item_func_json_extract::val_int()
       {
         char *end;
         int err;
-        i= my_strntoll(collation.collation, value, value_len, 10, &end, &err);
+        i= collation.collation->strntoll(value, value_len, 10, &end, &err);
         break;
       }
       case JSON_VALUE_TRUE:
@@ -936,7 +936,7 @@ double Item_func_json_extract::val_real()
       {
         char *end;
         int err;
-        d= my_strntod(collation.collation, value, value_len, &end, &err);
+        d= collation.collation->strntod(value, value_len, &end, &err);
         break;
       }
       case JSON_VALUE_TRUE:
@@ -1092,10 +1092,8 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
       char *end;
       int err;
 
-      d_j= my_strntod(js->s.cs, (char *) js->value, js->value_len,
-                      &end, &err);;
-      d_v= my_strntod(value->s.cs, (char *) value->value, value->value_len,
-                      &end, &err);;
+      d_j= js->s.cs->strntod((char *) js->value, js->value_len, &end, &err);;
+      d_v= value->s.cs->strntod((char *) value->value, value->value_len, &end, &err);;
 
       return (fabs(d_j - d_v) < 1e-12);
     }
@@ -3316,7 +3314,7 @@ int Item_func_json_search::compare_json_value_wild(json_engine_t *je,
                                                    const String *cmp_str)
 {
   if (je->value_type != JSON_VALUE_STRING || !je->value_escaped)
-    return my_wildcmp(collation.collation,
+    return collation.collation->wildcmp(
         (const char *) je->value, (const char *) (je->value + je->value_len),
         cmp_str->ptr(), cmp_str->end(), escape, wild_one, wild_many) ? 0 : 1;
 
@@ -3333,7 +3331,7 @@ int Item_func_json_search::compare_json_value_wild(json_engine_t *je,
     if (esc_len <= 0)
       return 0;
 
-    return my_wildcmp(collation.collation,
+    return collation.collation->wildcmp(
         esc_value.ptr(), esc_value.ptr() + esc_len,
         cmp_str->ptr(), cmp_str->end(), escape, wild_one, wild_many) ? 0 : 1;
   }

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation
+   Copyright (c) 2010, 2020, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1100,9 +1100,9 @@ void Item::set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs)
   }
 
   const char *str_start= str;
-  if (!cs->ctype || cs->mbminlen > 1)
+  if (!cs->m_ctype || cs->mbminlen > 1)
   {
-    str+= cs->cset->scan(cs, str, str + length, MY_SEQ_SPACES);
+    str+= cs->scan(str, str + length, MY_SEQ_SPACES);
     length-= (uint)(str - str_start);
   }
   else
@@ -4826,16 +4826,16 @@ double Item_copy_string::val_real()
   int err_not_used;
   char *end_not_used;
   return (null_value ? 0.0 :
-          my_strntod(str_value.charset(), (char*) str_value.ptr(),
-                     str_value.length(), &end_not_used, &err_not_used));
+          str_value.charset()->strntod((char*) str_value.ptr(), str_value.length(),
+                                       &end_not_used, &err_not_used));
 }
 
 longlong Item_copy_string::val_int()
 {
   int err;
-  return null_value ? 0 : my_strntoll(str_value.charset(),str_value.ptr(),
-                                          str_value.length(), 10, (char**) 0,
-                                          &err); 
+  return null_value ? 0 : str_value.charset()->strntoll(str_value.ptr(),
+                                                        str_value.length(), 10, (char**) 0,
+                                                        &err);
 }
 
 
@@ -6285,7 +6285,7 @@ String_copier_for_item::copy_with_warn(CHARSET_INFO *dstcs, String *dst,
   if (unlikely(pos= cannot_convert_error_pos()))
   {
     char buf[16];
-    int mblen= my_charlen(srccs, pos, src + src_length);
+    int mblen= srccs->charlen(pos, src + src_length);
     DBUG_ASSERT(mblen > 0 && mblen * 2 + 1 <= (int) sizeof(buf));
     octet2hex(buf, pos, mblen);
     push_warning_printf(m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -6810,8 +6810,7 @@ Item_float::Item_float(THD *thd, const char *str_arg, size_t length):
 {
   int error;
   char *end_not_used;
-  value= my_strntod(&my_charset_bin, (char*) str_arg, length, &end_not_used,
-                    &error);
+  value= my_charset_bin.strntod((char*) str_arg, length, &end_not_used, &error);
   if (unlikely(error))
   {
     char tmp[NAME_LEN + 1];

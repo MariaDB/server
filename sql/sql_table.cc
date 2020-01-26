@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB
+   Copyright (c) 2010, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -132,7 +132,7 @@ static char* add_identifier(THD* thd, char *to_p, const char * end_p,
     *(to_p++)= (char) quote;
     while (*conv_name && (end_p - to_p - 1) > 0)
     {
-      int length= my_charlen(system_charset_info, conv_name, conv_name_end);
+      int length= system_charset_info->charlen(conv_name, conv_name_end);
       if (length <= 0)
         length= 1;
       if (length == 1 && *conv_name == (char) quote)
@@ -3228,8 +3228,7 @@ bool Column_definition::prepare_stage1_check_typelib_default()
     }
     else /* MYSQL_TYPE_ENUM */
     {
-      def->length(charset->cset->lengthsp(charset,
-                                          def->ptr(), def->length()));
+      def->length(charset->lengthsp(def->ptr(), def->length()));
       not_found= !find_type2(interval, def->ptr(), def->length(), charset);
     }
   }
@@ -3478,11 +3477,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   LEX_CSTRING* connect_string = &create_info->connect_string;
   if (connect_string->length != 0 &&
       connect_string->length > CONNECT_STRING_MAXLEN &&
-      (system_charset_info->cset->charpos(system_charset_info,
-                                          connect_string->str,
-                                          (connect_string->str +
-                                           connect_string->length),
-                                          CONNECT_STRING_MAXLEN)
+      (system_charset_info->charpos(connect_string->str,
+                                    (connect_string->str +
+                                     connect_string->length),
+                                    CONNECT_STRING_MAXLEN)
       < connect_string->length))
   {
     my_error(ER_WRONG_STRING_LENGTH, MYF(0),
@@ -4402,8 +4400,9 @@ bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
                              uint err_code, const char *name)
 {
   DBUG_ENTER("validate_comment_length");
-  size_t tmp_len= my_charpos(system_charset_info, comment->str,
-                           comment->str + comment->length, max_len);
+  size_t tmp_len= system_charset_info->charpos(comment->str,
+                                               comment->str + comment->length,
+                                               max_len);
   if (tmp_len < comment->length)
   {
     if (thd->is_strict_mode())

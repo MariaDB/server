@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2016, MariaDB
+   Copyright (c) 2016, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -125,7 +125,7 @@ bool String::set_int(longlong num, bool unsigned_flag, CHARSET_INFO *cs)
 
   if (alloc(l))
     return TRUE;
-  str_length=(uint32) (cs->cset->longlong10_to_str)(cs,Ptr,l,base,num);
+  str_length=(uint32) (cs->longlong10_to_str)(Ptr,l,base,num);
   set_charset(cs);
   return FALSE;
 }
@@ -821,9 +821,8 @@ bool Binary_string::copy_printable_hhhh(CHARSET_INFO *to_cs,
 
 int sortcmp(const String *s,const String *t, CHARSET_INFO *cs)
 {
- return cs->coll->strnncollsp(cs,
-                              (uchar *) s->ptr(),s->length(),
-                              (uchar *) t->ptr(),t->length());
+ return cs->strnncollsp(s->ptr(), s->length(),
+                        t->ptr(), t->length());
 }
 
 
@@ -1099,8 +1098,8 @@ String_copier::well_formed_copy(CHARSET_INFO *to_cs,
       my_charset_same(from_cs, to_cs))
   {
     m_cannot_convert_error_pos= NULL;
-    return (uint) to_cs->cset->copy_fix(to_cs, to, to_length, from, from_length,
-                                 nchars, this);
+    return (uint) to_cs->copy_fix(to, to_length, from, from_length,
+                                  nchars, this);
   }
   return (uint) my_convert_fix(to_cs, to, to_length, from_cs, from, from_length,
                         nchars, this, this);

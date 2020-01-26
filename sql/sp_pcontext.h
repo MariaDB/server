@@ -1,5 +1,6 @@
 /* -*- C++ -*- */
 /* Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -260,9 +261,8 @@ public:
   }
   bool eq_name(const LEX_CSTRING *str) const
   {
-    return my_strnncoll(system_charset_info,
-                        (const uchar *) name.str, name.length,
-                        (const uchar *) str->str, str->length) == 0;
+    return system_charset_info->strnncoll(name.str, name.length,
+                                          str->str, str->length) == 0;
   }
 };
 

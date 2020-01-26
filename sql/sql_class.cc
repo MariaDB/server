@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3395,7 +3395,7 @@ int select_export::send_data(List<Item> &items)
 	     pos++)
 	{
 #ifdef USE_MB
-	  if (use_mb(res_charset))
+	  if (res_charset->use_mb())
 	  {
 	    int l;
 	    if ((l=my_ismbchar(res_charset, pos, end)))

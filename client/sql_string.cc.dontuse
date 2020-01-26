@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -96,7 +97,7 @@ bool String::set(longlong num, CHARSET_INFO *cs)
 
   if (alloc(l))
     return TRUE;
-  str_length=(uint32) (cs->cset->longlong10_to_str)(cs,Ptr,l,-10,num);
+  str_length=(uint32) (cs->longlong10_to_str)(Ptr,l,-10,num);
   str_charset=cs;
   return FALSE;
 }
@@ -107,7 +108,7 @@ bool String::set(ulonglong num, CHARSET_INFO *cs)
 
   if (alloc(l))
     return TRUE;
-  str_length=(uint32) (cs->cset->longlong10_to_str)(cs,Ptr,l,10,num);
+  str_length=(uint32) (cs->longlong10_to_str)(Ptr,l,10,num);
   str_charset=cs;
   return FALSE;
 }
@@ -480,14 +481,14 @@ bool String::append_with_prefill(const char *s,uint32 arg_length,
 
 uint32 String::numchars()
 {
-  return str_charset->cset->numchars(str_charset, Ptr, Ptr+str_length);
+  return str_charset->(Ptr, Ptr+str_length);
 }
 
 int String::charpos(longlong i,uint32 offset)
 {
   if (i <= 0)
     return (int)i;
-  return (int)str_charset->cset->charpos(str_charset,Ptr+offset,Ptr+str_length,(size_t)i);
+  return (int)str_charset->charpos(Ptr+offset,Ptr+str_length,(size_t)i);
 }
 
 int String::strstr(const String &s,uint32 offset)
@@ -655,9 +656,8 @@ void String::qs_append(uint i)
 
 int sortcmp(const String *s,const String *t, CHARSET_INFO *cs)
 {
- return cs->coll->strnncollsp(cs,
-                              (unsigned char *) s->ptr(),s->length(),
-                              (unsigned char *) t->ptr(),t->length(), 0);
+ return cs->strnncollsp(s->ptr(), s->length(),
+                        t->ptr(), t->length());
 }
 
 

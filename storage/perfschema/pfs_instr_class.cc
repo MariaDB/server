@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2020, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -633,7 +634,7 @@ static void configure_instr_class(PFS_instr_class *entry)
 
       Consecutive wildcards affect the count.
     */
-    if (!my_wildcmp(&my_charset_latin1,
+    if (!my_charset_latin1.wildcmp(
                     entry->m_name, entry->m_name+entry->m_name_length,
                     e->m_name, e->m_name+e->m_name_length,
                     '\\', '?','%'))

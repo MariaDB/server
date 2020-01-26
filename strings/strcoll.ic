@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2015, MariaDB Foundation
+   Copyright (c) 2015, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -156,7 +157,7 @@ bad:
   Compare two strings according to the collation,
   without handling the PAD SPACE property.
 
-  Note, cs->coll->strnncoll() is usually used to compare identifiers.
+  Note, strnncoll() is usually used to compare identifiers.
   Perhaps we should eventually (in 10.2?) create a new collation 
   my_charset_utf8mb3_general_ci_no_pad and have only one comparison function
   in MY_COLLATION_HANDLER.
@@ -307,11 +308,11 @@ MY_FUNCTION_NAME(strnxfrm)(CHARSET_INFO *cs,
 
   for (; dst < de && src < se && nweights; nweights--)
   {
-    if (my_charlen(cs, (const char *) src, (const char *) se) > 1)
+    if (my_ci_charlen(cs, src, se) > 1)
     {
       /*
         Note, it is safe not to check (src < se)
-        in the code below, because my_charlen() would
+        in the code below, because my_ci_charlen() would
         not return 2 if src was too short
       */
       uint16 e= WEIGHT_MB2_FRM(src[0], src[1]);

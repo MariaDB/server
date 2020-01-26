@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2011, Monty Program Ab
+   Copyright (c) 2009, 2020, MariaDB Corporation.
    Copyright (C) 2003  by Sathit Jittanupat
           <jsat66@hotmail.com,jsat66@yahoo.com>
 	* solving bug crash with long text field string
@@ -613,7 +613,7 @@ my_strnxfrm_tis620(CHARSET_INFO *cs,
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && len < dstlen0)
   {
     size_t fill_length= dstlen0 - len;
-    cs->cset->fill(cs, (char*) dst + len, fill_length, cs->pad_char);
+    my_ci_fill(cs, (char*) dst + len, fill_length, cs->pad_char);
     len= dstlen0;
   }
   return len;

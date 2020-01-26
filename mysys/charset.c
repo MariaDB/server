@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -61,7 +62,7 @@ get_collation_number_internal(const char *name)
 
 static my_bool is_multi_byte_ident(CHARSET_INFO *cs, uchar ch)
 {
-  int chlen= my_charlen(cs, (const char *) &ch, (const char *) &ch + 1);
+  int chlen= my_ci_charlen(cs, &ch, &ch + 1);
   return MY_CS_IS_TOOSMALL(chlen) ? TRUE : FALSE;
 }
 
@@ -164,11 +165,11 @@ static int cs_copy_data(struct charset_info_st *to, CHARSET_INFO *from)
     if (!(to->comment= my_once_strdup(from->comment,MYF(MY_WME))))
       goto err;
   
-  if (from->ctype)
+  if (from->m_ctype)
   {
-    if (!(to->ctype= (uchar*) my_once_memdup((char*) from->ctype,
-					     MY_CS_CTYPE_TABLE_SIZE,
-					     MYF(MY_WME))))
+    if (!(to->m_ctype= (uchar*) my_once_memdup((char*) from->m_ctype,
+                                               MY_CS_CTYPE_TABLE_SIZE,
+                                               MYF(MY_WME))))
       goto err;
     if (init_state_maps(to))
       goto err;
@@ -212,7 +213,7 @@ err:
 
 static my_bool simple_8bit_charset_data_is_full(CHARSET_INFO *cs)
 {
-  return cs->ctype && cs->to_upper && cs->to_lower && cs->tab_to_uni;
+  return cs->m_ctype && cs->to_upper && cs->to_lower && cs->tab_to_uni;
 }
 
 
@@ -228,8 +229,8 @@ inherit_charset_data(struct charset_info_st *cs, CHARSET_INFO *refcs)
     cs->to_upper= refcs->to_upper;
   if (!cs->to_lower)
     cs->to_lower= refcs->to_lower;
-  if (!cs->ctype)
-    cs->ctype= refcs->ctype;
+  if (!cs->m_ctype)
+    cs->m_ctype= refcs->m_ctype;
   if (!cs->tab_to_uni)
     cs->tab_to_uni= refcs->tab_to_uni;
 }
@@ -355,7 +356,7 @@ static int add_collation(struct charset_info_st *cs)
                                   &my_charset_utf8mb3_unicode_nopad_ci :
                                   &my_charset_utf8mb3_unicode_ci,
                                   cs);
-        newcs->ctype= my_charset_utf8mb3_unicode_ci.ctype;
+        newcs->m_ctype= my_charset_utf8mb3_unicode_ci.m_ctype;
         if (init_state_maps(newcs))
           return MY_XML_ERROR;
 #endif
@@ -367,7 +368,7 @@ static int add_collation(struct charset_info_st *cs)
                                   &my_charset_utf8mb4_unicode_nopad_ci :
                                   &my_charset_utf8mb4_unicode_ci,
                                   cs);
-        newcs->ctype= my_charset_utf8mb4_unicode_ci.ctype;
+        newcs->m_ctype= my_charset_utf8mb4_unicode_ci.m_ctype;
         newcs->state|= MY_CS_AVAILABLE | MY_CS_LOADED;
 #endif
       }
@@ -630,7 +631,7 @@ static void init_available_charsets(void)
     if (*cs)
     {
       DBUG_ASSERT(cs[0]->mbmaxlen <= MY_CS_MBMAXLEN);
-      if (cs[0]->ctype)
+      if (cs[0]->m_ctype)
         if (init_state_maps(*cs))
           *cs= NULL;
     }
@@ -807,8 +808,8 @@ get_internal_charset(MY_CHARSET_LOADER *loader, uint cs_number, myf flags)
             inherit_collation_data(cs, refcl);
         }
 
-        if ((cs->cset->init && cs->cset->init(cs, loader)) ||
-            (cs->coll->init && cs->coll->init(cs, loader)))
+        if (my_ci_init_charset(cs, loader) ||
+            my_ci_init_collation(cs, loader))
         {
           cs= NULL;
         }
@@ -1036,8 +1037,7 @@ size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
   {
     char escape= 0;
 #ifdef USE_MB
-    int tmp_length= use_mb(charset_info) ? my_charlen(charset_info, from, end) :
-                                           1;
+    int tmp_length= my_ci_charlen(charset_info, (const uchar *) from, (const uchar *) end);
     if (tmp_length > 1)
     {
       if (to + tmp_length > to_end)
@@ -1174,7 +1174,7 @@ size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
   const char *end, *to_end=to_start + (to_length ? to_length-1 : 2*length);
   my_bool overflow= FALSE;
 #ifdef USE_MB
-  my_bool use_mb_flag= use_mb(charset_info);
+  my_bool use_mb_flag= my_ci_use_mb(charset_info);
 #endif
   for (end= from + length; from < end; from++)
   {

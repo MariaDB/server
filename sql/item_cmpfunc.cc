@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5603,7 +5603,7 @@ longlong Item_func_like::val_int()
   null_value=0;
   if (canDoTurboBM)
     return turboBM_matches(res->ptr(), res->length()) ? !negated : negated;
-  return my_wildcmp(cmp_collation.collation,
+  return cmp_collation.collation->wildcmp(
 		    res->ptr(),res->ptr()+res->length(),
 		    res2->ptr(),res2->ptr()+res2->length(),
 		    escape,wild_one,wild_many) ? negated : !negated;
@@ -5696,14 +5696,14 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
         return TRUE;
       }
 
-      if (use_mb(cmp_cs))
+      if (cmp_cs->use_mb())
       {
         CHARSET_INFO *cs= escape_str->charset();
         my_wc_t wc;
-        int rc= cs->cset->mb_wc(cs, &wc,
-                                (const uchar*) escape_str_ptr,
-                                (const uchar*) escape_str_ptr +
-                                escape_str->length());
+        int rc= cs->mb_wc(&wc,
+                          (const uchar*) escape_str_ptr,
+                          (const uchar*) escape_str_ptr +
+                          escape_str->length());
         *escape= (int) (rc > 0 ? wc : '\\');
       }
       else
@@ -5771,7 +5771,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
       {
         const char* tmp = first + 1;
         for (; *tmp != wild_many && *tmp != wild_one && *tmp != escape; tmp++) ;
-        canDoTurboBM = (tmp == last) && !use_mb(args[0]->collation.collation);
+        canDoTurboBM = (tmp == last) && !args[0]->collation.collation->use_mb();
       }
       if (canDoTurboBM)
       {
@@ -6018,10 +6018,9 @@ bool Regexp_processor_pcre::exec(String *str, int offset,
       /*
         Convert byte offset into character offset.
       */
-      m_SubStrVec[i]= (int) str->charset()->cset->numchars(str->charset(),
-                                                           str->ptr(),
-                                                           str->ptr() +
-                                                           m_SubStrVec[i]);
+      m_SubStrVec[i]= (int) str->charset()->numchars(str->ptr(),
+                                                     str->ptr() +
+                                                     m_SubStrVec[i]);
     }
   }
   return false;

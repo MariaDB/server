@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2013, Monty Program Ab.
+   Copyright (c) 2011, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -149,9 +149,8 @@ Geometry::Class_info *Geometry::find_class(const char *name, size_t len)
   {
     if (*cur_rt &&
 	((*cur_rt)->m_name.length == len) &&
-	(my_strnncoll(&my_charset_latin1,
-		      (const uchar*) (*cur_rt)->m_name.str, len,
-		      (const uchar*) name, len) == 0))
+	(my_charset_latin1.strnncoll((*cur_rt)->m_name.str, len,
+		                     name, len) == 0))
       return *cur_rt;
   }
   return 0;
@@ -455,8 +454,8 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
             goto create_geom;
         }
         else if (je->value_len == feature_coll_type_len &&
-            my_strnncoll(&my_charset_latin1, je->value, je->value_len,
-		         feature_coll_type, feature_coll_type_len) == 0)
+            my_charset_latin1.strnncoll(je->value, je->value_len,
+		                        feature_coll_type, feature_coll_type_len) == 0)
         {
           /*
             'FeatureCollection' type found. Handle the 'Featurecollection'/'features'
@@ -467,8 +466,8 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
           fcoll_type_found= 1;
         }
         else if (je->value_len == feature_type_len &&
-                 my_strnncoll(&my_charset_latin1, je->value, je->value_len,
-		              feature_type, feature_type_len) == 0)
+                 my_charset_latin1.strnncoll(je->value, je->value_len,
+		                             feature_type, feature_type_len) == 0)
         {
           if (geometry_start)
             goto handle_geometry_key;
@@ -860,8 +859,7 @@ static int read_point_from_json(json_engine_t *je, bool er_on_3D,
       goto bad_coordinates;
 
     d= (n_coord == 0) ? x : ((n_coord == 1) ? y : &tmp);
-    *d= my_strntod(je->s.cs, (char *) je->value,
-                   je->value_len, &endptr, &err);
+    *d= je->s.cs->strntod((char *) je->value, je->value_len, &endptr, &err);
     if (err)
       goto bad_coordinates;
     n_coord++;
@@ -2989,9 +2987,7 @@ bool Gis_geometry_collection::init_from_wkt(Gis_read_stream *trs, String *wkb)
       return 1;
 
     if (next_word.length != 5 ||
-	(my_strnncoll(&my_charset_latin1,
-		      (const uchar*) "empty", 5,
-		      (const uchar*) next_word.str, 5) != 0))
+	(my_charset_latin1.strnncoll("empty", 5, next_word.str, 5) != 0))
     {
       for (;;)
       {

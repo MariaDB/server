@@ -1,5 +1,5 @@
 /* Copyright (c) 2005, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -507,8 +507,8 @@ public:
         {
           char *end;
           int err;
-          double add= my_strntod(collation.collation, (char*) node->beg,
-                                 node->end - node->beg, &end, &err);
+          double add= collation.collation->strntod((char*) node->beg,
+                                                   node->end - node->beg, &end, &err);
           if (!err)
             sum+= add;
         }
@@ -1442,16 +1442,16 @@ my_xpath_lex_scan(MY_XPATH *xpath,
   }
 
   // Check ident, or a function call, or a keyword
-  if ((length= xpath->cs->cset->ctype(xpath->cs, &ctype,
-                                      (const uchar*) beg,
-                                      (const uchar*) end)) > 0 &&
+  if ((length= xpath->cs->ctype(&ctype,
+                                (const uchar*) beg,
+                                (const uchar*) end)) > 0 &&
       ((ctype & (_MY_L | _MY_U)) || *beg == '_'))
   {
     // scan untill the end of the idenfitier
     for (beg+= length; 
-         (length= xpath->cs->cset->ctype(xpath->cs, &ctype,
-                                         (const uchar*) beg,
-                                         (const uchar*) end)) > 0 &&
+         (length= xpath->cs->ctype(&ctype,
+                                   (const uchar*) beg,
+                                   (const uchar*) end)) > 0 &&
          ((ctype & (_MY_L | _MY_U | _MY_NMR)) ||
           *beg == '_' || *beg == '-' || *beg == '.') ;
          beg+= length) /* no op */;

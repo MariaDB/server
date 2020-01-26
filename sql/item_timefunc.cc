@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -157,7 +157,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
   for (; ptr != end && val != val_end; ptr++)
   {
     /* Skip pre-space between each argument */
-    if ((val+= cs->cset->scan(cs, val, val_end, MY_SEQ_SPACES)) >= val_end)
+    if ((val+= cs->scan(val, val_end, MY_SEQ_SPACES)) >= val_end)
       break;
 
     if (*ptr == '%' && ptr+1 != end)
@@ -259,13 +259,9 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
       case 'p':
 	if (val_len < 2 || ! usa_time)
 	  goto err;
-	if (!my_strnncoll(&my_charset_latin1,
-			  (const uchar *) val, 2, 
-			  (const uchar *) "PM", 2))
+	if (!my_charset_latin1.strnncoll(val, 2, "PM", 2))
 	  daypart= 12;
-	else if (my_strnncoll(&my_charset_latin1,
-			      (const uchar *) val, 2, 
-			      (const uchar *) "AM", 2))
+	else if (my_charset_latin1.strnncoll(val, 2, "AM", 2))
 	  goto err;
 	val+= 2;
 	break;
@@ -2917,9 +2913,8 @@ String *Item_func_get_format::val_str_ascii(String *str)
     uint format_name_len;
     format_name_len= (uint) strlen(format_name);
     if (val_len == format_name_len &&
-	!my_strnncoll(&my_charset_latin1, 
-		      (const uchar *) val->ptr(), val_len, 
-		      (const uchar *) format_name, val_len))
+	!my_charset_latin1.strnncoll(val->ptr(), val_len, 
+		                     format_name, val_len))
     {
       const char *format_str= get_date_time_format_str(format, type);
       str->set(format_str, (uint) strlen(format_str), &my_charset_numeric);
