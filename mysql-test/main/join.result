@@ -3381,6 +3381,7 @@ t03 A,
 t1000 B;
 analyze table t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 create table t3(a int, filler char(100), key(a));
 insert into t3 select A.a+1000*B.a, 'filler-data' from t1000 A, t10 B;
