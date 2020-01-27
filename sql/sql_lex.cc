@@ -3581,7 +3581,7 @@ void LEX::print(String *str, enum_query_type query_type)
 void st_select_lex_unit::print(String *str, enum_query_type query_type)
 {
   if (with_clause)
-    with_clause->print(str, query_type);
+    with_clause->print(thd, str, query_type);
   for (SELECT_LEX *sl= first_select(); sl; sl= sl->next_select())
   {
     if (sl != first_select())
