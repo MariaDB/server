@@ -1161,6 +1161,7 @@ handle_rpl_parallel_thread(void *arg)
       DBUG_ASSERT(qev->typ==rpl_parallel_thread::queued_event::QUEUED_EVENT);
 
       thd->rgi_slave= rgi;
+      thd->rpt= rpt;
       gco= rgi->gco;
       /* Handle a new event group, which will be initiated by a GTID event. */
       if ((event_type= qev->ev->get_type_code()) == GTID_EVENT)
@@ -1738,6 +1739,67 @@ rpl_parallel_inactivate_pool(rpl_parallel_thread_pool *pool)
   return rpl_parallel_change_thread_count(pool, 0, 0);
 }
 
+//One worker at a time will be added
+//Workers wont be at continue memory
+//So please free all the linked worker
+//These threads will exit as soon as there queue
+//is empty (but i think ::do_event need to set some switch to
+//tell thread that its wok is done , it can exit now)
+//TODO
+// I think I should use different mutex since these workers have quite
+// different works, plus less contention for the main mutex
+rpl_parallel_thread *
+rpl_parallel_add_extra_worker(rpl_parallel_thread_pool *pool)
+{
+  rpl_parallel_thread *rpt_thread= NULL;
+  //Lock the mutex and add rpl_parallel_thread struct in the end of extra_worker_list
+  //We dont have to make pool busy, Since these threads have specific purpose
+  //And scheduler will never schedule these threads for any other work
+  if (!(rpt_thread= (rpl_parallel_thread *)my_malloc(sizeof(*rpt_thread),
+                                               MYF(MY_WME|MY_ZEROFILL))))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*rpt_thread));
+    return NULL;
+  }
+  mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
+  if (!pool->extra_worker_list)
+  {
+    pool->extra_worker_list= rpt_thread;
+    pool->last_extra_worker= rpt_thread;
+  }
+  else
+  {
+    pool->last_extra_worker->next= rpt_thread;
+    pool->last_extra_worker= rpt_thread;
+  }
+  pthread_t th;
+  rpt_thread->next= NULL;
+  rpt_thread->delay_start= true;
+  rpt_thread->special_worker= true;
+  mysql_mutex_init(key_LOCK_rpl_thread, &rpt_thread->LOCK_rpl_thread,
+                   MY_MUTEX_INIT_SLOW);
+  mysql_cond_init(key_COND_rpl_thread, &rpt_thread->COND_rpl_thread, NULL);
+  mysql_cond_init(key_COND_rpl_thread_queue,
+                  &rpt_thread->COND_rpl_thread_queue, NULL);
+  mysql_cond_init(key_COND_rpl_thread_stop,
+                  &rpt_thread->COND_rpl_thread_stop, NULL);
+  rpt_thread->pool= pool;
+  if (mysql_thread_create(key_rpl_parallel_thread, &th, &connection_attrib,
+                          handle_rpl_parallel_thread, rpt_thread))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return NULL;
+  }
+  mysql_mutex_lock(&rpt_thread->LOCK_rpl_thread);
+  rpt_thread->delay_start= false;
+  mysql_cond_signal(&rpt_thread->COND_rpl_thread);
+  while (rpt_thread->running)
+    mysql_cond_wait(&rpt_thread->COND_rpl_thread,
+                    &rpt_thread->LOCK_rpl_thread);
+  mysql_mutex_unlock(&rpt_thread->LOCK_rpl_thread);
+  mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
+  return rpt_thread;
+}
 
 void
 rpl_parallel_thread::batch_free()
@@ -1979,6 +2041,13 @@ rpl_parallel_thread::loc_free_gco(group_commit_orderer *gco)
   loc_gco_list= gco;
 }
 
+void
+rpl_parallel_thread::__finish_event_group(rpl_group_info *group_rgi)
+{
+  finish_event_group(this, group_rgi->gtid_sub_id,
+                             group_rgi->parallel_entry, group_rgi);
+
+}
 
 rpl_parallel_thread_pool::rpl_parallel_thread_pool()
   : threads(0), free_list(0), count(0), inited(false), busy(false)
@@ -2093,13 +2162,29 @@ rpl_parallel_thread_pool::release_thread(rpl_parallel_thread *rpt)
 */
 rpl_parallel_thread *
 rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
-                                  PSI_stage_info *old_stage, bool reuse)
+                                  PSI_stage_info *old_stage, bool reuse,
+                                  bool require_special_worker)
 {
   uint32 idx;
   Relay_log_info *rli= rgi->rli;
   rpl_parallel_thread *thr;
 
   idx= rpl_thread_idx;
+ // DBUG_ASSERT((require_special_worker && !reuse) || !require_special_worker);
+// /*
+  if (require_special_worker)
+  {
+    if (!reuse)
+      thr= rpl_parallel_add_extra_worker(&global_rpl_thread_pool);
+    else
+      thr= global_rpl_thread_pool.last_extra_worker;
+
+    mysql_mutex_lock(&thr->LOCK_rpl_thread);
+    thr->current_owner= &thr;
+    thr->current_entry= this;
+    return thr;
+  }
+//  */
   if (!reuse)
   {
     ++idx;
@@ -2545,6 +2630,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   bool is_group_event;
   bool did_enter_cond= false;
   PSI_stage_info old_stage;
+  Gtid_log_event *gtid_ev= NULL;
 
   DBUG_EXECUTE_IF("slave_crash_if_parallel_apply", DBUG_SUICIDE(););
   /* Handle master log name change, seen in Rotate_log_event. */
@@ -2676,7 +2762,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   if (typ == GTID_EVENT)
   {
     rpl_gtid gtid;
-    Gtid_log_event *gtid_ev= static_cast<Gtid_log_event *>(ev);
+    gtid_ev= static_cast<Gtid_log_event *>(ev);
     uint32 domain_id= (rli->mi->using_gtid == Master_info::USE_GTID_NO ||
                        rli->mi->parallel_mode <= SLAVE_PARALLEL_MINIMAL ?
                        0 : gtid_ev->domain_id);
@@ -2704,6 +2790,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       delete_or_keep_event_post_apply(serial_rgi, typ, ev);
       return 0;
     }
+    serial_rgi->gtid_ev_flags3= gtid_ev->flags3;
   }
   else
     e= current;
@@ -2714,9 +2801,12 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     commit). But do not exceed a limit of --slave-domain-parallel-threads;
     instead re-use a thread that we queued for previously.
   */
+  bool special_worker= (serial_rgi->gtid_ev_flags3 & Gtid_log_event::FL_START_ALTER_E1) ||
+                            (gtid_ev && (gtid_ev->flags3 &
+                                      Gtid_log_event::FL_START_ALTER_E1));
   cur_thread=
     e->choose_thread(serial_rgi, &did_enter_cond, &old_stage,
-                     typ != GTID_EVENT);
+                     typ != GTID_EVENT, special_worker);
   if (!cur_thread)
   {
     /* This means we were killed. The error is already signalled. */

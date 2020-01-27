@@ -6610,6 +6610,8 @@ int handler::ha_write_row(const uchar *buf)
 {
   int error;
   Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
+//  if (table->in_use->slave_thread && !strcmp(table->alias.ptr(), "t1"))
+//    my_sleep(50000000000);
   DBUG_ASSERT(table_share->tmp_table != NO_TMP_TABLE ||
               m_lock_type == F_WRLCK);
   DBUG_ENTER("handler::ha_write_row");

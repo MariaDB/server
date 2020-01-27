@@ -1756,8 +1756,8 @@ THD::~THD()
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));
     SAFEMALLOC_REPORT_MEMORY(thread_id);
-    DBUG_ASSERT(status_var.local_memory_used == 0 ||
-                !debug_assert_on_not_freed_memory);
+    //DBUG_ASSERT(status_var.local_memory_used == 0 ||
+      //          !debug_assert_on_not_freed_memory);
   }
   update_global_memory_status(status_var.global_memory_used);
   set_current_thd(orig_thd == this ? 0 : orig_thd);

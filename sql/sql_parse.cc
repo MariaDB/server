@@ -5636,6 +5636,60 @@ mysql_execute_command(THD *thd)
     my_ok(thd);
     break;
   }
+  case SQLCOM_COMMIT_PREVIOUS:
+  {
+    DBUG_ASSERT(thd->rgi_slave);
+    Master_info *mi= thd->rgi_slave->rli->mi;
+    start_alter_info *info=NULL;
+    uint count= 0;
+    List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+    while (1)
+    {
+      info_iterator.rewind();
+      count= 0;
+      while ((info= info_iterator++))
+      {
+        if (!info)
+          break;
+        count++;
+        sql_print_information("Setiya list %d COMMIT_PREVIOUS  info thread id %d previous_commit_id %d count %d",
+                 mi->start_alter_list.elements, info->thread_id, thd->lex->previous_commit_id, count);
+        if(info->thread_id == thd->lex->previous_commit_id)
+        {
+          // I dont need mutex lock here
+          info->state= start_alter_state::COMMIT_ALTER;
+          info->seq_no= thd->variables.gtid_seq_no;
+          mysql_cond_broadcast(&mi->start_alter_cond);
+          info_iterator.remove();
+          break;
+        }
+      }
+      if (!info || info->thread_id != thd->lex->previous_commit_id)
+      {
+        sql_print_information("Setiya list %d COMMIT_PREVIOUS waiting for id %d",mi->start_alter_list.elements,
+                thd->lex->previous_commit_id);
+        mysql_mutex_lock(&mi->start_alter_list_lock);
+        mysql_cond_wait(&mi->start_alter_list_cond, &mi->start_alter_list_lock);
+        mysql_mutex_unlock(&mi->start_alter_list_lock);
+      }
+      else
+        break;
+    }
+    //thd->rgi_slave->mark_start_commit();
+    //thd->wakeup_subsequent_commits(0);
+    /*
+      Wait for other thread to commit/rollback the alter
+    */
+    mysql_mutex_lock(&mi->start_alter_lock);
+    while(info->state <= start_alter_state:: ROLLBACK_ALTER )
+      mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+    mysql_mutex_unlock(&mi->start_alter_lock);
+    thd->rpt->__finish_event_group(thd->rgi_slave);
+//    ha_commit_trans(thd, true);
+//    trans_commit_implicit(thd);
+//    trans_commit_stmt(thd);
+    break;
+  }
   case SQLCOM_ROLLBACK:
   {
     DBUG_ASSERT(thd->lock == NULL ||
@@ -5671,6 +5725,53 @@ mysql_execute_command(THD *thd)
       thd->set_killed(KILL_CONNECTION);
     my_ok(thd);
    break;
+  }
+  case SQLCOM_ROLLBACK_PREVIOUS:
+  {
+    DBUG_ASSERT(thd->rgi_slave);
+    Master_info *mi= thd->rgi_slave->rli->mi;
+    start_alter_info *info=NULL;
+    uint count= 0;
+    List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+    while (1)
+    {
+      info_iterator.rewind();
+      count= 0;
+      while ((info= info_iterator++))
+      {
+        if (!info)
+          break;
+        count++;
+        sql_print_information("Setiya list %d COMMIT_PREVIOUS  info thread id %d previous_commit_id %d count %d",
+                 mi->start_alter_list.elements, info->thread_id, thd->lex->previous_commit_id, count);
+        if(info->thread_id == thd->lex->previous_commit_id)
+        {
+          // I dont need mutex lock here
+          info->state= start_alter_state::ROLLBACK_ALTER;
+          info->seq_no= thd->variables.gtid_seq_no;
+          mysql_cond_broadcast(&mi->start_alter_cond);
+          info_iterator.remove();
+          break;
+        }
+      }
+      if (!info || info->thread_id != thd->lex->previous_commit_id)
+      {
+        sql_print_information("Setiya list %d COMMIT_PREVIOUS waiting for id %d",mi->start_alter_list.elements,
+                thd->lex->previous_commit_id);
+        mysql_mutex_lock(&mi->start_alter_list_lock);
+        mysql_cond_wait(&mi->start_alter_list_cond, &mi->start_alter_list_lock);
+        mysql_mutex_unlock(&mi->start_alter_list_lock);
+      }
+      else
+        break;
+    }
+    //thd->rgi_slave->mark_start_commit();
+    //thd->wakeup_subsequent_commits(0);
+    thd->rpt->__finish_event_group(thd->rgi_slave);
+//    ha_commit_trans(thd, true);
+//    trans_commit_implicit(thd);
+//    trans_commit_stmt(thd);
+    break;
   }
   case SQLCOM_RELEASE_SAVEPOINT:
     if (trans_release_savepoint(thd, lex->ident))

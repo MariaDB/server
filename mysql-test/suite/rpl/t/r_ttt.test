@@ -1,0 +1,90 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection slave
+stop slave;
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+start slave;
+
+
+--connection master
+set global binlog_split_alter=true;
+create table t1( a int primary key, b int) engine=innodb;
+insert into t1 values(1,1),(2,2);
+create table t2( a int primary key, b int) engine=innodb;
+insert into t2 values(1,1),(2,2);
+create table t3( a int primary key, b int) engine=innodb;
+insert into t3 values(1,1),(2,2);
+create table t4( a int primary key, b int) engine=innodb;
+insert into t4 values(1,1),(2,2);
+create table t5( a int primary key, b int) engine=innodb;
+insert into t5 values(1,1),(2,2);
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+connect (con3,localhost,root,,);
+connect (con4,localhost,root,,);
+connect (con5,localhost,root,,);
+--connection con1
+--send alter table t1 add column c int, force, algorithm=inplace;
+--connection con2
+--send alter table t2 add column c int, force, algorithm=inplace;
+--connection con3
+--send alter table t3 add column c int, force, algorithm=inplace;
+--connection con4
+--send alter table t4 add column c int, force, algorithm=inplace;
+--connection con5
+--send alter table t5 add column c int, force, algorithm=inplace;
+
+--connection con1
+--reap
+--connection con2
+--reap
+--connection con3
+--reap
+--connection con4
+--reap
+--connection con5
+--reap
+--connection con1
+--send alter table t1 add column d int, force, algorithm=inplace;
+--connection con2
+--send alter table t2 add column d int, force, algorithm=inplace;
+--connection con3
+--send alter table t3 add column d int, force, algorithm=inplace;
+--connection con4
+--send alter table t4 add column d int, force, algorithm=inplace;
+--connection con5
+--send alter table t5 add column d int, force, algorithm=inplace;
+
+--connection con1
+--reap
+--connection con2
+--reap
+--connection con3
+--reap
+--connection con4
+--reap
+--connection con5
+--reap
+
+show binlog events;
+show create table t5;
+
+--connection slave
+--sleep 30
+show create table t5;
+show binlog events;
+
+
+--connection master
+drop table t1,t2,t3,t4,t5;
+set global binlog_split_alter=true;
+
+--connection slave
+stop slave;
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+start slave;
+--source include/rpl_end.inc

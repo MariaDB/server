@@ -85,6 +85,10 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
   mysql_mutex_init(key_master_info_data_lock, &data_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_master_info_start_stop_lock, &start_stop_lock,
                    MY_MUTEX_INIT_SLOW);
+  mysql_mutex_init(key_master_info_start_alter_lock, &start_alter_lock,
+                                      MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_master_info_start_alter_list_lock, &start_alter_list_lock,
+                                      MY_MUTEX_INIT_FAST);
   mysql_mutex_setflags(&run_lock, MYF_NO_DEADLOCK_DETECTION);
   mysql_mutex_setflags(&data_lock, MYF_NO_DEADLOCK_DETECTION);
   mysql_mutex_init(key_master_info_sleep_lock, &sleep_lock, MY_MUTEX_INIT_FAST);
@@ -92,6 +96,8 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
   mysql_cond_init(key_master_info_start_cond, &start_cond, NULL);
   mysql_cond_init(key_master_info_stop_cond, &stop_cond, NULL);
   mysql_cond_init(key_master_info_sleep_cond, &sleep_cond, NULL);
+  mysql_cond_init(key_master_info_start_alter_cond, &start_alter_cond, NULL);
+  mysql_cond_init(key_master_info_start_alter_list_cond, &start_alter_list_cond, NULL);
 }
 
 

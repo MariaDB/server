@@ -2141,6 +2141,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_delete_gtid_domain
         asrow_attribute
         opt_constraint_no_id
+        start_cmnd
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
 %type <NONE> sp_proc_stmt_statement sp_proc_stmt_return
@@ -2299,7 +2300,7 @@ verb_clause:
 
 /* Verb clauses, except begin and compound_statement */
 statement:
-          alter
+         start_cmnd alter
         | analyze
         | analyze_stmt_command
         | backup
@@ -7801,6 +7802,19 @@ string_list:
         | string_list ',' text_string
           { Lex->last_field->interval_list.push_back($3, thd->mem_root); }
         ;
+
+start_cmnd:
+          /* empty*/  {}
+          | START_SYM
+            {
+              if (thd->variables.pseudo_thread_id)
+                Lex->previous_commit_id= thd->variables.pseudo_thread_id;
+            }
+          | START_SYM ulonglong_num
+            {
+              Lex->previous_commit_id= $2;
+            }
+          ;
 
 /*
 ** Alter table
@@ -17981,6 +17995,19 @@ commit:
             lex->tx_chain= $3;
             lex->tx_release= $4;
           }
+        | COMMIT_SYM alter
+          {
+            LEX *lex=Lex;
+            lex->sql_command= SQLCOM_COMMIT_PREVIOUS;
+            if (thd->variables.pseudo_thread_id)
+              lex->previous_commit_id= thd->variables.pseudo_thread_id;
+          }
+        | COMMIT_SYM ulonglong_num alter
+          {
+            LEX *lex=Lex;
+            lex->sql_command= SQLCOM_COMMIT_PREVIOUS;
+            lex->previous_commit_id= $2;
+          }
         ;
 
 rollback:
@@ -18004,6 +18031,19 @@ rollback:
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_ROLLBACK_TO_SAVEPOINT;
             lex->ident= $4;
+          }
+        | ROLLBACK_SYM ALTER
+          {
+            LEX *lex=Lex;
+            lex->sql_command= SQLCOM_ROLLBACK_PREVIOUS;
+            if (thd->variables.pseudo_thread_id)
+              lex->previous_commit_id= thd->variables.pseudo_thread_id;
+          }
+        | ROLLBACK_SYM ulonglong_num ALTER
+          {
+            LEX *lex=Lex;
+            lex->sql_command= SQLCOM_ROLLBACK_PREVIOUS;
+            lex->previous_commit_id= $2;
           }
         ;
 

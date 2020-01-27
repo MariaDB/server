@@ -1794,6 +1794,7 @@ struct THD_TRANS
   }
   bool is_trx_read_write() const;
   void mark_trans_did_ddl() { m_unsafe_rollback_flags|= DID_DDL; }
+  void unmark_trans_did_ddl() {m_unsafe_rollback_flags &= ~DID_DDL;}
   bool trans_did_ddl() const {
     return (m_unsafe_rollback_flags & DID_DDL) != 0;
   }

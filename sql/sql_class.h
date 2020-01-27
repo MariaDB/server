@@ -79,6 +79,7 @@ class Wsrep_applier_service;
 class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
+struct rpl_parallel_thread;
 class Rpl_filter;
 class Query_log_event;
 class Load_log_event;
@@ -717,6 +718,7 @@ typedef struct system_variables
   my_bool binlog_annotate_row_events;
   my_bool binlog_direct_non_trans_update;
   my_bool column_compression_zlib_wrap;
+  my_bool opt_binlog_split_alter;
 
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
@@ -2197,6 +2199,7 @@ public:
   rpl_group_info* rgi_fake;
   /* Slave applier execution context */
   rpl_group_info* rgi_slave;
+  rpl_parallel_thread *rpt;
 
   union {
     rpl_io_thread_info *rpl_io_info;
@@ -2601,6 +2604,7 @@ public:
     bool on;                            // see ha_enable_transaction()
     XID_STATE xid_state;
     XID implicit_xid;
+    bool start_alter;
     WT_THD wt;                          ///< for deadlock detection
     Rows_log_event *m_pending_rows_event;
 
