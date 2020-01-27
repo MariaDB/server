@@ -815,7 +815,7 @@ void lex_end_stage1(LEX *lex)
   }
   else
   {
-    delete lex->sphead;
+    sp_head::destroy(lex->sphead);
     lex->sphead= NULL;
   }
 
@@ -3130,13 +3130,13 @@ void LEX::cleanup_lex_after_parse_error(THD *thd)
       DBUG_ASSERT(pkg == pkg->m_top_level_lex->sphead);
       pkg->restore_thd_mem_root(thd);
       LEX *top= pkg->m_top_level_lex;
-      delete pkg;
+      sp_package::destroy(pkg);
       thd->lex= top;
       thd->lex->sphead= NULL;
     }
     else
     {
-      delete thd->lex->sphead;
+      sp_head::destroy(thd->lex->sphead);
       thd->lex->sphead= NULL;
     }
   }
@@ -6515,7 +6515,7 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if (likely((sp= new sp_head(package, sph, agg_type))))
+  if (likely((sp= sp_head::create(package, sph, agg_type))))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(this);
@@ -8411,7 +8411,7 @@ sp_package *LEX::create_package_start(THD *thd,
       return 0;
     }
   }
-  if (unlikely(!(pkg= new sp_package(this, name_arg, sph))))
+  if (unlikely(!(pkg= sp_package::create(this, name_arg, sph))))
     return NULL;
   pkg->reset_thd_mem_root(thd);
   pkg->init(this);

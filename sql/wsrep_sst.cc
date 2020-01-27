@@ -49,6 +49,126 @@ const char* wsrep_sst_auth           = NULL;
 static const char* sst_auth_real     = NULL;
 my_bool wsrep_sst_donor_rejects_queries= FALSE;
 
+#define WSREP_EXTEND_TIMEOUT_INTERVAL 60
+#define WSREP_TIMEDWAIT_SECONDS 30
+
+bool sst_joiner_completed            = false;
+bool sst_donor_completed             = false;
+
+struct sst_thread_arg
+{
+  const char*     cmd;
+  char**          env;
+  char*           ret_str;
+  int             err;
+  mysql_mutex_t   lock;
+  mysql_cond_t    cond;
+
+  sst_thread_arg (const char* c, char** e)
+    : cmd(c), env(e), ret_str(0), err(-1)
+  {
+    mysql_mutex_init(key_LOCK_wsrep_sst_thread, &lock, MY_MUTEX_INIT_FAST);
+    mysql_cond_init(key_COND_wsrep_sst_thread, &cond, NULL);
+  }
+
+  ~sst_thread_arg()
+  {
+    mysql_cond_destroy  (&cond);
+    mysql_mutex_unlock  (&lock);
+    mysql_mutex_destroy (&lock);
+  }
+};
+
+static void wsrep_donor_monitor_end(void)
+{
+  mysql_mutex_lock(&LOCK_wsrep_donor_monitor);
+  sst_donor_completed= true;
+  mysql_cond_signal(&COND_wsrep_donor_monitor);
+  mysql_mutex_unlock(&LOCK_wsrep_donor_monitor);
+}
+
+static void wsrep_joiner_monitor_end(void)
+{
+  mysql_mutex_lock(&LOCK_wsrep_joiner_monitor);
+  sst_joiner_completed= true;
+  mysql_cond_signal(&COND_wsrep_joiner_monitor);
+  mysql_mutex_unlock(&LOCK_wsrep_joiner_monitor);
+}
+
+static void* wsrep_sst_donor_monitor_thread(void *arg __attribute__((unused)))
+{
+  int ret= 0;
+  unsigned long time_waited= 0;
+
+  mysql_mutex_lock(&LOCK_wsrep_donor_monitor);
+
+  WSREP_INFO("Donor monitor thread started to monitor");
+
+  wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
+                       // operate with wsrep_ready == OFF
+
+  while (!sst_donor_completed)
+  {
+    timespec ts;
+    set_timespec(ts, WSREP_TIMEDWAIT_SECONDS);
+    time_t start_time= time(NULL);
+    ret= mysql_cond_timedwait(&COND_wsrep_donor_monitor, &LOCK_wsrep_donor_monitor, &ts);
+    time_t end_time= time(NULL);
+    time_waited+= difftime(end_time, start_time);
+
+    if (ret == ETIMEDOUT && !sst_donor_completed)
+    {
+      WSREP_DEBUG("Donor waited %lu sec, extending systemd startup timeout as SST"
+                 "is not completed",
+                 time_waited);
+      service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
+        "WSREP state transfer ongoing...");
+    }
+  }
+
+  WSREP_INFO("Donor monitor thread ended with total time %lu sec", time_waited);
+  mysql_mutex_unlock(&LOCK_wsrep_donor_monitor);
+
+  return NULL;
+}
+
+static void* wsrep_sst_joiner_monitor_thread(void *arg __attribute__((unused)))
+{
+  int ret= 0;
+  unsigned long time_waited= 0;
+
+  mysql_mutex_lock(&LOCK_wsrep_joiner_monitor);
+
+  WSREP_INFO("Joiner monitor thread started to monitor");
+
+  wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
+                       // operate with wsrep_ready == OFF
+
+  while (!sst_joiner_completed)
+  {
+    timespec ts;
+    set_timespec(ts, WSREP_TIMEDWAIT_SECONDS);
+    time_t start_time= time(NULL);
+    ret= mysql_cond_timedwait(&COND_wsrep_joiner_monitor, &LOCK_wsrep_joiner_monitor, &ts);
+    time_t end_time= time(NULL);
+    time_waited+= difftime(end_time, start_time);
+
+    if (ret == ETIMEDOUT && !sst_joiner_completed)
+    {
+      WSREP_DEBUG("Joiner waited %lu sec, extending systemd startup timeout as SST"
+                 "is not completed",
+                 time_waited);
+      service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
+        "WSREP state transfer ongoing...");
+    }
+  }
+
+  WSREP_INFO("Joiner monitor thread ended with total time %lu sec", time_waited);
+  mysql_mutex_unlock(&LOCK_wsrep_joiner_monitor);
+
+  return NULL;
+}
+
 bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
 {
   if ((! var->save_result.string_value.str) ||
@@ -193,6 +313,7 @@ static void wsrep_sst_complete (THD*                thd,
 {
   Wsrep_client_service client_service(thd, thd->wsrep_cs());
   Wsrep_server_state::instance().sst_received(client_service, rcode);
+  wsrep_joiner_monitor_end();
 }
 
   /*
@@ -252,30 +373,6 @@ void wsrep_sst_received (THD*                thd,
       wsrep_sst_complete(thd,rcode);
     }
 }
-
-struct sst_thread_arg
-{
-  const char*     cmd;
-  char**          env;
-  char*           ret_str;
-  int             err;
-  mysql_mutex_t   lock;
-  mysql_cond_t    cond;
-
-  sst_thread_arg (const char* c, char** e)
-    : cmd(c), env(e), ret_str(0), err(-1)
-  {
-    mysql_mutex_init(key_LOCK_wsrep_sst_thread, &lock, MY_MUTEX_INIT_FAST);
-    mysql_cond_init(key_COND_wsrep_sst_thread, &cond, NULL);
-  }
-
-  ~sst_thread_arg()
-  {
-    mysql_cond_destroy  (&cond);
-    mysql_mutex_unlock  (&lock);
-    mysql_mutex_destroy (&lock);
-  }
-};
 
 static int sst_scan_uuid_seqno (const char* str,
                                 wsrep_uuid_t* uuid, wsrep_seqno_t* seqno)
@@ -442,10 +539,12 @@ static void* sst_joiner_thread (void* a)
     wsrep_uuid_t  ret_uuid = WSREP_UUID_UNDEFINED;
     wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
 
-    // in case of successfull receiver start, wait for SST completion/end
+    // in case of successfull receiver start, wait for SST
+    // completion/end
     char* tmp= my_fgets (out, out_len, proc.pipe());
 
     proc.wait();
+
     err= EINVAL;
 
     if (!tmp)
@@ -989,16 +1088,33 @@ static ssize_t sst_prepare_other (const char*  method,
     }
   }
 
-  pthread_t tmp;
+  pthread_t tmp, monitor;
   sst_thread_arg arg(cmd_str(), env());
+
   mysql_mutex_lock (&arg.lock);
-  ret = mysql_thread_create (key_wsrep_sst_joiner, &tmp, NULL, sst_joiner_thread, &arg);
+
+  ret = mysql_thread_create (key_wsrep_sst_joiner_monitor, &monitor, NULL, wsrep_sst_joiner_monitor_thread, NULL);
+
   if (ret)
   {
     WSREP_ERROR("sst_prepare_other(): mysql_thread_create() failed: %d (%s)",
                 ret, strerror(ret));
     return -ret;
   }
+
+  sst_joiner_completed= false;
+
+  ret= mysql_thread_create (key_wsrep_sst_joiner, &tmp, NULL, sst_joiner_thread, &arg);
+
+  if (ret)
+  {
+    WSREP_ERROR("sst_prepare_other(): mysql_thread_create() failed: %d (%s)",
+                ret, strerror(ret));
+
+    pthread_detach(monitor);
+    return -ret;
+  }
+
   mysql_cond_wait (&arg.cond, &arg.lock);
 
   *addr_out= arg.ret_str;
@@ -1012,6 +1128,7 @@ static ssize_t sst_prepare_other (const char*  method,
   }
 
   pthread_detach (tmp);
+  pthread_detach (monitor);
 
   return ret;
 }
@@ -1511,6 +1628,7 @@ static void* sst_donor_thread (void* a)
 
   wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
                        // operate with wsrep_ready == OFF
+
   wsp::process proc(arg->cmd, "r", arg->env);
 
   err= -proc.error();
@@ -1606,8 +1724,12 @@ wait_signal:
   wsrep::gtid gtid(wsrep::id(ret_uuid.data, sizeof(ret_uuid.data)),
                    wsrep::seqno(err ? wsrep::seqno::undefined() :
                                 wsrep::seqno(ret_seqno)));
+
   Wsrep_server_state::instance().sst_sent(gtid, err);
+
   proc.wait();
+
+  wsrep_donor_monitor_end();
 
   return NULL;
 }
@@ -1683,14 +1805,18 @@ static int sst_donate_other (const char*        method,
 
   pthread_t tmp;
   sst_thread_arg arg(cmd_str(), env);
+
   mysql_mutex_lock (&arg.lock);
-  ret = mysql_thread_create (key_wsrep_sst_donor, &tmp, NULL, sst_donor_thread, &arg);
+
+  ret= mysql_thread_create (key_wsrep_sst_donor, &tmp, NULL, sst_donor_thread, &arg);
+
   if (ret)
   {
     WSREP_ERROR("sst_donate_other(): mysql_thread_create() failed: %d (%s)",
                 ret, strerror(ret));
     return ret;
   }
+
   mysql_cond_wait (&arg.cond, &arg.lock);
 
   WSREP_INFO("sst_donor_thread signaled with %d", arg.err);
@@ -1732,6 +1858,18 @@ int wsrep_sst_donate(const std::string& msg,
                   "directory failed: %d", ret);
       return WSREP_CB_FAILURE;
     }
+  }
+
+  sst_donor_completed= false;
+  pthread_t monitor;
+
+  ret= mysql_thread_create (key_wsrep_sst_donor_monitor, &monitor, NULL, wsrep_sst_donor_monitor_thread, NULL);
+
+  if (ret)
+  {
+    WSREP_ERROR("sst_donate: mysql_thread_create() failed: %d (%s)",
+                ret, strerror(ret));
+    return WSREP_CB_FAILURE;
   }
 
   if (!strcmp (WSREP_SST_MYSQLDUMP, method))

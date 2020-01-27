@@ -18,7 +18,9 @@ typedef int(__stdcall* XGETREST) (char*, bool, PCSZ, PCSZ, PCSZ);
 /*  Functions used by REST.                                            */
 /***********************************************************************/
 XGETREST GetRestFunction(PGLOBAL g);
-int restGetFile(char* m, bool x, PCSZ http, PCSZ uri, PCSZ fn);
+#if defined(REST_SOURCE)
+extern "C" int restGetFile(char* m, bool xt, PCSZ http, PCSZ uri, PCSZ fn);
+#endif   // REST_SOURCE
 #if defined(MARIADB)
 PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char* tab, char* db, bool info);
 #endif  // !MARIADB

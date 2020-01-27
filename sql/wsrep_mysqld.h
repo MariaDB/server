@@ -310,6 +310,11 @@ extern mysql_mutex_t LOCK_wsrep_SR_pool;
 extern mysql_mutex_t LOCK_wsrep_SR_store;
 extern mysql_mutex_t LOCK_wsrep_config_state;
 extern mysql_mutex_t LOCK_wsrep_group_commit;
+extern mysql_mutex_t LOCK_wsrep_joiner_monitor;
+extern mysql_mutex_t LOCK_wsrep_donor_monitor;
+extern mysql_cond_t  COND_wsrep_joiner_monitor;
+extern mysql_cond_t  COND_wsrep_donor_monitor;
+
 extern my_bool       wsrep_emulate_bin_log;
 extern int           wsrep_to_isolation;
 extern my_bool       wsrep_preordered_opt;
@@ -339,6 +344,8 @@ extern PSI_mutex_key key_LOCK_wsrep_SR_store;
 extern PSI_mutex_key key_LOCK_wsrep_global_seqno;
 extern PSI_mutex_key key_LOCK_wsrep_thd_queue;
 extern PSI_cond_key  key_COND_wsrep_thd_queue;
+extern PSI_mutex_key key_LOCK_wsrep_joiner_monitor;
+extern PSI_mutex_key key_LOCK_wsrep_donor_monitor;
 
 extern PSI_file_key key_file_wsrep_gra_log;
 
@@ -346,6 +353,8 @@ extern PSI_thread_key key_wsrep_sst_joiner;
 extern PSI_thread_key key_wsrep_sst_donor;
 extern PSI_thread_key key_wsrep_rollbacker;
 extern PSI_thread_key key_wsrep_applier;
+extern PSI_thread_key key_wsrep_sst_joiner_monitor;
+extern PSI_thread_key key_wsrep_sst_donor_monitor;
 #endif /* HAVE_PSI_INTERFACE */
 
 

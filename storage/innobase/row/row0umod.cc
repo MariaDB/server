@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -236,6 +236,7 @@ static bool row_undo_mod_must_purge(undo_node_t* node, mtr_t* mtr)
 
 	btr_cur_t* btr_cur = btr_pcur_get_btr_cur(&node->pcur);
 	ut_ad(btr_cur->index->is_primary());
+	DEBUG_SYNC_C("rollback_purge_clust");
 
 	mtr->s_lock(&purge_sys.latch, __FILE__, __LINE__);
 
@@ -369,6 +370,7 @@ row_undo_mod_clust(
 	      == node->new_trx_id);
 
 	btr_pcur_commit_specify_mtr(pcur, &mtr);
+	DEBUG_SYNC_C("rollback_undo_pk");
 
 	if (err != DB_SUCCESS) {
 		goto func_exit;

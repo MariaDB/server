@@ -13,6 +13,7 @@ connection master;
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b VARCHAR(10), c VARCHAR(100));
 include/stop_slave.inc
 # 2. Corruption in master binlog and SHOW BINLOG EVENTS
+set @saved_dbug = @@global.debug_dbug;
 SET GLOBAL debug_dbug="+d,corrupt_read_log_event_char";
 SHOW BINLOG EVENTS;
 ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Wrong offset or I/O error
@@ -55,9 +56,9 @@ connection slave;
 include/diff_tables.inc [master:test.t1, slave:test.t1]
 # 8. Clean up
 connection master;
-SET GLOBAL debug_dbug= "";
+set @@global.debug_dbug = @saved_dbug;
 SET GLOBAL master_verify_checksum = @old_master_verify_checksum;
 DROP TABLE t1;
 connection slave;
-SET GLOBAL debug_dbug= "";
+set @@global.debug_dbug = @saved_dbug;
 include/rpl_end.inc

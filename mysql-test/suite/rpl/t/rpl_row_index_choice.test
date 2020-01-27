@@ -47,6 +47,7 @@ sync_slave_with_master;
 connection slave;
 ANALYZE TABLE t2;
 --echo # Slave will crash if using the wrong or no index
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,slave_crash_if_wrong_index,slave_crash_if_table_scan";
 
 connection master;
@@ -238,6 +239,5 @@ connection master;
 DROP TABLE t1;
 sync_slave_with_master;
 connection slave;
-SET GLOBAL debug_dbug="";
-
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 --source include/rpl_end.inc

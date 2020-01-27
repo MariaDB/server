@@ -15,8 +15,10 @@ select name from mutex_instances where name like 'wait/synch/mutex/sql/LOCK_wsre
 name	wait/synch/mutex/sql/LOCK_wsrep_cluster_config
 name	wait/synch/mutex/sql/LOCK_wsrep_config_state
 name	wait/synch/mutex/sql/LOCK_wsrep_desync
+name	wait/synch/mutex/sql/LOCK_wsrep_donor_monitor
 name	wait/synch/mutex/sql/LOCK_wsrep_group_commit
 name	wait/synch/mutex/sql/LOCK_wsrep_gtid_wait_upto
+name	wait/synch/mutex/sql/LOCK_wsrep_joiner_monitor
 name	wait/synch/mutex/sql/LOCK_wsrep_ready
 name	wait/synch/mutex/sql/LOCK_wsrep_replaying
 name	wait/synch/mutex/sql/LOCK_wsrep_slave_threads
@@ -25,6 +27,8 @@ name	wait/synch/mutex/sql/LOCK_wsrep_SR_store
 name	wait/synch/mutex/sql/LOCK_wsrep_sst
 name	wait/synch/mutex/sql/LOCK_wsrep_sst_init
 select name from cond_instances where name like 'wait/synch/cond/sql/COND_wsrep%' order by name;
+name	wait/synch/cond/sql/COND_wsrep_donor_monitor
+name	wait/synch/cond/sql/COND_wsrep_joiner_monitor
 name	wait/synch/cond/sql/COND_wsrep_ready
 name	wait/synch/cond/sql/COND_wsrep_replaying
 name	wait/synch/cond/sql/COND_wsrep_sst

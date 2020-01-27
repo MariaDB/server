@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -80,7 +80,7 @@ cmp_dfield_dfield(
 
 /** Compare a GIS data tuple to a physical record.
 @param[in] dtuple data tuple
-@param[in] rec B-tree record
+@param[in] rec R-tree record
 @param[in] offsets rec_get_offsets(rec)
 @param[in] mode compare mode
 @retval negative if dtuple is less than rec */
@@ -190,43 +190,23 @@ cmp_rec_rec_simple(
 					duplicate key value if applicable,
 					or NULL */
 	MY_ATTRIBUTE((nonnull(1,2,3,4), warn_unused_result));
-/** Compare two B-tree records.
-@param[in] rec1 B-tree record
-@param[in] rec2 B-tree record
-@param[in] offsets1 rec_get_offsets(rec1, index)
-@param[in] offsets2 rec_get_offsets(rec2, index)
-@param[in] index B-tree index
-@param[in] nulls_unequal true if this is for index cardinality
-statistics estimation, and innodb_stats_method=nulls_unequal
-or innodb_stats_method=nulls_ignored
-@param[out] matched_fields number of completely matched fields
-within the first field not completely matched
-@return the comparison result
-@retval 0 if rec1 is equal to rec2
-@retval negative if rec1 is less than rec2
-@retval positive if rec2 is greater than rec2 */
-int
-cmp_rec_rec_with_match(
-	const rec_t*		rec1,
-	const rec_t*		rec2,
-	const offset_t*		offsets1,
-	const offset_t*		offsets2,
-	const dict_index_t*	index,
-	bool			nulls_unequal,
-	ulint*			matched_fields);
 
-/** Compare two B-tree records.
+/** Compare two B-tree or R-tree records.
 Only the common first fields are compared, and externally stored field
 are treated as equal.
-@param[in]	rec1		B-tree record
-@param[in]	rec2		B-tree record
+@param[in]	rec1		record (possibly not on an index page)
+@param[in]	rec2		B-tree or R-tree record in an index page
 @param[in]	offsets1	rec_get_offsets(rec1, index)
 @param[in]	offsets2	rec_get_offsets(rec2, index)
+@param[in]	nulls_unequal	true if this is for index cardinality
+				statistics estimation with
+				innodb_stats_method=nulls_unequal
+				or innodb_stats_method=nulls_ignored
 @param[out]	matched_fields	number of completely matched fields
 				within the first field not completely matched
-@return positive, 0, negative if rec1 is greater, equal, less, than rec2,
-respectively */
-UNIV_INLINE
+@retval 0 if rec1 is equal to rec2
+@retval negative if rec1 is less than rec2
+@retval positive if rec1 is greater than rec2 */
 int
 cmp_rec_rec(
 	const rec_t*		rec1,
@@ -234,7 +214,9 @@ cmp_rec_rec(
 	const offset_t*		offsets1,
 	const offset_t*		offsets2,
 	const dict_index_t*	index,
-	ulint*			matched_fields = NULL);
+	bool			nulls_unequal = false,
+	ulint*			matched_fields = NULL)
+	MY_ATTRIBUTE((nonnull(1,2,3,4,5)));
 
 /** Compare two data fields.
 @param[in] dfield1 data field

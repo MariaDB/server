@@ -108,6 +108,7 @@ insert into t1 values (1) /* will not be applied on slave due to simulation */;
 # instruction to the dump thread
 
 connection slave;
+set @saved_dbug = @@global.debug_dbug;
 set @@global.debug_dbug='d,simulate_slave_unaware_checksum';
 start slave;
 --let $slave_io_errno= 1236
@@ -116,8 +117,7 @@ source include/wait_for_slave_io_error.inc;
 
 select count(*) as zero from t1;
 
-###connection master;
-set @@global.debug_dbug='';
+set @@global.debug_dbug = @saved_dbug;
 
 connection slave;
 source include/start_slave.inc;
@@ -129,10 +129,11 @@ source include/start_slave.inc;
 # C1. Failure by a client thread
 connection master;
 set @@global.master_verify_checksum = 1;
+set @save_dbug = @@session.debug_dbug;
 set @@session.debug_dbug='d,simulate_checksum_test_failure';
 --error ER_ERROR_WHEN_EXECUTING_COMMAND
 show binlog events;
-set @@session.debug_dbug='';
+SET debug_dbug= @save_dbug;
 set @@global.master_verify_checksum = default;
 
 #connection master;
@@ -149,6 +150,7 @@ connection slave;
 
 # C2. Failure by IO thread
 # instruction to io thread
+set @saved_dbug = @@global.debug_dbug;
 set @@global.debug_dbug='d,simulate_checksum_test_failure';
 start slave io_thread;
 # When the checksum error is detected, the slave sets error code 1913
@@ -158,7 +160,7 @@ start slave io_thread;
 --let $slave_io_errno= 1595,1913
 --let $show_slave_io_error= 0
 source include/wait_for_slave_io_error.inc;
-set @@global.debug_dbug='';
+set @@global.debug_dbug = @saved_dbug;
 
 # to make IO thread re-read it again w/o the failure
 start slave io_thread;
@@ -179,7 +181,7 @@ source include/wait_for_slave_sql_error.inc;
 
 # resuming SQL thread to parse out the event w/o the failure
 
-set @@global.debug_dbug=''; 
+set @@global.debug_dbug = @saved_dbug;
 source include/start_slave.inc;
 
 connection master;
