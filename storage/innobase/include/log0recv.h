@@ -368,7 +368,7 @@ struct recv_sys_t{
   @param[in] len length of the data to be stored
   @param[in] store_recv whether to store recv_t object
   @return pointer to len bytes of memory (never NULL) */
-  inline byte *alloc(uint32_t len, bool store_recv=false);
+  inline byte *alloc(size_t len, bool store_recv= false);
 
 #ifdef UNIV_DEBUG
   /** Find the redo_list element corresponding to a redo log record.
@@ -378,7 +378,7 @@ struct recv_sys_t{
 #endif
 
   /** @return the free length of the latest alloc() block, in bytes */
-  inline uint32_t get_free_len() const;
+  inline size_t get_free_len() const;
 };
 
 /** The recovery system */

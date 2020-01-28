@@ -870,16 +870,16 @@ void recv_sys_t::debug_free()
 	mutex_exit(&mutex);
 }
 
-inline uint32_t recv_sys_t::get_free_len() const
+inline size_t recv_sys_t::get_free_len() const
 {
   if (UT_LIST_GET_LEN(redo_list) == 0)
     return 0;
 
   return srv_page_size -
-	 static_cast<uint32_t>(UT_LIST_GET_FIRST(redo_list)->modify_clock);
+    static_cast<size_t>(UT_LIST_GET_FIRST(redo_list)->modify_clock);
 }
 
-inline byte* recv_sys_t::alloc(uint32_t len,bool store_recv)
+inline byte* recv_sys_t::alloc(size_t len, bool store_recv)
 {
   ut_ad(mutex_own(&mutex));
   ut_ad(len);
@@ -895,16 +895,16 @@ create_block:
     return block->frame;
   }
 
-  uint64_t free_offset= block->modify_clock;
+  size_t free_offset= static_cast<size_t>(block->modify_clock);
   ut_ad(free_offset <= srv_page_size);
 
-  if (store_recv
-      && (free_offset + len + sizeof(recv_t::data) + 1) > srv_page_size)
+  if (store_recv &&
+      free_offset + len + sizeof(recv_t::data) + 1 > srv_page_size)
     goto create_block;
 
   if (free_offset + len > srv_page_size)
     goto create_block;
-  block->modify_clock+= len;
+  block->modify_clock= free_offset + len;
   return block->frame + free_offset;
 }
 
@@ -1813,15 +1813,14 @@ inline void recv_sys_t::add(mlog_id_t type, const page_id_t page_id,
 
   /* Store the log record body in limited-size chunks, because the
   heap grows into the buffer pool. */
-  uint32_t len= uint32_t(rec_end - body);
+  size_t len= static_cast<size_t>(rec_end - body);
 
-  recv_t *recv= new (alloc(sizeof(recv_t), true))
-    recv_t(len, type, lsn, end_lsn);
+  recv_t *recv= new (alloc(sizeof *recv, true))
+    recv_t(static_cast<uint32_t>(len), type, lsn, end_lsn);
   recs.log.append(recv);
 
   for (recv_t::data_t *prev= nullptr;;) {
-    uint32_t data_free_limit = get_free_len() - sizeof(recv_t::data);
-    const uint32_t l= std::min(len, data_free_limit);
+    const size_t l= std::min(len, get_free_len() - sizeof(recv_t::data));
     recv_t::data_t *d= new (alloc(sizeof(recv_t::data) + l))
       recv_t::data_t(body, l);
     ut_d(find_block(d)->fix());
