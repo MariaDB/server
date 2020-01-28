@@ -1,0 +1,23 @@
+--source include/have_aria.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+CREATE TABLE `t` (
+  `col_1` varchar(255) NOT NULL DEFAULT '',
+  `col_2` varchar(255) NOT NULL,
+  `col_3` int(11) NOT NULL DEFAULT '0',
+  `col_4` int(11) NOT NULL DEFAULT '0'
+) ENGINE=Aria TRANSACTIONAL=0 PAGE_CHECKSUM=0;
+
+insert into t values
+  ('foobar','qux',0,0),('abcdef','qux',0,0);
+
+--let $datadir= `SELECT @@datadir`
+--source include/shutdown_mysqld.inc
+# maria_pack crashes by assert() if the bug is not fixed
+--exec cd $datadir && $MARIA_PACK -t test/t
+
+--source include/start_mysqld.inc
+SELECT * FROM t;
+
+DROP TABLE t;
