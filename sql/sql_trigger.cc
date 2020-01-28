@@ -1330,7 +1330,8 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
 */
 
 bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
-                                       const LEX_CSTRING *table_name, TABLE *table,
+                                       const LEX_CSTRING *table_name,
+                                       TABLE *table,
                                        bool names_only)
 {
   char path_buff[FN_REFLEN];

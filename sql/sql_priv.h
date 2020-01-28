@@ -180,6 +180,8 @@
 #define OPTION_NO_QUERY_CACHE           (1ULL << 39) // SELECT, user
 #define OPTION_PROCEDURE_CLAUSE         (1ULL << 40) // Internal usage
 #define SELECT_NO_UNLOCK                (1ULL << 41) // SELECT, intern
+#define SELECT_NO_UNLOCK                (1ULL << 41) // SELECT, intern
+#define OPTION_BIN_TMP_LOG_OFF          (1ULL << 42) // disable binlog, intern
 
 #define OPTION_LEX_FOUND_COMMENT        (1ULL << 0) //  intern, parser
 

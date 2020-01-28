@@ -7436,6 +7436,12 @@ void THD::reset_for_next_command(bool do_clear_error)
   DBUG_ENTER("THD::reset_for_next_command");
   DBUG_ASSERT(!spcont); /* not for substatements of routines */
   DBUG_ASSERT(!in_sub_stmt);
+  /*
+    Table maps should have been reset after previous statement except in the
+    case where we have locked tables
+  */
+  DBUG_ASSERT(binlog_table_maps == 0 ||
+              locked_tables_mode == LTM_LOCK_TABLES);
 
   if (likely(do_clear_error))
   {

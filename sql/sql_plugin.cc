@@ -2168,14 +2168,13 @@ static bool finalize_install(THD *thd, TABLE *table, const LEX_CSTRING *name,
     of the insert into the plugin table, so that it is not replicated in
     row based mode.
   */
-  tmp_disable_binlog(thd);
+  DBUG_ASSERT(!table->file->row_logging);
   table->use_all_columns();
   restore_record(table, s->default_values);
   table->field[0]->store(name->str, name->length, system_charset_info);
   table->field[1]->store(tmp->plugin_dl->dl.str, tmp->plugin_dl->dl.length,
                          files_charset_info);
   error= table->file->ha_write_row(table->record[0]);
-  reenable_binlog(thd);
   if (unlikely(error))
   {
     table->file->print_error(error, MYF(0));
@@ -2322,9 +2321,8 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
       of the delete from the plugin table, so that it is not replicated in
       row based mode.
     */
-    tmp_disable_binlog(thd);
+    table->file->row_logging= 0;                // No logging    
     error= table->file->ha_delete_row(table->record[0]);
-    reenable_binlog(thd);
     if (unlikely(error))
     {
       table->file->print_error(error, MYF(0));

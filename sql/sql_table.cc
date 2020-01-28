@@ -10471,6 +10471,7 @@ do_continue:;
         No additional logging of query is needed
       */
       binlog_done= 1;
+      DBUG_ASSERT(new_table->file->row_logging);
       new_table->mark_columns_needed_for_insert();
       thd->binlog_write_table_map(new_table, 1);
     }

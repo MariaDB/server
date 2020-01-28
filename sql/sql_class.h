@@ -75,14 +75,15 @@ void set_thd_stage_info(void *thd,
 #include "wsrep_condition_variable.h"
 
 class Wsrep_applier_service;
-
 #endif /* WITH_WSREP */
+
 class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
 class Rpl_filter;
 class Query_log_event;
 class Load_log_event;
+class Log_event_writer;
 class sp_rcontext;
 class sp_cache;
 class Lex_input_stream;
@@ -737,11 +738,6 @@ typedef struct system_variables
   my_bool query_cache_strip_comments;
   my_bool sql_log_slow;
   my_bool sql_log_bin;
-  /*
-    A flag to help detect whether binary logging was temporarily disabled
-    (see tmp_disable_binlog(A) macro).
-  */
-  my_bool sql_log_bin_off;
   my_bool binlog_annotate_row_events;
   my_bool binlog_direct_non_trans_update;
   my_bool column_compression_zlib_wrap;
@@ -2576,14 +2572,17 @@ public:
   */
   void binlog_start_trans_and_stmt();
   void binlog_set_stmt_begin();
-  int binlog_write_table_map(TABLE *table, bool is_transactional,
-                             bool *with_annotate= 0);
   int binlog_write_row(TABLE* table, bool is_transactional,
                        const uchar *buf);
   int binlog_delete_row(TABLE* table, bool is_transactional,
                         const uchar *buf);
   int binlog_update_row(TABLE* table, bool is_transactional,
                         const uchar *old_data, const uchar *new_data);
+  bool prepare_handlers_for_update(uint flag);
+  bool binlog_write_annotated_row(Log_event_writer *writer);
+  void binlog_prepare_for_row_logging();
+  bool binlog_write_table_maps();
+  bool binlog_write_table_map(TABLE *table, bool with_annotate);
   static void binlog_prepare_row_images(TABLE* table);
 
   void set_server_id(uint32 sid) { variables.server_id = sid; }
@@ -2677,22 +2676,20 @@ private:
   */
   enum_binlog_format current_stmt_binlog_format;
 
-  /*
-    Number of outstanding table maps, i.e., table maps in the
-    transaction cache.
-  */
-  uint binlog_table_maps;
 public:
+
+  /* 1 if binlog table maps has been written */
+  bool binlog_table_maps;
+
   void issue_unsafe_warnings();
   void reset_unsafe_warnings()
   { binlog_unsafe_warning_flags= 0; }
 
-  uint get_binlog_table_maps() const {
-    return binlog_table_maps;
-  }
-  void clear_binlog_table_maps() {
+  void reset_binlog_for_next_statement()
+  {
     binlog_table_maps= 0;
   }
+
 #endif /* MYSQL_CLIENT */
 
 public:
@@ -5170,11 +5167,10 @@ my_eof(THD *thd)
 #define tmp_disable_binlog(A)                                              \
   {ulonglong tmp_disable_binlog__save_options= (A)->variables.option_bits; \
   (A)->variables.option_bits&= ~OPTION_BIN_LOG;                            \
-  (A)->variables.sql_log_bin_off= 1;
+  (A)->variables.option_bits|= OPTION_BIN_TMP_LOG_OFF;
 
 #define reenable_binlog(A)                                                  \
-  (A)->variables.option_bits= tmp_disable_binlog__save_options;             \
-  (A)->variables.sql_log_bin_off= 0;}
+  (A)->variables.option_bits= tmp_disable_binlog__save_options; }
 
 
 inline date_conv_mode_t sql_mode_for_dates(THD *thd)

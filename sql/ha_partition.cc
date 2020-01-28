@@ -2131,12 +2131,10 @@ int ha_partition::copy_partitions(ulonglong * const copied,
       }
       else
       {
-        THD *thd= ha_thd();
         /* Copy record to new handler */
         (*copied)++;
-        tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
+        DBUG_ASSERT(!m_new_file[new_part]->row_logging);
         result= m_new_file[new_part]->ha_write_row(m_rec0);
-        reenable_binlog(thd);
         if (result)
           goto error;
       }
@@ -4374,11 +4372,10 @@ int ha_partition::write_row(const uchar * buf)
 
   start_part_bulk_insert(thd, part_id);
 
-  tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
+  DBUG_ASSERT(!m_file[part_id]->row_logging);
   error= m_file[part_id]->ha_write_row(buf);
   if (have_auto_increment && !table->s->next_number_keypart)
     set_auto_increment_if_higher(table->next_number_field);
-  reenable_binlog(thd);
 
 exit:
   table->auto_increment_field_not_null= saved_auto_inc_field_not_null;
@@ -4457,12 +4454,11 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
 
   m_last_part= new_part_id;
   start_part_bulk_insert(thd, new_part_id);
+  DBUG_ASSERT(!m_file[new_part_id]->row_logging);
   if (new_part_id == old_part_id)
   {
     DBUG_PRINT("info", ("Update in partition %u", (uint) new_part_id));
-    tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
     error= m_file[new_part_id]->ha_update_row(old_data, new_data);
-    reenable_binlog(thd);
     goto exit;
   }
   else
@@ -4481,16 +4477,12 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     table->next_number_field= NULL;
     DBUG_PRINT("info", ("Update from partition %u to partition %u",
 			(uint) old_part_id, (uint) new_part_id));
-    tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
     error= m_file[new_part_id]->ha_write_row((uchar*) new_data);
-    reenable_binlog(thd);
     table->next_number_field= saved_next_number_field;
     if (unlikely(error))
       goto exit;
 
-    tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
     error= m_file[old_part_id]->ha_delete_row(old_data);
-    reenable_binlog(thd);
     if (unlikely(error))
       goto exit;
   }
@@ -4592,9 +4584,8 @@ int ha_partition::delete_row(const uchar *buf)
   if (!bitmap_is_set(&(m_part_info->lock_partitions), m_last_part))
     DBUG_RETURN(HA_ERR_NOT_IN_LOCK_PARTITIONS);
 
-  tmp_disable_binlog(thd);
+  DBUG_ASSERT(!m_file[m_last_part]->row_logging);
   error= m_file[m_last_part]->ha_delete_row(buf);
-  reenable_binlog(thd);
   DBUG_RETURN(error);
 }
 

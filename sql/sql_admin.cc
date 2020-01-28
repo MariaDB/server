@@ -1027,9 +1027,7 @@ send_result_message:
                  *save_next_global= table->next_global;
       table->next_local= table->next_global= 0;
 
-      tmp_disable_binlog(thd); // binlogging is done by caller if wanted
       result_code= admin_recreate_table(thd, table);
-      reenable_binlog(thd);
       trans_commit_stmt(thd);
       trans_commit(thd);
       close_thread_tables(thd);

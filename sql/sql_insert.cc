@@ -959,6 +959,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     goto values_loop_end;
 
   THD_STAGE_INFO(thd, stage_update);
+  thd->decide_logging_format_low(table);
   do
   {
     DBUG_PRINT("info", ("iteration %llu", iteration));
@@ -1071,7 +1072,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         break;
       }
 
-      thd->decide_logging_format_low(table);
 #ifndef EMBEDDED_LIBRARY
       if (lock_type == TL_WRITE_DELAYED)
       {
@@ -3051,6 +3051,8 @@ bool Delayed_insert::open_and_lock_table()
     return TRUE;
   }
   table->copy_blobs= 1;
+
+  table->file->prepare_for_row_logging();
   return FALSE;
 }
 
@@ -3110,6 +3112,8 @@ pthread_handler_t handle_delayed_insert(void *arg)
       at which rows are inserted cannot be determined in mixed mode.
     */
     thd->set_current_stmt_binlog_format_row_if_mixed();
+    /* Don't annotate insert delayed binlog events */
+    thd->variables.binlog_annotate_row_events= 0;
 
     /*
       Clone tickets representing protection against GRL and the lock on
@@ -3314,8 +3318,19 @@ pthread_handler_t handle_delayed_insert(void *arg)
         di->table->file->delete_update_handler();
         di->group_count=0;
         mysql_audit_release(thd);
+        /*
+          Reset binlog. We can't call ha_reset() for the table as this will
+          reset the table maps we have calculated earlier.
+        */
         mysql_mutex_lock(&di->mutex);
       }
+
+      /*
+        Reset binlog. We can't call ha_reset() for the table as this will
+        reset the table maps we have calculated earlier.
+      */
+      thd->reset_binlog_for_next_statement();
+
       if (di->tables_in_use)
         mysql_cond_broadcast(&di->cond_client); // If waiting clients
     }
@@ -3407,9 +3422,7 @@ bool Delayed_insert::handle_inserts(void)
 {
   int error;
   ulong max_rows;
-  bool has_trans = TRUE;
-  bool using_ignore= 0, using_opt_replace= 0,
-       using_bin_log= mysql_bin_log.is_open();
+  bool using_ignore= 0, using_opt_replace= 0, using_bin_log;
   delayed_row *row;
   DBUG_ENTER("handle_inserts");
 
@@ -3443,7 +3456,13 @@ bool Delayed_insert::handle_inserts(void)
 
   if (table->file->ha_rnd_init_with_error(0))
     goto err;
+  /*
+    We have to call prepare_for_row_logging() as the second call to
+    handler_writes() will not have called decide_logging_format.
+  */
+  table->file->prepare_for_row_logging();
   table->file->prepare_for_insert();
+  using_bin_log= table->file->row_logging;
 
   /*
     We can't use row caching when using the binary log because if
@@ -3452,6 +3471,7 @@ bool Delayed_insert::handle_inserts(void)
   */
   if (!using_bin_log)
     table->file->extra(HA_EXTRA_WRITE_CACHE);
+
   mysql_mutex_lock(&mutex);
 
   while ((row=rows.get()))
@@ -3480,8 +3500,8 @@ bool Delayed_insert::handle_inserts(void)
         Guaranteed that the INSERT DELAYED STMT will not be here
         in SBR when mysql binlog is enabled.
       */
-      DBUG_ASSERT(!(mysql_bin_log.is_open() &&
-                  !thd.is_current_stmt_binlog_format_row()));
+      DBUG_ASSERT(!mysql_bin_log.is_open() ||
+                  thd.is_current_stmt_binlog_format_row());
 
       /*
         This is the first value of an INSERT statement.
@@ -3639,10 +3659,9 @@ bool Delayed_insert::handle_inserts(void)
 
     TODO: Move the logging to last in the sequence of rows.
   */
-  has_trans= thd.lex->sql_command == SQLCOM_CREATE_TABLE ||
-              table->file->has_transactions();
-  if (thd.is_current_stmt_binlog_format_row() &&
-      thd.binlog_flush_pending_rows_event(TRUE, has_trans))
+  if (table->file->row_logging &&
+      thd.binlog_flush_pending_rows_event(TRUE,
+                                          table->file->row_logging_has_trans))
     goto err;
 
   if (unlikely((error=table->file->extra(HA_EXTRA_NO_CACHE))))
@@ -4548,6 +4567,18 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     /* purecov: end */
   }
   table->s->table_creation_was_logged= save_table_creation_was_logged;
+  if (!table->s->tmp_table)
+    table->file->prepare_for_row_logging();
+
+  /*
+    If slave is converting a statement event to row events, log the original
+    create statement as an annotated row
+  */
+#ifdef HAVE_REPLICATION
+  if (thd->slave_thread && opt_replicate_annotate_row_events &&
+      thd->is_current_stmt_binlog_format_row())
+    thd->variables.binlog_annotate_row_events= 1;
+#endif
   DBUG_RETURN(table);
 }
 
@@ -4792,6 +4823,7 @@ bool binlog_create_table(THD *thd, TABLE *table)
     logged
   */
   thd->set_current_stmt_binlog_format_row();
+  table->file->prepare_for_row_logging();
   return binlog_show_create_table(thd, table, 0) != 0;
 }
 
@@ -4853,6 +4885,9 @@ bool select_create::send_eof()
   */
   if (table->s->tmp_table)
     thd->transaction.stmt.mark_created_temp_table();
+
+  if (thd->slave_thread)
+    thd->variables.binlog_annotate_row_events= 0;
 
   if (prepare_eof())
   {

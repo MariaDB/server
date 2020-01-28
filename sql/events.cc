@@ -1241,14 +1241,8 @@ Events::load_events_from_db(THD *thd)
                       TRUE);
 
 	/* All the dmls to mysql.events tables are stmt bin-logged. */
-        bool save_binlog_row_based;
-        if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-	  thd->set_current_stmt_binlog_format_stmt();
-
+        table->file->row_logging= 0;
         (void) table->file->ha_update_row(table->record[1], table->record[0]);
-
-        if (save_binlog_row_based)
-          thd->set_current_stmt_binlog_format_row();
 
         delete et;
         continue;

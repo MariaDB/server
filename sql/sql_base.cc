@@ -734,8 +734,9 @@ bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connection)
     Clear 'check_table_binlog_row_based_done' flag. For tables which were used
     by current substatement the flag is cleared as part of 'ha_reset()' call.
     For the rest of the open tables not used by current substament if this
-    flag is enabled as part of current substatement execution, clear the flag
-    explicitly.
+    flag is enabled as part of current substatement execution,
+    (for example when THD::binlog_write_table_maps() calls
+    prepare_for_row_logging()), clear the flag explicitly.
 
   NOTE
     The reason we reset query_id is that it's not enough to just test
@@ -759,7 +760,7 @@ static void mark_used_tables_as_free_for_reuse(THD *thd, TABLE *table)
       table->query_id= 0;
       table->file->ha_reset();
     }
-    else if (table->file->check_table_binlog_row_based_done)
+    else
       table->file->clear_cached_table_binlog_row_based_flag();
   }
   DBUG_VOID_RETURN;
@@ -1660,9 +1661,10 @@ static int set_partitions_as_used(TABLE_LIST *tl, TABLE *t)
                 needed to remedy problem before retrying again.
   @retval FALSE 't' was not locked, not a VIEW or an error happened.
 */
+
 bool is_locked_view(THD *thd, TABLE_LIST *t)
 {
-  DBUG_ENTER("check_locked_view");
+  DBUG_ENTER("is_locked_view");
   /*
    Is this table a view and not a base table?
    (it is work around to allow to open view with locked tables,
@@ -2212,8 +2214,8 @@ retry_share:
     my_error(ER_NOT_SEQUENCE, MYF(0), table_list->db.str, table_list->alias.str);
     DBUG_RETURN(true);
   }
-
   table->init(thd, table_list);
+  DBUG_ASSERT(thd->locked_tables_mode || table->file->row_logging == 0);
 
   DBUG_RETURN(FALSE);
 
@@ -3738,10 +3740,11 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
       temporary table or SEQUENCE (see sequence_insert()).
     */
     DBUG_ASSERT(is_temporary_table(tables) || tables->table->s->sequence);
-    if (tables->sequence && tables->table->s->table_type != TABLE_TYPE_SEQUENCE)
+    if (tables->sequence &&
+        tables->table->s->table_type != TABLE_TYPE_SEQUENCE)
     {
-        my_error(ER_NOT_SEQUENCE, MYF(0), tables->db.str, tables->alias.str);
-        DBUG_RETURN(true);
+      my_error(ER_NOT_SEQUENCE, MYF(0), tables->db.str, tables->alias.str);
+      DBUG_RETURN(true);
     }
   }
   else if (tables->open_type == OT_TEMPORARY_ONLY)
@@ -5214,7 +5217,9 @@ bool open_and_lock_tables(THD *thd, const DDL_options_st &options,
   if (lock_tables(thd, tables, counter, flags))
     goto err;
 
-  (void) read_statistics_for_tables_if_needed(thd, tables);
+  /* Don't read statistics tables when opening internal tables */
+  if (!(flags & MYSQL_OPEN_IGNORE_LOGGING_FORMAT))
+    (void) read_statistics_for_tables_if_needed(thd, tables);
   
   if (derived)
   {
@@ -5348,12 +5353,19 @@ bool open_tables_only_view_structure(THD *thd, TABLE_LIST *table_list,
 static void mark_real_tables_as_free_for_reuse(TABLE_LIST *table_list)
 {
   TABLE_LIST *table;
+  DBUG_ENTER("mark_real_tables_as_free_for_reuse");
+
+  /*
+    We have to make two loops as HA_EXTRA_DETACH_CHILDREN may
+    remove items from the table list that we have to reset
+  */
   for (table= table_list; table; table= table->next_global)
+  {
     if (!table->placeholder())
-    {
       table->table->query_id= 0;
-    }
+  }
   for (table= table_list; table; table= table->next_global)
+  {
     if (!table->placeholder())
     {
       /*
@@ -5364,6 +5376,8 @@ static void mark_real_tables_as_free_for_reuse(TABLE_LIST *table_list)
       */
       table->table->file->extra(HA_EXTRA_DETACH_CHILDREN);
     }
+  }
+  DBUG_VOID_RETURN;
 }
 
 
@@ -5428,7 +5442,7 @@ err:
 
 bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
 {
-  TABLE_LIST *table;
+  TABLE_LIST *table, *first_not_own;
   DBUG_ENTER("lock_tables");
   /*
     We can't meet statement requiring prelocking if we already
@@ -5438,7 +5452,9 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
               !thd->lex->requires_prelocking());
 
   if (!tables && !thd->lex->requires_prelocking())
-    DBUG_RETURN(thd->decide_logging_format(tables));
+    DBUG_RETURN(0);
+
+  first_not_own= thd->lex->first_not_own_table();
 
   /*
     Check for thd->locked_tables_mode to avoid a redundant
@@ -5454,13 +5470,26 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
   {
     DBUG_ASSERT(thd->lock == 0);	// You must lock everything at once
     TABLE **start,**ptr;
+    bool found_first_not_own= 0;
 
     if (!(ptr=start=(TABLE**) thd->alloc(sizeof(TABLE*)*count)))
       DBUG_RETURN(TRUE);
+
+    /*
+      Collect changes tables for table lock.
+      Mark own tables with query id as this is needed by
+      prepare_for_row_logging()
+    */
     for (table= tables; table; table= table->next_global)
     {
+      if (table == first_not_own)
+        found_first_not_own= 1;
       if (!table->placeholder())
-	*(ptr++)= table->table;
+      {
+        *(ptr++)= table->table;
+        if (!found_first_not_own)
+          table->table->query_id= thd->query_id;
+      }
     }
 
     DEBUG_SYNC(thd, "before_lock_tables_takes_lock");
@@ -5474,7 +5503,6 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
     if (thd->lex->requires_prelocking() &&
         thd->lex->sql_command != SQLCOM_LOCK_TABLES)
     {
-      TABLE_LIST *first_not_own= thd->lex->first_not_own_table();
       /*
         We just have done implicit LOCK TABLES, and now we have
         to emulate first open_and_lock_tables() after it.
@@ -5492,7 +5520,6 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
       {
         if (!table->placeholder())
         {
-          table->table->query_id= thd->query_id;
           if (check_lock_and_start_stmt(thd, thd->lex, table))
           {
             mysql_unlock_tables(thd, thd->lock);
@@ -5512,7 +5539,6 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
   }
   else
   {
-    TABLE_LIST *first_not_own= thd->lex->first_not_own_table();
     /*
       When open_and_lock_tables() is called for a single table out of
       a table list, the 'next_global' chain is temporarily broken. We
@@ -5528,6 +5554,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
       if (table->placeholder())
         continue;
 
+      table->table->query_id= thd->query_id;
       /*
         In a stored function or trigger we should ensure that we won't change
         a table that is already used by the calling statement.
@@ -5567,7 +5594,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
   }
 
   bool res= fix_all_session_vcol_exprs(thd, tables);
-  if (!res)
+  if (!res && !(flags & MYSQL_OPEN_IGNORE_LOGGING_FORMAT))
     res= thd->decide_logging_format(tables);
 
   DBUG_RETURN(res);
@@ -9005,6 +9032,7 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
   */
   if (open_and_lock_tables(thd, table_list, FALSE,
                            (MYSQL_OPEN_IGNORE_FLUSH |
+                            MYSQL_OPEN_IGNORE_LOGGING_FORMAT |
                             (table_list->lock_type < TL_WRITE_ALLOW_WRITE ?
                              MYSQL_LOCK_IGNORE_TIMEOUT : 0))))
   {
@@ -9016,6 +9044,7 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
   for (TABLE_LIST *tables= table_list; tables; tables= tables->next_global)
   {
     DBUG_ASSERT(tables->table->s->table_category == TABLE_CATEGORY_SYSTEM);
+    tables->table->file->row_logging= 0;
     tables->table->use_all_columns();
   }
   lex->restore_backup_query_tables_list(&query_tables_list_backup);
@@ -9103,8 +9132,9 @@ open_system_table_for_update(THD *thd, TABLE_LIST *one_table)
   {
     DBUG_ASSERT(table->s->table_category == TABLE_CATEGORY_SYSTEM);
     table->use_all_columns();
+    /* This table instance is not row logged */
+    table->file->row_logging= 0;
   }
-
   DBUG_RETURN(table);
 }
 
@@ -9137,6 +9167,8 @@ open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup)
   if ((table= open_ltable(thd, one_table, one_table->lock_type, flags)))
   {
     DBUG_ASSERT(table->s->table_category == TABLE_CATEGORY_LOG);
+    DBUG_ASSERT(!table->file->row_logging);
+
     /* Make sure all columns get assigned to a default value */
     table->use_all_columns();
     DBUG_ASSERT(table->s->no_replicate);

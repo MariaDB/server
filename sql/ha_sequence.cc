@@ -202,7 +202,11 @@ int ha_sequence::write_row(const uchar *buf)
   DBUG_ENTER("ha_sequence::write_row");
   DBUG_ASSERT(table->record[0] == buf);
 
-  row_already_logged= 0;
+  /*
+    Log to binary log even if this function has been called before
+    (The function ends by setting row_logging to 0)
+  */
+  row_logging= row_logging_init;
   if (unlikely(sequence->initialized == SEQUENCE::SEQ_IN_PREPARE))
   {
     /* This calls is from ha_open() as part of create table */
@@ -218,6 +222,7 @@ int ha_sequence::write_row(const uchar *buf)
     sequence->copy(&tmp_seq);
     if (likely(!(error= file->write_row(buf))))
       sequence->initialized= SEQUENCE::SEQ_READY_TO_USE;
+    row_logging= 0;
     DBUG_RETURN(error);
   }
   if (unlikely(sequence->initialized != SEQUENCE::SEQ_READY_TO_USE))
@@ -262,10 +267,12 @@ int ha_sequence::write_row(const uchar *buf)
       sequence->copy(&tmp_seq);
     rows_changed++;
     /* We have to do the logging while we hold the sequence mutex */
-    error= binlog_log_row(table, 0, buf, log_func);
-    row_already_logged= 1;
+    if (row_logging)
+      error= binlog_log_row(table, 0, buf, log_func);
   }
 
+  /* Row is already logged, don't log it again in ha_write_row() */
+  row_logging= 0;
   sequence->all_values_used= 0;
   if (!sequence_locked)
     sequence->write_unlock(table);

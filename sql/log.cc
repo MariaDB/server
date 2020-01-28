@@ -514,6 +514,12 @@ void Log_event_writer::add_status(enum_logged_status status)
     cache_data->add_status(status);
 }
 
+void Log_event_writer::set_incident()
+{
+  cache_data->set_incident();
+}
+
+
 class binlog_cache_mngr {
 public:
   binlog_cache_mngr(my_off_t param_max_binlog_stmt_cache_size,
@@ -714,7 +720,6 @@ bool Log_to_csv_event_handler::
   uint field_index;
   Silence_log_table_errors error_handler;
   Open_tables_backup open_tables_backup;
-  ulonglong save_thd_options;
   bool save_time_zone_used;
   DBUG_ENTER("log_general");
 
@@ -723,9 +728,6 @@ bool Log_to_csv_event_handler::
     which will set thd->time_zone_used
   */
   save_time_zone_used= thd->time_zone_used;
-
-  save_thd_options= thd->variables.option_bits;
-  thd->variables.option_bits&= ~OPTION_BIN_LOG;
 
   table_list.init_one_table(&MYSQL_SCHEMA_NAME, &GENERAL_LOG_NAME, 0,
                             TL_WRITE_CONCURRENT_INSERT);
@@ -806,7 +808,6 @@ bool Log_to_csv_event_handler::
     table->field[field_index]->set_default();
   }
 
-  /* log table entries are not replicated */
   if (table->file->ha_write_row(table->record[0]))
     goto err;
 
@@ -827,7 +828,6 @@ err:
   if (need_close)
     close_log_table(thd, &open_tables_backup);
 
-  thd->variables.option_bits= save_thd_options;
   thd->time_zone_used= save_time_zone_used;
   DBUG_RETURN(result);
 }
@@ -880,7 +880,6 @@ bool Log_to_csv_event_handler::
   ulong lock_time=  (ulong) MY_MIN(lock_utime/1000000, TIME_MAX_VALUE_SECONDS);
   ulong query_time_micro= (ulong) (query_utime % 1000000);
   ulong lock_time_micro=  (ulong) (lock_utime % 1000000);
-
   DBUG_ENTER("Log_to_csv_event_handler::log_slow");
 
   thd->push_internal_handler(& error_handler);
@@ -997,7 +996,6 @@ bool Log_to_csv_event_handler::
                               0, TRUE))
     goto err;
 
-  /* log table entries are not replicated */
   if (table->file->ha_write_row(table->record[0]))
     goto err;
 
@@ -1982,7 +1980,7 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
     if (cache_mngr->trx_cache.has_incident())
       error= mysql_bin_log.write_incident(thd);
 
-    thd->clear_binlog_table_maps();
+    thd->reset_binlog_for_next_statement();
 
     cache_mngr->reset(false, true);
   }
@@ -2253,6 +2251,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
       we're here because cache_log was flushed in MYSQL_BIN_LOG::log_xid()
     */
     cache_mngr->reset(false, true);
+    thd->reset_binlog_for_next_statement();
     DBUG_RETURN(error);
   }
   if (!wsrep_emulate_bin_log && mysql_bin_log.check_write_error(thd))
@@ -2297,6 +2296,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   */
   if (!all)
     cache_mngr->trx_cache.set_prev_position(MY_OFF_T_UNDEF);
+  thd->reset_binlog_for_next_statement();
 
   DBUG_RETURN(error);
 }
@@ -2478,14 +2478,14 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 
   /*
     When a SAVEPOINT is executed inside a stored function/trigger we force the
-    pending event to be flushed with a STMT_END_F flag and clear the table maps
+    pending event to be flushed with a STMT_END_F flag and reset binlog
     as well to ensure that following DMLs will have a clean state to start
     with. ROLLBACK inside a stored routine has to finalize possibly existing
     current row-based pending event with cleaning up table maps. That ensures
     that following DMLs will have a clean state to start with.
    */
   if (thd->in_sub_stmt)
-    thd->clear_binlog_table_maps();
+    thd->reset_binlog_for_next_statement();
 
   DBUG_RETURN(0);
 }
@@ -5773,7 +5773,7 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
       We only update the saved position if the old one was undefined,
       the reason is that there are some cases (e.g., for CREATE-SELECT)
       where the position is saved twice (e.g., both in
-      select_create::prepare() and THD::binlog_write_table_map()) , but
+      select_create::prepare() and binlog_write_table_map()) , but
       we should use the first. This means that calls to this function
       can be used to start the statement before the first table map
       event, to include some extra events.
@@ -5900,44 +5900,148 @@ binlog_start_consistent_snapshot(handlerton *hton, THD *thd)
   DBUG_RETURN(err);
 }
 
+
+/**
+   Prepare all tables that are updated for row logging
+
+   Annotate events and table maps are written by binlog_write_table_maps()
+*/
+
+void THD::binlog_prepare_for_row_logging()
+{
+  DBUG_ENTER("THD::binlog_prepare_for_row_logging");
+  for (TABLE *table= open_tables ; table; table= table->next)
+  {
+    if (table->query_id == query_id && table->current_lock == F_WRLCK)
+      table->file->prepare_for_row_logging();
+  }
+  DBUG_VOID_RETURN;
+}
+
+/**
+   Write annnotated row event (the query) if needed
+*/
+
+bool THD::binlog_write_annotated_row(Log_event_writer *writer)
+{
+  int error;
+  DBUG_ENTER("THD::binlog_write_annotated_row");
+
+  if (!(IF_WSREP(!wsrep_fragments_certified_for_stmt(this), true) &&
+        variables.binlog_annotate_row_events &&
+        query_length()))
+    DBUG_RETURN(0);
+
+  Annotate_rows_log_event anno(this, 0, false);
+  if (unlikely((error= writer->write(&anno))))
+  {
+    if (my_errno == EFBIG)
+      writer->set_incident();
+    DBUG_RETURN(error);
+  }
+  DBUG_RETURN(0);
+}
+
+
+/**
+   Write table map events for all tables that are using row logging.
+   This includes all tables used by this statement, including tables
+   used in triggers.
+
+   Also write annotate events and start transactions.
+   This is using the "tables_with_row_logging" list prepared by
+   THD::binlog_prepare_for_row_logging
+*/
+
+bool THD::binlog_write_table_maps()
+{
+  bool with_annotate;
+  MYSQL_LOCK *locks[2], **locks_end= locks;
+  DBUG_ENTER("THD::binlog_write_table_maps");
+
+  DBUG_ASSERT(!binlog_table_maps);
+  DBUG_ASSERT(is_current_stmt_binlog_format_row());
+
+  /* Initialize cache_mngr once per statement */
+  binlog_start_trans_and_stmt();
+  with_annotate= 1;                    // Write annotate with first map
+
+  if ((*locks_end= extra_lock))
+    locks_end++;
+  if ((*locks_end= lock))
+    locks_end++;
+
+  for (MYSQL_LOCK **cur_lock= locks ; cur_lock < locks_end ; cur_lock++)
+  {
+    TABLE **const end_ptr= (*cur_lock)->table + (*cur_lock)->table_count;
+    for (TABLE **table_ptr= (*cur_lock)->table;
+         table_ptr != end_ptr ;
+         ++table_ptr)
+    {
+      TABLE *table= *table_ptr;
+      bool restore= 0;
+      /*
+        We have to also write table maps for tables that have not yet been
+        used, like for tables in after triggers
+      */
+      if (!table->file->row_logging &&
+          table->query_id != query_id && table->current_lock == F_WRLCK)
+      {
+        if (table->file->prepare_for_row_logging())
+          restore= 1;
+      }
+      if (table->file->row_logging)
+      {
+        if (binlog_write_table_map(table, with_annotate))
+          DBUG_RETURN(1);
+        with_annotate= 0;
+      }
+      if (restore)
+      {
+        /*
+          Restore original setting so that it doesn't cause problem for the
+          next statement
+        */
+        table->file->row_logging= table->file->row_logging_init= 0;
+      }
+    }
+  }
+  binlog_table_maps= 1;                         // Table maps written
+  DBUG_RETURN(0);
+}
+
+
 /**
   This function writes a table map to the binary log. 
   Note that in order to keep the signature uniform with related methods,
   we use a redundant parameter to indicate whether a transactional table
   was changed or not.
 
-  If with_annotate != NULL and
-  *with_annotate = TRUE write also Annotate_rows before the table map.
- 
   @param table             a pointer to the table.
-  @param is_transactional  @c true indicates a transactional table,
-                           otherwise @c false a non-transactional.
+  @param with_annotate  If true call binlog_write_annotated_row()
+
   @return
     nonzero if an error pops up when writing the table map event.
 */
-int THD::binlog_write_table_map(TABLE *table, bool is_transactional,
-                                bool *with_annotate)
+
+bool THD::binlog_write_table_map(TABLE *table, bool with_annotate)
 {
   int error;
+  bool is_transactional= table->file->row_logging_has_trans;
   DBUG_ENTER("THD::binlog_write_table_map");
   DBUG_PRINT("enter", ("table: %p  (%s: #%lu)",
                        table, table->s->table_name.str,
                        table->s->table_map_id));
 
+  /* Pre-conditions */
+  DBUG_ASSERT(table->s->table_map_id != ULONG_MAX);
+
   /* Ensure that all events in a GTID group are in the same cache */
   if (variables.option_bits & OPTION_GTID_BEGIN)
     is_transactional= 1;
 
-  /* Pre-conditions */
-  DBUG_ASSERT(is_current_stmt_binlog_format_row());
-  DBUG_ASSERT(WSREP_EMULATE_BINLOG_NNULL(this) || mysql_bin_log.is_open());
-  DBUG_ASSERT(table->s->table_map_id != ULONG_MAX);
-
   Table_map_log_event
     the_event(this, table, table->s->table_map_id, is_transactional);
-
-  if (binlog_table_maps == 0)
-    binlog_start_trans_and_stmt();
 
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
@@ -5946,24 +6050,16 @@ int THD::binlog_write_table_map(TABLE *table, bool is_transactional,
   IO_CACHE *file= &cache_data->cache_log;
   Log_event_writer writer(file, cache_data);
 
-  if (with_annotate && *with_annotate)
-  {
-    Annotate_rows_log_event anno(table->in_use, is_transactional, false);
-    /* Annotate event should be written not more than once */
-    *with_annotate= 0;
-    if (unlikely((error= writer.write(&anno))))
-    {
-      if (my_errno == EFBIG)
-        cache_data->set_incident();
-      DBUG_RETURN(error);
-    }
-  }
+  if (with_annotate)
+    if (binlog_write_annotated_row(&writer))
+      DBUG_RETURN(1);
+
   if (unlikely((error= writer.write(&the_event))))
     DBUG_RETURN(error);
 
-  binlog_table_maps++;
   DBUG_RETURN(0);
 }
+
 
 /**
   This function retrieves a pending row event from a cache which is
@@ -10848,7 +10944,7 @@ void wsrep_thd_binlog_trx_reset(THD * thd)
       cache_mngr->stmt_cache.reset();
     }
   }
-  thd->clear_binlog_table_maps();
+  thd->reset_binlog_for_next_statement();
   DBUG_VOID_RETURN;
 }
 
@@ -10874,7 +10970,6 @@ bool wsrep_stmt_rollback_is_safe(THD* thd)
 
   binlog_cache_mngr *cache_mngr= 
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-
 
   if (binlog_hton && cache_mngr)
   {

@@ -56,6 +56,7 @@ create or replace table t1 (a int primary key) select a from t2;
 
 # Same with temporary table
 create temporary table t9 (a int);
+
 --error ER_DUP_ENTRY
 create or replace temporary table t9 (a int primary key) select a from t2;
 

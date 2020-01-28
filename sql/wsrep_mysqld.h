@@ -222,7 +222,7 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 /* use xxxxxx_NNULL macros when thd pointer is guaranteed to be non-null to
  * avoid compiler warnings (GCC 6 and later) */
 #define WSREP_NNULL(thd) \
-  (WSREP_ON && thd->variables.wsrep_on)
+  (thd->variables.wsrep_on && WSREP_ON)
 
 #define WSREP(thd) \
   (thd && WSREP_NNULL(thd))

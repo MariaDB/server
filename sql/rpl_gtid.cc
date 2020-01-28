@@ -423,10 +423,12 @@ rpl_slave_state::truncate_state_table(THD *thd)
   TABLE_LIST tlist;
   int err= 0;
 
-  tmp_disable_binlog(thd);
-  tlist.init_one_table(&MYSQL_SCHEMA_NAME, &rpl_gtid_slave_state_table_name, NULL, TL_WRITE);
-  if (!(err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
+  tlist.init_one_table(&MYSQL_SCHEMA_NAME, &rpl_gtid_slave_state_table_name,
+                       NULL, TL_WRITE);
+  if (!(err= open_and_lock_tables(thd, &tlist, FALSE,
+                                  MYSQL_OPEN_IGNORE_LOGGING_FORMAT)))
   {
+    DBUG_ASSERT(!tlist.table->file->row_logging);
     tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED, "mysql",
                      rpl_gtid_slave_state_table_name.str);
     err= tlist.table->file->ha_truncate();
@@ -445,8 +447,6 @@ rpl_slave_state::truncate_state_table(THD *thd)
     }
     thd->mdl_context.release_transactional_locks();
   }
-
-  reenable_binlog(thd);
   return err;
 }
 
@@ -676,6 +676,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   table_opened= true;
   table= tlist.table;
   hton= table->s->db_type();
+  table->file->row_logging= 0;                  // No binary logging
 
   if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;

@@ -610,6 +610,7 @@ given at all. */
 #define HA_CREATE_USED_SEQUENCE           (1UL << 25)
 
 typedef ulonglong alter_table_operations;
+typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 
 /*
   These flags are set by the parser and describes the type of
@@ -3050,8 +3051,6 @@ public:
   bool mark_trx_read_write_done;           /* mark_trx_read_write was called */
   bool check_table_binlog_row_based_done; /* check_table_binlog.. was called */
   bool check_table_binlog_row_based_result; /* cached check_table_binlog... */
-  /* Set to 1 if handler logged last insert/update/delete operation */
-  bool row_already_logged;
   /* 
     TRUE <=> the engine guarantees that returned records are within the range
     being scanned.
@@ -3192,9 +3191,15 @@ public:
   void end_psi_batch_mode();
 
   bool set_top_table_fields;
+
   struct TABLE *top_table;
   Field **top_table_field;
   uint top_table_fields;
+
+  /* If we have row logging enabled for this table */
+  bool row_logging, row_logging_init;
+  /* If the row logging should be done in transaction cache */
+  bool row_logging_has_trans;
 
 private:
   /**
@@ -3213,7 +3218,6 @@ private:
   /** Stores next_insert_id for handling duplicate key errors. */
   ulonglong m_prev_insert_id;
 
-
 public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
@@ -3223,7 +3227,6 @@ public:
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
     check_table_binlog_row_based_result(0),
-    row_already_logged(0),
     in_range_check_pushed_down(FALSE), errkey(-1),
     key_used_on_scan(MAX_KEY),
     active_index(MAX_KEY), keyread(MAX_KEY),
@@ -3242,6 +3245,7 @@ public:
     m_psi_locker(NULL),
     set_top_table_fields(FALSE), top_table(0),
     top_table_field(0), top_table_fields(0),
+    row_logging(0), row_logging_init(0),
     m_lock_type(F_UNLCK), ha_share(NULL), m_prev_insert_id(0)
   {
     DBUG_PRINT("info",
@@ -4598,13 +4602,17 @@ protected:
   virtual int delete_table(const char *name);
 
 public:
-  bool check_table_binlog_row_based(bool binlog_row);
+  bool check_table_binlog_row_based();
+  bool prepare_for_row_logging();
   int prepare_for_insert(bool force_update_handler= 0);
+  int binlog_log_row(TABLE *table,
+                     const uchar *before_record,
+                     const uchar *after_record,
+                     Log_func *log_func);
 
   inline void clear_cached_table_binlog_row_based_flag()
   {
     check_table_binlog_row_based_done= 0;
-    check_table_binlog_row_based_result= 0;
   }
 private:
   /* Cache result to avoid extra calls */
@@ -4619,7 +4627,7 @@ private:
 
 private:
   void mark_trx_read_write_internal();
-  bool check_table_binlog_row_based_internal(bool binlog_row);
+  bool check_table_binlog_row_based_internal();
 
 protected:
   /*
@@ -5202,7 +5210,6 @@ int binlog_log_row(TABLE* table,
     if (unlikely(this_tracker)) \
       tracker->stop_tracking(table->in_use); \
   }
-int binlog_write_table_map(THD *thd, TABLE *table, bool with_annotate);
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag);
 void print_keydup_error(TABLE *table, KEY *key, myf errflag);
 

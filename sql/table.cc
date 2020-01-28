@@ -5269,7 +5269,6 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   /* used in RBR Triggers */
   master_had_triggers= 0;
 #endif
-
   /* Catch wrong handling of the auto_increment_field_not_null. */
   DBUG_ASSERT(!auto_increment_field_not_null);
   auto_increment_field_not_null= FALSE;
@@ -5284,7 +5283,6 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   }
 
   notnull_cond= 0;
-
   DBUG_ASSERT(!file->keyread_enabled());
 
   restore_record(this, s->default_values);
@@ -7293,8 +7291,7 @@ void TABLE::mark_columns_per_binlog_row_image()
     If in RBR we may need to mark some extra columns,
     depending on the binlog-row-image command line argument.
    */
-  if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
-      thd->is_current_stmt_binlog_format_row() &&
+  if (file->row_logging &&
       !ha_check_storage_engine_flag(s->db_type(), HTON_NO_BINLOG_ROW_OPT))
   {
     /* if there is no PK, then mark all columns for the BI. */

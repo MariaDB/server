@@ -942,6 +942,7 @@ public:
   int write_footer();
   my_off_t pos() { return my_b_safe_tell(file); }
   void add_status(enum_logged_status status);
+  void set_incident();
 
   Log_event_writer(IO_CACHE *file_arg, binlog_cache_data *cache_data_arg,
                    Binlog_crypt_data *cr= 0)

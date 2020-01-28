@@ -3582,20 +3582,19 @@ void set_slave_thread_options(THD* thd)
      when max_join_size is 4G, OPTION_BIG_SELECTS is automatically set, but
      only for client threads.
   */
-  ulonglong options= thd->variables.option_bits | OPTION_BIG_SELECTS;
-  if (opt_log_slave_updates)
-    options|= OPTION_BIN_LOG;
-  else
+  ulonglong options= (thd->variables.option_bits |
+                      OPTION_BIG_SELECTS | OPTION_BIN_LOG);
+  if (!opt_log_slave_updates)
     options&= ~OPTION_BIN_LOG;
-  thd->variables.option_bits= options;
-  thd->variables.completion_type= 0;
-
   /* For easier test in LOGGER::log_command */
   if (thd->variables.log_disabled_statements & LOG_DISABLE_SLAVE)
-    thd->variables.option_bits|= OPTION_LOG_OFF;
+    options|= OPTION_LOG_OFF;
+  thd->variables.option_bits= options;
 
-  thd->variables.sql_log_slow= !MY_TEST(thd->variables.log_slow_disabled_statements &
-                                        LOG_SLOW_DISABLE_SLAVE);
+  thd->variables.completion_type= 0;
+  thd->variables.sql_log_slow=
+    !MY_TEST(thd->variables.log_slow_disabled_statements &
+             LOG_SLOW_DISABLE_SLAVE);
   DBUG_VOID_RETURN;
 }
 
@@ -8196,7 +8195,7 @@ void Rows_event_tracker::reset()
 
 
 /*
-  Update  log event tracking data.
+  Update log event tracking data.
 
   The first- and last- seen event binlog position get memorized, as
   well as the end-of-statement status of the last one.
@@ -8206,6 +8205,7 @@ void Rows_event_tracker::update(const char* file_name, my_off_t pos,
                                 const char* buf,
                                 const Format_description_log_event *fdle)
 {
+  DBUG_ENTER("Rows_event_tracker::update");
   if (!first_seen)
   {
     first_seen= pos;
@@ -8214,6 +8214,7 @@ void Rows_event_tracker::update(const char* file_name, my_off_t pos,
   last_seen= pos;
   DBUG_ASSERT(stmt_end_seen == 0);              // We can only have one
   stmt_end_seen= get_row_event_stmt_end(buf, fdle);
+  DBUG_VOID_RETURN;
 };
 
 

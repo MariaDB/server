@@ -799,7 +799,10 @@ my_bool Log_event::need_checksum()
 int Log_event_writer::write_internal(const uchar *pos, size_t len)
 {
   if (my_b_safe_write(file, pos, len))
+  {
+    DBUG_PRINT("error", ("write to log failed: %d", my_errno));
     return 1;
+  }
   bytes_written+= len;
   return 0;
 }
@@ -6153,13 +6156,10 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
               (tbl->s->db.str[tbl->s->db.length] == 0));
   DBUG_ASSERT(tbl->s->table_name.str[tbl->s->table_name.length] == 0);
 
-#ifdef MYSQL_SERVER
   binlog_type_info_array= (Binlog_type_info *)thd->alloc(m_table->s->fields *
                                                    sizeof(Binlog_type_info));
   for (uint i= 0; i <  m_table->s->fields; i++)
     binlog_type_info_array[i]= m_table->field[i]->binlog_type_info();
-#endif
-
 
   m_data_size=  TABLE_MAP_HEADER_LEN;
   DBUG_EXECUTE_IF("old_row_based_repl_4_byte_map_id_master", m_data_size= 6;);
@@ -7079,14 +7079,14 @@ bool Rows_log_event::process_triggers(trg_event_type event,
   m_table->triggers->mark_fields_used(event);
   if (slave_run_triggers_for_rbr == SLAVE_RUN_TRIGGERS_FOR_RBR_YES)
   {
-    tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
     result= m_table->triggers->process_triggers(thd, event,
-                                              time_type, old_row_is_record1);
-    reenable_binlog(thd);
+                                                time_type,
+                                                old_row_is_record1);
   }
   else
     result= m_table->triggers->process_triggers(thd, event,
-                                              time_type, old_row_is_record1);
+                                                time_type,
+                                                old_row_is_record1);
 
   DBUG_RETURN(result);
 }
