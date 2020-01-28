@@ -23,10 +23,10 @@ SET(MAN1_SERVER innochecksum.1 my_print_defaults.1 myisam_ftdump.1 myisamchk.1
 		mysqld_multi.1 mysqld_safe.1 mysqldumpslow.1 mysqlhotcopy.1
 		mysqltest.1 perror.1 replace.1 resolve_stack_dump.1
 		resolveip.1 mariadb-service-convert.1
-		mysqld_safe_helper.1 tokuftdump.1 wsrep_sst_common.1
+		mysqld_safe_helper.1 wsrep_sst_common.1
 		wsrep_sst_mysqldump.1 wsrep_sst_rsync.1
 		wsrep_sst_xtrabackup-v2.1 wsrep_sst_xtrabackup.1
-		galera_recovery.1 galera_new_cluster.1 tokuft_logprint.1
+		galera_recovery.1 galera_new_cluster.1
 		mysql_ldb.1
 		wsrep_sst_mariabackup.1 mbstream.1 mariabackup.1
 		wsrep_sst_rsync_wan.1)
