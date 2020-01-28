@@ -3806,6 +3806,11 @@ funct_exit:
 			trx_commit_for_mysql(trx);
 		}
 
+		/* Add the table to fts queue if drop table fails */
+		if (err != DB_SUCCESS && table->fts) {
+			fts_optimize_add_table(table);
+		}
+
 		row_mysql_unlock_data_dictionary(trx);
 	}
 
