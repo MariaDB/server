@@ -378,7 +378,7 @@ struct recv_sys_t{
 #endif
 
   /** @return the free length of the latest alloc() block, in bytes */
-  inline ulint get_free_len() const;
+  inline uint32_t get_free_len() const;
 };
 
 /** The recovery system */

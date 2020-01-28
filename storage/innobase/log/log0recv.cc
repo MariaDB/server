@@ -870,13 +870,13 @@ void recv_sys_t::debug_free()
 	mutex_exit(&mutex);
 }
 
-inline ulint recv_sys_t::get_free_len() const
+inline uint32_t recv_sys_t::get_free_len() const
 {
   if (UT_LIST_GET_LEN(redo_list) == 0)
     return 0;
 
   return srv_page_size -
-	 static_cast<ulint>(UT_LIST_GET_FIRST(redo_list)->modify_clock);
+	 static_cast<uint32_t>(UT_LIST_GET_FIRST(redo_list)->modify_clock);
 }
 
 inline byte* recv_sys_t::alloc(uint32_t len,bool store_recv)
