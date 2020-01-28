@@ -1,0 +1,2 @@
+SET(MAN1_TOKUDB tokuftdump.1 tokuft_logprint.1)
+INSTALL(FILES ${MAN1_TOKUDB} DESTINATION ${INSTALL_MANDIR}/man1 COMPONENT tokudb-engine)
