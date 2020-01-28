@@ -11148,6 +11148,74 @@ make_outerjoin_info(JOIN *join)
 }
 
 
+/*
+  @brief
+    Build a temporary join prefix condition for JOIN_TABs up to the last tab
+
+  @param  ret  OUT  the condition is returned here
+
+  @return
+     false  OK
+     true   Out of memory
+
+  @detail
+    Walk through the join prefix (from the first table to the last_tab) and
+    build a condition:
+
+    join_tab_1_cond AND join_tab_2_cond AND ... AND last_tab_conds
+
+    The condition is only intended to be used by the range optimizer, so:
+    - it is not normalized (can have Item_cond_and inside another
+      Item_cond_and)
+    - it does not include join->exec_const_cond and other similar conditions.
+*/
+
+bool build_tmp_join_prefix_cond(JOIN *join, JOIN_TAB *last_tab, Item **ret)
+{
+  THD *const thd= join->thd;
+  Item_cond_and *all_conds= NULL;
+
+  Item *res= NULL;
+
+  // Pick the ON-expression. Use the same logic as in get_sargable_cond():
+  if (last_tab->on_expr_ref)
+    res= *last_tab->on_expr_ref;
+  else if (last_tab->table->pos_in_table_list &&
+           last_tab->table->pos_in_table_list->embedding &&
+           !last_tab->table->pos_in_table_list->embedding->sj_on_expr)
+  {
+    res= last_tab->table->pos_in_table_list->embedding->on_expr;
+  }
+
+  for (JOIN_TAB *tab= first_depth_first_tab(join);
+       tab;
+       tab= next_depth_first_tab(join, tab))
+  {
+    if (tab->select_cond)
+    {
+      if (!res)
+        res= tab->select_cond;
+      else
+      {
+        if (!all_conds)
+        {
+          if (!(all_conds= new (thd->mem_root)Item_cond_and(thd, res,
+                                                            tab->select_cond)))
+            return true;
+          res= all_conds;
+        }
+        else
+          all_conds->add(tab->select_cond, thd->mem_root);
+      }
+    }
+    if (tab == last_tab)
+      break;
+  }
+  *ret= all_conds? all_conds: res;
+  return false;
+}
+
+
 static bool
 make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 {
@@ -11525,7 +11593,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	  {
 	    /* Join with outer join condition */
 	    COND *orig_cond=sel->cond;
-	    sel->cond= and_conds(thd, sel->cond, *tab->on_expr_ref);
+
+            if (build_tmp_join_prefix_cond(join, tab, &sel->cond))
+              return true;
 
 	    /*
               We can't call sel->cond->fix_fields,

@@ -259,7 +259,7 @@ int toku_testsetup_insert_to_nonleaf (FT_HANDLE ft_handle, BLOCKNUM blocknum, en
     // is directly queueing something in a FIFO instead of 
     // using ft APIs.
     node->max_msn_applied_to_node_on_disk = msn;
-    node->dirty = 1;
+    node->set_dirty();
     // Also hack max_msn_in_ft
     ft_handle->ft->h->max_msn_in_ft = msn;
 

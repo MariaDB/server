@@ -29,7 +29,7 @@ ALTER TABLE t2 drop index idx1;
 connection default;
 set DEBUG_SYNC= 'now SIGNAL fts_drop_index';
 connection con1;
-SET @@GLOBAL.debug_dbug = @saved_dbug;
 drop table t1, t2;
 connection default;
 set DEBUG_SYNC=RESET;
+SET @@GLOBAL.debug_dbug = @saved_dbug;

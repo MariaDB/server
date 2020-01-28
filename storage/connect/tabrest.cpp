@@ -1,5 +1,5 @@
-/*************** Rest C++ Program Source Code File (.CPP) **************/
-/* PROGRAM NAME: Rest   Version 1.6                                    */
+/************** tabrest C++ Program Source Code File (.CPP) ************/
+/* PROGRAM NAME: tabrest   Version 1.7                                 */
 /*  (C) Copyright to the author Olivier BERTRAND          2018 - 2019  */
 /*  This program is the REST Web API support for MariaDB.              */
 /*  When compiled without MARIADB defined, it is the EOM module code.  */
@@ -9,13 +9,18 @@
 /*  Definitions needed by the included files.                          */
 /***********************************************************************/
 #if defined(MARIADB)
-#include <my_global.h> // All MariaDB stuff
+#include <my_global.h>    // All MariaDB stuff
 #else   // !MARIADB       OEM module
 #include "mini-global.h"
 #define _MAX_PATH 260
-#if !defined(__WIN__)
+#if !defined(REST_SOURCE)
+#if defined(__WIN__) || defined(_WINDOWS)
+#include <windows.h>
+#else		 // !__WIN__
 #define __stdcall
+#include <dlfcn.h>         // dlopen(), dlclose(), dlsym() ...
 #endif   // !__WIN__
+#endif	 // !REST_SOURCE
 #define _OS_H_INCLUDED     // Prevent os.h to be called
 #endif  // !MARIADB
 
@@ -23,7 +28,6 @@
 /*  Include application header files:                                  */
 /*  global.h    is header containing all global declarations.          */
 /*  plgdbsem.h  is header containing the DB application declarations.  */
-/*  (x)table.h  is header containing the TDBASE declarations.          */
 /***********************************************************************/
 #include "global.h"
 #include "plgdbsem.h"
@@ -31,7 +35,9 @@
 #include "filamtxt.h"
 #include "tabdos.h"
 #include "plgxml.h"
+#if defined(XML_SUPPORT)
 #include "tabxml.h"
+#endif   // XML_SUPPORT
 #include "tabjson.h"
 #include "tabfmt.h"
 #include "tabrest.h"
@@ -73,11 +79,11 @@ XGETREST GetRestFunction(PGLOBAL g)
 	if (getRestFnc)
 		return getRestFnc;
 	
-#if !defined(REST_SOURCE)
+#if !defined(MARIADB) || !defined(REST_SOURCE)
 	if (trace(515))
 		htrc("Looking for GetRest library\n");
 
-#if defined(__WIN__)
+#if defined(__WIN__) || defined(_WINDOWS)
 	HANDLE Hdll;
 	const char* soname = "GetRest.dll";   // Module name
 
@@ -167,13 +173,15 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
   // Retrieve the file from the web and copy it locally
 	if (http && grf(g->Message, trace(515), http, uri, filename)) {
 			// sprintf(g->Message, "Failed to get file at %s", http);
-  } else if (!stricmp(ftype, "XML"))
-    qrp = XMLColumns(g, db, tab, tp, info);
-  else if (!stricmp(ftype, "JSON"))
+  } else if (!stricmp(ftype, "JSON"))
     qrp = JSONColumns(g, db, NULL, tp, info);
   else if (!stricmp(ftype, "CSV"))
     qrp = CSVColumns(g, NULL, tp, info);
-  else
+#if defined(XML_SUPPORT)
+	else if (!stricmp(ftype, "XML"))
+		qrp = XMLColumns(g, db, tab, tp, info);
+#endif   // XML_SUPPORT
+	else
     sprintf(g->Message, "Usupported file type %s", ftype);
 
   return qrp;
@@ -206,7 +214,9 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     htrc("ftype = %s am = %s\n", ftype, SVP(am));
 
   n = (!stricmp(ftype, "JSON")) ? 1
+#if defined(XML_SUPPORT)
     : (!stricmp(ftype, "XML"))  ? 2
+#endif   // XML_SUPPORT
     : (!stricmp(ftype, "CSV"))  ? 3 : 0;
 
   if (n == 0) {
@@ -234,7 +244,9 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     return true;
   else switch (n) {
     case 1: Tdp = new (g) JSONDEF; break;
-    case 2: Tdp = new (g) XMLDEF;  break;
+#if defined(XML_SUPPORT)
+		case 2: Tdp = new (g) XMLDEF;  break;
+#endif   // XML_SUPPORT
     case 3: Tdp = new (g) CSVDEF;  break;
     default: Tdp = NULL;
   } // endswitch n

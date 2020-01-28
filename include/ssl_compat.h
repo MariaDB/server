@@ -79,7 +79,9 @@
 #define EVP_CIPHER_CTX_encrypting(ctx)  ((ctx)->encrypt)
 #define EVP_CIPHER_CTX_SIZE             sizeof(EVP_CIPHER_CTX)
 
+#ifndef HAVE_WOLFSSL
 #define EVP_MD_CTX_reset(X) EVP_MD_CTX_cleanup(X)
+#endif
 #define EVP_CIPHER_CTX_reset(X) EVP_CIPHER_CTX_cleanup(X)
 #define X509_get0_notBefore(X) X509_get_notBefore(X)
 #define X509_get0_notAfter(X) X509_get_notAfter(X)

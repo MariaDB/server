@@ -9647,6 +9647,8 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
   }
   if (key1->type == SEL_ARG::MAYBE_KEY)
   {
+    if (key2->type == SEL_ARG::KEY_RANGE)
+      return key2;
     key1->right= key1->left= &null_element;
     key1->next= key1->prev= 0;
   }

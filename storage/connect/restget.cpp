@@ -13,6 +13,8 @@ using namespace concurrency::streams; // Asynchronous streams
 
 typedef const char* PCSZ;
 
+extern "C" int restGetFile(char* m, bool xt, PCSZ http, PCSZ uri, PCSZ fn);
+
 /***********************************************************************/
 /*  Make a local copy of the requested file.                           */
 /***********************************************************************/
