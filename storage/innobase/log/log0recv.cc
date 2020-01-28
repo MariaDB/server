@@ -1846,6 +1846,10 @@ inline bool page_recv_t::recs_t::trim(lsn_t start_lsn)
   {
     if (!*prev) return true;
     if ((*prev)->lsn >= start_lsn) return false;
+#ifdef UNIV_DEBUG
+    const recv_t *recv= static_cast<const recv_t*>(*prev);
+    recv->data->unfix();
+#endif
   }
 }
 
@@ -2253,6 +2257,7 @@ void recv_apply_hashed_log_recs(bool last_batch)
 					 << " < " << i.lsn);
 ignore:
 				recv_sys_t::map::iterator r = p++;
+				ut_d(r->second.log.unfix(););
 				recv_sys.pages.erase(r);
 				continue;
 			}
