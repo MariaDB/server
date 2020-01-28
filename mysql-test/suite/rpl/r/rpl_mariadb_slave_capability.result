@@ -2,10 +2,10 @@ include/master-slave.inc
 [connection master]
 connection master;
 set @old_master_binlog_checksum= @@global.binlog_checksum;
-set @old_slave_dbug= @@global.debug_dbug;
 connection slave;
 include/stop_slave.inc
 # Test slave with no capability gets dummy event, which is ignored.
+set @old_dbug= @@global.debug_dbug;
 SET @@global.debug_dbug='+d,simulate_slave_capability_none';
 include/start_slave.inc
 connection master;
@@ -50,7 +50,7 @@ slave-relay-bin.000005	#	Annotate_rows	#	#	INSERT INTO t1 /* A comment just to m
 slave-relay-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
 slave-relay-bin.000005	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 slave-relay-bin.000005	#	Query	#	#	COMMIT
-set @@global.debug_dbug= @old_slave_dbug;
+set @@global.debug_dbug= @old_dbug;
 # Test dummy event is checksummed correctly.
 connection master;
 set @@global.binlog_checksum = CRC32;
@@ -148,10 +148,10 @@ select @@global.log_slave_updates;
 select @@global.replicate_annotate_row_events;
 @@global.replicate_annotate_row_events
 1
-set @@global.debug_dbug= @old_slave_dbug;
 Clean up.
 connection master;
 set @@global.binlog_checksum = @old_master_binlog_checksum;
 DROP TABLE t1, t2;
 connection slave;
+set @@global.debug_dbug= @old_dbug;
 include/rpl_end.inc
