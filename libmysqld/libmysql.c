@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates
-   Copyright (c) 2009, 2017, MariaDB Corporation
+   Copyright (c) 2009, 2020, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1206,7 +1206,7 @@ myodbc_remove_escape(MYSQL *mysql,char *name)
 {
   char *to;
 #ifdef USE_MB
-  my_bool use_mb_flag=use_mb(mysql->charset);
+  my_bool use_mb_flag= my_ci_use_mb(mysql->charset);
   char *UNINIT_VAR(end);
   if (use_mb_flag)
     for (end=name; *end ; end++) ;
@@ -3198,7 +3198,7 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value, size_t 
   }
   case MYSQL_TYPE_FLOAT:
   {
-    double data= my_strntod(&my_charset_latin1, value, length, &endptr, &err);
+    double data= my_ci_strntod(&my_charset_latin1, value, length, &endptr, &err);
     float fdata= (float) data;
     *param->error= (fdata != data) | MY_TEST(err);
     floatstore(buffer, fdata);
@@ -3206,7 +3206,7 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value, size_t 
   }
   case MYSQL_TYPE_DOUBLE:
   {
-    double data= my_strntod(&my_charset_latin1, value, length, &endptr, &err);
+    double data= my_ci_strntod(&my_charset_latin1, value, length, &endptr, &err);
     *param->error= MY_TEST(err);
     doublestore(buffer, data);
     break;

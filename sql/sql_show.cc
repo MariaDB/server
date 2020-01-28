@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -346,15 +346,14 @@ int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
     {
       if (lookup.wild_db_value)
       {
-        if (my_wildcmp(files_charset_info, dl.str, dlend, wstr, wend,
-                       wild_prefix, wild_one, wild_many))
+        if (files_charset_info->wildcmp(dl.str, dlend, wstr, wend,
+                                        wild_prefix, wild_one, wild_many))
           continue;
       }
       else
       {
-        if (my_strnncoll(files_charset_info,
-                         (uchar*)dl.str, dl.length,
-                         (uchar*)lookup.db_value.str, lookup.db_value.length))
+        if (files_charset_info->strnncoll(dl.str, dl.length,
+                                          lookup.db_value.str, lookup.db_value.length))
           continue;
       }
     }
@@ -1494,7 +1493,7 @@ static const char *require_quotes(const char *name, uint name_length)
   for (; name < end ; name++)
   {
     uchar chr= (uchar) *name;
-    int length= my_charlen(system_charset_info, name, end);
+    int length= system_charset_info->charlen(name, end);
     if (length == 1 && !system_charset_info->ident_map[chr])
       return name;
     if (length == 1 && (chr < '0' || chr > '9'))
@@ -1555,7 +1554,7 @@ append_identifier(THD *thd, String *packet, const char *name, size_t length)
   for (name_end= name+length ; name < name_end ; )
   {
     uchar chr= (uchar) *name;
-    int char_length= my_charlen(system_charset_info, name, name_end);
+    int char_length= system_charset_info->charlen(name, name_end);
     /*
       charlen can return 0 and negative numbers on a wrong multibyte
       sequence. It is possible when upgrading from 4.0,
@@ -3882,18 +3881,18 @@ bool get_lookup_value(THD *thd, Item_func *item_func,
       return 1;
 
     /* Lookup value is database name */
-    if (!cs->coll->strnncollsp(cs, (uchar *) field_name1, strlen(field_name1),
-                               (uchar *) item_field->field_name.str,
-                               item_field->field_name.length))
+    if (!cs->strnncollsp(field_name1, strlen(field_name1),
+                         item_field->field_name.str,
+                         item_field->field_name.length))
     {
       thd->make_lex_string(&lookup_field_vals->db_value,
                            tmp_str->ptr(), tmp_str->length());
     }
     /* Lookup value is table name */
-    else if (!cs->coll->strnncollsp(cs, (uchar *) field_name2,
-                                    strlen(field_name2),
-                                    (uchar *) item_field->field_name.str,
-                                    item_field->field_name.length))
+    else if (!cs->strnncollsp(field_name2,
+                              strlen(field_name2),
+                              item_field->field_name.str,
+                              item_field->field_name.length))
     {
       thd->make_lex_string(&lookup_field_vals->table_value,
                            tmp_str->ptr(), tmp_str->length());
@@ -3986,12 +3985,12 @@ bool uses_only_table_name_fields(Item *item, TABLE_LIST *table)
     const char *field_name2= schema_table->idx_field2 >= 0 ?
       field_info[schema_table->idx_field2].name().str : "";
     if (table->table != item_field->field->table ||
-        (cs->coll->strnncollsp(cs, (uchar *) field_name1, strlen(field_name1),
-                               (uchar *) item_field->field_name.str,
-                               item_field->field_name.length) &&
-         cs->coll->strnncollsp(cs, (uchar *) field_name2, strlen(field_name2),
-                               (uchar *) item_field->field_name.str,
-                               item_field->field_name.length)))
+        (cs->strnncollsp(field_name1, strlen(field_name1),
+                         item_field->field_name.str,
+                         item_field->field_name.length) &&
+         cs->strnncollsp(field_name2, strlen(field_name2),
+                         item_field->field_name.str,
+                         item_field->field_name.length)))
       return 0;
   }
   else if (item->type() == Item::EXPR_CACHE_ITEM)

@@ -1083,7 +1083,7 @@ select left('aaa','1');
 left('aaa','1')
 a
 #
-# Testing cs->cset->strtoll10()
+# Testing strtoll10()
 #
 SELECT @@character_set_connection;
 @@character_set_connection

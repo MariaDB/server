@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation.
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16762,7 +16762,7 @@ grant_role:
           {
             CHARSET_INFO *cs= system_charset_info;
             /* trim end spaces (as they'll be lost in mysql.user anyway) */
-            $1.length= cs->cset->lengthsp(cs, $1.str, $1.length);
+            $1.length= cs->lengthsp($1.str, $1.length);
             ((char*) $1.str)[$1.length] = '\0';
             if (unlikely($1.length == 0))
               my_yyabort_error((ER_INVALID_ROLE, MYF(0), ""));

@@ -2,6 +2,7 @@
 #define SQL_TYPE_H_INCLUDED
 /*
    Copyright (c) 2015  MariaDB Foundation.
+   Copyright (c) 2015, 2020, MariaDB Corporation.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -2773,11 +2774,10 @@ public:
       default: return "UNKNOWN";
     }
   }
-  int sortcmp(const String *s, const String *t) const
+  int sortcmp(const Binary_string *s, const Binary_string *t) const
   {
-    return collation->coll->strnncollsp(collation,
-                                        (uchar *) s->ptr(), s->length(),
-                                        (uchar *) t->ptr(), t->length());
+    return collation->strnncollsp(s->ptr(), s->length(),
+                                  t->ptr(), t->length());
   }
 };
 
@@ -3130,9 +3130,8 @@ public:
   const LEX_CSTRING &lex_cstring() const { return *this; }
   bool eq(const LEX_CSTRING &other) const
   {
-    return !my_strnncoll(system_charset_info,
-                         (const uchar *) LEX_CSTRING::str, LEX_CSTRING::length,
-                         (const uchar *) other.str, other.length);
+    return !system_charset_info->strnncoll(LEX_CSTRING::str, LEX_CSTRING::length,
+                                           other.str, other.length);
   }
 };
 

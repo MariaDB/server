@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1092,8 +1092,8 @@ inline bool is_delimiter_command(char *name, ulong len)
     only name(first DELIMITER_NAME_LEN bytes) is checked.
   */
   return (len >= DELIMITER_NAME_LEN &&
-          !my_strnncoll(&my_charset_latin1, (uchar*) name, DELIMITER_NAME_LEN,
-                        (uchar *) DELIMITER_NAME, DELIMITER_NAME_LEN));
+          !my_charset_latin1.strnncoll(name, DELIMITER_NAME_LEN,
+                                       DELIMITER_NAME, DELIMITER_NAME_LEN));
 }
 
 /**
@@ -2254,8 +2254,8 @@ static COMMANDS *find_command(char *name)
     */
     for (uint i= 0; commands[i].func; i++)
     {
-      if (!my_strnncoll(&my_charset_latin1, (uchar*) name, len,
-                        (uchar*) commands[i].name, len) &&
+      if (!my_charset_latin1.strnncoll((uchar*) name, len,
+                                       (uchar*) commands[i].name, len) &&
           (commands[i].name[len] == '\0') &&
           (!end || (commands[i].takes_params && get_arg(name, CHECK))))
       {
@@ -2306,7 +2306,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
 #ifdef USE_MB
     // Accept multi-byte characters as-is
     int length;
-    if (use_mb(charset_info) &&
+    if (charset_info->use_mb() &&
         (length= my_ismbchar(charset_info, pos, end_of_line)))
     {
       if (!*ml_comment || preserve_comments)
@@ -3241,9 +3241,8 @@ com_go(String *buffer,char *line __attribute__((unused)))
     (void) com_print(buffer,0);
 
   if (skip_updates &&
-      (buffer->length() < 4 || my_strnncoll(charset_info,
-					    (const uchar*)buffer->ptr(),4,
-					    (const uchar*)"SET ",4)))
+      (buffer->length() < 4 || charset_info->strnncoll((const uchar*)buffer->ptr(),4,
+					               (const uchar*)"SET ",4)))
   {
     (void) put_info("Ignoring query to other database",INFO_INFO);
     return 0;
@@ -3613,9 +3612,8 @@ print_table_data(MYSQL_RES *result)
     for (uint off=0; (field = mysql_fetch_field(result)) ; off++)
     {
       size_t name_length= (uint) strlen(field->name);
-      size_t numcells= charset_info->cset->numcells(charset_info,
-                                                  field->name,
-                                                  field->name + name_length);
+      size_t numcells= charset_info->numcells(field->name,
+                                              field->name + name_length);
       size_t display_length= field->max_length + name_length - numcells;
       tee_fprintf(PAGER, " %-*s |",(int) MY_MIN(display_length,
                                                 MAX_COLUMN_LENGTH),
@@ -3664,7 +3662,7 @@ print_table_data(MYSQL_RES *result)
        We need to find how much screen real-estate we will occupy to know how 
        many extra padding-characters we should send with the printing function.
       */
-      size_t visible_length= charset_info->cset->numcells(charset_info, buffer, buffer + data_length);
+      size_t visible_length= charset_info->numcells(buffer, buffer + data_length);
       extra_padding= (uint) (data_length - visible_length);
 
       if (opt_binhex && is_binary_field(field))
@@ -4011,7 +4009,7 @@ safe_put_field(const char *pos,ulong length)
     {
 #ifdef USE_MB
       int l;
-      if (use_mb(charset_info) &&
+      if (charset_info->use_mb() &&
           (l = my_ismbchar(charset_info, pos, end)))
       {
 	  while (l--)

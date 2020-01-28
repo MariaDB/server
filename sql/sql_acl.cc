@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4170,7 +4170,7 @@ bool hostname_requires_resolving(const char *hostname)
 
   if (hostname == my_localhost ||
       (hostname_len == localhost_len &&
-       !my_strnncoll(system_charset_info,
+       !system_charset_info->strnncoll(
                      (const uchar *) hostname,  hostname_len,
                      (const uchar *) my_localhost, strlen(my_localhost))))
   {
@@ -12575,6 +12575,7 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   int2store(end+5, thd->client_capabilities >> 16);
   end[7]= data_len;
   DBUG_EXECUTE_IF("poison_srv_handshake_scramble_len", end[7]= -100;);
+  DBUG_EXECUTE_IF("increase_srv_handshake_scramble_len", end[7]= 50;);
   bzero(end + 8, 6);
   int4store(end + 14, thd->client_capabilities >> 32);
   end+= 18;
@@ -12765,7 +12766,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
     */
     ulong nr1=1, nr2=4;
     CHARSET_INFO *cs= &my_charset_latin1;
-    cs->coll->hash_sort(cs, (uchar*) sctx->user, strlen(sctx->user), &nr1, &nr2);
+    cs->hash_sort((uchar*) sctx->user, strlen(sctx->user), &nr1, &nr2);
 
     mysql_mutex_lock(&acl_cache->lock);
     if (!acl_users.elements)

@@ -782,27 +782,29 @@ static HUFF_COUNTS *init_huff_count(MARIA_HA *info,my_off_t records)
     for (i=0 ; i < info->s->base.fields ; i++)
     {
       enum en_fieldtype type;
-      count[i].field_length=info->s->columndef[i].length;
-      type= count[i].field_type= (enum en_fieldtype) info->s->columndef[i].type;
+      uint col_nr = info->s->columndef[i].column_nr;
+      count[col_nr].field_length=info->s->columndef[i].length;
+      type= count[col_nr].field_type=
+        (enum en_fieldtype) info->s->columndef[i].type;
       if (type == FIELD_INTERVALL ||
 	  type == FIELD_CONSTANT ||
 	  type == FIELD_ZERO)
 	type = FIELD_NORMAL;
-      if (count[i].field_length <= 8 &&
+      if (count[col_nr].field_length <= 8 &&
 	  (type == FIELD_NORMAL ||
 	   type == FIELD_SKIP_ZERO))
-	count[i].max_zero_fill= count[i].field_length;
+	count[col_nr].max_zero_fill= count[col_nr].field_length;
       /*
         For every column initialize a tree, which is used to detect distinct
         column values. 'int_tree' works together with 'tree_buff' and
         'tree_pos'. It's keys are implemented by pointers into 'tree_buff'.
         This is accomplished by '-1' as the element size.
       */
-      init_tree(&count[i].int_tree,0,0,-1,(qsort_cmp2) compare_tree, NULL,
+      init_tree(&count[col_nr].int_tree,0,0,-1,(qsort_cmp2) compare_tree, NULL,
 		NULL, MYF(0));
       if (records && type != FIELD_BLOB && type != FIELD_VARCHAR)
-	count[i].tree_pos=count[i].tree_buff =
-	  my_malloc(count[i].field_length > 1 ? tree_buff_length : 2,
+	count[col_nr].tree_pos=count[col_nr].tree_buff =
+	  my_malloc(count[col_nr].field_length > 1 ? tree_buff_length : 2,
 		    MYF(MY_WME));
     }
   }

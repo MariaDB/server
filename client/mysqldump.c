@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation.
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1374,10 +1374,10 @@ static char *my_case_str(const char *str,
 {
   my_match_t match;
 
-  uint status= my_charset_latin1.coll->instr(&my_charset_latin1,
-                                             str, str_len,
-                                             token, token_len,
-                                             &match, 1);
+  uint status= my_ci_instr(&my_charset_latin1,
+                           str, str_len,
+                           token, token_len,
+                           &match, 1);
 
   return status ? (char *) str + match.end : NULL;
 }

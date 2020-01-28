@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2228,16 +2228,16 @@ public:
  ****************************************************************************/
 struct sql_ex_info
 {
-  sql_ex_info() {}                            /* Remove gcc warning */
   const char* field_term;
   const char* enclosed;
   const char* line_term;
   const char* line_start;
   const char* escaped;
-  int cached_new_format;
-  uint8 field_term_len,enclosed_len,line_term_len,line_start_len, escaped_len;
+  int cached_new_format= -1;
+  uint8 field_term_len= 0, enclosed_len= 0, line_term_len= 0,
+    line_start_len= 0, escaped_len= 0;
   char opt_flags;
-  char empty_flags;
+  char empty_flags= 0;
 
   // store in new format even if old is possible
   void force_new_format() { cached_new_format = 1;}

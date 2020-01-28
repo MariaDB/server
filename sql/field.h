@@ -1,7 +1,7 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -204,7 +204,7 @@ protected:
   public:
     Converter_strntod(CHARSET_INFO *cs, const char *str, size_t length)
     {
-      m_result= my_strntod(cs, (char *) str, length, &m_end_of_num, &m_error);
+      m_result= cs->strntod((char *) str, length, &m_end_of_num, &m_error);
       // strntod() does not set an error if the input string was empty
       m_edom= m_error !=0 || str == m_end_of_num;
     }
@@ -224,7 +224,7 @@ protected:
   public:
     Converter_strntoll(CHARSET_INFO *cs, const char *str, size_t length)
     {
-      m_result= my_strntoll(cs, str, length, 10, &m_end_of_num, &m_error);
+      m_result= cs->strntoll(str, length, 10, &m_end_of_num, &m_error);
       /*
          All non-zero errors means EDOM error.
          strntoll() does not set an error if the input string was empty.
@@ -241,7 +241,7 @@ protected:
     Converter_strtoll10(CHARSET_INFO *cs, const char *str, size_t length)
     {
       m_end_of_num= (char *) str + length;
-      m_result= (*(cs->cset->strtoll10))(cs, str, &m_end_of_num, &m_error);
+      m_result= cs->strtoll10(str, &m_end_of_num, &m_error);
       /*
         Negative error means "good negative number".
         Only a positive m_error value means a real error.
@@ -3924,8 +3924,7 @@ public:
   Copy_func *get_copy_func(const Field *from) const override;
   int reset() override
   {
-    charset()->cset->fill(charset(),(char*) ptr, field_length,
-                          (has_charset() ? ' ' : 0));
+    charset()->fill((char*) ptr, field_length, (has_charset() ? ' ' : 0));
     return 0;
   }
   int store(const char *to,size_t length,CHARSET_INFO *charset) override;
@@ -5016,7 +5015,7 @@ class Column_definition: public Sql_alloc,
     for (pos= interval->type_names, len= interval->type_lengths;
          *pos ; pos++, len++)
     {
-      size_t length= charset->cset->numchars(charset, *pos, *pos + *len);
+      size_t length= charset->numchars(*pos, *pos + *len);
       DBUG_ASSERT(length < UINT_MAX32);
       *tot_length+= (uint) length;
       set_if_bigger(*max_length, (uint32)length);

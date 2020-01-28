@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -4059,7 +4059,7 @@ rec_field_len_in_chars(
 		return SIZE_T_MAX;
 	}
 
-	return(cs->cset->numchars(cs, rec_field, rec_field + rec_field_len));
+	return cs->numchars(rec_field, rec_field + rec_field_len);
 }
 
 /** Avoid the clustered index lookup if all the following conditions

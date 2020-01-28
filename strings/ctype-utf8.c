@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -4647,7 +4647,7 @@ my_strnxfrm_unicode_full_bin_internal(CHARSET_INFO *cs,
   for (; dst < de && *nweights; (*nweights)--)
   {
     int res;
-    if ((res= cs->cset->mb_wc(cs, &wc, src, se)) <= 0)
+    if ((res= my_ci_mb_wc(cs, &wc, src, se)) <= 0)
       break;
     src+= res;
     *dst++= (uchar) (wc >> 16);
@@ -5332,7 +5332,7 @@ my_fill_utf8mb3_mb(CHARSET_INFO *cs, char *str, size_t length, int fill)
 {
   char *end= str + length;
   char buf[10];
-  char buflen= cs->cset->native_to_mb(cs, (my_wc_t) fill, (uchar*) buf,
+  char buflen= my_ci_native_to_mb(cs, (my_wc_t) fill, (uchar*) buf,
                                       (uchar*) buf + sizeof(buf));
   DBUG_ASSERT(buflen > 0);
   for ( ; str + buflen <= end ; )
@@ -7026,7 +7026,7 @@ static int
 my_charlen_filename(CHARSET_INFO *cs, const uchar *str, const uchar *end)
 {
   my_wc_t wc;
-  return cs->cset->mb_wc(cs, &wc, str, end);
+  return my_ci_mb_wc(cs, &wc, str, end);
 }
 
 

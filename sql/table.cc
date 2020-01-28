@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -346,8 +346,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     if (share->table_category == TABLE_CATEGORY_LOG)
       share->no_replicate= 1;
     if (key_length > 6 &&
-        my_strnncoll(table_alias_charset, (const uchar*) key, 6,
-                     (const uchar*) "mysql", 6) == 0)
+        table_alias_charset->strnncoll(key, 6, "mysql", 6) == 0)
       share->not_usable_by_query_cache= 1;
 
     init_sql_alloc(&share->stats_cb.mem_root, "share_stats",
@@ -1834,7 +1833,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   {
     const CHARSET_INFO *cs= thd->variables.collation_database;
     /* unknown charset in frm_image[38] or pre-3.23 frm */
-    if (use_mb(cs))
+    if (cs->use_mb())
     {
       /* Warn that we may be changing the size of character columns */
       sql_print_warning("'%s' had no or invalid character set, "
@@ -4743,7 +4742,7 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
   {
 #if defined(USE_MB) && defined(USE_MB_IDENT)
     last_char_is_space= my_isspace(system_charset_info, *name);
-    if (use_mb(system_charset_info))
+    if (system_charset_info->use_mb())
     {
       int len=my_ismbchar(system_charset_info, name, end);
       if (len)
@@ -4778,7 +4777,7 @@ bool check_column_name(const char *name)
   {
 #if defined(USE_MB) && defined(USE_MB_IDENT)
     last_char_is_space= my_isspace(system_charset_info, *name);
-    if (use_mb(system_charset_info))
+    if (system_charset_info->use_mb())
     {
       int len=my_ismbchar(system_charset_info, name, 
                           name+system_charset_info->mbmaxlen);

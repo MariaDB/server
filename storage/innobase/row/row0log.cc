@@ -1648,12 +1648,12 @@ blob_done:
 		/* See if any columns were changed to NULL or NOT NULL. */
 		const dict_col_t*	new_col
 			= dict_table_get_nth_col(log->table, col_no);
-		ut_ad(new_col->mtype == col->mtype);
+		ut_ad(new_col->same_format(*col));
 
 		/* Assert that prtype matches except for nullability. */
-		ut_ad(!((new_col->prtype ^ col->prtype) & ~DATA_NOT_NULL));
 		ut_ad(!((new_col->prtype ^ dfield_get_type(dfield)->prtype)
-			& ~DATA_NOT_NULL));
+			& ~(DATA_NOT_NULL | DATA_VERSIONED
+			    | CHAR_COLL_MASK << 16 | DATA_LONG_TRUE_VARCHAR)));
 
 		if (new_col->prtype == col->prtype) {
 			continue;

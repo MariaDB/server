@@ -1,4 +1,5 @@
 /* Copyright (C) 2012-2018 Kentoku Shiba
+   Copyright (c) 2020, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -9109,20 +9110,20 @@ int spider_oracle_handler::append_limit(
         ((SPIDER_LONGLONG_LEN) * 2)))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       str->q_append(SPIDER_SQL_BETWEEN_STR, SPIDER_SQL_BETWEEN_LEN);
-      length = (uint32) (my_charset_bin.cset->longlong10_to_str)(
-        &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, offset + 1);
+      length = (uint32) (my_charset_bin.longlong10_to_str)(
+        buf, SPIDER_LONGLONG_LEN + 1, -10, offset + 1);
       str->q_append(buf, length);
       str->q_append(SPIDER_SQL_AND_STR, SPIDER_SQL_AND_LEN);
-      length = (uint32) (my_charset_bin.cset->longlong10_to_str)(
-        &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, limit + offset);
+      length = (uint32) (my_charset_bin.longlong10_to_str)(
+        buf, SPIDER_LONGLONG_LEN + 1, -10, limit + offset);
       str->q_append(buf, length);
     } else {
       if (str->reserve(SPIDER_SQL_HS_LTEQUAL_LEN +
         (SPIDER_LONGLONG_LEN)))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       str->q_append(SPIDER_SQL_HS_LTEQUAL_STR, SPIDER_SQL_HS_LTEQUAL_LEN);
-      length = (uint32) (my_charset_bin.cset->longlong10_to_str)(
-        &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, limit);
+      length = (uint32) (my_charset_bin.longlong10_to_str)(
+        buf, SPIDER_LONGLONG_LEN + 1, -10, limit);
       str->q_append(buf, length);
     }
     if (update_rownum_appended)
@@ -13401,20 +13402,20 @@ int spider_oracle_copy_table::append_limit(
         ((SPIDER_LONGLONG_LEN) * 2)))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       sql.q_append(SPIDER_SQL_BETWEEN_STR, SPIDER_SQL_BETWEEN_LEN);
-      length = (uint32) (my_charset_bin.cset->longlong10_to_str)(
-        &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, offset);
+      length = (uint32) (my_charset_bin.longlong10_to_str)(
+        buf, SPIDER_LONGLONG_LEN + 1, -10, offset);
       sql.q_append(buf, length);
       sql.q_append(SPIDER_SQL_AND_STR, SPIDER_SQL_AND_LEN);
-      length = (uint32) (my_charset_bin.cset->longlong10_to_str)(
-        &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, limit);
+      length = (uint32) (my_charset_bin.longlong10_to_str)(
+        buf, SPIDER_LONGLONG_LEN + 1, -10, limit);
       sql.q_append(buf, length);
     } else {
       if (sql.reserve(SPIDER_SQL_HS_LTEQUAL_LEN +
         (SPIDER_LONGLONG_LEN)))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       sql.q_append(SPIDER_SQL_HS_LTEQUAL_STR, SPIDER_SQL_HS_LTEQUAL_LEN);
-      length = (uint32) (my_charset_bin.cset->longlong10_to_str)(
-        &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, limit);
+      length = (uint32) (my_charset_bin.longlong10_to_str)(
+        buf, SPIDER_LONGLONG_LEN + 1, -10, limit);
       sql.q_append(buf, length);
     }
   }

@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2012,2013 Monty Program Ab
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2122,14 +2123,14 @@ int Rdb_key_def::unpack_utf8_str(
   while (src < src_end) {
     my_wc_t wc = (src[0] << 8) | src[1];
     src += 2;
-    int res = cset->cset->wc_mb(cset, wc, dst, dst_end);
+    int res = cset->wc_mb(wc, dst, dst_end);
     DBUG_ASSERT(res > 0 && res <= 3);
     if (res < 0) return UNPACK_FAILURE;
     dst += res;
   }
 
-  cset->cset->fill(cset, reinterpret_cast<char *>(dst), dst_end - dst,
-                   cset->pad_char);
+  cset->fill(reinterpret_cast<char *>(dst), dst_end - dst,
+             cset->pad_char);
   return UNPACK_SUCCESS;
 }
 
@@ -2252,8 +2253,8 @@ void Rdb_key_def::pack_with_varchar_encoding(
   const size_t value_length = (field_var->length_bytes == 1)
                                   ? (uint)*field->ptr
                                   : uint2korr(field->ptr);
-  size_t xfrm_len = charset->coll->strnxfrm(
-      charset, buf, fpi->m_max_image_len, field_var->char_length(),
+  size_t xfrm_len = charset->strnxfrm(
+      buf, fpi->m_max_image_len, field_var->char_length(),
       field_var->ptr + field_var->length_bytes, value_length, 0);
 
   /* Got a mem-comparable image in 'buf'. Now, produce varlength encoding */
@@ -2364,11 +2365,11 @@ void Rdb_key_def::pack_with_varchar_space_pad(
                                   ? (uint)*field->ptr
                                   : uint2korr(field->ptr);
 
-  const size_t trimmed_len = charset->cset->lengthsp(
-      charset, (const char *)field_var->ptr + field_var->length_bytes,
+  const size_t trimmed_len = charset->lengthsp(
+      (const char *)field_var->ptr + field_var->length_bytes,
       value_length);
-  const size_t xfrm_len = charset->coll->strnxfrm(
-      charset, buf, fpi->m_max_image_len, field_var->char_length(),
+  const size_t xfrm_len = charset->strnxfrm(
+      buf, fpi->m_max_image_len, field_var->char_length(),
       field_var->ptr + field_var->length_bytes, trimmed_len, 0);
 
   /* Got a mem-comparable image in 'buf'. Now, produce varlength encoding */
@@ -2500,7 +2501,7 @@ static int unpack_charset(
 
   for (uint ii = 0; ii < src_len; ii += 2) {
     my_wc_t wc = (src[ii] << 8) | src[ii + 1];
-    int res = cset->cset->wc_mb(cset, wc, dst + used, dst_end);
+    int res = cset->wc_mb(wc, dst + used, dst_end);
     DBUG_ASSERT(res > 0 && res <= 3);
     if (res < 0) {
       return UNPACK_FAILURE;
@@ -2656,7 +2657,7 @@ int Rdb_key_def::unpack_binary_or_utf8_varchar_space_pad(
         my_wc_t wc = (src[0] << 8) | src[1];
         src += 2;
         const CHARSET_INFO *cset = fpi->m_varchar_charset;
-        int res = cset->cset->wc_mb(cset, wc, dst, dst_end);
+        int res = cset->wc_mb(wc, dst, dst_end);
         DBUG_ASSERT(res <= 3);
         if (res <= 0) return UNPACK_FAILURE;
         dst += res;
@@ -3054,14 +3055,14 @@ static void rdb_get_mem_comparable_space(const CHARSET_INFO *const cs,
       // multi-byte form of the ' ' (space) character
       uchar space_mb[MAX_MULTI_BYTE_CHAR_SIZE];
 
-      const size_t space_mb_len = cs->cset->wc_mb(
-          cs, (my_wc_t)cs->pad_char, space_mb, space_mb + sizeof(space_mb));
+      const size_t space_mb_len = cs->wc_mb(
+          (my_wc_t)cs->pad_char, space_mb, space_mb + sizeof(space_mb));
 
       // mem-comparable image of the space character
       std::array<uchar, 20> space;
 
-      const size_t space_len = cs->coll->strnxfrm(
-          cs, space.data(), sizeof(space), 1, space_mb, space_mb_len, 0);
+      const size_t space_len = cs->strnxfrm(
+          space.data(), sizeof(space), 1, space_mb, space_mb_len, 0);
       Rdb_charset_space_info *const info = new Rdb_charset_space_info;
       info->space_xfrm_len = space_len;
       info->space_mb_len = space_mb_len;
@@ -3313,7 +3314,7 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
       field->field_length = field->char_length() * cs->mbmaxlen.
     */
     const CHARSET_INFO *cs = field->charset();
-    m_max_image_len = cs->coll->strnxfrmlen(cs, field->field_length);
+    m_max_image_len = cs->strnxfrmlen(field->field_length);
   }
   const bool is_varchar = (type == MYSQL_TYPE_VARCHAR);
   const CHARSET_INFO *cs = field->charset();

@@ -85,8 +85,7 @@ innobase_mysql_cmp(
 	uint cs_num = (uint) dtype_get_charset_coll(prtype);
 
 	if (CHARSET_INFO* cs = get_charset(cs_num, MYF(MY_WME))) {
-		return(cs->coll->strnncollsp(
-			       cs, a, a_length, b, b_length));
+		return(cs->strnncollsp(a, a_length, b, b_length));
 	}
 
 	ib::fatal() << "Unable to find charset-collation " << cs_num;
@@ -356,9 +355,7 @@ cmp_whole_field(
 		return(0);
 	case DATA_VARCHAR:
 	case DATA_CHAR:
-		return(my_charset_latin1.coll->strnncollsp(
-			       &my_charset_latin1,
-			       a, a_length, b, b_length));
+		return(my_charset_latin1.strnncollsp(a, a_length, b, b_length));
 	case DATA_BLOB:
 		if (prtype & DATA_BINARY_TYPE) {
 			ib::error() << "Comparing a binary BLOB"

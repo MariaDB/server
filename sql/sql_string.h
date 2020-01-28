@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -60,7 +60,7 @@ class Well_formed_prefix_status: public String_copy_status
 public:
   Well_formed_prefix_status(CHARSET_INFO *cs,
                             const char *str, const char *end, size_t nchars)
-  { cs->cset->well_formed_char_length(cs, str, end, nchars, this); }
+  { cs->well_formed_char_length(str, end, nchars, this); }
 };
 
 
@@ -137,6 +137,7 @@ public:
   Charset(CHARSET_INFO *cs) :m_charset(cs) { }
 
   CHARSET_INFO *charset() const { return m_charset; }
+  bool use_mb() const { return m_charset->use_mb(); }
   uint mbminlen() const { return m_charset->mbminlen; }
   uint mbmaxlen() const { return m_charset->mbmaxlen; }
   bool is_good_for_ft() const
@@ -147,15 +148,15 @@ public:
 
   size_t numchars(const char *str, const char *end) const
   {
-    return m_charset->cset->numchars(m_charset, str, end);
+    return m_charset->numchars(str, end);
   }
   size_t lengthsp(const char *str, size_t length) const
   {
-    return m_charset->cset->lengthsp(m_charset, str, length);
+    return m_charset->lengthsp(str, length);
   }
   size_t charpos(const char *str, const char *end, size_t pos) const
   {
-    return m_charset->cset->charpos(m_charset, str, end, pos);
+    return m_charset->charpos(str, end, pos);
   }
   void set_charset(CHARSET_INFO *charset_arg)
   {
@@ -1067,7 +1068,7 @@ static inline bool check_if_only_end_space(CHARSET_INFO *cs,
                                            const char *str,
                                            const char *end)
 {
-  return str+ cs->cset->scan(cs, str, end, MY_SEQ_SPACES) == end;
+  return str + cs->scan(str, end, MY_SEQ_SPACES) == end;
 }
 
 int append_query_string(CHARSET_INFO *csinfo, String *to,

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1072,12 +1072,11 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
 #ifdef DBUG_ASSERT_EXISTS
     size_t tmp_length=
 #endif
-    cs->coll->strnxfrm(cs, to, sort_field->length,
-                                   item->max_char_length() *
-                                   cs->strxfrm_multiply,
-                                   (uchar*) res->ptr(), res->length(),
-                                   MY_STRXFRM_PAD_WITH_SPACE |
-                                   MY_STRXFRM_PAD_TO_MAXLEN);
+    cs->strnxfrm(to, sort_field->length,
+                 item->max_char_length() * cs->strxfrm_multiply,
+                 (uchar*) res->ptr(), res->length(),
+                 MY_STRXFRM_PAD_WITH_SPACE |
+                 MY_STRXFRM_PAD_TO_MAXLEN);
     DBUG_ASSERT(tmp_length == sort_field->length);
   }
   else
@@ -1098,9 +1097,9 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
       store_length(to + sort_field_length, length, sort_field->suffix_length);
     }
     /* apply cs->sort_order for case-insensitive comparison if needed */
-    my_strnxfrm(cs,(uchar*)to,length,(const uchar*)res->ptr(),length);
+    cs->strnxfrm((uchar*)to, length, (const uchar*) res->ptr(), length);
     char fill_char= ((cs->state & MY_CS_BINSORT) ? (char) 0 : ' ');
-    cs->cset->fill(cs, (char *)to+length,diff,fill_char);
+    cs->fill((char *) to + length, diff, fill_char);
   }
 }
 
@@ -2017,7 +2016,7 @@ Type_handler_string_result::sortlength(THD *thd,
   set_if_smaller(sortorder->length, thd->variables.max_sort_length);
   if (use_strnxfrm((cs= item->collation.collation)))
   {
-    sortorder->length= (uint)cs->coll->strnxfrmlen(cs, sortorder->length);
+    sortorder->length= (uint) cs->strnxfrmlen(sortorder->length);
   }
   else if (cs == &my_charset_bin)
   {
@@ -2109,7 +2108,7 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
       if (use_strnxfrm((cs=sortorder->field->sort_charset())))
       {
         *multi_byte_charset= true;
-        sortorder->length= (uint)cs->coll->strnxfrmlen(cs, sortorder->length);
+        sortorder->length= (uint) cs->strnxfrmlen(sortorder->length);
       }
       if (sortorder->field->maybe_null())
         length++;				// Place for NULL marker

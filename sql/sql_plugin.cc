@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation
+   Copyright (c) 2010, 2020, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -454,9 +454,8 @@ static struct st_plugin_dl *plugin_dl_find(const LEX_CSTRING *dl)
   {
     tmp= *dynamic_element(&plugin_dl_array, i, struct st_plugin_dl **);
     if (tmp->ref_count &&
-        ! my_strnncoll(files_charset_info,
-                       (const uchar *)dl->str, dl->length,
-                       (const uchar *)tmp->dl.str, tmp->dl.length))
+        ! files_charset_info->strnncoll(dl->str, dl->length,
+                                        tmp->dl.str, tmp->dl.length))
       DBUG_RETURN(tmp);
   }
   DBUG_RETURN(0);
@@ -1128,9 +1127,8 @@ static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
          tmp.plugin_dl->mariaversion == 0))
       continue; // unsupported plugin type
 
-    if (name->str && my_strnncoll(system_charset_info,
-                                  (const uchar *)name->str, name->length,
-                                  (const uchar *)tmp.name.str, tmp.name.length))
+    if (name->str && system_charset_info->strnncoll(name->str, name->length,
+                                                    tmp.name.str, tmp.name.length))
       continue; // plugin name doesn't match
 
     if (!name->str &&
@@ -1634,8 +1632,7 @@ int plugin_init(int *argc, char **argv, int flags)
     for (plugin= *builtins; plugin->info; plugin++)
     {
       if (opt_ignore_builtin_innodb &&
-          !my_strnncoll(&my_charset_latin1, (const uchar*) plugin->name,
-                        6, (const uchar*) "InnoDB", 6))
+          !my_charset_latin1.strnncoll(plugin->name, 6, "InnoDB", 6))
         continue;
 
       bzero(&tmp, sizeof(tmp));

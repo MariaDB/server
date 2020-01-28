@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation
+   Copyright (c) 2009, 2020, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -934,7 +934,7 @@ bool init_slave_skip_errors(const char* arg)
   use_slave_mask= 1;
   for (;my_isspace(system_charset_info,*arg);++arg)
     /* empty */;
-  if (!my_strnncoll(system_charset_info,(uchar*)arg,4,(const uchar*)"all",4))
+  if (!system_charset_info->strnncoll((uchar*)arg,4,(const uchar*)"all",4))
   {
     bitmap_set_all(&slave_error_mask);
     goto end;
@@ -1443,6 +1443,9 @@ void slave_prepare_for_shutdown()
   mysql_mutex_lock(&LOCK_active_mi);
   master_info_index->free_connections();
   mysql_mutex_unlock(&LOCK_active_mi);
+  // It's safe to destruct worker pool now when
+  // all driver threads are gone.
+  global_rpl_thread_pool.destroy();
   stop_slave_background_thread();
 }
 
@@ -6577,7 +6580,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       error= ER_SLAVE_HEARTBEAT_FAILURE;
       error_msg.append(STRING_WITH_LEN("inconsistent heartbeat event content;"));
       error_msg.append(STRING_WITH_LEN("the event's data: log_file_name "));
-      error_msg.append(hb.get_log_ident(), (uint) strlen(hb.get_log_ident()));
+      error_msg.append(hb.get_log_ident(), (uint) hb.get_ident_len());
       error_msg.append(STRING_WITH_LEN(" log_pos "));
       error_msg.append_ulonglong(hb.log_pos);
       goto err;
@@ -6603,7 +6606,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       error= ER_SLAVE_HEARTBEAT_FAILURE;
       error_msg.append(STRING_WITH_LEN("heartbeat is not compatible with local info;"));
       error_msg.append(STRING_WITH_LEN("the event's data: log_file_name "));
-      error_msg.append(hb.get_log_ident(), (uint) strlen(hb.get_log_ident()));
+      error_msg.append(hb.get_log_ident(), (uint) hb.get_ident_len());
       error_msg.append(STRING_WITH_LEN(" log_pos "));
       error_msg.append_ulonglong(hb.log_pos);
       goto err;

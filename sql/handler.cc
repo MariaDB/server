@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -182,8 +182,7 @@ plugin_ref ha_resolve_by_name(THD *thd, const LEX_CSTRING *name,
   plugin_ref plugin;
 
 redo:
-  /* my_strnncoll is a macro and gcc doesn't do early expansion of macro */
-  if (thd && !my_charset_latin1.coll->strnncoll(&my_charset_latin1,
+  if (thd && !my_charset_latin1.strnncoll(
                            (const uchar *)name->str, name->length,
                            (const uchar *)STRING_WITH_LEN("DEFAULT"), 0))
     return tmp_table ?  ha_default_tmp_plugin(thd) : ha_default_plugin(thd);
@@ -205,7 +204,7 @@ redo:
   */
   for (table_alias= sys_table_aliases; table_alias->str; table_alias+= 2)
   {
-    if (!my_strnncoll(&my_charset_latin1,
+    if (!my_charset_latin1.strnncoll(
                       (const uchar *)name->str, name->length,
                       (const uchar *)table_alias->str, table_alias->length))
     {
@@ -5587,13 +5586,13 @@ static int cmp_file_names(const void *a, const void *b)
   CHARSET_INFO *cs= character_set_filesystem;
   char *aa= ((FILEINFO *)a)->name;
   char *bb= ((FILEINFO *)b)->name;
-  return my_strnncoll(cs, (uchar*)aa, strlen(aa), (uchar*)bb, strlen(bb));
+  return cs->strnncoll(aa, strlen(aa), bb, strlen(bb));
 }
 
 static int cmp_table_names(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
 {
-  return my_strnncoll(&my_charset_bin, (uchar*)((*a)->str), (*a)->length,
-                                       (uchar*)((*b)->str), (*b)->length);
+  return my_charset_bin.strnncoll((*a)->str, (*a)->length,
+                                  (*b)->str, (*b)->length);
 }
 
 #ifndef DBUG_OFF
@@ -5627,8 +5626,8 @@ bool Discovered_table_list::add_table(const char *tname, size_t tlen)
     custom discover_table_names() method, that calls add_table() directly).
     Note: avoid comparing the same name twice (here and in add_file).
   */
-  if (wild && my_wildcmp(table_alias_charset, tname, tname + tlen, wild, wend,
-                         wild_prefix, wild_one, wild_many))
+  if (wild && table_alias_charset->wildcmp(tname, tname + tlen, wild, wend,
+                                           wild_prefix, wild_one, wild_many))
       return 0;
 
   LEX_CSTRING *name= thd->make_clex_string(tname, tlen);

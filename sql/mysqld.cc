@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -8850,11 +8850,10 @@ bool is_secure_file_path(char *path)
   }
   else
   {
-    if (files_charset_info->coll->strnncoll(files_charset_info,
-                                            (uchar *) buff2, strlen(buff2),
-                                            (uchar *) opt_secure_file_priv,
-                                            opt_secure_file_priv_len,
-                                            TRUE))
+    if (files_charset_info->strnncoll(buff2, strlen(buff2),
+                                      opt_secure_file_priv,
+                                      opt_secure_file_priv_len,
+                                      TRUE))
       return FALSE;
   }
   return TRUE;

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2017, MariaDB Corporation.
+   Copyright (c) 2017, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -103,8 +103,8 @@ ulong Events::inited;
 int sortcmp_lex_string(const LEX_CSTRING *s, const LEX_CSTRING *t,
                        const CHARSET_INFO *cs)
 {
- return cs->coll->strnncollsp(cs, (uchar *) s->str, s->length,
-                                  (uchar *) t->str, t->length);
+ return cs->strnncollsp(s->str, s->length,
+                        t->str, t->length);
 }
 
 

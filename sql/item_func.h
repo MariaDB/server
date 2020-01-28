@@ -1,7 +1,7 @@
 #ifndef ITEM_FUNC_INCLUDED
 #define ITEM_FUNC_INCLUDED
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2574,15 +2574,15 @@ public:
     char *end_not_used;
     String *res;
     res= val_str(&str_value);
-    return res ? my_strntod(res->charset(),(char*) res->ptr(), 
-                            res->length(), &end_not_used, &err_not_used) : 0.0;
+    return res ? res->charset()->strntod((char*) res->ptr(), res->length(),
+                                         &end_not_used, &err_not_used) : 0.0;
   }
   longlong val_int()
   {
     int err_not_used;
     String *res;  res=val_str(&str_value);
-    return res ? my_strntoll(res->charset(),res->ptr(),res->length(),10,
-                             (char**) 0, &err_not_used) : (longlong) 0;
+    return res ? res->charset()->strntoll(res->ptr(),res->length(),10,
+                                          (char**) 0, &err_not_used) : (longlong) 0;
   }
   my_decimal *val_decimal(my_decimal *dec_buf)
   {

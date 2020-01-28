@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2019 MariaDB
+   Copyright (c) 2019, 2020 MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,8 +28,8 @@ StringPack::pack(uchar *to, const uchar *from, uint max_length) const
   DBUG_PRINT("debug", ("length: %zu ", length));
 
   if (length > local_char_length)
-    local_char_length= my_charpos(charset(), from, from + length,
-                                  local_char_length);
+    local_char_length= charset()->charpos(from, from + length,
+                                          local_char_length);
   set_if_smaller(length, local_char_length);
  
   /*
@@ -44,7 +44,7 @@ StringPack::pack(uchar *to, const uchar *from, uint max_length) const
       length --;
   }
   else
-    length= charset()->cset->lengthsp(charset(), (const char*) from, length);
+    length= charset()->lengthsp((const char*) from, length);
 
   // Length always stored little-endian
   *to++= (uchar) length;
@@ -97,9 +97,8 @@ StringPack::unpack(uchar *to, const uchar *from, const uchar *from_end,
 
   memcpy(to, from, length);
   // Pad the string with the pad character of the fields charset
-  charset()->cset->fill(charset(),
-                        (char*) to + length,
-                        m_octet_length - length,
-                        charset()->pad_char);
+  charset()->fill((char*) to + length,
+                  m_octet_length - length,
+                  charset()->pad_char);
   return from+length;
 }

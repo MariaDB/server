@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015,2019 MariaDB
+   Copyright (c) 2015,2020 MariaDB
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -5597,9 +5597,8 @@ cmp_item *Type_handler_timestamp_common::make_cmp_item(THD *thd,
 
 static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
 {
-  return cs->coll->strnncollsp(cs,
-                               (uchar *) x->ptr(),x->length(),
-                               (uchar *) y->ptr(),y->length());
+  return cs->strnncollsp(x->ptr(), x->length(),
+                         y->ptr(), y->length());
 }
 
 in_vector *Type_handler_string_result::make_in_vector(THD *thd,

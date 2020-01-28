@@ -1,4 +1,5 @@
 /* Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -107,8 +108,7 @@ bool Gis_read_stream::get_next_number(double *d)
     return 1;
   }
 
-  *d = my_strntod(m_charset, (char *)m_cur,
-		  (uint) (m_limit-m_cur), &endptr, &err);
+  *d = m_charset->strntod((char *)m_cur, (uint) (m_limit-m_cur), &endptr, &err);
   if (err)
     return 1;
   if (endptr)

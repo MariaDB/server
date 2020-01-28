@@ -1,0 +1,11 @@
+[good]
+#
+# hostname on the certificate is localhost
+#
+
+[bad]
+#
+# hostname on the certificate is server8k
+#
+loose-ssl-key=$MYSQL_TEST_DIR/std_data/server8k-key.pem
+loose-ssl-cert=$MYSQL_TEST_DIR/std_data/server8k-cert.pem

@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2015, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
    
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -31507,8 +31507,7 @@ my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t *wc)
        flag<<= 1)
   {
     int mblen;
-    if ((mblen= scanner->cs->cset->mb_wc(scanner->cs, &wc[clen],
-                                         s, scanner->send)) <= 0)
+    if ((mblen= my_ci_mb_wc(scanner->cs, &wc[clen], s, scanner->send)) <= 0)
       break;
     beg[clen]= s= s + mblen;
     if (!my_uca_can_be_contraction_part(&scanner->level->contractions,
@@ -32343,8 +32342,7 @@ static my_coll_lexem_num my_coll_lexem_next(MY_COLL_LEXEM *lexem)
     {
       CHARSET_INFO *cs= &my_charset_utf8mb3_general_ci;
       my_wc_t wc;
-      int nbytes= cs->cset->mb_wc(cs, &wc,
-                                  (uchar *) beg, (uchar *) lexem->end);
+      int nbytes= my_ci_mb_wc(cs, &wc, (uchar *) beg, (uchar *) lexem->end);
       if (nbytes > 0)
       {
         rc= MY_COLL_LEXEM_CHAR;
@@ -33720,7 +33718,7 @@ static my_bool
 my_coll_init_uca(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
 {
   cs->pad_char= ' ';
-  cs->ctype= my_charset_utf8mb3_unicode_ci.ctype;
+  cs->m_ctype= my_charset_utf8mb3_unicode_ci.m_ctype;
   if (!cs->caseinfo)
     cs->caseinfo= &my_unicase_default;
   return create_tailoring(cs, loader);
@@ -33774,7 +33772,7 @@ static void my_uca_handler_map(struct charset_info_st *cs,
   instead of generic.
 */
 #define MY_FUNCTION_NAME(x)   my_uca_ ## x ## _generic
-#define MY_MB_WC(scanner, wc, beg, end) (scanner->cs->cset->mb_wc(scanner->cs, wc, beg, end))
+#define MY_MB_WC(scanner, wc, beg, end) (my_ci_mb_wc(scanner->cs, wc, beg, end))
 #define MY_LIKE_RANGE my_like_range_generic
 #define MY_UCA_ASCII_OPTIMIZE 0
 #define MY_UCA_COMPILE_CONTRACTIONS 1

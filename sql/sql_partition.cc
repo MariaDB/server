@@ -1,5 +1,5 @@
 /* Copyright (c) 2005, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2018, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1864,7 +1864,7 @@ bool field_is_partition_charset(Field *field)
   DESCRIPTION
     We will check in this routine that the fields of the partition functions
     do not contain unallowed parts. It can also be used to check if there
-    are fields that require special care by calling my_strnxfrm before
+    are fields that require special care by calling strnxfrm before
     calling the functions to calculate partition id.
 */
 
@@ -2951,8 +2951,8 @@ static void copy_to_part_field_buffers(Field **ptr,
       if (field->type() == MYSQL_TYPE_VARCHAR)
       {
         uint len_bytes= ((Field_varstring*)field)->length_bytes;
-        my_strnxfrm(cs, field_buf + len_bytes, max_len,
-                    field->ptr + len_bytes, data_len);
+        cs->strnxfrm(field_buf + len_bytes, max_len,
+                     field->ptr + len_bytes, data_len);
         if (len_bytes == 1)
           *field_buf= (uchar) data_len;
         else
@@ -2960,8 +2960,8 @@ static void copy_to_part_field_buffers(Field **ptr,
       }
       else
       {
-        my_strnxfrm(cs, field_buf, max_len,
-                    field->ptr, max_len);
+        cs->strnxfrm(field_buf, max_len,
+                     field->ptr, max_len);
       }
       field->ptr= field_buf;
     }

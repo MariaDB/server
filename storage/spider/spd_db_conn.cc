@@ -1,5 +1,5 @@
 /* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019 MariaDB corp
+   Copyright (C) 2019, 2020, MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1478,7 +1478,7 @@ int spider_db_append_name_with_quote_str_internal(
   {
     head_code = *name;
 #ifdef SPIDER_HAS_MY_CHARLEN
-    if ((length = my_charlen(cs, name, name_end)) < 1)
+    if ((length = my_ci_charlen(cs, (const uchar *) name, (const uchar *) name_end)) < 1)
 #else
     if (!(length = my_mbcharlen(cs, (uchar) head_code)))
 #endif

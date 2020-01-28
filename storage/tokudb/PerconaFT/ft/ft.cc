@@ -61,7 +61,7 @@ void toku_reset_root_xid_that_created(FT ft, TXNID new_root_xid_that_created) {
     // (see cooperative use of dirty bit in ft_begin_checkpoint())
     toku_ft_lock(ft);
     ft->h->root_xid_that_created = new_root_xid_that_created;
-    ft->h->dirty = 1;
+    ft->h->set_dirty();
     toku_ft_unlock(ft);
 }
 
@@ -147,7 +147,7 @@ static void ft_begin_checkpoint (LSN checkpoint_lsn, void *header_v) {
     assert(ft->h->type == FT_CURRENT);
     assert(ft->checkpoint_header == NULL);
     ft_copy_for_checkpoint_unlocked(ft, checkpoint_lsn);
-    ft->h->dirty = 0;             // this is only place this bit is cleared        (in currentheader)
+    ft->h->clear_dirty();             // this is only place this bit is cleared        (in currentheader)
     ft->blocktable.note_start_checkpoint_unlocked();
     toku_ft_unlock (ft);
 }
@@ -186,7 +186,7 @@ static void ft_checkpoint (CACHEFILE cf, int fd, void *header_v) {
     FT_HEADER ch = ft->checkpoint_header;
     assert(ch);
     assert(ch->type == FT_CHECKPOINT_INPROGRESS);
-    if (ch->dirty) {            // this is only place this bit is tested (in checkpoint_header)
+    if (ch->dirty()) {            // this is only place this bit is tested (in checkpoint_header)
         TOKULOGGER logger = toku_cachefile_logger(cf);
         if (logger) {
             toku_logger_fsync_if_lsn_not_fsynced(logger, ch->checkpoint_lsn);
@@ -201,7 +201,7 @@ static void ft_checkpoint (CACHEFILE cf, int fd, void *header_v) {
                                                              
         // write translation and header to disk (or at least to OS internal buffer)
         toku_serialize_ft_to(fd, ch, &ft->blocktable, ft->cf);
-        ch->dirty = 0;                      // this is only place this bit is cleared (in checkpoint_header)
+        ch->clear_dirty();                      // this is only place this bit is cleared (in checkpoint_header)
         
         // fsync the cachefile
         toku_cachefile_fsync(cf);
@@ -255,7 +255,7 @@ static void ft_close(CACHEFILE cachefile, int fd, void *header_v, bool oplsn_val
                 toku_log_fclose(
                     logger,
                     &lsn,
-                    ft->h->dirty,
+                    ft->h->dirty(),
                     bs,
                     toku_cachefile_filenum(cachefile));  // flush the log on
                                                          // close (if new header
@@ -266,7 +266,7 @@ static void ft_close(CACHEFILE cachefile, int fd, void *header_v, bool oplsn_val
             }
         }
     }
-    if (ft->h->dirty) {               // this is the only place this bit is tested (in currentheader)
+    if (ft->h->dirty()) {               // this is the only place this bit is tested (in currentheader)
         bool do_checkpoint = true;
         if (logger && logger->rollback_cachefile == cachefile) {
             do_checkpoint = false;
@@ -275,7 +275,7 @@ static void ft_close(CACHEFILE cachefile, int fd, void *header_v, bool oplsn_val
             ft_begin_checkpoint(lsn, header_v);
             ft_checkpoint(cachefile, fd, ft);
             ft_end_checkpoint(cachefile, fd, header_v);
-            assert(!ft->h->dirty); // dirty bit should be cleared by begin_checkpoint and never set again (because we're closing the dictionary)
+            assert(!ft->h->dirty()); // dirty bit should be cleared by begin_checkpoint and never set again (because we're closing the dictionary)
         }
     }
 }
@@ -371,7 +371,7 @@ ft_header_create(FT_OPTIONS options, BLOCKNUM root_blocknum, TXNID root_xid_that
     uint64_t now = (uint64_t) time(NULL);
     struct ft_header h = {
         .type = FT_CURRENT,
-        .dirty = 0,
+        .dirty_ = 0,
         .checkpoint_count = 0,
         .checkpoint_lsn = ZERO_LSN,
         .layout_version = FT_LAYOUT_VERSION,
@@ -522,7 +522,7 @@ toku_ft_note_hot_begin(FT_HANDLE ft_handle) {
     toku_ft_lock(ft);
     ft->h->time_of_last_optimize_begin = now;
     ft->h->count_of_optimize_in_progress++;
-    ft->h->dirty = 1;
+    ft->h->set_dirty();
     toku_ft_unlock(ft);
 }
 
@@ -546,7 +546,7 @@ toku_ft_note_hot_complete(FT_HANDLE ft_handle, bool success, MSN msn_at_start_of
         if (ft->h->count_of_optimize_in_progress == ft->h->count_of_optimize_in_progress_read_from_disk)
             ft->h->count_of_optimize_in_progress = 0;
     }
-    ft->h->dirty = 1;
+    ft->h->set_dirty();
     toku_ft_unlock(ft);
 }
 
@@ -959,7 +959,7 @@ void toku_ft_remove_reference(
 void toku_ft_set_nodesize(FT ft, unsigned int nodesize) {
     toku_ft_lock(ft);
     ft->h->nodesize = nodesize;
-    ft->h->dirty = 1;
+    ft->h->set_dirty();
     toku_ft_unlock(ft);
 }
 
@@ -972,7 +972,7 @@ void toku_ft_get_nodesize(FT ft, unsigned int *nodesize) {
 void toku_ft_set_basementnodesize(FT ft, unsigned int basementnodesize) {
     toku_ft_lock(ft);
     ft->h->basementnodesize = basementnodesize;
-    ft->h->dirty = 1;
+    ft->h->set_dirty();
     toku_ft_unlock(ft);
 }
 
@@ -985,7 +985,7 @@ void toku_ft_get_basementnodesize(FT ft, unsigned int *basementnodesize) {
 void toku_ft_set_compression_method(FT ft, enum toku_compression_method method) {
     toku_ft_lock(ft);
     ft->h->compression_method = method;
-    ft->h->dirty = 1;
+    ft->h->set_dirty();
     toku_ft_unlock(ft);
 }
 
@@ -998,7 +998,7 @@ void toku_ft_get_compression_method(FT ft, enum toku_compression_method *methodp
 void toku_ft_set_fanout(FT ft, unsigned int fanout) {
     toku_ft_lock(ft);
     ft->h->fanout = fanout;
-    ft->h->dirty = 1;
+    ft->h->set_dirty();
     toku_ft_unlock(ft);
 }
 

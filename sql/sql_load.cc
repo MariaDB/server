@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation.
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -190,7 +190,7 @@ class READ_INFO: public Load_data_param
   bool read_mbtail(String *str)
   {
     int chlen;
-    if ((chlen= my_charlen(charset(), str->end() - 1, str->end())) == 1)
+    if ((chlen= charset()->charlen(str->end() - 1, str->end())) == 1)
       return false; // Single byte character found
     for (uint32 length0= str->length() - 1 ; MY_CS_IS_TOOSMALL(chlen); )
     {
@@ -201,7 +201,7 @@ class READ_INFO: public Load_data_param
         return true; // EOF
       }
       str->append(chr);
-      chlen= my_charlen(charset(), str->ptr() + length0, str->end());
+      chlen= charset()->charlen(str->ptr() + length0, str->end());
       if (chlen == MY_CS_ILSEQ)
       {
         /**
@@ -1587,7 +1587,7 @@ int READ_INFO::read_field()
 	}
       }
       data.append(chr);
-      if (use_mb(charset()) && read_mbtail(&data))
+      if (charset()->use_mb() && read_mbtail(&data))
         goto found_eof;
     }
     /*
@@ -1686,8 +1686,8 @@ int READ_INFO::next_line()
     if (getbyte(&buf[0]))
       return 1; // EOF
 
-    if (use_mb(charset()) &&
-        (chlen= my_charlen(charset(), buf, buf + 1)) != 1)
+    if (charset()->use_mb() &&
+        (chlen= charset()->charlen(buf, buf + 1)) != 1)
     {
       uint i;
       for (i= 1; MY_CS_IS_TOOSMALL(chlen); )
@@ -1696,7 +1696,7 @@ int READ_INFO::next_line()
         DBUG_ASSERT(chlen != 1);
         if (getbyte(&buf[i++]))
           return 1; // EOF
-        chlen= my_charlen(charset(), buf, buf + i);
+        chlen= charset()->charlen(buf, buf + i);
       }
 
       /*
@@ -1867,7 +1867,7 @@ int READ_INFO::read_value(int delim, String *val)
     else
     {
       val->append(chr);
-      if (use_mb(charset()) && read_mbtail(val))
+      if (charset()->use_mb() && read_mbtail(val))
         return my_b_EOF;
     }
   }            

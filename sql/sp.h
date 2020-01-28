@@ -1,5 +1,6 @@
 /* -*- C++ -*- */
 /* Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -135,9 +136,8 @@ public:
   static bool eq_routine_name(const LEX_CSTRING &name1,
                               const LEX_CSTRING &name2)
   {
-    return my_strnncoll(system_charset_info,
-                        (const uchar *) name1.str, name1.length,
-                        (const uchar *) name2.str, name2.length) == 0;
+    return system_charset_info->strnncoll(name1.str, name1.length,
+                                          name2.str, name2.length) == 0;
   }
   const char *type_str() const { return type_lex_cstring().str; }
   virtual const char *show_create_routine_col1_caption() const

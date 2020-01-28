@@ -2,6 +2,7 @@
 #define PROCEDURE_INCLUDED
 
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -88,7 +89,7 @@ public:
   {
     int err_not_used;
     char *end_not_used;
-    value= my_strntod(cs,(char*) str,length, &end_not_used, &err_not_used);
+    value= cs->strntod((char*) str,length, &end_not_used, &err_not_used);
   }
   double val_real() { return value; }
   longlong val_int() { return (longlong) value; }
@@ -116,7 +117,7 @@ public:
   void set(double nr) { value=(longlong) nr; }
   void set(longlong nr) { value=nr; }
   void set(const char *str,uint length, CHARSET_INFO *cs)
-  { int err; value=my_strntoll(cs,str,length,10,NULL,&err); }
+  { int err; value= cs->strntoll(str,length,10,NULL,&err); }
   double val_real() { return (double) value; }
   longlong val_int() { return value; }
   String *val_str(String *s) { s->set(value, default_charset()); return s; }
@@ -140,14 +141,14 @@ public:
     int err_not_used;
     char *end_not_used;
     CHARSET_INFO *cs= str_value.charset();
-    return my_strntod(cs, (char*) str_value.ptr(), str_value.length(),
-		      &end_not_used, &err_not_used);
+    return cs->strntod((char*) str_value.ptr(), str_value.length(),
+		       &end_not_used, &err_not_used);
   }
   longlong val_int()
   { 
     int err;
     CHARSET_INFO *cs=str_value.charset();
-    return my_strntoll(cs,str_value.ptr(),str_value.length(),10,NULL,&err);
+    return cs->strntoll(str_value.ptr(),str_value.length(),10,NULL,&err);
   }
   String *val_str(String*)
   {

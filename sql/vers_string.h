@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2018, MariaDB Corporation.
+   Copyright (c) 2018, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,9 +30,8 @@ struct Compare_table_names
   {
     DBUG_ASSERT(a.str[a.length] == 0);
     DBUG_ASSERT(b.str[b.length] == 0);
-    return my_strnncoll(table_alias_charset,
-                        (uchar*)a.str, a.length,
-                        (uchar*)b.str, b.length);
+    return table_alias_charset->strnncoll(a.str, a.length,
+                                          b.str, b.length);
   }
 };
 
