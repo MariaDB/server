@@ -794,7 +794,7 @@ struct charset_info_st
                   const uchar *src, size_t srclen) const
   {
     return (coll->strnxfrm)(this,
-                            dst, dstlen, dstlen,
+                            dst, dstlen, (uint) dstlen,
                             src, srclen, MY_STRXFRM_PAD_WITH_SPACE);
   }
 
