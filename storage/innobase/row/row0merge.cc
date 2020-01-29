@@ -64,14 +64,10 @@ public:
 	/** constructor
 	@param[in]	heap	memory heap
 	@param[in]	index	index to be created */
-	index_tuple_info_t(
-		mem_heap_t*	heap,
-		dict_index_t*	index) UNIV_NOTHROW
-	{
-		m_heap = heap;
-		m_index = index;
-		m_dtuple_vec = UT_NEW_NOKEY(idx_tuple_vec());
-	}
+	index_tuple_info_t(mem_heap_t* heap, dict_index_t* index) :
+		m_dtuple_vec(UT_NEW_NOKEY(idx_tuple_vec())),
+		m_index(index), m_heap(heap)
+	{ ut_ad(index->is_spatial()); }
 
 	/** destructor */
 	~index_tuple_info_t()
@@ -107,13 +103,11 @@ public:
 	@param[in]	trx_id		transaction id
 	@param[in,out]	row_heap	memory heap
 	@param[in]	pcur		cluster index scanning cursor
+	@param[in,out]	mtr_started	whether scan_mtr is active
 	@param[in,out]	scan_mtr	mini-transaction for pcur
 	@return DB_SUCCESS if successful, else error number */
-	inline dberr_t insert(
-		trx_id_t		trx_id,
-		mem_heap_t*		row_heap,
-		btr_pcur_t*		pcur,
-		mtr_t*			scan_mtr)
+	dberr_t insert(trx_id_t trx_id, mem_heap_t* row_heap, btr_pcur_t* pcur,
+		       bool& mtr_started, mtr_t* scan_mtr) const
 	{
 		big_rec_t*      big_rec;
 		rec_t*          rec;
@@ -128,7 +122,7 @@ public:
 				       | BTR_NO_LOCKING_FLAG
 				       | BTR_KEEP_SYS_FLAG | BTR_CREATE_FLAG;
 
-		ut_ad(dict_index_is_spatial(m_index));
+		ut_ad(mtr_started == scan_mtr->is_active());
 
 		DBUG_EXECUTE_IF("row_merge_instrument_log_check_flush",
 			log_sys.check_flush_or_checkpoint = true;
@@ -141,10 +135,11 @@ public:
 			ut_ad(dtuple);
 
 			if (log_sys.check_flush_or_checkpoint) {
-				if (scan_mtr->is_active()) {
+				if (mtr_started) {
 					btr_pcur_move_to_prev_on_page(pcur);
 					btr_pcur_store_position(pcur, scan_mtr);
 					scan_mtr->commit();
+					mtr_started = false;
 				}
 
 				log_free_check();
@@ -247,13 +242,13 @@ private:
 		idx_tuple_vec;
 
 	/** vector used to cache index rows made from cluster index scan */
-	idx_tuple_vec*		m_dtuple_vec;
+	idx_tuple_vec* const	m_dtuple_vec;
 
 	/** the index being built */
-	dict_index_t*		m_index;
+	dict_index_t* const	m_index;
 
 	/** memory heap for creating index tuples */
-	mem_heap_t*		m_heap;
+	mem_heap_t* const	m_heap;
 };
 
 /* Maximum pending doc memory limit in bytes for a fts tokenization thread */
@@ -1574,10 +1569,11 @@ row_mtuple_cmp(
 @param[in]	trx_id		transaction id
 @param[in]	sp_tuples	cached spatial rows
 @param[in]	num_spatial	number of spatial indexes
-@param[in,out]	row_heap	heap for insert
+@param[in,out]	heap		heap for insert
 @param[in,out]	sp_heap		heap for tuples
 @param[in,out]	pcur		cluster index cursor
-@param[in,out]	mtr		mini transaction
+@param[in,out]	started		whether mtr is active
+@param[in,out]	mtr		mini-transaction
 @return DB_SUCCESS or error number */
 static
 dberr_t
@@ -1585,30 +1581,21 @@ row_merge_spatial_rows(
 	trx_id_t		trx_id,
 	index_tuple_info_t**	sp_tuples,
 	ulint			num_spatial,
-	mem_heap_t*		row_heap,
+	mem_heap_t*		heap,
 	mem_heap_t*		sp_heap,
 	btr_pcur_t*		pcur,
+	bool&			started,
 	mtr_t*			mtr)
 {
-	dberr_t			err = DB_SUCCESS;
+  if (!sp_tuples)
+    return DB_SUCCESS;
 
-	if (sp_tuples == NULL) {
-		return(DB_SUCCESS);
-	}
+  for (ulint j= 0; j < num_spatial; j++)
+    if (dberr_t err= sp_tuples[j]->insert(trx_id, heap, pcur, started, mtr))
+      return err;
 
-	ut_ad(sp_heap != NULL);
-
-	for (ulint j = 0; j < num_spatial; j++) {
-		err = sp_tuples[j]->insert(trx_id, row_heap, pcur, mtr);
-
-		if (err != DB_SUCCESS) {
-			return(err);
-		}
-	}
-
-	mem_heap_empty(sp_heap);
-
-	return(err);
+  mem_heap_empty(sp_heap);
+  return DB_SUCCESS;
 }
 
 /** Check if the geometry field is valid.
@@ -1695,7 +1682,7 @@ row_merge_read_clustered_index(
 	ib_sequence_t&		sequence,
 	row_merge_block_t*	block,
 	bool			skip_pk_sort,
-	pfs_os_file_t*			tmpfd,
+	pfs_os_file_t*		tmpfd,
 	ut_stage_alter_t*	stage,
 	double 			pct_cost,
 	row_merge_block_t*	crypt_block,
@@ -1711,6 +1698,7 @@ row_merge_read_clustered_index(
 	btr_pcur_t		pcur;		/* Cursor on the clustered
 						index */
 	mtr_t			mtr;		/* Mini transaction */
+	bool			mtr_started = false;
 	dberr_t			err = DB_SUCCESS;/* Return code */
 	ulint			n_nonnull = 0;	/* number of columns
 						changed to NOT NULL */
@@ -1833,7 +1821,8 @@ row_merge_read_clustered_index(
 		ut_ad(count == num_spatial);
 	}
 
-	mtr_start(&mtr);
+	mtr.start();
+	mtr_started = true;
 
 	/* Find the clustered index and create a persistent cursor
 	based on that. */
@@ -1852,6 +1841,7 @@ row_merge_read_clustered_index(
 
 	btr_pcur_open_at_index_side(
 		true, clust_index, BTR_SEARCH_LEAF, &pcur, true, 0, &mtr);
+	mtr_started = true;
 	btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 	if (rec_is_metadata(btr_pcur_get_rec(&pcur), *clust_index)) {
 		ut_ad(btr_pcur_is_on_user_rec(&pcur));
@@ -1958,13 +1948,13 @@ row_merge_read_clustered_index(
 			/* Insert the cached spatial index rows. */
 			err = row_merge_spatial_rows(
 				trx->id, sp_tuples, num_spatial,
-				row_heap, sp_heap, &pcur, &mtr);
+				row_heap, sp_heap, &pcur, mtr_started, &mtr);
 
 			if (err != DB_SUCCESS) {
 				goto func_exit;
 			}
 
-			if (!mtr.is_active()) {
+			if (!mtr_started) {
 				goto scan_next;
 			}
 
@@ -1988,12 +1978,16 @@ row_merge_read_clustered_index(
 				      == clust_index->page);
 
 				btr_pcur_store_position(&pcur, &mtr);
-				mtr_commit(&mtr);
+				mtr.commit();
+				mtr_started = false;
 
 				/* Give the waiters a chance to proceed. */
 				os_thread_yield();
 scan_next:
-				mtr_start(&mtr);
+				ut_ad(!mtr_started);
+				ut_ad(mtr.is_active());
+				mtr.start();
+				mtr_started = true;
 				/* Restore position on the record, or its
 				predecessor if the record was purged
 				meanwhile. */
@@ -2005,7 +1999,8 @@ scan_next:
 					    &pcur, &mtr)) {
 end_of_index:
 					row = NULL;
-					mtr_commit(&mtr);
+					mtr.commit();
+					mtr_started = false;
 					mem_heap_free(row_heap);
 					row_heap = NULL;
 					ut_free(nonnull);
@@ -2471,7 +2466,8 @@ write_buffers:
 							trx->id, sp_tuples,
 							num_spatial,
 							row_heap, sp_heap,
-							&pcur, &mtr);
+							&pcur, mtr_started,
+							&mtr);
 
 						if (err != DB_SUCCESS) {
 							goto func_exit;
@@ -2479,20 +2475,21 @@ write_buffers:
 
 						/* We are not at the end of
 						the scan yet. We must
-						mtr_commit() in order to be
+						mtr.commit() in order to be
 						able to call log_free_check()
 						in row_merge_insert_index_tuples().
-						Due to mtr_commit(), the
+						Due to mtr.commit(), the
 						current row will be invalid, and
 						we must reread it on the next
 						loop iteration. */
-						if (mtr.is_active()) {
+						if (mtr_started) {
 							btr_pcur_move_to_prev_on_page(
 								&pcur);
 							btr_pcur_store_position(
 								&pcur, &mtr);
 
 							mtr.commit();
+							mtr_started = false;
 						}
 					}
 
@@ -2548,7 +2545,8 @@ write_buffers:
 						next record (the one which we
 						had to ignore due to the buffer
 						overflow). */
-						mtr_start(&mtr);
+						mtr.start();
+						mtr_started = true;
 						btr_pcur_restore_position(
 							BTR_SEARCH_LEAF, &pcur,
 							&mtr);
@@ -2734,8 +2732,9 @@ write_buffers:
 	}
 
 func_exit:
-	if (mtr.is_active()) {
-		mtr_commit(&mtr);
+	ut_ad(mtr_started == mtr.is_active());
+	if (mtr_started) {
+		mtr.commit();
 	}
 	if (row_heap) {
 		mem_heap_free(row_heap);

@@ -272,10 +272,4 @@ enum mtr_memo_type_t {
 };
 #endif /* !UNIV_CHECKSUM */
 
-enum mtr_state_t {
-	MTR_STATE_INIT = 0,
-	MTR_STATE_ACTIVE,
-	MTR_STATE_COMMITTED
-};
-
 #endif /* mtr0types_h */

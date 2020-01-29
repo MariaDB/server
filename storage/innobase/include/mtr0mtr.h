@@ -125,25 +125,22 @@ struct mtr_memo_slot_t {
 
 /** Mini-transaction handle and buffer */
 struct mtr_t {
-	mtr_t() : m_state(MTR_STATE_INIT) {}
+  /** Start a mini-transaction. */
+  void start();
 
-	/** Start a mini-transaction. */
-	void start();
+  /** Commit the mini-transaction. */
+  void commit();
 
-	/** Commit the mini-transaction. */
-	void commit();
+  /** Commit a mini-transaction that did not modify any pages,
+  but generated some redo log on a higher level, such as
+  MLOG_FILE_NAME records and an optional MLOG_CHECKPOINT marker.
+  The caller must invoke log_mutex_enter() and log_mutex_exit().
+  This is to be used at log_checkpoint().
+  @param checkpoint_lsn   the log sequence number of a checkpoint, or 0 */
+  void commit_files(lsn_t checkpoint_lsn= 0);
 
-	/** Commit a mini-transaction that did not modify any pages,
-	but generated some redo log on a higher level, such as
-	MLOG_FILE_NAME records and an optional MLOG_CHECKPOINT marker.
-	The caller must invoke log_mutex_enter() and log_mutex_exit().
-	This is to be used at log_checkpoint().
-	@param[in]	checkpoint_lsn		log checkpoint LSN, or 0 */
-	void commit_files(lsn_t	checkpoint_lsn = 0);
-
-	/** Return current size of the buffer.
-	@return	savepoint */
-	ulint get_savepoint() const {ut_ad(is_active()); return m_memo.size();}
+  /** @return mini-transaction savepoint (current size of m_memo) */
+  ulint get_savepoint() const { ut_ad(is_active()); return m_memo.size(); }
 
 	/** Release the (index tree) s-latch stored in an mtr memo after a
 	savepoint.
@@ -331,10 +328,6 @@ struct mtr_t {
 	/** @return true if we are inside the change buffer code */
 	bool is_inside_ibuf() const { return m_inside_ibuf; }
 
-	/*
-	@return true if the mini-transaction is active */
-	bool is_active() const { return m_state == MTR_STATE_ACTIVE; }
-
 	/** Get flush observer
 	@return flush observer */
 	FlushObserver* get_flush_observer() const { return m_flush_observer; }
@@ -382,9 +375,6 @@ struct mtr_t {
 
 	/** Print info of an mtr handle. */
 	void print() const;
-
-	/** @return true if the mini-transaction has committed */
-	bool has_committed() const { return m_state == MTR_STATE_COMMITTED; }
 
 	/** @return true if mini-transaction contains modifications. */
 	bool has_modifications() const { return m_modifications; }
@@ -485,17 +475,30 @@ private:
                  byte *log_ptr, uint64_t val)
     MY_ATTRIBUTE((nonnull));
 
-	/** Prepare to write the mini-transaction log to the redo log buffer.
-	@return number of bytes to write in finish_write() */
-	inline ulint prepare_write();
+  /** Prepare to write the mini-transaction log to the redo log buffer.
+  @return number of bytes to write in finish_write() */
+  inline ulint prepare_write();
 
-	/** Append the redo log records to the redo log buffer.
-	@param[in]	len	number of bytes to write
-	@return start_lsn */
-	inline lsn_t finish_write(ulint len);
+  /** Append the redo log records to the redo log buffer.
+  @param len   number of bytes to write
+  @return start_lsn */
+  inline lsn_t finish_write(ulint len);
 
-	/** Release the resources */
-	inline void release_resources();
+  /** Release the resources */
+  inline void release_resources();
+
+#ifdef UNIV_DEBUG
+public:
+  /** @return whether the mini-transaction is active */
+  bool is_active() const { ut_ad(!m_commit || m_start); return m_start; }
+  /** @return whether the mini-transaction has been committed */
+  bool has_committed() const { ut_ad(!m_commit || m_start); return m_commit; }
+private:
+  /** whether start() has been called */
+  bool m_start= false;
+  /** whether commit() has been called */
+  bool m_commit= false;
+#endif
 
 	/** memo stack for locks etc. */
 	mtr_buf_t	m_memo;
@@ -526,9 +529,6 @@ private:
 #endif /* UNIV_DEBUG */
 	/** User tablespace that is being modified by the mini-transaction */
 	fil_space_t*	m_user_space;
-
-	/** State of the transaction */
-	mtr_state_t	m_state;
 
 	/** Flush Observer */
 	FlushObserver*	m_flush_observer;

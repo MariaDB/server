@@ -380,6 +380,9 @@ void mtr_t::start()
 {
   UNIV_MEM_INVALID(this, sizeof *this);
 
+  ut_d(m_start= true);
+  ut_d(m_commit= false);
+
   new(&m_memo) mtr_buf_t();
   new(&m_log) mtr_buf_t();
 
@@ -389,24 +392,23 @@ void mtr_t::start()
   m_n_log_recs= 0;
   m_log_mode= MTR_LOG_ALL;
   ut_d(m_user_space_id= TRX_SYS_SPACE);
-  m_user_space= NULL;
-  m_state= MTR_STATE_ACTIVE;
-  m_flush_observer= NULL;
+  m_user_space= nullptr;
+  m_flush_observer= nullptr;
   m_commit_lsn= 0;
 }
 
 /** Release the resources */
 inline void mtr_t::release_resources()
 {
+  ut_ad(is_active());
   ut_d(m_memo.for_each_block_in_reverse(CIterate<DebugCheck>()));
   m_log.erase();
   m_memo.erase();
-  m_state= MTR_STATE_COMMITTED;
+  ut_d(m_commit= true);
 }
 
 /** Commit a mini-transaction. */
-void
-mtr_t::commit()
+void mtr_t::commit()
 {
   ut_ad(is_active());
   ut_ad(!is_inside_ibuf());
@@ -415,8 +417,7 @@ mtr_t::commit()
   ut_ad(!m_modifications || !recv_no_log_write);
   ut_ad(!m_modifications || m_log_mode != MTR_LOG_NONE);
 
-  if (m_modifications
-      && (m_n_log_recs || m_log_mode == MTR_LOG_NO_REDO))
+  if (m_modifications && (m_n_log_recs || m_log_mode == MTR_LOG_NO_REDO))
   {
     ut_ad(!srv_read_only_mode || m_log_mode == MTR_LOG_NO_REDO);
 
