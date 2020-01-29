@@ -352,8 +352,6 @@ typedef std::map<space_id_t,std::string> space_id_to_name_t;
 struct ddl_tracker_t {
 	/** Tablspaces with their ID and name, as they were copied to backup.*/
 	space_id_to_name_t tables_in_backup;
-	/** Tablespaces for that optimized DDL without redo log was found.*/
-	std::set<space_id_t> optimized_ddl;
 	/** Drop operations found in redo log. */
 	std::set<space_id_t> drops;
 	/* For DDL operation found in redo log,  */
@@ -661,30 +659,6 @@ static void backup_file_op_fail(ulint space_id, const byte* flags,
 		ut_a(opt_no_lock);
 		die("DDL operation detected in the late phase of backup."
 			"Backup is inconsistent. Remove --no-lock option to fix.");
-	}
-}
-
-
-/** Callback whenever MLOG_INDEX_LOAD happens.
-@param[in]	space_id	space id to check */
-static void backup_optimized_ddl_op(ulint space_id)
-{
-	pthread_mutex_lock(&backup_mutex);
-	ddl_tracker.optimized_ddl.insert(space_id);
-	pthread_mutex_unlock(&backup_mutex);
-}
-
-/*
-  Optimized DDL callback at the end of backup that
-  run with --no-lock. Usually aborts the backup.
-*/
-static void backup_optimized_ddl_op_fail(ulint space_id) {
-	msg("DDL tracking : optimized DDL on space %zu", space_id);
-	if (ddl_tracker.tables_in_backup.find(space_id) != ddl_tracker.tables_in_backup.end()) {
-		ut_a(opt_no_lock);
-		msg("ERROR : Optimized DDL operation detected in the late phase of backup."
-			"Backup is inconsistent. Remove --no-lock option to fix.");
-		exit(EXIT_FAILURE);
 	}
 }
 
@@ -4223,7 +4197,6 @@ fail_before_log_copying_thread_start:
 	/* copy log file by current position */
 	log_copy_scanned_lsn = checkpoint_lsn_start;
 	recv_sys.recovered_lsn = log_copy_scanned_lsn;
-	log_optimized_ddl_op = backup_optimized_ddl_op;
 
 	if (xtrabackup_copy_logfile())
 		goto fail_before_log_copying_thread_start;
@@ -4368,7 +4341,6 @@ void backup_fix_ddl(void)
 	/* Disable further DDL on backed up tables (only needed for --no-lock).*/
 	pthread_mutex_lock(&backup_mutex);
 	log_file_op = backup_file_op_fail;
-	log_optimized_ddl_op = backup_optimized_ddl_op_fail;
 	pthread_mutex_unlock(&backup_mutex);
 
 	DBUG_MARIABACKUP_EVENT("backup_fix_ddl",0);
@@ -4385,32 +4357,14 @@ void backup_fix_ddl(void)
 			continue;
 		}
 
-		bool has_optimized_ddl =
-			ddl_tracker.optimized_ddl.find(id) != ddl_tracker.optimized_ddl.end();
-
 		if (ddl_tracker.id_to_name.find(id) == ddl_tracker.id_to_name.end()) {
-			if (has_optimized_ddl) {
-				new_tables.insert(name);
-			}
 			continue;
 		}
 
 		/* tablespace was affected by DDL. */
 		const std::string new_name = ddl_tracker.id_to_name[id];
 		if (new_name != name) {
-			if (has_optimized_ddl) {
-				/* table was renamed, but we need a full copy
-				of it because of optimized DDL. We emulate a drop/create.*/
-				dropped_tables.insert(name);
-				new_tables.insert(new_name);
-			} else {
-				/* Renamed, and no optimized DDL*/
-				renamed_tables[name] = new_name;
-			}
-		} else if (has_optimized_ddl) {
-			/* Table was recreated, or optimized DDL ran.
-			In both cases we need a full copy in the backup.*/
-			new_tables.insert(name);
+			renamed_tables[name] = new_name;
 		}
 	}
 

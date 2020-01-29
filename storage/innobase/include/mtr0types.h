@@ -217,10 +217,6 @@ enum mlog_id_t {
 	not supported for crash-upgrade to 10.4 or later.) */
 	MLOG_TRUNCATE = 60,
 
-	/** notify that an index tree is being loaded without writing
-	redo log about individual pages */
-	MLOG_INDEX_LOAD = 61,
-
 	/** write DB_TRX_ID,DB_ROLL_PTR to a clustered index leaf page
 	of a ROW_FORMAT=COMPRESSED table */
 	MLOG_ZIP_WRITE_TRX_ID = 62,

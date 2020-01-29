@@ -201,22 +201,10 @@ struct file_name_t {
 	/** FSP_SIZE of tablespace */
 	ulint		size;
 
-	/** the log sequence number of the last observed MLOG_INDEX_LOAD
-	record for the tablespace */
-	lsn_t		enable_lsn;
-
 	/** Constructor */
 	file_name_t(std::string name_, bool deleted) :
 		name(name_), space(NULL), status(deleted ? DELETED: NORMAL),
-		size(0), enable_lsn(0) {}
-
-	/** Report a MLOG_INDEX_LOAD operation, meaning that
-	mlog_init for any earlier LSN must be skipped.
-	@param lsn	log sequence number of the MLOG_INDEX_LOAD */
-	void mlog_index_load(lsn_t lsn)
-	{
-		if (enable_lsn < lsn) enable_lsn = lsn;
-	}
+		size(0) {}
 };
 
 /** Map of dirty tablespaces during recovery */
@@ -227,12 +215,6 @@ typedef std::map<
 	ut_allocator<std::pair<const ulint, file_name_t> > >	recv_spaces_t;
 
 static recv_spaces_t	recv_spaces;
-
-/** Report optimized DDL operation (without redo log),
-corresponding to MLOG_INDEX_LOAD.
-@param[in]	space_id	tablespace identifier
-*/
-void (*log_optimized_ddl_op)(ulint space_id);
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
@@ -1414,11 +1396,6 @@ recv_parse_or_apply_log_rec_body(
 		before applying any log records. */
 		return fil_name_parse(const_cast<byte*>(ptr), end_ptr,
 				      page_id, type, apply);
-	case MLOG_INDEX_LOAD:
-		if (end_ptr < ptr + 8) {
-			return(NULL);
-		}
-		return(ptr + 8);
 	case MLOG_TRUNCATE:
 		ib::error() << "Cannot crash-upgrade from "
 			"old-style TRUNCATE TABLE";
@@ -1931,7 +1908,6 @@ inline void recv_sys_t::add(mlog_id_t type, const page_id_t page_id,
   ut_ad(type != MLOG_FILE_NAME);
   ut_ad(type != MLOG_DUMMY_RECORD);
   ut_ad(type != MLOG_CHECKPOINT);
-  ut_ad(type != MLOG_INDEX_LOAD);
   ut_ad(type != MLOG_TRUNCATE);
 
   std::pair<map::iterator, bool> p= pages.insert(map::value_type
@@ -2357,7 +2333,6 @@ void recv_apply_hashed_log_recs(bool last_batch)
 			p++;
 			continue;
 		case page_recv_t::RECV_NOT_PROCESSED:
-		apply:
 			mtr.start();
 			mtr.set_log_mode(MTR_LOG_NONE);
 			if (buf_block_t* block = buf_page_get_gen(
@@ -2395,34 +2370,6 @@ void recv_apply_hashed_log_recs(bool last_batch)
 				page_id.space());
 			if (!space) {
 				goto ignore;
-			}
-
-			if (space->enable_lsn) {
-do_read:
-				space->release_for_io();
-				recs.state = page_recv_t::RECV_NOT_PROCESSED;
-				goto apply;
-			}
-
-			/* Determine if a tablespace could be
-			for an internal table for FULLTEXT INDEX.
-			For those tables, no MLOG_INDEX_LOAD record
-			used to be written when redo logging was
-			disabled. Hence, we cannot optimize
-			away page reads when crash-upgrading
-			from MariaDB versions before 10.4,
-			because all the redo log records for
-			initializing and modifying the page in
-			the past could be older than the page
-			in the data file.
-
-			The check is too broad, causing all
-			tables whose names start with FTS_ to
-			skip the optimization. */
-			if ((log_sys.log.format & ~log_t::FORMAT_ENCRYPTED)
-			    != log_t::FORMAT_10_4
-			    && strstr(space->name, "/FTS_")) {
-				goto do_read;
 			}
 
 			mtr.start();
@@ -2689,23 +2636,6 @@ recv_report_corrupt_log(
 	return(true);
 }
 
-/** Report a MLOG_INDEX_LOAD operation.
-@param[in]	space_id	tablespace id
-@param[in]	page_no		page number
-@param[in]	lsn		log sequence number */
-ATTRIBUTE_COLD static void
-recv_mlog_index_load(ulint space_id, ulint page_no, lsn_t lsn)
-{
-	recv_spaces_t::iterator it = recv_spaces.find(space_id);
-	if (it != recv_spaces.end()) {
-		it->second.mlog_index_load(lsn);
-	}
-
-	if (log_optimized_ddl_op) {
-		log_optimized_ddl_op(space_id);
-	}
-}
-
 /** Check whether the number of read redo log blocks exceeds the maximum.
 Store last_stored_lsn if the recovery is not in the last phase.
 @param[in,out] store    whether to store page operations
@@ -2865,11 +2795,6 @@ loop:
 					recv_sys.recovered_lsn);
 			}
 			/* fall through */
-		case MLOG_INDEX_LOAD:
-			if (type == MLOG_INDEX_LOAD) {
-				recv_mlog_index_load(space, page_no, old_lsn);
-			}
-			/* fall through */
 		case MLOG_FILE_NAME:
 		case MLOG_FILE_DELETE:
 		case MLOG_FILE_CREATE2:
@@ -3013,9 +2938,6 @@ corrupted_log:
 			case MLOG_MULTI_REC_END:
 				/* Found the end mark for the records */
 				goto loop;
-			case MLOG_INDEX_LOAD:
-				recv_mlog_index_load(space, page_no, old_lsn);
-				break;
 			case MLOG_FILE_NAME:
 			case MLOG_FILE_DELETE:
 			case MLOG_FILE_CREATE2:
@@ -3546,7 +3468,6 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 			/* The tablespace was found, and there
 			are some redo log records for it. */
 			fil_names_dirty(rs.second.space);
-			rs.second.space->enable_lsn = rs.second.enable_lsn;
 		} else if (rs.second.name == "") {
 			ib::error() << "Missing MLOG_FILE_NAME"
 				" or MLOG_FILE_DELETE"
@@ -4102,9 +4023,6 @@ static const char* get_mlog_string(mlog_id_t type)
 
 	case MLOG_INIT_FILE_PAGE2:
 		return("MLOG_INIT_FILE_PAGE2");
-
-	case MLOG_INDEX_LOAD:
-		return("MLOG_INDEX_LOAD");
 
 	case MLOG_TRUNCATE:
 		return("MLOG_TRUNCATE");
