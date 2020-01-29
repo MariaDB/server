@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -46,11 +46,6 @@ extern bool	recv_writer_thread_active;
 dberr_t
 recv_find_max_checkpoint(ulint* max_field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/** Remove records for a corrupted page.
-This function should called when srv_force_recovery > 0.
-@param[in]	page_id page id of the corrupted page */
-ATTRIBUTE_COLD void recv_recover_corrupt_page(page_id_t page_id);
 
 /** Apply any buffered redo log to a page that was just read from a data file.
 @param[in,out]	bpage	buffer pool page */
@@ -106,14 +101,12 @@ bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn);
 to wait merging to file pages.
 @param[in]	checkpoint_lsn		the LSN of the latest checkpoint
 @param[in]	store			whether to store page operations
-@param[in]	available_memory	memory to read the redo logs
 @param[in]	apply			whether to apply the records
 @return whether MLOG_CHECKPOINT record was seen the first time,
 or corruption was noticed */
 bool recv_parse_log_recs(
 	lsn_t		checkpoint_lsn,
 	store_t*	store,
-	ulint		available_memory,
 	bool		apply);
 
 /** Moves the parsing buffer data left to the buffer start */
@@ -223,6 +216,10 @@ struct page_recv_t
     iterator end() { return NULL; }
     bool empty() const { ut_ad(!head == !tail); return !head; }
     inline void clear();
+#ifdef UNIV_DEBUG
+    /** Declare the records as freed; @see recv_sys_t::alloc() */
+    inline void free() const;
+#endif
   } log;
 
   /** Ignore any earlier redo log records for this page. */
@@ -284,8 +281,6 @@ struct recv_sys_t{
 				record, or 0 if none was parsed */
 	/** the time when progress was last reported */
 	time_t		progress_time;
-	mem_heap_t*	heap;	/*!< memory heap of log records and file
-				addresses*/
 
 	using map = std::map<const page_id_t, page_recv_t,
 			     std::less<const page_id_t>,
@@ -314,6 +309,26 @@ struct recv_sys_t{
 	/** Last added LSN to pages. */
 	lsn_t		last_stored_lsn;
 
+private:
+  /** Maximum number of buffer pool blocks to allocate for redo log records */
+  ulint max_log_blocks;
+
+  /** Base node of the redo block list (up to max_log_blocks)
+  List elements are linked via buf_block_t::unzip_LRU. */
+  UT_LIST_BASE_NODE_T(buf_block_t) blocks;
+public:
+  /** @return the maximum number of buffer pool blocks for log records */
+  ulint max_blocks() const { return max_log_blocks; }
+  /** Check whether the number of read redo log blocks exceeds the maximum.
+  Store last_stored_lsn if the recovery is not in the last phase.
+  @param[in,out] store    whether to store page operations
+  @return whether the memory is exhausted */
+  inline bool is_memory_exhausted(store_t *store);
+
+#ifdef UNIV_DEBUG
+  /** whether all redo log in the current batch has been applied */
+  bool after_apply= false;
+#endif
 	/** Initialize the redo log recovery subsystem. */
 	void create();
 
@@ -352,6 +367,32 @@ struct recv_sys_t{
 		progress_time = time;
 		return true;
 	}
+
+  /** Get the memory block for storing recv_t and redo log data
+  @param[in] len length of the data to be stored
+  @param[in] store_recv whether to store recv_t object
+  @return pointer to len bytes of memory (never NULL) */
+  inline byte *alloc(size_t len, bool store_recv= false);
+
+#ifdef UNIV_DEBUG
+private:
+  /** Find the buffer pool block that is storing a redo log record.
+  @param[in] data   pointer to buffer returned by alloc()
+  @return redo list element */
+  inline buf_block_t *find_block(const void *data) const;
+public:
+  /** Declare a redo log record freed from a buffer pool block.
+  @param[in] data   pointer to buffer returned by alloc() */
+  inline void free(const void *data) const;
+#endif
+
+  /** @return the free length of the latest alloc() block, in bytes */
+  inline size_t get_free_len() const;
+
+  /** Remove records for a corrupted page.
+  This function should only be called when innodb_force_recovery is set.
+  @param page_id  corrupted page identifier */
+  ATTRIBUTE_COLD void free_corrupted_page(page_id_t page_id);
 };
 
 /** The recovery system */
@@ -391,11 +432,5 @@ times! */
 /** Size of block reads when the log groups are scanned forward to do a
 roll-forward */
 #define RECV_SCAN_SIZE		(4U << srv_page_size_shift)
-
-/** This many frames must be left free in the buffer pool when we scan
-the log and store the scanned log records in the buffer pool: we will
-use these free frames to read in pages when we start applying the
-log records to the database. */
-extern ulint	recv_n_pool_free_frames;
 
 #endif
