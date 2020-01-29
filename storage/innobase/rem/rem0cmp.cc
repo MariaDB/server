@@ -448,8 +448,7 @@ cmp_data(
 	}
 
 	ulint len = std::min(len1, len2);
-
-	int cmp = memcmp(data1, data2, len);
+	int cmp = len ? memcmp(data1, data2, len) : 0;
 
 	if (cmp) {
 		return (cmp);
