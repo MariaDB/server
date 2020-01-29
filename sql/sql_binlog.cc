@@ -144,7 +144,7 @@ int binlog_defragment(THD *thd)
   }
 
   thd->lex->comment.str=                            // to be freed by the caller
-    (char *) my_malloc(thd->lex->comment.length, MYF(MY_WME));
+    (char *) my_malloc(PSI_INSTRUMENT_ME, thd->lex->comment.length, MYF(MY_WME));
   if (!thd->lex->comment.str)
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
@@ -242,7 +242,8 @@ void mysql_client_binlog_statement(THD* thd)
   }
 
   decoded_len= my_base64_needed_decoded_length((int)coded_len);
-  if (!(buf= (char *) my_malloc(decoded_len, MYF(MY_WME))))
+  if (!(buf= (char *) my_malloc(key_memory_binlog_statement_buffer,
+                                decoded_len, MYF(MY_WME))))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
     goto end;

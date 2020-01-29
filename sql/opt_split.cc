@@ -341,7 +341,7 @@ bool JOIN::check_for_splittable_materialized()
     return false;
 
   ORDER *ord;
-  Dynamic_array<SplM_field_ext_info> candidates;
+  Dynamic_array<SplM_field_ext_info> candidates(PSI_INSTRUMENT_MEM);
 
   /*
     Select from partition_list all candidates for splitting.
@@ -712,7 +712,7 @@ void JOIN::add_keyuses_for_splitting()
   KEY_FIELD *added_key_field;
   if (!spl_opt_info->added_key_fields.elements)
     goto err;
-  if (!(ext_keyuses_for_splitting= new Dynamic_array<KEYUSE_EXT>))
+  if (!(ext_keyuses_for_splitting= new Dynamic_array<KEYUSE_EXT>(PSI_INSTRUMENT_MEM)))
     goto err;
   while ((added_key_field= li++))
   {
@@ -742,13 +742,11 @@ void JOIN::add_keyuses_for_splitting()
   save_query_plan(save_qep);
 
   if (!keyuse.buffer &&
-       my_init_dynamic_array(&keyuse, sizeof(KEYUSE), 20, 64,
-                             MYF(MY_THREAD_SPECIFIC)))
+       my_init_dynamic_array(&keyuse, PSI_INSTRUMENT_ME, sizeof(KEYUSE),
+                             20, 64, MYF(MY_THREAD_SPECIFIC)))
     goto err;
 
-  if (allocate_dynamic(&keyuse,
-                       save_qep->keyuse.elements +
-                       added_keyuse_count))
+  if (allocate_dynamic(&keyuse, save_qep->keyuse.elements + added_keyuse_count))
     goto err;
 
   memcpy(keyuse.buffer,

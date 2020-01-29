@@ -298,7 +298,7 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
       thd->options |= OPTION_BIN_LOG;
       #endif
       safeFree((char*) thd->db.str);
-      thd->db.str= my_strdup("handlersocket", MYF(0));
+      thd->db.str= my_strdup(PSI_NOT_INSTRUMENTED, "handlersocket", MYF(0));
       thd->db.length= sizeof("handlersocket")-1;
     }
     thd->variables.option_bits |= OPTION_TABLE_LOCK;

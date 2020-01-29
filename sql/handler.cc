@@ -361,7 +361,8 @@ int ha_init_errors(void)
 
   /* Allocate a pointer array for the error message strings. */
   /* Zerofill it to avoid uninitialized gaps. */
-  if (! (handler_errmsgs= (const char**) my_malloc(HA_ERR_ERRORS * sizeof(char*),
+  if (! (handler_errmsgs= (const char**) my_malloc(key_memory_handler_errmsgs,
+                                                   HA_ERR_ERRORS * sizeof(char*),
                                                    MYF(MY_WME | MY_ZEROFILL))))
     return 1;
 
@@ -531,7 +532,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   DBUG_ENTER("ha_initialize_handlerton");
   DBUG_PRINT("plugin", ("initialize plugin: '%s'", plugin->name.str));
 
-  hton= (handlerton *)my_malloc(sizeof(handlerton),
+  hton= (handlerton *)my_malloc(key_memory_handlerton, sizeof(handlerton),
                                 MYF(MY_WME | MY_ZEROFILL));
   if (hton == NULL)
   {
@@ -2216,7 +2217,7 @@ int ha_recover(HASH *commit_list)
        info.list==0 && info.len > MIN_XID_LIST_SIZE; info.len/=2)
   {
     DBUG_EXECUTE_IF("min_xa_len", info.len = 16;);
-    info.list=(XID *)my_malloc(info.len*sizeof(XID), MYF(0));
+    info.list=(XID *)my_malloc(key_memory_XID, info.len*sizeof(XID), MYF(0));
   }
   if (!info.list)
   {
@@ -4941,7 +4942,7 @@ void handler::update_global_table_stats()
                     table->s->table_cache_key.length)))
   {
     if (!(table_stats = ((TABLE_STATS*)
-                         my_malloc(sizeof(TABLE_STATS),
+                         my_malloc(PSI_INSTRUMENT_ME, sizeof(TABLE_STATS),
                                    MYF(MY_WME | MY_ZEROFILL)))))
     {
       /* Out of memory error already given */
@@ -5006,7 +5007,7 @@ void handler::update_global_index_stats()
                                                     key_length)))
       {
         if (!(index_stats = ((INDEX_STATS*)
-                             my_malloc(sizeof(INDEX_STATS),
+                             my_malloc(PSI_INSTRUMENT_ME, sizeof(INDEX_STATS),
                                        MYF(MY_WME | MY_ZEROFILL)))))
           goto end;                             // Error is already given
 
@@ -7221,7 +7222,7 @@ int del_global_table_stat(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *ta
 
   cache_key_length= db->length + 1 + table->length + 1;
 
-  if(!(cache_key= (uchar *)my_malloc(cache_key_length,
+  if(!(cache_key= (uchar *)my_malloc(PSI_INSTRUMENT_ME, cache_key_length,
                                      MYF(MY_WME | MY_ZEROFILL))))
   {
     /* Out of memory error already given */

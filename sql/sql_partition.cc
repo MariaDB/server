@@ -7500,7 +7500,7 @@ void append_row_to_str(String &str, const uchar *row, TABLE *table)
     rec= row;
 
   /* Create a new array of all read fields. */
-  fields= (Field**) my_malloc(sizeof(void*) * (num_fields + 1),
+  fields= (Field**) my_malloc(PSI_INSTRUMENT_ME, sizeof(void*) * (num_fields + 1),
                               MYF(0));
   if (!fields)
     return;

@@ -1238,7 +1238,7 @@ SPIDER_TRX *spider_get_trx(
 
     if (
       my_hash_init(&trx->trx_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_conn_get_key, 0, 0)
+                   (my_hash_get_key) spider_conn_get_key, 0, 0, PSI_INSTRUMENT_ME)
     )
       goto error_init_hash;
     spider_alloc_calc_mem_init(trx->trx_conn_hash, 151);
@@ -1250,7 +1250,7 @@ SPIDER_TRX *spider_get_trx(
 
     if (
       my_hash_init(&trx->trx_another_conn_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_conn_get_key, 0, 0)
+                   (my_hash_get_key) spider_conn_get_key, 0, 0, PSI_INSTRUMENT_ME)
     )
       goto error_init_another_hash;
     spider_alloc_calc_mem_init(trx->trx_another_conn_hash, 152);
@@ -1314,7 +1314,7 @@ SPIDER_TRX *spider_get_trx(
 
     if (
       my_hash_init(&trx->trx_alter_table_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_alter_tbl_get_key, 0, 0)
+                   (my_hash_get_key) spider_alter_tbl_get_key, 0, 0, PSI_INSTRUMENT_ME)
     )
       goto error_init_alter_hash;
     spider_alloc_calc_mem_init(trx->trx_alter_table_hash, 157);
@@ -1326,7 +1326,7 @@ SPIDER_TRX *spider_get_trx(
 
     if (
       my_hash_init(&trx->trx_ha_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_trx_ha_get_key, 0, 0)
+                   (my_hash_get_key) spider_trx_ha_get_key, 0, 0, PSI_INSTRUMENT_ME)
     )
       goto error_init_trx_ha_hash;
     spider_alloc_calc_mem_init(trx->trx_ha_hash, 158);

@@ -236,7 +236,8 @@ void debug_sync_init_thread(THD *thd)
   if (opt_debug_sync_timeout)
   {
     thd->debug_sync_control= (st_debug_sync_control*)
-      my_malloc(sizeof(st_debug_sync_control),
+      my_malloc(PSI_NOT_INSTRUMENTED,
+                sizeof(st_debug_sync_control),
                 MYF(MY_WME | MY_ZEROFILL | MY_THREAD_SPECIFIC));
     if (!thd->debug_sync_control)
     {
@@ -657,7 +658,7 @@ static st_debug_sync_action *debug_sync_get_action(THD *thd,
     if (ds_control->ds_active > ds_control->ds_allocated)
     {
       uint new_alloc= ds_control->ds_active + 3;
-      void *new_action= my_realloc(ds_control->ds_action,
+      void *new_action= my_realloc(PSI_NOT_INSTRUMENTED, ds_control->ds_action,
                                    new_alloc * sizeof(st_debug_sync_action),
                                    MYF(MY_WME | MY_ALLOW_ZERO_PTR));
       if (!new_action)

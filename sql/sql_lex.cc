@@ -3826,12 +3826,13 @@ LEX::LEX()
     default_used(0), is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
-  init_dynamic_array2(&plugins, sizeof(plugin_ref), plugins_static_buffer,
+  init_dynamic_array2(&plugins, PSI_INSTRUMENT_ME,
+                      sizeof(plugin_ref), plugins_static_buffer,
                       INITIAL_LEX_PLUGIN_LIST_SIZE,
                       INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
-  init_dynamic_array2(&delete_gtid_domain, sizeof(uint32),
+  init_dynamic_array2(&delete_gtid_domain, PSI_INSTRUMENT_ME, sizeof(uint32),
                       gtid_domain_static_buffer,
                       initial_gtid_domain_buffer_size,
                       initial_gtid_domain_buffer_size, 0);
@@ -5659,8 +5660,8 @@ bool LEX::set_arena_for_set_stmt(Query_arena *backup)
     mem_root_for_set_stmt= new MEM_ROOT();
     if (unlikely(!(mem_root_for_set_stmt)))
       DBUG_RETURN(1);
-    init_sql_alloc(mem_root_for_set_stmt, "set_stmt",
-                   ALLOC_ROOT_SET, ALLOC_ROOT_SET, MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(PSI_INSTRUMENT_ME, mem_root_for_set_stmt, ALLOC_ROOT_SET,
+                   ALLOC_ROOT_SET, MYF(MY_THREAD_SPECIFIC));
   }
   if (unlikely(!(arena_for_set_stmt= new(mem_root_for_set_stmt)
                  Query_arena_memroot(mem_root_for_set_stmt,

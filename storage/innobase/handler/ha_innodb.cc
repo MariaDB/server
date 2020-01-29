@@ -4554,7 +4554,7 @@ innobase_checkpoint_request(
 	/* Do the allocation outside of lock to reduce contention. The normal
 	case is that not everything is flushed, so we will need to enqueue. */
 	entry = static_cast<struct pending_checkpoint *>
-		(my_malloc(sizeof(*entry), MYF(MY_WME)));
+		(my_malloc(PSI_INSTRUMENT_ME, sizeof(*entry), MYF(MY_WME)));
 	if (!entry) {
 		sql_print_error("Failed to allocate %u bytes."
 				" Commit checkpoint will be skipped.",
@@ -8540,7 +8540,7 @@ ha_innobase::update_row(
 			+ MAX_REF_PARTS * 3;
 
 		m_upd_buf = reinterpret_cast<uchar*>(
-			my_malloc(//PSI_INSTRUMENT_ME,
+			my_malloc(PSI_INSTRUMENT_ME,
                                   m_upd_buf_size,
 				MYF(MY_WME)));
 
@@ -9681,7 +9681,7 @@ ha_innobase::ft_init_ext(
 
 	/* Allocate FTS handler, and instantiate it before return */
 	fts_hdl = reinterpret_cast<NEW_FT_INFO*>(
-		my_malloc(/*PSI_INSTRUMENT_ME,*/ sizeof(NEW_FT_INFO), MYF(0)));
+		my_malloc(PSI_INSTRUMENT_ME, sizeof(NEW_FT_INFO), MYF(0)));
 
 	fts_hdl->please = const_cast<_ft_vft*>(&ft_vft_result);
 	fts_hdl->could_you = const_cast<_ft_vft_ext*>(&ft_vft_ext_result);
@@ -10964,7 +10964,7 @@ create_index(
 		ind_type |= DICT_UNIQUE;
 	}
 
-	field_lengths = (ulint*) my_malloc(//PSI_INSTRUMENT_ME,
+	field_lengths = (ulint*) my_malloc(PSI_INSTRUMENT_ME,
 		key->user_defined_key_parts * sizeof *
 				field_lengths, MYF(MY_FAE));
 
@@ -13645,7 +13645,7 @@ innobase_drop_database(
 	}
 
 	ptr++;
-	namebuf = (char*) my_malloc(/*PSI_INSTRUMENT_ME,*/ (uint) len + 2, MYF(0));
+	namebuf = (char*) my_malloc(PSI_INSTRUMENT_ME, (uint) len + 2, MYF(0));
 
 	memcpy(namebuf, ptr, len);
 	namebuf[len] = '/';
@@ -15249,7 +15249,7 @@ ha_innobase::update_table_comment(
 		flen = 64000 - 3 - length;
 	}
 	/* allocate buffer for the full string */
-	str = (char*) my_malloc(length + flen + 3, MYF(0));
+	str = (char*) my_malloc(PSI_INSTRUMENT_ME, length + flen + 3, MYF(0));
 	if (str) {
 		char* pos	= str + length;
 		if (length) {
@@ -15294,14 +15294,8 @@ ha_innobase::get_foreign_key_create_info(void)
 	m_prebuilt->trx->op_info = "";
 
 	/* Allocate buffer for the string */
-	char* fk_str = (char*) my_malloc(str.length() + 1, MYF(0));
-
-	/* JAN: TODO: MySQL 5.7
-	fk_str = reinterpret_cast<char*>(
+	char *fk_str = reinterpret_cast<char*>(
 			my_malloc(PSI_INSTRUMENT_ME, str.length() + 1, MYF(0)));
-	*/
-
-
 
 	if (fk_str) {
 		memcpy(fk_str, str.c_str(), str.length());
@@ -16174,7 +16168,7 @@ innodb_show_status(
 	/* allocate buffer for the string, and
 	read the contents of the temporary file */
 
-	if (!(str = (char*) my_malloc(//PSI_INSTRUMENT_ME,
+	if (!(str = (char*) my_malloc(PSI_INSTRUMENT_ME,
 		      usable_len + 1, MYF(0)))) {
 		mutex_exit(&srv_monitor_file_mutex);
 		DBUG_RETURN(1);
@@ -18105,7 +18099,7 @@ innodb_monitor_validate(
 	by InnoDB, so we can access it in another callback
 	function innodb_monitor_update() and free it appropriately */
 	if (name) {
-		monitor_name = my_strdup(//PSI_INSTRUMENT_ME,
+		monitor_name = my_strdup(PSI_INSTRUMENT_ME,
                                          name, MYF(0));
 	} else {
 		return(1);
@@ -21635,7 +21629,7 @@ ib_push_warning(
 		char *buf;
 
 		va_start(args, format);
-		buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+		buf = (char *)my_malloc(PSI_INSTRUMENT_ME, MAX_BUF_SIZE, MYF(MY_WME));
 		vsprintf(buf,format, args);
 
 		push_warning_printf(
@@ -21666,7 +21660,7 @@ ib_push_warning(
 
 	if (thd) {
 		va_start(args, format);
-		buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+		buf = (char *)my_malloc(PSI_INSTRUMENT_ME, MAX_BUF_SIZE, MYF(MY_WME));
 		vsprintf(buf,format, args);
 
 		push_warning_printf(
@@ -21695,7 +21689,7 @@ ib_foreign_warn(trx_t*	    trx,   /*!< in: trx */
 	char*		    buf;
 	static FILE*	    ef		 = dict_foreign_err_file;
 	static const size_t MAX_BUF_SIZE = 4 * 1024;
-	buf = (char*)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
+	buf = (char*)my_malloc(PSI_INSTRUMENT_ME, MAX_BUF_SIZE, MYF(MY_WME));
 	if (!buf) {
 		return;
 	}

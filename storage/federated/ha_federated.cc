@@ -497,7 +497,7 @@ int federated_db_init(void *p)
                        &federated_mutex, MY_MUTEX_INIT_FAST))
     goto error;
   if (!my_hash_init(&federated_open_tables, &my_charset_bin, 32, 0, 0,
-                    (my_hash_get_key) federated_get_key, 0, 0))
+                 (my_hash_get_key) federated_get_key, 0, 0, PSI_INSTRUMENT_ME))
   {
     DBUG_RETURN(FALSE);
   }
@@ -1516,7 +1516,7 @@ static FEDERATED_SHARE *get_share(const char *table_name, TABLE *table)
   */
   query.length(0);
 
-  init_alloc_root(&mem_root, "federated_share", 256, 0, MYF(0));
+  init_alloc_root(PSI_INSTRUMENT_ME, &mem_root, 256, 0, MYF(0));
 
   mysql_mutex_lock(&federated_mutex);
 
@@ -1642,7 +1642,7 @@ int ha_federated::open(const char *name, int mode, uint test_if_locked)
   ref_length= sizeof(MYSQL_RES *) + sizeof(MYSQL_ROW_OFFSET);
   DBUG_PRINT("info", ("ref_length: %u", ref_length));
 
-  my_init_dynamic_array(&results, sizeof(MYSQL_RES *), 4, 4, MYF(0));
+  my_init_dynamic_array(&results, PSI_INSTRUMENT_ME, sizeof(MYSQL_RES *), 4, 4, MYF(0));
   reset();
 
   DBUG_RETURN(0);

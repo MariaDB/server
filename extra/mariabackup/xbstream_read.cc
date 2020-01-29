@@ -42,7 +42,7 @@ xb_stream_read_new(void)
 {
 	xb_rstream_t *stream;
 
-	stream = (xb_rstream_t *) my_malloc(sizeof(xb_rstream_t), MYF(MY_FAE));
+	stream = (xb_rstream_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(xb_rstream_t), MYF(MY_FAE));
 
 #ifdef __WIN__
 	setmode(fileno(stdin), _O_BINARY);
@@ -190,7 +190,7 @@ xb_stream_read_chunk(xb_rstream_t *stream, xb_rstream_chunk_t *chunk)
 
 	/* Reallocate the buffer if needed */
 	if (chunk->length > chunk->buflen) {
-		chunk->data = my_realloc(chunk->data, chunk->length,
+		chunk->data = my_realloc(PSI_NOT_INSTRUMENTED, chunk->data, chunk->length,
 					 MYF(MY_WME | MY_ALLOW_ZERO_PTR));
 		if (chunk->data == NULL) {
 			msg("xb_stream_read_chunk(): failed to increase buffer "

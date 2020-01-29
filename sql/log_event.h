@@ -1357,7 +1357,8 @@ public:
 
   static void *operator new(size_t size)
   {
-    return (void*) my_malloc((uint)size, MYF(MY_WME|MY_FAE));
+    extern PSI_memory_key key_memory_log_event;
+    return my_malloc(key_memory_log_event, size, MYF(MY_WME|MY_FAE));
   }
 
   static void operator delete(void *ptr, size_t)
@@ -5368,11 +5369,12 @@ public:
   Incident_log_event(THD *thd_arg, Incident incident, const LEX_CSTRING *msg)
     : Log_event(thd_arg, 0, FALSE), m_incident(incident)
   {
+    extern PSI_memory_key key_memory_Incident_log_event_message;
     DBUG_ENTER("Incident_log_event::Incident_log_event");
     DBUG_PRINT("enter", ("m_incident: %d", m_incident));
     m_message.length= 0;
-    if (unlikely(!(m_message.str= (char*) my_malloc(msg->length+1,
-                                                    MYF(MY_WME)))))
+    if (!(m_message.str= (char*) my_malloc(key_memory_Incident_log_event_message,
+                                           msg->length + 1, MYF(MY_WME))))
     {
       /* Mark this event invalid */
       m_incident= INCIDENT_NONE;

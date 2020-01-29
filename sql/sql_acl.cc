@@ -654,7 +654,7 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
 #define ROLE_OPENED             (1L << 3)
 
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_proxy_users;
-static Dynamic_array<ACL_DB> acl_dbs(0U,50U);
+static Dynamic_array<ACL_DB> acl_dbs(PSI_INSTRUMENT_MEM, 0U, 50U);
 typedef Dynamic_array<ACL_DB>::CMP_FUNC acl_dbs_cmp;
 static HASH acl_roles;
 /*
@@ -2307,9 +2307,9 @@ bool acl_init(bool dont_read_acl_tables)
   bool return_val;
   DBUG_ENTER("acl_init");
 
-  acl_cache= new Hash_filo<acl_entry>(ACL_CACHE_SIZE, 0, 0,
+  acl_cache= new Hash_filo<acl_entry>(key_memory_acl_cache, ACL_CACHE_SIZE, 0, 0,
                            (my_hash_get_key) acl_entry_get_key,
-                           (my_hash_free_key) free,
+                           (my_hash_free_key) my_free,
                            &my_charset_utf8mb3_bin);
 
   /*
@@ -2384,7 +2384,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   grant_version++; /* Privileges updated */
 
   const Host_table& host_table= tables.host_table();
-  init_sql_alloc(&acl_memroot, "ACL", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(key_memory_acl_mem, &acl_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
   if (host_table.table_exists()) // "host" table may not exist (e.g. in MySQL 5.6.7+)
   {
     if (host_table.init_read_record(&read_record_info))
@@ -2461,7 +2461,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     user.sort= get_magic_sort("hu", user.host.hostname, user.user.str);
     user.hostname_length= safe_strlen(user.host.hostname);
 
-    my_init_dynamic_array(&user.role_grants, sizeof(ACL_ROLE *), 0, 8, MYF(0));
+    my_init_dynamic_array(&user.role_grants, key_memory_acl_mem,
+                          sizeof(ACL_ROLE *), 0, 8, MYF(0));
 
     user.account_locked= user_table.get_account_locked();
 
@@ -2479,7 +2480,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
       ACL_ROLE *entry= new (&acl_memroot) ACL_ROLE(&user, &acl_memroot);
       entry->role_grants = user.role_grants;
-      my_init_dynamic_array(&entry->parent_grantee,
+      my_init_dynamic_array(&entry->parent_grantee, key_memory_acl_mem,
                             sizeof(ACL_USER_BASE *), 0, 8, MYF(0));
       my_hash_insert(&acl_roles, (uchar *)entry);
 
@@ -2624,7 +2625,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       DBUG_RETURN(TRUE);
 
     MEM_ROOT temp_root;
-    init_alloc_root(&temp_root, "ACL_tmp", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+    init_alloc_root(key_memory_acl_mem, &temp_root, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
     while (!(read_record_info.read_record()))
     {
       char *hostname= safe_str(get_field(&temp_root, roles_mapping_table.host()));
@@ -2743,15 +2744,16 @@ bool acl_reload(THD *thd)
   old_acl_roles_mappings= acl_roles_mappings;
   old_acl_proxy_users= acl_proxy_users;
   old_acl_dbs= acl_dbs;
-  my_init_dynamic_array(&acl_hosts, sizeof(ACL_HOST), 20, 50, MYF(0));
-  my_init_dynamic_array(&acl_users, sizeof(ACL_USER), 50, 100, MYF(0));
-  acl_dbs.init(50, 100);
-  my_init_dynamic_array(&acl_proxy_users, sizeof(ACL_PROXY_USER), 50, 100, MYF(0));
+  my_init_dynamic_array(&acl_hosts, key_memory_acl_mem, sizeof(ACL_HOST), 20, 50, MYF(0));
+  my_init_dynamic_array(&acl_users, key_memory_acl_mem, sizeof(ACL_USER), 50, 100, MYF(0));
+  acl_dbs.init(key_memory_acl_mem, 50, 100);
+  my_init_dynamic_array(&acl_proxy_users, key_memory_acl_mem, sizeof(ACL_PROXY_USER), 50, 100, MYF(0));
   my_hash_init2(&acl_roles,50, &my_charset_utf8mb3_bin,
                 0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
-                (void (*)(void *))free_acl_role, 0);
+                (void (*)(void *))free_acl_role, 0, key_memory_acl_mem);
   my_hash_init2(&acl_roles_mappings, 50, &my_charset_utf8mb3_bin, 0, 0, 0,
-                (my_hash_get_key) acl_role_map_get_key, 0, 0, 0);
+                (my_hash_get_key) acl_role_map_get_key, 0, 0, 0,
+                key_memory_acl_mem);
   old_mem= acl_memroot;
   delete_dynamic(&acl_wild_hosts);
   my_hash_free(&acl_check_hosts);
@@ -3189,7 +3191,7 @@ ACL_USER::ACL_USER(THD *thd, const LEX_USER &combo,
   sort= get_magic_sort("hu", host.hostname, user.str);
   password_last_changed= thd->query_start();
   password_lifetime= -1;
-  my_init_dynamic_array(&role_grants, sizeof(ACL_USER *), 0, 8, MYF(0));
+  my_init_dynamic_array(&role_grants, PSI_INSTRUMENT_ME, sizeof(ACL_USER *), 0, 8, MYF(0));
 }
 
 
@@ -3274,9 +3276,10 @@ static void acl_insert_role(const char *rolename, privilege_t privileges)
 
   mysql_mutex_assert_owner(&acl_cache->lock);
   entry= new (&acl_memroot) ACL_ROLE(rolename, privileges, &acl_memroot);
-  my_init_dynamic_array(&entry->parent_grantee,
+  my_init_dynamic_array(&entry->parent_grantee, key_memory_acl_mem,
                         sizeof(ACL_USER_BASE *), 0, 8, MYF(0));
-  my_init_dynamic_array(&entry->role_grants, sizeof(ACL_ROLE *), 0, 8, MYF(0));
+  my_init_dynamic_array(&entry->role_grants, key_memory_acl_mem,
+                        sizeof(ACL_ROLE *), 0, 8, MYF(0));
 
   my_hash_insert(&acl_roles, (uchar *)entry);
 }
@@ -3423,7 +3426,8 @@ privilege_t acl_get(const char *host, const char *ip,
 exit:
   /* Save entry in cache for quick retrieval */
   if (!db_is_pattern &&
-      (entry= (acl_entry*) malloc(sizeof(acl_entry)+key_length)))
+      (entry= (acl_entry*) my_malloc(key_memory_acl_cache,
+                                     sizeof(acl_entry)+key_length, MYF(MY_WME))))
   {
     entry->access=(db_access & host_access);
     DBUG_ASSERT(key_length < 0xffff);
@@ -3447,11 +3451,12 @@ exit:
 static void init_check_host(void)
 {
   DBUG_ENTER("init_check_host");
-  (void) my_init_dynamic_array(&acl_wild_hosts,sizeof(struct acl_host_and_ip),
+  (void) my_init_dynamic_array(&acl_wild_hosts, key_memory_acl_mem,
+                               sizeof(struct acl_host_and_ip),
                                acl_users.elements, 1, MYF(0));
-  (void) my_hash_init(&acl_check_hosts,system_charset_info,
-                      acl_users.elements, 0, 0,
-                      (my_hash_get_key) check_get_key, 0, 0);
+  (void) my_hash_init(&acl_check_hosts,system_charset_info, acl_users.elements,
+                      0, 0, (my_hash_get_key) check_get_key, 0, 0,
+                      key_memory_acl_mem);
   if (!allow_all_hosts)
   {
     for (uint i=0 ; i < acl_users.elements ; i++)
@@ -5097,7 +5102,8 @@ public:
   void init_hash()
   {
     my_hash_init2(&hash_columns, 4, system_charset_info, 0, 0, 0,
-                  (my_hash_get_key) get_key_column, 0, 0, 0);
+                  (my_hash_get_key) get_key_column, 0, 0, 0,
+                  key_memory_acl_memex);
   }
 };
 
@@ -6284,7 +6290,7 @@ static int update_role_db(int merged, int first, privilege_t access,
 static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
                                      role_hash_t *rhash)
 {
-  Dynamic_array<int> dbs;
+  Dynamic_array<int> dbs(PSI_INSTRUMENT_MEM);
 
   /*
     Supposedly acl_dbs can be huge, but only a handful of db grants
@@ -6503,7 +6509,7 @@ static int update_role_table_columns(GRANT_TABLE *merged,
 static bool merge_role_table_and_column_privileges(ACL_ROLE *grantee,
                         const char *db, const char *tname, role_hash_t *rhash)
 {
-  Dynamic_array<GRANT_TABLE *> grants;
+  Dynamic_array<GRANT_TABLE *> grants(PSI_INSTRUMENT_MEM);
   DBUG_ASSERT(MY_TEST(db) == MY_TEST(tname)); // both must be set, or neither
 
   /*
@@ -6632,7 +6638,7 @@ static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
 
   DBUG_ASSERT(MY_TEST(db) == MY_TEST(tname)); // both must be set, or neither
 
-  Dynamic_array<GRANT_NAME *> grants; 
+  Dynamic_array<GRANT_NAME *> grants(PSI_INSTRUMENT_MEM);
 
   /* first, collect routine privileges granted to roles in question */
   for (uint i=0 ; i < hash->records ; i++)
@@ -6693,7 +6699,7 @@ static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
   grantee->counter= 1; // Mark the grantee as merged.
 
   /* if we'll do db/table/routine privileges, create a hash of role names */
-  role_hash_t role_hash(role_key);
+  role_hash_t role_hash(PSI_INSTRUMENT_MEM, role_key);
   if (data->what != PRIVS_TO_MERGE::GLOBAL)
   {
     role_hash.insert(grantee);
@@ -7647,16 +7653,21 @@ static bool grant_load(THD *thd,
 
   (void) my_hash_init(&column_priv_hash, &my_charset_utf8mb3_bin,
                       0,0,0, (my_hash_get_key) get_grant_table,
-                      (my_hash_free_key) free_grant_table,0);
+                      (my_hash_free_key) free_grant_table, 0,
+                      key_memory_acl_memex);
   (void) my_hash_init(&proc_priv_hash, &my_charset_utf8mb3_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table, 0,0);
+                      0,0,0, (my_hash_get_key) get_grant_table, 0,0,
+                      key_memory_acl_memex);
   (void) my_hash_init(&func_priv_hash, &my_charset_utf8mb3_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table, 0,0);
+                      0,0,0, (my_hash_get_key) get_grant_table, 0,0,
+                      key_memory_acl_memex);
   (void) my_hash_init(&package_spec_priv_hash, &my_charset_utf8mb3_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table, 0,0);
+                      0,0,0, (my_hash_get_key) get_grant_table, 0,0,
+                      key_memory_acl_memex);
   (void) my_hash_init(&package_body_priv_hash, &my_charset_utf8mb3_bin,
-                      0,0,0, (my_hash_get_key) get_grant_table, 0,0);
-  init_sql_alloc(&grant_memroot, "GRANT", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+                      0,0,0, (my_hash_get_key) get_grant_table, 0,0,
+                      key_memory_acl_memex);
+  init_sql_alloc(key_memory_acl_mem, &grant_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   t_table= tables_priv.table();
   c_table= columns_priv.table();
@@ -13180,7 +13191,8 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
                              system_charset_info, user, user_len,
                              thd->charset(), &dummy_errors);
 
-  if (!(sctx->user= my_strndup(user_buff, user_len, MYF(MY_WME))))
+  if (!(sctx->user= my_strndup(key_memory_MPVIO_EXT_auth_info, user_buff,
+                               user_len, MYF(MY_WME))))
     DBUG_RETURN(1);
 
   /* Clear variables that are allocated */
@@ -13439,8 +13451,8 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   Security_context *sctx= thd->security_ctx;
 
-  my_free((char*) sctx->user);
-  if (!(sctx->user= my_strndup(user, user_len, MYF(MY_WME))))
+  my_free(const_cast<char*>(sctx->user));
+  if (!(sctx->user= my_strndup(key_memory_MPVIO_EXT_auth_info, user, user_len, MYF(MY_WME))))
     return packet_error; /* The error is set by my_strdup(). */
 
 
@@ -14249,16 +14261,17 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   thd->net.net_skip_rest_factor= 2;  // skip at most 2*max_packet_size
 
   if (mpvio.auth_info.external_user[0])
-    sctx->external_user= my_strdup(mpvio.auth_info.external_user, MYF(0));
+    sctx->external_user= my_strdup(key_memory_MPVIO_EXT_auth_info,
+                                   mpvio.auth_info.external_user, MYF(0));
 
   if (res == CR_OK_HANDSHAKE_COMPLETE)
     thd->get_stmt_da()->disable_status();
   else
     my_ok(thd);
 
-  PSI_CALL_set_thread_user_host
-    (thd->main_security_ctx.user, (uint)strlen(thd->main_security_ctx.user),
-    thd->main_security_ctx.host_or_ip, (uint)strlen(thd->main_security_ctx.host_or_ip));
+  PSI_CALL_set_thread_account
+    (thd->main_security_ctx.user, strlen(thd->main_security_ctx.user),
+    thd->main_security_ctx.host_or_ip, strlen(thd->main_security_ctx.host_or_ip));
 
   /* Ready to handle queries */
   DBUG_RETURN(0);

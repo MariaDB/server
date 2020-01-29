@@ -566,12 +566,12 @@ bool flush_tables(THD *thd, flush_tables_type flag)
     write after last time all tables was closed.
   */
 
-  if (!(tmp_table= (TABLE*) my_malloc(sizeof(*tmp_table),
+  if (!(tmp_table= (TABLE*) my_malloc(PSI_INSTRUMENT_ME, sizeof(*tmp_table),
                                       MYF(MY_WME | MY_THREAD_SPECIFIC))))
     DBUG_RETURN(1);
 
-  my_init_dynamic_array(&collect_arg.shares, sizeof(TABLE_SHARE*), 100, 100,
-                        MYF(0));
+  my_init_dynamic_array(&collect_arg.shares, PSI_INSTRUMENT_ME,
+                        sizeof(TABLE_SHARE*), 100, 100, MYF(0));
   collect_arg.flush_type= flag;
   if (tdc_iterate(thd, (my_hash_walk_action) tc_collect_used_shares,
                   &collect_arg, true))
@@ -2064,7 +2064,8 @@ retry_share:
   {
     enum open_frm_error error;
     /* make a new table */
-    if (!(table=(TABLE*) my_malloc(sizeof(*table),MYF(MY_WME))))
+    if (!(table=(TABLE*) my_malloc(key_memory_TABLE, sizeof(*table),
+                                   MYF(MY_WME))))
       goto err_lock;
 
     error= open_table_from_share(thd, share, &table_list->alias,
@@ -3004,7 +3005,7 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
 
   thd->clear_error();
 
-  if (!(entry= (TABLE*)my_malloc(sizeof(TABLE), MYF(MY_WME))))
+  if (!(entry= (TABLE*)my_malloc(key_memory_TABLE, sizeof(TABLE), MYF(MY_WME))))
     return result;
 
   if (!(share= tdc_acquire_share(thd, table_list, GTS_TABLE)))

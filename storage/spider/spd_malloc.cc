@@ -203,7 +203,7 @@ void *spider_alloc_mem(
   uchar *ptr;
   DBUG_ENTER("spider_alloc_mem");
   size += ALIGN_SIZE(sizeof(uint)) + ALIGN_SIZE(sizeof(uint));
-  if (!(ptr = (uchar *) my_malloc(size, my_flags)))
+  if (!(ptr = (uchar *) my_malloc(PSI_INSTRUMENT_ME, size, my_flags)))
     DBUG_RETURN(NULL);
 
   spider_alloc_mem_calc(trx, id, func_name, file_name, line_no, size);
@@ -233,7 +233,7 @@ void *spider_bulk_alloc_mem(
     total_size += ALIGN_SIZE(va_arg(args, uint));
   va_end(args);
 
-  if (!(top_ptr = (uchar *) my_malloc(total_size, my_flags)))
+  if (!(top_ptr = (uchar *) my_malloc(PSI_INSTRUMENT_ME, total_size, my_flags)))
     DBUG_RETURN(NULL);
 
   spider_alloc_mem_calc(trx, id, func_name, file_name, line_no, total_size);

@@ -117,7 +117,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
   errpos= 5;
 
   /* alloc and set up private structure parts */
-  if (!my_multi_malloc(MY_WME,
+  if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
 		       &m_info,sizeof(MARIA_HA),
 		       &info.blobs,sizeof(MARIA_BLOB)*share->base.blobs,
 		       &info.buff,(share->base.max_key_block_length*2+
@@ -166,7 +166,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
     goto err;
 
   /* The following should be big enough for all pinning purposes */
-  if (my_init_dynamic_array(&info.pinned_pages,
+  if (my_init_dynamic_array(&info.pinned_pages, PSI_INSTRUMENT_ME,
                             sizeof(MARIA_PINNED_PAGE),
                             MY_MAX(share->base.blobs*2 + 4,
                                 MARIA_MAX_TREE_LEVELS*3), 16, MYF(0)))
@@ -465,7 +465,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       Allocate space for header information and for data that is too
       big to keep on stack
     */
-    if (!(disk_cache= my_malloc(info_length+128, MYF(MY_WME))))
+    if (!(disk_cache= my_malloc(PSI_INSTRUMENT_ME, info_length+128, MYF(MY_WME))))
     {
       my_errno=ENOMEM;
       goto err;
@@ -648,7 +648,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     share->index_file_name.length=  strlen(index_name);
     share->data_file_name.length=   strlen(data_name);
     share->open_file_name.length=   strlen(name);
-    if (!my_multi_malloc(MY_WME,
+    if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
 			 &share,sizeof(*share),
 			 &rec_per_key_part,
                          sizeof(double) * key_parts,
@@ -1043,7 +1043,8 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       {
         /* Table is not part of any active transaction; Create new history */
         if (!(share->state_history= (MARIA_STATE_HISTORY *)
-              my_malloc(sizeof(*share->state_history), MYF(MY_WME))))
+              my_malloc(PSI_INSTRUMENT_ME, sizeof(*share->state_history),
+                        MYF(MY_WME))))
           goto err;
         share->state_history->trid= 0;          /* Visible by all */
         share->state_history->state= share->state.state;
@@ -1244,7 +1245,7 @@ my_bool _ma_alloc_buffer(uchar **old_addr, size_t *old_size,
   if (*old_size < new_size)
   {
     uchar *addr;
-    if (!(addr= (uchar*) my_realloc(*old_addr, new_size,
+    if (!(addr= (uchar*) my_realloc(PSI_INSTRUMENT_ME, *old_addr, new_size,
                                     MYF(MY_ALLOW_ZERO_PTR))))
       return 1;
     *old_addr= addr;
@@ -1636,7 +1637,7 @@ static uchar *_ma_state_info_read(uchar *ptr, MARIA_STATE_INFO *state)
 
   /* Allocate memory for key parts if not already done */
   if (!state->rec_per_key_part &&
-      !my_multi_malloc(MY_WME,
+      !my_multi_malloc(PSI_INSTRUMENT_ME, MY_WME,
                        &state->rec_per_key_part,
                        sizeof(*state->rec_per_key_part) * key_parts,
                        &state->nulls_per_key_part,

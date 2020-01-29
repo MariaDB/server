@@ -41,8 +41,8 @@ bool Binary_string::real_alloc(size_t length)
   if (Alloced_length < arg_length)
   {
     free();
-    if (!(Ptr=(char*) my_malloc(arg_length,MYF(MY_WME |
-                                               (thread_specific ?
+    if (!(Ptr=(char*) my_malloc(PSI_INSTRUMENT_ME,
+                                arg_length,MYF(MY_WME | (thread_specific ?
                                                 MY_THREAD_SPECIFIC : 0)))))
       return TRUE;
     DBUG_ASSERT(length < UINT_MAX32);
@@ -92,13 +92,13 @@ bool Binary_string::realloc_raw(size_t alloc_length)
       return TRUE;                                 /* Overflow */
     if (alloced)
     {
-      if (!(new_ptr= (char*) my_realloc(Ptr,len,
+      if (!(new_ptr= (char*) my_realloc(PSI_INSTRUMENT_ME, Ptr,len,
                                         MYF(MY_WME |
                                             (thread_specific ?
                                              MY_THREAD_SPECIFIC : 0)))))
         return TRUE;				// Signal error
     }
-    else if ((new_ptr= (char*) my_malloc(len,
+    else if ((new_ptr= (char*) my_malloc(PSI_INSTRUMENT_ME, len,
                                          MYF(MY_WME |
                                              (thread_specific ?
                                               MY_THREAD_SPECIFIC : 0)))))
@@ -1235,4 +1235,26 @@ bool String::append_semi_hex(const char *s, uint len, CHARSET_INFO *cs)
   DBUG_ASSERT((ulonglong) str_length + nbytes < UINT_MAX32);
   str_length+= nbytes;
   return false;
+}
+
+// Shrink the buffer, but only if it is allocated on the heap.
+void Binary_string::shrink(size_t arg_length)
+{
+    if (!is_alloced())
+        return;
+    if (ALIGN_SIZE(arg_length + 1) < Alloced_length)
+    {
+        char* new_ptr;
+        if (!(new_ptr = (char*)my_realloc(STRING_PSI_MEMORY_KEY, Ptr, arg_length,
+            MYF(thread_specific ? MY_THREAD_SPECIFIC : 0))))
+        {
+            Alloced_length = 0;
+            real_alloc(arg_length);
+        }
+        else
+        {
+            Ptr = new_ptr;
+            Alloced_length = (uint32)arg_length;
+        }
+    }
 }

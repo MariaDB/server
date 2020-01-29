@@ -886,7 +886,7 @@ static char *get_word(char **str)
   DBUG_ENTER("get_word");
 
   *str= find_end_of_word(start);
-  DBUG_RETURN(my_strndup(start, (uint) (*str - start),
+  DBUG_RETURN(my_strndup(PSI_NOT_INSTRUMENTED, start, (uint) (*str - start),
 				    MYF(MY_WME | MY_FAE)));
 }
 
@@ -920,7 +920,7 @@ static struct message *parse_message_string(struct message *new_message,
   while (*str != ' ' && *str != '\t' && *str)
     str++;
   if (!(new_message->lang_short_name=
-	my_strndup(start, (uint) (str - start),
+	my_strndup(PSI_NOT_INSTRUMENTED, start, (uint) (str - start),
 			      MYF(MY_WME | MY_FAE))))
     DBUG_RETURN(0);				/* Fatal error */
   DBUG_PRINT("info", ("msg_slang: %s", new_message->lang_short_name));
@@ -940,9 +940,9 @@ static struct message *parse_message_string(struct message *new_message,
   start= str + 1;
   str= parse_text_line(start);
 
-  if (!(new_message->text= my_strndup(start, (uint) (str - start),
-						 MYF(MY_WME | MY_FAE))))
-    DBUG_RETURN(0);				/* Fatal error */
+  if (!(new_message->text= my_strndup(PSI_NOT_INSTRUMENTED, start,
+                                      (uint) (str - start), MYF(MY_WME | MY_FAE))))
+    DBUG_RETURN(0);
   DBUG_PRINT("info", ("msg_text: %s", new_message->text));
 
   DBUG_RETURN(new_message);
@@ -955,11 +955,11 @@ static struct errors *generate_empty_message(uint d_code, my_bool skip)
   struct message message;
 
   /* create a new element */
-  if (!(new_error= (struct errors *) my_malloc(sizeof(*new_error),
-                                               MYF(MY_WME))))
+  if (!(new_error= (struct errors *) my_malloc(PSI_NOT_INSTRUMENTED,
+                                               sizeof(*new_error), MYF(MY_WME))))
     return(0);
-  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 1,
-                            MYF(0)))
+  if (my_init_dynamic_array(&new_error->msg, PSI_NOT_INSTRUMENTED,
+                            sizeof(struct message), 0, 1, MYF(0)))
     return(0);				/* OOM: Fatal error */
 
   new_error->er_name= NULL;
@@ -970,8 +970,10 @@ static struct errors *generate_empty_message(uint d_code, my_bool skip)
 
   message.text= 0;              /* If skip set, don't generate a text */
 
-  if (!(message.lang_short_name= my_strdup(default_language, MYF(MY_WME))) ||
-      (!skip && !(message.text= my_strdup("", MYF(MY_WME)))))
+  if (!(message.lang_short_name= my_strdup(PSI_NOT_INSTRUMENTED,
+                                           default_language, MYF(MY_WME))) ||
+      (!skip && !(message.text= my_strdup(PSI_NOT_INSTRUMENTED,
+                                          "", MYF(MY_WME)))))
     return(0);
 
   /* Can't fail as msg is preallocated */
@@ -992,13 +994,14 @@ static struct errors *parse_error_string(char *str, int er_count)
   DBUG_PRINT("enter", ("str: %s", str));
 
   /* create a new element */
-  if (!(new_error= (struct errors *) my_malloc(sizeof(*new_error),
-                                               MYF(MY_WME))))
+  if (!(new_error= (struct errors *) my_malloc(PSI_NOT_INSTRUMENTED,
+                                               sizeof(*new_error), MYF(MY_WME))))
     DBUG_RETURN(0);
 
   new_error->next_error= 0;
-  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 0, MYF(0)))
-    DBUG_RETURN(0);				/* OOM: Fatal error */
+  if (my_init_dynamic_array(&new_error->msg, PSI_NOT_INSTRUMENTED,
+                            sizeof(struct message), 0, 0, MYF(0)))
+    DBUG_RETURN(0);
 
   /* getting the error name */
   str= skip_delimiters(str);
@@ -1084,7 +1087,8 @@ static struct languages *parse_charset_string(char *str)
   do
   {
     /*creating new element of the linked list */
-    new_lang= (struct languages *) my_malloc(sizeof(*new_lang), MYF(MY_WME));
+    new_lang= (struct languages *) my_malloc(PSI_NOT_INSTRUMENTED,
+                                             sizeof(*new_lang), MYF(MY_WME));
     new_lang->next_lang= head;
     head= new_lang;
 

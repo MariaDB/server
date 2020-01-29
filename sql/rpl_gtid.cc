@@ -249,8 +249,10 @@ rpl_slave_state::rpl_slave_state()
   mysql_mutex_init(key_LOCK_slave_state, &LOCK_slave_state,
                    MY_MUTEX_INIT_SLOW);
   my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
-               sizeof(uint32), NULL, rpl_slave_state_free_element, HASH_UNIQUE);
-  my_init_dynamic_array(&gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
+               sizeof(uint32), NULL, rpl_slave_state_free_element, HASH_UNIQUE,
+               PSI_INSTRUMENT_ME);
+  my_init_dynamic_array(&gtid_sort_array, PSI_INSTRUMENT_ME, sizeof(rpl_gtid),
+                        8, 8, MYF(0));
 }
 
 
@@ -333,7 +335,8 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
     rgi->gtid_ignore_duplicate_state= rpl_group_info::GTID_DUPLICATE_NULL;
   }
 
-  if (!(list_elem= (list_element *)my_malloc(sizeof(*list_elem), MYF(MY_WME))))
+  if (!(list_elem= (list_element *)my_malloc(PSI_INSTRUMENT_ME,
+                                             sizeof(*list_elem), MYF(MY_WME))))
     return 1;
   list_elem->domain_id= domain_id;
   list_elem->server_id= server_id;
@@ -367,7 +370,7 @@ rpl_slave_state::get_element(uint32 domain_id)
   if (elem)
     return elem;
 
-  if (!(elem= (element *)my_malloc(sizeof(*elem), MYF(MY_WME))))
+  if (!(elem= (element *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*elem), MYF(MY_WME))))
     return NULL;
   elem->list= NULL;
   elem->domain_id= domain_id;
@@ -1112,7 +1115,7 @@ rpl_slave_state::iterate(int (*cb)(rpl_gtid *, void *), void *data,
   bool locked= false;
 
   my_hash_init(&gtid_hash, &my_charset_bin, 32, offsetof(rpl_gtid, domain_id),
-               sizeof(uint32), NULL, NULL, HASH_UNIQUE);
+               sizeof(uint32), NULL, NULL, HASH_UNIQUE, PSI_INSTRUMENT_ME);
   for (i= 0; i < num_extra; ++i)
     if (extra_gtids[i].server_id == global_system_variables.server_id &&
         my_hash_insert(&gtid_hash, (uchar *)(&extra_gtids[i])))
@@ -1329,7 +1332,7 @@ gtid_parse_string_to_list(const char *str, size_t str_len, uint32 *out_len)
     }
     if ((!list || len >= alloc_len) &&
         !(list=
-          (rpl_gtid *)my_realloc(list,
+          (rpl_gtid *)my_realloc(PSI_INSTRUMENT_ME, list,
                                  (alloc_len= alloc_len*2) * sizeof(rpl_gtid),
                                  MYF(MY_FREE_ON_ERROR|MY_ALLOW_ZERO_PTR))))
       return NULL;
@@ -1466,10 +1469,8 @@ rpl_slave_state::alloc_gtid_pos_table(LEX_CSTRING *table_name, void *hton,
   struct gtid_pos_table *p;
   char *allocated_str;
 
-  if (!my_multi_malloc(MYF(MY_WME),
-                       &p, sizeof(*p),
-                       &allocated_str, table_name->length+1,
-                       NULL))
+  if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME), &p, sizeof(*p),
+                       &allocated_str, table_name->length+1, NULL))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)(sizeof(*p) + table_name->length+1));
     return NULL;
@@ -1487,8 +1488,8 @@ rpl_slave_state::alloc_gtid_pos_table(LEX_CSTRING *table_name, void *hton,
 void rpl_binlog_state::init()
 {
   my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
-               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
-  my_init_dynamic_array(&gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
+               sizeof(uint32), NULL, my_free, HASH_UNIQUE, PSI_INSTRUMENT_ME);
+  my_init_dynamic_array(&gtid_sort_array, PSI_INSTRUMENT_ME, sizeof(rpl_gtid), 8, 8, MYF(0));
   mysql_mutex_init(key_LOCK_binlog_state, &LOCK_binlog_state,
                    MY_MUTEX_INIT_SLOW);
   initialized= 1;
@@ -1685,7 +1686,8 @@ rpl_binlog_state::element::update_element(const rpl_gtid *gtid)
   }
 
   /* Allocate a new GTID and insert it. */
-  lookup_gtid= (rpl_gtid *)my_malloc(sizeof(*lookup_gtid), MYF(MY_WME));
+  lookup_gtid= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*lookup_gtid),
+                                     MYF(MY_WME));
   if (!lookup_gtid)
     return 1;
   memcpy(lookup_gtid, gtid, sizeof(*lookup_gtid));
@@ -1706,14 +1708,15 @@ rpl_binlog_state::alloc_element_nolock(const rpl_gtid *gtid)
   rpl_gtid *lookup_gtid;
 
   /* First time we see this domain_id; allocate a new element. */
-  elem= (element *)my_malloc(sizeof(*elem), MYF(MY_WME));
-  lookup_gtid= (rpl_gtid *)my_malloc(sizeof(*lookup_gtid), MYF(MY_WME));
+  elem= (element *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*elem), MYF(MY_WME));
+  lookup_gtid= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*lookup_gtid),
+                                     MYF(MY_WME));
   if (elem && lookup_gtid)
   {
     elem->domain_id= gtid->domain_id;
     my_hash_init(&elem->hash, &my_charset_bin, 32,
                  offsetof(rpl_gtid, server_id), sizeof(uint32), NULL, my_free,
-                 HASH_UNIQUE);
+                 HASH_UNIQUE, PSI_INSTRUMENT_ME);
     elem->last_gtid= lookup_gtid;
     elem->seq_no_counter= gtid->seq_no;
     memcpy(lookup_gtid, gtid, sizeof(*lookup_gtid));
@@ -1784,7 +1787,8 @@ rpl_binlog_state::bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no)
   }
 
   /* We need to allocate a new, empty element to remember the next seq_no. */
-  if (!(elem= (element *)my_malloc(sizeof(*elem), MYF(MY_WME))))
+  if (!(elem= (element *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*elem),
+                                   MYF(MY_WME))))
   {
     res= 1;
     goto end;
@@ -1793,7 +1797,7 @@ rpl_binlog_state::bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no)
   elem->domain_id= domain_id;
   my_hash_init(&elem->hash, &my_charset_bin, 32,
                offsetof(rpl_gtid, server_id), sizeof(uint32), NULL, my_free,
-               HASH_UNIQUE);
+               HASH_UNIQUE, PSI_INSTRUMENT_ME);
   elem->last_gtid= NULL;
   elem->seq_no_counter= seq_no;
   if (0 == my_hash_insert(&hash, (const uchar *)elem))
@@ -2006,8 +2010,8 @@ rpl_binlog_state::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
   out_size= 0;
   mysql_mutex_lock(&LOCK_binlog_state);
   alloc_size= hash.records;
-  if (!(*list= (rpl_gtid *)my_malloc(alloc_size * sizeof(rpl_gtid),
-                                     MYF(MY_WME))))
+  if (!(*list= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME,
+                                     alloc_size * sizeof(rpl_gtid), MYF(MY_WME))))
   {
     res= 1;
     goto end;
@@ -2122,7 +2126,7 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
 
   DBUG_ENTER("rpl_binlog_state::drop_domain");
 
-  my_init_dynamic_array2(&domain_unique,
+  my_init_dynamic_array2(&domain_unique, PSI_INSTRUMENT_ME,
                          sizeof(element*), domain_unique_buffer,
                          sizeof(domain_unique_buffer) / sizeof(element*), 4, 0);
 
@@ -2249,8 +2253,8 @@ slave_connection_state::slave_connection_state()
 {
   my_hash_init(&hash, &my_charset_bin, 32,
                offsetof(entry, gtid) + offsetof(rpl_gtid, domain_id),
-               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
-  my_init_dynamic_array(&gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
+               sizeof(uint32), NULL, my_free, HASH_UNIQUE, PSI_INSTRUMENT_ME);
+  my_init_dynamic_array(&gtid_sort_array, PSI_INSTRUMENT_ME, sizeof(rpl_gtid), 8, 8, MYF(0));
 }
 
 
@@ -2294,7 +2298,7 @@ slave_connection_state::load(const char *slave_request, size_t len)
     return 0;
   for (;;)
   {
-    if (!(rec= (uchar *)my_malloc(sizeof(entry), MYF(MY_WME))))
+    if (!(rec= (uchar *)my_malloc(PSI_INSTRUMENT_ME, sizeof(entry), MYF(MY_WME))))
       return 1;
     gtid= &((entry *)rec)->gtid;
     if (gtid_parser_helper(&p, end, gtid))
@@ -2397,7 +2401,7 @@ slave_connection_state::update(const rpl_gtid *in_gtid)
     return 0;
   }
 
-  if (!(e= (entry *)my_malloc(sizeof(*e), MYF(MY_WME))))
+  if (!(e= (entry *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*e), MYF(MY_WME))))
     return 1;
   e->gtid= *in_gtid;
   e->flags= 0;
@@ -2875,7 +2879,7 @@ gtid_waiting::init()
 {
   my_hash_init(&hash, &my_charset_bin, 32,
                offsetof(hash_element, domain_id), sizeof(uint32), NULL,
-               free_hash_element, HASH_UNIQUE);
+               free_hash_element, HASH_UNIQUE, PSI_INSTRUMENT_ME);
   mysql_mutex_init(key_LOCK_gtid_waiting, &LOCK_gtid_waiting, 0);
 }
 
@@ -2910,7 +2914,7 @@ gtid_waiting::get_entry(uint32 domain_id)
   if ((e= (hash_element *)my_hash_search(&hash, (const uchar *)&domain_id, 0)))
     return e;
 
-  if (!(e= (hash_element *)my_malloc(sizeof(*e), MYF(MY_WME))))
+  if (!(e= (hash_element *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*e), MYF(MY_WME))))
     return NULL;
 
   if (init_queue(&e->queue, 8, offsetof(queue_element, wait_seq_no), 0,

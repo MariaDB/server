@@ -596,6 +596,7 @@ private:
 
 	struct Override_t
 	{
+		Override_t() : m_dIds(PSI_INSTRUMENT_MEM), m_dValues(PSI_INSTRUMENT_MEM) {}
 		union Value_t
 		{
 			uint32		m_uValue;
@@ -738,7 +739,7 @@ static int sphinx_init_func ( void * p )
 		sphinx_init = 1;
 		void ( pthread_mutex_init ( &sphinx_mutex, MY_MUTEX_INIT_FAST ) );
 		sphinx_hash_init ( &sphinx_open_tables, system_charset_info, 32, 0, 0,
-			sphinx_get_key, 0, 0 );
+			sphinx_get_key, 0, 0, PSI_NOT_INSTRUMENTED );
 
 		#if MYSQL_VERSION_ID > 50100
 		handlerton * hton = (handlerton*) p;
@@ -1303,6 +1304,7 @@ CSphSEQuery::CSphSEQuery ( const char * sQuery, int iLength, const char * sIndex
 	, m_fGeoLongitude ( 0.0f )
 	, m_sComment ( (char*) "" )
 	, m_sSelect ( (char*) "*" )
+        , m_dOverrides (PSI_INSTRUMENT_MEM)
 
 	, m_pBuf ( NULL )
 	, m_pCur ( NULL )

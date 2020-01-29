@@ -80,7 +80,7 @@ my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
               ulong size, size_t key_offset, size_t key_length,
               my_hash_get_key get_key,
               my_hash_function hash_function,
-              void (*free_element)(void*), uint flags)
+              void (*free_element)(void*), uint flags, PSI_memory_key psi_key)
 {
   my_bool res;
   DBUG_ENTER("my_hash_init2");
@@ -95,7 +95,7 @@ my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
   hash->free=free_element;
   hash->flags=flags;
   hash->charset=charset;
-  res= init_dynamic_array2(&hash->array, sizeof(HASH_LINK), NULL, size,
+  res= init_dynamic_array2(&hash->array, psi_key, sizeof(HASH_LINK), NULL, size,
                            growth_size, MYF((flags & HASH_THREAD_SPECIFIC ?
                                              MY_THREAD_SPECIFIC : 0)));
   DBUG_RETURN(res);
@@ -890,7 +890,8 @@ int main(int argc __attribute__((unused)),char **argv __attribute__((unused)))
 
   printf("my_hash_init\n");
   if (my_hash_init2(&hash_test, 100, &my_charset_bin, 20,
-                    0, 0, (my_hash_get_key) test_get_key, 0, 0, HASH_UNIQUE))
+                    0, 0, (my_hash_get_key) test_get_key, 0, 0, HASH_UNIQUE,
+                    PSI_INSTRUMENT_ME))
   {
     fprintf(stderr, "hash init failed\n");
     exit(1);

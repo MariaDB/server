@@ -1008,7 +1008,7 @@ void recv_sys_t::create()
 	apply_batch_on = false;
 
 	max_log_blocks = buf_pool_get_n_pages() / 3;
-	buf = static_cast<byte*>(ut_malloc_dontdump(RECV_PARSING_BUF_SIZE));
+	buf = static_cast<byte*>(ut_malloc_dontdump(RECV_PARSING_BUF_SIZE, PSI_INSTRUMENT_ME));
 	len = 0;
 	parse_start_lsn = 0;
 	scanned_lsn = 0;

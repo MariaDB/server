@@ -449,7 +449,7 @@ bool Opt_trace_context::is_enabled()
   return false;
 }
 
-Opt_trace_context::Opt_trace_context()
+Opt_trace_context::Opt_trace_context() : traces(PSI_INSTRUMENT_MEM)
 {
   current_trace= NULL;
   max_mem_size= 0;

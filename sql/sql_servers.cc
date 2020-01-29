@@ -93,12 +93,19 @@ static uchar *servers_cache_get_key(FOREIGN_SERVER *server, size_t *length,
   DBUG_RETURN((uchar*) server->server_name);
 }
 
+static PSI_memory_key key_memory_servers;
+
 #ifdef HAVE_PSI_INTERFACE
 static PSI_rwlock_key key_rwlock_THR_LOCK_servers;
 
 static PSI_rwlock_info all_servers_cache_rwlocks[]=
 {
   { &key_rwlock_THR_LOCK_servers, "THR_LOCK_servers", PSI_FLAG_GLOBAL}
+};
+
+static PSI_memory_info all_servers_cache_memory[]=
+{
+  { &key_memory_servers, "servers_cache", PSI_FLAG_GLOBAL}
 };
 
 static void init_servers_cache_psi_keys(void)
@@ -111,6 +118,9 @@ static void init_servers_cache_psi_keys(void)
 
   count= array_elements(all_servers_cache_rwlocks);
   PSI_server->register_rwlock(category, all_servers_cache_rwlocks, count);
+
+  count= array_elements(all_servers_cache_memory);
+  mysql_memory_register(category, all_servers_cache_memory, count);
 }
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -149,14 +159,15 @@ bool servers_init(bool dont_read_servers_table)
 
   /* initialise our servers cache */
   if (my_hash_init(&servers_cache, system_charset_info, 32, 0, 0,
-                   (my_hash_get_key) servers_cache_get_key, 0, 0))
+                   (my_hash_get_key) servers_cache_get_key, 0, 0,
+                   key_memory_servers))
   {
     return_val= TRUE; /* we failed, out of memory? */
     goto end;
   }
 
   /* Initialize the mem root for data */
-  init_sql_alloc(&mem, "servers", ACL_ALLOC_BLOCK_SIZE, 0,
+  init_sql_alloc(key_memory_servers, &mem, ACL_ALLOC_BLOCK_SIZE, 0,
                  MYF(MY_THREAD_SPECIFIC));
 
   if (dont_read_servers_table)
@@ -206,7 +217,7 @@ static bool servers_load(THD *thd, TABLE_LIST *tables)
 
   my_hash_reset(&servers_cache);
   free_root(&mem, MYF(0));
-  init_sql_alloc(&mem, "servers_load", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(key_memory_servers, &mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   if (init_read_record(&read_record_info,thd,table=tables[0].table, NULL, NULL,
                        1,0, FALSE))

@@ -587,7 +587,7 @@ public:
       :binlog_id(0), xid_count(0), notify_count(0)
     {
       binlog_name_len= log_file_name_len;
-      binlog_name= (char *) my_malloc(binlog_name_len, MYF(MY_ZEROFILL));
+      binlog_name= (char *) my_malloc(PSI_INSTRUMENT_ME, binlog_name_len, MYF(MY_ZEROFILL));
       if (binlog_name)
         memcpy(binlog_name, log_file_name, binlog_name_len);
     }

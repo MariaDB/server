@@ -292,7 +292,8 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     if (my_hash_init(&thd->handler_tables_hash, &my_charset_latin1,
                      HANDLER_TABLES_HASH_SIZE, 0, 0,
                      (my_hash_get_key) mysql_ha_hash_get_key,
-                     (my_hash_free_key) mysql_ha_hash_free, 0))
+                     (my_hash_free_key) mysql_ha_hash_free, 0,
+                     key_memory_THD_handler_tables_hash))
     {
       DBUG_PRINT("exit",("ERROR"));
       DBUG_RETURN(TRUE);
@@ -384,14 +385,14 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     /* copy data to sql_handler */
     if (!(sql_handler= new SQL_HANDLER(thd)))
       goto err;
-    init_alloc_root(&sql_handler->mem_root, "sql_handler", 1024, 0,
+    init_alloc_root(PSI_INSTRUMENT_ME, &sql_handler->mem_root, 1024, 0,
                     MYF(MY_THREAD_SPECIFIC));
 
     sql_handler->db.length= tables->db.length;
     sql_handler->table_name.length= tables->table_name.length;
     sql_handler->handler_name.length= tables->alias.length;
 
-    if (!(my_multi_malloc(MY_WME,
+    if (!(my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
                           &sql_handler->base_data,
                           (uint) sql_handler->db.length + 1,
                           &sql_handler->table_name.str,

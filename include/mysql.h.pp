@@ -240,6 +240,12 @@ typedef char **MYSQL_ROW;
 typedef unsigned int MYSQL_FIELD_OFFSET;
 typedef unsigned long long my_ulonglong;
 extern "C" {
+}
+extern "C" {
+struct PSI_thread;
+typedef unsigned int PSI_memory_key;
+}
+extern "C" {
 typedef struct st_used_mem
 {
   struct st_used_mem *next;
@@ -253,11 +259,10 @@ typedef struct st_mem_root
   USED_MEM *pre_alloc;
   size_t min_malloc;
   size_t block_size;
-  size_t total_alloc;
   unsigned int block_num;
   unsigned int first_block_usage;
   void (*error_handler)(void);
-  const char *name;
+  PSI_memory_key m_psi_key;
 } MEM_ROOT;
 }
 typedef struct st_typelib {

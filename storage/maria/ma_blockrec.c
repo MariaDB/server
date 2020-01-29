@@ -491,7 +491,7 @@ my_bool _ma_init_block_record(MARIA_HA *info)
   uint default_extents;
   DBUG_ENTER("_ma_init_block_record");
 
-  if (!my_multi_malloc(MY_WME,
+  if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
                        &row->empty_bits, share->base.pack_bytes,
                        &row->field_lengths,
                        share->base.max_field_lengths + 2,
@@ -530,12 +530,13 @@ my_bool _ma_init_block_record(MARIA_HA *info)
                      FULL_PAGE_SIZE(share) /
                      BLOB_SEGMENT_MIN_SIZE));
 
-  if (my_init_dynamic_array(&info->bitmap_blocks,
+  if (my_init_dynamic_array(&info->bitmap_blocks, PSI_INSTRUMENT_ME,
                             sizeof(MARIA_BITMAP_BLOCK), default_extents,
                             64, MYF(0)))
     goto err;
   info->cur_row.extents_buffer_length= default_extents * ROW_EXTENT_SIZE;
-  if (!(info->cur_row.extents= my_malloc(info->cur_row.extents_buffer_length,
+  if (!(info->cur_row.extents= my_malloc(PSI_INSTRUMENT_ME,
+                                         info->cur_row.extents_buffer_length,
                                          MYF(MY_WME))))
     goto err;
 
@@ -3235,7 +3236,7 @@ static my_bool write_block_record(MARIA_HA *info,
     }
     else
     {
-      if (!my_multi_malloc(MY_WME, &log_array,
+      if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME), &log_array,
                           (uint) ((bitmap_blocks->count +
                                    TRANSLOG_INTERNAL_PARTS + 2) *
                                   sizeof(*log_array)),
@@ -5256,7 +5257,8 @@ my_bool _ma_scan_init_block_record(MARIA_HA *info)
   */
   if (!(info->scan.bitmap_buff ||
         ((info->scan.bitmap_buff=
-          (uchar *) my_malloc(share->block_size * 2, MYF(MY_WME))))))
+          (uchar *) my_malloc(PSI_INSTRUMENT_ME, share->block_size * 2,
+                              MYF(MY_WME))))))
     DBUG_RETURN(1);
   info->scan.page_buff= info->scan.bitmap_buff + share->block_size;
   info->scan.bitmap_end= info->scan.bitmap_buff + share->bitmap.max_total_size;
@@ -5311,7 +5313,8 @@ int _ma_scan_remember_block_record(MARIA_HA *info,
   DBUG_ENTER("_ma_scan_remember_block_record");
   if (!(info->scan_save))
   {
-    if (!(info->scan_save= my_malloc(ALIGN_SIZE(sizeof(*info->scan_save)) +
+    if (!(info->scan_save= my_malloc(PSI_INSTRUMENT_ME,
+                                     ALIGN_SIZE(sizeof(*info->scan_save)) +
                                      info->s->block_size * 2,
                                      MYF(MY_WME))))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -7129,7 +7132,8 @@ my_bool _ma_apply_undo_row_delete(MARIA_HA *info, LSN undo_lsn,
     row.blob_length= ma_get_length(&header);
 
   /* We need to build up a record (without blobs) in rec_buff */
-  if (!(record= my_malloc(share->base.reclength, MYF(MY_WME))))
+  if (!(record= my_malloc(PSI_INSTRUMENT_ME, share->base.reclength,
+                          MYF(MY_WME))))
     DBUG_RETURN(1);
 
   memcpy(record, null_bits, share->base.null_bytes);
@@ -7354,7 +7358,8 @@ my_bool _ma_apply_undo_row_update(MARIA_HA *info, LSN undo_lsn,
   field_length_data_end= header;
 
   /* Allocate buffer for current row & original row */
-  if (!(current_record= my_malloc(share->base.reclength * 2, MYF(MY_WME))))
+  if (!(current_record= my_malloc(PSI_INSTRUMENT_ME, share->base.reclength * 2,
+                                  MYF(MY_WME))))
     DBUG_RETURN(1);
   orig_record= current_record+ share->base.reclength;
 

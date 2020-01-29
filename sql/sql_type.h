@@ -7287,7 +7287,7 @@ private:
                         const Type_handler *handler2) const;
 public:
   Type_aggregator(bool is_commutative= false)
-   :m_is_commutative(is_commutative)
+   :m_is_commutative(is_commutative), m_array(PSI_INSTRUMENT_MEM)
   { }
   bool add(const Type_handler *handler1,
            const Type_handler *handler2,

@@ -1215,7 +1215,7 @@ static void put_blob_in_record(uchar *blob_pos, char **blob_buffer,
   if (use_blob)
   {
     if (! *blob_buffer &&
-        !(*blob_buffer=my_malloc((uint) use_blob,MYF(MY_WME))))
+        !(*blob_buffer=my_malloc(PSI_NOT_INSTRUMENTED, (uint) use_blob,MYF(MY_WME))))
     {
       use_blob= 0;
       return;

@@ -571,8 +571,8 @@ static bool skip_ignored_dir_check= TRUE;
 bool
 ignore_db_dirs_init()
 {
-  return my_init_dynamic_array(&ignore_db_dirs_array, sizeof(LEX_CSTRING *),
-                               0, 0, MYF(0));
+  return my_init_dynamic_array(&ignore_db_dirs_array, key_memory_ignored_db,
+                               sizeof(LEX_STRING *), 0, 0, MYF(0));
 }
 
 
@@ -620,8 +620,8 @@ push_ignored_db_dir(char *path)
     return true;
 
   // No need to normalize, it's only a directory name, not a path.
-  if (!my_multi_malloc(0,
-                       &new_elt, sizeof(LEX_CSTRING),
+  if (!my_multi_malloc(key_memory_ignored_db, MYF(0),
+                       &new_elt, sizeof(LEX_STRING),
                        &new_elt_buffer, path_len + 1,
                        NullS))
     return true;
@@ -701,7 +701,7 @@ void ignore_db_dirs_append(const char *dirname_arg)
   LEX_STRING *new_entry;
   size_t len= strlen(dirname_arg);
 
-  if (!my_multi_malloc(0,
+  if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(0),
                        &new_entry, sizeof(LEX_STRING),
                        &new_entry_buf, len + 1,
                        NullS))
@@ -723,7 +723,7 @@ void ignore_db_dirs_append(const char *dirname_arg)
   // Add one for comma and one for \0.
   size_t newlen= curlen + len + 1 + 1;
   char *new_db_dirs;
-  if (!(new_db_dirs= (char*)my_malloc(newlen ,MYF(0))))
+  if (!(new_db_dirs= (char*)my_malloc(PSI_INSTRUMENT_ME, newlen, MYF(0))))
   {
     // This is not a critical condition
     return;
@@ -754,7 +754,7 @@ ignore_db_dirs_process_additions()
                      character_set_filesystem : &my_charset_bin,
                    0, 0, 0, db_dirs_hash_get_key,
                    dispose_db_dir,
-                   HASH_UNIQUE))
+                   HASH_UNIQUE, key_memory_ignored_db))
     return true;
 
   /* len starts from 1 because of the terminating zero. */
@@ -776,7 +776,8 @@ ignore_db_dirs_process_additions()
     len--;
 
   /* +1 the terminating zero */
-  ptr= opt_ignore_db_dirs= (char *) my_malloc(len + 1, MYF(0));
+  ptr= opt_ignore_db_dirs= (char *) my_malloc(key_memory_ignored_db, len + 1,
+                                              MYF(0));
   if (!ptr)
     return true;
 
@@ -3362,7 +3363,8 @@ int add_status_vars(SHOW_VAR *list)
   if (status_vars_inited)
     mysql_rwlock_wrlock(&LOCK_all_status_vars);
   if (!all_status_vars.buffer && // array is not allocated yet - do it now
-      my_init_dynamic_array(&all_status_vars, sizeof(SHOW_VAR), 250, 50, MYF(0)))
+      my_init_dynamic_array(&all_status_vars, PSI_INSTRUMENT_ME,
+                            sizeof(SHOW_VAR), 250, 50, MYF(0)))
   {
     res= 1;
     goto err;
@@ -4890,8 +4892,8 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
 
   if (schema_table->i_s_requested_object & OPEN_TRIGGER_ONLY)
   {
-    init_sql_alloc(&tbl.mem_root, "fill_schema_table_from_frm",
-                   TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+    init_sql_alloc(key_memory_table_triggers_list,
+                   &tbl.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
     if (!Table_triggers_list::check_n_load(thd, db_name,
                                            table_name, &tbl, 1))
     {
@@ -5045,7 +5047,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
   IS_table_read_plan *plan= tables->is_table_read_plan;
   enum enum_schema_tables schema_table_idx;
-  Dynamic_array<LEX_CSTRING*> db_names;
+  Dynamic_array<LEX_CSTRING*> db_names(PSI_INSTRUMENT_MEM);
   Item *partial_cond= plan->partial_cond;
   int error= 1;
   Open_tables_backup open_tables_state_backup;
@@ -5114,7 +5116,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
 
   /* Use tmp_mem_root to allocate data for opened tables */
-  init_alloc_root(&tmp_mem_root, "get_all_tables", SHOW_ALLOC_BLOCK_SIZE,
+  init_alloc_root(PSI_INSTRUMENT_ME, &tmp_mem_root, SHOW_ALLOC_BLOCK_SIZE,
                   SHOW_ALLOC_BLOCK_SIZE, MY_THREAD_SPECIFIC);
 
   for (size_t i=0; i < db_names.elements(); i++)
@@ -5129,7 +5131,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, 0))
 #endif
     {
-      Dynamic_array<LEX_CSTRING*> table_names;
+      Dynamic_array<LEX_CSTRING*> table_names(PSI_INSTRUMENT_MEM);
       int res= make_table_name_list(thd, &table_names, lex,
                                     &plan->lookup_field_vals, db_name);
       if (unlikely(res == 2))   /* Not fatal error, continue */
@@ -5245,7 +5247,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   */
 
   LOOKUP_FIELD_VALUES lookup_field_vals;
-  Dynamic_array<LEX_CSTRING*> db_names;
+  Dynamic_array<LEX_CSTRING*> db_names(PSI_INSTRUMENT_MEM);
   Schema_specification_st create;
   TABLE *table= tables->table;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -9533,7 +9535,8 @@ int initialize_schema_table(st_plugin_int *plugin)
   ST_SCHEMA_TABLE *schema_table;
   DBUG_ENTER("initialize_schema_table");
 
-  if (!(schema_table= (ST_SCHEMA_TABLE *)my_malloc(sizeof(ST_SCHEMA_TABLE),
+  if (!(schema_table= (ST_SCHEMA_TABLE *)my_malloc(key_memory_ST_SCHEMA_TABLE,
+                                                   sizeof(ST_SCHEMA_TABLE),
                                                    MYF(MY_WME | MY_ZEROFILL))))
       DBUG_RETURN(1);
   /* Historical Requirement */

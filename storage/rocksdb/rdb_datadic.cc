@@ -368,14 +368,14 @@ Rdb_key_def::Rdb_key_def(const Rdb_key_def &k)
                   m_total_index_flags_length == 0);
   if (k.m_pack_info) {
     const size_t size = sizeof(Rdb_field_packing) * k.m_key_parts;
-    void *pack_info= my_malloc(size, MYF(0));
+    void *pack_info= my_malloc(PSI_INSTRUMENT_ME, size, MYF(0));
     memcpy(pack_info, k.m_pack_info, size);
     m_pack_info = reinterpret_cast<Rdb_field_packing *>(pack_info);
   }
 
   if (k.m_pk_part_no) {
     const size_t size = sizeof(uint) * m_key_parts;
-    m_pk_part_no = reinterpret_cast<uint *>(my_malloc(size, MYF(0)));
+    m_pk_part_no = reinterpret_cast<uint *>(my_malloc(PSI_INSTRUMENT_ME, size, MYF(0)));
     memcpy(m_pk_part_no, k.m_pk_part_no, size);
   }
 }
@@ -449,14 +449,14 @@ void Rdb_key_def::setup(const TABLE *const tbl,
 
     if (secondary_key) {
       m_pk_part_no = reinterpret_cast<uint *>(
-          my_malloc(sizeof(uint) * m_key_parts, MYF(0)));
+          my_malloc(PSI_INSTRUMENT_ME, sizeof(uint) * m_key_parts, MYF(0)));
     } else {
       m_pk_part_no = nullptr;
     }
 
     const size_t size = sizeof(Rdb_field_packing) * m_key_parts;
     m_pack_info =
-        reinterpret_cast<Rdb_field_packing *>(my_malloc(size, MYF(0)));
+        reinterpret_cast<Rdb_field_packing *>(my_malloc(PSI_INSTRUMENT_ME, size, MYF(0)));
 
     /*
       Guaranteed not to error here as checks have been made already during

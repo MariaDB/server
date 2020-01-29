@@ -1270,7 +1270,7 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
                                             wsrep_key_arr_t* ka)
 {
   wsrep_key_t* tmp;
-  tmp= (wsrep_key_t*)my_realloc(ka->keys,
+  tmp= (wsrep_key_t*)my_realloc(PSI_INSTRUMENT_ME, ka->keys,
                                 (ka->keys_len + 1) * sizeof(wsrep_key_t),
                                 MYF(MY_ALLOW_ZERO_PTR));
   if (!tmp)
@@ -1280,7 +1280,7 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
   }
   ka->keys= tmp;
   if (!(ka->keys[ka->keys_len].key_parts= (wsrep_buf_t*)
-        my_malloc(sizeof(wsrep_buf_t)*2, MYF(0))))
+        my_malloc(PSI_INSTRUMENT_ME, sizeof(wsrep_buf_t)*2, MYF(0))))
   {
     WSREP_ERROR("Can't allocate memory for key_parts");
     return false;

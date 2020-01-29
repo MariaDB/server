@@ -16,7 +16,12 @@
 #ifndef HS_COMPAT_H
 #define HS_COMPAT_H
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100213
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100500
+#define SPD_INIT_DYNAMIC_ARRAY2(A, B, C, D, E, F) \
+  my_init_dynamic_array2(A, PSI_INSTRUMENT_ME, B, C, D, E, F)
+#define SPD_INIT_ALLOC_ROOT(A, B, C, D) \
+  init_alloc_root(PSI_INSTRUMENT_ME, A, B, C, D)
+#elif defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100213
 #define SPD_INIT_DYNAMIC_ARRAY2(A, B, C, D, E, F) \
   my_init_dynamic_array2(A, B, C, D, E, F)
 #define SPD_INIT_ALLOC_ROOT(A, B, C, D) \

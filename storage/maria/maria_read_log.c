@@ -318,7 +318,8 @@ get_one_option(const struct my_option *opt,
     if (!my_hash_inited(&tables_to_redo))
     {
       my_hash_init2(&tables_to_redo, 16, &my_charset_bin,
-                    16, 0, 0, my_hash_get_string, 0, 0, HASH_UNIQUE);
+                    16, 0, 0, my_hash_get_string, 0, 0, HASH_UNIQUE,
+                    PSI_INSTRUMENT_ME);
     }
     do
     {

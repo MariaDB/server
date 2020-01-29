@@ -246,7 +246,8 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   check_ssl_init();
 
   if (!(ssl_fd= ((struct st_VioSSLFd*)
-                 my_malloc(sizeof(struct st_VioSSLFd),MYF(0)))))
+                 my_malloc(key_memory_vio_ssl_fd,
+                           sizeof(struct st_VioSSLFd), MYF(0)))))
     goto err0;
   if (!(ssl_fd->ssl_context= SSL_CTX_new(is_client_method ? 
                                          SSLv23_client_method() :

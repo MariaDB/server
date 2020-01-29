@@ -76,7 +76,8 @@ int readfrm(const char *name, const uchar **frmdata, size_t *len)
 
   // Read whole frm file
   error= 3;
-  if (!(read_data= (uchar*)my_malloc(read_len, MYF(MY_WME))))
+  if (!(read_data= (uchar*)my_malloc(key_memory_frm_string, read_len,
+                                     MYF(MY_WME))))
     goto err;
   if (mysql_file_read(file, read_data, read_len, MYF(MY_NABP)))
   {

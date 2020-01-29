@@ -1257,10 +1257,9 @@ int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
 
   if (no_dups)
   {
-    init_alloc_root(&no_dups_argument.root, "no_dups", 4096, 4096,
-                    MYF(alloc_flags));
+    init_alloc_root(PSI_INSTRUMENT_ME, &no_dups_argument.root, 4096, 4096, MYF(alloc_flags));
     my_hash_init(&no_dups_argument.hash, &my_charset_bin, tdc_records(), 0, 0,
-                 eliminate_duplicates_get_key, 0, hash_flags);
+                 eliminate_duplicates_get_key, 0, hash_flags, PSI_INSTRUMENT_ME);
     no_dups_argument.action= action;
     no_dups_argument.argument= argument;
     action= (my_hash_walk_action) eliminate_duplicates;

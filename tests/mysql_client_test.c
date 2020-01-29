@@ -19033,7 +19033,7 @@ static void test_bug56976()
   rc= mysql_stmt_bind_param(stmt, bind);
   check_execute(stmt, rc);
 
-  long_buffer= (char*) my_malloc(packet_len, MYF(0));
+  long_buffer= (char*) my_malloc(PSI_NOT_INSTRUMENTED, packet_len, MYF(0));
   DIE_UNLESS(long_buffer);
 
   memset(long_buffer, 'a', packet_len);
@@ -19779,7 +19779,7 @@ static void test_big_packet()
 
   myheader("test_big_packet");
 
-  query= (char*) my_malloc(big_packet+1024, MYF(MY_WME));
+  query= (char*) my_malloc(PSI_NOT_INSTRUMENTED, big_packet+1024, MYF(MY_WME));
   DIE_UNLESS(query);
   
   if (!(mysql_local= mysql_client_init(NULL)))

@@ -1133,10 +1133,10 @@ int main(int argc,char *argv[])
   charset_index= get_command_index('C');
   delimiter_index= get_command_index('d');
   delimiter_str= delimiter;
-  default_prompt = my_strdup(getenv("MYSQL_PS1") ? 
+  default_prompt = my_strdup(PSI_NOT_INSTRUMENTED, getenv("MYSQL_PS1") ?
 			     getenv("MYSQL_PS1") : 
 			     "\\N [\\d]> ",MYF(MY_WME));
-  current_prompt = my_strdup(default_prompt,MYF(MY_WME));
+  current_prompt = my_strdup(PSI_NOT_INSTRUMENTED, default_prompt,MYF(MY_WME));
   prompt_counter=0;
   aborted= 0;
   sf_leaking_memory= 1; /* no memory leak reports yet */
@@ -1204,7 +1204,7 @@ int main(int argc,char *argv[])
   sf_leaking_memory= 0;
   glob_buffer.realloc(512);
   completion_hash_init(&ht, 128);
-  init_alloc_root(&hash_mem_root, "hash", 16384, 0, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_mem_root, 16384, 0, MYF(0));
   if (sql_connect(current_host,current_db,current_user,opt_password,
 		  opt_silent))
   {
@@ -1246,12 +1246,11 @@ int main(int argc,char *argv[])
   {
     /* read-history from file, default ~/.mysql_history*/
     if (getenv("MYSQL_HISTFILE"))
-      histfile=my_strdup(getenv("MYSQL_HISTFILE"),MYF(MY_WME));
+      histfile=my_strdup(PSI_NOT_INSTRUMENTED, getenv("MYSQL_HISTFILE"),MYF(MY_WME));
     else if (getenv("HOME"))
     {
-      histfile=(char*) my_malloc((uint) strlen(getenv("HOME"))
-				 + (uint) strlen("/.mysql_history")+2,
-				 MYF(MY_WME));
+      histfile=(char*) my_malloc(PSI_NOT_INSTRUMENTED,
+            strlen(getenv("HOME")) + strlen("/.mysql_history")+2, MYF(MY_WME));
       if (histfile)
 	sprintf(histfile,"%s/.mysql_history",getenv("HOME"));
       char link_name[FN_REFLEN];
@@ -1273,8 +1272,8 @@ int main(int argc,char *argv[])
       if (verbose)
 	tee_fprintf(stdout, "Reading history-file %s\n",histfile);
       read_history(histfile);
-      if (!(histfile_tmp= (char*) my_malloc((uint) strlen(histfile) + 5,
-					    MYF(MY_WME))))
+      if (!(histfile_tmp= (char*) my_malloc(PSI_NOT_INSTRUMENTED,
+                                            strlen(histfile) + 5, MYF(MY_WME))))
       {
 	fprintf(stderr, "Couldn't allocate memory for temp histfile!\n");
 	exit(1);
@@ -1810,7 +1809,7 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
     }
     if (embedded_server_arg_count == MAX_SERVER_ARGS-1 ||
         !(embedded_server_args[embedded_server_arg_count++]=
-          my_strdup(argument, MYF(MY_FAE))))
+          my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE))))
     {
         put_info("Can't use server argument", INFO_ERROR);
         return 0;
@@ -1846,7 +1845,7 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
     {
       char *start= argument;
       my_free(opt_password);
-      opt_password= my_strdup(argument, MYF(MY_FAE));
+      opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
       while (*argument) *argument++= 'x';		// Destroy argument
       if (*start)
 	start[1]=0 ;
@@ -1909,7 +1908,7 @@ static int get_options(int argc, char **argv)
 
   tmp= (char *) getenv("MYSQL_HOST");
   if (tmp)
-    current_host= my_strdup(tmp, MYF(MY_WME));
+    current_host= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
 
   pagpoint= getenv("PAGER");
   if (!((char*) (pagpoint)))
@@ -1951,7 +1950,7 @@ static int get_options(int argc, char **argv)
   {
     skip_updates= 0;
     my_free(current_db);
-    current_db= my_strdup(*argv, MYF(MY_WME));
+    current_db= my_strdup(PSI_NOT_INSTRUMENTED, *argv, MYF(MY_WME));
   }
   if (tty_password)
     opt_password= get_tty_password(NullS);
@@ -2975,7 +2974,7 @@ static void get_current_db()
   {
     MYSQL_ROW row= mysql_fetch_row(res);
     if (row && row[0])
-      current_db= my_strdup(row[0], MYF(MY_WME));
+      current_db= my_strdup(PSI_NOT_INSTRUMENTED, row[0], MYF(MY_WME));
     mysql_free_result(res);
   }
 }
@@ -4331,12 +4330,12 @@ com_connect(String *buffer, char *line)
     if (tmp && *tmp)
     {
       my_free(current_db);
-      current_db= my_strdup(tmp, MYF(MY_WME));
+      current_db= my_strdup(PSI_NOT_INSTRUMENTED, tmp, MYF(MY_WME));
       tmp= get_arg(buff, GET_NEXT);
       if (tmp)
       {
 	my_free(current_host);
-	current_host=my_strdup(tmp,MYF(MY_WME));
+	current_host=my_strdup(PSI_NOT_INSTRUMENTED, tmp,MYF(MY_WME));
       }
     }
     else
@@ -4521,7 +4520,7 @@ com_use(String *buffer __attribute__((unused)), char *line)
         return put_error(&mysql);
     }
     my_free(current_db);
-    current_db=my_strdup(tmp,MYF(MY_WME));
+    current_db=my_strdup(PSI_NOT_INSTRUMENTED, tmp,MYF(MY_WME));
 #ifdef HAVE_READLINE
     if (select_db > 1)
       build_completion_hash(opt_rehash, 1);
@@ -4929,7 +4928,7 @@ server_version_string(MYSQL *con)
         /* version, space, comment, \0 */
         size_t len= strlen(mysql_get_server_info(con)) + strlen(cur[0]) + 2;
 
-        if ((server_version= (char *) my_malloc(len, MYF(MY_WME))))
+        if ((server_version= (char *) my_malloc(PSI_NOT_INSTRUMENTED, len, MYF(MY_WME))))
         {
           char *bufp;
           bufp = strmov(server_version, mysql_get_server_info(con));
@@ -4946,7 +4945,7 @@ server_version_string(MYSQL *con)
     */
 
     if (server_version == NULL)
-      server_version= my_strdup(mysql_get_server_info(con), MYF(MY_WME));
+      server_version= my_strdup(PSI_NOT_INSTRUMENTED, mysql_get_server_info(con), MYF(MY_WME));
   }
 
   return server_version ? server_version : "";
@@ -5348,8 +5347,8 @@ static void init_username()
       (result=mysql_use_result(&mysql)))
   {
     MYSQL_ROW cur=mysql_fetch_row(result);
-    full_username=my_strdup(cur[0],MYF(MY_WME));
-    part_username=my_strdup(strtok(cur[0],"@"),MYF(MY_WME));
+    full_username=my_strdup(PSI_NOT_INSTRUMENTED, cur[0],MYF(MY_WME));
+    part_username=my_strdup(PSI_NOT_INSTRUMENTED, strtok(cur[0],"@"),MYF(MY_WME));
     (void) mysql_fetch_row(result);		// Read eof
   }
 }
@@ -5360,7 +5359,7 @@ static int com_prompt(String *buffer __attribute__((unused)),
   char *ptr=strchr(line, ' ');
   prompt_counter = 0;
   my_free(current_prompt);
-  current_prompt=my_strdup(ptr ? ptr+1 : default_prompt,MYF(MY_WME));
+  current_prompt=my_strdup(PSI_NOT_INSTRUMENTED, ptr ? ptr+1 : default_prompt,MYF(MY_WME));
   if (!ptr)
     tee_fprintf(stdout, "Returning to default PROMPT of %s\n", default_prompt);
   else

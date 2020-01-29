@@ -491,8 +491,8 @@ char **copy_arguments(int argc, char **argv)
   for (from=argv ; from != end ; from++)
     length+= strlen(*from);
 
-  if ((res= (char**) my_malloc(sizeof(argv)*(argc+1)+length+argc,
-			       MYF(MY_WME))))
+  if ((res= (char**) my_malloc(PSI_NOT_INSTRUMENTED,
+                               sizeof(argv)*(argc+1)+length+argc, MYF(MY_WME))))
   {
     char **to= res, *to_str= (char*) (res+argc+1);
     for (from=argv ; from != end ;)
@@ -664,7 +664,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
   thd->mysql= mysql;
   mysql->server_version= server_version;
   mysql->client_flag= client_flag;
-  init_alloc_root(&mysql->field_alloc, "fields", 8192, 0, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &mysql->field_alloc, 8192, 0, MYF(0));
 }
 
 /**
@@ -758,7 +758,7 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
   sctx->host_or_ip= sctx->host= (char*) my_localhost;
   strmake_buf(sctx->priv_host, (char*) my_localhost);
   strmake_buf(sctx->priv_user, mysql->user);
-  sctx->user= my_strdup(mysql->user, MYF(0));
+  sctx->user= my_strdup(PSI_NOT_INSTRUMENTED, mysql->user, MYF(0));
   sctx->proxy_user[0]= 0;
   sctx->master_access= GLOBAL_ACLS;       // Full rights
   emb_transfer_connect_attrs(mysql);
@@ -918,10 +918,8 @@ MYSQL_DATA *THD::alloc_new_dataset()
 {
   MYSQL_DATA *data;
   struct embedded_query_result *emb_data;
-  if (!my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
-                       &data, sizeof(*data),
-                       &emb_data, sizeof(*emb_data),
-                       NULL))
+  if (!my_multi_malloc(PSI_NOT_INSTRUMENTED, MYF(MY_WME | MY_ZEROFILL),
+                       &data, sizeof(*data), &emb_data, sizeof(*emb_data), NULL))
     return NULL;
 
   emb_data->prev_ptr= &data->data;
@@ -984,7 +982,7 @@ bool Protocol::begin_dataset()
     return 1;
   alloc= &data->alloc;
   /* Assume rowlength < 8192 */
-  init_alloc_root(alloc, "protocol", 8192, 0, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, alloc, 8192, 0, MYF(0));
   alloc->min_malloc= sizeof(MYSQL_ROWS);
   return 0;
 }

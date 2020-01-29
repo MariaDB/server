@@ -244,7 +244,7 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
       if (cachesize == min_cache)
         flags|= (myf) MY_WME;
 
-      if ((info->buffer= (uchar*) my_malloc(buffer_block, flags)) != 0)
+      if ((info->buffer= (uchar*) my_malloc(key_memory_IO_CACHE, buffer_block, flags)) != 0)
       {
 	if (type == SEQ_READ_APPEND)
 	  info->write_buffer= info->buffer + cachesize;
@@ -324,7 +324,7 @@ int init_slave_io_cache(IO_CACHE *master, IO_CACHE *slave)
   DBUG_ASSERT(!master->share);
   DBUG_ASSERT(master->alloced_buffer);
 
-  if (!(slave_buf= (uchar*)my_malloc(master->buffer_length, MYF(0))))
+  if (!(slave_buf= (uchar*)my_malloc(PSI_INSTRUMENT_ME, master->buffer_length, MYF(0))))
   {
     return 1;
   }

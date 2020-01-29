@@ -2771,7 +2771,8 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
               (m_sp->agg_type() == NOT_AGGREGATE && !func_ctx));
   if (!func_ctx)
   {
-    init_sql_alloc(&sp_mem_root, "Item_sp", MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
+    init_sql_alloc(key_memory_sp_head_call_root, &sp_mem_root,
+                   MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
     *sp_query_arena= Query_arena(&sp_mem_root,
                                  Query_arena::STMT_INITIALIZED_FOR_SP);
   }

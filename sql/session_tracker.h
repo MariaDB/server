@@ -143,9 +143,9 @@ class Session_sysvars_tracker: public State_tracker
     void init()
     {
       my_hash_init(&m_registered_sysvars, &my_charset_bin, 0, 0, 0,
-                   (my_hash_get_key) sysvars_get_key, my_free,
-                   HASH_UNIQUE | (mysqld_server_initialized ?
-                                  HASH_THREAD_SPECIFIC : 0));
+                   (my_hash_get_key) sysvars_get_key, my_free, HASH_UNIQUE |
+                   (mysqld_server_initialized ?  HASH_THREAD_SPECIFIC : 0),
+                   PSI_INSTRUMENT_ME);
     }
     void free_hash()
     {
@@ -401,10 +401,9 @@ class User_variables_tracker: public State_tracker
   Hash_set<const user_var_entry> m_changed_user_variables;
 public:
   User_variables_tracker():
-    m_changed_user_variables(&my_charset_bin, 0, 0,
-                             sizeof(const user_var_entry*), 0, 0,
-                             HASH_UNIQUE | (mysqld_server_initialized ?
-                             HASH_THREAD_SPECIFIC : 0)) {}
+    m_changed_user_variables(PSI_INSTRUMENT_ME, &my_charset_bin, 0, 0,
+                             sizeof(const user_var_entry*), 0, 0, HASH_UNIQUE |
+                             mysqld_server_initialized ? HASH_THREAD_SPECIFIC : 0) {}
   bool update(THD *thd, set_var *var);
   bool store(THD *thd, String *buf);
   void mark_as_changed(THD *thd, const user_var_entry *var)

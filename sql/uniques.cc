@@ -93,8 +93,8 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   init_tree(&tree, (max_in_memory_size / 16), 0, size, comp_func,
             NULL, comp_func_fixed_arg, MYF(MY_THREAD_SPECIFIC));
   /* If the following fail's the next add will also fail */
-  my_init_dynamic_array(&file_ptrs, sizeof(Merge_chunk), 16, 16,
-                        MYF(MY_THREAD_SPECIFIC));
+  my_init_dynamic_array(&file_ptrs, PSI_INSTRUMENT_ME, sizeof(Merge_chunk), 16,
+                        16, MYF(MY_THREAD_SPECIFIC));
   /*
     If you change the following, change it in get_max_elements function, too.
   */
@@ -662,7 +662,8 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
     is needed when a piece of merge buffer is re-read, see merge_walk()
   */
   size_t buff_sz= MY_MAX(MERGEBUFF2+1, max_in_memory_size/full_size+1) * full_size;
-  if (!(merge_buffer = (uchar *)my_malloc(buff_sz, MYF(MY_WME))))
+  if (!(merge_buffer = (uchar *)my_malloc(key_memory_Unique_merge_buffer,
+                                     buff_sz, MYF(MY_THREAD_SPECIFIC|MY_WME))))
     return 1;
   if (buff_sz < full_size * (file_ptrs.elements + 1UL))
     res= merge(table, merge_buffer, buff_sz,
@@ -782,7 +783,8 @@ bool Unique::get(TABLE *table)
   {
     /* Whole tree is in memory;  Don't use disk if you don't need to */
     if ((sort.record_pointers= (uchar*)
-	 my_malloc(size * tree.elements_in_tree, MYF(MY_THREAD_SPECIFIC))))
+	 my_malloc(key_memory_Filesort_info_record_pointers,
+                   size * tree.elements_in_tree, MYF(MY_THREAD_SPECIFIC))))
     {
       uchar *save_record_pointers= sort.record_pointers;
       tree_walk_action action= min_dupl_count ?
@@ -801,7 +803,7 @@ bool Unique::get(TABLE *table)
   if (flush())
     DBUG_RETURN(1);
   size_t buff_sz= (max_in_memory_size / full_size + 1) * full_size;
-  if (!(sort_buffer= (uchar*) my_malloc(buff_sz,
+  if (!(sort_buffer= (uchar*) my_malloc(key_memory_Unique_sort_buffer, buff_sz,
                                         MYF(MY_THREAD_SPECIFIC|MY_WME))))
     DBUG_RETURN(1);
 

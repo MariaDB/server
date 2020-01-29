@@ -188,7 +188,7 @@ bool my_dboptions_cache_init(void)
     dboptions_init= 1;
     error= my_hash_init(&dboptions, table_alias_charset,
                         32, 0, 0, (my_hash_get_key) dboptions_get_key,
-                        free_dbopt,0);
+                        free_dbopt, 0, key_memory_dboptions_hash);
   }
   return error;
 }
@@ -220,7 +220,7 @@ void my_dbopt_cleanup(void)
   my_hash_free(&dboptions);
   my_hash_init(&dboptions, table_alias_charset,
                32, 0, 0, (my_hash_get_key) dboptions_get_key,
-               free_dbopt,0);
+               free_dbopt, 0, key_memory_dboptions_hash);
   mysql_rwlock_unlock(&LOCK_dboptions);
 }
 
@@ -290,7 +290,7 @@ static my_bool put_dbopt(const char *dbname, Schema_specification_st *create)
     /* Options are not in the hash, insert them */
     char *tmp_name;
     char *tmp_comment= NULL;
-    if (!my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
+    if (!my_multi_malloc(key_memory_dboptions_hash, MYF(MY_WME | MY_ZEROFILL),
                          &opt, (uint) sizeof(*opt), &tmp_name, (uint) length+1,
                          &tmp_comment, (uint) DATABASE_COMMENT_MAXLEN+1,
                          NullS))
@@ -1547,8 +1547,8 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     TODO: fix check_db_name().
   */
 
-  new_db_file_name.str= my_strndup(new_db_name->str, new_db_name->length,
-                                   MYF(MY_WME));
+  new_db_file_name.str= my_strndup(key_memory_THD_db, new_db_name->str,
+                                   new_db_name->length, MYF(MY_WME));
   new_db_file_name.length= new_db_name->length;
 
   if (new_db_file_name.str == NULL)

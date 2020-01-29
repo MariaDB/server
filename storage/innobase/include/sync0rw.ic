@@ -541,8 +541,6 @@ pfs_rw_lock_x_lock_func(
 
 		/* Record the acquisition of a read-write lock in exclusive
 		mode in performance schema */
-/* MySQL 5.7 New PSI */
-#define PSI_RWLOCK_EXCLUSIVELOCK PSI_RWLOCK_WRITELOCK
 
 		locker = PSI_RWLOCK_CALL(start_rwlock_wrwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_EXCLUSIVELOCK,
@@ -582,7 +580,6 @@ pfs_rw_lock_x_lock_func_nowait(
 		/* Record the acquisition of a read-write trylock in exclusive
 		mode in performance schema */
 
-#define PSI_RWLOCK_TRYEXCLUSIVELOCK PSI_RWLOCK_TRYWRITELOCK
 		locker = PSI_RWLOCK_CALL(start_rwlock_wrwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_TRYEXCLUSIVELOCK,
 			file_name, static_cast<uint>(line));
@@ -636,7 +633,6 @@ pfs_rw_lock_s_lock_func(
 		PSI_rwlock_locker*	locker;
 		PSI_rwlock_locker_state	state;
 
-#define  PSI_RWLOCK_SHAREDLOCK  PSI_RWLOCK_READLOCK
 		/* Instrumented to inform we are aquiring a shared rwlock */
 		locker = PSI_RWLOCK_CALL(start_rwlock_rdwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_SHAREDLOCK,
@@ -671,7 +667,6 @@ pfs_rw_lock_sx_lock_func(
 		PSI_rwlock_locker*	locker;
 		PSI_rwlock_locker_state	state;
 
-#define PSI_RWLOCK_SHAREDEXCLUSIVELOCK PSI_RWLOCK_WRITELOCK
 		/* Instrumented to inform we are aquiring a shared rwlock */
 		locker = PSI_RWLOCK_CALL(start_rwlock_wrwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_SHAREDEXCLUSIVELOCK,
@@ -708,7 +703,6 @@ pfs_rw_lock_s_lock_low(
 		PSI_rwlock_locker*	locker;
 		PSI_rwlock_locker_state	state;
 
-#define PSI_RWLOCK_TRYSHAREDLOCK PSI_RWLOCK_TRYREADLOCK
 		/* Instrumented to inform we are aquiring a shared rwlock */
 		locker = PSI_RWLOCK_CALL(start_rwlock_rdwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_TRYSHAREDLOCK,
@@ -748,7 +742,6 @@ pfs_rw_lock_sx_lock_low(
 		PSI_rwlock_locker*	locker;
 		PSI_rwlock_locker_state	state;
 
-#define PSI_RWLOCK_TRYSHAREDEXCLUSIVELOCK PSI_RWLOCK_TRYWRITELOCK
 		/* Instrumented to inform we are aquiring a shared
 		exclusive rwlock */
 		locker = PSI_RWLOCK_CALL(start_rwlock_rdwait)(

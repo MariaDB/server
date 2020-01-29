@@ -96,7 +96,7 @@ int my_security_attr_create(SECURITY_ATTRIBUTES **psa, const char **perror,
   }
   GetTokenInformation(htoken, TokenUser, 0, 0, &owner_token_length);
 
-  if (! my_multi_malloc(MYF(MY_WME),
+  if (! my_multi_malloc(MYF(MY_WME), PSI_INSTRUMENT_ME,
                         &sa, ALIGN_SIZE(sizeof(SECURITY_ATTRIBUTES)) +
                              sizeof(My_security_attr),
                         &sd, sizeof(SECURITY_DESCRIPTOR),
@@ -126,7 +126,7 @@ int my_security_attr_create(SECURITY_ATTRIBUTES **psa, const char **perror,
                GetLengthSid(everyone_sid) + GetLengthSid(owner_sid);
 
   /* Create an ACL */
-  if (! (dacl= (PACL) my_malloc(dacl_length, MYF(MY_ZEROFILL|MY_WME))))
+  if (! (dacl= (PACL) my_malloc(PSI_INSTRUMENT_ME, dacl_length, MYF(MY_ZEROFILL|MY_WME))))
   {
     *perror= "Failed to allocate memory for DACL";
     goto error;

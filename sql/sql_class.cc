@@ -633,7 +633,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
              /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    protocol_text(this), protocol_binary(this),
-   m_current_stage_key(0),
+   m_current_stage_key(0), m_psi(0),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
    binlog_table_maps(0),
@@ -743,8 +743,9 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
     the destructor works OK in case of an error. The main_mem_root
     will be re-initialized in init_for_queries().
   */
-  init_sql_alloc(&main_mem_root, "THD::main_mem_root",
-                 ALLOC_ROOT_MIN_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(key_memory_thd_main_mem_root,
+                 &main_mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
 
   /*
     Allocation of user variables for binary logging is always done with main
@@ -845,10 +846,12 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   user_connect=(USER_CONN *)0;
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_var_key,
-               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
+               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC,
+               key_memory_user_var_entry);
   my_hash_init(&sequences, system_charset_info, SEQUENCES_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_sequence_last_key,
-               (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC);
+               (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC,
+               PSI_INSTRUMENT_ME);
 
   sp_proc_cache= NULL;
   sp_func_cache= NULL;
@@ -857,7 +860,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
   /* For user vars replication*/
   if (opt_bin_log)
-    my_init_dynamic_array(&user_var_events,
+    my_init_dynamic_array(&user_var_events, key_memory_user_var_entry,
 			  sizeof(BINLOG_USER_VAR_EVENT *), 16, 16, MYF(0));
   else
     bzero((char*) &user_var_events, sizeof(user_var_events));
@@ -885,7 +888,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   m_token_array= NULL;
   if (max_digest_length > 0)
   {
-    m_token_array= (unsigned char*) my_malloc(max_digest_length,
+    m_token_array= (unsigned char*) my_malloc(PSI_INSTRUMENT_ME,
+                                              max_digest_length,
                                               MYF(MY_WME|MY_THREAD_SPECIFIC));
   }
 
@@ -1450,10 +1454,12 @@ void THD::change_user(void)
   stmt_map.reset();
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_var_key,
-               (my_hash_free_key) free_user_var, 0);
+               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC,
+               key_memory_user_var_entry);
   my_hash_init(&sequences, system_charset_info, SEQUENCES_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_sequence_last_key,
-               (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC);
+               (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC,
+               key_memory_user_var_entry);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
   sp_cache_clear(&sp_package_spec_cache);
@@ -1490,7 +1496,8 @@ bool THD::set_db(const LEX_CSTRING *new_db)
     const char *tmp= NULL;
     if (new_db->str)
     {
-      if (!(tmp= my_strndup(new_db->str, new_db->length, MYF(MY_WME | ME_FATAL))))
+      if (!(tmp= my_strndup(key_memory_THD_db, new_db->str, new_db->length,
+                            MYF(MY_WME | ME_FATAL))))
         result= 1;
     }
 
@@ -3931,10 +3938,11 @@ Statement_map::Statement_map() :
   };
   my_hash_init(&st_hash, &my_charset_bin, START_STMT_HASH_SIZE, 0, 0,
                get_statement_id_as_hash_key,
-               delete_statement_as_hash_key, MYF(0));
+               delete_statement_as_hash_key, MYF(0),
+               key_memory_prepared_statement_map);
   my_hash_init(&names_hash, system_charset_info, START_NAME_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_stmt_name_hash_key,
-               NULL,MYF(0));
+               NULL, MYF(0), key_memory_prepared_statement_map);
 }
 
 
@@ -4338,8 +4346,8 @@ void Security_context::skip_grants()
 
 bool Security_context::set_user(char *user_arg)
 {
-  my_free((char*) user);
-  user= my_strdup(user_arg, MYF(0));
+  my_free(const_cast<char*>(user));
+  user= my_strdup(key_memory_MPVIO_EXT_auth_info, user_arg, MYF(0));
   return user == 0;
 }
 
@@ -6601,7 +6609,8 @@ CPP_UNNAMED_NS_START
       }
       else
       {
-        m_memory= (uchar *) my_malloc(total_length, MYF(MY_WME));
+        m_memory= (uchar *) my_malloc(key_memory_Row_data_memory_memory,
+                                      total_length, MYF(MY_WME));
         m_release_memory_on_destruction= TRUE;
       }
     }

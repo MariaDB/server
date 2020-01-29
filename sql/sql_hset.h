@@ -31,19 +31,20 @@ public:
     Constructs an empty hash. Does not allocate memory, it is done upon
     the first insert. Thus does not cause or return errors.
   */
-  Hash_set(uchar *(*K)(const T *, size_t *, my_bool),
+  Hash_set(PSI_memory_key psi_key, uchar *(*K)(const T *, size_t *, my_bool),
            CHARSET_INFO *cs= &my_charset_bin)
   {
     my_hash_clear(&m_hash);
     m_hash.get_key= (my_hash_get_key)K;
     m_hash.charset= cs;
+    m_hash.array.m_psi_key= psi_key;
   }
-  Hash_set(CHARSET_INFO *charset, ulong default_array_elements,
+  Hash_set(PSI_memory_key psi_key, CHARSET_INFO *charset, ulong default_array_elements,
            size_t key_offset, size_t key_length, my_hash_get_key get_key,
            void (*free_element)(void*), uint flags)
   {
     my_hash_init(&m_hash, charset, default_array_elements, key_offset,
-                 key_length, get_key, free_element, flags);
+                 key_length, get_key, free_element, flags, psi_key);
   }
   /**
     Destroy the hash by freeing the buckets table. Does
@@ -65,7 +66,7 @@ public:
   bool insert(T *value)
   {
     my_hash_init_opt(&m_hash, m_hash.charset, START_SIZE, 0, 0,
-                     m_hash.get_key, 0, HASH_UNIQUE);
+                     m_hash.get_key, 0, HASH_UNIQUE, m_hash.array.m_psi_key);
     return my_hash_insert(&m_hash, reinterpret_cast<const uchar*>(value));
   }
   bool remove(T *value)

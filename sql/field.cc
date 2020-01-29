@@ -8074,7 +8074,7 @@ int Field_longstr::compress(char *to, uint to_length,
       max_length < length)
   {
     set_if_smaller(max_length, static_cast<ulonglong>(mbmaxlen()) * length + 1);
-    if (!(buf= (char*) my_malloc(max_length, MYF(MY_WME))))
+    if (!(buf= (char*) my_malloc(PSI_INSTRUMENT_ME, max_length, MYF(MY_WME))))
     {
       *out_length= 0;
       return -1;

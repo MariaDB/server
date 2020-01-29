@@ -102,22 +102,43 @@ static const char *ha_partition_ext[]=
   ha_par_ext, NullS
 };
 
+static PSI_memory_key key_memory_Partition_share;
+static PSI_memory_key key_memory_partition_sort_buffer;
+static PSI_memory_key key_memory_Partition_admin;
+
+static PSI_memory_key key_memory_ha_partition_file;
+static PSI_memory_key key_memory_ha_partition_engine_array;
+static PSI_memory_key key_memory_ha_partition_part_ids;
 
 #ifdef HAVE_PSI_INTERFACE
 PSI_mutex_key key_partition_auto_inc_mutex;
+PSI_file_key key_file_ha_partition_par;
 
 static PSI_mutex_info all_partition_mutexes[]=
 {
   { &key_partition_auto_inc_mutex, "Partition_share::auto_inc_mutex", 0}
 };
+static PSI_memory_info all_partitioning_memory[]=
+{ { &key_memory_Partition_share, "Partition_share", 0},
+  { &key_memory_partition_sort_buffer, "partition_sort_buffer", 0},
+  { &key_memory_Partition_admin, "Partition_admin", 0},
+  { &key_memory_ha_partition_file, "ha_partition::file", 0},
+  { &key_memory_ha_partition_engine_array, "ha_partition::engine_array", 0},
+  { &key_memory_ha_partition_part_ids, "ha_partition::part_ids", 0} };
+static PSI_file_info all_partition_file[]=
+{ { &key_file_ha_partition_par, "ha_partition::parfile", 0} };
 
 static void init_partition_psi_keys(void)
 {
   const char* category= "partition";
   int count;
 
+  count= array_elements(all_partitioning_memory);
+  mysql_memory_register(category, all_partitioning_memory, count);
   count= array_elements(all_partition_mutexes);
   mysql_mutex_register(category, all_partition_mutexes, count);
+  count= array_elements(all_partition_file);
+  mysql_file_register(category, all_partition_file, count);
 }
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -244,7 +265,7 @@ ha_partition::ha_partition(handlerton *hton, TABLE_SHARE *share)
 
 void ha_partition::ha_partition_init()
 {
-  init_alloc_root(&m_mem_root, "ha_partition", 512, 512, MYF(0));
+  init_alloc_root(PSI_INSTRUMENT_ME, &m_mem_root, 512, 512, MYF(0));
   init_handler_variables();
 }
 
@@ -649,9 +670,9 @@ int ha_partition::create_partitioning_metadata(const char *path,
     strxmov(name, path, ha_par_ext, NullS);
     strxmov(old_name, old_path, ha_par_ext, NullS);
     if ((action_flag == CHF_DELETE_FLAG &&
-         mysql_file_delete(key_file_partition, name, MYF(MY_WME))) ||
+         mysql_file_delete(key_file_ha_partition_par, name, MYF(MY_WME))) ||
         (action_flag == CHF_RENAME_FLAG &&
-         mysql_file_rename(key_file_partition, old_name, name, MYF(MY_WME))))
+         mysql_file_rename(key_file_ha_partition_par, old_name, name, MYF(MY_WME))))
     {
       DBUG_RETURN(TRUE);
     }
@@ -1333,7 +1354,7 @@ bool print_admin_msg(THD* thd, uint len,
   char *msgbuf;
   bool error= true;
 
-  if (!(msgbuf= (char*) my_malloc(len, MYF(0))))
+  if (!(msgbuf= (char*) my_malloc(key_memory_Partition_admin, len, MYF(0))))
     return true;
   va_start(args, fmt);
   msg_length= my_vsnprintf(msgbuf, len, fmt, args);
@@ -2749,7 +2770,8 @@ bool ha_partition::create_handler_file(const char *name)
   /* 4 static words (tot words, checksum, tot partitions, name length) */
   tot_len_words= 4 + tot_partition_words + tot_name_words;
   tot_len_byte= PAR_WORD_SIZE * tot_len_words;
-  if (!(file_buffer= (uchar *) my_malloc(tot_len_byte, MYF(MY_ZEROFILL))))
+  if (!(file_buffer= (uchar *) my_malloc(key_memory_ha_partition_file,
+                                         tot_len_byte, MYF(MY_ZEROFILL))))
     DBUG_RETURN(TRUE);
   engine_array= (file_buffer + PAR_ENGINES_OFFSET);
   name_buffer_ptr= (char*) (engine_array + tot_partition_words * PAR_WORD_SIZE
@@ -2804,7 +2826,7 @@ bool ha_partition::create_handler_file(const char *name)
     to be used at open, delete_table and rename_table
   */
   fn_format(file_name, name, "", ha_par_ext, MY_APPEND_EXT);
-  if ((file= mysql_file_create(key_file_partition,
+  if ((file= mysql_file_create(key_file_ha_partition_par,
                                file_name, CREATE_MODE, O_RDWR | O_TRUNC,
                                MYF(MY_WME))) >= 0)
   {
@@ -2829,7 +2851,7 @@ bool ha_partition::create_handler_file(const char *name)
     }
     (void) mysql_file_close(file, MYF(0));
     if (result)
-      mysql_file_delete(key_file_partition, file_name, MYF(MY_WME));
+      mysql_file_delete(key_file_ha_partition_par, file_name, MYF(MY_WME));
   }
   else
     result= TRUE;
@@ -2993,7 +3015,7 @@ bool ha_partition::read_par_file(const char *name)
   fn_format(buff, name, "", ha_par_ext, MY_APPEND_EXT);
 
   /* Following could be done with mysql_file_stat to read in whole file */
-  if ((file= mysql_file_open(key_file_partition,
+  if ((file= mysql_file_open(key_file_ha_partition_par,
                              buff, O_RDONLY | O_SHARE, MYF(0))) < 0)
     DBUG_RETURN(TRUE);
   if (mysql_file_read(file, (uchar *) &buff[0], PAR_WORD_SIZE, MYF(MY_NABP)))
@@ -3219,7 +3241,7 @@ bool ha_partition::insert_partition_name_in_hash(const char *name, uint part_id,
     Since we use my_multi_malloc, then my_free(part_def) will also free
     part_name, as a part of my_hash_free.
   */
-  if (!my_multi_malloc(MY_WME,
+  if (!my_multi_malloc(key_memory_Partition_share, MY_WME,
                        &part_def, sizeof(PART_NAME_DEF),
                        &part_name, part_name_length + 1,
                        NULL))
@@ -3270,7 +3292,7 @@ bool ha_partition::populate_partition_name_hash()
   if (my_hash_init(&part_share->partition_name_hash,
                    system_charset_info, tot_names, 0, 0,
                    (my_hash_get_key) get_part_name,
-                   my_free, HASH_UNIQUE))
+                   my_free, HASH_UNIQUE, key_memory_Partition_share))
   {
     unlock_shared_ha_data();
     DBUG_RETURN(TRUE);
@@ -3506,7 +3528,8 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   if (!m_part_ids_sorted_by_num_of_records)
   {
     if (!(m_part_ids_sorted_by_num_of_records=
-            (uint32*) my_malloc(m_tot_parts * sizeof(uint32), MYF(MY_WME))))
+            (uint32*) my_malloc(key_memory_ha_partition_part_ids,
+                                m_tot_parts * sizeof(uint32), MYF(MY_WME))))
       DBUG_RETURN(error);
     uint32 i;
     /* Initialize it with all partition ids. */
@@ -3524,7 +3547,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
 
   /* Allocate memory used with MMR */
   if (!(m_range_info= (void **)
-        my_multi_malloc(MYF(MY_WME),
+        my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
                         &m_range_info, sizeof(range_id_t) * m_tot_parts,
                         &m_stock_range_seq, sizeof(uint) * m_tot_parts,
                         &m_mrr_buffer, sizeof(HANDLER_BUFFER) * m_tot_parts,
@@ -3535,8 +3558,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
                         &m_part_mrr_range_current,
                         sizeof(PARTITION_PART_KEY_MULTI_RANGE *) * m_tot_parts,
                         &m_partition_part_key_multi_range_hld,
-                        sizeof(PARTITION_PART_KEY_MULTI_RANGE_HLD) *
-                        m_tot_parts,
+                        sizeof(PARTITION_PART_KEY_MULTI_RANGE_HLD) * m_tot_parts,
                         NullS)))
     goto err_alloc;
 
@@ -5315,7 +5337,8 @@ bool ha_partition::init_record_priority_queue()
     /* Allocate a key for temporary use when setting up the scan. */
     alloc_len+= table_share->max_key_length;
 
-    if (!(m_ordered_rec_buffer= (uchar*)my_malloc(alloc_len, MYF(MY_WME))))
+    if (!(m_ordered_rec_buffer= (uchar*)my_malloc(key_memory_partition_sort_buffer,
+                                                  alloc_len, MYF(MY_WME))))
       DBUG_RETURN(true);
 
     /*
@@ -6066,9 +6089,8 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
   if (!m_mrr_range_first)
   {
     if (!(m_mrr_range_first= (PARTITION_KEY_MULTI_RANGE *)
-          my_multi_malloc(MYF(MY_WME),
-                          &m_mrr_range_current,
-                          sizeof(PARTITION_KEY_MULTI_RANGE),
+          my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
+                          &m_mrr_range_current, sizeof(PARTITION_KEY_MULTI_RANGE),
                           NullS)))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
@@ -6085,9 +6107,8 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
     if (!m_part_mrr_range_first[i])
     {
       if (!(m_part_mrr_range_first[i]= (PARTITION_PART_KEY_MULTI_RANGE *)
-            my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
-                            &m_part_mrr_range_current[i],
-                            sizeof(PARTITION_PART_KEY_MULTI_RANGE),
+            my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME | MY_ZEROFILL),
+                            &m_part_mrr_range_current[i], sizeof(PARTITION_PART_KEY_MULTI_RANGE),
                             NullS)))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
@@ -6123,7 +6144,7 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
         if (m_mrr_range_current->key[0])
           my_free(m_mrr_range_current->key[0]);
         if (!(m_mrr_range_current->key[0]=
-              (uchar *) my_malloc(length, MYF(MY_WME))))
+              (uchar *) my_malloc(PSI_INSTRUMENT_ME, length, MYF(MY_WME))))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         m_mrr_range_current->length[0]= length;
       }
@@ -6147,7 +6168,7 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
         if (m_mrr_range_current->key[1])
           my_free(m_mrr_range_current->key[1]);
         if (!(m_mrr_range_current->key[1]=
-              (uchar *) my_malloc(length, MYF(MY_WME))))
+              (uchar *) my_malloc(PSI_INSTRUMENT_ME, length, MYF(MY_WME))))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         m_mrr_range_current->length[1]= length;
       }
@@ -6181,7 +6202,7 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
         {
           PARTITION_PART_KEY_MULTI_RANGE *tmp_part_mrr_range;
           if (!(tmp_part_mrr_range= (PARTITION_PART_KEY_MULTI_RANGE *)
-                my_malloc(sizeof(PARTITION_PART_KEY_MULTI_RANGE),
+                my_malloc(PSI_INSTRUMENT_ME, sizeof(PARTITION_PART_KEY_MULTI_RANGE),
                           MYF(MY_WME | MY_ZEROFILL))))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
@@ -6201,7 +6222,7 @@ int ha_partition::multi_range_key_create_key(RANGE_SEQ_IF *seq,
       /* Add end of range sentinel */
       PARTITION_KEY_MULTI_RANGE *tmp_mrr_range;
       if (!(tmp_mrr_range= (PARTITION_KEY_MULTI_RANGE *)
-            my_malloc(sizeof(PARTITION_KEY_MULTI_RANGE), MYF(MY_WME))))
+            my_malloc(PSI_INSTRUMENT_ME, sizeof(PARTITION_KEY_MULTI_RANGE), MYF(MY_WME))))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
       tmp_mrr_range->id= m_mrr_range_current->id + 1;
@@ -6472,7 +6493,7 @@ int ha_partition::multi_range_read_init(RANGE_SEQ_IF *seq,
     if (m_mrr_full_buffer)
       my_free(m_mrr_full_buffer);
     if (!(m_mrr_full_buffer=
-          (uchar *) my_malloc(m_mrr_new_full_buffer_size, MYF(MY_WME))))
+          (uchar *) my_malloc(PSI_INSTRUMENT_ME, m_mrr_new_full_buffer_size, MYF(MY_WME))))
     {
       m_mrr_full_buffer_size= 0;
       error= HA_ERR_OUT_OF_MEM;
@@ -6870,11 +6891,9 @@ FT_INFO *ha_partition::ft_init_ext(uint flags, uint inx, String *key)
   {
     FT_INFO **tmp_ft_info;
     if (!(ft_target= (st_partition_ft_info *)
-          my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
-                          &ft_target,
-                          sizeof(st_partition_ft_info),
-                          &tmp_ft_info,
-                          sizeof(FT_INFO *) * m_tot_parts,
+          my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME | MY_ZEROFILL),
+                          &ft_target, sizeof(st_partition_ft_info),
+                          &tmp_ft_info, sizeof(FT_INFO *) * m_tot_parts,
                           NullS)))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));

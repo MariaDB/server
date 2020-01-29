@@ -826,7 +826,7 @@ get_one_option(const struct my_option *opt,
     {
       char *start=argument;
       my_free(opt_password);
-      opt_password=my_strdup(argument,MYF(MY_FAE));
+      opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
       while (*argument) *argument++= 'x';               /* Destroy argument */
       if (*start)
         start[1]=0;                             /* Cut length of argument */
@@ -908,7 +908,8 @@ get_one_option(const struct my_option *opt,
     opt_databases=0;
     break;
   case (int) OPT_IGNORE_DATABASE:
-    if (my_hash_insert(&ignore_database, (uchar*) my_strdup(argument, MYF(0))))
+    if (my_hash_insert(&ignore_database,
+                   (uchar*) my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(0))))
       exit(EX_EOM);
     break;
   case (int) OPT_IGNORE_TABLE:
@@ -918,7 +919,8 @@ get_one_option(const struct my_option *opt,
       fprintf(stderr, "Illegal use of option --ignore-table=<database>.<table>\n");
       exit(1);
     }
-    if (my_hash_insert(&ignore_table, (uchar*)my_strdup(argument, MYF(0))))
+    if (my_hash_insert(&ignore_table,
+                    (uchar*)my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(0))))
       exit(EX_EOM);
     break;
   }
@@ -1000,22 +1002,22 @@ static int get_options(int *argc, char ***argv)
   defaults_argv= *argv;
 
   if (my_hash_init(&ignore_database, charset_info, 16, 0, 0,
-                   (my_hash_get_key) get_table_key, my_free, 0))
+        (my_hash_get_key) get_table_key, my_free, 0, PSI_NOT_INSTRUMENTED))
     return(EX_EOM);
   if (my_hash_init(&ignore_table, charset_info, 16, 0, 0,
-                   (my_hash_get_key) get_table_key, my_free, 0))
+        (my_hash_get_key) get_table_key, my_free, 0, PSI_NOT_INSTRUMENTED))
     return(EX_EOM);
   /* Don't copy internal log tables */
-  if (my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup("mysql.apply_status", MYF(MY_WME))) ||
-      my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup("mysql.schema", MYF(MY_WME))) ||
-      my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup("mysql.general_log", MYF(MY_WME))) ||
-      my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup("mysql.slow_log", MYF(MY_WME))) ||
-      my_hash_insert(&ignore_table,
-                     (uchar*) my_strdup("mysql.transaction_registry", MYF(MY_WME))))
+  if (my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
+                                        "mysql.apply_status", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
+                                              "mysql.schema", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
+                                         "mysql.general_log", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
+                                            "mysql.slow_log", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
+                                "mysql.transaction_registry", MYF(MY_WME))))
     return(EX_EOM);
 
   if ((ho_error= handle_options(argc, argv, my_long_options, get_one_option)))
@@ -1793,7 +1795,7 @@ static void unescape(FILE *file,char *pos, size_t length)
 {
   char *tmp;
   DBUG_ENTER("unescape");
-  if (!(tmp=(char*) my_malloc(length*2+1, MYF(MY_WME))))
+  if (!(tmp=(char*) my_malloc(PSI_NOT_INSTRUMENTED, length*2+1, MYF(MY_WME))))
     die(EX_MYSQLERR, "Couldn't allocate memory");
 
   mysql_real_escape_string(&mysql_connection, tmp, pos, (ulong)length);
@@ -2876,7 +2878,7 @@ static uint get_table_structure(char *table, char *db, char *table_type,
 
         /* save "show create" statement for later */
         if ((row= mysql_fetch_row(result)) && (scv_buff=row[1]))
-          scv_buff= my_strdup(scv_buff, MYF(0));
+          scv_buff= my_strdup(PSI_NOT_INSTRUMENTED, scv_buff, MYF(0));
 
         mysql_free_result(result);
 
@@ -3677,7 +3679,7 @@ static char *alloc_query_str(size_t size)
 {
   char *query;
 
-  if (!(query= (char*) my_malloc(size, MYF(MY_WME))))
+  if (!(query= (char*) my_malloc(PSI_NOT_INSTRUMENTED, size, MYF(MY_WME))))
     die(EX_MYSQLERR, "Couldn't allocate a query string.");
 
   return query;
@@ -5067,7 +5069,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   if (init_dumping(db, init_dumping_tables))
     DBUG_RETURN(1);
 
-  init_alloc_root(&glob_root, "glob_root", 8192, 0, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &glob_root, 8192, 0, MYF(0));
   if (!(dump_tables= pos= (char**) alloc_root(&glob_root,
                                               tables * sizeof(char *))))
      die(EX_EOM, "alloc_root failure.");
@@ -5819,7 +5821,7 @@ static char *primary_key_fields(const char *table_name)
   {
     char *end;
     /* result (terminating \0 is already in result_length) */
-    result= my_malloc(result_length + 10, MYF(MY_WME));
+    result= my_malloc(PSI_NOT_INSTRUMENTED, result_length + 10, MYF(MY_WME));
     if (!result)
     {
       fprintf(stderr, "Error: Not enough memory to store ORDER BY clause\n");

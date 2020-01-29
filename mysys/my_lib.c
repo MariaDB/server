@@ -124,16 +124,17 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   if (!(dirp= opendir(tmp_path)))
     goto error;
 
-  if (!(dirh= my_malloc(sizeof(*dirh), MyFlags | MY_ZEROFILL)))
+  if (!(dirh= my_malloc(key_memory_MY_DIR, sizeof(*dirh),
+                        MYF(MyFlags | MY_ZEROFILL))))
     goto error;
   
-  if (my_init_dynamic_array(&dirh->array, sizeof(FILEINFO),
+  if (my_init_dynamic_array(&dirh->array, key_memory_MY_DIR, sizeof(FILEINFO),
                             ENTRIES_START_SIZE, ENTRIES_INCREMENT,
                             MYF(MyFlags)))
     goto error;
   
-  init_alloc_root(&dirh->root, "dir", NAMES_START_SIZE, NAMES_START_SIZE,
-                  MYF(MyFlags));
+  init_alloc_root(key_memory_MY_DIR, &dirh->root, NAMES_START_SIZE,
+                  NAMES_START_SIZE, MYF(MyFlags));
 
   dp= (struct dirent*) dirent_tmp;
   
@@ -227,15 +228,15 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   tmp_file[2]='*';
   tmp_file[3]='\0';
 
-  if (!(dirh= my_malloc(sizeof(*dirh), MyFlags | MY_ZEROFILL)))
+  if (!(dirh= my_malloc(PSI_INSTRUMENT_ME, sizeof(*dirh), MyFlags | MY_ZEROFILL)))
     goto error;
   
-  if (my_init_dynamic_array(&dirh->array, sizeof(FILEINFO),
+  if (my_init_dynamic_array(&dirh->array, PSI_INSTRUMENT_ME, sizeof(FILEINFO),
                             ENTRIES_START_SIZE, ENTRIES_INCREMENT,
                             MYF(MyFlags)))
     goto error;
 
-  init_alloc_root(&dirh->root, "dir", NAMES_START_SIZE, NAMES_START_SIZE,
+  init_alloc_root(PSI_INSTRUMENT_ME, &dirh->root, NAMES_START_SIZE, NAMES_START_SIZE,
                   MYF(MyFlags));
 
   if ((handle=_findfirst(tmp_path,&find)) == -1L)
@@ -341,7 +342,8 @@ MY_STAT *my_stat(const char *path, MY_STAT *stat_area, myf my_flags)
                     stat_area, my_flags));
 
   if ((m_used= (stat_area == NULL)))
-    if (!(stat_area= (MY_STAT *) my_malloc(sizeof(MY_STAT), my_flags)))
+    if (!(stat_area= (MY_STAT *) my_malloc(key_memory_MY_STAT, sizeof(MY_STAT),
+                                           my_flags)))
       goto error;
 #ifndef _WIN32
     if (! stat((char *) path, (struct stat *) stat_area) )

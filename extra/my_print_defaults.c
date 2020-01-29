@@ -170,7 +170,8 @@ int main(int argc, char **argv)
   if (nargs < 2)
     usage();
 
-  load_default_groups=(char**) my_malloc(nargs*sizeof(char*), MYF(MY_WME));
+  load_default_groups=(char**) my_malloc(PSI_NOT_INSTRUMENTED,
+                                         nargs*sizeof(char*), MYF(MY_WME));
   if (!load_default_groups)
     exit(1);
   if (opt_mysqld)

@@ -24,6 +24,36 @@
 #include "my_alarm.h"
 
 
+PSI_memory_key key_memory_DYNAMIC_STRING;
+PSI_memory_key key_memory_IO_CACHE;
+PSI_memory_key key_memory_KEY_CACHE;
+PSI_memory_key key_memory_LIST;
+PSI_memory_key key_memory_MY_BITMAP_bitmap;
+PSI_memory_key key_memory_MY_DIR;
+PSI_memory_key key_memory_MY_STAT;
+PSI_memory_key key_memory_MY_TMPDIR_full_list;
+PSI_memory_key key_memory_QUEUE;
+PSI_memory_key key_memory_SAFE_HASH_ENTRY;
+PSI_memory_key key_memory_THD_ALARM;
+PSI_memory_key key_memory_TREE;
+PSI_memory_key key_memory_charset_file;
+PSI_memory_key key_memory_charset_loader;
+PSI_memory_key key_memory_defaults;
+PSI_memory_key key_memory_lf_dynarray;
+PSI_memory_key key_memory_lf_node;
+PSI_memory_key key_memory_lf_slist;
+PSI_memory_key key_memory_max_alloca;
+PSI_memory_key key_memory_my_compress_alloc;
+PSI_memory_key key_memory_my_err_head;
+PSI_memory_key key_memory_my_file_info;
+PSI_memory_key key_memory_pack_frm;
+
+#ifdef _WIN32
+PSI_memory_key key_memory_win_SECURITY_ATTRIBUTES;
+PSI_memory_key key_memory_win_PACL;
+PSI_memory_key key_memory_win_IP_ADAPTER_ADDRESSES;
+#endif /* _WIN32 */
+
 	/* from my_init */
 char *home_dir=0;
 char *mysql_data_home= (char*) ".";

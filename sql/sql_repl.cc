@@ -1221,7 +1221,8 @@ check_slave_start_position(binlog_send_info *info, const char **errormsg,
       if (!delete_list)
       {
         if (!(delete_list= (slave_connection_state::entry **)
-              my_malloc(sizeof(*delete_list) * st->hash.records, MYF(MY_WME))))
+              my_malloc(PSI_INSTRUMENT_ME,
+                        sizeof(*delete_list) * st->hash.records, MYF(MY_WME))))
         {
           *errormsg= "Out of memory while checking slave start position";
           err= ER_OUT_OF_RESOURCES;
@@ -1283,8 +1284,9 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
   const char *errormsg= NULL;
   char buf[FN_REFLEN];
 
-  init_alloc_root(&memroot, "gtid_find_binlog_file",
-                  8192, 0, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(PSI_INSTRUMENT_ME, &memroot,
+                  10*(FN_REFLEN+sizeof(binlog_file_entry)), 0,
+                  MYF(MY_THREAD_SPECIFIC));
   if (!(list= get_binlog_list(&memroot)))
   {
     errormsg= "Out of memory while looking for GTID position in binlog";
@@ -4307,8 +4309,7 @@ bool show_binlogs(THD* thd)
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
 
-  init_alloc_root(&mem_root, "binlog_file_list", 8192, 0,
-                  MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(PSI_INSTRUMENT_ME, &mem_root, 8192, 0, MYF(MY_THREAD_SPECIFIC));
 retry:
   /*
     The current mutex handling here is to ensure we get the current log position

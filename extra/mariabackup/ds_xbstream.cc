@@ -79,8 +79,8 @@ xbstream_init(const char *root __attribute__((unused)))
 	ds_stream_ctxt_t	*stream_ctxt;
 	xb_wstream_t *xbstream;
 
-	ctxt = (ds_ctxt_t *)my_malloc(sizeof(ds_ctxt_t) + sizeof(ds_stream_ctxt_t),
-			 MYF(MY_FAE));
+	ctxt = (ds_ctxt_t *)my_malloc(PSI_NOT_INSTRUMENTED,
+                    sizeof(ds_ctxt_t) + sizeof(ds_stream_ctxt_t), MYF(MY_FAE));
 	stream_ctxt = (ds_stream_ctxt_t *)(ctxt + 1);
 
 	if (pthread_mutex_init(&stream_ctxt->mutex, NULL)) {
@@ -131,9 +131,8 @@ xbstream_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
 	}
 	pthread_mutex_unlock(&stream_ctxt->mutex);
 
-	file = (ds_file_t *) my_malloc(sizeof(ds_file_t) +
-				       sizeof(ds_stream_file_t),
-				       MYF(MY_FAE));
+	file = (ds_file_t *) my_malloc(PSI_NOT_INSTRUMENTED,
+                        sizeof(ds_file_t) + sizeof(ds_stream_file_t), MYF(MY_FAE));
 	stream_file = (ds_stream_file_t *) (file + 1);
 
 	xbstream = stream_ctxt->xbstream;

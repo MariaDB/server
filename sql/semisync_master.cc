@@ -724,8 +724,8 @@ int Repl_semi_sync_master::report_binlog_update(THD* thd, const char *log_file,
 
     if (!(log_info= thd->semisync_info))
     {
-      if(!(log_info=
-           (Trans_binlog_info*) my_malloc(sizeof(Trans_binlog_info), MYF(0))))
+      if(!(log_info= (Trans_binlog_info*)my_malloc(PSI_INSTRUMENT_ME,
+                                            sizeof(Trans_binlog_info), MYF(0))))
         return 1;
       thd->semisync_info= log_info;
     }

@@ -1010,7 +1010,8 @@ int bootstrap(MYSQL_FILE *file)
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
-  thd->security_ctx->user= (char*) my_strdup("boot", MYF(MY_WME));
+  thd->security_ctx->user= (char*) my_strdup(key_memory_MPVIO_EXT_auth_info,
+                                             "boot", MYF(MY_WME));
   thd->security_ctx->priv_user[0]= thd->security_ctx->priv_host[0]=
     thd->security_ctx->priv_role[0]= 0;
   /*
@@ -1464,7 +1465,7 @@ static void wsrep_copy_query(THD *thd)
   if (thd->wsrep_retry_query) {
       my_free(thd->wsrep_retry_query);
   }
-  thd->wsrep_retry_query     = (char *)my_malloc(
+  thd->wsrep_retry_query = (char *)my_malloc(PSI_INSTRUMENT_ME,
                                  thd->wsrep_retry_query_len + 1, MYF(0));
   strncpy(thd->wsrep_retry_query, thd->query(), thd->wsrep_retry_query_len);
   thd->wsrep_retry_query[thd->wsrep_retry_query_len] = '\0';
@@ -1908,7 +1909,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                   com_statement_info[command].m_key,
                                                   thd->db.str, thd->db.length,
-                                                  thd->charset());
+                                                  thd->charset(), NULL);
       THD_STAGE_INFO(thd, stage_init);
       MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, beginning_of_next_stmt,
                                length);
@@ -7366,11 +7367,11 @@ bool my_yyoverflow(short **yyss, YYSTYPE **yyvs, size_t *yystacksize)
     old_info= *yystacksize;
   *yystacksize= set_zone((int)(*yystacksize)*2,MY_YACC_INIT,MY_YACC_MAX);
   if (!(state->yacc_yyvs= (uchar*)
-        my_realloc(state->yacc_yyvs,
+        my_realloc(key_memory_bison_stack, state->yacc_yyvs,
                    *yystacksize*sizeof(**yyvs),
                    MYF(MY_ALLOW_ZERO_PTR | MY_FREE_ON_ERROR))) ||
       !(state->yacc_yyss= (uchar*)
-        my_realloc(state->yacc_yyss,
+        my_realloc(key_memory_bison_stack, state->yacc_yyss,
                    *yystacksize*sizeof(**yyss),
                    MYF(MY_ALLOW_ZERO_PTR | MY_FREE_ON_ERROR))))
     return 1;

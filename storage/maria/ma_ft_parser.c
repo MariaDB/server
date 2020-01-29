@@ -347,9 +347,9 @@ MYSQL_FTPARSER_PARAM* maria_ftparser_alloc_param(MARIA_HA *info)
       (ftb_check_phrase_internal, ftb_phrase_add_word). Thus MAX_PARAM_NR=2.
     */
     info->ftparser_param= (MYSQL_FTPARSER_PARAM *)
-      my_malloc(MAX_PARAM_NR * sizeof(MYSQL_FTPARSER_PARAM) *
+      my_malloc(PSI_INSTRUMENT_ME, MAX_PARAM_NR * sizeof(MYSQL_FTPARSER_PARAM) *
                 info->s->ftkeys, MYF(MY_WME | MY_ZEROFILL));
-    init_alloc_root(&info->ft_memroot, "fulltext_parser",
+    init_alloc_root(PSI_INSTRUMENT_ME, &info->ft_memroot,
                     FTPARSER_MEMROOT_ALLOC_SIZE, 0, MYF(0));
   }
   return info->ftparser_param;

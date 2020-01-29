@@ -101,7 +101,7 @@ void THD::unregister_slave()
     mysql_mutex_lock(&LOCK_thd_data);
     slave_info= 0;
     mysql_mutex_unlock(&LOCK_thd_data);
-    delete old_si;
+    my_free(old_si);
     binlog_dump_thread_count--;
   }
 }
@@ -124,7 +124,8 @@ int THD::register_slave(uchar *packet, size_t packet_length)
 
   if (check_access(this, REPL_SLAVE_ACL, any_db, NULL, NULL, 0, 0))
     return 1;
-  if (!(si= new Slave_info))
+  if (!(si= (Slave_info*)my_malloc(key_memory_SLAVE_INFO, sizeof(Slave_info),
+                                   MYF(MY_WME))))
     return 1;
 
   variables.server_id= si->server_id= uint4korr(p);

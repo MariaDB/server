@@ -510,11 +510,11 @@ struct LEX_MASTER_INFO
   void init()
   {
     bzero(this, sizeof(*this));
-    my_init_dynamic_array(&repl_ignore_server_ids,
+    my_init_dynamic_array(&repl_ignore_server_ids, PSI_INSTRUMENT_ME,
                           sizeof(::server_id), 0, 16, MYF(0));
-    my_init_dynamic_array(&repl_do_domain_ids,
+    my_init_dynamic_array(&repl_do_domain_ids, PSI_INSTRUMENT_ME,
                           sizeof(ulong), 0, 16, MYF(0));
-    my_init_dynamic_array(&repl_ignore_domain_ids,
+    my_init_dynamic_array(&repl_ignore_domain_ids, PSI_INSTRUMENT_ME,
                           sizeof(ulong), 0, 16, MYF(0));
     sql_delay= -1;
   }

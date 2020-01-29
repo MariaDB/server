@@ -226,7 +226,7 @@ stream_one_file(File file, xb_wstream_file_t *xbfile)
 	posix_fadvise(file, 0, 0, POSIX_FADV_SEQUENTIAL);
 	offset = my_tell(file, MYF(MY_WME));
 
-	buf = (uchar*)(my_malloc(XBSTREAM_BUFFER_SIZE, MYF(MY_FAE)));
+	buf = (uchar*)(my_malloc(PSI_NOT_INSTRUMENTED, XBSTREAM_BUFFER_SIZE, MYF(MY_FAE)));
 
 	while ((bytes = (ssize_t)my_read(file, buf, XBSTREAM_BUFFER_SIZE,
 				MYF(MY_WME))) > 0) {
@@ -321,13 +321,13 @@ file_entry_new(extract_ctxt_t *ctxt, const char *path, uint pathlen)
 	file_entry_t	*entry;
 	ds_file_t	*file;
 
-	entry = (file_entry_t *) my_malloc(sizeof(file_entry_t),
+	entry = (file_entry_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(file_entry_t),
 					   MYF(MY_WME | MY_ZEROFILL));
 	if (entry == NULL) {
 		return NULL;
 	}
 
-	entry->path = my_strndup(path, pathlen, MYF(MY_WME));
+	entry->path = my_strndup(PSI_NOT_INSTRUMENTED, path, pathlen, MYF(MY_WME));
 	if (entry->path == NULL) {
 		goto err;
 	}
@@ -497,7 +497,7 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 
 	if (my_hash_init(&filehash, &my_charset_bin, START_FILE_HASH_SIZE,
 			  0, 0, (my_hash_get_key) get_file_entry_key,
-			  (my_hash_free_key) file_entry_free, MYF(0))) {
+			  (my_hash_free_key) file_entry_free, MYF(0), PSI_NOT_INSTRUMENTED)) {
 		msg("%s: failed to initialize file hash.", my_progname);
 		return 1;
 	}

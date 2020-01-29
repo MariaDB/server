@@ -81,8 +81,8 @@ int get_or_create_user_conn(THD *thd, const char *user,
   {
     /* First connection for user; Create a user connection object */
     if (!(uc= ((struct user_conn*)
-	       my_malloc(sizeof(struct user_conn) + temp_len+1,
-			 MYF(MY_WME)))))
+	       my_malloc(key_memory_user_conn,
+                         sizeof(struct user_conn) + temp_len+1, MYF(MY_WME)))))
     {
       /* MY_WME ensures an error is set in THD. */
       return_val= 1;
@@ -324,7 +324,7 @@ void init_max_user_conn(void)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   my_hash_init(&hash_user_connections, system_charset_info, max_connections,
                0, 0, (my_hash_get_key) get_key_conn,
-               (my_hash_free_key) free_user, 0);
+               (my_hash_free_key) free_user, 0, key_memory_user_conn);
 #endif
 }
 
@@ -485,14 +485,14 @@ void init_global_user_stats(void)
 {
   my_hash_init(&global_user_stats, system_charset_info, max_connections,
                0, 0, (my_hash_get_key) get_key_user_stats,
-               (my_hash_free_key) free_user_stats, 0);
+               (my_hash_free_key) free_user_stats, 0, PSI_INSTRUMENT_ME);
 }
 
 void init_global_client_stats(void)
 {
   my_hash_init(&global_client_stats, system_charset_info, max_connections,
                0, 0, (my_hash_get_key) get_key_user_stats,
-               (my_hash_free_key) free_user_stats, 0);
+               (my_hash_free_key) free_user_stats, 0, PSI_INSTRUMENT_ME);
 }
 
 extern "C" uchar *get_key_table_stats(TABLE_STATS *table_stats, size_t *length,
@@ -511,7 +511,7 @@ void init_global_table_stats(void)
 {
   my_hash_init(&global_table_stats, system_charset_info, max_connections,
                0, 0, (my_hash_get_key) get_key_table_stats,
-               (my_hash_free_key) free_table_stats, 0);
+               (my_hash_free_key) free_table_stats, 0, PSI_INSTRUMENT_ME);
 }
 
 extern "C" uchar *get_key_index_stats(INDEX_STATS *index_stats, size_t *length,
@@ -530,7 +530,7 @@ void init_global_index_stats(void)
 {
   my_hash_init(&global_index_stats, system_charset_info, max_connections,
                0, 0, (my_hash_get_key) get_key_index_stats,
-               (my_hash_free_key) free_index_stats, 0);
+               (my_hash_free_key) free_index_stats, 0, PSI_INSTRUMENT_ME);
 }
 
 
@@ -571,7 +571,7 @@ static bool increment_count_by_name(const char *name, size_t name_length,
   {
     /* First connection for this user or client */
     if (!(user_stats= ((USER_STATS*)
-                       my_malloc(sizeof(USER_STATS),
+                       my_malloc(PSI_INSTRUMENT_ME, sizeof(USER_STATS),
                                  MYF(MY_WME | MY_ZEROFILL)))))
       return TRUE;                              // Out of memory
 
@@ -880,7 +880,7 @@ int thd_set_peer_addr(THD *thd,
   }
 
   my_free((void *)thd->main_security_ctx.ip);
-  if (!(thd->main_security_ctx.ip = my_strdup(ip, MYF(MY_WME))))
+  if (!(thd->main_security_ctx.ip = my_strdup(PSI_INSTRUMENT_ME, ip, MYF(MY_WME))))
   {
     /*
     No error accounting per IP in host_cache,

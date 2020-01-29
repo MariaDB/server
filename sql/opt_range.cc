@@ -1267,9 +1267,8 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
   if (!no_alloc && !parent_alloc)
   {
     // Allocates everything through the internal memroot
-    init_sql_alloc(&alloc, "QUICK_RANGE_SELECT",
-                   thd->variables.range_alloc_block_size, 0,
-                   MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(key_memory_quick_range_select_root, &alloc,
+                   thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
     thd->mem_root= &alloc;
   }
   else
@@ -1277,7 +1276,7 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
   file= head->file;
   record= head->record[0];
 
-  my_init_dynamic_array2(&ranges, sizeof(QUICK_RANGE*),
+  my_init_dynamic_array2(&ranges, PSI_INSTRUMENT_ME, sizeof(QUICK_RANGE*),
                          thd->alloc(sizeof(QUICK_RANGE*) * 16), 16, 16,
                          MYF(MY_THREAD_SPECIFIC));
 
@@ -1363,9 +1362,8 @@ QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT(THD *thd_param, TABLE *table)
   DBUG_ENTER("QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT");
   index= MAX_KEY;
   head= table;
-  init_sql_alloc(&alloc, "QUICK_INDEX_SORT_SELECT",
-                 thd->variables.range_alloc_block_size, 0,
-                 MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(key_memory_quick_range_select_root, &alloc,
+                 thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
   DBUG_VOID_RETURN;
 }
 
@@ -1435,9 +1433,8 @@ QUICK_ROR_INTERSECT_SELECT::QUICK_ROR_INTERSECT_SELECT(THD *thd_param,
   head= table;
   record= head->record[0];
   if (!parent_alloc)
-    init_sql_alloc(&alloc, "QUICK_ROR_INTERSECT_SELECT",
-                   thd->variables.range_alloc_block_size, 0,
-                   MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(key_memory_quick_range_select_root, &alloc,
+                   thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
   else
     bzero(&alloc, sizeof(MEM_ROOT));
   last_rowid= (uchar*) alloc_root(parent_alloc? parent_alloc : &alloc,
@@ -1713,9 +1710,8 @@ QUICK_ROR_UNION_SELECT::QUICK_ROR_UNION_SELECT(THD *thd_param,
   head= table;
   rowid_length= table->file->ref_length;
   record= head->record[0];
-  init_sql_alloc(&alloc, "QUICK_ROR_UNION_SELECT",
-                 thd->variables.range_alloc_block_size, 0,
-                 MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(key_memory_quick_range_select_root, &alloc,
+                 thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
   thd_param->mem_root= &alloc;
 }
 
@@ -2726,9 +2722,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.possible_keys.clear_all();
 
     thd->no_errors=1;				// Don't warn about NULL
-    init_sql_alloc(&alloc, "test_quick_select",
-                   thd->variables.range_alloc_block_size, 0,
-                   MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(key_memory_quick_range_select_root, &alloc,
+                   thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
     if (!(param.key_parts=
            (KEY_PART*) alloc_root(&alloc,
                                   sizeof(KEY_PART) *
@@ -3407,9 +3402,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     SEL_TREE *tree;
     double rows;
   
-    init_sql_alloc(&alloc, "calculate_cond_selectivity_for_table",
-                   thd->variables.range_alloc_block_size, 0,
-                   MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(key_memory_quick_range_select_root, &alloc,
+                   thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
     param.thd= thd;
     param.mem_root= &alloc;
     param.old_root= thd->mem_root;
@@ -3839,9 +3833,8 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   my_bitmap_map *old_sets[2];
 
   prune_param.part_info= part_info;
-  init_sql_alloc(&alloc, "prune_partitions",
-                 thd->variables.range_alloc_block_size, 0,
-                 MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(key_memory_quick_range_select_root, &alloc,
+                 thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
   range_par->mem_root= &alloc;
   range_par->old_root= thd->mem_root;
 
@@ -12098,7 +12091,8 @@ int QUICK_RANGE_SELECT::reset()
   if (mrr_buf_size && !mrr_buf_desc)
   {
     buf_size= mrr_buf_size;
-    while (buf_size && !my_multi_malloc(MYF(MY_WME),
+    while (buf_size && !my_multi_malloc(key_memory_QUICK_RANGE_SELECT_mrr_buf_desc,
+                                        MYF(MY_WME),
                                         &mrr_buf_desc, sizeof(*mrr_buf_desc),
                                         &mrange_buff, buf_size,
                                         NullS))
@@ -14450,10 +14444,10 @@ QUICK_GROUP_MIN_MAX_SELECT(TABLE *table, JOIN *join_arg, bool have_min_arg,
   DBUG_ASSERT(!parent_alloc);
   if (!parent_alloc)
   {
-    init_sql_alloc(&alloc, "QUICK_GROUP_MIN_MAX_SELECT",
-                   join->thd->variables.range_alloc_block_size, 0,
-                   MYF(MY_THREAD_SPECIFIC));
-    join->thd->mem_root= &alloc;
+    THD *thd= join->thd;
+    init_sql_alloc(key_memory_quick_range_select_root, &alloc,
+                   thd->variables.range_alloc_block_size, 0, MYF(MY_THREAD_SPECIFIC));
+    thd->mem_root= &alloc;
   }
   else
     bzero(&alloc, sizeof(MEM_ROOT));            // ensure that it's not used
@@ -14513,8 +14507,8 @@ int QUICK_GROUP_MIN_MAX_SELECT::init()
 
   if (min_max_arg_part)
   {
-    if (my_init_dynamic_array(&min_max_ranges, sizeof(QUICK_RANGE*), 16, 16,
-                              MYF(MY_THREAD_SPECIFIC)))
+    if (my_init_dynamic_array(&min_max_ranges, PSI_INSTRUMENT_ME,
+                              sizeof(QUICK_RANGE*), 16, 16, MYF(MY_THREAD_SPECIFIC)))
       return 1;
 
     if (have_min)

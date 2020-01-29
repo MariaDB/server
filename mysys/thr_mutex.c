@@ -156,7 +156,7 @@ static inline void remove_from_active_list(safe_mutex_t *mp)
 
 static int safe_mutex_lazy_init_deadlock_detection(safe_mutex_t *mp)
 {
-  if (!my_multi_malloc(MY_FAE | MY_WME,
+  if (!my_multi_malloc(PSI_NOT_INSTRUMENTED, MY_FAE | MY_WME,
                        &mp->locked_mutex, sizeof(*mp->locked_mutex),
                        &mp->used_mutex, sizeof(*mp->used_mutex), NullS))
   {
@@ -169,16 +169,12 @@ static int safe_mutex_lazy_init_deadlock_detection(safe_mutex_t *mp)
   pthread_mutex_lock(&THR_LOCK_mutex);
   mp->id= ++safe_mutex_id;
   pthread_mutex_unlock(&THR_LOCK_mutex);
-  my_hash_init2(mp->locked_mutex, 64, &my_charset_bin,
-             128,
-             offsetof(safe_mutex_deadlock_t, id),
-             sizeof(mp->id),
-             0, 0, 0, HASH_UNIQUE);
-  my_hash_init2(mp->used_mutex, 64, &my_charset_bin,
-             128,
-             offsetof(safe_mutex_t, id),
-             sizeof(mp->id),
-             0, 0, 0, HASH_UNIQUE);
+  my_hash_init2(mp->locked_mutex, 64, &my_charset_bin, 128,
+                offsetof(safe_mutex_deadlock_t, id), sizeof(mp->id), 0, 0, 0,
+                HASH_UNIQUE, PSI_NOT_INSTRUMENTED);
+  my_hash_init2(mp->used_mutex, 64, &my_charset_bin, 128,
+                offsetof(safe_mutex_t, id), sizeof(mp->id), 0, 0, 0,
+                HASH_UNIQUE, PSI_NOT_INSTRUMENTED);
   return 0;
 }
 
@@ -341,7 +337,7 @@ int safe_mutex_lock(safe_mutex_t *mp, myf my_flags, const char *file,
           safe_mutex_t *mutex;
 
           /* Create object to store mutex info */
-          if (!(deadlock= my_malloc(sizeof(*deadlock),
+          if (!(deadlock= my_malloc(PSI_NOT_INSTRUMENTED, sizeof(*deadlock),
                                     MYF(MY_ZEROFILL | MY_WME | MY_FAE))))
             goto abort_loop;
           deadlock->name= mp->name;

@@ -1813,8 +1813,8 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
   DBUG_ENTER("Triggers::drop_all_triggers");
 
   table.reset();
-  init_sql_alloc(&table.mem_root, "Triggers::drop_all_triggers", 8192, 0,
-                 MYF(0));
+  init_sql_alloc(key_memory_Table_trigger_dispatcher,
+                 &table.mem_root, 8192, 0, MYF(0));
 
   if (Table_triggers_list::check_n_load(thd, db, name, &table, 1))
   {
@@ -2065,8 +2065,8 @@ bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
   DBUG_ENTER("Triggers::change_table_name");
 
   table.reset();
-  init_sql_alloc(&table.mem_root, "Triggers::change_table_name", 8192, 0,
-                 MYF(0));
+  init_sql_alloc(key_memory_Table_trigger_dispatcher,
+                 &table.mem_root, 8192, 0, MYF(0));
 
   /*
     This method interfaces the mysql server code protected by

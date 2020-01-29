@@ -224,7 +224,8 @@ int my_error_register(const char** (*get_errmsgs)(int error), uint first,
   struct my_err_head **search_meh_pp;
 
   /* Allocate a new header structure. */
-  if (! (meh_p= (struct my_err_head*) my_malloc(sizeof(struct my_err_head),
+  if (! (meh_p= (struct my_err_head*) my_malloc(key_memory_my_err_head,
+                                                sizeof(struct my_err_head),
                                                 MYF(MY_WME))))
     return 1;
   meh_p->get_errmsgs= get_errmsgs;

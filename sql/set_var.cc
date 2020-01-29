@@ -65,7 +65,8 @@ int sys_var_init()
   DBUG_ASSERT(system_charset_info != NULL);
 
   if (my_hash_init(&system_variable_hash, system_charset_info, 700, 0,
-                   0, (my_hash_get_key) get_sys_var_length, 0, HASH_UNIQUE))
+                   0, (my_hash_get_key) get_sys_var_length, 0, HASH_UNIQUE,
+                   PSI_INSTRUMENT_ME))
     goto error;
 
   if (mysql_add_sys_var_chain(all_sys_vars.first))
@@ -1377,7 +1378,7 @@ resolve_engine_list(THD *thd, const char *str_arg, size_t str_arg_len,
   if (temp_copy)
     res= (plugin_ref *)thd->calloc((count+1)*sizeof(*res));
   else
-    res= (plugin_ref *)my_malloc((count+1)*sizeof(*res), MYF(MY_ZEROFILL|MY_WME));
+    res= (plugin_ref *)my_malloc(PSI_INSTRUMENT_ME, (count+1)*sizeof(*res), MYF(MY_ZEROFILL|MY_WME));
   if (!res)
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*res)));
@@ -1428,7 +1429,7 @@ copy_engine_list(plugin_ref *list)
 
   for (p= list, count= 0; *p; ++p, ++count)
     ;
-  p= (plugin_ref *)my_malloc((count+1)*sizeof(*p), MYF(0));
+  p= (plugin_ref *)my_malloc(PSI_INSTRUMENT_ME, (count+1)*sizeof(*p), MYF(0));
   if (!p)
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*p)));

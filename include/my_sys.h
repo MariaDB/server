@@ -18,6 +18,7 @@
 #define _my_sys_h
 
 #include <m_string.h>
+#include <mysql/psi/mysql_memory.h>
 
 C_MODE_START
 
@@ -89,14 +90,12 @@ typedef struct my_aio_result {
 #define MY_ZEROFILL	32U	/* my_malloc(), fill array with zero */
 #define MY_ALLOW_ZERO_PTR 64U	/* my_realloc() ; zero ptr -> malloc */
 #define MY_FREE_ON_ERROR 128U	/* my_realloc() ; Free old ptr on error */
-#define MY_HOLD_ON_ERROR 256U	/* my_realloc() ; Return old ptr on error */
 #define MY_DONT_OVERWRITE_FILE 2048U /* my_copy: Don't overwrite file */
 #define MY_THREADSAFE 2048U     /* my_seek(): lock fd mutex */
 #define MY_SYNC       4096U     /* my_copy(): sync dst file */
 #define MY_SYNC_DIR   32768U    /* my_create/delete/rename: sync directory */
 #define MY_SYNC_FILESIZE 65536U /* my_sync(): safe sync when file is extended */
 #define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
-#define MY_THREAD_MOVE     0x20000U /* realloc(); Memory can move */
 /* Tree that should delete things automatically */
 #define MY_TREE_WITH_DELETE 0x40000U
 
@@ -168,14 +167,14 @@ typedef void (*MALLOC_SIZE_CB) (long long size, my_bool is_thread_specific);
 extern void set_malloc_size_cb(MALLOC_SIZE_CB func);
 
 	/* defines when allocating data */
-extern void *my_malloc(size_t Size,myf MyFlags);
-extern void *my_multi_malloc(myf MyFlags, ...);
-extern void *my_multi_malloc_large(myf MyFlags, ...);
-extern void *my_realloc(void *oldpoint, size_t Size, myf MyFlags);
+extern void *my_malloc(PSI_memory_key key, size_t size, myf MyFlags);
+extern void *my_multi_malloc(PSI_memory_key key, myf MyFlags, ...);
+extern void *my_multi_malloc_large(PSI_memory_key key, myf MyFlags, ...);
+extern void *my_realloc(PSI_memory_key key, void *ptr, size_t size, myf MyFlags);
 extern void my_free(void *ptr);
-extern void *my_memdup(const void *from,size_t length,myf MyFlags);
-extern char *my_strdup(const char *from,myf MyFlags);
-extern char *my_strndup(const char *from, size_t length, myf MyFlags);
+extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf MyFlags);
+extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
+extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
 
 #ifdef HAVE_LINUX_LARGE_PAGES
 extern uint my_get_large_page_size(void);
@@ -211,11 +210,11 @@ extern my_bool my_may_have_atomic_write;
 #define MAX_ALLOCA_SZ 4096
 #define my_safe_alloca(size) (((size) <= MAX_ALLOCA_SZ) ? \
                                my_alloca(size) : \
-                               my_malloc((size), MYF(MY_THREAD_SPECIFIC|MY_WME)))
+                               my_malloc(PSI_NOT_INSTRUMENTED, (size), MYF(MY_THREAD_SPECIFIC|MY_WME)))
 #define my_safe_afree(ptr, size) \
                   do { if ((size) > MAX_ALLOCA_SZ) my_free(ptr); } while(0)
 #else
-#define my_alloca(SZ) my_malloc(SZ,MYF(MY_FAE))
+#define my_alloca(SZ) my_malloc(PSI_NOT_INSTRUMENTED, SZ,MYF(MY_FAE))
 #define my_afree(PTR) my_free(PTR)
 #define my_safe_alloca(size) my_alloca(size)
 #define my_safe_afree(ptr, size) my_afree(ptr)
@@ -353,6 +352,7 @@ typedef struct st_dynamic_array
   uint elements,max_element;
   uint alloc_increment;
   uint size_of_element;
+  PSI_memory_key m_psi_key;
   myf malloc_flags;
 } DYNAMIC_ARRAY;
 
@@ -835,11 +835,12 @@ extern my_bool real_open_cached_file(IO_CACHE *cache);
 extern void close_cached_file(IO_CACHE *cache);
 File create_temp_file(char *to, const char *dir, const char *pfx,
 		      int mode, myf MyFlags);
-#define my_init_dynamic_array(A,B,C,D,E) init_dynamic_array2(A,B,NULL,C,D,E)
-#define my_init_dynamic_array2(A,B,C,D,E,F) init_dynamic_array2(A,B,C,D,E,F)
-extern my_bool init_dynamic_array2(DYNAMIC_ARRAY *array, uint element_size,
-                                   void *init_buffer, uint init_alloc,
-                                   uint alloc_increment, myf my_flags);
+#define my_init_dynamic_array(A,B,C,D,E,F) init_dynamic_array2(A,B,C,NULL,D,E,F)
+#define my_init_dynamic_array2(A,B,C,D,E,F,G) init_dynamic_array2(A,B,C,D,E,F,G)
+extern my_bool init_dynamic_array2(DYNAMIC_ARRAY *array, PSI_memory_key psi_key,
+                                   uint element_size, void *init_buffer,
+                                   uint init_alloc, uint alloc_increment,
+                                   myf my_flags);
 extern my_bool insert_dynamic(DYNAMIC_ARRAY *array, const void* element);
 extern void *alloc_dynamic(DYNAMIC_ARRAY *array);
 extern void *pop_dynamic(DYNAMIC_ARRAY*);
@@ -886,13 +887,14 @@ extern uint32 copy_and_convert_extended(char *to, uint32 to_length,
 extern void *my_malloc_lock(size_t length,myf flags);
 extern void my_free_lock(void *ptr);
 #else
-#define my_malloc_lock(A,B) my_malloc((A),(B))
+#define my_malloc_lock(A,B) my_malloc(PSI_INSTRUMENT_ME, (A),(B))
 #define my_free_lock(A) my_free((A))
 #endif
+#define root_name(A) ""
 #define alloc_root_inited(A) ((A)->min_malloc != 0)
 #define ALLOC_ROOT_MIN_BLOCK_SIZE (MALLOC_OVERHEAD + sizeof(USED_MEM) + 8)
 #define clear_alloc_root(A) do { (A)->free= (A)->used= (A)->pre_alloc= 0; (A)->min_malloc=0;} while(0)
-extern void init_alloc_root(MEM_ROOT *mem_root, const char *name,
+extern void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root,
                             size_t block_size, size_t pre_alloc_size,
                             myf my_flags);
 extern void *alloc_root(MEM_ROOT *mem_root, size_t Size);

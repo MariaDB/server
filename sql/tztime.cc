@@ -1543,12 +1543,19 @@ tz_init_table_list(TABLE_LIST *tz_tabs)
   }
 }
 
+static PSI_memory_key key_memory_tz_storage;
+
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_tz_LOCK;
 
 static PSI_mutex_info all_tz_mutexes[]=
 {
   { & key_tz_LOCK, "tz_LOCK", PSI_FLAG_GLOBAL}
+};
+
+static PSI_memory_info all_tz_memory[]=
+{
+  { &key_memory_tz_storage, "tz_storage", PSI_FLAG_GLOBAL}
 };
 
 static void init_tz_psi_keys(void)
@@ -1561,6 +1568,9 @@ static void init_tz_psi_keys(void)
 
   count= array_elements(all_tz_mutexes);
   PSI_server->register_mutex(category, all_tz_mutexes, count);
+
+  count= array_elements(all_tz_memory);
+  mysql_memory_register(category, all_tz_memory, count);
 }
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -1616,19 +1626,21 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
 
   /* Init all memory structures that require explicit destruction */
   if (my_hash_init(&tz_names, &my_charset_latin1, 20,
-                   0, 0, (my_hash_get_key) my_tz_names_get_key, 0, 0))
+                   0, 0, (my_hash_get_key) my_tz_names_get_key, 0, 0,
+                   key_memory_tz_storage))
   {
     sql_print_error("Fatal error: OOM while initializing time zones");
     goto end;
   }
   if (my_hash_init(&offset_tzs, &my_charset_latin1, 26, 0, 0,
-                   (my_hash_get_key)my_offset_tzs_get_key, 0, 0))
+                   (my_hash_get_key)my_offset_tzs_get_key, 0, 0,
+                   key_memory_tz_storage))
   {
     sql_print_error("Fatal error: OOM while initializing time zones");
     my_hash_free(&tz_names);
     goto end;
   }
-  init_sql_alloc(&tz_storage, "timezone_storage", 32 * 1024, 0, MYF(0));
+  init_sql_alloc(key_memory_tz_storage, &tz_storage, 32 * 1024, 0, MYF(0));
   mysql_mutex_init(key_tz_LOCK, &tz_LOCK, MY_MUTEX_INIT_FAST);
   tz_inited= 1;
 
@@ -2568,8 +2580,8 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
       }
       else if (MY_S_ISREG(cur_dir->dir_entry[i].mystat->st_mode))
       {
-        init_alloc_root(&tz_storage, "timezone_storage", 32768, 0,
-                        MYF(MY_THREAD_SPECIFIC));
+        init_alloc_root(PSI_INSTRUMENT_ME, &tz_storage,
+                        32768, 0, MYF(MY_THREAD_SPECIFIC));
         if (!tz_load(fullname, &tz_info, &tz_storage))
           print_tz_as_sql(root_name_end + 1, &tz_info);
         else
@@ -2758,7 +2770,7 @@ main(int argc, char **argv)
       First argument is timezonefile.
       The second is timezonename if opt_leap is not given
     */
-    init_alloc_root(&tz_storage, "timezone_storage", 32768, 0, MYF(0));
+    init_alloc_root(PSI_INSTRUMENT_ME, &tz_storage, 32768, 0, MYF(0));
 
     if (tz_load(argv[0], &tz_info, &tz_storage))
     {

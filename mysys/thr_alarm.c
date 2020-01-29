@@ -185,7 +185,8 @@ my_bool thr_alarm(thr_alarm_t *alrm, uint sec, ALARM *alarm_data)
   now= my_time(0);
   if (!alarm_data)
   {
-    if (!(alarm_data=(ALARM*) my_malloc(sizeof(ALARM),MYF(MY_WME))))
+    if (!(alarm_data=(ALARM*) my_malloc(PSI_INSTRUMENT_ME, sizeof(ALARM),
+                                        MYF(MY_WME))))
       goto abort_no_unlock;
     alarm_data->malloced= 1;
   }

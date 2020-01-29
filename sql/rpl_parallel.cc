@@ -1557,7 +1557,7 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
     to allocate, and will not be left with a half-functional thread pool.
   */
   if (new_count &&
-      !my_multi_malloc(MYF(MY_WME|MY_ZEROFILL),
+      !my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME|MY_ZEROFILL),
                        &new_list, new_count*sizeof(*new_list),
                        &rpt_array, new_count*sizeof(*rpt_array),
                        NULL))
@@ -1789,7 +1789,7 @@ rpl_parallel_thread::get_qev_common(Log_event *ev, ulonglong event_size)
   mysql_mutex_assert_owner(&LOCK_rpl_thread);
   if ((qev= qev_free_list))
     qev_free_list= qev->next;
-  else if(!(qev= (queued_event *)my_malloc(sizeof(*qev), MYF(0))))
+  else if(!(qev= (queued_event *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*qev), MYF(0))))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*qev));
     return NULL;
@@ -1952,7 +1952,7 @@ rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev,
   mysql_mutex_assert_owner(&LOCK_rpl_thread);
   if ((gco= gco_free_list))
     gco_free_list= gco->next_gco;
-  else if(!(gco= (group_commit_orderer *)my_malloc(sizeof(*gco), MYF(0))))
+  else if(!(gco= (group_commit_orderer *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*gco), MYF(0))))
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*gco));
     return NULL;
@@ -2201,7 +2201,7 @@ rpl_parallel::rpl_parallel() :
 {
   my_hash_init(&domain_hash, &my_charset_bin, 32,
                offsetof(rpl_parallel_entry, domain_id), sizeof(uint32),
-               NULL, free_rpl_parallel_entry, HASH_UNIQUE);
+               NULL, free_rpl_parallel_entry, HASH_UNIQUE, PSI_INSTRUMENT_ME);
 }
 
 
@@ -2233,7 +2233,7 @@ rpl_parallel::find(uint32 domain_id)
     if (count == 0 || count > opt_slave_parallel_threads)
       count= opt_slave_parallel_threads;
     rpl_parallel_thread **p;
-    if (!my_multi_malloc(MYF(MY_WME|MY_ZEROFILL),
+    if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME|MY_ZEROFILL),
                          &e, sizeof(*e),
                          &p, count*sizeof(*p),
                          NULL))

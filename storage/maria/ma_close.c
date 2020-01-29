@@ -213,7 +213,7 @@ int maria_close(register MARIA_HA *info)
           wrong status information.
         */
         if ((history= (MARIA_STATE_HISTORY_CLOSED *)
-             my_malloc(sizeof(*history), MYF(MY_WME))))
+             my_malloc(PSI_INSTRUMENT_ME, sizeof(*history), MYF(MY_WME))))
         {
           history->create_rename_lsn= share->state.create_rename_lsn;
           history->state_history= share->state_history;

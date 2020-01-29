@@ -253,7 +253,7 @@ void make_default_log_name(char **out, const char* log_ext, bool once)
   else
   {
     my_free(*out);
-    *out= my_strdup(buff, MYF(MY_WME));
+    *out= my_strdup(PSI_INSTRUMENT_ME, buff, MYF(MY_WME));
   }
 }
 
@@ -2653,7 +2653,7 @@ bool MYSQL_LOG::open(
 
   write_error= 0;
 
-  if (!(name= my_strdup(log_name, MYF(MY_WME))))
+  if (!(name= my_strdup(key_memory_MYSQL_LOG_name, log_name, MYF(MY_WME))))
   {
     name= (char *)log_name; // for the error message
     goto err;
@@ -4443,14 +4443,16 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
     {
       rli->last_inuse_relaylog= NULL;
       included= 1;
-      to_purge_if_included= my_strdup(ir->name, MYF(0));
+      to_purge_if_included= my_strdup(key_memory_Relay_log_info_group_relay_log_name,
+                                      ir->name, MYF(0));
     }
     rli->free_inuse_relaylog(ir);
     ir= next;
   }
   rli->inuse_relaylog_list= ir;
   if (ir)
-    to_purge_if_included= my_strdup(ir->name, MYF(0));
+    to_purge_if_included= my_strdup(key_memory_Relay_log_info_group_relay_log_name,
+                                    ir->name, MYF(0));
 
   /*
     Read the next log file name from the index file and pass it back to
@@ -5589,7 +5591,8 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
   if (cache_mngr)
     DBUG_RETURN(cache_mngr);                             // Already set up
 
-  cache_mngr= (binlog_cache_mngr*) my_malloc(sizeof(binlog_cache_mngr), MYF(MY_ZEROFILL));
+  cache_mngr= (binlog_cache_mngr*) my_malloc(key_memory_binlog_cache_mngr,
+                                  sizeof(binlog_cache_mngr), MYF(MY_ZEROFILL));
   if (!cache_mngr ||
       open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
                        LOG_PREFIX, (size_t)binlog_stmt_cache_size, MYF(MY_WME)) ||
@@ -9109,7 +9112,8 @@ int TC_LOG_MMAP::open(const char *opt_name)
   npages=(uint)file_length/tc_log_page_size;
   if (npages < 3)             // to guarantee non-empty pool
     goto err;
-  if (!(pages=(PAGE *)my_malloc(npages*sizeof(PAGE), MYF(MY_WME|MY_ZEROFILL))))
+  if (!(pages=(PAGE *)my_malloc(key_memory_TC_LOG_MMAP_pages,
+                                npages*sizeof(PAGE), MYF(MY_WME|MY_ZEROFILL))))
     goto err;
   inited=3;
   for (pg=pages, i=0; i < npages; i++, pg++)
@@ -9419,7 +9423,8 @@ int TC_LOG_MMAP::unlog(ulong cookie, my_xid xid)
   {
     uint32 size= sizeof(*pending_checkpoint) + sizeof(ulong) * (ncookies - 1);
     if (!(pending_checkpoint=
-          (pending_cookies *)my_malloc(size, MYF(MY_ZEROFILL))))
+          (pending_cookies *)my_malloc(PSI_INSTRUMENT_ME, size,
+                                       MYF(MY_ZEROFILL))))
     {
       my_error(ER_OUTOFMEMORY, MYF(0), size);
       mysql_mutex_unlock(&LOCK_pending_checkpoint);
@@ -9559,7 +9564,7 @@ int TC_LOG_MMAP::recover()
   }
 
   if (my_hash_init(&xids, &my_charset_bin, tc_log_page_size/3, 0,
-                   sizeof(my_xid), 0, 0, MYF(0)))
+                   sizeof(my_xid), 0, 0, MYF(0), PSI_INSTRUMENT_ME))
     goto err1;
 
   for ( ; p < end_p ; p++)
@@ -10073,12 +10078,13 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
 
   if (! fdle->is_valid() ||
       (do_xa && my_hash_init(&xids, &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
-                             sizeof(my_xid), 0, 0, MYF(0))))
+                             sizeof(my_xid), 0, 0, MYF(0),
+                             key_memory_binlog_recover_exec)))
     goto err1;
 
   if (do_xa)
-    init_alloc_root(&mem_root, "TC_LOG_BINLOG", TC_LOG_PAGE_SIZE,
-                    TC_LOG_PAGE_SIZE, MYF(0));
+    init_alloc_root(key_memory_binlog_recover_exec, &mem_root,
+                    TC_LOG_PAGE_SIZE, TC_LOG_PAGE_SIZE, MYF(0));
 
   fdle->flags&= ~LOG_EVENT_BINLOG_IN_USE_F; // abort on the first error
 

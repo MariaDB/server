@@ -232,38 +232,19 @@ struct ut_new_pfx_t {
 #endif
 };
 
-static inline void ut_allocate_trace_dontdump(void *ptr, size_t	bytes,
-					      bool
-#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DONTDUMP)
-					      dontdump
-#endif
-					      , ut_new_pfx_t* pfx,
-					      const char*
-#ifdef UNIV_PFS_MEMORY
-					      file
-#endif
-
-					      )
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DODUMP)
+static inline void ut_dontdump(void *ptr, size_t m_size, bool dontdump)
 {
 	ut_a(ptr != NULL);
 
-#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DONTDUMP)
-	if (dontdump && madvise(ptr, bytes, MADV_DONTDUMP)) {
+	if (dontdump && madvise(ptr, m_size, MADV_DONTDUMP)) {
 		ib::warn() << "Failed to set memory to " DONTDUMP_STR ": "
 			   << strerror(errno)
 			   << " ptr " << ptr
-			   << " size " << bytes;
-	}
-#endif
-	if (pfx != NULL) {
-#ifdef UNIV_PFS_MEMORY
-		allocate_trace(bytes, file, pfx);
-#endif /* UNIV_PFS_MEMORY */
-		pfx->m_size = bytes;
+			   << " size " << m_size;
 	}
 }
 
-#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DODUMP)
 static inline void ut_dodump(void* ptr, size_t m_size)
 {
 	if (ptr && madvise(ptr, m_size, MADV_DODUMP)) {
@@ -274,6 +255,7 @@ static inline void ut_dodump(void* ptr, size_t m_size)
 	}
 }
 #else
+static inline void ut_dontdump(void *, size_t, bool) {}
 static inline void ut_dodump(void*, size_t) {}
 #endif
 
@@ -310,10 +292,14 @@ public:
 		     other
 #endif
 		     )
-#ifdef UNIV_PFS_MEMORY
-		: m_key(other.m_key)
-#endif /* UNIV_PFS_MEMORY */
 	{
+#ifdef UNIV_PFS_MEMORY
+		const PSI_memory_key    other_key = other.get_mem_key(NULL);
+
+		m_key = (other_key != mem_key_std)
+			? other_key
+			: PSI_NOT_INSTRUMENTED;
+#endif /* UNIV_PFS_MEMORY */
 	}
 
 	/** Return the maximum number of objects that can be allocated by
@@ -422,7 +408,7 @@ public:
 
 	/** Free a memory allocated by allocate() and trace the deallocation.
 	@param[in,out]	ptr		pointer to memory to free */
-	void deallocate(pointer ptr, size_type)
+	void deallocate(pointer ptr, size_type n_elements = 0)
 	{
 #ifdef UNIV_PFS_MEMORY
 		if (ptr == NULL) {
@@ -645,7 +631,14 @@ public:
 			return NULL;
 		}
 
-		ut_allocate_trace_dontdump(ptr, n_bytes, dontdump, pfx, NULL);
+		ut_dontdump(ptr, n_bytes, dontdump);
+
+		if (pfx != NULL) {
+#ifdef UNIV_PFS_MEMORY
+			allocate_trace(n_bytes, NULL, pfx);
+#endif /* UNIV_PFS_MEMORY */
+			pfx->m_size = n_bytes;
+		}
 
 		return(ptr);
 	}
@@ -924,9 +917,9 @@ ut_delete_array(
 	ut_allocator<byte>(key).allocate( \
 		n_bytes, NULL, __FILE__, false, false))
 
-#define ut_malloc_dontdump(n_bytes) static_cast<void*>( \
-	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).allocate_large( \
-		n_bytes, true))
+#define ut_malloc_dontdump(n_bytes, key) static_cast<void*>( \
+	ut_allocator<byte>(key).allocate_large( \
+		n_bytes, NULL, true))
 
 #define ut_zalloc(n_bytes, key)		static_cast<void*>( \
 	ut_allocator<byte>(key).allocate( \
@@ -951,9 +944,8 @@ ut_delete_array(
 #define ut_free(ptr)	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).deallocate( \
 	reinterpret_cast<byte*>(ptr))
 
-#define ut_free_dodump(ptr, size) static_cast<void*>( \
-	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).deallocate_large( \
-		ptr, NULL, size, true))
+#define ut_free_dodump(ptr, size) ut_allocator<byte>(PSI_NOT_INSTRUMENTED).deallocate_large_dodump( \
+	reinterpret_cast<byte*>(ptr), NULL, size)
 
 #else /* UNIV_PFS_MEMORY */
 
@@ -977,11 +969,11 @@ ut_delete_array(
 
 #define ut_malloc_nokey(n_bytes)	::malloc(n_bytes)
 
-static inline void *ut_malloc_dontdump(size_t n_bytes)
+static inline void *ut_malloc_dontdump(size_t n_bytes, ...)
 {
 	void *ptr = os_mem_alloc_large(&n_bytes);
 
-	ut_allocate_trace_dontdump(ptr, n_bytes, true, NULL, NULL);
+	ut_dontdump(ptr, n_bytes, true);
 	return ptr;
 }
 

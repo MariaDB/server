@@ -36,7 +36,7 @@ conf_get_key(
 config::config()
 {
   if (my_hash_init(&conf_hash, &my_charset_bin, 32, 0, 0,
-    (my_hash_get_key) conf_get_key, 0, 0))
+    (my_hash_get_key) conf_get_key, 0, 0, PSI_INSTRUMENT_ME))
     init = FALSE;
   else
     init = TRUE;

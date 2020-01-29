@@ -15,7 +15,7 @@
 
 /* Written by Sinisa Milivojevic <sinisa@mysql.com> */
 
-#include <my_global.h>
+#include <mysys_priv.h>
 #ifdef HAVE_COMPRESS
 #include <my_sys.h>
 #ifndef SCO
@@ -84,7 +84,8 @@ my_bool my_compress(uchar *packet, size_t *len, size_t *complen)
 void *my_az_allocator(void *dummy __attribute__((unused)), unsigned int items,
                       unsigned int size)
 {
-  return my_malloc((size_t)items*(size_t)size, IF_VALGRIND(MY_ZEROFILL, MYF(0)));
+  return my_malloc(key_memory_my_compress_alloc, (size_t)items*(size_t)size,
+                   IF_VALGRIND(MY_ZEROFILL, MYF(0)));
 }
 
 void my_az_free(void *dummy __attribute__((unused)), void *address)
@@ -133,8 +134,9 @@ uchar *my_compress_alloc(const uchar *packet, size_t *len, size_t *complen)
   int res;
   *complen=  *len * 120 / 100 + 12;
 
-  if (!(compbuf= (uchar *) my_malloc(*complen, MYF(MY_WME))))
-    return 0;					/* Not enough memory */
+  if (!(compbuf= (uchar *) my_malloc(key_memory_my_compress_alloc,
+                                     *complen, MYF(MY_WME))))
+    return 0;
 
   res= my_compress_buffer(compbuf, complen, packet, *len);
 
@@ -180,7 +182,8 @@ my_bool my_uncompress(uchar *packet, size_t len, size_t *complen)
 
   if (*complen)					/* If compressed */
   {
-    uchar *compbuf= (uchar *) my_malloc(*complen,MYF(MY_WME));
+    uchar *compbuf= (uchar *) my_malloc(key_memory_my_compress_alloc,
+                                        *complen,MYF(MY_WME));
     int error;
     if (!compbuf)
       DBUG_RETURN(1);				/* Not enough memory */

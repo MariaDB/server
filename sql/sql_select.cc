@@ -6769,7 +6769,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   /* set a barrier for the array of SARGABLE_PARAM */
   (*sargables)[0].field= 0; 
 
-  if (my_init_dynamic_array2(keyuse, sizeof(KEYUSE),
+  if (my_init_dynamic_array2(keyuse, thd->mem_root->m_psi_key, sizeof(KEYUSE),
                              thd->alloc(sizeof(KEYUSE) * 20), 20, 64,
                              MYF(MY_THREAD_SPECIFIC)))
     DBUG_RETURN(TRUE);
@@ -18237,7 +18237,7 @@ TABLE *Create_tmp_table::start(THD *thd,
   if (param->precomputed_group_by)
     copy_func_count+= param->sum_func_count;
   
-  init_sql_alloc(&own_root, "tmp_table", TABLE_ALLOC_BLOCK_SIZE, 0,
+  init_sql_alloc(key_memory_TABLE, &own_root, TABLE_ALLOC_BLOCK_SIZE, 0,
                  MYF(MY_THREAD_SPECIFIC));
 
   if (!multi_alloc_root(&own_root,
@@ -24009,21 +24009,21 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
   Field **ptr;
   DBUG_ENTER("remove_dup_with_hash_index");
 
-  if (unlikely(!my_multi_malloc(MYF(MY_WME),
-                                &key_buffer,
-                                (uint) ((key_length + extra_length) *
-                                        (long) file->stats.records),
-                                &field_lengths,
-                                (uint) (field_count*sizeof(*field_lengths)),
-                                NullS)))
+  if (!my_multi_malloc(key_memory_hash_index_key_buffer, MYF(MY_WME),
+                       &key_buffer,
+                       (uint) ((key_length + extra_length) *
+                               (long) file->stats.records),
+                       &field_lengths,
+                       (uint) (field_count*sizeof(*field_lengths)),
+                       NullS))
     DBUG_RETURN(1);
 
   for (ptr= first_field, field_length=field_lengths ; *ptr ; ptr++)
     (*field_length++)= (*ptr)->sort_length();
 
-  if (unlikely(my_hash_init(&hash, &my_charset_bin,
-                            (uint) file->stats.records, 0,
-                            key_length, (my_hash_get_key) 0, 0, 0)))
+  if (my_hash_init(&hash, &my_charset_bin, (uint) file->stats.records, 0,
+                   key_length, (my_hash_get_key) 0, 0, 0,
+                   key_memory_hash_index_key_buffer))
   {
     my_free(key_buffer);
     DBUG_RETURN(1);
@@ -27834,8 +27834,8 @@ JOIN::reoptimize(Item *added_where, table_map join_tables,
     reset_query_plan();
 
   if (!keyuse.buffer &&
-      my_init_dynamic_array(&keyuse, sizeof(KEYUSE), 20, 64,
-                            MYF(MY_THREAD_SPECIFIC)))
+      my_init_dynamic_array(&keyuse, thd->mem_root->m_psi_key, sizeof(KEYUSE),
+                            20, 64, MYF(MY_THREAD_SPECIFIC)))
   {
     delete_dynamic(&added_keyuse);
     return REOPT_ERROR;

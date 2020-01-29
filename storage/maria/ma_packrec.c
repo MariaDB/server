@@ -228,7 +228,7 @@ static my_bool _ma_read_pack_info(MARIA_SHARE *share, File file,
     - Distinct column values
   */
   if (!(share->decode_trees=(MARIA_DECODE_TREE*)
-	my_malloc((uint) (trees*sizeof(MARIA_DECODE_TREE)+
+	my_malloc(PSI_INSTRUMENT_ME, (uint) (trees*sizeof(MARIA_DECODE_TREE)+
 			  intervall_length*sizeof(uchar)),
 		  MYF(MY_WME))))
     goto err0;
@@ -244,7 +244,7 @@ static my_bool _ma_read_pack_info(MARIA_SHARE *share, File file,
   */
   length=(uint) (elements*2+trees*(1 << maria_quick_table_bits));
   if (!(share->decode_tables=(uint16*)
-	my_malloc((length+OFFSET_TABLE_SIZE)*sizeof(uint16)+
+	my_malloc(PSI_INSTRUMENT_ME, (length+OFFSET_TABLE_SIZE)*sizeof(uint16)+
 		  (uint) (share->pack.header_length - sizeof(header)) +
                   share->base.extra_rec_buff_size,
 		  MYF(MY_WME | MY_ZEROFILL))))
@@ -291,9 +291,9 @@ static my_bool _ma_read_pack_info(MARIA_SHARE *share, File file,
       goto err3;
   /* Reallocate the decoding tables to the used size. */
   decode_table=(uint16*)
-    my_realloc((uchar*) share->decode_tables,
+    my_realloc(PSI_INSTRUMENT_ME, (uchar*) share->decode_tables,
 	       (uint) ((uchar*) decode_table - (uchar*) share->decode_tables),
-	       MYF(MY_HOLD_ON_ERROR));
+	       MYF(0));
   /* Fix the table addresses in the tree heads. */
   {
     my_ptrdiff_t diff= PTR_BYTE_DIFF(decode_table,share->decode_tables);

@@ -4620,12 +4620,8 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 	lru_len = UT_LIST_GET_LEN(buf_pool->LRU);
 
 	/* Print error message if malloc fail */
-	info_buffer = (buf_page_info_t*) my_malloc(
-		lru_len * sizeof *info_buffer, MYF(MY_WME));
-	/* JAN: TODO: MySQL 5.7 PSI
 	info_buffer = (buf_page_info_t*) my_malloc(PSI_INSTRUMENT_ME,
 		lru_len * sizeof *info_buffer, MYF(MY_WME));
-	*/
 
 	if (!info_buffer) {
 		status = 1;

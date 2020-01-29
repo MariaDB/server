@@ -102,7 +102,8 @@ my_bool safe_hash_init(SAFE_HASH *hash, uint elements,
   DBUG_ENTER("safe_hash_init");
   if (my_hash_init(&hash->hash, &my_charset_bin, elements,
                    0, 0, (my_hash_get_key) safe_hash_entry_get,
-                   (void (*)(void*)) safe_hash_entry_free, 0))
+                   (void (*)(void*)) safe_hash_entry_free, 0,
+                   key_memory_SAFE_HASH_ENTRY))
   {
     hash->default_value= 0;
     DBUG_RETURN(1);
@@ -224,7 +225,8 @@ my_bool safe_hash_set(SAFE_HASH *hash, const uchar *key, uint length,
   }
   else
   {
-    if (!(entry= (SAFE_HASH_ENTRY *) my_malloc(sizeof(*entry) + length,
+    if (!(entry= (SAFE_HASH_ENTRY *) my_malloc(key_memory_SAFE_HASH_ENTRY,
+                                               sizeof(*entry) + length,
                                                MYF(MY_WME))))
     {
       error= 1;

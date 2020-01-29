@@ -1935,7 +1935,8 @@ Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
     my_error(ER_INCORRECT_GTID_STATE, MYF(0));
     return true;
   }
-  if (!(data= (gtid_binlog_state_data *)my_malloc(sizeof(*data), MYF(0))))
+  if (!(data= (gtid_binlog_state_data *)my_malloc(PSI_INSTRUMENT_ME,
+                                                  sizeof(*data), MYF(0))))
   {
     my_free(list);
     my_error(ER_OUT_OF_RESOURCES, MYF(0));

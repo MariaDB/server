@@ -2402,7 +2402,8 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       di->thd.variables.binlog_annotate_row_events= 0;
 
       di->thd.set_db(&table_list->db);
-      di->thd.set_query(my_strndup(table_list->table_name.str,
+      di->thd.set_query(my_strndup(PSI_INSTRUMENT_ME,
+                                   table_list->table_name.str,
                                    table_list->table_name.length,
                                    MYF(MY_WME | ME_FATAL)),
                         table_list->table_name.length, system_charset_info);
@@ -2731,7 +2732,8 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
   if (query.str)
   {
     char *str;
-    if (!(str= my_strndup(query.str, query.length, MYF(MY_WME))))
+    if (!(str= my_strndup(PSI_INSTRUMENT_ME, query.str, query.length,
+                          MYF(MY_WME))))
       goto err;
     query.str= str;
   }
@@ -2754,7 +2756,8 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
       ip_len= strlen(thd->security_ctx->ip) + 1;
   }
   /* This can't be THREAD_SPECIFIC as it's freed in delayed thread */
-  if (!(row->record= (char*) my_malloc(table->s->reclength +
+  if (!(row->record= (char*) my_malloc(PSI_INSTRUMENT_ME,
+                                       table->s->reclength +
                                        user_len + host_len + ip_len,
                                        MYF(MY_WME))))
     goto err;

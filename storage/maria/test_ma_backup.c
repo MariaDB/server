@@ -113,7 +113,7 @@ static int copy_table(const char *table_name, int stage)
          cap.online_backup_safe);
   printf("- Copying index file\n");
 
-  copy_buffer= my_malloc(cap.block_size, MYF(0));
+  copy_buffer= my_malloc(PSI_NOT_INSTRUMENTED, cap.block_size, MYF(0));
   for (block= 0 ; ; block++)
   {
     if ((error= aria_read_index(org_file, &cap, block, copy_buffer) ==

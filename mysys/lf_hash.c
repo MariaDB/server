@@ -22,9 +22,8 @@
      for non-unique hash, count only _distinct_ values
      (but how to do it in lf_hash_delete ?)
 */
-#include <my_global.h>
+#include "mysys_priv.h"
 #include <m_string.h>
-#include <my_sys.h>
 #include <mysys_err.h>
 #include <my_bit.h>
 #include <lf.h>
@@ -543,7 +542,8 @@ static int initialize_bucket(LF_HASH *hash, LF_SLIST * volatile *node,
                               uint bucket, LF_PINS *pins)
 {
   uint parent= my_clear_highest_bit(bucket);
-  LF_SLIST *dummy= (LF_SLIST *)my_malloc(sizeof(LF_SLIST), MYF(MY_WME));
+  LF_SLIST *dummy= (LF_SLIST *)my_malloc(key_memory_lf_slist,
+                                         sizeof(LF_SLIST), MYF(MY_WME));
   LF_SLIST **tmp= 0, *cur;
   LF_SLIST * volatile *el= lf_dynarray_lvalue(&hash->array, parent);
   if (unlikely(!el || !dummy))

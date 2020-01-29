@@ -183,7 +183,7 @@ public:
     /// rr_unpack_from_tempfile needs an extra buffer when unpacking.
   uchar *allocate_addon_buf(uint sz)
   {
-    m_addon_buf= (uchar *)my_malloc(sz, MYF(MY_WME | MY_THREAD_SPECIFIC));
+    m_addon_buf= (uchar *)my_malloc(PSI_INSTRUMENT_ME, sz, MYF(MY_WME | MY_THREAD_SPECIFIC));
     if (m_addon_buf)
       m_addon_buf_length= sz;
     return m_addon_buf;

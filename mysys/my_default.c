@@ -410,13 +410,14 @@ int my_load_defaults(const char *conf_file, const char **groups, int *argc,
   const char **dirs;
   DBUG_ENTER("my_load_defaults");
 
-  init_alloc_root(&alloc, "my_load_defaults", 512, 0, MYF(0));
+  init_alloc_root(key_memory_defaults, &alloc, 512, 0, MYF(0));
   if ((dirs= init_default_directories(&alloc)) == NULL)
     goto err;
 
   args_used= get_defaults_options(*argv);
 
-  if (my_init_dynamic_array(&args, sizeof(char*), 128, 64, MYF(0)))
+  if (my_init_dynamic_array(&args, key_memory_defaults, sizeof(char*), 128, 64,
+                            MYF(0)))
     goto err;
 
   insert_dynamic(&args, *argv);/* Name MUST be set, even by embedded library */
@@ -879,7 +880,7 @@ void my_print_default_files(const char *conf_file)
   {
     const char **dirs;
     MEM_ROOT alloc;
-    init_alloc_root(&alloc, "my_print_defaults", 512, 0, MYF(0));
+    init_alloc_root(key_memory_defaults, &alloc, 512, 0, MYF(0));
 
     if ((dirs= init_default_directories(&alloc)) == NULL)
     {

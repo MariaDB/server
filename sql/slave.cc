@@ -583,7 +583,7 @@ slave_background_kill_request(THD *to_kill)
   if (to_kill->rgi_slave->killed_for_retry)
     return;                                     // Already deadlock killed.
   slave_background_kill_t *p=
-    (slave_background_kill_t *)my_malloc(sizeof(*p), MYF(MY_WME));
+    (slave_background_kill_t *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*p), MYF(MY_WME));
   if (p)
   {
     p->to_kill= to_kill;
@@ -611,7 +611,7 @@ slave_background_gtid_pos_create_request(
 
   if (table_entry->state != rpl_slave_state::GTID_POS_AUTO_CREATE)
     return;
-  p= (slave_background_gtid_pos_create_t *)my_malloc(sizeof(*p), MYF(MY_WME));
+  p= (slave_background_gtid_pos_create_t *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*p), MYF(MY_WME));
   if (!p)
     return;
   mysql_mutex_lock(&rpl_global_gtid_slave_state->LOCK_slave_state);
@@ -1809,7 +1809,8 @@ int init_dynarray_intvar_from_file(DYNAMIC_ARRAY* arr, IO_CACHE* f)
           (decimal size + space) - 1 + `\n' + '\0'
     */
     size_t max_size= (1 + num_items) * (sizeof(long)*3 + 1) + 1;
-    buf_act= (char*) my_malloc(max_size, MYF(MY_WME));
+    buf_act= (char*) my_malloc(key_memory_Rpl_info_file_buffer, max_size,
+                               MYF(MY_WME));
     memcpy(buf_act, buf, read_size);
     snd_size= my_b_gets(f, buf_act + read_size, max_size - read_size);
     if (snd_size == 0 ||
@@ -6035,7 +6036,8 @@ static int queue_binlog_ver_1_event(Master_info *mi, const char *buf,
   */
   if ((uchar)buf[EVENT_TYPE_OFFSET] == LOAD_EVENT)
   {
-    if (unlikely(!(tmp_buf=(char*)my_malloc(event_len+1,MYF(MY_WME)))))
+    if (unlikely(!(tmp_buf=(char*)my_malloc(key_memory_binlog_ver_1_event,
+                                            event_len+1,MYF(MY_WME)))))
     {
       mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                  ER(ER_SLAVE_FATAL_ERROR), "Memory allocation failed");

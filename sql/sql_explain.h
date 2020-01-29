@@ -342,7 +342,7 @@ class Explain_union : public Explain_node
 {
 public:
   Explain_union(MEM_ROOT *root, bool is_analyze) : 
-    Explain_node(root),
+    Explain_node(root), union_members(PSI_INSTRUMENT_MEM),
     is_recursive_cte(false),
     fake_select_lex_explain(root, is_analyze)
   {}

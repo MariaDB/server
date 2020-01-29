@@ -645,7 +645,7 @@ MYSQL_LOCK *mysql_lock_merge(MYSQL_LOCK *a,MYSQL_LOCK *b)
                        a->lock_count, b->lock_count));
 
   if (!(sql_lock= (MYSQL_LOCK*)
-	my_malloc(sizeof(*sql_lock)+
+	my_malloc(key_memory_MYSQL_LOCK, sizeof(*sql_lock) +
 		  sizeof(THR_LOCK_DATA*)*((a->lock_count+b->lock_count)*2) +
 		  sizeof(TABLE*)*(a->table_count+b->table_count),MYF(MY_WME))))
     DBUG_RETURN(0);				// Fatal error
@@ -764,7 +764,8 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
                  sizeof(table_ptr) * table_count;
   if (!(sql_lock= (MYSQL_LOCK*) (flags & GET_LOCK_ON_THD ?
                                  thd->alloc(amount) :
-                                 my_malloc(amount, MYF(0)))))
+                                 my_malloc(key_memory_MYSQL_LOCK, amount,
+                                           MYF(0)))))
     DBUG_RETURN(0);
   locks= locks_buf= sql_lock->locks= (THR_LOCK_DATA**) (sql_lock + 1);
   to= table_buf= sql_lock->table= (TABLE**) (locks + lock_count * 2);

@@ -4020,7 +4020,8 @@ longlong Item_func_get_lock::val_int()
   /* HASH entries are of type User_level_lock. */
   if (! my_hash_inited(&thd->ull_hash) &&
         my_hash_init(&thd->ull_hash, &my_charset_bin,
-                     16 /* small hash */, 0, 0, ull_get_key, NULL, 0))
+                     16 /* small hash */, 0, 0, ull_get_key, NULL, 0,
+                     key_memory_User_level_lock))
   {
     DBUG_RETURN(0);
   }
@@ -4052,7 +4053,8 @@ longlong Item_func_get_lock::val_int()
     DBUG_RETURN(0);
   }
 
-  ull= (User_level_lock*) my_malloc(sizeof(User_level_lock),
+  ull= (User_level_lock*) my_malloc(key_memory_User_level_lock,
+                                    sizeof(User_level_lock),
                                     MYF(MY_WME|MY_THREAD_SPECIFIC));
   if (ull == NULL)
   {
@@ -4420,7 +4422,7 @@ user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
     size_t size=ALIGN_SIZE(sizeof(user_var_entry))+name->length+1+extra_size;
     if (!my_hash_inited(hash))
       return 0;
-    if (!(entry = (user_var_entry*) my_malloc(size,
+    if (!(entry = (user_var_entry*) my_malloc(key_memory_user_var_entry, size,
                                               MYF(MY_WME | ME_FATAL |
                                                   MY_THREAD_SPECIFIC))))
       return 0;
@@ -4680,7 +4682,8 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
 	char *pos= (char*) entry+ ALIGN_SIZE(sizeof(user_var_entry));
 	if (entry->value == pos)
 	  entry->value=0;
-        entry->value= (char*) my_realloc(entry->value, length,
+        entry->value= (char*) my_realloc(key_memory_user_var_entry_value,
+                                         entry->value, length,
                                          MYF(MY_ALLOW_ZERO_PTR | MY_WME |
                                              ME_FATAL | MY_THREAD_SPECIFIC));
         if (!entry->value)
@@ -6793,7 +6796,7 @@ longlong Item_func_nextval::val_int()
   if (!(entry= ((SEQUENCE_LAST_VALUE*)
                 my_hash_search(&thd->sequences, (uchar*) key, length))))
   {
-    if (!(key= (char*) my_memdup(key, length, MYF(MY_WME))) ||
+    if (!(key= (char*) my_memdup(PSI_INSTRUMENT_ME, key, length, MYF(MY_WME))) ||
         !(entry= new SEQUENCE_LAST_VALUE((uchar*) key, length)))
     {
       /* EOM, error given */

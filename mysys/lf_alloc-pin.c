@@ -99,8 +99,7 @@
   between THD's (LF_PINS::stack_ends_here being a primary reason
   for this limitation).
 */
-#include <my_global.h>
-#include <my_sys.h>
+#include "mysys_priv.h"
 #include <lf.h>
 
 /*
@@ -500,7 +499,8 @@ void *lf_alloc_new(LF_PINS *pins)
     } while (node != allocator->top && LF_BACKOFF());
     if (!node)
     {
-      node= (void *)my_malloc(allocator->element_size, MYF(MY_WME));
+      node= (void *)my_malloc(key_memory_lf_node, allocator->element_size,
+                              MYF(MY_WME));
       if (allocator->constructor)
         allocator->constructor(node);
 #ifdef MY_LF_EXTRA_DEBUG

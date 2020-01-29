@@ -455,8 +455,8 @@ sp_head *sp_head::create(sp_package *parent, const Sp_handler *handler,
                          enum_sp_aggregate_type agg_type)
 {
   MEM_ROOT own_root;
-  init_sql_alloc(&own_root, "sp_head", MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC,
-                 MYF(0));
+  init_sql_alloc(key_memory_sp_head_main_root, &own_root, MEM_ROOT_BLOCK_SIZE,
+                 MEM_ROOT_PREALLOC, MYF(0));
   sp_head *sp;
   if (!(sp= new (&own_root) sp_head(&own_root, parent, handler, agg_type)))
     free_root(&own_root, MYF(0));
@@ -537,11 +537,12 @@ sp_head::sp_head(MEM_ROOT *mem_root_arg, sp_package *parent,
   m_backpatch_goto.empty();
   m_cont_backpatch.empty();
   m_lex.empty();
-  my_init_dynamic_array(&m_instr, sizeof(sp_instr *), 16, 8, MYF(0));
-  my_hash_init(&m_sptabs, system_charset_info, 0, 0, 0, sp_table_key, 0, 0);
+  my_init_dynamic_array(&m_instr, key_memory_sp_head_main_root,
+                        sizeof(sp_instr *), 16, 8, MYF(0));
+  my_hash_init(&m_sptabs, system_charset_info, 0, 0, 0, sp_table_key, 0, 0,
+               key_memory_sp_head_main_root);
   my_hash_init(&m_sroutines, system_charset_info, 0, 0, 0, sp_sroutine_key,
-               0, 0);
-  m_security_ctx.init();
+               0, 0, key_memory_sp_head_main_root);
 
   DBUG_VOID_RETURN;
 }
@@ -551,7 +552,7 @@ sp_package *sp_package::create(LEX *top_level_lex, const sp_name *name,
                                const Sp_handler *sph)
 {
   MEM_ROOT own_root;
-  init_sql_alloc(&own_root, "sp_package", MEM_ROOT_BLOCK_SIZE,
+  init_sql_alloc(key_memory_sp_head_main_root, &own_root, MEM_ROOT_BLOCK_SIZE,
                  MEM_ROOT_PREALLOC, MYF(0));
   sp_package *sp;
   if (!(sp= new (&own_root) sp_package(&own_root, top_level_lex, name, sph)))
@@ -1038,7 +1039,7 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
 {
   DBUG_ENTER("subst_spvars");
 
-  Dynamic_array<Rewritable_query_parameter*> rewritables;
+  Dynamic_array<Rewritable_query_parameter*> rewritables(PSI_INSTRUMENT_MEM);
   char *pbuf;
   StringBuffer<512> qbuf;
   Copy_query_with_rewrite acc(thd, query_str->str, query_str->length, &qbuf);
@@ -1170,7 +1171,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   opt_trace_disable_if_no_security_context_access(thd);
 
   /* init per-instruction memroot */
-  init_sql_alloc(&execute_mem_root, "per_instruction_memroot",
+  init_sql_alloc(key_memory_sp_head_execute_root, &execute_mem_root,
                  MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
 
   DBUG_ASSERT(!(m_flags & IS_INVOKED));
@@ -1815,8 +1816,8 @@ sp_head::execute_trigger(THD *thd,
     TODO: we should create sp_rcontext once per command and reuse it
     on subsequent executions of a trigger.
   */
-  init_sql_alloc(&call_mem_root, "execute_trigger", MEM_ROOT_BLOCK_SIZE, 0,
-                 MYF(0));
+  init_sql_alloc(key_memory_sp_head_call_root,
+                 &call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
   Row_definition_list defs;
