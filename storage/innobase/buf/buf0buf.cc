@@ -5984,7 +5984,7 @@ release_page:
 			buf_corrupt_page_release(bpage, space);
 
 			if (recv_recovery_is_on()) {
-				recv_recover_corrupt_page(corrupt_page_id);
+				recv_sys.free_corrupted_page(corrupt_page_id);
 			}
 
 			space->release_for_io();

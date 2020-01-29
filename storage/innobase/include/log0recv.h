@@ -47,11 +47,6 @@ dberr_t
 recv_find_max_checkpoint(ulint* max_field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/** Remove records for a corrupted page.
-This function should called when srv_force_recovery > 0.
-@param[in]	page_id page id of the corrupted page */
-ATTRIBUTE_COLD void recv_recover_corrupt_page(page_id_t page_id);
-
 /** Apply any buffered redo log to a page that was just read from a data file.
 @param[in,out]	bpage	buffer pool page */
 ATTRIBUTE_COLD void recv_recover_page(buf_page_t* bpage);
@@ -222,7 +217,8 @@ struct page_recv_t
     bool empty() const { ut_ad(!head == !tail); return !head; }
     inline void clear();
 #ifdef UNIV_DEBUG
-    inline void unfix();
+    /** Declare the records as freed; @see recv_sys_t::alloc() */
+    inline void free() const;
 #endif
   } log;
 
@@ -230,7 +226,6 @@ struct page_recv_t
   inline void will_not_read();
   /** @return whether the log records for the page are being processed */
   bool is_being_processed() const { return state == RECV_BEING_PROCESSED; }
-
 };
 
 /** Recovery system data structure */
@@ -314,16 +309,25 @@ struct recv_sys_t{
 	/** Last added LSN to pages. */
 	lsn_t		last_stored_lsn;
 
-	/** Maximum number of buffer pool blocks to allocate for redo
-	log records */
-	ulint		max_log_blocks;
+private:
+  /** Maximum number of buffer pool blocks to allocate for redo log records */
+  ulint max_log_blocks;
 
-	/** Base node of the redo block list (up to max_log_blocks)
-	List elements are linked via buf_block_t::unzip_LRU. */
-	UT_LIST_BASE_NODE_T(buf_block_t) redo_list;
+  /** Base node of the redo block list (up to max_log_blocks)
+  List elements are linked via buf_block_t::unzip_LRU. */
+  UT_LIST_BASE_NODE_T(buf_block_t) blocks;
+public:
+  /** @return the maximum number of buffer pool blocks for log records */
+  ulint max_blocks() const { return max_log_blocks; }
+  /** Check whether the number of read redo log blocks exceeds the maximum.
+  Store last_stored_lsn if the recovery is not in the last phase.
+  @param[in,out] store    whether to store page operations
+  @return whether the memory is exhausted */
+  inline bool is_memory_exhausted(store_t *store);
 
 #ifdef UNIV_DEBUG
-	bool	after_apply= false;
+  /** whether all redo log in the current batch has been applied */
+  bool after_apply= false;
 #endif
 	/** Initialize the redo log recovery subsystem. */
 	void create();
@@ -371,14 +375,24 @@ struct recv_sys_t{
   inline byte *alloc(size_t len, bool store_recv= false);
 
 #ifdef UNIV_DEBUG
-  /** Find the redo_list element corresponding to a redo log record.
+private:
+  /** Find the buffer pool block that is storing a redo log record.
   @param[in] data   pointer to buffer returned by alloc()
   @return redo list element */
-  buf_block_t *find_block(const void *data) const;
+  inline buf_block_t *find_block(const void *data) const;
+public:
+  /** Declare a redo log record freed from a buffer pool block.
+  @param[in] data   pointer to buffer returned by alloc() */
+  inline void free(const void *data) const;
 #endif
 
   /** @return the free length of the latest alloc() block, in bytes */
   inline size_t get_free_len() const;
+
+  /** Remove records for a corrupted page.
+  This function should only be called when innodb_force_recovery is set.
+  @param page_id  corrupted page identifier */
+  ATTRIBUTE_COLD void free_corrupted_page(page_id_t page_id);
 };
 
 /** The recovery system */
