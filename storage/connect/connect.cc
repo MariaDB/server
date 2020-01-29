@@ -646,6 +646,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
 //    return 0;
 
   if (tdbp->GetKindex())
+  {
     if (((XXBASE*)tdbp->GetKindex())->GetID() == id) {
       tdbp->GetKindex()->Reset();                // Same index
       return (tdbp->GetKindex()->IsMul()) ? 2 : 1;
@@ -653,6 +654,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
       tdbp->GetKindex()->Close();
       tdbp->SetKindex(NULL);
     } // endif colp
+  }
 
   for (xdp= dfp->GetIndx(); xdp; xdp= xdp->GetNext())
     if (xdp->GetID() == id)

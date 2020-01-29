@@ -255,11 +255,13 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
     jsp = (tjsp->GetDoc()) ? tjsp->GetDoc()->GetValue(0) : NULL;
   } else {
     if (!(tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))
+    {
       if (!mgo) {
         sprintf(g->Message, "LRECL must be specified for pretty=%d", tdp->Pretty);
         return 0;
       } else
         tdp->Lrecl = 8192;       // Should be enough
+    }
 
     tdp->Ending = GetIntegerTableOption(g, topt, "Ending", CRLF);
 
@@ -1328,7 +1330,7 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
 {
   char *p, *p1 = NULL, *p2 = NULL, *pbuf = NULL;
   int   i;
-  bool  a, mul = false;
+  bool  a;
 
   if (Parsed)
     return false;                       // Already done
@@ -1427,6 +1429,7 @@ PSZ JSONCOL::GetJpath(PGLOBAL g, bool proj)
       return NULL;
 
     for (p1 = p2 = mgopath; *p1; p1++)
+    {
       if (i) {                 // Inside []
         if (isdigit(*p1)) {
           if (!proj)
@@ -1464,12 +1467,12 @@ PSZ JSONCOL::GetJpath(PGLOBAL g, bool proj)
             p2--;              // Suppress last :*
             break;
           } // endif p2
-
+          /* falls through */
         default:
           *p2++ = *p1;
           break;
       } // endswitch p1;
-
+    }
       *p2 = 0;
       return mgopath;
   } else
@@ -1558,7 +1561,6 @@ void JSONCOL::ReadColumn(PGLOBAL g)
 PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
   {
   int   n = Nod - 1;
-  bool  expd = false;
   PJAR  arp;
   PJVAL val = NULL;
 
@@ -2119,13 +2121,14 @@ int TDBJSON::Cardinality(PGLOBAL g)
   if (!g)
     return (Xcol || Multiple) ? 0 : 1;
   else if (Cardinal < 0)
+  {
     if (!Multiple) {
       if (MakeDocument(g) == RC_OK)
         Cardinal = Doc->size();
 
     } else
       return 10;
-
+  }
   return Cardinal;
   } // end of Cardinality
 

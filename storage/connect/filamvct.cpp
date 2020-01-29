@@ -302,6 +302,7 @@ int VCTFAM::Cardinality(PGLOBAL g)
     return 1;
 
   if (Block < 0)
+  {
     if (Split) {
       // Separate column files and no pre setting of Block and Last
       // This allows to see a table modified externally, but Block
@@ -347,7 +348,7 @@ int VCTFAM::Cardinality(PGLOBAL g)
         return -1;             // Error
 
     } // endif split
-
+  }
   return (Block) ? ((Block - 1) * Nrec + Last) : 0;
   } // end of Cardinality
 
@@ -1163,7 +1164,7 @@ bool VCTFAM::ResetTableSize(PGLOBAL g, int block, int last)
     if (!Header) {
       // Update catalog values for Block and Last
       PVCTDEF defp = (PVCTDEF)Tdbp->GetDef();
-      LPCSTR  name = Tdbp->GetName();
+      LPCSTR  name __attribute__((unused))= Tdbp->GetName();
 
       defp->SetBlock(Block);
       defp->SetLast(Last);

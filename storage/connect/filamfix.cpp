@@ -135,7 +135,7 @@ bool FIXFAM::AllocateBuffer(PGLOBAL g)
       // The buffer must be prepared depending on column types
       int     n = 0;
       bool    b = false;
-      PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
+      PDOSDEF defp __attribute__((unused))= (PDOSDEF)Tdbp->GetDef();
 //    PCOLDEF cdp;
       PBINCOL colp;
 

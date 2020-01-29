@@ -66,6 +66,7 @@ int MYSQLtoPLG(char *typname, char *var)
         break;
       case TPC_SKIP:
         *var = 'K';
+        /* falls through */
       default: // TPC_NO
         type = TYPE_ERROR;
       } // endswitch xconv
@@ -237,13 +238,14 @@ int MYSQLtoPLG(int mytype, char *var)
             break;
           case TPC_SKIP:
             *var = 'K';       // Skip
+            /* falls through */
           default:            // TPC_NO
             type = TYPE_ERROR;
           } // endswitch xconv
 
         return type;
         } // endif var
-
+      /* falls through */
     default:
       type = TYPE_ERROR;
     } // endswitch mytype

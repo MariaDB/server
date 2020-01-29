@@ -647,7 +647,7 @@ int ZBKFAM::WriteBuffer(PGLOBAL g)
 int ZBKFAM::DeleteRecords(PGLOBAL g, int irc)
   {
   if (irc == RC_EF) {
-    LPCSTR  name = Tdbp->GetName();
+    LPCSTR  name __attribute__((unused)) = Tdbp->GetName();
     PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
 
     defp->SetBlock(0);
@@ -673,7 +673,7 @@ void ZBKFAM::CloseTableFile(PGLOBAL g, bool)
   int rc = RC_OK;
 
   if (Tdbp->GetMode() == MODE_INSERT) {
-    LPCSTR  name = Tdbp->GetName();
+    LPCSTR  name __attribute__((unused))= Tdbp->GetName();
     PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
 
     if (CurNum && !Closing) {
@@ -1021,6 +1021,7 @@ bool ZLBFAM::AllocateBuffer(PGLOBAL g)
 #else
         sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
 #endif
+        /* falls through */
       case RC_NF:
         return TRUE;
       } // endswitch
@@ -1355,7 +1356,7 @@ void ZLBFAM::CloseTableFile(PGLOBAL g, bool)
   int rc = RC_OK;
 
   if (Tdbp->GetMode() == MODE_INSERT) {
-    LPCSTR  name = Tdbp->GetName();
+    LPCSTR  name __attribute__((unused))= Tdbp->GetName();
     PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
 
     // Closing is True if last Write was in error

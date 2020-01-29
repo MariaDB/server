@@ -1547,13 +1547,14 @@ int BLKFAM::WriteBuffer(PGLOBAL g)
 
     // T_Stream is the temporary stream or the table file stream itself
     if (!T_Stream)
+    {
       if (UseTemp /*&& Tdbp->GetMode() == MODE_UPDATE*/) {
         if (OpenTempFile(g))
           return RC_FX;
 
       } else
         T_Stream = Stream;
-
+    }
     if (UseTemp) {
       /*****************************************************************/
       /*  We are using a temporary file. Before writing the updated    */

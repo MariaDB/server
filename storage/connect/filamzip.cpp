@@ -91,7 +91,6 @@ static bool ZipFile(PGLOBAL g, ZIPUTIL *zutp, PCSZ fn, PCSZ entry, char *buf)
 static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 {
 	char filename[_MAX_PATH];
-	int  rc;
 
 	/*********************************************************************/
 	/*  pat is a multiple file name with wildcard characters             */
@@ -102,6 +101,7 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 	char   drive[_MAX_DRIVE], direc[_MAX_DIR];
 	WIN32_FIND_DATA FileData;
 	HANDLE hSearch;
+	int rc;
 
 	_splitpath(filename, drive, direc, NULL, NULL);
 

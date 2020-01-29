@@ -349,7 +349,8 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
 				if ((rc = GetNext(g)) != RC_OK)
 					return rc;
 
-			case RC_NF:
+      /* falls through */
+      case RC_NF:
         // Skip this record
         if ((rc = SkipRecord(g, false)) != RC_OK)
           return rc;

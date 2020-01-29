@@ -80,6 +80,7 @@ COLBLK::COLBLK(PCOL col1, PTDB tdbp)
     htrc(" copying COLBLK %s from %p to %p\n", Name, col1, this);
 
   if (tdbp)
+  {
     // Attach the new column to the table block
     if (!tdbp->GetColumns())
       tdbp->SetColumns(this);
@@ -88,7 +89,7 @@ COLBLK::COLBLK(PCOL col1, PTDB tdbp)
 
       colp->Next = this;
       } // endelse
-
+  }
   } // end of COLBLK copy constructor
 
 /***********************************************************************/

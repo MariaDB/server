@@ -430,6 +430,7 @@ char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
 /*  Because this function is only used for catalog name checking,      */
 /*  it must be case insensitive.                                       */
 /***********************************************************************/
+#ifdef NOT_USED
 static bool PlugCheckPattern(PGLOBAL g, LPCSTR string, LPCSTR pat)
   {
   if (pat && strlen(pat)) {
@@ -443,6 +444,7 @@ static bool PlugCheckPattern(PGLOBAL g, LPCSTR string, LPCSTR pat)
     return true;
 
   } // end of PlugCheckPattern
+#endif
 
 /***********************************************************************/
 /*  PlugEvalLike: evaluates a LIKE clause.                             */

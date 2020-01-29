@@ -28,6 +28,7 @@
 #include <time.h>
 #include "zlib.h"
 #include "zip.h"
+#include "my_attribute.h"
 
 #ifdef STDC
 #  include <stddef.h>
@@ -518,16 +519,16 @@ local ZPOS64_T zip64local_SearchCentralDir(const zlib_filefunc64_32_def* pzlib_f
     if (ZREAD64(*pzlib_filefunc_def,filestream,buf,uReadSize)!=uReadSize)
       break;
 
-    for (i=(int)uReadSize-3; (i--)>0;)
+    for (i=(int)uReadSize-3; (i--)>0;) {
       if (((*(buf+i))==0x50) && ((*(buf+i+1))==0x4b) &&
         ((*(buf+i+2))==0x05) && ((*(buf+i+3))==0x06))
       {
         uPosFound = uReadPos+i;
         break;
       }
-
-      if (uPosFound!=0)
-        break;
+    }
+    if (uPosFound!=0)
+      break;
   }
   TRYFREE(buf);
   return uPosFound;
@@ -1057,7 +1058,7 @@ extern int ZEXPORT zipOpenNewFileInZip4_64 (zipFile file, const char* filename, 
                                          const void* extrafield_global, uInt size_extrafield_global,
                                          const char* comment, int method, int level, int raw,
                                          int windowBits,int memLevel, int strategy,
-                                         const char* password, uLong crcForCrypting,
+                                         const char* password, uLong crcForCrypting __attribute__((unused)),
                                          uLong versionMadeBy, uLong flagBase, int zip64)
 {
     zip64_internal* zi;
@@ -1066,11 +1067,10 @@ extern int ZEXPORT zipOpenNewFileInZip4_64 (zipFile file, const char* filename, 
     uInt i;
     int err = ZIP_OK;
 
-#    ifdef NOCRYPT
-    (crcForCrypting);
+#ifdef NOCRYPT
     if (password != NULL)
         return ZIP_PARAMERROR;
-#    endif
+#endif
 
     if (file == NULL)
         return ZIP_PARAMERROR;

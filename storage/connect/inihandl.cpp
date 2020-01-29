@@ -1340,6 +1340,7 @@ BOOL WritePrivateProfileSection(LPCSTR section,
  * Note that when the buffer is big enough then the return value may be any
  * value between 1 and len-1 (or len in Win95), including len-2.
  */
+#ifdef NOT_USED
 static DWORD
 GetPrivateProfileSectionNames(LPSTR buffer, DWORD size,  LPCSTR filename)
 {
@@ -1356,7 +1357,7 @@ GetPrivateProfileSectionNames(LPSTR buffer, DWORD size,  LPCSTR filename)
   LeaveCriticalSection(&PROFILE_CritSect);
   return ret;
 }  // end of GetPrivateProfileSectionNames
-
+#endif
 
 /************************************************************************
  * Program to test the above

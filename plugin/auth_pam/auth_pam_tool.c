@@ -16,6 +16,7 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <mysql/plugin_auth_common.h>
 
 struct param {
@@ -62,7 +63,7 @@ typedef struct st_mysql_server_auth_info
 #include "auth_pam_base.c"
 
 
-int main(int argc, char **argv)
+int main(int argc __attribute__((unused)), char **argv __attribute__((unused)))
 {
   struct param param;
   MYSQL_SERVER_AUTH_INFO info;
@@ -70,7 +71,8 @@ int main(int argc, char **argv)
   int res;
   char a_buf[MYSQL_USERNAME_LENGTH + 1 + 1024];
 
-  (void) setreuid(0, 0);
+  if ((res= setreuid(0, 0)))
+    fprintf(stderr, "Got error %d from setreuid()\n", (int) errno);
 
   if (read(0, &field, 1) < 1)
     return -1;

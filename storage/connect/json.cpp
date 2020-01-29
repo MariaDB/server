@@ -154,7 +154,7 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 						b = false;
 						break;
 					} // endif b
-
+                                        /* falls through */
 				default:
 					if (jsp)
 						goto tryit;

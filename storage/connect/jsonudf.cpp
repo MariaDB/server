@@ -247,7 +247,7 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 {
 	char   *p, *p1 = NULL, *p2 = NULL, *pbuf = NULL;
 	int     i;
-	my_bool a, mul = false;
+	my_bool a;
 
 	if (Parsed)
 		return false;                       // Already done
@@ -379,6 +379,7 @@ void JSNX::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
 
 			case TYPE_NULL:
 				vp->SetNull(true);
+                                /* falls through */
 			default:
 				vp->Reset();
 			} // endswitch Type
@@ -424,7 +425,6 @@ PVAL JSNX::GetColumnValue(PGLOBAL g, PJSON row, int i)
 /*********************************************************************************/
 PJVAL JSNX::GetRowValue(PGLOBAL g, PJSON row, int i, my_bool b)
 {
-	my_bool expd = false;
 	PJAR    arp;
 	PJVAL   val = NULL;
 
@@ -763,7 +763,7 @@ my_bool JSNX::WriteValue(PGLOBAL g, PJVAL jvalp)
 PSZ JSNX::Locate(PGLOBAL g, PJSON jsp, PJVAL jvp, int k)
 {
 	PSZ     str = NULL;
-	my_bool b = false, err = true;
+	my_bool err = true;
 
 	g->Message[0] = 0;
 
@@ -885,7 +885,7 @@ my_bool JSNX::LocateValue(PJVAL jvp)
 PSZ JSNX::LocateAll(PGLOBAL g, PJSON jsp, PJVAL jvp, int mx)
 {
 	PSZ     str = NULL;
-	my_bool b = false, err = true;
+	my_bool err = true;
 	PJPN    jnp;
 	
 	if (!jsp) {
@@ -1352,7 +1352,7 @@ static PBSON MakeBinResult(PGLOBAL g, UDF_ARGS *args, PJSON top, ulong len, int 
 
 		bsnp->Pretty = pretty;
 
-		if (bsnp->Filename = (char*)args->args[0]) {
+		if ((bsnp->Filename = (char*)args->args[0])) {
 			bsnp->Filename = MakePSZ(g, args, 0);
 			strncpy(bsnp->Msg, bsnp->Filename, BMX);
 		} else
@@ -1773,7 +1773,7 @@ static char *GetJsonFile(PGLOBAL g, char *fn)
 #endif
 
 	if (h == -1) {
-		sprintf(g->Message, "Error %d opening %s", errno, fn);
+		sprintf(g->Message, "Error %d opening %-.1024s", errno, fn);
 		return NULL;
 	} // endif h
 
@@ -1785,7 +1785,7 @@ static char *GetJsonFile(PGLOBAL g, char *fn)
 
 	if ((str = (char*)PlgDBSubAlloc(g, NULL, len + 1))) {
 		if ((n = read(h, str, len)) < 0) {
-			sprintf(g->Message, "Error %d reading %d bytes from %s", errno, len, fn);
+			sprintf(g->Message, "Error %d reading %d bytes from %-.1024s", errno, len, fn);
 			return NULL;
 		} // endif n
 
@@ -3480,7 +3480,7 @@ char *jsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	} catch (int n) {
 	  if (trace(1))
-		  htrc("Exception %d: %s\n", n, g->Message);
+		  htrc("Exception %d: %-.256s\n", n, g->Message);
 
 		PUSH_WARNING(g->Message);
 		str = NULL;
@@ -3755,12 +3755,13 @@ my_bool jsonlocate_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		strcpy(message, "Third argument is not an integer (rank)");
 		return true;
 	} else if (args->arg_count > 3)
+        {
 		if (args->arg_type[3] != INT_RESULT) {
 			strcpy(message, "Fourth argument is not an integer (memory)");
 			return true;
 		} else
 			more += (ulong)*(longlong*)args->args[2];
-
+        }
 	CalcLen(args, false, reslen, memlen);
 
 	// TODO: calculate this
@@ -3838,7 +3839,7 @@ char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	} catch (int n) {
 	  if (trace(1))
-		  htrc("Exception %d: %s\n", n, g->Message);
+		  htrc("Exception %d: %-.256s\n", n, g->Message);
 
 		PUSH_WARNING(g->Message);
 		*error = 1;
@@ -3882,12 +3883,13 @@ my_bool json_locate_all_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		strcpy(message, "Third argument is not an integer (Depth)");
 		return true;
 	} else if (args->arg_count > 3)
+        {
 		if (args->arg_type[3] != INT_RESULT) {
 			strcpy(message, "Fourth argument is not an integer (memory)");
 			return true;
 		} else
 			more += (ulong)*(longlong*)args->args[2];
-
+        }
 	CalcLen(args, false, reslen, memlen);
 
 	// TODO: calculate this
@@ -3963,7 +3965,7 @@ char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	} catch (int n) {
 		if (trace(1))
-			htrc("Exception %d: %s\n", n, g->Message);
+			htrc("Exception %d: %-.256s\n", n, g->Message);
 
 		PUSH_WARNING(g->Message);
 		*error = 1;
@@ -4243,7 +4245,7 @@ char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	} catch (int n) {
 	  if (trace(1))
-		  htrc("Exception %d: %s\n", n, g->Message);
+		  htrc("Exception %d: %-.256s\n", n, g->Message);
 
 		PUSH_WARNING(g->Message);
 		str = NULL;
@@ -5178,7 +5180,7 @@ char *jbin_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		PCSZ  key;
 		PJOB  jobp;
 		PJVAL jvp = MakeValue(g, args, 0, &top);
-		PJSON jsp = jvp->GetJson();
+		PJSON jsp __attribute__((unused)) = jvp->GetJson();
 
 		if (CheckPath(g, args, top, jvp, 2))
 			PUSH_WARNING(g->Message);
@@ -5889,7 +5891,7 @@ long long countin(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	memcpy(str2, args->args[1], lg);
 	str2[lg] = 0;
 
-	while (s = strstr(s, str2)) {
+	while ((s = strstr(s, str2))) {
 		n++;
 		s += lg;
 	} // endwhile
