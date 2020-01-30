@@ -752,7 +752,6 @@ void wsrep_init_globals()
     wsrep_get_binlog_gtid_seqno(gtid);
     wsrep_gtid_server.seqno(gtid.seqno);
   }
-  wsrep_new_cluster= 0;
   wsrep_init_schema();
   if (WSREP_ON)
   {
