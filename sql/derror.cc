@@ -84,8 +84,9 @@ bool init_errmessage(void)
   if (!use_english)
   {
     /* Read messages from file. */
-    use_english= !read_texts(ERRMSG_FILE,lang, &original_error_messages);
-    error= TRUE;
+    error= use_english= read_texts(ERRMSG_FILE,lang, &original_error_messages);
+    if(error)
+      sql_print_error("Could not load error messages for %s",lang);
   }
 
   if (use_english)
