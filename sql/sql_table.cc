@@ -7677,7 +7677,8 @@ static bool mysql_inplace_alter_table(THD *thd,
     goto cleanup;
   if (write_start_alter(thd, partial_alter, send_query))
     DBUG_RETURN(true);
-  my_sleep(10000000);
+  if (thd->slave_thread && !strcmp("t1", table->alias.c_ptr()))
+  my_sleep(1000000000);
 
   DEBUG_SYNC(thd, "alter_table_inplace_after_lock_upgrade");
   THD_STAGE_INFO(thd, stage_alter_inplace_prepare);
@@ -10276,7 +10277,8 @@ do_continue:;
   //If issues by binlog/master complete the prepare phase of alter and then commit
   if (write_start_alter(thd, &partial_alter ,send_query))
     DBUG_RETURN(true);
-  my_sleep(10000000);
+  if (thd->slave_thread && !strcmp("t1", table->alias.c_ptr()))
+  my_sleep(1000000000);
   if (ha_create_table(thd, alter_ctx.get_tmp_path(),
                       alter_ctx.new_db.str, alter_ctx.new_name.str,
                       create_info, &frm))

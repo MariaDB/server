@@ -5767,6 +5767,13 @@ mysql_execute_command(THD *thd)
     }
     //thd->rgi_slave->mark_start_commit();
     //thd->wakeup_subsequent_commits(0);
+    /*
+      Wait for other thread to commit/rollback the alter
+    */
+    mysql_mutex_lock(&mi->start_alter_lock);
+    while(info->state <= start_alter_state:: ROLLBACK_ALTER )
+      mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+    mysql_mutex_unlock(&mi->start_alter_lock);
     thd->rpt->__finish_event_group(thd->rgi_slave);
 //    ha_commit_trans(thd, true);
 //    trans_commit_implicit(thd);

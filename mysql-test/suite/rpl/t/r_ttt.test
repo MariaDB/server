@@ -10,7 +10,7 @@ start slave;
 
 
 --connection master
-set global binlog_split_alter=true;
+#set global binlog_split_alter=true;
 create table t1( a int primary key, b int) engine=innodb;
 insert into t1 values(1,1),(2,2);
 create table t2( a int primary key, b int) engine=innodb;
