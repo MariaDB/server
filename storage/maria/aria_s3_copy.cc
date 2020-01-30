@@ -113,7 +113,7 @@ static void usage(void)
   puts("\nThis software comes with NO WARRANTY: "
        " see the PUBLIC for details.\n");
   puts("Copy an Aria table to and from s3");
-  printf("Usage: %s --aws-access-key=# --aws-secret-access-key=# --aws-region # "
+  printf("Usage: %s --aws-access-key=# --aws-secret-access-key=# --aws-region=# "
          "--op=(from_s3 | to_s3 | delete_from_s3) [OPTIONS] tables[.MAI]\n",
          my_progname_short);
   print_defaults("my", load_default_groups);
