@@ -2212,8 +2212,8 @@ buf_page_realloc(
 		ut_d(block->page.in_page_hash = FALSE);
 		ulint	fold = block->page.id.fold();
 		ut_ad(fold == new_block->page.id.fold());
-		HASH_DELETE(buf_page_t, hash, buf_pool->page_hash, fold, (&block->page));
-		HASH_INSERT(buf_page_t, hash, buf_pool->page_hash, fold, (&new_block->page));
+		HASH_REPLACE(buf_page_t, hash, buf_pool->page_hash, fold,
+			     &block->page, &new_block->page);
 
 		ut_ad(new_block->page.in_page_hash);
 
@@ -3329,8 +3329,8 @@ buf_relocate(
 	/* relocate buf_pool->page_hash */
 	ulint	fold = bpage->id.fold();
 	ut_ad(fold == dpage->id.fold());
-	HASH_DELETE(buf_page_t, hash, buf_pool->page_hash, fold, bpage);
-	HASH_INSERT(buf_page_t, hash, buf_pool->page_hash, fold, dpage);
+	HASH_REPLACE(buf_page_t, hash, buf_pool->page_hash, fold, bpage,
+		     dpage);
 }
 
 /** Hazard Pointer implementation. */
