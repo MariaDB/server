@@ -5297,6 +5297,7 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
   uint timeout;
   rpl_gtid *gtid_list;
   uint32 count;
+  int wait_gtid_ret= 0;
   int ret= 1;
 
   if (args[0]->null_value)
@@ -5323,9 +5324,15 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
     if (wsrep_check_gtid_seqno(gtid_list[0].domain_id, gtid_list[0].server_id,
                                gtid_list[0].seq_no))
     {
-      if (wsrep_gtid_server.wait_gtid_upto(gtid_list[0].seq_no, timeout))
+      wait_gtid_ret= wsrep_gtid_server.wait_gtid_upto(gtid_list[0].seq_no, timeout);
+      if ((wait_gtid_ret == ETIMEDOUT) || (wait_gtid_ret == ETIME))
       {
         my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0), func_name());
+        ret= 0;
+      }
+      else if (wait_gtid_ret == ENOMEM)
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), func_name());
         ret= 0;
       }
     }
