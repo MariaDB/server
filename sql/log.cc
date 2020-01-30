@@ -5444,7 +5444,10 @@ bool MYSQL_BIN_LOG::write_event(Log_event *ev, binlog_cache_data *cache_data,
 {
   Log_event_writer writer(file, 0, &crypto);
   if (crypto.scheme && file == &log_file)
+  {
     writer.ctx= alloca(crypto.ctx_size);
+    writer.set_encrypted_writer();
+  }
   if (cache_data)
     cache_data->add_status(ev->logged_status());
   return writer.write(ev);
@@ -7242,8 +7245,10 @@ int MYSQL_BIN_LOG::write_cache(THD *thd, IO_CACHE *cache)
   CacheWriter writer(thd, &log_file, binlog_checksum_options, &crypto);
 
   if (crypto.scheme)
+  {
     writer.ctx= alloca(crypto.ctx_size);
-
+    writer.set_encrypted_writer();
+  }
   // while there is just one alg the following must hold:
   DBUG_ASSERT(binlog_checksum_options == BINLOG_CHECKSUM_ALG_OFF ||
               binlog_checksum_options == BINLOG_CHECKSUM_ALG_CRC32);

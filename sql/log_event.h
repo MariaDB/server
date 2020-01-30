@@ -932,6 +932,8 @@ typedef struct st_print_event_info
 
 class Log_event_writer
 {
+  /* Log_event_writer is updated when ctx is set */
+  int (Log_event_writer::*encrypt_or_write)(const uchar *pos, size_t len);
 public:
   ulonglong bytes_written;
   void *ctx;         ///< Encryption context or 0 if no encryption is needed
@@ -943,10 +945,13 @@ public:
   my_off_t pos() { return my_b_safe_tell(file); }
   void add_status(enum_logged_status status);
   void set_incident();
+  void set_encrypted_writer()
+  { encrypt_or_write= &Log_event_writer::encrypt_and_write; }
 
   Log_event_writer(IO_CACHE *file_arg, binlog_cache_data *cache_data_arg,
                    Binlog_crypt_data *cr= 0)
-  : bytes_written(0), ctx(0),
+    :encrypt_or_write(&Log_event_writer::write_internal),
+    bytes_written(0), ctx(0),
     file(file_arg), cache_data(cache_data_arg), crypto(cr) { }
 
 private:

@@ -798,6 +798,7 @@ my_bool Log_event::need_checksum()
 
 int Log_event_writer::write_internal(const uchar *pos, size_t len)
 {
+  DBUG_ASSERT(!ctx || encrypt_or_write == &Log_event_writer::encrypt_and_write);
   if (my_b_safe_write(file, pos, len))
   {
     DBUG_PRINT("error", ("write to log failed: %d", my_errno));
@@ -826,35 +827,37 @@ int Log_event_writer::maybe_write_event_len(uchar *pos, size_t len)
 
 int Log_event_writer::encrypt_and_write(const uchar *pos, size_t len)
 {
-  uchar *dst= 0;
-  size_t dstsize= 0;
+  uchar *dst;
+  size_t dstsize;
+  uint dstlen;
+  int res;                                      // Safe as res is always set
+  DBUG_ASSERT(ctx);
 
-  if (ctx)
+  if (!len)
+    return 0;
+
+  dstsize= encryption_encrypted_length((uint)len, ENCRYPTION_KEY_SYSTEM_DATA,
+                                       crypto->key_version);
+  if (!(dst= (uchar*)my_safe_alloca(dstsize)))
+    return 1;
+
+  if (encryption_ctx_update(ctx, pos, (uint)len, dst, &dstlen))
   {
-    dstsize= encryption_encrypted_length((uint)len, ENCRYPTION_KEY_SYSTEM_DATA,
-                                         crypto->key_version);
-    if (!(dst= (uchar*)my_safe_alloca(dstsize)))
-      return 1;
-
-    uint dstlen;
-    if (len == 0)
-      dstlen= 0;
-    else if (encryption_ctx_update(ctx, pos, (uint)len, dst, &dstlen))
-      goto err;
-
-    if (maybe_write_event_len(dst, dstlen))
-      return 1;
-    pos= dst;
-    len= dstlen;
-  }
-  if (write_internal(pos, len))
+    res= 1;
     goto err;
+  }
 
-  my_safe_afree(dst, dstsize);
-  return 0;
+  if (maybe_write_event_len(dst, dstlen))
+  {
+    res= 1;
+    goto err;
+  }
+
+  res= write_internal(dst, dstlen);
+
 err:
   my_safe_afree(dst, dstsize);
-  return 1;
+  return res;
 }
 
 int Log_event_writer::write_header(uchar *pos, size_t len)
@@ -890,7 +893,7 @@ int Log_event_writer::write_header(uchar *pos, size_t len)
     pos+= 4;
     len-= 4;
   }
-  DBUG_RETURN(encrypt_and_write(pos, len));
+  DBUG_RETURN((this->*encrypt_or_write)(pos, len));
 }
 
 int Log_event_writer::write_data(const uchar *pos, size_t len)
@@ -899,7 +902,7 @@ int Log_event_writer::write_data(const uchar *pos, size_t len)
   if (checksum_len)
     crc= my_checksum(crc, pos, len);
 
-  DBUG_RETURN(encrypt_and_write(pos, len));
+  DBUG_RETURN((this->*encrypt_or_write)(pos, len));
 }
 
 int Log_event_writer::write_footer()
@@ -909,7 +912,7 @@ int Log_event_writer::write_footer()
   {
     uchar checksum_buf[BINLOG_CHECKSUM_LEN];
     int4store(checksum_buf, crc);
-    if (encrypt_and_write(checksum_buf, BINLOG_CHECKSUM_LEN))
+    if ((this->*encrypt_or_write)(checksum_buf, BINLOG_CHECKSUM_LEN))
       DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
   if (ctx)
