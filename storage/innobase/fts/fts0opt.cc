@@ -2645,8 +2645,6 @@ fts_optimize_request_sync_table(
 
 	ib_wqueue_add(fts_optimize_wq, msg, msg->heap, true);
 
-	table->fts->in_queue = true;
-
 	mutex_exit(&fts_optimize_wq->mutex);
 }
 
