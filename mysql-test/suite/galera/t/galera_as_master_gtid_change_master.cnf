@@ -1,6 +1,0 @@
-!include ../galera_2nodes_as_master.cnf
-
-[mysqld]
-log-bin=mysqld-bin
-log-slave-updates
-binlog-format=ROW

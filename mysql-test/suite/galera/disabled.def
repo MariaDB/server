@@ -18,22 +18,14 @@ MW-286 : MDEV-18464 Killing thread can cause mutex deadlock if done concurrently
 MW-328A : MDEV-21483 galera.MW-328A galera.MW-328B
 MW-328B : MDEV-21483 galera.MW-328A galera.MW-328B
 MW-329 : MDEV-19962 Galera test failure on MW-329
-MW-360 : needs rewrite to be MariaDB gtid compatible
 galera.galera_defaults : MDEV-21494 Galera test sporadic failure on galera.galera_defaults
-galera_account_management : MariaDB 10.0 does not support ALTER USER
-galera_as_master_gtid : Requires MySQL GTID
-galera_as_master_gtid_change_master : Requires MySQL GTID
 galera_as_slave_gtid_myisam : MDEV-21421 galera.galera_as_slave_gtid_myisam
-galera_as_slave_gtid_replicate_do_db_cc : Requires MySQL GTID
-galera_as_slave_preordered : wsrep-preordered feature not merged to MariaDB
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
 galera_autoinc_sst_mariabackup : Known issue, may require porting MDEV-17458 from later versions
 galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_bf_abort_group_commit
-galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_log_events
 galera_binlog_stmt_autoinc : MDEV-19959 Galera test failure on galera_binlog_stmt_autoinc	
 galera_concurrent_ctas : MDEV-18180 Galera test failure on galera.galera_concurrent_ctas
 galera_encrypt_tmp_files : Get error failed to enable encryption of temporary files
-galera_flush :  MariaDB does not have global.thread_statistics
 galera_ftwrl : MDEV-21525 galera.galera_ftwrl
 galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
 galera_ist_mariabackup : MDEV-18829 test leaves port open
@@ -43,7 +35,6 @@ galera_kill_nochanges : MDEV-18280 Galera test failure on galera_split_brain and
 galera_load_data : MDEV-19968 galera.galera_load_data
 galera_many_tables_nopk : MDEV-18182 Galera test failure on galera.galera_many_tables_nopk
 galera_mdl_race : MDEV-21524 galera.galera_mdl_race
-galera_migrate : MariaDB does not support START SLAVE USER
 galera_parallel_autoinc_largetrx : MDEV-20916 galera.galera_parallel_autoinc_largetrx
 galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails	
 galera_pc_ignore_sb : MDEV-20888 galera.galera_pc_ignore_sb
