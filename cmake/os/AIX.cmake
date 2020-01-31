@@ -17,6 +17,7 @@
 #Enable 64 bit file offsets
 SET(_LARGE_FILES 1)
 
+IF(__AIX_COMPILER_XL)
 # Fix xlC oddity - it complains about same inline function defined multiple times
 # in different compilation units  
 INCLUDE(CheckCXXCompilerFlag)
@@ -24,10 +25,4 @@ INCLUDE(CheckCXXCompilerFlag)
  IF(HAVE_QSTATICINLINE)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -qstaticinline")
  ENDIF()
- 
-# The following is required to export all symbols 
-# (also with leading underscore)
-STRING(REPLACE  "-bexpall" "-bexpfull" CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS
-  "${CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS}")
-STRING(REPLACE  "-bexpall" "-bexpfull" CMAKE_SHARED_LIBRARY_LINK_C_FLAGS
-  "${CMAKE_SHARED_LIBRARY_LINK_C_FLAGS}")
+ENDIF()

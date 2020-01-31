@@ -209,6 +209,10 @@ MACRO(MYSQL_ADD_PLUGIN)
 
     TARGET_LINK_LIBRARIES (${target} mysqlservices ${ARG_LINK_LIBRARIES})
 
+    IF(CMAKE_SYSTEM_NAME MATCHES AIX)
+      TARGET_LINK_OPTIONS(${target} PRIVATE "-Wl,-bE:${CMAKE_SOURCE_DIR}/libservices/mysqlservices_aix.def")
+    ENDIF()
+
     # Server plugins use symbols defined in mysqld executable.
     # Some operating systems like Windows and OSX and are pretty strict about 
     # unresolved symbols. Others are less strict and allow unresolved symbols
@@ -217,7 +221,7 @@ MACRO(MYSQL_ADD_PLUGIN)
     # Thus we skip TARGET_LINK_LIBRARIES on Linux, as it would only generate
     # an additional dependency.
     IF(ARG_RECOMPILE_FOR_EMBEDDED OR ARG_STORAGE_ENGINE)
-      IF(MSVC)
+      IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
         TARGET_LINK_LIBRARIES(${target} server)
       ELSEIF(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
         TARGET_LINK_LIBRARIES (${target} mariadbd)
