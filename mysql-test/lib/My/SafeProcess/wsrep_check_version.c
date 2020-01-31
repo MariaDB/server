@@ -90,7 +90,7 @@ int main(int argc, char **argv)
     if (!provider)
     {
       fprintf(stderr, "WSREP_PROVIDER is not set\n");
-      goto err;
+      return 1;
     }
     if (!(dlh = dlopen(provider, RTLD_NOW | RTLD_LOCAL)))
     {
