@@ -178,7 +178,11 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
      The result will be in the process stderr (var/log/master.err)
    */
 
+#ifndef _AIX
   extern int yydebug;
+#else
+  static int yydebug;
+#endif
   yydebug= 1;
 }
 #endif

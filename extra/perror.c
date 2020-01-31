@@ -320,6 +320,10 @@ int main(int argc,char *argv[])
       code=atoi(*argv);
       msg = strerror(code);
 
+      // On AIX, unknow error return " Error <CODE> occurred."
+      char unknow_aix[30];
+      snprintf(unknow_aix, sizeof(unknow_aix), " Error %3d occurred.", code);
+
       /*
         We don't print the OS error message if it is the same as the
         unknown_error message we retrieved above, or it starts with
@@ -328,7 +332,8 @@ int main(int argc,char *argv[])
       if (msg &&
           my_strnncoll(&my_charset_latin1, (const uchar*) msg, 13,
                        (const uchar*) "Unknown Error", 13) &&
-          (!unknown_error || strcmp(msg, unknown_error)))
+          (!unknown_error || strcmp(msg, unknown_error)) &&
+          (!strcmp(msg, unknow_aix)))
       {
 	found= 1;
 	if (verbose)

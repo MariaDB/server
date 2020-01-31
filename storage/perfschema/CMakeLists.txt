@@ -33,6 +33,11 @@ IF (SSL_DEFINES)
   ADD_DEFINITIONS(${SSL_DEFINES})
 ENDIF()
 
+IF(CMAKE_SYSTEM_NAME MATCHES AIX)
+  # Workaround linker bug on AIX
+  SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-berok")
+ENDIF()
+
 #
 # Maintainer: keep this list sorted, to avoid merge collisions.
 # Tip: ls -1 *.h, ls -1 *.cc
