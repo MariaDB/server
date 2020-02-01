@@ -1,4 +1,4 @@
-/* Copyright (c) 2019, MariaDB Corporation.
+/* Copyright (c) 2019, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,7 +14,6 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include <my_global.h>
-#include <my_atomic.h>
 #include <my_cpu.h>
 #include <my_rdtsc.h>
 
