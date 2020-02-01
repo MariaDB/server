@@ -620,6 +620,16 @@ bool log_file_t::open()
   return success;
 }
 
+dberr_t log_file_t::rename(std::string new_path)
+{
+  if (!os_file_rename(innodb_log_file_key, m_path.c_str(),
+                      new_path.c_str())) {
+    return DB_ERROR;
+  }
+  m_path = std::move(new_path);
+  return DB_SUCCESS;
+}
+
 bool log_file_t::close()
 {
   ut_a(is_opened());
@@ -628,13 +638,13 @@ bool log_file_t::close()
   return result;
 }
 
-dberr_t log_file_t::read(size_t offset, span<byte> buf)
+dberr_t log_file_t::read(os_offset_t offset, span<byte> buf)
 {
   ut_ad(is_opened());
   return os_file_read(IORequestRead, m_fd, buf.data(), offset, buf.size());
 }
 
-dberr_t log_file_t::write(size_t offset, span<const byte> buf)
+dberr_t log_file_t::write(os_offset_t offset, span<const byte> buf)
 {
   ut_ad(is_opened());
   return os_file_write(IORequestWrite, m_path.c_str(), m_fd, buf.data(),
@@ -647,41 +657,34 @@ bool log_file_t::flush_data_only()
   return os_file_flush_data(m_fd);
 }
 
-void log_t::files::set_file_names(std::vector<std::string> names)
+void log_t::files::open_files(std::vector<std::string> paths)
 {
   files.clear();
-
-  for (auto &&name : names)
-    files.emplace_back(std::move(name));
-}
-
-void log_t::files::open_files()
-{
-  for (auto &file : files)
+  files.reserve(paths.size());
+  for (auto &&path : paths)
   {
-    if (!file.open())
-      ib::fatal() << "os_file_create(" << file.get_path() << ") failed";
+    files.push_back(std::move(path));
+    if (!files.back().open())
+      ib::fatal() << "create(" << files.back().get_path() << ") failed";
   }
 }
 
-void log_t::files::read(size_t total_offset, span<byte> buf)
+void log_t::files::read(os_offset_t total_offset, span<byte> buf)
 {
-  auto &file= files[total_offset / static_cast<size_t>(file_size)];
-  const size_t offset= total_offset % static_cast<size_t>(file_size);
+  auto &file= files[total_offset / file_size];
+  const os_offset_t offset= total_offset % file_size;
 
   if (const dberr_t err= file.read(offset, buf))
-    ib::fatal() << "log_file_t::read(" << file.get_path() << ") returned "
-                << err;
+    ib::fatal() << "read(" << file.get_path() << ") returned " << err;
 }
 
-void log_t::files::write(size_t total_offset, span<byte> buf)
+void log_t::files::write(os_offset_t total_offset, span<byte> buf)
 {
-  auto &file= files[total_offset / static_cast<size_t>(file_size)];
-  const size_t offset= total_offset % static_cast<size_t>(file_size);
+  auto &file= files[total_offset / file_size];
+  const os_offset_t offset= total_offset % file_size;
 
   if (const dberr_t err= file.write(offset, buf))
-    ib::fatal() << "log_file_t::d_write(" << file.get_path() << ") returned "
-                << err;
+    ib::fatal() << "write(" << file.get_path() << ") returned " << err;
 }
 
 void log_t::files::flush_data_only()
@@ -690,8 +693,7 @@ void log_t::files::flush_data_only()
   for (auto &file : files)
   {
     if (!file.flush_data_only())
-      ib::fatal() << "log_file_t::flush_data_only(" << file.get_path()
-                  << ") failed";
+      ib::fatal() << "flush_data_only(" << file.get_path() << ") failed";
   }
   log_sys.pending_flushes.fetch_sub(1, std::memory_order_release);
   log_sys.flushes.fetch_add(1, std::memory_order_release);
@@ -702,7 +704,7 @@ void log_t::files::close_files()
   for (auto &file : files)
   {
     if (file.is_opened() && !file.close())
-      ib::fatal() << "log_file_t::close(" << file.get_path() << ") failed";
+      ib::fatal() << "close(" << file.get_path() << ") failed";
   }
 }
 

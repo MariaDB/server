@@ -373,8 +373,7 @@ create_log_files(
 		return(DB_ERROR);
 	}
 
-	log_sys.log.set_file_names(std::move(file_names));
-	log_sys.log.open_files();
+	log_sys.log.open_files(std::move(file_names));
 	fil_open_system_tablespace_files();
 
 	/* Create a log checkpoint. */
@@ -421,16 +420,11 @@ MY_ATTRIBUTE((warn_unused_result, nonnull))
 static dberr_t create_log_files_rename(char *logfilename, size_t dirnamelen,
                                        lsn_t lsn, std::string &logfile0)
 {
-  log_sys.log.flush_data_only();
-
   ut_ad(!srv_log_files_created);
   ut_d(srv_log_files_created= true);
 
   DBUG_EXECUTE_IF("innodb_log_abort_9", return (DB_ERROR););
   DBUG_PRINT("ib_log", ("After innodb_log_abort_9"));
-
-  /* Close the log files, so that we can rename the first one. */
-  log_sys.log.close_files();
 
   /* Rename the first log file, now that a log
   checkpoint has been created. */
@@ -440,25 +434,18 @@ static dberr_t create_log_files_rename(char *logfilename, size_t dirnamelen,
 
   log_mutex_enter();
   ut_ad(logfile0.size() == 2 + strlen(logfilename));
-  dberr_t err=
-      os_file_rename(innodb_log_file_key, logfile0.c_str(), logfilename)
-          ? DB_SUCCESS
-          : DB_ERROR;
+  dberr_t err= log_sys.log.files[0].rename(logfilename);
 
   /* Replace the first file with ib_logfile0. */
   logfile0= logfilename;
-  log_sys.log.files[0]= log_file_t(logfilename);
   log_mutex_exit();
 
   DBUG_EXECUTE_IF("innodb_log_abort_10", err= DB_ERROR;);
 
   if (err == DB_SUCCESS)
-  {
-    log_sys.log.open_files();
     ib::info() << "New log files created, LSN=" << lsn;
-  }
 
-  return (err);
+  return err;
 }
 
 /** Create an undo tablespace file
@@ -1605,8 +1592,7 @@ dberr_t srv_start(bool create_new_db)
 			file_names.emplace_back(logfilename);
 		}
 
-		log_sys.log.set_file_names(std::move(file_names));
-		log_sys.log.open_files();
+		log_sys.log.open_files(std::move(file_names));
 
 		log_sys.log.create(srv_n_log_files_found);
 

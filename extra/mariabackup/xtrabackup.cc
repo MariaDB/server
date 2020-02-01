@@ -4087,8 +4087,7 @@ fail:
 		open_or_create_log_file(i, file_names);
 	}
 
-	log_sys.log.set_file_names(std::move(file_names));
-	log_sys.log.open_files();
+	log_sys.log.open_files(std::move(file_names));
 
 	/* create extra LSN dir if it does not exist. */
 	if (xtrabackup_extra_lsndir

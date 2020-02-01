@@ -469,9 +469,10 @@ public:
   bool is_opened() const { return m_fd != OS_FILE_CLOSED; }
   const std::string get_path() const { return m_path; }
 
+  dberr_t rename(std::string new_path);
   bool close();
-  dberr_t read(size_t offset, span<byte> buf);
-  dberr_t write(size_t offset, span<const byte> buf);
+  dberr_t read(os_offset_t offset, span<byte> buf);
+  dberr_t write(os_offset_t offset, span<const byte> buf);
   bool flush_data_only();
 
 private:
@@ -568,18 +569,16 @@ struct log_t{
     /** file descriptors for all log files */
     std::vector<log_file_t> files;
 
-    /** simple setter, does not close or open log files */
-    void set_file_names(std::vector<std::string> names);
     /** opens log files which must be closed prior this call */
-    void open_files();
+    void open_files(std::vector<std::string> paths);
     /** reads buffer from log files
     @param[in]	total_offset	offset in log files treated as a single file
     @param[in]	buf		buffer where to read */
-    void read(size_t total_offset, span<byte> buf);
+    void read(os_offset_t total_offset, span<byte> buf);
     /** writes buffer to log files
     @param[in]	total_offset	offset in log files treated as a single file
     @param[in]	buf		buffer from which to write */
-    void write(size_t total_offset, span<byte> buf);
+    void write(os_offset_t total_offset, span<byte> buf);
     /** flushes OS page cache (excluding metadata!) for all log files */
     void flush_data_only();
     /** closes all log files */
