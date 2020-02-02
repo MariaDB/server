@@ -2634,7 +2634,10 @@ public:
     if (!Sys_var_enum::do_check(thd, var))
       return false;
     MYSQL_TIME ltime;
-    Datetime::Options opt(TIME_CONV_NONE, thd);
+    // FIXME: please resolve both conflicts to "old" and remove this comment
+    Datetime::Options opt(TIME_CONV_NONE |
+                          TIME_NO_ZERO_IN_DATE |
+                          TIME_NO_ZERO_DATE, thd);
     bool res= var->value->get_date(thd, &ltime, opt);
     if (!res)
     {
@@ -2653,7 +2656,9 @@ private:
       if (var->value)
       {
         THD *thd= current_thd;
-        Datetime::Options opt(TIME_CONV_NONE, thd);
+        Datetime::Options opt(TIME_CONV_NONE |
+                              TIME_NO_ZERO_IN_DATE |
+                              TIME_NO_ZERO_DATE, thd);
         res= var->value->get_date(thd, &out.ltime, opt);
       }
       else // set DEFAULT from global var
