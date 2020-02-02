@@ -9359,9 +9359,6 @@ static bool wait_for_master(THD *thd, char* send_query, start_alter_info* info)
   mi->start_alter_list.push_back(info, thd->mem_root);
   mysql_mutex_unlock(&mi->start_alter_list_lock);
   mysql_cond_broadcast(&mi->start_alter_list_cond);
-    sql_print_information("Setiya alter list Added into list ===  previous_commit_id %d ",
-               thd->lex->previous_commit_id);
-    sql_print_information("Setiya list Elements %d", mi->start_alter_list.elements);
   strcpy(temp, thd->query());
   char* alter_location= strcasestr(temp, "ALTER");
   //issue here

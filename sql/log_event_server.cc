@@ -3356,7 +3356,6 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
   thd->variables.server_id= this->server_id;
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
-  //sql_print_information("Setiya gtid apply %d", thd->variables.gtid_seq_no);
   rgi->gtid_ev_flags2= flags2;
   rgi->gtid_ev_flags3= flags3;
   thd->reset_for_next_command();

@@ -5652,8 +5652,6 @@ mysql_execute_command(THD *thd)
         if (!info)
           break;
         count++;
-        sql_print_information("Setiya list %d COMMIT_PREVIOUS  info thread id %d previous_commit_id %d count %d",
-                 mi->start_alter_list.elements, info->thread_id, thd->lex->previous_commit_id, count);
         if(info->thread_id == thd->lex->previous_commit_id)
         {
           // I dont need mutex lock here
@@ -5666,8 +5664,6 @@ mysql_execute_command(THD *thd)
       }
       if (!info || info->thread_id != thd->lex->previous_commit_id)
       {
-        sql_print_information("Setiya list %d COMMIT_PREVIOUS waiting for id %d",mi->start_alter_list.elements,
-                thd->lex->previous_commit_id);
         mysql_mutex_lock(&mi->start_alter_list_lock);
         mysql_cond_wait(&mi->start_alter_list_cond, &mi->start_alter_list_lock);
         mysql_mutex_unlock(&mi->start_alter_list_lock);
@@ -5742,8 +5738,6 @@ mysql_execute_command(THD *thd)
         if (!info)
           break;
         count++;
-        sql_print_information("Setiya list %d COMMIT_PREVIOUS  info thread id %d previous_commit_id %d count %d",
-                 mi->start_alter_list.elements, info->thread_id, thd->lex->previous_commit_id, count);
         if(info->thread_id == thd->lex->previous_commit_id)
         {
           // I dont need mutex lock here
@@ -5756,8 +5750,6 @@ mysql_execute_command(THD *thd)
       }
       if (!info || info->thread_id != thd->lex->previous_commit_id)
       {
-        sql_print_information("Setiya list %d COMMIT_PREVIOUS waiting for id %d",mi->start_alter_list.elements,
-                thd->lex->previous_commit_id);
         mysql_mutex_lock(&mi->start_alter_list_lock);
         mysql_cond_wait(&mi->start_alter_list_cond, &mi->start_alter_list_lock);
         mysql_mutex_unlock(&mi->start_alter_list_lock);
