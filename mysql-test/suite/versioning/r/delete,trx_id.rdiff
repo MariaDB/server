@@ -1,0 +1,19 @@
+--- ./mysql-test/suite/versioning/r/delete.result	2020-04-02 17:10:40.375549336 +0300
++++ ./mysql-test/suite/versioning/r/delete,trx_id.reject	2020-04-02 17:33:31.227581559 +0300
+@@ -140,12 +140,12 @@
+ insert into t1 values (1, repeat('a', 8193), 1), (1, repeat('b', 8193), 1);
+ select f1, f3, check_row(row_start, row_end) from t1;
+ f1	f3	check_row(row_start, row_end)
+-1	1	CURRENT ROW
+-1	1	CURRENT ROW
++1	1	HISTORICAL ROW
++1	1	HISTORICAL ROW
+ delete from t1;
+ select f1, f3, check_row(row_start, row_end) from t1 for system_time all;
+ f1	f3	check_row(row_start, row_end)
+-1	1	HISTORICAL ROW
++1	1	ERROR: row_end == row_start
+ 1	NULL	ERROR: row_end == row_start
+-1	1	HISTORICAL ROW
++1	1	ERROR: row_end == row_start
+ drop table t1;

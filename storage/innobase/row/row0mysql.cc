@@ -2160,9 +2160,16 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 	dict_table_t* table = node->table;
 	ut_ad(table->versioned());
 
-	dtuple_t* row = node->historical_row;
-	ut_ad(row);
-	node->historical_row = NULL;
+	dtuple_t*       row;
+	ulint           n_fields        = dtuple_get_n_fields(node->historical_row);
+	ulint           n_v_fields      = dtuple_get_n_v_fields(node->historical_row);
+	ulint           i;
+
+	row = dtuple_create_with_vcol(
+			node->historical_heap, dict_table_get_n_cols(table),
+			dict_table_get_n_v_cols(table));
+
+	dict_table_copy_types(row, table);
 
 	ins_node_t* insert_node =
 		ins_node_create(INS_DIRECT, table, node->historical_heap);
@@ -2174,6 +2181,20 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 
 	insert_node->common.parent = thr;
 	ins_node_set_new_row(insert_node, row);
+
+	ut_ad(n_fields > 3);
+	// Exclude DB_ROW_ID, DB_TRX_ID, DB_ROLL_PTR
+	for (i = 0; i < n_fields - 3; i++) {
+		dfield_copy(dtuple_get_nth_field(row, i),
+			dtuple_get_nth_field(node->historical_row, i));
+	}
+
+	for (i = 0; i < n_v_fields; i++) {
+		dfield_copy(dtuple_get_nth_v_field(row, i),
+			dtuple_get_nth_v_field(node->historical_row, i));
+	}
+
+	node->historical_row = NULL;
 
 	row_end = dtuple_get_nth_field(row, table->vers_end);
 	if (dict_table_get_nth_col(table, table->vers_end)->vers_native()) {

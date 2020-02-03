@@ -1605,7 +1605,7 @@ struct dict_table_t {
 
 	/** @return whether the table is versioned.
 	It is assumed that both vers_start and vers_end set to 0
-	iff table is not versioned. In any other case,
+	if the table is not versioned. In any other case,
 	these fields correspond to actual positions in cols[]. */
 	bool versioned() const { return vers_start || vers_end; }
 	bool versioned_by_id() const

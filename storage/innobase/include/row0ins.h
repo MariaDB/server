@@ -189,6 +189,7 @@ struct ins_node_t{
 				if this is NULL, entry list should be created
 				and buffers for sys fields in row allocated */
 	ulint		magic_n;
+	bool vers_history_row();
 };
 
 #define	INS_NODE_MAGIC_N	15849075

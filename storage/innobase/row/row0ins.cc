@@ -1409,7 +1409,7 @@ row_ins_foreign_check_on_constraint(
 		ut_ad(!cascade->historical_heap);
 		cascade->historical_heap = mem_heap_create(srv_page_size);
 		cascade->historical_row = row_build(
-			ROW_COPY_DATA, clust_index, clust_rec, NULL, table,
+			ROW_COPY_POINTERS, clust_index, clust_rec, NULL, table,
 			NULL, NULL, NULL, cascade->historical_heap);
 	}
 
@@ -3642,7 +3642,12 @@ row_ins(
 	ut_ad(node->state == INS_NODE_INSERT_ENTRIES);
 
 	while (node->index != NULL) {
-		if (node->index->type != DICT_FTS) {
+		dict_index_t *index = node->index;
+		if (index->type != DICT_FTS && (
+			!node->vers_history_row()
+			|| !dict_index_is_unique(index)
+			|| dict_index_get_n_unique(index) > 1
+			|| strcmp(index->name, FTS_DOC_ID_INDEX_NAME))) {
 			dberr_t err = row_ins_index_entry_step(node, thr);
 
 			if (err != DB_SUCCESS) {
@@ -3807,4 +3812,12 @@ error_handling:
 	}
 
 	return(thr);
+}
+
+bool ins_node_t::vers_history_row()
+{
+	if (!table->versioned())
+		return false;
+	dfield_t* row_end = dtuple_get_nth_field(row, table->vers_end);
+	return row_end->vers_history_row();
 }

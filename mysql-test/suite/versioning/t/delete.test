@@ -94,4 +94,19 @@ drop procedure pr;
 drop trigger tr;
 drop table t1;
 
+--echo #
+--echo # MDEV-21138 Assertion `col->ord_part' or `f.col->ord_part' failed in row_build_index_entry_low
+--echo #
+create table t1 (
+  f1 int, f2 text, f3 int, fulltext (f2), key(f1), key(f3),
+  foreign key r (f3) references t1 (f1) on delete set null)
+with system versioning engine innodb;
+insert into t1 values (1, repeat('a', 8193), 1), (1, repeat('b', 8193), 1);
+select f1, f3, check_row(row_start, row_end) from t1;
+delete from t1;
+select f1, f3, check_row(row_start, row_end) from t1 for system_time all;
+
+# cleanup
+drop table t1;
+
 --source suite/versioning/common_finish.inc
