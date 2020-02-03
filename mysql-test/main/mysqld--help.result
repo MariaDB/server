@@ -1187,13 +1187,15 @@ The following specify which files/extra groups are read (specified before remain
  Alias for slave_parallel_threads
  --slave-run-triggers-for-rbr=name 
  Modes for how triggers in row-base replication on slave
- side will be executed. Legal values are NO (default), YES
- and LOGGING. NO means that trigger for RBR will not be
- running on slave. YES and LOGGING means that triggers
- will be running on slave, if there was not triggers
- running on the master for the statement. LOGGING also
- means results of that the executed triggers work will be
- written to the binlog.
+ side will be executed. Legal values are NO (default),
+ YES, LOGGING and ENFORCE. NO means that trigger for RBR
+ will not be running on slave. YES and LOGGING means that
+ triggers will be running on slave, if there was not
+ triggers running on the master for the statement. LOGGING
+ also means results of that the executed triggers work
+ will be written to the binlog. ENFORCE means that
+ triggers will always be run on the slave, even if there
+ are triggers on the master. ENFORCE implies LOGGING.
  --slave-skip-errors=name 
  Tells the slave thread to continue replication when a
  query event returns an error from the provided list

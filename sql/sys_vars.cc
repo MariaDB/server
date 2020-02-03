@@ -3102,16 +3102,17 @@ static Sys_var_enum Slave_ddl_exec_mode(
        slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_IDEMPOTENT));
 
 static const char *slave_run_triggers_for_rbr_names[]=
-  {"NO", "YES", "LOGGING", 0};
+  {"NO", "YES", "LOGGING", "ENFORCE", 0};
 static Sys_var_enum Slave_run_triggers_for_rbr(
        "slave_run_triggers_for_rbr",
        "Modes for how triggers in row-base replication on slave side will be "
-       "executed. Legal values are NO (default), YES and LOGGING. NO means "
+       "executed. Legal values are NO (default), YES, LOGGING and ENFORCE. NO means "
        "that trigger for RBR will not be running on slave. YES and LOGGING "
        "means that triggers will be running on slave, if there was not "
        "triggers running on the master for the statement. LOGGING also means "
        "results of that the executed triggers work will be written to "
-       "the binlog.",
+       "the binlog. ENFORCE means that triggers will always be run on the slave, "
+       "even if there are triggers on the master. ENFORCE implies LOGGING.",
        GLOBAL_VAR(slave_run_triggers_for_rbr), CMD_LINE(REQUIRED_ARG),
        slave_run_triggers_for_rbr_names,
        DEFAULT(SLAVE_RUN_TRIGGERS_FOR_RBR_NO));

@@ -6809,7 +6809,7 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
     m_table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
     m_table->file->extra(HA_EXTRA_IGNORE_NO_KEY);
   }
-  if (slave_run_triggers_for_rbr && !master_had_triggers && m_table->triggers )
+  if (m_table->triggers && do_invoke_trigger())
     m_table->prepare_triggers_for_insert_stmt_or_event();
 
   /* Honor next number column if present */
@@ -6989,8 +6989,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   TABLE *table= m_table;  // pointer to event's table
   int error;
   int UNINIT_VAR(keynum);
-  const bool invoke_triggers=
-    slave_run_triggers_for_rbr && !master_had_triggers && table->triggers;
+  const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
   auto_afree_ptr<char> key(NULL);
 
   prepare_record(table, m_width, true);
@@ -7866,7 +7865,7 @@ Delete_rows_log_event::do_before_row_operations(const Slave_reporting_capability
     */
     return 0;
   }
-  if (slave_run_triggers_for_rbr && !master_had_triggers)
+  if (do_invoke_trigger())
     m_table->prepare_triggers_for_delete_stmt_or_event();
 
   return find_key();
@@ -7889,8 +7888,7 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
   int error;
   const char *tmp= thd->get_proc_info();
   const char *message= "Delete_rows_log_event::find_row()";
-  const bool invoke_triggers=
-    slave_run_triggers_for_rbr && !master_had_triggers && m_table->triggers;
+  const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
   DBUG_ASSERT(m_table != NULL);
 
 #ifdef WSREP_PROC_INFO
@@ -8016,7 +8014,7 @@ Update_rows_log_event::do_before_row_operations(const Slave_reporting_capability
   if ((err= find_key()))
     return err;
 
-  if (slave_run_triggers_for_rbr && !master_had_triggers)
+  if (do_invoke_trigger())
     m_table->prepare_triggers_for_update_stmt_or_event();
 
   return 0;
@@ -8035,11 +8033,10 @@ Update_rows_log_event::do_after_row_operations(const Slave_reporting_capability 
   return error;
 }
 
-int 
+int
 Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
 {
-  const bool invoke_triggers=
-    slave_run_triggers_for_rbr && !master_had_triggers && m_table->triggers;
+  const bool invoke_triggers= (m_table->triggers && do_invoke_trigger());
   const char *tmp= thd->get_proc_info();
   const char *message= "Update_rows_log_event::find_row()";
   DBUG_ASSERT(m_table != NULL);

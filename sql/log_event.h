@@ -4880,6 +4880,12 @@ public:
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   virtual uint8 get_trg_event_map()= 0;
+
+  inline bool do_invoke_trigger()
+  {
+    return (slave_run_triggers_for_rbr && !master_had_triggers) ||
+            slave_run_triggers_for_rbr == SLAVE_RUN_TRIGGERS_FOR_RBR_ENFORCE;
+  }
 #endif
 
 protected:

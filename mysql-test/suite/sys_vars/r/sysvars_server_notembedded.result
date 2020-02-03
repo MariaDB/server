@@ -3616,11 +3616,11 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_RUN_TRIGGERS_FOR_RBR
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Modes for how triggers in row-base replication on slave side will be executed. Legal values are NO (default), YES and LOGGING. NO means that trigger for RBR will not be running on slave. YES and LOGGING means that triggers will be running on slave, if there was not triggers running on the master for the statement. LOGGING also means results of that the executed triggers work will be written to the binlog.
+VARIABLE_COMMENT	Modes for how triggers in row-base replication on slave side will be executed. Legal values are NO (default), YES, LOGGING and ENFORCE. NO means that trigger for RBR will not be running on slave. YES and LOGGING means that triggers will be running on slave, if there was not triggers running on the master for the statement. LOGGING also means results of that the executed triggers work will be written to the binlog. ENFORCE means that triggers will always be run on the slave, even if there are triggers on the master. ENFORCE implies LOGGING.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NO,YES,LOGGING
+ENUM_VALUE_LIST	NO,YES,LOGGING,ENFORCE
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_SKIP_ERRORS
