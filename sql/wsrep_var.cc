@@ -41,6 +41,53 @@ int wsrep_init_vars()
   return 0;
 }
 
+static int get_provider_option_value(const char* opts,
+                                     const char* opt_name,
+                                     ulong* opt_value)
+{
+  int ret= 1;
+  ulong opt_value_tmp;
+  char *opt_value_str, *s, *opts_copy= my_strdup(opts, MYF(MY_WME));
+
+  if ((opt_value_str= strstr(opts_copy, opt_name)) == NULL)
+    goto end;
+  opt_value_str= strtok_r(opt_value_str, "=", &s);
+  if (opt_value_str == NULL) goto end;
+  opt_value_str= strtok_r(NULL, ";", &s);
+  if (opt_value_str == NULL) goto end;
+
+  opt_value_tmp= strtoul(opt_value_str, NULL, 10);
+  if (errno == ERANGE) goto end;
+
+  *opt_value= opt_value_tmp;
+  ret= 0;
+
+end:
+  my_free(opts_copy);
+  return ret;
+}
+
+static bool refresh_provider_options()
+{
+  WSREP_DEBUG("refresh_provider_options: %s",
+              (wsrep_provider_options) ? wsrep_provider_options : "null");
+
+  try
+  {
+    std::string opts= Wsrep_server_state::instance().provider().options();
+    wsrep_provider_options_init(opts.c_str());
+    get_provider_option_value(wsrep_provider_options,
+                              (char*)"repl.max_ws_size",
+                              &wsrep_max_ws_size);
+    return false;
+  }
+  catch (...)
+  {
+    WSREP_ERROR("Failed to get provider options");
+    return true;
+  }
+}
+
 /* This is intentionally declared as a weak global symbol, so that
 linking will succeed even if the server is built with a dynamically
 linked InnoDB. */
@@ -50,8 +97,28 @@ struct handlerton* innodb_hton_ptr __attribute__((weak));
 bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 {
   if (var_type == OPT_GLOBAL) {
-    // FIXME: this variable probably should be changed only per session
     thd->variables.wsrep_on= global_system_variables.wsrep_on;
+
+    // If wsrep has not been inited we need to do it now
+    if (global_system_variables.wsrep_on && wsrep_provider && !wsrep_inited)
+    {
+      bool rcode= false;
+      char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider
+                                         //when fails
+
+      if (wsrep_init())
+      {
+        my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, my_error, "wsrep_init failed");
+        rcode= true;
+      }
+      free(tmp);
+
+      // we sure don't want to use old address with new provider
+      wsrep_cluster_address_init(NULL);
+      wsrep_provider_options_init(NULL);
+      if (!rcode)
+        refresh_provider_options();
+    }
   }
 
   return false;
@@ -222,53 +289,6 @@ bool wsrep_start_position_init (const char* val)
   }
 
   return false;
-}
-
-static int get_provider_option_value(const char* opts,
-                                     const char* opt_name,
-                                     ulong* opt_value)
-{
-  int ret= 1;
-  ulong opt_value_tmp;
-  char *opt_value_str, *s, *opts_copy= my_strdup(opts, MYF(MY_WME));
-
-  if ((opt_value_str= strstr(opts_copy, opt_name)) == NULL)
-    goto end;
-  opt_value_str= strtok_r(opt_value_str, "=", &s);
-  if (opt_value_str == NULL) goto end;
-  opt_value_str= strtok_r(NULL, ";", &s);
-  if (opt_value_str == NULL) goto end;
-
-  opt_value_tmp= strtoul(opt_value_str, NULL, 10);
-  if (errno == ERANGE) goto end;
-
-  *opt_value= opt_value_tmp;
-  ret= 0;
-
-end:
-  my_free(opts_copy);
-  return ret;
-}
-
-static bool refresh_provider_options()
-{
-  WSREP_DEBUG("refresh_provider_options: %s", 
-              (wsrep_provider_options) ? wsrep_provider_options : "null");
-
-  try
-  {
-    std::string opts= Wsrep_server_state::instance().provider().options();
-    wsrep_provider_options_init(opts.c_str());
-    get_provider_option_value(wsrep_provider_options,
-                              (char*)"repl.max_ws_size",
-                              &wsrep_max_ws_size);
-    return false;
-  }
-  catch (...)
-  {
-    WSREP_ERROR("Failed to get provider options");
-    return true;
-  }
 }
 
 static int wsrep_provider_verify (const char* provider_str)
