@@ -24,7 +24,9 @@ SELECT WSREP_SYNC_WAIT_UPTO_GTID('1-1-1,1-1-2');
 
 # Expected starting seqno
 
---let $start_seqno = 2
+--let $last_seen_gtid = `SELECT WSREP_LAST_SEEN_GTID()`
+--let $s1 = `SELECT SUBSTR('$last_seen_gtid', LOCATE('-', '$last_seen_gtid') + LENGTH('-'))`
+--let $start_seqno = `SELECT SUBSTR('$s1', LOCATE('-', '$s1') + LENGTH('-'))`
 
 # If set to low value, expect no waiting
 
@@ -57,9 +59,8 @@ SELECT WSREP_SYNC_WAIT_UPTO_GTID('1-1-1,1-1-2');
 --disable_query_log
 --let $wait_seqno = $start_seqno
 --inc $wait_seqno
+--send_eval SELECT WSREP_SYNC_WAIT_UPTO_GTID('100-1-$wait_seqno') AS WSREP_SYNC_WAIT_UPTO
 --enable_query_log
-
---send_eval SELECT WSREP_SYNC_WAIT_UPTO_GTID('100-1-$wait_seqno')
 
 --connection node_1
 INSERT INTO t1 VALUES (2);
