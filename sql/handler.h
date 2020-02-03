@@ -578,6 +578,9 @@ given at all. */
 /* Create a sequence */
 #define HA_CREATE_USED_SEQUENCE           (1UL << 25)
 
+/* This is set whenever a mysql_json field type is present in the table. */
+#define HA_CREATE_USED_MYSQL_JSON           (1UL << 26)
+
 typedef ulonglong alter_table_operations;
 
 /*

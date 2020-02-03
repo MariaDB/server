@@ -3680,10 +3680,10 @@ public:
     TODO: MDEV-9331
     if (from->type() == MYSQL_TYPE_BIT)
       return do_field_int;
+    Always perform conversion from mysql_json.
     */
     if (!(from->flags & BLOB_FLAG) || from->charset() != charset() ||
         !from->compression_method() != !compression_method() ||
-        /* Always perform conversion from mysql_json. */
         from->type_handler() == &type_handler_mysql_json)
       return do_conv_blob;
     if (from->pack_length() != Field_blob::pack_length())
@@ -4857,9 +4857,8 @@ public:
   {}
 
   String *val_str(String *val_buffer, String *val_str);
-  enum_field_types type() const { return MYSQL_TYPE_LONG_BLOB; }
   const Type_handler *type_handler() const { return &type_handler_mysql_json; }
-  bool parse_mysql(String *dest, const char *data, size_t length) const;
+  bool parse_mysql(String *dest, const uchar *data, size_t length) const;
 };
 
 uint pack_length_to_packflag(uint type);

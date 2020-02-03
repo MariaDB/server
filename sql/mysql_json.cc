@@ -1,7 +1,5 @@
-#include <algorithm>
-
 #include "mysql_json.h"
-
+#include "my_global.h"
 #include "compat56.h"
 #include "my_decimal.h"
 #include "sql_time.h"
@@ -15,13 +13,11 @@
   timestamp. An additional opaque value can store any other MySQL type.
 */
 
-
 enum JSONB_LITERAL_TYPES {
   JSONB_NULL_LITERAL=      0x0,
   JSONB_TRUE_LITERAL=      0x1,
   JSONB_FALSE_LITERAL=     0x2,
 };
-
 
 /*
   The size of offset or size fields in the small and the large storage
@@ -49,8 +45,7 @@ static const uchar VALUE_ENTRY_SIZE_SMALL= (1 + SMALL_OFFSET_SIZE);
 static const uchar VALUE_ENTRY_SIZE_LARGE= (1 + LARGE_OFFSET_SIZE);
 
 /* The maximum number of nesting levels allowed in a JSON document. */
-static const uchar JSON_DOCUMENT_MAX_DEPTH= 100;
-
+static const uchar JSON_DOCUMENT_MAX_DEPTH= 150;
 
 /**
   Read an offset or size field from a buffer. The offset could be either
@@ -60,23 +55,20 @@ static const uchar JSON_DOCUMENT_MAX_DEPTH= 100;
   @param large tells if the large or small storage format is used; true
                means read four bytes, false means read two bytes
 */
-static inline size_t read_offset_or_size(const char *data, bool large)
+static inline size_t read_offset_or_size(const uchar *data, bool large)
 {
   return large ? uint4korr(data) : uint2korr(data);
 }
-
 
 static inline size_t key_size(bool large)
 {
   return large ? KEY_ENTRY_SIZE_LARGE : KEY_ENTRY_SIZE_SMALL;
 }
 
-
 static inline size_t value_size(bool large)
 {
   return large ? VALUE_ENTRY_SIZE_LARGE : VALUE_ENTRY_SIZE_SMALL;
 }
-
 
 /**
   Inlined values are a space optimization. The actual value is stored
@@ -106,7 +98,7 @@ static inline bool type_is_stored_inline(JSONB_TYPES type, bool large)
   @param[out] num          the number of bytes needed to represent the length
   @return  false on success, true on error
 */
-static inline bool read_variable_length(const char *data, size_t data_length,
+static inline bool read_variable_length(const uchar *data, size_t data_length,
                                         size_t *length, size_t *num)
 {
   /*
@@ -116,10 +108,9 @@ static inline bool read_variable_length(const char *data, size_t data_length,
     Use data_length as max value to prevent segfault when reading a corrupted
     JSON document.
   */
-  const size_t max_bytes= std::min(data_length, static_cast<size_t>(5));
-
+  const size_t MAX_BYTES= MY_MIN(data_length, 5);
   size_t len= 0;
-  for (size_t i= 0; i < max_bytes; i++)
+  for (size_t i= 0; i < MAX_BYTES; i++)
   {
     /* Get the next 7 bits of the length. */
     len|= (data[i] & 0x7f) << (7 * i);
@@ -141,14 +132,13 @@ static inline bool read_variable_length(const char *data, size_t data_length,
   return true;
 }
 
-
 /**
    JSON formatting in MySQL escapes a few special characters to prevent
    ambiguity.
 */
-static bool append_string_json(String *buffer, const char *data, size_t len)
+static bool append_string_json(String *buffer, const uchar *data, size_t len)
 {
-  const char *last= data + len;
+  const uchar *last= data + len;
   for (; data < last; data++)
   {
     const uchar c= *data;
@@ -182,9 +172,11 @@ static bool append_string_json(String *buffer, const char *data, size_t len)
   return false;
 }
 
-
+/*
+  Function used for JSON_OPAQUE type.
+*/
 static bool print_mysql_datetime_value(String *buffer, enum_field_types type,
-                                       const char *data, size_t len)
+                                       const uchar *data, size_t len)
 {
   if (len < 8)
     return true;
@@ -215,9 +207,8 @@ static bool print_mysql_datetime_value(String *buffer, enum_field_types type,
   return false;
 }
 
-
 static bool parse_mysql_scalar(String *buffer, size_t value_json_type,
-                               const char *data, size_t len)
+                               const uchar *data, size_t len)
 {
   switch (value_json_type) {
   case JSONB_TYPE_LITERAL:
@@ -255,22 +246,22 @@ static bool parse_mysql_scalar(String *buffer, size_t value_json_type,
     return false;
   case JSONB_TYPE_STRING:
   {
-    size_t string_length, length_bytes;
+    size_t string_length, store_bytes;
 
-    return read_variable_length(data, len, &string_length, &length_bytes) ||
-           len < length_bytes + string_length ||
+    return read_variable_length(data, len, &string_length, &store_bytes) ||
+           len < store_bytes + string_length ||
            buffer->append('"') ||
-           append_string_json(buffer, data + length_bytes, string_length) ||
+           append_string_json(buffer, data + store_bytes, string_length) ||
            buffer->append('"');
   }
   case JSONB_TYPE_OPAQUE:
   {
     /* The field_type maps directly to enum_field_types. */
-    const uchar type_value= static_cast<uchar>(*data);
+    const uchar type_value= *data;
     const enum_field_types field_type= static_cast<enum_field_types>(type_value);
 
     size_t blob_length, length_bytes;
-    const char *blob_start;
+    const uchar *blob_start;
 
     if (read_variable_length(data + 1, len, &blob_length, &length_bytes) ||
         len < length_bytes + blob_length)
@@ -302,7 +293,6 @@ static bool parse_mysql_scalar(String *buffer, size_t value_json_type,
                             reinterpret_cast<const uchar *>(blob_start + 2),
                             &d, precision, scale) != E_DEC_OK)
         return true;
-      d.fix_buffer_pointer();
 
       if (my_decimal2string(E_DEC_ERROR, &d, 0, 0, ' ', buffer) != E_DEC_OK)
         return true;
@@ -347,7 +337,7 @@ static bool parse_mysql_scalar(String *buffer, size_t value_json_type,
   @param[in] large              true if the large storage format is used;
   @param[in] depth              How deep the JSON object is in the hierarchy.
 */
-static bool parse_mysql_scalar_or_value(String *buffer, const char *data,
+static bool parse_mysql_scalar_or_value(String *buffer, const uchar *data,
                                         size_t len, size_t value_type_offset,
                                         bool large, size_t depth)
 {
@@ -373,15 +363,13 @@ static bool parse_mysql_scalar_or_value(String *buffer, const char *data,
       return true;
   }
   return false;
-
 }
 
-
-static bool parse_array_or_object(String *buffer, const char *data, size_t len,
+static bool parse_array_or_object(String *buffer, const uchar *data, size_t len,
                                   bool handle_as_object, bool large,
                                   size_t depth)
 {
-  if (depth > JSON_DOCUMENT_MAX_DEPTH)
+  if (++depth > JSON_DOCUMENT_MAX_DEPTH)
     return true;
 
   /*
@@ -435,9 +423,9 @@ static bool parse_array_or_object(String *buffer, const char *data, size_t len,
       const size_t key_len= read_offset_or_size(
                                    data + key_offset + offset_size, false);
 
-      const size_t value_type_offset= 2 * offset_size +
+      const size_t value_type_offset=(2 * offset_size +
                                       element_count * key_size(large) +
-                                      i * value_size(large);
+                                      i * value_size(large));
 
       /* First print the key. */
       if (buffer->append('"') ||
@@ -472,19 +460,30 @@ static bool parse_array_or_object(String *buffer, const char *data, size_t len,
   return buffer->append(handle_as_object ? '}' : ']');
 }
 
+/**
+  Check the first byte of data which is the enum structure and based on it
+  perform parsing of object or array where each can have small or large
+  representation.
 
-bool parse_mysql_json_value(String *buffer, JSONB_TYPES type, const char *data,
+  @param[out] buffer            Where to print the results.
+  @param[in] type               Type of value {object, array, scalar}.
+  @param[in] data               Raw data for parsing.
+  @param[in] length             Length of data.
+  @param[in] depth              Depth size.
+*/
+bool parse_mysql_json_value(String *buffer, JSONB_TYPES type, const uchar *data,
                             size_t len, size_t depth)
 {
+  const bool IS_OBJECT=true, IS_LARGE=true;
   switch (type) {
   case JSONB_TYPE_SMALL_OBJECT:
-    return parse_array_or_object(buffer, data, len, true, false, depth + 1);
+    return parse_array_or_object(buffer, data, len, IS_OBJECT, !IS_LARGE, depth);
   case JSONB_TYPE_LARGE_OBJECT:
-    return parse_array_or_object(buffer, data, len, true, true, depth + 1);
+    return parse_array_or_object(buffer, data, len, IS_OBJECT, IS_LARGE, depth);
   case JSONB_TYPE_SMALL_ARRAY:
-    return parse_array_or_object(buffer, data, len, false, false, depth + 1);
+    return parse_array_or_object(buffer, data, len, !IS_OBJECT, !IS_LARGE, depth);
   case JSONB_TYPE_LARGE_ARRAY:
-    return parse_array_or_object(buffer, data, len, false, true, depth + 1);
+    return parse_array_or_object(buffer, data, len, !IS_OBJECT, IS_LARGE, depth);
   default:
     return parse_mysql_scalar(buffer, type, data, len);
   }

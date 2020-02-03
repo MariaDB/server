@@ -18,9 +18,9 @@ enum JSONB_TYPES {
   JSONB_TYPE_UINT64=       0xA,
   JSONB_TYPE_DOUBLE=       0xB,
   JSONB_TYPE_STRING=       0xC,
-  JSONB_TYPE_OPAQUE=       0xF,
+  JSONB_TYPE_OPAQUE=       0xF
 };
 
-bool parse_mysql_json_value(String *buffer, JSONB_TYPES type, const char *data,
+bool parse_mysql_json_value(String *buffer, JSONB_TYPES type, const uchar *data,
                             size_t len, size_t depth);
 #endif  /* MYSQL_JSON_INCLUDED */

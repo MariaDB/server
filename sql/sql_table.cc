@@ -10294,6 +10294,14 @@ err_new_table_cleanup:
 
   if (new_table)
   {
+    /* Problem during copying of table data with a MYSQL JSON field. Remove it
+       from tdc so it's not used in subsequent queries. We only allow opening of
+       such tables during ALTER TABLE ... FORCE. */
+    if (table->s->incompatible_version & HA_CREATE_USED_MYSQL_JSON)
+    {
+      tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED, table->s->db.str,
+                       table->s->table_name.str, true);
+    }
     thd->drop_temporary_table(new_table, NULL, true);
   }
   else

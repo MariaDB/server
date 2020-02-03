@@ -11377,7 +11377,7 @@ uint32 Field_blob::max_display_length() const
  Mysql table 5.7 with json data handling
 *****************************************************************************/
 bool Field_mysql_json::parse_mysql(String *dest,
-                                   const char *data, size_t length) const
+                                   const uchar *data, size_t length) const
 {
   if (!data)
     return false;
@@ -11386,6 +11386,7 @@ bool Field_mysql_json::parse_mysql(String *dest,
   if (length < 2)
     return true;
 
+  /* Start parsing json value*/
   if (parse_mysql_json_value(dest, static_cast<JSONB_TYPES>(data[0]),
                              data + 1, length - 1, 0))
     return true;
@@ -11398,15 +11399,19 @@ String *Field_mysql_json::val_str(String *val_buffer, String *val_ptr)
   ASSERT_COLUMN_MARKED_FOR_READ;
   String *raw_value= Field_blob::val_str(val_buffer, val_ptr);
 
-  const char* data = raw_value->ptr();
-  size_t length = raw_value->length();
+  const uchar* data= (const uchar *)raw_value->ptr();
+  size_t length= raw_value->length();
 
   val_ptr->length(0);
-  if (this->parse_mysql(val_ptr, data, length))
+  if (parse_mysql(val_ptr, data, length))
+  {
     val_ptr->length(0);
+    my_printf_error(ER_UNKNOWN_ERROR,
+        "Error parsing MySQL JSON format, please dump this table from MySQL "
+        "and then restore it to be able to use it in MariaDB.", MYF(0));
+  }
   return val_ptr;
 }
-
 
 /*****************************************************************************
  Warning handling
@@ -11453,7 +11458,6 @@ Field::set_warning(Sql_condition::enum_warning_level level, uint code,
   }
   return level >= Sql_condition::WARN_LEVEL_WARN;
 }
-
 
 /**
   Produce warning or note about datetime string data saved into field.

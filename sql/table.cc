@@ -1909,15 +1909,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (unlikely(share->mysql_version >= 50700 &&
                      share->mysql_version < 100000))
         {
-          if(thd->lex->sql_command != SQLCOM_ALTER_TABLE ||
-             thd->lex->alter_info.flags != ALTER_RECREATE)
-          {
-            // Raise an error for every operation except `alter table force`.
-            open_table_error(share, OPEN_FRM_NEEDS_REBUILD, share->open_errno);
-            goto err;
-          }
+
+          share->incompatible_version|= HA_CREATE_USED_MYSQL_JSON;
           handle_field_as_mysql_json= true;
-          field_type= MYSQL_TYPE_LONG_BLOB;
         }
         else
         {
