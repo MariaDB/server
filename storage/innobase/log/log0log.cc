@@ -671,7 +671,7 @@ void log_t::files::open_files(std::vector<std::string> paths)
 
 void log_t::files::read(os_offset_t total_offset, span<byte> buf)
 {
-  auto &file= files[total_offset / file_size];
+  auto &file= files[static_cast<size_t>(total_offset / file_size)];
   const os_offset_t offset= total_offset % file_size;
 
   if (const dberr_t err= file.read(offset, buf))
@@ -680,7 +680,7 @@ void log_t::files::read(os_offset_t total_offset, span<byte> buf)
 
 void log_t::files::write(os_offset_t total_offset, span<byte> buf)
 {
-  auto &file= files[total_offset / file_size];
+  auto &file= files[static_cast<size_t>(total_offset / file_size)];
   const os_offset_t offset= total_offset % file_size;
 
   if (const dberr_t err= file.write(offset, buf))
