@@ -184,16 +184,60 @@ private:
                                      bool is_subpart);
 };
 
+
+/*
+  List of ranges to be scanned by ha_partition's MRR implementation
+
+  This object is
+   - A KEY_MULTI_RANGE structure (the MRR range)
+   - Storage for the range endpoints that the KEY_MULTI_RANGE has pointers to
+   - list of such ranges (connected through the "next" pointer).
+*/
+
 typedef struct st_partition_key_multi_range
 {
+  /*
+    Number of the range. The ranges are numbered in the order RANGE_SEQ_IF has
+    emitted them, starting from 1. The numbering in used by ordered MRR scans.
+  */
   uint id;
   uchar *key[2];
+  /*
+    Sizes of allocated memory in key[]. These may be larger then the actual
+    values as this structure is reused across MRR scans
+  */
   uint length[2];
+
+  /*
+    The range.
+    key_multi_range.ptr is a pointer to the this PARTITION_KEY_MULTI_RANGE
+    object
+  */
   KEY_MULTI_RANGE key_multi_range;
+
+  // Range id from the SQL layer
   range_id_t ptr;
+
+  // The next element in the list of MRR ranges.
   st_partition_key_multi_range *next;
 } PARTITION_KEY_MULTI_RANGE;
 
+
+/*
+  List of ranges to be scanned in a certain [sub]partition.
+
+  The idea is that there's a list of ranges to be scanned in the table
+  (formed by PARTITION_KEY_MULTI_RANGE structures),
+  and for each [sub]partition, we only need to scan a subset of that list.
+
+     PKMR1 --> PKMR2 --> PKMR3 -->... // list of PARTITION_KEY_MULTI_RANGE
+       ^                   ^
+       |                   |
+     PPKMR1 ----------> PPKMR2 -->... // list of PARTITION_PART_KEY_MULTI_RANGE
+
+  This way, per-partition lists of PARTITION_PART_KEY_MULTI_RANGE have pointers
+  to the elements of the global list of PARTITION_KEY_MULTI_RANGE.
+*/
 
 typedef struct st_partition_part_key_multi_range
 {
@@ -203,10 +247,23 @@ typedef struct st_partition_part_key_multi_range
 
 
 class ha_partition;
+
+/*
+  The structure holding information about range sequence to be used with one
+  partition.
+  (pointer to this is used as seq_init_param for RANGE_SEQ_IF structure when
+   invoking MRR for an individual partition)
+*/
+
 typedef struct st_partition_part_key_multi_range_hld
 {
+  /* Owner object */
   ha_partition *partition;
+
+  // id of the the partition this structure is for
   uint32 part_id;
+
+  // Current range we're iterating through.
   PARTITION_PART_KEY_MULTI_RANGE *partition_part_key_multi_range;
 } PARTITION_PART_KEY_MULTI_RANGE_HLD;
 
@@ -810,21 +867,51 @@ public:
   uint m_mrr_new_full_buffer_size;
   MY_BITMAP m_mrr_used_partitions;
   uint *m_stock_range_seq;
-  uint m_current_range_seq;
+  // not used: uint m_current_range_seq;
+
+  // Value of mrr_mode passed to ha_partition::multi_range_read_init
   uint m_mrr_mode;
+
+  // Value of n_ranges passed to ha_partition::multi_range_read_init
   uint m_mrr_n_ranges;
+
+  /*
+    Ordered MRR mode:  m_range_info[N] has the range_id of the last record that
+    we've got from partition N.
+  */
   range_id_t *m_range_info;
+
+  // TRUE <=> This ha_partition::multi_range_read_next() call is the first one
   bool m_multi_range_read_first;
-  uint m_mrr_range_init_flags;
+  // not used: uint m_mrr_range_init_flags;
+
+  /* Number of elements in the list pointed by m_mrr_range_first. Not used */
   uint m_mrr_range_length;
+
+  // Linked list of ranges to scan
   PARTITION_KEY_MULTI_RANGE *m_mrr_range_first;
   PARTITION_KEY_MULTI_RANGE *m_mrr_range_current;
+
+  /*
+    For each partition: number of ranges MRR scan will scan in the partition
+  */
   uint *m_part_mrr_range_length;
+
+  /*
+    For each partition: List of ranges to scan in this partition.
+  */
   PARTITION_PART_KEY_MULTI_RANGE **m_part_mrr_range_first;
   PARTITION_PART_KEY_MULTI_RANGE **m_part_mrr_range_current;
   PARTITION_PART_KEY_MULTI_RANGE_HLD *m_partition_part_key_multi_range_hld;
+
+  /*
+    Sequence of ranges to be scanned (TODO: why not stores this in
+    handler::mrr_{iter,funcs}?)
+  */
   range_seq_t m_seq;
   RANGE_SEQ_IF *m_seq_if;
+
+  // Range iterator structure to be supplied to partitions
   RANGE_SEQ_IF m_part_seq_if;
 
   virtual int multi_range_key_create_key(
