@@ -21446,6 +21446,7 @@ dberr_t
 fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD *thd, TABLE_SHARE *share)
 {
 	pars_info_t* info;
+	ddl_log_info fk_ddl_info;
 	fk_legacy_data d(trx, table, share);
 
 	info = pars_info_create();
@@ -21510,7 +21511,7 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD *thd, TABLE_SHARE
 
 	// Got legacy foreign keys, update referenced shares
 	FK_table_backup fk_table_backup;
-	FK_create_vector ref_shares;
+	FK_ddl_vector ref_shares;
 	if (d.s->fk_handle_create(thd, ref_shares, &d.foreign_keys)) {
 		err = DB_ERROR;
 		goto rollback;
@@ -21530,21 +21531,21 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD *thd, TABLE_SHARE
 	}
 
 	// Update foreign FRM
-	if (d.s->fk_write_shadow_frm()) {
+	if (fk_table_backup.fk_write_shadow_frm(fk_ddl_info)) {
 		err = DB_ERROR;
 		goto rollback;
 	}
 
 	// Update referenced FRMs
 	for (FK_ddl_backup &bak: ref_shares) {
-		if (bak.sa.share->fk_install_shadow_frm()) {
-			// TODO: MDEV-21053 atomicity
+		if (bak.fk_install_shadow_frm(fk_ddl_info)) {
+			// FIXME: MDEV-21053 atomicity
 			err = DB_ERROR;
 			goto rollback;
 		}
 	}
 
-	if (d.s->fk_install_shadow_frm()) {
+	if (fk_table_backup.fk_install_shadow_frm(fk_ddl_info)) {
 		err = DB_ERROR;
 		goto rollback;
 	}
@@ -21590,7 +21591,7 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD *thd, TABLE_SHARE
 
 rollback:
 	for (FK_ddl_backup &bak: ref_shares) {
-		bak.rollback();
+		bak.rollback(fk_ddl_info);
 	}
 	return err;
 }

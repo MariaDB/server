@@ -219,4 +219,79 @@ t2	CREATE TABLE `t2` (
 drop table t1,t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_fid)
 drop table t2, t1;
-ERROR 42S02: Unknown table 'test.t2'
+#
+# MDEV-21053 Crash safety of FK DDL
+#
+set @save_dbug=@@debug_dbug;
+set session debug_dbug="+d,crash_add_fk_1";
+create or replace table t2 (id int);
+insert into t2 values(1);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2;
+id
+1
+create or replace table t1 (id int primary key);
+insert into t1 values(1);
+# State before crash
+total 28
+-rw-r--r-- 1 midenok midenok   65 Feb  7 00:22 db.opt
+-rw-rw---- 1 midenok midenok    7 Feb  7 00:22 t1.MYD
+-rw-rw---- 1 midenok midenok 2048 Feb  7 00:22 t1.MYI
+-rw-rw---- 1 midenok midenok  922 Feb  7 00:22 t1.frm
+-rw-rw---- 1 midenok midenok    7 Feb  7 00:22 t2.MYD
+-rw-rw---- 1 midenok midenok 1024 Feb  7 00:22 t2.MYI
+-rw-rw---- 1 midenok midenok  433 Feb  7 00:22 t2.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+id
+1
+alter table t2 add foreign key (id) references t1(id), algorithm=copy;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sql-nnnn_nnnn.frm
+# State after crash recovery
+#sql-nnnn_nnnn.frm
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Error	145	Table './test/t1' is marked as crashed and should be repaired
+Warning	1034	1 client is using or hasn't closed the table properly
+Note	1034	Table is fixed
+SELECT * FROM t1;
+id
+1
+DROP TABLE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Error	145	Table './test/t2' is marked as crashed and should be repaired
+Warning	1034	1 client is using or hasn't closed the table properly
+Note	1034	Table is fixed
+SELECT * FROM t2;
+id
+1
+DROP TABLE t2;
+set session debug_dbug=@save_dbug;

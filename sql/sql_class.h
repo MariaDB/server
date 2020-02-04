@@ -36,6 +36,7 @@
 #include "scheduler.h"      /* thd_scheduler */
 #include "protocol.h"       /* Protocol_text, Protocol_binary */
 #include "violite.h"        /* vio_is_connected */
+#include "table_cache.h"
 #include "thr_lock.h"       /* thr_lock_type, THR_LOCK_DATA, THR_LOCK_INFO */
 #include "thr_timer.h"
 #include "thr_malloc.h"
@@ -830,6 +831,149 @@ enum killed_type
   KILL_TYPE_USER,
   KILL_TYPE_QUERY
 };
+
+
+enum ddl_log_entry_code
+{
+  /*
+    DDL_LOG_EXECUTE_CODE:
+      This is a code that indicates that this is a log entry to
+      be executed, from this entry a linked list of log entries
+      can be found and executed.
+    DDL_LOG_ENTRY_CODE:
+      An entry to be executed in a linked list from an execute log
+      entry.
+    DDL_IGNORE_LOG_ENTRY_CODE:
+      An entry that is to be ignored
+  */
+  DDL_LOG_EXECUTE_CODE = 'e',
+  DDL_LOG_ENTRY_CODE = 'l',
+  DDL_IGNORE_LOG_ENTRY_CODE = 'i'
+};
+
+enum ddl_log_action_code
+{
+  /*
+    The type of action that a DDL_LOG_ENTRY_CODE entry is to
+    perform.
+    DDL_LOG_DELETE_ACTION:
+      Delete an entity
+    DDL_LOG_RENAME_ACTION:
+      Rename an entity
+    DDL_LOG_REPLACE_ACTION:
+      Rename an entity after removing the previous entry with the
+      new name, that is replace this entry.
+    DDL_LOG_EXCHANGE_ACTION:
+      Exchange two entities by renaming them a -> tmp, b -> a, tmp -> b.
+  */
+  DDL_LOG_DELETE_ACTION = 'd',
+  DDL_LOG_RENAME_ACTION = 'r',
+  DDL_LOG_REPLACE_ACTION = 's',
+  DDL_LOG_EXCHANGE_ACTION = 'e'
+};
+
+enum enum_ddl_log_exchange_phase {
+  EXCH_PHASE_NAME_TO_TEMP= 0,
+  EXCH_PHASE_FROM_TO_NAME= 1,
+  EXCH_PHASE_TEMP_TO_FROM= 2
+};
+
+
+typedef struct st_ddl_log_entry
+{
+  const char *name;
+  const char *from_name;
+  const char *handler_name;
+  const char *tmp_name;
+  uint next_entry;
+  uint entry_pos;
+  enum ddl_log_entry_code entry_type;
+  enum ddl_log_action_code action_type;
+  /*
+    Most actions have only one phase. REPLACE does however have two
+    phases. The first phase removes the file with the new name if
+    there was one there before and the second phase renames the
+    old name to the new name.
+  */
+  char phase;
+} DDL_LOG_ENTRY;
+
+
+typedef struct st_ddl_log_memory_entry
+{
+  uint entry_pos;
+  struct st_ddl_log_memory_entry *next_log_entry;
+  struct st_ddl_log_memory_entry *prev_log_entry;
+  struct st_ddl_log_memory_entry *next_active_log_entry;
+} DDL_LOG_MEMORY_ENTRY;
+
+
+struct ddl_log_info
+{
+  ddl_log_info() : first_entry(NULL), exec_entry(NULL), log_entry(NULL) {}
+  DDL_LOG_MEMORY_ENTRY *first_entry; // FIXME: is it needed?
+  DDL_LOG_MEMORY_ENTRY *exec_entry;
+  DDL_LOG_MEMORY_ENTRY *log_entry;
+  bool write_log_replace_delete_frm(uint next_entry, const char *from_path,
+                                    const char *to_path, bool replace_flag);
+};
+
+
+class FK_backup
+{
+public:
+  DDL_LOG_MEMORY_ENTRY *delete_shadow_entry;
+  DDL_LOG_MEMORY_ENTRY *restore_backup_entry;
+
+public:
+  FK_backup() :
+    delete_shadow_entry(NULL),
+    restore_backup_entry(NULL)
+  {}
+  virtual ~FK_backup()
+  {}
+  FK_list foreign_keys;
+  FK_list referenced_keys;
+  bool fk_write_shadow_frm(ddl_log_info& log_info);
+  bool fk_backup_frm(ddl_log_info& log_info);
+  bool fk_install_shadow_frm(ddl_log_info& log_info);
+  void fk_drop_shadow_frm(ddl_log_info& log_info);
+  void fk_drop_backup_frm(ddl_log_info& log_info);
+  virtual TABLE_SHARE *get_share() const= 0;
+};
+
+
+// NB: FK_ddl_backup responds for share release unlike FK_table_backup
+class FK_ddl_backup : public FK_backup
+{
+public:
+  Share_acquire sa;
+
+  FK_ddl_backup(Share_acquire&& _sa);
+  FK_ddl_backup(const FK_ddl_backup&)= delete;
+  FK_ddl_backup(FK_ddl_backup&& src) :
+    FK_backup(std::move(src)),
+    sa(std::move(src.sa))
+  {}
+
+  void rollback(ddl_log_info& log_info);
+  bool backup_frm(ddl_log_info &log_info, Table_name table);
+  TABLE_SHARE *get_share() const
+  {
+    return sa.share;
+  }
+
+protected:
+  FK_ddl_backup() {}
+};
+
+
+class FK_ddl_vector: public mbd::vector<FK_ddl_backup>, public ddl_log_info
+{
+public:
+  void install_shadow_frms();
+};
+
 
 #include "sql_lex.h"				/* Must be here */
 

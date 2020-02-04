@@ -34,13 +34,13 @@
 static TABLE_LIST *rename_tables(THD *thd, TABLE_LIST *table_list,
                                  bool skip_error, bool if_exits,
                                  bool *force_if_exists,
-                                 FK_rename_vector &fk_rename_backup);
+                                 FK_ddl_vector &fk_rename_backup);
 static bool do_rename(THD *thd, TABLE_LIST *ren_table,
                       const LEX_CSTRING *new_db,
                       const LEX_CSTRING *new_table_name,
                       const LEX_CSTRING *new_table_alias,
                       bool skip_error, bool if_exists, bool *force_if_exists,
-		      FK_rename_vector &fk_rename_backup);
+		      FK_ddl_vector &fk_rename_backup);
 
 static TABLE_LIST *reverse_table_list(TABLE_LIST *table_list);
 
@@ -57,7 +57,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
   TABLE_LIST *ren_table= 0;
   int to_table;
   const char *rename_log_table[2]= {NULL, NULL};
-  FK_rename_vector fk_rename_backup;
+  FK_ddl_vector fk_rename_backup;
   DBUG_ENTER("mysql_rename_tables");
 
   /*
@@ -178,19 +178,34 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     /* Revert the table list (for prepared statements) */
     table_list= reverse_table_list(table_list);
 
-    for (FK_rename_backup &bak: fk_rename_backup)
-      bak.rollback();
+    for (FK_ddl_backup &bak: fk_rename_backup)
+      bak.rollback(fk_rename_backup);
 
     error= 1;
   }
   else
   {
-    for (FK_rename_backup &bak: fk_rename_backup)
+    for (FK_ddl_backup &bak: fk_rename_backup)
     {
-      error= fk_install_shadow_frm(bak.old_name, bak.new_name);
+      // NB: this can be foreign/ref table as well as renamed table
+      error= bak.fk_backup_frm(fk_rename_backup);
+      if (error)
+        goto err;
+    }
+    for (FK_ddl_backup &bak: fk_rename_backup)
+    {
+      error= bak.fk_install_shadow_frm(fk_rename_backup);
       if (error)
         break;
     }
+    for (FK_ddl_backup &bak: fk_rename_backup)
+    {
+      error= deactivate_ddl_log_entry(bak.restore_backup_entry->entry_pos);
+      if (error)
+        break;
+    }
+    for (FK_ddl_backup &bak: fk_rename_backup)
+      bak.fk_drop_backup_frm(fk_rename_backup);
   }
 
   if (likely(!silent && !error))
@@ -291,7 +306,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
           const LEX_CSTRING *new_table_name,
           const LEX_CSTRING *new_table_alias,
           bool skip_error, bool if_exists, bool *force_if_exists,
-          FK_rename_vector &fk_rename_backup)
+          FK_ddl_vector &fk_rename_backup)
 {
   int rc= 1;
   handlerton *hton, *new_hton;
@@ -429,7 +444,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
 static TABLE_LIST *
 rename_tables(THD *thd, TABLE_LIST *table_list, bool skip_error,
               bool if_exists, bool *force_if_exists,
-              FK_rename_vector &fk_rename_backup)
+              FK_ddl_vector &fk_rename_backup)
 {
   TABLE_LIST *ren_table, *new_table;
   DBUG_ENTER("rename_tables");
@@ -449,10 +464,3 @@ rename_tables(THD *thd, TABLE_LIST *table_list, bool skip_error,
   }
   DBUG_RETURN(0);
 }
-
-
-FK_rename_backup::FK_rename_backup(Share_acquire&& _sa) :
-  FK_ddl_backup(std::forward<Share_acquire>(_sa)),
-  old_name(sa.share->db, sa.share->table_name),
-  new_name(sa.share->db, sa.share->table_name)
-{}

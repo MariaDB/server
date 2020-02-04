@@ -249,3 +249,23 @@ show create table t2;
 drop table t1,t2;
 --error ER_BAD_TABLE_ERROR
 drop table t2, t1;
+
+--echo #
+--echo # MDEV-21053 Crash safety of FK DDL
+--echo #
+--let $DATADIR= `SELECT @@datadir;`
+let $create_statement= create or replace table t1 (id int primary key);
+let $create_statement2= create or replace table t2 (id int references t1 (id));
+let $insert_statement= insert into t1 values(1);
+let $insert_statement2= insert into t2 values(1);
+let $debug_dbug="+d,fail_fk_backup_frm";
+let $fail_statement= drop table t2;
+--source include/fk_fail_t2.inc
+
+set @save_dbug=@@debug_dbug;
+let $create_statement= create or replace table t1 (id int primary key);
+let $create_statement2= create or replace table t2 (id int);
+set session debug_dbug="+d,crash_fk_alter_1";
+let $crash_statement= alter table t2 add foreign key (id) references t1(id), algorithm=copy;
+--source suite/parts/inc/partition_crash_t2.inc
+set session debug_dbug=@save_dbug;

@@ -660,4 +660,10 @@ private:
 };
 
 
+#define ERROR_INJECT(code_fail, code_crash) \
+  DBUG_EVALUATE_IF(code_crash, (DBUG_SUICIDE(), false), false), \
+  DBUG_EVALUATE_IF(code_fail, (my_error(ER_UNKNOWN_ERROR, MYF(0)), true), false)
+
+
+
 #endif /* SQL_BASE_INCLUDED */

@@ -27,12 +27,10 @@ class Key;
 
 
 /* Backup for the table we altering */
-class FK_table_backup
+class FK_table_backup : public FK_backup
 {
 public:
   TABLE_SHARE *share;
-  FK_list foreign_keys;
-  FK_list referenced_keys;
 
   FK_table_backup() : share(NULL) {}
   virtual ~FK_table_backup()
@@ -51,6 +49,10 @@ public:
     share->foreign_keys= foreign_keys;
     share->referenced_keys= referenced_keys;
     share= NULL;
+  }
+  TABLE_SHARE *get_share() const
+  {
+    return share;
   }
 };
 
@@ -429,6 +431,7 @@ public:
   FK_list            referenced_keys;
   MDL_request_list fk_mdl_reqs;
   mbd::map<Table_name, Share_acquire, Table_name_lt> fk_shares;
+  ddl_log_info fk_ddl_info;
 
   bool fk_prepare_rename(THD *thd, TABLE *table, Create_field *def,
                          mbd::set<FK_table_to_lock> &fk_tables_to_lock);

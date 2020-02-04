@@ -52,7 +52,7 @@ struct TABLE_LIST;
 class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
-class FK_create_vector;
+class FK_ddl_vector;
 class Table_name;
 class Table_statistics;
 class With_element;
@@ -65,6 +65,7 @@ class Range_rowid_filter_cost_info;
 class derived_handler;
 class Pushdown_derived;
 struct Name_resolution_context;
+struct ddl_log_info;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -733,16 +734,15 @@ struct TABLE_SHARE
   KEY  *key_info;			/* data of keys in database */
   FK_list foreign_keys;
   FK_list referenced_keys;
-  bool fk_handle_create(THD *thd, FK_create_vector &shares, FK_list *fk_add= NULL);
+  bool fk_handle_create(THD *thd, FK_ddl_vector &shares, FK_list *fk_add= NULL);
   bool fk_check_consistency(THD *thd);
   bool referenced_by_foreign_key() const
   {
     return !referenced_keys.is_empty();
   }
-  int fk_write_shadow_frm();
-  bool fk_install_shadow_frm();
-  void fk_drop_shadow_frm();
   bool fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from);
+  /* write shadow FRM implementation */
+  int fk_write_shadow_frm_impl(const char *shadow_path);
 
   Virtual_column_info **check_constraints;
   uint	*blob_field;			/* Index to blobs in Field arrray*/
