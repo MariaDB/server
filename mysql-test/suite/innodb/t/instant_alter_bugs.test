@@ -374,4 +374,14 @@ ALTER TABLE t1 MODIFY a CHAR, ALGORITHM=INSTANT;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-21645 SIGSEGV in innobase_get_computed_value
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, va INTEGER GENERATED ALWAYS AS (a))
+ENGINE=InnoDB;
+INSERT INTO t1 SET a=1, b=NULL;
+ALTER TABLE t1 MODIFY COLUMN b INT FIRST;
+ALTER TABLE t1 ADD UNIQUE INDEX (va);
+DROP TABLE t1;
+
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

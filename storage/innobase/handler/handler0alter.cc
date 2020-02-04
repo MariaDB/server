@@ -11172,7 +11172,10 @@ foreign_fail:
 	/* MDEV-17468: Avoid this at least when ctx->is_instant().
 	Currently dict_load_column_low() is the only place where
 	num_base for virtual columns is assigned to nonzero. */
-	if (ctx0->num_to_drop_vcol || ctx0->num_to_add_vcol) {
+	if (ctx0->num_to_drop_vcol || ctx0->num_to_add_vcol
+	    || (ctx0->is_instant()
+		&& m_prebuilt->table->n_v_cols
+		&& ha_alter_info->handler_flags & ALTER_STORED_COLUMN_ORDER)) {
 		DBUG_ASSERT(ctx0->old_table->get_ref_count() == 1);
 
 		trx_commit_for_mysql(m_prebuilt->trx);
