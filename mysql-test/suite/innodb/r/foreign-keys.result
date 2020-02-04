@@ -1,3 +1,4 @@
+set @save_dbug= @@session.debug_dbug;
 #
 # Bug #19471516 SERVER CRASHES WHEN EXECUTING ALTER TABLE
 # ADD FOREIGN KEY
@@ -219,20 +220,3395 @@ t2	CREATE TABLE `t2` (
 drop table t1,t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_fid)
 drop table t2, t1;
-ERROR 42S02: Unknown table 'test.t2'
 #
-# MDEV-23470 InnoDB: Failing assertion: cmp < 0 in
-#	row_ins_check_foreign_constraint
 #
-CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY, f2 INT NOT NULL)ENGINE=InnoDB;
-CREATE TABLE t2(f1 VARCHAR(100), f2 INT NOT NULL,
-INDEX(f2))ENGINE=InnoDB;
-INSERT INTO t1 VALUES(99, 2);
-ALTER TABLE t2 ADD FOREIGN KEY(f2) REFERENCES t1(f1);
-SET FOREIGN_KEY_CHECKS=0;
-DROP INDEX f2 ON t2;
-SET FOREIGN_KEY_CHECKS=1;
-INSERT INTO t2 VALUES('G', 3);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
-DROP TABLE t2, t1;
-SET FOREIGN_KEY_CHECKS=DEFAULT;
+# MDEV-21053 Crash safety of foreign key DDL
+#
+call mtr.add_suppression("Failed to execute action for entry");
+create or replace procedure make_tables()
+begin
+create table t1 (x int primary key, a int references t1(x));
+create table t2 (x int references t1(x), y int primary key, b int references t2(x));
+create table t3 (x int references t2(x), y int references t2(y), z int primary key, c int references t3(z));
+create table t4 (
+a int primary key,
+x int references t1(x),
+y int references t2(y),
+z int references t3(z));
+insert t1 values (1, 1);
+insert t2 values (1, 2, 1);
+insert t3 values (1, 2, 3, 3);
+insert t4 values (0, 1, 2, 3);
+end $
+create or replace procedure drop_tables()
+begin
+drop table if exists t4;
+drop table if exists t3;
+drop table if exists t2;
+drop table if exists t1;
+end $
+# DROP TABLE
+call make_tables;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_write_shadow_frm";
+drop tables t4, t1, t3, t2;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+drop tables t4, t1, t3, t2;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_install_shadow_frm";
+drop tables t4, t1, t3, t2;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_write_shadow_frm";
+drop tables t4, t1, t3, t2;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sqlf-shadow-t2.frm
+#sqlf-shadow-t3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+# State after crash recovery
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_backup_frm";
+drop tables t4, t1, t3, t2;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sqlf-shadow-t1.frm
+#sqlf-shadow-t2.frm
+#sqlf-shadow-t3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.fbk
+t3.MYD
+t3.MYI
+t3.fbk
+t4.MYD
+t4.MYI
+t4.frm
+# State after crash recovery
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_install_shadow_frm";
+drop tables t4, t1, t3, t2;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sqlf-shadow-t1.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.fbk
+t2.MYD
+t2.MYI
+t2.fbk
+t2.frm
+t3.MYD
+t3.MYI
+t3.fbk
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+# State after crash recovery
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+call drop_tables;
+# CREATE TABLE
+create table t1 (x int primary key);
+create table t2 (y int primary key);
+create table t3 (z int primary key);
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set @@debug_dbug= "+d,fail_fk_write_shadow_frm";
+create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set @@debug_dbug= "+d,fail_fk_install_shadow_frm";
+create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set @@debug_dbug= "+d,crash_fk_write_shadow_frm";
+create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sqlf-shadow-t2.frm
+#sqlf-shadow-t3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.frm
+# State after crash recovery
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set @@debug_dbug= "+d,crash_fk_backup_frm";
+create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sqlf-shadow-t1.frm
+#sqlf-shadow-t2.frm
+#sqlf-shadow-t3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.fbk
+t3.MYD
+t3.MYI
+t3.fbk
+t4.frm
+# State after crash recovery
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set @@debug_dbug= "+d,crash_fk_install_shadow_frm";
+create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sqlf-shadow-t1.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.fbk
+t2.MYD
+t2.MYI
+t2.fbk
+t2.frm
+t3.MYD
+t3.MYI
+t3.fbk
+t3.frm
+t4.frm
+# State after crash recovery
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set session debug_dbug=@save_dbug;
+call drop_tables;
+# RENAME TABLE
+call make_tables;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_write_shadow_frm";
+rename table t4 to xt4, t1 to xt1, t3 to xt3, t2 to xt2;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+rename table t4 to xt4, t1 to xt1, t3 to xt3, t2 to xt2;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_install_shadow_frm";
+rename table t4 to xt4, t1 to xt1, t3 to xt3, t2 to xt2;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_write_shadow_frm";
+rename table t4 to xt4, t1 to xt1, t3 to xt3, t2 to xt2;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sqlf-shadow-xt2.frm
+#sqlf-shadow-xt3.frm
+#sqlf-shadow-xt4.frm
+db.opt
+xt1.MYD
+xt1.MYI
+xt1.frm
+xt2.MYD
+xt2.MYI
+xt2.frm
+xt3.MYD
+xt3.MYI
+xt3.frm
+xt4.MYD
+xt4.MYI
+xt4.frm
+# State after crash recovery
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_backup_frm";
+rename table t4 to xt4, t1 to xt1, t3 to xt3, t2 to xt2;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sqlf-shadow-xt1.frm
+#sqlf-shadow-xt2.frm
+#sqlf-shadow-xt3.frm
+#sqlf-shadow-xt4.frm
+db.opt
+xt1.MYD
+xt1.MYI
+xt1.frm
+xt2.MYD
+xt2.MYI
+xt2.fbk
+xt3.MYD
+xt3.MYI
+xt3.fbk
+xt4.MYD
+xt4.MYI
+xt4.fbk
+# State after crash recovery
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_install_shadow_frm";
+rename table t4 to xt4, t1 to xt1, t3 to xt3, t2 to xt2;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sqlf-shadow-xt1.frm
+db.opt
+xt1.MYD
+xt1.MYI
+xt1.fbk
+xt2.MYD
+xt2.MYI
+xt2.fbk
+xt2.frm
+xt3.MYD
+xt3.MYI
+xt3.fbk
+xt3.frm
+xt4.MYD
+xt4.MYI
+xt4.fbk
+xt4.frm
+# State after crash recovery
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_write_shadow_frm";
+alter table t3 rename xt3;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+alter table t3 rename xt3;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_install_shadow_frm";
+alter table t3 rename xt3;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_write_shadow_frm";
+alter table t3 rename xt3;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sqlf-shadow-t4.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+# State after crash recovery
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_backup_frm";
+alter table t3 rename xt3;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sqlf-shadow-t2.frm
+#sqlf-shadow-t4.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.fbk
+# State after crash recovery
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_install_shadow_frm";
+alter table t3 rename xt3;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sqlf-shadow-t2.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.fbk
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.fbk
+t4.frm
+# State after crash recovery
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+call drop_tables;
+# RENAME COLUMN
+call make_tables;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_write_shadow_frm";
+alter table t2 change y z int, change x y int, change b c int;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+alter table t2 change y z int, change x y int, change b c int;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_install_shadow_frm";
+alter table t2 change y z int, change x y int, change b c int;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_write_shadow_frm";
+alter table t2 change y z int, change x y int, change b c int;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sql-alter-3.frm
+#sqlf-shadow-t4.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+# State after crash recovery
+#sql-alter-3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_backup_frm";
+alter table t2 change y z int, change x y int, change b c int;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sql-alter-3.frm
+#sqlf-shadow-t3.frm
+#sqlf-shadow-t4.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.fbk
+# State after crash recovery
+#sql-alter-3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_install_shadow_frm";
+alter table t2 change y z int, change x y int, change b c int;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sql-alter-3.frm
+#sqlf-shadow-t3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.fbk
+t4.MYD
+t4.MYI
+t4.fbk
+t4.frm
+# State after crash recovery
+#sql-alter-3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_write_shadow_frm";
+alter table t3 rename column z to z2, rename column y to y2, rename column x to x2, rename column c to c2;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+alter table t3 rename column z to z2, rename column y to y2, rename column x to x2, rename column c to c2;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_install_shadow_frm";
+alter table t3 rename column z to z2, rename column y to y2, rename column x to x2, rename column c to c2;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_write_shadow_frm";
+alter table t3 rename column z to z2, rename column y to y2, rename column x to x2, rename column c to c2;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sql-alter-3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+# State after crash recovery
+#sql-alter-3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_backup_frm";
+alter table t3 rename column z to z2, rename column y to y2, rename column x to x2, rename column c to c2;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sql-alter-3.frm
+#sqlf-shadow-t4.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+# State after crash recovery
+#sql-alter-3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_install_shadow_frm";
+alter table t3 rename column z to z2, rename column y to y2, rename column x to x2, rename column c to c2;
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sql-alter-3.frm
+#sqlf-shadow-t4.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.fbk
+# State after crash recovery
+#sql-alter-3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+call drop_tables;
+# ADD/DROP FOREIGN KEY, DROP COLUMN
+call make_tables;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  `z` int(11) NOT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`z`),
+  KEY `fk_t3` (`x`),
+  KEY `fk_t3_2` (`y`),
+  KEY `fk_t3_3` (`c`),
+  CONSTRAINT `fk_t3` FOREIGN KEY (`x`) REFERENCES `t2` (`x`),
+  CONSTRAINT `fk_t3_2` FOREIGN KEY (`y`) REFERENCES `t2` (`y`),
+  CONSTRAINT `fk_t3_3` FOREIGN KEY (`c`) REFERENCES `t3` (`z`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_write_shadow_frm";
+alter table t3
+drop foreign key fk_t3,
+drop foreign key fk_t3_2,
+drop foreign key fk_t3_3,
+drop c,
+add foreign key (x) references t1(x),
+add foreign key (y) references t2(x);
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+alter table t3
+drop foreign key fk_t3,
+drop foreign key fk_t3_2,
+drop foreign key fk_t3_3,
+drop c,
+add foreign key (x) references t1(x),
+add foreign key (y) references t2(x);
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_install_shadow_frm";
+alter table t3
+drop foreign key fk_t3,
+drop foreign key fk_t3_2,
+drop foreign key fk_t3_3,
+drop c,
+add foreign key (x) references t1(x),
+add foreign key (y) references t2(x);
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before crash
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,crash_fk_write_shadow_frm";
+alter table t3
+drop foreign key fk_t3,
+drop foreign key fk_t3_2,
+drop foreign key fk_t3_3,
+drop c,
+add foreign key (x) references t1(x),
+add foreign key (y) references t2(x);
+ERROR HY000: Lost connection to MySQL server during query
+# State after crash (before recovery)
+#sql-alter-3.MYD
+#sql-alter-3.MYI
+#sql-alter-3.frm
+#sqlf-shadow-t2.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+# State after crash recovery
+#sql-alter-3.MYD
+#sql-alter-3.MYI
+#sql-alter-3.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 referenced keys
+test.t1	check	Note	Found 1 self-references
+test.t1	check	status	OK
+test.t2	check	Note	Found 3 referenced keys
+test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 1 self-references
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 2 foreign keys
+test.t3	check	Note	Found 1 self-references
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+call drop_tables;
+drop procedure make_tables;
+drop procedure drop_tables;
+set session debug_dbug=@save_dbug;

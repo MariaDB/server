@@ -843,6 +843,11 @@ typedef ulonglong my_xid; // this line is the same as in log_event.h
 #define COMPATIBLE_DATA_YES 0
 #define COMPATIBLE_DATA_NO  1
 
+
+#define tmp_file_prefix "#sql"			/**< Prefix for tmp tables */
+#define tmp_file_prefix_length 4
+
+
 /**
   struct xid_t is binary compatible with the XID structure as
   in the X/Open CAE Specification, Distributed Transaction Processing:

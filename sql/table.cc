@@ -379,6 +379,27 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
 }
 
 
+bool TABLE_SHARE::update_name(LEX_CSTRING new_db, LEX_CSTRING new_name)
+{
+  char buf[FN_REFLEN];
+  uint len= build_table_filename(buf, sizeof(buf) - 1, new_db.str, new_name.str, "", 0);
+  char *apath, *adb, *aname;
+  if (!multi_alloc_root(&mem_root, &apath, len + 1, &adb, new_db.length + 1, &aname, new_name.length + 1, NULL))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  strmov(apath, buf);
+  strmov(adb, new_db.str);
+  strmov(aname, new_name.str);
+  path= {apath, len};
+  normalized_path= path;
+  db= {adb, new_db.length};
+  table_name= {aname, new_name.length};
+  return false;
+}
+
+
 /*
   Initialize share for temporary tables
 
@@ -9596,8 +9617,8 @@ bool TABLE_SHARE::fk_check_consistency(THD *thd)
   {
     if (rk.self_ref())
     {
-      if (cmp_table(rk.foreign_db, db) ||
-          cmp_table(rk.foreign_table, table_name))
+      if (::cmp_table(rk.foreign_db, db) ||
+          ::cmp_table(rk.foreign_table, table_name))
       {
         bool warn;
         if (!warned_self.insert(Table_name(rk.foreign_db, rk.foreign_table), &warn))
@@ -9630,8 +9651,8 @@ bool TABLE_SHARE::fk_check_consistency(THD *thd)
     bool found_table= false;
     while ((fk= fk_it++))
     {
-      if (!cmp_table(fk->ref_db(), db) &&
-          !cmp_table(fk->referenced_table, table_name))
+      if (!::cmp_table(fk->ref_db(), db) &&
+          !::cmp_table(fk->referenced_table, table_name))
       {
         found_table= true;
         List_iterator_fast<Lex_cstring> rk_fld_it(rk.referenced_fields);
@@ -9688,8 +9709,8 @@ bool TABLE_SHARE::fk_check_consistency(THD *thd)
   {
     if (fk.self_ref())
     {
-      if (cmp_table(fk.foreign_db, db) ||
-          cmp_table(fk.foreign_table, table_name))
+      if (::cmp_table(fk.foreign_db, db) ||
+          ::cmp_table(fk.foreign_table, table_name))
       {
         bool warn;
         if (!warned_self.insert(Table_name(fk.foreign_db, fk.foreign_table), &warn))
@@ -9722,8 +9743,8 @@ bool TABLE_SHARE::fk_check_consistency(THD *thd)
     bool found_table= false;
     while ((rk= ref_it++))
     {
-      if (!cmp_table(rk->foreign_db, db) &&
-          !cmp_table(rk->foreign_table, table_name))
+      if (!::cmp_table(rk->foreign_db, db) &&
+          !::cmp_table(rk->foreign_table, table_name))
       {
         found_table= true;
         List_iterator_fast<Lex_cstring> rk_fld_it(rk->referenced_fields);

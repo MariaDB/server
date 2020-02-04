@@ -33,6 +33,9 @@ extern "C" {
 #define MY_S_ISUID	S_ISUID /* set user id on execution */
 #define MY_S_ISGID	S_ISGID /* set group id on execution */
 #define MY_S_ISVTX	S_ISVTX /* save swapped text even after use */
+#if !defined(__WIN__) && ! defined(__NETWARE__)
+#define MY_S_IFLNK	S_IFLNK /* symbolic link */
+#endif
 
 #ifndef S_IREAD
 #define MY_S_IREAD      S_IRUSR /* read permission, owner */
@@ -49,6 +52,11 @@ extern "C" {
 #define MY_S_ISBLK(m)	(((m) & MY_S_IFMT) == MY_S_IFBLK)
 #define MY_S_ISREG(m)	(((m) & MY_S_IFMT) == MY_S_IFREG)
 #define MY_S_ISFIFO(m)	(((m) & MY_S_IFMT) == MY_S_IFIFO)
+#if !defined(__WIN__) && ! defined(__NETWARE__)
+#define MY_S_ISLNK(m)	(((m) & MY_S_IFLNK) == MY_S_IFLNK)
+#else
+#define MY_S_ISLNK(m)	(false)
+#endif
 
 /* Ensure these doesn't clash with anything in my_sys.h */
 #define MY_WANT_SORT     8192   /* my_lib; sort files */

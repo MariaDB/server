@@ -1230,8 +1230,15 @@ ulonglong Foreign_key_io::fk_size(FK_info &fk)
 {
   ulonglong store_size= 0;
   store_size+= string_size(fk.foreign_id);
-  store_size+= string_size(fk.referenced_db);
-  store_size+= string_size(fk.referenced_table);
+  if (fk.self_ref())
+  {
+    store_size+= 2;
+  }
+  else
+  {
+    store_size+= string_size(fk.referenced_db);
+    store_size+= string_size(fk.referenced_table);
+  }
   store_size+= net_length_size(fk.update_method);
   store_size+= net_length_size(fk.delete_method);
   store_size+= net_length_size(fk.foreign_fields.elements);
@@ -1262,8 +1269,18 @@ void Foreign_key_io::store_fk(FK_info &fk, uchar *&pos)
   uchar *old_pos= pos;
 #endif
   pos= store_string(pos, fk.foreign_id);
-  pos= store_string(pos, fk.referenced_db, true);
-  pos= store_string(pos, fk.referenced_table);
+  if (fk.self_ref())
+  {
+    // NB: self-references are stored with empty table name. This helps to
+    // avoid FRM update on rename.
+    pos= store_string(pos, Lex_cstring(), true);
+    pos= store_string(pos, Lex_cstring(), true);
+  }
+  else
+  {
+    pos= store_string(pos, fk.referenced_db, true);
+    pos= store_string(pos, fk.referenced_table);
+  }
   pos= store_length(pos, fk.update_method);
   pos= store_length(pos, fk.delete_method);
   pos= store_length(pos, fk.foreign_fields.elements);
@@ -1382,10 +1399,14 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
     dst->foreign_table= s->table_name;
     if (read_string(dst->referenced_db, &s->mem_root, p))
       return true;
-    if (!dst->referenced_db.length)
-      dst->referenced_db.strdup(&s->mem_root, s->db);
     if (read_string(dst->referenced_table, &s->mem_root, p))
       return true;
+    if (!dst->referenced_db.length)
+    {
+      dst->referenced_db.strdup(&s->mem_root, s->db);
+      if (!dst->referenced_table.length)
+        dst->referenced_table.strdup(&s->mem_root, s->table_name);
+    }
     size_t update_method, delete_method;
     if (read_length(update_method, p))
       return true;
@@ -1552,7 +1573,7 @@ bool TABLE_SHARE::fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from)
 
   for (FK_info &fk: from->foreign_keys)
   {
-    if (0 != cmp_db_table(fk.referenced_db, fk.referenced_table))
+    if (0 != cmp_db_table(fk.ref_db(), fk.referenced_table))
       continue;
 
     DBUG_ASSERT(fk.foreign_id.length);

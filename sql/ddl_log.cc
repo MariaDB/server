@@ -83,8 +83,8 @@ uchar ddl_log_file_magic[]=
 
 const char *ddl_log_action_name[DDL_LOG_LAST_ACTION]=
 {
-  "Unknown", "partitioning delete", "partitioning rename",
-  "partitioning replace", "partitioning exchange",
+  "Unknown", "delete", "rename",
+  "replace", "exchange",
   "rename table", "rename view",
   "initialize drop table", "drop table",
   "drop view", "drop trigger", "drop db", "create table", "create view",
@@ -130,12 +130,12 @@ static st_ddl_recovery   recovery_state;
 mysql_mutex_t LOCK_gdl;
 
 /* Positions to different data in a ddl log block */
-#define DDL_LOG_ENTRY_TYPE_POS 0
+#define DDL_LOG_ENTRY_TYPE_POS 0 /* 1 byte of ddl_log_entry_code */
 /*
   Note that ACTION_TYPE and PHASE_POS must be after each other.
   See update_phase()
 */
-#define DDL_LOG_ACTION_TYPE_POS 1
+#define DDL_LOG_ACTION_TYPE_POS 1 /* 1 byte of ddl_log_action_code */
 #define DDL_LOG_PHASE_POS 2
 #define DDL_LOG_NEXT_ENTRY_POS 4
 #define DDL_LOG_XID_POS 8
@@ -157,6 +157,8 @@ mysql_mutex_t LOCK_gdl;
 #define DDL_LOG_NAME_OFFSET_POS 6
 /* Sum of the above variables */
 #define DDL_LOG_HEADER_SIZE 4+2+2
+
+const LEX_CSTRING file_action= { STRING_WITH_LEN(".file") };
 
 /**
   Sync the ddl log file.
@@ -338,6 +340,7 @@ static bool disable_execute_entry(uint entry_pos)
 {
   uchar buff[1];
   DBUG_ENTER("disable_execute_entry");
+  DBUG_PRINT("ddl_log", ("pos: %u", entry_pos));
 
   buff[0]= DDL_IGNORE_LOG_ENTRY_CODE;
   DBUG_RETURN(mysql_file_pwrite(global_ddl_log.file_id, buff, sizeof(buff),
@@ -515,6 +518,9 @@ static void set_global_from_ddl_log_entry(const DDL_LOG_ENTRY *ddl_log_entry)
   uchar *file_entry_buf= global_ddl_log.file_entry_buf, *pos, *end;
 
   mysql_mutex_assert_owner(&LOCK_gdl);
+  DBUG_ASSERT(ddl_log_entry->entry_type == DDL_LOG_ENTRY_CODE ||
+              ddl_log_entry->entry_type == DDL_TRY_LOG_ENTRY_CODE);
+
 
   file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]=  (uchar) ddl_log_entry->entry_type;
   file_entry_buf[DDL_LOG_ACTION_TYPE_POS]= (uchar) ddl_log_entry->action_type;
@@ -753,7 +759,8 @@ static bool ddl_log_increment_phase_no_lock(uint entry_pos)
     ddl_log_action_code action= ((ddl_log_action_code)
                                  file_entry_buf[DDL_LOG_ACTION_TYPE_POS]);
 
-    if (code == DDL_LOG_ENTRY_CODE && action < (uint) DDL_LOG_LAST_ACTION)
+    if ((code == DDL_LOG_ENTRY_CODE || code == DDL_TRY_LOG_ENTRY_CODE) &&
+        action < (uint) DDL_LOG_LAST_ACTION)
     {
       /*
         Log entry:
@@ -952,18 +959,24 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
   ddl_log_error_handler no_such_table_handler;
   uint entry_pos= ddl_log_entry->entry_pos;
   int error;
-  bool frm_action= FALSE;
+  enum
+  {
+    ACT_HANDLER,
+    ACT_PARTITION,
+    ACT_FILE
+  } frm_action= ACT_HANDLER;
   DBUG_ENTER("ddl_log_execute_action");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
   DBUG_PRINT("ddl_log",
-             ("entry type: %u  action type: %u (%s) phase: %u  next: %u  "
+             ("pos: %u->%u  entry: %u  action: %u (%s) phase: %u  "
               "handler: '%s'  name: '%s'  from_name: '%s'  tmp_name: '%s'",
+              ddl_log_entry->entry_pos,
+              ddl_log_entry->next_entry,
               (uint) ddl_log_entry->entry_type,
               (uint) ddl_log_entry->action_type,
               ddl_log_action_name[ddl_log_entry->action_type],
               (uint) ddl_log_entry->phase,
-              ddl_log_entry->next_entry,
               ddl_log_entry->handler_name.str,
               ddl_log_entry->name.str,
               ddl_log_entry->from_name.str,
@@ -977,7 +990,9 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
   thd->push_internal_handler(&no_such_table_handler);
 
   if (!strcmp(ddl_log_entry->handler_name.str, reg_ext))
-    frm_action= TRUE;
+    frm_action= ACT_PARTITION;
+  else if (!strcmp(ddl_log_entry->handler_name.str, file_action.str))
+    frm_action= ACT_FILE;
   else if (ddl_log_entry->handler_name.length)
   {
     plugin_ref plugin= my_plugin_lock_by_name(thd, &handler_name,
@@ -995,22 +1010,52 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
 
   switch (ddl_log_entry->action_type) {
   case DDL_LOG_REPLACE_ACTION:
+  {
+    if (ddl_log_entry->phase == 0 && frm_action != ACT_HANDLER)
+    {
+      /* If new file doesn't exist or a special file keep an old one. */
+      const char *from_name;
+      MY_STAT stat_info;
+      if (frm_action == ACT_PARTITION)
+      {
+        strxmov(from_path, ddl_log_entry->from_name.str, reg_ext, NullS);
+        from_name= from_path;
+      }
+      else
+        from_name= ddl_log_entry->from_name.str;
+      if (!mysql_file_stat(key_file_frm, from_name, &stat_info, MYF(0)))
+        break;
+      if (!MY_S_ISREG(stat_info.st_mode) && !MY_S_ISLNK(stat_info.st_mode))
+        break;
+    }
+  }
+  /* fall through */
   case DDL_LOG_DELETE_ACTION:
   {
     if (ddl_log_entry->phase == 0)
     {
-      if (frm_action)
+      if (frm_action != ACT_HANDLER)
       {
-        strxmov(to_path, ddl_log_entry->name.str, reg_ext, NullS);
-        if (unlikely((error= mysql_file_delete(key_file_frm, to_path,
-                                               MYF(MY_WME |
-                                                   MY_IGNORE_ENOENT)))))
-          break;
+        if (frm_action == ACT_PARTITION)
+        {
+          strxmov(to_path, ddl_log_entry->name.str, reg_ext, NullS);
+          if (unlikely((error= mysql_file_delete(key_file_frm, to_path,
+                                                 MYF(MY_WME |
+                                                     MY_IGNORE_ENOENT)))))
+            break;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-        strxmov(to_path, ddl_log_entry->name.str, PAR_EXT, NullS);
-        (void) mysql_file_delete(key_file_partition_ddl_log, to_path,
-                                 MYF(0));
+          strxmov(to_path, ddl_log_entry->name.str, PAR_EXT, NullS);
+          (void) mysql_file_delete(key_file_partition_ddl_log, to_path, MYF(0));
 #endif
+        } // if (ACT_PARTITION)
+        else
+        {
+          DBUG_ASSERT(frm_action == ACT_FILE);
+          if (unlikely((error= mysql_file_delete(key_file_frm, ddl_log_entry->name.str,
+                                                 MYF(MY_WME |
+                                                     MY_IGNORE_ENOENT)))))
+            break;
+        } // if (ACT_FILE)
       }
       else
       {
@@ -1019,7 +1064,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
           if (!non_existing_table_error(error))
             break;
         }
-      }
+      } // if (ACT_HANDLER)
       if (ddl_log_increment_phase_no_lock(entry_pos))
         break;
       (void) ddl_log_sync_no_lock();
@@ -1038,17 +1083,27 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
   case DDL_LOG_RENAME_ACTION:
   {
     error= TRUE;
-    if (frm_action)
+    if (frm_action != ACT_HANDLER)
     {
-      strxmov(to_path, ddl_log_entry->name.str, reg_ext, NullS);
-      strxmov(from_path, ddl_log_entry->from_name.str, reg_ext, NullS);
-      (void) mysql_file_rename(key_file_frm, from_path, to_path, MYF(MY_WME));
+      if (frm_action == ACT_PARTITION)
+      {
+        strxmov(to_path, ddl_log_entry->name.str, reg_ext, NullS);
+        strxmov(from_path, ddl_log_entry->from_name.str, reg_ext, NullS);
+        (void) mysql_file_rename(key_file_frm, from_path, to_path, MYF(MY_WME));
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-      strxmov(to_path, ddl_log_entry->name.str, PAR_EXT, NullS);
-      strxmov(from_path, ddl_log_entry->from_name.str, PAR_EXT, NullS);
-      (void) mysql_file_rename(key_file_partition_ddl_log, from_path, to_path,
-                               MYF(MY_WME));
+        strxmov(to_path, ddl_log_entry->name.str, PAR_EXT, NullS);
+        strxmov(from_path, ddl_log_entry->from_name.str, PAR_EXT, NullS);
+        (void) mysql_file_rename(key_file_partition_ddl_log, from_path, to_path,
+                                 MYF(MY_WME));
 #endif
+      } // if (ACT_PARTITION)
+      else
+      {
+        DBUG_ASSERT (frm_action == ACT_FILE);
+        if (mysql_file_rename(key_file_frm, ddl_log_entry->from_name.str,
+                              ddl_log_entry->name.str, MYF(MY_WME)))
+          break;
+      } // if (ACT_FILE)
     }
     else
       (void) file->ha_rename_table(ddl_log_entry->from_name.str,
@@ -1092,7 +1147,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     case EXCH_PHASE_NAME_TO_TEMP:
       /* name -> tmp_name possibly done */
       (void) file->ha_rename_table(ddl_log_entry->tmp_name.str,
-                                   ddl_log_entry->name.str);
+                                    ddl_log_entry->name.str);
       /* disable the entry and sync */
       file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= DDL_IGNORE_LOG_ENTRY_CODE;
       (void) write_ddl_log_file_entry(entry_pos);
@@ -1807,8 +1862,7 @@ static bool ddl_log_execute_entry_no_lock(THD *thd, uint first_entry)
       /* Error logged to error log. Continue with next log entry */
       break;
     }
-    DBUG_ASSERT(ddl_log_entry.entry_type == DDL_LOG_ENTRY_CODE ||
-                ddl_log_entry.entry_type == DDL_IGNORE_LOG_ENTRY_CODE);
+    DBUG_ASSERT(ddl_log_entry.entry_type != DDL_LOG_EXECUTE_CODE);
 
     if (ddl_log_execute_action(thd, &mem_root, &ddl_log_entry))
     {
@@ -1821,7 +1875,8 @@ static bool ddl_log_execute_entry_no_lock(THD *thd, uint first_entry)
                       "of type '%s'",
                       (int) my_errno, read_entry,
                       ddl_log_action_name[action_type]);
-      break;
+      if (ddl_log_entry.entry_type != DDL_TRY_LOG_ENTRY_CODE)
+        break; // TODO: do we need this break at all?
     }
     read_entry= ddl_log_entry.next_entry;
   } while (read_entry);
@@ -1872,13 +1927,14 @@ bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
 
   error= FALSE;
   DBUG_PRINT("ddl_log",
-             ("entry type: %u  action type: %u (%s) phase: %u  next: %u  "
+             ("pos: %u->%u  entry: %u  action: %u (%s) phase: %u  "
               "handler: '%s'  name: '%s'  from_name: '%s'  tmp_name: '%s'",
+              (*active_entry)->entry_pos,
+              ddl_log_entry->next_entry,
               (uint) ddl_log_entry->entry_type,
               (uint) ddl_log_entry->action_type,
               ddl_log_action_name[ddl_log_entry->action_type],
               (uint) ddl_log_entry->phase,
-              ddl_log_entry->next_entry,
               ddl_log_entry->handler_name.str,
               ddl_log_entry->name.str,
               ddl_log_entry->from_name.str,
@@ -1949,7 +2005,11 @@ bool ddl_log_write_execute_entry(uint first_entry,
     if (ddl_log_get_free_entry(active_entry))
       DBUG_RETURN(TRUE);
     got_free_entry= TRUE;
- }
+  }
+  DBUG_PRINT("ddl_log",
+             ("pos: %u->%u  entry: %u",
+             (*active_entry)->entry_pos, first_entry,
+             (uint) global_ddl_log.file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]));
   if (write_ddl_log_file_entry((*active_entry)->entry_pos))
   {
     if (got_free_entry)
@@ -1981,6 +2041,7 @@ bool ddl_log_increment_phase(uint entry_pos)
 {
   bool error;
   DBUG_ENTER("ddl_log_increment_phase");
+  DBUG_PRINT("ddl_log", ("pos: %u", entry_pos));
 
   mysql_mutex_lock(&LOCK_gdl);
   error= ddl_log_increment_phase_no_lock(entry_pos);

@@ -18,6 +18,8 @@
 
 #include "handler.h"
 
+struct ddl_log_info;
+
 /*
   Data dictionary API.
 */
@@ -132,10 +134,6 @@ struct Extra2_info
   bool read(const uchar* frm_image, size_t frm_size);
   uchar * write(uchar* frm_image, size_t frm_size);
 };
-
-class Table_name;
-bool fk_install_shadow_frm(Table_name old_name, Table_name new_name);
-void fk_drop_shadow_frm(Table_name table);
 
 /*
   Take extra care when using dd_frm_type() - it only checks the .frm file,

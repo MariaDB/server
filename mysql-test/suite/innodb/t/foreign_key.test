@@ -745,8 +745,7 @@ show create table t2;
 
 --error ER_ROW_IS_REFERENCED_2
 drop table t1,t2;
---error ER_BAD_TABLE_ERROR
-drop table t1,t2;
+drop table t2, t1;
 
 --echo #
 --echo # MDEV-22934 Table disappear after two alter table command

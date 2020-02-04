@@ -52,7 +52,7 @@ struct TABLE_LIST;
 class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
-class FK_create_vector;
+class FK_backup_storage;
 class Table_name;
 class Table_statistics;
 class With_element;
@@ -65,6 +65,7 @@ class Range_rowid_filter_cost_info;
 class derived_handler;
 class Pushdown_derived;
 struct Name_resolution_context;
+struct ddl_log_info;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -74,8 +75,6 @@ struct Name_resolution_context;
 typedef ulonglong nested_join_map;
 
 
-#define tmp_file_prefix "#sql"			/**< Prefix for tmp tables */
-#define tmp_file_prefix_length 4
 #define TMP_TABLE_KEY_EXTRA 8
 
 /**
@@ -734,16 +733,15 @@ struct TABLE_SHARE
   FK_list foreign_keys;
   FK_list referenced_keys;
   Field *find_field_by_name(const LEX_CSTRING n) const;
-  bool fk_handle_create(THD *thd, FK_create_vector &shares, FK_list *fk_add= NULL);
+  bool fk_handle_create(THD *thd, FK_backup_storage &shares, FK_list *fk_add= NULL);
   bool fk_check_consistency(THD *thd);
   bool referenced_by_foreign_key() const
   {
     return !referenced_keys.is_empty();
   }
-  int fk_write_shadow_frm();
-  bool fk_install_shadow_frm();
-  void fk_drop_shadow_frm();
   bool fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from);
+  /* write shadow FRM implementation */
+  int fk_write_shadow_frm_impl(const char *shadow_path);
 
   Virtual_column_info **check_constraints;
   uint	*blob_field;			/* Index to blobs in Field arrray*/
@@ -771,8 +769,11 @@ struct TABLE_SHARE
   LEX_CSTRING db;                        /* Pointer to db */
   LEX_CSTRING table_name;                /* Table name (for open) */
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
+  // TODO: normalized_path is now the same as path (set in alloc_table_share())
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
+
+  bool update_name(LEX_CSTRING new_db, LEX_CSTRING new_name);
 
   int cmp_db_table(const LEX_CSTRING &_db, const LEX_CSTRING &_table_name) const
   {

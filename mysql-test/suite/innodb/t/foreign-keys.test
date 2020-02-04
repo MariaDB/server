@@ -2,7 +2,15 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
+# MDEV-21053 limitations:
+# Don't test this under valgrind, memory leaks will occur
+--source include/not_valgrind.inc
+# Crash tests don't work with embedded
+--source include/not_embedded.inc
+
 --enable_connect_log
+
+set @save_dbug= @@session.debug_dbug;
 
 --echo #
 --echo # Bug #19471516 SERVER CRASHES WHEN EXECUTING ALTER TABLE
@@ -247,24 +255,194 @@ show create table t2;
 
 --error ER_ROW_IS_REFERENCED_2
 drop table t1,t2;
---error ER_BAD_TABLE_ERROR
 drop table t2, t1;
 
 --echo #
---echo # MDEV-23470 InnoDB: Failing assertion: cmp < 0 in
---echo #	row_ins_check_foreign_constraint
 --echo #
-CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY, f2 INT NOT NULL)ENGINE=InnoDB;
-CREATE TABLE t2(f1 VARCHAR(100), f2 INT NOT NULL,
-                INDEX(f2))ENGINE=InnoDB;
+--echo # MDEV-21053 Crash safety of foreign key DDL
+--echo #
+# In fail_fk_backup_frm the log is already written but rename is not done
+call mtr.add_suppression("Failed to execute action for entry");
 
-INSERT INTO t1 VALUES(99, 2);
-ALTER TABLE t2 ADD FOREIGN KEY(f2) REFERENCES t1(f1);
+--let $DATADIR= `SELECT @@datadir;`
 
-SET FOREIGN_KEY_CHECKS=0;
-DROP INDEX f2 ON t2;
-SET FOREIGN_KEY_CHECKS=1;
---error ER_NO_REFERENCED_ROW_2
-INSERT INTO t2 VALUES('G', 3);
-DROP TABLE t2, t1;
-SET FOREIGN_KEY_CHECKS=DEFAULT;
+--let $create_statement2=
+--let $insert_statement=
+--let $insert_statement2=
+--let $fixup_statement=
+
+--delimiter $
+create or replace procedure make_tables()
+begin
+  create table t1 (x int primary key, a int references t1(x));
+  create table t2 (x int references t1(x), y int primary key, b int references t2(x));
+  create table t3 (x int references t2(x), y int references t2(y), z int primary key, c int references t3(z));
+  create table t4 (
+    a int primary key,
+    x int references t1(x),
+    y int references t2(y),
+    z int references t3(z));
+  insert t1 values (1, 1);
+  insert t2 values (1, 2, 1);
+  insert t3 values (1, 2, 3, 3);
+  insert t4 values (0, 1, 2, 3);
+end $
+
+create or replace procedure drop_tables()
+begin
+  drop table if exists t4;
+  drop table if exists t3;
+  drop table if exists t2;
+  drop table if exists t1;
+end $
+--delimiter ;
+
+let $show_statement0= check tables t1, t2, t3, t4;
+let $show_statement1= check tables t1, t2, t3, t4;
+let $show_statement2= check tables t1, t2, t3, t4;
+
+--echo # DROP TABLE
+call make_tables;
+--let $crash_statement=
+--let $create_statement=
+let $fail_statement= drop tables t4, t1, t3, t2;
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+call drop_tables;
+
+--echo # CREATE TABLE
+create table t1 (x int primary key);
+create table t2 (y int primary key);
+create table t3 (z int primary key);
+--let $create_statement=
+--let $crash_statement=
+let $fail_statement= create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+call drop_tables;
+
+--echo # RENAME TABLE
+call make_tables;
+--let $create_statement=
+--let $crash_statement=
+let $fail_statement= rename table t4 to xt4, t1 to xt1, t3 to xt3, t2 to xt2;
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+--let $crash_statement=
+let $fail_statement= alter table t3 rename xt3;
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+call drop_tables;
+
+--echo # RENAME COLUMN
+call make_tables;
+--let $create_statement=
+--let $crash_statement=
+let $fail_statement= alter table t2 change y z int, change x y int, change b c int;
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+let $fail_statement= alter table t3 rename column z to z2, rename column y to y2, rename column x to x2, rename column c to c2;
+--let $crash_statement=
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+call drop_tables;
+
+--echo # ADD/DROP FOREIGN KEY, DROP COLUMN
+call make_tables;
+--let $create_statement=
+--let $crash_statement=
+show create table t3;
+let $fail_statement= alter table t3
+  drop foreign key fk_t3,
+  drop foreign key fk_t3_2,
+  drop foreign key fk_t3_3,
+  drop c,
+  add foreign key (x) references t1(x),
+  add foreign key (y) references t2(x);
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+# TODO: ALTER TABLE is not crash-safe itself, so rollback it via DDL log
+#let $debug_dbug="+d,crash_fk_backup_frm";
+#--source include/foreign_fail.inc
+#let $debug_dbug="+d,crash_fk_install_shadow_frm";
+#--source include/foreign_fail.inc
+call drop_tables;
+
+drop procedure make_tables;
+drop procedure drop_tables;
+set session debug_dbug=@save_dbug;

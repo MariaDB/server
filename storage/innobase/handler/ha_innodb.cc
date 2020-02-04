@@ -21132,47 +21132,37 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD* thd,
 	ut_ad(d.foreign_keys.elements);
 
 	// Got legacy foreign keys, update referenced shares
-	FK_table_backup fk_table_backup;
-	FK_create_vector ref_shares;
-	if (d.s->fk_handle_create(thd, ref_shares, &d.foreign_keys)) {
+	FK_ddl_backup*	  share_backup;
+	FK_backup_storage ref_shares;
+	if (share->fk_handle_create(thd, ref_shares, &d.foreign_keys)) {
 		err = DB_ERROR;
 		goto rollback;
 	}
 
-	if (fk_table_backup.init(d.s)) {
+	share_backup = ref_shares.emplace(NULL, share, share);
+	if (!share_backup) {
 		err = DB_OUT_OF_MEMORY;
 		goto rollback;
 	}
 
 	// Push to main share. Share is already locked by Open_table_context.
 	for (FK_info &fk: d.foreign_keys) {
-		if (d.s->foreign_keys.push_back(&fk, &d.s->mem_root)) {
+		if (share->foreign_keys.push_back(&fk, &share->mem_root)) {
 			err = DB_OUT_OF_MEMORY;
 			goto rollback;
 		}
+		share_backup->update_frm = true;
 	}
 
-	// Update foreign FRM
-	if (d.s->fk_write_shadow_frm()) {
+	// Update foreign and referenced FRMs
+	if (ref_shares.write_shadow_frms()
+	    || ref_shares.install_shadow_frms()) {
 		err = DB_ERROR;
 		goto rollback;
 	}
 
-	// Update referenced FRMs
-	for (FK_ddl_backup &bak: ref_shares) {
-		if (bak.sa.share->fk_install_shadow_frm()) {
-			// TODO: MDEV-21053 atomicity
-			err = DB_ERROR;
-			goto rollback;
-		}
-	}
-
-	if (d.s->fk_install_shadow_frm()) {
-		err = DB_ERROR;
-		goto rollback;
-	}
-
-	fk_table_backup.commit();
+	ref_shares.drop_backup_frms(thd);
+	ref_shares.clear();
 
 	// Drop legacy foreign keys
 	static const char sql_drop[] = "PROCEDURE DROP_PROC () IS\n"
@@ -21216,9 +21206,7 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD* thd,
 	return DB_LEGACY_FK;
 
 rollback:
-	for (FK_ddl_backup &bak: ref_shares) {
-		bak.rollback();
-	}
+	ref_shares.rollback(thd);
 	return err;
 }
 
