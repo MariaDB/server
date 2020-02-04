@@ -41,7 +41,8 @@ enum ddl_log_entry_code
   DDL_LOG_EXECUTE_CODE= 1,
   DDL_LOG_ENTRY_CODE= 2,
   DDL_IGNORE_LOG_ENTRY_CODE= 3,
-  DDL_LOG_ENTRY_CODE_LAST= 4
+  DDL_TRY_LOG_ENTRY_CODE= 4,
+  DDL_LOG_ENTRY_CODE_LAST= 5
 };
 
 
@@ -193,6 +194,8 @@ typedef struct st_ddl_log_state
   DDL_LOG_MEMORY_ENTRY *execute_entry;
   bool is_active() { return list != 0; }
 } DDL_LOG_STATE;
+
+extern const LEX_CSTRING file_action;
 
 
 /* These functions are for recovery */

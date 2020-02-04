@@ -7303,6 +7303,34 @@ static bool protect_against_unsafe_warning_flood(int unsafe_type)
   DBUG_RETURN(unsafe_warning_suppression_active[unsafe_type]);
 }
 
+
+void release_ddl_log_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry);
+bool write_execute_ddl_log_entry(uint first_entry,
+                                   bool complete,
+                                   DDL_LOG_MEMORY_ENTRY **active_entry);
+extern mysql_mutex_t LOCK_gdl;
+
+void ddl_log_info::release()
+{
+  while (list)
+  {
+    ddl_log_release_memory_entry(list);
+    list= list->next_active_log_entry;
+  }
+}
+
+
+void ddl_log_info::write_log_finish()
+{
+  Mutex_lock lock_gdl(&LOCK_gdl);
+  if (ddl_log_disable_execute_entry(&execute_entry))
+  {
+    my_printf_error(ER_DDL_LOG_ERROR, "Deactivating execute entry failed", MYF(0));
+  }
+  release();
+}
+
+
 MYSQL_TIME THD::query_start_TIME()
 {
   MYSQL_TIME res;

@@ -320,6 +320,42 @@ flush tables t2, t1;
 check tables t2, t1;
 drop tables t2, t1;
 
+--echo # Multi-rename
+create or replace table t1 (x int unique, y int unique, z int unique);
+create or replace table t2 (x int references t1(x));
+create or replace table t3 (x int references t2(x), y int references t1(y));
+create or replace table t4 (x int);
+create or replace table fail_t4 (x int);
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to xt1, t4 to fail_t4;
+check tables t1, t2, t3;
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to xt1, t2 to xt2, t3 to xt3, t4 to fail_t4;
+check tables t1, t2, t3, xt1, xt2, xt3;
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+--error ER_TABLE_EXISTS_ERROR
+rename table t3 to xt3, t2 to xt2, t1 to xt1, t4 to fail_t4;
+check tables t1, t2, t3, xt1, xt2, xt3;
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+rename table t1 to xt1, t2 to xt2, t3 to xt3;
+check tables xt1, xt2, xt3;
+flush tables xt1, xt2, xt3;
+check tables xt1, xt2, xt3;
+rename table xt3 to t3, xt2 to t2, xt1 to t1;
+check tables t1, t2, t3;
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+drop tables fail_t4, t4;
+rename table t3 to t4, t2 to t3, t1 to t2, t4 to t1;
+check tables t1, t2, t3;
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+drop tables t1, t3, t2;
+
 --echo # Check drop table
 create or replace table t1 (id int primary key);
 create or replace table ch1 (id int, foreign key (id) references t1 (id));

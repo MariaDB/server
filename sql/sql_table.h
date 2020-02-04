@@ -26,7 +26,7 @@ class Alter_info;
 class Alter_table_ctx;
 class Column_definition;
 class Create_field;
-class FK_rename_vector;
+class FK_backup_storage;
 struct TABLE_LIST;
 class THD;
 struct TABLE;
@@ -36,6 +36,8 @@ class String;
 typedef struct st_ha_check_opt HA_CHECK_OPT;
 struct HA_CREATE_INFO;
 struct Table_specification_st;
+typedef struct st_ddl_log_entry DDL_LOG_ENTRY;
+typedef struct st_ddl_log_memory_entry DDL_LOG_MEMORY_ENTRY;
 typedef struct st_key KEY;
 typedef struct st_key_cache KEY_CACHE;
 typedef struct st_lock_param_type ALTER_PARTITION_PARAM_TYPE;
@@ -80,8 +82,8 @@ bool check_mysql50_prefix(const char *name);
 uint build_table_filename(char *buff, size_t bufflen, const char *db,
                           const char *table, const char *ext, uint flags);
 uint build_table_shadow_filename(char *buff, size_t bufflen,
-                                 const LEX_CSTRING &db,
-                                 const LEX_CSTRING &table_name);
+                                 LEX_CSTRING &db, LEX_CSTRING &table_name,
+                                 const char *prefix= tmp_file_prefix);
 void build_lower_case_table_filename(char *buff, size_t bufflen,
                                      const LEX_CSTRING *db,
                                      const LEX_CSTRING *table,
@@ -215,7 +217,7 @@ int write_bin_log_with_if_exists(THD *thd, bool clear_error,
 
 bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db,
                       const LEX_CSTRING *new_table_name,
-                      FK_rename_vector &fk_rename_backup);
+                      FK_backup_storage &fk_rename_backup);
 
 template<typename T> class List;
 void promote_first_timestamp_column(List<Create_field> *column_definitions);
