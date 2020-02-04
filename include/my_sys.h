@@ -964,6 +964,13 @@ extern ulonglong my_getcputime(void);
 #define available_stack_size(CUR,END) (long) ((char*)(END) - (char*)(CUR))
 #endif
 
+#ifndef MAP_SYNC
+#define MAP_SYNC 0x80000
+#endif
+#ifndef MAP_SHARED_VALIDATE
+#define MAP_SHARED_VALIDATE 0x03
+#endif
+
 #ifdef HAVE_SYS_MMAN_H
 #ifndef MAP_NOSYNC
 #define MAP_NOSYNC      0
