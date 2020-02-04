@@ -40,7 +40,6 @@ static MYSQL_SYSVAR_INT
   NULL, NULL, -1, -1, 2147483647, 0
 );
 
-
 char *clustrix_host;
 static MYSQL_SYSVAR_STR
 (
@@ -103,7 +102,6 @@ static void update_host_list(char *clustrix_host)
 
   DBUG_PRINT("clustrix_host", ("%s", clustrix_host));
 }
-
 
 char *clustrix_username;
 static MYSQL_SYSVAR_STR
@@ -727,7 +725,6 @@ int ha_clustrixdb::index_init(uint idx, bool sorted)
   sorted_scan = sorted;
 
   return 0;
-
 }
 
 int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
@@ -1062,6 +1059,8 @@ int ha_clustrixdb::external_lock(THD *thd, int lock_type)
   DBUG_ENTER("ha_clustrixdb::external_lock()");
   int error_code;
   clustrix_connection *trx = get_trx(thd, &error_code);
+  if (error_code)
+      DBUG_RETURN(error_code);
 
   if (lock_type == F_WRLCK)
     clx_lock_type = CLUSTRIX_EXCLUSIVE;
@@ -1071,18 +1070,18 @@ int ha_clustrixdb::external_lock(THD *thd, int lock_type)
     clx_lock_type = CLUSTRIX_NO_LOCKS;
 
   if (lock_type != F_UNLCK) {
-    if (!trx->has_open_transaction())
-      trx->begin_transaction();
+    if (!trx->has_open_transaction()) {
+      error_code = trx->begin_transaction_next();
+      if (error_code)
+          DBUG_RETURN(error_code);
+    }
 
     trans_register_ha(thd, FALSE, clustrixdb_hton);
-    if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-      if (!trx->has_open_anonymous_savepoint())
-        trx->set_anonymous_savepoint();
+    if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
       trans_register_ha(thd, TRUE, clustrixdb_hton);
-    }
   }
 
-  DBUG_RETURN(0);
+  DBUG_RETURN(error_code);
 }
 
 /****************************************************************************
@@ -1169,8 +1168,7 @@ void ha_clustrixdb::build_key_packed_row(uint index, const uchar *buf,
   } else {
     // make a row from the table
     table->mark_columns_used_by_index(index, &table->tmp_set);
-    *packed_key_len = pack_row(table, &table->tmp_set, packed_key,
-                               buf);
+    *packed_key_len = pack_row(table, &table->tmp_set, packed_key, buf);
   }
 }
 
@@ -1212,19 +1210,15 @@ static int clustrixdb_commit(handlerton *hton, THD *thd, bool all)
   clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
   assert(trx);
 
-  bool send_cmd = FALSE;
-  if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-    if (trx->has_open_transaction())
-      send_cmd = trx->commit_transaction();
-  } else {
-    if (trx->has_open_anonymous_savepoint())
-      send_cmd = trx->release_anonymous_savepoint();
+  int error_code = 0;
+  if (trx->has_open_transaction()) {
+    if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+      error_code = trx->commit_transaction();
+    else
+      error_code = trx->new_statement_next();
   }
 
-  if (send_cmd)
-    return trx->send_transaction_cmd();
-
-  return 0;
+  return error_code;
 }
 
 static int clustrixdb_rollback(handlerton *hton, THD *thd, bool all)
@@ -1232,19 +1226,15 @@ static int clustrixdb_rollback(handlerton *hton, THD *thd, bool all)
   clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
   assert(trx);
 
-  bool send_cmd = FALSE;
-  if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-    if (trx->has_open_transaction())
-      send_cmd = trx->rollback_transaction();
-  } else {
-    if (trx->has_open_anonymous_savepoint())
-      send_cmd = trx->rollback_to_anonymous_savepoint();
+  int error_code = 0;
+  if (trx->has_open_transaction()) {
+    if (all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+      error_code = trx->rollback_transaction();
+    else
+      error_code = trx->rollback_statement_next();
   }
 
-  if (send_cmd)
-    return trx->send_transaction_cmd();
-
-  return 0;
+  return error_code;
 }
 
 static handler* clustrixdb_create_handler(handlerton *hton, TABLE_SHARE *table,
@@ -1270,7 +1260,6 @@ static int clustrixdb_panic(handlerton *hton, ha_panic_function type)
 {
   return 0;
 }
-
 
 static bool clustrixdb_show_status(handlerton *hton, THD *thd,
                             stat_print_fn *stat_print,

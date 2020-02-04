@@ -31,74 +31,36 @@ class clustrix_connection_cursor;
 class clustrix_connection
 {
 private:
-# define COMMAND_BUFFER_SIZE_INCREMENT 1024
-# define COMMAND_BUFFER_SIZE_INCREMENT_BITS 10
-
   MYSQL clustrix_net;
   uchar *command_buffer;
   size_t command_buffer_length;
   size_t command_length;
 
-  uchar *reply_buffer;
-  size_t reply_length;
-
-  bool has_transaction;
-  bool has_anonymous_savepoint;
-  int commit_flag_next;
-
+  int trans_state;
+  int trans_flags;
+  int allocate_cursor(MYSQL *clustrix_net, ulong buffer_size,
+                      clustrix_connection_cursor **scan);
 public:
-  clustrix_connection()
-    : command_buffer(NULL), command_buffer_length(0), command_length(0)
-  {
-    DBUG_ENTER("clustrix_connection::clustrix_connection");
-    memset(&clustrix_net, 0, sizeof(MYSQL));
-    has_anonymous_savepoint = FALSE;
-    has_transaction = FALSE;
-    commit_flag_next = 0;
-    DBUG_VOID_RETURN;
-  }
-
-  ~clustrix_connection()
-  {
-    DBUG_ENTER("clustrix_connection::~clustrix_connection");
-    if (is_connected())
-      disconnect(TRUE);
-
-    if (command_buffer)
-      my_free(command_buffer);
-    DBUG_VOID_RETURN;
-  }
+  clustrix_connection();
+  ~clustrix_connection();
 
   inline bool is_connected()
   {
     return clustrix_net.net.vio;
   }
-
   int connect();
-
   void disconnect(bool is_destructor = FALSE);
 
-  int send_transaction_cmd();
-  bool begin_transaction();
-  bool commit_transaction();
-  bool rollback_transaction();
+  bool has_open_transaction();
+  int commit_transaction();
+  int rollback_transaction();
+  int begin_transaction_next();
+  int new_statement_next();
+  int rollback_statement_next(); // also starts new statement
   void auto_commit_next();
-  inline bool has_open_transaction()
-  {
-    return has_transaction;
-  }
-
-  bool set_anonymous_savepoint();
-  bool release_anonymous_savepoint();
-  bool rollback_to_anonymous_savepoint();
-  inline bool has_open_anonymous_savepoint()
-  {
-    return has_anonymous_savepoint;
-  }
+  void auto_commit_closed();
 
   int run_query(String &stmt);
-  my_ulonglong rows_affected();
-
   int write_row(ulonglong clustrix_table_oid, uchar *packed_row,
                 size_t packed_size, ulonglong *last_insert_id);
   int key_update(ulonglong clustrix_table_oid,
@@ -111,7 +73,6 @@ public:
                clustrix_lock_mode_t lock_mode, MY_BITMAP *read_set,
                uchar *packed_key, ulong packed_key_length, uchar **rowdata,
                ulong *rowdata_length);
-
   enum sort_order {SORT_NONE = 0, SORT_ASC = 1, SORT_DESC = 2};
   enum scan_type {
     READ_KEY_OR_NEXT,  /* rows with key and greater */
@@ -121,7 +82,6 @@ public:
     READ_FROM_START,   /* rows with forwards from first key. */
     READ_FROM_LAST,    /* rows with backwards from last key. */
   };
-
   int scan_table(ulonglong clustrix_table_oid,
                  clustrix_lock_mode_t lock_mode,
                  MY_BITMAP *read_set, ushort row_req,
@@ -159,6 +119,5 @@ private:
   int begin_command(uchar command);
   int send_command();
   int read_query_response();
-  void auto_commit_closed();
 };
 #endif  // _clustrix_connection_h
