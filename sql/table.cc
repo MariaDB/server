@@ -379,6 +379,27 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
 }
 
 
+bool TABLE_SHARE::update_name(LEX_CSTRING new_db, LEX_CSTRING new_name)
+{
+  char buf[FN_REFLEN];
+  uint len= build_table_filename(buf, sizeof(buf) - 1, new_db.str, new_name.str, "", 0);
+  char *apath, *adb, *aname;
+  if (!multi_alloc_root(&mem_root, &apath, len + 1, &adb, new_db.length + 1, &aname, new_name.length + 1, NULL))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  strmov(apath, buf);
+  strmov(adb, new_db.str);
+  strmov(aname, new_name.str);
+  path= {apath, len};
+  normalized_path= path;
+  db= {adb, new_db.length};
+  table_name= {aname, new_name.length};
+  return false;
+}
+
+
 /*
   Initialize share for temporary tables
 

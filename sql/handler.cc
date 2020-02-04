@@ -5542,7 +5542,7 @@ int ha_create_table(THD *thd, const char *path,
   char name_buff[FN_REFLEN];
   const char *name;
   TABLE_SHARE share;
-  FK_create_vector fk_shares;
+  FK_backup_storage fk_shares;
   bool temp_table __attribute__((unused)) =
     create_info->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER);
   DBUG_ENTER("ha_create_table");
@@ -5570,7 +5570,10 @@ int ha_create_table(THD *thd, const char *path,
       goto err;
   }
 
-  if (fk_update_refs && share.fk_handle_create(thd, fk_shares))
+  if (fk_update_refs &&
+      (share.fk_handle_create(thd, fk_shares) ||
+      fk_shares.write_shadow_frms() ||
+      fk_shares.install_shadow_frms()))
     goto err;
 
   share.m_psi= PSI_CALL_get_table_share(temp_table, &share);
@@ -5601,23 +5604,14 @@ int ha_create_table(THD *thd, const char *path,
     goto err;
 
   if (fk_update_refs)
-  {
-    for (FK_ddl_backup &bak: fk_shares)
-    {
-      bak.sa.share->fk_install_shadow_frm();
-      /* TODO: (MDEV-21053) Now there is no right for error.
-        Actually it should drop table if install shadow fails. */
-      thd->clear_error();
-    }
-  }
+    fk_shares.drop_backup_frms(thd);
 
   free_table_share(&share);
   DBUG_RETURN(0);
 
 err:
   if (fk_update_refs)
-    for (FK_ddl_backup &bak: fk_shares)
-      bak.rollback();
+    fk_shares.rollback(thd);
   free_table_share(&share);
   DBUG_RETURN(1);
 }

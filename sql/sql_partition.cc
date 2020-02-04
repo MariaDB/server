@@ -78,6 +78,7 @@ using std::min;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
 
+// TODO: remove ERROR_INJECT_CRASH, ERROR_INJECT_ERROR; use ERROR_INJECT instead
 #define ERROR_INJECT_CRASH(code) \
   DBUG_EVALUATE_IF(code, (DBUG_SUICIDE(), 0), 0)
 #define ERROR_INJECT_ERROR(code) \

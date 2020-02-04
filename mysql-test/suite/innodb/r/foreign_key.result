@@ -754,8 +754,7 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop table t1,t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_fid)
-drop table t1,t2;
-ERROR 42S02: Unknown table 'test.t2'
+drop table t2, t1;
 #
 # MDEV-22934 Table disappear after two alter table command
 #

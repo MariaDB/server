@@ -26,48 +26,6 @@ class Alter_rename_key;
 class Key;
 
 
-/* Backup for the table we altering */
-class FK_table_backup
-{
-public:
-  TABLE_SHARE *share;
-  FK_list foreign_keys;
-  FK_list referenced_keys;
-
-  FK_table_backup() : share(NULL) {}
-  virtual ~FK_table_backup()
-  {
-    if (share)
-      rollback();
-  }
-  bool init(TABLE_SHARE *);
-  void commit()
-  {
-    share= NULL;
-  }
-  void rollback()
-  {
-    DBUG_ASSERT(share);
-    share->foreign_keys= foreign_keys;
-    share->referenced_keys= referenced_keys;
-    share= NULL;
-  }
-};
-
-
-/* Backup for the table we refering or which referes us */
-class FK_ref_backup : public FK_table_backup
-{
-public:
-  bool install_shadow;
-  FK_ref_backup() : install_shadow(false) {}
-  virtual ~FK_ref_backup()
-  {
-    commit();
-  }
-};
-
-
 /* DROP FK does not fail for non-existent ref (but other commands do) */
 struct FK_table_to_lock
 {
@@ -442,13 +400,17 @@ public:
   bool fk_check_foreign_id(THD *thd);
   void fk_release_locks(THD *thd);
 
-  // Backup for the table we altering. NB: auto-rollback if not committed.
-  FK_table_backup fk_table_backup;
-  // NB: share is owned and released by fk_shares
-  mbd::map<TABLE_SHARE *, FK_ref_backup> fk_ref_backup;
-  // NB: backup is added only if not exists
-  FK_ref_backup* fk_add_backup(TABLE_SHARE *share);
-  void fk_rollback();
+  // NB: shares are owned and released by fk_shares.
+  FK_backup_storage fk_ref_backup;
+  /*
+     NB: backup is added only if not exists, fk_handle_alter() may try it multiple
+     times per one share.
+  */
+  FK_share_backup* fk_add_backup(TABLE_SHARE *share)
+  {
+    // NB: FK_share_backup ctor is used, ownership is still fk_shares
+    return fk_ref_backup.emplace(NULL, share, share);
+  }
   bool fk_install_frms();
 
 private:

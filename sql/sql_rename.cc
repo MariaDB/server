@@ -41,10 +41,9 @@ struct TABLE_PAIR
 
 
 static bool rename_tables(THD *thd, TABLE_LIST *table_list,
-                          DDL_LOG_STATE *ddl_log_state,
+                          FK_backup_storage *ddl_log_state,
                           bool skip_error, bool if_exits,
-                          bool *force_if_exists,
-                          FK_rename_vector &fk_rename_backup);
+                          bool *force_if_exists);
 
 /*
   Every two entries in the table_list form a pair of original name and
@@ -59,8 +58,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
   TABLE_LIST *ren_table= 0;
   int to_table;
   const char *rename_log_table[2]= {NULL, NULL};
-  DDL_LOG_STATE ddl_log_state;
-  FK_rename_vector fk_rename_backup;
+  FK_backup_storage ddl_log_state;
   DBUG_ENTER("mysql_rename_tables");
 
   /*
@@ -157,14 +155,20 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     goto err;
 
   error=0;
-  bzero(&ddl_log_state, sizeof(ddl_log_state));
 
   /*
     An exclusive lock on table names is satisfactory to ensure
     no other thread accesses this table.
   */
   error= rename_tables(thd, table_list, &ddl_log_state,
-                       0, if_exists, &force_if_exists, fk_rename_backup);
+                       0, if_exists, &force_if_exists);
+
+  if (likely(!error))
+  {
+    error= ddl_log_state.write_shadow_frms();
+    if (!error)
+      error= ddl_log_state.install_shadow_frms();
+  }
 
   if (likely(!silent && !error))
   {
@@ -195,26 +199,35 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
 
   if (likely(!error))
   {
-    for (FK_rename_backup &bak: fk_rename_backup)
-    {
-      error= fk_install_shadow_frm(bak.old_name, bak.new_name);
-      if (error)
-        break;
-    }
-  }
-
-  if (likely(!error))
-  {
+    ddl_log_state.drop_backup_frms(thd);
     query_cache_invalidate3(thd, table_list, 0);
     ddl_log_complete(&ddl_log_state);
   }
   else
   {
+    /*
+      NB: first rollback backed-up FK shares as they can be in table_list
+      themselves. After their FRMs restored we can revert DDL normally.
+    */
+    ddl_log_state.rollback(thd);
     /* Revert the renames of normal tables with the help of the ddl log */
     ddl_log_revert(thd, &ddl_log_state);
-    for (FK_rename_backup &bak: fk_rename_backup)
-      bak.rollback();
   }
+
+  ddl_log_state.clear();
+
+  /* Do tdc_remove_table() after fk_rename_backup release. */
+  for (ren_table= table_list; ren_table; ren_table= ren_table->next_local->next_local)
+  {
+    if (is_temporary_table(ren_table))
+      continue;
+    tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
+    /* NB: we may have already acquired share with new name in fk_handle_rename(). */
+    if (unlikely(error))
+      tdc_remove_table(thd, ren_table->next_local->db.str,
+                       ren_table->next_local->table_name.str);
+  }
+
 
 err:
   DBUG_RETURN(error || binlog_error);
@@ -270,7 +283,8 @@ check_rename(THD *thd, rename_param *param,
              const LEX_CSTRING *new_db,
              const LEX_CSTRING *new_table_name,
              const LEX_CSTRING *new_table_alias,
-             bool skip_error, bool if_exists)
+             bool skip_error, bool if_exists,
+             FK_backup_storage &fk_rename_backup)
 {
   DBUG_ENTER("check_rename");
 
@@ -309,8 +323,24 @@ check_rename(THD *thd, rename_param *param,
 
   if (ha_table_exists(thd, new_db, &param->new_alias, 0))
   {
-    my_error(ER_TABLE_EXISTS_ERROR, MYF(0), param->new_alias.str);
-    DBUG_RETURN(1);                     // This can't be skipped
+    /* Allow shares in fk_rename_backup */
+    bool prev_renamed= false;
+    if (param->from_table_hton != view_pseudo_hton)
+    {
+      TDC_element *element= tdc_lock_share(thd, new_db->str,
+                                           param->new_alias.str);
+      if (element && element != MY_ERRPTR)
+      {
+        prev_renamed= (fk_rename_backup.find(element->share) !=
+                       fk_rename_backup.end());
+        tdc_unlock_share(element);
+      }
+    }
+    if (!prev_renamed)
+    {
+      my_error(ER_TABLE_EXISTS_ERROR, MYF(0), param->new_alias.str);
+      DBUG_RETURN(1);                     // This can't be skipped
+    }
   }
   DBUG_RETURN(0);
 }
@@ -341,12 +371,11 @@ check_rename(THD *thd, rename_param *param,
 */
 
 static bool
-do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
+do_rename(THD *thd, rename_param *param, FK_backup_storage *ddl_log_state,
           TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
           const LEX_CSTRING *new_table_name,
           const LEX_CSTRING *new_table_alias,
-          bool skip_error, bool if_exists, bool *force_if_exists,
-          FK_rename_vector &fk_rename_backup)
+          bool skip_error, bool if_exists, bool *force_if_exists)
 {
   int rc= 1;
   handlerton *hton;
@@ -367,8 +396,6 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
     DBUG_RETURN(1);
 #endif
 
-  tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
-
   if (hton != view_pseudo_hton)
   {
     if (hton->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
@@ -380,7 +407,7 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
         rename table t3 to t4, t2 to t3, t1 to t2, t4 to t1;
     */
     if (!skip_error &&
-        fk_handle_rename(thd, ren_table, new_db, new_table_name, fk_rename_backup))
+        fk_handle_rename(thd, ren_table, new_db, new_table_name, *ddl_log_state))
       DBUG_RETURN(1);
 
 
@@ -430,11 +457,26 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
         debug_crash_here("ddl_log_rename_after_disable_entry");
       }
     }
+    if (!skip_error && !rc)
+    {
+      /*
+         NB: fk_rename_backup may contain this share. fk_write_shadow_frm()
+         will not find original frm by old name since we renamed it.
+      */
+      TDC_element *element= tdc_lock_share(thd, ren_table->db.str, old_alias->str);
+      if (element && element != MY_ERRPTR)
+      {
+        rc= element->share->update_name(*new_db, *new_alias);
+        tdc_unlock_share(element);
+      }
+    }
     if (thd->replication_flags & OPTION_IF_EXISTS)
       *force_if_exists= 1;
   }
   else
   {
+    tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
+
     /*
       Change of schema is not allowed
       except of ALTER ...UPGRADE DATA DIRECTORY NAME command
@@ -496,9 +538,8 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
 */
 
 static bool
-rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
-              bool skip_error, bool if_exists, bool *force_if_exists,
-              FK_rename_vector &fk_rename_backup)
+rename_tables(THD *thd, TABLE_LIST *table_list, FK_backup_storage *ddl_log_state,
+              bool skip_error, bool if_exists, bool *force_if_exists)
 {
   TABLE_LIST *ren_table, *new_table;
   List<TABLE_PAIR> tmp_tables;
@@ -533,7 +574,8 @@ rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
       rename_param param;
       error= check_rename(thd, &param, ren_table, &new_table->db,
                           &new_table->table_name,
-                          &new_table->alias, skip_error, if_exists);
+                          &new_table->alias, skip_error, if_exists,
+                          *ddl_log_state);
       if (error < 0)
         continue;                               // Ignore rename (if exists)
       if (error > 0)
@@ -542,7 +584,7 @@ rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
       if (do_rename(thd, &param, ddl_log_state,
                     ren_table,
                     &new_table->db, &new_table->table_name, &new_table->alias,
-                    skip_error, if_exists, force_if_exists, fk_rename_backup))
+                    skip_error, if_exists, force_if_exists))
         goto revert_rename;
     }
   }
@@ -556,10 +598,3 @@ revert_rename:
 
   DBUG_RETURN(1);
 }
-
-
-FK_rename_backup::FK_rename_backup(Share_acquire&& _sa) :
-  FK_ddl_backup(std::forward<Share_acquire>(_sa)),
-  old_name(sa.share->db, sa.share->table_name),
-  new_name(sa.share->db, sa.share->table_name)
-{}

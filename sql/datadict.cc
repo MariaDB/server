@@ -16,10 +16,14 @@
 #include "mariadb.h"
 #include "datadict.h"
 #include "sql_priv.h"
+#include "sql_base.h"
 #include "sql_class.h"
 #include "sql_table.h"
 #include "ha_sequence.h"
 #include "discover.h"
+
+static const char * const tmp_fk_prefix= "#sqlf";
+static const char * const bak_ext= ".fbk";
 
 static int read_string(File file, uchar**to, size_t length)
 {
@@ -364,7 +368,7 @@ Extra2_info::write(uchar *frm_image, size_t frm_size)
 }
 
 
-int TABLE_SHARE::fk_write_shadow_frm()
+int TABLE_SHARE::fk_write_shadow_frm_impl(const char *shadow_path)
 {
   const uchar * frm_src;
   uchar * frm_dst;
@@ -387,6 +391,7 @@ int TABLE_SHARE::fk_write_shadow_frm()
       my_error(ER_FILE_NOT_FOUND, MYF(0), path, my_errno);
       break;
     default:
+      DBUG_ASSERT(err < 10);
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       break;
     }
@@ -465,10 +470,7 @@ frm_err:
   int4store(frm_dst + 10, frm_size);
   memcpy((void *)pos, rest_src + 4, rest_size - 4);
 
-  char shadow_path[FN_REFLEN + 1];
   char shadow_frm_name[FN_REFLEN + 1];
-  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
-                              db, table_name);
   strxnmov(shadow_frm_name, sizeof(shadow_frm_name), shadow_path, reg_ext, NullS);
   if (writefile(shadow_frm_name, db.str, table_name.str, false, frm_dst, frm_size))
     return 10;
@@ -476,44 +478,317 @@ frm_err:
   return 0;
 }
 
-bool fk_install_shadow_frm(Table_name old_name, Table_name new_name)
+
+bool ddl_log_info::write_log_replace_delete_file(const char *from_path,
+                                                const char *to_path,
+                                                bool replace_flag)
+{
+  DDL_LOG_ENTRY ddl_log_entry;
+  bzero(&ddl_log_entry, sizeof(ddl_log_entry));
+
+  if (replace_flag)
+    ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
+  else
+    ddl_log_entry.action_type= DDL_LOG_DELETE_ACTION;
+  ddl_log_entry.entry_type= DDL_TRY_LOG_ENTRY_CODE;
+  ddl_log_entry.next_entry= list ? list->entry_pos : 0;
+  ddl_log_entry.handler_name= file_action;
+  ddl_log_entry.name= { to_path, strlen(to_path) };
+  if (replace_flag)
+    ddl_log_entry.from_name= { from_path, strlen(from_path) };
+  if (ERROR_INJECT("fail_log_replace_delete_1", "crash_log_replace_delete_1"))
+    return true;
+  DDL_LOG_MEMORY_ENTRY *next_active_log_entry= list;
+  Mutex_lock lock_gdl(&LOCK_gdl);
+  if (ddl_log_write_entry(&ddl_log_entry, &list))
+  {
+error:
+    my_error(ER_DDL_LOG_ERROR, MYF(0));
+    return true;
+  }
+  if (ERROR_INJECT("fail_log_replace_delete_2", "crash_log_replace_delete_2"))
+    goto error;
+  list->next_active_log_entry= next_active_log_entry;
+  if (ddl_log_write_execute_entry(list->entry_pos, &execute_entry))
+    goto error;
+  if (ERROR_INJECT("fail_log_replace_delete_3", "crash_log_replace_delete_3"))
+    goto error;
+  return false;
+}
+
+
+int FK_backup::fk_write_shadow_frm(ddl_log_info &log_info)
 {
   char shadow_path[FN_REFLEN + 1];
-  char path[FN_REFLEN];
+  char frm_name[FN_REFLEN + 1];
+  int err;
+  TABLE_SHARE *s= get_share();
+  DBUG_ASSERT(s);
+  build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
+                              s->db, s->table_name, tmp_fk_prefix);
+  strxnmov(frm_name, sizeof(frm_name), shadow_path, reg_ext, NullS);
+  if (log_info.write_log_replace_delete_file(NULL, frm_name, false))
+    return true;
+  delete_shadow_entry= log_info.list;
+#ifndef DBUG_OFF
+  if (log_info.dbg_fail &&
+      (ERROR_INJECT("fail_fk_write_shadow_frm", "crash_fk_write_shadow_frm")))
+  {
+    err= 10;
+    goto write_shadow_failed;
+  }
+#endif
+  err= s->fk_write_shadow_frm_impl(shadow_path);
+  if (err)
+  {
+#ifndef DBUG_OFF
+write_shadow_failed:
+#endif
+    if (ddl_log_increment_phase(delete_shadow_entry->entry_pos))
+    {
+      /* This is very bad case because log replay will delete original frm.
+         At least try prohibit replaying it and push an alert message. */
+      log_info.write_log_finish();
+      my_printf_error(ER_DDL_LOG_ERROR, "Deactivating delete shadow entry %u failed",
+                      MYF(0), delete_shadow_entry->entry_pos);
+    }
+    delete_shadow_entry= NULL;
+  }
+  return err;
+}
+
+
+bool FK_backup::fk_backup_frm(ddl_log_info &log_info)
+{
+  MY_STAT stat_info;
+  DBUG_ASSERT(0 != strcmp(reg_ext, bak_ext));
+  char path[FN_REFLEN + 1];
+  char bak_name[FN_REFLEN + 1];
+  char frm_name[FN_REFLEN + 1];
+  TABLE_SHARE *s= get_share();
+  build_table_filename(path, sizeof(path), s->db.str,
+                       s->table_name.str, "", 0);
+  strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
+  strxnmov(bak_name, sizeof(bak_name), path, bak_ext, NullS);
+  if (mysql_file_stat(key_file_frm, bak_name, &stat_info, MYF(0)))
+  {
+    my_error(ER_FILE_EXISTS_ERROR, MYF(0), bak_name);
+    return true;
+  }
+  if (log_info.write_log_replace_delete_file(bak_name, frm_name, true))
+    return true;
+  restore_backup_entry= log_info.list;
+#ifndef DBUG_OFF
+  if (log_info.dbg_fail &&
+      (ERROR_INJECT("fail_fk_backup_frm", "crash_fk_backup_frm")))
+  {
+    goto rename_failed;
+  }
+#endif
+  if (mysql_file_rename(key_file_frm, frm_name, bak_name, MYF(MY_WME)))
+  {
+#ifndef DBUG_OFF
+rename_failed:
+#endif
+    /* Rename failed and we don't want rollback to delete original frm */
+    if (ddl_log_increment_phase(restore_backup_entry->entry_pos))
+    {
+      /* This is very bad case because log replay will delete original frm.
+         At least try prohibit replaying it and push an alert message. */
+      log_info.write_log_finish();
+      my_printf_error(ER_DDL_LOG_ERROR, "Deactivating restore backup entry %u failed",
+                      MYF(0), restore_backup_entry->entry_pos);
+    }
+    restore_backup_entry= NULL;
+    return true;
+  }
+  return false;
+}
+
+
+bool FK_backup::fk_install_shadow_frm(ddl_log_info &log_info)
+{
+  MY_STAT stat_info;
+  char shadow_path[FN_REFLEN + 1];
+  char path[FN_REFLEN + 1];
   char shadow_frm_name[FN_REFLEN + 1];
   char frm_name[FN_REFLEN + 1];
-  MY_STAT stat_info;
+  TABLE_SHARE *s= get_share();
   build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
-                              old_name.db, old_name.name);
-  build_table_filename(path, sizeof(path), new_name.db.str,
-                       new_name.name.str, "", 0);
+                              s->db, s->table_name, tmp_fk_prefix);
+  build_table_filename(path, sizeof(path), s->db.str,
+                       s->table_name.str, "", 0);
   strxnmov(shadow_frm_name, sizeof(shadow_frm_name), shadow_path, reg_ext, NullS);
   strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
   if (!mysql_file_stat(key_file_frm, shadow_frm_name, &stat_info, MYF(MY_WME)))
     return true;
-  if (mysql_file_delete(key_file_frm, frm_name, MYF(MY_WME)))
+#ifndef DBUG_OFF
+  if (log_info.dbg_fail &&
+      (ERROR_INJECT("fail_fk_install_shadow_frm", "crash_fk_install_shadow_frm")))
+  {
     return true;
+  }
+#endif
   if (mysql_file_rename(key_file_frm, shadow_frm_name, frm_name, MYF(MY_WME)))
     return true;
+  if (ddl_log_increment_phase(delete_shadow_entry->entry_pos))
+  {
+    my_printf_error(ER_DDL_LOG_ERROR, "Deactivating delete shadow entry %u failed",
+                    MYF(0), delete_shadow_entry->entry_pos);
+    return true;
+  }
+  delete_shadow_entry= NULL;
   return false;
 }
 
-bool TABLE_SHARE::fk_install_shadow_frm()
-{
-  return ::fk_install_shadow_frm({db, table_name}, {db, table_name});
-}
 
-void fk_drop_shadow_frm(Table_name table)
+void FK_backup::fk_drop_shadow_frm(ddl_log_info &log_info)
 {
   char shadow_path[FN_REFLEN+1];
   char shadow_frm_name[FN_REFLEN+1];
+  TABLE_SHARE *s= get_share();
   build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
-                              table.db, table.name);
+                              s->db, s->table_name, tmp_fk_prefix);
   strxnmov(shadow_frm_name, sizeof(shadow_frm_name), shadow_path, reg_ext, NullS);
   mysql_file_delete(key_file_frm, shadow_frm_name, MYF(0));
 }
 
-void TABLE_SHARE::fk_drop_shadow_frm()
+
+
+void FK_backup::fk_drop_backup_frm(ddl_log_info &log_info)
 {
-  ::fk_drop_shadow_frm({db, table_name});
+  char path[FN_REFLEN + 1];
+  char bak_name[FN_REFLEN + 1];
+  TABLE_SHARE *s= get_share();
+  build_table_filename(path, sizeof(path), s->db.str,
+                       s->table_name.str, "", 0);
+  strxnmov(bak_name, sizeof(bak_name), path, bak_ext, NullS);
+  mysql_file_delete(key_file_frm, bak_name, MYF(0));
+}
+
+
+int FK_backup_storage::write_shadow_frms()
+{
+  int err;
+#ifndef DBUG_OFF
+  FK_backup *last= NULL;
+  for (auto &bak: *this)
+  {
+    if (!bak.second.update_frm)
+      continue;
+    last= &bak.second;
+  }
+  dbg_fail= false;
+#endif
+  for (auto &bak: *this)
+  {
+    if (!bak.second.update_frm)
+      continue;
+#ifndef DBUG_OFF
+    if (&bak.second == last)
+      dbg_fail= true;
+#endif
+    if ((err= bak.second.fk_write_shadow_frm(*this)))
+      return err;
+  }
+  return 0;
+}
+
+
+bool FK_backup_storage::install_shadow_frms()
+{
+  if (!size())
+    return false;
+#ifndef DBUG_OFF
+  FK_backup *last= NULL;
+  for (auto &bak: *this)
+  {
+    if (!bak.second.update_frm)
+      continue;
+    last= &bak.second;
+  }
+  dbg_fail= false;
+#endif
+  for (auto &bak: *this)
+  {
+    if (!bak.second.update_frm)
+      continue;
+#ifndef DBUG_OFF
+    if (&bak.second == last)
+      dbg_fail= true;
+#endif
+    if (bak.second.fk_backup_frm(*this))
+      return true;
+  }
+#ifndef DBUG_OFF
+  dbg_fail= false;
+#endif
+  for (auto &bak: *this)
+  {
+    if (!bak.second.update_frm)
+      continue;
+#ifndef DBUG_OFF
+    if (&bak.second == last)
+      dbg_fail= true;
+#endif
+    if (bak.second.fk_install_shadow_frm(*this))
+      return true;
+  }
+
+  return false;
+}
+
+
+void FK_backup_storage::rollback(THD *thd)
+{
+  for (auto &bak: *this)
+    bak.second.rollback(*this);
+
+  // NB: we might not fk_write_shadow_frm() at all f.ex. when rename table failed
+  if (!list)
+    return;
+
+  if (ddl_log_execute_entry(thd, list->entry_pos))
+  {
+    my_printf_error(ER_DDL_LOG_ERROR, "Executing some rollback actions from entry %u failed",
+                    MYF(0), list->entry_pos);
+  }
+  write_log_finish();
+}
+
+
+void FK_backup_storage::drop_backup_frms(THD *thd)
+{
+#ifndef DBUG_OFF
+  dbg_fail= true;
+#endif
+  for (auto &bak: *this)
+  {
+    if (!bak.second.update_frm)
+      continue;
+    if (ddl_log_increment_phase(bak.second.restore_backup_entry->entry_pos))
+    {
+      // TODO: test getting into here (and other deactivate_ddl_log_entry() failures)
+      my_printf_error(ER_DDL_LOG_ERROR, "Deactivating restore backup entry %u failed",
+                      MYF(0), bak.second.restore_backup_entry->entry_pos);
+      // TODO: must be atomic
+    }
+#ifndef DBUG_OFF
+    dbg_fail= false;
+#endif
+  }
+#ifndef DBUG_OFF
+  dbg_fail= true;
+#endif
+  for (auto &bak: *this)
+  {
+    if (!bak.second.update_frm)
+      continue;
+    bak.second.fk_drop_backup_frm(*this);
+#ifndef DBUG_OFF
+    dbg_fail= false;
+#endif
+  }
+  if (list)
+    write_log_finish();
 }
