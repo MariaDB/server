@@ -97,28 +97,29 @@ struct handlerton* innodb_hton_ptr __attribute__((weak));
 bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 {
   if (var_type == OPT_GLOBAL) {
+    my_bool saved_wsrep_on= global_system_variables.wsrep_on;
+
     thd->variables.wsrep_on= global_system_variables.wsrep_on;
 
     // If wsrep has not been inited we need to do it now
     if (global_system_variables.wsrep_on && wsrep_provider && !wsrep_inited)
     {
-      bool rcode= false;
       char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider
                                          //when fails
+
+      mysql_mutex_unlock(&LOCK_global_system_variables);
 
       if (wsrep_init())
       {
         my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, my_error, "wsrep_init failed");
-        rcode= true;
+        //rcode= true;
       }
-      free(tmp);
 
-      // we sure don't want to use old address with new provider
-      wsrep_cluster_address_init(NULL);
-      wsrep_provider_options_init(NULL);
-      if (!rcode)
-        refresh_provider_options();
+      free(tmp);
+      mysql_mutex_lock(&LOCK_global_system_variables);
     }
+
+    thd->variables.wsrep_on= global_system_variables.wsrep_on= saved_wsrep_on;
   }
 
   return false;
@@ -342,11 +343,11 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
 
   WSREP_DEBUG("wsrep_provider_update: %s", wsrep_provider);
 
-  /* stop replication is heavy operation, and includes closing all client 
+  /* stop replication is heavy operation, and includes closing all client
      connections. Closing clients may need to get LOCK_global_system_variables
      at least in MariaDB.
 
-     Note: releasing LOCK_global_system_variables may cause race condition, if 
+     Note: releasing LOCK_global_system_variables may cause race condition, if
      there can be several concurrent clients changing wsrep_provider
   */
   mysql_mutex_unlock(&LOCK_global_system_variables);
