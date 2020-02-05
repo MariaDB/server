@@ -16,11 +16,10 @@ WSREP_SYNC_WAIT_UPTO
 1
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection node_2;
-SELECT WSREP_SYNC_WAIT_UPTO_GTID('100-1-3');
 connection node_1;
 INSERT INTO t1 VALUES (2);
 connection node_2;
-WSREP_SYNC_WAIT_UPTO_GTID('100-1-3')
+WSREP_SYNC_WAIT_UPTO
 1
 connection node_1;
 DROP TABLE t1;

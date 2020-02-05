@@ -431,7 +431,7 @@ public:
   }
   int wait_gtid_upto(const uint64_t seqno, uint timeout)
   {
-    int wait_result;
+    int wait_result= 0;
     struct timespec wait_time;
     int ret= 0;
     mysql_cond_t wait_cond;
@@ -439,37 +439,44 @@ public:
     set_timespec(wait_time, timeout);
     mysql_mutex_lock(&LOCK_wsrep_gtid_wait_upto);
     std::multimap<uint64, mysql_cond_t*>::iterator it;
-    try
+    if (seqno > m_seqno)
     {
-      it= m_wait_map.insert(std::make_pair(seqno, &wait_cond));
-    } 
-    catch (std::bad_alloc& e)
-    {
-      return 0;
-    }
-    while ((m_committed_seqno < seqno) && !m_force_signal)
-    {
-      wait_result= mysql_cond_timedwait(&wait_cond,
-                                        &LOCK_wsrep_gtid_wait_upto,
-                                        &wait_time);
-      if (wait_result == ETIMEDOUT || wait_result == ETIME)
+      try
       {
-        ret= 1;
-        break;
+        it= m_wait_map.insert(std::make_pair(seqno, &wait_cond));
+      } 
+      catch (std::bad_alloc& e)
+      {
+         ret= ENOMEM;
+      }
+      while (!ret && (m_committed_seqno < seqno) && !m_force_signal)
+      {
+        wait_result= mysql_cond_timedwait(&wait_cond,
+                                          &LOCK_wsrep_gtid_wait_upto,
+                                          &wait_time);
+        if (wait_result == ETIMEDOUT || wait_result == ETIME)
+        {
+          ret= wait_result;
+          break;
+        }
+      }
+      if (ret != ENOMEM)
+      {
+        m_wait_map.erase(it);
       }
     }
-    m_wait_map.erase(it);
     mysql_mutex_unlock(&LOCK_wsrep_gtid_wait_upto);
     mysql_cond_destroy(&wait_cond);
     return ret;
   }
   void signal_waiters(uint64 seqno, bool signal_all)
   {
+    mysql_mutex_lock(&LOCK_wsrep_gtid_wait_upto);
     if (!signal_all && (m_committed_seqno >= seqno))
     {
+      mysql_mutex_unlock(&LOCK_wsrep_gtid_wait_upto);
       return;
     }
-    mysql_mutex_lock(&LOCK_wsrep_gtid_wait_upto);
     m_force_signal= true;
     std::multimap<uint64, mysql_cond_t*>::iterator it_end;
     std::multimap<uint64, mysql_cond_t*>::iterator it_begin;
@@ -481,16 +488,16 @@ public:
     {
       it_end= m_wait_map.upper_bound(seqno);
     }
+    if (m_committed_seqno < seqno)
+    {
+      m_committed_seqno= seqno;
+    }
     for (it_begin = m_wait_map.begin(); it_begin != it_end; ++it_begin)
     {
       mysql_cond_signal(it_begin->second);
     }
     m_force_signal= false;
     mysql_mutex_unlock(&LOCK_wsrep_gtid_wait_upto);
-    if (m_committed_seqno < seqno)
-    {
-      m_committed_seqno= seqno;
-    }
   }
 private:
   const wsrep_server_gtid_t m_undefined= {0,0,0};
