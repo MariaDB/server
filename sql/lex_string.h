@@ -30,6 +30,10 @@ class Lex_cstring : public LEX_CSTRING
     str= NULL;
     length= 0;
   }
+  Lex_cstring(const LEX_CSTRING &str)
+  {
+    LEX_CSTRING::operator=(str);
+  }
   Lex_cstring(const char *_str, size_t _len)
   {
     str= _str;

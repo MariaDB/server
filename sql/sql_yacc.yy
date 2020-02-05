@@ -191,12 +191,14 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   ulonglong ulonglong_number;
   longlong longlong_number;
   uint sp_instr_addr;
+  uint privilege;
 
   /* structs */
   LEX_CSTRING lex_str;
   Lex_ident_cli_st kwd;
   Lex_ident_cli_st ident_cli;
   Lex_ident_sys_st ident_sys;
+  Lex_column_list_privilege_st column_list_privilege;
   Lex_string_with_metadata_st lex_string_with_metadata;
   Lex_spblock_st spblock;
   Lex_spblock_handlers_st spblock_handlers;
@@ -224,10 +226,12 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   Lex_order_limit_lock *order_limit_lock;
 
   /* pointers */
+  Lex_ident_sys *ident_sys_ptr;
   Create_field *create_field;
   Spvar_definition *spvar_definition;
   Row_definition_list *spvar_definition_list;
   const Type_handler *type_handler;
+  const class Sp_handler *sp_handler;
   CHARSET_INFO *charset;
   Condition_information_item *cond_info_item;
   DYNCALL_CREATE_DEF *dyncol_def;
@@ -250,7 +254,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   List<sp_assignment_lex> *sp_assignment_lex_list;
   List<Statement_information_item> *stmt_info_list;
   List<String> *string_list;
-  List<LEX_CSTRING> *lex_str_list;
+  List<Lex_ident_sys> *ident_sys_list;
   Statement_information_item *stmt_info_item;
   String *string;
   TABLE_LIST *table_list;
@@ -259,6 +263,8 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   char *simple_string;
   const char *const_simple_string;
   chooser_compare_func_creator boolfunc2creator;
+  class Lex_grant_privilege *lex_grant;
+  class Lex_grant_object_name *lex_grant_ident;
   class my_var *myvar;
   class sp_condition_value *spcondvalue;
   class sp_head *sphead;
@@ -1294,6 +1300,9 @@ End SQL_MODE_ORACLE_SPECIFIC */
         ident_cli
         ident_cli_set_usual_case
 
+%type <ident_sys_ptr>
+        ident_sys_alloc
+
 %type <kwd>
         keyword_data_type
         keyword_cast_type
@@ -1336,6 +1345,8 @@ End SQL_MODE_ORACLE_SPECIFIC */
 
 %type <type_handler> int_type real_type
 
+%type <sp_handler> sp_handler
+
 %type <Lex_field_type> type_with_opt_collate field_type
         field_type_numeric
         field_type_string
@@ -1345,6 +1356,9 @@ End SQL_MODE_ORACLE_SPECIFIC */
 
 %type <Lex_dyncol_type> opt_dyncol_type dyncol_type
         numeric_dyncol_type temporal_dyncol_type string_dyncol_type
+
+%type <column_list_privilege>
+        column_list_privilege
 
 %type <create_field> field_spec column_def
 
@@ -1382,6 +1396,21 @@ End SQL_MODE_ORACLE_SPECIFIC */
 
 %type <m_fk_option>
         delete_option
+
+%type <privilege>
+        column_privilege
+        object_privilege
+        opt_grant_options
+        opt_grant_option
+        grant_option_list
+        grant_option
+
+%type <lex_grant>
+        object_privilege_list
+        grant_privileges
+
+%type <lex_grant_ident>
+        grant_ident
 
 %type <ulong_num>
         ulong_num real_ulong_num merge_insert_types
@@ -1602,9 +1631,8 @@ End SQL_MODE_ORACLE_SPECIFIC */
         attribute attribute_list
         compressed_deprecated_data_type_attribute
         compressed_deprecated_column_attribute
-        column_list column_list_id
-        opt_column_list grant_privileges grant_ident grant_list grant_option
-        object_privilege object_privilege_list user_list user_and_role_list
+        grant_list
+        user_list user_and_role_list
         rename_list table_or_tables
         clear_privileges flush_options flush_option
         opt_flush_lock flush_lock flush_options_list
@@ -1717,7 +1745,10 @@ End SQL_MODE_ORACLE_SPECIFIC */
 
 %type <lex_str_ptr> query_name
 
-%type <lex_str_list> opt_with_column_list with_column_list
+%type <ident_sys_list>
+        comma_separated_ident_list
+        opt_with_column_list
+        with_column_list
 
 %type <vers_range_unit> opt_history_unit
 %type <vers_history_point> history_point
@@ -2810,9 +2841,6 @@ clear_privileges:
           {
            LEX *lex=Lex;
            lex->users_list.empty();
-           lex->columns.empty();
-           lex->grant= lex->grant_tot_col= 0;
-           lex->all_privileges= 0;
            lex->first_select_lex()->db= null_clex_str;
            lex->account_options.reset();
          }
@@ -2822,6 +2850,15 @@ opt_aggregate:
           /* Empty */   { $$= NOT_AGGREGATE; }
         | AGGREGATE_SYM { $$= GROUP_AGGREGATE; }
         ;
+
+
+sp_handler:
+          FUNCTION_SYM                       { $$= &sp_handler_function; }
+        | PROCEDURE_SYM                      { $$= &sp_handler_procedure; }
+        | PACKAGE_ORACLE_SYM                 { $$= &sp_handler_package_spec; }
+        | PACKAGE_ORACLE_SYM BODY_ORACLE_SYM { $$= &sp_handler_package_body; }
+        ;
+
 
 sp_name:
           ident '.' ident
@@ -14717,7 +14754,7 @@ with_list_element:
 opt_with_column_list:
           /* empty */
           {
-            if (($$= new (thd->mem_root) List<LEX_CSTRING>) == NULL)
+            if (($$= new (thd->mem_root) List<Lex_ident_sys>) == NULL)
               MYSQL_YYABORT;
           }
         | '(' with_column_list ')'
@@ -14725,22 +14762,30 @@ opt_with_column_list:
         ;
 
 with_column_list:
-          ident 
-          {
+          comma_separated_ident_list
+        ;
 
-            $$= new (thd->mem_root) List<LEX_CSTRING>;
-            if (unlikely($$ == NULL) ||
-                unlikely($$->push_back((LEX_CSTRING*)
-                                       thd->memdup(&$1, sizeof(LEX_CSTRING)),
-                                       thd->mem_root)))
+ident_sys_alloc:
+          ident_cli
+          {
+            void *buf= thd->alloc(sizeof(Lex_ident_sys));
+            if (!buf)
+              MYSQL_YYABORT;
+            $$= new (buf) Lex_ident_sys(thd, &$1);
+          }
+        ;
+
+comma_separated_ident_list:
+          ident_sys_alloc
+          {
+            $$= new (thd->mem_root) List<Lex_ident_sys>;
+            if (unlikely($$ == NULL || $$->push_back($1)))
               MYSQL_YYABORT;
 	  }
-        | with_column_list ',' ident
+        | comma_separated_ident_list ',' ident_sys_alloc
           {
-            $1->push_back((LEX_CSTRING*)
-                          thd->memdup(&$3, sizeof(LEX_CSTRING)),
-                          thd->mem_root);
-            $$= $1;
+            if (($$= $1)->push_back($3))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -16615,34 +16660,12 @@ revoke:
 revoke_command:
           grant_privileges ON opt_table grant_ident FROM user_and_role_list
           {
-            LEX *lex= Lex;
-            lex->sql_command= SQLCOM_REVOKE;
-            lex->type= 0;
-          }
-        | grant_privileges ON FUNCTION_SYM grant_ident FROM user_and_role_list
-          {
-            if (unlikely(Lex->add_grant_command(thd, SQLCOM_REVOKE,
-                                                TYPE_ENUM_FUNCTION)))
+            if (Lex->stmt_revoke_table(thd, $1, *$4))
               MYSQL_YYABORT;
           }
-        | grant_privileges ON PROCEDURE_SYM grant_ident FROM user_and_role_list
+        | grant_privileges ON sp_handler grant_ident FROM user_and_role_list
           {
-            if (unlikely(Lex->add_grant_command(thd, SQLCOM_REVOKE,
-                         TYPE_ENUM_PROCEDURE)))
-              MYSQL_YYABORT;
-          }
-        | grant_privileges ON PACKAGE_ORACLE_SYM grant_ident
-          FROM user_and_role_list
-          {
-            if (unlikely(Lex->add_grant_command(thd, SQLCOM_REVOKE,
-                                                TYPE_ENUM_PACKAGE)))
-              MYSQL_YYABORT;
-          }
-        | grant_privileges ON PACKAGE_ORACLE_SYM BODY_ORACLE_SYM grant_ident
-          FROM user_and_role_list
-          {
-            if (unlikely(Lex->add_grant_command(thd, SQLCOM_REVOKE,
-                                                TYPE_ENUM_PACKAGE_BODY)))
+            if (Lex->stmt_revoke_sp(thd, $1, *$4, *$3))
               MYSQL_YYABORT;
           }
         | ALL opt_privileges ',' GRANT OPTION FROM user_and_role_list
@@ -16651,10 +16674,8 @@ revoke_command:
           }
         | PROXY_SYM ON user FROM user_list
           {
-            LEX *lex= Lex;
-            lex->users_list.push_front ($3);
-            lex->sql_command= SQLCOM_REVOKE;
-            lex->type= TYPE_ENUM_PROXY;
+            if (Lex->stmt_revoke_proxy(thd, $3))
+              MYSQL_YYABORT;
           }
         | admin_option_for_role FROM user_and_role_list
           {
@@ -16680,44 +16701,19 @@ grant_command:
           grant_privileges ON opt_table grant_ident TO_SYM grant_list
           opt_require_clause opt_grant_options
           {
-            LEX *lex= Lex;
-            lex->sql_command= SQLCOM_GRANT;
-            lex->type= 0;
-          }
-        | grant_privileges ON FUNCTION_SYM grant_ident TO_SYM grant_list
-          opt_require_clause opt_grant_options
-          {
-            if (unlikely(Lex->add_grant_command(thd, SQLCOM_GRANT,
-                                                TYPE_ENUM_FUNCTION)))
+            if (Lex->stmt_grant_table(thd, $1, *$4, $8))
               MYSQL_YYABORT;
           }
-        | grant_privileges ON PROCEDURE_SYM grant_ident TO_SYM grant_list
+        | grant_privileges ON sp_handler grant_ident TO_SYM grant_list
           opt_require_clause opt_grant_options
           {
-            if (unlikely(Lex->add_grant_command(thd, SQLCOM_GRANT,
-                                                TYPE_ENUM_PROCEDURE)))
-              MYSQL_YYABORT;
-          }
-        | grant_privileges ON PACKAGE_ORACLE_SYM grant_ident TO_SYM grant_list
-          opt_require_clause opt_grant_options
-          {
-            if (unlikely(Lex->add_grant_command(thd, SQLCOM_GRANT,
-                                                TYPE_ENUM_PACKAGE)))
-              MYSQL_YYABORT;
-          }
-        | grant_privileges ON PACKAGE_ORACLE_SYM BODY_ORACLE_SYM grant_ident TO_SYM grant_list
-          opt_require_clause opt_grant_options
-          {
-            if (unlikely(Lex->add_grant_command(thd, SQLCOM_GRANT,
-                                                TYPE_ENUM_PACKAGE_BODY)))
+            if (Lex->stmt_grant_sp(thd, $1, *$4, *$3, $8))
               MYSQL_YYABORT;
           }
         | PROXY_SYM ON user TO_SYM grant_list opt_grant_option
           {
-            LEX *lex= Lex;
-            lex->users_list.push_front ($3);
-            lex->sql_command= SQLCOM_GRANT;
-            lex->type= TYPE_ENUM_PROXY;
+            if (Lex->stmt_grant_proxy(thd, $3, $6))
+              MYSQL_YYABORT;
           }
         | grant_role TO_SYM grant_list opt_with_admin_option
           {
@@ -16792,11 +16788,11 @@ opt_table:
         ;
 
 grant_privileges:
-          object_privilege_list {}
+          object_privilege_list
         | ALL opt_privileges
           { 
-            Lex->all_privileges= 1; 
-            Lex->grant= GLOBAL_ACLS;
+            if (!($$= new (thd->mem_root) Lex_grant_privilege(GLOBAL_ACLS, true)))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -16807,49 +16803,75 @@ opt_privileges:
 
 object_privilege_list:
           object_privilege
+          {
+            if (!($$= new (thd->mem_root) Lex_grant_privilege($1)))
+              MYSQL_YYABORT;
+          }
+        | column_list_privilege
+          {
+            if (!($$= new (thd->mem_root) Lex_grant_privilege()) ||
+                $$->add_column_list_privilege(thd, $1.m_columns[0],
+                                                   $1.m_privilege))
+              MYSQL_YYABORT;
+          }
         | object_privilege_list ',' object_privilege
+          {
+            ($$= $1)->add_object_privilege($3);
+          }
+        | object_privilege_list ',' column_list_privilege
+          {
+            if (($$= $1)->add_column_list_privilege(thd, $3.m_columns[0],
+                                                         $3.m_privilege))
+              MYSQL_YYABORT;
+          }
+        ;
+
+column_list_privilege:
+          column_privilege '(' comma_separated_ident_list ')'
+          {
+            $$= Lex_column_list_privilege($3, $1);
+          }
+        ;
+
+column_privilege:
+          SELECT_SYM              { $$= SELECT_ACL; }
+        | INSERT                  { $$= INSERT_ACL; }
+        | UPDATE_SYM              { $$= UPDATE_ACL; }
+        | REFERENCES              { $$= REFERENCES_ACL; }
         ;
 
 object_privilege:
-          SELECT_SYM
-          { Lex->which_columns = SELECT_ACL;}
-          opt_column_list {}
-        | INSERT
-          { Lex->which_columns = INSERT_ACL;}
-          opt_column_list {}
-        | UPDATE_SYM
-          { Lex->which_columns = UPDATE_ACL; }
-          opt_column_list {}
-        | REFERENCES
-          { Lex->which_columns = REFERENCES_ACL;}
-          opt_column_list {}
-        | DELETE_SYM              { Lex->grant |= DELETE_ACL;}
-        | USAGE                   {}
-        | INDEX_SYM               { Lex->grant |= INDEX_ACL;}
-        | ALTER                   { Lex->grant |= ALTER_ACL;}
-        | CREATE                  { Lex->grant |= CREATE_ACL;}
-        | DROP                    { Lex->grant |= DROP_ACL;}
-        | EXECUTE_SYM             { Lex->grant |= EXECUTE_ACL;}
-        | RELOAD                  { Lex->grant |= RELOAD_ACL;}
-        | SHUTDOWN                { Lex->grant |= SHUTDOWN_ACL;}
-        | PROCESS                 { Lex->grant |= PROCESS_ACL;}
-        | FILE_SYM                { Lex->grant |= FILE_ACL;}
-        | GRANT OPTION            { Lex->grant |= GRANT_ACL;}
-        | SHOW DATABASES          { Lex->grant |= SHOW_DB_ACL;}
-        | SUPER_SYM               { Lex->grant |= SUPER_ACL;}
-        | CREATE TEMPORARY TABLES { Lex->grant |= CREATE_TMP_ACL;}
-        | LOCK_SYM TABLES         { Lex->grant |= LOCK_TABLES_ACL; }
-        | REPLICATION SLAVE       { Lex->grant |= REPL_SLAVE_ACL; }
-        | REPLICATION CLIENT_SYM  { Lex->grant |= REPL_CLIENT_ACL; }
-        | CREATE VIEW_SYM         { Lex->grant |= CREATE_VIEW_ACL; }
-        | SHOW VIEW_SYM           { Lex->grant |= SHOW_VIEW_ACL; }
-        | CREATE ROUTINE_SYM      { Lex->grant |= CREATE_PROC_ACL; }
-        | ALTER ROUTINE_SYM       { Lex->grant |= ALTER_PROC_ACL; }
-        | CREATE USER_SYM         { Lex->grant |= CREATE_USER_ACL; }
-        | EVENT_SYM               { Lex->grant |= EVENT_ACL;}
-        | TRIGGER_SYM             { Lex->grant |= TRIGGER_ACL; }
-        | CREATE TABLESPACE       { Lex->grant |= CREATE_TABLESPACE_ACL; }
-        | DELETE_SYM HISTORY_SYM  { Lex->grant |= DELETE_HISTORY_ACL; }
+          SELECT_SYM              { $$= SELECT_ACL; }
+        | INSERT                  { $$= INSERT_ACL; }
+        | UPDATE_SYM              { $$= UPDATE_ACL; }
+        | REFERENCES              { $$= REFERENCES_ACL; }
+        | DELETE_SYM              { $$= DELETE_ACL;}
+        | USAGE                   { $$= 0; }
+        | INDEX_SYM               { $$= INDEX_ACL;}
+        | ALTER                   { $$= ALTER_ACL;}
+        | CREATE                  { $$= CREATE_ACL;}
+        | DROP                    { $$= DROP_ACL;}
+        | EXECUTE_SYM             { $$= EXECUTE_ACL;}
+        | RELOAD                  { $$= RELOAD_ACL;}
+        | SHUTDOWN                { $$= SHUTDOWN_ACL;}
+        | PROCESS                 { $$= PROCESS_ACL;}
+        | FILE_SYM                { $$= FILE_ACL;}
+        | GRANT OPTION            { $$= GRANT_ACL;}
+        | SHOW DATABASES          { $$= SHOW_DB_ACL;}
+        | SUPER_SYM               { $$= SUPER_ACL;}
+        | CREATE TEMPORARY TABLES { $$= CREATE_TMP_ACL;}
+        | LOCK_SYM TABLES         { $$= LOCK_TABLES_ACL; }
+        | REPLICATION SLAVE       { $$= REPL_SLAVE_ACL; }
+        | REPLICATION CLIENT_SYM  { $$= REPL_CLIENT_ACL; }
+        | CREATE VIEW_SYM         { $$= CREATE_VIEW_ACL; }
+        | SHOW VIEW_SYM           { $$= SHOW_VIEW_ACL; }
+        | CREATE ROUTINE_SYM      { $$= CREATE_PROC_ACL; }
+        | ALTER ROUTINE_SYM       { $$= ALTER_PROC_ACL; }
+        | CREATE USER_SYM         { $$= CREATE_USER_ACL; }
+        | EVENT_SYM               { $$= EVENT_ACL;}
+        | TRIGGER_SYM             { $$= TRIGGER_ACL; }
+        | CREATE TABLESPACE       { $$= CREATE_TABLESPACE_ACL; }
+        | DELETE_SYM HISTORY_SYM  { $$= DELETE_HISTORY_ACL; }
         ;
 
 opt_and:
@@ -16889,41 +16911,30 @@ require_list_element:
 grant_ident:
           '*'
           {
-            LEX *lex= Lex;
-            if (unlikely(lex->copy_db_to(&lex->current_select->db)))
+            LEX_CSTRING db;
+            if (unlikely(Lex->copy_db_to(&db)))
               MYSQL_YYABORT;
-            if (lex->grant == GLOBAL_ACLS)
-              lex->grant = DB_ACLS & ~GRANT_ACL;
-            else if (unlikely(lex->columns.elements))
-              my_yyabort_error((ER_ILLEGAL_GRANT_FOR_TABLE, MYF(0)));
+            if (!($$= new (thd->mem_root) Lex_grant_object_name(db,
+                                            Lex_grant_object_name::STAR)))
+              MYSQL_YYABORT;
           }
         | ident '.' '*'
           {
-            LEX *lex= Lex;
-            lex->current_select->db= $1;
-            if (lex->grant == GLOBAL_ACLS)
-              lex->grant = DB_ACLS & ~GRANT_ACL;
-            else if (unlikely(lex->columns.elements))
-              my_yyabort_error((ER_ILLEGAL_GRANT_FOR_TABLE, MYF(0)));
+            if (!($$= new (thd->mem_root) Lex_grant_object_name($1,
+                                            Lex_grant_object_name::IDENT_STAR)))
+              MYSQL_YYABORT;
           }
         | '*' '.' '*'
           {
-            LEX *lex= Lex;
-            lex->current_select->db= null_clex_str;
-            if (lex->grant == GLOBAL_ACLS)
-              lex->grant= GLOBAL_ACLS & ~GRANT_ACL;
-            else if (unlikely(lex->columns.elements))
-              my_yyabort_error((ER_ILLEGAL_GRANT_FOR_TABLE, MYF(0)));
+            if (!($$= new (thd->mem_root) Lex_grant_object_name(
+                                            null_clex_str,
+                                            Lex_grant_object_name::STAR_STAR)))
+              MYSQL_YYABORT;
           }
         | table_ident
           {
-            LEX *lex=Lex;
-            if (unlikely(!lex->current_select->
-                         add_table_to_list(thd, $1,NULL,
-                                           TL_OPTION_UPDATING)))
+            if (!($$= new (thd->mem_root) Lex_grant_object_name($1)))
               MYSQL_YYABORT;
-            if (lex->grant == GLOBAL_ACLS)
-              lex->grant =  TABLE_ACLS & ~GRANT_ACL;
           }
         ;
 
@@ -17034,49 +17045,6 @@ opt_auth_str:
         }
       ;
 
-opt_column_list:
-          /* empty */
-          {
-            LEX *lex=Lex;
-            lex->grant |= lex->which_columns;
-          }
-        | '(' column_list ')' { }
-        ;
-
-column_list:
-          column_list ',' column_list_id
-        | column_list_id
-        ;
-
-column_list_id:
-          ident
-          {
-            String *new_str= new (thd->mem_root) String((const char*) $1.str,$1.length,system_charset_info);
-            if (unlikely(new_str == NULL))
-              MYSQL_YYABORT;
-            List_iterator <LEX_COLUMN> iter(Lex->columns);
-            class LEX_COLUMN *point;
-            LEX *lex=Lex;
-            while ((point=iter++))
-            {
-              if (!my_strcasecmp(system_charset_info,
-                                 point->column.c_ptr(), new_str->c_ptr()))
-                break;
-            }
-            lex->grant_tot_col|= lex->which_columns;
-            if (point)
-              point->rights |= lex->which_columns;
-            else
-            {
-              LEX_COLUMN *col= (new (thd->mem_root)
-                                LEX_COLUMN(*new_str,lex->which_columns));
-              if (unlikely(col == NULL))
-                MYSQL_YYABORT;
-              lex->columns.push_back(col, thd->mem_root);
-            }
-          }
-        ;
-
 opt_require_clause:
           /* empty */
         | REQUIRE_SYM require_list
@@ -17137,23 +17105,23 @@ opt_resource_options:
 
 
 opt_grant_options:
-          /* empty */ {}
-        | WITH grant_option_list {}
+          /* empty */            { $$= 0;  }
+        | WITH grant_option_list { $$= $2; }
         ;
 
 opt_grant_option:
-          /* empty */ {}
-        | WITH GRANT OPTION { Lex->grant |= GRANT_ACL;}
+          /* empty */       { $$= 0;         }
+        | WITH GRANT OPTION { $$= GRANT_ACL; }
         ;
 
 grant_option_list:
-          grant_option_list grant_option {}
-        | grant_option {}
+          grant_option_list grant_option { $$= $1 | $2; }
+        | grant_option
         ;
 
 grant_option:
-          GRANT OPTION { Lex->grant |= GRANT_ACL;}
-	| resource_option {}
+          GRANT OPTION    { $$= GRANT_ACL;}
+	| resource_option { $$= 0; }
         ;
 
 begin_stmt_mariadb:

@@ -11656,6 +11656,227 @@ bool check_grant(THD *, ulong, TABLE_LIST *, bool, uint, bool)
 { return 0; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
 
+
+#ifdef NO_EMBEDDED_ACCESS_CHECKS
+
+bool Sql_cmd_grant_proxy::execute(THD *thd)
+{
+  my_ok(thd);
+  return false;
+}
+
+bool Sql_cmd_grant_table::execute(THD *thd)
+{
+  my_ok(thd);
+  return false;
+}
+
+
+bool Sql_cmd_grant_sp::execute(THD *thd)
+{
+  my_ok(thd);
+  return false;
+}
+
+#else // not NO_EMBEDDED_ACCESS_CHECKS
+
+
+void Sql_cmd_grant::warn_hostname_requires_resolving(THD *thd,
+                                                     List<LEX_USER> &users)
+{
+  LEX_USER *user;
+  List_iterator <LEX_USER> it(users);
+  while ((user= it++))
+  {
+    if (specialflag & SPECIAL_NO_RESOLVE &&
+        hostname_requires_resolving(user->host.str))
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WARN_HOSTNAME_WONT_WORK,
+                          ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));
+  }
+}
+
+
+void Sql_cmd_grant::grant_stage0(THD *thd)
+{
+  thd->binlog_invoker(false);   // Replicate current user as grantor
+  if (thd->security_ctx->user)  // If not replication
+    warn_hostname_requires_resolving(thd, thd->lex->users_list);
+}
+
+
+bool Sql_cmd_grant::user_list_reset_mqh(THD *thd, List<LEX_USER> &users)
+{
+  List_iterator <LEX_USER> it(users);
+  LEX_USER *user, *tmp_user;
+  while ((tmp_user= it++))
+  {
+    if (!(user= get_current_user(thd, tmp_user)))
+      return true;
+    reset_mqh(user, 0);
+  }
+  return false;
+}
+
+
+bool Sql_cmd_grant_proxy::check_access_proxy(THD *thd, List<LEX_USER> &users)
+{
+  LEX_USER *user;
+  List_iterator <LEX_USER> it(users);
+  if ((user= it++))
+  {
+    // GRANT/REVOKE PROXY has the target user as a first entry in the list
+    if (!(user= get_current_user(thd, user)) || !user->host.str)
+      return true;
+    if (acl_check_proxy_grant_access(thd, user->host.str, user->user.str,
+                                     m_grant_option & GRANT_ACL))
+      return true;
+  }
+  return false;
+}
+
+
+bool Sql_cmd_grant_proxy::execute(THD *thd)
+{
+  LEX  *lex= thd->lex;
+
+  DBUG_ASSERT(lex->first_select_lex()->table_list.first == NULL);
+  DBUG_ASSERT((m_grant_option & ~GRANT_ACL) == 0); // only WITH GRANT OPTION
+
+  grant_stage0(thd);
+
+  if (thd->security_ctx->user /* If not replication */ &&
+      check_access_proxy(thd, lex->users_list))
+    return true;
+
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+  /* Conditionally writes to binlog */
+  if (mysql_grant(thd, NULL/*db*/, lex->users_list, m_grant_option,
+                  is_revoke(), true/*proxy*/))
+    return true;
+
+  return !is_revoke() && user_list_reset_mqh(thd, lex->users_list);
+
+#ifdef WITH_WSREP
+wsrep_error_label:
+  return true;
+#endif // WITH_WSREP
+}
+
+
+bool Sql_cmd_grant_object::grant_stage0_exact_object(THD *thd,
+                                                     TABLE_LIST *table)
+{
+  uint priv= m_object_privilege | m_column_privilege_total | GRANT_ACL;
+  if (check_access(thd, priv, table->db.str,
+                   &table->grant.privilege, &table->grant.m_internal,
+                   0, 0))
+    return true;
+  grant_stage0(thd);
+  return false;
+}
+
+
+bool Sql_cmd_grant_table::execute_exact_table(THD *thd, TABLE_LIST *table)
+{
+  LEX  *lex= thd->lex;
+  if (grant_stage0_exact_object(thd, table) ||
+      check_grant(thd, m_object_privilege | m_column_privilege_total | GRANT_ACL,
+                  lex->query_tables, FALSE, UINT_MAX, FALSE))
+    return true;
+  /* Conditionally writes to binlog */
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+  return mysql_table_grant(thd, lex->query_tables, lex->users_list,
+                           m_columns, m_object_privilege,
+                           is_revoke());
+#ifdef WITH_WSREP
+wsrep_error_label:
+  return true;
+#endif // WITH_WSREP
+}
+
+
+bool Sql_cmd_grant_sp::execute(THD *thd)
+{
+  DBUG_ASSERT(!m_columns.elements);
+  DBUG_ASSERT(!m_column_privilege_total);
+  LEX  *lex= thd->lex;
+  TABLE_LIST *table= lex->first_select_lex()->table_list.first;
+  uint grants= m_all_privileges
+               ? (PROC_ACLS & ~GRANT_ACL) | (m_object_privilege & GRANT_ACL)
+               : m_object_privilege;
+
+  if (!table) // e.g: GRANT EXECUTE ON PROCEDURE *.*
+  {
+    my_message(ER_ILLEGAL_GRANT_FOR_TABLE, ER_THD(thd, ER_ILLEGAL_GRANT_FOR_TABLE),
+               MYF(0));
+    return true;
+  }
+
+  if (grant_stage0_exact_object(thd, table) ||
+      check_grant_routine(thd, grants|GRANT_ACL, lex->query_tables, &m_sph, 0))
+    return true;
+
+  /* Conditionally writes to binlog */
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+  if (mysql_routine_grant(thd, lex->query_tables, &m_sph,
+                          lex->users_list, grants,
+                          is_revoke(), true))
+    return true;
+  my_ok(thd);
+  return false;
+#ifdef WITH_WSREP
+wsrep_error_label:
+  return true;
+#endif // WITH_WSREP
+}
+
+
+bool Sql_cmd_grant_table::execute_table_mask(THD *thd)
+{
+  LEX  *lex= thd->lex;
+  DBUG_ASSERT(lex->first_select_lex()->table_list.first == NULL);
+
+  if (check_access(thd, m_object_privilege | m_column_privilege_total | GRANT_ACL,
+                   m_db.str, NULL, NULL, 1, 0))
+    return true;
+
+  grant_stage0(thd);
+
+  if (m_columns.elements) // e.g. GRANT SELECT (a) ON *.*
+  {
+    my_message(ER_ILLEGAL_GRANT_FOR_TABLE, ER_THD(thd, ER_ILLEGAL_GRANT_FOR_TABLE),
+               MYF(0));
+    return true;
+  }
+
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+  /* Conditionally writes to binlog */
+  if (mysql_grant(thd, m_db.str, lex->users_list, m_object_privilege,
+                  is_revoke(), false/*not proxy*/))
+    return true;
+
+  return !is_revoke() && user_list_reset_mqh(thd, lex->users_list);
+
+#ifdef WITH_WSREP
+wsrep_error_label:
+  return true;
+#endif // WITH_WSREP
+}
+
+
+bool Sql_cmd_grant_table::execute(THD *thd)
+{
+  TABLE_LIST *table= thd->lex->first_select_lex()->table_list.first;
+  return table ? execute_exact_table(thd, table) :
+                 execute_table_mask(thd);
+}
+
+
+#endif // NO_EMBEDDED_ACCESS_CHECKS
+
+
+
 SHOW_VAR acl_statistics[] = {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   {"column_grants",    (char*)show_column_grants,          SHOW_SIMPLE_FUNC},

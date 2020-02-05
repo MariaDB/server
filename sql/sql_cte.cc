@@ -956,7 +956,7 @@ With_element::rename_columns_of_derived_unit(THD *thd,
   if (column_list.elements)  //  The column list is optional
   {
     List_iterator_fast<Item> it(select->item_list);
-    List_iterator_fast<LEX_CSTRING> nm(column_list);
+    List_iterator_fast<Lex_ident_sys> nm(column_list);
     Item *item;
     LEX_CSTRING *name;
 
@@ -1442,7 +1442,7 @@ void With_element::print(String *str, enum_query_type query_type)
   str->append(query_name);
   if (column_list.elements)
   {
-    List_iterator_fast<LEX_CSTRING> li(column_list);
+    List_iterator_fast<Lex_ident_sys> li(column_list);
     str->append('(');
     for (LEX_CSTRING *col_name= li++; ; )
     {

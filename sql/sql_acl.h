@@ -19,6 +19,8 @@
 
 #include "violite.h"                            /* SSL_type */
 #include "sql_class.h"                          /* LEX_COLUMN */
+#include "grant.h"
+#include "sql_cmd.h"                            /* Sql_cmd */
 
 #define SELECT_ACL      (1UL << 0)
 #define INSERT_ACL      (1UL << 1)
@@ -435,4 +437,78 @@ bool check_role_is_granted(const char *username,
 extern ulong role_global_merges, role_db_merges, role_table_merges,
              role_column_merges, role_routine_merges;
 #endif
+
+
+class Sql_cmd_grant: public Sql_cmd
+{
+protected:
+  enum_sql_command m_command;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  void warn_hostname_requires_resolving(THD *thd, List<LEX_USER> &list);
+  bool user_list_reset_mqh(THD *thd, List<LEX_USER> &list);
+  void grant_stage0(THD *thd);
+#endif
+public:
+  Sql_cmd_grant(enum_sql_command command)
+   :m_command(command)
+  { }
+  bool is_revoke() const { return m_command == SQLCOM_REVOKE; }
+  enum_sql_command sql_command_code() const { return m_command; }
+};
+
+
+class Sql_cmd_grant_proxy: public Sql_cmd_grant
+{
+  uint m_grant_option;
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  bool check_access_proxy(THD *thd, List<LEX_USER> &list);
+#endif
+public:
+  Sql_cmd_grant_proxy(enum_sql_command command, uint grant_option)
+   :Sql_cmd_grant(command), m_grant_option(grant_option)
+  { }
+  bool execute(THD *thd);
+};
+
+
+class Sql_cmd_grant_object: public Sql_cmd_grant, public Grant_privilege
+{
+protected:
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  bool grant_stage0_exact_object(THD *thd, TABLE_LIST *table);
+#endif
+public:
+  Sql_cmd_grant_object(enum_sql_command command, const Grant_privilege &grant)
+   :Sql_cmd_grant(command), Grant_privilege(grant)
+  { }
+};
+
+
+class Sql_cmd_grant_table: public Sql_cmd_grant_object
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  bool execute_table_mask(THD *thd);
+  bool execute_exact_table(THD *thd, TABLE_LIST *table);
+#endif
+public:
+  Sql_cmd_grant_table(enum_sql_command command, const Grant_privilege &grant)
+   :Sql_cmd_grant_object(command, grant)
+  { }
+  bool execute(THD *thd);
+};
+
+
+
+class Sql_cmd_grant_sp: public Sql_cmd_grant_object
+{
+  const Sp_handler &m_sph;
+public:
+  Sql_cmd_grant_sp(enum_sql_command command, const Grant_privilege &grant,
+                   const Sp_handler &sph)
+   :Sql_cmd_grant_object(command, grant),
+    m_sph(sph)
+  { }
+  bool execute(THD *thd);
+};
+
 #endif /* SQL_ACL_INCLUDED */

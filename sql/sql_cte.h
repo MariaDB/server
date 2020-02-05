@@ -111,7 +111,7 @@ public:
     inherited from the query that specified the table. Otherwise the list is
     always empty.
   */
-  List <LEX_CSTRING> column_list;
+  List <Lex_ident_sys> column_list;
   /* The query that specifies the table introduced by this with element */
   st_select_lex_unit *spec;
   /* 
@@ -163,7 +163,7 @@ public:
   SQL_I_List<TABLE_LIST> derived_with_rec_ref;
 
   With_element(LEX_CSTRING *name,
-               List <LEX_CSTRING> list,
+               List <Lex_ident_sys> list,
                st_select_lex_unit *unit)
     : next(NULL), base_dep_map(0), derived_dep_map(0),
       sq_dep_map(0), work_dep_map(0), mutually_recursive(0),

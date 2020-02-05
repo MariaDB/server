@@ -9009,16 +9009,13 @@ bool LEX::create_package_finalize(THD *thd,
 }
 
 
-bool LEX::add_grant_command(THD *thd, enum_sql_command sql_command_arg,
-                            stored_procedure_type type_arg)
+bool LEX::add_grant_command(THD *thd, const List<LEX_COLUMN> &columns)
 {
   if (columns.elements)
   {
     thd->parse_error();
     return true;
   }
-  sql_command= sql_command_arg,
-  type= type_arg;
   return false;
 }
 
@@ -11238,4 +11235,73 @@ bool LEX::add_column_foreign_key(const LEX_CSTRING *name,
   alter_info.flags|= ALTER_ADD_FOREIGN_KEY;
 
   return false;
+}
+
+
+bool LEX::stmt_grant_table(THD *thd,
+                           Grant_privilege *grant,
+                           const Lex_grant_object_name &ident,
+                           uint grant_option)
+{
+  sql_command= SQLCOM_GRANT;
+  return
+    grant->set_object_name(thd, ident, current_select, grant_option) ||
+    !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_table(sql_command, *grant));
+}
+
+
+bool LEX::stmt_revoke_table(THD *thd,
+                            Grant_privilege *grant,
+                            const Lex_grant_object_name &ident)
+{
+  sql_command= SQLCOM_REVOKE;
+  return
+    grant->set_object_name(thd, ident, current_select, 0) ||
+    !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_table(sql_command, *grant));
+}
+
+
+bool LEX::stmt_grant_sp(THD *thd,
+                        Grant_privilege *grant,
+                        const Lex_grant_object_name &ident,
+                        const Sp_handler &sph,
+                        uint grant_option)
+{
+  sql_command= SQLCOM_GRANT;
+  return
+    grant->set_object_name(thd, ident, current_select, grant_option) ||
+    add_grant_command(thd, grant->columns()) ||
+    !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_sp(sql_command,
+                                                      *grant, sph));
+}
+
+
+bool LEX::stmt_revoke_sp(THD *thd,
+                         Grant_privilege *grant,
+                         const Lex_grant_object_name &ident,
+                         const Sp_handler &sph)
+{
+  sql_command= SQLCOM_REVOKE;
+  return
+    grant->set_object_name(thd, ident, current_select, 0) ||
+    add_grant_command(thd, grant->columns()) ||
+    !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_sp(sql_command,
+                                                      *grant, sph));
+}
+
+
+bool LEX::stmt_grant_proxy(THD *thd, LEX_USER *user, uint grant_option)
+{
+  users_list.push_front(user);
+  sql_command= SQLCOM_GRANT;
+  return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_proxy(sql_command,
+                                                              grant_option));
+}
+
+
+bool LEX::stmt_revoke_proxy(THD *thd, LEX_USER *user)
+{
+  users_list.push_front(user);
+  sql_command= SQLCOM_REVOKE;
+  return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_proxy(sql_command, 0));
 }

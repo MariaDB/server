@@ -25,6 +25,7 @@
 #include "sql_trigger.h"
 #include "thr_lock.h"                  /* thr_lock_type, TL_UNLOCK */
 #include "mem_root_array.h"
+#include "grant.h"
 #include "sql_cmd.h"
 #include "sql_alter.h"                // Alter_info
 #include "sql_window.h"
@@ -179,6 +180,24 @@ public:
   {
     Lex_ident_sys_st::operator=(name);
     return *this;
+  }
+};
+
+
+struct Lex_column_list_privilege_st
+{
+  List<Lex_ident_sys> *m_columns;
+  uint m_privilege;
+};
+
+
+class Lex_column_list_privilege: public Lex_column_list_privilege_st
+{
+public:
+  Lex_column_list_privilege(List<Lex_ident_sys> *columns, uint privilege)
+  {
+    m_columns= columns;
+    m_privilege= privilege;
   }
 };
 
@@ -3091,6 +3110,28 @@ public:
 };
 
 
+class Lex_grant_object_name: public Grant_object_name, public Sql_alloc
+{
+public:
+  Lex_grant_object_name(Table_ident *table_ident)
+   :Grant_object_name(table_ident)
+  { }
+  Lex_grant_object_name(const LEX_CSTRING &db, Type type)
+   :Grant_object_name(db, type)
+  { }
+};
+
+
+class Lex_grant_privilege: public Grant_privilege, public Sql_alloc
+{
+public:
+  Lex_grant_privilege() {}
+  Lex_grant_privilege(uint grant, bool all_privileges= false)
+   :Grant_privilege(grant, all_privileges)
+  { }
+};
+
+
 struct LEX: public Query_tables_list
 {
   SELECT_LEX_UNIT unit;                         /* most upper unit */
@@ -3187,7 +3228,6 @@ public:
   Table_type table_type;                        /* Used for SHOW CREATE */
   List<Key_part_spec> ref_list;
   List<LEX_USER>      users_list;
-  List<LEX_COLUMN>    columns;
   List<Item>          *insert_list,field_list,value_list,update_list;
   List<List_item>     many_values;
   List<set_var_base>  var_list;
@@ -3309,7 +3349,6 @@ public:
 
   uint profile_query_id;
   uint profile_options;
-  uint grant, grant_tot_col, which_columns;
   enum backup_stages backup_stage;
   enum Foreign_key::fk_match_opt fk_match_option;
   enum_fk_option fk_update_opt;
@@ -3362,7 +3401,6 @@ public:
   sp_head *sphead;
   sp_name *spname;
   bool sp_lex_in_use;   // Keep track on lex usage in SPs for error handling
-  bool all_privileges;
 
   sp_pcontext *spcont;
 
@@ -4374,8 +4412,30 @@ public:
   bool add_create_view(THD *thd, DDL_options_st ddl,
                        uint16 algorithm, enum_view_suid suid,
                        Table_ident *table_ident);
-  bool add_grant_command(THD *thd, enum_sql_command sql_command_arg,
-                         stored_procedure_type type_arg);
+  bool add_grant_command(THD *thd, const List<LEX_COLUMN> &columns);
+
+  bool stmt_grant_table(THD *thd,
+                        Grant_privilege *grant,
+                        const Lex_grant_object_name &ident,
+                        uint grant_option);
+
+  bool stmt_revoke_table(THD *thd,
+                         Grant_privilege *grant,
+                         const Lex_grant_object_name &ident);
+
+  bool stmt_grant_sp(THD *thd,
+                     Grant_privilege *grant,
+                     const Lex_grant_object_name &ident,
+                     const Sp_handler &sph,
+                     uint grant_option);
+
+  bool stmt_revoke_sp(THD *thd,
+                      Grant_privilege *grant,
+                      const Lex_grant_object_name &ident,
+                      const Sp_handler &sph);
+
+  bool stmt_grant_proxy(THD *thd, LEX_USER *user, uint grant_option);
+  bool stmt_revoke_proxy(THD *thd, LEX_USER *user);
 
   Vers_parse_info &vers_get_info()
   {
