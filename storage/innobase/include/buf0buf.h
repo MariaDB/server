@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1568,7 +1568,17 @@ public:
 	unsigned	access_time;	/*!< time of first access, or
 					0 if the block was never accessed
 					in the buffer pool. Protected by
-					block mutex */
+					block mutex for buf_page_in_file()
+					blocks.
+
+					For state==BUF_BLOCK_MEMORY
+					blocks, this field can be repurposed
+					for something else.
+
+					When this field counts log records
+					and bytes allocated for recv_sys.pages,
+					the field is protected by
+					recv_sys_t::mutex. */
 # ifdef UNIV_DEBUG
 	ibool		file_page_was_freed;
 					/*!< this is set to TRUE when

@@ -196,9 +196,9 @@ struct page_recv_t
       tail= recs;
     }
 
-    /** Trim old log records for a page
+    /** Trim old log records for a page.
     @param start_lsn oldest log sequence number to preserve
-    @return whether the entire log was trimmed */
+    @return whether all the log for the page was trimmed */
     inline bool trim(lsn_t start_lsn);
     /** @return the last log snippet */
     const log_rec_t* last() const { return tail; }
@@ -215,11 +215,8 @@ struct page_recv_t
     iterator begin() { return head; }
     iterator end() { return NULL; }
     bool empty() const { ut_ad(!head == !tail); return !head; }
+    /** Clear and free the records; @see recv_sys_t::alloc() */
     inline void clear();
-#ifdef UNIV_DEBUG
-    /** Declare the records as freed; @see recv_sys_t::alloc() */
-    inline void free() const;
-#endif
   } log;
 
   /** Ignore any earlier redo log records for this page. */
@@ -282,32 +279,32 @@ struct recv_sys_t{
 	/** the time when progress was last reported */
 	time_t		progress_time;
 
-	using map = std::map<const page_id_t, page_recv_t,
-			     std::less<const page_id_t>,
-			     ut_allocator
-			     <std::pair<const page_id_t, page_recv_t>>>;
-	/** buffered records waiting to be applied to pages */
-	map pages;
+  using map = std::map<const page_id_t, page_recv_t,
+                       std::less<const page_id_t>,
+                       ut_allocator<std::pair<const page_id_t, page_recv_t>>>;
+  /** buffered records waiting to be applied to pages */
+  map pages;
 
-	/** Process a record that indicates that a tablespace is
-	being shrunk in size.
-	@param page_id	first page identifier that is not in the file
-	@param lsn	log sequence number of the shrink operation */
-	inline void trim(const page_id_t page_id, lsn_t lsn);
+  /** Process a record that indicates that a tablespace size is being shrunk.
+  @param page_id first page that is not in the file
+  @param lsn     log sequence number of the shrink operation */
+  inline void trim(const page_id_t page_id, lsn_t lsn);
 
-	/** Undo tablespaces for which truncate has been logged
-	(indexed by id - srv_undo_space_id_start) */
-	struct trunc {
-		/** log sequence number of MLOG_FILE_CREATE2, or 0 if none */
-		lsn_t		lsn;
-		/** truncated size of the tablespace, or 0 if not truncated */
-		unsigned	pages;
-	} truncated_undo_spaces[127];
+  /** Undo tablespaces for which truncate has been logged
+  (indexed by page_id_t::space() - srv_undo_space_id_start) */
+  struct trunc
+  {
+    /** log sequence number of MLOG_FILE_CREATE2, or 0 if none */
+    lsn_t lsn;
+    /** truncated size of the tablespace, or 0 if not truncated */
+    unsigned pages;
+  } truncated_undo_spaces[127];
 
-	recv_dblwr_t	dblwr;
+  /** The contents of the doublewrite buffer */
+  recv_dblwr_t dblwr;
 
-	/** Last added LSN to pages. */
-	lsn_t		last_stored_lsn;
+  /** Last added LSN to pages. */
+  lsn_t last_stored_lsn;
 
 private:
   /** Maximum number of buffer pool blocks to allocate for redo log records */
@@ -374,17 +371,9 @@ public:
   @return pointer to len bytes of memory (never NULL) */
   inline byte *alloc(size_t len, bool store_recv= false);
 
-#ifdef UNIV_DEBUG
-private:
-  /** Find the buffer pool block that is storing a redo log record.
-  @param[in] data   pointer to buffer returned by alloc()
-  @return redo list element */
-  inline buf_block_t *find_block(const void *data) const;
-public:
-  /** Declare a redo log record freed from a buffer pool block.
-  @param[in] data   pointer to buffer returned by alloc() */
-  inline void free(const void *data) const;
-#endif
+  /** Free a redo log snippet.
+  @param data buffer returned by alloc() */
+  inline void free(const void *data);
 
   /** @return the free length of the latest alloc() block, in bytes */
   inline size_t get_free_len() const;
