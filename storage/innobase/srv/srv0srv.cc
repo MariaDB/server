@@ -1156,6 +1156,7 @@ srv_export_innodb_status(void)
 	ulint mem_adaptive_hash = 0;
 	ut_ad(btr_search_sys->hash_tables);
 	for (ulong i = 0; i < btr_ahi_parts; i++) {
+		rw_lock_s_lock(btr_search_latches[i]);
 		hash_table_t*	ht = btr_search_sys->hash_tables[i];
 
 		ut_ad(ht);
@@ -1167,6 +1168,7 @@ srv_export_innodb_status(void)
 
 		mem_adaptive_hash += mem_heap_get_size(ht->heap)
 			+ ht->n_cells * sizeof(hash_cell_t);
+		rw_lock_s_unlock(btr_search_latches[i]);
 	}
 	export_vars.innodb_mem_adaptive_hash = mem_adaptive_hash;
 #endif
