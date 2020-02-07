@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,7 +32,7 @@ Created 1/20/1994 Heikki Tuuri
 
 #ifndef UNIV_INNOCHECKSUM
 /** Seed value of ut_rnd_gen() */
-extern int32 ut_rnd_current;
+extern std::atomic<uint32_t> ut_rnd_current;
 
 /** @return a pseudo-random 32-bit number */
 inline uint32_t ut_rnd_gen()
@@ -45,8 +45,7 @@ inline uint32_t ut_rnd_gen()
   x^19+x^18+x^14+x^13+x^11+x^10+x^9+x^8+x^6+1 */
   const uint32_t crc32c= 0x1edc6f41;
 
-  uint32_t rnd= my_atomic_load32_explicit(&ut_rnd_current,
-                                          MY_MEMORY_ORDER_RELAXED);
+  uint32_t rnd= ut_rnd_current.load(std::memory_order_relaxed);
 
   if (UNIV_UNLIKELY(rnd == 0))
   {
@@ -61,7 +60,7 @@ inline uint32_t ut_rnd_gen()
       rnd^= crc32c;
   }
 
-  my_atomic_store32_explicit(&ut_rnd_current, rnd, MY_MEMORY_ORDER_RELAXED);
+  ut_rnd_current.store(rnd, std::memory_order_relaxed);
   return rnd;
 }
 

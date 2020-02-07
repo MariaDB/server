@@ -1137,6 +1137,7 @@ row_log_table_get_pk_old_col(
 /** Maps an old table column of a PRIMARY KEY column.
 @param[in]	ifield		clustered index field in the new table (after
 ALTER TABLE)
+@param[in]	index		the clustered index of ifield
 @param[in,out]	dfield		clustered index tuple field in the new table
 @param[in,out]	heap		memory heap for allocating dfield contents
 @param[in]	rec		clustered index leaf page record in the old
@@ -1152,6 +1153,7 @@ static
 dberr_t
 row_log_table_get_pk_col(
 	const dict_field_t*	ifield,
+	const dict_index_t*	index,
 	dfield_t*		dfield,
 	mem_heap_t*		heap,
 	const rec_t*		rec,
@@ -1175,14 +1177,19 @@ row_log_table_get_pk_col(
 			return(DB_INVALID_NULL);
 		}
 
-		ulint n_default_cols = i - DATA_N_SYS_COLS;
+		ulint new_i = dict_col_get_clust_pos(ifield->col, index);
+
+		if (UNIV_UNLIKELY(new_i >= log->defaults->n_fields)) {
+			ut_ad(0);
+			return DB_INVALID_NULL;
+		}
 
 		field = static_cast<const byte*>(
-			log->defaults->fields[n_default_cols].data);
+			log->defaults->fields[new_i].data);
 		if (!field) {
 			return(DB_INVALID_NULL);
 		}
-		len = log->defaults->fields[i - DATA_N_SYS_COLS].len;
+		len = log->defaults->fields[new_i].len;
 	}
 
 	if (rec_offs_nth_extern(offsets, i)) {
@@ -1341,7 +1348,7 @@ row_log_table_get_pk(
 				}
 
 				log->error = row_log_table_get_pk_col(
-					ifield, dfield, *heap,
+					ifield, new_index, dfield, *heap,
 					rec, offsets, i, zip_size, max_len,
 					log);
 

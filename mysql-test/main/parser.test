@@ -1565,6 +1565,16 @@ select * from t2;
 SET STATEMENT max_statement_time=900 FOR unlock tables;
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-21616: Server crash when using
+--echo # "SET STATEMENT max_statement_time=0 FOR desc xxx" lead to collapse
+--echo #
+
+create table t1 (a int);
+SET STATEMENT max_statement_time=0 FOR desc t1;
+drop table t1;
+SET STATEMENT max_statement_time=0 FOR do 1;
+
 --echo # End of 10.4 tests
 
 

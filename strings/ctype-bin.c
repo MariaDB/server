@@ -219,7 +219,7 @@ static size_t my_case_str_bin(CHARSET_INFO *cs __attribute__((unused)),
 
 static size_t my_case_bin(CHARSET_INFO *cs __attribute__((unused)),
                           const char *src, size_t srclen,
-                          char *dst, size_t dstlen)
+                          char *dst, size_t dstlen __attribute__((unused)))
 {
   DBUG_ASSERT(srclen <= dstlen);
   memcpy(dst, src, srclen);

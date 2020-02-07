@@ -301,7 +301,8 @@ int VCTFAM::Cardinality(PGLOBAL g)
   if (!g)
     return 1;
 
-  if (Block < 0) {
+  if (Block < 0)
+  {
     if (Split) {
       // Separate column files and no pre setting of Block and Last
       // This allows to see a table modified externally, but Block
@@ -348,7 +349,6 @@ int VCTFAM::Cardinality(PGLOBAL g)
 
     } // endif split
   }
-
   return (Block) ? ((Block - 1) * Nrec + Last) : 0;
   } // end of Cardinality
 

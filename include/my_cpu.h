@@ -1,6 +1,6 @@
 #ifndef MY_CPU_INCLUDED
 #define MY_CPU_INCLUDED
-/* Copyright (c) 2013, MariaDB foundation Ab and SkySQL
+/* Copyright (c) 2013, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -48,6 +48,13 @@
 
 #if defined __i386__ || defined __x86_64__ || defined _WIN32
 # define HAVE_PAUSE_INSTRUCTION /* added in Intel Pentium 4 */
+#endif
+
+#ifdef _WIN32
+#elif defined HAVE_PAUSE_INSTRUCTION
+#elif defined(_ARCH_PWR8)
+#else
+# include "my_atomic.h"
 #endif
 
 static inline void MY_RELAX_CPU(void)

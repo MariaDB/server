@@ -379,6 +379,7 @@ void JSNX::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
 
 			case TYPE_NULL:
 				vp->SetNull(true);
+                                /* falls through */
 			default:
 				vp->Reset();
 			} // endswitch Type
@@ -1772,7 +1773,7 @@ static char *GetJsonFile(PGLOBAL g, char *fn)
 #endif
 
 	if (h == -1) {
-		sprintf(g->Message, "Error %d opening %s", errno, fn);
+		sprintf(g->Message, "Error %d opening %-.1024s", errno, fn);
 		return NULL;
 	} // endif h
 
@@ -1784,7 +1785,7 @@ static char *GetJsonFile(PGLOBAL g, char *fn)
 
 	if ((str = (char*)PlgDBSubAlloc(g, NULL, len + 1))) {
 		if ((n = read(h, str, len)) < 0) {
-			sprintf(g->Message, "Error %d reading %d bytes from %s", errno, len, fn);
+			sprintf(g->Message, "Error %d reading %d bytes from %-.1024s", errno, len, fn);
 			return NULL;
 		} // endif n
 
@@ -3479,7 +3480,7 @@ char *jsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	} catch (int n) {
 	  if (trace(1))
-		  htrc("Exception %d: %s\n", n, g->Message);
+		  htrc("Exception %d: %-.256s\n", n, g->Message);
 
 		PUSH_WARNING(g->Message);
 		str = NULL;
@@ -3761,7 +3762,6 @@ my_bool jsonlocate_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		} else
 			more += (ulong)*(longlong*)args->args[2];
         }
-
 	CalcLen(args, false, reslen, memlen);
 
 	// TODO: calculate this
@@ -3839,7 +3839,7 @@ char *jsonlocate(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	} catch (int n) {
 	  if (trace(1))
-		  htrc("Exception %d: %s\n", n, g->Message);
+		  htrc("Exception %d: %-.256s\n", n, g->Message);
 
 		PUSH_WARNING(g->Message);
 		*error = 1;
@@ -3883,12 +3883,13 @@ my_bool json_locate_all_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		strcpy(message, "Third argument is not an integer (Depth)");
 		return true;
 	} else if (args->arg_count > 3)
+        {
 		if (args->arg_type[3] != INT_RESULT) {
 			strcpy(message, "Fourth argument is not an integer (memory)");
 			return true;
 		} else
 			more += (ulong)*(longlong*)args->args[2];
-
+        }
 	CalcLen(args, false, reslen, memlen);
 
 	// TODO: calculate this
@@ -3964,7 +3965,7 @@ char *json_locate_all(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	} catch (int n) {
 		if (trace(1))
-			htrc("Exception %d: %s\n", n, g->Message);
+			htrc("Exception %d: %-.256s\n", n, g->Message);
 
 		PUSH_WARNING(g->Message);
 		*error = 1;
@@ -4244,7 +4245,7 @@ char *handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	} catch (int n) {
 	  if (trace(1))
-		  htrc("Exception %d: %s\n", n, g->Message);
+		  htrc("Exception %d: %-.256s\n", n, g->Message);
 
 		PUSH_WARNING(g->Message);
 		str = NULL;

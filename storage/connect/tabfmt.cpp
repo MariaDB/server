@@ -350,7 +350,6 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
           } else
             goto skip;
         }
-
         // isdigit cannot be used here because of debug assert
         if (!strchr("0123456789", *p)) {
           if (!digit && *p == dechar)
@@ -373,7 +372,6 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
       } else
         goto skip;
     }
-
     if (n) {
       len[i] = MY_MAX(len[i], n);
       type = (digit || n == 0 || (dec && n == 1)) ? TYPE_STRING
@@ -761,7 +759,6 @@ bool TDBCSV::OpenDB(PGLOBAL g)
           if (!cdp->IsSpecial() && !cdp->IsVirtual())
             Fields++;
     }
-
     Offset = (int*)PlugSubAlloc(g, NULL, sizeof(int) * Fields);
     Fldlen = (int*)PlugSubAlloc(g, NULL, sizeof(int) * Fields);
 

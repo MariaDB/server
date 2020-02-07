@@ -645,7 +645,8 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
       // This is a pseudo indexed sorted block optimized column
 //    return 0;
 
-  if (tdbp->GetKindex()) {
+  if (tdbp->GetKindex())
+  {
     if (((XXBASE*)tdbp->GetKindex())->GetID() == id) {
       tdbp->GetKindex()->Reset();                // Same index
       return (tdbp->GetKindex()->IsMul()) ? 2 : 1;

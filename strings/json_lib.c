@@ -2008,9 +2008,13 @@ err_return:
 }
 
 
-enum json_types json_get_object_nkey(const char *js,const char *js_end, int nkey,
-                       const char **keyname, const char **keyname_end,
-                       const char **value, int *value_len)
+enum json_types json_get_object_nkey(const char *js __attribute__((unused)),
+                                     const char *js_end __attribute__((unused)),
+                                     int nkey __attribute__((unused)),
+                                     const char **keyname __attribute__((unused)),
+                                     const char **keyname_end __attribute__((unused)),
+                                     const char **value __attribute__((unused)),
+                                     int *value_len __attribute__((unused)))
 {
   return JSV_NOTHING;
 }

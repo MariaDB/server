@@ -450,9 +450,8 @@ bool TDBOCCUR::OpenDB(PGLOBAL g)
 		N = M = 0;
 		RowFlag = 0;
 
-    if (Xcolp) {
-  		Xcolp->Xreset();
-    }
+                if (Xcolp)
+                  Xcolp->Xreset();
 
 		return Tdbp->OpenDB(g);
     } // endif use

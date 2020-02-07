@@ -558,7 +558,8 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
           Nk, n, Num_K, Ndif, addcolp, Tdbp->To_BlkFil, X);
 
   // Check whether the unique index is unique indeed
-  if (!Mul) {
+  if (!Mul)
+  {
     if (Ndif < Num_K) {
       strcpy(g->Message, MSG(INDEX_NOT_UNIQ));
       brc = true;
@@ -2042,7 +2043,8 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
     kp->Valp->SetValue_pval(xp->GetValue(), !kp->Prefix);
     k = FastFind();
 
-    if (k < Num_K || Op != OP_EQ) {
+    if (k < Num_K || Op != OP_EQ)
+    {
       if (limit)
         n = (Mul) ? k : kp->Val_K;
       else

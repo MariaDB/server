@@ -1797,6 +1797,16 @@ select * from t2;
 ERROR HY000: Table 't2' was not locked with LOCK TABLES
 SET STATEMENT max_statement_time=900 FOR unlock tables;
 drop table t1, t2;
+#
+# MDEV-21616: Server crash when using
+# "SET STATEMENT max_statement_time=0 FOR desc xxx" lead to collapse
+#
+create table t1 (a int);
+SET STATEMENT max_statement_time=0 FOR desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+drop table t1;
+SET STATEMENT max_statement_time=0 FOR do 1;
 # End of 10.4 tests
 #
 # Start of 10.5 tests

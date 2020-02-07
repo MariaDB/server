@@ -1021,6 +1021,7 @@ bool ZLBFAM::AllocateBuffer(PGLOBAL g)
 #else
         sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
 #endif
+        /* falls through */
       case RC_NF:
         return TRUE;
       } // endswitch

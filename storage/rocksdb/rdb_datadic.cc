@@ -267,8 +267,9 @@ int Rdb_key_field_iterator::next() {
     bool covered_column = true;
     if (m_covered_bitmap != nullptr &&
         m_field->real_type() == MYSQL_TYPE_VARCHAR && !m_fpi->m_covered) {
+      uint tmp= m_curr_bitmap_pos++;
       covered_column = m_curr_bitmap_pos < MAX_REF_PARTS &&
-                       bitmap_is_set(m_covered_bitmap, m_curr_bitmap_pos++);
+                       bitmap_is_set(m_covered_bitmap, tmp);
     }
 
     if (m_fpi->m_unpack_func && covered_column) {

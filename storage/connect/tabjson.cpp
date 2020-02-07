@@ -1429,6 +1429,7 @@ PSZ JSONCOL::GetJpath(PGLOBAL g, bool proj)
       return NULL;
 
     for (p1 = p2 = mgopath; *p1; p1++)
+    {
       if (i) {                 // Inside []
         if (isdigit(*p1)) {
           if (!proj)
@@ -1466,12 +1467,12 @@ PSZ JSONCOL::GetJpath(PGLOBAL g, bool proj)
             p2--;              // Suppress last :*
             break;
           } // endif p2
-
+          /* falls through */
         default:
           *p2++ = *p1;
           break;
       } // endswitch p1;
-
+    }
       *p2 = 0;
       return mgopath;
   } else
@@ -2128,7 +2129,6 @@ int TDBJSON::Cardinality(PGLOBAL g)
     } else
       return 10;
   }
-
   return Cardinal;
   } // end of Cardinality
 

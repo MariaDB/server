@@ -1424,9 +1424,7 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
   bool    conv = false, xdb2 = false;
   PXOB    xp[2];
   PCOL    colp;
-//LSTVAL *vlp = NULL;
-//SFROW  *sfr[2];
-  PBF    bfp = NULL;
+  PBF     bfp = NULL;
 
   for (i = 0; i < 2; i++) {
     switch (arg[i]->GetType()) {

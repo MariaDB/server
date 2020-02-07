@@ -458,6 +458,21 @@ row_undo_mod_clust(
 		2 columns so that we can access DB_TRX_ID, DB_ROLL_PTR. */
 		offset_t offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
 		if (trx_id_offset) {
+#ifdef UNIV_DEBUG
+			ut_ad(rec_offs_validate(NULL, index, offsets));
+			if (buf_block_get_page_zip(
+				    btr_pcur_get_block(&node->pcur))) {
+				/* Below, page_zip_write_trx_id_and_roll_ptr()
+				needs offsets to access DB_TRX_ID,DB_ROLL_PTR.
+				We already computed offsets for possibly
+				another record in the clustered index.
+				Because the PRIMARY KEY is fixed-length,
+				the offsets for the PRIMARY KEY and
+				DB_TRX_ID,DB_ROLL_PTR are still valid.
+				Silence the rec_offs_validate() assertion. */
+				rec_offs_make_valid(rec, index, true, offsets);
+			}
+#endif
 		} else if (rec_is_metadata(rec, *index)) {
 			ut_ad(!buf_block_get_page_zip(btr_pcur_get_block(
 							      pcur)));

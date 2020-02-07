@@ -840,7 +840,8 @@ int DBFFAM::DeleteRecords(PGLOBAL g, int irc)
   {
   if (irc == RC_OK) {
     // T_Stream is the temporary stream or the table file stream itself
-    if (!T_Stream) {
+    if (!T_Stream)
+    {
       if (UseTemp) {
         if (OpenTempFile(g))
           return RC_FX;
@@ -851,7 +852,6 @@ int DBFFAM::DeleteRecords(PGLOBAL g, int irc)
       } else
         T_Stream = Stream;
     }
-
     *Tdbp->GetLine() = '*';
     Modif++;                         // Modified line in Delete mode
   } // endif irc

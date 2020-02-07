@@ -94,7 +94,7 @@ void test_byte_order()
 #undef TEST
 }
 
-int main(int argc, char **argv)
+int main(int argc __attribute__((unused)), char **argv __attribute__((unused)))
 {
   plan(68);
   test_byte_order();

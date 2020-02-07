@@ -747,7 +747,9 @@ int TDBPIVOT::ReadDB(PGLOBAL g)
         colp->ReadColumn(g);
 
       for (colp = Columns; colp; colp = colp->GetNext())
-        if (colp->GetAmType() == TYPE_AM_SRC) {
+      {
+        if (colp->GetAmType() == TYPE_AM_SRC)
+        {
           if (FileStatus) {
             if (((PSRCCOL)colp)->CompareLast()) {
               newrow = (RowFlag) ? TRUE : FALSE;
@@ -757,7 +759,7 @@ int TDBPIVOT::ReadDB(PGLOBAL g)
           } else
             ((PSRCCOL)colp)->SetColumn();
         }
-
+      }
       FileStatus = 1;
       } // endif RowFlag
 

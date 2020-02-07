@@ -6226,7 +6226,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
             /* As all updated tables are temporary, nothing will be logged */
             set_current_stmt_binlog_format_row();
           }
-          else if (IF_WSREP((!WSREP(this) ||
+          else if (IF_WSREP((!WSREP_NNULL(this) ||
                              wsrep_cs().mode() ==
                              wsrep::client_state::m_local),1))
 	  {

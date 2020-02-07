@@ -237,7 +237,7 @@ size_t my_casedn_str_8bit(CHARSET_INFO * cs,char *str)
 
 
 size_t my_caseup_8bit(CHARSET_INFO * cs, const char *src, size_t srclen,
-                      char *dst, size_t dstlen)
+                      char *dst, size_t dstlen __attribute__((unused)))
 {
   const char *end= src + srclen;
   register const uchar *map= cs->to_upper;
@@ -249,7 +249,7 @@ size_t my_caseup_8bit(CHARSET_INFO * cs, const char *src, size_t srclen,
 
 
 size_t my_casedn_8bit(CHARSET_INFO * cs, const char *src, size_t srclen,
-                      char *dst, size_t dstlen)
+                      char *dst, size_t dstlen __attribute__((unused)))
 {
   const char *end= src + srclen;
   register const uchar *map=cs->to_lower;

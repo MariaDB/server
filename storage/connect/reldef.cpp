@@ -350,8 +350,6 @@ RECFM TABDEF::GetTableFormat(const char* type)
 bool TABDEF::Define(PGLOBAL g, PCATLG cat,
                     LPCSTR name, LPCSTR schema, LPCSTR am)
 {
-  int   poff = 0;
-
   Hc = ((MYCAT*)cat)->GetHandler();
   Name = (PSZ)name;
   Schema = (PSZ)Hc->GetDBName(schema);
@@ -430,6 +428,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
       case RECFM_CSV:
       case RECFM_FMT:
         nlg+= nof;
+        /* falls through */
       case RECFM_DIR:
       case RECFM_XML:
         poff= loff + (pcf->Flags & U_VIRTUAL ? 0 : 1);
@@ -472,6 +471,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
     switch (trf ) {
       case RECFM_VCT:
         cdp->SetOffset(0);     // Not to have shift
+        /* falls through */
       case RECFM_BIN:
         // BIN/VEC are packed by default
         if (nof) {

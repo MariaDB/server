@@ -147,7 +147,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
 	PGLOBAL g;
 
 	if (trace(2))
-		htrc("PlugInit: Language='%s'\n",
+		htrc("PlugInit: Language='%-.256s'\n",
 			((!Language) ? "Null" : (char*)Language));
 
 	try {
@@ -216,15 +216,15 @@ LPSTR PlugRemoveType(LPSTR pBuff, LPCSTR FileName)
   _splitpath(FileName, drive, direc, fname, ftype);
 
   if (trace(2)) {
-    htrc("after _splitpath: FileName=%s\n", FileName);
-    htrc("drive=%s dir=%s fname=%s ext=%s\n",
+    htrc("after _splitpath: FileName=%-.256s\n", FileName);
+    htrc("drive=%-.256s dir=%-.256s fname=%-.256s ext=%-.256s\n",
           SVP(drive), direc, fname, ftype);
     } // endif trace
 
   _makepath(pBuff, drive, direc, fname, "");
 
   if (trace(2))
-    htrc("buff='%s'\n", pBuff);
+    htrc("buff='%-.256s'\n", pBuff);
 
   return pBuff;
   } // end of PlugRemoveType
@@ -257,7 +257,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
 #endif
 
 	if (trace(2))
-		htrc("prefix=%s fn=%s path=%s\n", prefix, FileName, defpath);
+		htrc("prefix=%-.256s fn=%-.256s path=%-.256s\n", prefix, FileName, defpath);
 
   if (!strncmp(FileName, "//", 2) || !strncmp(FileName, "\\\\", 2)) {
     strcpy(pBuff, FileName);       // Remote file
@@ -274,7 +274,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
   if (*FileName == '~') {
     if (_fullpath(pBuff, FileName, _MAX_PATH)) {
       if (trace(2))
-        htrc("pbuff='%s'\n", pBuff);
+        htrc("pbuff='%-.256s'\n", pBuff);
 
      return pBuff;
     } else
@@ -309,12 +309,12 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
   _splitpath(tmpdir, defdrv, defdir, NULL, NULL);
 
   if (trace(2)) {
-    htrc("after _splitpath: FileName=%s\n", FileName);
+    htrc("after _splitpath: FileName=%-.256s\n", FileName);
 #if defined(__WIN__)
-    htrc("drive=%s dir=%s fname=%s ext=%s\n", drive, direc, fname, ftype);
-    htrc("defdrv=%s defdir=%s\n", defdrv, defdir);
+    htrc("drive=%-.256s dir=%-.256s fname=%-.256s ext=%-.256s\n", drive, direc, fname, ftype);
+    htrc("defdrv=%-.256s defdir=%-.256s\n", defdrv, defdir);
 #else
-    htrc("dir=%s fname=%s ext=%s\n", direc, fname, ftype);
+    htrc("dir=%-.256s fname=%-.256s ext=%-.256s\n", direc, fname, ftype);
 #endif
     } // endif trace
 
@@ -336,11 +336,11 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
   _makepath(newname, drive, direc, fname, ftype);
 
   if (trace(2))
-    htrc("newname='%s'\n", newname);
+    htrc("newname='%-.256s'\n", newname);
 
   if (_fullpath(pBuff, newname, _MAX_PATH)) {
     if (trace(2))
-      htrc("pbuff='%s'\n", pBuff);
+      htrc("pbuff='%-.256s'\n", pBuff);
 
     return pBuff;
   } else
@@ -365,22 +365,22 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
   PlugSetPath(msgfile, NULL, buff, msg_path);
 
   if (!(mfile = fopen(msgfile, "rt"))) {
-    sprintf(stmsg, "Fail to open message file %s", msgfile);
+    sprintf(stmsg, "Fail to open message file %-.256s", msgfile);
     goto err;
     } // endif mfile
 
   for (;;)
     if (!fgets(buff, 256, mfile)) {
-      sprintf(stmsg, "Cannot get message %d %s", mid, SVP(m));
+      sprintf(stmsg, "Cannot get message %d %-.256s", mid, SVP(m));
       goto fin;
     } else
       if (atoi(buff) == mid)
         break;
 
-  if (sscanf(buff, " %*d %s \"%[^\"]", msgid, stmsg) < 2) {
+  if (sscanf(buff, " %*d %-.256s \"%[^\"]", msgid, stmsg) < 2) {
     // Old message file
     if (!sscanf(buff, " %*d \"%[^\"]", stmsg)) {
-      sprintf(stmsg, "Bad message file for %d %s", mid, SVP(m));
+      sprintf(stmsg, "Bad message file for %d %-.256s", mid, SVP(m));
       goto fin;
     } else
       m = NULL;
@@ -485,7 +485,7 @@ bool AllocSarea(PGLOBAL g, uint size)
     if (g->Sarea)
       htrc("Work area of %u allocated at %p\n", size, g->Sarea);
     else
-      htrc("SareaAlloc: %s\n", g->Message);
+      htrc("SareaAlloc: %-.256s\n", g->Message);
 
   } // endif trace
 
@@ -567,11 +567,11 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
     PCSZ pname = "Work";
 
     sprintf(g->Message,
-      "Not enough memory in %s area for request of %u (used=%d free=%d)",
+      "Not enough memory in %-.256s area for request of %u (used=%d free=%d)",
                           pname, (uint)size, pph->To_Free, pph->FreeBlk);
 
     if (trace(1))
-      htrc("PlugSubAlloc: %s\n", g->Message);
+      htrc("PlugSubAlloc: %-.256s\n", g->Message);
 
     DoThrow(1234);
   } /* endif size OS32 code */

@@ -750,7 +750,8 @@ static int test_when_accessed (struct file_info *key,
 }
 
 
-static int file_info_free(void* arg, TREE_FREE mode, void *unused)
+static int file_info_free(void* arg, TREE_FREE mode __attribute__((unused)),
+                          void *unused __attribute__((unused)))
 {
   struct file_info *fileinfo= arg;
   DBUG_ENTER("file_info_free");

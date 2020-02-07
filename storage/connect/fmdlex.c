@@ -240,9 +240,11 @@ YY_BUFFER_STATE yy_create_buffer YY_PROTO(( FILE *file, int size ));
 void yy_delete_buffer YY_PROTO(( YY_BUFFER_STATE b ));
 void yy_init_buffer YY_PROTO(( YY_BUFFER_STATE b, FILE *file ));
 
+#ifdef NOT_USED
 static int yy_start_stack_ptr = 0;
 static int yy_start_stack_depth = 0;
 static int *yy_start_stack = 0;
+#endif
 
 static void *yy_flex_alloc YY_PROTO(( unsigned int ));
 static void *yy_flex_realloc YY_PROTO(( void *, unsigned int ));
@@ -264,10 +266,12 @@ extern char *yytext;
 static void yy_flex_strncpy YY_PROTO(( char *, const char *, int ));
 #endif
 
+#ifdef NOT_USED
 #ifdef __cplusplus
 static int yyinput YY_PROTO(( void ));
 #else
 static int input YY_PROTO(( void ));
+#endif
 #endif
 
 static yy_state_type yy_get_previous_state YY_PROTO(( void ));
@@ -1057,6 +1061,8 @@ register char *yy_bp;
   }
 
 
+#ifdef NOT_USED
+
 #ifdef __cplusplus
 static int yyinput()
 #else
@@ -1123,7 +1129,7 @@ static int input()
 
   return c;
   }
-
+#endif /* NOT_USED */
 
 #ifdef YY_USE_PROTOS
 void yyrestart( FILE *input_file )

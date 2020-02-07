@@ -1,5 +1,4 @@
-/* Copyright (c) 2009, 2019, MariaDB
-
+/*
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; version 2 of the License.
@@ -86,12 +85,24 @@ int main(int argc, char **argv)
     int rc = EINVAL;
     void *dlh;
     wsrep_loader_fun dlfun;
+    const char *provider= getenv("WSREP_PROVIDER");
 
-    if (!(dlh = dlopen(getenv("WSREP_PROVIDER"), RTLD_NOW | RTLD_LOCAL))) {
-       goto err;
+    if (!provider)
+    {
+      fprintf(stderr, "WSREP_PROVIDER is not set\n");
+      return 1;
+    }
+    if (!(dlh = dlopen(provider, RTLD_NOW | RTLD_LOCAL)))
+    {
+      fprintf(stderr, "Can't open WSREP_PROVIDER (%s) library, error: %s\n",
+              provider, dlerror());
+      goto err;
     }
 
-    if (!(dlfun = wsrep_dlf(dlh, "wsrep_loader"))) {
+    if (!(dlfun = wsrep_dlf(dlh, "wsrep_loader")))
+    {
+      fprintf(stderr, "Can't find 'wsrep_loader' symbol in %s\n",
+              provider);
        goto err;
     }
 

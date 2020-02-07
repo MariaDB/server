@@ -218,8 +218,10 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 
     while (true) {
       if (!vp->atp &&
-        !(node = (vp->nl) ? vp->nl->GetItem(g, vp->k++, tdp->Usedom ? node : NULL)
-                          : NULL)) {
+          !(node = (vp->nl) ? vp->nl->GetItem(g, vp->k++, tdp->Usedom ?
+                                              node : NULL)
+            : NULL))
+      {
         if (j) {
           vp = lvlp[--j];
 
@@ -235,7 +237,6 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
         } else
           break;
       }
-
       xcol->Name[vp->n] = 0;
       fmt[vp->m] = 0;
 
@@ -249,6 +250,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
         switch (vp->atp->GetText(g, buf, sizeof(buf))) {
           case RC_INFO:
             PushWarning(g, txmp);
+            /* falls through */
           case RC_OK:
             strncat(fmt, "@", XLEN(fmt));
             break;
@@ -309,6 +311,7 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
         switch (node->GetContent(g, buf, sizeof(buf))) {
           case RC_INFO:
             PushWarning(g, txmp);
+            /* falls through */
           case RC_OK:
 						xcol->Cbn = !strlen(buf);
             break;
@@ -1271,7 +1274,8 @@ int TDBXML::ReadDB(PGLOBAL g)
 /***********************************************************************/
 bool TDBXML::CheckRow(PGLOBAL g, bool b)
   {
-  if (NewRow && Mode == MODE_INSERT) {
+  if (NewRow && Mode == MODE_INSERT)
+  {
     if (Rowname) {
       TabNode->AddText(g, "\n\t");
       RowNode = TabNode->AddChildNode(g, Rowname, RowNode);
@@ -1526,7 +1530,8 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
 
     // Analyze the Xpath for this column
     for (i = 0, p = pbuf; (p2 = strchr(p, '/')); i++, p = p2 + 1) {
-      if (Tdbp->Mulnode && !strncmp(p, Tdbp->Mulnode, p2 - p)) {
+      if (Tdbp->Mulnode && !strncmp(p, Tdbp->Mulnode, p2 - p))
+      {
         if (!Tdbp->Xpand && mode) {
           strcpy(g->Message, MSG(CONCAT_SUBNODE));
           return true;
@@ -1778,7 +1783,8 @@ void XMLCOL::WriteColumn(PGLOBAL g)
       else
         break;
 
-    if (ColNode) {
+    if (ColNode)
+    {
       if (Type)
         ValNode = ColNode->SelectSingleNode(g, Xname, Vxnp);
       else
@@ -1796,7 +1802,8 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   /*  Create missing nodes.                                            */
   /*********************************************************************/
   if (ColNode == NULL) {
-    if (TopNode == NULL) {
+    if (TopNode == NULL)
+    {
       if (Tdbp->Clist) {
         Tdbp->RowNode->AddText(g, "\n\t\t");
         ColNode = Tdbp->RowNode->AddChildNode(g, Tdbp->Colname);
@@ -2018,7 +2025,8 @@ void XMULCOL::WriteColumn(PGLOBAL g)
       TopNode = ColNode;
       } // endfor k
 
-    if (ColNode) {
+    if (ColNode)
+    {
       if (Inod == Nod) {
         /***************************************************************/
         /*  The node value can be multiple.                            */
@@ -2036,10 +2044,12 @@ void XMULCOL::WriteColumn(PGLOBAL g)
           ValNode = Nlx->GetItem(g, Tdbp->Nsub, Vxnp);
 
       } else  // Inod != Nod
+      {
         if (Type)
           ValNode = ColNode->SelectSingleNode(g, Xname, Vxnp);
         else
           AttNode = ColNode->GetAttribute(g, Xname, Vxap);
+      }
     }
     if (TopNode || ValNode || AttNode)
       break;                     // We found the good column
@@ -2052,7 +2062,8 @@ void XMULCOL::WriteColumn(PGLOBAL g)
   /*  Create missing nodes.                                            */
   /*********************************************************************/
   if (ColNode == NULL) {
-    if (TopNode == NULL) {
+    if (TopNode == NULL)
+    {
       if (Tdbp->Clist) {
         Tdbp->RowNode->AddText(g, "\n\t\t");
         ColNode = Tdbp->RowNode->AddChildNode(g, Tdbp->Colname);
@@ -2061,6 +2072,7 @@ void XMULCOL::WriteColumn(PGLOBAL g)
       } else
         TopNode = Tdbp->RowNode;
     }
+
     for (; k < Nod && TopNode; k++) {
       if (!done) {
         TopNode->AddText(g, "\n\t\t");

@@ -12507,11 +12507,14 @@ do:
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_DO;
+            if (lex->main_select_push())
+              MYSQL_YYABORT;
             mysql_init_select(lex);
           }
           expr_list
           {
             Lex->insert_list= $3;
+            Lex->pop_select(); //main select
           }
         ;
 
@@ -13812,6 +13815,8 @@ describe:
           describe_command table_ident
           {
             LEX *lex= Lex;
+            if (lex->main_select_push())
+              MYSQL_YYABORT;
             mysql_init_select(lex);
             lex->current_select->parsing_place= SELECT_LIST;
             lex->sql_command= SQLCOM_SHOW_FIELDS;
@@ -13823,6 +13828,7 @@ describe:
           opt_describe_column
           {
             Select->parsing_place= NO_MATTER;
+            Lex->pop_select(); //main select
           }
         | describe_command opt_extended_describe
           { Lex->describe|= DESCRIBE_NORMAL; }
