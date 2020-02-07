@@ -72,7 +72,7 @@ public:
   // start_bulk_delete exec_bulk_delete
   int delete_row(const uchar *buf);
   int direct_update_rows_init(List<Item> *update_fields);
-  int direct_update_rows(ha_rows *update_rows);
+  int direct_update_rows(ha_rows *update_rows, ha_rows *found_rows);
   void start_bulk_insert(ha_rows rows, uint flags = 0);
   int end_bulk_insert();
 
