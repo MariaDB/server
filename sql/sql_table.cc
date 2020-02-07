@@ -6634,7 +6634,7 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
     */
     const Field *old_field= table->field[key_part->fieldnr - 1];
 
-    bool is_equal= key_part->field->is_equal(*new_field);
+    bool is_equal= old_field->is_equal(*new_field);
     /* TODO: below is an InnoDB specific code which should be moved to InnoDB */
     if (!is_equal)
     {

@@ -3759,7 +3759,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
           */
           field= key_part->field=field->make_new_field(&outparam->mem_root,
                                                        outparam, 0);
-          field->field_length= key_part->length;
+          const_cast<uint32_t&>(field->field_length)= key_part->length;
         }
       }
       if (!share->use_ext_keys)

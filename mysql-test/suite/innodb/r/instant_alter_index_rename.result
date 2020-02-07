@@ -74,7 +74,6 @@ select @a_key_returns_id = get_index_id(@table_id, 'a_key_returns'),
 @a_key_returns_id = get_index_id(@table_id, 'a_key_returns')	@b_key_id = get_index_id(@table_id, 'b_key')	@c_key_id = get_index_id(@table_id, 'c_key2')	@primary_id = get_index_id(@table_id, 'primary')
 1	1	1	1
 drop table t;
-drop function get_index_id;
 create table errors (
 a int,
 unique key a_key (a),
@@ -183,3 +182,19 @@ CREATE TABLE t1 (f1 INT, f2 INT, f3 INT);
 ALTER TABLE t1 ADD FOREIGN KEY f (f2) REFERENCES xx(f2);
 ALTER TABLE t1 ADD FOREIGN KEY (f2) REFERENCES t1(f2), ADD KEY (f3), ADD KEY (f1);
 DROP TABLE t1;
+#
+# MDEV-21669 InnoDB: Table ... contains <n> indexes inside InnoDB, which is different from the number of indexes <n> defined in the MariaDB
+#
+CREATE TABLE t1 (col_int INTEGER, col_char CHAR(20), col_varchar VARCHAR(500)) ENGINE=InnoDB;
+SET @table_id = (SELECT table_id FROM information_schema.innodb_sys_tables WHERE name='test/t1');
+ALTER TABLE t1 ADD KEY idx3 (col_varchar(9)), ADD KEY idX2 (col_char(9));
+SET @idx3_key_id = get_index_id(@table_id, 'iDx3');
+ALTER TABLE t1 DROP KEY iDx3, ADD KEY Idx3 (col_varchar(9));
+SELECT @idx3_key_id = get_index_id(@table_id, 'Idx3');
+@idx3_key_id = get_index_id(@table_id, 'Idx3')
+1
+CHECK TABLE t1 EXTENDED ;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+DROP FUNCTION get_index_id;
