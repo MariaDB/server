@@ -164,7 +164,7 @@ struct mtr_t {
   /** @return the logging mode */
   mtr_log_t get_log_mode() const
   {
-    ut_ad(m_log_mode >= MTR_LOG_ALL);
+    static_assert(MTR_LOG_ALL == 0, "efficiency");
     ut_ad(m_log_mode <= MTR_LOG_SHORT_INSERTS);
     return static_cast<mtr_log_t>(m_log_mode);
   }
@@ -512,7 +512,7 @@ private:
   uint16_t m_inside_ibuf:1;
 
   /** number of m_log records */
-  uint16_t m_n_log_recs:13;
+  uint16_t m_n_log_recs:11;
 #ifdef UNIV_DEBUG
   /** Persistent user tablespace associated with the
   mini-transaction, or 0 (TRX_SYS_SPACE) if none yet */
