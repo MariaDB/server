@@ -74,9 +74,6 @@ static void trx_undof_page_add_undo_rec_log(const buf_block_t* undo_block,
 	case MTR_LOG_NONE:
 	case MTR_LOG_NO_REDO:
 		return;
-	case MTR_LOG_SHORT_INSERTS:
-		ut_ad(0);
-		/* fall through */
 	case MTR_LOG_ALL:
 		break;
 	}

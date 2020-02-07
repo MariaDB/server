@@ -404,9 +404,6 @@ mlog_open_and_write_index(
 	case MTR_LOG_NONE:
 	case MTR_LOG_NO_REDO:
 		return NULL;
-	case MTR_LOG_SHORT_INSERTS:
-		ut_ad(0);
-		/* fall through */
 	case MTR_LOG_ALL:
 		break;
 	}

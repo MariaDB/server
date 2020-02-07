@@ -506,7 +506,6 @@ updating an allocation bitmap page.
 void fil_space_t::modify_check(const mtr_t& mtr) const
 {
 	switch (mtr.get_log_mode()) {
-	case MTR_LOG_SHORT_INSERTS:
 	case MTR_LOG_NONE:
 		/* These modes are only allowed within a non-bitmap page
 		when there is a higher-level redo log record written. */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,10 +44,7 @@ enum mtr_log_t {
 	MTR_LOG_NONE,
 
 	/** Don't generate REDO log but add dirty pages to flush list */
-	MTR_LOG_NO_REDO,
-
-	/** Inserts are logged in a shorter form */
-	MTR_LOG_SHORT_INSERTS
+	MTR_LOG_NO_REDO
 };
 
 /** @name Log item types

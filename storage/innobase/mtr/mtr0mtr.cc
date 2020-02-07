@@ -502,7 +502,6 @@ mtr_t::is_named_space(ulint space) const
 	case MTR_LOG_NO_REDO:
 		return(true);
 	case MTR_LOG_ALL:
-	case MTR_LOG_SHORT_INSERTS:
 		return(m_user_space_id == space
 		       || is_predefined_tablespace(space));
 	}
@@ -523,7 +522,6 @@ bool mtr_t::is_named_space(const fil_space_t* space) const
   case MTR_LOG_NO_REDO:
     return true;
   case MTR_LOG_ALL:
-  case MTR_LOG_SHORT_INSERTS:
     return m_user_space == space || is_predefined_tablespace(space->id);
   }
 

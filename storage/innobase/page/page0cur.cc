@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -877,46 +877,35 @@ page_cur_insert_rec_write_log(
 
 	byte*	log_ptr;
 
-	if (mtr_get_log_mode(mtr) != MTR_LOG_SHORT_INSERTS) {
-
-		if (page_rec_is_comp(insert_rec)) {
-			log_ptr = mlog_open_and_write_index(
-				mtr, insert_rec, index, MLOG_COMP_REC_INSERT,
-				2 + 5 + 1 + 5 + 5 + MLOG_BUF_MARGIN);
-			if (UNIV_UNLIKELY(!log_ptr)) {
-				/* Logging in mtr is switched off
-				during crash recovery: in that case
-				mlog_open returns NULL */
-				return;
-			}
-		} else {
-			log_ptr = mlog_open(mtr, 11
-					    + 2 + 5 + 1 + 5 + 5
-					    + MLOG_BUF_MARGIN);
-			if (UNIV_UNLIKELY(!log_ptr)) {
-				/* Logging in mtr is switched off
-				during crash recovery: in that case
-				mlog_open returns NULL */
-				return;
-			}
-
-			log_ptr = mlog_write_initial_log_record_fast(
-				insert_rec, MLOG_REC_INSERT, log_ptr, mtr);
-		}
-
-		log_end = &log_ptr[2 + 5 + 1 + 5 + 5 + MLOG_BUF_MARGIN];
-		/* Write the cursor rec offset as a 2-byte ulint */
-		mach_write_to_2(log_ptr, page_offset(cursor_rec));
-		log_ptr += 2;
-	} else {
-		log_ptr = mlog_open(mtr, 5 + 1 + 5 + 5 + MLOG_BUF_MARGIN);
-		if (!log_ptr) {
-			/* Logging in mtr is switched off during crash
-			recovery: in that case mlog_open returns NULL */
+	if (page_rec_is_comp(insert_rec)) {
+		log_ptr = mlog_open_and_write_index(
+			mtr, insert_rec, index, MLOG_COMP_REC_INSERT,
+			2 + 5 + 1 + 5 + 5 + MLOG_BUF_MARGIN);
+		if (UNIV_UNLIKELY(!log_ptr)) {
+			/* Logging in mtr is switched off
+			during crash recovery: in that case
+			mlog_open returns NULL */
 			return;
 		}
-		log_end = &log_ptr[5 + 1 + 5 + 5 + MLOG_BUF_MARGIN];
+	} else {
+		log_ptr = mlog_open(mtr, 11
+				    + 2 + 5 + 1 + 5 + 5
+				    + MLOG_BUF_MARGIN);
+		if (UNIV_UNLIKELY(!log_ptr)) {
+			/* Logging in mtr is switched off
+			during crash recovery: in that case
+			mlog_open returns NULL */
+			return;
+		}
+
+		log_ptr = mlog_write_initial_log_record_fast(
+			insert_rec, MLOG_REC_INSERT, log_ptr, mtr);
 	}
+
+	log_end = &log_ptr[2 + 5 + 1 + 5 + 5 + MLOG_BUF_MARGIN];
+	/* Write the cursor rec offset as a 2-byte ulint */
+	mach_write_to_2(log_ptr, page_offset(cursor_rec));
+	log_ptr += 2;
 
 	if (page_rec_is_comp(insert_rec)) {
 		if (UNIV_UNLIKELY
@@ -2019,36 +2008,9 @@ no_direction:
 }
 
 /**********************************************************//**
-Writes a log record of copying a record list end to a new created page.
-@return 4-byte field where to write the log data length, or NULL if
-logging is disabled */
-UNIV_INLINE
-byte*
-page_copy_rec_list_to_created_page_write_log(
-/*=========================================*/
-	page_t*		page,	/*!< in: index page */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	mtr_t*		mtr)	/*!< in: mtr */
-{
-	byte*	log_ptr;
-
-	ut_ad(!!page_is_comp(page) == dict_table_is_comp(index->table));
-	ut_ad(mtr->is_named_space(index->table->space));
-
-	log_ptr = mlog_open_and_write_index(mtr, page, index,
-					    page_is_comp(page)
-					    ? MLOG_COMP_LIST_END_COPY_CREATED
-					    : MLOG_LIST_END_COPY_CREATED, 4);
-	if (UNIV_LIKELY(log_ptr != NULL)) {
-		mlog_close(mtr, log_ptr + 4);
-	}
-
-	return(log_ptr);
-}
-
-/**********************************************************//**
 Parses a log record of copying a record list end to a new created page.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_parse_copy_rec_list_to_created_page(
 /*=====================================*/
@@ -2087,8 +2049,7 @@ page_parse_copy_rec_list_to_created_page(
 	ut_ad(fil_page_index_page_check(block->frame));
 	/* This function is never invoked on the clustered index root page,
 	except in the redo log apply of
-	page_copy_rec_list_end_to_created_page() which was logged by.
-	page_copy_rec_list_to_created_page_write_log().
+	page_copy_rec_list_end_to_created_page().
 	For other pages, this field must be zero-initialized. */
 	ut_ad(!page_get_instant(block->frame)
 	      || !page_has_siblings(block->frame));
@@ -2137,8 +2098,6 @@ page_copy_rec_list_end_to_created_page(
 	ulint	n_recs;
 	ulint	slot_index;
 	ulint	rec_size;
-	byte*	log_ptr;
-	ulint	log_data_len;
 	mem_heap_t*	heap		= NULL;
 	offset_t	offsets_[REC_OFFS_NORMAL_SIZE];
 	offset_t*	offsets		= offsets_;
@@ -2169,18 +2128,6 @@ page_copy_rec_list_end_to_created_page(
 	page_header_set_ptr(new_page, NULL, PAGE_HEAP_TOP,
 			    new_page + srv_page_size - 1);
 #endif
-	log_ptr = page_copy_rec_list_to_created_page_write_log(new_page,
-							       index, mtr);
-
-	log_data_len = mtr->get_log()->size();
-
-	/* Individual inserts are logged in a shorter form */
-
-	const mtr_log_t	log_mode = index->table->is_temporary()
-	    || !index->is_readable() /* IMPORT TABLESPACE */
-		? mtr_get_log_mode(mtr)
-		: mtr_set_log_mode(mtr, MTR_LOG_SHORT_INSERTS);
-
 	prev_rec = page_get_infimum_rec(new_page);
 	if (page_is_comp(new_page)) {
 		heap_top = new_page + PAGE_NEW_SUPREMUM_END;
@@ -2264,18 +2211,6 @@ page_copy_rec_list_end_to_created_page(
 
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
-	}
-
-	/* Restore the log mode */
-
-	mtr_set_log_mode(mtr, log_mode);
-
-	log_data_len = mtr->get_log()->size() - log_data_len;
-
-	ut_a(log_data_len < 100U << srv_page_size_shift);
-
-	if (log_ptr != NULL) {
-		mach_write_to_4(log_ptr, log_data_len);
 	}
 
 	if (page_is_comp(new_page)) {
