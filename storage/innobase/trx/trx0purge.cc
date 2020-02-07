@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1307,61 +1307,4 @@ ulint trx_purge(ulint n_tasks, bool truncate)
 	MONITOR_INC_VALUE(MONITOR_PURGE_N_PAGE_HANDLED, n_pages_handled);
 
 	return(n_pages_handled);
-}
-
-extern tpool::waitable_task purge_coordinator_task;
-
-/** Stop purge during FLUSH TABLES FOR EXPORT */
-void purge_sys_t::stop()
-{
-  rw_lock_x_lock(&latch);
-
-  if (!enabled())
-  {
-    /* Shutdown must have been initiated during FLUSH TABLES FOR EXPORT. */
-    ut_ad(!srv_undo_sources);
-    rw_lock_x_unlock(&latch);
-    return;
-  }
-
-  ut_ad(srv_n_purge_threads > 0);
-
-  if (m_paused++ == 0)
-  {
-    rw_lock_x_unlock(&latch);
-    ib::info() << "Stopping purge";
-    MONITOR_ATOMIC_INC(MONITOR_PURGE_STOP_COUNT);
-    return;
-  }
-
-  rw_lock_x_unlock(&latch);
-
-  if (running())
-  {
-    ib::info() << "Waiting for purge to stop";
-    purge_coordinator_task.wait();
-  }
-}
-
-/** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
-void purge_sys_t::resume()
-{
-   if (!enabled())
-   {
-     /* Shutdown must have been initiated during FLUSH TABLES FOR EXPORT. */
-     ut_ad(!srv_undo_sources);
-     return;
-   }
-   ut_ad(!sync_check_iterate(sync_check()));
-   rw_lock_x_lock(&latch);
-   int32_t paused= m_paused--;
-   ut_a(paused);
-
-   if (paused == 1)
-   {
-     ib::info() << "Resuming purge";
-     srv_purge_wakeup();
-     MONITOR_ATOMIC_INC(MONITOR_PURGE_RESUME_COUNT);
-   }
-   rw_lock_x_unlock(&latch);
 }

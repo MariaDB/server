@@ -818,9 +818,6 @@ void srv_error_monitor_task(void*);
 ulint srv_get_task_queue_length();
 #endif
 
-/** Wakeup the purge threads. */
-void srv_purge_wakeup();
-
 /** Shut down the purge threads. */
 void srv_purge_shutdown();
 

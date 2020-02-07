@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -589,10 +589,6 @@ struct purge_coordinator_state
 };
 
 static purge_coordinator_state purge_state;
-extern tpool::waitable_task purge_coordinator_task;
-
-/** @return whether the purge coordinator thread is active */
-bool purge_sys_t::running() { return purge_coordinator_task.is_running(); }
 
 /** threadpool timer for srv_error_monitor_task(). */
 std::unique_ptr<tpool::timer> srv_error_monitor_timer;
@@ -1590,9 +1586,8 @@ static tpool::task_group purge_task_group;
 tpool::waitable_task purge_worker_task(purge_worker_callback, nullptr,
                                        &purge_task_group);
 static tpool::task_group purge_coordinator_task_group(1);
-tpool::waitable_task purge_coordinator_task(purge_coordinator_callback,
-                                            nullptr,
-                                            &purge_coordinator_task_group);
+static tpool::waitable_task purge_coordinator_task
+  (purge_coordinator_callback, nullptr, &purge_coordinator_task_group);
 
 static tpool::timer *purge_coordinator_timer;
 
@@ -1609,6 +1604,66 @@ srv_wake_purge_thread_if_not_active()
 			srv_thread_pool->submit_task(&purge_coordinator_task);
 		}
 	}
+}
+
+/** @return whether the purge tasks are active */
+bool purge_sys_t::running() const
+{
+  return purge_coordinator_task.is_running();
+}
+
+/** Stop purge during FLUSH TABLES FOR EXPORT */
+void purge_sys_t::stop()
+{
+  rw_lock_x_lock(&latch);
+
+  if (!enabled())
+  {
+    /* Shutdown must have been initiated during FLUSH TABLES FOR EXPORT. */
+    ut_ad(!srv_undo_sources);
+    rw_lock_x_unlock(&latch);
+    return;
+  }
+
+  ut_ad(srv_n_purge_threads > 0);
+
+  const auto paused= m_paused++;
+
+  rw_lock_x_unlock(&latch);
+
+  if (!paused)
+  {
+    ib::info() << "Stopping purge";
+    MONITOR_ATOMIC_INC(MONITOR_PURGE_STOP_COUNT);
+    purge_coordinator_task.disable();
+  }
+}
+
+/** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
+void purge_sys_t::resume()
+{
+   if (!enabled())
+   {
+     /* Shutdown must have been initiated during FLUSH TABLES FOR EXPORT. */
+     ut_ad(!srv_undo_sources);
+     return;
+   }
+   ut_ad(!srv_read_only_mode);
+   ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
+   ut_ad(!sync_check_iterate(sync_check()));
+   purge_coordinator_task.enable();
+   rw_lock_x_lock(&latch);
+   int32_t paused= m_paused--;
+   ut_a(paused);
+
+   if (paused == 1)
+   {
+     ib::info() << "Resuming purge";
+     purge_state.m_running = 0;
+     srv_wake_purge_thread_if_not_active();
+     MONITOR_ATOMIC_INC(MONITOR_PURGE_RESUME_COUNT);
+   }
+   rw_lock_x_unlock(&latch);
 }
 
 /** Wake up the master thread if it is suspended or being suspended. */
@@ -2182,7 +2237,8 @@ static void purge_worker_callback(void*)
   ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
   void *ctx;
   THD *thd= acquire_thd(&ctx);
-  while (srv_task_execute()) {}
+  while (srv_task_execute())
+    ut_ad(purge_sys.running());
   release_thd(thd,ctx);
 }
 
@@ -2286,19 +2342,6 @@ ulint srv_get_task_queue_length()
 	return(n_tasks);
 }
 #endif
-
-/** Wake up the purge coordinator. */
-void
-srv_purge_wakeup()
-{
-	ut_ad(!srv_read_only_mode);
-	if (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND) {
-		return;
-	}
-	ut_a(purge_sys.enabled() && !purge_sys.paused());
-	purge_state.m_running = 0;
-	srv_wake_purge_thread_if_not_active();
-}
 
 /** Shut down the purge threads. */
 void srv_purge_shutdown()

@@ -1,4 +1,4 @@
-/* Copyright(C) 2019 MariaDB Corporation.
+/* Copyright (C) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -57,7 +57,7 @@ void execute_after_task_callback()
 
   /* Task that provide wait() operation. */
   waitable_task::waitable_task(callback_func func, void* arg, task_group* group) :
-    task(func,arg, group),m_mtx(),m_cv(),m_ref_count(),m_waiter_count(){}
+    task(func,arg, group),m_mtx(),m_cv(),m_ref_count(),m_waiter_count(),m_original_func(){}
 
   void waitable_task::add_ref()
   {
@@ -72,13 +72,37 @@ void execute_after_task_callback()
     if (!m_ref_count && m_waiter_count)
       m_cv.notify_all();
   }
-  void waitable_task::wait()
+  void waitable_task::wait(std::unique_lock<std::mutex>& lk)
   {
-    std::unique_lock<std::mutex> lk(m_mtx);
     m_waiter_count++;
     while (m_ref_count)
       m_cv.wait(lk);
     m_waiter_count--;
   }
+  void waitable_task::wait()
+  {
+    std::unique_lock<std::mutex> lk(m_mtx);
+    wait(lk);
+  }
 
+  static void noop(void*)
+  {
+  }
+  void waitable_task::disable()
+  {
+    std::unique_lock<std::mutex> lk(m_mtx);
+    if (m_func == noop)
+     return;
+    wait(lk);
+    m_original_func = m_func;
+    m_func = noop;
+  }
+  void waitable_task::enable()
+  {
+    std::unique_lock<std::mutex> lk(m_mtx);
+    if(m_func != noop)
+      return;
+    wait(lk);
+    m_func = m_original_func;
+  }
 }

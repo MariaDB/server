@@ -1,4 +1,4 @@
-/* Copyright(C) 2019 MariaDB
+/* Copyright (C) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -96,6 +96,8 @@ class waitable_task :public task
   std::condition_variable m_cv;
   int m_ref_count;
   int m_waiter_count;
+  callback_func m_original_func;
+  void wait(std::unique_lock<std::mutex>&lk);
 public:
   waitable_task(callback_func func, void* arg, task_group* group = nullptr);
   void add_ref() override;
@@ -103,6 +105,8 @@ public:
   TPOOL_SUPPRESS_TSAN bool is_running() { return get_ref_count() > 0; }
   TPOOL_SUPPRESS_TSAN int get_ref_count() {return m_ref_count;}
   void wait();
+  void disable();
+  void enable();
   virtual ~waitable_task() {};
 };
 enum class aio_opcode
