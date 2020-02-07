@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -398,25 +398,6 @@ rec_get_deleted_flag(
 	const rec_t*	rec,	/*!< in: physical record */
 	ulint		comp)	/*!< in: nonzero=compact page format */
 	MY_ATTRIBUTE((warn_unused_result));
-/******************************************************//**
-The following function is used to set the deleted bit. */
-UNIV_INLINE
-void
-rec_set_deleted_flag_old(
-/*=====================*/
-	rec_t*	rec,	/*!< in: old-style physical record */
-	ulint	flag)	/*!< in: nonzero if delete marked */
-	MY_ATTRIBUTE((nonnull));
-/******************************************************//**
-The following function is used to set the deleted bit. */
-UNIV_INLINE
-void
-rec_set_deleted_flag_new(
-/*=====================*/
-	rec_t*		rec,	/*!< in/out: new-style physical record */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	ulint		flag)	/*!< in: nonzero if delete marked */
-	MY_ATTRIBUTE((nonnull(1)));
 /******************************************************//**
 The following function tells if a new-style record is a node pointer.
 @return TRUE if node pointer */

@@ -1594,13 +1594,13 @@ parse_log:
 			     || (ibool)!!page_is_comp(page)
 			     == dict_table_is_comp(index->table));
 			ptr = btr_cur_parse_del_mark_set_clust_rec(
-				ptr, end_ptr, page, page_zip, index);
+				ptr, end_ptr, page, page_zip, index, mtr);
 		}
 		break;
 	case MLOG_REC_SEC_DELETE_MARK:
 		ut_ad(!page || fil_page_type_is_index(page_type));
 		ptr = btr_cur_parse_del_mark_set_sec_rec(ptr, end_ptr,
-							 page, page_zip);
+							 page, page_zip, mtr);
 		break;
 	case MLOG_REC_UPDATE_IN_PLACE: case MLOG_COMP_REC_UPDATE_IN_PLACE:
 		ut_ad(!page || fil_page_type_is_index(page_type));

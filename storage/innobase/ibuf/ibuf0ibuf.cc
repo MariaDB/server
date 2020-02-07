@@ -3808,20 +3808,19 @@ dump:
 					  ULINT_UNDEFINED, &heap);
 		update = row_upd_build_sec_rec_difference_binary(
 			rec, index, offsets, entry, heap);
-		page_zip_des_t* page_zip = buf_block_get_page_zip(block);
 
 		if (update->n_fields == 0) {
 			/* The records only differ in the delete-mark.
 			Clear the delete-mark, like we did before
 			Bug #56680 was fixed. */
-			btr_cur_set_deleted_flag_for_ibuf(
-				rec, page_zip, FALSE, mtr);
+			btr_rec_set_deleted<false>(block, rec, mtr);
 			goto updated_in_place;
 		}
 
 		/* Copy the info bits. Clear the delete-mark. */
 		update->info_bits = rec_get_info_bits(rec, page_is_comp(page));
 		update->info_bits &= ~REC_INFO_DELETED_FLAG;
+		page_zip_des_t* page_zip = buf_block_get_page_zip(block);
 
 		/* We cannot invoke btr_cur_optimistic_update() here,
 		because we do not have a btr_cur_t or que_thr_t,
@@ -3919,11 +3918,7 @@ ibuf_set_del_mark(
 	low_match = page_cur_search(block, index, entry, &page_cur);
 
 	if (low_match == dtuple_get_n_fields(entry)) {
-		rec_t*		rec;
-		page_zip_des_t* page_zip;
-
-		rec = page_cur_get_rec(&page_cur);
-		page_zip = page_cur_get_page_zip(&page_cur);
+		rec_t* rec = page_cur_get_rec(&page_cur);
 
 		/* Delete mark the old index record. According to a
 		comment in row_upd_sec_index_entry(), it can already
@@ -3934,8 +3929,7 @@ ibuf_set_del_mark(
 		if (UNIV_LIKELY
 		    (!rec_get_deleted_flag(
 			    rec, dict_table_is_comp(index->table)))) {
-			btr_cur_set_deleted_flag_for_ibuf(rec, page_zip,
-							  TRUE, mtr);
+			btr_rec_set_deleted<true>(block, rec, mtr);
 		}
 	} else {
 		const page_t*		page
@@ -4151,8 +4145,8 @@ bool ibuf_delete_rec(ulint space, ulint page_no, btr_pcur_t* pcur,
 	Delete-mark the record so that it will not be applied again,
 	in case the server crashes before the pessimistic delete is
 	made persistent. */
-	btr_cur_set_deleted_flag_for_ibuf(
-		btr_pcur_get_rec(pcur), NULL, TRUE, mtr);
+	btr_rec_set_deleted<true>(btr_pcur_get_block(pcur),
+				  btr_pcur_get_rec(pcur), mtr);
 
 	btr_pcur_store_position(pcur, mtr);
 	ibuf_btr_pcur_commit_specify_mtr(pcur, mtr);
@@ -4465,10 +4459,9 @@ loop:
 				the server crashes between the following
 				mtr_commit() and the subsequent mtr_commit()
 				of deleting the change buffer record. */
-
-				btr_cur_set_deleted_flag_for_ibuf(
-					btr_pcur_get_rec(&pcur), NULL,
-					TRUE, &mtr);
+				btr_rec_set_deleted<true>(
+					btr_pcur_get_block(&pcur),
+					btr_pcur_get_rec(&pcur), &mtr);
 
 				btr_pcur_store_position(&pcur, &mtr);
 				ibuf_btr_pcur_commit_specify_mtr(&pcur, &mtr);

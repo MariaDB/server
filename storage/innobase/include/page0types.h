@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -143,17 +143,6 @@ typedef std::map<
 extern page_zip_stat_t			page_zip_stat[PAGE_ZIP_SSIZE_MAX];
 /** Statistics on compression, indexed by dict_index_t::id */
 extern page_zip_stat_per_index_t	page_zip_stat_per_index;
-
-/**********************************************************************//**
-Write the "deleted" flag of a record on a compressed page.  The flag must
-already have been written on the uncompressed page. */
-void
-page_zip_rec_set_deleted(
-/*=====================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
-	const byte*	rec,	/*!< in: record on the uncompressed page */
-	ulint		flag)	/*!< in: the deleted flag (nonzero=TRUE) */
-	MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**
 Write the "owned" flag of a record on a compressed page.  The n_owned field

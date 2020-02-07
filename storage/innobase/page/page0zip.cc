@@ -4308,7 +4308,8 @@ page_zip_rec_set_deleted(
 /*=====================*/
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	const byte*	rec,	/*!< in: record on the uncompressed page */
-	ulint		flag)	/*!< in: the deleted flag (nonzero=TRUE) */
+	ulint		flag,	/*!< in: the deleted flag (nonzero=TRUE) */
+	mtr_t*		mtr)	/*!< in,out: mini-transaction */
 {
 	byte*	slot = page_zip_dir_find(page_zip, page_offset(rec));
 	ut_a(slot);
@@ -4321,6 +4322,14 @@ page_zip_rec_set_deleted(
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(page_zip_validate(page_zip, page_align(rec), NULL));
 #endif /* UNIV_ZIP_DEBUG */
+	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2 + 1)) {
+		log_ptr = mlog_write_initial_log_record_fast(
+			rec, MLOG_ZIP_WRITE_STRING, log_ptr, mtr);
+		mach_write_to_2(log_ptr, slot - page_zip->data);
+		mach_write_to_2(log_ptr + 2, 1);
+		log_ptr[4] = *slot;
+		mlog_close(mtr, log_ptr + 5);
+	}
 }
 
 /**********************************************************************//**

@@ -462,36 +462,6 @@ upd_node_create(
 	return(node);
 }
 
-/*********************************************************************//**
-Updates the trx id and roll ptr field in a clustered index record in database
-recovery. */
-void
-row_upd_rec_sys_fields_in_recovery(
-/*===============================*/
-	rec_t*		rec,	/*!< in/out: record */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		pos,	/*!< in: TRX_ID position in rec */
-	trx_id_t	trx_id,	/*!< in: transaction id */
-	roll_ptr_t	roll_ptr)/*!< in: roll ptr of the undo log record */
-{
-	ut_ad(rec_offs_validate(rec, NULL, offsets));
-
-	if (page_zip) {
-		page_zip_write_trx_id_and_roll_ptr(
-			page_zip, rec, offsets, pos, trx_id, roll_ptr);
-	} else {
-		byte*	field;
-		ulint	len;
-
-		field = rec_get_nth_field(rec, offsets, pos, &len);
-		ut_ad(len == DATA_TRX_ID_LEN);
-		compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
-		trx_write_trx_id(field, trx_id);
-		trx_write_roll_ptr(field + DATA_TRX_ID_LEN, roll_ptr);
-	}
-}
-
 /***********************************************************//**
 Returns TRUE if row update changes size of some field in index or if some
 field to be updated is stored externally in rec or update.
@@ -692,38 +662,6 @@ row_upd_rec_in_place(
 	if (page_zip) {
 		page_zip_write_rec(page_zip, rec, index, offsets, 0);
 	}
-}
-
-/*********************************************************************//**
-Parses the log data of system field values.
-@return log data end or NULL */
-byte*
-row_upd_parse_sys_vals(
-/*===================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	ulint*		pos,	/*!< out: TRX_ID position in record */
-	trx_id_t*	trx_id,	/*!< out: trx id */
-	roll_ptr_t*	roll_ptr)/*!< out: roll ptr */
-{
-	*pos = mach_parse_compressed(&ptr, end_ptr);
-
-	if (ptr == NULL) {
-
-		return(NULL);
-	}
-
-	if (end_ptr < ptr + DATA_ROLL_PTR_LEN) {
-
-		return(NULL);
-	}
-
-	*roll_ptr = trx_read_roll_ptr(ptr);
-	ptr += DATA_ROLL_PTR_LEN;
-
-	*trx_id = mach_u64_parse_compressed(&ptr, end_ptr);
-
-	return(const_cast<byte*>(ptr));
 }
 
 /***********************************************************//**
@@ -2431,11 +2369,17 @@ row_upd_sec_index_entry(
 		row_ins_sec_index_entry() below */
 		if (!rec_get_deleted_flag(
 			    rec, dict_table_is_comp(index->table))) {
-			err = btr_cur_del_mark_set_sec_rec(
-				flags, btr_cur, TRUE, thr, &mtr);
+			err = lock_sec_rec_modify_check_and_lock(
+				flags,
+				btr_cur_get_block(btr_cur),
+				btr_cur_get_rec(btr_cur), index, thr, &mtr);
 			if (err != DB_SUCCESS) {
 				break;
 			}
+
+			btr_rec_set_deleted<true>(btr_cur_get_block(btr_cur),
+						  btr_cur_get_rec(btr_cur),
+						  &mtr);
 #ifdef WITH_WSREP
 			if (!referenced && foreign
 			    && wsrep_must_process_fk(node, trx)

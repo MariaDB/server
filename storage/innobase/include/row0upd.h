@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -100,20 +100,6 @@ upd_get_field_by_field_no(
 	ulint		no,	/*!< in: field_no */
 	bool		is_virtual) /*!< in: if it is a virtual column */
 	MY_ATTRIBUTE((warn_unused_result));
-/*********************************************************************//**
-Updates the trx id and roll ptr field in a clustered index record when
-a row is updated or marked deleted. */
-UNIV_INLINE
-void
-row_upd_rec_sys_fields(
-/*===================*/
-	rec_t*		rec,	/*!< in/out: record */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
-				uncompressed part will be updated, or NULL */
-	dict_index_t*	index,	/*!< in: clustered index */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
-	const trx_t*	trx,	/*!< in: transaction */
-	roll_ptr_t	roll_ptr);/*!< in: DB_ROLL_PTR to the undo log */
 /*********************************************************************//**
 Creates an update node for a query graph.
 @return own: update node */
@@ -356,29 +342,6 @@ que_thr_t*
 row_upd_step(
 /*=========*/
 	que_thr_t*	thr);	/*!< in: query thread */
-/*********************************************************************//**
-Parses the log data of system field values.
-@return log data end or NULL */
-byte*
-row_upd_parse_sys_vals(
-/*===================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	ulint*		pos,	/*!< out: TRX_ID position in record */
-	trx_id_t*	trx_id,	/*!< out: trx id */
-	roll_ptr_t*	roll_ptr);/*!< out: roll ptr */
-/*********************************************************************//**
-Updates the trx id and roll ptr field in a clustered index record in database
-recovery. */
-void
-row_upd_rec_sys_fields_in_recovery(
-/*===============================*/
-	rec_t*		rec,	/*!< in/out: record */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		pos,	/*!< in: TRX_ID position in rec */
-	trx_id_t	trx_id,	/*!< in: transaction id */
-	roll_ptr_t	roll_ptr);/*!< in: roll ptr of the undo log record */
 /*********************************************************************//**
 Parses the log data written by row_upd_index_write_log.
 @return log data end or NULL */

@@ -3979,9 +3979,90 @@ btr_cur_update_in_place_log(
 	row_upd_index_write_log(update, log_ptr, mtr);
 }
 
+/** Update DB_TRX_ID, DB_ROLL_PTR in a clustered index record.
+@param[in,out]	block		clustered index leaf page
+@param[in,out]	rec		clustered index record
+@param[in]	index		clustered index
+@param[in]	offsets		rec_get_offsets(rec, index)
+@param[in]	trx		transaction
+@param[in]	roll_ptr	DB_ROLL_PTR value
+@param[in,out]	mtr		mini-transaction */
+static void btr_cur_upd_rec_sys(buf_block_t *block, rec_t* rec,
+				dict_index_t* index, const offset_t* offsets,
+				const trx_t* trx, roll_ptr_t roll_ptr,
+				mtr_t* mtr)
+{
+	ut_ad(index->is_primary());
+	ut_ad(rec_offs_validate(rec, index, offsets));
+
+	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+		page_zip_write_trx_id_and_roll_ptr(&block->page.zip,
+						   rec, offsets,
+						   index->db_trx_id(),
+						   trx->id, roll_ptr, mtr);
+	} else {
+		ulint	offset = index->trx_id_offset;
+
+		if (!offset) {
+			offset = row_get_trx_id_offset(index, offsets);
+		}
+
+		compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
+
+		/* During IMPORT the trx id in the record can be in the
+		future, if the .ibd file is being imported from another
+		instance. During IMPORT roll_ptr will be 0. */
+		ut_ad(roll_ptr == 0
+		      || lock_check_trx_id_sanity(
+			      trx_read_trx_id(rec + offset),
+			      rec, index, offsets));
+
+		trx_write_trx_id(rec + offset, trx->id);
+		trx_write_roll_ptr(rec + offset + DATA_TRX_ID_LEN, roll_ptr);
+		/* MDEV-12353 FIXME: consider emitting MEMMOVE for the
+		DB_TRX_ID if it is found in the preceding record */
+		mtr->memcpy(*block, page_offset(rec + offset),
+			    DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+	}
+}
+
+/*********************************************************************//**
+Parses the log data of system field values.
+@return log data end or NULL */
+static
+byte*
+row_upd_parse_sys_vals(
+/*===================*/
+	const byte*	ptr,	/*!< in: buffer */
+	const byte*	end_ptr,/*!< in: buffer end */
+	ulint*		pos,	/*!< out: TRX_ID position in record */
+	trx_id_t*	trx_id,	/*!< out: trx id */
+	roll_ptr_t*	roll_ptr)/*!< out: roll ptr */
+{
+	*pos = mach_parse_compressed(&ptr, end_ptr);
+
+	if (ptr == NULL) {
+
+		return(NULL);
+	}
+
+	if (end_ptr < ptr + DATA_ROLL_PTR_LEN) {
+
+		return(NULL);
+	}
+
+	*roll_ptr = trx_read_roll_ptr(ptr);
+	ptr += DATA_ROLL_PTR_LEN;
+
+	*trx_id = mach_u64_parse_compressed(&ptr, end_ptr);
+
+	return(const_cast<byte*>(ptr));
+}
+
 /***********************************************************//**
 Parses a redo log record of updating a record in-place.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 btr_cur_parse_update_in_place(
 /*==========================*/
@@ -4052,9 +4133,17 @@ btr_cur_parse_update_in_place(
 				  || page_is_leaf(page),
 				  ULINT_UNDEFINED, &heap);
 
-	if (!(flags & BTR_KEEP_SYS_FLAG)) {
-		row_upd_rec_sys_fields_in_recovery(rec, page_zip, offsets,
-						   pos, trx_id, roll_ptr);
+	if (flags & BTR_KEEP_SYS_FLAG) {
+	} else if (page_zip) {
+		page_zip_write_trx_id_and_roll_ptr(
+			page_zip, rec, offsets, pos, trx_id, roll_ptr, NULL);
+	} else {
+		ulint len;
+		byte* field = rec_get_nth_field(rec, offsets, pos, &len);
+		ut_ad(len == DATA_TRX_ID_LEN);
+		compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
+		trx_write_trx_id(field, trx_id);
+		trx_write_roll_ptr(field + DATA_TRX_ID_LEN, roll_ptr);
 	}
 
 	row_upd_rec_in_place(rec, index, offsets, update, page_zip);
@@ -4235,8 +4324,8 @@ btr_cur_update_in_place(
 	}
 
 	if (!(flags & BTR_KEEP_SYS_FLAG)) {
-		row_upd_rec_sys_fields(rec, NULL, index, offsets,
-				       thr_get_trx(thr), roll_ptr);
+		btr_cur_upd_rec_sys(block, rec, index, offsets,
+				    thr_get_trx(thr), roll_ptr, mtr);
 	}
 
 	was_delete_marked = rec_get_deleted_flag(
@@ -5229,50 +5318,48 @@ return_after_reservations:
 
 /*==================== B-TREE DELETE MARK AND UNMARK ===============*/
 
-/****************************************************************//**
-Writes the redo log record for delete marking or unmarking of an index
-record. */
-UNIV_INLINE
-void
-btr_cur_del_mark_set_clust_rec_log(
-/*===============================*/
-	rec_t*		rec,	/*!< in: record */
-	dict_index_t*	index,	/*!< in: index of the record */
-	trx_id_t	trx_id,	/*!< in: transaction id */
-	roll_ptr_t	roll_ptr,/*!< in: roll ptr to the undo log record */
-	mtr_t*		mtr)	/*!< in: mtr */
+/** Modify the delete-mark flag of a record.
+@tparam         flag    the value of the delete-mark flag
+@param[in,out]  block   buffer block
+@param[in,out]  rec     record on a physical index page
+@param[in,out]  mtr     mini-transaction  */
+template<bool flag>
+void btr_rec_set_deleted(buf_block_t *block, rec_t *rec, mtr_t *mtr)
 {
-	byte*	log_ptr;
-
-	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
-	ut_ad(mtr->is_named_space(index->table->space));
-
-	log_ptr = mlog_open_and_write_index(mtr, rec, index,
-					    page_rec_is_comp(rec)
-					    ? MLOG_COMP_REC_CLUST_DELETE_MARK
-					    : MLOG_REC_CLUST_DELETE_MARK,
-					    1 + 1 + DATA_ROLL_PTR_LEN
-					    + 14 + 2);
-
-	if (!log_ptr) {
-		/* Logging in mtr is switched off during crash recovery */
-		return;
-	}
-
-	*log_ptr++ = 0;
-	*log_ptr++ = 1;
-
-	log_ptr = btr_cur_log_sys(index, trx_id, roll_ptr, log_ptr);
-	mach_write_to_2(log_ptr, page_offset(rec));
-	log_ptr += 2;
-
-	mlog_close(mtr, log_ptr);
+  if (page_rec_is_comp(rec))
+  {
+    byte *b= &rec[-REC_NEW_INFO_BITS];
+    const byte v= flag
+      ? (*b | REC_INFO_DELETED_FLAG)
+      : (*b & ~REC_INFO_DELETED_FLAG);
+    if (*b == v);
+    else if (UNIV_LIKELY_NULL(block->page.zip.data))
+    {
+      *b= v;
+      page_zip_rec_set_deleted(&block->page.zip, rec, flag, mtr);
+    }
+    else
+      mtr->write<1>(*block, b, v);
+  }
+  else
+  {
+    ut_ad(!block->page.zip.data);
+    byte *b= &rec[-REC_OLD_INFO_BITS];
+    const byte v = flag
+      ? (*b | REC_INFO_DELETED_FLAG)
+      : (*b & ~REC_INFO_DELETED_FLAG);
+    mtr->write<1,mtr_t::OPT>(*block, b, v);
+  }
 }
+
+template void btr_rec_set_deleted<false>(buf_block_t *, rec_t *, mtr_t *);
+template void btr_rec_set_deleted<true>(buf_block_t *, rec_t *, mtr_t *);
 
 /****************************************************************//**
 Parses the redo log record for delete marking or unmarking of a clustered
 index record.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 btr_cur_parse_del_mark_set_clust_rec(
 /*=================================*/
@@ -5280,7 +5367,8 @@ btr_cur_parse_del_mark_set_clust_rec(
 	const byte*	end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< in/out: page or NULL */
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	dict_index_t*	index)	/*!< in: index corresponding to page */
+	dict_index_t*	index,	/*!< in: index corresponding to page */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	ulint		flags;
 	ulint		val;
@@ -5331,31 +5419,57 @@ btr_cur_parse_del_mark_set_clust_rec(
 		is only being recovered, and there cannot be a hash index to
 		it. Besides, these fields are being updated in place
 		and the adaptive hash index does not depend on them. */
+		byte* b = rec - (page_is_comp(page)
+				 ? REC_NEW_INFO_BITS
+				 : REC_OLD_INFO_BITS);
 
-		btr_rec_set_deleted_flag(rec, page_zip, val);
+		if (val) {
+			*b |= REC_INFO_DELETED_FLAG;
+		} else {
+			*b &= ~REC_INFO_DELETED_FLAG;
+		}
+
+		if (UNIV_LIKELY_NULL(page_zip)) {
+			page_zip_rec_set_deleted(page_zip, rec, val, mtr);
+		}
+
 		/* pos is the offset of DB_TRX_ID in the clustered index.
 		Debug assertions may also access DB_ROLL_PTR at pos+1.
 		Therefore, we must compute offsets for the first pos+2
 		clustered index fields. */
 		ut_ad(pos <= MAX_REF_PARTS);
 
-		offset_t offsets[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
-		rec_offs_init(offsets);
+		offset_t offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+		rec_offs_init(offsets_);
 		mem_heap_t*	heap	= NULL;
 
 		if (!(flags & BTR_KEEP_SYS_FLAG)) {
-			row_upd_rec_sys_fields_in_recovery(
-				rec, page_zip,
-				rec_get_offsets(rec, index, offsets, true,
-						pos + 2, &heap),
-				pos, trx_id, roll_ptr);
+			offset_t* offsets = rec_get_offsets(rec, index,
+							    offsets_, true,
+							    pos + 2, &heap);
+			if (page_zip) {
+				page_zip_write_trx_id_and_roll_ptr(
+					page_zip, rec, offsets, pos, trx_id,
+					roll_ptr, mtr);
+			} else {
+				ulint	len;
+
+				byte* field = rec_get_nth_field(
+					rec, offsets, pos, &len);
+				ut_ad(len == DATA_TRX_ID_LEN);
+				compile_time_assert(DATA_TRX_ID + 1
+						    == DATA_ROLL_PTR);
+				trx_write_trx_id(field, trx_id);
+				trx_write_roll_ptr(field + DATA_TRX_ID_LEN,
+						   roll_ptr);
+			}
 		} else {
 			/* In delete-marked records, DB_TRX_ID must
 			always refer to an existing undo log record. */
 			ut_ad(memcmp(rec_get_nth_field(
 					     rec,
 					     rec_get_offsets(rec, index,
-							     offsets, true,
+							     offsets_, true,
 							     pos, &heap),
 					     pos, &offset),
 				     field_ref_zero, DATA_TRX_ID_LEN));
@@ -5427,9 +5541,7 @@ btr_cur_del_mark_set_clust_rec(
 	the adaptive hash index does not depend on the delete-mark
 	and the delete-mark is being updated in place. */
 
-	page_zip_des_t* page_zip = buf_block_get_page_zip(block);
-
-	btr_rec_set_deleted_flag(rec, page_zip, TRUE);
+	btr_rec_set_deleted<true>(block, rec, mtr);
 
 	trx = thr_get_trx(thr);
 
@@ -5443,58 +5555,23 @@ btr_cur_del_mark_set_clust_rec(
 		row_log_table_delete(rec, index, offsets, NULL);
 	}
 
-	row_upd_rec_sys_fields(rec, page_zip, index, offsets, trx, roll_ptr);
-
-	btr_cur_del_mark_set_clust_rec_log(rec, index, trx->id,
-					   roll_ptr, mtr);
-
+	btr_cur_upd_rec_sys(block, rec, index, offsets, trx, roll_ptr, mtr);
 	return(err);
-}
-
-/****************************************************************//**
-Writes the redo log record for a delete mark setting of a secondary
-index record. */
-UNIV_INLINE
-void
-btr_cur_del_mark_set_sec_rec_log(
-/*=============================*/
-	rec_t*		rec,	/*!< in: record */
-	ibool		val,	/*!< in: value to set */
-	mtr_t*		mtr)	/*!< in: mtr */
-{
-	byte*	log_ptr;
-	ut_ad(val <= 1);
-
-	log_ptr = mlog_open(mtr, 11 + 1 + 2);
-
-	if (!log_ptr) {
-		/* Logging in mtr is switched off during crash recovery:
-		in that case mlog_open returns NULL */
-		return;
-	}
-
-	log_ptr = mlog_write_initial_log_record_fast(
-		rec, MLOG_REC_SEC_DELETE_MARK, log_ptr, mtr);
-	mach_write_to_1(log_ptr, val);
-	log_ptr++;
-
-	mach_write_to_2(log_ptr, page_offset(rec));
-	log_ptr += 2;
-
-	mlog_close(mtr, log_ptr);
 }
 
 /****************************************************************//**
 Parses the redo log record for delete marking or unmarking of a secondary
 index record.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 btr_cur_parse_del_mark_set_sec_rec(
 /*===============================*/
 	const byte*	ptr,	/*!< in: buffer */
 	const byte*	end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< in/out: page or NULL */
-	page_zip_des_t*	page_zip)/*!< in/out: compressed page, or NULL */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	ulint	val;
 	ulint	offset;
@@ -5520,84 +5597,22 @@ btr_cur_parse_del_mark_set_sec_rec(
 		is only being recovered, and there cannot be a hash index to
 		it. Besides, the delete-mark flag is being updated in place
 		and the adaptive hash index does not depend on it. */
+		byte* b = page + offset - (page_is_comp(page)
+					   ? REC_NEW_INFO_BITS
+					   : REC_OLD_INFO_BITS);
 
-		btr_rec_set_deleted_flag(rec, page_zip, val);
+		if (val) {
+			*b |= REC_INFO_DELETED_FLAG;
+		} else {
+			*b &= ~REC_INFO_DELETED_FLAG;
+		}
+
+		if (UNIV_LIKELY_NULL(page_zip)) {
+			page_zip_rec_set_deleted(page_zip, rec, val, mtr);
+		}
 	}
 
 	return(ptr);
-}
-
-/***********************************************************//**
-Sets a secondary index record delete mark to TRUE or FALSE.
-@return DB_SUCCESS, DB_LOCK_WAIT, or error number */
-dberr_t
-btr_cur_del_mark_set_sec_rec(
-/*=========================*/
-	ulint		flags,	/*!< in: locking flag */
-	btr_cur_t*	cursor,	/*!< in: cursor */
-	ibool		val,	/*!< in: value to set */
-	que_thr_t*	thr,	/*!< in: query thread */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-{
-	buf_block_t*	block;
-	rec_t*		rec;
-	dberr_t		err;
-
-	block = btr_cur_get_block(cursor);
-	rec = btr_cur_get_rec(cursor);
-
-	err = lock_sec_rec_modify_check_and_lock(flags,
-						 btr_cur_get_block(cursor),
-						 rec, cursor->index, thr, mtr);
-	if (err != DB_SUCCESS) {
-
-		return(err);
-	}
-
-	ut_ad(!!page_rec_is_comp(rec)
-	      == dict_table_is_comp(cursor->index->table));
-
-	DBUG_PRINT("ib_cur", ("delete-mark=%u sec %u:%u:%u in %s("
-			      IB_ID_FMT ") by " TRX_ID_FMT,
-			      unsigned(val),
-			      block->page.id.space(), block->page.id.page_no(),
-			      unsigned(page_rec_get_heap_no(rec)),
-			      cursor->index->name(), cursor->index->id,
-			      trx_get_id_for_print(thr_get_trx(thr))));
-
-	/* We do not need to reserve search latch, as the
-	delete-mark flag is being updated in place and the adaptive
-	hash index does not depend on it. */
-	btr_rec_set_deleted_flag(rec, buf_block_get_page_zip(block), val);
-
-	btr_cur_del_mark_set_sec_rec_log(rec, val, mtr);
-
-	return(DB_SUCCESS);
-}
-
-/***********************************************************//**
-Sets a secondary index record's delete mark to the given value. This
-function is only used by the insert buffer merge mechanism. */
-void
-btr_cur_set_deleted_flag_for_ibuf(
-/*==============================*/
-	rec_t*		rec,		/*!< in/out: record */
-	page_zip_des_t*	page_zip,	/*!< in/out: compressed page
-					corresponding to rec, or NULL
-					when the tablespace is
-					uncompressed */
-	ibool		val,		/*!< in: value to set */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
-{
-	/* We do not need to reserve search latch, as the page
-	has just been read to the buffer pool and there cannot be
-	a hash index to it.  Besides, the delete-mark flag is being
-	updated in place and the adaptive hash index does not depend
-	on it. */
-
-	btr_rec_set_deleted_flag(rec, page_zip, val);
-
-	btr_cur_del_mark_set_sec_rec_log(rec, val, mtr);
 }
 
 /*==================== B-TREE RECORD REMOVE =========================*/

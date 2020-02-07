@@ -475,18 +475,6 @@ btr_cur_del_mark_set_clust_rec(
 	const dtuple_t*	entry,	/*!< in: dtuple for the deleting record */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/***********************************************************//**
-Sets a secondary index record delete mark to TRUE or FALSE.
-@return DB_SUCCESS, DB_LOCK_WAIT, or error number */
-dberr_t
-btr_cur_del_mark_set_sec_rec(
-/*=========================*/
-	ulint		flags,	/*!< in: locking flag */
-	btr_cur_t*	cursor,	/*!< in: cursor */
-	ibool		val,	/*!< in: value to set */
-	que_thr_t*	thr,	/*!< in: query thread */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*************************************************************//**
 Tries to compress a page of the tree if it seems useful. It is assumed
 that mtr holds an x-latch on the tree and on the cursor page. To avoid
@@ -567,6 +555,7 @@ void btr_cur_node_ptr_delete(btr_cur_t* parent, mtr_t* mtr)
 /***********************************************************//**
 Parses a redo log record of updating a record in-place.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 btr_cur_parse_update_in_place(
 /*==========================*/
@@ -579,6 +568,7 @@ btr_cur_parse_update_in_place(
 Parses the redo log record for delete marking or unmarking of a clustered
 index record.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 btr_cur_parse_del_mark_set_clust_rec(
 /*=================================*/
@@ -586,18 +576,21 @@ btr_cur_parse_del_mark_set_clust_rec(
 	const byte*	end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< in/out: page or NULL */
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	dict_index_t*	index);	/*!< in: index corresponding to page */
+	dict_index_t*	index,	/*!< in: index corresponding to page */
+	mtr_t*		mtr);	/*!< in/out: mini-transaction */
 /****************************************************************//**
 Parses the redo log record for delete marking or unmarking of a secondary
 index record.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 btr_cur_parse_del_mark_set_sec_rec(
 /*===============================*/
 	const byte*	ptr,	/*!< in: buffer */
 	const byte*	end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< in/out: page or NULL */
-	page_zip_des_t*	page_zip);/*!< in/out: compressed page, or NULL */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
+	mtr_t*		mtr);	/*!< in/out: mini-transaction */
 
 /** Estimates the number of rows in a given index range.
 @param[in]	index	index
@@ -784,29 +777,6 @@ btr_rec_copy_externally_stored_field(
 	ulint*			len,
 	mem_heap_t*		heap);
 
-/***********************************************************//**
-Sets a secondary index record's delete mark to the given value. This
-function is only used by the insert buffer merge mechanism. */
-void
-btr_cur_set_deleted_flag_for_ibuf(
-/*==============================*/
-	rec_t*		rec,		/*!< in/out: record */
-	page_zip_des_t*	page_zip,	/*!< in/out: compressed page
-					corresponding to rec, or NULL
-					when the tablespace is uncompressed */
-	ibool		val,		/*!< in: value to set */
-	mtr_t*		mtr);		/*!< in/out: mini-transaction */
-
-/******************************************************//**
-The following function is used to set the deleted bit of a record. */
-UNIV_INLINE
-void
-btr_rec_set_deleted_flag(
-/*=====================*/
-	rec_t*		rec,	/*!< in/out: physical record */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page (or NULL) */
-	ulint		flag);	/*!< in: nonzero if delete marked */
-
 /** Latches the leaf page or pages requested.
 @param[in]	block		leaf page where the search converged
 @param[in]	latch_mode	BTR_SEARCH_LEAF, ...
@@ -967,15 +937,14 @@ struct btr_cur_t {
 	}
 };
 
-/******************************************************//**
-The following function is used to set the deleted bit of a record. */
-UNIV_INLINE
-void
-btr_rec_set_deleted_flag(
-/*=====================*/
-	rec_t*		rec,	/*!< in/out: physical record */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page (or NULL) */
-	ulint		flag);	/*!< in: nonzero if delete marked */
+/** Modify the delete-mark flag of a record.
+@tparam         flag    the value of the delete-mark flag
+@param[in,out]  block   buffer block
+@param[in,out]  rec     record on a physical index page
+@param[in,out]  mtr     mini-transaction  */
+template<bool flag>
+void btr_rec_set_deleted(buf_block_t *block, rec_t *rec, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull));
 
 /** If pessimistic delete fails because of lack of file space, there
 is still a good change of success a little later.  Try this many

@@ -1442,8 +1442,8 @@ rtr_page_copy_rec_list_end_no_locks(
 					/* We have two identical leaf records,
 					skip copying the undeleted one, and
 					unmark deleted on the current page */
-					btr_rec_set_deleted_flag(
-						cur_rec, NULL, FALSE);
+					btr_rec_set_deleted<false>(
+						new_block, cur_rec, mtr);
 					goto next;
 				}
 			}
@@ -1562,8 +1562,8 @@ rtr_page_copy_rec_list_start_no_locks(
 					/* We have two identical leaf records,
 					skip copying the undeleted one, and
 					unmark deleted on the current page */
-					btr_rec_set_deleted_flag(
-						cur_rec, NULL, FALSE);
+					btr_rec_set_deleted<false>(
+						new_block, cur_rec, mtr);
 					goto next;
 				}
 			}

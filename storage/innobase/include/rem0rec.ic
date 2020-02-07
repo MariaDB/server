@@ -649,55 +649,6 @@ rec_get_deleted_flag(
 }
 
 /******************************************************//**
-The following function is used to set the deleted bit. */
-UNIV_INLINE
-void
-rec_set_deleted_flag_old(
-/*=====================*/
-	rec_t*	rec,	/*!< in: old-style physical record */
-	ulint	flag)	/*!< in: nonzero if delete marked */
-{
-	ulint	val;
-
-	val = rec_get_info_bits(rec, FALSE);
-
-	if (flag) {
-		val |= REC_INFO_DELETED_FLAG;
-	} else {
-		val &= ~REC_INFO_DELETED_FLAG;
-	}
-
-	rec_set_info_bits_old(rec, val);
-}
-
-/******************************************************//**
-The following function is used to set the deleted bit. */
-UNIV_INLINE
-void
-rec_set_deleted_flag_new(
-/*=====================*/
-	rec_t*		rec,	/*!< in/out: new-style physical record */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	ulint		flag)	/*!< in: nonzero if delete marked */
-{
-	ulint	val;
-
-	val = rec_get_info_bits(rec, TRUE);
-
-	if (flag) {
-		val |= REC_INFO_DELETED_FLAG;
-	} else {
-		val &= ~REC_INFO_DELETED_FLAG;
-	}
-
-	rec_set_info_bits_new(rec, val);
-
-	if (page_zip) {
-		page_zip_rec_set_deleted(page_zip, rec, flag);
-	}
-}
-
-/******************************************************//**
 The following function tells if a new-style record is a node pointer.
 @return TRUE if node pointer */
 UNIV_INLINE
