@@ -161,10 +161,13 @@ struct mtr_t {
 	/** X-latch a not yet latched block after a savepoint. */
 	inline void x_latch_at_savepoint(ulint savepoint, buf_block_t*	block);
 
-	/** Get the logging mode.
-	@return	logging mode */
-	inline mtr_log_t get_log_mode() const
-		MY_ATTRIBUTE((warn_unused_result));
+  /** @return the logging mode */
+  mtr_log_t get_log_mode() const
+  {
+    ut_ad(m_log_mode >= MTR_LOG_ALL);
+    ut_ad(m_log_mode <= MTR_LOG_SHORT_INSERTS);
+    return static_cast<mtr_log_t>(m_log_mode);
+  }
 
 	/** Change the logging mode.
 	@param mode	 logging mode
@@ -302,31 +305,26 @@ struct mtr_t {
 	@param[in]	type	object type: MTR_MEMO_PAGE_X_FIX, ... */
 	void release_page(const void* ptr, mtr_memo_type_t type);
 
-	/** Note that the mini-transaction has modified data. */
-	void set_modified() { m_modifications = true; }
+  /** Note that the mini-transaction has modified data. */
+  void set_modified() { m_modifications = true; }
 
-	/** Set the state to not-modified. This will not log the
-	changes.  This is only used during redo log apply, to avoid
-	logging the changes. */
-	void discard_modifications() { m_modifications = false; }
+  /** Set the state to not-modified. This will not log the changes.
+  This is only used during redo log apply, to avoid logging the changes. */
+  void discard_modifications() { m_modifications = false; }
 
-	/** Get the LSN of commit().
-	@return the commit LSN
-	@retval 0 if the transaction only modified temporary tablespaces */
-	lsn_t commit_lsn() const
-	{
-		ut_ad(has_committed());
-		return(m_commit_lsn);
-	}
+  /** Get the LSN of commit().
+  @return the commit LSN
+  @retval 0 if the transaction only modified temporary tablespaces */
+  lsn_t commit_lsn() const { ut_ad(has_committed()); return m_commit_lsn; }
 
-	/** Note that we are inside the change buffer code. */
-	void enter_ibuf() { m_inside_ibuf = true; }
+  /** Note that we are inside the change buffer code. */
+  void enter_ibuf() { m_inside_ibuf= true; }
 
-	/** Note that we have exited from the change buffer code. */
-	void exit_ibuf() { m_inside_ibuf = false; }
+  /** Note that we have exited from the change buffer code. */
+  void exit_ibuf() { m_inside_ibuf= false; }
 
-	/** @return true if we are inside the change buffer code */
-	bool is_inside_ibuf() const { return m_inside_ibuf; }
+  /** @return true if we are inside the change buffer code */
+  bool is_inside_ibuf() const { return m_inside_ibuf; }
 
 	/** Get flush observer
 	@return flush observer */
@@ -500,41 +498,41 @@ private:
   bool m_commit= false;
 #endif
 
-	/** memo stack for locks etc. */
-	mtr_buf_t	m_memo;
+  /** specifies which operations should be logged; default MTR_LOG_ALL */
+  uint16_t m_log_mode:2;
 
-	/** mini-transaction log */
-	mtr_buf_t	m_log;
+  /** whether at least one buffer pool page was written to */
+  uint16_t m_modifications:1;
 
-	/** true if mtr has made at least one buffer pool page dirty */
-	bool		m_made_dirty;
+  /** whether at least one previously clean buffer pool page was written to */
+  uint16_t m_made_dirty:1;
 
-	/** true if inside ibuf changes */
-	bool		m_inside_ibuf;
+  /** whether change buffer is latched; only needed in non-debug builds
+  to suppress some read-ahead operations, @see ibuf_inside() */
+  uint16_t m_inside_ibuf:1;
 
-	/** true if the mini-transaction modified buffer pool pages */
-	bool		m_modifications;
-
-	/** Count of how many page initial log records have been
-	written to the mtr log */
-	ib_uint32_t	m_n_log_recs;
-
-	/** specifies which operations should be logged; default
-	value MTR_LOG_ALL */
-	mtr_log_t	m_log_mode;
+  /** number of m_log records */
+  uint16_t m_n_log_recs:13;
 #ifdef UNIV_DEBUG
-	/** Persistent user tablespace associated with the
-	mini-transaction, or 0 (TRX_SYS_SPACE) if none yet */
-	ulint		m_user_space_id;
+  /** Persistent user tablespace associated with the
+  mini-transaction, or 0 (TRX_SYS_SPACE) if none yet */
+  uint32_t m_user_space_id;
 #endif /* UNIV_DEBUG */
-	/** User tablespace that is being modified by the mini-transaction */
-	fil_space_t*	m_user_space;
 
-	/** Flush Observer */
-	FlushObserver*	m_flush_observer;
+  /** acquired dict_index_t::lock, fil_space_t::latch, buf_block_t */
+  mtr_buf_t m_memo;
 
-	/** LSN at commit time */
-	lsn_t		m_commit_lsn;
+  /** mini-transaction log */
+  mtr_buf_t m_log;
+
+  /** user tablespace that is being modified by the mini-transaction */
+  fil_space_t* m_user_space;
+
+  /** page flush observer for innodb_log_optimize_ddl=ON */
+  FlushObserver *m_flush_observer;
+
+  /** LSN at commit time */
+  lsn_t m_commit_lsn;
 };
 
 #include "mtr0mtr.ic"
