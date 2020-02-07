@@ -554,7 +554,7 @@ int ha_clustrixdb::direct_update_rows_init(List<Item> *update_fields)
   DBUG_RETURN(0);
 }
 
-int ha_clustrixdb::direct_update_rows(ha_rows *update_rows)
+int ha_clustrixdb::direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
 {
   DBUG_ENTER("ha_clustrixdb::direct_update_rows");
   int error_code= 0;
@@ -570,6 +570,7 @@ int ha_clustrixdb::direct_update_rows(ha_rows *update_rows)
     trx->auto_commit_next();
 
   error_code = trx->update_query(update_stmt, table->s->db, update_rows);
+  *found_rows = *update_rows;
   DBUG_RETURN(error_code);
 }
 
