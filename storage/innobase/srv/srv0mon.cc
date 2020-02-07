@@ -1976,9 +1976,8 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_PENDING_LOG_FLUSH:
-		mutex_enter(&log_sys.mutex);
-		value = static_cast<mon_type_t>(log_sys.n_pending_flushes);
-		mutex_exit(&log_sys.mutex);
+		value = static_cast<mon_type_t>(log_sys.pending_flushes);
+
 		break;
 
 	case MONITOR_PENDING_CHECKPOINT_WRITE:

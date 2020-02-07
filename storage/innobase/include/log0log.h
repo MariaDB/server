@@ -577,8 +577,6 @@ struct log_t{
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	LogSysMutex	mutex;		/*!< mutex protecting the log */
 	MY_ALIGNED(CACHE_LINE_SIZE)
-	LogSysMutex	write_mutex;	/*!< mutex protecting writing to log */
-	MY_ALIGNED(CACHE_LINE_SIZE)
 	FlushOrderMutex	log_flush_order_mutex;/*!< mutex to serialize access to
 					the flush list when we are putting
 					dirty blocks in the list. The idea
@@ -710,13 +708,7 @@ struct log_t{
 					AND flushed to disk */
 	std::atomic<size_t> pending_flushes; /*!< system calls in progress */
 	std::atomic<size_t> flushes;	/*!< system calls counter */
-	ulint		n_pending_flushes;/*!< number of currently
-					pending flushes; protected by
-					log_sys.mutex */
-	os_event_t	flush_event;	/*!< this event is in the reset state
-					when a flush is running;
-					os_event_set() and os_event_reset()
-					are protected by log_sys.mutex */
+
 	ulint		n_log_ios;	/*!< number of log i/os initiated thus
 					far */
 	ulint		n_log_ios_old;	/*!< number of log i/o's at the
@@ -834,6 +826,9 @@ public:
 
 /** Redo log system */
 extern log_t	log_sys;
+#ifdef UNIV_DEBUG
+extern bool log_write_lock_own();
+#endif
 
 /** Gets the log capacity. It is OK to read the value without
 holding log_sys.mutex because it is constant.
@@ -848,7 +843,7 @@ inline lsn_t log_t::file::calc_lsn_offset(lsn_t lsn) const
   ut_ad(this == &log_sys.log);
   /* The lsn parameters are updated while holding both the mutexes
   and it is ok to have either of them while reading */
-  ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+  ut_ad(log_sys.mutex.is_owned() || log_write_lock_own());
   const lsn_t size = capacity();
   lsn_t l= lsn - this->lsn;
   if (longlong(l) < 0) {
@@ -862,12 +857,12 @@ inline lsn_t log_t::file::calc_lsn_offset(lsn_t lsn) const
 }
 
 inline void log_t::file::set_lsn(lsn_t a_lsn) {
-      ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+      ut_ad(log_sys.mutex.is_owned() || log_write_lock_own());
       lsn = a_lsn;
 }
 
 inline void log_t::file::set_lsn_offset(lsn_t a_lsn) {
-      ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+      ut_ad(log_sys.mutex.is_owned() || log_write_lock_own());
       ut_ad((lsn % OS_FILE_LOG_BLOCK_SIZE) == (a_lsn % OS_FILE_LOG_BLOCK_SIZE));
       lsn_offset = a_lsn;
 }
@@ -888,32 +883,14 @@ inline void log_t::file::set_lsn_offset(lsn_t a_lsn) {
 /** Test if log sys mutex is owned. */
 #define log_mutex_own() mutex_own(&log_sys.mutex)
 
-/** Test if log sys write mutex is owned. */
-#define log_write_mutex_own() mutex_own(&log_sys.write_mutex)
 
 /** Acquire the log sys mutex. */
 #define log_mutex_enter() mutex_enter(&log_sys.mutex)
 
-/** Acquire the log sys write mutex. */
-#define log_write_mutex_enter() mutex_enter(&log_sys.write_mutex)
-
-/** Acquire all the log sys mutexes. */
-#define log_mutex_enter_all() do {		\
-	mutex_enter(&log_sys.write_mutex);	\
-	mutex_enter(&log_sys.mutex);		\
-} while (0)
 
 /** Release the log sys mutex. */
 #define log_mutex_exit() mutex_exit(&log_sys.mutex)
 
-/** Release the log sys write mutex.*/
-#define log_write_mutex_exit() mutex_exit(&log_sys.write_mutex)
-
-/** Release all the log sys mutexes. */
-#define log_mutex_exit_all() do {		\
-	mutex_exit(&log_sys.mutex);		\
-	mutex_exit(&log_sys.write_mutex);	\
-} while (0)
 
 /* log scrubbing speed, in bytes/sec */
 extern ulonglong innodb_scrub_log_speed;

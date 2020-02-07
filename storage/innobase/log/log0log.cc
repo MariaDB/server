@@ -54,6 +54,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "srv0mon.h"
 #include "sync0sync.h"
 #include "buf0dump.h"
+#include "log0sync.h"
 
 /*
 General philosophy of InnoDB redo-logs:
@@ -509,7 +510,6 @@ void log_t::create()
   m_initialised= true;
 
   mutex_create(LATCH_ID_LOG_SYS, &mutex);
-  mutex_create(LATCH_ID_LOG_WRITE, &write_mutex);
   mutex_create(LATCH_ID_LOG_FLUSH_ORDER, &log_flush_order_mutex);
 
   /* Start the lsn from one log block from zero: this way every
@@ -535,9 +535,6 @@ void log_t::create()
   buf_next_to_write= 0;
   write_lsn= lsn;
   flushed_to_disk_lsn= 0;
-  n_pending_flushes= 0;
-  flush_event = os_event_create("log_flush_event");
-  os_event_set(flush_event);
   n_log_ios= 0;
   n_log_ios_old= 0;
   log_capacity= 0;
@@ -856,7 +853,7 @@ log_file_header_flush(
 	lsn_t		start_lsn)	/*!< in: log file data starts at this
 					lsn */
 {
-	ut_ad(log_write_mutex_own());
+	ut_ad(log_write_lock_own());
 	ut_ad(!recv_no_log_write);
 	ut_ad(log_sys.log.format == log_t::FORMAT_10_5
 	      || log_sys.log.format == log_t::FORMAT_ENC_10_5);
@@ -909,7 +906,7 @@ log_write_buf(
 	lsn_t		next_offset;
 	ulint		i;
 
-	ut_ad(log_write_mutex_own());
+	ut_ad(log_write_lock_own());
 	ut_ad(!recv_no_log_write);
 	ut_a(len % OS_FILE_LOG_BLOCK_SIZE == 0);
 	ut_a(start_lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
@@ -1002,20 +999,14 @@ loop:
 and invoke log_mutex_enter(). */
 static
 void
-log_write_flush_to_disk_low()
+log_write_flush_to_disk_low(lsn_t lsn)
 {
-	/* FIXME: This is not holding log_sys.mutex while
-	calling os_event_set()! */
-	ut_a(log_sys.n_pending_flushes == 1); /* No other threads here */
-
 	log_sys.log.flush_data_only();
 
 	log_mutex_enter();
-	log_sys.flushed_to_disk_lsn = log_sys.current_flush_lsn;
-
-	log_sys.n_pending_flushes--;
-
-	os_event_set(log_sys.flush_event);
+	ut_a(lsn >= log_sys.flushed_to_disk_lsn);
+	log_sys.flushed_to_disk_lsn = lsn;
+	log_mutex_exit();
 }
 
 /** Switch the log buffer in use, and copy the content of last block
@@ -1026,7 +1017,7 @@ void
 log_buffer_switch()
 {
 	ut_ad(log_mutex_own());
-	ut_ad(log_write_mutex_own());
+	ut_ad(log_write_lock_own());
 
 	const byte*	old_buf = log_sys.buf;
 	ulong		area_end = ut_calc_align(
@@ -1053,86 +1044,24 @@ log_buffer_switch()
 	log_sys.buf_next_to_write = log_sys.buf_free;
 }
 
-/** Ensure that the log has been written to the log file up to a given
-log entry (such as that of a transaction commit). Start a new write, or
-wait and check if an already running write is covering the request.
-@param[in]	lsn		log sequence number that should be
-included in the redo log file write
-@param[in]	flush_to_disk	whether the written log should also
-be flushed to the file system
-@param[in]	rotate_key	whether to rotate the encryption key */
-void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key)
+/**
+Writes log buffer to disk
+which is the "write" part of log_write_up_to().
+
+This function does not flush anything.
+
+Note : the caller must have log_mutex locked, and this
+mutex is released in the function.
+
+*/
+static void log_write(bool rotate_key)
 {
-#ifdef UNIV_DEBUG
-	ulint		loop_count	= 0;
-#endif /* UNIV_DEBUG */
-	byte*           write_buf;
-	lsn_t           write_lsn;
-
-	ut_ad(!srv_read_only_mode);
-	ut_ad(!rotate_key || flush_to_disk);
-
-	if (recv_no_ibuf_operations) {
-		/* Recovery is running and no operations on the log file are
-		allowed yet (the variable name .._no_ibuf_.. is misleading) */
-
-		return;
-	}
-
-loop:
-	ut_ad(++loop_count < 128);
-
-#if UNIV_WORD_SIZE > 7
-	/* We can do a dirty read of LSN. */
-	/* NOTE: Currently doesn't do dirty read for
-	(flush_to_disk == true) case, because the log_mutex
-	contention also works as the arbitrator for write-IO
-	(fsync) bandwidth between log file and data files. */
-	if (!flush_to_disk && log_sys.write_lsn >= lsn) {
-		return;
-	}
-#endif
-
-	log_write_mutex_enter();
+	ut_ad(log_mutex_own());
 	ut_ad(!recv_no_log_write);
-
-	lsn_t	limit_lsn = flush_to_disk
-		? log_sys.flushed_to_disk_lsn
-		: log_sys.write_lsn;
-
-	if (limit_lsn >= lsn) {
-		log_write_mutex_exit();
-		return;
-	}
-
-	/* If it is a write call we should just go ahead and do it
-	as we checked that write_lsn is not where we'd like it to
-	be. If we have to flush as well then we check if there is a
-	pending flush and based on that we wait for it to finish
-	before proceeding further. */
-	if (flush_to_disk
-	    && (log_sys.n_pending_flushes > 0
-		|| !os_event_is_set(log_sys.flush_event))) {
-		/* Figure out if the current flush will do the job
-		for us. */
-		bool work_done = log_sys.current_flush_lsn >= lsn;
-
-		log_write_mutex_exit();
-
-		os_event_wait(log_sys.flush_event);
-
-		if (work_done) {
-			return;
-		} else {
-			goto loop;
-		}
-	}
-
-	log_mutex_enter();
-	if (!flush_to_disk
-	    && log_sys.buf_free == log_sys.buf_next_to_write) {
-		/* Nothing to write and no flush to disk requested */
-		log_mutex_exit_all();
+	lsn_t write_lsn;
+	if (log_sys.buf_free == log_sys.buf_next_to_write) {
+		/* Nothing to write */
+		log_mutex_exit();
 		return;
 	}
 
@@ -1146,19 +1075,7 @@ loop:
 	DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF,
 			      log_sys.write_lsn,
 			      log_sys.lsn));
-	if (flush_to_disk) {
-		log_sys.n_pending_flushes++;
-		log_sys.current_flush_lsn = log_sys.lsn;
-		os_event_reset(log_sys.flush_event);
 
-		if (log_sys.buf_free == log_sys.buf_next_to_write) {
-			/* Nothing to write, flush only */
-			log_mutex_exit_all();
-			log_write_flush_to_disk_low();
-			log_mutex_exit();
-			return;
-		}
-	}
 
 	start_offset = log_sys.buf_next_to_write;
 	end_offset = log_sys.buf_free;
@@ -1175,7 +1092,7 @@ loop:
 		log_sys.next_checkpoint_no);
 
 	write_lsn = log_sys.lsn;
-	write_buf = log_sys.buf;
+	byte *write_buf = log_sys.buf;
 
 	log_buffer_switch();
 
@@ -1209,8 +1126,7 @@ loop:
 	if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE)) {
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 					       "InnoDB log write: "
-					       LSN_PF "," LSN_PF,
-					       log_sys.write_lsn, lsn);
+					       LSN_PF, log_sys.write_lsn);
 	}
 
 	if (log_sys.is_encrypted()) {
@@ -1230,16 +1146,76 @@ loop:
 		start_offset - area_start);
 	srv_stats.log_padded.add(pad_size);
 	log_sys.write_lsn = write_lsn;
+	if (log_sys.log.writes_are_durable())
+		log_sys.flushed_to_disk_lsn = write_lsn;
+	return;
+}
 
-	log_write_mutex_exit();
+static group_commit_lock write_lock;
+static group_commit_lock flush_lock;
 
-	if (flush_to_disk) {
-		log_write_flush_to_disk_low();
-		ib_uint64_t flush_lsn = log_sys.flushed_to_disk_lsn;
-		log_mutex_exit();
+#ifdef UNIV_DEBUG
+bool log_write_lock_own()
+{
+  return write_lock.is_owner();
+}
+#endif
 
-		innobase_mysql_log_notify(flush_lsn);
-	}
+/** Ensure that the log has been written to the log file up to a given
+log entry (such as that of a transaction commit). Start a new write, or
+wait and check if an already running write is covering the request.
+@param[in]	lsn		log sequence number that should be
+included in the redo log file write
+@param[in]	flush_to_disk	whether the written log should also
+be flushed to the file system
+@param[in]	rotate_key	whether to rotate the encryption key */
+void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key)
+{
+  ut_ad(!srv_read_only_mode);
+  ut_ad(!rotate_key || flush_to_disk);
+
+  if (recv_no_ibuf_operations)
+  {
+    /* Recovery is running and no operations on the log files are
+    allowed yet (the variable name .._no_ibuf_.. is misleading) */
+    return;
+  }
+
+  if (flush_to_disk &&
+    flush_lock.acquire(lsn) != group_commit_lock::ACQUIRED)
+  {
+    return;
+  }
+
+  if (write_lock.acquire(lsn) == group_commit_lock::ACQUIRED)
+  {
+    log_mutex_enter();
+    auto write_lsn = log_sys.lsn;
+    write_lock.set_pending(write_lsn);
+
+    log_write(rotate_key);
+
+    ut_a(log_sys.write_lsn == write_lsn);
+    write_lock.release(write_lsn);
+  }
+
+  if (!flush_to_disk)
+  {
+    return;
+  }
+
+  /* Flush the highest written lsn.*/
+  auto flush_lsn = write_lock.value();
+  flush_lock.set_pending(flush_lsn);
+
+  if (!log_sys.log.writes_are_durable())
+  {
+    log_write_flush_to_disk_low(flush_lsn);
+  }
+
+  flush_lock.release(flush_lsn);
+
+  innobase_mysql_log_notify(flush_lsn);
 }
 
 /** write to the log file up to the last log entry.
@@ -1270,8 +1246,7 @@ log_buffer_sync_in_background(
 	lsn = log_sys.lsn;
 
 	if (flush
-	    && log_sys.n_pending_flushes > 0
-	    && log_sys.current_flush_lsn >= lsn) {
+	    && log_sys.flushed_to_disk_lsn >= lsn) {
 		/* The write + flush will write enough */
 		log_mutex_exit();
 		return;
@@ -1836,7 +1811,7 @@ wait_suspend_loop:
 	if (log_sys.is_initialised()) {
 		log_mutex_enter();
 		const ulint	n_write	= log_sys.n_pending_checkpoint_writes;
-		const ulint	n_flush	= log_sys.n_pending_flushes;
+		const ulint	n_flush	= log_sys.pending_flushes;
 		log_mutex_exit();
 
 		if (log_scrub_thread_active || n_write || n_flush) {
@@ -2011,7 +1986,7 @@ log_print(
 		ULINTPF " pending log flushes, "
 		ULINTPF " pending chkp writes\n"
 		ULINTPF " log i/o's done, %.2f log i/o's/second\n",
-		log_sys.n_pending_flushes,
+		log_sys.pending_flushes.load(),
 		log_sys.n_pending_checkpoint_writes,
 		log_sys.n_log_ios,
 		static_cast<double>(
@@ -2047,9 +2022,7 @@ void log_t::close()
   ut_free_dodump(buf, srv_log_buffer_size * 2);
   buf = NULL;
 
-  os_event_destroy(flush_event);
   mutex_free(&mutex);
-  mutex_free(&write_mutex);
   mutex_free(&log_flush_order_mutex);
 
   if (!srv_read_only_mode && srv_scrub_log)
