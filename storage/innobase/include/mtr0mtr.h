@@ -165,7 +165,6 @@ struct mtr_t {
   mtr_log_t get_log_mode() const
   {
     static_assert(MTR_LOG_ALL == 0, "efficiency");
-    ut_ad(m_log_mode <= MTR_LOG_SHORT_INSERTS);
     return static_cast<mtr_log_t>(m_log_mode);
   }
 
