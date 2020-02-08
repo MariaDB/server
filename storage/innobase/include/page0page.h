@@ -171,7 +171,6 @@ constexpr uint16_t PAGE_NO_DIRECTION= 5;
 */
 
 typedef	byte			page_dir_slot_t;
-typedef page_dir_slot_t		page_dir_t;
 
 /* Offset of the directory start down from the page end. We call the
 slot with the highest file address directory start, as it points to
@@ -198,11 +197,14 @@ extern my_bool srv_immediate_scrub_data_uncompressed;
 @param[in]	ptr	pointer within a page frame
 @return start of the page frame */
 MY_ATTRIBUTE((const))
-inline
-page_t*
-page_align(const void* ptr)
+inline page_t* page_align(void *ptr)
 {
-	return(static_cast<page_t*>(ut_align_down(ptr, srv_page_size)));
+  return my_assume_aligned<UNIV_PAGE_SIZE_MIN>
+    (reinterpret_cast<page_t*>(ut_align_down(ptr, srv_page_size)));
+}
+inline const page_t *page_align(const void *ptr)
+{
+  return page_align(const_cast<void*>(ptr));
 }
 
 /** Gets the byte offset within a page frame.
@@ -395,8 +397,10 @@ page_rec_is_infimum(const rec_t* rec);
 /** Read PAGE_MAX_TRX_ID.
 @param[in]      page    index page
 @return the value of PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 inline trx_id_t page_get_max_trx_id(const page_t *page)
 {
+  ut_ad(fil_page_index_page_check(page));
   static_assert((PAGE_HEADER + PAGE_MAX_TRX_ID) % 8 == 0, "alignment");
   const auto *p= my_assume_aligned<8>(page + PAGE_HEADER + PAGE_MAX_TRX_ID);
   return mach_read_from_8(p);
@@ -439,14 +443,6 @@ page_set_autoinc(
 	bool			reset)
 	MY_ATTRIBUTE((nonnull));
 
-/** Read the AUTO_INCREMENT value from a clustered index root page.
-@param[in]	page	clustered index root page
-@return	the persisted AUTO_INCREMENT value */
-MY_ATTRIBUTE((nonnull, warn_unused_result))
-UNIV_INLINE
-ib_uint64_t
-page_get_autoinc(const page_t* page);
-
 /*************************************************************//**
 Returns the RTREE SPLIT SEQUENCE NUMBER (FIL_RTREE_SPLIT_SEQ_NUM).
 @return SPLIT SEQUENCE NUMBER */
@@ -468,14 +464,13 @@ page_set_ssn_id(
 	mtr_t*		mtr);	/*!< in/out: mini-transaction */
 
 #endif /* !UNIV_INNOCHECKSUM */
-/*************************************************************//**
-Reads the given header field. */
-UNIV_INLINE
-uint16_t
-page_header_get_field(
-/*==================*/
-	const page_t*	page,	/*!< in: page */
-	ulint		field);	/*!< in: PAGE_N_DIR_SLOTS, ... */
+/** Read a page header field. */
+inline uint16_t page_header_get_field(const page_t *page, ulint field)
+{
+  ut_ad(field <= PAGE_INDEX_ID);
+  ut_ad(!(field & 1));
+  return mach_read_from_2(my_assume_aligned<2>(PAGE_HEADER + field + page));
+}
 
 #ifndef UNIV_INNOCHECKSUM
 /*************************************************************//**
@@ -635,21 +630,20 @@ page_dir_set_n_slots(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
 				uncompressed part will be updated, or NULL */
 	ulint		n_slots);/*!< in: number of slots */
-#ifdef UNIV_DEBUG
-/*************************************************************//**
-Gets pointer to nth directory slot.
-@return pointer to dir slot */
-UNIV_INLINE
-page_dir_slot_t*
-page_dir_get_nth_slot(
-/*==================*/
-	const page_t*	page,	/*!< in: index page */
-	ulint		n);	/*!< in: position */
-#else /* UNIV_DEBUG */
-# define page_dir_get_nth_slot(page, n)			\
-	((page) + (srv_page_size - PAGE_DIR		\
-		   - (n + 1) * PAGE_DIR_SLOT_SIZE))
-#endif /* UNIV_DEBUG */
+
+/** Gets the pointer to a directory slot.
+@param n  sparse directory slot number
+@return pointer to the sparse directory slot */
+inline page_dir_slot_t *page_dir_get_nth_slot(page_t *page, ulint n)
+{
+  ut_ad(page_dir_get_n_slots(page) > n);
+  static_assert(PAGE_DIR_SLOT_SIZE == 2, "compatibility");
+  return my_assume_aligned<2>(page + srv_page_size - (PAGE_DIR + 2) - n * 2);
+}
+inline const page_dir_slot_t *page_dir_get_nth_slot(const page_t *page,ulint n)
+{
+  return page_dir_get_nth_slot(const_cast<page_t*>(page), n);
+}
 /**************************************************************//**
 Used to check the consistency of a record on a page.
 @return TRUE if succeed */
@@ -748,6 +742,19 @@ inline bool page_has_next(const page_t* page)
 {
 	return *reinterpret_cast<const uint32_t*>(page + FIL_PAGE_NEXT)
 		!= FIL_NULL;
+}
+
+/** Read the AUTO_INCREMENT value from a clustered index root page.
+@param[in]	page	clustered index root page
+@return	the persisted AUTO_INCREMENT value */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
+inline uint64_t page_get_autoinc(const page_t *page)
+{
+  ut_d(uint16_t page_type= fil_page_get_type(page));
+  ut_ad(page_type == FIL_PAGE_INDEX || page_type == FIL_PAGE_TYPE_INSTANT);
+  ut_ad(!page_has_siblings(page));
+  const auto *p= my_assume_aligned<8>(page + PAGE_HEADER + PAGE_ROOT_AUTO_INC);
+  return mach_read_from_8(p);
 }
 
 /************************************************************//**

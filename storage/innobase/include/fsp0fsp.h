@@ -580,7 +580,7 @@ void fil_block_reset_type(const buf_block_t& block, ulint type, mtr_t* mtr);
 @return page type */
 inline uint16_t fil_page_get_type(const byte* page)
 {
-	return mach_read_from_2(page + FIL_PAGE_TYPE);
+  return mach_read_from_2(my_assume_aligned<2>(page + FIL_PAGE_TYPE));
 }
 
 /** Check (and if needed, reset) the page type.

@@ -62,18 +62,6 @@ page_update_max_trx_id(
 	}
 }
 
-/** Read the AUTO_INCREMENT value from a clustered index root page.
-@param[in]	page	clustered index root page
-@return	the persisted AUTO_INCREMENT value */
-UNIV_INLINE
-ib_uint64_t
-page_get_autoinc(const page_t* page)
-{
-	ut_ad(fil_page_index_page_check(page));
-	ut_ad(!page_has_siblings(page));
-	return(mach_read_from_8(PAGE_HEADER + PAGE_ROOT_AUTO_INC + page));
-}
-
 /*************************************************************//**
 Returns the RTREE SPLIT SEQUENCE NUMBER (FIL_RTREE_SPLIT_SEQ_NUM).
 @return	SPLIT SEQUENCE NUMBER */
@@ -115,21 +103,6 @@ page_set_ssn_id(
 }
 
 #endif /* !UNIV_INNOCHECKSUM */
-
-/*************************************************************//**
-Reads the given header field. */
-UNIV_INLINE
-uint16_t
-page_header_get_field(
-/*==================*/
-	const page_t*	page,	/*!< in: page */
-	ulint		field)	/*!< in: PAGE_LEVEL, ... */
-{
-	ut_ad(page);
-	ut_ad(field <= PAGE_INDEX_ID);
-
-	return(mach_read_from_2(page + PAGE_HEADER + field));
-}
 
 #ifndef UNIV_INNOCHECKSUM
 /*************************************************************//**
@@ -494,25 +467,6 @@ page_dir_set_n_heap(
 			      | (0x8000
 				 & page_header_get_field(page, PAGE_N_HEAP)));
 }
-
-#ifdef UNIV_DEBUG
-/*************************************************************//**
-Gets pointer to nth directory slot.
-@return pointer to dir slot */
-UNIV_INLINE
-page_dir_slot_t*
-page_dir_get_nth_slot(
-/*==================*/
-	const page_t*	page,	/*!< in: index page */
-	ulint		n)	/*!< in: position */
-{
-	ut_ad(page_dir_get_n_slots(page) > n);
-
-	return((page_dir_slot_t*)
-	       page + srv_page_size - PAGE_DIR
-	       - (n + 1) * PAGE_DIR_SLOT_SIZE);
-}
-#endif /* UNIV_DEBUG */
 
 /**************************************************************//**
 Used to check the consistency of a record on a page.

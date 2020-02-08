@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -337,7 +337,7 @@ ha_delete_hash_node(
 	ut_ad(btr_search_enabled);
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	if (table->adaptive) {
-		ut_a(del_node->block->frame = page_align(del_node->data));
+		ut_a(del_node->block->frame == page_align(del_node->data));
 		ut_a(del_node->block->n_pointers-- < MAX_N_POINTERS);
 	}
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
