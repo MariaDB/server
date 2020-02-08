@@ -7394,7 +7394,7 @@ long max_stack_used;
 */
 
 bool
-#ifdef __GNUC__
+#if defined __GNUC__ && !defined __clang__
 /*
   Do not optimize the function in order to preserve a stack variable creation.
   Otherwise, the variable pointed as "buf" can be removed due to a missing
