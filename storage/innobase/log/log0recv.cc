@@ -892,14 +892,17 @@ inline byte* recv_sys_t::alloc(size_t len, bool store_recv)
   {
 create_block:
     block= buf_block_alloc(nullptr);
-    block->page.access_time= 1U << 16 | static_cast<uint16_t>(len);
+    block->page.access_time= 1U << 16 |
+      ut_calc_align<uint16_t>(static_cast<uint16_t>(len), ALIGNMENT);
+    static_assert(ut_is_2pow(ALIGNMENT), "ALIGNMENT must be a power of 2");
     UT_LIST_ADD_FIRST(blocks, block);
     UNIV_MEM_INVALID(block->frame, len);
     UNIV_MEM_FREE(block->frame + len, srv_page_size - len);
-    return block->frame;
+    return my_assume_aligned<ALIGNMENT>(block->frame);
   }
 
   size_t free_offset= static_cast<uint16_t>(block->page.access_time);
+  ut_ad(!ut_2pow_remainder(free_offset, ALIGNMENT));
   if (UNIV_UNLIKELY(!free_offset))
   {
     ut_ad(srv_page_size == 65536);
@@ -915,9 +918,9 @@ create_block:
     goto create_block;
 
   block->page.access_time= ((block->page.access_time >> 16) + 1) << 16 |
-    static_cast<uint16_t>(free_offset);
+    ut_calc_align<uint16_t>(static_cast<uint16_t>(free_offset), ALIGNMENT);
   UNIV_MEM_ALLOC(block->frame + free_offset - len, len);
-  return block->frame + free_offset - len;
+  return my_assume_aligned<ALIGNMENT>(block->frame + free_offset - len);
 }
 
 
@@ -925,6 +928,7 @@ create_block:
 @param data buffer returned by alloc() */
 inline void recv_sys_t::free(const void *data)
 {
+  ut_ad(!ut_align_offset(data, ALIGNMENT));
   data= page_align(data);
   ut_ad(mutex_own(&mutex));
   for (buf_block_t *block= UT_LIST_GET_LAST(blocks);

@@ -365,6 +365,9 @@ public:
 		return true;
 	}
 
+  /** The alloc() memory alignment, in bytes */
+  static constexpr size_t ALIGNMENT= sizeof(size_t);
+
   /** Get the memory block for storing recv_t and redo log data
   @param[in] len length of the data to be stored
   @param[in] store_recv whether to store recv_t object
