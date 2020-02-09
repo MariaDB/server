@@ -12007,7 +12007,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 	    DBUG_RETURN(1);
 	}
 	else if (tab->type == JT_ALL && ! use_quick_range &&
-           !join->sort_nest_info)
+           !(join->sort_nest_info && join->sort_nest_info->index_used != -1))
 	{
 	  if (!tab->const_keys.is_clear_all() &&
 	      tab->table->reginfo.impossible_range)
