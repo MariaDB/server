@@ -177,8 +177,8 @@ pre_init_event_thread(THD* thd)
 
   set_current_thd(thd);
   thd->client_capabilities= 0;
-  thd->security_ctx->master_access= 0;
-  thd->security_ctx->db_access= 0;
+  thd->security_ctx->master_access= NO_ACL;
+  thd->security_ctx->db_access= NO_ACL;
   thd->security_ctx->host_or_ip= (char*)my_localhost;
   my_net_init(&thd->net, NULL, thd, MYF(MY_THREAD_SPECIFIC));
   thd->security_ctx->set_user((char*)"event_scheduler");

@@ -1146,10 +1146,10 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
       access is granted. We need to check if table_list->grant.privilege
       contains any table-specific privilege.
     */
-    DBUG_PRINT("debug", ("table_list->grant.privilege: %lx",
-                         table_list->grant.privilege));
+    DBUG_PRINT("debug", ("table_list->grant.privilege: %llx",
+                         (longlong) (table_list->grant.privilege)));
     if (check_some_access(thd, SHOW_CREATE_TABLE_ACLS, table_list) ||
-        (table_list->grant.privilege & SHOW_CREATE_TABLE_ACLS) == 0)
+        (table_list->grant.privilege & SHOW_CREATE_TABLE_ACLS) == NO_ACL)
     {
       my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
               "SHOW", thd->security_ctx->priv_user,
@@ -1347,7 +1347,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   String buffer(buff, sizeof(buff), system_charset_info);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *sctx= thd->security_ctx;
-  uint db_access;
+  privilege_t db_access(NO_ACL);
 #endif
   Schema_specification_st create;
   Protocol *protocol=thd->protocol;
@@ -5265,7 +5265,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
     if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
         acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, false) ||
         (sctx->priv_role[0] ?
-             acl_get("", "", sctx->priv_role, db_name->str, false) : 0) ||
+             acl_get("", "", sctx->priv_role, db_name->str, false) : NO_ACL) ||
         !check_grant_db(thd, db_name->str))
 #endif
     {
@@ -5861,7 +5861,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     restore_record(table, s->default_values);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    uint col_access;
+    ulonglong col_access;
     check_access(thd,SELECT_ACL, db_name->str,
                  &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
     col_access= get_column_grant(thd, &tables->grant,
@@ -6641,12 +6641,11 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
         else
         {
           TABLE_LIST table_list;
-          uint view_access;
           table_list.reset();
           table_list.db= tables->db;
           table_list.table_name= tables->table_name;
           table_list.grant.privilege= thd->col_access;
-          view_access= get_table_grant(thd, &table_list);
+          privilege_t view_access(get_table_grant(thd, &table_list));
 	  if ((view_access & (SHOW_VIEW_ACL|SELECT_ACL)) ==
 	      (SHOW_VIEW_ACL|SELECT_ACL))
 	    tables->allowed_show= TRUE;
@@ -9866,15 +9865,15 @@ public:
   ~IS_internal_schema_access()
   {}
 
-  ACL_internal_access_result check(ulong want_access,
-                                   ulong *save_priv) const;
+  ACL_internal_access_result check(privilege_t want_access,
+                                   privilege_t *save_priv) const;
 
   const ACL_internal_table_access *lookup(const char *name) const;
 };
 
 ACL_internal_access_result
-IS_internal_schema_access::check(ulong want_access,
-                                 ulong *save_priv) const
+IS_internal_schema_access::check(privilege_t want_access,
+                                 privilege_t *save_priv) const
 {
   want_access &= ~SELECT_ACL;
 
@@ -9882,7 +9881,7 @@ IS_internal_schema_access::check(ulong want_access,
     We don't allow any simple privileges but SELECT_ACL on
     the information_schema database.
   */
-  if (unlikely(want_access & DB_ACLS))
+  if (unlikely((want_access & DB_ACLS) != NO_ACL))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   /* Always grant SELECT for the information schema. */

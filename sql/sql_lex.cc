@@ -11241,7 +11241,7 @@ bool LEX::add_column_foreign_key(const LEX_CSTRING *name,
 bool LEX::stmt_grant_table(THD *thd,
                            Grant_privilege *grant,
                            const Lex_grant_object_name &ident,
-                           uint grant_option)
+                           privilege_t grant_option)
 {
   sql_command= SQLCOM_GRANT;
   return
@@ -11256,7 +11256,7 @@ bool LEX::stmt_revoke_table(THD *thd,
 {
   sql_command= SQLCOM_REVOKE;
   return
-    grant->set_object_name(thd, ident, current_select, 0) ||
+    grant->set_object_name(thd, ident, current_select, NO_ACL) ||
     !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_table(sql_command, *grant));
 }
 
@@ -11265,7 +11265,7 @@ bool LEX::stmt_grant_sp(THD *thd,
                         Grant_privilege *grant,
                         const Lex_grant_object_name &ident,
                         const Sp_handler &sph,
-                        uint grant_option)
+                        privilege_t grant_option)
 {
   sql_command= SQLCOM_GRANT;
   return
@@ -11283,14 +11283,14 @@ bool LEX::stmt_revoke_sp(THD *thd,
 {
   sql_command= SQLCOM_REVOKE;
   return
-    grant->set_object_name(thd, ident, current_select, 0) ||
+    grant->set_object_name(thd, ident, current_select, NO_ACL) ||
     add_grant_command(thd, grant->columns()) ||
     !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_sp(sql_command,
                                                       *grant, sph));
 }
 
 
-bool LEX::stmt_grant_proxy(THD *thd, LEX_USER *user, uint grant_option)
+bool LEX::stmt_grant_proxy(THD *thd, LEX_USER *user, privilege_t grant_option)
 {
   users_list.push_front(user);
   sql_command= SQLCOM_GRANT;
@@ -11303,5 +11303,6 @@ bool LEX::stmt_revoke_proxy(THD *thd, LEX_USER *user)
 {
   users_list.push_front(user);
   sql_command= SQLCOM_REVOKE;
-  return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_proxy(sql_command, 0));
+  return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_grant_proxy(sql_command,
+                                                              NO_ACL));
 }

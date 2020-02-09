@@ -3290,7 +3290,7 @@ public:
     if any_privileges set to TRUE then here real effective privileges will
     be stored
   */
-  uint have_privileges;
+  privilege_t have_privileges;
   /* field need any privileges (for VIEW creation) */
   bool any_privileges;
   Item_field(THD *thd, Name_resolution_context *context_arg,
@@ -6381,7 +6381,7 @@ public:
   Item_trigger_field(THD *thd, Name_resolution_context *context_arg,
                      row_version_type row_ver_arg,
                      const LEX_CSTRING &field_name_arg,
-                     ulong priv, const bool ro)
+                     privilege_t priv, const bool ro)
     :Item_field(thd, context_arg, field_name_arg),
      row_version(row_ver_arg), field_idx((uint)-1), original_privilege(priv),
      want_privilege(priv), table_grants(NULL), read_only (ro)
@@ -6423,8 +6423,8 @@ private:
     want_privilege and cleanup() is responsible for restoring of
     original want_privilege once parameter's value is updated).
   */
-  ulong original_privilege;
-  ulong want_privilege;
+  privilege_t original_privilege;
+  privilege_t want_privilege;
   GRANT_INFO *table_grants;
   /*
     Trigger field is read-only unless it belongs to the NEW row in a

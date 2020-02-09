@@ -20,7 +20,7 @@
 
 bool Grant_privilege::add_column_privilege(THD *thd,
                                            const Lex_ident_sys &name,
-                                           uint which_grant)
+                                           privilege_t which_grant)
 {
   String *new_str= new (thd->mem_root) String((const char*) name.str,
                                               name.length,
@@ -51,7 +51,7 @@ bool Grant_privilege::add_column_privilege(THD *thd,
 
 bool Grant_privilege::add_column_list_privilege(THD *thd,
                                                 List<Lex_ident_sys> &list,
-                                                uint privilege)
+                                                privilege_t privilege)
 {
   Lex_ident_sys *col;
   List_iterator<Lex_ident_sys> it(list);
@@ -64,7 +64,7 @@ bool Grant_privilege::add_column_list_privilege(THD *thd,
 }
 
 
-uint Grant_object_name::all_privileges_by_type() const
+privilege_t Grant_object_name::all_privileges_by_type() const
 {
   switch (m_type) {
   case STAR:        return DB_ACLS & ~GRANT_ACL;
@@ -72,14 +72,14 @@ uint Grant_object_name::all_privileges_by_type() const
   case STAR_STAR:   return GLOBAL_ACLS & ~GRANT_ACL;
   case TABLE_IDENT: return TABLE_ACLS & ~GRANT_ACL;
   }
-  return 0;
+  return NO_ACL;
 }
 
 
 bool Grant_privilege::set_object_name(THD *thd,
                                       const Grant_object_name &ident,
                                       SELECT_LEX *sel,
-                                      uint with_grant_option)
+                                      privilege_t with_grant_option)
 {
   DBUG_ASSERT(!m_all_privileges || !m_columns.elements);
 

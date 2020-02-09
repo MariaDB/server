@@ -426,7 +426,7 @@ thd::thd (my_bool won) : init(), ptr(new THD(0))
     wsrep_store_threadvars(ptr);
     ptr->variables.option_bits&= ~OPTION_BIN_LOG; // disable binlog
     ptr->variables.wsrep_on= won;
-    ptr->security_ctx->master_access= ~(ulong)0;
+    ptr->security_ctx->master_access= ALL_KNOWN_ACL;
     lex_start(ptr);
   }
 }

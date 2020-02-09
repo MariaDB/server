@@ -33,6 +33,7 @@
 #include "parse_file.h"
 #include "sql_i_s.h"
 #include "sql_type.h"               /* vers_kind_t */
+#include "privilege.h"              /* privilege_t */
 
 /* Structs that defines the TABLE */
 
@@ -309,19 +310,25 @@ typedef struct st_grant_info
 
      The set is implemented as a bitmap, with the bits defined in sql_acl.h.
    */
-  ulong privilege;
+  privilege_t privilege;
   /**
      @brief the set of privileges that the current user needs to fulfil in
      order to carry out the requested operation.
    */
-  ulong want_privilege;
+  privilege_t want_privilege;
   /**
     Stores the requested access acl of top level tables list. Is used to
     check access rights to the underlying tables of a view.
   */
-  ulong orig_want_privilege;
+  privilege_t orig_want_privilege;
   /** The grant state for internal tables. */
   GRANT_INTERNAL_INFO m_internal;
+
+  st_grant_info()
+   :privilege(NO_ACL),
+    want_privilege(NO_ACL),
+    orig_want_privilege(NO_ACL)
+  { }
 } GRANT_INFO;
 
 enum tmp_table_type
@@ -2507,7 +2514,7 @@ struct TABLE_LIST
     return FALSE;
   }
 
-  void register_want_access(ulong want_access);
+  void register_want_access(privilege_t want_access);
   bool prepare_security(THD *thd);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *find_view_security_context(THD *thd);

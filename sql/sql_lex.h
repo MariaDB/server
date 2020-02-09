@@ -187,14 +187,14 @@ public:
 struct Lex_column_list_privilege_st
 {
   List<Lex_ident_sys> *m_columns;
-  uint m_privilege;
+  privilege_t m_privilege;
 };
 
 
 class Lex_column_list_privilege: public Lex_column_list_privilege_st
 {
 public:
-  Lex_column_list_privilege(List<Lex_ident_sys> *columns, uint privilege)
+  Lex_column_list_privilege(List<Lex_ident_sys> *columns, privilege_t privilege)
   {
     m_columns= columns;
     m_privilege= privilege;
@@ -3126,7 +3126,7 @@ class Lex_grant_privilege: public Grant_privilege, public Sql_alloc
 {
 public:
   Lex_grant_privilege() {}
-  Lex_grant_privilege(uint grant, bool all_privileges= false)
+  Lex_grant_privilege(privilege_t grant, bool all_privileges= false)
    :Grant_privilege(grant, all_privileges)
   { }
 };
@@ -4417,7 +4417,7 @@ public:
   bool stmt_grant_table(THD *thd,
                         Grant_privilege *grant,
                         const Lex_grant_object_name &ident,
-                        uint grant_option);
+                        privilege_t grant_option);
 
   bool stmt_revoke_table(THD *thd,
                          Grant_privilege *grant,
@@ -4427,14 +4427,14 @@ public:
                      Grant_privilege *grant,
                      const Lex_grant_object_name &ident,
                      const Sp_handler &sph,
-                     uint grant_option);
+                     privilege_t grant_option);
 
   bool stmt_revoke_sp(THD *thd,
                       Grant_privilege *grant,
                       const Lex_grant_object_name &ident,
                       const Sp_handler &sph);
 
-  bool stmt_grant_proxy(THD *thd, LEX_USER *user, uint grant_option);
+  bool stmt_grant_proxy(THD *thd, LEX_USER *user, privilege_t grant_option);
   bool stmt_revoke_proxy(THD *thd, LEX_USER *user);
 
   Vers_parse_info &vers_get_info()

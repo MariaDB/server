@@ -61,7 +61,7 @@ long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);
 static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
 static void mysql_change_db_impl(THD *thd,
                                  LEX_CSTRING *new_db_name,
-                                 ulong new_db_access,
+                                 privilege_t new_db_access,
                                  CHARSET_INFO *new_db_charset);
 static bool mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db,
                                  bool if_exists, bool silent);
@@ -1088,7 +1088,7 @@ exit:
   */
   if (unlikely(thd->db.str && cmp_db_names(&thd->db, db) && !error))
   {
-    mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
+    mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
     thd->session_tracker.current_schema.mark_as_changed(thd);
   }
   my_dirend(dirp);
@@ -1352,7 +1352,7 @@ err:
 
 static void mysql_change_db_impl(THD *thd,
                                  LEX_CSTRING *new_db_name,
-                                 ulong new_db_access,
+                                 privilege_t new_db_access,
                                  CHARSET_INFO *new_db_charset)
 {
   /* 1. Change current database in THD. */
@@ -1501,7 +1501,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
   LEX_CSTRING new_db_file_name;
 
   Security_context *sctx= thd->security_ctx;
-  ulong db_access= sctx->db_access;
+  privilege_t db_access(sctx->db_access);
   CHARSET_INFO *db_default_cl;
   DBUG_ENTER("mysql_change_db");
 
@@ -1518,7 +1518,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
         new_db_name->length == 0.
       */
 
-      mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
+      mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
 
       goto done;
     }
@@ -1570,7 +1570,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     my_free(const_cast<char*>(new_db_file_name.str));
 
     if (force_switch)
-      mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
+      mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
 
     DBUG_RETURN(ER_WRONG_DB_NAME);
   }
@@ -1622,7 +1622,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
 
       /* Change db to NULL. */
 
-      mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
+      mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
 
       /* The operation succeed. */
       goto done;

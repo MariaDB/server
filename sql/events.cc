@@ -1145,7 +1145,6 @@ Events::load_events_from_db(THD *thd)
   READ_RECORD read_record_info;
   bool ret= TRUE;
   uint count= 0;
-  ulong saved_master_access;
   DBUG_ENTER("Events::load_events_from_db");
   DBUG_PRINT("enter", ("thd: %p", thd));
 
@@ -1158,7 +1157,7 @@ Events::load_events_from_db(THD *thd)
     Temporarily reset it to read-write.
   */
 
-  saved_master_access= thd->security_ctx->master_access;
+  privilege_t saved_master_access(thd->security_ctx->master_access);
   thd->security_ctx->master_access |= SUPER_ACL;
   bool save_tx_read_only= thd->tx_read_only;
   thd->tx_read_only= false;

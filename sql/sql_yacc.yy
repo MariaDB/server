@@ -191,7 +191,6 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   ulonglong ulonglong_number;
   longlong longlong_number;
   uint sp_instr_addr;
-  uint privilege;
 
   /* structs */
   LEX_CSTRING lex_str;
@@ -314,6 +313,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   enum vers_kind_t vers_range_unit;
   enum Column_definition::enum_column_versioning vers_column_versioning;
   enum plsql_cursor_attr_t plsql_cursor_attr;
+  privilege_t privilege;
 }
 
 %{
@@ -16846,7 +16846,7 @@ object_privilege:
         | UPDATE_SYM              { $$= UPDATE_ACL; }
         | REFERENCES              { $$= REFERENCES_ACL; }
         | DELETE_SYM              { $$= DELETE_ACL;}
-        | USAGE                   { $$= 0; }
+        | USAGE                   { $$= NO_ACL; }
         | INDEX_SYM               { $$= INDEX_ACL;}
         | ALTER                   { $$= ALTER_ACL;}
         | CREATE                  { $$= CREATE_ACL;}
@@ -17105,12 +17105,12 @@ opt_resource_options:
 
 
 opt_grant_options:
-          /* empty */            { $$= 0;  }
+          /* empty */            { $$= NO_ACL;  }
         | WITH grant_option_list { $$= $2; }
         ;
 
 opt_grant_option:
-          /* empty */       { $$= 0;         }
+          /* empty */       { $$= NO_ACL;    }
         | WITH GRANT OPTION { $$= GRANT_ACL; }
         ;
 
@@ -17121,7 +17121,7 @@ grant_option_list:
 
 grant_option:
           GRANT OPTION    { $$= GRANT_ACL;}
-	| resource_option { $$= 0; }
+	| resource_option { $$= NO_ACL; }
         ;
 
 begin_stmt_mariadb:

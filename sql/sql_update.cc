@@ -373,7 +373,7 @@ int mysql_update(THD *thd,
   bool          need_sort= TRUE;
   bool          reverse= FALSE;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  uint		want_privilege;
+  privilege_t   want_privilege(NO_ACL);
 #endif
   uint          table_count= 0;
   ha_rows	updated, found;
@@ -1874,8 +1874,8 @@ int mysql_multi_update_prepare(THD *thd)
         (SELECT_ACL & ~tlist->grant.privilege);
       table->grant.want_privilege= (SELECT_ACL & ~table->grant.privilege);
     }
-    DBUG_PRINT("info", ("table: %s  want_privilege: %u", tl->alias.str,
-                        (uint) table->grant.want_privilege));
+    DBUG_PRINT("info", ("table: %s  want_privilege: %llx", tl->alias.str,
+                        (longlong) table->grant.want_privilege));
   }
   /*
     Set exclude_from_table_unique_test value back to FALSE. It is needed for

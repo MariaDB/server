@@ -35,7 +35,7 @@
 #include "sql_db.h"                             // mysql_change_db
 #include "hostname.h" // inc_host_errors, ip_to_hostname,
                       // reset_host_errors
-#include "sql_acl.h"  // acl_getroot, NO_ACCESS, SUPER_ACL
+#include "privilege.h"  // acl_getroot, SUPER_ACL
 #include "sql_callback.h"
 
 #ifdef WITH_WSREP

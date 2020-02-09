@@ -114,7 +114,7 @@ lock_tables_check(THD *thd, TABLE **tables, uint count, uint flags)
   DBUG_ENTER("lock_tables_check");
 
   system_count= 0;
-  is_superuser= thd->security_ctx->master_access & SUPER_ACL;
+  is_superuser= (thd->security_ctx->master_access & SUPER_ACL) != NO_ACL;
   log_table_write_query= (is_log_table_write_query(thd->lex->sql_command)
                          || ((flags & MYSQL_LOCK_LOG_TABLE) != 0));
 

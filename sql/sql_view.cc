@@ -592,7 +592,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
        This will hold the intersection of the priviliges on all columns in the
        view.
      */
-    uint final_priv= VIEW_ANY_ACL;
+    privilege_t final_priv(VIEW_ANY_ACL);
     
     for (sl= select_lex; sl; sl= sl->next_select())
     {
@@ -602,8 +602,9 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       while ((item= it++))
       {
         Item_field *fld= item->field_for_view_update();
-        uint priv= (get_column_grant(thd, &view->grant, view->db.str,
-                                     view->table_name.str, item->name.str) &
+        privilege_t priv(get_column_grant(thd, &view->grant, view->db.str,
+                                          view->table_name.str,
+                                          item->name.str) &
                     VIEW_ANY_ACL);
 
         if (!fld)

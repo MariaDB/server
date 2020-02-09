@@ -1480,8 +1480,6 @@ end:
       ret= 1;
     else
     {
-      ulong saved_master_access;
-
       thd->set_query(sp_sql.c_ptr_safe(), sp_sql.length());
 
       /*
@@ -1493,7 +1491,7 @@ end:
         Temporarily reset it to read-write.
       */
 
-      saved_master_access= thd->security_ctx->master_access;
+      privilege_t saved_master_access(thd->security_ctx->master_access);
       thd->security_ctx->master_access |= SUPER_ACL;
       bool save_tx_read_only= thd->tx_read_only;
       thd->tx_read_only= false;

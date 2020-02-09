@@ -35,7 +35,7 @@
 #include "sql_base.h"                           // close_thread_tables
 #include "sql_time.h"                         // date_time_format_copy
 #include "tztime.h"                           // MYSQL_TIME <-> my_time_t
-#include "sql_acl.h"                          // NO_ACCESS,
+#include "sql_acl.h"                          // NO_ACL,
                                               // acl_getroot_no_password
 #include "sql_base.h"
 #include "sql_handler.h"                      // mysql_ha_cleanup
@@ -644,6 +644,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    m_digest(NULL),
    m_statement_psi(NULL),
    m_idle_psi(NULL),
+   col_access(NO_ACL),
    thread_id(id),
    thread_dbug_id(id),
    os_thread_id(0),
@@ -766,7 +767,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   count_cuted_fields= CHECK_FIELD_IGNORE;
   killed= NOT_KILLED;
   killed_err= 0;
-  col_access=0;
   is_slave_error= thread_specific_used= FALSE;
   my_hash_clear(&handler_tables_hash);
   my_hash_clear(&ull_hash);
@@ -4292,10 +4292,10 @@ void Security_context::init()
   host= user= ip= external_user= 0;
   host_or_ip= "connecting host";
   priv_user[0]= priv_host[0]= proxy_user[0]= priv_role[0]= '\0';
-  master_access= 0;
+  master_access= NO_ACL;
   password_expired= false;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  db_access= NO_ACCESS;
+  db_access= NO_ACL;
 #endif
 }
 
@@ -4330,7 +4330,7 @@ void Security_context::skip_grants()
 {
   /* privileges for the user are unknown everything is allowed */
   host_or_ip= (char *)"";
-  master_access= ~NO_ACCESS;
+  master_access= ALL_KNOWN_ACL;
   *priv_user= *priv_host= '\0';
   password_expired= false;
 }
@@ -4343,10 +4343,11 @@ bool Security_context::set_user(char *user_arg)
   return user == 0;
 }
 
-bool Security_context::check_access(ulong want_access, bool match_any)
+bool Security_context::check_access(const privilege_t want_access,
+                                    bool match_any)
 {
   DBUG_ENTER("Security_context::check_access");
-  DBUG_RETURN((match_any ? (master_access & want_access)
+  DBUG_RETURN((match_any ? (master_access & want_access) != NO_ACL
                          : ((master_access & want_access) == want_access)));
 }
 

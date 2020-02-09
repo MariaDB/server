@@ -2852,7 +2852,7 @@ bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access)
 
   *full_access= ((!check_table_access(thd, SELECT_ACL, &tables, FALSE,
                                      1, TRUE) &&
-                  (tables.grant.privilege & SELECT_ACL) != 0) ||
+                  (tables.grant.privilege & SELECT_ACL) != NO_ACL) ||
                  /* Check if user owns the routine. */
                  (!strcmp(sp->m_definer.user.str,
                           thd->security_ctx->priv_user) &&

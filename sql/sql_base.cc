@@ -261,7 +261,7 @@ static my_bool list_open_tables_callback(TDC_element *element,
   arg->table_list.db.length= db_length;
   arg->table_list.table_name.str= table_name;
   arg->table_list.table_name.length= strlen(table_name);
-  arg->table_list.grant.privilege= 0;
+  arg->table_list.grant.privilege= NO_ACL;
 
   if (check_table_access(arg->thd, SELECT_ACL, &arg->table_list, TRUE, 1, TRUE))
     return FALSE;
@@ -7878,8 +7878,8 @@ bool setup_tables_and_check_access(THD *thd,
                                    TABLE_LIST *tables,
                                    List<TABLE_LIST> &leaves,
                                    bool select_insert,
-                                   ulong want_access_first,
-                                   ulong want_access,
+                                   privilege_t want_access_first,
+                                   privilege_t want_access,
                                    bool full_table_list)
 {
   DBUG_ENTER("setup_tables_and_check_access");
@@ -7890,7 +7890,7 @@ bool setup_tables_and_check_access(THD *thd,
 
   List_iterator<TABLE_LIST> ti(leaves);
   TABLE_LIST *table_list;
-  ulong access= want_access_first;
+  privilege_t access= want_access_first;
   while ((table_list= ti++))
   {
     if (table_list->belong_to_view && !table_list->view && 

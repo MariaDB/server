@@ -263,7 +263,7 @@ void opt_trace_disable_if_no_tables_access(THD *thd, TABLE_LIST *tbl)
 
       bool rc =
           check_table_access(thd, SELECT_ACL, t, false, 1, true) ||  // (1)
-          ((t->grant.privilege & SELECT_ACL) == 0);                  // (2)
+          ((t->grant.privilege & SELECT_ACL) == NO_ACL);             // (2)
       if (t->is_view())
       {
         /*

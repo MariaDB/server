@@ -106,7 +106,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
   thd->db= null_clex_str;
   thd->security_ctx->host_or_ip= "";
   thd->security_ctx->db_access= DB_ACLS;
-  thd->security_ctx->master_access= ~NO_ACCESS;
+  thd->security_ctx->master_access= ALL_KNOWN_ACL;
   bzero((char*) &thd->net, sizeof(thd->net));
   lex_start(thd);
   mysql_init_select(thd->lex);

@@ -704,7 +704,7 @@ void *create_embedded_thd(int client_flag)
   thd->db= null_clex_str;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   thd->security_ctx->db_access= DB_ACLS;
-  thd->security_ctx->master_access= ~NO_ACCESS;
+  thd->security_ctx->master_access= ALL_KNOWN_ACL;
 #endif
   thd->cur_data= 0;
   thd->first_data= 0;

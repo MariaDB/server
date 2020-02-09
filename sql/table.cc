@@ -6153,7 +6153,7 @@ TABLE_LIST *TABLE_LIST::last_leaf_for_name_resolution()
     want_access          Acess which we require
 */
 
-void TABLE_LIST::register_want_access(ulong want_access)
+void TABLE_LIST::register_want_access(privilege_t want_access)
 {
   /* Remove SHOW_VIEW_ACL, because it will be checked during making view */
   want_access&= ~SHOW_VIEW_ACL;
@@ -6322,7 +6322,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
   thd->security_ctx= save_security_ctx;
 #else
   while ((tbl= tb++))
-    tbl->grant.privilege= ~NO_ACCESS;
+    tbl->grant.privilege= ALL_KNOWN_ACL;
 #endif
   DBUG_RETURN(FALSE);
 }

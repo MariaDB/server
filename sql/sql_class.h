@@ -440,8 +440,8 @@ class LEX_COLUMN : public Sql_alloc
 {
 public:
   String column;
-  uint rights;
-  LEX_COLUMN (const String& x,const  uint& y ): column (x),rights (y) {}
+  privilege_t rights;
+  LEX_COLUMN (const String& x,const  privilege_t & y ): column (x),rights (y) {}
 };
 
 class MY_LOCALE;
@@ -1303,7 +1303,10 @@ struct st_savepoint {
 
 class Security_context {
 public:
-  Security_context() {}                       /* Remove gcc warning */
+  Security_context()
+   :master_access(NO_ACL),
+    db_access(NO_ACL)
+  {}                      /* Remove gcc warning */
   /*
     host - host of the client
     user - user of the client, set to NULL until the user has been read from
@@ -1323,8 +1326,8 @@ public:
   char   *external_user;
   /* points to host if host is available, otherwise points to ip */
   const char *host_or_ip;
-  ulong master_access;                 /* Global privileges from mysql.user */
-  ulong db_access;                     /* Privileges for current db */
+  privilege_t master_access;            /* Global privileges from mysql.user */
+  privilege_t db_access;                /* Privileges for current db */
 
   bool password_expired;
 
@@ -1357,7 +1360,7 @@ public:
    *                 privileges.
     @return True if the security context fulfills the access requirements.
   */
-  bool check_access(ulong want_access, bool match_any = false);
+  bool check_access(const privilege_t want_access, bool match_any = false);
   bool is_priv_user(const char *user, const char *host);
 };
 
@@ -2993,7 +2996,7 @@ public:
     update auto-updatable fields (like auto_increment and timestamp).
   */
   query_id_t query_id;
-  ulong      col_access;
+  privilege_t col_access;
 
   /* Statement id is thread-wide. This counter is used to generate ids */
   ulong      statement_id_counter;

@@ -1359,7 +1359,7 @@ static int mysql_test_update(Prepared_statement *stmt,
   TABLE_LIST *update_source_table;
   SELECT_LEX *select= stmt->lex->first_select_lex();
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  uint          want_privilege;
+  privilege_t want_privilege(NO_ACL);
 #endif
   DBUG_ENTER("mysql_test_update");
 
@@ -1516,7 +1516,7 @@ static int mysql_test_select(Prepared_statement *stmt,
 
   lex->first_select_lex()->context.resolve_in_select_list= TRUE;
 
-  ulong privilege= lex->exchange ? SELECT_ACL | FILE_ACL : SELECT_ACL;
+  privilege_t privilege(lex->exchange ? SELECT_ACL | FILE_ACL : SELECT_ACL);
   if (tables)
   {
     if (check_table_access(thd, privilege, tables, FALSE, UINT_MAX, FALSE))

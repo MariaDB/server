@@ -2892,7 +2892,7 @@ Item_field::Item_field(THD *thd, Field *f)
   :Item_ident(thd, 0, null_clex_str,
               Lex_cstring_strlen(*f->table_name), f->field_name),
    item_equal(0),
-   have_privileges(0), any_privileges(0)
+   have_privileges(NO_ACL), any_privileges(0)
 {
   set_field(f);
   /*
@@ -2917,7 +2917,7 @@ Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
   :Item_ident(thd, context_arg, f->table->s->db,
               Lex_cstring_strlen(*f->table_name), f->field_name),
    item_equal(0),
-   have_privileges(0), any_privileges(0)
+   have_privileges(NO_ACL), any_privileges(0)
 {
   /*
     We always need to provide Item_field with a fully qualified field
@@ -2961,7 +2961,7 @@ Item_field::Item_field(THD *thd, Name_resolution_context *context_arg,
                        const LEX_CSTRING &field_name_arg)
   :Item_ident(thd, context_arg, db_arg, table_name_arg, field_name_arg),
    field(0), item_equal(0),
-   have_privileges(0), any_privileges(0)
+   have_privileges(NO_ACL), any_privileges(0)
 {
   SELECT_LEX *select= thd->lex->current_select;
   collation.set(DERIVATION_IMPLICIT);

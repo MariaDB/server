@@ -63,7 +63,7 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
   */
   IF_DBUG(HA_CREATE_INFO create_info(lex->create_info);,)
   Alter_info alter_info(lex->alter_info, thd->mem_root);
-  ulong priv_needed= ALTER_ACL | DROP_ACL | INSERT_ACL | CREATE_ACL;
+  privilege_t priv_needed(ALTER_ACL | DROP_ACL | INSERT_ACL | CREATE_ACL);
 
   DBUG_ENTER("Sql_cmd_alter_table_exchange_partition::execute");
 

@@ -451,22 +451,22 @@ public:
   ~PFS_internal_schema_access()
   {}
 
-  ACL_internal_access_result check(ulong want_access,
-                                   ulong *save_priv) const;
+  ACL_internal_access_result check(privilege_t want_access,
+                                   privilege_t *save_priv) const;
 
   const ACL_internal_table_access *lookup(const char *name) const;
 };
 
 ACL_internal_access_result
-PFS_internal_schema_access::check(ulong want_access,
-                                  ulong *save_priv)  const
+PFS_internal_schema_access::check(privilege_t want_access,
+                                  privilege_t *save_priv)  const
 {
-  const ulong always_forbidden= /* CREATE_ACL | */ REFERENCES_ACL
+  const privilege_t always_forbidden= /* CREATE_ACL | */ REFERENCES_ACL
     | INDEX_ACL | ALTER_ACL | CREATE_TMP_ACL | EXECUTE_ACL
     | CREATE_VIEW_ACL | SHOW_VIEW_ACL | CREATE_PROC_ACL | ALTER_PROC_ACL
     | EVENT_ACL | TRIGGER_ACL ;
 
-  if (unlikely(want_access & always_forbidden))
+  if (unlikely((want_access & always_forbidden) != NO_ACL))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   /*
@@ -511,13 +511,13 @@ void initialize_performance_schema_acl(bool bootstrap)
 PFS_readonly_acl pfs_readonly_acl;
 
 ACL_internal_access_result
-PFS_readonly_acl::check(ulong want_access, ulong *save_priv) const
+PFS_readonly_acl::check(privilege_t want_access, privilege_t *save_priv) const
 {
-  const ulong always_forbidden= INSERT_ACL | UPDATE_ACL | DELETE_ACL
+  const privilege_t always_forbidden= INSERT_ACL | UPDATE_ACL | DELETE_ACL
     | /* CREATE_ACL | */ REFERENCES_ACL | INDEX_ACL | ALTER_ACL
     | CREATE_VIEW_ACL | SHOW_VIEW_ACL | TRIGGER_ACL | LOCK_TABLES_ACL;
 
-  if (unlikely(want_access & always_forbidden))
+  if (unlikely((want_access & always_forbidden) != NO_ACL))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   return ACL_INTERNAL_ACCESS_CHECK_GRANT;
@@ -526,13 +526,13 @@ PFS_readonly_acl::check(ulong want_access, ulong *save_priv) const
 PFS_truncatable_acl pfs_truncatable_acl;
 
 ACL_internal_access_result
-PFS_truncatable_acl::check(ulong want_access, ulong *save_priv) const
+PFS_truncatable_acl::check(privilege_t want_access, privilege_t *save_priv) const
 {
-  const ulong always_forbidden= INSERT_ACL | UPDATE_ACL | DELETE_ACL
+  const privilege_t always_forbidden= INSERT_ACL | UPDATE_ACL | DELETE_ACL
     | /* CREATE_ACL | */ REFERENCES_ACL | INDEX_ACL | ALTER_ACL
     | CREATE_VIEW_ACL | SHOW_VIEW_ACL | TRIGGER_ACL | LOCK_TABLES_ACL;
 
-  if (unlikely(want_access & always_forbidden))
+  if (unlikely((want_access & always_forbidden) != NO_ACL))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   return ACL_INTERNAL_ACCESS_CHECK_GRANT;
@@ -541,13 +541,13 @@ PFS_truncatable_acl::check(ulong want_access, ulong *save_priv) const
 PFS_updatable_acl pfs_updatable_acl;
 
 ACL_internal_access_result
-PFS_updatable_acl::check(ulong want_access, ulong *save_priv) const
+PFS_updatable_acl::check(privilege_t want_access, privilege_t *save_priv) const
 {
-  const ulong always_forbidden= INSERT_ACL | DELETE_ACL
+  const privilege_t always_forbidden= INSERT_ACL | DELETE_ACL
     | /* CREATE_ACL | */ REFERENCES_ACL | INDEX_ACL | ALTER_ACL
     | CREATE_VIEW_ACL | SHOW_VIEW_ACL | TRIGGER_ACL;
 
-  if (unlikely(want_access & always_forbidden))
+  if (unlikely((want_access & always_forbidden) != NO_ACL))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   return ACL_INTERNAL_ACCESS_CHECK_GRANT;
@@ -556,12 +556,12 @@ PFS_updatable_acl::check(ulong want_access, ulong *save_priv) const
 PFS_editable_acl pfs_editable_acl;
 
 ACL_internal_access_result
-PFS_editable_acl::check(ulong want_access, ulong *save_priv) const
+PFS_editable_acl::check(privilege_t want_access, privilege_t *save_priv) const
 {
-  const ulong always_forbidden= /* CREATE_ACL | */ REFERENCES_ACL
+  const privilege_t always_forbidden= /* CREATE_ACL | */ REFERENCES_ACL
     | INDEX_ACL | ALTER_ACL | CREATE_VIEW_ACL | SHOW_VIEW_ACL | TRIGGER_ACL;
 
-  if (unlikely(want_access & always_forbidden))
+  if (unlikely((want_access & always_forbidden) != NO_ACL))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   return ACL_INTERNAL_ACCESS_CHECK_GRANT;
@@ -570,13 +570,13 @@ PFS_editable_acl::check(ulong want_access, ulong *save_priv) const
 PFS_unknown_acl pfs_unknown_acl;
 
 ACL_internal_access_result
-PFS_unknown_acl::check(ulong want_access, ulong *save_priv) const
+PFS_unknown_acl::check(privilege_t want_access, privilege_t *save_priv) const
 {
-  const ulong always_forbidden= CREATE_ACL
+  const privilege_t always_forbidden= CREATE_ACL
     | REFERENCES_ACL | INDEX_ACL | ALTER_ACL
     | CREATE_VIEW_ACL | TRIGGER_ACL;
 
-  if (unlikely(want_access & always_forbidden))
+  if (unlikely((want_access & always_forbidden) != NO_ACL))
     return ACL_INTERNAL_ACCESS_DENIED;
 
   /*
