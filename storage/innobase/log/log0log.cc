@@ -568,74 +568,229 @@ void log_t::create()
   }
 }
 
-log_file_t::log_file_t(log_file_t &&rhs)
+mapped_file_t::~mapped_file_t() noexcept
 {
-  m_fd= std::move(rhs.m_fd);
-  rhs.m_fd= OS_FILE_CLOSED;
-  m_path= std::move(rhs.m_path);
+  if (!m_area.empty())
+    unmap();
 }
-log_file_t &log_file_t::operator=(log_file_t &&rhs)
+
+dberr_t mapped_file_t::map(const char *path, int flags) noexcept
+{
+  auto fd=
+      mysql_file_open(innodb_log_file_key, path,
+                      srv_read_only_mode ? O_RDONLY : O_RDWR, MYF(MY_WME));
+
+  if (fd == -1)
+    return DB_ERROR;
+
+  MY_STAT stat;
+  if (mysql_file_fstat(fd, &stat, MYF(0)))
+  {
+    mysql_file_close(fd, MYF(MY_WME));
+    return DB_ERROR;
+  }
+
+  void *ptr= my_mmap(0, stat.st_size,
+                     srv_read_only_mode ? PROT_READ : PROT_READ | PROT_WRITE,
+                     MAP_SHARED_VALIDATE | flags, fd, 0);
+  mysql_file_close(fd, MYF(MY_WME));
+
+  if (ptr == MAP_FAILED)
+    return DB_ERROR;
+
+  m_area= {static_cast<byte *>(ptr),
+           static_cast<span<byte>::index_type>(stat.st_size)};
+  return DB_SUCCESS;
+}
+
+dberr_t mapped_file_t::unmap() noexcept
+{
+  ut_ad(!m_area.empty());
+
+  if (my_munmap(m_area.data(), m_area.size()))
+    return DB_ERROR;
+
+  m_area= {};
+  return DB_SUCCESS;
+}
+
+file_os_io::file_os_io(file_os_io &&rhs) : m_fd(rhs.m_fd)
+{
+  rhs.m_fd= OS_FILE_CLOSED;
+}
+
+file_os_io &file_os_io::operator=(file_os_io &&rhs)
 {
   std::swap(m_fd, rhs.m_fd);
-  std::swap(m_path, rhs.m_path);
   return *this;
 }
 
-log_file_t::~log_file_t()
+file_os_io::~file_os_io() noexcept
 {
   if (is_opened())
-    os_file_close(m_fd);
+    close();
 }
 
-bool log_file_t::open()
+dberr_t file_os_io::open(const char *path) noexcept
+{
+  ut_ad(!is_opened());
+
+  bool success;
+  auto tmp_fd= os_file_create(
+      innodb_log_file_key, path, OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
+      OS_FILE_NORMAL, OS_LOG_FILE, srv_read_only_mode, &success);
+  if (!success)
+    return DB_ERROR;
+
+  m_durable_writes= srv_file_flush_method == SRV_O_DSYNC;
+  m_fd= tmp_fd;
+  return success ? DB_SUCCESS : DB_ERROR;
+}
+
+dberr_t file_os_io::rename(const char *old_path, const char *new_path) noexcept
+{
+  return os_file_rename(innodb_log_file_key, old_path, new_path) ? DB_SUCCESS
+                                                                 : DB_ERROR;
+}
+
+dberr_t file_os_io::close() noexcept
+{
+  if (!os_file_close(m_fd))
+    return DB_ERROR;
+
+  m_fd= OS_FILE_CLOSED;
+  return DB_SUCCESS;
+}
+
+dberr_t file_os_io::read(os_offset_t offset, span<byte> buf) noexcept
+{
+  return os_file_read(IORequestRead, m_fd, buf.data(), offset, buf.size());
+}
+
+dberr_t file_os_io::write(const char *path, os_offset_t offset,
+                          span<const byte> buf) noexcept
+{
+  return os_file_write(IORequestWrite, path, m_fd, buf.data(), offset,
+                       buf.size());
+}
+
+dberr_t file_os_io::flush_data_only() noexcept
+{
+  return os_file_flush_data(m_fd) ? DB_SUCCESS : DB_ERROR;
+}
+
+#ifdef HAVE_PMEM
+
+#include <libpmem.h>
+
+static bool is_pmem(const char *path) noexcept
+{
+  mapped_file_t mf;
+  return mf.map(path, MAP_SYNC) == DB_SUCCESS ? true : false;
+}
+
+class file_pmem_io final : public file_io
+{
+public:
+  file_pmem_io() noexcept : file_io(true) {}
+
+  dberr_t open(const char *path) noexcept final
+  {
+    return m_file.map(path, MAP_SYNC);
+  }
+  dberr_t rename(const char *old_path, const char *new_path) noexcept final
+  {
+    return os_file_rename(innodb_log_file_key, old_path, new_path) ? DB_SUCCESS
+                                                                   : DB_ERROR;
+  }
+  dberr_t close() noexcept final { return m_file.unmap(); }
+  dberr_t read(os_offset_t offset, span<byte> buf) noexcept final
+  {
+    memcpy(buf.data(), m_file.data() + offset, buf.size());
+    return DB_SUCCESS;
+  }
+  dberr_t write(const char *, os_offset_t offset,
+                span<const byte> buf) noexcept final
+  {
+    pmem_memcpy_persist(m_file.data() + offset, buf.data(), buf.size());
+    return DB_SUCCESS;
+  }
+  dberr_t flush_data_only() noexcept final
+  {
+    ut_ad(0);
+    return DB_SUCCESS;
+  }
+
+private:
+  mapped_file_t m_file;
+};
+#endif
+
+dberr_t log_file_t::open() noexcept
 {
   ut_a(!is_opened());
 
-  bool success;
-  m_fd= os_file_create(innodb_log_file_key, m_path.c_str(),
-                       OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT, OS_FILE_NORMAL,
-                       OS_LOG_FILE, srv_read_only_mode, &success);
-  if (!success)
-    m_fd= OS_FILE_CLOSED;
+#ifdef HAVE_PMEM
+  auto ptr= is_pmem(m_path.c_str())
+                ? std::unique_ptr<file_io>(new file_pmem_io)
+                : std::unique_ptr<file_io>(new file_os_io);
+#else
+  auto ptr= std::unique_ptr<file_io>(new file_os_io);
+#endif
 
-  return success;
+  if (dberr_t err= ptr->open(m_path.c_str()))
+    return err;
+
+  m_file= std::move(ptr);
+  return DB_SUCCESS;
 }
 
-dberr_t log_file_t::rename(std::string new_path)
+bool log_file_t::is_opened() const noexcept
 {
-  if (!os_file_rename(innodb_log_file_key, m_path.c_str(),
-                      new_path.c_str())) {
-    return DB_ERROR;
-  }
+  return static_cast<bool>(m_file);
+}
+
+dberr_t log_file_t::rename(std::string new_path) noexcept
+{
+  if (dberr_t err= m_file->rename(m_path.c_str(), new_path.c_str()))
+    return err;
+
   m_path = std::move(new_path);
   return DB_SUCCESS;
 }
 
-bool log_file_t::close()
+dberr_t log_file_t::close() noexcept
 {
   ut_a(is_opened());
-  bool result= os_file_close(m_fd);
-  m_fd= OS_FILE_CLOSED;
-  return result;
+
+  if (dberr_t err= m_file->close())
+    return err;
+
+  m_file.reset();
+  return DB_SUCCESS;
 }
 
-dberr_t log_file_t::read(os_offset_t offset, span<byte> buf)
+dberr_t log_file_t::read(os_offset_t offset, span<byte> buf) noexcept
 {
   ut_ad(is_opened());
-  return os_file_read(IORequestRead, m_fd, buf.data(), offset, buf.size());
+  return m_file->read(offset, buf);
 }
 
-dberr_t log_file_t::write(os_offset_t offset, span<const byte> buf)
+bool log_file_t::writes_are_durable() const noexcept
 {
-  ut_ad(is_opened());
-  return os_file_write(IORequestWrite, m_path.c_str(), m_fd, buf.data(),
-                       offset, buf.size());
+  return m_file->writes_are_durable();
 }
 
-bool log_file_t::flush_data_only()
+dberr_t log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
 {
   ut_ad(is_opened());
-  return os_file_flush_data(m_fd);
+  return m_file->write(m_path.c_str(), offset, buf);
+}
+
+dberr_t log_file_t::flush_data_only() noexcept
+{
+  ut_ad(is_opened());
+  return m_file->flush_data_only();
 }
 
 void log_t::files::open_files(std::vector<std::string> paths)
@@ -645,8 +800,8 @@ void log_t::files::open_files(std::vector<std::string> paths)
   for (auto &&path : paths)
   {
     files.push_back(std::move(path));
-    if (!files.back().open())
-      ib::fatal() << "create(" << files.back().get_path() << ") failed";
+    if (files.back().open() != DB_SUCCESS)
+      ib::fatal() << "open(" << files.back().get_path() << ") failed";
   }
 }
 
@@ -657,6 +812,11 @@ void log_t::files::read(os_offset_t total_offset, span<byte> buf)
 
   if (const dberr_t err= file.read(offset, buf))
     ib::fatal() << "read(" << file.get_path() << ") returned " << err;
+}
+
+bool log_t::files::writes_are_durable() const noexcept
+{
+  return files[0].writes_are_durable();
 }
 
 void log_t::files::write(os_offset_t total_offset, span<byte> buf)
@@ -673,7 +833,7 @@ void log_t::files::flush_data_only()
   log_sys.pending_flushes.fetch_add(1, std::memory_order_acquire);
   for (auto &file : files)
   {
-    if (!file.flush_data_only())
+    if (file.flush_data_only() != DB_SUCCESS)
       ib::fatal() << "flush_data_only(" << file.get_path() << ") failed";
   }
   log_sys.pending_flushes.fetch_sub(1, std::memory_order_release);
@@ -684,7 +844,7 @@ void log_t::files::close_files()
 {
   for (auto &file : files)
   {
-    if (file.is_opened() && !file.close())
+    if (file.is_opened() && file.close() != DB_SUCCESS)
       ib::fatal() << "close(" << file.get_path() << ") failed";
   }
 }

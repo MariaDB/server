@@ -448,35 +448,90 @@ or the MySQL version that created the redo log file. */
 typedef ib_mutex_t	LogSysMutex;
 typedef ib_mutex_t	FlushOrderMutex;
 
-/** RAII wrapper over path and file descriptor. Supposed to be used for log
-files only */
+/** Memory mapped file */
+class mapped_file_t
+{
+public:
+  mapped_file_t()= default;
+  mapped_file_t(const mapped_file_t &)= delete;
+  mapped_file_t &operator=(const mapped_file_t &)= delete;
+  mapped_file_t(mapped_file_t &&)= delete;
+  mapped_file_t &operator=(mapped_file_t &&)= delete;
+  ~mapped_file_t() noexcept;
+
+  dberr_t map(const char *path, int flags= 0) noexcept;
+  dberr_t unmap() noexcept;
+  byte *data() noexcept { return m_area.data(); }
+
+private:
+  span<byte> m_area;
+};
+
+/** Abstraction for reading, writing and flushing file cache to disk */
+class file_io
+{
+public:
+  file_io(bool durable_writes= false) : m_durable_writes(durable_writes) {}
+  virtual ~file_io() noexcept {};
+  virtual dberr_t open(const char *path) noexcept= 0;
+  virtual dberr_t rename(const char *old_path,
+                         const char *new_path) noexcept= 0;
+  virtual dberr_t close() noexcept= 0;
+  virtual dberr_t read(os_offset_t offset, span<byte> buf) noexcept= 0;
+  virtual dberr_t write(const char *path, os_offset_t offset,
+                        span<const byte> buf) noexcept= 0;
+  virtual dberr_t flush_data_only() noexcept= 0;
+
+  /** Durable writes doesn't require calling flush_data_only() */
+  bool writes_are_durable() const noexcept { return m_durable_writes; }
+
+protected:
+  bool m_durable_writes;
+};
+
+class file_os_io : public file_io
+{
+public:
+  file_os_io()= default;
+  file_os_io(const file_os_io &)= delete;
+  file_os_io &operator=(const file_os_io &)= delete;
+  file_os_io(file_os_io &&rhs);
+  file_os_io &operator=(file_os_io &&rhs);
+  ~file_os_io() noexcept;
+
+  dberr_t open(const char *path) noexcept final;
+  bool is_opened() const noexcept { return m_fd != OS_FILE_CLOSED; }
+  dberr_t rename(const char *old_path, const char *new_path) noexcept final;
+  dberr_t close() noexcept final;
+  dberr_t read(os_offset_t offset, span<byte> buf) noexcept final;
+  dberr_t write(const char *path, os_offset_t offset,
+                span<const byte> buf) noexcept final;
+  dberr_t flush_data_only() noexcept final;
+
+private:
+  pfs_os_file_t m_fd{OS_FILE_CLOSED};
+};
+
+/** File abstraction + path */
 class log_file_t
 {
 public:
-  log_file_t()= default;
-  log_file_t(std::string path) : m_path{std::move(path)} {}
+  log_file_t(std::string path= "") noexcept : m_path{std::move(path)} {}
 
-  log_file_t(const log_file_t &)= delete;
-  log_file_t &operator=(const log_file_t &)= delete;
+  dberr_t open() noexcept;
+  bool is_opened() const noexcept;
 
-  log_file_t(log_file_t &&rhs);
-  log_file_t &operator=(log_file_t &&rhs);
+  const std::string &get_path() const noexcept { return m_path; }
 
-  ~log_file_t();
-
-  bool open();
-
-  bool is_opened() const { return m_fd != OS_FILE_CLOSED; }
-  const std::string get_path() const { return m_path; }
-
-  dberr_t rename(std::string new_path);
-  bool close();
-  dberr_t read(os_offset_t offset, span<byte> buf);
-  dberr_t write(os_offset_t offset, span<const byte> buf);
-  bool flush_data_only();
+  dberr_t rename(std::string new_path) noexcept;
+  dberr_t close() noexcept;
+  dberr_t read(os_offset_t offset, span<byte> buf) noexcept;
+  bool writes_are_durable() const noexcept;
+  dberr_t write(os_offset_t offset, span<const byte> buf) noexcept;
+  dberr_t flush_data_only() noexcept;
 
 private:
-  pfs_os_file_t m_fd;
+  std::unique_ptr<file_io> m_file;
   std::string m_path;
 };
 
@@ -579,6 +634,8 @@ struct log_t{
     @param[in]	total_offset	offset in log files treated as a single file
     @param[in]	buf		buffer where to read */
     void read(os_offset_t total_offset, span<byte> buf);
+    /** Tells whether writes require calling flush_data_only() */
+    bool writes_are_durable() const noexcept;
     /** writes buffer to log files
     @param[in]	total_offset	offset in log files treated as a single file
     @param[in]	buf		buffer from which to write */
