@@ -8163,11 +8163,10 @@ best_access_path(JOIN      *join,
   pos->index_no= index_picked;
 
   loose_scan_opt.save_to_position(s, loose_scan_pos);
+  trace_paths.end();
 
   if (unlikely(thd->trace_started()))
     print_best_access_for_table(thd, pos, best_type);
-
-  trace_paths.end();
 
   DBUG_VOID_RETURN;
 }
