@@ -8133,7 +8133,7 @@ best_access_path(JOIN      *join,
   if (!best_key &&
       idx == join->const_tables &&
       s->table == join->sort_by_table &&
-      join->unit->select_limit_cnt >= records)
+      join->unit->lim.get_select_limit() >= records)
   {
     trace_access_scan.add("use_tmp_table", true);
     join->sort_by_table= (TABLE*) 1;  // Must use temporary table
@@ -12840,8 +12840,7 @@ end_nest_materialization(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
     {
       /* create_myisam_from_heap will generate error if needed */
-      if (table->file->is_fatal_error(error, HA_CHECK_DUP) &&
-          create_internal_tmp_table_from_heap(thd, table,
+      if (create_internal_tmp_table_from_heap(thd, table,
                                               nest_info->tmp_table_param.start_recinfo,
                                               &nest_info->tmp_table_param.recinfo,
                                               error, 1, NULL))
