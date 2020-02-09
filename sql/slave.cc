@@ -5826,6 +5826,30 @@ err_during_init:
   return 0;                                     // Avoid compiler warnings
 }
 
+/*
+  Handle start Alter
+*/
+pthread_handler_t handle_start_slave(void *arg)
+{
+  THD *thd;                     /* needs to be first for thread_stack */
+  Master_info *mi= ((Master_info*)arg);
+  // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
+  my_thread_init();
+  DBUG_ENTER("handle_start_slave");
+
+  serial_rgi= new rpl_group_info(rli);
+  thd = new THD(next_thread_id()); // note that contructor of THD uses DBUG_ !
+  thd->thread_stack = (char*)&thd; // remember where our stack is
+
+
+  delete thd;
+
+  DBUG_LEAVE;                                   // Must match DBUG_ENTER()
+  my_thread_end();
+  ERR_remove_state(0);
+  pthread_exit(0);
+  return 0;                                     // Avoid compiler warnings
+}
 
 /*
   process_io_create_file()

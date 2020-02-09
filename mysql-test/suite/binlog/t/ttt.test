@@ -1,0 +1,8 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+create table t1( a int primary key, b int);
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+alter table t1 add column c int;
+show binlog events;
+drop table t1;

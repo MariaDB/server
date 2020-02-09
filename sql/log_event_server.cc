@@ -1618,6 +1618,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   }
 
   set_thd_db(thd, rpl_filter, db, db_len);
+  thd->master_log_pos= this->log_pos;
 
   /*
     Setting the character set and collation of the current database thd->db.

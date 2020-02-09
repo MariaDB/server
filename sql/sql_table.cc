@@ -80,7 +80,8 @@ static uint blob_length_by_type(enum_field_types type);
 static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
                                   *check_constraint_list,
                                   const HA_CREATE_INFO *create_info);
-static bool write_start_alter(THD *thd, bool* partial_alter, char * send_query);
+static bool write_start_alter(THD *thd, bool* partial_alter, char * send_query,
+                              start_alter_info *info);
 static bool wait_for_master(THD *thd, char* send_query, start_alter_info *info);
 
 /**
@@ -7675,10 +7676,10 @@ static bool mysql_inplace_alter_table(THD *thd,
   // It's now safe to take the table level lock.
   if (lock_tables(thd, table_list, alter_ctx->tables_opened, 0))
     goto cleanup;
-  if (write_start_alter(thd, partial_alter, send_query))
+  if (write_start_alter(thd, partial_alter, send_query, info))
     DBUG_RETURN(true);
-  if (thd->slave_thread && !strcmp("t1", table->alias.c_ptr()))
-  my_sleep(1000000000);
+  //if (thd->slave_thread && !strcmp("t1", table->alias.c_ptr()))
+  //my_sleep(1000000000);
 
   DEBUG_SYNC(thd, "alter_table_inplace_after_lock_upgrade");
   THD_STAGE_INFO(thd, stage_alter_inplace_prepare);
@@ -9352,13 +9353,10 @@ static bool wait_for_master(THD *thd, char* send_query, start_alter_info* info)
 {
   char temp[thd->query_length()+ 10];
   Master_info *mi= thd->rgi_slave->rli->mi;
-  mysql_mutex_lock(&mi->start_alter_list_lock);
-  info->error= 0;
-  info->thread_id= thd->lex->previous_commit_id;
+  mysql_mutex_lock(&mi->start_alter_lock);
   info->state= start_alter_state::WAITING;
-  mi->start_alter_list.push_back(info, thd->mem_root);
-  mysql_mutex_unlock(&mi->start_alter_list_lock);
-  mysql_cond_broadcast(&mi->start_alter_list_cond);
+  mysql_mutex_unlock(&mi->start_alter_lock);
+  mysql_cond_broadcast(&mi->start_alter_cond);
   strcpy(temp, thd->query());
   char* alter_location= strcasestr(temp, "ALTER");
   //issue here
@@ -9383,9 +9381,6 @@ static bool wait_for_master(THD *thd, char* send_query, start_alter_info* info)
   }
   if (info->state == start_alter_state::COMMIT_ALTER)
   {
-  sql_print_information("Setiya  Elements %d wait_for_master commited id %d ", mi->start_alter_list.elements,
-                                                         info->thread_id);
-
 //    thd->transaction.stmt.mark_trans_did_ddl();
     thd->variables.gtid_seq_no= info->seq_no;
     sprintf(send_query, "/*!100001 COMMIT %d */ %s", info->thread_id,  alter_location);
@@ -9400,7 +9395,8 @@ static bool wait_for_master(THD *thd, char* send_query, start_alter_info* info)
   }
 }
 
-static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query)
+static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query,
+                                start_alter_info *info)
 {
   if (thd->lex->previous_commit_id)
   {
@@ -9416,8 +9412,22 @@ static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query)
     // /*
     //*/
     //Finish event group
+    Master_info *mi= thd->rgi_slave->rli->mi;
+    info->error= 0;
+    info->thread_id= thd->lex->previous_commit_id;
+    info->state= start_alter_state::REGISTERED;
+    mysql_mutex_lock(&mi->start_alter_list_lock);
+    mi->start_alter_list.push_back(info, thd->mem_root);
+    mysql_mutex_unlock(&mi->start_alter_list_lock);
+    //I think we dont need this
+    mysql_cond_broadcast(&mi->start_alter_list_cond);
+    thd->rgi_slave->rli->stmt_done(thd->master_log_pos, thd,
+            thd->rgi_slave);
     thd->rpt->__finish_event_group(thd->rgi_slave);
     thd->transaction.start_alter= false;
+    DBUG_EXECUTE_IF("start_alter_delay_slave", {
+      my_sleep(10000000);
+      });
     return false;
   }
   else if (opt_binlog_split_alter)
@@ -9434,6 +9444,9 @@ static bool write_start_alter(THD *thd, bool* partial_alter, char *send_query)
  //   thd->rgi_slave->mark_start_commit();
  //   thd->wakeup_subsequent_commits(0);
     thd->transaction.start_alter= false;
+    DBUG_EXECUTE_IF("start_alter_delay_master", {
+      my_sleep(10000000);
+      });
     return false;
   }
   return false;
@@ -9488,6 +9501,9 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   char send_query[thd->query_length() + 20];
   bool partial_alter= false;
   start_alter_info *info= (start_alter_info *)thd->alloc(sizeof(start_alter_info));
+  Master_info *mi= NULL;
+  if (thd->slave_thread)
+    mi= thd->rgi_slave->rli->mi;
   DBUG_ENTER("mysql_alter_table");
 
   /*
@@ -10272,10 +10288,10 @@ do_continue:;
                   MYSQL_LOCK_USE_MALLOC))
     goto err_new_table_cleanup;
   //If issues by binlog/master complete the prepare phase of alter and then commit
-  if (write_start_alter(thd, &partial_alter ,send_query))
+  if (write_start_alter(thd, &partial_alter, send_query, info))
     DBUG_RETURN(true);
-  if (thd->slave_thread && !strcmp("t1", table->alias.c_ptr()))
-  my_sleep(1000000000);
+//  if (thd->slave_thread && !strcmp("t1", table->alias.c_ptr()))
+//    my_sleep(1000000000);
   if (ha_create_table(thd, alter_ctx.get_tmp_path(),
                       alter_ctx.new_db.str, alter_ctx.new_name.str,
                       create_info, &frm))
@@ -10386,8 +10402,9 @@ do_continue:;
     {
       if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
         DBUG_RETURN(true);
+      mysql_mutex_lock(&mi->start_alter_lock);
       info->state= start_alter_state::COMMITTED_ALTER;
-      Master_info *mi= thd->rgi_slave->rli->mi;
+      mysql_mutex_unlock(&mi->start_alter_lock);
       mysql_cond_broadcast(&mi->start_alter_cond);
     }
     /* We don't replicate alter table statement on temporary tables */
@@ -10590,8 +10607,9 @@ end_inplace:
   {
     if(write_bin_log(thd, FALSE, send_query, strlen(send_query), true))
       DBUG_RETURN(true);
+    mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::COMMITTED_ALTER;
-    Master_info *mi= thd->rgi_slave->rli->mi;
+    mysql_mutex_unlock(&mi->start_alter_lock);
     mysql_cond_broadcast(&mi->start_alter_cond);
   }
   else if (write_bin_log(thd, true, thd->query(), thd->query_length()))

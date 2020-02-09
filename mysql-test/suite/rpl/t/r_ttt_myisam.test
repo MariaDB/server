@@ -11,14 +11,14 @@ start slave;
 
 --connection master
 set global binlog_split_alter=true;
-create table t1( a int primary key, b int) engine=innodb;
-create table t2( a int primary key, b int) engine=innodb;
+create table t1( a int primary key, b int) engine=myisam;
+create table t2( a int primary key, b int) engine=myisam;
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
 --connection con1
---send alter table t1 add column c int, force, algorithm=inplace;
+--send alter table t1 add column c int;
 --connection con2
---send alter table t2 add column c int, force, algorithm=inplace;
+--send alter table t2 add column c int;
 
 #--source include/kill_mysqld.inc
 #--let $rpl_server_number= 1
@@ -29,12 +29,13 @@ connect (con2,localhost,root,,);
 --reap
 create table t3( a int primary key, b int) engine=innodb;
 
-show binlog events;
+#show binlog events;
 
---sleep 10
+--sleep 5
 --connection slave
-show binlog events;
 show create table t1;
+#show binlog events;
+
 
 --connection master
 drop table t1,t2,t3;

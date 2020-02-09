@@ -5642,42 +5642,42 @@ mysql_execute_command(THD *thd)
     Master_info *mi= thd->rgi_slave->rli->mi;
     start_alter_info *info=NULL;
     uint count= 0;
+    mysql_mutex_lock(&mi->start_alter_list_lock);
     List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
-    while (1)
+    while ((info= info_iterator++))
     {
-      info_iterator.rewind();
-      count= 0;
-      while ((info= info_iterator++))
+      count++;
+      if(info->thread_id == thd->lex->previous_commit_id)
       {
-        if (!info)
-          break;
-        count++;
-        if(info->thread_id == thd->lex->previous_commit_id)
-        {
-          // I dont need mutex lock here
-          info->state= start_alter_state::COMMIT_ALTER;
-          info->seq_no= thd->variables.gtid_seq_no;
-          mysql_cond_broadcast(&mi->start_alter_cond);
-          info_iterator.remove();
-          break;
-        }
-      }
-      if (!info || info->thread_id != thd->lex->previous_commit_id)
-      {
-        mysql_mutex_lock(&mi->start_alter_list_lock);
-        mysql_cond_wait(&mi->start_alter_list_cond, &mi->start_alter_list_lock);
-        mysql_mutex_unlock(&mi->start_alter_list_lock);
-      }
-      else
+        info_iterator.remove();
         break;
+      }
     }
-    //thd->rgi_slave->mark_start_commit();
-    //thd->wakeup_subsequent_commits(0);
+    mysql_mutex_unlock(&mi->start_alter_list_lock);
+    if (!info || info->thread_id != thd->lex->previous_commit_id)
+    {
+      //error handeling
+      DBUG_ASSERT(lex->m_sql_cmd != NULL);
+      res= lex->m_sql_cmd->execute(thd);
+      DBUG_PRINT("result", ("res: %d  killed: %d  is_error: %d",
+                          res, thd->killed, thd->is_error()));
+      break;
+    }
     /*
-      Wait for other thread to commit/rollback the alter
-    */
+     start_alter_state can be either ::REGISTERED or ::WAITING
+     */
     mysql_mutex_lock(&mi->start_alter_lock);
-    while(info->state <= start_alter_state:: ROLLBACK_ALTER )
+    while(info->state == start_alter_state::REGISTERED )
+      mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
+    mysql_mutex_unlock(&mi->start_alter_lock);
+    mysql_mutex_lock(&mi->start_alter_lock);
+    info->state= start_alter_state::COMMIT_ALTER;
+    info->seq_no= thd->variables.gtid_seq_no;
+    mysql_mutex_unlock(&mi->start_alter_lock);
+    mysql_cond_broadcast(&mi->start_alter_cond);
+    // Wait for commit by worker thread
+    mysql_mutex_lock(&mi->start_alter_lock);
+    while(info->state <= start_alter_state::ROLLBACK_ALTER )
       mysql_cond_wait(&mi->start_alter_cond, &mi->start_alter_lock);
     mysql_mutex_unlock(&mi->start_alter_lock);
     thd->rpt->__finish_event_group(thd->rgi_slave);

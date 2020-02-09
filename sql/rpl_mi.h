@@ -352,6 +352,7 @@ class Master_info : public Slave_reporting_capability
 };
 enum start_alter_state
 {
+  REGISTERED,      // Start Alter exist
   WAITING,         // WAITING for commit/rollback
   COMMIT_ALTER,    // COMMIT the alter
   ROLLBACK_ALTER,  // Rollback the alter

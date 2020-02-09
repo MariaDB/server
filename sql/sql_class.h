@@ -2200,6 +2200,7 @@ public:
   /* Slave applier execution context */
   rpl_group_info* rgi_slave;
   rpl_parallel_thread *rpt;
+  ulong master_log_pos;
 
   union {
     rpl_io_thread_info *rpl_io_info;
