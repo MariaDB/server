@@ -1410,7 +1410,11 @@ rec_get_converted_size(
 
 	data_size = dtuple_get_data_size(dtuple, 0);
 
-	ut_ad(n_ext == dtuple_get_n_ext(dtuple));
+	/* If primary key is being updated then the new record inherits
+	externally stored fields from the delete-marked old record.
+	In that case, n_ext may be less value than
+	dtuple_get_n_ext(tuple). */
+	ut_ad(n_ext <= dtuple_get_n_ext(dtuple));
 	extra_size = rec_get_converted_extra_size(
 		data_size, dtuple_get_n_fields(dtuple), n_ext);
 

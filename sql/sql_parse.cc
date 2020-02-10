@@ -1858,7 +1858,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     while (!thd->killed && (parser_state.m_lip.found_semicolon != NULL) &&
            ! thd->is_error())
     {
-      thd->get_stmt_da()->set_skip_flush();
       /*
         Multiple queries exist, execute them individually
       */

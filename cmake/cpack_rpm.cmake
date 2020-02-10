@@ -105,6 +105,8 @@ SET(ignored
   "%ignore /etc/systemd/system"
   "%ignore /lib"
   "%ignore /lib/security"
+  "%ignore /lib64"
+  "%ignore /lib64/security"
   "%ignore ${CMAKE_INSTALL_PREFIX}"
   "%ignore ${CMAKE_INSTALL_PREFIX}/bin"
   "%ignore ${CMAKE_INSTALL_PREFIX}/include"
