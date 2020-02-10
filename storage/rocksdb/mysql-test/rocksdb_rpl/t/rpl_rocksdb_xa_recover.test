@@ -1,0 +1,46 @@
+# MDEV-742, MDEV-21469 XA replication, and xa crash-safe.
+# Tests prove xa state is recovered to a prepared or completed state
+# upon post-crash recovery, incl a multi-engine case.
+
+--source include/have_rocksdb.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/master-slave.inc
+--source include/have_binlog_format_row.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+CALL mtr.add_suppression("Found . prepared XA transactions");
+CALL mtr.add_suppression("Failed to execute binlog query event");
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=innodb;
+INSERT INTO t1 SET a = 1;
+INSERT INTO t2 SET a = 1;
+
+--let $xa=xa1
+--let $when=after_binlog
+--source rpl_rocksdb_xa_recover.inc
+
+--let $xa=xa2
+--let $when=after_first_engine
+--let $finally_expected=$xa in the list
+--source rpl_rocksdb_xa_recover.inc
+
+--connection slave
+--source include/start_slave.inc
+
+--connection master
+--sync_slave_with_master
+let $diff_tables= master:t1, slave:t1;
+source include/diff_tables.inc;
+let $diff_tables= master:t2, slave:t2;
+source include/diff_tables.inc;
+
+--connection master
+SET SESSION DEBUG_DBUG="";
+drop table t1,t2;
+--sync_slave_with_master
+
+--source include/rpl_end.inc
