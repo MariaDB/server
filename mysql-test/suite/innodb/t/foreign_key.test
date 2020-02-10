@@ -519,6 +519,16 @@ drop tables t2, t1;
 
 set default_storage_engine= default;
 
+--echo #
+--echo # MDEV-21690 LeakSanitizer: detected memory leaks in mem_heap_create_block_func
+--echo #
+CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=InnoDB;
+--error ER_CANT_CREATE_TABLE
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (b);
+
+# Cleanup
+DROP TABLE t1;
+
 --echo # End of 10.5 tests
 
 --source include/wait_until_count_sessions.inc

@@ -565,4 +565,11 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop tables t2, t1;
 set default_storage_engine= default;
+#
+# MDEV-21690 LeakSanitizer: detected memory leaks in mem_heap_create_block_func
+#
+CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (b);
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+DROP TABLE t1;
 # End of 10.5 tests
