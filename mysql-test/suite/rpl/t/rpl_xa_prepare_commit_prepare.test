@@ -1,0 +1,95 @@
+# ==== Purpose ====
+#
+# Test verifies that XA PREPARE transactions are crash safe.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Generate 2 explicit XA transactions. 'xa1' and 'xa2'.
+#        'xa1' will be prepared and committed.
+#    1 - For 'xa2' let the XA PREPARE be done in binary log and crash the
+#        server so that it is not prepared in engine.
+#    2 - Restart the server. The recovery code should successfully recover
+#        'xa2'.
+#    3 - When server is up, execute XA RECOVER and verify that 'xa2' is
+#        present.
+#    4 - Commit the XA transaction and verify its correctness.
+#
+# ==== References ====
+#
+# MDEV-21469: Implement crash-safe logging of the user XA
+
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_debug.inc
+
+connect (master2,localhost,root,,);
+--connection master
+CALL mtr.add_suppression("Found 1 prepared XA transactions");
+
+CREATE TABLE t ( f INT ) ENGINE=INNODB;
+XA START 'xa1';
+INSERT INTO t VALUES (20);
+XA END 'xa1';
+XA PREPARE 'xa1';
+XA COMMIT 'xa1';
+--sync_slave_with_master
+--source include/stop_slave.inc
+
+--connection master1
+XA START 'xa2';
+INSERT INTO t VALUES (40);
+XA END 'xa2';
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+SET GLOBAL DEBUG_DBUG="d,simulate_crash_after_binlog_prepare";
+--error 2013 # CR_SERVER_LOST
+XA PREPARE 'xa2';
+--source include/wait_until_disconnected.inc
+
+--connection master1
+--source include/wait_until_disconnected.inc
+
+--connection master
+--source include/wait_until_disconnected.inc
+
+#
+# Server restart
+#
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+
+connection default;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+# rpl_end.inc needs to use the connection server_1
+connection server_1;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection master
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection slave
+--source include/start_slave.inc
+--sync_with_master
+
+--connection master
+SELECT * FROM t;
+XA RECOVER;
+XA COMMIT 'xa2';
+SELECT * FROM t;
+--sync_slave_with_master
+
+SELECT * FROM t;
+
+--connection master
+DROP TABLE t;
+--sync_slave_with_master
+--source include/rpl_end.inc

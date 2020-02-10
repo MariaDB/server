@@ -1,0 +1,119 @@
+# ==== Purpose ====
+#
+# Test verifies that if for some reason an event cannot be applied during
+# recovery, appropriate error is reported.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Generate 2 explicit XA transactions. 'xa1' and 'xa2'.
+#        'xa1' will be prepared and committed.
+#    1 - For 'xa2' let the XA COMMIT be done in binary log and crash the
+#        server so that it is not committed in engine.
+#    2 - Restart the server. Using debug simulation point make XA COMMIT 'xa2'
+#        execution to fail. The server will resume anyway
+#        to leave the error in the errlog (see "Recovery: Error..").
+#    3 - Work around the simulated failure with Commit once again
+#        from a connection that turns OFF binlogging.
+#        Slave must catch up with the master.
+#
+# ==== References ====
+#
+# MDEV-21469: Implement crash-safe logging of the user XA
+
+
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_debug.inc
+
+connect (master2,localhost,root,,);
+--connection master
+CALL mtr.add_suppression("Found 1 prepared XA transactions");
+CALL mtr.add_suppression("Failed to execute binlog query event");
+CALL mtr.add_suppression("Recovery: Error .Out of memory..");
+CALL mtr.add_suppression("Crash recovery failed.");
+CALL mtr.add_suppression("Can.t init tc log");
+CALL mtr.add_suppression("Aborting");
+
+CREATE TABLE t ( f INT ) ENGINE=INNODB;
+XA START 'xa1';
+INSERT INTO t VALUES (20);
+XA END 'xa1';
+XA PREPARE 'xa1';
+XA COMMIT 'xa1';
+--sync_slave_with_master
+--source include/stop_slave.inc
+
+--connection master1
+XA START 'xa2';
+INSERT INTO t VALUES (40);
+XA END 'xa2';
+XA PREPARE 'xa2';
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+SET GLOBAL DEBUG_DBUG="d,simulate_crash_after_binlog_commit_or_rollback";
+--error 2013 # CR_SERVER_LOST
+XA COMMIT 'xa2';
+--source include/wait_until_disconnected.inc
+
+--connection master1
+--source include/wait_until_disconnected.inc
+
+--connection master
+--source include/wait_until_disconnected.inc
+
+#
+# Server restart
+#
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart: --debug-dbug=d,trans_xa_commit_fail
+EOF
+
+connection default;
+--source include/wait_until_disconnected.inc
+
+connection default;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection master
+--enable_reconnect
+--echo *** must be no 'xa2' commit seen, as it's still prepared:
+SELECT * FROM t;
+XA RECOVER;
+
+# Commit it manually now to work around the extra binlog record
+# by turning binlogging OFF by the connection.
+
+SET GLOBAL DEBUG_DBUG="";
+SET SQL_LOG_BIN=0;
+--error 0
+XA COMMIT 'xa2';
+SET SQL_LOG_BIN=1;
+
+
+# rpl_end.inc needs to use the connection server_1
+connection server_1;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection master
+--source include/wait_until_connected_again.inc
+
+--connection slave
+--source include/start_slave.inc
+--sync_with_master
+
+--connection master
+SELECT * FROM t;
+
+--sync_slave_with_master
+SELECT * FROM t;
+
+--connection master
+DROP TABLE t;
+--sync_slave_with_master
+--source include/rpl_end.inc
