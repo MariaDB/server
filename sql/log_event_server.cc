@@ -3292,6 +3292,8 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
 
     flags2|= thd->lex->sql_command == SQLCOM_XA_PREPARE ?
       FL_PREPARED_XA : FL_COMPLETED_XA;
+    flags2|= (thd->lex->sql_command == SQLCOM_XA_PREPARE &&
+              ha_count_rw_all(thd, NULL, true) > 2) ? FL_MULTI_ENGINE_XA : 0;
     xid.set(xid_state.get_xid());
   }
 }

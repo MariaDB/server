@@ -571,6 +571,11 @@ bool trans_xa_commit(THD *thd)
 
   DBUG_ENTER("trans_xa_commit");
 
+  DBUG_EXECUTE_IF("trans_xa_commit_fail",
+                  { my_error(ER_OUT_OF_RESOURCES, MYF(0));
+                   DBUG_RETURN(TRUE); });
+
+
   if (!xid_state.is_explicit_XA() ||
       !xid_state.xid_cache_element->xid.eq(thd->lex->xid))
   {

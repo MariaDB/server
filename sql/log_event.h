@@ -3242,12 +3242,7 @@ public:
 
 #ifdef MYSQL_SERVER
   bool write();
-#endif
-
-private:
-#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  char query[sizeof("XA COMMIT ONE PHASE") + 1 + ser_buf_size];
-  int do_commit();
+#ifdef HAVE_REPLICATION
   const char* get_query()
   {
     sprintf(query,
@@ -3255,6 +3250,13 @@ private:
             m_xid.serialize());
     return query;
   }
+#endif /* HAVE_REPLICATION */
+#endif /* MYSQL_SERVER */
+
+private:
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+  char query[sizeof("XA COMMIT ONE PHASE") + 1 + ser_buf_size];
+  int do_commit();
 #endif
 };
 
@@ -3607,6 +3609,12 @@ public:
   static const uchar FL_PREPARED_XA= 64;
   /* FL_"COMMITTED or ROLLED-BACK"_XA is set for XA transaction. */
   static const uchar FL_COMPLETED_XA= 128;
+  /*
+    To mark the fact of multiple transactional engine participants
+    in the prepared XA. The FL_COMPLETED_XA bit is reused by XA_PREPARE_LOG_EVENT,
+    oth the XA completion events do not need such marking.
+  */
+  static const uchar FL_MULTI_ENGINE_XA= 128;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,

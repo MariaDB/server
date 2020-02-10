@@ -554,6 +554,8 @@ enum legacy_db_type
   DB_TYPE_FIRST_DYNAMIC=45,
   DB_TYPE_DEFAULT=127 // Must be last
 };
+
+enum xa_binlog_state {XA_PREPARE=0, XA_COMPLETE};
 /*
   Better name for DB_TYPE_UNKNOWN. Should be used for engines that do not have
   a hard-coded type value here.
@@ -849,7 +851,6 @@ struct st_system_tablename
   const char *tablename;
 };
 
-
 typedef ulonglong my_xid; // this line is the same as in log_event.h
 #define MYSQL_XID_PREFIX "MySQLXid"
 #define MYSQL_XID_PREFIX_LEN 8 // must be a multiple of 8
@@ -938,6 +939,16 @@ struct xid_t {
   }
 };
 typedef struct xid_t XID;
+
+/*
+  Struct to describe the user XA state for recovery.
+*/
+struct xa_recovery_member
+{
+  XID xid;
+  enum xa_binlog_state state;  // xid's binlog status - prepared or completed
+  uint in_engine_prepare;      // number of engines that have xid prepared
+};
 
 /* for recover() handlerton call */
 #define MIN_XID_LIST_SIZE  128
@@ -5178,7 +5189,7 @@ int ha_commit_one_phase(THD *thd, bool all);
 int ha_commit_trans(THD *thd, bool all);
 int ha_rollback_trans(THD *thd, bool all);
 int ha_prepare(THD *thd);
-int ha_recover(HASH *commit_list);
+int ha_recover(HASH *commit_list, HASH *xa_recover_list, uint *xa_recover_htons);
 
 /* transactions: these functions never call handlerton functions directly */
 int ha_enable_transaction(THD *thd, bool on);
@@ -5304,6 +5315,6 @@ void print_keydup_error(TABLE *table, KEY *key, myf errflag);
 
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
 int del_global_table_stat(THD *thd, const  LEX_CSTRING *db, const LEX_CSTRING *table);
-uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info);
+uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info, bool count_through);
 bool non_existing_table_error(int error);
 #endif /* HANDLER_INCLUDED */

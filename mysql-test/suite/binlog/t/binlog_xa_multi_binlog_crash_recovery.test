@@ -1,0 +1,86 @@
+# ==== Purpose ====
+#
+# Test verifies that XA crash recovery works fine across multiple binary logs.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Generate an explicit XA transaction. Using debug simulation hold the
+#        execution of XA PREPARE statement after the XA PREPARE is written to
+#        the binary log. With this the prepare will not be done in engine.
+#    1 - By executing FLUSH LOGS generate multiple binary logs.
+#    2 - Now make the server to disappear at this point.
+#    3 - Restart the server. During recovery the XA PREPARE from the binary
+#        log will be read. It is cross checked with engine. Since it is not
+#        present in engine it will be executed once again.
+#    4 - When server is up execute XA RECOVER to check that the XA is
+#        prepared in engine as well.
+#    5 - XA COMMIT the transaction and check the validity of the data.
+#
+# ==== References ====
+#
+# MDEV-21469: Implement crash-safe logging of the user XA
+#
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_log_bin.inc
+
+RESET MASTER;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+CALL mtr.add_suppression("Found 1 prepared XA transactions");
+
+connect(con1,localhost,root,,);
+XA START 'xa1';
+INSERT INTO t1 SET a=1;
+SET DEBUG_SYNC= "simulate_hang_after_binlog_prepare SIGNAL con1_ready WAIT_FOR con1_go";
+SET GLOBAL DEBUG_DBUG="d,simulate_crash_after_binlog_prepare";
+XA END 'xa1';
+--send XA PREPARE 'xa1';
+
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+
+--source include/show_binary_logs.inc
+--let $binlog_file= master-bin.000004
+--let $binlog_start= 4
+--source include/show_binlog_events.inc
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+--error 0,2013
+SET DEBUG_SYNC= "now SIGNAL con1_go";
+--source include/wait_until_disconnected.inc
+
+--connection con1
+--error 2013
+--reap
+--source include/wait_until_disconnected.inc
+
+#
+# Server restart
+#
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+
+connection default;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+XA RECOVER;
+XA COMMIT 'xa1';
+
+SELECT * FROM t1;
+
+# Clean up.
+connection default;
+DROP TABLE t1;
+

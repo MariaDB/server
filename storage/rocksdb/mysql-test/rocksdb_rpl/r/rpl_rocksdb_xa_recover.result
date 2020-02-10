@@ -1,0 +1,132 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+connection master;
+CALL mtr.add_suppression("Found . prepared XA transactions");
+CALL mtr.add_suppression("Failed to execute binlog query event");
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=innodb;
+INSERT INTO t1 SET a = 1;
+INSERT INTO t2 SET a = 1;
+XA START 'xa1';
+INSERT INTO t1 SET a=1 + 1;
+INSERT INTO t2 SET a=1 + 1;
+XA END 'xa1';
+SET SESSION DEBUG_DBUG="d,simulate_crash_after_binlog_prepare";
+XA PREPARE 'xa1';
+ERROR HY000: Lost connection to MySQL server during query
+include/rpl_reconnect.inc
+"*** xa1 in the list"
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	3	0	xa1
+XA ROLLBACK 'xa1';
+SELECT MAX(a) - 1  as zero FROM t1;
+zero
+0
+SELECT MAX(a) - 1  as zero FROM t2;
+zero
+0
+XA START 'xa1';
+INSERT INTO t1 SET a=1 + 2;
+INSERT INTO t2 SET a=1 + 2;
+XA END 'xa1';
+XA PREPARE 'xa1';
+SET SESSION DEBUG_DBUG="d,simulate_crash_after_binlog_commit_or_rollback";
+XA ROLLBACK 'xa1';
+ERROR HY000: Lost connection to MySQL server during query
+include/rpl_reconnect.inc
+"*** empty list (rolled back)"
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+SELECT MAX(a) - 1  as zero FROM t1;
+zero
+0
+SELECT MAX(a) - 1  as zero FROM t2;
+zero
+0
+XA START 'xa1';
+INSERT INTO t1 SET a=1 + 3;
+INSERT INTO t2 SET a=1 + 3;
+XA END 'xa1';
+XA PREPARE 'xa1';
+SET SESSION DEBUG_DBUG="d,simulate_crash_after_binlog_commit_or_rollback";
+XA COMMIT 'xa1';
+ERROR HY000: Lost connection to MySQL server during query
+include/rpl_reconnect.inc
+"*** empty list (committed away)"
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+SELECT MAX(a) - 1 as three FROM t1;
+three
+3
+SELECT MAX(a) - 1 as three FROM t2;
+three
+3
+XA START 'xa2';
+INSERT INTO t1 SET a=4 + 1;
+INSERT INTO t2 SET a=4 + 1;
+XA END 'xa2';
+SET SESSION DEBUG_DBUG="d,simulate_crash_after_first_engine_prepare";
+XA PREPARE 'xa2';
+ERROR HY000: Lost connection to MySQL server during query
+include/rpl_reconnect.inc
+"*** xa2 in the list"
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	3	0	xa2
+XA ROLLBACK 'xa2';
+SELECT MAX(a) - 4  as zero FROM t1;
+zero
+0
+SELECT MAX(a) - 4  as zero FROM t2;
+zero
+0
+XA START 'xa2';
+INSERT INTO t1 SET a=4 + 2;
+INSERT INTO t2 SET a=4 + 2;
+XA END 'xa2';
+XA PREPARE 'xa2';
+SET SESSION DEBUG_DBUG="d,simulate_crash_after_first_engine_commit_or_rollback";
+XA ROLLBACK 'xa2';
+ERROR HY000: Lost connection to MySQL server during query
+include/rpl_reconnect.inc
+"*** empty list (rolled back)"
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+SELECT MAX(a) - 4  as zero FROM t1;
+zero
+0
+SELECT MAX(a) - 4  as zero FROM t2;
+zero
+0
+XA START 'xa2';
+INSERT INTO t1 SET a=4 + 3;
+INSERT INTO t2 SET a=4 + 3;
+XA END 'xa2';
+XA PREPARE 'xa2';
+SET SESSION DEBUG_DBUG="d,simulate_crash_after_first_engine_commit_or_rollback";
+XA COMMIT 'xa2';
+ERROR HY000: Lost connection to MySQL server during query
+include/rpl_reconnect.inc
+"*** empty list (committed away)"
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+SELECT MAX(a) - 4 as three FROM t1;
+three
+3
+SELECT MAX(a) - 4 as three FROM t2;
+three
+3
+connection slave;
+include/start_slave.inc
+connection master;
+connection slave;
+include/diff_tables.inc [master:t1, slave:t1]
+include/diff_tables.inc [master:t2, slave:t2]
+connection master;
+SET SESSION DEBUG_DBUG="";
+drop table t1,t2;
+connection slave;
+include/rpl_end.inc
