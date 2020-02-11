@@ -2076,7 +2076,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 
 	if (start_lsn) {
 		log_flush_order_mutex_enter();
-		buf_flush_note_modification(block, start_lsn, end_lsn, NULL);
+		buf_flush_note_modification(block, start_lsn, end_lsn);
 		log_flush_order_mutex_exit();
 	} else if (free_page && init) {
 		/* There have been no operations than MLOG_INIT_FREE_PAGE.

@@ -671,14 +671,7 @@ not_free:
 		mini-transaction commit and the server was killed, then
 		discarding the to-be-trimmed pages without flushing would
 		break crash recovery. So, we cannot avoid the write. */
-		{
-			FlushObserver observer(
-				purge_sys.truncate.current,
-				UT_LIST_GET_FIRST(purge_sys.query->thrs)
-				->graph->trx,
-				NULL);
-			buf_LRU_flush_or_remove_pages(space.id, &observer);
-		}
+		buf_LRU_flush_or_remove_pages(space.id, true);
 
 		log_free_check();
 

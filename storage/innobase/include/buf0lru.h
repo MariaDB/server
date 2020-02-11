@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -63,11 +63,9 @@ bool buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table)
 
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
-@param[in,out]	observer	flush observer,
-				or NULL if nothing is to be written
+@param[in]	flush		whether to write the pages to files
 @param[in]	first		first page to be flushed or evicted */
-void buf_LRU_flush_or_remove_pages(ulint id, FlushObserver* observer,
-				   ulint first = 0);
+void buf_LRU_flush_or_remove_pages(ulint id, bool flush, ulint first = 0);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /********************************************************************//**

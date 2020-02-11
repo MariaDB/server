@@ -325,18 +325,6 @@ struct mtr_t {
   /** @return true if we are inside the change buffer code */
   bool is_inside_ibuf() const { return m_inside_ibuf; }
 
-	/** Get flush observer
-	@return flush observer */
-	FlushObserver* get_flush_observer() const { return m_flush_observer; }
-
-	/** Set flush observer
-	@param[in]	observer	flush observer */
-	void set_flush_observer(FlushObserver*	observer)
-	{
-		ut_ad(observer == NULL || m_log_mode == MTR_LOG_NO_REDO);
-		m_flush_observer = observer;
-	}
-
 #ifdef UNIV_DEBUG
 	/** Check if memo contains the given item.
 	@param memo	memo stack
@@ -526,9 +514,6 @@ private:
 
   /** user tablespace that is being modified by the mini-transaction */
   fil_space_t* m_user_space;
-
-  /** page flush observer for innodb_log_optimize_ddl=ON */
-  FlushObserver *m_flush_observer;
 
   /** LSN at commit time */
   lsn_t m_commit_lsn;

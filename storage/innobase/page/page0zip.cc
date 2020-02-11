@@ -424,9 +424,7 @@ static void page_zip_compress_write_log(buf_block_t* block,
 	/* Write the uncompressed trailer of the compressed page. */
 	mlog_catenate_string(mtr, page_zip->data + page_zip_get_size(page_zip)
 			     - trailer_size, trailer_size);
-	if (!innodb_log_optimize_ddl) {
-		block->page.init_on_flush = true;
-	}
+	block->page.init_on_flush = true;
 }
 
 /******************************************************//**

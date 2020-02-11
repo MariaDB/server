@@ -1640,9 +1640,7 @@ row_fts_merge_insert(
 	      == UT_BITS_IN_BYTES(aux_index->n_nullable));
 
 	/* Create bulk load instance */
-	ins_ctx.btr_bulk = UT_NEW_NOKEY(
-		BtrBulk(aux_index, trx, psort_info[0].psort_common->trx
-			->get_flush_observer()));
+	ins_ctx.btr_bulk = UT_NEW_NOKEY(BtrBulk(aux_index, trx));
 
 	/* Create tuple for insert */
 	ins_ctx.tuple = dtuple_create(heap, dict_index_get_n_fields(aux_index));
@@ -1773,10 +1771,6 @@ exit:
 
 	if (fts_enable_diag_print) {
 		ib::info() << "InnoDB_FTS: inserted " << count << " records";
-	}
-
-	if (psort_info[0].psort_common->trx->get_flush_observer()) {
-		row_merge_write_redo(aux_index);
 	}
 
 	return(error);

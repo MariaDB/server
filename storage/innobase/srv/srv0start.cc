@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -186,7 +186,6 @@ performance schema. */
 static PSI_stage_info*	srv_stages[] =
 {
 	&srv_stage_alter_table_end,
-	&srv_stage_alter_table_flush,
 	&srv_stage_alter_table_insert,
 	&srv_stage_alter_table_log_index,
 	&srv_stage_alter_table_log_table,

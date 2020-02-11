@@ -13,7 +13,7 @@ ALTER TABLE t1 DROP INDEX b, ADD INDEX (b), LOCK=SHARED;
 # Kill the server
 # restart: --debug=d,ib_log
 FOUND 2 /scan \d+: multi-log rec MLOG_FILE_CREATE2 len \d+ page \d+:0/ in mysqld.1.err
-FOUND 3 /scan \d+: log rec MLOG_INDEX_LOAD/ in mysqld.1.err
+NOT FOUND /scan \d+: log rec MLOG_INDEX_LOAD/ in mysqld.1.err
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

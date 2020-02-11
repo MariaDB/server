@@ -42,8 +42,6 @@ Created 10/25/1995 Heikki Tuuri
 struct unflushed_spaces_tag_t;
 struct rotation_list_tag_t;
 
-/** whether to reduce redo logging during ALTER TABLE */
-extern	my_bool	innodb_log_optimize_ddl;
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
 extern struct buf_dblwr_t* buf_dblwr;
@@ -114,11 +112,6 @@ struct fil_space_t
 	bool		stop_new_ops;
 	/** whether undo tablespace truncation is in progress */
 	bool		is_being_truncated;
-#ifdef UNIV_DEBUG
-	/** reference count for operations who want to skip redo log in the
-	file space in order to make modify_check() pass. */
-	Atomic_counter<ulint> redo_skipped_count;
-#endif
 	fil_type_t	purpose;/*!< purpose */
 	UT_LIST_BASE_NODE_T(fil_node_t) chain;
 				/*!< base node for the file chain */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1963,7 +1963,7 @@ ibuf_remove_free_page(void)
 
 	compile_time_assert(IBUF_SPACE_ID == 0);
 	fseg_free_page(header_page + IBUF_HEADER + IBUF_TREE_SEG_HEADER,
-		       fil_system.sys_space, page_no, false, true, &mtr);
+		       fil_system.sys_space, page_no, false, &mtr);
 
 	const page_id_t	page_id(IBUF_SPACE_ID, page_no);
 

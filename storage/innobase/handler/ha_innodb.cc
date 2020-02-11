@@ -3471,6 +3471,11 @@ static my_bool innodb_log_checksums;
 static const char* innodb_log_checksums_deprecated
 = "The parameter innodb_log_checksums is deprecated and has no effect.";
 /** Deprecated parameter with no effect */
+static my_bool	innodb_log_optimize_ddl;
+static const char* innodb_log_optimize_ddl_deprecated
+= "The parameter innodb_log_optimize_ddl is deprecated and has no effect.";
+
+/** Deprecated parameter with no effect */
 static ulong innodb_undo_logs;
 /** Deprecation message for innodb_undo_logs */
 static const char* innodb_undo_logs_deprecated
@@ -3777,6 +3782,11 @@ static int innodb_init_params()
 	if (UNIV_UNLIKELY(!innodb_log_checksums)) {
 		sql_print_warning(innodb_log_checksums_deprecated);
 		innodb_log_checksums = TRUE;
+	}
+
+	if (UNIV_UNLIKELY(innodb_log_optimize_ddl)) {
+		sql_print_warning(innodb_log_optimize_ddl_deprecated);
+		innodb_log_optimize_ddl = FALSE;
 	}
 
 	if (UNIV_UNLIKELY(innodb_undo_logs != TRX_SYS_N_RSEGS)) {
@@ -18886,6 +18896,16 @@ innodb_log_checksums_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 			    innodb_log_checksums_deprecated);
 }
 
+/** Issue a deprecation warning for SET GLOBAL innodb_log_optimize_ddl.
+@param[in,out]	thd	client connection */
+static void
+innodb_log_optimize_ddl_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
+{
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			    HA_ERR_UNSUPPORTED,
+			    innodb_log_optimize_ddl_deprecated);
+}
+
 /** Issue a deprecation warning for SET GLOBAL innodb_undo_logs.
 @param[in,out]	thd	client connection */
 static void
@@ -19407,10 +19427,7 @@ static MYSQL_SYSVAR_BOOL(log_compressed_pages, page_zip_log_pages,
 
 static MYSQL_SYSVAR_BOOL(log_optimize_ddl, innodb_log_optimize_ddl,
   PLUGIN_VAR_OPCMDARG,
-  "Reduce redo logging when natively creating indexes or rebuilding tables."
-  " Setting this OFF avoids delay due to page flushing and"
-  " allows concurrent backup.",
-  NULL, NULL, TRUE);
+  innodb_deprecated_ignored, NULL, innodb_log_optimize_ddl_warn, FALSE);
 
 static MYSQL_SYSVAR_ULONG(autoextend_increment,
   sys_tablespace_auto_extend_increment,

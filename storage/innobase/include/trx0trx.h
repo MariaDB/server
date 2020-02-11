@@ -41,7 +41,6 @@ Created 3/26/1996 Heikki Tuuri
 
 // Forward declaration
 struct mtr_t;
-class FlushObserver;
 struct rw_trx_hash_element_t;
 
 /******************************************************************//**
@@ -1044,11 +1043,6 @@ public:
 	/*------------------------------*/
 	char*		detailed_error;	/*!< detailed error message for last
 					error, or empty. */
-private:
-	/** flush observer used to track flushing of non-redo logged pages
-	during bulk create index */
-	FlushObserver*	flush_observer;
-public:
 	/* Lock wait statistics */
 	ulint		n_rec_lock_waits;
 					/*!< Number of record lock waits,
@@ -1099,20 +1093,6 @@ public:
 		}
 
 		return(assign_temp_rseg());
-	}
-
-	/** Set the innodb_log_optimize_ddl page flush observer
-	@param[in,out]	space	tablespace
-	@param[in,out]	stage	performance_schema accounting */
-	void set_flush_observer(fil_space_t* space, ut_stage_alter_t* stage);
-
-	/** Remove the flush observer */
-	void remove_flush_observer();
-
-	/** @return the flush observer */
-	FlushObserver* get_flush_observer() const
-	{
-		return flush_observer;
 	}
 
   /** Transition to committed state, to release implicit locks. */

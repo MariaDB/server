@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -494,7 +494,6 @@ fsp_reserve_free_extents(
 @param[in]	offset		page number
 @param[in]	ahi		whether we may need to drop the adaptive
 hash index
-@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
 @param[in,out]	mtr		mini-transaction */
 void
 fseg_free_page_func(
@@ -504,14 +503,13 @@ fseg_free_page_func(
 #ifdef BTR_CUR_HASH_ADAPT
 	bool		ahi,
 #endif /* BTR_CUR_HASH_ADAPT */
-	bool		log,
 	mtr_t*		mtr);
 #ifdef BTR_CUR_HASH_ADAPT
-# define fseg_free_page(header, space, offset, ahi, log, mtr)	\
-	fseg_free_page_func(header, space, offset, ahi, log, mtr)
+# define fseg_free_page(header, space, offset, ahi, mtr)	\
+	fseg_free_page_func(header, space, offset, ahi, mtr)
 #else /* BTR_CUR_HASH_ADAPT */
-# define fseg_free_page(header, space, offset, ahi, log, mtr)	\
-	fseg_free_page_func(header, space, offset, log, mtr)
+# define fseg_free_page(header, space, offset, ahi, mtr)	\
+	fseg_free_page_func(header, space, offset, mtr)
 #endif /* BTR_CUR_HASH_ADAPT */
 /** Determine whether a page is free.
 @param[in,out]	space	tablespace
@@ -636,9 +634,7 @@ inline void fsp_init_file_page(
 			block->page.id.space(), block->page.id.page_no(),
 			log_ptr, mtr);
 		mlog_close(mtr, log_ptr);
-		if (!innodb_log_optimize_ddl) {
-			block->page.init_on_flush = true;
-		}
+		block->page.init_on_flush = true;
 	}
 }
 

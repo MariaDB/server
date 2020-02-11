@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -597,10 +597,6 @@ do {								\
 /** Performance schema stage event for monitoring ALTER TABLE progress
 everything after flush log_make_checkpoint(). */
 extern PSI_stage_info	srv_stage_alter_table_end;
-
-/** Performance schema stage event for monitoring ALTER TABLE progress
-log_make_checkpoint(). */
-extern PSI_stage_info	srv_stage_alter_table_flush;
 
 /** Performance schema stage event for monitoring ALTER TABLE progress
 row_merge_insert_index_tuples(). */

@@ -297,11 +297,10 @@ struct DebugCheck {
 /** Release a resource acquired by the mini-transaction. */
 struct ReleaseBlocks {
 	/** Release specific object */
-	ReleaseBlocks(lsn_t start_lsn, lsn_t end_lsn, FlushObserver* observer)
+	ReleaseBlocks(lsn_t start_lsn, lsn_t end_lsn)
 		:
 		m_end_lsn(end_lsn),
-		m_start_lsn(start_lsn),
-		m_flush_observer(observer)
+		m_start_lsn(start_lsn)
 	{
 		/* Do nothing */
 	}
@@ -316,8 +315,7 @@ struct ReleaseBlocks {
 
 		block = reinterpret_cast<buf_block_t*>(slot->object);
 
-		buf_flush_note_modification(block, m_start_lsn,
-					    m_end_lsn, m_flush_observer);
+		buf_flush_note_modification(block, m_start_lsn, m_end_lsn);
 	}
 
 	/** @return true always. */
@@ -340,9 +338,6 @@ struct ReleaseBlocks {
 
 	/** Mini-transaction REDO end LSN */
 	lsn_t		m_start_lsn;
-
-	/** Flush observer */
-	FlushObserver*	m_flush_observer;
 };
 
 /** Write the block contents to the REDO log */
@@ -393,7 +388,6 @@ void mtr_t::start()
   m_log_mode= MTR_LOG_ALL;
   ut_d(m_user_space_id= TRX_SYS_SPACE);
   m_user_space= nullptr;
-  m_flush_observer= nullptr;
   m_commit_lsn= 0;
 }
 
@@ -437,8 +431,7 @@ void mtr_t::commit()
     log_mutex_exit();
 
     m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
-                                     (ReleaseBlocks(start_lsn, m_commit_lsn,
-                                                    m_flush_observer)));
+                                     (ReleaseBlocks(start_lsn, m_commit_lsn)));
     if (m_made_dirty)
       log_flush_order_mutex_exit();
 
@@ -559,8 +552,7 @@ mtr_t::x_lock_space(ulint space_id, const char* file, unsigned line)
 		space = fil_space_get(space_id);
 		ut_ad(get_log_mode() != MTR_LOG_NO_REDO
 		      || space->purpose == FIL_TYPE_TEMPORARY
-		      || space->purpose == FIL_TYPE_IMPORT
-		      || space->redo_skipped_count > 0);
+		      || space->purpose == FIL_TYPE_IMPORT);
 	}
 
 	ut_ad(space);

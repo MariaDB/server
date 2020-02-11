@@ -2253,11 +2253,7 @@ fil_close_tablespace(
 	buffer pool. Thus we can clean the tablespace out of the buffer pool
 	completely and permanently. The flag stop_new_ops also prevents
 	fil_flush() from being applied to this tablespace. */
-
-	{
-		FlushObserver observer(space, trx, NULL);
-		buf_LRU_flush_or_remove_pages(id, &observer);
-	}
+	buf_LRU_flush_or_remove_pages(id, true);
 
 	/* If the free is successful, the X lock will be released before
 	the space memory data structure is freed. */

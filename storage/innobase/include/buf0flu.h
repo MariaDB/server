@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2018, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -186,9 +186,8 @@ buf_flush_note_modification(
 	buf_block_t*	block,		/*!< in: block which is modified */
 	lsn_t		start_lsn,	/*!< in: start lsn of the first mtr in a
 					set of mtr's */
-	lsn_t		end_lsn,	/*!< in: end lsn of the last mtr in the
+	lsn_t		end_lsn);	/*!< in: end lsn of the last mtr in the
 					set of mtr's */
-	FlushObserver*	observer);	/*!< in: flush observer */
 /********************************************************************//**
 Returns TRUE if the file page block is immediately suitable for replacement,
 i.e., transition FILE_PAGE => NOT_USED allowed.
@@ -297,8 +296,7 @@ ulint
 buf_pool_get_dirty_pages_count(
 /*===========================*/
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool */
-	ulint		id,		/*!< in: space id to check */
-	FlushObserver*	observer);	/*!< in: flush observer to check */
+	ulint		id);		/*!< in: space id to check */
 
 /*******************************************************************//**
 Synchronously flush dirty blocks from the end of the flush list of all buffer
@@ -313,88 +311,6 @@ buf_flush_sync_all_buf_pools(void);
 void
 buf_flush_request_force(
 	lsn_t	lsn_limit);
-
-/** We use FlushObserver to track flushing of non-redo logged pages in bulk
-create index(BtrBulk.cc).Since we disable redo logging during a index build,
-we need to make sure that all dirty pages modifed by the index build are
-flushed to disk before any redo logged operations go to the index. */
-
-class FlushObserver {
-public:
-	/** Constructor
-	@param[in,out]	space		tablespace
-	@param[in]	trx		trx instance
-	@param[in]	stage		performance schema accounting object,
-	used by ALTER TABLE. It is passed to log_preflush_pool_modified_pages()
-	for accounting. */
-	FlushObserver(fil_space_t* space, trx_t* trx, ut_stage_alter_t* stage);
-
-	/** Deconstructor */
-	~FlushObserver();
-
-	/** Check pages have been flushed and removed from the flush list
-	in a buffer pool instance.
-	@param[in]	instance_no	buffer pool instance no
-	@return true if the pages were removed from the flush list */
-	bool is_complete(ulint	instance_no)
-	{
-		return(m_flushed->at(instance_no) == m_removed->at(instance_no)
-		       || m_interrupted);
-	}
-
-	/** @return whether to flush only some pages of the tablespace */
-	bool is_partial_flush() const { return m_stage != NULL; }
-
-	/** @return whether the operation was interrupted */
-	bool is_interrupted() const { return m_interrupted; }
-
-	/** Interrupt observer not to wait. */
-	void interrupted()
-	{
-		m_interrupted = true;
-	}
-
-	/** Check whether the operation has been interrupted */
-	void check_interrupted();
-
-	/** Flush dirty pages. */
-	void flush();
-	/** Notify observer of flushing a page
-	@param[in]	buf_pool	buffer pool instance
-	@param[in]	bpage		buffer page to flush */
-	void notify_flush(
-		buf_pool_t*	buf_pool,
-		buf_page_t*	bpage);
-
-	/** Notify observer of removing a page from flush list
-	@param[in]	buf_pool	buffer pool instance
-	@param[in]	bpage		buffer page flushed */
-	void notify_remove(
-		buf_pool_t*	buf_pool,
-		buf_page_t*	bpage);
-private:
-	/** Tablespace */
-	fil_space_t*		m_space;
-
-	/** Trx instance */
-	const trx_t* const	m_trx;
-
-	/** Performance schema accounting object, used by ALTER TABLE.
-	If not NULL, then stage->begin_phase_flush() will be called initially,
-	specifying the number of pages to be attempted to be flushed and
-	subsequently, stage->inc() will be called for each page we attempt to
-	flush. */
-	ut_stage_alter_t*	m_stage;
-
-	/* Flush request sent */
-	std::vector<ulint>*	m_flushed;
-
-	/* Flush request finished */
-	std::vector<ulint>*	m_removed;
-
-	/* True if the operation was interrupted. */
-	bool			m_interrupted;
-};
 
 #include "buf0flu.ic"
 

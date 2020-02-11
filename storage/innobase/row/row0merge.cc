@@ -2355,15 +2355,6 @@ write_buffers:
 					conv_heap, &err,
 					&v_heap, eval_table, trx)))) {
 
-				/* Set the page flush observer for the
-				transaction when buffering the very first
-				record for a non-redo-logged operation. */
-				if (file->n_rec == 0 && i == 0
-				    && innodb_log_optimize_ddl) {
-					trx->set_flush_observer(
-						new_table->space, stage);
-				}
-
 				/* If we are creating FTS index,
 				a single row can generate more
 				records for tokenized word */
@@ -2504,8 +2495,7 @@ write_buffers:
 					if (clust_btr_bulk == NULL) {
 						clust_btr_bulk = UT_NEW_NOKEY(
 							BtrBulk(index[i],
-								trx,
-								trx->get_flush_observer()));
+								trx));
 					} else {
 						clust_btr_bulk->latch();
 					}
@@ -2620,9 +2610,7 @@ write_buffers:
 						trx->error_key_num = i;
 						goto all_done;);
 
-					BtrBulk	btr_bulk(
-						index[i], trx,
-						trx->get_flush_observer());
+					BtrBulk	btr_bulk(index[i], trx);
 
 					err = row_merge_insert_index_tuples(
 						index[i], old_table,
@@ -4475,26 +4463,6 @@ row_merge_drop_table(
 			trx, SQLCOM_DROP_TABLE, false, false));
 }
 
-/** Write an MLOG_INDEX_LOAD record to indicate in the redo-log
-that redo-logging of individual index pages was disabled, and
-the flushing of such pages to the data files was completed.
-@param[in]	index	an index tree on which redo logging was disabled */
-void row_merge_write_redo(const dict_index_t* index)
-{
-	ut_ad(!index->table->is_temporary());
-	ut_ad(!(index->type & (DICT_SPATIAL | DICT_FTS)));
-
-	mtr_t mtr;
-	mtr.start();
-	byte* log_ptr = mlog_open(&mtr, 11 + 8);
-	log_ptr = mlog_write_initial_log_record_low(
-		MLOG_INDEX_LOAD,
-		index->table->space_id, index->page, log_ptr, &mtr);
-	mach_write_to_8(log_ptr, index->id);
-	mlog_close(&mtr, log_ptr + 8);
-	mtr.commit();
-}
-
 /** Build indexes on a table by reading a clustered index, creating a temporary
 file containing index entries, merge sorting these index entries and inserting
 sorted index entries to indexes.
@@ -4795,8 +4763,7 @@ row_merge_build_indexes(
 				os_thread_sleep(20000000););  /* 20 sec */
 
 			if (error == DB_SUCCESS) {
-				BtrBulk	btr_bulk(sort_idx, trx,
-						 trx->get_flush_observer());
+				BtrBulk	btr_bulk(sort_idx, trx);
 
 				pct_cost = (COST_BUILD_INDEX_STATIC +
 					(total_dynamic_cost * merge_files[k].offset /
@@ -4842,21 +4809,10 @@ row_merge_build_indexes(
 		if (indexes[i]->type & DICT_FTS) {
 			row_fts_psort_info_destroy(psort_info, merge_info);
 			fts_psort_initiated = false;
-		} else if (dict_index_is_spatial(indexes[i])) {
-			/* We never disable redo logging for
-			creating SPATIAL INDEX. Avoid writing any
-			unnecessary MLOG_INDEX_LOAD record. */
 		} else if (old_table != new_table) {
 			ut_ad(!sort_idx->online_log);
 			ut_ad(sort_idx->online_status
 			      == ONLINE_INDEX_COMPLETE);
-		} else if (FlushObserver* flush_observer =
-			   trx->get_flush_observer()) {
-			if (error != DB_SUCCESS) {
-				flush_observer->interrupted();
-			}
-			flush_observer->flush();
-			row_merge_write_redo(indexes[i]);
 		}
 
 		if (old_table != new_table
@@ -4958,37 +4914,5 @@ func_exit:
 	}
 
 	DBUG_EXECUTE_IF("ib_index_crash_after_bulk_load", DBUG_SUICIDE(););
-
-	if (FlushObserver* flush_observer = trx->get_flush_observer()) {
-
-		DBUG_EXECUTE_IF("ib_index_build_fail_before_flush",
-			error = DB_INTERRUPTED;
-		);
-
-		if (error != DB_SUCCESS) {
-			flush_observer->interrupted();
-		}
-
-		flush_observer->flush();
-
-		if (old_table != new_table) {
-			for (const dict_index_t* index
-				     = dict_table_get_first_index(new_table);
-			     index != NULL;
-			     index = dict_table_get_next_index(index)) {
-				if (!(index->type
-				      & (DICT_FTS | DICT_SPATIAL))) {
-					row_merge_write_redo(index);
-				}
-			}
-		}
-
-		trx->remove_flush_observer();
-
-		if (trx_is_interrupted(trx)) {
-			error = DB_INTERRUPTED;
-		}
-	}
-
 	DBUG_RETURN(error);
 }

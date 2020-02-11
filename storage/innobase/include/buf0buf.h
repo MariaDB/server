@@ -1526,8 +1526,6 @@ public:
 					== (state == BUF_BLOCK_NOT_USED) */
 #endif /* UNIV_DEBUG */
 
-	FlushObserver*	flush_observer;	/*!< flush observer */
-
 	lsn_t		oldest_modification;
 					/*!< log sequence number of
 					the START of the log entry

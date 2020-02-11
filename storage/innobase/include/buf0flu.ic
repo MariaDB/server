@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -48,9 +49,8 @@ buf_flush_note_modification(
 	buf_block_t*	block,		/*!< in: block which is modified */
 	lsn_t		start_lsn,	/*!< in: start lsn of the mtr that
 					modified this block */
-	lsn_t		end_lsn,	/*!< in: end lsn of the mtr that
+	lsn_t		end_lsn)	/*!< in: end lsn of the mtr that
 					modified this block */
-	FlushObserver*	observer)	/*!< in: flush observer */
 {
 	mutex_enter(&block->mutex);
 	ut_ad(!srv_read_only_mode
@@ -66,12 +66,6 @@ buf_flush_note_modification(
 			= *reinterpret_cast<const uint64_t*>(FIL_PAGE_LSN
 							     + block->frame);
 	}
-
-	/* Don't allow to set flush observer from non-null to null,
-	or from one observer to another. */
-	ut_ad(block->page.flush_observer == NULL
-	      || block->page.flush_observer == observer);
-	block->page.flush_observer = observer;
 
 	if (block->page.oldest_modification == 0) {
 		buf_pool_t*	buf_pool = buf_pool_from_block(block);

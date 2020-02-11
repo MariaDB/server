@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -515,8 +515,7 @@ void fil_space_t::modify_check(const mtr_t& mtr) const
 		break;
 	case MTR_LOG_NO_REDO:
 		ut_ad(purpose == FIL_TYPE_TEMPORARY
-		      || purpose == FIL_TYPE_IMPORT
-		      || redo_skipped_count);
+		      || purpose == FIL_TYPE_IMPORT);
 		return;
 	case MTR_LOG_ALL:
 		/* We may only write redo log for a persistent
@@ -1223,10 +1222,8 @@ fsp_alloc_free_page(
 The page is marked as free and clean.
 @param[in,out]	space		tablespace
 @param[in]	offset		page number
-@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
 @param[in,out]	mtr		mini-transaction */
-static void fsp_free_page(fil_space_t* space, page_no_t offset,
-			  bool log, mtr_t* mtr)
+static void fsp_free_page(fil_space_t* space, page_no_t offset, mtr_t* mtr)
 {
 	xdes_t*		descr;
 	ulint		state;
@@ -1278,12 +1275,7 @@ static void fsp_free_page(fil_space_t* space, page_no_t offset,
 		return;
 	}
 
-	if (UNIV_UNLIKELY(!log)) {
-		/* The last page freed in BtrBulk::finish() must be
-		written with redo logging disabled for the page
-		itself. The modifications of the allocation data
-		structures are covered by redo log. */
-	} else if (byte* log_ptr = mlog_open(mtr, 11)) {
+	if (byte* log_ptr = mlog_open(mtr, 11)) {
 		log_ptr = mlog_write_initial_log_record_low(
 			MLOG_INIT_FREE_PAGE, space->id, offset, log_ptr, mtr);
 		mlog_close(mtr, log_ptr);
@@ -1532,7 +1524,7 @@ static void fsp_free_seg_inode(
 		/* There are no other used headers left on the page: free it */
 		flst_remove(header, FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE,
 			    iblock, FSEG_INODE_PAGE_NODE, mtr);
-		fsp_free_page(space, iblock->page.id.page_no(), true, mtr);
+		fsp_free_page(space, iblock->page.id.page_no(), mtr);
 	}
 }
 
@@ -2529,7 +2521,6 @@ try_to_extend:
 @param[in]	offset		page number
 @param[in]	ahi		whether we may need to drop the adaptive
 hash index
-@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
 @param[in,out]	mtr		mini-transaction */
 static
 void
@@ -2541,7 +2532,6 @@ fseg_free_page_low(
 #ifdef BTR_CUR_HASH_ADAPT
 	bool			ahi,
 #endif /* BTR_CUR_HASH_ADAPT */
-	bool			log,
 	mtr_t*			mtr)
 {
 	ib_id_t	descr_id;
@@ -2592,7 +2582,7 @@ fseg_free_page_low(
 			break;
 		}
 
-		fsp_free_page(space, offset, log, mtr);
+		fsp_free_page(space, offset, mtr);
 		return;
 	}
 
@@ -2647,8 +2637,8 @@ fseg_free_page_low(
 }
 
 #ifndef BTR_CUR_HASH_ADAPT
-# define fseg_free_page_low(inode, space, offset, ahi, log, mtr)	\
-	fseg_free_page_low(inode, space, offset, log, mtr)
+# define fseg_free_page_low(inode, space, offset, ahi, mtr)	\
+	fseg_free_page_low(inode, space, offset, mtr)
 #endif /* !BTR_CUR_HASH_ADAPT */
 
 /** Free a page in a file segment.
@@ -2657,7 +2647,6 @@ fseg_free_page_low(
 @param[in]	offset		page number
 @param[in]	ahi		whether we may need to drop the adaptive
 hash index
-@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
 @param[in,out]	mtr		mini-transaction */
 void
 fseg_free_page_func(
@@ -2667,7 +2656,6 @@ fseg_free_page_func(
 #ifdef BTR_CUR_HASH_ADAPT
 	bool		ahi,
 #endif /* BTR_CUR_HASH_ADAPT */
-	bool		log,
 	mtr_t*		mtr)
 {
 	DBUG_ENTER("fseg_free_page");
@@ -2685,7 +2673,7 @@ fseg_free_page_func(
 		fil_block_check_type(*iblock, FIL_PAGE_INODE, mtr);
 	}
 
-	fseg_free_page_low(seg_inode, iblock, space, offset, ahi, log, mtr);
+	fseg_free_page_low(seg_inode, iblock, space, offset, ahi, mtr);
 
 	ut_d(buf_page_set_file_page_was_freed(page_id_t(space->id, offset)));
 
@@ -2878,7 +2866,7 @@ fseg_free_step_func(
 	fseg_free_page_low(
 		inode, iblock, space,
 		fseg_get_nth_frag_page_no(inode, n, mtr),
-		ahi, true, mtr);
+		ahi, mtr);
 
 	n = fseg_find_last_used_frag_page_slot(inode, mtr);
 
@@ -2951,7 +2939,7 @@ fseg_free_step_not_header_func(
 		return(true);
 	}
 
-	fseg_free_page_low(inode, iblock, space, page_no, ahi, true, mtr);
+	fseg_free_page_low(inode, iblock, space, page_no, ahi, mtr);
 
 	return(false);
 }

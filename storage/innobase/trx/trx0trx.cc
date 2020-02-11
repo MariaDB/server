@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -161,8 +161,6 @@ trx_init(
 	trx->lock.rec_cached = 0;
 
 	trx->lock.table_cached = 0;
-
-	ut_ad(trx->get_flush_observer() == NULL);
 }
 
 /** For managing the life-cycle of the trx_t instance that we get
@@ -900,21 +898,6 @@ static trx_rseg_t* trx_assign_rseg_low()
 	ut_ad(rseg->trx_ref_count > 0);
 	ut_ad(rseg->is_persistent());
 	return(rseg);
-}
-
-/** Set the innodb_log_optimize_ddl page flush observer
-@param[in,out]	space	tablespace
-@param[in,out]	stage	performance_schema accounting */
-void trx_t::set_flush_observer(fil_space_t* space, ut_stage_alter_t* stage)
-{
-	flush_observer = UT_NEW_NOKEY(FlushObserver(space, this, stage));
-}
-
-/** Remove the flush observer */
-void trx_t::remove_flush_observer()
-{
-	UT_DELETE(flush_observer);
-	flush_observer = NULL;
 }
 
 /** Assign a rollback segment for modifying temporary tables.

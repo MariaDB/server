@@ -4192,18 +4192,7 @@ row_import_for_mysql(
 	/* Ensure that all pages dirtied during the IMPORT make it to disk.
 	The only dirty pages generated should be from the pessimistic purge
 	of delete marked records that couldn't be purged in Phase I. */
-
-	{
-		FlushObserver observer(prebuilt->table->space, trx, NULL);
-		buf_LRU_flush_or_remove_pages(prebuilt->table->space_id,
-					      &observer);
-
-		if (observer.is_interrupted()) {
-			ib::info() << "Phase III - Flush interrupted";
-			return(row_import_error(prebuilt, trx,
-						DB_INTERRUPTED));
-		}
-	}
+	buf_LRU_flush_or_remove_pages(prebuilt->table->space_id, true);
 
 	ib::info() << "Phase IV - Flush complete";
 	prebuilt->table->space->set_imported();

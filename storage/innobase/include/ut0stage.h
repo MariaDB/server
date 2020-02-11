@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -62,9 +62,6 @@ if any new indexes are being added, for each one:
   being_phase_log_index()
     multiple times:
       inc() // once per log-block applied
-begin_phase_flush()
-    multiple times:
-      inc() // once per page flushed
 begin_phase_log_table()
     multiple times:
       inc() // once per log-block applied
@@ -86,7 +83,6 @@ public:
 		m_n_pk_recs(0),
 		m_n_pk_pages(0),
 		m_n_recs_processed(0),
-		m_n_flush_pages(0),
 		m_cur_phase(NOT_STARTED)
 	{
 	}
@@ -133,13 +129,6 @@ public:
 	/** Flag the beginning of the insert phase. */
 	void
 	begin_phase_insert();
-
-	/** Flag the beginning of the flush phase.
-	@param[in]	n_flush_pages	this many pages are going to be
-	flushed */
-	void
-	begin_phase_flush(
-		ulint	n_flush_pages);
 
 	/** Flag the beginning of the log index phase. */
 	void
@@ -195,16 +184,12 @@ private:
 	recs-per-page records. */
 	ulint			m_n_recs_processed;
 
-	/** Number of pages to flush. */
-	ulint			m_n_flush_pages;
-
 	/** Current phase. */
 	enum {
 		NOT_STARTED = 0,
 		READ_PK = 1,
 		SORT = 2,
 		INSERT = 3,
-		FLUSH = 4,
 		/* JAN: TODO: MySQL 5.7 vrs. MariaDB sql/log.h
 		LOG_INDEX = 5,
 		LOG_TABLE = 6, */
@@ -317,8 +302,6 @@ ut_stage_alter_t::inc(ulint)
 
 		break;
 	}
-	case FLUSH:
-		break;
 	/* JAN: TODO: MySQL 5.7
 	case LOG_INDEX:
 		break;
@@ -387,21 +370,6 @@ ut_stage_alter_t::begin_phase_insert()
 	change_phase(&srv_stage_alter_table_insert);
 }
 
-/** Flag the beginning of the flush phase.
-@param[in]	n_flush_pages	this many pages are going to be
-flushed */
-inline
-void
-ut_stage_alter_t::begin_phase_flush(
-	ulint	n_flush_pages)
-{
-	m_n_flush_pages = n_flush_pages;
-
-	reestimate();
-
-	change_phase(&srv_stage_alter_table_flush);
-}
-
 /** Flag the beginning of the log index phase. */
 inline
 void
@@ -458,20 +426,12 @@ ut_stage_alter_t::reestimate()
 		? m_n_pk_pages
 		: m_pk->stat_n_leaf_pages;
 
-	/* If flush phase has not started yet and we do not know how
-	many pages are to be flushed, then use a wild guess - the
-	number of pages in the PK / 2. */
-	if (m_n_flush_pages == 0) {
-		m_n_flush_pages = n_pk_pages / 2;
-	}
-
 	ulonglong	estimate __attribute__((unused))
 		= n_pk_pages
 		* (1 /* read PK */
 		   + m_n_sort_indexes /* row_merge_buf_sort() inside the
 				      read PK per created index */
 		   + m_n_sort_indexes * 2 /* sort & insert per created index */)
-		+ m_n_flush_pages
 		+ row_log_estimate_work(m_pk);
 
 	/* Prevent estimate < completed */
@@ -500,8 +460,6 @@ ut_stage_alter_t::change_phase(
 		m_cur_phase = SORT;
 	} else if (new_stage == &srv_stage_alter_table_insert) {
 		m_cur_phase = INSERT;
-	} else if (new_stage == &srv_stage_alter_table_flush) {
-		m_cur_phase = FLUSH;
 	/* JAN: TODO: MySQL 5.7 used LOG_INDEX and LOG_TABLE */
 	} else if (new_stage == &srv_stage_alter_table_log_index) {
 		m_cur_phase = LOG_INNODB_INDEX;
@@ -541,8 +499,6 @@ public:
 	void begin_phase_sort(double) {}
 
 	void begin_phase_insert() {}
-
-	void begin_phase_flush(ulint) {}
 
 	void begin_phase_log_index() {}
 

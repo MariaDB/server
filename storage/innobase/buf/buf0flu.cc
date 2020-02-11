@@ -623,14 +623,6 @@ buf_flush_remove(
 	ut_a(buf_flush_validate_skip(buf_pool));
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
-	/* If there is an observer that want to know if the asynchronous
-	flushing was done then notify it. */
-	if (bpage->flush_observer != NULL) {
-		bpage->flush_observer->notify_remove(buf_pool, bpage);
-
-		bpage->flush_observer = NULL;
-	}
-
 	buf_flush_list_mutex_exit(buf_pool);
 }
 
@@ -1360,19 +1352,6 @@ buf_flush_page(
 			}
 
 			rw_lock_sx_lock_gen(rw_lock, BUF_IO_WRITE);
-		}
-
-		/* If there is an observer that want to know if the asynchronous
-		flushing was sent then notify it.
-		Note: we set flush observer to a page with x-latch, so we can
-		guarantee that notify_flush and notify_remove are called in pair
-		with s-latch on a uncompressed page. */
-		if (bpage->flush_observer != NULL) {
-			buf_pool_mutex_enter(buf_pool);
-
-			bpage->flush_observer->notify_flush(buf_pool, bpage);
-
-			buf_pool_mutex_exit(buf_pool);
 		}
 
 		/* Even though bpage is not protected by any mutex at this
@@ -3674,9 +3653,7 @@ ulint
 buf_pool_get_dirty_pages_count(
 /*===========================*/
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool */
-	ulint		id,		/*!< in: space id to check */
-	FlushObserver*	observer)	/*!< in: flush observer to check */
-
+	ulint		id)		/*!< in: space id to check */
 {
 	ulint		count = 0;
 
@@ -3693,10 +3670,7 @@ buf_pool_get_dirty_pages_count(
 		ut_ad(bpage->in_flush_list);
 		ut_ad(bpage->oldest_modification > 0);
 
-		if ((observer != NULL
-		     && observer == bpage->flush_observer)
-		    || (observer == NULL
-			&& id == bpage->id.space())) {
+		if (id == bpage->id.space()) {
 			++count;
 		}
 	}
@@ -3705,129 +3679,4 @@ buf_pool_get_dirty_pages_count(
 	buf_pool_mutex_exit(buf_pool);
 
 	return(count);
-}
-
-/******************************************************************//**
-Check if there are any dirty pages that belong to a space id in the flush list.
-@return number of dirty pages present in all the buffer pools */
-static
-ulint
-buf_flush_get_dirty_pages_count(
-/*============================*/
-	ulint		id,		/*!< in: space id to check */
-	FlushObserver*	observer)	/*!< in: flush observer to check */
-{
-	ulint		count = 0;
-
-	for (ulint i = 0; i < srv_buf_pool_instances; ++i) {
-		buf_pool_t*	buf_pool;
-
-		buf_pool = buf_pool_from_array(i);
-
-		count += buf_pool_get_dirty_pages_count(buf_pool, id, observer);
-	}
-
-	return(count);
-}
-
-/** FlushObserver constructor
-@param[in]	space		tablespace
-@param[in]	trx		trx instance
-@param[in]	stage		performance schema accounting object,
-used by ALTER TABLE. It is passed to log_preflush_pool_modified_pages()
-for accounting. */
-FlushObserver::FlushObserver(
-	fil_space_t*		space,
-	trx_t*			trx,
-	ut_stage_alter_t*	stage)
-	:
-	m_space(space),
-	m_trx(trx),
-	m_stage(stage),
-	m_interrupted(false)
-{
-	m_flushed = UT_NEW_NOKEY(std::vector<ulint>(srv_buf_pool_instances));
-	m_removed = UT_NEW_NOKEY(std::vector<ulint>(srv_buf_pool_instances));
-
-	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-		m_flushed->at(i) = 0;
-		m_removed->at(i) = 0;
-	}
-
-	DBUG_LOG("flush", "FlushObserver(): trx->id=" << m_trx->id);
-}
-
-/** FlushObserver deconstructor */
-FlushObserver::~FlushObserver()
-{
-	ut_ad(buf_flush_get_dirty_pages_count(m_space->id, this) == 0);
-
-	UT_DELETE(m_flushed);
-	UT_DELETE(m_removed);
-
-	DBUG_LOG("flush", "~FlushObserver(): trx->id=" << m_trx->id);
-}
-
-/** Check whether the operation has been interrupted */
-void FlushObserver::check_interrupted()
-{
-	if (trx_is_interrupted(m_trx)) {
-		interrupted();
-	}
-}
-
-/** Notify observer of a flush
-@param[in]	buf_pool	buffer pool instance
-@param[in]	bpage		buffer page to flush */
-void
-FlushObserver::notify_flush(
-	buf_pool_t*	buf_pool,
-	buf_page_t*	bpage)
-{
-	ut_ad(buf_pool_mutex_own(buf_pool));
-
-	m_flushed->at(buf_pool->instance_no)++;
-
-	if (m_stage != NULL) {
-		m_stage->inc();
-	}
-
-	DBUG_LOG("flush", "Flush " << bpage->id);
-}
-
-/** Notify observer of a remove
-@param[in]	buf_pool	buffer pool instance
-@param[in]	bpage		buffer page flushed */
-void
-FlushObserver::notify_remove(
-	buf_pool_t*	buf_pool,
-	buf_page_t*	bpage)
-{
-	ut_ad(buf_pool_mutex_own(buf_pool));
-
-	m_removed->at(buf_pool->instance_no)++;
-
-	DBUG_LOG("flush", "Remove " << bpage->id);
-}
-
-/** Flush dirty pages and wait. */
-void
-FlushObserver::flush()
-{
-	ut_ad(m_trx);
-
-	if (!m_interrupted && m_stage) {
-		m_stage->begin_phase_flush(buf_flush_get_dirty_pages_count(
-						   m_space->id, this));
-	}
-
-	buf_LRU_flush_or_remove_pages(m_space->id, this);
-
-	/* Wait for all dirty pages were flushed. */
-	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-		while (!is_complete(i)) {
-
-			os_thread_sleep(2000);
-		}
-	}
 }

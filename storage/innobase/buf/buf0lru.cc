@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -466,19 +466,13 @@ buf_flush_try_yield(
 	return(false);
 }
 
-/******************************************************************//**
-Removes a single page from a given tablespace inside a specific
-buffer pool instance.
+/** Remove a single page from flush_list.
+@param[in,out]	buf_pool	buffer pool
+@param[in,out]	bpage		buffer page to remove
+@param[in]	flush		whether to flush the page before removing
 @return true if page was removed. */
-static	MY_ATTRIBUTE((warn_unused_result))
-bool
-buf_flush_or_remove_page(
-/*=====================*/
-	buf_pool_t*	buf_pool,	/*!< in/out: buffer pool instance */
-	buf_page_t*	bpage,		/*!< in/out: bpage to remove */
-	bool		flush)		/*!< in: flush to disk if true but
-					don't remove else remove without
-					flushing to disk */
+static bool buf_flush_or_remove_page(buf_pool_t* buf_pool, buf_page_t* bpage,
+				     bool flush)
 {
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(buf_flush_list_mutex_own(buf_pool));
@@ -551,17 +545,11 @@ tablespace. The pages still remain a part of LRU and are evicted from
 the list as they age towards the tail of the LRU.
 @param[in,out]	buf_pool	buffer pool
 @param[in]	id		tablespace identifier
-@param[in]	observer	flush observer (to check for interrupt),
-				or NULL if the files should not be written to
+@param[in]	flush		whether to flush the pages before removing
 @param[in]	first		first page to be flushed or evicted
 @return	whether all matching dirty pages were removed */
-static	MY_ATTRIBUTE((warn_unused_result))
-bool
-buf_flush_or_remove_pages(
-	buf_pool_t*	buf_pool,
-	ulint		id,
-	FlushObserver*	observer,
-	ulint		first)
+static bool buf_flush_or_remove_pages(buf_pool_t* buf_pool, ulint id,
+				      bool flush, ulint first)
 {
 	buf_page_t*	prev;
 	buf_page_t*	bpage;
@@ -583,29 +571,12 @@ rescan:
 
 		prev = UT_LIST_GET_PREV(list, bpage);
 
-		/* Flush the pages matching space id,
-		or pages matching the flush observer. */
-		if (observer && observer->is_partial_flush()) {
-			if (observer != bpage->flush_observer) {
-				/* Skip this block. */
-			} else if (!buf_flush_or_remove_page(
-					   buf_pool, bpage,
-					   !observer->is_interrupted())) {
-				all_freed = false;
-			} else if (!observer->is_interrupted()) {
-				/* The processing was successful. And during the
-				processing we have released the buf_pool mutex
-				when calling buf_page_flush(). We cannot trust
-				prev pointer. */
-				goto rescan;
-			}
-		} else if (id != bpage->id.space()) {
+		if (id != bpage->id.space()) {
 			/* Skip this block, because it is for a
 			different tablespace. */
 		} else if (bpage->id.page_no() < first) {
 			/* Skip this block, because it is below the limit. */
-		} else if (!buf_flush_or_remove_page(
-				   buf_pool, bpage, observer != NULL)) {
+		} else if (!buf_flush_or_remove_page(buf_pool, bpage, flush)) {
 
 			/* Remove was unsuccessful, we have to try again
 			by scanning the entire list from the end.
@@ -628,7 +599,7 @@ rescan:
 			iteration. */
 
 			all_freed = false;
-		} else if (observer) {
+		} else if (flush) {
 
 			/* The processing was successful. And during the
 			processing we have released the buf_pool mutex
@@ -646,12 +617,6 @@ rescan:
 
 			processed = 0;
 		}
-
-		/* The check for trx is interrupted is expensive, we want
-		to check every N iterations. */
-		if (!processed && observer) {
-			observer->check_interrupted();
-		}
 	}
 
 	buf_flush_list_mutex_exit(buf_pool);
@@ -665,21 +630,15 @@ list and will be evicted from the LRU list as they age and move towards
 the tail of the LRU list.
 @param[in,out]	buf_pool	buffer pool
 @param[in]	id		tablespace identifier
-@param[in]	observer	flush observer,
-				or NULL if the files should not be written to
+@param[in]	flush		whether to flush the pages before removing
 @param[in]	first		first page to be flushed or evicted */
-static
-void
-buf_flush_dirty_pages(
-	buf_pool_t*	buf_pool,
-	ulint		id,
-	FlushObserver*	observer,
-	ulint		first)
+static void buf_flush_dirty_pages(buf_pool_t* buf_pool, ulint id, bool flush,
+				  ulint first)
 {
 	for (;;) {
 		buf_pool_mutex_enter(buf_pool);
 
-		bool freed = buf_flush_or_remove_pages(buf_pool, id, observer,
+		bool freed = buf_flush_or_remove_pages(buf_pool, id, flush,
 						       first);
 
 		buf_pool_mutex_exit(buf_pool);
@@ -694,28 +653,25 @@ buf_flush_dirty_pages(
 		ut_ad(buf_flush_validate(buf_pool));
 	}
 
-	ut_ad((observer && observer->is_interrupted())
-	      || first
-	      || buf_pool_get_dirty_pages_count(buf_pool, id, observer) == 0);
+	ut_ad(first
+	      || buf_pool_get_dirty_pages_count(buf_pool, id) == 0);
 }
 
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
-@param[in]	observer	flush observer,
-				or NULL if nothing is to be written
+@param[in]	flush		whether to write the pages to files
 @param[in]	first		first page to be flushed or evicted */
-void buf_LRU_flush_or_remove_pages(ulint id, FlushObserver* observer,
-				   ulint first)
+void buf_LRU_flush_or_remove_pages(ulint id, bool flush, ulint first)
 {
 	/* Pages in the system tablespace must never be discarded. */
-	ut_ad(id || observer);
+	ut_ad(id || flush);
 
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-		buf_flush_dirty_pages(buf_pool_from_array(i), id, observer,
+		buf_flush_dirty_pages(buf_pool_from_array(i), id, flush,
 				      first);
 	}
 
-	if (observer && !observer->is_interrupted()) {
+	if (flush) {
 		/* Ensure that all asynchronous IO is completed. */
 		os_aio_wait_until_no_pending_writes();
 		fil_flush(id);
@@ -1105,7 +1061,6 @@ loop:
 		memset(&block->page.zip, 0, sizeof block->page.zip);
 
 		block->skip_flush_check = false;
-		block->page.flush_observer = NULL;
 		return(block);
 	}
 

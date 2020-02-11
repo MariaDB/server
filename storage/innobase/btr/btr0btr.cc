@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -747,7 +747,7 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 					  : PAGE_HEADER + PAGE_BTR_SEG_TOP];
 	fseg_free_page(seg_header,
 		       index->table->space, block->page.id.page_no(),
-		       block->index != NULL, !block->page.flush_observer, mtr);
+		       block->index != NULL, mtr);
 
 	/* The page was marked free in the allocation bitmap, but it
 	should remain exclusively latched until mtr_t::commit() or until it
