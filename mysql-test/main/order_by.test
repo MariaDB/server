@@ -2292,3 +2292,24 @@ set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
     optimizer_use_condition_selectivity=@tmp_o; 
 
 drop table t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-21655: Server crashes in my_qsort2 / Filesort_buffer::sort_buffer
+--echo #
+
+set @save_sql_mode= @@sql_mode;
+set sql_mode= 'PAD_CHAR_TO_FULL_LENGTH';
+CREATE TABLE t1 ( a CHAR(255) charset utf8,
+                  b CHAR(255) charset utf8, c TEXT);
+INSERT INTO t1 VALUES
+('1','a', 'a'), ('2','b', 'b'), ('3','c', 'c'), ('4','d','d'),
+('5','e', 'e'), ('6','f', 'f'), ('7','g','g'), ('8','h','h'),
+('9','i', 'i'), ('10','j','j'), ('11','k','k'), ('12','l','l'),
+('13','m','m'), ('14','n','n'), ('15','o','o');
+
+set sort_buffer_size=517*30;
+select c from t1 order by a,b;
+
+set sql_mode= @save_sql_mode;
+
+drop table t1;

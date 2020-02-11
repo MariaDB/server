@@ -111,7 +111,8 @@ uchar *Filesort_buffer::alloc_sort_buffer(uint num_records,
     one key.
     TODO varun: move this to the place where min_sort_memory is used.
   */
-  set_if_bigger(buff_size, (record_length +sizeof(uchar*)) * MERGEBUFF2);
+  set_if_bigger(buff_size,
+               ALIGN_SIZE((record_length +sizeof(uchar*)) * MERGEBUFF2));
 
   if (m_rawmem)
   {
