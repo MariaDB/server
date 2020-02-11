@@ -28,8 +28,8 @@ GRANT ALL PRIVILEGES ON testdb_9401.t1 TO dummy@localhost;
 FLUSH PRIVILEGES;
 SHOW GRANTS FOR dummy@localhost;
 Grants for dummy@localhost
-GRANT USAGE ON *.* TO 'dummy'@'localhost'
-GRANT ALL PRIVILEGES ON `testdb_9401`.`t1` TO 'dummy'@'localhost'
+GRANT USAGE ON *.* TO `dummy`@`localhost`
+GRANT ALL PRIVILEGES ON `testdb_9401`.`t1` TO `dummy`@`localhost`
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM dummy@localhost;
 DROP USER dummy@localhost;
 DROP DATABASE testdb_9401;

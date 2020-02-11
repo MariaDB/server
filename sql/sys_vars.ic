@@ -2634,7 +2634,6 @@ public:
     if (!Sys_var_enum::do_check(thd, var))
       return false;
     MYSQL_TIME ltime;
-    // FIXME: please resolve both conflicts to "old" and remove this comment
     Datetime::Options opt(TIME_CONV_NONE |
                           TIME_NO_ZERO_IN_DATE |
                           TIME_NO_ZERO_DATE, thd);

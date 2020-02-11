@@ -307,7 +307,7 @@ struct SplM_field_ext_info: public SplM_field_info
     8. P contains some references on the columns of the joined tables C
        occurred also in the select list of this join
     9. There are defined some keys usable for ref access of fields from C
-       with available statistics. 
+       with available statistics.
 
   @retval
     true   if the answer is positive
@@ -477,6 +477,15 @@ bool JOIN::check_for_splittable_materialized()
   /* Attach this info to the table T */
   derived->table->set_spl_opt_info(spl_opt_info);
 
+  /*
+    If this is specification of a materialized derived table T that is
+    potentially splittable and is used in the from list of the right operand
+    of an IN predicand transformed to a semi-join then the embedding semi-join
+    nest is not allowed to be materialized.
+  */
+  if (derived && derived->is_materialized_derived() &&
+      derived->embedding && derived->embedding->sj_subq_pred)
+    derived->embedding->sj_subq_pred->types_allow_materialization= FALSE;
   return true;
 }
 

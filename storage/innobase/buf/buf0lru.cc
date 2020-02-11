@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -59,6 +59,7 @@ static const ulint BUF_LRU_OLD_TOLERANCE = 20;
 @see buf_LRU_old_adjust_len */
 #define BUF_LRU_NON_OLD_MIN_LEN	5
 
+#ifdef BTR_CUR_HASH_ADAPT
 /** When dropping the search hash index entries before deleting an ibd
 file, we build a local array of pages belonging to that tablespace
 in the buffer pool. Following is the size of that array.
@@ -67,6 +68,7 @@ flush_list when dropping a table. This is to ensure that other threads
 are not blocked for extended period of time when using very large
 buffer pools. */
 static const ulint BUF_LRU_DROP_SEARCH_SIZE = 1024;
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /** We scan these many blocks when looking for a clean page to evict
 during LRU eviction. */
@@ -376,7 +378,6 @@ drop_ahi:
 
 	return true;
 }
-#endif /* BTR_CUR_HASH_ADAPT */
 
 /******************************************************************//**
 While flushing (or removing dirty) pages from a tablespace we don't
@@ -465,6 +466,7 @@ buf_flush_try_yield(
 
 	return(false);
 }
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /******************************************************************//**
 Removes a single page from a given tablespace inside a specific
@@ -640,6 +642,7 @@ rescan:
 			goto rescan;
 		}
 
+#ifdef BTR_CUR_HASH_ADAPT
 		++processed;
 
 		/* Yield if we have hogged the CPU and mutexes for too long. */
@@ -649,6 +652,7 @@ rescan:
 
 			processed = 0;
 		}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 		/* The check for trx is interrupted is expensive, we want
 		to check every N iterations. */

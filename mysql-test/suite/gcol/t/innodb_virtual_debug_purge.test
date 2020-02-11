@@ -264,8 +264,9 @@ DROP TABLE t1, t2;
 --echo # on table with virtual columns and indexes
 --echo #
 
+--source suite/innodb/include/wait_all_purged.inc
 --let $datadir= `select @@datadir`
-SET @saved_dbug= @@GLOBAL.debug_dbug;
+set @saved_dbug= @@global.debug_dbug;
 set global debug_dbug= "+d,ib_purge_virtual_mdev_16222_1,ib_purge_virtual_mdev_16222_2";
 
 create table t1 (

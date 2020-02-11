@@ -132,15 +132,15 @@ END;
 $$
 SHOW GRANTS;
 Grants for u1@localhost
-GRANT USAGE ON *.* TO 'u1'@'localhost'
-GRANT SELECT, CREATE ROUTINE ON "db1".* TO 'u1'@'localhost'
-GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE "db1"."p1" TO 'u1'@'localhost'
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE "db1"."p1" TO "u1"@"localhost"
 CALL p1;
 DROP PROCEDURE p1;
 SHOW GRANTS;
 Grants for u1@localhost
-GRANT USAGE ON *.* TO 'u1'@'localhost'
-GRANT SELECT, CREATE ROUTINE ON "db1".* TO 'u1'@'localhost'
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
 #
 # Now u1 can also CREATE, DROP its own package specifications
 #
@@ -157,14 +157,14 @@ FUNCTION f1 RETURN TEXT;
 END	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW GRANTS;
 Grants for u1@localhost
-GRANT USAGE ON *.* TO 'u1'@'localhost'
-GRANT SELECT, CREATE ROUTINE ON "db1".* TO 'u1'@'localhost'
-GRANT EXECUTE, ALTER ROUTINE ON PACKAGE "db1"."pkg2" TO 'u1'@'localhost'
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
+GRANT EXECUTE, ALTER ROUTINE ON PACKAGE "db1"."pkg2" TO "u1"@"localhost"
 DROP PACKAGE pkg2;
 SHOW GRANTS;
 Grants for u1@localhost
-GRANT USAGE ON *.* TO 'u1'@'localhost'
-GRANT SELECT, CREATE ROUTINE ON "db1".* TO 'u1'@'localhost'
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
 #
 # Now u1 can also CREATE, DROP package bodies and EXECUTE package body routines
 #
@@ -184,9 +184,9 @@ FUNCTION f1 RETURN TEXT AS BEGIN RETURN 'This is pkg1.f1'; END;
 END	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW GRANTS;
 Grants for u1@localhost
-GRANT USAGE ON *.* TO 'u1'@'localhost'
-GRANT SELECT, CREATE ROUTINE ON "db1".* TO 'u1'@'localhost'
-GRANT EXECUTE, ALTER ROUTINE ON PACKAGE BODY "db1"."pkg1" TO 'u1'@'localhost'
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
+GRANT EXECUTE, ALTER ROUTINE ON PACKAGE BODY "db1"."pkg1" TO "u1"@"localhost"
 CALL pkg1.p1;
 comment
 This is pkg1.p1
@@ -196,8 +196,8 @@ This is pkg1.f1
 DROP PACKAGE BODY pkg1;
 SHOW GRANTS;
 Grants for u1@localhost
-GRANT USAGE ON *.* TO 'u1'@'localhost'
-GRANT SELECT, CREATE ROUTINE ON "db1".* TO 'u1'@'localhost'
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
 #
 # Now create a PACKAGE BODY by root.
 # u1 does not have EXECUTE access by default.
@@ -232,9 +232,9 @@ u1@localhost
 SET sql_mode=ORACLE;
 SHOW GRANTS;
 Grants for u1@localhost
-GRANT USAGE ON *.* TO 'u1'@'localhost'
-GRANT SELECT, CREATE ROUTINE ON "db1".* TO 'u1'@'localhost'
-GRANT EXECUTE ON PACKAGE BODY "db1"."pkg1" TO 'u1'@'localhost'
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
+GRANT EXECUTE ON PACKAGE BODY "db1"."pkg1" TO "u1"@"localhost"
 CALL pkg1.p1;
 comment
 This is pkg1.p1

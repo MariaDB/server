@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -9058,6 +9058,8 @@ i_s_innodb_mutexes_fill_table(
 			~Locking() { mutex_exit(&rw_lock_list_mutex); }
 		} locking;
 
+		char lock_name[sizeof "buf0dump.cc:12345"];
+
 		for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
 		     lock = UT_LIST_GET_NEXT(list, lock)) {
 			if (lock->count_os_wait == 0) {
@@ -9070,11 +9072,16 @@ i_s_innodb_mutexes_fill_table(
 				continue;
 			}
 
-			//OK(field_store_string(fields[MUTEXES_NAME],
-			//			lock->lock_name));
-			OK(field_store_string(
-				   fields[MUTEXES_CREATE_FILE],
-				   innobase_basename(lock->cfile_name)));
+			const char* basename = innobase_basename(
+				lock->cfile_name);
+
+			snprintf(lock_name, sizeof lock_name, "%s:%u",
+				 basename, lock->cline);
+
+			OK(field_store_string(fields[MUTEXES_NAME],
+					      lock_name));
+			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
+					      basename));
 			OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline,
 							      true));
 			fields[MUTEXES_CREATE_LINE]->set_notnull();
@@ -9090,8 +9097,8 @@ i_s_innodb_mutexes_fill_table(
 			snprintf(buf1, sizeof buf1, "combined %s",
 				 innobase_basename(block_lock->cfile_name));
 
-			//OK(field_store_string(fields[MUTEXES_NAME],
-			//			block_lock->lock_name));
+			OK(field_store_string(fields[MUTEXES_NAME],
+					      "buf_block_t::lock"));
 			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
 					      buf1));
 			OK(fields[MUTEXES_CREATE_LINE]->store(block_lock->cline,

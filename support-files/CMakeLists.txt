@@ -124,21 +124,6 @@ IF(UNIX)
             ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
             DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
 
-    IF(INSTALL_SYSTEMD_SYSUSERSDIR)
-      CONFIGURE_FILE(sysusers.conf.in
-              ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf @ONLY)
-      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf
-              DESTINATION ${INSTALL_SYSTEMD_SYSUSERSDIR} COMPONENT Server)
-    ENDIF()
-
-    IF(INSTALL_SYSTEMD_TMPFILESDIR)
-      get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
-      CONFIGURE_FILE(tmpfiles.conf.in
-              ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf @ONLY)
-      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf
-              DESTINATION ${INSTALL_SYSTEMD_TMPFILESDIR} COMPONENT Server)
-    ENDIF()
-
     # @ in directory name broken between CMake version 2.8.12.2 and 3.3
     # http://public.kitware.com/Bug/view.php?id=14782
     IF(NOT CMAKE_VERSION VERSION_LESS 3.3.0 OR NOT RPM)
@@ -163,6 +148,26 @@ IF(UNIX)
       ENDIF()
 
     ENDIF()
+  ENDIF()
+
+  # Allow installing sysusers and tmpusers without requiring SYSTEMD on the
+  # system. This is useful for distributions running other init systems to
+  # parse these files and create appropriate users & tmpfiles.
+  IF((HAVE_SYSTEMD OR INSTALL_SYSTEMD_SYSUSERS) AND INSTALL_SYSTEMD_SYSUSERSDIR)
+    CONFIGURE_FILE(sysusers.conf.in
+            ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf @ONLY)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/sysusers.conf
+            DESTINATION ${INSTALL_SYSTEMD_SYSUSERSDIR}
+            RENAME mariadb.conf COMPONENT Server)
+  ENDIF()
+
+  IF((HAVE_SYSTEMD OR INSTALL_SYSTEMD_TMPUSERS) AND INSTALL_SYSTEMD_TMPFILESDIR)
+    get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+    CONFIGURE_FILE(tmpfiles.conf.in
+            ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf @ONLY)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf
+            DESTINATION ${INSTALL_SYSTEMD_TMPFILESDIR}
+            RENAME mariadb.conf COMPONENT Server)
   ENDIF()
 
   IF (INSTALL_SYSCONFDIR)

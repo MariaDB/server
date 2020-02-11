@@ -8,11 +8,11 @@ connect  conn_1, localhost, test,,;
 set role foo;
 show grants for test;
 Grants for test@%
-GRANT foo TO 'test'@'%'
-GRANT USAGE ON *.* TO 'test'@'%'
+GRANT `foo` TO `test`@`%`
+GRANT USAGE ON *.* TO `test`@`%`
 show grants for foo;
 Grants for foo
-GRANT USAGE ON *.* TO 'foo'
+GRANT USAGE ON *.* TO `foo`
 show grants for foo@'%';
 ERROR 42000: Access denied for user 'test'@'%' to database 'mysql'
 connection default;
@@ -25,6 +25,101 @@ ERROR HY000: Table 'procs_priv' was not locked with LOCK TABLES
 REVOKE PROCESS ON *.* FROM u;
 ERROR HY000: Table 'db' was not locked with LOCK TABLES
 DROP TABLE t1;
+#
+# MDEV-20076: SHOW GRANTS does not quote role names properly
+#
+create role 'role1';
+create role 'fetch';
+create role 'role-1';
+create role 'rock\'n\'roll';
+create user 'user1'@'localhost';
+create user 'fetch'@'localhost';
+create user 'user-1'@'localhost';
+create user 'O\'Brien'@'localhost';
+grant select on mysql.user to role1;
+grant select on mysql.user to 'fetch';
+grant select on mysql.user to 'role-1';
+grant select on mysql.user to 'rock\'n\'roll';
+GRANT 'role1' TO 'user1'@'localhost';
+GRANT 'fetch' TO 'fetch'@'localhost';
+GRANT 'role-1' TO 'user-1'@'localhost';
+GRANT 'rock\'n\'roll' TO 'O\'Brien'@'localhost';
+show grants for 'role1';
+Grants for role1
+GRANT USAGE ON *.* TO `role1`
+GRANT SELECT ON `mysql`.`user` TO `role1`
+show grants for 'fetch';
+Grants for fetch
+GRANT USAGE ON *.* TO `fetch`
+GRANT SELECT ON `mysql`.`user` TO `fetch`
+show grants for 'role-1';
+Grants for role-1
+GRANT USAGE ON *.* TO `role-1`
+GRANT SELECT ON `mysql`.`user` TO `role-1`
+show grants for 'rock\'n\'roll';
+Grants for rock'n'roll
+GRANT USAGE ON *.* TO `rock'n'roll`
+GRANT SELECT ON `mysql`.`user` TO `rock'n'roll`
+show grants for 'user1'@'localhost';
+Grants for user1@localhost
+GRANT `role1` TO `user1`@`localhost`
+GRANT USAGE ON *.* TO `user1`@`localhost`
+show grants for 'fetch'@'localhost';
+Grants for fetch@localhost
+GRANT `fetch` TO `fetch`@`localhost`
+GRANT USAGE ON *.* TO `fetch`@`localhost`
+show grants for 'user-1'@'localhost';
+Grants for user-1@localhost
+GRANT `role-1` TO `user-1`@`localhost`
+GRANT USAGE ON *.* TO `user-1`@`localhost`
+show grants for 'O\'Brien'@'localhost';
+Grants for O'Brien@localhost
+GRANT `rock'n'roll` TO `O'Brien`@`localhost`
+GRANT USAGE ON *.* TO `O'Brien`@`localhost`
+set @save_sql_quote_show_create= @@sql_quote_show_create;
+set @@sql_quote_show_create= OFF;
+show grants for 'role1';
+Grants for role1
+GRANT USAGE ON *.* TO role1
+GRANT SELECT ON `mysql`.`user` TO role1
+show grants for 'fetch';
+Grants for fetch
+GRANT USAGE ON *.* TO `fetch`
+GRANT SELECT ON `mysql`.`user` TO `fetch`
+show grants for 'role-1';
+Grants for role-1
+GRANT USAGE ON *.* TO `role-1`
+GRANT SELECT ON `mysql`.`user` TO `role-1`
+show grants for 'rock\'n\'roll';
+Grants for rock'n'roll
+GRANT USAGE ON *.* TO `rock'n'roll`
+GRANT SELECT ON `mysql`.`user` TO `rock'n'roll`
+show grants for 'user1'@'localhost';
+Grants for user1@localhost
+GRANT role1 TO user1@localhost
+GRANT USAGE ON *.* TO user1@localhost
+show grants for 'fetch'@'localhost';
+Grants for fetch@localhost
+GRANT `fetch` TO `fetch`@localhost
+GRANT USAGE ON *.* TO `fetch`@localhost
+show grants for 'user-1'@'localhost';
+Grants for user-1@localhost
+GRANT `role-1` TO `user-1`@localhost
+GRANT USAGE ON *.* TO `user-1`@localhost
+show grants for 'O\'Brien'@'localhost';
+Grants for O'Brien@localhost
+GRANT `rock'n'roll` TO `O'Brien`@localhost
+GRANT USAGE ON *.* TO `O'Brien`@localhost
+set @@sql_quote_show_create= @save_sql_quote_show_create;
+drop role 'role1';
+drop role 'fetch';
+drop role 'role-1';
+drop role 'rock\'n\'roll';
+drop user 'user1'@'localhost';
+drop user 'fetch'@'localhost';
+drop user 'user-1'@'localhost';
+drop user 'O\'Brien'@'localhost';
+# End of 10.3 tests
 create user u1@h identified with 'mysql_native_password' using 'pwd';
 ERROR HY000: Password hash should be a 41-digit hexadecimal number
 create user u1@h identified with 'mysql_native_password' using password('pwd');
@@ -61,28 +156,28 @@ update mysql.global_priv set priv=json_set(priv, '$.plugin', 'nonexistent') wher
 flush privileges;
 show create user u1@h;
 CREATE USER for u1@h
-CREATE USER 'u1'@'h' IDENTIFIED BY PASSWORD 'bad'
+CREATE USER `u1`@`h` IDENTIFIED BY PASSWORD 'bad'
 show create user u2@h;
 CREATE USER for u2@h
-CREATE USER 'u2'@'h' IDENTIFIED BY PASSWORD '*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD'
+CREATE USER `u2`@`h` IDENTIFIED BY PASSWORD '*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD'
 show create user u3@h;
 CREATE USER for u3@h
-CREATE USER 'u3'@'h' IDENTIFIED BY PASSWORD '*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD'
+CREATE USER `u3`@`h` IDENTIFIED BY PASSWORD '*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD'
 show create user u4@h;
 CREATE USER for u4@h
-CREATE USER 'u4'@'h' IDENTIFIED BY PASSWORD '*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD'
+CREATE USER `u4`@`h` IDENTIFIED BY PASSWORD '*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD'
 show create user u5@h;
 CREATE USER for u5@h
-CREATE USER 'u5'@'h' IDENTIFIED BY PASSWORD 'bad'
+CREATE USER `u5`@`h` IDENTIFIED BY PASSWORD 'bad'
 show create user u6@h;
 CREATE USER for u6@h
-CREATE USER 'u6'@'h' IDENTIFIED BY PASSWORD '78a302dd267f6044'
+CREATE USER `u6`@`h` IDENTIFIED BY PASSWORD '78a302dd267f6044'
 show create user u7@h;
 CREATE USER for u7@h
-CREATE USER 'u7'@'h' IDENTIFIED BY PASSWORD '78a302dd267f6044'
+CREATE USER `u7`@`h` IDENTIFIED BY PASSWORD '78a302dd267f6044'
 show create user u8@h;
 CREATE USER for u8@h
-CREATE USER 'u8'@'h' IDENTIFIED VIA nonexistent USING '78a302dd267f6044'
+CREATE USER `u8`@`h` IDENTIFIED VIA nonexistent USING '78a302dd267f6044'
 grant select on *.* to u1@h;
 grant select on *.* to u2@h;
 grant select on *.* to u3@h;
@@ -130,3 +225,4 @@ drop user twg@'%';
 insert mysql.tables_priv (host,db,user,table_name,grantor,table_priv) values ('localhost','','otto','t1','root@localhost','select');
 flush privileges;
 delete from mysql.tables_priv where db='';
+# End of 10.4 tests

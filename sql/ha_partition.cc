@@ -6268,7 +6268,7 @@ static range_seq_t partition_multi_range_key_init(void *init_params,
   ha_partition *partition= hld->partition;
   uint i= hld->part_id;
   DBUG_ENTER("partition_multi_range_key_init");
-  partition->m_mrr_range_init_flags= flags;
+  // not used: partition->m_mrr_range_init_flags= flags;
   hld->partition_part_key_multi_range= partition->m_part_mrr_range_first[i];
   DBUG_RETURN(init_params);
 }

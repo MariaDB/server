@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3132,6 +3132,16 @@ row_discard_tablespace_for_mysql(
 	} else {
 		ut_ad(!table->n_foreign_key_checks_running);
 
+		bool fts_exist = (dict_table_has_fts_index(table)
+				  || DICT_TF2_FLAG_IS_SET(
+					  table, DICT_TF2_FTS_HAS_DOC_ID));
+
+		if (fts_exist) {
+			row_mysql_unlock_data_dictionary(trx);
+			fts_optimize_remove_table(table);
+			row_mysql_lock_data_dictionary(trx);
+		}
+
 		/* Do foreign key constraint checks. */
 
 		err = row_discard_tablespace_foreign_key_checks(trx, table);
@@ -3144,6 +3154,10 @@ row_discard_tablespace_for_mysql(
 			when rolling back the INSERT, effectively
 			dropping all indexes of the table. */
 			err = row_discard_tablespace(trx, table);
+		}
+
+		if (fts_exist && err != DB_SUCCESS) {
+			fts_optimize_add_table(table);
 		}
 	}
 
@@ -3834,6 +3848,11 @@ funct_exit_all_freed:
 		if (trx_is_started(trx)) {
 
 			trx_commit_for_mysql(trx);
+		}
+
+		/* Add the table to fts queue if drop table fails */
+		if (err != DB_SUCCESS && table->fts) {
+			fts_optimize_add_table(table);
 		}
 
 		row_mysql_unlock_data_dictionary(trx);

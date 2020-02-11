@@ -18,9 +18,9 @@ ERROR OP000: Invalid role specification `role_b`
 set default role role_b for user_b@localhost;
 show grants;
 Grants for user_a@localhost
-GRANT role_a TO 'user_a'@'localhost'
-GRANT USAGE ON *.* TO 'user_a'@'localhost'
-GRANT SELECT ON *.* TO 'role_a'
+GRANT `role_a` TO `user_a`@`localhost`
+GRANT USAGE ON *.* TO `user_a`@`localhost`
+GRANT SELECT ON *.* TO `role_a`
 select user, host, default_role from mysql.user where user like 'user_%';
 User	Host	default_role
 user_a	localhost	role_a
@@ -39,17 +39,17 @@ set default role role_b for current_user;
 ERROR OP000: Invalid role specification `role_b`
 show grants;
 Grants for user_b@localhost
-GRANT role_b TO 'user_b'@'localhost'
-GRANT USAGE ON *.* TO 'user_b'@'localhost'
-GRANT INSERT, UPDATE ON *.* TO 'role_b'
+GRANT `role_b` TO `user_b`@`localhost`
+GRANT USAGE ON *.* TO `user_b`@`localhost`
+GRANT INSERT, UPDATE ON *.* TO `role_b`
 select user, host, default_role from mysql.user where user like 'user_%';
 ERROR 42000: SELECT command denied to user 'user_b'@'localhost' for table 'user'
 set default role NONE for user_a@localhost;
 show grants;
 Grants for user_a@localhost
-GRANT role_a TO 'user_a'@'localhost'
-GRANT USAGE ON *.* TO 'user_a'@'localhost'
-GRANT INSERT, UPDATE ON *.* TO 'role_b'
+GRANT `role_a` TO `user_a`@`localhost`
+GRANT USAGE ON *.* TO `user_a`@`localhost`
+GRANT INSERT, UPDATE ON *.* TO `role_b`
 select user, host, default_role from mysql.user where user like 'user_%';
 ERROR 42000: SELECT command denied to user 'user_a'@'localhost' for table 'user'
 drop role role_a;

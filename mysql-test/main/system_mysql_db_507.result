@@ -79,13 +79,13 @@ create user ioo identified with "mysql_old_password" as "7a8f886d28473e85";
 #
 show grants for foo;
 Grants for foo@%
-GRANT USAGE ON *.* TO 'foo'@'%'
+GRANT USAGE ON *.* TO `foo`@`%`
 show grants for goo;
 Grants for goo@%
-GRANT USAGE ON *.* TO 'goo'@'%' IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT USAGE ON *.* TO `goo`@`%` IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
 show grants for ioo;
 Grants for ioo@%
-GRANT USAGE ON *.* TO 'ioo'@'%' IDENTIFIED BY PASSWORD '7a8f886d28473e85'
+GRANT USAGE ON *.* TO `ioo`@`%` IDENTIFIED BY PASSWORD '7a8f886d28473e85'
 select user, host, select_priv, plugin, authentication_string from mysql.user
 where user like "%oo"
 order by user;
@@ -99,13 +99,13 @@ ioo	%	N	mysql_old_password	7a8f886d28473e85
 SET PASSWORD FOR foo=PASSWORD("bar");
 show grants for foo;
 Grants for foo@%
-GRANT USAGE ON *.* TO 'foo'@'%' IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
+GRANT USAGE ON *.* TO `foo`@`%` IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
 show grants for goo;
 Grants for goo@%
-GRANT USAGE ON *.* TO 'goo'@'%' IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT USAGE ON *.* TO `goo`@`%` IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
 show grants for ioo;
 Grants for ioo@%
-GRANT USAGE ON *.* TO 'ioo'@'%' IDENTIFIED BY PASSWORD '7a8f886d28473e85'
+GRANT USAGE ON *.* TO `ioo`@`%` IDENTIFIED BY PASSWORD '7a8f886d28473e85'
 select user, host, select_priv, plugin, authentication_string from mysql.user
 where user like "%oo"
 order by user;
@@ -119,13 +119,13 @@ ioo	%	N	mysql_old_password	7a8f886d28473e85
 flush privileges;
 show grants for foo;
 Grants for foo@%
-GRANT USAGE ON *.* TO 'foo'@'%' IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
+GRANT USAGE ON *.* TO `foo`@`%` IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
 show grants for goo;
 Grants for goo@%
-GRANT USAGE ON *.* TO 'goo'@'%' IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT USAGE ON *.* TO `goo`@`%` IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
 show grants for ioo;
 Grants for ioo@%
-GRANT USAGE ON *.* TO 'ioo'@'%' IDENTIFIED BY PASSWORD '7a8f886d28473e85'
+GRANT USAGE ON *.* TO `ioo`@`%` IDENTIFIED BY PASSWORD '7a8f886d28473e85'
 #
 # Test granting of privileges.
 #
@@ -134,26 +134,26 @@ grant select on *.* to goo;
 grant select on *.* to ioo;
 show grants for foo;
 Grants for foo@%
-GRANT SELECT ON *.* TO 'foo'@'%' IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
+GRANT SELECT ON *.* TO `foo`@`%` IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
 show grants for goo;
 Grants for goo@%
-GRANT SELECT ON *.* TO 'goo'@'%' IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT SELECT ON *.* TO `goo`@`%` IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
 show grants for ioo;
 Grants for ioo@%
-GRANT SELECT ON *.* TO 'ioo'@'%' IDENTIFIED BY PASSWORD '7a8f886d28473e85'
+GRANT SELECT ON *.* TO `ioo`@`%` IDENTIFIED BY PASSWORD '7a8f886d28473e85'
 #
 # Check to see if grants are stable on flush.
 #
 flush privileges;
 show grants for foo;
 Grants for foo@%
-GRANT SELECT ON *.* TO 'foo'@'%' IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
+GRANT SELECT ON *.* TO `foo`@`%` IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
 show grants for goo;
 Grants for goo@%
-GRANT SELECT ON *.* TO 'goo'@'%' IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT SELECT ON *.* TO `goo`@`%` IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
 show grants for ioo;
 Grants for ioo@%
-GRANT SELECT ON *.* TO 'ioo'@'%' IDENTIFIED BY PASSWORD '7a8f886d28473e85'
+GRANT SELECT ON *.* TO `ioo`@`%` IDENTIFIED BY PASSWORD '7a8f886d28473e85'
 #
 # Check internal table representation.
 #
@@ -177,46 +177,46 @@ connect con1,localhost,user1;
 ERROR HY000: Access denied, this account is locked
 show create user user1@localhost;
 CREATE USER for user1@localhost
-CREATE USER 'user1'@'localhost' ACCOUNT LOCK
+CREATE USER `user1`@`localhost` ACCOUNT LOCK
 alter user user1@localhost account unlock;
 connect con1,localhost,user1;
 disconnect con1;
 connection default;
 show create user user1@localhost;
 CREATE USER for user1@localhost
-CREATE USER 'user1'@'localhost'
+CREATE USER `user1`@`localhost`
 #
 # Test password expiration fields are loaded correctly
 #
 create user user@localhost;
 show create user user@localhost;
 CREATE USER for user@localhost
-CREATE USER 'user'@'localhost'
+CREATE USER `user`@`localhost`
 alter user user@localhost password expire;
 show create user user@localhost;
 CREATE USER for user@localhost
-CREATE USER 'user'@'localhost' PASSWORD EXPIRE
+CREATE USER `user`@`localhost` PASSWORD EXPIRE
 set password for user@localhost= password('');
 alter user user@localhost password expire default;
 show create user user@localhost;
 CREATE USER for user@localhost
-CREATE USER 'user'@'localhost'
+CREATE USER `user`@`localhost`
 alter user user@localhost password expire never;
 show create user user@localhost;
 CREATE USER for user@localhost
-CREATE USER 'user'@'localhost' PASSWORD EXPIRE NEVER
+CREATE USER `user`@`localhost` PASSWORD EXPIRE NEVER
 alter user user@localhost password expire interval 123 day;
 show create user user@localhost;
 CREATE USER for user@localhost
-CREATE USER 'user'@'localhost' PASSWORD EXPIRE INTERVAL 123 DAY
+CREATE USER `user`@`localhost` PASSWORD EXPIRE INTERVAL 123 DAY
 alter user user@localhost password expire;
 show create user user@localhost;
 CREATE USER for user@localhost
-CREATE USER 'user'@'localhost' PASSWORD EXPIRE
+CREATE USER `user`@`localhost` PASSWORD EXPIRE
 set password for user@localhost= password('');
 show create user user@localhost;
 CREATE USER for user@localhost
-CREATE USER 'user'@'localhost' PASSWORD EXPIRE INTERVAL 123 DAY
+CREATE USER `user`@`localhost` PASSWORD EXPIRE INTERVAL 123 DAY
 drop user user@localhost;
 #
 # Reset to final original state.
