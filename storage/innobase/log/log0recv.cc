@@ -931,13 +931,34 @@ inline void recv_sys_t::free(const void *data)
   ut_ad(!ut_align_offset(data, ALIGNMENT));
   data= page_align(data);
   ut_ad(mutex_own(&mutex));
-  for (buf_block_t *block= UT_LIST_GET_LAST(blocks);
-       block; block = UT_LIST_GET_PREV(unzip_LRU, block))
+
+#ifdef UNIV_DEBUG
+  /* MDEV-14481 FIXME: To prevent race condition with buf_pool_resize(),
+  we must acquire and hold the buffer pool mutex here. */
+  extern volatile bool buf_pool_resizing;
+  extern volatile bool buf_pool_withdrawing;
+  ut_ad(!buf_pool_resizing);
+  ut_ad(!buf_pool_withdrawing);
+#endif
+
+  for (auto i= srv_buf_pool_instances; i--; )
   {
-    ut_ad(buf_block_get_state(block) == BUF_BLOCK_MEMORY);
-    ut_ad(block->page.access_time >= 1U << 16);
-    if (block->frame == data)
+    buf_pool_t *buf_pool= buf_pool_from_array(i);
+    buf_chunk_t *chunk= buf_pool->chunks;
+    for (auto i= buf_pool->n_chunks; i--; chunk++)
     {
+      if (data < chunk->blocks->frame)
+        continue;
+      const size_t offs= (reinterpret_cast<const byte*>(data) -
+                          chunk->blocks->frame) >> srv_page_size_shift;
+      if (offs >= chunk->size)
+        continue;
+      buf_block_t *block= &chunk->blocks[offs];
+      ut_ad(block->frame == data);
+      ut_ad(buf_block_get_state(block) == BUF_BLOCK_MEMORY);
+      ut_ad(static_cast<uint16_t>(block->page.access_time - 1) <
+            srv_page_size);
+      ut_ad(block->page.access_time >= 1U << 16);
       if (!((block->page.access_time -= 1U << 16) >> 16))
       {
         UT_LIST_REMOVE(blocks, block);
