@@ -65,8 +65,10 @@ public:
   int rollback_statement_next(); // also starts new statement
   void auto_commit_next();
   void auto_commit_closed();
-
-  int run_query(String &stmt);
+  int begin_system_query();
+  int run_system_query(String &stmt);
+  int commit_system_query();
+  int rollback_system_query();
   int write_row(ulonglong xpand_table_oid, uchar *packed_row,
                 size_t packed_size, ulonglong *last_insert_id);
   int key_update(ulonglong xpand_table_oid,
