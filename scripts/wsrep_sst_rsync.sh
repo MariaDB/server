@@ -441,6 +441,7 @@ timeout = 300
 $SILENT
 [$MODULE]
     path = $WSREP_SST_OPT_DATA
+    exclude = .zfs
 [$MODULE-log_dir]
     path = $WSREP_LOG_DIR
 [$MODULE-data_dir]
