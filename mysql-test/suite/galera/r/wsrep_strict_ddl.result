@@ -68,7 +68,7 @@ SHOW CREATE VIEW x1;
 ERROR 42S02: Table 'test.x1' doesn't exist
 connection node_1;
 CREATE DEFINER=`root`@`localhost` TRIGGER increment_before_t1
-AFTER INSERT ON before_t1 FOR EACH ROW 
+AFTER INSERT ON before_t1 FOR EACH ROW
 UPDATE before_t1 SET before_t1.count = before_t1.count+1;
 ERROR HY000: DDL-statement is forbidden as table storage engine does not support Galera replication
 SHOW CREATE TRIGGER increment_before_t1;
