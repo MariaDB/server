@@ -2838,12 +2838,15 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     if (notnull_cond)
       notnull_cond_tree= notnull_cond->get_mm_tree(&param, &notnull_cond);
 
-    if (cond)
+    if (cond || notnull_cond_tree)
     {
       {
         Json_writer_array trace_range_summary(thd,
                                            "setup_range_conditions");
-        tree= cond->get_mm_tree(&param, &cond);
+        if (cond)
+          tree= cond->get_mm_tree(&param, &cond);
+        if (notnull_cond_tree)
+          tree= tree_and(&param, tree, notnull_cond_tree);
       }
       if (tree)
       {
@@ -2865,7 +2868,6 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         }
       }
     }
-    tree= tree_and(&param, tree, notnull_cond_tree);
 
     /*
       Try to construct a QUICK_GROUP_MIN_MAX_SELECT.

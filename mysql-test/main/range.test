@@ -2106,7 +2106,6 @@ drop table t1,ten,t2;
 --echo # MDEV-15777: Use inferred IS NOT NULL predicates in the range optimizer
 --echo #
 
-set @save_optimizer_switch= @@optimizer_switch;
 set @@optimizer_switch='not_null_range_scan=on';
 create table ten(a int);
 insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -2279,6 +2278,29 @@ drop table t1,t2;
 
 drop table ten,one_k;
 set @@optimizer_switch= @save_optimizer_switch;
+
+--echo #
+--echo # MDEV-21683: ANDing of the range from inferred NOT NULL condition and
+--echo #             the range from other conditions produces IMPOSSIBLE range
+--echo #
+
+SET @save_optimizer_switch= @@optimizer_switch;
+
+CREATE TABLE t1 (a INT, KEY(a));
+INSERT INTO t1 VALUES (8),(9);
+
+CREATE TABLE t2 (pk INT, b INT, PRIMARY KEY(pk));
+INSERT INTO t2 VALUES (1,1),(2,2);
+
+SET optimizer_switch = 'not_null_range_scan=on';
+let $q=
+SELECT * FROM t1 LEFT JOIN t2 ON a = pk WHERE b >= 0 AND pk IS NULL;
+eval EXPLAIN EXTENDED $q;
+eval $q;
+
+DROP TABLE t1, t2;
+
+SET @@optimizer_switch= @save_optimizer_switch;
 
 --echo #
 --echo # End of 10.5 tests

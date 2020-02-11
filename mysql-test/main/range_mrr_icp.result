@@ -3113,7 +3113,6 @@ drop table t1,ten,t2;
 #
 # MDEV-15777: Use inferred IS NOT NULL predicates in the range optimizer
 #
-set @save_optimizer_switch= @@optimizer_switch;
 set @@optimizer_switch='not_null_range_scan=on';
 create table ten(a int);
 insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -3400,6 +3399,25 @@ id	col	id	col
 drop table t1,t2;
 drop table ten,one_k;
 set @@optimizer_switch= @save_optimizer_switch;
+#
+# MDEV-21683: ANDing of the range from inferred NOT NULL condition and
+#             the range from other conditions produces IMPOSSIBLE range
+#
+SET @save_optimizer_switch= @@optimizer_switch;
+CREATE TABLE t1 (a INT, KEY(a));
+INSERT INTO t1 VALUES (8),(9);
+CREATE TABLE t2 (pk INT, b INT, PRIMARY KEY(pk));
+INSERT INTO t2 VALUES (1,1),(2,2);
+SET optimizer_switch = 'not_null_range_scan=on';
+EXPLAIN EXTENDED SELECT * FROM t1 LEFT JOIN t2 ON a = pk WHERE b >= 0 AND pk IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1003	select NULL AS `a`,0 AS `pk`,NULL AS `b` from `test`.`t1` join `test`.`t2` where 0
+SELECT * FROM t1 LEFT JOIN t2 ON a = pk WHERE b >= 0 AND pk IS NULL;
+a	pk	b
+DROP TABLE t1, t2;
+SET @@optimizer_switch= @save_optimizer_switch;
 #
 # End of 10.5 tests
 #
