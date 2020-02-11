@@ -200,6 +200,7 @@ fi
 
 # New filter - exclude everything except dirs (schemas) and innodb files
 FILTER="-f '- /lost+found'
+        -f '- /.zfs'
         -f '- /.fseventsd'
         -f '- /.Trashes'
         -f '+ /wsrep_sst_binlog.tar'
@@ -357,7 +358,7 @@ EOF
         [ "$OS" = "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
         [ "$OS" = "Darwin" -o "$OS" = "FreeBSD" ] && count=$(sysctl -n hw.ncpu)
 
-        find . -maxdepth 1 -mindepth 1 -type d -not -name "lost+found" \
+        find . -maxdepth 1 -mindepth 1 -type d -not -name "lost+found" -not -name ".zfs" \
              -print0 | xargs -I{} -0 -P $count \
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
              --owner --group --perms --links --specials \
