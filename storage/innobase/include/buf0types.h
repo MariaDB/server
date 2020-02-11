@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All rights reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -135,80 +135,49 @@ this must be equal to srv_page_size */
 /* @} */
 
 /** Page identifier. */
-class page_id_t {
+class page_id_t
+{
 public:
+  /** Constructor from (space, page_no).
+  @param[in]	space	tablespace id
+  @param[in]	page_no	page number */
+  page_id_t(ulint space, ulint page_no) : m_id(uint64_t{space} << 32 | page_no)
+  {
+    ut_ad(space <= 0xFFFFFFFFU);
+    ut_ad(page_no <= 0xFFFFFFFFU);
+  }
 
-	/** Constructor from (space, page_no).
-	@param[in]	space	tablespace id
-	@param[in]	page_no	page number */
-	page_id_t(ulint space, ulint page_no)
-		: m_space(uint32_t(space)), m_page_no(uint32(page_no))
-	{
-		ut_ad(space <= 0xFFFFFFFFU);
-		ut_ad(page_no <= 0xFFFFFFFFU);
-	}
+  bool operator==(const page_id_t& rhs) const { return m_id == rhs.m_id; }
+  bool operator!=(const page_id_t& rhs) const { return m_id != rhs.m_id; }
 
-	bool operator==(const page_id_t& rhs) const
-	{
-		return m_space == rhs.m_space && m_page_no == rhs.m_page_no;
-	}
-	bool operator!=(const page_id_t& rhs) const { return !(*this == rhs); }
+  bool operator<(const page_id_t& rhs) const { return m_id < rhs.m_id; }
 
-	bool operator<(const page_id_t& rhs) const
-	{
-		if (m_space == rhs.m_space) {
-			return m_page_no < rhs.m_page_no;
-		}
+  /** Retrieve the tablespace id.
+  @return tablespace id */
+  uint32_t space() const { return static_cast<uint32_t>(m_id >> 32); }
 
-		return m_space < rhs.m_space;
-	}
+  /** Retrieve the page number.
+  @return page number */
+  uint32_t page_no() const { return static_cast<uint32_t>(m_id); }
 
-	/** Retrieve the tablespace id.
-	@return tablespace id */
-	uint32_t space() const { return m_space; }
+  /** Retrieve the fold value.
+  @return fold value */
+  ulint fold() const { return (space() << 20) + space() + page_no(); }
 
-	/** Retrieve the page number.
-	@return page number */
-	uint32_t page_no() const { return m_page_no; }
+  /** Reset the page number only.
+  @param[in]	page_no	page number */
+  void set_page_no(ulint page_no)
+  {
+    ut_ad(page_no <= 0xFFFFFFFFU);
+    m_id= (m_id & ~uint64_t{0} << 32) | page_no;
+  }
 
-	/** Retrieve the fold value.
-	@return fold value */
-	ulint fold() const { return (m_space << 20) + m_space + m_page_no; }
-
-	/** Reset the page number only.
-	@param[in]	page_no	page number */
-	void set_page_no(ulint page_no)
-	{
-		m_page_no = uint32_t(page_no);
-
-		ut_ad(page_no <= 0xFFFFFFFFU);
-	}
-
-	/** Set the FIL_NULL for the space and page_no */
-	void set_corrupt_id()
-	{
-		m_space = m_page_no = ULINT32_UNDEFINED;
-	}
+  /** Set the FIL_NULL for the space and page_no */
+  void set_corrupt_id() { m_id= ~uint64_t{0}; }
 
 private:
-
-	/** Tablespace id. */
-	uint32_t	m_space;
-
-	/** Page number. */
-	uint32_t	m_page_no;
-
-	/** Declare the overloaded global operator<< as a friend of this
-	class. Refer to the global declaration for further details.  Print
-	the given page_id_t object.
-	@param[in,out]	out	the output stream
-	@param[in]	page_id	the page_id_t object to be printed
-	@return the output stream */
-        friend
-        std::ostream&
-        operator<<(
-                std::ostream&           out,
-                const page_id_t        page_id);
+  /** The page identifier */
+  uint64_t m_id;
 };
 
 #ifndef UNIV_INNOCHECKSUM

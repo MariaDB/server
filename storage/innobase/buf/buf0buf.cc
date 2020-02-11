@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -7144,14 +7144,11 @@ buf_pool_check_no_pending_io(void)
 @param[in,out]	out	the output stream
 @param[in]	page_id	the page_id_t object to be printed
 @return the output stream */
-std::ostream&
-operator<<(
-	std::ostream&		out,
-	const page_id_t		page_id)
+std::ostream& operator<<(std::ostream &out, const page_id_t page_id)
 {
-	out << "[page id: space=" << page_id.m_space
-		<< ", page number=" << page_id.m_page_no << "]";
-	return(out);
+  out << "[page id: space=" << page_id.space()
+      << ", page number=" << page_id.page_no() << "]";
+  return out;
 }
 
 /** Print the given buf_pool_t object.
