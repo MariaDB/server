@@ -1120,8 +1120,6 @@ The following specify which files/extra groups are read (specified before remain
  Show user and password in SHOW SLAVE HOSTS on this
  master.
  --silent-startup    Don't print [Note] to the error log during startup.
- --skip-bdb          Deprecated option; Exist only for compatibility with old
- my.cnf files
  --skip-grant-tables Start without grant tables. This gives all users FULL
  ACCESS to all tables.
  --skip-host-cache   Don't cache host names.
