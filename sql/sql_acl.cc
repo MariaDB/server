@@ -1470,15 +1470,65 @@ class User_table_json: public User_table
             set_str_value("authentication_string",
                          u.auth[i].auth_string.str, u.auth[i].auth_string.length);
   }
+
+  void print_warning_bad_version_id(ulonglong version_id) const
+  {
+    sql_print_warning("'user' entry '%s@%s' has a wrong 'version_id' value %lld",
+                      safe_str(get_user(current_thd->mem_root)),
+                      safe_str(get_host(current_thd->mem_root)),
+                      version_id);
+  }
+
+  void print_warning_bad_access(ulonglong version_id,
+                                privilege_t mask,
+                                ulonglong access) const
+  {
+    sql_print_warning("'user' entry '%s@%s' "
+                      "has a wrong 'access' value 0x%llx "
+                      "(allowed mask is 0x%llx, version_id=%lld)",
+                      safe_str(get_user(current_thd->mem_root)),
+                      safe_str(get_host(current_thd->mem_root)),
+                      access, mask, version_id);
+  }
+
+  privilege_t adjust_access(ulonglong version_id, ulonglong access) const
+  {
+    privilege_t mask= ALL_KNOWN_ACL_100304;
+    if (access & ~mask)
+    {
+      print_warning_bad_access(version_id, mask, access);
+      return NO_ACL;
+    }
+    return access & mask;
+  }
+
   privilege_t get_access() const
   {
+    ulonglong version_id= (ulonglong) get_int_value("version_id");
+    ulonglong access= (ulonglong) get_int_value("access");
+
     /*
-      when new privileges will be added, we'll start storing GLOBAL_ACLS
-      (or, for example, my_count_bits(GLOBAL_ACLS))
-      in the json too, and it'll allow us to do privilege upgrades
+      Special case:
+      mysql_system_tables_data.sql populates "ALL PRIVILEGES"
+      for the super user this way:
+            {"access":18446744073709551615}
     */
-    return get_access_value("access") & GLOBAL_ACLS;
+    if (access == (ulonglong) ~0)
+      return GLOBAL_ACLS;
+
+    /*
+      Reject obviously bad (negative and too large) version_id values.
+      Also reject versions before 10.4.0 (when JSON table was added).
+    */
+    if ((longlong) version_id < 0 || version_id > 999999 ||
+        (version_id > 0 && version_id < 100400))
+    {
+      print_warning_bad_version_id(version_id);
+      return NO_ACL;
+    }
+    return adjust_access(version_id, access) & GLOBAL_ACLS;
   }
+
   void set_access(const privilege_t rights, bool revoke) const
   {
     privilege_t access= get_access();
@@ -1487,6 +1537,7 @@ class User_table_json: public User_table
     else
       access|= rights;
     set_int_value("access", (longlong) (access & GLOBAL_ACLS));
+    set_int_value("version_id", (longlong) MYSQL_VERSION_ID);
   }
   const char *unsafe_str(const char *s) const
   { return s[0] ? s : NULL; }
@@ -1606,10 +1657,6 @@ class User_table_json: public User_table
       return def_val;
     const char *value_end= value_start + value_len;
     return my_strtoll10(value_start, (char**)&value_end, &err);
-  }
-  privilege_t get_access_value(const char *key) const
-  {
-    return privilege_t(ALL_KNOWN_ACL & (ulonglong) get_int_value(key));
   }
   double get_double_value(const char *key) const
   {

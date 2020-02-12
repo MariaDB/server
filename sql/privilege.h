@@ -58,7 +58,7 @@ enum privilege_t: unsigned long long
   EVENT_ACL             = (1UL << 26),
   TRIGGER_ACL           = (1UL << 27),
   CREATE_TABLESPACE_ACL = (1UL << 28),
-  DELETE_HISTORY_ACL    = (1UL << 29),
+  DELETE_HISTORY_ACL    = (1UL << 29),  // Added in 10.3.4
   /*
     don't forget to update
     1. static struct show_privileges_st sys_privileges[]
@@ -66,10 +66,17 @@ enum privilege_t: unsigned long long
     3. mysql_system_tables.sql and mysql_system_tables_fix.sql
     4. acl_init() or whatever - to define behaviour for old privilege tables
     5. sql_yacc.yy - for GRANT/REVOKE to work
-    6. ALL_KNOWN_ACL
+    6. Add a new ALL_KNOWN_ACL_VERSION
+    7. Change ALL_KNOWN_ACL to ALL_KNOWN_ACL_VERSION
+    8. Update User_table_json::get_access()
   */
-  ALL_KNOWN_ACL         = (1UL << 30) - 1 // A combination of all defined bits
+
+  // A combination of all bits defined in 10.3.4 (and earlier)
+  ALL_KNOWN_ACL_100304 = (1UL << 30) - 1
 };
+
+
+constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_ACL_100304;
 
 
 // Unary operators

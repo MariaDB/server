@@ -1,3 +1,7 @@
+let $REGEX_VERSION_ID=/$mysql_get_server_version/VERSION_ID/;
+let $REGEX_PASSWORD_LAST_CHANGED=/password_last_changed": [0-9]*/password_last_changed": #/;
+let $REGEX_GLOBAL_PRIV=$REGEX_PASSWORD_LAST_CHANGED $REGEX_VERSION_ID;
+
 #
 # MDEV-11340 Allow multiple alternative authentication methods for the same user
 #
@@ -130,7 +134,7 @@ drop user mysqltest1;
 #
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
 show grants for mysqltest1;
---replace_regex /password_last_changed": [0-9]*/password_last_changed": #/
+--replace_regex $REGEX_GLOBAL_PRIV
 select json_detailed(priv) from mysql.global_priv where user='mysqltest1';
 select password,plugin,authentication_string from mysql.user where user='mysqltest1';
 flush privileges;
