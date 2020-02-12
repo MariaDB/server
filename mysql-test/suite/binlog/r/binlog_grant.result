@@ -4,7 +4,7 @@ set @saved_binlog_format = @@global.binlog_format;
 create user mysqltest_1@localhost;
 show grants for mysqltest_1@localhost;
 Grants for mysqltest_1@localhost
-GRANT USAGE ON *.* TO 'mysqltest_1'@'localhost'
+GRANT USAGE ON *.* TO `mysqltest_1`@`localhost`
 connect  plain,localhost,mysqltest_1,,test;
 connect  root,localhost,root,,test;
 **** Variable SQL_LOG_BIN ****

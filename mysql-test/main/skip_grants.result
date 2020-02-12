@@ -94,21 +94,21 @@ ERROR HY000: The MariaDB server is running with the --skip-grant-tables option s
 flush privileges;
 show create user root@localhost;
 CREATE USER for root@localhost
-CREATE USER 'root'@'localhost'
+CREATE USER `root`@`localhost`
 show create user bar@foo;
 CREATE USER for bar@foo
-CREATE USER 'bar'@'foo'
+CREATE USER `bar`@`foo`
 show create user baz@baz;
 CREATE USER for baz@baz
-CREATE USER 'baz'@'baz' IDENTIFIED VIA baz
+CREATE USER `baz`@`baz` IDENTIFIED VIA baz
 set password for bar@foo = password("pass word");
 show create user bar@foo;
 CREATE USER for bar@foo
-CREATE USER 'bar'@'foo' IDENTIFIED BY PASSWORD '*EDBBEA7F4E7B5D8B0BC8D7AC5D1936FB7DA10611'
+CREATE USER `bar`@`foo` IDENTIFIED BY PASSWORD '*EDBBEA7F4E7B5D8B0BC8D7AC5D1936FB7DA10611'
 alter user baz@baz identified with mysql_native_password as password("baz");
 show create user baz@baz;
 CREATE USER for baz@baz
-CREATE USER 'baz'@'baz' IDENTIFIED BY PASSWORD '*E52096EF8EB0240275A7FE9E069101C33F98CF07'
+CREATE USER `baz`@`baz` IDENTIFIED BY PASSWORD '*E52096EF8EB0240275A7FE9E069101C33F98CF07'
 drop user bar@foo;
 drop user baz@baz;
 # restart

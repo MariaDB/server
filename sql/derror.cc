@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (C) 2011 Monty Program Ab
+   Copyright (C) 2011, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -84,8 +84,10 @@ bool init_errmessage(void)
   if (!use_english)
   {
     /* Read messages from file. */
-    use_english= !read_texts(ERRMSG_FILE,lang, &original_error_messages);
-    error= TRUE;
+    use_english= read_texts(ERRMSG_FILE,lang, &original_error_messages);
+    error= use_english != FALSE;
+    if (error)
+      sql_print_error("Could not load error messages for %s",lang);
   }
 
   if (use_english)

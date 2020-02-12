@@ -4006,7 +4006,7 @@ static int init_common_variables()
     min_connections= 10;
     /* MyISAM requires two file handles per table. */
     wanted_files= (extra_files + max_connections + extra_max_connections +
-                   tc_size * 2);
+                   tc_size * 2 * tc_instances);
 #if defined(HAVE_POOL_OF_THREADS) && !defined(__WIN__)
     // add epoll or kevent fd for each threadpool group, in case pool of threads is used
     wanted_files+= (thread_handling > SCHEDULER_NO_THREADS) ? 0 : threadpool_size;
@@ -4035,6 +4035,14 @@ static int init_common_variables()
     if (files < wanted_files && global_system_variables.log_warnings)
       sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, wanted_files);
 
+    /* If we required too much tc_instances than we reduce */
+    SYSVAR_AUTOSIZE_IF_CHANGED(tc_instances,
+                               (uint32) MY_MIN(MY_MAX((files - extra_files -
+                                                      max_connections)/
+                                                      2/tc_size,
+                                                     1),
+                                              tc_instances),
+                               uint32);
     /*
       If we have requested too much file handles than we bring
       max_connections in supported bounds. Still leave at least
@@ -4042,7 +4050,7 @@ static int init_common_variables()
     */
     SYSVAR_AUTOSIZE_IF_CHANGED(max_connections,
                                (ulong) MY_MAX(MY_MIN(files- extra_files-
-                                                     min_tc_size*2,
+                                                     min_tc_size*2*tc_instances,
                                                      max_connections),
                                               min_connections),
                                ulong);
@@ -4055,7 +4063,7 @@ static int init_common_variables()
     */
     SYSVAR_AUTOSIZE_IF_CHANGED(tc_size,
                                (ulong) MY_MIN(MY_MAX((files - extra_files -
-                                                      max_connections) / 2,
+                                                      max_connections) / 2 / tc_instances,
                                                      min_tc_size),
                                               tc_size), ulong);
     DBUG_PRINT("warning",

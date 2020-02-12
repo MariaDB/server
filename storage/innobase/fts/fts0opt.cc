@@ -2662,7 +2662,7 @@ fts_optimize_request_sync_table(
 
 	add_msg(msg, true);
 
-	table->fts->in_queue = table->fts->sync_message = true;
+	table->fts->sync_message = true;
 
 	mutex_exit(&fts_optimize_wq->mutex);
 }

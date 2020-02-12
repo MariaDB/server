@@ -348,7 +348,10 @@ dict_table_close(
 
 		mutex_exit(&dict_sys.mutex);
 
-		if (drop_aborted) {
+		/* dict_table_try_drop_aborted() can generate undo logs.
+		So it should be avoided after shutdown of background
+		threads */
+		if (drop_aborted && !srv_undo_sources) {
 			dict_table_try_drop_aborted(NULL, table_id, 0);
 		}
 	}

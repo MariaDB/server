@@ -41,12 +41,12 @@ Note	1396	Operation ALTER USER failed for 'inexistentUser'@'localhost'
 #
 show create user user1@localhost;
 CREATE USER for user1@localhost
-CREATE USER 'user1'@'localhost'
+CREATE USER `user1`@`localhost`
 create user user1@localhost account lock;
 ERROR HY000: Operation CREATE USER failed for 'user1'@'localhost'
 show create user user1@localhost;
 CREATE USER for user1@localhost
-CREATE USER 'user1'@'localhost'
+CREATE USER `user1`@`localhost`
 #
 # Passing multiple users should lock them all
 #
@@ -83,19 +83,19 @@ localhost	user1	0
 #
 show create user user1@localhost;
 CREATE USER for user1@localhost
-CREATE USER 'user1'@'localhost'
+CREATE USER `user1`@`localhost`
 alter user user1@localhost account lock;
 show create user user1@localhost;
 CREATE USER for user1@localhost
-CREATE USER 'user1'@'localhost' ACCOUNT LOCK
+CREATE USER `user1`@`localhost` ACCOUNT LOCK
 alter user user1@localhost account unlock;
 show create user user1@localhost;
 CREATE USER for user1@localhost
-CREATE USER 'user1'@'localhost'
+CREATE USER `user1`@`localhost`
 create user newuser@localhost account lock;
 show create user newuser@localhost;
 CREATE USER for newuser@localhost
-CREATE USER 'newuser'@'localhost' ACCOUNT LOCK
+CREATE USER `newuser`@`localhost` ACCOUNT LOCK
 drop user newuser@localhost;
 #
 # Users should be able to lock themselves
@@ -121,7 +121,7 @@ connection con1;
 alter user user1@localhost account unlock;
 show create user user1@localhost;
 CREATE USER for user1@localhost
-CREATE USER 'user1'@'localhost'
+CREATE USER `user1`@`localhost`
 disconnect con1;
 connection default;
 #

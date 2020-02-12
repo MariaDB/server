@@ -59,6 +59,7 @@ static const ulint BUF_LRU_OLD_TOLERANCE = 20;
 @see buf_LRU_old_adjust_len */
 #define BUF_LRU_NON_OLD_MIN_LEN	5
 
+#ifdef BTR_CUR_HASH_ADAPT
 /** When dropping the search hash index entries before deleting an ibd
 file, we build a local array of pages belonging to that tablespace
 in the buffer pool. Following is the size of that array.
@@ -67,6 +68,7 @@ flush_list when dropping a table. This is to ensure that other threads
 are not blocked for extended period of time when using very large
 buffer pools. */
 static const ulint BUF_LRU_DROP_SEARCH_SIZE = 1024;
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /** We scan these many blocks when looking for a clean page to evict
 during LRU eviction. */
@@ -376,7 +378,6 @@ drop_ahi:
 
 	return true;
 }
-#endif /* BTR_CUR_HASH_ADAPT */
 
 /******************************************************************//**
 While flushing (or removing dirty) pages from a tablespace we don't
@@ -465,6 +466,7 @@ buf_flush_try_yield(
 
 	return(false);
 }
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /** Remove a single page from flush_list.
 @param[in,out]	buf_pool	buffer pool
@@ -608,6 +610,7 @@ rescan:
 			goto rescan;
 		}
 
+#ifdef BTR_CUR_HASH_ADAPT
 		++processed;
 
 		/* Yield if we have hogged the CPU and mutexes for too long. */
@@ -617,6 +620,7 @@ rescan:
 
 			processed = 0;
 		}
+#endif /* BTR_CUR_HASH_ADAPT */
 	}
 
 	buf_flush_list_mutex_exit(buf_pool);

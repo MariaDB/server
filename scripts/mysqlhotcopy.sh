@@ -296,7 +296,7 @@ foreach my $rdb ( @db_desc ) {
     if ($db =~ m/^mysql$/i)
     {
       @dbh_base_tables = grep 
-        { !/^(apply_status|schema|general_log|slow_log)$/ } @dbh_base_tables
+        { !/^(apply_status|schema|general_log|slow_log|transaction_registry)$/ } @dbh_base_tables
     }
 
     ## generate regex for tables/files

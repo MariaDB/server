@@ -184,6 +184,18 @@ do {\
 	HASH_INVALIDATE(DATA, NAME);\
 } while (0)
 
+#define HASH_REPLACE(TYPE, NAME, TABLE, FOLD, DATA_OLD, DATA_NEW)             \
+	do {                                                                  \
+		(DATA_NEW)->NAME = (DATA_OLD)->NAME;                          \
+                                                                              \
+		hash_cell_t& cell3333                                         \
+			= TABLE->array[hash_calc_hash(FOLD, TABLE)];          \
+		TYPE** struct3333 = (TYPE**)&cell3333.node;                   \
+		while (*struct3333 != DATA_OLD) {                             \
+			struct3333 = &((*struct3333)->NAME);                  \
+		}                                                             \
+		*struct3333 = DATA_NEW;                                       \
+	} while (0)
 /*******************************************************************//**
 Gets the first struct in a hash chain, NULL if none. */
 

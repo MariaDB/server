@@ -468,7 +468,9 @@ current_time % 60 == 0 and no tasks will be performed when
 current_time % 5 != 0. */
 
 # define	SRV_MASTER_CHECKPOINT_INTERVAL		(7)
-# define	SRV_MASTER_PURGE_INTERVAL		(10)
+#ifdef MEM_PERIODIC_CHECK
+# define	SRV_MASTER_MEM_VALIDATE_INTERVAL	(13)
+#endif /* MEM_PERIODIC_CHECK */
 # define	SRV_MASTER_DICT_LRU_INTERVAL		(47)
 
 /** Simulate compression failures. */
