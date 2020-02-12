@@ -20,9 +20,12 @@ INSERT INTO t1 VALUES (5, 5);
 
 --connection node_2
 SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
---let $wait_condition = SELECT COUNT(*) > 0 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1;
 --source include/wait_condition.inc
-SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+
+--let $wait_condition = SELECT COUNT(*) = 5 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_5 FROM mysql.wsrep_streaming_log;
 
 ALTER TABLE t1 DROP COLUMN f2;
 
@@ -35,6 +38,8 @@ SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 --error ER_LOCK_DEADLOCK
 INSERT INTO t1 VALUES (6, 6);
 
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 
 # DDL is now in effect
