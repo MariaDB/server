@@ -713,7 +713,7 @@ void thread_pool_generic::maybe_wake_or_create_thread()
 {
   if (m_task_queue.empty())
     return;
-  DBUG_ASSERT(m_active_threads.size() >= m_long_tasks_count + m_waiting_task_count);
+  DBUG_ASSERT(m_active_threads.size() >= static_cast<size_t>(m_long_tasks_count + m_waiting_task_count));
   if (m_active_threads.size() - m_long_tasks_count - m_waiting_task_count > m_concurrency)
     return;
   if (!m_standby_threads.empty())
