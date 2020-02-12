@@ -117,9 +117,6 @@ struct buf_page_info_t{
 	unsigned	space_id:32;	/*!< Tablespace ID */
 	unsigned	page_num:32;	/*!< Page number/offset */
 	unsigned	access_time:32;	/*!< Time of first access */
-	unsigned	pool_id:MAX_BUFFER_POOLS_BITS;
-					/*!< Buffer Pool ID. Must be less than
-					MAX_BUFFER_POOLS */
 	unsigned	flush_type:2;	/*!< Flush type */
 	unsigned	io_fix:2;	/*!< type of pending I/O operation */
 	unsigned	fix_count:19;	/*!< Count of how manyfold this block
@@ -1601,7 +1598,6 @@ namespace Show {
 static ST_FIELD_INFO	i_s_cmpmem_fields_info[] =
 {
   Column("page_size",           SLong(5), NOT_NULL, "Buddy Block Size"),
-  Column("buffer_pool_instance", SLong(), NOT_NULL, "Buffer Pool Id"),
   Column("pages_used",           SLong(), NOT_NULL, "Currently in Use"),
   Column("pages_free",           SLong(), NOT_NULL, "Currently Available"),
   Column("relocation_ops",   SLonglong(), NOT_NULL, "Total Number of Relocations"),
@@ -1624,7 +1620,6 @@ i_s_cmpmem_fill_low(
 	Item*		,	/*!< in: condition (ignored) */
 	ibool		reset)	/*!< in: TRUE=reset cumulated counts */
 {
-	int		status = 0;
 	TABLE*	table	= (TABLE*) tables->table;
 
 	DBUG_ENTER("i_s_cmpmem_fill_low");
@@ -1637,57 +1632,45 @@ i_s_cmpmem_fill_low(
 
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-		buf_pool_t*		buf_pool;
-		ulint			zip_free_len_local[BUF_BUDDY_SIZES_MAX + 1];
-		buf_buddy_stat_t	buddy_stat_local[BUF_BUDDY_SIZES_MAX + 1];
+	ulint			zip_free_len_local[BUF_BUDDY_SIZES_MAX + 1];
+	buf_buddy_stat_t	buddy_stat_local[BUF_BUDDY_SIZES_MAX + 1];
 
-		status	= 0;
+	/* Save buddy stats for buffer pool in local variables. */
+	mutex_enter(&buf_pool->mutex);
 
-		buf_pool = buf_pool_from_array(i);
+	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
+		zip_free_len_local[x] = (x < BUF_BUDDY_SIZES) ?
+			UT_LIST_GET_LEN(buf_pool->zip_free[x]) : 0;
 
-		/* Save buddy stats for buffer pool in local variables. */
-		buf_pool_mutex_enter(buf_pool);
-		for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
+		buddy_stat_local[x] = buf_pool->buddy_stat[x];
 
-			zip_free_len_local[x] = (x < BUF_BUDDY_SIZES) ?
-				UT_LIST_GET_LEN(buf_pool->zip_free[x]) : 0;
-
-			buddy_stat_local[x] = buf_pool->buddy_stat[x];
-
-			if (reset) {
-				/* This is protected by buf_pool->mutex. */
-				buf_pool->buddy_stat[x].relocated = 0;
-				buf_pool->buddy_stat[x].relocated_usec = 0;
-			}
-		}
-		buf_pool_mutex_exit(buf_pool);
-
-		for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
-			buf_buddy_stat_t*	buddy_stat;
-
-			buddy_stat = &buddy_stat_local[x];
-
-			table->field[0]->store(BUF_BUDDY_LOW << x);
-			table->field[1]->store(i, true);
-			table->field[2]->store(buddy_stat->used, true);
-			table->field[3]->store(zip_free_len_local[x], true);
-			table->field[4]->store(buddy_stat->relocated, true);
-			table->field[5]->store(
-				buddy_stat->relocated_usec / 1000000, true);
-
-			if (schema_table_store_record(thd, table)) {
-				status = 1;
-				break;
-			}
-		}
-
-		if (status) {
-			break;
+		if (reset) {
+			/* This is protected by buf_pool->mutex. */
+			buf_pool->buddy_stat[x].relocated = 0;
+			buf_pool->buddy_stat[x].relocated_usec = 0;
 		}
 	}
 
-	DBUG_RETURN(status);
+	mutex_exit(&buf_pool->mutex);
+
+	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
+		buf_buddy_stat_t*	buddy_stat;
+
+		buddy_stat = &buddy_stat_local[x];
+
+		table->field[0]->store(BUF_BUDDY_LOW << x);
+		table->field[1]->store(buddy_stat->used, true);
+		table->field[2]->store(zip_free_len_local[x], true);
+		table->field[3]->store(buddy_stat->relocated, true);
+		table->field[4]->store(
+			buddy_stat->relocated_usec / 1000000, true);
+
+		if (schema_table_store_record(thd, table)) {
+			DBUG_RETURN(1);
+		}
+	}
+
+	DBUG_RETURN(0);
 }
 
 /*******************************************************************//**
@@ -3559,257 +3542,117 @@ namespace Show {
 /* Fields of the dynamic table INNODB_BUFFER_POOL_STATS. */
 static ST_FIELD_INFO	i_s_innodb_buffer_stats_fields_info[] =
 {
-#define IDX_BUF_STATS_POOL_ID		0
-  Column("POOL_ID", ULong(), NOT_NULL),
-
-#define IDX_BUF_STATS_POOL_SIZE		1
+#define IDX_BUF_STATS_POOL_SIZE		0
   Column("POOL_SIZE", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_FREE_BUFFERS	2
+#define IDX_BUF_STATS_FREE_BUFFERS	1
   Column("FREE_BUFFERS", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_LRU_LEN		3
+#define IDX_BUF_STATS_LRU_LEN		2
   Column("DATABASE_PAGES", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_OLD_LRU_LEN	4
+#define IDX_BUF_STATS_OLD_LRU_LEN	3
   Column("OLD_DATABASE_PAGES", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_FLUSH_LIST_LEN	5
+#define IDX_BUF_STATS_FLUSH_LIST_LEN	4
   Column("MODIFIED_DATABASE_PAGES", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_PENDING_ZIP	6
+#define IDX_BUF_STATS_PENDING_ZIP	5
   Column("PENDING_DECOMPRESS", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_PENDING_READ	7
+#define IDX_BUF_STATS_PENDING_READ	6
   Column("PENDING_READS",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_FLUSH_LRU		8
+#define IDX_BUF_STATS_FLUSH_LRU		7
   Column("PENDING_FLUSH_LRU",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_FLUSH_LIST	9
+#define IDX_BUF_STATS_FLUSH_LIST	8
   Column("PENDING_FLUSH_LIST", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_PAGE_YOUNG	10
+#define IDX_BUF_STATS_PAGE_YOUNG	9
   Column("PAGES_MADE_YOUNG",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_PAGE_NOT_YOUNG	11
+#define IDX_BUF_STATS_PAGE_NOT_YOUNG	10
   Column("PAGES_NOT_MADE_YOUNG",ULonglong(), NOT_NULL),
 
-#define	IDX_BUF_STATS_PAGE_YOUNG_RATE	12
+#define	IDX_BUF_STATS_PAGE_YOUNG_RATE	11
   Column("PAGES_MADE_YOUNG_RATE", Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define	IDX_BUF_STATS_PAGE_NOT_YOUNG_RATE 13
+#define	IDX_BUF_STATS_PAGE_NOT_YOUNG_RATE 12
   Column("PAGES_MADE_NOT_YOUNG_RATE", Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define IDX_BUF_STATS_PAGE_READ		14
+#define IDX_BUF_STATS_PAGE_READ		13
   Column("NUMBER_PAGES_READ",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_PAGE_CREATED	15
+#define IDX_BUF_STATS_PAGE_CREATED	14
   Column("NUMBER_PAGES_CREATED",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_PAGE_WRITTEN	16
+#define IDX_BUF_STATS_PAGE_WRITTEN	15
   Column("NUMBER_PAGES_WRITTEN",ULonglong(), NOT_NULL),
 
-#define	IDX_BUF_STATS_PAGE_READ_RATE	17
+#define	IDX_BUF_STATS_PAGE_READ_RATE	16
   Column("PAGES_READ_RATE", Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define	IDX_BUF_STATS_PAGE_CREATE_RATE	18
+#define	IDX_BUF_STATS_PAGE_CREATE_RATE	17
   Column("PAGES_CREATE_RATE", Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define	IDX_BUF_STATS_PAGE_WRITTEN_RATE	19
+#define	IDX_BUF_STATS_PAGE_WRITTEN_RATE	18
   Column("PAGES_WRITTEN_RATE",Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define IDX_BUF_STATS_GET		20
+#define IDX_BUF_STATS_GET		19
   Column("NUMBER_PAGES_GET", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_HIT_RATE		21
+#define IDX_BUF_STATS_HIT_RATE		20
   Column("HIT_RATE", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_MADE_YOUNG_PCT	22
+#define IDX_BUF_STATS_MADE_YOUNG_PCT	21
   Column("YOUNG_MAKE_PER_THOUSAND_GETS", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_NOT_MADE_YOUNG_PCT 23
+#define IDX_BUF_STATS_NOT_MADE_YOUNG_PCT 22
   Column("NOT_YOUNG_MAKE_PER_THOUSAND_GETS", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_READ_AHREAD	24
+#define IDX_BUF_STATS_READ_AHREAD	23
   Column("NUMBER_PAGES_READ_AHEAD", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_READ_AHEAD_EVICTED 25
+#define IDX_BUF_STATS_READ_AHEAD_EVICTED 24
   Column("NUMBER_READ_AHEAD_EVICTED", ULonglong(), NOT_NULL),
 
-#define	IDX_BUF_STATS_READ_AHEAD_RATE	26
+#define	IDX_BUF_STATS_READ_AHEAD_RATE	25
   Column("READ_AHEAD_RATE", Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define	IDX_BUF_STATS_READ_AHEAD_EVICT_RATE 27
+#define	IDX_BUF_STATS_READ_AHEAD_EVICT_RATE 26
   Column("READ_AHEAD_EVICTED_RATE",Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define IDX_BUF_STATS_LRU_IO_SUM	28
+#define IDX_BUF_STATS_LRU_IO_SUM	27
   Column("LRU_IO_TOTAL", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_LRU_IO_CUR	29
+#define IDX_BUF_STATS_LRU_IO_CUR	28
   Column("LRU_IO_CURRENT", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_UNZIP_SUM		30
+#define IDX_BUF_STATS_UNZIP_SUM		29
   Column("UNCOMPRESS_TOTAL",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_UNZIP_CUR		31
+#define IDX_BUF_STATS_UNZIP_CUR		30
   Column("UNCOMPRESS_CURRENT", ULonglong(), NOT_NULL),
 
   CEnd()
 };
 } // namespace Show
 
-/*******************************************************************//**
-Fill Information Schema table INNODB_BUFFER_POOL_STATS for a particular
-buffer pool
+/** Fill INFORMATION_SCHEMA.INNODB_BUFFER_POOL_STATS
+@param[in,out]	thd	connection
+@param[in,out]	tables	tables to fill
 @return 0 on success, 1 on failure */
 static
 int
-i_s_innodb_stats_fill(
-/*==================*/
-	THD*			thd,		/*!< in: thread */
-	TABLE_LIST*		tables,		/*!< in/out: tables to fill */
-	const buf_pool_info_t*	info)		/*!< in: buffer pool
-						information */
+i_s_innodb_stats_fill(THD* thd, TABLE_LIST* tables, Item*)
 {
-	TABLE*			table;
-	Field**			fields;
+	TABLE*		table;
+	Field**		fields;
+	buf_pool_info_t	info;
 
 	DBUG_ENTER("i_s_innodb_stats_fill");
 
-	table = tables->table;
-
-	fields = table->field;
-
-	OK(fields[IDX_BUF_STATS_POOL_ID]->store(
-		   info->pool_unique_id, true));
-
-	OK(fields[IDX_BUF_STATS_POOL_SIZE]->store(
-		   info->pool_size, true));
-
-	OK(fields[IDX_BUF_STATS_LRU_LEN]->store(
-		   info->lru_len, true));
-
-	OK(fields[IDX_BUF_STATS_OLD_LRU_LEN]->store(
-		   info->old_lru_len, true));
-
-	OK(fields[IDX_BUF_STATS_FREE_BUFFERS]->store(
-		   info->free_list_len, true));
-
-	OK(fields[IDX_BUF_STATS_FLUSH_LIST_LEN]->store(
-		   info->flush_list_len, true));
-
-	OK(fields[IDX_BUF_STATS_PENDING_ZIP]->store(
-		   info->n_pend_unzip, true));
-
-	OK(fields[IDX_BUF_STATS_PENDING_READ]->store(
-		   info->n_pend_reads, true));
-
-	OK(fields[IDX_BUF_STATS_FLUSH_LRU]->store(
-		   info->n_pending_flush_lru, true));
-
-	OK(fields[IDX_BUF_STATS_FLUSH_LIST]->store(
-		   info->n_pending_flush_list, true));
-
-	OK(fields[IDX_BUF_STATS_PAGE_YOUNG]->store(
-		   info->n_pages_made_young, true));
-
-	OK(fields[IDX_BUF_STATS_PAGE_NOT_YOUNG]->store(
-		   info->n_pages_not_made_young, true));
-
-	OK(fields[IDX_BUF_STATS_PAGE_YOUNG_RATE]->store(
-		   info->page_made_young_rate));
-
-	OK(fields[IDX_BUF_STATS_PAGE_NOT_YOUNG_RATE]->store(
-		   info->page_not_made_young_rate));
-
-	OK(fields[IDX_BUF_STATS_PAGE_READ]->store(
-		   info->n_pages_read, true));
-
-	OK(fields[IDX_BUF_STATS_PAGE_CREATED]->store(
-		   info->n_pages_created, true));
-
-	OK(fields[IDX_BUF_STATS_PAGE_WRITTEN]->store(
-		   info->n_pages_written, true));
-
-	OK(fields[IDX_BUF_STATS_GET]->store(
-		   info->n_page_gets, true));
-
-	OK(fields[IDX_BUF_STATS_PAGE_READ_RATE]->store(
-		   info->pages_read_rate));
-
-	OK(fields[IDX_BUF_STATS_PAGE_CREATE_RATE]->store(
-		   info->pages_created_rate));
-
-	OK(fields[IDX_BUF_STATS_PAGE_WRITTEN_RATE]->store(
-		   info->pages_written_rate));
-
-	if (info->n_page_get_delta) {
-		if (info->page_read_delta <= info->n_page_get_delta) {
-			OK(fields[IDX_BUF_STATS_HIT_RATE]->store(
-				static_cast<double>(
-					1000 - (1000 * info->page_read_delta
-					/ info->n_page_get_delta))));
-		} else {
-			OK(fields[IDX_BUF_STATS_HIT_RATE]->store(0));
-		}
-
-		OK(fields[IDX_BUF_STATS_MADE_YOUNG_PCT]->store(
-			   1000 * info->young_making_delta
-			   / info->n_page_get_delta, true));
-
-		OK(fields[IDX_BUF_STATS_NOT_MADE_YOUNG_PCT]->store(
-			   1000 * info->not_young_making_delta
-			   / info->n_page_get_delta, true));
-	} else {
-		OK(fields[IDX_BUF_STATS_HIT_RATE]->store(0, true));
-		OK(fields[IDX_BUF_STATS_MADE_YOUNG_PCT]->store(0, true));
-		OK(fields[IDX_BUF_STATS_NOT_MADE_YOUNG_PCT]->store(0, true));
-	}
-
-	OK(fields[IDX_BUF_STATS_READ_AHREAD]->store(
-		   info->n_ra_pages_read, true));
-
-	OK(fields[IDX_BUF_STATS_READ_AHEAD_EVICTED]->store(
-		   info->n_ra_pages_evicted, true));
-
-	OK(fields[IDX_BUF_STATS_READ_AHEAD_RATE]->store(
-		   info->pages_readahead_rate));
-
-	OK(fields[IDX_BUF_STATS_READ_AHEAD_EVICT_RATE]->store(
-		   info->pages_evicted_rate));
-
-	OK(fields[IDX_BUF_STATS_LRU_IO_SUM]->store(
-		   info->io_sum, true));
-
-	OK(fields[IDX_BUF_STATS_LRU_IO_CUR]->store(
-		   info->io_cur, true));
-
-	OK(fields[IDX_BUF_STATS_UNZIP_SUM]->store(
-		   info->unzip_sum, true));
-
-	OK(fields[IDX_BUF_STATS_UNZIP_CUR]->store(
-		   info->unzip_cur, true));
-
-	DBUG_RETURN(schema_table_store_record(thd, table));
-}
-
-/*******************************************************************//**
-This is the function that loops through each buffer pool and fetch buffer
-pool stats to information schema  table: I_S_INNODB_BUFFER_POOL_STATS
-@return 0 on success, 1 on failure */
-static
-int
-i_s_innodb_buffer_stats_fill_table(
-/*===============================*/
-	THD*		thd,		/*!< in: thread */
-	TABLE_LIST*	tables,		/*!< in/out: tables to fill */
-	Item*		)		/*!< in: condition (ignored) */
-{
-	int			status	= 0;
-	buf_pool_info_t*	pool_info;
-
-	DBUG_ENTER("i_s_innodb_buffer_fill_general");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* Only allow the PROCESS privilege holder to access the stats */
@@ -3817,29 +3660,109 @@ i_s_innodb_buffer_stats_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	pool_info = (buf_pool_info_t*) ut_zalloc_nokey(
-		srv_buf_pool_instances *  sizeof *pool_info);
+	buf_stats_get_pool_info(&info);
 
-	/* Walk through each buffer pool */
-	for (uint i = 0; i < srv_buf_pool_instances; i++) {
-		buf_pool_t*		buf_pool;
+	table = tables->table;
 
-		buf_pool = buf_pool_from_array(i);
+	fields = table->field;
 
-		/* Fetch individual buffer pool info */
-		buf_stats_get_pool_info(buf_pool, i, pool_info);
+	OK(fields[IDX_BUF_STATS_POOL_SIZE]->store(info.pool_size, true));
 
-		status = i_s_innodb_stats_fill(thd, tables, &pool_info[i]);
+	OK(fields[IDX_BUF_STATS_LRU_LEN]->store(info.lru_len, true));
 
-		/* If something goes wrong, break and return */
-		if (status) {
-			break;
+	OK(fields[IDX_BUF_STATS_OLD_LRU_LEN]->store(info.old_lru_len, true));
+
+	OK(fields[IDX_BUF_STATS_FREE_BUFFERS]->store(
+		   info.free_list_len, true));
+
+	OK(fields[IDX_BUF_STATS_FLUSH_LIST_LEN]->store(
+		   info.flush_list_len, true));
+
+	OK(fields[IDX_BUF_STATS_PENDING_ZIP]->store(info.n_pend_unzip, true));
+
+	OK(fields[IDX_BUF_STATS_PENDING_READ]->store(info.n_pend_reads, true));
+
+	OK(fields[IDX_BUF_STATS_FLUSH_LRU]->store(
+		   info.n_pending_flush_lru, true));
+
+	OK(fields[IDX_BUF_STATS_FLUSH_LIST]->store(
+		   info.n_pending_flush_list, true));
+
+	OK(fields[IDX_BUF_STATS_PAGE_YOUNG]->store(
+		   info.n_pages_made_young, true));
+
+	OK(fields[IDX_BUF_STATS_PAGE_NOT_YOUNG]->store(
+		   info.n_pages_not_made_young, true));
+
+	OK(fields[IDX_BUF_STATS_PAGE_YOUNG_RATE]->store(
+		   info.page_made_young_rate));
+
+	OK(fields[IDX_BUF_STATS_PAGE_NOT_YOUNG_RATE]->store(
+		   info.page_not_made_young_rate));
+
+	OK(fields[IDX_BUF_STATS_PAGE_READ]->store(info.n_pages_read, true));
+
+	OK(fields[IDX_BUF_STATS_PAGE_CREATED]->store(
+		   info.n_pages_created, true));
+
+	OK(fields[IDX_BUF_STATS_PAGE_WRITTEN]->store(
+		   info.n_pages_written, true));
+
+	OK(fields[IDX_BUF_STATS_GET]->store(info.n_page_gets, true));
+
+	OK(fields[IDX_BUF_STATS_PAGE_READ_RATE]->store(
+		   info.pages_read_rate));
+
+	OK(fields[IDX_BUF_STATS_PAGE_CREATE_RATE]->store(
+		   info.pages_created_rate));
+
+	OK(fields[IDX_BUF_STATS_PAGE_WRITTEN_RATE]->store(
+		   info.pages_written_rate));
+
+	if (info.n_page_get_delta) {
+		if (info.page_read_delta <= info.n_page_get_delta) {
+			OK(fields[IDX_BUF_STATS_HIT_RATE]->store(
+				static_cast<double>(
+					1000 - (1000 * info.page_read_delta
+					/ info.n_page_get_delta))));
+		} else {
+			OK(fields[IDX_BUF_STATS_HIT_RATE]->store(0));
 		}
+
+		OK(fields[IDX_BUF_STATS_MADE_YOUNG_PCT]->store(
+			   1000 * info.young_making_delta
+			   / info.n_page_get_delta, true));
+
+		OK(fields[IDX_BUF_STATS_NOT_MADE_YOUNG_PCT]->store(
+			   1000 * info.not_young_making_delta
+			   / info.n_page_get_delta, true));
+	} else {
+		OK(fields[IDX_BUF_STATS_HIT_RATE]->store(0, true));
+		OK(fields[IDX_BUF_STATS_MADE_YOUNG_PCT]->store(0, true));
+		OK(fields[IDX_BUF_STATS_NOT_MADE_YOUNG_PCT]->store(0, true));
 	}
 
-	ut_free(pool_info);
+	OK(fields[IDX_BUF_STATS_READ_AHREAD]->store(
+		   info.n_ra_pages_read, true));
 
-	DBUG_RETURN(status);
+	OK(fields[IDX_BUF_STATS_READ_AHEAD_EVICTED]->store(
+		   info.n_ra_pages_evicted, true));
+
+	OK(fields[IDX_BUF_STATS_READ_AHEAD_RATE]->store(
+		   info.pages_readahead_rate));
+
+	OK(fields[IDX_BUF_STATS_READ_AHEAD_EVICT_RATE]->store(
+		   info.pages_evicted_rate));
+
+	OK(fields[IDX_BUF_STATS_LRU_IO_SUM]->store(info.io_sum, true));
+
+	OK(fields[IDX_BUF_STATS_LRU_IO_CUR]->store(info.io_cur, true));
+
+	OK(fields[IDX_BUF_STATS_UNZIP_SUM]->store(info.unzip_sum, true));
+
+	OK(fields[IDX_BUF_STATS_UNZIP_CUR]->store(info.unzip_cur, true));
+
+	DBUG_RETURN(schema_table_store_record(thd, table));
 }
 
 /*******************************************************************//**
@@ -3858,7 +3781,7 @@ i_s_innodb_buffer_pool_stats_init(
 	schema = reinterpret_cast<ST_SCHEMA_TABLE*>(p);
 
 	schema->fields_info = Show::i_s_innodb_buffer_stats_fields_info;
-	schema->fill_table = i_s_innodb_buffer_stats_fill_table;
+	schema->fill_table = i_s_innodb_stats_fill;
 
 	DBUG_RETURN(0);
 }
@@ -3939,66 +3862,63 @@ namespace Show {
 /* Fields of the dynamic table INNODB_BUFFER_POOL_PAGE. */
 static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 {
-#define IDX_BUFFER_POOL_ID		0
-  Column("POOL_ID", ULong(), NOT_NULL),
-
-#define IDX_BUFFER_BLOCK_ID		1
+#define IDX_BUFFER_BLOCK_ID		0
   Column("BLOCK_ID", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_SPACE		2
+#define IDX_BUFFER_PAGE_SPACE		1
   Column("SPACE", ULong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_NUM		3
+#define IDX_BUFFER_PAGE_NUM		2
   Column("PAGE_NUMBER", ULong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_TYPE		4
+#define IDX_BUFFER_PAGE_TYPE		3
   Column("PAGE_TYPE", Varchar(64), NULLABLE),
 
-#define IDX_BUFFER_PAGE_FLUSH_TYPE	5
+#define IDX_BUFFER_PAGE_FLUSH_TYPE	4
   Column("FLUSH_TYPE", ULong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_FIX_COUNT	6
+#define IDX_BUFFER_PAGE_FIX_COUNT	5
   Column("FIX_COUNT", ULong(), NOT_NULL),
 
 #ifdef BTR_CUR_HASH_ADAPT
-#define IDX_BUFFER_PAGE_HASHED		7
+#define IDX_BUFFER_PAGE_HASHED		6
   Column("IS_HASHED", SLong(1), NOT_NULL),
 #endif /* BTR_CUR_HASH_ADAPT */
 
-#define IDX_BUFFER_PAGE_NEWEST_MOD	7 + I_S_AHI
+#define IDX_BUFFER_PAGE_NEWEST_MOD	6 + I_S_AHI
   Column("NEWEST_MODIFICATION", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_OLDEST_MOD	8 + I_S_AHI
+#define IDX_BUFFER_PAGE_OLDEST_MOD	7 + I_S_AHI
   Column("OLDEST_MODIFICATION", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_ACCESS_TIME	9 + I_S_AHI
+#define IDX_BUFFER_PAGE_ACCESS_TIME	8 + I_S_AHI
   Column("ACCESS_TIME", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_TABLE_NAME	10 + I_S_AHI
+#define IDX_BUFFER_PAGE_TABLE_NAME	9 + I_S_AHI
   Column("TABLE_NAME", Varchar(1024), NULLABLE),
 
-#define IDX_BUFFER_PAGE_INDEX_NAME	11 + I_S_AHI
+#define IDX_BUFFER_PAGE_INDEX_NAME	10 + I_S_AHI
   Column("INDEX_NAME", Varchar(NAME_CHAR_LEN), NULLABLE),
 
-#define IDX_BUFFER_PAGE_NUM_RECS	12 + I_S_AHI
+#define IDX_BUFFER_PAGE_NUM_RECS	11 + I_S_AHI
   Column("NUMBER_RECORDS", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_DATA_SIZE	13 + I_S_AHI
+#define IDX_BUFFER_PAGE_DATA_SIZE	12 + I_S_AHI
   Column("DATA_SIZE", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_ZIP_SIZE	14 + I_S_AHI
+#define IDX_BUFFER_PAGE_ZIP_SIZE	13 + I_S_AHI
   Column("COMPRESSED_SIZE", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_STATE		15 + I_S_AHI
+#define IDX_BUFFER_PAGE_STATE		14 + I_S_AHI
   Column("PAGE_STATE", Enum(&page_state_values_typelib), NOT_NULL, DEFAULT_NONE),
 
-#define IDX_BUFFER_PAGE_IO_FIX		16 + I_S_AHI
+#define IDX_BUFFER_PAGE_IO_FIX		15 + I_S_AHI
   Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL, DEFAULT_NONE),
 
-#define IDX_BUFFER_PAGE_IS_OLD		17 + I_S_AHI
+#define IDX_BUFFER_PAGE_IS_OLD		16 + I_S_AHI
   Column("IS_OLD", SLong(1), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_FREE_CLOCK	18 + I_S_AHI
+#define IDX_BUFFER_PAGE_FREE_CLOCK	17 + I_S_AHI
   Column("FREE_PAGE_CLOCK", ULonglong(), NOT_NULL),
 
   CEnd()
@@ -4038,9 +3958,6 @@ i_s_innodb_buffer_page_fill(
 		const char*		table_name_end = NULL;
 
 		page_info = info_array + i;
-
-		OK(fields[IDX_BUFFER_POOL_ID]->store(
-			   page_info->pool_id, true));
 
 		OK(fields[IDX_BUFFER_BLOCK_ID]->store(
 			   page_info->block_id, true));
@@ -4226,17 +4143,12 @@ void
 i_s_innodb_buffer_page_get_info(
 /*============================*/
 	const buf_page_t*bpage,		/*!< in: buffer pool page to scan */
-	ulint		pool_id,	/*!< in: buffer pool id */
 	ulint		pos,		/*!< in: buffer block position in
 					buffer pool or in the LRU list */
 	buf_page_info_t*page_info)	/*!< in: zero filled info structure;
 					out: structure filled with scanned
 					info */
 {
-	ut_ad(pool_id < MAX_BUFFER_POOLS);
-
-	page_info->pool_id = pool_id;
-
 	page_info->block_id = pos;
 
 	page_info->page_state = buf_page_get_state(bpage);
@@ -4305,25 +4217,25 @@ i_s_innodb_buffer_page_get_info(
 /*******************************************************************//**
 This is the function that goes through each block of the buffer pool
 and fetch information to information schema tables: INNODB_BUFFER_PAGE.
+@param[in,out]	thd	connection
+@param[in,out]	tables	tables to fill
 @return 0 on success, 1 on failure */
-static
-int
-i_s_innodb_fill_buffer_pool(
-/*========================*/
-	THD*			thd,		/*!< in: thread */
-	TABLE_LIST*		tables,		/*!< in/out: tables to fill */
-	buf_pool_t*		buf_pool,	/*!< in: buffer pool to scan */
-	const ulint		pool_id)	/*!< in: buffer pool id */
+static int i_s_innodb_buffer_page_fill(THD *thd, TABLE_LIST *tables, Item *)
 {
 	int			status	= 0;
 	mem_heap_t*		heap;
 
-	DBUG_ENTER("i_s_innodb_fill_buffer_pool");
+	DBUG_ENTER("i_s_innodb_buffer_page_fill");
+
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
+
+	/* deny access to user without PROCESS privilege */
+	if (check_global_access(thd, PROCESS_ACL)) {
+		DBUG_RETURN(0);
+	}
 
 	heap = mem_heap_create(10000);
 
-	/* Go through each chunk of buffer pool. Currently, we only
-	have one single chunk for each buffer pool */
 	for (ulint n = 0;
 	     n < ut_min(buf_pool->n_chunks, buf_pool->n_chunks_new); n++) {
 		const buf_block_t*	block;
@@ -4336,7 +4248,8 @@ i_s_innodb_fill_buffer_pool(
 		ulint			block_id = 0;
 
 		/* Get buffer block of the nth chunk */
-		block = buf_get_nth_chunk_block(buf_pool, n, &chunk_size);
+		block = buf_pool->chunks[n].blocks;
+		chunk_size = buf_pool->chunks[n].size;
 		num_page = 0;
 
 		while (chunk_size > 0) {
@@ -4357,18 +4270,18 @@ i_s_innodb_fill_buffer_pool(
 			buffer pool info printout, we are not required to
 			preserve the overall consistency, so we can
 			release mutex periodically */
-			buf_pool_mutex_enter(buf_pool);
+			mutex_enter(&buf_pool->mutex);
 
 			/* GO through each block in the chunk */
 			for (n_blocks = num_to_process; n_blocks--; block++) {
 				i_s_innodb_buffer_page_get_info(
-					&block->page, pool_id, block_id,
+					&block->page, block_id,
 					info_buffer + num_page);
 				block_id++;
 				num_page++;
 			}
 
-			buf_pool_mutex_exit(buf_pool);
+			mutex_exit(&buf_pool->mutex);
 
 			/* Fill in information schema table with information
 			just collected from the buffer chunk scan */
@@ -4393,48 +4306,6 @@ i_s_innodb_fill_buffer_pool(
 }
 
 /*******************************************************************//**
-Fill page information for pages in InnoDB buffer pool to the
-dynamic table INFORMATION_SCHEMA.INNODB_BUFFER_PAGE
-@return 0 on success, 1 on failure */
-static
-int
-i_s_innodb_buffer_page_fill_table(
-/*==============================*/
-	THD*		thd,		/*!< in: thread */
-	TABLE_LIST*	tables,		/*!< in/out: tables to fill */
-	Item*		)		/*!< in: condition (ignored) */
-{
-	int	status	= 0;
-
-	DBUG_ENTER("i_s_innodb_buffer_page_fill_table");
-
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
-
-	/* deny access to user without PROCESS privilege */
-	if (check_global_access(thd, PROCESS_ACL)) {
-		DBUG_RETURN(0);
-	}
-
-	/* Walk through each buffer pool */
-	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-		buf_pool_t*	buf_pool;
-
-		buf_pool = buf_pool_from_array(i);
-
-		/* Fetch information from pages in this buffer pool,
-		and fill the corresponding I_S table */
-		status = i_s_innodb_fill_buffer_pool(thd, tables, buf_pool, i);
-
-		/* If something wrong, break and return */
-		if (status) {
-			break;
-		}
-	}
-
-	DBUG_RETURN(status);
-}
-
-/*******************************************************************//**
 Bind the dynamic table INFORMATION_SCHEMA.INNODB_BUFFER_PAGE.
 @return 0 on success, 1 on failure */
 static
@@ -4450,7 +4321,7 @@ i_s_innodb_buffer_page_init(
 	schema = reinterpret_cast<ST_SCHEMA_TABLE*>(p);
 
 	schema->fields_info = Show::i_s_innodb_buffer_page_fields_info;
-	schema->fill_table = i_s_innodb_buffer_page_fill_table;
+	schema->fill_table = i_s_innodb_buffer_page_fill;
 
 	DBUG_RETURN(0);
 }
@@ -4507,66 +4378,63 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_page =
 namespace Show {
 static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 {
-#define IDX_BUF_LRU_POOL_ID		0
-  Column("POOL_ID", ULong(), NOT_NULL),
-
-#define IDX_BUF_LRU_POS			1
+#define IDX_BUF_LRU_POS			0
   Column("LRU_POSITION", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_SPACE		2
+#define IDX_BUF_LRU_PAGE_SPACE		1
   Column("SPACE", ULong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_NUM		3
+#define IDX_BUF_LRU_PAGE_NUM		2
   Column("PAGE_NUMBER", ULong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_TYPE		4
+#define IDX_BUF_LRU_PAGE_TYPE		3
   Column("PAGE_TYPE", Varchar(64), NULLABLE),
 
-#define IDX_BUF_LRU_PAGE_FLUSH_TYPE	5
+#define IDX_BUF_LRU_PAGE_FLUSH_TYPE	4
   Column("FLUSH_TYPE", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_FIX_COUNT	6
+#define IDX_BUF_LRU_PAGE_FIX_COUNT	5
   Column("FIX_COUNT", ULong(), NOT_NULL),
 
 #ifdef BTR_CUR_HASH_ADAPT
-#define IDX_BUF_LRU_PAGE_HASHED		7
+#define IDX_BUF_LRU_PAGE_HASHED		6
   Column("IS_HASHED", SLong(1), NOT_NULL),
 #endif /* BTR_CUR_HASH_ADAPT */
 
-#define IDX_BUF_LRU_PAGE_NEWEST_MOD	7 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_NEWEST_MOD	6 + I_S_AHI
   Column("NEWEST_MODIFICATION",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_OLDEST_MOD	8 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_OLDEST_MOD	7 + I_S_AHI
   Column("OLDEST_MODIFICATION",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_ACCESS_TIME	9 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_ACCESS_TIME	8 + I_S_AHI
   Column("ACCESS_TIME",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_TABLE_NAME	10 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_TABLE_NAME	9 + I_S_AHI
   Column("TABLE_NAME", Varchar(1024), NULLABLE),
 
-#define IDX_BUF_LRU_PAGE_INDEX_NAME	11 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_INDEX_NAME	10 + I_S_AHI
   Column("INDEX_NAME", Varchar(NAME_CHAR_LEN), NULLABLE),
 
-#define IDX_BUF_LRU_PAGE_NUM_RECS	12 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_NUM_RECS	11 + I_S_AHI
   Column("NUMBER_RECORDS", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_DATA_SIZE	13 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_DATA_SIZE	12 + I_S_AHI
   Column("DATA_SIZE", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_ZIP_SIZE	14 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_ZIP_SIZE	13 + I_S_AHI
   Column("COMPRESSED_SIZE",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_STATE		15 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_STATE		14 + I_S_AHI
   Column("COMPRESSED", SLong(1), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_IO_FIX		16 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_IO_FIX		15 + I_S_AHI
   Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL, DEFAULT_NONE),
 
-#define IDX_BUF_LRU_PAGE_IS_OLD		17 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_IS_OLD		16 + I_S_AHI
   Column("IS_OLD", SLong(1), NULLABLE),
 
-#define IDX_BUF_LRU_PAGE_FREE_CLOCK	18 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_FREE_CLOCK	17 + I_S_AHI
   Column("FREE_PAGE_CLOCK", ULonglong(), NOT_NULL),
 
   CEnd()
@@ -4600,9 +4468,6 @@ i_s_innodb_buf_page_lru_fill(
 		const char*		table_name_end = NULL;
 
 		page_info = info_array + i;
-
-		OK(fields[IDX_BUF_LRU_POOL_ID]->store(
-			   page_info->pool_id, true));
 
 		OK(fields[IDX_BUF_LRU_POS]->store(
 			   page_info->block_id, true));
@@ -4713,18 +4578,13 @@ i_s_innodb_buf_page_lru_fill(
 	DBUG_RETURN(0);
 }
 
-/*******************************************************************//**
-This is the function that goes through buffer pool's LRU list
-and fetch information to INFORMATION_SCHEMA.INNODB_BUFFER_PAGE_LRU.
+/** Fill the table INFORMATION_SCHEMA.INNODB_BUFFER_PAGE_LRU.
+@param[in]	thd		thread
+@param[in,out]	tables		tables to fill
 @return 0 on success, 1 on failure */
 static
 int
-i_s_innodb_fill_buffer_lru(
-/*=======================*/
-	THD*			thd,		/*!< in: thread */
-	TABLE_LIST*		tables,		/*!< in/out: tables to fill */
-	buf_pool_t*		buf_pool,	/*!< in: buffer pool to scan */
-	const ulint		pool_id)	/*!< in: buffer pool id */
+i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item*)
 {
 	int			status = 0;
 	buf_page_info_t*	info_buffer;
@@ -4734,9 +4594,16 @@ i_s_innodb_fill_buffer_lru(
 
 	DBUG_ENTER("i_s_innodb_fill_buffer_lru");
 
-	/* Obtain buf_pool mutex before allocate info_buffer, since
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
+
+	/* deny access to any users that do not hold PROCESS_ACL */
+	if (check_global_access(thd, PROCESS_ACL)) {
+		DBUG_RETURN(0);
+	}
+
+	/* Aquire the mutex before allocating info_buffer, since
 	UT_LIST_GET_LEN(buf_pool->LRU) could change */
-	buf_pool_mutex_enter(buf_pool);
+	mutex_enter(&buf_pool->mutex);
 
 	lru_len = UT_LIST_GET_LEN(buf_pool->LRU);
 
@@ -4762,7 +4629,7 @@ i_s_innodb_fill_buffer_lru(
 	while (bpage != NULL) {
 		/* Use the same function that collect buffer info for
 		INNODB_BUFFER_PAGE to get buffer page info */
-		i_s_innodb_buffer_page_get_info(bpage, pool_id, lru_pos,
+		i_s_innodb_buffer_page_get_info(bpage, lru_pos,
 						(info_buffer + lru_pos));
 
 		bpage = UT_LIST_GET_PREV(LRU, bpage);
@@ -4774,55 +4641,13 @@ i_s_innodb_fill_buffer_lru(
 	ut_ad(lru_pos == UT_LIST_GET_LEN(buf_pool->LRU));
 
 exit:
-	buf_pool_mutex_exit(buf_pool);
+	mutex_exit(&buf_pool->mutex);
 
 	if (info_buffer) {
 		status = i_s_innodb_buf_page_lru_fill(
 			thd, tables, info_buffer, lru_len);
 
 		my_free(info_buffer);
-	}
-
-	DBUG_RETURN(status);
-}
-
-/*******************************************************************//**
-Fill page information for pages in InnoDB buffer pool to the
-dynamic table INFORMATION_SCHEMA.INNODB_BUFFER_PAGE_LRU
-@return 0 on success, 1 on failure */
-static
-int
-i_s_innodb_buf_page_lru_fill_table(
-/*===============================*/
-	THD*		thd,		/*!< in: thread */
-	TABLE_LIST*	tables,		/*!< in/out: tables to fill */
-	Item*		)		/*!< in: condition (ignored) */
-{
-	int	status	= 0;
-
-	DBUG_ENTER("i_s_innodb_buf_page_lru_fill_table");
-
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
-
-	/* deny access to any users that do not hold PROCESS_ACL */
-	if (check_global_access(thd, PROCESS_ACL)) {
-		DBUG_RETURN(0);
-	}
-
-	/* Walk through each buffer pool */
-	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-		buf_pool_t*	buf_pool;
-
-		buf_pool = buf_pool_from_array(i);
-
-		/* Fetch information from pages in this buffer pool's LRU list,
-		and fill the corresponding I_S table */
-		status = i_s_innodb_fill_buffer_lru(thd, tables, buf_pool, i);
-
-		/* If something wrong, break and return */
-		if (status) {
-			break;
-		}
 	}
 
 	DBUG_RETURN(status);
@@ -4844,7 +4669,7 @@ i_s_innodb_buffer_page_lru_init(
 	schema = reinterpret_cast<ST_SCHEMA_TABLE*>(p);
 
 	schema->fields_info = Show::i_s_innodb_buf_page_lru_fields_info;
-	schema->fill_table = i_s_innodb_buf_page_lru_fill_table;
+	schema->fill_table = i_s_innodb_fill_buffer_lru;
 
 	DBUG_RETURN(0);
 }

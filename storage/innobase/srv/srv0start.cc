@@ -1067,7 +1067,7 @@ srv_prepare_to_delete_redo_log_files(
 
 	do {
 		/* Clean the buffer pool. */
-		buf_flush_sync_all_buf_pools();
+		buf_flush_sync();
 
 		DBUG_EXECUTE_IF("innodb_log_abort_1", DBUG_RETURN(0););
 		DBUG_PRINT("ib_log", ("After innodb_log_abort_1"));
@@ -1233,11 +1233,11 @@ dberr_t srv_start(bool create_new_db)
 			    + 1 /* trx_rollback_all_recovered */
 			    + 128 /* added as margin, for use of
 				  InnoDB Memcached etc. */
+			    + 1/* buf_flush_page_cleaner */
 			    + max_connections
 			    + srv_n_read_io_threads
 			    + srv_n_write_io_threads
 			    + srv_n_purge_threads
-			    + srv_n_page_cleaners
 			    /* FTS Parallel Sort */
 			    + fts_sort_pll_degree * FTS_NUM_AUX_INDEX
 			      * max_connections;
@@ -1324,35 +1324,11 @@ dberr_t srv_start(bool create_new_db)
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
-	double	size;
-	char	unit;
-
-	if (srv_buf_pool_size >= 1024 * 1024 * 1024) {
-		size = ((double) srv_buf_pool_size) / (1024 * 1024 * 1024);
-		unit = 'G';
-	} else {
-		size = ((double) srv_buf_pool_size) / (1024 * 1024);
-		unit = 'M';
-	}
-
-	double	chunk_size;
-	char	chunk_unit;
-
-	if (srv_buf_pool_chunk_unit >= 1024 * 1024 * 1024) {
-		chunk_size = srv_buf_pool_chunk_unit / 1024.0 / 1024 / 1024;
-		chunk_unit = 'G';
-	} else {
-		chunk_size = srv_buf_pool_chunk_unit / 1024.0 / 1024;
-		chunk_unit = 'M';
-	}
-
 	ib::info() << "Initializing buffer pool, total size = "
-		<< size << unit << ", instances = " << srv_buf_pool_instances
-		<< ", chunk size = " << chunk_size << chunk_unit;
+		<< srv_buf_pool_size
+		<< ", chunk size = " << srv_buf_pool_chunk_unit;
 
-	err = buf_pool_init(srv_buf_pool_size, srv_buf_pool_instances);
-
-	if (err != DB_SUCCESS) {
+	if (buf_pool_init()) {
 		ib::error() << "Cannot allocate memory for the buffer pool";
 
 		return(srv_init_abort(DB_ERROR));
@@ -1380,16 +1356,6 @@ dberr_t srv_start(bool create_new_db)
 
 	if (!srv_read_only_mode) {
 		buf_flush_page_cleaner_init();
-
-		buf_page_cleaner_is_active = true;
-		os_thread_create(buf_flush_page_cleaner_coordinator,
-				 NULL, NULL);
-
-		/* Create page cleaner workers if needed. For example
-		mariabackup could set srv_n_page_cleaners = 0. */
-		if (srv_n_page_cleaners > 1) {
-			buf_flush_set_page_cleaner_thread_cnt(srv_n_page_cleaners);
-		}
 
 #ifdef UNIV_LINUX
 		/* Wait for the setpriority() call to finish. */
@@ -1455,7 +1421,7 @@ dberr_t srv_start(bool create_new_db)
 	std::string logfile0;
 	if (create_new_db) {
 
-		buf_flush_sync_all_buf_pools();
+		buf_flush_sync();
 
 		flushed_lsn = log_get_lsn();
 
@@ -1661,7 +1627,7 @@ files_checked:
 			return(srv_init_abort(err));
 		}
 
-		buf_flush_sync_all_buf_pools();
+		buf_flush_sync();
 
 		flushed_lsn = log_get_lsn();
 
@@ -1829,7 +1795,7 @@ files_checked:
 			ut_ad(!srv_force_recovery);
 			ut_ad(srv_n_log_files_found <= 1);
 			ut_ad(recv_no_log_write);
-			buf_flush_sync_all_buf_pools();
+			buf_flush_sync();
 			err = fil_write_flushed_lsn(log_get_lsn());
 			ut_ad(!buf_pool_check_no_pending_io());
 			log_sys.log.close_files();
@@ -2332,9 +2298,9 @@ void innodb_shutdown()
 	pars_lexer_close();
 	recv_sys.close();
 
-	ut_ad(buf_pool_ptr || !srv_was_started);
-	if (buf_pool_ptr) {
-		buf_pool_free(srv_buf_pool_instances);
+	ut_ad(buf_pool || !srv_was_started);
+	if (buf_pool) {
+		buf_pool_free();
 	}
 
 	sync_check_close();

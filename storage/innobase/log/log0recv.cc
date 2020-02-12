@@ -891,7 +891,7 @@ inline byte* recv_sys_t::alloc(size_t len, bool store_recv)
   if (UNIV_UNLIKELY(!block))
   {
 create_block:
-    block= buf_block_alloc(nullptr);
+    block= buf_block_alloc();
     block->page.access_time= 1U << 16 |
       ut_calc_align<uint16_t>(static_cast<uint16_t>(len), ALIGNMENT);
     static_assert(ut_is_2pow(ALIGNMENT), "ALIGNMENT must be a power of 2");
@@ -941,31 +941,27 @@ inline void recv_sys_t::free(const void *data)
   ut_ad(!buf_pool_withdrawing);
 #endif
 
-  for (auto i= srv_buf_pool_instances; i--; )
+  buf_chunk_t *chunk= buf_pool->chunks;
+  for (auto i= buf_pool->n_chunks; i--; chunk++)
   {
-    buf_pool_t *buf_pool= buf_pool_from_array(i);
-    buf_chunk_t *chunk= buf_pool->chunks;
-    for (auto i= buf_pool->n_chunks; i--; chunk++)
+    if (data < chunk->blocks->frame)
+      continue;
+    const size_t offs= (reinterpret_cast<const byte*>(data) -
+                        chunk->blocks->frame) >> srv_page_size_shift;
+    if (offs >= chunk->size)
+      continue;
+    buf_block_t *block= &chunk->blocks[offs];
+    ut_ad(block->frame == data);
+    ut_ad(buf_block_get_state(block) == BUF_BLOCK_MEMORY);
+    ut_ad(static_cast<uint16_t>(block->page.access_time - 1) <
+          srv_page_size);
+    ut_ad(block->page.access_time >= 1U << 16);
+    if (!((block->page.access_time -= 1U << 16) >> 16))
     {
-      if (data < chunk->blocks->frame)
-        continue;
-      const size_t offs= (reinterpret_cast<const byte*>(data) -
-                          chunk->blocks->frame) >> srv_page_size_shift;
-      if (offs >= chunk->size)
-        continue;
-      buf_block_t *block= &chunk->blocks[offs];
-      ut_ad(block->frame == data);
-      ut_ad(buf_block_get_state(block) == BUF_BLOCK_MEMORY);
-      ut_ad(static_cast<uint16_t>(block->page.access_time - 1) <
-            srv_page_size);
-      ut_ad(block->page.access_time >= 1U << 16);
-      if (!((block->page.access_time -= 1U << 16) >> 16))
-      {
-        UT_LIST_REMOVE(blocks, block);
-        buf_block_free(block);
-      }
-      return;
+      UT_LIST_REMOVE(blocks, block);
+      buf_block_free(block);
     }
+    return;
   }
   ut_ad(0);
 }
@@ -2182,7 +2178,7 @@ static void recv_read_in_area(page_id_t page_id)
 	     && i->first.space() == page_id.space()
 	     && i->first.page_no() < up_limit; i++) {
 		if (i->second.state == page_recv_t::RECV_NOT_PROCESSED
-		    && !buf_page_peek(i->first)) {
+		    && !buf_page_hash_get(i->first)) {
 			i->second.state = page_recv_t::RECV_BEING_READ;
 			*p++ = i->first.page_no();
 		}
@@ -3506,15 +3502,10 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
-#ifdef UNIV_DEBUG
-	for (ulint i= 0; i < srv_buf_pool_instances; i++) {
-		buf_pool_t* buf_pool = buf_pool_from_array(i);
-		buf_flush_list_mutex_enter(buf_pool);
-		ut_ad(UT_LIST_GET_LEN(buf_pool->LRU) == 0);
-		ut_ad(UT_LIST_GET_LEN(buf_pool->unzip_LRU) == 0);
-		buf_flush_list_mutex_exit(buf_pool);
-	}
-#endif
+	ut_d(mutex_enter(&buf_pool->flush_list_mutex));
+	ut_ad(UT_LIST_GET_LEN(buf_pool->LRU) == 0);
+	ut_ad(UT_LIST_GET_LEN(buf_pool->unzip_LRU) == 0);
+	ut_d(mutex_exit(&buf_pool->flush_list_mutex));
 
 	/* Initialize red-black tree for fast insertions into the
 	flush_list during recovery process. */

@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1613,11 +1613,6 @@ srv_mon_process_existing_counter(
 	mon_type_t		value;
 	monitor_info_t*		monitor_info;
 	ibool			update_min = FALSE;
-	buf_pool_stat_t		stat;
-	buf_pools_list_size_t	buf_pools_list_size;
-	ulint			LRU_len;
-	ulint			free_len;
-	ulint			flush_list_len;
 
 	monitor_info = srv_mon_get_info(monitor_id);
 
@@ -1635,8 +1630,7 @@ srv_mon_process_existing_counter(
 	/* innodb_buffer_pool_read_requests, the number of logical
 	read requests */
 	case MONITOR_OVLD_BUF_POOL_READ_REQUESTS:
-		buf_get_total_stat(&stat);
-		value = stat.n_page_gets;
+		value = buf_pool->stat.n_page_gets;
 		break;
 
 	/* innodb_buffer_pool_write_requests, the number of
@@ -1652,14 +1646,12 @@ srv_mon_process_existing_counter(
 
 	/* innodb_buffer_pool_read_ahead */
 	case MONITOR_OVLD_BUF_POOL_READ_AHEAD:
-		buf_get_total_stat(&stat);
-		value = stat.n_ra_pages_read;
+		value = buf_pool->stat.n_ra_pages_read;
 		break;
 
 	/* innodb_buffer_pool_read_ahead_evicted */
 	case MONITOR_OVLD_BUF_POOL_READ_AHEAD_EVICTED:
-		buf_get_total_stat(&stat);
-		value = stat.n_ra_pages_evicted;
+		value = buf_pool->stat.n_ra_pages_evicted;
 		break;
 
 	/* innodb_buffer_pool_pages_total */
@@ -1669,51 +1661,46 @@ srv_mon_process_existing_counter(
 
 	/* innodb_buffer_pool_pages_misc */
 	case MONITOR_OVLD_BUF_POOL_PAGE_MISC:
-		buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
-		value = buf_pool_get_n_pages() - LRU_len - free_len;
+		value = buf_pool_get_n_pages()
+			- UT_LIST_GET_LEN(buf_pool->LRU)
+			- UT_LIST_GET_LEN(buf_pool->free);
 		break;
 
 	/* innodb_buffer_pool_pages_data */
 	case MONITOR_OVLD_BUF_POOL_PAGES_DATA:
-		buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
-		value = LRU_len;
+		value = UT_LIST_GET_LEN(buf_pool->LRU);
 		break;
 
 	/* innodb_buffer_pool_bytes_data */
 	case MONITOR_OVLD_BUF_POOL_BYTES_DATA:
-		buf_get_total_list_size_in_bytes(&buf_pools_list_size);
-		value = buf_pools_list_size.LRU_bytes
-			+ buf_pools_list_size.unzip_LRU_bytes;
+		value = buf_pool->stat.LRU_bytes
+			+ (UT_LIST_GET_LEN(buf_pool->unzip_LRU)
+			   << srv_page_size_shift);
 		break;
 
 	/* innodb_buffer_pool_pages_dirty */
 	case MONITOR_OVLD_BUF_POOL_PAGES_DIRTY:
-		buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
-		value = flush_list_len;
+		value = UT_LIST_GET_LEN(buf_pool->flush_list);
 		break;
 
 	/* innodb_buffer_pool_bytes_dirty */
 	case MONITOR_OVLD_BUF_POOL_BYTES_DIRTY:
-		buf_get_total_list_size_in_bytes(&buf_pools_list_size);
-		value = buf_pools_list_size.flush_list_bytes;
+		value = buf_pool->stat.flush_list_bytes;
 		break;
 
 	/* innodb_buffer_pool_pages_free */
 	case MONITOR_OVLD_BUF_POOL_PAGES_FREE:
-		buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
-		value = free_len;
+		value = UT_LIST_GET_LEN(buf_pool->free);
 		break;
 
 	/* innodb_pages_created, the number of pages created */
 	case MONITOR_OVLD_PAGE_CREATED:
-		buf_get_total_stat(&stat);
-		value = stat.n_pages_created;
+		value = buf_pool->stat.n_pages_created;
 		break;
 
 	/* innodb_pages_written, the number of page written */
 	case MONITOR_OVLD_PAGES_WRITTEN:
-		buf_get_total_stat(&stat);
-		value = stat.n_pages_written;
+		value = buf_pool->stat.n_pages_written;
 		break;
 
 	/* innodb_index_pages_written, the number of index pages written */
@@ -1728,8 +1715,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_pages_read */
 	case MONITOR_OVLD_PAGES_READ:
-		buf_get_total_stat(&stat);
-		value = stat.n_pages_read;
+		value = buf_pool->stat.n_pages_read;
 		break;
 
 	/* Number of times secondary index lookup triggered cluster lookup */

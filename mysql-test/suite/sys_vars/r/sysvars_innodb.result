@@ -158,7 +158,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	134217728
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Size of a single memory chunk within each buffer pool instance for resizing buffer pool. Online buffer pool resizing happens at this granularity. 0 means disable resizing buffer pool.
+VARIABLE_COMMENT	Size of a single memory chunk for resizing buffer pool. Online buffer pool resizing happens at this granularity. 0 means disable resizing buffer pool.
 NUMERIC_MIN_VALUE	1048576
 NUMERIC_MAX_VALUE	9223372036854775807
 NUMERIC_BLOCK_SIZE	1048576
@@ -230,7 +230,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of buffer pool instances, set to higher value on high-end machines to increase scalability
+VARIABLE_COMMENT	Deprecated parameter with no effect.
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	64
 NUMERIC_BLOCK_SIZE	0
@@ -1487,11 +1487,11 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NONE
 VARIABLE_NAME	INNODB_PAGE_CLEANERS
 SESSION_VALUE	NULL
-DEFAULT_VALUE	4
+DEFAULT_VALUE	0
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Page cleaner threads can be from 1 to 64. Default is 4.
-NUMERIC_MIN_VALUE	1
+VARIABLE_COMMENT	Deprecated parameter with no effect.
+NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	64
 NUMERIC_BLOCK_SIZE	0
 ENUM_VALUE_LIST	NULL

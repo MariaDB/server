@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1231,7 +1231,7 @@ static bool log_preflush_pool_modified_pages(lsn_t new_oldest)
 
 		success = buf_flush_lists(ULINT_MAX, new_oldest, &n_pages);
 
-		buf_flush_wait_batch_end(NULL, BUF_FLUSH_LIST);
+		buf_flush_wait_batch_end(BUF_FLUSH_LIST);
 
 		if (!success) {
 			MONITOR_INC(MONITOR_FLUSH_SYNC_WAITS);
@@ -1631,7 +1631,7 @@ loop:
 	if (!srv_read_only_mode) {
 		if (recv_sys.flush_start) {
 			/* This is in case recv_writer_thread was never
-			started, or buf_flush_page_cleaner_coordinator
+			started, or buf_flush_page_cleaner
 			failed to notice its termination. */
 			os_event_set(recv_sys.flush_start);
 		}
@@ -1745,7 +1745,7 @@ wait_suspend_loop:
 
 	ut_ad(!log_scrub_thread_active);
 
-	if (!buf_pool_ptr) {
+	if (!buf_pool) {
 		ut_ad(!srv_was_started);
 	} else if (ulint pending_io = buf_pool_check_no_pending_io()) {
 		if (srv_print_verbose_log && count > 600) {
@@ -1817,7 +1817,7 @@ wait_suspend_loop:
 
 	service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 				       "Free innodb buffer pool");
-	buf_all_freed();
+	ut_d(buf_assert_all_freed());
 
 	ut_a(lsn == log_sys.lsn
 	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);

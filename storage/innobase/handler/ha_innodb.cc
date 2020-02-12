@@ -3407,58 +3407,10 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 /** Initialize and normalize innodb_buffer_pool_size. */
 static void innodb_buffer_pool_size_init()
 {
-	if (srv_buf_pool_size >= BUF_POOL_SIZE_THRESHOLD) {
-
-		if (srv_buf_pool_instances == srv_buf_pool_instances_default) {
-#if defined(_WIN32) && !defined(_WIN64)
-			/* Do not allocate too large of a buffer pool on
-			Windows 32-bit systems, which can have trouble
-			allocating larger single contiguous memory blocks. */
-			srv_buf_pool_size = ulint(
-				ut_uint64_align_up(srv_buf_pool_size,
-						   srv_buf_pool_chunk_unit));
-			srv_buf_pool_instances = std::min<ulong>(
-				MAX_BUFFER_POOLS,
-				ulong(srv_buf_pool_size
-				      / srv_buf_pool_chunk_unit));
-#else /* defined(_WIN32) && !defined(_WIN64) */
-			/* Default to 8 instances when size > 1GB. */
-			srv_buf_pool_instances = 8;
-#endif /* defined(_WIN32) && !defined(_WIN64) */
-		}
-	} else {
-		/* If buffer pool is less than 1 GiB, assume fewer
-		threads. Also use only one buffer pool instance. */
-		if (srv_buf_pool_instances != srv_buf_pool_instances_default
-		    && srv_buf_pool_instances != 1) {
-			/* We can't distinguish whether the user has explicitly
-			started mysqld with --innodb-buffer-pool-instances=0,
-			(srv_buf_pool_instances_default is 0) or has not
-			specified that option at all. Thus we have the
-			limitation that if the user started with =0, we
-			will not emit a warning here, but we should actually
-			do so. */
-			ib::info()
-				<< "Adjusting innodb_buffer_pool_instances"
-				" from " << srv_buf_pool_instances << " to 1"
-				" since innodb_buffer_pool_size is less than "
-				<< BUF_POOL_SIZE_THRESHOLD / (1024 * 1024)
-				<< " MiB";
-		}
-
-		srv_buf_pool_instances = 1;
-	}
-
-	if (srv_buf_pool_chunk_unit * srv_buf_pool_instances
-	    > srv_buf_pool_size) {
+	if (srv_buf_pool_chunk_unit > srv_buf_pool_size) {
 		/* Size unit of buffer pool is larger than srv_buf_pool_size.
 		adjust srv_buf_pool_chunk_unit for srv_buf_pool_size. */
-		srv_buf_pool_chunk_unit
-			= static_cast<ulong>(srv_buf_pool_size)
-			  / srv_buf_pool_instances;
-		if (srv_buf_pool_size % srv_buf_pool_instances != 0) {
-			++srv_buf_pool_chunk_unit;
-		}
+		srv_buf_pool_chunk_unit = ulong(srv_buf_pool_size);
 	}
 
 	srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
@@ -3480,6 +3432,12 @@ static ulong innodb_undo_logs;
 /** Deprecation message for innodb_undo_logs */
 static const char* innodb_undo_logs_deprecated
 = "The parameter innodb_undo_logs is deprecated and has no effect.";
+/** Deprecated parameter with no effect */
+static ulong innodb_buffer_pool_instances;
+/** Deprecated parameter with no effect */
+static ulong innodb_page_cleaners;
+static const char* innodb_page_cleaners_deprecated
+= "The parameter innodb_page_cleaners is deprecated and has no effect.";
 
 /** Initialize, validate and normalize the InnoDB startup parameters.
 @return failure code
@@ -3789,6 +3747,19 @@ static int innodb_init_params()
 		innodb_log_optimize_ddl = FALSE;
 	}
 
+	if (UNIV_UNLIKELY(innodb_buffer_pool_instances)) {
+		sql_print_warning("The parameter innodb_buffer_pool_instances"
+				  " is deprecated and has no effect.");
+	}
+
+	if (UNIV_UNLIKELY(innodb_page_cleaners)) {
+		sql_print_warning(innodb_page_cleaners_deprecated);
+	}
+
+	innodb_buffer_pool_instances = 1;
+
+	innodb_page_cleaners = 1;
+
 	if (UNIV_UNLIKELY(innodb_undo_logs != TRX_SYS_N_RSEGS)) {
 		sql_print_warning(innodb_undo_logs_deprecated);
 		innodb_undo_logs = TRX_SYS_N_RSEGS;
@@ -3893,12 +3864,6 @@ static int innodb_init_params()
 	srv_file_flush_method = srv_flush_t(innodb_flush_method);
 
 	innodb_buffer_pool_size_init();
-
-	if (srv_n_page_cleaners > srv_buf_pool_instances) {
-		/* limit of page_cleaner parallelizability
-		is number of buffer pool instances. */
-		srv_n_page_cleaners = srv_buf_pool_instances;
-	}
 
 	srv_lock_table_size = 5 * (srv_buf_pool_size >> srv_page_size_shift);
 	DBUG_RETURN(0);
@@ -4045,8 +4010,8 @@ static int innodb_init(void* p)
 	srv_was_started = true;
 	innodb_params_adjust();
 
-	innobase_old_blocks_pct = static_cast<uint>(
-		buf_LRU_old_ratio_update(innobase_old_blocks_pct, TRUE));
+	innobase_old_blocks_pct = buf_LRU_old_ratio_update(
+		innobase_old_blocks_pct, true);
 
 	ibuf_max_size_update(srv_change_buffer_max_size);
 
@@ -18293,36 +18258,28 @@ Keep the compressed pages in the buffer pool.
 @return whether all uncompressed pages were evicted */
 static MY_ATTRIBUTE((warn_unused_result))
 bool
-innodb_buffer_pool_evict_uncompressed(void)
-/*=======================================*/
+innodb_buffer_pool_evict_uncompressed()
 {
 	bool	all_evicted = true;
 
-	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-		buf_pool_t*	buf_pool = &buf_pool_ptr[i];
+	mutex_enter(&buf_pool->mutex);
 
-		buf_pool_mutex_enter(buf_pool);
+	for (buf_block_t* block = UT_LIST_GET_LAST(buf_pool->unzip_LRU);
+	     block != NULL; ) {
+		buf_block_t*	prev_block = UT_LIST_GET_PREV(unzip_LRU, block);
+		ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
+		ut_ad(block->in_unzip_LRU_list);
+		ut_ad(block->page.in_LRU_list);
+		mutex_enter(&block->mutex);
 
-		for (buf_block_t* block = UT_LIST_GET_LAST(
-			     buf_pool->unzip_LRU);
-		     block != NULL; ) {
-			buf_block_t*	prev_block = UT_LIST_GET_PREV(
-				unzip_LRU, block);
-			ut_ad(buf_block_get_state(block)
-			      == BUF_BLOCK_FILE_PAGE);
-			ut_ad(block->in_unzip_LRU_list);
-			ut_ad(block->page.in_LRU_list);
-
-			if (!buf_LRU_free_page(&block->page, false)) {
-				all_evicted = false;
-			}
-
-			block = prev_block;
+		if (!buf_LRU_free_page(&block->page, false)) {
+			mutex_exit(&block->mutex);
+			all_evicted = false;
 		}
-
-		buf_pool_mutex_exit(buf_pool);
+		block = prev_block;
 	}
 
+	mutex_exit(&buf_pool->mutex);
 	return(all_evicted);
 }
 
@@ -18644,7 +18601,7 @@ buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	if (*(my_bool*) save) {
 		mysql_mutex_unlock(&LOCK_global_system_variables);
-		buf_flush_sync_all_buf_pools();
+		buf_flush_sync();
 		mysql_mutex_lock(&LOCK_global_system_variables);
 	}
 }
@@ -18904,6 +18861,16 @@ innodb_log_optimize_ddl_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
 	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			    HA_ERR_UNSUPPORTED,
 			    innodb_log_optimize_ddl_deprecated);
+}
+
+/** Issue a deprecation warning for SET GLOBAL innodb_page_cleaners.
+@param[in,out]	thd	client connection */
+static void
+innodb_page_cleaners_warn(THD* thd, st_mysql_sys_var*, void*, const void*)
+{
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+			    HA_ERR_UNSUPPORTED,
+			    innodb_page_cleaners_deprecated);
 }
 
 /** Issue a deprecation warning for SET GLOBAL innodb_undo_logs.
@@ -19274,20 +19241,9 @@ static MYSQL_SYSVAR_STR(log_group_home_dir, srv_log_group_home_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Path to InnoDB log files.", NULL, NULL, NULL);
 
-/** Update innodb_page_cleaners.
-@param[in]	save	the new value of innodb_page_cleaners */
-static
-void
-innodb_page_cleaners_threads_update(THD*, struct st_mysql_sys_var*, void*, const void *save)
-{
-	buf_flush_set_page_cleaner_thread_cnt(*static_cast<const ulong*>(save));
-}
-
-static MYSQL_SYSVAR_ULONG(page_cleaners, srv_n_page_cleaners,
+static MYSQL_SYSVAR_ULONG(page_cleaners, innodb_page_cleaners,
   PLUGIN_VAR_RQCMDARG,
-  "Page cleaner threads can be from 1 to 64. Default is 4.",
-  NULL,
-  innodb_page_cleaners_threads_update, 4, 1, 64, 0);
+  innodb_deprecated_ignored, NULL, innodb_page_cleaners_warn, 0, 0, 64, 0);
 
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -19451,11 +19407,6 @@ innodb_buffer_pool_size_validate(
 	void*				save,
 	struct st_mysql_value*		value);
 
-/* If the default value of innodb_buffer_pool_size is increased to be more than
-BUF_POOL_SIZE_THRESHOLD (srv/srv0start.cc), then srv_buf_pool_instances_default
-can be removed and 8 used instead. The problem with the current setup is that
-with 128MiB default buffer pool size and 8 instances by default we would emit
-a warning when no options are specified. */
 static MYSQL_SYSVAR_ULONGLONG(buffer_pool_size, innobase_buffer_pool_size,
   PLUGIN_VAR_RQCMDARG,
   "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
@@ -19467,7 +19418,7 @@ static MYSQL_SYSVAR_ULONGLONG(buffer_pool_size, innobase_buffer_pool_size,
 
 static MYSQL_SYSVAR_ULONG(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Size of a single memory chunk within each buffer pool instance"
+  "Size of a single memory chunk"
   " for resizing buffer pool. Online buffer pool resizing happens"
   " at this granularity. 0 means disable resizing buffer pool.",
   NULL, NULL,
@@ -19497,10 +19448,9 @@ static MYSQL_SYSVAR_ENUM(lock_schedule_algorithm, innodb_lock_schedule_algorithm
   NULL, NULL, INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS,
   &innodb_lock_schedule_algorithm_typelib);
 
-static MYSQL_SYSVAR_ULONG(buffer_pool_instances, srv_buf_pool_instances,
+static MYSQL_SYSVAR_ULONG(buffer_pool_instances, innodb_buffer_pool_instances,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Number of buffer pool instances, set to higher value on high-end machines to increase scalability",
-  NULL, NULL, srv_buf_pool_instances_default, 0, MAX_BUFFER_POOLS, 0);
+  innodb_deprecated_ignored, NULL, NULL, 0, 0, 64, 0);
 
 static MYSQL_SYSVAR_STR(buffer_pool_filename, srv_buf_dump_filename,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
@@ -20080,10 +20030,9 @@ static MYSQL_SYSVAR_BOOL(disable_resize_buffer_pool_debug,
   NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_BOOL(page_cleaner_disabled_debug,
-  innodb_page_cleaner_disabled_debug,
-  PLUGIN_VAR_OPCMDARG,
+  innodb_page_cleaner_disabled_debug, PLUGIN_VAR_OPCMDARG,
   "Disable page cleaner",
-  NULL, buf_flush_page_cleaner_disabled_debug_update, FALSE);
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(sync_debug, srv_sync_debug,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
@@ -21447,23 +21396,12 @@ innodb_buffer_pool_size_validate(
 #endif /* UNIV_DEBUG */
 
 
-	buf_pool_mutex_enter_all();
+	mutex_enter(&buf_pool->mutex);
 
 	if (srv_buf_pool_old_size != srv_buf_pool_size) {
-		buf_pool_mutex_exit_all();
+		mutex_exit(&buf_pool->mutex);
 		my_printf_error(ER_WRONG_ARGUMENTS,
 			"Another buffer pool resize is already in progress.", MYF(0));
-		return(1);
-	}
-
-	if (srv_buf_pool_instances > 1 && intbuf < BUF_POOL_SIZE_THRESHOLD) {
-		buf_pool_mutex_exit_all();
-
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    ER_WRONG_ARGUMENTS,
-				    "Cannot update innodb_buffer_pool_size"
-				    " to less than 1GB if"
-				    " innodb_buffer_pool_instances > 1.");
 		return(1);
 	}
 
@@ -21472,13 +21410,13 @@ innodb_buffer_pool_size_validate(
 	*static_cast<ulonglong*>(save) = requested_buf_pool_size;
 
 	if (srv_buf_pool_size == ulint(intbuf)) {
-		buf_pool_mutex_exit_all();
+		mutex_exit(&buf_pool->mutex);
 		/* nothing to do */
 		return(0);
 	}
 
 	if (srv_buf_pool_size == requested_buf_pool_size) {
-		buf_pool_mutex_exit_all();
+		mutex_exit(&buf_pool->mutex);
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
 				    "innodb_buffer_pool_size must be at least"
@@ -21489,7 +21427,7 @@ innodb_buffer_pool_size_validate(
 	}
 
 	srv_buf_pool_size = requested_buf_pool_size;
-	buf_pool_mutex_exit_all();
+	mutex_exit(&buf_pool->mutex);
 
 	if (intbuf != static_cast<longlong>(requested_buf_pool_size)) {
 		char	buf[64];

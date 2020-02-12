@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,10 +32,6 @@ Created 10/10/1995 Heikki Tuuri
 
 // Forward declaration
 struct dict_table_t;
-
-/** If buffer pool is less than the size,
-only one buffer pool instance is used. */
-#define BUF_POOL_SIZE_THRESHOLD		(1024 * 1024 * 1024)
 
 /** Open the configured number of dedicated undo tablespaces.
 @param[in]	create_new_db	whether the database is being initialized

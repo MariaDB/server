@@ -354,13 +354,8 @@ extern ulint		srv_buf_pool_size;
 extern const ulint	srv_buf_pool_min_size;
 /** Default pool size in bytes */
 extern const ulint	srv_buf_pool_def_size;
-/** Requested buffer pool chunk size. Each buffer pool instance consists
-of one or more chunks. */
+/** Requested buffer pool chunk size */
 extern ulong		srv_buf_pool_chunk_unit;
-/** Requested number of buffer pool instances */
-extern ulong		srv_buf_pool_instances;
-/** Default number of buffer pool instances */
-extern const ulong	srv_buf_pool_instances_default;
 /** Number of locks to protect buf_pool->page_hash */
 extern ulong	srv_n_page_hash_locks;
 /** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
@@ -421,8 +416,6 @@ as enum type because the configure option takes unsigned integer type. */
 extern ulong	srv_innodb_stats_method;
 
 extern ulint	srv_max_n_open_files;
-
-extern ulong	srv_n_page_cleaners;
 
 extern double	srv_max_dirty_pages_pct;
 extern double	srv_max_dirty_pages_pct_lwm;

@@ -41,11 +41,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 
-/** There must be at least this many pages in buf_pool in the area to start
-a random read-ahead */
-#define BUF_READ_AHEAD_RANDOM_THRESHOLD(b)	\
-				(5 + BUF_READ_AHEAD_AREA(b) / 8)
-
 /** If there are buf_pool->curr_size per the number below pending reads, then
 read-ahead is not done: this is to prevent flooding the buffer pool with
 i/o-fixed buffer blocks */
@@ -60,13 +55,12 @@ buf_read_page_handle_error(
 /*=======================*/
 	buf_page_t*	bpage)	/*!< in: pointer to the block */
 {
-	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	const bool	uncompressed = (buf_page_get_state(bpage)
 					== BUF_BLOCK_FILE_PAGE);
 	const page_id_t	old_page_id = bpage->id;
 
 	/* First unfix and release lock on the bpage */
-	buf_pool_mutex_enter(buf_pool);
+	mutex_enter(&buf_pool->mutex);
 	mutex_enter(buf_page_get_mutex(bpage));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_READ);
 
@@ -88,7 +82,7 @@ buf_read_page_handle_error(
 	ut_ad(buf_pool->n_pend_reads > 0);
 	buf_pool->n_pend_reads--;
 
-	buf_pool_mutex_exit(buf_pool);
+	mutex_exit(&buf_pool->mutex);
 }
 
 /** Low-level function which reads a page asynchronously from a file to the
@@ -224,15 +218,12 @@ get read even if we return a positive value! */
 ulint
 buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 {
-	buf_pool_t*	buf_pool = buf_pool_get(page_id);
 	ulint		recent_blocks	= 0;
 	ulint		ibuf_mode;
 	ulint		count;
 	ulint		low, high;
 	dberr_t		err = DB_SUCCESS;
 	ulint		i;
-	const ulint	buf_read_ahead_random_area
-				= BUF_READ_AHEAD_AREA(buf_pool);
 
 	if (!srv_random_read_ahead) {
 		/* Disabled by user */
@@ -253,6 +244,8 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 		return(0);
 	}
 
+	const ulint	buf_read_ahead_random_area
+		= buf_pool->read_ahead_area;
 	low  = (page_id.page_no() / buf_read_ahead_random_area)
 		* buf_read_ahead_random_area;
 
@@ -289,11 +282,11 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 		return(0);
 	}
 
-	buf_pool_mutex_enter(buf_pool);
+	mutex_enter(&buf_pool->mutex);
 
 	if (buf_pool->n_pend_reads
 	    > buf_pool->curr_size / BUF_READ_AHEAD_PEND_LIMIT) {
-		buf_pool_mutex_exit(buf_pool);
+		mutex_exit(&buf_pool->mutex);
 
 		return(0);
 	}
@@ -302,25 +295,19 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
 	that is, reside near the start of the LRU list. */
 
 	for (i = low; i < high; i++) {
-		const buf_page_t*	bpage = buf_page_hash_get(
-			buf_pool, page_id_t(page_id.space(), i));
-
-		if (bpage != NULL
-		    && buf_page_is_accessed(bpage)
-		    && buf_page_peek_if_young(buf_pool, bpage)) {
-
-			recent_blocks++;
-
-			if (recent_blocks
-			    >= BUF_READ_AHEAD_RANDOM_THRESHOLD(buf_pool)) {
-
-				buf_pool_mutex_exit(buf_pool);
+		if (const buf_page_t* bpage = buf_page_hash_get(
+			    page_id_t(page_id.space(), i))) {
+			if (buf_page_is_accessed(bpage)
+			    && buf_page_peek_if_young(bpage)
+			    && ++recent_blocks
+			    >= 5 + buf_pool->read_ahead_area / 8) {
+				mutex_exit(&buf_pool->mutex);
 				goto read_ahead;
 			}
 		}
 	}
 
-	buf_pool_mutex_exit(buf_pool);
+	mutex_exit(&buf_pool->mutex);
 	/* Do nothing */
 	return(0);
 
@@ -490,7 +477,6 @@ which could result in a deadlock if the OS does not support asynchronous io.
 ulint
 buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 {
-	buf_pool_t*	buf_pool = buf_pool_get(page_id);
 	buf_page_t*	bpage;
 	buf_frame_t*	frame;
 	buf_page_t*	pred_bpage	= NULL;
@@ -502,8 +488,6 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 	ulint		low, high;
 	dberr_t		err = DB_SUCCESS;
 	ulint		i;
-	const ulint	buf_read_ahead_linear_area
-		= BUF_READ_AHEAD_AREA(buf_pool);
 	ulint		threshold;
 
 	/* check if readahead is disabled */
@@ -516,6 +500,8 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 		return(0);
 	}
 
+	const ulint	buf_read_ahead_linear_area
+		= buf_pool->read_ahead_area;
 	low  = (page_id.page_no() / buf_read_ahead_linear_area)
 		* buf_read_ahead_linear_area;
 	high = (page_id.page_no() / buf_read_ahead_linear_area + 1)
@@ -553,11 +539,11 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 		return(0);
 	}
 
-	buf_pool_mutex_enter(buf_pool);
+	mutex_enter(&buf_pool->mutex);
 
 	if (buf_pool->n_pend_reads
 	    > buf_pool->curr_size / BUF_READ_AHEAD_PEND_LIMIT) {
-		buf_pool_mutex_exit(buf_pool);
+		mutex_exit(&buf_pool->mutex);
 
 		return(0);
 	}
@@ -575,13 +561,12 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 	/* How many out of order accessed pages can we ignore
 	when working out the access pattern for linear readahead */
 	threshold = ut_min(static_cast<ulint>(64 - srv_read_ahead_threshold),
-			   BUF_READ_AHEAD_AREA(buf_pool));
+			   buf_pool->read_ahead_area);
 
 	fail_count = 0;
 
 	for (i = low; i < high; i++) {
-		bpage = buf_page_hash_get(buf_pool,
-					  page_id_t(page_id.space(), i));
+		bpage = buf_page_hash_get(page_id_t(page_id.space(), i));
 
 		if (bpage == NULL || !buf_page_is_accessed(bpage)) {
 			/* Not accessed */
@@ -607,7 +592,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 
 		if (fail_count > threshold) {
 			/* Too many failures: return */
-			buf_pool_mutex_exit(buf_pool);
+			mutex_exit(&buf_pool->mutex);
 			return(0);
 		}
 
@@ -619,10 +604,10 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 	/* If we got this far, we know that enough pages in the area have
 	been accessed in the right order: linear read-ahead can be sensible */
 
-	bpage = buf_page_hash_get(buf_pool, page_id);
+	bpage = buf_page_hash_get(page_id);
 
 	if (bpage == NULL) {
-		buf_pool_mutex_exit(buf_pool);
+		mutex_exit(&buf_pool->mutex);
 
 		return(0);
 	}
@@ -648,7 +633,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
 	pred_offset = fil_page_get_prev(frame);
 	succ_offset = fil_page_get_next(frame);
 
-	buf_pool_mutex_exit(buf_pool);
+	mutex_exit(&buf_pool->mutex);
 
 	if ((page_id.page_no() == low)
 	    && (succ_offset == page_id.page_no() + 1)) {
@@ -760,19 +745,14 @@ buf_read_recv_pages(
 	const ulint zip_size = space->zip_size();
 
 	for (ulint i = 0; i < n_stored; i++) {
-		buf_pool_t*		buf_pool;
 		const page_id_t	cur_page_id(space_id, page_nos[i]);
 
-		ulint			count = 0;
-
-		buf_pool = buf_pool_get(cur_page_id);
-		while (buf_pool->n_pend_reads >= recv_sys.max_blocks() / 2) {
+		for (ulint count = 0, limit = recv_sys.max_blocks() / 2;
+		     buf_pool->n_pend_reads >= limit; ) {
 
 			os_thread_sleep(10000);
 
-			count++;
-
-			if (!(count % 1000)) {
+			if (!(++count % 1000)) {
 
 				ib::error()
 					<< "Waited for " << count / 100

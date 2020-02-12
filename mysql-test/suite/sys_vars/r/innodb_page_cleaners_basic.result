@@ -7,32 +7,40 @@ SELECT @@innodb_page_cleaners;
 1
 1 Expected
 SET @@GLOBAL.innodb_page_cleaners=2;
+Warnings:
+Warning	138	The parameter innodb_page_cleaners is deprecated and has no effect.
 Expected to pass
 SELECT @@innodb_page_cleaners;
 @@innodb_page_cleaners
-2
+1
 2 Expected
 SET @@GLOBAL.innodb_page_cleaners=1;
+Warnings:
+Warning	138	The parameter innodb_page_cleaners is deprecated and has no effect.
 Expected to pass
 SELECT @@innodb_page_cleaners;
 @@innodb_page_cleaners
 1
 1 Expected
 SET @@GLOBAL.innodb_page_cleaners=6;
+Warnings:
+Warning	138	The parameter innodb_page_cleaners is deprecated and has no effect.
 Expected to pass
 SELECT @@innodb_page_cleaners;
 @@innodb_page_cleaners
-6
+1
 6 Expected
 SET @@GLOBAL.innodb_page_cleaners=4;
+Warnings:
+Warning	138	The parameter innodb_page_cleaners is deprecated and has no effect.
 Expected to pass
 SELECT @@innodb_page_cleaners;
 @@innodb_page_cleaners
-4
+1
 4 Expected
 SET @@GLOBAL.innodb_page_cleaners=0;
 Warnings:
-Warning	1292	Truncated incorrect innodb_page_cleaners value: '0'
+Warning	138	The parameter innodb_page_cleaners is deprecated and has no effect.
 Warning expected
 SELECT @@innodb_page_cleaners;
 @@innodb_page_cleaners

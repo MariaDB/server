@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -65,64 +65,17 @@ buf_pool_get_curr_size(void)
 	return(srv_buf_pool_curr_size);
 }
 
-/********************************************************************//**
-Calculates the index of a buffer pool to the buf_pool[] array.
-@return the position of the buffer pool in buf_pool[] */
-UNIV_INLINE
-unsigned
-buf_pool_index(
-/*===========*/
-	const buf_pool_t*	buf_pool)	/*!< in: buffer pool */
-{
-	unsigned	i = unsigned(buf_pool - buf_pool_ptr);
-	ut_ad(i < MAX_BUFFER_POOLS);
-	ut_ad(i < srv_buf_pool_instances);
-	return(i);
-}
-
-/******************************************************************//**
-Returns the buffer pool instance given a page instance
-@return buf_pool */
-UNIV_INLINE
-buf_pool_t*
-buf_pool_from_bpage(
-/*================*/
-	const buf_page_t*	bpage) /*!< in: buffer pool page */
-{
-	ut_ad(bpage->buf_pool_index < srv_buf_pool_instances);
-	return(&buf_pool_ptr[bpage->buf_pool_index]);
-}
-
-/******************************************************************//**
-Returns the buffer pool instance given a block instance
-@return buf_pool */
-UNIV_INLINE
-buf_pool_t*
-buf_pool_from_block(
-/*================*/
-	const buf_block_t*	block) /*!< in: block */
-{
-	return(buf_pool_from_bpage(&block->page));
-}
-
 /*********************************************************************//**
 Gets the current size of buffer buf_pool in pages.
 @return size in pages*/
-UNIV_INLINE
-ulint
-buf_pool_get_n_pages(void)
-/*======================*/
+inline ulint buf_pool_get_n_pages()
 {
-  if (!buf_pool_ptr)
-    return buf_pool_get_curr_size() >> srv_page_size_shift;
+  if (!buf_pool)
+    return srv_buf_pool_curr_size >> srv_page_size_shift;
 
   ulint chunk_size= 0;
-  for (uint i= 0; i < srv_buf_pool_instances; i++)
-  {
-    buf_pool_t* buf_pool = buf_pool_from_array(i);
-    for (uint j= 0; j < buf_pool->n_chunks; j++)
-      chunk_size+= buf_pool->chunks[j].size;
-  }
+  for (uint j= 0; j < buf_pool->n_chunks; j++)
+    chunk_size+= buf_pool->chunks[j].size;
   return chunk_size;
 }
 
@@ -154,13 +107,10 @@ buf_block_get_freed_page_clock(
 /** Determine if a block is still close enough to the MRU end of the LRU list
 meaning that it is not in danger of getting evicted and also implying
 that it has been accessed recently.
-Note that this is for heuristics only and does not reserve buffer pool
-mutex.
-@param[in]	buf_pool	buffer pool
+The page must be either buffer-fixed, or its page hash must be locked.
 @param[in]	bpage		buffer pool page
 @return whether bpage is close to MRU end of LRU */
-inline bool buf_page_peek_if_young(const buf_pool_t* buf_pool,
-				   const buf_page_t* bpage)
+inline bool buf_page_peek_if_young(const buf_page_t *bpage)
 {
 	/* FIXME: bpage->freed_page_clock is 31 bits */
 	return((buf_pool->freed_page_clock & ((1UL << 31) - 1))
@@ -172,15 +122,10 @@ inline bool buf_page_peek_if_young(const buf_pool_t* buf_pool,
 
 /** Determine if a block should be moved to the start of the LRU list if
 there is danger of dropping from the buffer pool.
-@param[in,out]	buf_pool	buffer pool
 @param[in]	bpage		buffer pool page
 @return true if bpage should be made younger */
-inline bool buf_page_peek_if_too_old(buf_pool_t* buf_pool,
-				     const buf_page_t* bpage)
+inline bool buf_page_peek_if_too_old(const buf_page_t *bpage)
 {
-	ut_ad(!buf_pool_mutex_own(buf_pool));
-	ut_ad(buf_page_in_file(bpage));
-
 	if (buf_pool->freed_page_clock == 0) {
 		/* If eviction has not started yet, do not update the
 		statistics or move blocks in the LRU list.  This is
@@ -204,7 +149,7 @@ inline bool buf_page_peek_if_too_old(buf_pool_t* buf_pool,
 		buf_pool->stat.n_pages_not_made_young++;
 		return false;
 	} else {
-		return !buf_page_peek_if_young(buf_pool, bpage);
+		return !buf_page_peek_if_young(bpage);
 	}
 }
 
@@ -250,40 +195,6 @@ buf_block_get_state(
 }
 
 /*********************************************************************//**
-Gets the state name for state of a block
-@return	name or "CORRUPTED" */
-UNIV_INLINE
-const char*
-buf_get_state_name(
-/*===============*/
-	const buf_block_t*	block)	/*!< in: pointer to the control
-					block */
-{
-	enum buf_page_state	state = buf_page_get_state(&block->page);
-
-	switch (state) {
-	case BUF_BLOCK_POOL_WATCH:
-		return (const char *) "BUF_BLOCK_POOL_WATCH";
-	case BUF_BLOCK_ZIP_PAGE:
-		return (const char *) "BUF_BLOCK_ZIP_PAGE";
-	case BUF_BLOCK_ZIP_DIRTY:
-		return (const char *) "BUF_BLOCK_ZIP_DIRTY";
-	case BUF_BLOCK_NOT_USED:
-		return (const char *) "BUF_BLOCK_NOT_USED";
-	case BUF_BLOCK_READY_FOR_USE:
-		return (const char *) "BUF_BLOCK_NOT_USED";
-	case BUF_BLOCK_FILE_PAGE:
-		return (const char *) "BUF_BLOCK_FILE_PAGE";
-	case BUF_BLOCK_MEMORY:
-		return (const char *) "BUF_BLOCK_MEMORY";
-	case BUF_BLOCK_REMOVE_HASH:
-		return (const char *) "BUF_BLOCK_REMOVE_HASH";
-	default:
-		return (const char *) "CORRUPTED";
-	}
-}
-
-/*********************************************************************//**
 Sets the state of a block. */
 UNIV_INLINE
 void
@@ -300,44 +211,35 @@ buf_page_set_state(
 		ut_error;
 		break;
 	case BUF_BLOCK_ZIP_PAGE:
-		ut_a(state == BUF_BLOCK_ZIP_DIRTY);
+		ut_ad(state == BUF_BLOCK_ZIP_DIRTY);
 		break;
 	case BUF_BLOCK_ZIP_DIRTY:
-		ut_a(state == BUF_BLOCK_ZIP_PAGE);
+		ut_ad(state == BUF_BLOCK_ZIP_PAGE);
 		break;
 	case BUF_BLOCK_NOT_USED:
-		ut_a(state == BUF_BLOCK_READY_FOR_USE);
+		ut_ad(state == BUF_BLOCK_READY_FOR_USE);
 		break;
 	case BUF_BLOCK_READY_FOR_USE:
-		ut_a(state == BUF_BLOCK_MEMORY
-		     || state == BUF_BLOCK_FILE_PAGE
-		     || state == BUF_BLOCK_NOT_USED);
+		ut_ad(state == BUF_BLOCK_MEMORY
+		      || state == BUF_BLOCK_FILE_PAGE
+		      || state == BUF_BLOCK_NOT_USED);
 		break;
 	case BUF_BLOCK_MEMORY:
-		ut_a(state == BUF_BLOCK_NOT_USED);
+		ut_ad(state == BUF_BLOCK_NOT_USED);
 		break;
 	case BUF_BLOCK_FILE_PAGE:
-		if (!(state == BUF_BLOCK_NOT_USED
+		ut_ad(state == BUF_BLOCK_NOT_USED
 	              || state == BUF_BLOCK_REMOVE_HASH
-		      || state == BUF_BLOCK_FILE_PAGE)) {
-			const char *old_state_name = buf_get_state_name((buf_block_t*)bpage);
-			bpage->state = state;
-
-			fprintf(stderr,
-				"InnoDB: Error: block old state %d (%s) "
-				" new state %d (%s) not correct\n",
-				old_state,
-				old_state_name,
-				state,
-				buf_get_state_name((buf_block_t*)bpage));
-			ut_a(state == BUF_BLOCK_NOT_USED
-				|| state == BUF_BLOCK_REMOVE_HASH
-				|| state == BUF_BLOCK_FILE_PAGE);
+		      || state == BUF_BLOCK_FILE_PAGE);
+		if (state == BUF_BLOCK_REMOVE_HASH) {
+			ut_ad(!bpage->in_page_hash);
+			ut_ad(!bpage->in_zip_hash);
+			ut_ad(!bpage->in_LRU_list);
+			ut_ad(!bpage->in_free_list);
 		}
-
 		break;
 	case BUF_BLOCK_REMOVE_HASH:
-		ut_a(state == BUF_BLOCK_MEMORY);
+		ut_ad(state == BUF_BLOCK_MEMORY);
 		break;
 	}
 #endif /* UNIV_DEBUG */
@@ -407,8 +309,6 @@ buf_page_get_mutex(
 /*===============*/
 	const buf_page_t*	bpage)	/*!< in: pointer to control block */
 {
-	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
-
 	switch (buf_page_get_state(bpage)) {
 	case BUF_BLOCK_POOL_WATCH:
 		ut_error;
@@ -518,10 +418,7 @@ buf_page_set_io_fix(
 	buf_page_t*	bpage,	/*!< in/out: control block */
 	enum buf_io_fix	io_fix)	/*!< in: io_fix state */
 {
-#ifdef UNIV_DEBUG
-	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
-	ut_ad(buf_pool_mutex_own(buf_pool));
-#endif /* UNIV_DEBUG */
+	ut_ad(mutex_own(&buf_pool->mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 
 	bpage->io_fix = io_fix;
@@ -555,10 +452,7 @@ buf_page_set_sticky(
 /*================*/
 	buf_page_t*	bpage)	/*!< in/out: control block */
 {
-#ifdef UNIV_DEBUG
-	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
-	ut_ad(buf_pool_mutex_own(buf_pool));
-#endif /* UNIV_DEBUG */
+	ut_ad(mutex_own(&buf_pool->mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_NONE);
 
@@ -573,10 +467,7 @@ buf_page_unset_sticky(
 /*==================*/
 	buf_page_t*	bpage)	/*!< in/out: control block */
 {
-#ifdef UNIV_DEBUG
-	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
-	ut_ad(buf_pool_mutex_own(buf_pool));
-#endif /* UNIV_DEBUG */
+	ut_ad(mutex_own(&buf_pool->mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_PIN);
 
@@ -592,10 +483,7 @@ buf_page_can_relocate(
 /*==================*/
 	const buf_page_t*	bpage)	/*!< control block being relocated */
 {
-#ifdef UNIV_DEBUG
-	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
-	ut_ad(buf_pool_mutex_own(buf_pool));
-#endif /* UNIV_DEBUG */
+	ut_ad(mutex_own(&buf_pool->mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(buf_page_in_file(bpage));
 	ut_ad(bpage->in_LRU_list);
@@ -613,10 +501,11 @@ buf_page_is_old(
 /*============*/
 	const buf_page_t*	bpage)	/*!< in: control block */
 {
-#ifdef UNIV_DEBUG
-	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
-	ut_ad(buf_pool_mutex_own(buf_pool));
-#endif /* UNIV_DEBUG */
+	/* Buffer page mutex is not strictly required here for heuristic
+	purposes even if LRU mutex is not being held. Keep the assertion
+	for not since all the callers hold it. */
+	ut_ad(mutex_own(buf_page_get_mutex(bpage))
+	      || mutex_own(&buf_pool->mutex));
 	ut_ad(buf_page_in_file(bpage));
 
 	return(bpage->old);
@@ -631,11 +520,8 @@ buf_page_set_old(
 	buf_page_t*	bpage,	/*!< in/out: control block */
 	bool		old)	/*!< in: old */
 {
-#ifdef UNIV_DEBUG
-	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
-#endif /* UNIV_DEBUG */
 	ut_a(buf_page_in_file(bpage));
-	ut_ad(buf_pool_mutex_own(buf_pool));
+	ut_ad(mutex_own(&buf_pool->mutex));
 	ut_ad(bpage->in_LRU_list);
 
 #ifdef UNIV_LRU_DEBUG
@@ -680,12 +566,8 @@ buf_page_set_accessed(
 /*==================*/
 	buf_page_t*	bpage)		/*!< in/out: control block */
 {
-#ifdef UNIV_DEBUG
-	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
-	ut_ad(!buf_pool_mutex_own(buf_pool));
+	ut_ad(!mutex_own(&buf_pool->mutex));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
-#endif /* UNIV_DEBUG */
-
 	ut_a(buf_page_in_file(bpage));
 
 	if (bpage->access_time == 0) {
@@ -705,6 +587,8 @@ buf_page_get_block(
 	buf_page_t*	bpage)	/*!< in: control block, or NULL */
 {
 	if (bpage != NULL) {
+		ut_ad(buf_page_hash_lock_held_s_or_x(bpage)
+		      || mutex_own(&buf_pool->mutex));
 		ut_ad(buf_page_in_file(bpage));
 
 		if (buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE) {
@@ -823,9 +707,7 @@ buf_block_free(
 /*===========*/
 	buf_block_t*	block)	/*!< in, own: block to be freed */
 {
-	buf_pool_t*	buf_pool = buf_pool_from_bpage((buf_page_t*) block);
-
-	buf_pool_mutex_enter(buf_pool);
+	mutex_enter(&buf_pool->mutex);
 
 	buf_page_mutex_enter(block);
 
@@ -835,7 +717,7 @@ buf_block_free(
 
 	buf_page_mutex_exit(block);
 
-	buf_pool_mutex_exit(buf_pool);
+	mutex_exit(&buf_pool->mutex);
 }
 
 /********************************************************************//**
@@ -848,17 +730,12 @@ buf_block_modify_clock_inc(
 /*=======================*/
 	buf_block_t*	block)	/*!< in: block */
 {
-#ifdef UNIV_DEBUG
-	buf_pool_t*	buf_pool = buf_pool_from_bpage((buf_page_t*) block);
-
 	/* No latch is acquired for the shared temporary tablespace. */
-	if (!fsp_is_system_temporary(block->page.id.space())) {
-		ut_ad((buf_pool_mutex_own(buf_pool)
-		       && (block->page.buf_fix_count == 0))
-		      || rw_lock_own_flagged(&block->lock,
-					     RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
-	}
-#endif /* UNIV_DEBUG */
+	ut_ad(fsp_is_system_temporary(block->page.id.space())
+	      || (mutex_own(&buf_pool->mutex)
+		  && block->page.buf_fix_count == 0)
+	      || rw_lock_own_flagged(&block->lock,
+				     RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
 	assert_block_ahi_valid(block);
 
 	block->modify_clock++;
@@ -932,45 +809,10 @@ buf_block_buf_fix_dec(
 #endif /* UNIV_DEBUG */
 }
 
-/** Returns the buffer pool instance given a page id.
-@param[in]	page_id	page id
-@return buffer pool */
-inline buf_pool_t* buf_pool_get(const page_id_t page_id)
-{
-        /* 2log of BUF_READ_AHEAD_AREA (64) */
-        ulint		ignored_page_no = page_id.page_no() >> 6;
-
-        page_id_t	id(page_id.space(), ignored_page_no);
-
-        ulint		i = id.fold() % srv_buf_pool_instances;
-
-        return(&buf_pool_ptr[i]);
-}
-
-/******************************************************************//**
-Returns the buffer pool instance given its array index
-@return buffer pool */
-UNIV_INLINE
-buf_pool_t*
-buf_pool_from_array(
-/*================*/
-	ulint	index)		/*!< in: array index to get
-				buffer pool instance from */
-{
-	ut_ad(index < MAX_BUFFER_POOLS);
-	ut_ad(index < srv_buf_pool_instances);
-	return(&buf_pool_ptr[index]);
-}
-
 /** Returns the control block of a file page, NULL if not found.
-@param[in]	buf_pool	buffer pool instance
 @param[in]	page_id		page id
 @return block, NULL if not found */
-UNIV_INLINE
-buf_page_t*
-buf_page_hash_get_low(
-	buf_pool_t*		buf_pool,
-	const page_id_t		page_id)
+inline buf_page_t *buf_page_hash_get_low(page_id_t page_id)
 {
 	buf_page_t*	bpage;
 
@@ -993,7 +835,6 @@ buf_page_hash_get_low(
 		ut_a(buf_page_in_file(bpage));
 		ut_ad(bpage->in_page_hash);
 		ut_ad(!bpage->in_zip_hash);
-		ut_ad(buf_pool_from_bpage(bpage) == buf_pool);
 	}
 
 	return(bpage);
@@ -1005,7 +846,6 @@ page_hash lock is acquired in the specified lock mode. Otherwise,
 mode value is ignored. It is up to the caller to release the
 lock. If the block is found and the lock is NULL then the page_hash
 lock is released by this function.
-@param[in]	buf_pool	buffer pool instance
 @param[in]	page_id		page id
 @param[in,out]	lock		lock of the page hash acquired if bpage is
 found, NULL otherwise. If NULL is passed then the hash_lock is released by
@@ -1018,7 +858,6 @@ a watch sentinel. */
 UNIV_INLINE
 buf_page_t*
 buf_page_hash_get_locked(
-	buf_pool_t*		buf_pool,
 	const page_id_t		page_id,
 	rw_lock_t**		lock,
 	ulint			lock_mode,
@@ -1053,9 +892,9 @@ buf_page_hash_get_locked(
 			hash_lock, buf_pool->page_hash, page_id.fold());
 	}
 
-	bpage = buf_page_hash_get_low(buf_pool, page_id);
+	bpage = buf_page_hash_get_low(page_id);
 
-	if (!bpage || buf_pool_watch_is_sentinel(buf_pool, bpage)) {
+	if (!bpage || buf_pool_watch_is_sentinel(bpage)) {
 		if (!watch) {
 			bpage = NULL;
 		}
@@ -1090,7 +929,6 @@ page_hash lock is acquired in the specified lock mode. Otherwise,
 mode value is ignored. It is up to the caller to release the
 lock. If the block is found and the lock is NULL then the page_hash
 lock is released by this function.
-@param[in]	buf_pool	buffer pool instance
 @param[in]	page_id		page id
 @param[in,out]	lock		lock of the page hash acquired if bpage is
 found, NULL otherwise. If NULL is passed then the hash_lock is released by
@@ -1101,14 +939,11 @@ lock == NULL
 UNIV_INLINE
 buf_block_t*
 buf_block_hash_get_locked(
-	buf_pool_t*		buf_pool,
 	const page_id_t		page_id,
 	rw_lock_t**		lock,
 	ulint			lock_mode)
 {
-	buf_page_t*	bpage = buf_page_hash_get_locked(buf_pool,
-							 page_id,
-							 lock,
+	buf_page_t*	bpage = buf_page_hash_get_locked(page_id, lock,
 							 lock_mode);
 	buf_block_t*	block = buf_page_get_block(bpage);
 
@@ -1136,18 +971,6 @@ buf_block_hash_get_locked(
 	ut_ad(!bpage);
 	ut_ad(lock == NULL ||*lock == NULL);
 	return(NULL);
-}
-
-/** Returns TRUE if the page can be found in the buffer pool hash table.
-NOTE that it is possible that the page is not yet read from disk,
-though.
-@param[in]	page_id	page id
-@return true if found in the page hash table */
-inline bool buf_page_peek(const page_id_t page_id)
-{
-	buf_pool_t*	buf_pool = buf_pool_get(page_id);
-
-	return(buf_page_hash_get(buf_pool, page_id) != NULL);
 }
 
 /********************************************************************//**
@@ -1234,55 +1057,7 @@ buf_block_dbg_add_level(
 {
 	sync_check_lock(&block->lock, level);
 }
-
 #endif /* UNIV_DEBUG */
-/********************************************************************//**
-Acquire mutex on all buffer pool instances. */
-UNIV_INLINE
-void
-buf_pool_mutex_enter_all(void)
-/*==========================*/
-{
-	for (ulint i = 0; i < srv_buf_pool_instances; ++i) {
-		buf_pool_t*	buf_pool = buf_pool_from_array(i);
-
-		buf_pool_mutex_enter(buf_pool);
-	}
-}
-
-/********************************************************************//**
-Release mutex on all buffer pool instances. */
-UNIV_INLINE
-void
-buf_pool_mutex_exit_all(void)
-/*=========================*/
-{
-	ulint   i;
-
-	for (i = 0; i < srv_buf_pool_instances; i++) {
-		buf_pool_t*	buf_pool;
-
-		buf_pool = buf_pool_from_array(i);
-		buf_pool_mutex_exit(buf_pool);
-	}
-}
-/*********************************************************************//**
-Get the nth chunk's buffer block in the specified buffer pool.
-@return the nth chunk's buffer block. */
-UNIV_INLINE
-buf_block_t*
-buf_get_nth_chunk_block(
-/*====================*/
-	const buf_pool_t* buf_pool,	/*!< in: buffer pool instance */
-	ulint		n,		/*!< in: nth chunk in the buffer pool */
-	ulint*		chunk_size)	/*!< in: chunk size */
-{
-	const buf_chunk_t*	chunk;
-
-	chunk = buf_pool->chunks + n;
-	*chunk_size = chunk->size;
-	return(chunk->blocks);
-}
 
 /********************************************************************//**
 Get buf frame. */
@@ -1324,7 +1099,7 @@ ulint
 buf_pool_size_align(
 	ulint	size)
 {
-	const ib_uint64_t	m = ((ib_uint64_t)srv_buf_pool_instances) * srv_buf_pool_chunk_unit;
+	const ulong	m = srv_buf_pool_chunk_unit;
 	size = ut_max(size, srv_buf_pool_min_size);
 
 	if (size % m == 0) {

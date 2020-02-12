@@ -42,7 +42,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Size of a single memory chunk within each buffer pool instance for resizing buffer pool. Online buffer pool resizing happens at this granularity. 0 means disable resizing buffer pool.
+ VARIABLE_COMMENT	Size of a single memory chunk for resizing buffer pool. Online buffer pool resizing happens at this granularity. 0 means disable resizing buffer pool.
  NUMERIC_MIN_VALUE	1048576
 -NUMERIC_MAX_VALUE	9223372036854775807
 +NUMERIC_MAX_VALUE	2147483647
@@ -64,7 +64,7 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Number of buffer pool instances, set to higher value on high-end machines to increase scalability
+ VARIABLE_COMMENT	Deprecated parameter with no effect.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	64
 @@ -289,7 +289,7 @@
@@ -377,8 +377,8 @@
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Page cleaner threads can be from 1 to 64. Default is 4.
- NUMERIC_MIN_VALUE	1
+ VARIABLE_COMMENT	Deprecated parameter with no effect.
+ NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	64
 @@ -1513,7 +1513,7 @@
  SESSION_VALUE	NULL
