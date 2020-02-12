@@ -2122,8 +2122,7 @@ dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 
 	const bool full_crc32 = fil_space_t::full_crc32(get_space_flags());
 	byte* frame = get_frame(block);
-	compile_time_assert(FIL_PAGE_LSN % 8 == 0);
-	*reinterpret_cast<uint64_t*>(frame + FIL_PAGE_LSN)= 0;
+	memset_aligned<8>(frame + FIL_PAGE_LSN, 0, 8);
 
 	if (!block->page.zip.data) {
 		buf_flush_init_for_writing(

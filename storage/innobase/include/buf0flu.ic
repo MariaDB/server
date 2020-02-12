@@ -60,11 +60,8 @@ buf_flush_note_modification(
 	ut_ad(mach_read_from_8(block->frame + FIL_PAGE_LSN) <= end_lsn);
 	mach_write_to_8(block->frame + FIL_PAGE_LSN, end_lsn);
 	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
-		compile_time_assert(FIL_PAGE_LSN % 8 == 0);
-		*reinterpret_cast<uint64_t*>(FIL_PAGE_LSN
-					     + block->page.zip.data)
-			= *reinterpret_cast<const uint64_t*>(FIL_PAGE_LSN
-							     + block->frame);
+		memcpy_aligned<8>(FIL_PAGE_LSN + block->page.zip.data,
+				  FIL_PAGE_LSN + block->frame, 8);
 	}
 
 	if (block->page.oldest_modification == 0) {
