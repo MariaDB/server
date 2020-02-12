@@ -37,22 +37,21 @@ int get_field_types(THD *thd, TABLE *table__, SELECT_LEX *sl, uchar *fieldtype,
   TABLE *tmp_table= table__;
 
   if (!tmp_table) {
-      // Construct a tmp table with fields to find out result DTs.
-      // This should be reconsidered if it worths the effort.
-      List<Item> types;
-      TMP_TABLE_PARAM tmp_table_param;
-      sl->master_unit()->join_union_item_types(thd, types, 1);
-      tmp_table_param.init();
-      tmp_table_param.field_count= types.elements;
+    // Construct a tmp table with fields to find out result DTs.
+    // This should be reconsidered if it worths the effort.
+    List<Item> types;
+    TMP_TABLE_PARAM tmp_table_param;
+    sl->master_unit()->join_union_item_types(thd, types, 1);
+    tmp_table_param.init();
+    tmp_table_param.field_count= types.elements;
 
-      tmp_table = create_tmp_table(thd, &tmp_table_param, types,
-                                       (ORDER *) 0, false, 0,
-                                       TMP_TABLE_ALL_COLUMNS, 1,
-                                       &empty_clex_str, true, false);
-      if (!tmp_table) {
-        field_metadata_size = -1;
-        goto err;
-      }
+    tmp_table = create_tmp_table(thd, &tmp_table_param, types, (ORDER *) 0,
+                                 false, 0, TMP_TABLE_ALL_COLUMNS, 1,
+                                 &empty_clex_str, true, false);
+    if (!tmp_table) {
+      field_metadata_size = -1;
+      goto err;
+    }
   }
 
   for (unsigned int i = 0 ; i < fields_count; ++i) {
@@ -213,7 +212,7 @@ ha_xpand_select_handler::~ha_xpand_select_handler()
       my_bitmap_free(&scan_fields);
 
     if (rgi)
-        remove_current_table_from_rpl_table_list(rgi);
+      remove_current_table_from_rpl_table_list(rgi);
 }
 
 /*@brief  Initiate the query for select_handler           */
@@ -284,7 +283,7 @@ int ha_xpand_select_handler::next_row()
  ***********************************************************/
 int ha_xpand_select_handler::end_scan()
 {
-    return 0;
+  return 0;
 }
 
 /*@brief  create_xpand_derived_handler- Creates handler*/
@@ -359,7 +358,7 @@ ha_xpand_derived_handler::~ha_xpand_derived_handler()
       my_bitmap_free(&scan_fields);
 
     if (rgi)
-        remove_current_table_from_rpl_table_list(rgi);
+      remove_current_table_from_rpl_table_list(rgi);
 }
 
 /*@brief  Initiate the query for derived_handler           */
@@ -390,14 +389,14 @@ int ha_xpand_derived_handler::init_scan()
     &null_bits, num_null_bytes, &field_metadata, (items_number * 2), NULL);
 
   if (!meta_memory) {
-     // The only way to say something here is to raise warning
-     // b/c we will fallback to other access methods: derived handler or rowstore.
-     goto err;
+    // The only way to say something here is to raise warning
+    // b/c we will fallback to other access methods: derived handler or rowstore.
+    goto err;
   }
 
   if((field_metadata_size=
     get_field_types(thd__, table, select, fieldtype, field_metadata, null_bits, num_null_bytes, items_number)) < 0) {
-     goto err;
+    goto err;
   }
 
   trx = get_trx(thd__, &error_code);
@@ -474,5 +473,5 @@ int ha_xpand_derived_handler::next_row()
  ***********************************************************/
 int ha_xpand_derived_handler::end_scan()
 {
-    return 0;
+  return 0;
 }

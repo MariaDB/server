@@ -653,7 +653,7 @@ ha_rows ha_xpand::records()
 }
 
 ha_rows ha_xpand::records_in_range(uint inx, key_range *min_key,
-                                        key_range *max_key)
+                                   key_range *max_key)
 {
   return 2;
 }
@@ -728,7 +728,7 @@ int ha_xpand::index_init(uint idx, bool sorted)
 }
 
 int ha_xpand::index_read(uchar * buf, const uchar * key, uint key_len,
-                              enum ha_rkey_function find_flag)
+                         enum ha_rkey_function find_flag)
 {
   DBUG_ENTER("ha_xpand::index_read");
   int error_code = 0;
@@ -814,10 +814,9 @@ int ha_xpand::index_first(uchar *buf)
   if (!trx)
     DBUG_RETURN(error_code);
 
-  error_code = trx->scan_from_key(xpand_table_oid, active_index,
-                                  xpd_lock_type,
-                                  xpand_connection::READ_FROM_START,
-                                  -1, sorted_scan, &scan_fields, NULL, 0,
+  error_code = trx->scan_from_key(xpand_table_oid, active_index, xpd_lock_type,
+                                  xpand_connection::READ_FROM_START, -1,
+                                  sorted_scan, &scan_fields, NULL, 0,
                                   THDVAR(thd, row_buffer), &scan_cur);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
@@ -838,10 +837,9 @@ int ha_xpand::index_last(uchar *buf)
   if (!trx)
     DBUG_RETURN(error_code);
 
-  error_code = trx->scan_from_key(xpand_table_oid, active_index,
-                                  xpd_lock_type,
-                                  xpand_connection::READ_FROM_LAST,
-                                  -1, sorted_scan, &scan_fields, NULL, 0,
+  error_code = trx->scan_from_key(xpand_table_oid, active_index, xpd_lock_type,
+                                  xpand_connection::READ_FROM_LAST, -1,
+                                  sorted_scan, &scan_fields, NULL, 0,
                                   THDVAR(thd, row_buffer), &scan_cur);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
@@ -912,9 +910,8 @@ int ha_xpand::rnd_init(bool scan)
   bitmap_set_all(&scan_fields);
 #endif
 
-  error_code = trx->scan_table(xpand_table_oid, xpd_lock_type,
-                               &scan_fields, THDVAR(thd, row_buffer),
-                               &scan_cur);
+  error_code = trx->scan_table(xpand_table_oid, xpd_lock_type, &scan_fields,
+                               THDVAR(thd, row_buffer), &scan_cur);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
     xpand_mark_table_for_discovery(table);
@@ -1046,9 +1043,8 @@ uint ha_xpand::lock_count(void) const
   return 0;
 }
 
-THR_LOCK_DATA **ha_xpand::store_lock(THD *thd,
-                                          THR_LOCK_DATA **to,
-                                          enum thr_lock_type lock_type)
+THR_LOCK_DATA **ha_xpand::store_lock(THD *thd, THR_LOCK_DATA **to,
+                                     enum thr_lock_type lock_type)
 {
   /* Hopefully, we don't need to use thread locks */
   return to;
@@ -1159,8 +1155,7 @@ void remove_current_table_from_rpl_table_list(rpl_group_info *rgi)
 }
 
 void ha_xpand::build_key_packed_row(uint index, const uchar *buf,
-                                         uchar *packed_key,
-                                         size_t *packed_key_len)
+                                    uchar *packed_key, size_t *packed_key_len)
 {
   if (index == table->s->primary_key && has_hidden_key) {
     memcpy(packed_key, &last_hidden_key, sizeof(ulonglong));
@@ -1238,7 +1233,7 @@ static int xpand_rollback(handlerton *hton, THD *thd, bool all)
 }
 
 static handler* xpand_create_handler(handlerton *hton, TABLE_SHARE *table,
-                                   MEM_ROOT *mem_root)
+                                     MEM_ROOT *mem_root)
 {
   return new (mem_root) ha_xpand(hton, table);
 }
@@ -1262,15 +1257,15 @@ static int xpand_panic(handlerton *hton, ha_panic_function type)
 }
 
 static bool xpand_show_status(handlerton *hton, THD *thd,
-                            stat_print_fn *stat_print,
-                            enum ha_stat_type stat_type)
+                              stat_print_fn *stat_print,
+                              enum ha_stat_type stat_type)
 {
   return FALSE;
 }
 
 static int xpand_discover_table_names(handlerton *hton, LEX_CSTRING *db,
-                                           MY_DIR *dir,
-                                           handlerton::discovered_list *result)
+                                      MY_DIR *dir,
+                                      handlerton::discovered_list *result)
 {
   xpand_connection *xpand_net = new xpand_connection();
   int error_code = xpand_net->connect();
@@ -1291,9 +1286,8 @@ int xpand_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
   if (error_code)
     goto err;
 
-  error_code = xpand_net->discover_table_details(&share->db,
-                                                    &share->table_name,
-                                                    thd, share);
+  error_code = xpand_net->discover_table_details(&share->db, &share->table_name,
+                                                 thd, share);
 
 err:
   delete xpand_net;
@@ -1356,16 +1350,16 @@ static struct st_mysql_storage_engine xpand_storage_engine =
 maria_declare_plugin(xpand)
 {
     MYSQL_STORAGE_ENGINE_PLUGIN,                /* Plugin Type */
-    &xpand_storage_engine,                 /* Plugin Descriptor */
-    "XPAND",                               /* Plugin Name */
+    &xpand_storage_engine,                      /* Plugin Descriptor */
+    "XPAND",                                    /* Plugin Name */
     "MariaDB",                                  /* Plugin Author */
-    "Xpand storage engine",                /* Plugin Description */
+    "Xpand storage engine",                     /* Plugin Description */
     PLUGIN_LICENSE_GPL,                         /* Plugin Licence */
-    xpand_init,                            /* Plugin Entry Point */
-    xpand_deinit,                          /* Plugin Deinitializer */
+    xpand_init,                                 /* Plugin Entry Point */
+    xpand_deinit,                               /* Plugin Deinitializer */
     0x0001,                                     /* Hex Version Number (0.1) */
-    NULL /* xpand_status_vars */,          /* Status Variables */
-    xpand_system_variables,                /* System Variables */
+    NULL /* xpand_status_vars */,               /* Status Variables */
+    xpand_system_variables,                     /* System Variables */
     "0.1",                                      /* String Version */
     MariaDB_PLUGIN_MATURITY_EXPERIMENTAL        /* Maturity Level */
 }

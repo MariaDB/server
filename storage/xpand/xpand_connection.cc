@@ -52,16 +52,16 @@ extern char *xpand_socket;
 */
 
 enum xpand_trans_state {
-    XPAND_TRANS_STARTED = 0,
-    XPAND_TRANS_REQUESTED = 1,
-    XPAND_TRANS_NEW_STMT = 2,
-    XPAND_TRANS_ROLLBACK_STMT = 4,
-    XPAND_TRANS_NONE = 32,
+  XPAND_TRANS_STARTED = 0,
+  XPAND_TRANS_REQUESTED = 1,
+  XPAND_TRANS_NEW_STMT = 2,
+  XPAND_TRANS_ROLLBACK_STMT = 4,
+  XPAND_TRANS_NONE = 32,
 };
 
 enum xpand_trans_post_flags {
-    XPAND_TRANS_AUTOCOMMIT = 8,
-    XPAND_TRANS_NO_POST_FLAGS = 0,
+  XPAND_TRANS_AUTOCOMMIT = 8,
+  XPAND_TRANS_NO_POST_FLAGS = 0,
 };
 
 enum xpand_commands {
@@ -168,14 +168,12 @@ int xpand_connection::connect()
     if (conn->tgt_ssl_vsc)
     {
       my_bool verify_flg = TRUE;
-      mysql_options(&xpand_net, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                    &verify_flg);
+      mysql_options(&xpand_net, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &verify_flg);
     }
   }
 #endif
 
-  if (!mysql_real_connect(&xpand_net, host,
-                          xpand_username, xpand_password,
+  if (!mysql_real_connect(&xpand_net, host, xpand_username, xpand_password,
                           NULL, xpand_port, xpand_socket,
                           CLIENT_MULTI_STATEMENTS))
   {
@@ -474,10 +472,9 @@ int xpand_connection::key_delete(ulonglong xpand_table_oid,
 }
 
 int xpand_connection::key_read(ulonglong xpand_table_oid, uint index,
-                                  xpand_lock_mode_t lock_mode,
-                                  MY_BITMAP *read_set, uchar *packed_key,
-                                  ulong packed_key_length, uchar **rowdata,
-                                  ulong *rowdata_length)
+                               xpand_lock_mode_t lock_mode, MY_BITMAP *read_set,
+                               uchar *packed_key, ulong packed_key_length,
+                               uchar **rowdata, ulong *rowdata_length)
 {
   int error_code;
   command_length = 0;
@@ -658,7 +655,7 @@ public:
 };
 
 int xpand_connection::allocate_cursor(MYSQL *xpand_net, ulong buffer_size,
-                                         xpand_connection_cursor **scan)
+                                      xpand_connection_cursor **scan)
 {
   DBUG_ENTER("xpand_connection::allocate_cursor");
   *scan = new xpand_connection_cursor(xpand_net, buffer_size);
@@ -679,9 +676,9 @@ int xpand_connection::allocate_cursor(MYSQL *xpand_net, ulong buffer_size,
 }
 
 int xpand_connection::scan_table(ulonglong xpand_table_oid,
-                                    xpand_lock_mode_t lock_mode,
-                                    MY_BITMAP *read_set, ushort row_req,
-                                    xpand_connection_cursor **scan)
+                                 xpand_lock_mode_t lock_mode,
+                                 MY_BITMAP *read_set, ushort row_req,
+                                 xpand_connection_cursor **scan)
 {
   int error_code;
   command_length = 0;
@@ -729,11 +726,10 @@ int xpand_connection::scan_table(ulonglong xpand_table_oid,
  *   Used in pushdowns to initiate query scan.
  **/
 int xpand_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
-                                    uchar *null_bits, uint null_bits_size,
-                                    uchar *field_metadata,
-                                    uint field_metadata_size,
-                                    ushort row_req,
-                                    xpand_connection_cursor **scan)
+                                 uchar *null_bits, uint null_bits_size,
+                                 uchar *field_metadata,
+                                 uint field_metadata_size, ushort row_req,
+                                 xpand_connection_cursor **scan)
 {
   int error_code;
   command_length = 0;
@@ -775,7 +771,7 @@ int xpand_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
  *   dbname &current database name
  **/
 int xpand_connection::update_query(String &stmt, LEX_CSTRING &dbname,
-                                      ulonglong *affected_rows)
+                                   ulonglong *affected_rows)
 {
   int error_code;
   command_length = 0;
@@ -800,12 +796,12 @@ int xpand_connection::update_query(String &stmt, LEX_CSTRING &dbname,
 }
 
 int xpand_connection::scan_from_key(ulonglong xpand_table_oid, uint index,
-                                       xpand_lock_mode_t lock_mode,
-                                       enum scan_type scan_dir,
-                                       int no_key_cols, bool sorted_scan,
-                                       MY_BITMAP *read_set, uchar *packed_key,
-                                       ulong packed_key_length, ushort row_req,
-                                       xpand_connection_cursor **scan)
+                                    xpand_lock_mode_t lock_mode,
+                                    enum scan_type scan_dir,
+                                    int no_key_cols, bool sorted_scan,
+                                    MY_BITMAP *read_set, uchar *packed_key,
+                                    ulong packed_key_length, ushort row_req,
+                                    xpand_connection_cursor **scan)
 {
   int error_code;
   command_length = 0;
@@ -851,7 +847,7 @@ int xpand_connection::scan_from_key(ulonglong xpand_table_oid, uint index,
 }
 
 int xpand_connection::scan_next(xpand_connection_cursor *scan,
-                                   uchar **rowdata, ulong *rowdata_length)
+                                uchar **rowdata, ulong *rowdata_length)
 {
   *rowdata = scan->retrieve_row(rowdata_length);
   if (*rowdata)
@@ -913,7 +909,7 @@ int xpand_connection::scan_end(xpand_connection_cursor *scan)
 }
 
 int xpand_connection::populate_table_list(LEX_CSTRING *db,
-                                             handlerton::discovered_list *result)
+                                          handlerton::discovered_list *result)
 {
   int error_code = 0;
   String stmt;
@@ -944,9 +940,8 @@ error:
   return error_code;
 }
 
-int xpand_connection::discover_table_details(LEX_CSTRING *db,
-                                                LEX_CSTRING *name, THD *thd,
-                                                TABLE_SHARE *share)
+int xpand_connection::discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name,
+                                             THD *thd, TABLE_SHARE *share)
 {
   DBUG_ENTER("xpand_connection::discover_table_details");
   int error_code = 0;
@@ -1127,7 +1122,7 @@ int xpand_connection::add_command_operand_lcb(ulonglong value)
 }
 
 int xpand_connection::add_command_operand_str(const uchar *str,
-                                                 size_t str_length)
+                                              size_t str_length)
 {
   int error_code = add_command_operand_lcb(str_length);
   if (error_code)
@@ -1157,7 +1152,7 @@ int xpand_connection::add_command_operand_str(const uchar *str,
  *   str_length - size
  **/
 int xpand_connection::add_command_operand_vlstr(const uchar *str,
-                                                   size_t str_length)
+                                                size_t str_length)
 {
   int error_code = expand_command_buffer(str_length);
   if (error_code)
