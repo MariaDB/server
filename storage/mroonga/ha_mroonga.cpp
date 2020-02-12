@@ -965,7 +965,7 @@ static MYSQL_SYSVAR_STR(default_parser, mrn_default_tokenizer,
                         "(Deprecated. Use mroonga_default_tokenizer instead.)",
                         NULL,
                         mrn_default_tokenizer_update,
-                        MRN_DEFAULT_TOKENIZER);
+                        MRN_DEFAULT_TOKENIZER); // since 10.1.6
 
 static MYSQL_SYSVAR_STR(default_tokenizer, mrn_default_tokenizer,
                         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
