@@ -1856,11 +1856,13 @@ static void plugin_load(MEM_ROOT *tmp_root)
   {
     DBUG_PRINT("error",("Can't open plugin table"));
     if (!opt_help)
-      sql_print_error("Could not open mysql.plugin table. "
-                      "Some plugins may be not loaded");
+      sql_print_error("Could not open mysql.plugin table: \"%s\". "
+                      "Some plugins may be not loaded",
+                      new_thd->get_stmt_da()->message());
     else
-      sql_print_warning("Could not open mysql.plugin table. "
-                        "Some options may be missing from the help text");
+      sql_print_warning("Could not open mysql.plugin table: \"%s\". "
+                        "Some options may be missing from the help text",
+                        new_thd->get_stmt_da()->message());
     goto end;
   }
 
