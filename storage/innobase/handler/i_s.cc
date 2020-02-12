@@ -1598,6 +1598,7 @@ namespace Show {
 static ST_FIELD_INFO	i_s_cmpmem_fields_info[] =
 {
   Column("page_size",           SLong(5), NOT_NULL, "Buddy Block Size"),
+  Column("buffer_pool_instance", SLong(), NOT_NULL, "Buffer Pool Id"),
   Column("pages_used",           SLong(), NOT_NULL, "Currently in Use"),
   Column("pages_free",           SLong(), NOT_NULL, "Currently Available"),
   Column("relocation_ops",   SLonglong(), NOT_NULL, "Total Number of Relocations"),
@@ -1654,16 +1655,16 @@ i_s_cmpmem_fill_low(
 	mutex_exit(&buf_pool->mutex);
 
 	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
-		buf_buddy_stat_t*	buddy_stat;
+		buf_buddy_stat_t* buddy_stat = &buddy_stat_local[x];
 
-		buddy_stat = &buddy_stat_local[x];
+		Field **field = table->field;
 
-		table->field[0]->store(BUF_BUDDY_LOW << x);
-		table->field[1]->store(buddy_stat->used, true);
-		table->field[2]->store(zip_free_len_local[x], true);
-		table->field[3]->store(buddy_stat->relocated, true);
-		table->field[4]->store(
-			buddy_stat->relocated_usec / 1000000, true);
+		(*field++)->store(BUF_BUDDY_LOW << x);
+		(*field++)->store(0, true);
+		(*field++)->store(buddy_stat->used, true);
+		(*field++)->store(zip_free_len_local[x], true);
+		(*field++)->store(buddy_stat->relocated, true);
+		(*field)->store(buddy_stat->relocated_usec / 1000000, true);
 
 		if (schema_table_store_record(thd, table)) {
 			DBUG_RETURN(1);
@@ -3542,97 +3543,100 @@ namespace Show {
 /* Fields of the dynamic table INNODB_BUFFER_POOL_STATS. */
 static ST_FIELD_INFO	i_s_innodb_buffer_stats_fields_info[] =
 {
-#define IDX_BUF_STATS_POOL_SIZE		0
+#define IDX_BUF_STATS_POOL_ID		0
+  Column("POOL_ID", ULong(), NOT_NULL),
+
+#define IDX_BUF_STATS_POOL_SIZE		1
   Column("POOL_SIZE", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_FREE_BUFFERS	1
+#define IDX_BUF_STATS_FREE_BUFFERS	2
   Column("FREE_BUFFERS", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_LRU_LEN		2
+#define IDX_BUF_STATS_LRU_LEN		3
   Column("DATABASE_PAGES", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_OLD_LRU_LEN	3
+#define IDX_BUF_STATS_OLD_LRU_LEN	4
   Column("OLD_DATABASE_PAGES", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_FLUSH_LIST_LEN	4
+#define IDX_BUF_STATS_FLUSH_LIST_LEN	5
   Column("MODIFIED_DATABASE_PAGES", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_PENDING_ZIP	5
+#define IDX_BUF_STATS_PENDING_ZIP	6
   Column("PENDING_DECOMPRESS", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_PENDING_READ	6
+#define IDX_BUF_STATS_PENDING_READ	7
   Column("PENDING_READS",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_FLUSH_LRU		7
+#define IDX_BUF_STATS_FLUSH_LRU		8
   Column("PENDING_FLUSH_LRU",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_FLUSH_LIST	8
+#define IDX_BUF_STATS_FLUSH_LIST	9
   Column("PENDING_FLUSH_LIST", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_PAGE_YOUNG	9
+#define IDX_BUF_STATS_PAGE_YOUNG	10
   Column("PAGES_MADE_YOUNG",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_PAGE_NOT_YOUNG	10
+#define IDX_BUF_STATS_PAGE_NOT_YOUNG	11
   Column("PAGES_NOT_MADE_YOUNG",ULonglong(), NOT_NULL),
 
-#define	IDX_BUF_STATS_PAGE_YOUNG_RATE	11
+#define	IDX_BUF_STATS_PAGE_YOUNG_RATE	12
   Column("PAGES_MADE_YOUNG_RATE", Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define	IDX_BUF_STATS_PAGE_NOT_YOUNG_RATE 12
+#define	IDX_BUF_STATS_PAGE_NOT_YOUNG_RATE 13
   Column("PAGES_MADE_NOT_YOUNG_RATE", Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define IDX_BUF_STATS_PAGE_READ		13
+#define IDX_BUF_STATS_PAGE_READ		14
   Column("NUMBER_PAGES_READ",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_PAGE_CREATED	14
+#define IDX_BUF_STATS_PAGE_CREATED	15
   Column("NUMBER_PAGES_CREATED",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_PAGE_WRITTEN	15
+#define IDX_BUF_STATS_PAGE_WRITTEN	16
   Column("NUMBER_PAGES_WRITTEN",ULonglong(), NOT_NULL),
 
-#define	IDX_BUF_STATS_PAGE_READ_RATE	16
+#define	IDX_BUF_STATS_PAGE_READ_RATE	17
   Column("PAGES_READ_RATE", Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define	IDX_BUF_STATS_PAGE_CREATE_RATE	17
+#define	IDX_BUF_STATS_PAGE_CREATE_RATE	18
   Column("PAGES_CREATE_RATE", Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define	IDX_BUF_STATS_PAGE_WRITTEN_RATE	18
+#define	IDX_BUF_STATS_PAGE_WRITTEN_RATE	19
   Column("PAGES_WRITTEN_RATE",Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define IDX_BUF_STATS_GET		19
+#define IDX_BUF_STATS_GET		20
   Column("NUMBER_PAGES_GET", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_HIT_RATE		20
+#define IDX_BUF_STATS_HIT_RATE		21
   Column("HIT_RATE", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_MADE_YOUNG_PCT	21
+#define IDX_BUF_STATS_MADE_YOUNG_PCT	22
   Column("YOUNG_MAKE_PER_THOUSAND_GETS", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_NOT_MADE_YOUNG_PCT 22
+#define IDX_BUF_STATS_NOT_MADE_YOUNG_PCT 23
   Column("NOT_YOUNG_MAKE_PER_THOUSAND_GETS", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_READ_AHREAD	23
+#define IDX_BUF_STATS_READ_AHEAD	24
   Column("NUMBER_PAGES_READ_AHEAD", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_READ_AHEAD_EVICTED 24
+#define IDX_BUF_STATS_READ_AHEAD_EVICTED 25
   Column("NUMBER_READ_AHEAD_EVICTED", ULonglong(), NOT_NULL),
 
-#define	IDX_BUF_STATS_READ_AHEAD_RATE	25
+#define	IDX_BUF_STATS_READ_AHEAD_RATE	26
   Column("READ_AHEAD_RATE", Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define	IDX_BUF_STATS_READ_AHEAD_EVICT_RATE 26
+#define	IDX_BUF_STATS_READ_AHEAD_EVICT_RATE 27
   Column("READ_AHEAD_EVICTED_RATE",Float(MAX_FLOAT_STR_LENGTH), NOT_NULL),
 
-#define IDX_BUF_STATS_LRU_IO_SUM	27
+#define IDX_BUF_STATS_LRU_IO_SUM	28
   Column("LRU_IO_TOTAL", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_LRU_IO_CUR	28
+#define IDX_BUF_STATS_LRU_IO_CUR	29
   Column("LRU_IO_CURRENT", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_UNZIP_SUM		29
+#define IDX_BUF_STATS_UNZIP_SUM		30
   Column("UNCOMPRESS_TOTAL",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_STATS_UNZIP_CUR		30
+#define IDX_BUF_STATS_UNZIP_CUR		31
   Column("UNCOMPRESS_CURRENT", ULonglong(), NOT_NULL),
 
   CEnd()
@@ -3643,9 +3647,7 @@ static ST_FIELD_INFO	i_s_innodb_buffer_stats_fields_info[] =
 @param[in,out]	thd	connection
 @param[in,out]	tables	tables to fill
 @return 0 on success, 1 on failure */
-static
-int
-i_s_innodb_stats_fill(THD* thd, TABLE_LIST* tables, Item*)
+static int i_s_innodb_stats_fill(THD *thd, TABLE_LIST * tables, Item *)
 {
 	TABLE*		table;
 	Field**		fields;
@@ -3665,6 +3667,8 @@ i_s_innodb_stats_fill(THD* thd, TABLE_LIST* tables, Item*)
 	table = tables->table;
 
 	fields = table->field;
+
+	OK(fields[IDX_BUF_STATS_POOL_ID]->store(0, true));
 
 	OK(fields[IDX_BUF_STATS_POOL_SIZE]->store(info.pool_size, true));
 
@@ -3742,7 +3746,7 @@ i_s_innodb_stats_fill(THD* thd, TABLE_LIST* tables, Item*)
 		OK(fields[IDX_BUF_STATS_NOT_MADE_YOUNG_PCT]->store(0, true));
 	}
 
-	OK(fields[IDX_BUF_STATS_READ_AHREAD]->store(
+	OK(fields[IDX_BUF_STATS_READ_AHEAD]->store(
 		   info.n_ra_pages_read, true));
 
 	OK(fields[IDX_BUF_STATS_READ_AHEAD_EVICTED]->store(
@@ -3862,63 +3866,66 @@ namespace Show {
 /* Fields of the dynamic table INNODB_BUFFER_POOL_PAGE. */
 static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 {
-#define IDX_BUFFER_BLOCK_ID		0
+#define IDX_BUFFER_POOL_ID		0
+  Column("POOL_ID", ULong(), NOT_NULL),
+
+#define IDX_BUFFER_BLOCK_ID		1
   Column("BLOCK_ID", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_SPACE		1
+#define IDX_BUFFER_PAGE_SPACE		2
   Column("SPACE", ULong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_NUM		2
+#define IDX_BUFFER_PAGE_NUM		3
   Column("PAGE_NUMBER", ULong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_TYPE		3
+#define IDX_BUFFER_PAGE_TYPE		4
   Column("PAGE_TYPE", Varchar(64), NULLABLE),
 
-#define IDX_BUFFER_PAGE_FLUSH_TYPE	4
+#define IDX_BUFFER_PAGE_FLUSH_TYPE	5
   Column("FLUSH_TYPE", ULong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_FIX_COUNT	5
+#define IDX_BUFFER_PAGE_FIX_COUNT	6
   Column("FIX_COUNT", ULong(), NOT_NULL),
 
 #ifdef BTR_CUR_HASH_ADAPT
-#define IDX_BUFFER_PAGE_HASHED		6
+#define IDX_BUFFER_PAGE_HASHED		7
   Column("IS_HASHED", SLong(1), NOT_NULL),
 #endif /* BTR_CUR_HASH_ADAPT */
 
-#define IDX_BUFFER_PAGE_NEWEST_MOD	6 + I_S_AHI
+#define IDX_BUFFER_PAGE_NEWEST_MOD	7 + I_S_AHI
   Column("NEWEST_MODIFICATION", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_OLDEST_MOD	7 + I_S_AHI
+#define IDX_BUFFER_PAGE_OLDEST_MOD	8 + I_S_AHI
   Column("OLDEST_MODIFICATION", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_ACCESS_TIME	8 + I_S_AHI
+#define IDX_BUFFER_PAGE_ACCESS_TIME	9 + I_S_AHI
   Column("ACCESS_TIME", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_TABLE_NAME	9 + I_S_AHI
+#define IDX_BUFFER_PAGE_TABLE_NAME	10 + I_S_AHI
   Column("TABLE_NAME", Varchar(1024), NULLABLE),
 
-#define IDX_BUFFER_PAGE_INDEX_NAME	10 + I_S_AHI
+#define IDX_BUFFER_PAGE_INDEX_NAME	11 + I_S_AHI
   Column("INDEX_NAME", Varchar(NAME_CHAR_LEN), NULLABLE),
 
-#define IDX_BUFFER_PAGE_NUM_RECS	11 + I_S_AHI
+#define IDX_BUFFER_PAGE_NUM_RECS	12 + I_S_AHI
   Column("NUMBER_RECORDS", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_DATA_SIZE	12 + I_S_AHI
+#define IDX_BUFFER_PAGE_DATA_SIZE	13 + I_S_AHI
   Column("DATA_SIZE", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_ZIP_SIZE	13 + I_S_AHI
+#define IDX_BUFFER_PAGE_ZIP_SIZE	14 + I_S_AHI
   Column("COMPRESSED_SIZE", ULonglong(), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_STATE		14 + I_S_AHI
+#define IDX_BUFFER_PAGE_STATE		15 + I_S_AHI
   Column("PAGE_STATE", Enum(&page_state_values_typelib), NOT_NULL, DEFAULT_NONE),
 
-#define IDX_BUFFER_PAGE_IO_FIX		15 + I_S_AHI
+#define IDX_BUFFER_PAGE_IO_FIX		16 + I_S_AHI
   Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL, DEFAULT_NONE),
 
-#define IDX_BUFFER_PAGE_IS_OLD		16 + I_S_AHI
+#define IDX_BUFFER_PAGE_IS_OLD		17 + I_S_AHI
   Column("IS_OLD", SLong(1), NOT_NULL),
 
-#define IDX_BUFFER_PAGE_FREE_CLOCK	17 + I_S_AHI
+#define IDX_BUFFER_PAGE_FREE_CLOCK	18 + I_S_AHI
   Column("FREE_PAGE_CLOCK", ULonglong(), NOT_NULL),
 
   CEnd()
@@ -3958,6 +3965,8 @@ i_s_innodb_buffer_page_fill(
 		const char*		table_name_end = NULL;
 
 		page_info = info_array + i;
+
+		OK(fields[IDX_BUFFER_POOL_ID]->store(0, true));
 
 		OK(fields[IDX_BUFFER_BLOCK_ID]->store(
 			   page_info->block_id, true));
@@ -4378,63 +4387,66 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_page =
 namespace Show {
 static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 {
-#define IDX_BUF_LRU_POS			0
+#define IDX_BUF_LRU_POOL_ID		0
+  Column("POOL_ID", ULong(), NOT_NULL),
+
+#define IDX_BUF_LRU_POS			1
   Column("LRU_POSITION", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_SPACE		1
+#define IDX_BUF_LRU_PAGE_SPACE		2
   Column("SPACE", ULong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_NUM		2
+#define IDX_BUF_LRU_PAGE_NUM		3
   Column("PAGE_NUMBER", ULong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_TYPE		3
+#define IDX_BUF_LRU_PAGE_TYPE		4
   Column("PAGE_TYPE", Varchar(64), NULLABLE),
 
-#define IDX_BUF_LRU_PAGE_FLUSH_TYPE	4
+#define IDX_BUF_LRU_PAGE_FLUSH_TYPE	5
   Column("FLUSH_TYPE", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_FIX_COUNT	5
+#define IDX_BUF_LRU_PAGE_FIX_COUNT	6
   Column("FIX_COUNT", ULong(), NOT_NULL),
 
 #ifdef BTR_CUR_HASH_ADAPT
-#define IDX_BUF_LRU_PAGE_HASHED		6
+#define IDX_BUF_LRU_PAGE_HASHED		7
   Column("IS_HASHED", SLong(1), NOT_NULL),
 #endif /* BTR_CUR_HASH_ADAPT */
 
-#define IDX_BUF_LRU_PAGE_NEWEST_MOD	6 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_NEWEST_MOD	7 + I_S_AHI
   Column("NEWEST_MODIFICATION",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_OLDEST_MOD	7 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_OLDEST_MOD	8 + I_S_AHI
   Column("OLDEST_MODIFICATION",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_ACCESS_TIME	8 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_ACCESS_TIME	9 + I_S_AHI
   Column("ACCESS_TIME",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_TABLE_NAME	9 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_TABLE_NAME	10 + I_S_AHI
   Column("TABLE_NAME", Varchar(1024), NULLABLE),
 
-#define IDX_BUF_LRU_PAGE_INDEX_NAME	10 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_INDEX_NAME	11 + I_S_AHI
   Column("INDEX_NAME", Varchar(NAME_CHAR_LEN), NULLABLE),
 
-#define IDX_BUF_LRU_PAGE_NUM_RECS	11 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_NUM_RECS	12 + I_S_AHI
   Column("NUMBER_RECORDS", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_DATA_SIZE	12 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_DATA_SIZE	13 + I_S_AHI
   Column("DATA_SIZE", ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_ZIP_SIZE	13 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_ZIP_SIZE	14 + I_S_AHI
   Column("COMPRESSED_SIZE",ULonglong(), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_STATE		14 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_STATE		15 + I_S_AHI
   Column("COMPRESSED", SLong(1), NOT_NULL),
 
-#define IDX_BUF_LRU_PAGE_IO_FIX		15 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_IO_FIX		16 + I_S_AHI
   Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL, DEFAULT_NONE),
 
-#define IDX_BUF_LRU_PAGE_IS_OLD		16 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_IS_OLD		17 + I_S_AHI
   Column("IS_OLD", SLong(1), NULLABLE),
 
-#define IDX_BUF_LRU_PAGE_FREE_CLOCK	17 + I_S_AHI
+#define IDX_BUF_LRU_PAGE_FREE_CLOCK	18 + I_S_AHI
   Column("FREE_PAGE_CLOCK", ULonglong(), NOT_NULL),
 
   CEnd()
@@ -4468,6 +4480,8 @@ i_s_innodb_buf_page_lru_fill(
 		const char*		table_name_end = NULL;
 
 		page_info = info_array + i;
+
+		OK(fields[IDX_BUF_LRU_POOL_ID]->store(0, true));
 
 		OK(fields[IDX_BUF_LRU_POS]->store(
 			   page_info->block_id, true));
@@ -4582,9 +4596,7 @@ i_s_innodb_buf_page_lru_fill(
 @param[in]	thd		thread
 @param[in,out]	tables		tables to fill
 @return 0 on success, 1 on failure */
-static
-int
-i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item*)
+static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 {
 	int			status = 0;
 	buf_page_info_t*	info_buffer;
