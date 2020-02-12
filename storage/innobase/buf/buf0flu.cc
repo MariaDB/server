@@ -161,8 +161,6 @@ struct page_cleaner_t {
 						page_cleaner_slot_t slots. */
 	os_event_t		is_finished;	/*!< event to signal that all
 						slots were finished. */
-	os_event_t		is_started;	/*!< event to signal that
-						thread is started/exiting */
 	volatile ulint		n_workers;	/*!< number of worker threads
 						in existence */
 	bool			requested;	/*!< true if requested pages
@@ -2807,7 +2805,6 @@ buf_flush_page_cleaner_init(void)
 	mutex_create(LATCH_ID_PAGE_CLEANER, &page_cleaner.mutex);
 
 	page_cleaner.is_finished = os_event_create("pc_is_finished");
-	page_cleaner.is_started = os_event_create("pc_is_started");
 	page_cleaner.n_slots = static_cast<ulint>(srv_buf_pool_instances);
 
 	ut_d(page_cleaner.n_disabled_debug = 0);
@@ -3468,7 +3465,6 @@ thread_exit:
 	mutex_destroy(&page_cleaner.mutex);
 
 	os_event_destroy(page_cleaner.is_finished);
-	os_event_destroy(page_cleaner.is_started);
 
 	buf_page_cleaner_is_active = false;
 
