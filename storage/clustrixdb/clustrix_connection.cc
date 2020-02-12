@@ -19,7 +19,50 @@ extern char *clustrix_password;
 extern uint clustrix_port;
 extern char *clustrix_socket;
 
-static const char charset_name[] = "utf8";
+/*
+   This class implements the commands that can be sent to the cluster by the
+   Xpand engine.  All of these commands return a status to the caller, but some
+   commands also create open invocations on the cluster, which must be closed by
+   sending additional commands.
+
+   Transactions on the cluster are started using flags attached to commands, and
+   transactions are committed or rolled back using separate commands.
+
+   Methods ending with _next affect the transaction state after the next command
+   is sent to the cluster.  Other transaction commands are sent to the cluster
+   immediately, and the state is changed before they return.
+
+       _____________________     _______________________
+      |        |            |   |         |             |
+      V        |            |   V         |             |
+    NONE --> REQUESTED --> STARTED --> NEW_STMT         |
+                                |                       |
+                                `----> ROLLBACK_STMT ---`
+
+   The commit and rollback commands will change any other state to NONE.  This
+   includes the REQUESTED state, for which nothing will be sent to the cluster.
+   The rollback statement command can likewise change the state from NEW_STMT to
+   STARTED without sending anything to the cluster.
+
+   In addition, the CLUSTRIX_TRANS_AUTOCOMMIT flag will cause the transactions
+   for commands that complete without leaving open invocations on the cluster to
+   be committed if successful or rolled back if there was an error.  If
+   auto-commit is enabled, only one open invocation may be in progress at a
+   time.
+*/
+
+enum clustrix_trans_state {
+    CLUSTRIX_TRANS_STARTED = 0,
+    CLUSTRIX_TRANS_REQUESTED = 1,
+    CLUSTRIX_TRANS_NEW_STMT = 2,
+    CLUSTRIX_TRANS_ROLLBACK_STMT = 4,
+    CLUSTRIX_TRANS_NONE = 32,
+};
+
+enum clustrix_trans_post_flags {
+    CLUSTRIX_TRANS_AUTOCOMMIT = 8,
+    CLUSTRIX_TRANS_NO_POST_FLAGS = 0,
+};
 
 enum clustrix_commands {
   CLUSTRIX_WRITE_ROW = 1,
@@ -32,21 +75,32 @@ enum clustrix_commands {
   CLUSTRIX_KEY_UPDATE,
   CLUSTRIX_SCAN_FROM_KEY,
   CLUSTRIX_UPDATE_QUERY,
-  CLUSTRIX_TRANSACTION_CMD
-};
-
-enum clustrix_transaction_flags {
-    CLUSTRIX_TRANS_BEGIN = 1,
-    CLUSTRIX_TRANS_COMMIT = 2,
-    CLUSTRIX_TRANS_ROLLBACK = 4,
-    CLUSTRIX_STMT_NEW = 8,
-    CLUSTRIX_STMT_ROLLBACK = 16,
-    CLUSTRIX_TRANS_COMMIT_ON_FINISH = 32
+  CLUSTRIX_COMMIT,
+  CLUSTRIX_ROLLBACK,
 };
 
 /****************************************************************************
 ** Class clustrix_connection
 ****************************************************************************/
+clustrix_connection::clustrix_connection()
+  : command_buffer(NULL), command_buffer_length(0), command_length(0),
+    trans_state(CLUSTRIX_TRANS_NONE), trans_flags(CLUSTRIX_TRANS_NO_POST_FLAGS)
+{
+  DBUG_ENTER("clustrix_connection::clustrix_connection");
+  memset(&clustrix_net, 0, sizeof(MYSQL));
+  DBUG_VOID_RETURN;
+}
+
+clustrix_connection::~clustrix_connection()
+{
+  DBUG_ENTER("clustrix_connection::~clustrix_connection");
+  if (is_connected())
+    disconnect(TRUE);
+
+  if (command_buffer)
+    my_free(command_buffer);
+  DBUG_VOID_RETURN;
+}
 
 void clustrix_connection::disconnect(bool is_destructor)
 {
@@ -100,7 +154,7 @@ int clustrix_connection::connect()
                 &clustrix_connect_timeout);
   mysql_options(&clustrix_net, MYSQL_OPT_USE_REMOTE_CONNECTION,
                 NULL);
-  mysql_options(&clustrix_net, MYSQL_SET_CHARSET_NAME, charset_name);
+  mysql_options(&clustrix_net, MYSQL_SET_CHARSET_NAME, "utf8mb4");
   mysql_options(&clustrix_net, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
                 (char *) &my_true);
   mysql_options(&clustrix_net, MYSQL_INIT_COMMAND,"SET autocommit=0");
@@ -148,22 +202,39 @@ int clustrix_connection::connect()
 
 int clustrix_connection::begin_command(uchar command)
 {
-  assert(command == CLUSTRIX_TRANSACTION_CMD || has_transaction);
+  if (trans_state == CLUSTRIX_TRANS_NONE)
+    return HA_ERR_INTERNAL_ERROR;
+
   command_length = 0;
   int error_code = 0;
   if ((error_code = add_command_operand_uchar(command)))
     return error_code;
 
-  if ((error_code = add_command_operand_uchar(commit_flag_next)))
+  if ((error_code = add_command_operand_uchar(trans_state | trans_flags)))
     return error_code;
 
-  commit_flag_next &= CLUSTRIX_TRANS_COMMIT_ON_FINISH;
   return error_code;
 }
 
 int clustrix_connection::send_command()
 {
   my_bool com_error;
+
+  /*
+     Please note:
+     * The transaction state is set before the command is sent because rolling
+       back a nonexistent transaction is better than leaving a tranaction open
+       on the cluster.
+     * The state may have alreadly been STARTED.
+     * Commit and rollback commands update the transaction state after calling
+       this function.
+     * If auto-commit is enabled, the state may also updated after the
+       response has been processed.  We do not clear the auto-commit flag here
+       because it needs to be sent with each command until the transaction is
+       committed or rolled back.
+  */
+  trans_state = CLUSTRIX_TRANS_STARTED;
+  
   com_error = simple_command(&clustrix_net,
                              (enum_server_command)CLUSTRIX_SERVER_REQUEST,
                              command_buffer, command_length, TRUE);
@@ -183,133 +254,119 @@ int clustrix_connection::send_command()
 int clustrix_connection::read_query_response()
 {
   my_bool comerr = clustrix_net.methods->read_query_result(&clustrix_net);
+  int error_code = 0;
   if (comerr)
   {
-    int error_code = mysql_errno(&clustrix_net);
+    error_code = mysql_errno(&clustrix_net);
     my_printf_error(error_code,
                     "Clustrix error: %s", MYF(0),
                     mysql_error(&clustrix_net));
-    return error_code;
   }
 
-  return 0;
+  auto_commit_closed();
+  return error_code;
 }
 
-int clustrix_connection::send_transaction_cmd()
+bool clustrix_connection::has_open_transaction()
 {
-  DBUG_ENTER("clustrix_connection::send_transaction_cmd");
-  if (!commit_flag_next)
-      DBUG_RETURN(0);
+  return trans_state != CLUSTRIX_TRANS_NONE;
+}
+
+int clustrix_connection::commit_transaction()
+{
+  DBUG_ENTER("clustrix_connection::commit_transaction");
+  if (trans_state == CLUSTRIX_TRANS_NONE)
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+
+  if (trans_state == CLUSTRIX_TRANS_REQUESTED) {
+    trans_state = CLUSTRIX_TRANS_NONE;
+    trans_flags = CLUSTRIX_TRANS_NO_POST_FLAGS;
+    DBUG_RETURN(0);
+  }
 
   int error_code;
-  if ((error_code = begin_command(CLUSTRIX_TRANSACTION_CMD)))
+  if ((error_code = begin_command(CLUSTRIX_COMMIT)))
     DBUG_RETURN(error_code);
 
   if ((error_code = send_command()))
     DBUG_RETURN(error_code);
 
   if ((error_code = read_query_response()))
-    DBUG_RETURN(mysql_errno(&clustrix_net));
+    DBUG_RETURN(error_code);
 
+  trans_state = CLUSTRIX_TRANS_NONE;
+  trans_flags = CLUSTRIX_TRANS_NO_POST_FLAGS;
   DBUG_RETURN(error_code);
 }
 
-bool clustrix_connection::begin_transaction()
-{
-  DBUG_ENTER("clustrix_connection::begin_transaction");
-  assert(!has_transaction);
-  commit_flag_next |= CLUSTRIX_TRANS_BEGIN;
-  has_transaction = TRUE;
-  DBUG_RETURN(TRUE);
-}
-
-bool clustrix_connection::commit_transaction()
-{
-  DBUG_ENTER("clustrix_connection::commit_transaction");
-  assert(has_transaction);
-
-  has_transaction = FALSE;
-  has_anonymous_savepoint = FALSE;
-  if (commit_flag_next & CLUSTRIX_TRANS_BEGIN) {
-    commit_flag_next &= ~CLUSTRIX_TRANS_BEGIN;
-    DBUG_RETURN(FALSE);
-  }
-
-  commit_flag_next |= CLUSTRIX_TRANS_COMMIT;
-  DBUG_RETURN(TRUE);
-}
-
-bool clustrix_connection::rollback_transaction()
+int clustrix_connection::rollback_transaction()
 {
   DBUG_ENTER("clustrix_connection::rollback_transaction");
-  assert(has_transaction);
-
-  has_transaction = FALSE;
-  has_anonymous_savepoint = FALSE;
-  if (commit_flag_next & CLUSTRIX_TRANS_BEGIN) {
-    commit_flag_next &= ~CLUSTRIX_TRANS_BEGIN;
-    DBUG_RETURN(FALSE);
+  if (trans_state == CLUSTRIX_TRANS_NONE ||
+      trans_state == CLUSTRIX_TRANS_REQUESTED) {
+    trans_state = CLUSTRIX_TRANS_NONE;
+    DBUG_RETURN(0);
   }
 
-  commit_flag_next |= CLUSTRIX_TRANS_ROLLBACK;
-  DBUG_RETURN(TRUE);
+  int error_code;
+  if ((error_code = begin_command(CLUSTRIX_ROLLBACK)))
+    DBUG_RETURN(error_code);
+
+  if ((error_code = send_command()))
+    DBUG_RETURN(error_code);
+
+  if ((error_code = read_query_response()))
+    DBUG_RETURN(error_code);
+
+  trans_state = CLUSTRIX_TRANS_NONE;
+  trans_flags = CLUSTRIX_TRANS_NO_POST_FLAGS;
+  DBUG_RETURN(error_code);
+}
+
+int clustrix_connection::begin_transaction_next()
+{
+  DBUG_ENTER("clustrix_connection::begin_transaction_next");
+  if (trans_state != CLUSTRIX_TRANS_NONE ||
+      trans_flags != CLUSTRIX_TRANS_NO_POST_FLAGS)
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+
+  trans_state = CLUSTRIX_TRANS_REQUESTED;
+  DBUG_RETURN(0);
+}
+
+int clustrix_connection::new_statement_next()
+{
+  DBUG_ENTER("clustrix_connection::new_statement_next");
+  if (trans_state != CLUSTRIX_TRANS_STARTED ||
+      trans_flags != CLUSTRIX_TRANS_NO_POST_FLAGS)
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+
+  trans_state = CLUSTRIX_TRANS_NEW_STMT;
+  DBUG_RETURN(0);
+}
+
+int clustrix_connection::rollback_statement_next()
+{
+  DBUG_ENTER("clustrix_connection::rollback_statement_next");
+  if (trans_state != CLUSTRIX_TRANS_STARTED ||
+      trans_flags != CLUSTRIX_TRANS_NO_POST_FLAGS)
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+
+  trans_state = CLUSTRIX_TRANS_ROLLBACK_STMT;
+  DBUG_RETURN(0);
 }
 
 void clustrix_connection::auto_commit_next()
 {
-  commit_flag_next |= CLUSTRIX_TRANS_COMMIT_ON_FINISH;
+  trans_flags |= CLUSTRIX_TRANS_AUTOCOMMIT;
 }
 
 void clustrix_connection::auto_commit_closed()
 {
-  assert(has_transaction);
-  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH) {
-    has_transaction = FALSE;
-    has_anonymous_savepoint = FALSE;
-    commit_flag_next &= ~CLUSTRIX_TRANS_COMMIT_ON_FINISH;
+  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT) {
+    trans_flags &= ~CLUSTRIX_TRANS_AUTOCOMMIT;
+    trans_state = CLUSTRIX_TRANS_NONE;
   }
-}
-
-bool clustrix_connection::set_anonymous_savepoint()
-{
-  DBUG_ENTER("clustrix_connection::set_anonymous_savepoint");
-  assert(has_transaction);
-  assert(!has_anonymous_savepoint);
-
-  commit_flag_next |= CLUSTRIX_STMT_NEW;
-  has_anonymous_savepoint = TRUE;
-  DBUG_RETURN(TRUE);
-}
-
-bool clustrix_connection::release_anonymous_savepoint()
-{
-  DBUG_ENTER("clustrix_connection::release_anonymous_savepoint");
-  assert(has_transaction);
-  assert(has_anonymous_savepoint);
-
-  has_anonymous_savepoint = FALSE;
-  if (commit_flag_next & CLUSTRIX_STMT_NEW) {
-      commit_flag_next &= ~CLUSTRIX_STMT_NEW;
-      DBUG_RETURN(FALSE);
-  }
-
-  DBUG_RETURN(TRUE);
-}
-
-bool clustrix_connection::rollback_to_anonymous_savepoint()
-{
-  DBUG_ENTER("clustrix_connection::rollback_to_anonymous_savepoint");
-  assert(has_transaction);
-  assert(has_anonymous_savepoint);
-
-  has_anonymous_savepoint = FALSE;
-  if (commit_flag_next & CLUSTRIX_STMT_NEW) {
-      commit_flag_next &= ~CLUSTRIX_STMT_NEW;
-      DBUG_RETURN(FALSE);
-  }
-
-  commit_flag_next |= CLUSTRIX_STMT_ROLLBACK;
-  DBUG_RETURN(TRUE);
 }
 
 int clustrix_connection::run_query(String &stmt)
@@ -320,11 +377,6 @@ int clustrix_connection::run_query(String &stmt)
   return error_code;
 }
 
-my_ulonglong clustrix_connection::rows_affected()
-{
-    return clustrix_net.affected_rows;
-}
-
 int clustrix_connection::write_row(ulonglong clustrix_table_oid,
                                    uchar *packed_row, size_t packed_size,
                                    ulonglong *last_insert_id)
@@ -333,7 +385,7 @@ int clustrix_connection::write_row(ulonglong clustrix_table_oid,
   command_length = 0;
 
   // row based commands should not be called with auto commit.
-  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH)
+  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
   if ((error_code = begin_command(CLUSTRIX_WRITE_ROW)))
@@ -365,7 +417,7 @@ int clustrix_connection::key_update(ulonglong clustrix_table_oid,
   command_length = 0;
 
   // row based commands should not be called with auto commit.
-  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH)
+  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
   if ((error_code = begin_command(CLUSTRIX_KEY_UPDATE)))
@@ -400,7 +452,7 @@ int clustrix_connection::key_delete(ulonglong clustrix_table_oid,
   command_length = 0;
 
   // row based commands should not be called with auto commit.
-  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH)
+  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
   if ((error_code = begin_command(CLUSTRIX_KEY_DELETE)))
@@ -431,7 +483,7 @@ int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
   command_length = 0;
 
   // row based commands should not be called with auto commit.
-  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH)
+  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
   if ((error_code = begin_command(CLUSTRIX_KEY_READ)))
@@ -605,20 +657,23 @@ public:
   }
 };
 
-int allocate_clustrix_connection_cursor(MYSQL *clustrix_net, ulong buffer_size,
-                                        bool *stmt_completed,
-                                        clustrix_connection_cursor **scan)
+int clustrix_connection::allocate_cursor(MYSQL *clustrix_net, ulong buffer_size,
+                                         clustrix_connection_cursor **scan)
 {
-  DBUG_ENTER("allocate_clustrix_connection_cursor");
+  DBUG_ENTER("clustrix_connection::allocate_cursor");
   *scan = new clustrix_connection_cursor(clustrix_net, buffer_size);
   if (!*scan)
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-  int error_code = (*scan)->initialize(stmt_completed);
+  bool stmt_completed = FALSE;
+  int error_code = (*scan)->initialize(&stmt_completed);
   if (error_code) {
       delete *scan;
       *scan = NULL;
   }
+
+  if (stmt_completed)
+    auto_commit_closed();
 
   DBUG_RETURN(error_code);
 }
@@ -632,7 +687,7 @@ int clustrix_connection::scan_table(ulonglong clustrix_table_oid,
   command_length = 0;
 
   // row based commands should not be called with auto commit.
-  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH)
+  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
   if ((error_code = begin_command(CLUSTRIX_SCAN_TABLE)))
@@ -653,9 +708,7 @@ int clustrix_connection::scan_table(ulonglong clustrix_table_oid,
   if ((error_code = send_command()))
     return error_code;
 
-  bool stmt_completed = FALSE;
-  return allocate_clustrix_connection_cursor(&clustrix_net, row_req,
-                                             &stmt_completed, scan);
+  return allocate_cursor(&clustrix_net, row_req, scan);
 }
 
 /**
@@ -707,12 +760,7 @@ int clustrix_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
   if ((error_code = send_command()))
     return error_code;
 
-  bool stmt_completed = FALSE;
-  error_code = allocate_clustrix_connection_cursor(&clustrix_net, row_req,
-                                                   &stmt_completed, scan);
-  if (stmt_completed)
-    auto_commit_closed();
-  return error_code;
+  return allocate_cursor(&clustrix_net, row_req, scan);
 }
 
 /**
@@ -745,14 +793,11 @@ int clustrix_connection::update_query(String &stmt, LEX_CSTRING &dbname,
     return error_code;
 
   error_code = read_query_response();
-  auto_commit_closed();
   if (!error_code)
     *affected_rows = clustrix_net.affected_rows;
 
   return error_code;
 }
-
-
 
 int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
                                        clustrix_lock_mode_t lock_mode,
@@ -766,7 +811,7 @@ int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
   command_length = 0;
 
   // row based commands should not be called with auto commit.
-  if (commit_flag_next & CLUSTRIX_TRANS_COMMIT_ON_FINISH)
+  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
   if ((error_code = begin_command(CLUSTRIX_SCAN_FROM_KEY)))
@@ -802,9 +847,7 @@ int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
   if ((error_code = send_command()))
     return error_code;
 
-  bool stmt_completed = FALSE;
-  return allocate_clustrix_connection_cursor(&clustrix_net, row_req,
-                                             &stmt_completed, scan);
+  return allocate_cursor(&clustrix_net, row_req, scan);
 }
 
 int clustrix_connection::scan_next(clustrix_connection_cursor *scan,
@@ -866,9 +909,7 @@ int clustrix_connection::scan_end(clustrix_connection_cursor *scan)
   if ((error_code = send_command()))
     return error_code;
 
-  error_code = read_query_response();
-  auto_commit_closed();
-  return error_code;
+  return read_query_response();
 }
 
 int clustrix_connection::populate_table_list(LEX_CSTRING *db,
@@ -998,6 +1039,8 @@ error:
   DBUG_RETURN(error_code);
 }
 
+#define COMMAND_BUFFER_SIZE_INCREMENT 1024
+#define COMMAND_BUFFER_SIZE_INCREMENT_BITS 10
 int clustrix_connection::expand_command_buffer(size_t add_length)
 {
   size_t expanded_length;
@@ -1114,7 +1157,7 @@ int clustrix_connection::add_command_operand_str(const uchar *str,
  *   str_length - size
  **/
 int clustrix_connection::add_command_operand_vlstr(const uchar *str,
-                                                 size_t str_length)
+                                                   size_t str_length)
 {
   int error_code = expand_command_buffer(str_length);
   if (error_code)
