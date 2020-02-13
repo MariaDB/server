@@ -158,8 +158,9 @@ struct file_name_t {
 	lsn_t		enable_lsn;
 
 	/** Constructor */
-	file_name_t(std::string name_, bool deleted) :
-		name(name_), space(NULL), status(deleted ? DELETED: NORMAL),
+	file_name_t(std::string name_, bool deleted)
+		: name(std::move(name_)), space(NULL),
+		status(deleted ? DELETED: NORMAL),
 		size(0), enable_lsn(0) {}
 
 	/** Report a MLOG_INDEX_LOAD operation, meaning that
