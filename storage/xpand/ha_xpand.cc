@@ -153,46 +153,46 @@ static MYSQL_THDVAR_UINT
 
 // Per thread select handler knob
 static MYSQL_THDVAR_BOOL(
-    select_handler,
-    PLUGIN_VAR_NOCMDARG,
-    "",
-    NULL,
-    NULL,
-    1
+  select_handler,
+  PLUGIN_VAR_NOCMDARG,
+  "",
+  NULL,
+  NULL,
+  1
 );
 
 // Per thread derived handler knob
 static MYSQL_THDVAR_BOOL(
-    derived_handler,
-    PLUGIN_VAR_NOCMDARG,
-    "",
-    NULL,
-    NULL,
-    1
+  derived_handler,
+  PLUGIN_VAR_NOCMDARG,
+  "",
+  NULL,
+  NULL,
+  1
 );
 
 static MYSQL_THDVAR_BOOL(
-    enable_direct_update,
-    PLUGIN_VAR_NOCMDARG,
-    "",
-    NULL,
-    NULL,
-    1
+  enable_direct_update,
+  PLUGIN_VAR_NOCMDARG,
+  "",
+  NULL,
+  NULL,
+  1
 );
 
 bool select_handler_setting(THD* thd)
 {
-    return ( thd == NULL ) ? false : THDVAR(thd, select_handler);
+  return ( thd == NULL ) ? false : THDVAR(thd, select_handler);
 }
 
 bool derived_handler_setting(THD* thd)
 {
-    return ( thd == NULL ) ? false : THDVAR(thd, derived_handler);
+  return ( thd == NULL ) ? false : THDVAR(thd, derived_handler);
 }
 
 uint row_buffer_setting(THD* thd)
 {
-    return THDVAR(thd, row_buffer);
+  return THDVAR(thd, row_buffer);
 }
 
 /****************************************************************************
@@ -223,8 +223,8 @@ size_t estimate_row_size(TABLE *table)
  **/
 static void decode_objectname(char *buf, const char *path, size_t buf_size)
 {
-    size_t new_path_len = filename_to_tablename(path, buf, buf_size);
-    buf[new_path_len] = '\0';
+  size_t new_path_len = filename_to_tablename(path, buf, buf_size);
+  buf[new_path_len] = '\0';
 }
 
 static void decode_file_path(const char *path, char *decoded_dbname,
@@ -326,11 +326,11 @@ int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
 
   // To syncronize the schemas of MDB FE and XPD BE.
   if (form->s && form->s->db.length) {
-      String createdb_stmt;
-      createdb_stmt.append("CREATE DATABASE IF NOT EXISTS `");
-      createdb_stmt.append(form->s->db.str, form->s->db.length);
-      createdb_stmt.append("`");
-      trx->run_query(createdb_stmt);
+    String createdb_stmt;
+    createdb_stmt.append("CREATE DATABASE IF NOT EXISTS `");
+    createdb_stmt.append(form->s->db.str, form->s->db.length);
+    createdb_stmt.append("`");
+    trx->run_query(createdb_stmt);
   }
 
   error_code = trx->run_query(create_table_stmt);
@@ -489,8 +489,7 @@ int ha_xpand::write_row(const uchar *buf)
   /* XXX: Xpand may needs to return HA_ERR_AUTOINC_ERANGE if we hit that
      error. */
   ulonglong last_insert_id = 0;
-  if ((error_code = trx->write_row(xpand_table_oid,
-                                   packed_new_row, packed_size,
+  if ((error_code = trx->write_row(xpand_table_oid, packed_new_row, packed_size,
                                    &last_insert_id)))
     goto err;
 
@@ -687,8 +686,7 @@ int ha_xpand::info(uint flag)
     if (stats.records == 0)
       stats.mean_rec_length = 0;
     else
-      stats.mean_rec_length = (ulong)
-                              (stats.data_file_length / stats.records);
+      stats.mean_rec_length = (ulong) (stats.data_file_length / stats.records);
   }
 
   if (flag & HA_STATUS_CONST)
@@ -780,8 +778,7 @@ int ha_xpand::index_read(uchar * buf, const uchar * key, uint key_len,
                                table->read_set, packed_key, packed_key_len,
                                &rowdata, &rowdata_length);
     if (!error_code)
-        error_code = unpack_row_to_buf(rgi, table, buf, rowdata,
-                                       table->read_set,
+      error_code = unpack_row_to_buf(rgi, table, buf, rowdata, table->read_set,
                                        rowdata + rowdata_length);
   } else {
     is_scan = true;
@@ -790,7 +787,7 @@ int ha_xpand::index_read(uchar * buf, const uchar * key, uint key_len,
                                     &scan_fields, packed_key, packed_key_len,
                                     THDVAR(thd, row_buffer), &scan_cur);
     if (!error_code)
-        error_code = rnd_next(buf);
+      error_code = rnd_next(buf);
   }
 
   if (rowdata)
@@ -1056,7 +1053,7 @@ int ha_xpand::external_lock(THD *thd, int lock_type)
   int error_code;
   xpand_connection *trx = get_trx(thd, &error_code);
   if (error_code)
-      DBUG_RETURN(error_code);
+    DBUG_RETURN(error_code);
 
   if (lock_type == F_WRLCK)
     xpd_lock_type = XPAND_EXCLUSIVE;
@@ -1069,7 +1066,7 @@ int ha_xpand::external_lock(THD *thd, int lock_type)
     if (!trx->has_open_transaction()) {
       error_code = trx->begin_transaction_next();
       if (error_code)
-          DBUG_RETURN(error_code);
+        DBUG_RETURN(error_code);
     }
 
     trans_register_ha(thd, FALSE, xpand_hton);
@@ -1349,18 +1346,18 @@ static struct st_mysql_storage_engine xpand_storage_engine =
 
 maria_declare_plugin(xpand)
 {
-    MYSQL_STORAGE_ENGINE_PLUGIN,                /* Plugin Type */
-    &xpand_storage_engine,                      /* Plugin Descriptor */
-    "XPAND",                                    /* Plugin Name */
-    "MariaDB",                                  /* Plugin Author */
-    "Xpand storage engine",                     /* Plugin Description */
-    PLUGIN_LICENSE_GPL,                         /* Plugin Licence */
-    xpand_init,                                 /* Plugin Entry Point */
-    xpand_deinit,                               /* Plugin Deinitializer */
-    0x0001,                                     /* Hex Version Number (0.1) */
-    NULL /* xpand_status_vars */,               /* Status Variables */
-    xpand_system_variables,                     /* System Variables */
-    "0.1",                                      /* String Version */
-    MariaDB_PLUGIN_MATURITY_EXPERIMENTAL        /* Maturity Level */
+  MYSQL_STORAGE_ENGINE_PLUGIN,                /* Plugin Type */
+  &xpand_storage_engine,                      /* Plugin Descriptor */
+  "XPAND",                                    /* Plugin Name */
+  "MariaDB",                                  /* Plugin Author */
+  "Xpand storage engine",                     /* Plugin Description */
+  PLUGIN_LICENSE_GPL,                         /* Plugin Licence */
+  xpand_init,                                 /* Plugin Entry Point */
+  xpand_deinit,                               /* Plugin Deinitializer */
+  0x0001,                                     /* Hex Version Number (0.1) */
+  NULL /* xpand_status_vars */,               /* Status Variables */
+  xpand_system_variables,                     /* System Variables */
+  "0.1",                                      /* String Version */
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL        /* Maturity Level */
 }
 maria_declare_plugin_end;
