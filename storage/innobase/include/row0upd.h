@@ -108,17 +108,6 @@ upd_node_create(
 /*============*/
 	mem_heap_t*	heap);	/*!< in: mem heap where created */
 /***********************************************************//**
-Writes to the redo log the new values of the fields occurring in the index. */
-void
-row_upd_index_write_log(
-/*====================*/
-	const upd_t*	update,	/*!< in: update vector */
-	byte*		log_ptr,/*!< in: pointer to mlog buffer: must
-				contain at least MLOG_BUF_MARGIN bytes
-				of free space; the buffer is closed
-				within this function */
-	mtr_t*		mtr);	/*!< in: mtr into whose log to write */
-/***********************************************************//**
 Returns TRUE if row update changes size of some field in index or if some
 field to be updated is stored externally in rec or update.
 @return TRUE if the update changes the size of some field in index or
@@ -137,21 +126,6 @@ row_upd_changes_disowned_external(
 /*==============================*/
 	const upd_t*	update)	/*!< in: update vector */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/***********************************************************//**
-Replaces the new column values stored in the update vector to the
-record given. No field size changes are allowed. This function is
-usually invoked on a clustered index. The only use case for a
-secondary index is row_ins_sec_index_entry_by_modify() or its
-counterpart in ibuf_insert_to_index_page(). */
-void
-row_upd_rec_in_place(
-/*=================*/
-	rec_t*		rec,	/*!< in/out: record where replaced */
-	dict_index_t*	index,	/*!< in: the index the record belongs to */
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
-	const upd_t*	update,	/*!< in: update vector */
-	page_zip_des_t*	page_zip);/*!< in: compressed page with enough space
-				available, or NULL */
 
 /***************************************************************//**
 Builds an update vector from those fields which in a secondary index entry
@@ -345,6 +319,7 @@ row_upd_step(
 /*********************************************************************//**
 Parses the log data written by row_upd_index_write_log.
 @return log data end or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 byte*
 row_upd_index_parse(
 /*================*/

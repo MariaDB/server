@@ -3518,13 +3518,14 @@ page_zip_write_rec_ext(
 	page_zip_des_t*	page_zip,	/*!< in/out: compressed page */
 	const page_t*	page,		/*!< in: page containing rec */
 	const byte*	rec,		/*!< in: record being written */
-	dict_index_t*	index,		/*!< in: record descriptor */
+	const dict_index_t*index,	/*!< in: record descriptor */
 	const offset_t*	offsets,	/*!< in: rec_get_offsets(rec, index) */
 	ulint		create,		/*!< in: nonzero=insert, zero=update */
 	ulint		trx_id_col,	/*!< in: position of DB_TRX_ID */
 	ulint		heap_no,	/*!< in: heap number of rec */
 	byte*		storage,	/*!< in: end of dense page directory */
-	byte*		data)		/*!< in: end of modification log */
+	byte*		data,		/*!< in: end of modification log */
+	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 {
 	const byte*	start	= rec;
 	ulint		i;
@@ -3544,25 +3545,36 @@ page_zip_write_rec_ext(
 	the BLOB columns of rec if create==TRUE. */
 	ut_ad(data + rec_offs_data_size(offsets)
 	      - (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN)
-	      - n_ext * BTR_EXTERN_FIELD_REF_SIZE
-	      < externs - BTR_EXTERN_FIELD_REF_SIZE * page_zip->n_blobs);
+	      - n_ext * FIELD_REF_SIZE
+	      < externs - FIELD_REF_SIZE * page_zip->n_blobs);
 
-	{
+	if (n_ext) {
 		ulint	blob_no = page_zip_get_n_prev_extern(
 			page_zip, rec, index);
-		byte*	ext_end = externs - page_zip->n_blobs
-			* BTR_EXTERN_FIELD_REF_SIZE;
+		byte*	ext_end = externs - page_zip->n_blobs * FIELD_REF_SIZE;
 		ut_ad(blob_no <= page_zip->n_blobs);
-		externs -= blob_no * BTR_EXTERN_FIELD_REF_SIZE;
+		externs -= blob_no * FIELD_REF_SIZE;
 
 		if (create) {
 			page_zip->n_blobs += static_cast<unsigned>(n_ext);
-			ASSERT_ZERO_BLOB(ext_end - n_ext
-					 * BTR_EXTERN_FIELD_REF_SIZE);
-			memmove(ext_end - n_ext
-				* BTR_EXTERN_FIELD_REF_SIZE,
-				ext_end,
-				ulint(externs - ext_end));
+			ASSERT_ZERO_BLOB(ext_end - n_ext * FIELD_REF_SIZE);
+			if (ulint len = ulint(externs - ext_end)) {
+				byte* ext_start = ext_end
+					- n_ext * FIELD_REF_SIZE;
+				memmove(ext_start, ext_end, len);
+				/* TODO: write MEMMOVE record */
+				if (byte* l = mlog_open(mtr, 11 + 2 + 2)) {
+					l = mlog_write_initial_log_record_fast(
+						page, MLOG_ZIP_WRITE_STRING,
+						l, mtr);
+					mach_write_to_2(l, ext_start
+							- page_zip->data);
+					mach_write_to_2(l + 2, len);
+					mlog_close(mtr, l + 4);
+					mlog_catenate_string(mtr, ext_start,
+							     len);
+				}
+			}
 		}
 
 		ut_a(blob_no + n_ext <= page_zip->n_blobs);
@@ -3594,28 +3606,49 @@ page_zip_write_rec_ext(
 				       + DATA_ROLL_PTR_LEN);
 
 			/* Store trx_id and roll_ptr. */
-			memcpy(storage - (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN)
-			       * (heap_no - 1),
-			       src, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+			constexpr ulint sys_len = DATA_TRX_ID_LEN
+				+ DATA_ROLL_PTR_LEN;
+			byte* sys = storage - sys_len * (heap_no - 1);
+			memcpy(sys, src, sys_len);
 			i++; /* skip also roll_ptr */
+			if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2
+						      + sys_len)) {
+				log_ptr = mlog_write_initial_log_record_fast(
+					page, MLOG_ZIP_WRITE_STRING, log_ptr,
+					mtr);
+				mach_write_to_2(log_ptr, sys - page_zip->data);
+				mach_write_to_2(log_ptr + 2, sys_len);
+				memcpy(log_ptr + 4, sys, sys_len);
+				mlog_close(mtr, log_ptr + 4 + sys_len);
+			}
 		} else if (rec_offs_nth_extern(offsets, i)) {
 			src = rec_get_nth_field(rec, offsets,
 						i, &len);
 
 			ut_ad(dict_index_is_clust(index));
-			ut_ad(len
-			      >= BTR_EXTERN_FIELD_REF_SIZE);
-			src += len - BTR_EXTERN_FIELD_REF_SIZE;
+			ut_ad(len >= FIELD_REF_SIZE);
+			src += len - FIELD_REF_SIZE;
 
 			ASSERT_ZERO(data, src - start);
 			memcpy(data, start, ulint(src - start));
 			data += src - start;
-			start = src + BTR_EXTERN_FIELD_REF_SIZE;
+			start = src + FIELD_REF_SIZE;
 
 			/* Store the BLOB pointer. */
-			externs -= BTR_EXTERN_FIELD_REF_SIZE;
+			externs -= FIELD_REF_SIZE;
 			ut_ad(data < externs);
-			memcpy(externs, src, BTR_EXTERN_FIELD_REF_SIZE);
+			memcpy(externs, src, FIELD_REF_SIZE);
+			if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2
+						      + FIELD_REF_SIZE)) {
+				log_ptr = mlog_write_initial_log_record_fast(
+					page, MLOG_ZIP_WRITE_STRING, log_ptr,
+					mtr);
+				mach_write_to_2(log_ptr, externs
+						- page_zip->data);
+				mach_write_to_2(log_ptr + 2, FIELD_REF_SIZE);
+				memcpy(log_ptr + 4, externs, FIELD_REF_SIZE);
+				mlog_close(mtr, log_ptr + 4 + FIELD_REF_SIZE);
+			}
 		}
 	}
 
@@ -3629,19 +3662,19 @@ page_zip_write_rec_ext(
 	return(data);
 }
 
-/**********************************************************************//**
-Write an entire record on the compressed page.  The data must already
-have been written to the uncompressed page. */
-void
-page_zip_write_rec(
-/*===============*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
-	const byte*	rec,	/*!< in: record being written */
-	dict_index_t*	index,	/*!< in: the index the record belongs to */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
-	ulint		create)	/*!< in: nonzero=insert, zero=update */
+/** Write an entire record to the ROW_FORMAT=COMPRESSED page.
+The data must already have been written to the uncompressed page.
+@param[in,out]	page_zip	ROW_FORMAT=COMPRESSED page
+@param[in]	rec		record in the uncompressed page
+@param[in]	index		the index that the page belongs to
+@param[in]	offsets		rec_get_offsets(rec, index)
+@param[in]	create		nonzero=insert, zero=update
+@param[in,out]	mtr		mini-transaction */
+void page_zip_write_rec(page_zip_des_t *page_zip, const byte *rec,
+                        const dict_index_t *index, const offset_t *offsets,
+                        ulint create, mtr_t *mtr)
 {
-	const page_t*	page;
+	const page_t*	page = page_align(rec);
 	byte*		data;
 	byte*		storage;
 	ulint		heap_no;
@@ -3654,8 +3687,6 @@ page_zip_write_rec(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
 	ut_ad(page_zip->m_start >= PAGE_DATA);
-
-	page = page_align(rec);
 
 	ut_ad(page_zip_header_cmp(page_zip, page));
 	ut_ad(page_simple_validate_new((page_t*) page));
@@ -3721,8 +3752,6 @@ page_zip_write_rec(
 	storage = page_zip_dir_start(page_zip);
 
 	if (page_is_leaf(page)) {
-		ulint		len;
-
 		if (dict_index_is_clust(index)) {
 			/* Store separately trx_id, roll_ptr and
 			the BTR_EXTERN_FIELD_REF of each BLOB column. */
@@ -3731,9 +3760,10 @@ page_zip_write_rec(
 					page_zip, page,
 					rec, index, offsets, create,
 					index->db_trx_id(), heap_no,
-					storage, data);
+					storage, data, mtr);
 			} else {
 				/* Locate trx_id and roll_ptr. */
+				ulint len;
 				const byte*	src
 					= rec_get_nth_field(rec, offsets,
 							    index->db_trx_id(),
@@ -3751,14 +3781,24 @@ page_zip_write_rec(
 				data += src - rec;
 
 				/* Store trx_id and roll_ptr. */
-				memcpy(storage
-				       - (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN)
-				       * (heap_no - 1),
-				       src,
-				       DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+				constexpr ulint sys_len
+					= DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
+				byte* sys = storage - sys_len * (heap_no - 1);
+				memcpy(sys, src, sys_len);
 
-				src += DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
+				src += sys_len;
 
+				if (byte* l = mlog_open(mtr, 11 + 2 + 2
+							      + sys_len)) {
+					l = mlog_write_initial_log_record_fast(
+						rec, MLOG_ZIP_WRITE_STRING, l,
+						mtr);
+					mach_write_to_2(l, sys
+							- page_zip->data);
+					mach_write_to_2(l + 2, sys_len);
+					memcpy(l + 4, sys, sys_len);
+					mlog_close(mtr, l + 4 + sys_len);
+				}
 				/* Log the last bytes of the record. */
 				len = rec_offs_data_size(offsets)
 					- ulint(src - rec);
@@ -3773,7 +3813,7 @@ page_zip_write_rec(
 			ut_ad(!rec_offs_any_extern(offsets));
 
 			/* Log the entire record. */
-			len = rec_offs_data_size(offsets);
+			ulint len = rec_offs_data_size(offsets);
 
 			ASSERT_ZERO(data, len);
 			memcpy(data, rec, len);
@@ -3781,14 +3821,12 @@ page_zip_write_rec(
 		}
 	} else {
 		/* This is a node pointer page. */
-		ulint	len;
-
 		/* Non-leaf nodes should not have any externally
 		stored columns. */
 		ut_ad(!rec_offs_any_extern(offsets));
 
 		/* Copy the data bytes, except node_ptr. */
-		len = rec_offs_data_size(offsets) - REC_NODE_PTR_SIZE;
+		ulint len = rec_offs_data_size(offsets) - REC_NODE_PTR_SIZE;
 		ut_ad(data + len < storage - REC_NODE_PTR_SIZE
 		      * (page_dir_get_n_heap(page) - PAGE_HEAP_NO_USER_LOW));
 		ASSERT_ZERO(data, len);
@@ -3796,14 +3834,32 @@ page_zip_write_rec(
 		data += len;
 
 		/* Copy the node pointer to the uncompressed area. */
-		memcpy(storage - REC_NODE_PTR_SIZE
-		       * (heap_no - 1),
-		       rec + len,
-		       REC_NODE_PTR_SIZE);
+		byte* node_ptr = storage - REC_NODE_PTR_SIZE * (heap_no - 1);
+		memcpy(node_ptr, rec + len, REC_NODE_PTR_SIZE);
+		if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2
+					      + REC_NODE_PTR_SIZE)) {
+			log_ptr = mlog_write_initial_log_record_fast(
+				rec, MLOG_ZIP_WRITE_STRING, log_ptr, mtr);
+			mach_write_to_2(log_ptr, node_ptr - page_zip->data);
+			mach_write_to_2(log_ptr + 2, REC_NODE_PTR_SIZE);
+			memcpy(log_ptr + 4, node_ptr, REC_NODE_PTR_SIZE);
+			mlog_close(mtr, log_ptr + 4 + REC_NODE_PTR_SIZE);
+		}
 	}
 
 	ut_a(!*data);
 	ut_ad((ulint) (data - page_zip->data) < page_zip_get_size(page_zip));
+	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2)) {
+		log_ptr = mlog_write_initial_log_record_fast(
+			rec, MLOG_ZIP_WRITE_STRING, log_ptr, mtr);
+		mach_write_to_2(log_ptr, page_zip->m_end);
+		mach_write_to_2(log_ptr + 2,
+				data - page_zip->data - page_zip->m_end);
+		mlog_close(mtr, log_ptr + 4);
+		mlog_catenate_string(mtr, page_zip->data + page_zip->m_end,
+				     data - page_zip->data - page_zip->m_end);
+	}
+
 	page_zip->m_end = unsigned(data - page_zip->data);
 	page_zip->m_nonempty = TRUE;
 
@@ -4386,7 +4442,8 @@ page_zip_dir_insert(
 	page_cur_t*	cursor,	/*!< in/out: page cursor */
 	const byte*	free_rec,/*!< in: record from which rec was
 				allocated, or NULL */
-	byte*		rec)	/*!< in: record to insert */
+	byte*		rec,	/*!< in: record to insert */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	ut_ad(page_align(cursor->rec) == cursor->block->frame);
 	ut_ad(page_align(rec) == cursor->block->frame);
@@ -4449,13 +4506,26 @@ page_zip_dir_insert(
 			- PAGE_ZIP_DIR_SLOT_SIZE * n_dense;
 	}
 
+	const ulint slot_len = ulint(slot_rec - slot_free);
 	/* Shift the dense directory to allocate place for rec. */
 	memmove_aligned<2>(slot_free - PAGE_ZIP_DIR_SLOT_SIZE, slot_free,
-			   ulint(slot_rec - slot_free));
+			   slot_len);
 
 	/* Write the entry for the inserted record.
 	The "owned" and "deleted" flags must be zero. */
 	mach_write_to_2(slot_rec - PAGE_ZIP_DIR_SLOT_SIZE, page_offset(rec));
+	/* TODO: issue MEMMOVE record to reduce log volume */
+	if (byte* log_ptr = mlog_open(mtr, 11 + 2 + 2)) {
+		log_ptr = mlog_write_initial_log_record_fast(
+			rec, MLOG_ZIP_WRITE_STRING, log_ptr, mtr);
+		mach_write_to_2(log_ptr, slot_free - PAGE_ZIP_DIR_SLOT_SIZE
+				- page_zip->data);
+		mach_write_to_2(log_ptr + 2,
+				PAGE_ZIP_DIR_SLOT_SIZE + slot_len);
+		mlog_close(mtr, log_ptr + 4);
+		mlog_catenate_string(mtr, slot_free - PAGE_ZIP_DIR_SLOT_SIZE,
+				     PAGE_ZIP_DIR_SLOT_SIZE + slot_len);
+	}
 }
 
 /**********************************************************************//**
@@ -4586,57 +4656,6 @@ page_zip_dir_delete(
 	rec[-REC_N_NEW_EXTRA_BYTES] = 0; /* info_bits and n_owned */
 
 	page_zip_clear_rec(page_zip, rec, index, offsets, mtr);
-}
-
-/**********************************************************************//**
-Add a slot to the dense page directory. */
-void
-page_zip_dir_add_slot(
-/*==================*/
-	page_zip_des_t*	page_zip,	/*!< in/out: compressed page */
-	ulint		is_clustered)	/*!< in: nonzero for clustered index,
-					zero for others */
-{
-	ulint	n_dense;
-	byte*	dir;
-	byte*	stored;
-
-	ut_ad(page_is_comp(page_zip->data));
-	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
-
-	/* Read the old n_dense (n_heap has already been incremented). */
-	n_dense = page_dir_get_n_heap(page_zip->data)
-		- (PAGE_HEAP_NO_USER_LOW + 1U);
-
-	dir = page_zip->data + page_zip_get_size(page_zip)
-		- PAGE_ZIP_DIR_SLOT_SIZE * n_dense;
-
-	if (!page_is_leaf(page_zip->data)) {
-		ut_ad(!page_zip->n_blobs);
-		stored = dir - n_dense * REC_NODE_PTR_SIZE;
-	} else if (is_clustered) {
-		/* Move the BLOB pointer array backwards to make space for the
-		roll_ptr and trx_id columns and the dense directory slot. */
-		byte*	externs;
-
-		stored = dir - n_dense
-			* (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
-		externs = stored
-			- page_zip->n_blobs * BTR_EXTERN_FIELD_REF_SIZE;
-		ASSERT_ZERO(externs - PAGE_ZIP_CLUST_LEAF_SLOT_SIZE,
-			               PAGE_ZIP_CLUST_LEAF_SLOT_SIZE);
-		memmove(externs - PAGE_ZIP_CLUST_LEAF_SLOT_SIZE,
-			externs, ulint(stored - externs));
-	} else {
-		stored = dir
-			- page_zip->n_blobs * BTR_EXTERN_FIELD_REF_SIZE;
-		ASSERT_ZERO(stored - PAGE_ZIP_DIR_SLOT_SIZE,
-			    static_cast<size_t>(PAGE_ZIP_DIR_SLOT_SIZE));
-	}
-
-	/* Move the uncompressed area backwards to make space
-	for one directory slot. */
-	memmove(stored - PAGE_ZIP_DIR_SLOT_SIZE, stored, ulint(dir - stored));
 }
 
 /***********************************************************//**

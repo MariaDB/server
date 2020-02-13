@@ -239,10 +239,6 @@ mlog_parse_index(
 	bool		comp,	/*!< in: TRUE=compact record format */
 	dict_index_t**	index);	/*!< out, own: dummy index */
 
-/** Insert, update, and maybe other functions may use this value to define an
-extra mlog buffer size for variable size data */
-#define MLOG_BUF_MARGIN	256
-
 #include "mtr0log.ic"
 
 #endif /* mtr0log_h */

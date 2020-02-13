@@ -150,29 +150,8 @@ page_cur_tuple_insert(
 	offset_t**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
-	MY_ATTRIBUTE((nonnull(1,2,3,4,5), warn_unused_result));
-/***********************************************************//**
-Inserts a record next to page cursor. Returns pointer to inserted record if
-succeed, i.e., enough space available, NULL otherwise. The cursor stays at
-the same logical position, but the physical position may change if it is
-pointing to a compressed page that was reorganized.
-
-IMPORTANT: The caller will have to update IBUF_BITMAP_FREE
-if this is a compressed leaf page in a secondary index.
-This has to be done either within the same mini-transaction,
-or by invoking ibuf_reset_free_bits() before mtr_commit().
-
-@return pointer to record if succeed, NULL otherwise */
-UNIV_INLINE
-rec_t*
-page_cur_rec_insert(
-/*================*/
-	page_cur_t*	cursor,	/*!< in/out: a page cursor */
-	const rec_t*	rec,	/*!< in: record to insert */
-	dict_index_t*	index,	/*!< in: record descriptor */
-	offset_t*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
-	mtr_t*		mtr);	/*!< in: mini-transaction handle, or NULL */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************//**
 Inserts a record next to page cursor on an uncompressed page.
 Returns pointer to inserted record if succeed, i.e., enough
@@ -306,23 +285,10 @@ page_cur_open_on_rnd_user_rec(
 /*==========================*/
 	buf_block_t*	block,	/*!< in: page */
 	page_cur_t*	cursor);/*!< out: page cursor */
-/** Write a redo log record of inserting a record into an index page.
-@param[in]	insert_rec	inserted record
-@param[in]	rec_size	rec_get_size(insert_rec)
-@param[in]	cursor_rec	predecessor of insert_rec
-@param[in,out]	index		index tree
-@param[in,out]	mtr		mini-transaction */
-void
-page_cur_insert_rec_write_log(
-	const rec_t*	insert_rec,
-	ulint		rec_size,
-	const rec_t*	cursor_rec,
-	dict_index_t*	index,
-	mtr_t*		mtr)
-	MY_ATTRIBUTE((nonnull));
 /***********************************************************//**
 Parses a log record of a record insert on a page.
 @return end of log record or NULL */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 page_cur_parse_insert_rec(
 /*======================*/

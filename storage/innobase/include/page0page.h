@@ -506,17 +506,6 @@ inline uint16_t page_header_get_field(const page_t *page, ulint field)
 
 #ifndef UNIV_INNOCHECKSUM
 /*************************************************************//**
-Sets the given header field. */
-UNIV_INLINE
-void
-page_header_set_field(
-/*==================*/
-	page_t*		page,	/*!< in/out: page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
-				uncompressed part will be updated, or NULL */
-	ulint		field,	/*!< in: PAGE_N_DIR_SLOTS, ... */
-	ulint		val);	/*!< in: value */
-/*************************************************************//**
 Returns the offset stored in the given header field.
 @return offset from the start of the page, or 0 */
 UNIV_INLINE
@@ -532,17 +521,6 @@ Returns the pointer stored in the given header field, or NULL. */
 #define page_header_get_ptr(page, field)			\
 	(page_header_get_offs(page, field)			\
 	 ? page + page_header_get_offs(page, field) : NULL)
-/*************************************************************//**
-Sets the pointer stored in the given header field. */
-UNIV_INLINE
-void
-page_header_set_ptr(
-/*================*/
-	page_t*		page,	/*!< in/out: page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
-				uncompressed part will be updated, or NULL */
-	ulint		field,	/*!< in/out: PAGE_FREE, ... */
-	const byte*	ptr);	/*!< in: pointer or NULL*/
 
 /**
 Reset PAGE_LAST_INSERT.
@@ -631,19 +609,6 @@ uint16_t
 page_dir_get_n_heap(
 /*================*/
 	const page_t*	page);	/*!< in: index page */
-/*************************************************************//**
-Sets the number of records in the heap. */
-UNIV_INLINE
-void
-page_dir_set_n_heap(
-/*================*/
-	page_t*		page,	/*!< in/out: index page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
-				uncompressed part will be updated, or NULL.
-				Note that the size of the dense page directory
-				in the compressed page trailer is
-				n_heap * PAGE_ZIP_DIR_SLOT_SIZE. */
-	ulint		n_heap);/*!< in: number of records */
 /*************************************************************//**
 Gets the number of dir slots in directory.
 @return number of slots */
@@ -797,16 +762,6 @@ page_rec_get_next_non_del_marked(
 /*=============================*/
 	const rec_t*	rec);	/*!< in: pointer to record */
 /************************************************************//**
-Sets the pointer to the next record on the page. */
-UNIV_INLINE
-void
-page_rec_set_next(
-/*==============*/
-	rec_t*		rec,	/*!< in: pointer to record,
-				must not be page supremum */
-	const rec_t*	next);	/*!< in: pointer to next record,
-				must not be page infimum */
-/************************************************************//**
 Gets the pointer to the previous record.
 @return pointer to previous record */
 UNIV_INLINE
@@ -941,34 +896,12 @@ uint16_t
 page_get_data_size(
 /*===============*/
 	const page_t*	page);	/*!< in: index page */
-/************************************************************//**
-Allocates a block of memory from the head of the free list
-of an index page. */
-UNIV_INLINE
-void
-page_mem_alloc_free(
-/*================*/
-	page_t*		page,	/*!< in/out: index page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page with enough
-				space available for inserting the record,
-				or NULL */
-	rec_t*		next_rec,/*!< in: pointer to the new head of the
-				free record list */
-	ulint		need);	/*!< in: number of bytes allocated */
-
 /** Read the PAGE_DIRECTION field from a byte.
 @param[in]	ptr	pointer to PAGE_DIRECTION_B
 @return	the value of the PAGE_DIRECTION field */
 inline
 byte
 page_ptr_get_direction(const byte* ptr);
-
-/** Set the PAGE_DIRECTION field.
-@param[in]	ptr	pointer to PAGE_DIRECTION_B
-@param[in]	dir	the value of the PAGE_DIRECTION field */
-inline
-void
-page_ptr_set_direction(byte* ptr, byte dir);
 
 /** Read the PAGE_DIRECTION field.
 @param[in]	page	index page

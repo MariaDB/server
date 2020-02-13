@@ -106,33 +106,6 @@ page_set_ssn_id(
 
 #ifndef UNIV_INNOCHECKSUM
 /*************************************************************//**
-Sets the given header field. */
-UNIV_INLINE
-void
-page_header_set_field(
-/*==================*/
-	page_t*		page,	/*!< in/out: page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
-				uncompressed part will be updated, or NULL */
-	ulint		field,	/*!< in: PAGE_N_DIR_SLOTS, ... */
-	ulint		val)	/*!< in: value */
-{
-	ut_ad(page);
-	ut_ad(field <= PAGE_N_RECS);
-#if 0 /* FIXME: MDEV-19344 hits this */
-	ut_ad(field != PAGE_N_RECS || val);
-#endif
-	ut_ad(field == PAGE_N_HEAP || val < srv_page_size);
-	ut_ad(field != PAGE_N_HEAP || (val & 0x7fff) < srv_page_size);
-
-	mach_write_to_2(page + PAGE_HEADER + field, val);
-	if (page_zip) {
-		page_zip_write_header(page_zip,
-				      page + PAGE_HEADER + field, 2, NULL);
-	}
-}
-
-/*************************************************************//**
 Returns the offset stored in the given header field.
 @return offset from the start of the page, or 0 */
 UNIV_INLINE
@@ -153,35 +126,6 @@ page_header_get_offs(
 	return(offs);
 }
 
-/*************************************************************//**
-Sets the pointer stored in the given header field. */
-UNIV_INLINE
-void
-page_header_set_ptr(
-/*================*/
-	page_t*		page,	/*!< in: page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
-				uncompressed part will be updated, or NULL */
-	ulint		field,	/*!< in: PAGE_FREE, ... */
-	const byte*	ptr)	/*!< in: pointer or NULL*/
-{
-	ulint	offs;
-
-	ut_ad(page);
-	ut_ad((field == PAGE_FREE)
-	      || (field == PAGE_LAST_INSERT)
-	      || (field == PAGE_HEAP_TOP));
-
-	if (ptr == NULL) {
-		offs = 0;
-	} else {
-		offs = ulint(ptr - page);
-	}
-
-	ut_ad((field != PAGE_HEAP_TOP) || offs);
-
-	page_header_set_field(page, page_zip, field, offs);
-}
 
 /**
 Reset PAGE_LAST_INSERT.
@@ -432,29 +376,6 @@ page_dir_get_n_heap(
 	return(page_header_get_field(page, PAGE_N_HEAP) & 0x7fff);
 }
 
-/*************************************************************//**
-Sets the number of records in the heap. */
-UNIV_INLINE
-void
-page_dir_set_n_heap(
-/*================*/
-	page_t*		page,	/*!< in/out: index page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
-				uncompressed part will be updated, or NULL.
-				Note that the size of the dense page directory
-				in the compressed page trailer is
-				n_heap * PAGE_ZIP_DIR_SLOT_SIZE. */
-	ulint		n_heap)	/*!< in: number of records */
-{
-	ut_ad(n_heap < 0x8000);
-	ut_ad(!page_zip || uint16_t(n_heap)
-	      == (page_header_get_field(page, PAGE_N_HEAP) & 0x7fff) + 1);
-
-	page_header_set_field(page, page_zip, PAGE_N_HEAP, n_heap
-			      | (0x8000
-				 & page_header_get_field(page, PAGE_N_HEAP)));
-}
-
 /**************************************************************//**
 Used to check the consistency of a record on a page.
 @return TRUE if succeed */
@@ -596,35 +517,6 @@ page_rec_get_next_non_del_marked(
 }
 
 /************************************************************//**
-Sets the pointer to the next record on the page. */
-UNIV_INLINE
-void
-page_rec_set_next(
-/*==============*/
-	rec_t*		rec,	/*!< in: pointer to record,
-				must not be page supremum */
-	const rec_t*	next)	/*!< in: pointer to next record,
-				must not be page infimum */
-{
-	ulint	offs;
-
-	ut_ad(page_rec_check(rec));
-	ut_ad(!page_rec_is_supremum(rec));
-	ut_ad(rec != next);
-
-	ut_ad(!next || !page_rec_is_infimum(next));
-	ut_ad(!next || page_align(rec) == page_align(next));
-
-	offs = next != NULL ? page_offset(next) : 0;
-
-	if (page_rec_is_comp(rec)) {
-		rec_set_next_offs_new(rec, offs);
-	} else {
-		rec_set_next_offs_old(rec, offs);
-	}
-}
-
-/************************************************************//**
 Gets the pointer to the previous record.
 @return pointer to previous record */
 UNIV_INLINE
@@ -745,39 +637,6 @@ page_get_data_size(
 }
 
 #ifndef UNIV_INNOCHECKSUM
-/************************************************************//**
-Allocates a block of memory from the free list of an index page. */
-UNIV_INLINE
-void
-page_mem_alloc_free(
-/*================*/
-	page_t*		page,	/*!< in/out: index page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page with enough
-				space available for inserting the record,
-				or NULL */
-	rec_t*		next_rec,/*!< in: pointer to the new head of the
-				free record list */
-	ulint		need)	/*!< in: number of bytes allocated */
-{
-	ulint		garbage;
-
-#ifdef UNIV_DEBUG
-	const rec_t*	old_rec	= page_header_get_ptr(page, PAGE_FREE);
-	ulint		next_offs;
-
-	ut_ad(old_rec);
-	next_offs = rec_get_next_offs(old_rec, page_is_comp(page));
-	ut_ad(next_rec == (next_offs ? page + next_offs : NULL));
-#endif
-
-	page_header_set_ptr(page, page_zip, PAGE_FREE, next_rec);
-
-	garbage = page_header_get_field(page, PAGE_GARBAGE);
-	ut_ad(garbage >= need);
-
-	page_header_set_field(page, page_zip, PAGE_GARBAGE, garbage - need);
-}
-
 /*************************************************************//**
 Calculates free space if a page is emptied.
 @return free space */
@@ -882,19 +741,6 @@ page_ptr_get_direction(const byte* ptr)
 {
 	ut_ad(page_offset(ptr) == PAGE_HEADER + PAGE_DIRECTION_B);
 	return *ptr & ((1U << 3) - 1);
-}
-
-/** Set the PAGE_DIRECTION field.
-@param[in]	ptr	pointer to PAGE_DIRECTION_B
-@param[in]	dir	the value of the PAGE_DIRECTION field */
-inline
-void
-page_ptr_set_direction(byte* ptr, byte dir)
-{
-	ut_ad(page_offset(ptr) == PAGE_HEADER + PAGE_DIRECTION_B);
-	ut_ad(dir >= PAGE_LEFT);
-	ut_ad(dir <= PAGE_NO_DIRECTION);
-	*ptr = (*ptr & ~((1U << 3) - 1)) | dir;
 }
 
 /** Read the PAGE_INSTANT field.

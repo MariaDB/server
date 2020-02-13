@@ -2438,7 +2438,48 @@ trx_undo_prev_version_build(
 
 		*old_vers = rec_copy(buf, rec, offsets);
 		rec_offs_make_valid(*old_vers, index, true, offsets);
-		row_upd_rec_in_place(*old_vers, index, offsets, update, NULL);
+		rec_set_bit_field_1(*old_vers, update->info_bits,
+				    rec_offs_comp(offsets)
+				    ? REC_NEW_INFO_BITS : REC_OLD_INFO_BITS,
+				    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
+		for (ulint i = 0; i < update->n_fields; i++) {
+			const upd_field_t* uf = upd_get_nth_field(update, i);
+			if (upd_fld_is_virtual_col(uf)) {
+				/* There are no virtual columns in
+				a clustered index record. */
+				continue;
+			}
+			const ulint n = uf->field_no;
+			ut_ad(!dfield_is_ext(&uf->new_val)
+			      == !rec_offs_nth_extern(offsets, n));
+			ut_ad(!rec_offs_nth_default(offsets, n));
+
+			if (UNIV_UNLIKELY(dfield_is_null(&uf->new_val))) {
+				ut_ad(!rec_offs_nth_sql_null(offsets, n));
+				ut_ad(!index->table->not_redundant());
+				ulint l = rec_get_1byte_offs_flag(*old_vers)
+					? (n + 1) : (n + 1) * 2;
+				(*old_vers)[-REC_N_OLD_EXTRA_BYTES - l]
+					|= REC_1BYTE_SQL_NULL_MASK;
+				compile_time_assert(REC_1BYTE_SQL_NULL_MASK << 8
+						    == REC_2BYTE_SQL_NULL_MASK);
+				continue;
+			}
+
+			ulint len;
+			memcpy(rec_get_nth_field(*old_vers, offsets, n, &len),
+			       uf->new_val.data, uf->new_val.len);
+			if (UNIV_UNLIKELY(len != uf->new_val.len)) {
+				ut_ad(len == UNIV_SQL_NULL);
+				ut_ad(!rec_offs_comp(offsets));
+				ut_ad(uf->new_val.len
+				      == rec_get_nth_field_size(rec, n));
+				ulint l = rec_get_1byte_offs_flag(*old_vers)
+					? (n + 1) : (n + 1) * 2;
+				(*old_vers)[-REC_N_OLD_EXTRA_BYTES - l]
+					&= ~REC_1BYTE_SQL_NULL_MASK;
+			}
+		}
 	}
 
 	/* Set the old value (which is the after image of an update) in the

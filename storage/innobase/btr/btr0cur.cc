@@ -3878,31 +3878,6 @@ btr_cur_upd_lock_and_undo(
 		       cmpl_info, rec, offsets, roll_ptr));
 }
 
-/** Copy DB_TRX_ID,DB_ROLL_PTR to the redo log.
-@param[in]	index	clustered index
-@param[in]	trx_id_t	DB_TRX_ID
-@param[in]	roll_ptr	DB_ROLL_PTR
-@param[in,out]	log_ptr		redo log buffer
-@return current end of the redo log buffer */
-static byte*
-btr_cur_log_sys(
-	const dict_index_t*	index,
-	trx_id_t		trx_id,
-	roll_ptr_t		roll_ptr,
-	byte*			log_ptr)
-{
-	log_ptr += mach_write_compressed(log_ptr, index->db_trx_id());
-	/* Yes, we are writing DB_ROLL_PTR,DB_TRX_ID in reverse order,
-	after emitting the position of DB_TRX_ID in the index.
-	This is how row_upd_write_sys_vals_to_log()
-	originally worked, and it is part of the redo log format. */
-	trx_write_roll_ptr(log_ptr, roll_ptr);
-	log_ptr += DATA_ROLL_PTR_LEN;
-	log_ptr += mach_u64_write_compressed(log_ptr, trx_id);
-
-	return log_ptr;
-}
-
 /** Write DB_TRX_ID,DB_ROLL_PTR to a clustered index entry.
 @param[in,out]	entry		clustered index entry
 @param[in]	index		clustered index
@@ -3920,63 +3895,6 @@ static void btr_cur_write_sys(
 	dfield_t* r = dtuple_get_nth_field(entry, index->db_roll_ptr());
 	ut_ad(r->len == DATA_ROLL_PTR_LEN);
 	trx_write_roll_ptr(static_cast<byte*>(r->data), roll_ptr);
-}
-
-/***********************************************************//**
-Writes a redo log record of updating a record in-place. */
-void
-btr_cur_update_in_place_log(
-/*========================*/
-	ulint		flags,		/*!< in: flags */
-	const rec_t*	rec,		/*!< in: record */
-	dict_index_t*	index,		/*!< in: index of the record */
-	const upd_t*	update,		/*!< in: update vector */
-	trx_id_t	trx_id,		/*!< in: transaction id */
-	roll_ptr_t	roll_ptr,	/*!< in: roll ptr */
-	mtr_t*		mtr)		/*!< in: mtr */
-{
-	byte*		log_ptr;
-	const page_t*	page	= page_align(rec);
-	ut_ad(flags < 256);
-	ut_ad(!!page_is_comp(page) == dict_table_is_comp(index->table));
-
-	log_ptr = mlog_open_and_write_index(mtr, rec, index, page_is_comp(page)
-					    ? MLOG_COMP_REC_UPDATE_IN_PLACE
-					    : MLOG_REC_UPDATE_IN_PLACE,
-					    1 + DATA_ROLL_PTR_LEN + 14 + 2
-					    + MLOG_BUF_MARGIN);
-
-	if (!log_ptr) {
-		/* Logging in mtr is switched off during crash recovery */
-		return;
-	}
-
-	/* For secondary indexes, we could skip writing the dummy system fields
-	to the redo log but we have to change redo log parsing of
-	MLOG_REC_UPDATE_IN_PLACE/MLOG_COMP_REC_UPDATE_IN_PLACE or we have to add
-	new redo log record. For now, just write dummy sys fields to the redo
-	log if we are updating a secondary index record.
-	*/
-	mach_write_to_1(log_ptr, flags);
-	log_ptr++;
-
-	if (dict_index_is_clust(index)) {
-		log_ptr = btr_cur_log_sys(index, trx_id, roll_ptr, log_ptr);
-	} else {
-		/* Dummy system fields for a secondary index */
-		/* TRX_ID Position */
-		log_ptr += mach_write_compressed(log_ptr, 0);
-		/* ROLL_PTR */
-		trx_write_roll_ptr(log_ptr, 0);
-		log_ptr += DATA_ROLL_PTR_LEN;
-		/* TRX_ID */
-		log_ptr += mach_u64_write_compressed(log_ptr, 0);
-	}
-
-	mach_write_to_2(log_ptr, page_offset(rec));
-	log_ptr += 2;
-
-	row_upd_index_write_log(update, log_ptr, mtr);
 }
 
 /** Update DB_TRX_ID, DB_ROLL_PTR in a clustered index record.
@@ -4060,6 +3978,190 @@ row_upd_parse_sys_vals(
 }
 
 /***********************************************************//**
+Sets the value of the ith field SQL null bit of an old-style record. */
+static
+void
+rec_set_nth_field_null_bit(
+/*=======================*/
+	rec_t*	rec,	/*!< in: record */
+	ulint	i,	/*!< in: ith field */
+	ibool	val)	/*!< in: value to set */
+{
+	ulint	info;
+
+	if (rec_get_1byte_offs_flag(rec)) {
+
+		info = rec_1_get_field_end_info(rec, i);
+
+		if (val) {
+			info = info | REC_1BYTE_SQL_NULL_MASK;
+		} else {
+			info = info & ~REC_1BYTE_SQL_NULL_MASK;
+		}
+
+		rec_1_set_field_end_info(rec, i, info);
+
+		return;
+	}
+
+	info = rec_2_get_field_end_info(rec, i);
+
+	if (val) {
+		info = info | REC_2BYTE_SQL_NULL_MASK;
+	} else {
+		info = info & ~REC_2BYTE_SQL_NULL_MASK;
+	}
+
+	rec_2_set_field_end_info(rec, i, info);
+}
+
+/***********************************************************//**
+Sets an old-style record field to SQL null.
+The physical size of the field is not changed. */
+static
+void
+rec_set_nth_field_sql_null(
+/*=======================*/
+	rec_t*	rec,	/*!< in: record */
+	ulint	n)	/*!< in: index of the field */
+{
+	ulint	offset;
+
+	offset = rec_get_field_start_offs(rec, n);
+
+	data_write_sql_null(rec + offset, rec_get_nth_field_size(rec, n));
+
+	rec_set_nth_field_null_bit(rec, n, TRUE);
+}
+
+/***********************************************************//**
+This is used to modify the value of an already existing field in a record.
+The previous value must have exactly the same size as the new value. If len
+is UNIV_SQL_NULL then the field is treated as an SQL null.
+For records in ROW_FORMAT=COMPACT (new-style records), len must not be
+UNIV_SQL_NULL unless the field already is SQL null. */
+static
+void
+rec_set_nth_field(
+/*==============*/
+	rec_t*		rec,	/*!< in: record */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
+	ulint		n,	/*!< in: index number of the field */
+	const void*	data,	/*!< in: pointer to the data
+				if not SQL null */
+	ulint		len)	/*!< in: length of the data or UNIV_SQL_NULL */
+{
+	byte*	data2;
+	ulint	len2;
+
+	ut_ad(rec_offs_validate(rec, NULL, offsets));
+	ut_ad(!rec_offs_nth_default(offsets, n));
+
+	if (len == UNIV_SQL_NULL) {
+		if (!rec_offs_nth_sql_null(offsets, n)) {
+			ut_a(!rec_offs_comp(offsets));
+			rec_set_nth_field_sql_null(rec, n);
+		}
+
+		return;
+	}
+
+	data2 = (byte*)rec_get_nth_field(rec, offsets, n, &len2);
+	if (len2 == UNIV_SQL_NULL) {
+		ut_ad(!rec_offs_comp(offsets));
+		rec_set_nth_field_null_bit(rec, n, FALSE);
+		ut_ad(len == rec_get_nth_field_size(rec, n));
+	} else {
+		ut_ad(len2 == len);
+	}
+
+	memcpy(data2, data, len);
+}
+
+/***********************************************************//**
+Replaces the new column values stored in the update vector to the
+record given. No field size changes are allowed. This function is
+usually invoked on a clustered index. The only use case for a
+secondary index is row_ins_sec_index_entry_by_modify() or its
+counterpart in ibuf_insert_to_index_page(). */
+static
+void
+row_upd_rec_in_place(
+/*=================*/
+	rec_t*		rec,	/*!< in/out: record where replaced */
+	dict_index_t*	index,	/*!< in: the index the record belongs to */
+	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const upd_t*	update,	/*!< in: update vector */
+	page_zip_des_t*	page_zip,/*!< in: compressed page with enough space
+				available, or NULL */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+{
+	const upd_field_t*	upd_field;
+	const dfield_t*		new_val;
+	ulint			n_fields;
+	ulint			i;
+
+	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(!index->table->skip_alter_undo);
+
+	if (rec_offs_comp(offsets)) {
+#ifdef UNIV_DEBUG
+		switch (rec_get_status(rec)) {
+		case REC_STATUS_ORDINARY:
+			break;
+		case REC_STATUS_INSTANT:
+			ut_ad(index->is_instant());
+			break;
+		case REC_STATUS_NODE_PTR:
+			if (index->is_dummy
+			    && fil_page_get_type(page_align(rec))
+			    == FIL_PAGE_RTREE) {
+				/* The function rtr_update_mbr_field_in_place()
+				is generating MLOG_COMP_REC_UPDATE_IN_PLACE
+				and MLOG_REC_UPDATE_IN_PLACE records for
+				node pointer pages. */
+				break;
+			}
+			/* fall through */
+		case REC_STATUS_INFIMUM:
+		case REC_STATUS_SUPREMUM:
+			ut_ad(!"wrong record status in update");
+		}
+#endif /* UNIV_DEBUG */
+
+		rec_set_bit_field_1(rec, update->info_bits, REC_NEW_INFO_BITS,
+				    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
+	} else {
+		rec_set_bit_field_1(rec, update->info_bits, REC_OLD_INFO_BITS,
+				    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
+	}
+
+	n_fields = upd_get_n_fields(update);
+
+	for (i = 0; i < n_fields; i++) {
+		upd_field = upd_get_nth_field(update, i);
+
+		/* No need to update virtual columns for non-virtual index */
+		if (upd_fld_is_virtual_col(upd_field)
+		    && !dict_index_has_virtual(index)) {
+			continue;
+		}
+
+		new_val = &(upd_field->new_val);
+		ut_ad(!dfield_is_ext(new_val) ==
+		      !rec_offs_nth_extern(offsets, upd_field->field_no));
+
+		rec_set_nth_field(rec, offsets, upd_field->field_no,
+				  dfield_get_data(new_val),
+				  dfield_get_len(new_val));
+	}
+
+	if (page_zip) {
+		page_zip_write_rec(page_zip, rec, index, offsets, 0, mtr);
+	}
+}
+
+/***********************************************************//**
 Parses a redo log record of updating a record in-place.
 @return end of log record or NULL */
 ATTRIBUTE_COLD /* only used when crash-upgrading */
@@ -4070,7 +4172,8 @@ btr_cur_parse_update_in_place(
 	const byte*	end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< in/out: page or NULL */
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	dict_index_t*	index)	/*!< in: index corresponding to page */
+	dict_index_t*	index,	/*!< in: index corresponding to page */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	ulint		flags;
 	rec_t*		rec;
@@ -4146,7 +4249,7 @@ btr_cur_parse_update_in_place(
 		trx_write_roll_ptr(field + DATA_TRX_ID_LEN, roll_ptr);
 	}
 
-	row_upd_rec_in_place(rec, index, offsets, update, page_zip);
+	row_upd_rec_in_place(rec, index, offsets, update, page_zip, mtr);
 
 func_exit:
 	mem_heap_free(heap);
@@ -4239,6 +4342,114 @@ out_of_space:
 	}
 
 	return(false);
+}
+
+/** Apply an update vector to a record. No field size changes are allowed.
+
+This is usually invoked on a clustered index. The only use case for a
+secondary index is row_ins_sec_index_entry_by_modify() or its
+counterpart in ibuf_insert_to_index_page().
+@param[in,out]  rec     index record
+@param[in]      index   the index of the record
+@param[in]      offsets rec_get_offsets(rec, index)
+@param[in]      update  update vector
+@param[in,out]  block   index page
+@param[in,out]  mtr     mini-transaction */
+void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
+                              const offset_t *offsets, const upd_t *update,
+                              buf_block_t *block, mtr_t *mtr)
+{
+	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(!index->table->skip_alter_undo);
+	ut_ad(!block->page.zip.data || index->table->not_redundant());
+
+#ifdef UNIV_DEBUG
+	if (rec_offs_comp(offsets)) {
+		switch (rec_get_status(rec)) {
+		case REC_STATUS_ORDINARY:
+			break;
+		case REC_STATUS_INSTANT:
+			ut_ad(index->is_instant());
+			break;
+		case REC_STATUS_NODE_PTR:
+		case REC_STATUS_INFIMUM:
+		case REC_STATUS_SUPREMUM:
+			ut_ad(!"wrong record status in update");
+		}
+	}
+#endif /* UNIV_DEBUG */
+
+	byte* info_bits = &rec[rec_offs_comp(offsets)
+			       ? -REC_NEW_INFO_BITS
+			       : -REC_OLD_INFO_BITS];
+	compile_time_assert(REC_INFO_BITS_SHIFT == 0);
+	if ((*info_bits & REC_INFO_BITS_MASK) == update->info_bits) {
+	} else if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+		*info_bits &= ~REC_INFO_BITS_MASK;
+		*info_bits |= update->info_bits;
+	} else {
+		mtr->write<1>(*block, info_bits,
+			      (*info_bits & ~REC_INFO_BITS_MASK)
+			      | update->info_bits);
+	}
+
+	for (ulint i = 0; i < update->n_fields; i++) {
+		const upd_field_t* uf = upd_get_nth_field(update, i);
+		if (upd_fld_is_virtual_col(uf) && !index->has_virtual()) {
+			continue;
+		}
+		const ulint n = uf->field_no;
+
+		ut_ad(!dfield_is_ext(&uf->new_val)
+		      == !rec_offs_nth_extern(offsets, n));
+		ut_ad(!rec_offs_nth_default(offsets, n));
+
+		if (UNIV_UNLIKELY(dfield_is_null(&uf->new_val))) {
+			ut_ad(!rec_offs_nth_sql_null(offsets, n));
+			ut_ad(!index->table->not_redundant());
+			mtr->memset(block,
+				    page_offset(rec + rec_get_field_start_offs(
+							rec, n)),
+				    rec_get_nth_field_size(rec, n), 0);
+			ulint l = rec_get_1byte_offs_flag(rec)
+				? (n + 1) : (n + 1) * 2;
+			byte* b = &rec[-REC_N_OLD_EXTRA_BYTES - l];
+			compile_time_assert(REC_1BYTE_SQL_NULL_MASK << 8
+					    == REC_2BYTE_SQL_NULL_MASK);
+			mtr->write<1>(*block, b,
+				      byte(*b | REC_1BYTE_SQL_NULL_MASK));
+			continue;
+		}
+
+		ulint len;
+		byte* data = rec_get_nth_field(rec, offsets, n, &len);
+		if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+			ut_ad(len == uf->new_val.len);
+			memcpy(data, uf->new_val.data, len);
+			continue;
+		}
+
+		if (UNIV_UNLIKELY(len != uf->new_val.len)) {
+			ut_ad(len == UNIV_SQL_NULL);
+			ut_ad(!rec_offs_comp(offsets));
+			len = uf->new_val.len;
+			ut_ad(len == rec_get_nth_field_size(rec, n));
+			ulint l = rec_get_1byte_offs_flag(rec)
+				? (n + 1) : (n + 1) * 2;
+			byte* b = &rec[-REC_N_OLD_EXTRA_BYTES - l];
+			compile_time_assert(REC_1BYTE_SQL_NULL_MASK << 8
+					    == REC_2BYTE_SQL_NULL_MASK);
+			mtr->write<1>(*block, b,
+				      byte(*b & ~REC_1BYTE_SQL_NULL_MASK));
+		}
+
+		mtr->memcpy(block, page_offset(data), uf->new_val.data, len);
+	}
+
+	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+		page_zip_write_rec(&block->page.zip, rec, index, offsets, 0,
+				   mtr);
+	}
 }
 
 /*************************************************************//**
@@ -4364,7 +4575,8 @@ btr_cur_update_in_place(
 		assert_block_ahi_valid(block);
 #endif /* BTR_CUR_HASH_ADAPT */
 
-		row_upd_rec_in_place(rec, index, offsets, update, page_zip);
+		btr_cur_upd_rec_in_place(rec, index, offsets, update, block,
+					 mtr);
 
 #ifdef BTR_CUR_HASH_ADAPT
 		if (ahi_latch) {
@@ -4372,9 +4584,6 @@ btr_cur_update_in_place(
 		}
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
-
-	btr_cur_update_in_place_log(flags, rec, index, update,
-				    trx_id, roll_ptr, mtr);
 
 	if (was_delete_marked
 	    && !rec_get_deleted_flag(

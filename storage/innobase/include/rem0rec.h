@@ -250,6 +250,7 @@ rec_get_n_owned_new(
 /*================*/
 	const rec_t*	rec)	/*!< in: new-style physical record */
 	MY_ATTRIBUTE((warn_unused_result));
+
 /******************************************************//**
 The following function is used to retrieve the info bits of
 a record.
@@ -261,24 +262,6 @@ rec_get_info_bits(
 	const rec_t*	rec,	/*!< in: physical record */
 	ulint		comp)	/*!< in: nonzero=compact page format */
 	MY_ATTRIBUTE((warn_unused_result));
-/******************************************************//**
-The following function is used to set the info bits of a record. */
-UNIV_INLINE
-void
-rec_set_info_bits_old(
-/*==================*/
-	rec_t*	rec,	/*!< in: old-style physical record */
-	ulint	bits)	/*!< in: info bits */
-	MY_ATTRIBUTE((nonnull));
-/******************************************************//**
-The following function is used to set the info bits of a record. */
-UNIV_INLINE
-void
-rec_set_info_bits_new(
-/*==================*/
-	rec_t*	rec,	/*!< in/out: new-style physical record */
-	ulint	bits)	/*!< in: info bits */
-	MY_ATTRIBUTE((nonnull));
 
 /** Determine the status bits of a non-REDUNDANT record.
 @param[in]	rec	ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED record
@@ -859,26 +842,6 @@ rec_offs_n_extern(
 /*==============*/
 	const offset_t*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
-/***********************************************************//**
-This is used to modify the value of an already existing field in a record.
-The previous value must have exactly the same size as the new value. If len
-is UNIV_SQL_NULL then the field is treated as an SQL null.
-For records in ROW_FORMAT=COMPACT (new-style records), len must not be
-UNIV_SQL_NULL unless the field already is SQL null. */
-UNIV_INLINE
-void
-rec_set_nth_field(
-/*==============*/
-	rec_t*		rec,	/*!< in: record */
-	const offset_t*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		n,	/*!< in: index number of the field */
-	const void*	data,	/*!< in: pointer to the data if not SQL null */
-	ulint		len)	/*!< in: length of the data or UNIV_SQL_NULL.
-				If not SQL null, must have the same
-				length as the previous value.
-				If SQL null, previous value must be
-				SQL null. */
-	MY_ATTRIBUTE((nonnull(1,2)));
 /**********************************************************//**
 The following function returns the data size of an old-style physical
 record, that is the sum of field lengths. SQL null fields

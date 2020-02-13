@@ -184,82 +184,6 @@ rtr_index_build_node_ptr(
 }
 
 /**************************************************************//**
-In-place update the mbr field of a spatial index row.
-@return true if update is successful */
-static
-bool
-rtr_update_mbr_field_in_place(
-/*==========================*/
-	dict_index_t*	index,		/*!< in: spatial index. */
-	rec_t*		rec,		/*!< in/out: rec to be modified.*/
-	offset_t*	offsets,	/*!< in/out: offsets on rec. */
-	rtr_mbr_t*	mbr,		/*!< in: the new mbr. */
-	mtr_t*		mtr)		/*!< in: mtr */
-{
-	void*		new_mbr_ptr;
-	double		new_mbr[SPDIMS * 2];
-	byte*		log_ptr;
-	page_t*		page = page_align(rec);
-	ulint		len = DATA_MBR_LEN;
-	ulint		flags = BTR_NO_UNDO_LOG_FLAG
-			| BTR_NO_LOCKING_FLAG
-			| BTR_KEEP_SYS_FLAG;
-	ulint		rec_info;
-
-	rtr_write_mbr(reinterpret_cast<byte*>(&new_mbr), mbr);
-	new_mbr_ptr = static_cast<void*>(new_mbr);
-	/* Otherwise, set the mbr to the new_mbr. */
-	rec_set_nth_field(rec, offsets, 0, new_mbr_ptr, len);
-
-	rec_info = rec_get_info_bits(rec, rec_offs_comp(offsets));
-
-	/* Write redo log. */
-	/* For now, we use LOG_REC_UPDATE_IN_PLACE to log this enlarge.
-	In the future, we may need to add a new log type for this. */
-	log_ptr = mlog_open_and_write_index(mtr, rec, index, page_is_comp(page)
-					    ? MLOG_COMP_REC_UPDATE_IN_PLACE
-					    : MLOG_REC_UPDATE_IN_PLACE,
-					    1 + DATA_ROLL_PTR_LEN + 14 + 2
-					    + MLOG_BUF_MARGIN);
-
-	if (!log_ptr) {
-		/* Logging in mtr is switched off during
-		crash recovery */
-		return(false);
-	}
-
-	/* Flags */
-	mach_write_to_1(log_ptr, flags);
-	log_ptr++;
-	/* TRX_ID Position */
-	log_ptr += mach_write_compressed(log_ptr, 0);
-	/* ROLL_PTR */
-	trx_write_roll_ptr(log_ptr, 0);
-	log_ptr += DATA_ROLL_PTR_LEN;
-	/* TRX_ID */
-	log_ptr += mach_u64_write_compressed(log_ptr, 0);
-
-	/* Offset */
-	mach_write_to_2(log_ptr, page_offset(rec));
-	log_ptr += 2;
-	/* Info bits */
-	mach_write_to_1(log_ptr, rec_info);
-	log_ptr++;
-	/* N fields */
-	log_ptr += mach_write_compressed(log_ptr, 1);
-	/* Field no, len */
-	log_ptr += mach_write_compressed(log_ptr, 0);
-	log_ptr += mach_write_compressed(log_ptr, len);
-	/* Data */
-	memcpy(log_ptr, new_mbr_ptr, len);
-	log_ptr += len;
-
-	mlog_close(mtr, log_ptr);
-
-	return(true);
-}
-
-/**************************************************************//**
 Update the mbr field of a spatial index row.
 @return true if update is successful */
 bool
@@ -280,7 +204,7 @@ rtr_update_mbr_field(
 	mem_heap_t*	heap;
 	page_t*		page;
 	rec_t*		rec;
-	ulint		flags = BTR_NO_UNDO_LOG_FLAG
+	constexpr ulint flags = BTR_NO_UNDO_LOG_FLAG
 			| BTR_NO_LOCKING_FLAG
 			| BTR_KEEP_SYS_FLAG;
 	dberr_t		err;
@@ -291,7 +215,6 @@ rtr_update_mbr_field(
 	ulint		low_match = 0;
 	ulint		child;
 	ulint		rec_info;
-	page_zip_des_t*	page_zip;
 	bool		ins_suc = true;
 	ulint		cur2_pos = 0;
 	ulint		del_page_no = 0;
@@ -305,7 +228,6 @@ rtr_update_mbr_field(
 	heap = mem_heap_create(100);
 	block = btr_cur_get_block(cursor);
 	ut_ad(page == buf_block_get_frame(block));
-	page_zip = buf_block_get_page_zip(block);
 
 	child = btr_node_ptr_get_child_page_no(rec, offsets);
 	const bool is_leaf = page_is_leaf(block->frame);
@@ -330,11 +252,16 @@ rtr_update_mbr_field(
 		cur2_pos = page_rec_get_n_recs_before(btr_cur_get_rec(cursor2));
 	}
 
+	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(rec_offs_base(offsets)[0 + 1] == DATA_MBR_LEN);
+	ut_ad(node_ptr->fields[0].len == DATA_MBR_LEN);
+
 	if (rec_info & REC_INFO_MIN_REC_FLAG) {
 		/* When the rec is minimal rec in this level, we do
-		 in-place update for avoiding it move to other place. */
+		in-place update for avoiding it move to other place. */
+		page_zip_des_t* page_zip = buf_block_get_page_zip(block);
 
-		if (page_zip) {
+		if (UNIV_LIKELY_NULL(page_zip)) {
 			/* Check if there's enough space for in-place
 			update the zip page. */
 			if (!btr_cur_update_alloc_zip(
@@ -370,21 +297,18 @@ rtr_update_mbr_field(
 					rec, rec_offs_comp(offsets));
 			ut_ad(rec_info & REC_INFO_MIN_REC_FLAG);
 #endif /* UNIV_DEBUG */
-		}
-
-		if (!rtr_update_mbr_field_in_place(index, rec,
-						   offsets, mbr, mtr)) {
-			return(false);
-		}
-
-		if (page_zip) {
-			page_zip_write_rec(page_zip, rec, index, offsets, 0);
+			memcpy(rec, node_ptr->fields[0].data, DATA_MBR_LEN);
+			page_zip_write_rec(page_zip, rec, index, offsets, 0,
+					   mtr);
+		} else {
+			mtr->memcpy(block, page_offset(rec),
+				    node_ptr->fields[0].data, DATA_MBR_LEN);
 		}
 
 		if (cursor2) {
 			offset_t* offsets2;
 
-			if (page_zip) {
+			if (UNIV_LIKELY_NULL(page_zip)) {
 				cursor2->page_cur.rec
 					= page_rec_get_nth(page, cur2_pos);
 			}

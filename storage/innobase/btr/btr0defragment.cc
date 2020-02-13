@@ -770,6 +770,7 @@ static void btr_defragment_chunk(void*)
 				return;
 			}
 		}
+		log_free_check();
 		mtr_start(&mtr);
 		cursor = btr_pcur_get_btr_cur(pcur);
 		index = btr_cur_get_index(cursor);

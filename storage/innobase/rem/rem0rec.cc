@@ -1322,61 +1322,6 @@ rec_get_converted_size_comp(
 	return(ULINT_UNDEFINED);
 }
 
-/***********************************************************//**
-Sets the value of the ith field SQL null bit of an old-style record. */
-void
-rec_set_nth_field_null_bit(
-/*=======================*/
-	rec_t*	rec,	/*!< in: record */
-	ulint	i,	/*!< in: ith field */
-	ibool	val)	/*!< in: value to set */
-{
-	ulint	info;
-
-	if (rec_get_1byte_offs_flag(rec)) {
-
-		info = rec_1_get_field_end_info(rec, i);
-
-		if (val) {
-			info = info | REC_1BYTE_SQL_NULL_MASK;
-		} else {
-			info = info & ~REC_1BYTE_SQL_NULL_MASK;
-		}
-
-		rec_1_set_field_end_info(rec, i, info);
-
-		return;
-	}
-
-	info = rec_2_get_field_end_info(rec, i);
-
-	if (val) {
-		info = info | REC_2BYTE_SQL_NULL_MASK;
-	} else {
-		info = info & ~REC_2BYTE_SQL_NULL_MASK;
-	}
-
-	rec_2_set_field_end_info(rec, i, info);
-}
-
-/***********************************************************//**
-Sets an old-style record field to SQL null.
-The physical size of the field is not changed. */
-void
-rec_set_nth_field_sql_null(
-/*=======================*/
-	rec_t*	rec,	/*!< in: record */
-	ulint	n)	/*!< in: index of the field */
-{
-	ulint	offset;
-
-	offset = rec_get_field_start_offs(rec, n);
-
-	data_write_sql_null(rec + offset, rec_get_nth_field_size(rec, n));
-
-	rec_set_nth_field_null_bit(rec, n, TRUE);
-}
-
 /*********************************************************//**
 Builds an old-style physical record out of a data tuple and
 stores it beginning from the start of the given buffer.
@@ -1414,8 +1359,10 @@ rec_convert_dtuple_to_rec_old(
 	rec_set_n_fields_old(rec, n_fields);
 
 	/* Set the info bits of the record */
-	rec_set_info_bits_old(rec, dtuple_get_info_bits(dtuple)
-			      & REC_INFO_BITS_MASK);
+	rec_set_bit_field_1(rec,
+			    dtuple_get_info_bits(dtuple) & REC_INFO_BITS_MASK,
+			    REC_OLD_INFO_BITS,
+			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
 	rec_set_bit_field_2(rec, PAGE_HEAP_NO_USER_LOW, REC_OLD_HEAP_NO,
 			    REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT);
 
@@ -1738,7 +1685,9 @@ rec_convert_dtuple_to_rec_new(
 			status, false);
 	}
 
-	rec_set_info_bits_new(buf, dtuple->info_bits & ~REC_NEW_STATUS_MASK);
+	rec_set_bit_field_1(buf, dtuple->info_bits & ~REC_NEW_STATUS_MASK,
+			    REC_NEW_INFO_BITS,
+			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
 	return buf;
 }
 

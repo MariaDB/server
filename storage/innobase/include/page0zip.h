@@ -243,17 +243,17 @@ page_zip_write_header(
 	mtr_t*		mtr)	/*!< in: mini-transaction, or NULL */
 	MY_ATTRIBUTE((nonnull(1,2)));
 
-/**********************************************************************//**
-Write an entire record on the compressed page.  The data must already
-have been written to the uncompressed page. */
-void
-page_zip_write_rec(
-/*===============*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
-	const byte*	rec,	/*!< in: record being written */
-	dict_index_t*	index,	/*!< in: the index the record belongs to */
-	const offset_t*	offsets,/*!< in: rec_get_offsets(rec, index) */
-	ulint		create)	/*!< in: nonzero=insert, zero=update */
+/** Write an entire record to the ROW_FORMAT=COMPRESSED page.
+The data must already have been written to the uncompressed page.
+@param[in,out]	page_zip	ROW_FORMAT=COMPRESSED page
+@param[in]	rec		record in the uncompressed page
+@param[in]	index		the index that the page belongs to
+@param[in]	offsets		rec_get_offsets(rec, index)
+@param[in]	create		nonzero=insert, zero=update
+@param[in,out]	mtr		mini-transaction */
+void page_zip_write_rec(page_zip_des_t *page_zip, const byte *rec,
+                        const dict_index_t *index, const offset_t *offsets,
+                        ulint create, mtr_t *mtr)
 	MY_ATTRIBUTE((nonnull));
 
 /***********************************************************//**
@@ -374,7 +374,9 @@ page_zip_dir_insert(
 	page_cur_t*	cursor,	/*!< in/out: page cursor */
 	const byte*	free_rec,/*!< in: record from which rec was
 				allocated, or NULL */
-	byte*		rec);	/*!< in: record to insert */
+	byte*		rec,	/*!< in: record to insert */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	MY_ATTRIBUTE((nonnull(1,3,4)));
 
 /**********************************************************************//**
 Shift the dense page directory and the array of BLOB pointers
@@ -390,16 +392,6 @@ page_zip_dir_delete(
 						the free list */
 	mtr_t*			mtr)		/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull(1,2,3,4,6)));
-
-/**********************************************************************//**
-Add a slot to the dense page directory. */
-void
-page_zip_dir_add_slot(
-/*==================*/
-	page_zip_des_t*	page_zip,	/*!< in/out: compressed page */
-	ulint		is_clustered)	/*!< in: nonzero for clustered index,
-					zero for others */
-	MY_ATTRIBUTE((nonnull));
 
 /***********************************************************//**
 Parses a log record of writing to the header of a page.

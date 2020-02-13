@@ -3833,15 +3833,8 @@ dump:
 			/* This is the easy case. Do something similar
 			to btr_cur_update_in_place(). */
 			rec = page_cur_get_rec(&page_cur);
-			row_upd_rec_in_place(rec, index, offsets,
-					     update, page_zip);
-
-			/* Log the update in place operation. During recovery
-			MLOG_COMP_REC_UPDATE_IN_PLACE/MLOG_REC_UPDATE_IN_PLACE
-			expects trx_id, roll_ptr for secondary indexes. So we
-			just write dummy trx_id(0), roll_ptr(0) */
-			btr_cur_update_in_place_log(BTR_KEEP_SYS_FLAG, rec,
-						    index, update, 0, 0, mtr);
+			btr_cur_upd_rec_in_place(rec, index, offsets,
+						 update, block, mtr);
 
 			DBUG_EXECUTE_IF(
 				"crash_after_log_ibuf_upd_inplace",

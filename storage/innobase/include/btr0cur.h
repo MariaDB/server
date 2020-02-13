@@ -356,6 +356,22 @@ btr_cur_update_alloc_zip_func(
 # define btr_cur_update_alloc_zip(page_zip,cursor,index,offsets,len,cr,mtr) \
 	btr_cur_update_alloc_zip_func(page_zip,cursor,index,len,cr,mtr)
 #endif /* UNIV_DEBUG */
+
+/** Apply an update vector to a record. No field size changes are allowed.
+
+This is usually invoked on a clustered index. The only use case for a
+secondary index is row_ins_sec_index_entry_by_modify() or its
+counterpart in ibuf_insert_to_index_page().
+@param[in,out]  rec     index record
+@param[in]      index   the index of the record
+@param[in]      offsets rec_get_offsets(rec, index)
+@param[in]      update  update vector
+@param[in,out]  block   index page
+@param[in,out]  mtr     mini-transaction */
+void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
+                              const offset_t *offsets, const upd_t *update,
+                              buf_block_t *block, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull));
 /*************************************************************//**
 Updates a record when the update causes no size changes in its fields.
 @return locking or undo log related error code, or
@@ -380,19 +396,6 @@ btr_cur_update_in_place(
 				mtr_commit(mtr) before latching any
 				further pages */
 	MY_ATTRIBUTE((warn_unused_result, nonnull));
-/***********************************************************//**
-Writes a redo log record of updating a record in-place. */
-void
-btr_cur_update_in_place_log(
-/*========================*/
-	ulint		flags,		/*!< in: flags */
-	const rec_t*	rec,		/*!< in: record */
-	dict_index_t*	index,		/*!< in: index of the record */
-	const upd_t*	update,		/*!< in: update vector */
-	trx_id_t	trx_id,		/*!< in: transaction id */
-	roll_ptr_t	roll_ptr,	/*!< in: roll ptr */
-	mtr_t*		mtr)		/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
 /*************************************************************//**
 Tries to update a record on a page in an index tree. It is assumed that mtr
 holds an x-latch on the page. The operation does not succeed if there is too
@@ -563,7 +566,8 @@ btr_cur_parse_update_in_place(
 	const byte*	end_ptr,/*!< in: buffer end */
 	page_t*		page,	/*!< in/out: page or NULL */
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	dict_index_t*	index);	/*!< in: index corresponding to page */
+	dict_index_t*	index,	/*!< in: index corresponding to page */
+	mtr_t*		mtr);	/*!< in/out: mini-transaction */
 /****************************************************************//**
 Parses the redo log record for delete marking or unmarking of a clustered
 index record.

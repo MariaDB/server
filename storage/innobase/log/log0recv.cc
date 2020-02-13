@@ -323,15 +323,20 @@ public:
 				    i.first, 0, RW_X_LATCH, NULL,
 				    BUF_GET_IF_IN_POOL, __FILE__, __LINE__,
 				    &mtr)) {
-				if (UNIV_LIKELY_NULL(block->page.zip.data)
-				    && fil_page_type_is_index(
-					    fil_page_get_type(
-						    block->page.zip.data))
-				    && !page_zip_decompress(&block->page.zip,
+				if (UNIV_LIKELY_NULL(block->page.zip.data)) {
+					switch (fil_page_get_type(
+							block->page.zip.data)) {
+					case FIL_PAGE_INDEX:
+					case FIL_PAGE_RTREE:
+						if (page_zip_decompress(
+							    &block->page.zip,
 							    block->frame,
 							    true)) {
-					ib::error() << "corrupted page "
-						    << block->page.id;
+							break;
+						}
+						ib::error() << "corrupted "
+							    << block->page.id;
+					}
 				}
 				if (recv_no_ibuf_operations) {
 					mtr.commit();
@@ -1465,6 +1470,10 @@ parse_log:
 
 	switch (type) {
 	case MLOG_1BYTE: case MLOG_2BYTES: case MLOG_4BYTES: case MLOG_8BYTES:
+		ut_ad(!page_zip
+		      || fil_page_get_type(page_zip->data)
+		      <= FIL_PAGE_TYPE_ZBLOB2);
+		/* fall through */
 	case MLOG_MEMSET:
 #ifdef UNIV_DEBUG
 		if (page && page_type == FIL_PAGE_TYPE_ALLOCATED
@@ -1641,7 +1650,8 @@ parse_log:
 			     || (ibool)!!page_is_comp(page)
 			     == dict_table_is_comp(index->table));
 			ptr = btr_cur_parse_update_in_place(ptr, end_ptr, page,
-							    page_zip, index);
+							    page_zip, index,
+							    mtr);
 		}
 		break;
 	case MLOG_LIST_END_DELETE: case MLOG_COMP_LIST_END_DELETE:
