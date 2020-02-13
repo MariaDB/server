@@ -2,11 +2,11 @@
 Copyright (c) 2019, MariaDB Corporation.
 *****************************************************************************/
 
-#include "ha_clustrixdb.h"
-#include "ha_clustrixdb_pushdown.h"
+#include "ha_xpand.h"
+#include "ha_xpand_pushdown.h"
 
-extern handlerton *clustrixdb_hton;
-extern uint clustrix_row_buffer;
+extern handlerton *xpand_hton;
+extern uint xpand_row_buffer;
 
 /*@brief  Fills up array data types, metadata and nullability*/
 /************************************************************
@@ -87,7 +87,7 @@ err:
 }
 
 
-/*@brief  create_clustrixdb_select_handler- Creates handler*/
+/*@brief  create_xpand_select_handler- Creates handler*/
 /************************************************************
  * DESCRIPTION:
  * Creates a select handler
@@ -100,9 +100,9 @@ err:
  *  NULL otherwise
  ************************************************************/
 select_handler*
-create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
+create_xpand_select_handler(THD* thd, SELECT_LEX* select_lex)
 {
-  ha_clustrixdb_select_handler *sh = NULL;
+  ha_xpand_select_handler *sh = NULL;
   if (!select_handler_setting(thd)) {
     return sh;
   }
@@ -110,9 +110,9 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
   // TODO Return early for EXPLAIN before we run the actual scan.
   // We can send compile request when we separate compilation
   // and execution.
-  clustrix_connection_cursor *scan = NULL;
+  xpand_connection_cursor *scan = NULL;
   if (thd->lex->describe) {
-    sh = new ha_clustrixdb_select_handler(thd, select_lex, scan);
+    sh = new ha_xpand_select_handler(thd, select_lex, scan);
     return sh;
   }
 
@@ -127,7 +127,7 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
   select_lex->print(thd, &query, QT_ORDINARY);
   int error_code = 0;
   int field_metadata_size = 0;
-  clustrix_connection *trx = NULL;
+  xpand_connection *trx = NULL;
 
   // We presume this number is equal to types.elements in get_field_types
   uint items_number = select_lex->get_item_list()->elements;
@@ -163,7 +163,7 @@ create_clustrixdb_select_handler(THD* thd, SELECT_LEX* select_lex)
     goto err;
   }
 
-  sh = new ha_clustrixdb_select_handler(thd, select_lex, scan);
+  sh = new ha_xpand_select_handler(thd, select_lex, scan);
 
 err:
   // deallocate buffers
@@ -180,11 +180,11 @@ err:
  *   thd - THD pointer.
  *   select_lex - sematic tree for the query.
  **********************************************************/
-ha_clustrixdb_select_handler::ha_clustrixdb_select_handler(
+ha_xpand_select_handler::ha_xpand_select_handler(
       THD *thd,
       SELECT_LEX* select_lex,
-      clustrix_connection_cursor *scan_)
-  : select_handler(thd, clustrixdb_hton)
+      xpand_connection_cursor *scan_)
+  : select_handler(thd, xpand_hton)
 {
   thd__ = thd;
   scan = scan_;
@@ -198,10 +198,10 @@ ha_clustrixdb_select_handler::ha_clustrixdb_select_handler(
  * This frees dynamic memory allocated for bitmap
  * and disables replication to SH temp table.
  **********************************************************/
-ha_clustrixdb_select_handler::~ha_clustrixdb_select_handler()
+ha_xpand_select_handler::~ha_xpand_select_handler()
 {
     int error_code;
-    clustrix_connection *trx = get_trx(thd, &error_code);
+    xpand_connection *trx = get_trx(thd, &error_code);
     if (!trx) {
       // TBD Log this
     }
@@ -225,7 +225,7 @@ ha_clustrixdb_select_handler::~ha_clustrixdb_select_handler()
  * RETURN:
  *  rc as int
  * ********************************************************/
-int ha_clustrixdb_select_handler::init_scan()
+int ha_xpand_select_handler::init_scan()
 {
   // Save this into the base handler class attribute
   table__ = table;
@@ -247,10 +247,10 @@ int ha_clustrixdb_select_handler::init_scan()
  * RETURN:
  *  rc as int
  * ********************************************************/
-int ha_clustrixdb_select_handler::next_row()
+int ha_xpand_select_handler::next_row()
 {
   int error_code = 0;
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -282,12 +282,12 @@ int ha_clustrixdb_select_handler::next_row()
  * RETURN:
  *   rc as int
  ***********************************************************/
-int ha_clustrixdb_select_handler::end_scan()
+int ha_xpand_select_handler::end_scan()
 {
     return 0;
 }
 
-/*@brief  create_clustrixdb_derived_handler- Creates handler*/
+/*@brief  create_xpand_derived_handler- Creates handler*/
 /************************************************************
  * DESCRIPTION:
  * Creates a derived handler
@@ -300,9 +300,9 @@ int ha_clustrixdb_select_handler::end_scan()
  *  NULL otherwise
  ************************************************************/
 derived_handler*
-create_clustrixdb_derived_handler(THD* thd, TABLE_LIST *derived)
+create_xpand_derived_handler(THD* thd, TABLE_LIST *derived)
 {
-  ha_clustrixdb_derived_handler *dh = NULL;
+  ha_xpand_derived_handler *dh = NULL;
   if (!derived_handler_setting(thd)) {
     return dh;
   }
@@ -311,7 +311,7 @@ create_clustrixdb_derived_handler(THD* thd, TABLE_LIST *derived)
   SELECT_LEX *select_lex = unit->first_select();
   String query;
 
-  dh = new ha_clustrixdb_derived_handler(thd, select_lex, NULL);
+  dh = new ha_xpand_derived_handler(thd, select_lex, NULL);
 
   return dh;
 }
@@ -323,11 +323,11 @@ create_clustrixdb_derived_handler(THD* thd, TABLE_LIST *derived)
  *   thd - THD pointer.
  *   select_lex - sematic tree for the query.
  **********************************************************/
-ha_clustrixdb_derived_handler::ha_clustrixdb_derived_handler(
+ha_xpand_derived_handler::ha_xpand_derived_handler(
       THD *thd,
       SELECT_LEX* select_lex,
-      clustrix_connection_cursor *scan_)
-  : derived_handler(thd, clustrixdb_hton)
+      xpand_connection_cursor *scan_)
+  : derived_handler(thd, xpand_hton)
 {
   thd__ = thd;
   scan = scan_;
@@ -341,13 +341,13 @@ ha_clustrixdb_derived_handler::ha_clustrixdb_derived_handler(
  * This frees dynamic memory allocated for bitmap
  * and disables replication to SH temp table.
  **********************************************************/
-ha_clustrixdb_derived_handler::~ha_clustrixdb_derived_handler()
+ha_xpand_derived_handler::~ha_xpand_derived_handler()
 {
     int error_code;
 
 
 
-    clustrix_connection *trx = get_trx(thd, &error_code);
+    xpand_connection *trx = get_trx(thd, &error_code);
     if (!trx) {
       // TBD Log this.
     }
@@ -371,14 +371,14 @@ ha_clustrixdb_derived_handler::~ha_clustrixdb_derived_handler()
  * RETURN:
  *  rc as int
  * ********************************************************/
-int ha_clustrixdb_derived_handler::init_scan()
+int ha_xpand_derived_handler::init_scan()
 {
   String query;
   // Print the query into a string provided
   select->print(thd__, &query, QT_ORDINARY);
   int error_code = 0;
   int field_metadata_size = 0;
-  clustrix_connection *trx = NULL;
+  xpand_connection *trx = NULL;
 
   // We presume this number is equal to types.elements in get_field_types
   uint items_number= select->get_item_list()->elements;
@@ -437,10 +437,10 @@ err:
  * RETURN:
  *  rc as int
  * ********************************************************/
-int ha_clustrixdb_derived_handler::next_row()
+int ha_xpand_derived_handler::next_row()
 {
   int error_code = 0;
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -472,7 +472,7 @@ int ha_clustrixdb_derived_handler::next_row()
  * RETURN:
  *   rc as int
  ***********************************************************/
-int ha_clustrixdb_derived_handler::end_scan()
+int ha_xpand_derived_handler::end_scan()
 {
     return 0;
 }

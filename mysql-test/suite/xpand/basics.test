@@ -1,10 +1,10 @@
-CREATE DATABASE clx;
-USE clx;
+CREATE DATABASE xpd;
+USE xpd;
 
 DROP TABLE IF EXISTS cx1;
-CREATE TABLE cx1(i BIGINT)ENGINE=clustrixdb;
+CREATE TABLE cx1(i BIGINT)ENGINE=xpand;
 --error ER_TABLE_EXISTS_ERROR
-CREATE TABLE cx1(i BIGINT)ENGINE=clustrixdb;
+CREATE TABLE cx1(i BIGINT)ENGINE=xpand;
 
 INSERT INTO cx1 VALUES (42);
 
@@ -16,18 +16,18 @@ DROP TABLE cx1;
 SHOW CREATE TABLE cx1;
 
 DROP TABLE IF EXISTS intandtext;
-CREATE TABLE intandtext(i bigint, t text)ENGINE=clustrixdb;
+CREATE TABLE intandtext(i bigint, t text)ENGINE=xpand;
 INSERT INTO intandtext VALUES(10, 'someqwqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
 
 SELECT i,t FROM intandtext;
 EXPLAIN SELECT i,t FROM intandtext;
 
 SET @@optimizer_switch='derived_merge=OFF';
-SET clustrixdb_select_handler=OFF;
+SET xpand_select_handler=OFF;
 SELECT i,t FROM (SELECT i,t FROM intandtext) t;
 EXPLAIN SELECT i,t FROM (SELECT i,t FROM intandtext) t;
 
-SET clustrixdb_derived_handler=OFF;
+SET xpand_derived_handler=OFF;
 SELECT i,t FROM intandtext;
 SELECT i,t FROM (SELECT i,t FROM intandtext) t;
 EXPLAIN SELECT i,t FROM (SELECT i,t FROM intandtext) t;
@@ -35,4 +35,4 @@ EXPLAIN SELECT i,t FROM (SELECT i,t FROM intandtext) t;
 DROP TABLE intandtext;
 
 USE test;
-DROP DATABASE clx;
+DROP DATABASE xpd;

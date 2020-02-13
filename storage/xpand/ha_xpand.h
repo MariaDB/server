@@ -2,15 +2,15 @@
 Copyright (c) 2019, MariaDB Corporation.
 *****************************************************************************/
 
-#ifndef _ha_clustrixdb_h
-#define _ha_clustrixdb_h
+#ifndef _ha_xpand_h
+#define _ha_xpand_h
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface     /* gcc class implementation */
 #endif
 
 #define MYSQL_SERVER 1
-#include "clustrix_connection.h"
+#include "xpand_connection.h"
 #include "my_bitmap.h"
 #include "table.h"
 #include "rpl_rli.h"
@@ -21,7 +21,7 @@ Copyright (c) 2019, MariaDB Corporation.
 #include "../../sql/rpl_record.h"
 
 size_t estimate_row_size(TABLE *table);
-clustrix_connection *get_trx(THD *thd, int *error_code);
+xpand_connection *get_trx(THD *thd, int *error_code);
 bool get_enable_sh(THD* thd);
 void add_current_table_to_rpl_table_list(rpl_group_info **_rgi, THD *thd,
                                          TABLE *table);
@@ -30,10 +30,10 @@ int unpack_row_to_buf(rpl_group_info *rgi, TABLE *table, uchar *data,
                       uchar const *const row_data, MY_BITMAP const *cols,
                       uchar const *const row_end);
 
-class ha_clustrixdb : public handler
+class ha_xpand : public handler
 {
 private:
-  ulonglong clustrix_table_oid;
+  ulonglong xpand_table_oid;
   rpl_group_info *rgi;
 
   Field *auto_inc_field;
@@ -41,24 +41,24 @@ private:
 
   bool has_hidden_key;
   ulonglong last_hidden_key;
-  clustrix_connection_cursor *scan_cur;
+  xpand_connection_cursor *scan_cur;
   bool is_scan;
   MY_BITMAP scan_fields;
   bool sorted_scan;
-  clustrix_lock_mode_t clx_lock_type;
+  xpand_lock_mode_t xpd_lock_type;
 
   uint last_dup_errkey;
 
-  typedef enum clustrix_upsert_flags {
-    CLUSTRIX_HAS_UPSERT= 1,
-    CLUSTRIX_BULK_UPSERT= 2,
-    CLUSTRIX_UPSERT_SENT= 4
-  } clx_upsert_flags_t;
+  typedef enum xpand_upsert_flags {
+    XPAND_HAS_UPSERT= 1,
+    XPAND_BULK_UPSERT= 2,
+    XPAND_UPSERT_SENT= 4
+  } xpd_upsert_flags_t;
   int upsert_flag;
 
 public:
-  ha_clustrixdb(handlerton *hton, TABLE_SHARE *table_arg);
-  ~ha_clustrixdb();
+  ha_xpand(handlerton *hton, TABLE_SHARE *table_arg);
+  ~ha_xpand();
   int create(const char *name, TABLE *form, HA_CREATE_INFO *info);
   int delete_table(const char *name);
   int rename_table(const char* from, const char* to);
@@ -127,4 +127,4 @@ private:
 bool select_handler_setting(THD* thd);
 bool derived_handler_setting(THD* thd);
 uint row_buffer_setting(THD* thd);
-#endif  // _ha_clustrixdb_h
+#endif  // _ha_xpand_h

@@ -2,8 +2,8 @@
 Copyright (c) 2019, MariaDB Corporation.
 *****************************************************************************/
 
-#ifndef _clustrix_connection_h
-#define _clustrix_connection_h
+#ifndef _xpand_connection_h
+#define _xpand_connection_h
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface     /* gcc class implementation */
@@ -19,34 +19,34 @@ Copyright (c) 2019, MariaDB Corporation.
 #include "my_bitmap.h"
 #include "handler.h"
 
-#define CLUSTRIX_SERVER_REQUEST 30
+#define XPAND_SERVER_REQUEST 30
 
-typedef enum clustrix_lock_mode {
-    CLUSTRIX_NO_LOCKS,
-    CLUSTRIX_SHARED,
-    CLUSTRIX_EXCLUSIVE,
-} clustrix_lock_mode_t;
+typedef enum xpand_lock_mode {
+    XPAND_NO_LOCKS,
+    XPAND_SHARED,
+    XPAND_EXCLUSIVE,
+} xpand_lock_mode_t;
 
-class clustrix_connection_cursor;
-class clustrix_connection
+class xpand_connection_cursor;
+class xpand_connection
 {
 private:
-  MYSQL clustrix_net;
+  MYSQL xpand_net;
   uchar *command_buffer;
   size_t command_buffer_length;
   size_t command_length;
 
   int trans_state;
   int trans_flags;
-  int allocate_cursor(MYSQL *clustrix_net, ulong buffer_size,
-                      clustrix_connection_cursor **scan);
+  int allocate_cursor(MYSQL *xpand_net, ulong buffer_size,
+                      xpand_connection_cursor **scan);
 public:
-  clustrix_connection();
-  ~clustrix_connection();
+  xpand_connection();
+  ~xpand_connection();
 
   inline bool is_connected()
   {
-    return clustrix_net.net.vio;
+    return xpand_net.net.vio;
   }
   int connect();
   void disconnect(bool is_destructor = FALSE);
@@ -61,16 +61,16 @@ public:
   void auto_commit_closed();
 
   int run_query(String &stmt);
-  int write_row(ulonglong clustrix_table_oid, uchar *packed_row,
+  int write_row(ulonglong xpand_table_oid, uchar *packed_row,
                 size_t packed_size, ulonglong *last_insert_id);
-  int key_update(ulonglong clustrix_table_oid,
+  int key_update(ulonglong xpand_table_oid,
                  uchar *packed_key, size_t packed_key_length,
                  MY_BITMAP *update_set,
                  uchar *packed_new_data, size_t packed_new_length);
-  int key_delete(ulonglong clustrix_table_oid,
+  int key_delete(ulonglong xpand_table_oid,
                  uchar *packed_key, size_t packed_key_length);
-  int key_read(ulonglong clustrix_table_oid, uint index,
-               clustrix_lock_mode_t lock_mode, MY_BITMAP *read_set,
+  int key_read(ulonglong xpand_table_oid, uint index,
+               xpand_lock_mode_t lock_mode, MY_BITMAP *read_set,
                uchar *packed_key, ulong packed_key_length, uchar **rowdata,
                ulong *rowdata_length);
   enum sort_order {SORT_NONE = 0, SORT_ASC = 1, SORT_DESC = 2};
@@ -82,24 +82,24 @@ public:
     READ_FROM_START,   /* rows with forwards from first key. */
     READ_FROM_LAST,    /* rows with backwards from last key. */
   };
-  int scan_table(ulonglong clustrix_table_oid,
-                 clustrix_lock_mode_t lock_mode,
+  int scan_table(ulonglong xpand_table_oid,
+                 xpand_lock_mode_t lock_mode,
                  MY_BITMAP *read_set, ushort row_req,
-                 clustrix_connection_cursor **scan);
+                 xpand_connection_cursor **scan);
   int scan_query(String &stmt, uchar *fieldtype, uint fields, uchar *null_bits,
                  uint null_bits_size, uchar *field_metadata,
                  uint field_metadata_size, ushort row_req,
-                 clustrix_connection_cursor **scan);
+                 xpand_connection_cursor **scan);
   int update_query(String &stmt, LEX_CSTRING &dbname, ulonglong *affected_rows);
-  int scan_from_key(ulonglong clustrix_table_oid, uint index,
-                    clustrix_lock_mode_t lock_mode,
+  int scan_from_key(ulonglong xpand_table_oid, uint index,
+                    xpand_lock_mode_t lock_mode,
                     enum scan_type scan_dir, int no_key_cols, bool sorted_scan,
                     MY_BITMAP *read_set, uchar *packed_key,
                     ulong packed_key_length, ushort row_req,
-                    clustrix_connection_cursor **scan);
-  int scan_next(clustrix_connection_cursor *scan, uchar **rowdata,
+                    xpand_connection_cursor **scan);
+  int scan_next(xpand_connection_cursor *scan, uchar **rowdata,
                 ulong *rowdata_length);
-  int scan_end(clustrix_connection_cursor *scan);
+  int scan_end(xpand_connection_cursor *scan);
 
   int populate_table_list(LEX_CSTRING *db, handlerton::discovered_list *result);
   int discover_table_details(LEX_CSTRING *db, LEX_CSTRING *name, THD *thd,
@@ -120,4 +120,4 @@ private:
   int send_command();
   int read_query_response();
 };
-#endif  // _clustrix_connection_h
+#endif  // _xpand_connection_h
