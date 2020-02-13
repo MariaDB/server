@@ -16,20 +16,20 @@ Copyright (c) 2019, MariaDB Corporation.
 class ha_xpand_base_handler
 {
   // To simulate abstract class
-  protected:
-    ha_xpand_base_handler(): thd__(0),table__(0) {}
-    ~ha_xpand_base_handler() {}
+protected:
+  ha_xpand_base_handler(): thd__(0),table__(0) {}
+  ~ha_xpand_base_handler() {}
 
-    // Copies of pushdown handlers attributes
-    // to use them in shared methods.
-    THD *thd__;
-    TABLE *table__;
-    // The bitmap used to sent
-    MY_BITMAP scan_fields;
-    // Structures to unpack RBR rows from XPD BE
-    rpl_group_info *rgi;
-    // XPD BE scan operation reference
-    xpand_connection_cursor *scan;
+  // Copies of pushdown handlers attributes
+  // to use them in shared methods.
+  THD *thd__;
+  TABLE *table__;
+  // The bitmap used to sent
+  MY_BITMAP scan_fields;
+  // Structures to unpack RBR rows from XPD BE
+  rpl_group_info *rgi;
+  // XPD BE scan operation reference
+  xpand_connection_cursor *scan;
 };
 
 /*@brief select_handler class*/
@@ -44,15 +44,15 @@ class ha_xpand_select_handler:
     private ha_xpand_base_handler, 
     public select_handler
 {
-  public:
-    ha_xpand_select_handler(THD* thd_arg, SELECT_LEX* sel,
-                            xpand_connection_cursor *scan);
-    ~ha_xpand_select_handler();
+public:
+  ha_xpand_select_handler(THD* thd_arg, SELECT_LEX* sel,
+                          xpand_connection_cursor *scan);
+  ~ha_xpand_select_handler();
 
-    int init_scan();
-    int next_row();
-    int end_scan();
-    void print_error(int, unsigned long) {}
+  int init_scan();
+  int next_row();
+  int end_scan();
+  void print_error(int, unsigned long) {}
 };
 
 /*@brief derived_handler class*/
@@ -67,17 +67,16 @@ class ha_xpand_derived_handler:
     private ha_xpand_base_handler,
     public derived_handler
 {
-  public:
-    ha_xpand_derived_handler(THD* thd_arg, SELECT_LEX* sel,
-                             xpand_connection_cursor *scan);
-    ~ha_xpand_derived_handler();
+public:
+  ha_xpand_derived_handler(THD* thd_arg, SELECT_LEX* sel,
+                           xpand_connection_cursor *scan);
+  ~ha_xpand_derived_handler();
 
-    int init_scan();
-    int next_row();
-    int end_scan();
-    void print_error(int, unsigned long) {}
+  int init_scan();
+  int next_row();
+  int end_scan();
+  void print_error(int, unsigned long) {}
 };
-
 
 select_handler *create_xpand_select_handler(THD* thd, SELECT_LEX* select_lex);
 derived_handler *create_xpand_derived_handler(THD* thd, TABLE_LIST *derived);
