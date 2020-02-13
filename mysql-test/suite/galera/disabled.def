@@ -23,7 +23,6 @@ galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid
 galera_autoinc_sst_mariabackup : Known issue, may require porting MDEV-17458 from later versions
 galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_bf_abort_group_commit
 galera_binlog_stmt_autoinc : MDEV-19959 Galera test failure on galera_binlog_stmt_autoinc	
-galera_concurrent_ctas : MDEV-18180 Galera test failure on galera.galera_concurrent_ctas
 galera_encrypt_tmp_files : Get error failed to enable encryption of temporary files
 galera_ftwrl : MDEV-21525 galera.galera_ftwrl
 galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
