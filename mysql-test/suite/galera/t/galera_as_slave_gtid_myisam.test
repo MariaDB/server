@@ -12,27 +12,31 @@
 #
 
 --source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/galera_cluster.inc
 
-# As node #1 is not a Galera node, we connect to node #2 in order to run include/galera_cluster.inc
---connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+# As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
+# we open the node_3 connection here
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+SELECT @@wsrep_on;
 
---connection node_2a
+--connection node_1
 # make sure gtid_slave_pos is of innodb engine, mtr does not currently provide that
 ALTER TABLE mysql.gtid_slave_pos engine = InnoDB;
 
 --disable_query_log
---eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_1;
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
 --enable_query_log
 START SLAVE;
 
---connection default
+--connection node_3
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=MyISAM;
 INSERT INTO t1 VALUES(1);
 
 SELECT LENGTH(@@global.gtid_binlog_state) > 1;
 --let $gtid_binlog_state_node1 = `SELECT @@global.gtid_binlog_state;`
 
---connection node_2a
+--connection node_1
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 --source include/wait_condition.inc
 
@@ -43,32 +47,26 @@ SELECT LENGTH(@@global.gtid_binlog_state) > 1;
 --eval SELECT '$gtid_binlog_state_node1' = @@global.gtid_binlog_state AS gtid_binlog_state_equal;
 --enable_query_log
 
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
-SELECT COUNT(*) = 0 FROM t1;
+--connection node_2
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
 
 --disable_query_log
 --eval SELECT '$gtid_binlog_state_node1' = @@global.gtid_binlog_state AS gtid_binlog_state_equal;
 --enable_query_log
 
 --echo #cleanup
---connection default
+--connection node_3
 DROP TABLE t1;
 reset master;
 
---connection node_2a
---let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
---source include/wait_condition.inc
+--connection node_1
 STOP SLAVE;
 RESET SLAVE ALL;
-set global wsrep_on=OFF;
+SET GLOBAL WSREP_ON=OFF;
 reset master;
-set global wsrep_on=ON;
+SET GLOBAL WSREP_ON=ON;
 
---connection node_3
---let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
---source include/wait_condition.inc
-
-set global wsrep_on=OFF;
+--connection node_2
+SET GLOBAL WSREP_ON=OFF;
 reset master;
-set global wsrep_on=ON;
-
+SET GLOBAL WSREP_ON=ON;
