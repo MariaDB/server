@@ -418,9 +418,7 @@ void fil_space_crypt_t::write_page0(buf_block_t* block, mtr_t* mtr)
 		+ fsp_header_get_encryption_offset(block->zip_size());
 	byte* b = block->frame + offset;
 
-	if (memcmp(b, CRYPT_MAGIC, MAGIC_SZ)) {
-		mtr->memcpy(block, offset, CRYPT_MAGIC, MAGIC_SZ);
-	}
+	mtr->memcpy<mtr_t::OPT>(*block, b, CRYPT_MAGIC, MAGIC_SZ);
 
 	b += MAGIC_SZ;
 	byte* const start = b;
@@ -436,6 +434,8 @@ void fil_space_crypt_t::write_page0(buf_block_t* block, mtr_t* mtr)
 	b += 4;
 	*b++ = byte(encryption);
 	ut_ad(b - start == 11 + MY_AES_BLOCK_SIZE);
+	/* We must log also any unchanged bytes, because recovery will
+	invoke fil_crypt_parse() based on this log record. */
 	mtr->memcpy(*block, offset + MAGIC_SZ, b - start);
 }
 

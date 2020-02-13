@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -72,8 +72,8 @@ trx_rseg_write_wsrep_checkpoint(
 
 	const ulint xid_length = static_cast<ulint>(xid->gtrid_length
 						    + xid->bqual_length);
-	mtr->memcpy(rseg_header, TRX_RSEG + TRX_RSEG_WSREP_XID_DATA,
-		    xid->data, xid_length);
+	mtr->memcpy(*rseg_header, TRX_RSEG + TRX_RSEG_WSREP_XID_DATA
+		    + rseg_header->frame, xid->data, xid_length);
 	if (UNIV_LIKELY(xid_length < XIDDATASIZE)) {
 		mtr->memset(rseg_header,
 			    TRX_RSEG + TRX_RSEG_WSREP_XID_DATA + xid_length,
@@ -738,9 +738,9 @@ void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
 				 + rseg_header->frame,
 				 trx->mysql_log_offset);
 
-	if (memcmp(trx->mysql_log_file_name, TRX_RSEG + TRX_RSEG_BINLOG_NAME
-		   + rseg_header->frame, len)) {
-		mtr->memcpy(rseg_header, TRX_RSEG + TRX_RSEG_BINLOG_NAME,
-			    trx->mysql_log_file_name, len);
+	void* name = TRX_RSEG + TRX_RSEG_BINLOG_NAME + rseg_header->frame;
+
+	if (memcmp(trx->mysql_log_file_name, name, len)) {
+		mtr->memcpy(*rseg_header, name, trx->mysql_log_file_name, len);
 	}
 }

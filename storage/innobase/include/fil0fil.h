@@ -149,7 +149,7 @@ struct fil_space_t
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
 	UT_LIST_NODE_T(fil_space_t) named_spaces;
-				/*!< list of spaces for which MLOG_FILE_NAME
+				/*!< list of spaces for which FILE_MODIFY
 				records have been issued */
 	/** Checks that this tablespace in a list of unflushed tablespaces.
 	@return true if in a list */
@@ -641,13 +641,6 @@ extern const char* dot_ext[];
 but in the MySQL Embedded Server Library and mysqlbackup it is not the default
 directory, and we must set the base file path explicitly */
 extern const char*	fil_path_to_mysql_datadir;
-
-/* Space address data type; this is intended to be used when
-addresses accurate to a byte are stored in file pages. If the page part
-of the address is FIL_NULL, the address is considered undefined. */
-
-typedef	byte	fil_faddr_t;	/*!< 'type' definition in C: an address
-				stored in a file page is a string of bytes */
 #else
 # include "univ.i"
 #endif /* !UNIV_INNOCHECKSUM */
@@ -951,7 +944,7 @@ public:
 					/*!< list of all file spaces */
 	UT_LIST_BASE_NODE_T(fil_space_t) named_spaces;
 					/*!< list of all file spaces
-					for which a MLOG_FILE_NAME
+					for which a FILE_MODIFY
 					record has been written since
 					the latest redo log checkpoint.
 					Protected only by log_sys.mutex. */
@@ -1531,26 +1524,18 @@ void
 fil_names_dirty(
 	fil_space_t*	space);
 
-/** Write MLOG_FILE_NAME records when a non-predefined persistent
+/** Write FILE_MODIFY records when a non-predefined persistent
 tablespace was modified for the first time since the latest
 fil_names_clear().
-@param[in,out]	space	tablespace
-@param[in,out]	mtr	mini-transaction */
-void
-fil_names_dirty_and_write(
-	fil_space_t*	space,
-	mtr_t*		mtr);
+@param[in,out]	space	tablespace */
+void fil_names_dirty_and_write(fil_space_t* space);
 
-/** Write MLOG_FILE_NAME records if a persistent tablespace was modified
+/** Write FILE_MODIFY records if a persistent tablespace was modified
 for the first time since the latest fil_names_clear().
 @param[in,out]	space	tablespace
 @param[in,out]	mtr	mini-transaction
-@return whether any MLOG_FILE_NAME record was written */
-inline MY_ATTRIBUTE((warn_unused_result))
-bool
-fil_names_write_if_was_clean(
-	fil_space_t*	space,
-	mtr_t*		mtr)
+@return whether any FILE_MODIFY record was written */
+inline bool fil_names_write_if_was_clean(fil_space_t* space)
 {
 	ut_ad(log_mutex_own());
 
@@ -1563,7 +1548,7 @@ fil_names_write_if_was_clean(
 	space->max_lsn = log_sys.lsn;
 
 	if (was_clean) {
-		fil_names_dirty_and_write(space, mtr);
+		fil_names_dirty_and_write(space);
 	}
 
 	return(was_clean);
@@ -1588,9 +1573,9 @@ inline void fil_space_open_if_needed(fil_space_t* space)
 }
 
 /** On a log checkpoint, reset fil_names_dirty_and_write() flags
-and write out MLOG_FILE_NAME and MLOG_CHECKPOINT if needed.
+and write out FILE_MODIFY and FILE_CHECKPOINT if needed.
 @param[in]	lsn		checkpoint LSN
-@param[in]	do_write	whether to always write MLOG_CHECKPOINT
+@param[in]	do_write	whether to always write FILE_CHECKPOINT
 @return whether anything was written to the redo log
 @retval false	if no flags were set and nothing written
 @retval true	if anything was written to the redo log */

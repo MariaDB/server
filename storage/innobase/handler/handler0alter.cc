@@ -10890,19 +10890,14 @@ ha_innobase::commit_inplace_alter_table(
 			ut_ad(trx->has_logged());
 
 			if (mtr.get_log()->size() > 0) {
-				ut_ad(*mtr.get_log()->front()->begin()
-				      == MLOG_FILE_RENAME2);
-
-				/* Append the MLOG_FILE_RENAME2
+				ut_ad((*mtr.get_log()->front()->begin()
+				       & 0xf0) == FILE_RENAME);
+				/* Append the FILE_RENAME
 				records on checkpoint, as a separate
 				mini-transaction before the one that
-				contains the MLOG_CHECKPOINT marker. */
-				static const byte	multi
-					= MLOG_MULTI_REC_END;
-
+				contains the FILE_CHECKPOINT marker. */
 				mtr.get_log()->for_each_block(logs);
-				logs.m_buf.push(&multi, sizeof multi);
-
+				logs.m_buf.push(field_ref_zero, 1);
 				log_append_on_checkpoint(&logs.m_buf);
 			}
 

@@ -476,27 +476,29 @@ xdes_get_offset(
 
 /** Initialize a file page whose prior contents should be ignored.
 @param[in,out]	block	buffer pool block */
-void fsp_apply_init_file_page(buf_block_t* block)
+void fsp_apply_init_file_page(buf_block_t *block)
 {
-	page_t*		page	= buf_block_get_frame(block);
+  memset_aligned<UNIV_PAGE_SIZE_MIN>(block->frame, 0, srv_page_size);
 
-	memset(page, 0, srv_page_size);
-
-	mach_write_to_4(page + FIL_PAGE_OFFSET, block->page.id.page_no());
-	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-			block->page.id.space());
-
-	if (page_zip_des_t* page_zip= buf_block_get_page_zip(block)) {
-		memset(page_zip->data, 0, page_zip_get_size(page_zip));
-		static_assert(FIL_PAGE_OFFSET % 4 == 0, "alignment");
-		memcpy_aligned<4>(page_zip->data + FIL_PAGE_OFFSET,
-				  page + FIL_PAGE_OFFSET, 4);
-		static_assert(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID % 4 == 2,
-			      "not perfect alignment");
-		memcpy_aligned<2>(page_zip->data
-				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-				  page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 4);
-	}
+  mach_write_to_4(block->frame + FIL_PAGE_OFFSET, block->page.id.page_no());
+  if (log_sys.is_physical())
+    memset_aligned<8>(block->frame + FIL_PAGE_PREV, 0xff, 8);
+  mach_write_to_4(block->frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
+                  block->page.id.space());
+  if (page_zip_des_t* page_zip= buf_block_get_page_zip(block))
+  {
+    memset_aligned<UNIV_ZIP_SIZE_MIN>(page_zip->data, 0,
+                                      page_zip_get_size(page_zip));
+    static_assert(FIL_PAGE_OFFSET == 4, "compatibility");
+    memcpy_aligned<4>(page_zip->data + FIL_PAGE_OFFSET,
+                      block->frame + FIL_PAGE_OFFSET, 4);
+    if (log_sys.is_physical())
+      memset_aligned<8>(page_zip->data + FIL_PAGE_PREV, 0xff, 8);
+    static_assert(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID % 4 == 2,
+                  "not perfect alignment");
+    memcpy_aligned<2>(page_zip->data + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
+                      block->frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 4);
+  }
 }
 
 #ifdef UNIV_DEBUG
@@ -577,8 +579,12 @@ void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
 				 + block->frame, space->id);
 	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_NOT_USED
 				    + block->frame));
-	mtr->write<4>(*block, FSP_HEADER_OFFSET + FSP_SIZE + block->frame,
-		      size);
+	/* recv_sys_t::parse() expects to find a WRITE record that
+	covers all 4 bytes. Therefore, we must specify mtr_t::FORCED
+	in order to avoid optimizing away any unchanged most
+	significant bytes of FSP_SIZE. */
+	mtr->write<4,mtr_t::FORCED>(*block, FSP_HEADER_OFFSET + FSP_SIZE
+				   + block->frame, size);
 	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
 				    + block->frame));
 	mtr->write<4,mtr_t::OPT>(*block, FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
@@ -636,8 +642,12 @@ fsp_try_extend_data_file_with_pages(
 
 	success = fil_space_extend(space, page_no + 1);
 	/* The size may be less than we wanted if we ran out of disk space. */
-	mtr->write<4>(*header, FSP_HEADER_OFFSET + FSP_SIZE + header->frame,
-		      space->size);
+	/* recv_sys_t::parse() expects to find a WRITE record that
+	covers all 4 bytes. Therefore, we must specify mtr_t::FORCED
+	in order to avoid optimizing away any unchanged most
+	significant bytes of FSP_SIZE. */
+	mtr->write<4,mtr_t::FORCED>(*header, FSP_HEADER_OFFSET + FSP_SIZE
+				    + header->frame, space->size);
 	space->size_in_header = space->size;
 
 	return(success);
@@ -770,8 +780,12 @@ fsp_try_extend_data_file(fil_space_t *space, buf_block_t *header, mtr_t *mtr)
 
 	space->size_in_header = ut_2pow_round(space->size, (1024 * 1024) / ps);
 
-	mtr->write<4>(*header, FSP_HEADER_OFFSET + FSP_SIZE + header->frame,
-		      space->size_in_header);
+	/* recv_sys_t::parse() expects to find a WRITE record that
+	covers all 4 bytes. Therefore, we must specify mtr_t::FORCED
+	in order to avoid optimizing away any unchanged most
+	significant bytes of FSP_SIZE. */
+	mtr->write<4,mtr_t::FORCED>(*header, FSP_HEADER_OFFSET + FSP_SIZE
+				    + header->frame, space->size_in_header);
 
 	return(size_increase);
 }
@@ -1511,8 +1525,7 @@ static void fsp_free_seg_inode(
 			      iblock, FSEG_INODE_PAGE_NODE, mtr);
 	}
 
-	mtr->write<8>(*iblock, inode + FSEG_ID, 0U);
-	mtr->write<4>(*iblock, inode + FSEG_MAGIC_N, 0xfa051ce3);
+	mtr->memset(iblock, page_offset(inode) + FSEG_ID, FSEG_INODE_SIZE, 0);
 
 	if (ULINT_UNDEFINED
 	    == fsp_seg_inode_page_find_used(iblock->frame, physical_size)) {

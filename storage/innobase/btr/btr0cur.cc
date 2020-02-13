@@ -3898,49 +3898,94 @@ static void btr_cur_write_sys(
 }
 
 /** Update DB_TRX_ID, DB_ROLL_PTR in a clustered index record.
-@param[in,out]	block		clustered index leaf page
-@param[in,out]	rec		clustered index record
-@param[in]	index		clustered index
-@param[in]	offsets		rec_get_offsets(rec, index)
-@param[in]	trx		transaction
-@param[in]	roll_ptr	DB_ROLL_PTR value
-@param[in,out]	mtr		mini-transaction */
-static void btr_cur_upd_rec_sys(buf_block_t *block, rec_t* rec,
-				dict_index_t* index, const offset_t* offsets,
-				const trx_t* trx, roll_ptr_t roll_ptr,
-				mtr_t* mtr)
+@param[in,out]  block           clustered index leaf page
+@param[in,out]  rec             clustered index record
+@param[in]      index           clustered index
+@param[in]      offsets         rec_get_offsets(rec, index)
+@param[in]      trx             transaction
+@param[in]      roll_ptr        DB_ROLL_PTR value
+@param[in,out]  mtr             mini-transaction */
+static void btr_cur_upd_rec_sys(buf_block_t *block, rec_t *rec,
+                                dict_index_t *index, const offset_t *offsets,
+                                const trx_t *trx, roll_ptr_t roll_ptr,
+                                mtr_t *mtr)
 {
-	ut_ad(index->is_primary());
-	ut_ad(rec_offs_validate(rec, index, offsets));
+  ut_ad(index->is_primary());
+  ut_ad(rec_offs_validate(rec, index, offsets));
 
-	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
-		page_zip_write_trx_id_and_roll_ptr(block, rec, offsets,
-						   index->db_trx_id(),
-						   trx->id, roll_ptr, mtr);
-	} else {
-		ulint	offset = index->trx_id_offset;
+  if (UNIV_LIKELY_NULL(block->page.zip.data))
+  {
+    page_zip_write_trx_id_and_roll_ptr(block, rec, offsets, index->db_trx_id(),
+                                       trx->id, roll_ptr, mtr);
+    return;
+  }
 
-		if (!offset) {
-			offset = row_get_trx_id_offset(index, offsets);
-		}
+  ulint offset= index->trx_id_offset;
 
-		compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
+  if (!offset)
+    offset= row_get_trx_id_offset(index, offsets);
 
-		/* During IMPORT the trx id in the record can be in the
-		future, if the .ibd file is being imported from another
-		instance. During IMPORT roll_ptr will be 0. */
-		ut_ad(roll_ptr == 0
-		      || lock_check_trx_id_sanity(
-			      trx_read_trx_id(rec + offset),
-			      rec, index, offsets));
+  compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
 
-		trx_write_trx_id(rec + offset, trx->id);
-		trx_write_roll_ptr(rec + offset + DATA_TRX_ID_LEN, roll_ptr);
-		/* MDEV-12353 FIXME: consider emitting MEMMOVE for the
-		DB_TRX_ID if it is found in the preceding record */
-		mtr->memcpy(*block, page_offset(rec + offset),
-			    DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
-	}
+  /* During IMPORT the trx id in the record can be in the future, if
+  the .ibd file is being imported from another instance. During IMPORT
+  roll_ptr will be 0. */
+  ut_ad(roll_ptr == 0 ||
+        lock_check_trx_id_sanity(trx_read_trx_id(rec + offset),
+                                 rec, index, offsets));
+
+  byte sys[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN];
+
+  trx_write_trx_id(sys, trx->id);
+  trx_write_roll_ptr(sys + DATA_TRX_ID_LEN, roll_ptr);
+
+  ulint d= 0;
+  const byte *src= nullptr;
+  byte *dest= rec + offset;
+  ulint len= DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
+
+  if (UNIV_LIKELY(index->trx_id_offset))
+  {
+    const rec_t *prev= page_rec_get_prev_const(rec);
+    if (UNIV_UNLIKELY(prev == rec))
+      ut_ad(0);
+    else if (page_rec_is_infimum(prev));
+    else
+      for (src= prev + offset; d < DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN; d++)
+        if (src[d] != sys[d])
+          break;
+    if (d > 6 && memcmp(dest, sys, d))
+    {
+      /* We save space by replacing a single record
+
+      WRITE,page_offset(dest),byte[13]
+
+      with two records:
+
+      MEMMOVE,page_offset(dest),d(1 byte),offset(1..3 bytes),
+      WRITE|0x80,0,byte[13-d]
+
+      The single WRITE record would be x+13 bytes long, with x>2.
+      The MEMMOVE record would be up to x+1+3 = x+4 bytes, and the
+      second WRITE would be 1+1+13-d = 15-d bytes.
+
+      The total size is: x+13 versus x+4+15-d = x+19-d bytes.
+      To save space, we must have d>6, that is, the complete DB_TRX_ID and
+      the first byte(s) of DB_ROLL_PTR must match the previous record. */
+      memcpy(dest, src, d);
+      mtr->memmove(*block, page_offset(dest), page_offset(src), d);
+      dest+= d;
+      len-= d;
+      /* DB_TRX_ID,DB_ROLL_PTR must be unique in each record when
+      DB_TRX_ID refers to an active transaction. */
+      ut_ad(len);
+    }
+    else
+      d= 0;
+  }
+
+  if (UNIV_LIKELY(len)) /* extra safety, to avoid corrupting the log */
+    mtr->memcpy<mtr_t::OPT>(*block, dest, sys + d, len);
 }
 
 /*********************************************************************//**
@@ -4400,10 +4445,13 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 		if (UNIV_UNLIKELY(dfield_is_null(&uf->new_val))) {
 			ut_ad(!rec_offs_nth_sql_null(offsets, n));
 			ut_ad(!index->table->not_redundant());
-			mtr->memset(block,
-				    page_offset(rec + rec_get_field_start_offs(
-							rec, n)),
-				    rec_get_nth_field_size(rec, n), 0);
+			if (ulint size = rec_get_nth_field_size(rec, n)) {
+				mtr->memset(
+					block,
+					page_offset(rec_get_field_start_offs(
+							    rec, n) + rec),
+					size, 0);
+			}
 			ulint l = rec_get_1byte_offs_flag(rec)
 				? (n + 1) : (n + 1) * 2;
 			byte* b = &rec[-REC_N_OLD_EXTRA_BYTES - l];
@@ -4436,7 +4484,10 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 				      byte(*b & ~REC_1BYTE_SQL_NULL_MASK));
 		}
 
-		mtr->memcpy(block, page_offset(data), uf->new_val.data, len);
+		if (len) {
+			mtr->memcpy<mtr_t::OPT>(*block, data, uf->new_val.data,
+						len);
+		}
 	}
 
 	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
@@ -7855,21 +7906,10 @@ btr_store_big_rec_extern_fields(
 				int		err;
 				page_zip_des_t*	blob_page_zip;
 
-				/* Write FIL_PAGE_TYPE to the redo log
-				separately, before logging any other
-				changes to the block, so that the debug
-				assertions in
-				recv_parse_or_apply_log_rec_body() can
-				be made simpler.  Before InnoDB Plugin
-				1.0.4, the initialization of
-				FIL_PAGE_TYPE was logged as part of
-				the mtr_t::memcpy() below. */
-
-				mtr.write<2>(*block,
-					     block->frame + FIL_PAGE_TYPE,
-					     prev_page_no == FIL_NULL
-					     ? FIL_PAGE_TYPE_ZBLOB
-					     : FIL_PAGE_TYPE_ZBLOB2);
+				mach_write_to_2(block->frame + FIL_PAGE_TYPE,
+						prev_page_no == FIL_NULL
+						? FIL_PAGE_TYPE_ZBLOB
+						: FIL_PAGE_TYPE_ZBLOB2);
 
 				c_stream.next_out = block->frame
 					+ FIL_PAGE_DATA;
@@ -7886,9 +7926,9 @@ btr_store_big_rec_extern_fields(
 				compile_time_assert(FIL_NULL == 0xffffffff);
 				mtr.memset(block, FIL_PAGE_PREV, 8, 0xff);
 				mtr.memcpy(*block,
-					   FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
+					   FIL_PAGE_TYPE,
 					   page_zip_get_size(page_zip)
-					   - FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+					   - FIL_PAGE_TYPE
 					   - c_stream.avail_out);
 				/* Zero out the unused part of the page. */
 				if (c_stream.avail_out) {
@@ -7966,12 +8006,14 @@ next_zip_page:
 					store_len = extern_len;
 				}
 
-				mtr.memcpy(block,
-					   FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE,
-					   (const byte*)
-					   big_rec_vec->fields[i].data
-					   + big_rec_vec->fields[i].len
-					   - extern_len, store_len);
+				mtr.memcpy<mtr_t::OPT>(
+					*block,
+					FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE
+					+ block->frame,
+					static_cast<const byte*>
+					(big_rec_vec->fields[i].data)
+					+ big_rec_vec->fields[i].len
+					- extern_len, store_len);
 				mtr.write<4>(*block, BTR_BLOB_HDR_PART_LEN
 					     + FIL_PAGE_DATA + block->frame,
 					     store_len);

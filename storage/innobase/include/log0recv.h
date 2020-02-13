@@ -48,8 +48,10 @@ recv_find_max_checkpoint(ulint* max_field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Apply any buffered redo log to a page that was just read from a data file.
+@param[in,out]	space	tablespace
 @param[in,out]	bpage	buffer pool page */
-ATTRIBUTE_COLD void recv_recover_page(buf_page_t* bpage);
+ATTRIBUTE_COLD void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
+	MY_ATTRIBUTE((nonnull));
 
 /** Start recovering from a redo log checkpoint.
 @see recv_recovery_from_checkpoint_finish
@@ -102,24 +104,21 @@ to wait merging to file pages.
 @param[in]	checkpoint_lsn		the LSN of the latest checkpoint
 @param[in]	store			whether to store page operations
 @param[in]	apply			whether to apply the records
-@return whether MLOG_CHECKPOINT record was seen the first time,
-or corruption was noticed */
-bool recv_parse_log_recs(
-	lsn_t		checkpoint_lsn,
-	store_t*	store,
-	bool		apply);
+@return whether MLOG_CHECKPOINT or FILE_CHECKPOINT record
+was seen the first time, or corruption was noticed */
+bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t *store, bool apply);
 
 /** Moves the parsing buffer data left to the buffer start */
 void recv_sys_justify_left_parsing_buf();
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
-@param[in]	flags		tablespace flags (NULL if not create)
+@param[in]	create		whether the file is being created
 @param[in]	name		file name (not NUL-terminated)
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-extern void (*log_file_op)(ulint space_id, const byte* flags,
+extern void (*log_file_op)(ulint space_id, bool create,
 			   const byte* name, ulint len,
 			   const byte* new_name, ulint new_len);
 
@@ -134,7 +133,10 @@ struct log_rec_t
   /** next record */
   log_rec_t *next;
   /** mtr_t::commit_lsn() of the mini-transaction */
-  const lsn_t lsn;
+  lsn_t lsn;
+
+protected:
+  void set_lsn(lsn_t end_lsn) { ut_ad(lsn <= end_lsn); lsn= end_lsn; }
 };
 
 struct recv_dblwr_t {
@@ -171,13 +173,17 @@ struct page_recv_t
     /** log records are being applied on the page */
     RECV_BEING_PROCESSED
   } state= RECV_NOT_PROCESSED;
+  /** Latest written byte offset when applying the log records.
+  @see mtr_t::m_last_offset */
+  uint16_t last_offset= 1;
   /** log records for a page */
   class recs_t
   {
     /** The first log record */
-    log_rec_t *head= NULL;
+    log_rec_t *head= nullptr;
     /** The last log record */
-    log_rec_t *tail= NULL;
+    log_rec_t *tail= nullptr;
+    friend struct page_recv_t;
   public:
     /** Append a redo log snippet for the page
     @param recs log snippet */
@@ -190,12 +196,10 @@ struct page_recv_t
       tail= recs;
     }
 
-    /** Trim old log records for a page.
-    @param start_lsn oldest log sequence number to preserve
-    @return whether all the log for the page was trimmed */
-    inline bool trim(lsn_t start_lsn);
     /** @return the last log snippet */
     const log_rec_t* last() const { return tail; }
+    /** @return the last log snippet */
+    log_rec_t* last() { return tail; }
 
     class iterator
     {
@@ -213,6 +217,10 @@ struct page_recv_t
     inline void clear();
   } log;
 
+  /** Trim old log records for a page.
+  @param start_lsn oldest log sequence number to preserve
+  @return whether all the log for the page was trimmed */
+  inline bool trim(lsn_t start_lsn);
   /** Ignore any earlier redo log records for this page. */
   inline void will_not_read();
   /** @return whether the log records for the page are being processed */
@@ -288,7 +296,7 @@ struct recv_sys_t{
   (indexed by page_id_t::space() - srv_undo_space_id_start) */
   struct trunc
   {
-    /** log sequence number of MLOG_FILE_CREATE2, or 0 if none */
+    /** log sequence number of FILE_CREATE, or 0 if none */
     lsn_t lsn;
     /** truncated size of the tablespace, or 0 if not truncated */
     unsigned pages;
@@ -342,8 +350,25 @@ public:
 			const byte* body, const byte* rec_end, lsn_t lsn,
 			lsn_t end_lsn);
 
-	/** Clear a fully processed set of stored redo log records. */
-	inline void clear();
+  /** Register a redo log snippet for a page.
+  @param page_id  page identifier
+  @param start_lsn start LSN of the mini-transaction
+  @param lsn      @see mtr_t::commit_lsn()
+  @param l        redo log snippet @see log_t::FORMAT_10_5
+  @param len      length of l, in bytes */
+  inline void add(const page_id_t page_id, lsn_t start_lsn, lsn_t lsn,
+                  const byte *l, size_t len);
+
+  /** Parse and register one mini-transaction in log_t::FORMAT_10_5.
+  @param checkpoint_lsn  the log sequence number of the latest checkpoint
+  @param store           whether to store the records
+  @param apply           whether to apply file-level log records
+  @return whether FILE_CHECKPOINT record was seen the first time,
+  or corruption was noticed */
+  inline bool parse(lsn_t checkpoint_lsn, store_t store, bool apply);
+
+  /** Clear a fully processed set of stored redo log records. */
+  inline void clear();
 
 	/** Determine whether redo log recovery progress should be reported.
 	@param[in]	time	the current time
@@ -362,18 +387,14 @@ public:
   /** The alloc() memory alignment, in bytes */
   static constexpr size_t ALIGNMENT= sizeof(size_t);
 
-  /** Get the memory block for storing recv_t and redo log data
-  @param[in] len length of the data to be stored
-  @param[in] store_recv whether to store recv_t object
+  /** Allocate memory for log_rec_t
+  @param len  allocation size, in bytes
   @return pointer to len bytes of memory (never NULL) */
-  inline byte *alloc(size_t len, bool store_recv= false);
+  inline void *alloc(size_t len, bool store_recv= false);
 
   /** Free a redo log snippet.
   @param data buffer returned by alloc() */
   inline void free(const void *data);
-
-  /** @return the free length of the latest alloc() block, in bytes */
-  inline size_t get_free_len() const;
 
   /** Remove records for a corrupted page.
   This function should only be called when innodb_force_recovery is set.

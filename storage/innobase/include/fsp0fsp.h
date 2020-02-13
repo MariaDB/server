@@ -612,7 +612,7 @@ inline bool fsp_descr_page(const page_id_t page_id, ulint physical_size)
 
 /** Initialize a file page whose prior contents should be ignored.
 @param[in,out]	block	buffer pool block */
-void fsp_apply_init_file_page(buf_block_t* block);
+void fsp_apply_init_file_page(buf_block_t *block);
 
 /** Initialize a file page.
 @param[in]	space	tablespace

@@ -109,10 +109,9 @@ private:
 	template<format> inline void finishPage();
 	/** Insert a record in the page.
 	@tparam format  the page format
-	@param[in]	rec		record
+	@param[in,out]	rec		record
 	@param[in]	offsets		record offsets */
-	template<format> inline void insertPage(const rec_t* rec,
-						offset_t* offsets);
+	template<format> inline void insertPage(rec_t* rec, offset_t* offsets);
 
 public:
 	/** Mark end of insertion to the page. Scan all records to set page

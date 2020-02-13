@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -78,47 +78,12 @@ inline void flst_init(const buf_block_t* block, uint16_t ofs, mtr_t* mtr)
   mtr->memset(block, FLST_LAST + FIL_ADDR_PAGE + ofs, 4, 0xff);
 }
 
-/** Write a null file address.
-@param[in]      b       file page
-@param[in,out]  addr	file address to be zeroed out
-@param[in,out]  mtr     mini-transaction */
-inline void flst_zero_addr(const buf_block_t& b, fil_faddr_t *addr, mtr_t *mtr)
-{
-  if (mach_read_from_4(addr + FIL_ADDR_PAGE) != FIL_NULL)
-    mtr->memset(&b, ulint(addr - b.frame) + FIL_ADDR_PAGE, 4, 0xff);
-  mtr->write<2,mtr_t::OPT>(b, addr + FIL_ADDR_BYTE, 0U);
-}
-
-/** Write a file address.
-@param[in]      block   file page
-@param[in,out]  faddr   file address location
-@param[in]      addr    file address to be written out
-@param[in,out]  mtr     mini-transaction */
-inline void flst_write_addr(const buf_block_t& block, fil_faddr_t *faddr,
-                            fil_addr_t addr, mtr_t* mtr)
-{
-  ut_ad(mtr->memo_contains_page_flagged(faddr,
-					MTR_MEMO_PAGE_X_FIX
-					| MTR_MEMO_PAGE_SX_FIX));
-  ut_a(addr.page == FIL_NULL || addr.boffset >= FIL_PAGE_DATA);
-  ut_a(ut_align_offset(faddr, srv_page_size) >= FIL_PAGE_DATA);
-
-  mtr->write<4,mtr_t::OPT>(block, faddr + FIL_ADDR_PAGE, addr.page);
-  mtr->write<2,mtr_t::OPT>(block, faddr + FIL_ADDR_BYTE, addr.boffset);
-}
-
 /** Initialize a list base node.
 @param[in]      block   file page
 @param[in,out]  base    base node
 @param[in,out]  mtr     mini-transaction */
-inline void flst_init(const buf_block_t& block, byte *base, mtr_t *mtr)
-{
-  ut_ad(mtr->memo_contains_page_flagged(base, MTR_MEMO_PAGE_X_FIX |
-                                        MTR_MEMO_PAGE_SX_FIX));
-  mtr->write<4,mtr_t::OPT>(block, base + FLST_LEN, 0U);
-  flst_zero_addr(block, base + FLST_FIRST, mtr);
-  flst_zero_addr(block, base + FLST_LAST, mtr);
-}
+void flst_init(const buf_block_t& block, byte *base, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull));
 
 /** Append a file list node to a list.
 @param[in,out]  base    base node block
@@ -155,7 +120,7 @@ inline uint32_t flst_get_len(const flst_base_node_t *base)
 }
 
 /** @return a file address */
-inline fil_addr_t flst_read_addr(const fil_faddr_t *faddr)
+inline fil_addr_t flst_read_addr(const byte *faddr)
 {
   fil_addr_t addr= { mach_read_from_4(faddr + FIL_ADDR_PAGE),
 		     mach_read_from_2(faddr + FIL_ADDR_BYTE) };

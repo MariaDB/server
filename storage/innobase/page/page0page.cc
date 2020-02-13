@@ -198,17 +198,15 @@ page_set_max_trx_id(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction, or NULL */
 {
   ut_ad(!mtr || mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+  ut_ad(!page_zip || page_zip == &block->page.zip);
   static_assert((PAGE_HEADER + PAGE_MAX_TRX_ID) % 8 == 0, "alignment");
   byte *max_trx_id= my_assume_aligned<8>(PAGE_MAX_TRX_ID +
                                          PAGE_HEADER + block->frame);
 
+  mtr->write<8>(*block, max_trx_id, trx_id);
   if (UNIV_LIKELY_NULL(page_zip))
-  {
-    mach_write_to_8(max_trx_id, trx_id);
-    page_zip_write_header(block, max_trx_id, 8, mtr);
-  }
-  else
-    mtr->write<8>(*block, max_trx_id, trx_id);
+    memcpy_aligned<8>(&page_zip->data[PAGE_MAX_TRX_ID + PAGE_HEADER],
+                      max_trx_id, 8);
 }
 
 /** Persist the AUTO_INCREMENT value on a clustered index root page.
@@ -229,17 +227,16 @@ page_set_autoinc(
   ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX |
                                    MTR_MEMO_PAGE_SX_FIX));
 
-  byte *field= PAGE_HEADER + PAGE_ROOT_AUTO_INC + block->frame;
+  byte *field= my_assume_aligned<8>(PAGE_HEADER + PAGE_ROOT_AUTO_INC +
+                                    block->frame);
   ib_uint64_t old= mach_read_from_8(field);
   if (old == autoinc || (old > autoinc && !reset))
-    /* nothing to update */;
-  else if (UNIV_LIKELY_NULL(block->page.zip.data))
-  {
-    mach_write_to_8(field, autoinc);
-    page_zip_write_header(block, field, 8, mtr);
-  }
-  else
-    mtr->write<8>(*block, field, autoinc);
+    return; /* nothing to update */
+
+  mtr->write<8>(*block, field, autoinc);
+  if (UNIV_LIKELY_NULL(block->page.zip.data))
+    memcpy_aligned<8>(PAGE_HEADER + PAGE_ROOT_AUTO_INC + block->page.zip.data,
+                      field, 8);
 }
 
 /** The page infimum and supremum of an empty page in ROW_FORMAT=REDUNDANT */
@@ -327,11 +324,11 @@ void page_create_low(const buf_block_t* block, bool comp)
 @param[in,out]	block	buffer block
 @param[in,out]	mtr	mini-transaction
 @param[in]	comp	set unless ROW_FORMAT=REDUNDANT */
-void page_create(buf_block_t* block, mtr_t* mtr, bool comp)
+void page_create(buf_block_t *block, mtr_t *mtr, bool comp)
 {
-	mtr->page_create(block->page.id, comp);
-	buf_block_modify_clock_inc(block);
-	page_create_low(block, comp);
+  mtr->page_create(*block, comp);
+  buf_block_modify_clock_inc(block);
+  page_create_low(block, comp);
 }
 
 /**********************************************************//**
@@ -961,14 +958,15 @@ delete_all:
 	buf_block_modify_clock_inc(block);
 
 	const bool is_leaf = page_is_leaf(block->frame);
-	byte* last_insert = my_assume_aligned<2>(PAGE_LAST_INSERT + PAGE_HEADER
-						 + block->frame);
+	mtr->write<2,mtr_t::OPT>(*block, my_assume_aligned<2>
+				 (PAGE_LAST_INSERT + PAGE_HEADER
+				  + block->frame), 0U);
 
 	if (UNIV_LIKELY_NULL(page_zip)) {
 		ut_ad(page_is_comp(block->frame));
 
-		memset(last_insert, 0, 2);
-		page_zip_write_header(block, last_insert, 2, mtr);
+		memset_aligned<2>(PAGE_LAST_INSERT + PAGE_HEADER
+				  + page_zip->data, 0, 2);
 
 		do {
 			page_cur_t	cur;
@@ -989,8 +987,6 @@ delete_all:
 
 		return;
 	}
-
-	mtr->write<2,mtr_t::OPT>(*block, last_insert, 0U);
 
 	prev_rec = page_rec_get_prev(rec);
 

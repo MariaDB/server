@@ -717,7 +717,7 @@ void log_t::files::create(ulint n_files)
   ut_ad(log_sys.is_initialised());
 
   this->n_files= n_files;
-  format= srv_encrypt_log ? log_t::FORMAT_ENC_10_4 : log_t::FORMAT_10_4;
+  format= srv_encrypt_log ? log_t::FORMAT_ENC_10_5 : log_t::FORMAT_10_5;
   subformat= 2;
   file_size= srv_log_file_size;
   lsn= LOG_START_LSN;
@@ -745,8 +745,8 @@ log_file_header_flush(
 	ut_ad(log_write_mutex_own());
 	ut_ad(!recv_no_log_write);
 	ut_a(nth_file < log_sys.log.n_files);
-	ut_ad(log_sys.log.format == log_t::FORMAT_10_4
-	      || log_sys.log.format == log_t::FORMAT_ENC_10_4);
+	ut_ad(log_sys.log.format == log_t::FORMAT_10_5
+	      || log_sys.log.format == log_t::FORMAT_ENC_10_5);
 
 	// man 2 open suggests this buffer to be aligned by 512 for O_DIRECT
 	MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE)
@@ -1273,14 +1273,14 @@ void log_header_read(ulint header)
 }
 
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
-@param[in]	end_lsn	start LSN of the MLOG_CHECKPOINT mini-transaction */
+@param[in]	end_lsn	start LSN of the FILE_CHECKPOINT mini-transaction */
 void log_write_checkpoint_info(lsn_t end_lsn)
 {
 	ut_ad(log_mutex_own());
 	ut_ad(!srv_read_only_mode);
 	ut_ad(end_lsn == 0 || end_lsn >= log_sys.next_checkpoint_lsn);
 	ut_ad(end_lsn <= log_sys.lsn);
-	ut_ad(end_lsn + SIZE_OF_MLOG_CHECKPOINT <= log_sys.lsn
+	ut_ad(end_lsn + SIZE_OF_FILE_CHECKPOINT <= log_sys.lsn
 	      || srv_shutdown_state != SRV_SHUTDOWN_NONE);
 
 	DBUG_PRINT("ib_log", ("checkpoint " UINT64PF " at " LSN_PF
@@ -1415,23 +1415,23 @@ bool log_checkpoint()
 
 	ut_ad(oldest_lsn >= log_sys.last_checkpoint_lsn);
 	if (oldest_lsn
-	    > log_sys.last_checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT) {
+	    > log_sys.last_checkpoint_lsn + SIZE_OF_FILE_CHECKPOINT) {
 		/* Some log has been written since the previous checkpoint. */
 	} else if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
-		/* MariaDB 10.3 startup expects the redo log file to be
+		/* MariaDB startup expects the redo log file to be
 		logically empty (not even containing a MLOG_CHECKPOINT record)
 		after a clean shutdown. Perform an extra checkpoint at
 		shutdown. */
 	} else {
 		/* Do nothing, because nothing was logged (other than
-		a MLOG_CHECKPOINT marker) since the previous checkpoint. */
+		a FILE_CHECKPOINT marker) since the previous checkpoint. */
 		log_mutex_exit();
 		return(true);
 	}
-	/* Repeat the MLOG_FILE_NAME records after the checkpoint, in
+	/* Repeat the FILE_MODIFY records after the checkpoint, in
 	case some log records between the checkpoint and log_sys.lsn
-	need them. Finally, write a MLOG_CHECKPOINT marker. Redo log
-	apply expects to see a MLOG_CHECKPOINT after the checkpoint,
+	need them. Finally, write a FILE_CHECKPOINT marker. Redo log
+	apply expects to see a FILE_CHECKPOINT after the checkpoint,
 	except on clean shutdown, where the log will be empty after
 	the checkpoint.
 	It is important that we write out the redo log before any
@@ -1446,7 +1446,7 @@ bool log_checkpoint()
 		|| flush_lsn != end_lsn;
 
 	if (fil_names_clear(flush_lsn, do_write)) {
-		ut_ad(log_sys.lsn >= end_lsn + SIZE_OF_MLOG_CHECKPOINT);
+		ut_ad(log_sys.lsn >= end_lsn + SIZE_OF_FILE_CHECKPOINT);
 		flush_lsn = log_sys.lsn;
 	}
 
@@ -1794,7 +1794,9 @@ wait_suspend_loop:
 
 		lsn = log_sys.lsn;
 
-		const bool lsn_changed = lsn != log_sys.last_checkpoint_lsn;
+		const bool lsn_changed = lsn != log_sys.last_checkpoint_lsn
+			&& lsn != log_sys.last_checkpoint_lsn
+			+ SIZE_OF_FILE_CHECKPOINT;
 		ut_ad(lsn >= log_sys.last_checkpoint_lsn);
 
 		log_mutex_exit();
@@ -1956,7 +1958,7 @@ void
 log_pad_current_log_block(void)
 /*===========================*/
 {
-	byte		b		= MLOG_DUMMY_RECORD;
+	byte		b		= 0;
 	ulint		pad_length;
 	ulint		i;
 	lsn_t		lsn;

@@ -49,16 +49,11 @@ inline
 void btr_page_set_level(buf_block_t *block, ulint level, mtr_t *mtr)
 {
   ut_ad(level <= BTR_MAX_NODE_LEVEL);
-
-  byte *page_level= PAGE_HEADER + PAGE_LEVEL + block->frame;
-
-  if (UNIV_LIKELY_NULL(block->page.zip.data))
-  {
-    mach_write_to_2(page_level, level);
-    page_zip_write_header(block, page_level, 2, mtr);
-  }
-  else
-    mtr->write<2,mtr_t::OPT>(*block, page_level, level);
+  constexpr uint16_t field= PAGE_HEADER + PAGE_LEVEL;
+  byte *b= my_assume_aligned<2>(&block->frame[field]);
+  if (mtr->write<2,mtr_t::OPT>(*block, b, level) &&
+      UNIV_LIKELY_NULL(block->page.zip.data))
+    memcpy_aligned<2>(&block->page.zip.data[field], b, 2);
 }
 
 /** Set FIL_PAGE_NEXT.
@@ -67,14 +62,11 @@ void btr_page_set_level(buf_block_t *block, ulint level, mtr_t *mtr)
 @param[in,out]  mtr    mini-transaction */
 inline void btr_page_set_next(buf_block_t *block, ulint next, mtr_t *mtr)
 {
-  byte *fil_page_next= block->frame + FIL_PAGE_NEXT;
-  if (UNIV_LIKELY_NULL(block->page.zip.data))
-  {
-    mach_write_to_4(fil_page_next, next);
-    page_zip_write_header(block, fil_page_next, 4, mtr);
-  }
-  else
-    mtr->write<4>(*block, fil_page_next, next);
+  constexpr uint16_t field= FIL_PAGE_NEXT;
+  byte *b= my_assume_aligned<4>(&block->frame[field]);
+  if (mtr->write<4,mtr_t::OPT>(*block, b, next) &&
+      UNIV_LIKELY_NULL(block->page.zip.data))
+    memcpy_aligned<4>(&block->page.zip.data[field], b, 4);
 }
 
 /** Set FIL_PAGE_PREV.
@@ -83,14 +75,11 @@ inline void btr_page_set_next(buf_block_t *block, ulint next, mtr_t *mtr)
 @param[in,out]  mtr    mini-transaction */
 inline void btr_page_set_prev(buf_block_t *block, ulint prev, mtr_t *mtr)
 {
-  byte *fil_page_prev= block->frame + FIL_PAGE_PREV;
-  if (UNIV_LIKELY_NULL(block->page.zip.data))
-  {
-    mach_write_to_4(fil_page_prev, prev);
-    page_zip_write_header(block, fil_page_prev, 4, mtr);
-  }
-  else
-    mtr->write<4>(*block, fil_page_prev, prev);
+  constexpr uint16_t field= FIL_PAGE_PREV;
+  byte *b= my_assume_aligned<4>(&block->frame[field]);
+  if (mtr->write<4,mtr_t::OPT>(*block, b, prev) &&
+      UNIV_LIKELY_NULL(block->page.zip.data))
+    memcpy_aligned<4>(&block->page.zip.data[field], b, 4);
 }
 
 /**************************************************************//**

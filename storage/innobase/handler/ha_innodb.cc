@@ -18585,7 +18585,7 @@ checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 		mysql_mutex_unlock(&LOCK_global_system_variables);
 
 		while (log_sys.last_checkpoint_lsn
-		       + SIZE_OF_MLOG_CHECKPOINT
+		       + SIZE_OF_FILE_CHECKPOINT
 		       + (log_sys.append_on_checkpoint != NULL
 			  ? log_sys.append_on_checkpoint->size() : 0)
 		       < log_sys.lsn) {

@@ -382,6 +382,9 @@ public:
 		return(m_heap == NULL);
 	}
 
+	/** @return whether the buffer is empty */
+	bool empty() const { return !back()->m_used; }
+
 private:
 	// Disable copying
 	mtr_buf_t(const mtr_buf_t&);

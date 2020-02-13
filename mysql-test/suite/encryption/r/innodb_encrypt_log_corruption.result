@@ -136,7 +136,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
 1
-FOUND 1 /InnoDB: .* started; log sequence number 121397[09]/ in mysqld.1.err
+FOUND 1 /InnoDB: .* started; log sequence number 12139[78]\d; transaction id 0/ in mysqld.1.err
 # Empty 10.2 redo log
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES

@@ -129,7 +129,7 @@ struct mtr_t {
 
   /** Commit a mini-transaction that did not modify any pages,
   but generated some redo log on a higher level, such as
-  MLOG_FILE_NAME records and an optional MLOG_CHECKPOINT marker.
+  FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
   The caller must invoke log_mutex_enter() and log_mutex_exit().
   This is to be used at log_checkpoint().
   @param checkpoint_lsn   the log sequence number of a checkpoint, or 0 */
@@ -171,7 +171,7 @@ struct mtr_t {
 	inline mtr_log_t set_log_mode(mtr_log_t mode);
 
 	/** Copy the tablespaces associated with the mini-transaction
-	(needed for generating MLOG_FILE_NAME records)
+	(needed for generating FILE_MODIFY records)
 	@param[in]	mtr	mini-transaction that may modify
 	the same set of tablespaces as this one */
 	void set_spaces(const mtr_t& mtr)
@@ -184,7 +184,7 @@ struct mtr_t {
 	}
 
 	/** Set the tablespace associated with the mini-transaction
-	(needed for generating a MLOG_FILE_NAME record)
+	(needed for generating a FILE_MODIFY record)
 	@param[in]	space_id	user or system tablespace ID
 	@return	the tablespace */
 	fil_space_t* set_named_space_id(ulint space_id)
@@ -203,7 +203,7 @@ struct mtr_t {
 	}
 
 	/** Set the tablespace associated with the mini-transaction
-	(needed for generating a MLOG_FILE_NAME record)
+	(needed for generating a FILE_MODIFY record)
 	@param[in]	space	user or system tablespace */
 	void set_named_space(fil_space_t* space)
 	{
@@ -216,12 +216,12 @@ struct mtr_t {
 
 #ifdef UNIV_DEBUG
 	/** Check the tablespace associated with the mini-transaction
-	(needed for generating a MLOG_FILE_NAME record)
+	(needed for generating a FILE_MODIFY record)
 	@param[in]	space	tablespace
 	@return whether the mini-transaction is associated with the space */
 	bool is_named_space(ulint space) const;
 	/** Check the tablespace associated with the mini-transaction
-	(needed for generating a MLOG_FILE_NAME record)
+	(needed for generating a FILE_MODIFY record)
 	@param[in]	space	tablespace
 	@return whether the mini-transaction is associated with the space */
 	bool is_named_space(const fil_space_t* space) const;
@@ -407,136 +407,124 @@ struct mtr_t {
   @param[in]      val     value to write
   @tparam l       number of bytes to write
   @tparam w       write request type
-  @tparam V       type of val */
+  @tparam V       type of val
+  @return whether any log was written */
   template<unsigned l,write_type w= NORMAL,typename V>
-  inline void write(const buf_block_t &block, byte *ptr, V val)
+  inline bool write(const buf_block_t &block, void *ptr, V val)
     MY_ATTRIBUTE((nonnull));
 
   /** Log a write of a byte string to a page.
   @param[in]      b       buffer page
   @param[in]      ofs     byte offset from b->frame
   @param[in]      len     length of the data to write */
-  void memcpy(const buf_block_t &b, ulint ofs, ulint len);
+  inline void memcpy(const buf_block_t &b, ulint ofs, ulint len);
 
   /** Write a byte string to a page.
   @param[in,out]  b       buffer page
-  @param[in]      offset  byte offset from b->frame
+  @param[in]      dest    destination within b.frame
   @param[in]      str     the data to write
-  @param[in]      len     length of the data to write */
-  inline void memcpy(buf_block_t *b, ulint offset, const void *str, ulint len);
+  @param[in]      len     length of the data to write
+  @tparam w       write request type */
+  template<write_type w= NORMAL>
+  inline void memcpy(const buf_block_t &b, void *dest, const void *str,
+                     ulint len);
 
-  /** Write a byte string to a ROW_FORMAT=COMPRESSED page.
+  /** Log a write of a byte string to a ROW_FORMAT=COMPRESSED page.
   @param[in]      b       ROW_FORMAT=COMPRESSED index page
-  @param[in]      ofs     byte offset from b.zip.data
+  @param[in]      offset  byte offset from b.zip.data
   @param[in]      len     length of the data to write */
-  void zmemcpy(const buf_page_t &b, ulint offset, ulint len);
+  inline void zmemcpy(const buf_page_t &b, ulint offset, ulint len);
 
   /** Write a byte string to a ROW_FORMAT=COMPRESSED page.
   @param[in,out]  b       ROW_FORMAT=COMPRESSED index page
-  @param[in]      ofs     byte offset from b->zip.data
+  @param[in]      dest    destination within b.zip.data
   @param[in]      str     the data to write
-  @param[in]      len     length of the data to write */
-  inline void zmemcpy(buf_page_t *b, ulint offset, const void *str, ulint len);
+  @param[in]      len     length of the data to write
+  @tparam w       write request type */
+  template<write_type w= NORMAL>
+  inline void zmemcpy(const buf_page_t &b, void *dest, const void *str,
+                      ulint len);
+
+  /** Log an initialization of a string of bytes.
+  @param[in]      b       buffer page
+  @param[in]      ofs     byte offset from b->frame
+  @param[in]      len     length of the data to write
+  @param[in]      val     the data byte to write */
+  inline void memset(const buf_block_t &b, ulint ofs, ulint len, byte val);
 
   /** Initialize a string of bytes.
   @param[in,out]        b       buffer page
   @param[in]            ofs     byte offset from b->frame
   @param[in]            len     length of the data to write
   @param[in]            val     the data byte to write */
-  void memset(const buf_block_t* b, ulint ofs, ulint len, byte val);
+  inline void memset(const buf_block_t *b, ulint ofs, ulint len, byte val);
+
+  /** Log an initialization of a repeating string of bytes.
+  @param[in]      b       buffer page
+  @param[in]      ofs     byte offset from b->frame
+  @param[in]      len     length of the data to write, in bytes
+  @param[in]      str     the string to write
+  @param[in]      size    size of str, in bytes */
+  inline void memset(const buf_block_t &b, ulint ofs, size_t len,
+                     const void *str, size_t size);
+
+  /** Initialize a repeating string of bytes.
+  @param[in,out]  b       buffer page
+  @param[in]      ofs     byte offset from b->frame
+  @param[in]      len     length of the data to write, in bytes
+  @param[in]      str     the string to write
+  @param[in]      size    size of str, in bytes */
+  inline void memset(const buf_block_t *b, ulint ofs, size_t len,
+                     const void *str, size_t size);
+
+  /** Log that a string of bytes was copied from the same page.
+  @param[in]      b       buffer page
+  @param[in]      d       destination offset within the page
+  @param[in]      s       source offset within the page
+  @param[in]      len     length of the data to copy */
+  inline void memmove(const buf_block_t &b, ulint d, ulint s, ulint len);
 
   /** Initialize an entire page.
   @param[in,out]        b       buffer page */
   void init(buf_block_t *b);
   /** Free a page.
   @param id      page identifier */
-  void free(const page_id_t id) { log_page_write(id, MLOG_INIT_FREE_PAGE); }
-
+  inline void free(const page_id_t id);
   /** Partly initialize a B-tree page.
-  @param id       page identifier
+  @param block    B-tree page
   @param comp     false=ROW_FORMAT=REDUNDANT, true=COMPACT or DYNAMIC */
-  void page_create(const page_id_t id, bool comp)
-  {
-    set_modified();
-    log_page_write(id, comp ? MLOG_COMP_PAGE_CREATE : MLOG_PAGE_CREATE);
-  }
+  inline void page_create(const buf_block_t &block, bool comp);
 
   /** Write a log record about a file operation.
   @param type           file operation
   @param space_id       tablespace identifier
   @param first_page_no  first page number in the file
   @param path           file path
-  @param new_path       new file path for type=MLOG_FILE_RENAME2
-  @param flags          tablespace flags for type=MLOG_FILE_CREATE2 */
-  inline void log_file_op(mlog_id_t type, ulint space_id, ulint first_page_no,
-                          const char *path,
-                          const char *new_path= nullptr, ulint flags= 0);
+  @param new_path       new file path for type=FILE_RENAME */
+  inline void log_file_op(mfile_type_t type, ulint space_id,
+                          ulint first_page_no, const char *path,
+                          const char *new_path= nullptr);
 
 private:
-  /**
-  Write a complex page operation.
-  @param id      page identifier
-  @param type    type of operation */
-  void log_page_write(const page_id_t id, mlog_id_t type)
-  {
-    ut_ad(type == MLOG_INIT_FREE_PAGE || type == MLOG_COMP_PAGE_CREATE ||
-          type == MLOG_PAGE_CREATE);
-
-    if (m_log_mode == MTR_LOG_ALL)
-      m_log.close(log_write_low(type, id, m_log.open(11)));
-  }
+  /** Log a write of a byte string to a page.
+  @param b       buffer page
+  @param offset  byte offset within page
+  @param data    data to be written
+  @param len     length of the data, in bytes */
+  inline void memcpy_low(const buf_page_t &bpage, uint16_t offset,
+                         const void *data, size_t len);
   /**
   Write a log record.
-  @param type   redo log record type
+  @tparam type  redo log record type
   @param id     persistent page identifier
-  @param l      current end of mini-transaction log
-  @return new end of mini-transaction log */
-  inline byte *log_write_low(mlog_id_t type, const page_id_t id, byte *l)
-  {
-    ut_ad(type <= MLOG_BIGGEST_TYPE);
-    ut_ad(type == MLOG_FILE_NAME || type == MLOG_FILE_DELETE ||
-          type == MLOG_FILE_CREATE2 || type == MLOG_FILE_RENAME2 ||
-          is_named_space(id.space()));
-
-    *l++= type;
-
-    l+= mach_write_compressed(l, id.space());
-    l+= mach_write_compressed(l, id.page_no());
-
-    ++m_n_log_recs;
-    return l;
-  }
-
-  /**
-  Write a log record for writing 1, 2, 4, or 8 bytes.
-  @param[in]      type    number of bytes to write
-  @param[in]      block   file page
-  @param[in]      ptr     pointer within block.frame
-  @param[in,out]  l       log record buffer
-  @return new end of mini-transaction log */
-  byte *log_write_low(mlog_id_t type, const buf_block_t &block,
-                      const byte *ptr, byte *l);
-
-  /**
-  Write a log record for writing 1, 2, or 4 bytes.
-  @param[in]      block   file page
-  @param[in,out]  ptr     pointer in file page
-  @param[in]      l       number of bytes to write
-  @param[in,out]  log_ptr log record buffer
-  @param[in]      val     value to write */
-  void log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
-                 byte *log_ptr, uint32_t val)
-    MY_ATTRIBUTE((nonnull));
-  /**
-  Write a log record for writing 8 bytes.
-  @param[in]      block   file page
-  @param[in,out]  ptr     pointer in file page
-  @param[in]      l       number of bytes to write (8)
-  @param[in,out]  log_ptr log record buffer
-  @param[in]      val     value to write */
-  void log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
-                 byte *log_ptr, uint64_t val)
-    MY_ATTRIBUTE((nonnull));
+  @param bpage  buffer pool page, or nullptr
+  @param len    number of additional bytes to write
+  @param alloc  whether to allocate the additional bytes
+  @param offset byte offset, or 0 if the record type does not allow one
+  @return end of mini-transaction log, minus len */
+  template<byte type>
+  inline byte *log_write(const page_id_t id, const buf_page_t *bpage,
+                         size_t len= 0, bool alloc= false, size_t offset= 0);
 
   /** Prepare to write the mini-transaction log to the redo log buffer.
   @return number of bytes to write in finish_write() */
@@ -563,6 +551,11 @@ private:
   bool m_commit= false;
 #endif
 
+  /** The page of the most recent m_log record written, or NULL */
+  const buf_page_t* m_last;
+  /** The current byte offset in m_last, or 0 */
+  uint16_t m_last_offset;
+
   /** specifies which operations should be logged; default MTR_LOG_ALL */
   uint16_t m_log_mode:2;
 
@@ -576,8 +569,6 @@ private:
   to suppress some read-ahead operations, @see ibuf_inside() */
   uint16_t m_inside_ibuf:1;
 
-  /** number of m_log records */
-  uint16_t m_n_log_recs:11;
 #ifdef UNIV_DEBUG
   /** Persistent user tablespace associated with the
   mini-transaction, or 0 (TRX_SYS_SPACE) if none yet */

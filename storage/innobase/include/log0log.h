@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -206,7 +206,7 @@ logs_empty_and_mark_files_at_shutdown(void);
 @param[in]	header	0 or LOG_CHECKPOINT_1 or LOG_CHECKPOINT2 */
 void log_header_read(ulint header);
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
-@param[in]	end_lsn	start LSN of the MLOG_CHECKPOINT mini-transaction */
+@param[in]	end_lsn	start LSN of the FILE_CHECKPOINT mini-transaction */
 void log_write_checkpoint_info(lsn_t end_lsn);
 
 /** Set extra data to be written to the redo log during checkpoint.
@@ -499,6 +499,10 @@ struct log_t{
   static constexpr uint32_t FORMAT_ENCRYPTED = 1U << 31;
   /** The MariaDB 10.4.0 log format (only with innodb_encrypt_log=ON) */
   static constexpr uint32_t FORMAT_ENC_10_4 = FORMAT_10_4 | FORMAT_ENCRYPTED;
+  /** The MariaDB 10.5 physical redo log format */
+  static constexpr uint32_t FORMAT_10_5 = 0x50485953;
+  /** The MariaDB 10.5 physical format (only with innodb_encrypt_log=ON) */
+  static constexpr uint32_t FORMAT_ENC_10_5 = FORMAT_10_5 | FORMAT_ENCRYPTED;
 
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	lsn_t		lsn;		/*!< log sequence number */
@@ -548,7 +552,7 @@ struct log_t{
   struct files {
     /** number of files */
     ulint				n_files;
-    /** format of the redo log: e.g., FORMAT_10_4 */
+    /** format of the redo log: e.g., FORMAT_10_5 */
     uint32_t				format;
     /** redo log subformat: 0 with separately logged TRUNCATE,
     2 with fully redo-logged TRUNCATE (1 in MariaDB 10.2) */
@@ -586,6 +590,9 @@ struct log_t{
 
     /** @return whether the redo log is encrypted */
     bool is_encrypted() const { return format & FORMAT_ENCRYPTED; }
+    /** @return whether the redo log is in the physical format */
+    bool is_physical() const
+    { return (format & ~FORMAT_ENCRYPTED) == FORMAT_10_5; }
     /** @return capacity in bytes */
     lsn_t capacity() const{ return (file_size - LOG_FILE_HDR_SIZE) * n_files; }
     /** Calculate the offset of a log sequence number.
@@ -718,6 +725,8 @@ public:
 
   /** @return whether the redo log is encrypted */
   bool is_encrypted() const { return(log.is_encrypted()); }
+  /** @return whether the redo log is in the physical format */
+  bool is_physical() const { return log.is_physical(); }
 
   bool is_initialised() const { return m_initialised; }
 

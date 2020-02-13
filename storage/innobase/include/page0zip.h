@@ -230,19 +230,6 @@ page_zip_available(
 					the heap */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/**********************************************************************//**
-Write data to the uncompressed header portion of a page.  The data must
-already have been written to the uncompressed page. */
-UNIV_INLINE
-void
-page_zip_write_header(
-/*==================*/
-	buf_block_t*	block,	/*!< in/out: compressed page */
-	const byte*	str,	/*!< in: address on the uncompressed page */
-	ulint		length,	/*!< in: length of the data */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
-
 /** Write an entire record to the ROW_FORMAT=COMPRESSED page.
 The data must already have been written to the uncompressed page.
 @param[in,out]	block		ROW_FORMAT=COMPRESSED page
@@ -342,17 +329,14 @@ page_zip_parse_write_trx_id(
 	page_zip_des_t*	page_zip)
 	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
 
-/**********************************************************************//**
-Write the "deleted" flag of a record on a compressed page.  The flag must
-already have been written on the uncompressed page. */
-void
-page_zip_rec_set_deleted(
-/*=====================*/
-	buf_block_t*	block,	/*!< in/out: ROW_FORMAT=COMPRESSED page */
-	const byte*	rec,	/*!< in: record on the uncompressed page */
-	ulint		flag,	/*!< in: the deleted flag (nonzero=TRUE) */
-	mtr_t*		mtr)	/*!< in,out: mini-transaction */
-	MY_ATTRIBUTE((nonnull));
+/** Modify the delete-mark flag of a ROW_FORMAT=COMPRESSED record.
+@param[in,out]  block   buffer block
+@param[in,out]  rec     record on a physical index page
+@param[in]      flag    the value of the delete-mark flag
+@param[in,out]  mtr     mini-transaction  */
+void page_zip_rec_set_deleted(buf_block_t *block, rec_t *rec, bool flag,
+                              mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**
 Insert a record to the dense page directory. */
@@ -360,8 +344,8 @@ void
 page_zip_dir_insert(
 /*================*/
 	page_cur_t*	cursor,	/*!< in/out: page cursor */
-	const byte*	free_rec,/*!< in: record from which rec was
-				allocated, or NULL */
+	uint16_t	free_rec,/*!< in: record from which rec was
+				allocated, or 0 */
 	byte*		rec,	/*!< in: record to insert */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull(1,3,4)));

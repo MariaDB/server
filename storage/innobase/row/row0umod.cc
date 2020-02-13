@@ -148,37 +148,12 @@ row_undo_mod_clust_low(
 
 		ut_a(!dummy_big_rec);
 
-		static const byte
-			INFIMUM[8] = {'i','n','f','i','m','u','m',0},
-			SUPREMUM[8] = {'s','u','p','r','e','m','u','m'};
-
 		if (err == DB_SUCCESS
 		    && node->ref == &trx_undo_metadata
 		    && btr_cur_get_index(btr_cur)->table->instant
 		    && node->update->info_bits == REC_INFO_METADATA_ADD) {
-			if (buf_block_t* root = btr_root_block_get(
-				    btr_cur_get_index(btr_cur), RW_SX_LATCH,
-				    mtr)) {
-				uint16_t infimum, supremum;
-				if (page_is_comp(root->frame)) {
-					infimum = PAGE_NEW_INFIMUM;
-					supremum = PAGE_NEW_SUPREMUM;
-				} else {
-					infimum = PAGE_OLD_INFIMUM;
-					supremum = PAGE_OLD_SUPREMUM;
-				}
-
-				ut_ad(!memcmp(root->frame + infimum,
-					      INFIMUM, 8)
-				      == !memcmp(root->frame + supremum,
-						 SUPREMUM, 8));
-
-				if (memcmp(root->frame + infimum, INFIMUM, 8)) {
-					mtr->memcpy(root, infimum, INFIMUM, 8);
-					mtr->memcpy(root, supremum, SUPREMUM,
-						    8);
-				}
-			}
+			btr_reset_instant(*btr_cur_get_index(btr_cur), false,
+					  mtr);
 		}
 	}
 

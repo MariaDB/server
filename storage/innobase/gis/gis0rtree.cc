@@ -300,8 +300,9 @@ rtr_update_mbr_field(
 			memcpy(rec, node_ptr->fields[0].data, DATA_MBR_LEN);
 			page_zip_write_rec(block, rec, index, offsets, 0, mtr);
 		} else {
-			mtr->memcpy(block, page_offset(rec),
-				    node_ptr->fields[0].data, DATA_MBR_LEN);
+			mtr->memcpy<mtr_t::OPT>(*block, rec,
+						node_ptr->fields[0].data,
+						DATA_MBR_LEN);
 		}
 
 		if (cursor2) {
@@ -895,7 +896,6 @@ rtr_page_split_and_insert(
 	rtr_split_node_t*	cur_split_node;
 	rtr_split_node_t*	end_split_node;
 	double*			buf_pos;
-	ulint			page_level;
 	node_seq_t		current_ssn;
 	node_seq_t		next_ssn;
 	buf_block_t*		root_block;
@@ -926,7 +926,6 @@ func_start:
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
 	page_zip = buf_block_get_page_zip(block);
-	page_level = btr_page_get_level(page);
 	current_ssn = page_get_ssn_id(page);
 
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
@@ -971,9 +970,19 @@ func_start:
 
 	/* Allocate a new page to the index */
 	hint_page_no = page_no + 1;
+	const uint16_t page_level = btr_page_get_level(page);
 	new_block = btr_page_alloc(cursor->index, hint_page_no, FSP_UP,
 				   page_level, mtr, mtr);
+	if (!new_block) {
+		return NULL;
+	}
+
 	new_page_zip = buf_block_get_page_zip(new_block);
+	if (page_level && UNIV_LIKELY_NULL(new_page_zip)) {
+		/* ROW_FORMAT=COMPRESSED non-leaf pages are not expected
+		to contain FIL_NULL in FIL_PAGE_PREV at this stage. */
+		memset_aligned<4>(new_block->frame + FIL_PAGE_PREV, 0, 4);
+	}
 	btr_page_create(new_block, new_page_zip, cursor->index,
 			page_level, mtr);
 

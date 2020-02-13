@@ -438,32 +438,33 @@ btr_page_create(
 	ulint		level,	/*!< in: the B-tree level of the page */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
-	byte *index_id= &block->frame[PAGE_HEADER + PAGE_INDEX_ID];
+  ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
+  byte *index_id= my_assume_aligned<2>(PAGE_HEADER + PAGE_INDEX_ID +
+                                       block->frame);
 
-	if (UNIV_LIKELY_NULL(page_zip)) {
-		page_create_zip(block, index, level, 0, mtr);
-		mach_write_to_8(index_id, index->id);
-		page_zip_write_header(block, index_id, 8, mtr);
-	} else {
-		page_create(block, mtr, dict_table_is_comp(index->table));
-		if (index->is_spatial()) {
-			static_assert(((FIL_PAGE_INDEX & 0xff00)
-				       | byte(FIL_PAGE_RTREE))
-				      == FIL_PAGE_RTREE, "compatibility");
-			mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
-				      byte(FIL_PAGE_RTREE));
-			if (mach_read_from_8(block->frame
-					     + FIL_RTREE_SPLIT_SEQ_NUM)) {
-				mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM,
-					    8, 0);
-			}
-		}
-		/* Set the level of the new index page */
-		mtr->write<2,mtr_t::OPT>(*block, PAGE_HEADER + PAGE_LEVEL
-					 + block->frame, level);
-		mtr->write<8,mtr_t::OPT>(*block, index_id, index->id);
-	}
+  if (UNIV_LIKELY_NULL(page_zip))
+  {
+    mach_write_to_8(index_id, index->id);
+    page_create_zip(block, index, level, 0, mtr);
+  }
+  else
+  {
+    page_create(block, mtr, dict_table_is_comp(index->table));
+    if (index->is_spatial())
+    {
+      static_assert(((FIL_PAGE_INDEX & 0xff00) | byte(FIL_PAGE_RTREE)) ==
+                    FIL_PAGE_RTREE, "compatibility");
+      mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
+                    byte(FIL_PAGE_RTREE));
+      if (mach_read_from_8(block->frame + FIL_RTREE_SPLIT_SEQ_NUM))
+        mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM, 8, 0);
+    }
+    /* Set the level of the new index page */
+    mtr->write<2,mtr_t::OPT>(*block,
+                             my_assume_aligned<2>(PAGE_HEADER + PAGE_LEVEL +
+                                                  block->frame), level);
+    mtr->write<8,mtr_t::OPT>(*block, index_id, index->id);
+  }
 }
 
 /**************************************************************//**
@@ -984,14 +985,12 @@ static void btr_free_root(buf_block_t *block, mtr_t *mtr, bool invalidate)
 #endif /* UNIV_BTR_DEBUG */
   if (invalidate)
   {
-    byte *page_index_id= PAGE_HEADER + PAGE_INDEX_ID + block->frame;
-    if (UNIV_LIKELY_NULL(block->page.zip.data))
-    {
-      mach_write_to_8(page_index_id, BTR_FREED_INDEX_ID);
-      page_zip_write_header(block, page_index_id, 8, mtr);
-    }
-    else
-      mtr->write<8,mtr_t::OPT>(*block, page_index_id, BTR_FREED_INDEX_ID);
+    constexpr uint16_t field= PAGE_HEADER + PAGE_INDEX_ID;
+
+    byte *page_index_id= my_assume_aligned<2>(field + block->frame);
+    if (mtr->write<8,mtr_t::OPT>(*block, page_index_id, BTR_FREED_INDEX_ID) &&
+        UNIV_LIKELY_NULL(block->page.zip.data))
+      memcpy_aligned<2>(&block->page.zip.data[field], page_index_id, 8);
   }
 
   /* Free the entire segment in small steps. */
@@ -1120,16 +1119,17 @@ btr_create(
 		buf_block_dbg_add_level(block, SYNC_TREE_NODE_NEW);
 	}
 
-	byte* page_index_id = PAGE_HEADER + PAGE_INDEX_ID + block->frame;
+	ut_ad(!page_has_siblings(block->frame));
+
+	constexpr uint16_t field = PAGE_HEADER + PAGE_INDEX_ID;
+
+	byte* page_index_id = my_assume_aligned<2>(field + block->frame);
 
 	/* Create a new index page on the allocated segment page */
 	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
-		page_create_zip(block, index, 0, 0, mtr);
 		mach_write_to_8(page_index_id, index_id);
-		page_zip_write_header(block, page_index_id, 8, mtr);
-		static_assert(FIL_PAGE_PREV % 8 == 0, "alignment");
-		memset_aligned<8>(FIL_PAGE_PREV + block->page.zip.data,
-				  0xff, 8);
+		ut_ad(!page_has_siblings(block->page.zip.data));
+		page_create_zip(block, index, 0, 0, mtr);
 	} else {
 		page_create(block, mtr, index->table->not_redundant());
 		if (index->is_spatial()) {
@@ -1149,11 +1149,6 @@ btr_create(
 					 + block->frame, 0U);
 		mtr->write<8,mtr_t::OPT>(*block, page_index_id, index_id);
 	}
-
-	/* Set the next node and previous node fields */
-	compile_time_assert(FIL_PAGE_NEXT == FIL_PAGE_PREV + 4);
-	compile_time_assert(FIL_NULL == 0xffffffff);
-	mtr->memset(block, FIL_PAGE_PREV, 8, 0xff);
 
 	/* We reset the free bits for the page in a separate
 	mini-transaction to allow creation of several trees in the
@@ -1781,6 +1776,49 @@ void btr_set_instant(buf_block_t* root, const dict_index_t& index, mtr_t* mtr)
 	}
 }
 
+/** Reset the table to the canonical format on ROLLBACK of instant ALTER TABLE.
+@param[in]      index   clustered index with instant ALTER TABLE
+@param[in]      all     whether to reset FIL_PAGE_TYPE as well
+@param[in,out]  mtr     mini-transaction */
+ATTRIBUTE_COLD
+void btr_reset_instant(const dict_index_t &index, bool all, mtr_t *mtr)
+{
+  ut_ad(!index.table->is_temporary());
+  ut_ad(index.is_primary());
+  if (buf_block_t *root = btr_root_block_get(&index, RW_SX_LATCH, mtr))
+  {
+    byte *page_type= root->frame + FIL_PAGE_TYPE;
+    if (all)
+    {
+      ut_ad(mach_read_from_2(page_type) == FIL_PAGE_TYPE_INSTANT ||
+            mach_read_from_2(page_type) == FIL_PAGE_INDEX);
+      mtr->write<2,mtr_t::OPT>(*root, page_type, FIL_PAGE_INDEX);
+      byte *instant= PAGE_INSTANT + PAGE_HEADER + root->frame;
+      mtr->write<2,mtr_t::OPT>(*root, instant,
+                               page_ptr_get_direction(instant + 1));
+    }
+    else
+      ut_ad(mach_read_from_2(page_type) == FIL_PAGE_TYPE_INSTANT);
+    static const byte supremuminfimum[8 + 8] = "supremuminfimum";
+    uint16_t infimum, supremum;
+    if (page_is_comp(root->frame))
+    {
+      infimum= PAGE_NEW_INFIMUM;
+      supremum= PAGE_NEW_SUPREMUM;
+    }
+    else
+    {
+      infimum= PAGE_OLD_INFIMUM;
+      supremum= PAGE_OLD_SUPREMUM;
+    }
+    ut_ad(!memcmp(&root->frame[infimum], supremuminfimum + 8, 8) ==
+          !memcmp(&root->frame[supremum], supremuminfimum, 8));
+    mtr->memcpy<mtr_t::OPT>(*root, &root->frame[infimum], supremuminfimum + 8,
+                            8);
+    mtr->memcpy<mtr_t::OPT>(*root, &root->frame[supremum], supremuminfimum, 8);
+  }
+}
+
 /*************************************************************//**
 Makes tree one level higher by splitting the root, and inserts
 the tuple. It is assumed that mtr contains an x-latch on the tree.
@@ -1859,16 +1897,13 @@ btr_root_raise_and_insert(
 	     == page_zip_get_size(root_page_zip));
 
 	btr_page_create(new_block, new_page_zip, index, level, mtr);
-
-	/* Set the next node and previous node fields of new page */
-	if (!page_has_siblings(new_block->frame)) {
-		ut_ad(index->is_ibuf());
-	} else {
+	if (page_has_siblings(new_block->frame)) {
 		compile_time_assert(FIL_PAGE_NEXT == FIL_PAGE_PREV + 4);
 		compile_time_assert(FIL_NULL == 0xffffffff);
+		static_assert(FIL_PAGE_PREV % 8 == 0, "alignment");
+		memset_aligned<8>(new_block->frame + FIL_PAGE_PREV, 0xff, 8);
 		mtr->memset(new_block, FIL_PAGE_PREV, 8, 0xff);
 		if (UNIV_LIKELY_NULL(new_page_zip)) {
-			static_assert(FIL_PAGE_PREV % 8 == 0, "alignment");
 			memset_aligned<8>(new_page_zip->data + FIL_PAGE_PREV,
 					  0xff, 8);
 		}
@@ -1902,6 +1937,7 @@ btr_root_raise_and_insert(
 		}
 	}
 
+	constexpr uint16_t max_trx_id = PAGE_HEADER + PAGE_MAX_TRX_ID;
 	if (dict_index_is_sec_or_ibuf(index)) {
 		/* In secondary indexes and the change buffer,
 		PAGE_MAX_TRX_ID can be reset on the root page, because
@@ -1910,11 +1946,12 @@ btr_root_raise_and_insert(
 		set PAGE_MAX_TRX_ID on all secondary index pages.) */
 		byte* p = my_assume_aligned<8>(
 			PAGE_HEADER + PAGE_MAX_TRX_ID + root->frame);
-		if (UNIV_LIKELY_NULL(root->page.zip.data)) {
-			memset_aligned<8>(p, 0, 8);
-			page_zip_write_header(root, p, 8, mtr);
-		} else if (mach_read_from_8(p)) {
-			mtr->memset(root, PAGE_HEADER + PAGE_MAX_TRX_ID, 8, 0);
+		if (mach_read_from_8(p)) {
+			mtr->memset(root, max_trx_id, 8, 0);
+			if (UNIV_LIKELY_NULL(root->page.zip.data)) {
+				memset_aligned<8>(max_trx_id
+						  + root->page.zip.data, 0, 8);
+			}
 		}
 	} else {
 		/* PAGE_ROOT_AUTO_INC is only present in the clustered index
@@ -1922,12 +1959,13 @@ btr_root_raise_and_insert(
 		the field PAGE_MAX_TRX_ID for future use. */
 		byte* p = my_assume_aligned<8>(
 			PAGE_HEADER + PAGE_MAX_TRX_ID + new_block->frame);
-		if (UNIV_LIKELY_NULL(new_block->page.zip.data)) {
-			memset_aligned<8>(p, 0, 8);
-			page_zip_write_header(new_block, p, 8, mtr);
-		} else if (mach_read_from_8(p)) {
-			mtr->memset(new_block, PAGE_HEADER + PAGE_MAX_TRX_ID,
-				    8, 0);
+		if (mach_read_from_8(p)) {
+			mtr->memset(new_block, max_trx_id, 8, 0);
+			if (UNIV_LIKELY_NULL(new_block->page.zip.data)) {
+				memset_aligned<8>(max_trx_id
+						  + new_block->page.zip.data,
+						  0, 8);
+			}
 		}
 	}
 
@@ -2522,37 +2560,15 @@ btr_attach_half_pages(
 	if (direction == FSP_DOWN) {
 		ut_ad(lower_block == new_block);
 		ut_ad(btr_page_get_next(upper_block->frame) == next_page_no);
-		if (UNIV_UNLIKELY(btr_page_get_prev(lower_block->frame)
-				  == prev_page_no)) {
-			ut_ad(index->is_ibuf());
-		} else {
-			btr_page_set_prev(lower_block, prev_page_no, mtr);
-		}
+		btr_page_set_prev(lower_block, prev_page_no, mtr);
 	} else {
 		ut_ad(upper_block == new_block);
 		ut_ad(btr_page_get_prev(lower_block->frame) == prev_page_no);
-		if (UNIV_UNLIKELY(btr_page_get_next(upper_block->frame)
-				  == next_page_no)) {
-			ut_ad(index->is_ibuf());
-		} else {
-			btr_page_set_next(upper_block, next_page_no, mtr);
-		}
+		btr_page_set_next(upper_block, next_page_no, mtr);
 	}
 
-	if (UNIV_UNLIKELY(btr_page_get_next(lower_block->frame)
-			  == upper_block->page.id.page_no())) {
-		ut_ad(index->is_ibuf());
-	} else {
-		btr_page_set_next(lower_block, upper_block->page.id.page_no(),
-				  mtr);
-	}
-	if (UNIV_UNLIKELY(btr_page_get_prev(upper_block->frame)
-			  == lower_block->page.id.page_no())) {
-		ut_ad(index->is_ibuf());
-	} else {
-		btr_page_set_prev(upper_block, lower_block->page.id.page_no(),
-				  mtr);
-	}
+	btr_page_set_prev(upper_block, lower_block->page.id.page_no(), mtr);
+	btr_page_set_next(lower_block, upper_block->page.id.page_no(), mtr);
 }
 
 /*************************************************************//**
@@ -2838,8 +2854,9 @@ func_start:
 			return(NULL););
 
 	/* 2. Allocate a new page to the index */
+	const uint16_t page_level = btr_page_get_level(page);
 	new_block = btr_page_alloc(cursor->index, hint_page_no, direction,
-				   btr_page_get_level(page), mtr, mtr);
+				   page_level, mtr, mtr);
 
 	if (!new_block) {
 		return(NULL);
@@ -2847,10 +2864,16 @@ func_start:
 
 	new_page = buf_block_get_frame(new_block);
 	new_page_zip = buf_block_get_page_zip(new_block);
+
+	if (page_level && UNIV_LIKELY_NULL(new_page_zip)) {
+		/* ROW_FORMAT=COMPRESSED non-leaf pages are not expected
+		to contain FIL_NULL in FIL_PAGE_PREV at this stage. */
+		memset_aligned<4>(new_page + FIL_PAGE_PREV, 0, 4);
+	}
 	btr_page_create(new_block, new_page_zip, cursor->index,
-			btr_page_get_level(page), mtr);
+			page_level, mtr);
 	/* Only record the leaf level page splits. */
-	if (page_is_leaf(page)) {
+	if (!page_level) {
 		cursor->index->stat_defrag_n_page_split ++;
 		cursor->index->stat_defrag_modified_counter ++;
 		btr_defragment_save_defrag_stats_if_needed(cursor->index);
@@ -2895,6 +2918,7 @@ insert_empty:
 
 	/* 4. Do first the modifications in the tree structure */
 
+	/* FIXME: write FIL_PAGE_PREV,FIL_PAGE_NEXT in new_block earlier! */
 	btr_attach_half_pages(flags, cursor->index, block,
 			      first_rec, new_block, direction, mtr);
 

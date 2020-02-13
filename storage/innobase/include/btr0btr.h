@@ -276,23 +276,15 @@ btr_page_get_index_id(
 /*==================*/
 	const page_t*	page)	/*!< in: index page */
 	MY_ATTRIBUTE((warn_unused_result));
-/********************************************************//**
-Gets the node level field in an index page.
-@param[in]	page	index page
-@return level, leaf level == 0 */
-UNIV_INLINE
-ulint
-btr_page_get_level(const page_t* page)
+/** Read the B-tree or R-tree PAGE_LEVEL.
+@param page B-tree or R-tree page
+@return number of child page links to reach the leaf level
+@retval 0 for leaf pages */
+inline uint16_t btr_page_get_level(const page_t *page)
 {
-	ulint	level;
-
-	ut_ad(page);
-
-	level = mach_read_from_2(page + PAGE_HEADER + PAGE_LEVEL);
-
-	ut_ad(level <= BTR_MAX_NODE_LEVEL);
-
-	return(level);
+  uint16_t level = mach_read_from_2(page + PAGE_HEADER + PAGE_LEVEL);
+  ut_ad(level <= BTR_MAX_NODE_LEVEL);
+  return level;
 } MY_ATTRIBUTE((warn_unused_result))
 
 /** Read FIL_PAGE_NEXT.
@@ -402,6 +394,13 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset = false)
 @param[in]	index	clustered index with instant ALTER TABLE
 @param[in,out]	mtr	mini-transaction */
 void btr_set_instant(buf_block_t* root, const dict_index_t& index, mtr_t* mtr);
+
+/** Reset the table to the canonical format on ROLLBACK of instant ALTER TABLE.
+@param[in]      index   clustered index with instant ALTER TABLE
+@param[in]      all     whether to reset FIL_PAGE_TYPE as well
+@param[in,out]  mtr     mini-transaction */
+ATTRIBUTE_COLD __attribute__((nonnull))
+void btr_reset_instant(const dict_index_t &index, bool all, mtr_t *mtr);
 
 /*************************************************************//**
 Makes tree one level higher by splitting the root, and inserts

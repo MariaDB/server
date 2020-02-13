@@ -590,26 +590,25 @@ std::string filename_to_spacename(const byte *filename, size_t len)
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
-@param[in]	flags		tablespace flags (NULL if not create)
+@param[in]	create		whether the file is being created
 @param[in]	name		file name (not NUL-terminated)
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-static void backup_file_op(ulint space_id, const byte* flags,
+static void backup_file_op(ulint space_id, bool create,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
 
-	ut_ad(!flags || !new_name);
+	ut_ad(!create || !new_name);
 	ut_ad(name);
 	ut_ad(len);
 	ut_ad(!new_name == !new_len);
 	pthread_mutex_lock(&backup_mutex);
 
-	if (flags) {
+	if (create) {
 		ddl_tracker.id_to_name[space_id] = filename_to_spacename(name, len);
-		msg("DDL tracking :  create %zu \"%.*s\": %x",
-			space_id, int(len), name, mach_read_from_4(flags));
+		msg("DDL tracking : create %zu \"%.*s\"", space_id, int(len), name);
 	}
 	else if (new_name) {
 		ddl_tracker.id_to_name[space_id] = filename_to_spacename(new_name, new_len);
@@ -632,14 +631,14 @@ static void backup_file_op(ulint space_id, const byte* flags,
 
  We will abort backup in this case.
 */
-static void backup_file_op_fail(ulint space_id, const byte* flags,
+static void backup_file_op_fail(ulint space_id, bool create,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
 	bool fail;
-	if (flags) {
-		msg("DDL tracking :  create %zu \"%.*s\": %x",
-			space_id, int(len), name, mach_read_from_4(flags));
+	if (create) {
+		msg("DDL tracking : create %zu \"%.*s\"",
+			space_id, int(len), name);
 		std::string  spacename = filename_to_spacename(name, len);
 		fail = !check_if_skip_table(spacename.c_str());
 	}

@@ -89,17 +89,14 @@ page_set_ssn_id(
 	node_seq_t	ssn_id,	/*!< in: transaction id */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	ut_ad(!mtr || mtr_memo_contains_flagged(mtr, block,
-						MTR_MEMO_PAGE_SX_FIX
-						| MTR_MEMO_PAGE_X_FIX));
-
-	byte* ssn = block->frame + FIL_RTREE_SPLIT_SEQ_NUM;
-	if (UNIV_LIKELY_NULL(page_zip)) {
-		mach_write_to_8(ssn, ssn_id);
-		page_zip_write_header(block, ssn, 8, mtr);
-	} else {
-		mtr->write<8,mtr_t::OPT>(*block, ssn, ssn_id);
-	}
+  ut_ad(mtr_memo_contains_flagged(mtr, block,
+                                  MTR_MEMO_PAGE_SX_FIX | MTR_MEMO_PAGE_X_FIX));
+  ut_ad(!page_zip || page_zip == &block->page.zip);
+  constexpr uint16_t field= FIL_RTREE_SPLIT_SEQ_NUM;
+  byte *b= my_assume_aligned<2>(&block->frame[field]);
+  if (mtr->write<8,mtr_t::OPT>(*block, b, ssn_id) &&
+      UNIV_LIKELY_NULL(page_zip))
+    memcpy_aligned<2>(&page_zip->data[field], b, 8);
 }
 
 #endif /* !UNIV_INNOCHECKSUM */
@@ -133,15 +130,11 @@ Reset PAGE_LAST_INSERT.
 @param[in,out]  mtr      mini-transaction */
 inline void page_header_reset_last_insert(buf_block_t *block, mtr_t *mtr)
 {
-  byte *b= &block->frame[PAGE_HEADER + PAGE_LAST_INSERT];
-
-  if (UNIV_LIKELY_NULL(block->page.zip.data))
-  {
-    mach_write_to_2(b, 0);
-    page_zip_write_header(block, b, 2, mtr);
-  }
-  else
-    mtr->write<2,mtr_t::OPT>(*block, b, 0U);
+  constexpr uint16_t field= PAGE_HEADER + PAGE_LAST_INSERT;
+  byte *b= my_assume_aligned<2>(&block->frame[field]);
+  if (mtr->write<2,mtr_t::OPT>(*block, b, 0U) &&
+      UNIV_LIKELY_NULL(block->page.zip.data))
+    memcpy_aligned<2>(&block->page.zip.data[field], b, 2);
 }
 
 /***************************************************************//**
@@ -574,30 +567,6 @@ page_rec_get_prev(
 			infimum */
 {
 	return((rec_t*) page_rec_get_prev_const(rec));
-}
-
-/***************************************************************//**
-Looks for the record which owns the given record.
-@return the owner record */
-UNIV_INLINE
-rec_t*
-page_rec_find_owner_rec(
-/*====================*/
-	rec_t*	rec)	/*!< in: the physical record */
-{
-	ut_ad(page_rec_check(rec));
-
-	if (page_rec_is_comp(rec)) {
-		while (rec_get_n_owned_new(rec) == 0) {
-			rec = page_rec_get_next(rec);
-		}
-	} else {
-		while (rec_get_n_owned_old(rec) == 0) {
-			rec = page_rec_get_next(rec);
-		}
-	}
-
-	return(rec);
 }
 
 /**********************************************************//**

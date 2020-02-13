@@ -26,15 +26,14 @@ Created 12/7/1995 Heikki Tuuri
 
 #include "mtr0log.h"
 #include "buf0buf.h"
-#include "dict0dict.h"
+#include "dict0mem.h"
 #include "log0recv.h"
 #include "page0page.h"
-#include "buf0dblwr.h"
-#include "dict0boot.h"
 
 /********************************************************//**
-Parses an initial log record written by mtr_t::write_low().
+Parses an initial log record written by mlog_write_initial_log_record_low().
 @return parsed record end, NULL if not a complete record */
+ATTRIBUTE_COLD /* only used when crash-upgrading */
 const byte*
 mlog_parse_initial_log_record(
 /*==========================*/
@@ -196,112 +195,6 @@ mlog_parse_nbytes(
 	return const_cast<byte*>(ptr);
 }
 
-/**
-Write a log record for writing 1, 2, 4, or 8 bytes.
-@param[in]      type    number of bytes to write
-@param[in]      block   file page
-@param[in]      ptr     pointer within block.frame
-@param[in,out]  l       log record buffer
-@return new end of mini-transaction log */
-byte *mtr_t::log_write_low(mlog_id_t type, const buf_block_t &block,
-                           const byte *ptr, byte *l)
-{
-  ut_ad(type == MLOG_1BYTE || type == MLOG_2BYTES || type == MLOG_4BYTES ||
-        type == MLOG_8BYTES);
-  ut_ad(block.page.state == BUF_BLOCK_FILE_PAGE);
-  ut_ad(ptr >= block.frame + FIL_PAGE_OFFSET);
-  ut_ad(ptr + unsigned(type) <=
-        &block.frame[srv_page_size - FIL_PAGE_DATA_END]);
-  l= log_write_low(type, block.page.id, l);
-  mach_write_to_2(l, page_offset(ptr));
-  return l + 2;
-}
-
-/**
-Write a log record for writing 1, 2, or 4 bytes.
-@param[in]      block   file page
-@param[in,out]  ptr     pointer in file page
-@param[in]      l       number of bytes to write
-@param[in,out]  log_ptr log record buffer
-@param[in]      val     value to write */
-void mtr_t::log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
-                      byte *log_ptr, uint32_t val)
-{
-  ut_ad(l == MLOG_1BYTE || l == MLOG_2BYTES || l == MLOG_4BYTES);
-  log_ptr= log_write_low(l, block, ptr, log_ptr);
-  log_ptr+= mach_write_compressed(log_ptr, val);
-  m_log.close(log_ptr);
-}
-
-/**
-Write a log record for writing 8 bytes.
-@param[in]      block   file page
-@param[in,out]  ptr     pointer in file page
-@param[in]      l       number of bytes to write
-@param[in,out]  log_ptr log record buffer
-@param[in]      val     value to write */
-void mtr_t::log_write(const buf_block_t &block, byte *ptr, mlog_id_t l,
-                      byte *log_ptr, uint64_t val)
-{
-  ut_ad(l == MLOG_8BYTES);
-  log_ptr= log_write_low(l, block, ptr, log_ptr);
-  log_ptr+= mach_u64_write_compressed(log_ptr, val);
-  m_log.close(log_ptr);
-}
-
-/** Log a write of a byte string to a page.
-@param[in]      b       buffer page
-@param[in]      ofs     byte offset from b->frame
-@param[in]      len     length of the data to write */
-void mtr_t::memcpy(const buf_block_t &b, ulint ofs, ulint len)
-{
-  ut_ad(len);
-  ut_ad(ofs <= ulint(srv_page_size));
-  ut_ad(ofs + len <= ulint(srv_page_size));
-
-  set_modified();
-  if (m_log_mode != MTR_LOG_ALL)
-  {
-    ut_ad(m_log_mode == MTR_LOG_NONE || m_log_mode == MTR_LOG_NO_REDO);
-    return;
-  }
-
-  ut_ad(ofs + len < PAGE_DATA || !b.page.zip.data ||
-        mach_read_from_2(b.frame + FIL_PAGE_TYPE) <= FIL_PAGE_TYPE_ZBLOB2);
-
-  byte *l= log_write_low(MLOG_WRITE_STRING, b.page.id, m_log.open(11 + 2 + 2));
-  mach_write_to_2(l, ofs);
-  mach_write_to_2(l + 2, len);
-  m_log.close(l + 4);
-  m_log.push(b.frame + ofs, static_cast<uint32_t>(len));
-}
-
-/** Write a byte string to a ROW_FORMAT=COMPRESSED page.
-@param[in]      b       ROW_FORMAT=COMPRESSED index page
-@param[in]      ofs     byte offset from b.zip.data
-@param[in]      len     length of the data to write */
-void mtr_t::zmemcpy(const buf_page_t &b, ulint offset, ulint len)
-{
-  ut_ad(page_zip_simple_validate(&b.zip));
-  ut_ad(len);
-  ut_ad(offset + len <= page_zip_get_size(&b.zip));
-  ut_ad(mach_read_from_2(b.zip.data + FIL_PAGE_TYPE) == FIL_PAGE_INDEX ||
-        mach_read_from_2(b.zip.data + FIL_PAGE_TYPE) == FIL_PAGE_RTREE);
-
-  set_modified();
-  if (m_log_mode != MTR_LOG_ALL)
-  {
-    ut_ad(m_log_mode == MTR_LOG_NONE || m_log_mode == MTR_LOG_NO_REDO);
-    return;
-  }
-
-  byte *l= log_write_low(MLOG_ZIP_WRITE_STRING, b.id, m_log.open(11 + 2 + 2));
-  mach_write_to_2(l, offset);
-  mach_write_to_2(l + 2, len);
-  m_log.close(l + 4);
-  m_log.push(b.zip.data + offset, static_cast<uint32_t>(len));
-}
-
 /********************************************************//**
 Parses a log record written by mtr_t::memcpy().
 @return parsed record end, NULL if not a complete record */
@@ -351,34 +244,6 @@ mlog_parse_string(
 	}
 
 	return(ptr + len);
-}
-
-/** Initialize a string of bytes.
-@param[in,out]  b       buffer page
-@param[in]      ofs     byte offset from block->frame
-@param[in]      len     length of the data to write
-@param[in]      val     the data byte to write */
-void mtr_t::memset(const buf_block_t* b, ulint ofs, ulint len, byte val)
-{
-  ut_ad(len);
-  ut_ad(ofs <= ulint(srv_page_size));
-  ut_ad(ofs + len <= ulint(srv_page_size));
-  ut_ad(ofs + len < PAGE_DATA || !b->page.zip.data ||
-        mach_read_from_2(b->frame + FIL_PAGE_TYPE) <= FIL_PAGE_TYPE_ZBLOB2);
-  ::memset(ofs + b->frame, val, len);
-
-  set_modified();
-  if (m_log_mode != MTR_LOG_ALL)
-  {
-    ut_ad(m_log_mode == MTR_LOG_NONE || m_log_mode == MTR_LOG_NO_REDO);
-    return;
-  }
-
-  byte *l= log_write_low(MLOG_MEMSET, b->page.id, m_log.open(11 + 2 + 2 + 1));
-  mach_write_to_2(l, ofs);
-  mach_write_to_2(l + 2, len);
-  l[4]= val;
-  m_log.close(l + 5);
 }
 
 /********************************************************//**

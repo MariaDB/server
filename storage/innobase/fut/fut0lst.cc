@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,6 +28,61 @@ Created 11/28/1995 Heikki Tuuri
 #include "buf0buf.h"
 #include "page0page.h"
 
+
+/** Write a file address.
+@param[in]      block   file page
+@param[in,out]  faddr   file address location
+@param[in]      page    page number
+@param[in]      boffset byte offset
+@param[in,out]  mtr     mini-transaction */
+static void flst_write_addr(const buf_block_t& block, byte *faddr,
+                            uint32_t page, uint16_t boffset, mtr_t* mtr)
+{
+  ut_ad(mtr->memo_contains_page_flagged(faddr,
+					MTR_MEMO_PAGE_X_FIX
+					| MTR_MEMO_PAGE_SX_FIX));
+  ut_a(page == FIL_NULL || boffset >= FIL_PAGE_DATA);
+  ut_a(ut_align_offset(faddr, srv_page_size) >= FIL_PAGE_DATA);
+
+  static_assert(FIL_ADDR_PAGE == 0, "compatibility");
+  static_assert(FIL_ADDR_BYTE == 4, "compatibility");
+  static_assert(FIL_ADDR_SIZE == 6, "compatibility");
+
+  const bool same_page= mach_read_from_4(faddr + FIL_ADDR_PAGE) == page;
+  const bool same_offset= mach_read_from_2(faddr + FIL_ADDR_BYTE) == boffset;
+  if (same_page)
+  {
+    if (!same_offset)
+      mtr->write<2>(block, faddr + FIL_ADDR_BYTE, boffset);
+    return;
+  }
+  if (same_offset)
+    mtr->write<4>(block, faddr + FIL_ADDR_PAGE, page);
+  else
+  {
+    alignas(4) byte fil_addr[6];
+    mach_write_to_4(fil_addr + FIL_ADDR_PAGE, page);
+    mach_write_to_2(fil_addr + FIL_ADDR_BYTE, boffset);
+    mtr->memcpy(block, faddr + FIL_ADDR_PAGE, fil_addr, 6);
+  }
+}
+
+/** Write 2 null file addresses.
+@param[in]      b       file page
+@param[in,out]  addr	file address to be zeroed out
+@param[in,out]  mtr     mini-transaction */
+static void flst_zero_both(const buf_block_t& b, byte *addr, mtr_t *mtr)
+{
+  if (mach_read_from_4(addr + FIL_ADDR_PAGE) != FIL_NULL)
+    mtr->memset(&b, ulint(addr - b.frame) + FIL_ADDR_PAGE, 4, 0xff);
+  mtr->write<2,mtr_t::OPT>(b, addr + FIL_ADDR_BYTE, 0U);
+  /* Initialize the other address by (MEMMOVE|0x80,offset,FIL_ADDR_SIZE,source)
+  which is 4 bytes, or less than FIL_ADDR_SIZE. */
+  memcpy(addr + FIL_ADDR_SIZE, addr, FIL_ADDR_SIZE);
+  const uint16_t boffset= page_offset(addr);
+  mtr->memmove(b, boffset + FIL_ADDR_SIZE, boffset, FIL_ADDR_SIZE);
+}
+
 /** Add a node to an empty list. */
 static void flst_add_to_empty(buf_block_t *base, uint16_t boffset,
                               buf_block_t *add, uint16_t aoffset, mtr_t *mtr)
@@ -41,20 +96,22 @@ static void flst_add_to_empty(buf_block_t *base, uint16_t boffset,
   ut_ad(mtr_memo_contains_page_flagged(mtr, add->frame,
                                        MTR_MEMO_PAGE_X_FIX |
                                        MTR_MEMO_PAGE_SX_FIX));
-  fil_addr_t addr= { add->page.id.page_no(), aoffset };
 
-  /* Update first and last fields of base node */
-  flst_write_addr(*base, base->frame + boffset + FLST_FIRST, addr, mtr);
-  /* MDEV-12353 TODO: use MEMMOVE record */
-  flst_write_addr(*base, base->frame + boffset + FLST_LAST, addr, mtr);
-
-  /* Set prev and next fields of node to add */
-  flst_zero_addr(*add, add->frame + aoffset + FLST_PREV, mtr);
-  flst_zero_addr(*add, add->frame + aoffset + FLST_NEXT, mtr);
-
-  /* Update len of base node */
   ut_ad(!mach_read_from_4(base->frame + boffset + FLST_LEN));
   mtr->write<1>(*base, base->frame + boffset + (FLST_LEN + 3), 1U);
+  /* Update first and last fields of base node */
+  flst_write_addr(*base, base->frame + boffset + FLST_FIRST,
+                  add->page.id.page_no(), aoffset, mtr);
+  memcpy(base->frame + boffset + FLST_LAST, base->frame + boffset + FLST_FIRST,
+         FIL_ADDR_SIZE);
+  /* Initialize FLST_LAST by (MEMMOVE|0x80,offset,FIL_ADDR_SIZE,source)
+  which is 4 bytes, or less than FIL_ADDR_SIZE. */
+  mtr->memmove(*base, boffset + FLST_LAST, boffset + FLST_FIRST,
+               FIL_ADDR_SIZE);
+
+  /* Set prev and next fields of node to add */
+  static_assert(FLST_NEXT == FLST_PREV + FIL_ADDR_SIZE, "compatibility");
+  flst_zero_both(*add, add->frame + aoffset + FLST_PREV, mtr);
 }
 
 /** Insert a node after another one.
@@ -85,24 +142,27 @@ static void flst_insert_after(buf_block_t *base, uint16_t boffset,
                                        MTR_MEMO_PAGE_X_FIX |
                                        MTR_MEMO_PAGE_SX_FIX));
 
-  fil_addr_t cur_addr= { cur->page.id.page_no(), coffset };
-  fil_addr_t add_addr= { add->page.id.page_no(), aoffset };
   fil_addr_t next_addr= flst_get_next_addr(cur->frame + coffset);
 
-  flst_write_addr(*add, add->frame + aoffset + FLST_PREV, cur_addr, mtr);
-  flst_write_addr(*add, add->frame + aoffset + FLST_NEXT, next_addr, mtr);
+  flst_write_addr(*add, add->frame + aoffset + FLST_PREV,
+                  cur->page.id.page_no(), coffset, mtr);
+  flst_write_addr(*add, add->frame + aoffset + FLST_NEXT,
+                  next_addr.page, next_addr.boffset, mtr);
 
   if (fil_addr_is_null(next_addr))
-    flst_write_addr(*base, base->frame + boffset + FLST_LAST, add_addr, mtr);
+    flst_write_addr(*base, base->frame + boffset + FLST_LAST,
+                    add->page.id.page_no(), aoffset, mtr);
   else
   {
     buf_block_t *block;
     flst_node_t *next= fut_get_ptr(add->page.id.space(), add->zip_size(),
                                    next_addr, RW_SX_LATCH, mtr, &block);
-    flst_write_addr(*block, next + FLST_PREV, add_addr, mtr);
+    flst_write_addr(*block, next + FLST_PREV,
+                    add->page.id.page_no(), aoffset, mtr);
   }
 
-  flst_write_addr(*cur, cur->frame + coffset + FLST_NEXT, add_addr, mtr);
+  flst_write_addr(*cur, cur->frame + coffset + FLST_NEXT,
+                  add->page.id.page_no(), aoffset, mtr);
 
   byte *len= &base->frame[boffset + FLST_LEN];
   mtr->write<4>(*base, len, mach_read_from_4(len) + 1);
@@ -136,27 +196,43 @@ static void flst_insert_before(buf_block_t *base, uint16_t boffset,
                                        MTR_MEMO_PAGE_X_FIX |
                                        MTR_MEMO_PAGE_SX_FIX));
 
-  fil_addr_t cur_addr= { cur->page.id.page_no(), coffset };
-  fil_addr_t add_addr= { add->page.id.page_no(), aoffset };
   fil_addr_t prev_addr= flst_get_prev_addr(cur->frame + coffset);
 
-  flst_write_addr(*add, add->frame + aoffset + FLST_PREV, prev_addr, mtr);
-  flst_write_addr(*add, add->frame + aoffset + FLST_NEXT, cur_addr, mtr);
+  flst_write_addr(*add, add->frame + aoffset + FLST_PREV,
+                  prev_addr.page, prev_addr.boffset, mtr);
+  flst_write_addr(*add, add->frame + aoffset + FLST_NEXT,
+		  cur->page.id.page_no(), coffset, mtr);
 
   if (fil_addr_is_null(prev_addr))
-    flst_write_addr(*base, base->frame + boffset + FLST_FIRST, add_addr, mtr);
+    flst_write_addr(*base, base->frame + boffset + FLST_FIRST,
+                    add->page.id.page_no(), aoffset, mtr);
   else
   {
     buf_block_t *block;
     flst_node_t *prev= fut_get_ptr(add->page.id.space(), add->zip_size(),
                                    prev_addr, RW_SX_LATCH, mtr, &block);
-    flst_write_addr(*block, prev + FLST_NEXT, add_addr, mtr);
+    flst_write_addr(*block, prev + FLST_NEXT,
+                    add->page.id.page_no(), aoffset, mtr);
   }
 
-  flst_write_addr(*cur, cur->frame + coffset + FLST_PREV, add_addr, mtr);
+  flst_write_addr(*cur, cur->frame + coffset + FLST_PREV,
+                    add->page.id.page_no(), aoffset, mtr);
 
   byte *len= &base->frame[boffset + FLST_LEN];
   mtr->write<4>(*base, len, mach_read_from_4(len) + 1);
+}
+
+/** Initialize a list base node.
+@param[in]      block   file page
+@param[in,out]  base    base node
+@param[in,out]  mtr     mini-transaction */
+void flst_init(const buf_block_t& block, byte *base, mtr_t *mtr)
+{
+  ut_ad(mtr->memo_contains_page_flagged(base, MTR_MEMO_PAGE_X_FIX |
+                                        MTR_MEMO_PAGE_SX_FIX));
+  mtr->write<4,mtr_t::OPT>(block, base + FLST_LEN, 0U);
+  static_assert(FLST_LAST == FLST_FIRST + FIL_ADDR_SIZE, "compatibility");
+  flst_zero_both(block, base + FLST_FIRST, mtr);
 }
 
 /** Append a file list node to a list.
@@ -251,7 +327,8 @@ void flst_remove(buf_block_t *base, uint16_t boffset,
   const fil_addr_t next_addr= flst_get_next_addr(cur->frame + coffset);
 
   if (fil_addr_is_null(prev_addr))
-    flst_write_addr(*base, base->frame + boffset + FLST_FIRST, next_addr, mtr);
+    flst_write_addr(*base, base->frame + boffset + FLST_FIRST,
+                    next_addr.page, next_addr.boffset, mtr);
   else
   {
     buf_block_t *block= cur;
@@ -259,11 +336,13 @@ void flst_remove(buf_block_t *base, uint16_t boffset,
       ? cur->frame + prev_addr.boffset
       : fut_get_ptr(cur->page.id.space(), cur->zip_size(), prev_addr,
                     RW_SX_LATCH, mtr, &block);
-    flst_write_addr(*block, prev + FLST_NEXT, next_addr, mtr);
+    flst_write_addr(*block, prev + FLST_NEXT,
+                    next_addr.page, next_addr.boffset, mtr);
   }
 
   if (fil_addr_is_null(next_addr))
-    flst_write_addr(*base, base->frame + boffset + FLST_LAST, prev_addr, mtr);
+    flst_write_addr(*base, base->frame + boffset + FLST_LAST,
+                    prev_addr.page, prev_addr.boffset, mtr);
   else
   {
     buf_block_t *block= cur;
@@ -271,7 +350,8 @@ void flst_remove(buf_block_t *base, uint16_t boffset,
       ? cur->frame + next_addr.boffset
       : fut_get_ptr(cur->page.id.space(), cur->zip_size(), next_addr,
                     RW_SX_LATCH, mtr, &block);
-    flst_write_addr(*block, next + FLST_PREV, prev_addr, mtr);
+    flst_write_addr(*block, next + FLST_PREV,
+                    prev_addr.page, prev_addr.boffset, mtr);
   }
 
   byte *len= &base->frame[boffset + FLST_LEN];

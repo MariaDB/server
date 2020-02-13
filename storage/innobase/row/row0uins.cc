@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -206,32 +206,7 @@ func_exit:
 	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_INSERT_METADATA) {
 		/* When rolling back the very first instant ADD COLUMN
 		operation, reset the root page to the basic state. */
-		ut_ad(!index->table->is_temporary());
-		if (buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH,
-							   &mtr)) {
-			byte* page_type = root->frame + FIL_PAGE_TYPE;
-			ut_ad(mach_read_from_2(page_type)
-			      == FIL_PAGE_TYPE_INSTANT
-			      || mach_read_from_2(page_type)
-			      == FIL_PAGE_INDEX);
-			mtr.write<2,mtr_t::OPT>(*root, page_type,
-						FIL_PAGE_INDEX);
-			byte* instant = PAGE_INSTANT + PAGE_HEADER
-				+ root->frame;
-			mtr.write<2,mtr_t::OPT>(
-				*root, instant,
-				page_ptr_get_direction(instant + 1));
-			rec_t* infimum = page_get_infimum_rec(root->frame);
-			rec_t* supremum = page_get_supremum_rec(root->frame);
-			static const byte str[8 + 8] = "supremuminfimum";
-			if (memcmp(infimum, str + 8, 8)
-			    || memcmp(supremum, str, 8)) {
-				mtr.memcpy(root, page_offset(infimum),
-					   str + 8, 8);
-				mtr.memcpy(root, page_offset(supremum),
-					   str, 8);
-			}
-		}
+		btr_reset_instant(*index, true, &mtr);
 	}
 
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);

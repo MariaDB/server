@@ -25,10 +25,7 @@ Compressed page interface
 Created June 2005 by Marko Makela
 *******************************************************/
 
-#include "page0zip.h"
-#include "mtr0log.h"
 #include "page0page.h"
-#include "srv0srv.h"
 
 /* The format of compressed pages is as follows.
 
@@ -317,29 +314,6 @@ page_zip_des_init(
 					descriptor */
 {
 	memset(page_zip, 0, sizeof *page_zip);
-}
-
-/**********************************************************************//**
-Write data to the uncompressed header portion of a page.  The data must
-already have been written to the uncompressed page.
-However, the data portion of the uncompressed page may differ from
-the compressed page when a record is being inserted in
-page_cur_insert_rec_zip(). */
-UNIV_INLINE
-void
-page_zip_write_header(
-/*==================*/
-	buf_block_t*	block,	/*!< in/out: compressed page */
-	const byte*	str,	/*!< in: address on the uncompressed page */
-	ulint		length,	/*!< in: length of the data */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-{
-	ut_ad(page_align(str) == block->frame);
-	const uint16_t pos = page_offset(str);
-
-	ut_ad(pos < PAGE_DATA);
-	ut_ad(pos + length < PAGE_DATA);
-	mtr->zmemcpy(&block->page, pos, str, length);
 }
 
 /**********************************************************************//**

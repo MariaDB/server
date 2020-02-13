@@ -178,7 +178,7 @@ the first record in the list of records. */
 #define	PAGE_DIR		FIL_PAGE_DATA_END
 
 /* We define a slot in the page directory as two bytes */
-#define	PAGE_DIR_SLOT_SIZE	2
+constexpr uint16_t PAGE_DIR_SLOT_SIZE= 2;
 
 /* The offset of the physically lower end of the directory, counted from
 page end, when the page is empty */
@@ -840,15 +840,6 @@ page_rec_is_second_last(
 	const page_t*	page)	/*!< in: page */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/***************************************************************//**
-Looks for the record which owns the given record.
-@return the owner record */
-UNIV_INLINE
-rec_t*
-page_rec_find_owner_rec(
-/*====================*/
-	rec_t*	rec);	/*!< in: the physical record */
-
 /************************************************************//**
 Returns the maximum combined size of records which can be inserted on top
 of record heap.
@@ -924,7 +915,7 @@ page_get_instant(const page_t* page);
 @param[in,out]	block	buffer block
 @param[in,out]	mtr	mini-transaction
 @param[in]	comp	set unless ROW_FORMAT=REDUNDANT */
-void page_create(buf_block_t* block, mtr_t* mtr, bool comp);
+void page_create(buf_block_t *block, mtr_t *mtr, bool comp);
 /**********************************************************//**
 Create a compressed B-tree index page. */
 void
