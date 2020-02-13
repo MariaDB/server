@@ -46,7 +46,7 @@ class ha_xpand_select_handler:
 {
   public:
     ha_xpand_select_handler(THD* thd_arg, SELECT_LEX* sel,
-                                 xpand_connection_cursor *scan);
+                            xpand_connection_cursor *scan);
     ~ha_xpand_select_handler();
 
     int init_scan();
@@ -69,7 +69,7 @@ class ha_xpand_derived_handler:
 {
   public:
     ha_xpand_derived_handler(THD* thd_arg, SELECT_LEX* sel,
-                                  xpand_connection_cursor *scan);
+                             xpand_connection_cursor *scan);
     ~ha_xpand_derived_handler();
 
     int init_scan();
@@ -79,9 +79,7 @@ class ha_xpand_derived_handler:
 };
 
 
-select_handler *create_xpand_select_handler(THD* thd,
-                                                 SELECT_LEX* select_lex);
-derived_handler *create_xpand_derived_handler(THD* thd,
-                                                   TABLE_LIST *derived);
+select_handler *create_xpand_select_handler(THD* thd, SELECT_LEX* select_lex);
+derived_handler *create_xpand_derived_handler(THD* thd, TABLE_LIST *derived);
 
 #endif
