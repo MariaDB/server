@@ -2,51 +2,51 @@
 Copyright (c) 2019, MariaDB Corporation.
 *****************************************************************************/
 
-/** @file ha_clustrixdb.cc */
+/** @file ha_xpand.cc */
 
-#include "ha_clustrixdb.h"
-#include "ha_clustrixdb_pushdown.h"
+#include "ha_xpand.h"
+#include "ha_xpand_pushdown.h"
 #include "key.h"
 
-handlerton *clustrixdb_hton = NULL;
+handlerton *xpand_hton = NULL;
 
-int clustrix_connect_timeout;
+int xpand_connect_timeout;
 static MYSQL_SYSVAR_INT
 (
   connect_timeout,
-  clustrix_connect_timeout,
+  xpand_connect_timeout,
   PLUGIN_VAR_OPCMDARG,
-  "Timeout for connecting to Clustrix",
+  "Timeout for connecting to Xpand",
   NULL, NULL, -1, -1, 2147483647, 0
 );
 
-int clustrix_read_timeout;
+int xpand_read_timeout;
 static MYSQL_SYSVAR_INT
 (
   read_timeout,
-  clustrix_read_timeout,
+  xpand_read_timeout,
   PLUGIN_VAR_OPCMDARG,
-  "Timeout for receiving data from Clustrix",
+  "Timeout for receiving data from Xpand",
   NULL, NULL, -1, -1, 2147483647, 0
 );
 
-int clustrix_write_timeout;
+int xpand_write_timeout;
 static MYSQL_SYSVAR_INT
 (
   write_timeout,
-  clustrix_write_timeout,
+  xpand_write_timeout,
   PLUGIN_VAR_OPCMDARG,
-  "Timeout for sending data to Clustrix",
+  "Timeout for sending data to Xpand",
   NULL, NULL, -1, -1, 2147483647, 0
 );
 
-char *clustrix_host;
+char *xpand_host;
 static MYSQL_SYSVAR_STR
 (
   host,
-  clustrix_host,
+  xpand_host,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-  "Clustrix host",
+  "Xpand host",
   NULL, NULL, "127.0.0.1"
 );
 
@@ -63,12 +63,12 @@ static void free_host_list()
   }
 }
 
-static void update_host_list(char *clustrix_host)
+static void update_host_list(char *xpand_host)
 {
   free_host_list();
 
   int cnt = 0;
-  for (char *p = clustrix_host, *s = clustrix_host; ; p++) {
+  for (char *p = xpand_host, *s = xpand_host; ; p++) {
     if (*p == ',' || *p == '\0') {
       if (p > s) {
         cnt++;
@@ -85,7 +85,7 @@ static void update_host_list(char *clustrix_host)
   host_list_cnt = cnt;
 
   int i = 0;
-  for (char *p = clustrix_host, *s = clustrix_host; ; p++) {
+  for (char *p = xpand_host, *s = xpand_host; ; p++) {
     if (*p == ',' || *p == '\0') {
       if (p > s) {
         char *host = (char *)my_malloc(p - s + 1, MYF(MY_WME));
@@ -100,46 +100,46 @@ static void update_host_list(char *clustrix_host)
     }
   }
 
-  DBUG_PRINT("clustrix_host", ("%s", clustrix_host));
+  DBUG_PRINT("xpand_host", ("%s", xpand_host));
 }
 
-char *clustrix_username;
+char *xpand_username;
 static MYSQL_SYSVAR_STR
 (
   username,
-  clustrix_username,
+  xpand_username,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-  "Clustrix user name",
+  "Xpand user name",
   NULL, NULL, "root"
 );
 
-char *clustrix_password;
+char *xpand_password;
 static MYSQL_SYSVAR_STR
 (
   password,
-  clustrix_password,
+  xpand_password,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-  "Clustrix password",
+  "Xpand password",
   NULL, NULL, ""
 );
 
-uint clustrix_port;
+uint xpand_port;
 static MYSQL_SYSVAR_UINT
 (
   port,
-  clustrix_port,
+  xpand_port,
   PLUGIN_VAR_RQCMDARG,
-  "Clustrix port",
+  "Xpand port",
   NULL, NULL, MYSQL_PORT_DEFAULT, MYSQL_PORT_DEFAULT, 65535, 0
 );
 
-char *clustrix_socket;
+char *xpand_socket;
 static MYSQL_SYSVAR_STR
 (
   socket,
-  clustrix_socket,
+  xpand_socket,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-  "Clustrix socket",
+  "Xpand socket",
   NULL, NULL, ""
 );
 
@@ -147,7 +147,7 @@ static MYSQL_THDVAR_UINT
 (
   row_buffer,
   PLUGIN_VAR_RQCMDARG,
-  "Clustrix rowstore row buffer size",
+  "Xpand rowstore row buffer size",
   NULL, NULL, 20, 1, 65535, 0
 );
 
@@ -247,13 +247,13 @@ static void decode_file_path(const char *path, char *decoded_dbname,
   decode_objectname(decoded_tbname, tbname_start, FN_REFLEN);
 }
 
-clustrix_connection *get_trx(THD *thd, int *error_code)
+xpand_connection *get_trx(THD *thd, int *error_code)
 {
   *error_code = 0;
-  clustrix_connection *trx;
-  if (!(trx = (clustrix_connection *)thd_get_ha_data(thd, clustrixdb_hton)))
+  xpand_connection *trx;
+  if (!(trx = (xpand_connection *)thd_get_ha_data(thd, xpand_hton)))
   {
-    if (!(trx = new clustrix_connection())) {
+    if (!(trx = new xpand_connection())) {
       *error_code = HA_ERR_OUT_OF_MEM;
       return NULL;
     }
@@ -264,37 +264,37 @@ clustrix_connection *get_trx(THD *thd, int *error_code)
       return NULL;
     }
 
-    thd_set_ha_data(thd, clustrixdb_hton, trx);
+    thd_set_ha_data(thd, xpand_hton, trx);
   }
 
   return trx;
 }
 /****************************************************************************
-** Class ha_clustrixdb
+** Class ha_xpand
 ****************************************************************************/
 
-ha_clustrixdb::ha_clustrixdb(handlerton *hton, TABLE_SHARE *table_arg)
+ha_xpand::ha_xpand(handlerton *hton, TABLE_SHARE *table_arg)
   : handler(hton, table_arg)
 {
-  DBUG_ENTER("ha_clustrixdb::ha_clustrixdb");
+  DBUG_ENTER("ha_xpand::ha_xpand");
   rgi = NULL;
   scan_cur = NULL;
-  clustrix_table_oid = 0;
+  xpand_table_oid = 0;
   upsert_flag = 0;
   DBUG_VOID_RETURN;
 }
 
-ha_clustrixdb::~ha_clustrixdb()
+ha_xpand::~ha_xpand()
 {
   if (rgi)
     remove_current_table_from_rpl_table_list(rgi);
 }
 
-int ha_clustrixdb::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
+int ha_xpand::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
 {
   int error_code;
   THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -324,7 +324,7 @@ int ha_clustrixdb::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
   if (error_code)
     return error_code;
 
-  // To syncronize the schemas of MDB FE and CLX BE.
+  // To syncronize the schemas of MDB FE and XPD BE.
   if (form->s && form->s->db.length) {
       String createdb_stmt;
       createdb_stmt.append("CREATE DATABASE IF NOT EXISTS `");
@@ -337,11 +337,11 @@ int ha_clustrixdb::create(const char *name, TABLE *form, HA_CREATE_INFO *info)
   return error_code;
 }
 
-int ha_clustrixdb::delete_table(const char *path)
+int ha_xpand::delete_table(const char *path)
 {
   int error_code;
   THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -359,11 +359,11 @@ int ha_clustrixdb::delete_table(const char *path)
   return trx->run_query(delete_cmd);
 }
 
-int ha_clustrixdb::rename_table(const char* from, const char* to)
+int ha_xpand::rename_table(const char* from, const char* to)
 {
   int error_code;
   THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -390,23 +390,23 @@ int ha_clustrixdb::rename_table(const char* from, const char* to)
 }
 
 static void
-clustrixdb_mark_table_for_discovery(TABLE *table)
+xpand_mark_table_for_discovery(TABLE *table)
 {
   table->s->tabledef_version.str = NULL;
   table->s->tabledef_version.length = 0;
   table->m_needs_reopen = TRUE;
 }
 
-int ha_clustrixdb::open(const char *name, int mode, uint test_if_locked)
+int ha_xpand::open(const char *name, int mode, uint test_if_locked)
 {
-  DBUG_ENTER("ha_clustrixdb::open");
+  DBUG_ENTER("ha_xpand::open");
   DBUG_PRINT("oid",
              ("%s", table->s->tabledef_version.str));
 
   if (!table->s->tabledef_version.str)
     DBUG_RETURN(HA_ERR_TABLE_DEF_CHANGED);
-  if (!clustrix_table_oid)
-    clustrix_table_oid = atoll((const char *)table->s->tabledef_version.str);
+  if (!xpand_table_oid)
+    xpand_table_oid = atoll((const char *)table->s->tabledef_version.str);
 
   // Surrogate key marker
   has_hidden_key = table->s->primary_key == MAX_KEY;
@@ -418,53 +418,53 @@ int ha_clustrixdb::open(const char *name, int mode, uint test_if_locked)
   }
 
   DBUG_PRINT("open finished",
-             ("oid: %llu, ref_length: %u", clustrix_table_oid, ref_length));
+             ("oid: %llu, ref_length: %u", xpand_table_oid, ref_length));
   DBUG_RETURN(0);
 }
 
-int ha_clustrixdb::close(void)
+int ha_xpand::close(void)
 {
   return 0;
 }
 
-int ha_clustrixdb::reset()
+int ha_xpand::reset()
 {
-  upsert_flag &= ~CLUSTRIX_BULK_UPSERT;
-  upsert_flag &= ~CLUSTRIX_HAS_UPSERT;
-  upsert_flag &= ~CLUSTRIX_UPSERT_SENT;
-  clx_lock_type = CLUSTRIX_NO_LOCKS;
+  upsert_flag &= ~XPAND_BULK_UPSERT;
+  upsert_flag &= ~XPAND_HAS_UPSERT;
+  upsert_flag &= ~XPAND_UPSERT_SENT;
+  xpd_lock_type = XPAND_NO_LOCKS;
   return 0;
 }
 
-int ha_clustrixdb::extra(enum ha_extra_function operation)
+int ha_xpand::extra(enum ha_extra_function operation)
 {
-  DBUG_ENTER("ha_clustrixdb::extra");
+  DBUG_ENTER("ha_xpand::extra");
   if (operation == HA_EXTRA_INSERT_WITH_UPDATE)
-    upsert_flag |= CLUSTRIX_HAS_UPSERT;
+    upsert_flag |= XPAND_HAS_UPSERT;
   DBUG_RETURN(0);
 }
 
 /*@brief UPSERT State Machine*/
 /*************************************************************
  * DESCRIPTION:
- * Fasttrack for UPSERT sends queries down to a CLX backend.
+ * Fasttrack for UPSERT sends queries down to a XPD backend.
  * UPSERT could be of two kinds: singular and bulk. The plugin
- * re-/sets CLUSTRIX_BULK_UPSERT in end|start_bulk_insert
- * methods. CLUSTRIX_UPSERT_SENT is used to avoid multiple
- * execution at CLX backend.
- * Generic CLUSTRIX_HAS_UPSERT is set for bulk UPSERT only b/c
+ * re-/sets XPAND_BULK_UPSERT in end|start_bulk_insert
+ * methods. XPAND_UPSERT_SENT is used to avoid multiple
+ * execution at XPD backend.
+ * Generic XPAND_HAS_UPSERT is set for bulk UPSERT only b/c
  * MDB calls write_row only once.
  ************************************************************/
-int ha_clustrixdb::write_row(const uchar *buf)
+int ha_xpand::write_row(const uchar *buf)
 {
   int error_code = 0;
   THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
-  if (upsert_flag & CLUSTRIX_HAS_UPSERT) {
-    if (!(upsert_flag & CLUSTRIX_UPSERT_SENT)) {
+  if (upsert_flag & XPAND_HAS_UPSERT) {
+    if (!(upsert_flag & XPAND_UPSERT_SENT)) {
       ha_rows update_rows;
       String update_stmt;
       update_stmt.append(thd->query_string.str());
@@ -473,10 +473,10 @@ int ha_clustrixdb::write_row(const uchar *buf)
         trx->auto_commit_next();
 
       error_code= trx->update_query(update_stmt, table->s->db, &update_rows);
-      if (upsert_flag & CLUSTRIX_BULK_UPSERT)
-        upsert_flag |= CLUSTRIX_UPSERT_SENT;
+      if (upsert_flag & XPAND_BULK_UPSERT)
+        upsert_flag |= XPAND_UPSERT_SENT;
       else
-        upsert_flag &= ~CLUSTRIX_HAS_UPSERT;
+        upsert_flag &= ~XPAND_HAS_UPSERT;
     }
 
     return error_code;
@@ -486,10 +486,10 @@ int ha_clustrixdb::write_row(const uchar *buf)
   uchar *packed_new_row = (uchar*) my_alloca(estimate_row_size(table));
   size_t packed_size = pack_row(table, table->write_set, packed_new_row, buf);
 
-  /* XXX: Clustrix may needs to return HA_ERR_AUTOINC_ERANGE if we hit that
+  /* XXX: Xpand may needs to return HA_ERR_AUTOINC_ERANGE if we hit that
      error. */
   ulonglong last_insert_id = 0;
-  if ((error_code = trx->write_row(clustrix_table_oid,
+  if ((error_code = trx->write_row(xpand_table_oid,
                                    packed_new_row, packed_size,
                                    &last_insert_id)))
     goto err;
@@ -499,7 +499,7 @@ int ha_clustrixdb::write_row(const uchar *buf)
 
 err:
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
-    clustrixdb_mark_table_for_discovery(table);
+    xpand_mark_table_for_discovery(table);
 
   if (packed_size)
     my_afree(packed_new_row);
@@ -507,12 +507,12 @@ err:
   return error_code;
 }
 
-int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
+int ha_xpand::update_row(const uchar *old_data, const uchar *new_data)
 {
-  DBUG_ENTER("ha_clustrixdb::update_row");
+  DBUG_ENTER("ha_xpand::update_row");
   int error_code;
   THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
 
@@ -526,8 +526,8 @@ int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
   size_t packed_new_size = pack_row(table, table->write_set, packed_new_row,
                                     new_data);
 
-  /* Send the packed rows to Clustrix */
-  error_code = trx->key_update(clustrix_table_oid, packed_key, packed_key_len,
+  /* Send the packed rows to Xpand */
+  error_code = trx->key_update(xpand_table_oid, packed_key, packed_key_len,
                                table->write_set,
                                packed_new_row, packed_new_size);
 
@@ -538,26 +538,26 @@ int ha_clustrixdb::update_row(const uchar *old_data, const uchar *new_data)
     my_afree(packed_new_row);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
-    clustrixdb_mark_table_for_discovery(table);
+    xpand_mark_table_for_discovery(table);
 
   DBUG_RETURN(error_code);
 }
 
-int ha_clustrixdb::direct_update_rows_init(List<Item> *update_fields)
+int ha_xpand::direct_update_rows_init(List<Item> *update_fields)
 {
-  DBUG_ENTER("ha_clustrixdb::direct_update_rows_init");
+  DBUG_ENTER("ha_xpand::direct_update_rows_init");
   THD *thd= ha_thd();
   if (!THDVAR(thd, enable_direct_update))
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
   DBUG_RETURN(0);
 }
 
-int ha_clustrixdb::direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
+int ha_xpand::direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
 {
-  DBUG_ENTER("ha_clustrixdb::direct_update_rows");
+  DBUG_ENTER("ha_xpand::direct_update_rows");
   int error_code= 0;
   THD *thd= ha_thd();
-  clustrix_connection *trx= get_trx(thd, &error_code);
+  xpand_connection *trx= get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -572,36 +572,36 @@ int ha_clustrixdb::direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
   DBUG_RETURN(error_code);
 }
 
-void ha_clustrixdb::start_bulk_insert(ha_rows rows, uint flags)
+void ha_xpand::start_bulk_insert(ha_rows rows, uint flags)
 {
-  DBUG_ENTER("ha_clustrixdb::start_bulk_insert");
+  DBUG_ENTER("ha_xpand::start_bulk_insert");
   int error_code= 0;
   THD *thd= ha_thd();
-  clustrix_connection *trx= get_trx(thd, &error_code);
+  xpand_connection *trx= get_trx(thd, &error_code);
   if (!trx) {
     // TBD log this
     DBUG_VOID_RETURN;
   }
 
-  upsert_flag |= CLUSTRIX_BULK_UPSERT;
+  upsert_flag |= XPAND_BULK_UPSERT;
 
   DBUG_VOID_RETURN;
 }
 
-int ha_clustrixdb::end_bulk_insert()
+int ha_xpand::end_bulk_insert()
 {
-  DBUG_ENTER("ha_clustrixdb::end_bulk_insert");
-  upsert_flag &= ~CLUSTRIX_BULK_UPSERT;
-  upsert_flag &= ~CLUSTRIX_HAS_UPSERT;
-  upsert_flag &= ~CLUSTRIX_UPSERT_SENT;
+  DBUG_ENTER("ha_xpand::end_bulk_insert");
+  upsert_flag &= ~XPAND_BULK_UPSERT;
+  upsert_flag &= ~XPAND_HAS_UPSERT;
+  upsert_flag &= ~XPAND_UPSERT_SENT;
   DBUG_RETURN(0);
 }
 
-int ha_clustrixdb::delete_row(const uchar *buf)
+int ha_xpand::delete_row(const uchar *buf)
 {
   int error_code;
   THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -610,10 +610,10 @@ int ha_clustrixdb::delete_row(const uchar *buf)
   uchar *packed_key = (uchar*) my_alloca(estimate_row_size(table));
   build_key_packed_row(table->s->primary_key, buf, packed_key, &packed_key_len);
 
-  error_code = trx->key_delete(clustrix_table_oid, packed_key, packed_key_len);
+  error_code = trx->key_delete(xpand_table_oid, packed_key, packed_key_len);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
-    clustrixdb_mark_table_for_discovery(table);
+    xpand_mark_table_for_discovery(table);
 
   if (packed_key)
     my_afree(packed_key);
@@ -621,7 +621,7 @@ int ha_clustrixdb::delete_row(const uchar *buf)
   return error_code;
 }
 
-ha_clustrixdb::Table_flags ha_clustrixdb::table_flags(void) const
+ha_xpand::Table_flags ha_xpand::table_flags(void) const
 {
   Table_flags flags = HA_PARTIAL_COLUMN_READ |
                       HA_REC_NOT_IN_SEQ |
@@ -637,7 +637,7 @@ ha_clustrixdb::Table_flags ha_clustrixdb::table_flags(void) const
   return flags;
 }
 
-ulong ha_clustrixdb::index_flags(uint idx, uint part, bool all_parts) const
+ulong ha_xpand::index_flags(uint idx, uint part, bool all_parts) const
 {
   ulong flags = HA_READ_NEXT |
                 HA_READ_PREV |
@@ -647,18 +647,18 @@ ulong ha_clustrixdb::index_flags(uint idx, uint part, bool all_parts) const
   return flags;
 }
 
-ha_rows ha_clustrixdb::records()
+ha_rows ha_xpand::records()
 {
   return 10000;
 }
 
-ha_rows ha_clustrixdb::records_in_range(uint inx, key_range *min_key,
+ha_rows ha_xpand::records_in_range(uint inx, key_range *min_key,
                                         key_range *max_key)
 {
   return 2;
 }
 
-int ha_clustrixdb::info(uint flag)
+int ha_xpand::info(uint flag)
 {
   //THD *thd = ha_thd();
   if (flag & HA_STATUS_TIME)
@@ -705,11 +705,11 @@ int ha_clustrixdb::info(uint flag)
   return 0;
 }
 
-int ha_clustrixdb::index_init(uint idx, bool sorted)
+int ha_xpand::index_init(uint idx, bool sorted)
 {
   int error_code = 0;
   THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -727,13 +727,13 @@ int ha_clustrixdb::index_init(uint idx, bool sorted)
   return 0;
 }
 
-int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
+int ha_xpand::index_read(uchar * buf, const uchar * key, uint key_len,
                               enum ha_rkey_function find_flag)
 {
-  DBUG_ENTER("ha_clustrixdb::index_read");
+  DBUG_ENTER("ha_xpand::index_read");
   int error_code = 0;
   THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
 
@@ -744,22 +744,22 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
   build_key_packed_row(active_index, buf, packed_key, &packed_key_len);
 
   bool exact = false;
-  clustrix_connection::scan_type st;
+  xpand_connection::scan_type st;
   switch (find_flag) {
     case HA_READ_KEY_EXACT:
       exact = true;
       break;
     case HA_READ_KEY_OR_NEXT:
-      st = clustrix_connection::READ_KEY_OR_NEXT;
+      st = xpand_connection::READ_KEY_OR_NEXT;
       break;
     case HA_READ_KEY_OR_PREV:
-      st = clustrix_connection::READ_KEY_OR_PREV;
+      st = xpand_connection::READ_KEY_OR_PREV;
       break;
     case HA_READ_AFTER_KEY:
-      st = clustrix_connection::READ_AFTER_KEY;
+      st = xpand_connection::READ_AFTER_KEY;
       break;
     case HA_READ_BEFORE_KEY:
-      st = clustrix_connection::READ_BEFORE_KEY;
+      st = xpand_connection::READ_BEFORE_KEY;
       break;
     case HA_READ_PREFIX:
     case HA_READ_PREFIX_LAST:
@@ -776,7 +776,7 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
   if (exact) {
     is_scan = false;
     ulong rowdata_length;
-    error_code = trx->key_read(clustrix_table_oid, 0, clx_lock_type,
+    error_code = trx->key_read(xpand_table_oid, 0, xpd_lock_type,
                                table->read_set, packed_key, packed_key_len,
                                &rowdata, &rowdata_length);
     if (!error_code)
@@ -785,8 +785,8 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
                                        rowdata + rowdata_length);
   } else {
     is_scan = true;
-    error_code = trx->scan_from_key(clustrix_table_oid, active_index,
-                                    clx_lock_type, st, -1, sorted_scan,
+    error_code = trx->scan_from_key(xpand_table_oid, active_index,
+                                    xpd_lock_type, st, -1, sorted_scan,
                                     &scan_fields, packed_key, packed_key_len,
                                     THDVAR(thd, row_buffer), &scan_cur);
     if (!error_code)
@@ -800,28 +800,28 @@ int ha_clustrixdb::index_read(uchar * buf, const uchar * key, uint key_len,
     my_afree(packed_key);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
-    clustrixdb_mark_table_for_discovery(table);
+    xpand_mark_table_for_discovery(table);
 
   DBUG_RETURN(error_code);
 }
 
-int ha_clustrixdb::index_first(uchar *buf)
+int ha_xpand::index_first(uchar *buf)
 {
-  DBUG_ENTER("ha_clustrixdb::index_first");
+  DBUG_ENTER("ha_xpand::index_first");
   int error_code = 0;
   THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
 
-  error_code = trx->scan_from_key(clustrix_table_oid, active_index,
-                                  clx_lock_type,
-                                  clustrix_connection::READ_FROM_START,
+  error_code = trx->scan_from_key(xpand_table_oid, active_index,
+                                  xpd_lock_type,
+                                  xpand_connection::READ_FROM_START,
                                   -1, sorted_scan, &scan_fields, NULL, 0,
                                   THDVAR(thd, row_buffer), &scan_cur);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
-    clustrixdb_mark_table_for_discovery(table);
+    xpand_mark_table_for_discovery(table);
 
   if (error_code)
     DBUG_RETURN(error_code);
@@ -829,23 +829,23 @@ int ha_clustrixdb::index_first(uchar *buf)
   DBUG_RETURN(rnd_next(buf));
 }
 
-int ha_clustrixdb::index_last(uchar *buf)
+int ha_xpand::index_last(uchar *buf)
 {
-  DBUG_ENTER("ha_clustrixdb::index_last");
+  DBUG_ENTER("ha_xpand::index_last");
   int error_code = 0;
   THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
 
-  error_code = trx->scan_from_key(clustrix_table_oid, active_index,
-                                  clx_lock_type,
-                                  clustrix_connection::READ_FROM_LAST,
+  error_code = trx->scan_from_key(xpand_table_oid, active_index,
+                                  xpd_lock_type,
+                                  xpand_connection::READ_FROM_LAST,
                                   -1, sorted_scan, &scan_fields, NULL, 0,
                                   THDVAR(thd, row_buffer), &scan_cur);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
-    clustrixdb_mark_table_for_discovery(table);
+    xpand_mark_table_for_discovery(table);
 
   if (error_code)
     DBUG_RETURN(error_code);
@@ -853,27 +853,27 @@ int ha_clustrixdb::index_last(uchar *buf)
   DBUG_RETURN(rnd_next(buf));
 }
 
-int ha_clustrixdb::index_next(uchar *buf)
+int ha_xpand::index_next(uchar *buf)
 {
   DBUG_ENTER("index_next");
   DBUG_RETURN(rnd_next(buf));
 }
 
 #if 0
-int ha_clustrixdb::index_next_same(uchar *buf, const uchar *key, uint keylen)
+int ha_xpand::index_next_same(uchar *buf, const uchar *key, uint keylen)
 {
   DBUG_ENTER("index_next_same");
   DBUG_RETURN(rnd_next(buf));
 }
 #endif
 
-int ha_clustrixdb::index_prev(uchar *buf)
+int ha_xpand::index_prev(uchar *buf)
 {
   DBUG_ENTER("index_prev");
   DBUG_RETURN(rnd_next(buf));
 }
 
-int ha_clustrixdb::index_end()
+int ha_xpand::index_end()
 {
   DBUG_ENTER("index_prev");
   if (scan_cur)
@@ -882,14 +882,14 @@ int ha_clustrixdb::index_end()
     DBUG_RETURN(0);
 }
 
-int ha_clustrixdb::rnd_init(bool scan)
+int ha_xpand::rnd_init(bool scan)
 {
-  DBUG_ENTER("ha_clustrixdb::rnd_init");
+  DBUG_ENTER("ha_xpand::rnd_init");
   int error_code = 0;
   THD *thd = ha_thd();
   if (thd->lex->sql_command == SQLCOM_UPDATE)
     DBUG_RETURN(error_code);
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
 
@@ -912,12 +912,12 @@ int ha_clustrixdb::rnd_init(bool scan)
   bitmap_set_all(&scan_fields);
 #endif
 
-  error_code = trx->scan_table(clustrix_table_oid, clx_lock_type,
+  error_code = trx->scan_table(xpand_table_oid, xpd_lock_type,
                                &scan_fields, THDVAR(thd, row_buffer),
                                &scan_cur);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
-    clustrixdb_mark_table_for_discovery(table);
+    xpand_mark_table_for_discovery(table);
 
   if (error_code)
     DBUG_RETURN(error_code);
@@ -925,11 +925,11 @@ int ha_clustrixdb::rnd_init(bool scan)
   DBUG_RETURN(0);
 }
 
-int ha_clustrixdb::rnd_next(uchar *buf)
+int ha_xpand::rnd_next(uchar *buf)
 {
   int error_code = 0;
   THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     return error_code;
 
@@ -956,14 +956,14 @@ int ha_clustrixdb::rnd_next(uchar *buf)
   return 0;
 }
 
-int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
+int ha_xpand::rnd_pos(uchar * buf, uchar *pos)
 {
-  DBUG_ENTER("clx_rnd_pos");
+  DBUG_ENTER("xpd_rnd_pos");
   DBUG_DUMP("pos", pos, ref_length);
 
   int error_code = 0;
   THD *thd = ha_thd();
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
 
@@ -985,7 +985,7 @@ int ha_clustrixdb::rnd_pos(uchar * buf, uchar *pos)
 
   uchar *rowdata = NULL;
   ulong rowdata_length;
-  if ((error_code = trx->key_read(clustrix_table_oid, 0, clx_lock_type,
+  if ((error_code = trx->key_read(xpand_table_oid, 0, xpd_lock_type,
                                   table->read_set, packed_key, packed_key_len,
                                   &rowdata, &rowdata_length)))
     goto err;
@@ -1002,20 +1002,20 @@ err:
     my_afree(packed_key);
 
   if (error_code == HA_ERR_TABLE_DEF_CHANGED)
-    clustrixdb_mark_table_for_discovery(table);
+    xpand_mark_table_for_discovery(table);
 
   DBUG_RETURN(error_code);
 }
 
-int ha_clustrixdb::rnd_end()
+int ha_xpand::rnd_end()
 {
-  DBUG_ENTER("ha_clustrixdb::rnd_end()");
+  DBUG_ENTER("ha_xpand::rnd_end()");
   int error_code = 0;
   THD *thd = ha_thd();
   if (thd->lex->sql_command == SQLCOM_UPDATE)
     DBUG_RETURN(error_code);
 
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (!trx)
     DBUG_RETURN(error_code);
 
@@ -1027,9 +1027,9 @@ int ha_clustrixdb::rnd_end()
   DBUG_RETURN(0);
 }
 
-void ha_clustrixdb::position(const uchar *record)
+void ha_xpand::position(const uchar *record)
 {
-  DBUG_ENTER("clx_position");
+  DBUG_ENTER("xpd_position");
   if (has_hidden_key) {
     memcpy(ref, &last_hidden_key, sizeof(ulonglong));
   } else {
@@ -1040,13 +1040,13 @@ void ha_clustrixdb::position(const uchar *record)
   DBUG_VOID_RETURN;
 }
 
-uint ha_clustrixdb::lock_count(void) const
+uint ha_xpand::lock_count(void) const
 {
   /* Hopefully, we don't need to use thread locks */
   return 0;
 }
 
-THR_LOCK_DATA **ha_clustrixdb::store_lock(THD *thd,
+THR_LOCK_DATA **ha_xpand::store_lock(THD *thd,
                                           THR_LOCK_DATA **to,
                                           enum thr_lock_type lock_type)
 {
@@ -1054,20 +1054,20 @@ THR_LOCK_DATA **ha_clustrixdb::store_lock(THD *thd,
   return to;
 }
 
-int ha_clustrixdb::external_lock(THD *thd, int lock_type)
+int ha_xpand::external_lock(THD *thd, int lock_type)
 {
-  DBUG_ENTER("ha_clustrixdb::external_lock()");
+  DBUG_ENTER("ha_xpand::external_lock()");
   int error_code;
-  clustrix_connection *trx = get_trx(thd, &error_code);
+  xpand_connection *trx = get_trx(thd, &error_code);
   if (error_code)
       DBUG_RETURN(error_code);
 
   if (lock_type == F_WRLCK)
-    clx_lock_type = CLUSTRIX_EXCLUSIVE;
+    xpd_lock_type = XPAND_EXCLUSIVE;
   else if (lock_type == F_RDLCK)
-    clx_lock_type = CLUSTRIX_SHARED;
+    xpd_lock_type = XPAND_SHARED;
   else if (lock_type == F_UNLCK)
-    clx_lock_type = CLUSTRIX_NO_LOCKS;
+    xpd_lock_type = XPAND_NO_LOCKS;
 
   if (lock_type != F_UNLCK) {
     if (!trx->has_open_transaction()) {
@@ -1076,9 +1076,9 @@ int ha_clustrixdb::external_lock(THD *thd, int lock_type)
           DBUG_RETURN(error_code);
     }
 
-    trans_register_ha(thd, FALSE, clustrixdb_hton);
+    trans_register_ha(thd, FALSE, xpand_hton);
     if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-      trans_register_ha(thd, TRUE, clustrixdb_hton);
+      trans_register_ha(thd, TRUE, xpand_hton);
   }
 
   DBUG_RETURN(error_code);
@@ -1088,16 +1088,16 @@ int ha_clustrixdb::external_lock(THD *thd, int lock_type)
   Engine Condition Pushdown
 ****************************************************************************/
 
-const COND *ha_clustrixdb::cond_push(const COND *cond)
+const COND *ha_xpand::cond_push(const COND *cond)
 {
   return cond;
 }
 
-void ha_clustrixdb::cond_pop()
+void ha_xpand::cond_pop()
 {
 }
 
-int ha_clustrixdb::info_push(uint info_type, void *info)
+int ha_xpand::info_push(uint info_type, void *info)
 {
   return 0;
 }
@@ -1158,7 +1158,7 @@ void remove_current_table_from_rpl_table_list(rpl_group_info *rgi)
   delete rgi;
 }
 
-void ha_clustrixdb::build_key_packed_row(uint index, const uchar *buf,
+void ha_xpand::build_key_packed_row(uint index, const uchar *buf,
                                          uchar *packed_key,
                                          size_t *packed_key_len)
 {
@@ -1205,9 +1205,9 @@ int unpack_row_to_buf(rpl_group_info *rgi, TABLE *table, uchar *data,
 ** Plugin Functions
 ****************************************************************************/
 
-static int clustrixdb_commit(handlerton *hton, THD *thd, bool all)
+static int xpand_commit(handlerton *hton, THD *thd, bool all)
 {
-  clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
+  xpand_connection* trx = (xpand_connection *) thd_get_ha_data(thd, hton);
   assert(trx);
 
   int error_code = 0;
@@ -1221,9 +1221,9 @@ static int clustrixdb_commit(handlerton *hton, THD *thd, bool all)
   return error_code;
 }
 
-static int clustrixdb_rollback(handlerton *hton, THD *thd, bool all)
+static int xpand_rollback(handlerton *hton, THD *thd, bool all)
 {
-  clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
+  xpand_connection* trx = (xpand_connection *) thd_get_ha_data(thd, hton);
   assert(trx);
 
   int error_code = 0;
@@ -1237,103 +1237,103 @@ static int clustrixdb_rollback(handlerton *hton, THD *thd, bool all)
   return error_code;
 }
 
-static handler* clustrixdb_create_handler(handlerton *hton, TABLE_SHARE *table,
+static handler* xpand_create_handler(handlerton *hton, TABLE_SHARE *table,
                                    MEM_ROOT *mem_root)
 {
-  return new (mem_root) ha_clustrixdb(hton, table);
+  return new (mem_root) ha_xpand(hton, table);
 }
 
-static int clustrixdb_close_connection(handlerton* hton, THD* thd)
+static int xpand_close_connection(handlerton* hton, THD* thd)
 {
-  clustrix_connection* trx = (clustrix_connection *) thd_get_ha_data(thd, hton);
+  xpand_connection* trx = (xpand_connection *) thd_get_ha_data(thd, hton);
   if (!trx)
     return 0; /* Transaction is not started */
 
-  int error_code = clustrixdb_rollback(clustrixdb_hton, thd, TRUE);
+  int error_code = xpand_rollback(xpand_hton, thd, TRUE);
 
   delete trx;
 
   return error_code;
 }
 
-static int clustrixdb_panic(handlerton *hton, ha_panic_function type)
+static int xpand_panic(handlerton *hton, ha_panic_function type)
 {
   return 0;
 }
 
-static bool clustrixdb_show_status(handlerton *hton, THD *thd,
+static bool xpand_show_status(handlerton *hton, THD *thd,
                             stat_print_fn *stat_print,
                             enum ha_stat_type stat_type)
 {
   return FALSE;
 }
 
-static int clustrixdb_discover_table_names(handlerton *hton, LEX_CSTRING *db,
+static int xpand_discover_table_names(handlerton *hton, LEX_CSTRING *db,
                                            MY_DIR *dir,
                                            handlerton::discovered_list *result)
 {
-  clustrix_connection *clustrix_net = new clustrix_connection();
-  int error_code = clustrix_net->connect();
+  xpand_connection *xpand_net = new xpand_connection();
+  int error_code = xpand_net->connect();
   if (error_code)
     goto err;
 
-  clustrix_net->populate_table_list(db, result);
+  xpand_net->populate_table_list(db, result);
 
 err:
-  delete clustrix_net;
+  delete xpand_net;
   return error_code;
 }
 
-int clustrixdb_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
+int xpand_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
 {
-  clustrix_connection *clustrix_net = new clustrix_connection();
-  int error_code = clustrix_net->connect();
+  xpand_connection *xpand_net = new xpand_connection();
+  int error_code = xpand_net->connect();
   if (error_code)
     goto err;
 
-  error_code = clustrix_net->discover_table_details(&share->db,
+  error_code = xpand_net->discover_table_details(&share->db,
                                                     &share->table_name,
                                                     thd, share);
 
 err:
-  delete clustrix_net;
+  delete xpand_net;
   return error_code;
 }
 
-static int clustrixdb_init(void *p)
+static int xpand_init(void *p)
 {
-  DBUG_ENTER("clustrixdb_init");
-  clustrixdb_hton = (handlerton *) p;
-  clustrixdb_hton->flags = HTON_NO_FLAGS;
-  clustrixdb_hton->panic = clustrixdb_panic;
-  clustrixdb_hton->close_connection = clustrixdb_close_connection;
-  clustrixdb_hton->commit = clustrixdb_commit;
-  clustrixdb_hton->rollback = clustrixdb_rollback;
-  clustrixdb_hton->create = clustrixdb_create_handler;
-  clustrixdb_hton->show_status = clustrixdb_show_status;
-  clustrixdb_hton->discover_table_names = clustrixdb_discover_table_names;
-  clustrixdb_hton->discover_table = clustrixdb_discover_table;
-  clustrixdb_hton->create_select = create_clustrixdb_select_handler;
-  clustrixdb_hton->create_derived = create_clustrixdb_derived_handler;
+  DBUG_ENTER("xpand_init");
+  xpand_hton = (handlerton *) p;
+  xpand_hton->flags = HTON_NO_FLAGS;
+  xpand_hton->panic = xpand_panic;
+  xpand_hton->close_connection = xpand_close_connection;
+  xpand_hton->commit = xpand_commit;
+  xpand_hton->rollback = xpand_rollback;
+  xpand_hton->create = xpand_create_handler;
+  xpand_hton->show_status = xpand_show_status;
+  xpand_hton->discover_table_names = xpand_discover_table_names;
+  xpand_hton->discover_table = xpand_discover_table;
+  xpand_hton->create_select = create_xpand_select_handler;
+  xpand_hton->create_derived = create_xpand_derived_handler;
 
-  update_host_list(clustrix_host);
+  update_host_list(xpand_host);
 
   DBUG_RETURN(0);
 }
 
-static int clustrixdb_deinit(void *p)
+static int xpand_deinit(void *p)
 {
-  DBUG_ENTER("clustrixdb_deinit");
+  DBUG_ENTER("xpand_deinit");
   free_host_list();
   DBUG_RETURN(0);
 }
 
-struct st_mysql_show_var clustrixdb_status_vars[] =
+struct st_mysql_show_var xpand_status_vars[] =
 {
   {NullS, NullS, SHOW_LONG}
 };
 
-static struct st_mysql_sys_var* clustrixdb_system_variables[] =
+static struct st_mysql_sys_var* xpand_system_variables[] =
 {
   MYSQL_SYSVAR(connect_timeout),
   MYSQL_SYSVAR(read_timeout),
@@ -1350,22 +1350,22 @@ static struct st_mysql_sys_var* clustrixdb_system_variables[] =
   NULL
 };
 
-static struct st_mysql_storage_engine clustrixdb_storage_engine =
+static struct st_mysql_storage_engine xpand_storage_engine =
   {MYSQL_HANDLERTON_INTERFACE_VERSION};
 
-maria_declare_plugin(clustrixdb)
+maria_declare_plugin(xpand)
 {
     MYSQL_STORAGE_ENGINE_PLUGIN,                /* Plugin Type */
-    &clustrixdb_storage_engine,                 /* Plugin Descriptor */
-    "CLUSTRIXDB",                               /* Plugin Name */
+    &xpand_storage_engine,                 /* Plugin Descriptor */
+    "XPAND",                               /* Plugin Name */
     "MariaDB",                                  /* Plugin Author */
-    "ClustrixDB storage engine",                /* Plugin Description */
+    "Xpand storage engine",                /* Plugin Description */
     PLUGIN_LICENSE_GPL,                         /* Plugin Licence */
-    clustrixdb_init,                            /* Plugin Entry Point */
-    clustrixdb_deinit,                          /* Plugin Deinitializer */
+    xpand_init,                            /* Plugin Entry Point */
+    xpand_deinit,                          /* Plugin Deinitializer */
     0x0001,                                     /* Hex Version Number (0.1) */
-    NULL /* clustrixdb_status_vars */,          /* Status Variables */
-    clustrixdb_system_variables,                /* System Variables */
+    NULL /* xpand_status_vars */,          /* Status Variables */
+    xpand_system_variables,                /* System Variables */
     "0.1",                                      /* String Version */
     MariaDB_PLUGIN_MATURITY_EXPERIMENTAL        /* Maturity Level */
 }

@@ -1,10 +1,10 @@
-CREATE DATABASE clx;
-USE clx;
+CREATE DATABASE xpd;
+USE xpd;
 DROP TABLE IF EXISTS cx1;
 Warnings:
-Note	1051	Unknown table 'clx.cx1'
-CREATE TABLE cx1(i BIGINT)ENGINE=clustrixdb;
-CREATE TABLE cx1(i BIGINT)ENGINE=clustrixdb;
+Note	1051	Unknown table 'xpd.cx1'
+CREATE TABLE cx1(i BIGINT)ENGINE=xpand;
+CREATE TABLE cx1(i BIGINT)ENGINE=xpand;
 ERROR 42S01: Table 'cx1' already exists
 INSERT INTO cx1 VALUES (42);
 SELECT * FROM cx1;
@@ -12,11 +12,11 @@ i
 42
 DROP TABLE cx1;
 SHOW CREATE TABLE cx1;
-ERROR 42S02: Table 'clx.cx1' doesn't exist
+ERROR 42S02: Table 'xpd.cx1' doesn't exist
 DROP TABLE IF EXISTS intandtext;
 Warnings:
-Note	1051	Unknown table 'clx.intandtext'
-CREATE TABLE intandtext(i bigint, t text)ENGINE=clustrixdb;
+Note	1051	Unknown table 'xpd.intandtext'
+CREATE TABLE intandtext(i bigint, t text)ENGINE=xpand;
 INSERT INTO intandtext VALUES(10, 'someqwqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
 SELECT i,t FROM intandtext;
 i	t
@@ -25,7 +25,7 @@ EXPLAIN SELECT i,t FROM intandtext;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 SET @@optimizer_switch='derived_merge=OFF';
-SET clustrixdb_select_handler=OFF;
+SET xpand_select_handler=OFF;
 SELECT i,t FROM (SELECT i,t FROM intandtext) t;
 i	t
 10	someqwqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
@@ -33,7 +33,7 @@ EXPLAIN SELECT i,t FROM (SELECT i,t FROM intandtext) t;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10000	
 2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
-SET clustrixdb_derived_handler=OFF;
+SET xpand_derived_handler=OFF;
 SELECT i,t FROM intandtext;
 i	t
 10	someqwqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
@@ -46,4 +46,4 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DERIVED	intandtext	ALL	NULL	NULL	NULL	NULL	10000	
 DROP TABLE intandtext;
 USE test;
-DROP DATABASE clx;
+DROP DATABASE xpd;

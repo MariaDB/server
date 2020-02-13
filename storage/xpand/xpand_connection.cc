@@ -2,22 +2,22 @@
 Copyright (c) 2019, MariaDB Corporation.
 *****************************************************************************/
 
-/** @file clustrix_connection.cc */
+/** @file xpand_connection.cc */
 
-#include "clustrix_connection.h"
+#include "xpand_connection.h"
 #include <string>
 #include "errmsg.h"
 #include "handler.h"
 #include "table.h"
 
-extern int clustrix_connect_timeout;
-extern int clustrix_read_timeout;
-extern int clustrix_write_timeout;
-extern char *clustrix_host;
-extern char *clustrix_username;
-extern char *clustrix_password;
-extern uint clustrix_port;
-extern char *clustrix_socket;
+extern int xpand_connect_timeout;
+extern int xpand_read_timeout;
+extern int xpand_write_timeout;
+extern char *xpand_host;
+extern char *xpand_username;
+extern char *xpand_password;
+extern uint xpand_port;
+extern char *xpand_socket;
 
 /*
    This class implements the commands that can be sent to the cluster by the
@@ -44,56 +44,56 @@ extern char *clustrix_socket;
    The rollback statement command can likewise change the state from NEW_STMT to
    STARTED without sending anything to the cluster.
 
-   In addition, the CLUSTRIX_TRANS_AUTOCOMMIT flag will cause the transactions
+   In addition, the XPAND_TRANS_AUTOCOMMIT flag will cause the transactions
    for commands that complete without leaving open invocations on the cluster to
    be committed if successful or rolled back if there was an error.  If
    auto-commit is enabled, only one open invocation may be in progress at a
    time.
 */
 
-enum clustrix_trans_state {
-    CLUSTRIX_TRANS_STARTED = 0,
-    CLUSTRIX_TRANS_REQUESTED = 1,
-    CLUSTRIX_TRANS_NEW_STMT = 2,
-    CLUSTRIX_TRANS_ROLLBACK_STMT = 4,
-    CLUSTRIX_TRANS_NONE = 32,
+enum xpand_trans_state {
+    XPAND_TRANS_STARTED = 0,
+    XPAND_TRANS_REQUESTED = 1,
+    XPAND_TRANS_NEW_STMT = 2,
+    XPAND_TRANS_ROLLBACK_STMT = 4,
+    XPAND_TRANS_NONE = 32,
 };
 
-enum clustrix_trans_post_flags {
-    CLUSTRIX_TRANS_AUTOCOMMIT = 8,
-    CLUSTRIX_TRANS_NO_POST_FLAGS = 0,
+enum xpand_trans_post_flags {
+    XPAND_TRANS_AUTOCOMMIT = 8,
+    XPAND_TRANS_NO_POST_FLAGS = 0,
 };
 
-enum clustrix_commands {
-  CLUSTRIX_WRITE_ROW = 1,
-  CLUSTRIX_SCAN_TABLE,
-  CLUSTRIX_SCAN_NEXT,
-  CLUSTRIX_SCAN_STOP,
-  CLUSTRIX_KEY_READ,
-  CLUSTRIX_KEY_DELETE,
-  CLUSTRIX_SCAN_QUERY,
-  CLUSTRIX_KEY_UPDATE,
-  CLUSTRIX_SCAN_FROM_KEY,
-  CLUSTRIX_UPDATE_QUERY,
-  CLUSTRIX_COMMIT,
-  CLUSTRIX_ROLLBACK,
+enum xpand_commands {
+  XPAND_WRITE_ROW = 1,
+  XPAND_SCAN_TABLE,
+  XPAND_SCAN_NEXT,
+  XPAND_SCAN_STOP,
+  XPAND_KEY_READ,
+  XPAND_KEY_DELETE,
+  XPAND_SCAN_QUERY,
+  XPAND_KEY_UPDATE,
+  XPAND_SCAN_FROM_KEY,
+  XPAND_UPDATE_QUERY,
+  XPAND_COMMIT,
+  XPAND_ROLLBACK,
 };
 
 /****************************************************************************
-** Class clustrix_connection
+** Class xpand_connection
 ****************************************************************************/
-clustrix_connection::clustrix_connection()
+xpand_connection::xpand_connection()
   : command_buffer(NULL), command_buffer_length(0), command_length(0),
-    trans_state(CLUSTRIX_TRANS_NONE), trans_flags(CLUSTRIX_TRANS_NO_POST_FLAGS)
+    trans_state(XPAND_TRANS_NONE), trans_flags(XPAND_TRANS_NO_POST_FLAGS)
 {
-  DBUG_ENTER("clustrix_connection::clustrix_connection");
-  memset(&clustrix_net, 0, sizeof(MYSQL));
+  DBUG_ENTER("xpand_connection::xpand_connection");
+  memset(&xpand_net, 0, sizeof(MYSQL));
   DBUG_VOID_RETURN;
 }
 
-clustrix_connection::~clustrix_connection()
+xpand_connection::~xpand_connection()
 {
-  DBUG_ENTER("clustrix_connection::~clustrix_connection");
+  DBUG_ENTER("xpand_connection::~xpand_connection");
   if (is_connected())
     disconnect(TRUE);
 
@@ -102,9 +102,9 @@ clustrix_connection::~clustrix_connection()
   DBUG_VOID_RETURN;
 }
 
-void clustrix_connection::disconnect(bool is_destructor)
+void xpand_connection::disconnect(bool is_destructor)
 {
-  DBUG_ENTER("clustrix_connection::disconnect");
+  DBUG_ENTER("xpand_connection::disconnect");
   if (is_destructor)
   {
     /*
@@ -112,9 +112,9 @@ void clustrix_connection::disconnect(bool is_destructor)
       the thread used by the network has begun, so usage of that
       thread object now is not reliable
     */
-    clustrix_net.net.thd = NULL;
+    xpand_net.net.thd = NULL;
   }
-  mysql_close(&clustrix_net);
+  mysql_close(&xpand_net);
   DBUG_VOID_RETURN;
 }
 
@@ -122,11 +122,11 @@ int host_list_next;
 extern int host_list_cnt;
 extern char **host_list;
 
-int clustrix_connection::connect()
+int xpand_connection::connect()
 {
   int error_code = 0;
   my_bool my_true = 1;
-  DBUG_ENTER("clustrix_connection::connect");
+  DBUG_ENTER("xpand_connection::connect");
 
   // cpu concurrency by damned!
   int host_num = host_list_next;
@@ -136,50 +136,50 @@ int clustrix_connection::connect()
   DBUG_PRINT("host", ("%s", host));
 
   /* Validate the connection parameters */
-  if (!strcmp(clustrix_socket, ""))
+  if (!strcmp(xpand_socket, ""))
     if (!strcmp(host, "127.0.0.1"))
-      if (clustrix_port == MYSQL_PORT_DEFAULT)
+      if (xpand_port == MYSQL_PORT_DEFAULT)
         DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
 
-  //clustrix_net.methods = &connection_methods;
+  //xpand_net.methods = &connection_methods;
 
-  if (!mysql_init(&clustrix_net))
+  if (!mysql_init(&xpand_net))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-  mysql_options(&clustrix_net, MYSQL_OPT_READ_TIMEOUT,
-                &clustrix_read_timeout);
-  mysql_options(&clustrix_net, MYSQL_OPT_WRITE_TIMEOUT,
-                &clustrix_write_timeout);
-  mysql_options(&clustrix_net, MYSQL_OPT_CONNECT_TIMEOUT,
-                &clustrix_connect_timeout);
-  mysql_options(&clustrix_net, MYSQL_OPT_USE_REMOTE_CONNECTION,
+  mysql_options(&xpand_net, MYSQL_OPT_READ_TIMEOUT,
+                &xpand_read_timeout);
+  mysql_options(&xpand_net, MYSQL_OPT_WRITE_TIMEOUT,
+                &xpand_write_timeout);
+  mysql_options(&xpand_net, MYSQL_OPT_CONNECT_TIMEOUT,
+                &xpand_connect_timeout);
+  mysql_options(&xpand_net, MYSQL_OPT_USE_REMOTE_CONNECTION,
                 NULL);
-  mysql_options(&clustrix_net, MYSQL_SET_CHARSET_NAME, "utf8mb4");
-  mysql_options(&clustrix_net, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
+  mysql_options(&xpand_net, MYSQL_SET_CHARSET_NAME, "utf8mb4");
+  mysql_options(&xpand_net, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
                 (char *) &my_true);
-  mysql_options(&clustrix_net, MYSQL_INIT_COMMAND,"SET autocommit=0");
+  mysql_options(&xpand_net, MYSQL_INIT_COMMAND,"SET autocommit=0");
 
-#ifdef CLUSTRIX_CONNECTION_SSL
+#ifdef XPAND_CONNECTION_SSL
   if (opt_ssl_ca_length | conn->tgt_ssl_capath_length |
       conn->tgt_ssl_cert_length | conn->tgt_ssl_key_length)
   {
-    mysql_ssl_set(&clustrix_net, conn->tgt_ssl_key, conn->tgt_ssl_cert,
+    mysql_ssl_set(&xpand_net, conn->tgt_ssl_key, conn->tgt_ssl_cert,
                   conn->tgt_ssl_ca, conn->tgt_ssl_capath, conn->tgt_ssl_cipher);
     if (conn->tgt_ssl_vsc)
     {
       my_bool verify_flg = TRUE;
-      mysql_options(&clustrix_net, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+      mysql_options(&xpand_net, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                     &verify_flg);
     }
   }
 #endif
 
-  if (!mysql_real_connect(&clustrix_net, host,
-                          clustrix_username, clustrix_password,
-                          NULL, clustrix_port, clustrix_socket,
+  if (!mysql_real_connect(&xpand_net, host,
+                          xpand_username, xpand_password,
+                          NULL, xpand_port, xpand_socket,
                           CLIENT_MULTI_STATEMENTS))
   {
-    error_code = mysql_errno(&clustrix_net);
+    error_code = mysql_errno(&xpand_net);
     disconnect();
 
     if (error_code != CR_CONN_HOST_ERROR &&
@@ -195,14 +195,14 @@ int clustrix_connection::connect()
     }
   }
 
-  clustrix_net.reconnect = 1;
+  xpand_net.reconnect = 1;
 
   DBUG_RETURN(0);
 }
 
-int clustrix_connection::begin_command(uchar command)
+int xpand_connection::begin_command(uchar command)
 {
-  if (trans_state == CLUSTRIX_TRANS_NONE)
+  if (trans_state == XPAND_TRANS_NONE)
     return HA_ERR_INTERNAL_ERROR;
 
   command_length = 0;
@@ -216,7 +216,7 @@ int clustrix_connection::begin_command(uchar command)
   return error_code;
 }
 
-int clustrix_connection::send_command()
+int xpand_connection::send_command()
 {
   my_bool com_error;
 
@@ -233,59 +233,59 @@ int clustrix_connection::send_command()
        because it needs to be sent with each command until the transaction is
        committed or rolled back.
   */
-  trans_state = CLUSTRIX_TRANS_STARTED;
+  trans_state = XPAND_TRANS_STARTED;
   
-  com_error = simple_command(&clustrix_net,
-                             (enum_server_command)CLUSTRIX_SERVER_REQUEST,
+  com_error = simple_command(&xpand_net,
+                             (enum_server_command)XPAND_SERVER_REQUEST,
                              command_buffer, command_length, TRUE);
 
   if (com_error)
   {
-    int error_code = mysql_errno(&clustrix_net);
+    int error_code = mysql_errno(&xpand_net);
     my_printf_error(error_code,
-                    "Clustrix error: %s", MYF(0),
-                    mysql_error(&clustrix_net));
+                    "Xpand error: %s", MYF(0),
+                    mysql_error(&xpand_net));
     return error_code;
   }
 
   return 0;
 }
 
-int clustrix_connection::read_query_response()
+int xpand_connection::read_query_response()
 {
-  my_bool comerr = clustrix_net.methods->read_query_result(&clustrix_net);
+  my_bool comerr = xpand_net.methods->read_query_result(&xpand_net);
   int error_code = 0;
   if (comerr)
   {
-    error_code = mysql_errno(&clustrix_net);
+    error_code = mysql_errno(&xpand_net);
     my_printf_error(error_code,
-                    "Clustrix error: %s", MYF(0),
-                    mysql_error(&clustrix_net));
+                    "Xpand error: %s", MYF(0),
+                    mysql_error(&xpand_net));
   }
 
   auto_commit_closed();
   return error_code;
 }
 
-bool clustrix_connection::has_open_transaction()
+bool xpand_connection::has_open_transaction()
 {
-  return trans_state != CLUSTRIX_TRANS_NONE;
+  return trans_state != XPAND_TRANS_NONE;
 }
 
-int clustrix_connection::commit_transaction()
+int xpand_connection::commit_transaction()
 {
-  DBUG_ENTER("clustrix_connection::commit_transaction");
-  if (trans_state == CLUSTRIX_TRANS_NONE)
+  DBUG_ENTER("xpand_connection::commit_transaction");
+  if (trans_state == XPAND_TRANS_NONE)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
-  if (trans_state == CLUSTRIX_TRANS_REQUESTED) {
-    trans_state = CLUSTRIX_TRANS_NONE;
-    trans_flags = CLUSTRIX_TRANS_NO_POST_FLAGS;
+  if (trans_state == XPAND_TRANS_REQUESTED) {
+    trans_state = XPAND_TRANS_NONE;
+    trans_flags = XPAND_TRANS_NO_POST_FLAGS;
     DBUG_RETURN(0);
   }
 
   int error_code;
-  if ((error_code = begin_command(CLUSTRIX_COMMIT)))
+  if ((error_code = begin_command(XPAND_COMMIT)))
     DBUG_RETURN(error_code);
 
   if ((error_code = send_command()))
@@ -294,22 +294,22 @@ int clustrix_connection::commit_transaction()
   if ((error_code = read_query_response()))
     DBUG_RETURN(error_code);
 
-  trans_state = CLUSTRIX_TRANS_NONE;
-  trans_flags = CLUSTRIX_TRANS_NO_POST_FLAGS;
+  trans_state = XPAND_TRANS_NONE;
+  trans_flags = XPAND_TRANS_NO_POST_FLAGS;
   DBUG_RETURN(error_code);
 }
 
-int clustrix_connection::rollback_transaction()
+int xpand_connection::rollback_transaction()
 {
-  DBUG_ENTER("clustrix_connection::rollback_transaction");
-  if (trans_state == CLUSTRIX_TRANS_NONE ||
-      trans_state == CLUSTRIX_TRANS_REQUESTED) {
-    trans_state = CLUSTRIX_TRANS_NONE;
+  DBUG_ENTER("xpand_connection::rollback_transaction");
+  if (trans_state == XPAND_TRANS_NONE ||
+      trans_state == XPAND_TRANS_REQUESTED) {
+    trans_state = XPAND_TRANS_NONE;
     DBUG_RETURN(0);
   }
 
   int error_code;
-  if ((error_code = begin_command(CLUSTRIX_ROLLBACK)))
+  if ((error_code = begin_command(XPAND_ROLLBACK)))
     DBUG_RETURN(error_code);
 
   if ((error_code = send_command()))
@@ -318,66 +318,66 @@ int clustrix_connection::rollback_transaction()
   if ((error_code = read_query_response()))
     DBUG_RETURN(error_code);
 
-  trans_state = CLUSTRIX_TRANS_NONE;
-  trans_flags = CLUSTRIX_TRANS_NO_POST_FLAGS;
+  trans_state = XPAND_TRANS_NONE;
+  trans_flags = XPAND_TRANS_NO_POST_FLAGS;
   DBUG_RETURN(error_code);
 }
 
-int clustrix_connection::begin_transaction_next()
+int xpand_connection::begin_transaction_next()
 {
-  DBUG_ENTER("clustrix_connection::begin_transaction_next");
-  if (trans_state != CLUSTRIX_TRANS_NONE ||
-      trans_flags != CLUSTRIX_TRANS_NO_POST_FLAGS)
+  DBUG_ENTER("xpand_connection::begin_transaction_next");
+  if (trans_state != XPAND_TRANS_NONE ||
+      trans_flags != XPAND_TRANS_NO_POST_FLAGS)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
-  trans_state = CLUSTRIX_TRANS_REQUESTED;
+  trans_state = XPAND_TRANS_REQUESTED;
   DBUG_RETURN(0);
 }
 
-int clustrix_connection::new_statement_next()
+int xpand_connection::new_statement_next()
 {
-  DBUG_ENTER("clustrix_connection::new_statement_next");
-  if (trans_state != CLUSTRIX_TRANS_STARTED ||
-      trans_flags != CLUSTRIX_TRANS_NO_POST_FLAGS)
+  DBUG_ENTER("xpand_connection::new_statement_next");
+  if (trans_state != XPAND_TRANS_STARTED ||
+      trans_flags != XPAND_TRANS_NO_POST_FLAGS)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
-  trans_state = CLUSTRIX_TRANS_NEW_STMT;
+  trans_state = XPAND_TRANS_NEW_STMT;
   DBUG_RETURN(0);
 }
 
-int clustrix_connection::rollback_statement_next()
+int xpand_connection::rollback_statement_next()
 {
-  DBUG_ENTER("clustrix_connection::rollback_statement_next");
-  if (trans_state != CLUSTRIX_TRANS_STARTED ||
-      trans_flags != CLUSTRIX_TRANS_NO_POST_FLAGS)
+  DBUG_ENTER("xpand_connection::rollback_statement_next");
+  if (trans_state != XPAND_TRANS_STARTED ||
+      trans_flags != XPAND_TRANS_NO_POST_FLAGS)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
-  trans_state = CLUSTRIX_TRANS_ROLLBACK_STMT;
+  trans_state = XPAND_TRANS_ROLLBACK_STMT;
   DBUG_RETURN(0);
 }
 
-void clustrix_connection::auto_commit_next()
+void xpand_connection::auto_commit_next()
 {
-  trans_flags |= CLUSTRIX_TRANS_AUTOCOMMIT;
+  trans_flags |= XPAND_TRANS_AUTOCOMMIT;
 }
 
-void clustrix_connection::auto_commit_closed()
+void xpand_connection::auto_commit_closed()
 {
-  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT) {
-    trans_flags &= ~CLUSTRIX_TRANS_AUTOCOMMIT;
-    trans_state = CLUSTRIX_TRANS_NONE;
+  if (trans_flags & XPAND_TRANS_AUTOCOMMIT) {
+    trans_flags &= ~XPAND_TRANS_AUTOCOMMIT;
+    trans_state = XPAND_TRANS_NONE;
   }
 }
 
-int clustrix_connection::run_query(String &stmt)
+int xpand_connection::run_query(String &stmt)
 {
-  int error_code = mysql_real_query(&clustrix_net, stmt.ptr(), stmt.length());
+  int error_code = mysql_real_query(&xpand_net, stmt.ptr(), stmt.length());
   if (error_code)
-    return mysql_errno(&clustrix_net);
+    return mysql_errno(&xpand_net);
   return error_code;
 }
 
-int clustrix_connection::write_row(ulonglong clustrix_table_oid,
+int xpand_connection::write_row(ulonglong xpand_table_oid,
                                    uchar *packed_row, size_t packed_size,
                                    ulonglong *last_insert_id)
 {
@@ -385,13 +385,13 @@ int clustrix_connection::write_row(ulonglong clustrix_table_oid,
   command_length = 0;
 
   // row based commands should not be called with auto commit.
-  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT)
+  if (trans_flags & XPAND_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
-  if ((error_code = begin_command(CLUSTRIX_WRITE_ROW)))
+  if ((error_code = begin_command(XPAND_WRITE_ROW)))
     return error_code;
 
-  if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
+  if ((error_code = add_command_operand_ulonglong(xpand_table_oid)))
     return error_code;
 
   if ((error_code = add_command_operand_str(packed_row, packed_size)))
@@ -403,11 +403,11 @@ int clustrix_connection::write_row(ulonglong clustrix_table_oid,
   if ((error_code = read_query_response()))
     return error_code;
 
-  *last_insert_id = clustrix_net.insert_id;
+  *last_insert_id = xpand_net.insert_id;
   return error_code;
 }
 
-int clustrix_connection::key_update(ulonglong clustrix_table_oid,
+int xpand_connection::key_update(ulonglong xpand_table_oid,
                                     uchar *packed_key, size_t packed_key_length,
                                     MY_BITMAP *update_set,
                                     uchar *packed_new_data,
@@ -417,13 +417,13 @@ int clustrix_connection::key_update(ulonglong clustrix_table_oid,
   command_length = 0;
 
   // row based commands should not be called with auto commit.
-  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT)
+  if (trans_flags & XPAND_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
-  if ((error_code = begin_command(CLUSTRIX_KEY_UPDATE)))
+  if ((error_code = begin_command(XPAND_KEY_UPDATE)))
     return error_code;
 
-  if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
+  if ((error_code = add_command_operand_ulonglong(xpand_table_oid)))
     return error_code;
 
   if ((error_code = add_command_operand_str(packed_key, packed_key_length)))
@@ -445,20 +445,20 @@ int clustrix_connection::key_update(ulonglong clustrix_table_oid,
   return error_code;
 }
 
-int clustrix_connection::key_delete(ulonglong clustrix_table_oid,
+int xpand_connection::key_delete(ulonglong xpand_table_oid,
                                     uchar *packed_key, size_t packed_key_length)
 {
   int error_code;
   command_length = 0;
 
   // row based commands should not be called with auto commit.
-  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT)
+  if (trans_flags & XPAND_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
-  if ((error_code = begin_command(CLUSTRIX_KEY_DELETE)))
+  if ((error_code = begin_command(XPAND_KEY_DELETE)))
     return error_code;
 
-  if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
+  if ((error_code = add_command_operand_ulonglong(xpand_table_oid)))
     return error_code;
 
   if ((error_code = add_command_operand_str(packed_key, packed_key_length)))
@@ -473,8 +473,8 @@ int clustrix_connection::key_delete(ulonglong clustrix_table_oid,
   return error_code;
 }
 
-int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
-                                  clustrix_lock_mode_t lock_mode,
+int xpand_connection::key_read(ulonglong xpand_table_oid, uint index,
+                                  xpand_lock_mode_t lock_mode,
                                   MY_BITMAP *read_set, uchar *packed_key,
                                   ulong packed_key_length, uchar **rowdata,
                                   ulong *rowdata_length)
@@ -483,13 +483,13 @@ int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
   command_length = 0;
 
   // row based commands should not be called with auto commit.
-  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT)
+  if (trans_flags & XPAND_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
-  if ((error_code = begin_command(CLUSTRIX_KEY_READ)))
+  if ((error_code = begin_command(XPAND_KEY_READ)))
     return error_code;
 
-  if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
+  if ((error_code = add_command_operand_ulonglong(xpand_table_oid)))
     return error_code;
 
   if ((error_code = add_command_operand_uint(index)))
@@ -507,27 +507,27 @@ int clustrix_connection::key_read(ulonglong clustrix_table_oid, uint index,
   if ((error_code = send_command()))
     return error_code;
 
-  ulong packet_length = cli_safe_read(&clustrix_net);
+  ulong packet_length = cli_safe_read(&xpand_net);
   if (packet_length == packet_error)
-    return mysql_errno(&clustrix_net);
+    return mysql_errno(&xpand_net);
 
-  uchar *data = clustrix_net.net.read_pos;
+  uchar *data = xpand_net.net.read_pos;
   *rowdata_length = safe_net_field_length_ll(&data, packet_length);
   *rowdata = (uchar *)my_malloc(*rowdata_length, MYF(MY_WME));
   memcpy(*rowdata, data, *rowdata_length);
 
-  packet_length = cli_safe_read(&clustrix_net);
+  packet_length = cli_safe_read(&xpand_net);
   if (packet_length == packet_error) {
     my_free(*rowdata);
     *rowdata = NULL;
     *rowdata_length = 0;
-    return mysql_errno(&clustrix_net);
+    return mysql_errno(&xpand_net);
   }
 
   return 0;
 }
 
-class clustrix_connection_cursor {
+class xpand_connection_cursor {
   struct rowdata {
     ulong length;
     uchar *data;
@@ -537,7 +537,7 @@ class clustrix_connection_cursor {
   ulong last_row;
   struct rowdata *rows;
   uchar *outstanding_row; // to be freed on next request.
-  MYSQL *clustrix_net;
+  MYSQL *xpand_net;
 
 public:
   ulong buffer_size;
@@ -547,7 +547,7 @@ public:
 private:
   int cache_row(uchar *rowdata, ulong rowdata_length)
   {
-    DBUG_ENTER("clustrix_connection_cursor::cache_row");
+    DBUG_ENTER("xpand_connection_cursor::cache_row");
     rows[last_row].length = rowdata_length;
     rows[last_row].data = (uchar *)my_malloc(rowdata_length, MYF(MY_WME));
     if (!rows[last_row].data)
@@ -559,11 +559,11 @@ private:
 
   int load_rows_impl(bool *stmt_completed)
   {
-    DBUG_ENTER("clustrix_connection_cursor::load_rows_impl");
+    DBUG_ENTER("xpand_connection_cursor::load_rows_impl");
     int error_code = 0;
-    ulong packet_length = cli_safe_read(clustrix_net);
+    ulong packet_length = cli_safe_read(xpand_net);
     if (packet_length == packet_error) {
-      error_code = mysql_errno(clustrix_net);
+      error_code = mysql_errno(xpand_net);
       *stmt_completed = TRUE;
       if (error_code == HA_ERR_END_OF_FILE) {
         // We have read all rows for query.
@@ -573,7 +573,7 @@ private:
       DBUG_RETURN(error_code);
     }
 
-    uchar *rowdata = clustrix_net->net.read_pos;
+    uchar *rowdata = xpand_net->net.read_pos;
     ulong rowdata_length = safe_net_field_length_ll(&rowdata, packet_length);
     if (!rowdata_length) {
       // We have read all rows in this batch.
@@ -587,10 +587,10 @@ private:
   }
 
 public:
-  clustrix_connection_cursor(MYSQL *clustrix_net_, ulong bufsize)
+  xpand_connection_cursor(MYSQL *xpand_net_, ulong bufsize)
   {
-    DBUG_ENTER("clustrix_connection_cursor::clustrix_connection_cursor");
-    clustrix_net = clustrix_net_;
+    DBUG_ENTER("xpand_connection_cursor::xpand_connection_cursor");
+    xpand_net = xpand_net_;
     eof_reached = FALSE;
     current_row = 0;
     last_row = 0;
@@ -600,9 +600,9 @@ public:
     DBUG_VOID_RETURN;
   }
 
-  ~clustrix_connection_cursor()
+  ~xpand_connection_cursor()
   {
-    DBUG_ENTER("clustrix_connection_cursor::~clustrix_connection_cursor");
+    DBUG_ENTER("xpand_connection_cursor::~xpand_connection_cursor");
     if (outstanding_row)
       my_free(outstanding_row);
     if (rows) {
@@ -615,7 +615,7 @@ public:
 
   int load_rows(bool *stmt_completed)
   {
-    DBUG_ENTER("clustrix_connection_cursor::load_rows");
+    DBUG_ENTER("xpand_connection_cursor::load_rows");
     current_row = 0;
     last_row = 0;
     DBUG_RETURN(load_rows_impl(stmt_completed));
@@ -623,14 +623,14 @@ public:
 
   int initialize(bool *stmt_completed)
   {
-    DBUG_ENTER("clustrix_connection_cursor::initialize");
-    ulong packet_length = cli_safe_read(clustrix_net);
+    DBUG_ENTER("xpand_connection_cursor::initialize");
+    ulong packet_length = cli_safe_read(xpand_net);
     if (packet_length == packet_error) {
       *stmt_completed = TRUE;
-      DBUG_RETURN(mysql_errno(clustrix_net));
+      DBUG_RETURN(mysql_errno(xpand_net));
     }
 
-    unsigned char *pos = clustrix_net->net.read_pos;
+    unsigned char *pos = xpand_net->net.read_pos;
     scan_refid = safe_net_field_length_ll(&pos, packet_length);
 
     rows = (struct rowdata *)my_malloc(buffer_size * sizeof(struct rowdata),
@@ -643,7 +643,7 @@ public:
 
   uchar *retrieve_row(ulong *rowdata_length)
   {
-    DBUG_ENTER("clustrix_connection_cursor::retrieve_row");
+    DBUG_ENTER("xpand_connection_cursor::retrieve_row");
     if (outstanding_row) {
       my_free(outstanding_row);
       outstanding_row = NULL;
@@ -657,11 +657,11 @@ public:
   }
 };
 
-int clustrix_connection::allocate_cursor(MYSQL *clustrix_net, ulong buffer_size,
-                                         clustrix_connection_cursor **scan)
+int xpand_connection::allocate_cursor(MYSQL *xpand_net, ulong buffer_size,
+                                         xpand_connection_cursor **scan)
 {
-  DBUG_ENTER("clustrix_connection::allocate_cursor");
-  *scan = new clustrix_connection_cursor(clustrix_net, buffer_size);
+  DBUG_ENTER("xpand_connection::allocate_cursor");
+  *scan = new xpand_connection_cursor(xpand_net, buffer_size);
   if (!*scan)
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
@@ -678,25 +678,25 @@ int clustrix_connection::allocate_cursor(MYSQL *clustrix_net, ulong buffer_size,
   DBUG_RETURN(error_code);
 }
 
-int clustrix_connection::scan_table(ulonglong clustrix_table_oid,
-                                    clustrix_lock_mode_t lock_mode,
+int xpand_connection::scan_table(ulonglong xpand_table_oid,
+                                    xpand_lock_mode_t lock_mode,
                                     MY_BITMAP *read_set, ushort row_req,
-                                    clustrix_connection_cursor **scan)
+                                    xpand_connection_cursor **scan)
 {
   int error_code;
   command_length = 0;
 
   // row based commands should not be called with auto commit.
-  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT)
+  if (trans_flags & XPAND_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
-  if ((error_code = begin_command(CLUSTRIX_SCAN_TABLE)))
+  if ((error_code = begin_command(XPAND_SCAN_TABLE)))
     return error_code;
 
   if ((error_code = add_command_operand_ushort(row_req)))
     return error_code;
 
-  if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
+  if ((error_code = add_command_operand_ulonglong(xpand_table_oid)))
     return error_code;
 
   if ((error_code = add_command_operand_uchar((uchar)lock_mode)))
@@ -708,7 +708,7 @@ int clustrix_connection::scan_table(ulonglong clustrix_table_oid,
   if ((error_code = send_command()))
     return error_code;
 
-  return allocate_cursor(&clustrix_net, row_req, scan);
+  return allocate_cursor(&xpand_net, row_req, scan);
 }
 
 /**
@@ -728,17 +728,17 @@ int clustrix_connection::scan_table(ulonglong clustrix_table_oid,
  *   scan_refid id used to reference this scan later
  *   Used in pushdowns to initiate query scan.
  **/
-int clustrix_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
+int xpand_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
                                     uchar *null_bits, uint null_bits_size,
                                     uchar *field_metadata,
                                     uint field_metadata_size,
                                     ushort row_req,
-                                    clustrix_connection_cursor **scan)
+                                    xpand_connection_cursor **scan)
 {
   int error_code;
   command_length = 0;
 
-  if ((error_code = begin_command(CLUSTRIX_SCAN_QUERY)))
+  if ((error_code = begin_command(XPAND_SCAN_QUERY)))
     return error_code;
 
   if ((error_code = add_command_operand_ushort(row_req)))
@@ -760,7 +760,7 @@ int clustrix_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
   if ((error_code = send_command()))
     return error_code;
 
-  return allocate_cursor(&clustrix_net, row_req, scan);
+  return allocate_cursor(&xpand_net, row_req, scan);
 }
 
 /**
@@ -774,13 +774,13 @@ int clustrix_connection::scan_query(String &stmt, uchar *fieldtype, uint fields,
  *   dbname current working database
  *   dbname &current database name
  **/
-int clustrix_connection::update_query(String &stmt, LEX_CSTRING &dbname,
+int xpand_connection::update_query(String &stmt, LEX_CSTRING &dbname,
                                       ulonglong *affected_rows)
 {
   int error_code;
   command_length = 0;
 
-  if ((error_code = begin_command(CLUSTRIX_UPDATE_QUERY)))
+  if ((error_code = begin_command(XPAND_UPDATE_QUERY)))
     return error_code;
 
   if ((error_code = add_command_operand_str((uchar*)dbname.str, dbname.length)))
@@ -794,33 +794,33 @@ int clustrix_connection::update_query(String &stmt, LEX_CSTRING &dbname,
 
   error_code = read_query_response();
   if (!error_code)
-    *affected_rows = clustrix_net.affected_rows;
+    *affected_rows = xpand_net.affected_rows;
 
   return error_code;
 }
 
-int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
-                                       clustrix_lock_mode_t lock_mode,
+int xpand_connection::scan_from_key(ulonglong xpand_table_oid, uint index,
+                                       xpand_lock_mode_t lock_mode,
                                        enum scan_type scan_dir,
                                        int no_key_cols, bool sorted_scan,
                                        MY_BITMAP *read_set, uchar *packed_key,
                                        ulong packed_key_length, ushort row_req,
-                                       clustrix_connection_cursor **scan)
+                                       xpand_connection_cursor **scan)
 {
   int error_code;
   command_length = 0;
 
   // row based commands should not be called with auto commit.
-  if (trans_flags & CLUSTRIX_TRANS_AUTOCOMMIT)
+  if (trans_flags & XPAND_TRANS_AUTOCOMMIT)
     return HA_ERR_INTERNAL_ERROR;
 
-  if ((error_code = begin_command(CLUSTRIX_SCAN_FROM_KEY)))
+  if ((error_code = begin_command(XPAND_SCAN_FROM_KEY)))
     return error_code;
 
   if ((error_code = add_command_operand_ushort(row_req)))
     return error_code;
 
-  if ((error_code = add_command_operand_ulonglong(clustrix_table_oid)))
+  if ((error_code = add_command_operand_ulonglong(xpand_table_oid)))
     return error_code;
 
   if ((error_code = add_command_operand_uint(index)))
@@ -847,10 +847,10 @@ int clustrix_connection::scan_from_key(ulonglong clustrix_table_oid, uint index,
   if ((error_code = send_command()))
     return error_code;
 
-  return allocate_cursor(&clustrix_net, row_req, scan);
+  return allocate_cursor(&xpand_net, row_req, scan);
 }
 
-int clustrix_connection::scan_next(clustrix_connection_cursor *scan,
+int xpand_connection::scan_next(xpand_connection_cursor *scan,
                                    uchar **rowdata, ulong *rowdata_length)
 {
   *rowdata = scan->retrieve_row(rowdata_length);
@@ -863,7 +863,7 @@ int clustrix_connection::scan_next(clustrix_connection_cursor *scan,
   int error_code;
   command_length = 0;
 
-  if ((error_code = begin_command(CLUSTRIX_SCAN_NEXT)))
+  if ((error_code = begin_command(XPAND_SCAN_NEXT)))
     return error_code;
 
   if ((error_code = add_command_operand_ushort(scan->buffer_size)))
@@ -889,7 +889,7 @@ int clustrix_connection::scan_next(clustrix_connection_cursor *scan,
   return 0;
 }
 
-int clustrix_connection::scan_end(clustrix_connection_cursor *scan)
+int xpand_connection::scan_end(xpand_connection_cursor *scan)
 {
   int error_code;
   command_length = 0;
@@ -900,7 +900,7 @@ int clustrix_connection::scan_end(clustrix_connection_cursor *scan)
   if (eof_reached)
       return 0;
 
-  if ((error_code = begin_command(CLUSTRIX_SCAN_STOP)))
+  if ((error_code = begin_command(XPAND_SCAN_STOP)))
     return error_code;
 
   if ((error_code = add_command_operand_lcb(scan_refid)))
@@ -912,7 +912,7 @@ int clustrix_connection::scan_end(clustrix_connection_cursor *scan)
   return read_query_response();
 }
 
-int clustrix_connection::populate_table_list(LEX_CSTRING *db,
+int xpand_connection::populate_table_list(LEX_CSTRING *db,
                                              handlerton::discovered_list *result)
 {
   int error_code = 0;
@@ -921,15 +921,15 @@ int clustrix_connection::populate_table_list(LEX_CSTRING *db,
   stmt.append(db);
   stmt.append(" WHERE table_type = 'BASE TABLE'");
 
-  if (mysql_real_query(&clustrix_net, stmt.c_ptr(), stmt.length())) {
-    int error_code = mysql_errno(&clustrix_net);
+  if (mysql_real_query(&xpand_net, stmt.c_ptr(), stmt.length())) {
+    int error_code = mysql_errno(&xpand_net);
     if (error_code == ER_BAD_DB_ERROR)
       return 0;
     else
       return error_code;
   }
 
-  MYSQL_RES *results = mysql_store_result(&clustrix_net);
+  MYSQL_RES *results = mysql_store_result(&xpand_net);
   if (mysql_num_fields(results) != 2) {
     error_code = HA_ERR_CORRUPT_EVENT;
     goto error;
@@ -944,11 +944,11 @@ error:
   return error_code;
 }
 
-int clustrix_connection::discover_table_details(LEX_CSTRING *db,
+int xpand_connection::discover_table_details(LEX_CSTRING *db,
                                                 LEX_CSTRING *name, THD *thd,
                                                 TABLE_SHARE *share)
 {
-  DBUG_ENTER("clustrix_connection::discover_table_details");
+  DBUG_ENTER("xpand_connection::discover_table_details");
   int error_code = 0;
   MYSQL_RES *results_oid = NULL;
   MYSQL_RES *results_create = NULL;
@@ -965,15 +965,15 @@ int clustrix_connection::discover_table_details(LEX_CSTRING *db,
   get_oid.append(name);
   get_oid.append("'");
 
-  if (mysql_real_query(&clustrix_net, get_oid.c_ptr(), get_oid.length())) {
-    if ((error_code = mysql_errno(&clustrix_net))) {
+  if (mysql_real_query(&xpand_net, get_oid.c_ptr(), get_oid.length())) {
+    if ((error_code = mysql_errno(&xpand_net))) {
       DBUG_PRINT("mysql_real_query returns ", ("%d", error_code));
       error_code = HA_ERR_NO_SUCH_TABLE;
       goto error;
     }
   }
 
-  results_oid = mysql_store_result(&clustrix_net);
+  results_oid = mysql_store_result(&xpand_net);
   DBUG_PRINT("oid results",
              ("rows: %llu, fields: %u", mysql_num_rows(results_oid),
               mysql_num_fields(results_oid)));
@@ -1001,15 +1001,15 @@ int clustrix_connection::discover_table_details(LEX_CSTRING *db,
   show.append(db);
   show.append(".");
   show.append(name);
-  if (mysql_real_query(&clustrix_net, show.c_ptr(), show.length())) {
-    if ((error_code = mysql_errno(&clustrix_net))) {
+  if (mysql_real_query(&xpand_net, show.c_ptr(), show.length())) {
+    if ((error_code = mysql_errno(&xpand_net))) {
       DBUG_PRINT("mysql_real_query returns ", ("%d", error_code));
       error_code = HA_ERR_NO_SUCH_TABLE;
       goto error;
     }
   }
 
-  results_create = mysql_store_result(&clustrix_net);
+  results_create = mysql_store_result(&xpand_net);
   DBUG_PRINT("show table results",
              ("rows: %llu, fields: %u", mysql_num_rows(results_create),
               mysql_num_fields(results_create)));
@@ -1041,7 +1041,7 @@ error:
 
 #define COMMAND_BUFFER_SIZE_INCREMENT 1024
 #define COMMAND_BUFFER_SIZE_INCREMENT_BITS 10
-int clustrix_connection::expand_command_buffer(size_t add_length)
+int xpand_connection::expand_command_buffer(size_t add_length)
 {
   size_t expanded_length;
 
@@ -1066,7 +1066,7 @@ int clustrix_connection::expand_command_buffer(size_t add_length)
   return 0;
 }
 
-int clustrix_connection::add_command_operand_uchar(uchar value)
+int xpand_connection::add_command_operand_uchar(uchar value)
 {
   int error_code = expand_command_buffer(sizeof(value));
   if (error_code)
@@ -1078,7 +1078,7 @@ int clustrix_connection::add_command_operand_uchar(uchar value)
   return 0;
 }
 
-int clustrix_connection::add_command_operand_ushort(ushort value)
+int xpand_connection::add_command_operand_ushort(ushort value)
 {
   ushort be_value = htobe16(value);
   int error_code = expand_command_buffer(sizeof(be_value));
@@ -1090,7 +1090,7 @@ int clustrix_connection::add_command_operand_ushort(ushort value)
   return 0;
 }
 
-int clustrix_connection::add_command_operand_uint(uint value)
+int xpand_connection::add_command_operand_uint(uint value)
 {
   uint be_value = htobe32(value);
   int error_code = expand_command_buffer(sizeof(be_value));
@@ -1102,7 +1102,7 @@ int clustrix_connection::add_command_operand_uint(uint value)
   return 0;
 }
 
-int clustrix_connection::add_command_operand_ulonglong(ulonglong value)
+int xpand_connection::add_command_operand_ulonglong(ulonglong value)
 {
   ulonglong be_value = htobe64(value);
   int error_code = expand_command_buffer(sizeof(be_value));
@@ -1114,7 +1114,7 @@ int clustrix_connection::add_command_operand_ulonglong(ulonglong value)
   return 0;
 }
 
-int clustrix_connection::add_command_operand_lcb(ulonglong value)
+int xpand_connection::add_command_operand_lcb(ulonglong value)
 {
   int len = net_length_size(value);
   int error_code = expand_command_buffer(len);
@@ -1126,7 +1126,7 @@ int clustrix_connection::add_command_operand_lcb(ulonglong value)
   return 0;
 }
 
-int clustrix_connection::add_command_operand_str(const uchar *str,
+int xpand_connection::add_command_operand_str(const uchar *str,
                                                  size_t str_length)
 {
   int error_code = add_command_operand_lcb(str_length);
@@ -1156,7 +1156,7 @@ int clustrix_connection::add_command_operand_str(const uchar *str,
  *   str - string to send
  *   str_length - size
  **/
-int clustrix_connection::add_command_operand_vlstr(const uchar *str,
+int xpand_connection::add_command_operand_vlstr(const uchar *str,
                                                    size_t str_length)
 {
   int error_code = expand_command_buffer(str_length);
@@ -1168,12 +1168,12 @@ int clustrix_connection::add_command_operand_vlstr(const uchar *str,
   return 0;
 }
 
-int clustrix_connection::add_command_operand_lex_string(LEX_CSTRING str)
+int xpand_connection::add_command_operand_lex_string(LEX_CSTRING str)
 {
   return add_command_operand_str((const uchar *)str.str, str.length);
 }
 
-int clustrix_connection::add_command_operand_bitmap(MY_BITMAP *bitmap)
+int xpand_connection::add_command_operand_bitmap(MY_BITMAP *bitmap)
 {
   int error_code = add_command_operand_lcb(bitmap->n_bits);
   if (error_code)
