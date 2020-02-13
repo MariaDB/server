@@ -48,38 +48,40 @@ INSERT INTO t1 VALUES (33);
 connection node_4;
 INSERT INTO t1 VALUES (341);
 connection node_1;
-SELECT COUNT(*) = 19 FROM t1;
-COUNT(*) = 19
-1
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
+EXPECT_19
+19
 connection node_2;
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 VARIABLE_VALUE = 4
 1
-SELECT COUNT(*) = 19 FROM t1;
-COUNT(*) = 19
-1
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
+EXPECT_19
+19
 connection node_3;
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 VARIABLE_VALUE = 4
 1
-SELECT COUNT(*) = 19 FROM t1;
-COUNT(*) = 19
-1
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
+EXPECT_19
+19
 connection node_4;
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 VARIABLE_VALUE = 4
 1
-SELECT COUNT(*) = 19 FROM t1;
-COUNT(*) = 19
-1
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
+EXPECT_19
+19
 connection node_1;
 DROP TABLE t1;
 CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
 CALL mtr.add_suppression("WSREP: gcs_caused\\(\\) returned -1 \\(Operation not permitted\\)");
 connection node_2;
+CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
 CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
 connection node_3;
 CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
 CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
 connection node_4;
+CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
 CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
