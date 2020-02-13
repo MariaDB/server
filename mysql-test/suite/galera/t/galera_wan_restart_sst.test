@@ -37,10 +37,8 @@ INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (13);
 
 --source include/kill_galera.inc
---sleep 5
 
 --connection node_1
---source include/wait_until_connected_again.inc
 INSERT INTO t1 VALUES (11);
 
 --connection node_2
@@ -51,8 +49,6 @@ INSERT INTO t1 VALUES (14);
 
 --connection node_3
 --source include/start_mysqld.inc
---sleep 5
---source include/wait_until_connected_again.inc
 
 INSERT INTO t1 VALUES (131);
 
@@ -64,10 +60,8 @@ INSERT INTO t1 VALUES (131);
 INSERT INTO t1 VALUES (22);
 
 --source include/kill_galera.inc
---sleep 5
 
 --connection node_1
---source include/wait_until_connected_again.inc
 INSERT INTO t1 VALUES (21);
 
 --connection node_3
@@ -78,8 +72,6 @@ INSERT INTO t1 VALUES (24);
 
 --connection node_2
 --source include/start_mysqld.inc
---sleep 5
---source include/wait_until_connected_again.inc
 
 INSERT INTO t1 VALUES (221);
 
@@ -91,10 +83,8 @@ INSERT INTO t1 VALUES (221);
 INSERT INTO t1 VALUES (34);
 
 --source include/kill_galera.inc
---sleep 5
 
 --connection node_1
---source include/wait_until_connected_again.inc
 INSERT INTO t1 VALUES (31);
 
 --connection node_2
@@ -105,8 +95,6 @@ INSERT INTO t1 VALUES (33);
 
 --connection node_4
 --source include/start_mysqld.inc
---sleep 5
---source include/wait_until_connected_again.inc
 
 INSERT INTO t1 VALUES (341);
 
@@ -119,19 +107,19 @@ INSERT INTO t1 VALUES (341);
 --let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
 
-SELECT COUNT(*) = 19 FROM t1;
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
 
 --connection node_2
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-SELECT COUNT(*) = 19 FROM t1;
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
 
 --connection node_3
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-SELECT COUNT(*) = 19 FROM t1;
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
 
 --connection node_4
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-SELECT COUNT(*) = 19 FROM t1;
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
 
 --connection node_1
 DROP TABLE t1;
@@ -139,6 +127,7 @@ CALL mtr.add_suppression("There are no nodes in the same segment that will ever 
 CALL mtr.add_suppression("WSREP: gcs_caused\\(\\) returned -1 \\(Operation not permitted\\)");
 
 --connection node_2
+CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
 CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
 
 --connection node_3
@@ -146,4 +135,5 @@ CALL mtr.add_suppression("There are no nodes in the same segment that will ever 
 CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
 
 --connection node_4
+CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
 CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
