@@ -30,7 +30,6 @@ galera_sst_mariabackup_encrypt_with_key : MDEV-21484 galera_sst_mariabackup_encr
 galera_sst_mariabackup_table_options: MDEV-19741 Galera test failure on galera.galera_sst_mariabackup_table_options	 
 galera_var_innodb_disallow_writes : MDEV-20928 galera.galera_var_innodb_disallow_writes
 galera_var_node_address : MDEV-20485 Galera test failure
-galera_var_notify_cmd : MDEV-21488 galera.galera_var_notify_cmd
 galera_wan : MDEV-17259 Test failure on galera.galera_wan
 mysql-wsrep#33 : MDEV-21420 galera.mysql-wsrep#33
 partition : MDEV-19958 Galera test failure on galera.partition
