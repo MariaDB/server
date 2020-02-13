@@ -1,4 +1,7 @@
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+SELECT @@WSREP_ON;
+@@WSREP_ON
+0
 connection node_2;
 ALTER TABLE mysql.gtid_slave_pos engine = InnoDB;
 START SLAVE;

@@ -16,6 +16,7 @@
 # As node #1 is not a Galera node, we connect to node #2 in order to run include/galera_cluster.inc
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --source include/galera_cluster.inc
+SELECT @@WSREP_ON;
 
 --connection node_2
 # make sure gtid_slave_pos is of innodb engine, mtr does not currently provide that
